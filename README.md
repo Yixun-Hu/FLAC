@@ -119,6 +119,7 @@ python train.py \
 --batch-size 32 \
 --accum-batches 2 \
 --num-gpus 2 \
+--strategy ddp_find_unused_parameters_true \
 --num-workers 8 \
 --model-config src/configs/model_configs/FLAC/AR/FLAC_AR.json \
 --pretransform-ckpt-path weights/FLAC/VAE.safetensors \
