@@ -17,6 +17,6 @@
         "strides": [2, 4, 8, 16],
         "latent_dim": 64,
         "use_snake": true,
-        "pretrained": "FLAC/weights/FLAC/VAE.ckpt"
+        "pretrained": "weights/FLAC/VAE.ckpt"
     }
 }

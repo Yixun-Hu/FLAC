@@ -3,8 +3,8 @@
     "datasets": [
         {
             "id": "AcousticRooms",
-            "path": "/path/to/AcousticRooms",
-            "json_file_path": "FLAC/data/AR/unseen_eval.json",
+            "path": "AcousticRooms",
+            "json_file_path": "data/AR/unseen_eval.json",
             "custom_metadata_module": "src/configs/dataset_configs/custom_metadata/AR_md.py",
             "folder_name": "single_channel_ir_1"
         }

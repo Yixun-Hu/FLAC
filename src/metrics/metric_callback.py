@@ -27,13 +27,11 @@ STFT_FFT_SIZE = 124
 STFT_HOP_SIZE = 31
 STFT_WIN_LENGTH = 62
 
-# Path to AGREE codebase
-# TODO: modify to use local AGREE code 
-external_path = os.path.abspath("/home/amandine/workspace/open_clip/src")
-if external_path not in sys.path:
-    sys.path.insert(0, external_path)
-from open_clip.factory import get_model_config
-from open_clip.model import CLIP
+# Use the in-tree AGREE package (a fork of open_clip with audio support) instead of
+# the public `open_clip_torch`, since AGREE model configs use `audio_cfg` rather than
+# `text_cfg`, which the public open_clip's config registry silently filters out.
+from AGREE.AGREE.factory import get_model_config
+from AGREE.AGREE.model import AGREE as CLIP
 
 
 class AcousticMetricsCallback:

@@ -57,7 +57,7 @@
                     "type": "ViTCoordinates",
                     "config": {
                          "ViT":{
-                            "hf_model_name_or_path": "/media/amandine/SSD3TB/Models/dinov3-vits16-pretrain-lvd1689m", 
+                            "hf_model_name_or_path": "facebook/dinov3-vits16-pretrain-lvd1689m", 
                             "ch_dim": 3, 
                             "freeze": false,
                             "from_scratch": false, 
@@ -73,7 +73,7 @@
                     "type": "ViTCoordinates",
                     "config": {
                          "ViT":{
-                            "hf_model_name_or_path": "/media/amandine/SSD3TB/Models/dinov3-vits16-pretrain-lvd1689m", 
+                            "hf_model_name_or_path": "facebook/dinov3-vits16-pretrain-lvd1689m", 
                             "ch_dim": 3, 
                             "freeze": false,
                             "from_scratch": false, 

@@ -3,8 +3,8 @@
     "datasets": [
         {
             "id": "HAA",
-            "path": "/path/to/HAA",
-            "json_file_path": "FLAC/data/HAA/test_base.json",
+            "path": "HAA",
+            "json_file_path": "data/HAA/test_base.json",
             "custom_metadata_module": "src/configs/dataset_configs/custom_metadata/HAA_md.py",
             "folder_name": "mono_rirs_22050Hz"
         }

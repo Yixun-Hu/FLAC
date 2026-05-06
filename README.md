@@ -41,11 +41,11 @@ To quickly generate RIRs and evaluate FLAC using pretrained weights
 python eval_FLAC.py \
 --model-config src/configs/model_configs/FLAC/AR/FLAC_AR.json \
 --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_seeneval.json \
---ckpt-path weights/FLAC_EMA.ckpt \
+--ckpt-path weights/FLAC/FLAC_EMA.ckpt \
 --cfg-scale 1.0 \
 --steps 1 \
 --eval-name eval_FLAC \
---store-predictions True
+--store_predictions
 ```
 
 ## Global Repository Structure
@@ -111,15 +111,17 @@ python unwrap_model.py \
 ### FLAC
 To start a training run on the AcousticRooms dataset, run the `train.py` script in the repo root with:
 ```bash
-python train.py \ 
+python train.py \
 --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json \
 --val-dataset-config src/configs/dataset_configs/AR/eval/acousticroom_seeneval.json \
 --val-every 2500 \
 --checkpoint-every 2500 \
---batch-size 64 \
+--batch-size 32 \
+--accum-batches 2 \
+--num-gpus 2 \
 --num-workers 8 \
 --model-config src/configs/model_configs/FLAC/AR/FLAC_AR.json \
---pretransform-ckpt-path weights/VAE.safetensors \
+--pretransform-ckpt-path weights/FLAC/VAE.safetensors \
 --save-dir ./outputs_FLAC \
 --experiment-name FLAC_training \
 --name FLAC

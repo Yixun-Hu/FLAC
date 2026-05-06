@@ -370,10 +370,7 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                         vit_model = AutoModel.from_config(AutoConfig.from_pretrained(model_name_or_path))
                     else:
                         print(f"Loading ViT model from {model_name_or_path}...")
-                        vit_model = AutoModel.from_pretrained(
-                            model_name_or_path, 
-                            device_map="auto", 
-                        )
+                        vit_model = AutoModel.from_pretrained(model_name_or_path)
 
                     if vit_config.get('freeze', False):
                         print('Freezing ViT model parameters...')

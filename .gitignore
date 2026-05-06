@@ -169,3 +169,7 @@ figures/*
 lightning_logs/*
 build/*
 *.egg-info/
+
+AcousticRooms/
+HAA/
+weights/
