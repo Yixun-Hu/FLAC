@@ -173,3 +173,5 @@ build/*
 AcousticRooms/
 HAA/
 weights/
+outputs_FLAC/
+CLAUDE.md

@@ -127,6 +127,7 @@
         "io_channels": 32
     },
     "training": {
+        "flow_source": "gaussian",
         "timestep_sampler": "log_snr",
         "mask_padding": true, 
         "mask_padding_dropout": 0.0,

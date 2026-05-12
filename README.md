@@ -48,6 +48,16 @@ python eval_FLAC.py \
 --store_predictions
 ```
 
+```bash
+python eval_FLAC.py \
+  --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_nearestRef.json \
+  --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_seeneval_8.json \
+  --ckpt-path outputs_FLAC/FLAC_nearestRef/FLAC_nearestRef_training/checkpoints/epoch=8-step=20000.ckpt \
+  --cfg-scale 1.0 \
+  --steps 1 \
+  --eval-name eval_FLAC_nearestRef_seen_K8
+```
+
 ## Global Repository Structure
 ```
 .
@@ -126,6 +136,24 @@ python train.py \
 --save-dir ./outputs_FLAC \
 --experiment-name FLAC_training \
 --name FLAC
+```
+
+```bash
+python train.py \
+--dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json \
+--val-dataset-config src/configs/dataset_configs/AR/eval/acousticroom_seeneval.json \
+--val-every 2500 \
+--checkpoint-every 2500 \
+--batch-size 32 \
+--accum-batches 2 \
+--num-gpus 2 \
+--strategy ddp_find_unused_parameters_true \
+--num-workers 8 \
+--model-config src/configs/model_configs/FLAC/AR/FLAC_AR_nearestRef.json \
+--pretransform-ckpt-path weights/FLAC/VAE.safetensors \
+--save-dir ./outputs_FLAC \
+--experiment-name FLAC_nearestRef_training \
+--name FLAC_nearestRef
 ```
 
 ### VAE

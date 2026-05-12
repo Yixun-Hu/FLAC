@@ -8,6 +8,7 @@ import pytorch_lightning as pl
 from src.data.dataset import create_dataloader_from_config
 from src.models import create_model_from_config
 from src.training import create_training_wrapper_from_config, create_metric_callback_from_config
+from src.training.diffusion import _pick_nearest_reference
 
 
 def evaluate_model(
@@ -100,11 +101,38 @@ def evaluate_model(
             reals, metadata = batch
             reals = reals.to(device)
 
+            # Build the rectified-flow integration starting point. Same
+            # exhaustive dispatch as in test_step / training_step. The
+            # inference path uses drop=False so cross-attention sees the full
+            # set of K references the user provided (supports K=1..N including
+            # K=1 deployment, where dropping would leave cross-attn empty).
+            # `module.flow_source` was set inside DiffusionCondTrainingWrapper
+            # at construction time from the checkpoint-embedded model_config,
+            # so it matches whatever the trained model expects (see plan §5.3).
+            if module.flow_source == "gaussian":
+                noise = torch.randn(
+                    [reals.shape[0], module.diffusion.io_channels, samples]
+                ).to(module.device)
+            elif module.flow_source == "nearest_ref":
+                ref_audio, metadata = _pick_nearest_reference(metadata, module.device, drop=False)
+                T_target = model_config["sample_size"]   # waveform length
+                if ref_audio.shape[-1] < T_target:
+                    ref_audio = torch.nn.functional.pad(ref_audio, (0, T_target - ref_audio.shape[-1]))
+                elif ref_audio.shape[-1] > T_target:
+                    ref_audio = ref_audio[..., :T_target]
+                with torch.amp.autocast(device), torch.no_grad():
+                    noise = module.diffusion.pretransform.encode(ref_audio)
+                assert noise.shape[-1] == samples, (
+                    f"z_ref latent length {noise.shape[-1]} != expected {samples} "
+                    f"(sample_size={model_config['sample_size']}, "
+                    f"downsampling_ratio={module.diffusion.pretransform.downsampling_ratio})"
+                )
+            else:
+                raise ValueError(f"Unknown flow_source: {module.flow_source!r}")
+
             with torch.amp.autocast(device):
                 conditioning = module.diffusion.conditioner(metadata, module.device)
             cond_inputs = module.diffusion.get_conditioning_inputs(conditioning) 
-
-            noise = torch.randn([reals.shape[0], module.diffusion.io_channels, samples]).to(module.device)
 
             if hasattr(model, "diffusion_objective"):
                 objective = model.diffusion_objective

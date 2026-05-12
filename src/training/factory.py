@@ -56,10 +56,18 @@ def create_training_wrapper_from_config(model_config, model):
         )
     
     elif model_type == 'diffusion_cond':
-       
+
         from .diffusion import DiffusionCondTrainingWrapper
+
+        # `flow_source` is intentionally read with direct key access (no
+        # `.get` default): every model_config under model_configs/FLAC/**
+        # must declare it explicitly, so a missing field crashes here with a
+        # clear KeyError instead of silently falling back to a baseline mode.
+        flow_source = training_config["flow_source"]
+
         return DiffusionCondTrainingWrapper(
-            model, 
+            model,
+            flow_source=flow_source,
             lr=training_config.get("learning_rate", None),
             mask_padding=training_config.get("mask_padding", False),
             mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),

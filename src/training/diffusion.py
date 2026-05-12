@@ -36,6 +36,101 @@ class Profiler:
         rep += 80 * "=" + "\n\n\n"
         return rep
 
+
+def _pick_nearest_reference(
+    metadata: tp.Sequence[dict],
+    device: tp.Union[torch.device, str],
+    drop: bool,
+) -> tp.Tuple[torch.Tensor, tp.Sequence[dict]]:
+    """
+    Per-sample: pick the reference whose source is closest to the query source.
+
+    For each sample in the batch, find the index ``k_star`` such that
+    ``||context_poses[k_star] - source||_2`` is minimized, then return that
+    reference's RIR waveform. When ``drop`` is True, also remove the picked
+    entry from ``context_audio`` / ``context_poses`` / ``context_poses_vit``
+    of that sample's metadata dict (this is the training / validation path,
+    where we want cross-attention to *not* re-see the reference that is
+    already being used as the flow's starting point). When ``drop`` is False,
+    leave the metadata untouched (this is the test / eval path, so that
+    cross-attention sees the full set of K references the user provided,
+    enabling generalization to small K such as K=1).
+
+    Parameters
+    ----------
+    metadata : tp.Sequence[dict]
+        Per-sample info dicts produced by ``SampleDataset.__getitem__`` plus
+        ``AR_md.get_custom_metadata``, then passed through ``collation_fn``
+        (which leaves dict-typed entries untouched). Length equals batch
+        size B. Each dict in the sequence must contain at least:
+
+          - 'source'            : torch.Tensor [3]      query source position
+          - 'context_poses'     : torch.Tensor [N, 3]   N reference source positions
+          - 'context_poses_vit' : torch.Tensor [N, 3]
+          - 'context_audio'     : torch.Tensor [N, 1, T_ctx]
+
+        If ``drop`` is True, ``N`` must be >= 2 (so cross-attention has at
+        least one reference left after dropping). If ``drop`` is False,
+        ``N`` must be >= 1 (need at least one reference to pick from).
+    device : torch.device | str
+        Device to move the picked reference waveforms onto.
+    drop : bool
+        If True, mutate ``metadata`` in place: remove the picked entry from
+        each sample's ``context_audio`` / ``context_poses`` /
+        ``context_poses_vit``, leaving N-1 entries.
+        If False, leave ``metadata`` unchanged.
+
+    Returns
+    -------
+    ref_audio : torch.Tensor
+        Shape ``[B, 1, T_ctx]``. Stacked nearest-reference waveforms,
+        already moved to ``device``.
+    metadata : tp.Sequence[dict]
+        The same object as the input. Mutated in place when ``drop=True``,
+        unchanged when ``drop=False``. Returned for explicit reassignment so
+        call sites read symmetrically across the two modes.
+
+    Raises
+    ------
+    AssertionError
+        If any sample has fewer references than required by ``drop``, or if
+        ``context_poses`` has an unexpected shape.
+    KeyError
+        If any of the required keys is missing from a sample's metadata
+        dict (we deliberately do not use ``.get`` with defaults here, so
+        upstream contract violations fail loudly).
+
+    Examples
+    --------
+    >>> # Training path: drop the chosen reference from cross-attn context.
+    >>> ref_audio, metadata = _pick_nearest_reference(metadata, device, drop=True)
+    >>> # Inference path: keep the full context for cross-attn.
+    >>> ref_audio, metadata = _pick_nearest_reference(metadata, device, drop=False)
+    """
+    ref_audio_list: tp.List[torch.Tensor] = []
+    n_min = 2 if drop else 1
+    for md in metadata:
+        s_q = md['source'].to(device).float()                  # [3]
+        s_k = md['context_poses'].to(device).float()           # [N, 3]
+        assert s_k.dim() == 2 and s_k.shape[-1] == 3, (
+            f"context_poses must be [N, 3], got {tuple(s_k.shape)}"
+        )
+        assert s_k.shape[0] >= n_min, (
+            f"need >={n_min} context references, got N={s_k.shape[0]} (drop={drop})"
+        )
+
+        d = (s_k - s_q.unsqueeze(0)).norm(dim=-1)              # [N]
+        k_star = int(d.argmin().item())
+
+        ref_audio_list.append(md['context_audio'][k_star])     # [1, T_ctx]
+        if drop:
+            keep = [i for i in range(s_k.shape[0]) if i != k_star]
+            md['context_audio']     = md['context_audio'][keep]
+            md['context_poses']     = md['context_poses'][keep]
+            md['context_poses_vit'] = md['context_poses_vit'][keep]
+    return torch.stack(ref_audio_list, dim=0).to(device), metadata
+
+
 class DiffusionCondTrainingWrapper(pl.LightningModule):
     '''
     Wrapper for training a conditional audio diffusion model.
@@ -43,6 +138,7 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
     def __init__(
             self,
             model: ConditionedDiffusionModelWrapper,
+            flow_source: str,
             lr: float = None,
             mask_padding: bool = False,
             mask_padding_dropout: float = 0.0,
@@ -126,6 +222,14 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
 
         self.pre_encoded = pre_encoded
 
+        # Flow-matching starting distribution selector. Validated at the
+        # dispatch sites in training_step / validation_step / test_step (and
+        # in eval_FLAC.py) via exhaustive if/elif/else: raise. Keeping the
+        # raw value here without a whitelist keeps the dispatch sites the
+        # single source of truth, so adding a new mode means updating exactly
+        # those sites and not also a stale whitelist here.
+        self.flow_source = flow_source
+
         # Validation
         self.validation_timesteps = validation_timesteps
         self.validation_step_outputs = {}
@@ -202,6 +306,17 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             loss_info["audio_reals"] = diffusion_input
 
         p.tick("setup")
+
+        # When flow_source == "nearest_ref", pick the reference RIR whose
+        # source is closest to the query source (one per sample), AND drop
+        # that reference from each sample's cross-attention context (drop=True
+        # for the training path; see _pick_nearest_reference docstring and
+        # plan §3.3.1 for why we drop on training but not on inference).
+        # ref_audio is the picked waveform, used below to build z_ref.
+        ref_audio: tp.Optional[torch.Tensor] = None
+        if self.flow_source == "nearest_ref":
+            ref_audio, metadata = _pick_nearest_reference(metadata, self.device, drop=True)
+
         conditioning = self.diffusion.conditioner(metadata, self.device)
 
         # If mask_padding is on, randomly drop the padding masks to allow for learning silence padding
@@ -230,6 +345,27 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
                 # Apply scale to pre-encoded latents if needed, as the pretransform encode function will not be run
                 if hasattr(self.diffusion.pretransform, "scale") and self.diffusion.pretransform.scale != 1.0:
                     diffusion_input = diffusion_input / self.diffusion.pretransform.scale
+
+        # Encode the picked reference RIR through the same VAE pretransform
+        # to obtain z_ref, the starting point of the rectified-flow trajectory
+        # (used in place of Gaussian noise). pretransform.encode applies the
+        # same /scale normalization as the diffusion_input path, so z_ref and
+        # diffusion_input live on the same scale by construction. We wrap with
+        # no_grad so this branch does not produce extra gradients through the
+        # encoder (mirrors how torch.randn never backprops in the gaussian path).
+        if self.flow_source == "nearest_ref":
+            assert ref_audio is not None, "ref_audio must be set when flow_source=nearest_ref"
+            T_target = reals.shape[-1]   # waveform length = sample_size
+            if ref_audio.shape[-1] < T_target:
+                ref_audio = F.pad(ref_audio, (0, T_target - ref_audio.shape[-1]))
+            elif ref_audio.shape[-1] > T_target:
+                ref_audio = ref_audio[..., :T_target]
+            with torch.amp.autocast('cuda'), torch.no_grad():
+                z_ref = self.diffusion.pretransform.encode(ref_audio)
+            assert z_ref.shape == diffusion_input.shape, (
+                f"z_ref shape {tuple(z_ref.shape)} != "
+                f"diffusion_input shape {tuple(diffusion_input.shape)}"
+            )
 
         if self.timestep_sampler == "uniform":
             # Draw uniformly distributed continuous timesteps
@@ -266,7 +402,18 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         # Combine the ground truth data and the noise
         alphas = alphas[:, None, None]
         sigmas = sigmas[:, None, None]
-        noise = torch.randn_like(diffusion_input)
+
+        # Pick the rectified-flow starting point ("noise" keeps its name only
+        # for backward compatibility with the formula below). Exhaustive
+        # if/elif/else: any new flow_source mode added later must extend this
+        # branch explicitly, otherwise the dispatch raises rather than
+        # silently falling back to a Gaussian source.
+        if self.flow_source == "gaussian":
+            noise = torch.randn_like(diffusion_input)
+        elif self.flow_source == "nearest_ref":
+            noise = z_ref
+        else:
+            raise ValueError(f"Unknown flow_source: {self.flow_source!r}")
 
         noised_inputs = diffusion_input * alphas + noise * sigmas
 
@@ -339,6 +486,13 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
 
         diffusion_input = reals
 
+        # Mirror training_step: pick nearest reference and drop it from each
+        # sample's cross-attention context (drop=True for the validation path,
+        # so val_loss can be compared against train_loss on equal footing).
+        ref_audio: tp.Optional[torch.Tensor] = None
+        if self.flow_source == "nearest_ref":
+            ref_audio, metadata = _pick_nearest_reference(metadata, self.device, drop=True)
+
         with torch.amp.autocast('cuda') and torch.no_grad():
             conditioning = self.diffusion.conditioner(metadata, self.device)
 
@@ -365,6 +519,24 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
                 if hasattr(self.diffusion.pretransform, "scale") and self.diffusion.pretransform.scale != 1.0:
                     diffusion_input = diffusion_input / self.diffusion.pretransform.scale
 
+        # Encode z_ref once per batch (the loop below evaluates the velocity
+        # objective at multiple validation timesteps, but z_ref is independent
+        # of t). Reusing the same z_ref across timesteps reduces variance in
+        # per-t logged val losses, which is what we want for monitoring.
+        if self.flow_source == "nearest_ref":
+            assert ref_audio is not None, "ref_audio must be set when flow_source=nearest_ref"
+            T_target = reals.shape[-1]
+            if ref_audio.shape[-1] < T_target:
+                ref_audio = F.pad(ref_audio, (0, T_target - ref_audio.shape[-1]))
+            elif ref_audio.shape[-1] > T_target:
+                ref_audio = ref_audio[..., :T_target]
+            with torch.amp.autocast('cuda'), torch.no_grad():
+                z_ref = self.diffusion.pretransform.encode(ref_audio)
+            assert z_ref.shape == diffusion_input.shape, (
+                f"z_ref shape {tuple(z_ref.shape)} != "
+                f"diffusion_input shape {tuple(diffusion_input.shape)}"
+            )
+
         for validation_timestep in self.validation_timesteps:
 
             t = torch.full((reals.shape[0],), validation_timestep, device=self.device)
@@ -378,7 +550,16 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             # Combine the ground truth data and the noise
             alphas = alphas[:, None, None]
             sigmas = sigmas[:, None, None]
-            noise = torch.randn_like(diffusion_input)
+
+            # Pick the rectified-flow starting point. Same exhaustive
+            # dispatch as in training_step; see comment there.
+            if self.flow_source == "gaussian":
+                noise = torch.randn_like(diffusion_input)
+            elif self.flow_source == "nearest_ref":
+                noise = z_ref
+            else:
+                raise ValueError(f"Unknown flow_source: {self.flow_source!r}")
+
             noised_inputs = diffusion_input * alphas + noise * sigmas
 
             if self.diffusion_objective == "v":
@@ -429,7 +610,33 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         else:
             samples = self.samples
 
-        noise = torch.randn([B, self.diffusion.io_channels, samples]).to(self.device)
+        # Build the rectified-flow integration starting point. Exhaustive
+        # dispatch on flow_source: any new mode must extend this branch
+        # explicitly, otherwise raise rather than silently falling back.
+        # The inference path uses drop=False so cross-attention sees the full
+        # set of K references the user provided (supports K=1..N including
+        # K=1 deployment, where dropping would leave cross-attn empty).
+        # See plan §3.3.1 / §5.3 for why train/inference asymmetry is
+        # deliberate (cross-attn is set-style; what must match across
+        # train/inference is `flow_source`, not the cross-attn token count).
+        if self.flow_source == "gaussian":
+            noise = torch.randn([B, self.diffusion.io_channels, samples]).to(self.device)
+        elif self.flow_source == "nearest_ref":
+            ref_audio, metadata = _pick_nearest_reference(metadata, self.device, drop=False)
+            T_target = self.samples   # waveform length, NOT the local latent-length `samples`
+            if ref_audio.shape[-1] < T_target:
+                ref_audio = F.pad(ref_audio, (0, T_target - ref_audio.shape[-1]))
+            elif ref_audio.shape[-1] > T_target:
+                ref_audio = ref_audio[..., :T_target]
+            with torch.amp.autocast('cuda'), torch.no_grad():
+                noise = self.diffusion.pretransform.encode(ref_audio)
+            assert noise.shape[-1] == samples, (
+                f"z_ref latent length {noise.shape[-1]} != expected {samples} "
+                f"(self.samples={self.samples}, "
+                f"downsampling_ratio={self.diffusion.pretransform.downsampling_ratio})"
+            )
+        else:
+            raise ValueError(f"Unknown flow_source: {self.flow_source!r}")
 
         with torch.amp.autocast('cuda') and torch.no_grad():
             conditioning = self.diffusion.conditioner(metadata, self.device)

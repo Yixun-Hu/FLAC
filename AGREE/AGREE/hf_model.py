@@ -29,7 +29,7 @@ class HFImgEncoder(nn.Module):
         else:
             self.model = AutoModel.from_pretrained(
                 model_name_or_path, 
-                device_map="auto", 
+                # device_map="auto", 
             )
             
         if frozen:
