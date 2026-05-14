@@ -5,7 +5,10 @@ import torch
 import torchaudio
 
 
-def get_custom_metadata(info, audio): 
+def get_custom_metadata(info, audio):
+    """
+    Get the custom metadata for the AR dataset.
+    """
     md = {}
     full_audio_path = info["path"]
     rel_path = info["relpath"]
@@ -66,6 +69,9 @@ def convert_equirect_to_camera_coord(depth_map, img_h, img_w): # 3D point cloud 
     return torch.stack([depth_map * cos_phi * cos_theta, depth_map * cos_phi * sin_theta, -depth_map * sin_phi], dim=-1)
 
 def get_3d_point_camera_coord(source_pose, point_3d):
+    """
+    Convert the 3D point (point_3d) to the camera coordinate system with source_pose as the origin.
+    """
     camera_matrix = None
     lis_x, lis_y, lis_z = source_pose[0], source_pose[1], source_pose[2]
     camera_matrix = np.array([[1., 0., 0., 0.], [0., 1., 0., 0.], [0., 0., 1., 0.], [0., 0., 0., 1.]])
@@ -75,6 +81,9 @@ def get_3d_point_camera_coord(source_pose, point_3d):
     return camera_coord_point[:3]
 
 def get_receiver_source_location(ir_file_path, metadata_path):
+    """
+    Get the source and receiver location from the IR file path.
+    """
     scene_name = ir_file_path.split("/")[-3]
     scene_id = ir_file_path.split("/")[-2]
     ir_file_name = ir_file_path.split("/")[-1]
@@ -88,11 +97,22 @@ def get_receiver_source_location(ir_file_path, metadata_path):
     return src_loc, rec_loc
 
 def get_ir_and_location_for_other_sources(ir_file_path, num_ref_sources, metadata_path, max_len=9600):
+    """
+    Parameters:
+        ir_file_path: path to the IR file
+        num_ref_sources: number of the reference RIRs to load
+        metadata_path: path to the metadata folder
+        max_len: maximum length of the loaded RIRs
+
+    Returns:
+        all_ref_irs: [K, 1, max_len]
+        all_ref_src_pos: [K, 3]
+    """
     dir_name = os.path.dirname(ir_file_path)
     ir_file_name = ir_file_path.split("/")[-1]
-    src_node, rec_node = int(ir_file_name.split("_")[0][1:]), int(ir_file_name.split("_")[1][1:])
-    all_src_node = set([int(fn.split("_")[0][1:]) for fn in os.listdir(dir_name)])
-    remain_src_node = list(all_src_node.difference(set([src_node])))
+    src_node, rec_node = int(ir_file_name.split("_")[0][1:]), int(ir_file_name.split("_")[1][1:]) # S001_R005 -> int(001), int(005)
+    all_src_node = set([int(fn.split("_")[0][1:]) for fn in os.listdir(dir_name)]) # all source nodes in a list
+    remain_src_node = list(all_src_node.difference(set([src_node]))) # set(all_src_node) - set([src_node])
     valid_other_src_ir_paths = []
     for node in remain_src_node:
         rec_n = ir_file_name.split("_")[1]
@@ -108,7 +128,7 @@ def get_ir_and_location_for_other_sources(ir_file_path, num_ref_sources, metadat
     all_ref_src_pos = []
     
     for fp in select_other_src_ir_paths:
-        ref_wav, rate = torchaudio.load(fp)
+        ref_wav, rate = torchaudio.load(fp) # ref_wav: [channels, length]
         assert rate == 22050, "IR sampling rate must be 22050!"
         if ref_wav.shape[1] < max_len:
             ref_wav = torch.cat([ref_wav, torch.zeros(ref_wav.shape[0], max_len - ref_wav.shape[1])], dim=1)
