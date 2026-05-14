@@ -270,6 +270,64 @@ class DistEmbedderConditioner(Conditioner):
 
         return [out, torch.ones(out.shape[0], 1).to(out.device)]
 
+class FusedPoseConditioner(Conditioner):
+    """
+    Fuses the three v0 pose vectors of one context RIR into a single
+    cross-attention token. The audio and ViT-depth tokens are handled by the
+    existing RIRConditioner / GeometryConditioner — this class only owns the
+    pose-vector geometric encoding.
+
+    Input: list of B dicts. Each dict has
+        'pair_local' : Tensor [N, 3]   s_i - r_i  (frame-invariant direct path)
+        'src_qrel'   : Tensor [N, 3]   s_i - r_q  (in query-receiver frame)
+        'recs_qrel'  : Tensor [N, 3]   r_i - r_q  (in query-receiver frame)
+
+    Output: ([B, N, output_dim], [B, 1]) — N tokens (one per context), ones-mask.
+    """
+    def __init__(self,
+                 output_dim: int,
+                 num_freqs: int = 20,
+                 max_freq: int = 10,
+                 pose_max_val: float = 5.0,
+                 name: str = "FusedPoseConditioner"):
+        per_pose_dim = 3 * (1 + 2 * num_freqs)  # raw xyz + sin/cos per freq
+        in_dim = 3 * per_pose_dim
+        super().__init__(in_dim, output_dim, project_out=False)
+        self.name = name
+        self.num_freqs = num_freqs
+        self.pose_max_val = pose_max_val
+        # Match DistEmbedderConditioner:243 convention (Parameter, no grad).
+        self.freqs = torch.nn.Parameter(
+            2.0 ** torch.from_numpy(np.linspace(0.0, max_freq, num_freqs).astype(np.single)),
+            requires_grad=False,
+        )
+        self.proj = nn.Linear(in_dim, output_dim)
+
+    def _fourier(self, p: torch.Tensor) -> torch.Tensor:
+        # p: [BN, 3] -> [BN, 3 * (1 + 2*num_freqs)]
+        p_scaled = p / self.pose_max_val
+        pf = p_scaled.unsqueeze(-1) * self.freqs  # [BN, 3, num_freqs]
+        return torch.cat(
+            [p_scaled, torch.sin(pf).flatten(-2), torch.cos(pf).flatten(-2)],
+            dim=-1,
+        )
+
+    def forward(self, inputs: tp.List[tp.Dict[str, torch.Tensor]],
+                device: tp.Union[torch.device, str]
+                ) -> tp.Tuple[torch.Tensor, torch.Tensor]:
+        pair_local = torch.stack([d['pair_local'] for d in inputs], dim=0).to(device).float()
+        src_qrel   = torch.stack([d['src_qrel']   for d in inputs], dim=0).to(device).float()
+        recs_qrel  = torch.stack([d['recs_qrel']  for d in inputs], dim=0).to(device).float()
+        B, N, _ = pair_local.shape
+
+        p1 = self._fourier(pair_local.view(B * N, 3))
+        p2 = self._fourier(src_qrel.view(B * N, 3))
+        p3 = self._fourier(recs_qrel.view(B * N, 3))
+        feat = torch.cat([p1, p2, p3], dim=-1)        # [BN, 3 * per_pose_dim]
+        out = self.proj(feat).view(B, N, -1)          # [B, N, output_dim]
+        return [out, torch.ones(out.shape[0], 1, device=out.device)]
+
+
 class MultiConditioner(nn.Module):
     """
     A module that applies multiple conditioners to an input dictionary based on the keys
@@ -410,6 +468,9 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
             conditioner_config.pop('in_channels', None)
             conditioners[id] = DistEmbedderConditioner(**conditioner_config, dist_embedder_proj=dist_embedder_proj)
         
+        elif conditioner_type == "fused_pose":
+            conditioners[id] = FusedPoseConditioner(**conditioner_config)
+
         elif conditioner_type == "pretransform":
             sample_rate = conditioner_config.pop("sample_rate", None)
             assert sample_rate is not None, "Sample rate must be specified for pretransform conditioners"
