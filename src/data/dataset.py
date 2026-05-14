@@ -342,6 +342,11 @@ def collation_fn(samples):
 
 
 def create_dataloader_from_config(dataset_config, batch_size, sample_size, sample_rate, audio_channels=2, num_workers=4, shuffle = True):
+    # dataset_config: acousticroom_seeneval_1.json
+    # dataset_type: "audio_dir"
+    # audio_dir_configs: list of configs for "datasets"
+    #     audio_dir_config: only one: "id", "path", "json_file_path", "custom_metadata_module", "folder_name"
+    # 
     dataset_type = dataset_config.get("dataset_type", None)
 
     assert dataset_type is not None, "Dataset type must be specified in dataset config"
@@ -365,6 +370,7 @@ def create_dataloader_from_config(dataset_config, batch_size, sample_size, sampl
 
         custom_metadata_fn = None
         custom_metadata_module_path = audio_dir_config.get("custom_metadata_module", None)
+        # An example of `custom_metadata_module_path`: "src/configs/dataset_configs/custom_metadata/AR_md.py"
 
         if custom_metadata_module_path is not None:
             spec = importlib.util.spec_from_file_location("metadata_module", custom_metadata_module_path)
