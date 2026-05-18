@@ -35,6 +35,7 @@ METRICS = [
     ("RIR_to_GT_RIR_R@5", "GT R@5&uarr;"),
     ("RIR_to_geom_R@1", "geom R@1&uarr;"),
     ("RIR_to_geom_R@5", "geom R@5&uarr;"),
+    ("RIR_to_geom_R@10", "geom R@10&uarr;"),
 ]
 KEYS = [k for k, _ in METRICS]
 
