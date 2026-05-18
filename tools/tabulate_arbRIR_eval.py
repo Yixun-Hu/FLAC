@@ -25,9 +25,18 @@ ROWS = [
     ("Baseline-A (s_i-r_q)",   BASE_DIR, "baseline_A"),
     ("Baseline-B (s_i-r_i)",   BASE_DIR, "baseline_B"),
 ]
-METRICS = ["T60", "C50", "EDT", "FD",
-           "RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5",
-           "RIR_to_geom_R@1", "RIR_to_geom_R@5"]
+# (json_key, short display header) — short headers so the table previews cleanly.
+METRICS = [
+    ("T60", "T60&darr; (%)"),
+    ("C50", "C50&darr; (dB)"),
+    ("EDT", "EDT&darr; (ms)"),
+    ("FD", "FD&darr;"),
+    ("RIR_to_GT_RIR_R@1", "GT R@1&uarr;"),
+    ("RIR_to_GT_RIR_R@5", "GT R@5&uarr;"),
+    ("RIR_to_geom_R@1", "geom R@1&uarr;"),
+    ("RIR_to_geom_R@5", "geom R@5&uarr;"),
+]
+KEYS = [k for k, _ in METRICS]
 
 
 def jpath(ckpt_dir, prefix, split, K):
@@ -51,48 +60,54 @@ def cell(ckpt_dir, prefix, split, K):
 
 
 def fmt(v):
-    return "  n/a" if v is None else f"{v:8.4f}"
+    return "n/a" if v is None else f"{v:.4f}"
+
+
+HEADER = "| Model | K | " + " | ".join(d for _, d in METRICS) + " |"
+# GFM separator: one cell per column (Model left-aligned, the rest right).
+SEP = "| :--- | ---: | " + " | ".join(["---:"] * len(METRICS)) + " |"
+
+
+def emit(lines, split, kind):
+    lines.append(HEADER)
+    lines.append(SEP)
+    for label, cdir, prefix in ROWS:
+        for K in (8, 1):
+            m, err = cell(cdir, prefix, split, K)
+            if err:
+                cells = [err] + [""] * (len(METRICS) - 1)
+            else:
+                src = (lambda k: per_scene_mean(m, k)) if kind == "ps" else m.get
+                cells = [fmt(src(k)) for k in KEYS]
+            lines.append(f"| {label} | {K} | " + " | ".join(cells) + " |")
 
 
 def main():
     lines = []
     found = sorted(glob.glob(os.path.join(ABL_DIR, f"{CKPT}_metrics_1_1.0_arbRIR_v0_*.json"))) + \
         sorted(glob.glob(os.path.join(BASE_DIR, f"{CKPT}_metrics_1_1.0_baseline_*.json")))
-    lines.append(f"# arbitrary-RIR eval matrix @ step={STEP}  ({len(found)}/12 cells present)\n")
+    lines.append(f"# Arbitrary-RIR eval matrix @ step={STEP}")
+    lines.append("")
+    lines.append(f"{len(found)}/12 cells present. **Per-scene mean** is the headline "
+                 "(CLAUDE.md protocol); all-samples aggregate is reference only. "
+                 "T60 / C50 / EDT / FD: lower is better. R@k: higher is better.")
 
     for split in ("seen", "unseen"):
-        lines.append(f"\n## Split: {split}  — per-scene mean (headline)\n")
-        header = f"| {'Model':22} | {'K':>2} | " + " | ".join(f"{x:>10}" for x in METRICS) + " |"
-        lines.append(header)
-        lines.append("|" + "-" * (len(header) - 2) + "|")
-        for label, cdir, prefix in ROWS:
-            for K in (8, 1):
-                m, err = cell(cdir, prefix, split, K)
-                if err:
-                    lines.append(f"| {label:22} | {K:>2} | {err}")
-                    continue
-                psm = {k: per_scene_mean(m, k) for k in METRICS}
-                row = f"| {label:22} | {K:>2} | " + " | ".join(fmt(psm[k]) for k in METRICS) + " |"
-                lines.append(row)
+        lines.append("")
+        lines.append(f"## {split} — per-scene mean (headline)")
+        lines.append("")
+        emit(lines, split, "ps")
+        lines.append("")
+        lines.append(f"### {split} — all-samples aggregate (reference)")
+        lines.append("")
+        emit(lines, split, "all")
 
-        lines.append(f"\n### Split: {split}  — all-samples aggregate (reference)\n")
-        lines.append(header)
-        lines.append("|" + "-" * (len(header) - 2) + "|")
-        for label, cdir, prefix in ROWS:
-            for K in (8, 1):
-                m, err = cell(cdir, prefix, split, K)
-                if err:
-                    lines.append(f"| {label:22} | {K:>2} | {err}")
-                    continue
-                row = f"| {label:22} | {K:>2} | " + " | ".join(fmt(m.get(k)) for k in METRICS) + " |"
-                lines.append(row)
-
-    out = "\n".join(lines)
+    out = "\n".join(lines) + "\n"
     print(out)
     dst = "outputs_FLAC/arbRIR_eval_logs/RESULTS.md"
     with open(dst, "w") as f:
-        f.write(out + "\n")
-    print(f"\n[written] {dst}")
+        f.write(out)
+    print(f"[written] {dst}")
 
 
 if __name__ == "__main__":
