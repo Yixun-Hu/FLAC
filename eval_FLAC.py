@@ -88,7 +88,11 @@ def evaluate_model(
     )
 
     # Metrics 
-    metric_callback = create_metric_callback_from_config(model_config, dataset_id=dataset_config['datasets'][0]['id'])
+    # per_scene=True so metrics_dict also carries a 'by_scene' breakdown; the
+    # paper / CLAUDE.md headline numbers are the per-scene mean (AR is not HAA,
+    # so eval_by_scene would otherwise be False). This only ADDS the breakdown —
+    # predictions and the all-samples aggregates are unchanged.
+    metric_callback = create_metric_callback_from_config(model_config, dataset_id=dataset_config['datasets'][0]['id'], per_scene=True)
 
     # Eval
     c=0
