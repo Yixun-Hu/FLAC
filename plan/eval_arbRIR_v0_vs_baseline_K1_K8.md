@@ -200,10 +200,23 @@ Both model configs already carry the same `training.metrics` block (`eval_T60/C5
 
 1. **Build + sanity-check the manifests** — run `tools/build_arbRIR_eval_manifest.py` for seen and unseen. Assert: every query in `data/AR/{seen,unseen}_eval.json` has exactly 8 context filenames; no context shares the query source node (source-exclusion holds); all listed files exist on disk; the K=1 prefix is a valid single entry. **Key-contract assertion:** for every query, the scene-triple key the *module* would compute from `info['relpath']` (`split("/")[-3:]`) is present in the manifest — i.e. a dry-run lookup over the full split raises **zero** `KeyError`. Manifests are then frozen (read-only) for the whole matrix.
 2. **Superset-module shape check** — import `AR_md_arbRIR_v0_eval_A.get_custom_metadata` and `…_eval_B.…` on one real AR sample at `max_context` 8 then 1; assert keys `{scene, source, source_vit, depth, context_audio, context_poses_vit, context_fused_pose, context_poses}` and shapes (`context_audio [N,1,9600]`; all pose tensors `[N,3]`). Module A: `context_poses == context_poses_vit == context_fused_pose['src_qrel']`. Module B: `context_poses == context_fused_pose['pair_local']` and (generically) `≠ context_poses_vit`. Assert the K=1 tensors equal the K=8 tensors sliced to `[:1]` (nesting).
-3. **Determinism hard gate — MANDATORY, do not skip; blocks the matrix.** Build the K=8 dataloader **twice with deliberately different `num_workers` (`1` vs `4`) and `batch_size`**, collect all `context_audio` for the full split each time, and assert they are **bit-identical** — this proves context is manifest-bound and *independent* of dataloader plumbing (the property the old RNG plan lacked). (Use `1` vs `4`, not `0` vs `4`: `create_dataloader_from_config` hardcodes `persistent_workers=True` at `dataset.py:411`, and PyTorch rejects `num_workers=0` with that option — both contrast values must be `>0`.) Then assert the Scheme-A and Scheme-B modules yield bit-identical `context_audio`, `context_poses_vit`, and `context_fused_pose` (only `context_poses` may differ). If any assertion fails, **stop** — do not run the matrix.
+3. **Determinism hard gate — MANDATORY, do not skip; blocks the matrix.** Build the K=8 dataloader **twice with deliberately different `num_workers` (`1` vs `4`) and `batch_size`**, collect all `context_audio` for the full split each time, and assert they are **bit-identical via `torch.equal`** (same on-disk files → exact) — this proves context is manifest-bound and *independent* of dataloader plumbing (the property the old RNG plan lacked). (Use `1` vs `4`, not `0` vs `4`: `create_dataloader_from_config` hardcodes `persistent_workers=True` at `dataset.py:411`, and PyTorch rejects `num_workers=0` with that option — both contrast values must be `>0`.) Then assert the Scheme-A and Scheme-B modules yield identical context: `torch.equal` for `context_audio`, and `torch.allclose(rtol=0, atol=1e-7)` for the geometric tensors `context_poses_vit` and `context_fused_pose` (only `context_poses` may differ). See Implementation hints for the comparison-precision rationale. If any assertion fails, **stop** — do not run the matrix.
 4. **Cross-model key check** — run baseline cell #5 for one batch; confirm `MultiConditioner` does not raise on `context_poses`.
 5. **Smoke eval** — run cell #1 to completion; confirm metrics JSON written and FD/Recall finite.
 6. Only after 1–5 pass: run the full 12-cell matrix and tabulate per-scene means.
+
+## Implementation hints
+
+- Module A/B should cache the manifest at module scope (lazy global dict)
+  to avoid re-reading the JSON on every `get_custom_metadata` call;
+  `persistent_workers=True` keeps the cache alive per worker.
+- Verification #3 should use `torch.equal` for `context_audio` and
+  `torch.allclose(rtol=0, atol=1e-7)` for geometric tensors (float32
+  ops on different SIMD paths are not strictly bit-identical, but
+  agree to ~1e-7).
+- Manifest builder must use `sorted(os.listdir(dir_name))` (not the
+  bare `os.listdir` from `AR_md_arbRIR_v0.py:137`) to guarantee the
+  builder is idempotent regardless of filesystem state.
 
 ## Critical files
 
