@@ -1,11 +1,13 @@
 import os
 import argparse
 import json
+import math
 from tqdm import tqdm
 import torch
 import pytorch_lightning as pl
 
 from src.data.dataset import create_dataloader_from_config
+from src.data.yaw_rotation import rotate_scene_metadata
 from src.models import create_model_from_config
 from src.training import create_training_wrapper_from_config, create_metric_callback_from_config
 
@@ -22,6 +24,7 @@ def evaluate_model(
     device='cuda' if torch.cuda.is_available() else 'cpu',
     seed=42, 
     store_predictions=False,
+    rotate_deg=0.0,
 ):
     torch.set_float32_matmul_precision('medium') 
     
@@ -100,6 +103,14 @@ def evaluate_model(
             reals, metadata = batch
             reals = reals.to(device)
 
+            # Optional yaw-rotation diagnostic: physically rotate the conditioning
+            # (depth panorama + source/context poses) while leaving context_audio
+            # and the target RIR fixed. See src/data/yaw_rotation.py.
+            if rotate_deg != 0.0:
+                alpha_rad = math.radians(rotate_deg)
+                img_w = int(metadata[0]["depth"].shape[-1])
+                metadata = [rotate_scene_metadata(md, alpha_rad, img_w) for md in metadata]
+
             with torch.amp.autocast(device):
                 conditioning = module.diffusion.conditioner(metadata, module.device)
             cond_inputs = module.diffusion.get_conditioning_inputs(conditioning) 
@@ -166,10 +177,12 @@ def evaluate_model(
     metrics_to_save = {
         "metrics": metrics_dict,
         "ckpt_path": ckpt_path,
+        "rotate_deg": rotate_deg,
     }
         
     ckpt_name = os.path.basename(ckpt_path).replace('.ckpt', '')
-    path2save = os.path.join(os.path.dirname(ckpt_path), ckpt_name + '_metrics_' + str(steps) + '_' + str(cfg_scale) + '_' + eval_name + '.json')
+    rot_suffix = '' if rotate_deg == 0.0 else f'_rot{int(rotate_deg)}'
+    path2save = os.path.join(os.path.dirname(ckpt_path), ckpt_name + '_metrics_' + str(steps) + '_' + str(cfg_scale) + '_' + eval_name + rot_suffix + '.json')
     with open(path2save, 'w') as f:
         json.dump(metrics_to_save, f, indent=4)
     
@@ -197,6 +210,7 @@ if __name__ == "__main__":
     parser.add_argument("--eval-name", type=str, default='', help="Name of the evaluation run (optional)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for evaluation")
     parser.add_argument("--store_predictions", action='store_true', help="Whether to store predictions or not")
+    parser.add_argument("--rotate-deg", type=float, default=0.0, help="Yaw-rotate the conditioning (depth + poses) by this many degrees before eval; 0 disables (default).")
     args = parser.parse_args()
 
     if args.store_predictions:
@@ -213,5 +227,6 @@ if __name__ == "__main__":
         device=args.device,
         eval_name=args.eval_name, 
         seed=args.seed,
-        store_predictions=args.store_predictions
+        store_predictions=args.store_predictions,
+        rotate_deg=args.rotate_deg,
     )
