@@ -126,8 +126,55 @@ class _SmokeLossPrinter(pl.Callback):
         print(f"[smoke] global_step={trainer.global_step} loss={float(loss):.6f}", flush=True)
 
 
+def warmup_lr_factor(step, warmup_steps):
+    """Linear warmup factor: ``(step + 1) / warmup_steps`` capped at 1.0.
+
+    Ramps over the first ``warmup_steps`` optimizer steps, then stays 1.0.
+    ``warmup_steps <= 0`` disables warmup (factor 1.0 at every step, incl. step 0).
+    """
+    return min(1.0, (step + 1) / max(1, warmup_steps))
+
+
+class WarmupLR(pl.Callback):
+    """Linear lr warmup to ``target_lr`` over the first ``warmup_steps`` optimizer steps.
+
+    Writes ``target_lr * warmup_lr_factor(trainer.global_step, warmup_steps)`` into every
+    param group of every optimizer at each ``on_train_batch_start``. Keyed ONLY off
+    ``trainer.global_step`` -- which counts OPTIMIZER steps in Lightning 2.1 (verified
+    against the installed source in the exp_04 plan review) -- so under gradient
+    accumulation the same lr is redundantly re-written for each micro-batch of one
+    optimizer step and warmup length is measured in optimizer steps, never micro-batches.
+    After warmup it keeps writing the constant target: idempotent, and it coexists with
+    the removed-scheduler constant-lr recipe (no scheduler object involved).
+    """
+
+    def __init__(self, target_lr, warmup_steps):
+        self.target_lr = target_lr
+        self.warmup_steps = warmup_steps
+
+    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
+        lr = self.target_lr * warmup_lr_factor(trainer.global_step, self.warmup_steps)
+        for optimizer in trainer.optimizers:
+            for group in optimizer.param_groups:
+                group["lr"] = lr
+
+
+def build_recipe_echo(cond_method, frame_avg_angles, lr, warmup_steps):
+    """Build the one-line recipe echo printed at launch (quoted in worklogs).
+
+    Returns
+    -------
+    str
+    """
+    return (
+        f"[finetune_cond] recipe: cond_method={cond_method} "
+        f"frame_avg_angles={frame_avg_angles} lr={lr} warmup_steps={warmup_steps} "
+        f"use_ema=False scheduler=constant(removed)"
+    )
+
+
 def build_trainer_kwargs(precision, max_steps, gradient_clip_val, checkpoint_every, save_dir,
-                         smoke, accumulate_grad_batches=1):
+                         smoke, accumulate_grad_batches=1, target_lr=None, warmup_steps=0):
     """Build the ``pl.Trainer`` keyword arguments (side-effect free; unit-testable).
 
     ``smoke`` guarantees no checkpointing two ways: the ``ModelCheckpoint`` callback is
@@ -135,6 +182,8 @@ def build_trainer_kwargs(precision, max_steps, gradient_clip_val, checkpoint_eve
     injecting its default ``ModelCheckpoint`` when none is supplied (review finding 2).
     ``accumulate_grad_batches`` mirrors upstream ``train.py --accum-batches`` (effective
     batch = batch size x accumulation), for shared-GPU capacity.
+    ``warmup_steps > 0`` appends a ``WarmupLR(target_lr, warmup_steps)`` callback
+    (exp_04); ``0`` leaves the callback list exactly as before.
 
     Returns
     -------
@@ -149,6 +198,10 @@ def build_trainer_kwargs(precision, max_steps, gradient_clip_val, checkpoint_eve
                 every_n_train_steps=checkpoint_every, dirpath=save_dir, save_top_k=-1
             )
         ]
+    if warmup_steps > 0:
+        if target_lr is None:
+            raise ValueError("target_lr is required when warmup_steps > 0")
+        callbacks.append(WarmupLR(target_lr=target_lr, warmup_steps=warmup_steps))
     return {
         "devices": 1,
         "accelerator": "gpu",
@@ -175,6 +228,7 @@ def finetune(
     cond_method,
     frame_avg_angles,
     lr,
+    warmup_steps,
     max_steps,
     checkpoint_every,
     batch_size,
@@ -204,7 +258,9 @@ def finetune(
     frame_avg_angles : list of float
         Yaw frame angles (degrees) for frame averaging.
     lr : float
-        Constant learning rate.
+        Constant learning rate (the warmup target when ``warmup_steps > 0``).
+    warmup_steps : int
+        Linear lr warmup length in optimizer steps; 0 = off (pre-exp_04 behavior).
     max_steps, checkpoint_every, batch_size, num_workers : int
         Trainer / dataloader sizing (``max_steps`` / ``batch_size`` overridden by ``smoke``).
     accumulate_grad_batches : int
@@ -233,10 +289,7 @@ def finetune(
         dataset_config = json.load(f)
 
     model_config = build_finetune_training_config(model_config, cond_method, lr, frame_avg_angles)
-    print(
-        f"[finetune_cond] recipe: cond_method={cond_method} "
-        f"frame_avg_angles={frame_avg_angles} lr={lr} use_ema=False scheduler=constant(removed)"
-    )
+    print(build_recipe_echo(cond_method, frame_avg_angles, lr, warmup_steps))
 
     model = create_model_from_config(model_config)
     model = load_flac_ema_weights(model, ckpt_path)
@@ -275,6 +328,8 @@ def finetune(
         save_dir=save_dir,
         smoke=smoke,
         accumulate_grad_batches=accumulate_grad_batches,
+        target_lr=lr,
+        warmup_steps=warmup_steps,
     ))
 
     trainer.fit(module, train_dl)
@@ -306,6 +361,12 @@ def build_parser():
     parser.add_argument("--frame-avg-angles", type=str,
                         default=",".join(str(int(a)) for a in DEFAULT_FRAME_ANGLES))
     parser.add_argument("--lr", type=float, default=5e-6, help="Constant learning rate.")
+    parser.add_argument(
+        "--warmup-steps", type=int, default=0,
+        help="Linear lr warmup to --lr over this many OPTIMIZER steps (keyed off "
+             "trainer.global_step, so gradient accumulation does not stretch it); "
+             "0 = off (previous behavior).",
+    )
     parser.add_argument("--max-steps", type=int, default=2000)
     parser.add_argument("--checkpoint-every", type=int, default=500)
     parser.add_argument("--batch-size", type=int, default=8)
@@ -343,6 +404,7 @@ def main():
         cond_method=args.cond_method,
         frame_avg_angles=[float(x) for x in args.frame_avg_angles.split(",") if x.strip() != ""],
         lr=args.lr,
+        warmup_steps=args.warmup_steps,
         max_steps=args.max_steps,
         checkpoint_every=args.checkpoint_every,
         batch_size=args.batch_size,
