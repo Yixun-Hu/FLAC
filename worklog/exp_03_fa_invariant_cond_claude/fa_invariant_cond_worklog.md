@@ -33,3 +33,10 @@
 - **Command / Validation** — Planner re-ran `python -m pytest src/tests/ -q` → 18 passed. py_compile clean. Finding-2 (BN once), finding-4 (deep non-mutation), finding-8 (depth rolls with vit poses) contracts all pinned by tests.
 - **Result** — `passed`. Process deviation acknowledged: cycle 3 started before the cycles-1–2 review ran (rule created mid-flight); from now on, each round's review gates the next round.
 - **Next** — Codex per-round reviews: cycles-1–2 (in flight) and cycle-3 (launching with full worklog context briefing per new SOP rule); blocking findings fixed before cycle 4 (dispatch wiring).
+
+## 2026-07-04T23:07:02-04:00 — round invcond CLOSED (review fix verified)
+- **Goal** — close the cycle-3 loop per the round-closure rule: fix the finding-8 test hole from the Codex invcond review.
+- **Change** — src/tests/test_invariant_conditioning.py +82/−9 (fix commit `7091e83`, Opus 4.8): azimuth-modulated non-axisymmetric consistent depth (3 + sin θ + 0.5 sin 2θ), nonzero-mean nonlinear pooling in FakeGeometry (tanh inside, strictly positive weight), and negative test `test_stale_depth_fails_invariance` proving a stale-depth implementation diverges (observed 8e-2–1e-1 vs 1e-5 tol) from both the C4-invariance and orbit-average assertions. Implementation code untouched.
+- **Command / Validation** — Planner re-ran `python -m pytest src/tests/ -q` → 19 passed; inspected the negative test and the zero-mean-weight analysis (old w=cos had exact zero mean → coord contribution cancelled; confirmed).
+- **Result** — `passed`; **round invcond CLOSED** (write `2828991`+`0e00be0` → review `8180c9b` REQUEST-CHANGES → fix `7091e83` → re-verified green).
+- **Next** — awaiting cyl_pose review verdict (context-briefed relaunch in flight) to close round 1; then cycle 4 (dispatch wiring).
