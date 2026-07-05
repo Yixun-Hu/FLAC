@@ -140,10 +140,13 @@ Real-stack rungs (validation ladder, not unit tests; all logged in `_worklog.md`
 
 Parity audit before R1/R2 (recorded in worklog): finetune recipe vs original `FLAC_AR.json` training block — timestep sampler (log_snr), cfg_dropout 0.1, mask_padding, betas/weight-decay, precision — everything identical EXCEPT lr (5e-6 constant vs 5e-5 InverseLR) and use_ema (off; init = EMA weights), both deliberate and documented.
 
-## 6. Acceptance criteria (verbatim from Yixun)
+## 6. Acceptance criteria — H1/H2/H3 (restructured per Yixun's 2026-07-04 correction; see notebook entry 2)
 
-1. **Metric 1:** invariance gap ≈ 0 at all C₄ test angles after conditioning symmetrization (measured with the exp_02 comparator; expect exact-to-float; 45° reported separately as the known off-subgroup case).
-2. **Metric 2 at α=0:** T60/C50/EDT/R@k within ~2σ of exp_01 baseline at K=1 AND K=8 on the full unseen split.
+The physical symmetry is continuous SO(2); **C₄ is an engineering choice** (90° = 128 columns of W=512 → exact roll and exact group average; |G|=4 bounds conditioner cost), i.e. the domain of the ViT-path *guarantee*, not of the physics. Three separate claims, separately verified:
+
+- **H1 — hard symmetry at the conditioning level (by construction):** Metric 1 ≡ 0 (≤ 1e-3 rel-L2, exp_02 comparator) at α ∈ {90, 180, 270}; pose path exactly invariant at ANY α (unit-tested at arbitrary angles); 45° probe (R4) quantifies the ViT-path off-subgroup residual — reported, not gated.
+- **H2 — end-to-end rotation independence on C₄ (post fine-tune):** with fixed noise seed, the Metric-2-vs-GT curve is FLAT across α ∈ {0, 90, 180, 270} (from R4/R4b per-angle metrics JSONs). Corollary of H1 under deterministic sampling — verified explicitly, not inferred.
+- **H3 — accuracy non-regression (absolute-accuracy gate, NOT an invariance claim):** Metric 2 at α=0 within ~2σ of exp_01 baseline at K=1 AND K=8 on the full unseen split (R3).
 
 ## 7. Risks (stated before running)
 
