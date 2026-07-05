@@ -107,9 +107,22 @@ def acoustic_gap(
     return {key: _to_float(val) for key, val in metrics.items()}
 
 
-def load_predictions(path: str) -> torch.Tensor:
-    """Load a stored ``decoded_samples_all`` tensor and normalise it to ``[N, 1, T]``."""
-    tensor = torch.load(path, map_location="cpu")
+def _load_raw(path: str):
+    """Load a prediction file, supporting both storage formats.
+
+    Returns ``(tensor, meta)`` where ``meta`` is ``None`` for the legacy bare
+    tensor file and the sidecar dict for the newer
+    ``{"predictions": tensor, "meta": {...}}`` format written by
+    ``eval_FLAC.py --store_predictions``. The tensor is returned un-normalised.
+    """
+    obj = torch.load(path, map_location="cpu")
+    if isinstance(obj, dict) and "predictions" in obj:
+        return obj["predictions"], obj.get("meta")
+    return obj, None
+
+
+def _normalise(tensor: Any, path: str) -> torch.Tensor:
+    """Validate a prediction tensor and normalise it to ``[N, 1, T]``."""
     if not isinstance(tensor, torch.Tensor):
         raise TypeError(f"{path} did not contain a tensor (got {type(tensor)})")
     if tensor.dim() == 2:  # [N, T] -> [N, 1, T]
@@ -119,12 +132,68 @@ def load_predictions(path: str) -> torch.Tensor:
     return tensor
 
 
+def load_predictions(path: str) -> torch.Tensor:
+    """Load a stored prediction tensor and normalise it to ``[N, 1, T]``.
+
+    Accepts both the legacy bare-tensor file and the new sidecar dict
+    ``{"predictions": tensor, "meta": {...}}``; any meta is ignored here (use
+    :func:`load_prediction_meta` / :func:`guard_meta` for the consistency check).
+    """
+    tensor, _meta = _load_raw(path)
+    return _normalise(tensor, path)
+
+
+def load_prediction_meta(path: str):
+    """Return the sidecar meta dict for a prediction file, or ``None`` (legacy)."""
+    _tensor, meta = _load_raw(path)
+    return meta
+
+
+_GUARD_KEYS = ("dataset_config", "seed", "batch_size")
+
+
+def guard_meta(meta_ref, meta_alt, ref_path: str = "ref", alt_path: str = "alt") -> None:
+    """Hard-error when two runs' sidecar meta make their predictions incomparable.
+
+    When BOTH files carry meta, a mismatch on any of ``dataset_config``, ``seed``
+    or ``batch_size`` means sample ``i`` no longer corresponds across the two
+    files, so the Metric-1 comparison is meaningless -> :class:`ValueError`. When
+    only one side (or neither) carries meta the check is skipped with a warning
+    (legacy bare-tensor interop, so old exp_02 artifacts still compare).
+    """
+    if meta_ref is None and meta_alt is None:
+        return
+    if meta_ref is None or meta_alt is None:
+        present = alt_path if meta_ref is None else ref_path
+        print(
+            f"WARNING: only {present} carries prediction meta; skipping the "
+            "meta-consistency check (legacy bare-tensor interop)."
+        )
+        return
+    mismatches = [
+        f"{key}: ref={meta_ref.get(key)!r} vs alt={meta_alt.get(key)!r}"
+        for key in _GUARD_KEYS
+        if meta_ref.get(key) != meta_alt.get(key)
+    ]
+    if mismatches:
+        raise ValueError(
+            "Refusing to compare mismatched prediction runs (sample i would not "
+            "correspond across files): " + "; ".join(mismatches) + ". "
+            "Re-run both with the same dataset_config, seed and batch_size."
+        )
+
+
 def compare(
     ref_path: str, alt_path: str, batch_size: int, sample_rate: int, device: str, allow_trim: bool = False
 ) -> Dict[str, Any]:
     """Run the full comparison and return the assembled results dict."""
-    ref = load_predictions(ref_path)
-    alt = load_predictions(alt_path)
+    ref_raw, ref_meta = _load_raw(ref_path)
+    alt_raw, alt_meta = _load_raw(alt_path)
+    # Refuse to compare runs whose meta disagrees on dataset/seed/batch (both
+    # present); single-sided meta warns only (legacy bare-tensor interop).
+    guard_meta(ref_meta, alt_meta, ref_path, alt_path)
+    ref = _normalise(ref_raw, ref_path)
+    alt = _normalise(alt_raw, alt_path)
     if tuple(ref.shape) != tuple(alt.shape):
         if not allow_trim:
             raise ValueError(
