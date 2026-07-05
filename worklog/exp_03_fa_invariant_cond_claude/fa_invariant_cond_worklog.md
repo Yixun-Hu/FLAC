@@ -58,3 +58,9 @@
   - **RUNG D: assumption corrected.** Degenerate sources are REAL in AR: 95/302,925 metadata pairs have r_xy exactly 0 (source vertically above receiver, Δz 0.6–0.8 m); 11/6337 unseen-eval items affected. The eps fallback branch is therefore load-bearing, not theoretical — its invariance-correctness (forced by the cyl_pose review + fix `70025d5`) matters on the actual eval split. Plan §1's "assert min r_s ≫ eps" expectation is replaced by this quantified finding; no code change needed (tests already pin the reachable branch).
 - **Analysis** — H1 confirmed at conditioner level on the real stack; the two "paranoid" review findings (largest-r fallback invariance; below-eps gating) turn out to cover 0.17% of real eval items — the review process demonstrably prevented a silent correctness hole.
 - **Next** — dispatch review verdict (in flight) → close cycle 4 → cycle 5.
+
+## 2026-07-05T00:05:29-04:00 — round dispatch CLOSED (APPROVE-WITH-NITS, no fixes needed)
+- **Goal** — close cycle 4.
+- **Version Control** — write `5fb9786`+`baf6902` → review APPROVE-WITH-NITS (no blocking findings; nit = pre-existing upstream autocast quirk at diffusion.py:376/468, blamed to pre-fork 2e3f847, not a regression). Suite 28 passed (Planner re-verified).
+- **Result** — `passed`; round CLOSED without a fix leg. Reviewer confirmed: all three step sites dispatch via _compute_conditioning; per-site spy assertions non-vacuous; constructor fail-fast sound; no factory-bypass path.
+- **Next** — cycle 5 (eval wiring: --cond-method fa_invariant, build_output_paths, predictions sidecar, comparator meta guard).
