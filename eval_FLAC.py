@@ -7,9 +7,62 @@ import torch
 import pytorch_lightning as pl
 
 from src.data.dataset import create_dataloader_from_config
-from src.data.yaw_rotation import rotate_scene_metadata
+from src.data.yaw_rotation import rotate_scene_metadata, invariant_conditioning, DEFAULT_FRAME_ANGLES
 from src.models import create_model_from_config
 from src.training import create_training_wrapper_from_config, create_metric_callback_from_config
+
+
+def build_output_paths(
+    ckpt_path,
+    steps,
+    cfg_scale,
+    eval_name,
+    cond_method='vanilla',
+    rotate_deg=0.0,
+    n_angles=4,
+):
+    """Construct the metrics-JSON and predictions-.pt output paths for one run.
+
+    Pure (no filesystem access): both paths sit in ``ckpt_path``'s directory,
+    named ``<ckpt>_<kind>_<steps>_<cfg>_<eval_name><method><rot>.<ext>``.
+
+    The vanilla + ``rotate_deg == 0`` name is byte-identical to the legacy
+    ``eval_FLAC`` output, so exp_01 / exp_02 artifacts reproduce exactly. A
+    non-vanilla ``cond_method`` inserts ``_<cond_method>_a<n_angles>`` and a
+    non-zero ``rotate_deg`` appends ``_rot<int(rotate_deg)>``. Both suffixes now
+    also land on the predictions name -- fixing the exp_02 bug where two
+    ``rotate_deg`` values sharing an ``eval_name`` overwrote one predictions file.
+
+    Returns
+    -------
+    dict
+        ``{'metrics': <...>.json, 'predictions': <...>.pt}``.
+    """
+    ckpt_name = os.path.basename(ckpt_path).replace('.ckpt', '')
+    directory = os.path.dirname(ckpt_path)
+    method_suffix = '' if cond_method == 'vanilla' else f'_{cond_method}_a{n_angles}'
+    rot_suffix = '' if rotate_deg == 0.0 else f'_rot{int(rotate_deg)}'
+    stem = f'{steps}_{cfg_scale}_{eval_name}{method_suffix}{rot_suffix}'
+    return {
+        'metrics': os.path.join(directory, f'{ckpt_name}_metrics_{stem}.json'),
+        'predictions': os.path.join(directory, f'{ckpt_name}_predictions_{stem}.pt'),
+    }
+
+
+def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame_avg_angles):
+    """Assemble the dict written to the metrics JSON.
+
+    Extends the legacy ``{metrics, ckpt_path, rotate_deg}`` record with
+    ``cond_method`` and ``frame_avg_angles`` (the C4 frame-average angles used
+    for ``fa_invariant``; ``None`` for vanilla).
+    """
+    return {
+        "metrics": metrics_dict,
+        "ckpt_path": ckpt_path,
+        "rotate_deg": rotate_deg,
+        "cond_method": cond_method,
+        "frame_avg_angles": frame_avg_angles,
+    }
 
 
 def evaluate_model(
@@ -22,12 +75,19 @@ def evaluate_model(
     num_workers=6,
     eval_name='FLAC_eval', 
     device='cuda' if torch.cuda.is_available() else 'cpu',
-    seed=42, 
+    seed=42,
     store_predictions=False,
     rotate_deg=0.0,
+    cond_method='vanilla',
+    frame_avg_angles=None,
 ):
-    torch.set_float32_matmul_precision('medium') 
-    
+    torch.set_float32_matmul_precision('medium')
+
+    # Resolve the C4 frame-average angles (only used when cond_method == 'fa_invariant').
+    if frame_avg_angles is None:
+        frame_avg_angles = DEFAULT_FRAME_ANGLES
+    frame_avg_angles = tuple(float(a) for a in frame_avg_angles)
+
     # Load configurations
     with open(model_config_path) as f:
         model_config = json.load(f)
@@ -112,8 +172,16 @@ def evaluate_model(
                 metadata = [rotate_scene_metadata(md, alpha_rad, img_w) for md in metadata]
 
             with torch.amp.autocast(device):
-                conditioning = module.diffusion.conditioner(metadata, module.device)
-            cond_inputs = module.diffusion.get_conditioning_inputs(conditioning) 
+                if cond_method == 'fa_invariant':
+                    # Route-1 symmetrized conditioning: cylindrical pose invariants
+                    # + C4 frame average of the ViT depth path. Applied AFTER the
+                    # optional --rotate-deg above (that composition is the sanity check).
+                    conditioning = invariant_conditioning(
+                        module.diffusion.conditioner, metadata, module.device, frame_avg_angles
+                    )
+                else:
+                    conditioning = module.diffusion.conditioner(metadata, module.device)
+            cond_inputs = module.diffusion.get_conditioning_inputs(conditioning)
 
             noise = torch.randn([reals.shape[0], module.diffusion.io_channels, samples]).to(module.device)
 
@@ -173,25 +241,37 @@ def evaluate_model(
             metric_name += ' (dB)'
         print('Test/' + metric_name, metric_value)
     
-    # Save metrics in a file 
-    metrics_to_save = {
-        "metrics": metrics_dict,
-        "ckpt_path": ckpt_path,
-        "rotate_deg": rotate_deg,
-    }
-        
-    ckpt_name = os.path.basename(ckpt_path).replace('.ckpt', '')
-    rot_suffix = '' if rotate_deg == 0.0 else f'_rot{int(rotate_deg)}'
-    path2save = os.path.join(os.path.dirname(ckpt_path), ckpt_name + '_metrics_' + str(steps) + '_' + str(cfg_scale) + '_' + eval_name + rot_suffix + '.json')
+    # Save metrics in a file
+    output_paths = build_output_paths(
+        ckpt_path, steps, cfg_scale, eval_name,
+        cond_method=cond_method, rotate_deg=rotate_deg, n_angles=len(frame_avg_angles),
+    )
+    frame_angles_record = list(frame_avg_angles) if cond_method == 'fa_invariant' else None
+    metrics_to_save = build_metrics_record(
+        metrics_dict, ckpt_path, rotate_deg, cond_method, frame_angles_record,
+    )
+    path2save = output_paths['metrics']
     with open(path2save, 'w') as f:
         json.dump(metrics_to_save, f, indent=4)
-    
+
     print(f"Metrics saved to {path2save}")
 
     if store_predictions:
-        decoded_samples_all = torch.cat(decoded_samples, dim=0) 
-        path2save_preds = os.path.join(os.path.dirname(ckpt_path), ckpt_name + '_predictions_' + str(steps) + '_' + str(cfg_scale) + '_' + eval_name + '.pt')
-        torch.save(decoded_samples_all, path2save_preds)
+        decoded_samples_all = torch.cat(decoded_samples, dim=0)
+        path2save_preds = output_paths['predictions']
+        preds_bundle = {
+            "predictions": decoded_samples_all,
+            "meta": {
+                "dataset_config": dataset_config_path,
+                "seed": seed,
+                "n_samples": int(decoded_samples_all.shape[0]),
+                "cond_method": cond_method,
+                "frame_avg_angles": frame_angles_record,
+                "rotate_deg": rotate_deg,
+                "batch_size": batch_size,
+            },
+        }
+        torch.save(preds_bundle, path2save_preds)
         print(f"Decoded samples saved to {path2save_preds}")
 
     print("Evaluation complete!")
@@ -211,10 +291,14 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=42, help="Random seed for evaluation")
     parser.add_argument("--store_predictions", action='store_true', help="Whether to store predictions or not")
     parser.add_argument("--rotate-deg", type=float, default=0.0, help="Yaw-rotate the conditioning (depth + poses) by this many degrees before eval; 0 disables (default).")
+    parser.add_argument("--cond-method", type=str, default="vanilla", choices=["vanilla", "fa_invariant"], help="Conditioning method: 'vanilla' (single conditioner pass) or 'fa_invariant' (cylindrical pose invariants + C4 ViT frame average). Composes with --rotate-deg (rotation applied first).")
+    parser.add_argument("--frame-avg-angles", type=str, default="0,90,180,270", help="Comma-separated yaw angles in degrees for fa_invariant frame averaging; the first must be 0. Ignored when --cond-method vanilla.")
     args = parser.parse_args()
 
     if args.store_predictions:
         print('Warning: Storing predictions can use a lot of memory.')
+
+    frame_avg_angles = tuple(float(a) for a in args.frame_avg_angles.split(","))
 
     evaluate_model(
         args.model_config,
@@ -225,8 +309,10 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         device=args.device,
-        eval_name=args.eval_name, 
+        eval_name=args.eval_name,
         seed=args.seed,
         store_predictions=args.store_predictions,
         rotate_deg=args.rotate_deg,
+        cond_method=args.cond_method,
+        frame_avg_angles=frame_avg_angles,
     )
