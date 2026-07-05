@@ -107,3 +107,10 @@
   - **R4 (H1):** Metric-1 rot0 control ≡ 0.0 exactly; C₄ angles ≤ pre-registered floor (conditioning float-exact ≤1e-6 rel; end-to-end relL2 ≤ 2e-3 fp32-referenced — bf16 floor to be re-measured on R2 before judging, re-registered in this notebook BEFORE reading R4 numbers); 45° reported (expected ViT-path residual ~0.2 zero-shot scale, post-FT value informative).
   - **H2:** R4/R4b per-angle Metric-2 flat across α ∈ C₄ within 2× the exp_01 single-eval noise floor.
 - **Next** — C4 probes → R0 + R1 FT launch.
+
+## 2026-07-05T01:47:20-04:00 — R0 done; C4 probes closed; R1 LAUNCHED (batch 4 × accum 2)
+- **Result R0 (zero-shot, frozen ckpt + fa_invariant, K=1, full split):** T60 10.08, C50 1.038, EDT 42.02, R@1 5.38 (baseline: 9.99/1.047/40.11/6.71) — mild OOD degradation as predicted; the fine-tune's job is to close ~0.09 T60 / ~1.9 ms EDT / ~1.3 pp R@1. JSON correctly records cond_method/angles/cond_autocast.
+- **C4 probes:** vanilla batch-8 PASS (1.3 it/s) but GPU 0 now shared with the user's own rir2rir-oneroom job (~20 GB, PID 762206 — untouched per etiquette); fa batch-8 OOM under sharing → --accumulate-grad-batches added (round accum, commit `f472328`, review APPROVE `0c86c3e`); fa batch-4×2 re-probe PASS (0.58 micro-it/s = 0.29 opt-steps/s, 12 micro-batches for max_steps=6 — Lightning optimizer-step semantics empirically confirmed).
+- **Acceptance criteria addendum (pre-registered):** both fine-tunes batch 4 × accum 2 (effective 8); wall-clock estimates R1 ≈ 4 h, R2 ≈ 9.6 h — R2/R3/R4 will complete after Yixun returns; staged gating unchanged.
+- **Command / Validation** — R1 launched per fa_invariant_cond_command.md (updated `0c86c3e`): 10000 optimizer steps, ckpt every 2500, seed 42, commit `0c86c3e`.
+- **Next** — R1 completion → clean export → 10 gate evals (exp_01 protocol) → gate verdict → R2.
