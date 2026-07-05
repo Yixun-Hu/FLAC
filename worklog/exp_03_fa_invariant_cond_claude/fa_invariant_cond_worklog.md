@@ -81,3 +81,10 @@
 - **Version Control** — write `8e6164a`+`337eec3`+`1de5721` → review `737249d` (REQUEST-CHANGES ×3) → fix `37aa6bd` (+162/−13) → Planner re-verified: 48 passed.
 - **Result** — `passed`; round CLOSED. Meta guard now covers cond_method + frame_avg_angles (rotate_deg exempt by design, pinned by test); evaluate_model validates cond_method before any work; wiring test proves the save path flows through build_output_paths (spy + real JSON at the exact expected path). Coder proved all three fixes load-bearing by stash-RED.
 - **Next** — cycle 6: finetune_cond.py.
+
+## 2026-07-05T00:52:54-04:00 — ladder rung f: parity audit (evidence-based) + rung e smoke
+- **Goal** — audit the fine-tune recipe component-by-component against FLAC_AR.json before any launch (SOP parity-audit section).
+- **Command / Validation** — executed `build_finetune_training_config` (commit `bd03a5c`) and flat-diffed against the original training block (full table in session log).
+- **Result** — `passed`. Deviations are EXACTLY the four intended ones, each traced to a documented pre-revert failure: (1) `cond_method`/`frame_avg_angles` injected [the method under test]; (2) lr 5e-5 → 5e-6 constant [full-LR restart destroyed the pre-revert control]; (3) scheduler key removed entirely — no InverseLR to warm-restart [same failure]; (4) `use_ema` true → false [fresh-EMA warmup artifact]. IDENTICAL: timestep_sampler log_snr, cfg_dropout_prob 0.1, mask_padding true, AdamW betas [0.9,0.999], weight_decay 1e-3, metrics block, and all non-training config blocks. Original config not mutated.
+- **Rung e (smoke)** — passed first try during cycle 6: 10 optimizer steps, losses 0.30–0.98 (finite, no NaN), lr flat at 5e-6, fa_invariant conditioning echoed active, VAE frozen (50.3M trainable / 14.2M frozen), no OOM at batch 2, GPU 1 untouched.
+- **Next** — finetune review verdict → close cycle 6 → integrative full review → params/command + acceptance criteria → R0/R1 launch.
