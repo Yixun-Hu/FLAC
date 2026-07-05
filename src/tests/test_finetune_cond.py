@@ -172,6 +172,7 @@ def test_parse_full_arg_vector():
         "--num-workers", "4",
         "--precision", "bf16-mixed",
         "--gradient-clip-val", "1.0",
+        "--accumulate-grad-batches", "2",
         "--seed", "123",
         "--smoke",
     ]
@@ -191,6 +192,7 @@ def test_parse_full_arg_vector():
     assert ns.num_workers == 4
     assert ns.precision == "bf16-mixed"
     assert ns.gradient_clip_val == 1.0
+    assert ns.accumulate_grad_batches == 2
     assert ns.seed == 123
     assert ns.smoke is True
 
@@ -208,6 +210,7 @@ def test_parse_defaults():
     assert ns.lr == 5e-6                          # constant fine-tune LR
     assert ns.precision == "bf16-mixed"
     assert ns.gradient_clip_val == 0.0            # upstream parity (defaults.ini)
+    assert ns.accumulate_grad_batches == 1        # no accumulation unless requested
     assert ns.seed == 42
     assert ns.smoke is False                      # opt-in
     assert ns.pretransform_ckpt_path is None      # optional; VAE also present in main ckpt
@@ -325,3 +328,22 @@ def test_nonsmoke_trainer_kwargs_keep_checkpointing():
     )
     assert kw["enable_checkpointing"] is True
     assert any(isinstance(cb, pl.callbacks.ModelCheckpoint) for cb in kw["callbacks"])
+
+
+def test_trainer_kwargs_accumulate_grad_batches():
+    """Shared-GPU launch adaptation: batch 4 x accumulate 2 = effective batch 8.
+    Accumulation is a Trainer arg (upstream train.py passes --accum-batches the
+    same way), NOT a training-config key -- so the recipe flat-diff pin
+    (test_recipe_touches_exactly_the_pinned_keys) is untouched by it."""
+    kw = finetune_cond.build_trainer_kwargs(
+        precision="bf16-mixed", max_steps=2000, gradient_clip_val=0.0,
+        checkpoint_every=500, save_dir="/tmp/unused", smoke=False,
+        accumulate_grad_batches=2,
+    )
+    assert kw["accumulate_grad_batches"] == 2
+    # Default when not requested: 1 (no accumulation), in smoke and non-smoke alike.
+    kw_default = finetune_cond.build_trainer_kwargs(
+        precision="bf16-mixed", max_steps=10, gradient_clip_val=0.0,
+        checkpoint_every=500, save_dir="/tmp/unused", smoke=True,
+    )
+    assert kw_default["accumulate_grad_batches"] == 1

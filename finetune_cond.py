@@ -126,12 +126,15 @@ class _SmokeLossPrinter(pl.Callback):
         print(f"[smoke] global_step={trainer.global_step} loss={float(loss):.6f}", flush=True)
 
 
-def build_trainer_kwargs(precision, max_steps, gradient_clip_val, checkpoint_every, save_dir, smoke):
+def build_trainer_kwargs(precision, max_steps, gradient_clip_val, checkpoint_every, save_dir,
+                         smoke, accumulate_grad_batches=1):
     """Build the ``pl.Trainer`` keyword arguments (side-effect free; unit-testable).
 
     ``smoke`` guarantees no checkpointing two ways: the ``ModelCheckpoint`` callback is
     replaced by a loss printer AND ``enable_checkpointing=False`` stops Lightning from
     injecting its default ``ModelCheckpoint`` when none is supplied (review finding 2).
+    ``accumulate_grad_batches`` mirrors upstream ``train.py --accum-batches`` (effective
+    batch = batch size x accumulation), for shared-GPU capacity.
 
     Returns
     -------
@@ -155,6 +158,7 @@ def build_trainer_kwargs(precision, max_steps, gradient_clip_val, checkpoint_eve
         "logger": False,
         "log_every_n_steps": 1 if smoke else 50,
         "gradient_clip_val": gradient_clip_val,
+        "accumulate_grad_batches": accumulate_grad_batches,
         "enable_progress_bar": True,
         "num_sanity_val_steps": 0,
         "enable_checkpointing": not smoke,
@@ -175,6 +179,7 @@ def finetune(
     checkpoint_every,
     batch_size,
     num_workers,
+    accumulate_grad_batches,
     precision,
     gradient_clip_val,
     seed,
@@ -202,6 +207,9 @@ def finetune(
         Constant learning rate.
     max_steps, checkpoint_every, batch_size, num_workers : int
         Trainer / dataloader sizing (``max_steps`` / ``batch_size`` overridden by ``smoke``).
+    accumulate_grad_batches : int
+        Gradient-accumulation batches (effective batch = ``batch_size`` x this); mirrors
+        upstream ``train.py --accum-batches``.
     precision : str
         PyTorch-Lightning precision string (e.g. ``"bf16-mixed"``).
     gradient_clip_val : float
@@ -266,6 +274,7 @@ def finetune(
         checkpoint_every=checkpoint_every,
         save_dir=save_dir,
         smoke=smoke,
+        accumulate_grad_batches=accumulate_grad_batches,
     ))
 
     trainer.fit(module, train_dl)
@@ -301,6 +310,11 @@ def build_parser():
     parser.add_argument("--checkpoint-every", type=int, default=500)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--num-workers", type=int, default=4)
+    parser.add_argument(
+        "--accumulate-grad-batches", type=int, default=1,
+        help="Gradient-accumulation batches (effective batch = batch-size x this); "
+             "mirrors upstream train.py --accum-batches. For shared-GPU capacity.",
+    )
     parser.add_argument("--precision", type=str, default="bf16-mixed")
     parser.add_argument(
         "--gradient-clip-val", type=float, default=0.0,
@@ -333,6 +347,7 @@ def main():
         checkpoint_every=args.checkpoint_every,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
+        accumulate_grad_batches=args.accumulate_grad_batches,
         precision=args.precision,
         gradient_clip_val=args.gradient_clip_val,
         seed=args.seed,
