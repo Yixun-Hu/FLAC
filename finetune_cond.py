@@ -125,6 +125,41 @@ class _SmokeLossPrinter(pl.Callback):
         print(f"[smoke] global_step={trainer.global_step} loss={float(loss):.6f}", flush=True)
 
 
+def build_trainer_kwargs(precision, max_steps, gradient_clip_val, checkpoint_every, save_dir, smoke):
+    """Build the ``pl.Trainer`` keyword arguments (side-effect free; unit-testable).
+
+    ``smoke`` guarantees no checkpointing two ways: the ``ModelCheckpoint`` callback is
+    replaced by a loss printer AND ``enable_checkpointing=False`` stops Lightning from
+    injecting its default ``ModelCheckpoint`` when none is supplied (review finding 2).
+
+    Returns
+    -------
+    dict
+        Keyword arguments for ``pl.Trainer``.
+    """
+    if smoke:
+        callbacks = [_SmokeLossPrinter()]
+    else:
+        callbacks = [
+            pl.callbacks.ModelCheckpoint(
+                every_n_train_steps=checkpoint_every, dirpath=save_dir, save_top_k=-1
+            )
+        ]
+    return {
+        "devices": 1,
+        "accelerator": "gpu",
+        "precision": precision,
+        "max_steps": max_steps,
+        "callbacks": callbacks,
+        "logger": False,
+        "log_every_n_steps": 1 if smoke else 50,
+        "gradient_clip_val": gradient_clip_val,
+        "enable_progress_bar": True,
+        "num_sanity_val_steps": 0,
+        "enable_checkpointing": not smoke,
+    }
+
+
 def finetune(
     model_config_path,
     dataset_config_path,
@@ -223,27 +258,14 @@ def finetune(
         audio_channels=model_config.get("audio_channels", 1),
     )
 
-    if smoke:
-        callbacks = [_SmokeLossPrinter()]
-    else:
-        callbacks = [
-            pl.callbacks.ModelCheckpoint(
-                every_n_train_steps=checkpoint_every, dirpath=save_dir, save_top_k=-1
-            )
-        ]
-
-    trainer = pl.Trainer(
-        devices=1,
-        accelerator="gpu",
+    trainer = pl.Trainer(**build_trainer_kwargs(
         precision=precision,
         max_steps=max_steps,
-        callbacks=callbacks,
-        logger=False,
-        log_every_n_steps=1 if smoke else 50,
         gradient_clip_val=gradient_clip_val,
-        enable_progress_bar=True,
-        num_sanity_val_steps=0,
-    )
+        checkpoint_every=checkpoint_every,
+        save_dir=save_dir,
+        smoke=smoke,
+    ))
 
     trainer.fit(module, train_dl)
 
@@ -278,7 +300,11 @@ def build_parser():
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--precision", type=str, default="bf16-mixed")
-    parser.add_argument("--gradient-clip-val", type=float, default=1.0)
+    parser.add_argument(
+        "--gradient-clip-val", type=float, default=0.0,
+        help="Matches upstream training default (defaults.ini gradient_clip_val=0.0); "
+             "nonzero values are a recipe deviation.",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--smoke", action="store_true",

@@ -20,10 +20,14 @@ import copy
 import os
 
 import pytest
+import pytorch_lightning as pl
 import torch
 
 import finetune_cond
+from src.models.factory import create_model_from_config
+from src.training.factory import create_training_wrapper_from_config
 from src.training.utils import create_optimizer_from_config
+from test_cond_dispatch import _base_config  # sibling tiny diffusion_cond config (pytest prepends src/tests)
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _FLAC_AR_CONFIG = os.path.join(
@@ -203,7 +207,7 @@ def test_parse_defaults():
     assert ns.frame_avg_angles == "0,90,180,270"
     assert ns.lr == 5e-6                          # constant fine-tune LR
     assert ns.precision == "bf16-mixed"
-    assert ns.gradient_clip_val == 1.0
+    assert ns.gradient_clip_val == 0.0            # upstream parity (defaults.ini)
     assert ns.seed == 42
     assert ns.smoke is False                      # opt-in
     assert ns.pretransform_ckpt_path is None      # optional; VAE also present in main ckpt
@@ -219,3 +223,105 @@ def test_parse_rejects_bad_cond_method():
     ]
     with pytest.raises(SystemExit):
         finetune_cond.build_parser().parse_args(argv)
+
+
+# --------------------------------------------------------------------------------------
+# 6. Review fixes (finetune round): configure_optimizers pin, exact-recipe pin,
+#    grad-clip parity default, smoke checkpointing guarantee
+# --------------------------------------------------------------------------------------
+
+def test_configure_optimizers_bare_after_injection():
+    """The injected config must yield a scheduler-free configure_optimizers().
+
+    Built through the REAL factories (tiny CPU diffusion_cond config from
+    test_cond_dispatch, given the FLAC_AR InverseLR scheduler so injection has
+    something to remove). Per diffusion.py:191-203 Lightning conventions: bare
+    optimizer -> a plain list [opt]; scheduler present -> ([opt], [sched_config])
+    tuple. The un-injected control proves the assertion discriminates.
+    """
+    tiny = _base_config()
+    tiny["training"]["optimizer_configs"]["diffusion"]["scheduler"] = {
+        "type": "InverseLR",
+        "config": {"inv_gamma": 1000000, "power": 0.5, "warmup": 0.99},
+    }
+
+    injected = finetune_cond.build_finetune_training_config(tiny, "fa_invariant", 5e-6, [0.0, 90.0])
+    wrapper = create_training_wrapper_from_config(injected, create_model_from_config(injected))
+    result = wrapper.configure_optimizers()
+    assert isinstance(result, list) and not isinstance(result, tuple)  # no scheduler leg
+    assert len(result) == 1
+    assert isinstance(result[0], torch.optim.Optimizer)
+    assert result[0].param_groups[0]["lr"] == 5e-6
+
+    # Control: the scheduler-bearing config takes the two-leg branch -> the pin is non-vacuous.
+    control = create_training_wrapper_from_config(tiny, create_model_from_config(tiny))
+    control_result = control.configure_optimizers()
+    assert isinstance(control_result, tuple) and len(control_result) == 2
+    assert "scheduler" in control_result[1][0]
+
+
+def _flatten(d, prefix=""):
+    """Flatten a nested dict to dotted-leaf-key -> value (lists are leaves)."""
+    out = {}
+    for k, v in d.items():
+        key = f"{prefix}{k}"
+        if isinstance(v, dict):
+            out.update(_flatten(v, key + "."))
+        else:
+            out[key] = v
+    return out
+
+
+def test_recipe_touches_exactly_the_pinned_keys():
+    """Flat-diff pin: the injected training block differs from the original in EXACTLY
+    the approved recipe keys. Any silent drop/change of timestep_sampler,
+    cfg_dropout_prob, mask_padding, betas, weight_decay, metrics.* etc. lands in one
+    of these sets and fails."""
+    cfg = _load_flac_ar_config()
+    out = finetune_cond.build_finetune_training_config(
+        cfg, "fa_invariant", 5e-6, [0.0, 90.0, 180.0, 270.0]
+    )
+    orig = _flatten(cfg["training"])
+    new = _flatten(out["training"])
+    added = set(new) - set(orig)
+    removed = set(orig) - set(new)
+    changed = {k for k in set(orig) & set(new) if orig[k] != new[k]}
+    assert added == {"cond_method", "frame_avg_angles"}
+    assert removed == {
+        "optimizer_configs.diffusion.scheduler.type",
+        "optimizer_configs.diffusion.scheduler.config.inv_gamma",
+        "optimizer_configs.diffusion.scheduler.config.power",
+        "optimizer_configs.diffusion.scheduler.config.warmup",
+    }
+    assert changed == {"use_ema", "optimizer_configs.diffusion.optimizer.config.lr"}
+
+
+def test_parser_gradient_clip_default_matches_upstream():
+    """Recipe parity: original FLAC training used defaults.ini gradient_clip_val=0.0
+    (train.py passes it straight through); a nonzero default would silently deviate
+    R1/R2 from the parity-control recipe."""
+    argv = ["--model-config", "m.json", "--dataset-config", "d.json",
+            "--ckpt-path", "c.ckpt", "--save-dir", "/tmp/out"]
+    ns = finetune_cond.build_parser().parse_args(argv)
+    assert ns.gradient_clip_val == 0.0
+
+
+def test_smoke_trainer_kwargs_disable_checkpointing():
+    """--smoke must make checkpointing impossible: enable_checkpointing=False (so
+    Lightning cannot inject its default ModelCheckpoint) AND no ModelCheckpoint in
+    the callbacks list."""
+    kw = finetune_cond.build_trainer_kwargs(
+        precision="bf16-mixed", max_steps=10, gradient_clip_val=0.0,
+        checkpoint_every=500, save_dir="/tmp/unused", smoke=True,
+    )
+    assert kw["enable_checkpointing"] is False
+    assert not any(isinstance(cb, pl.callbacks.ModelCheckpoint) for cb in kw["callbacks"])
+
+
+def test_nonsmoke_trainer_kwargs_keep_checkpointing():
+    kw = finetune_cond.build_trainer_kwargs(
+        precision="bf16-mixed", max_steps=2000, gradient_clip_val=0.0,
+        checkpoint_every=500, save_dir="/tmp/unused", smoke=False,
+    )
+    assert kw["enable_checkpointing"] is True
+    assert any(isinstance(cb, pl.callbacks.ModelCheckpoint) for cb in kw["callbacks"])
