@@ -1,0 +1,17 @@
+{
+    "ref_path": "weights/FLAC/FLAC_EMA_predictions_1_1.0_yaw_baseline.pt",
+    "alt_path": "weights/FLAC/FLAC_EMA_predictions_1_1.0_yaw_rot0.pt",
+    "num_samples": 6337,
+    "common_length": 10240,
+    "waveform_gap": {
+        "mean_abs_diff": 0.0,
+        "mean_rel_l2": 0.0,
+        "max_abs_diff": 0.0
+    },
+    "acoustic_gap": {
+        "T60": 0.0,
+        "Invalid T60": 0.0,
+        "C50": 0.0,
+        "EDT": 0.0
+    }
+}
