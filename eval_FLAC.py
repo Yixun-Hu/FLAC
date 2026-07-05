@@ -1,5 +1,6 @@
 import os
 import argparse
+import contextlib
 import json
 import math
 from tqdm import tqdm
@@ -49,12 +50,13 @@ def build_output_paths(
     }
 
 
-def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame_avg_angles):
+def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame_avg_angles,
+                         cond_autocast='default'):
     """Assemble the dict written to the metrics JSON.
 
     Extends the legacy ``{metrics, ckpt_path, rotate_deg}`` record with
-    ``cond_method`` and ``frame_avg_angles`` (the C4 frame-average angles used
-    for ``fa_invariant``; ``None`` for vanilla).
+    ``cond_method``, ``frame_avg_angles`` (the C4 frame-average angles used
+    for ``fa_invariant``; ``None`` for vanilla) and ``cond_autocast``.
     """
     return {
         "metrics": metrics_dict,
@@ -62,7 +64,72 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
         "rotate_deg": rotate_deg,
         "cond_method": cond_method,
         "frame_avg_angles": frame_avg_angles,
+        "cond_autocast": cond_autocast,
     }
+
+
+def resolve_cond_autocast(mode):
+    """Map a ``--cond-autocast`` mode to ``(enabled, dtype)`` for the conditioning call.
+
+    ``'default'`` -> ``(True, None)``: ``torch.amp.autocast(device)`` with no explicit
+    dtype, i.e. the torch per-device default (fp16 on cuda) -- byte-identical to the
+    exp_01/exp_02 protocol. ``'bf16'`` -> ``(True, torch.bfloat16)``: matches
+    ``finetune_cond``'s bf16-mixed training precision. ``'off'`` -> ``(False, None)``:
+    no autocast (fp32), for exactness measurements.
+    """
+    modes = {"default": (True, None), "bf16": (True, torch.bfloat16), "off": (False, None)}
+    if mode not in modes:
+        raise ValueError(f"Unknown cond_autocast: {mode!r}; valid options: {sorted(modes)}.")
+    return modes[mode]
+
+
+def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
+                           frame_avg_angles, rotate_deg, batch_size, cond_autocast):
+    """Sidecar meta saved by ``--store_predictions`` (read by the exp_02 comparator guard)."""
+    return {
+        "dataset_config": dataset_config_path,
+        "seed": seed,
+        "n_samples": n_samples,
+        "cond_method": cond_method,
+        "frame_avg_angles": frame_avg_angles,
+        "rotate_deg": rotate_deg,
+        "batch_size": batch_size,
+        "cond_autocast": cond_autocast,
+    }
+
+
+# Unexpected-key prefixes a PL-wrapper checkpoint legitimately leaves after
+# evaluate_model's 'diffusion.' strip: EMA copy/bookkeeping and loss-module buffers.
+# Verified against outputs_FLAC/ft_vanilla/epoch=0-step=2000.ckpt (1279 keys):
+# all 213 leftovers are diffusion_ema.* (212) + losses.* (1). Exported/bare
+# checkpoints (FLAC_EMA.ckpt, *_ft.ckpt: 1066 keys) must load with zero of both.
+LOAD_WHITELIST_PREFIXES = ("diffusion_ema.", "losses.")
+
+
+def check_load_integrity(missing, unexpected, allow_partial_load=False,
+                         whitelist_prefixes=LOAD_WHITELIST_PREFIXES):
+    """Report ``load_state_dict(strict=False)`` results and fail on real mismatches.
+
+    Missing keys are never acceptable (an un-initialized model weight silently
+    corrupts metrics); unexpected keys are tolerated only under
+    ``whitelist_prefixes``. Any other mismatch raises ``RuntimeError`` unless
+    ``allow_partial_load`` is set, which downgrades it to a printed warning.
+    """
+    missing = list(missing)
+    stray = [k for k in unexpected if not k.startswith(whitelist_prefixes)]
+    n_benign = len(list(unexpected)) - len(stray)
+    print(f"Checkpoint load: {len(missing)} missing, {len(stray)} stray unexpected, "
+          f"{n_benign} whitelisted wrapper-leftover keys.")
+    if not (missing or stray):
+        return
+    msg = (f"Checkpoint did not load cleanly: {len(missing)} missing keys "
+           f"(first: {missing[:5]}), {len(stray)} stray unexpected keys "
+           f"(first: {stray[:5]}). Wrong model-config/checkpoint pairing? "
+           "Re-export the checkpoint, or pass --allow-partial-load to continue anyway.")
+    if allow_partial_load:
+        print("WARNING (--allow-partial-load): " + msg)
+    else:
+        raise RuntimeError(msg)
 
 
 def evaluate_model(
@@ -80,6 +147,8 @@ def evaluate_model(
     rotate_deg=0.0,
     cond_method='vanilla',
     frame_avg_angles=None,
+    cond_autocast='default',
+    allow_partial_load=False,
 ):
     # Fail fast on an unknown cond_method (the CLI is guarded by argparse
     # choices, but programmatic callers would otherwise silently run vanilla
@@ -88,6 +157,17 @@ def evaluate_model(
         raise ValueError(
             f"Unknown cond_method: {cond_method!r}; valid options: 'vanilla', 'fa_invariant'."
         )
+
+    # Fail fast on an unknown cond_autocast too (full-review condition C1).
+    ac_enabled, ac_dtype = resolve_cond_autocast(cond_autocast)
+
+    def cond_autocast_ctx():
+        """Fresh autocast context for one conditioning call (same semantics per batch)."""
+        if not ac_enabled:
+            return contextlib.nullcontext()
+        if ac_dtype is None:
+            return torch.amp.autocast(device)  # per-device default: exp_01/02 protocol
+        return torch.amp.autocast(device, dtype=ac_dtype)
 
     torch.set_float32_matmul_precision('medium')
 
@@ -119,9 +199,10 @@ def evaluate_model(
                 state_dict[new_key] = state_dict.pop(key)
         training_config['use_ema'] = False
 
-    # Build model
+    # Build model; assert the checkpoint actually loaded (full-review condition C2).
     model = create_model_from_config(model_config)
-    model.load_state_dict(state_dict, strict=False)
+    missing, unexpected = model.load_state_dict(state_dict, strict=False)
+    check_load_integrity(missing, unexpected, allow_partial_load)
 
     model_type = model_config.get('model_type', None)
     assert model_type is not None, 'model_type must be specified in model config'
@@ -179,7 +260,7 @@ def evaluate_model(
                 img_w = int(metadata[0]["depth"].shape[-1])
                 metadata = [rotate_scene_metadata(md, alpha_rad, img_w) for md in metadata]
 
-            with torch.amp.autocast(device):
+            with cond_autocast_ctx():
                 if cond_method == 'fa_invariant':
                     # Route-1 symmetrized conditioning: cylindrical pose invariants
                     # + C4 frame average of the ViT depth path. Applied AFTER the
@@ -257,6 +338,7 @@ def evaluate_model(
     frame_angles_record = list(frame_avg_angles) if cond_method == 'fa_invariant' else None
     metrics_to_save = build_metrics_record(
         metrics_dict, ckpt_path, rotate_deg, cond_method, frame_angles_record,
+        cond_autocast=cond_autocast,
     )
     path2save = output_paths['metrics']
     with open(path2save, 'w') as f:
@@ -269,15 +351,10 @@ def evaluate_model(
         path2save_preds = output_paths['predictions']
         preds_bundle = {
             "predictions": decoded_samples_all,
-            "meta": {
-                "dataset_config": dataset_config_path,
-                "seed": seed,
-                "n_samples": int(decoded_samples_all.shape[0]),
-                "cond_method": cond_method,
-                "frame_avg_angles": frame_angles_record,
-                "rotate_deg": rotate_deg,
-                "batch_size": batch_size,
-            },
+            "meta": build_predictions_meta(
+                dataset_config_path, seed, int(decoded_samples_all.shape[0]),
+                cond_method, frame_angles_record, rotate_deg, batch_size, cond_autocast,
+            ),
         }
         torch.save(preds_bundle, path2save_preds)
         print(f"Decoded samples saved to {path2save_preds}")
@@ -300,7 +377,9 @@ if __name__ == "__main__":
     parser.add_argument("--store_predictions", action='store_true', help="Whether to store predictions or not")
     parser.add_argument("--rotate-deg", type=float, default=0.0, help="Yaw-rotate the conditioning (depth + poses) by this many degrees before eval; 0 disables (default).")
     parser.add_argument("--cond-method", type=str, default="vanilla", choices=["vanilla", "fa_invariant"], help="Conditioning method: 'vanilla' (single conditioner pass) or 'fa_invariant' (cylindrical pose invariants + C4 ViT frame average). Composes with --rotate-deg (rotation applied first).")
-    parser.add_argument("--frame-avg-angles", type=str, default="0,90,180,270", help="Comma-separated yaw angles in degrees for fa_invariant frame averaging; the first must be 0. Ignored when --cond-method vanilla.")
+    parser.add_argument("--frame-avg-angles", type=str, default=",".join(str(int(a)) for a in DEFAULT_FRAME_ANGLES), help="Comma-separated yaw angles in degrees for fa_invariant frame averaging; the first must be 0. Ignored when --cond-method vanilla.")
+    parser.add_argument("--cond-autocast", type=str, default="default", choices=["default", "bf16", "off"], help="Autocast mode for the conditioning call: 'default' = torch per-device default dtype (fp16 on cuda; the exp_01/exp_02 protocol), 'bf16' = bfloat16 (matches finetune_cond's bf16-mixed training), 'off' = no autocast (fp32, for exactness measurements).")
+    parser.add_argument("--allow-partial-load", action='store_true', help="Continue with a warning when the checkpoint does not load cleanly (missing or non-whitelisted unexpected keys) instead of raising.")
     args = parser.parse_args()
 
     if args.store_predictions:
@@ -323,4 +402,6 @@ if __name__ == "__main__":
         rotate_deg=args.rotate_deg,
         cond_method=args.cond_method,
         frame_avg_angles=frame_avg_angles,
+        cond_autocast=args.cond_autocast,
+        allow_partial_load=args.allow_partial_load,
     )

@@ -151,11 +151,23 @@ def load_prediction_meta(path: str):
 
 # Keys that must match for the comparison to be meaningful: dataset_config /
 # seed / batch_size so sample i corresponds across the two files, plus
-# cond_method / frame_avg_angles so both runs used the same conditioning method
-# (a vanilla-vs-fa_invariant or different-angle-set gap is a method difference,
-# not a Metric-1 invariance gap). ``rotate_deg`` is intentionally EXEMPT:
-# comparing a rotated run against an unrotated baseline is this tool's purpose.
-_GUARD_KEYS = ("dataset_config", "seed", "batch_size", "cond_method", "frame_avg_angles")
+# cond_method / frame_avg_angles / cond_autocast so both runs used the same
+# conditioning method and precision (a vanilla-vs-fa_invariant, different-angle
+# or fp16-vs-bf16 gap is a method/precision difference, not a Metric-1
+# invariance gap). ``rotate_deg`` is intentionally EXEMPT: comparing a rotated
+# run against an unrotated baseline is this tool's purpose.
+_GUARD_KEYS = (
+    "dataset_config", "seed", "batch_size", "cond_method", "frame_avg_angles",
+    "cond_autocast",
+)
+
+
+def _guard_value(meta: Dict[str, Any], key: str) -> Any:
+    """Guarded value with a legacy default: sidecars written before the
+    ``cond_autocast`` field existed factually ran the default autocast."""
+    if key == "cond_autocast":
+        return meta.get(key, "default")
+    return meta.get(key)
 
 
 def guard_meta(meta_ref, meta_alt, ref_path: str = "ref", alt_path: str = "alt") -> None:
@@ -163,8 +175,9 @@ def guard_meta(meta_ref, meta_alt, ref_path: str = "ref", alt_path: str = "alt")
 
     When BOTH files carry meta, a mismatch on any of :data:`_GUARD_KEYS`
     (``dataset_config`` / ``seed`` / ``batch_size`` -- sample correspondence --
-    plus ``cond_method`` / ``frame_avg_angles`` -- method comparability) makes
-    the Metric-1 comparison meaningless -> :class:`ValueError`. ``rotate_deg``
+    plus ``cond_method`` / ``frame_avg_angles`` / ``cond_autocast`` -- method
+    and precision comparability) makes the Metric-1 comparison meaningless ->
+    :class:`ValueError`. ``rotate_deg``
     is deliberately not guarded: rotated-vs-unrotated is the point of the tool.
     When only one side (or neither) carries meta the check is skipped with a
     warning (legacy bare-tensor interop, so old exp_02 artifacts still compare).
@@ -179,16 +192,16 @@ def guard_meta(meta_ref, meta_alt, ref_path: str = "ref", alt_path: str = "alt")
         )
         return
     mismatches = [
-        f"{key}: ref={meta_ref.get(key)!r} vs alt={meta_alt.get(key)!r}"
+        f"{key}: ref={_guard_value(meta_ref, key)!r} vs alt={_guard_value(meta_alt, key)!r}"
         for key in _GUARD_KEYS
-        if meta_ref.get(key) != meta_alt.get(key)
+        if _guard_value(meta_ref, key) != _guard_value(meta_alt, key)
     ]
     if mismatches:
         raise ValueError(
             "Refusing to compare mismatched prediction runs: "
             + "; ".join(mismatches) + ". Re-run both with the same "
-            "dataset_config, seed, batch_size, cond_method and frame_avg_angles "
-            "(only rotate_deg may differ)."
+            "dataset_config, seed, batch_size, cond_method, frame_avg_angles "
+            "and cond_autocast (only rotate_deg may differ)."
         )
 
 

@@ -21,6 +21,7 @@ being reproducible:
 exist on disk; the leading directory is preserved by ``os.path.join``.
 """
 import json
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -146,17 +147,19 @@ def test_metrics_json_records_method_vanilla():
     # new keys
     assert rec["cond_method"] == "vanilla"
     assert rec["frame_avg_angles"] is None
+    assert rec["cond_autocast"] == "default"  # omitted kwarg -> the legacy protocol
     json.loads(json.dumps(rec))  # must be JSON-dumpable like the real call
 
 
 def test_metrics_json_records_method_fa_invariant():
     rec = eval_FLAC.build_metrics_record(
         {"C50": 4.5}, CKPT, rotate_deg=90.0, cond_method="fa_invariant",
-        frame_avg_angles=[0.0, 90.0, 180.0, 270.0],
+        frame_avg_angles=[0.0, 90.0, 180.0, 270.0], cond_autocast="bf16",
     )
     assert rec["cond_method"] == "fa_invariant"
     assert rec["frame_avg_angles"] == [0.0, 90.0, 180.0, 270.0]
     assert rec["rotate_deg"] == 90.0
+    assert rec["cond_autocast"] == "bf16"
     json.loads(json.dumps(rec))
 
 
@@ -175,7 +178,7 @@ def _meta(seed=42, dataset_config="cfgA.json", batch_size=32):
     return {
         "dataset_config": dataset_config, "seed": seed, "batch_size": batch_size,
         "cond_method": "vanilla", "frame_avg_angles": None, "rotate_deg": 0.0,
-        "n_samples": 3,
+        "n_samples": 3, "cond_autocast": "default",
     }
 
 
@@ -205,6 +208,7 @@ def test_comparator_loads_dict_returns_tensor(tmp_path):
         ("batch_size", 1),
         ("cond_method", "fa_invariant"),
         ("frame_avg_angles", [0.0, 90.0, 180.0, 270.0]),
+        ("cond_autocast", "bf16"),
     ],
 )
 def test_comparator_meta_mismatch_raises(tmp_path, field, bad):
@@ -322,7 +326,7 @@ def test_evaluate_model_save_path_flows_through_build_output_paths(tmp_path, mon
 
     monkeypatch.setattr(
         eval_FLAC, "create_model_from_config",
-        lambda cfg: types.SimpleNamespace(load_state_dict=lambda sd, strict=False: None),
+        lambda cfg: types.SimpleNamespace(load_state_dict=lambda sd, strict=False: ([], [])),
     )
     monkeypatch.setattr(
         eval_FLAC, "create_training_wrapper_from_config", lambda cfg, model: _FakeEvalModule()
@@ -364,3 +368,122 @@ def test_evaluate_model_save_path_flows_through_build_output_paths(tmp_path, mon
     saved = json.loads(metrics_path.read_text())
     assert saved["cond_method"] == "fa_invariant"
     assert saved["frame_avg_angles"] == [0.0, 90.0, 180.0, 270.0]
+
+
+# --------------------------------------------------------------------------- #
+# launch conditions (full review C1/C2): cond-autocast control + load integrity
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize(
+    "mode,expected",
+    [
+        ("default", (True, None)),          # torch per-device default = exp_01/02 protocol
+        ("bf16", (True, torch.bfloat16)),   # matches finetune_cond bf16-mixed training
+        ("off", (False, None)),             # fp32, for exactness measurements
+    ],
+)
+def test_resolve_cond_autocast_modes(mode, expected):
+    assert eval_FLAC.resolve_cond_autocast(mode) == expected
+
+
+def test_resolve_cond_autocast_unknown_raises():
+    with pytest.raises(ValueError, match="cond_autocast"):
+        eval_FLAC.resolve_cond_autocast("fp8")
+
+
+def test_evaluate_model_unknown_cond_autocast_raises_fast(tmp_path, monkeypatch):
+    """Programmatic callers fail fast, before any file/model work (paths are
+    nonexistent: late validation would surface FileNotFoundError instead)."""
+    monkeypatch.setattr(
+        eval_FLAC, "create_model_from_config",
+        lambda *a, **k: pytest.fail("evaluate_model reached model construction"),
+    )
+    with pytest.raises(ValueError, match="cond_autocast"):
+        eval_FLAC.evaluate_model(
+            str(tmp_path / "m.json"), str(tmp_path / "d.json"), str(tmp_path / "c.ckpt"),
+            steps=1, cfg_scale=1.0, device="cpu", cond_autocast="fp8",
+        )
+
+
+def test_parser_cond_autocast_choices():
+    """argparse enforces the --cond-autocast choices (bad value -> exit 2 with
+    'invalid choice'; a valid value gets past choices to the required-args error)."""
+    root = str(Path(__file__).resolve().parents[2])
+    bad = subprocess.run(
+        [sys.executable, "eval_FLAC.py", "--cond-autocast", "fp8"],
+        capture_output=True, cwd=root,
+    )
+    assert bad.returncode == 2
+    assert b"invalid choice" in bad.stderr
+    good = subprocess.run(
+        [sys.executable, "eval_FLAC.py", "--cond-autocast", "bf16"],
+        capture_output=True, cwd=root,
+    )
+    assert good.returncode == 2  # still fails on the missing required args...
+    assert b"invalid choice" not in good.stderr  # ...but not on choices
+
+
+def test_predictions_meta_includes_cond_autocast():
+    meta = eval_FLAC.build_predictions_meta(
+        "ds.json", seed=42, n_samples=7, cond_method="fa_invariant",
+        frame_avg_angles=[0.0, 90.0], rotate_deg=0.0, batch_size=32,
+        cond_autocast="bf16",
+    )
+    assert meta["cond_autocast"] == "bf16"
+    assert meta["n_samples"] == 7
+    for key in ("dataset_config", "seed", "cond_method", "frame_avg_angles",
+                "rotate_deg", "batch_size"):
+        assert key in meta
+
+
+def test_comparator_missing_cond_autocast_treated_as_default():
+    """Sidecars written before the cond_autocast field factually ran the default
+    autocast: a missing field compares equal to an explicit 'default' (no false
+    hard-error on legacy sidecars) but still mismatches an explicit 'bf16'."""
+    legacy = _meta()
+    legacy.pop("cond_autocast")
+    compare_predictions.guard_meta(legacy, _meta())  # must not raise
+    bf16 = _meta()
+    bf16["cond_autocast"] = "bf16"
+    with pytest.raises(ValueError):
+        compare_predictions.guard_meta(legacy, bf16)
+
+
+def test_load_integrity_real_state_dict():
+    """Through a real load_state_dict (tiny-config wrapper pattern): clean load
+    passes; PL-wrapper whitelisted leftovers (diffusion_ema./losses., the exact
+    pattern of outputs_FLAC/ft_vanilla/epoch=0-step=2000.ckpt) pass; a dropped
+    model key raises RuntimeError naming the key."""
+    from test_cond_dispatch import _base_config
+    from src.models.factory import create_model_from_config
+    model = create_model_from_config(_base_config())
+
+    missing, unexpected = model.load_state_dict(model.state_dict(), strict=False)
+    eval_FLAC.check_load_integrity(missing, unexpected)  # clean: must not raise
+
+    sd = dict(model.state_dict())
+    sd["diffusion_ema.initted"] = torch.tensor(True)
+    sd["diffusion_ema.step"] = torch.tensor(0)
+    sd["losses.some_loss_buffer"] = torch.zeros(1)
+    missing, unexpected = model.load_state_dict(sd, strict=False)
+    assert len(unexpected) == 3
+    eval_FLAC.check_load_integrity(missing, unexpected)  # whitelisted: no raise
+
+    sd = dict(model.state_dict())
+    dropped = sorted(sd)[0]
+    del sd[dropped]
+    missing, unexpected = model.load_state_dict(sd, strict=False)
+    with pytest.raises(RuntimeError) as exc:
+        eval_FLAC.check_load_integrity(missing, unexpected)
+    assert dropped in str(exc.value)
+
+
+def test_load_integrity_stray_and_escape_hatch(capsys):
+    """A non-whitelisted unexpected key hard-errors naming it; --allow-partial-load
+    downgrades any mismatch to a warning and continues."""
+    with pytest.raises(RuntimeError) as exc:
+        eval_FLAC.check_load_integrity([], ["totally.stray_key"])
+    assert "totally.stray_key" in str(exc.value)
+
+    eval_FLAC.check_load_integrity(["model.gone"], [], allow_partial_load=True)
+    out = capsys.readouterr().out
+    assert "model.gone" in out and "WARNING" in out

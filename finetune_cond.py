@@ -27,6 +27,7 @@ import pytorch_lightning as pl
 import torch
 
 from src.data.dataset import create_dataloader_from_config
+from src.data.yaw_rotation import DEFAULT_FRAME_ANGLES
 from src.models import create_model_from_config
 from src.models.utils import load_ckpt_state_dict
 from src.training import create_training_wrapper_from_config
@@ -293,7 +294,8 @@ def build_parser():
     parser.add_argument("--save-dir", type=str, required=True)
     parser.add_argument("--name", type=str, default="FLAC_cond_ft")
     parser.add_argument("--cond-method", type=str, default="vanilla", choices=list(VALID_COND_METHODS))
-    parser.add_argument("--frame-avg-angles", type=str, default="0,90,180,270")
+    parser.add_argument("--frame-avg-angles", type=str,
+                        default=",".join(str(int(a)) for a in DEFAULT_FRAME_ANGLES))
     parser.add_argument("--lr", type=float, default=5e-6, help="Constant learning rate.")
     parser.add_argument("--max-steps", type=int, default=2000)
     parser.add_argument("--checkpoint-every", type=int, default=500)
