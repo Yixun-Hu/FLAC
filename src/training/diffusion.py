@@ -13,6 +13,7 @@ from torch import optim
 from torch.nn import functional as F
 from pytorch_lightning.utilities.rank_zero import rank_zero_only
 
+from ..data.yaw_rotation import invariant_conditioning, DEFAULT_FRAME_ANGLES
 from ..inference.sampling import get_alphas_sigmas, sample, sample_discrete_euler, sample_flow_pingpong, truncated_logistic_normal_rescaled, DistributionShift, sample_timesteps_logsnr
 from ..models.diffusion import ConditionedDiffusionModelWrapper
 from .losses import MSELoss, MultiLoss
@@ -55,11 +56,26 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
             validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
             p_one_shot: float = 0.0,
-            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
     ):
         super().__init__()
 
         self.diffusion = model
+
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
 
         if use_ema:
             self.diffusion_ema = EMA(
@@ -186,6 +202,24 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
 
         return [opt_diff]
 
+    def _compute_conditioning(self, metadata):
+        """Dispatch conditioning by cond_method (exp_03 plan §2c).
+
+        ``fa_invariant`` routes through the Route-1 yaw-symmetrized path
+        (cylindrical pose features + C4 frame average of the ViT conditioners);
+        ``vanilla`` is the unchanged single conditioner pass. Called from
+        training_step, validation_step AND test_step so all inference/training
+        sites share one dispatch point (the repo's flow_source precedent). The
+        raise is a backstop; the constructor already rejects unknown values.
+        """
+        if self.cond_method == "fa_invariant":
+            return invariant_conditioning(
+                self.diffusion.conditioner, metadata, self.device, self.frame_avg_angles
+            )
+        if self.cond_method == "vanilla":
+            return self.diffusion.conditioner(metadata, self.device)
+        raise ValueError(f"Unknown cond_method: {self.cond_method}")
+
     def training_step(self, batch, batch_idx):
         reals, metadata = batch
 
@@ -202,7 +236,7 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             loss_info["audio_reals"] = diffusion_input
 
         p.tick("setup")
-        conditioning = self.diffusion.conditioner(metadata, self.device)
+        conditioning = self._compute_conditioning(metadata)
 
         # If mask_padding is on, randomly drop the padding masks to allow for learning silence padding
         use_padding_mask = self.mask_padding and random.random() > self.mask_padding_dropout
@@ -340,7 +374,7 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         diffusion_input = reals
 
         with torch.amp.autocast('cuda') and torch.no_grad():
-            conditioning = self.diffusion.conditioner(metadata, self.device)
+            conditioning = self._compute_conditioning(metadata)
 
         # TODO: decide what to do with padding masks during validation
         # # If mask_padding is on, randomly drop the padding masks to allow for learning silence padding
@@ -432,7 +466,7 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         noise = torch.randn([B, self.diffusion.io_channels, samples]).to(self.device)
 
         with torch.amp.autocast('cuda') and torch.no_grad():
-            conditioning = self.diffusion.conditioner(metadata, self.device)
+            conditioning = self._compute_conditioning(metadata)
 
         cond_inputs = self.diffusion.get_conditioning_inputs(conditioning)
 

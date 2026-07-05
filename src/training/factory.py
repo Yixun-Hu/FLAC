@@ -72,6 +72,8 @@ def create_training_wrapper_from_config(model_config, model):
             timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
             p_one_shot=training_config.get("p_one_shot", 0.0),
             test_param = model_config.get("test_setup", None),
+            cond_method = training_config.get("cond_method", "vanilla"),
+            frame_avg_angles = training_config.get("frame_avg_angles", None),
         )
     
     else:
