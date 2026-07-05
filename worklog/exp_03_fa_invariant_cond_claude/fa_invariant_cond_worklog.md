@@ -40,3 +40,11 @@
 - **Command / Validation** — Planner re-ran `python -m pytest src/tests/ -q` → 19 passed; inspected the negative test and the zero-mean-weight analysis (old w=cos had exact zero mean → coord contribution cancelled; confirmed).
 - **Result** — `passed`; **round invcond CLOSED** (write `2828991`+`0e00be0` → review `8180c9b` REQUEST-CHANGES → fix `7091e83` → re-verified green).
 - **Next** — awaiting cyl_pose review verdict (context-briefed relaunch in flight) to close round 1; then cycle 4 (dispatch wiring).
+
+## 2026-07-04T23:42:01-04:00 — round cyl_pose CLOSED (review fix verified); codex infra root-caused
+- **Goal** — close cycles-1–2 loop; document the review-infra incident.
+- **Change** — fix `70025d5`: eps-gated largest-r fallback (max r < eps ⇒ Δφ ≡ 0 exactly) + below-eps nonzero all-degenerate test. Coder verified RED by execution against pre-fix code (arbitrary Δφ from r≈1e-9 azimuth), then GREEN.
+- **Command / Validation** — Planner re-ran pytest: 20 passed. Round loop: write `031852d`+`a56e5e7` → review `ca4f8b2` (REQUEST-CHANGES) → fix `70025d5` → re-verified.
+- **Analysis** — infra incident (3 stalled review attempts) root-caused: `codex exec` blocks reading stdin in background shells; fix = `< /dev/null`. Classified infrastructure, zero code changes; live monitor provided the diagnostic line. Reviews now reliable.
+- **Result** — `passed`; **round cyl_pose CLOSED**. All four §2b core functions reviewed and hardened.
+- **Next** — cycle 4 (dispatch wiring) launching now; Yixun offline ~9h, autonomous mode per instruction: full write→review→fix→re-verify loop per cycle, then ladder, full review, R0–R4b, results/analysis/commits.
