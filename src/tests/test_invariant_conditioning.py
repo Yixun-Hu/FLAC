@@ -30,15 +30,25 @@ DEV = "cpu"
 # geometrically consistent synthetic depth (adapted from test_yaw_symmetry)
 # --------------------------------------------------------------------------- #
 def _consistent_depth(H: int = 8, W: int = 512) -> torch.Tensor:
-    """Equirectangular depth point cloud whose column-``j`` azimuth equals
-    ``theta_j`` — so a roll + z-rotation is an *exact* symmetry of the map."""
+    """Geometrically consistent but NON-axisymmetric equirectangular depth
+    point cloud.
+
+    At column ``j`` the stored vector's xy-azimuth still equals ``theta_j``
+    (the convention checked by ``yaw_transform_consistency``), so roll +
+    z-rotation composes exactly. Unlike a constant-radius panorama — for which
+    ``rotate_scene_metadata`` is a *fixed point* of the depth map, hiding
+    stale-depth bugs — the radial distance varies with azimuth (periods 2*pi
+    and pi, so every C4 roll changes the map). This is what lets the
+    stale-depth negative test detect a depth/pose co-rotation bug
+    (plan-review finding 8 / cycle-3 Codex review finding 1)."""
     j = torch.arange(W, dtype=torch.float32)
     theta = (j + 0.5) * 2.0 * math.pi / W - math.pi
     i = torch.arange(H, dtype=torch.float32)
     el = (i + 0.5) * math.pi / H - math.pi / 2.0
-    d = 3.0
     theta_g = theta.view(1, W).expand(H, W)
     el_g = el.view(H, 1).expand(H, W)
+    # Azimuth-dependent radius, strictly positive (minimum 3.0 - 1.5 = 1.5).
+    d = 3.0 + 1.0 * torch.sin(theta_g) + 0.5 * torch.sin(2.0 * theta_g)
     x = d * torch.cos(el_g) * torch.cos(theta_g)
     y = d * torch.cos(el_g) * torch.sin(theta_g)
     z = d * torch.sin(el_g)
@@ -87,10 +97,15 @@ class FakeDist(nn.Module):
 
 class FakeGeometry(nn.Module):
     """GeometryConditioner stand-in (name matched so MultiConditioner feeds it
-    ``{'coord', 'depth'}``). Deterministic *nonlinear* function of both the
-    coord−depth difference field AND the depth roll (via azimuthal column
-    weighting) — so a wrong implementation that rotates depth without the poses
-    (or vice versa) changes the C4 average and fails the invariance test."""
+    ``{'coord', 'depth'}``). Deterministic *nonlinear* function of the
+    coord−depth difference field with a genuinely nonzero-mean coord–depth
+    interaction: ``tanh`` is applied per-pixel BEFORE pooling, so the coord
+    contribution does not cancel out of the pooled statistic (the cycle-3
+    review found that a zero-mean linear weight let it cancel), and the
+    azimuthal pooling weight is strictly positive and non-uniform, so the
+    statistic is also sensitive to the depth roll offset. A wrong
+    implementation that rotates depth without the ``*_vit`` poses (or vice
+    versa) therefore changes the C4 average and fails the invariance test."""
 
     def __init__(self, out_dim: int = 6, name: str = "GeometryConditioner"):
         super().__init__()
@@ -113,11 +128,14 @@ class FakeGeometry(nn.Module):
         B, N, _ = coord.shape
         W = depth.shape[-1]
         col = torch.arange(W, device=device, dtype=coord.dtype)
-        w = torch.cos(2.0 * math.pi * col / W).view(1, 1, 1, W)  # roll-sensitive
+        # Strictly positive (in [0.5, 1.5]), non-uniform, full-period profile:
+        # nonzero mean (== 1) so the coord term survives pooling; period W so
+        # every nontrivial C4 roll misaligns depth content against it.
+        w = (1.0 + 0.5 * torch.cos(2.0 * math.pi * col / W)).view(1, 1, 1, W)
         outs = []
         for i in range(N):
             diff = coord[:, i, :, None, None] - depth  # [B, 3, H, W]
-            pooled = torch.tanh((diff * w).mean(dim=(2, 3)))  # [B, 3]
+            pooled = (torch.tanh(diff) * w).mean(dim=(2, 3))  # [B, 3]
             outs.append(pooled)
         stacked = torch.stack(outs, dim=1)  # [B, N, 3]
         out = torch.tanh(stacked @ self.proj)  # [B, N, out_dim]
@@ -309,3 +327,58 @@ def test_angles_first_must_be_zero():
     except ValueError:
         return
     raise AssertionError("expected ValueError when angles[0] != 0")
+
+
+# --------------------------------------------------------------------------- #
+# 9. NEGATIVE: stale (unrotated) depth in the averaging loop breaks invariance
+# --------------------------------------------------------------------------- #
+def _stale_depth_conditioning(cond, metadata, device, angles=yr.DEFAULT_FRAME_ANGLES,
+                              vit_ids=VIT_IDS):
+    """Deliberately BROKEN mimic of ``invariant_conditioning``: per frame angle
+    it rotates the ``*_vit`` poses but feeds the STALE (unrotated) depth map —
+    the exact finding-8 bug class. Test-local only; exists to prove the C4
+    invariance assertions in this file can actually catch that bug."""
+    md_inv = [yr.cylindrical_pose_features(md) for md in metadata]
+    base = cond(md_inv, device)
+    present = [i for i in vit_ids if i in base]
+    img_w = int(metadata[0]["depth"].shape[-1])
+    accum = {i: base[i][0].clone() for i in present}
+    for g in angles[1:]:
+        variants = []
+        for m in md_inv:
+            v = yr.rotate_scene_metadata(m, math.radians(g), img_w,
+                                         pose_keys=tuple(present))
+            v["depth"] = m["depth"]  # BUG under test: depth not co-rotated
+            variants.append(v)
+        part = cond(variants, device, only_ids=present)
+        for i in present:
+            accum[i] = accum[i] + part[i][0]
+    for i in present:
+        base[i][0] = accum[i] / float(len(angles))
+    return base
+
+
+def test_stale_depth_fails_invariance():
+    cond = _build_cond()
+    md = _batch(2)
+    broken_0 = _stale_depth_conditioning(cond, md, DEV)
+    correct_0 = yr.invariant_conditioning(cond, md, DEV)
+    rot = [yr.rotate_scene_metadata(m, math.radians(90.0), 512) for m in md]
+    broken_g = _stale_depth_conditioning(cond, rot, DEV)
+    for key in VIT_IDS:
+        inv_div = float((broken_g[key][0] - broken_0[key][0]).abs().max())
+        avg_div = float((broken_0[key][0] - correct_0[key][0]).abs().max())
+        print(
+            f"{key}: stale-depth invariance divergence {inv_div:.3e}, "
+            f"divergence from correct orbit average {avg_div:.3e}"
+        )
+        # The broken variant must FAIL the same C4 invariance check the
+        # positive test uses...
+        assert not torch.allclose(broken_g[key][0], broken_0[key][0], atol=1e-5), (
+            f"{key}: stale-depth variant unexpectedly passed the C4 invariance "
+            "check — the FakeGeometry/depth fixtures are too weak to pin finding 8"
+        )
+        # ...and must not reproduce the correct orbit average either.
+        assert not torch.allclose(broken_0[key][0], correct_0[key][0], atol=1e-5), (
+            f"{key}: stale-depth variant matches the correct orbit average"
+        )
