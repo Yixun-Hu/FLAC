@@ -81,6 +81,14 @@ def evaluate_model(
     cond_method='vanilla',
     frame_avg_angles=None,
 ):
+    # Fail fast on an unknown cond_method (the CLI is guarded by argparse
+    # choices, but programmatic callers would otherwise silently run vanilla
+    # while filenames/meta record the unknown method).
+    if cond_method not in ('vanilla', 'fa_invariant'):
+        raise ValueError(
+            f"Unknown cond_method: {cond_method!r}; valid options: 'vanilla', 'fa_invariant'."
+        )
+
     torch.set_float32_matmul_precision('medium')
 
     # Resolve the C4 frame-average angles (only used when cond_method == 'fa_invariant').

@@ -149,17 +149,25 @@ def load_prediction_meta(path: str):
     return meta
 
 
-_GUARD_KEYS = ("dataset_config", "seed", "batch_size")
+# Keys that must match for the comparison to be meaningful: dataset_config /
+# seed / batch_size so sample i corresponds across the two files, plus
+# cond_method / frame_avg_angles so both runs used the same conditioning method
+# (a vanilla-vs-fa_invariant or different-angle-set gap is a method difference,
+# not a Metric-1 invariance gap). ``rotate_deg`` is intentionally EXEMPT:
+# comparing a rotated run against an unrotated baseline is this tool's purpose.
+_GUARD_KEYS = ("dataset_config", "seed", "batch_size", "cond_method", "frame_avg_angles")
 
 
 def guard_meta(meta_ref, meta_alt, ref_path: str = "ref", alt_path: str = "alt") -> None:
     """Hard-error when two runs' sidecar meta make their predictions incomparable.
 
-    When BOTH files carry meta, a mismatch on any of ``dataset_config``, ``seed``
-    or ``batch_size`` means sample ``i`` no longer corresponds across the two
-    files, so the Metric-1 comparison is meaningless -> :class:`ValueError`. When
-    only one side (or neither) carries meta the check is skipped with a warning
-    (legacy bare-tensor interop, so old exp_02 artifacts still compare).
+    When BOTH files carry meta, a mismatch on any of :data:`_GUARD_KEYS`
+    (``dataset_config`` / ``seed`` / ``batch_size`` -- sample correspondence --
+    plus ``cond_method`` / ``frame_avg_angles`` -- method comparability) makes
+    the Metric-1 comparison meaningless -> :class:`ValueError`. ``rotate_deg``
+    is deliberately not guarded: rotated-vs-unrotated is the point of the tool.
+    When only one side (or neither) carries meta the check is skipped with a
+    warning (legacy bare-tensor interop, so old exp_02 artifacts still compare).
     """
     if meta_ref is None and meta_alt is None:
         return
@@ -177,9 +185,10 @@ def guard_meta(meta_ref, meta_alt, ref_path: str = "ref", alt_path: str = "alt")
     ]
     if mismatches:
         raise ValueError(
-            "Refusing to compare mismatched prediction runs (sample i would not "
-            "correspond across files): " + "; ".join(mismatches) + ". "
-            "Re-run both with the same dataset_config, seed and batch_size."
+            "Refusing to compare mismatched prediction runs: "
+            + "; ".join(mismatches) + ". Re-run both with the same "
+            "dataset_config, seed, batch_size, cond_method and frame_avg_angles "
+            "(only rotate_deg may differ)."
         )
 
 
@@ -189,8 +198,8 @@ def compare(
     """Run the full comparison and return the assembled results dict."""
     ref_raw, ref_meta = _load_raw(ref_path)
     alt_raw, alt_meta = _load_raw(alt_path)
-    # Refuse to compare runs whose meta disagrees on dataset/seed/batch (both
-    # present); single-sided meta warns only (legacy bare-tensor interop).
+    # Refuse to compare runs whose meta disagrees on any _GUARD_KEYS entry
+    # (both present); single-sided meta warns only (legacy bare-tensor interop).
     guard_meta(ref_meta, alt_meta, ref_path, alt_path)
     ref = _normalise(ref_raw, ref_path)
     alt = _normalise(alt_raw, alt_path)

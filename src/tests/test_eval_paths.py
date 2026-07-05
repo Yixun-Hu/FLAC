@@ -22,6 +22,7 @@ exist on disk; the leading directory is preserved by ``os.path.join``.
 """
 import json
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -198,10 +199,18 @@ def test_comparator_loads_dict_returns_tensor(tmp_path):
 
 @pytest.mark.parametrize(
     "field,bad",
-    [("seed", 999), ("dataset_config", "other.json"), ("batch_size", 1)],
+    [
+        ("seed", 999),
+        ("dataset_config", "other.json"),
+        ("batch_size", 1),
+        ("cond_method", "fa_invariant"),
+        ("frame_avg_angles", [0.0, 90.0, 180.0, 270.0]),
+    ],
 )
 def test_comparator_meta_mismatch_raises(tmp_path, field, bad):
-    """(c) two dict files whose meta disagrees on seed/dataset/batch -> ValueError."""
+    """(c) meta disagreeing on any guarded key (sample correspondence:
+    seed/dataset/batch; method comparability: cond_method/frame_avg_angles)
+    -> ValueError."""
     ref, alt = tmp_path / "ref.pt", tmp_path / "alt.pt"
     _save_dict(ref, _meta())
     bad_meta = _meta()
@@ -223,6 +232,19 @@ def test_comparator_meta_match_proceeds(tmp_path):
     compare_predictions.guard_meta(m_ref, m_alt)  # must not raise
 
 
+def test_comparator_rotate_deg_mismatch_allowed(tmp_path):
+    """rotate_deg is intentionally EXEMPT from the guard: comparing a rotated
+    run against an unrotated baseline is exactly this tool's purpose."""
+    ref, alt = tmp_path / "ref.pt", tmp_path / "alt.pt"
+    _save_dict(ref, _meta())
+    rot_meta = _meta()
+    rot_meta["rotate_deg"] = 180.0
+    _save_dict(alt, rot_meta)
+    m_ref = compare_predictions.load_prediction_meta(str(ref))
+    m_alt = compare_predictions.load_prediction_meta(str(alt))
+    compare_predictions.guard_meta(m_ref, m_alt)  # must not raise
+
+
 def test_comparator_single_sided_meta_warns_not_raises(tmp_path):
     """Legacy interop: one bare (meta=None) + one dict -> warn only, no raise."""
     bare, rich = tmp_path / "bare.pt", tmp_path / "rich.pt"
@@ -232,3 +254,113 @@ def test_comparator_single_sided_meta_warns_not_raises(tmp_path):
     m_rich = compare_predictions.load_prediction_meta(str(rich))
     assert m_bare is None
     compare_predictions.guard_meta(m_bare, m_rich)  # must not raise
+
+
+# --------------------------------------------------------------------------- #
+# evaluate_model: cond_method validation + save-path wiring
+# --------------------------------------------------------------------------- #
+def test_evaluate_model_unknown_cond_method_raises_fast(tmp_path, monkeypatch):
+    """An unknown programmatic cond_method raises ValueError BEFORE any file,
+    model or dataloader work: every path argument points at a nonexistent file
+    (late validation would surface FileNotFoundError instead), and reaching
+    model construction trips a loud sentinel rather than the expected error."""
+    monkeypatch.setattr(
+        eval_FLAC, "create_model_from_config",
+        lambda *a, **k: pytest.fail("evaluate_model reached model construction"),
+    )
+    with pytest.raises(ValueError, match="cond_method"):
+        eval_FLAC.evaluate_model(
+            str(tmp_path / "missing_model.json"),
+            str(tmp_path / "missing_dataset.json"),
+            str(tmp_path / "missing.ckpt"),
+            steps=1, cfg_scale=1.0, device="cpu", cond_method="canon",
+        )
+
+
+class _FakeEvalModule:
+    """Minimal stand-in for the PL wrapper evaluate_model drives: chainable
+    eval()/requires_grad_()/to(), a .diffusion with no pretransform, and a
+    .device. With an empty dataloader the eval loop body never runs, so the
+    conditioner/sampler are never touched."""
+
+    def __init__(self):
+        self.diffusion = types.SimpleNamespace(
+            model=object(), pretransform=None, conditioner=None
+        )
+        self.device = "cpu"
+
+    def eval(self):
+        return self
+
+    def requires_grad_(self, flag):
+        return self
+
+    def to(self, device):
+        return self
+
+
+def test_evaluate_model_save_path_flows_through_build_output_paths(tmp_path, monkeypatch):
+    """Wiring proof (review finding 3): evaluate_model's save stage goes through
+    build_output_paths -- a revert to inline path construction fails this test.
+
+    Approach: spy wrapper delegating to the REAL build_output_paths while
+    driving evaluate_model end-to-end on CPU with the factories stubbed at the
+    eval_FLAC namespace (as test_cond_dispatch does) and an EMPTY dataloader,
+    so the sampling loop is skipped without any GPU/data/model. Chosen over the
+    sentinel-exception variant because it also proves the metrics JSON lands at
+    exactly the path the real function returned (path *used*, not just fetched).
+    """
+    model_cfg = tmp_path / "model.json"
+    model_cfg.write_text(json.dumps({
+        "model_type": "diffusion_cond", "sample_size": 64, "sample_rate": 22050,
+        "audio_channels": 1, "training": {"use_ema": False},
+    }))
+    dataset_cfg = tmp_path / "dataset.json"
+    dataset_cfg.write_text(json.dumps({"datasets": [{"id": "toy"}]}))
+    ckpt = tmp_path / "toy.ckpt"
+    torch.save({"state_dict": {}}, str(ckpt))
+
+    monkeypatch.setattr(
+        eval_FLAC, "create_model_from_config",
+        lambda cfg: types.SimpleNamespace(load_state_dict=lambda sd, strict=False: None),
+    )
+    monkeypatch.setattr(
+        eval_FLAC, "create_training_wrapper_from_config", lambda cfg, model: _FakeEvalModule()
+    )
+    monkeypatch.setattr(eval_FLAC, "create_dataloader_from_config", lambda *a, **k: [])
+    monkeypatch.setattr(
+        eval_FLAC, "create_metric_callback_from_config",
+        lambda *a, **k: types.SimpleNamespace(
+            update_metrics=lambda *a, **k: None,
+            compute_metrics=lambda split: {"T60": 1.0},
+        ),
+    )
+
+    real_build = eval_FLAC.build_output_paths
+    calls = []
+
+    def spy(*args, **kwargs):
+        result = real_build(*args, **kwargs)
+        calls.append({"args": args, "kwargs": kwargs, "result": result})
+        return result
+
+    monkeypatch.setattr(eval_FLAC, "build_output_paths", spy)
+
+    eval_FLAC.evaluate_model(
+        str(model_cfg), str(dataset_cfg), str(ckpt),
+        steps=1, cfg_scale=1.0, device="cpu", eval_name="wiring",
+        cond_method="fa_invariant", rotate_deg=90.0,
+    )
+
+    assert len(calls) == 1, "save stage did not go through build_output_paths"
+    kwargs = calls[0]["kwargs"]
+    assert kwargs["cond_method"] == "fa_invariant"
+    assert kwargs["rotate_deg"] == 90.0
+    assert kwargs["n_angles"] == 4  # len(DEFAULT_FRAME_ANGLES)
+    # The metrics JSON was written at exactly the returned path, with the
+    # build_metrics_record fields intact.
+    metrics_path = Path(calls[0]["result"]["metrics"])
+    assert metrics_path == tmp_path / "toy_metrics_1_1.0_wiring_fa_invariant_a4_rot90.json"
+    saved = json.loads(metrics_path.read_text())
+    assert saved["cond_method"] == "fa_invariant"
+    assert saved["frame_avg_angles"] == [0.0, 90.0, 180.0, 270.0]
