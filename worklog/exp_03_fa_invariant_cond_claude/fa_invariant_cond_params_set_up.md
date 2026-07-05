@@ -13,7 +13,7 @@ Code state for ALL runs: commit `992fe49` (all six TDD rounds + integrative revi
 | max_steps | 10000 (explicit — CLI default is 2000) | 10000 |
 | lr | 5e-6 **constant** (scheduler removed) | same |
 | use_ema | False (init IS the EMA average) | same |
-| batch_size | 8 (fit-probed before launch) | 8 (fit-probed) |
+| batch_size | 4 × accumulate_grad_batches 2 = effective 8 (shared-GPU adaptation; probe-verified) | same |
 | precision | bf16-mixed | same |
 | gradient_clip_val | 0.0 (upstream parity) | same |
 | VAE | frozen; DiT + DINOv3 conditioner trainable (50.3M) | same |

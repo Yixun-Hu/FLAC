@@ -23,7 +23,7 @@ CUDA_VISIBLE_DEVICES=0 python finetune_cond.py \
   --ckpt-path weights/FLAC/FLAC_EMA.ckpt \
   --save-dir outputs_FLAC/exp03_R1_vanilla_ft --name FLAC_exp03_R1_vanilla \
   --cond-method vanilla --lr 5e-6 --max-steps 10000 --checkpoint-every 2500 \
-  --batch-size 8 --num-workers 4 --seed 42
+  --batch-size 4 --accumulate-grad-batches 2 --num-workers 4 --seed 42
 
 # gate evals (K in {1,8} x seeds 42..46), exp_01 protocol:
 CUDA_VISIBLE_DEVICES=0 python eval_FLAC.py \
