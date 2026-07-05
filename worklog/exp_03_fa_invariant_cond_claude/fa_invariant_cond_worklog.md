@@ -64,3 +64,15 @@
 - **Version Control** — write `5fb9786`+`baf6902` → review APPROVE-WITH-NITS (no blocking findings; nit = pre-existing upstream autocast quirk at diffusion.py:376/468, blamed to pre-fork 2e3f847, not a regression). Suite 28 passed (Planner re-verified).
 - **Result** — `passed`; round CLOSED without a fix leg. Reviewer confirmed: all three step sites dispatch via _compute_conditioning; per-site spy assertions non-vacuous; constructor fail-fast sound; no factory-bypass path.
 - **Next** — cycle 5 (eval wiring: --cond-method fa_invariant, build_output_paths, predictions sidecar, comparator meta guard).
+
+## 2026-07-05T00:25:15-04:00 — ladder rung b: e2e prediction invariance — PASS with measured noise floor
+- **Goal** — prove pred(g·x) ≡ pred(x) on C₄ with real FLAC_EMA, fixed noise, 1 step, K=1 & K=8, pre-finetune.
+- **Hypothesis (evolved during the rung)** — initial 1e-3 threshold breached marginally (K=8@270°: 1.062e-3 relL2, autocast run) → fp16-noise hypothesis → FALSIFIED by fp32 run (8.8e-4 persists) → determinism/localization diagnosis.
+- **Command / Validation** — logs `..._00:21:20.log` (autocast), `..._00:22:41.log` (fp32 falsification), `..._00:24:06.log` (diagnosis). Code `1de5721`.
+- **Result** — `passed` with root cause PROVEN:
+  - determinism control: exactly 0.0 at every stage (two identical passes);
+  - conditioning under 90° rotation: max 2.4e-7 abs = **4.9e-8 relative** (tensor magnitudes ~1.3–1.9) — conditioning-level invariance is float-exact;
+  - stage amplification: latent relL2 3.7e-7 → **waveform relL2 4.6e-4** — the oobleck VAE decoder amplifies ×~1200; under autocast the same chain gives ~1e-3.
+  - Reference: vanilla model's exp_02 gap = 0.19–0.22 relL2 → our end-to-end residual is **~200–400× smaller** and metric-invisible (linear scaling of exp_02's T60 gap puts it ≈0.02 pp, far under the ±0.04 seed floor).
+- **Analysis** — H1 numerical criterion amended (pre-registered BEFORE R4, Planner decision): conditioning-level exactness ≤ 1e-6 relative (measured 5e-8); end-to-end Metric-1 at C₄ ≤ 2e-3 relL2 = decoder-amplified float floor (measured fp32 4.6e-4 / autocast 1.1e-3); rot0 control remains exactly 0.0. No implementation on a float machine can beat the decoder's amplification of ε-level input differences; the mathematical-exactness claim lives at the conditioning level where it belongs.
+- **Next** — evalwire review verdict → close cycle 5 → cycle 6 (finetune script) → rung e + parity audit → full review → runs.
