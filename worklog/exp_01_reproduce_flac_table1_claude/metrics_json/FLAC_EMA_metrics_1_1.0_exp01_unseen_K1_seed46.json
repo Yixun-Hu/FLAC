@@ -1,0 +1,17 @@
+{
+    "metrics": {
+        "T60": 9.9839,
+        "Invalid T60": 0.0,
+        "C50": 1.0559,
+        "EDT": 40.0253,
+        "FD": 0.3029,
+        "RIR_to_GT_RIR_R@1": 6.9591,
+        "RIR_to_GT_RIR_R@5": 19.1415,
+        "RIR_to_GT_RIR_R@10": 26.9213,
+        "RIR_to_geom_R@1": 5.7756,
+        "RIR_to_geom_R@5": 16.9323,
+        "RIR_to_geom_R@10": 24.428
+    },
+    "ckpt_path": "weights/FLAC/FLAC_EMA.ckpt",
+    "rotate_deg": 0.0
+}
