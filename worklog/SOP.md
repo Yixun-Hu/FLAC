@@ -55,6 +55,7 @@ Each `_worklog.md` entry is one action, headed by an ISO-8601 timestamp in **loc
 
 - Develop **commit by commit, experiment by experiment** from a known-good base commit. No long-lived uncommitted state: an experiment concludes by committing its code and its worklog folder.
 - **Each commit generally < 200 changed lines of code.** Several small commits per experiment are preferred over one large one. Log every SHA in `commits_<exp name>.md`.
+- **Test-driven development (mandatory for all new functions)** — per [TDD](https://en.wikipedia.org/wiki/Test-driven_development): for each small function, write its test FIRST (pytest, under `tests/` at the repo root), run it to confirm it fails (red), then implement the minimal function that passes (green), then refactor with tests green. Each red→green cycle maps naturally onto one small commit (tests may land in the same commit as the implementation or the commit immediately before it — never after). Tests are permanent regression assets: they stay in `tests/` and must keep passing in later experiments; run the relevant test subset as rung 1½ of the validation ladder.
 - Superseded or exploratory code is archived (patch + files) under `worklog/archive_<reason>_<date>/` before being removed from the working tree — never destroyed.
 
 ## Validation ladder (cheapest-first)
@@ -98,4 +99,4 @@ Record the audit in `_worklog.md`; launch the full-scale run only from the audit
 
 ## Sequencing summary
 
-scaffold folder + `_yixun_query.md` + `_worklog.md` → `plan_*.md` (Planner) → user approves → code (Coder) → **validation ladder** (static → smoke → probe) → `_<reviewer>_code_review.md` (Reviewer) → **parity audit** vs reference → `_params_set_up.md` + `_command.md` + **acceptance criteria** → launch with teed timestamped logs, triaging *infra-vs-bug* on failure → `_results.md` → `_analysis.md` (Planner) → commit(s) + `commits_*.md`. Log every action in `_worklog.md` as it happens.
+scaffold folder + `_yixun_query.md` + `_worklog.md` → `plan_*.md` (Planner, incl. per-function test list) → user approves → **TDD loop** (Coder: test first → red → implement → green, one small commit per cycle) → **validation ladder** (static → tests → smoke → probe) → `_<reviewer>_code_review.md` (Reviewer) → **parity audit** vs reference → `_params_set_up.md` + `_command.md` + **acceptance criteria** → launch with teed timestamped logs, triaging *infra-vs-bug* on failure → `_results.md` → `_analysis.md` (Planner) → commit(s) + `commits_*.md`. Log every action in `_worklog.md` as it happens.
