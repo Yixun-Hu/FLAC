@@ -17,3 +17,19 @@
   - **H3 (accuracy non-regression, NOT an invariance claim):** Metric 2 at α=0 within ~2σ of exp_01 at K=1 AND K=8 — the absolute-accuracy gate that the fine-tune didn't damage the model.
 - **Analysis** — the physical symmetry is continuous SO(2) (mono RIR invariant under any yaw); **C₄ is an engineering choice** (90° = 128 columns of W=512 → exact roll, exact Reynolds average; |G|=4 bounds cost), i.e. it is where the ViT-path *guarantee* is exact, not where the physics stops. H2 is a corollary of H1 given deterministic sampling with shared noise — stated separately so it is *verified*, not silently inferred.
 - **Next** — plan §6 acceptance criteria restructured to H1/H2/H3 (same commit); still awaiting Yixun's approval to start TDD cycle 1.
+
+## 2026-07-04T22:38:47-04:00 — TDD cycles 1–2 complete (cylindrical invariants + pose_keys)
+- **Goal** — plan §4 commits #2–#5: wrap_angle, cylindrical_pose_features, rotate_scene_metadata pose_keys param, tests-first.
+- **Change** — src/tests/{conftest.py,test_yaw_symmetry.py} (RED, 217 lines incl. shared fixtures — accepted overage, tests are one coherent unit); src/data/yaw_rotation.py +125/−4 (GREEN). Coder: Opus 4.8 max subagent.
+- **Version Control** — RED `031852d` (9 failed / 1 passed — the one pass is the exp_02 default-semantics regression pin, green by design), GREEN `a56e5e7` (10 passed). Cycles merged per plan §4 note.
+- **Command / Validation** — `python -m pytest src/tests/ -q` → 10 passed (independently re-run by Planner); `py_compile` clean.
+- **Result** — `passed`. Degenerate-fallback invariance (plan-review finding 1) covered incl. all-degenerate Δφ≡0 case; non-mutation and arbitrary-angle (37.3°, −118°) invariance verified.
+- **Analysis** — no deviations of substance. Planner decision for cycle 3: implement the ViT-only conditioning passes via an optional `only_ids` parameter on `MultiConditioner.forward` (src/models/conditioners.py) instead of duplicating its per-id input-construction logic inside yaw_rotation.py — less drift risk, backward compatible (default None = all ids), gets its own red test. Recorded as a §2 plan amendment.
+- **Next** — TDD cycle 3: invariant_conditioning mock tests (RED, commit #6) → implementation (GREEN, commit #7).
+
+## 2026-07-04T22:54:25-04:00 — TDD cycle 3 complete (invariant_conditioning); per-round review discipline adopted
+- **Goal** — plan §4 commits #6/#7; and process corrections from Yixun: per-Coder-round Codex reviews (missed for cycles 1–2 — running retroactively now) and reviewer context-briefing requirement.
+- **Change** — src/tests/test_invariant_conditioning.py +311 (RED `2828991`; test file over the 200 guideline as one coherent unit, same rationale as cycle 1); src/data/yaw_rotation.py +89 and src/models/conditioners.py +8/−1 (GREEN `0e00be0`, only_ids amendment). Coder: Opus 4.8 max.
+- **Command / Validation** — Planner re-ran `python -m pytest src/tests/ -q` → 18 passed. py_compile clean. Finding-2 (BN once), finding-4 (deep non-mutation), finding-8 (depth rolls with vit poses) contracts all pinned by tests.
+- **Result** — `passed`. Process deviation acknowledged: cycle 3 started before the cycles-1–2 review ran (rule created mid-flight); from now on, each round's review gates the next round.
+- **Next** — Codex per-round reviews: cycles-1–2 (in flight) and cycle-3 (launching with full worklog context briefing per new SOP rule); blocking findings fixed before cycle 4 (dispatch wiring).

@@ -12,6 +12,8 @@ A generalizable standard operating procedure for AI-assisted research experiment
 
 > **Reviewer reciprocity — no model reviews its own code.** If the main session (Planner/Coder) is **Claude**, the Reviewer is **OpenAI Codex** (`codex mcp-server`; CLI fallback `codex exec`). If the main session is **Codex**, the Reviewer is **Claude Opus 4.8 at max effort**, invoked via the `claude` CLI. The Coder and Reviewer must always be different model families, so review is genuinely independent.
 
+> **Reviewer briefing — load context before judging.** Every review prompt (plan or code) must direct the Reviewer to read, before reviewing: (1) this SOP and all `worklog/announcement/` directives; (2) the experiment's `plan_*.md` and `_worklog.md` notebook (what was decided and why, including plan amendments); (3) the results/analyses of the PRIOR experiments the work builds on (e.g. baseline numbers and noise floor); (4) a one-paragraph statement of what the current Coder round was tasked to do and what is explicitly out of scope for this round. A reviewer without this context produces generic reviews, flags out-of-scope "gaps", and misses violations of experiment-specific decisions.
+
 ## Directory layout
 
 All experiment bookkeeping lives in `worklog/` at the repo root:
