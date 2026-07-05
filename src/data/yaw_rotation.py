@@ -214,6 +214,95 @@ def rotate_scene_metadata(
     return out
 
 
+def invariant_conditioning(
+    conditioner,
+    metadata: "list",
+    device,
+    angles: Tuple[float, ...] = DEFAULT_FRAME_ANGLES,
+    vit_ids: Tuple[str, ...] = ("source_vit", "context_poses_vit"),
+) -> Dict[str, object]:
+    """
+    Compute Route-1 yaw-symmetrized FLAC conditioning.
+
+    Two sub-paths are symmetrized independently (see the exp_03 plan §2b REVISED):
+
+    1. **Pose path** (``source`` / ``context_poses`` dist-embedders): the absolute
+       ``(x, y, z)`` poses are replaced by intrinsically yaw-invariant cylindrical
+       features ``(r, z, dphi)`` via :func:`cylindrical_pose_features`. These are
+       exactly invariant at *any* yaw angle.
+    2. **ViT path** (``vit_ids``, e.g. the DINOv3 depth-panorama conditioners): a
+       C4 **frame average** ``(1/|G|) sum_g f(g . x)`` over ``angles``. The depth
+       map and the ``*_vit`` pose keys are rotated *together* by each frame angle;
+       averaging their conditioner outputs makes the result exactly invariant on
+       the panorama-aligned yaw subgroup G.
+
+    All remaining conditioners (e.g. the ``context_audio`` RIR encoder, which is
+    already yaw-invariant and may carry BatchNorm running stats) are run **exactly
+    once** — only the ``vit_ids`` conditioners are re-run per frame. The caller's
+    ``metadata`` is never mutated (its ``source`` / ``depth`` stay raw for the
+    downstream metric callback).
+
+    Parameters
+    ----------
+    conditioner : MultiConditioner
+        The FLAC conditioner. Must accept ``conditioner(batch, device)`` and the
+        optional ``only_ids=`` keyword (to re-run a subset of conditioners).
+    metadata : list of dict
+        Per-sample metadata dicts. ``depth`` (shape ``[3, H, W]``), the pose keys
+        and any conditioner inputs are read but not modified.
+    device : torch.device or str
+        Device passed through to ``conditioner``.
+    angles : Tuple[float, ...], optional
+        Frame-average angles in **degrees**; ``angles[0]`` must be ``0.0`` (the
+        identity / base pass). Defaults to :data:`DEFAULT_FRAME_ANGLES`.
+    vit_ids : Tuple[str, ...], optional
+        Conditioning ids whose outputs are frame-averaged (the ViT depth path).
+
+    Returns
+    -------
+    Dict[str, object]
+        The conditioner output dict ``{id: [tensor, mask]}``; the ``vit_ids``
+        tensors are replaced by their frame average, all masks come from the base
+        (angle-0) pass, and all other entries are the single base-pass outputs.
+
+    Raises
+    ------
+    ValueError
+        If ``angles`` is empty or ``angles[0] != 0.0``.
+    """
+    if len(angles) == 0:
+        raise ValueError("angles must be non-empty")
+    if angles[0] != 0.0:
+        raise ValueError(f"angles[0] must be 0.0 (the identity pass), got {angles[0]}")
+
+    # 1. cylindrical (yaw-invariant) pose features; never mutates the caller's md.
+    md_inv = [cylindrical_pose_features(md) for md in metadata]
+
+    # 2. single full pass -> all conditioning entries (non-ViT ids run once here).
+    base = conditioner(md_inv, device)
+
+    present = [i for i in vit_ids if i in base]
+    if not present or len(angles) == 1 or "depth" not in metadata[0]:
+        return base
+
+    # 3. frame-average ONLY the ViT conditioners over the rotation subgroup.
+    img_w = int(metadata[0]["depth"].shape[-1])
+    accum = {i: base[i][0].clone() for i in present}
+    for g in angles[1:]:
+        variants = [
+            rotate_scene_metadata(m, math.radians(g), img_w, pose_keys=tuple(present))
+            for m in md_inv
+        ]
+        part = conditioner(variants, device, only_ids=present)
+        for i in present:
+            accum[i] = accum[i] + part[i][0]
+
+    for i in present:
+        base[i][0] = accum[i] / float(len(angles))
+
+    return base
+
+
 def yaw_transform_consistency(
     depth: torch.Tensor, img_w: int, angles_deg: Tuple[float, ...]
 ) -> Dict[float, float]:

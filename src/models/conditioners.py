@@ -285,10 +285,16 @@ class MultiConditioner(nn.Module):
         self.default_keys = default_keys
         self.pre_encoded_keys = pre_encoded_keys
 
-    def forward(self, batch_metadata: tp.List[tp.Dict[str, tp.Any]], device: tp.Union[torch.device, str]) -> tp.Dict[str, tp.Any]:
+    def forward(self, batch_metadata: tp.List[tp.Dict[str, tp.Any]], device: tp.Union[torch.device, str], only_ids: tp.Optional[tp.Iterable[str]] = None) -> tp.Dict[str, tp.Any]:
+        # only_ids: when given, run (and return) exactly the conditioners whose id
+        # is in this collection; default None keeps the full behaviour unchanged.
+        # Used by yaw_rotation.invariant_conditioning to re-run only the ViT
+        # conditioners per rotation frame without re-running stateful non-ViT ones.
         output = {}
 
         for key, conditioner in self.conditioners.items():
+            if only_ids is not None and key not in only_ids:
+                continue
             condition_key = key
 
             conditioner_inputs = []
