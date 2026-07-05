@@ -19,6 +19,7 @@ Fine-tuning the released `FLAC_EMA.ckpt` is destructive to T60/EDT/C50 (6–62σ
 |---|---|
 | `test_warmup_lr_factor` | 0→1/200 at step 0; 0.5 at step 99; 1.0 at ≥199; warmup_steps=0 ⇒ 1.0 always |
 | `test_warmup_callback_sets_lr` | fake trainer/optimizer: lr follows target×factor at steps {0, 100, 200, 5000}; multiple param groups |
+| `test_warmup_accumulation_semantics` *(plan-review finding 2)* | 32 repeated `on_train_batch_start` calls at `global_step==0` keep lr = target×1/200 (no per-micro-batch advance); 32 more at `global_step==1` give target×2/200 — kills the micro-batch-counter bug class under accum 32 |
 | `test_warmup_default_off` | parser default 0; build_trainer_kwargs/callback list unchanged when 0 (R1b behavior byte-identical) |
 | `test_warmup_recorded` | recipe echo / run config includes warmup_steps |
 
@@ -30,13 +31,14 @@ Per-round Codex review (marker `warmup`) after the cycle; round closes before an
 |---|---|---|---|
 | W1 | **warmup control** — vanilla, R1b recipe + `--warmup-steps 200` (batch 4×32=128, 625 steps, lr 5e-6, seed 42) | ~3 h | eval K∈{1,8} × seeds 42–46, exp_01 protocol → **pre-registered 2σ gate (same numbers as exp_03)** |
 | W1-probe | 10-step fit probe first (same as exp_03 C4 discipline) | minutes | ≥5 steps, finite loss |
+| **W0 (conditional null control, plan-review finding 1)** — runs ONLY if W1 FAILS: R1b recipe, `--lr 0`, 625 steps (BN running buffers still mutate in train mode) | ~3 h | W0 PASS ⇒ train-loop/BN/export alone are innocent → transient/lr attribution stands but warmup was insufficient; W0 FAIL ⇒ BN-buffer mutation (or loop/export) is destructive by itself → entirely different root cause, also retroactively contaminating R1/R1b |
 | W2 | **fa_invariant fine-tune** — identical W1 recipe incl. warmup | ~9.6 h | launched ONLY if W1 passes |
 | W3 | W2 evals — K∈{1,8} × 5 seeds, `--cond-method fa_invariant --cond-autocast bf16` | ~2.2 h | **H3**: within 2σ of exp_01 at both K |
 | W4 | rotation sweep on W2 @ K=1: α ∈ {0, 90, 180, 270, 45} + `--store_predictions` + comparator | ~1.5 h | **H1**: rot0 ≡ 0.0; C₄ ≤ bf16 floor (re-measured & re-registered on W2 BEFORE reading W4); 45° reported |
 | W4b | K=8 spot check α ∈ {0, 90} + comparator | ~30 min | H1 at K=8 |
 | — | **H2**: Metric-2 flatness across α ∈ C₄ from W4/W4b per-angle JSONs | free | flat within 2× exp_01 single-eval noise floor |
 
-**Stop rules:** W1 FAIL → stop, no W2; analysis (code-lineage drift becomes prime suspect; options: matched R2-vs-R1b comparison or from-scratch). Any launch only after the warmup round closes. GPU 1 untouched; cotenant job respected (~26 GB envelope, batch 4 resident).
+**Stop rules (revised per plan review):** W1 FAIL → run W0 null control for attribution, then stop (no W2) and analyze. **Marginal pass defined precisely:** all primary metrics ≤2σ with at least one ≥1.5σ ⇒ PAUSE for Yixun's decision; clear pass (all <1.5σ) ⇒ auto-launch W2. Interpretation language: W1 PASS demonstrates "warmup/lower-early-lr repairs the control", not uniquely "Adam second-moment transient proven" (integrated-lr confound: ~525.5 full-lr-equivalent steps vs 625 — accepted for a repair recipe; a matched-area constant-lr discriminator is deferred unless mechanism attribution becomes load-bearing). Any launch only after the warmup round closes. GPU 1 untouched; cotenant job respected (~26 GB envelope, batch 4 resident).
 
 ## 3. Acceptance criteria
 
