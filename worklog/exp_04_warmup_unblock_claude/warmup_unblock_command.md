@@ -34,7 +34,7 @@ CUDA_VISIBLE_DEVICES=0 python eval_FLAC.py \
   --eval-name exp04_W1_K${K}_seed${SEED}
 ```
 
-## W0 — conditional lr=0 null control (runs ONLY if W1 fails; not yet launched)
+## W0 — conditional lr=0 null control (LAUNCHED 2026-07-05 19:08 after W1 FAIL)
 
 W1 fine-tune command with `--lr 0 --warmup-steps 0 --save-dir outputs_FLAC/exp04_W0_null_ft --name FLAC_exp04_W0_null`, then the same gate evals with `--eval-name exp04_W0_K${K}_seed${SEED}`.
 
