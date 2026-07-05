@@ -18,6 +18,7 @@ decisive neutralization of the InverseLR warm-up restart.
 """
 import copy
 import os
+import types
 
 import pytest
 import pytorch_lightning as pl
@@ -347,3 +348,92 @@ def test_trainer_kwargs_accumulate_grad_batches():
         checkpoint_every=500, save_dir="/tmp/unused", smoke=True,
     )
     assert kw_default["accumulate_grad_batches"] == 1
+
+
+# --------------------------------------------------------------------------------------
+# 7. exp_04 warmup: warmup_lr_factor + WarmupLR callback + --warmup-steps
+#    (plan_warmup_unblock.md §1; accumulation semantics = plan-review finding 2)
+# --------------------------------------------------------------------------------------
+
+def _trainer_kwargs(**overrides):
+    """build_trainer_kwargs with boilerplate args filled; overrides forwarded."""
+    base = dict(precision="bf16-mixed", max_steps=625, gradient_clip_val=0.0,
+                checkpoint_every=500, save_dir="/tmp/unused", smoke=False)
+    base.update(overrides)
+    return finetune_cond.build_trainer_kwargs(**base)
+
+
+def test_warmup_lr_factor():
+    """Pure contract: linear ramp (step+1)/warmup_steps capped at 1.0; <=0 disables."""
+    assert finetune_cond.warmup_lr_factor(0, 200) == 1 / 200
+    assert finetune_cond.warmup_lr_factor(99, 200) == 100 / 200
+    assert finetune_cond.warmup_lr_factor(199, 200) == 1.0   # exactly at boundary
+    assert finetune_cond.warmup_lr_factor(5000, 200) == 1.0  # constant after warmup
+    for step in (0, 1, 100, 5000):
+        assert finetune_cond.warmup_lr_factor(step, 0) == 1.0  # 0 = off, incl. step 0
+
+
+def test_warmup_callback_sets_lr():
+    """After on_train_batch_start, EVERY param group's lr == target * factor(global_step)."""
+    target = 5e-6
+    p1, p2 = torch.nn.Parameter(torch.zeros(1)), torch.nn.Parameter(torch.zeros(1))
+    opt = torch.optim.AdamW([{"params": [p1]}, {"params": [p2]}], lr=123.0)  # lr overwritten
+    cb = finetune_cond.WarmupLR(target_lr=target, warmup_steps=200)
+    fake_trainer = types.SimpleNamespace(global_step=0, optimizers=[opt])
+    for step in (0, 100, 199, 5000):
+        fake_trainer.global_step = step
+        cb.on_train_batch_start(fake_trainer, None, None, 0)
+        expected = target * min(1.0, (step + 1) / 200)
+        for group in opt.param_groups:
+            assert group["lr"] == expected
+
+
+def test_warmup_accumulation_semantics():
+    """Plan-review finding 2: warmup is measured in OPTIMIZER steps (trainer.global_step),
+    never micro-batches. 32 on_train_batch_start calls at global_step=0 (one accumulation
+    group at accumulate_grad_batches=32) must leave lr at target * 1/200 after EVERY call;
+    the next 32 at global_step=1 give target * 2/200. An implementation advancing on an
+    internal counter or on batch_idx fails here (batch_idx varies across the calls)."""
+    cb = finetune_cond.WarmupLR(target_lr=1.0, warmup_steps=200)  # target 1.0 -> lr == factor
+    opt = torch.optim.AdamW([torch.nn.Parameter(torch.zeros(1))], lr=999.0)
+    fake_trainer = types.SimpleNamespace(global_step=0, optimizers=[opt])
+    for micro_batch_idx in range(32):
+        cb.on_train_batch_start(fake_trainer, None, None, micro_batch_idx)
+        assert opt.param_groups[0]["lr"] == 1 / 200
+    fake_trainer.global_step = 1
+    for micro_batch_idx in range(32, 64):
+        cb.on_train_batch_start(fake_trainer, None, None, micro_batch_idx)
+        assert opt.param_groups[0]["lr"] == 2 / 200
+
+
+def test_warmup_default_off():
+    """Default 0 = byte-identical current behavior (R1b); >0 appends a configured WarmupLR."""
+    argv = ["--model-config", "m.json", "--dataset-config", "d.json",
+            "--ckpt-path", "c.ckpt", "--save-dir", "/tmp/out"]
+    ns = finetune_cond.build_parser().parse_args(argv)
+    assert ns.warmup_steps == 0
+
+    kw_off = _trainer_kwargs(target_lr=5e-6, warmup_steps=0)
+    assert not any(isinstance(cb, finetune_cond.WarmupLR) for cb in kw_off["callbacks"])
+    kw_legacy = _trainer_kwargs()  # no warmup args at all == pre-exp_04 call
+    assert [type(cb) for cb in kw_off["callbacks"]] == [type(cb) for cb in kw_legacy["callbacks"]]
+
+    kw_on = _trainer_kwargs(target_lr=5e-6, warmup_steps=200)
+    warmups = [cb for cb in kw_on["callbacks"] if isinstance(cb, finetune_cond.WarmupLR)]
+    assert len(warmups) == 1
+    assert warmups[0].target_lr == 5e-6
+    assert warmups[0].warmup_steps == 200
+
+    with pytest.raises(ValueError):  # warmup without a target lr is a config error
+        _trainer_kwargs(warmup_steps=200)
+
+
+def test_warmup_recorded():
+    """The recipe echo (printed at launch, quoted in worklogs) must record warmup_steps."""
+    echo = finetune_cond.build_recipe_echo(
+        cond_method="vanilla", frame_avg_angles=[0.0, 90.0, 180.0, 270.0],
+        lr=5e-6, warmup_steps=200,
+    )
+    assert "warmup_steps=200" in echo
+    assert "cond_method=vanilla" in echo  # still carries the rest of the recipe
+    assert "lr=5e-06" in echo
