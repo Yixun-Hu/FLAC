@@ -18,6 +18,120 @@ import torch
 
 POSE_KEYS: Tuple[str, ...] = ("source", "source_vit", "context_poses", "context_poses_vit")
 
+# Yaw subgroup G = C4 aligned with the panorama columns (90 deg = 128 columns of
+# W=512 -> exact roll). Single source of truth for the frame-averaging angles.
+DEFAULT_FRAME_ANGLES: Tuple[float, ...] = (0.0, 90.0, 180.0, 270.0)
+
+
+def wrap_angle(phi):
+    """
+    Wrap an angle into the half-open interval ``(-pi, pi]``.
+
+    The interval is closed at ``+pi`` and open at ``-pi``, so an input of exactly
+    ``-pi`` maps to ``+pi`` (and ``+pi`` stays ``+pi``). Works elementwise on
+    Python floats and on ``torch.Tensor`` inputs alike.
+
+    Parameters
+    ----------
+    phi : float or torch.Tensor
+        Angle(s) in radians.
+
+    Returns
+    -------
+    float or torch.Tensor
+        The wrapped angle(s) in ``(-pi, pi]``, same type as the input.
+    """
+    return math.pi - (math.pi - phi) % (2.0 * math.pi)
+
+
+def cylindrical_pose_features(
+    md: Dict[str, object], eps: float = 1e-6
+) -> Dict[str, object]:
+    """
+    Replace absolute pose vectors with yaw-invariant cylindrical features.
+
+    Each pose ``(x, y, z)`` becomes ``(r, z, dphi)`` where ``r = sqrt(x^2 + y^2)``
+    and ``dphi`` is the azimuth measured *relative* to a scene-intrinsic reference
+    azimuth. Because every azimuth in a rigidly yaw-rotated scene shifts by the
+    same amount, the relative ``dphi`` (and ``r``, ``z``) are invariant under any
+    yaw rotation, making these features an exact invariant of the C-infinity yaw
+    group.
+
+    The reference azimuth is the target source's azimuth. If the source lies on
+    the vertical axis (``r_s < eps``, azimuth undefined) the reference falls back
+    to the azimuth of the largest-``r`` pose among ``{source, context poses}`` --
+    still a scene-intrinsic quantity, so invariance is preserved in the fallback.
+    If *every* pose is degenerate (all on the z-axis) every ``dphi`` is ``0``.
+
+    Only ``'source'`` and ``'context_poses'`` are transformed; ``'*_vit'`` poses,
+    ``'depth'`` and all other keys pass through untouched (same objects). The
+    input dict is not mutated: a shallow copy is returned with fresh tensors for
+    the replaced keys, preserving each pose tensor's dtype and device.
+
+    Parameters
+    ----------
+    md : Dict[str, object]
+        One per-sample metadata dict. ``'source'`` (shape ``[3]``) and, optionally,
+        ``'context_poses'`` (shape ``[N, 3]``) are read; the last dimension is
+        ordered ``(x, y, z)``.
+    eps : float, optional
+        Radius below which a pose azimuth is treated as undefined (default 1e-6).
+
+    Returns
+    -------
+    Dict[str, object]
+        A shallow copy of ``md`` with ``'source'`` -> ``(r_s, z_s, 0.0)`` and each
+        ``'context_poses'`` row -> ``(r_i, z_i, wrap(phi_i - phi_ref))``.
+    """
+    out: Dict[str, object] = dict(md)
+
+    source = md.get("source")
+    context = md.get("context_poses")
+
+    # Candidate poses for the fallback reference azimuth: source + context rows.
+    cand_r = []
+    cand_phi = []
+
+    r_s = phi_s = sz = None
+    if source is not None:
+        assert isinstance(source, torch.Tensor)
+        sx, sy, sz = source[..., 0], source[..., 1], source[..., 2]
+        r_s = torch.sqrt(sx * sx + sy * sy)
+        phi_s = torch.atan2(sy, sx)
+        cand_r.append(r_s.reshape(1))
+        cand_phi.append(phi_s.reshape(1))
+
+    r_c = phi_c = cz = None
+    if context is not None:
+        assert isinstance(context, torch.Tensor)
+        cx, cy, cz = context[..., 0], context[..., 1], context[..., 2]
+        r_c = torch.sqrt(cx * cx + cy * cy)
+        phi_c = torch.atan2(cy, cx)
+        cand_r.append(r_c.reshape(-1))
+        cand_phi.append(phi_c.reshape(-1))
+
+    # Reference azimuth: target source, unless degenerate -> largest-r pose.
+    if r_s is not None and bool(r_s >= eps):
+        phi_ref = phi_s
+    elif cand_r:
+        all_r = torch.cat(cand_r)
+        all_phi = torch.cat(cand_phi)
+        phi_ref = all_phi[int(torch.argmax(all_r))]
+    else:
+        phi_ref = None
+
+    if source is not None:
+        out["source"] = torch.stack([r_s, sz, torch.zeros_like(r_s)])
+
+    if context is not None:
+        if phi_ref is not None:
+            dphi = wrap_angle(phi_c - phi_ref)
+        else:
+            dphi = torch.zeros_like(r_c)
+        out["context_poses"] = torch.stack([r_c, cz, dphi], dim=-1)
+
+    return out
+
 
 def azimuth_rotation_matrix(alpha_rad: float) -> torch.Tensor:
     """
@@ -40,7 +154,10 @@ def azimuth_rotation_matrix(alpha_rad: float) -> torch.Tensor:
 
 
 def rotate_scene_metadata(
-    md: Dict[str, object], alpha_rad: float, img_w: int
+    md: Dict[str, object],
+    alpha_rad: float,
+    img_w: int,
+    pose_keys: Tuple[str, ...] = POSE_KEYS,
 ) -> Dict[str, object]:
     """
     Apply a physically-consistent yaw rotation to a single sample's metadata.
@@ -63,12 +180,16 @@ def rotate_scene_metadata(
         Requested yaw rotation angle in radians.
     img_w : int
         Panorama width in pixels (number of azimuth columns), e.g. 512.
+    pose_keys : Tuple[str, ...], optional
+        Which pose fields to rotate. Defaults to all of ``POSE_KEYS`` (the
+        exp_02 behaviour). Restricting it (e.g. to the ``*_vit`` keys only) leaves
+        the unlisted pose fields bit-identical; ``depth`` handling is unaffected.
 
     Returns
     -------
     Dict[str, object]
-        A shallow-copied metadata dict with ``depth`` and the pose fields replaced
-        by their rotated versions. The original dict is not mutated.
+        A shallow-copied metadata dict with ``depth`` and the selected pose fields
+        replaced by their rotated versions. The original dict is not mutated.
     """
     dj = int(round(alpha_rad * img_w / (2.0 * math.pi))) % img_w
     alpha_eff = dj * 2.0 * math.pi / img_w
@@ -83,7 +204,7 @@ def rotate_scene_metadata(
         rot_d = rot.to(device=depth.device, dtype=depth.dtype)
         out["depth"] = torch.einsum("ij,jhw->ihw", rot_d, depth)
 
-    for key in POSE_KEYS:
+    for key in pose_keys:
         if key in md:
             pose = md[key]
             assert isinstance(pose, torch.Tensor)
