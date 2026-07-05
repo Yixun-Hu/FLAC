@@ -33,11 +33,23 @@ Per protocol: R2 not launched; H3 unreadable through this control.
 1. **EMA hypothesis (falsified):** true online weights (EMA-stripped `FLAC.ckpt`) score K=1 10.06/1.087/40.71, K=8 8.68/1.011/37.96 — within ~0.1 T60 of the EMA baseline; explains ≤15% of the regression. (First diagnostic attempt was confounded by the eval loader's automatic EMA remap; corrected run documented in the notebook.)
 2. **Batch-parity hypothesis (primary):** original training used **effective batch 128** (README: 32 × accum 2 × 2 GPUs) vs our 8 — 16× gradient-noise mismatch, invisible to the config parity audit (CLI-side parameter).
 
-## R1b — amended single iteration: batch-parity control (RUNNING)
+## R1b — amended single iteration: batch-parity control — **GATE FAIL (registered stop)**
 
-Effective batch 128 (4 × accum 32), 625 opt steps (identical 80k-sample budget), lr 5e-6, all else unchanged. Gate: same pre-registered 2σ criteria. If FAIL → registered stop: no R2, analysis instead.
+Effective batch 128 (4 × accum 32), 625 opt steps (identical 80k-sample budget), lr 5e-6, 5 seeds × K∈{1,8}:
 
-*(sections below fill in as runs complete)*
+| K | T60 | C50 | EDT | R@1 | primary gate |
+|---|---|---|---|---|---|
+| 1 | 10.467±0.070 (6.2σ) | 1.078±0.010 (2.7σ) | 43.27±0.18 (8.1σ) | **6.79±0.11 (0.16σ PASS)** | **FAIL** |
+| 8 | 9.196±0.009 (38.6σ) | 0.995±0.003 (6.2σ) | 40.51±0.05 (41.9σ) | **7.07±0.10 (0.11σ PASS)** | **FAIL** |
 
-## R2/R3 — fa_invariant fine-tune + evals (H3) — pending R1b gate
-## R4/R4b — rotation sweeps, Metric 1 + H2 — pending R2
+Batch parity recovered ~35–40% of the R1 regression and fully restored retrieval (R@1 at baseline, both K), but T60/EDT/C50 remain far outside the gate. Both permitted control attempts are exhausted → **registered stop**.
+
+## R2/R3/R4/R4b — NOT RUN (stop condition)
+
+H3 and H2 are unresolved via fine-tuning: no control fine-tune reproduces the baseline, so any fa_invariant fine-tune result would be uninterpretable against exp_01. H1 stands on the infrastructure evidence above (conditioning float-exact on the real stack; end-to-end at the decoder noise floor on the frozen model).
+
+## Headline findings of exp_03
+
+1. **H1 (hard yaw symmetry at the conditioning level): ACHIEVED and proven** — float-exact (4.9e-8 rel) on C₄ with unmodified DINOv3; end-to-end residual = decoder-amplified float dust, 200–400× below the vanilla model's exp_02 gap.
+2. **The fine-tuning path to H3 is blocked by a deeper problem than symmetry:** the released FLAC checkpoint cannot be non-destructively fine-tuned on its own data with its own (audited) recipe — vanilla controls regress T60/EDT at 6–62σ while preserving retrieval. This retroactively explains the pre-revert "inconclusive FA fine-tune": the confound was never frame averaging.
+3. Ruled out / quantified: EMA-vs-online (≤15% of the effect), batch noise (~35–40%), lr (8× below original final lr already), recipe drift in config space (parity-audited to 4 intended keys).
