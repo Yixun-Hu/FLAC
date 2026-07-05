@@ -48,3 +48,13 @@
 - **Analysis** — infra incident (3 stalled review attempts) root-caused: `codex exec` blocks reading stdin in background shells; fix = `< /dev/null`. Classified infrastructure, zero code changes; live monitor provided the diagnostic line. Reviews now reliable.
 - **Result** — `passed`; **round cyl_pose CLOSED**. All four §2b core functions reviewed and hardened.
 - **Next** — cycle 4 (dispatch wiring) launching now; Yixun offline ~9h, autonomous mode per instruction: full write→review→fix→re-verify loop per cycle, then ladder, full review, R0–R4b, results/analysis/commits.
+
+## 2026-07-05T00:04:07-04:00 — validation ladder rungs a/c/d (real stack)
+- **Goal** — ladder rungs runnable on closed rounds: (a) real-DINOv3 conditioner invariance, (c) feature-range audit, (d) degenerate-source scan.
+- **Command / Validation** — logs `fa_invariant_cond_2026-07-05_00:01:11.log` (attempt 1, infra fail: dataloader needs num_workers>0 with hardcoded persistent_workers — my driver bug, classified infrastructure) and `fa_invariant_cond_2026-07-05_00:01:57.log` (retry, code state `baf6902`, real FLAC_EMA conditioner weights, real AR sample).
+- **Result** —
+  - **RUNG A: PASS.** C₄ invariance on the full real conditioning stack: max|Δ| = 2.4e-7 (source_vit / context_poses_vit), 1.8e-5 (context_poses), 0.0 (source, context_audio) — five orders below the 1e-3 bar. 45° off-subgroup reference: ViT path residual 0.21–0.29, pose path exact (5e-5) — exactly the H1 prediction.
+  - **RUNG C: recorded.** r ∈ [2.5, 22.6], z ∈ [−0.3, 0.7], Δφ ∈ [−3.06, 2.77]; after max_val=5 normalization Δφ/5 spans ±0.61 vs raw y/5 ±2.3 — scale compression on the Δφ channel is the watch-item for R2 (pre-declared 4-dim fallback if pose-sensitive metrics lag).
+  - **RUNG D: assumption corrected.** Degenerate sources are REAL in AR: 95/302,925 metadata pairs have r_xy exactly 0 (source vertically above receiver, Δz 0.6–0.8 m); 11/6337 unseen-eval items affected. The eps fallback branch is therefore load-bearing, not theoretical — its invariance-correctness (forced by the cyl_pose review + fix `70025d5`) matters on the actual eval split. Plan §1's "assert min r_s ≫ eps" expectation is replaced by this quantified finding; no code change needed (tests already pin the reachable branch).
+- **Analysis** — H1 confirmed at conditioner level on the real stack; the two "paranoid" review findings (largest-r fallback invariance; below-eps gating) turn out to cover 0.17% of real eval items — the review process demonstrably prevented a silent correctness hole.
+- **Next** — dispatch review verdict (in flight) → close cycle 4 → cycle 5.
