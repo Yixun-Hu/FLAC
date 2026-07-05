@@ -152,6 +152,39 @@ def test_cylindrical_degenerate_source():
     )
 
 
+def test_cylindrical_all_degenerate_below_eps():
+    # Every pose has a tiny NONZERO radius below eps (azimuths numerically
+    # undefined but distinct): contract says the scene is all-degenerate, so
+    # every dphi must be exactly 0 — not an arbitrary angle taken from the
+    # largest tiny radius.
+    md = {
+        "source": torch.tensor([1e-9, -3e-10, 1.7]),
+        "context_poses": torch.tensor(
+            [
+                [-2e-10, 7e-10, 0.5],
+                [5e-10, 5e-10, -0.3],
+                [1e-11, -1e-9, 2.1],
+            ]
+        ),
+        "depth": _consistent_depth(8, 512),
+    }
+    base = yr.cylindrical_pose_features(md)
+    # (a) all delta-phi outputs exactly 0.
+    assert float(base["source"][2]) == 0.0
+    assert torch.equal(base["context_poses"][:, 2], torch.zeros(3))
+    # (c) no NaN anywhere.
+    assert not torch.isnan(base["source"]).any()
+    assert not torch.isnan(base["context_poses"]).any()
+    # (b) invariance still holds in the all-degenerate branch.
+    for deg in (90.0, 37.3):
+        rot = yr.rotate_scene_metadata(md, math.radians(deg), 512)
+        rot_feat = yr.cylindrical_pose_features(rot)
+        assert torch.allclose(rot_feat["source"], base["source"], atol=1e-5)
+        assert torch.allclose(
+            rot_feat["context_poses"], base["context_poses"], atol=1e-5
+        )
+
+
 def test_cylindrical_nonmutating():
     md = _make_md(seed=3)
     md_ref = copy.deepcopy(md)

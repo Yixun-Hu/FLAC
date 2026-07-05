@@ -61,7 +61,8 @@ def cylindrical_pose_features(
     the vertical axis (``r_s < eps``, azimuth undefined) the reference falls back
     to the azimuth of the largest-``r`` pose among ``{source, context poses}`` --
     still a scene-intrinsic quantity, so invariance is preserved in the fallback.
-    If *every* pose is degenerate (all on the z-axis) every ``dphi`` is ``0``.
+    If *every* pose is degenerate (largest ``r`` also ``< eps``) every ``dphi``
+    is exactly ``0``.
 
     Only ``'source'`` and ``'context_poses'`` are transformed; ``'*_vit'`` poses,
     ``'depth'`` and all other keys pass through untouched (same objects). The
@@ -111,14 +112,17 @@ def cylindrical_pose_features(
         cand_phi.append(phi_c.reshape(-1))
 
     # Reference azimuth: target source, unless degenerate -> largest-r pose.
+    # The fallback pose must itself be non-degenerate (its azimuth defined);
+    # if even the largest r is < eps the scene is all-degenerate -> dphi == 0.
+    phi_ref = None
     if r_s is not None and bool(r_s >= eps):
         phi_ref = phi_s
     elif cand_r:
         all_r = torch.cat(cand_r)
         all_phi = torch.cat(cand_phi)
-        phi_ref = all_phi[int(torch.argmax(all_r))]
-    else:
-        phi_ref = None
+        max_idx = int(torch.argmax(all_r))
+        if bool(all_r[max_idx] >= eps):
+            phi_ref = all_phi[max_idx]
 
     if source is not None:
         out["source"] = torch.stack([r_s, sz, torch.zeros_like(r_s)])
