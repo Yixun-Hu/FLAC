@@ -94,3 +94,16 @@
 - **Result** — `passed`; round CLOSED. Grad-clip default now 0.0 (recipe parity restored; Trainer args added to the pinned test surface); --smoke guarantees enable_checkpointing=False; recipe preservation pinned to EXACTLY the four intended deviations via flat-diff test; configure_optimizers proven to return a bare optimizer (with non-vacuity control).
 - **Analysis** — incident worth remembering: the PRE-fix smoke had left a stray 657MB Lightning default-ModelCheckpoint at repo-root checkpoints/ (hidden by .gitignore \*.ckpt) — the review finding was load-bearing; the fixed rerun writes nothing. Also: smoke rerun step-1 loss bit-identical to pre-fix run, divergence from step 2 — exactly the expected signature of the grad-clip change taking effect.
 - **Next** — all 6 TDD rounds CLOSED; ladder rungs a–f complete. Integrative full review → launch package → R0/R1.
+
+## 2026-07-05T01:32:28-04:00 — launch conditions met; PRE-LAUNCH ACCEPTANCE CRITERIA (pre-registered)
+- **Goal** — close the integrative-review conditions and register the run gates before any launch.
+- **Version Control** — conditions C1+C2 fix `992fe49` (82 tests green, Planner re-verified; load-integrity verified against all 4 real ckpt formats incl. nested-EMA remap). C3 = params/command artifacts written (this commit). C4 = fit probes next (results appended below before FT launch).
+- **Acceptance criteria (judged against these, not vibes):**
+  - **Probes:** batch-8 reaches ≥5 optimizer steps, no OOM, finite loss, for BOTH cond methods; record it/s for wall-clock planning.
+  - **R0 (zero-shot):** completes cleanly (any metric level; expected worse than baseline — OOD conditioning for the frozen DiT). Reference row only.
+  - **R1 FT:** worker reports commit 992fe49; 10000/10000 steps; loss finite throughout; lr flat 5e-6; clean export.
+  - **R1 GATE (hard):** vanilla-control evals, exp_01 protocol (cond-autocast default), full split, K∈{1,8} × seeds 42–46: per-metric means within 2σ_combined of exp_01 (K=1: T60 9.969±0.039, C50 1.0460±0.0064, EDT 39.95±0.37, R@1 6.83±0.22; K=8: T60 8.609±0.012, C50 0.9682±0.0030, EDT 37.10±0.07, R@1 7.06±0.10). Primary gate on T60/C50/EDT; R@k advisory (AGREE-space, higher variance). If gate fails: ONE documented recipe iteration (lr 2e-6), else stop and analyze.
+  - **R2/R3 (H3):** same protocol but cond-autocast bf16; H3 passes if R3 within 2σ of exp_01 at both K.
+  - **R4 (H1):** Metric-1 rot0 control ≡ 0.0 exactly; C₄ angles ≤ pre-registered floor (conditioning float-exact ≤1e-6 rel; end-to-end relL2 ≤ 2e-3 fp32-referenced — bf16 floor to be re-measured on R2 before judging, re-registered in this notebook BEFORE reading R4 numbers); 45° reported (expected ViT-path residual ~0.2 zero-shot scale, post-FT value informative).
+  - **H2:** R4/R4b per-angle Metric-2 flat across α ∈ C₄ within 2× the exp_01 single-eval noise floor.
+- **Next** — C4 probes → R0 + R1 FT launch.
