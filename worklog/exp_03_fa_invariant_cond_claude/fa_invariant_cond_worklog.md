@@ -76,3 +76,8 @@
   - Reference: vanilla model's exp_02 gap = 0.19–0.22 relL2 → our end-to-end residual is **~200–400× smaller** and metric-invisible (linear scaling of exp_02's T60 gap puts it ≈0.02 pp, far under the ±0.04 seed floor).
 - **Analysis** — H1 numerical criterion amended (pre-registered BEFORE R4, Planner decision): conditioning-level exactness ≤ 1e-6 relative (measured 5e-8); end-to-end Metric-1 at C₄ ≤ 2e-3 relL2 = decoder-amplified float floor (measured fp32 4.6e-4 / autocast 1.1e-3); rot0 control remains exactly 0.0. No implementation on a float machine can beat the decoder's amplification of ε-level input differences; the mathematical-exactness claim lives at the conditioning level where it belongs.
 - **Next** — evalwire review verdict → close cycle 5 → cycle 6 (finetune script) → rung e + parity audit → full review → runs.
+
+## 2026-07-05T00:33:31-04:00 — round evalwire CLOSED (fix verified)
+- **Version Control** — write `8e6164a`+`337eec3`+`1de5721` → review `737249d` (REQUEST-CHANGES ×3) → fix `37aa6bd` (+162/−13) → Planner re-verified: 48 passed.
+- **Result** — `passed`; round CLOSED. Meta guard now covers cond_method + frame_avg_angles (rotate_deg exempt by design, pinned by test); evaluate_model validates cond_method before any work; wiring test proves the save path flows through build_output_paths (spy + real JSON at the exact expected path). Coder proved all three fixes load-bearing by stash-RED.
+- **Next** — cycle 6: finetune_cond.py.
