@@ -24,10 +24,11 @@ Design decisions (flagging for approval):
 
 ## 2. Files & planned code
 
-### 2a. `tests/conftest.py` (new, ~10 lines) — pytest infra
+### 2a. `src/tests/conftest.py` (new, ~10 lines) — pytest infra (tests location per Yixun: `src/tests/`)
 ```python
 import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root before stale site-packages
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # src/tests/ -> repo root
+sys.path.insert(0, _REPO_ROOT)  # repo root before stale site-packages copy of src.*
 ```
 
 ### 2b. `src/data/yaw_rotation.py` (extend, ~90 new lines)
@@ -71,7 +72,7 @@ Constructor takes `cond_method="vanilla"`, `frame_avg_angles=None -> DEFAULT_FRA
 ### 2f. `finetune_cond.py` (new, ~140 lines; adapted from `worklog/archive_pre_revert_2026-07-04/finetune_frame_avg.py`)
 Changes vs archive: `--cond-method {vanilla, fa_invariant}`; `--lr` override (constant, kills the InverseLR warm-up restart); `use_ema=False` in the wrapper (init already IS the EMA average; avoids the fresh-EMA warmup artifact that corrupted the pre-revert control); keeps VAE frozen; NO `--max-context` override (K=8 train config as-is).
 
-### 2g. `tests/test_yaw_symmetry.py`, `tests/test_invariant_conditioning.py`, `tests/test_cond_dispatch.py`, `tests/test_eval_paths.py` (new, ~220 lines total) — see §3.
+### 2g. `src/tests/test_yaw_symmetry.py`, `src/tests/test_invariant_conditioning.py`, `src/tests/test_cond_dispatch.py`, `src/tests/test_eval_paths.py` (new, ~220 lines total) — see §3.
 
 ## 3. TDD: per-function test list (written FIRST, each cycle = 1 commit)
 
@@ -98,7 +99,7 @@ Real-stack rung (validation ladder 3, not a unit test): one real AR sample throu
 ## 4. Commit sequence (all < 200 lines; SHAs → `commits_fa_invariant_cond.md`)
 
 1. exp_03 scaffold (query, plan, worklog notebook) — docs
-2. `tests/`: conftest + wrap_angle/cylindrical tests (RED)
+2. `src/tests/`: conftest + wrap_angle/cylindrical tests (RED)
 3. `src/data/yaw_rotation.py`: wrap_angle + cylindrical_pose_features (GREEN)
 4. tests: rotate pose_keys param (RED) → 5. implement (GREEN) *(3+4 may merge if tiny)*
 6. tests: invariant_conditioning with mock conditioner (RED)

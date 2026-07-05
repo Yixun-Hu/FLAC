@@ -9,7 +9,7 @@
 ## Rule
 
 - Every new function is developed test-first: define the test function(s) for each small unit BEFORE implementing it; watch the test fail (red), implement the minimal code to pass (green), refactor with tests green.
-- Tests are pytest files under `tests/` at the repo root and are committed with (or immediately before) the implementation they drive — never after.
+- Tests are pytest files in a dedicated tests folder; the folder's location must be confirmed with Yixun before the first tests land. **For this FLAC repo: `src/tests/`** (decided 2026-07-04). Tests are committed with (or immediately before) the implementation they drive — never after.
 - Each red→green cycle is one small commit (composes with the < 200-line commit rule in `worklog/SOP.md`).
 - Experiment plans (`plan_<exp name>.md`) must enumerate the per-function test list before implementation begins.
 - Existing tests are permanent regression assets: they must keep passing in every later experiment (validation-ladder rung between static checks and smoke runs).
