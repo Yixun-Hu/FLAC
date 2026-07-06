@@ -28,8 +28,8 @@ html = f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name
 <h2>B0 — the drift landscape</h2>
 <figure>{driftchart()}<figcaption>All 20 layers exceed the 0.05 pre-registered threshold on the train loader, with monotone depth amplification (stem 0.082 → layer4 0.357); the eval loader (different rooms) drifts 2–4× more — the probe discriminates. Repeats agree to ±0.001–0.02. Hover for exact values.</figcaption></figure>
 <h2>B1 — max_len grid: <span class="chip pass">loader exonerated</span></h2>
-<table><thead><tr><th>max_len</th><th class="num">stem drift</th><th class="num">worst-layer drift</th><th>verdict</th></tr></thead><tbody>
-<tr><td><b>9600 (shipped)</b></td><td class="num"><b>0.082</b></td><td class="num"><b>0.346</b></td><td><span class="chip pass">✓ clear optimum</span></td></tr>
+<table><thead><tr><th>max_len (alternatives: single seed-42 probes)</th><th class="num">stem drift</th><th class="num">worst-layer drift</th><th>verdict</th></tr></thead><tbody>
+<tr><td><b>9600 (shipped)</b> — 3-repeat mean</td><td class="num"><b>0.082</b></td><td class="num"><b>0.357</b></td><td><span class="chip pass">✓ clear optimum</span></td></tr>
 <tr><td>4800</td><td class="num">0.647</td><td class="num">1.121</td><td><span class="chip fail">✗ far worse</span></td></tr>
 <tr><td>10240</td><td class="num">0.117</td><td class="num">1.393</td><td><span class="chip fail">✗ layer4 explodes</span></td></tr>
 <tr><td>19200</td><td class="num">0.620</td><td class="num">1.685</td><td><span class="chip fail">✗ worst</span></td></tr></tbody></table>

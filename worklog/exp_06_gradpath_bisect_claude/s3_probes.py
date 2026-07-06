@@ -13,10 +13,13 @@ from src.metrics.metric_callback import AcousticMetricsCallback
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 random.seed(42); torch.manual_seed(42)
-files = sorted(glob.glob(os.path.join(REPO, 'AcousticRooms/single_channel_ir_1/**/*.wav'), recursive=True))
+train_split = json.load(open(os.path.join(REPO, 'data/AR/train.json')))
+train_rooms = {room for rooms in train_split.values() for room in rooms}
+files = [f for f in sorted(glob.glob(os.path.join(REPO, 'AcousticRooms/single_channel_ir_1/**/*.wav'), recursive=True))
+         if f.split('/')[-2] in train_rooms]
 random.shuffle(files)
 files = files[:300]
-print(f'sampled {len(files)} train-side RIRs')
+print(f'sampled {len(files)} RIRs strictly from the train split ({len(train_rooms)} rooms)')
 
 aug_shift = RandomTimeShift(max_shift=10, p=1.0)   # p=1 for paired measurement; loader uses p=0.5
 aug_noise = AddNoise(snr_db_range=(40, 60), noise_type='pink', p=1.0)

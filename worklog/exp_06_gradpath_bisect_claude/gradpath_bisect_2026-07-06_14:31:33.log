@@ -1,3 +1,4 @@
+=== S3.2 probe rerun, train-split-only (review fix) — 2026-07-06 14:31:33 ===
 {
   "n": 300,
   "energy_beyond_loss_window_10240": {
@@ -16,3 +17,4 @@
   },
   "note": "aug applied at p=1.0 for paired measurement; loader applies each at p=0.5 -> effective training bias ~ half the T60/EDT numbers here (shift) and ~half of items carry noise."
 }
+exit=0

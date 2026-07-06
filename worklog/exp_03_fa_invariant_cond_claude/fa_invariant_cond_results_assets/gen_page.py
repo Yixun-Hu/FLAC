@@ -21,7 +21,7 @@ r1b= [("K=1 T60", 6.22, False), ("K=1 C50", 2.65, False), ("K=1 EDT", 8.06, Fals
 html = f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>exp_03 — hard invariant conditioning</title><link rel="stylesheet" href="fa_invariant_cond_results_assets/results.css"></head><body>
 <h1>exp_03 — Route 1: hard invariant conditioning (frame averaging + cylindrical poses)</h1>
-<p class="sub">DINOv3 untouched · 6 TDD rounds, 7 Codex reviews, 83→104 tests · 2026-07-04/05. Numbers mirror <a href="fa_invariant_cond_results.md">_results.md</a>.</p>
+<p class="sub">DINOv3 untouched · 6 TDD rounds, 7 Codex reviews, 83→104 tests · 2026-07-04/05. Numbers mirror <a href="fa_invariant_cond_results.md">_results.md</a> and the R1/R1b gate entries in <a href="fa_invariant_cond_worklog.md">the lab notebook</a>.</p>
 <h2>H1 — conditioning-level hard symmetry: <span class="chip pass">✓ PROVEN</span></h2>
 <div><span class="kpi"><div class="n">4.9×10⁻⁸</div><div class="l">relative conditioning deviation on C₄ (real DINOv3 + real data)</div></span>
 <span class="kpi"><div class="n">×1200</div><div class="l">VAE-decoder amplification of float dust (the entire e2e residual)</div></span>
