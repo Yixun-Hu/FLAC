@@ -33,17 +33,22 @@ from src.models.utils import load_ckpt_state_dict
 from src.training import create_training_wrapper_from_config
 
 VALID_COND_METHODS = ("vanilla", "fa_invariant")
+VALID_LR_SCHEDULES = ("constant", "inverse-restart")
 
 
-def build_finetune_training_config(model_config, cond_method, lr, frame_avg_angles):
+def build_finetune_training_config(model_config, cond_method, lr, frame_avg_angles,
+                                   lr_schedule="constant"):
     """Deep-copy a FLAC model config and inject the non-destructive fine-tune recipe.
 
     Only the ``training`` block is modified; the caller's dict (and everything outside
     ``training``, including the architecture and conditioning topology) is left untouched.
-    The constant learning rate is realised by overriding the optimizer LR *and* deleting the
-    ``scheduler`` key, which makes ``DiffusionCondTrainingWrapper.configure_optimizers`` skip
-    scheduler construction (src/training/diffusion.py:195) -- the most decisive neutralization
-    of the InverseLR warm-up restart.
+    With ``lr_schedule="constant"`` (default; every pre-exp_06 run) the optimizer LR is
+    overridden AND the ``scheduler`` key is deleted, so
+    ``DiffusionCondTrainingWrapper.configure_optimizers`` skips scheduler construction
+    (src/training/diffusion.py:195) -- constant LR, no warm-up restart. With
+    ``lr_schedule="inverse-restart"`` (exp_06 arm L5) the source config's scheduler block
+    is preserved verbatim: the original InverseLR RESTARTS from step 0, warmup included --
+    it does NOT resume at the release's unknown final step.
 
     Parameters
     ----------
@@ -52,9 +57,11 @@ def build_finetune_training_config(model_config, cond_method, lr, frame_avg_angl
     cond_method : str
         Conditioning method, one of ``VALID_COND_METHODS``.
     lr : float
-        Constant learning rate for the fine-tune.
+        Learning rate: the constant value, or the schedule's base lr for inverse-restart.
     frame_avg_angles : list of float
         Yaw frame angles (degrees) for ``fa_invariant`` frame averaging.
+    lr_schedule : {"constant", "inverse-restart"}
+        LR schedule selector, one of ``VALID_LR_SCHEDULES``.
 
     Returns
     -------
@@ -64,11 +71,15 @@ def build_finetune_training_config(model_config, cond_method, lr, frame_avg_angl
     Raises
     ------
     ValueError
-        If ``cond_method`` is not in ``VALID_COND_METHODS``.
+        If ``cond_method`` / ``lr_schedule`` is not among the valid options.
     """
     if cond_method not in VALID_COND_METHODS:
         raise ValueError(
             f"Unknown cond_method: {cond_method!r}. Valid options: {VALID_COND_METHODS}."
+        )
+    if lr_schedule not in VALID_LR_SCHEDULES:
+        raise ValueError(
+            f"Unknown lr_schedule: {lr_schedule!r}. Valid options: {VALID_LR_SCHEDULES}."
         )
 
     cfg = copy.deepcopy(model_config)
@@ -80,11 +91,13 @@ def build_finetune_training_config(model_config, cond_method, lr, frame_avg_angl
     # Init weights ARE the released EMA average; a fresh-EMA warm-up would corrupt the control.
     training["use_ema"] = False
 
-    # Constant LR: override the base LR and drop the InverseLR scheduler entirely so that
-    # configure_optimizers returns an unscheduled optimizer (no warm-up restart).
+    # Override the base LR. "constant" also drops the InverseLR scheduler entirely so that
+    # configure_optimizers returns an unscheduled optimizer (no warm-up restart);
+    # "inverse-restart" keeps the deep-copied scheduler block exactly as in the source.
     diffusion_opt = training["optimizer_configs"]["diffusion"]
     diffusion_opt["optimizer"]["config"]["lr"] = lr
-    diffusion_opt.pop("scheduler", None)
+    if lr_schedule == "constant":
+        diffusion_opt.pop("scheduler", None)
 
     return cfg
 
@@ -215,7 +228,8 @@ class FreezeBN(pl.Callback):
         self._apply_eval()
 
 
-def build_recipe_echo(cond_method, frame_avg_angles, lr, warmup_steps, freeze_bn=False):
+def build_recipe_echo(cond_method, frame_avg_angles, lr, warmup_steps, freeze_bn=False,
+                      lr_schedule="constant"):
     """Build the one-line recipe echo printed at launch (quoted in worklogs).
 
     Returns
@@ -225,7 +239,7 @@ def build_recipe_echo(cond_method, frame_avg_angles, lr, warmup_steps, freeze_bn
     return (
         f"[finetune_cond] recipe: cond_method={cond_method} "
         f"frame_avg_angles={frame_avg_angles} lr={lr} warmup_steps={warmup_steps} "
-        f"freeze_bn={freeze_bn} use_ema=False scheduler=constant(removed)"
+        f"freeze_bn={freeze_bn} lr_schedule={lr_schedule} use_ema=False"
     )
 
 
@@ -291,6 +305,7 @@ def finetune(
     lr,
     warmup_steps,
     freeze_bn,
+    lr_schedule,
     max_steps,
     checkpoint_every,
     batch_size,
@@ -326,6 +341,9 @@ def finetune(
     freeze_bn : bool
         Freeze all BatchNorm modules in the trainable path (eval mode, running stats
         pinned, affine still trainable); False = off (pre-exp_05 behavior).
+    lr_schedule : {"constant", "inverse-restart"}
+        LR schedule: constant (pre-exp_06 behavior) or the original InverseLR restarted
+        from step 0 (exp_06 arm L5).
     max_steps, checkpoint_every, batch_size, num_workers : int
         Trainer / dataloader sizing (``max_steps`` / ``batch_size`` overridden by ``smoke``).
     accumulate_grad_batches : int
@@ -353,8 +371,11 @@ def finetune(
     with open(dataset_config_path) as f:
         dataset_config = json.load(f)
 
-    model_config = build_finetune_training_config(model_config, cond_method, lr, frame_avg_angles)
-    print(build_recipe_echo(cond_method, frame_avg_angles, lr, warmup_steps, freeze_bn))
+    model_config = build_finetune_training_config(
+        model_config, cond_method, lr, frame_avg_angles, lr_schedule=lr_schedule
+    )
+    print(build_recipe_echo(cond_method, frame_avg_angles, lr, warmup_steps, freeze_bn,
+                            lr_schedule))
 
     model = create_model_from_config(model_config)
     model = load_flac_ema_weights(model, ckpt_path)
@@ -439,6 +460,13 @@ def build_parser():
              "stats pinned (the exp_04 W0-proven damage channel), affine still "
              "trainable. Names/count logged at fit start.",
     )
+    parser.add_argument(
+        "--lr-schedule", type=str, default="constant", choices=list(VALID_LR_SCHEDULES),
+        help="LR schedule. inverse-restart restarts the original InverseLR schedule from "
+             "step 0 (warmup included) -- it does NOT resume the schedule at the "
+             "release's unknown final step; arm L4 (constant ~4.2e-5) is the "
+             "continuation proxy.",
+    )
     parser.add_argument("--max-steps", type=int, default=2000)
     parser.add_argument("--checkpoint-every", type=int, default=500)
     parser.add_argument("--batch-size", type=int, default=8)
@@ -478,6 +506,7 @@ def main():
         lr=args.lr,
         warmup_steps=args.warmup_steps,
         freeze_bn=args.freeze_bn,
+        lr_schedule=args.lr_schedule,
         max_steps=args.max_steps,
         checkpoint_every=args.checkpoint_every,
         batch_size=args.batch_size,
