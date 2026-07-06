@@ -1,0 +1,18 @@
+{
+  "n": 300,
+  "energy_beyond_loss_window_10240": {
+    "mean": 0.0007816264496491339,
+    "p90": 0.0020861452154158355
+  },
+  "energy_beyond_metric_window_8000": {
+    "mean": 0.0018572748788541153,
+    "p90": 0.005545502273424097
+  },
+  "augmentation_bias_metric_aug_vs_raw": {
+    "T60": 0.1027,
+    "Invalid T60": 0.0,
+    "C50": 0.0536,
+    "EDT": 1.5973
+  },
+  "note": "aug applied at p=1.0 for paired measurement; loader applies each at p=0.5 -> effective training bias ~ half the T60/EDT numbers here (shift) and ~half of items carry noise."
+}

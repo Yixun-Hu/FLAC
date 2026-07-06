@@ -25,3 +25,9 @@ done
 git remote add upstream https://github.com/AmandineBtto/FLAC.git 2>/dev/null; git fetch upstream
 git diff upstream/master 0bd5da0 -- src/training/ src/data/ src/models/ src/inference/ train.py > worklog/exp_06_gradpath_bisect_claude/upstream_diff_trainpath.patch
 ```
+
+## S3.2 probes (LAUNCHED 2026-07-06 ~12:05; CPU while S1 holds GPU)
+
+```bash
+python worklog/exp_06_gradpath_bisect_claude/s3_probes.py   # one-off; output s3_probe_results.json
+```
