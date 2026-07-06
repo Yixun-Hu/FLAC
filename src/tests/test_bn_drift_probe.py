@@ -8,11 +8,14 @@ reference-RIR statistics differ from the released training's). Comparing the
 stored ``running_mean``/``running_var`` against the batch statistics *our* data
 produces at each BN layer localizes the drift with no training.
 
-The seven tests below are plan_bn_drift_bisect.md §1's table verbatim (plan-review
+Seven tests are plan_bn_drift_bisect.md §1's table verbatim (plan-review
 findings 3/4 baked in): BN **input** stats (torchvision ResNet18 BNs sit after
 convs; the stem change only swaps conv1 to one input channel), the **unbiased**
 (n-1) variance estimator that matches PyTorch ``running_var`` semantics, the
 exact 20-BatchNorm2d / 0-BatchNorm1d ResNet18 stack, and a provenance report.
+Two more harden the instrument per the bndrift code review: a CUDA smoke for
+device-correct accumulators (finding 2) and the all-buffer snapshot guard
+(finding 3); the stem test's BN is non-identity per finding 4.
 
 Only ``test_recorder_finds_all_bns`` builds the real ``AudioResNet18`` (random
 weights via torchvision ``resnet18(pretrained=False)`` -- no download); every
@@ -122,22 +125,94 @@ def test_recorder_conv_bn_stem():
     AudioResNet18 replaces conv1 with a 1-channel input but leaves the BNs after
     the convs. Hooking the raw stem input (1 channel) instead of the BN input
     (4 post-conv channels) would give the wrong shape/stats and fail here.
+
+    The BN is made strongly non-identity (distinct running stats + affine): a
+    default eval-mode BN is near-identity, so an output-hook bug would slip
+    under tolerance (code-review measured the gap at 5.66e-6 < atol 1e-5). Here
+    pre-BN and post-BN stats differ by >> tolerance and both directions are
+    pinned: match the pre-BN activations, measurably differ from the outputs.
     """
     torch.manual_seed(1)
     conv = nn.Conv2d(1, 4, kernel_size=3, padding=1, bias=False)
     bn = nn.BatchNorm2d(4)
+    with torch.no_grad():  # non-identity normalization + affine
+        bn.running_mean.copy_(torch.tensor([5.0, -3.0, 2.0, 7.0]))
+        bn.running_var.copy_(torch.tensor([0.25, 4.0, 9.0, 0.04]))
+        bn.weight.copy_(torch.tensor([2.0, 0.5, 3.0, 1.5]))
+        bn.bias.copy_(torch.tensor([10.0, -5.0, 3.0, 0.0]))
     stem = nn.Sequential(conv, bn).eval()
 
     recorder = bn_drift_probe.BNInputRecorder(stem)
     x = torch.randn(6, 1, 8, 8)
     with torch.no_grad():
         stem(x)
-        conv_out = conv(x)  # the BN's input inside the Sequential
 
     assert recorder.layer_names == ["1"]  # the BN is index 1 of the Sequential
     rec_mean, rec_var = recorder.input_stats("1")
+    recorder.remove()  # stop recording: the manual bn() below must not re-feed the hook
+
+    with torch.no_grad():
+        conv_out = conv(x)     # the BN's input inside the Sequential (pre-BN)
+        bn_out = bn(conv_out)  # what an output-hook implementation would record
+
     assert torch.allclose(rec_mean, conv_out.mean(dim=(0, 2, 3)), atol=1e-5)
     assert torch.allclose(rec_var, conv_out.var(dim=(0, 2, 3), unbiased=True), atol=1e-5)
+    # Discriminating margin: recorded stats differ grossly from post-BN stats,
+    # so an output-hook implementation cannot pass the two asserts above.
+    assert (rec_mean - bn_out.mean(dim=(0, 2, 3))).abs().max() > 1.0
+    assert (rec_var - bn_out.var(dim=(0, 2, 3), unbiased=True)).abs().max() > 1.0
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA device required")
+def test_recorder_cuda_smoke():
+    """Review finding 2 (device correctness): CUDA hook inputs must stream into
+    accumulators on the same device. The pre-fix recorder allocated CPU
+    accumulators at registration and crashed here on the CUDA-CPU subtraction;
+    the fix lazily initializes on the first hooked batch's device. Also asserts
+    Welford correctness and buffer bit-identity on the GPU path (the CLI's
+    default --device cuda)."""
+    torch.manual_seed(3)
+    bn = nn.BatchNorm2d(3).cuda().eval()
+    with torch.no_grad():
+        bn.running_mean.copy_(torch.randn(3, device="cuda"))
+        bn.running_var.copy_(torch.rand(3, device="cuda") + 0.5)
+    snap = bn_drift_probe.snapshot_buffers(bn)
+
+    recorder = bn_drift_probe.BNInputRecorder(bn)
+    batches = [torch.randn(4, 3, 5, 6, device="cuda"), torch.randn(3, 3, 5, 6, device="cuda")]
+    with torch.no_grad():
+        for b in batches:
+            bn(b)
+
+    rec_mean, rec_var = recorder.input_stats(recorder.layer_names[0])
+    assert rec_mean.is_cuda and rec_var.is_cuda  # accumulators lived on the input device
+    allx = torch.cat(batches, dim=0)
+    assert torch.allclose(rec_mean, allx.mean(dim=(0, 2, 3)), atol=1e-5)
+    assert torch.allclose(rec_var, allx.var(dim=(0, 2, 3), unbiased=True), atol=1e-5)
+    bn_drift_probe.assert_buffers_unchanged(bn, snap)  # read-only on CUDA too
+
+
+def test_snapshot_buffers_catches_mutation():
+    """Review finding 3: the all-buffer no-mutation guard used around
+    probe_rir_encoder's pass. snapshot_buffers covers every named buffer;
+    assert_buffers_unchanged passes on an eval-mode forward (BN reads only) and
+    raises, naming the buffer, after a train-mode forward mutates running stats.
+    The raise also proves the snapshot holds clones, not references."""
+    torch.manual_seed(2)
+    mod = nn.Sequential(nn.Conv2d(2, 3, kernel_size=1, bias=False), nn.BatchNorm2d(3))
+    snap = bn_drift_probe.snapshot_buffers(mod)
+    assert set(snap) == {"1.running_mean", "1.running_var", "1.num_batches_tracked"}
+
+    mod.eval()
+    with torch.no_grad():
+        mod(torch.randn(4, 2, 5, 5))
+    bn_drift_probe.assert_buffers_unchanged(mod, snap)  # eval forward: no raise
+
+    mod.train()
+    with torch.no_grad():
+        mod(torch.randn(4, 2, 5, 5))  # train-mode BN updates its running stats
+    with pytest.raises(RuntimeError, match="running_mean"):
+        bn_drift_probe.assert_buffers_unchanged(mod, snap)
 
 
 def test_recorder_finds_all_bns():
