@@ -1,7 +1,7 @@
 # Plan — exp_06_gradpath_bisect (why T60/EDT don't recover; the lr axis; gradient-path lineage)
 
 **Author:** Fable 5 (Planner) · **Coder:** Opus 4.8 max (S2 is CODE-BEARING: L5 needs a tested --lr-schedule selector) · **Reviewer:** Codex gpt-5.5 xhigh · **Date:** 2026-07-06
-**Status:** AWAITING plan review + Yixun approval.
+**Status:** APPROVED by Yixun 2026-07-06 ("approved, run automatically").**
 
 ## 0. Evidence baseline (exp_03/04/05)
 
