@@ -28,3 +28,8 @@
 - **Result** — stem-BN per-batch dispersion over 60 batches: predicted EMA-tail noise max 0.024 vs observed shift max 0.085 (≈3.5×; B0's 0.082 reproduced) → residual is genuine pipeline/content drift, small at stem, no max_len knob fixes it (stage 1). Registered hint applied honestly: "pipeline-drift if observed >> predicted". Side discovery logged: train loader applies augmentations (Random Time Shift, Add Noise) to the main audio; context path loads raw — augmentation lineage now an additional provenance unknown, further motivating the provenance-agnostic repair.
 - **Decision** — V1′ (BN-freeze validation) proceeds exactly as amendment-approved: its rationale never depended on drift provenance; it eliminates the W0 damage channel by construction and tests the co-adaptation share of the gradient component.
 - **Next** — freeze-bn TDD round (7 review-mandated tests) → per-round review → smoke → V1′ launch.
+
+## 2026-07-06T02:33:03-04:00 — round freezebn CLOSED; V1′ smoke + launch
+- **Version Control** — write `d1c4e5c`+`5d1c64c` (104 tests, Planner re-verified) → review APPROVE-WITH-NITS (enforcement verified against installed PL 2.1 source: no one-batch BN-mutation gap on any path; scope = exactly the RIR encoder's 20 BNs) → CLOSED, no fix leg.
+- **Acceptance (smoke):** '[finetune_cond] FreezeBN: 20 BatchNorm modules frozen' logged; 10 steps finite loss.
+- **Acceptance (V1′, pre-registered):** R1b recipe + --freeze-bn (NO warmup — one variable); exp_01 2σ gate, marginal band 1.5–2σ pauses; PASS ⇒ resume pipeline as fa_invariant + freeze-bn; FAIL ⇒ registered stop (gradient-path damage independent of BN) + analysis.
