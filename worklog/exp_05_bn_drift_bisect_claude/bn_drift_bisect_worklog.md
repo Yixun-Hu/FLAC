@@ -33,3 +33,12 @@
 - **Version Control** — write `d1c4e5c`+`5d1c64c` (104 tests, Planner re-verified) → review APPROVE-WITH-NITS (enforcement verified against installed PL 2.1 source: no one-batch BN-mutation gap on any path; scope = exactly the RIR encoder's 20 BNs) → CLOSED, no fix leg.
 - **Acceptance (smoke):** '[finetune_cond] FreezeBN: 20 BatchNorm modules frozen' logged; 10 steps finite loss.
 - **Acceptance (V1′, pre-registered):** R1b recipe + --freeze-bn (NO warmup — one variable); exp_01 2σ gate, marginal band 1.5–2σ pauses; PASS ⇒ resume pipeline as fa_invariant + freeze-bn; FAIL ⇒ registered stop (gradient-path damage independent of BN) + analysis.
+
+## 2026-07-06T06:27:37-04:00 — V1′ verdict: FAIL → REGISTERED STOP; per-metric decomposition complete
+- **Result (V1′, freeze-bn, 5 seeds, full split):** K=1 T60 10.523±0.058 (7.9σ), C50 1.010±0.007 (3.7σ **in the improved direction — better than baseline**), EDT 41.33±0.12 (3.5σ); K=8 T60 9.235 (48.4σ), C50 0.928 (10.4σ, improved), EDT 38.73 (24.2σ). R@1 at baseline (0.24σ/0.67σ).
+- **Decomposition (vs R1b unfrozen / W0 lr=0 / baseline):**
+  - **EDT:** largely BN-mediated — freeze-bn recovered K=1 43.27→41.33 (residual +1.38 vs baseline ≈ gradient part; W0's pure-BN was +1.15).
+  - **C50:** BN-mediated and then some — freeze-bn overshoots to BETTER-than-baseline at both K (original running stats + trainable affine = improved clarity).
+  - **T60:** gradient-driven, BN-independent — 10.47→10.52 (K=1), 9.20→9.23 (K=8): freezing changed nothing.
+- **Analysis** — every optimizer-side hypothesis is now falsified (Adam transient, EMA, batch noise beyond partial, lr, BN mutation). The T60-specific residual is a genuine training-lineage difference on the gradient path (objective/data lineage), unreachable by recipe repair from the released artifact. Registered stop honored: no fa_invariant fine-tune as an absolute-accuracy (H3 vs exp_01) claim.
+- **Next** — exp_05 closes with results/analysis; decision package for Yixun: (A) **matched-comparison route** [now well-founded: fa_invariant+freeze-bn vs vanilla+freeze-bn at identical recipe — both arms carry identical known damage; FA's marginal effect + H1/H2 rotation sweeps on the FT model become cleanly measurable], (B) from-scratch fa_invariant training [gold standard for Table-1 goals], (C) further lineage bisection on the gradient path [open-ended].
