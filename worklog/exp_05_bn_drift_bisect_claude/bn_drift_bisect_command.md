@@ -6,7 +6,6 @@ Code `8e673d3`+, `CUDA_VISIBLE_DEVICES=0`. Every launched run's command lands he
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 python tools/bn_drift_probe.py \
-  --model-config src/configs/model_configs/FLAC/AR/FLAC_AR.json \
   --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json \
   --ckpt-path weights/FLAC/FLAC_EMA.ckpt \
   --n-batches 1 --batch-size 16 --seed 42 --device cuda \
@@ -19,7 +18,6 @@ CUDA_VISIBLE_DEVICES=0 python tools/bn_drift_probe.py \
 # train loader, 3 repeats (seeds 42/43/44 for data order):
 for S in 42 43 44; do
 CUDA_VISIBLE_DEVICES=0 python tools/bn_drift_probe.py \
-  --model-config src/configs/model_configs/FLAC/AR/FLAC_AR.json \
   --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json \
   --ckpt-path weights/FLAC/FLAC_EMA.ckpt \
   --n-batches 200 --batch-size 16 --seed $S --device cuda \
@@ -30,4 +28,16 @@ CUDA_VISIBLE_DEVICES=0 python tools/bn_drift_probe.py ... \
   --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json \
   --n-batches 200 --batch-size 16 --seed 42 --device cuda \
   --out worklog/exp_05_bn_drift_bisect_claude/bn_drift_B0_eval_seed42.json
+```
+
+## B1 grid stage 1 — max_len via config copies (LAUNCHED 2026-07-06 ~02:55)
+
+```bash
+for ML in 4800 10240 19200; do
+CUDA_VISIBLE_DEVICES=0 python tools/bn_drift_probe.py \
+  --dataset-config worklog/exp_05_bn_drift_bisect_claude/train_maxlen$ML.json \
+  --ckpt-path weights/FLAC/FLAC_EMA.ckpt \
+  --n-batches 200 --batch-size 16 --seed 42 --device cuda \
+  --out worklog/exp_05_bn_drift_bisect_claude/bn_drift_B1_maxlen$ML.json
+done
 ```
