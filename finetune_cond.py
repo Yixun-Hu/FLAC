@@ -243,9 +243,25 @@ def build_recipe_echo(cond_method, frame_avg_angles, lr, warmup_steps, freeze_bn
     )
 
 
+def _validate_lr_recipe(lr_schedule, warmup_steps):
+    """Fail fast on lr-mechanism conflicts (lrsched review finding 1).
+
+    ``WarmupLR`` writes ``param_groups['lr']`` every micro-batch while a live
+    ``InverseLR`` scheduler rewrites it after every optimizer step -- the batch-start
+    write always wins, silently disabling the schedule. Reject the combination for CLI
+    and programmatic callers alike: called at the top of ``finetune()`` (before any
+    expensive work) and at ``build_trainer_kwargs`` entry (where ``WarmupLR`` is built).
+    """
+    if lr_schedule == "inverse-restart" and warmup_steps > 0:
+        raise ValueError(
+            "WarmupLR and InverseLR would fight over param_groups lr; "
+            "run inverse-restart with --warmup-steps 0"
+        )
+
+
 def build_trainer_kwargs(precision, max_steps, gradient_clip_val, checkpoint_every, save_dir,
                          smoke, accumulate_grad_batches=1, target_lr=None, warmup_steps=0,
-                         freeze_bn=False):
+                         freeze_bn=False, lr_schedule="constant"):
     """Build the ``pl.Trainer`` keyword arguments (side-effect free; unit-testable).
 
     ``smoke`` guarantees no checkpointing two ways: the ``ModelCheckpoint`` callback is
@@ -257,12 +273,15 @@ def build_trainer_kwargs(precision, max_steps, gradient_clip_val, checkpoint_eve
     (exp_04); ``0`` leaves the callback list exactly as before.
     ``freeze_bn=True`` appends a ``FreezeBN`` callback (exp_05 V1'); ``False`` leaves
     the callback list exactly as before.
+    ``lr_schedule`` is consumed here only to reject the WarmupLR/InverseLR conflict
+    (the schedule itself lives in the injected training config).
 
     Returns
     -------
     dict
         Keyword arguments for ``pl.Trainer``.
     """
+    _validate_lr_recipe(lr_schedule, warmup_steps)
     if smoke:
         callbacks = [_SmokeLossPrinter()]
     else:
@@ -358,6 +377,8 @@ def finetune(
     smoke : bool
         If ``True``: ``max_steps=10``, batch forced small, no checkpointing, no final export.
     """
+    _validate_lr_recipe(lr_schedule, warmup_steps)  # fail fast, before any expensive work
+
     torch.set_float32_matmul_precision("medium")
     pl.seed_everything(seed, workers=True)
     os.makedirs(save_dir, exist_ok=True)
@@ -417,6 +438,7 @@ def finetune(
         target_lr=lr,
         warmup_steps=warmup_steps,
         freeze_bn=freeze_bn,
+        lr_schedule=lr_schedule,
     ))
 
     trainer.fit(module, train_dl)

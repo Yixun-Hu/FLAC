@@ -661,6 +661,17 @@ def test_configure_optimizers_scheduler_branch_inverse_restart():
     assert sched.warmup == 0.99
     assert sched.base_lrs == [5e-6]  # the --lr override feeds the schedule's base lr
     assert sched_configs[0]["interval"] == "step"
+    # RESTART semantics (lrsched review fix): torch schedulers step once at construction,
+    # so a genuine restart sits at last_epoch == 0 with the warmup-from-step-0 lr already
+    # written into the live optimizer. InverseLR's closed form (src/training/utils.py:56):
+    #   lr = (1 - warmup**(last_epoch+1)) * base_lr * (1 + last_epoch/inv_gamma)**-power
+    #      = (1 - 0.99**1) * 5e-6 * 1.0 = 0.010000000000000009 * 5e-6 ≈ 5e-8
+    # (exponential warmup form, NOT a linear ramp -- factor verified by direct execution).
+    assert sched.last_epoch == 0
+    step0_lr = (1 - 0.99 ** 1) * 5e-6  # = 5.000000000000005e-08
+    assert sched.get_last_lr()[0] == step0_lr
+    assert opts[0].param_groups[0]["lr"] == step0_lr  # already warmed down from 5e-6
+    assert step0_lr == pytest.approx(5e-8, rel=1e-9)
 
 
 def test_lr_schedule_recorded():
@@ -684,3 +695,16 @@ def test_unknown_lr_schedule_raises():
         finetune_cond.build_finetune_training_config(
             cfg, "vanilla", 5e-6, [0.0], lr_schedule="cosine",
         )
+
+
+def test_inverse_restart_rejects_warmup():
+    """lrsched review finding 1: WarmupLR writes param_groups['lr'] every micro-batch and
+    would silently out-write a live InverseLR scheduler's per-step values -- the
+    combination must fail fast, for CLI and programmatic callers alike."""
+    with pytest.raises(ValueError):
+        _trainer_kwargs(target_lr=5e-5, warmup_steps=200, lr_schedule="inverse-restart")
+    # Valid combinations still construct:
+    kw_const_warm = _trainer_kwargs(target_lr=5e-6, warmup_steps=200, lr_schedule="constant")
+    assert any(isinstance(cb, finetune_cond.WarmupLR) for cb in kw_const_warm["callbacks"])
+    kw_l5 = _trainer_kwargs(warmup_steps=0, lr_schedule="inverse-restart")
+    assert not any(isinstance(cb, finetune_cond.WarmupLR) for cb in kw_l5["callbacks"])
