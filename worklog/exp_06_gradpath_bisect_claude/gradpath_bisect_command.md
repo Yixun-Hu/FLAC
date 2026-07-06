@@ -23,5 +23,5 @@ done
 
 ```bash
 git remote add upstream https://github.com/AmandineBtto/FLAC.git 2>/dev/null; git fetch upstream
-git diff upstream/main 0bd5da0 -- src/training/ src/data/ src/models/ src/inference/ train.py > worklog/exp_06_gradpath_bisect_claude/upstream_diff_trainpath.patch
+git diff upstream/master 0bd5da0 -- src/training/ src/data/ src/models/ src/inference/ train.py > worklog/exp_06_gradpath_bisect_claude/upstream_diff_trainpath.patch
 ```
