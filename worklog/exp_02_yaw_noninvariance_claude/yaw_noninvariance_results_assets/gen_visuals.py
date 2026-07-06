@@ -59,41 +59,65 @@ def load_preds_all(name):
     return (obj['predictions'] if isinstance(obj, dict) else obj)[:, 0, :].numpy()
 P0 = load_preds_all('yaw_baseline')
 PA = {a: load_preds_all(f'yaw_rot{a}') for a in (90, 180, 270)}
-# honest sample choice: 90th percentile of the per-sample P180-vs-P0 rel-L2 gap (median stated in caption)
-d = P0 - PA[180]
-rel = np.sqrt((d ** 2).sum(axis=1)) / (np.sqrt((P0 ** 2).sum(axis=1)) + 1e-8)
-order = np.argsort(rel)
+
+def env_db(x, win=256):
+    # moving-RMS envelope in dB (the perceptually meaningful RIR view)
+    k = np.ones(win) / win
+    e = np.sqrt(np.convolve(x.astype(np.float64) ** 2, k, mode='same')) + 1e-9
+    return 20 * np.log10(e)
+
+# sample selection by the quantity the figure SHOWS: mean |envelope_dB gap| over the
+# decay region (samples 1000..9000), taken at the 90th percentile across the dataset
+sub = slice(1000, 9000)
+gaps = np.array([np.abs(env_db(PA[180][i])[sub] - env_db(P0[i])[sub]).mean() for i in range(P0.shape[0])])
+order = np.argsort(gaps)
 idx = int(order[int(0.9 * len(order))])
-med, p90v, samp = float(np.median(rel)), float(rel[order[int(0.9 * len(order))]]), float(rel[idx])
-# ground truth for that index: iterate the (shuffle=False, batch=2) loader
+med_gap, sel_gap = float(np.median(gaps)), float(gaps[idx])
+d = P0[idx] - PA[180][idx]
+rel = float(np.sqrt((d ** 2).sum()) / (np.sqrt((P0[idx] ** 2).sum()) + 1e-8))
+
 need_batch, need_off = divmod(idx, 2)
 git = None
 for bi, (rr, _) in enumerate(dl):
     if bi == need_batch:
         git = rr[need_off, 0].numpy(); break
+
+e_gt, e_p0, e_p180 = env_db(git[:10240]), env_db(P0[idx]), env_db(PA[180][idx])
+# zoom window: 10 ms around the maximum envelope gap (within the decay region)
+gpos = 1000 + int(np.argmax(np.abs(e_p180[sub] - e_p0[sub])))
+half = int(0.005 * sr)
+lo, hi = max(0, gpos - half), min(10240, gpos + half)
+tz = np.arange(lo, hi) / sr * 1000
+tms = np.arange(10240) / sr * 1000
 def edc_db(x):
     e = np.flip(np.cumsum(np.flip(x.astype(np.float64) ** 2)))
     return 10 * np.log10(e / (e[0] + 1e-12) + 1e-12)
 COL = {'gt': '#8a887f', 'p0': '#2a78d6', 90: '#1baf7a', 180: '#e34948', 270: '#eda100'}
-lo, hi = int(0.015 * sr), int(0.070 * sr)
-t = np.arange(lo, hi) / sr * 1000
-fig, axes = plt.subplots(3, 1, figsize=(11.5, 9.6), constrained_layout=True)
-axes[0].plot(t, git[lo:hi], color=COL['gt'], lw=1.0, label='ground truth (rotation-invariant)')
-axes[0].plot(t, P0[idx, lo:hi], color=COL['p0'], lw=1.1, alpha=0.95, label='P\u2080 (unrotated conditioning)')
-axes[0].plot(t, PA[180][idx, lo:hi], color=COL[180], lw=1.1, alpha=0.85, label='P\u2081\u2088\u2080 (conditioning rotated 180\u00b0)')
-axes[0].set_xlabel('time (ms)'); axes[0].set_ylabel('amplitude')
-axes[0].set_title(f'Predicted RIR waveform, 15\u201370 ms (sample #{idx}) \u2014 same noise, same GT, only the conditioning rotated')
+
+fig, axes = plt.subplots(4, 1, figsize=(11.5, 12.4), constrained_layout=True)
+axes[0].plot(tms, e_gt, color=COL['gt'], lw=1.6, label='ground truth (rotation-invariant)')
+axes[0].plot(tms, e_p0, color=COL['p0'], lw=1.4, label='P\u2080 (unrotated)')
+axes[0].plot(tms, e_p180, color=COL[180], lw=1.4, label='P\u2081\u2088\u2080 (rotated 180\u00b0)')
+axes[0].axvspan(lo / sr * 1000, hi / sr * 1000, color='#eda100', alpha=0.18)
+axes[0].set_xlabel('time (ms)'); axes[0].set_ylabel('envelope (dB)')
+axes[0].set_ylim(bottom=max(e_gt.min(), -95))
+axes[0].set_title(f'Log RMS envelope (sample #{idx}) \u2014 rotated conditioning changes the decay (shaded: zoom below)', fontsize=11)
 axes[0].legend(loc='upper right', fontsize=9)
-axes[1].plot(t, PA[180][idx, lo:hi] - P0[idx, lo:hi], color=COL[180], lw=1.0)
-axes[1].set_xlabel('time (ms)'); axes[1].set_ylabel('P\u2081\u2088\u2080 \u2212 P\u2080')
-axes[1].set_title(f'Difference trace: rel-L2 = {samp:.3f} (dataset median {med:.3f}, p90 {p90v:.3f}) \u2014 an invariant model gives a flat zero line')
-axes[2].plot(edc_db(git), color=COL['gt'], lw=1.6, label='ground truth')
-axes[2].plot(edc_db(P0[idx]), color=COL['p0'], lw=1.4, label='P\u2080')
+axes[1].plot(tz, P0[idx, lo:hi], color=COL['p0'], lw=1.3, label='P\u2080')
+axes[1].plot(tz, PA[180][idx, lo:hi], color=COL[180], lw=1.3, alpha=0.9, label='P\u2081\u2088\u2080')
+axes[1].set_xlabel('time (ms)'); axes[1].set_ylabel('amplitude')
+axes[1].set_title('Raw waveform, 10 ms at the max envelope gap \u2014 two different signals', fontsize=11)
+axes[1].legend(loc='upper right', fontsize=9)
+axes[2].plot(tms, PA[180][idx] - P0[idx], color=COL[180], lw=0.9)
+axes[2].set_xlabel('time (ms)'); axes[2].set_ylabel('P\u2081\u2088\u2080 \u2212 P\u2080')
+axes[2].set_title(f'Difference trace \u2014 waveform rel-L2 = {rel:.3f}; an invariant model gives a flat zero line')
+axes[3].plot(edc_db(git[:10240]), color=COL['gt'], lw=1.6, label='ground truth')
+axes[3].plot(edc_db(P0[idx]), color=COL['p0'], lw=1.4, label='P\u2080')
 for a in (90, 180, 270):
-    axes[2].plot(edc_db(PA[a][idx]), color=COL[a], lw=1.1, alpha=0.85, label=f'P{a}\u00b0')
-axes[2].set_ylim(-80, 2); axes[2].set_xlabel('sample'); axes[2].set_ylabel('energy decay (dB)')
-axes[2].set_title('Schroeder energy decay \u2014 rotated-conditioning predictions decay differently (T60/EDT damage)')
-axes[2].legend(loc='upper right', fontsize=9)
+    axes[3].plot(edc_db(PA[a][idx]), color=COL[a], lw=1.1, alpha=0.85, label=f'P{a}\u00b0')
+axes[3].set_ylim(-80, 2); axes[3].set_xlabel('sample'); axes[3].set_ylabel('energy decay (dB)')
+axes[3].set_title('Schroeder energy decay \u2014 all three rotations decay differently from P\u2080 (the T60/EDT damage)')
+axes[3].legend(loc='upper right', fontsize=9)
 fig.savefig(os.path.join(HERE, 'rir_rotation.png'), dpi=110)
 plt.close(fig)
-print(f'wrote rir_rotation.png (sample {idx}, rel {samp:.3f}, median {med:.3f})')
+print(f'wrote rir_rotation.png (sample {idx}, env-gap {sel_gap:.2f} dB [median {med_gap:.2f}], rel-L2 {rel:.3f})')
