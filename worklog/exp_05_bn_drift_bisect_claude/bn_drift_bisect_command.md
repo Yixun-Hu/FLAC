@@ -47,3 +47,17 @@ done
 ```bash
 CUDA_VISIBLE_DEVICES=0 python worklog/exp_05_bn_drift_bisect_claude/dispersion_check.py  # one-off; uses tools.bn_drift_probe.BNInputRecorder; output committed as dispersion_check_result.json
 ```
+
+## V1' — BN-frozen vanilla control (LAUNCHED 2026-07-06 ~02:36)
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python finetune_cond.py \
+  --model-config src/configs/model_configs/FLAC/AR/FLAC_AR.json \
+  --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json \
+  --ckpt-path weights/FLAC/FLAC_EMA.ckpt \
+  --save-dir outputs_FLAC/exp05_V1p_freezebn_ft --name FLAC_exp05_V1p_freezebn \
+  --cond-method vanilla --lr 5e-6 --freeze-bn --max-steps 625 --checkpoint-every 200 \
+  --batch-size 4 --accumulate-grad-batches 32 --num-workers 4 --seed 42
+# then gate evals: eval_FLAC.py with the V1' ckpt, K in {1,8} x seeds 42..46, exp_01 protocol,
+#   --eval-name exp05_V1p_K${K}_seed${SEED}
+```
