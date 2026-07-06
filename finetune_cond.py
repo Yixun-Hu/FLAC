@@ -159,7 +159,63 @@ class WarmupLR(pl.Callback):
                 group["lr"] = lr
 
 
-def build_recipe_echo(cond_method, frame_avg_angles, lr, warmup_steps):
+class FreezeBN(pl.Callback):
+    """Freeze BatchNorm running statistics during fine-tuning (exp_05 V1').
+
+    exp_04's W0 null control (lr=0) proved BN running-stat adaptation ALONE damages the
+    released checkpoint; this callback eliminates that channel. At fit start it discovers
+    every ``nn.BatchNorm1d/2d/3d`` under the trainable path (``pl_module.diffusion`` when
+    present, else the module itself) -- practically the RIR encoder's BatchNorm2d stack,
+    but discovered dynamically, never hardcoded -- and logs the qualified names + count.
+    Discovered modules are forced to eval mode: running stats are USED but never UPDATED,
+    matching released-inference normalization. Affine ``weight``/``bias`` keep
+    ``requires_grad`` (freezing them would be a second intervention -- amendment review
+    finding 3).
+
+    Lightning 2.1 re-``train()``s the whole module AFTER the ``on_fit_start`` callbacks
+    (``_FitLoop.reset()``) and again after every validation loop
+    (``on_validation_model_train``), so eval is re-asserted on EVERY
+    ``on_train_batch_start`` -- a cheap idempotent loop that gets the last word before
+    each training forward.
+    """
+
+    _BN_TYPES = (torch.nn.BatchNorm1d, torch.nn.BatchNorm2d, torch.nn.BatchNorm3d)
+
+    def __init__(self):
+        self.frozen_bn_names = []
+        self._frozen_modules = []
+        self._discovered = False
+
+    @property
+    def frozen_bn_count(self):
+        return len(self.frozen_bn_names)
+
+    def _discover(self, pl_module):
+        root = getattr(pl_module, "diffusion", pl_module)
+        named = [(n, m) for n, m in root.named_modules() if isinstance(m, self._BN_TYPES)]
+        self.frozen_bn_names = [n for n, _ in named]
+        self._frozen_modules = [m for _, m in named]
+        self._discovered = True
+
+    def _apply_eval(self):
+        for module in self._frozen_modules:
+            module.eval()
+
+    def on_fit_start(self, trainer, pl_module):
+        self._discover(pl_module)
+        print(
+            f"[finetune_cond] FreezeBN: {self.frozen_bn_count} BatchNorm modules frozen "
+            f"(eval mode, buffers pinned, affine trainable): {self.frozen_bn_names}"
+        )
+        self._apply_eval()
+
+    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
+        if not self._discovered:
+            self._discover(pl_module)
+        self._apply_eval()
+
+
+def build_recipe_echo(cond_method, frame_avg_angles, lr, warmup_steps, freeze_bn=False):
     """Build the one-line recipe echo printed at launch (quoted in worklogs).
 
     Returns
@@ -169,12 +225,13 @@ def build_recipe_echo(cond_method, frame_avg_angles, lr, warmup_steps):
     return (
         f"[finetune_cond] recipe: cond_method={cond_method} "
         f"frame_avg_angles={frame_avg_angles} lr={lr} warmup_steps={warmup_steps} "
-        f"use_ema=False scheduler=constant(removed)"
+        f"freeze_bn={freeze_bn} use_ema=False scheduler=constant(removed)"
     )
 
 
 def build_trainer_kwargs(precision, max_steps, gradient_clip_val, checkpoint_every, save_dir,
-                         smoke, accumulate_grad_batches=1, target_lr=None, warmup_steps=0):
+                         smoke, accumulate_grad_batches=1, target_lr=None, warmup_steps=0,
+                         freeze_bn=False):
     """Build the ``pl.Trainer`` keyword arguments (side-effect free; unit-testable).
 
     ``smoke`` guarantees no checkpointing two ways: the ``ModelCheckpoint`` callback is
@@ -184,6 +241,8 @@ def build_trainer_kwargs(precision, max_steps, gradient_clip_val, checkpoint_eve
     batch = batch size x accumulation), for shared-GPU capacity.
     ``warmup_steps > 0`` appends a ``WarmupLR(target_lr, warmup_steps)`` callback
     (exp_04); ``0`` leaves the callback list exactly as before.
+    ``freeze_bn=True`` appends a ``FreezeBN`` callback (exp_05 V1'); ``False`` leaves
+    the callback list exactly as before.
 
     Returns
     -------
@@ -202,6 +261,8 @@ def build_trainer_kwargs(precision, max_steps, gradient_clip_val, checkpoint_eve
         if target_lr is None:
             raise ValueError("target_lr is required when warmup_steps > 0")
         callbacks.append(WarmupLR(target_lr=target_lr, warmup_steps=warmup_steps))
+    if freeze_bn:
+        callbacks.append(FreezeBN())
     return {
         "devices": 1,
         "accelerator": "gpu",
@@ -229,6 +290,7 @@ def finetune(
     frame_avg_angles,
     lr,
     warmup_steps,
+    freeze_bn,
     max_steps,
     checkpoint_every,
     batch_size,
@@ -261,6 +323,9 @@ def finetune(
         Constant learning rate (the warmup target when ``warmup_steps > 0``).
     warmup_steps : int
         Linear lr warmup length in optimizer steps; 0 = off (pre-exp_04 behavior).
+    freeze_bn : bool
+        Freeze all BatchNorm modules in the trainable path (eval mode, running stats
+        pinned, affine still trainable); False = off (pre-exp_05 behavior).
     max_steps, checkpoint_every, batch_size, num_workers : int
         Trainer / dataloader sizing (``max_steps`` / ``batch_size`` overridden by ``smoke``).
     accumulate_grad_batches : int
@@ -289,7 +354,7 @@ def finetune(
         dataset_config = json.load(f)
 
     model_config = build_finetune_training_config(model_config, cond_method, lr, frame_avg_angles)
-    print(build_recipe_echo(cond_method, frame_avg_angles, lr, warmup_steps))
+    print(build_recipe_echo(cond_method, frame_avg_angles, lr, warmup_steps, freeze_bn))
 
     model = create_model_from_config(model_config)
     model = load_flac_ema_weights(model, ckpt_path)
@@ -330,6 +395,7 @@ def finetune(
         accumulate_grad_batches=accumulate_grad_batches,
         target_lr=lr,
         warmup_steps=warmup_steps,
+        freeze_bn=freeze_bn,
     ))
 
     trainer.fit(module, train_dl)
@@ -366,6 +432,12 @@ def build_parser():
         help="Linear lr warmup to --lr over this many OPTIMIZER steps (keyed off "
              "trainer.global_step, so gradient accumulation does not stretch it); "
              "0 = off (previous behavior).",
+    )
+    parser.add_argument(
+        "--freeze-bn", action="store_true",
+        help="Freeze all BatchNorm modules in the trainable path: eval mode + running "
+             "stats pinned (the exp_04 W0-proven damage channel), affine still "
+             "trainable. Names/count logged at fit start.",
     )
     parser.add_argument("--max-steps", type=int, default=2000)
     parser.add_argument("--checkpoint-every", type=int, default=500)
@@ -405,6 +477,7 @@ def main():
         frame_avg_angles=[float(x) for x in args.frame_avg_angles.split(",") if x.strip() != ""],
         lr=args.lr,
         warmup_steps=args.warmup_steps,
+        freeze_bn=args.freeze_bn,
         max_steps=args.max_steps,
         checkpoint_every=args.checkpoint_every,
         batch_size=args.batch_size,
