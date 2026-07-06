@@ -1,0 +1,16 @@
+{
+  "M_batches": 60,
+  "dispersion_sigma_units": {
+    "mean": 0.07630961388349533,
+    "max": 0.10465843230485916
+  },
+  "predicted_ema_noise": {
+    "mean": 0.01750662550330162,
+    "max": 0.024010291323065758
+  },
+  "observed_mean_shift": {
+    "mean": 0.025226393714547157,
+    "max": 0.08471029251813889
+  },
+  "verdict_hint": "EMA-tail plausible if observed_max ~ predicted_max; pipeline-drift if observed >> predicted"
+}

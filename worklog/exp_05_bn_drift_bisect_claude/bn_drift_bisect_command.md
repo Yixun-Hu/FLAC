@@ -41,3 +41,9 @@ CUDA_VISIBLE_DEVICES=0 python tools/bn_drift_probe.py \
   --out worklog/exp_05_bn_drift_bisect_claude/bn_drift_B1_maxlen$ML.json
 done
 ```
+
+## Dispersion check (pre-V1', review-mandated; LAUNCHED 2026-07-06 ~03:50)
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python worklog/exp_05_bn_drift_bisect_claude/dispersion_check.py  # one-off; uses tools.bn_drift_probe.BNInputRecorder; output committed as dispersion_check_result.json
+```
