@@ -437,3 +437,143 @@ def test_warmup_recorded():
     assert "warmup_steps=200" in echo
     assert "cond_method=vanilla" in echo  # still carries the rest of the recipe
     assert "lr=5e-06" in echo
+
+
+# --------------------------------------------------------------------------------------
+# 8. exp_05 freeze-bn: FreezeBN callback + --freeze-bn (amendment review §5, 7 tests)
+#    Context: exp_04 W0 proved BN running-stat adaptation ALONE causes fine-tune damage;
+#    V1' fine-tunes with BN frozen (eval mode, buffers pinned, affine still trainable).
+# --------------------------------------------------------------------------------------
+
+class _BNNet(torch.nn.Module):
+    """Tiny synthetic net with two BatchNorm2d layers (one nested) for FreezeBN tests."""
+
+    def __init__(self):
+        super().__init__()
+        self.conv = torch.nn.Conv2d(3, 4, kernel_size=1)
+        self.bn1 = torch.nn.BatchNorm2d(4)
+        self.block = torch.nn.Sequential(torch.nn.Conv2d(4, 4, kernel_size=1),
+                                         torch.nn.BatchNorm2d(4))
+
+    def forward(self, x):
+        return self.block(self.bn1(self.conv(x)))
+
+
+def _freeze_bn_on(net):
+    """Attach a FreezeBN to a synthetic module the way Lightning would drive it:
+    discovery at fit start, then Lightning's fit-loop reset() re-train()s the whole
+    module, then the first batch hook re-asserts. Returns the callback."""
+    cb = finetune_cond.FreezeBN()
+    fake_trainer = types.SimpleNamespace()
+    cb.on_fit_start(fake_trainer, net)
+    net.train()  # _FitLoop.reset() calls trainer.model.train() AFTER on_fit_start
+    cb.on_train_batch_start(fake_trainer, net, None, 0)
+    return cb
+
+
+def test_freeze_bn_parser_default_off():
+    """1. --freeze-bn is store_true, default False."""
+    base = ["--model-config", "m.json", "--dataset-config", "d.json",
+            "--ckpt-path", "c.ckpt", "--save-dir", "/tmp/out"]
+    ns = finetune_cond.build_parser().parse_args(base)
+    assert ns.freeze_bn is False
+    ns_on = finetune_cond.build_parser().parse_args(base + ["--freeze-bn"])
+    assert ns_on.freeze_bn is True
+
+
+def test_freeze_bn_recorded():
+    """2. Recipe echo records freeze_bn (True when set, False by default)."""
+    echo_on = finetune_cond.build_recipe_echo(
+        cond_method="vanilla", frame_avg_angles=[0.0, 90.0, 180.0, 270.0],
+        lr=5e-6, warmup_steps=200, freeze_bn=True,
+    )
+    assert "freeze_bn=True" in echo_on
+    assert "warmup_steps=200" in echo_on  # rest of the recipe still carried
+    echo_default = finetune_cond.build_recipe_echo(
+        cond_method="vanilla", frame_avg_angles=[0.0], lr=5e-6, warmup_steps=0,
+    )
+    assert "freeze_bn=False" in echo_default
+
+
+def test_freeze_bn_trainer_kwargs():
+    """3. build_trainer_kwargs: FreezeBN present iff freeze_bn=True; False/omitted
+    leaves the callback list byte-identical to the legacy call."""
+    kw_on = _trainer_kwargs(freeze_bn=True)
+    freezes = [cb for cb in kw_on["callbacks"] if isinstance(cb, finetune_cond.FreezeBN)]
+    assert len(freezes) == 1
+    kw_off = _trainer_kwargs(freeze_bn=False)
+    assert not any(isinstance(cb, finetune_cond.FreezeBN) for cb in kw_off["callbacks"])
+    kw_legacy = _trainer_kwargs()  # pre-exp_05 call shape
+    assert [type(cb) for cb in kw_off["callbacks"]] == [type(cb) for cb in kw_legacy["callbacks"]]
+
+
+def test_freeze_bn_forces_eval_and_survives_retrain():
+    """4. CORE: BN modules forced to eval while the parent stays in train mode, and the
+    callback re-asserts eval after EVERY re-train() (Lightning re-train()s the module at
+    fit-loop reset and after each validation loop via on_validation_model_train)."""
+    net = _BNNet()
+    cb = finetune_cond.FreezeBN()
+    fake_trainer = types.SimpleNamespace()
+    cb.on_fit_start(fake_trainer, net)
+    net.train()  # Lightning fit-loop reset() undoes any fit-start eval
+    assert net.bn1.training is True and net.block[1].training is True  # train() really won
+    cb.on_train_batch_start(fake_trainer, net, None, 0)
+    assert net.training is True          # parent (and conv layers) stay in train mode
+    assert net.conv.training is True
+    assert net.bn1.training is False
+    assert net.block[1].training is False
+    # Lightning re-train()s again (next epoch / post-validation): re-assert must win again.
+    net.train()
+    assert net.bn1.training is True
+    cb.on_train_batch_start(fake_trainer, net, None, 1)
+    assert net.bn1.training is False
+    assert net.block[1].training is False
+    assert net.training is True
+
+
+def test_freeze_bn_buffers_unchanged():
+    """5. BN buffers bit-unchanged through a train-mode forward WITH the callback;
+    negative control: the same forward WITHOUT it mutates them."""
+    torch.manual_seed(0)
+    x = torch.randn(4, 3, 5, 5) + 1.0  # nonzero mean -> running_mean must move if unfrozen
+    net = _BNNet()
+    _freeze_bn_on(net)
+    before = {n: b.clone() for n, b in net.named_buffers()}
+    net(x)
+    for n, b in net.named_buffers():
+        assert torch.equal(before[n], b), f"buffer {n} mutated under FreezeBN"
+    # Negative control (no callback): train-mode forward mutates BN buffers.
+    net2 = _BNNet()
+    net2.train()
+    nbt_before = net2.bn1.num_batches_tracked.clone()
+    rm_before = net2.bn1.running_mean.clone()
+    net2(x)
+    assert not torch.equal(net2.bn1.num_batches_tracked, nbt_before)
+    assert not torch.equal(net2.bn1.running_mean, rm_before)
+
+
+def test_freeze_bn_affine_still_trainable():
+    """6. BN affine weight/bias keep requires_grad=True (freezing them would be a second
+    intervention -- amendment review finding 3)."""
+    net = _BNNet()
+    _freeze_bn_on(net)
+    for bn in (net.bn1, net.block[1]):
+        assert bn.weight.requires_grad is True
+        assert bn.bias.requires_grad is True
+
+
+def test_freeze_bn_names_and_count():
+    """7. The callback exposes the discovered BN qualified names + count (the real run
+    logs these; the RIR encoder currently has 20 -- discovered, never hardcoded)."""
+    net = _BNNet()
+    cb = finetune_cond.FreezeBN()
+    cb.on_fit_start(types.SimpleNamespace(), net)
+    assert cb.frozen_bn_names == ["bn1", "block.1"]
+    assert cb.frozen_bn_count == 2
+    # Production scope: when the pl_module has a .diffusion attribute (the training
+    # wrapper), discovery walks THAT subtree (the trainable path).
+    wrapper = types.SimpleNamespace(diffusion=net)
+    cb2 = finetune_cond.FreezeBN()
+    cb2.on_fit_start(types.SimpleNamespace(), wrapper)
+    assert cb2.frozen_bn_names == ["bn1", "block.1"]
+    assert cb2.frozen_bn_count == 2
