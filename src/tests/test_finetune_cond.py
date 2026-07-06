@@ -27,7 +27,7 @@ import torch
 import finetune_cond
 from src.models.factory import create_model_from_config
 from src.training.factory import create_training_wrapper_from_config
-from src.training.utils import create_optimizer_from_config
+from src.training.utils import InverseLR, create_optimizer_from_config
 from test_cond_dispatch import _base_config  # sibling tiny diffusion_cond config (pytest prepends src/tests)
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -577,3 +577,110 @@ def test_freeze_bn_names_and_count():
     cb2.on_fit_start(types.SimpleNamespace(), wrapper)
     assert cb2.frozen_bn_names == ["bn1", "block.1"]
     assert cb2.frozen_bn_count == 2
+
+
+# --------------------------------------------------------------------------------------
+# 9. exp_06 --lr-schedule: arm L5 needs the ORIGINAL InverseLR schedule restored
+#    (plan_gradpath_bisect.md §S2 / plan-review finding 1). 'constant' stays the default
+#    and byte-identical to previous behavior -- the untouched no-kwarg pins above
+#    (test_recipe_touches_exactly_the_pinned_keys, configure_optimizers bare branch)
+#    remain the negative controls.
+# --------------------------------------------------------------------------------------
+
+_SCHEDULER_LEAVES = {
+    "optimizer_configs.diffusion.scheduler.type",
+    "optimizer_configs.diffusion.scheduler.config.inv_gamma",
+    "optimizer_configs.diffusion.scheduler.config.power",
+    "optimizer_configs.diffusion.scheduler.config.warmup",
+}
+
+
+def test_lr_schedule_parser():
+    """1. --lr-schedule choices {constant, inverse-restart}, default 'constant'."""
+    base = ["--model-config", "m.json", "--dataset-config", "d.json",
+            "--ckpt-path", "c.ckpt", "--save-dir", "/tmp/out"]
+    ns = finetune_cond.build_parser().parse_args(base)
+    assert ns.lr_schedule == "constant"
+    ns_l5 = finetune_cond.build_parser().parse_args(base + ["--lr-schedule", "inverse-restart"])
+    assert ns_l5.lr_schedule == "inverse-restart"
+    with pytest.raises(SystemExit):
+        finetune_cond.build_parser().parse_args(base + ["--lr-schedule", "cosine"])
+
+
+@pytest.mark.parametrize("lr_schedule,expected_removed", [
+    ("constant", _SCHEDULER_LEAVES),   # explicit kwarg == default behavior (scheduler removed)
+    ("inverse-restart", set()),         # L5: scheduler PRESERVED -> nothing removed
+])
+def test_recipe_flat_diff_by_lr_schedule(lr_schedule, expected_removed):
+    """2. Flat-diff parametrized over lr_schedule: 'constant' removes exactly the four
+    scheduler leaves (as ever); 'inverse-restart' removes NOTHING while lr is still
+    overridden and cond_method/frame_avg_angles/use_ema behave identically."""
+    cfg = _load_flac_ar_config()
+    out = finetune_cond.build_finetune_training_config(
+        cfg, "fa_invariant", 5e-6, [0.0, 90.0, 180.0, 270.0], lr_schedule=lr_schedule,
+    )
+    orig = _flatten(cfg["training"])
+    new = _flatten(out["training"])
+    added = set(new) - set(orig)
+    removed = set(orig) - set(new)
+    changed = {k for k in set(orig) & set(new) if orig[k] != new[k]}
+    assert added == {"cond_method", "frame_avg_angles"}
+    assert removed == expected_removed
+    assert changed == {"use_ema", "optimizer_configs.diffusion.optimizer.config.lr"}
+    if lr_schedule == "inverse-restart":
+        src_sched = cfg["training"]["optimizer_configs"]["diffusion"]["scheduler"]
+        out_sched = out["training"]["optimizer_configs"]["diffusion"]["scheduler"]
+        assert out_sched == src_sched          # preserved exactly as in the source config
+        assert out_sched is not src_sched      # deep copy, no aliasing back to the input
+        assert out_sched["type"] == "InverseLR"
+        assert out_sched["config"] == {"inv_gamma": 1000000, "power": 0.5, "warmup": 0.99}
+
+
+def test_configure_optimizers_scheduler_branch_inverse_restart():
+    """3. inverse-restart-injected config through the REAL factories: configure_optimizers
+    returns the ([optimizers], [scheduler_configs]) branch with an InverseLR carrying the
+    original (inv_gamma 1e6, power 0.5, warmup 0.99) and the overridden lr as its base.
+    The existing bare-optimizer test pins the 'constant' branch as the negative control."""
+    tiny = _base_config()
+    tiny["training"]["optimizer_configs"]["diffusion"]["scheduler"] = {
+        "type": "InverseLR",
+        "config": {"inv_gamma": 1000000, "power": 0.5, "warmup": 0.99},
+    }
+    injected = finetune_cond.build_finetune_training_config(
+        tiny, "fa_invariant", 5e-6, [0.0, 90.0], lr_schedule="inverse-restart",
+    )
+    wrapper = create_training_wrapper_from_config(injected, create_model_from_config(injected))
+    result = wrapper.configure_optimizers()
+    assert isinstance(result, tuple) and len(result) == 2
+    opts, sched_configs = result
+    assert isinstance(opts[0], torch.optim.Optimizer)
+    sched = sched_configs[0]["scheduler"]
+    assert isinstance(sched, InverseLR)
+    assert sched.inv_gamma == 1000000
+    assert sched.power == 0.5
+    assert sched.warmup == 0.99
+    assert sched.base_lrs == [5e-6]  # the --lr override feeds the schedule's base lr
+    assert sched_configs[0]["interval"] == "step"
+
+
+def test_lr_schedule_recorded():
+    """4. Recipe echo records lr_schedule (and defaults to constant)."""
+    echo_l5 = finetune_cond.build_recipe_echo(
+        cond_method="vanilla", frame_avg_angles=[0.0, 90.0, 180.0, 270.0],
+        lr=5e-5, warmup_steps=0, freeze_bn=True, lr_schedule="inverse-restart",
+    )
+    assert "lr_schedule=inverse-restart" in echo_l5
+    assert "freeze_bn=True" in echo_l5  # rest of the recipe still carried
+    echo_default = finetune_cond.build_recipe_echo(
+        cond_method="vanilla", frame_avg_angles=[0.0], lr=5e-6, warmup_steps=0,
+    )
+    assert "lr_schedule=constant" in echo_default
+
+
+def test_unknown_lr_schedule_raises():
+    """5. Programmatic callers: unknown lr_schedule fails fast with ValueError."""
+    cfg = _load_flac_ar_config()
+    with pytest.raises(ValueError):
+        finetune_cond.build_finetune_training_config(
+            cfg, "vanilla", 5e-6, [0.0], lr_schedule="cosine",
+        )
