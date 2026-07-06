@@ -1,7 +1,7 @@
 # Plan — exp_05_bn_drift_bisect (BN buffers as a gradient-free data-drift probe)
 
 **Author:** Fable 5 (Planner) · **Coder:** Opus 4.8 max (TDD) · **Reviewer:** Codex gpt-5.5 xhigh · **Date:** 2026-07-06
-**Status:** AWAITING plan review + Yixun approval.
+**Status:** APPROVED (Codex review findings addressed; auto-approved per Yixun's recorded delegation, notebook 2026-07-06).**
 
 ## 0. Mechanism (from exp_04)
 
