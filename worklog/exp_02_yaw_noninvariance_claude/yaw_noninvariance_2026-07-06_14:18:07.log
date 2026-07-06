@@ -1,0 +1,6 @@
+=== exp_02 visual generation (CPU) — 2026-07-06 14:18:07 ===
+Seed set to 42
+Running json scandir...
+Found 6337 files in 17 subfolders
+wrote depth_c4.png and rir_rotation.png
+exit=0
