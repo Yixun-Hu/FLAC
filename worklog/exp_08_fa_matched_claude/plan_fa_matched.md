@@ -14,7 +14,7 @@ At matched recipe and matched, fully-characterized fine-tune regression (exp_03�
 | **A-V** (control) | **EXISTS = exp_05 V1′** (`outputs_FLAC/exp05_V1p_freezebn_ft/FLAC_exp05_V1p_freezebn.ckpt`) + its 10 gate evals | vanilla, `--freeze-bn`, lr 5e-6 const, batch 4×32 (eff. 128), 625 opt steps, seed 42, bf16-mixed, clip 0.0, use_ema off |
 | **A-F** (method) | **TO RUN** on GPU 1 | identical + `--cond-method fa_invariant` |
 
-Validity of reusing V1′ as the control: the fine-tune code path is unchanged since V1′ ran — later additions (`--lr-schedule`, warmup guard) are flag-gated with the constant-lr default pinned byte-identical by `test_recipe_touches_exactly_the_pinned_keys` and companions; V1′'s recipe echo and commit SHA are recorded in exp_05. The plan review is asked to verify this claim independently.
+Validity of reusing V1′ as the control (review-verified, wording corrected): V1′ trained at code state `51b7486` (post `5d1c64c` freeze-bn round); `git diff 5d1c64c..HEAD -- finetune_cond.py` shows only `--lr-schedule`, the warmup/schedule guard, and echo changes — **behavioral no-ops for a constant-lr, warmup-0, freeze-bn run** (flag-gated, pinned by the recipe tests). Claim: **recipe-equivalent reuse** (not bit-identical rerun — CUDA/dataloader nondeterminism precludes that). Reused artifact, exp_05 command, and this code-diff proof are recorded per the review's SOP-legality conditions.
 
 **Recipe identity over hardware identity:** A-F runs batch 4 × accum 32 exactly like V1′ (recipe identity beats exploiting GPU 1's larger free memory; BN is frozen in both arms so micro-batch BN effects are moot, but padding-mask micro-averaging and data order must match).
 
@@ -24,13 +24,14 @@ Validity of reusing V1′ as the control: the fine-tune code path is unchanged s
 |---|---|---|---|
 | M0 | EMA-on N/A — probe: fa_invariant fit/throughput 10 steps on GPU 1 (batch 4×32) | 10 min | ≥5 steps, finite loss, throughput anchor for ETA |
 | M1 | **A-F fine-tune**: 625 opt steps | ~7.5 h (0.3× vanilla rate) | loss finite; clean export |
-| M2 | A-F gate evals: K∈{1,8} × seeds 42–46, `--cond-method fa_invariant --cond-autocast bf16`, full split | ~4 h | **H-A1 (non-inferiority):** A-F within 2× combined 5-seed σ of A-V per T60/C50/EDT at both K (R@k advisory); superiority only if >2σ better |
+| M1.5 | **A-V bf16 eval mirror** (review Medium fix): rerun the 10 gate evals on the EXISTING V1′ ckpt with `--cond-autocast bf16` — removes the eval-precision confound from the marginal comparison at zero training cost | ~2.2 h | this row (not the exp_05 fp16-default row) is the H-A1 comparator |
+| M2 | A-F gate evals: K∈{1,8} × seeds 42–46, `--cond-method fa_invariant --cond-autocast bf16`, full split | ~4 h (M0 probe updates ETA; K=8 fa evals may run long — 36 ViT forwards/batch) | **H-A1 (non-inferiority):** A-F within 2× combined 5-seed σ of the M1.5 mirror per T60/C50/EDT at both K (R@k advisory); superiority reported descriptively unless coherent across cells |
 | M3 | bf16 Metric-1 floor re-registration on the A-F ckpt (rung-b-style, C₄, K=1&8, fixed noise) | ~20 min | floor logged in notebook BEFORE M4 is read |
 | M4 | Rotation sweep K=1: α ∈ {0, 90, 180, 270, 45} + `--store_predictions` + comparator | ~1.5 h | **H-A2 (=H1):** Metric-1 rot0 ≡ 0.0 exactly; C₄ ≤ registered floor; 45° reported |
 | M4b | K=8 spot α ∈ {0, 90} + comparator | ~1 h | H-A2 at K=8 |
 | — | **H-A3 (=H2):** Metric-2 flatness across α ∈ C₄ from M4/M4b per-angle JSONs | free | flat within 2× exp_01 single-eval noise floor |
 
-Context rows in results: released baseline (exp_01), zero-shot fa (exp_03 R0), A-V (V1′). All full-split (announcement 01).
+Context rows in results: released baseline (exp_01), zero-shot fa (exp_03 R0), A-V under both eval precisions (exp_05 fp16-default row for continuity; M1.5 bf16 mirror as the H-A1 comparator). All full-split (announcement 01). Total ≈ 17 h.
 
 ## 3. Pre-registered interpretations
 
