@@ -1,0 +1,45 @@
+# Plan — exp_08_fa_matched (Route A: matched fine-tune comparison, fa_invariant vs vanilla)
+
+**Author:** Fable 5 (Planner) · **Coder:** none expected (config/flags only; TDD round only if review finds a gap) · **Reviewer:** Codex gpt-5.5 xhigh · **Date:** 2026-07-07
+**Status:** AWAITING plan review + Yixun approval.
+
+## 0. Question
+
+At matched recipe and matched, fully-characterized fine-tune regression (exp_03–06), what is frame averaging's *marginal* effect — and does the fine-tuned fa_invariant model pass the cylindrical sanity check exactly (the project's minimum goal, on a trained model)?
+
+## 1. Arms
+
+| Arm | Status | Recipe |
+|---|---|---|
+| **A-V** (control) | **EXISTS = exp_05 V1′** (`outputs_FLAC/exp05_V1p_freezebn_ft/FLAC_exp05_V1p_freezebn.ckpt`) + its 10 gate evals | vanilla, `--freeze-bn`, lr 5e-6 const, batch 4×32 (eff. 128), 625 opt steps, seed 42, bf16-mixed, clip 0.0, use_ema off |
+| **A-F** (method) | **TO RUN** on GPU 1 | identical + `--cond-method fa_invariant` |
+
+Validity of reusing V1′ as the control: the fine-tune code path is unchanged since V1′ ran — later additions (`--lr-schedule`, warmup guard) are flag-gated with the constant-lr default pinned byte-identical by `test_recipe_touches_exactly_the_pinned_keys` and companions; V1′'s recipe echo and commit SHA are recorded in exp_05. The plan review is asked to verify this claim independently.
+
+**Recipe identity over hardware identity:** A-F runs batch 4 × accum 32 exactly like V1′ (recipe identity beats exploiting GPU 1's larger free memory; BN is frozen in both arms so micro-batch BN effects are moot, but padding-mask micro-averaging and data order must match).
+
+## 2. Runs (GPU 1; commands to `_command.md` at launch; ~15 h total)
+
+| # | Run | Est. | Gate/readout |
+|---|---|---|---|
+| M0 | EMA-on N/A — probe: fa_invariant fit/throughput 10 steps on GPU 1 (batch 4×32) | 10 min | ≥5 steps, finite loss, throughput anchor for ETA |
+| M1 | **A-F fine-tune**: 625 opt steps | ~7.5 h (0.3× vanilla rate) | loss finite; clean export |
+| M2 | A-F gate evals: K∈{1,8} × seeds 42–46, `--cond-method fa_invariant --cond-autocast bf16`, full split | ~4 h | **H-A1 (non-inferiority):** A-F within 2× combined 5-seed σ of A-V per T60/C50/EDT at both K (R@k advisory); superiority only if >2σ better |
+| M3 | bf16 Metric-1 floor re-registration on the A-F ckpt (rung-b-style, C₄, K=1&8, fixed noise) | ~20 min | floor logged in notebook BEFORE M4 is read |
+| M4 | Rotation sweep K=1: α ∈ {0, 90, 180, 270, 45} + `--store_predictions` + comparator | ~1.5 h | **H-A2 (=H1):** Metric-1 rot0 ≡ 0.0 exactly; C₄ ≤ registered floor; 45° reported |
+| M4b | K=8 spot α ∈ {0, 90} + comparator | ~1 h | H-A2 at K=8 |
+| — | **H-A3 (=H2):** Metric-2 flatness across α ∈ C₄ from M4/M4b per-angle JSONs | free | flat within 2× exp_01 single-eval noise floor |
+
+Context rows in results: released baseline (exp_01), zero-shot fa (exp_03 R0), A-V (V1′). All full-split (announcement 01).
+
+## 3. Pre-registered interpretations
+
+- **H-A1 pass + H-A2 pass:** minimum project goal achieved on a fine-tuned model: exact C₄ invariance at zero accuracy cost relative to a matched control. exp_07 then becomes about the *maximum* goal only (Yixun decides post-exp_08, per the standing instruction).
+- **H-A1 fail (A-F materially worse than A-V):** FA's information loss is real at this scale — the 4-view average costs accuracy; exp_07's from-scratch question changes character (can training-from-scratch absorb the averaging?), and the cylindrical-sanity claim stands on H-A2 alone with the cost quantified.
+- **H-A2 fail:** implementation-level regression (would contradict exp_03's proofs) → stop, bisect before anything else.
+
+## 4. Risks
+
+- fa_invariant throughput uncertainty on GPU 1 (M0 probe anchors it; wall-clock table updated at launch).
+- V1′-as-control code-state assumption — review-verified; if the review rejects it, A-V reruns (~3 h + 2.2 h, still cheap).
+- Eval-time fa cost (4× conditioner) makes M2 the longest eval block (~4 h); accepted, no protocol shortcuts (announcement 01).
