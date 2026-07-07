@@ -30,3 +30,6 @@
 - **Result (SCREENING, K=8 seed 42, full split):** L1 (5e-7): T60 9.087, C50 0.953, EDT 38.75, R@1 6.82. Below the ~9.2 plateau, far above baseline 8.61 — same trajectory, slower travel; T60 matches the 5e-6 runs' step-200 value at 3× less cumulative lr-distance ⇒ damage steep-then-saturating in parameter distance.
 - **Analysis** — lowering lr does not recover; consistent with fast-convergence-to-different-optimum. Yixun's hypothesis now rests on the high-lr arms (L3/L4/L5): plateau-level lr-dependence.
 - **Next** — L3 FT in progress; screens follow sequentially.
+
+## 2026-07-06T21:19:02-04:00 — housekeeping: remote reconciled; env decision recorded
+- **Result** — force-push (--force-with-lease) replaced origin's stale pre-amend probe commit (`d5b4d0d`, known test typo) with the corrected local history; local ≡ remote at `499553e`+. Environment decision (Yixun): option (a) — `conda activate flac` was informational for their own terminal; ALL pipeline runs remain on `rir2rir` (torch 2.7.0+cu126) for series-wide comparability. No standing auto-push policy set yet (open offer).
