@@ -1,7 +1,7 @@
 # Plan — exp_08_fa_matched (Route A: matched fine-tune comparison, fa_invariant vs vanilla)
 
 **Author:** Fable 5 (Planner) · **Coder:** none expected (config/flags only; TDD round only if review finds a gap) · **Reviewer:** Codex gpt-5.5 xhigh · **Date:** 2026-07-07
-**Status:** AWAITING plan review + Yixun approval.
+**Status:** APPROVED by Yixun 2026-07-07 (after review revision + two pre-approval findings solved).**
 
 ## 0. Question
 
