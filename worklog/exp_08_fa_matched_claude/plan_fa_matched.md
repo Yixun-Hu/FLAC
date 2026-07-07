@@ -29,9 +29,10 @@ Validity of reusing V1′ as the control (review-verified, wording corrected): V
 | M3 | bf16 Metric-1 floor re-registration on the A-F ckpt (rung-b-style, C₄, K=1&8, fixed noise) | ~20 min | floor logged in notebook BEFORE M4 is read |
 | M4 | Rotation sweep K=1: α ∈ {0, 90, 180, 270, 45} + `--store_predictions` + comparator | ~1.5 h | **H-A2 (=H1):** Metric-1 rot0 ≡ 0.0 exactly; C₄ ≤ registered floor; 45° reported |
 | M4b | K=8 spot α ∈ {0, 90} + comparator | ~1 h | H-A2 at K=8 |
+| M5 | **Training-seed sensitivity pair (Yixun point 1, option b-screen):** retrain BOTH arms at seed 43 (A-V-s43 ~3 h, A-F-s43 ~7.5 h) and screen each (K=8, eval-seed 42, full split, bf16 mirror protocol) | ~11.5 h | measures training-seed Δ per arm directly; pre-registered use: if per-arm |Δ_train-seed| on T60/EDT is comparable to or larger than the seed-42 |A-F − A-V| difference, the H-A1 verdict is DOWNGRADED to "indeterminate at single-seed resolution" regardless of band; if ≪, the single-seed caveat is discharged with evidence |
 | — | **H-A3 (=H2):** Metric-2 flatness across α ∈ C₄ from M4/M4b per-angle JSONs | free | flat within 2× exp_01 single-eval noise floor |
 
-Context rows in results: released baseline (exp_01), zero-shot fa (exp_03 R0), A-V under both eval precisions (exp_05 fp16-default row for continuity; M1.5 bf16 mirror as the H-A1 comparator). All full-split (announcement 01). Total ≈ 17 h.
+Context rows in results: released baseline (exp_01), zero-shot fa (exp_03 R0), A-V under both eval precisions (exp_05 fp16-default row for continuity; M1.5 bf16 mirror as the H-A1 comparator). All full-split (announcement 01). **Total ≈ 28.5 h including M5** (17 h without it; M5 runs last so all primary verdicts land first).
 
 ## 3. Pre-registered interpretations
 
