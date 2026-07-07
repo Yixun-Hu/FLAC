@@ -2,7 +2,7 @@
 import os, math
 S1 = {'R1b': [(0, 8.609), (200, 9.071), (400, 9.282), (625, 9.195)],
       'V1p': [(0, 8.609), (200, 9.089), (400, 9.253), (625, 9.235)]}
-S2 = [('L1', 5e-7, 9.087), ('L2 (V1p)', 5e-6, 9.235), ('L3', 2e-5, 9.596), ('L4', 4.2e-5, 9.866), ('L5 restart', 5e-5, 10.099)]
+S2 = [('L1', 5e-7, 9.087), ('L2 (V1p, 5-seed mean)', 5e-6, 9.235), ('L3', 2e-5, 9.596), ('L4', 4.2e-5, 9.866), ('L5 restart', 5e-5, 10.099)]
 BASE = 8.609
 def s1chart():
     W,H,LM,BM = 560,240,64,34; PW,PH = W-LM-20, H-BM-30
@@ -47,8 +47,8 @@ html = f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name
 <p class="sub">Full split everywhere; screens K=8 seed 42 (pre-registered ordering-only) · 2026-07-06. Numbers mirror <a href="gradpath_bisect_results.md">_results.md</a>.</p>
 <div class="verdict bad"><b>Q1 answered — it's convergence, not corruption.</b> ~75–80% of the T60 shift lands within 200 optimizer steps and then flattens: the model rapidly converges toward the optimum of the objective we actually train — which is not where the released weights sit.</div>
 <figure>{s1chart()}<figcaption>Interval-checkpoint evals of the exp_03/05 controls (identical with and without frozen BN → the T60 path is BN-independent).</figcaption></figure>
-<div class="verdict bad"><b>Q2 answered — no tested lr recovers the gate; damage is monotone-increasing in lr.</b> The schedule-faithful InverseLR restart (the original recipe restored, plus every repair from exp_03–05) is the <i>most</i> destructive arm. The 5e-6 constant used since exp_03 was conservative, not the culprit.</div>
-<figure>{s2chart()}<figcaption>Five arms, otherwise identical recipes (freeze-bn, effective batch 128, 625 steps, seed 42). Finalist thresholds (T60 ≤ 8.65 or EDT ≤ 37.3): none reached.</figcaption></figure>
+<div class="verdict bad"><b>Q2 answered — no tested lr recovers the gate; T60 damage is monotone-increasing in lr.</b> The schedule-faithful InverseLR restart (the original recipe restored, plus every repair from exp_03–05) is the <i>most</i> destructive arm. The 5e-6 constant used since exp_03 was conservative, not the culprit.</div>
+<figure>{s2chart()}<figcaption>Five arms, otherwise identical recipes (freeze-bn, effective batch 128, 625 steps, seed 42); L2 point = prior 5-seed mean (its seed-42 screen: 9.243). Finalist thresholds (T60 ≤ 8.65 or EDT ≤ 37.3): none reached.</figcaption></figure>
 <h2>S3 — lineage audit</h2>
 <table><thead><tr><th>Candidate</th><th>Test</th><th>Outcome</th></tr></thead><tbody>
 <tr><td>Training-path code drift</td><td>git diff vs <code>upstream/master</code> (AmandineBtto/FLAC)</td><td><span class="chip pass">ELIMINATED</span> — only the fork's equi-test file + a device_map nit</td></tr>

@@ -19,12 +19,12 @@ All evals: full 6337-item unseen split. Screens: K=8, seed 42 (pre-registered as
 |---|---|---|---|---|---|
 | baseline | — | 8.609 | 0.968 | 37.100 | 7.057 |
 | L1 | 5e-7 const | 9.087 | 0.953 | 38.751 | 6.817 |
-| L2 (=V1p anchor) | 5e-6 const | 9.235 | 0.928 | 38.731 | 6.953 |
+| L2 (=V1p anchor; **prior 5-seed mean**, seed-42 screen: 9.243/0.926/38.738) | 5e-6 const | 9.235 | 0.928 | 38.731 | 6.953 |
 | L3 | 2e-5 const | 9.596 | 0.929 | 40.148 | 6.833 |
 | L4 | 4.2e-5 const (continuation proxy) | 9.866 | 0.953 | 39.918 | 6.423 |
 | L5 | 5e-5 + original InverseLR restart | 10.099 | 0.978 | 40.350 | 6.281 |
 
-All arms: freeze-bn, batch 4×32 (eff. 128), 625 opt steps, seed 42. **No finalist** (thresholds T60 ≤ 8.65 or EDT ≤ 37.3). Answer to the commissioning question: **no tested lr setting — including the schedule-faithful restart — recovers the gate; damage increases monotonically with lr.** The lr-invariant-plateau (checkpoint-selection, simple form) prediction is falsified alongside: damage grows with cumulative lr-distance in the tested range.
+All arms: freeze-bn, batch 4×32 (eff. 128), 625 opt steps, seed 42. **No finalist** (thresholds T60 ≤ 8.65 or EDT ≤ 37.3). Answer to the commissioning question: **no tested lr setting — including the schedule-faithful restart — recovers the gate; T60 damage increases monotonically with lr** (EDT is not strictly monotone across L3/L4; C50 improves at low lr). The lr-invariant-plateau (checkpoint-selection, simple form) prediction is falsified alongside: damage grows with cumulative lr-distance in the tested range.
 
 ## S3 — lineage audit
 
