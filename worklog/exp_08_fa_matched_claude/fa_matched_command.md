@@ -36,3 +36,11 @@ CUDA_VISIBLE_DEVICES=0 python eval_FLAC.py ... --ckpt-path outputs_FLAC/exp05_V1
 #   --ckpt-path outputs_FLAC/exp08_AF_ft/FLAC_exp08_AF.ckpt --cond-method fa_invariant --cond-autocast bf16 \
 #   --seed 42 --store_predictions --rotate-deg $A --eval-name exp08_M4_K1 / exp08_M4b_K8
 # comparators: compare_predictions.py ref=rot0 alt=rot{A} -> worklog/exp_08_fa_matched_claude/metric1_M4*_rot$A.json
+
+## M5 sensitivity pair (GPU 1; LAUNCHED 2026-07-08)
+
+```bash
+# A-V seed 43: V1'-recipe vanilla; A-F seed 43: fa_invariant — both then screened K=8 eval-seed 42 full split bf16
+CUDA_VISIBLE_DEVICES=1 python finetune_cond.py ... --seed 43 [--cond-method fa_invariant] --freeze-bn --lr 5e-6 \
+  --max-steps 625 --batch-size 4 --accumulate-grad-batches 32 --save-dir outputs_FLAC/exp08_{AV,AF}s43_ft --name FLAC_exp08_{AV,AF}s43
+# screens: eval_FLAC.py K=8 seed 42 [--cond-method fa_invariant] --cond-autocast bf16 --eval-name exp08_{AV,AF}s43_screen_K8
