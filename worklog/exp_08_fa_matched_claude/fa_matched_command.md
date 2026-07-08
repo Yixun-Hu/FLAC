@@ -27,3 +27,12 @@ CUDA_VISIBLE_DEVICES=0 python eval_FLAC.py ... --ckpt-path outputs_FLAC/exp05_V1
 ```
 
 ## M3/M4/M4b/M5 — templates finalized at launch (after M2)
+
+## M3 floor + M4/M4b sweeps (GPU 1; LAUNCHED 2026-07-08)
+
+```bash
+# M3: rung-b-style C4 Metric-1 floor on the A-F ckpt (fixed noise, 1 step, K=1&8) — one-off driver logged
+# M4: K=1 alpha in {0,90,180,270,45}; M4b: K=8 alpha in {0,90} — eval_FLAC.py with
+#   --ckpt-path outputs_FLAC/exp08_AF_ft/FLAC_exp08_AF.ckpt --cond-method fa_invariant --cond-autocast bf16 \
+#   --seed 42 --store_predictions --rotate-deg $A --eval-name exp08_M4_K1 / exp08_M4b_K8
+# comparators: compare_predictions.py ref=rot0 alt=rot{A} -> worklog/exp_08_fa_matched_claude/metric1_M4*_rot$A.json
