@@ -12,7 +12,8 @@ Base: `0bd5da0`. Branch: `check-equivariance-necessity`. Develop commit-by-commi
 | 6 | `779bc70` | M1.5 mirror — bf16 shifts A-V T60 +0.12 (confound confirmed real); comparator registered |
 | 7 | `b942357` | H-A1 verdict — strict FAIL, T60 superior (near-baseline K=8), EDT/C50 regressions; M3/M4 commands |
 | 8 | `50f58e6` | H-A2 PASS + H-A3 PASS — minimum project goal achieved on fine-tuned model; M5 launching |
-| 9 | `__CLOSURE_SHA__` | closure — M5 verdict (T60 survives seed check; EDT/C50 downgraded), results/analysis/HTML + Codex closure review |
+| 9 | `a3e8cf5` | closure — M5 verdict (T60 survives seed check; K=8 EDT/C50 downgraded, K=1 remain strict), results/analysis/HTML + `aggregate_results.py` + Codex review→re-verify |
+| 10 | _(this commit)_ | bookkeeping — record closure SHA `a3e8cf5` in this log |
 
 **No `src/` code changed in exp_08** — it consumed the exp_03/exp_04/exp_05 machinery (`fa_invariant`, `--freeze-bn`, bf16 eval, comparator) unchanged. The only new executables are analysis/reporting scripts under `worklog/exp_08_fa_matched_claude/` (`aggregate_results.py`, `fa_matched_results_assets/gen_page.py`), both covered by the closure Codex review. Hence exp_08 is one closure commit rather than several <200-line code commits.
 
