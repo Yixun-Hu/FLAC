@@ -11,3 +11,4 @@ Base: `0bd5da0`. Branch: `check-equivariance-necessity`.
 
 Notes: audit authored by Fable 5 (main session; seat restored from Opus 4.8 per Yixun's `/model` switch). Reviewer for this and all future rounds: Codex `gpt-5.6-sol` xhigh (per Yixun 2026-07-10; CLI 0.144.1).
 | 5 | _(this commit)_ | bookkeeping — record audit-round SHA `8ae9837` (amend during commit 4 changed its hash; lesson: never amend a SHA into a commit that contains it) |
+| 6 | `e85ebde` | TDD round 1 — --max-steps flag (build_trainer_kwargs/construct_trainer + 10 tests, 121-suite green); review round closed |
