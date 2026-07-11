@@ -57,7 +57,21 @@ HF_HUB_CACHE=$(mktemp -d) python worklog/exp_07_fa_scratch_claude/assert_arm_con
 HF_HUB_CACHE=$(mktemp -d) python -O worklog/exp_07_fa_scratch_claude/assert_arm_configs.py      # red 2: -O still raises, exit 1
 # -> worklog/exp_07_fa_scratch_claude/fa_scratch_2026-07-11_00:16:07_arm_asserts_v4.log
 
-# M0 probe template (values finalized + logged at launch, after TDD round 1 lands):
+## M0 fit/throughput ladder (GPU 1; LAUNCHED 2026-07-11, code e85ebde) — driver run verbatim:
+
+```bash
+# pre-launch gate (fail-closed ViT pin + arm identity), then ladder: B-F tries 64x1 -> 32x2 -> 16x4,
+# first fit wins; B-V then runs the SAME pair (fit confirm + throughput anchor). 15 opt steps each,
+# EMA on (config), HF_HUB_OFFLINE=1, workers 6, seed 42, logger none, save-dir scratch.
+# Per attempt: background nvidia-smi VRAM sampler (5s) -> peak; throughput parsed from the PL bar.
+# Full driver text: see the M0 section of fa_scratch_2026-07-11_<launch>_m0.log header (echoed at start).
+# Acceptance: exit 0 + reached max_steps=15; CUDA OOM -> next rung.
+```
+
+## M0 EXTENDED ladder (GPU 1; LAUNCHED 2026-07-11 ~14:2x, post-amendment) — same driver shape,
+## rungs 8x8 -> 4x16, VRAM sampler at 1 s; then B-V confirm at winner. Log: fa_scratch_*_m0ext.log
+
+# M0 probe template (superseded by the launched drivers above):
 #   for MB_ACC in "64 1" "32 2" "16 4": try B-F first (constrained arm), then pin the pair for BOTH arms
 #   HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=1 python train.py --model-config worklog/exp_07_fa_scratch_claude/FLAC_AR_BF.json \
 #     --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json \
