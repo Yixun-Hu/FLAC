@@ -53,3 +53,33 @@ Standing tooling directive (not exp_07-specific, logged here as it landed mid-au
 ### Action taken
 
 CLI upgraded 0.142.5 → 0.144.1 (gpt-5.6-sol requires ≥0.144; model probe OK); three SOP files updated; memory updated. First gpt-5.6-sol review = this audit's consolidated probe review.
+
+## Query 4 (2026-07-11) — GO
+
+### Verbatim
+
+> GO for exp_07.
+>
+> Approve all five:
+> 1. --max-steps TDD (test-first, Codex gpt-5.6-sol review, commit)
+> 2. M0 fit/throughput probe on GPU 1 (same micro×accum for both arms, eff-batch 64)
+> 3. Launch B-V to 67.5k per the committed launch manifest (seed 42, EMA on)
+> 4. At 67.5k run the pre-registered 2σ gate vs released Table 1
+> 5. If gate passes → launch B-F to 67.5k; if not → stop and ask me
+>
+> Also approve: hold GPU 1 for the full sequential window (~3 weeks).
+> Also do the optional ~25 min corroborating screen of FLAC_vanilla291k @ step 67,500 (context only, not a substitute for B-V).
+>
+> Start now with step 1.
+
+### Summary
+
+Full go for exp_07 hybrid (c) at the audit-corrected recipe: staged execution with an explicit stop-and-ask at the B-V gate; GPU-1 held ~3 weeks; the corroborating screen approved as context-only.
+
+### Assumption / hypothesis
+
+The audit's identity guarantees hold through execution; the pre-registered gate (B-V@67.5k within 2σ of released Table 1) is the correct condition for spending the ~17-day B-F arm.
+
+### Why now
+
+Audit round closed (commit `8ae9837`); GPU 1 freed; the only code gap is `--max-steps` (TDD round 1).

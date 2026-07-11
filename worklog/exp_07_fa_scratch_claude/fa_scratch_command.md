@@ -57,6 +57,14 @@ HF_HUB_CACHE=$(mktemp -d) python worklog/exp_07_fa_scratch_claude/assert_arm_con
 HF_HUB_CACHE=$(mktemp -d) python -O worklog/exp_07_fa_scratch_claude/assert_arm_configs.py      # red 2: -O still raises, exit 1
 # -> worklog/exp_07_fa_scratch_claude/fa_scratch_2026-07-11_00:16:07_arm_asserts_v4.log
 
+# M0 probe template (values finalized + logged at launch, after TDD round 1 lands):
+#   for MB_ACC in "64 1" "32 2" "16 4": try B-F first (constrained arm), then pin the pair for BOTH arms
+#   HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=1 python train.py --model-config worklog/exp_07_fa_scratch_claude/FLAC_AR_BF.json \
+#     --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json \
+#     --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 15 --batch-size $MB --accum-batches $ACC \
+#     --num-workers 6 --seed 42 --precision bf16-mixed --logger none --save-dir $SCRATCH/m0_probe ...
+#   acceptance: >=10 steps, finite loss, no OOM; record peak VRAM + samples/s (EMA on)
+
 # consolidated review (first gpt-5.6-sol use) + focused re-verify + terse fix-verify
 ~/.local/bin/codex exec -s read-only -m gpt-5.6-sol -c model_reasoning_effort=xhigh \
   --output-last-message worklog/exp_07_fa_scratch_claude/fa_scratch_codex_code_audit_probes_review.md "<context-briefed prompt>" < /dev/null
