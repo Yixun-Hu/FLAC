@@ -1,0 +1,20 @@
+=== S3.2 probe rerun, train-split-only (review fix) — 2026-07-06 14:31:33 ===
+{
+  "n": 300,
+  "energy_beyond_loss_window_10240": {
+    "mean": 0.0007866509415704189,
+    "p90": 0.002299014402208477
+  },
+  "energy_beyond_metric_window_8000": {
+    "mean": 0.0018669273947036083,
+    "p90": 0.005845692857701867
+  },
+  "augmentation_bias_metric_aug_vs_raw": {
+    "T60": 0.0994,
+    "Invalid T60": 0.0,
+    "C50": 0.0507,
+    "EDT": 1.5546
+  },
+  "note": "aug applied at p=1.0 for paired measurement; loader applies each at p=0.5 -> effective training bias ~ half the T60/EDT numbers here (shift) and ~half of items carry noise."
+}
+exit=0

@@ -1,0 +1,11 @@
+=== B1 stage 1: max_len grid {4800, 10240, 19200} — 2026-07-06 02:08:53 — code 8b426e7 ===
+--- max_len=4800 ---
+Report written to worklog/exp_05_bn_drift_bisect_claude/bn_drift_B1_maxlen4800.json
+--- exit=0 ---
+--- max_len=10240 ---
+Report written to worklog/exp_05_bn_drift_bisect_claude/bn_drift_B1_maxlen10240.json
+--- exit=0 ---
+--- max_len=19200 ---
+Report written to worklog/exp_05_bn_drift_bisect_claude/bn_drift_B1_maxlen19200.json
+--- exit=0 ---
+=== B1 stage 1 done ===

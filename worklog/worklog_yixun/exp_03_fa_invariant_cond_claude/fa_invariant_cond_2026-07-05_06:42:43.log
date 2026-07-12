@@ -1,0 +1,10 @@
+=== corrected diagnostic: TRUE online weights (EMA keys stripped), K=1/8, seed 42 — 2026-07-05 06:42:43 ===
+--- K=1 ---
+Metrics saved to /tmp/claude-1013/-home-yixunhu-codespace-FLAC/ecc215fd-e7df-461f-a243-6aeac03110cf/scratchpad/FLAC_online_only_metrics_1_1.0_exp03_diag_trueonline_K1.json
+Evaluation complete!
+--- K=1 exit=0 ---
+--- K=8 ---
+Metrics saved to /tmp/claude-1013/-home-yixunhu-codespace-FLAC/ecc215fd-e7df-461f-a243-6aeac03110cf/scratchpad/FLAC_online_only_metrics_1_1.0_exp03_diag_trueonline_K8.json
+Evaluation complete!
+--- K=8 exit=0 ---
+=== corrected diagnostic done ===

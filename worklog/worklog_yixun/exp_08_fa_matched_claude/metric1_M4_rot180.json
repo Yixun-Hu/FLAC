@@ -1,0 +1,17 @@
+{
+    "ref_path": "outputs_FLAC/exp08_AF_ft/FLAC_exp08_AF_predictions_1_1.0_exp08_M4_K1_fa_invariant_a4.pt",
+    "alt_path": "outputs_FLAC/exp08_AF_ft/FLAC_exp08_AF_predictions_1_1.0_exp08_M4_K1_fa_invariant_a4_rot180.pt",
+    "num_samples": 6337,
+    "common_length": 10240,
+    "waveform_gap": {
+        "mean_abs_diff": 1.8367144168347892e-06,
+        "mean_rel_l2": 0.0023264690081937086,
+        "max_abs_diff": 0.009336411952972412
+    },
+    "acoustic_gap": {
+        "T60": 0.0157,
+        "Invalid T60": 0.0,
+        "C50": 0.0024,
+        "EDT": 0.0751
+    }
+}

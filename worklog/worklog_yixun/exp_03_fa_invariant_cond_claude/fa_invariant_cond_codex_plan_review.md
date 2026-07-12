@@ -1,0 +1,26 @@
+# Codex plan review — exp_03_fa_invariant_cond
+
+**Reviewer:** OpenAI Codex, model `gpt-5.5` at Extra High (`xhigh`) reasoning effort (codex-cli 0.142.5, `codex exec`, read-only sandbox) · **Date:** 2026-07-04
+**Target:** `plan_fa_invariant_cond.md` (rev. commit 9e537c9)
+
+**Verdict: REQUEST-CHANGES**
+
+1. **High: degenerate-source fallback breaks the exact invariance claim.** Plan §1/§2b says `r_s < 1e-6` falls back to azimuth 0. Then `context_poses` Δφ becomes absolute `phi_i`, so after yaw rotation it changes by α. That contradicts “cylindrical pose features exactly invariant at any yaw angle.” The current data path stores raw target/context positions in [AR_md.py](/home/yixunhu/codespace/FLAC/src/configs/dataset_configs/custom_metadata/AR_md.py:36) and [AR_md.py](/home/yixunhu/codespace/FLAC/src/configs/dataset_configs/custom_metadata/AR_md.py:43), and `rotate_scene_metadata` rotates all pose keys in [yaw_rotation.py](/home/yixunhu/codespace/FLAC/src/data/yaw_rotation.py:86). Fix the fallback or explicitly prove/scan that degenerate sources are out of domain. Add a degenerate-source invariance test, not just a no-NaN test.
+
+2. **High: averaging the whole `MultiConditioner` repeats stateful non-ViT conditioners.** Plan §2b averages all conditioner outputs, but `context_audio` is “already invariant” and should not be recomputed 4 times during training. `RIRConditioner` wraps ResNet18 with BatchNorm in [conditioners.py](/home/yixunhu/codespace/FLAC/src/models/conditioners.py:148), and its forward does not force eval mode in [conditioners.py](/home/yixunhu/codespace/FLAC/src/models/conditioners.py:156). Four identical calls can update BN running stats four times per step, making R2 differ from R1 for reasons unrelated to yaw invariance. Compute invariant keys once and frame-average only `source_vit` / `context_poses_vit`, or add an explicit no-side-effect design.
+
+3. **High: the test plan does not prove end-to-end prediction invariance.** The real-stack rung checks conditioner outputs only. The DiT consumes reshaped/concatenated global and cross-attention tensors via [diffusion.py](/home/yixunhu/codespace/FLAC/src/models/diffusion.py:139) and [diffusion.py](/home/yixunhu/codespace/FLAC/src/models/diffusion.py:159), with FLAC using both paths in [FLAC_AR.json](/home/yixunhu/codespace/FLAC/src/configs/model_configs/FLAC/AR/FLAC_AR.json:114). Add a fixed-noise, fixed-timestep full-model smoke test: `pred(g·x) == pred(x)` for C4 with `cfg_dropout_prob=0`, K=1 and K=8.
+
+4. **Medium: missing non-mutation test for `invariant_conditioning`.** Plan tests `cylindrical_pose_features` non-mutation, but eval metrics later read `metadata["depth"]` and `metadata["source"]` in [eval_FLAC.py](/home/yixunhu/codespace/FLAC/eval_FLAC.py:157). If `invariant_conditioning` mutates `source` into cylindrical form, `RIR_to_geom` retrieval is corrupted. Add a deep non-mutation test for the full conditioning helper.
+
+5. **Medium: warm-starting the dist embedder is riskier than the plan states.** `DistEmbedderConditioner` hardcodes 3 input dimensions and divides all channels by `max_val=5` in [conditioners.py](/home/yixunhu/codespace/FLAC/src/models/conditioners.py:239) and [conditioners.py](/home/yixunhu/codespace/FLAC/src/models/conditioners.py:258). Replacing `(x,y,z)` with `(r,z,Δφ)` preserves shape but not scale/sign semantics. Add a pre-run feature-range audit and consider per-dimension normalization, especially for Δφ.
+
+6. **Medium: R4 should include at least a K=8 Metric-1 spot check.** The plan sweeps rotations only at K=1, but the accepted method must work at K=8 and context pose shapes differ. Since the implementation touches `context_poses_vit` and `context_poses`, run at least rot0/rot90 paired prediction comparison at K=8.
+
+7. **Medium: prediction pairing remains weakly guarded.** The plan fixes filenames, but `eval_FLAC.py` currently saves only a bare tensor in [eval_FLAC.py](/home/yixunhu/codespace/FLAC/eval_FLAC.py:191). Save a sidecar or dict with dataset config, seed, sample count, cond method, angles, rotate degree, and batch size so the exp_02 comparator can reject wrong-file comparisons.
+
+8. **Low: the `GeometryConditioner` test should model the real contract.** `GeometryConditioner` encodes `coord - depth` in [conditioners.py](/home/yixunhu/codespace/FLAC/src/models/conditioners.py:198) and [conditioners.py](/home/yixunhu/codespace/FLAC/src/models/conditioners.py:210). Unit mocks should fail if `depth` is not rotated with `*_vit`, not merely check that pose keys rotate.
+
+**3-dim Δφ encoding:** Keeping 3 dims is a defensible first run because it preserves checkpoint shape, but it is not “free.” The wrap discontinuity and changed scaling are real hidden assumptions. I would approve it only with feature-range logging and a clear fallback to `(r,z,sinΔφ,cosΔφ)` if R2 underperforms despite R1 passing.
+
+**Single-method scope:** I agree with not reviving `canon` / plain `frame_avg` in this experiment. The scope is clean and falsifiable. But the implementation should still isolate invariant and frame-averaged subpaths internally; otherwise the method being tested is partly “4x all conditioners with BN side effects,” not just Route 1.

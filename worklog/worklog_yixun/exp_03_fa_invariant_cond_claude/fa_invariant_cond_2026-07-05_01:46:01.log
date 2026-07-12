@@ -1,0 +1,12 @@
+=== C4 re-probe: fa_invariant batch 4 x accum 2 — 2026-07-05 01:46:01 — code 0c86c3e ===
+Epoch 0:   0%|          | 10/72802 [00:17<35:22:11,  0.57it/s, train/loss=0.244, train/std_data=1.050, train/lr=5e-6, train/mse_loss=0.244]
+Epoch 0:   0%|          | 10/72802 [00:17<35:22:16,  0.57it/s, train/loss=0.319, train/std_data=1.160, train/lr=5e-6, train/mse_loss=0.319]
+Epoch 0:   0%|          | 11/72802 [00:19<35:05:33,  0.58it/s, train/loss=0.319, train/std_data=1.160, train/lr=5e-6, train/mse_loss=0.319]
+Epoch 0:   0%|          | 11/72802 [00:19<35:05:38,  0.58it/s, train/loss=0.459, train/std_data=1.050, train/lr=5e-6, train/mse_loss=0.459]
+Epoch 0:   0%|          | 12/72802 [00:20<34:59:41,  0.58it/s, train/loss=0.459, train/std_data=1.050, train/lr=5e-6, train/mse_loss=0.459]
+Epoch 0:   0%|          | 12/72802 [00:20<34:59:45,  0.58it/s, train/loss=0.277, train/std_data=1.060, train/lr=5e-6, train/mse_loss=0.277]
+Epoch 0:   0%|          | 12/72802 [00:20<34:59:51,  0.58it/s, train/loss=0.277, train/std_data=1.060, train/lr=5e-6, train/mse_loss=0.277]`Trainer.fit` stopped: `max_steps=6` reached.
+Epoch 0:   0%|          | 12/72802 [00:20<34:59:58,  0.58it/s, train/loss=0.277, train/std_data=1.060, train/lr=5e-6, train/mse_loss=0.277]
+probe exit=0
+0, 20761 MiB
+=== probe done ===

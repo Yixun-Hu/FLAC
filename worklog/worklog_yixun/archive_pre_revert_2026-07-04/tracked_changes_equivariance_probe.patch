@@ -1,0 +1,298 @@
+diff --git a/eval_FLAC.py b/eval_FLAC.py
+index 8352445..193e0a9 100644
+--- a/eval_FLAC.py
++++ b/eval_FLAC.py
+@@ -7,11 +7,66 @@ import torch
+ import pytorch_lightning as pl
+ 
+ from src.data.dataset import create_dataloader_from_config
+-from src.data.yaw_rotation import rotate_scene_metadata
++from src.data.yaw_rotation import canonicalize_scene_metadata, frame_averaged_conditioning, rotate_scene_metadata
+ from src.models import create_model_from_config
+ from src.training import create_training_wrapper_from_config, create_metric_callback_from_config
+ 
+ 
++def compute_conditioning(diffusion, metadata, device, cond_method, frame_avg_angles):
++    """
++    Compute conditioning tensors, optionally made yaw-symmetry-aware.
++
++    This is the only part of the eval pipeline that changes between the vanilla model
++    and the symmetry-aware variants: the RIR sampling, decoding and metrics are left
++    untouched. Under a scene yaw rotation the mono RIR is invariant, so we enforce that
++    on the conditioning either by canonicalization (a single gauge) or by frame
++    averaging (averaging the conditioner outputs over a frame of rotations, i.e. the
++    Reynolds operator restricted to a finite frame).
++
++    Parameters
++    ----------
++    diffusion : ConditionedDiffusionModelWrapper
++        The FLAC diffusion wrapper exposing ``conditioner`` and ``get_conditioning_inputs``.
++    metadata : list of dict
++        Per-sample metadata dicts for the batch.
++    device : torch.device or str
++        Device on which to run the conditioner.
++    cond_method : str
++        One of ``"vanilla"`` (standard), ``"canon"`` (rotate each sample so its target
++        source azimuth is 0), or ``"frame_avg"`` (average conditioner outputs over the
++        yaw frame given by ``frame_avg_angles``).
++    frame_avg_angles : list of float
++        Yaw angles in degrees defining the frame; only used when ``cond_method`` is
++        ``"frame_avg"``.
++
++    Returns
++    -------
++    dict
++        Conditioning dict ``{id: [tensor, mask]}`` ready for ``get_conditioning_inputs``.
++
++    Raises
++    ------
++    ValueError
++        If ``cond_method`` is not one of the supported values.
++    """
++    device_type = torch.device(device).type
++
++    if cond_method == "vanilla":
++        with torch.amp.autocast(device_type):
++            return diffusion.conditioner(metadata, device)
++
++    if cond_method == "canon":
++        img_w = int(metadata[0]["depth"].shape[-1])
++        variant = [canonicalize_scene_metadata(md, img_w) for md in metadata]
++        with torch.amp.autocast(device_type):
++            return diffusion.conditioner(variant, device)
++
++    if cond_method == "frame_avg":
++        return frame_averaged_conditioning(diffusion.conditioner, metadata, device, frame_avg_angles, autocast_device_type=device_type)
++
++    raise ValueError(f"Unknown cond_method: {cond_method}")
++
++
+ def evaluate_model(
+     model_config_path,
+     dataset_config_path,
+@@ -25,7 +80,11 @@ def evaluate_model(
+     seed=42, 
+     store_predictions=False,
+     rotate_deg=0.0,
++    cond_method="vanilla",
++    frame_avg_angles=None,
+ ):
++    if frame_avg_angles is None:
++        frame_avg_angles = [0.0, 90.0, 180.0, 270.0]
+     torch.set_float32_matmul_precision('medium') 
+     
+     # Load configurations
+@@ -111,8 +170,9 @@ def evaluate_model(
+                 img_w = int(metadata[0]["depth"].shape[-1])
+                 metadata = [rotate_scene_metadata(md, alpha_rad, img_w) for md in metadata]
+ 
+-            with torch.amp.autocast(device):
+-                conditioning = module.diffusion.conditioner(metadata, module.device)
++            # Only the conditioning computation changes across methods
++            # (vanilla / canon / frame_avg); sampling and metrics are identical.
++            conditioning = compute_conditioning(module.diffusion, metadata, module.device, cond_method, frame_avg_angles)
+             cond_inputs = module.diffusion.get_conditioning_inputs(conditioning) 
+ 
+             noise = torch.randn([reals.shape[0], module.diffusion.io_channels, samples]).to(module.device)
+@@ -178,11 +238,14 @@ def evaluate_model(
+         "metrics": metrics_dict,
+         "ckpt_path": ckpt_path,
+         "rotate_deg": rotate_deg,
++        "cond_method": cond_method,
++        "frame_avg_angles": frame_avg_angles if cond_method == "frame_avg" else None,
+     }
+         
+     ckpt_name = os.path.basename(ckpt_path).replace('.ckpt', '')
+     rot_suffix = '' if rotate_deg == 0.0 else f'_rot{int(rotate_deg)}'
+-    path2save = os.path.join(os.path.dirname(ckpt_path), ckpt_name + '_metrics_' + str(steps) + '_' + str(cfg_scale) + '_' + eval_name + rot_suffix + '.json')
++    method_suffix = '' if cond_method == 'vanilla' else f'_{cond_method}'
++    path2save = os.path.join(os.path.dirname(ckpt_path), ckpt_name + '_metrics_' + str(steps) + '_' + str(cfg_scale) + '_' + eval_name + method_suffix + rot_suffix + '.json')
+     with open(path2save, 'w') as f:
+         json.dump(metrics_to_save, f, indent=4)
+     
+@@ -211,6 +274,8 @@ if __name__ == "__main__":
+     parser.add_argument("--seed", type=int, default=42, help="Random seed for evaluation")
+     parser.add_argument("--store_predictions", action='store_true', help="Whether to store predictions or not")
+     parser.add_argument("--rotate-deg", type=float, default=0.0, help="Yaw-rotate the conditioning (depth + poses) by this many degrees before eval; 0 disables (default).")
++    parser.add_argument("--cond-method", type=str, default="vanilla", choices=["vanilla", "canon", "frame_avg"], help="Conditioning method: vanilla, canon (rotate source azimuth to 0), or frame_avg (average conditioner over a yaw frame).")
++    parser.add_argument("--frame-avg-angles", type=str, default="0,90,180,270", help="Comma-separated yaw angles (deg) for frame_avg.")
+     args = parser.parse_args()
+ 
+     if args.store_predictions:
+@@ -229,4 +294,6 @@ if __name__ == "__main__":
+         seed=args.seed,
+         store_predictions=args.store_predictions,
+         rotate_deg=args.rotate_deg,
++        cond_method=args.cond_method,
++        frame_avg_angles=[float(x) for x in args.frame_avg_angles.split(",") if x.strip() != ""],
+     )
+diff --git a/src/data/yaw_rotation.py b/src/data/yaw_rotation.py
+index e1ab6fd..089a0d6 100644
+--- a/src/data/yaw_rotation.py
++++ b/src/data/yaw_rotation.py
+@@ -12,7 +12,7 @@ Used both by the standalone rotation-invariance diagnostic and by ``eval_FLAC.py
+ (via its optional ``--rotate-deg`` flag).
+ """
+ import math
+-from typing import Dict, Tuple
++from typing import Callable, Dict, List, Optional, Tuple
+ 
+ import torch
+ 
+@@ -93,6 +93,99 @@ def rotate_scene_metadata(
+     return out
+ 
+ 
++def canonicalize_scene_metadata(md: Dict[str, object], img_w: int) -> Dict[str, object]:
++    """
++    Rotate a sample into a canonical yaw frame where the target source azimuth is 0.
++
++    This is the single-frame "canonicalization" baseline for yaw symmetry: instead of
++    averaging over a frame of rotations, it picks one gauge by rotating the whole scene
++    so the target source lies at azimuth 0 (straight ahead) in the panorama. Because the
++    rotation is applied jointly to the depth panorama and all pose vectors via
++    :func:`rotate_scene_metadata`, the physical geometry is preserved.
++
++    Parameters
++    ----------
++    md : Dict[str, object]
++        One per-sample metadata dict. Must contain ``source`` (a length-3 tensor giving
++        the target source position in the panorama camera frame) and ``depth``.
++    img_w : int
++        Panorama width in pixels (number of azimuth columns).
++
++    Returns
++    -------
++    Dict[str, object]
++        A metadata dict rotated so the target source is at azimuth 0. The original dict
++        is not mutated.
++    """
++    source = md["source"]
++    assert isinstance(source, torch.Tensor)
++    azimuth = math.atan2(float(source[1]), float(source[0]))
++    return rotate_scene_metadata(md, -azimuth, img_w)
++
++
++def frame_averaged_conditioning(
++    conditioner: Callable,
++    metadata: List[Dict[str, object]],
++    device: object,
++    angles_deg: List[float],
++    autocast_device_type: Optional[str] = None,
++) -> Dict[str, list]:
++    """
++    Average a conditioner's outputs over a finite yaw frame (frame averaging).
++
++    Implements the frame-averaging operator of Puny et al. (ICLR 2022) restricted to a
++    finite frame of azimuthal rotations: the scene metadata is rotated by each angle,
++    the conditioner is run on each rotated copy, and the resulting conditioning tensors
++    are averaged. Because the mono RIR is invariant to whole-scene yaw rotation, this
++    yields conditioning that is (approximately) invariant to absolute yaw while reusing
++    the existing conditioner backbone unchanged. Used at both train and eval time so the
++    diffusion model consistently consumes frame-averaged conditioning.
++
++    Parameters
++    ----------
++    conditioner : Callable
++        A conditioner callable ``conditioner(metadata, device) -> {id: [tensor, mask]}``
++        (e.g. ``diffusion.conditioner``).
++    metadata : list of dict
++        Per-sample metadata dicts for the batch.
++    device : torch.device or str
++        Device passed through to the conditioner.
++    angles_deg : list of float
++        Yaw angles in degrees defining the frame to average over.
++    autocast_device_type : str, optional
++        If given (e.g. ``"cuda"``), each conditioner call is wrapped in
++        ``torch.amp.autocast`` with this device type. If None (default), no autocast is
++        applied (matching the training path, which manages precision externally).
++
++    Returns
++    -------
++    dict
++        Averaged conditioning dict ``{id: [tensor, mask]}`` ready for
++        ``get_conditioning_inputs``. Masks are taken from the first frame element.
++    """
++    img_w = int(metadata[0]["depth"].shape[-1])
++    accumulated: Optional[Dict[str, list]] = None
++    for angle in angles_deg:
++        variant = [rotate_scene_metadata(md, math.radians(angle), img_w) for md in metadata]
++        if autocast_device_type is not None:
++            with torch.amp.autocast(autocast_device_type):
++                cond = conditioner(variant, device)
++        else:
++            cond = conditioner(variant, device)
++        if accumulated is None:
++            accumulated = {key: [value[0].clone(), value[1]] for key, value in cond.items()}
++        else:
++            for key in accumulated:
++                accumulated[key][0] = accumulated[key][0] + cond[key][0]
++
++    assert accumulated is not None, "angles_deg must be non-empty"
++    num = len(angles_deg)
++    if num > 1:
++        for key in accumulated:
++            accumulated[key][0] = accumulated[key][0] / num
++    return accumulated
++
++
+ def yaw_transform_consistency(
+     depth: torch.Tensor, img_w: int, angles_deg: Tuple[float, ...]
+ ) -> Dict[float, float]:
+diff --git a/src/training/diffusion.py b/src/training/diffusion.py
+index 9260907..3f33619 100644
+--- a/src/training/diffusion.py
++++ b/src/training/diffusion.py
+@@ -15,6 +15,7 @@ from pytorch_lightning.utilities.rank_zero import rank_zero_only
+ 
+ from ..inference.sampling import get_alphas_sigmas, sample, sample_discrete_euler, sample_flow_pingpong, truncated_logistic_normal_rescaled, DistributionShift, sample_timesteps_logsnr
+ from ..models.diffusion import ConditionedDiffusionModelWrapper
++from ..data.yaw_rotation import frame_averaged_conditioning
+ from .losses import MSELoss, MultiLoss
+ from .utils import create_optimizer_from_config, create_scheduler_from_config, log_metric
+ 
+@@ -55,12 +56,17 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
+             timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+             validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+             p_one_shot: float = 0.0,
++            cond_method: str = "vanilla",
++            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+             test_param: tp.Optional[tp.Dict[str, tp.Any]] = None
+     ):
+         super().__init__()
+ 
+         self.diffusion = model
+ 
++        self.cond_method = cond_method
++        self.frame_avg_angles = frame_avg_angles if frame_avg_angles is not None else [0.0, 90.0, 180.0, 270.0]
++
+         if use_ema:
+             self.diffusion_ema = EMA(
+                 self.diffusion.model,
+@@ -202,7 +208,12 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
+             loss_info["audio_reals"] = diffusion_input
+ 
+         p.tick("setup")
+-        conditioning = self.diffusion.conditioner(metadata, self.device)
++        # Frame-averaged conditioning injects yaw-invariance as a physical inductive
++        # bias; "vanilla" reproduces the original single-orientation conditioning.
++        if self.cond_method == "frame_avg":
++            conditioning = frame_averaged_conditioning(self.diffusion.conditioner, metadata, self.device, self.frame_avg_angles)
++        else:
++            conditioning = self.diffusion.conditioner(metadata, self.device)
+ 
+         # If mask_padding is on, randomly drop the padding masks to allow for learning silence padding
+         use_padding_mask = self.mask_padding and random.random() > self.mask_padding_dropout
+diff --git a/src/training/factory.py b/src/training/factory.py
+index 55bd21a..269cb10 100644
+--- a/src/training/factory.py
++++ b/src/training/factory.py
+@@ -71,6 +71,8 @@ def create_training_wrapper_from_config(model_config, model):
+             timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+             timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+             p_one_shot=training_config.get("p_one_shot", 0.0),
++            cond_method=training_config.get("cond_method", "vanilla"),
++            frame_avg_angles=training_config.get("frame_avg_angles", None),
+             test_param = model_config.get("test_setup", None),
+         )
+     

@@ -1,4 +1,0 @@
-=== R1-gate diagnostic: eval shipped NON-EMA FLAC.ckpt (online weights), K=1/K=8, seed 42 — 2026-07-05 06:13:05 ===
-Test/RIR_to_geom_R@10 (%) 24.3175
-Metrics saved to weights/FLAC/FLAC_metrics_1_1.0_exp03_diag_onlineckpt_K1.json
-Evaluation complete!

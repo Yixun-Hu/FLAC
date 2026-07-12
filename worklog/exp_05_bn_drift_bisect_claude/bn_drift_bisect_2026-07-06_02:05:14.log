@@ -1,7 +1,0 @@
-=== B-1 pilot — 2026-07-06 02:05:14 — code 8b426e7 ===
-usage: bn_drift_probe.py [-h] --ckpt-path CKPT_PATH --dataset-config
-                         DATASET_CONFIG [--n-batches N_BATCHES]
-                         [--batch-size BATCH_SIZE] [--device DEVICE]
-                         [--seed SEED] [--out OUT]
-bn_drift_probe.py: error: unrecognized arguments: --model-config src/configs/model_configs/FLAC/AR/FLAC_AR.json
-=== B-1 exit=0 ===

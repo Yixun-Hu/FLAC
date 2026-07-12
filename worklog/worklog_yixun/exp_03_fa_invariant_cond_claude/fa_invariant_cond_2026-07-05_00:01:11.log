@@ -1,0 +1,22 @@
+=== exp_03 validation ladder rungs a/c/d — 2026-07-05 00:01:11 — code state: baf6902 ===
+/home/yixunhu/miniconda3/envs/rir2rir/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/rir2rir/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/rir2rir/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+[setup] conditioner loaded (missing=0, unexpected=0)
+Running json scandir...
+Found 6337 files in 17 subfolders
+Traceback (most recent call last):
+  File "<stdin>", line 20, in <module>
+  File "/home/yixunhu/codespace/FLAC/src/data/dataset.py", line 405, in create_dataloader_from_config
+    return torch.utils.data.DataLoader(train_set, batch_size, shuffle=shuffle,
+  File "/home/yixunhu/miniconda3/envs/rir2rir/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 282, in __init__
+    raise ValueError("persistent_workers option needs num_workers > 0")
+ValueError: persistent_workers option needs num_workers > 0
+=== rungs a/c/d done, exit=1 ===

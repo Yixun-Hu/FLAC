@@ -1,0 +1,150 @@
+{
+  "ckpt_path": "weights/FLAC/FLAC_EMA.ckpt",
+  "load_missing": 0,
+  "load_unexpected": 0,
+  "n_bn_layers": 20,
+  "per_layer": {
+    "cnn.bn1": {
+      "mean_shift_max": 0.3077244162559509,
+      "mean_shift_mean": 0.22239427268505096,
+      "var_ratio_min": 0.9632579684257507,
+      "var_ratio_max": 1.1239690780639648,
+      "n_channels": 64
+    },
+    "cnn.layer1.0.bn1": {
+      "mean_shift_max": 0.3234093189239502,
+      "mean_shift_mean": 0.16668689250946045,
+      "var_ratio_min": 0.831044614315033,
+      "var_ratio_max": 1.2544615268707275,
+      "n_channels": 64
+    },
+    "cnn.layer1.0.bn2": {
+      "mean_shift_max": 0.3085939884185791,
+      "mean_shift_mean": 0.14501073956489563,
+      "var_ratio_min": 0.804472029209137,
+      "var_ratio_max": 1.2303121089935303,
+      "n_channels": 64
+    },
+    "cnn.layer1.1.bn1": {
+      "mean_shift_max": 0.32650303840637207,
+      "mean_shift_mean": 0.14917366206645966,
+      "var_ratio_min": 0.815605103969574,
+      "var_ratio_max": 1.256740689277649,
+      "n_channels": 64
+    },
+    "cnn.layer1.1.bn2": {
+      "mean_shift_max": 0.2969560921192169,
+      "mean_shift_mean": 0.14111238718032837,
+      "var_ratio_min": 0.8529379367828369,
+      "var_ratio_max": 1.223947525024414,
+      "n_channels": 64
+    },
+    "cnn.layer2.0.bn1": {
+      "mean_shift_max": 0.3430713713169098,
+      "mean_shift_mean": 0.12459678947925568,
+      "var_ratio_min": 0.807439923286438,
+      "var_ratio_max": 1.386473298072815,
+      "n_channels": 128
+    },
+    "cnn.layer2.0.bn2": {
+      "mean_shift_max": 0.3619530498981476,
+      "mean_shift_mean": 0.13462375104427338,
+      "var_ratio_min": 0.757232666015625,
+      "var_ratio_max": 1.447195053100586,
+      "n_channels": 128
+    },
+    "cnn.layer2.0.downsample.1": {
+      "mean_shift_max": 0.3693406581878662,
+      "mean_shift_mean": 0.11147095263004303,
+      "var_ratio_min": 0.8207221627235413,
+      "var_ratio_max": 1.292961835861206,
+      "n_channels": 128
+    },
+    "cnn.layer2.1.bn1": {
+      "mean_shift_max": 0.2670888900756836,
+      "mean_shift_mean": 0.11151187866926193,
+      "var_ratio_min": 0.7867578864097595,
+      "var_ratio_max": 1.3625859022140503,
+      "n_channels": 128
+    },
+    "cnn.layer2.1.bn2": {
+      "mean_shift_max": 0.2582714259624481,
+      "mean_shift_mean": 0.09390775114297867,
+      "var_ratio_min": 0.7590887546539307,
+      "var_ratio_max": 1.2482373714447021,
+      "n_channels": 128
+    },
+    "cnn.layer3.0.bn1": {
+      "mean_shift_max": 0.3781517744064331,
+      "mean_shift_mean": 0.11462783813476562,
+      "var_ratio_min": 0.6887134909629822,
+      "var_ratio_max": 1.4944273233413696,
+      "n_channels": 256
+    },
+    "cnn.layer3.0.bn2": {
+      "mean_shift_max": 0.3686639964580536,
+      "mean_shift_mean": 0.11803944408893585,
+      "var_ratio_min": 0.7031724452972412,
+      "var_ratio_max": 1.5809910297393799,
+      "n_channels": 256
+    },
+    "cnn.layer3.0.downsample.1": {
+      "mean_shift_max": 0.3805132508277893,
+      "mean_shift_mean": 0.10504443943500519,
+      "var_ratio_min": 0.7568569183349609,
+      "var_ratio_max": 1.3912198543548584,
+      "n_channels": 256
+    },
+    "cnn.layer3.1.bn1": {
+      "mean_shift_max": 0.501887857913971,
+      "mean_shift_mean": 0.09729743003845215,
+      "var_ratio_min": 0.7772980332374573,
+      "var_ratio_max": 1.4688535928726196,
+      "n_channels": 256
+    },
+    "cnn.layer3.1.bn2": {
+      "mean_shift_max": 0.3318972885608673,
+      "mean_shift_mean": 0.08695632219314575,
+      "var_ratio_min": 0.7740369439125061,
+      "var_ratio_max": 1.483306884765625,
+      "n_channels": 256
+    },
+    "cnn.layer4.0.bn1": {
+      "mean_shift_max": 0.4603852331638336,
+      "mean_shift_mean": 0.11761660873889923,
+      "var_ratio_min": 0.6310311555862427,
+      "var_ratio_max": 1.7006255388259888,
+      "n_channels": 512
+    },
+    "cnn.layer4.0.bn2": {
+      "mean_shift_max": 0.5695960521697998,
+      "mean_shift_mean": 0.14989377558231354,
+      "var_ratio_min": 0.5955113172531128,
+      "var_ratio_max": 2.138385534286499,
+      "n_channels": 512
+    },
+    "cnn.layer4.0.downsample.1": {
+      "mean_shift_max": 0.44232267141342163,
+      "mean_shift_mean": 0.12983796000480652,
+      "var_ratio_min": 0.628343939781189,
+      "var_ratio_max": 1.8363378047943115,
+      "n_channels": 512
+    },
+    "cnn.layer4.1.bn1": {
+      "mean_shift_max": 0.7077810168266296,
+      "mean_shift_mean": 0.18338948488235474,
+      "var_ratio_min": 0.5772004723548889,
+      "var_ratio_max": 1.7644015550613403,
+      "n_channels": 512
+    },
+    "cnn.layer4.1.bn2": {
+      "mean_shift_max": 0.7640802264213562,
+      "mean_shift_mean": 0.24154707789421082,
+      "var_ratio_min": 0.3200604021549225,
+      "var_ratio_max": 1.5007407665252686,
+      "n_channels": 512
+    }
+  },
+  "n_batches": 200,
+  "n_samples": 3200
+}
