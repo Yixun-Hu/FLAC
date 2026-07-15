@@ -33,7 +33,8 @@ import eval_FLAC  # noqa: E402  (heavy but side-effect-free at import; argparse 
 
 # The exp_02 comparator lives in a worklog dir that is not a package; add it to
 # sys.path so ``import compare_predictions`` resolves to the real file.
-_EXP02_DIR = Path(__file__).resolve().parents[2] / "worklog" / "exp_02_yaw_noninvariance_claude"
+_EXP02_DIR = (Path(__file__).resolve().parents[2]
+              / "worklog" / "worklog_yixun" / "exp_02_yaw_noninvariance_claude")
 if str(_EXP02_DIR) not in sys.path:
     sys.path.insert(0, str(_EXP02_DIR))
 import compare_predictions  # noqa: E402

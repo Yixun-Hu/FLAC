@@ -13,6 +13,7 @@ import torchvision.models as models
 import numpy as np
 
 from .simplevit import SimpleViT
+from .cyl_vit import CylindricalViT
 from transformers import AutoModel, AutoConfig
 
 
@@ -182,6 +183,7 @@ class GeometryConditioner(Conditioner):
                  max_value: float = 5.0,
                  dim: int = 512,
                  model_type: str = "vit",
+                 token_pool: str = "linear",
                  name="GeometryConditioner"):
         super().__init__(dim, output_dim, project_out=False)
         self.name = name
@@ -190,6 +192,7 @@ class GeometryConditioner(Conditioner):
         self.lin_proj = lin_proj
         self.max_value = max_value
         self.model_type = model_type    
+        self.token_pool = token_pool
 
     def forward(self, coord, device: tp.Union[torch.device, str] = "cuda") -> tp.Tuple[torch.Tensor, torch.Tensor]:
         self.vit.to(device)
@@ -215,7 +218,12 @@ class GeometryConditioner(Conditioner):
             elif self.model_type == 'vit':
                 c = self.vit(c) 
                 c = self.proj_out(c) 
-                c = self.lin_proj(c.permute(0, 2, 1)).squeeze(-1).unsqueeze(1)  # [B, 1, D]
+                if self.token_pool == "mean":
+                    c = c.mean(dim=1, keepdim=True)  # [B, 1, D]
+                elif self.token_pool == "linear":
+                    c = self.lin_proj(c.permute(0, 2, 1)).squeeze(-1).unsqueeze(1)  # [B, 1, D]
+                else:
+                    raise ValueError(f"Unknown token_pool: {self.token_pool}")
             else: 
                 raise NotImplementedError('model_type must be either "dino" or "vit"')
             encoded_coords.append(c)
@@ -400,10 +408,36 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                     vit_proj = nn.Identity()
                     model_type = 'dino'
 
+                elif vit_config.get('arch') == 'cyl_vit':
+                    vit_model = CylindricalViT(
+                        in_channels=vit_config.get('ch_dim', 3),
+                        image_size=(vit_config['img_h'], vit_config['img_w']),
+                        patch_size=(vit_config['patch_h'], vit_config['patch_w']),
+                        dim=vit_config.get('dim', 512),
+                        depth=vit_config.get('depth', 12),
+                        heads=vit_config.get('heads', 8),
+                        dim_head=vit_config.get('dim_head', 64),
+                        mlp_dim=vit_config.get('mlp_dim', vit_config.get('dim', 512)),
+                        patch_embed_type=vit_config.get('patch_embed_type', 'linear'),
+                    )
+                    vit_proj = nn.Linear(vit_config.get('dim', 512), cond_dim) if cond_dim != vit_config.get('dim', 512) else nn.Identity()
+                    lin_proj = nn.Linear(vit_model.num_tokens, 1)
+                    model_type = 'vit'
+
                 else: # Simple ViT Encoder (from xRIR)
-                    vit_model = SimpleViT(image_size=(vit_config['img_h'],vit_config['img_w']), patch_size=(vit_config['patch_h'], vit_config['patch_w']), dim=512, depth=12, heads=8, mlp_dim=512, channels=vit_config.get('ch_dim', 3))
-                    vit_proj = nn.Linear(512, cond_dim) if cond_dim != 512 else nn.Identity() 
-                    lin_proj = nn.Linear(256, 1) 
+                    vit_dim = vit_config.get('dim', 512)
+                    vit_model = SimpleViT(
+                        image_size=(vit_config['img_h'], vit_config['img_w']),
+                        patch_size=(vit_config['patch_h'], vit_config['patch_w']),
+                        dim=vit_dim,
+                        depth=vit_config.get('depth', 12),
+                        heads=vit_config.get('heads', 8),
+                        mlp_dim=vit_config.get('mlp_dim', vit_dim),
+                        channels=vit_config.get('ch_dim', 3),
+                    )
+                    vit_proj = nn.Linear(vit_dim, cond_dim) if cond_dim != vit_dim else nn.Identity()
+                    num_tokens = (vit_config['img_h'] // vit_config['patch_h']) * (vit_config['img_w'] // vit_config['patch_w'])
+                    lin_proj = nn.Linear(num_tokens, 1)
                     model_type = 'vit'
             else:
                 conditioner_config.pop("ViT", None)

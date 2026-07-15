@@ -1,0 +1,326 @@
+[
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 22.5,
+    "roll_columns": 32,
+    "max_abs": 0.2567044496536255,
+    "l2": 1.367117166519165,
+    "cosine_distance": 0.01773369312286377
+  },
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 45.0,
+    "roll_columns": 64,
+    "max_abs": 0.5656259655952454,
+    "l2": 2.832195281982422,
+    "cosine_distance": 0.07850956916809082
+  },
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 67.5,
+    "roll_columns": 96,
+    "max_abs": 0.9719768762588501,
+    "l2": 4.7708234786987305,
+    "cosine_distance": 0.2429126501083374
+  },
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 90.0,
+    "roll_columns": 128,
+    "max_abs": 1.5886601209640503,
+    "l2": 7.4058685302734375,
+    "cosine_distance": 0.6578430831432343
+  },
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 112.5,
+    "roll_columns": 160,
+    "max_abs": 2.027437448501587,
+    "l2": 10.033202171325684,
+    "cosine_distance": 1.1301106810569763
+  },
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 135.0,
+    "roll_columns": 192,
+    "max_abs": 2.2175729274749756,
+    "l2": 11.690449714660645,
+    "cosine_distance": 1.330186665058136
+  },
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 157.5,
+    "roll_columns": 224,
+    "max_abs": 2.516782760620117,
+    "l2": 12.405118942260742,
+    "cosine_distance": 1.3742040991783142
+  },
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 180.0,
+    "roll_columns": 256,
+    "max_abs": 2.6346118450164795,
+    "l2": 12.510955810546875,
+    "cosine_distance": 1.3510321974754333
+  },
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 202.5,
+    "roll_columns": 288,
+    "max_abs": 2.6163673400878906,
+    "l2": 12.164360046386719,
+    "cosine_distance": 1.2817210853099823
+  },
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 225.0,
+    "roll_columns": 320,
+    "max_abs": 2.4683661460876465,
+    "l2": 11.35598087310791,
+    "cosine_distance": 1.1559668630361557
+  },
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 247.5,
+    "roll_columns": 352,
+    "max_abs": 2.1596155166625977,
+    "l2": 9.969443321228027,
+    "cosine_distance": 0.9446356743574142
+  },
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 270.0,
+    "roll_columns": 384,
+    "max_abs": 1.6757187843322754,
+    "l2": 7.958284378051758,
+    "cosine_distance": 0.6354545652866364
+  },
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 292.5,
+    "roll_columns": 416,
+    "max_abs": 1.0969970226287842,
+    "l2": 5.603496551513672,
+    "cosine_distance": 0.3166189193725586
+  },
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 315.0,
+    "roll_columns": 448,
+    "max_abs": 0.5849668383598328,
+    "l2": 3.380648374557495,
+    "cosine_distance": 0.11149567365646362
+  },
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 337.5,
+    "roll_columns": 480,
+    "max_abs": 0.26740339398384094,
+    "l2": 1.5254969596862793,
+    "cosine_distance": 0.022081434726715088
+  },
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 5.0,
+    "roll_columns": 7,
+    "max_abs": 0.14272642135620117,
+    "l2": 0.7997235059738159,
+    "cosine_distance": 0.006026506423950195
+  },
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 10.0,
+    "roll_columns": 14,
+    "max_abs": 0.16581690311431885,
+    "l2": 0.8603184223175049,
+    "cosine_distance": 0.006983518600463867
+  },
+  {
+    "model": "simple_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 15.0,
+    "roll_columns": 21,
+    "max_abs": 0.21481509506702423,
+    "l2": 1.2016860246658325,
+    "cosine_distance": 0.013687372207641602
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 22.5,
+    "roll_columns": 32,
+    "max_abs": 1.4901161193847656e-07,
+    "l2": 5.621398031507852e-07,
+    "cosine_distance": -1.1920928955078125e-07
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 45.0,
+    "roll_columns": 64,
+    "max_abs": 1.1920928955078125e-07,
+    "l2": 6.241178311938711e-07,
+    "cosine_distance": -1.1920928955078125e-07
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 67.5,
+    "roll_columns": 96,
+    "max_abs": 1.4901161193847656e-07,
+    "l2": 6.414542781385535e-07,
+    "cosine_distance": 0.0
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 90.0,
+    "roll_columns": 128,
+    "max_abs": 1.7881393432617188e-07,
+    "l2": 7.434502435899049e-07,
+    "cosine_distance": 0.0
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 112.5,
+    "roll_columns": 160,
+    "max_abs": 1.7881393432617188e-07,
+    "l2": 7.15141595719615e-07,
+    "cosine_distance": 0.0
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 135.0,
+    "roll_columns": 192,
+    "max_abs": 1.1920928955078125e-07,
+    "l2": 7.489070412702858e-07,
+    "cosine_distance": -1.1920928955078125e-07
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 157.5,
+    "roll_columns": 224,
+    "max_abs": 1.7881393432617188e-07,
+    "l2": 8.022983024602581e-07,
+    "cosine_distance": -1.1920928955078125e-07
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 180.0,
+    "roll_columns": 256,
+    "max_abs": 1.4901161193847656e-07,
+    "l2": 8.271937872450508e-07,
+    "cosine_distance": -1.1920928955078125e-07
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 202.5,
+    "roll_columns": 288,
+    "max_abs": 1.4901161193847656e-07,
+    "l2": 7.625474722772196e-07,
+    "cosine_distance": 0.0
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 225.0,
+    "roll_columns": 320,
+    "max_abs": 1.7881393432617188e-07,
+    "l2": 7.564048019048641e-07,
+    "cosine_distance": -1.1920928955078125e-07
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 247.5,
+    "roll_columns": 352,
+    "max_abs": 1.4901161193847656e-07,
+    "l2": 7.518066240663757e-07,
+    "cosine_distance": 0.0
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 270.0,
+    "roll_columns": 384,
+    "max_abs": 1.4901161193847656e-07,
+    "l2": 7.22820800547197e-07,
+    "cosine_distance": -1.1920928955078125e-07
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 292.5,
+    "roll_columns": 416,
+    "max_abs": 1.7881393432617188e-07,
+    "l2": 7.184743253674242e-07,
+    "cosine_distance": 0.0
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 315.0,
+    "roll_columns": 448,
+    "max_abs": 1.4901161193847656e-07,
+    "l2": 7.053876061036135e-07,
+    "cosine_distance": 5.960464477539063e-08
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 337.5,
+    "roll_columns": 480,
+    "max_abs": 1.1920928955078125e-07,
+    "l2": 6.165462878016115e-07,
+    "cosine_distance": -1.1920928955078125e-07
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 5.0,
+    "roll_columns": 7,
+    "max_abs": 0.1578340232372284,
+    "l2": 0.8469126224517822,
+    "cosine_distance": 0.013925552368164062
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 10.0,
+    "roll_columns": 14,
+    "max_abs": 0.15066471695899963,
+    "l2": 0.8951820731163025,
+    "cosine_distance": 0.01549595594406128
+  },
+  {
+    "model": "cyl_vit",
+    "conditioner_key": "source_vit",
+    "angle_deg": 15.0,
+    "roll_columns": 21,
+    "max_abs": 0.16251008212566376,
+    "l2": 0.8800566792488098,
+    "cosine_distance": 0.014368414878845215
+  }
+]

@@ -1,0 +1,5 @@
+nohup: ignoring input
+SimpleViT PID=893361 log=worklog/exp_05_cylvit_yaw_ablation_claude/simplevit_phase3_total30k_s42_gpu0.log
+CylViT PID=893362 log=worklog/exp_05_cylvit_yaw_ablation_claude/cylvit_phase3_total30k_s42_gpu1.log
+Each process trains first, then evaluates its own milestone checkpoints.
+Monitor: ps -p 893361,893362 -o pid,ppid,stat,etime,cmd

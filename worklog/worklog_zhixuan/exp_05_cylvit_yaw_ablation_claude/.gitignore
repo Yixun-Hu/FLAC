@@ -1,0 +1,4 @@
+# These two training logs exceed GitHub's 100 MB per-file hard limit and are
+# kept local only. Their content is summarized in phase3_*_convergence.md.
+cylvit_phase3_total30k_resume.log
+simplevit_phase3_total30k_resume.log
