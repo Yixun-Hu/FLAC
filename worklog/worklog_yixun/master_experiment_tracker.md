@@ -10,9 +10,9 @@ Living index — one row per experiment; updated at every session handoff/compac
 | 04 | warmup_unblock | **CLOSED** | Warmup hypothesis falsified (W0/W1) | 〃 |
 | 05 | bn_drift_bisect | **CLOSED** | BN-drift hypothesis falsified; V1′ freeze-bn control established (K=8 T60 9.235) | 〃 |
 | 06 | gradpath_bisect | **CLOSED** | Fine-tune damage = convergence to our objective's optimum, not corruption; monotone worse with lr; lineage explanations narrowed to data/env or checkpoint selection | `9ef9003` closure |
-| 07 | fa_scratch | **ACTIVE — at the B-V gate** | Config-identity audit (eff-batch 64 correction, `8ae9837`); `--max-steps` TDD (`e85ebde`); M0 → pair 8×8 (`70dea5a`); B-V trained to 67,500 @ exact endpoint parity (epoch 14, lr 4.84e-5); screens S10k–60k logged; **gate evals running, decision package next** | `4d07611`…`ecb8352`, `cb85fd0` (worklog move) |
+| 07 | fa_scratch | **ACTIVE — GATE FAILED strict (1/6), STOPPED per GO step 5; Yixun decision pending** | B-V@67.5k: T60 endpoint-draw (band [8.34,9.52] contains released 8.609; endpoint = band max), EDT systematic +2.5–5.6, C50 at target (K=1 PASS-superior; K=8 out by 1e-4), R@1 climbing to 6.2; 291k independent run corroborates the same signature ⇒ lineage (data/simulator version), not our bug | `4d07611`…`ecb8352`, `cb85fd0` (worklog move) |
 | 08 | fa_matched | **CLOSED** | Minimum project goal on a trained model: H-A2/H-A3 PASS (exact C₄, ~90× below vanilla gap); strict H-A1 FAIL with seed-robust T60 gain (−0.44 K=8); K=8 EDT/C50 seed-indeterminate, K=1 remain | `a3e8cf5` closure |
 
 **Project goals:** minimum = cylindrical sanity check pass (✅ achieved, exp_08); maximum = beat released Table-1 K=1/K=8 (open — exp_07 B-F pending gate).
 
-**In flight right now:** exp_07 gate block (15 evals, GPU 1) → `gate_verdict.py` → decision package to Yixun (stop-and-ask). B-F (~9.6 d) awaits Yixun's word.
+**In flight right now:** nothing — GPU 1 idle. exp_07 B-F (~9.6 d) awaits Yixun's gate decision (options: proceed-reframed / extend B-V / investigate lineage / stop).

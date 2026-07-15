@@ -1,0 +1,228 @@
+=== exp_07 GATE BLOCK — 2026-07-14_21:36:23 — code ecb8352 — B-V final ckpt epoch=14-step=67500 ===
+
+=== [21:36:23] exp07_BV_gate_K8_seed42 start ===
+Test/T60 (%) 9.5156
+Test/Invalid T60 0.0
+Test/C50 (dB) 0.974
+Test/EDT (ms) 42.7631
+Test/FD 0.3197
+Test/RIR_to_GT_RIR_R@1 (%) 6.1701
+Test/RIR_to_GT_RIR_R@5 (%) 18.1316
+Test/RIR_to_GT_RIR_R@10 (%) 25.8955
+Test/RIR_to_geom_R@1 (%) 4.9235
+Test/RIR_to_geom_R@5 (%) 15.7961
+Test/RIR_to_geom_R@10 (%) 23.56
+Metrics saved to outputs_FLAC/exp07_BV/epoch=14-step=67500_metrics_1_1.0_exp07_BV_gate_K8_seed42.json
+=== exp07_BV_gate_K8_seed42 exit=0 ===
+
+=== [21:44:09] exp07_BV_gate_K8_seed43 start ===
+Test/T60 (%) 9.5073
+Test/Invalid T60 0.0
+Test/C50 (dB) 0.974
+Test/EDT (ms) 42.7756
+Test/FD 0.3193
+Test/RIR_to_GT_RIR_R@1 (%) 6.2964
+Test/RIR_to_GT_RIR_R@5 (%) 18.2105
+Test/RIR_to_GT_RIR_R@10 (%) 25.8955
+Test/RIR_to_geom_R@1 (%) 4.9708
+Test/RIR_to_geom_R@5 (%) 15.7646
+Test/RIR_to_geom_R@10 (%) 23.5916
+Metrics saved to outputs_FLAC/exp07_BV/epoch=14-step=67500_metrics_1_1.0_exp07_BV_gate_K8_seed43.json
+=== exp07_BV_gate_K8_seed43 exit=0 ===
+
+=== [21:51:49] exp07_BV_gate_K8_seed44 start ===
+Test/T60 (%) 9.5141
+Test/Invalid T60 0.0
+Test/C50 (dB) 0.9759
+Test/EDT (ms) 42.8093
+Test/FD 0.3195
+Test/RIR_to_GT_RIR_R@1 (%) 6.1386
+Test/RIR_to_GT_RIR_R@5 (%) 18.321
+Test/RIR_to_GT_RIR_R@10 (%) 26.0849
+Test/RIR_to_geom_R@1 (%) 4.8919
+Test/RIR_to_geom_R@5 (%) 15.8119
+Test/RIR_to_geom_R@10 (%) 23.6705
+Metrics saved to outputs_FLAC/exp07_BV/epoch=14-step=67500_metrics_1_1.0_exp07_BV_gate_K8_seed44.json
+=== exp07_BV_gate_K8_seed44 exit=0 ===
+
+=== [21:59:27] exp07_BV_gate_K8_seed45 start ===
+Test/T60 (%) 9.4985
+Test/Invalid T60 0.0
+Test/C50 (dB) 0.9751
+Test/EDT (ms) 42.6883
+Test/FD 0.3195
+Test/RIR_to_GT_RIR_R@1 (%) 6.1859
+Test/RIR_to_GT_RIR_R@5 (%) 18.2263
+Test/RIR_to_GT_RIR_R@10 (%) 26.0691
+Test/RIR_to_geom_R@1 (%) 4.9077
+Test/RIR_to_geom_R@5 (%) 15.7646
+Test/RIR_to_geom_R@10 (%) 23.781
+Metrics saved to outputs_FLAC/exp07_BV/epoch=14-step=67500_metrics_1_1.0_exp07_BV_gate_K8_seed45.json
+=== exp07_BV_gate_K8_seed45 exit=0 ===
+
+=== [22:07:09] exp07_BV_gate_K8_seed46 start ===
+Test/T60 (%) 9.509
+Test/Invalid T60 0.0
+Test/C50 (dB) 0.9739
+Test/EDT (ms) 42.6986
+Test/FD 0.3193
+Test/RIR_to_GT_RIR_R@1 (%) 6.107
+Test/RIR_to_GT_RIR_R@5 (%) 18.1158
+Test/RIR_to_GT_RIR_R@10 (%) 25.9429
+Test/RIR_to_geom_R@1 (%) 4.9077
+Test/RIR_to_geom_R@5 (%) 15.8908
+Test/RIR_to_geom_R@10 (%) 23.4654
+Metrics saved to outputs_FLAC/exp07_BV/epoch=14-step=67500_metrics_1_1.0_exp07_BV_gate_K8_seed46.json
+=== exp07_BV_gate_K8_seed46 exit=0 ===
+
+=== [22:14:45] exp07_BV_gate_K1_seed42 start ===
+Test/T60 (%) 10.507
+Test/Invalid T60 0.0
+Test/C50 (dB) 1.029
+Test/EDT (ms) 44.3171
+Test/FD 0.3142
+Test/RIR_to_GT_RIR_R@1 (%) 6.1543
+Test/RIR_to_GT_RIR_R@5 (%) 17.7213
+Test/RIR_to_GT_RIR_R@10 (%) 25.3906
+Test/RIR_to_geom_R@1 (%) 4.6868
+Test/RIR_to_geom_R@5 (%) 15.1965
+Test/RIR_to_geom_R@10 (%) 22.9288
+Metrics saved to outputs_FLAC/exp07_BV/epoch=14-step=67500_metrics_1_1.0_exp07_BV_gate_K1_seed42.json
+=== exp07_BV_gate_K1_seed42 exit=0 ===
+
+=== [22:21:36] exp07_BV_gate_K1_seed43 start ===
+Test/T60 (%) 10.4832
+Test/Invalid T60 0.0
+Test/C50 (dB) 1.03
+Test/EDT (ms) 44.8237
+Test/FD 0.3144
+Test/RIR_to_GT_RIR_R@1 (%) 5.9965
+Test/RIR_to_GT_RIR_R@5 (%) 17.7844
+Test/RIR_to_GT_RIR_R@10 (%) 25.5641
+Test/RIR_to_geom_R@1 (%) 4.813
+Test/RIR_to_geom_R@5 (%) 15.3069
+Test/RIR_to_geom_R@10 (%) 23.4654
+Metrics saved to outputs_FLAC/exp07_BV/epoch=14-step=67500_metrics_1_1.0_exp07_BV_gate_K1_seed43.json
+=== exp07_BV_gate_K1_seed43 exit=0 ===
+
+=== [22:28:24] exp07_BV_gate_K1_seed44 start ===
+Test/T60 (%) 10.4591
+Test/Invalid T60 0.0
+Test/C50 (dB) 1.0382
+Test/EDT (ms) 44.9369
+Test/FD 0.3149
+Test/RIR_to_GT_RIR_R@1 (%) 5.9965
+Test/RIR_to_GT_RIR_R@5 (%) 17.9107
+Test/RIR_to_GT_RIR_R@10 (%) 25.6115
+Test/RIR_to_geom_R@1 (%) 4.6079
+Test/RIR_to_geom_R@5 (%) 15.37
+Test/RIR_to_geom_R@10 (%) 23.1971
+Metrics saved to outputs_FLAC/exp07_BV/epoch=14-step=67500_metrics_1_1.0_exp07_BV_gate_K1_seed44.json
+=== exp07_BV_gate_K1_seed44 exit=0 ===
+
+=== [22:35:15] exp07_BV_gate_K1_seed45 start ===
+Test/T60 (%) 10.5536
+Test/Invalid T60 0.0
+Test/C50 (dB) 1.0275
+Test/EDT (ms) 44.5927
+Test/FD 0.3146
+Test/RIR_to_GT_RIR_R@1 (%) 5.9807
+Test/RIR_to_GT_RIR_R@5 (%) 17.816
+Test/RIR_to_GT_RIR_R@10 (%) 25.4221
+Test/RIR_to_geom_R@1 (%) 4.8919
+Test/RIR_to_geom_R@5 (%) 15.4963
+Test/RIR_to_geom_R@10 (%) 22.8815
+Metrics saved to outputs_FLAC/exp07_BV/epoch=14-step=67500_metrics_1_1.0_exp07_BV_gate_K1_seed45.json
+=== exp07_BV_gate_K1_seed45 exit=0 ===
+
+=== [22:42:08] exp07_BV_gate_K1_seed46 start ===
+Test/T60 (%) 10.5631
+Test/Invalid T60 0.0
+Test/C50 (dB) 1.0404
+Test/EDT (ms) 44.6029
+Test/FD 0.3145
+Test/RIR_to_GT_RIR_R@1 (%) 6.0596
+Test/RIR_to_GT_RIR_R@5 (%) 18.1158
+Test/RIR_to_GT_RIR_R@10 (%) 25.6115
+Test/RIR_to_geom_R@1 (%) 4.7972
+Test/RIR_to_geom_R@5 (%) 15.5752
+Test/RIR_to_geom_R@10 (%) 23.276
+Metrics saved to outputs_FLAC/exp07_BV/epoch=14-step=67500_metrics_1_1.0_exp07_BV_gate_K1_seed46.json
+=== exp07_BV_gate_K1_seed46 exit=0 ===
+
+=== [22:48:59] exp07_291k_corrob_K8_s42 start ===
+Test/T60 (%) 9.9242
+Test/Invalid T60 0.0
+Test/C50 (dB) 0.9673
+Test/EDT (ms) 40.7515
+Test/FD 0.3071
+Test/RIR_to_GT_RIR_R@1 (%) 6.8329
+Test/RIR_to_GT_RIR_R@5 (%) 19.0942
+Test/RIR_to_GT_RIR_R@10 (%) 26.9055
+Test/RIR_to_geom_R@1 (%) 5.6336
+Test/RIR_to_geom_R@5 (%) 16.6956
+Test/RIR_to_geom_R@10 (%) 24.1124
+Metrics saved to /home/yixunhu/codespace/rir2rir-oneroom/test/flac_codec/flac_arbitrary_rx_eval/outputs_291k_scratch_vanilla/epoch=14-step=67500_metrics_1_1.0_exp07_291k_corrob_K8_s42.json
+=== exp07_291k_corrob_K8_s42 exit=0 ===
+
+=== [22:56:49] exp07_BV_selcurve_S27500 start ===
+Test/T60 (%) 8.8399
+Test/Invalid T60 0.0
+Test/C50 (dB) 1.0123
+Test/EDT (ms) 43.9101
+Test/FD 0.3325
+Test/RIR_to_GT_RIR_R@1 (%) 4.1502
+Test/RIR_to_GT_RIR_R@5 (%) 13.4764
+Test/RIR_to_GT_RIR_R@10 (%) 20.3566
+Test/RIR_to_geom_R@1 (%) 2.8562
+Test/RIR_to_geom_R@5 (%) 11.3934
+Test/RIR_to_geom_R@10 (%) 17.7213
+Metrics saved to outputs_FLAC/exp07_BV/epoch=6-step=27500_metrics_1_1.0_exp07_BV_selcurve_S27500.json
+=== exp07_BV_selcurve_S27500 exit=0 ===
+
+=== [23:06:23] exp07_BV_selcurve_S32500 start ===
+Test/T60 (%) 8.5325
+Test/Invalid T60 0.0
+Test/C50 (dB) 0.9958
+Test/EDT (ms) 39.5971
+Test/FD 0.3185
+Test/RIR_to_GT_RIR_R@1 (%) 4.1818
+Test/RIR_to_GT_RIR_R@5 (%) 14.4232
+Test/RIR_to_GT_RIR_R@10 (%) 22.2503
+Test/RIR_to_geom_R@1 (%) 3.1087
+Test/RIR_to_geom_R@5 (%) 11.8984
+Test/RIR_to_geom_R@10 (%) 18.605
+Metrics saved to outputs_FLAC/exp07_BV/epoch=7-step=32500_metrics_1_1.0_exp07_BV_selcurve_S32500.json
+=== exp07_BV_selcurve_S32500 exit=0 ===
+
+=== [23:15:18] exp07_BV_selcurve_S62500 start ===
+Test/T60 (%) 8.6722
+Test/Invalid T60 0.0
+Test/C50 (dB) 1.0143
+Test/EDT (ms) 39.3354
+Test/FD 0.3158
+Test/RIR_to_GT_RIR_R@1 (%) 5.5547
+Test/RIR_to_GT_RIR_R@5 (%) 16.6483
+Test/RIR_to_GT_RIR_R@10 (%) 24.4595
+Test/RIR_to_geom_R@1 (%) 4.5132
+Test/RIR_to_geom_R@5 (%) 14.5179
+Test/RIR_to_geom_R@10 (%) 21.8242
+Metrics saved to outputs_FLAC/exp07_BV/epoch=13-step=62500_metrics_1_1.0_exp07_BV_selcurve_S62500.json
+=== exp07_BV_selcurve_S62500 exit=0 ===
+
+=== [23:23:10] exp07_BV_selcurve_S65000 start ===
+Test/T60 (%) 9.1519
+Test/Invalid T60 0.0
+Test/C50 (dB) 0.9704
+Test/EDT (ms) 40.6663
+Test/FD 0.3062
+Test/RIR_to_GT_RIR_R@1 (%) 6.2175
+Test/RIR_to_GT_RIR_R@5 (%) 18.5103
+Test/RIR_to_GT_RIR_R@10 (%) 26.4478
+Test/RIR_to_geom_R@1 (%) 5.1444
+Test/RIR_to_geom_R@5 (%) 15.6541
+Test/RIR_to_geom_R@10 (%) 23.4654
+Metrics saved to outputs_FLAC/exp07_BV/epoch=14-step=65000_metrics_1_1.0_exp07_BV_selcurve_S65000.json
+=== exp07_BV_selcurve_S65000 exit=0 ===
+
+=== GATE BLOCK DONE ===

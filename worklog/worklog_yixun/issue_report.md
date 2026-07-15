@@ -4,7 +4,7 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 
 ## Awaiting Yixun (decisions)
 
-1. **exp_07 B-V gate verdict** (imminent) — pre-registered strict 6/6 2σ_c gate vs released Table-1; per GO step 5, any non-pass profile stops here. Package will include: verdict table, T60 selection-curve band (oscillation [8.34, 9.15] brackets the released 8.609), 291k corroborating row, R@1-advisory shortfall (~5.8–6.5 vs 6.86), and options (proceed to B-F / extend / investigate).
+1. **exp_07 gate DECISION (DELIVERED 2026-07-14 23:40, awaiting Yixun):** strict gate FAIL 1/6 → stopped. Decomposition: T60 = endpoint draw (band contains released; endpoint = band max); EDT = real systematic +2.5–5.6 ms; C50 at target (K=1 superior; K=8 out by 1e-4 dB); R@1 advisory, climbing to 6.2 at end. 291k independent run corroborates the same signature ⇒ lineage, not bug. Options: (a) proceed to B-F reframed (primary = B-F vs B-V matched; recommended), (b) extend B-V past 67.5k, (c) investigate data/simulator lineage, (d) stop.
 
 ## Open issues / caveats (technical)
 

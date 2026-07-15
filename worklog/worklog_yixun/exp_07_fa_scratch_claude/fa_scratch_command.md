@@ -86,6 +86,34 @@ HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=1 python train.py \
 #          + online via use_ema=false eval-config copy, committed before the first screen)
 ```
 
+## B-V 10k-step SCREENS (GPU 1 co-located with B-V; first screen LAUNCHED 2026-07-12, code ecb8352; NEW worklog_yixun paths)
+
+```bash
+# per screen step S in {10000, 20000, ...}: EMA (default config) then ONLINE (use_ema=false copy),
+# K=8, eval-seed 42, full unseen split, bf16 cond-autocast:
+CUDA_VISIBLE_DEVICES=1 python eval_FLAC.py \
+  --model-config worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BV.json \
+  --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json \
+  --ckpt-path "outputs_FLAC/exp07_BV/epoch=2-step=10000.ckpt" \
+  --cond-autocast bf16 --seed 42 --steps 1 --cfg-scale 1.0 --eval-name exp07_BV_screen_S10000_ema
+# then identically with --model-config .../FLAC_AR_BV_online_eval.json --eval-name ..._online
+```
+
+## GATE BLOCK (GPU 1; LAUNCHED 2026-07-14 ~21:4x post-B-V; code ecb8352) — 15 sequential evals:
+
+```bash
+# (1) gate evals: final ckpt outputs_FLAC/exp07_BV/epoch=14-step=67500.ckpt, EMA (FLAC_AR_BV.json),
+#     K=8 (acousticroom_unseeneval.json) seeds 42..46 and K=1 (acousticroom_unseeneval_1.json) seeds 42..46
+#     -> --eval-name exp07_BV_gate_K{8,1}_seed{S}, bf16, full unseen split
+# (2) 291k corroborating screen (context-only): THEIR ckpt .../outputs_291k_scratch_vanilla/epoch=14-step=67500.ckpt
+#     under OUR protocol: FLAC_AR_BV.json, K=8, seed 42 -> exp07_291k_corrob_K8_s42
+# (3) selection-curve extras (EMA, K=8, seed 42): ckpts step in {27500, 32500, 62500, 65000}
+#     -> exp07_BV_selcurve_S{step}  (67500 point = gate K8 seed42; 30k/40k/50k/60k = screen series)
+CUDA_VISIBLE_DEVICES=1 python eval_FLAC.py --model-config worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BV.json \
+  --dataset-config src/configs/dataset_configs/AR/eval/<per-K> --ckpt-path <per-run> \
+  --cond-autocast bf16 --seed <S> --steps 1 --cfg-scale 1.0 --eval-name <per-run>
+```
+
 # M0 probe template (superseded by the launched drivers above):
 #   for MB_ACC in "64 1" "32 2" "16 4": try B-F first (constrained arm), then pin the pair for BOTH arms
 #   HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=1 python train.py --model-config worklog/exp_07_fa_scratch_claude/FLAC_AR_BF.json \

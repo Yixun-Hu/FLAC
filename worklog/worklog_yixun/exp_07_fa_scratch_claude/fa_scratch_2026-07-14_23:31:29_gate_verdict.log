@@ -1,0 +1,37 @@
+================================================================================================
+exp_07 B-V GATE — B-V@67,500 (EMA) vs released Table-1; tiered sigma_c bands
+================================================================================================
+
+--- K=8 (5 eval-seeds, full unseen split, bf16) ---
+  [GATE    ] T60                  BV    9.5089 ±0.0068 | rel    8.6090 ±0.0120 | d= +0.8999 d/sc=  +65.3 2sc=±0.0275 -> OUTSIDE(>2sc) (worse)
+  [GATE    ] C50                  BV    0.9746 ±0.0009 | rel    0.9682 ±0.0030 | d= +0.0064 d/sc=   +2.0 2sc=±0.0063 -> OUTSIDE(>2sc) (worse)
+  [GATE    ] EDT                  BV   42.7470 ±0.0518 | rel   37.1000 ±0.0700 | d= +5.6470 d/sc=  +64.8 2sc=±0.1742 -> OUTSIDE(>2sc) (worse)
+  [advisory] RIR_to_GT_RIR_R@1    BV    6.1796 ±0.0720 | rel    7.0600 ±0.1000 | d= -0.8804 d/sc=   -7.1 2sc=±0.2464 -> OUTSIDE(>2sc) (worse)
+
+--- K=1 (5 eval-seeds, full unseen split, bf16) ---
+  [GATE    ] T60                  BV   10.5132 ±0.0447 | rel    9.9690 ±0.0390 | d= +0.5442 d/sc=   +9.2 2sc=±0.1186 -> OUTSIDE(>2sc) (worse)
+  [GATE    ] C50                  BV    1.0330 ±0.0059 | rel    1.0460 ±0.0064 | d= -0.0130 d/sc=   -1.5 2sc=±0.0173 -> PASS(band<=2sc) (SUPERIOR)
+  [GATE    ] EDT                  BV   44.6547 ±0.2391 | rel   39.9500 ±0.3700 | d= +4.7047 d/sc=  +10.7 2sc=±0.8811 -> OUTSIDE(>2sc) (worse)
+  [advisory] RIR_to_GT_RIR_R@1    BV    6.0375 ±0.0720 | rel    6.8300 ±0.2200 | d= -0.7925 d/sc=   -3.4 2sc=±0.4629 -> OUTSIDE(>2sc) (worse)
+
+GATE SUMMARY: 1/6 primary cells within 2sigma_c (+0 outside-band-but-SUPERIOR); strict pre-registered PASS requires 6/6.
+Decision on any non-6/6 profile belongs to Yixun (stop-and-ask, GO step 5).
+
+--- T60/EDT selection curve (K=8, eval-seed 42, EMA) ---
+  step  10000: T60  9.8167  C50 1.2980  EDT 48.6847  FD 0.3728  R@1  1.91
+  step  20000: T60  8.9203  C50 1.0941  EDT 45.6161  FD 0.3326  R@1  3.74
+  step  27500: T60  8.8399  C50 1.0123  EDT 43.9101  FD 0.3325  R@1  4.15
+  step  30000: T60  8.3375  C50 1.0116  EDT 40.9575  FD 0.3174  R@1  4.04
+  step  32500: T60  8.5325  C50 0.9958  EDT 39.5971  FD 0.3185  R@1  4.18
+  step  40000: T60  8.6027  C50 1.0047  EDT 39.9907  FD 0.3111  R@1  4.83
+  step  50000: T60  8.9826  C50 0.9858  EDT 40.3431  FD 0.3221  R@1  5.25
+  step  60000: T60  9.1513  C50 0.9679  EDT 38.2944  FD 0.3142  R@1  5.76
+  step  62500: T60  8.6722  C50 1.0143  EDT 39.3354  FD 0.3158  R@1  5.55
+  step  65000: T60  9.1519  C50 0.9704  EDT 40.6663  FD 0.3062  R@1  6.22
+  step  67500: T60  9.5156  C50 0.9740  EDT 42.7631  FD 0.3197  R@1  6.17
+  band (steps>=20k): T60 min 8.3375 / max 9.5156 (released 8.609 INSIDE the band)
+
+291k corroborating (THEIR ckpt, OUR protocol, K=8 s42; context-only — data-folder/micro-batch/seed provenance caveats):
+  T60 9.9242  C50 0.9673  EDT 40.7515  FD 0.3071  R@1 6.83
+
+done.
