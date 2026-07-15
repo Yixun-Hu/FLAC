@@ -1,0 +1,152 @@
+=== exp_07 P0: complete the selection curve (10 unscreened ckpts >=20k) — 2026-07-15_00:29:47 — code 79d9e39 ===
+
+=== [00:29:47] selcurve S22500 start ===
+Test/T60 (%) 8.5788
+Test/Invalid T60 0.0
+Test/C50 (dB) 1.0911
+Test/EDT (ms) 44.7453
+Test/FD 0.3282
+Test/RIR_to_GT_RIR_R@1 (%) 3.7399
+Test/RIR_to_GT_RIR_R@5 (%) 12.6874
+Test/RIR_to_GT_RIR_R@10 (%) 19.8832
+Test/RIR_to_geom_R@1 (%) 2.73
+Test/RIR_to_geom_R@5 (%) 10.3361
+Test/RIR_to_geom_R@10 (%) 16.7745
+Metrics saved to outputs_FLAC/exp07_BV/epoch=4-step=22500_metrics_1_1.0_exp07_BV_selcurve_S22500.json
+=== S22500 exit=0 ===
+
+=== [00:38:15] selcurve S25000 start ===
+Test/T60 (%) 9.3237
+Test/Invalid T60 0.0
+Test/C50 (dB) 1.0431
+Test/EDT (ms) 41.9485
+Test/FD 0.326
+Test/RIR_to_GT_RIR_R@1 (%) 3.8188
+Test/RIR_to_GT_RIR_R@5 (%) 13.0503
+Test/RIR_to_GT_RIR_R@10 (%) 20.4829
+Test/RIR_to_geom_R@1 (%) 3.2192
+Test/RIR_to_geom_R@5 (%) 11.1883
+Test/RIR_to_geom_R@10 (%) 17.4688
+Metrics saved to outputs_FLAC/exp07_BV/epoch=5-step=25000_metrics_1_1.0_exp07_BV_selcurve_S25000.json
+=== S25000 exit=0 ===
+
+=== [00:45:56] selcurve S35000 start ===
+Test/T60 (%) 8.4567
+Test/Invalid T60 0.0
+Test/C50 (dB) 1.0101
+Test/EDT (ms) 38.9053
+Test/FD 0.3131
+Test/RIR_to_GT_RIR_R@1 (%) 4.2134
+Test/RIR_to_GT_RIR_R@5 (%) 14.5179
+Test/RIR_to_GT_RIR_R@10 (%) 22.4712
+Test/RIR_to_geom_R@1 (%) 3.3454
+Test/RIR_to_geom_R@5 (%) 12.0404
+Test/RIR_to_geom_R@10 (%) 19.1415
+Metrics saved to outputs_FLAC/exp07_BV/epoch=7-step=35000_metrics_1_1.0_exp07_BV_selcurve_S35000.json
+=== S35000 exit=0 ===
+
+=== [00:53:34] selcurve S37500 start ===
+Test/T60 (%) 8.5317
+Test/Invalid T60 0.0
+Test/C50 (dB) 0.9725
+Test/EDT (ms) 40.37
+Test/FD 0.3164
+Test/RIR_to_GT_RIR_R@1 (%) 4.6868
+Test/RIR_to_GT_RIR_R@5 (%) 15.0387
+Test/RIR_to_GT_RIR_R@10 (%) 23.0077
+Test/RIR_to_geom_R@1 (%) 3.6295
+Test/RIR_to_geom_R@5 (%) 12.4033
+Test/RIR_to_geom_R@10 (%) 19.4729
+Metrics saved to outputs_FLAC/exp07_BV/epoch=8-step=37500_metrics_1_1.0_exp07_BV_selcurve_S37500.json
+=== S37500 exit=0 ===
+
+=== [01:02:05] selcurve S42500 start ===
+Test/T60 (%) 8.7378
+Test/Invalid T60 0.0
+Test/C50 (dB) 0.989
+Test/EDT (ms) 39.9154
+Test/FD 0.3268
+Test/RIR_to_GT_RIR_R@1 (%) 4.6868
+Test/RIR_to_GT_RIR_R@5 (%) 15.0387
+Test/RIR_to_GT_RIR_R@10 (%) 22.487
+Test/RIR_to_geom_R@1 (%) 3.519
+Test/RIR_to_geom_R@5 (%) 12.3244
+Test/RIR_to_geom_R@10 (%) 19.4098
+Metrics saved to outputs_FLAC/exp07_BV/epoch=9-step=42500_metrics_1_1.0_exp07_BV_selcurve_S42500.json
+=== S42500 exit=0 ===
+
+=== [01:09:42] selcurve S45000 start ===
+Test/T60 (%) 8.9114
+Test/Invalid T60 0.0
+Test/C50 (dB) 0.9839
+Test/EDT (ms) 39.8359
+Test/FD 0.3155
+Test/RIR_to_GT_RIR_R@1 (%) 5.097
+Test/RIR_to_GT_RIR_R@5 (%) 16.4431
+Test/RIR_to_GT_RIR_R@10 (%) 24.0492
+Test/RIR_to_geom_R@1 (%) 4.1029
+Test/RIR_to_geom_R@5 (%) 13.9498
+Test/RIR_to_geom_R@10 (%) 21.5402
+Metrics saved to outputs_FLAC/exp07_BV/epoch=9-step=45000_metrics_1_1.0_exp07_BV_selcurve_S45000.json
+=== S45000 exit=0 ===
+
+=== [01:17:16] selcurve S47500 start ===
+Test/T60 (%) 8.7952
+Test/Invalid T60 0.0
+Test/C50 (dB) 0.9399
+Test/EDT (ms) 39.4469
+Test/FD 0.321
+Test/RIR_to_GT_RIR_R@1 (%) 4.813
+Test/RIR_to_GT_RIR_R@5 (%) 15.5752
+Test/RIR_to_GT_RIR_R@10 (%) 23.3076
+Test/RIR_to_geom_R@1 (%) 3.9766
+Test/RIR_to_geom_R@5 (%) 13.1766
+Test/RIR_to_geom_R@10 (%) 20.1515
+Metrics saved to outputs_FLAC/exp07_BV/epoch=10-step=47500_metrics_1_1.0_exp07_BV_selcurve_S47500.json
+=== S47500 exit=0 ===
+
+=== [01:24:48] selcurve S52500 start ===
+Test/T60 (%) 9.2134
+Test/Invalid T60 0.0
+Test/C50 (dB) 1.0124
+Test/EDT (ms) 41.3089
+Test/FD 0.3123
+Test/RIR_to_GT_RIR_R@1 (%) 5.5073
+Test/RIR_to_GT_RIR_R@5 (%) 17.2637
+Test/RIR_to_GT_RIR_R@10 (%) 25.4221
+Test/RIR_to_geom_R@1 (%) 4.5921
+Test/RIR_to_geom_R@5 (%) 14.5968
+Test/RIR_to_geom_R@10 (%) 22.0294
+Metrics saved to outputs_FLAC/exp07_BV/epoch=11-step=52500_metrics_1_1.0_exp07_BV_selcurve_S52500.json
+=== S52500 exit=0 ===
+
+=== [01:32:20] selcurve S55000 start ===
+Test/T60 (%) 9.2523
+Test/Invalid T60 0.0
+Test/C50 (dB) 1.0114
+Test/EDT (ms) 38.9537
+Test/FD 0.3143
+Test/RIR_to_GT_RIR_R@1 (%) 5.8861
+Test/RIR_to_GT_RIR_R@5 (%) 17.9738
+Test/RIR_to_GT_RIR_R@10 (%) 25.4063
+Test/RIR_to_geom_R@1 (%) 4.9708
+Test/RIR_to_geom_R@5 (%) 15.1018
+Test/RIR_to_geom_R@10 (%) 22.1398
+Metrics saved to outputs_FLAC/exp07_BV/epoch=12-step=55000_metrics_1_1.0_exp07_BV_selcurve_S55000.json
+=== S55000 exit=0 ===
+
+=== [01:39:54] selcurve S57500 start ===
+Test/T60 (%) 9.1858
+Test/Invalid T60 0.0
+Test/C50 (dB) 0.9803
+Test/EDT (ms) 40.5094
+Test/FD 0.3145
+Test/RIR_to_GT_RIR_R@1 (%) 6.1701
+Test/RIR_to_GT_RIR_R@5 (%) 17.7687
+Test/RIR_to_GT_RIR_R@10 (%) 25.7851
+Test/RIR_to_geom_R@1 (%) 4.6868
+Test/RIR_to_geom_R@5 (%) 15.2438
+Test/RIR_to_geom_R@10 (%) 22.5659
+Metrics saved to outputs_FLAC/exp07_BV/epoch=12-step=57500_metrics_1_1.0_exp07_BV_selcurve_S57500.json
+=== S57500 exit=0 ===
+=== SELCURVE COMPLETE ===

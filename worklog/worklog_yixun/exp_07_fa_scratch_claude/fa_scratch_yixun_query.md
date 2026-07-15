@@ -83,3 +83,21 @@ The audit's identity guarantees hold through execution; the pre-registered gate 
 ### Why now
 
 Audit round closed (commit `8ae9837`); GPU 1 freed; the only code gap is `--max-steps` (TDD round 1).
+
+## Query 5 (2026-07-15) — B-V parity mandate
+
+### Verbatim
+
+> From my perspective, The B-V should at least get the same results as FLAC. Please achieve this. What is your understanding about why current model not reach the performance of FLAC checkpoint?
+
+### Summary
+
+Before any B-F decision, B-V must match the released FLAC checkpoint's numbers. Asks for (1) a causal analysis of the current gap and (2) a program to close it.
+
+### Assumption / hypothesis (Yixun's)
+
+The from-scratch control should be able to reproduce the released model's performance — the residual gap reflects something we control (recipe/selection/duration), not an irreducible lineage difference.
+
+### Why this needs to run
+
+The B-F comparison's absolute credibility (and the maximum project goal) rests on the control being at parity; every reachable deviation must be eliminated or quantified before accepting a lineage explanation.
