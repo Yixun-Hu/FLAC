@@ -1,0 +1,127 @@
+[exp06-suite] START variant=linear gpu=0 suite=all
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=42 yaw=0 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw0.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 42 --rotate-deg 0 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw0 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=43 yaw=0 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS43_yaw0.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 43 --rotate-deg 0 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS43_yaw0 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=44 yaw=0 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS44_yaw0.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 44 --rotate-deg 0 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS44_yaw0 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=45 yaw=0 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS45_yaw0.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 45 --rotate-deg 0 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS45_yaw0 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=46 yaw=0 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS46_yaw0.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 46 --rotate-deg 0 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS46_yaw0 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=8 eval_seed=42 yaw=0 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K8_evalS42_yaw0.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 42 --rotate-deg 0 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K8_evalS42_yaw0 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=8 eval_seed=43 yaw=0 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K8_evalS43_yaw0.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 43 --rotate-deg 0 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K8_evalS43_yaw0 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=8 eval_seed=44 yaw=0 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K8_evalS44_yaw0.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 44 --rotate-deg 0 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K8_evalS44_yaw0 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=8 eval_seed=45 yaw=0 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K8_evalS45_yaw0.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 45 --rotate-deg 0 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K8_evalS45_yaw0 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=8 eval_seed=46 yaw=0 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K8_evalS46_yaw0.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 46 --rotate-deg 0 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K8_evalS46_yaw0 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=42 yaw=22.5 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw22p5_rot22.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 42 --rotate-deg 22.5 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw22p5 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=42 yaw=45 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw45_rot45.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 42 --rotate-deg 45 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw45 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=42 yaw=67.5 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw67p5_rot67.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 42 --rotate-deg 67.5 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw67p5 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=42 yaw=90 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw90_rot90.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 42 --rotate-deg 90 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw90 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=42 yaw=112.5 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw112p5_rot112.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 42 --rotate-deg 112.5 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw112p5 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=42 yaw=135 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw135_rot135.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 42 --rotate-deg 135 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw135 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=42 yaw=157.5 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw157p5_rot157.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 42 --rotate-deg 157.5 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw157p5 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=42 yaw=180 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw180_rot180.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 42 --rotate-deg 180 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw180 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=42 yaw=202.5 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw202p5_rot202.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 42 --rotate-deg 202.5 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw202p5 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=42 yaw=225 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw225_rot225.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 42 --rotate-deg 225 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw225 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=42 yaw=247.5 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw247p5_rot247.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 42 --rotate-deg 247.5 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw247p5 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=42 yaw=270 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw270_rot270.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 42 --rotate-deg 270 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw270 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=42 yaw=292.5 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw292p5_rot292.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 42 --rotate-deg 292.5 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw292p5 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=42 yaw=315 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw315_rot315.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 42 --rotate-deg 315 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw315 
+[exp06-eval] variant=linear train_seed=42 train_step=30000 K=1 eval_seed=42 yaw=337.5 gpu=0
+[exp06-eval] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json
+[exp06-eval] checkpoint=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt
+[exp06-eval] metrics=outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init_metrics_1_1.0_exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw337p5_rot337.json
+CUDA_VISIBLE_DEVICES=0 ../venv/bin/python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_Linear.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_linear_trainS42_init.ckpt --cfg-scale 1.0 --steps 1 --batch-size 64 --num-workers 4 --seed 42 --rotate-deg 337.5 --cond-method vanilla --cond-autocast default --eval-name exp06_cylvit_pe_linear_trainS42_step30000_K1_evalS42_yaw337p5 
+[exp06-suite] DONE variant=linear gpu=0 suite=all

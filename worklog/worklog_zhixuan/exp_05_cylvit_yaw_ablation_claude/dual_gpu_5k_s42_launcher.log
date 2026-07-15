@@ -1,0 +1,15 @@
+nohup: ignoring input
+=== launching exp05 dual-GPU long train ===
+MAX_STEPS=5000
+SEED=42
+SimpleViT GPU=0, log=worklog/exp_05_cylvit_yaw_ablation_claude/simplevit_5000s_s42_gpu0.log, resume=none
+CylViT    GPU=1, log=worklog/exp_05_cylvit_yaw_ablation_claude/cylvit_5000s_s42_gpu1.log, resume=none
+SimpleViT PID=3957891
+CylViT PID=3957892
+
+Follow logs with:
+  tail -f worklog/exp_05_cylvit_yaw_ablation_claude/simplevit_5000s_s42_gpu0.log
+  tail -f worklog/exp_05_cylvit_yaw_ablation_claude/cylvit_5000s_s42_gpu1.log
+
+Check processes with:
+  ps -p 3957891,3957892 -o pid,ppid,stat,etime,cmd

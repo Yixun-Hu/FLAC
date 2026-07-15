@@ -1,0 +1,32 @@
+[exp06:launch] variant=cnn physical_gpu=1 process_devices=1 (not DDP)
+[exp06:launch] seed=42 max_steps=30000 effective_batch=64
+[exp06:launch] validation=src/configs/dataset_configs/AR/eval/acousticroom_seeneval.json every_optimizer_steps=2500 limit=1.0
+[exp06:launch] init=/home/zhixuanzhao/projects/rir2rir/FLAC/outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_cnn_trainS42_init.ckpt
+[exp06:launch] save_dir=/home/zhixuanzhao/projects/rir2rir/FLAC/outputs_FLAC/exp06_cylvit_pe_cnn_trainS42 resume=auto
+[exp06:launch] dry_run=1
+Seed set to 42
+/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/torch/cuda/__init__.py:789: UserWarning: Can't initialize NVML
+  warnings.warn("Can't initialize NVML")
+/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/torch/cuda/__init__.py:789: UserWarning: Can't initialize NVML
+  warnings.warn("Can't initialize NVML")
+/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Seed set to 42
+/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/torch/cuda/__init__.py:789: UserWarning: Can't initialize NVML
+  warnings.warn("Can't initialize NVML")
+Seed set to 42
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+[exp06:train] variant=cnn seed=42
+[exp06:train] model_config=/home/zhixuanzhao/projects/rir2rir/FLAC/src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT_PE_CNN.json
+[exp06:train] init_checkpoint=/home/zhixuanzhao/projects/rir2rir/FLAC/outputs_FLAC/exp06_cylvit_pe_matched_initializations/cylvit_pe_cnn_trainS42_init.ckpt
+[exp06:train] save_dir=/home/zhixuanzhao/projects/rir2rir/FLAC/outputs_FLAC/exp06_cylvit_pe_cnn_trainS42
+[exp06:train] validation=/home/zhixuanzhao/projects/rir2rir/FLAC/src/configs/dataset_configs/AR/eval/acousticroom_seeneval.json every_optimizer_steps=2500 limit=1.0
+[exp06:train] parameters={"dit_trainable": 16722304, "geometry_trainable": 19882507, "other_conditioners_trainable": 11909800, "vae_trainable": 0}
+[exp06:train] rng_alignment=seed reset before wrapper and after wrapper; paired dataloader/noise streams start from the same seed
+[exp06:train] recipe=AdamW(lr=5e-5,betas=(0.9,0.999),wd=1e-3) InverseLR(inv_gamma=1000000,power=0.5,warmup=0.99) micro_batch=4 accum=16 effective_batch=64 precision=bf16-mixed max_steps=30000 clip=0 EMA=DiT-only-from-step0
+[exp06:train] dry run passed; no dataloader, GPU, checkpoint, or training was started.

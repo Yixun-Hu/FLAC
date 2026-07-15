@@ -1,0 +1,54 @@
+nohup: ignoring input
+=== exp05 train MODEL=cylvit seed=42 steps=625 resume=outputs_FLAC/exp05_cylvit_short_s42/epoch=0-step=250.ckpt ===
+Seed set to 42
+/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Using bfloat16 Automatic Mixed Precision (AMP)
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/pytorch_lightning/callbacks/model_checkpoint.py:630: Checkpoint directory outputs_FLAC/exp05_cylvit_short_s42 exists and is not empty.
+Restoring states from the checkpoint path at outputs_FLAC/exp05_cylvit_short_s42/epoch=0-step=250.ckpt
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+[exp05] loaded compatible weights: 640 tensors; missing_after_load=288; skipped_shape=4; skipped_missing=422; unexpected=0
+[exp05] first skipped_shape keys:
+  - conditioner.conditioners.source_vit.lin_proj.weight: ckpt=(256, 384) model=(1, 256)
+  - conditioner.conditioners.source_vit.lin_proj.bias: ckpt=(256,) model=(1,)
+  - conditioner.conditioners.context_poses_vit.lin_proj.weight: ckpt=(256, 384) model=(1, 256)
+  - conditioner.conditioners.context_poses_vit.lin_proj.bias: ckpt=(256,) model=(1,)
+[exp05] model_config=src/configs/model_configs/FLAC/AR/FLAC_AR_CylViT.json
+[exp05] source_vit=CylindricalViT token_pool=mean
+[exp05] context_poses_vit=CylindricalViT token_pool=mean
+[exp05] lr=5e-06 warmup_steps=200 max_steps=625 smoke=False
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+Traceback (most recent call last):
+  File "/home/zhixuanzhao/projects/rir2rir/FLAC/worklog/exp_05_cylvit_yaw_ablation_claude/train_vit_ablation.py", line 259, in <module>
+    run(parse_args())
+  File "/home/zhixuanzhao/projects/rir2rir/FLAC/worklog/exp_05_cylvit_yaw_ablation_claude/train_vit_ablation.py", line 194, in run
+    trainer.fit(module, train_dl, ckpt_path=args.resume_from if args.resume_from else None)
+  File "/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 545, in fit
+    call._call_and_handle_interrupt(
+  File "/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 44, in _call_and_handle_interrupt
+    return trainer_fn(*args, **kwargs)
+  File "/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 581, in _fit_impl
+    self._run(model, ckpt_path=ckpt_path)
+  File "/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 956, in _run
+    self._checkpoint_connector._restore_modules_and_callbacks(ckpt_path)
+  File "/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/pytorch_lightning/trainer/connectors/checkpoint_connector.py", line 395, in _restore_modules_and_callbacks
+    self.resume_start(checkpoint_path)
+  File "/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/pytorch_lightning/trainer/connectors/checkpoint_connector.py", line 79, in resume_start
+    loaded_checkpoint = self.trainer.strategy.load_checkpoint(checkpoint_path)
+  File "/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 359, in load_checkpoint
+    return self.checkpoint_io.load_checkpoint(checkpoint_path)
+  File "/home/zhixuanzhao/projects/rir2rir/venv/lib/python3.10/site-packages/lightning_fabric/plugins/io/torch_io.py", line 77, in load_checkpoint
+    raise FileNotFoundError(f"Checkpoint file not found: {path}")
+FileNotFoundError: Checkpoint file not found: outputs_FLAC/exp05_cylvit_short_s42/epoch=0-step=250.ckpt
