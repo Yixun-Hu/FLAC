@@ -15,4 +15,6 @@ Living index — one row per experiment; updated at every session handoff/compac
 
 **Project goals:** minimum = cylindrical sanity check pass (✅ achieved, exp_08); maximum = beat released Table-1 K=1/K=8 (open — exp_07 B-F pending gate).
 
+**Sibling work (merged 2026-07-15, PR #1):** zhixuan's `Yaw-equi-ViT` — `CylindricalViT` equivariant geometry encoder (`src/models/cyl_vit.py`) + matched ablations under `worklog/worklog_zhixuan/` (namespace convention adopted). Additive-gated (`arch: cyl_vit`); our arms verified bit-identical post-merge (init hash unchanged).
+
 **In flight right now:** nothing — GPU 1 idle. exp_07 B-F (~9.6 d) awaits Yixun's gate decision (options: proceed-reframed / extend B-V / investigate lineage / stop).
