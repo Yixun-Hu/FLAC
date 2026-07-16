@@ -122,6 +122,27 @@ CUDA_VISIBLE_DEVICES=1 python eval_FLAC.py --model-config worklog/worklog_yixun/
 #     --num-workers 6 --seed 42 --precision bf16-mixed --logger none --save-dir $SCRATCH/m0_probe ...
 #   acceptance: >=10 steps, finite loss, no OOM; record peak VRAM + samples/s (EMA on)
 
+## B-V EXTEND (GPU 1; LAUNCHED 2026-07-16 00:47, code c40908c) — resume 67.5k -> 100k adaptive:
+
+```bash
+LOGGER=none bash worklog/worklog_yixun/exp_07_fa_scratch_claude/bv_extend_launch.sh 100000
+# -> fa_scratch_2026-07-16_00-47-25_BVextend_train.log ; ckpts outputs_FLAC/exp07_BVextend/ every 2500
+# logger none: wandb held until the yh4742@princeton.edu key replaces the yixunhu21 one (fail-closed gate in script)
+```
+
+## B-V EXTEND SCREENS (GPU 1 co-located; per landed 10k ckpt S in {70000,80000,90000,100000}):
+
+```bash
+# EMA (default config) then ONLINE (use_ema=false copy), K=8, eval-seed 42, full unseen split, bf16:
+CUDA_VISIBLE_DEVICES=1 python eval_FLAC.py \
+  --model-config worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BV.json \
+  --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json \
+  --ckpt-path "outputs_FLAC/exp07_BVextend/epoch=<E>-step=<S>.ckpt" \
+  --cond-autocast bf16 --seed 42 --steps 1 --cfg-scale 1.0 --eval-name exp07_BVext_screen_S<S>_ema
+# then identically with --model-config .../FLAC_AR_BV_online_eval.json --eval-name ..._online
+# tee -> fa_scratch_<ts>_BVext_screen_S<S>.log
+```
+
 # consolidated review (first gpt-5.6-sol use) + focused re-verify + terse fix-verify
 ~/.local/bin/codex exec -s read-only -m gpt-5.6-sol -c model_reasoning_effort=xhigh \
   --output-last-message worklog/exp_07_fa_scratch_claude/fa_scratch_codex_code_audit_probes_review.md "<context-briefed prompt>" < /dev/null
