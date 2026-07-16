@@ -4,7 +4,8 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 
 ## Awaiting Yixun (decisions)
 
-1. **exp_07 gate DECISION (DELIVERED 2026-07-14 23:40, awaiting Yixun):** strict gate FAIL 1/6 → stopped. Decomposition: T60 = endpoint draw (band contains released; endpoint = band max); EDT = real systematic +2.5–5.6 ms; C50 at target (K=1 superior; K=8 out by 1e-4 dB); R@1 advisory, climbing to 6.2 at end. 291k independent run corroborates the same signature ⇒ lineage, not bug. Options: (a) proceed to B-F reframed (primary = B-F vs B-V matched; recommended), (b) extend B-V past 67.5k, (c) investigate data/simulator lineage, (d) stop.
+1. **GPU scheduling decision PENDING (asked 2026-07-15):** exp_07 **P1 approved** ("I approve P1") AND a new **B-V extend past 67.5k** requested ("continue our previous train on B-V@67.5k to check the best ckpt") — both need the single free **GPU 1**. Ordering put to Yixun (extend-first recommended: cheaper/faster resume, no probe, directly finds best ckpt, informs P1). Nothing running yet. **B-F** stays gated on the P1 parity outcome + a fresh explicit Yixun go.
+2. **wandb account for FLAC runs (directive 2026-07-15, ACTION needed):** runs should log to **yh4742@princeton.edu**, but the current `WANDB_API_KEY` is **yixunhu21@gmail.com** (entity `yixunhu21-princeton-university`). Enabling wandb needs Yixun to set yh4742's API key — and since env `WANDB_API_KEY` overrides `wandb login`, it must be *replaced*. Until then, launches use `--logger none` (as phase 1).
 
 ## Open issues / caveats (technical)
 
