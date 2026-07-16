@@ -15,7 +15,9 @@ cd "$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-
 
 S="${1:?usage: bvext_screen.sh <step>}"
 EXPD="worklog/worklog_yixun/exp_07_fa_scratch_claude"
-CKPT="$(ls outputs_FLAC/exp07_BVextend/*step="${S}".ckpt 2>/dev/null | head -1)"
+# recursive: the wandb-logged resume (2026-07-16) nests new ckpts under
+# <save-dir>/<project>/<run>/checkpoints/ (train.py:129); pre-resume ckpts are flat
+CKPT="$(find outputs_FLAC/exp07_BVextend -name "*step=${S}.ckpt" 2>/dev/null | head -1)"
 [ -n "$CKPT" ] || { echo "no ckpt for step ${S} under outputs_FLAC/exp07_BVextend/"; exit 1; }
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 LOG="${EXPD}/fa_scratch_${TS}_BVext_screen_S${S}.log"

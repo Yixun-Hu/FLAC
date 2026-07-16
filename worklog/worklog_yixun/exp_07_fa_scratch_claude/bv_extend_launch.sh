@@ -45,6 +45,9 @@ echo "=== B-V EXTEND - ${TS} - $(git rev-parse --short HEAD 2>/dev/null) - resum
 
 # --- fail-closed wandb identity gate (only when wandb is requested) ---
 if [ "$LOGGER" = "wandb" ]; then
+  # ~/.bashrc's interactive guard blocks non-interactive sourcing; extract the
+  # newest exported key directly (mirrors the reviewed bf_scratch_launch.sh line)
+  eval "$(grep -E '^[[:space:]]*export[[:space:]]+WANDB_API_KEY=' ~/.bashrc 2>/dev/null | tail -1)"
   python - <<'PY'
 import sys
 try:
