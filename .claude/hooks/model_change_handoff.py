@@ -46,7 +46,9 @@ def _family(m):
 
 
 def _is_real_model(m):
-    m = str(m or "").strip()
+    if not isinstance(m, str):  # non-string model values are never accepted
+        return False
+    m = m.strip()
     return bool(m) and not m.startswith("<")  # reject <synthetic>, <error>, ...
 
 
@@ -72,7 +74,7 @@ def _model_from_transcript(path, max_bytes=4_000_000):
                 continue
             m = (obj.get("message") or {}).get("model")
             if _is_real_model(m):
-                return str(m).strip()
+                return m.strip()
     except Exception:
         return ""
     return ""
@@ -93,8 +95,9 @@ def _append_log(hb, ts, prev, cur, event, snap_rel):
                         "and reminds the incoming model to refresh them; the live model authors the refresh.\n\n"
                         "| timestamp | event | from | to | snapshot |\n|---|---|---|---|---|\n")
             f.write(f"| {ts} | {event} | {prev or '(none)'} | {cur} | {snap_rel or '-'} |\n")
+        return True
     except Exception:
-        pass
+        return False
 
 
 def _run(data):
@@ -103,9 +106,13 @@ def _run(data):
     event = str(data.get("hook_event_name") or "")
     transcript = data.get("transcript_path") or ""
     cwd = data.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-    sid = _safe(data.get("session_id") or "global")
+    sid_raw = data.get("session_id")
+    if not isinstance(sid_raw, str) or not sid_raw.strip():
+        return  # no session identity -> never fall back to a shared marker
+    sid = _safe(sid_raw)
 
-    cur_raw = str(data.get("model") or "").strip()
+    cur_raw = data.get("model")
+    cur_raw = cur_raw.strip() if isinstance(cur_raw, str) else ""
     if not _is_real_model(cur_raw):
         cur_raw = _model_from_transcript(transcript)
     cur = _family(cur_raw)
@@ -120,9 +127,9 @@ def _run(data):
     lockf = open(os.path.join(hb, ".handoff_hook.lock"), "w")
     try:
         try:
-            fcntl.flock(lockf, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(lockf, fcntl.LOCK_EX)  # blocking: contending events wait, none dropped
         except Exception:
-            return  # another hook holds the lock; let it handle the change
+            return
         prev = ""
         if os.path.isfile(marker):
             try:
@@ -141,17 +148,21 @@ def _run(data):
                     "worklog/worklog_yixun/issue_report.md",
                     "worklog/worklog_yixun/HANDOFF.md"]
             snapdir = os.path.join(hb, "handoff_snapshots", f"{ts}__{_safe(prev)}__to__{_safe(cur)}")
+            ok_arch = True
             try:
                 os.makedirs(snapdir, exist_ok=True)
                 for d in docs:
                     src = os.path.join(cwd, d)
-                    if os.path.isfile(src):
+                    if os.path.isfile(src):  # absent docs are reported via n, not failures
                         shutil.copy2(src, os.path.join(snapdir, os.path.basename(d)))
                         n += 1
                 snap_rel = os.path.relpath(snapdir, cwd)
             except Exception:
+                ok_arch = False
                 snap_rel = ""
-            _append_log(hb, ts, prev, cur_raw or cur, event or "?", snap_rel)
+            ok_log = _append_log(hb, ts, prev, cur_raw or cur, event or "?", snap_rel)
+            if not (ok_arch and ok_log):
+                return  # do NOT consume the change: marker untouched -> re-fires next event
 
         try:  # atomically commit the marker LAST (mid-transaction failure re-fires, not loses)
             tmp = marker + ".tmp"

@@ -2,11 +2,11 @@
 
 Assume the reader has NO memory beyond the repo + `master_experiment_tracker.md` + `issue_report.md` + this file. Updated at every handoff trigger (CLAUDE.md protocol): "handoff"/"new session"/"wrap up"/`/compact` **or a model change / model-limit swap**.
 
-**Last updated:** 2026-07-15 (trigger: model change).
-**This handoff's trigger:** Fable 5 (previous main session) reached its usage limit → **Opus 4.8 (1M context), max effort** took over as main session via `/model`.
+**Last updated:** 2026-07-16 ~00:55 EDT (trigger: model change).
+**This handoff's trigger:** Yixun `/model`-switched the main session back to **Fable 5** (Opus 4.8 1M/max had covered while Fable was at its limit; Opus authored the 2026-07-15 handoff, the hook, both launch scripts, and launched the extend).
 
 ## Role map (current)
-- **Main session model:** Opus 4.8 (1M context), max effort — plans, analyzes, drives runs. *(Was Fable 5; Fable hit its limit.)* Role-attribution rule: work previously done by Fable is now done by Opus — in experiment **analysis** files, flag "authored by Opus, not Fable."
+- **Main session model:** Fable 5 — plans, analyzes, drives runs. Role-attribution rule stands: whenever a non-Fable model fills a Fable seat (esp. analysis), flag the model in the artifact by-line.
 - **Coder subagent:** Opus 4.8, max effort (writes experiment/production code).
 - **Reviewer:** OpenAI Codex `gpt-5.6-sol`, xhigh, codex-cli 0.144.1 — `~/.local/bin/codex exec -s read-only -m gpt-5.6-sol -c model_reasoning_effort=xhigh --output-last-message <file> "<prompt>" < /dev/null` (stdin MUST close with `< /dev/null`).
 
@@ -14,7 +14,9 @@ Assume the reader has NO memory beyond the repo + `master_experiment_tracker.md`
 **Mandate (Q5):** "The B-V should at least get the same results as FLAC. Please achieve this."
 
 - **P0 (DONE):** checkpoint selection alone CANNOT reach released parity (21-pt ≥20k K=8 seed-42 EMA curve). Best observed: EDT **38.29@60k** (vs released 37.10), R@1 **6.22@65k** (vs 7.06); T60/C50 reachable in-band. → systematic factor(s) remain.
-- **P1 (APPROVED 2026-07-15 — "I approve P1"):** micro-parity B-V rerun. Plan `plan_bv_parity.md` review-clean (Codex gpt-5.6-sol REQUEST-CHANGES → all findings applied), committed `67b8fce`.
+- **NEW (2026-07-15, Yixun):** **B-V EXTEND** — "continue our previous train on B-V@67.5k to check what is the best ckpt we have." Yixun chose **extend-first (then P1), adaptive to 100k**: screen 80k/90k/100k, continue toward 135k only if EDT/R@1 still improving. **RUNNING** (see In-flight).
+- **NEW (2026-07-15, Yixun):** FLAC runs should log to **wandb yh4742@princeton.edu** — BLOCKED: current `WANDB_API_KEY` = yixunhu21@gmail.com. Launch scripts default `LOGGER=none` + fail-closed identity gate. Yixun must export yh4742's key (env var overrides `wandb login`).
+- **P1 (APPROVED 2026-07-15 — "I approve P1"):** micro-parity B-V rerun, **queued behind the extend**. Plan `plan_bv_parity.md` review-clean (Codex gpt-5.6-sol REQUEST-CHANGES → all findings applied), committed `67b8fce`. Launch scripts committed `c40908c` (post-review fixes).
   - **P1a fit probe (~20 min):** vanilla-only ladder **64×1 → 32×2 → 16×4**, 15 opt steps, EMA on, 1-s VRAM sampler, record steady-state samples/s (re-anchors ETA). Pick largest fitting rung. Review estimate: 64×1 likely OOMs on 48 GiB; 32×2 likely fits.
   - **P1b train (~3.4 d, re-anchored by probe):** `FLAC_AR_BV.json` (byte-copy), largest fitting rung, `--max-steps 67500`, seed 42, EMA on, ckpt every 2500, `HF_HUB_OFFLINE=1`, DINOv3 pin gate pre-launch. Then same 10k screens (EMA+online) + ≥20k selection curve + 5-seed gate.
   - **Success tiers (pre-registered, plan §1):** PARITY (composite-rule ckpt confirmed on held-out eval seeds 43–46, **R@1 REQUIRED**) / STRONG (≥50% late-curve gap closure on BOTH EDT+R@1: **EDT ≤38.59, R@1 ≥6.51**) / DIRECTIONAL / NULL. Late-curve statistic = mean over S∈{55k,57.5k,60k,62.5k,65k,67.5k}. Baseline (8×8, same statistic): **EDT 40.087, R@1 5.960**.
@@ -22,8 +24,9 @@ Assume the reader has NO memory beyond the repo + `master_experiment_tracker.md`
   - **Control rule:** 8×8 B-V stays the ONLY B-F control (incomplete factorial). Never compare B-F-8×8 causally against B-V-at-larger-micro.
 
 ## In flight right now
-- **Nothing running as of this write.** P1a probe about to launch on GPU 1.
-- **GPU 1** held for the P1 sequential window (~3 weeks). Verify idle via `nvidia-smi` before every launch.
+- **B-V EXTEND (GPU 1, PID 3737059, launched 2026-07-16 00:47 EDT):** `LOGGER=none bash worklog/worklog_yixun/exp_07_fa_scratch_claude/bv_extend_launch.sh 100000` — resume `outputs_FLAC/exp07_BV/epoch=14-step=67500.ckpt` → step 100,000, seed 42, 8×8 eff-64, ckpt every 2500 into `outputs_FLAC/exp07_BVextend/` (logger none → ckpts directly under save-dir). Log: `worklog/worklog_yixun/exp_07_fa_scratch_claude/fa_scratch_2026-07-16_00-47-25_BVextend_train.log` (gitignored raw; commit a compact filtered copy at close). Resume verified: "Restored all states", lr 4.84e-5 ✓, loss ~0.32–0.6, 10.4 GiB. **ETA ~Jul 17 ~14:45 EDT** (32.5k steps at phase-1 854 steps/h). First new ckpt (70k) ~03:40 Jul 16. **When done:** screen 70k–100k EMA K=8 seed-42 full split (mirror `exp07_BV_selcurve_*` protocol), report best-ckpt verdict + continue-to-135k recommendation, then launch P1a. **Known quirks:** PL mid-epoch-resume warning (no dataloader fast-forward — epoch-14 remainder drawn from a fresh epoch-14 iterator; acceptable, documented in script header); tqdm it/s inflated on resume (display artifact).
+- **Codex re-verify DONE** (`p1_scripts_codex_reverify.md`): **extend script = SHIP** (running launch clean). Hook + probe REMAINING items all applied verbatim (CUDA-only OOM regex, signed-inf loss regex, session-id required, blocking flock, marker gated on archive+log success, string-typed model). Terse reverify2 in flight → `p1_scripts_codex_reverify2.md`.
+- **GPU 1** held for the extend→P1 sequential window. GPU 0 is another session's job (PID 1284685) — do not touch.
 - **B-F on hold** per the parity mandate — does NOT launch without a fresh explicit Yixun go, AND only after the P1 parity outcome.
 
 ## Do-not-touch (other sessions' jobs)

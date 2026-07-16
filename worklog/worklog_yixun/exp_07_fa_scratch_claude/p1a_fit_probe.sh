@@ -68,8 +68,8 @@ for pair in "64 1" "32 2" "16 4"; do
   peak="$(cat "$PEAKF" 2>/dev/null || echo 0)"; wall=$((end - start))
 
   reached="$(grep -ciE "max_steps=15.*reached|stopped:.*max_steps=15" "$RUNLOG" 2>/dev/null)"; reached="${reached:-0}"
-  oom="$(grep -ciE "CUDA out of memory|OutOfMemoryError" "$RUNLOG" 2>/dev/null)"; oom="${oom:-0}"
-  nanloss="$(grep -ciE "loss=nan|loss=inf" "$RUNLOG" 2>/dev/null)"; nanloss="${nanloss:-0}"
+  oom="$(grep -ciE "CUDA out of memory|torch\.cuda\.OutOfMemoryError" "$RUNLOG" 2>/dev/null)"; oom="${oom:-0}"
+  nanloss="$(grep -ciE "loss[[:space:]]*=[[:space:]]*[+-]?(nan|inf(inity)?)" "$RUNLOG" 2>/dev/null)"; nanloss="${nanloss:-0}"
   echo "=== bv_${MB}x${ACC}: exit=${rc} reached15=${reached} oom=${oom} nanloss=${nanloss} peakVRAM=${peak}MiB wall=${wall}s ==="
 
   if [ "$rc" -eq 0 ] && [ "$reached" -ge 1 ] && [ "$nanloss" -eq 0 ]; then
