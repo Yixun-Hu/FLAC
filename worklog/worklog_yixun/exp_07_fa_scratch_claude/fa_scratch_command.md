@@ -146,10 +146,13 @@ CUDA_VISIBLE_DEVICES=1 python eval_FLAC.py \
 ## B-F FROM-SCRATCH (GPU 1; PRE-STAGED 2026-07-16 ~05:00, Yixun slot-go: extend → B-F → P1; launches when extend completes ~Jul 17 16:00):
 
 ```bash
-LOGGER=none bash worklog/worklog_yixun/exp_07_fa_scratch_claude/bf_scratch_launch.sh
-# 8x8 eff-64, seed 42, 67500 steps, ckpt/2500 -> outputs_FLAC/exp07_BF/ ; mirrors the B-V manifest
-# exactly except --model-config FLAC_AR_BF.json and names; GPU-1-free guard + pin gate + wandb identity gate
-# screens per 10k ckpt: bash .../bf_screen.sh <step>   (EMA + online, K=8 s42 full split)
+LOGGER=wandb bash worklog/worklog_yixun/exp_07_fa_scratch_claude/bf_scratch_launch.sh
+# 8x8 eff-64, seed 42, 67500 steps, ckpt/2500; mirrors the B-V manifest exactly except
+# --model-config FLAC_AR_BF.json, names, and logger (wandb per Yixun directive - observation-only delta).
+# wandb: project FLAC_exp07_BF, run exp07_BF, account yh4742@princeton.edu (key verified 2026-07-16;
+# script self-extracts it from ~/.bashrc past the interactive guard; fail-closed identity gate).
+# NOTE ckpts nest under outputs_FLAC/exp07_BF/<project>/<run>/checkpoints/ with wandb (train.py:129).
+# GPU-1-free guard (fail-closed) + offline pin gate. Screens per 10k ckpt: bash .../bf_screen.sh <step>
 ```
 
 # consolidated review (first gpt-5.6-sol use) + focused re-verify + terse fix-verify

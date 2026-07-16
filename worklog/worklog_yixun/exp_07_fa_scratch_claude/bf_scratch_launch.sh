@@ -39,6 +39,10 @@ rc_q=$?
 
 # --- fail-closed wandb identity gate (only when wandb is requested) ---
 if [ "$LOGGER" = "wandb" ]; then
+  # ~/.bashrc's interactive guard (line ~6) blocks non-interactive sourcing, so
+  # extract the newest exported key directly (key verified 2026-07-16 ->
+  # yh4742@princeton.edu; the gate below re-verifies at every launch)
+  eval "$(grep -E '^[[:space:]]*export[[:space:]]+WANDB_API_KEY=' ~/.bashrc 2>/dev/null | tail -1)"
   python - <<'PY'
 import sys
 try:

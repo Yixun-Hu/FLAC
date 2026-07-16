@@ -4,7 +4,7 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 
 ## Awaiting Yixun (decisions)
 
-1. **wandb account for FLAC runs (directive 2026-07-15, ACTION needed):** runs should log to **yh4742@princeton.edu**, but the current `WANDB_API_KEY` is **yixunhu21@gmail.com** (entity `yixunhu21-princeton-university`). Enabling wandb needs Yixun to set yh4742's API key — and since env `WANDB_API_KEY` overrides `wandb login`, it must be *replaced*. Until then, launches use `--logger none` (as phase 1). **If B-F should be on wandb, swap the key before Jul 17 ~16:00** (B-F launch).
+1. **wandb: RESOLVED (2026-07-16 ~05:15).** Yixun added yh4742's key to `~/.bashrc`; verified → **yh4742@princeton.edu** / entity `yh4742-princeton-university`. Caveat handled: the export sits below `.bashrc`'s interactive guard, so non-interactive shells must extract it directly (launch scripts self-extract; plain `source ~/.bashrc` silently keeps the old yixunhu21 key). **B-F launches `LOGGER=wandb`** (project `FLAC_exp07_BF`, run `exp07_BF`). Env note: Yixun said `conda activate flac`; exp_07 stays on `rir2rir` for manifest identity (flagged).
 2. **Next decision point (~Jul 28, nothing blocking before):** B-F verdict (B-F vs 8×8 B-V matched + vs released). GPU-1 queue fixed by Yixun 2026-07-16: **extend (→100k, stops regardless) → B-F (go GIVEN) → P1**. The old Jul-17 continue-to-135k decision is moot; further B-V extension deferred (resumable). Extend best-ckpt report still delivered ~Jul 17 16:00 (informational).
 
 ## Open issues / caveats (technical)

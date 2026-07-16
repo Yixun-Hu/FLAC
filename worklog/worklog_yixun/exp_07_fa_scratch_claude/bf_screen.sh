@@ -11,7 +11,9 @@ cd "$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-
 
 S="${1:?usage: bf_screen.sh <step>}"
 EXPD="worklog/worklog_yixun/exp_07_fa_scratch_claude"
-CKPT="$(ls outputs_FLAC/exp07_BF/*step="${S}".ckpt 2>/dev/null | head -1)"
+# recursive: with --logger wandb, train.py:129 nests ckpts under
+# <save-dir>/<project>/<run-name>/checkpoints/ (flat with --logger none)
+CKPT="$(find outputs_FLAC/exp07_BF -name "*step=${S}.ckpt" 2>/dev/null | head -1)"
 [ -n "$CKPT" ] || { echo "no ckpt for step ${S} under outputs_FLAC/exp07_BF/"; exit 1; }
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 LOG="${EXPD}/fa_scratch_${TS}_BF_screen_S${S}.log"
