@@ -27,7 +27,9 @@ cd "$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-
 EXPDIR="worklog/worklog_yixun/exp_07_fa_scratch_claude"
 MAXSTEPS="${1:-100000}"
 LOGGER="${LOGGER:-none}"
-RESUME_CKPT="outputs_FLAC/exp07_BV/epoch=14-step=67500.ckpt"
+# env-overridable so restarts resume from the NEWEST extend ckpt instead of 67.5k
+# (see bv_extend_stop_restart.md; default preserved for the original launch semantics)
+RESUME_CKPT="${RESUME_CKPT:-outputs_FLAC/exp07_BV/epoch=14-step=67500.ckpt}"
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 LOG="${EXPDIR}/fa_scratch_${TS}_BVextend_train.log"
 
