@@ -20,6 +20,25 @@ class ModelConfigEmbedderCallback(pl.Callback):
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         checkpoint["model_config"] = self.model_config
 
+def _as_bool(value):
+    """Coerce a prefigure-parsed flag to a genuine ``bool``.
+
+    prefigure parses the lowercase ini literal ``false``/``true`` as the *string*
+    "false"/"true" (ast.literal_eval rejects lowercase, so the flag is registered
+    ``type=str``); only the capitalized ``False``/``True`` yield a real bool. Accept
+    str or bool so a forwarded Trainer kwarg is always a genuine boolean.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        s = value.strip().lower()
+        if s in ("true", "1", "yes", "on"):
+            return True
+        if s in ("false", "0", "no", "off", ""):
+            return False
+        raise ValueError(f"cannot interpret sync_batchnorm={value!r} as a boolean")
+    raise TypeError(f"sync_batchnorm must be bool or str, got {type(value).__name__}")
+
 def build_trainer_kwargs(args, strategy, callbacks, logger, checkpoint_dir, val_args):
     """Assemble the pl.Trainer keyword arguments (side-effect free; unit-testable).
 
@@ -28,8 +47,25 @@ def build_trainer_kwargs(args, strategy, callbacks, logger, checkpoint_dir, val_
     (default 1000000 via defaults.ini) instead of a hard-coded literal, so a training
     budget can be set without editing code. strategy / callbacks / logger /
     checkpoint_dir / val_args are the values main() derives and passes straight through.
+
+    sync_batchnorm (default off -> key ABSENT, so the kwargs are byte-identical to the
+    pre-change dict and PL's own default False applies) forwards to
+    Trainer(sync_batchnorm=True) only when enabled. It is a multi-GPU-only feature, so
+    enabling it with num_gpus < 2 is a fail-closed ValueError (Yixun mandate) rather than
+    a silently-ignored no-op. The guard lives here so both construct_trainer/main() and
+    any direct caller hit it; val_args may NOT smuggle the key past the guard.
     """
-    return {
+    if "sync_batchnorm" in val_args:
+        raise ValueError("sync_batchnorm must come from args (guarded), not val_args")
+    sync_batchnorm = _as_bool(getattr(args, "sync_batchnorm", False))
+    if sync_batchnorm and args.num_gpus < 2:
+        raise ValueError(
+            "sync_batchnorm=True requires multi-GPU training (num_gpus >= 2); got "
+            f"num_gpus={args.num_gpus}. SyncBatchNorm synchronises BatchNorm statistics "
+            "across ranks and is a no-op / unsupported on a single device -- set "
+            "--num-gpus >= 2 or drop --sync-batchnorm."
+        )
+    kwargs = {
         "devices": args.num_gpus,
         "accelerator": "gpu",
         "num_nodes": args.num_nodes,
@@ -46,6 +82,9 @@ def build_trainer_kwargs(args, strategy, callbacks, logger, checkpoint_dir, val_
         "num_sanity_val_steps": 0, # If you need to debug validation, change this line
         **val_args,
     }
+    if sync_batchnorm:
+        kwargs["sync_batchnorm"] = True  # multi-GPU only; guarded above (fail-closed)
+    return kwargs
 
 def construct_trainer(args, strategy, callbacks, logger, checkpoint_dir, val_args):
     """Construct the pl.Trainer from the assembled kwargs (the tested Trainer boundary)."""

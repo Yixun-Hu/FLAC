@@ -146,13 +146,24 @@ CUDA_VISIBLE_DEVICES=1 python eval_FLAC.py \
 ## B-F FROM-SCRATCH (GPU 1; PRE-STAGED 2026-07-16 ~05:00, Yixun slot-go: extend → B-F → P1; launches when extend completes ~Jul 17 16:00):
 
 ```bash
-LOGGER=wandb bash worklog/worklog_yixun/exp_07_fa_scratch_claude/bf_scratch_launch.sh
-# 8x8 eff-64, seed 42, 67500 steps, ckpt/2500; mirrors the B-V manifest exactly except
-# --model-config FLAC_AR_BF.json, names, and logger (wandb per Yixun directive - observation-only delta).
-# wandb: project FLAC_exp07_BF, run exp07_BF, account yh4742@princeton.edu (key verified 2026-07-16;
-# script self-extracts it from ~/.bashrc past the interactive guard; fail-closed identity gate).
-# NOTE ckpts nest under outputs_FLAC/exp07_BF/<project>/<run>/checkpoints/ with wandb (train.py:129).
-# GPU-1-free guard (fail-closed) + offline pin gate. Screens per 10k ckpt: bash .../bf_screen.sh <step>
+# (SUPERSEDED 2026-07-16 pm: single-GPU 8x8 plan replaced by Yixun's DDP+SyncBN mandate below)
+
+## M1 DDP+SyncBN fit probe (both GPUs; runs when aug291k frees GPU 0, ~Jul 18 02:00):
+bash worklog/worklog_yixun/exp_07_fa_scratch_claude/m1_ddp_fit_probe.sh
+# single BN-compliant rung 32/GPU x 2 x accum 1 (accumulation never feeds BN stats ->
+# 16x2x2 / 8x2x4 would violate BN=64; review-eliminated). 15 steps, SyncBN on, timeout -k,
+# dual VRAM samplers. Fit -> REPORT RUNG TO YIXUN AND WAIT FOR GO. No-fit -> STOP, options to Yixun.
+
+## B-F FROM-SCRATCH DDP+SyncBN (LAUNCH-GATED on Yixun's post-probe go):
+LOGGER=wandb MB=32 ACC=1 bash worklog/worklog_yixun/exp_07_fa_scratch_claude/bf_scratch_launch.sh
+# 32/GPU x 2 x 1 = eff 64, SyncBN batch 64 = paper (deliberate deviation from release CODE:
+# release got BN-64 via micro-64 single-H100, no SyncBN). --num-gpus 2
+# --strategy ddp_find_unused_parameters_true --sync-batchnorm true; seed 42, 67500 steps,
+# ckpt/2500; otherwise byte-identical flags to the B-V manifest. Fail-closed: both-GPU-free
+# guard, MB*2==64 BN invariant, wandb identity gate (yh4742@princeton.edu, key self-extracted),
+# offline pin gate, train.py refuses sync_batchnorm below 2 GPUs.
+# wandb project FLAC_exp07_BF run exp07_BF; ckpts nest under outputs_FLAC/exp07_BF/<proj>/<run>/checkpoints/.
+# Screens per 10k ckpt: bash .../bf_screen.sh <step>  (recursive ckpt find)
 ```
 
 # consolidated review (first gpt-5.6-sol use) + focused re-verify + terse fix-verify

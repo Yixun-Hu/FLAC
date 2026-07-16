@@ -1,46 +1,56 @@
 #!/usr/bin/env bash
 # ============================================================================
-# bf_scratch_launch.sh - exp_07: B-F FROM-SCRATCH training launch (GPU 1).
+# bf_scratch_launch.sh - exp_07: B-F FROM-SCRATCH training, 2-GPU DDP + SyncBN.
 #
-# Yixun go (2026-07-16): B-F takes the GPU-1 slot right after the B-V extend
-# completes (extend -> B-F -> P1). Mirrors the B-V launch manifest exactly,
-# differing ONLY via FLAC_AR_BF.json (+cond_method: fa_invariant,
-# +frame_avg_angles: [0,90,180,270]) - arms proven init-identical under seed
-# 42 by assert_arm_configs.py (state_dict sha256 match).
+# Yixun mandate (2026-07-16): 2x A6000 DDP with SyncBatchNorm so the effective
+# BN batch = 64 = paper (deliberate deviation from the release CODE, which got
+# BN-64 via micro-64 on one H100 without SyncBN - we match the paper's BN
+# statistics, not the release's code path). Global eff batch 64 fixed; the
+# micro/accum rung comes from the M1 probe: MB x 2 GPUs x ACC = 64.
+# LAUNCH-GATED: only run after Yixun's explicit go on the probed rung.
 #
-# Recipe (= B-V phase 1): 8x8 (eff 64, the only rung that fits B-F on 48 GiB
-# per M0), seed 42, --max-steps 67500, EMA on (config), ckpt every 2500 into
-# outputs_FLAC/exp07_BF/, bf16-mixed, workers 6, HF_HUB_OFFLINE=1. ~9.6 d.
-# Screens: bf_screen.sh at each 10k ckpt (EMA+online, K=8 s42 full split).
+# Otherwise mirrors the B-V phase-1 manifest exactly: FLAC_AR_BF.json (byte-copy
+# of release config + cond_method fa_invariant + frame_avg_angles [0,90,180,270];
+# init-identity vs B-V sha256-asserted), seed 42, --max-steps 67500, EMA on
+# (config), ckpt every 2500, bf16-mixed (ini default, no flag), workers 6/rank,
+# HF_HUB_OFFLINE=1. Strategy passed EXPLICITLY (defaults.ini strategy="auto" is
+# forwarded verbatim by train.py:159-170; the num_gpus>1 fallback never fires).
 #
-# wandb: default OFF (LOGGER=none) - current WANDB_API_KEY belongs to
-# yixunhu21@gmail.com, NOT the requested yh4742@princeton.edu. To enable:
-# export yh4742's key (env var OVERRIDES `wandb login`), run LOGGER=wandb;
-# the fail-closed identity gate below verifies the email. With wandb,
-# train.py:129 nests ckpts under <save-dir>/<name>/<exp-name>/checkpoints/.
+# wandb: default ON per Yixun (LOGGER=wandb) - project FLAC_exp07_BF, run
+# exp07_BF, account yh4742@princeton.edu; key self-extracted past ~/.bashrc's
+# interactive guard; fail-closed identity gate. Ckpts nest under
+# outputs_FLAC/exp07_BF/<project>/<run>/checkpoints/ (train.py:129).
 # ============================================================================
 set -uo pipefail
 cd "$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-toplevel)" || exit 3
 
 EXPDIR="worklog/worklog_yixun/exp_07_fa_scratch_claude"
-LOGGER="${LOGGER:-none}"
+LOGGER="${LOGGER:-wandb}"
+MB="${MB:-32}"    # micro-batch per GPU (M1 winning rung)
+ACC="${ACC:-1}"   # accumulation      (M1 winning rung)
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 LOG="${EXPDIR}/fa_scratch_${TS}_BF_train.log"
 
-exec > >(tee -a "$LOG") 2>&1
-echo "=== B-F FROM-SCRATCH - ${TS} - $(git rev-parse --short HEAD 2>/dev/null) - 8x8 eff64 seed42 -> 67500 - logger=${LOGGER} ==="
+# invariant (review findings): accumulation never feeds BN statistics, so the
+# BN=64 mandate leaves exactly ONE legal rung - pin it literally (string
+# equality; arithmetic like MB*2*ACC==64 is bypassable via bash int overflow):
+[ "$MB" = "32" ] && [ "$ACC" = "1" ] || { echo "only the BN-compliant rung MB=32 ACC=1 is allowed (got MB='${MB}' ACC='${ACC}') - abort"; exit 2; }
 
-# --- GPU 1 must be free (do not co-launch onto the extend or anything else) ---
-# fail-CLOSED: a failed query must not read as "free" (pipefail is set above)
-BUSY="$(nvidia-smi -i 1 --query-compute-apps=pid --format=csv,noheader 2>/dev/null | tr -d ' \n')"
-rc_q=$?
-[ "$rc_q" -eq 0 ] || { echo "nvidia-smi query failed (rc=${rc_q}) - refusing to launch blind"; exit 2; }
-[ -z "$BUSY" ] || { echo "GPU 1 busy (pids: ${BUSY}) - refusing to launch"; exit 2; }
+exec > >(tee -a "$LOG") 2>&1
+echo "=== B-F FROM-SCRATCH DDP+SyncBN - ${TS} - $(git rev-parse --short HEAD 2>/dev/null) - ${MB}x2x${ACC} eff64 seed42 -> 67500 - logger=${LOGGER} ==="
+
+# --- BOTH GPUs must be free (fail-CLOSED: query failure refuses launch) ---
+for G in 0 1; do
+  BUSY="$(nvidia-smi -i "$G" --query-compute-apps=pid --format=csv,noheader 2>/dev/null | tr -d ' \n')"
+  rc_q=$?
+  [ "$rc_q" -eq 0 ] || { echo "nvidia-smi query failed on GPU ${G} (rc=${rc_q}) - refusing to launch blind"; exit 2; }
+  [ -z "$BUSY" ] || { echo "GPU ${G} busy (pids: ${BUSY}) - refusing to launch"; exit 2; }
+done
 
 # --- fail-closed wandb identity gate (only when wandb is requested) ---
 if [ "$LOGGER" = "wandb" ]; then
-  # ~/.bashrc's interactive guard (line ~6) blocks non-interactive sourcing, so
-  # extract the newest exported key directly (key verified 2026-07-16 ->
+  # ~/.bashrc's interactive guard blocks non-interactive sourcing, so
+  # extract the newest exported key directly (verified 2026-07-16 ->
   # yh4742@princeton.edu; the gate below re-verifies at every launch)
   eval "$(grep -E '^[[:space:]]*export[[:space:]]+WANDB_API_KEY=' ~/.bashrc 2>/dev/null | tail -1)"
   python - <<'PY'
@@ -64,17 +74,19 @@ HF_HUB_OFFLINE=1 python "${EXPDIR}/assert_arm_configs.py" || { echo "GATE FAILED
 
 echo "--- env manifest ---"
 python -c "import torch; print('torch', torch.__version__, 'cuda', torch.version.cuda)"
-nvidia-smi --query-gpu=index,memory.total,memory.used --format=csv,noheader -i 1
+nvidia-smi --query-gpu=index,memory.total,memory.used --format=csv,noheader
 pip freeze 2>/dev/null | sha256sum | awk '{print "pip-freeze sha256:", $1}'
+echo "sync_batchnorm: true (fail-closed in train.py below num_gpus 2) | strategy: ddp_find_unused_parameters_true | rung: ${MB}x2x${ACC}"
 
-HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=1 python train.py \
+HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=0,1 python train.py \
   --model-config "${EXPDIR}/FLAC_AR_BF.json" \
   --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json \
   --pretransform-ckpt-path weights/FLAC/VAE.safetensors \
-  --max-steps 67500 --batch-size 8 --accum-batches 8 --num-workers 6 --seed 42 \
+  --max-steps 67500 --batch-size "$MB" --accum-batches "$ACC" --num-workers 6 --seed 42 \
+  --num-gpus 2 --strategy ddp_find_unused_parameters_true --sync-batchnorm true \
   --logger "$LOGGER" --checkpoint-every 2500 \
   --name FLAC_exp07_BF --experiment-name exp07_BF \
   --save-dir outputs_FLAC/exp07_BF
 rc=$?
-echo "=== B-F FROM-SCRATCH exited rc=${rc} at $(date '+%Y-%m-%d %H:%M:%S') ==="
+echo "=== B-F DDP+SyncBN exited rc=${rc} at $(date '+%Y-%m-%d %H:%M:%S') ==="
 exit $rc
