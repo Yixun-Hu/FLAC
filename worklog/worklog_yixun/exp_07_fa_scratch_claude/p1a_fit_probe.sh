@@ -34,7 +34,8 @@ trap 'kill "${SAMPLER:-}" 2>/dev/null' EXIT INT TERM
 exec > >(tee -a "$LOG") 2>&1
 echo "=== P1a fit/throughput probe (B-V) - ${TS} - $(git rev-parse --short HEAD 2>/dev/null) ==="
 
-python "${EXPDIR}/assert_arm_configs.py"
+# offline: the gate's model construction must not contact the Hub post-validation
+HF_HUB_OFFLINE=1 python "${EXPDIR}/assert_arm_configs.py"
 gate=$?
 if [ "$gate" -ne 0 ]; then echo "GATE FAILED (exit ${gate}) - abort probe"; exit 1; fi
 
