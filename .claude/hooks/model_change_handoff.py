@@ -72,7 +72,8 @@ def _model_from_transcript(path, max_bytes=4_000_000):
                 continue
             if not isinstance(obj, dict) or obj.get("type") != "assistant" or obj.get("isSidechain"):
                 continue
-            m = (obj.get("message") or {}).get("model")
+            msg = obj.get("message")
+            m = msg.get("model") if isinstance(msg, dict) else None
             if _is_real_model(m):
                 return m.strip()
     except Exception:
