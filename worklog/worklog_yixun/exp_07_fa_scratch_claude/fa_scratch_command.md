@@ -154,7 +154,8 @@ bash worklog/worklog_yixun/exp_07_fa_scratch_claude/m1_ddp_fit_probe.sh
 # 16x2x2 / 8x2x4 would violate BN=64; review-eliminated). 15 steps, SyncBN on, timeout -k,
 # dual VRAM samplers. Fit -> REPORT RUNG TO YIXUN AND WAIT FOR GO. No-fit -> STOP, options to Yixun.
 
-## B-F FROM-SCRATCH DDP+SyncBN (LAUNCH-GATED on Yixun's post-probe go):
+## B-F FROM-SCRATCH DDP+SyncBN (LAUNCH-GATED on Yixun's post-probe go; conda env `flac` per Yixun 2026-07-17 — flash-attn kernels active, disclosed):
+source ~/miniconda3/etc/profile.d/conda.sh && conda activate flac && \
 LOGGER=wandb MB=32 ACC=1 bash worklog/worklog_yixun/exp_07_fa_scratch_claude/bf_scratch_launch.sh
 # 32/GPU x 2 x 1 = eff 64, SyncBN batch 64 = paper (deliberate deviation from release CODE:
 # release got BN-64 via micro-64 single-H100, no SyncBN). --num-gpus 2

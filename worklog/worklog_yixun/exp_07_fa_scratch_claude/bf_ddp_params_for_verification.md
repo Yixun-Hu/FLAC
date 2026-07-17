@@ -21,7 +21,7 @@
 | validation | off (`--val-dataset-config` omitted); screens external per 10k ckpt (EMA+online, K=8 s42, full 6,337-item unseen split) | phase-1 protocol |
 | grad clip | 0.0 | default (as B-V) |
 | DINOv3 init | pinned rev `114c1379…`, sha256 `4610ad75…`; `HF_HUB_OFFLINE=1` on gate AND training | pinned choice |
-| conda env | **`rir2rir`** (NOT `flac`) — pip-freeze manifest identity with B-V phase 1 | flagged 2026-07-16 |
+| conda env | **`flac`** (Yixun 2026-07-17 "conda activate flac"; supersedes the 2026-07-16 rir2rir row). Pre-flight verified: torch 2.7.0+cu126 / PL 2.1.0 / transformers 4.57.0 / wandb 0.26.1 **version-identical to rir2rir**; import graph OK; 40/40 tests green; wandb identity yh4742 ✓. **Delta: flash_attn 2.7.4 present → DiT auto-uses FlashAttention kernels** (`src/models/transformer.py:13,429`) — exact algorithm, fp-rounding-level numerics, faster, arguably closer to the release env; P1 shares the env so the matched pair stays internally consistent. **Evals/screens stay in `rir2rir`** (metric-chain comparability with exp_01 + all screens). | Yixun 2026-07-17 |
 | logger | **wandb** — account yh4742@princeton.edu (verified), project `FLAC_exp07_BF`, run `exp07_BF`; fail-closed identity gate; key self-extracted past `.bashrc`'s interactive guard | Yixun directive |
 | save dir | `outputs_FLAC/exp07_BF` (wandb nests ckpts under `<save-dir>/FLAC_exp07_BF/exp07_BF/checkpoints/`) | train.py:129 |
 | workers | 6 per rank (12 total; 48 cores, aug291k uses 8 — no contention) | as B-V |
