@@ -167,6 +167,18 @@ LOGGER=wandb MB=32 ACC=1 bash worklog/worklog_yixun/exp_07_fa_scratch_claude/bf_
 # Screens per 10k ckpt: bash .../bf_screen.sh <step>  (recursive ckpt find)
 ```
 
+## B-V EXTEND selcurve completion block (GPU 1; LAUNCHED 2026-07-17 ~19:30 post-100k; env rir2rir):
+```bash
+bash worklog/worklog_yixun/exp_07_fa_scratch_claude/bvext_screen.sh 100000   # EMA+online
+# extras EMA-only (selcurve style, mirrors phase-1 exp07_BV_selcurve_S*):
+for S in 82500 85000 87500 92500 95000 97500:
+  CUDA_VISIBLE_DEVICES=1 python eval_FLAC.py --model-config .../FLAC_AR_BV.json \
+    --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json \
+    --ckpt-path <recursive find step=$S> --cond-autocast bf16 --seed 42 --steps 1 \
+    --cfg-scale 1.0 --eval-name exp07_BVext_selcurve_S$S
+# tee -> fa_scratch_<ts>_BVext_selcurve_extras.log ; then 13-pt best-ckpt verdict
+```
+
 # consolidated review (first gpt-5.6-sol use) + focused re-verify + terse fix-verify
 ~/.local/bin/codex exec -s read-only -m gpt-5.6-sol -c model_reasoning_effort=xhigh \
   --output-last-message worklog/exp_07_fa_scratch_claude/fa_scratch_codex_code_audit_probes_review.md "<context-briefed prompt>" < /dev/null
