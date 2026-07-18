@@ -39,13 +39,23 @@ trap 'exit 143' TERM
 exec > >(tee -a "$LOG") 2>&1
 echo "=== M1 DDP+SyncBN fit probe (B-F) - ${TS} - $(git rev-parse --short HEAD 2>/dev/null) ==="
 
-# --- BOTH GPUs must be free (fail-CLOSED) ---
+# --- per-GPU FREE-VRAM gate (Yixun policy 2026-07-18: co-tenancy allowed; do NOT
+# require zero compute apps - require headroom for the rung instead).
+# Threshold (GiB -> MiB, review-corrected): M0-measured micro-32 B-F allocation
+# 38.53 GiB + DDP/SyncBN/NCCL allowance 1.5 GiB + safety margin 4 GiB
+# = 44.03 GiB x 1024 = 45,087 MiB per GPU (override via MIN_FREE_MB).
+# Fail-CLOSED on query errors. Co-tenants are disclosed below.
+MIN_FREE_MB="${MIN_FREE_MB:-45087}"
 for G in 0 1; do
-  BUSY="$(nvidia-smi -i "$G" --query-compute-apps=pid --format=csv,noheader 2>/dev/null | tr -d ' \n')"
+  FREE="$(nvidia-smi -i "$G" --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | tr -dc '0-9')"
   rc_q=$?
-  [ "$rc_q" -eq 0 ] || { echo "nvidia-smi query failed on GPU ${G} (rc=${rc_q}) - abort"; exit 2; }
-  [ -z "$BUSY" ] || { echo "GPU ${G} busy (pids: ${BUSY}) - abort (aug291k still running?)"; exit 2; }
+  [ "$rc_q" -eq 0 ] && [ -n "$FREE" ] || { echo "nvidia-smi free-mem query failed on GPU ${G} (rc=${rc_q}) - abort"; exit 2; }
+  [ "$FREE" -ge "$MIN_FREE_MB" ] || { echo "GPU ${G} free ${FREE} MiB < required ${MIN_FREE_MB} MiB for the 32/GPU rung - abort (co-tenancy headroom inadequate; see policy header)"; exit 2; }
 done
+echo "--- co-tenancy disclosure (Yixun policy): compute apps at probe start ---"
+nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader 2>/dev/null || true
+nvidia-smi --query-gpu=index,memory.used,memory.free --format=csv,noheader 2>/dev/null || true
+echo "--- (if co-tenants exist above, THROUGHPUT NUMBERS ARE NOISY; the OOM/fit bit is the signal) ---"
 
 # --- pre-launch gate: DINOv3 pin + arm init-identity (offline, fail-closed) ---
 HF_HUB_OFFLINE=1 python "${EXPDIR}/assert_arm_configs.py" || { echo "GATE FAILED - abort"; exit 1; }
