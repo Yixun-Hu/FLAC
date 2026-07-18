@@ -1,5 +1,8 @@
 
+import functools
+
 import torch
+import torch.utils.checkpoint
 import typing as tp
 
 from ..inference.utils import set_audio_channels
@@ -174,6 +177,64 @@ class RIRConditioner(Conditioner):
 
         return [out, torch.ones(encoded.shape[0], 1).to(device)]
     
+def _make_vit_ckpt_forward(layer: nn.Module, orig_forward):
+    """Instance-level forward wrapper applying non-reentrant activation
+    checkpointing to one ViT encoder layer. Checkpoints ONLY when the layer is in
+    training mode AND grad is enabled; eval/no_grad calls pass through unchanged
+    (zero overhead). ``torch.utils.checkpoint.checkpoint`` is resolved by
+    attribute at call time so its invocation is observable (and shimmable) in
+    tests. ``use_reentrant=False`` is REQUIRED for DDP find_unused_parameters
+    compatibility; the non-reentrant path also supports the kwargs DINOv3 layers
+    receive (attention_mask, position_embeddings)."""
+    @functools.wraps(orig_forward)
+    def ckpt_forward(*args, **kwargs):
+        if layer.training and torch.is_grad_enabled():
+            return torch.utils.checkpoint.checkpoint(
+                orig_forward, *args, use_reentrant=False, **kwargs
+            )
+        return orig_forward(*args, **kwargs)
+    return ckpt_forward
+
+
+def _checkpoint_vit_layers(vit: nn.Module) -> int:
+    """Wrap every encoder layer of ``vit`` (its ``.layer`` nn.ModuleList) with
+    explicit non-reentrant activation checkpointing; returns the number of
+    checkpointed layers.
+
+    Codex review of the pinned transformers==4.57.0 rejected relying on HF's
+    ``gradient_checkpointing_enable()`` here: DINOv3 delegates checkpointing to
+    the ``GradientCheckpointingLayer.__call__`` base-class hook
+    (transformers/modeling_layers.py), whose enable-time ``functools.partial``
+    binds ``torch.utils.checkpoint.checkpoint`` opaquely and gates only on
+    ``.training`` — invisible to instrumentation and easy to mistake for a no-op
+    (``modeling_dinov3_vit.py`` itself never references
+    ``_gradient_checkpointing_func``). Checkpointing each layer's forward at OUR
+    call site keeps the semantics pinned, additionally gates on
+    ``torch.is_grad_enabled()``, and is directly testable.
+
+    Instance-level forward replacement only: registers no modules/params/buffers,
+    so the state_dict stays byte-identical. Idempotent across the two
+    ViTCoordinates conditioners that share one backbone (already-wrapped layers
+    are skipped — never double-checkpointed). Fail-closed: a backbone without a
+    non-empty ``nn.ModuleList`` at ``.layer`` (e.g. the in-repo
+    SimpleViT/CylindricalViT) raises ValueError rather than silently ignoring
+    the request."""
+    layers = getattr(vit, "layer", None)
+    if not isinstance(layers, nn.ModuleList) or len(layers) == 0:
+        raise ValueError(
+            "gradient_checkpointing=True was requested for GeometryConditioner, "
+            f"but the wrapped ViT backbone ({type(vit).__name__}) has no non-empty "
+            "nn.ModuleList at .layer to checkpoint (expected an HF DINOv3-style "
+            "encoder). Remove the flag or use a compatible backbone."
+        )
+    for layer in layers:
+        if getattr(layer, "_flac_ckpt_wrapped", False):
+            continue
+        layer.forward = _make_vit_ckpt_forward(layer, layer.forward)
+        layer._flac_ckpt_wrapped = True
+    return len(layers)
+
+
 class GeometryConditioner(Conditioner):
     def __init__(self, 
                  vit_model, 
@@ -184,6 +245,7 @@ class GeometryConditioner(Conditioner):
                  dim: int = 512,
                  model_type: str = "vit",
                  token_pool: str = "linear",
+                 gradient_checkpointing: bool = False,
                  name="GeometryConditioner"):
         super().__init__(dim, output_dim, project_out=False)
         self.name = name
@@ -191,8 +253,17 @@ class GeometryConditioner(Conditioner):
         self.proj_out = vit_proj
         self.lin_proj = lin_proj
         self.max_value = max_value
-        self.model_type = model_type    
+        self.model_type = model_type
         self.token_pool = token_pool
+
+        # Opt-in activation checkpointing for the ViT backbone: trades backward-time
+        # recompute for a large activation-memory saving with numerically identical
+        # weights/gradients (lets the C4 frame-averaging arm fit micro-batch 32 on a
+        # 48GB card). Absent/False -> byte-identical to before. Wrapped explicitly at
+        # our own call site rather than via HF's gradient_checkpointing_enable() —
+        # see _checkpoint_vit_layers for the transformers==4.57.0 review finding.
+        if gradient_checkpointing:
+            self._vit_ckpt_layers = _checkpoint_vit_layers(self.vit)
 
     def forward(self, coord, device: tp.Union[torch.device, str] = "cuda") -> tp.Tuple[torch.Tensor, torch.Tensor]:
         self.vit.to(device)
