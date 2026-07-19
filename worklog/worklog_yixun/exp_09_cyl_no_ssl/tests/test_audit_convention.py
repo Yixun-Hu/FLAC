@@ -6,16 +6,24 @@ same code paths, with W divisible by 16 and a tiny random-init cylindrical model
 equivariance is structural, not weight-dependent). One integration test uses the real sample and
 is skipped if the AcousticRooms data is unreachable.
 
-Mutation map (see the mutation sweep in the Coder report):
+Structural mutation map (Stage A round 1):
   m1 A2a comparator disabled          -> test_a2a_detects_wrong_convention        RED
   m2 undo-roll direction flipped      -> test_a2b_patch_equivariance_pass         RED
   m3 negative-control threshold flip  -> test_a2c_controls_pass                   RED
   m4 status maps control-fail wrong   -> test_classify_control_failure_is_invalid RED
   m5 atomic write bypassed            -> test_atomic_write_uses_tmp_rename         RED
+
+Fix-round-2 mutation map (fail-closed gates; see the Coder report):
+  M1 provenance identity -> presence-check -> test_evaluate_provenance_wrong_package_sha_fails RED
+  M2 fallback writer unguarded (re-raise)  -> test_runner_serialization_failure_exits_3        RED
+  M3 fingerprint gate True when absent     -> test_main_absent_fingerprint_is_invalid          RED
+  M4 angle_spec rescales, not rejects      -> test_angle_spec_rejects_wrong_width              RED
+  M5 A1 pattern-assert removed             -> test_a1_source_drift_is_invalid                  RED
 """
 import json
 import math
 import os
+import shutil
 import warnings
 
 import pytest
@@ -80,7 +88,7 @@ def synthetic_md():
 # =============================================================================================
 def test_capture_shape_and_finiteness(synthetic_md):
     mc = ac.build_geometry_conditioner(H, W, ac.GEOM_MAX_VALUE)
-    field = ac.capture_encoder_input(mc, synthetic_md)
+    field = ac.capture_encoder_input(mc, synthetic_md, expected_hw=(H, W))
     assert tuple(field.shape) == (1, 3, H, W)
     assert torch.isfinite(field).all()
 
@@ -90,9 +98,9 @@ def test_a2a_residual_pass(synthetic_md):
     from src.data.yaw_rotation import rotate_scene_metadata
 
     mc = ac.build_geometry_conditioner(H, W, ac.GEOM_MAX_VALUE)
-    c_base = ac.capture_encoder_input(mc, synthetic_md)
+    c_base = ac.capture_encoder_input(mc, synthetic_md, expected_hw=(H, W))
     md_rot = rotate_scene_metadata(synthetic_md, ALPHA, W)
-    c_rot = ac.capture_encoder_input(mc, md_rot)
+    c_rot = ac.capture_encoder_input(mc, md_rot, expected_hw=(H, W))
     residual = ac.a2a_residual(c_base, c_rot, DJ, ALPHA)
     assert residual <= ac.A2A_RTOL, f"A2a residual {residual:.3e} exceeds {ac.A2A_RTOL}"
 
@@ -104,9 +112,9 @@ def test_a2a_detects_wrong_convention(synthetic_md):
     from src.data.yaw_rotation import rotate_scene_metadata
 
     mc = ac.build_geometry_conditioner(H, W, ac.GEOM_MAX_VALUE)
-    c_base = ac.capture_encoder_input(mc, synthetic_md)
+    c_base = ac.capture_encoder_input(mc, synthetic_md, expected_hw=(H, W))
     md_rot = rotate_scene_metadata(synthetic_md, ALPHA, W)
-    c_rot = ac.capture_encoder_input(mc, md_rot)
+    c_rot = ac.capture_encoder_input(mc, md_rot, expected_hw=(H, W))
     # Feed a deliberately wrong "base" (rolled the opposite way) into the comparator.
     wrong_base = torch.roll(c_base, shifts=-2 * DJ, dims=-1)
     residual = ac.a2a_residual(wrong_base, c_rot, DJ, ALPHA)
@@ -283,12 +291,19 @@ def test_angle_spec_matches_plan():
 def test_a1_static_quotes_live_source():
     a1 = ac.build_a1_static(str(ac._WORKTREE_ROOT))
     assert a1["convention"]["channels_xyz"] == {"x": 0, "y": 1, "z": 2}
-    ar_quote = a1["source_quotes"]["AR_md.convert_equirect_to_camera_coord"]["text"]
-    assert "theta_map" in ar_quote and "2.0 * np.pi / img_w" in ar_quote
-    yaw_quote = a1["source_quotes"]["yaw_rotation.rotate_scene_metadata.roll_and_rotate"]["text"]
-    assert "torch.roll(depth" in yaw_quote
-    gauge_q = a1["source_quotes"]["gauge.channel_contract"]
-    assert gauge_q is not None and "X_CHANNEL" in gauge_q["text"]
+    assert a1["valid"] is True and a1["check_failures"] == []
+    basis = a1["source_basis"]
+    # AR_md azimuth / elevation / point-cloud, quoted with the live literals.
+    assert "2.0 * np.pi / img_w" in basis["AR_md.azimuth_theta"]["text"]
+    assert "np.pi / img_h" in basis["AR_md.elevation_phi"]["text"]
+    assert "cos_phi * cos_theta" in basis["AR_md.point_cloud_xyz"]["text"]
+    # yaw_rotation: depth roll + Rz matrix.
+    assert "torch.roll(depth" in basis["yaw_rotation.roll_depth"]["text"]
+    assert "[[c, -s, 0.0]" in basis["yaw_rotation.azimuth_rotation_matrix"]["text"]
+    # conditioners.py:284 encoder expression (finding 4 literal).
+    assert "coord[:, i, :, None, None] - depth_coord" in basis["conditioners.encoder_input"]["text"]
+    # gauge channel contract.
+    assert "X_CHANNEL = 0" in basis["gauge.channel_contract"]["text"]
 
 
 # =============================================================================================
@@ -326,3 +341,242 @@ def test_integration_real_sample_a2a():
     c_base = ac.capture_encoder_input(mc, md)
     c_rot = ac.capture_encoder_input(mc, rotate_scene_metadata(md, alpha, width_px))
     assert ac.a2a_residual(c_base, c_rot, dj, alpha) <= ac.A2A_RTOL
+
+
+# =============================================================================================
+# Fix-round-2: fail-closed provenance / fingerprint / geometry gates, total boundary, A1 drift.
+# =============================================================================================
+FAKE_PROV = {
+    "cylindrical_dinov3": {"version": "0.0.0-test",
+                           "package_file": "/pkg/src/cylindrical_dinov3/__init__.py",
+                           "git": {"sha": "PKGSHA0", "dirty": False}},
+    "official_weights": {"checkpoint": "/ckpt/REVX", "revision": "REVX",
+                         "weights_file": "/ckpt/REVX/model.safetensors", "sha256": "WSHA0"},
+    "flac_worktree": {"path": "/wt", "git": {"sha": "WTSHA0", "dirty": False},
+                      "clean_excluding_output": True},
+}
+
+
+def _fresh_prov():
+    return json.loads(json.dumps(FAKE_PROV))
+
+
+def _good_expectations():
+    return {"package_sha": "PKGSHA0", "package_path_prefix": "/pkg", "worktree_sha": "WTSHA0",
+            "expect_clean_worktree": True, "checkpoint_revision": "REVX", "weights_sha256": "WSHA0"}
+
+
+# ---------------------------------------------------------------------------------------------
+# t1 -- fingerprint content-sensitivity (catches a constant-hash mutant).
+# ---------------------------------------------------------------------------------------------
+def test_fingerprint_content_sensitive(synthetic_md):
+    ident = {"scene": "s", "sub": "x", "wav": "w", "data_root": "/r"}
+    base = ac.sample_fingerprint(synthetic_md, ident)["sha256"]
+    md_d = dict(synthetic_md); d = synthetic_md["depth"].clone(); d[0, 0, 0] += 1e-3; md_d["depth"] = d
+    assert ac.sample_fingerprint(md_d, ident)["sha256"] != base, "depth byte must change fingerprint"
+    md_s = dict(synthetic_md); s = synthetic_md["source_vit"].clone(); s[0, 0] += 1e-3; md_s["source_vit"] = s
+    assert ac.sample_fingerprint(md_s, ident)["sha256"] != base, "source vector must change fingerprint"
+
+
+# ---------------------------------------------------------------------------------------------
+# Provenance IDENTITY gate (finding 1; mutation M1 target = evaluate_provenance identity compare).
+# ---------------------------------------------------------------------------------------------
+def test_evaluate_provenance_all_match_ok():
+    ok, reasons, checks = ac.evaluate_provenance(_fresh_prov(), _good_expectations())
+    assert ok is True and reasons == []
+    assert all(c["ok"] for c in checks)
+
+
+def test_evaluate_provenance_wrong_package_sha_fails():
+    """t2 / M1: actual sha present but != expected must FAIL the identity gate (presence-only passes)."""
+    exp = _good_expectations(); exp["package_sha"] = "WRONGSHA"
+    ok, reasons, _ = ac.evaluate_provenance(_fresh_prov(), exp)
+    assert ok is False
+    assert any("package_sha" in r and "mismatch" in r for r in reasons)
+
+
+def test_evaluate_provenance_absent_expectation_fails_closed():
+    for key in ["package_sha", "package_path_prefix", "worktree_sha", "checkpoint_revision",
+                "weights_sha256"]:
+        exp = _good_expectations(); exp[key] = None
+        ok, reasons, _ = ac.evaluate_provenance(_fresh_prov(), exp)
+        assert ok is False, f"absent {key} must fail closed"
+        assert any(key in r and "absent" in r for r in reasons)
+    exp = _good_expectations(); exp["expect_clean_worktree"] = False
+    assert ac.evaluate_provenance(_fresh_prov(), exp)[0] is False, "absent clean-worktree flag must fail"
+
+
+def test_evaluate_provenance_fake_package_path_and_dirty_fail():
+    """Finding 1 scenario: a fake package at /wrong/package.py must NOT pass; a dirty worktree fails."""
+    prov = _fresh_prov(); prov["cylindrical_dinov3"]["package_file"] = "/wrong/package.py"
+    ok, reasons, _ = ac.evaluate_provenance(prov, _good_expectations())
+    assert ok is False and any("package_path_prefix" in r for r in reasons)
+    prov2 = _fresh_prov(); prov2["flac_worktree"]["clean_excluding_output"] = False
+    assert ac.evaluate_provenance(prov2, _good_expectations())[0] is False
+
+
+# ---------------------------------------------------------------------------------------------
+# Geometry gates (finding 3; mutation M4 = angle_spec rescales instead of rejecting).
+# ---------------------------------------------------------------------------------------------
+def test_angle_spec_rejects_wrong_width():
+    with pytest.raises(ac.InvalidInfrastructure):
+        ac.angle_spec(128, registered_width=512)
+    spec = ac.angle_spec(512, registered_width=512)  # matching width is fine
+    assert [s["j"] for s in spec] == list(ac.J_VALUES)
+
+
+def test_capture_rejects_wrong_geometry(synthetic_md):
+    mc = ac.build_geometry_conditioner(H, W, ac.GEOM_MAX_VALUE)
+    with pytest.raises(ac.InvalidInfrastructure):
+        ac.capture_encoder_input(mc, synthetic_md, expected_hw=(256, 512))  # actual is 64x128
+
+
+# ---------------------------------------------------------------------------------------------
+# t3 -- capture sentinel: hook never fires => invalid (never a fabricated field).
+# ---------------------------------------------------------------------------------------------
+def test_capture_sentinel_not_fired_is_invalid(synthetic_md, monkeypatch):
+    mc = ac.build_geometry_conditioner(H, W, ac.GEOM_MAX_VALUE)
+    geom = mc.conditioners["source_vit"]
+
+    def _no_vit_forward(self, coord, device="cpu"):
+        raise RuntimeError("forward replaced; self.vit never called")
+
+    monkeypatch.setattr(type(geom), "forward", _no_vit_forward)
+    with pytest.raises(ac.InvalidInfrastructure):
+        ac.capture_encoder_input(mc, synthetic_md, expected_hw=(H, W))
+
+
+# ---------------------------------------------------------------------------------------------
+# t6 -- A1 source drift => invalid (mutation M5 = pattern-assert removed).
+# ---------------------------------------------------------------------------------------------
+def test_a1_source_drift_is_invalid(tmp_path):
+    wt = tmp_path / "wt"
+    real = ac._WORKTREE_ROOT
+    for rel in (ac.AR_MD_REL, ac.YAW_ROTATION_REL, ac.CONDITIONERS_REL):
+        dst = wt / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(str(real / rel), str(dst))
+    assert ac.build_a1_static(str(wt))["valid"] is True, "undoctored copy must be valid"
+    cond = wt / ac.CONDITIONERS_REL
+    text = cond.read_text().replace(
+        "(coord[:, i, :, None, None] - depth_coord) / self.max_value",
+        "(coord[:, i, :, None, None] - depth_coord) * 3.14159")
+    cond.write_text(text)
+    a1 = ac.build_a1_static(str(wt))
+    assert a1["valid"] is False
+    assert any("conditioners" in name for name in a1["check_failures"])
+
+
+# ---------------------------------------------------------------------------------------------
+# t4 -- persistent serialization failure => exit 3, no traceback (mutation M2 = unguarded fallback).
+# ---------------------------------------------------------------------------------------------
+def _always_raise(*a, **k):
+    raise OSError("simulated persistent serialization failure")
+
+
+def test_runner_serialization_failure_exits_3(tmp_path, monkeypatch):
+    monkeypatch.setattr(ac, "atomic_write_json", _always_raise)
+    rc = ac.main(["--out", str(tmp_path / "o.json"), "--data-root", "/nonexistent/root",
+                  "--checkpoint", "/nonexistent/ckpt", "--expect-fingerprint", "deadbeef"])
+    assert rc == 3, "a persistent write failure must still exit 3 (never propagate a traceback)"
+
+
+# ---------------------------------------------------------------------------------------------
+# t5 -- main()-level exit codes 0/2/3 on tiny fixtures, through the real gates.
+# ---------------------------------------------------------------------------------------------
+@pytest.fixture
+def tiny_env(monkeypatch, synthetic_md, tmp_path):
+    """Drive run_audit / main end-to-end on a tiny synthetic sample at (H,W)=(64,128) with tiny
+    cylindrical models. Data/model/provenance ACQUISITION is stubbed; every GATE is production
+    code (a1, provenance evaluation, fingerprint, geometry, capture, A2a/b/c, serialisation)."""
+    scene, sub, wav = "synthetic", "syn_idx_0", "S001_R0001_hybrid_IR.wav"
+    data_root = "/fake/root"
+    ident = {"scene": scene, "sub": sub, "wav": wav, "data_root": data_root}
+    fp = ac.sample_fingerprint(synthetic_md, ident)["sha256"]
+
+    monkeypatch.setattr(ac, "build_provenance", lambda *a, **k: _fresh_prov())
+    monkeypatch.setattr(ac, "resolve_data_root", lambda *a, **k: data_root)
+    monkeypatch.setattr(ac, "load_real_sample", lambda *a, **k: {
+        "md": synthetic_md, "rel": "syn/rel", "full": "/x", "data_root": data_root,
+        "scene": scene, "sub": sub, "wav": wav})
+    monkeypatch.setattr(ac, "load_cylindrical_model", lambda ckpt, gauge: _tiny_cyl_model(gauge))
+    monkeypatch.setattr(ac, "J_VALUES", (1, 2, 3))  # non-wrapping at W=128 (W_t=8, rolls < W_t/2)
+
+    out = str(tmp_path / "audit_convention.json")
+    good_argv = [
+        "--out", out, "--geometry", str(H), str(W),
+        "--scene", scene, "--sub", sub, "--wav", wav,
+        "--expect-fingerprint", fp,
+        "--expect-package-sha", "PKGSHA0",
+        "--expect-package-path-prefix", "/pkg",
+        "--expect-worktree-sha", "WTSHA0",
+        "--expect-clean-worktree",
+        "--expect-checkpoint-revision", "REVX",
+        "--expect-weights-sha256", "WSHA0",
+    ]
+    return {"monkeypatch": monkeypatch, "out": out, "fp": fp,
+            "sample": {"scene": scene, "sub": sub, "wav": wav}, "geometry": (H, W),
+            "expectations": _good_expectations(), "good_argv": good_argv}
+
+
+def _run_main_read(env, argv):
+    rc = ac.main(argv)
+    rec = json.loads(open(env["out"]).read())
+    return rc, rec
+
+
+def test_runner_returned_record_equals_persisted(tiny_env):
+    """Finding 2: on the success path the RETURNED record equals the PERSISTED record exactly."""
+    env = tiny_env
+    rec, code = ac.run_audit(out_path=env["out"], sample=env["sample"], geometry=env["geometry"],
+                             expect_fingerprint=env["fp"], expectations=env["expectations"])
+    persisted = json.loads(open(env["out"]).read())
+    assert rec == persisted
+    assert rec["audit_status"] == ac.STATUS_VALID_PASS and code == 0
+
+
+def test_main_valid_pass_exit0(tiny_env):
+    rc, rec = _run_main_read(tiny_env, tiny_env["good_argv"])
+    assert rec["audit_status"] == ac.STATUS_VALID_PASS, rec.get("reasons")
+    assert rec["validity"]["provenance_ok"] is True and rec["validity"]["a1_valid"] is True
+    assert rc == 0
+
+
+def test_main_convention_failure_exit2(tiny_env):
+    """Validity holds but A2b fails: model_on is the non-equivariant 'none' model => exit 2."""
+    tiny_env["monkeypatch"].setattr(ac, "load_cylindrical_model",
+                                    lambda ckpt, gauge: _tiny_cyl_model("none"))
+    rc, rec = _run_main_read(tiny_env, tiny_env["good_argv"])
+    assert rec["audit_status"] == ac.STATUS_CONVENTION_FAILURE, rec.get("reasons")
+    assert rec["validity"]["other_validity_pass"] is True and rec["a2b"]["all_pass"] is False
+    assert rc == 2
+
+
+def test_main_invalid_exit3(tiny_env):
+    """A wrong registered weights sha => provenance identity fails => invalid => exit 3."""
+    argv = list(tiny_env["good_argv"])
+    i = argv.index("--expect-weights-sha256"); argv[i + 1] = "WRONGWEIGHTS"
+    rc, rec = _run_main_read(tiny_env, argv)
+    assert rec["audit_status"] == ac.STATUS_INVALID
+    assert rec["validity"]["provenance_ok"] is False
+    assert rc == 3
+
+
+def test_main_provenance_mismatch_is_invalid(tiny_env):
+    """t2 production-connected: wrong expected package SHA through the real run_audit gate => invalid."""
+    argv = list(tiny_env["good_argv"])
+    i = argv.index("--expect-package-sha"); argv[i + 1] = "WRONGPKG"
+    rc, rec = _run_main_read(tiny_env, argv)
+    assert rc == 3 and rec["audit_status"] == ac.STATUS_INVALID
+    assert rec["validity"]["provenance_ok"] is False
+    assert any("package_sha" in r for r in rec["reasons"])
+
+
+def test_main_absent_fingerprint_is_invalid(tiny_env):
+    """Mutation M3: dropping --expect-fingerprint must yield invalid (fail closed), not valid_pass."""
+    argv = list(tiny_env["good_argv"])
+    i = argv.index("--expect-fingerprint"); del argv[i:i + 2]
+    rc, rec = _run_main_read(tiny_env, argv)
+    assert rc == 3 and rec["audit_status"] == ac.STATUS_INVALID
+    assert rec["validity"]["fingerprint_ok"] is False
+    assert "fingerprint_expectation_absent" in rec["reasons"]
