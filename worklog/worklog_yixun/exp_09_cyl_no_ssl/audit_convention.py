@@ -116,9 +116,22 @@ DEFAULT_SAMPLE = {"scene": "Cafe", "sub": "Cafe_idx_0", "wav": "S001_R0044_hybri
 AR_MD_REL = "src/configs/dataset_configs/custom_metadata/AR_md.py"
 YAW_ROTATION_REL = "src/data/yaw_rotation.py"
 CONDITIONERS_REL = "src/models/conditioners.py"
-# The exp-09 output directory (relative to the worktree root). Changes under it are treated as
-# clean by the ``--expect-clean-worktree`` gate (the audit writes its JSON there).
+# The exp-09 output directory (relative to the worktree root).
 OUTPUT_RELDIR = "worklog/worklog_yixun/exp_09_cyl_no_ssl"
+# The audit's own output file (default). The ``--expect-clean-worktree`` gate excludes EXACTLY this
+# file (and the atomic writer's temp siblings), NEVER the parent directory: a dirty
+# ``audit_convention.py``, its tests, or ANY other changed path under OUTPUT_RELDIR must make the
+# worktree NOT clean (=> invalid_infrastructure). Fix-round-3 blocker 1.
+OUTPUT_JSON_NAME = "audit_convention.json"
+OUTPUT_JSON_RELPATH = OUTPUT_RELDIR + "/" + OUTPUT_JSON_NAME
+# Atomic-writer temp-file naming, shared by ``atomic_write_json`` and the cleanliness exclusion so
+# the two never drift. Temp files are ``<output_dir>/.audit_convention.<rand>.tmp``.
+OUTPUT_TMP_PREFIX = ".audit_convention."
+OUTPUT_TMP_SUFFIX = ".tmp"
+# The package-source subtree whose cleanliness is gated (fix-round-3 blocker 2). Scoped: unrelated
+# changes elsewhere in the package repo (e.g. worklog records for commits being prepared) do NOT
+# fail; any dirty path UNDER this subtree DOES fail (=> invalid_infrastructure).
+PACKAGE_SRC_PATHSPEC = "src/cylindrical_dinov3"
 
 
 class InvalidInfrastructure(Exception):
@@ -305,7 +318,7 @@ def atomic_write_json(path: str, record: tp.Mapping[str, tp.Any]) -> None:
     path = os.fspath(path)
     directory = os.path.dirname(os.path.abspath(path))
     os.makedirs(directory, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=directory, prefix=".audit_convention.", suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(dir=directory, prefix=OUTPUT_TMP_PREFIX, suffix=OUTPUT_TMP_SUFFIX)
     try:
         with os.fdopen(fd, "w") as fh:
             json.dump(record, fh, allow_nan=False, indent=2, sort_keys=False)
@@ -349,41 +362,102 @@ def _sha256_file(path: str) -> tp.Optional[str]:
         return None
 
 
-def _worktree_clean_excluding(worktree: str, exclude_reldir: str) -> tp.Optional[bool]:
-    """True iff ``git status --porcelain`` for ``worktree`` is empty AFTER dropping every entry
-    under ``exclude_reldir`` (the exp-09 output dir, where this audit writes its JSON). Returns
-    None if git is unavailable (which the provenance gate then treats as a failed expectation)."""
+def _parse_porcelain_path(line: str) -> tp.Optional[str]:
+    """Extract the (destination) path from one ``git status --porcelain`` line, or None for blank."""
+    if not line.strip():
+        return None
+    path = line[3:].strip()
+    if path.startswith('"') and path.endswith('"'):
+        path = path[1:-1]
+    if " -> " in path:  # rename entry "old -> new"
+        path = path.split(" -> ", 1)[1]
+    return path
+
+
+def _git_scoped_status(repo: str, pathspec: str) -> tp.Dict[str, tp.Any]:
+    """Scoped ``git status --porcelain -- <pathspec>`` for ``repo`` (fix-round-3 blocker 2). Returns
+    the list of dirty paths UNDER ``pathspec`` (index or working tree), a ``clean`` bool, and the
+    ``pathspec``. ``clean`` is None (=> the provenance gate fails closed) if git is unavailable. The
+    scoping is git-native: ``src/cylindrical_dinov3`` matches that directory's contents only, never a
+    sibling like ``src/cylindrical_dinov3_extra`` and never unrelated paths (e.g. ``worklog/``)."""
+    try:
+        out = subprocess.check_output(
+            ["git", "-C", repo, "status", "--porcelain", "--", pathspec],
+            stderr=subprocess.DEVNULL,
+        ).decode()
+    except Exception as exc:  # noqa: BLE001
+        return {"pathspec": pathspec, "clean": None, "dirty_paths": None, "error": repr(exc)}
+    dirty = [p for p in (_parse_porcelain_path(ln) for ln in out.splitlines()) if p is not None]
+    return {"pathspec": pathspec, "clean": (len(dirty) == 0), "dirty_paths": dirty}
+
+
+def _relpath_in_worktree(worktree: str, path: str) -> tp.Optional[str]:
+    """POSIX relpath of ``path`` within ``worktree`` (``path`` may be absolute or worktree-relative),
+    or None if it resolves OUTSIDE the worktree (then nothing is excluded from the cleanliness set)."""
+    base = os.path.abspath(worktree)
+    p = path if os.path.isabs(path) else os.path.join(base, path)
+    try:
+        rel = os.path.relpath(os.path.abspath(p), base)
+    except (ValueError, OSError):
+        return None
+    if rel == os.pardir or rel.startswith(os.pardir + os.sep):
+        return None
+    return rel.replace(os.sep, "/")
+
+
+def _is_output_or_tmp(path: str, out_rel: tp.Optional[str]) -> bool:
+    """True iff a git-status ``path`` is EXACTLY the audit output JSON (``out_rel``) or one of the
+    atomic writer's temp siblings (``.audit_convention.*.tmp``) in the SAME directory. It NEVER
+    matches the parent directory -- that widening is exactly the fix-round-3 blocker-1 defect."""
+    if out_rel is None:
+        return False
+    if path == out_rel:
+        return True
+    out_dir = out_rel.rpartition("/")[0]     # "" if out_rel has no directory component
+    q_dir, _, q_base = path.rpartition("/")
+    return (q_dir == out_dir
+            and q_base.startswith(OUTPUT_TMP_PREFIX)
+            and q_base.endswith(OUTPUT_TMP_SUFFIX))
+
+
+def _worktree_clean_excluding(worktree: str, out_path: tp.Optional[str]) -> tp.Optional[bool]:
+    """True iff ``git status --porcelain`` for ``worktree`` is empty AFTER dropping ONLY the audit's
+    own output JSON (``out_path``; absolute or worktree-relative) and the atomic writer's temp
+    sibling(s) in that same directory. The parent directory is NOT excluded (fix-round-3 blocker 1):
+    a dirty ``audit_convention.py``, its tests, or ANY other changed path => not clean. Returns None
+    if git is unavailable (the provenance gate then treats that as a failed clean-worktree gate)."""
     try:
         out = subprocess.check_output(
             ["git", "-C", worktree, "status", "--porcelain"], stderr=subprocess.DEVNULL
         ).decode()
     except Exception:  # noqa: BLE001
         return None
-    exclude = exclude_reldir.strip("/")
-    prefix = exclude + "/"
+    out_rel = _relpath_in_worktree(worktree, out_path) if out_path else None
     for line in out.splitlines():
-        if not line.strip():
+        path = _parse_porcelain_path(line)
+        if path is None:
             continue
-        path = line[3:].strip()
-        if path.startswith('"') and path.endswith('"'):
-            path = path[1:-1]
-        if " -> " in path:  # rename entry "old -> new"
-            path = path.split(" -> ", 1)[1]
-        if path == exclude or path.startswith(prefix):
+        if _is_output_or_tmp(path, out_rel):
             continue
         return False
     return True
 
 
-def build_provenance(checkpoint: str, cyl_repo: str, worktree: str) -> tp.Dict[str, tp.Any]:
+def build_provenance(checkpoint: str, cyl_repo: str, worktree: str,
+                     out_path: tp.Optional[str] = None) -> tp.Dict[str, tp.Any]:
     import cylindrical_dinov3  # local import so tests can import this module cheaply
 
     weights_file = os.path.join(checkpoint, "model.safetensors")
+    # Exclude EXACTLY the audit's own output JSON (+ its temp siblings), never the parent directory.
+    # ``out_path`` is the file the run will actually write; absent it, fall back to the blessed
+    # default so the 3-arg call still excludes the right file (fix-round-3 blocker 1).
     return {
         "cylindrical_dinov3": {
             "version": getattr(cylindrical_dinov3, "__version__", None),
             "package_file": getattr(cylindrical_dinov3, "__file__", None),
             "git": _git_sha(cyl_repo),
+            # Scoped package-source cleanliness (fix-round-3 blocker 2), serialised for the audit trail.
+            "src_status": _git_scoped_status(cyl_repo, PACKAGE_SRC_PATHSPEC),
         },
         "official_weights": {
             "checkpoint": checkpoint,
@@ -394,7 +468,7 @@ def build_provenance(checkpoint: str, cyl_repo: str, worktree: str) -> tp.Dict[s
         "flac_worktree": {
             "path": worktree,
             "git": _git_sha(worktree),
-            "clean_excluding_output": _worktree_clean_excluding(worktree, OUTPUT_RELDIR),
+            "clean_excluding_output": _worktree_clean_excluding(worktree, out_path or OUTPUT_JSON_RELPATH),
         },
     }
 
@@ -437,9 +511,27 @@ def evaluate_provenance(
         return {"name": name, "ok": state == "match", "state": state,
                 "expected": True, "actual": actual}
 
+    def _src_clean_check(name: str, src_status: tp.Any) -> tp.Dict[str, tp.Any]:
+        """UNCONDITIONAL scoped package-source gate (fix-round-3 blocker 2; mutation M2 target =
+        removing this check). A missing/erroring status or ANY dirty path under the scoped subtree
+        fails closed (=> invalid_infrastructure); only an empty scoped listing is clean. Unrelated
+        changes elsewhere in the package repo never reach here -- the status is scoped upstream."""
+        src_status = src_status or {}
+        clean = src_status.get("clean")
+        if clean is True:
+            state = "clean"
+        elif clean is False:
+            state = "dirty"
+        else:
+            state = "unavailable"   # None / missing / git error -> fail closed
+        return {"name": name, "ok": state == "clean", "state": state, "expected": True,
+                "actual": {"clean": clean, "dirty_paths": src_status.get("dirty_paths"),
+                           "pathspec": src_status.get("pathspec")}}
+
     checks = [
         _eq_check("package_sha", expectations.get("package_sha"), (cyl.get("git") or {}).get("sha")),
         _prefix_check("package_path_prefix", expectations.get("package_path_prefix"), cyl.get("package_file")),
+        _src_clean_check("package_src_clean", cyl.get("src_status")),
         _eq_check("worktree_sha", expectations.get("worktree_sha"), (wt.get("git") or {}).get("sha")),
         _flag_check("clean_worktree", expectations.get("expect_clean_worktree"), wt.get("clean_excluding_output")),
         _eq_check("checkpoint_revision", expectations.get("checkpoint_revision"), ow.get("revision")),
@@ -829,7 +921,7 @@ def run_audit(
             reasons.append("a1_source_basis_invalid")
 
         # -- provenance IDENTITY gate (fail closed against registered expectations) ------------
-        record["provenance"] = build_provenance(checkpoint, cyl_repo, worktree)
+        record["provenance"] = build_provenance(checkpoint, cyl_repo, worktree, out_path)
         provenance_ok, prov_reasons, prov_checks = evaluate_provenance(record["provenance"], expectations)
         record["provenance"]["expectation_checks"] = prov_checks
         record["provenance"]["provenance_ok"] = bool(provenance_ok)

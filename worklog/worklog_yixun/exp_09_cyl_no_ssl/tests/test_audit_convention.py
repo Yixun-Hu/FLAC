@@ -19,11 +19,16 @@ Fix-round-2 mutation map (fail-closed gates; see the Coder report):
   M3 fingerprint gate True when absent     -> test_main_absent_fingerprint_is_invalid          RED
   M4 angle_spec rescales, not rejects      -> test_angle_spec_rejects_wrong_width              RED
   M5 A1 pattern-assert removed             -> test_a1_source_drift_is_invalid                  RED
+
+Fix-round-3 mutation map (exact-output cleanliness exclusion; scoped package-source gate):
+  M1 exclusion widened back to parent dir  -> test_cleanliness_excludes_only_output_not_runner RED
+  M2 scoped package-src gate removed       -> test_evaluate_provenance_dirty_package_src_fails  RED
 """
 import json
 import math
 import os
 import shutil
+import subprocess
 import warnings
 
 import pytest
@@ -349,12 +354,41 @@ def test_integration_real_sample_a2a():
 FAKE_PROV = {
     "cylindrical_dinov3": {"version": "0.0.0-test",
                            "package_file": "/pkg/src/cylindrical_dinov3/__init__.py",
-                           "git": {"sha": "PKGSHA0", "dirty": False}},
+                           "git": {"sha": "PKGSHA0", "dirty": False},
+                           "src_status": {"pathspec": "src/cylindrical_dinov3",
+                                          "clean": True, "dirty_paths": []}},
     "official_weights": {"checkpoint": "/ckpt/REVX", "revision": "REVX",
                          "weights_file": "/ckpt/REVX/model.safetensors", "sha256": "WSHA0"},
     "flac_worktree": {"path": "/wt", "git": {"sha": "WTSHA0", "dirty": False},
                       "clean_excluding_output": True},
 }
+
+
+def _init_fixture_repo(root, files):
+    """Create a REAL throwaway git repo at ``root`` with ``files`` (relpath -> content) committed
+    clean. Used to drive the REAL cleanliness / scoped-status filters on REAL porcelain output."""
+    root = str(root)
+    subprocess.run(["git", "init", "-q", root], check=True)
+    subprocess.run(["git", "-C", root, "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", root, "config", "user.name", "t"], check=True)
+    subprocess.run(["git", "-C", root, "config", "commit.gpgsign", "false"], check=True)
+    for rel, content in files.items():
+        p = os.path.join(root, rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w") as fh:
+            fh.write(content)
+    subprocess.run(["git", "-C", root, "add", "-A"], check=True)
+    subprocess.run(["git", "-C", root, "commit", "-qm", "init"], check=True)
+
+
+def _real_scoped_status(repo, pathspec="src/cylindrical_dinov3"):
+    """Test-local, dependency-free scoped ``git status --porcelain -- <pathspec>`` on a real repo,
+    producing the same dict shape the production seam serialises. Kept independent of any new
+    audit_convention symbol so the blocker-2 RED-first proof runs against the pre-fix code too."""
+    out = subprocess.check_output(
+        ["git", "-C", str(repo), "status", "--porcelain", "--", pathspec]).decode()
+    dirty = [ln[3:].strip() for ln in out.splitlines() if ln.strip()]
+    return {"pathspec": pathspec, "clean": (len(dirty) == 0), "dirty_paths": dirty}
 
 
 def _fresh_prov():
@@ -406,12 +440,22 @@ def test_evaluate_provenance_absent_expectation_fails_closed():
     assert ac.evaluate_provenance(_fresh_prov(), exp)[0] is False, "absent clean-worktree flag must fail"
 
 
-def test_evaluate_provenance_fake_package_path_and_dirty_fail():
-    """Finding 1 scenario: a fake package at /wrong/package.py must NOT pass; a dirty worktree fails."""
+def test_evaluate_provenance_fake_package_path_and_dirty_fail(tmp_path):
+    """Finding 1 scenario: a fake package at /wrong/package.py must NOT pass; and a worktree whose
+    cleanliness is False fails the gate. The dirty-worktree bool is DERIVED from the REAL filter on
+    a real dirty fixture (no injected pre-derived boolean -- r2 flagged the old tests:409 for that)."""
     prov = _fresh_prov(); prov["cylindrical_dinov3"]["package_file"] = "/wrong/package.py"
     ok, reasons, _ = ac.evaluate_provenance(prov, _good_expectations())
     assert ok is False and any("package_path_prefix" in r for r in reasons)
-    prov2 = _fresh_prov(); prov2["flac_worktree"]["clean_excluding_output"] = False
+    # Derive clean_excluding_output from the REAL filter on a real fixture with a dirty runner file.
+    repo = tmp_path / "wt"
+    _init_fixture_repo(repo, {ac.OUTPUT_RELDIR + "/audit_convention.py": "r\n",
+                              ac.OUTPUT_JSON_RELPATH: "{}\n"})
+    with open(str(repo / ac.OUTPUT_RELDIR / "audit_convention.py"), "w") as fh:
+        fh.write("tampered\n")
+    clean = ac._worktree_clean_excluding(str(repo), ac.OUTPUT_JSON_RELPATH)
+    assert clean is False  # real filter: a dirty runner is not excluded
+    prov2 = _fresh_prov(); prov2["flac_worktree"]["clean_excluding_output"] = clean
     assert ac.evaluate_provenance(prov2, _good_expectations())[0] is False
 
 
@@ -580,3 +624,129 @@ def test_main_absent_fingerprint_is_invalid(tiny_env):
     assert rc == 3 and rec["audit_status"] == ac.STATUS_INVALID
     assert rec["validity"]["fingerprint_ok"] is False
     assert "fingerprint_expectation_absent" in rec["reasons"]
+
+
+# =============================================================================================
+# Fix-round-3 blocker 1: the clean-worktree derivation excludes ONLY the exact output JSON
+# (+ atomic-writer temp siblings), NEVER the parent directory. Real filter on real porcelain.
+# =============================================================================================
+def test_cleanliness_excludes_only_output_not_runner(tmp_path):
+    """Blocker 1 / mutation M1: a dirty ``audit_convention.py`` (or anything else under
+    OUTPUT_RELDIR) must make the worktree NOT clean -- the parent directory must NOT be excluded.
+    Production-connected through the REAL ``build_provenance`` -> ``_worktree_clean_excluding``
+    filter on a REAL fixture repo's REAL ``git status --porcelain`` (no injected boolean).
+
+    RED-first (pre-fix): build_provenance excluded the whole OUTPUT_RELDIR directory, so a dirty
+    runner returned clean_excluding_output=True. Widening the exclusion back to the parent
+    directory re-introduces exactly that defect and re-reddens this test."""
+    repo = tmp_path / "wt"
+    _init_fixture_repo(repo, {
+        ac.OUTPUT_RELDIR + "/audit_convention.py": "print('runner')\n",
+        ac.OUTPUT_RELDIR + "/tests/test_audit_convention.py": "x = 1\n",
+        # Reference via OUTPUT_RELDIR (not the new OUTPUT_JSON_RELPATH constant) so this headline
+        # blocker-1 test also runs against the pre-fix code for a clean-assertion RED-first proof.
+        ac.OUTPUT_RELDIR + "/audit_convention.json": "{}\n",
+        "readme.md": "hi\n",
+    })
+    # Clean repo -> clean (3-arg build_provenance uses the blessed default output path).
+    prov = ac.build_provenance("/no/ckpt", str(repo), str(repo))
+    assert prov["flac_worktree"]["clean_excluding_output"] is True
+    # Dirty the runner itself -> the parent dir is NOT excluded -> not clean.
+    with open(str(repo / ac.OUTPUT_RELDIR / "audit_convention.py"), "w") as fh:
+        fh.write("print('tampered')\n")
+    prov = ac.build_provenance("/no/ckpt", str(repo), str(repo))
+    assert prov["flac_worktree"]["clean_excluding_output"] is False, \
+        "a dirty audit_convention.py must make the worktree not-clean (parent dir must NOT be excluded)"
+
+
+def test_worktree_clean_excluding_exact_output_and_tmp(tmp_path):
+    """The REAL filter excludes EXACTLY the output JSON and the atomic writer's temp siblings
+    (``.audit_convention.*.tmp``) in that directory, and nothing else -- driven on real porcelain."""
+    repo = tmp_path / "wt"
+    _init_fixture_repo(repo, {
+        ac.OUTPUT_JSON_RELPATH: "{}\n",
+        ac.OUTPUT_RELDIR + "/audit_convention.py": "r\n",
+    })
+    outp = ac.OUTPUT_JSON_RELPATH
+    assert ac._worktree_clean_excluding(str(repo), outp) is True                     # clean
+    with open(str(repo / ac.OUTPUT_JSON_RELPATH), "w") as fh:
+        fh.write('{"x": 1}\n')                                                       # modify output
+    assert ac._worktree_clean_excluding(str(repo), outp) is True                     # excluded
+    tmp_sib = repo / ac.OUTPUT_RELDIR / (ac.OUTPUT_TMP_PREFIX + "AB12" + ac.OUTPUT_TMP_SUFFIX)
+    with open(str(tmp_sib), "w") as fh:
+        fh.write("partial\n")                                                        # atomic tmp
+    assert ac._worktree_clean_excluding(str(repo), outp) is True                     # tmp excluded
+    with open(str(repo / ac.OUTPUT_RELDIR / "audit_convention.py"), "w") as fh:
+        fh.write("tampered\n")                                                        # runner dirty
+    assert ac._worktree_clean_excluding(str(repo), outp) is False                    # NOT excluded
+
+
+def test_worktree_clean_excluding_ignores_output_outside_worktree(tmp_path):
+    """An out_path resolving OUTSIDE the worktree excludes nothing (any dirty path => not clean)."""
+    repo = tmp_path / "wt"
+    _init_fixture_repo(repo, {ac.OUTPUT_JSON_RELPATH: "{}\n"})
+    with open(str(repo / ac.OUTPUT_JSON_RELPATH), "w") as fh:
+        fh.write('{"x": 1}\n')
+    assert ac._worktree_clean_excluding(str(repo), "/somewhere/else/audit_convention.json") is False
+
+
+# =============================================================================================
+# Fix-round-3 blocker 2: scoped package-source cleanliness gate (src/cylindrical_dinov3).
+# =============================================================================================
+def test_evaluate_provenance_dirty_package_src_fails(tmp_path):
+    """Blocker 2 (a) / mutation M2: a dirty path UNDER src/cylindrical_dinov3/ must fail provenance,
+    even with every registered expectation matching. Production-connected through the REAL
+    ``evaluate_provenance`` gate on a scoped listing from a REAL fixture repo's REAL porcelain.
+
+    RED-first (pre-fix): evaluate_provenance recorded cylindrical_dinov3.git.dirty but never gated
+    it, so this returned ok=True. Removing the scoped gate re-reddens this test."""
+    repo = tmp_path / "pkg"
+    _init_fixture_repo(repo, {"src/cylindrical_dinov3/gauge.py": "X_CHANNEL = 0\n",
+                              "worklog/x.md": "prep\n"})
+    with open(str(repo / "src/cylindrical_dinov3/gauge.py"), "w") as fh:
+        fh.write("X_CHANNEL = 0  # tampered\n")
+    status = _real_scoped_status(repo)                       # REAL scoped porcelain
+    assert status["clean"] is False and status["dirty_paths"]
+    prov = _fresh_prov()
+    prov["cylindrical_dinov3"]["git"]["dirty"] = True        # mirror the blocker exactly
+    prov["cylindrical_dinov3"]["src_status"] = status
+    ok, reasons, checks = ac.evaluate_provenance(prov, _good_expectations())
+    assert ok is False, "a dirty package-source subtree must fail provenance"
+    assert any("package_src" in r and "dirty" in r for r in reasons)
+    # Prove the ONLY failing gate is the scoped-src one (all registered expectations still match).
+    failed = [c["name"] for c in checks if not c["ok"]]
+    assert failed == ["package_src_clean"], failed
+
+
+def test_evaluate_provenance_dirty_elsewhere_in_package_passes(tmp_path):
+    """Blocker 2 (b): a dirty path OUTSIDE src/cylindrical_dinov3/ (e.g. a worklog record for a
+    commit being prepared) must NOT fail -- the gate is scoped both ways. Real scoped porcelain."""
+    repo = tmp_path / "pkg"
+    _init_fixture_repo(repo, {"src/cylindrical_dinov3/gauge.py": "X_CHANNEL = 0\n",
+                              "worklog/x.md": "prep\n"})
+    with open(str(repo / "worklog/x.md"), "w") as fh:
+        fh.write("prep -- commits being prepared\n")          # dirty, but OUTSIDE the scope
+    status = _real_scoped_status(repo)
+    assert status["clean"] is True and status["dirty_paths"] == []
+    prov = _fresh_prov(); prov["cylindrical_dinov3"]["src_status"] = status
+    ok, reasons, _ = ac.evaluate_provenance(prov, _good_expectations())
+    assert ok is True, reasons
+
+
+def test_build_provenance_records_scoped_src_status(tmp_path):
+    """The production ``build_provenance`` seam runs the REAL scoped git status and SERIALISES the
+    dirty listing under cylindrical_dinov3.src_status (blocker 2: scoping + serialisation)."""
+    repo = tmp_path / "pkg"
+    _init_fixture_repo(repo, {"src/cylindrical_dinov3/gauge.py": "X_CHANNEL = 0\n",
+                              "worklog/x.md": "prep\n"})
+    with open(str(repo / "src/cylindrical_dinov3/gauge.py"), "w") as fh:
+        fh.write("X_CHANNEL = 0  # tampered\n")
+    with open(str(repo / "worklog/x.md"), "w") as fh:
+        fh.write("also dirty but out of scope\n")
+    prov = ac.build_provenance("/no/ckpt", str(repo), str(repo),
+                               str(repo / ac.OUTPUT_JSON_RELPATH))
+    ss = prov["cylindrical_dinov3"]["src_status"]
+    assert ss["pathspec"] == ac.PACKAGE_SRC_PATHSPEC
+    assert ss["clean"] is False
+    assert any("src/cylindrical_dinov3" in p for p in ss["dirty_paths"])
+    assert all("worklog" not in p for p in ss["dirty_paths"]), "scope must exclude worklog changes"
