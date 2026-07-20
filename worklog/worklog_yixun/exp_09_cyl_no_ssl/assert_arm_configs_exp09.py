@@ -18,15 +18,23 @@ the local HF cache, offline) and REFUSES to launch unless ALL of the following h
     100% of the official weights load with strict compatibility;
   - shared backbone: source_vit and context_poses_vit reference the SAME object;
   - config delta vs FLAC_AR_BF.json is EXACTLY the registered set;
-  - cond_method == 'fa_invariant' and frame_avg_angles == (0.0,).
+  - cond_method == 'fa_invariant' and frame_avg_angles == (0.0,);
+  - scoped CLEAN-TREE for BOTH repos (integrative-review finding 3): the package's
+    ``src/cylindrical_dinov3`` subtree AND the exp-09 worktree's executable trees
+    (``src/`` + the exp09 dir, untracked run logs/JSON excluded) are byte-clean — dirty
+    executable code could keep an accepted HEAD yet contaminate C2.
 
 Explicit raises everywhere (survive ``python -O``). Run offline with HF_HUB_OFFLINE=1.
+``--expect-package-sha <sha>`` pins the accepted package HEAD to exactly one SHA at records
+freeze (no code edit); otherwise the registered byte-identical-src set is accepted.
 
 Run from repo root:  python worklog/worklog_yixun/exp_09_cyl_no_ssl/assert_arm_configs_exp09.py
 """
+import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -74,6 +82,101 @@ CYL_ACCEPTED_SHAS = {
     "977c58439a581d497c78b286a71dceaa86085ded",  # Stage B dispatch
 }
 
+# ---- scoped clean-tree checks (integrative-review finding 3) ----
+# The gate imports EXECUTABLE code from BOTH working trees, so it must refuse when that code is
+# dirty (a dirty tree could retain an accepted HEAD yet contaminate C2). Reuses the audit gate's
+# approach (audit_convention.py: git status --porcelain=v1 -z --untracked-files=all, faithfully
+# reimplemented here so this launch gate stays dependency-light).
+PACKAGE_SRC_PATHSPEC = "src/cylindrical_dinov3"                       # scope in the package repo
+EXP09_TREE_PATHSPECS = ("src", "worklog/worklog_yixun/exp_09_cyl_no_ssl")  # scope in the worktree
+# NARROW exclusion for the worktree scope: an entry is ignorable ONLY when it is UNTRACKED ('??')
+# AND its basename ends in .log or .json (a fresh run output). A TRACKED modification to ANY file
+# - code OR a source .json config - always blocks; a brand-new untracked non-output file (e.g. a
+# .py) also blocks; a rename is a tracked change and never excluded. Fail-closed by construction.
+_OUTPUT_ARTIFACT_RE = re.compile(r".+\.(?:log|json)$", re.IGNORECASE)
+
+
+def _parse_porcelain_z(out):
+    """Parse ``git status --porcelain=v1 -z`` into entries (faithful to
+    audit_convention._parse_porcelain_z): NUL-separated, unquoted; a rename/copy emits
+    ``<dst>\\0<src>`` (both sides recorded); ``is_untracked`` iff the status is exactly ``??``."""
+    tokens = out.split("\0")
+    entries, i, n = [], 0, len(tokens)
+    while i < n:
+        tok = tokens[i]
+        if tok == "":
+            i += 1
+            continue
+        status = tok[:2]
+        dst = tok[3:]
+        is_rename = status[0] in ("R", "C") or status[1] in ("R", "C")
+        if is_rename:
+            src = tokens[i + 1] if i + 1 < n else ""
+            paths = [src, dst]
+            i += 2
+        else:
+            src, paths = None, [dst]
+            i += 1
+        entries.append({"status": status, "src": src, "dst": dst, "paths": paths,
+                        "is_untracked": status == "??", "is_rename": is_rename})
+    return entries
+
+
+def _scoped_status_entries(repo, pathspecs):
+    """Scoped ``git status --porcelain=v1 -z --untracked-files=all -- <pathspecs...>`` entries, or
+    None on any git failure (the caller then fails closed). ``--untracked-files=all`` defeats a
+    repo-local ``status.showUntrackedFiles=no``."""
+    try:
+        out = subprocess.check_output(
+            ["git", "-C", repo, "status", "--porcelain=v1", "-z", "--untracked-files=all",
+             "--", *pathspecs],
+            stderr=subprocess.DEVNULL,
+        ).decode()
+    except Exception:  # noqa: BLE001
+        return None
+    return _parse_porcelain_z(out)
+
+
+def _entry_is_output_artifact(entry):
+    """True iff an entry may be dropped from the WORKTREE executable-tree cleanliness set: an
+    UNTRACKED ('??') file whose basename is a run output (.log/.json). Nothing else is excluded."""
+    if entry.get("is_rename") or not entry.get("is_untracked"):
+        return False
+    base = entry["dst"].rsplit("/", 1)[-1]
+    return _OUTPUT_ARTIFACT_RE.fullmatch(base) is not None
+
+
+def package_src_clean(cyl_repo):
+    """True iff the package's ``src/cylindrical_dinov3`` subtree is byte-clean (index OR work
+    tree; both sides of a rename); None on git failure. ANY dirty path under the scope => not
+    clean (the package source has no run outputs, so there is nothing to exclude)."""
+    entries = _scoped_status_entries(cyl_repo, [PACKAGE_SRC_PATHSPEC])
+    if entries is None:
+        return None
+    return len(entries) == 0
+
+
+def exp09_tree_clean(repo):
+    """True iff the exp-09 EXECUTABLE trees (``src/`` + the exp09 dir) are clean AFTER dropping
+    ONLY untracked run-output artifacts; None on git failure. A tracked modification to any file
+    (code OR a source config) and a new untracked non-output file both make it dirty."""
+    entries = _scoped_status_entries(repo, list(EXP09_TREE_PATHSPECS))
+    if entries is None:
+        return None
+    for e in entries:
+        if _entry_is_output_artifact(e):
+            continue
+        return False
+    return True
+
+
+def accepted_shas(expect_package_sha=None):
+    """The accepted package-HEAD set. ``--expect-package-sha`` (records freeze) pins it to EXACTLY
+    that one SHA WITHOUT editing the code; otherwise the registered byte-identical-src set is used."""
+    if expect_package_sha:
+        return {expect_package_sha}
+    return set(CYL_ACCEPTED_SHAS)
+
 # Registered config delta vs FLAC_AR_BF.json (configs[1]=source_vit, [2]=context_poses_vit).
 # EXACT path->value (not membership in a value-set: a swapped implementation<->gauge on
 # the second block keeps both values 'cylindrical_*' yet is a real bug — Codex blocker 2).
@@ -108,7 +211,7 @@ def assert_vit_pin():
     return os.path.join(snap_dir, VIT_REV)
 
 
-def assert_cyl_pin():
+def assert_cyl_pin(expect_package_sha=None):
     import cylindrical_dinov3 as cyl
     if cyl.__version__ != CYL_VERSION:
         raise RuntimeError(f"cylindrical_dinov3 version {cyl.__version__!r} != pinned {CYL_VERSION!r}")
@@ -118,11 +221,20 @@ def assert_cyl_pin():
         )
     repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(cyl.__file__))))
     sha = subprocess.check_output(["git", "-C", repo, "rev-parse", "HEAD"], text=True).strip()
-    if sha not in CYL_ACCEPTED_SHAS:
+    accepted = accepted_shas(expect_package_sha)
+    if sha not in accepted:
         raise RuntimeError(
-            f"cylindrical-dinov3 HEAD {sha!r} not in accepted set {sorted(CYL_ACCEPTED_SHAS)} — refuse"
+            f"cylindrical-dinov3 HEAD {sha!r} not in accepted set {sorted(accepted)} — refuse"
         )
-    print(f"[pin] cylindrical_dinov3 {CYL_VERSION} @ {sha[:12]}… (path OK) OK")
+    # Scoped package-source cleanliness (finding 3): a dirty src/cylindrical_dinov3 could keep
+    # the accepted HEAD yet ship different executable code into C2 — refuse (fail closed).
+    clean = package_src_clean(repo)
+    if clean is not True:
+        raise RuntimeError(
+            f"cylindrical-dinov3 {PACKAGE_SRC_PATHSPEC} is not byte-clean (clean={clean!r}) — "
+            "dirty package source could contaminate C2; refuse"
+        )
+    print(f"[pin] cylindrical_dinov3 {CYL_VERSION} @ {sha[:12]}… (path OK, src clean) OK")
 
 
 def _flatten_diff(a, b, prefix=""):
@@ -181,9 +293,28 @@ def assert_config_delta(exp09_cfg):
           f"deep-equal ({len(added)} added, {len(changed)} changed) OK")
 
 
-def main():
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="exp-09 pre-launch pin gate")
+    parser.add_argument(
+        "--expect-package-sha", default=None,
+        help="pin the accepted cylindrical-dinov3 HEAD to EXACTLY this one SHA (records freeze), "
+             "instead of the registered byte-identical-src set — no code edit needed",
+    )
+    args = parser.parse_args(argv)
+
+    # Scoped exp-09 worktree cleanliness (finding 3): the gate imports executable code from the
+    # worktree too, so refuse if src/ or the exp09 tooling is dirty (untracked run logs/JSON
+    # excluded). Fail-closed BEFORE building anything.
+    wt_clean = exp09_tree_clean(REPO)
+    if wt_clean is not True:
+        raise RuntimeError(
+            f"exp-09 worktree executable trees {EXP09_TREE_PATHSPECS} not clean (clean={wt_clean!r}) "
+            "— dirty executable code could contaminate C2; refuse"
+        )
+    print(f"[pin] exp-09 worktree {EXP09_TREE_PATHSPECS} clean (untracked run logs/JSON excluded) OK")
+
     snap = assert_vit_pin()
-    assert_cyl_pin()
+    assert_cyl_pin(args.expect_package_sha)
 
     from cylindrical_dinov3 import CylindricalDINOv3ViTModel, CylindricalXYZGauge
 
