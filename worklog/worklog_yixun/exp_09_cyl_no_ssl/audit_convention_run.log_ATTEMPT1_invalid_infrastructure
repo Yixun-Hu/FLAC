@@ -1,0 +1,3 @@
+You are using a model of type dinov3_vit to instantiate a model of type cylindrical_dinov3_vit. This is not supported for all configurations of models and can yield errors.
+You are using a model of type dinov3_vit to instantiate a model of type cylindrical_dinov3_vit. This is not supported for all configurations of models and can yield errors.
+audit_status=invalid_infrastructure exit_code=3 out=/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/worklog_yixun/exp_09_cyl_no_ssl/audit_convention.json
