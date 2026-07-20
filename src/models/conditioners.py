@@ -443,11 +443,74 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
             conditioners[id] = RIRConditioner(**conditioner_config)
 
         elif conditioner_type == "ViTCoordinates":
-            if vit_model is None: 
+            if vit_model is None:
                 vit_config = conditioner_config.pop("ViT", {})
 
+                # exp-09 (Stage B): an explicit `implementation` field routes into the
+                # cylindrical DINOv3 backbone (official weights + XYZ gauge). The field
+                # being ABSENT preserves EXACT legacy behavior — every existing config
+                # takes a byte-identical code path below. Any OTHER (non-absent) value
+                # fails closed with a ValueError rather than silently falling through to
+                # AutoModel (plan §2 / review r1 #4).
+                implementation = vit_config.get("implementation", None)
+
+                if implementation == "cylindrical_dinov3":
+                    from cylindrical_dinov3 import CylindricalDINOv3ViTModel
+
+                    model_name_or_path = vit_config.get('hf_model_name_or_path', None)
+                    if model_name_or_path is None:
+                        raise ValueError(
+                            "implementation='cylindrical_dinov3' requires 'hf_model_name_or_path' "
+                            "(the official DINOv3 weights to load)."
+                        )
+                    # no-SSL == official weights: from_scratch is unsupported in exp-09.
+                    if vit_config.get('from_scratch', False):
+                        raise ValueError(
+                            "implementation='cylindrical_dinov3' does not support "
+                            "from_scratch=True: the no-SSL exp-09 baseline loads the "
+                            "official DINOv3 weights."
+                        )
+                    channels = vit_config.get('ch_dim', 3)
+                    assert channels == 3, "Only 3 channels are supported"
+
+                    # Audit-blessed gauge-ON default (Stage A: valid_pass). An absent
+                    # `gauge` key defaults to "cylindrical_xyz" here (NOT the package's
+                    # own "none" default), so exp-09 configs cannot silently run gauge-off.
+                    gauge = vit_config.get('gauge', 'cylindrical_xyz')
+                    print(f"Loading cylindrical_dinov3 ViT from {model_name_or_path} "
+                          f"(gauge={gauge}, attn=eager)...")
+                    vit_model = CylindricalDINOv3ViTModel.from_pretrained(
+                        model_name_or_path, gauge=gauge, attn_implementation="eager",
+                    )
+
+                    if vit_config.get('freeze', False):
+                        print('Freezing ViT model parameters...')
+                        for param in vit_model.parameters():
+                            param.requires_grad = False
+
+                    hidden_size = vit_model.config.hidden_size
+
+                    n_trainable_params = sum(p.numel() for p in vit_model.parameters() if p.requires_grad)
+                    n_total_params = sum(p.numel() for p in vit_model.parameters())
+                    print(f"{n_trainable_params / 1e6:.2f}M/{n_total_params / 1e6:.2f}M parameters are trainable")
+
+                    # model_type='dino' -> forward reads outputs.pooler_output (our patch
+                    # mean, [B, hidden]) and projects it with lin_proj. vit_proj is unused
+                    # on the dino path (Identity), matching the legacy DINO branch.
+                    lin_proj = nn.Linear(hidden_size, cond_dim) if cond_dim != hidden_size else nn.Identity()
+                    vit_proj = nn.Identity()
+                    model_type = 'dino'
+
+                elif implementation is not None:
+                    raise ValueError(
+                        f"Unknown ViT implementation: {implementation!r}. Supported: "
+                        "'cylindrical_dinov3', or omit the field for the legacy "
+                        "AutoModel / cyl_vit / SimpleViT paths (fail-closed: an "
+                        "unrecognised implementation never falls through to AutoModel)."
+                    )
+
                 # DINO Encoder
-                if vit_config.get('hf_model_name_or_path', None) is not None:
+                elif vit_config.get('hf_model_name_or_path', None) is not None:
                     model_name_or_path = vit_config.get('hf_model_name_or_path', None)
 
                     if vit_config.get('from_scratch', False):
