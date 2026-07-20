@@ -159,13 +159,18 @@ def test_uniformly_fast_log_passes():
     assert rec["pass"] is True
 
 
+def _log_reaching(n: int) -> str:
+    """A minimal smoke log whose OBSERVED furthest step is n (a final ``n/3000`` progress line)."""
+    return f"Epoch 0:   3%| {n}/3000 [42:11<20:00:00, 100.00s/it, train/loss=0.40]"
+
+
 @pytest.mark.parametrize("steps,wall,ok", [(100, 10000, False), (100, 1000, True), (100, 2532, False)])
 def test_sustained_from_authoritative_wall_clock(steps, wall, ok):
-    """c1_smoke.sh passes achieved steps + bash SECONDS -> the authoritative cumulative rate."""
-    rec = fcp.verify_log("train/loss=0.4 (no bar needed)", min_steps_per_s=0.0395,
+    """c1_smoke.sh passes the achieved step count + a MONOTONIC delta -> the authoritative rate."""
+    rec = fcp.verify_log(_log_reaching(steps), min_steps_per_s=0.0395,
                          sustained_steps=steps, sustained_wall_s=wall)
     assert rec["throughput_ok"] is ok
-    assert rec["sustained_source"] == "wall_clock_seconds"
+    assert rec["sustained_source"] == "wall_clock_monotonic_ceiled"
 
 
 def test_wall_clock_params_take_precedence_over_log_parse():
@@ -176,8 +181,76 @@ def test_wall_clock_params_take_precedence_over_log_parse():
     assert rec["throughput_ok"] is False
 
 
+# --- r3 blocker: whole-second truncation false-pass; use a CEIL'd fractional monotonic delta ----
+def test_boundary_fractional_2531_9_is_ceiled_and_FAILS():
+    """The reviewer's boundary: actual 2531.9 s / 100 steps. The verifier CEILs 2531.9 -> 2532,
+    so sustained = 100/2532 = 0.0394944 < 0.0395 -> FAIL. (The old integer-truncation shell path
+    reported 2531 -> 100/2531 = 0.039510 -> false-pass.)"""
+    rec = fcp.verify_log(_log_reaching(100), min_steps_per_s=0.0395,
+                         sustained_steps=100, sustained_wall_s=2531.9)
+    assert rec["sustained_wall_s_ceiled"] == 2532
+    assert abs(rec["sustained_steps_per_s"] - 100.0 / 2532) < 1e-12
+    assert rec["throughput_ok"] is False
+    assert rec["pass"] is False
+
+
+def test_ceil_is_conservative_upward_even_below_half():
+    """2531.4 s would PASS on the raw fractional rate (100/2531.4 = 0.0395035 >= 0.0395) but the
+    conservative CEIL to 2532 makes it FAIL — elapsed rounds UP / rate rounds DOWN (fail-closed)."""
+    assert 100.0 / 2531.4 >= 0.0395           # raw fractional would pass
+    rec = fcp.verify_log(_log_reaching(100), min_steps_per_s=0.0395,
+                         sustained_steps=100, sustained_wall_s=2531.4)
+    assert rec["sustained_wall_s_ceiled"] == 2532
+    assert rec["throughput_ok"] is False
+
+
+def test_comfortably_fast_fractional_passes():
+    rec = fcp.verify_log(_log_reaching(100), min_steps_per_s=0.0395,
+                         sustained_steps=100, sustained_wall_s=999.4)  # ceil 1000 -> 0.1
+    assert rec["sustained_wall_s_ceiled"] == 1000
+    assert rec["pass"] is True
+
+
+# --- r3 LOW: declared-vs-OBSERVED step reconciliation --------------------------------------- #
+def test_parse_observed_steps_max_over_progress_and_step_eq():
+    # progress numerators require the real tqdm bracket [elapsed<...]; MAX over all is observed
+    assert fcp.parse_observed_steps(
+        "Epoch 0: 1/100 [00:01<00:02, 1it/s]\nEpoch 0: 87/3000 [30:00<10:00, 0.05it/s]") == 87
+    assert fcp.parse_observed_steps("saved epoch=0-step=100.ckpt") == 100
+    assert fcp.parse_observed_steps("no steps here") is None
+    # a declared --max-steps flag echo must NOT be mistaken for an observed step
+    assert fcp.parse_observed_steps("--max-steps 100 --max-steps=100") is None
+
+
+def test_observed_equals_declared_passes():
+    rec = fcp.verify_log(_log_reaching(100), min_steps_per_s=0.0395,
+                         sustained_steps=100, sustained_wall_s=500.0)
+    assert rec["observed_steps"] == 100 and rec["declared_steps"] == 100
+    assert rec["steps_ok"] is True and rec["pass"] is True
+
+
+def test_observed_short_of_declared_FAILS_with_mismatch_message():
+    """r3 LOW / KeyboardInterrupt swallow: a run that reached step 87 with --max-steps 100 must
+    FAIL, never divide by the declared 100 blind."""
+    rec = fcp.verify_log(_log_reaching(87), min_steps_per_s=0.0395,
+                         sustained_steps=100, sustained_wall_s=500.0)
+    assert rec["observed_steps"] == 87
+    assert rec["steps_ok"] is False
+    assert rec["pass"] is False
+    assert "observed 87" in rec["step_mismatch"] and "declared 100" in rec["step_mismatch"]
+    assert rec["sustained_steps_per_s"] is None  # never computed on a mismatch
+
+
+def test_no_observed_step_with_declared_fails_closed():
+    rec = fcp.verify_log("train/loss=0.4 (no progress line at all)", min_steps_per_s=0.0395,
+                         sustained_steps=100, sustained_wall_s=500.0)
+    assert rec["observed_steps"] is None
+    assert rec["steps_ok"] is False and rec["pass"] is False
+
+
 def test_absent_sustained_fails_closed():
-    rec = fcp.verify_log("train/loss=0.4 (no progress bar, no params)", min_steps_per_s=0.0395)
+    # no declared steps and no progress bar -> no step check, but no sustained rate -> fail
+    rec = fcp.verify_log("train/loss=0.4 (nothing to time)", min_steps_per_s=0.0395)
     assert rec["sustained_steps_per_s"] is None
     assert rec["throughput_ok"] is False
     assert rec["pass"] is False

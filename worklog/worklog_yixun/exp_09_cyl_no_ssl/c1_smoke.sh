@@ -82,7 +82,11 @@ HF_HUB_OFFLINE=1 python "${EXPDIR}/assert_arm_configs_exp09.py" \
 # --- 100 steps of the exact config; checkpoint AT/BEFORE step 100 ---
 MB=32; ACC=1; SMOKE_STEPS=100; CKPT_EVERY=100
 echo "--- smoke: ${SMOKE_STEPS} steps, ckpt every ${CKPT_EVERY}, rung ${MB}x2x${ACC} eff64 SyncBN ---"
-SMOKE_START="$SECONDS"   # bash wall-clock: the SUSTAINED-throughput gate divides steps by this
+# MONOTONIC high-resolution timer (r3 blocker): bash $SECONDS truncates BOTH readings to whole
+# seconds, so its integer delta can UNDER-count elapsed and false-pass the rate at the boundary.
+# time.monotonic() is immune to NTP/wall-clock steps during the run and is sub-second; the delta
+# is passed FRACTIONAL and the verifier CEILs it (rounds elapsed up / rate down = fail-closed).
+SMOKE_START="$(python -c 'import time; print(repr(time.monotonic()))')"
 HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=0,1 python train.py \
   --model-config "${EXPDIR}/FLAC_AR_exp09.json" \
   --dataset-config "$DATASET" \
@@ -92,13 +96,16 @@ HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=0,1 python train.py \
   --logger none --checkpoint-every "$CKPT_EVERY" \
   --name exp09_c1_smoke --experiment-name exp09_c1_smoke --save-dir "$SCRATCH"
 rc=$?
-SMOKE_WALL=$(( SECONDS - SMOKE_START ))
+SMOKE_WALL="$(python -c "import time; print(time.monotonic() - ${SMOKE_START})")"
 [ "$rc" -eq 0 ] || { echo "SMOKE FAIL: training exited rc=${rc}"; exit 1; }
-echo "--- smoke wall time: ${SMOKE_WALL}s for ${SMOKE_STEPS} completed steps -> sustained gate input ---"
+[ -n "$SMOKE_WALL" ] || { echo "SMOKE FAIL: could not measure monotonic wall time"; exit 1; }
+echo "--- smoke wall time: ${SMOKE_WALL}s (monotonic, fractional) for ${SMOKE_STEPS} DECLARED steps -> sustained gate (verifier reconciles observed vs declared + ceils elapsed) ---"
 
 FAIL=0
-# --- (a)+(d) finite loss + SUSTAINED throughput (completed steps / wall SECONDS), not the max tick
-# (r2 blocker 2). rc==0 means Lightning reached max-steps, so exactly ${SMOKE_STEPS} steps ran. ---
+# --- (a)+(d) finite loss + OBSERVED-step reconciliation + SUSTAINED throughput (declared steps /
+# CEIL'd monotonic wall time), not the max tick (r2 blocker 2 / r3). The verifier parses the log's
+# OBSERVED furthest step and FAILS if it != the DECLARED ${SMOKE_STEPS} (an interrupted / swallowed
+# -KeyboardInterrupt run short of max-steps is caught; r3 LOW). ---
 HF_HUB_OFFLINE=1 python "${EXPDIR}/forward_counter_probe.py" verify-log \
   --log "$LOG" --min-steps-per-s 0.0395 \
   --sustained-steps "$SMOKE_STEPS" --sustained-wall-s "$SMOKE_WALL" --out "$VERIFY_JSON" \

@@ -18,14 +18,16 @@ This is the runtime C1 EVIDENCE toolkit the smoke step consumes. It has two jobs
    ``K = 8 => 9``. The C1 records pin ``K = 8 => 9``.
 
 2. **Smoke-log verification** (``verify-log`` subcommand / :func:`verify_log`). A FINITE
-   loss must have been logged, and the **SUSTAINED** throughput must clear the floor
-   ``>= 0.0395 steps/s`` (plan §3 = 0.5 x the B-F anchor 0.079). The gate is the sustained
-   rate = completed steps / elapsed wall time — NOT the max instantaneous progress tick
-   (integrative-review r2 blocker 2: one fast tick amid many slow ticks must not pass a slow
-   smoke). c1_smoke.sh times the run with bash ``SECONDS`` and passes the achieved step count
-   (authoritative); absent that, the final cumulative ``N/M [elapsed<...]`` is parsed from the
-   log. The max instantaneous rate (from ``it/s`` / ``s/it`` ticks) is serialised as a
-   DESCRIPTIVE field only.
+   loss must have been logged, the run must have REACHED its declared step count (r3 LOW: the
+   log's observed furthest step must equal the declared ``--max-steps``, else an interrupted run
+   is refused), and the **SUSTAINED** throughput must clear the floor ``>= 0.0395 steps/s``
+   (plan §3 = 0.5 x the B-F anchor 0.079). The gate is the sustained rate = completed steps /
+   elapsed wall time — NOT the max instantaneous progress tick (r2 blocker 2). c1_smoke.sh times
+   the run with a MONOTONIC high-resolution clock and passes the FRACTIONAL delta + declared step
+   count; the verifier CEILs the fractional elapsed to the next whole second before dividing (r3
+   blocker: whole-second truncation could false-pass at the boundary — ceiling is fail-closed).
+   Absent authoritative timing, the final cumulative ``N/M [elapsed<...]`` is parsed from the log.
+   The max instantaneous rate (``it/s`` / ``s/it`` ticks) is serialised DESCRIPTIVELY only.
 
 CPU-only, no GPU required (the forward count is device-independent — it counts module
 calls). Emits atomic finite JSON. Exits nonzero on any miss.
@@ -249,6 +251,19 @@ def parse_sustained_from_log(log_text: str) -> tp.Optional[tp.Tuple[int, int]]:
     return steps, elapsed
 
 
+_STEP_EQ_RE = re.compile(r"\bstep=(\d+)")  # checkpoint-style global step (e.g. epoch=0-step=100.ckpt)
+
+
+def parse_observed_steps(log_text: str) -> tp.Optional[int]:
+    """The furthest OBSERVED training step in the log (integrative-review r3 LOW): the MAX over
+    the progress-bar numerators (``N/M``) and any checkpoint-style ``step=N``. Returns None if none
+    is present. This is the step count the run ACTUALLY reached — an interrupted run (e.g. a
+    swallowed KeyboardInterrupt) leaves it BELOW the declared ``--max-steps``."""
+    vals = [int(m.group(1)) for m in _PROGRESS_RE.finditer(log_text)]
+    vals += [int(m.group(1)) for m in _STEP_EQ_RE.finditer(log_text)]
+    return max(vals) if vals else None
+
+
 def parse_finite_losses(log_text: str) -> tp.Dict[str, tp.Any]:
     """Find every logged ``loss=<v>`` / ``train/loss=<v>`` and classify finiteness.
     Returns counts + the list of non-finite tokens (nan/inf). A run with NO loss line is
@@ -275,45 +290,72 @@ def parse_finite_losses(log_text: str) -> tp.Dict[str, tp.Any]:
 def verify_log(log_text: str, min_steps_per_s: float = DEFAULT_MIN_STEPS_PER_S,
                sustained_steps: tp.Optional[int] = None,
                sustained_wall_s: tp.Optional[float] = None) -> tp.Dict[str, tp.Any]:
-    """Verify a C1 smoke training log: (a) at least one FINITE loss was logged, and (b) the
-    SUSTAINED throughput clears the floor. The gate is the SUSTAINED rate = completed steps /
-    elapsed wall time (integrative-review r2 blocker 2), NEVER the max instantaneous tick:
+    """Verify a C1 smoke training log: (a) a FINITE loss was logged, (b) the run REACHED the
+    declared step count, and (c) the SUSTAINED throughput clears the floor.
 
-      * if ``sustained_steps`` and ``sustained_wall_s`` are given (c1_smoke.sh times the run with
-        bash ``SECONDS`` and passes the achieved step count), that AUTHORITATIVE cumulative rate is
-        used — it cannot be inflated by one fast tick and is pessimistic-by-construction (includes
-        startup), so it fails closed;
+    Step reconciliation (r3 LOW): when a DECLARED ``sustained_steps`` is given, the log's OBSERVED
+    furthest step must equal it; otherwise the run was interrupted (e.g. a swallowed
+    KeyboardInterrupt short of ``--max-steps``) and the smoke FAILS with a mismatch message — the
+    declared count is never trusted blind.
+
+    Sustained gate (r2 blocker 2 / r3 blocker): the rate is completed steps / elapsed wall time,
+    NEVER the max instantaneous tick.
+      * if ``sustained_steps`` + ``sustained_wall_s`` are given (c1_smoke.sh times the run with a
+        MONOTONIC high-resolution clock and passes the FRACTIONAL delta), the elapsed is CEILed to
+        the next whole second before dividing (r3 blocker: whole-second truncation of the raw delta
+        could false-pass at the boundary — ceiling rounds elapsed UP / rate DOWN, fail-closed);
       * else the final cumulative ``(completed_steps, elapsed)`` is parsed from the LAST progress
-        line.
+        line (already whole-second).
 
-    ``max_observed_steps_per_s`` is serialised as a DESCRIPTIVE field only. Fail-closed: a missing
-    loss line, or an absent/unparseable sustained rate, both fail."""
+    ``max_observed_steps_per_s`` is serialised DESCRIPTIVELY only. Fail-closed: a missing loss line,
+    a step mismatch, or an absent/unparseable sustained rate each fail."""
     losses = parse_finite_losses(log_text)
     max_observed = best_throughput_steps_per_s(log_text)   # DESCRIPTIVE ONLY — not the gate
+    observed_steps = parse_observed_steps(log_text)
 
+    # (b) declared-vs-observed step reconciliation (only when a declared count is supplied).
+    step_mismatch: tp.Optional[str] = None
+    if sustained_steps is not None:
+        if observed_steps is None:
+            step_mismatch = f"no observed step count found in the log (declared {sustained_steps})"
+        elif observed_steps != sustained_steps:
+            step_mismatch = (f"observed {observed_steps} != declared {sustained_steps} steps "
+                             "— interrupted/short run; refuse")
+    steps_ok = step_mismatch is None
+
+    # (c) sustained rate — only when the step count reconciles.
     sustained: tp.Optional[float] = None
     source: tp.Optional[str] = None
-    if sustained_steps and sustained_wall_s and sustained_wall_s > 0:
-        sustained = float(sustained_steps) / float(sustained_wall_s)
-        source = "wall_clock_seconds"
-    else:
-        parsed = parse_sustained_from_log(log_text)
-        if parsed is not None:
-            steps, elapsed = parsed
-            sustained = steps / elapsed
-            source = "log_final_cumulative"
+    wall_ceiled: tp.Optional[int] = None
+    if steps_ok:
+        if sustained_steps and sustained_wall_s and sustained_wall_s > 0:
+            wall_ceiled = math.ceil(sustained_wall_s)   # conservative upward rounding (r3 blocker)
+            sustained = float(sustained_steps) / float(wall_ceiled)
+            source = "wall_clock_monotonic_ceiled"
+        else:
+            parsed = parse_sustained_from_log(log_text)
+            if parsed is not None:
+                steps, elapsed = parsed
+                sustained = steps / elapsed
+                source = "log_final_cumulative"
 
     throughput_ok = sustained is not None and sustained >= min_steps_per_s
     finite_loss_ok = bool(losses["all_finite"])
     return {
         "finite_loss_ok": finite_loss_ok,
         "loss": losses,
-        "sustained_steps_per_s": sustained,       # THE GATE
+        "declared_steps": sustained_steps,
+        "observed_steps": observed_steps,
+        "step_mismatch": step_mismatch,
+        "steps_ok": steps_ok,
+        "sustained_wall_s_raw": sustained_wall_s,
+        "sustained_wall_s_ceiled": wall_ceiled,
+        "sustained_steps_per_s": sustained,        # THE GATE
         "sustained_source": source,
         "max_observed_steps_per_s": max_observed,  # descriptive only (would false-pass a slow run)
         "min_steps_per_s": min_steps_per_s,
         "throughput_ok": throughput_ok,
-        "pass": finite_loss_ok and throughput_ok,
+        "pass": finite_loss_ok and throughput_ok and steps_ok,
     }
 
 
@@ -351,9 +393,14 @@ def _cmd_verify_log(args) -> int:
     rec["log"] = args.log
     if args.out:
         atomic_write_json(args.out, rec)
+    if rec["step_mismatch"]:
+        print(f"forward_counter_probe verify-log: STEP MISMATCH — {rec['step_mismatch']}")
     print(f"forward_counter_probe verify-log: finite_loss_ok={rec['finite_loss_ok']} "
-          f"sustained_steps_per_s={rec['sustained_steps_per_s']} ({rec['sustained_source']}; "
-          f"floor {rec['min_steps_per_s']}) max_observed={rec['max_observed_steps_per_s']} "
+          f"steps(declared={rec['declared_steps']}, observed={rec['observed_steps']}, "
+          f"ok={rec['steps_ok']}) sustained_steps_per_s={rec['sustained_steps_per_s']} "
+          f"({rec['sustained_source']}; wall_raw={rec['sustained_wall_s_raw']} "
+          f"wall_ceiled={rec['sustained_wall_s_ceiled']}; floor {rec['min_steps_per_s']}) "
+          f"max_observed={rec['max_observed_steps_per_s']} "
           f"throughput_ok={rec['throughput_ok']} pass={rec['pass']}")
     return 0 if rec["pass"] else 1
 
