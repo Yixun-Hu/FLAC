@@ -110,38 +110,75 @@ def test_extra_frame_angle_would_break_the_count(tiny_mc):
 
 
 # ------------------------------------------------------------------------------------- #
-# 2. throughput parse floor (it/s AND s/it; one-sided >= 0.0395)
+# 2. SUSTAINED throughput gate (integrative-review r2 blocker 2)
 # ------------------------------------------------------------------------------------- #
-def test_throughput_parses_it_per_s():
+def test_max_tick_parsers_still_work_but_are_descriptive_only():
     assert fcp.parse_throughput_steps_per_s("...,  1.92it/s, ...") == [1.92]
-
-
-def test_throughput_parses_s_per_it_as_reciprocal():
-    # a ~12.66 s/step run prints s/it: rate = 1/12.66 ~ 0.079 steps/s
-    rates = fcp.parse_throughput_steps_per_s("... 55:53,  12.66s/it, ...")
-    assert len(rates) == 1
+    rates = fcp.parse_throughput_steps_per_s("... 55:53,  12.66s/it, ...")  # s/it -> 1/x
     assert abs(rates[0] - 1.0 / 12.66) < 1e-9
+    assert abs(fcp.best_throughput_steps_per_s("3.00s/it 0.50it/s 10.0s/it") - 0.5) < 1e-9
 
 
-def test_best_throughput_is_the_max():
-    log = "3.00s/it ... 0.50it/s ... 10.0s/it"  # rates: 0.333, 0.5, 0.1 -> best 0.5
-    assert abs(fcp.best_throughput_steps_per_s(log) - 0.5) < 1e-9
+@pytest.mark.parametrize("hms,secs", [("2:46:40", 10000), ("55:53", 3353), ("00:50", 50), ("50", 50)])
+def test_parse_hms(hms, secs):
+    assert fcp._parse_hms(hms) == secs
 
 
-@pytest.mark.parametrize("log,ok", [
-    ("12.66s/it train/loss=0.4", True),    # 0.079 >= 0.0395
-    ("0.08it/s train/loss=0.4", True),     # 0.08  >= 0.0395
-    ("30.0s/it train/loss=0.4", False),    # 0.033 <  0.0395
-    ("0.02it/s train/loss=0.4", False),    # 0.02  <  0.0395
-])
-def test_throughput_floor_is_one_sided(log, ok):
+def test_parse_sustained_from_final_progress_line():
+    log = ("Epoch 0:   1%| 1/100 [00:25<41:15, 0.040it/s]\n"
+           "Epoch 0: 100%|##| 100/100 [2:46:40<00:00, 100.00s/it]")
+    steps, elapsed = fcp.parse_sustained_from_log(log)
+    assert steps == 100 and elapsed == 10000       # last line: 100 steps in 2:46:40
+
+
+def _reviewer_scenario_log():
+    """The reviewer's EXACT scenario: one fast tick (0.040it/s) + many 100s/it ticks. The final
+    cumulative is 100 steps over 2:46:40 (=10000 s) => sustained 0.01 steps/s (< 0.0395)."""
+    lines = ["Epoch 0:   1%| 1/100 [00:25<41:15,  0.040it/s, train/loss=0.40]"]
+    lines += [f"Epoch 0: {i:3d}%| {i}/100 [00:00<00:00, 100.00s/it, train/loss=0.40]"
+              for i in range(2, 100)]
+    lines += ["Epoch 0: 100%|##| 100/100 [2:46:40<00:00, 100.00s/it, train/loss=0.40]"]
+    return "\n".join(lines)
+
+
+def test_reviewer_scenario_one_fast_tick_many_slow_FAILS():
+    """r2 blocker 2 core: a single fast tick must NOT pass a slow smoke. Sustained 0.01 < 0.0395."""
+    rec = fcp.verify_log(_reviewer_scenario_log(), min_steps_per_s=0.0395)
+    assert abs(rec["sustained_steps_per_s"] - 0.01) < 1e-9
+    assert rec["throughput_ok"] is False
+    assert rec["pass"] is False
+    # the max tick (0.040) is retained DESCRIPTIVELY and would have false-passed the old max gate
+    assert rec["max_observed_steps_per_s"] >= 0.0395
+    assert rec["sustained_source"] == "log_final_cumulative"
+
+
+def test_uniformly_fast_log_passes():
+    log = "Epoch 0: 100%|##| 100/100 [00:50<00:00, 2.00it/s, train/loss=0.42]"  # 100/50 = 2.0/s
     rec = fcp.verify_log(log, min_steps_per_s=0.0395)
+    assert abs(rec["sustained_steps_per_s"] - 2.0) < 1e-9
+    assert rec["pass"] is True
+
+
+@pytest.mark.parametrize("steps,wall,ok", [(100, 10000, False), (100, 1000, True), (100, 2532, False)])
+def test_sustained_from_authoritative_wall_clock(steps, wall, ok):
+    """c1_smoke.sh passes achieved steps + bash SECONDS -> the authoritative cumulative rate."""
+    rec = fcp.verify_log("train/loss=0.4 (no bar needed)", min_steps_per_s=0.0395,
+                         sustained_steps=steps, sustained_wall_s=wall)
     assert rec["throughput_ok"] is ok
+    assert rec["sustained_source"] == "wall_clock_seconds"
 
 
-def test_absent_throughput_fails_closed():
-    rec = fcp.verify_log("train/loss=0.4 (no progress bar here)", min_steps_per_s=0.0395)
-    assert rec["best_steps_per_s"] is None
+def test_wall_clock_params_take_precedence_over_log_parse():
+    """Even a log whose final cumulative looks fast is overridden by the authoritative wall/steps."""
+    fast_log = "Epoch 0: 100%|##| 100/100 [00:10<00:00, 10.0it/s, train/loss=0.4]"
+    rec = fcp.verify_log(fast_log, min_steps_per_s=0.0395, sustained_steps=100, sustained_wall_s=10000)
+    assert abs(rec["sustained_steps_per_s"] - 0.01) < 1e-9
+    assert rec["throughput_ok"] is False
+
+
+def test_absent_sustained_fails_closed():
+    rec = fcp.verify_log("train/loss=0.4 (no progress bar, no params)", min_steps_per_s=0.0395)
+    assert rec["sustained_steps_per_s"] is None
     assert rec["throughput_ok"] is False
     assert rec["pass"] is False
 
@@ -168,14 +205,14 @@ def test_loss_less_log_is_not_ok():
 
 
 def test_verify_log_all_pass():
-    log = "Epoch 0:  1.00it/s, train/loss=0.42"   # 1.0 >= 0.0395 and finite loss
+    log = "Epoch 0: 100%|##| 100/100 [00:50<00:00, 2.00it/s, train/loss=0.42]"  # sustained 2.0
     rec = fcp.verify_log(log, min_steps_per_s=0.0395)
     assert rec["pass"] is True
 
 
 def test_verify_log_fails_on_nan_even_if_fast():
-    log = "Epoch 0:  5.00it/s, train/loss=inf"
+    log = "Epoch 0: 100%|##| 100/100 [00:20<00:00, 5.00it/s, train/loss=inf]"  # fast but nan loss
     rec = fcp.verify_log(log, min_steps_per_s=0.0395)
-    assert rec["throughput_ok"] is True
+    assert rec["throughput_ok"] is True     # sustained 100/20 = 5.0 >= floor
     assert rec["finite_loss_ok"] is False
     assert rec["pass"] is False

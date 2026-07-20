@@ -17,12 +17,15 @@ This is the runtime C1 EVIDENCE toolkit the smoke step consumes. It has two jobs
    pose into one call. CPU-testable via the tiny-scene machinery: ``K = 3 => 4``,
    ``K = 8 => 9``. The C1 records pin ``K = 8 => 9``.
 
-2. **Smoke-log verification** (``verify-log`` subcommand / :func:`verify_log`). Pure
-   parsers over the training log the C1 smoke tees: a FINITE loss must have been logged,
-   and the sustained throughput must clear the floor ``>= 0.0395 steps/s`` (plan §3 =
-   0.5 x the B-F anchor 0.079; one-sided — faster never fails). The throughput parser
-   handles BOTH progress-bar units: ``X.XXit/s`` (rate) and ``X.XXs/it`` (rate = 1/x),
-   since a ~12 s/step run prints ``s/it`` not ``it/s``.
+2. **Smoke-log verification** (``verify-log`` subcommand / :func:`verify_log`). A FINITE
+   loss must have been logged, and the **SUSTAINED** throughput must clear the floor
+   ``>= 0.0395 steps/s`` (plan §3 = 0.5 x the B-F anchor 0.079). The gate is the sustained
+   rate = completed steps / elapsed wall time — NOT the max instantaneous progress tick
+   (integrative-review r2 blocker 2: one fast tick amid many slow ticks must not pass a slow
+   smoke). c1_smoke.sh times the run with bash ``SECONDS`` and passes the achieved step count
+   (authoritative); absent that, the final cumulative ``N/M [elapsed<...]`` is parsed from the
+   log. The max instantaneous rate (from ``it/s`` / ``s/it`` ticks) is serialised as a
+   DESCRIPTIVE field only.
 
 CPU-only, no GPU required (the forward count is device-independent — it counts module
 calls). Emits atomic finite JSON. Exits nonzero on any miss.
@@ -206,10 +209,44 @@ def parse_throughput_steps_per_s(log_text: str) -> tp.List[float]:
 
 
 def best_throughput_steps_per_s(log_text: str) -> tp.Optional[float]:
-    """The best (max) sustained rate parsed from the log, or None if none is present.
-    One-sided by design: the acceptance is ``best >= floor`` (faster never fails)."""
+    """The MAX instantaneous progress-bar rate, or None. DESCRIPTIVE ONLY (integrative-review r2
+    blocker 2): this is NOT the acceptance statistic — a single fast tick amid many slow ticks
+    must NOT pass a slow smoke. The gate uses the SUSTAINED rate (see :func:`verify_log`)."""
     rates = parse_throughput_steps_per_s(log_text)
     return max(rates) if rates else None
+
+
+# tqdm/Lightning progress line: ``... N/M [<elapsed><<remaining>, rate ...]`` where <elapsed> is the
+# CUMULATIVE wall time since the bar started and N is the completed iteration count.
+_PROGRESS_RE = re.compile(r"(\d+)\s*/\s*\d+\s*\[\s*(\d+(?::\d{2})*)\s*<")
+
+
+def _parse_hms(t: str) -> tp.Optional[int]:
+    """Seconds from a tqdm elapsed field: ``H:MM:SS`` / ``MM:SS`` / ``SS`` (base-60 fold)."""
+    try:
+        nums = [int(p) for p in t.split(":")]
+    except ValueError:
+        return None
+    secs = 0
+    for n in nums:
+        secs = secs * 60 + n
+    return secs
+
+
+def parse_sustained_from_log(log_text: str) -> tp.Optional[tp.Tuple[int, int]]:
+    """The FINAL cumulative ``(completed_steps, elapsed_seconds)`` from the LAST progress line
+    (``N/M [elapsed<remaining, ...]``). Returns None if no progress line is present or the values
+    are non-positive. This yields the SUSTAINED rate ``completed_steps / elapsed`` — robust to a
+    single fast tick, since it uses the run's own end-of-run cumulative accounting."""
+    matches = list(_PROGRESS_RE.finditer(log_text))
+    if not matches:
+        return None
+    m = matches[-1]
+    steps = int(m.group(1))
+    elapsed = _parse_hms(m.group(2))
+    if steps <= 0 or elapsed is None or elapsed <= 0:
+        return None
+    return steps, elapsed
 
 
 def parse_finite_losses(log_text: str) -> tp.Dict[str, tp.Any]:
@@ -235,18 +272,45 @@ def parse_finite_losses(log_text: str) -> tp.Dict[str, tp.Any]:
     }
 
 
-def verify_log(log_text: str, min_steps_per_s: float = DEFAULT_MIN_STEPS_PER_S) -> tp.Dict[str, tp.Any]:
+def verify_log(log_text: str, min_steps_per_s: float = DEFAULT_MIN_STEPS_PER_S,
+               sustained_steps: tp.Optional[int] = None,
+               sustained_wall_s: tp.Optional[float] = None) -> tp.Dict[str, tp.Any]:
     """Verify a C1 smoke training log: (a) at least one FINITE loss was logged, and (b) the
-    best sustained throughput clears the floor. Fail-closed: a missing loss line or an
-    unparseable/absent throughput both fail."""
+    SUSTAINED throughput clears the floor. The gate is the SUSTAINED rate = completed steps /
+    elapsed wall time (integrative-review r2 blocker 2), NEVER the max instantaneous tick:
+
+      * if ``sustained_steps`` and ``sustained_wall_s`` are given (c1_smoke.sh times the run with
+        bash ``SECONDS`` and passes the achieved step count), that AUTHORITATIVE cumulative rate is
+        used — it cannot be inflated by one fast tick and is pessimistic-by-construction (includes
+        startup), so it fails closed;
+      * else the final cumulative ``(completed_steps, elapsed)`` is parsed from the LAST progress
+        line.
+
+    ``max_observed_steps_per_s`` is serialised as a DESCRIPTIVE field only. Fail-closed: a missing
+    loss line, or an absent/unparseable sustained rate, both fail."""
     losses = parse_finite_losses(log_text)
-    best = best_throughput_steps_per_s(log_text)
-    throughput_ok = best is not None and best >= min_steps_per_s
+    max_observed = best_throughput_steps_per_s(log_text)   # DESCRIPTIVE ONLY — not the gate
+
+    sustained: tp.Optional[float] = None
+    source: tp.Optional[str] = None
+    if sustained_steps and sustained_wall_s and sustained_wall_s > 0:
+        sustained = float(sustained_steps) / float(sustained_wall_s)
+        source = "wall_clock_seconds"
+    else:
+        parsed = parse_sustained_from_log(log_text)
+        if parsed is not None:
+            steps, elapsed = parsed
+            sustained = steps / elapsed
+            source = "log_final_cumulative"
+
+    throughput_ok = sustained is not None and sustained >= min_steps_per_s
     finite_loss_ok = bool(losses["all_finite"])
     return {
         "finite_loss_ok": finite_loss_ok,
         "loss": losses,
-        "best_steps_per_s": best,
+        "sustained_steps_per_s": sustained,       # THE GATE
+        "sustained_source": source,
+        "max_observed_steps_per_s": max_observed,  # descriptive only (would false-pass a slow run)
         "min_steps_per_s": min_steps_per_s,
         "throughput_ok": throughput_ok,
         "pass": finite_loss_ok and throughput_ok,
@@ -281,13 +345,15 @@ def _cmd_count(args) -> int:
 def _cmd_verify_log(args) -> int:
     with open(args.log, errors="replace") as f:
         text = f.read()
-    rec = verify_log(text, args.min_steps_per_s)
+    rec = verify_log(text, args.min_steps_per_s,
+                     sustained_steps=args.sustained_steps, sustained_wall_s=args.sustained_wall_s)
     rec["generated_by"] = "forward_counter_probe.py verify-log"
     rec["log"] = args.log
     if args.out:
         atomic_write_json(args.out, rec)
     print(f"forward_counter_probe verify-log: finite_loss_ok={rec['finite_loss_ok']} "
-          f"best_steps_per_s={rec['best_steps_per_s']} (floor {rec['min_steps_per_s']}) "
+          f"sustained_steps_per_s={rec['sustained_steps_per_s']} ({rec['sustained_source']}; "
+          f"floor {rec['min_steps_per_s']}) max_observed={rec['max_observed_steps_per_s']} "
           f"throughput_ok={rec['throughput_ok']} pass={rec['pass']}")
     return 0 if rec["pass"] else 1
 
@@ -306,9 +372,13 @@ def main(argv: tp.Optional[tp.Sequence[str]] = None) -> int:
     pc.add_argument("--out", default=None, help="atomic JSON output path")
     pc.set_defaults(func=_cmd_count)
 
-    pv = sub.add_parser("verify-log", help="verify finite loss + throughput floor in a smoke log")
+    pv = sub.add_parser("verify-log", help="verify finite loss + SUSTAINED throughput floor in a smoke log")
     pv.add_argument("--log", required=True, help="C1 smoke training log path")
     pv.add_argument("--min-steps-per-s", type=float, default=DEFAULT_MIN_STEPS_PER_S)
+    pv.add_argument("--sustained-steps", type=int, default=None,
+                    help="authoritative completed step count (c1_smoke passes the achieved steps)")
+    pv.add_argument("--sustained-wall-s", type=float, default=None,
+                    help="authoritative training wall time in seconds (c1_smoke passes bash SECONDS)")
     pv.add_argument("--out", default=None, help="atomic JSON output path")
     pv.set_defaults(func=_cmd_verify_log)
 

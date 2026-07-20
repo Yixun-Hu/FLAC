@@ -119,25 +119,40 @@ def test_c1_fit_bootstrap_threshold_is_21900(tmp_path):
 
 # ------------------------------------------------------------------------------------- #
 # c1_smoke.sh — refuses absent / TBD / non-numeric MIN_FREE_MB
+# r2 LOW: absent args must hit the intended REFUSE (exit 3 + usage), NOT a `set -u`
+# 'unbound variable' trip (exit 1). Assert the exit CODE and the message, not just nonzero.
 # ------------------------------------------------------------------------------------- #
 def test_c1_smoke_refuses_absent_min_free(tmp_path):
-    logdir = tmp_path / "extlog"; logdir.mkdir()
-    # $1 (MIN_FREE_MB) omitted entirely
-    proc = _run(_SMOKE, [], tmp_path=tmp_path)
-    assert proc.returncode != 0
+    proc = _run(_SMOKE, [], tmp_path=tmp_path)               # $1 (MIN_FREE_MB) omitted entirely
+    out = proc.stdout + proc.stderr
+    assert proc.returncode == 3, out
+    assert "usage" in out.lower()
+    assert "unbound variable" not in out.lower(), "set -u trip instead of the intended refusal"
+
+
+def test_c1_smoke_refuses_missing_logdir(tmp_path):
+    proc = _run(_SMOKE, ["27552"], tmp_path=tmp_path)        # $1 given, $2 (log dir) omitted
+    out = proc.stdout + proc.stderr
+    assert proc.returncode == 3, out
+    assert "log dir" in out.lower() or "usage" in out.lower()
+    assert "unbound variable" not in out.lower()
 
 
 def test_c1_smoke_refuses_tbd_min_free(tmp_path):
     logdir = tmp_path / "extlog"; logdir.mkdir()
     proc = _run(_SMOKE, ["TBD_FROM_C1_FIT_PROBE", str(logdir)], tmp_path=tmp_path)
-    assert proc.returncode != 0
-    assert "numeric" in (proc.stdout + proc.stderr).lower() or "TBD" in (proc.stdout + proc.stderr)
+    out = proc.stdout + proc.stderr
+    assert proc.returncode == 3, out
+    assert "numeric" in out.lower() or "TBD" in out
+    assert "unbound variable" not in out.lower()
 
 
 def test_c1_smoke_refuses_non_numeric_min_free(tmp_path):
     logdir = tmp_path / "extlog"; logdir.mkdir()
     proc = _run(_SMOKE, ["not_a_number", str(logdir)], tmp_path=tmp_path)
-    assert proc.returncode != 0
+    out = proc.stdout + proc.stderr
+    assert proc.returncode == 3, out
+    assert "unbound variable" not in out.lower()
 
 
 def test_c1_smoke_gates_both_gpus_on_frozen_value(tmp_path):

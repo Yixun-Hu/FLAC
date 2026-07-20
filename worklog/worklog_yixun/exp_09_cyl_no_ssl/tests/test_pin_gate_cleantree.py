@@ -45,6 +45,10 @@ def _make_repo(tmp_path) -> Path:
     exp09.mkdir(parents=True)
     (exp09 / "exp09_launch.sh").write_text("# launcher\n")
     (exp09 / "FLAC_AR_exp09.json").write_text('{"a": 1}\n')
+    # executed ROOT files (r2 blocker 1) — in scope even though they live at the repo root
+    (repo / "train.py").write_text("# train entrypoint\n")
+    (repo / "eval_FLAC.py").write_text("# eval entrypoint\n")
+    (repo / "defaults.ini").write_text("[defaults]\n")
     (repo / "README.md").write_text("root file, outside both scopes\n")
     _git(repo, "init")
     _git(repo, "config", "user.email", "t@t.t")
@@ -52,6 +56,10 @@ def _make_repo(tmp_path) -> Path:
     _git(repo, "add", "-A")
     _git(repo, "commit", "-m", "init")
     return repo
+
+
+def _head(repo) -> str:
+    return subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"]).decode().strip()
 
 
 # ------------------------------------------------------------------------------------- #
@@ -141,6 +149,83 @@ def test_exp09_tree_ignores_dirt_outside_scope(tmp_path):
 
 def test_exp09_tree_none_on_git_error(tmp_path):
     assert gate.exp09_tree_clean(str(tmp_path / "not_a_repo")) is None
+
+
+# ------------------------------------------------------------------------------------- #
+# r2 blocker 1a: executed ROOT files (train.py / eval_FLAC.py / defaults.ini) are IN scope
+# ------------------------------------------------------------------------------------- #
+def test_executed_root_files_list_is_the_audited_set():
+    assert gate.EXP09_EXECUTED_ROOT_FILES == ("train.py", "eval_FLAC.py", "defaults.ini")
+    for f in gate.EXP09_EXECUTED_ROOT_FILES:
+        assert f in gate.EXP09_TREE_PATHSPECS
+    # finetune_cond.py is only named in eval_FLAC comments/help, never executed -> NOT in scope
+    assert "finetune_cond.py" not in gate.EXP09_TREE_PATHSPECS
+
+
+def test_dirty_root_train_py_blocks(tmp_path):
+    repo = _make_repo(tmp_path)
+    (repo / "train.py").write_text("# MUTATED train entrypoint\n")
+    assert gate.exp09_tree_clean(str(repo)) is False
+
+
+def test_dirty_root_defaults_ini_blocks(tmp_path):
+    repo = _make_repo(tmp_path)
+    (repo / "defaults.ini").write_text("[defaults]\nmax_steps = 999\n")
+    assert gate.exp09_tree_clean(str(repo)) is False
+
+
+def test_dirty_root_eval_flac_blocks(tmp_path):
+    repo = _make_repo(tmp_path)
+    (repo / "eval_FLAC.py").write_text("# MUTATED eval entrypoint\n")
+    assert gate.exp09_tree_clean(str(repo)) is False
+
+
+def test_dirty_root_readme_outside_scope_does_not_block(tmp_path):
+    repo = _make_repo(tmp_path)
+    (repo / "README.md").write_text("changed root file, not executed\n")
+    assert gate.exp09_tree_clean(str(repo)) is True
+
+
+# ------------------------------------------------------------------------------------- #
+# r2 blocker 1b: exp-09 worktree HEAD pin (absent => refusal on the blessed/strict path)
+# ------------------------------------------------------------------------------------- #
+def test_exp09_head_sha_reads_head(tmp_path):
+    repo = _make_repo(tmp_path)
+    assert gate.exp09_head_sha(str(repo)) == _head(repo)
+
+
+def test_exp09_head_sha_none_on_git_error(tmp_path):
+    assert gate.exp09_head_sha(str(tmp_path / "not_a_repo")) is None
+
+
+def test_provenance_matching_sha_and_clean_passes(tmp_path):
+    repo = _make_repo(tmp_path)
+    gate.assert_exp09_provenance(str(repo), expect_exp09_sha=_head(repo), strict=True)  # no raise
+
+
+def test_provenance_mismatched_sha_refuses(tmp_path):
+    repo = _make_repo(tmp_path)
+    wrong = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+    with pytest.raises(RuntimeError, match="EXPECT_EXP09_SHA"):
+        gate.assert_exp09_provenance(str(repo), expect_exp09_sha=wrong, strict=True)
+
+
+def test_provenance_absent_sha_refuses_in_strict_mode(tmp_path):
+    repo = _make_repo(tmp_path)
+    with pytest.raises(RuntimeError, match="EXPECT_EXP09_SHA absent"):
+        gate.assert_exp09_provenance(str(repo), expect_exp09_sha=None, strict=True)
+
+
+def test_provenance_absent_sha_skips_when_unpinned_allowed(tmp_path):
+    repo = _make_repo(tmp_path)
+    gate.assert_exp09_provenance(str(repo), expect_exp09_sha=None, strict=False)  # SKIP, no raise
+
+
+def test_provenance_dirty_tree_refuses_even_with_matching_sha(tmp_path):
+    repo = _make_repo(tmp_path)
+    (repo / "train.py").write_text("# dirty despite the right HEAD\n")
+    with pytest.raises(RuntimeError, match="not clean"):
+        gate.assert_exp09_provenance(str(repo), expect_exp09_sha=_head(repo), strict=True)
 
 
 # ------------------------------------------------------------------------------------- #

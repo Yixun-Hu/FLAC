@@ -19,14 +19,19 @@ the local HF cache, offline) and REFUSES to launch unless ALL of the following h
   - shared backbone: source_vit and context_poses_vit reference the SAME object;
   - config delta vs FLAC_AR_BF.json is EXACTLY the registered set;
   - cond_method == 'fa_invariant' and frame_avg_angles == (0.0,);
-  - scoped CLEAN-TREE for BOTH repos (integrative-review finding 3): the package's
-    ``src/cylindrical_dinov3`` subtree AND the exp-09 worktree's executable trees
-    (``src/`` + the exp09 dir, untracked run logs/JSON excluded) are byte-clean — dirty
-    executable code could keep an accepted HEAD yet contaminate C2.
+  - scoped CLEAN-TREE for BOTH repos (integrative-review finding 3 / r2 blocker 1): the
+    package's ``src/cylindrical_dinov3`` subtree AND the exp-09 worktree's executable trees
+    (``src/`` + the exp09 dir + the executed ROOT files ``train.py``/``eval_FLAC.py``/
+    ``defaults.ini``, untracked run logs/JSON excluded) are byte-clean;
+  - exp-09 worktree HEAD PINNED to an exact SHA (r2 blocker 1): a different clean exp-09
+    commit is refused. The pin is supplied by ``--expect-exp09-sha``/``EXPECT_EXP09_SHA``;
+    unlike the package seam (which has a registered fallback set), an ABSENT exp-09 pin is a
+    REFUSAL on the blessed (strict-default) path.
 
 Explicit raises everywhere (survive ``python -O``). Run offline with HF_HUB_OFFLINE=1.
-``--expect-package-sha <sha>`` pins the accepted package HEAD to exactly one SHA at records
-freeze (no code edit); otherwise the registered byte-identical-src set is accepted.
+``--expect-package-sha``/``EXPECT_PACKAGE_SHA`` pins the accepted package HEAD to exactly one
+SHA at records freeze (no code edit); otherwise the registered byte-identical-src set is
+accepted. ``--allow-unpinned-exp09-sha`` downgrades an absent exp-09 pin to a non-blessed SKIP.
 
 Run from repo root:  python worklog/worklog_yixun/exp_09_cyl_no_ssl/assert_arm_configs_exp09.py
 """
@@ -88,7 +93,14 @@ CYL_ACCEPTED_SHAS = {
 # approach (audit_convention.py: git status --porcelain=v1 -z --untracked-files=all, faithfully
 # reimplemented here so this launch gate stays dependency-light).
 PACKAGE_SRC_PATHSPEC = "src/cylindrical_dinov3"                       # scope in the package repo
-EXP09_TREE_PATHSPECS = ("src", "worklog/worklog_yixun/exp_09_cyl_no_ssl")  # scope in the worktree
+# Executed ROOT files (integrative-review r2 blocker 1): C1/C2 run `python train.py` (c1_fit,
+# c1_smoke, exp09_launch); the screen runs `python eval_FLAC.py` and c1_smoke imports
+# `eval_FLAC.check_load_integrity`; train.py sources its defaults from `defaults.ini` (prefigure
+# get_all_args). These live at the repo ROOT (outside src/ and the exp09 dir) yet are executed, so
+# a dirty one must block. finetune_cond.py is EXCLUDED: it is only named in eval_FLAC comments/help,
+# never imported or invoked by the C1/C2/smoke path.
+EXP09_EXECUTED_ROOT_FILES = ("train.py", "eval_FLAC.py", "defaults.ini")
+EXP09_TREE_PATHSPECS = ("src", "worklog/worklog_yixun/exp_09_cyl_no_ssl") + EXP09_EXECUTED_ROOT_FILES
 # NARROW exclusion for the worktree scope: an entry is ignorable ONLY when it is UNTRACKED ('??')
 # AND its basename ends in .log or .json (a fresh run output). A TRACKED modification to ANY file
 # - code OR a source .json config - always blocks; a brand-new untracked non-output file (e.g. a
@@ -176,6 +188,48 @@ def accepted_shas(expect_package_sha=None):
     if expect_package_sha:
         return {expect_package_sha}
     return set(CYL_ACCEPTED_SHAS)
+
+
+def exp09_head_sha(repo):
+    """The exp-09 worktree HEAD SHA, or None on git failure (caller then fails closed)."""
+    try:
+        return subprocess.check_output(
+            ["git", "-C", repo, "rev-parse", "HEAD"], stderr=subprocess.DEVNULL
+        ).decode().strip()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def assert_exp09_provenance(repo, expect_exp09_sha=None, strict=True):
+    """exp-09 provenance gate (r2 blocker 1): the worktree executable trees (src/ + the exp09 dir
+    + the executed ROOT files) must be CLEAN, and the worktree HEAD must be PINNED to an exact
+    expected SHA. Unlike the package seam (which has a registered byte-identical-src fallback set),
+    the exp-09 HEAD has NO fallback — so an ABSENT ``expect_exp09_sha`` is reported SKIPPED and, in
+    strict mode (the blessed launch path), is treated as a REFUSAL. Raises on any failure."""
+    clean = exp09_tree_clean(repo)
+    if clean is not True:
+        raise RuntimeError(
+            f"exp-09 worktree executable trees {EXP09_TREE_PATHSPECS} not clean (clean={clean!r}) "
+            "— dirty executable code (incl. executed root files) could contaminate C2; refuse"
+        )
+    head = exp09_head_sha(repo)
+    if head is None:
+        raise RuntimeError("exp-09 worktree HEAD unreadable (git failure) — refuse")
+    if expect_exp09_sha:
+        if head != expect_exp09_sha:
+            raise RuntimeError(
+                f"exp-09 worktree HEAD {head!r} != EXPECT_EXP09_SHA {expect_exp09_sha!r} — refuse"
+            )
+        print(f"[pin] exp-09 worktree clean + HEAD pinned to {head[:12]}… OK")
+        return
+    # absent expected SHA: SKIPPED, and in strict mode that SKIP is a refusal.
+    print("[pin] exp-09 HEAD pin SKIPPED (EXPECT_EXP09_SHA absent)")
+    if strict:
+        raise RuntimeError(
+            "EXPECT_EXP09_SHA absent — the blessed path requires the exp-09 worktree HEAD pinned to "
+            "an exact SHA (records freeze sets it via env or --expect-exp09-sha). Refuse. "
+            "(--allow-unpinned-exp09-sha downgrades this to a non-blessed SKIP.)"
+        )
 
 # Registered config delta vs FLAC_AR_BF.json (configs[1]=source_vit, [2]=context_poses_vit).
 # EXACT path->value (not membership in a value-set: a swapped implementation<->gauge on
@@ -300,21 +354,29 @@ def main(argv=None):
         help="pin the accepted cylindrical-dinov3 HEAD to EXACTLY this one SHA (records freeze), "
              "instead of the registered byte-identical-src set — no code edit needed",
     )
+    parser.add_argument(
+        "--expect-exp09-sha", default=None,
+        help="pin the exp-09 worktree HEAD to EXACTLY this SHA (records freeze). Mirrors the package "
+             "seam's plumbing; unlike it, ABSENCE fails in strict mode (no fallback set exists).",
+    )
+    parser.add_argument(
+        "--allow-unpinned-exp09-sha", action="store_true",
+        help="non-blessed only: downgrade an absent EXPECT_EXP09_SHA from a refusal to a SKIP",
+    )
     args = parser.parse_args(argv)
 
-    # Scoped exp-09 worktree cleanliness (finding 3): the gate imports executable code from the
-    # worktree too, so refuse if src/ or the exp09 tooling is dirty (untracked run logs/JSON
-    # excluded). Fail-closed BEFORE building anything.
-    wt_clean = exp09_tree_clean(REPO)
-    if wt_clean is not True:
-        raise RuntimeError(
-            f"exp-09 worktree executable trees {EXP09_TREE_PATHSPECS} not clean (clean={wt_clean!r}) "
-            "— dirty executable code could contaminate C2; refuse"
-        )
-    print(f"[pin] exp-09 worktree {EXP09_TREE_PATHSPECS} clean (untracked run logs/JSON excluded) OK")
+    # Env seam mirrors the package-SHA plumbing: c1_fit/exp09_launch/exp09_screen inherit these
+    # (they cannot pass a new flag), while c1_smoke/records may pass the flag; flag overrides env.
+    expect_package_sha = args.expect_package_sha or os.environ.get("EXPECT_PACKAGE_SHA") or None
+    expect_exp09_sha = args.expect_exp09_sha or os.environ.get("EXPECT_EXP09_SHA") or None
+
+    # exp-09 provenance (r2 blocker 1): scoped cleanliness over src/ + the exp09 dir + the executed
+    # ROOT files (train.py, eval_FLAC.py, defaults.ini), AND an exact HEAD pin. Fail-closed BEFORE
+    # building anything; absent HEAD pin is a refusal on the blessed (strict-default) path.
+    assert_exp09_provenance(REPO, expect_exp09_sha, strict=not args.allow_unpinned_exp09_sha)
 
     snap = assert_vit_pin()
-    assert_cyl_pin(args.expect_package_sha)
+    assert_cyl_pin(expect_package_sha)
 
     from cylindrical_dinov3 import CylindricalDINOv3ViTModel, CylindricalXYZGauge
 

@@ -10,7 +10,7 @@
 # + verification JSONs land there, never in the worktree).
 #
 # Runs 100 steps of the exact config (checkpoint at/before step 100), then VERIFIES:
-#   (a) a finite loss was logged;           (d) throughput >= 0.0395 steps/s (plan §3);
+#   (a) a finite loss was logged;           (d) SUSTAINED throughput (steps/wall) >= 0.0395/s;
 #   (b) a checkpoint file exists;            (e) the fa_invariant backbone-forward count is
 #   (c) it strict-reloads (eval load chain);     NINE per batch (K=8 + 1) - no extra frame pass.
 # Exits nonzero on ANY miss.
@@ -24,9 +24,12 @@ cd "$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-
 EXPDIR="worklog/worklog_yixun/exp_09_cyl_no_ssl"
 WORKTREE="$(readlink -f .)"
 
-# --- $1 = FROZEN MIN_FREE_MB (required; refuse TBD / non-numeric / absent) ---
+# --- $1 = FROZEN MIN_FREE_MB (required; refuse TBD / non-numeric / absent). NB: the refuse
+# messages must NOT interpolate $1/$2 literally - under `set -u` that expansion is itself an
+# 'unbound variable' trip (exit 1) precisely when the arg is absent (r2 LOW). Reference the
+# already-guarded ${1:-}/${2:-} captures / plain words instead. ---
 MIN_FREE_MB="${1:-}"
-[ -n "$MIN_FREE_MB" ] || { echo "usage: c1_smoke.sh <FROZEN_MIN_FREE_MB> <EXTERNAL_LOG_DIR>  ($1 must be the FROZEN numeric threshold)"; exit 3; }
+[ -n "$MIN_FREE_MB" ] || { echo "usage: c1_smoke.sh <FROZEN_MIN_FREE_MB> <EXTERNAL_LOG_DIR>  (arg 1 must be the FROZEN numeric threshold)"; exit 3; }
 case "$MIN_FREE_MB" in
   ''|*[!0-9]*)
     echo "REFUSING: MIN_FREE_MB='${MIN_FREE_MB}' is not a frozen numeric value (TBD / non-numeric /"
@@ -36,7 +39,7 @@ esac
 
 # --- $2 = EXTERNAL log dir (required; must be OUTSIDE the worktree) ---
 LOGDIR="${2:-}"
-[ -n "$LOGDIR" ] || { echo "usage: c1_smoke.sh <FROZEN_MIN_FREE_MB> <EXTERNAL_LOG_DIR>  ($2 log dir required)"; exit 3; }
+[ -n "$LOGDIR" ] || { echo "usage: c1_smoke.sh <FROZEN_MIN_FREE_MB> <EXTERNAL_LOG_DIR>  (arg 2: external log dir required)"; exit 3; }
 mkdir -p "$LOGDIR" 2>/dev/null || { echo "cannot create log dir '${LOGDIR}' - abort"; exit 3; }
 LOGDIR_ABS="$(readlink -f "$LOGDIR")"
 case "${LOGDIR_ABS}/" in
@@ -66,14 +69,20 @@ echo "--- co-tenancy disclosure ---"
 nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader 2>/dev/null || true
 nvidia-smi --query-gpu=index,memory.used,memory.free --format=csv,noheader 2>/dev/null || true
 
-# --- pin gate (fail-closed). EXPECT_PACKAGE_SHA (optional) pins the accepted package HEAD to
-# one SHA at records freeze without editing the gate (integrative-review finding 3). ---
+# --- pin gate (fail-closed). EXPECT_PACKAGE_SHA / EXPECT_EXP09_SHA pin the accepted package and
+# exp-09 worktree HEADs to exact SHAs at records freeze without editing the gate (r2 blocker 1);
+# the exp-09 HEAD pin is REQUIRED on this blessed path (absent it, the gate refuses). ---
 EXPECT_PACKAGE_SHA="${EXPECT_PACKAGE_SHA:-}"
-HF_HUB_OFFLINE=1 python "${EXPDIR}/assert_arm_configs_exp09.py" ${EXPECT_PACKAGE_SHA:+--expect-package-sha "$EXPECT_PACKAGE_SHA"} || { echo "PIN GATE FAILED - abort"; exit 1; }
+EXPECT_EXP09_SHA="${EXPECT_EXP09_SHA:-}"
+HF_HUB_OFFLINE=1 python "${EXPDIR}/assert_arm_configs_exp09.py" \
+  ${EXPECT_PACKAGE_SHA:+--expect-package-sha "$EXPECT_PACKAGE_SHA"} \
+  ${EXPECT_EXP09_SHA:+--expect-exp09-sha "$EXPECT_EXP09_SHA"} \
+  || { echo "PIN GATE FAILED - abort"; exit 1; }
 
 # --- 100 steps of the exact config; checkpoint AT/BEFORE step 100 ---
 MB=32; ACC=1; SMOKE_STEPS=100; CKPT_EVERY=100
 echo "--- smoke: ${SMOKE_STEPS} steps, ckpt every ${CKPT_EVERY}, rung ${MB}x2x${ACC} eff64 SyncBN ---"
+SMOKE_START="$SECONDS"   # bash wall-clock: the SUSTAINED-throughput gate divides steps by this
 HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=0,1 python train.py \
   --model-config "${EXPDIR}/FLAC_AR_exp09.json" \
   --dataset-config "$DATASET" \
@@ -83,13 +92,17 @@ HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=0,1 python train.py \
   --logger none --checkpoint-every "$CKPT_EVERY" \
   --name exp09_c1_smoke --experiment-name exp09_c1_smoke --save-dir "$SCRATCH"
 rc=$?
+SMOKE_WALL=$(( SECONDS - SMOKE_START ))
 [ "$rc" -eq 0 ] || { echo "SMOKE FAIL: training exited rc=${rc}"; exit 1; }
+echo "--- smoke wall time: ${SMOKE_WALL}s for ${SMOKE_STEPS} completed steps -> sustained gate input ---"
 
 FAIL=0
-# --- (a)+(d) finite loss + throughput floor, parsed from the smoke log ---
+# --- (a)+(d) finite loss + SUSTAINED throughput (completed steps / wall SECONDS), not the max tick
+# (r2 blocker 2). rc==0 means Lightning reached max-steps, so exactly ${SMOKE_STEPS} steps ran. ---
 HF_HUB_OFFLINE=1 python "${EXPDIR}/forward_counter_probe.py" verify-log \
-  --log "$LOG" --min-steps-per-s 0.0395 --out "$VERIFY_JSON" \
-  || { echo "SMOKE FAIL: finite-loss / throughput verification failed"; FAIL=1; }
+  --log "$LOG" --min-steps-per-s 0.0395 \
+  --sustained-steps "$SMOKE_STEPS" --sustained-wall-s "$SMOKE_WALL" --out "$VERIFY_JSON" \
+  || { echo "SMOKE FAIL: finite-loss / SUSTAINED-throughput verification failed"; FAIL=1; }
 
 # --- (b) checkpoint exists (step <= 100) ---
 CKPT="$(find "$SCRATCH" -name '*.ckpt' 2>/dev/null | head -1)"
@@ -133,5 +146,5 @@ HF_HUB_OFFLINE=1 python "${EXPDIR}/forward_counter_probe.py" count \
   || { echo "SMOKE FAIL: forward-counter evidence != 9 (K=8 context + 1 source)"; FAIL=1; }
 
 if [ "$FAIL" -ne 0 ]; then echo "=== C1 SMOKE FAILED (see above) - log ${LOG} ==="; exit 1; fi
-echo "=== C1 SMOKE PASSED: finite loss, ckpt+strict-reload, throughput >= 0.0395 steps/s, 9 backbone calls/batch - log ${LOG} ==="
+echo "=== C1 SMOKE PASSED: finite loss, ckpt+strict-reload, SUSTAINED throughput >= 0.0395 steps/s, 9 backbone calls/batch - log ${LOG} ==="
 exit 0
