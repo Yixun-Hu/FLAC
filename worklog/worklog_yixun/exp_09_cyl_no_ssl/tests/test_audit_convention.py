@@ -770,14 +770,21 @@ def test_build_provenance_records_scoped_src_status(tmp_path):
 # =============================================================================================
 def test_cleanliness_tmp_exclusion_untracked_mkstemp_only(tmp_path):
     # -- Case A: a TRACKED (committed, then modified) temp-named file is NEVER excluded --------
-    # ('committed' matches the mkstemp charset, so only the tracked-status check can reject it.)
+    # The middle 'tracktmp' is an EXACT writer-shape name (8 chars from [a-z0-9_]) that fullmatches
+    # OUTPUT_TMP_BASENAME_RE, so ONLY the is_untracked guard -- never the regex -- can keep it
+    # non-excludable. (A wrong-length middle like the old 9-char 'committed' is rejected by the
+    # tightened {8} regex alone, which made the guard-drop mutation FALSE-GREEN -- fix-round-6.)
     repo_a = tmp_path / "A"
+    tracked_base = ac.OUTPUT_TMP_PREFIX + "tracktmp" + ac.OUTPUT_TMP_SUFFIX
+    # Precondition: the fixture name MUST fullmatch the writer-exact regex, so this Case can pass
+    # ONLY through the tracked-status guard, never because the regex happened to reject the name.
+    assert ac.OUTPUT_TMP_BASENAME_RE.fullmatch(tracked_base) is not None, tracked_base
     _init_fixture_repo(repo_a, {
         ac.OUTPUT_JSON_RELPATH: "{}\n",
-        ac.OUTPUT_RELDIR + "/" + ac.OUTPUT_TMP_PREFIX + "committed" + ac.OUTPUT_TMP_SUFFIX: "seed\n",
+        ac.OUTPUT_RELDIR + "/" + tracked_base: "seed\n",
     })
     assert ac._worktree_clean_excluding(str(repo_a), ac.OUTPUT_JSON_RELPATH) is True   # clean commit
-    tracked_tmp = repo_a / ac.OUTPUT_RELDIR / (ac.OUTPUT_TMP_PREFIX + "committed" + ac.OUTPUT_TMP_SUFFIX)
+    tracked_tmp = repo_a / ac.OUTPUT_RELDIR / tracked_base
     with open(str(tracked_tmp), "w") as fh:
         fh.write("modified\n")                                    # tracked-modified temp-named file
     assert ac._worktree_clean_excluding(str(repo_a), ac.OUTPUT_JSON_RELPATH) is False, \
