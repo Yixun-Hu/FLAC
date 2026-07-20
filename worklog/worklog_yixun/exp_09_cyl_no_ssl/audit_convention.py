@@ -50,6 +50,7 @@ import importlib.util
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -128,6 +129,16 @@ OUTPUT_JSON_RELPATH = OUTPUT_RELDIR + "/" + OUTPUT_JSON_NAME
 # the two never drift. Temp files are ``<output_dir>/.audit_convention.<rand>.tmp``.
 OUTPUT_TMP_PREFIX = ".audit_convention."
 OUTPUT_TMP_SUFFIX = ".tmp"
+# The EXACT shape ``atomic_write_json``'s ``tempfile.mkstemp`` produces: prefix + a non-empty random
+# middle + suffix. mkstemp draws the middle from CPython ``tempfile._RandomNameSequence`` whose
+# charset is ``[a-z0-9_]``; ``[A-Za-z0-9_]`` below is a deliberate SUPERSET so every generated name
+# fullmatches, while an EMPTY middle (``.audit_convention..tmp``) or a non-word char (e.g. a space)
+# is rejected. Built from the same PREFIX/SUFFIX constants the writer uses so the gate can never
+# drift from the writer (fix-round-4 blocker 1). The gate excludes a temp sibling ONLY when it is
+# UNTRACKED ('??') AND its basename fullmatches this pattern.
+OUTPUT_TMP_BASENAME_RE = re.compile(
+    re.escape(OUTPUT_TMP_PREFIX) + r"[A-Za-z0-9_]+" + re.escape(OUTPUT_TMP_SUFFIX)
+)
 # The package-source subtree whose cleanliness is gated (fix-round-3 blocker 2). Scoped: unrelated
 # changes elsewhere in the package repo (e.g. worklog records for commits being prepared) do NOT
 # fail; any dirty path UNDER this subtree DOES fail (=> invalid_infrastructure).
@@ -362,16 +373,38 @@ def _sha256_file(path: str) -> tp.Optional[str]:
         return None
 
 
-def _parse_porcelain_path(line: str) -> tp.Optional[str]:
-    """Extract the (destination) path from one ``git status --porcelain`` line, or None for blank."""
+def _unquote_porcelain(token: str) -> str:
+    """Strip the surrounding C-style quotes git adds to a porcelain path token when it contains a
+    space or non-ASCII byte (``core.quotePath``). The quoted space itself is literal inside the
+    quotes (not backslash-escaped), so removing the outer quotes recovers the exact path."""
+    token = token.strip()
+    if len(token) >= 2 and token.startswith('"') and token.endswith('"'):
+        token = token[1:-1]
+    return token
+
+
+def _parse_porcelain_entry(line: str) -> tp.Optional[tp.Dict[str, tp.Any]]:
+    """Parse one ``git status --porcelain`` v1 line into its status code and path(s), or None for a
+    blank line. The format is ``XY <path>`` (two status chars + one space); a rename/copy is
+    ``XY <src> -> <dst>`` with ``X`` in ``{R, C}``. Returns
+    ``{"status", "src", "dst", "paths", "is_untracked", "is_rename"}`` where ``paths`` is
+    ``[dst]`` or ``[src, dst]``. BOTH sides of a rename/copy are parsed so the changed source is
+    never discarded (fix-round-4 blocker 2); ``is_untracked`` is True iff the status is exactly
+    ``??`` (only a brand-new untracked file can be the atomic writer's freshly-created temp)."""
     if not line.strip():
         return None
-    path = line[3:].strip()
-    if path.startswith('"') and path.endswith('"'):
-        path = path[1:-1]
-    if " -> " in path:  # rename entry "old -> new"
-        path = path.split(" -> ", 1)[1]
-    return path
+    status = line[:2]
+    rest = line[3:]
+    is_rename = status[:1] in ("R", "C") and " -> " in rest
+    if is_rename:
+        raw_src, raw_dst = rest.split(" -> ", 1)
+        src, dst = _unquote_porcelain(raw_src), _unquote_porcelain(raw_dst)
+        paths = [src, dst]
+    else:
+        src, dst = None, _unquote_porcelain(rest)
+        paths = [dst]
+    return {"status": status, "src": src, "dst": dst, "paths": paths,
+            "is_untracked": status == "??", "is_rename": is_rename}
 
 
 def _git_scoped_status(repo: str, pathspec: str) -> tp.Dict[str, tp.Any]:
@@ -387,7 +420,16 @@ def _git_scoped_status(repo: str, pathspec: str) -> tp.Dict[str, tp.Any]:
         ).decode()
     except Exception as exc:  # noqa: BLE001
         return {"pathspec": pathspec, "clean": None, "dirty_paths": None, "error": repr(exc)}
-    dirty = [p for p in (_parse_porcelain_path(ln) for ln in out.splitlines()) if p is not None]
+    dirty: tp.List[str] = []
+    for ln in out.splitlines():
+        entry = _parse_porcelain_entry(ln)
+        if entry is None:
+            continue
+        # Record BOTH sides of a rename/copy so a move out of (or into) the scoped subtree never
+        # hides the changed source in the serialised dirty listing (fix-round-4 blocker 2).
+        for p in entry["paths"]:
+            if p and p not in dirty:
+                dirty.append(p)
     return {"pathspec": pathspec, "clean": (len(dirty) == 0), "dirty_paths": dirty}
 
 
@@ -405,27 +447,46 @@ def _relpath_in_worktree(worktree: str, path: str) -> tp.Optional[str]:
     return rel.replace(os.sep, "/")
 
 
-def _is_output_or_tmp(path: str, out_rel: tp.Optional[str]) -> bool:
-    """True iff a git-status ``path`` is EXACTLY the audit output JSON (``out_rel``) or one of the
-    atomic writer's temp siblings (``.audit_convention.*.tmp``) in the SAME directory. It NEVER
-    matches the parent directory -- that widening is exactly the fix-round-3 blocker-1 defect."""
+def _entry_is_excludable(entry: tp.Mapping[str, tp.Any], out_rel: tp.Optional[str]) -> bool:
+    """True iff a single ``git status`` ENTRY may be dropped from the cleanliness set. EXACTLY two
+    kinds of entry are excludable, and NOTHING else (fix-round-4 blockers 1 & 2):
+
+    * the audit output JSON itself, matched by EXACT path (``entry['dst'] == out_rel``) at any
+      status -- the audit always rewrites it, so it is the one file the gate is meant to ignore --
+      but NEVER when that destination is reached via a rename/copy (a rename is a tracked change
+      whose source would then be hidden -- blocker 2);
+    * an atomic-writer temp sibling, ONLY IF the entry is UNTRACKED ('??') AND its basename
+      fullmatches the mkstemp-generated shape (``OUTPUT_TMP_BASENAME_RE``) in the SAME directory as
+      the output JSON. A TRACKED (modified / staged / deleted) temp-named file cannot be the
+      writer's freshly-created mkstemp file, so it is never excluded; an empty or non-word middle
+      is likewise rejected (blocker 1).
+
+    The parent directory is never matched (fix-round-3 blocker 1 stays fixed)."""
     if out_rel is None:
         return False
+    if entry.get("is_rename"):
+        # Renames/copies are tracked changes carrying an old->new pair: never excludable, even when
+        # the destination equals the output JSON (excluding it would hide the changed source).
+        return False
+    path = entry["dst"]
     if path == out_rel:
         return True
+    if not entry.get("is_untracked"):
+        # Only a brand-new '??' file can be the atomic writer's freshly-created mkstemp temp.
+        return False
     out_dir = out_rel.rpartition("/")[0]     # "" if out_rel has no directory component
     q_dir, _, q_base = path.rpartition("/")
-    return (q_dir == out_dir
-            and q_base.startswith(OUTPUT_TMP_PREFIX)
-            and q_base.endswith(OUTPUT_TMP_SUFFIX))
+    return q_dir == out_dir and OUTPUT_TMP_BASENAME_RE.fullmatch(q_base) is not None
 
 
 def _worktree_clean_excluding(worktree: str, out_path: tp.Optional[str]) -> tp.Optional[bool]:
     """True iff ``git status --porcelain`` for ``worktree`` is empty AFTER dropping ONLY the audit's
-    own output JSON (``out_path``; absolute or worktree-relative) and the atomic writer's temp
-    sibling(s) in that same directory. The parent directory is NOT excluded (fix-round-3 blocker 1):
-    a dirty ``audit_convention.py``, its tests, or ANY other changed path => not clean. Returns None
-    if git is unavailable (the provenance gate then treats that as a failed clean-worktree gate)."""
+    own output JSON (``out_path``; absolute or worktree-relative) and the atomic writer's UNTRACKED
+    mkstemp temp sibling(s) in that same directory. The parent directory is NOT excluded
+    (fix-round-3 blocker 1); a rename whose destination is the output JSON and a TRACKED temp-named
+    file are NOT excluded (fix-round-4 blockers 2 & 1): a dirty ``audit_convention.py``, its tests,
+    or ANY other changed path => not clean. Returns None if git is unavailable (the provenance gate
+    then treats that as a failed clean-worktree gate)."""
     try:
         out = subprocess.check_output(
             ["git", "-C", worktree, "status", "--porcelain"], stderr=subprocess.DEVNULL
@@ -434,10 +495,10 @@ def _worktree_clean_excluding(worktree: str, out_path: tp.Optional[str]) -> tp.O
         return None
     out_rel = _relpath_in_worktree(worktree, out_path) if out_path else None
     for line in out.splitlines():
-        path = _parse_porcelain_path(line)
-        if path is None:
+        entry = _parse_porcelain_entry(line)
+        if entry is None:
             continue
-        if _is_output_or_tmp(path, out_rel):
+        if _entry_is_excludable(entry, out_rel):
             continue
         return False
     return True
@@ -1101,6 +1162,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def main(argv: tp.Optional[tp.Sequence[str]] = None) -> int:
     args = build_arg_parser().parse_args(argv)
     torch.manual_seed(0)
+    # Canonicalise --out ONCE, CWD-relative (standard CLI semantics), and thread the ABSOLUTE path
+    # to BOTH the atomic writer and the cleanliness gate so they can never resolve it differently
+    # (fix-round-4 major 3). ``run_audit`` passes ``out_path`` to ``atomic_write_json`` (writes it)
+    # and to ``build_provenance`` -> ``_worktree_clean_excluding`` (the gate converts absolute ->
+    # worktree-relative itself via ``_relpath_in_worktree``; an --out outside the worktree then
+    # excludes nothing).
+    out_path = os.path.abspath(args.out)
     expectations = {
         "package_sha": args.expect_package_sha,
         "package_path_prefix": args.expect_package_path_prefix,
@@ -1110,7 +1178,7 @@ def main(argv: tp.Optional[tp.Sequence[str]] = None) -> int:
         "weights_sha256": args.expect_weights_sha256,
     }
     record, code = run_audit(
-        out_path=args.out,
+        out_path=out_path,
         checkpoint=args.checkpoint,
         cyl_repo=args.cyl_repo,
         worktree=args.worktree,
@@ -1120,7 +1188,7 @@ def main(argv: tp.Optional[tp.Sequence[str]] = None) -> int:
         expect_fingerprint=args.expect_fingerprint,
         expectations=expectations,
     )
-    print(f"audit_status={record['audit_status']} exit_code={code} out={args.out}")
+    print(f"audit_status={record['audit_status']} exit_code={code} out={out_path}")
     return code
 
 

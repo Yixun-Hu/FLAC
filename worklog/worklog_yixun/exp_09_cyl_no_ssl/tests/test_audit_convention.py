@@ -29,6 +29,7 @@ import math
 import os
 import shutil
 import subprocess
+import tempfile
 import warnings
 
 import pytest
@@ -672,9 +673,11 @@ def test_worktree_clean_excluding_exact_output_and_tmp(tmp_path):
     with open(str(repo / ac.OUTPUT_JSON_RELPATH), "w") as fh:
         fh.write('{"x": 1}\n')                                                       # modify output
     assert ac._worktree_clean_excluding(str(repo), outp) is True                     # excluded
-    tmp_sib = repo / ac.OUTPUT_RELDIR / (ac.OUTPUT_TMP_PREFIX + "AB12" + ac.OUTPUT_TMP_SUFFIX)
-    with open(str(tmp_sib), "w") as fh:
-        fh.write("partial\n")                                                        # atomic tmp
+    # Genuine atomic-writer temp: generated the SAME way (real mkstemp, real charset), untracked --
+    # NOT a hand-picked "AB12" (the r3 review flagged that as not a name the writer can produce).
+    fd, _tmp_sib = tempfile.mkstemp(dir=str(repo / ac.OUTPUT_RELDIR),
+                                    prefix=ac.OUTPUT_TMP_PREFIX, suffix=ac.OUTPUT_TMP_SUFFIX)
+    os.close(fd)                                                                     # atomic tmp
     assert ac._worktree_clean_excluding(str(repo), outp) is True                     # tmp excluded
     with open(str(repo / ac.OUTPUT_RELDIR / "audit_convention.py"), "w") as fh:
         fh.write("tampered\n")                                                        # runner dirty
@@ -750,3 +753,109 @@ def test_build_provenance_records_scoped_src_status(tmp_path):
     assert ss["clean"] is False
     assert any("src/cylindrical_dinov3" in p for p in ss["dirty_paths"])
     assert all("worklog" not in p for p in ss["dirty_paths"]), "scope must exclude worklog changes"
+
+
+# =============================================================================================
+# Fix-round-4 blocker 1: a temp sibling is excluded ONLY as an UNTRACKED ('??') file whose
+# basename fullmatches the mkstemp-generated shape. Real filter on real porcelain.
+#   RED-first (against 6b4e71c): the pre-fix gate excluded ANY basename beginning
+#   ``.audit_convention.`` and ending ``.tmp`` regardless of tracked status or generated middle,
+#   so a tracked-modified temp-named file (case A) and empty/space-middle untracked names
+#   (cases C/D) were wrongly excluded. Mutation M1 (drop the '??' check) re-reddens case A.
+# =============================================================================================
+def test_cleanliness_tmp_exclusion_untracked_mkstemp_only(tmp_path):
+    # -- Case A: a TRACKED (committed, then modified) temp-named file is NEVER excluded --------
+    # ('committed' matches the mkstemp charset, so only the tracked-status check can reject it.)
+    repo_a = tmp_path / "A"
+    _init_fixture_repo(repo_a, {
+        ac.OUTPUT_JSON_RELPATH: "{}\n",
+        ac.OUTPUT_RELDIR + "/" + ac.OUTPUT_TMP_PREFIX + "committed" + ac.OUTPUT_TMP_SUFFIX: "seed\n",
+    })
+    assert ac._worktree_clean_excluding(str(repo_a), ac.OUTPUT_JSON_RELPATH) is True   # clean commit
+    tracked_tmp = repo_a / ac.OUTPUT_RELDIR / (ac.OUTPUT_TMP_PREFIX + "committed" + ac.OUTPUT_TMP_SUFFIX)
+    with open(str(tracked_tmp), "w") as fh:
+        fh.write("modified\n")                                    # tracked-modified temp-named file
+    assert ac._worktree_clean_excluding(str(repo_a), ac.OUTPUT_JSON_RELPATH) is False, \
+        "a TRACKED (modified) temp-named file must NOT be excluded -- it cannot be the writer's file"
+
+    # -- Case B: an UNTRACKED, GENUINE mkstemp temp sibling IS excluded (it is the writer's file) --
+    repo_b = tmp_path / "B"
+    _init_fixture_repo(repo_b, {ac.OUTPUT_JSON_RELPATH: "{}\n"})
+    # Generate the name the SAME way atomic_write_json does (real mkstemp, real charset).
+    fd, genuine = tempfile.mkstemp(dir=str(repo_b / ac.OUTPUT_RELDIR),
+                                   prefix=ac.OUTPUT_TMP_PREFIX, suffix=ac.OUTPUT_TMP_SUFFIX)
+    os.close(fd)
+    assert os.path.basename(genuine).startswith(ac.OUTPUT_TMP_PREFIX)
+    assert ac._worktree_clean_excluding(str(repo_b), ac.OUTPUT_JSON_RELPATH) is True, \
+        "an untracked genuine mkstemp temp sibling is the writer's newly-created file -> excluded"
+
+    # -- Case C: an UNTRACKED wrong-pattern temp (EMPTY middle) is NOT excluded ----------------
+    repo_c = tmp_path / "C"
+    _init_fixture_repo(repo_c, {ac.OUTPUT_JSON_RELPATH: "{}\n"})
+    empty_mid = repo_c / ac.OUTPUT_RELDIR / (ac.OUTPUT_TMP_PREFIX + ac.OUTPUT_TMP_SUFFIX)  # ".audit_convention..tmp"
+    with open(str(empty_mid), "w") as fh:
+        fh.write("x\n")
+    assert ac._worktree_clean_excluding(str(repo_c), ac.OUTPUT_JSON_RELPATH) is False, \
+        "empty-middle .audit_convention..tmp is not an mkstemp-generated name -> not excluded"
+
+    # -- Case D: an UNTRACKED wrong-pattern temp (SPACE in middle) is NOT excluded -------------
+    repo_d = tmp_path / "D"
+    _init_fixture_repo(repo_d, {ac.OUTPUT_JSON_RELPATH: "{}\n"})
+    space_mid = repo_d / ac.OUTPUT_RELDIR / (ac.OUTPUT_TMP_PREFIX + "ab cd" + ac.OUTPUT_TMP_SUFFIX)
+    with open(str(space_mid), "w") as fh:
+        fh.write("x\n")
+    assert ac._worktree_clean_excluding(str(repo_d), ac.OUTPUT_JSON_RELPATH) is False, \
+        "a space in the middle is outside the mkstemp charset -> not excluded"
+
+
+# =============================================================================================
+# Fix-round-4 blocker 2: a rename/copy whose DESTINATION is the output JSON is NEVER excluded
+# (a rename is a tracked change and its source would otherwise be hidden). Real porcelain.
+#   RED-first (against 6b4e71c): _parse_porcelain_path discarded the rename source and the gate
+#   excluded the destination, so ``R  <src> -> <output json>`` returned clean=True. Mutation M2
+#   (drop the is_rename guard) re-reddens this test.
+# =============================================================================================
+def test_cleanliness_rename_into_output_is_not_excluded(tmp_path):
+    repo = tmp_path / "wt"
+    _init_fixture_repo(repo, {
+        ac.OUTPUT_RELDIR + "/tests/test_audit_convention.py": "hello\nworld\nfoo\n",
+    })
+    # Stage a REAL rename of the tracked test file ONTO the output JSON path (the review's exact
+    # ``R  tests/test_audit_convention.py -> .../audit_convention.json`` porcelain shape).
+    subprocess.run(["git", "-C", str(repo), "mv",
+                    ac.OUTPUT_RELDIR + "/tests/test_audit_convention.py",
+                    ac.OUTPUT_JSON_RELPATH], check=True)
+    porcelain = subprocess.check_output(
+        ["git", "-C", str(repo), "status", "--porcelain"]).decode()
+    assert " -> " in porcelain and ac.OUTPUT_JSON_RELPATH in porcelain, porcelain  # rename destination = output
+    assert ac._worktree_clean_excluding(str(repo), ac.OUTPUT_JSON_RELPATH) is False, \
+        "a rename whose destination is the output JSON must NOT be excluded (source change hidden)"
+
+
+# =============================================================================================
+# Fix-round-4 major 3: a relative --out is canonicalised CWD-relative ONCE in main() and threaded
+# (absolute) to BOTH the writer and the gate, so from a foreign CWD a same-named worktree file is
+# NOT wrongly excluded. Drives the REAL main() with a controlled CWD.
+#   RED-first (against 6b4e71c): main() passed the raw relative --out; the gate resolved it
+#   worktree-relative (excluding the worktree's same-named dirty file) while the writer resolved it
+#   CWD-relative (writing elsewhere). Mutation M3 (drop os.path.abspath) re-reddens this test.
+# =============================================================================================
+def test_cleanliness_relative_out_canonicalizes_cwd_relative(tmp_path, monkeypatch):
+    wt = tmp_path / "wt"
+    _init_fixture_repo(wt, {ac.OUTPUT_JSON_RELPATH: "{}\n"})
+    # The worktree's OWN output-path file is dirty (tracked-modified) but is NOT the file the run
+    # will write (the writer resolves --out against the foreign CWD, not the worktree).
+    with open(str(wt / ac.OUTPUT_JSON_RELPATH), "w") as fh:
+        fh.write('{"dirty": true}\n')
+    decoy = tmp_path / "decoy"
+    decoy.mkdir()
+    monkeypatch.chdir(str(decoy))                       # foreign CWD != worktree
+    rc = ac.main(["--out", ac.OUTPUT_JSON_RELPATH,      # relative, same name as the worktree file
+                  "--worktree", str(wt), "--cyl-repo", str(wt),
+                  "--checkpoint", "/nonexistent/ckpt", "--data-root", "/nonexistent/root",
+                  "--expect-fingerprint", "deadbeef"])
+    written = os.path.join(str(decoy), ac.OUTPUT_JSON_RELPATH)   # where the writer actually wrote
+    assert os.path.exists(written), "record must be written CWD-relative, not worktree-relative"
+    rec = json.loads(open(written).read())
+    assert rec["provenance"]["flac_worktree"]["clean_excluding_output"] is False, \
+        "a relative --out from a foreign CWD must NOT exclude the worktree file of the same name"
