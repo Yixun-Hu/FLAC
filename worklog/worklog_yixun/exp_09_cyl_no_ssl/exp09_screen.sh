@@ -6,6 +6,11 @@
 # direct redirect, no pipeline, exit nonzero if any eval failed so a background
 # launcher surfaces it). Co-located on GPU 1 with training.
 #
+# BOTH passes pass --cond-method fa_invariant --frame-avg-angles 0 EXPLICITLY:
+# eval_FLAC.py defaults to 'vanilla' and does NOT read cond_method from the JSON
+# training block (unlike train.py, where the JSON is authoritative), so omitting the
+# flags would screen the documented raw-pose vanilla trap (Codex Stage-B blocker 1).
+#
 # The EMA pass uses FLAC_AR_exp09.json (use_ema=true -> eval_FLAC loads EMA
 # weights). The online pass uses FLAC_AR_exp09_online_eval.json; that variant is a
 # D-stage artifact (grad-checkpointing off, use_ema=false) and is NOT part of the
@@ -30,6 +35,7 @@ ONLINE_CFG="${EXPD}/FLAC_AR_exp09_online_eval.json"
     --model-config "${EXPD}/FLAC_AR_exp09.json" \
     --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json \
     --ckpt-path "$CKPT" \
+    --cond-method fa_invariant --frame-avg-angles 0 \
     --cond-autocast bf16 --seed 42 --steps 1 --cfg-scale 1.0 --eval-name "exp09_cylNoSSL_screen_S${S}_ema"
   echo "=== EMA eval exit $? ==="
   if [ -f "$ONLINE_CFG" ]; then
@@ -37,6 +43,7 @@ ONLINE_CFG="${EXPD}/FLAC_AR_exp09_online_eval.json"
       --model-config "$ONLINE_CFG" \
       --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json \
       --ckpt-path "$CKPT" \
+      --cond-method fa_invariant --frame-avg-angles 0 \
       --cond-autocast bf16 --seed 42 --steps 1 --cfg-scale 1.0 --eval-name "exp09_cylNoSSL_screen_S${S}_online"
     echo "=== ONLINE eval exit $? ==="
   else

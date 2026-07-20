@@ -432,6 +432,11 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
 
     vit_model = None
     dist_embedder_proj = None
+    # The FIRST ViT block IFF the shared backbone was built via the cylindrical_dinov3
+    # branch. Used only there for a defense-in-depth equality check on a second
+    # ViTCoordinates conditioner (below); stays None for every legacy path, so the
+    # reuse branch is byte-identical for legacy configs.
+    _cyl_first_vit_block = None
 
     for conditioner_info in config["configs"]:
         id = conditioner_info["id"]
@@ -500,6 +505,7 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                     lin_proj = nn.Linear(hidden_size, cond_dim) if cond_dim != hidden_size else nn.Identity()
                     vit_proj = nn.Identity()
                     model_type = 'dino'
+                    _cyl_first_vit_block = vit_config  # for the shared-backbone equality guard
 
                 elif implementation is not None:
                     raise ValueError(
@@ -574,7 +580,23 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                     lin_proj = nn.Linear(num_tokens, 1)
                     model_type = 'vit'
             else:
-                conditioner_config.pop("ViT", None)
+                second_vit_block = conditioner_config.pop("ViT", None)
+                # Defense-in-depth (exp-09, Codex blocker 2c): when the shared backbone
+                # was built by the cylindrical_dinov3 branch, a second ViTCoordinates
+                # conditioner carrying a DIFFERENT ViT block is a silent-mismatch trap —
+                # the factory reuses the first backbone and would otherwise discard the
+                # divergent block unnoticed (e.g. a swapped implementation/gauge). Gated
+                # strictly on the cylindrical territory (_cyl_first_vit_block is None for
+                # every legacy config), so legacy behavior stays byte-identical.
+                if (_cyl_first_vit_block is not None and second_vit_block is not None
+                        and second_vit_block != _cyl_first_vit_block):
+                    raise ValueError(
+                        "cylindrical_dinov3: a second ViTCoordinates conditioner's ViT "
+                        "block differs from the source_vit block that built the shared "
+                        "backbone; the divergent block would be silently ignored. Make "
+                        f"the blocks equal or remove the second one.\n  source_vit={_cyl_first_vit_block}"
+                        f"\n  second={second_vit_block}"
+                    )
             conditioners[id] = GeometryConditioner(**conditioner_config, vit_model=vit_model, vit_proj=vit_proj, lin_proj=lin_proj, model_type=model_type)
 
         elif conditioner_type == "dist_embedder":

@@ -315,17 +315,90 @@ def test_pooler_output_is_patch_mean_at_hidden_384():
 
 
 # ------------------------------------------------------------------------------------- #
-# 6. shared-backbone semantics: SAME object, both ViT blocks equal
+# 6. shared-backbone semantics: production builds ONE shared backbone object.
+#    (Config block-equality is asserted separately against the REAL JSON — see
+#    test_exp09_two_vit_blocks_are_deep_equal_and_exact_in_the_real_json — NOT against a
+#    test-manufactured deep copy, which would be vacuous.)
 # ------------------------------------------------------------------------------------- #
-def test_shared_backbone_same_object_and_blocks_equal(tiny_cyl_dir):
+def test_shared_backbone_is_one_object(tiny_cyl_dir):
     cond_cfg = _cyl_conditioning(tiny_cyl_dir, with_context=True)
     geoms = _geoms(create_multi_conditioner_from_conditioning_config(copy.deepcopy(cond_cfg)))
     assert len(geoms) == 2
     assert geoms[0].vit is geoms[1].vit, "the two ViT conditioners do not share one backbone"
-    # source_vit and context_poses_vit ViT blocks are byte-equal (plan §2 'equality-validated')
-    src_block = cond_cfg["configs"][1]["config"]["ViT"]
-    ctx_block = cond_cfg["configs"][2]["config"]["ViT"]
-    assert src_block == ctx_block
+
+
+# ------------------------------------------------------------------------------------- #
+# 6b. dispatcher defense-in-depth (Codex blocker 2c): a cylindrical build with a
+#     DIVERGENT second ViT block must raise — the factory reuses the first backbone
+#     and would otherwise silently ignore the mismatch. Legacy configs are untouched.
+# ------------------------------------------------------------------------------------- #
+def test_dispatcher_rejects_divergent_second_cyl_block(tiny_cyl_dir):
+    cond_cfg = _cyl_conditioning(tiny_cyl_dir, with_context=True)
+    ctx_vit = cond_cfg["configs"][2]["config"]["ViT"]
+    # the reviewer's exact bypass shape: swap implementation<->gauge on the 2nd block
+    ctx_vit["implementation"], ctx_vit["gauge"] = "cylindrical_xyz", "cylindrical_dinov3"
+    with pytest.raises(ValueError, match="differ"):
+        create_multi_conditioner_from_conditioning_config(cond_cfg)
+
+
+def test_dispatcher_allows_equal_second_cyl_block(tiny_cyl_dir):
+    """Control: equal second block builds fine (no false positive), one shared backbone."""
+    mc = create_multi_conditioner_from_conditioning_config(
+        _cyl_conditioning(tiny_cyl_dir, with_context=True)
+    )
+    geoms = _geoms(mc)
+    assert geoms[0].vit is geoms[1].vit
+
+
+def test_dispatcher_equality_guard_is_inert_for_legacy_configs():
+    """The guard is gated on the cylindrical branch only: a LEGACY (SimpleViT) config
+    whose second ViT block DIFFERS still builds — the factory reuses the first backbone
+    and byte-identical legacy behavior is preserved (the second block was always
+    discarded)."""
+    def _sv_block(dim):
+        return {"img_h": 32, "img_w": 32, "patch_h": 16, "patch_w": 16,
+                "dim": dim, "depth": 1, "heads": 2}
+    cfg = {
+        "configs": [
+            {"id": "source_vit", "type": "ViTCoordinates",
+             "config": {"ViT": _sv_block(32), "max_value": 1}},
+            {"id": "context_poses_vit", "type": "ViTCoordinates",
+             "config": {"ViT": _sv_block(64), "max_value": 1}},  # DIFFERENT dim
+        ],
+        "cond_dim": 256,
+    }
+    mc = create_multi_conditioner_from_conditioning_config(cfg)  # must NOT raise
+    geoms = _geoms(mc)
+    assert geoms[0].vit is geoms[1].vit
+
+
+# ------------------------------------------------------------------------------------- #
+# 6c. screen-script contract (Codex blocker 1): both eval invocations MUST select
+#     fa_invariant[0] explicitly — eval_FLAC.py defaults to 'vanilla' and does NOT
+#     read cond_method from the JSON, so an omitted flag screens the raw-pose trap.
+# ------------------------------------------------------------------------------------- #
+def _screen_eval_invocations():
+    text = (_EXP09_DIR / "exp09_screen.sh").read_text()
+    joined = text.replace("\\\n", " ")  # collapse shell line-continuations
+    return [" ".join(line.split()) for line in joined.splitlines()
+            if "python eval_FLAC.py" in line]
+
+
+def _flag_value(tokens, flag):
+    return tokens[tokens.index(flag) + 1] if flag in tokens else None
+
+
+def test_screen_script_selects_fa_invariant_on_both_evals():
+    invs = _screen_eval_invocations()
+    assert len(invs) == 2, f"expected 2 eval_FLAC.py invocations, got {len(invs)}: {invs}"
+    for inv in invs:
+        tokens = inv.split()
+        assert _flag_value(tokens, "--cond-method") == "fa_invariant", (
+            f"screen eval omits/mis-sets --cond-method fa_invariant: {inv}"
+        )
+        assert _flag_value(tokens, "--frame-avg-angles") == "0", (
+            f"screen eval omits/mis-sets --frame-avg-angles 0: {inv}"
+        )
 
 
 # ------------------------------------------------------------------------------------- #
@@ -588,17 +661,23 @@ def _diff(a, b, prefix=""):
     return changed, added, removed
 
 
-# configs[1] = source_vit, configs[2] = context_poses_vit
-_REGISTERED_ADDED = {
-    "model.conditioning.configs[1].config.ViT.implementation",
-    "model.conditioning.configs[1].config.ViT.gauge",
-    "model.conditioning.configs[2].config.ViT.implementation",
-    "model.conditioning.configs[2].config.ViT.gauge",
+# configs[1] = source_vit, configs[2] = context_poses_vit. EXACT path->value mappings
+# (NOT membership in a value-set: a swapped implementation<->gauge on the second block
+# keeps both values inside a 2-string set yet is a real bug — the reviewer's bypass).
+_REGISTERED_ADDED_VALUES = {
+    "model.conditioning.configs[1].config.ViT.implementation": "cylindrical_dinov3",
+    "model.conditioning.configs[1].config.ViT.gauge": "cylindrical_xyz",
+    "model.conditioning.configs[2].config.ViT.implementation": "cylindrical_dinov3",
+    "model.conditioning.configs[2].config.ViT.gauge": "cylindrical_xyz",
 }
+_REGISTERED_ADDED = set(_REGISTERED_ADDED_VALUES)
 _REGISTERED_CHANGED = {"training.frame_avg_angles"}
 
 
 def test_config_delta_vs_bf_is_exactly_the_registered_set():
+    """The delta vs B-F is EXACTLY the registered path->value set, read from the real
+    FLAC_AR_exp09.json — every added ViT key is pinned to its precise value, so a
+    swapped implementation<->gauge on either block (both still 'cylindrical_*') fails."""
     with open(_BF_JSON) as f:
         bf = json.load(f)
     with open(_EXP09_JSON) as f:
@@ -609,20 +688,30 @@ def test_config_delta_vs_bf_is_exactly_the_registered_set():
         f"unexpected changed keys: {set(changed) ^ _REGISTERED_CHANGED}"
     )
     assert removed == {}, f"unexpected removed keys: {removed}"
-    # spot-check the registered values
     assert changed["training.frame_avg_angles"] == ([0.0, 90.0, 180.0, 270.0], [0.0])
-    for p in _REGISTERED_ADDED:
-        assert added[p] in ("cylindrical_dinov3", "cylindrical_xyz")
+    # EXACT value per path — not membership in a set
+    for path, value in _REGISTERED_ADDED_VALUES.items():
+        assert added[path] == value, f"{path} = {added[path]!r}, expected {value!r}"
 
 
-def test_exp09_config_core_values():
+def test_exp09_two_vit_blocks_are_deep_equal_and_exact_in_the_real_json():
+    """Read from the REAL JSON (not a test-manufactured deep copy): both ViT blocks
+    carry the exact registered values AND are deep-equal to EACH OTHER, so a swapped
+    or drifted second block (silently discarded by the factory) is caught here."""
     with open(_EXP09_JSON) as f:
         exp09 = json.load(f)
-    src_vit = exp09["model"]["conditioning"]["configs"][1]
-    assert src_vit["id"] == "source_vit"
-    vit = src_vit["config"]["ViT"]
-    assert vit["implementation"] == "cylindrical_dinov3"
-    assert vit["gauge"] == "cylindrical_xyz"
-    assert src_vit["config"]["gradient_checkpointing"] is True
+    configs = exp09["model"]["conditioning"]["configs"]
+    vit_confs = [c for c in configs if c["type"] == "ViTCoordinates"]
+    assert [c["id"] for c in vit_confs] == ["source_vit", "context_poses_vit"]
+    blocks = [c["config"]["ViT"] for c in vit_confs]
+    assert blocks[0] == blocks[1], (
+        f"the two ViT blocks are NOT deep-equal:\n  source_vit={blocks[0]}\n  "
+        f"context_poses_vit={blocks[1]}"
+    )
+    for b in blocks:
+        assert b["implementation"] == "cylindrical_dinov3", b
+        assert b["gauge"] == "cylindrical_xyz", b
+    for c in vit_confs:
+        assert c["config"]["gradient_checkpointing"] is True
     assert exp09["training"]["cond_method"] == "fa_invariant"
     assert exp09["training"]["frame_avg_angles"] == [0.0]

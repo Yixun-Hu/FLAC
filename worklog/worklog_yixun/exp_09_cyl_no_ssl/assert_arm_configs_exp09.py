@@ -75,13 +75,17 @@ CYL_ACCEPTED_SHAS = {
 }
 
 # Registered config delta vs FLAC_AR_BF.json (configs[1]=source_vit, [2]=context_poses_vit).
-REGISTERED_ADDED = {
-    "model.conditioning.configs[1].config.ViT.implementation",
-    "model.conditioning.configs[1].config.ViT.gauge",
-    "model.conditioning.configs[2].config.ViT.implementation",
-    "model.conditioning.configs[2].config.ViT.gauge",
+# EXACT path->value (not membership in a value-set: a swapped implementation<->gauge on
+# the second block keeps both values 'cylindrical_*' yet is a real bug — Codex blocker 2).
+REGISTERED_ADDED_VALUES = {
+    "model.conditioning.configs[1].config.ViT.implementation": "cylindrical_dinov3",
+    "model.conditioning.configs[1].config.ViT.gauge": "cylindrical_xyz",
+    "model.conditioning.configs[2].config.ViT.implementation": "cylindrical_dinov3",
+    "model.conditioning.configs[2].config.ViT.gauge": "cylindrical_xyz",
 }
+REGISTERED_ADDED = set(REGISTERED_ADDED_VALUES)
 REGISTERED_CHANGED = {"training.frame_avg_angles"}
+REGISTERED_FRAME_ANGLES = ([0.0, 90.0, 180.0, 270.0], [0.0])
 
 
 def assert_vit_pin():
@@ -153,7 +157,28 @@ def assert_config_delta(exp09_cfg):
         raise RuntimeError(f"config-delta CHANGED keys {set(changed)} != registered {REGISTERED_CHANGED}")
     if removed:
         raise RuntimeError(f"config-delta unexpected REMOVED keys {set(removed)}")
-    print(f"[cfg] delta vs B-F is exactly the registered set ({len(added)} added, {len(changed)} changed) OK")
+    # EXACT path->value (Codex blocker 2a): pin each added value precisely, not just its path.
+    for path, value in REGISTERED_ADDED_VALUES.items():
+        if added[path] != value:
+            raise RuntimeError(f"config-delta {path} = {added[path]!r}, expected {value!r}")
+    if changed["training.frame_avg_angles"] != REGISTERED_FRAME_ANGLES:
+        raise RuntimeError(
+            f"config-delta training.frame_avg_angles {changed['training.frame_avg_angles']} "
+            f"!= {REGISTERED_FRAME_ANGLES}"
+        )
+    # Real-JSON block equality (Codex blocker 2b): the two ViT blocks must be deep-equal to
+    # EACH OTHER, so a swapped/drifted second block (silently discarded by the factory) is caught.
+    vit_blocks = [c["config"]["ViT"] for c in exp09_cfg["model"]["conditioning"]["configs"]
+                  if c["type"] == "ViTCoordinates"]
+    if len(vit_blocks) != 2:
+        raise RuntimeError(f"expected 2 ViT blocks in FLAC_AR_exp09.json, got {len(vit_blocks)}")
+    if vit_blocks[0] != vit_blocks[1]:
+        raise RuntimeError(
+            "the two ViT blocks in FLAC_AR_exp09.json are NOT deep-equal:\n  "
+            f"source_vit={vit_blocks[0]}\n  context_poses_vit={vit_blocks[1]}"
+        )
+    print(f"[cfg] delta vs B-F is exactly the registered path->value set; both ViT blocks "
+          f"deep-equal ({len(added)} added, {len(changed)} changed) OK")
 
 
 def main():
