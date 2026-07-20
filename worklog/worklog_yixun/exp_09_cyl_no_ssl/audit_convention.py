@@ -129,15 +129,19 @@ OUTPUT_JSON_RELPATH = OUTPUT_RELDIR + "/" + OUTPUT_JSON_NAME
 # the two never drift. Temp files are ``<output_dir>/.audit_convention.<rand>.tmp``.
 OUTPUT_TMP_PREFIX = ".audit_convention."
 OUTPUT_TMP_SUFFIX = ".tmp"
-# The EXACT shape ``atomic_write_json``'s ``tempfile.mkstemp`` produces: prefix + a non-empty random
-# middle + suffix. mkstemp draws the middle from CPython ``tempfile._RandomNameSequence`` whose
-# charset is ``[a-z0-9_]``; ``[A-Za-z0-9_]`` below is a deliberate SUPERSET so every generated name
-# fullmatches, while an EMPTY middle (``.audit_convention..tmp``) or a non-word char (e.g. a space)
-# is rejected. Built from the same PREFIX/SUFFIX constants the writer uses so the gate can never
-# drift from the writer (fix-round-4 blocker 1). The gate excludes a temp sibling ONLY when it is
-# UNTRACKED ('??') AND its basename fullmatches this pattern.
+# The EXACT shape ``atomic_write_json``'s ``tempfile.mkstemp`` produces: prefix + the writer-reachable
+# random middle + suffix. mkstemp draws the middle from CPython ``tempfile._RandomNameSequence``, which
+# under the blessed interpreter emits EXACTLY 8 characters from the charset ``[a-z0-9_]`` (asserted
+# against the live interpreter at runtime by ``test_tmp_basename_re_matches_only_writer_exact_shape`` --
+# an interpreter upgrade that changes mkstemp's shape turns that test RED rather than silently widening
+# this gate). The middle is therefore pinned to ``[a-z0-9_]{8}`` -- NOT a superset: uppercase, a
+# non-word char (space), an EMPTY middle, or any length != 8 is rejected, so a hand-created untracked
+# file such as ``.audit_convention.A.tmp`` is NOT mistaken for the writer's temp (fix-round-5 blocker 1).
+# Built from the same PREFIX/SUFFIX constants the writer uses so the gate can never drift from the
+# writer. The gate excludes a temp sibling ONLY when it is UNTRACKED ('??') AND its basename fullmatches
+# this pattern.
 OUTPUT_TMP_BASENAME_RE = re.compile(
-    re.escape(OUTPUT_TMP_PREFIX) + r"[A-Za-z0-9_]+" + re.escape(OUTPUT_TMP_SUFFIX)
+    re.escape(OUTPUT_TMP_PREFIX) + r"[a-z0-9_]{8}" + re.escape(OUTPUT_TMP_SUFFIX)
 )
 # The package-source subtree whose cleanliness is gated (fix-round-3 blocker 2). Scoped: unrelated
 # changes elsewhere in the package repo (e.g. worklog records for commits being prepared) do NOT
@@ -373,60 +377,66 @@ def _sha256_file(path: str) -> tp.Optional[str]:
         return None
 
 
-def _unquote_porcelain(token: str) -> str:
-    """Strip the surrounding C-style quotes git adds to a porcelain path token when it contains a
-    space or non-ASCII byte (``core.quotePath``). The quoted space itself is literal inside the
-    quotes (not backslash-escaped), so removing the outer quotes recovers the exact path."""
-    token = token.strip()
-    if len(token) >= 2 and token.startswith('"') and token.endswith('"'):
-        token = token[1:-1]
-    return token
-
-
-def _parse_porcelain_entry(line: str) -> tp.Optional[tp.Dict[str, tp.Any]]:
-    """Parse one ``git status --porcelain`` v1 line into its status code and path(s), or None for a
-    blank line. The format is ``XY <path>`` (two status chars + one space); a rename/copy is
-    ``XY <src> -> <dst>`` with ``X`` in ``{R, C}``. Returns
-    ``{"status", "src", "dst", "paths", "is_untracked", "is_rename"}`` where ``paths`` is
-    ``[dst]`` or ``[src, dst]``. BOTH sides of a rename/copy are parsed so the changed source is
-    never discarded (fix-round-4 blocker 2); ``is_untracked`` is True iff the status is exactly
-    ``??`` (only a brand-new untracked file can be the atomic writer's freshly-created temp)."""
-    if not line.strip():
-        return None
-    status = line[:2]
-    rest = line[3:]
-    is_rename = status[:1] in ("R", "C") and " -> " in rest
-    if is_rename:
-        raw_src, raw_dst = rest.split(" -> ", 1)
-        src, dst = _unquote_porcelain(raw_src), _unquote_porcelain(raw_dst)
-        paths = [src, dst]
-    else:
-        src, dst = None, _unquote_porcelain(rest)
-        paths = [dst]
-    return {"status": status, "src": src, "dst": dst, "paths": paths,
-            "is_untracked": status == "??", "is_rename": is_rename}
+def _parse_porcelain_z(out: str) -> tp.List[tp.Dict[str, tp.Any]]:
+    """Parse ``git status --porcelain=v1 -z`` output into a list of entries. In ``-z`` mode fields are
+    separated by NUL and NO C-style quoting/backslash-escaping is applied, so a path containing a space
+    -- or even an embedded newline -- survives verbatim (this eliminates the incomplete-unquoting
+    problem entirely; fix-round-5 major 3). A rename/copy is emitted as a ``XY <dst>`` token IMMEDIATELY
+    FOLLOWED by a separate NUL-terminated token carrying the source path (git's ``-z`` reverses the human
+    ``from -> to`` into ``to`` then ``from``). Each returned entry is
+    ``{"status", "src", "dst", "paths", "is_untracked", "is_rename"}`` where ``paths`` is ``[dst]`` for a
+    plain entry or ``[src, dst]`` for a rename/copy -- BOTH sides serialised as SEPARATE real paths, never
+    one combined pseudo-path (fix-round-4 blocker 2). A rename/copy is detected when ``R`` or ``C`` appears
+    in EITHER status column (``status[0]`` index OR ``status[1]`` work-tree), not just the first
+    (fix-round-5 major 3). ``is_untracked`` is True iff the status is exactly ``??`` (only a brand-new
+    untracked file can be the atomic writer's freshly-created temp)."""
+    tokens = out.split("\0")
+    entries: tp.List[tp.Dict[str, tp.Any]] = []
+    i, n = 0, len(tokens)
+    while i < n:
+        tok = tokens[i]
+        if tok == "":            # trailing NUL (and any empty splits) carry no entry
+            i += 1
+            continue
+        status = tok[:2]
+        dst = tok[3:]            # porcelain is ``XY <path>``: 2 status chars + 1 space separator
+        is_rename = status[0] in ("R", "C") or status[1] in ("R", "C")
+        if is_rename:
+            # The rename/copy SOURCE is the next NUL-separated token (git ``-z``: ``<dst>\0<src>``).
+            src = tokens[i + 1] if i + 1 < n else ""
+            paths = [src, dst]
+            i += 2
+        else:
+            src = None
+            paths = [dst]
+            i += 1
+        entries.append({"status": status, "src": src, "dst": dst, "paths": paths,
+                        "is_untracked": status == "??", "is_rename": is_rename})
+    return entries
 
 
 def _git_scoped_status(repo: str, pathspec: str) -> tp.Dict[str, tp.Any]:
-    """Scoped ``git status --porcelain -- <pathspec>`` for ``repo`` (fix-round-3 blocker 2). Returns
-    the list of dirty paths UNDER ``pathspec`` (index or working tree), a ``clean`` bool, and the
-    ``pathspec``. ``clean`` is None (=> the provenance gate fails closed) if git is unavailable. The
-    scoping is git-native: ``src/cylindrical_dinov3`` matches that directory's contents only, never a
-    sibling like ``src/cylindrical_dinov3_extra`` and never unrelated paths (e.g. ``worklog/``)."""
+    """Scoped ``git status --porcelain=v1 -z --untracked-files=all -- <pathspec>`` for ``repo``
+    (fix-round-3 blocker 2). ``--untracked-files=all`` pins untracked reporting so a repo-local
+    ``status.showUntrackedFiles=no`` cannot suppress an untracked dirty file (fix-round-5 blocker 2);
+    ``-z`` gives NUL-separated, unquoted output parsed by ``_parse_porcelain_z`` (fix-round-5 major 3).
+    Returns the list of dirty paths UNDER ``pathspec`` (index or working tree; BOTH sides of a
+    rename/copy as SEPARATE paths), a ``clean`` bool, and the ``pathspec``. ``clean`` is None (=> the
+    provenance gate fails closed) if git is unavailable. The scoping is git-native:
+    ``src/cylindrical_dinov3`` matches that directory's contents only, never a sibling like
+    ``src/cylindrical_dinov3_extra`` and never unrelated paths (e.g. ``worklog/``)."""
     try:
         out = subprocess.check_output(
-            ["git", "-C", repo, "status", "--porcelain", "--", pathspec],
+            ["git", "-C", repo, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--", pathspec],
             stderr=subprocess.DEVNULL,
         ).decode()
     except Exception as exc:  # noqa: BLE001
         return {"pathspec": pathspec, "clean": None, "dirty_paths": None, "error": repr(exc)}
     dirty: tp.List[str] = []
-    for ln in out.splitlines():
-        entry = _parse_porcelain_entry(ln)
-        if entry is None:
-            continue
+    for entry in _parse_porcelain_z(out):
         # Record BOTH sides of a rename/copy so a move out of (or into) the scoped subtree never
-        # hides the changed source in the serialised dirty listing (fix-round-4 blocker 2).
+        # hides the changed source in the serialised dirty listing (fix-round-4 blocker 2 /
+        # fix-round-5 major 3).
         for p in entry["paths"]:
             if p and p not in dirty:
                 dirty.append(p)
@@ -480,24 +490,25 @@ def _entry_is_excludable(entry: tp.Mapping[str, tp.Any], out_rel: tp.Optional[st
 
 
 def _worktree_clean_excluding(worktree: str, out_path: tp.Optional[str]) -> tp.Optional[bool]:
-    """True iff ``git status --porcelain`` for ``worktree`` is empty AFTER dropping ONLY the audit's
-    own output JSON (``out_path``; absolute or worktree-relative) and the atomic writer's UNTRACKED
-    mkstemp temp sibling(s) in that same directory. The parent directory is NOT excluded
-    (fix-round-3 blocker 1); a rename whose destination is the output JSON and a TRACKED temp-named
-    file are NOT excluded (fix-round-4 blockers 2 & 1): a dirty ``audit_convention.py``, its tests,
-    or ANY other changed path => not clean. Returns None if git is unavailable (the provenance gate
-    then treats that as a failed clean-worktree gate)."""
+    """True iff ``git status --porcelain=v1 -z --untracked-files=all`` for ``worktree`` is empty AFTER
+    dropping ONLY the audit's own output JSON (``out_path``; absolute or worktree-relative) and the
+    atomic writer's UNTRACKED mkstemp temp sibling(s) in that same directory. ``--untracked-files=all``
+    pins untracked reporting so a repo-local ``status.showUntrackedFiles=no`` cannot suppress an
+    untracked dirty file (fix-round-5 blocker 2); ``-z`` gives NUL-separated, unquoted output parsed by
+    ``_parse_porcelain_z`` (fix-round-5 major 3). The parent directory is NOT excluded (fix-round-3
+    blocker 1); a rename whose destination is the output JSON and a TRACKED temp-named file are NOT
+    excluded (fix-round-4 blockers 2 & 1): a dirty ``audit_convention.py``, its tests, or ANY other
+    changed path => not clean. Returns None if git is unavailable (the provenance gate then treats that
+    as a failed clean-worktree gate)."""
     try:
         out = subprocess.check_output(
-            ["git", "-C", worktree, "status", "--porcelain"], stderr=subprocess.DEVNULL
+            ["git", "-C", worktree, "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+            stderr=subprocess.DEVNULL,
         ).decode()
     except Exception:  # noqa: BLE001
         return None
     out_rel = _relpath_in_worktree(worktree, out_path) if out_path else None
-    for line in out.splitlines():
-        entry = _parse_porcelain_entry(line)
-        if entry is None:
-            continue
+    for entry in _parse_porcelain_z(out):
         if _entry_is_excludable(entry, out_rel):
             continue
         return False

@@ -23,6 +23,11 @@ Fix-round-2 mutation map (fail-closed gates; see the Coder report):
 Fix-round-3 mutation map (exact-output cleanliness exclusion; scoped package-source gate):
   M1 exclusion widened back to parent dir  -> test_cleanliness_excludes_only_output_not_runner RED
   M2 scoped package-src gate removed       -> test_evaluate_provenance_dirty_package_src_fails  RED
+
+Fix-round-5 mutation map (writer-exact tmp regex; --untracked-files=all pinned; -z rename-pair parsing):
+  M1 tmp regex widened back to [A-Za-z0-9_]+  -> test_tmp_basename_re_matches_only_writer_exact_shape RED
+  M2 --untracked-files=all dropped            -> test_{worktree_gate,scoped_src_gate}_untracked_all_beats_showuntracked_no RED
+  M3 second-column R/C detection removed      -> test_scoped_status_second_column_rename_serialized_separately RED
 """
 import json
 import math
@@ -859,3 +864,106 @@ def test_cleanliness_relative_out_canonicalizes_cwd_relative(tmp_path, monkeypat
     rec = json.loads(open(written).read())
     assert rec["provenance"]["flac_worktree"]["clean_excluding_output"] is False, \
         "a relative --out from a foreign CWD must NOT exclude the worktree file of the same name"
+
+
+# =============================================================================================
+# Fix-round-5 blocker 1: OUTPUT_TMP_BASENAME_RE fullmatches EXACTLY the writer-reachable mkstemp
+# shape (8 chars from [a-z0-9_]), never a superset. The shape is pinned to the blessed interpreter's
+# tempfile._RandomNameSequence at runtime, so an interpreter change that alters mkstemp's output
+# turns this RED instead of silently widening the gate.
+#   RED-first (against 9a08bac): the regex middle was ``[A-Za-z0-9_]+`` -- the r4 reviewer verified
+#   ``.audit_convention.A.tmp`` fullmatched (clean=True), and 7-/9-char middles matched too.
+#   Mutation M1 (widen the middle back to [A-Za-z0-9_]+) re-reddens this test.
+# =============================================================================================
+def test_tmp_basename_re_matches_only_writer_exact_shape():
+    # (a) Pin the interpreter's mkstemp name shape: EXACTLY 8 chars drawn from [a-z0-9_]. If a future
+    #     interpreter changes _RandomNameSequence, these assertions fail LOUDLY (RED), forcing the
+    #     regex to be revisited rather than the gate silently drifting from what the writer produces.
+    seq = tempfile._RandomNameSequence()
+    assert seq.characters == "abcdefghijklmnopqrstuvwxyz0123456789_", seq.characters
+    for _ in range(500):
+        mid = next(seq)
+        assert len(mid) == 8 and all(c in seq.characters for c in mid), mid
+    # (b) A REAL mkstemp name generated the writer's OWN way (same prefix/suffix/dir) fullmatches.
+    with tempfile.TemporaryDirectory() as d:
+        for _ in range(50):
+            fd, path = tempfile.mkstemp(dir=d, prefix=ac.OUTPUT_TMP_PREFIX, suffix=ac.OUTPUT_TMP_SUFFIX)
+            os.close(fd)
+            base = os.path.basename(path)
+            assert ac.OUTPUT_TMP_BASENAME_RE.fullmatch(base) is not None, base
+    # (c) The r4 reviewer's exact counterexample (uppercase + 1-char middle) must NOT match: a
+    #     hand-created ``.audit_convention.A.tmp`` is precisely the untracked dirtiness the gate detects.
+    assert ac.OUTPUT_TMP_BASENAME_RE.fullmatch(".audit_convention.A.tmp") is None
+    # (d) Wrong-length middles (7 and 9 chars) must NOT match: the length is pinned to exactly 8.
+    assert ac.OUTPUT_TMP_BASENAME_RE.fullmatch(".audit_convention.abcdefg.tmp") is None    # 7
+    assert ac.OUTPUT_TMP_BASENAME_RE.fullmatch(".audit_convention.abcdefghi.tmp") is None  # 9
+    # (e) An empty middle and a non-word char (space) are likewise rejected.
+    assert ac.OUTPUT_TMP_BASENAME_RE.fullmatch(".audit_convention..tmp") is None
+    assert ac.OUTPUT_TMP_BASENAME_RE.fullmatch(".audit_convention.abcd efg.tmp") is None
+
+
+# =============================================================================================
+# Fix-round-5 blocker 2: BOTH gate invocations pin ``--untracked-files=all`` so a repo-local
+# ``status.showUntrackedFiles=no`` cannot suppress an untracked dirty file. Real fixture repo, real
+# git, real porcelain.
+#   RED-first (against 9a08bac): the gates called plain ``git status --porcelain``, which honours
+#   status.showUntrackedFiles=no and returns EMPTY => clean=True. Mutation M2 (drop
+#   --untracked-files=all) re-reddens these tests.
+# =============================================================================================
+def test_worktree_gate_untracked_all_beats_showuntracked_no(tmp_path):
+    repo = tmp_path / "wt"
+    _init_fixture_repo(repo, {ac.OUTPUT_JSON_RELPATH: "{}\n"})
+    subprocess.run(["git", "-C", str(repo), "config", "status.showUntrackedFiles", "no"], check=True)
+    with open(str(repo / "untracked_dirt.txt"), "w") as fh:
+        fh.write("dirt\n")                              # a hand-created untracked file = dirtiness
+    assert ac._worktree_clean_excluding(str(repo), ac.OUTPUT_JSON_RELPATH) is False, \
+        "an untracked file must make the worktree not-clean even under status.showUntrackedFiles=no"
+
+
+def test_scoped_src_gate_untracked_all_beats_showuntracked_no(tmp_path):
+    repo = tmp_path / "pkg"
+    _init_fixture_repo(repo, {"src/cylindrical_dinov3/gauge.py": "X_CHANNEL = 0\n"})
+    subprocess.run(["git", "-C", str(repo), "config", "status.showUntrackedFiles", "no"], check=True)
+    with open(str(repo / "src/cylindrical_dinov3/new_untracked.py"), "w") as fh:
+        fh.write("x = 1\n")                             # untracked, UNDER the scoped subtree
+    status = ac._git_scoped_status(str(repo), ac.PACKAGE_SRC_PATHSPEC)
+    assert status["clean"] is False, status
+    assert any("new_untracked" in p for p in status["dirty_paths"]), status["dirty_paths"]
+
+
+# =============================================================================================
+# Fix-round-5 major 3: both gate invocations use ``git status --porcelain=v1 -z --untracked-files=all``
+# and parse the NUL-separated format. A rename/copy is detected in EITHER status column and BOTH the
+# source and destination are serialised as SEPARATE real paths (never one combined pseudo-path); ``-z``
+# also eliminates C-quoting so spaces/newlines in paths survive verbatim.
+#   RED-first (against 9a08bac): the parser detected renames only in status[:1] (first column) and,
+#   for a missed second-column rename, serialised ``<dst>\0<src>`` as ONE pseudo-path; str.splitlines()
+#   also corrupted embedded newlines. Mutation M3 (detect R/C only in the first column) re-reddens the
+#   second-column test.
+# =============================================================================================
+def test_scoped_status_second_column_rename_serialized_separately(monkeypatch):
+    # A SECOND-column rename (' R') in a controlled porcelain=v1 -z stream: ``XY <dst>\0<src>\0`` (git
+    # -z reverses the human ``from -> to`` to ``to`` then ``from``). Driven through the REAL
+    # _git_scoped_status seam (git will not readily produce a worktree-column rename on disk).
+    dst = "src/cylindrical_dinov3/new_name.py"
+    src = "src/cylindrical_dinov3/old_name.py"
+    z = (" R " + dst + "\x00" + src + "\x00").encode()
+    monkeypatch.setattr(ac.subprocess, "check_output", lambda *a, **k: z)
+    status = ac._git_scoped_status("/irrelevant", ac.PACKAGE_SRC_PATHSPEC)
+    assert status["clean"] is False
+    # BOTH paths serialised SEPARATELY as real paths (order [src, dst]), never one combined token.
+    assert status["dirty_paths"] == [src, dst], status["dirty_paths"]
+    assert all("\x00" not in p and " -> " not in p for p in status["dirty_paths"])
+
+
+def test_scoped_status_z_preserves_spaces_and_newlines(monkeypatch):
+    # -z is NUL-separated and NOT C-quoted, so a path with a space OR an embedded newline survives
+    # verbatim. RED-first: the pre-fix seam used str.splitlines(), which SPLITS the embedded newline
+    # into two bogus entries and mangles the path.
+    weird = "src/cylindrical_dinov3/a file\nwith space+newline.py"
+    z = (" M " + weird + "\x00").encode()
+    monkeypatch.setattr(ac.subprocess, "check_output", lambda *a, **k: z)
+    status = ac._git_scoped_status("/irrelevant", ac.PACKAGE_SRC_PATHSPEC)
+    assert status["clean"] is False
+    assert status["dirty_paths"] == [weird], status["dirty_paths"]
+    assert all('"' not in p for p in status["dirty_paths"]), "no C-style quoting in -z output"
