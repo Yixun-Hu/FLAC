@@ -182,6 +182,12 @@
 - **EDT: the sole surviving systematic gap.** Extend best 39.78@75k; late points degrade (43+ at 95k–100k); lineage best remains 38.29@60k vs released 37.10.
 - **T60: never revisits the 8.3–8.6 zone** (mid-training 30–40k territory); late band 9.1–10.0 — late training trades T60 for R@1. **C50: at target** (oscillates around released). FD best 0.3077@72.5k.
 - **Best-ckpt answer (Yixun's original ask):** no checkpoint dominates; the pre-registered composite rule (T60≤8.63 ∧ C50≤0.974 ∧ EDT≤37.27) matches NOTHING anywhere in the lineage (T60/EDT bounds never met). **Recommended single ckpt: `epoch=20-step=92500` — the only released-level-retrieval point in the entire B-V lineage, with C50 near-target and mid-band T60/EDT.** Metric-priority alternatives: EDT-best 60k (38.29, phase 1), T60-best 30k (8.34, phase 1).
+## 2026-07-20/21 — B-F early screens (10k/20k) + conditioning-lift probe: trajectory globally slow, conditioning ACTIVE; ride to 50k review
+
+- **Screens (EMA K=8 s42; flac-env evals — env-bridge proved flac≡rir2rir to 4 decimals):** BF 10k: 12.70/2.293/88.5/FD .414/R .32 · BF 20k: 11.70/2.093/84.7/.380/.51 — vs BV anchors 10k 9.82/1.30/48.7/.373/1.91, 20k 8.92/1.09/45.6/.333/3.74. **B-F not closing the relative gap** (still ~1.9× EDT, R@1 ~0.14×), loss meanwhile healthy (0.44@e4) → escalation criterion fired.
+- **D1 conditioning-lift probe (cfg-scale 0 vs 1, both 20k ckpts):** BF lift T60 −19.0 / C50 −2.09 / EDT −104.6 / FD −.100 / R@1 +0.33 vs BV −17.5 / −1.88 / −88.6 / −.085 / +2.23. **Conditioning is ACTIVE and lifts ≥ B-V absolutely on all error metrics** — dead-path/signal-dilution hypotheses REFUTED. B-F is uniformly behind (cfg0 AND cfg1): a globally slower trajectory, only R@1-grade specificity disproportionately late (cf. B-V needing 92.5k for R@1 parity). Attribution recipe-vs-fa impossible without P1 (the 8×8 BV was never the matched control — pre-registered).
+- **Decision: continue per plan** (hard-aborts only; futility review at 50k ~Jul 25 with slope from 30k/40k screens; options there = extend-budget / P1-first-for-attribution / stop).
+
 ## 2026-07-18 16:30—17:45 — M1 RUNG REPORT: the BN=64 rung (32/GPU) OOMs on 48 GB even solo — mandate needs an intervention; options to Yixun
 
 - **Policy change (Yixun):** co-tenancy allowed — M1 gate switched from zero-procs to per-GPU `memory.free ≥ 45,087 MiB` (38.53 GiB M0 allocation + 1.5 DDP/SyncBN + 4 margin, review-corrected units) with co-tenant disclosure; throughput flagged noisy; fit bit = signal (`a18e684`).
