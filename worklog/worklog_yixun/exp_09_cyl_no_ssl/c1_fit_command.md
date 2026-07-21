@@ -27,3 +27,16 @@ Acceptance: exit 0; pin gate ALL PASS (both SHAs, scoped clean trees, config del
 class/gauge/eager, cond_method fa_invariant [0.0]); sampler ≥1 valid sample per GPU;
 peak JSON with per-GPU peaks + derived_gate_mib = max(peaks) + 4,096. Then the records
 step FREEZES `c1_frozen_min_free.txt` = derived_gate_mib.
+
+## CORRECTION (attempts 1–2 → provisioning)
+
+Attempt 1: my launch shell lacked the `flac` env (bare `python` → no torchaudio) AND my
+outer `| tail` pipe masked the abort code (no pipefail in MY wrapper — the standing
+lesson, self-inflicted; the registered command itself was clean). Attempt 2 (env
+active, pipefail set): pin gate ALL PASS; the training child died fail-closed at
+`weights/FLAC/VAE.safetensors` — the worktree lacks the live checkout's UNTRACKED
+runtime assets. **Provisioning: read-only symlinks** `weights` + `AcousticRooms` →
+the live FLAC checkout (reads only; concurrent with B-F's own reads; both links sit
+OUTSIDE the scoped clean-tree pathspecs so the pin gates stay valid; writes go to the
+worktree-local `outputs_FLAC/`/`wandb/`). Failed-attempt peak JSON/log kept
+(timestamped names). Attempt 3 = the registered command re-run with the env active.
