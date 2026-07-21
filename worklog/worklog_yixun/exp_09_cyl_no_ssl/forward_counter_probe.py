@@ -423,9 +423,9 @@ def main(argv: tp.Optional[tp.Sequence[str]] = None) -> int:
     pv.add_argument("--log", required=True, help="C1 smoke training log path")
     pv.add_argument("--min-steps-per-s", type=float, default=DEFAULT_MIN_STEPS_PER_S)
     pv.add_argument("--sustained-steps", type=int, default=None,
-                    help="authoritative completed step count (c1_smoke passes the achieved steps)")
+                    help="DECLARED step count (c1_smoke passes --max-steps; reconciled against the observed count parsed from the log)")
     pv.add_argument("--sustained-wall-s", type=float, default=None,
-                    help="authoritative training wall time in seconds (c1_smoke passes bash SECONDS)")
+                    help="fractional monotonic wall time in seconds (c1_smoke passes a time.monotonic() delta; ceiled before division)")
     pv.add_argument("--out", default=None, help="atomic JSON output path")
     pv.set_defaults(func=_cmd_verify_log)
 
