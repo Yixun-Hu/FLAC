@@ -2,8 +2,8 @@
 # ============================================================================
 # d_eval_driver.sh <CKPT> <CONFIG> <EVAL_NAME> <EXTERNAL_LOG_DIR> - exp-09 Stage D
 # eval launcher TEMPLATE. Builds ONE eval_FLAC.py invocation on a SAVED checkpoint and
-# runs it under the frozen free-VRAM gate. It NEVER auto-runs during C2: D evals run on
-# saved checkpoints (C2 records prohibit co-tenant screening), and each eval is a GPU job.
+# runs it under the frozen free-VRAM gate + the embedded pin gate. It NEVER auto-runs during
+# C2: D evals run on saved checkpoints (C2 records prohibit co-tenant screening), each a GPU job.
 #
 # MANDATORY flags (Codex Stage-B blocker 1): --cond-method fa_invariant --frame-avg-angles 0
 # are passed EXPLICITLY. eval_FLAC.py defaults cond_method to 'vanilla' and does NOT read it
@@ -12,20 +12,24 @@
 #
 # --rotate-deg <ROTATE_DEG> (env, default 0) is the D2 sweep parameter: set it per angle
 # {0,45,90,180,270} to produce the rotated-input predictions H-A3 / the equivariance gates
-# compare. eval_FLAC suffixes the output name by method/rotation, so sweep angles never
-# collide.
+# compare. eval_FLAC suffixes the output name by method/rotation, so sweep angles never collide.
 #
-# Eval ENV (plan §7): PYTHONPATH-FIRST. PYTHONPATH=<cylindrical-dinov3>/src is PREPENDED so
-# the process-local package src wins with ZERO mutation of the eval env, and its git SHA is
-# recorded for provenance. EVAL_PYTHON is parameterized (default the flac python): the
-# rir2rir-vs-flac env decision is pinned in the D records, and BOTH are supported here -
-# point EVAL_PYTHON at the rir2rir python to use that env (its torch/transformers pins match).
+# EMBEDDED PIN GATE (Codex D-tool F2): EVERY invocation runs assert_arm_configs_exp09.py bound
+# to the ACTUAL config the eval loads. The variant is auto-detected from the config filename
+# (*online_eval* -> online; else base) or set via CONFIG_VARIANT: the online eval config's
+# registered delta differs (grad-ckpt dropped + use_ema false), so the pin gate is told which
+# delta set to expect. EXPECT_PACKAGE_SHA / EXPECT_EXP09_SHA pass through (env, like launch).
+#
+# Eval ENV (plan §7): PYTHONPATH-FIRST. PYTHONPATH=<cylindrical-dinov3>/src is PREPENDED so the
+# process-local package src wins with ZERO mutation of the eval env (recorded for provenance).
+# EVAL_PYTHON is parameterized (default the flac python): the rir2rir-vs-flac env decision is
+# pinned in the D records and BOTH are supported - point EVAL_PYTHON at the rir2rir python.
 #
 # Frozen VRAM gate: binds MIN_FREE_MB to the EXACT value the C1 fit probe froze into
 # c1_frozen_min_free.txt (like exp09_launch.sh) - absent/non-numeric/override-mismatch all
 # REFUSE. Refuses missing args with exit 3 + usage (guarded, no `set -u` unbound trips). The
-# EXTERNAL log dir ($4) must be OUTSIDE the worktree (a teed log inside would dirty the
-# clean-tree pin gate). DRY_RUN=1 prints the assembled command and exits 0 WITHOUT running.
+# EXTERNAL log dir ($4) must be OUTSIDE the worktree (checked BEFORE any mkdir, F6). DRY_RUN=1
+# prints the assembled pin-gate + eval commands and exits 0 WITHOUT running or creating anything.
 # ============================================================================
 set -o pipefail    # verbatim (records-referenced)
 set -u
@@ -33,7 +37,7 @@ cd "$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-
 
 EXPDIR="worklog/worklog_yixun/exp_09_cyl_no_ssl"
 WORKTREE="$(readlink -f .)"
-USAGE="usage: d_eval_driver.sh <CKPT> <CONFIG> <EVAL_NAME> <EXTERNAL_LOG_DIR>  (env: ROTATE_DEG EVAL_GPU EVAL_SEED EVAL_PYTHON CYL_DINOV3_SRC EVAL_DATASET_CONFIG DRY_RUN)"
+USAGE="usage: d_eval_driver.sh <CKPT> <CONFIG> <EVAL_NAME> <EXTERNAL_LOG_DIR>  (env: ROTATE_DEG EVAL_GPU EVAL_SEED EVAL_PYTHON CYL_DINOV3_SRC CONFIG_VARIANT EVAL_DATASET_CONFIG DRY_RUN)"
 
 # --- required positional args (guarded with ${N:-} so an absent arg hits the intended
 # exit-3 REFUSE, never a `set -u` 'unbound variable' trip; messages use plain words) ---
@@ -49,9 +53,14 @@ LOGDIR="${4:-}"
 [ -f "$CKPT" ] || { echo "REFUSING: checkpoint '${CKPT}' not found."; exit 3; }
 [ -f "$CONFIG" ] || { echo "REFUSING: model-config '${CONFIG}' not found."; exit 3; }
 
-# --- EXTERNAL log dir (must be OUTSIDE the worktree) ---
-mkdir -p "$LOGDIR" 2>/dev/null || { echo "cannot create log dir '${LOGDIR}' - abort"; exit 3; }
-LOGDIR_ABS="$(readlink -f "$LOGDIR")"
+# --- EXTERNAL log dir: canonicalize WITHOUT creating it (readlink -m needs no existing path),
+# refuse if it is INSIDE the worktree BEFORE any mkdir (F6: a refused in-worktree path must
+# leave NO directory behind). The real launch path creates it later, just before the tee. ---
+case "$LOGDIR" in
+  /*) _LOGDIR_RAW="$LOGDIR" ;;
+  *)  _LOGDIR_RAW="$(pwd)/$LOGDIR" ;;
+esac
+LOGDIR_ABS="$(readlink -m "$_LOGDIR_RAW")"
 case "${LOGDIR_ABS}/" in
   "${WORKTREE}"/*)
     echo "REFUSING: log dir '${LOGDIR_ABS}' is INSIDE the worktree '${WORKTREE}' - a teed eval"
@@ -69,6 +78,13 @@ EVAL_SEED="${EVAL_SEED:-42}"
 EVAL_STEPS="${EVAL_STEPS:-1}"
 EVAL_CFG_SCALE="${EVAL_CFG_SCALE:-1.0}"
 COND_AUTOCAST="${COND_AUTOCAST:-bf16}"
+EXPECT_PACKAGE_SHA="${EXPECT_PACKAGE_SHA:-}"   # env passthrough to the pin gate (records freeze)
+
+# --- config VARIANT for the pin gate (F2): auto-detect from the filename, env-overridable ---
+case "$(basename "$CONFIG")" in
+  *online_eval*) CONFIG_VARIANT="${CONFIG_VARIANT:-online}" ;;
+  *)             CONFIG_VARIANT="${CONFIG_VARIANT:-base}" ;;
+esac
 
 PYPATH="${CYL_DINOV3_SRC}:${PYTHONPATH:-}"
 # The eval_FLAC.py argument vector. The two --cond-method / --frame-avg-angles flags are
@@ -77,12 +93,17 @@ ARGS=(--model-config "$CONFIG" --dataset-config "$EVAL_DATASET_CONFIG" --ckpt-pa
       --cond-method fa_invariant --frame-avg-angles 0 --rotate-deg "$ROTATE_DEG"
       --cond-autocast "$COND_AUTOCAST" --seed "$EVAL_SEED" --steps "$EVAL_STEPS"
       --cfg-scale "$EVAL_CFG_SCALE" --eval-name "$EVAL_NAME")
+# The embedded pin-gate command, bound to the ACTUAL config + its variant (F2).
+PIN_ARGS=(--config "$CONFIG" --config-variant "$CONFIG_VARIANT")
+[ -n "$EXPECT_PACKAGE_SHA" ] && PIN_ARGS+=(--expect-package-sha "$EXPECT_PACKAGE_SHA")
+PIN_DISPLAY="PYTHONPATH=${PYPATH} HF_HUB_OFFLINE=1 ${EVAL_PYTHON} ${EXPDIR}/assert_arm_configs_exp09.py ${PIN_ARGS[*]}"
 CMD_DISPLAY="PYTHONPATH=${PYPATH} CUDA_VISIBLE_DEVICES=${EVAL_GPU} ${EVAL_PYTHON} eval_FLAC.py ${ARGS[*]}"
 
-# --- DRY_RUN: emit the assembled command and exit WITHOUT touching the GPU or a log ---
+# --- DRY_RUN: emit the pin-gate + eval commands and exit WITHOUT the GPU, a log, or a mkdir ---
 if [ -n "${DRY_RUN:-}" ]; then
   echo "DRY_RUN (not executed):"
-  echo "$CMD_DISPLAY"
+  echo "PIN_GATE: ${PIN_DISPLAY}"
+  echo "EVAL:     ${CMD_DISPLAY}"
   exit 0
 fi
 
@@ -97,11 +118,13 @@ esac
 MIN_FREE_MB="${MIN_FREE_MB:-$FROZEN}"
 [ "$MIN_FREE_MB" = "$FROZEN" ] || { echo "REFUSING TO LAUNCH: MIN_FREE_MB=${MIN_FREE_MB} does not match the FROZEN C1 threshold ${FROZEN} (arbitrary override rejected)."; exit 3; }
 
+# --- create the (external, verified) log dir ONLY now (F6: after all pre-gates could refuse) ---
+mkdir -p "$LOGDIR_ABS" 2>/dev/null || { echo "cannot create log dir '${LOGDIR_ABS}' - abort"; exit 3; }
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 LOG="${LOGDIR_ABS}/exp09_${TS}_D_eval_${EVAL_NAME}.log"
 
 exec > >(tee -a "$LOG") 2>&1
-echo "=== exp-09 Stage D eval - ${TS} - $(git rev-parse --short HEAD 2>/dev/null) - ${EVAL_NAME} rot=${ROTATE_DEG} gpu=${EVAL_GPU} MIN_FREE_MB=${MIN_FREE_MB} ==="
+echo "=== exp-09 Stage D eval - ${TS} - $(git rev-parse --short HEAD 2>/dev/null) - ${EVAL_NAME} rot=${ROTATE_DEG} gpu=${EVAL_GPU} variant=${CONFIG_VARIANT} MIN_FREE_MB=${MIN_FREE_MB} ==="
 echo "--- eval-env provenance (plan §7 PYTHONPATH-first) ---"
 echo "EVAL_PYTHON=${EVAL_PYTHON}"
 echo "CYL_DINOV3_SRC=${CYL_DINOV3_SRC} sha=$(git -C "$CYL_DINOV3_SRC" rev-parse --short HEAD 2>/dev/null || echo '(not a git repo)')"
@@ -114,6 +137,14 @@ rc_q=$?
 echo "--- co-tenancy disclosure ---"
 nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader 2>/dev/null || true
 nvidia-smi --query-gpu=index,memory.used,memory.free --format=csv,noheader 2>/dev/null || true
+
+# --- EMBEDDED PIN GATE (F2): fail-closed, bound to the ACTUAL config + variant, same eval env
+# so it validates the exact cylindrical package the eval will load. Offline (HF_HUB_OFFLINE=1)
+# so the gate's model construction cannot mutate the cache it validates. EXPECT_EXP09_SHA is
+# read from the env by the gate (records freeze sets it; strict-default refuses when absent). ---
+echo "--- embedded pin gate: ${PIN_DISPLAY} ---"
+PYTHONPATH="$PYPATH" HF_HUB_OFFLINE=1 "$EVAL_PYTHON" "${EXPDIR}/assert_arm_configs_exp09.py" "${PIN_ARGS[@]}" \
+  || { echo "PIN GATE FAILED (config ${CONFIG} variant ${CONFIG_VARIANT}) - abort"; exit 1; }
 
 echo "--- launching: ${CMD_DISPLAY} ---"
 PYTHONPATH="$PYPATH" CUDA_VISIBLE_DEVICES="$EVAL_GPU" "$EVAL_PYTHON" eval_FLAC.py "${ARGS[@]}"

@@ -244,6 +244,32 @@ REGISTERED_ADDED = set(REGISTERED_ADDED_VALUES)
 REGISTERED_CHANGED = {"training.frame_avg_angles"}
 REGISTERED_FRAME_ANGLES = ([0.0, 90.0, 180.0, 270.0], [0.0])
 
+# Online eval-variant ADDITIONAL delta vs FLAC_AR_BF.json (D-stage, Codex D-tool F2). The
+# eval config (FLAC_AR_exp09_online_eval.json) drops gradient_checkpointing on BOTH ViT
+# conditioners and flips use_ema false; the BASE (C2 train) config has NEITHER of these (it
+# matches B-F's grad-ckpt=true / use_ema=true on those fields). So the delta set the pin gate
+# must expect DIFFERS by variant — the gate binds the config the eval will actually load.
+REGISTERED_ONLINE_REMOVED = {
+    "model.conditioning.configs[1].config.gradient_checkpointing",
+    "model.conditioning.configs[2].config.gradient_checkpointing",
+}
+REGISTERED_ONLINE_USE_EMA = (True, False)  # (B-F value, online-eval value)
+
+
+def expected_config_delta(variant):
+    """The (added_values, changed_values, removed_keys) delta vs FLAC_AR_BF.json expected for a
+    config VARIANT. ``base`` = the C2 train config (FLAC_AR_exp09.json); ``online`` = the
+    eval-time variant. Raises on an unknown variant (fail-closed)."""
+    added = dict(REGISTERED_ADDED_VALUES)
+    changed = {"training.frame_avg_angles": REGISTERED_FRAME_ANGLES}
+    removed = set()
+    if variant == "online":
+        changed["training.use_ema"] = REGISTERED_ONLINE_USE_EMA
+        removed = set(REGISTERED_ONLINE_REMOVED)
+    elif variant != "base":
+        raise RuntimeError(f"unknown config-variant {variant!r} (expected 'base' or 'online')")
+    return added, changed, removed
+
 
 def assert_vit_pin():
     from huggingface_hub.constants import HF_HUB_CACHE
@@ -313,38 +339,37 @@ def _flatten_diff(a, b, prefix=""):
     return changed, added, removed
 
 
-def assert_config_delta(exp09_cfg):
+def assert_config_delta(exp09_cfg, variant="base"):
+    exp_added, exp_changed, exp_removed = expected_config_delta(variant)
     with open(os.path.join(REPO, "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json")) as f:
         bf = json.load(f)
     changed, added, removed = _flatten_diff(bf, exp09_cfg)
-    if set(added) != REGISTERED_ADDED:
-        raise RuntimeError(f"config-delta ADDED keys {set(added)} != registered {REGISTERED_ADDED}")
-    if set(changed) != REGISTERED_CHANGED:
-        raise RuntimeError(f"config-delta CHANGED keys {set(changed)} != registered {REGISTERED_CHANGED}")
-    if removed:
-        raise RuntimeError(f"config-delta unexpected REMOVED keys {set(removed)}")
+    if set(added) != set(exp_added):
+        raise RuntimeError(f"config-delta[{variant}] ADDED keys {set(added)} != registered {set(exp_added)}")
+    if set(changed) != set(exp_changed):
+        raise RuntimeError(f"config-delta[{variant}] CHANGED keys {set(changed)} != registered {set(exp_changed)}")
+    if set(removed) != set(exp_removed):
+        raise RuntimeError(f"config-delta[{variant}] REMOVED keys {set(removed)} != registered {set(exp_removed)}")
     # EXACT path->value (Codex blocker 2a): pin each added value precisely, not just its path.
-    for path, value in REGISTERED_ADDED_VALUES.items():
+    for path, value in exp_added.items():
         if added[path] != value:
-            raise RuntimeError(f"config-delta {path} = {added[path]!r}, expected {value!r}")
-    if changed["training.frame_avg_angles"] != REGISTERED_FRAME_ANGLES:
-        raise RuntimeError(
-            f"config-delta training.frame_avg_angles {changed['training.frame_avg_angles']} "
-            f"!= {REGISTERED_FRAME_ANGLES}"
-        )
+            raise RuntimeError(f"config-delta[{variant}] {path} = {added[path]!r}, expected {value!r}")
+    for path, value in exp_changed.items():
+        if changed[path] != value:
+            raise RuntimeError(f"config-delta[{variant}] {path} {changed[path]} != {value}")
     # Real-JSON block equality (Codex blocker 2b): the two ViT blocks must be deep-equal to
     # EACH OTHER, so a swapped/drifted second block (silently discarded by the factory) is caught.
     vit_blocks = [c["config"]["ViT"] for c in exp09_cfg["model"]["conditioning"]["configs"]
                   if c["type"] == "ViTCoordinates"]
     if len(vit_blocks) != 2:
-        raise RuntimeError(f"expected 2 ViT blocks in FLAC_AR_exp09.json, got {len(vit_blocks)}")
+        raise RuntimeError(f"expected 2 ViT blocks in the config, got {len(vit_blocks)}")
     if vit_blocks[0] != vit_blocks[1]:
         raise RuntimeError(
-            "the two ViT blocks in FLAC_AR_exp09.json are NOT deep-equal:\n  "
+            "the two ViT blocks in the config are NOT deep-equal:\n  "
             f"source_vit={vit_blocks[0]}\n  context_poses_vit={vit_blocks[1]}"
         )
-    print(f"[cfg] delta vs B-F is exactly the registered path->value set; both ViT blocks "
-          f"deep-equal ({len(added)} added, {len(changed)} changed) OK")
+    print(f"[cfg] delta[{variant}] vs B-F is exactly the registered path->value set; both ViT "
+          f"blocks deep-equal ({len(added)} added, {len(changed)} changed, {len(removed)} removed) OK")
 
 
 def main(argv=None):
@@ -363,6 +388,17 @@ def main(argv=None):
         "--allow-unpinned-exp09-sha", action="store_true",
         help="non-blessed only: downgrade an absent EXPECT_EXP09_SHA from a refusal to a SKIP",
     )
+    parser.add_argument(
+        "--config", default=os.path.join(HERE, "FLAC_AR_exp09.json"),
+        help="the model-config to pin/build (default the base C2 train config). D-stage evals pass "
+             "the ACTUAL config the eval will load (base or the online-eval variant), so the delta "
+             "check binds it (Codex D-tool F2).",
+    )
+    parser.add_argument(
+        "--config-variant", default="base", choices=("base", "online"),
+        help="which registered delta set applies to --config: 'base' (C2 train: grad-ckpt on, "
+             "use_ema true) or 'online' (eval variant: grad-ckpt dropped, use_ema false).",
+    )
     args = parser.parse_args(argv)
 
     # Env seam mirrors the package-SHA plumbing: c1_fit/exp09_launch/exp09_screen inherit these
@@ -380,8 +416,9 @@ def main(argv=None):
 
     from cylindrical_dinov3 import CylindricalDINOv3ViTModel, CylindricalXYZGauge
 
-    cfg = json.load(open(os.path.join(HERE, "FLAC_AR_exp09.json")))
-    assert_config_delta(cfg)
+    cfg = json.load(open(args.config))
+    print(f"[cfg] binding config {os.path.relpath(args.config, REPO)} as variant '{args.config_variant}'")
+    assert_config_delta(cfg, args.config_variant)
 
     # --- direct strict-load provenance: HF load-info must list ALL empty ---
     _, info = CylindricalDINOv3ViTModel.from_pretrained(

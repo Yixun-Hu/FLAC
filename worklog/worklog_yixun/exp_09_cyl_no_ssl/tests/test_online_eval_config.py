@@ -14,10 +14,17 @@ Nothing else may change: the cylindrical backbone (implementation/gauge), the
 fa_invariant[0.0] one-pass conditioning, and every other field stay byte-identical.
 CPU-only; pure JSON structural comparison (no model construction).
 """
+import collections
+import hashlib
 import json
 from pathlib import Path
 
 _EXP09_DIR = Path(__file__).resolve().parents[1]
+
+# Raw-bytes tripwire (Codex D-tool F7d): the committed online-eval config's sha256. An
+# unnoticed edit to the file changes this and fails the test. Update ONLY alongside a
+# deliberate, reviewed change to the registered eval-variant delta.
+_ONLINE_SHA256 = "86f5e2bedde28a323e3b159d8a7ea93cb34e1bdea86d06c8f45236aa3f3b3bfa"
 _BASE = _EXP09_DIR / "FLAC_AR_exp09.json"
 _ONLINE = _EXP09_DIR / "FLAC_AR_exp09_online_eval.json"
 
@@ -99,3 +106,23 @@ def test_online_eval_preserves_cylindrical_backbone_and_fa_invariant():
         assert vit["implementation"] == "cylindrical_dinov3"
         assert vit["gauge"] == "cylindrical_xyz"
         assert vit["from_scratch"] is False
+
+
+def test_online_eval_bytes_match_canonical_transform():
+    """F7d: rebuild the online config by applying EXACTLY the registered transform (the two
+    grad-ckpt removals + the use_ema flip) to the base config bytes-via-canonical-json, and
+    require BYTE equality with the committed file. Catches any drift the structural diff misses."""
+    cfg = json.loads(_BASE.read_text(), object_pairs_hook=collections.OrderedDict)
+    for idx in (1, 2):
+        removed = cfg["model"]["conditioning"]["configs"][idx]["config"].pop("gradient_checkpointing")
+        assert removed is True
+    cfg["training"]["use_ema"] = False
+    rebuilt = json.dumps(cfg, indent=4) + "\n"
+    assert rebuilt == _ONLINE.read_text(), \
+        "committed online-eval config != base + the registered transform (byte-level)"
+
+
+def test_online_eval_sha256_tripwire():
+    """F7d: a raw-bytes hash pin so an unnoticed edit to the committed file fails."""
+    got = hashlib.sha256(_ONLINE.read_bytes()).hexdigest()
+    assert got == _ONLINE_SHA256, f"online-eval config sha256 {got} != pinned {_ONLINE_SHA256}"

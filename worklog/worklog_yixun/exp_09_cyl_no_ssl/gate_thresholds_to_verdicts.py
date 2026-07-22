@@ -4,41 +4,43 @@
 The B-code r1 review registered that "a thin threshold->verdict adapter must land before
 any D acceptance run". ``eval_FLAC.py`` and ``compare_predictions.py`` write RAW metric
 JSONs and NEVER decide pass/fail; ``aggregate_gate.py`` only aggregates already-decided
-``{gate, pass, metrics}`` verdicts and turns them into an exit code. THIS adapter is the
-missing middle: it applies the pre-registered D thresholds/bands to the raw metrics and
-emits the per-gate verdicts ``aggregate_gate.py`` consumes.
+``{gate, pass, metrics}`` verdicts into an exit code. THIS adapter is the missing middle:
+it applies the pre-registered D thresholds/bands to the raw metrics and emits the per-gate
+verdicts ``aggregate_gate.py`` consumes.
 
-Inputs
-------
-* ``--references <refs.json>`` (REQUIRED): pins the D1 comparator. Two modes (plan §4 D1):
-    - ``matched_control``: a matched P1/B-F control with per-(K, metric) ``[mean, std]``;
-      the adapter emits a GATING ``d1_parity`` verdict using exp_07 ``gate_verdict.py``'s
-      band math VERBATIM (equivalence <= 1 sigma_c, non-inferiority <= 2 sigma_c).
-    - ``contextual``: NO matched control pinned -> NO parity verdict is emitted; the
-      adapter writes a descriptive ADVISORY record only (no gating ``pass``).
-* ``--d1 <index.json>`` (optional): consumes eval_FLAC metric JSONs. Shape
-  ``{K: {"seeds": [<eval_FLAC json paths>, ...]}}`` (5 seeds/K); primary T60/C50/EDT gate,
-  R@1 advisory. (``{K: {"values": {metric: [..]}}}`` inline form also accepted for tests.)
-* ``--d2-cond <cond.json>`` (optional): conditioning-level rel-errs. Shape
-  ``{"pooled_invariance": <scalar|{angle: relerr}>, "patch_roll_equiv": <same>}``. Both
-  channels required; gate = max(all) <= 1e-4.
-* ``--d2-e2e <e2e.json>`` (optional): compare_predictions output(s). A single
-  ``{"waveform_gap": {"mean_rel_l2": ..}}`` or a per-angle map of them; gate = max
-  mean_rel_l2 <= 0.00931 (exp_08 registered bound).
-* ``--d2-flatness <flat.json>`` (optional): H-A3. Shape ``{K: {angle: <eval_FLAC json
-  path|inline metrics>}}``. Per (K, metric, angle!=0): ``|m(rot a) - m(rot 0)| <=`` the
-  INLINED exp-01 constant; ALL cells must pass.
+COVERAGE ENFORCEMENT (Codex D-tool review F1) — the headline rule: the adapter takes the
+REGISTERED evaluation matrix from the references config as EXPLICIT expectations and REFUSES
+(exit 2, nothing written) any input that is not EXACTLY complete — a missing seed/K/angle/
+cell OR an unexpected extra entry is a rejection, never a silent partial pass. Only a fully
+complete matrix is evaluated into pass/fail.
 
-Output
-------
-One ``{gate, pass, metrics}`` verdict JSON per gate under ``--out-dir`` (``verdict_<gate>
-.json``), plus ``advisory_<gate>.json`` for non-gating records -- each written atomically
-(reusing ``aggregate_gate``'s writer, so the two never drift) with only finite numbers.
-Exit code: 0 iff every EMITTED gate verdict passes; 1 if any fails; 2 on any input
-rejection (malformed/missing/non-finite) -- fail-closed, no partial verdict on rejection.
+References config (the D records pin it)::
 
-Run:  python gate_thresholds_to_verdicts.py --references refs.json --out-dir D \
-        --d1 d1.json --d2-cond cond.json --d2-e2e e2e.json --d2-flatness flat.json
+    {"d1": {"mode": "matched_control"|"contextual", "control_name": "P1",
+            "control_stats": {"<K>": {"T60":[mean,std], "C50":[...], "EDT":[...],
+                                       "RIR_to_GT_RIR_R@1":[...]}, ...},
+            "expect": {"K": [1,8], "seeds": 5, "metrics": ["T60","C50","EDT"],
+                       "advisory_metrics": ["RIR_to_GT_RIR_R@1"]}},
+     "d2": {"conditioning": {"expect": {"angles": [45,90,180,270]}},
+            "end_to_end":  {"expect": {"matrix": {"1":[0,45,90,180,270], "8":[0,90]}}},
+            "flatness":    {"expect": {"matrix": {"1":[45,90,180,270], "8":[90]},
+                                        "metrics": ["T60","C50","EDT"]}}}}
+
+Inputs (raw producer artifacts):
+* ``--d1``   ``{"<K>": {"seeds": [<eval_FLAC json>, ...]}}`` (or ``{"values": {metric:[..]}}``);
+* ``--d2-cond``   the A2b-harness artifact: ``{"a2b": {"per_angle": [{angle-id, pooled_relerr,
+  patch_relerr}, ...]}}`` (per-angle records carrying BOTH channels; audit_convention.py:1057);
+* ``--d2-e2e``   ``{"<K>": {"<angle>": <compare_predictions out with waveform_gap.mean_rel_l2>}}``;
+* ``--d2-flatness``   ``{"<K>": {"<angle>": <eval_FLAC json | inline metrics>}}``.
+
+D1 band math is exp_07 ``gate_verdict.py`` VERBATIM (equivalence <=1 sigma_c / non-inferiority
+<=2 sigma_c; sc==0 => n=inf => OUTSIDE). D2 thresholds are INLINED: conditioning <=1e-4,
+end-to-end waveform rel-L2 <=0.00931, H-A3 per-(K,metric) exp-01 constants (all-cells).
+
+Output: one ``{gate, pass, metrics}`` verdict JSON per gate under ``--out-dir``
+(``verdict_<gate>.json``) + ``advisory_<gate>.json`` for non-gating records, each written
+atomically (reusing ``aggregate_gate``'s writer). ``main()`` REFUSES a non-empty ``--out-dir``
+(fresh-dir publish, F3). Exit: 0 all-pass / 1 any gate fails / 2 any rejection.
 """
 import argparse
 import json
@@ -73,9 +75,9 @@ D1_ADVISORY_NAME = "d1_task_advisory"
 
 
 class AdapterError(Exception):
-    """Any refusal to adapt: malformed/missing/non-finite input, an unknown D1 mode, a
-    missing matched control, or a missing rot-0 flatness reference. Explicit raise ->
-    survives ``python -O`` (fail-closed)."""
+    """Any refusal to adapt: incomplete/over-complete coverage, malformed/missing/non-finite
+    input, an unknown D1 mode, a missing matched control, a stale output dir. Explicit raise
+    -> survives ``python -O`` (fail-closed)."""
 
 
 # ============================================================================================
@@ -85,6 +87,13 @@ def _finite(value: tp.Any, where: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
         raise AdapterError(f"non-finite/invalid value at {where}: {value!r}")
     return float(value)
+
+
+def _maybe_int(k: tp.Any) -> tp.Optional[int]:
+    try:
+        return int(k)
+    except (TypeError, ValueError):
+        return None
 
 
 def seed_stats(values: tp.Sequence[float]) -> tp.Tuple[float, float]:
@@ -99,20 +108,12 @@ def seed_stats(values: tp.Sequence[float]) -> tp.Tuple[float, float]:
     return mu, sd
 
 
-def _as_values(obj: tp.Any, where: str) -> tp.List[float]:
-    """Normalise a scalar / {angle: v} / [v, ..] rel-err spec into a finite float list."""
-    if isinstance(obj, dict):
-        return [_finite(v, f"{where}.{k}") for k, v in obj.items()]
-    if isinstance(obj, (list, tuple)):
-        return [_finite(v, f"{where}[{i}]") for i, v in enumerate(obj)]
-    return [_finite(obj, where)]
-
-
 # ============================================================================================
-# The exp_07 gate_verdict.py band math -- reproduced VERBATIM.
-#   sc = sqrt(sd^2 + rsd^2); n = (mu - rmu)/sc; |n|<=1 equivalence, |n|<=2 non-inferiority
-#   band (the gate), else outside. Direction from `better_low`. Degenerate sc==0 handled so
-#   the emitted verdict NEVER carries a non-finite number (aggregate_gate would reject it).
+# The exp_07 gate_verdict.py band math -- reproduced VERBATIM (gate_verdict.py:91-104).
+#   sc = sqrt(sd^2 + rsd^2); n = d/sc if sc>0 else +inf; |n|<=1 equivalence, |n|<=2
+#   non-inferiority band (the gate), else outside. sc==0 => n=inf => OUTSIDE (fails 2sc),
+#   EVEN for equal means (F4). The emitted verdict never carries a non-finite number
+#   (aggregate_gate would reject it): an infinite n is serialised as null + a flag.
 # ============================================================================================
 def sigma_band(mu: float, sd: float, rmu: float, rsd: float, better_low: bool) -> tp.Dict[str, tp.Any]:
     d = mu - rmu
@@ -124,70 +125,105 @@ def sigma_band(mu: float, sd: float, rmu: float, rsd: float, better_low: bool) -
         within_2sc = an <= 2.0                 # <-- THE gate band (mutation m1 target)
         tier = "equiv<=1sc" if within_1sc else "band<=2sc" if within_2sc else "outside>2sc"
         n_out: tp.Optional[float] = n
-    else:  # both stds exactly zero: equal -> tie/pass, differ -> outside/fail (no inf leaks)
+        n_inf = False
+    else:  # sc==0 => n=inf => OUTSIDE (verbatim gate_verdict.py:91). Equal means still OUTSIDE.
         n_out = None
-        within_1sc = within_2sc = (d == 0.0)
-        tier = "equiv<=1sc" if d == 0.0 else "outside>2sc"
+        n_inf = True
+        within_1sc = within_2sc = False
+        tier = "outside>2sc"
     if d == 0.0:
         direction = "tie"
     elif better_low:
         direction = "superior" if d < 0.0 else "worse"
     else:
         direction = "superior" if d > 0.0 else "worse"
-    return {"d": d, "sc": sc, "n_sigma": n_out, "within_1sc": bool(within_1sc),
-            "within_2sc": bool(within_2sc), "tier": tier, "direction": direction}
+    return {"d": d, "sc": sc, "n_sigma": n_out, "n_sigma_infinite": bool(n_inf),
+            "within_1sc": bool(within_1sc), "within_2sc": bool(within_2sc),
+            "tier": tier, "direction": direction}
 
 
 # ============================================================================================
-# D1: matched-control parity gate vs contextual-only advisory.
+# Coverage helpers -- the registered matrix as EXPLICIT expectations (F1).
+# ============================================================================================
+def _k_str_set(seq: tp.Iterable[tp.Any]) -> tp.Set[str]:
+    return {str(k) for k in seq}
+
+
+def _angle_set(seq: tp.Iterable[tp.Any]) -> tp.Set[float]:
+    return {float(a) for a in seq}
+
+
+def _require_exact(got: tp.Set[tp.Any], want: tp.Set[tp.Any], what: str) -> None:
+    missing = want - got
+    extra = got - want
+    if missing or extra:
+        raise AdapterError(
+            f"{what}: coverage mismatch — missing={sorted(map(str, missing))} "
+            f"unexpected={sorted(map(str, extra))} (registered={sorted(map(str, want))})")
+
+
+# ============================================================================================
+# D1: matched-control parity gate vs contextual-only advisory, with coverage enforcement.
 # ============================================================================================
 def _ref_for_k(ref_stats: tp.Mapping[str, tp.Any], k: tp.Any) -> tp.Mapping[str, tp.Any]:
-    for key in (k, str(k), _maybe_int(k)):
+    for key in (str(k), k, _maybe_int(k)):
         if key is not None and key in ref_stats:
             return ref_stats[key]
-    raise AdapterError(f"references have no stats for K={k!r}")
+    raise AdapterError(f"references have no control stats for K={k!r}")
 
 
-def _maybe_int(k: tp.Any) -> tp.Optional[int]:
-    try:
-        return int(k)
-    except (TypeError, ValueError):
-        return None
+def _enforce_d1_coverage(measured: tp.Mapping[str, tp.Any], expect: tp.Mapping[str, tp.Any],
+                         all_metrics: tp.Sequence[str]) -> tp.List[str]:
+    exp_ks = expect.get("K")
+    seeds = expect.get("seeds")
+    if not exp_ks or not isinstance(seeds, int):
+        raise AdapterError("references.d1.expect needs a non-empty 'K' list and integer 'seeds'")
+    _require_exact(_k_str_set(measured), _k_str_set(exp_ks), "D1 K set")
+    for k in measured:
+        per = measured[k]
+        for metric in all_metrics:
+            got = per.get(metric)
+            if not isinstance(got, list) or len(got) != seeds:
+                raise AdapterError(
+                    f"D1 K={k} metric {metric!r}: expected exactly {seeds} seed values, "
+                    f"got {0 if got is None else len(got)}")
+    return [str(k) for k in sorted(_k_str_set(exp_ks), key=lambda x: int(x))]
 
 
-def _band_cells(measured: tp.Mapping[str, tp.Any], ref_stats: tp.Mapping[str, tp.Any],
-                metrics: tp.Sequence[str], better_low: bool) -> tp.Tuple[tp.List[dict], bool]:
-    cells: tp.List[dict] = []
-    all_within = True
-    for k, per_metric in measured.items():
-        ref_k = _ref_for_k(ref_stats, k)
+def _band_cells(measured, control, ks, metrics, better_low):
+    cells, all_within = [], True
+    for k_key in ks:                                   # <-- D1 K-arm iteration (F7b target)
+        ref_k = _ref_for_k(control, k_key)
+        meas_k = measured[k_key] if k_key in measured else measured[int(k_key)]
         for metric in metrics:
-            if metric not in per_metric:
-                raise AdapterError(f"measured K={k} missing metric {metric!r}")
-            mu, sd = seed_stats(per_metric[metric])
+            mu, sd = seed_stats(meas_k[metric])
             if metric not in ref_k:
-                raise AdapterError(f"reference K={k} missing metric {metric!r}")
-            rmu = _finite(ref_k[metric][0], f"ref[{k}][{metric}].mean")
-            rsd = _finite(ref_k[metric][1], f"ref[{k}][{metric}].std")
+                raise AdapterError(f"control_stats K={k_key} missing metric {metric!r}")
+            rmu = _finite(ref_k[metric][0], f"ref[{k_key}][{metric}].mean")
+            rsd = _finite(ref_k[metric][1], f"ref[{k_key}][{metric}].std")
             band = sigma_band(mu, sd, rmu, rsd, better_low)
-            cell = {"K": k, "metric": metric, "mean": mu, "std": sd,
-                    "ref_mean": rmu, "ref_std": rsd, **band}
-            cells.append(cell)
+            cells.append({"K": k_key, "metric": metric, "mean": mu, "std": sd,
+                          "ref_mean": rmu, "ref_std": rsd, **band})
             all_within = all_within and band["within_2sc"]
     return cells, all_within
 
 
 def build_d1(measured: tp.Mapping[str, tp.Any],
              d1cfg: tp.Mapping[str, tp.Any]) -> tp.Tuple[tp.Optional[dict], tp.Optional[dict]]:
-    """Return ``(gate_verdict_or_None, advisory_or_None)``.
-
-    matched_control -> a GATING d1_parity verdict (pass = all primary cells within 2 sigma_c),
-    R@1 reported as advisory. contextual -> None gate + a descriptive advisory record with
-    NO gating ``pass`` (mode is authoritative: even if numbers are present, no matched
-    control means no parity verdict -- plan §4 D1)."""
+    """``(gate_verdict_or_None, advisory_or_None)``. Coverage is enforced in BOTH modes: the
+    measured data must be EXACTLY the registered K x seeds x metrics matrix. matched_control ->
+    a GATING d1_parity verdict (pass = all primary cells within 2 sigma_c). contextual -> None
+    gate + a descriptive advisory record with NO gating ``pass`` (mode is authoritative: even
+    with numbers present, no matched control means no parity verdict -- plan §4 D1)."""
     mode = d1cfg.get("mode")
     if mode not in ("matched_control", "contextual"):
         raise AdapterError(f"references.d1.mode must be 'matched_control' or 'contextual', got {mode!r}")
+    expect = d1cfg.get("expect")
+    if not isinstance(expect, dict):
+        raise AdapterError("references.d1 requires an 'expect' coverage matrix")
+    metrics = list(expect.get("metrics", PRIMARY))
+    adv_metrics = list(expect.get("advisory_metrics", ADVISORY))
+    ks = _enforce_d1_coverage(measured, expect, metrics + adv_metrics)
 
     # THE emit decision (mutation m2 target): only a matched control yields a parity gate.
     emit_parity_gate = (mode == "matched_control")
@@ -196,15 +232,15 @@ def build_d1(measured: tp.Mapping[str, tp.Any],
         control = d1cfg.get("control_stats")
         if not isinstance(control, dict) or not control:
             raise AdapterError("matched_control mode requires a non-empty 'control_stats'")
-        cells, all_within = _band_cells(measured, control, PRIMARY, better_low=True)
-        advisory_cells, _ = _band_cells(measured, control, ADVISORY, better_low=False) \
-            if _measured_has(measured, ADVISORY) else ([], True)
+        _require_exact(_k_str_set(control) & _k_str_set(ks), _k_str_set(ks),
+                       "D1 control_stats K set")
+        cells, all_within = _band_cells(measured, control, ks, metrics, better_low=True)
+        advisory_cells, _ = _band_cells(measured, control, ks, adv_metrics, better_low=False)
         verdict = {
             "gate": D1_GATE_NAME, "pass": bool(all_within), "mode": mode,
             "control_name": d1cfg.get("control_name"),
             "metrics": {
-                "cells": cells, "advisory": advisory_cells,
-                "n_cells": len(cells),
+                "cells": cells, "advisory": advisory_cells, "n_cells": len(cells),
                 "n_failing": sum(1 for c in cells if not c["within_2sc"]),
                 "equivalence_sigma_c": 1.0, "noninferiority_sigma_c": 2.0,
             },
@@ -212,10 +248,10 @@ def build_d1(measured: tp.Mapping[str, tp.Any],
         return verdict, None
 
     # contextual-only: descriptive record, NO parity verdict.
-    desc: tp.Dict[str, tp.Any] = {"measured": _measured_report(measured)}
+    desc: tp.Dict[str, tp.Any] = {"measured": _measured_report(measured, metrics + adv_metrics)}
     ctx = d1cfg.get("contextual_stats")
     if isinstance(ctx, dict) and ctx:
-        ctx_cells, _ = _band_cells(measured, ctx, PRIMARY, better_low=True)
+        ctx_cells, _ = _band_cells(measured, ctx, ks, metrics, better_low=True)
         desc["contextual_bands"] = ctx_cells          # tiers reported, NON-gating
     advisory = {
         "gate": D1_ADVISORY_NAME, "advisory": True, "mode": mode,
@@ -225,102 +261,150 @@ def build_d1(measured: tp.Mapping[str, tp.Any],
     return None, advisory
 
 
-def _measured_has(measured: tp.Mapping[str, tp.Any], metrics: tp.Sequence[str]) -> bool:
-    return all(all(m in per for m in metrics) for per in measured.values())
-
-
-def _measured_report(measured: tp.Mapping[str, tp.Any]) -> tp.Dict[str, tp.Any]:
+def _measured_report(measured, metrics):
     rep: tp.Dict[str, tp.Any] = {}
     for k, per in measured.items():
         rep[str(k)] = {}
-        for metric, vals in per.items():
-            mu, sd = seed_stats(vals)
-            rep[str(k)][metric] = {"mean": mu, "std": sd, "n": len(list(vals))}
+        for metric in metrics:
+            mu, sd = seed_stats(per[metric])
+            rep[str(k)][metric] = {"mean": mu, "std": sd, "n": len(per[metric])}
     return rep
 
 
 # ============================================================================================
-# D2 conditioning-level, end-to-end, and H-A3 flatness verdicts.
+# D2 conditioning-level (A2b-harness schema) -- explicit converter + coverage (F5, F1).
 # ============================================================================================
-def build_conditioning_verdict(pooled: tp.Any, patch: tp.Any) -> dict:
-    pooled_vals = _as_values(pooled, "pooled_invariance")
-    patch_vals = _as_values(patch, "patch_roll_equiv")
-    if not pooled_vals or not patch_vals:
-        raise AdapterError("conditioning gate needs BOTH pooled invariance AND patch "
-                           "roll-equivariance rel-errs (plan §4 D2)")
-    pooled_max, patch_max = max(pooled_vals), max(patch_vals)
+def _extract_cond_records(artifact: tp.Any) -> tp.List[tp.Any]:
+    if isinstance(artifact, dict) and isinstance(artifact.get("a2b"), dict) \
+            and "per_angle" in artifact["a2b"]:
+        return list(artifact["a2b"]["per_angle"])
+    if isinstance(artifact, dict) and "per_angle" in artifact:
+        return list(artifact["per_angle"])
+    if isinstance(artifact, list):
+        return list(artifact)
+    raise AdapterError("conditioning artifact must be the A2b shape "
+                       "{'a2b': {'per_angle': [...]}} (or a bare per-angle list)")
+
+
+def _cond_angle(rec: tp.Mapping[str, tp.Any], i: int) -> float:
+    for key in ("angle", "rotate_deg", "j"):
+        if key in rec:
+            return float(rec[key])
+    raise AdapterError(f"conditioning record #{i} has no angle id ('angle'/'rotate_deg'/'j')")
+
+
+def conditioning_cells_from_artifact(artifact: tp.Any) -> tp.List[dict]:
+    """Convert the raw A2b artifact into conditioning cells. EACH per-angle record must carry
+    BOTH ``pooled_relerr`` and ``patch_relerr`` (a record missing a channel is a rejection --
+    the 'pooled@45 but patch@90' split can never slip through)."""
+    cells = []
+    for i, rec in enumerate(_extract_cond_records(artifact)):
+        if not isinstance(rec, dict):
+            raise AdapterError(f"conditioning record #{i} is not an object")
+        angle = _cond_angle(rec, i)
+        if "pooled_relerr" not in rec or "patch_relerr" not in rec:
+            raise AdapterError(
+                f"conditioning record at angle {angle}: needs BOTH pooled_relerr AND patch_relerr")
+        cells.append({"angle": angle,
+                      "pooled_relerr": _finite(rec["pooled_relerr"], f"cond[{angle}].pooled_relerr"),
+                      "patch_relerr": _finite(rec["patch_relerr"], f"cond[{angle}].patch_relerr")})
+    return cells
+
+
+def build_conditioning_verdict(cells: tp.Sequence[dict], expect_angles: tp.Sequence[tp.Any]) -> dict:
+    if not cells:
+        raise AdapterError("conditioning gate needs at least one per-angle record")
+    _require_exact({c["angle"] for c in cells}, _angle_set(expect_angles), "conditioning angles")
+    pooled_max = max(c["pooled_relerr"] for c in cells)   # reduce over ALL cells (F7a)
+    patch_max = max(c["patch_relerr"] for c in cells)
     overall = max(pooled_max, patch_max)
     return {
         "gate": "d2_conditioning", "pass": bool(overall <= D2_COND_THRESHOLD),
-        "metrics": {"pooled_max": pooled_max, "patch_roll_max": patch_max,
-                    "max_relerr": overall, "threshold": D2_COND_THRESHOLD},
+        "metrics": {"cells": list(cells), "pooled_max": pooled_max, "patch_roll_max": patch_max,
+                    "max_relerr": overall, "threshold": D2_COND_THRESHOLD, "n_angles": len(cells)},
     }
 
 
-def extract_rel_l2(e2e: tp.Any) -> tp.List[float]:
-    """Pull waveform rel-L2 value(s) out of compare_predictions output(s)."""
-    def one(x: tp.Any, where: str) -> float:
-        if isinstance(x, dict) and "waveform_gap" in x:
-            wg = x["waveform_gap"]
-            if not isinstance(wg, dict) or "mean_rel_l2" not in wg:
-                raise AdapterError(f"{where}.waveform_gap missing 'mean_rel_l2'")
-            return _finite(wg["mean_rel_l2"], f"{where}.waveform_gap.mean_rel_l2")
-        if isinstance(x, (int, float)) and not isinstance(x, bool):
-            return _finite(x, where)
-        raise AdapterError(f"unrecognised end-to-end entry at {where}: {type(x).__name__}")
-
-    if isinstance(e2e, dict) and "waveform_gap" in e2e:
-        return [one(e2e, "e2e")]
-    if isinstance(e2e, dict):
-        return [one(v, f"e2e.{k}") for k, v in e2e.items()]
-    if isinstance(e2e, (list, tuple)):
-        return [one(v, f"e2e[{i}]") for i, v in enumerate(e2e)]
-    raise AdapterError("end-to-end input must be a compare_predictions dict, a per-angle map, or a list")
+# ============================================================================================
+# D2 end-to-end waveform rel-L2 (compare_predictions.waveform_gap.mean_rel_l2) + coverage.
+# ============================================================================================
+def _one_rel_l2(spec: tp.Any, where: str) -> float:
+    if isinstance(spec, dict) and "waveform_gap" in spec:
+        wg = spec["waveform_gap"]
+        if not isinstance(wg, dict) or "mean_rel_l2" not in wg:
+            raise AdapterError(f"{where}.waveform_gap missing 'mean_rel_l2'")
+        return _finite(wg["mean_rel_l2"], f"{where}.waveform_gap.mean_rel_l2")
+    if isinstance(spec, (int, float)) and not isinstance(spec, bool):
+        return _finite(spec, where)
+    raise AdapterError(f"unrecognised end-to-end entry at {where}: {type(spec).__name__}")
 
 
-def build_e2e_verdict(rel_l2_values: tp.Sequence[float]) -> dict:
-    vals = [_finite(v, f"rel_l2[{i}]") for i, v in enumerate(rel_l2_values)]
-    if not vals:
+def e2e_cells_from_index(index: tp.Any) -> tp.List[dict]:
+    if not isinstance(index, dict) or not index:
+        raise AdapterError("end-to-end index must be a non-empty {K: {angle: compare_predictions}} map")
+    cells = []
+    for k, angle_map in index.items():
+        if not isinstance(angle_map, dict):
+            raise AdapterError(f"end-to-end K={k}: angle map must be an object")
+        for angle, spec in angle_map.items():
+            cells.append({"K": str(k), "angle": float(angle),
+                          "rel_l2": _one_rel_l2(spec, f"e2e K{k} rot{angle}")})
+    return cells
+
+
+def build_e2e_verdict(cells: tp.Sequence[dict], expect_matrix: tp.Mapping[str, tp.Any]) -> dict:
+    if not cells:
         raise AdapterError("end-to-end gate needs at least one waveform rel-L2 value")
-    mx = max(vals)
+    want = {(str(k), float(a)) for k, angs in expect_matrix.items() for a in angs}
+    _require_exact({(c["K"], c["angle"]) for c in cells}, want, "end-to-end (K, angle) matrix")
+    worst = max(c["rel_l2"] for c in cells)               # reduce over ALL cells (F7a)
     return {
-        "gate": "d2_end_to_end", "pass": bool(mx <= D2_E2E_REL_L2_THRESHOLD),
-        "metrics": {"max_rel_l2": mx, "threshold": D2_E2E_REL_L2_THRESHOLD, "n_angles": len(vals)},
+        "gate": "d2_end_to_end", "pass": bool(worst <= D2_E2E_REL_L2_THRESHOLD),
+        "metrics": {"cells": list(cells), "max_rel_l2": worst,
+                    "threshold": D2_E2E_REL_L2_THRESHOLD, "n_cells": len(cells)},
     }
 
 
-def build_flatness_verdict(per_k_angle_metrics: tp.Mapping[str, tp.Any]) -> dict:
-    """H-A3: per (K, metric), for every evaluated angle != 0,
-    ``|metric(rot a) - metric(rot 0)| <= H_A3_THRESHOLDS[K][metric]``; ALL cells pass."""
+# ============================================================================================
+# D2 H-A3 flatness: inlined constants + ALL-cells rule + coverage (F1, mutation m3 target).
+# ============================================================================================
+def build_flatness_verdict(per_k_angle_metrics: tp.Mapping[str, tp.Any],
+                           expect_matrix: tp.Mapping[str, tp.Any],
+                           metrics: tp.Sequence[str] = PRIMARY) -> dict:
+    """H-A3: per (K, metric), for every registered rotated angle,
+    ``|metric(rot a) - metric(rot 0)| <= H_A3_THRESHOLDS[K][metric]``; ALL cells pass. Coverage:
+    input K set == registered; each K carries rot-0 + EXACTLY the registered rotated angles."""
+    _require_exact(_k_str_set(per_k_angle_metrics), _k_str_set(expect_matrix), "H-A3 K set")
     cells: tp.List[dict] = []
     all_pass = True
-    for k_raw, angle_map in per_k_angle_metrics.items():
-        k = _maybe_int(k_raw)
+    for k_key in sorted(_k_str_set(expect_matrix), key=lambda x: int(x)):  # <-- H-A3 K-arm (F7b)
+        k = int(k_key)
         if k not in H_A3_THRESHOLDS:
-            raise AdapterError(f"H-A3 has no thresholds for K={k_raw!r} (known: {sorted(H_A3_THRESHOLDS)})")
+            raise AdapterError(f"H-A3 has no thresholds for K={k} (known: {sorted(H_A3_THRESHOLDS)})")
         thr = H_A3_THRESHOLDS[k]
-        ref = None
-        for a_raw, metrics in angle_map.items():
-            if float(a_raw) == 0.0:
-                ref = metrics
-        if ref is None:
+        angle_map = per_k_angle_metrics[k_key] if k_key in per_k_angle_metrics \
+            else per_k_angle_metrics[int(k_key)]
+        by_angle = {float(a): m for a, m in angle_map.items()}
+        if 0.0 not in by_angle:
             raise AdapterError(f"H-A3 K={k}: missing the rot-0 reference angle")
-        for a_raw, metrics in angle_map.items():
-            angle = float(a_raw)
-            if angle == 0.0:
-                continue
-            for metric in ("T60", "C50", "EDT"):   # <-- all three cells (mutation m3 target)
-                cur = _finite(metrics[metric], f"K{k}.rot{angle}.{metric}")
+        want_rot = _angle_set(expect_matrix[k_key]) if k_key in expect_matrix \
+            else _angle_set(expect_matrix[int(k_key)])
+        _require_exact(set(by_angle) - {0.0}, want_rot, f"H-A3 K={k} rotated angles")
+        ref = by_angle[0.0]
+        for angle in sorted(want_rot):
+            m = by_angle[angle]
+            for metric in metrics:                        # <-- all metrics/cells (mutation m3)
+                cur = _finite(m[metric], f"K{k}.rot{angle}.{metric}")
                 base = _finite(ref[metric], f"K{k}.rot0.{metric}")
                 delta = abs(cur - base)
                 threshold = thr[metric]
                 cell_pass = delta <= threshold
                 all_pass = all_pass and cell_pass
-                cells.append({"K": k, "angle": angle, "metric": metric,
-                              "value": cur, "ref_value": base, "delta": delta,
-                              "threshold": threshold, "pass": bool(cell_pass)})
+                cells.append({"K": k, "angle": angle, "metric": metric, "value": cur,
+                              "ref_value": base, "delta": delta, "threshold": threshold,
+                              "pass": bool(cell_pass)})
     if not cells:
-        raise AdapterError("H-A3 produced no cells (need at least one rotated angle per K)")
+        raise AdapterError("H-A3 produced no cells")
     return {
         "gate": "d2_flatness", "pass": bool(all_pass),
         "metrics": {"cells": cells, "n_cells": len(cells),
@@ -329,7 +413,7 @@ def build_flatness_verdict(per_k_angle_metrics: tp.Mapping[str, tp.Any]) -> dict
 
 
 # ============================================================================================
-# CLI input loading (consumes the raw eval_FLAC / compare_predictions JSONs).
+# CLI input loading (consumes the raw eval_FLAC / compare_predictions / A2b JSONs).
 # ============================================================================================
 def _load_json(path: str) -> tp.Any:
     if not os.path.isfile(path):
@@ -342,7 +426,6 @@ def _load_json(path: str) -> tp.Any:
 
 
 def _eval_metrics(path: str) -> tp.Dict[str, tp.Any]:
-    """Extract the ``metrics`` dict from an eval_FLAC-shaped JSON record."""
     rec = _load_json(path)
     if not isinstance(rec, dict) or not isinstance(rec.get("metrics"), dict):
         raise AdapterError(f"{path}: not an eval_FLAC metric JSON (no 'metrics' object)")
@@ -350,13 +433,13 @@ def _eval_metrics(path: str) -> tp.Dict[str, tp.Any]:
 
 
 def _load_d1_measured(path: str) -> tp.Dict[str, tp.Any]:
-    """Load the D1 measured index into ``{K: {metric: [values across seeds]}}``.
-    ``seeds`` = list of eval_FLAC JSON paths (primary path); ``values`` = inline lists."""
+    """Load the D1 measured index into ``{K: {metric: [values across seeds]}}``. Keeps ALL
+    wanted metric lists (even empty), so coverage can detect a missing metric or seed."""
     index = _load_json(path)
     if not isinstance(index, dict) or not index:
         raise AdapterError(f"{path}: D1 measured index must be a non-empty object")
     measured: tp.Dict[str, tp.Any] = {}
-    wanted = PRIMARY + ADVISORY
+    wanted = list(PRIMARY) + list(ADVISORY)
     for k, entry in index.items():
         if isinstance(entry, dict) and "seeds" in entry:
             per_metric: tp.Dict[str, tp.List[float]] = {m: [] for m in wanted}
@@ -365,20 +448,16 @@ def _load_d1_measured(path: str) -> tp.Dict[str, tp.Any]:
                 for m in wanted:
                     if m in metrics:
                         per_metric[m].append(_finite(metrics[m], f"{spath}:{m}"))
-            per_metric = {m: v for m, v in per_metric.items() if v}
         elif isinstance(entry, dict) and "values" in entry:
             per_metric = {m: [_finite(x, f"K{k}:{m}") for x in vals]
                           for m, vals in entry["values"].items()}
         else:
             raise AdapterError(f"D1 measured K={k}: entry needs a 'seeds' list or 'values' map")
-        if not any(m in per_metric for m in PRIMARY):
-            raise AdapterError(f"D1 measured K={k}: no primary metric (T60/C50/EDT) found")
-        measured[k] = per_metric
+        measured[str(k)] = per_metric
     return measured
 
 
 def _load_flatness(path: str) -> tp.Dict[str, tp.Any]:
-    """Load ``{K: {angle: <eval_FLAC json path | inline metrics>}}`` into nested metrics."""
     index = _load_json(path)
     if not isinstance(index, dict) or not index:
         raise AdapterError(f"{path}: flatness index must be a non-empty object")
@@ -386,52 +465,63 @@ def _load_flatness(path: str) -> tp.Dict[str, tp.Any]:
     for k, angle_map in index.items():
         if not isinstance(angle_map, dict):
             raise AdapterError(f"flatness K={k}: angle map must be an object")
-        out[k] = {}
+        out[str(k)] = {}
         for angle, spec in angle_map.items():
             if isinstance(spec, str):
-                out[k][angle] = _eval_metrics(spec)
+                out[str(k)][angle] = _eval_metrics(spec)
             elif isinstance(spec, dict) and "metrics" in spec:
-                out[k][angle] = spec["metrics"]
+                out[str(k)][angle] = spec["metrics"]
             elif isinstance(spec, dict):
-                out[k][angle] = spec
+                out[str(k)][angle] = spec
             else:
                 raise AdapterError(f"flatness K={k} angle={angle}: need a path or metrics object")
     return out
 
 
+def _require_expect(d2ref: tp.Mapping[str, tp.Any], gate: str, key: str) -> tp.Mapping[str, tp.Any]:
+    block = d2ref.get(gate, {})
+    expect = block.get("expect") if isinstance(block, dict) else None
+    if not isinstance(expect, dict) or key not in expect:
+        raise AdapterError(
+            f"references.d2.{gate}.expect.{key} is required (registered coverage matrix; F1)")
+    return expect
+
+
 # ============================================================================================
 # Driver.
 # ============================================================================================
-def run(references: tp.Mapping[str, tp.Any], out_dir: str, *, d1: tp.Optional[str] = None,
+def run(references: tp.Mapping[str, tp.Any], *, d1: tp.Optional[str] = None,
         d2_cond: tp.Optional[str] = None, d2_e2e: tp.Optional[str] = None,
         d2_flatness: tp.Optional[str] = None) -> tp.Tuple[tp.List[dict], tp.List[dict]]:
     """Build every requested verdict/advisory (raises AdapterError before writing anything)."""
     verdicts: tp.List[dict] = []
     advisories: tp.List[dict] = []
+    d2ref = references.get("d2", {}) if isinstance(references.get("d2"), dict) else {}
 
     if d1 is not None:
-        if "d1" not in references:
+        d1cfg = references.get("d1")
+        if not isinstance(d1cfg, dict):
             raise AdapterError("references config has no 'd1' block but --d1 was given")
-        measured = _load_d1_measured(d1)
-        gate, advisory = build_d1(measured, references["d1"])
+        gate, advisory = build_d1(_load_d1_measured(d1), d1cfg)
         if gate is not None:
             verdicts.append(gate)
         if advisory is not None:
             advisories.append(advisory)
     if d2_cond is not None:
-        cfg = _load_json(d2_cond)
-        verdicts.append(build_conditioning_verdict(
-            cfg.get("pooled_invariance"), cfg.get("patch_roll_equiv")))
+        expect = _require_expect(d2ref, "conditioning", "angles")
+        cells = conditioning_cells_from_artifact(_load_json(d2_cond))
+        verdicts.append(build_conditioning_verdict(cells, expect["angles"]))
     if d2_e2e is not None:
-        verdicts.append(build_e2e_verdict(extract_rel_l2(_load_json(d2_e2e))))
+        expect = _require_expect(d2ref, "end_to_end", "matrix")
+        verdicts.append(build_e2e_verdict(e2e_cells_from_index(_load_json(d2_e2e)), expect["matrix"]))
     if d2_flatness is not None:
-        verdicts.append(build_flatness_verdict(_load_flatness(d2_flatness)))
+        expect = _require_expect(d2ref, "flatness", "matrix")
+        metrics = list(expect.get("metrics", PRIMARY))
+        verdicts.append(build_flatness_verdict(_load_flatness(d2_flatness), expect["matrix"], metrics))
 
     if not verdicts and not advisories:
         raise AdapterError("no D1/D2 inputs provided; nothing to adapt")
-
-    # Backstop: no emitted record may carry a non-finite number (aggregate_gate rejects them).
-    for rec in verdicts + advisories:
+    for rec in verdicts + advisories:                 # finiteness backstop
         bad = collect_non_finite(rec)
         if bad:
             raise AdapterError(f"verdict {rec.get('gate')!r} has non-finite values at: {bad}")
@@ -440,11 +530,11 @@ def run(references: tp.Mapping[str, tp.Any], out_dir: str, *, d1: tp.Optional[st
 
 def main(argv: tp.Optional[tp.Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="exp-09 Stage D threshold->verdict adapter")
-    parser.add_argument("--references", required=True, help="REFERENCES config JSON (D1 mode + comparator)")
-    parser.add_argument("--out-dir", required=True, help="directory for the per-gate verdict JSONs")
+    parser.add_argument("--references", required=True, help="REFERENCES config JSON (modes + matrix)")
+    parser.add_argument("--out-dir", required=True, help="FRESH directory for the per-gate verdicts")
     parser.add_argument("--d1", help="D1 measured index (eval_FLAC JSONs grouped by K)")
-    parser.add_argument("--d2-cond", dest="d2_cond", help="D2 conditioning-level rel-errs JSON")
-    parser.add_argument("--d2-e2e", dest="d2_e2e", help="D2 end-to-end compare_predictions JSON(s)")
+    parser.add_argument("--d2-cond", dest="d2_cond", help="D2 conditioning A2b artifact JSON")
+    parser.add_argument("--d2-e2e", dest="d2_e2e", help="D2 end-to-end compare_predictions index JSON")
     parser.add_argument("--d2-flatness", dest="d2_flatness", help="D2 H-A3 per-(K, angle) metrics JSON")
     args = parser.parse_args(argv)
 
@@ -452,8 +542,15 @@ def main(argv: tp.Optional[tp.Sequence[str]] = None) -> int:
         references = _load_json(args.references)
         if not isinstance(references, dict):
             raise AdapterError("references config must be a JSON object")
+        # F3 fresh-dir publish: refuse a pre-existing NON-EMPTY output dir (stale verdicts).
+        if os.path.exists(args.out_dir) and not os.path.isdir(args.out_dir):
+            raise AdapterError(f"--out-dir {args.out_dir!r} exists and is not a directory")
+        if os.path.isdir(args.out_dir) and os.listdir(args.out_dir):
+            raise AdapterError(
+                f"--out-dir {args.out_dir!r} is not empty — each run needs a FRESH dir "
+                "(stale-verdict guard, F3); the D records create per-run dirs")
         verdicts, advisories = run(
-            references, args.out_dir, d1=args.d1, d2_cond=args.d2_cond,
+            references, d1=args.d1, d2_cond=args.d2_cond,
             d2_e2e=args.d2_e2e, d2_flatness=args.d2_flatness)
     except AdapterError as exc:
         print(f"gate_thresholds_to_verdicts: REJECTED — {exc}", file=sys.stderr)
