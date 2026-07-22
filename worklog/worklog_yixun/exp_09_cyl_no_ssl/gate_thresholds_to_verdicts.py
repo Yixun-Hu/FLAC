@@ -19,19 +19,30 @@ References config (the D records pin it)::
     {"d1": {"mode": "matched_control"|"contextual", "control_name": "P1",
             "control_stats": {"<K>": {"T60":[mean,std], "C50":[...], "EDT":[...],
                                        "RIR_to_GT_RIR_R@1":[...]}, ...},
-            "expect": {"K": [1,8], "seeds": 5, "metrics": ["T60","C50","EDT"],
+            "expect": {"K": [1,8], "seeds": [42,43,44,45,46],   # EXPLICIT eval seed IDs
+                       "metrics": ["T60","C50","EDT"],
                        "advisory_metrics": ["RIR_to_GT_RIR_R@1"]}},
-     "d2": {"conditioning": {"expect": {"angles": [45,90,180,270]}},
-            "end_to_end":  {"expect": {"matrix": {"1":[0,45,90,180,270], "8":[0,90]}}},
+     "d2": {"conditioning": {"expect": {"angles": [11.25,45,90,180,270]}},  # A2b j->degrees
+            "end_to_end":  {"expect": {"matrix": {"1":[45,90,180,270], "8":[90]}}},  # rot0-FREE
             "flatness":    {"expect": {"matrix": {"1":[45,90,180,270], "8":[90]},
                                         "metrics": ["T60","C50","EDT"]}}}}
 
+The D records must supply a FRESH, UNIQUE ``--out-dir`` per run (records obligation; main()
+refuses a non-empty dir). rot0 predictions are retained only as e2e comparator baselines, so
+the e2e matrix is rot0-free; flatness still consumes rot-0 as its per-K reference.
+
 Inputs (raw producer artifacts):
-* ``--d1``   ``{"<K>": {"seeds": [<eval_FLAC json>, ...]}}`` (or ``{"values": {metric:[..]}}``);
-* ``--d2-cond``   the A2b-harness artifact: ``{"a2b": {"per_angle": [{angle-id, pooled_relerr,
-  patch_relerr}, ...]}}`` (per-angle records carrying BOTH channels; audit_convention.py:1057);
+* ``--d1``   ``{"<K>": {"seeds": {"<seed_id>": <eval_FLAC json path>, ...}}}`` — seed IDs are
+  pinned by ``references.d1.expect.seeds`` (a list of ``{"seed_id","path"}`` is also accepted).
+  Duplicate seed IDs, OR a resolved (realpath) artifact reused ANYWHERE in the manifest, =>
+  reject (exit 2): "the same artifact five times" can no longer masquerade as five seeds.
+* ``--d2-cond``   the REAL A2b audit artifact: ``a2b.per_angle`` records carry ``j`` +
+  ``pooled_relerr`` + ``patch_relerr``; ``a2_params.angles`` carries the j->degrees join
+  (``degrees`` field, or ``alpha_rad`` -> round(deg, 2)). The converter JOINS j->degrees and
+  keys cells by DEGREES (audit_convention.py:1036/1057). A duplicated angle => reject.
 * ``--d2-e2e``   ``{"<K>": {"<angle>": <compare_predictions out with waveform_gap.mean_rel_l2>}}``;
 * ``--d2-flatness``   ``{"<K>": {"<angle>": <eval_FLAC json | inline metrics>}}``.
+  For d2-e2e / d2-flatness a duplicated (K, angle) entry (e.g. "90" and "90.0") => reject.
 
 D1 band math is exp_07 ``gate_verdict.py`` VERBATIM (equivalence <=1 sigma_c / non-inferiority
 <=2 sigma_c; sc==0 => n=inf => OUTSIDE). D2 thresholds are INLINED: conditioning <=1e-4,
@@ -175,17 +186,29 @@ def _ref_for_k(ref_stats: tp.Mapping[str, tp.Any], k: tp.Any) -> tp.Mapping[str,
 def _enforce_d1_coverage(measured: tp.Mapping[str, tp.Any], expect: tp.Mapping[str, tp.Any],
                          all_metrics: tp.Sequence[str]) -> tp.List[str]:
     exp_ks = expect.get("K")
-    seeds = expect.get("seeds")
-    if not exp_ks or not isinstance(seeds, int):
-        raise AdapterError("references.d1.expect needs a non-empty 'K' list and integer 'seeds'")
+    reg_ids = expect.get("seeds")
+    if not exp_ks or not isinstance(reg_ids, list) or not reg_ids:
+        raise AdapterError(
+            "references.d1.expect needs a non-empty 'K' list and a 'seeds' LIST of seed IDs")
+    reg_ids_str = [str(s) for s in reg_ids]
+    if len(set(reg_ids_str)) != len(reg_ids_str):
+        raise AdapterError(f"references.d1.expect.seeds has duplicate seed IDs: {reg_ids}")
+    reg_sorted = sorted(reg_ids_str)
     _require_exact(_k_str_set(measured), _k_str_set(exp_ks), "D1 K set")
     for k in measured:
-        per = measured[k]
+        arm = measured[k]
+        ids = [str(s) for s in arm.get("seed_ids", [])]
+        # ONE authoritative seed-ID guard: the declared IDs must be EXACTLY the registered set,
+        # each once — a sorted-sequence compare rejects repeats, missing, AND extras together.
+        if sorted(ids) != reg_sorted:                  # <-- seed-ID exactness+no-repeats (mutation m1)
+            raise AdapterError(
+                f"D1 K={k} seed IDs {ids} != registered {reg_ids} EXACTLY (no repeats/missing/extra)")
+        vals = arm.get("values", {})
         for metric in all_metrics:
-            got = per.get(metric)
-            if not isinstance(got, list) or len(got) != seeds:
+            got = vals.get(metric)
+            if not isinstance(got, list) or len(got) != len(reg_ids):
                 raise AdapterError(
-                    f"D1 K={k} metric {metric!r}: expected exactly {seeds} seed values, "
+                    f"D1 K={k} metric {metric!r}: expected exactly {len(reg_ids)} seed values, "
                     f"got {0 if got is None else len(got)}")
     return [str(k) for k in sorted(_k_str_set(exp_ks), key=lambda x: int(x))]
 
@@ -194,9 +217,9 @@ def _band_cells(measured, control, ks, metrics, better_low):
     cells, all_within = [], True
     for k_key in ks:                                   # <-- D1 K-arm iteration (F7b target)
         ref_k = _ref_for_k(control, k_key)
-        meas_k = measured[k_key] if k_key in measured else measured[int(k_key)]
+        vals_k = (measured[k_key] if k_key in measured else measured[int(k_key)])["values"]
         for metric in metrics:
-            mu, sd = seed_stats(meas_k[metric])
+            mu, sd = seed_stats(vals_k[metric])
             if metric not in ref_k:
                 raise AdapterError(f"control_stats K={k_key} missing metric {metric!r}")
             rmu = _finite(ref_k[metric][0], f"ref[{k_key}][{metric}].mean")
@@ -263,11 +286,12 @@ def build_d1(measured: tp.Mapping[str, tp.Any],
 
 def _measured_report(measured, metrics):
     rep: tp.Dict[str, tp.Any] = {}
-    for k, per in measured.items():
-        rep[str(k)] = {}
+    for k, arm in measured.items():
+        rep[str(k)] = {"seed_ids": list(arm.get("seed_ids", []))}
         for metric in metrics:
-            mu, sd = seed_stats(per[metric])
-            rep[str(k)][metric] = {"mean": mu, "std": sd, "n": len(per[metric])}
+            vals = arm["values"][metric]
+            mu, sd = seed_stats(vals)
+            rep[str(k)][metric] = {"mean": mu, "std": sd, "n": len(vals)}
     return rep
 
 
@@ -286,22 +310,62 @@ def _extract_cond_records(artifact: tp.Any) -> tp.List[tp.Any]:
                        "{'a2b': {'per_angle': [...]}} (or a bare per-angle list)")
 
 
-def _cond_angle(rec: tp.Mapping[str, tp.Any], i: int) -> float:
-    for key in ("angle", "rotate_deg", "j"):
+def _build_j_to_degrees(artifact: tp.Any) -> tp.Optional[tp.Dict[int, float]]:
+    """Build the ``j -> degrees`` map from ``a2_params.angles`` (audit_convention.py:1036).
+    Prefers the explicit ``degrees`` field; else converts ``alpha_rad`` and rounds to 2 dp.
+    Returns None when the artifact has no ``a2_params`` (a degree-native producer)."""
+    a2p = artifact.get("a2_params") if isinstance(artifact, dict) else None
+    if not isinstance(a2p, dict) or "angles" not in a2p:
+        return None
+    mapping: tp.Dict[int, float] = {}
+    for e in a2p["angles"]:
+        if not isinstance(e, dict) or "j" not in e:
+            raise AdapterError("a2_params.angles entry missing 'j'")
+        j = int(e["j"])
+        if "degrees" in e:
+            deg = _finite(e["degrees"], f"a2_params.j={j}.degrees")
+        elif "alpha_rad" in e:
+            deg = round(math.degrees(_finite(e["alpha_rad"], f"a2_params.j={j}.alpha_rad")), 2)
+        else:
+            raise AdapterError(f"a2_params.angles j={j} has neither 'degrees' nor 'alpha_rad'")
+        mapping[j] = deg
+    return mapping
+
+
+def _resolve_cond_angle(rec: tp.Mapping[str, tp.Any], j2deg: tp.Optional[tp.Dict[int, float]],
+                        i: int) -> float:
+    """Resolve a conditioning record's angle in DEGREES. Real A2b records serialise only ``j``;
+    they are JOINED to degrees via ``a2_params`` (never treated as the angle directly)."""
+    if "j" in rec:
+        if j2deg is None:
+            raise AdapterError(
+                f"conditioning record #{i} carries 'j' but the artifact has no a2_params.angles "
+                "to join j->degrees")
+        j = int(rec["j"])
+        if j not in j2deg:
+            raise AdapterError(f"conditioning record #{i}: j={j} not in a2_params.angles {sorted(j2deg)}")
+        return j2deg[j]
+    for key in ("angle", "rotate_deg"):   # degree-native producer fallback
         if key in rec:
             return float(rec[key])
-    raise AdapterError(f"conditioning record #{i} has no angle id ('angle'/'rotate_deg'/'j')")
+    raise AdapterError(f"conditioning record #{i} has no 'j' (with a2_params) nor 'angle'/'rotate_deg'")
 
 
 def conditioning_cells_from_artifact(artifact: tp.Any) -> tp.List[dict]:
-    """Convert the raw A2b artifact into conditioning cells. EACH per-angle record must carry
-    BOTH ``pooled_relerr`` and ``patch_relerr`` (a record missing a channel is a rejection --
-    the 'pooled@45 but patch@90' split can never slip through)."""
+    """Convert the raw A2b artifact into conditioning cells keyed by DEGREES. EACH per-angle
+    record must carry BOTH ``pooled_relerr`` and ``patch_relerr`` (a record missing a channel
+    is a rejection). Real A2b records serialise only ``j`` -> joined to degrees via a2_params.
+    A duplicated angle (raw list) is rejected BEFORE any set normalisation (P1-1b)."""
+    j2deg = _build_j_to_degrees(artifact)
     cells = []
+    seen: tp.Set[float] = set()
     for i, rec in enumerate(_extract_cond_records(artifact)):
         if not isinstance(rec, dict):
             raise AdapterError(f"conditioning record #{i} is not an object")
-        angle = _cond_angle(rec, i)
+        angle = _resolve_cond_angle(rec, j2deg, i)
+        if angle in seen:                    # <-- duplicate angle in the RAW list (mutation dup)
+            raise AdapterError(f"conditioning artifact has a DUPLICATE angle {angle} (deg)")
+        seen.add(angle)
         if "pooled_relerr" not in rec or "patch_relerr" not in rec:
             raise AdapterError(
                 f"conditioning record at angle {angle}: needs BOTH pooled_relerr AND patch_relerr")
@@ -346,8 +410,13 @@ def e2e_cells_from_index(index: tp.Any) -> tp.List[dict]:
     for k, angle_map in index.items():
         if not isinstance(angle_map, dict):
             raise AdapterError(f"end-to-end K={k}: angle map must be an object")
+        seen: tp.Set[float] = set()
         for angle, spec in angle_map.items():
-            cells.append({"K": str(k), "angle": float(angle),
+            fa = float(angle)
+            if fa in seen:                    # <-- duplicate (K, angle) BEFORE normalisation (P1-1b)
+                raise AdapterError(f"end-to-end K={k}: DUPLICATE angle {angle} (== {fa} deg)")
+            seen.add(fa)
+            cells.append({"K": str(k), "angle": fa,
                           "rel_l2": _one_rel_l2(spec, f"e2e K{k} rot{angle}")})
     return cells
 
@@ -384,6 +453,9 @@ def build_flatness_verdict(per_k_angle_metrics: tp.Mapping[str, tp.Any],
         thr = H_A3_THRESHOLDS[k]
         angle_map = per_k_angle_metrics[k_key] if k_key in per_k_angle_metrics \
             else per_k_angle_metrics[int(k_key)]
+        raw_angles = [float(a) for a in angle_map]        # RAW list BEFORE dict collapse (P1-1b)
+        if len(set(raw_angles)) != len(raw_angles):       # <-- duplicate angle keys (e.g. 90/90.0)
+            raise AdapterError(f"H-A3 K={k}: DUPLICATE angle keys {list(angle_map)} collapse silently")
         by_angle = {float(a): m for a, m in angle_map.items()}
         if 0.0 not in by_angle:
             raise AdapterError(f"H-A3 K={k}: missing the rot-0 reference angle")
@@ -432,28 +504,60 @@ def _eval_metrics(path: str) -> tp.Dict[str, tp.Any]:
     return rec["metrics"]
 
 
+def _seed_pairs(entry: tp.Mapping[str, tp.Any], k: tp.Any) -> tp.List[tp.Tuple[str, str]]:
+    """Normalise a K arm's ``seeds`` into ordered ``(seed_id, path)`` pairs. Accepts a
+    ``{seed_id: path}`` map OR a list of ``{"seed_id","path"}`` (the list form can express a
+    duplicate seed id, which coverage then rejects)."""
+    seeds = entry.get("seeds")
+    if isinstance(seeds, dict):
+        return [(str(sid), path) for sid, path in seeds.items()]
+    if isinstance(seeds, list):
+        pairs = []
+        for j, item in enumerate(seeds):
+            if not isinstance(item, dict) or "seed_id" not in item or "path" not in item:
+                raise AdapterError(f"D1 K={k} seeds[{j}]: list form needs {{'seed_id','path'}}")
+            pairs.append((str(item["seed_id"]), item["path"]))
+        return pairs
+    raise AdapterError(f"D1 K={k}: 'seeds' must be a {{seed_id: path}} map or a list of {{seed_id,path}}")
+
+
 def _load_d1_measured(path: str) -> tp.Dict[str, tp.Any]:
-    """Load the D1 measured index into ``{K: {metric: [values across seeds]}}``. Keeps ALL
-    wanted metric lists (even empty), so coverage can detect a missing metric or seed."""
+    """Load the D1 measured index into ``{K: {"seed_ids":[...], "values": {metric: [..]}}}``.
+    Each artifact carries a SEED ID (so five copies of one file cannot masquerade as five
+    seeds), and NO resolved artifact path may be reused ANYWHERE in the manifest (realpath
+    collision check across all K x seeds). Keeps ALL wanted metric lists so coverage can
+    detect a missing metric/seed. An inline ``{"seed_ids":[...], "values": {..}}`` form is also
+    accepted (pre-grouped, e.g. unit tests) and bypasses the path checks."""
     index = _load_json(path)
     if not isinstance(index, dict) or not index:
         raise AdapterError(f"{path}: D1 measured index must be a non-empty object")
     measured: tp.Dict[str, tp.Any] = {}
     wanted = list(PRIMARY) + list(ADVISORY)
+    seen_paths: tp.Dict[str, str] = {}   # realpath -> "K=.. seed .." (collision reporting)
     for k, entry in index.items():
-        if isinstance(entry, dict) and "seeds" in entry:
-            per_metric: tp.Dict[str, tp.List[float]] = {m: [] for m in wanted}
-            for spath in entry["seeds"]:
-                metrics = _eval_metrics(spath)
-                for m in wanted:
-                    if m in metrics:
-                        per_metric[m].append(_finite(metrics[m], f"{spath}:{m}"))
-        elif isinstance(entry, dict) and "values" in entry:
-            per_metric = {m: [_finite(x, f"K{k}:{m}") for x in vals]
-                          for m, vals in entry["values"].items()}
-        else:
-            raise AdapterError(f"D1 measured K={k}: entry needs a 'seeds' list or 'values' map")
-        measured[str(k)] = per_metric
+        if not isinstance(entry, dict):
+            raise AdapterError(f"D1 measured K={k}: entry must be an object")
+        if "values" in entry:            # pre-grouped inline form (no file paths)
+            measured[str(k)] = {
+                "seed_ids": [str(s) for s in entry.get("seed_ids", [])],
+                "values": {m: [_finite(x, f"K{k}:{m}") for x in vals]
+                           for m, vals in entry["values"].items()},
+            }
+            continue
+        pairs = _seed_pairs(entry, k)
+        values: tp.Dict[str, tp.List[float]] = {m: [] for m in wanted}
+        for sid, spath in pairs:
+            rp = os.path.realpath(spath)
+            if rp in seen_paths:         # <-- realpath collision ANYWHERE (mutation m2)
+                raise AdapterError(
+                    f"D1 artifact path {rp} is reused ({seen_paths[rp]} AND K={k} seed {sid}) — "
+                    "the same artifact cannot count as multiple seeds")
+            seen_paths[rp] = f"K={k} seed {sid}"
+            metrics = _eval_metrics(spath)
+            for m in wanted:
+                if m in metrics:
+                    values[m].append(_finite(metrics[m], f"{spath}:{m}"))
+        measured[str(k)] = {"seed_ids": [sid for sid, _ in pairs], "values": values}
     return measured
 
 
@@ -552,8 +656,10 @@ def main(argv: tp.Optional[tp.Sequence[str]] = None) -> int:
         verdicts, advisories = run(
             references, d1=args.d1, d2_cond=args.d2_cond,
             d2_e2e=args.d2_e2e, d2_flatness=args.d2_flatness)
-    except AdapterError as exc:
-        print(f"gate_thresholds_to_verdicts: REJECTED — {exc}", file=sys.stderr)
+    # Exit-2 boundary (P2): AdapterError AND any raw input-parse error (bad float/key/type/
+    # JSON) map to the documented rejection — never a raw traceback, never a partial write.
+    except (AdapterError, ValueError, KeyError, TypeError) as exc:
+        print(f"gate_thresholds_to_verdicts: REJECTED — {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2  # hard rejection: no verdict written
 
     os.makedirs(args.out_dir, exist_ok=True)

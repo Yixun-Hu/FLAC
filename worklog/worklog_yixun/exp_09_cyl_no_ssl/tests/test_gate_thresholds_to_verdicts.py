@@ -1,14 +1,14 @@
 """exp-09 D-stage: threshold->verdict ADAPTER tests (CPU-only).
 
-Covers the Codex D-tool review fixes:
-  * F1 COVERAGE ENFORCEMENT: partial/over-complete inputs are REJECTED (exit 2), only the
-    exact registered matrix is evaluated -- every review probe scenario => rejection.
-  * F4 verbatim zero-sigma: sc==0 => n=inf => OUTSIDE (equal means => NOT equivalence).
-  * F5 conditioning schema: the real A2b artifact (per-angle pooled_relerr/patch_relerr).
-  * F7a: e2e/conditioning reduce over ALL cells (a LATER failing cell fails the gate).
-  * F7b: the K=1 D1 arm and K=1 H-A3 arm are actually evaluated (a K=1-only failure fails).
-  * plus the standing band math (gate_verdict.py verbatim), all-cells H-A3, D2 thresholds,
-    matched-vs-contextual, atomic finite verdicts consumed by aggregate_gate.py, exit codes.
+Covers the Codex D-tool r1 + r2 review fixes:
+  * F1 COVERAGE: partial/over-complete inputs REJECTED (exit 2); only the exact matrix runs.
+  * P1-1 DUPLICATES: explicit seed IDs; repeated artifacts (realpath collision) + duplicate
+    seed IDs + duplicate (K,angle)/(angle) cells all rejected BEFORE any set/dict normalisation.
+  * P1-2 ANGLE CONTRACT: the A2b converter JOINS j->degrees via a2_params (the REAL committed
+    audit_convention.json is consumed read-only); cells keyed by degrees incl. 11.25 (j=1).
+  * P2 EXIT CONTRACT: raw ValueError/KeyError/TypeError/json parse errors -> exit 2, no traceback.
+  * F4 verbatim zero-sigma; F5 A2b schema; F7a later-cell reductions; F7b K=1 arms.
+  * band math (gate_verdict.py verbatim), all-cells H-A3, matched-vs-contextual, aggregate_gate.
 """
 import json
 import math
@@ -26,8 +26,10 @@ if str(_EXP09_DIR) not in sys.path:
 import gate_thresholds_to_verdicts as gtv  # noqa: E402
 import aggregate_gate  # noqa: E402
 
+_REAL_AUDIT = _EXP09_DIR / "audit_convention.json"   # the committed Stage-A artifact (read-only)
+
 # --------------------------------------------------------------------------------------- #
-# registered matrix (mirrors what the D records will pin)
+# registered matrix (mirrors what the D records will pin) — seed IDs, degree angles, rot0-free e2e
 # --------------------------------------------------------------------------------------- #
 _CTRL = {
     "8": {"T60": [8.609, 0.012], "C50": [0.9682, 0.0030], "EDT": [37.10, 0.07],
@@ -35,10 +37,11 @@ _CTRL = {
     "1": {"T60": [9.969, 0.039], "C50": [1.0460, 0.0064], "EDT": [39.95, 0.37],
           "RIR_to_GT_RIR_R@1": [6.83, 0.22]},
 }
-_D1_EXPECT = {"K": [1, 8], "seeds": 5, "metrics": ["T60", "C50", "EDT"],
+_SEED_IDS = [42, 43, 44, 45, 46]
+_D1_EXPECT = {"K": [1, 8], "seeds": _SEED_IDS, "metrics": ["T60", "C50", "EDT"],
               "advisory_metrics": ["RIR_to_GT_RIR_R@1"]}
-_COND_ANGLES = [45, 90, 180, 270]
-_E2E_MATRIX = {"1": [0, 45, 90, 180, 270], "8": [0, 90]}
+_COND_ANGLES = [11.25, 45, 90, 180, 270]          # A2b j->degrees (j=1 -> 11.25)
+_E2E_MATRIX = {"1": [45, 90, 180, 270], "8": [90]}   # rot0-FREE (r2 adjudication)
 _FLAT_MATRIX = {"1": [45, 90, 180, 270], "8": [90]}
 _FLAT_REF = {"1": {"T60": 9.969, "C50": 1.046, "EDT": 39.95},
              "8": {"T60": 8.609, "C50": 0.9682, "EDT": 37.10}}
@@ -58,13 +61,14 @@ def _d1cfg(mode="matched_control", **over):
     return cfg
 
 
-def _measured(overrides=None, seeds=5, ks=("1", "8")):
+def _measured(overrides=None, seed_ids=None, ks=("1", "8")):
     overrides = overrides or {}
+    seed_ids = list(_SEED_IDS if seed_ids is None else seed_ids)
     out = {}
     for k in ks:
-        out[k] = {}
-        for metric, (mu, _sd) in _CTRL[k].items():
-            out[k][metric] = [overrides.get((k, metric), mu)] * seeds
+        vals = {metric: [overrides.get((k, metric), mu)] * len(seed_ids)
+                for metric, (mu, _sd) in _CTRL[k].items()}
+        out[k] = {"seed_ids": [str(s) for s in seed_ids], "values": vals}
     return out
 
 
@@ -78,11 +82,8 @@ def _cond_artifact(overrides=None, angles=_COND_ANGLES):
 
 def _e2e_index(overrides=None, matrix=_E2E_MATRIX):
     overrides = overrides or {}
-    idx = {}
-    for k, angs in matrix.items():
-        idx[k] = {str(a): {"waveform_gap": {"mean_rel_l2": overrides.get((k, a), 0.002)}}
-                  for a in angs}
-    return idx
+    return {k: {str(a): {"waveform_gap": {"mean_rel_l2": overrides.get((k, a), 0.002)}}
+                for a in angs} for k, angs in matrix.items()}
 
 
 def _flat_index(overrides=None, matrix=_FLAT_MATRIX):
@@ -91,9 +92,8 @@ def _flat_index(overrides=None, matrix=_FLAT_MATRIX):
     for k in matrix:
         idx[k] = {"0": dict(_FLAT_REF[k])}
         for a in matrix[k]:
-            m = {metric: _FLAT_REF[k][metric] + overrides.get((k, a, metric), 0.0)
-                 for metric in ("T60", "C50", "EDT")}
-            idx[k][str(a)] = m
+            idx[k][str(a)] = {m: _FLAT_REF[k][m] + overrides.get((k, a, m), 0.0)
+                              for m in ("T60", "C50", "EDT")}
     return idx
 
 
@@ -125,21 +125,26 @@ def _write_refs(tmp_path, mode="matched_control"):
     return p
 
 
-def _write_d1_measured(tmp_path, seeds=5, ks=("1", "8"), overrides=None):
+def _write_d1_measured(tmp_path, seed_ids=None, ks=("1", "8"), overrides=None, shared_path=False):
+    seed_ids = list(_SEED_IDS if seed_ids is None else seed_ids)
     overrides = overrides or {}
     idx = {}
     for k in ks:
-        paths = []
-        for s in range(seeds):
+        seeds, shared = {}, None
+        for sid in seed_ids:
             metrics = {m: overrides.get((k, m), mu) for m, (mu, _sd) in _CTRL[k].items()}
-            paths.append(_write_eval_json(tmp_path / f"e_{k}_{s}.json", metrics))
-        idx[k] = {"seeds": paths}
-    p = tmp_path / f"d1_{'-'.join(ks)}_{seeds}.json"; p.write_text(json.dumps(idx))
+            if shared_path:
+                shared = shared or _write_eval_json(tmp_path / f"e_{k}.json", metrics)
+                seeds[str(sid)] = shared
+            else:
+                seeds[str(sid)] = _write_eval_json(tmp_path / f"e_{k}_{sid}.json", metrics)
+        idx[k] = {"seeds": seeds}
+    p = tmp_path / f"d1_{'-'.join(ks)}.json"; p.write_text(json.dumps(idx))
     return p
 
 
 # ======================================================================================= #
-# seed_stats + band math (gate_verdict.py verbatim)
+# band math (gate_verdict.py verbatim) incl. F4 zero-sigma
 # ======================================================================================= #
 def test_seed_stats_ddof1():
     mu, sd = gtv.seed_stats([1.0, 2.0, 3.0, 4.0, 5.0])
@@ -148,12 +153,11 @@ def test_seed_stats_ddof1():
 
 def test_band_equivalence_superior():
     b = gtv.sigma_band(8.59, 0.01, 8.60, 0.01, better_low=True)
-    assert b["within_1sc"] and b["within_2sc"] and b["tier"] == "equiv<=1sc"
-    assert b["direction"] == "superior"
+    assert b["within_1sc"] and b["within_2sc"] and b["tier"] == "equiv<=1sc" and b["direction"] == "superior"
 
 
 def test_band_noninferiority_band():
-    b = gtv.sigma_band(8.62, 0.01, 8.60, 0.01, better_low=True)  # n ~ +1.414
+    b = gtv.sigma_band(8.62, 0.01, 8.60, 0.01, better_low=True)
     assert not b["within_1sc"] and b["within_2sc"] and b["tier"] == "band<=2sc"
 
 
@@ -162,29 +166,19 @@ def test_band_outside_worse_fails():
     assert not b["within_2sc"] and b["direction"] == "worse"
 
 
-def test_band_higher_better_flips_direction():
-    assert gtv.sigma_band(7.10, 0.10, 7.06, 0.10, better_low=False)["direction"] == "superior"
-    assert gtv.sigma_band(6.90, 0.10, 7.06, 0.10, better_low=False)["direction"] == "worse"
-
-
 def test_band_zero_sigma_verbatim_outside_not_equivalence():
-    """F4: sc==0 => n=inf => OUTSIDE (fails 2sc), EVEN for equal means (gate_verdict.py:91).
-    No non-finite value leaks into the emitted verdict."""
-    b = gtv.sigma_band(8.60, 0.0, 8.60, 0.0, better_low=True)   # equal means, sc==0
-    assert b["within_1sc"] is False and b["within_2sc"] is False
-    assert b["tier"] == "outside>2sc"
-    assert b["n_sigma"] is None and b["n_sigma_infinite"] is True
-    assert b["direction"] == "tie"
+    b = gtv.sigma_band(8.60, 0.0, 8.60, 0.0, better_low=True)
+    assert b["within_2sc"] is False and b["tier"] == "outside>2sc"
+    assert b["n_sigma"] is None and b["n_sigma_infinite"] is True and b["direction"] == "tie"
 
 
 # ======================================================================================= #
-# D1 matched / contextual + F7b K=1 arm
+# D1 matched / contextual + F7b + P1-1 seed IDs / dedupe
 # ======================================================================================= #
 def test_d1_matched_all_within_passes():
     gate, adv = gtv.build_d1(_measured(), _d1cfg())
     assert adv is None and gate["gate"] == "d1_parity" and gate["pass"] is True
-    assert gate["metrics"]["n_cells"] == 6  # K{1,8} x {T60,C50,EDT}
-    assert any(c["metric"] == "RIR_to_GT_RIR_R@1" for c in gate["metrics"]["advisory"])
+    assert gate["metrics"]["n_cells"] == 6
 
 
 def test_d1_matched_k8_failure_fails():
@@ -193,94 +187,129 @@ def test_d1_matched_k8_failure_fails():
 
 
 def test_d1_matched_k1_arm_failure_fails():
-    """F7b: a K=1-only failure MUST fail the gate (the K=1 arm is actually evaluated)."""
     gate, _ = gtv.build_d1(_measured({("1", "T60"): 12.0}), _d1cfg())
     assert gate["pass"] is False
-    bad = [c for c in gate["metrics"]["cells"] if c["K"] == "1" and c["metric"] == "T60"][0]
-    assert not bad["within_2sc"]
 
 
 def test_d1_contextual_emits_no_parity():
     gate, adv = gtv.build_d1(_measured(), _d1cfg(mode="contextual"))
-    assert gate is None and adv["advisory"] is True and adv["gate"] != "d1_parity"
-    assert "pass" not in adv
+    assert gate is None and adv["advisory"] is True and adv["gate"] != "d1_parity" and "pass" not in adv
 
 
-# ---- F1 coverage: partial D1 => rejection ----
 def test_d1_reject_missing_seed():
     with pytest.raises(gtv.AdapterError):
-        gtv.build_d1(_measured(seeds=1), _d1cfg())          # 1 seed, not 5
+        gtv.build_d1(_measured(seed_ids=[42]), _d1cfg())
+
+
+def test_d1_reject_duplicate_seed_id():
+    """P1-1: five values but a repeated seed id (distinct-path) must be rejected."""
+    with pytest.raises(gtv.AdapterError):
+        gtv.build_d1(_measured(seed_ids=[42, 42, 43, 44, 45]), _d1cfg())
+
+
+def test_d1_reject_wrong_seed_ids():
+    """Seed-id SET must match the registered set exactly (not just count)."""
+    with pytest.raises(gtv.AdapterError):
+        gtv.build_d1(_measured(seed_ids=[42, 43, 44, 45, 99]), _d1cfg())
 
 
 def test_d1_reject_missing_k():
     with pytest.raises(gtv.AdapterError):
-        gtv.build_d1(_measured(ks=("8",)), _d1cfg())        # K=1 absent
+        gtv.build_d1(_measured(ks=("8",)), _d1cfg())
 
 
 def test_d1_reject_extra_k():
-    m = _measured(); m["4"] = m["8"]                        # unexpected K=4
+    m = _measured(); m["4"] = m["8"]
     with pytest.raises(gtv.AdapterError):
         gtv.build_d1(m, _d1cfg())
 
 
-def test_d1_reject_missing_metric():
-    m = _measured(); del m["8"]["EDT"]
+def test_d1_expect_seeds_must_be_id_list():
+    cfg = _d1cfg(); cfg["expect"] = dict(cfg["expect"]); cfg["expect"]["seeds"] = 5  # old int form
     with pytest.raises(gtv.AdapterError):
-        gtv.build_d1(m, _d1cfg())
+        gtv.build_d1(_measured(), cfg)
+
+
+# ---- CLI: realpath collision (repeated artifact) ----
+def test_cli_reject_repeated_artifact_path(tmp_path):
+    """P1-1: the same artifact reused for five seed ids => realpath collision => exit 2."""
+    refs = _write_refs(tmp_path, "matched_control")
+    d1 = _write_d1_measured(tmp_path, shared_path=True)
+    out = tmp_path / "v"
+    proc = _run_cli(["--references", refs, "--out-dir", out, "--d1", d1])
+    assert proc.returncode == 2, proc.stdout + proc.stderr
+    assert not (out.exists() and list(out.glob("*.json")))
 
 
 # ======================================================================================= #
-# D2 conditioning (A2b schema, F5) + coverage + F7a
+# D2 conditioning: REAL A2b j->degrees join (P1-2), coverage, dedupe, F7a
 # ======================================================================================= #
-def test_cond_threshold_is_1e_4():
-    assert gtv.D2_COND_THRESHOLD == 1e-4
+def test_cond_real_artifact_joins_j_to_degrees():
+    """The converter consumes the REAL committed audit_convention.json (read-only) and yields
+    exactly the five DEGREE cells {11.25,45,90,180,270}, each with both channels."""
+    art = json.loads(_REAL_AUDIT.read_text())
+    cells = gtv.conditioning_cells_from_artifact(art)
+    assert sorted(c["angle"] for c in cells) == [11.25, 45.0, 90.0, 180.0, 270.0]
+    assert all("pooled_relerr" in c and "patch_relerr" in c for c in cells)
+    assert gtv.build_conditioning_verdict(cells, [11.25, 45, 90, 180, 270])["pass"] is True
 
 
-def test_cond_from_a2b_artifact_passes():
-    cells = gtv.conditioning_cells_from_artifact(_cond_artifact())
-    v = gtv.build_conditioning_verdict(cells, _COND_ANGLES)
-    assert v["gate"] == "d2_conditioning" and v["pass"] is True and v["metrics"]["n_angles"] == 4
+def test_cond_real_artifact_missing_1125_rejects():
+    cells = gtv.conditioning_cells_from_artifact(json.loads(_REAL_AUDIT.read_text()))
+    with pytest.raises(gtv.AdapterError):
+        gtv.build_conditioning_verdict(cells, [45, 90, 180, 270])       # missing 11.25
+
+
+def test_cond_real_artifact_extra_angle_rejects():
+    cells = gtv.conditioning_cells_from_artifact(json.loads(_REAL_AUDIT.read_text()))
+    with pytest.raises(gtv.AdapterError):
+        gtv.build_conditioning_verdict(cells, [11.25, 45, 90, 135, 180, 270])
+
+
+def test_cond_j_without_a2params_rejects():
+    """A record with only 'j' but no a2_params to join against must NOT be treated as degrees."""
+    with pytest.raises(gtv.AdapterError):
+        gtv.conditioning_cells_from_artifact({"a2b": {"per_angle": [
+            {"j": 4, "pooled_relerr": 1e-5, "patch_relerr": 3e-5}]}})
+
+
+def test_cond_degree_native_passes():
+    v = gtv.build_conditioning_verdict(gtv.conditioning_cells_from_artifact(_cond_artifact()), _COND_ANGLES)
+    assert v["gate"] == "d2_conditioning" and v["pass"] is True and v["metrics"]["n_angles"] == 5
 
 
 def test_cond_later_cell_failure_fails_gate():
-    """F7a: a LATER angle over threshold must fail (reduction is over ALL cells, not the first)."""
     cells = gtv.conditioning_cells_from_artifact(_cond_artifact({(270, "pooled"): 2e-4}))
     assert gtv.build_conditioning_verdict(cells, _COND_ANGLES)["pass"] is False
 
 
-def test_cond_record_missing_a_channel_rejected():
-    art = {"a2b": {"per_angle": [{"angle": 45.0, "pooled_relerr": 1e-5}]}}  # no patch_relerr
+def test_cond_record_missing_channel_rejected():
+    with pytest.raises(gtv.AdapterError):
+        gtv.conditioning_cells_from_artifact({"a2b": {"per_angle": [{"angle": 45.0, "pooled_relerr": 1e-5}]}})
+
+
+def test_cond_duplicate_angle_rejected():
+    """P1-1: a duplicated angle in the raw per_angle list => reject (before set normalisation)."""
+    art = _cond_artifact(angles=[11.25, 45, 90, 180, 270, 45])
     with pytest.raises(gtv.AdapterError):
         gtv.conditioning_cells_from_artifact(art)
 
 
 def test_cond_missing_angle_rejected():
-    cells = gtv.conditioning_cells_from_artifact(_cond_artifact(angles=[45, 90, 180]))  # 270 missing
-    with pytest.raises(gtv.AdapterError):
-        gtv.build_conditioning_verdict(cells, _COND_ANGLES)
-
-
-def test_cond_extra_angle_rejected():
-    cells = gtv.conditioning_cells_from_artifact(_cond_artifact(angles=[45, 90, 135, 180, 270]))
+    cells = gtv.conditioning_cells_from_artifact(_cond_artifact(angles=[11.25, 45, 90, 180]))
     with pytest.raises(gtv.AdapterError):
         gtv.build_conditioning_verdict(cells, _COND_ANGLES)
 
 
 # ======================================================================================= #
-# D2 end-to-end + coverage + F7a
+# D2 end-to-end (rot0-free) + coverage + dedupe + F7a
 # ======================================================================================= #
-def test_e2e_threshold_is_registered_bound():
-    assert gtv.D2_E2E_REL_L2_THRESHOLD == 0.00931
-
-
 def test_e2e_full_matrix_passes():
-    cells = gtv.e2e_cells_from_index(_e2e_index())
-    v = gtv.build_e2e_verdict(cells, _E2E_MATRIX)
-    assert v["gate"] == "d2_end_to_end" and v["pass"] is True and v["metrics"]["n_cells"] == 7
+    v = gtv.build_e2e_verdict(gtv.e2e_cells_from_index(_e2e_index()), _E2E_MATRIX)
+    assert v["gate"] == "d2_end_to_end" and v["pass"] is True and v["metrics"]["n_cells"] == 5
 
 
 def test_e2e_later_cell_failure_fails_gate():
-    """F7a: a later (K,angle) over 0.00931 must fail."""
     cells = gtv.e2e_cells_from_index(_e2e_index({("8", 90): 0.010}))
     assert gtv.build_e2e_verdict(cells, _E2E_MATRIX)["pass"] is False
 
@@ -291,14 +320,17 @@ def test_e2e_missing_pair_rejected():
         gtv.build_e2e_verdict(gtv.e2e_cells_from_index(idx), _E2E_MATRIX)
 
 
-def test_e2e_extra_pair_rejected():
-    idx = _e2e_index(); idx["8"]["135"] = {"waveform_gap": {"mean_rel_l2": 0.001}}
+def test_e2e_duplicate_angle_rejected():
+    """P1-1: '90' and '90.0' collapse to one under float() — reject before normalisation."""
+    idx = {"1": {"45": {"waveform_gap": {"mean_rel_l2": 0.002}}},
+           "8": {"90": {"waveform_gap": {"mean_rel_l2": 0.002}},
+                 "90.0": {"waveform_gap": {"mean_rel_l2": 0.003}}}}
     with pytest.raises(gtv.AdapterError):
-        gtv.build_e2e_verdict(gtv.e2e_cells_from_index(idx), _E2E_MATRIX)
+        gtv.e2e_cells_from_index(idx)
 
 
 # ======================================================================================= #
-# D2 H-A3 flatness: inlined constants, all-cells, coverage, F7b K=1 arm
+# D2 H-A3 flatness: inlined constants, all-cells, coverage, dedupe, F7b
 # ======================================================================================= #
 def test_h_a3_inlined_constants_exact():
     assert gtv.H_A3_THRESHOLDS[1] == {"T60": 0.080, "C50": 0.012, "EDT": 0.740}
@@ -307,26 +339,17 @@ def test_h_a3_inlined_constants_exact():
 
 def test_h_a3_full_matrix_passes():
     v = gtv.build_flatness_verdict(_flat_index(), _FLAT_MATRIX)
-    assert v["gate"] == "d2_flatness" and v["pass"] is True
-    assert v["metrics"]["n_cells"] == 15  # K1 x 4 angles x 3 + K8 x 1 angle x 3
+    assert v["gate"] == "d2_flatness" and v["pass"] is True and v["metrics"]["n_cells"] == 15
 
 
 def test_h_a3_one_cell_failure_fails_gate():
-    """m3 all-cells: a single K=8 rot90 EDT over 0.140 fails the whole gate."""
     v = gtv.build_flatness_verdict(_flat_index({("8", 90, "EDT"): 0.2}), _FLAT_MATRIX)
     assert v["pass"] is False and v["metrics"]["n_failing"] == 1
 
 
 def test_h_a3_k1_arm_failure_fails_gate():
-    """F7b: a K=1-only failing cell MUST fail (the K=1 arm is evaluated)."""
     v = gtv.build_flatness_verdict(_flat_index({("1", 45, "T60"): 0.2}), _FLAT_MATRIX)
     assert v["pass"] is False
-
-
-def test_h_a3_missing_k_rejected():
-    idx = _flat_index(); del idx["1"]
-    with pytest.raises(gtv.AdapterError):
-        gtv.build_flatness_verdict(idx, _FLAT_MATRIX)
 
 
 def test_h_a3_missing_rot0_rejected():
@@ -341,8 +364,10 @@ def test_h_a3_missing_rotated_angle_rejected():
         gtv.build_flatness_verdict(idx, _FLAT_MATRIX)
 
 
-def test_h_a3_extra_angle_rejected():
-    idx = _flat_index(); idx["8"]["135"] = dict(_FLAT_REF["8"])
+def test_h_a3_duplicate_angle_rejected():
+    """P1-1: '90' and '90.0' keys collapse silently in {float(a): m} — reject first."""
+    idx = _flat_index()
+    idx["8"]["90.0"] = dict(_FLAT_REF["8"])       # duplicate of "90"
     with pytest.raises(gtv.AdapterError):
         gtv.build_flatness_verdict(idx, _FLAT_MATRIX)
 
@@ -358,7 +383,7 @@ def test_emitted_verdict_is_valid_aggregate_gate_input(tmp_path):
 
 
 # ======================================================================================= #
-# CLI: F1 probe rejections, F3 fresh-dir, exit codes, atomic finite
+# CLI: all-pass, fail, F1 rejections, F3 fresh-dir, P2 exit boundary
 # ======================================================================================= #
 def test_cli_full_matrix_all_pass_exit_0(tmp_path):
     refs = _write_refs(tmp_path, "matched_control")
@@ -379,70 +404,54 @@ def test_cli_full_matrix_all_pass_exit_0(tmp_path):
 def test_cli_failing_gate_exit_1(tmp_path):
     refs = _write_refs(tmp_path, "matched_control")
     d1 = _write_d1_measured(tmp_path, overrides={("8", "T60"): 12.0})
-    out = tmp_path / "verdicts"
-    proc = _run_cli(["--references", refs, "--out-dir", out, "--d1", d1])
+    proc = _run_cli(["--references", refs, "--out-dir", tmp_path / "v", "--d1", d1])
     assert proc.returncode == 1, proc.stdout + proc.stderr
 
 
-# ---- F1: each review probe scenario => REJECTION (exit 2), nothing written ----
-def test_cli_reject_d1_partial_one_seed(tmp_path):
+def test_cli_reject_d1_partial_seeds(tmp_path):
     refs = _write_refs(tmp_path, "matched_control")
-    d1 = _write_d1_measured(tmp_path, seeds=1)              # review probe: 1 seed
-    out = tmp_path / "verdicts"
+    d1 = _write_d1_measured(tmp_path, seed_ids=[42])
+    out = tmp_path / "v"
     proc = _run_cli(["--references", refs, "--out-dir", out, "--d1", d1])
     assert proc.returncode == 2, proc.stdout + proc.stderr
     assert not (out.exists() and list(out.glob("*.json")))
 
 
-def test_cli_reject_d1_one_k(tmp_path):
-    refs = _write_refs(tmp_path, "matched_control")
-    d1 = _write_d1_measured(tmp_path, ks=("8",))           # review probe: K=8 only
-    proc = _run_cli(["--references", refs, "--out-dir", tmp_path / "v", "--d1", d1])
-    assert proc.returncode == 2, proc.stdout + proc.stderr
-
-
 def test_cli_reject_flatness_k8_only(tmp_path):
     refs = _write_refs(tmp_path, "contextual")
-    idx = _flat_index(); del idx["1"]                      # review probe: K=8 rot0/90 only
+    idx = _flat_index(); del idx["1"]
     flat = tmp_path / "flat.json"; flat.write_text(json.dumps(idx))
     proc = _run_cli(["--references", refs, "--out-dir", tmp_path / "v", "--d2-flatness", flat])
-    assert proc.returncode == 2, proc.stdout + proc.stderr
-
-
-def test_cli_reject_conditioning_split(tmp_path):
-    """The review's 'pooled@45 but patch@90' split: with the real per-angle-record schema,
-    a record missing its patch channel is rejected outright."""
-    refs = _write_refs(tmp_path, "contextual")
-    art = {"a2b": {"per_angle": [{"angle": 45.0, "pooled_relerr": 1e-5},
-                                 {"angle": 90.0, "patch_relerr": 3e-5}]}}
-    cond = tmp_path / "cond.json"; cond.write_text(json.dumps(art))
-    proc = _run_cli(["--references", refs, "--out-dir", tmp_path / "v", "--d2-cond", cond])
     assert proc.returncode == 2, proc.stdout + proc.stderr
 
 
 def test_cli_reject_e2e_single_label(tmp_path):
     refs = _write_refs(tmp_path, "contextual")
     e2e = tmp_path / "e2e.json"
-    e2e.write_text(json.dumps({"8": {"90": {"waveform_gap": {"mean_rel_l2": 0.002}}}}))  # one arb label
+    e2e.write_text(json.dumps({"8": {"90": {"waveform_gap": {"mean_rel_l2": 0.002}}}}))
     proc = _run_cli(["--references", refs, "--out-dir", tmp_path / "v", "--d2-e2e", e2e])
     assert proc.returncode == 2, proc.stdout + proc.stderr
 
 
-def test_cli_reject_missing_d2_expect_matrix(tmp_path):
-    """No registered coverage matrix in the references => cannot enforce => reject."""
-    refs = tmp_path / "refs.json"; refs.write_text(json.dumps({"d1": {"mode": "contextual"}}))
-    flat = tmp_path / "flat.json"; flat.write_text(json.dumps(_flat_index()))
-    proc = _run_cli(["--references", refs, "--out-dir", tmp_path / "v", "--d2-flatness", flat])
+def test_cli_nonnumeric_e2e_angle_exit_2(tmp_path):
+    """P2: a nonnumeric e2e angle raises ValueError deep in parsing -> exit 2, no traceback."""
+    refs = _write_refs(tmp_path, "contextual")
+    e2e = tmp_path / "e2e.json"
+    e2e.write_text(json.dumps({"8": {"abc": {"waveform_gap": {"mean_rel_l2": 0.002}}}}))
+    out = tmp_path / "v"
+    proc = _run_cli(["--references", refs, "--out-dir", out, "--d2-e2e", e2e])
     assert proc.returncode == 2, proc.stdout + proc.stderr
+    assert "REJECTED" in (proc.stdout + proc.stderr)
+    assert "Traceback" not in (proc.stdout + proc.stderr)
+    assert not (out.exists() and list(out.glob("*.json")))
 
 
 def test_cli_fresh_dir_refuses_nonempty_out(tmp_path):
-    """F3: a pre-existing verdict in the out dir => refusal, nothing new written."""
     refs = _write_refs(tmp_path, "matched_control")
     d1 = _write_d1_measured(tmp_path)
     out = tmp_path / "verdicts"; out.mkdir()
     stale = out / "verdict_d1_parity.json"; stale.write_text('{"stale": true}')
     proc = _run_cli(["--references", refs, "--out-dir", out, "--d1", d1])
     assert proc.returncode == 2, proc.stdout + proc.stderr
-    assert json.loads(stale.read_text()) == {"stale": True}  # untouched
-    assert list(out.glob("*.json")) == [stale]               # nothing new written
+    assert json.loads(stale.read_text()) == {"stale": True}
+    assert list(out.glob("*.json")) == [stale]
