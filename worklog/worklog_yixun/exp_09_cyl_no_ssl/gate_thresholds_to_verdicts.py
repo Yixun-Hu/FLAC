@@ -523,11 +523,12 @@ def _seed_pairs(entry: tp.Mapping[str, tp.Any], k: tp.Any) -> tp.List[tp.Tuple[s
 
 def _load_d1_measured(path: str) -> tp.Dict[str, tp.Any]:
     """Load the D1 measured index into ``{K: {"seed_ids":[...], "values": {metric: [..]}}}``.
-    Each artifact carries a SEED ID (so five copies of one file cannot masquerade as five
-    seeds), and NO resolved artifact path may be reused ANYWHERE in the manifest (realpath
-    collision check across all K x seeds). Keeps ALL wanted metric lists so coverage can
-    detect a missing metric/seed. An inline ``{"seed_ids":[...], "values": {..}}`` form is also
-    accepted (pre-grouped, e.g. unit tests) and bypasses the path checks."""
+    The ONLY accepted CLI form is a seed_id -> artifact-PATH manifest: each path is loaded and
+    globally realpath-collision-guarded, so five copies of one file cannot masquerade as five
+    seeds. The inline ``{"seed_ids":[...], "values": {..}}`` form is REJECTED here (Codex D-tool
+    r3): it carries no paths and would bypass the uniqueness guard. That pre-grouped form stays
+    available to unit tests ONLY via a DIRECT ``build_d1()`` call (never through the CLI/loader).
+    Keeps ALL wanted metric lists so coverage can detect a missing metric/seed."""
     index = _load_json(path)
     if not isinstance(index, dict) or not index:
         raise AdapterError(f"{path}: D1 measured index must be a non-empty object")
@@ -537,13 +538,10 @@ def _load_d1_measured(path: str) -> tp.Dict[str, tp.Any]:
     for k, entry in index.items():
         if not isinstance(entry, dict):
             raise AdapterError(f"D1 measured K={k}: entry must be an object")
-        if "values" in entry:            # pre-grouped inline form (no file paths)
-            measured[str(k)] = {
-                "seed_ids": [str(s) for s in entry.get("seed_ids", [])],
-                "values": {m: [_finite(x, f"K{k}:{m}") for x in vals]
-                           for m, vals in entry["values"].items()},
-            }
-            continue
+        if "values" in entry:            # <-- inline values bypass the realpath guard: REJECT (r3)
+            raise AdapterError(
+                "D1 manifest must map seed_id -> artifact path; inline values are not accepted "
+                f"on the CLI (they bypass the realpath uniqueness guard) — K={k}")
         pairs = _seed_pairs(entry, k)
         values: tp.Dict[str, tp.List[float]] = {m: [] for m in wanted}
         for sid, spath in pairs:

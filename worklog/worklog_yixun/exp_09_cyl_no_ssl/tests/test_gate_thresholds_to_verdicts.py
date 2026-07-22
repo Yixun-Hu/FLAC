@@ -230,7 +230,7 @@ def test_d1_expect_seeds_must_be_id_list():
         gtv.build_d1(_measured(), cfg)
 
 
-# ---- CLI: realpath collision (repeated artifact) ----
+# ---- CLI: realpath collision (repeated artifact) + inline-values rejection ----
 def test_cli_reject_repeated_artifact_path(tmp_path):
     """P1-1: the same artifact reused for five seed ids => realpath collision => exit 2."""
     refs = _write_refs(tmp_path, "matched_control")
@@ -238,6 +238,23 @@ def test_cli_reject_repeated_artifact_path(tmp_path):
     out = tmp_path / "v"
     proc = _run_cli(["--references", refs, "--out-dir", out, "--d1", d1])
     assert proc.returncode == 2, proc.stdout + proc.stderr
+    assert not (out.exists() and list(out.glob("*.json")))
+
+
+def test_cli_rejects_inline_values_form(tmp_path):
+    """r3: the inline {seed_ids, values} manifest carries no paths and would BYPASS the realpath
+    uniqueness guard (correct IDs + five repeated values then pass as five distinct seeds). The
+    CLI loader must REJECT it (exit 2, nothing published). The inline form stays available to unit
+    tests ONLY via a DIRECT build_d1() call — see test_d1_matched_all_within_passes etc."""
+    refs = _write_refs(tmp_path, "matched_control")
+    inline = {k: {"seed_ids": _SEED_IDS,
+                  "values": {m: [mu] * 5 for m, (mu, _sd) in _CTRL[k].items()}}
+              for k in ("1", "8")}
+    d1 = tmp_path / "d1_inline.json"; d1.write_text(json.dumps(inline))
+    out = tmp_path / "v"
+    proc = _run_cli(["--references", refs, "--out-dir", out, "--d1", d1])
+    assert proc.returncode == 2, proc.stdout + proc.stderr
+    assert "inline values are not accepted" in (proc.stdout + proc.stderr)
     assert not (out.exists() and list(out.glob("*.json")))
 
 
