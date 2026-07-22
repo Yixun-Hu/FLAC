@@ -182,6 +182,12 @@
 - **EDT: the sole surviving systematic gap.** Extend best 39.78@75k; late points degrade (43+ at 95k–100k); lineage best remains 38.29@60k vs released 37.10.
 - **T60: never revisits the 8.3–8.6 zone** (mid-training 30–40k territory); late band 9.1–10.0 — late training trades T60 for R@1. **C50: at target** (oscillates around released). FD best 0.3077@72.5k.
 - **Best-ckpt answer (Yixun's original ask):** no checkpoint dominates; the pre-registered composite rule (T60≤8.63 ∧ C50≤0.974 ∧ EDT≤37.27) matches NOTHING anywhere in the lineage (T60/EDT bounds never met). **Recommended single ckpt: `epoch=20-step=92500` — the only released-level-retrieval point in the entire B-V lineage, with C50 near-target and mid-band T60/EDT.** Metric-priority alternatives: EDT-best 60k (38.29, phase 1), T60-best 30k (8.34, phase 1).
+## 2026-07-22 — B-F 30k: slope FROZEN at ~2× (EDT) / 0.15× (R@1); futility package pre-staged for the 50k review
+
+- **BF 30k (EMA):** T60 11.546 / C50 2.1107 / EDT 80.346 / FD 0.3753 / R@1 0.615 (online 11.743/2.148/81.4/0.694). vs BV@30k 8.338/1.0116/40.958/0.3174/4.040. 20k→30k gains (EDT −4.4, R@1 +0.11, C50 +0.02 WORSE) ≤ B-V's own same-window gains → **relative deficit no longer closing**; extrapolation to 67.5k ≈ EDT 65–70 / R@1 ~1.
+- **Read:** convergence toward a much worse operating point, not a slow start (conditioning confirmed active by the cfg0 probe). Attribution recipe-vs-fa still requires P1 (B-V at the identical DDP+SyncBN+ckpt recipe).
+- **Posture:** 50k futility review (~Jul 25) is the pre-registered decision point; options pre-staged to Yixun (ride to 67.5k / stop@50k→P1 / stop-now→P1); early decision offered, no unilateral action. aug291k ended Jul 20 (step 100k); B-F pace ~0.074–0.10 steps/s; two third-party ~6.5 GB co-tenants (not ours).
+
 ## 2026-07-20/21 — B-F early screens (10k/20k) + conditioning-lift probe: trajectory globally slow, conditioning ACTIVE; ride to 50k review
 
 - **Screens (EMA K=8 s42; flac-env evals — env-bridge proved flac≡rir2rir to 4 decimals):** BF 10k: 12.70/2.293/88.5/FD .414/R .32 · BF 20k: 11.70/2.093/84.7/.380/.51 — vs BV anchors 10k 9.82/1.30/48.7/.373/1.91, 20k 8.92/1.09/45.6/.333/3.74. **B-F not closing the relative gap** (still ~1.9× EDT, R@1 ~0.14×), loss meanwhile healthy (0.44@e4) → escalation criterion fired.
