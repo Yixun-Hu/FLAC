@@ -182,6 +182,12 @@
 - **EDT: the sole surviving systematic gap.** Extend best 39.78@75k; late points degrade (43+ at 95k–100k); lineage best remains 38.29@60k vs released 37.10.
 - **T60: never revisits the 8.3–8.6 zone** (mid-training 30–40k territory); late band 9.1–10.0 — late training trades T60 for R@1. **C50: at target** (oscillates around released). FD best 0.3077@72.5k.
 - **Best-ckpt answer (Yixun's original ask):** no checkpoint dominates; the pre-registered composite rule (T60≤8.63 ∧ C50≤0.974 ∧ EDT≤37.27) matches NOTHING anywhere in the lineage (T60/EDT bounds never met). **Recommended single ckpt: `epoch=20-step=92500` — the only released-level-retrieval point in the entire B-V lineage, with C50 near-target and mid-band T60/EDT.** Metric-priority alternatives: EDT-best 60k (38.29, phase 1), T60-best 30k (8.34, phase 1).
+## 2026-07-24 — P1@10k: RECIPE INNOCENT — P1 ≈ the 8×8 anchor; B-F's gap attributes to fa-from-scratch itself
+
+- **P1 S10000 (EMA, flac):** T60 11.784 / C50 1.3775 / **EDT 47.481** / FD 0.3836 / **R@1 1.783** — vs 8×8 anchor 9.817/1.298/48.685/0.373/1.909 (≈ equal; EDT slightly BETTER, T60 single-point lag in its oscillation band) and vs B-F-same-recipe 12.701/2.293/88.516/0.414/0.316 (chasm).
+- **Sequential decomposition @10k:** recipe/environment effect ≈ 0 (P1−anchor: EDT −1.2, R@1 −0.13); total FA-arm effect ≈ the entire gap (BF−P1: EDT +41.0, R@1 −1.47; ~30× eval σ). Also attribution datapoint #1: P1 runs 3.5× faster than B-F at the same recipe (0.259 vs 0.074 steps/s — fa's ×4 ViT forward).
+- **Reading:** fa_invariant-from-scratch is itself the crippling factor; coheres with exp_08 (fa fine-tuned from converged vanilla → exact C₄ + T60 gains). Route-1 narrative: equivariance via frame-averaging = fine-tune-stage property (or needs a from-scratch curriculum). 20k tonight formalizes; P1 rides to endpoint for the parity estimands regardless.
+
 ## 2026-07-22 — B-F 30k: slope FROZEN at ~2× (EDT) / 0.15× (R@1); futility package pre-staged for the 50k review
 
 - **BF 30k (EMA):** T60 11.546 / C50 2.1107 / EDT 80.346 / FD 0.3753 / R@1 0.615 (online 11.743/2.148/81.4/0.694). vs BV@30k 8.338/1.0116/40.958/0.3174/4.040. 20k→30k gains (EDT −4.4, R@1 +0.11, C50 +0.02 WORSE) ≤ B-V's own same-window gains → **relative deficit no longer closing**; extrapolation to 67.5k ≈ EDT 65–70 / R@1 ~1.
