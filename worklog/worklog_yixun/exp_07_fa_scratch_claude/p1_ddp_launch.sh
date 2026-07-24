@@ -33,9 +33,9 @@ echo "=== P1 (B-V @ B-F recipe) DDP+SyncBN+ckpt - ${TS} - $(git rev-parse --shor
 # --- config-contract pre-flight (fail-closed): the single-delta guarantees ---
 d1=$(diff <(python3 -m json.tool "${EXPDIR}/FLAC_AR_BVp1.json") <(python3 -m json.tool "${EXPDIR}/FLAC_AR_BF.json") | grep -cE "^[<>]") || true
 d2=$(diff <(python3 -m json.tool "${EXPDIR}/FLAC_AR_BV.json") <(python3 -m json.tool "${EXPDIR}/FLAC_AR_BVp1.json") | grep -cE "^[<>]") || true
-# BVp1 vs BF: exactly 9 changed lines (cond_method + 6-line frame_avg_angles array + 2 context braces)
-# BVp1 vs BV: exactly 4 changed lines (2x gradient_checkpointing + 2 context)
-[ "$d1" -ge 8 ] && [ "$d1" -le 10 ] && [ "$d2" -ge 3 ] && [ "$d2" -le 5 ] || { echo "config-contract drift (BVp1-vs-BF ${d1} lines, BVp1-vs-BV ${d2} lines) - abort"; exit 2; }
+# BVp1 vs BF: 9 changed lines (1< closing-brace + 8>: cond_method + frame_avg block)
+# BVp1 vs BV: 6 changed lines (2< old max_value + 4>: new max_value + gradient_checkpointing, x2 blocks)
+[ "$d1" -ge 8 ] && [ "$d1" -le 10 ] && [ "$d2" -ge 5 ] && [ "$d2" -le 7 ] || { echo "config-contract drift (BVp1-vs-BF ${d1} lines, BVp1-vs-BV ${d2} lines) - abort"; exit 2; }
 echo "config contract OK (BVp1-vs-BF ${d1} diff lines, BVp1-vs-BV ${d2})"
 
 # --- per-GPU FREE-VRAM gate (co-tenancy policy; M1-measured rank ~15.9 GB) ---
