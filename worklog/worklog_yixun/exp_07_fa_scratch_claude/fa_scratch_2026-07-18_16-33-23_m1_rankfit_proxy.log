@@ -1,0 +1,174 @@
+=== M1 single-rank fit PROXY (micro 32, no SyncBN, GPU 1) - 2026-07-18_16-33-23 - a18e684 ===
+--- co-tenancy disclosure: compute apps at proxy start ---
+GPU-9c72ac69-836a-c2ee-89b7-4b51b68317a8, 1284685, python, 20740 MiB
+0, 20759 MiB, 27783 MiB
+1, 102 MiB, 48439 MiB
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+ViT pin OK: cache /home/yixunhu/.cache/huggingface/hub, single snapshot 114c13799502…, sha256 4610ad75edef… (launch with HF_HUB_OFFLINE=1)
+building B-V (vanilla) ...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+building B-F (fa_invariant) ...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+cond_method: BV='vanilla'  BF='fa_invariant'  BF angles=(0.0, 90.0, 180.0, 270.0)
+BV: wrapper wiring OK — EMA on, cfg_dropout 0.1, log_snr(-1.2,2.0); configure_optimizers() -> AdamW(initial_lr 5e-5, step-0 lr 5.000e-07 = warmup-live, (0.9,0.999), wd1e-3) + InverseLR(1e6,0.5,0.99)@step  OK
+BF: wrapper wiring OK — EMA on, cfg_dropout 0.1, log_snr(-1.2,2.0); configure_optimizers() -> AdamW(initial_lr 5e-5, step-0 lr 5.000e-07 = warmup-live, (0.9,0.999), wd1e-3) + InverseLR(1e6,0.5,0.99)@step  OK
+architecture: identical param names (753 tensors) and count (64.50M) in both arms
+init identity: state_dict sha256 match under seed 42: 44a2f6aadd7d2180…
+
+ALL ASSERTS PASSED — arms are init-identical and differ only in forward-time conditioning method.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Using bfloat16 Automatic Mixed Precision (AMP)
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/connectors/logger_connector/logger_connector.py:67: Starting from v1.9.0, `tensorboardX` has been removed as a dependency of the `pytorch_lightning` package, due to potential conflicts with other packages in the ML ecosystem. For this reason, `logger=True` will use `CSVLogger` as the default logger, unless the `tensorboard` or `tensorboardX` packages are found. Please `pip install lightning[extra]` or one of them to enable TensorBoard support by default
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+Missing logger folder: /tmp/exp07_m1_proxy/run/lightning_logs
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/callbacks/model_checkpoint.py:630: Checkpoint directory /tmp/exp07_m1_proxy/run exists and is not empty.
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [1]
+
+  | Name          | Type                             | Params
+-------------------------------------------------------------------
+0 | diffusion     | ConditionedDiffusionModelWrapper | 64.5 M
+1 | diffusion_ema | EMA                              | 16.7 M
+2 | losses        | MultiLoss                        | 0     
+-------------------------------------------------------------------
+50.3 M    Trainable params
+30.9 M    Non-trainable params
+81.2 M    Total params
+324.893   Total estimated model params size (MB)
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Training: |          | 0/? [00:00<?, ?it/s]Training:   0%|          | 0/9100 [00:00<?, ?it/s]Epoch 0:   0%|          | 0/9100 [00:00<?, ?it/s] OutOfMemoryError: CUDA out of memory. Tried to allocate 24.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 26.06 MiB is free. Including non-PyTorch memory, this process has 47.27 GiB memory in use. Of the allocated memory 38.53 GiB is allocated by PyTorch, and 8.41 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+Traceback (most recent call last):
+  File "/home/yixunhu/codespace/FLAC/train.py", line 233, in <module>
+    main()
+  File "/home/yixunhu/codespace/FLAC/train.py", line 230, in main
+    trainer.fit(training_wrapper, train_dl, val_dl, ckpt_path=args.ckpt_path if args.ckpt_path else None)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 545, in fit
+    call._call_and_handle_interrupt(
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 44, in _call_and_handle_interrupt
+    return trainer_fn(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 581, in _fit_impl
+    self._run(model, ckpt_path=ckpt_path)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 990, in _run
+    results = self._run_stage()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 1036, in _run_stage
+    self.fit_loop.run()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 202, in run
+    self.advance()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 359, in advance
+    self.epoch_loop.run(self._data_fetcher)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 136, in run
+    self.advance(data_fetcher)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 240, in advance
+    batch_output = self.automatic_optimization.run(trainer.optimizers[0], batch_idx, kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 187, in run
+    self._optimizer_step(batch_idx, closure)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 265, in _optimizer_step
+    call._call_lightning_module_hook(
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 157, in _call_lightning_module_hook
+    output = fn(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/core/module.py", line 1282, in optimizer_step
+    optimizer.step(closure=optimizer_closure)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/core/optimizer.py", line 151, in step
+    step_output = self._strategy.optimizer_step(self._optimizer, closure, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 230, in optimizer_step
+    return self.precision_plugin.optimizer_step(optimizer, model=model, closure=closure, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/amp.py", line 74, in optimizer_step
+    return super().optimizer_step(optimizer, model=model, closure=closure, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/precision_plugin.py", line 117, in optimizer_step
+    return optimizer.step(closure=closure, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/optim/lr_scheduler.py", line 124, in wrapper
+    return func.__get__(opt, opt.__class__)(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/optim/optimizer.py", line 485, in wrapper
+    out = func(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/optim/optimizer.py", line 79, in _use_grad
+    ret = func(self, *args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/optim/adam.py", line 225, in step
+    loss = closure()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/precision_plugin.py", line 104, in _wrap_closure
+    closure_result = closure()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 140, in __call__
+    self._result = self.closure(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 126, in closure
+    step_output = self._step_fn()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 315, in _training_step
+    training_step_output = call._call_strategy_hook(trainer, "training_step", *kwargs.values())
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 309, in _call_strategy_hook
+    output = fn(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 382, in training_step
+    return self.lightning_module.training_step(*args, **kwargs)
+  File "/home/yixunhu/codespace/FLAC/src/training/diffusion.py", line 239, in training_step
+    conditioning = self._compute_conditioning(metadata)
+  File "/home/yixunhu/codespace/FLAC/src/training/diffusion.py", line 216, in _compute_conditioning
+    return invariant_conditioning(
+  File "/home/yixunhu/codespace/FLAC/src/data/yaw_rotation.py", line 300, in invariant_conditioning
+    part = conditioner(variants, device, only_ids=present)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/yixunhu/codespace/FLAC/src/models/conditioners.py", line 343, in forward
+    output[key] = conditioner(conditioner_inputs, device=device)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/yixunhu/codespace/FLAC/src/models/conditioners.py", line 215, in forward
+    outputs = self.vit(c)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/transformers/utils/generic.py", line 1064, in wrapper
+    outputs = func(self, *args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 523, in forward
+    hidden_states = layer_module(
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/transformers/modeling_layers.py", line 94, in __call__
+    return super().__call__(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 420, in forward
+    hidden_states, _ = self.attention(
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 296, in forward
+    query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 244, in apply_rotary_pos_emb
+    q_patches = (q_patches * cos) + (rotate_half(q_patches) * sin)
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 24.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 26.06 MiB is free. Including non-PyTorch memory, this process has 47.27 GiB memory in use. Of the allocated memory 38.53 GiB is allocated by PyTorch, and 8.41 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+Epoch 0:   0%|          | 0/9100 [00:08<?, ?it/s]=== proxy_32: exit=1 reached15=0 oom=2 nanloss=0 peakVRAM(GPU1)=48514MiB wall=28s ===
+=== PROXY VERDICT: micro-32 rank OOMs even on an empty card with flash-DiT -> STRONGLY RULES OUT the BN=64 DDP rung (no formal guarantee, but operationally decisive). STOP; options to Yixun (expandable_segments / revisit mandate). ===

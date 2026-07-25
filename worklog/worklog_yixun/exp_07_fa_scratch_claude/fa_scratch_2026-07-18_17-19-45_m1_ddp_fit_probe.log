@@ -1,0 +1,101 @@
+=== M1 DDP+SyncBN fit probe (B-F) - 2026-07-18_17-19-45 - cfdd7b3 ===
+--- co-tenancy disclosure (Yixun policy): compute apps at probe start ---
+GPU-9c72ac69-836a-c2ee-89b7-4b51b68317a8, 1284685, python, 20740 MiB
+0, 20759 MiB, 27783 MiB
+1, 102 MiB, 48439 MiB
+--- (if co-tenants exist above, THROUGHPUT NUMBERS ARE NOISY; the OOM/fit bit is the signal) ---
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+ViT pin OK: cache /home/yixunhu/.cache/huggingface/hub, single snapshot 114c13799502…, sha256 4610ad75edef… (launch with HF_HUB_OFFLINE=1)
+building B-V (vanilla) ...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+building B-F (fa_invariant) ...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+cond_method: BV='vanilla'  BF='fa_invariant'  BF angles=(0.0, 90.0, 180.0, 270.0)
+BV: wrapper wiring OK — EMA on, cfg_dropout 0.1, log_snr(-1.2,2.0); configure_optimizers() -> AdamW(initial_lr 5e-5, step-0 lr 5.000e-07 = warmup-live, (0.9,0.999), wd1e-3) + InverseLR(1e6,0.5,0.99)@step  OK
+BF: wrapper wiring OK — EMA on, cfg_dropout 0.1, log_snr(-1.2,2.0); configure_optimizers() -> AdamW(initial_lr 5e-5, step-0 lr 5.000e-07 = warmup-live, (0.9,0.999), wd1e-3) + InverseLR(1e6,0.5,0.99)@step  OK
+architecture: identical param names (753 tensors) and count (64.50M) in both arms
+init identity: state_dict sha256 match under seed 42: 44a2f6aadd7d2180…
+
+ALL ASSERTS PASSED — arms are init-identical and differ only in forward-time conditioning method.
+=== [17:20:06] attempt bf_ddp_32x2x1 (micro 32/GPU x 2 x accum 1, eff 64, SyncBN) ===
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Using bfloat16 Automatic Mixed Precision (AMP)
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/connectors/logger_connector/logger_connector.py:67: Starting from v1.9.0, `tensorboardX` has been removed as a dependency of the `pytorch_lightning` package, due to potential conflicts with other packages in the ML ecosystem. For this reason, `logger=True` will use `CSVLogger` as the default logger, unless the `tensorboard` or `tensorboardX` packages are found. Please `pip install lightning[extra]` or one of them to enable TensorBoard support by default
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+[rank: 0] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/2
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+[rank: 1] Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+[rank: 1] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 1, MEMBER: 2/2
+----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 2 processes
+----------------------------------------------------------------------------------------------------
+
+Missing logger folder: /tmp/exp07_m1_probe/run/lightning_logs
+Missing logger folder: /tmp/exp07_m1_probe/run/lightning_logs
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/callbacks/model_checkpoint.py:630: Checkpoint directory /tmp/exp07_m1_probe/run exists and is not empty.
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1]
+LOCAL_RANK: 1 - CUDA_VISIBLE_DEVICES: [0,1]
+
+  | Name          | Type                             | Params
+-------------------------------------------------------------------
+0 | diffusion     | ConditionedDiffusionModelWrapper | 64.5 M
+1 | diffusion_ema | EMA                              | 16.7 M
+2 | losses        | MultiLoss                        | 0     
+-------------------------------------------------------------------
+50.3 M    Trainable params
+30.9 M    Non-trainable params
+81.2 M    Total params
+324.893   Total estimated model params size (MB)
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Training: |          | 0/? [00:00<?, ?it/s]Training:   0%|          | 0/4550 [00:00<?, ?it/s]Epoch 0:   0%|          | 0/4550 [00:00<?, ?it/s] Epoch 0:   0%|          | 1/4550 [00:13<16:42:49,  0.08it/s]Epoch 0:   0%|          | 1/4550 [00:13<16:42:52,  0.08it/s, v_num=0, train/loss=2.360, train/std_data=1.140, train/lr=5e-7, train/mse_loss=2.360]Epoch 0:   0%|          | 2/4550 [00:25<16:03:42,  0.08it/s, v_num=0, train/loss=2.360, train/std_data=1.140, train/lr=5e-7, train/mse_loss=2.360]Epoch 0:   0%|          | 2/4550 [00:25<16:03:44,  0.08it/s, v_num=0, train/loss=2.610, train/std_data=1.230, train/lr=9.95e-7, train/mse_loss=2.610]Epoch 0:   0%|          | 3/4550 [00:37<15:58:33,  0.08it/s, v_num=0, train/loss=2.610, train/std_data=1.230, train/lr=9.95e-7, train/mse_loss=2.610]Epoch 0:   0%|          | 3/4550 [00:37<15:58:34,  0.08it/s, v_num=0, train/loss=2.440, train/std_data=1.160, train/lr=1.49e-6, train/mse_loss=2.440]Epoch 0:   0%|          | 4/4550 [00:50<16:00:53,  0.08it/s, v_num=0, train/loss=2.440, train/std_data=1.160, train/lr=1.49e-6, train/mse_loss=2.440]Epoch 0:   0%|          | 4/4550 [00:50<16:00:54,  0.08it/s, v_num=0, train/loss=2.310, train/std_data=1.130, train/lr=1.97e-6, train/mse_loss=2.310]Epoch 0:   0%|          | 5/4550 [01:03<16:00:28,  0.08it/s, v_num=0, train/loss=2.310, train/std_data=1.130, train/lr=1.97e-6, train/mse_loss=2.310]Epoch 0:   0%|          | 5/4550 [01:03<16:00:28,  0.08it/s, v_num=0, train/loss=2.400, train/std_data=1.160, train/lr=2.45e-6, train/mse_loss=2.400]Epoch 0:   0%|          | 6/4550 [01:15<15:54:04,  0.08it/s, v_num=0, train/loss=2.400, train/std_data=1.160, train/lr=2.45e-6, train/mse_loss=2.400]Epoch 0:   0%|          | 6/4550 [01:15<15:54:06,  0.08it/s, v_num=0, train/loss=2.430, train/std_data=1.180, train/lr=2.93e-6, train/mse_loss=2.430]Epoch 0:   0%|          | 7/4550 [01:27<15:50:18,  0.08it/s, v_num=0, train/loss=2.430, train/std_data=1.180, train/lr=2.93e-6, train/mse_loss=2.430]Epoch 0:   0%|          | 7/4550 [01:27<15:50:19,  0.08it/s, v_num=0, train/loss=2.530, train/std_data=1.190, train/lr=3.4e-6, train/mse_loss=2.530] Epoch 0:   0%|          | 8/4550 [01:39<15:44:55,  0.08it/s, v_num=0, train/loss=2.530, train/std_data=1.190, train/lr=3.4e-6, train/mse_loss=2.530]Epoch 0:   0%|          | 8/4550 [01:39<15:44:55,  0.08it/s, v_num=0, train/loss=2.250, train/std_data=1.080, train/lr=3.86e-6, train/mse_loss=2.250]Epoch 0:   0%|          | 9/4550 [01:52<15:45:08,  0.08it/s, v_num=0, train/loss=2.250, train/std_data=1.080, train/lr=3.86e-6, train/mse_loss=2.250]Epoch 0:   0%|          | 9/4550 [01:52<15:45:08,  0.08it/s, v_num=0, train/loss=2.520, train/std_data=1.220, train/lr=4.32e-6, train/mse_loss=2.520]Epoch 0:   0%|          | 10/4550 [02:04<15:41:35,  0.08it/s, v_num=0, train/loss=2.520, train/std_data=1.220, train/lr=4.32e-6, train/mse_loss=2.520]Epoch 0:   0%|          | 10/4550 [02:04<15:41:35,  0.08it/s, v_num=0, train/loss=2.380, train/std_data=1.160, train/lr=4.78e-6, train/mse_loss=2.380]Epoch 0:   0%|          | 11/4550 [02:16<15:41:52,  0.08it/s, v_num=0, train/loss=2.380, train/std_data=1.160, train/lr=4.78e-6, train/mse_loss=2.380]Epoch 0:   0%|          | 11/4550 [02:16<15:41:53,  0.08it/s, v_num=0, train/loss=2.390, train/std_data=1.140, train/lr=5.23e-6, train/mse_loss=2.390]Epoch 0:   0%|          | 12/4550 [02:29<15:43:04,  0.08it/s, v_num=0, train/loss=2.390, train/std_data=1.140, train/lr=5.23e-6, train/mse_loss=2.390]Epoch 0:   0%|          | 12/4550 [02:29<15:43:05,  0.08it/s, v_num=0, train/loss=2.500, train/std_data=1.180, train/lr=5.68e-6, train/mse_loss=2.500]Epoch 0:   0%|          | 13/4550 [02:42<15:45:47,  0.08it/s, v_num=0, train/loss=2.500, train/std_data=1.180, train/lr=5.68e-6, train/mse_loss=2.500]Epoch 0:   0%|          | 13/4550 [02:42<15:45:47,  0.08it/s, v_num=0, train/loss=2.360, train/std_data=1.120, train/lr=6.12e-6, train/mse_loss=2.360]Epoch 0:   0%|          | 14/4550 [02:54<15:43:23,  0.08it/s, v_num=0, train/loss=2.360, train/std_data=1.120, train/lr=6.12e-6, train/mse_loss=2.360]Epoch 0:   0%|          | 14/4550 [02:54<15:43:23,  0.08it/s, v_num=0, train/loss=2.310, train/std_data=1.120, train/lr=6.56e-6, train/mse_loss=2.310]Epoch 0:   0%|          | 15/4550 [03:07<15:43:46,  0.08it/s, v_num=0, train/loss=2.310, train/std_data=1.120, train/lr=6.56e-6, train/mse_loss=2.310]Epoch 0:   0%|          | 15/4550 [03:07<15:43:46,  0.08it/s, v_num=0, train/loss=2.530, train/std_data=1.180, train/lr=7e-6, train/mse_loss=2.530]   Epoch 0:   0%|          | 15/4550 [03:07<15:43:46,  0.08it/s, v_num=0, train/loss=2.530, train/std_data=1.180, train/lr=7e-6, train/mse_loss=2.530]`Trainer.fit` stopped: `max_steps=15` reached.
+Epoch 0:   0%|          | 15/4550 [03:07<15:43:47,  0.08it/s, v_num=0, train/loss=2.530, train/std_data=1.180, train/lr=7e-6, train/mse_loss=2.530]
+[rank0]:[W718 17:23:38.271634531 ProcessGroupNCCL.cpp:1476] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+=== bf_ddp_32x2x1: exit=0 reached15=1 oom=0 nanloss=0 peakVRAM GPU0=36367MiB GPU1=15712MiB wall=214s ===
+>>> FIT: bf_ddp_32x2x1 reached 15 steps, finite loss - largest fitting rung, stop ladder.
+=== M1 VERDICT (REPORT TO YIXUN - DO NOT LAUNCH WITHOUT HIS GO) ===
+winner: bf_ddp_32x2x1 (eff 64, SyncBN batch 64 per update) | peak GPU0=36367MiB GPU1=15712MiB | 15-step wall=214s
+rough samples/s (warmup-inflated LOWER bound): 4.49  => crude 67.5k ETA ~11.15 d (over-estimate; re-anchor at launch)
