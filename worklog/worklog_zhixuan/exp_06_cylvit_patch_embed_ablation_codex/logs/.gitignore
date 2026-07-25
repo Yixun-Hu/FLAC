@@ -1,0 +1,4 @@
+# Runtime artifacts are local-only. Reproducible conclusions belong in the
+# experiment README or generated summaries, not in raw terminal logs.
+*.log
+*.pid

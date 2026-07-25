@@ -432,6 +432,25 @@ class AcousticMetricsCallback:
 def loading_AGREE_model(ckpt, device):
     print('Loading AGREE model from checkpoint: ', ckpt)
     AGREE_config = get_model_config('dinoV3')
+
+    # The released AGREE checkpoint contains the complete DINOv3 vision tower,
+    # but constructing that tower through ``from_pretrained`` still contacts the
+    # gated Facebook repository for its config.  Build the exact architecture
+    # from an audited in-tree config instead; the strict state-dict load below
+    # then replaces every randomly initialized tensor with the released AGREE
+    # weights.  This keeps evaluation offline and does not substitute a random
+    # visual encoder.
+    local_dinov3_config = (
+        Path(__file__).resolve().parents[2]
+        / 'AGREE'
+        / 'AGREE'
+        / 'model_configs'
+        / 'dinov3_vits16_local'
+    )
+    vision_config = dict(AGREE_config['vision_cfg'])
+    vision_config['hf_model_name'] = str(local_dinov3_config)
+    vision_config['from_scratch'] = True
+    AGREE_config['vision_cfg'] = vision_config
     AGREE_model = CLIP(**AGREE_config)
 
     AGREE_ckpt = torch.load(ckpt, map_location=device)
@@ -462,4 +481,3 @@ class stft(nn.Module):
         mag_stft = torch.sqrt(torch.clamp(real ** 2 + imag ** 2, min=1e-7))
         log_mag_stft = torch.log(mag_stft + 1e-8) 
         return log_mag_stft
-        
