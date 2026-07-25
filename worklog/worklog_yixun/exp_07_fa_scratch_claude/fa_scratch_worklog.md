@@ -182,6 +182,10 @@
 - **EDT: the sole surviving systematic gap.** Extend best 39.78@75k; late points degrade (43+ at 95k–100k); lineage best remains 38.29@60k vs released 37.10.
 - **T60: never revisits the 8.3–8.6 zone** (mid-training 30–40k territory); late band 9.1–10.0 — late training trades T60 for R@1. **C50: at target** (oscillates around released). FD best 0.3077@72.5k.
 - **Best-ckpt answer (Yixun's original ask):** no checkpoint dominates; the pre-registered composite rule (T60≤8.63 ∧ C50≤0.974 ∧ EDT≤37.27) matches NOTHING anywhere in the lineage (T60/EDT bounds never met). **Recommended single ckpt: `epoch=20-step=92500` — the only released-level-retrieval point in the entire B-V lineage, with C50 near-target and mid-band T60/EDT.** Metric-priority alternatives: EDT-best 60k (38.29, phase 1), T60-best 30k (8.34, phase 1).
+## 2026-07-25 — P1@30k: R@1 watch-item RESOLVED (4.166 > anchor 4.040) — recipe clean on every metric
+
+- P1 S30000 (EMA): T60 9.200 / C50 1.0958 / EDT 43.428 / FD 0.3392 / **R@1 4.166** vs anchor 8.338/1.0116/40.958/0.3174/4.040 (T60/EDT in-band, C50 near-equal, R@1 AHEAD). Attribution verdict stands caveat-free.
+
 ## 2026-07-24 (evening) — P1@20k CONFIRMS: attribution VERDICT — recipe innocent, fa-from-scratch guilty
 
 - **P1 S20000 (EMA):** T60 **8.442** (< released 8.609!) / C50 1.0954 / EDT 45.418 / FD 0.3383 / R@1 2.919 — vs anchor 8.920/1.0941/45.616/0.3326/3.740, vs B-F 11.701/2.0927/84.712/0.3797/0.505.
