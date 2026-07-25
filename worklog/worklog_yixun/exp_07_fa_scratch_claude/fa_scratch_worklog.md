@@ -182,6 +182,12 @@
 - **EDT: the sole surviving systematic gap.** Extend best 39.78@75k; late points degrade (43+ at 95k–100k); lineage best remains 38.29@60k vs released 37.10.
 - **T60: never revisits the 8.3–8.6 zone** (mid-training 30–40k territory); late band 9.1–10.0 — late training trades T60 for R@1. **C50: at target** (oscillates around released). FD best 0.3077@72.5k.
 - **Best-ckpt answer (Yixun's original ask):** no checkpoint dominates; the pre-registered composite rule (T60≤8.63 ∧ C50≤0.974 ∧ EDT≤37.27) matches NOTHING anywhere in the lineage (T60/EDT bounds never met). **Recommended single ckpt: `epoch=20-step=92500` — the only released-level-retrieval point in the entire B-V lineage, with C50 near-target and mid-band T60/EDT.** Metric-priority alternatives: EDT-best 60k (38.29, phase 1), T60-best 30k (8.34, phase 1).
+## 2026-07-24 (evening) — P1@20k CONFIRMS: attribution VERDICT — recipe innocent, fa-from-scratch guilty
+
+- **P1 S20000 (EMA):** T60 **8.442** (< released 8.609!) / C50 1.0954 / EDT 45.418 / FD 0.3383 / R@1 2.919 — vs anchor 8.920/1.0941/45.616/0.3326/3.740, vs B-F 11.701/2.0927/84.712/0.3797/0.505.
+- **Verdict (10k+20k concordant):** recipe effect ≈ 0 on T60/C50/EDT/FD (T60 better); R@1 −0.8 vs anchor (early-spread scale, WATCH at 30k/40k). Single-delta FA effect = the full crater (EDT +39, C50 +1.0, R@1 −2.4, step-time ×3.5). **fa_invariant-from-scratch starves its own conditioning; equivariance via FA = fine-tune-stage property (exp_08 corroborates).**
+- P1 rides to endpoint (~Jul 26 night) for the micro/BN-parity + released-parity estimands — T60 already sub-released at 20k makes the SyncBN-64 endpoint genuinely live.
+
 ## 2026-07-24 — P1@10k: RECIPE INNOCENT — P1 ≈ the 8×8 anchor; B-F's gap attributes to fa-from-scratch itself
 
 - **P1 S10000 (EMA, flac):** T60 11.784 / C50 1.3775 / **EDT 47.481** / FD 0.3836 / **R@1 1.783** — vs 8×8 anchor 9.817/1.298/48.685/0.373/1.909 (≈ equal; EDT slightly BETTER, T60 single-point lag in its oscillation band) and vs B-F-same-recipe 12.701/2.293/88.516/0.414/0.316 (chasm).
