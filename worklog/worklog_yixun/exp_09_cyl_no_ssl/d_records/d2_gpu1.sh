@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# D2 K=8 arm on GPU1: seed 42, rot {0,45,90,180,270}, EVAL_STORE_PREDS=1. Stops on first failure.
+# D2 K=8 arm on GPU1: seed 42, rot {0,90}, EVAL_STORE_PREDS=1. Stops on first failure.
 set -u
 cd "$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-toplevel)" || exit 3
 : "${EXPECT_PACKAGE_SHA:?}" "${EXPECT_EXP09_SHA:?}"

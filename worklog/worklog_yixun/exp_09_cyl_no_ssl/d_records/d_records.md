@@ -23,14 +23,21 @@
   D2 launches ONLY after the records/amendment Codex review clears (D1 does not use the amendment).
 - **CPU e2e cells (after D2):** compare_predictions.py (exp_02 tool, path-pinned) rot-α vs rot-0 per K —
   cells exactly {1:[45,90,180,270], 8:[90]} → `d_records/e2e/` JSONs.
-- **Manifests (post-eval, path-backed only):** `d1_manifest.json` {K:{seeds:{id:path}}};
-  `flatness_index.json` {K:{angle:metrics-json-path}} incl. rot-0 reference; `e2e_index.json` {K:{angle:compare-json-path}}.
+- **Manifests (post-eval):** `d1_manifest.json` {K:{seeds:{id:path}}} (path-backed — the CLI's realpath
+  uniqueness guard); `flatness_index.json` {K:{angle:metrics-json-path}} incl. rot-0 reference (path-backed);
+  `e2e_index.json` {K:{angle:EMBEDDED compare_predictions output object + "source_path": <on-disk JSON>}} —
+  **AMENDED per records review r1 (blocking):** the adapter's `_one_rel_l2` consumes the compare output object
+  inline (its cleared/tested contract; leaf paths are rejected), so the index embeds each tool output VERBATIM
+  and carries the path as a provenance field (`_one_rel_l2` reads `waveform_gap` and ignores extra keys).
+  No hand-written values: the builder copies the tool JSONs byte-for-byte and records their paths + sha256.
 - **Adapter/aggregate:** gate_thresholds_to_verdicts.py --references d_records/references.json --d1/--d2-* →
   fresh out-dir `d_records/verdicts_<ts>/` → aggregate_gate.py over the verdict JSONs → SSL-verdict writeup.
 
 ## Standing obligations (D-tool r4) — discharge
 1. matched-mode comparators or contextual mode → **contextual** (P1 pending; decision 2026-07-25 registered in exp_06 worklog)
-2. path-backed manifests → all three manifests are seed_id/angle → PATH maps (inline values rejected by the CLI)
+2. path-backed manifests → D1 + flatness are seed_id/angle → PATH maps (the D1 inline-values CLI rejection is
+   untouched); e2e is inline-EMBEDDED verbatim tool outputs + source_path/sha256 provenance (records review r1:
+   the cleared adapter rejects e2e leaf paths — records amended rather than modifying cleared adapter code)
 3. fresh unique out-dirs → per-run unique eval names; verdicts under a fresh timestamped dir; adapter refuses non-empty
 4. producer angle-grid pinning → references pin {11.25,45,90,180,270} (cond) and the rot0-free e2e/flatness matrix verbatim
 5. online-variant full-gate execution at the driver → every invocation embeds assert_arm_configs_exp09 on the ACTUAL config with variant=online + both SHA pins
@@ -45,3 +52,14 @@ The Stage-A A2b artifact (official weights) is the registered --d2-cond input: t
 conditioning-level equivariance is architectural (exp_03), weight-independent; the TRAINED checkpoint's equivariance
 is gated directly by d2_end_to_end (≤0.00931) + d2_flatness (H-A3 constants) on its own predictions.
 Pre-launch probe: d2_conditioning PASS, max rel-err 3.987e-06.
+
+## Records review r1 (codex_d_records_r1.md) — disposition
+NOT CLEARED with ONE blocking finding: the originally-registered path-backed `e2e_index.json` shape is
+incompatible with the cleared adapter (`_one_rel_l2` rejects string leaves; reviewer-reproduced). Resolution
+(this commit): records contract amended to inline-embedded compare outputs + source_path/sha256 provenance —
+the adapter is used exactly as cleared/tested; no tooling change. Non-blocking: d2_gpu1.sh stale header
+comment fixed. AMENDMENT (EVAL_STORE_PREDS) **APPROVED** ("exactly the disclosed diff"); CONDITIONING
+DISPOSITION **APPROVED** (gauge parameter-free, reviewer-reproduced d2_conditioning PASS 3.987e-06);
+contextual references, pins, sequencer flags, rot-0 flatness coverage all independently verified.
+D1 ran entirely under the cleared driver shape and completed 10/10 rc=0 BEFORE this commit (no in-flight
+pin-gate disturbance); D2 launches with EXPECT_EXP09_SHA = THIS commit.
