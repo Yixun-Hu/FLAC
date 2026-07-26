@@ -9,7 +9,7 @@ Assume the reader has NO memory beyond the repo + `master_experiment_tracker.md`
 
 ## Role map (current)
 - **Main session model:** Fable 5 **or** Opus 4.8 — assume either; do not assume continuity of your own prior turns. Plans, analyzes, drives runs. Role-attribution rule stands: whenever a non-Fable model fills a Fable seat (esp. analysis), flag the model in the artifact by-line.
-- **Coder subagent:** Opus 4.8, max effort (writes experiment/production code).
+- **Coder subagent:** **Opus 5, max effort** (per Yixun 2026-07-25; supersedes Opus 4.8) — writes experiment/production code. Claude-side reviewer fallback likewise Opus 5 max.
 - **Reviewer:** OpenAI Codex `gpt-5.6-sol`, xhigh, codex-cli 0.144.1 — `~/.local/bin/codex exec -s read-only -m gpt-5.6-sol -c model_reasoning_effort=xhigh --output-last-message <file> "<prompt>" < /dev/null` (stdin MUST close with `< /dev/null`).
 
 ## Where we are — exp_07 phase 2 (B-V parity, Yixun Q5)
