@@ -1,0 +1,101 @@
+{
+  "1": {
+    "45": {
+      "ref_path": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_predictions_1_1.0_exp09_D2_K1_fa_invariant_a1.pt",
+      "alt_path": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_predictions_1_1.0_exp09_D2_K1_fa_invariant_a1_rot45.pt",
+      "num_samples": 6337,
+      "common_length": 10240,
+      "waveform_gap": {
+        "mean_abs_diff": 2.0435251721366805e-06,
+        "mean_rel_l2": 0.002541585487564292,
+        "max_abs_diff": 0.008585639297962189
+      },
+      "acoustic_gap": {
+        "T60": 0.0326,
+        "Invalid T60": 0.0,
+        "C50": 0.0036,
+        "EDT": 0.1274
+      },
+      "source_path": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/worklog_yixun/exp_09_cyl_no_ssl/d_records/e2e/compare_K1_rot45.json",
+      "sha256": "c255b5ab564630a6db3b3831fb396dc5fbd4ea7806decba49f2e5d2946960d11"
+    },
+    "90": {
+      "ref_path": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_predictions_1_1.0_exp09_D2_K1_fa_invariant_a1.pt",
+      "alt_path": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_predictions_1_1.0_exp09_D2_K1_fa_invariant_a1_rot90.pt",
+      "num_samples": 6337,
+      "common_length": 10240,
+      "waveform_gap": {
+        "mean_abs_diff": 1.9396827869459764e-06,
+        "mean_rel_l2": 0.0023366481011225793,
+        "max_abs_diff": 0.005581816658377647
+      },
+      "acoustic_gap": {
+        "T60": 0.0301,
+        "Invalid T60": 0.0,
+        "C50": 0.0032,
+        "EDT": 0.1112
+      },
+      "source_path": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/worklog_yixun/exp_09_cyl_no_ssl/d_records/e2e/compare_K1_rot90.json",
+      "sha256": "f1e9f8ec86d8d0a0b6573a43e0a5d11a05b9669bb919383868d3e4b4b7d60bc8"
+    },
+    "180": {
+      "ref_path": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_predictions_1_1.0_exp09_D2_K1_fa_invariant_a1.pt",
+      "alt_path": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_predictions_1_1.0_exp09_D2_K1_fa_invariant_a1_rot180.pt",
+      "num_samples": 6337,
+      "common_length": 10240,
+      "waveform_gap": {
+        "mean_abs_diff": 1.925530723664719e-06,
+        "mean_rel_l2": 0.0023332499131147057,
+        "max_abs_diff": 0.0076749324798583984
+      },
+      "acoustic_gap": {
+        "T60": 0.0301,
+        "Invalid T60": 0.0,
+        "C50": 0.0031,
+        "EDT": 0.1104
+      },
+      "source_path": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/worklog_yixun/exp_09_cyl_no_ssl/d_records/e2e/compare_K1_rot180.json",
+      "sha256": "1a1fb4446d324a2759fc5ecaf2a311b69b262637996783f7fce06fb56d78b2c6"
+    },
+    "270": {
+      "ref_path": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_predictions_1_1.0_exp09_D2_K1_fa_invariant_a1.pt",
+      "alt_path": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_predictions_1_1.0_exp09_D2_K1_fa_invariant_a1_rot270.pt",
+      "num_samples": 6337,
+      "common_length": 10240,
+      "waveform_gap": {
+        "mean_abs_diff": 1.9516066093055263e-06,
+        "mean_rel_l2": 0.0023624862784748174,
+        "max_abs_diff": 0.0068826451897621155
+      },
+      "acoustic_gap": {
+        "T60": 0.0294,
+        "Invalid T60": 0.0,
+        "C50": 0.0032,
+        "EDT": 0.1113
+      },
+      "source_path": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/worklog_yixun/exp_09_cyl_no_ssl/d_records/e2e/compare_K1_rot270.json",
+      "sha256": "995cb867ce3518b02480389a05595d6229eb5dafc5315b6e17aa556e97bb73a8"
+    }
+  },
+  "8": {
+    "90": {
+      "ref_path": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_predictions_1_1.0_exp09_D2_K8_fa_invariant_a1.pt",
+      "alt_path": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_predictions_1_1.0_exp09_D2_K8_fa_invariant_a1_rot90.pt",
+      "num_samples": 6337,
+      "common_length": 10240,
+      "waveform_gap": {
+        "mean_abs_diff": 1.8916472871432419e-06,
+        "mean_rel_l2": 0.00230095383234402,
+        "max_abs_diff": 0.005432635545730591
+      },
+      "acoustic_gap": {
+        "T60": 0.0284,
+        "Invalid T60": 0.0,
+        "C50": 0.0031,
+        "EDT": 0.1039
+      },
+      "source_path": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/worklog_yixun/exp_09_cyl_no_ssl/d_records/e2e/compare_K8_rot90.json",
+      "sha256": "10f9f0d86325227bc76ee2aa0232e3ec0f17219ee6330105a8fc124f78deba48"
+    }
+  }
+}

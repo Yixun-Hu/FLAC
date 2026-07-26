@@ -1,0 +1,38 @@
+{
+  "gate": "d2_conditioning",
+  "pass": true,
+  "metrics": {
+    "cells": [
+      {
+        "angle": 11.25,
+        "pooled_relerr": 9.781529655336036e-07,
+        "patch_relerr": 2.4364004936887933e-06
+      },
+      {
+        "angle": 45.0,
+        "pooled_relerr": 1.0871720214721463e-06,
+        "patch_relerr": 2.569050880647669e-06
+      },
+      {
+        "angle": 90.0,
+        "pooled_relerr": 8.746375328105683e-07,
+        "patch_relerr": 2.490950329172498e-06
+      },
+      {
+        "angle": 180.0,
+        "pooled_relerr": 2.474350371105731e-06,
+        "patch_relerr": 3.9870231517643125e-06
+      },
+      {
+        "angle": 270.0,
+        "pooled_relerr": 9.65565398443964e-07,
+        "patch_relerr": 2.6107897279605614e-06
+      }
+    ],
+    "pooled_max": 2.474350371105731e-06,
+    "patch_roll_max": 3.9870231517643125e-06,
+    "max_relerr": 3.9870231517643125e-06,
+    "threshold": 0.0001,
+    "n_angles": 5
+  }
+}

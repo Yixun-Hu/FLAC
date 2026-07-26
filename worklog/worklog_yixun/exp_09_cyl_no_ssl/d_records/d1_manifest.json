@@ -1,0 +1,20 @@
+{
+  "1": {
+    "seeds": {
+      "42": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_metrics_1_1.0_exp09_D1_K1_s42_fa_invariant_a1.json",
+      "43": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_metrics_1_1.0_exp09_D1_K1_s43_fa_invariant_a1.json",
+      "44": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_metrics_1_1.0_exp09_D1_K1_s44_fa_invariant_a1.json",
+      "45": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_metrics_1_1.0_exp09_D1_K1_s45_fa_invariant_a1.json",
+      "46": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_metrics_1_1.0_exp09_D1_K1_s46_fa_invariant_a1.json"
+    }
+  },
+  "8": {
+    "seeds": {
+      "42": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_metrics_1_1.0_exp09_D1_K8_s42_fa_invariant_a1.json",
+      "43": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_metrics_1_1.0_exp09_D1_K8_s43_fa_invariant_a1.json",
+      "44": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_metrics_1_1.0_exp09_D1_K8_s44_fa_invariant_a1.json",
+      "45": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_metrics_1_1.0_exp09_D1_K8_s45_fa_invariant_a1.json",
+      "46": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_metrics_1_1.0_exp09_D1_K8_s46_fa_invariant_a1.json"
+    }
+  }
+}

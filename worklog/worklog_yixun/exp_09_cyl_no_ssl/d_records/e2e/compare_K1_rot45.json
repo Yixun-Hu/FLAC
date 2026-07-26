@@ -1,0 +1,17 @@
+{
+    "ref_path": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_predictions_1_1.0_exp09_D2_K1_fa_invariant_a1.pt",
+    "alt_path": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_predictions_1_1.0_exp09_D2_K1_fa_invariant_a1_rot45.pt",
+    "num_samples": 6337,
+    "common_length": 10240,
+    "waveform_gap": {
+        "mean_abs_diff": 2.0435251721366805e-06,
+        "mean_rel_l2": 0.002541585487564292,
+        "max_abs_diff": 0.008585639297962189
+    },
+    "acoustic_gap": {
+        "T60": 0.0326,
+        "Invalid T60": 0.0,
+        "C50": 0.0036,
+        "EDT": 0.1274
+    }
+}

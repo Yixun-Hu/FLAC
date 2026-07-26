@@ -1,0 +1,248 @@
+{
+  "schema_version": 1,
+  "generated_by": "aggregate_gate.py",
+  "required_gates": [
+    "d2_conditioning",
+    "d2_end_to_end",
+    "d2_flatness"
+  ],
+  "n_gates": 3,
+  "gates": {
+    "d2_conditioning": {
+      "gate": "d2_conditioning",
+      "pass": true,
+      "metrics": {
+        "cells": [
+          {
+            "angle": 11.25,
+            "pooled_relerr": 9.781529655336036e-07,
+            "patch_relerr": 2.4364004936887933e-06
+          },
+          {
+            "angle": 45.0,
+            "pooled_relerr": 1.0871720214721463e-06,
+            "patch_relerr": 2.569050880647669e-06
+          },
+          {
+            "angle": 90.0,
+            "pooled_relerr": 8.746375328105683e-07,
+            "patch_relerr": 2.490950329172498e-06
+          },
+          {
+            "angle": 180.0,
+            "pooled_relerr": 2.474350371105731e-06,
+            "patch_relerr": 3.9870231517643125e-06
+          },
+          {
+            "angle": 270.0,
+            "pooled_relerr": 9.65565398443964e-07,
+            "patch_relerr": 2.6107897279605614e-06
+          }
+        ],
+        "pooled_max": 2.474350371105731e-06,
+        "patch_roll_max": 3.9870231517643125e-06,
+        "max_relerr": 3.9870231517643125e-06,
+        "threshold": 0.0001,
+        "n_angles": 5
+      }
+    },
+    "d2_end_to_end": {
+      "gate": "d2_end_to_end",
+      "pass": true,
+      "metrics": {
+        "cells": [
+          {
+            "K": "1",
+            "angle": 45.0,
+            "rel_l2": 0.002541585487564292
+          },
+          {
+            "K": "1",
+            "angle": 90.0,
+            "rel_l2": 0.0023366481011225793
+          },
+          {
+            "K": "1",
+            "angle": 180.0,
+            "rel_l2": 0.0023332499131147057
+          },
+          {
+            "K": "1",
+            "angle": 270.0,
+            "rel_l2": 0.0023624862784748174
+          },
+          {
+            "K": "8",
+            "angle": 90.0,
+            "rel_l2": 0.00230095383234402
+          }
+        ],
+        "max_rel_l2": 0.002541585487564292,
+        "threshold": 0.00931,
+        "n_cells": 5
+      }
+    },
+    "d2_flatness": {
+      "gate": "d2_flatness",
+      "pass": true,
+      "metrics": {
+        "cells": [
+          {
+            "K": 1,
+            "angle": 45.0,
+            "metric": "T60",
+            "value": 12.3313,
+            "ref_value": 12.3316,
+            "delta": 0.0002999999999993008,
+            "threshold": 0.08,
+            "pass": true
+          },
+          {
+            "K": 1,
+            "angle": 45.0,
+            "metric": "C50",
+            "value": 1.1415,
+            "ref_value": 1.1415,
+            "delta": 0.0,
+            "threshold": 0.012,
+            "pass": true
+          },
+          {
+            "K": 1,
+            "angle": 45.0,
+            "metric": "EDT",
+            "value": 49.4267,
+            "ref_value": 49.433,
+            "delta": 0.006300000000003081,
+            "threshold": 0.74,
+            "pass": true
+          },
+          {
+            "K": 1,
+            "angle": 90.0,
+            "metric": "T60",
+            "value": 12.3326,
+            "ref_value": 12.3316,
+            "delta": 0.0009999999999994458,
+            "threshold": 0.08,
+            "pass": true
+          },
+          {
+            "K": 1,
+            "angle": 90.0,
+            "metric": "C50",
+            "value": 1.1417,
+            "ref_value": 1.1415,
+            "delta": 0.00019999999999997797,
+            "threshold": 0.012,
+            "pass": true
+          },
+          {
+            "K": 1,
+            "angle": 90.0,
+            "metric": "EDT",
+            "value": 49.4293,
+            "ref_value": 49.433,
+            "delta": 0.003700000000002035,
+            "threshold": 0.74,
+            "pass": true
+          },
+          {
+            "K": 1,
+            "angle": 180.0,
+            "metric": "T60",
+            "value": 12.3323,
+            "ref_value": 12.3316,
+            "delta": 0.000700000000000145,
+            "threshold": 0.08,
+            "pass": true
+          },
+          {
+            "K": 1,
+            "angle": 180.0,
+            "metric": "C50",
+            "value": 1.1415,
+            "ref_value": 1.1415,
+            "delta": 0.0,
+            "threshold": 0.012,
+            "pass": true
+          },
+          {
+            "K": 1,
+            "angle": 180.0,
+            "metric": "EDT",
+            "value": 49.4299,
+            "ref_value": 49.433,
+            "delta": 0.003099999999996328,
+            "threshold": 0.74,
+            "pass": true
+          },
+          {
+            "K": 1,
+            "angle": 270.0,
+            "metric": "T60",
+            "value": 12.3319,
+            "ref_value": 12.3316,
+            "delta": 0.0002999999999993008,
+            "threshold": 0.08,
+            "pass": true
+          },
+          {
+            "K": 1,
+            "angle": 270.0,
+            "metric": "C50",
+            "value": 1.1415,
+            "ref_value": 1.1415,
+            "delta": 0.0,
+            "threshold": 0.012,
+            "pass": true
+          },
+          {
+            "K": 1,
+            "angle": 270.0,
+            "metric": "EDT",
+            "value": 49.4261,
+            "ref_value": 49.433,
+            "delta": 0.0069000000000016826,
+            "threshold": 0.74,
+            "pass": true
+          },
+          {
+            "K": 8,
+            "angle": 90.0,
+            "metric": "T60",
+            "value": 11.0843,
+            "ref_value": 11.0848,
+            "delta": 0.0004999999999988347,
+            "threshold": 0.024,
+            "pass": true
+          },
+          {
+            "K": 8,
+            "angle": 90.0,
+            "metric": "C50",
+            "value": 1.0781,
+            "ref_value": 1.0781,
+            "delta": 0.0,
+            "threshold": 0.006,
+            "pass": true
+          },
+          {
+            "K": 8,
+            "angle": 90.0,
+            "metric": "EDT",
+            "value": 47.8177,
+            "ref_value": 47.8188,
+            "delta": 0.001100000000000989,
+            "threshold": 0.14,
+            "pass": true
+          }
+        ],
+        "n_cells": 15,
+        "n_failing": 0
+      }
+    }
+  },
+  "failed_gates": [],
+  "all_pass": true
+}

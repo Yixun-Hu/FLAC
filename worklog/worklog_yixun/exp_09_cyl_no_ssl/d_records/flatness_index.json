@@ -1,0 +1,13 @@
+{
+  "1": {
+    "0": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_metrics_1_1.0_exp09_D2_K1_fa_invariant_a1.json",
+    "45": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_metrics_1_1.0_exp09_D2_K1_fa_invariant_a1_rot45.json",
+    "90": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_metrics_1_1.0_exp09_D2_K1_fa_invariant_a1_rot90.json",
+    "180": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_metrics_1_1.0_exp09_D2_K1_fa_invariant_a1_rot180.json",
+    "270": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_metrics_1_1.0_exp09_D2_K1_fa_invariant_a1_rot270.json"
+  },
+  "8": {
+    "0": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_metrics_1_1.0_exp09_D2_K8_fa_invariant_a1.json",
+    "90": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/outputs_FLAC/exp09_cylNoSSL/FLAC_exp09_cylNoSSL/exp09_cylNoSSL/checkpoints/epoch=14-step=67500_metrics_1_1.0_exp09_D2_K8_fa_invariant_a1_rot90.json"
+  }
+}

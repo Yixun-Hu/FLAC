@@ -1,0 +1,166 @@
+{
+  "gate": "d1_task_advisory",
+  "advisory": true,
+  "mode": "contextual",
+  "note": "P1 matched control PENDING (FLAC-owned BVp1 at ~30k/67.5k steps as of 2026-07-25; single-seed screens only) -- NO parity verdict (plan-4 pending-safe branch). Contextual references = exp_01 released-FLAC 5-seed reproduction (same unseen_eval split 6337 items, same seeds 42-46, same hardware/aggregation; descriptive tiers only, non-gating). Old 8x8 B-V (five-seed R@1 6.921+/-0.186; single-seed 7.054@92.5k) is cross-protocol and stays prose-only in d_records.md.",
+  "metrics": {
+    "measured": {
+      "1": {
+        "seed_ids": [
+          "42",
+          "43",
+          "44",
+          "45",
+          "46"
+        ],
+        "T60": {
+          "mean": 12.30208,
+          "std": 0.021327376772589852,
+          "n": 5
+        },
+        "C50": {
+          "mean": 1.14284,
+          "std": 0.005511624080069341,
+          "n": 5
+        },
+        "EDT": {
+          "mean": 49.83656,
+          "std": 0.36874106497649667,
+          "n": 5
+        },
+        "RIR_to_GT_RIR_R@1": {
+          "mean": 5.9081600000000005,
+          "std": 0.13136509429829527,
+          "n": 5
+        }
+      },
+      "8": {
+        "seed_ids": [
+          "42",
+          "43",
+          "44",
+          "45",
+          "46"
+        ],
+        "T60": {
+          "mean": 11.07852,
+          "std": 0.009570632163028763,
+          "n": 5
+        },
+        "C50": {
+          "mean": 1.07638,
+          "std": 0.0012111977542911987,
+          "n": 5
+        },
+        "EDT": {
+          "mean": 47.87288,
+          "std": 0.0704679856388701,
+          "n": 5
+        },
+        "RIR_to_GT_RIR_R@1": {
+          "mean": 6.1638,
+          "std": 0.1611859795391649,
+          "n": 5
+        }
+      }
+    },
+    "contextual_bands": [
+      {
+        "K": "1",
+        "metric": "T60",
+        "mean": 12.30208,
+        "std": 0.021327376772589852,
+        "ref_mean": 9.969,
+        "ref_std": 0.039,
+        "d": 2.3330800000000007,
+        "sc": 0.04445061304414153,
+        "n_sigma": 52.48701514382138,
+        "n_sigma_infinite": false,
+        "within_1sc": false,
+        "within_2sc": false,
+        "tier": "outside>2sc",
+        "direction": "worse"
+      },
+      {
+        "K": "1",
+        "metric": "C50",
+        "mean": 1.14284,
+        "std": 0.005511624080069341,
+        "ref_mean": 1.046,
+        "ref_std": 0.0064,
+        "d": 0.09684000000000004,
+        "sc": 0.008446182569658331,
+        "n_sigma": 11.465534778739391,
+        "n_sigma_infinite": false,
+        "within_1sc": false,
+        "within_2sc": false,
+        "tier": "outside>2sc",
+        "direction": "worse"
+      },
+      {
+        "K": "1",
+        "metric": "EDT",
+        "mean": 49.83656,
+        "std": 0.36874106497649667,
+        "ref_mean": 39.95,
+        "ref_std": 0.37,
+        "d": 9.886559999999996,
+        "sc": 0.5223695751094247,
+        "n_sigma": 18.92637027707631,
+        "n_sigma_infinite": false,
+        "within_1sc": false,
+        "within_2sc": false,
+        "tier": "outside>2sc",
+        "direction": "worse"
+      },
+      {
+        "K": "8",
+        "metric": "T60",
+        "mean": 11.07852,
+        "std": 0.009570632163028763,
+        "ref_mean": 8.609,
+        "ref_std": 0.012,
+        "d": 2.4695199999999993,
+        "sc": 0.015349169358633081,
+        "n_sigma": 160.88948804327495,
+        "n_sigma_infinite": false,
+        "within_1sc": false,
+        "within_2sc": false,
+        "tier": "outside>2sc",
+        "direction": "worse"
+      },
+      {
+        "K": "8",
+        "metric": "C50",
+        "mean": 1.07638,
+        "std": 0.0012111977542911987,
+        "ref_mean": 0.9682,
+        "ref_std": 0.003,
+        "d": 0.10817999999999994,
+        "sc": 0.0032352743314903055,
+        "n_sigma": 33.43765904085408,
+        "n_sigma_infinite": false,
+        "within_1sc": false,
+        "within_2sc": false,
+        "tier": "outside>2sc",
+        "direction": "worse"
+      },
+      {
+        "K": "8",
+        "metric": "EDT",
+        "mean": 47.87288,
+        "std": 0.0704679856388701,
+        "ref_mean": 37.1,
+        "ref_std": 0.07,
+        "d": 10.77288,
+        "sc": 0.09932641642584315,
+        "n_sigma": 108.45936446366214,
+        "n_sigma_infinite": false,
+        "within_1sc": false,
+        "within_2sc": false,
+        "tier": "outside>2sc",
+        "direction": "worse"
+      }
+    ]
+  }
+}
