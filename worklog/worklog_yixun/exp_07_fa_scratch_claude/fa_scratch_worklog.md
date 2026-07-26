@@ -182,6 +182,10 @@
 - **EDT: the sole surviving systematic gap.** Extend best 39.78@75k; late points degrade (43+ at 95k–100k); lineage best remains 38.29@60k vs released 37.10.
 - **T60: never revisits the 8.3–8.6 zone** (mid-training 30–40k territory); late band 9.1–10.0 — late training trades T60 for R@1. **C50: at target** (oscillates around released). FD best 0.3077@72.5k.
 - **Best-ckpt answer (Yixun's original ask):** no checkpoint dominates; the pre-registered composite rule (T60≤8.63 ∧ C50≤0.974 ∧ EDT≤37.27) matches NOTHING anywhere in the lineage (T60/EDT bounds never met). **Recommended single ckpt: `epoch=20-step=92500` — the only released-level-retrieval point in the entire B-V lineage, with C50 near-target and mid-band T60/EDT.** Metric-priority alternatives: EDT-best 60k (38.29, phase 1), T60-best 30k (8.34, phase 1).
+## 2026-07-26 pm — P1@60k: R@1 6.328 (+0.57 over anchor at matched step); EDT band point 38.99
+
+- P1 S60000 (EMA): 8.893/1.0146/38.991/0.3176/**R6.328** vs anchor 9.151/0.9679/38.294/0.3142/5.760. R@1 trajectory clearly faster than 8×8's (which needed 92.5k for 7.05). Endpoint block tonight: screen 55k/57.5k/62.5k/65k/67.5k (late-curve statistic inputs) + composite pick + 5-seed gate.
+
 ## 2026-07-26 — P1@40k/50k: **EDT 37.649@50k — best B-V-family EDT ever recorded** (8×8 lineage floor was 38.29); BN=64 hypothesis ALIVE
 
 - P1 S40000 (EMA): 8.989/1.0076/40.620/0.3221/R5.192 (vs anchor 8.603/1.0047/39.991/0.3111/4.829 — R@1 ahead, rest ≈). P1 S50000: **8.647/0.9854/37.649**/0.3288/**R5.539** (vs anchor 8.983/0.9858/40.343/0.3221/5.255; released 8.609/0.9682/37.10/—/7.06).
