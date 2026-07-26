@@ -1,0 +1,26 @@
+{
+  "d1": {
+    "mode": "contextual",
+    "control_name": null,
+    "note": "P1 matched control PENDING (FLAC-owned BVp1 at ~30k/67.5k steps as of 2026-07-25; single-seed screens only) -- NO parity verdict (plan-4 pending-safe branch). Contextual references = exp_01 released-FLAC 5-seed reproduction (same unseen_eval split 6337 items, same seeds 42-46, same hardware/aggregation; descriptive tiers only, non-gating). Old 8x8 B-V (five-seed R@1 6.921+/-0.186; single-seed 7.054@92.5k) is cross-protocol and stays prose-only in d_records.md.",
+    "contextual_stats": {
+      "1": {"T60": [9.969, 0.039], "C50": [1.046, 0.0064], "EDT": [39.95, 0.37]},
+      "8": {"T60": [8.609, 0.012], "C50": [0.9682, 0.003], "EDT": [37.10, 0.07]}
+    },
+    "expect": {
+      "K": [1, 8],
+      "seeds": [42, 43, 44, 45, 46],
+      "metrics": ["T60", "C50", "EDT"],
+      "advisory_metrics": ["RIR_to_GT_RIR_R@1"]
+    }
+  },
+  "d2": {
+    "conditioning": {
+      "expect": {"angles": [11.25, 45, 90, 180, 270]},
+      "artifact": "worklog/worklog_yixun/exp_09_cyl_no_ssl/audit_convention.json",
+      "disposition": "Stage-A A2b artifact (official weights, committed + reviewed; the j->degrees join was cleared against THIS artifact in D-tooling r3). The cylindrical gauge is parameter-free, so conditioning-level equivariance is ARCHITECTURAL (exp_03: holds for any weights) -- weight-independent by construction; the C2-trained weights' equivariance is gated directly on the trained checkpoint by d2_end_to_end + d2_flatness."
+    },
+    "end_to_end": {"expect": {"matrix": {"1": [45, 90, 180, 270], "8": [90]}}},
+    "flatness": {"expect": {"matrix": {"1": [45, 90, 180, 270], "8": [90]}}}
+  }
+}

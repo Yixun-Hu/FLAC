@@ -118,6 +118,18 @@ def test_dry_run_rotate_deg_sweep_param(tmp_path):
     assert "--rotate-deg 90" in out
 
 
+def test_dry_run_store_preds_env_appends_flag(tmp_path):
+    # D-records amendment: EVAL_STORE_PREDS=1 must append --store_predictions (D2 e2e bundles).
+    out = (lambda p: p.stdout + p.stderr)(_dry(tmp_path, env_extra={"EVAL_STORE_PREDS": "1"}))
+    assert "--store_predictions" in out
+
+
+def test_dry_run_store_preds_absent_by_default(tmp_path):
+    # Default OFF: D1 metric runs stay predictions-free exactly as the driver was cleared.
+    out = (lambda p: p.stdout + p.stderr)(_dry(tmp_path))
+    assert "--store_predictions" not in out
+
+
 def test_dry_run_pythonpath_first_eval_env(tmp_path):
     p = _dry(tmp_path, env_extra={"CYL_DINOV3_SRC": "/opt/cyl/src",
                                   "EVAL_PYTHON": "/opt/rir2rir/bin/python"})

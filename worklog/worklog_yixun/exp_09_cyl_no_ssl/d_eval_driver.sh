@@ -14,6 +14,11 @@
 # {0,45,90,180,270} to produce the rotated-input predictions H-A3 / the equivariance gates
 # compare. eval_FLAC suffixes the output name by method/rotation, so sweep angles never collide.
 #
+# EVAL_STORE_PREDS=1 (env, D-records amendment, disclosed for review) appends
+# --store_predictions: the D2 end-to-end cells consume compare_predictions(rot-a vs rot-0)
+# on the saved prediction bundles, which the cleared driver could not produce (gap found at
+# D records). Default OFF - D1 metric runs stay predictions-free exactly as cleared.
+#
 # EMBEDDED PIN GATE (Codex D-tool F2): EVERY invocation runs assert_arm_configs_exp09.py bound
 # to the ACTUAL config the eval loads. The variant is auto-detected from the config filename
 # (*online_eval* -> online; else base) or set via CONFIG_VARIANT: the online eval config's
@@ -37,7 +42,7 @@ cd "$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-
 
 EXPDIR="worklog/worklog_yixun/exp_09_cyl_no_ssl"
 WORKTREE="$(readlink -f .)"
-USAGE="usage: d_eval_driver.sh <CKPT> <CONFIG> <EVAL_NAME> <EXTERNAL_LOG_DIR>  (env: ROTATE_DEG EVAL_GPU EVAL_SEED EVAL_PYTHON CYL_DINOV3_SRC CONFIG_VARIANT EVAL_DATASET_CONFIG DRY_RUN)"
+USAGE="usage: d_eval_driver.sh <CKPT> <CONFIG> <EVAL_NAME> <EXTERNAL_LOG_DIR>  (env: ROTATE_DEG EVAL_GPU EVAL_SEED EVAL_PYTHON CYL_DINOV3_SRC CONFIG_VARIANT EVAL_DATASET_CONFIG EVAL_STORE_PREDS DRY_RUN)"
 
 # --- required positional args (guarded with ${N:-} so an absent arg hits the intended
 # exit-3 REFUSE, never a `set -u` 'unbound variable' trip; messages use plain words) ---
@@ -78,6 +83,7 @@ EVAL_SEED="${EVAL_SEED:-42}"
 EVAL_STEPS="${EVAL_STEPS:-1}"
 EVAL_CFG_SCALE="${EVAL_CFG_SCALE:-1.0}"
 COND_AUTOCAST="${COND_AUTOCAST:-bf16}"
+EVAL_STORE_PREDS="${EVAL_STORE_PREDS:-}"       # 1 => save prediction bundles (D2 e2e cells)
 EXPECT_PACKAGE_SHA="${EXPECT_PACKAGE_SHA:-}"   # env passthrough to the pin gate (records freeze)
 
 # --- config VARIANT for the pin gate (F2): auto-detect from the filename, env-overridable ---
@@ -93,6 +99,7 @@ ARGS=(--model-config "$CONFIG" --dataset-config "$EVAL_DATASET_CONFIG" --ckpt-pa
       --cond-method fa_invariant --frame-avg-angles 0 --rotate-deg "$ROTATE_DEG"
       --cond-autocast "$COND_AUTOCAST" --seed "$EVAL_SEED" --steps "$EVAL_STEPS"
       --cfg-scale "$EVAL_CFG_SCALE" --eval-name "$EVAL_NAME")
+[ -n "$EVAL_STORE_PREDS" ] && ARGS+=(--store_predictions)   # D2 e2e bundles (amendment; same idiom as the pin passthrough)
 # The embedded pin-gate command, bound to the ACTUAL config + its variant (F2).
 PIN_ARGS=(--config "$CONFIG" --config-variant "$CONFIG_VARIANT")
 [ -n "$EXPECT_PACKAGE_SHA" ] && PIN_ARGS+=(--expect-package-sha "$EXPECT_PACKAGE_SHA")
