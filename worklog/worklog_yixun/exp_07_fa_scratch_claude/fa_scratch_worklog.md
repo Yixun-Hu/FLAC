@@ -182,6 +182,12 @@
 - **EDT: the sole surviving systematic gap.** Extend best 39.78@75k; late points degrade (43+ at 95k–100k); lineage best remains 38.29@60k vs released 37.10.
 - **T60: never revisits the 8.3–8.6 zone** (mid-training 30–40k territory); late band 9.1–10.0 — late training trades T60 for R@1. **C50: at target** (oscillates around released). FD best 0.3077@72.5k.
 - **Best-ckpt answer (Yixun's original ask):** no checkpoint dominates; the pre-registered composite rule (T60≤8.63 ∧ C50≤0.974 ∧ EDT≤37.27) matches NOTHING anywhere in the lineage (T60/EDT bounds never met). **Recommended single ckpt: `epoch=20-step=92500` — the only released-level-retrieval point in the entire B-V lineage, with C50 near-target and mid-band T60/EDT.** Metric-priority alternatives: EDT-best 60k (38.29, phase 1), T60-best 30k (8.34, phase 1).
+## 2026-07-26 — P1@40k/50k: **EDT 37.649@50k — best B-V-family EDT ever recorded** (8×8 lineage floor was 38.29); BN=64 hypothesis ALIVE
+
+- P1 S40000 (EMA): 8.989/1.0076/40.620/0.3221/R5.192 (vs anchor 8.603/1.0047/39.991/0.3111/4.829 — R@1 ahead, rest ≈). P1 S50000: **8.647/0.9854/37.649**/0.3288/**R5.539** (vs anchor 8.983/0.9858/40.343/0.3221/5.255; released 8.609/0.9682/37.10/—/7.06).
+- **50k = the closest simultaneous T60+C50+EDT to Table-1 in any of our runs**; EDT below the 8×8 lineage's all-time floor. Original P1/BN hypothesis (SyncBN-64 → EDT) revived; single band-point caveat — pre-registered late-curve statistic (55k–67.5k mean, thresholds EDT ≤38.59 / R@1 ≥6.51 for STRONG) + 5-seed endpoint gate adjudicate.
+- Ops: resumed leg (lr45v31g) at ~0.5 steps/s exclusive; 40k+50k screens ran back-to-back post the batched monitor events.
+
 ## 2026-07-25 — P1@30k: R@1 watch-item RESOLVED (4.166 > anchor 4.040) — recipe clean on every metric
 
 - P1 S30000 (EMA): T60 9.200 / C50 1.0958 / EDT 43.428 / FD 0.3392 / **R@1 4.166** vs anchor 8.338/1.0116/40.958/0.3174/4.040 (T60/EDT in-band, C50 near-equal, R@1 AHEAD). Attribution verdict stands caveat-free.
