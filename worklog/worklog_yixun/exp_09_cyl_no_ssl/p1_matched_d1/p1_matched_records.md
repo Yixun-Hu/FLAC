@@ -12,9 +12,20 @@ BV copy, only grad-ckpt deltas vs BV; use_ema true; no cond_method → native va
 
 ## Import protocol (ZERO writes into the FLAC checkout)
 On trigger: COPY the final ckpt + FLAC_AR_BVp1.json into `p1_matched_d1/p1_import/`; record
-sha256 of BOTH at copy time in `p1_import_pins.txt` (format: `<sha256>  <filename>`); evals run
-entirely inside this worktree; outputs land next to the COPIED ckpt (worktree, gitignored).
-Precondition (driver-enforced): the P1 training process (`pgrep -f exp07_P1`) must be GONE.
+sha256 of BOTH at copy time in `p1_import_pins.txt` (EXACTLY two entries, `<sha256>  <filename>`;
+the driver refuses any other manifest shape). Evals run entirely inside this worktree; outputs
+land next to the COPIED ckpt. Gitignore reality (r1 #7 correction): only the `*.ckpt` copy is
+ignored — the metrics JSONs, copied config, and pins file are untracked working artifacts and
+ARE COMMITTED with the addendum results (they are records). Precondition (driver-enforced): the
+P1 training process (`pgrep -f exp07_P1`) must be GONE.
+
+## Reviewed-code gate (added per protocol review r1, blocking #2)
+Every REAL driver invocation and the builder require env `EXPECT_P1KIT_SHA` = the FULL SHA of
+the r2-CLEARED worktree commit, assert `git rev-parse HEAD` equals it EXACTLY, and assert
+tracked-file cleanliness (`git status --porcelain -uno` empty; untracked p1_import artifacts
+allowed). Modified/unreviewed tracked code refuses. The builder additionally REFUSES adapter
+rc∉{0,1} and EXITS WITH the aggregate rc (blocking #1): 0 = d1_parity PASS, nonzero = FAIL —
+never masked.
 
 ## Eval protocol — exp_01 convention VERBATIM (P1's native path)
 `p1_eval_driver.sh <K> <SEED> <GPU>`: eval_FLAC.py on the copied ckpt/config with

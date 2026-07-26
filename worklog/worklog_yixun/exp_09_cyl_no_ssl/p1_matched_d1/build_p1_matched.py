@@ -30,6 +30,18 @@ def stats(vals):
 
 
 def main():
+    # REVIEWED-CODE gate (protocol r1 blocking #2): same contract as the driver.
+    exp = os.environ.get("EXPECT_P1KIT_SHA")
+    if not exp:
+        sys.exit("REFUSE: EXPECT_P1KIT_SHA required (the r2-CLEARED worktree commit)")
+    head = subprocess.run(["git", "-C", WT, "rev-parse", "HEAD"],
+                          capture_output=True, text=True).stdout.strip()
+    if head != exp:
+        sys.exit(f"REVIEWED-CODE GATE FAILED: HEAD {head} != EXPECT_P1KIT_SHA {exp}")
+    dirty = subprocess.run(["git", "-C", WT, "status", "--porcelain", "-uno"],
+                           capture_output=True, text=True).stdout.strip()
+    if dirty:
+        sys.exit(f"REVIEWED-CODE GATE FAILED: tracked files modified:\n{dirty}")
     control, manifest_note = {}, {}
     for k in ("1", "8"):
         per_metric = {m: [] for m in METRICS}
@@ -60,14 +72,17 @@ def main():
                        capture_output=True, text=True)
     print(r.stdout + (("--- stderr ---\n" + r.stderr) if r.stderr.strip() else ""))
     print(f"adapter rc={r.returncode}")
-    if r.returncode == 2:
-        sys.exit("REFUSE: adapter rejected inputs")
+    if r.returncode not in (0, 1):
+        sys.exit(f"REFUSE: adapter rc={r.returncode} (rejection/abnormal) — nothing aggregated")
     a = subprocess.run([PY, AGG, "--out", os.path.join(vd, "aggregate_matched.json"),
                         "--require", "d1_parity", *sorted(glob.glob(os.path.join(vd, "verdict_*.json")))],
                        capture_output=True, text=True)
     print(a.stdout + (a.stderr if a.stderr.strip() else ""))
     print(f"aggregate rc={a.returncode}")
     print("VERDICTS DIR:", vd)
+    # Exit WITH the aggregate rc (protocol r1 blocking #1): 0 = d1_parity PASS, nonzero = FAIL/reject —
+    # the registered nonzero gate contract propagates to the caller instead of being masked.
+    sys.exit(a.returncode)
 
 
 if __name__ == "__main__":
