@@ -29,7 +29,8 @@ if [ -n "${DRY_RUN:-}" ]; then echo "DRY_RUN (not executed):"; echo "EVAL: ${CMD
 : "${EXPECT_P1KIT_SHA:?EXPECT_P1KIT_SHA required (the r2-CLEARED worktree commit)}"
 HEAD_FULL="$(git rev-parse HEAD)"
 [ "$HEAD_FULL" = "$EXPECT_P1KIT_SHA" ] || { echo "REVIEWED-CODE GATE FAILED: HEAD ${HEAD_FULL} != EXPECT_P1KIT_SHA ${EXPECT_P1KIT_SHA}"; exit 1; }
-[ -z "$(git status --porcelain -uno)" ] || { echo "REVIEWED-CODE GATE FAILED: tracked files modified (unreviewed code)"; git status --porcelain -uno | head; exit 1; }
+STATUS_OUT="$(git status --porcelain -uno)" || { echo "REVIEWED-CODE GATE FAILED: git status errored (rc=$?) — refusing blind (r2 blocking #1)"; exit 1; }
+[ -z "$STATUS_OUT" ] || { echo "REVIEWED-CODE GATE FAILED: tracked files modified (unreviewed code)"; printf '%s\n' "$STATUS_OUT" | head; exit 1; }
 # --- refuse while the FLAC-owned P1 training is alive (never co-tenant their run) ---
 if pgrep -f "exp07_P1" > /dev/null 2>&1; then echo "REFUSING: P1 training process still alive"; exit 2; fi
 # --- import-pin gate (replaces the exp-09 pin gate for this non-exp-09 config): the pins

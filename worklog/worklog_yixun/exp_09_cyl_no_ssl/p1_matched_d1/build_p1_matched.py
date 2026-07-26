@@ -34,12 +34,18 @@ def main():
     exp = os.environ.get("EXPECT_P1KIT_SHA")
     if not exp:
         sys.exit("REFUSE: EXPECT_P1KIT_SHA required (the r2-CLEARED worktree commit)")
-    head = subprocess.run(["git", "-C", WT, "rev-parse", "HEAD"],
-                          capture_output=True, text=True).stdout.strip()
+    hp = subprocess.run(["git", "-C", WT, "rev-parse", "HEAD"], capture_output=True, text=True)
+    if hp.returncode != 0:
+        sys.exit(f"REVIEWED-CODE GATE FAILED: git rev-parse rc={hp.returncode} — refusing blind")
+    head = hp.stdout.strip()
     if head != exp:
         sys.exit(f"REVIEWED-CODE GATE FAILED: HEAD {head} != EXPECT_P1KIT_SHA {exp}")
-    dirty = subprocess.run(["git", "-C", WT, "status", "--porcelain", "-uno"],
-                           capture_output=True, text=True).stdout.strip()
+    st = subprocess.run(["git", "-C", WT, "status", "--porcelain", "-uno"],
+                        capture_output=True, text=True)
+    if st.returncode != 0:
+        # r2 blocking #1: an ERRORED status must refuse, never pass as "empty" (fail-closed).
+        sys.exit(f"REVIEWED-CODE GATE FAILED: git status rc={st.returncode} — refusing blind")
+    dirty = st.stdout.strip()
     if dirty:
         sys.exit(f"REVIEWED-CODE GATE FAILED: tracked files modified:\n{dirty}")
     control, manifest_note = {}, {}
