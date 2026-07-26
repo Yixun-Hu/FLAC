@@ -1,0 +1,19 @@
+{
+  "d1": {
+    "mode": "matched_control",
+    "control_name": "P1",
+    "note": "P1 = BVp1 (vanilla-DINOv3 baseline) under the SAME matched 67.5k DDP+SyncBN protocol; control_stats FILLED BY build_p1_matched.py from the 10 raw P1 eval JSONs (5-seed mean/sample-std, ddof=1). Measured side = the SAME committed no-SSL d1_manifest.json.",
+    "control_stats": "__FILLED_AT_RUNTIME_FROM_RAW_P1_EVALS__",
+    "expect": {
+      "K": [1, 8],
+      "seeds": [42, 43, 44, 45, 46],
+      "metrics": ["T60", "C50", "EDT"],
+      "advisory_metrics": ["RIR_to_GT_RIR_R@1"]
+    }
+  },
+  "d2": {
+    "conditioning": {"expect": {"angles": [11.25, 45, 90, 180, 270]}},
+    "end_to_end": {"expect": {"matrix": {"1": [45, 90, 180, 270], "8": [90]}}},
+    "flatness": {"expect": {"matrix": {"1": [45, 90, 180, 270], "8": [90]}}}
+  }
+}
