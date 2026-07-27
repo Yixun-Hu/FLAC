@@ -182,6 +182,14 @@
 - **EDT: the sole surviving systematic gap.** Extend best 39.78@75k; late points degrade (43+ at 95k–100k); lineage best remains 38.29@60k vs released 37.10.
 - **T60: never revisits the 8.3–8.6 zone** (mid-training 30–40k territory); late band 9.1–10.0 — late training trades T60 for R@1. **C50: at target** (oscillates around released). FD best 0.3077@72.5k.
 - **Best-ckpt answer (Yixun's original ask):** no checkpoint dominates; the pre-registered composite rule (T60≤8.63 ∧ C50≤0.974 ∧ EDT≤37.27) matches NOTHING anywhere in the lineage (T60/EDT bounds never met). **Recommended single ckpt: `epoch=20-step=92500` — the only released-level-retrieval point in the entire B-V lineage, with C50 near-target and mid-band T60/EDT.** Metric-priority alternatives: EDT-best 60k (38.29, phase 1), T60-best 30k (8.34, phase 1).
+## 2026-07-27 ~01:30 — GATE VERDICT (5-seed, held-out 43–46): **57.5k SUPERIOR to released Table-1 on T60/C50/EDT at BOTH K — 6/8 cells SUPERIOR/EQUIV; R@1 the sole remaining gap**
+
+- **57.5k K=8:** T60 8.4854±0.0071 (−8.9σ_c SUPERIOR) · C50 0.9636±0.0016 (−1.4σ_c SUPERIOR) · EDT 36.3789±0.1103 (−5.5σ_c SUPERIOR) · R@1 6.1607±0.0875 (−6.8σ_c OUT).
+- **57.5k K=1:** T60 9.8793±0.0542 (−1.3σ_c SUPERIOR) · C50 1.0412±0.0061 (EQUIV) · EDT 39.2813±0.2387 (−1.5σ_c SUPERIOR) · R@1 5.8545±0.1929 (−3.3σ_c OUT).
+- **67.5k endpoint (both K):** weaker — K=8 T60/C50 drift back OUT (+9.0/+2.1σ_c), EDT stays SUPERIOR (−1.5σ_c), R@1 OUT; K=1 NONINF/EQUIV×3 + R@1 OUT. **57.5k = the arm's checkpoint of record.**
+- **Program-goal reading:** the maximum goal ("beat released Table-1 K=1/K=8") is achieved on 3 of 4 metrics at both K by a single seed-confirmed checkpoint; the EDT gap that survived P0, the 100k extend, and every prior arm is INVERTED (−0.72 K=8). **R@1 (−0.90/−0.98) is the sole open metric** — and P1's R@1 trajectory ran ahead of the 8×8's matched-step pace throughout (the 8×8 needed 92.5k for R@1 parity), making a budget extension of THIS recipe the natural closing move (Yixun's call; echoes the extend precedent).
+- Next: closing package (results.md + analysis + HTML + tracker/issue/HANDOFF + closure review), then the strategic fork to Yixun.
+
 ## 2026-07-26 21:5x — P1 COMPLETE (67.5k, rc=0) + endpoint block phase 1: **EDT STRONG-threshold PASS (81% gap closure)** + **FIRST-EVER composite-rule qualifier (57.5k, all 3 error metrics sub-released)**
 
 - **Full P1 curve (EMA K=8 s42):** 10k 11.78/1.378/47.48/1.78 · 20k 8.44/1.095/45.42/2.92 · 30k 9.20/1.096/43.43/4.17 · 40k 8.99/1.008/40.62/5.19 · 50k 8.65/0.985/37.65/5.54 · 55k 8.51/0.951/36.99/6.00 · 57.5k **8.493/0.9625/36.427**/6.06 · 60k 8.89/1.015/38.99/6.33 · 62.5k 8.82/0.949/38.16/5.87 · 65k 8.89/0.960/38.46/6.04 · 67.5k 8.77/0.973/36.95/6.28.
