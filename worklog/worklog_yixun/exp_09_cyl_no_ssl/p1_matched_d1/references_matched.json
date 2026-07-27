@@ -1,0 +1,125 @@
+{
+  "d1": {
+    "mode": "matched_control",
+    "control_name": "P1",
+    "note": "P1 = BVp1 (vanilla-DINOv3 baseline) under the SAME matched 67.5k DDP+SyncBN protocol; control_stats FILLED BY build_p1_matched.py from the 10 raw P1 eval JSONs (5-seed mean/sample-std, ddof=1). Measured side = the SAME committed no-SSL d1_manifest.json.",
+    "control_stats": {
+      "1": {
+        "T60": [
+          10.02906,
+          0.0436526402408836
+        ],
+        "C50": [
+          1.04426,
+          0.005538321045226607
+        ],
+        "EDT": [
+          39.62534000000001,
+          0.260312865605986
+        ],
+        "RIR_to_GT_RIR_R@1": [
+          5.89868,
+          0.11400691645685354
+        ]
+      },
+      "8": {
+        "T60": [
+          8.70342,
+          0.01164010309232723
+        ],
+        "C50": [
+          0.9747,
+          0.001401784576887607
+        ],
+        "EDT": [
+          36.91512,
+          0.06350096062265707
+        ],
+        "RIR_to_GT_RIR_R@1": [
+          6.11962,
+          0.1084433123802479
+        ]
+      }
+    },
+    "expect": {
+      "K": [
+        1,
+        8
+      ],
+      "seeds": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "metrics": [
+        "T60",
+        "C50",
+        "EDT"
+      ],
+      "advisory_metrics": [
+        "RIR_to_GT_RIR_R@1"
+      ]
+    },
+    "control_artifacts": {
+      "1": {
+        "42": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/worklog_yixun/exp_09_cyl_no_ssl/p1_matched_d1/p1_import/p1_step67500_metrics_1_1.0_exp09_P1D1_K1_s42.json",
+        "43": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/worklog_yixun/exp_09_cyl_no_ssl/p1_matched_d1/p1_import/p1_step67500_metrics_1_1.0_exp09_P1D1_K1_s43.json",
+        "44": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/worklog_yixun/exp_09_cyl_no_ssl/p1_matched_d1/p1_import/p1_step67500_metrics_1_1.0_exp09_P1D1_K1_s44.json",
+        "45": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/worklog_yixun/exp_09_cyl_no_ssl/p1_matched_d1/p1_import/p1_step67500_metrics_1_1.0_exp09_P1D1_K1_s45.json",
+        "46": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/worklog_yixun/exp_09_cyl_no_ssl/p1_matched_d1/p1_import/p1_step67500_metrics_1_1.0_exp09_P1D1_K1_s46.json"
+      },
+      "8": {
+        "42": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/worklog_yixun/exp_09_cyl_no_ssl/p1_matched_d1/p1_import/p1_step67500_metrics_1_1.0_exp09_P1D1_K8_s42.json",
+        "43": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/worklog_yixun/exp_09_cyl_no_ssl/p1_matched_d1/p1_import/p1_step67500_metrics_1_1.0_exp09_P1D1_K8_s43.json",
+        "44": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/worklog_yixun/exp_09_cyl_no_ssl/p1_matched_d1/p1_import/p1_step67500_metrics_1_1.0_exp09_P1D1_K8_s44.json",
+        "45": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/worklog_yixun/exp_09_cyl_no_ssl/p1_matched_d1/p1_import/p1_step67500_metrics_1_1.0_exp09_P1D1_K8_s45.json",
+        "46": "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/worklog_yixun/exp_09_cyl_no_ssl/p1_matched_d1/p1_import/p1_step67500_metrics_1_1.0_exp09_P1D1_K8_s46.json"
+      }
+    }
+  },
+  "d2": {
+    "conditioning": {
+      "expect": {
+        "angles": [
+          11.25,
+          45,
+          90,
+          180,
+          270
+        ]
+      }
+    },
+    "end_to_end": {
+      "expect": {
+        "matrix": {
+          "1": [
+            45,
+            90,
+            180,
+            270
+          ],
+          "8": [
+            90
+          ]
+        }
+      }
+    },
+    "flatness": {
+      "expect": {
+        "matrix": {
+          "1": [
+            45,
+            90,
+            180,
+            270
+          ],
+          "8": [
+            90
+          ]
+        }
+      }
+    }
+  }
+}

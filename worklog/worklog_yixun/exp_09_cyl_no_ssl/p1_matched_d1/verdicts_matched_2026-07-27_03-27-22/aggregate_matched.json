@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "generated_by": "aggregate_gate.py",
+  "required_gates": [
+    "d1_parity"
+  ],
+  "n_gates": 1,
+  "gates": {
+    "d1_parity": {
+      "gate": "d1_parity",
+      "pass": false,
+      "mode": "matched_control",
+      "control_name": "P1",
+      "metrics": {
+        "cells": [
+          {
+            "K": "1",
+            "metric": "T60",
+            "mean": 12.30208,
+            "std": 0.021327376772589852,
+            "ref_mean": 10.02906,
+            "ref_std": 0.0436526402408836,
+            "d": 2.2730200000000007,
+            "sc": 0.04858405088092197,
+            "n_sigma": 46.785312438666416,
+            "n_sigma_infinite": false,
+            "within_1sc": false,
+            "within_2sc": false,
+            "tier": "outside>2sc",
+            "direction": "worse"
+          },
+          {
+            "K": "1",
+            "metric": "C50",
+            "mean": 1.14284,
+            "std": 0.005511624080069341,
+            "ref_mean": 1.04426,
+            "ref_std": 0.005538321045226607,
+            "d": 0.09858000000000011,
+            "sc": 0.007813513934204005,
+            "n_sigma": 12.616602572174573,
+            "n_sigma_infinite": false,
+            "within_1sc": false,
+            "within_2sc": false,
+            "tier": "outside>2sc",
+            "direction": "worse"
+          },
+          {
+            "K": "1",
+            "metric": "EDT",
+            "mean": 49.83656,
+            "std": 0.36874106497649667,
+            "ref_mean": 39.62534000000001,
+            "ref_std": 0.260312865605986,
+            "d": 10.21121999999999,
+            "sc": 0.45136765612968,
+            "n_sigma": 22.622843842107862,
+            "n_sigma_infinite": false,
+            "within_1sc": false,
+            "within_2sc": false,
+            "tier": "outside>2sc",
+            "direction": "worse"
+          },
+          {
+            "K": "8",
+            "metric": "T60",
+            "mean": 11.07852,
+            "std": 0.009570632163028763,
+            "ref_mean": 8.70342,
+            "ref_std": 0.01164010309232723,
+            "d": 2.3750999999999998,
+            "sc": 0.015069472452611157,
+            "n_sigma": 157.61002964562672,
+            "n_sigma_infinite": false,
+            "within_1sc": false,
+            "within_2sc": false,
+            "tier": "outside>2sc",
+            "direction": "worse"
+          },
+          {
+            "K": "8",
+            "metric": "C50",
+            "mean": 1.07638,
+            "std": 0.0012111977542911987,
+            "ref_mean": 0.9747,
+            "ref_std": 0.001401784576887607,
+            "d": 0.10167999999999988,
+            "sc": 0.0018525657883055086,
+            "n_sigma": 54.886040021824975,
+            "n_sigma_infinite": false,
+            "within_1sc": false,
+            "within_2sc": false,
+            "tier": "outside>2sc",
+            "direction": "worse"
+          },
+          {
+            "K": "8",
+            "metric": "EDT",
+            "mean": 47.87288,
+            "std": 0.0704679856388701,
+            "ref_mean": 36.91512,
+            "ref_std": 0.06350096062265707,
+            "d": 10.95776,
+            "sc": 0.09485836283639017,
+            "n_sigma": 115.51706852562624,
+            "n_sigma_infinite": false,
+            "within_1sc": false,
+            "within_2sc": false,
+            "tier": "outside>2sc",
+            "direction": "worse"
+          }
+        ],
+        "advisory": [
+          {
+            "K": "1",
+            "metric": "RIR_to_GT_RIR_R@1",
+            "mean": 5.9081600000000005,
+            "std": 0.13136509429829527,
+            "ref_mean": 5.89868,
+            "ref_std": 0.11400691645685354,
+            "d": 0.009480000000000821,
+            "sc": 0.1739378193493295,
+            "n_sigma": 0.05450223554293033,
+            "n_sigma_infinite": false,
+            "within_1sc": true,
+            "within_2sc": true,
+            "tier": "equiv<=1sc",
+            "direction": "superior"
+          },
+          {
+            "K": "8",
+            "metric": "RIR_to_GT_RIR_R@1",
+            "mean": 6.1638,
+            "std": 0.1611859795391649,
+            "ref_mean": 6.11962,
+            "ref_std": 0.1084433123802479,
+            "d": 0.044179999999999886,
+            "sc": 0.19427010063311365,
+            "n_sigma": 0.227415334917829,
+            "n_sigma_infinite": false,
+            "within_1sc": true,
+            "within_2sc": true,
+            "tier": "equiv<=1sc",
+            "direction": "superior"
+          }
+        ],
+        "n_cells": 6,
+        "n_failing": 6,
+        "equivalence_sigma_c": 1.0,
+        "noninferiority_sigma_c": 2.0
+      }
+    }
+  },
+  "failed_gates": [
+    "d1_parity"
+  ],
+  "all_pass": false
+}

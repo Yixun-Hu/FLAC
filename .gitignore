@@ -182,3 +182,4 @@ worklog/worklog_yixun/.last_model*
 worklog/worklog_yixun/.handoff_hook.lock
 worklog/worklog_yixun/handoff_log.md
 worklog/worklog_yixun/handoff_snapshots/
+worklog/worklog_yixun/exp_09_cyl_no_ssl/p1_matched_d1/p1_import/*.ckpt

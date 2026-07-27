@@ -1,0 +1,20 @@
+{
+    "metrics": {
+        "T60": 10.0141,
+        "Invalid T60": 0.0,
+        "C50": 1.038,
+        "EDT": 39.7877,
+        "FD": 0.3132,
+        "RIR_to_GT_RIR_R@1": 5.8703,
+        "RIR_to_GT_RIR_R@5": 17.674,
+        "RIR_to_GT_RIR_R@10": 25.4221,
+        "RIR_to_geom_R@1": 4.7814,
+        "RIR_to_geom_R@5": 14.7546,
+        "RIR_to_geom_R@10": 22.3134
+    },
+    "ckpt_path": "worklog/worklog_yixun/exp_09_cyl_no_ssl/p1_matched_d1/p1_import/p1_step67500.ckpt",
+    "rotate_deg": 0.0,
+    "cond_method": "vanilla",
+    "frame_avg_angles": null,
+    "cond_autocast": "default"
+}
