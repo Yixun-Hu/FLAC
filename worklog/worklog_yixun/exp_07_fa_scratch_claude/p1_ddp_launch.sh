@@ -26,6 +26,10 @@ MB="${MB:-32}"; ACC="${ACC:-1}"
 # 2026-07-25 after the session-restart teardown killed the run at ~34.3k (last
 # ckpt 32,500): RESUME_CKPT="<path>" resumes; empty = fresh launch.
 RESUME_CKPT="${RESUME_CKPT:-}"
+# R@1-extension support (Yixun 2026-07-27 "Extend P1 for R@1, then close"):
+# override the training budget; default = the original 67,500.
+MAXSTEPS="${MAXSTEPS:-67500}"
+case "$MAXSTEPS" in ''|*[!0-9]*) echo "MAXSTEPS must be a positive integer (got '${MAXSTEPS}') - abort"; exit 2;; esac
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 LOG="${EXPDIR}/fa_scratch_${TS}_P1_train.log"
 
@@ -98,7 +102,7 @@ HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=0,1 python train.py \
   --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json \
   --pretransform-ckpt-path weights/FLAC/VAE.safetensors \
   ${RESUME_CKPT:+--ckpt-path "$RESUME_CKPT"} \
-  --max-steps 67500 --batch-size "$MB" --accum-batches "$ACC" --num-workers 6 --seed 42 \
+  --max-steps "$MAXSTEPS" --batch-size "$MB" --accum-batches "$ACC" --num-workers 6 --seed 42 \
   --num-gpus 2 --strategy ddp_find_unused_parameters_true --sync-batchnorm true \
   --logger "$LOGGER" --checkpoint-every 2500 \
   --name FLAC_exp07_P1 --experiment-name exp07_P1 \
