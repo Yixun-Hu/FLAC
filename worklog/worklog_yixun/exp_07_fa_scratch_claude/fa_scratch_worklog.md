@@ -182,6 +182,13 @@
 - **EDT: the sole surviving systematic gap.** Extend best 39.78@75k; late points degrade (43+ at 95k–100k); lineage best remains 38.29@60k vs released 37.10.
 - **T60: never revisits the 8.3–8.6 zone** (mid-training 30–40k territory); late band 9.1–10.0 — late training trades T60 for R@1. **C50: at target** (oscillates around released). FD best 0.3077@72.5k.
 - **Best-ckpt answer (Yixun's original ask):** no checkpoint dominates; the pre-registered composite rule (T60≤8.63 ∧ C50≤0.974 ∧ EDT≤37.27) matches NOTHING anywhere in the lineage (T60/EDT bounds never met). **Recommended single ckpt: `epoch=20-step=92500` — the only released-level-retrieval point in the entire B-V lineage, with C50 near-target and mid-band T60/EDT.** Metric-priority alternatives: EDT-best 60k (38.29, phase 1), T60-best 30k (8.34, phase 1).
+## 2026-07-26 21:5x — P1 COMPLETE (67.5k, rc=0) + endpoint block phase 1: **EDT STRONG-threshold PASS (81% gap closure)** + **FIRST-EVER composite-rule qualifier (57.5k, all 3 error metrics sub-released)**
+
+- **Full P1 curve (EMA K=8 s42):** 10k 11.78/1.378/47.48/1.78 · 20k 8.44/1.095/45.42/2.92 · 30k 9.20/1.096/43.43/4.17 · 40k 8.99/1.008/40.62/5.19 · 50k 8.65/0.985/37.65/5.54 · 55k 8.51/0.951/36.99/6.00 · 57.5k **8.493/0.9625/36.427**/6.06 · 60k 8.89/1.015/38.99/6.33 · 62.5k 8.82/0.949/38.16/5.87 · 65k 8.89/0.960/38.46/6.04 · 67.5k 8.77/0.973/36.95/6.28.
+- **Late-curve statistic (mean 55k–67.5k):** T60 8.728 / **C50 0.9684 (= released 0.9682)** / **EDT 37.664 → STRONG PASS (≤38.59; 8×8 baseline 40.087; 81% of the released-gap closed)** / R@1 6.096 → threshold 6.51 FAIL (8×8 baseline 5.960; ~12% closure) ⇒ two-metric STRONG tier NOT met; EDT singly met, decisively.
+- **COMPOSITE RULE: first qualifier in the program — step 57,500** (T60≤8.63 ∧ C50≤0.974 ∧ EDT≤37.27 was never met by any of the ~40 screened ckpts across B-V/extend/B-F): **8.493/0.9625/36.427 — all three error metrics BELOW released Table-1 simultaneously.** R@1 6.06 vs released 7.06 = the remaining shortfall (PARITY tier requires R@1 on held-out seeds; will not confirm at 6.06 — but the 3-metric sub-released claim goes to seed confirmation).
+- **Phase 2 launched (overnight):** 18 evals — 57.5k and 67.5k × K∈{8,1} × 5 seeds → verdict + closing package in the morning.
+
 ## 2026-07-26 pm — P1@60k: R@1 6.328 (+0.57 over anchor at matched step); EDT band point 38.99
 
 - P1 S60000 (EMA): 8.893/1.0146/38.991/0.3176/**R6.328** vs anchor 9.151/0.9679/38.294/0.3142/5.760. R@1 trajectory clearly faster than 8×8's (which needed 92.5k for 7.05). Endpoint block tonight: screen 55k/57.5k/62.5k/65k/67.5k (late-curve statistic inputs) + composite pick + 5-seed gate.
