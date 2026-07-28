@@ -188,7 +188,7 @@
 - **K=1 (5 seeds):** T60 **9.5401±0.0231** (−9.5σ_c SUPERIOR) · C50 **1.0323±0.0060** (−1.6σ_c SUPERIOR) · EDT **38.7283±0.2263** (−2.8σ_c SUPERIOR) · R@1 **6.8108±0.1766** (−0.07σ_c EQUIV).
 - **Checkpoint of record: `outputs_FLAC/exp07_P1/.../epoch=19-step=87500.ckpt`** (B-V vanilla, SyncBN-64 DDP recipe + ViT grad-ckpt, seed 42, 87.5k steps = 67.5k budget + 20k extension). 5 of 8 cells SUPERIOR (T60 both K by wide margins, EDT both K, C50 K=1); 3 EQUIV (≤1σ_c) incl. both R@1 — no cell worse than 1σ_c below released. **"Beat released Table-1 K=1/K=8": T60/EDT strictly beaten at both K, C50 beaten at K=1/equal at K=8, R@1 statistically indistinguishable.**
 - Discovery ops note: the 87.5k screen's crossing was masked by a summary-plumbing bug in the batched screen block (metrics json was fine); caught on manual verification minutes later, confirm fired by hand. The chained-confirm plumbing bug is moot (no further crossings needed).
-- Extension continues to 100k for curve completeness (~10:30), then the closing package (results/analysis/HTML/closure review) — TODAY.
+- Post-verdict curve points: 92.5k 8.994/**0.9300 (new program-best C50)**/37.761/R6.533 · 95k 8.488/0.9619/37.133/R6.407 — both below the 87.5k peak, reinforcing it as checkpoint of record. 97.5k/100k to land ~10:30, then the closing package — TODAY.
 
 ## 2026-07-27 — R@1 extension progress (leg 3 after a second teardown kill/resume): 70k R6.23 → 75k **R6.675** (crossing 6.9 nears)
 
