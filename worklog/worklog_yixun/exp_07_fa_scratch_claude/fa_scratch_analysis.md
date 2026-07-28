@@ -33,4 +33,4 @@
 1. **Adopt `epoch=19-step=87500.ckpt` as the project's new vanilla anchor** (superior-or-equal to the release everywhere) — the natural base for the exp_08-style fa fine-tune, now from a stronger starting point.
 2. **B-F revisited as fine-tune** (Route-1, exp_08 machinery) from the 87.5k anchor: the equivariance narrative becomes "equivariant fine-tune of a Table-1 superior-or-equivalent base".
 3. Optional completeness: unwrap 87.5k via `unwrap_model.py` (needs the known `stable_audio_tools` import fix) for external distribution.
-4. HTML results page + integrative closure review: queued as the final SOP artifacts (`fa_scratch_01_results.html` + `..._codex_closure_review.md`).
+4. ~~HTML results page + integrative closure review~~ — DONE (`fa_scratch_01_results.html`, `fa_scratch_codex_closure_review.md` → CLOSE-WITH-FIXES, all fixes applied 2026-07-28).
