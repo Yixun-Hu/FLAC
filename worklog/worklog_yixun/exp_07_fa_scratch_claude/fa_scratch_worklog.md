@@ -184,7 +184,7 @@
 - **Best-ckpt answer (Yixun's original ask):** no checkpoint dominates; the pre-registered composite rule (T60≤8.63 ∧ C50≤0.974 ∧ EDT≤37.27) matches NOTHING anywhere in the lineage (T60/EDT bounds never met). **Recommended single ckpt: `epoch=20-step=92500` — the only released-level-retrieval point in the entire B-V lineage, with C50 near-target and mid-band T60/EDT.** Metric-priority alternatives: EDT-best 60k (38.29, phase 1), T60-best 30k (8.34, phase 1).
 ## 2026-07-27 — R@1 extension progress (leg 3 after a second teardown kill/resume): 70k R6.23 → 75k **R6.675** (crossing 6.9 nears)
 
-- Ext screens (EMA s42): 70k 8.079(lineage-best T60)/0.9390/37.228/R6.233 · 75k 9.116/0.9407/39.575/**R6.675** (+0.44 in 5k steps; crossing rule: R@1 ≥ ~6.9 + others in-band → 5-seed confirm). Ops: teardown killed the extension twice (11:45 leg died ~15:35); re-resumed 16:32 from 72.5k (`mkum1n79`).
+- Ext screens (EMA s42): 70k 8.079(lineage-best T60)/0.9390/37.228/R6.233 · 75k 9.116/0.9407/39.575/R6.675 · 80k 8.804/**0.9332 (program-best C50)**/37.132/**R6.833** (0.07 below the 6.9 crossing; slope +0.16/5k → 85k is the prime candidate). Ops: teardown killed the extension twice (11:45 leg died ~15:35); re-resumed 16:32 from 72.5k (`mkum1n79`).
 
 ## 2026-07-27 ~01:30 — GATE VERDICT (5-seed, held-out 43–46): **57.5k SUPERIOR to released Table-1 on T60/C50/EDT at BOTH K — 6/8 cells SUPERIOR/EQUIV; R@1 the sole remaining gap**
 
