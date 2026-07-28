@@ -182,6 +182,14 @@
 - **EDT: the sole surviving systematic gap.** Extend best 39.78@75k; late points degrade (43+ at 95k–100k); lineage best remains 38.29@60k vs released 37.10.
 - **T60: never revisits the 8.3–8.6 zone** (mid-training 30–40k territory); late band 9.1–10.0 — late training trades T60 for R@1. **C50: at target** (oscillates around released). FD best 0.3077@72.5k.
 - **Best-ckpt answer (Yixun's original ask):** no checkpoint dominates; the pre-registered composite rule (T60≤8.63 ∧ C50≤0.974 ∧ EDT≤37.27) matches NOTHING anywhere in the lineage (T60/EDT bounds never met). **Recommended single ckpt: `epoch=20-step=92500` — the only released-level-retrieval point in the entire B-V lineage, with C50 near-target and mid-band T60/EDT.** Metric-priority alternatives: EDT-best 60k (38.29, phase 1), T60-best 30k (8.34, phase 1).
+## 2026-07-28 ~07:30 — **FULL TABLE-1 PARITY: ckpt 87,500 5-seed CONFIRMED at BOTH K — 8/8 cells SUPERIOR or EQUIVALENT. MAXIMUM PROJECT GOAL CLOSED.**
+
+- **K=8 (5 seeds):** T60 **8.2930±0.0106** (−19.8σ_c SUPERIOR) · C50 **0.9660±0.0015** (−0.65σ_c EQUIV) · EDT **35.9513±0.0532** (−13.1σ_c SUPERIOR) · R@1 **6.9592±0.1353** (−0.60σ_c EQUIV).
+- **K=1 (5 seeds):** T60 **9.5401±0.0231** (−9.5σ_c SUPERIOR) · C50 **1.0323±0.0060** (−1.6σ_c SUPERIOR) · EDT **38.7283±0.2263** (−2.8σ_c SUPERIOR) · R@1 **6.8108±0.1766** (−0.07σ_c EQUIV).
+- **Checkpoint of record: `outputs_FLAC/exp07_P1/.../epoch=19-step=87500.ckpt`** (B-V vanilla, SyncBN-64 DDP recipe + ViT grad-ckpt, seed 42, 87.5k steps = 67.5k budget + 20k extension). 5 of 8 cells SUPERIOR (T60 both K by wide margins, EDT both K, C50 K=1); 3 EQUIV (≤1σ_c) incl. both R@1 — no cell worse than 1σ_c below released. **"Beat released Table-1 K=1/K=8": T60/EDT strictly beaten at both K, C50 beaten at K=1/equal at K=8, R@1 statistically indistinguishable.**
+- Discovery ops note: the 87.5k screen's crossing was masked by a summary-plumbing bug in the batched screen block (metrics json was fine); caught on manual verification minutes later, confirm fired by hand. The chained-confirm plumbing bug is moot (no further crossings needed).
+- Extension continues to 100k for curve completeness (~10:30), then the closing package (results/analysis/HTML/closure review) — TODAY.
+
 ## 2026-07-27 — R@1 extension progress (leg 3 after a second teardown kill/resume): 70k R6.23 → 75k **R6.675** (crossing 6.9 nears)
 
 - Ext screens (EMA s42): 70k 8.079(lineage-best T60)/0.9390/37.228/R6.233 · 75k 9.116/0.9407/39.575/R6.675 · 80k 8.804/**0.9332 (program-best C50)**/37.132/**R6.833** (0.07 below crossing) · 85k 8.906/0.9569/38.023/R6.249 (oscillation) · 90k 8.785/1.0099/**36.598**/**R6.849** — third near-miss at the 6.9 line (6.83/6.25/6.85); oscillation ceiling ≈ the crossing itself; 92.5k (the 8×8's exact parity step) next. Ops: teardown killed the extension twice (11:45 leg died ~15:35); re-resumed 16:32 from 72.5k (`mkum1n79`).

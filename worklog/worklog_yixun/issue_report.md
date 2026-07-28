@@ -4,7 +4,7 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 
 ## Awaiting Yixun (decisions)
 
-1. **exp_07 CLOSING FORK (delivered 2026-07-27, awaiting Yixun):** P1@57.5k = 5-seed SUPERIOR to released Table-1 on T60/C50/EDT at both K; R@1 sole open gap (−0.90 K=8 / −0.98 K=1). Options: (a) **extend P1 past 67.5k** (~0.4 d per 10k steps at the exclusive-GPU rate; the 8×8 arm's R@1 needed 92.5k, and P1's R@1 ran AHEAD of its matched-step pace all run — the extend precedent says R@1 parity is plausibly ~1–2 d away), (b) close exp_07 now with the 3/4-superior verdict, (c) both: close the record, run the extension as a follow-up. Recommendation: (a)/(c).
+1. **exp_07: RESOLVED — Yixun chose (a) extend-for-R@1; the extension DELIVERED FULL PARITY (ckpt 87,500, 8/8 cells, both K, 5-seed). Nothing awaiting Yixun except review of the closing package (in assembly today).**
 2. **wandb: RESOLVED (2026-07-16 ~05:15).** Yixun added yh4742's key to `~/.bashrc`; verified → **yh4742@princeton.edu** / entity `yh4742-princeton-university`. Caveat handled: the export sits below `.bashrc`'s interactive guard, so non-interactive shells must extract it directly (launch scripts self-extract; plain `source ~/.bashrc` silently keeps the old yixunhu21 key). **B-F launches `LOGGER=wandb`** (project `FLAC_exp07_BF`, run `exp07_BF`). Env note: Yixun said `conda activate flac`; exp_07 stays on `rir2rir` for manifest identity (flagged).
 
 ## Open issues / caveats (technical)
