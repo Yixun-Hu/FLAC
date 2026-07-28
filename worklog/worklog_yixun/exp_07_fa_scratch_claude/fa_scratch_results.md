@@ -9,14 +9,14 @@ All evals: `eval_FLAC.py`, full published unseen split (6,337 items / 17 rooms),
 
 | Metric | K=8 ours (5-seed) | K=8 released | σ_c verdict | K=1 ours (5-seed) | K=1 released | σ_c verdict |
 |---|---|---|---|---|---|---|
-| T60 ↓ | **8.2930 ± 0.0106** | 8.609 ± 0.012 | **SUPERIOR −19.8σ** | **9.5401 ± 0.0231** | 9.969 ± 0.039 | **SUPERIOR −9.5σ** |
+| T60 ↓ | **8.2929 ± 0.0105** | 8.609 ± 0.012 | **SUPERIOR −19.8σ** | **9.5401 ± 0.0231** | 9.969 ± 0.039 | **SUPERIOR −9.5σ** |
 | C50 ↓ | 0.9660 ± 0.0015 | 0.9682 ± 0.0030 | EQUIV −0.65σ | **1.0323 ± 0.0060** | 1.0460 ± 0.0064 | **SUPERIOR −1.6σ** |
 | EDT ↓ | **35.9513 ± 0.0532** | 37.10 ± 0.07 | **SUPERIOR −13.1σ** | **38.7283 ± 0.2263** | 39.95 ± 0.37 | **SUPERIOR −2.8σ** |
-| R@1 ↑ | 6.9592 ± 0.1353 | 7.06 ± 0.10 | EQUIV −0.60σ | 6.8108 ± 0.1766 | 6.83 ± 0.22 | EQUIV −0.07σ |
+| R@1 ↑ | 6.9591 ± 0.1353 | 7.06 ± 0.10 | EQUIV −0.60σ | 6.8108 ± 0.1766 | 6.83 ± 0.22 | EQUIV −0.07σ |
 
-**8/8 cells SUPERIOR or ≤1σ_c EQUIVALENT; 5 strictly superior; none worse.** σ_c = √(σ_ours² + σ_released²); tiers per the pre-registered gate (superior >1σ_c better / equivalence ≤1σ_c / non-inferiority ≤2σ_c).
+**8/8 cells SUPERIOR or ≤1σ_c EQUIVALENT; 5 strictly superior; none outside the 1σ_c equivalence band** (both R@1 point-means are numerically lower; equivalence, not superiority). Five EVALUATION seeds; ONE training seed (42). σ_c = √(σ_ours² + σ_released²); tiers per the pre-registered gate (superior >1σ_c better / equivalence ≤1σ_c / non-inferiority ≤2σ_c).
 
-Secondary confirmed checkpoint: **57,500** (5-seed): K=8 T60 8.4854±0.0071 / C50 0.9636±0.0016 / EDT 36.3789±0.1103 all SUPERIOR-or-EQUIV, R@1 6.1607±0.0875 OUT; K=1 T60/EDT SUPERIOR, C50 EQUIV, R@1 OUT — the within-original-budget composite-rule qualifier (first in the program).
+Secondary confirmed checkpoint: **57,500** (5-seed): K=8 T60 8.4854±0.0071 / C50 0.9636±0.0016 / EDT 36.3789±0.1103 all SUPERIOR-or-EQUIV, R@1 6.1606±0.0876 OUT; K=1 T60/EDT SUPERIOR, C50 EQUIV, R@1 OUT — the within-original-budget composite-rule qualifier (first in the program).
 
 ## Arm summaries
 
@@ -32,3 +32,29 @@ Secondary confirmed checkpoint: **57,500** (5-seed): K=8 T60 8.4854±0.0071 / C5
 
 - P1/extension: `p1_ddp_launch.sh` (+`RESUME_CKPT`/`MAXSTEPS`), config `FLAC_AR_BVp1.json`; wandb `FLAC_exp07_P1` runs `acwm8gvt`/`lr45v31g`/`ismr2bql`/`mkum1n79` (legs split by two harness-teardown kills, full-state resumes; not bit-exact across legs — PL restores no RNG/dataloader position; disclosed).
 - Full command history: `fa_scratch_command.md`; per-run logs in this folder; gate JSONs beside the checkpoints.
+
+## Appendix — exact P1 curve values (source of record for the HTML page)
+
+| step | T60 | C50 | EDT | R@1 |
+|---|---|---|---|---|
+| 10,000 | 11.784 | 1.3775 | 47.481 | 1.783 |
+| 20,000 | 8.442 | 1.0954 | 45.418 | 2.919 |
+| 30,000 | 9.200 | 1.0958 | 43.428 | 4.166 |
+| 40,000 | 8.989 | 1.0076 | 40.620 | 5.192 |
+| 50,000 | 8.647 | 0.9854 | 37.649 | 5.539 |
+| 55,000 | 8.510 | 0.9506 | 36.992 | 5.997 |
+| 57,500 | 8.493 | 0.9625 | 36.427 | 6.060 |
+| 60,000 | 8.893 | 1.0146 | 38.991 | 6.328 |
+| 62,500 | 8.815 | 0.9486 | 38.161 | 5.870 |
+| 65,000 | 8.887 | 0.9604 | 38.461 | 6.044 |
+| 67,500 | 8.771 | 0.9734 | 36.952 | 6.281 |
+| 70,000 | 8.079 | 0.9390 | 37.228 | 6.233 |
+| 75,000 | 9.116 | 0.9407 | 39.575 | 6.675 |
+| 80,000 | 8.804 | 0.9332 | 37.132 | 6.833 |
+| 85,000 | 8.906 | 0.9569 | 38.023 | 6.249 |
+| 87,500 | 8.307 | 0.9643 | 35.973 | 6.975 |
+| 90,000 | 8.785 | 1.0099 | 36.598 | 6.849 |
+| 92,500 | 8.994 | 0.9300 | 37.761 | 6.533 |
+| 95,000 | 8.488 | 0.9619 | 37.133 | 6.407 |
+| 97,500 | 9.012 | 0.9946 | 38.547 | 6.596 |
+| 100,000 | 9.552 | 0.9432 | 39.039 | 6.754 |

@@ -1,5 +1,10 @@
 # Lab notebook — exp_07_fa_scratch
 
+## 2026-07-28T14:54:35-04:00 — CLOSURE: integrative review CLOSE-WITH-FIXES → all fixes applied → exp_07 CLOSED
+
+- **Closure review (`fa_scratch_codex_closure_review.md`):** independently recomputed all 8 gate cells from raw JSONs — verdict survives (5 SUPERIOR + 3 EQUIV; held-out-only R@1 still EQUIV at both K). Fixes applied verbatim: rounding (K8 T60 8.2929±0.0105, R@1 6.9591; 57.5k R@1 6.1606±0.0876), overclaim narrowing ("none outside the 1σ_c equivalence band"; bundled-recipe-consistent-with-BN-hypothesis, no factorial isolation; fine-tune-stage claim scoped to tested recipe/budget; 5 eval seeds / 1 training seed stated; pre-registration departure at 87.5k>67.5k horizon disclosed; held-out seeds control eval noise not temporal selection), exact-precision curve appendix added to results.md, HTML regenerated.
+- **exp_07 CLOSED.** Checkpoint of record: `exp07_P1/.../epoch=19-step=87500.ckpt`. Recommended next: exp_09 = fa fine-tune from the 87.5k anchor (exp_08 route).
+
 ## 2026-07-07T14:35:55-04:00 — scaffold
 - **Goal** — Route B: from-scratch fa_invariant training; commissioned by Yixun (hypothesis on optimizer-state/EMA-only release recorded in the query file with the Planner's evidence note).
 - **Version Control** — branch check-equivariance-necessity, base_commit 9ef9003 (end of exp_06, pushed).
@@ -184,7 +189,7 @@
 - **Best-ckpt answer (Yixun's original ask):** no checkpoint dominates; the pre-registered composite rule (T60≤8.63 ∧ C50≤0.974 ∧ EDT≤37.27) matches NOTHING anywhere in the lineage (T60/EDT bounds never met). **Recommended single ckpt: `epoch=20-step=92500` — the only released-level-retrieval point in the entire B-V lineage, with C50 near-target and mid-band T60/EDT.** Metric-priority alternatives: EDT-best 60k (38.29, phase 1), T60-best 30k (8.34, phase 1).
 ## 2026-07-28 ~07:30 — **FULL TABLE-1 PARITY: ckpt 87,500 5-seed CONFIRMED at BOTH K — 8/8 cells SUPERIOR or EQUIVALENT. MAXIMUM PROJECT GOAL CLOSED.**
 
-- **K=8 (5 seeds):** T60 **8.2930±0.0106** (−19.8σ_c SUPERIOR) · C50 **0.9660±0.0015** (−0.65σ_c EQUIV) · EDT **35.9513±0.0532** (−13.1σ_c SUPERIOR) · R@1 **6.9592±0.1353** (−0.60σ_c EQUIV).
+- **K=8 (5 seeds):** T60 **8.2929±0.0105** (−19.8σ_c SUPERIOR) · C50 **0.9660±0.0015** (−0.65σ_c EQUIV) · EDT **35.9513±0.0532** (−13.1σ_c SUPERIOR) · R@1 **6.9591±0.1353** (−0.60σ_c EQUIV).
 - **K=1 (5 seeds):** T60 **9.5401±0.0231** (−9.5σ_c SUPERIOR) · C50 **1.0323±0.0060** (−1.6σ_c SUPERIOR) · EDT **38.7283±0.2263** (−2.8σ_c SUPERIOR) · R@1 **6.8108±0.1766** (−0.07σ_c EQUIV).
 - **Checkpoint of record: `outputs_FLAC/exp07_P1/.../epoch=19-step=87500.ckpt`** (B-V vanilla, SyncBN-64 DDP recipe + ViT grad-ckpt, seed 42, 87.5k steps = 67.5k budget + 20k extension). 5 of 8 cells SUPERIOR (T60 both K by wide margins, EDT both K, C50 K=1); 3 EQUIV (≤1σ_c) incl. both R@1 — no cell worse than 1σ_c below released. **"Beat released Table-1 K=1/K=8": T60/EDT strictly beaten at both K, C50 beaten at K=1/equal at K=8, R@1 statistically indistinguishable.**
 - Discovery ops note: the 87.5k screen's crossing was masked by a summary-plumbing bug in the batched screen block (metrics json was fine); caught on manual verification minutes later, confirm fired by hand. The chained-confirm plumbing bug is moot (no further crossings needed).
@@ -196,7 +201,7 @@
 
 ## 2026-07-27 ~01:30 — GATE VERDICT (5-seed, held-out 43–46): **57.5k SUPERIOR to released Table-1 on T60/C50/EDT at BOTH K — 6/8 cells SUPERIOR/EQUIV; R@1 the sole remaining gap**
 
-- **57.5k K=8:** T60 8.4854±0.0071 (−8.9σ_c SUPERIOR) · C50 0.9636±0.0016 (−1.4σ_c SUPERIOR) · EDT 36.3789±0.1103 (−5.5σ_c SUPERIOR) · R@1 6.1607±0.0875 (−6.8σ_c OUT).
+- **57.5k K=8:** T60 8.4854±0.0071 (−8.9σ_c SUPERIOR) · C50 0.9636±0.0016 (−1.4σ_c SUPERIOR) · EDT 36.3789±0.1103 (−5.5σ_c SUPERIOR) · R@1 6.1606±0.0876 (−6.8σ_c OUT).
 - **57.5k K=1:** T60 9.8793±0.0542 (−1.3σ_c SUPERIOR) · C50 1.0412±0.0061 (EQUIV) · EDT 39.2813±0.2387 (−1.5σ_c SUPERIOR) · R@1 5.8545±0.1929 (−3.3σ_c OUT).
 - **67.5k endpoint (both K):** weaker — K=8 T60/C50 drift back OUT (+9.0/+2.1σ_c), EDT stays SUPERIOR (−1.5σ_c), R@1 OUT; K=1 NONINF/EQUIV×3 + R@1 OUT. **57.5k = the arm's checkpoint of record.**
 - **Program-goal reading:** the maximum goal ("beat released Table-1 K=1/K=8") is achieved on 3 of 4 metrics at both K by a single seed-confirmed checkpoint; the EDT gap that survived P0, the 100k extend, and every prior arm is INVERTED (−0.72 K=8). **R@1 (−0.90/−0.98) is the sole open metric** — and P1's R@1 trajectory ran ahead of the 8×8's matched-step pace throughout (the 8×8 needed 92.5k for R@1 parity), making a budget extension of THIS recipe the natural closing move (Yixun's call; echoes the extend precedent).
