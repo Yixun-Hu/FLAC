@@ -1,0 +1,6 @@
+=== f_arm_launch guard exercise - 2026-07-29_14-13-21 - b015a73 ===
+launcher: worklog/worklog_yixun/exp_09_fa_finetune_claude/f_arm_launch.sh
+synthetic checkpoints written to /tmp/tmp.g4O6HUjFyd
+--- A. environment / knob validation ---
+PASS  rc=2   wrong conda env rejected
+worklog/worklog_yixun/exp_09_fa_finetune_claude/f_arm_launch_guardtests.sh: line 85: $1: unbound variable
