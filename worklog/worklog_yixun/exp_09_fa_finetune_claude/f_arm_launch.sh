@@ -62,6 +62,7 @@ PY
 OPT_RESET="${OPT_RESET:-0}";                  _bool OPT_RESET "$OPT_RESET" || exit 2
 OPT_RESET_FORCE="${OPT_RESET_FORCE:-0}";      _bool OPT_RESET_FORCE "$OPT_RESET_FORCE" || exit 2
 RESET_LINEAGE="${RESET_LINEAGE:-0}";          _bool RESET_LINEAGE "$RESET_LINEAGE" || exit 2
+EXPECTED_STEP_SET=0; [ -n "${EXPECTED_STEP+x}" ] && EXPECTED_STEP_SET=1
 CHECKPOINT_EVERY="${CHECKPOINT_EVERY:-2500}"; _posint CHECKPOINT_EVERY "$CHECKPOINT_EVERY" || exit 2
 
 # --- arm/variant selection (fail-closed allow-list; no path traversal, no other config) ---
@@ -101,9 +102,33 @@ _posint MAXSTEPS "$MAXSTEPS" || exit 2
 
 # EXPECTED_STEP: the global_step the resume ckpt must carry. Defaults to the anchor's
 # 87,500 (fail-closed lineage pin); set explicitly only when restarting a crashed exp_09
-# run from one of its own later checkpoints. Always echoed into the log.
+# run from one of its own later checkpoints. exp_09 never resumes a PRE-anchor step, so
+# values below 87,500 are rejected outright (reverify knob assessment). Always logged.
 EXPECTED_STEP="${EXPECTED_STEP:-$ANCHOR_STEPS}"; _posint EXPECTED_STEP "$EXPECTED_STEP" || exit 2
+[ "$EXPECTED_STEP" -ge "$ANCHOR_STEPS" ] || { echo "EXPECTED_STEP ${EXPECTED_STEP} is pre-anchor: exp_09 only ever resumes at or after ${ANCHOR_STEPS} - abort"; exit 2; }
 [ "$MAXSTEPS" -gt "$EXPECTED_STEP" ] || { echo "MAXSTEPS ${MAXSTEPS} must exceed the resume step ${EXPECTED_STEP} - abort"; exit 2; }
+
+# --- RESET_LINEAGE provenance gate (reverify REMAINING: the label was self-attested, so
+# --- RESET_LINEAGE=1 with a warm anchor could launch as Fr WITHOUT resetting Adam).
+# --- Two independent, non-attestable conditions are now required:
+# ---   (a) PATH provenance - the resume ckpt must physically live inside the Fr save-dir,
+# ---       which only ever contains the stripped copy and Fr's own checkpoints;
+# ---   (b) STEP provenance - an Fr restart is by definition past the anchor, so
+# ---       EXPECTED_STEP must be given explicitly and be strictly > the anchor step.
+# --- (The OPT_RESET=1 and warm paths are untouched and keep the ==87,500 default.)
+if [ "$RESET_LINEAGE" = "1" ]; then
+  FR_DIR="$(realpath -m "outputs_FLAC/exp09_Fr")"
+  RESUME_REAL="$(realpath -m "$RESUME_CKPT")"
+  case "$RESUME_REAL" in
+    "${FR_DIR}"/*) ;;
+    *) echo "RESET_LINEAGE=1 requires RESUME_CKPT to live inside the F-reset namespace ${FR_DIR}/"
+       echo "  got: ${RESUME_REAL}"
+       echo "  -> a warm anchor / Fw checkpoint is NOT an F-reset lineage; use OPT_RESET=1 to create the reset lineage. abort"
+       exit 2;;
+  esac
+  [ "$EXPECTED_STEP_SET" = "1" ] || { echo "RESET_LINEAGE=1 requires EXPECTED_STEP to be set explicitly (an Fr restart resumes past the anchor) - abort"; exit 2; }
+  [ "$EXPECTED_STEP" -gt "$ANCHOR_STEPS" ] || { echo "RESET_LINEAGE=1 requires EXPECTED_STEP > ${ANCHOR_STEPS} (got ${EXPECTED_STEP}); the un-advanced stripped copy is resumed with OPT_RESET=1, not RESET_LINEAGE=1 - abort"; exit 2; }
+fi
 
 [ "$MB" = "32" ] && [ "$ACC" = "1" ] || { echo "only the BN-compliant rung MB=32 ACC=1 is allowed (got MB='${MB}' ACC='${ACC}') - abort"; exit 2; }
 
@@ -176,7 +201,7 @@ if opt_reset and not n_state:
              "warm anchor instead, or reuse the existing stripped copy with OPT_RESET=0 RESET_LINEAGE=1")
 if variant == "Fw" and not n_state:
     sys.exit("F-warm declared but the resume ckpt has CLEARED optimizer state (that is a reset-lineage "
-             "file): relaunch with RESET_LINEAGE=1 so the run gets the Fr identity")
+             "file): the F-reset arm is launched with OPT_RESET=1 from the warm anchor, never as F-warm")
 if variant == "V" and not n_state:
     sys.exit("V control declared but the resume ckpt has CLEARED optimizer state - abort")
 print(f"lineage OK for variant {variant}")
@@ -190,7 +215,8 @@ if [ "$OPT_RESET" = "1" ]; then
   mkdir -p "$SAVEDIR" || { echo "cannot create ${SAVEDIR} - abort"; exit 2; }
   if [ -e "$RESET_CKPT" ] && [ "$OPT_RESET_FORCE" != "1" ]; then
     echo "stripped copy already exists: ${RESET_CKPT} - refusing to overwrite (a live run may be resuming from it)."
-    echo "  -> pass OPT_RESET_FORCE=1 to regenerate, or relaunch with OPT_RESET=0 RESET_LINEAGE=1 RESUME_CKPT=${RESET_CKPT} to reuse it. abort"
+    echo "  -> pass OPT_RESET_FORCE=1 to regenerate it (the strip is deterministic). RESET_LINEAGE=1 is NOT a reuse route:"
+    echo "     it requires EXPECTED_STEP > ${ANCHOR_STEPS}, i.e. an Fr checkpoint that has already advanced. abort"
     exit 2
   fi
   echo "--- OPT_RESET: writing state-stripped copy (anchor untouched) ---"

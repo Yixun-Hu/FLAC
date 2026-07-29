@@ -130,7 +130,7 @@ case_run "wrong-step ckpt rejected" 2 "global_step 12345 != expected 87500" \
   -- MODEL_CONFIG=FLAC_AR_BF.json RESUME_CKPT="$WRONGSTEP" MAXSTEPS=88750 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
 case_run "weights-only ckpt rejected" 2 "no 'optimizer_states' key" \
   -- MODEL_CONFIG=FLAC_AR_BF.json RESUME_CKPT="$WEIGHTSONLY" MAXSTEPS=88750 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
-case_run "stripped ckpt mislabelled as F-warm" 2 "relaunch with RESET_LINEAGE=1" \
+case_run "stripped ckpt mislabelled as F-warm" 2 "launched with OPT_RESET=1 from the warm anchor, never as F-warm" \
   -- MODEL_CONFIG=FLAC_AR_BF.json RESUME_CKPT="$STRIPPED" MAXSTEPS=88750 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
 case_run "re-stripping an already-stripped ckpt rejected" 2 "ALREADY has cleared optimizer state" \
   -- MODEL_CONFIG=FLAC_AR_BF.json OPT_RESET=1 RESUME_CKPT="$STRIPPED" MAXSTEPS=88750 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
@@ -148,13 +148,20 @@ case_run "F-warm cadence override echoed" 2 "ckpt-every 625" \
   -- MODEL_CONFIG=FLAC_AR_BF.json RESUME_CKPT="$ANCHOR" MAXSTEPS=88750 CHECKPOINT_EVERY=625 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
 case_run "V identity" 2 "identity: --name FLAC_exp09_V --experiment-name exp09_V --save-dir outputs_FLAC/exp09_V" \
   -- MODEL_CONFIG=FLAC_AR_BVp1.json RESUME_CKPT="$ANCHOR" MAXSTEPS=97500 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
-case_run "F-reset (continuation) identity via RESET_LINEAGE" 2 "identity: --name FLAC_exp09_Fr --experiment-name exp09_Fr --save-dir outputs_FLAC/exp09_Fr" \
-  -- MODEL_CONFIG=FLAC_AR_BF.json RESET_LINEAGE=1 RESUME_CKPT="$STRIPPED" MAXSTEPS=88750 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
 
-echo "--- F. OPT_RESET strip path (synthetic anchor -> ${RESET_DIR}) ---"
+echo "--- E2. RESET_LINEAGE treatment-label provenance (reverify REMAINING) ---"
+case_run "RESET_LINEAGE=1 with the warm anchor (label bypass) rejected" 2 "requires RESUME_CKPT to live inside the F-reset namespace" \
+  -- MODEL_CONFIG=FLAC_AR_BF.json RESET_LINEAGE=1 EXPECTED_STEP=88125 RESUME_CKPT="$ANCHOR" MAXSTEPS=90000 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
+case_run "RESET_LINEAGE=1 with a stripped copy OUTSIDE the Fr dir rejected" 2 "requires RESUME_CKPT to live inside the F-reset namespace" \
+  -- MODEL_CONFIG=FLAC_AR_BF.json RESET_LINEAGE=1 EXPECTED_STEP=88125 RESUME_CKPT="$STRIPPED" MAXSTEPS=90000 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
+case_run "EXPECTED_STEP=80000 (pre-anchor) rejected globally" 2 "is pre-anchor: exp_09 only ever resumes at or after 87500" \
+  -- MODEL_CONFIG=FLAC_AR_BF.json EXPECTED_STEP=80000 RESUME_CKPT="$ANCHOR" MAXSTEPS=88750 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
+
+echo "--- F. Fr namespace cases (synthetic anchor -> ${RESET_DIR}) ---"
 if [ -e "$RESET_DIR" ]; then
-  echo "SKIP  ${RESET_DIR} already exists - refusing to touch a real run's directory."
-  echo "      (delete it manually if it is stale, then re-run this exercise)"
+  echo "SKIP  ${RESET_DIR} already exists - refusing to touch a possibly-live run's directory."
+  echo "      (verify it is stale and remove it yourself, then re-run this exercise)"
+  echo "SKIP  cases: OPT_RESET strip / clobber-refusal / OPT_RESET_FORCE / RESET_LINEAGE positive+step gates"
 else
   case_run "OPT_RESET strips, verifies and switches to the copy" 2 "adam_state=CLEARED param_groups=KEPT" \
     -- MODEL_CONFIG=FLAC_AR_BF.json OPT_RESET=1 RESUME_CKPT="$ANCHOR" MAXSTEPS=88750 CHECKPOINT_EVERY=625 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
@@ -175,7 +182,46 @@ assert a["optimizer_states"][0]["state"], "synthetic anchor was mutated"
 print("  OK: entry kept, state cleared, param_groups identical to the anchor, anchor intact")
 PY
   [ $? -eq 0 ] && PASS=$((PASS+1)) || FAIL=$((FAIL+1))
-  rm -rf "$RESET_DIR" && echo "cleaned up ${RESET_DIR}"
+
+  # a synthetic *advanced* Fr checkpoint - the only thing RESET_LINEAGE=1 may resume
+  FR_CKPT="${RESET_DIR}/epoch=20-step=88125.ckpt"
+  FR_CKPT="$FR_CKPT" python3 - <<'PY'
+import os, torch
+torch.save({"epoch": 20, "global_step": 88125, "pytorch-lightning_version": "2.1.0",
+            "state_dict": {"diffusion.w": torch.ones(2), "diffusion_ema.step": torch.tensor(88125),
+                           "diffusion_ema.ema_model.w": torch.zeros(2)},
+            "loops": {}, "callbacks": {},
+            "optimizer_states": [{"state": {0: {"step": torch.tensor(625.0), "exp_avg": torch.ones(2),
+                                                "exp_avg_sq": torch.ones(2)}},
+                                  "param_groups": [{"lr": 4.79e-05, "initial_lr": 5e-05,
+                                                    "betas": (0.9, 0.999), "weight_decay": 1e-3,
+                                                    "params": [0]}]}],
+            "lr_schedulers": [{"last_epoch": 88125, "_step_count": 88126, "_last_lr": [4.79e-05],
+                               "base_lrs": [5e-05]}],
+            "model_config": {"model_type": "diffusion_cond"}}, os.environ["FR_CKPT"])
+PY
+  case_run "RESET_LINEAGE=1 without explicit EXPECTED_STEP rejected" 2 "requires EXPECTED_STEP to be set explicitly" \
+    -- MODEL_CONFIG=FLAC_AR_BF.json RESET_LINEAGE=1 RESUME_CKPT="$FR_CKPT" MAXSTEPS=90000 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
+  case_run "RESET_LINEAGE=1 with EXPECTED_STEP == anchor rejected" 2 "requires EXPECTED_STEP > 87500" \
+    -- MODEL_CONFIG=FLAC_AR_BF.json RESET_LINEAGE=1 EXPECTED_STEP=87500 RESUME_CKPT="${RESET_DIR}/optreset_from_87500.ckpt" MAXSTEPS=90000 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
+  case_run "RESET_LINEAGE=1 accepted for an advanced Fr checkpoint" 2 "identity: --name FLAC_exp09_Fr --experiment-name exp09_Fr --save-dir outputs_FLAC/exp09_Fr" \
+    -- MODEL_CONFIG=FLAC_AR_BF.json RESET_LINEAGE=1 EXPECTED_STEP=88125 RESUME_CKPT="$FR_CKPT" MAXSTEPS=90000 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
+  case_run "...and its lineage validates as Fr" 2 "lineage OK for variant Fr" \
+    -- MODEL_CONFIG=FLAC_AR_BF.json RESET_LINEAGE=1 EXPECTED_STEP=88125 RESUME_CKPT="$FR_CKPT" MAXSTEPS=90000 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
+
+  # targeted cleanup: remove ONLY the two files this exercise created, then rmdir the
+  # namespace if (and only if) it is empty. Never `rm -rf` a run directory - a real run
+  # could have been created in it concurrently (reverify finding).
+  echo "--- targeted cleanup of ${RESET_DIR} ---"
+  for f in "${RESET_DIR}/optreset_from_87500.ckpt" "$FR_CKPT"; do
+    [ -f "$f" ] && rm -f "$f" && echo "  rm ${f}"
+  done
+  if rmdir "$RESET_DIR" 2>/dev/null; then
+    echo "  rmdir ${RESET_DIR} (was empty)"
+  else
+    echo "  KEPT ${RESET_DIR} - not empty (something else wrote into it); left untouched:"
+    ls -la "$RESET_DIR" | sed 's/^/    /'
+  fi
 fi
 
 echo

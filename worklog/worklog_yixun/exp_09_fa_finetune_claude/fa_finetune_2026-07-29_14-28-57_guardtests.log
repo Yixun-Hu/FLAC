@@ -1,0 +1,72 @@
+=== f_arm_launch guard exercise - 2026-07-29_14-28-57 - bd619d8 ===
+launcher: worklog/worklog_yixun/exp_09_fa_finetune_claude/f_arm_launch.sh
+synthetic checkpoints written to /tmp/tmp.Nr9JMhQcRF
+--- A. environment / knob validation ---
+PASS  rc=2   wrong conda env rejected
+PASS  rc=2   MODEL_CONFIG unset
+PASS  rc=2   MODEL_CONFIG=FLAC_AR_BV.json (not an arm)
+PASS  rc=2   MODEL_CONFIG path traversal
+PASS  rc=2   OPT_RESET=2
+PASS  rc=2   OPT_RESET_FORCE=2
+PASS  rc=2   RESET_LINEAGE=yes
+PASS  rc=2   CHECKPOINT_EVERY=0
+PASS  rc=2   CHECKPOINT_EVERY=abc
+--- B. arm/variant scope ---
+PASS  rc=2   V arm + OPT_RESET=1 rejected
+PASS  rc=2   V arm + RESET_LINEAGE=1 rejected
+PASS  rc=2   OPT_RESET=1 + RESET_LINEAGE=1 contradictory
+--- C. resume / budget requirements ---
+PASS  rc=2   RESUME_CKPT unset
+PASS  rc=2   RESUME_CKPT missing file
+PASS  rc=2   MAXSTEPS unset
+PASS  rc=2   MAXSTEPS=abc
+PASS  rc=2   MAXSTEPS == anchor steps
+PASS  rc=2   MB=8 ACC=8 rung rejected
+--- D. resume-lineage validation ---
+PASS  rc=2   wrong-step ckpt rejected
+PASS  rc=2   weights-only ckpt rejected
+PASS  rc=2   stripped ckpt mislabelled as F-warm
+PASS  rc=2   re-stripping an already-stripped ckpt rejected
+PASS  rc=2   stripped ckpt on the V arm rejected
+--- E. the three VALID identities (dry-fail at the VRAM gate) ---
+PASS  rc=2   F-warm identity
+PASS  rc=2   F-warm reaches the VRAM gate (all earlier gates passed)
+PASS  rc=2   F-warm lineage accepted
+PASS  rc=2   F-warm cadence override echoed
+PASS  rc=2   V identity
+--- E2. RESET_LINEAGE treatment-label provenance (reverify REMAINING) ---
+PASS  rc=2   RESET_LINEAGE=1 with the warm anchor (label bypass) rejected
+PASS  rc=2   RESET_LINEAGE=1 with a stripped copy OUTSIDE the Fr dir rejected
+PASS  rc=2   EXPECTED_STEP=80000 (pre-anchor) rejected globally
+--- F. Fr namespace cases (synthetic anchor -> outputs_FLAC/exp09_Fr) ---
+PASS  rc=2   OPT_RESET strips, verifies and switches to the copy
+PASS  rc=2   existing stripped copy is not silently overwritten
+PASS  rc=2   OPT_RESET_FORCE=1 regenerates it
+--- post-conditions on the produced copy ---
+  OK: entry kept, state cleared, param_groups identical to the anchor, anchor intact
+PASS  rc=2   RESET_LINEAGE=1 without explicit EXPECTED_STEP rejected
+PASS  rc=2   RESET_LINEAGE=1 with EXPECTED_STEP == anchor rejected
+PASS  rc=2   RESET_LINEAGE=1 accepted for an advanced Fr checkpoint
+PASS  rc=2   ...and its lineage validates as Fr
+--- targeted cleanup of outputs_FLAC/exp09_Fr ---
+  rm outputs_FLAC/exp09_Fr/optreset_from_87500.ckpt
+  rm outputs_FLAC/exp09_Fr/epoch=20-step=88125.ckpt
+  rmdir outputs_FLAC/exp09_Fr (was empty)
+
+=== guard exercise: 39 passed, 0 failed ===
+--- removing launcher logs created by this exercise ---
+  rm fa_finetune_2026-07-29_14-30-31_exp09_Fw_train.log
+  rm fa_finetune_2026-07-29_14-30-38_exp09_Fw_train.log
+  rm fa_finetune_2026-07-29_14-30-45_exp09_Fw_train.log
+  rm fa_finetune_2026-07-29_14-30-52_exp09_Fr_train.log
+  rm fa_finetune_2026-07-29_14-30-58_exp09_V_train.log
+  rm fa_finetune_2026-07-29_14-31-05_exp09_Fw_train.log
+  rm fa_finetune_2026-07-29_14-31-12_exp09_Fw_train.log
+  rm fa_finetune_2026-07-29_14-31-19_exp09_Fw_train.log
+  rm fa_finetune_2026-07-29_14-31-26_exp09_Fw_train.log
+  rm fa_finetune_2026-07-29_14-31-33_exp09_V_train.log
+  rm fa_finetune_2026-07-29_14-31-56_exp09_Fr_train.log
+  rm fa_finetune_2026-07-29_14-32-08_exp09_Fr_train.log
+  rm fa_finetune_2026-07-29_14-32-15_exp09_Fr_train.log
+  rm fa_finetune_2026-07-29_14-32-41_exp09_Fr_train.log
+  rm fa_finetune_2026-07-29_14-32-48_exp09_Fr_train.log
