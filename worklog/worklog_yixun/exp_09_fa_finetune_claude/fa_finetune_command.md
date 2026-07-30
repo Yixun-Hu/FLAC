@@ -10,3 +10,5 @@ ANCHOR=outputs_FLAC/exp07_P1/FLAC_exp07_P1/exp07_P1/checkpoints/epoch=19-step=87
 ```
 ## 1,250-step variant probes (next): MAXSTEPS=88750 CHECKPOINT_EVERY=625 LOGGER=wandb, Fw then Fr
 ## Committed runs (after fixed-rule pick): F winner MAXSTEPS=97500 + V control (MODEL_CONFIG=FLAC_AR_BVp1.json)
+## 1,250-step probes LAUNCHED 2026-07-29 14:48:29 — Fw then Fr, MAXSTEPS=88750 CHECKPOINT_EVERY=625 wandb
+## Committed runs LAUNCHED 2026-07-29 20:15:05 — F-warm 88750->97500 then V anchor->97500
