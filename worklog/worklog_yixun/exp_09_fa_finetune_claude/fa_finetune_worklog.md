@@ -14,3 +14,7 @@
 - 15-step resume probes: both PASS (Fw full-state restore; Fr stripped-copy verified: adam CLEARED, param_groups KEPT @4.794633e-5, anchor SHA intact).
 - 1,250-step probes (online @88750): Fw EDT 40.352/R@1 5.981 vs Fr 40.708/5.918 → **Fw wins both** → F-warm continues (per plan: resume its own 88750 ckpt) to 97.5k. EMA @88750: Fw 9.000/1.0394/37.562/6.170. Both variants show the fa-adaptation transient (R@1 dip at +625, recovery by +1250) — expected.
 - Next: F-warm 88750→97500 (wandb), then V control (anchor→97500, BVp1). Screens 2.5k-cadence after each; then G1–G4.
+
+## 2026-07-30T12:31:49-04:00 — F-warm committed run DONE (97.5k) + screens: fine-tune-damage signature — G2 heading to FAIL (pre-registered NEGATIVE branch)
+- Fw screens (EMA s42): 90k 8.785/1.0232/38.307/R5.713 · 92.5k 8.990/1.0426/41.511/R5.207 · 95k 8.686/1.0466/38.883/R5.129 · 97.5k 8.921/1.0626/44.030/R4.702 — ALL worse than the anchor (8.293/0.966/35.95/6.96) on ALL metrics, degrading monotonically; probe window (88.1–88.7k) was the peak. C50 alone ~19σ outside the candidate band → **no G2 qualifier possible** on this curve.
+- Read: exp_03–06's damage law reproduces from the warm-state SyncBN-64 anchor at native-schedule lr (4.79e-5). Pending before the verdict: V control (G4 ΔΔ — drift vs fa-specific) + G1 equivariance block on the best F ckpt (88750). If G1 passes, the finding = equivariance achieved at quality cost at this lr → the pre-registered reduced-lr option goes to Yixun.
