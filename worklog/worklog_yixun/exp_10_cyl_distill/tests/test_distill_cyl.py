@@ -19,32 +19,62 @@ def test_field_port_source_quote():
     assert "c = (coord[:, i, :, None, None] - depth_coord) / self.max_value" in src
 
 
-def test_branch_loss_sum_and_fp32():
-    s = torch.randn(2, dc.TOKENS, dc.DIM, dtype=torch.bfloat16)
-    t = torch.randn(2, dc.TOKENS, dc.DIM, dtype=torch.bfloat16)
+def test_branch_loss_exact_formula():
+    torch.manual_seed(0)
+    s = torch.randn(2, dc.TOKENS, dc.DIM)
+    t = torch.randn(2, dc.TOKENS, dc.DIM)
     L = dc.branch_loss(s, t)
+    want = (1.0 - torch.nn.functional.cosine_similarity(s, t, dim=-1, eps=1e-8)).mean() \
+           + torch.nn.functional.mse_loss(s, t, reduction="mean")
+    assert torch.allclose(L, want, atol=0, rtol=0)      # EXACT — /2 or term-drop mutants die
     assert L.dtype == torch.float32
-    zero = dc.branch_loss(s, s)
-    assert zero.item() < 1e-3        # cos term ~0, mse 0 (bf16->fp32 cast exact copy)
     with pytest.raises(SystemExit):
         dc.branch_loss(torch.randn(2, 10, dc.DIM), torch.randn(2, 10, dc.DIM))
 
 
+def test_total_loss_is_sum_not_mean():
+    torch.manual_seed(1)
+    a, b = torch.randn(1, dc.TOKENS, dc.DIM), torch.randn(1, dc.TOKENS, dc.DIM)
+    c, d = torch.randn(1, dc.TOKENS, dc.DIM), torch.randn(1, dc.TOKENS, dc.DIM)
+    L, L_src, L_ctx = dc.total_loss(a, b, c, d)
+    assert torch.allclose(L, L_src + L_ctx, atol=0, rtol=0)
+    assert not torch.allclose(L, (L_src + L_ctx) / 2)   # mean mutant dies
+
+
+def test_strip_prefix_count_refusal():
+    ok = dc.strip_prefix(torch.randn(2, dc.TOKENS + dc.N_PREFIX, dc.DIM))
+    assert ok.shape == (2, dc.TOKENS, dc.DIM)
+    for bad_tokens in (dc.TOKENS, dc.TOKENS + 1, dc.TOKENS + dc.N_PREFIX + 1):
+        with pytest.raises(SystemExit):
+            dc.strip_prefix(torch.randn(2, bad_tokens, dc.DIM))
+
+
 def test_lr_schedule_pins():
-    assert abs(dc.lr_at(0, 10000) - 1e-4 / 500) < 1e-12          # warmup start
-    assert abs(dc.lr_at(499, 10000) - 1e-4) < 1e-9               # warmup end
-    assert abs(dc.lr_at(9999, 10000) - 1e-6) < 2e-8              # cosine floor
+    assert abs(dc.lr_at(0, 10000) - 1e-4 / 500) < 1e-15          # warmup start
+    assert dc.lr_at(499, 10000) == 1e-4                          # warmup end EXACT
+    assert dc.lr_at(500, 10000) < 1e-4                           # no base repeat (r1 #6)
+    assert abs(dc.lr_at(9999, 10000) - 1e-6) < 1e-18             # floor EXACT at last executed step
     mid = dc.lr_at(500 + (10000 - 500) // 2, 10000)
-    assert 4e-5 < mid < 6e-5                                     # ~half amplitude
+    assert 4e-5 < mid < 6e-5
 
 
-def test_gate_arithmetic():
-    losses = [1.0] * 1000 + [0.4] * 9000
+def test_gate_arithmetic_and_window_boundaries():
+    # heterogeneous fixture: early window (steps 801-1000, 0-idx 800..999) = 2.0,
+    # neighbors 800 and 1000 (0-idx 799/1000) poisoned; late window = 0.9 with
+    # poisoned neighbor at 0-idx 9799. Any window shift changes the means.
+    losses = [5.0] * 1000 + [0.9] * 9000
+    for i in range(800, 1000):
+        losses[i] = 2.0
+    losses[799] = 100.0
+    losses[9799] = 100.0
     g = dc.gate_from_losses(losses)
-    assert g["pass"] is True and abs(g["early_mean_801_1000"] - 1.0) < 1e-12
-    losses = [1.0] * 1000 + [0.6] * 9000
-    assert dc.gate_from_losses(losses)["pass"] is False
-    assert dc.gate_from_losses([1.0] * 500)["pass"] is False     # short run never passes
+    assert abs(g["early_mean_801_1000"] - 2.0) < 1e-12           # off-by-one -> 2.49
+    assert abs(g["late_mean_9801_10000"] - 0.9) < 1e-12          # off-by-one -> ~1.4
+    assert g["pass"] is True                                      # 0.9 < 1.0
+    for i in range(9800, 10000):
+        losses[i] = 1.01
+    assert dc.gate_from_losses(losses)["pass"] is False           # 1.01 > 1.0 boundary
+    assert dc.gate_from_losses([1.0] * 500)["pass"] is False
 
 
 def test_resolve_meta_two_step_and_fail():
