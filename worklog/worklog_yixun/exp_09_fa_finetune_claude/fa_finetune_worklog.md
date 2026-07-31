@@ -22,3 +22,8 @@
 ## 2026-07-30T19:02:05-04:00 — ⚠️ PROTOCOL ERROR FOUND: all Fw evals ran with cond_method='vanilla' (eval_FLAC --cond-method never passed) — damage curve is a train/eval-mismatch candidate; G1 non-flatness EXPECTED under vanilla eval
 - Evidence: rot-sweep JSON records cond_method='vanilla', frame_avg_angles=None; eval_FLAC imports invariant_conditioning + has a --cond-method flag (filename suffix `_fa_invariant_a4`) we never used. Scope: ALL exp_09 Fw evals AND exp_07 B-F screens (its from-scratch conclusion needs a robustness re-check under fa eval; magnitude 2× likely survives, but must be verified).
 - CORRECTIVE BLOCK (launched): Fw-88750 with --cond-method fa_invariant — rotation sweep 0/90/180/270 + 45 control, and the fine-tune curve 90k–97.5k. G1/G2 adjudication re-runs on these.
+
+## 2026-07-30T22:16:53-04:00 — VERDICT: G1 PASS (exact C₄: rotations identical to 3–4 decimals; 45° control breaks) + Fw-95000 fa-eval 5-seed both K: 4 SUPERIOR + 1 EQUIV + 2 NONINF + 1 OUT (K8 EDT +0.40) → **PARTIAL tier, at released-Table-1 level**
+- K8: T60 8.4652±0.0058 SUP(−10.8σ) · C50 0.9582±0.0010 SUP(−3.2σ) · EDT 37.4968±0.0813 OUT(+3.7σ) · R@1 6.9243±0.0701 NONINF(−1.1σ). K1: 9.8271±0.0612 SUP · 1.0337±0.0025 SUP · 40.8740±0.3393 NONINF · 6.8581±0.1108 EQUIV(+0.11σ, above released).
+- G2 vs anchor: C50 better, R@1 ≈ equal, T60/EDT band-scale cost within the V control's drift band (G4 ΔΔ ≈ 0). Yesterday's "damage" = the vanilla-eval protocol artifact, retired.
+- **Checkpoint of record (equivariant): `outputs_FLAC/exp09_Fw/.../epoch=20-step=95000.ckpt`, eval with `--cond-method fa_invariant`.** Closing package (incl. protocol-error record + exp_07 B-F fa-eval robustness note) = tomorrow.
