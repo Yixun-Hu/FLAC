@@ -37,6 +37,7 @@ EXP09_CFG = "/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/worklog_yi
 EXP09_CFG_SHA = "86f5e2bedde28a323e3b159d8a7ea93cb34e1bdea86d06c8f45236aa3f3b3bfa"
 TRAIN_MANIFEST_REL = "data/AR/train.json"
 TRAIN_MANIFEST_SHA = "aa4e52d616fc42e88d5e4952c7e7ff266347615a60f93a0590b707f5eeaead03"
+DATASET_CFG_PIN = "src/configs/dataset_configs/AR/train/acousticroom_train.json"
 PACKAGE_PIN = "301731b5540a22a6d42ec8926e53379854bf4f97"
 CANON_TEACHER = os.path.join(WT, "outputs_FLAC", "exp10_teacher", "teacher_vit_p1s55000.pt")
 CANON_MANIFEST = os.path.join(WT, "outputs_FLAC", "exp10_teacher", "teacher_manifest.json")
@@ -150,6 +151,13 @@ def real_run_gates(args, world):
     actual = sha256_file(args.teacher)
     if actual != man.get("output_sha256") or actual != args.teacher_sha:
         die("teacher sha does not match BOTH the S1 manifest and the CLI pin")
+    if os.path.realpath(os.path.join(WT, args.dataset_config)) != \
+            os.path.realpath(os.path.join(WT, DATASET_CFG_PIN)):
+        die("real run must use the pinned dataset config (r2 #1)")
+    dcfg = json.load(open(os.path.join(WT, DATASET_CFG_PIN)))
+    mpath = dcfg["datasets"][0].get("json_file_path", "")
+    if os.path.realpath(os.path.join(WT, mpath)) != os.path.realpath(os.path.join(WT, TRAIN_MANIFEST_REL)):
+        die(f"pinned dataset config points at {mpath!r}, not the hashed manifest (r2 #1)")
     if sha256_file(os.path.join(WT, TRAIN_MANIFEST_REL)) != TRAIN_MANIFEST_SHA:
         die("train.json manifest hash drift")
     if sha256_file(EXP09_CFG) != EXP09_CFG_SHA:
@@ -232,7 +240,8 @@ def main():
                             weight_decay=0.05, eps=1e-8)
     os.makedirs(args.out, exist_ok=True)
     log_path = os.path.join(args.out, "distill_log.jsonl")
-    if rank == 0 and os.path.exists(log_path):
+    # r2 #2: EVERY rank checks (the file is on shared storage) so no rank proceeds alone.
+    if os.path.exists(log_path):
         die("distill_log.jsonl exists — NO-resume semantics")
 
     if not args.synthetic:

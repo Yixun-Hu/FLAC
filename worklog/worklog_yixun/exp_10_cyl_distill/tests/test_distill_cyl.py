@@ -53,7 +53,7 @@ def test_lr_schedule_pins():
     assert abs(dc.lr_at(0, 10000) - 1e-4 / 500) < 1e-15          # warmup start
     assert dc.lr_at(499, 10000) == 1e-4                          # warmup end EXACT
     assert dc.lr_at(500, 10000) < 1e-4                           # no base repeat (r1 #6)
-    assert abs(dc.lr_at(9999, 10000) - 1e-6) < 1e-18             # floor EXACT at last executed step
+    assert dc.lr_at(9999, 10000) == 1e-6                         # floor EXACT equality (r2 #3)
     mid = dc.lr_at(500 + (10000 - 500) // 2, 10000)
     assert 4e-5 < mid < 6e-5
 
