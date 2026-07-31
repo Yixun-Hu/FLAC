@@ -234,7 +234,11 @@ def main():
     teacher = build_teacher(args.teacher, device)
     student = build_student(device)
     if world > 1:
-        student = torch.nn.parallel.DistributedDataParallel(student, device_ids=[rank])
+        # find_unused_parameters=True: the ViT mask_token never participates in these
+        # forwards (ladder-2 DDP failure, disclosed); this mirrors the codebase's own
+        # training strategy 'ddp_find_unused_parameters_true' (exp_06 C2 / P1 launches).
+        student = torch.nn.parallel.DistributedDataParallel(
+            student, device_ids=[rank], find_unused_parameters=True)
     net = student.module if world > 1 else student
     opt = torch.optim.AdamW(net.parameters(), lr=1e-4, betas=(0.9, 0.999),
                             weight_decay=0.05, eps=1e-8)
@@ -281,13 +285,17 @@ def main():
                 mstep += 1
 
     def forward_losses(f_src, f_ctx):
+        # ONE concatenated forward per net per micro-batch: the ViT is per-sample
+        # independent (no cross-sample ops), so cat->split is mathematically identical
+        # to two forwards and avoids DDP multi-forward reducer hazards (ladder-2 fix).
+        B = f_src.shape[0]
+        f_cat = torch.cat([f_src, f_ctx], dim=0)
         with torch.autocast("cuda", dtype=torch.bfloat16, enabled=device.type == "cuda"):
-            s_src = student(f_src).last_hidden_state
-            s_ctx = student(f_ctx).last_hidden_state
+            s_cat = student(f_cat).last_hidden_state
             with torch.no_grad():
-                t_src = teacher(pixel_values=f_src).last_hidden_state
-                t_ctx = teacher(pixel_values=f_ctx).last_hidden_state
-        return total_loss(s_src, strip_prefix(t_src), s_ctx, strip_prefix(t_ctx))
+                t_cat = teacher(pixel_values=f_cat).last_hidden_state
+        t_p = strip_prefix(t_cat)
+        return total_loss(s_cat[:B], t_p[:B], s_cat[B:], t_p[B:])
 
     gen = micro_batches()
     if args.probe_readback:
