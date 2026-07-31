@@ -12,6 +12,7 @@ Contract (all refusals SystemExit):
   n_loaded params + the backbone id, logged by train.py).
 """
 import hashlib
+import io
 import sys
 
 import torch
@@ -31,8 +32,12 @@ def sha256_file(path):
 
 def load_distilled_backbone(model, artifact_path, pinned_sha):
     """Load the distilled state dict into the SHARED cylindrical backbone. Returns
-    (n_params_loaded, backbone_object) for the caller's launch log."""
-    actual = sha256_file(artifact_path)
+    (n_params_loaded, backbone_object) for the caller's launch log.
+    r5 #1: the file is read ONCE into memory; the hash and torch.load both consume that
+    same immutable buffer — no hash-then-reopen TOCTOU window."""
+    with open(artifact_path, "rb") as fh:
+        blob = fh.read()
+    actual = hashlib.sha256(blob).hexdigest()
     if actual != pinned_sha:
         die(f"artifact sha {actual[:12]} != pinned {pinned_sha[:12]}")
     try:
@@ -47,7 +52,7 @@ def load_distilled_backbone(model, artifact_path, pinned_sha):
     cls_name = type(src_vit).__name__
     if cls_name != "CylindricalDINOv3ViTModel":
         die(f"backbone class {cls_name!r} != CylindricalDINOv3ViTModel")
-    sd = torch.load(artifact_path, map_location="cpu", weights_only=False)
+    sd = torch.load(io.BytesIO(blob), map_location="cpu", weights_only=False)
     try:
         src_vit.load_state_dict(sd, strict=True)
     except RuntimeError as exc:

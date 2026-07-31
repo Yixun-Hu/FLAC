@@ -137,6 +137,11 @@ def main():
     model = create_model_from_config(model_config)
 
     if getattr(args, "init_backbone", ""):
+        # r5 #2: init_backbone is mutually exclusive with any full-model init source.
+        if args.pretrained_ckpt_path or getattr(args, "ckpt_path", ""):
+            raise SystemExit("REFUSE: --init-backbone cannot combine with "
+                             "--pretrained-ckpt-path or --ckpt-path (they would overwrite "
+                             "or bypass the distilled backbone)")
         # exp_10 S3: distilled-backbone initialization (fail-closed; records the count).
         import sys as _sys
         _sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),

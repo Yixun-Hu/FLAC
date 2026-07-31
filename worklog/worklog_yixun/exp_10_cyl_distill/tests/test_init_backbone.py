@@ -74,3 +74,26 @@ def test_missing_conditioners_refused(tmp_path):
     with pytest.raises(SystemExit) as e:
         ib.load_distilled_backbone(types.SimpleNamespace(), p, sha)
     assert "expected conditioner" in str(e.value)
+
+
+def test_single_read_no_toctou(tmp_path, monkeypatch):
+    # the loader must consume ONE in-memory buffer: after open+read, replacing the file
+    # on disk must NOT affect what gets loaded (hash and load see the same bytes)
+    m, vit = fake_model()
+    p, sha = artifact(tmp_path, {"w": torch.full((2, 2), 7.0)})
+    real_open = open
+    swapped = {"done": False}
+    def swapping_open(path, mode="r", *a, **k):
+        fh = real_open(path, mode, *a, **k)
+        if str(path) == p and "b" in mode and not swapped["done"]:
+            swapped["done"] = True
+            data = fh.read()
+            fh.close()
+            torch.save({"w": torch.zeros(2, 2)}, p)   # attacker swap AFTER the read
+            import io as _io
+            return _io.BytesIO(data)
+        return fh
+    monkeypatch.setattr("builtins.open", swapping_open)
+    n, _ = ib.load_distilled_backbone(m, p, sha)
+    monkeypatch.undo()
+    assert torch.equal(vit.w, torch.full((2, 2), 7.0))   # the ORIGINAL bytes were loaded
