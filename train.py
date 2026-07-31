@@ -136,6 +136,18 @@ def main():
 
     model = create_model_from_config(model_config)
 
+    if getattr(args, "init_backbone", ""):
+        # exp_10 S3: distilled-backbone initialization (fail-closed; records the count).
+        import sys as _sys
+        _sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                         "worklog", "worklog_yixun", "exp_10_cyl_distill"))
+        from init_backbone import load_distilled_backbone
+        if not getattr(args, "init_backbone_sha", ""):
+            raise SystemExit("REFUSE: --init-backbone requires --init-backbone-sha")
+        n_loaded, _bb = load_distilled_backbone(model, args.init_backbone, args.init_backbone_sha)
+        print(f"exp_10 init-backbone: loaded {n_loaded:,} params into the SHARED cylindrical ViT "
+              f"from {args.init_backbone}")
+
     if args.pretrained_ckpt_path:
         print('Loading pretrained model...')
         weights = load_ckpt_state_dict(args.pretrained_ckpt_path)
