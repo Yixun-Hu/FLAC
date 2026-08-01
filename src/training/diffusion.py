@@ -55,11 +55,24 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
             validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
             p_one_shot: float = 0.0,
-            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
     ):
         super().__init__()
 
         self.diffusion = model
+
+        if cond_method not in ("vanilla", "relative_phase"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'relative_phase'."
+            )
+        phase_aware = getattr(model, "query_phase_cond_id", None) is not None
+        if cond_method == "relative_phase" and not phase_aware:
+            raise ValueError(
+                "relative_phase requires a phase-aware model with query_phase_cond_id"
+            )
+        self.cond_method = cond_method
 
         if use_ema:
             self.diffusion_ema = EMA(
@@ -186,6 +199,12 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
 
         return [opt_diff]
 
+    def _compute_conditioning(self, metadata):
+        """Run the single-pass conditioner for legacy or relative-phase models."""
+        if self.cond_method in ("vanilla", "relative_phase"):
+            return self.diffusion.conditioner(metadata, self.device)
+        raise ValueError(f"Unknown cond_method: {self.cond_method}")
+
     def training_step(self, batch, batch_idx):
         reals, metadata = batch
 
@@ -202,7 +221,7 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             loss_info["audio_reals"] = diffusion_input
 
         p.tick("setup")
-        conditioning = self.diffusion.conditioner(metadata, self.device)
+        conditioning = self._compute_conditioning(metadata)
 
         # If mask_padding is on, randomly drop the padding masks to allow for learning silence padding
         use_padding_mask = self.mask_padding and random.random() > self.mask_padding_dropout
@@ -340,7 +359,7 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         diffusion_input = reals
 
         with torch.amp.autocast('cuda') and torch.no_grad():
-            conditioning = self.diffusion.conditioner(metadata, self.device)
+            conditioning = self._compute_conditioning(metadata)
 
         # TODO: decide what to do with padding masks during validation
         # # If mask_padding is on, randomly drop the padding masks to allow for learning silence padding
@@ -406,6 +425,7 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             val_loss = self.all_gather(val_loss).mean().item()
 
             log_metric(self.logger, outputs_key, val_loss, step=self.global_step)
+            self.log(outputs_key, val_loss, sync_dist=False)
 
         # Get average over all timesteps
         val_loss = torch.tensor([val for val in self.validation_step_outputs.values()]).mean()
@@ -414,6 +434,7 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         val_loss = self.all_gather(val_loss).mean().item()
 
         log_metric(self.logger, 'val/avg_loss', val_loss, step=self.global_step)
+        self.log('val/avg_loss', val_loss, prog_bar=True, sync_dist=False)
 
         # Reset validation losses
         for validation_timestep in self.validation_timesteps:
@@ -432,7 +453,7 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         noise = torch.randn([B, self.diffusion.io_channels, samples]).to(self.device)
 
         with torch.amp.autocast('cuda') and torch.no_grad():
-            conditioning = self.diffusion.conditioner(metadata, self.device)
+            conditioning = self._compute_conditioning(metadata)
 
         cond_inputs = self.diffusion.get_conditioning_inputs(conditioning)
 

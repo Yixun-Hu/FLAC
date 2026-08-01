@@ -7,7 +7,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .blocks import FourierFeatures
-from .transformer import ContinuousTransformer
+from .transformer import AzimuthalRotaryEmbedding, ContinuousTransformer
 
 class DiffusionTransformer(nn.Module):
     def __init__(self, 
@@ -27,6 +27,7 @@ class DiffusionTransformer(nn.Module):
         timestep_cond_type: tp.Literal["global", "input_concat"] = "global",
         timestep_embed_dim=None,
         diffusion_objective: tp.Literal["v", "rectified_flow", "rf_denoiser"] = "rectified_flow",
+        azimuth_num_freqs=None,
         **kwargs):
 
         super().__init__()
@@ -51,6 +52,29 @@ class DiffusionTransformer(nn.Module):
         )
         
         self.diffusion_objective = diffusion_objective
+
+        if azimuth_num_freqs is not None and (
+            not isinstance(azimuth_num_freqs, int) or azimuth_num_freqs < 0
+        ):
+            raise ValueError(
+                "azimuth_num_freqs must be None or a non-negative integer, "
+                f"got {azimuth_num_freqs!r}"
+            )
+        if (
+            azimuth_num_freqs is not None
+            and 2 * azimuth_num_freqs > embed_dim // num_heads
+        ):
+            raise ValueError(
+                "azimuth RoPE needs 2 * azimuth_num_freqs dimensions per "
+                f"head, but got {2 * azimuth_num_freqs} > "
+                f"{embed_dim // num_heads}"
+            )
+        self.azimuth_num_freqs = azimuth_num_freqs
+        self.azimuth_rope = (
+            AzimuthalRotaryEmbedding(azimuth_num_freqs)
+            if azimuth_num_freqs is not None
+            else None
+        )
 
         if cond_token_dim > 0:
             # Conditioning tokens
@@ -125,6 +149,8 @@ class DiffusionTransformer(nn.Module):
         mask=None,
         cross_attn_cond=None,
         cross_attn_cond_mask=None,
+        cross_attn_phases=None,
+        query_phase=None,
         input_concat_cond=None,
         global_embed=None,
         prepend_cond=None,
@@ -132,6 +158,54 @@ class DiffusionTransformer(nn.Module):
         return_info=False,
         exit_layer_ix=None,
         **kwargs):
+
+        cross_rope_phases = None
+        phase_aware = cross_attn_phases is not None or query_phase is not None
+        if phase_aware:
+            if cross_attn_phases is None or query_phase is None:
+                raise ValueError(
+                    "phase-aware cross-attention requires both "
+                    "cross_attn_phases and query_phase"
+                )
+            if cross_attn_cond is None:
+                raise ValueError(
+                    "phase-aware cross-attention requires cross_attn_cond"
+                )
+            if self.azimuth_num_freqs is None:
+                raise ValueError(
+                    "phase-aware cross-attention requires azimuth_num_freqs; "
+                    "use 0 for the phase-aware no-RoPE control"
+                )
+            if cross_attn_phases.ndim != 2:
+                raise ValueError(
+                    "cross_attn_phases must have shape [B, N], got "
+                    f"{tuple(cross_attn_phases.shape)}"
+                )
+            if query_phase.ndim != 1:
+                raise ValueError(
+                    "query_phase must have shape [B], got "
+                    f"{tuple(query_phase.shape)}"
+                )
+            if cross_attn_phases.shape != cross_attn_cond.shape[:2]:
+                raise ValueError(
+                    "cross_attn_phases must align with cross_attn_cond: "
+                    f"got {tuple(cross_attn_phases.shape)} and "
+                    f"{tuple(cross_attn_cond.shape[:2])}"
+                )
+            if query_phase.shape[0] != cross_attn_cond.shape[0]:
+                raise ValueError(
+                    "query_phase batch must align with cross_attn_cond: "
+                    f"got {query_phase.shape[0]} and "
+                    f"{cross_attn_cond.shape[0]}"
+                )
+
+            # K-only RoPE implements <R(phi_T)q, R(phi_i)k> as
+            # <q, R(phi_i - phi_T)k> while leaving Q untouched.
+            relative_phase = (
+                cross_attn_phases.float() - query_phase.float()[:, None]
+            )
+            if self.azimuth_num_freqs > 0:
+                cross_rope_phases = self.azimuth_rope(relative_phase)
 
         if cross_attn_cond is not None:
             cross_attn_cond = self.to_cond_embed(cross_attn_cond)
@@ -202,7 +276,16 @@ class DiffusionTransformer(nn.Module):
 
         if self.transformer_type == "continuous_transformer":
             # Masks not currently implemented for continuous transformer
-            output = self.transformer(x, prepend_embeds=prepend_inputs, context=cross_attn_cond, return_info=return_info, exit_layer_ix=exit_layer_ix, **extra_args, **kwargs)
+            output = self.transformer(
+                x,
+                prepend_embeds=prepend_inputs,
+                context=cross_attn_cond,
+                cross_rope_phases=cross_rope_phases,
+                return_info=return_info,
+                exit_layer_ix=exit_layer_ix,
+                **extra_args,
+                **kwargs,
+            )
 
             if return_info:
                 output, info = output
@@ -234,6 +317,10 @@ class DiffusionTransformer(nn.Module):
         cross_attn_cond_mask=None,
         negative_cross_attn_cond=None,
         negative_cross_attn_mask=None,
+        cross_attn_phases=None,
+        query_phase=None,
+        negative_cross_attn_phases=None,
+        negative_query_phase=None,
         input_concat_cond=None,
         global_embed=None,
         negative_global_embed=None,
@@ -251,6 +338,35 @@ class DiffusionTransformer(nn.Module):
 
         assert causal == False, "Causal mode is not supported for DiffusionTransformer"
 
+        phase_aware = cross_attn_phases is not None or query_phase is not None
+        if cross_attn_phases is None and query_phase is not None:
+            raise ValueError(
+                "phase-aware cross-attention requires cross_attn_phases"
+            )
+        if cross_attn_phases is not None and query_phase is None:
+            raise ValueError("phase-aware cross-attention requires query_phase")
+
+        independent_negative = any(
+            value is not None
+            for value in (
+                negative_cross_attn_cond,
+                negative_cross_attn_mask,
+                negative_global_embed,
+                negative_cross_attn_phases,
+                negative_query_phase,
+            )
+        )
+        if negative_cross_attn_phases is not None or negative_query_phase is not None:
+            raise ValueError(
+                "independent negative phase conditioning is unsupported in "
+                "the V0 phase-aware path"
+            )
+        if phase_aware and independent_negative:
+            raise ValueError(
+                "independent negative conditioning is unsupported in the "
+                "V0 phase-aware path; omit all negative inputs for null CFG"
+            )
+
         model_dtype = next(self.parameters()).dtype
         
         x = x.to(model_dtype)
@@ -259,6 +375,14 @@ class DiffusionTransformer(nn.Module):
 
         if cross_attn_cond is not None:
             cross_attn_cond = cross_attn_cond.to(model_dtype)
+
+        if cross_attn_phases is not None:
+            cross_attn_phases = cross_attn_phases.to(
+                device=x.device, dtype=torch.float32
+            )
+
+        if query_phase is not None:
+            query_phase = query_phase.to(device=x.device, dtype=torch.float32)
 
         if negative_cross_attn_cond is not None:
             negative_cross_attn_cond = negative_cross_attn_cond.to(model_dtype)
@@ -277,6 +401,11 @@ class DiffusionTransformer(nn.Module):
 
         if cross_attn_cond_mask is not None:
             cross_attn_cond_mask = cross_attn_cond_mask.bool()
+            if phase_aware and not bool(cross_attn_cond_mask.all()):
+                raise ValueError(
+                    "Yaw-phase DiT V0 requires an all-valid cross-attention "
+                    "mask because ContinuousTransformer does not consume masks"
+                )
 
         if prepend_cond_mask is not None:
             prepend_cond_mask = prepend_cond_mask.bool()
@@ -289,6 +418,8 @@ class DiffusionTransformer(nn.Module):
                 t,
                 cross_attn_cond=cross_attn_cond, 
                 cross_attn_cond_mask=cross_attn_cond_mask, 
+                cross_attn_phases=cross_attn_phases,
+                query_phase=query_phase,
                 input_concat_cond=input_concat_cond, 
                 global_embed=global_embed, 
                 prepend_cond=prepend_cond, 
@@ -336,6 +467,8 @@ class DiffusionTransformer(nn.Module):
 
             batch_cond = None
             batch_cond_masks = None
+            batch_cross_attn_phases = None
+            batch_query_phase = None
             
             # Handle CFG for cross-attention conditioning
             if cross_attn_cond is not None:
@@ -358,6 +491,16 @@ class DiffusionTransformer(nn.Module):
 
                 if cross_attn_cond_mask is not None:
                     batch_cond_masks = torch.cat([cross_attn_cond_mask, cross_attn_cond_mask], dim=0)
+
+                if cross_attn_phases is not None:
+                    batch_cross_attn_phases = torch.cat(
+                        [cross_attn_phases, cross_attn_phases], dim=0
+                    )
+
+                if query_phase is not None:
+                    batch_query_phase = torch.cat(
+                        [query_phase, query_phase], dim=0
+                    )
                
             batch_prepend_cond = None
             batch_prepend_cond_mask = None
@@ -382,6 +525,8 @@ class DiffusionTransformer(nn.Module):
                 batch_timestep, 
                 cross_attn_cond=batch_cond, 
                 cross_attn_cond_mask=batch_cond_masks, 
+                cross_attn_phases=batch_cross_attn_phases,
+                query_phase=batch_query_phase,
                 mask = batch_masks, 
                 input_concat_cond=batch_input_concat_cond, 
                 global_embed = batch_global_cond,
@@ -417,6 +562,8 @@ class DiffusionTransformer(nn.Module):
                 t,
                 cross_attn_cond=cross_attn_cond, 
                 cross_attn_cond_mask=cross_attn_cond_mask, 
+                cross_attn_phases=cross_attn_phases,
+                query_phase=query_phase,
                 input_concat_cond=input_concat_cond, 
                 global_embed=global_embed, 
                 prepend_cond=prepend_cond, 

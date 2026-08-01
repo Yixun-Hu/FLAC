@@ -8,6 +8,31 @@ from .sampling import sample, sample_k, sample_rf
 from ..data.utils import PadCrop
 
 
+_PHASE_CONDITIONING_KEYS = {
+    "cross_attn_phases",
+    "query_phase",
+    "negative_cross_attn_phases",
+    "negative_query_phase",
+}
+
+
+def _cast_conditioning_inputs(inputs, model_dtype, *, cast_content=True):
+    """Cast positive content while preserving phase and legacy negative dtypes."""
+
+    return {
+        key: (
+            None
+            if value is None
+            else value.float()
+            if key in _PHASE_CONDITIONING_KEYS
+            else value.type(model_dtype)
+            if cast_content
+            else value
+        )
+        for key, value in inputs.items()
+    }
+
+
 def generate_diffusion_cond(
         model,
         steps: int = 1,
@@ -80,7 +105,14 @@ def generate_diffusion_cond(
 
     model_dtype = next(model.model.parameters()).dtype
     noise = noise.type(model_dtype)
-    conditioning_inputs = {k: v.type(model_dtype) if v is not None else v for k, v in conditioning_inputs.items()}
+    conditioning_inputs = _cast_conditioning_inputs(
+        conditioning_inputs, model_dtype
+    )
+    # Phase-aware V0 rejects populated independent negatives; retaining the
+    # incoming legacy negative-content dtype here is therefore intentional.
+    negative_conditioning_tensors = _cast_conditioning_inputs(
+        negative_conditioning_tensors, model_dtype, cast_content=False
+    )
 
     diff_objective = model.diffusion_objective
 

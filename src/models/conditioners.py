@@ -13,6 +13,8 @@ import torchvision.models as models
 import numpy as np
 
 from .simplevit import SimpleViT
+from .cyl_vit import CylindricalViT
+from ..data.yaw_rotation import yaw_pose_content_and_phase
 from transformers import AutoModel, AutoConfig
 
 
@@ -182,6 +184,7 @@ class GeometryConditioner(Conditioner):
                  max_value: float = 5.0,
                  dim: int = 512,
                  model_type: str = "vit",
+                 token_pool: str = "linear",
                  name="GeometryConditioner"):
         super().__init__(dim, output_dim, project_out=False)
         self.name = name
@@ -190,6 +193,7 @@ class GeometryConditioner(Conditioner):
         self.lin_proj = lin_proj
         self.max_value = max_value
         self.model_type = model_type    
+        self.token_pool = token_pool
 
     def forward(self, coord, device: tp.Union[torch.device, str] = "cuda") -> tp.Tuple[torch.Tensor, torch.Tensor]:
         self.vit.to(device)
@@ -205,6 +209,15 @@ class GeometryConditioner(Conditioner):
             coord = coord.unsqueeze(1) # [B, 1, 3]
         depth_coord = torch.stack(depth_coords, dim=0)
 
+        if self.token_pool == "azimuth":
+            if self.model_type != "vit":
+                raise ValueError("token_pool='azimuth' requires a ViT geometry encoder")
+            if coord.shape[1] != 1:
+                raise ValueError(
+                    "token_pool='azimuth' implements the V0 K=1 contract and "
+                    f"requires exactly one pose, got K={coord.shape[1]}"
+                )
+
         encoded_coords = []
         for i in range(coord.shape[1]):
             c = (coord[:, i, :, None, None] - depth_coord) / self.max_value # [B, 3, H, W]
@@ -215,13 +228,149 @@ class GeometryConditioner(Conditioner):
             elif self.model_type == 'vit':
                 c = self.vit(c) 
                 c = self.proj_out(c) 
-                c = self.lin_proj(c.permute(0, 2, 1)).squeeze(-1).unsqueeze(1)  # [B, 1, D]
+                if self.token_pool == "mean":
+                    c = c.mean(dim=1, keepdim=True)  # [B, 1, D]
+                elif self.token_pool == "linear":
+                    c = self.lin_proj(c.permute(0, 2, 1)).squeeze(-1).unsqueeze(1)  # [B, 1, D]
+                elif self.token_pool == "azimuth":
+                    h_tok = getattr(self.vit, "h_tok", None)
+                    w_tok = getattr(self.vit, "w_tok", None)
+                    phases = getattr(self.vit, "azimuth_phases", None)
+                    if h_tok is None or w_tok is None or phases is None:
+                        raise ValueError(
+                            "token_pool='azimuth' requires h_tok, w_tok, and "
+                            "azimuth_phases on the ViT encoder"
+                        )
+                    if phases.ndim != 1 or phases.shape[0] != w_tok:
+                        raise ValueError(
+                            "ViT azimuth phase count does not match its column grid: "
+                            f"{tuple(phases.shape)} vs W'={w_tok}"
+                        )
+                    if c.shape[1] != h_tok * w_tok:
+                        raise ValueError(
+                            "ViT token count does not match its azimuth grid: "
+                            f"{c.shape[1]} != {h_tok}*{w_tok}"
+                        )
+                    c = c.reshape(c.shape[0], h_tok, w_tok, c.shape[-1])
+                    c = c.mean(dim=1)  # [B, W', D], destination-column order
+                else:
+                    raise ValueError(f"Unknown token_pool: {self.token_pool}")
             else: 
                 raise NotImplementedError('model_type must be either "dino" or "vit"')
             encoded_coords.append(c)
         out = torch.cat(encoded_coords, dim=1)  # [B, N, D]
 
+        if self.token_pool == "azimuth":
+            phases = self.vit.azimuth_phases.float().to(device)
+            phases = phases.unsqueeze(0).expand(out.shape[0], -1)
+            mask = torch.ones(
+                out.shape[0], out.shape[1], device=out.device
+            )
+            return [out, mask, phases]
+
         return [out, torch.ones(out.shape[0], 1).to(device)]
+
+
+class YawPoseConditioner(Conditioner):
+    """Fourier-encode yaw-invariant ``(radius, height)`` pose content.
+
+    Azimuth is carried alongside the content as a separate float32 phase.  The
+    target and context instances receive the same ``yaw_pose_proj`` from the
+    factory, giving both roles an identical learned content space.
+    """
+
+    def __init__(
+        self,
+        output_dim: int,
+        pose_role: str,
+        radial_max_val: float,
+        height_max_val: float,
+        funcs=(torch.sin, torch.cos),
+        num_freqs: int = 20,
+        max_freq: float = 10,
+        include_in: bool = True,
+        name: str = "YawPoseConditioner",
+        yaw_pose_proj: tp.Optional[nn.Module] = None,
+    ):
+        if pose_role not in {"target", "context"}:
+            raise ValueError(
+                "pose_role must be either 'target' or 'context', got "
+                f"{pose_role!r}"
+            )
+        if radial_max_val <= 0 or height_max_val <= 0:
+            raise ValueError("radial_max_val and height_max_val must be positive")
+
+        feature_dim = (len(funcs) * num_freqs + (1 if include_in else 0)) * 2
+        # Avoid creating the base class's optional projection: the explicitly
+        # named yaw_pose_proj below is the one shared between pose roles.
+        super().__init__(output_dim, output_dim, project_out=False)
+        self.dim = feature_dim
+        self.pose_role = pose_role
+        self.radial_max_val = float(radial_max_val)
+        self.height_max_val = float(height_max_val)
+        self.funcs = tuple(funcs)
+        self.num_freqs = int(num_freqs)
+        self.include_in = bool(include_in)
+        self.name = name
+        self.register_buffer(
+            "freqs",
+            2.0
+            ** torch.from_numpy(
+                np.linspace(
+                    start=0.0,
+                    stop=max_freq,
+                    num=num_freqs,
+                    dtype=np.single,
+                )
+            ),
+        )
+        self.yaw_pose_proj = (
+            nn.Linear(feature_dim, output_dim)
+            if yaw_pose_proj is None
+            else yaw_pose_proj
+        )
+
+    def forward(
+        self,
+        pose_bundles: tp.List[tp.Dict[str, torch.Tensor]],
+        device: tp.Union[torch.device, str] = "cuda",
+    ) -> tp.List[torch.Tensor]:
+        if self.pose_role == "target":
+            contents = [bundle["target_content"].reshape(1, 2) for bundle in pose_bundles]
+            phases = [bundle["target_phase"].reshape(1) for bundle in pose_bundles]
+        else:
+            contents = [bundle["context_content"].reshape(-1, 2) for bundle in pose_bundles]
+            phases = [bundle["context_phases"].reshape(-1) for bundle in pose_bundles]
+
+        token_counts = {content.shape[0] for content in contents}
+        if token_counts != {1}:
+            raise ValueError(
+                "YawPoseConditioner implements the V0 K=1 contract and requires "
+                f"exactly one {self.pose_role} pose per sample, got {sorted(token_counts)}"
+            )
+
+        content = torch.stack(contents, dim=0).to(device=device, dtype=torch.float32)
+        phase = torch.stack(phases, dim=0).to(device=device, dtype=torch.float32)
+        normalized = content / content.new_tensor(
+            [self.radial_max_val, self.height_max_val]
+        )
+
+        features = [normalized] if self.include_in else []
+        for func in self.funcs:
+            for freq in self.freqs.float():
+                features.append(func(normalized * freq.to(normalized.device)))
+        encoded = torch.cat(features, dim=-1)
+        self.yaw_pose_proj.to(device)
+        projection_parameter = next(self.yaw_pose_proj.parameters(), None)
+        if projection_parameter is not None:
+            encoded = encoded.to(
+                device=projection_parameter.device,
+                dtype=projection_parameter.dtype,
+            )
+        out = self.yaw_pose_proj(encoded)
+        mask = torch.ones(out.shape[0], out.shape[1], device=out.device)
+        return [out, mask, phase.float()]
+
 
 class DistEmbedderConditioner(Conditioner):
     def __init__(self, 
@@ -285,10 +434,51 @@ class MultiConditioner(nn.Module):
         self.default_keys = default_keys
         self.pre_encoded_keys = pre_encoded_keys
 
-    def forward(self, batch_metadata: tp.List[tp.Dict[str, tp.Any]], device: tp.Union[torch.device, str]) -> tp.Dict[str, tp.Any]:
+    def forward(self, batch_metadata: tp.List[tp.Dict[str, tp.Any]], device: tp.Union[torch.device, str], only_ids: tp.Optional[tp.Iterable[str]] = None) -> tp.Dict[str, tp.Any]:
+        # Optional subset dispatch is useful for conditioner-level probes without
+        # changing the normal all-conditioner execution path.
         output = {}
 
+        active_yaw_pose = any(
+            isinstance(conditioner, YawPoseConditioner)
+            and (only_ids is None or key in only_ids)
+            for key, conditioner in self.conditioners.items()
+        )
+        pose_bundles = None
+        if active_yaw_pose:
+            pose_bundles = []
+            for metadata in batch_metadata:
+                pose_metadata = {}
+                for pose_key in ("source", "context_poses"):
+                    if pose_key not in metadata:
+                        raise ValueError(
+                            f"phase-aware conditioning requires metadata field {pose_key!r}"
+                        )
+                    value = metadata[pose_key]
+                    if isinstance(value, (list, tuple)) and len(value) == 1:
+                        value = value[0]
+                    pose_metadata[pose_key] = value
+
+                context = pose_metadata["context_poses"]
+                if not isinstance(context, torch.Tensor):
+                    raise ValueError("context_poses must be a tensor for yaw_pose")
+                context_count = 1 if context.shape == (3,) else (
+                    context.shape[0] if context.ndim == 2 else -1
+                )
+                if context_count != 1:
+                    raise ValueError(
+                        "phase-aware V0 conditioning requires exactly one context "
+                        f"pose (K=1), got K={context_count}"
+                    )
+                pose_bundles.append(yaw_pose_content_and_phase(pose_metadata))
+
         for key, conditioner in self.conditioners.items():
+            if only_ids is not None and key not in only_ids:
+                continue
+            if isinstance(conditioner, YawPoseConditioner):
+                assert pose_bundles is not None
+                output[key] = conditioner(pose_bundles, device=device)
+                continue
             condition_key = key
 
             conditioner_inputs = []
@@ -347,6 +537,8 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
 
     vit_model = None
     dist_embedder_proj = None
+    yaw_pose_proj = None
+    yaw_pose_signature = None
 
     for conditioner_info in config["configs"]:
         id = conditioner_info["id"]
@@ -394,10 +586,36 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                     vit_proj = nn.Identity()
                     model_type = 'dino'
 
+                elif vit_config.get('arch') == 'cyl_vit':
+                    vit_model = CylindricalViT(
+                        in_channels=vit_config.get('ch_dim', 3),
+                        image_size=(vit_config['img_h'], vit_config['img_w']),
+                        patch_size=(vit_config['patch_h'], vit_config['patch_w']),
+                        dim=vit_config.get('dim', 512),
+                        depth=vit_config.get('depth', 12),
+                        heads=vit_config.get('heads', 8),
+                        dim_head=vit_config.get('dim_head', 64),
+                        mlp_dim=vit_config.get('mlp_dim', vit_config.get('dim', 512)),
+                        patch_embed_type=vit_config.get('patch_embed_type', 'linear'),
+                    )
+                    vit_proj = nn.Linear(vit_config.get('dim', 512), cond_dim) if cond_dim != vit_config.get('dim', 512) else nn.Identity()
+                    lin_proj = nn.Linear(vit_model.num_tokens, 1)
+                    model_type = 'vit'
+
                 else: # Simple ViT Encoder (from xRIR)
-                    vit_model = SimpleViT(image_size=(vit_config['img_h'],vit_config['img_w']), patch_size=(vit_config['patch_h'], vit_config['patch_w']), dim=512, depth=12, heads=8, mlp_dim=512, channels=vit_config.get('ch_dim', 3))
-                    vit_proj = nn.Linear(512, cond_dim) if cond_dim != 512 else nn.Identity() 
-                    lin_proj = nn.Linear(256, 1) 
+                    vit_dim = vit_config.get('dim', 512)
+                    vit_model = SimpleViT(
+                        image_size=(vit_config['img_h'], vit_config['img_w']),
+                        patch_size=(vit_config['patch_h'], vit_config['patch_w']),
+                        dim=vit_dim,
+                        depth=vit_config.get('depth', 12),
+                        heads=vit_config.get('heads', 8),
+                        mlp_dim=vit_config.get('mlp_dim', vit_dim),
+                        channels=vit_config.get('ch_dim', 3),
+                    )
+                    vit_proj = nn.Linear(vit_dim, cond_dim) if cond_dim != vit_dim else nn.Identity()
+                    num_tokens = (vit_config['img_h'] // vit_config['patch_h']) * (vit_config['img_w'] // vit_config['patch_w'])
+                    lin_proj = nn.Linear(num_tokens, 1)
                     model_type = 'vit'
             else:
                 conditioner_config.pop("ViT", None)
@@ -409,6 +627,37 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                 dist_embedder_proj = nn.Linear((2 * conditioner_config['num_freqs'] + (1 if conditioner_config['include_in'] else 0)) * in_channels, cond_dim)
             conditioner_config.pop('in_channels', None)
             conditioners[id] = DistEmbedderConditioner(**conditioner_config, dist_embedder_proj=dist_embedder_proj)
+
+        elif conditioner_type == "yaw_pose":
+            funcs = tuple(conditioner_config.get("funcs", (torch.sin, torch.cos)))
+            num_funcs = len(funcs)
+            feature_dim = (
+                num_funcs * conditioner_config.get("num_freqs", 20)
+                + (1 if conditioner_config.get("include_in", True) else 0)
+            ) * 2
+            signature = (
+                funcs,
+                int(conditioner_config.get("num_freqs", 20)),
+                float(conditioner_config.get("max_freq", 10)),
+                bool(conditioner_config.get("include_in", True)),
+                float(conditioner_config["radial_max_val"]),
+                float(conditioner_config["height_max_val"]),
+            )
+            if yaw_pose_proj is None:
+                yaw_pose_proj = nn.Linear(feature_dim, cond_dim)
+                yaw_pose_signature = signature
+            elif yaw_pose_proj.in_features != feature_dim or yaw_pose_signature != signature:
+                raise ValueError(
+                    "all yaw_pose conditioners that share yaw_pose_proj must use "
+                    "identical Fourier and normalization semantics"
+                )
+            conditioner_config.pop("in_channels", None)
+            conditioner_config.pop("ch_dim", None)
+            conditioner_config.pop("init_cond", None)
+            conditioners[id] = YawPoseConditioner(
+                **conditioner_config,
+                yaw_pose_proj=yaw_pose_proj,
+            )
         
         elif conditioner_type == "pretransform":
             sample_rate = conditioner_config.pop("sample_rate", None)

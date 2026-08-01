@@ -1,3 +1,93 @@
+# Yaw-equi-DiT: full relative-phase equivariant FLAC
+
+This branch contains the production path for the C16 yaw-equivariant
+conditioning model. Geometry stays equivariant as 16 azimuth tokens, Cartesian
+poses are split into yaw-invariant content plus an azimuth phase, and the DiT
+uses K-only azimuthal RoPE on `phase_key - phase_query`. The mono-RIR velocity
+field is invariant under the joint yaw action.
+
+Only the relative-phase implementation and its runtime/data adapters are
+included; legacy conditioning-averaging baselines, ablation arms, and experiment
+worklogs are excluded.
+
+## Yaw-equi-DiT quick start
+
+The supported configuration is K=1, a 512-pixel panorama, 32-pixel-wide
+patches, 16 azimuth tokens, and eight RoPE frequencies:
+
+```text
+model:   src/configs/model_configs/FLAC/AR/FLAC_AR_YawPhaseDiT_C16.json
+train:   src/configs/dataset_configs/AR/train/acousticroom_train_1.json
+method:  relative_phase
+```
+
+Create the environment and download the pretrained VAE/metric weights:
+
+```bash
+conda create -n flac-yaw-dit python=3.10 -y
+conda activate flac-yaw-dit
+pip install -e .
+bash download_weights.sh
+```
+
+Download AcousticRooms and expose its root at `./AcousticRooms`. The expected
+layout is:
+
+```text
+AcousticRooms/
+├── single_channel_ir_1/
+├── metadata/
+└── depth_map/
+```
+
+For a dataset stored elsewhere, a symlink is sufficient:
+
+```bash
+ln -s /absolute/path/to/AcousticRooms ./AcousticRooms
+```
+
+Train the full model from scratch while loading only the released VAE:
+
+```bash
+python train.py \
+  --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_YawPhaseDiT_C16.json \
+  --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train_1.json \
+  --val-dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json \
+  --pretransform-ckpt-path weights/FLAC/VAE.safetensors \
+  --batch-size 4 --accum-batches 16 --num-gpus 1 \
+  --precision bf16-mixed --max-steps 1000000 \
+  --checkpoint-every 10000 --val-every 10000 \
+  --save-dir outputs_FLAC/Yaw-equi-DiT \
+  --logger none --name Yaw-equi-DiT --experiment-name C16_M8
+```
+
+Evaluate a checkpoint and optionally apply a physical yaw rotation to all
+conditioning metadata:
+
+```bash
+python eval_FLAC.py \
+  --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_YawPhaseDiT_C16.json \
+  --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json \
+  --ckpt-path /path/to/checkpoint.ckpt \
+  --cond-method relative_phase --rotate-deg 90 \
+  --cfg-scale 1.0 --steps 1 --seed 42 \
+  --eval-name yaw90
+```
+
+The focused CPU validation suite is:
+
+```bash
+python -m pytest -q \
+  src/tests/test_yaw_phase_pose_geometry.py \
+  src/tests/test_yaw_phase_conditioning.py \
+  src/tests/test_yaw_phase_attention.py \
+  src/tests/test_yaw_phase_dit.py \
+  src/tests/test_yaw_phase_integration.py \
+  src/tests/test_yaw_phase_config.py
+```
+
+## Upstream FLAC
+
 # Few-shot Acoustic Synthesis with Multimodal Flow Matching
 Training and inference code for the paper "Few-shot Acoustic Synthesis with Multimodal Flow Matching", accepted at CVPR 2026.
 

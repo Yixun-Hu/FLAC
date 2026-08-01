@@ -109,6 +109,8 @@ class ConditionedDiffusionModelWrapper(nn.Module):
             global_cond_ids: tp.List[str] = [],
             input_concat_ids: tp.List[str] = [],
             prepend_cond_ids: tp.List[str] = [],
+            query_phase_cond_id: tp.Optional[str] = None,
+            phase_aliases: tp.Optional[tp.Dict[str, str]] = None,
             ):
         super().__init__()
 
@@ -122,39 +124,288 @@ class ConditionedDiffusionModelWrapper(nn.Module):
         self.global_cond_ids = global_cond_ids
         self.input_concat_ids = input_concat_ids
         self.prepend_cond_ids = prepend_cond_ids
+        self.query_phase_cond_id = query_phase_cond_id
+        self.phase_aliases = dict(phase_aliases or {})
         self.min_input_length = min_input_length
+
+        # Stream type embeddings are part of the opt-in relative-phase model,
+        # not the legacy wrapper.  Keeping the inactive attribute as ``None``
+        # avoids adding any parameters/state-dict keys to old checkpoints.
+        self.cross_attn_type_embeddings = None
+        if self.query_phase_cond_id is not None:
+            expected_cross_ids = (
+                "source_vit",
+                "context_poses_vit",
+                "context_poses",
+                "context_audio",
+            )
+            if tuple(self.cross_attn_cond_ids) != expected_cross_ids:
+                raise ValueError(
+                    "Yaw-phase DiT V0 requires cross-attention IDs in fixed "
+                    f"order {expected_cross_ids}; got {tuple(self.cross_attn_cond_ids)}"
+                )
+            if self.query_phase_cond_id != "source":
+                raise ValueError(
+                    "Yaw-phase DiT V0 requires query_phase_cond_id='source'"
+                )
+            cond_token_dim = getattr(getattr(model, "model", None), "cond_token_dim", None)
+            if not isinstance(cond_token_dim, int) or cond_token_dim <= 0:
+                raise ValueError(
+                    "Phase-aware conditioning requires a positive DiT cond_token_dim"
+                )
+            if len(self.cross_attn_cond_ids) == 0:
+                raise ValueError(
+                    "Phase-aware conditioning requires cross-attention condition IDs"
+                )
+            self.cross_attn_type_embeddings = nn.ParameterDict({
+                key: nn.Parameter(torch.zeros(cond_token_dim))
+                for key in self.cross_attn_cond_ids
+            })
+        elif self.phase_aliases:
+            raise ValueError(
+                "phase_aliases require query_phase_cond_id to enable phase-aware conditioning"
+            )
 
         self.dist_shift = None
         if distribution_shift_options is not None:
             self.dist_shift = DistributionShift(**distribution_shift_options)     
 
+    @property
+    def phase_aware(self) -> bool:
+        return self.query_phase_cond_id is not None
+
+    @staticmethod
+    def _conditioning_entry(
+            conditioning_tensors: tp.Dict[str, tp.Any],
+            key: str,
+    ) -> tp.Sequence[torch.Tensor]:
+        if key not in conditioning_tensors:
+            raise ValueError(f"Conditioning entry '{key}' is missing")
+        entry = conditioning_tensors[key]
+        if not isinstance(entry, (list, tuple)) or len(entry) not in (2, 3):
+            raise ValueError(
+                f"Conditioning entry '{key}' must contain [content, mask] or "
+                "[content, mask, phase]"
+            )
+        return entry
+
+    @staticmethod
+    def _phase_content_and_mask(
+            entry: tp.Sequence[torch.Tensor],
+            key: str,
+    ) -> tp.Tuple[torch.Tensor, torch.Tensor]:
+        content, mask = entry[0], entry[1]
+        if not isinstance(content, torch.Tensor) or not isinstance(mask, torch.Tensor):
+            raise ValueError(f"Conditioning entry '{key}' content and mask must be tensors")
+
+        if content.ndim == 2:
+            content = content.unsqueeze(1)
+        if content.ndim != 3:
+            raise ValueError(
+                f"Conditioning entry '{key}' content must have shape [B, N, D]"
+            )
+
+        if mask.ndim == 1:
+            mask = mask.unsqueeze(1)
+        if mask.ndim != 2:
+            raise ValueError(
+                f"Conditioning entry '{key}' mask must have shape [B, N]"
+            )
+        if mask.shape != content.shape[:2]:
+            raise ValueError(
+                f"Conditioning entry '{key}' mask length {tuple(mask.shape)} does not "
+                f"match token shape {tuple(content.shape[:2])}"
+            )
+        return content, mask
+
+    @staticmethod
+    def _phase_from_entry(
+            entry: tp.Sequence[torch.Tensor],
+            key: str,
+            content: torch.Tensor,
+    ) -> tp.Optional[torch.Tensor]:
+        if len(entry) == 2:
+            return None
+        phase = entry[2]
+        if not isinstance(phase, torch.Tensor):
+            raise ValueError(f"Conditioning entry '{key}' phase must be a tensor")
+        if phase.ndim == 1:
+            phase = phase.unsqueeze(1)
+        if phase.ndim != 2:
+            raise ValueError(
+                f"Conditioning entry '{key}' phase must have shape [B, N]"
+            )
+        if phase.shape != content.shape[:2]:
+            raise ValueError(
+                f"Conditioning entry '{key}' phase length {tuple(phase.shape)} does not "
+                f"match token shape {tuple(content.shape[:2])}"
+            )
+        return phase.float()
+
+    def _get_phase_aware_cross_inputs(
+            self,
+            conditioning_tensors: tp.Dict[str, tp.Any],
+    ) -> tp.Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        streams = {}
+        batch_size = None
+        total_tokens = 0
+
+        # First validate every content/mask pair in the configured order.  Do
+        # not concatenate yet: K>1 and malformed phases must fail before a
+        # non-V0 sequence can be materialized.
+        for key in self.cross_attn_cond_ids:
+            entry = self._conditioning_entry(conditioning_tensors, key)
+            content, mask = self._phase_content_and_mask(entry, key)
+            expected_token_count = {
+                "source_vit": 16,
+                "context_poses_vit": 16,
+                "context_poses": 1,
+                "context_audio": 1,
+            }[key]
+            if content.shape[1] != expected_token_count:
+                raise ValueError(
+                    f"Yaw-phase DiT V0 stream '{key}' requires exactly "
+                    f"{expected_token_count} tokens; got {content.shape[1]}"
+                )
+            if batch_size is None:
+                batch_size = content.shape[0]
+            elif content.shape[0] != batch_size:
+                raise ValueError(
+                    f"Conditioning entry '{key}' batch size does not match other streams"
+                )
+
+            type_embedding = self.cross_attn_type_embeddings[key]
+            if content.shape[-1] != type_embedding.numel():
+                raise ValueError(
+                    f"Conditioning entry '{key}' channel dimension {content.shape[-1]} "
+                    f"does not match cond_token_dim {type_embedding.numel()}"
+                )
+            phase = self._phase_from_entry(entry, key, content)
+            if phase is not None and key in self.phase_aliases:
+                raise ValueError(
+                    f"Conditioning entry '{key}' has both a direct phase and a phase alias"
+                )
+            streams[key] = {
+                "content": content,
+                "mask": mask,
+                "phase": phase,
+            }
+            total_tokens += content.shape[1]
+
+        # Resolve phase-free streams only through explicit aliases.  V0 aliases
+        # a single context audio item to a single context pose, so an alias with
+        # any other token count is an unsupported K>1 batch.
+        for key in self.cross_attn_cond_ids:
+            if streams[key]["phase"] is not None:
+                continue
+            alias_key = self.phase_aliases.get(key)
+            if alias_key is None:
+                raise ValueError(
+                    f"Conditioning entry '{key}' has no phase and no phase alias"
+                )
+
+            if alias_key in streams:
+                alias_phase = streams[alias_key]["phase"]
+            else:
+                alias_entry = self._conditioning_entry(conditioning_tensors, alias_key)
+                alias_content, _ = self._phase_content_and_mask(alias_entry, alias_key)
+                alias_phase = self._phase_from_entry(
+                    alias_entry, alias_key, alias_content
+                )
+            if alias_phase is None:
+                raise ValueError(
+                    f"Phase alias '{alias_key}' for '{key}' does not provide a phase"
+                )
+            if alias_phase.shape != streams[key]["content"].shape[:2]:
+                raise ValueError(
+                    f"Phase alias '{alias_key}' shape {tuple(alias_phase.shape)} does not "
+                    f"match '{key}' token shape {tuple(streams[key]['content'].shape[:2])}"
+                )
+            if alias_phase.shape[1] != 1:
+                raise ValueError(
+                    "Yaw-phase DiT V0 requires K=1 for aliased context pose/audio streams"
+                )
+            streams[key]["phase"] = alias_phase.float()
+
+        if total_tokens != 34:
+            raise ValueError(
+                f"Yaw-phase DiT V0 requires exactly 34 cross-attention tokens; got {total_tokens}"
+            )
+
+        query_entry = self._conditioning_entry(
+            conditioning_tensors, self.query_phase_cond_id
+        )
+        query_content, _ = self._phase_content_and_mask(
+            query_entry, self.query_phase_cond_id
+        )
+        query_phase = self._phase_from_entry(
+            query_entry, self.query_phase_cond_id, query_content
+        )
+        if query_phase is None:
+            raise ValueError(
+                f"Query conditioning entry '{self.query_phase_cond_id}' has no phase"
+            )
+        if query_phase.shape[0] != batch_size or query_phase.shape[1] != 1:
+            raise ValueError(
+                "Yaw-phase DiT V0 query phase must have shape [B, 1] for K=1"
+            )
+
+        contents = []
+        masks = []
+        phases = []
+        for key in self.cross_attn_cond_ids:
+            content = streams[key]["content"]
+            type_embedding = self.cross_attn_type_embeddings[key].to(
+                device=content.device, dtype=content.dtype
+            )
+            contents.append(content + type_embedding.view(1, 1, -1))
+            masks.append(streams[key]["mask"])
+            phases.append(streams[key]["phase"].float())
+
+        return (
+            torch.cat(contents, dim=1),
+            torch.cat(masks, dim=1),
+            torch.cat(phases, dim=1).float(),
+            query_phase[:, 0].float(),
+        )
+
     def get_conditioning_inputs(self, conditioning_tensors: tp.Dict[str, tp.Any], negative=False):
         cross_attention_input = None
         cross_attention_masks = None
+        cross_attention_phases = None
+        query_phase = None
         global_cond = None
         input_concat_cond = None
         prepend_cond = None
         prepend_cond_mask = None
 
         if len(self.cross_attn_cond_ids) > 0:
-            # Concatenate all cross-attention inputs over the sequence dimension
-            # Assumes that the cross-attention inputs are of shape (batch, seq, channels)
-            cross_attention_input = []
-            cross_attention_masks = []
+            if self.phase_aware:
+                (
+                    cross_attention_input,
+                    cross_attention_masks,
+                    cross_attention_phases,
+                    query_phase,
+                ) = self._get_phase_aware_cross_inputs(conditioning_tensors)
+            else:
+                # Keep the legacy path unchanged: old two-item entries, shape
+                # normalization and concatenation retain their exact behavior.
+                cross_attention_input = []
+                cross_attention_masks = []
 
-            for key in self.cross_attn_cond_ids:
-                cross_attn_in, cross_attn_mask = conditioning_tensors[key]
+                for key in self.cross_attn_cond_ids:
+                    cross_attn_in, cross_attn_mask = conditioning_tensors[key]
 
-                # Add sequence dimension if it's not there
-                if len(cross_attn_in.shape) == 2:
-                    cross_attn_in = cross_attn_in.unsqueeze(1)
-                    cross_attn_mask = cross_attn_mask.unsqueeze(1)
+                    # Add sequence dimension if it's not there
+                    if len(cross_attn_in.shape) == 2:
+                        cross_attn_in = cross_attn_in.unsqueeze(1)
+                        cross_attn_mask = cross_attn_mask.unsqueeze(1)
 
-                cross_attention_input.append(cross_attn_in)
-                cross_attention_masks.append(cross_attn_mask)
+                    cross_attention_input.append(cross_attn_in)
+                    cross_attention_masks.append(cross_attn_mask)
 
-            cross_attention_input = torch.cat(cross_attention_input, dim=1)
-            cross_attention_masks = torch.cat(cross_attention_masks, dim=1)
+                cross_attention_input = torch.cat(cross_attention_input, dim=1)
+                cross_attention_masks = torch.cat(cross_attention_masks, dim=1)
 
         if len(self.global_cond_ids) > 0:
             # Concatenate all global conditioning inputs over the channel dimension
@@ -191,14 +442,18 @@ class ConditionedDiffusionModelWrapper(nn.Module):
             prepend_cond_mask = torch.cat(prepend_cond_masks, dim=1)
 
         if negative:
-            return {
+            result = {
                 "negative_cross_attn_cond": cross_attention_input,
                 "negative_cross_attn_mask": cross_attention_masks,
                 "negative_global_cond": global_cond,
                 "negative_input_concat_cond": input_concat_cond
             }
+            if self.phase_aware:
+                result["negative_cross_attn_phases"] = cross_attention_phases
+                result["negative_query_phase"] = query_phase
+            return result
         else:
-            return {
+            result = {
                 "cross_attn_cond": cross_attention_input,
                 "cross_attn_mask": cross_attention_masks,
                 "global_cond": global_cond,
@@ -206,6 +461,10 @@ class ConditionedDiffusionModelWrapper(nn.Module):
                 "prepend_cond": prepend_cond,
                 "prepend_cond_mask": prepend_cond_mask
             }
+            if self.phase_aware:
+                result["cross_attn_phases"] = cross_attention_phases
+                result["query_phase"] = query_phase
+            return result
 
     def forward(self, x: torch.Tensor, t: torch.Tensor, cond: tp.Dict[str, tp.Any], **kwargs):
         return self.model(x, t, **self.get_conditioning_inputs(cond), **kwargs)
@@ -231,8 +490,12 @@ class DiTWrapper(ConditionedDiffusionModel):
                 t,
                 cross_attn_cond=None,
                 cross_attn_mask=None,
+                cross_attn_phases=None,
+                query_phase=None,
                 negative_cross_attn_cond=None,
                 negative_cross_attn_mask=None,
+                negative_cross_attn_phases=None,
+                negative_query_phase=None,
                 input_concat_cond=None,
                 negative_input_concat_cond=None,
                 global_cond=None,
@@ -249,6 +512,44 @@ class DiTWrapper(ConditionedDiffusionModel):
         assert batch_cfg, "batch_cfg must be True for DiTWrapper"
         #assert negative_input_concat_cond is None, "negative_input_concat_cond is not supported for DiTWrapper"
 
+        phase_api_used = any(
+            value is not None
+            for value in (
+                cross_attn_phases,
+                query_phase,
+                negative_cross_attn_phases,
+                negative_query_phase,
+            )
+        )
+        if phase_api_used and any(
+            value is not None
+            for value in (
+                negative_cross_attn_cond,
+                negative_cross_attn_mask,
+                negative_cross_attn_phases,
+                negative_query_phase,
+                negative_input_concat_cond,
+                negative_global_cond,
+            )
+        ):
+            raise ValueError(
+                "independent negative conditioning is unsupported in the "
+                "V0 phase-aware path; omit every negative input for null CFG"
+            )
+
+        # Do not inject new kwargs into the legacy DiffusionTransformer path.
+        # Round-4's phase-aware DiT accepts these keys; conditional forwarding
+        # keeps old configs numerically and structurally unchanged meanwhile.
+        phase_kwargs = {}
+        if cross_attn_phases is not None:
+            phase_kwargs["cross_attn_phases"] = cross_attn_phases
+        if query_phase is not None:
+            phase_kwargs["query_phase"] = query_phase
+        if negative_cross_attn_phases is not None:
+            phase_kwargs["negative_cross_attn_phases"] = negative_cross_attn_phases
+        if negative_query_phase is not None:
+            phase_kwargs["negative_query_phase"] = negative_query_phase
+
         return self.model(
             x,
             t,
@@ -263,6 +564,7 @@ class DiTWrapper(ConditionedDiffusionModel):
             cfg_dropout_prob=cfg_dropout_prob,
             scale_phi=scale_phi,
             global_embed=global_cond,
+            **phase_kwargs,
             **kwargs)
 
 
@@ -298,6 +600,8 @@ def create_diffusion_cond_from_config(config: tp.Dict[str, tp.Any]):
     global_cond_ids = diffusion_config.get('global_cond_ids', [])
     input_concat_ids = diffusion_config.get('input_concat_ids', [])
     prepend_cond_ids = diffusion_config.get('prepend_cond_ids', [])
+    query_phase_cond_id = diffusion_config.get('query_phase_cond_id', None)
+    phase_aliases = diffusion_config.get('phase_aliases', None)
 
     pretransform = model_config.get("pretransform", None)
 
@@ -337,6 +641,8 @@ def create_diffusion_cond_from_config(config: tp.Dict[str, tp.Any]):
         global_cond_ids=global_cond_ids,
         input_concat_ids=input_concat_ids,
         prepend_cond_ids=prepend_cond_ids,
+        query_phase_cond_id=query_phase_cond_id,
+        phase_aliases=phase_aliases,
         pretransform=pretransform,
         io_channels=io_channels,
         distribution_shift_options=distribution_shift_options,

@@ -1,13 +1,158 @@
 import os
 import argparse
+import contextlib
 import json
+import math
 from tqdm import tqdm
 import torch
 import pytorch_lightning as pl
 
 from src.data.dataset import create_dataloader_from_config
+from src.data.yaw_rotation import rotate_scene_metadata
 from src.models import create_model_from_config
 from src.training import create_training_wrapper_from_config, create_metric_callback_from_config
+
+
+def build_output_paths(
+    ckpt_path,
+    steps,
+    cfg_scale,
+    eval_name,
+    cond_method='vanilla',
+    rotate_deg=0.0,
+):
+    """Construct the metrics-JSON and predictions-.pt output paths for one run.
+
+    Pure (no filesystem access): both paths sit in ``ckpt_path``'s directory,
+    named ``<ckpt>_<kind>_<steps>_<cfg>_<eval_name><method><rot>.<ext>``.
+
+    ``relative_phase`` inserts an explicit method suffix. A non-zero
+    ``rotate_deg`` appends ``_rot<int(rotate_deg)>`` to both outputs.
+
+    Returns
+    -------
+    dict
+        ``{'metrics': <...>.json, 'predictions': <...>.pt}``.
+    """
+    ckpt_name = os.path.basename(ckpt_path).replace('.ckpt', '')
+    directory = os.path.dirname(ckpt_path)
+    if cond_method == 'vanilla':
+        method_suffix = ''
+    elif cond_method == 'relative_phase':
+        method_suffix = '_relative_phase'
+    else:
+        raise ValueError(f"Unknown cond_method: {cond_method!r}")
+    rot_suffix = '' if rotate_deg == 0.0 else f'_rot{int(rotate_deg)}'
+    stem = f'{steps}_{cfg_scale}_{eval_name}{method_suffix}{rot_suffix}'
+    return {
+        'metrics': os.path.join(directory, f'{ckpt_name}_metrics_{stem}.json'),
+        'predictions': os.path.join(directory, f'{ckpt_name}_predictions_{stem}.pt'),
+    }
+
+
+def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method,
+                         cond_autocast='default'):
+    """Assemble the dict written to the metrics JSON.
+
+    Extends the legacy record with method and precision provenance.
+    """
+    return {
+        "metrics": metrics_dict,
+        "ckpt_path": ckpt_path,
+        "rotate_deg": rotate_deg,
+        "cond_method": cond_method,
+        "cond_autocast": cond_autocast,
+    }
+
+
+def resolve_cond_autocast(mode):
+    """Map a ``--cond-autocast`` mode to ``(enabled, dtype)`` for the conditioning call.
+
+    ``'default'`` -> ``(True, None)``: ``torch.amp.autocast(device)`` with no explicit
+    dtype, i.e. the torch per-device default (fp16 on cuda). ``'bf16'`` maps to
+    ``torch.bfloat16``. ``'off'`` disables autocast for exactness measurements.
+    """
+    modes = {"default": (True, None), "bf16": (True, torch.bfloat16), "off": (False, None)}
+    if mode not in modes:
+        raise ValueError(f"Unknown cond_autocast: {mode!r}; valid options: {sorted(modes)}.")
+    return modes[mode]
+
+
+def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
+                           rotate_deg, batch_size, cond_autocast):
+    """Sidecar metadata saved with ``--store_predictions``."""
+    return {
+        "dataset_config": dataset_config_path,
+        "seed": seed,
+        "n_samples": n_samples,
+        "cond_method": cond_method,
+        "rotate_deg": rotate_deg,
+        "batch_size": batch_size,
+        "cond_autocast": cond_autocast,
+    }
+
+
+VALID_COND_METHODS = ("vanilla", "relative_phase")
+
+
+def validate_cond_method_for_model_config(cond_method, model_config):
+    """Fail closed on a method label incompatible with the model architecture."""
+    if cond_method not in VALID_COND_METHODS:
+        raise ValueError(
+            f"Unknown cond_method: {cond_method!r}; valid options: "
+            f"{', '.join(repr(method) for method in VALID_COND_METHODS)}."
+        )
+    diffusion_config = (
+        model_config.get("model", {}).get("diffusion", {})
+        if isinstance(model_config, dict)
+        else {}
+    )
+    phase_aware = diffusion_config.get("query_phase_cond_id") is not None
+    if cond_method == "relative_phase" and not phase_aware:
+        raise ValueError(
+            "relative_phase requires a phase-aware model with query_phase_cond_id"
+        )
+
+
+def compute_eval_conditioning(conditioner, metadata, device, cond_method):
+    """Shared evaluation dispatch; relative_phase is one conditioner pass."""
+    if cond_method in ("vanilla", "relative_phase"):
+        return conditioner(metadata, device)
+    raise ValueError(f"Unknown cond_method: {cond_method!r}")
+
+
+# Unexpected-key prefixes a PL-wrapper checkpoint legitimately leaves after
+# evaluate_model's 'diffusion.' strip: EMA copy/bookkeeping and loss-module buffers.
+# Verified against outputs_FLAC/ft_vanilla/epoch=0-step=2000.ckpt (1279 keys):
+# all 213 leftovers are diffusion_ema.* (212) + losses.* (1). Exported/bare
+# checkpoints (FLAC_EMA.ckpt, *_ft.ckpt: 1066 keys) must load with zero of both.
+LOAD_WHITELIST_PREFIXES = ("diffusion_ema.", "losses.")
+
+
+def check_load_integrity(missing, unexpected, allow_partial_load=False,
+                         whitelist_prefixes=LOAD_WHITELIST_PREFIXES):
+    """Report ``load_state_dict(strict=False)`` results and fail on real mismatches.
+
+    Missing keys are never acceptable (an un-initialized model weight silently
+    corrupts metrics); unexpected keys are tolerated only under
+    ``whitelist_prefixes``. Any other mismatch raises ``RuntimeError`` unless
+    ``allow_partial_load`` is set, which downgrades it to a printed warning.
+    """
+    missing = list(missing)
+    stray = [k for k in unexpected if not k.startswith(whitelist_prefixes)]
+    n_benign = len(list(unexpected)) - len(stray)
+    print(f"Checkpoint load: {len(missing)} missing, {len(stray)} stray unexpected, "
+          f"{n_benign} whitelisted wrapper-leftover keys.")
+    if not (missing or stray):
+        return
+    msg = (f"Checkpoint did not load cleanly: {len(missing)} missing keys "
+           f"(first: {missing[:5]}), {len(stray)} stray unexpected keys "
+           f"(first: {stray[:5]}). Wrong model-config/checkpoint pairing? "
+           "Re-export the checkpoint, or pass --allow-partial-load to continue anyway.")
+    if allow_partial_load:
+        print("WARNING (--allow-partial-load): " + msg)
+    else:
+        raise RuntimeError(msg)
 
 
 def evaluate_model(
@@ -20,14 +165,39 @@ def evaluate_model(
     num_workers=6,
     eval_name='FLAC_eval', 
     device='cuda' if torch.cuda.is_available() else 'cpu',
-    seed=42, 
+    seed=42,
     store_predictions=False,
+    rotate_deg=0.0,
+    cond_method='vanilla',
+    cond_autocast='default',
+    allow_partial_load=False,
 ):
-    torch.set_float32_matmul_precision('medium') 
-    
+    # Fail fast on an unknown cond_method (the CLI is guarded by argparse
+    # choices, but programmatic callers would otherwise silently run vanilla
+    # while filenames/meta record the unknown method).
+    if cond_method not in VALID_COND_METHODS:
+        raise ValueError(
+            f"Unknown cond_method: {cond_method!r}; valid options: "
+            f"{', '.join(repr(method) for method in VALID_COND_METHODS)}."
+        )
+
+    # Fail fast on an unknown cond_autocast too (full-review condition C1).
+    ac_enabled, ac_dtype = resolve_cond_autocast(cond_autocast)
+
+    def cond_autocast_ctx():
+        """Fresh autocast context for one conditioning call (same semantics per batch)."""
+        if not ac_enabled:
+            return contextlib.nullcontext()
+        if ac_dtype is None:
+            return torch.amp.autocast(device)  # per-device default: exp_01/02 protocol
+        return torch.amp.autocast(device, dtype=ac_dtype)
+
+    torch.set_float32_matmul_precision('medium')
+
     # Load configurations
     with open(model_config_path) as f:
         model_config = json.load(f)
+    validate_cond_method_for_model_config(cond_method, model_config)
 
     training_config = model_config.get('training', None)
     
@@ -48,9 +218,10 @@ def evaluate_model(
                 state_dict[new_key] = state_dict.pop(key)
         training_config['use_ema'] = False
 
-    # Build model
+    # Build model; assert the checkpoint actually loaded (full-review condition C2).
     model = create_model_from_config(model_config)
-    model.load_state_dict(state_dict, strict=False)
+    missing, unexpected = model.load_state_dict(state_dict, strict=False)
+    check_load_integrity(missing, unexpected, allow_partial_load)
 
     model_type = model_config.get('model_type', None)
     assert model_type is not None, 'model_type must be specified in model config'
@@ -100,9 +271,22 @@ def evaluate_model(
             reals, metadata = batch
             reals = reals.to(device)
 
-            with torch.amp.autocast(device):
-                conditioning = module.diffusion.conditioner(metadata, module.device)
-            cond_inputs = module.diffusion.get_conditioning_inputs(conditioning) 
+            # Optional yaw-rotation diagnostic: physically rotate the conditioning
+            # (depth panorama + source/context poses) while leaving context_audio
+            # and the target RIR fixed. See src/data/yaw_rotation.py.
+            if rotate_deg != 0.0:
+                alpha_rad = math.radians(rotate_deg)
+                img_w = int(metadata[0]["depth"].shape[-1])
+                metadata = [rotate_scene_metadata(md, alpha_rad, img_w) for md in metadata]
+
+            with cond_autocast_ctx():
+                conditioning = compute_eval_conditioning(
+                    module.diffusion.conditioner,
+                    metadata,
+                    module.device,
+                    cond_method,
+                )
+            cond_inputs = module.diffusion.get_conditioning_inputs(conditioning)
 
             noise = torch.randn([reals.shape[0], module.diffusion.io_channels, samples]).to(module.device)
 
@@ -162,23 +346,32 @@ def evaluate_model(
             metric_name += ' (dB)'
         print('Test/' + metric_name, metric_value)
     
-    # Save metrics in a file 
-    metrics_to_save = {
-        "metrics": metrics_dict,
-        "ckpt_path": ckpt_path,
-    }
-        
-    ckpt_name = os.path.basename(ckpt_path).replace('.ckpt', '')
-    path2save = os.path.join(os.path.dirname(ckpt_path), ckpt_name + '_metrics_' + str(steps) + '_' + str(cfg_scale) + '_' + eval_name + '.json')
+    # Save metrics in a file
+    output_paths = build_output_paths(
+        ckpt_path, steps, cfg_scale, eval_name,
+        cond_method=cond_method, rotate_deg=rotate_deg,
+    )
+    metrics_to_save = build_metrics_record(
+        metrics_dict, ckpt_path, rotate_deg, cond_method,
+        cond_autocast=cond_autocast,
+    )
+    path2save = output_paths['metrics']
     with open(path2save, 'w') as f:
         json.dump(metrics_to_save, f, indent=4)
-    
+
     print(f"Metrics saved to {path2save}")
 
     if store_predictions:
-        decoded_samples_all = torch.cat(decoded_samples, dim=0) 
-        path2save_preds = os.path.join(os.path.dirname(ckpt_path), ckpt_name + '_predictions_' + str(steps) + '_' + str(cfg_scale) + '_' + eval_name + '.pt')
-        torch.save(decoded_samples_all, path2save_preds)
+        decoded_samples_all = torch.cat(decoded_samples, dim=0)
+        path2save_preds = output_paths['predictions']
+        preds_bundle = {
+            "predictions": decoded_samples_all,
+            "meta": build_predictions_meta(
+                dataset_config_path, seed, int(decoded_samples_all.shape[0]),
+                cond_method, rotate_deg, batch_size, cond_autocast,
+            ),
+        }
+        torch.save(preds_bundle, path2save_preds)
         print(f"Decoded samples saved to {path2save_preds}")
 
     print("Evaluation complete!")
@@ -197,6 +390,10 @@ if __name__ == "__main__":
     parser.add_argument("--eval-name", type=str, default='', help="Name of the evaluation run (optional)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for evaluation")
     parser.add_argument("--store_predictions", action='store_true', help="Whether to store predictions or not")
+    parser.add_argument("--rotate-deg", type=float, default=0.0, help="Yaw-rotate the conditioning (depth + poses) by this many degrees before eval; 0 disables (default).")
+    parser.add_argument("--cond-method", type=str, default="relative_phase", choices=list(VALID_COND_METHODS), help="Conditioning method: 'relative_phase' for Yaw-equi-DiT or 'vanilla' for legacy models.")
+    parser.add_argument("--cond-autocast", type=str, default="default", choices=["default", "bf16", "off"], help="Autocast mode for conditioning: device default, bfloat16, or off (fp32).")
+    parser.add_argument("--allow-partial-load", action='store_true', help="Continue with a warning when the checkpoint does not load cleanly (missing or non-whitelisted unexpected keys) instead of raising.")
     args = parser.parse_args()
 
     if args.store_predictions:
@@ -211,7 +408,11 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         device=args.device,
-        eval_name=args.eval_name, 
+        eval_name=args.eval_name,
         seed=args.seed,
-        store_predictions=args.store_predictions
+        store_predictions=args.store_predictions,
+        rotate_deg=args.rotate_deg,
+        cond_method=args.cond_method,
+        cond_autocast=args.cond_autocast,
+        allow_partial_load=args.allow_partial_load,
     )

@@ -146,6 +146,24 @@ class RotaryEmbedding(nn.Module):
 
         return freqs, scale
 
+class AzimuthalRotaryEmbedding(nn.Module):
+    """Integer-frequency rotary angles for relative azimuth phases."""
+
+    def __init__(self, num_freqs):
+        super().__init__()
+        if not isinstance(num_freqs, int) or num_freqs < 0:
+            raise ValueError(f'num_freqs must be a non-negative integer, got {num_freqs!r}')
+        self.register_buffer(
+            'm',
+            torch.arange(1, num_freqs + 1, dtype=torch.float32),
+            persistent = False
+        )
+
+    @autocast("cuda", enabled = False)
+    def forward(self, rel_phase):
+        angles = rel_phase.float()[..., None] * self.m
+        return torch.cat((angles, angles), dim = -1)
+
 def rotate_half(x):
     x = rearrange(x, '... (j d) -> ... j d', j = 2)
     x1, x2 = x.unbind(dim = -2)
@@ -159,10 +177,26 @@ def apply_rotary_pos_emb(t, freqs, scale = 1):
     dtype = reduce(torch.promote_types, (t.dtype, freqs.dtype, torch.float32))
     rot_dim, seq_len = freqs.shape[-1], t.shape[-2]
     freqs, t = freqs.to(dtype), t.to(dtype)
-    freqs = freqs[-seq_len:, :]
-
-    if t.ndim == 4 and freqs.ndim == 3:
-        freqs = rearrange(freqs, 'b n d -> b 1 n d')
+    if freqs.ndim == 2:
+        # Preserve the legacy time-axis RoPE suffix selection exactly.
+        freqs = freqs[-seq_len:, :]
+    elif freqs.ndim == 3:
+        if t.ndim not in (3, 4):
+            raise ValueError(
+                f'batched rotary frequencies require a 3-D or 4-D input, got {t.ndim}-D'
+            )
+        if freqs.shape[0] != t.shape[0]:
+            raise ValueError(
+                f'rotary batch mismatch: input batch {t.shape[0]}, frequency batch {freqs.shape[0]}'
+            )
+        if freqs.shape[1] != seq_len:
+            raise ValueError(
+                f'rotary sequence mismatch: input length {seq_len}, frequency length {freqs.shape[1]}'
+            )
+        if t.ndim == 4:
+            freqs = rearrange(freqs, 'b n d -> b 1 n d')
+    else:
+        raise ValueError(f'rotary frequencies must be 2-D or 3-D, got {freqs.ndim}-D')
 
     # partial rotary embeddings, Wang et al. GPT-J
     t, t_unrotated = t[..., :rot_dim], t[..., rot_dim:]
@@ -447,6 +481,7 @@ class Attention(nn.Module):
         x,
         context = None,
         rotary_pos_emb = None,
+        cross_rope_phases = None,
         causal = None, 
         flex_attention_block_mask = None,
         flex_attention_score_mod = None,
@@ -487,6 +522,13 @@ class Attention(nn.Module):
             k = F.normalize(k, dim=-1)
         elif self.qk_norm != "none":
             q, k = self.apply_qk_layernorm(q, k)
+
+        if cross_rope_phases is not None:
+            if not has_context:
+                raise ValueError('cross_rope_phases require cross-attention context')
+            if self.differential:
+                raise ValueError('cross_rope_phases do not support differential attention')
+            k = apply_rotary_pos_emb(k, cross_rope_phases)
 
         if rotary_pos_emb is not None:
             freqs, _ = rotary_pos_emb
@@ -662,6 +704,7 @@ class TransformerBlock(nn.Module):
         context = None,
         global_cond=None,
         rotary_pos_emb = None,
+        cross_rope_phases = None,
         self_attention_block_mask = None,
         self_attention_score_mod = None,
         cross_attention_block_mask = None,
@@ -686,7 +729,7 @@ class TransformerBlock(nn.Module):
             x = x + residual
 
             if context is not None and self.cross_attend:
-                x = x + self.cross_attn_scale(self.cross_attn(self.cross_attend_norm(x), context = context, flex_attention_block_mask = cross_attention_block_mask, flex_attention_score_mod = cross_attention_score_mod, flash_attn_sliding_window = cross_attention_flash_sliding_window))
+                x = x + self.cross_attn_scale(self.cross_attn(self.cross_attend_norm(x), context = context, cross_rope_phases = cross_rope_phases, flex_attention_block_mask = cross_attention_block_mask, flex_attention_score_mod = cross_attention_score_mod, flash_attn_sliding_window = cross_attention_flash_sliding_window))
             
             if self.conformer is not None:
                 x = x + self.conformer_scale(self.conformer(x))
@@ -704,7 +747,7 @@ class TransformerBlock(nn.Module):
             x = x + self.self_attn_scale(self.self_attn(self.pre_norm(x), rotary_pos_emb = rotary_pos_emb, flex_attention_block_mask = self_attention_block_mask, flex_attention_score_mod = self_attention_score_mod, flash_attn_sliding_window = self_attention_flash_sliding_window))
 
             if context is not None and self.cross_attend:
-                x = x + self.cross_attn_scale(self.cross_attn(self.cross_attend_norm(x), context = context, flex_attention_block_mask = cross_attention_block_mask, flex_attention_score_mod = cross_attention_score_mod, flash_attn_sliding_window = cross_attention_flash_sliding_window))
+                x = x + self.cross_attn_scale(self.cross_attn(self.cross_attend_norm(x), context = context, cross_rope_phases = cross_rope_phases, flex_attention_block_mask = cross_attention_block_mask, flex_attention_score_mod = cross_attention_score_mod, flash_attn_sliding_window = cross_attention_flash_sliding_window))
                     
             if self.conformer is not None:
                 x = x + self.conformer_scale(self.conformer(x))
@@ -801,6 +844,7 @@ class ContinuousTransformer(nn.Module):
         return_info = False,
         use_checkpointing = True,
         exit_layer_ix = None,
+        cross_rope_phases = None,
         **kwargs
     ):
         batch, seq, device = *x.shape[:2], x.device
@@ -840,9 +884,9 @@ class ContinuousTransformer(nn.Module):
         for layer_ix, layer in enumerate(self.layers):
 
             if use_checkpointing:
-                x = checkpoint(layer, x, rotary_pos_emb = rotary_pos_emb, global_cond=global_cond, self_attention_flash_sliding_window = self.sliding_window, **kwargs)
+                x = checkpoint(layer, x, rotary_pos_emb = rotary_pos_emb, cross_rope_phases = cross_rope_phases, global_cond=global_cond, self_attention_flash_sliding_window = self.sliding_window, **kwargs)
             else:
-                x = layer(x, rotary_pos_emb = rotary_pos_emb, global_cond=global_cond, self_attention_flash_sliding_window = self.sliding_window, **kwargs)
+                x = layer(x, rotary_pos_emb = rotary_pos_emb, cross_rope_phases = cross_rope_phases, global_cond=global_cond, self_attention_flash_sliding_window = self.sliding_window, **kwargs)
 
             if return_info:
                 info["hidden_states"].append(x)

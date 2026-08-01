@@ -20,6 +20,37 @@ class ModelConfigEmbedderCallback(pl.Callback):
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         checkpoint["model_config"] = self.model_config
 
+def build_trainer_kwargs(args, strategy, callbacks, logger, checkpoint_dir, val_args):
+    """Assemble the pl.Trainer keyword arguments (side-effect free; unit-testable).
+
+    Reproduces the kwargs that were previously inlined into pl.Trainer(...) exactly;
+    the only behavioral change is that max_steps is now sourced from args.max_steps
+    (default 1000000 via defaults.ini) instead of a hard-coded literal, so a training
+    budget can be set without editing code. strategy / callbacks / logger /
+    checkpoint_dir / val_args are the values main() derives and passes straight through.
+    """
+    return {
+        "devices": args.num_gpus,
+        "accelerator": "gpu",
+        "num_nodes": args.num_nodes,
+        "strategy": strategy,
+        "precision": args.precision,
+        "accumulate_grad_batches": args.accum_batches,
+        "callbacks": callbacks,
+        "logger": logger,
+        "log_every_n_steps": 100,
+        "max_steps": args.max_steps,
+        "default_root_dir": checkpoint_dir,
+        "gradient_clip_val": args.gradient_clip_val,
+        "reload_dataloaders_every_n_epochs": 0,
+        "num_sanity_val_steps": 0, # If you need to debug validation, change this line
+        **val_args,
+    }
+
+def construct_trainer(args, strategy, callbacks, logger, checkpoint_dir, val_args):
+    """Construct the pl.Trainer from the assembled kwargs (the tested Trainer boundary)."""
+    return pl.Trainer(**build_trainer_kwargs(args, strategy, callbacks, logger, checkpoint_dir, val_args))
+
 def main():
     torch.set_float32_matmul_precision('medium') 
     torch.multiprocessing.set_sharing_strategy('file_system')
@@ -148,22 +179,13 @@ def main():
             "val_check_interval": args.val_every,
         })
 
-    trainer = pl.Trainer(
-        devices=args.num_gpus,
-        accelerator="gpu",
-        num_nodes = args.num_nodes,
+    trainer = construct_trainer(
+        args,
         strategy=strategy,
-        precision=args.precision,
-        accumulate_grad_batches=args.accum_batches, 
         callbacks=[ckpt_callback, exc_callback, save_model_config_callback],
         logger=logger,
-        log_every_n_steps=100,
-        max_steps=1000000, #1000 for HAA
-        default_root_dir=checkpoint_dir, 
-        gradient_clip_val=args.gradient_clip_val,
-        reload_dataloaders_every_n_epochs = 0,
-        num_sanity_val_steps=0, # If you need to debug validation, change this line
-        **val_args      
+        checkpoint_dir=checkpoint_dir,
+        val_args=val_args,
     )
 
     trainer.fit(training_wrapper, train_dl, val_dl, ckpt_path=args.ckpt_path if args.ckpt_path else None)
