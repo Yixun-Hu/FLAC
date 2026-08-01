@@ -1,6 +1,6 @@
 # Plan — exp_09 fa_finetune (fa equivariant fine-tune from the 87.5k full-parity anchor)
 
-**Author:** main session (Fable 5 seat) · **Rev 2** (2026-07-29; all plan-review findings applied — `fa_finetune_codex_plan_review.md`, REQUEST-CHANGES → revised) · **Status:** AWAITING Yixun approval before implementation.
+**Author:** main session (Fable 5 seat) · **Rev 2** (2026-07-29; all plan-review findings applied — `fa_finetune_codex_plan_review.md`, REQUEST-CHANGES → revised) · **Status:** APPROVED by Yixun 2026-07-29 ("Approve — proceed"); executed; closed 2026-08-01.
 
 ## 1. Design
 
