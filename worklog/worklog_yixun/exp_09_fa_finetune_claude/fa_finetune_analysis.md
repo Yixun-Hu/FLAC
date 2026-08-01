@@ -15,7 +15,7 @@
 ## Honest scope
 
 - **Protocol error, discovered and corrected in-run:** every fa-arm eval before the G1 sweep used vanilla conditioning (the `--cond-method` flag was never passed). The interim "fine-tune damage" narrative — logged, committed, and reported — was an artifact of that mismatch and is retired. What exposed it was the pre-registered G1 sweep contradicting exp_08's known exactness; the lesson (eval-protocol keys must be part of the launch manifest, not defaults) is recorded for the SOP.
-- **exp_07 B-F caveat, bounded:** exp_07's B-F screens carry the same vanilla-eval mismatch. Its attribution conclusion (recipe innocent) is unaffected (P1-vs-anchor is vanilla-vs-vanilla), but "fa-from-scratch plateaus ~2× worse" should be read as measured-under-mismatch; a fa-eval spot-check of B-F-40k is QUEUED (its first run was lost to a session-restart orphaning); its result will be appended to both experiments' records when complete. The from-scratch-inefficiency conclusion likely stands (the 3.5× step cost and the P1 contrast are protocol-independent), but the magnitude needs the fa-eval qualifier.
+- **exp_07 B-F conclusion CORRECTED (spot-check complete, 2026-08-01):** B-F-40k under its own fa protocol reads 8.190/0.9804/38.811/R5.302 — on par with or better than P1@40k (8.989/1.0076/40.620/5.192). The "2×-worse plateau" and the "fa-from-scratch is the cause" attribution are RETRACTED (see `exp_07.../fa_scratch_CORRECTION_addendum.md`); surviving: the 3.5× step cost; unknown past 40k. exp_07's recipe-innocence finding (P1-vs-anchor, vanilla-vs-vanilla) is unaffected.
 - **Strict-G2 calibration:** the pre-registered candidate band used the anchor's eval-seed σ_c, which is an order of magnitude tighter than training-band oscillation; by that letter no fine-tune checkpoint qualifies. The V control was pre-registered for exactly this contingency and shows Fw's deltas inside vanilla's own drift band. Both readings are reported; neither is post-hoc.
 - One training seed; fa-eval inference costs 4 ViT passes (deployment note); EDT K=8 +0.40 ms is a real, seed-robust concession.
 
@@ -29,5 +29,5 @@
 
 1. **Feature the two-checkpoint story**: anchor 87.5k (peak metrics) + Fw-95000 (exact equivariance at released level). Both released-eval-protocol-documented.
 2. Optional polish: a short low-lr fa fine-tune could chase the +0.40 EDT cell; expected gain small.
-3. The architectural route (`cyl_vit` / cylindrical-dinov3, running as a separate workstream) is the natural comparison column for the paper: built-in equivariance vs fa's 4× inference cost.
+3. The architectural route (`cyl_vit` / cylindrical-dinov3, running separately) remains the natural comparison column: built-in equivariance vs fa's 4× inference cost — and per the exp_07 correction, a fa-from-scratch column (at 3.5× training compute) is back on the table as well.
 4. SOP addendum: eval-protocol flags (`--cond-method`) belong in every launch/screen manifest; defaults are not neutral.
