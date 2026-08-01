@@ -1,0 +1,56 @@
+=== bf_resume_launch guard exercise - 2026-08-01_15-01-58 - f1cb82e ===
+launcher: worklog/worklog_yixun/exp_10_fa_scratch_resume_claude/bf_resume_launch.sh
+pin file digest (for manual recovery if this script is hard-killed): 5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328
+synthetic checkpoints written to /tmp/tmp.vhIuDTZHmm
+--- A. environment / knob validation ---
+PASS  rc=2   wrong conda env rejected
+PASS  rc=2   CHECKPOINT_EVERY=0
+PASS  rc=2   CHECKPOINT_EVERY=abc
+PASS  rc=2   CHECKPOINT_EVERY=-5
+PASS  rc=2   MAXSTEPS=abc
+PASS  rc=2   MAXSTEPS=0
+PASS  rc=2   EXPECTED_STEP=abc
+--- B. resume requirement ---
+PASS  rc=2   RESUME_CKPT unset
+PASS  rc=2   RESUME_CKPT missing file
+--- C. lineage-mode path gates ---
+PASS  rc=2   INITIAL with a non-anchor step-40000 ckpt rejected (wrong path, right step)
+PASS  rc=2   EXPECTED_STEP=40000 explicit + non-anchor path rejected
+PASS  rc=2   EXPECTED_STEP=39000 (pre-anchor restart) rejected
+PASS  rc=2   RESTART from outside the exp10 namespace rejected
+PASS  rc=2   INITIAL MAXSTEPS == 40000 rejected
+PASS  rc=2   INITIAL MAXSTEPS < 40000 rejected
+PASS  rc=2   MB=8 ACC=8 rung rejected
+--- D. anchor sha-256 pin (pin file temporarily swapped; anchor untouched) ---
+PASS  rc=2   sha mismatch (wrong pin) rejected
+PASS  rc=2   malformed pin file rejected
+PASS  rc=2   missing pin file rejected
+  pin file restored OK (5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328)
+--- E. exp10 namespace / RESTART cases (synthetic ckpts in outputs_FLAC/exp10_BF) ---
+synthetic RESTART checkpoints written to outputs_FLAC/exp10_BF
+PASS  rc=2   RESTART MAXSTEPS == EXPECTED_STEP rejected
+PASS  rc=2   RESTART with a wrong EXPECTED_STEP rejected
+PASS  rc=2   vanilla-config ckpt rejected (not the fa lineage)
+PASS  rc=2   optimizer-stripped ckpt rejected (exp_10 is warm-only)
+PASS  rc=2   VALID RESTART (dry-fail at the VRAM gate)
+--- targeted cleanup of outputs_FLAC/exp10_BF ---
+  rm outputs_FLAC/exp10_BF/guardtest-restart-step=42500.ckpt
+  rm outputs_FLAC/exp10_BF/guardtest-vanillacfg-step=42500.ckpt
+  rm outputs_FLAC/exp10_BF/guardtest-stripped-step=42500.ckpt
+  rmdir outputs_FLAC/exp10_BF (was empty)
+--- F. the VALID INITIAL launch (real anchor, real pin, dry-fail at the VRAM gate) ---
+PASS  rc=2   INITIAL accept: sha OK + fa lineage OK + identity + defaults
+--- anchor integrity re-check (must equal the pin; read-only throughout) ---
+PASS  anchor unchanged (5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328)
+
+=== guard exercise: 26 passed, 0 failed ===
+  pin file restored OK (5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328)
+--- removing launcher logs created by this exercise ---
+  rm fa_scratch_resume_2026-08-01_15-03-27_exp10_BF_train.log
+  rm fa_scratch_resume_2026-08-01_15-03-36_exp10_BF_train.log
+  rm fa_scratch_resume_2026-08-01_15-03-41_exp10_BF_train.log
+  rm fa_scratch_resume_2026-08-01_15-03-54_exp10_BF_train.log
+  rm fa_scratch_resume_2026-08-01_15-04-01_exp10_BF_train.log
+  rm fa_scratch_resume_2026-08-01_15-04-08_exp10_BF_train.log
+  rm fa_scratch_resume_2026-08-01_15-04-16_exp10_BF_train.log
+  rm fa_scratch_resume_2026-08-01_15-04-23_exp10_BF_train.log
