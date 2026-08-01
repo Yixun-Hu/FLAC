@@ -27,3 +27,8 @@
 - K8: T60 8.4652±0.0058 SUP(−10.8σ) · C50 0.9582±0.0010 SUP(−3.2σ) · EDT 37.4968±0.0813 OUT(+3.7σ) · R@1 6.9243±0.0701 NONINF(−1.1σ). K1: 9.8271±0.0612 SUP · 1.0337±0.0025 SUP · 40.8740±0.3393 NONINF · 6.8581±0.1108 EQUIV(+0.11σ, above released).
 - G2 vs anchor: C50 better, R@1 ≈ equal, T60/EDT band-scale cost within the V control's drift band (G4 ΔΔ ≈ 0). Yesterday's "damage" = the vanilla-eval protocol artifact, retired.
 - **Checkpoint of record (equivariant): `outputs_FLAC/exp09_Fw/.../epoch=20-step=95000.ckpt`, eval with `--cond-method fa_invariant`.** Closing package (incl. protocol-error record + exp_07 B-F fa-eval robustness note) = tomorrow.
+
+## 2026-08-01T01:10:54-04:00 — CLOSURE: BLOCK review → all fixes applied → exp_09 CLOSED (registered tier NEGATIVE; exploratory two-checkpoint result stands, fully caveated)
+- Closure review (BLOCK) findings all applied: registered tier NEGATIVE (G2 fail; 95k = unregistered fallback, stated); G1 completed at 95000 both K (spreads ≤0.032; 45° controls break) with conditioning-rel-L2/waveform-floor departures recorded; per-metric G4; rounding fixes (R@1 6.9244±0.0700, EDT +3.8σ); plan header; HTML regenerated.
+- **exp_07 CORRECTION issued** (addendum in exp_07 folder): B-F-40k under fa protocol on par with vanilla at matched step — the 2×-worse plateau + fa-from-scratch attribution RETRACTED; 3.5× step cost survives; trajectory past 40k unknown.
+- Final re-verify launched; on SHIP exp_09 record is closed. Strategic columns open for Yixun: fa fine-tune @95k (this exp) / fa from-scratch revisited (post-correction) / cyl_vit architectural (running separately).

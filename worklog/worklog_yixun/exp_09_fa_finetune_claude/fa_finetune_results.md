@@ -35,3 +35,19 @@ All Fw screens before 2026-07-30 ~19:50 (and all exp_07 B-F screens) ran with ev
 ## Reproduction
 
 `f_arm_launch.sh` (MODEL_CONFIG/RESUME_CKPT/MAXSTEPS/OPT_RESET; contract+lineage+SHA gates) + `src/tools/strip_optimizer_state.py` (keep-entry/clear-state). wandb: `FLAC_exp09_Fw` (probe `…9l4d` legs), `FLAC_exp09_Fr`, `FLAC_exp09_V`. Commands: `fa_finetune_command.md`; gate JSONs beside checkpoints (fa-eval files carry the `_fa_invariant_a4`/eval-name markers).
+
+## Appendix — G1 sweeps at the checkpoint of record (95000), both K (seed 42)
+
+| rot | K8 T60 | K8 C50 | K8 EDT | K8 R@1 | K1 T60 | K1 C50 | K1 EDT | K1 R@1 |
+|---|---|---|---|---|---|---|---|---|
+| 0° | 8.4649 | 0.9584 | 37.5091 | 6.8802 | 9.8544 | 1.0339 | 40.3408 | 6.7224 |
+| 90° | 8.4647 | 0.9585 | 37.5111 | 6.8960 | 9.8551 | 1.0340 | 40.3441 | 6.7224 |
+| 180° | 8.4651 | 0.9585 | 37.5103 | 6.8960 | 9.8558 | 1.0340 | 40.3432 | 6.7382 |
+| 270° | 8.4648 | 0.9585 | 37.5132 | 6.9118 | 9.8548 | 1.0340 | 40.3471 | 6.7224 |
+| 45° (neg. ctrl) | 9.0959 | 1.0864 | 40.3434 | 5.2391 | 10.3581 | 1.1571 | 42.8997 | 4.9550 |
+
+C₄ spreads (max−min): K8 0.0004/0.0001/0.0041/0.0316; K1 0.0014/0.0001/0.0063/0.0158 — metric-level flatness at both K; 45° breaks decisively. (Registered-G1 departures — conditioning rel-L2, waveform floor — remain as recorded above.)
+
+## Appendix — exp_07 B-F fa-eval spot-check (correction basis)
+
+B-F-40k, fa protocol, K8 s42: rot0 8.190/0.9804/38.811/5.302; rot90 identical to 3–4 decimals. Comparators: P1@40k 8.989/1.0076/40.620/5.192; mismatched-eval B-F@40k 10.674/2.0809/80.106/0.710. Full correction: `../exp_07_fa_scratch_claude/fa_scratch_CORRECTION_addendum.md`.

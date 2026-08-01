@@ -11,3 +11,6 @@
 - `6250ca2` exp_09 Fw screens: fine-tune-damage signature (all points worse than anchor, monotone degradation) — G2 FAIL likely; V + G1 pending for verdict
 - `38990a7` exp_09: PROTOCOL ERROR — all fa evals ran cond_method=vanilla (mismatch artifact candidate); corrective fa_invariant eval block launched
 - `e64c882` exp_09 VERDICT: exact C4 equivariance + Fw-95000 at released-Table-1 level (4 SUP/1 EQUIV/2 NONINF/1 OUT) — PARTIAL tier; damage narrative retired as protocol artifact
+- `08cf084` exp_09 closing package: results (G1 exact + gate tables + protocol-error record) + analysis (reliability/scope/program view) + HTML + commits log
+- `7c6c2ab` exp_09 closure fixes (BLOCK review): registered tier corrected to NEGATIVE (G2 fail; 95k = unregistered fallback), G1 departures recorded, per-metric G4 statistics, sweep-spread wording, rounding (R@1 6.9244, EDT +3.8s), plan header, HTML regenerated
+- `974329f` exp_07 CORRECTION addendum: B-F-40k under fa protocol = on par with vanilla at matched step — 2x-worse plateau + fa-from-scratch-attribution RETRACTED (eval-mismatch artifact); exp_09 analysis updated
