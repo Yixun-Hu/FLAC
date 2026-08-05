@@ -50,3 +50,18 @@
 - **Command / Validation** — 75 tests green across the four exp_11 test files + invariance file; bash -n / py_compile clean; matrix = 13 single 30-step jobs (VAN/FA1/C4L/C8 × 3 rungs + CKPT4_32x2). Planner verification of v2 against each re-review finding: PASS. Remaining live validation per re-review NIT 8: the 2-GPU smoke (next entry) before the matrix.
 - **Result** — `passed`; round CLOSED pending smoke evidence.
 - **Next** — 2-GPU smoke (C4L_32x2, manual single job) → matrix submission → collect → rung selection + bottleneck report.
+
+## 2026-08-05T18:35:00-04:00 — P0 smoke 1 (C4L_32x2, job 3638618): machinery PROVEN live + first feasibility result
+
+- **Goal** — re-review NIT-8 live validation of the P0 kit at commit `8d53691` (EXPECT_SHA-bound).
+- **Result** — `passed` (as validation) + real finding:
+  - **Machinery live-proof:** torchrun spawned 2 ranks (PL literal "All distributed processes registered. Starting with 2 processes"); both allocated UUIDs actively polled; complete provenance P0RESULT emitted with `valid=1`; OOM classified via the flushed log; job exit FAILED 3:0 as designed. wall_fit 33.2 s (died in first forward).
+  - **Feasibility result: C4L at rung 32×2 WITHOUT grad-ckpt OOMs** — peak 45,455/46,068 MiB on BOTH GPUs; per-rank 44.38 GiB in use (35.81 torch-allocated, 7.87 reserved-unallocated) at a 14 MiB request. Symmetric across ranks ⇒ genuine capacity limit. Implies C8/C16/C32 at 32×2 no-ckpt also infeasible (strictly more retained per-pass output); 32×2 survives only for VAN/FA1 (fewer passes) and CKPT4 (ckpt ON).
+- **Analysis** — the fast-recipe rung race is effectively between **16×4 and 8×8**. P0STEP timing path still unproven live (OOM before step 10) → smoke 2 = FA1_32x2 (job 3638630) to witness t10/t30 before the matrix spends queue time.
+- **Next** — smoke 2 → matrix (13 jobs).
+
+## 2026-08-05T18:45:00-04:00 — P0 smoke 2 (FA1_32x2, job 3638630): timing path PROVEN; kit fully live-validated
+
+- **Result** — `passed`: rc=0, COMPLETED 0:0 in 60 s. Both P0STEP marks emitted (t10_mono 1674261.179 → t30_mono 1674280.978; Δ=19.799 s / 20 steps ⇒ **1.010 steps/s**, FA1 32×2 no-ckpt). Peak 40,425/46,068 MiB (87.7%) both UUIDs — FA1 fits at 32×2 but tight; corroborates smoke-1: each additional retained orbit pass pushes past capacity (C4L OOM confirmed). valid=1, full provenance.
+- **Analysis** — P0 kit fully live-validated (spawn, world-size gate, timing, poller, provenance, OOM path, success path). NIT-8 requirement satisfied. First rate datum: FA1-no-ckpt at 2 GPUs already 1.01 steps/s vs the old C4-ckpt 2-GPU 0.095 — the fast-recipe direction is strongly confirmed.
+- **Next** — submit the 13-job matrix.
