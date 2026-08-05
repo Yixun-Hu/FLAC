@@ -600,3 +600,71 @@ def test_grads_reach_both_mlp_layers_and_the_backbone_through_both_conditioners(
     finally:
         mc.zero_grad(set_to_none=True)
         mc.eval()
+
+
+# ------------------------------------------------------------------------------------ #
+# 8. per-variant config contract (plan §3 / §4.6 / r3-F2)
+# ------------------------------------------------------------------------------------ #
+_NEW_KEYS = {"cond_pool": "max_mlp", "cond_mlp_hidden": 384}
+
+_CONFIG_VARIANTS = (
+    # (exp03n file, exp-09 reference it must reconstruct to)
+    ("FLAC_AR_exp03n.json", "FLAC_AR_exp09.json"),
+    ("FLAC_AR_exp03n_online_eval.json", "FLAC_AR_exp09_online_eval.json"),
+)
+
+
+@pytest.mark.parametrize("exp03n_name,exp09_name", _CONFIG_VARIANTS)
+def test_config_contract_exp03n(exp03n_name, exp09_name):
+    """Each exp03n config is its OWN exp-09 counterpart plus EXACTLY the two conditioning
+    keys in BOTH ViT blocks — deleting only those keys must reconstruct the reference
+    byte-for-byte as a parsed object. The per-variant reference matters: the online-eval
+    config intentionally differs from the training config (use_ema false, no
+    gradient_checkpointing keys), so a single shared reference would hide a swap."""
+    with open(_EXP09_DIR / exp03n_name) as f:
+        exp03n = json.load(f)
+    with open(_EXP09_DIR / exp09_name) as f:
+        reference = json.load(f)
+
+    vit_blocks = [c["config"]["ViT"] for c in exp03n["model"]["conditioning"]["configs"]
+                  if c["type"] == "ViTCoordinates"]
+    assert len(vit_blocks) == 2, f"expected 2 ViT blocks, got {len(vit_blocks)}"
+    for block in vit_blocks:
+        for key, value in _NEW_KEYS.items():
+            assert block.get(key) == value, f"{exp03n_name}: ViT block {key} = {block.get(key)!r}"
+    assert vit_blocks[0] == vit_blocks[1], f"{exp03n_name}: the two ViT blocks are not deep-equal"
+
+    stripped = copy.deepcopy(exp03n)
+    n = 0
+    for c in stripped["model"]["conditioning"]["configs"]:
+        if c["type"] == "ViTCoordinates":
+            for key in _NEW_KEYS:
+                del c["config"]["ViT"][key]
+            n += 1
+    assert n == 2
+    assert stripped == reference, (
+        f"{exp03n_name} minus the two conditioning keys != {exp09_name} (parsed-object mismatch) "
+        "— something OTHER than the head changed"
+    )
+
+
+def test_exp03n_train_config_still_carries_the_fa_invariant_training_pin():
+    """The recipe is out of scope for this ablation: the fa_invariant[0.0] training block and
+    the 2-GPU/EMA recipe fields must be exactly exp-09's (guarded here as well as by the
+    reconstruction above, because this is the pin the whole comparison rests on)."""
+    with open(_EXP09_DIR / "FLAC_AR_exp03n.json") as f:
+        cfg = json.load(f)
+    assert cfg["training"]["cond_method"] == "fa_invariant"
+    assert cfg["training"]["frame_avg_angles"] == [0.0]
+    assert cfg["training"]["use_ema"] is True
+
+
+def test_exp03n_online_eval_config_is_the_non_ema_variant():
+    with open(_EXP09_DIR / "FLAC_AR_exp03n_online_eval.json") as f:
+        cfg = json.load(f)
+    assert cfg["training"]["use_ema"] is False
+    for c in cfg["model"]["conditioning"]["configs"]:
+        if c["type"] == "ViTCoordinates":
+            assert "gradient_checkpointing" not in c["config"], (
+                "the online-eval variant must not carry gradient_checkpointing (exp-09 convention)"
+            )
