@@ -1,11 +1,15 @@
 """Config-integrity tests for the exp_11 fa_orbit arm manifests.
 
-The four arm configs ``FLAC_AR_BF_C{4L,8,16,32}.json`` are derived from the
-exp_07 from-scratch fa manifest ``FLAC_AR_BF.json`` and must differ from it in
-EXACTLY two leaf groups (plan Rev 3 §10): ``gradient_checkpointing``
-``true -> false`` in BOTH ``ViTCoordinates`` conditioners (the Rev 3 fast
-recipe drops ViT grad-ckpt), and ``training.frame_avg_angles`` for C8/C16/C32
-ONLY -- C4L is the bridge control, angle-identical to the source manifest. Any
+The arm configs ``FLAC_AR_BF_C{4L,8,16,32}.json`` plus the P0 attribution
+control ``FLAC_AR_BF_FA1.json`` are derived from the exp_07 from-scratch fa
+manifest ``FLAC_AR_BF.json`` and must differ from it in EXACTLY two leaf groups
+(plan Rev 3 §10): ``gradient_checkpointing`` ``true -> false`` in BOTH
+``ViTCoordinates`` conditioners (the Rev 3 fast recipe drops ViT grad-ckpt), and
+``training.frame_avg_angles`` for FA1/C8/C16/C32 ONLY -- C4L is the bridge
+control, angle-identical to the source manifest. FA1's single-angle orbit
+``[0.0]`` keeps the fa dispatch and the cylindrical pose path but runs exactly
+ONE ViT pass, so it is the profiling baseline the per-orbit-pass cost is fitted
+against (round-2 re-review B6); its spacing check is vacuous at n = 1. Any
 other differing leaf is a silent recipe change that would confound the sweep,
 so the deep-diff test fails on it and names the offending path. The orbit is
 additionally checked geometrically: uniform angles from 0.0 whose panorama
@@ -30,7 +34,7 @@ _EXP11_DIR = os.path.join(
     _REPO_ROOT, "worklog", "worklog_yixun", "exp_11_fa_orbit_claude"
 )
 
-ARMS = ("C4L", "C8", "C16", "C32")
+ARMS = ("FA1", "C4L", "C8", "C16", "C32")
 IMG_W = 512      # panorama width in columns
 PATCH = 16       # DINOv3 patch size (px)
 
@@ -63,14 +67,19 @@ def _arm_path(arm: str) -> str:
 
 
 def _n_from_name(arm: str) -> int:
-    """Orbit size encoded in the arm/file name ('C4L' -> 4, 'C16' -> 16)."""
-    m = re.fullmatch(r"C(\d+)L?", arm)
+    """Orbit size encoded in the arm/file name ('C4L' -> 4, 'C16' -> 16, 'FA1' -> 1).
+
+    FA1 is the P0 attribution control (re-review B6): fa_invariant with a
+    single-angle orbit, i.e. the cylindrical pose path plus exactly ONE ViT pass
+    (``yaw_rotation.invariant_conditioning`` returns the base pass when
+    ``len(angles) == 1``), so FA1 -> C4L -> C8 isolates the per-orbit-pass cost."""
+    m = re.fullmatch(r"(?:C(\d+)L?|FA(\d+))", arm)
     assert m is not None, f"cannot read an orbit size from arm name {arm!r}"
-    return int(m.group(1))
+    return int(m.group(1) or m.group(2))
 
 
 def _orbit(n: int) -> list:
-    """The uniform Cn orbit in degrees, as floats starting at 0.0."""
+    """The uniform Cn orbit in degrees, as floats starting at 0.0 (n = 1 -> [0.0])."""
     return [k * 360.0 / n for k in range(n)]
 
 

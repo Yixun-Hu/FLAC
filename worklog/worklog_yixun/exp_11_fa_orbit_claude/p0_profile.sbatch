@@ -37,9 +37,9 @@
 # construction — and its sha256 is emitted for the collector to verify.
 #
 # Emits exactly one machine-parseable final line:
-#   P0RESULT runid= sha= jobid= cell= maxsteps= ngpu= mb= rc= config_sha= \
+#   P0RESULT runid= sha= jobid= cell= maxsteps= ngpu= mb= workers= rc= config_sha= \
 #            wall_fit= t10= t30= t10_mono= t30_mono= peak_overall_mib= \
-#            peak_per_uuid= vram_csv= valid=
+#            peak_per_uuid= vram_csv= pollcsv_sha256= valid=
 # OOM cells still emit it (rc=3) and exit 3.
 # ============================================================================
 #SBATCH --partition=all
@@ -56,18 +56,22 @@ CANON="$REPO/src/configs/model_configs/FLAC/AR/FLAC_AR.json"
 # --- cell family -> model config: THE single source of truth (review B5) ---
 p0_config_for() {
   case "$1" in
-    VAN)            echo "$CANON" ;;
-    C4L|C8|C16|C32) echo "$EXPDIR/FLAC_AR_BF_$1.json" ;;
+    VAN)                echo "$CANON" ;;
+    FA1|C4L|C8|C16|C32) echo "$EXPDIR/FLAC_AR_BF_$1.json" ;;
     CKPT4)          echo "$EXP07/FLAC_AR_BF.json" ;;
     *)              return 1 ;;
   esac
 }
 # The submitter queries the map with this hook (prints the path, exits; no gates,
 # no Slurm needed) so it cannot drift from what the job will actually run.
-if [ -n "${P0_PRINT_CONFIG:-}" ]; then
+# N7: honoured ONLY outside a Slurm job — inside one it is inherited state that
+# could turn a scheduled cell into a misleading successful no-op, so it is ignored
+# and scrubbed from the environment.
+if [ -n "${P0_PRINT_CONFIG:-}" ] && [ -z "${SLURM_JOB_ID:-}" ]; then
   p0_config_for "${P0_PRINT_CONFIG%%_*}" || { echo "unknown cell family in '${P0_PRINT_CONFIG}'" >&2; exit 2; }
   exit 0
 fi
+unset P0_PRINT_CONFIG
 
 cd "$REPO" || exit 3
 unset PYTHONPATH PYTHONOPTIMIZE
@@ -84,13 +88,17 @@ TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 : "${MAXSTEPS:?MAXSTEPS must be exported - abort}"
 : "${RUNID:?RUNID (submission run id) must be exported - abort}"
 : "${EXPECT_SHA:?EXPECT_SHA (full reviewed commit sha) must be exported at submission - abort}"
-NUM_WORKERS="${NUM_WORKERS:-6}"   # 0-vs-6 worker spot pair (review B3)
+# Never defaulted (re-review B4): an ambient NUM_WORKERS must not silently change
+# a matrix cell, so the submitter always exports it explicitly.
+: "${NUM_WORKERS:?NUM_WORKERS must be exported explicitly (6 for matrix/spot cells) - abort}"
+case "$NUM_WORKERS" in ''|*[!0-9]*) echo "NUM_WORKERS '${NUM_WORKERS}' not numeric - abort"; exit 2;; esac
 
 echo "=== exp_11 P0 cell ${CELL} - ${TS} - job ${JID} - run ${RUNID} - host $(hostname) ==="
 
 # --- cell grammar + rung as the single source of MB/NGPU (review B5) ---
 case "$CELL" in
-  VAN_32x2|VAN_16x4|VAN_8x8|C4L_32x2|C4L_16x4|C4L_8x8|C8_32x2|C8_16x4|C8_8x8) ;;
+  VAN_32x2|VAN_16x4|VAN_8x8|FA1_32x2|FA1_16x4|FA1_8x8) ;;
+  C4L_32x2|C4L_16x4|C4L_8x8|C8_32x2|C8_16x4|C8_8x8) ;;
   C16_32x2|C16_16x4|C16_8x8|C32_32x2|C32_16x4|C32_8x8|CKPT4_32x2|CKPT4_16x4|CKPT4_8x8) ;;
   *) echo "CELL '${CELL}' is not a legal <FAMILY>_<RUNG> cell - abort"; exit 2 ;;
 esac
@@ -99,8 +107,9 @@ RUNG="${CELL#*_}"
 MB="${RUNG%x*}"
 NGPU="${RUNG#*x}"
 [ "$((MB * NGPU))" -eq 64 ] || { echo "MB*NGPU = $((MB*NGPU)) != 64 (micro x N pin, plan §10) - abort"; exit 2; }
-case "$MAXSTEPS" in ''|*[!0-9]*) echo "MAXSTEPS '${MAXSTEPS}' not numeric - abort"; exit 2;; esac
-[ "$MAXSTEPS" -ge 30 ] || { echo "MAXSTEPS ${MAXSTEPS} < 30: the 10->30 timing window would never close - abort"; exit 2; }
+# The approved P0 contract is EXACTLY 30 steps (re-review B3): a different budget
+# measures a different workload, and peak VRAM would not be comparable.
+[ "$MAXSTEPS" = "30" ] || { echo "MAXSTEPS '${MAXSTEPS}' != 30 (the pinned P0 budget) - abort"; exit 2; }
 
 # --- commit binding + drift gate (mem_probe review B3) ---
 HEAD_SHA="$(git rev-parse HEAD 2>/dev/null)"
@@ -142,7 +151,10 @@ python3 - "$MODEL_CONFIG_ABS" "$FAMILY" <<'PY' || { echo "cell/config semantic g
 import json, sys
 cfg = json.load(open(sys.argv[1])); fam = sys.argv[2]
 t = cfg.get("training", {}); bad = []
-want = {"VAN": None, "C4L": 4, "C8": 8, "C16": 16, "C32": 32, "CKPT4": 4}[fam]
+# FA1: fa_invariant with a SINGLE-angle orbit -> cylindrical pose path + exactly
+# one ViT pass (yaw_rotation.invariant_conditioning returns the base pass when
+# len(angles) == 1), the attribution baseline the orbit slope is fitted against.
+want = {"VAN": None, "FA1": 1, "C4L": 4, "C8": 8, "C16": 16, "C32": 32, "CKPT4": 4}[fam]
 angles = t.get("frame_avg_angles")
 if want is None:
     if "cond_method" in t or angles is not None:
@@ -250,9 +262,11 @@ if [ "$POLLER_RC" -ne 0 ]; then echo "poller exited ${POLLER_RC} - measurement I
 if grep -q "POLLFAIL" "$PEAKCSV"; then echo "poller reported a query failure - measurement INVALID"; MEAS_OK=0; fi
 NTICKS="$(awk '{print $1}' "$PEAKCSV" | sort -u | wc -l)"
 BADTICKS="$(awk -v want="$NGPU" -v us=",${UUID_CSV}," '
-  { split($1,ka,"="); split($2,kb,"="); split($3,kc,"=");
-    t=ka[2]; u=kb[2]; m=kc[2];
+  { split($1,ka,"="); split($2,kb,"="); split($3,kc,"="); split($4,kd,"="); split($5,ke,"=");
+    t=ka[2]; u=kb[2]; m=kc[2]; ut=kd[2]; pw=ke[2];
     if (index(us, ","u",")==0 || m !~ /^[0-9]+$/) { bad[t]=1; next }
+    # utilisation/power are mandatory evidence (re-review B2), not decoration
+    if (ut !~ /^[0-9]+(\.[0-9]+)?$/ || pw !~ /^[0-9]+(\.[0-9]+)?$/) { bad[t]=1; next }
     if ((t SUBSEP u) in seen) { bad[t]=1; next }        # duplicate UUID in one tick
     seen[t SUBSEP u]=1; n[t]++ }
   END { nbad=0; for (t in n) if (n[t] != want && !(t in bad)) nbad++; for (t in bad) nbad++; print nbad+0 }' "$PEAKCSV")"
@@ -318,7 +332,8 @@ if [ "$rc" -eq 0 ] && [ "$MEAS_OK" -ne 1 ]; then
 fi
 
 # --- the one machine-parseable line the collector reads (always emitted) ---
-echo "P0RESULT runid=${RUNID} sha=${HEAD_SHA} jobid=${JID} cell=${CELL} maxsteps=${MAXSTEPS} ngpu=${NGPU} mb=${MB} rc=${rc} config_sha=${CONFIG_SHA} wall_fit=${WALL_FIT} t10=${T10_TS} t30=${T30_TS} t10_mono=${T10_MONO} t30_mono=${T30_MONO} peak_overall_mib=${PEAK} peak_per_uuid=${PER_UUID} vram_csv=$(basename "$PEAKCSV") valid=${MEAS_OK}"
+POLLCSV_SHA="$(sha256sum "$PEAKCSV" | awk '{print $1}')"
+echo "P0RESULT runid=${RUNID} sha=${HEAD_SHA} jobid=${JID} cell=${CELL} maxsteps=${MAXSTEPS} ngpu=${NGPU} mb=${MB} workers=${NUM_WORKERS} rc=${rc} config_sha=${CONFIG_SHA} wall_fit=${WALL_FIT} t10=${T10_TS} t30=${T30_TS} t10_mono=${T10_MONO} t30_mono=${T30_MONO} peak_overall_mib=${PEAK} peak_per_uuid=${PER_UUID} vram_csv=$(basename "$PEAKCSV") pollcsv_sha256=${POLLCSV_SHA} valid=${MEAS_OK}"
 
 [ "$rc" -eq 0 ] && [ "$MEAS_OK" -eq 1 ] || echo "cell ${CELL} NOT clean (rc=${rc}, measurement_valid=${MEAS_OK}); see ${TRAINLOG}"
 exit "$rc"
