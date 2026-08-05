@@ -409,6 +409,17 @@ def test_probe_is_the_two_phase_lifecycle_probe_with_the_launcher_gates():
 
 
 # ---- Slurm wrappers (cylindrical repo) ---------------------------------------------- #
+@pytest.mark.parametrize("name,gpus", [("train_exp03n.sbatch", "2"), ("probe_exp03n.sbatch", "2")])
+def test_gpu_wrappers_pin_and_assert_their_launch_shape(name, gpus):
+    """Plan §5.1: 1 node / 2x L40 / 1 task, declared in the directives AND asserted
+    fail-closed on the worker (review fix F1, applied to the training-side wrappers too)."""
+    text = _sbatch(name)
+    assert "#SBATCH --nodes=1" in text and "#SBATCH --ntasks=1" in text
+    assert f"launch-shape: 1 node / {gpus}x L40 / 1 task" in text
+    assert '[ "$NNODES" = "1" ]' in text and '[ "$NTASKS" = "1" ]' in text
+    assert f'[ "$NGPU" = "{gpus}" ]' in text
+
+
 def test_train_sbatch_shape_and_preflights():
     text = _sbatch("train_exp03n.sbatch")
     assert "--gres=gpu:l40:2" in text
@@ -439,22 +450,141 @@ def test_eval_sbatch_passes_the_mandatory_fa_invariant_flags():
     assert "--cond-method vanilla" not in text
 
 
-def test_eval_sbatch_binds_one_config_per_stream():
+# --- per-stream DRY RUN (review fix F2): the wrapper renders the command it will run, and the
+# test asserts the EXACT rendered argument vector. A word search over the script would pass with
+# the two stream->config assignments SWAPPED; these assertions bind stream -> config, so a swap
+# fails on both cells. ---------------------------------------------------------------------- #
+_STREAM_CONFIG = {
+    "online": "worklog/worklog_yixun/exp_09_cyl_no_ssl/FLAC_AR_exp03n_online_eval.json",
+    "ema": "worklog/worklog_yixun/exp_09_cyl_no_ssl/FLAC_AR_exp03n.json",
+}
+_EVAL_PROTOCOL_FLAGS = {
+    "--cond-method": "fa_invariant",   # THE trap: never 'vanilla'
+    "--frame-avg-angles": "0",
+    "--steps": "1",
+    "--cfg-scale": "1.0",
+    "--batch-size": "64",
+    "--num-workers": "4",
+    "--device": "cuda",
+    "--cond-autocast": "bf16",
+}
+_DS_FOR_K = {1: "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json",
+             8: "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json"}
+
+
+def _dry_run_eval(stream, *, step="40000", idx=0, cwd=None):
+    """Execute eval_exp03n.sbatch's DRY_RUN path and return its stdout. Touches no GPU, no
+    checkpoint and no file (asserted by the caller via an empty cwd)."""
+    path = _SLURM_DIR / "eval_exp03n.sbatch"
+    if not _SLURM_DIR.exists():
+        pytest.skip(f"cylindrical slurm_neuronic checkout not present at {_SLURM_DIR}")
+    if not path.exists():
+        pytest.fail(f"required deliverable is missing: {path}")
+    env = dict(os.environ)
+    env.update(DRY_RUN="1", STEP=step, STREAM=stream,
+               EXPECT_PACKAGE_SHA="deadbeefdeadbeef", EXPECT_EXP09_SHA="cafebabecafebabe",
+               SLURM_ARRAY_TASK_ID=str(idx))
+    proc = subprocess.run(["bash", str(path)], capture_output=True, text=True, env=env,
+                          cwd=str(cwd) if cwd else None)
+    assert proc.returncode == 0, f"dry run failed (rc={proc.returncode}):\n{proc.stderr}"
+    return proc.stdout
+
+
+def _rendered(stdout, prefix):
+    lines = [l for l in stdout.splitlines() if l.startswith(prefix)]
+    assert len(lines) == 1, f"expected exactly one {prefix!r} line, got {lines}"
+    return lines[0][len(prefix):].strip().split()
+
+
+def _flag(tokens, flag):
+    assert flag in tokens, f"{flag} missing from the rendered command: {' '.join(tokens)}"
+    assert tokens.count(flag) == 1, f"{flag} appears {tokens.count(flag)}x"
+    return tokens[tokens.index(flag) + 1]
+
+
+@pytest.mark.parametrize("stream", ["online", "ema"])
+@pytest.mark.parametrize("idx,k,seed", [(0, 1, 42), (4, 1, 46), (5, 8, 42), (9, 8, 46)])
+def test_eval_dry_run_renders_the_exact_command_per_stream(stream, idx, k, seed, tmp_path):
+    out = _dry_run_eval(stream, step="40000", idx=idx, cwd=tmp_path)
+    tokens = _rendered(out, "EVAL_CMD:")
+    assert tokens[:2] == ["python", "eval_FLAC.py"], tokens[:2]
+
+    # stream -> config: THE binding a swap must break
+    assert _flag(tokens, "--model-config") == _STREAM_CONFIG[stream], (
+        f"stream {stream!r} rendered the WRONG model config: {_flag(tokens, '--model-config')}"
+    )
+    # the pin gate must be bound to the SAME config the eval loads
+    assert _flag(_rendered(out, "PIN_GATE:"), "--config") == _STREAM_CONFIG[stream]
+
+    for flag, value in _EVAL_PROTOCOL_FLAGS.items():
+        assert _flag(tokens, flag) == value, f"{flag} = {_flag(tokens, flag)!r}, expected {value!r}"
+    assert "vanilla" not in tokens, "the raw-pose vanilla trap must never be rendered"
+
+    assert _flag(tokens, "--dataset-config") == _DS_FOR_K[k]
+    assert _flag(tokens, "--seed") == str(seed)
+    assert _flag(tokens, "--eval-name") == f"exp03n_40000_{stream}_K{k}_s{seed}"
+    assert _flag(tokens, "--ckpt-path").endswith("step=40000.ckpt")
+    # the dry run is side-effect free
+    assert list(tmp_path.iterdir()) == [], f"the dry run created files: {list(tmp_path.iterdir())}"
+
+
+def test_eval_dry_run_streams_bind_different_configs(tmp_path):
+    """Explicit swap detector: the two streams must render DIFFERENT configs, each the one
+    registered for it - so exchanging the two case-branch assignments fails here too."""
+    rendered = {s: _flag(_rendered(_dry_run_eval(s, cwd=tmp_path), "EVAL_CMD:"), "--model-config")
+                for s in ("online", "ema")}
+    assert rendered["online"] != rendered["ema"], rendered
+    assert rendered == _STREAM_CONFIG, rendered
+    assert "online_eval" in rendered["online"], "the online stream must load the use_ema:false config"
+    assert not rendered["ema"].endswith("online_eval.json"), (
+        "the EMA stream must load the training config (use_ema:true), not the online variant"
+    )
+
+
+def test_eval_dry_run_refuses_an_unknown_stream(tmp_path):
+    path = _SLURM_DIR / "eval_exp03n.sbatch"
+    if not _SLURM_DIR.exists():
+        pytest.skip("cylindrical slurm_neuronic checkout not present")
+    env = dict(os.environ)
+    env.update(DRY_RUN="1", STEP="40000", STREAM="EMA", EXPECT_PACKAGE_SHA="x",
+               EXPECT_EXP09_SHA="y", SLURM_ARRAY_TASK_ID="0")
+    proc = subprocess.run(["bash", str(path)], capture_output=True, text=True, env=env,
+                          cwd=str(tmp_path))
+    assert proc.returncode != 0, "an unknown STREAM must be refused (fail-closed)"
+
+
+def test_eval_sbatch_array_and_launch_shape_directives():
+    """Launch shape (plan §5.1 / review fix F1): 1 node, 1 task, 1 L40, and the 10-cell array."""
     text = _sbatch("eval_exp03n.sbatch")
-    assert "FLAC_AR_exp03n_online_eval.json" in text and "FLAC_AR_exp03n.json" in text
-    assert re.search(r"STREAM", text), "the driver must take an explicit STREAM"
-    assert "online" in text and "ema" in text
+    assert "#SBATCH --nodes=1" in text
+    assert "#SBATCH --ntasks=1" in text
+    assert "#SBATCH --gres=gpu:l40:1" in text
+    assert "--array=0-9" in text, "K{1,8} x seeds 42-46 = 10 cells"
+    assert "exp03n_${STEP}_${STREAM}_K${K}_s${SEED}" in text, "stream-tagged, collision-free eval name"
     assert "assert_arm_configs_exp03n.py" in text, "each cell must run the pin gate"
 
 
-def test_eval_sbatch_protocol_flags_are_the_registered_ones():
+def test_eval_sbatch_asserts_its_launch_shape_and_evaluation_only_status():
+    """The §5.1 evidence must be MECHANICAL, not decorative: worker-reported SHAs compared to
+    the pins, node/task/GPU counts asserted fail-closed, an eval-only source pre-flight, and
+    post-run full-split + no-training-marker assertions on the eval's own stdout."""
     text = _sbatch("eval_exp03n.sbatch")
-    for flag in ("--steps 1", "--cfg-scale 1.0", "--batch-size 64", "--num-workers 4",
-                 "--device cuda", "--cond-autocast bf16"):
-        assert flag in text, flag
-    assert "--array=0-9" in text, "K{1,8} x seeds 42-46 = 10 cells"
-    assert "acousticroom_unseeneval_1.json" in text and "acousticroom_unseeneval.json" in text
-    assert "exp03n_${STEP}_${STREAM}_K${K}_s${SEED}" in text, "stream-tagged, collision-free eval name"
+    assert "launch-shape: 1 node / 1x L40 / 1 task / evaluation-only" in text
+    assert 'WT_SHA=$(git -C "$WORKTREE" rev-parse HEAD)' in text
+    assert 'PKG_SHA=$(git -C "$CYL_REPO" rev-parse HEAD)' in text
+    assert '[ "$WT_SHA" = "$EXPECT_EXP09_SHA" ]' in text
+    assert '[ "$PKG_SHA" = "$EXPECT_PACKAGE_SHA" ]' in text
+    assert '[ "$NNODES" = "1" ]' in text and '[ "$NTASKS" = "1" ]' in text
+    assert '[ "$NGPU" = "1" ]' in text
+    assert 'NTASKS="${SLURM_NTASKS:-1}"' in text, "task count must default fail-closed to 1 and be asserted"
+    # evaluation-only evidence
+    assert "module.eval().requires_grad_(False)" in text
+    assert "with torch.no_grad():" in text
+    assert "EVAL-ONLY CONTRACT VIOLATED" in text
+    assert 'grep -q "Found 6337 files"' in text, "the full-split criterion must be asserted post-run"
+    assert 'for MARK in "optim" "backward" "training_step" "Epoch "' in text, (
+        "the eval stdout must be asserted free of training markers"
+    )
 
 
 def test_eval_sbatch_proves_the_weight_stream_it_used():

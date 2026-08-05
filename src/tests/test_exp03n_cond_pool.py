@@ -575,26 +575,35 @@ def test_gauge_off_negative_control_violates_invariance(tiny_cyl_dir):
 # ------------------------------------------------------------------------------------ #
 # 7. gradients (plan §2 N8)
 # ------------------------------------------------------------------------------------ #
-def test_grads_reach_both_mlp_layers_and_the_backbone_through_both_conditioners(tiny_cyl_dir):
+@pytest.mark.parametrize("use", [0, 1])
+def test_grads_reach_both_mlp_layers_and_the_backbone_through_each_conditioner_use(
+    tiny_cyl_dir, use
+):
+    """ONE backward per conditioner USE, with grads zeroed in between (review nit 4): summing
+    both outputs into a single backward would let a detached conditioner hide behind the other
+    use of the SHARED head/backbone. Each use must independently deliver finite nonzero grads
+    to both MLP layers and to a backbone parameter."""
     mc = _build(_cyl_conditioning(tiny_cyl_dir, with_context=True,
                                   cond_pool="max_mlp", cond_mlp_hidden=_HIDDEN))
     geoms = _geoms(mc)
+    assert len(geoms) == 2 and geoms[0].lin_proj is geoms[1].lin_proj
     head = geoms[0].lin_proj
     backbone_param = geoms[0].vit.layer[0].mlp.up_proj.weight
     assert backbone_param.requires_grad
 
     mc.train()
-    batch = [_base_sample(0)]
-    loss = sum(geom(batch, device=DEV)[0].float().pow(2).mean() for geom in geoms)
-    loss.backward()
+    mc.zero_grad(set_to_none=True)      # no grad may survive from an earlier use
     try:
-        for name, param in (("hidden", head[0]), ("output", head[2])):
+        for param in (head[0].weight, head[0].bias, head[2].weight, head[2].bias, backbone_param):
+            assert param.grad is None, "grads were not cleared before the measured backward"
+        geoms[use]([_base_sample(0)], device=DEV)[0].float().pow(2).mean().backward()
+        for name, layer in (("hidden", head[0]), ("output", head[2])):
             for tensor in ("weight", "bias"):
-                grad = getattr(param, tensor).grad
-                assert grad is not None, f"{name}.{tensor} got no grad"
-                assert torch.isfinite(grad).all(), f"{name}.{tensor} grad is not finite"
-                assert grad.abs().max().item() > 0.0, f"{name}.{tensor} grad is all zeros"
-        assert backbone_param.grad is not None, "the shared backbone got no grad"
+                grad = getattr(layer, tensor).grad
+                assert grad is not None, f"conditioner {use}: {name}.{tensor} got no grad"
+                assert torch.isfinite(grad).all(), f"conditioner {use}: {name}.{tensor} grad not finite"
+                assert grad.abs().max().item() > 0.0, f"conditioner {use}: {name}.{tensor} grad all zeros"
+        assert backbone_param.grad is not None, f"conditioner {use}: the shared backbone got no grad"
         assert torch.isfinite(backbone_param.grad).all()
         assert backbone_param.grad.abs().max().item() > 0.0
     finally:
