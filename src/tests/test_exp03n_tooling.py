@@ -267,3 +267,205 @@ def test_guard_cli_returns_zero_on_a_loadable_checkpoint(guard, tiny_dir, tmp_pa
     assert rc == 0
     out = capsys.readouterr().out
     assert "GUARD PASS" in out, out
+
+
+# ------------------------------------------------------------------------------------ #
+# 4. launch / probe / eval script contracts (plan §4.4, §4.5, §5.1)
+# ------------------------------------------------------------------------------------ #
+import difflib  # noqa: E402
+import re  # noqa: E402
+import subprocess  # noqa: E402
+
+_LAUNCH = _EXP09_DIR / "exp03n_launch.sh"
+_EXP09_LAUNCH = _EXP09_DIR / "exp09_launch.sh"
+_PROBE = _EXP09_DIR / "exp03n_probe.sh"
+# The Slurm wrappers live in the CYLINDRICAL repo (they are that repo's records); the
+# contract is asserted here because this is where the trap lives. Skipped when that
+# checkout is not beside this one.
+_SLURM_DIR = Path("/n/fs/gatrdp/codespace/cylindrical-dinov3/slurm_neuronic")
+_WORKTREE_ROOT_ABS = "/n/fs/gatrdp/codespace/exp03-maxpool-mlp-cond"
+_CYL_SRC_ABS = "/n/fs/gatrdp/codespace/cylindrical-dinov3/src"
+_RECORDS_DIR_ABS = ("/n/fs/gatrdp/codespace/cylindrical-dinov3/worklog/worklog_yixun_neuronic/"
+                    "exp_03_maxpool_mlp_cond_claude")
+
+
+def _text(path: Path) -> str:
+    if not path.exists():
+        pytest.fail(f"required deliverable is missing: {path}")
+    return path.read_text()
+
+
+def _sbatch(name: str) -> str:
+    path = _SLURM_DIR / name
+    if not _SLURM_DIR.exists():
+        pytest.skip(f"cylindrical slurm_neuronic checkout not present at {_SLURM_DIR}")
+    if not path.exists():
+        pytest.fail(f"required deliverable is missing: {path}")
+    return path.read_text()
+
+
+@pytest.mark.parametrize("script", ["exp03n_launch.sh", "exp03n_probe.sh"])
+def test_shell_scripts_parse(script):
+    path = _EXP09_DIR / script
+    _text(path)
+    rc = subprocess.run(["bash", "-n", str(path)], capture_output=True, text=True)
+    assert rc.returncode == 0, rc.stderr
+
+
+def test_launcher_every_diff_from_exp09_is_marked_and_numbered():
+    """House style (exp_02's p1_rerun_launch.sh): the launcher is a COPY of the reviewed
+    exp-09 launcher in which every changed/added line carries a ``# EXP03 DIFF n/N`` marker,
+    so a reviewer can diff the two files and account for each line."""
+    exp09 = _text(_EXP09_LAUNCH).splitlines()
+    exp03n = _text(_LAUNCH).splitlines()
+    added = [line for line in difflib.unified_diff(exp09, exp03n, n=0, lineterm="")
+             if line.startswith("+") and not line.startswith("+++")]
+    assert added, "the launcher is byte-identical to exp09_launch.sh — nothing was adapted"
+    markers = []
+    for line in added:
+        m = re.search(r"EXP03 DIFF (\d+)/(\d+)", line)
+        assert m, f"unmarked diff line in exp03n_launch.sh: {line[1:][:120]}"
+        markers.append((int(m.group(1)), int(m.group(2))))
+    totals = {t for _, t in markers}
+    assert len(totals) == 1, f"inconsistent diff totals: {sorted(totals)}"
+    total = totals.pop()
+    assert sorted(n for n, _ in markers) == list(range(1, total + 1)), sorted(markers)
+    assert len(added) == total, f"{len(added)} changed lines but the markers claim {total}"
+
+
+_SCIENTIFIC_FLAGS = (
+    '--max-steps 67500 --batch-size "$MB" --accum-batches "$ACC" --num-workers 6 --seed 42',
+    "--num-gpus 2 --strategy ddp_find_unused_parameters_true --sync-batchnorm true",
+    '--logger "$LOGGER" --checkpoint-every 2500',
+    "--dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json",
+    "--pretransform-ckpt-path weights/FLAC/VAE.safetensors",
+)
+
+
+def test_launcher_keeps_every_scientific_flag_byte_identical():
+    launch, exp09 = _text(_LAUNCH), _text(_EXP09_LAUNCH)
+    for flag_line in _SCIENTIFIC_FLAGS:
+        assert flag_line in exp09, f"fixture drift: {flag_line!r} not in exp09_launch.sh"
+        assert flag_line in launch, f"scientific flag line changed: {flag_line!r}"
+    # the BN-compliant rung pin survives
+    assert '[ "$MB" = "32" ] && [ "$ACC" = "1" ]' in launch
+
+
+def test_launcher_binds_the_exp03n_arm_not_exp09():
+    launch = _text(_LAUNCH)
+    assert f"cd {_WORKTREE_ROOT_ABS}" in launch, "the launcher must cd to the absolute worktree root"
+    assert f"export PYTHONPATH={_CYL_SRC_ABS}" in launch
+    assert "FLAC_AR_exp03n.json" in launch
+    assert "FLAC_AR_exp09.json" not in launch
+    assert "assert_arm_configs_exp03n.py" in launch
+    assert "assert_arm_configs_exp09.py" not in launch
+    assert "--name FLAC_exp03n_maxpoolmlp --experiment-name exp03n_maxpoolmlp" in launch
+    assert "--save-dir /n/fs/gatrdp/outputs/exp03n_maxpoolmlp" in launch
+    assert _RECORDS_DIR_ABS in launch, "the teed log must land in the exp_03 records folder"
+    assert "maxpool_mlp_cond_${TS}_j${SLURM_JOB_ID:-nojob}_train.log" in launch
+
+
+def test_launcher_refuses_without_the_frozen_vram_file_and_the_two_pins():
+    launch = _text(_LAUNCH)
+    assert "exp03n_frozen_min_free.txt" in launch
+    assert "c1_frozen_min_free.txt" not in launch
+    assert 'FROZEN_FILE" ] || {' in launch, "the frozen-file REFUSE must survive"
+    assert 'EXPECT_PACKAGE_SHA' in launch and 'EXPECT_EXP09_SHA' in launch
+    # both pins REQUIRED: an empty value must abort, never default
+    assert re.search(r'\[ -n "\$EXPECT_PACKAGE_SHA" \].*\[ -n "\$EXPECT_EXP09_SHA" \]', launch), (
+        "the launcher must REFUSE when either pin is absent"
+    )
+
+
+def test_launcher_wandb_identity_gate_uses_netrc_not_bashrc():
+    launch = _text(_LAUNCH)
+    assert ".bashrc" not in launch, "the ~/.bashrc WANDB_API_KEY grep must be dropped"
+    assert "netrc" in launch
+    assert "yh4742@princeton.edu" in launch, "the identity gate must still pin the account"
+
+
+def test_probe_is_the_two_phase_lifecycle_probe_with_the_launcher_gates():
+    probe = _text(_PROBE)
+    assert "--max-steps 30" in probe and "--checkpoint-every 10" in probe
+    assert "--max-steps 40" in probe and "--ckpt-path" in probe
+    assert "step=30" in probe and "step=40" in probe
+    assert "/n/fs/gatrdp/outputs/exp03n_maxpoolmlp_PROBE" in probe
+    assert re.search(r"\[ ! -e .*PROBE", probe), "the probe must refuse an existing save dir"
+    # same gates as the launcher EXCEPT the frozen-VRAM file (this run PRODUCES it)
+    assert "assert_arm_configs_exp03n.py" in probe
+    assert "FLAC_AR_exp03n.json" in probe
+    assert f"export PYTHONPATH={_CYL_SRC_ABS}" in probe
+    assert "EXPECT_PACKAGE_SHA" in probe and "EXPECT_EXP09_SHA" in probe
+    assert "exp03n_frozen_min_free.txt" in probe, "the probe must name the file it feeds"
+    assert "21900" in probe, "the provisional free-VRAM floor must be pinned"
+    assert "1.15" in probe, "the probe must print the recommended 1.15x frozen value"
+    assert ".bashrc" not in probe
+    # the probe's scientific shape matches the arm
+    assert "--batch-size 32" in probe and "--accum-batches 1" in probe
+    assert "--sync-batchnorm true" in probe and "ddp_find_unused_parameters_true" in probe
+    assert "--seed 42" in probe and "--num-gpus 2" in probe
+
+
+# ---- Slurm wrappers (cylindrical repo) ---------------------------------------------- #
+def test_train_sbatch_shape_and_preflights():
+    text = _sbatch("train_exp03n.sbatch")
+    assert "--gres=gpu:l40:2" in text
+    assert "--cpus-per-task=16" in text and "--mem=32G" in text
+    assert "--time=5-00:00:00" in text
+    assert "exp03n_launch.sh" in text
+    assert "100" in text, "the storage floor must be present"
+    assert "/n/fs/gatrdp/outputs/exp03n_maxpoolmlp" in text
+    assert re.search(r"\[ ! -e /n/fs/gatrdp/outputs/exp03n_maxpoolmlp \]", text), (
+        "a fresh launch must refuse an existing save dir"
+    )
+    assert "HF_HUB_OFFLINE=1" in text
+
+
+def test_probe_sbatch_shape():
+    text = _sbatch("probe_exp03n.sbatch")
+    assert "--gres=gpu:l40:2" in text
+    assert "--time=00:50:00" in text
+    assert "exp03n_probe.sh" in text
+
+
+def test_eval_sbatch_passes_the_mandatory_fa_invariant_flags():
+    """THE trap (handoff): eval_FLAC.py defaults to --cond-method vanilla and ignores the
+    model config, so an eval that omits these flags silently scores the raw-pose path."""
+    text = _sbatch("eval_exp03n.sbatch")
+    assert "--cond-method fa_invariant" in text
+    assert "--frame-avg-angles 0" in text
+    assert "--cond-method vanilla" not in text
+
+
+def test_eval_sbatch_binds_one_config_per_stream():
+    text = _sbatch("eval_exp03n.sbatch")
+    assert "FLAC_AR_exp03n_online_eval.json" in text and "FLAC_AR_exp03n.json" in text
+    assert re.search(r"STREAM", text), "the driver must take an explicit STREAM"
+    assert "online" in text and "ema" in text
+    assert "assert_arm_configs_exp03n.py" in text, "each cell must run the pin gate"
+
+
+def test_eval_sbatch_protocol_flags_are_the_registered_ones():
+    text = _sbatch("eval_exp03n.sbatch")
+    for flag in ("--steps 1", "--cfg-scale 1.0", "--batch-size 64", "--num-workers 4",
+                 "--device cuda", "--cond-autocast bf16"):
+        assert flag in text, flag
+    assert "--array=0-9" in text, "K{1,8} x seeds 42-46 = 10 cells"
+    assert "acousticroom_unseeneval_1.json" in text and "acousticroom_unseeneval.json" in text
+    assert "exp03n_${STEP}_${STREAM}_K${K}_s${SEED}" in text, "stream-tagged, collision-free eval name"
+
+
+def test_eval_sbatch_proves_the_weight_stream_it_used():
+    text = _sbatch("eval_exp03n.sbatch")
+    assert "diffusion_ema.ema_model." in text, "EMA cells must PRE-assert the ckpt carries EMA keys"
+    assert "Using EMA model" in text, "the log line must be asserted post-run (present/absent)"
+
+
+def test_eval_sbatch_retention_and_overwrite_guard():
+    text = _sbatch("eval_exp03n.sbatch")
+    assert "sha256sum" in text
+    assert _RECORDS_DIR_ABS in text, "artifacts must be retained in the exp_03 records folder"
+    assert f"{_WORKTREE_ROOT_ABS}/outputs_FLAC/exp03n_maxpoolmlp_import" in text, (
+        "EMA raws must ALSO land in the repo-rooted import dir the canonical generator globs"
+    )
+    assert re.search(r"\[ ! -e .*ART", text), "an existing artifact must abort the cell"
