@@ -65,3 +65,11 @@
 - **Result** — `passed`: rc=0, COMPLETED 0:0 in 60 s. Both P0STEP marks emitted (t10_mono 1674261.179 → t30_mono 1674280.978; Δ=19.799 s / 20 steps ⇒ **1.010 steps/s**, FA1 32×2 no-ckpt). Peak 40,425/46,068 MiB (87.7%) both UUIDs — FA1 fits at 32×2 but tight; corroborates smoke-1: each additional retained orbit pass pushes past capacity (C4L OOM confirmed). valid=1, full provenance.
 - **Analysis** — P0 kit fully live-validated (spawn, world-size gate, timing, poller, provenance, OOM path, success path). NIT-8 requirement satisfied. First rate datum: FA1-no-ckpt at 2 GPUs already 1.01 steps/s vs the old C4-ckpt 2-GPU 0.095 — the fast-recipe direction is strongly confirmed.
 - **Next** — submit the 13-job matrix.
+
+## 2026-08-05T19:05:00-04:00 — P0 MATRIX LAUNCHED (13 cells, run aa4bc18-1785968431124626318-df9602ea)
+
+- **Goal** — the Rev-3 §10 throughput/fit matrix + attribution cells.
+- **Command / Validation** — `p0_submit_matrix.sh matrix` @ commit `aa4bc18`; jobs 3638637–3638649 (manifest `p0_manifest_aa4bc18-1785968431124626318-df9602ea.txt`); commands in `fa_orbit_command.md`. At submit+2 min: VAN_32x2 + VAN_8x8 RUNNING, 11 PENDING.
+- **Acceptance criteria (pre-launch)** — every cell: commit-bound rc per class (0 success with both P0STEP marks and valid=1 poller evidence; 3 OOM with valid measurement; anything else = distinct failure); collection admits rows only via the manifest; matrix-mode attribution fit {FA1,C4L,C8} per rung where all three valid; no contact with jobs 3637217/3638486.
+- **Result** — `launched`; ID-bound background waiter armed (a first name-filter waiter false-fired on the `-w6` suffix and was replaced — logged for honesty).
+- **Next** — collect on completion → rung selection + bottleneck report; Coder round 3 (arm launcher) opened in parallel.
