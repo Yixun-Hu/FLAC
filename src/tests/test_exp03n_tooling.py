@@ -389,8 +389,10 @@ def test_probe_is_the_two_phase_lifecycle_probe_with_the_launcher_gates():
     assert "--max-steps 30" in probe and "--checkpoint-every 10" in probe
     assert "--max-steps 40" in probe and "--ckpt-path" in probe
     assert "step=30" in probe and "step=40" in probe
-    assert "/n/fs/gatrdp/outputs/exp03n_maxpoolmlp_PROBE" in probe
-    assert re.search(r"\[ ! -e .*PROBE", probe), "the probe must refuse an existing save dir"
+    assert re.search(r'SAVE="\$\{SAVE:-/n/fs/gatrdp/outputs/exp03n_maxpoolmlp_PROBE\}"', probe), (
+        "the probe must default to its own _PROBE save dir"
+    )
+    assert re.search(r'\[ ! -e "\$SAVE" \]', probe), "the probe must refuse an existing save dir"
     # same gates as the launcher EXCEPT the frozen-VRAM file (this run PRODUCES it)
     assert "assert_arm_configs_exp03n.py" in probe
     assert "FLAC_AR_exp03n.json" in probe
