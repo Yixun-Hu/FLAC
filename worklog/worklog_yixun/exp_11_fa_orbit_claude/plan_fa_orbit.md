@@ -1,0 +1,74 @@
+# Plan — exp_11 fa_orbit (orbit-size sweep C8/C16/C32 for fa_invariant conditioning)
+
+**Author:** main session (Fable 5 seat, Planner) · **Rev 2** (2026-08-05; all 11 BLOCKING + 3 NIT findings of `fa_orbit_codex_plan_review.md` addressed — changelog in §9) · **Status:** AWAITING Yixun approval. No implementation or launch before approval.
+**Commission (Q1, 2026-08-05):** try C8, C16, C32 orbit averaging (current fa method is C4), changing ONLY the averaging orbit — "to see whether we can get better results with more precise equivariance/invariance to the yaw."
+
+## 1. Question and hypothesis
+
+fa_invariant symmetrizes two paths: the pose path is invariant under any yaw (cylindrical features); the ViT depth path is averaged over C4 only — exactly invariant on the 90° subgroup (up to the bf16 accumulation floor, §3 D3), residual non-invariance inside the gaps. exp_10's decomposition cell showed the fa advantage is training-side. Hypothesis (Yixun's): refining the orbit → C8/C16/C32 brings the conditioning closer to SO(2) invariance and further improves headline metrics at matched training steps.
+
+Geometry (verified): rolls quantise to integer columns (W=512); C8/C16/C32 = 64/32/16-px rolls — exact and 16-px-patch-aligned (C32 = finest patch-aligned subgroup). "Exactness" claims are geometric; the numeric (bf16) invariance floor is measured, not assumed (D3).
+
+## 2. Design
+
+**Arms (from-scratch, training seed 42, identical recipe = exp_07 B-F manifest: SyncBN-64 via DDP 32/GPU × 2 × accum 1, bf16-mixed, ViT grad-ckpt, InverseLR, EMA on, workers 6/rank, ckpt every 2,500, `HF_HUB_OFFLINE=1`):**
+- **C4L (bridge control, NEW in Rev 2):** `frame_avg_angles=[0,90,180,270]` — re-run of the C4 recipe contemporaneous with the sweep: same commit, same env, same GPU type (L40), same staging. Rationale (review B1): the historical exp_07 C4 lineage is mixed/unproven-identical hardware (launch header cites 2×A6000; exp_10's 40k→65k continuation ran on L40s; no GPU-name record in the exp_07 logs) — without a bridge, orbit effects are confounded with environment. **R1's comparator is C4L.** Historical C4@40k rows remain a secondary consistency check; if C4L@40k ≉ historical C4@40k, the environment effect is thereby quantified and disclosed.
+- **C8 / C16 / C32:** `frame_avg_angles = [k·360/n, k=0..n−1]`.
+
+Same seed ⇒ identical data order/augs/cfg-dropout/timestep draws across arms; the forward differs only in the orbit average. **Primary budget `--max-steps 40000`** (matched steps). **Launch mode (Rev 2): Slurm sbatch jobs** (this cluster schedules 32 × 8-L40 nodes; org policy and current practice require the scheduler — a disclosed deviation from exp_07/10's direct-launch pattern): one 2-GPU job per arm; screens/evals/probes as separate 1-GPU jobs (reserved eval capacity, review B5/B11). Job 3637217 and other tenants untouched.
+
+**Eval protocol:** full unseen split (announcement 01), EMA, cfg 1.0, bf16 cond-autocast, seeds 42–46, K∈{1,8}, each arm under its own protocol (`--frame-avg-angles` = its training orbit; announcement 04). Every exp_11 eval sets `--eval-name exp11_<arm>_<cell>_s<seed>_K<k>` (fractional rotations encoded as e.g. `rot5p625`, review B9-fix) so filenames alone identify the cell; JSON-embedded metadata is additionally validated fail-closed (§5, review B6).
+
+**Estimand framing (review B2, B10):** R1 is the **bundled train+eval-orbit system comparison** (each model under its own protocol — the deployment-relevant estimand). Training-side vs eval-side attribution comes from the pre-registered per-arm 2×2 (R2), not from R1. Matched steps ≠ matched compute (C8/C16/C32 ≈ 1.95×/3.86×/7.67× C4 training compute at 40k; planning prior, §7). **No existing curve is a compute-matched fa control** (B-V-extend is vanilla — Rev 1's claim was wrong and is withdrawn). One near-compute-matched exploratory cell exists: C4-fa@67.5k (exp_10 endpoint, ≈67.5k C4-step-equivalents) vs C8@40k (≈78k equivalents, +16%) — pre-registered as **R4 (exploratory)**, contingent on exp_10 completing its 67.5k endpoint.
+
+## 3. Pre-launch probes (all before any training launch; each a 1–2-GPU Slurm job)
+
+- **M2 fit/throughput (per arm incl. C4L):** 30-step run, `LOGGER=none`, MB=32; peak VRAM (0.5 s nvidia-smi poll) + steady-state steps/s over steps 10→30 (excludes warmup; review B11). Plus one **concurrency probe**: the arms' M2 jobs run simultaneously in the approved staging pattern to measure interference. **Feasibility rule:** OOM at MB=32 ⇒ the arm is INFEASIBLE at the identical recipe (BN-64 pins MB=32×2; accum never feeds BN) → report to Yixun; no silent recipe change.
+- **D1 invariance-headroom (cost-prior ONLY, review B8):** deterministic stratified scene set — first 2 unseen-split items per room by item id, 17 rooms ⇒ 34 scenes, ids saved to `d1_scene_ids.json`; B-F@40k **EMA** weights, `eval()` mode, K=8; both **bf16-autocast and fp32**. For each ViT id and scene: y_g = Cn-average of the g-rotated scene, g over the 64-element exact probe grid (5.625° steps, includes sub-patch shifts); residual(n) = ||y_g − y_0||₂/||y_0||₂, reported as max_g and RMS_g, median/IQR over scenes per conditioner, scene-level bootstrap CIs. D1 informs the C32 spend decision as a prior; **it cannot establish that C32 training would fail** — if C32 is skipped, its hypothesis is reported UNTESTED.
+- **D2 eval-side-only orbit sweep:** C4-trained B-F@40k under a8/a16/a32 (s42, K8) — the C4-train row of each arm's 2×2 (R2).
+- **D3 bf16 invariance floor (review B7):** same harness as D1, **in-group** rotations only, per orbit n ∈ {4,8,16,32}: bf16-path residual vs fp32 reference — the measured floor that R3 tolerances use. Any change to fp32 accumulation would exceed the "angles only" treatment — not planned; would need Yixun approval + a new C4 control.
+- **C4 comparator backfill:** fa-protocol (a4) screens of exp_07 B-F ckpts at 20k/30k (s42, K8, eval-names `exp11_C4backfill_S<step>`) — the exp_07 S10000–S30000 screens were the retracted mismatched-protocol evals. Used only by the futility gates (§4).
+
+## 4. Pre-registered readouts
+
+- **R1 (primary, per arm n ∈ {8,16,32} vs C4L, at 40k):** seed-paired deltas from raw unrounded JSONs (common eval seeds 42–46 ⇒ paired analysis; review B3). Per cell: mean paired delta, SD, 95% paired-t CI (df=4). **Co-primary cells: K8 T60 and K8 R@1**, Holm-corrected within arm (α=0.05); all other cells (C50/EDT/R@5/R@10, all K1) reported with CIs, descriptive. All inference is conditional on training seed 42 (training-run variability is NOT estimated — single-seed precedent, disclosed).
+- **Trend (hypothesis readout, review B4):** adjacent-orbit paired deltas C8−C4L, C16−C8, C32−C16 on the co-primary cells with 95% CIs — reported as ordered estimates, no categorical labels. A missing arm (infeasible, futility-stopped, not launched) makes its deltas **NOT ESTIMABLE** — never "saturation" and never a negative result.
+- **R2 (mechanism, pre-registered for EVERY arm, s42 K8; review B2):** the full 2×2 — C4L/a4, C4L/a{n} (⊂D2 logic re-run on C4L), Cn/a4, Cn/a{n} → total, eval-side, training-side-under-a4, and interaction effects, each reported separately.
+- **R3 (yaw-flatness, per arm incl. C4L; review B9):** rotations {0° (reference), 5.625°, 11.25°, 22.5°, 45°} at s42 K8, own protocol, identical eval seed; each angle labeled **in-group / off-group per arm** (45° in C8/C16/C32; 22.5° in C16/C32; 11.25° in C32; 5.625° off-group for all). Readout: paired per-item metric deltas vs 0° (and stored-prediction L2 deltas where `--store_predictions` is tractable); in-group deltas must sit at the D3 floor (sanity), off-group deltas measure residual non-invariance. Claim scope limited to the tested offsets.
+- **Futility gates (economic stopping, review B5):** screens s42 K8 own-protocol every 2,500 (C8, C4L) / 5,000 (C16, C32), run as separate 1-GPU Slurm jobs. At **20k and 30k**: compare to C4 backfill at the matched step (common eval seed). **Stop an arm only if** it is worse on ALL of {T60, C50, EDT, R@1} by a practical margin (T60 +1.0 %-pts; C50 +0.10 dB; EDT +2.0 ms; R@1 −1.0 %-pts — ≈3× the adjacent-step screen wobble measured on exp_10's C4 curve) at BOTH gates. Verdict applied at the next ckpt boundary after the gate eval lands (training may lag-run; disclosed). Outcome label: **FUTILITY-STOPPED**; excluded from R1/trend (NOT ESTIMABLE). Hard aborts (NaN/OOM/crash) per SOP triage.
+- **Extension option (review N14):** deterministic selector — the arm with the largest lower 95%-CI bound of the K8 R@1 paired delta vs C4L at 40k (tie → smaller n) MAY be extended to 67.5k as a separately-approved exploratory phase; it cannot revise the 40k verdict.
+
+## 5. Implementation (per file; Coder = Opus 5 max seat; per-round Codex review; TDD per announcement 02)
+
+**Round 1 — configs + tests:** `FLAC_AR_BF_C{4L,8,16,32}.json` (from exp_07 `FLAC_AR_BF.json`, only `training.frame_avg_angles` changes; C4L is angle-identical to BF — file exists to give the bridge its own name). `src/tests/test_exp11_orbit_configs.py`: deep-diff = exactly one changed leaf (zero for C4L); uniform angles from 0.0; exact-column and 16-px alignment; n matches filename. `test_invariant_conditioning.py`: parametrize exact-invariance + average tests over C8/C16/C32.
+**Round 2 — launch + guards:** `fa_orbit_launch.sh` (ARM-parameterized clone of the reviewed `bf_scratch_launch.sh` machinery) wrapped by `fa_orbit_train.sbatch` (conventions of the cluster's existing sbatch files). KEEP: MB=32/ACC=1 string pin, VRAM gate (per-arm MIN_FREE_MB from M2), wandb identity gate, DINOv3 pin + init-identity gate. ADD: config-identity gate (Round-1 test in-line); **argv-parity dry-run** vs the exp_07 launch argv with enumerated allowed diffs (config path, names, save-dir, max-steps 40000, logger; review N13); GPU **UUID recording** (`nvidia-smi -L`); **dual-tee log durability** — tee to BOTH the exp folder and `outputs_FLAC/exp11_<arm>/` plus an atomic pre-launch manifest (command, SHA, config/ckpt hashes, env hash, GPU UUIDs, output paths; review N12 — content duplicated, not a path pointer). Identities `FLAC_exp11_<arm>`/`exp11_<arm>`/`outputs_FLAC/exp11_<arm>`. Bash guard-tests for every fail-closed branch.
+**Round 3 — eval/probe drivers + provenance (review B6):** `fa_orbit_screen.sh` (asserts ckpt-embedded `frame_avg_angles` == CLI orbit, fail-closed), D1/D2/D3 probe driver, and `exp11_validate_rows.py` (TDD): for any row entering `model_comparison.md`, fail-closed assert on the JSONs — cond_method, exact angle values, seeds 42–46 exactly once (from eval-name + meta), K-config path, cfg 1.0, bf16 autocast, ckpt path + step, EMA use; C4L confirmatory rows go through this same harness; historical C4 rows get an audited seed-to-file manifest. `gen_model_comparison.py` row specs land with each arm's first validated 5-seed block (announcement 04).
+
+## 6. Validation ladder
+
+static (py_compile/`bash -n`/JSON) → pytest incl. new tests → D3/D1 (real-weights forward) → M2 smoke+fit (30 steps, no ckpt) → concurrency probe → full launches per approved staging. Parity audit: config deep-diff test + init-identity gate + argv-parity dry-run + first-step loss finite, recorded in `_worklog.md` pre-launch.
+
+## 7. Cost model and staging (Yixun decision)
+
+Calibration (prose corrected per review B11): a single ViT orbit pass ≈ 5/6 of a **vanilla** step (from fa-C4 ≈ 3.5× vanilla); C4 step = 21r in those units ⇒ vs C4: C8 ×41/21 ≈ 1.95, C16 ×81/21 ≈ 3.86, C32 ×161/21 ≈ 7.67. Measured C4 rate 0.095 steps/s (cotenant-loaded) … 0.14 (clean). **Planning priors — M2's measured steady-state rates supersede this table before any launch decision.** Per arm, 2 GPUs, to 40k steps, training only:
+
+| Arm | steps/s (prior) | days to 40k | GPU-h (train) | GPU-h (screens+conf. evals+R3, 1-GPU jobs) |
+|---|---|---|---|---|
+| C4L | 0.095–0.14 | 3.3–4.9 | ~160–235 | ~15 |
+| C8 | 0.049–0.072 | 6.5–9.5 | ~310–460 | ~20 |
+| C16 | 0.025–0.036 | 12.8–18.8 | ~610–900 | ~35 |
+| C32 | 0.012–0.018 | 25–37 | ~1,210–1,790 | ~60 |
+
+Probes (M2×4 + D1 + D2 + D3 + backfill): ~2–3 GPU-days. Storage ~47 GB across four arms (859 GB free). All jobs via Slurm; queue wait not modeled (cluster currently shows no fully-idle node; 1–2-GPU jobs backfill).
+
+- **Option A:** all four arms in parallel (8 GPUs across ≤4 jobs) — full commission incl. C32 (~1.2–1.8k GPU-h for C32 alone) from day one.
+- **Option B (Planner recommendation):** probes first (~2 days) → **C4L + C8 + C16 in parallel** (6 GPUs) → C32 go/no-go decided by Yixun on (i) D1 headroom + D3 floor, (ii) M2 measured C32 rate, (iii) the C8/C16 20k gate — with the explicit caveat (review B8) that skipping C32 leaves its hypothesis untested.
+- **Option C:** sequential pairs (2 GPUs, ~7–10 weeks) — not recommended.
+
+## 8. Risks / limitations (disclosed)
+
+Single training seed per arm (conclusions conditional on seed 42). C16/C32 MB=32 fit unknown until M2; infeasibility is a reportable outcome, not a recipe change. bf16 accumulation floor may bound achievable invariance at large n (D3 measures; same floor logic applies to C4, so the comparison stays fair). Historical-C4 lineage is mixed-hardware — bridged by C4L; if C4L ≉ historical C4, the sweep's internal comparisons stand (all vs C4L) and the discrepancy is reported. Queue/cotenancy latency unmodeled. exp_10's 67.5k endpoint pending ⇒ R4 contingent.
+
+## 9. Rev 2 changelog (finding → change)
+
+B1→C4L bridge arm (§2), R1 comparator switched. B2→R2 full 2×2 pre-registered for every arm; R1 relabeled bundled estimand. B3→seed-paired t CIs, co-primaries + Holm, conditional-inference statement (§4). B4→numeric adjacent-delta trend, NOT ESTIMABLE rules. B5→economic futility rule, practical margins, FUTILITY-STOPPED label, censored arms excluded, reserved 1-GPU eval jobs. B6→`exp11_validate_rows.py` fail-closed provenance + eval-name schema + ckpt-embedded-angles assert; C4L through same harness; audited manifest for historical rows. B7→D3 bf16 floor probe; exactness claims scoped geometric. B8→D1 fully specified (scene set, EMA/eval, bf16+fp32, equations, CIs) and demoted to cost-prior; skipped C32 = UNTESTED. B9→R3 redesigned (0° ref, in/off-group labels, per-item paired deltas, fractional-angle eval-names). B10→B-V-extend claim withdrawn; R4 exploratory compute-frame cell added. B11→algebra prose corrected, 30-step steady-state timing, concurrency probe, eval/screen GPU-h budgeted. N12→dual-tee + atomic manifest. N13→argv-parity dry-run + GPU UUIDs. N14→deterministic extension selector. Plus (post-review environment change): all launches moved to Slurm sbatch.
