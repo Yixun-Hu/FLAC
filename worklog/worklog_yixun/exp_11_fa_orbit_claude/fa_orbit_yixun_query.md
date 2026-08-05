@@ -21,3 +21,21 @@ Only `training.frame_avg_angles` changes. Model config, data config and training
 ### Why this experiment needs to run
 
 The C4 choice in exp_03/exp_07 was driven by exact-roll convenience (90° = 128 columns of the W=512 panorama), not by an optimality argument. The panorama/patch geometry admits finer exact subgroups (45°/22.5°/11.25° = 64/32/16-px rolls — all still aligned to the 16-px ViT patch grid; C32 is the finest patch-aligned orbit). Whether the fa advantage saturates at C4 or keeps growing with orbit precision is an open, decision-relevant question for the method's final form.
+
+## Query 2 (2026-08-05, mid-turn) — GO with fast-recipe amendment
+
+### Verbatim
+
+> I don't need you to restart the exp_10. This experiment will be run on another computer. I need you to run exp_11 with the fastest training recipe (multi-card parallel withtout gradient checkpointing), and you should do profiling to test what blocks the training time first, similiar to option B
+
+### Summary
+
+(1) exp_10's 65k→67.5k completion is out of scope here (it moves to another machine). (2) exp_11 is a GO, amended: use the FASTEST training recipe — multi-GPU data parallelism WITHOUT ViT gradient checkpointing — rather than exp_07's 2-GPU + grad-ckpt recipe. (3) Before launching arms, PROFILE the training step to find what dominates wall-clock; then stage launches per the plan's Option B shape.
+
+### Assumption / hypothesis (Yixun's, recorded faithfully)
+
+Training wall-clock (dominated by the orbit's ViT passes) is the binding constraint on the sweep; more cards and no checkpoint-recompute should shrink it materially, and profiling will reveal the true bottleneck before GPU-weeks are committed.
+
+### Planner note on recipe semantics (recorded at amendment time)
+
+"Fastest" is constrained by recipe identity: with SyncBN, BN statistics see micro-batch × N_GPU, so keeping BOTH effective batch = 64 AND BN batch = 64 requires micro × N = 64 with accum 1 (candidate rungs 8×8, 16×4, 32×2). Grad-ckpt off changes memory/speed, not math. num_gpus/micro-batch/grad-ckpt are hereby recipe-free knobs (superseding Q1's "don't change training config" for exactly these throughput knobs); optimizer, schedule, seed, eff-batch, BN-batch semantics stay fixed. All four arms (C4L bridge + C8/C16/C32) train under the SAME chosen fast recipe, so internal comparisons remain single-delta in the orbit.

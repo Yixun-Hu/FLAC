@@ -26,3 +26,19 @@
 - **Result** — `passed` (loop closed at plan level): verdict REJECT; all 14 findings addressed in Rev 2 (per-finding changelog = plan §9). Substantive design changes: contemporaneous C4L bridge control arm (comparator switch), seed-paired statistics with K8 T60/R@1 co-primaries, pre-registered per-arm 2×2 mechanism cells, numeric trend estimates with NOT-ESTIMABLE rules, economic futility gates (FUTILITY-STOPPED excluded from inference), fail-closed row-provenance validator, D3 bf16-invariance-floor probe, D1 demoted to fully-specified cost-prior, R3 redesign, B-V-extend compute claim withdrawn (Planner error, acknowledged), R4 exploratory compute-frame cell, corrected cost algebra prose, Slurm-based launches (environment change discovered mid-planning: this is a 32-node Slurm cluster; org policy + current practice require the scheduler).
 - **Analysis** — the review materially strengthened the design; the C4L bridge in particular converts a historical cross-run comparison into a same-environment controlled sweep at modest cost (~160–235 GPU-h).
 - **Next** — present Rev 2 + staging options to Yixun for approval. Implementation (TDD rounds) only after sign-off.
+
+## 2026-08-05T17:30:00-04:00 — plan APPROVED (Yixun Q2) with fast-recipe amendment → Rev 3 → implementation begins
+
+- **Goal** — record approval + amendment; open Coder round 1.
+- **Change** — plan §10 (Rev 3): recipe = DDP N×L40 WITHOUT ViT grad-ckpt, micro×N=64 + SyncBN (preserves eff-64 AND BN-64; rungs 8×8/16×4/32×2), one P0-selected rung for all four arms; P0 profiling stage (throughput/fit matrix + differential component attribution + conditional deep profile) replaces M2 and answers Yixun's "what blocks the training time"; staging = Option B (C4L+C8+C16 after P0; C32 = Yixun go/no-go on profiled numbers). exp_10 restart dropped (other machine). Query file Q2 appended (verbatim + recipe-semantics note).
+- **Version Control** — plan/scaffold committed `f8d18d3`; exp_12 probe (informs the 32×2 rung prior) committed `4c095ae`, Slurm job 3637984 RUNNING.
+- **Result** — `launched` (implementation): Coder round 1 (Opus seat, background) = four arm configs (TWO allowed leaf groups vs exp_07 `FLAC_AR_BF.json`: orbit angles + ViT grad-ckpt→false) + TDD tests (`test_exp11_orbit_configs.py`, parametrized invariance tests). Codex review before round 2 (P0 profiling kit).
+- **Next** — round 1 review → P0 kit round → P0 jobs → rung selection + bottleneck report → arm launches.
+
+## 2026-08-05T18:20:00-04:00 — round 1 CLOSED (code b1c1198 → Codex REJECT 2B+2N → fixes 91cfc0e → verified green)
+
+- **Goal** — close the round-1 loop per SOP.
+- **Version Control** — code `b1c1198` (4 arm configs + TDD tests; RED 13-fail → GREEN 26-pass); review `fa_orbit_codex_code_r1_review.md` (REJECT: loose tuple equality would accept gc=0; averaging tested only at C8; +2 nits); fixes `91cfc0e` (strict `is True`/`is False` leaf assertions + in-memory falsy regression; `test_cn_average_correctness` parametrized n∈{8,16,32} — mutation-verified to catch an always-÷8 bug at C16/C32; duplicate-key + NaN/Infinity-rejecting JSON loader; orbit-test runtime 175 s→14.4 s, root cause 52 default intra-op torch threads, pinned to 1 in-fixture).
+- **Command / Validation** — Planner re-verification: strict assertions + parametrize + loader hooks confirmed in the 91cfc0e diff; `test_exp11_orbit_configs.py` re-run green (14 passed). Coder confirmed no pre-existing test modified (git diff audit).
+- **Result** — `passed`; round CLOSED. Nothing launched from this round.
+- **Next** — Coder round 2: P0 profiling kit (parameterized 30/10-step sbatch pair per cell, UUID-bound VRAM poll, matrix submitter + TDD'd collector) → Codex review → submit P0 matrix.
