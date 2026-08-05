@@ -37,9 +37,25 @@ PATCH = 16       # DINOv3 patch size (px)
 _MISSING = "<missing>"
 
 
+def _no_duplicate_keys(pairs: list) -> dict:
+    """``object_pairs_hook`` rejecting duplicate keys (plain ``json.load`` is
+    silently last-wins, which would let a shadowed leaf hide a recipe change)."""
+    keys = [k for k, _ in pairs]
+    dups = sorted({k for k in keys if keys.count(k) > 1})
+    assert not dups, f"duplicate JSON key(s): {dups}"
+    return dict(pairs)
+
+
+def _reject_constant(name: str):
+    """``parse_constant`` hook: NaN/Infinity are not valid JSON in a manifest."""
+    raise AssertionError(f"non-standard JSON constant {name!r} in config")
+
+
 def _load(path: str) -> dict:
     with open(path, "r") as fh:
-        return json.load(fh)
+        return json.load(
+            fh, object_pairs_hook=_no_duplicate_keys, parse_constant=_reject_constant
+        )
 
 
 def _arm_path(arm: str) -> str:
@@ -84,17 +100,52 @@ def _deep_diff(a, b, path: str = "") -> dict:
     return out
 
 
-def _vit_gc_paths(cfg: dict) -> list:
-    """Dotted paths of the ``gradient_checkpointing`` leaf of every
+def _vit_gc_leaves(cfg: dict) -> list:
+    """``(dotted_path, value)`` of the ``gradient_checkpointing`` leaf of every
     ``ViTCoordinates`` conditioner in ``cfg`` (exp_07 BF has exactly two)."""
     entries = cfg["model"]["conditioning"]["configs"]
-    paths = [
-        f"model.conditioning.configs[{i}].config.gradient_checkpointing"
+    leaves = [
+        (f"model.conditioning.configs[{i}].config.gradient_checkpointing",
+         e["config"]["gradient_checkpointing"])
         for i, e in enumerate(entries)
         if e.get("type") == "ViTCoordinates"
     ]
-    assert len(paths) == 2, f"expected 2 ViTCoordinates conditioners, got {len(paths)}"
-    return paths
+    assert len(leaves) == 2, f"expected 2 ViTCoordinates conditioners, got {len(leaves)}"
+    return leaves
+
+
+def _assert_allowed_diff(arm: str, bf: dict, cfg: dict) -> None:
+    """Fail unless ``cfg`` differs from the exp_07 manifest ``bf`` in exactly the
+    allowed leaves. Leaf VALUES are checked strictly: the checkpointing flags by
+    identity (``is True`` / ``is False``, so a falsy ``0``/``0.0`` is rejected)
+    and the orbit through :func:`_deep_diff` (so an int ``45`` is rejected)."""
+    gc_base, gc_arm = _vit_gc_leaves(bf), _vit_gc_leaves(cfg)
+    expected_paths = {p for p, _ in gc_base}
+    if arm != "C4L":
+        expected_paths.add("training.frame_avg_angles")
+
+    diff = _deep_diff(bf, cfg)
+
+    unexpected = sorted(set(diff) - expected_paths)
+    assert not unexpected, (
+        f"{arm}: unexpected differing leaf(s) vs exp_07 FLAC_AR_BF.json: "
+        + "; ".join(f"{p}: {diff[p][0]!r} -> {diff[p][1]!r}" for p in unexpected)
+    )
+    absent = sorted(expected_paths - set(diff))
+    assert not absent, f"{arm}: expected change(s) missing: {absent}"
+
+    for (path, v_base), (path_arm, v_arm) in zip(gc_base, gc_arm):
+        assert path == path_arm, f"{arm}: ViTCoordinates entries moved ({path_arm})"
+        assert v_base is True, f"BF {path} is {v_base!r}, expected literal true"
+        assert v_arm is False, f"{arm}: {path} is {v_arm!r}, expected literal false"
+
+    if arm != "C4L":
+        want = _orbit(_n_from_name(arm))
+        got = diff["training.frame_avg_angles"][1]
+        angle_diff = _deep_diff(want, got, "training.frame_avg_angles")
+        assert not angle_diff, (
+            f"{arm}: orbit mismatch at {sorted(angle_diff)}; got {got}, want {want}"
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -102,29 +153,24 @@ def _vit_gc_paths(cfg: dict) -> list:
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("arm", ARMS)
 def test_allowed_diff_leaves(arm):
+    _assert_allowed_diff(arm, _load(_BF_CONFIG), _load(_arm_path(arm)))
+
+
+def test_falsy_gc_leaf_is_rejected():
+    """Regression for the loose-tuple-comparison bug: ``0`` is falsy but is not
+    ``False``, and must not pass as the required ``true -> false`` change. The
+    mutation lives in memory only -- no temp config is written to the exp folder."""
     bf = _load(_BF_CONFIG)
-    cfg = _load(_arm_path(arm))
-
-    expected = {p: (True, False) for p in _vit_gc_paths(bf)}
-    if arm != "C4L":
-        expected["training.frame_avg_angles"] = (
-            bf["training"]["frame_avg_angles"], _orbit(_n_from_name(arm))
+    _assert_allowed_diff("C8", bf, _load(_arm_path("C8")))  # unmutated => passes
+    for falsy in (0, 0.0):
+        cfg = _load(_arm_path("C8"))
+        entry = next(
+            e for e in cfg["model"]["conditioning"]["configs"]
+            if e.get("type") == "ViTCoordinates"
         )
-
-    diff = _deep_diff(bf, cfg)
-
-    unexpected = sorted(set(diff) - set(expected))
-    assert not unexpected, (
-        f"{arm}: unexpected differing leaf(s) vs exp_07 FLAC_AR_BF.json: "
-        + "; ".join(f"{p}: {diff[p][0]!r} -> {diff[p][1]!r}" for p in unexpected)
-    )
-    absent = sorted(set(expected) - set(diff))
-    assert not absent, f"{arm}: expected change(s) missing: {absent}"
-    for path, values in expected.items():
-        assert diff[path] == values, (
-            f"{arm}: {path} changed {diff[path][0]!r} -> {diff[path][1]!r}, "
-            f"expected {values[0]!r} -> {values[1]!r}"
-        )
+        entry["config"]["gradient_checkpointing"] = falsy
+        with pytest.raises(AssertionError):
+            _assert_allowed_diff("C8", bf, cfg)
 
 
 # --------------------------------------------------------------------------- #

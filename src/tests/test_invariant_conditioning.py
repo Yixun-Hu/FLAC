@@ -394,10 +394,46 @@ def _orbit(n: int) -> tuple:
     return tuple(k * 360.0 / n for k in range(n))
 
 
+def _small_md(seed: int = 0, n_ctx: int = 2, depth_h: int = 2) -> dict:
+    """Same fields as :func:`_make_md`, smaller. The Cn tests below are O(n^2)
+    in conditioner passes (n rotations x an n-element orbit average), so the
+    synthetic tensors are shrunk to keep this permanent CPU test cheap. The
+    panorama width stays 512, so every orbit member is still an exact
+    16-px-aligned column roll, and no group element or tolerance is relaxed."""
+    g = torch.Generator().manual_seed(seed)
+    return {
+        "source": torch.randn(3, generator=g),
+        "source_vit": torch.randn(1, 3, generator=g),
+        "context_poses": torch.randn(n_ctx, 3, generator=g),
+        "context_poses_vit": torch.randn(n_ctx, 3, generator=g),
+        "context_audio": torch.randn(n_ctx, 1, 256, generator=g),
+        "depth": _consistent_depth(depth_h, 512),
+    }
+
+
+def _small_batch(n: int = 1) -> list:
+    return [_small_md(seed=s) for s in range(n)]
+
+
+@pytest.fixture
+def single_thread():
+    """Pin torch to one intra-op thread for the O(n^2) orbit tests (restored
+    afterwards). The synthetic tensors are tiny, so torch's default pool (52
+    threads on this login node) spends its time in thread launch/sync: one C16
+    orbit average measures ~1.2 s at the default vs ~0.01 s single-threaded.
+    Also keeps this permanent CPU test a considerate tenant on a shared node."""
+    prev = torch.get_num_threads()
+    torch.set_num_threads(1)
+    try:
+        yield
+    finally:
+        torch.set_num_threads(prev)
+
+
 @pytest.mark.parametrize("n", (8, 16, 32))
-def test_cn_exact_invariance(n):
+def test_cn_exact_invariance(n, single_thread):
     cond = _build_cond()
-    md = _batch(2)
+    md = _small_batch(1)
     angles = _orbit(n)
     out_0 = yr.invariant_conditioning(cond, md, DEV, angles)
     for deg in angles[1:]:
@@ -411,12 +447,13 @@ def test_cn_exact_invariance(n):
 
 
 # --------------------------------------------------------------------------- #
-# 11. averaging arithmetic for a non-C4 orbit (C8)
+# 11. averaging arithmetic for the non-C4 orbits (catches a wrong divisor)
 # --------------------------------------------------------------------------- #
-def test_average_correctness_c8():
+@pytest.mark.parametrize("n", (8, 16, 32))
+def test_cn_average_correctness(n, single_thread):
     cond = _build_cond()
-    md = _batch(2)
-    angles = _orbit(8)
+    md = _small_batch(1)
+    angles = _orbit(n)
     present = list(VIT_IDS)
 
     md_inv = [yr.cylindrical_pose_features(m) for m in md]
