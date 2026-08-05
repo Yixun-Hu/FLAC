@@ -32,7 +32,7 @@ CKPT_PATH="${CKPT_PATH:-}"   # optional resume checkpoint (train.py:230; documen
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 # The train log is a C2 records artifact kept in EXPDIR by default; EXP09_LOG_DIR relocates
 # it (e.g. for CPU tests) so a gate rehearsal never dirties the worktree.
-LOG="${EXP09_LOG_DIR:-/n/fs/gatrdp/codespace/cylindrical-dinov3/worklog/worklog_yixun_neuronic/exp_03_maxpool_mlp_cond_claude}/maxpool_mlp_cond_${TS}_j${SLURM_JOB_ID:-nojob}_train.log"   # EXP03 DIFF 4/19: teed log into the exp_03 records folder, job-id stamped
+LOG="${EXP03N_LOG_DIR:-/n/fs/gatrdp/codespace/cylindrical-dinov3/worklog/worklog_yixun_neuronic/exp_03_maxpool_mlp_cond_claude}/maxpool_mlp_cond_${TS}_j${SLURM_JOB_ID:-nojob}_train.log"   # EXP03 DIFF 4/19: teed log into the exp_03 records folder, job-id stamped
 
 # invariant (review findings): accumulation never feeds BN statistics, so the
 # BN=64 mandate leaves exactly ONE legal rung - pin it literally (string equality;
