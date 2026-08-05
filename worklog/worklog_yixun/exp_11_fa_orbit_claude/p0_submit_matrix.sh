@@ -1,30 +1,32 @@
 #!/usr/bin/env bash
 # ============================================================================
-# exp_11 P0 matrix submitter — plan Rev 3 §10 P0.1/P0.2.
+# exp_11 P0 matrix submitter — plan Rev 3 §10 P0.1/P0.2 (Rev 2: round-2 review).
 #
-# Submits the PAIRED (10-step, 30-step) profiling jobs for the throughput/fit
-# matrix, so the collector can cancel startup cost per cell:
-#   rungs {32x2, 16x4, 8x8} x orbits {C4L, C8} ......... rung + orbit scaling
-#   VAN_{32x2,16x4,8x8} (canonical FLAC_AR.json) ....... vanilla baseline for
-#                                                        the per-orbit-pass fit
-#   CKPT4_32x2 (exp_07 FLAC_AR_BF.json, grad-ckpt ON) .. recompute cost
-# C16/C32 spot cells are NOT submitted by default (plan: spot-check at the
-# WINNING rung only, after the matrix lands):
-#   ./p0_submit_matrix.sh spot 16x4
+# ONE 30-step job per cell; the steady-state rate comes from the runner's in-fit
+# step-10/step-30 marks, so no job pairing is needed (review B2).
 #
-# Every job is bound to the current HEAD (EXPECT_SHA) and refuses to run if the
-# tracked tree is dirty — same drift philosophy as exp_12's mem_probe. Nothing
-# is submitted by sourcing this file; run it explicitly. DRYRUN=1 prints the
-# sbatch commands without submitting.
+#   matrix (default) ... rungs {32x2,16x4,8x8} x {VAN, C4L, C8} + CKPT4_32x2
+#   spot <RUNG> ........ C16 and C32 at one of {32x2,16x4,8x8}
+#   workers <CELL> <RUNG> ... the 0-vs-6-worker pair for one cell (review B3)
+#
+# Every submission gets a collision-proof RUNID and an ATOMIC manifest (written
+# to a temp file and mv'd into place) listing runid, commit sha and every
+# expected (cell, maxsteps, jobid, config_sha). p0_collect.py consumes that
+# manifest and admits only rows that match it (review B4). The config path/sha
+# comes from p0_profile.sbatch's own map via P0_PRINT_CONFIG, so the submitter
+# cannot disagree with the job about which config a cell runs (review B5).
+#
+# Refuses to run on a dirty tracked tree, and exits nonzero if ANY sbatch fails.
+# DRYRUN=1 prints the sbatch commands without submitting.
 # ============================================================================
 set -uo pipefail
 cd "$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-toplevel)" || exit 3
 
 EXPDIR="worklog/worklog_yixun/exp_11_fa_orbit_claude"
 SBATCH_FILE="$EXPDIR/p0_profile.sbatch"
-EXP07="worklog/worklog_yixun/exp_07_fa_scratch_claude"
-CANON="src/configs/model_configs/FLAC/AR/FLAC_AR.json"
+MAXSTEPS="${MAXSTEPS:-30}"
 DRYRUN="${DRYRUN:-0}"
+FAILURES=0
 
 [ -f "$SBATCH_FILE" ] || { echo "missing ${SBATCH_FILE} - abort"; exit 3; }
 
@@ -32,75 +34,110 @@ DRYRUN="${DRYRUN:-0}"
 DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src "$EXPDIR" 2>/dev/null)"
 [ -z "$DRIFT" ] || { echo "tracked measurement surfaces have uncommitted changes - commit first, abort:"; echo "$DRIFT"; exit 2; }
 SHA="$(git rev-parse HEAD)"
-echo "submitting P0 matrix at ${SHA}"
+RUNID="$(git rev-parse --short HEAD)-$(date +%s)"
+echo "submitting P0 run ${RUNID} at ${SHA}"
 
-TS="$(date '+%Y-%m-%d_%H-%M-%S')"
-MANIFEST="$EXPDIR/p0_manifest_${TS}.txt"
-: > "$MANIFEST"
-echo "# exp_11 P0 submission manifest - ${TS} - sha ${SHA}" >> "$MANIFEST"
-echo "# cell maxsteps ngpu mb jobid" >> "$MANIFEST"
-
-config_for() {  # family -> model config path
-  case "$1" in
-    C4L|C8|C16|C32) echo "$EXPDIR/FLAC_AR_BF_$1.json" ;;
-    VAN)            echo "$CANON" ;;
-    CKPT4)          echo "$EXP07/FLAC_AR_BF.json" ;;
-    *)              echo "" ;;
-  esac
+manifest_begin() {  # $1 = run id for this manifest
+  RUNID="$1"
+  MANIFEST="$EXPDIR/p0_manifest_${RUNID}.txt"
+  MANIFEST_TMP="$(mktemp "${MANIFEST}.XXXXXX")" || exit 3
+  trap 'rm -f "$MANIFEST_TMP"' EXIT
+  {
+    echo "# exp_11 P0 submission manifest (consumed by p0_collect.py --manifest)"
+    echo "runid ${RUNID}"
+    echo "sha ${SHA}"
+    echo "submitted_at $(date +%s)"
+  } >> "$MANIFEST_TMP"
 }
 
-submit_pair() {  # $1 = family, $2 = rung "MBxNGPU"
-  local family="$1" rung="$2" mb ngpu cfg cell
+manifest_publish() {
+  mv "$MANIFEST_TMP" "$MANIFEST"   # atomic publish
+  trap - EXIT
+  echo "manifest: ${MANIFEST}"
+  echo "collect with: python ${EXPDIR}/p0_collect.py --manifest ${MANIFEST}"
+}
+
+submit_cell() {  # $1 = CELL, $2 = optional NUM_WORKERS override
+  local cell="$1" workers="${2:-}" mb ngpu cfg cfg_sha out jid
+  local rung="${cell#*_}"
   mb="${rung%x*}"; ngpu="${rung#*x}"
-  cfg="$(config_for "$family")"
-  [ -n "$cfg" ] || { echo "unknown family '${family}' - skip"; return 1; }
-  [ -f "$cfg" ] || { echo "missing config ${cfg} - skip"; return 1; }
-  [ "$((mb * ngpu))" -eq 64 ] || { echo "rung ${rung}: MB*NGPU != 64 - skip"; return 1; }
-  cell="${family}_${rung}"
-  for steps in 10 30; do
-    local args=(
-      --job-name="p0-${cell}-s${steps}"
-      --gres="gpu:l40:${ngpu}"
-      --cpus-per-task="$((8 + 7 * ngpu))"
-      --mem="$((12 * ngpu + 12))G"
-      --time=00:40:00
-      --export="ALL,EXPECT_SHA=${SHA},CELL=${cell},MODEL_CONFIG=${cfg},NGPU=${ngpu},MB=${mb},MAXSTEPS=${steps}"
-      "$SBATCH_FILE"
-    )
-    if [ "$DRYRUN" = "1" ]; then
-      echo "DRYRUN sbatch ${args[*]}"
-      echo "${cell} ${steps} ${ngpu} ${mb} DRYRUN" >> "$MANIFEST"
-      continue
-    fi
-    local out jid
-    out="$(sbatch "${args[@]}" 2>&1)"
-    jid="$(echo "$out" | awk '/Submitted batch job/ {print $NF}')"
-    if [ -z "$jid" ]; then
-      echo "SUBMIT FAILED ${cell} s${steps}: ${out}"
-      echo "${cell} ${steps} ${ngpu} ${mb} SUBMIT_FAILED" >> "$MANIFEST"
-    else
-      echo "submitted ${cell} s${steps} (${ngpu} GPU x MB ${mb}) -> job ${jid}"
-      echo "${cell} ${steps} ${ngpu} ${mb} ${jid}" >> "$MANIFEST"
-    fi
-  done
+  [ "$((mb * ngpu))" -eq 64 ] || { echo "cell ${cell}: MB*NGPU != 64 - skip"; FAILURES=$((FAILURES+1)); return 1; }
+
+  # config path from the sbatch's own map (single source of truth)
+  cfg="$(P0_PRINT_CONFIG="$cell" bash "$SBATCH_FILE" 2>/dev/null)"
+  [ -n "$cfg" ] && [ -f "$cfg" ] || { echo "cell ${cell}: no config from the sbatch map - skip"; FAILURES=$((FAILURES+1)); return 1; }
+  cfg_sha="$(sha256sum "$cfg" | awk '{print $1}')"
+
+  local tag="$cell"
+  local export_list="ALL,EXPECT_SHA=${SHA},RUNID=${RUNID},CELL=${cell},MAXSTEPS=${MAXSTEPS}"
+  if [ -n "$workers" ]; then
+    tag="${cell}-w${workers}"
+    export_list="${export_list},NUM_WORKERS=${workers}"
+  fi
+
+  local args=(
+    --job-name="p0-${tag}"
+    --gres="gpu:l40:${ngpu}"
+    --cpus-per-task="$((8 + 7 * ngpu))"
+    --mem="$((12 * ngpu + 12))G"
+    --time=00:40:00
+    --export="$export_list"
+    "$SBATCH_FILE"
+  )
+  if [ "$DRYRUN" = "1" ]; then
+    echo "DRYRUN sbatch ${args[*]}"
+    echo "cell ${cell} ${MAXSTEPS} DRYRUN ${cfg_sha}" >> "$MANIFEST_TMP"
+    return 0
+  fi
+  out="$(sbatch "${args[@]}" 2>&1)"
+  jid="$(echo "$out" | awk '/Submitted batch job/ {print $NF}')"
+  if [ -z "$jid" ]; then
+    echo "SUBMIT FAILED ${cell}: ${out}"
+    echo "cell ${cell} ${MAXSTEPS} SUBMIT_FAILED ${cfg_sha}" >> "$MANIFEST_TMP"
+    FAILURES=$((FAILURES + 1))
+    return 1
+  fi
+  echo "submitted ${tag} (${ngpu} GPU x MB ${mb}, workers ${workers:-6}) -> job ${jid}"
+  echo "cell ${cell} ${MAXSTEPS} ${jid} ${cfg_sha}" >> "$MANIFEST_TMP"
 }
 
 MODE="${1:-matrix}"
+BASE_RUNID="$RUNID"
 case "$MODE" in
   matrix)
+    manifest_begin "$BASE_RUNID"
     for rung in 32x2 16x4 8x8; do
-      for family in VAN C4L C8; do submit_pair "$family" "$rung"; done
+      for family in VAN C4L C8; do submit_cell "${family}_${rung}"; done
     done
-    submit_pair CKPT4 32x2
+    submit_cell CKPT4_32x2
+    manifest_publish
     ;;
   spot)
-    RUNG="${2:?usage: $0 spot <RUNG e.g. 16x4>}"
-    submit_pair C16 "$RUNG"
-    submit_pair C32 "$RUNG"
+    RUNG="${2:?usage: $0 spot <32x2|16x4|8x8>}"
+    case "$RUNG" in 32x2|16x4|8x8) ;; *) echo "spot rung must be one of 32x2/16x4/8x8"; exit 2;; esac
+    manifest_begin "$BASE_RUNID"
+    submit_cell "C16_${RUNG}"
+    submit_cell "C32_${RUNG}"
+    manifest_publish
+    ;;
+  workers)
+    CELLFAM="${2:?usage: $0 workers <FAMILY e.g. C4L> <RUNG>}"
+    RUNG="${3:?usage: $0 workers <FAMILY> <32x2|16x4|8x8>}"
+    case "$RUNG" in 32x2|16x4|8x8) ;; *) echo "rung must be one of 32x2/16x4/8x8"; exit 2;; esac
+    # Both halves carry the SAME cell tag (the config and rung are identical; only
+    # --num-workers differs), so they get one manifest each — a single manifest
+    # with two rows for one cell is exactly what the collector refuses.
+    for W in 0 6; do
+      manifest_begin "${BASE_RUNID}-w${W}"
+      submit_cell "${CELLFAM}_${RUNG}" "$W"
+      manifest_publish
+    done
     ;;
   *)
-    echo "usage: $0 [matrix | spot <RUNG>]   (DRYRUN=1 to preview)"; exit 2 ;;
+    echo "usage: $0 [matrix | spot <RUNG> | workers <FAMILY> <RUNG>]   (DRYRUN=1 to preview)"; exit 2 ;;
 esac
 
-echo "manifest: ${MANIFEST}"
-echo "collect with: python ${EXPDIR}/p0_collect.py"
+if [ "$FAILURES" -ne 0 ]; then
+  echo "${FAILURES} submission(s) FAILED - the manifest records them as SUBMIT_FAILED and collection will refuse to report"
+  exit 1
+fi
