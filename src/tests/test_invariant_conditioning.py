@@ -16,6 +16,7 @@ the Route-1 frame-averaging contract without loading any pretrained backbone:
 import copy
 import math
 
+import pytest
 import torch
 from torch import nn
 
@@ -382,3 +383,58 @@ def test_stale_depth_fails_invariance():
         assert not torch.allclose(broken_0[key][0], correct_0[key][0], atol=1e-5), (
             f"{key}: stale-depth variant matches the correct orbit average"
         )
+
+
+# --------------------------------------------------------------------------- #
+# 10. finer orbits (exp_11): Cn exact end-to-end invariance for n in {8,16,32}
+# --------------------------------------------------------------------------- #
+def _orbit(n: int) -> tuple:
+    """Uniform Cn yaw orbit in degrees (0.0 first). For W=512 every member is
+    an exact, 16-px-patch-aligned column roll (C32 = 16 columns)."""
+    return tuple(k * 360.0 / n for k in range(n))
+
+
+@pytest.mark.parametrize("n", (8, 16, 32))
+def test_cn_exact_invariance(n):
+    cond = _build_cond()
+    md = _batch(2)
+    angles = _orbit(n)
+    out_0 = yr.invariant_conditioning(cond, md, DEV, angles)
+    for deg in angles[1:]:
+        rot = [yr.rotate_scene_metadata(m, math.radians(deg), 512) for m in md]
+        out_g = yr.invariant_conditioning(cond, rot, DEV, angles)
+        assert set(out_g.keys()) == ALL_IDS
+        for key in ALL_IDS:
+            assert torch.allclose(out_g[key][0], out_0[key][0], atol=1e-5), (
+                f"C{n}: {key} not invariant at {deg} deg"
+            )
+
+
+# --------------------------------------------------------------------------- #
+# 11. averaging arithmetic for a non-C4 orbit (C8)
+# --------------------------------------------------------------------------- #
+def test_average_correctness_c8():
+    cond = _build_cond()
+    md = _batch(2)
+    angles = _orbit(8)
+    present = list(VIT_IDS)
+
+    md_inv = [yr.cylindrical_pose_features(m) for m in md]
+    frames = [md_inv]
+    for g in angles[1:]:
+        frames.append(
+            [
+                yr.rotate_scene_metadata(m, math.radians(g), 512, pose_keys=tuple(present))
+                for m in md_inv
+            ]
+        )
+    sums = {}
+    for fr in frames:
+        o = cond(fr, DEV)
+        for pid in present:
+            sums[pid] = o[pid][0] if pid not in sums else sums[pid] + o[pid][0]
+    expected = {pid: sums[pid] / len(angles) for pid in present}
+
+    out = yr.invariant_conditioning(cond, md, DEV, angles)
+    for pid in present:
+        assert torch.allclose(out[pid][0], expected[pid], atol=1e-5), pid
