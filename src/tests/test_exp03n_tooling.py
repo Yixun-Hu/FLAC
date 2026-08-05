@@ -189,3 +189,81 @@ def test_gate_common_init_identity_catches_a_perturbed_output_layer(gate, tiny_d
     legacy_cfg = _full_model_config(tiny_dir, max_mlp=False)
     with pytest.raises(RuntimeError):
         gate.assert_common_init_identity(new_cfg, legacy_cfg, seed=42)
+
+
+# ------------------------------------------------------------------------------------ #
+# 3. trained-checkpoint equivariance guard (plan §4.5b)
+# ------------------------------------------------------------------------------------ #
+_GUARD_PATH = _EXP09_DIR / "guard_exp03n_equivariance.py"
+
+_TINY_GEOM = dict(height=64, width=128)   # 4x8 tokens at patch 16 -> W_t = 8
+
+
+@pytest.fixture(scope="module")
+def guard():
+    return _load_module(_GUARD_PATH, "guard_exp03n_equivariance")
+
+
+def test_guard_passes_on_a_random_weight_mini_model(guard, tiny_dir):
+    """The guard tests the ACTUAL served condition MLP(amax(tokens)) — architectural, so it
+    must hold at random init, not only on trained weights."""
+    mc = _build(_cyl_conditioning(tiny_dir, with_context=True, cond_pool="max_mlp"))
+    residuals = guard.check_equivariance(_geoms(mc)[0], **_TINY_GEOM)
+    assert set(residuals) == {90.0, 180.0, 270.0}
+    assert max(residuals.values()) <= guard.DEFAULT_BOUND, residuals
+
+
+def test_guard_negative_control_gauge_off_raises(guard, tiny_dir, tmp_path):
+    gauge_off = _save_tiny_cyl(tmp_path / "tiny_gauge_off")
+    mc = _build(_cyl_conditioning(gauge_off, with_context=True, cond_pool="max_mlp", gauge="none"))
+    with pytest.raises(RuntimeError, match="equivarian|residual"):
+        guard.check_equivariance(_geoms(mc)[0], **_TINY_GEOM)
+
+
+def test_guard_refuses_an_angle_that_is_not_a_whole_token_column(guard, tiny_dir):
+    mc = _build(_cyl_conditioning(tiny_dir, with_context=True, cond_pool="max_mlp"))
+    with pytest.raises(RuntimeError, match="column"):
+        guard.check_equivariance(_geoms(mc)[0], angles=(30.0,), **_TINY_GEOM)
+
+
+def test_guard_refuses_a_mean_pooled_conditioner(guard, tiny_dir):
+    """Scope guard: this file certifies the max-pool head. Pointing it at a legacy build
+    must REFUSE rather than silently certify the wrong served condition."""
+    mc = _build(_cyl_conditioning(tiny_dir, with_context=True))
+    with pytest.raises(RuntimeError, match="dino_pool|max"):
+        guard.check_equivariance(_geoms(mc)[0], **_TINY_GEOM)
+
+
+def _write_pl_checkpoint(tmp_path, tiny_dir):
+    """A Lightning-shaped checkpoint of a TINY exp03n model (``diffusion.``-prefixed
+    state dict), plus the model-config JSON that reproduces it."""
+    from src.models import create_model_from_config
+    from src.tests.test_exp03n_cond_pool import _full_model_config
+
+    cfg = _full_model_config(tiny_dir, max_mlp=True)
+    cfg_path = tmp_path / "FLAC_AR_exp03n.json"
+    cfg_path.write_text(json.dumps(cfg, indent=4) + "\n")
+    torch.manual_seed(3)
+    model = create_model_from_config(copy.deepcopy(cfg))
+    ckpt_path = tmp_path / "epoch=0-step=40.ckpt"
+    torch.save({"state_dict": {f"diffusion.{k}": v for k, v in model.state_dict().items()}},
+               ckpt_path)
+    return str(ckpt_path), str(cfg_path), model
+
+
+def test_guard_loads_a_lightning_checkpoint_and_serves_the_max_pool_head(guard, tiny_dir, tmp_path):
+    ckpt_path, cfg_path, model = _write_pl_checkpoint(tmp_path, tiny_dir)
+    geoms = guard.load_geometry_conditioners(ckpt_path, cfg_path, device="cpu")
+    assert len(geoms) == 2
+    assert all(g.dino_pool == "max" for g in geoms)
+    ref = model.conditioner.conditioners["source_vit"].lin_proj
+    assert torch.equal(geoms[0].lin_proj[0].weight, ref[0].weight), "hidden layer did not load"
+    assert torch.equal(geoms[0].lin_proj[2].weight, ref[2].weight), "output layer did not load"
+
+
+def test_guard_cli_returns_zero_on_a_loadable_checkpoint(guard, tiny_dir, tmp_path, capsys):
+    ckpt_path, cfg_path, _ = _write_pl_checkpoint(tmp_path, tiny_dir)
+    rc = guard.main([ckpt_path, "--model-config", cfg_path, "--height", "64", "--width", "128"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "GUARD PASS" in out, out
