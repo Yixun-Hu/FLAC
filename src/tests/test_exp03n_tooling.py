@@ -467,7 +467,11 @@ def test_eval_sbatch_retention_and_overwrite_guard():
     text = _sbatch("eval_exp03n.sbatch")
     assert "sha256sum" in text
     assert _RECORDS_DIR_ABS in text, "artifacts must be retained in the exp_03 records folder"
-    assert f"{_WORKTREE_ROOT_ABS}/outputs_FLAC/exp03n_maxpoolmlp_import" in text, (
+    assert f"WORKTREE={_WORKTREE_ROOT_ABS}" in text
+    assert 'IMPORT_DIR="${WORKTREE}/outputs_FLAC/exp03n_maxpoolmlp_import"' in text, (
         "EMA raws must ALSO land in the repo-rooted import dir the canonical generator globs"
+    )
+    assert re.search(r'if \[ "\$STREAM" = "ema" \];[\s\S]*IMPORT_DIR', text), (
+        "the import-dir copy must be EMA-only"
     )
     assert re.search(r"\[ ! -e .*ART", text), "an existing artifact must abort the cell"
