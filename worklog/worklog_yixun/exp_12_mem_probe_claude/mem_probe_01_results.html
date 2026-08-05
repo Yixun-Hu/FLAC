@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>exp_12 mem_probe — results</title>
+<style>
+  :root { --fg:#1a1d21; --bg:#ffffff; --muted:#5b6470; --line:#d9dee5; --bad:#b3261e; --badbg:#fdeceb; --okbg:#f2f5f8; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  @media (prefers-color-scheme: dark) { :root { --fg:#e8eaed; --bg:#17191c; --muted:#9aa4b0; --line:#3a4048; --bad:#f2b8b5; --badbg:#3a2422; --okbg:#22262b; } }
+  body { margin:0 auto; max-width:56rem; padding:2rem 1.25rem 4rem; font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--fg); background:var(--bg); }
+  h1 { font-size:1.5rem; margin:0 0 .25rem; } h2 { font-size:1.1rem; margin:2rem 0 .5rem; }
+  .sub { color:var(--muted); margin-bottom:1.5rem; }
+  .verdict { border:1px solid var(--bad); background:var(--badbg); color:var(--fg); border-radius:8px; padding:1rem 1.25rem; font-size:1.15rem; }
+  .verdict b { color:var(--bad); }
+  table { border-collapse:collapse; width:100%; margin:.5rem 0 1rem; font-size:.95rem; }
+  th,td { border:1px solid var(--line); padding:.45rem .6rem; text-align:left; vertical-align:top; }
+  th { background:var(--okbg); font-weight:600; }
+  .num { font-family:var(--mono); white-space:nowrap; }
+  .scroll { overflow-x:auto; }
+  pre { background:var(--okbg); border:1px solid var(--line); border-radius:8px; padding:1rem; font:.85rem/1.5 var(--mono); overflow-x:auto; }
+  .note { color:var(--muted); font-size:.9rem; }
+</style>
+</head>
+<body>
+<h1>exp_12 mem_probe — paper configuration on one L40</h1>
+<p class="sub">Slurm job 3637984 · 2026-08-05 · commit <span class="num">4c095ae5…c9f0</span> · numbers identical to <code>mem_probe_results.md</code> (this page is presentation only)</p>
+
+<div class="verdict"><b>OOM.</b> The paper training configuration (micro-batch 64, single GPU, no SyncBN, no ViT gradient checkpointing, bf16-mixed) <b>does not fit</b> in an L40's 46 GB. Failure on the first training batch; peak <b>45,437&nbsp;MiB / 46,068&nbsp;MiB (98.6%)</b>. No fallback was attempted (mandate).</div>
+
+<h2>Measured configuration</h2>
+<div class="scroll"><table>
+<tr><th>Item</th><th>Value</th></tr>
+<tr><td>Model config</td><td><code>FLAC_AR.json</code> canonical, <b>diff vs canonical: none</b> (sha-pinned <span class="num">f3eafef4…7ec9</span>, byte-equal copy)</td></tr>
+<tr><td>Recipe</td><td>micro-batch 64 · accum 1 · bf16-mixed · 1× L40 (single process, no DDP) · SyncBN off · ViT grad-ckpt off (both conditioners, gate-verified) · EMA on · seed 42 · workers 6 · <code>--max-steps 5</code></td></tr>
+<tr><td>GPU</td><td>NVIDIA L40, 46,068 MiB, UUID <span class="num">GPU-ab93458e-b01b-d555-f082-d122225ccbc7</span> (all samples UUID-validated)</td></tr>
+<tr><td>Binding</td><td>job ran commit <span class="num">4c095ae517aa5f9e8e5dd847d40199ce4d98c9f0</span>; tracked surfaces drift-checked; single node/task/GPU asserted</td></tr>
+</table></div>
+
+<h2>Outcome</h2>
+<div class="scroll"><table>
+<tr><th>Quantity</th><th>Value</th></tr>
+<tr><td>Optimizer steps completed</td><td class="num">0 / 5 (OOM in first forward/backward)</td></tr>
+<tr><td>Peak GPU memory (0.5 s UUID-bound poll, 228 valid samples)</td><td class="num">45,437 MiB / 46,068 MiB (98.6%)</td></tr>
+<tr><td>Allocator at failure</td><td class="num">44.36 GiB in use · 36.83 GiB torch-allocated · 7.03 GiB reserved-unallocated · request 98 MiB</td></tr>
+<tr><td>Job exit</td><td class="num">FAILED 3:0 (deliberate OOM classification code)</td></tr>
+</table></div>
+
+<h2>Exact error</h2>
+<pre>OutOfMemoryError: CUDA out of memory. Tried to allocate 98.00 MiB. GPU 0 has a total
+capacity of 44.39 GiB of which 23.31 MiB is free. Including non-PyTorch memory, this
+process has 44.36 GiB memory in use. Of the allocated memory 36.83 GiB is allocated
+by PyTorch, and 7.03 GiB is reserved by PyTorch but unallocated. If reserved but
+unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+to avoid fragmentation.</pre>
+
+<h2>Reading</h2>
+<p>Even a perfectly defragmented allocator recovers at most ~7 GiB — insufficient, since demand was still climbing at step 0. Consistent with the exp_07 audit (release trained micro-64/BN-64 on an 80 GB-class card); retro-justifies the SyncBN-64 DDP workaround on 46 GB hardware. For exp_11's fast recipe this eliminates the 64×1 rung by measurement; 32×2 (no-ckpt) is borderline and P0 must measure it; 16×4 and 8×8 have comfortable priors.</p>
+<p class="note">Artifacts: <code>slurm_exp12-mem-probe_3637984.out</code> · <code>mem_probe_2026-08-05_16-29-28_jid3637984_S5_train.log</code> · <code>mem_probe_2026-08-05_16-29-28_jid3637984_vram.csv</code> · <code>mem_probe_command.md</code> · <code>mem_probe_params_set_up.md</code></p>
+</body>
+</html>
