@@ -230,6 +230,18 @@ expect_cmd "preflight binds to the launch manifest" 0 "bound to launch manifest"
 expect_cmd "preflight rejects a rung change" 2 "manifest rung" -- \
   $PY "$PREFLIGHT" --config "${EXPDIR}/FLAC_AR_BF_C8.json" --max-steps 40000 --arm C8 --rung 8x8 \
      --ckpt "${TMP}/good.ckpt" --expected-step 5000 --launch-manifest "${TMP}/launch_manifest.txt"
+# B2 residual: a manifest with no commit, or a different commit, must fail CLOSED
+grep -v '^commit ' "${TMP}/launch_manifest.txt" > "${TMP}/manifest_nocommit.txt"
+expect_cmd "preflight rejects a manifest without a commit" 2 "no 'commit' line" -- \
+  "${PRE[@]}" --ckpt "${TMP}/good.ckpt" --expected-step 5000 --commit "$HEAD_SHA" \
+     --launch-manifest "${TMP}/manifest_nocommit.txt"
+sed 's/^commit .*/commit 0000000000000000000000000000000000000000/' "${TMP}/launch_manifest.txt" > "${TMP}/manifest_othercommit.txt"
+expect_cmd "preflight rejects a changed commit" 2 "!= running commit" -- \
+  "${PRE[@]}" --ckpt "${TMP}/good.ckpt" --expected-step 5000 --commit "$HEAD_SHA" \
+     --launch-manifest "${TMP}/manifest_othercommit.txt"
+expect_cmd "preflight rejects a missing running commit" 2 "no running commit" -- \
+  "${PRE[@]}" --ckpt "${TMP}/good.ckpt" --expected-step 5000 \
+     --launch-manifest "${TMP}/launch_manifest.txt"
 
 echo "--- H. the submitter refuses un-pinned submission ---"
 expect_cmd "submitter refuses placeholders" 2 "TO-PIN-AFTER-P0" -- env DRYRUN=1 bash "$SUBMITTER" C8
@@ -240,6 +252,68 @@ expect_cmd "submitter derives cpus/mem from the rung" 0 "--cpus-per-task=36" -- 
   env DRYRUN=1 SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=14000 bash "$SUBMITTER" C4L
 expect_cmd "submitter derives 8x8 resources" 0 "--mem=108G" -- \
   env DRYRUN=1 SMOKE=1 SMOKE_RUNG=8x8 SMOKE_MIN_FREE_MB=14000 bash "$SUBMITTER" C4L
+
+echo "--- I. flock run ownership, both contention directions (round-3 B3 residual) ---"
+LOCKF="${TMP}/exp11_LOCKTEST.lock"
+FIFO_HOLD="${TMP}/holder.fifo"; mkfifo "$FIFO_HOLD"
+# held by a live process -> a contender must fail to acquire
+# the holder keeps the fd open for its whole lifetime, exactly like the launcher
+( flock -n 9 || exit 1; read -r _ < "$FIFO_HOLD" ) 9>"$LOCKF" &
+HOLDER=$!
+sleep 0.5
+if flock -n 9 9>"$LOCKF" 2>/dev/null; then
+  echo "FAIL  a second holder acquired a held flock"; FAIL=$((FAIL+1))
+else
+  echo "PASS  contender refused while the lock is held"; PASS=$((PASS+1))
+fi
+echo go > "$FIFO_HOLD"        # let the holder exit, closing fd 9
+wait "$HOLDER" 2>/dev/null
+# holder died (kill -9 equivalent) -> the lock must be free immediately, no stale dir
+if flock -n 9 9>"$LOCKF" 2>/dev/null; then
+  echo "PASS  lock free after the holder exits (no stale-recovery path needed)"; PASS=$((PASS+1))
+else
+  echo "FAIL  lock still held after the holder exited"; FAIL=$((FAIL+1))
+fi
+grep -q 'flock -n 9' "$LAUNCHER" && { echo "PASS  launcher uses flock, not mkdir+stale recovery"; PASS=$((PASS+1)); } \
+  || { echo "FAIL  launcher does not use flock"; FAIL=$((FAIL+1)); }
+grep -q 'release_lock' "$LAUNCHER" && { echo "FAIL  the old rmdir-based release survives"; FAIL=$((FAIL+1)); } \
+  || { echo "PASS  no rmdir-based lock release remains"; PASS=$((PASS+1)); }
+
+echo "--- J. OUTPUT_ROOT is a literal inside a Slurm job (NEW-2) ---"
+case_run "ambient OUTPUT_ROOT rejected under Slurm" 2 "!= the production literal" \
+  -- ARM=C4L SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=99000000 "EXPECT_SHA=${HEAD_SHA}" \
+     SLURM_JOB_ID=999999 "OUTPUT_ROOT=${OUT_ROOT}"
+grep -q 'PRODUCTION_OUTPUT_ROOT="outputs_FLAC"' "$LAUNCHER" && { echo "PASS  launcher pins the production root literally"; PASS=$((PASS+1)); } \
+  || { echo "FAIL  launcher has no production-root literal"; FAIL=$((FAIL+1)); }
+grep -q 'OUTPUT_ROOT=outputs_FLAC' "$SUBMITTER" && { echo "PASS  submitter exports the fixed root, not ambient state"; PASS=$((PASS+1)); } \
+  || { echo "FAIL  submitter still forwards an ambient OUTPUT_ROOT"; FAIL=$((FAIL+1)); }
+
+echo "--- K. the submitter publishes intent BEFORE sbatch (NEW-3) ---"
+INTENT_BEFORE="$(ls "${EXPDIR}"/fa_orbit_submission_*.txt 2>/dev/null | wc -l)"
+expect_cmd "dry run publishes no submission manifest" 0 "DRYRUN sbatch" -- \
+  env DRYRUN=1 SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=14000 bash "$SUBMITTER" C4L
+INTENT_AFTER="$(ls "${EXPDIR}"/fa_orbit_submission_*.txt 2>/dev/null | wc -l)"
+[ "$INTENT_BEFORE" = "$INTENT_AFTER" ] && { echo "PASS  a dry run leaves no submission manifest behind"; PASS=$((PASS+1)); } \
+  || { echo "FAIL  a dry run created a submission manifest"; FAIL=$((FAIL+1)); }
+awk '/^OUT=.*sbatch/{sb=NR} /^mv -n "\$TMP" "\$MANIFEST"/{mf=NR} END{exit !(mf && sb && mf < sb)}' "$SUBMITTER" \
+  && { echo "PASS  intent manifest is published before the sbatch call"; PASS=$((PASS+1)); } \
+  || { echo "FAIL  the manifest is still published after sbatch"; FAIL=$((FAIL+1)); }
+grep -q 'scancel "\$JID"' "$SUBMITTER" && { echo "PASS  an unrecordable job is cancelled"; PASS=$((PASS+1)); } \
+  || { echo "FAIL  no scancel path for an unrecordable job"; FAIL=$((FAIL+1)); }
+
+echo "--- L. FIFO and pip-freeze plumbing (NEW-4, B5 residual) ---"
+grep -q 'mktemp -u' "$LAUNCHER" && { echo "FAIL  race-prone 'mktemp -u' FIFO remains"; FAIL=$((FAIL+1)); } \
+  || { echo "PASS  FIFO no longer uses mktemp -u"; PASS=$((PASS+1)); }
+grep -q "trap 'rm -f \"\$FIFO\"' EXIT" "$LAUNCHER" && { echo "PASS  FIFO removal is in the exit trap"; PASS=$((PASS+1)); } \
+  || { echo "FAIL  FIFO is not removed by the exit trap"; FAIL=$((FAIL+1)); }
+grep -q 'pip freeze > "\$PIPFREEZE_FILE"' "$LAUNCHER" && { echo "PASS  pip freeze status is checked before hashing"; PASS=$((PASS+1)); } \
+  || { echo "FAIL  pip freeze is still hashed blind"; FAIL=$((FAIL+1)); }
+grep -q 'final_tee_rc' "$LAUNCHER" && { echo "PASS  the final record's tee status is captured"; PASS=$((PASS+1)); } \
+  || { echo "FAIL  the final tee status is still discarded"; FAIL=$((FAIL+1)); }
+grep -q 'WANDB_ENTITY="\$WANDB_ENTITY_SEEN"' "$LAUNCHER" && { echo "PASS  the approved wandb entity is exported"; PASS=$((PASS+1)); } \
+  || { echo "FAIL  WANDB_ENTITY is not exported"; FAIL=$((FAIL+1)); }
+grep -q 'wandb-metadata.json' "$LAUNCHER" && { echo "PASS  the created wandb run identity is verified post-run"; PASS=$((PASS+1)); } \
+  || { echo "FAIL  no post-run wandb identity verification"; FAIL=$((FAIL+1)); }
 
 echo
 echo "=== guard tests: ${PASS} passed, ${FAIL} failed ==="

@@ -97,7 +97,18 @@ export HF_HUB_OFFLINE=1
 
 DRYRUN="${DRYRUN:-0}"
 SMOKE="${SMOKE:-0}"
-OUTPUT_ROOT="${OUTPUT_ROOT:-outputs_FLAC}"
+# NEW-2: the production output namespace is not operator state. Inside a Slurm
+# job it is the literal below; an ambient value that disagrees aborts. The
+# override exists only for non-Slurm guard dry runs.
+PRODUCTION_OUTPUT_ROOT="outputs_FLAC"
+if [ -n "${SLURM_JOB_ID:-}" ]; then
+  if [ -n "${OUTPUT_ROOT:-}" ] && [ "$OUTPUT_ROOT" != "$PRODUCTION_OUTPUT_ROOT" ]; then
+    echo "ambient OUTPUT_ROOT='${OUTPUT_ROOT}' != the production literal '${PRODUCTION_OUTPUT_ROOT}' - abort"; exit 2
+  fi
+  OUTPUT_ROOT="$PRODUCTION_OUTPUT_ROOT"
+else
+  OUTPUT_ROOT="${OUTPUT_ROOT:-$PRODUCTION_OUTPUT_ROOT}"
+fi
 RESUME_CKPT="${RESUME_CKPT:-}"
 EXPECTED_STEP="${EXPECTED_STEP:-0}"
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
@@ -370,23 +381,24 @@ done
 echo "--- co-tenancy disclosure at launch ---"
 nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader 2>/dev/null || true
 
-# --- K. atomic run-directory lock (round-3 B3) --------------------------------
-mkdir -p "$SAVEDIR" || die "could not create ${SAVEDIR} - abort" 3
-LOCKDIR="${SAVEDIR}/.launch_lock"
-LAUNCH_UUID="$(cat /proc/sys/kernel/random/uuid)"
-if mkdir "$LOCKDIR" 2>/dev/null; then
-  echo "lock acquired: ${LOCKDIR}"
-else
-  OWNER_JOB="$(awk '/^job /{print $2}' "${LOCKDIR}/owner" 2>/dev/null)"
-  if [ -n "$OWNER_JOB" ] && squeue -h -j "$OWNER_JOB" -o %i 2>/dev/null | grep -q "$OWNER_JOB"; then
-    die "arm ${ARM} is already owned by ACTIVE job ${OWNER_JOB} (${LOCKDIR}) — refusing a concurrent writer - abort"
-  fi
-  echo "STALE LOCK RECOVERY: ${LOCKDIR} was held by job '${OWNER_JOB:-<unknown>}', which is no longer in the queue; taking ownership"
+# --- K. exclusive run ownership via flock (round-3 B3 residual) --------------
+# mkdir + stale recovery had two races: a contender could arrive between mkdir
+# and the owner write, and release removed the directory without checking whose
+# it was. flock has neither: the kernel holds the lock while the fd is open and
+# releases it on close (including on kill), so there is no stale state to
+# recover and no recovery path to get wrong.
+mkdir -p "$OUTPUT_ROOT" || die "could not create ${OUTPUT_ROOT} - abort" 3
+LOCKFILE="${OUTPUT_ROOT}/exp11_${ARM}.lock"
+exec 9>"$LOCKFILE" || die "could not open the lock file ${LOCKFILE} - abort" 3
+if ! flock -n 9; then
+  OWNER="$(tr '\n' ' ' < "$LOCKFILE" 2>/dev/null)"
+  die "arm ${ARM} is locked by another live job (${OWNER:-<no metadata>}) - refusing a concurrent writer - abort"
 fi
-{ echo "job ${SLURM_JOB_ID}"; echo "uuid ${LAUNCH_UUID}"; echo "arm ${ARM}"; echo "mode ${MODE}"; echo "acquired ${TS}"; } > "${LOCKDIR}/owner" \
-  || die "could not write the lock owner file - abort" 3
-release_lock() { rm -rf "$LOCKDIR" 2>/dev/null; }
-trap release_lock EXIT
+LAUNCH_UUID="$(cat /proc/sys/kernel/random/uuid)"
+{ echo "job ${SLURM_JOB_ID}"; echo "uuid ${LAUNCH_UUID}"; echo "arm ${ARM}"; echo "mode ${MODE}"; echo "acquired ${TS}"; } >&9 \
+  || die "could not write the lock owner metadata - abort" 3
+echo "lock acquired: ${LOCKFILE} (flock on fd 9, released on exit)"
+mkdir -p "$SAVEDIR" || die "could not create ${SAVEDIR} - abort" 3
 
 # --- L. RESTART preflight (round-3 B2) ---------------------------------------
 CKPT_SHA=""
@@ -417,7 +429,10 @@ if v.email != "yh4742@princeton.edu":
 print(v.entity)
 PY
 )" || die "wandb identity gate FAILED (no logger fallback: the arms train with wandb) - abort"
-echo "wandb identity OK: entity ${WANDB_ENTITY_SEEN}, mode ${WANDB_MODE}"
+[ -n "$WANDB_ENTITY_SEEN" ] || die "wandb returned an empty entity - abort"
+# B7 residual: pin the destination account explicitly instead of leaving it implicit
+export WANDB_ENTITY="$WANDB_ENTITY_SEEN"
+echo "wandb identity OK: entity ${WANDB_ENTITY} (exported), mode ${WANDB_MODE}"
 if [ "$MODE" = "RESTART" ]; then
   WANDB_RUN_ID="$(awk '/^wandb_run_id /{print $2}' "$LAUNCH_MANIFEST_LINK" 2>/dev/null)"
   [ -n "$WANDB_RUN_ID" ] || die "RESTART needs the original wandb run id from ${LAUNCH_MANIFEST_LINK} - abort"
@@ -436,7 +451,11 @@ HF_HUB_OFFLINE=1 python3 "$EXPDIR/assert_arm_configs_exp11.py" "$ARM" || die "Vi
 TRAINLOG="${EXPDIR}/fa_orbit_${TS}_${ARM}_${RUNG}_jid${SLURM_JOB_ID}_train.log"
 SAVEDIR_LOG="${SAVEDIR}/fa_orbit_${TS}_${ARM}_${RUNG}_jid${SLURM_JOB_ID}_train.log"
 MANIFEST="${EXPDIR}/fa_orbit_${TS}_${ARM}_${RUNG}_jid${SLURM_JOB_ID}_manifest.txt"
-ENV_SHA="$(pip freeze 2>/dev/null | sha256sum | awk '{print $1}')"
+# B5 residual: a failed environment dump must not be silently hashed into the record
+PIPFREEZE_FILE="$(mktemp)" || die "mktemp failed - abort" 3
+pip freeze > "$PIPFREEZE_FILE" 2>/dev/null || die "pip freeze FAILED - the environment digest would be a lie - abort" 7
+ENV_SHA="$(sha256sum "$PIPFREEZE_FILE" | awk '{print $1}')"
+rm -f "$PIPFREEZE_FILE"
 {
   echo "# exp_11 arm launch manifest"
   echo "timestamp ${TS}"
@@ -468,7 +487,9 @@ echo "manifest: ${MANIFEST} (copied to ${SAVEDIR})"
 unset SLURM_NTASKS SLURM_JOB_NAME SLURM_PROCID SLURM_LOCALID SLURM_NODEID
 : > "$TRAINLOG" || die "could not create ${TRAINLOG} - abort" 3
 : > "$SAVEDIR_LOG" || die "could not create ${SAVEDIR_LOG} - abort" 3
-FIFO="$(mktemp -u)"; mkfifo "$FIFO" || die "mkfifo failed - abort" 3
+FIFO="$(mktemp)" || die "mktemp failed - abort" 3
+rm -f "$FIFO" && mkfifo "$FIFO" || die "mkfifo failed - abort" 3
+trap 'rm -f "$FIFO"' EXIT
 tee -a "$TRAINLOG" "$SAVEDIR_LOG" < "$FIFO" &
 TEE_PID=$!
 echo "=== launching ${ARM} ${RUNG}: torchrun --standalone --nproc_per_node=${NGPU} train.py (${MODE}) ==="
@@ -497,15 +518,74 @@ kill "$WATCHER" 2>/dev/null; wait "$WATCHER" 2>/dev/null
 wait "$TEE_PID"; tee_rc=$?
 rm -f "$FIFO"
 
-# --- Q. classification (tested taxonomy; see fa_orbit_classify.py) ------------
-python3 "$EXPDIR/fa_orbit_classify.py" --rc "$rc" --tee-rc "$tee_rc" --ngpu "$NGPU" \
-  --maxsteps "$MAXSTEPS" --log "$TRAINLOG" --log-copy "$SAVEDIR_LOG"
+# --- Q. W&B run identity verification (round-3 B7 residual) ------------------
+# The gate above proves WHO we are; this proves WHERE the run actually landed.
+# wandb writes <WANDB_DIR>/wandb/run-*/files/wandb-metadata.json plus the run
+# directory name; both are compared against the manifest, and a mismatch is a
+# provenance failure (class 7), not a footnote.
+WANDB_CHECK_RC=0
+python3 - "$WANDB_DIR" "$WANDB_RUN_ID" "$WANDB_ENTITY" "$NAME" "$EXPNAME" <<'PY' || WANDB_CHECK_RC=$?
+import glob, json, os, sys
+wandb_dir, want_id, want_entity, want_project, want_name = sys.argv[1:6]
+runs = sorted(glob.glob(os.path.join(wandb_dir, "wandb", f"run-*-{want_id}")))
+if not runs:
+    print(f"WANDB IDENTITY: no run directory for id {want_id} under {wandb_dir}/wandb")
+    sys.exit(1)
+meta_path = os.path.join(runs[-1], "files", "wandb-metadata.json")
+meta = {}
+if os.path.isfile(meta_path):
+    try:
+        meta = json.load(open(meta_path))
+    except Exception as exc:
+        print(f"WANDB IDENTITY: unreadable {meta_path}: {exc}")
+        sys.exit(1)
+bad = []
+for key, want in (("entity", want_entity), ("project", want_project), ("name", want_name)):
+    got = meta.get(key)
+    if got is not None and got != want:
+        bad.append(f"{key}={got!r} != manifest {want!r}")
+if bad:
+    print("WANDB IDENTITY MISMATCH: " + "; ".join(bad))
+    sys.exit(1)
+print(f"wandb run identity OK: id {want_id} at {runs[-1]} "
+      f"(entity {want_entity}, project {want_project}, name {want_name})")
+PY
+if [ "$WANDB_CHECK_RC" -ne 0 ]; then
+  echo "W&B run identity could not be verified against the manifest - provenance failure"
+fi
+
+# --- R. classification (tested taxonomy; see fa_orbit_classify.py) ------------
+--------
+CLASSIFY_OUT="$(python3 "$EXPDIR/fa_orbit_classify.py" --rc "$rc" --tee-rc "$tee_rc" --ngpu "$NGPU" \
+  --maxsteps "$MAXSTEPS" --log "$TRAINLOG" --log-copy "$SAVEDIR_LOG" 2>&1)"
 final_rc=$?
+echo "$CLASSIFY_OUT"
 LAST_CKPT="$(ls -1t "${RUNDIR}/checkpoints"/*.ckpt 2>/dev/null | head -1)"
-{
+
+# --- S. durable final record (round-3 B5 residual) ---------------------------
+# The classifier verdict and this summary must survive in BOTH copies; the tee
+# status is captured (it used to be discarded) and a failure is class 7. The
+# whole preflight transcript (this job's Slurm output so far) is copied into the
+# save-dir too, so the durable record is not just torchrun's stdout.
+FINAL_RECORD="$(
   echo "=== exp_11 ${ARM} ${RUNG} finished at $(date '+%Y-%m-%d %H:%M:%S') ==="
-  echo "torchrun rc=${rc} tee rc=${tee_rc} classified rc=${final_rc}"
+  echo "torchrun rc=${rc} tee rc=${tee_rc} wandb_identity_rc=${WANDB_CHECK_RC} classified rc=${final_rc}"
+  echo "$CLASSIFY_OUT"
   echo "last checkpoint: ${LAST_CKPT:-<none>}"
   echo "restart: fa_orbit_submit.sh ${ARM} --resume ${LAST_CKPT:-<path>} --expected-step <step>"
-} | tee -a "$TRAINLOG" "$SAVEDIR_LOG"
+)"
+printf '%s\n' "$FINAL_RECORD" | tee -a "$TRAINLOG" "$SAVEDIR_LOG" > /dev/null
+final_tee_rc="${PIPESTATUS[1]}"
+SLURM_OUT="${EXPDIR}/slurm_train_${SLURM_JOB_NAME:-job}_${SLURM_JOB_ID}.out"
+PREFLIGHT_COPY_RC=0
+if [ -f "$SLURM_OUT" ]; then
+  cp "$SLURM_OUT" "${SAVEDIR}/preflight_${TS}_jid${SLURM_JOB_ID}.out" || PREFLIGHT_COPY_RC=$?
+else
+  echo "NOTE: ${SLURM_OUT} not found; preflight transcript not duplicated"
+fi
+if [ "$final_tee_rc" -ne 0 ] || [ "$PREFLIGHT_COPY_RC" -ne 0 ] || [ "$WANDB_CHECK_RC" -ne 0 ]; then
+  echo "LOG-PROVENANCE: final record tee rc=${final_tee_rc}, preflight copy rc=${PREFLIGHT_COPY_RC}, wandb identity rc=${WANDB_CHECK_RC}"
+  [ "$final_rc" -eq 0 ] && final_rc=7
+fi
+printf '%s\n' "$FINAL_RECORD"
 exit "$final_rc"

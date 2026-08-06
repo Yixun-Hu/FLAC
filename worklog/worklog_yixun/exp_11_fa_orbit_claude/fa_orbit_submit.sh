@@ -78,7 +78,7 @@ ARGS=(
   --cpus-per-task="$((8 + 7 * NGPU))"
   --mem="$(((12 * NGPU + 12)))G"
   --time="$TIME_LIMIT"
-  --export="ALL,ARM=${ARM},EXPECT_SHA=${SHA},OUTPUT_ROOT=${OUTPUT_ROOT:-outputs_FLAC}"
+  --export="ALL,ARM=${ARM},EXPECT_SHA=${SHA},OUTPUT_ROOT=outputs_FLAC"
 )
 [ "$SMOKE" = "1" ] && ARGS[5]="${ARGS[5]},SMOKE=1,SMOKE_RUNG=${SMOKE_RUNG},SMOKE_MIN_FREE_MB=${SMOKE_MIN_FREE_MB},SMOKE_MAXSTEPS=${SMOKE_MAXSTEPS:-30},SMOKE_TIME=${TIME_LIMIT}"
 [ -n "$RESUME_CKPT" ] && ARGS[5]="${ARGS[5]},RESUME_CKPT=${RESUME_CKPT},EXPECTED_STEP=${EXPECTED_STEP}"
@@ -90,21 +90,40 @@ if [ "$DRYRUN" = "1" ]; then
   exit 0
 fi
 
-OUT="$(sbatch "${ARGS[@]}" 2>&1)"; JID="$(echo "$OUT" | awk '/Submitted batch job/ {print $NF}')"
-[ -n "$JID" ] || { echo "SUBMIT FAILED: ${OUT}"; exit 1; }
-echo "submitted ${ARM} -> job ${JID}"
-
-MANIFEST="${EXPDIR}/fa_orbit_submission_${ARM}_${JID}.txt"
+# --- NEW-3: publish the INTENT before submitting -----------------------------
+# The provenance record must exist before the job can exist, otherwise a local
+# write failure leaves a queued job nobody recorded. The intent manifest carries
+# the exact command and pins; the job id is appended afterwards, and if that
+# append fails the exact job we just created is cancelled.
+INTENT_ID="$(date +%s%N)-$(cut -c1-8 /proc/sys/kernel/random/uuid)"
+MANIFEST="${EXPDIR}/fa_orbit_submission_${ARM}_${INTENT_ID}.txt"
 [ ! -e "$MANIFEST" ] || { echo "submission manifest ${MANIFEST} already exists - abort"; exit 2; }
 TMP="$(mktemp "${MANIFEST}.XXXXXX")" || exit 3
 {
-  echo "# exp_11 arm submission"
+  echo "# exp_11 arm submission (intent published BEFORE sbatch)"
+  echo "intent_id ${INTENT_ID}"
   echo "submitted_at $(date -Is)"
   echo "arm ${ARM} rung ${RUNG} micro ${MB} ngpu ${NGPU}"
-  echo "jobid ${JID} jobname ${JOBNAME} time ${TIME_LIMIT} smoke ${SMOKE}"
+  echo "jobname ${JOBNAME} time ${TIME_LIMIT} smoke ${SMOKE}"
   echo "commit ${SHA}"
+  echo "pins rung=${RUNG} maxsteps=$(pin PINNED_MAXSTEPS) ckpt_every=$(pin PINNED_CHECKPOINT_EVERY) min_free_mb=$(pin PINNED_MIN_FREE_MB) p0_manifest_sha256=$(pin PINNED_P0_MANIFEST_SHA256)"
   echo "resume ${RESUME_CKPT:-<none>} expected_step ${EXPECTED_STEP}"
   echo "sbatch sbatch ${ARGS[*]}"
-} >> "$TMP" || exit 3
-mv -n "$TMP" "$MANIFEST" || { echo "manifest publication failed - abort"; exit 2; }
-echo "submission manifest: ${MANIFEST}"
+} >> "$TMP" || { echo "intent manifest write failed - abort"; exit 3; }
+mv -n "$TMP" "$MANIFEST" || { echo "intent manifest publication failed - abort"; exit 2; }
+[ -e "$MANIFEST" ] || { echo "intent manifest ${MANIFEST} did not appear - abort"; exit 2; }
+echo "intent manifest: ${MANIFEST}"
+
+OUT="$(sbatch "${ARGS[@]}" 2>&1)"; JID="$(echo "$OUT" | awk '/Submitted batch job/ {print $NF}')"
+if [ -z "$JID" ]; then
+  echo "SUBMIT FAILED: ${OUT}"
+  echo "submit_failed $(date -Is)" >> "$MANIFEST"
+  exit 1
+fi
+echo "submitted ${ARM} -> job ${JID}"
+if ! echo "jobid ${JID}" >> "$MANIFEST"; then
+  echo "could not append job id ${JID} to ${MANIFEST} — cancelling the job rather than leave it unrecorded"
+  scancel "$JID" || echo "scancel ${JID} FAILED — cancel it by hand NOW"
+  exit 2
+fi
+echo "submission recorded: ${MANIFEST} (job ${JID})"

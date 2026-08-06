@@ -66,8 +66,15 @@ def check_manifest_binding(manifest_path, arm, rung, commit, maxsteps):
                         "sampler partitioning and worker seeding mid-lineage)")
     if kv.get("max_steps") != str(maxsteps):
         problems.append(f"manifest max_steps {kv.get('max_steps')!r} != {maxsteps}")
-    man_commit = man.get("commit", "")
-    if commit and man_commit and man_commit != commit:
+    # Fail-CLOSED (round-3 B2 residual): an absent or empty manifest commit is not
+    # "no opinion", it is missing provenance — the restart must not proceed on it.
+    man_commit = man.get("commit", "").strip()
+    if not man_commit:
+        problems.append("launch manifest carries no 'commit' line — cannot bind the restart "
+                        "to the lineage that produced this checkpoint")
+    elif not commit:
+        problems.append("no running commit supplied to compare against the manifest commit")
+    elif man_commit != commit:
         problems.append(f"manifest commit {man_commit[:12]} != running commit {commit[:12]}")
     return problems, man
 
