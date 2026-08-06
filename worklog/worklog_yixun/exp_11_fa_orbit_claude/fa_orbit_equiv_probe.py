@@ -151,6 +151,23 @@ def summarize(results, key):
     return max(gated), max(recorded)
 
 
+def record_id(meta, idx):
+    """A stable EXACT identifier for one dataset record: ``<idx>:<relpath>``.
+
+    The scene label is NOT an identifier — eight different records of one room
+    all carry ``scene='Cafe'``, which is what the earlier probe emitted eight
+    times over. The dataset exposes ``idx``, ``path`` and ``relpath``; the
+    relative path (falling back to the basename, then the raw index) is the
+    per-record key, and the loader index makes it order-explicit."""
+    rel = meta.get("relpath")
+    if not rel:
+        raw = meta.get("path")
+        rel = os.path.basename(str(raw)) if raw else None
+    if not rel:
+        rel = f"record{meta.get('idx', idx)}"
+    return f"{int(meta.get('idx', idx))}:{rel}"
+
+
 def sha256_file(path):
     h = hashlib.sha256()
     with open(path, "rb") as fh:
@@ -215,9 +232,11 @@ def real_samples(dataset_config_path, n_samples, device, seed=42):
         if isinstance(meta, (list, tuple)):
             meta = meta[0]
         md.append({k: (v.to(device) if torch.is_tensor(v) else v) for k, v in meta.items()})
-        ids.append(str(meta.get("scene", meta.get("id", idx))))
+        ids.append(record_id(meta, idx))
     if len(md) != n_samples:
         raise RuntimeError(f"loaded {len(md)} records, expected exactly {n_samples}")
+    if len(set(ids)) != n_samples:
+        raise RuntimeError(f"record identifiers are not distinct: {ids}")
     return md, ids
 
 
@@ -241,8 +260,9 @@ def run_cell(cond, md, device, angles, mode, use_bf16, seed=1234):
 
     train = mode == "train"
     cond.train(train)
-    autocast = (torch.autocast(device_type=device, dtype=torch.bfloat16)
-                if use_bf16 and device == "cuda"
+    if use_bf16 and device != "cuda":
+        raise RuntimeError("a bf16 cell requires CUDA; refusing to run it as fp32 on CPU")
+    autocast = (torch.autocast(device_type=device, dtype=torch.bfloat16) if use_bf16
                 else torch.autocast(device_type=device, enabled=False))
     grad = torch.enable_grad() if train else torch.no_grad()
 
@@ -288,7 +308,18 @@ def main(argv=None):
     import torch
     from src.data import yaw_rotation as yr
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # NEW-2: the bf16 half of the qualification is meaningless without CUDA, and a
+    # CPU fallback would be reported as if it had run bf16. Require the GPU.
+    if not torch.cuda.is_available():
+        print("EQUIVPROBE-ABORT: CUDA is not available; the bf16 qualification cannot run "
+              "and a CPU/fp32 result must never be recorded as one")
+        return 3
+    device = "cuda"
+    try:
+        torch.zeros(1, device=device)                 # force CUDA init HERE, not mid-cell
+    except Exception as exc:
+        print(f"EQUIVPROBE-ABORT: CUDA initialisation failed: {type(exc).__name__}: {exc}")
+        return 3
     torch.set_float32_matmul_precision("medium")      # train.py:94
     pin = assert_vit_pin()
     cfg, cond = build_conditioner(args.config, device)
@@ -296,7 +327,7 @@ def main(argv=None):
     print(f"probe: device={device} samples={len(md)} ids={','.join(sample_ids)} "
           f"cap={yr.FRAME_AVG_MAX_FWD_SAMPLES} vit_pin={pin} matmul=medium")
 
-    results = {}
+    results, bf16_results = {}, {}
     plan = expected_cells()
     for cell in plan:
         mode, n, batch = cell
@@ -315,6 +346,8 @@ def main(argv=None):
                       f"rel_max={m['rel_max']:.3e} [{gate}]")
             if res["grads_finite"] is not None:
                 print(f"        grads_finite={res['grads_finite']} outputs_finite={res['finite']}")
+            if use_bf16:                                  # NEW-5: auditable in the result line
+                bf16_results[(mode, n, batch)] = res
             unhealthy = (not res["finite"]) or (res["grads_finite"] is False)
             if unhealthy and cell in results:
                 results[cell]["finite"] = False          # a bf16 NaN fails the whole cell
@@ -322,12 +355,17 @@ def main(argv=None):
     ok, reasons = verdict(results, plan)
     gated_rel, rec_rel = summarize(results, "rel_norm")
     gated_abs, rec_abs = summarize(results, "max_abs")
+    bf16_rel = max([0.0] + [m["rel_norm"] for r in bf16_results.values()
+                            for m in r["ids"].values()])
+    bf16_abs = max([0.0] + [m["max_abs"] for r in bf16_results.values()
+                            for m in r["ids"].values()])
     for r in reasons:
         print(f"  !! {r}")
-    print(f"EQUIVPROBE cfg={sha256_file(args.config)[:12]} vit_pin={pin} "
+    print(f"EQUIVPROBE cfg={sha256_file(args.config)[:12]} vit_pin={pin} device={device} "
           f"nsamples={len(md)} sample_ids={','.join(sample_ids)} cells={len(results)}/{len(plan)} "
           f"gate_rel_norm={gated_rel:.3e} gate_max_abs={gated_abs:.3e} "
           f"rec_rel_norm={rec_rel:.3e} rec_max_abs={rec_abs:.3e} "
+          f"bf16_cells={len(bf16_results)} bf16_rel_norm={bf16_rel:.3e} bf16_max_abs={bf16_abs:.3e} "
           f"tol_rel={TOL_REL_FP32:g} tol_abs={TOL_ABS_FP32:g} "
           f"verdict={'PASS' if ok else 'FAIL'}")
     return 0 if ok else 4

@@ -1,0 +1,15 @@
+extracted 41 lines of the real wrapper block
+--- the happy path must REACH the final classification (NEW-1) ---
+PASS  green probe passes end to end  (rc=0)
+--- every strict check must actually fire (prior finding 5) ---
+PASS  verdict=FAIL rejected  (rc=4)
+PASS  short cell set rejected  (rc=5)
+PASS  wrong config hash rejected  (rc=5)
+PASS  wrong sample ids rejected  (rc=5)
+PASS  wrong sample count rejected  (rc=5)
+PASS  cpu device rejected  (rc=5)
+PASS  two result lines rejected  (rc=5)
+PASS  missing result line rejected  (rc=5)
+PASS  probe nonzero rc rejected  (rc=4)
+
+=== wrapper guard tests: 10 passed, 0 failed ===

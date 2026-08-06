@@ -66,8 +66,19 @@ def source_sha():
         return "unknown"
 
 
+def orbit_provenance(cond_method):
+    """``(orbit_execution, frame_avg_fwd_cap)`` for a conditioning method.
+
+    A vanilla evaluation executes NO orbit, so labelling it ``batched`` would be
+    false provenance and would make a vanilla row look protocol-compatible with a
+    batched frame-averaged row."""
+    if cond_method == "fa_invariant":
+        return ORBIT_EXECUTION, FRAME_AVG_MAX_FWD_SAMPLES
+    return "n/a", None
+
+
 def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame_avg_angles,
-                         cond_autocast='default'):
+                         cond_autocast='default', batch_size=None, n_samples=None):
     """Assemble the dict written to the metrics JSON.
 
     Extends the legacy ``{metrics, ckpt_path, rotate_deg}`` record with
@@ -80,6 +91,7 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
     augmentation schedule and regroups the evaluation tail batch — so this is
     what makes "legacy-loop" a checkable label rather than a footnote.
     """
+    execution, cap = orbit_provenance(cond_method)
     return {
         "metrics": metrics_dict,
         "ckpt_path": ckpt_path,
@@ -87,9 +99,13 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
         "cond_method": cond_method,
         "frame_avg_angles": frame_avg_angles,
         "cond_autocast": cond_autocast,
-        "orbit_execution": ORBIT_EXECUTION,
-        "frame_avg_fwd_cap": FRAME_AVG_MAX_FWD_SAMPLES,
+        "orbit_execution": execution,
+        "frame_avg_fwd_cap": cap,
         "source_sha": source_sha(),
+        # the batched path regroups the split's TAIL batch, so the schedule that
+        # produced a row must be reconstructible from the row itself
+        "batch_size": batch_size,
+        "n_samples": n_samples,
     }
 
 
@@ -115,6 +131,7 @@ def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
     at the default evaluation batch the batched path degenerates to one angle per
     call for every full batch, but the split's tail batch is regrouped, so a
     prediction set must name the execution that produced it."""
+    execution, cap = orbit_provenance(cond_method)
     return {
         "dataset_config": dataset_config_path,
         "seed": seed,
@@ -124,8 +141,8 @@ def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
         "rotate_deg": rotate_deg,
         "batch_size": batch_size,
         "cond_autocast": cond_autocast,
-        "orbit_execution": ORBIT_EXECUTION,
-        "frame_avg_fwd_cap": FRAME_AVG_MAX_FWD_SAMPLES,
+        "orbit_execution": execution,
+        "frame_avg_fwd_cap": cap,
         "source_sha": source_sha(),
     }
 

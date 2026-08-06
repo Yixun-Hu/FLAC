@@ -227,6 +227,33 @@ def test_comparator_meta_mismatch_raises(tmp_path, field, bad):
         compare_predictions.guard_meta(m_ref, m_alt)
 
 
+@pytest.mark.parametrize(
+    "field,bad",
+    [
+        ("orbit_execution", "loop"),
+        ("frame_avg_fwd_cap", 8),
+        ("source_sha", "0" * 40),
+    ],
+)
+def test_comparator_guards_orbit_execution_provenance(tmp_path, field, bad):
+    """exp_11: a legacy-loop prediction set and a batched one are NOT
+    interchangeable — the batched path regroups the split's tail batch and, in
+    training, shares RoPE draws across a chunk. Comparing across them must raise
+    rather than silently report a 'invariance gap' that is really a protocol gap."""
+    assert field in compare_predictions._GUARD_KEYS
+    ref, alt = tmp_path / "ref.pt", tmp_path / "alt.pt"
+    base = _meta()
+    base.update({"orbit_execution": "batched", "frame_avg_fwd_cap": 64, "source_sha": "a" * 40})
+    _save_dict(ref, base)
+    bad_meta = dict(base)
+    bad_meta[field] = bad
+    _save_dict(alt, bad_meta)
+    m_ref = compare_predictions.load_prediction_meta(str(ref))
+    m_alt = compare_predictions.load_prediction_meta(str(alt))
+    with pytest.raises(ValueError):
+        compare_predictions.guard_meta(m_ref, m_alt)
+
+
 def test_comparator_meta_match_proceeds(tmp_path):
     """(d) matching meta proceeds (no raise)."""
     ref, alt = tmp_path / "ref.pt", tmp_path / "alt.pt"
@@ -451,6 +478,40 @@ def test_records_carry_orbit_execution_provenance():
     assert meta["frame_avg_fwd_cap"] == yr.FRAME_AVG_MAX_FWD_SAMPLES
     assert isinstance(meta["source_sha"], str) and meta["source_sha"]
     json.loads(json.dumps(meta))
+
+
+def test_vanilla_rows_are_not_labelled_as_batched_orbit():
+    """A vanilla evaluation executes NO orbit, so claiming 'batched' would be
+    false provenance — and would make a vanilla row look protocol-compatible with
+    a batched fa row."""
+    rec = eval_FLAC.build_metrics_record(
+        {"T60": 1.0}, CKPT, rotate_deg=0.0, cond_method="vanilla", frame_avg_angles=None,
+    )
+    assert rec["orbit_execution"] == "n/a"
+    assert rec["frame_avg_fwd_cap"] is None
+    meta = eval_FLAC.build_predictions_meta(
+        "ds.json", seed=42, n_samples=7, cond_method="vanilla", frame_avg_angles=None,
+        rotate_deg=0.0, batch_size=64, cond_autocast="off",
+    )
+    assert meta["orbit_execution"] == "n/a"
+    assert meta["frame_avg_fwd_cap"] is None
+    json.loads(json.dumps([rec, meta]))
+
+
+def test_metrics_record_makes_the_batch_schedule_reconstructible():
+    """The batched path regroups the split's TAIL batch, so a metrics row that
+    does not state its batch size and sample count cannot be reproduced or
+    compared (re-review, prior finding 7)."""
+    rec = eval_FLAC.build_metrics_record(
+        {"T60": 1.0}, CKPT, rotate_deg=0.0, cond_method="fa_invariant",
+        frame_avg_angles=[0.0, 90.0, 180.0, 270.0], batch_size=64, n_samples=6337,
+    )
+    assert rec["batch_size"] == 64
+    assert rec["n_samples"] == 6337
+    # omitted -> explicit None, never a silently wrong default
+    bare = eval_FLAC.build_metrics_record(
+        {"T60": 1.0}, CKPT, rotate_deg=0.0, cond_method="vanilla", frame_avg_angles=None)
+    assert bare["batch_size"] is None and bare["n_samples"] is None
 
 
 def test_source_sha_falls_back_when_git_is_unavailable(monkeypatch):

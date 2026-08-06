@@ -669,26 +669,35 @@ def test_batch_at_the_cap_is_accepted_and_above_it_is_rejected(single_thread):
 #     change), determinism and gradient flow  (review finding 1, option 2)
 # --------------------------------------------------------------------------- #
 class StochasticGeometry(FakeGeometry):
-    """Stand-in for train-mode DINOv3, whose RoPE rescale draws ONE random value
-    per forward and applies it to the whole call.
+    """Stand-in for train-mode DINOv3 with the REAL draw topology.
 
-    Under the batched execution a chunk's angles therefore share a draw where the
-    per-angle loop gave them independent ones: the averaging arithmetic is
-    unchanged, the augmentation schedule is not. That is the disclosed recipe
-    change, applied identically to every arm (C4L included), and these tests pin
-    the NEW contract rather than pretending the old one still holds."""
+    ``GeometryConditioner`` calls the shared DINO backbone once per coordinate
+    (conditioners.py: the ``for i in range(coord.shape[1])`` loop), and each DINO
+    forward independently draws its RoPE position rescale. So the unit of
+    randomness is the DINO FORWARD, not the conditioner call: one conditioner
+    call over K coordinates takes K draws — 9 for the production stack (1 source
+    + 8 context) at K=8.
+
+    What batching changes is which SAMPLES share a draw: a DINO forward now
+    covers a whole chunk of stacked angles, so angles inside a chunk share the
+    draw the per-angle loop gave them independently, and the total number of
+    draws falls from ``C * K`` to ``(1 + n_chunks) * K``. The averaging
+    arithmetic is untouched. That is the disclosed recipe change, applied
+    identically to every arm (C4L included); these tests pin the NEW contract
+    rather than pretending the old one still holds."""
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.draws = 0
+        self.draws = 0            # DINO-forward-level draws (one per coordinate)
         self.scale = nn.Parameter(torch.ones(1))
 
     def forward(self, coord_list, device=DEV):
         out = super().forward(coord_list, device)
         if self.training:
-            self.draws += 1
-            rope = torch.rand(1, device=device)          # consumes global RNG, per FORWARD
-            out[0] = out[0] * (1.0 + 0.1 * rope) * self.scale
+            n_coords = out[0].shape[1]                   # K: one DINO forward each
+            rope = torch.rand(n_coords, device=device)   # consumes global RNG per coordinate
+            self.draws += n_coords
+            out[0] = out[0] * (1.0 + 0.1 * rope).view(1, n_coords, 1) * self.scale
         else:
             out[0] = out[0] * self.scale
         return out
@@ -701,20 +710,45 @@ def _stochastic_cond():
     })
 
 
-@pytest.mark.parametrize("n,batch,expected_draws", [(4, 8, 2), (16, 8, 3), (32, 8, 5), (32, 3, 3)])
-def test_train_mode_draws_are_one_per_forward_not_one_per_angle(n, batch, expected_draws,
-                                                                single_thread):
-    """The batched path consumes exactly one stochastic draw per FORWARD, i.e.
-    ``1 + n_chunks`` — the plan pinned in section 13 — instead of one per angle."""
+# (orbit, batch, forwards) — `forwards` is 1 base + n_chunks, i.e. the plan of
+# section 13. Draws per conditioner = forwards x K, with K the coordinate count
+# (1 for source_vit, n_ctx for context_poses_vit).
+@pytest.mark.parametrize("n,batch,forwards", [(4, 8, 2), (16, 8, 3), (32, 8, 5), (32, 3, 3)])
+def test_train_mode_draws_follow_the_forward_x_coordinate_topology(n, batch, forwards,
+                                                                   single_thread):
+    """Draws are per (conditioner forward x coordinate) — the real DINO topology.
+
+    The loop took ``C * K`` draws per conditioner and gave every angle its own;
+    the batched path takes ``(1 + n_chunks) * K`` and shares each within a chunk.
+    Both facts are pinned here, per ViT id, with its own coordinate count."""
+    n_ctx = 2                                    # _small_md's context count
     cond = _stochastic_cond().train()
     torch.manual_seed(0)
     yr.invariant_conditioning(cond, _small_batch(batch), DEV, _orbit(n))
+    coords = {"source_vit": 1, "context_poses_vit": n_ctx}
     for vit in VIT_IDS:
-        assert cond.conditioners[vit].draws == expected_draws, (
-            f"C{n}/B{batch}: {vit} drew {cond.conditioners[vit].draws} times, expected "
-            f"{expected_draws} (1 base + {expected_draws - 1} chunk(s))"
+        want = forwards * coords[vit]
+        assert cond.conditioners[vit].draws == want, (
+            f"C{n}/B{batch}: {vit} drew {cond.conditioners[vit].draws}, expected {want} "
+            f"({forwards} forward(s) x {coords[vit]} coordinate(s))"
         )
-        assert len(cond.conditioners[vit].batch_sizes) == expected_draws
+        assert len(cond.conditioners[vit].batch_sizes) == forwards
+        # ...and strictly fewer than the legacy per-angle loop would have taken
+        assert want < n * coords[vit]
+
+
+def test_legacy_loop_topology_is_the_baseline_being_departed_from(single_thread):
+    """The reference loop still takes C x K draws — the count the batched path
+    deliberately no longer matches (this is the disclosed change, measured)."""
+    n, batch, n_ctx = 16, 8, 2
+    cond = _stochastic_cond().train()
+    md_inv = [yr.cylindrical_pose_features(m) for m in _small_batch(batch)]
+    torch.manual_seed(0)
+    base = cond(md_inv, DEV)
+    present = list(VIT_IDS)
+    yr._orbit_average_loop(cond, md_inv, base, present, _orbit(n), 512, DEV)
+    assert cond.conditioners["source_vit"].draws == n * 1
+    assert cond.conditioners["context_poses_vit"].draws == n * n_ctx
 
 
 def test_train_mode_is_deterministic_under_a_fixed_seed(single_thread):
@@ -731,15 +765,29 @@ def test_train_mode_is_deterministic_under_a_fixed_seed(single_thread):
 
 
 def test_train_mode_gradients_reach_the_conditioner(single_thread):
-    """The batched orbit must stay in the autograd graph: every rotated chunk
-    contributes gradient to the conditioner parameters."""
-    cond = _stochastic_cond().train()
-    torch.manual_seed(7)
-    out = yr.invariant_conditioning(cond, _small_batch(8), DEV, _orbit(8))
-    loss = sum(out[k][0].float().pow(2).mean() for k in VIT_IDS)
-    loss.backward()
+    """The batched orbit must stay in the autograd graph.
+
+    A nonzero aggregate gradient alone would not prove that: the base pass could
+    supply all of it. So the orbit's contribution is isolated by comparing the
+    gradient of a C8 average against a single-angle (C1) run on the same inputs —
+    if the rotated chunks were detached, the two would be identical."""
+    def grad_for(angles, seed=7):
+        cond = _stochastic_cond().train()
+        torch.manual_seed(seed)
+        out = yr.invariant_conditioning(cond, _small_batch(8), DEV, angles)
+        loss = sum(out[k][0].float().pow(2).mean() for k in VIT_IDS)
+        cond.zero_grad(set_to_none=True)
+        loss.backward()
+        return {v: cond.conditioners[v].scale.grad.clone() for v in VIT_IDS}
+
+    orbit_grad = grad_for(_orbit(8))
+    base_only_grad = grad_for((0.0,))
     for vit in VIT_IDS:
-        grad = cond.conditioners[vit].scale.grad
-        assert grad is not None, f"{vit}: no gradient reached the conditioner"
-        assert torch.isfinite(grad).all(), f"{vit}: non-finite gradient {grad}"
-        assert float(grad.abs().max()) > 0.0, f"{vit}: zero gradient — the orbit is detached"
+        g = orbit_grad[vit]
+        assert g is not None, f"{vit}: no gradient reached the conditioner"
+        assert torch.isfinite(g).all(), f"{vit}: non-finite gradient {g}"
+        assert float(g.abs().max()) > 0.0, f"{vit}: zero gradient — the orbit is detached"
+        assert not torch.equal(g, base_only_grad[vit]), (
+            f"{vit}: the C8 gradient equals the base-only gradient — the rotated chunks "
+            "contribute nothing, i.e. the orbit is outside the graph"
+        )

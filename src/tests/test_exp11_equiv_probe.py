@@ -179,6 +179,31 @@ def test_summarize_separates_gated_from_recorded():
     assert gated_abs == pytest.approx(1e-6) and rec_abs == pytest.approx(2.0)
 
 
+# --------------------------------------------------------------------------- #
+# 5. exact record identities (re-review NEW-3)
+# --------------------------------------------------------------------------- #
+def test_record_id_uses_the_relative_path_not_the_scene_label():
+    """The scene label is not an identifier: eight records of one room all carry
+    scene='Cafe', which is exactly what the old probe emitted eight times."""
+    meta = {"scene": "Cafe", "idx": 3, "path": "/data/AR/Cafe/ir_0007.wav",
+            "relpath": "Cafe/ir_0007.wav"}
+    assert P.record_id(meta, 3) == "3:Cafe/ir_0007.wav"
+    assert "Cafe/ir_0007.wav" in P.record_id(meta, 3)
+
+
+def test_record_ids_are_distinct_across_records_of_one_scene():
+    metas = [{"scene": "Cafe", "idx": i, "relpath": f"Cafe/ir_{i:04d}.wav"} for i in range(8)]
+    ids = [P.record_id(m, i) for i, m in enumerate(metas)]
+    assert len(set(ids)) == 8, ids
+    assert all(":" in i for i in ids)
+
+
+def test_record_id_falls_back_through_path_then_index():
+    assert P.record_id({"idx": 5, "path": "/x/y/ir_5.wav"}, 5) == "5:ir_5.wav"
+    assert P.record_id({"idx": 9}, 9) == "9:record9"
+    assert P.record_id({}, 2) == "2:record2"          # no idx at all
+
+
 def test_tolerances_are_the_preregistered_ones():
     assert P.TOL_REL_FP32 == 1e-6
     assert P.TOL_ABS_FP32 == 1e-5

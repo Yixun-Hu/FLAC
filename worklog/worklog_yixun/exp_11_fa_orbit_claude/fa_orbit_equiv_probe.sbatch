@@ -49,6 +49,9 @@ TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 : "${EXPECT_SHA:?EXPECT_SHA (full reviewed commit sha) must be exported at submission - abort}"
 EXPECT_CELLS="${EXPECT_CELLS:-14}"      # len(expected_cells()): 4 + 8 + 2 (see the probe)
 EXPECT_SAMPLES="${EXPECT_SAMPLES:-8}"
+# Optional pin of the exact idx:relpath identities; when unset the wrapper still
+# requires EXPECT_SAMPLES distinct idx:relpath tokens (NEW-3).
+EXPECT_IDS="${EXPECT_IDS:-}"
 
 echo "=== exp_11 batched-orbit qualification probe - ${TS} - job ${JID} - host $(hostname) ==="
 
@@ -92,10 +95,15 @@ CFG_SHA="$(sha256sum "$PROBE_CFG" | awk '{print $1}')" || die "sha256sum FAILED 
 CFG_SHA12="${CFG_SHA:0:12}"
 echo "config sha256: ${CFG_SHA} (expect cfg=${CFG_SHA12} in the result line)"
 
-# --- run: both pipeline stages captured --------------------------------------
-LOG="${EXPDIR}/fa_orbit_${TS}_jid${JID}_equivprobe.log"
+# --- BEGIN probe-run-and-verify (guard-tested by fa_orbit_equivprobe_wrapper_test.sh) --
+# NEW-1: capture PIPESTATUS ATOMICALLY. `A="${PIPESTATUS[0]}"; B="${PIPESTATUS[1]}"`
+# is two commands, and the first one replaces PIPESTATUS with its own one-element
+# array -- under `set -u` the second expansion died with "PIPESTATUS[1]: unbound
+# variable" (exit 127), so every strict check below used to be unreachable.
+LOG="${LOG:-${EXPDIR}/fa_orbit_${TS}_jid${SLURM_JOB_ID}_equivprobe.log}"
 python3 "$EXPDIR/fa_orbit_equiv_probe.py" --config "$PROBE_CFG" 2>&1 | tee "$LOG"
-PROBE_RC="${PIPESTATUS[0]}"; TEE_RC="${PIPESTATUS[1]}"
+PIPE_RC=("${PIPESTATUS[@]}")
+PROBE_RC="${PIPE_RC[0]}"; TEE_RC="${PIPE_RC[1]}"
 [ "$TEE_RC" -eq 0 ] || die "tee exited ${TEE_RC} - the durable log is not trustworthy - abort" 7
 
 # --- strict result parsing: exactly one line, and every field as expected -----
@@ -105,14 +113,28 @@ RESULT="$(grep '^EQUIVPROBE ' "$LOG")"
 field() { echo "$RESULT" | tr ' ' '\n' | awk -F= -v k="$1" '$1==k{print $2; exit}'; }
 GOT_CFG="$(field cfg)"; GOT_N="$(field nsamples)"; GOT_CELLS="$(field cells)"
 GOT_IDS="$(field sample_ids)"; GOT_VERDICT="$(field verdict)"; GOT_PIN="$(field vit_pin)"
+GOT_DEVICE="$(field device)"
 [ "$GOT_CFG" = "$CFG_SHA12" ] || die "result cfg=${GOT_CFG} != ${CFG_SHA12} - abort" 5
 [ "$GOT_N" = "$EXPECT_SAMPLES" ] || die "result nsamples=${GOT_N} != ${EXPECT_SAMPLES} - abort" 5
 [ "$GOT_CELLS" = "${EXPECT_CELLS}/${EXPECT_CELLS}" ] || die "result cells=${GOT_CELLS} != ${EXPECT_CELLS}/${EXPECT_CELLS} - abort" 5
-[ -n "$GOT_IDS" ] || die "result carries no sample_ids - abort" 5
+# NEW-2: a CPU/fp32 run must never be accepted as the bf16 qualification
+[ "$GOT_DEVICE" = "cuda" ] || die "result device=${GOT_DEVICE} != cuda - the bf16 qualification requires a GPU - abort" 5
+# NEW-3: the exact per-record identities, not merely a non-empty token
+if [ -n "${EXPECT_IDS:-}" ]; then
+  [ "$GOT_IDS" = "$EXPECT_IDS" ] || die "result sample_ids=${GOT_IDS} != the registered ${EXPECT_IDS} - abort" 5
+else
+  N_IDS="$(echo "$GOT_IDS" | tr ',' '\n' | grep -c ':')"
+  [ "$N_IDS" -eq "$EXPECT_SAMPLES" ] || die "result sample_ids carries ${N_IDS} idx:relpath identities, expected ${EXPECT_SAMPLES} - abort" 5
+  [ "$(echo "$GOT_IDS" | tr ',' '\n' | sort -u | wc -l)" -eq "$EXPECT_SAMPLES" ] || die "result sample_ids are not distinct: ${GOT_IDS} - abort" 5
+fi
 [ -n "$GOT_PIN" ] || die "result carries no DINO pin - abort" 5
 [ "$GOT_VERDICT" = "PASS" ] || die "result verdict=${GOT_VERDICT} - abort" 4
 [ "$PROBE_RC" -eq 0 ] || die "probe exited ${PROBE_RC} despite verdict=PASS - abort" "$PROBE_RC"
 
-echo "=== equivalence probe PASSED (cfg ${GOT_CFG}, pin ${GOT_PIN}, ${GOT_CELLS} cells, ids ${GOT_IDS}) ==="
+# the final classification is part of the tested chain: if it is not reached, the
+# wrapper did not actually validate anything.
+echo "=== equivalence probe PASSED (cfg ${GOT_CFG}, pin ${GOT_PIN}, device ${GOT_DEVICE}, ${GOT_CELLS} cells, ids ${GOT_IDS}) ==="
 echo "log: ${LOG}"
+# --- END probe-run-and-verify -------------------------------------------------
+
 exit 0

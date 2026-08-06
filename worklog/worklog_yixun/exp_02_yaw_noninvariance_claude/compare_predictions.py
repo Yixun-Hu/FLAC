@@ -159,6 +159,11 @@ def load_prediction_meta(path: str):
 _GUARD_KEYS = (
     "dataset_config", "seed", "batch_size", "cond_method", "frame_avg_angles",
     "cond_autocast",
+    # exp_11: the orbit EXECUTION is part of the protocol. The batched path
+    # regroups the split's tail batch (and, in training, shares RoPE draws
+    # across a chunk), so a legacy-loop prediction set and a batched one are not
+    # interchangeable even at identical angles.
+    "orbit_execution", "frame_avg_fwd_cap", "source_sha",
 )
 
 
