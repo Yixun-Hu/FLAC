@@ -39,3 +39,13 @@ Training wall-clock (dominated by the orbit's ViT passes) is the binding constra
 ### Planner note on recipe semantics (recorded at amendment time)
 
 "Fastest" is constrained by recipe identity: with SyncBN, BN statistics see micro-batch × N_GPU, so keeping BOTH effective batch = 64 AND BN batch = 64 requires micro × N = 64 with accum 1 (candidate rungs 8×8, 16×4, 32×2). Grad-ckpt off changes memory/speed, not math. num_gpus/micro-batch/grad-ckpt are hereby recipe-free knobs (superseding Q1's "don't change training config" for exactly these throughput knobs); optimizer, schedule, seed, eff-batch, BN-batch semantics stay fixed. All four arms (C4L bridge + C8/C16/C32) train under the SAME chosen fast recipe, so internal comparisons remain single-delta in the orbit.
+
+## Query 3 (2026-08-05, ~20:55 EDT) — recipe decision after P0 feasibility escalation
+
+### Verbatim
+
+> go with uniform grad-ckpt at the fastest rung
+
+### Summary
+
+Resolves the P0 escalation (no-ckpt infeasible for C8+ on 46 GB L40s: C8 OOM even at micro-8; C4L barely fits at 8×8 only). All four arms train with ViT gradient checkpointing ON, at the single fastest rung measured by the official ckpt-recipe P0 matrix. Consequence: the arm configs revert to a pure single-delta vs exp_07's `FLAC_AR_BF.json` (orbit angles only; C4L byte-identical), which strengthens the original design.
