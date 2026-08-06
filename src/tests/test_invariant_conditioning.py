@@ -84,9 +84,13 @@ class FakeDist(nn.Module):
         self.name = name
         self.out_dim = out_dim
         self.calls = 0
+        self.samples = 0
+        self.batch_sizes = []
 
     def forward(self, x_list, device=DEV):
         self.calls += 1
+        self.samples += len(x_list)
+        self.batch_sizes.append(len(x_list))
         x = torch.stack(x_list, dim=0).to(device)  # [B, 3] or [B, N, 3]
         if x.dim() == 2:
             x = x.unsqueeze(1)  # [B, 1, 3]
@@ -113,15 +117,19 @@ class FakeGeometry(nn.Module):
         self.name = name
         self.out_dim = out_dim
         self.calls = 0
+        self.samples = 0
+        self.batch_sizes = []
         g = torch.Generator().manual_seed(0)
         self.register_buffer("proj", torch.randn(3, out_dim, generator=g))
 
     def forward(self, coord_list, device=DEV):
         self.calls += 1
+        self.samples += len(coord_list)
+        self.batch_sizes.append(len(coord_list))
         coords, depths = [], []
         for c in coord_list:
-            coords.append(c["coord"].float().to(device))
-            depths.append(c["depth"].float().to(device))
+            coords.append(c["coord"].to(device))      # dtype-preserving: the fp64
+            depths.append(c["depth"].to(device))      # equivalence case runs in double
         coord = torch.stack(coords, dim=0)  # [B, 3] or [B, N, 3]
         if coord.ndim == 2:
             coord = coord.unsqueeze(1)  # [B, 1, 3]
@@ -153,10 +161,14 @@ class FakeRIR(nn.Module):
         self.name = name
         self.out_dim = out_dim
         self.calls = 0
+        self.samples = 0
+        self.batch_sizes = []
         self.bn = nn.BatchNorm1d(out_dim)
 
     def forward(self, audios_list, device=DEV):
         self.calls += 1
+        self.samples += len(audios_list)
+        self.batch_sizes.append(len(audios_list))
         audios = torch.stack(audios_list, dim=0).to(device)  # [B, N, C, T]
         B, N = audios.shape[0], audios.shape[1]
         flat = audios.reshape(B * N, -1)[:, : self.out_dim]  # [B*N, out_dim]
@@ -265,16 +277,31 @@ def test_average_correctness():
 # 5. single pass for non-ViT conditioners; |G| passes for ViT; BN once
 # --------------------------------------------------------------------------- #
 def test_single_pass_nonvit():
+    """Non-ViT conditioners run EXACTLY once; the ViT conditioners see exactly
+    the orbit's worth of samples.
+
+    The orbit is now executed as a few BATCHED forwards instead of one forward
+    per angle, so the contract is stated in SAMPLES, not calls: the ViT path must
+    see the base pass (B) plus (C-1)*B rotated samples, however they are grouped.
+    The BatchNorm guard is unchanged — the RIR encoder must still be stepped once."""
     cond = _build_cond()
-    md = _batch(2)
+    batch = 2
+    md = _batch(batch)
     _ = yr.invariant_conditioning(cond, md, DEV)
     n_angles = len(yr.DEFAULT_FRAME_ANGLES)
 
     assert cond.conditioners["source"].calls == 1
     assert cond.conditioners["context_poses"].calls == 1
     assert cond.conditioners["context_audio"].calls == 1
-    assert cond.conditioners["source_vit"].calls == n_angles
-    assert cond.conditioners["context_poses_vit"].calls == n_angles
+    assert cond.conditioners["source"].samples == batch
+    assert cond.conditioners["context_poses"].samples == batch
+    assert cond.conditioners["context_audio"].samples == batch
+    for vit in VIT_IDS:
+        assert cond.conditioners[vit].samples == n_angles * batch, (
+            f"{vit} saw {cond.conditioners[vit].samples} samples, expected "
+            f"{n_angles} x {batch} (base + orbit)"
+        )
+        assert cond.conditioners[vit].calls >= 1
     assert int(cond.conditioners["context_audio"].bn.num_batches_tracked) == 1
 
 
@@ -475,3 +502,94 @@ def test_cn_average_correctness(n, single_thread):
     out = yr.invariant_conditioning(cond, md, DEV, angles)
     for pid in present:
         assert torch.allclose(out[pid][0], expected[pid], atol=1e-5), pid
+
+
+# --------------------------------------------------------------------------- #
+# 12. batched orbit == the pre-batching sequential algorithm (exp_11 Q5)
+# --------------------------------------------------------------------------- #
+def _reference_orbit_average(cond, metadata, device, angles):
+    """The PRE-BATCHING algorithm, reproduced here on purpose.
+
+    This is deliberately a copy rather than an import: it is the specification
+    the batched implementation must reproduce, so it has to keep working even if
+    the library's own reference helper is refactored away."""
+    md_inv = [yr.cylindrical_pose_features(m) for m in metadata]
+    base = cond(md_inv, device)
+    present = [i for i in VIT_IDS if i in base]
+    img_w = int(metadata[0]["depth"].shape[-1])
+    accum = {i: base[i][0].clone() for i in present}
+    for g in angles[1:]:
+        variants = [
+            yr.rotate_scene_metadata(m, math.radians(g), img_w, pose_keys=tuple(present))
+            for m in md_inv
+        ]
+        part = cond(variants, device, only_ids=present)
+        for i in present:
+            accum[i] = accum[i] + part[i][0]
+    for i in present:
+        base[i][0] = accum[i] / float(len(angles))
+    return base
+
+
+@pytest.mark.parametrize("n", (4, 8, 16, 32))
+@pytest.mark.parametrize("batch", (1, 2, 3))
+def test_batched_orbit_matches_the_sequential_reference(n, batch, single_thread):
+    angles = _orbit(n)
+    md = _small_batch(batch)
+    got = yr.invariant_conditioning(_build_cond(), md, DEV, angles)
+    want = _reference_orbit_average(_build_cond(), md, DEV, angles)
+    for key in VIT_IDS:
+        assert torch.allclose(got[key][0], want[key][0], atol=1e-5), (
+            f"C{n} B{batch}: {key} differs from the sequential reference "
+            f"(max {float((got[key][0] - want[key][0]).abs().max()):.3e})"
+        )
+    for key in ("source", "context_poses", "context_audio"):
+        assert torch.allclose(got[key][0], want[key][0], atol=1e-5), key
+
+
+@pytest.mark.parametrize("n", (4, 32))
+def test_batched_orbit_matches_reference_in_float64(n, single_thread):
+    """In fp64 the two orderings agree far below the fp32 tolerance, which shows
+    the residual fp32 gap is summation order, not different maths."""
+    angles = _orbit(n)
+    md = [
+        {k: (v.double() if torch.is_floating_point(v) else v) for k, v in m.items()}
+        for m in _small_batch(2)
+    ]
+    got = yr.invariant_conditioning(_build_cond().double(), md, DEV, angles)
+    want = _reference_orbit_average(_build_cond().double(), md, DEV, angles)
+    for key in VIT_IDS:
+        assert got[key][0].dtype == torch.float64
+        assert torch.allclose(got[key][0], want[key][0], atol=1e-7), (
+            f"C{n} fp64: {key} max {float((got[key][0] - want[key][0]).abs().max()):.3e}"
+        )
+
+
+def test_orbit_chunking_covers_every_rotated_sample(single_thread):
+    """B=3, C=32: 31 rotated angles x 3 = 93 samples with a 64-sample cap, so the
+    chunks are 21 and 10 angles (63 + 30 samples) — a boundary that is NOT a
+    multiple of the cap. Every sample must still be forwarded exactly once."""
+    batch, n = 3, 32
+    assert (n - 1) * batch % yr.FRAME_AVG_MAX_FWD_SAMPLES != 0
+    cond = _build_cond()
+    out = yr.invariant_conditioning(cond, _small_batch(batch), DEV, _orbit(n))
+    for vit in VIT_IDS:
+        c = cond.conditioners[vit]
+        assert c.samples == n * batch, f"{vit} saw {c.samples}, expected {n * batch}"
+        assert c.calls < n, f"{vit} used {c.calls} calls; batching should need far fewer than {n}"
+        assert all(s <= yr.FRAME_AVG_MAX_FWD_SAMPLES for s in c.batch_sizes[1:]), (
+            f"{vit} exceeded the {yr.FRAME_AVG_MAX_FWD_SAMPLES}-sample cap: {c.batch_sizes}"
+        )
+    assert set(out.keys()) == ALL_IDS
+
+
+def test_orbit_cap_is_respected_for_a_large_batch(single_thread):
+    """With B = 8 the cap allows 8 angles per forward; C16 must therefore split
+    the 15 rotated angles into chunks of at most 64 samples."""
+    batch, n = 8, 16
+    cond = _build_cond()
+    yr.invariant_conditioning(cond, _small_batch(batch), DEV, _orbit(n))
+    for vit in VIT_IDS:
+        c = cond.conditioners[vit]
+        assert c.samples == n * batch
+        assert max(c.batch_sizes[1:]) <= yr.FRAME_AVG_MAX_FWD_SAMPLES

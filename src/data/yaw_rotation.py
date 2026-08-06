@@ -22,6 +22,18 @@ POSE_KEYS: Tuple[str, ...] = ("source", "source_vit", "context_poses", "context_
 # W=512 -> exact roll). Single source of truth for the frame-averaging angles.
 DEFAULT_FRAME_ANGLES: Tuple[float, ...] = (0.0, 90.0, 180.0, 270.0)
 
+# Largest number of samples fed to the ViT conditioners in ONE forward while
+# frame-averaging. The orbit used to be executed one angle at a time: at the
+# training micro-batch (8) that is a ~8-sample, ~512-token ViT forward per angle
+# per conditioner, and exp_11's P0 profiling measured every orbit cell sitting at
+# only 28-34% GPU utilisation -- the passes are kernel-launch/latency bound, not
+# compute bound. Stacking the rotated variants along the batch dimension turns C
+# small forwards into a few large ones (the maths is identical; only the
+# execution order changes). 64 = the effective global batch, i.e. one orbit chunk
+# costs about one ordinary training step's worth of activations, which keeps the
+# checkpointed peak in the range P0 measured.
+FRAME_AVG_MAX_FWD_SAMPLES: int = 64
+
 
 def wrap_angle(phi):
     """
@@ -242,7 +254,11 @@ def invariant_conditioning(
 
     All remaining conditioners (e.g. the ``context_audio`` RIR encoder, which is
     already yaw-invariant and may carry BatchNorm running stats) are run **exactly
-    once** — only the ``vit_ids`` conditioners are re-run per frame. The caller's
+    once** — only the ``vit_ids`` conditioners see the rotated frames. Those are
+    executed in BATCHED chunks of at most :data:`FRAME_AVG_MAX_FWD_SAMPLES`
+    samples rather than one forward per angle (the orbit passes are
+    latency-bound; see the constant). The mathematics, the accumulation order and
+    the returned structure are unchanged — only the grouping of the forwards. The caller's
     ``metadata`` is never mutated (its ``source`` / ``depth`` stay raw for the
     downstream metric callback).
 
@@ -291,20 +307,77 @@ def invariant_conditioning(
 
     # 3. frame-average ONLY the ViT conditioners over the rotation subgroup.
     img_w = int(metadata[0]["depth"].shape[-1])
-    accum = {i: base[i][0].clone() for i in present}
-    for g in angles[1:]:
-        variants = [
-            rotate_scene_metadata(m, math.radians(g), img_w, pose_keys=tuple(present))
-            for m in md_inv
-        ]
-        part = conditioner(variants, device, only_ids=present)
-        for i in present:
-            accum[i] = accum[i] + part[i][0]
+    accum = _orbit_average_batched(conditioner, md_inv, base, present, angles, img_w, device)
 
     for i in present:
         base[i][0] = accum[i] / float(len(angles))
 
     return base
+
+
+def _rotated_variants(md_inv, deg, img_w, present):
+    """The rotated metadata for one orbit angle (depth and the ``*_vit`` poses
+    move together; every other field passes through)."""
+    return [
+        rotate_scene_metadata(m, math.radians(deg), img_w, pose_keys=tuple(present))
+        for m in md_inv
+    ]
+
+
+def _orbit_average_loop(conditioner, md_inv, base, present, angles, img_w, device):
+    """Reference orbit accumulation: ONE conditioner forward per angle.
+
+    This is the pre-batching execution order, kept as the equivalence reference
+    for :func:`_orbit_average_batched` (tests and the exp_11 equivalence probe
+    compare against *this code*, not against a copy of it). It is not used on the
+    training path any more.
+
+    Returns ``{id: summed_tensor}`` over the whole orbit, angle 0 first.
+    """
+    accum = {i: base[i][0].clone() for i in present}
+    for g in angles[1:]:
+        part = conditioner(_rotated_variants(md_inv, g, img_w, present), device,
+                           only_ids=present)
+        for i in present:
+            accum[i] = accum[i] + part[i][0]
+    return accum
+
+
+def _orbit_average_batched(conditioner, md_inv, base, present, angles, img_w, device):
+    """Same sum as :func:`_orbit_average_loop`, executed as a few large forwards.
+
+    The rotated variants of consecutive angles are concatenated along the batch
+    dimension into chunks of at most :data:`FRAME_AVG_MAX_FWD_SAMPLES` samples
+    (whole angles per chunk, so a chunk is ``k * B`` samples), each chunk is one
+    conditioner call, and the stacked output is split back per angle. Angles are
+    still accumulated in ascending order starting from the angle-0 base, so the
+    summation order is unchanged within a chunk and the result is bit-identical
+    to the loop wherever the chunk boundaries do not reassociate float additions.
+
+    Only the ``present`` (ViT) ids are re-run; masks come from the base pass.
+    """
+    accum = {i: base[i][0].clone() for i in present}
+    rest = angles[1:]
+    if not rest:
+        return accum
+    batch = len(md_inv)
+    angles_per_chunk = max(1, FRAME_AVG_MAX_FWD_SAMPLES // max(1, batch))
+    for start in range(0, len(rest), angles_per_chunk):
+        chunk = rest[start:start + angles_per_chunk]
+        stacked = []
+        for g in chunk:
+            stacked.extend(_rotated_variants(md_inv, g, img_w, present))
+        part = conditioner(stacked, device, only_ids=present)
+        for i in present:
+            out = part[i][0]
+            if out.shape[0] != len(chunk) * batch:
+                raise RuntimeError(
+                    f"{i}: batched orbit forward returned {out.shape[0]} rows for "
+                    f"{len(chunk)} angle(s) x {batch} sample(s)"
+                )
+            for k in range(len(chunk)):          # ascending angle order preserved
+                accum[i] = accum[i] + out[k * batch:(k + 1) * batch]
+    return accum
 
 
 def yaw_transform_consistency(
