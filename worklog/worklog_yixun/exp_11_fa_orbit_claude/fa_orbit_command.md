@@ -24,3 +24,19 @@ bash worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_submit_matrix.sh matrix
 # manifest: p0_manifest_aa4bc18-1785968431124626318-df9602ea.txt
 # collect: python worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_collect.py --manifest <manifest>
 ```
+
+## ARM LAUNCHES (2026-08-06, post LAUNCH-APPROVED sign-off) — ACCEPTANCE RECORD (precondition 9)
+
+- Reviewed SHA: 2c30c5bceb3e1f1e695eefc0787db7c9dc2fcd01 == origin/check-equivariance-necessity (verified); tracked launch surfaces clean (verified). This record is a docs-only commit — launcher/config content unchanged from the signed-off ea94995 pins + 71054cf launcher.
+- Commands (exact, per sign-off; SBATCH_EXCLUDE=neu322 added as a scheduling-only hint — node has a measured uncorrectable-ECC GPU):
+```bash
+SBATCH_EXCLUDE=neu322 SMOKE=0 DRYRUN=0 bash worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_submit.sh C4L
+SBATCH_EXCLUDE=neu322 SMOKE=0 DRYRUN=0 bash worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_submit.sh C8
+SBATCH_EXCLUDE=neu322 SMOKE=0 DRYRUN=0 bash worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_submit.sh C16
+SBATCH_EXCLUDE=neu322 SMOKE=0 DRYRUN=0 bash worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_submit.sh C32
+```
+- Expected per arm: 8× L40 (one node), 64 CPUs, 108 GiB RAM; time limits C4L 24 h / C8 35 h / C16 60 h / C32 112 h; 40,000 steps; ckpt every 2,500; free-VRAM floor 36,500 MiB.
+- P0 binding: batched matrix manifest sha256 72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b; batched spot manifest sha256 41ad6989ebbcb45c73f9515fae389b36c04500e26d902ffb8dc336d8ee561652.
+- Per-job gates that must pass (recorded in each slurm out): commit/drift, allocation shape, environment (python/PL/torch/VAE/DINO), config identity, VRAM floor, lock, W&B identity, 8-rank world size.
+- Final acceptance per arm: 40,000 steps reached, expected checkpoints on cadence, byte-identical dual durable logs, W&B run identity verified, classification rc=0.
+- Intent manifests + Slurm job IDs: appended below at submission.
