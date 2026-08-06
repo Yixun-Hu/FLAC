@@ -16,7 +16,14 @@ Base: `b9e38ce` (exp_10 model_comparison rows). Branch: `check-equivariance-nece
 | 8 | `8d53691` | round-2 review-loop artifacts (P0 kit reviews + worklog closure) — main session |
 | 9 | `aa4bc18` | P0 smokes live-validate the kit; C4L_32x2 no-ckpt OOM (real bound), FA1_32x2 1.01 steps/s — main session |
 | 10 | `7e617a2` | P0 matrix launched (13 cells, jobs 3638637-49) + command record — main session |
-| 11 | `_(this commit)_` | round 3 — arm training launcher `fa_orbit_train.sbatch` (torchrun rung-parameterized 16x4/8x8, 32x2 barred by the measured OOM; arm→config map + semantic orbit gate; commit/drift, wandb, VRAM and world-size gates incl. a 300 s early-abort watchdog; exp_10-style INITIAL/RESTART lineage; dual-tee + atomic manifest; DRYRUN argv-parity vs exp_07), `assert_arm_configs_exp11.py` (exp_07's DINOv3-pin + init-identity checks re-pointed at the four arms), `fa_orbit_train_guardtests.sh` (33 cases, all green) |
+| 11 | `72a8114` | round 3 — arm training launcher `fa_orbit_train.sbatch` (torchrun rung-parameterized 16x4/8x8, 32x2 barred by the measured OOM; arm→config map + semantic orbit gate; commit/drift, wandb, VRAM and world-size gates incl. a 300 s early-abort watchdog; exp_10-style INITIAL/RESTART lineage; dual-tee + atomic manifest; DRYRUN argv-parity vs exp_07), `assert_arm_configs_exp11.py` (exp_07's DINOv3-pin + init-identity checks re-pointed at the four arms), `fa_orbit_train_guardtests.sh` (33 cases, all green) |
+
+| 12 | `5557974` | consolidated round — grad-ckpt pivot for all arms (no-ckpt OOM-infeasible for C8+), C4L byte-identical to exp_07 B-F, P0 poller `%.6g` precision fix, launcher round-3 fixes (pins, deep restart preflight, run lock, tested exit taxonomy, env/W&B gates, SMOKE mode, 52-case guard suite) |
+| 13 | `0df4103`, `4e84485` | Q3/Q4 records, plan Rev 4 note, C32 authorization — main session |
+| 14 | `abbff5a` | NEW-1a — `FLAC_AR_VANCKPT.json` (canonical + the two grad-ckpt leaves) + deep-diff test: the canonical manifest could never pass the post-pivot gate |
+| 15 | `c89d05a` | NEW-1b/NEW-2/NEW-5 — P0 kit pivoted (VAN→VANCKPT, CKPT4 retired everywhere, matrix now 12 cells), OUTPUT_ROOT literal under Slurm, poller comment corrected and the 2 s liveness bound restored |
+| 16 | `983a7ff` | launcher residuals — flock ownership (B3), fail-closed manifest-commit binding (B2), pip-freeze/final-tee/preflight-transcript durability (B5), exported W&B entity + post-run run-identity verification (B7), intent manifest before sbatch (NEW-3), safe FIFO (NEW-4) |
+| 17 | `_(this commit)_` | fresh evidence — 72-case guard log and 78-case pytest log committed; ledger updated |
 
 Notes: a commit cannot contain its own SHA (exp_07's amend lesson — never amend a SHA
 into the commit that carries it), so each round's hash is reported with its output and
