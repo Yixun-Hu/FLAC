@@ -90,3 +90,7 @@
 - **Command / Validation** — worktree: 52 guard tests + 76 pytest green; main tree after apply: 61 kit tests green in 9.13 s. Supplemental CKPT4_8x8 (3639146) cancelled as redundant — the official matrix measures that cell.
 - **Result** — `fix_ready`; round awaits Codex re-review (next), then the official ckpt-recipe matrix.
 - **Next** — Codex review → official matrix (all cells now ckpt semantics) → collector report → pin commit → SMOKE → launches.
+
+## 2026-08-05T21:45:00-04:00 — Q4: C32 GO (Yixun) — full four-arm commission authorized
+
+- **Result** — staging fully resolved: C4L+C8+C16+C32 all launch post-(review ✓ + official matrix + pin commit + SMOKE). Projected C32 cost under ckpt ≈ 4–10 d (fitted slope from the official matrix will firm this up; vs 25–37 d under the original plan). Remaining gates are mechanical, no open user decisions.

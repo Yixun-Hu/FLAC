@@ -49,3 +49,13 @@ Training wall-clock (dominated by the orbit's ViT passes) is the binding constra
 ### Summary
 
 Resolves the P0 escalation (no-ckpt infeasible for C8+ on 46 GB L40s: C8 OOM even at micro-8; C4L barely fits at 8×8 only). All four arms train with ViT gradient checkpointing ON, at the single fastest rung measured by the official ckpt-recipe P0 matrix. Consequence: the arm configs revert to a pure single-delta vs exp_07's `FLAC_AR_BF.json` (orbit angles only; C4L byte-identical), which strengthens the original design.
+
+## Query 4 (2026-08-05, ~21:45 EDT) — C32 authorized
+
+### Verbatim
+
+> go for C32 as well
+
+### Summary
+
+Resolves the Option-B C32 gate: all four arms (C4L, C8, C16, C32) launch at the P0-selected rung under the uniform grad-ckpt recipe (Q3), to the 40k matched-step primary budget. No open staging decisions remain; the sweep runs as a complete four-arm commission.
