@@ -107,3 +107,9 @@
 - **Result** — `partial` (infrastructure, not code): all 32×2/16×4 cells except C8_32x2 landed on neu322 and died at CUDA init (identical 551 MiB peaks, `uncorrectable ECC error`; the node attracts small jobs because crashes keep its GPUs free). Survivors (all provenance-valid): VAN_8x8 1.0443 · FA1_8x8 1.0434 · C4L_8x8 0.3639 (5.9 GB) · C8_8x8 0.1876 (9.4 GB) · C8_32x2 0.1523 steps/s. Early read: 8×8 fastest for C8 (+23% vs 32×2); C4-family 16×4 ≈ 8×8 (supplemental CKPT4_16x4 0.366 ≈ C4L_8x8 0.364); orbit slope at 8×8 ≈ 0.60–0.65 s/step per extra ViT pass (near-linear) ⇒ projected C16 ≈ 0.097 steps/s (~4.8 d to 40k), C32 ≈ 0.049 (~9.5 d). Report + manifest committed as the failed-run record (`p0_report_86a752b.md`).
 - **Analysis** — infra classification per SOP; no code change. Rerun binds `SBATCH_EXCLUDE=neu322` (sbatch honors the env default). neu322 should be reported to the cluster admins (Yixun's call — flagged in the next status).
 - **Next** — official matrix rerun (attempt 2) → collect → pins → sign-off → SMOKE → launch.
+
+## 2026-08-06 — OFFICIAL P0 REPORT SIGNED (run 1334933, 12/12 OK) → rung analysis → spot cells at 8×8
+
+- **Result** — `passed`: steps/s (32×2/16×4/8×8): VAN 0.808/0.946/1.060 · FA1 0.802/0.941/1.030 · C4L 0.295/0.361/0.360 · C8 0.153/0.191/0.186. Peaks: C4L 15.9/9.5/5.9 GB · C8 28.6/15.9/9.4 GB.
+- **Analysis** — orbit families: 16×4 ≈ 8×8 (within ~3%), both > 32×2. Per-pass retained memory ≈ 3.16/1.62/0.88 GB at micro 32/16/8 ⇒ C32 projects ~51 GB at 16×4 (OOM) vs ~30 GB at 8×8 (fits). Uniform-rung mandate (Q3) + C32 feasibility ⇒ **candidate pin = 8×8**, pending the pre-registered C16/C32 spot verification at that rung. Projections at 8×8 (slope ~0.60–0.63 s/step/pass): C16 ≈ 0.098 steps/s (~4.7 d to 40k), C32 ≈ 0.050 (~9.2 d).
+- **Next** — `spot 8x8` (C16, C32; 30 steps) → pin commit → reviewer sign-off → SMOKE @8×8 → launch.
