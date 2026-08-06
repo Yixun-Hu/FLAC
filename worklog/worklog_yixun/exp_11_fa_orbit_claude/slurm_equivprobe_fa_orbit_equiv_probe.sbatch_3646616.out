@@ -1,0 +1,119 @@
+=== exp_11 batched-orbit qualification probe - 2026-08-06_15-04-07 - job 3646616 - host neu304.neuronic.cs.princeton.edu ===
+commit binding OK: 9d90f4cff22c5ab420c742b667744104e9faea5b
+GPU: NVIDIA L40 GPU-c73708c7-8b85-d94d-c1d5-1e26cb0b6e80
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+runtime gate OK: pl 2.1.0, torch 2.7.0+cu126, cuda 12.6
+config sha256: 8584498e8e3b5d7014e61bc4c48ef71ca62139cdc9f2f30de031cae8da34abdf (expect cfg=8584498e8e3b in the result line)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+probe: device=cuda samples=8 ids=0:single_channel_ir_1/Cafe/Cafe_idx_0/S001_R0044_hybrid_IR.wav,1:single_channel_ir_1/Cafe/Cafe_idx_0/S009_R0037_hybrid_IR.wav,2:single_channel_ir_1/Cafe/Cafe_idx_0/S0070_R0075_hybrid_IR.wav,3:single_channel_ir_1/Cafe/Cafe_idx_0/S006_R008_hybrid_IR.wav,4:single_channel_ir_1/Cafe/Cafe_idx_0/S0088_R0078_hybrid_IR.wav,5:single_channel_ir_1/Cafe/Cafe_idx_0/S0077_R0099_hybrid_IR.wav,6:single_channel_ir_1/Cafe/Cafe_idx_0/S0012_R0077_hybrid_IR.wav,7:single_channel_ir_1/Cafe/Cafe_idx_0/S007_R0032_hybrid_IR.wav cap=64 vit_pin=114c13799502/4610ad75edef matmul=medium
+  eval  C4   B8   fp32 context_poses_vit  max_abs=1.788e-07 rel_norm=1.264e-07 rel_max=2.032e-03 [GATED]
+  eval  C4   B8   fp32 source_vit         max_abs=1.192e-07 rel_norm=1.253e-07 rel_max=8.086e-05 [GATED]
+  eval  C4   B8   bf16 context_poses_vit  max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [recorded]
+  eval  C4   B8   bf16 source_vit         max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [recorded]
+  eval  C8   B8   fp32 context_poses_vit  max_abs=1.788e-07 rel_norm=1.351e-07 rel_max=7.074e-04 [GATED]
+  eval  C8   B8   fp32 source_vit         max_abs=2.384e-07 rel_norm=1.352e-07 rel_max=4.194e-04 [GATED]
+  eval  C8   B8   bf16 context_poses_vit  max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [recorded]
+  eval  C8   B8   bf16 source_vit         max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [recorded]
+  eval  C16  B8   fp32 context_poses_vit  max_abs=2.384e-07 rel_norm=1.432e-07 rel_max=5.775e-03 [GATED]
+  eval  C16  B8   fp32 source_vit         max_abs=1.788e-07 rel_norm=1.424e-07 rel_max=1.624e-04 [GATED]
+  eval  C16  B8   bf16 context_poses_vit  max_abs=7.812e-03 rel_norm=3.497e-03 rel_max=1.800e+01 [recorded]
+  eval  C16  B8   bf16 source_vit         max_abs=7.812e-03 rel_norm=3.488e-03 rel_max=1.200e+01 [recorded]
+  eval  C32  B8   fp32 context_poses_vit  max_abs=1.788e-07 rel_norm=1.461e-07 rel_max=1.150e-02 [GATED]
+  eval  C32  B8   fp32 source_vit         max_abs=1.788e-07 rel_norm=1.505e-07 rel_max=2.652e-04 [GATED]
+  eval  C32  B8   bf16 context_poses_vit  max_abs=7.812e-03 rel_norm=4.140e-03 rel_max=1.221e+04 [recorded]
+  eval  C32  B8   bf16 source_vit         max_abs=7.812e-03 rel_norm=4.161e-03 rel_max=1.580e+00 [recorded]
+  eval  C4   B64  fp32 context_poses_vit  max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [GATED]
+  eval  C4   B64  fp32 source_vit         max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [GATED]
+  eval  C8   B64  fp32 context_poses_vit  max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [GATED]
+  eval  C8   B64  fp32 source_vit         max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [GATED]
+  eval  C16  B64  fp32 context_poses_vit  max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [GATED]
+  eval  C16  B64  fp32 source_vit         max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [GATED]
+  eval  C32  B64  fp32 context_poses_vit  max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [GATED]
+  eval  C32  B64  fp32 source_vit         max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [GATED]
+  eval  C4   B1   fp32 context_poses_vit  max_abs=5.088e-04 rel_norm=5.360e-04 rel_max=5.174e-01 [GATED]
+  eval  C4   B1   fp32 source_vit         max_abs=3.754e-04 rel_norm=4.833e-04 rel_max=3.915e-02 [GATED]
+  eval  C8   B1   fp32 context_poses_vit  max_abs=3.795e-04 rel_norm=4.752e-04 rel_max=3.177e-01 [GATED]
+  eval  C8   B1   fp32 source_vit         max_abs=4.458e-04 rel_norm=5.301e-04 rel_max=2.872e-01 [GATED]
+  eval  C16  B1   fp32 context_poses_vit  max_abs=3.745e-04 rel_norm=4.054e-04 rel_max=1.044e+00 [GATED]
+  eval  C16  B1   fp32 source_vit         max_abs=3.320e-04 rel_norm=4.091e-04 rel_max=6.742e-02 [GATED]
+  eval  C32  B1   fp32 context_poses_vit  max_abs=3.313e-04 rel_norm=3.914e-04 rel_max=8.684e-01 [GATED]
+  eval  C32  B1   fp32 source_vit         max_abs=2.677e-04 rel_norm=3.880e-04 rel_max=1.130e-01 [GATED]
+  train C4   B8   fp32 context_poses_vit  max_abs=5.163e-02 rel_norm=3.862e-02 rel_max=3.246e+03 [recorded]
+  train C4   B8   fp32 source_vit         max_abs=3.681e-02 rel_norm=3.641e-02 rel_max=3.214e+01 [recorded]
+        grads_finite=True outputs_finite=True
+  train C4   B8   bf16 context_poses_vit  max_abs=5.078e-02 rel_norm=3.839e-02 rel_max=6.836e+05 [recorded]
+  train C4   B8   bf16 source_vit         max_abs=3.613e-02 rel_norm=3.725e-02 rel_max=9.766e+04 [recorded]
+        grads_finite=True outputs_finite=True
+Traceback (most recent call last):
+  File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_equiv_probe.py", line 375, in <module>
+    sys.exit(main())
+  File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_equiv_probe.py", line 339, in main
+    res = run_cell(cond, cell_md, device, orbit(n), mode, use_bf16)
+  File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_equiv_probe.py", line 276, in run_cell
+    else reference(cond, md, device, angles))
+  File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_equiv_probe.py", line 250, in reference
+    accum = yr._orbit_average_loop(cond, md_inv, base, present, angles, img_w, device)
+  File "/n/fs/gatrdp/codespace/FLAC/src/data/yaw_rotation.py", line 355, in _orbit_average_loop
+    part = conditioner(_rotated_variants(md_inv, g, img_w, present), device,
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/n/fs/gatrdp/codespace/FLAC/src/models/conditioners.py", line 414, in forward
+    output[key] = conditioner(conditioner_inputs, device=device)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/n/fs/gatrdp/codespace/FLAC/src/models/conditioners.py", line 286, in forward
+    outputs = self.vit(c)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/utils/generic.py", line 1064, in wrapper
+    outputs = func(self, *args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 523, in forward
+    hidden_states = layer_module(
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/modeling_layers.py", line 94, in __call__
+    return super().__call__(*args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/n/fs/gatrdp/codespace/FLAC/src/models/conditioners.py", line 192, in ckpt_forward
+    return torch.utils.checkpoint.checkpoint(
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/_compile.py", line 51, in inner
+    return disable_fn(*args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py", line 838, in _fn
+    return fn(*args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/utils/checkpoint.py", line 495, in checkpoint
+    ret = function(*args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 431, in forward
+    hidden_states = self.mlp(hidden_states)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 373, in forward
+    return self.down_proj(self.act_fn(self.up_proj(x)))
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/activations.py", line 85, in forward
+    return self.act(input)
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 26.00 MiB. GPU 0 has a total capacity of 44.39 GiB of which 5.31 MiB is free. Including non-PyTorch memory, this process has 44.38 GiB memory in use. Of the allocated memory 42.27 GiB is allocated by PyTorch, and 1.59 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+expected exactly 1 EQUIVPROBE line, found 0 - abort

@@ -1,0 +1,66 @@
+=== exp_11 batched-orbit qualification probe - 2026-08-06_15-27-42 - job 3646634 - host neu313.neuronic.cs.princeton.edu ===
+commit binding OK: 705e308c4d41f6d0d8c803b8d5a2ced86ca15d6c
+GPU: NVIDIA L40 GPU-14f655fb-06e5-6a1d-7189-68710df1f689
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+runtime gate OK: pl 2.1.0, torch 2.7.0+cu126, cuda 12.6
+config sha256: 8584498e8e3b5d7014e61bc4c48ef71ca62139cdc9f2f30de031cae8da34abdf (expect cfg=8584498e8e3b in the result line)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+probe: device=cuda samples=8 ids=0:single_channel_ir_1/Cafe/Cafe_idx_0/S001_R0044_hybrid_IR.wav,1:single_channel_ir_1/Cafe/Cafe_idx_0/S009_R0037_hybrid_IR.wav,2:single_channel_ir_1/Cafe/Cafe_idx_0/S0070_R0075_hybrid_IR.wav,3:single_channel_ir_1/Cafe/Cafe_idx_0/S006_R008_hybrid_IR.wav,4:single_channel_ir_1/Cafe/Cafe_idx_0/S0088_R0078_hybrid_IR.wav,5:single_channel_ir_1/Cafe/Cafe_idx_0/S0077_R0099_hybrid_IR.wav,6:single_channel_ir_1/Cafe/Cafe_idx_0/S0012_R0077_hybrid_IR.wav,7:single_channel_ir_1/Cafe/Cafe_idx_0/S007_R0032_hybrid_IR.wav cap=64 vit_pin=114c13799502/4610ad75edef matmul=gate:highest/train:medium
+  eval  C4   B8   fp32 mm=highest context_poses_vit  max_abs=7.987e-06 rel_norm=1.979e-06 rel_max=1.170e-02 [GATED]
+  eval  C4   B8   fp32 mm=highest source_vit         max_abs=2.205e-06 rel_norm=1.099e-06 rel_max=1.388e-03 [GATED]
+  eval  C4   B8   bf16 mm=highest context_poses_vit  max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [recorded]
+  eval  C4   B8   bf16 mm=highest source_vit         max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [recorded]
+  eval  C8   B8   fp32 mm=highest context_poses_vit  max_abs=3.994e-06 rel_norm=1.290e-06 rel_max=5.388e-03 [GATED]
+  eval  C8   B8   fp32 mm=highest source_vit         max_abs=2.228e-06 rel_norm=1.236e-06 rel_max=9.972e-04 [GATED]
+  eval  C8   B8   bf16 mm=highest context_poses_vit  max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [recorded]
+  eval  C8   B8   bf16 mm=highest source_vit         max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [recorded]
+  eval  C16  B8   fp32 mm=highest context_poses_vit  max_abs=7.063e-06 rel_norm=1.638e-06 rel_max=1.919e-02 [GATED]
+  eval  C16  B8   fp32 mm=highest source_vit         max_abs=1.274e-06 rel_norm=7.877e-07 rel_max=3.861e-03 [GATED]
+  eval  C16  B8   bf16 mm=highest context_poses_vit  max_abs=7.812e-03 rel_norm=3.458e-03 rel_max=1.600e+01 [recorded]
+  eval  C16  B8   bf16 mm=highest source_vit         max_abs=3.906e-03 rel_norm=3.152e-03 rel_max=9.766e+04 [recorded]
+  eval  C32  B8   fp32 mm=highest context_poses_vit  max_abs=3.501e-06 rel_norm=9.595e-07 rel_max=2.270e-02 [GATED]
+  eval  C32  B8   fp32 mm=highest source_vit         max_abs=7.153e-07 rel_norm=6.044e-07 rel_max=5.534e-02 [GATED]
+  eval  C32  B8   bf16 mm=highest context_poses_vit  max_abs=7.812e-03 rel_norm=4.071e-03 rel_max=3.662e+04 [recorded]
+  eval  C32  B8   bf16 mm=highest source_vit         max_abs=7.812e-03 rel_norm=3.804e-03 rel_max=2.743e+01 [recorded]
+  eval  C4   B64  fp32 mm=highest context_poses_vit  max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [GATED]
+  eval  C4   B64  fp32 mm=highest source_vit         max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [GATED]
+  eval  C8   B64  fp32 mm=highest context_poses_vit  max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [GATED]
+  eval  C8   B64  fp32 mm=highest source_vit         max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [GATED]
+  eval  C16  B64  fp32 mm=highest context_poses_vit  max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [GATED]
+  eval  C16  B64  fp32 mm=highest source_vit         max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [GATED]
+  eval  C32  B64  fp32 mm=highest context_poses_vit  max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [GATED]
+  eval  C32  B64  fp32 mm=highest source_vit         max_abs=0.000e+00 rel_norm=0.000e+00 rel_max=0.000e+00 [GATED]
+  eval  C4   B1   fp32 mm=highest context_poses_vit  max_abs=1.311e-06 rel_norm=8.417e-07 rel_max=2.848e-03 [GATED]
+  eval  C4   B1   fp32 mm=highest source_vit         max_abs=1.401e-06 rel_norm=1.277e-06 rel_max=5.955e-05 [GATED]
+  eval  C8   B1   fp32 mm=highest context_poses_vit  max_abs=1.028e-06 rel_norm=6.860e-07 rel_max=1.270e-03 [GATED]
+  eval  C8   B1   fp32 mm=highest source_vit         max_abs=6.557e-07 rel_norm=9.500e-07 rel_max=6.694e-05 [GATED]
+  eval  C16  B1   fp32 mm=highest context_poses_vit  max_abs=1.630e-06 rel_norm=9.761e-07 rel_max=6.129e-03 [GATED]
+  eval  C16  B1   fp32 mm=highest source_vit         max_abs=3.874e-07 rel_norm=5.487e-07 rel_max=5.289e-04 [GATED]
+  eval  C32  B1   fp32 mm=highest context_poses_vit  max_abs=1.411e-06 rel_norm=9.062e-07 rel_max=3.509e-04 [GATED]
+  eval  C32  B1   fp32 mm=highest source_vit         max_abs=2.682e-07 rel_norm=2.919e-07 rel_max=3.361e-05 [GATED]
+  train C4   B8   fp32 mm=medium  context_poses_vit  max_abs=5.091e-02 rel_norm=3.742e-02 rel_max=1.421e+02 [recorded]
+  train C4   B8   fp32 mm=medium  source_vit         max_abs=3.682e-02 rel_norm=3.517e-02 rel_max=2.932e+01 [recorded]
+        grads_finite=True outputs_finite=True
+  train C4   B8   bf16 mm=medium  context_poses_vit  max_abs=4.785e-02 rel_norm=3.716e-02 rel_max=1.233e+06 [recorded]
+  train C4   B8   bf16 mm=medium  source_vit         max_abs=3.906e-02 rel_norm=3.598e-02 rel_max=4.883e+05 [recorded]
+        grads_finite=True outputs_finite=True
+  !! ('eval', 4, 8)/source_vit: rel_norm 1.099e-06 > 1e-06
+  !! ('eval', 4, 8)/context_poses_vit: rel_norm 1.979e-06 > 1e-06
+  !! ('eval', 8, 8)/source_vit: rel_norm 1.236e-06 > 1e-06
+  !! ('eval', 8, 8)/context_poses_vit: rel_norm 1.290e-06 > 1e-06
+  !! ('eval', 16, 8)/context_poses_vit: rel_norm 1.638e-06 > 1e-06
+  !! ('eval', 4, 1)/source_vit: rel_norm 1.277e-06 > 1e-06
+EQUIVPROBE cfg=8584498e8e3b vit_pin=114c13799502/4610ad75edef device=cuda nsamples=8 sample_ids=0:single_channel_ir_1/Cafe/Cafe_idx_0/S001_R0044_hybrid_IR.wav,1:single_channel_ir_1/Cafe/Cafe_idx_0/S009_R0037_hybrid_IR.wav,2:single_channel_ir_1/Cafe/Cafe_idx_0/S0070_R0075_hybrid_IR.wav,3:single_channel_ir_1/Cafe/Cafe_idx_0/S006_R008_hybrid_IR.wav,4:single_channel_ir_1/Cafe/Cafe_idx_0/S0088_R0078_hybrid_IR.wav,5:single_channel_ir_1/Cafe/Cafe_idx_0/S0077_R0099_hybrid_IR.wav,6:single_channel_ir_1/Cafe/Cafe_idx_0/S0012_R0077_hybrid_IR.wav,7:single_channel_ir_1/Cafe/Cafe_idx_0/S007_R0032_hybrid_IR.wav cells=13/13 gate_rel_norm=1.979e-06 gate_max_abs=7.987e-06 rec_rel_norm=3.742e-02 rec_max_abs=5.091e-02 bf16_cells=5 bf16_rel_norm=3.716e-02 bf16_max_abs=4.785e-02 gate_matmul=highest train_matmul=medium tol_rel=1e-06 tol_abs=1e-05 verdict=FAIL
+result verdict=FAIL - abort
