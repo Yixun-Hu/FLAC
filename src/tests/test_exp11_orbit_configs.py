@@ -38,6 +38,10 @@ _BF_CONFIG = os.path.join(
 _EXP11_DIR = os.path.join(
     _REPO_ROOT, "worklog", "worklog_yixun", "exp_11_fa_orbit_claude"
 )
+_CANON_CONFIG = os.path.join(
+    _REPO_ROOT, "src", "configs", "model_configs", "FLAC", "AR", "FLAC_AR.json"
+)
+_VANCKPT_CONFIG = os.path.join(_EXP11_DIR, "FLAC_AR_VANCKPT.json")
 
 ARMS = ("FA1", "C4L", "C8", "C16", "C32")
 IMG_W = 512      # panorama width in columns
@@ -191,6 +195,35 @@ def test_non_boolean_gc_leaf_is_rejected():
         entry["config"]["gradient_checkpointing"] = bad
         with pytest.raises(AssertionError):
             _assert_allowed_diff("C8", bf, cfg)
+
+
+def test_vanckpt_adds_only_grad_checkpointing():
+    """The P0 vanilla cell must be the canonical recipe PLUS checkpointing.
+
+    Post-pivot every P0 cell is checkpointed, so VAN can no longer run the
+    canonical manifest (whose ViT blocks carry no ``gradient_checkpointing``
+    leaf at all — the launcher's gate demands the key exists and is literally
+    true). ``FLAC_AR_VANCKPT.json`` is that manifest with EXACTLY the two leaves
+    added: any other differing leaf would make the vanilla baseline a different
+    model and silently bias the FA1-vs-VAN contrast."""
+    canon = _load(_CANON_CONFIG)
+    vanckpt = _load(_VANCKPT_CONFIG)
+    diff = _deep_diff(canon, vanckpt)
+    expected = {p for p, _ in _vit_gc_leaves(vanckpt)}
+    assert set(diff) == expected, (
+        "VANCKPT must differ from the canonical config in exactly the two ViT "
+        f"gradient_checkpointing leaves; got {sorted(diff)}"
+    )
+    for path in expected:
+        was, now = diff[path]
+        assert was is _MISSING or was == "<missing>", (
+            f"{path}: canonical already carried {was!r}")
+        assert now is True, f"{path}: VANCKPT has {now!r}, expected literal true"
+    # the vanilla baseline must stay vanilla: no frame-averaging keys sneak in
+    training = vanckpt["training"]
+    assert "cond_method" not in training and "frame_avg_angles" not in training, (
+        "VANCKPT carries frame-averaging keys — it would no longer be the vanilla baseline"
+    )
 
 
 def test_c4l_is_byte_identical_to_exp07_bf():
