@@ -423,6 +423,45 @@ def test_parser_cond_autocast_choices():
     assert b"invalid choice" not in good.stderr  # ...but not on choices
 
 
+def test_records_carry_orbit_execution_provenance():
+    """exp_11 F7: a metrics row must state WHICH orbit execution produced it.
+
+    The batched execution changes the train-mode augmentation schedule and, at
+    the evaluation tail batch, the grouping — so a row that does not name its
+    orbit execution, cap and source SHA cannot be compared against a legacy-loop
+    row. These fields are what makes "legacy-loop" a checkable label instead of a
+    footnote."""
+    from src.data import yaw_rotation as yr
+
+    rec = eval_FLAC.build_metrics_record(
+        {"T60": 1.0}, CKPT, rotate_deg=0.0, cond_method="fa_invariant",
+        frame_avg_angles=[0.0, 90.0, 180.0, 270.0],
+    )
+    assert rec["orbit_execution"] == yr.ORBIT_EXECUTION == "batched"
+    assert rec["frame_avg_fwd_cap"] == yr.FRAME_AVG_MAX_FWD_SAMPLES
+    assert isinstance(rec["source_sha"], str) and rec["source_sha"]
+    json.loads(json.dumps(rec))
+
+    meta = eval_FLAC.build_predictions_meta(
+        "ds.json", seed=42, n_samples=7, cond_method="fa_invariant",
+        frame_avg_angles=[0.0, 90.0], rotate_deg=0.0, batch_size=64,
+        cond_autocast="bf16",
+    )
+    assert meta["orbit_execution"] == yr.ORBIT_EXECUTION
+    assert meta["frame_avg_fwd_cap"] == yr.FRAME_AVG_MAX_FWD_SAMPLES
+    assert isinstance(meta["source_sha"], str) and meta["source_sha"]
+    json.loads(json.dumps(meta))
+
+
+def test_source_sha_falls_back_when_git_is_unavailable(monkeypatch):
+    """Provenance must never break an evaluation: an unavailable git yields the
+    literal 'unknown', not an exception."""
+    def boom(*a, **k):
+        raise OSError("no git here")
+    monkeypatch.setattr(eval_FLAC.subprocess, "check_output", boom)
+    assert eval_FLAC.source_sha() == "unknown"
+
+
 def test_predictions_meta_includes_cond_autocast():
     meta = eval_FLAC.build_predictions_meta(
         "ds.json", seed=42, n_samples=7, cond_method="fa_invariant",

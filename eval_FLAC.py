@@ -3,12 +3,15 @@ import argparse
 import contextlib
 import json
 import math
+import subprocess
 from tqdm import tqdm
 import torch
 import pytorch_lightning as pl
 
 from src.data.dataset import create_dataloader_from_config
-from src.data.yaw_rotation import rotate_scene_metadata, invariant_conditioning, DEFAULT_FRAME_ANGLES
+from src.data.yaw_rotation import (rotate_scene_metadata, invariant_conditioning,
+                                   DEFAULT_FRAME_ANGLES, ORBIT_EXECUTION,
+                                   FRAME_AVG_MAX_FWD_SAMPLES)
 from src.models import create_model_from_config
 from src.training import create_training_wrapper_from_config, create_metric_callback_from_config
 
@@ -50,13 +53,32 @@ def build_output_paths(
     }
 
 
+def source_sha():
+    """Short-circuited ``git rev-parse HEAD`` for provenance; ``'unknown'`` if git
+    is unavailable. Provenance must never be able to break an evaluation."""
+    try:
+        out = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=os.path.dirname(os.path.abspath(__file__)),
+            stderr=subprocess.DEVNULL, timeout=10,
+        )
+        return out.decode().strip() or "unknown"
+    except Exception:
+        return "unknown"
+
+
 def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame_avg_angles,
                          cond_autocast='default'):
     """Assemble the dict written to the metrics JSON.
 
     Extends the legacy ``{metrics, ckpt_path, rotate_deg}`` record with
-    ``cond_method``, ``frame_avg_angles`` (the C4 frame-average angles used
-    for ``fa_invariant``; ``None`` for vanilla) and ``cond_autocast``.
+    ``cond_method``, ``frame_avg_angles`` (the frame-average angles used for
+    ``fa_invariant``; ``None`` for vanilla), ``cond_autocast``, and the ORBIT
+    EXECUTION provenance (exp_11): which implementation produced the
+    conditioning (``batched`` vs the legacy per-angle ``loop``), its per-forward
+    sample cap, and the source SHA. Rows produced by different orbit executions
+    are not interchangeable — the batched path changes the train-mode
+    augmentation schedule and regroups the evaluation tail batch — so this is
+    what makes "legacy-loop" a checkable label rather than a footnote.
     """
     return {
         "metrics": metrics_dict,
@@ -65,6 +87,9 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
         "cond_method": cond_method,
         "frame_avg_angles": frame_avg_angles,
         "cond_autocast": cond_autocast,
+        "orbit_execution": ORBIT_EXECUTION,
+        "frame_avg_fwd_cap": FRAME_AVG_MAX_FWD_SAMPLES,
+        "source_sha": source_sha(),
     }
 
 
@@ -85,7 +110,11 @@ def resolve_cond_autocast(mode):
 
 def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
                            frame_avg_angles, rotate_deg, batch_size, cond_autocast):
-    """Sidecar meta saved by ``--store_predictions`` (read by the exp_02 comparator guard)."""
+    """Sidecar meta saved by ``--store_predictions`` (read by the exp_02 comparator
+    guard). Carries the same orbit-execution provenance as the metrics record:
+    at the default evaluation batch the batched path degenerates to one angle per
+    call for every full batch, but the split's tail batch is regrouped, so a
+    prediction set must name the execution that produced it."""
     return {
         "dataset_config": dataset_config_path,
         "seed": seed,
@@ -95,6 +124,9 @@ def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
         "rotate_deg": rotate_deg,
         "batch_size": batch_size,
         "cond_autocast": cond_autocast,
+        "orbit_execution": ORBIT_EXECUTION,
+        "frame_avg_fwd_cap": FRAME_AVG_MAX_FWD_SAMPLES,
+        "source_sha": source_sha(),
     }
 
 
