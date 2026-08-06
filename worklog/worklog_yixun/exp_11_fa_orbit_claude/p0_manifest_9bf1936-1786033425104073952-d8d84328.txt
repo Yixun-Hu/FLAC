@@ -1,0 +1,8 @@
+# exp_11 P0 submission manifest (consumed by p0_collect.py --manifest)
+# cell <CELL> <MAXSTEPS> <JOBID> <CONFIG_SHA256> <MB> <NGPU> <WORKERS> <TIMELIMIT>
+runid 9bf1936-1786033425104073952-d8d84328
+sha 9bf193697ac2bf593c814a3e4109a9b334d60b38
+mode spot
+submitted_at 1786033425
+cell C16_8x8 30 3646146 5d8b5c4390dd0e87685bba6ed06566fabe2e1ce5074cce3f6a1f38c442829a80 8 8 6 01:00:00
+cell C32_8x8 30 3646147 8584498e8e3b5d7014e61bc4c48ef71ca62139cdc9f2f30de031cae8da34abdf 8 8 6 01:30:00
