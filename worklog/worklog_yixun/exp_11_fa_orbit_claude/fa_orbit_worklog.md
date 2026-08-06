@@ -73,3 +73,12 @@
 - **Acceptance criteria (pre-launch)** — every cell: commit-bound rc per class (0 success with both P0STEP marks and valid=1 poller evidence; 3 OOM with valid measurement; anything else = distinct failure); collection admits rows only via the manifest; matrix-mode attribution fit {FA1,C4L,C8} per rung where all three valid; no contact with jobs 3637217/3638486.
 - **Result** — `launched`; ID-bound background waiter armed (a first name-filter waiter false-fired on the `-w6` suffix and was replaced — logged for honesty).
 - **Next** — collect on completion → rung selection + bottleneck report; Coder round 3 (arm launcher) opened in parallel.
+
+## 2026-08-05T20:10:00-04:00 — P0 attempt-2 COMPLETE (13/13 cells): no-ckpt recipe INFEASIBLE for C8+; recipe decision escalated to Yixun
+
+- **Goal / Result** — full feasibility + throughput map, run 72a8114-1785969226421855487-c8d5b51f (attempt-1 aa4bc18 was partially killed by a mid-queue HEAD move — my operational error, now governed by a hard commit freeze while bound jobs are queued):
+  - **No-ckpt OOM map (46 GB L40):** C4L: OOM @32×2, OOM @16×4, FITS @8×8 (37,255 MiB, 0.635 steps/s). **C8: OOM at ALL rungs incl. 8×8 (45,457 MiB)** ⇒ C16/C32 a fortiori. VAN/FA1 fit everywhere (peaks 40.4/21.5/11.1 GB at 32×2/16×4/8×8).
+  - **Throughput:** VAN 1.010/1.502/1.581 steps/s (32×2/16×4/8×8) — 4→8 GPU gain ≈ 5% (comm/input-bound at micro-8; sweet spot 16×4). FA1 ≈ VAN (1.010→1.458→1.609): fa dispatch+cylindrical ≈ free; ViT-pass slope dominates. CKPT4_32x2 (grad-ckpt ON) 0.293 steps/s clean-node (3.1× exp_10's cotenancy-throttled 0.095).
+  - **Anomalies:** attempt-2 FA1_32x2 = hardware ECC on neu322 (excluded henceforth via SBATCH_EXCLUDE); 8-GPU successes flagged valid=0 by an over-strict poller validator (76 complete 8-UUID ticks on inspection; steps/s marks unaffected) — validator tolerance fix queued into the round-3 worktree round.
+- **Analysis** — Yixun's Q2 "fastest recipe = multi-card without gradient checkpointing" is **physically infeasible for the orbit arms** at BN-preserving rungs on this hardware (micro-4 would require 16 GPUs / 2 nodes — a much larger recipe departure). Decision escalated with options + measured numbers (uniform ckpt at best rung is the Planner recommendation). Supplemental CKPT4_{16x4,8x8} cells submitted to price it before Yixun decides.
+- **Next** — supplemental ckpt cells → decision report to Yixun; coder worktree round (launcher hardening + validator tolerance) resumes at session-limit reset.
