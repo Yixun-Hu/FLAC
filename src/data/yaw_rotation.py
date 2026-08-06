@@ -22,17 +22,31 @@ POSE_KEYS: Tuple[str, ...] = ("source", "source_vit", "context_poses", "context_
 # W=512 -> exact roll). Single source of truth for the frame-averaging angles.
 DEFAULT_FRAME_ANGLES: Tuple[float, ...] = (0.0, 90.0, 180.0, 270.0)
 
-# Largest number of samples fed to the ViT conditioners in ONE forward while
-# frame-averaging. The orbit used to be executed one angle at a time: at the
-# training micro-batch (8) that is a ~8-sample, ~512-token ViT forward per angle
-# per conditioner, and exp_11's P0 profiling measured every orbit cell sitting at
-# only 28-34% GPU utilisation -- the passes are kernel-launch/latency bound, not
-# compute bound. Stacking the rotated variants along the batch dimension turns C
-# small forwards into a few large ones (the maths is identical; only the
-# execution order changes). 64 = the effective global batch, i.e. one orbit chunk
-# costs about one ordinary training step's worth of activations, which keeps the
-# checkpointed peak in the range P0 measured.
+# Largest number of samples fed to the ViT conditioners in ONE frame-averaging
+# forward. The orbit used to run one angle at a time: at the training micro-batch
+# (8) that is a ~8-sample, ~512-token ViT forward per angle per conditioner, and
+# exp_11's P0 profiling measured every orbit cell at only 28-34% GPU utilisation
+# -- latency/kernel-launch bound, not compute bound. Stacking the rotated
+# variants along the batch dimension turns C small forwards into a few large
+# ones. 64 is a PER-RANK conditioner batch equal to the effective global batch,
+# so one orbit chunk costs about one ordinary step's worth of activations; the
+# batched peak is requalified by the 8x8 P0 spot cells (real forward + backward +
+# checkpoint recompute), not inferred from the sequential measurement.
+#
+# DISCLOSED RECIPE CHANGE (exp_11, approved as such). The averaging ARITHMETIC is
+# identical -- same terms, same order, same divisor. The augmentation SCHEDULE is
+# not: train-mode DINOv3 draws a random RoPE position rescale once per forward
+# (pos_embed_rescale 2.0), so angles sharing a chunk now share one draw where the
+# per-angle loop gave them independent draws, and fewer draws are taken overall.
+# This is applied identically to every arm INCLUDING the contemporaneous C4L
+# bridge, which is therefore the sole inferential comparator; historical rows
+# evaluated under the per-angle loop are labelled legacy-loop. In eval mode the
+# rescale is off, so eval-mode batched and loop results agree numerically.
 FRAME_AVG_MAX_FWD_SAMPLES: int = 64
+
+# Recorded in evaluation provenance so a metrics row states which orbit execution
+# produced it ('batched' here, 'loop' for the legacy per-angle path).
+ORBIT_EXECUTION: str = "batched"
 
 
 def wrap_angle(phi):
@@ -247,7 +261,7 @@ def invariant_conditioning(
        features ``(r, z, dphi)`` via :func:`cylindrical_pose_features`. These are
        exactly invariant at *any* yaw angle.
     2. **ViT path** (``vit_ids``, e.g. the DINOv3 depth-panorama conditioners): a
-       C4 **frame average** ``(1/|G|) sum_g f(g . x)`` over ``angles``. The depth
+       **frame average** ``(1/|G|) sum_g f(g . x)`` over ``angles``. The depth
        map and the ``*_vit`` pose keys are rotated *together* by each frame angle;
        averaging their conditioner outputs makes the result exactly invariant on
        the panorama-aligned yaw subgroup G.
@@ -257,8 +271,10 @@ def invariant_conditioning(
     once** — only the ``vit_ids`` conditioners see the rotated frames. Those are
     executed in BATCHED chunks of at most :data:`FRAME_AVG_MAX_FWD_SAMPLES`
     samples rather than one forward per angle (the orbit passes are
-    latency-bound; see the constant). The mathematics, the accumulation order and
-    the returned structure are unchanged — only the grouping of the forwards. The caller's
+    latency-bound; see the constant). The averaging arithmetic, the accumulation
+    order and the returned structure are unchanged; train-mode DINOv3's random
+    RoPE rescale becomes chunk-shared, a disclosed recipe change applied
+    identically to every arm. The caller's
     ``metadata`` is never mutated (its ``source`` / ``depth`` stay raw for the
     downstream metric callback).
 
@@ -344,24 +360,37 @@ def _orbit_average_loop(conditioner, md_inv, base, present, angles, img_w, devic
 
 
 def _orbit_average_batched(conditioner, md_inv, base, present, angles, img_w, device):
-    """Same sum as :func:`_orbit_average_loop`, executed as a few large forwards.
+    """Same orbit sum as :func:`_orbit_average_loop`, executed as a few large forwards.
 
     The rotated variants of consecutive angles are concatenated along the batch
     dimension into chunks of at most :data:`FRAME_AVG_MAX_FWD_SAMPLES` samples
     (whole angles per chunk, so a chunk is ``k * B`` samples), each chunk is one
-    conditioner call, and the stacked output is split back per angle. Angles are
-    still accumulated in ascending order starting from the angle-0 base, so the
-    summation order is unchanged within a chunk and the result is bit-identical
-    to the loop wherever the chunk boundaries do not reassociate float additions.
+    conditioner call, and the stacked output is split back per angle. Terms are
+    accumulated in the INPUT ANGLE ORDER starting from the angle-0 base, so the
+    additions are never reassociated: the averaging arithmetic is identical to
+    the loop.
+
+    What is NOT identical is the augmentation schedule under train-mode DINOv3:
+    its random RoPE rescale is drawn once per forward, so a chunk's angles share
+    a draw (see :data:`FRAME_AVG_MAX_FWD_SAMPLES` for the disclosure). In eval
+    mode there is no such draw and the two paths agree numerically.
 
     Only the ``present`` (ViT) ids are re-run; masks come from the base pass.
+    A batch larger than the cap is rejected rather than silently exceeding it,
+    because a chunk cannot be smaller than one angle.
     """
     accum = {i: base[i][0].clone() for i in present}
     rest = angles[1:]
     if not rest:
         return accum
     batch = len(md_inv)
-    angles_per_chunk = max(1, FRAME_AVG_MAX_FWD_SAMPLES // max(1, batch))
+    if batch > FRAME_AVG_MAX_FWD_SAMPLES:
+        raise ValueError(
+            f"batch {batch} exceeds FRAME_AVG_MAX_FWD_SAMPLES "
+            f"({FRAME_AVG_MAX_FWD_SAMPLES}): a frame-average chunk is whole angles, so it "
+            "cannot be split below one angle -- lower the batch or raise the cap deliberately"
+        )
+    angles_per_chunk = max(1, FRAME_AVG_MAX_FWD_SAMPLES // batch)
     for start in range(0, len(rest), angles_per_chunk):
         chunk = rest[start:start + angles_per_chunk]
         stacked = []

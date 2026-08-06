@@ -505,7 +505,13 @@ def test_cn_average_correctness(n, single_thread):
 
 
 # --------------------------------------------------------------------------- #
-# 12. batched orbit == the pre-batching sequential algorithm (exp_11 Q5)
+# 12. batched orbit reproduces the pre-batching AVERAGING ARITHMETIC (exp_11 Q5)
+#
+# Scope of the claim: identical terms, identical accumulation order, identical
+# divisor -- proven here on deterministic conditioners. It is NOT a claim that
+# the whole training path is unchanged: train-mode DINOv3 draws its random RoPE
+# rescale once per forward, so chunked angles share a draw (a disclosed recipe
+# change applied identically to every arm; section 14 pins that new contract).
 # --------------------------------------------------------------------------- #
 def _reference_orbit_average(cond, metadata, device, angles):
     """The PRE-BATCHING algorithm, reproduced here on purpose.
@@ -549,8 +555,8 @@ def test_batched_orbit_matches_the_sequential_reference(n, batch, single_thread)
 
 @pytest.mark.parametrize("n", (4, 32))
 def test_batched_orbit_matches_reference_in_float64(n, single_thread):
-    """In fp64 the two orderings agree far below the fp32 tolerance, which shows
-    the residual fp32 gap is summation order, not different maths."""
+    """In fp64 the two groupings agree far below the fp32 tolerance: the residual
+    fp32 gap is kernel-shape rounding, not different averaging arithmetic."""
     angles = _orbit(n)
     md = [
         {k: (v.double() if torch.is_floating_point(v) else v) for k, v in m.items()}
@@ -593,3 +599,148 @@ def test_orbit_cap_is_respected_for_a_large_batch(single_thread):
         c = cond.conditioners[vit]
         assert c.samples == n * batch
         assert max(c.batch_sizes[1:]) <= yr.FRAME_AVG_MAX_FWD_SAMPLES
+
+
+# --------------------------------------------------------------------------- #
+# 13. exact chunk plans, mask provenance, cap boundary (review N8/N9)
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("n,batch,plan", [
+    (4, 8, [8, 24]),
+    (8, 8, [8, 56]),
+    (16, 8, [8, 64, 56]),
+    (32, 8, [8, 64, 64, 64, 56]),
+    (32, 3, [3, 63, 30]),
+])
+def test_chunk_plans_are_exact(n, batch, plan, single_thread):
+    """Pin the PRODUCTION batch plan, base call included.
+
+    A sample-count contract alone would still pass if the implementation
+    regressed to many small forwards — which is exactly the multi-day latency the
+    batching exists to remove — so the plan itself is the regression asset."""
+    cond = _build_cond()
+    yr.invariant_conditioning(cond, _small_batch(batch), DEV, _orbit(n))
+    for vit in VIT_IDS:
+        assert cond.conditioners[vit].batch_sizes == plan, (
+            f"C{n}/B{batch}: {vit} plan {cond.conditioners[vit].batch_sizes} != {plan}"
+        )
+
+
+class MaskSentinelGeometry(FakeGeometry):
+    """FakeGeometry whose MASK encodes which call produced it (base call == 1)."""
+
+    def forward(self, coord_list, device=DEV):
+        out = super().forward(coord_list, device)
+        out[1] = torch.full_like(out[1], float(self.calls))
+        return out
+
+
+def test_masks_come_from_the_base_pass(single_thread):
+    """The returned masks must be the angle-0 pass's, not a batched chunk's."""
+    cond = MultiConditioner({
+        "source": FakeDist(), "context_poses": FakeDist(), "context_audio": FakeRIR(),
+        "source_vit": MaskSentinelGeometry(), "context_poses_vit": MaskSentinelGeometry(),
+    })
+    batch = 8
+    out = yr.invariant_conditioning(cond, _small_batch(batch), DEV, _orbit(32))
+    for vit in VIT_IDS:
+        assert cond.conditioners[vit].calls == 5, cond.conditioners[vit].batch_sizes
+        mask = out[vit][1]
+        assert mask.shape[0] == batch, f"{vit}: mask batch {mask.shape[0]} != base batch {batch}"
+        assert torch.equal(mask, torch.ones_like(mask)), (
+            f"{vit}: mask carries call id {float(mask.flatten()[0])}, expected the base pass (1)"
+        )
+
+
+def test_batch_at_the_cap_is_accepted_and_above_it_is_rejected(single_thread):
+    """B == cap is the evaluation batch and must work; B > cap cannot be honoured
+    (a chunk is whole angles, so it could not be split) and must fail loudly."""
+    at_cap = yr.FRAME_AVG_MAX_FWD_SAMPLES
+    cond = _build_cond()
+    yr.invariant_conditioning(cond, _small_batch(at_cap), DEV, _orbit(4))
+    assert cond.conditioners["source_vit"].batch_sizes == [at_cap] + [at_cap] * 3
+
+    with pytest.raises(ValueError) as e:
+        yr.invariant_conditioning(_build_cond(), _small_batch(at_cap + 1), DEV, _orbit(4))
+    assert str(yr.FRAME_AVG_MAX_FWD_SAMPLES) in str(e.value)
+
+
+# --------------------------------------------------------------------------- #
+# 14. TRAIN-MODE contract: chunk-shared stochastic draws (disclosed recipe
+#     change), determinism and gradient flow  (review finding 1, option 2)
+# --------------------------------------------------------------------------- #
+class StochasticGeometry(FakeGeometry):
+    """Stand-in for train-mode DINOv3, whose RoPE rescale draws ONE random value
+    per forward and applies it to the whole call.
+
+    Under the batched execution a chunk's angles therefore share a draw where the
+    per-angle loop gave them independent ones: the averaging arithmetic is
+    unchanged, the augmentation schedule is not. That is the disclosed recipe
+    change, applied identically to every arm (C4L included), and these tests pin
+    the NEW contract rather than pretending the old one still holds."""
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.draws = 0
+        self.scale = nn.Parameter(torch.ones(1))
+
+    def forward(self, coord_list, device=DEV):
+        out = super().forward(coord_list, device)
+        if self.training:
+            self.draws += 1
+            rope = torch.rand(1, device=device)          # consumes global RNG, per FORWARD
+            out[0] = out[0] * (1.0 + 0.1 * rope) * self.scale
+        else:
+            out[0] = out[0] * self.scale
+        return out
+
+
+def _stochastic_cond():
+    return MultiConditioner({
+        "source": FakeDist(), "context_poses": FakeDist(), "context_audio": FakeRIR(),
+        "source_vit": StochasticGeometry(), "context_poses_vit": StochasticGeometry(),
+    })
+
+
+@pytest.mark.parametrize("n,batch,expected_draws", [(4, 8, 2), (16, 8, 3), (32, 8, 5), (32, 3, 3)])
+def test_train_mode_draws_are_one_per_forward_not_one_per_angle(n, batch, expected_draws,
+                                                                single_thread):
+    """The batched path consumes exactly one stochastic draw per FORWARD, i.e.
+    ``1 + n_chunks`` — the plan pinned in section 13 — instead of one per angle."""
+    cond = _stochastic_cond().train()
+    torch.manual_seed(0)
+    yr.invariant_conditioning(cond, _small_batch(batch), DEV, _orbit(n))
+    for vit in VIT_IDS:
+        assert cond.conditioners[vit].draws == expected_draws, (
+            f"C{n}/B{batch}: {vit} drew {cond.conditioners[vit].draws} times, expected "
+            f"{expected_draws} (1 base + {expected_draws - 1} chunk(s))"
+        )
+        assert len(cond.conditioners[vit].batch_sizes) == expected_draws
+
+
+def test_train_mode_is_deterministic_under_a_fixed_seed(single_thread):
+    """Chunk-shared draws are still reproducible: same seed -> same conditioning."""
+    md = _small_batch(8)
+    outs = []
+    for _ in range(2):
+        cond = _stochastic_cond().train()
+        torch.manual_seed(1234)
+        out = yr.invariant_conditioning(cond, md, DEV, _orbit(16))
+        outs.append({k: out[k][0].detach().clone() for k in VIT_IDS})
+    for key in VIT_IDS:
+        assert torch.equal(outs[0][key], outs[1][key]), f"{key} is not seed-deterministic"
+
+
+def test_train_mode_gradients_reach_the_conditioner(single_thread):
+    """The batched orbit must stay in the autograd graph: every rotated chunk
+    contributes gradient to the conditioner parameters."""
+    cond = _stochastic_cond().train()
+    torch.manual_seed(7)
+    out = yr.invariant_conditioning(cond, _small_batch(8), DEV, _orbit(8))
+    loss = sum(out[k][0].float().pow(2).mean() for k in VIT_IDS)
+    loss.backward()
+    for vit in VIT_IDS:
+        grad = cond.conditioners[vit].scale.grad
+        assert grad is not None, f"{vit}: no gradient reached the conditioner"
+        assert torch.isfinite(grad).all(), f"{vit}: non-finite gradient {grad}"
+        assert float(grad.abs().max()) > 0.0, f"{vit}: zero gradient — the orbit is detached"
+
