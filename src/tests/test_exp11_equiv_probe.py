@@ -219,6 +219,36 @@ def test_record_id_falls_back_through_path_then_index():
     assert P.record_id({}, 2) == "2:record2"          # no idx at all
 
 
+# --------------------------------------------------------------------------- #
+# 6. matmul precision policy (job 3646626 root cause)
+# --------------------------------------------------------------------------- #
+def test_gate_runs_in_true_fp32_and_only_train_mirrors_trainpy():
+    """The equivalence GATE must not run under train.py's reduced-precision
+    policy: 'medium' enables TF32 matmuls, a 1-row GEMV skips that path while a
+    multi-row GEMM takes it, and the gate then measures cuBLAS kernel selection
+    (~TF32 eps 4.9e-4) instead of the batching — which is exactly the 3.5e-4..5.4e-4
+    band every B=1 cell showed in job 3646626."""
+    assert P.precision_for("eval") == "highest"
+    assert P.precision_for("train") == "medium"
+
+
+def test_matmul_precision_context_sets_and_restores_both_flags():
+    """set_float32_matmul_precision does NOT touch the cuDNN TF32 flag, so the
+    context manager handles both — and restores whatever was there before."""
+    torch.set_float32_matmul_precision("medium")
+    torch.backends.cudnn.allow_tf32 = True
+    with P.matmul_precision("highest"):
+        assert torch.get_float32_matmul_precision() == "highest"
+        assert torch.backends.cuda.matmul.allow_tf32 is False
+        assert torch.backends.cudnn.allow_tf32 is False
+    assert torch.get_float32_matmul_precision() == "medium"
+    assert torch.backends.cudnn.allow_tf32 is True
+    with P.matmul_precision("medium"):
+        assert torch.backends.cuda.matmul.allow_tf32 is True
+    torch.set_float32_matmul_precision("highest")     # leave the process tidy
+    torch.backends.cudnn.allow_tf32 = True
+
+
 def test_tolerances_are_the_preregistered_ones():
     assert P.TOL_REL_FP32 == 1e-6
     assert P.TOL_ABS_FP32 == 1e-5

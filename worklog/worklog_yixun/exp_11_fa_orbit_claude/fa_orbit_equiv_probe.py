@@ -33,6 +33,7 @@ tensors, and an empty or short result set is a FAIL. Emits exactly one
 machine-parseable ``EQUIVPROBE`` line.
 """
 import argparse
+import contextlib
 import hashlib
 import json
 import math
@@ -85,6 +86,43 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 def orbit(n):
     """The uniform Cn orbit in degrees."""
     return tuple(k * 360.0 / n for k in range(n))
+
+
+def precision_for(mode):
+    """Matmul precision policy per cell mode.
+
+    Job 3646626 failed every B=1 fp32 cell at rel_norm 3.5e-4..5.4e-4 while B=8
+    and B=64 were clean at ~1.3e-7. That band IS TF32's unit roundoff (2^-11 =
+    4.88e-4): the probe had copied train.py's global
+    ``set_float32_matmul_precision('medium')``, which sets
+    ``torch.backends.cuda.matmul.allow_tf32 = True``, so the "fp32" gate was not
+    fp32. A 1-row matmul is a GEMV and does not take the reduced-precision GEMM
+    path, while the batched side's 3..31-row matmul does — so the two sides ran
+    at DIFFERENT precisions and the gate measured cuBLAS kernel policy, not
+    batching. (CPU repro at B=1 is exact; see
+    test_invariant_conditioning.py::test_batched_orbit_maps_every_angle_to_its_slice.)
+
+    So: the EQUIVALENCE GATE runs in true fp32 ('highest', TF32 off everywhere),
+    and only the TRAIN qualification cell keeps train.py's 'medium', because
+    there the point is to mirror the training path rather than to compare
+    numbers."""
+    return "medium" if mode == "train" else "highest"
+
+
+@contextlib.contextmanager
+def matmul_precision(mode):
+    """Set the fp32 matmul precision (and the cuDNN TF32 flag, which
+    ``set_float32_matmul_precision`` does NOT touch) for one cell, then restore."""
+    import torch
+    prev = torch.get_float32_matmul_precision()
+    prev_cudnn = torch.backends.cudnn.allow_tf32
+    torch.set_float32_matmul_precision(mode)
+    torch.backends.cudnn.allow_tf32 = (mode != "highest")
+    try:
+        yield
+    finally:
+        torch.set_float32_matmul_precision(prev)
+        torch.backends.cudnn.allow_tf32 = prev_cudnn
 
 
 def expected_cells(eval_orbits=EVAL_ORBITS, train_batch=EVAL_TRAIN_BATCH,
@@ -262,7 +300,10 @@ def reference(cond, metadata, device, angles):
 
 
 def run_cell(cond, md, device, angles, mode, use_bf16, seed=1234):
-    """One probe cell; returns the per-id metrics plus a finiteness flag."""
+    """One probe cell; returns the per-id metrics plus a finiteness flag.
+
+    The cell runs entirely inside its mode's matmul-precision policy (see
+    :func:`precision_for`), so both compared paths always use the same one."""
     import torch
     from src.data import yaw_rotation as yr
 
@@ -284,7 +325,7 @@ def run_cell(cond, md, device, angles, mode, use_bf16, seed=1234):
         torch.manual_seed(seed)           # identical RNG state before each side
         if device == "cuda":
             torch.cuda.manual_seed_all(seed)
-        with grad, autocast:
+        with matmul_precision(precision_for(mode)), grad, autocast:
             got = (yr.invariant_conditioning(cond, md, device, angles) if label == "batched"
                    else reference(cond, md, device, angles))
         side = {k: got[k][0] for k in VIT_IDS if k in got}
@@ -313,6 +354,7 @@ def run_cell(cond, md, device, angles, mode, use_bf16, seed=1234):
     if device == "cuda":
         torch.cuda.empty_cache()
     return {"ids": ids, "finite": finite, "grads_finite": grads_finite,
+            "matmul": precision_for(mode),
             "gated": mode == "eval" and not use_bf16}
 
 
@@ -339,12 +381,12 @@ def main(argv=None):
     except Exception as exc:
         print(f"EQUIVPROBE-ABORT: CUDA initialisation failed: {type(exc).__name__}: {exc}")
         return 3
-    torch.set_float32_matmul_precision("medium")      # train.py:94
     pin = assert_vit_pin()
     cfg, cond = build_conditioner(args.config, device)
     md, sample_ids = real_samples(args.dataset_config, args.n_samples, device)
     print(f"probe: device={device} samples={len(md)} ids={','.join(sample_ids)} "
-          f"cap={yr.FRAME_AVG_MAX_FWD_SAMPLES} vit_pin={pin} matmul=medium")
+          f"cap={yr.FRAME_AVG_MAX_FWD_SAMPLES} vit_pin={pin} "
+          f"matmul=gate:{precision_for('eval')}/train:{precision_for('train')}")
 
     results, bf16_results = {}, {}
     plan = expected_cells()
@@ -361,8 +403,8 @@ def main(argv=None):
             gate = "GATED" if res["gated"] else "recorded"
             for vit, m in sorted(res["ids"].items()):
                 print(f"  {mode:<5} C{n:<3} B{batch:<3} {'bf16' if use_bf16 else 'fp32'} "
-                      f"{vit:<18} max_abs={m['max_abs']:.3e} rel_norm={m['rel_norm']:.3e} "
-                      f"rel_max={m['rel_max']:.3e} [{gate}]")
+                      f"mm={res['matmul']:<7} {vit:<18} max_abs={m['max_abs']:.3e} "
+                      f"rel_norm={m['rel_norm']:.3e} rel_max={m['rel_max']:.3e} [{gate}]")
             if res["grads_finite"] is not None:
                 print(f"        grads_finite={res['grads_finite']} outputs_finite={res['finite']}")
             if use_bf16:                                  # NEW-5: auditable in the result line
@@ -385,6 +427,7 @@ def main(argv=None):
           f"gate_rel_norm={gated_rel:.3e} gate_max_abs={gated_abs:.3e} "
           f"rec_rel_norm={rec_rel:.3e} rec_max_abs={rec_abs:.3e} "
           f"bf16_cells={len(bf16_results)} bf16_rel_norm={bf16_rel:.3e} bf16_max_abs={bf16_abs:.3e} "
+          f"gate_matmul={precision_for('eval')} train_matmul={precision_for('train')} "
           f"tol_rel={TOL_REL_FP32:g} tol_abs={TOL_ABS_FP32:g} "
           f"verdict={'PASS' if ok else 'FAIL'}")
     return 0 if ok else 4

@@ -791,3 +791,80 @@ def test_train_mode_gradients_reach_the_conditioner(single_thread):
             f"{vit}: the C8 gradient equals the base-only gradient — the rotated chunks "
             "contribute nothing, i.e. the orbit is outside the graph"
         )
+
+
+# --------------------------------------------------------------------------- #
+# 15. B=1 angle mapping is exact (probe job 3646626 bisect)
+#
+# The GPU probe showed ALL eight B=1 fp32 cells deviating ~3.5e-4..5.4e-4 while
+# every B=8/B=64 cell was clean. Hypothesis 1-3 was a B=1-specific semantic bug
+# (off-by-one slicing, angle-major mis-mapping, or a tiny-batch branch in the
+# conditioner). These tests are the CPU discriminator: the conditioner below
+# ENCODES the rotation it was given, so any mis-mapping of the ``out[k*B:(k+1)*B]``
+# slices changes the average by O(1), not by 1e-4. They pass, which excludes the
+# semantic hypotheses and leaves the CUDA kernel-precision one (see the probe's
+# precision policy).
+# --------------------------------------------------------------------------- #
+class AngleEncodingGeometry(FakeGeometry):
+    """Emits the depth map's roll offset, so the output IS the angle identity.
+
+    ``rotate_scene_metadata`` rolls the panorama by ``round(deg * W / 360)``
+    columns; recovering that shift from the rolled depth and returning it makes a
+    wrong angle->slice mapping arithmetically visible in the orbit average."""
+
+    def forward(self, coord_list, device=DEV):
+        shifts = []
+        for c in coord_list:
+            depth = c["depth"]
+            # Use the per-column RADIUS: rotate_scene_metadata rolls the panorama
+            # AND rotates the stored 3-vectors, so a single component is not a
+            # pure roll -- but the radius is rotation-invariant and shifts exactly
+            # by the roll, and _consistent_depth's radius is non-symmetric so the
+            # match is unique.
+            radius = depth.norm(dim=0)[0, :]
+            ref = getattr(self, "_ref", None)
+            if ref is None:
+                ref = self._ref = radius.clone()        # first sample seen == angle 0
+            shift = int(torch.argmin(torch.stack([
+                (torch.roll(ref, k) - radius).abs().sum() for k in range(radius.shape[0])
+            ])))
+            shifts.append(float(shift))
+        val = torch.tensor(shifts, device=device).view(len(coord_list), 1, 1)
+        out = val.expand(len(coord_list), 1, self.out_dim).contiguous()
+        return [out, torch.ones(len(coord_list), 1, device=device)]
+
+
+@pytest.mark.parametrize("batch", (1, 2, 3))
+@pytest.mark.parametrize("n", (4, 8))
+def test_batched_orbit_maps_every_angle_to_its_slice(batch, n, single_thread):
+    """The orbit average of the recovered roll offsets must equal the analytic
+    mean of the orbit's offsets — for B=1 as much as for B>1."""
+    cond = MultiConditioner({
+        "source": FakeDist(), "context_poses": FakeDist(), "context_audio": FakeRIR(),
+        "source_vit": AngleEncodingGeometry(), "context_poses_vit": AngleEncodingGeometry(),
+    })
+    width = 512
+    angles = _orbit(n)
+    expected = sum(round(a * width / 360.0) % width for a in angles) / float(n)
+    out = yr.invariant_conditioning(cond, _small_batch(batch), DEV, angles)
+    for vit in VIT_IDS:
+        got = out[vit][0]
+        assert torch.allclose(got, torch.full_like(got, expected), atol=1e-4), (
+            f"C{n}/B{batch}: {vit} averaged roll {float(got.flatten()[0])}, expected "
+            f"{expected} — an angle was mapped to the wrong slice"
+        )
+
+
+def test_b1_and_b8_agree_on_the_same_record(single_thread):
+    """The same record, averaged alone (B=1) and inside a batch of 8, must give
+    the same conditioning. A tiny-batch branch anywhere in the stack would show
+    up here; on CPU it does not."""
+    md = _small_batch(8)
+    single = yr.invariant_conditioning(_build_cond(), [md[0]], DEV, _orbit(32))
+    batched = yr.invariant_conditioning(_build_cond(), md, DEV, _orbit(32))
+    for vit in VIT_IDS:
+        assert torch.allclose(single[vit][0][0], batched[vit][0][0], atol=1e-6), (
+            f"{vit}: record 0 conditions differently at B=1 than inside B=8 "
+            f"(max {float((single[vit][0][0] - batched[vit][0][0]).abs().max()):.3e})"
+        )
+
