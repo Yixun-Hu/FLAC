@@ -40,3 +40,4 @@ SBATCH_EXCLUDE=neu322 SMOKE=0 DRYRUN=0 bash worklog/worklog_yixun/exp_11_fa_orbi
 - Per-job gates that must pass (recorded in each slurm out): commit/drift, allocation shape, environment (python/PL/torch/VAE/DINO), config identity, VRAM floor, lock, W&B identity, 8-rank world size.
 - Final acceptance per arm: 40,000 steps reached, expected checkpoints on cadence, byte-identical dual durable logs, W&B run identity verified, classification rc=0.
 - Intent manifests + Slurm job IDs: appended below at submission.
+- SUBMITTED 2026-08-06: C4L → job 3648665 (fa_orbit_submission_C4L_1786054560338820300-09f373e3.txt) · C8 → 3648666 (…C8_1786054560465501451-9ffdd4d5.txt) · C16 → 3648667 (…C16_1786054560564868965-5fd4c1e1.txt) · C32 → 3648668 (…C32_1786054560670066214-c4a97ed7.txt)
