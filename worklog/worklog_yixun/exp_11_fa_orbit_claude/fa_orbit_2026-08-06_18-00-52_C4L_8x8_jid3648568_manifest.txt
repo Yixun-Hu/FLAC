@@ -1,0 +1,20 @@
+# exp_11 arm launch manifest
+timestamp 2026-08-06_18-00-52
+job 3648568 host neu309.neuronic.cs.princeton.edu mode INITIAL launch_uuid 0f19d224-af6e-4a8c-8cc5-ca1e435e1941
+arm C4L rung 8x8 micro 8 ngpu 8 max_steps 30 ckpt_every 10
+commit 71054cf4282a5f88b268205be3918d93664b63dd
+p0_manifest_sha256 72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b
+model_config /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json
+config_sha256 3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328
+vae_sha256 8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9
+env_pip_freeze_sha256 be4cdbe63e0d5484e02960968807576335ed2cf7febe908c871644d2ad3033d2
+torch_version 2.7.0+cu126 cuda 12.6 driver 590.48.01
+gpu_uuids GPU-3b7d2385-2361-851c-ad65-6b51e31a412e,GPU-d0a4aa3f-47b5-5d06-d9b9-778a9d5456d6,GPU-55d3df90-37ad-9265-83b5-9c753d307501,GPU-e9ce05a1-0d83-fc5b-504a-9f01e919ad91,GPU-fd7262b0-2b7b-7277-ce8e-38f07d41a928,GPU-88d89db2-3076-5254-bc09-753077edc7ad,GPU-b4f465cb-7c4a-6f80-2328-1f9ab4d594d7,GPU-a6a72596-4ca4-0aa9-333f-9caebbcaea30
+time_limit 00:30:00 min_free_mb 36500
+resume_ckpt <none> expected_step 0 resume_ckpt_sha256 <none>
+save_dir outputs_FLAC/exp11_smoke/C4L
+train_log /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-06_18-00-52_C4L_8x8_jid3648568_train.log
+train_log_copy outputs_FLAC/exp11_smoke/C4L/fa_orbit_2026-08-06_18-00-52_C4L_8x8_jid3648568_train.log
+wandb_entity yh4742-princeton-university wandb_project FLAC_exp11_smoke_C4L wandb_name exp11_smoke_C4L
+wandb_run_id exp11-C4L-1786053756799558763-4ae12465
+command torchrun --standalone --nnodes=1 --nproc_per_node=8 train.py --model-config /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 30 --batch-size 8 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 8 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --val-dataset-config  --gradient-clip-val 0.0 --logger wandb --checkpoint-every 10 --name FLAC_exp11_smoke_C4L --experiment-name exp11_smoke_C4L --save-dir outputs_FLAC/exp11_smoke/C4L

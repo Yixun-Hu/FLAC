@@ -1,0 +1,6 @@
+=== SMOKE MODE: pins bypassed, EVERY other gate active; identity exp11_smoke_C4L ===
+=== exp_11 arm C4L @ rung 8x8 (MB 8 x 8 GPU, grad-ckpt ON) — 2026-08-06_17-44-19 — host neu318.neuronic.cs.princeton.edu ===
+commit binding OK: 71054cf4282a5f88b268205be3918d93664b63dd
+config for C4L: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json sha256 3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328
+gate OK: C4L carries the uniform C4 orbit, grad-ckpt True, EMA on
+run directory outputs_FLAC/exp11_smoke/C4L/FLAC_exp11_smoke_C4L/exp11_smoke_C4L already exists — an INITIAL launch never clobbers a previous run - abort

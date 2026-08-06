@@ -1,0 +1,10 @@
+# exp_11 arm submission (intent published BEFORE sbatch)
+intent_id 1786050012428592254-16b4b108
+submitted_at 2026-08-06T17:00:12-04:00
+arm C4L rung 8x8 micro 8 ngpu 8
+jobname exp11-smoke-C4L time 00:30:00 smoke 1
+commit 71054cf4282a5f88b268205be3918d93664b63dd
+pins rung=8x8 maxsteps=40000 ckpt_every=2500 min_free_mb=36500 p0_manifest_sha256=72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b
+resume <none> expected_step 0
+sbatch sbatch --job-name=exp11-smoke-C4L --gres=gpu:l40:8 --cpus-per-task=64 --mem=108G --time=00:30:00 --export=ALL,ARM=C4L,EXPECT_SHA=71054cf4282a5f88b268205be3918d93664b63dd,OUTPUT_ROOT=outputs_FLAC,SMOKE=1,SMOKE_RUNG=8x8,SMOKE_MIN_FREE_MB=36500,SMOKE_MAXSTEPS=30,SMOKE_TIME=00:30:00 worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_train.sbatch
+jobid 3646773
