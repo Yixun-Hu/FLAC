@@ -113,3 +113,9 @@
 - **Result** — `passed`: steps/s (32×2/16×4/8×8): VAN 0.808/0.946/1.060 · FA1 0.802/0.941/1.030 · C4L 0.295/0.361/0.360 · C8 0.153/0.191/0.186. Peaks: C4L 15.9/9.5/5.9 GB · C8 28.6/15.9/9.4 GB.
 - **Analysis** — orbit families: 16×4 ≈ 8×8 (within ~3%), both > 32×2. Per-pass retained memory ≈ 3.16/1.62/0.88 GB at micro 32/16/8 ⇒ C32 projects ~51 GB at 16×4 (OOM) vs ~30 GB at 8×8 (fits). Uniform-rung mandate (Q3) + C32 feasibility ⇒ **candidate pin = 8×8**, pending the pre-registered C16/C32 spot verification at that rung. Projections at 8×8 (slope ~0.60–0.63 s/step/pass): C16 ≈ 0.098 steps/s (~4.7 d to 40k), C32 ≈ 0.050 (~9.2 d).
 - **Next** — `spot 8x8` (C16, C32; 30 steps) → pin commit → reviewer sign-off → SMOKE @8×8 → launch.
+
+## 2026-08-06 — PIN COMMIT (launch precondition 5): rung 8×8, all values from the signed P0 evidence
+
+- **Pins** — RUNG 8x8 / MB 8 / NGPU 8 (only rung where all four arms fit: per-pass retained memory 0.88 GB at micro-8 ⇒ C32 measured 30,817 MiB; 16×4 projects C32 ~51 GB OOM); MIN_FREE_MB 35,500 (max-across-arms floor, reviewer-allowed form); MAXSTEPS 40,000 / ckpt 2,500 (unchanged); time limits C4L 42 h · C8 80 h · C16 150 h · C32 167 h (partition cap) with **C32 pre-registered as a two-segment run** (wall-stop ~step 30–31k → reviewed RESTART mode to 40k, wandb resume=must); P0 manifest sha b2aeaf9c…208e (official run 1334933), spot manifest sha recorded in the commit message.
+- **Justification trail** — official 12/12 report `p0_report_1334933.md` + spot `p0_report_spot_9bf1936.md` (C16 0.0982 steps/s / 16.6 GB; C32 0.0518 / 30.8 GB — linear-model predictions confirmed within 4%). Projected training: C4L ~31 h · C8 ~60 h · C16 ~113 h · C32 ~215 h (2 segments).
+- **Next** — SMOKE=1 at the pinned rung → combined Codex sign-off (pins + smoke evidence) → launch.

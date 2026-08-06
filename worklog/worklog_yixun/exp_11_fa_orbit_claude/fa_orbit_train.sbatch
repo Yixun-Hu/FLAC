@@ -59,17 +59,17 @@ set -uo pipefail
 # Filled from the reviewed P0 report; until then every value is the literal
 # placeholder and the launcher refuses to run (except under SMOKE=1).
 PIN_PLACEHOLDER="TO-PIN-AFTER-P0"
-PINNED_RUNG="TO-PIN-AFTER-P0"              # one of 32x2 / 16x4 / 8x8 (all feasible with grad-ckpt)
-PINNED_MB="TO-PIN-AFTER-P0"                # micro-batch per GPU  (MB x NGPU must be 64)
-PINNED_NGPU="TO-PIN-AFTER-P0"              # ranks
+PINNED_RUNG="8x8"                          # P0 run 1334933 + spot 9bf1936: fastest uniform rung where ALL arms fit (C32 peak 30,817 MiB)
+PINNED_MB="8"                              # micro-batch per GPU (8 x 8 = 64 = eff = BN batch)
+PINNED_NGPU="8"                            # ranks
 PINNED_MAXSTEPS=40000                      # plan §2 primary matched-step budget
 PINNED_CHECKPOINT_EVERY=2500               # exp_07 cadence
-PINNED_MIN_FREE_MB="TO-PIN-AFTER-P0"       # per-GPU floor: P0 peak (~9.4 GB at 16x4) + margin
-PINNED_TIME_LIMIT_C4L="TO-PIN-AFTER-P0"    # per arm, from the P0 steps/s
-PINNED_TIME_LIMIT_C8="TO-PIN-AFTER-P0"
-PINNED_TIME_LIMIT_C16="TO-PIN-AFTER-P0"
-PINNED_TIME_LIMIT_C32="TO-PIN-AFTER-P0"
-PINNED_P0_MANIFEST_SHA256="TO-PIN-AFTER-P0"  # the P0 manifest these pins were read from
+PINNED_MIN_FREE_MB="35500"                 # single floor = max across arms: C32 peak 30,817 + ~4.7 GB margin (reviewer-allowed max-floor form)
+PINNED_TIME_LIMIT_C4L="42:00:00"           # 40k/0.3604 = 30.8 h x1.3 + startup
+PINNED_TIME_LIMIT_C8="80:00:00"            # 40k/0.1863 = 59.6 h x1.3 + startup
+PINNED_TIME_LIMIT_C16="150:00:00"          # 40k/0.0982 = 113.2 h x1.3 + startup (< 7 d partition cap)
+PINNED_TIME_LIMIT_C32="167:00:00"          # partition cap 7 d; 40k needs ~215 h => PRE-REGISTERED 2-segment run: wall-stop ~step 30-31k, RESTART to 40k (~2.5 d)
+PINNED_P0_MANIFEST_SHA256="b2aeaf9c1e797d5268f02faa594cc416cb59c113e8c3a8be70ad7f34e242208e"  # p0_manifest_1334933 (official matrix); spot manifest 9bf1936 sha256 recorded in the pin commit message
 # Environment pins (round-3 B6) — measured on the reviewed environment:
 PINNED_PYTHON="/n/fs/gatrdp/envs/flac/bin/python"
 PINNED_PL_VERSION="2.1.0"
