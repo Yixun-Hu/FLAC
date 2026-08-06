@@ -5,8 +5,10 @@
 # ONE 30-step job per (cell, workers); the steady-state rate comes from the
 # runner's in-fit step-10/30 marks, so there is no job pairing.
 #
-#   matrix (default) ... rungs {32x2,16x4,8x8} x {VAN, FA1, C4L, C8} + CKPT4_32x2
-#                        = 13 jobs. FA1 (single-angle fa_invariant) is the
+#   matrix (default) ... rungs {32x2,16x4,8x8} x {VAN, FA1, C4L, C8} = 12 jobs,
+#                        ALL checkpointed (VAN via FLAC_AR_VANCKPT.json). The old
+#                        CKPT4 cell is retired: post-pivot it would be a second
+#                        copy of C4L. FA1 (single-angle fa_invariant) is the
 #                        attribution baseline: it shares C4L/C8's cylindrical
 #                        pose path, so FA1->C4L->C8 isolates the per-orbit-pass
 #                        cost, and VAN is the separate vanilla contrast.
@@ -102,7 +104,7 @@ submit_cell() {  # $1 = CELL, $2 = NUM_WORKERS (explicit, never defaulted)
     --cpus-per-task="$((8 + 7 * ngpu))"
     --mem="$((12 * ngpu + 12))G"
     --time="$tlimit"
-    --export="ALL,EXPECT_SHA=${SHA},RUNID=${RUNID},CELL=${cell},MAXSTEPS=${MAXSTEPS},NUM_WORKERS=${workers}"
+    --export="ALL,EXPECT_SHA=${SHA},RUNID=${RUNID},CELL=${cell},MAXSTEPS=${MAXSTEPS},NUM_WORKERS=${workers},OUTPUT_ROOT=outputs_FLAC"
     "$SBATCH_FILE"
   )
   if [ "$DRYRUN" = "1" ]; then
@@ -129,7 +131,6 @@ case "$MODE" in
     for rung in 32x2 16x4 8x8; do
       for family in VAN FA1 C4L C8; do submit_cell "${family}_${rung}" "$MATRIX_WORKERS"; done
     done
-    submit_cell CKPT4_32x2 "$MATRIX_WORKERS"
     manifest_publish
     ;;
   spot)

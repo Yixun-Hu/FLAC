@@ -345,8 +345,8 @@ def test_orbit_pass_fit_excludes_van_and_requires_the_exact_set():
     assert P.orbit_pass_fit(two) == {}
     with_oom = two + [_summary("C8_32x2", 2, 32, None, status="OOM")]
     assert P.orbit_pass_fit(with_oom) == {}
-    extra = _triple(van=0.75) + [_summary("CKPT4_32x2", 2, 32, 0.4)]
-    assert set(P.orbit_pass_fit(extra)) == {"32x2"}
+    extra = _triple(van=0.75) + [_summary("C16_32x2", 2, 32, 0.4)]
+    assert set(P.orbit_pass_fit(extra)) == {"32x2"}  # richer orbits never enter the fit
 
 
 def test_orbit_pass_fit_flags_implausible_output_as_ambiguous():
@@ -385,16 +385,22 @@ def test_worker_contrast_needs_both_halves():
     assert P.worker_contrast([both[0]]) == {}
 
 
-def test_ddp_scaling_and_grad_ckpt_cost():
+def test_ddp_scaling():
     summaries = [_summary("C4L_32x2", 2, 32, 0.10), _summary("C4L_16x4", 4, 16, 0.20),
                  _summary("C4L_8x8", 8, 8, 0.20)]
     eff = {e["ngpu"]: e["efficiency"] for e in P.ddp_scaling(summaries)["C4L"]}
     assert (eff[2], eff[4], eff[8]) == (pytest.approx(1.0), pytest.approx(1.0), pytest.approx(0.5))
-    gc = P.grad_ckpt_cost([_summary("C4L_32x2", 2, 32, 0.20, peak=20000),
-                           _summary("CKPT4_32x2", 2, 32, 0.10, peak=30000)])
-    assert gc["no_ckpt_speedup"] == pytest.approx(2.0)
-    assert gc["delta_s_per_step"] == pytest.approx(5.0)
-    assert gc["delta_peak_mib"] == -10000
+
+
+def test_grad_ckpt_comparison_is_retired():
+    """Post-pivot EVERY cell is checkpointed, so a "cost of disabling
+    checkpointing" contrast is not measurable and must not be renderable: CKPT4
+    is gone from the family vocabulary and the collector exposes no such helper."""
+    assert not hasattr(P, "grad_ckpt_cost")
+    assert "CKPT4" not in P.FAMILY_ORDER
+    assert "CKPT4" not in P.N_ORBIT_PASSES
+    md = P.render_markdown(_triple(van=0.60), mode="matrix", complete=True)
+    assert "checkpoint" not in md.lower(), "the report must not claim a grad-ckpt comparison"
 
 
 # --------------------------------------------------------------------------- #

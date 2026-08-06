@@ -56,9 +56,8 @@ CANON="$REPO/src/configs/model_configs/FLAC/AR/FLAC_AR.json"
 # --- cell family -> model config: THE single source of truth (review B5) ---
 p0_config_for() {
   case "$1" in
-    VAN)                echo "$CANON" ;;
+    VAN)                echo "$EXPDIR/FLAC_AR_VANCKPT.json" ;;
     FA1|C4L|C8|C16|C32) echo "$EXPDIR/FLAC_AR_BF_$1.json" ;;
-    CKPT4)          echo "$EXP07/FLAC_AR_BF.json" ;;
     *)              return 1 ;;
   esac
 }
@@ -81,6 +80,12 @@ export HF_HOME=/n/fs/gatrdp/hf_cache
 export HF_HUB_OFFLINE=1
 
 JID="${SLURM_JOB_ID:?must run under sbatch}"
+# NEW-2: inside a job the output namespace is a literal, never ambient state.
+P0_OUTPUT_ROOT="outputs_FLAC"
+if [ -n "${OUTPUT_ROOT:-}" ] && [ "$OUTPUT_ROOT" != "$P0_OUTPUT_ROOT" ]; then
+  echo "ambient OUTPUT_ROOT='${OUTPUT_ROOT}' != the production literal '${P0_OUTPUT_ROOT}' - abort"; exit 2
+fi
+export OUTPUT_ROOT="$P0_OUTPUT_ROOT"
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 
 # --- required cell parameters (no defaults: an unset knob must abort) ---
@@ -99,7 +104,7 @@ echo "=== exp_11 P0 cell ${CELL} - ${TS} - job ${JID} - run ${RUNID} - host $(ho
 case "$CELL" in
   VAN_32x2|VAN_16x4|VAN_8x8|FA1_32x2|FA1_16x4|FA1_8x8) ;;
   C4L_32x2|C4L_16x4|C4L_8x8|C8_32x2|C8_16x4|C8_8x8) ;;
-  C16_32x2|C16_16x4|C16_8x8|C32_32x2|C32_16x4|C32_8x8|CKPT4_32x2|CKPT4_16x4|CKPT4_8x8) ;;
+  C16_32x2|C16_16x4|C16_8x8|C32_32x2|C32_16x4|C32_8x8) ;;
   *) echo "CELL '${CELL}' is not a legal <FAMILY>_<RUNG> cell - abort"; exit 2 ;;
 esac
 FAMILY="${CELL%%_*}"
@@ -154,7 +159,7 @@ t = cfg.get("training", {}); bad = []
 # FA1: fa_invariant with a SINGLE-angle orbit -> cylindrical pose path + exactly
 # one ViT pass (yaw_rotation.invariant_conditioning returns the base pass when
 # len(angles) == 1), the attribution baseline the orbit slope is fitted against.
-want = {"VAN": None, "FA1": 1, "C4L": 4, "C8": 8, "C16": 16, "C32": 32, "CKPT4": 4}[fam]
+want = {"VAN": None, "FA1": 1, "C4L": 4, "C8": 8, "C16": 16, "C32": 32}[fam]
 angles = t.get("frame_avg_angles")
 if want is None:
     if "cond_method" in t or angles is not None:
@@ -289,12 +294,13 @@ fi
 # to ~5000 s. The liveness comparison then measured rounding noise, not poller
 # health: it failed spuriously for every run that ended after the snap point (the
 # 8-GPU cells, which queued longest and so ran latest) and passed VACUOUSLY for
-# every run that ended before it. The tick data of all three cells was complete
-# (76x8 = 608 rows, every tick with exactly 8 UUIDs). Fix: print full precision,
-# and use a 5 s margin (one 0.5 s poll interval + NCCL/teardown slack).
+# every run that ended before it. The tick data of all three cells was complete:
+# 76, 68 and 91 ticks respectively (VAN/FA1/C4L 8x8), every tick carrying exactly
+# 8 UUID rows. Replayed true gaps were 0.553 / 0.164 / 0.331 s, so the ORIGINAL
+# 2 s bound is kept — only the precision was ever wrong.
 LAST_TS="$(awk '{for(i=1;i<=NF;i++){split($i,a,"=");if(a[1]=="ts")v=a[2]}} END{printf "%.6f", v+0}' "$PEAKCSV")"
-LATE="$(awk -v a="$LAST_TS" -v b="$T1" 'BEGIN{print (b-a > 5.0) ? 1 : 0}')"
-if [ "$LATE" -eq 1 ]; then echo "poller stopped ${LAST_TS} > 5s before train end ${T1} - measurement INVALID"; MEAS_OK=0; fi
+LATE="$(awk -v a="$LAST_TS" -v b="$T1" 'BEGIN{print (b-a > 2.0) ? 1 : 0}')"
+if [ "$LATE" -eq 1 ]; then echo "poller stopped ${LAST_TS} > 2s before train end ${T1} - measurement INVALID"; MEAS_OK=0; fi
 
 PEAK="$(awk 'BEGIN{m=-1} {for(i=1;i<=NF;i++){split($i,a,"=");if(a[1]=="mem" && a[2] ~ /^[0-9]+$/ && a[2]+0>m) m=a[2]+0}} END{print m}' "$PEAKCSV")"
 PER_UUID="$(awk '{u="";m="";for(i=1;i<=NF;i++){split($i,a,"=");if(a[1]=="uuid")u=a[2];if(a[1]=="mem")m=a[2]}

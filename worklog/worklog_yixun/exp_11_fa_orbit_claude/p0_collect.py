@@ -17,6 +17,12 @@ Anything else makes that cell INVALID. Every expected row is reported
 (PENDING/MISSING/MALFORMED/INVALID/OOM/FAILED/OK) and a short-of-all-OK run
 withholds the derived tables and exits nonzero.
 
+Post-pivot (Yixun 2026-08-05): every cell — VAN included, via FLAC_AR_VANCKPT.json
+— runs WITH ViT gradient checkpointing, because the no-ckpt recipe is
+OOM-infeasible for C8+. The old CKPT4 cell was the no-ckpt-vs-ckpt contrast; it is
+retired, and this collector can no longer render a "cost of disabling
+checkpointing" claim.
+
 Attribution (re-review B6): the per-orbit-pass fit is over the EXACT
 {FA1, C4L, C8} set. FA1 is ``fa_invariant`` with ``frame_avg_angles=[0.0]`` — the
 same cylindrical pose path and dispatch as C4L/C8 but exactly ONE ViT pass — so
@@ -41,11 +47,11 @@ WINDOW_LO, WINDOW_HI = 10, 30
 MATRIX_WORKERS = 6          # the worker count every matrix/spot cell must run with
 
 # ViT forward passes per training step (orbit size).
-N_ORBIT_PASSES = {"FA1": 1, "C4L": 4, "C8": 8, "C16": 16, "C32": 32, "CKPT4": 4, "VAN": 1}
+N_ORBIT_PASSES = {"FA1": 1, "C4L": 4, "C8": 8, "C16": 16, "C32": 32, "VAN": 1}
 # The fit needs exactly these three families at a rung — no subsets, and never
 # VAN (different pose path => structurally confounded, re-review B6).
 FIT_FAMILIES = ("FA1", "C4L", "C8")
-FAMILY_ORDER = ("VAN", "FA1", "C4L", "C8", "C16", "C32", "CKPT4")
+FAMILY_ORDER = ("VAN", "FA1", "C4L", "C8", "C16", "C32")
 MODES = ("matrix", "spot", "workers")
 
 _INT_FIELDS = ("jobid", "maxsteps", "ngpu", "mb", "workers", "rc", "peak_overall_mib", "valid")
@@ -537,24 +543,6 @@ def ddp_scaling(summaries):
     return out
 
 
-def grad_ckpt_cost(summaries):
-    """CKPT4 (ViT grad-ckpt ON) vs C4L (OFF) at the same rung, or ``None``."""
-    usable = {s["cell"]: s for s in _usable(summaries)}
-    for cell, ckpt in sorted(usable.items(), key=lambda kv: _cell_key(kv[0])):
-        if ckpt["family"] != "CKPT4":
-            continue
-        plain = usable.get(f"C4L_{ckpt['rung']}")
-        if plain is None:
-            continue
-        return {
-            "rung": ckpt["rung"], "ckpt_cell": cell, "no_ckpt_cell": plain["cell"],
-            "no_ckpt_speedup": plain["steps_s"] / ckpt["steps_s"],
-            "delta_s_per_step": 1.0 / ckpt["steps_s"] - 1.0 / plain["steps_s"],
-            "delta_peak_mib": plain["peak_overall_mib"] - ckpt["peak_overall_mib"],
-        }
-    return None
-
-
 # --------------------------------------------------------------------------- #
 # markdown rendering (deterministic: no clock, input order irrelevant)
 # --------------------------------------------------------------------------- #
@@ -680,18 +668,6 @@ def render_markdown(summaries, mode="matrix", complete=False, manifest=None, pol
                                  f"{_fmt(e['efficiency'], '.3f')} |")
         else:
             lines.append("_no usable cells._")
-
-        lines += ["", "## Gradient-checkpointing cost (CKPT4 vs C4L, same rung)", ""]
-        gc = grad_ckpt_cost(summaries)
-        if gc:
-            lines += [
-                f"- rung {gc['rung']}: disabling ViT grad-ckpt is "
-                f"**{_fmt(gc['no_ckpt_speedup'], '.3f')}x** faster "
-                f"({_fmt(gc['delta_s_per_step'], '.3f')} s/step of recompute removed).",
-                f"- VRAM delta (no-ckpt − ckpt-on): {_fmt(gc['delta_peak_mib'], 'd')} MiB.",
-            ]
-        else:
-            lines.append("_not estimable — the CKPT4/C4L pair is incomplete._")
 
     if rejected:
         lines += ["", "## Rejected rows (not from this run)", ""]
