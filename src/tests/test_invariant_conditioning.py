@@ -743,4 +743,3 @@ def test_train_mode_gradients_reach_the_conditioner(single_thread):
         assert grad is not None, f"{vit}: no gradient reached the conditioner"
         assert torch.isfinite(grad).all(), f"{vit}: non-finite gradient {grad}"
         assert float(grad.abs().max()) > 0.0, f"{vit}: zero gradient — the orbit is detached"
-
