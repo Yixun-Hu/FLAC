@@ -73,3 +73,15 @@ Resolves the Option-B C32 gate: all four arms (C4L, C8, C16, C32) launch at the 
 ### Summary
 
 Adopt the batched-orbit execution of `invariant_conditioning`: identical averaging math, reordered execution (large chunked ViT forwards instead of per-angle micro-forwards), equivalence-gated against the loop implementation, used by ALL arms. Expected 2–3× on orbit-dominated arms (C32 ~9 d → ~3–4.5 d, single segment). Launches wait for: implementation + review + real-data equivalence probe + spot re-measurement + re-pin + smoke re-run under the new path.
+
+## Query 6 (2026-08-06) — batched orbit adopted as disclosed recipe change
+
+### Verbatim
+
+> proceed
+
+*(context: batching shares the train-mode DINOv3 stochastic RoPE rescale draw across a chunk's angles instead of per-angle independent draws — reviewer finding; presented as proceed-with-disclosure vs revert-to-loop)*
+
+### Summary
+
+The batched-orbit implementation is adopted as part of the exp_11 recipe, disclosed: identical averaging arithmetic; chunk-shared train-mode RoPE draws; applied identically to all four arms and the C4L bridge (sole inferential comparator); historical C4 rows labeled legacy-loop; eval-mode equivalence gated (fp32, 14 cells) since the augmentation is off at eval.
