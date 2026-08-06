@@ -520,42 +520,23 @@ rm -f "$FIFO"
 
 # --- Q. W&B run identity verification (round-3 B7 residual) ------------------
 # The gate above proves WHO we are; this proves WHERE the run actually landed.
-# wandb writes <WANDB_DIR>/wandb/run-*/files/wandb-metadata.json plus the run
-# directory name; both are compared against the manifest, and a mismatch is a
-# provenance failure (class 7), not a footnote.
+# train.py:165 builds WandbLogger(project=, name=) with NO save_dir, so PL passes
+# its default save_dir='.' into wandb.init and that OVERRIDES the exported
+# WANDB_DIR: in job 3646734 the run went to $REPO/wandb/run-<ts>-<id> while this
+# check looked under $WANDB_DIR/wandb and found nothing (training was green, the
+# job still classified 7). We keep exporting WANDB_DIR — other wandb artifacts do
+# respect it — but locate the run by the collision-proof id WE generated, which
+# wandb embeds in the directory name, across both candidate roots. Exactly one
+# match is required; a mismatch is a provenance failure (class 7), not a footnote.
 WANDB_CHECK_RC=0
-python3 - "$WANDB_DIR" "$WANDB_RUN_ID" "$WANDB_ENTITY" "$NAME" "$EXPNAME" <<'PY' || WANDB_CHECK_RC=$?
-import glob, json, os, sys
-wandb_dir, want_id, want_entity, want_project, want_name = sys.argv[1:6]
-runs = sorted(glob.glob(os.path.join(wandb_dir, "wandb", f"run-*-{want_id}")))
-if not runs:
-    print(f"WANDB IDENTITY: no run directory for id {want_id} under {wandb_dir}/wandb")
-    sys.exit(1)
-meta_path = os.path.join(runs[-1], "files", "wandb-metadata.json")
-meta = {}
-if os.path.isfile(meta_path):
-    try:
-        meta = json.load(open(meta_path))
-    except Exception as exc:
-        print(f"WANDB IDENTITY: unreadable {meta_path}: {exc}")
-        sys.exit(1)
-bad = []
-for key, want in (("entity", want_entity), ("project", want_project), ("name", want_name)):
-    got = meta.get(key)
-    if got is not None and got != want:
-        bad.append(f"{key}={got!r} != manifest {want!r}")
-if bad:
-    print("WANDB IDENTITY MISMATCH: " + "; ".join(bad))
-    sys.exit(1)
-print(f"wandb run identity OK: id {want_id} at {runs[-1]} "
-      f"(entity {want_entity}, project {want_project}, name {want_name})")
-PY
+python3 "$EXPDIR/fa_orbit_wandb_readback.py" --run-id "$WANDB_RUN_ID" \
+  --root "$REPO" --root "$WANDB_DIR" \
+  --entity "$WANDB_ENTITY" --project "$NAME" --name "$EXPNAME" || WANDB_CHECK_RC=$?
 if [ "$WANDB_CHECK_RC" -ne 0 ]; then
   echo "W&B run identity could not be verified against the manifest - provenance failure"
 fi
 
 # --- R. classification (tested taxonomy; see fa_orbit_classify.py) ------------
---------
 CLASSIFY_OUT="$(python3 "$EXPDIR/fa_orbit_classify.py" --rc "$rc" --tee-rc "$tee_rc" --ngpu "$NGPU" \
   --maxsteps "$MAXSTEPS" --log "$TRAINLOG" --log-copy "$SAVEDIR_LOG" 2>&1)"
 final_rc=$?
@@ -576,12 +557,25 @@ FINAL_RECORD="$(
 )"
 printf '%s\n' "$FINAL_RECORD" | tee -a "$TRAINLOG" "$SAVEDIR_LOG" > /dev/null
 final_tee_rc="${PIPESTATUS[1]}"
-SLURM_OUT="${EXPDIR}/slurm_train_${SLURM_JOB_NAME:-job}_${SLURM_JOB_ID}.out"
+# The transcript path is NOT guessed from the #SBATCH pattern (job 3646734 logged
+# "slurm_train_job_3646734.out not found" because SLURM_JOB_NAME is unset inside
+# the job): ask Slurm itself.
+# --- BEGIN slurm-stdout-helper (guard-tested by fa_orbit_equivprobe_wrapper_test.sh) --
+parse_slurm_stdout() {   # `scontrol show job` text on stdin -> the StdOut path
+  tr ' ' '\n' | awk -F= '$1=="StdOut"{print $2; exit}'
+}
+slurm_stdout_path() {    # $1 = job id
+  scontrol show job "$1" 2>/dev/null | parse_slurm_stdout
+}
+# --- END slurm-stdout-helper --------------------------------------------------
+SLURM_OUT="$(slurm_stdout_path "$SLURM_JOB_ID")"
 PREFLIGHT_COPY_RC=0
-if [ -f "$SLURM_OUT" ]; then
+if [ -n "$SLURM_OUT" ] && [ -f "$SLURM_OUT" ]; then
   cp "$SLURM_OUT" "${SAVEDIR}/preflight_${TS}_jid${SLURM_JOB_ID}.out" || PREFLIGHT_COPY_RC=$?
+  [ "$PREFLIGHT_COPY_RC" -eq 0 ] && echo "preflight transcript duplicated from ${SLURM_OUT}"
 else
-  echo "NOTE: ${SLURM_OUT} not found; preflight transcript not duplicated"
+  echo "PREFLIGHT TRANSCRIPT: scontrol reported StdOut='${SLURM_OUT}' which is not a readable file"
+  PREFLIGHT_COPY_RC=1
 fi
 if [ "$final_tee_rc" -ne 0 ] || [ "$PREFLIGHT_COPY_RC" -ne 0 ] || [ "$WANDB_CHECK_RC" -ne 0 ]; then
   echo "LOG-PROVENANCE: final record tee rc=${final_tee_rc}, preflight copy rc=${PREFLIGHT_COPY_RC}, wandb identity rc=${WANDB_CHECK_RC}"

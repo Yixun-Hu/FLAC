@@ -110,6 +110,51 @@ expect "two result lines rejected"    5 "exactly 1"           "${TMP}/two_lines.
 expect "missing result line rejected" 5 "exactly 1"           "${TMP}/no_line.out"
 expect "probe nonzero rc rejected"    4 "verdict=FAIL"        "${TMP}/verdict_fail.out" 4
 
+echo "--- the arm launcher's Slurm-StdOut helper (job 3646734 fix) ---"
+LAUNCHER="${EXPDIR}/fa_orbit_train.sbatch"
+HELPER="${TMP}/stdout_helper.sh"
+sed -n '/# --- BEGIN slurm-stdout-helper/,/# --- END slurm-stdout-helper/p' "$LAUNCHER" > "$HELPER"
+if [ -s "$HELPER" ]; then
+  echo "PASS  extracted the slurm-stdout helper from the launcher"; PASS=$((PASS + 1))
+else
+  echo "FAIL  could not extract the slurm-stdout helper (markers missing)"; FAIL=$((FAIL + 1))
+fi
+# shellcheck disable=SC1090
+. "$HELPER"
+REAL_OUT="/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/slurm_train_exp11-smoke-C4L_3646734.out"
+CANNED="JobId=3646734 JobName=exp11-smoke-C4L
+   UserId=yh4742(1234) GroupId=grp(1234) MCS_label=N/A
+   StdErr=${REAL_OUT}
+   StdIn=/dev/null
+   StdOut=${REAL_OUT}
+   Power="
+GOT="$(printf '%s\n' "$CANNED" | parse_slurm_stdout)"
+if [ "$GOT" = "$REAL_OUT" ]; then
+  echo "PASS  StdOut parsed from scontrol text"; PASS=$((PASS + 1))
+else
+  echo "FAIL  StdOut parse got '${GOT}', want '${REAL_OUT}'"; FAIL=$((FAIL + 1))
+fi
+# StdErr must not be mistaken for StdOut even though it appears first
+GOT2="$(printf 'StdErr=/tmp/err.out StdOut=/tmp/right.out\n' | parse_slurm_stdout)"
+if [ "$GOT2" = "/tmp/right.out" ]; then
+  echo "PASS  StdErr is not mistaken for StdOut"; PASS=$((PASS + 1))
+else
+  echo "FAIL  StdErr/StdOut confusion: got '${GOT2}'"; FAIL=$((FAIL + 1))
+fi
+# no StdOut field -> empty, which the launcher treats as a provenance failure
+GOT3="$(printf 'JobId=1 JobName=x\n' | parse_slurm_stdout)"
+if [ -z "$GOT3" ]; then
+  echo "PASS  absent StdOut yields empty (launcher then fails class 7)"; PASS=$((PASS + 1))
+else
+  echo "FAIL  absent StdOut yielded '${GOT3}'"; FAIL=$((FAIL + 1))
+fi
+grep -q 'slurm_stdout_path "\$SLURM_JOB_ID"' "$LAUNCHER" \
+  && { echo "PASS  the launcher derives the transcript path from scontrol"; PASS=$((PASS + 1)); } \
+  || { echo "FAIL  the launcher still guesses the transcript path"; FAIL=$((FAIL + 1)); }
+grep -q 'fa_orbit_wandb_readback.py' "$LAUNCHER" \
+  && { echo "PASS  the launcher uses the id-based wandb readback"; PASS=$((PASS + 1)); } \
+  || { echo "FAIL  the launcher still greps \$WANDB_DIR only"; FAIL=$((FAIL + 1)); }
+
 echo
 echo "=== wrapper guard tests: ${PASS} passed, ${FAIL} failed ==="
 [ "$FAIL" -eq 0 ] || exit 1
