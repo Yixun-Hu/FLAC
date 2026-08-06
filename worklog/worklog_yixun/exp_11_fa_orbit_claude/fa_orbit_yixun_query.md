@@ -59,3 +59,17 @@ Resolves the P0 escalation (no-ckpt infeasible for C8+ on 46 GB L40s: C8 OOM eve
 ### Summary
 
 Resolves the Option-B C32 gate: all four arms (C4L, C8, C16, C32) launch at the P0-selected rung under the uniform grad-ckpt recipe (Q3), to the 40k matched-step primary budget. No open staging decisions remain; the sweep runs as a complete four-arm commission.
+
+## Query 5 (2026-08-06) — batched orbit acceleration
+
+### Verbatim
+
+> Is there any method to accelarate the C8, C16 and C32 training? 9 days is too long
+
+*(options presented: batch the orbit through the ViT in large chunks — P0 utilization traces showed ~30% GPU busy, latency-bound sequential micro-forwards — vs launch as-is)*
+
+> batch (option a)
+
+### Summary
+
+Adopt the batched-orbit execution of `invariant_conditioning`: identical averaging math, reordered execution (large chunked ViT forwards instead of per-angle micro-forwards), equivalence-gated against the loop implementation, used by ALL arms. Expected 2–3× on orbit-dominated arms (C32 ~9 d → ~3–4.5 d, single segment). Launches wait for: implementation + review + real-data equivalence probe + spot re-measurement + re-pin + smoke re-run under the new path.
