@@ -36,3 +36,6 @@
 - **R2:** 0/8 (endpoint). **R3: PASS** — C₄ spreads ≤0.0315 (T60 0.0009/C50 0.0001/EDT 0.0011), 45° control breaks (T60 +2.04, R@1 −2.05). Equivariance exact at the endpoint.
 - **No extension offer** (plan: requires VIABLE-or-better). Standing insight preserved: at matched steps ≤65k, fa-scratch ≈ vanilla on error metrics + ahead on retrieval (the 40k 5-seed 12/12 result + decomposition remain the paper-grade evidence); the endpoint draw does not retract those.
 - Next: closing package (results/analysis/HTML/closure review) — tomorrow morning.
+
+## 2026-08-05T20:56:36-04:00 — CLOSURE: results/analysis/HTML written; closure review launched
+- Verdict SHORT (fixed endpoint) + split retrieval win + R3 exact; standing 40k/decomposition evidence unchanged. Closing package committed; integrative closure review in flight; exp_10 closes on its verdict.
