@@ -94,3 +94,10 @@
 ## 2026-08-05T21:45:00-04:00 — Q4: C32 GO (Yixun) — full four-arm commission authorized
 
 - **Result** — staging fully resolved: C4L+C8+C16+C32 all launch post-(review ✓ + official matrix + pin commit + SMOKE). Projected C32 cost under ckpt ≈ 4–10 d (fitted slope from the official matrix will firm this up; vs 25–37 d under the original plan). Remaining gates are mechanical, no open user decisions.
+
+## 2026-08-05T22:55:00-04:00 — final fix round landed (abbff5a..d1477c1): launch preconditions 1–2 satisfied → OFFICIAL MATRIX
+
+- **Change** — NEW-1: `FLAC_AR_VANCKPT.json` (canonical + gc:true ×2, parsed-delta-tested); CKPT4 family fully retired; matrix = 12 all-ckpt cells. NEW-2: OUTPUT_ROOT pinned to production literal under Slurm (both scripts + submitters). B2/B3/B5/B7 residuals closed (fail-closed commit binding, flock ownership, checked pip-freeze/dual-copy/transcript with class-7, WANDB_ENTITY export + post-run run-identity verification). NEW-3 intent-before-sbatch with scancel-on-failure; NEW-4 FIFO hygiene; NEW-5 comment corrected + 2 s liveness bound restored.
+- **Command / Validation** — fresh committed evidence: 72 guard cases + 78 pytest green (`fa_orbit_2026-08-05_21-45-11_guardtests.log`, `fa_orbit_2026-08-05_21-45-57_pytest.log`). Coder incident disclosed and repaired in-round (two tracked P0 manifests deleted by a cleanup, restored via git checkout, zero deletions at commit — caught by the suite's tracked-state snapshot).
+- **Acceptance criteria (official matrix, pre-launch)** — 12/12 cells provenance-valid rows under one manifest at the pushed HEAD; OOM rows legal for orbit cells only if any; attribution fit {FA1,C4L,C8} per rung; VAN cells must RUN (VANCKPT semantics); COMMIT FREEZE from submission until the queue clears.
+- **Next** — matrix → collect → report → pin commit → combined reviewer sign-off (pins) → SMOKE → sign-off → launch all four arms.
