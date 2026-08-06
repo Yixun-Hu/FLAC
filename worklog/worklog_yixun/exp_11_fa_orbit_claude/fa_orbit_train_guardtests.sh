@@ -126,9 +126,11 @@ case_run "restart MAXSTEPS<=step" 2 "must exceed the resume step" \
 case_run "initial refuses an existing run dir" 2 "already exists" -- "${SMOKE_ENV[@]}" ARM=C8
 
 echo "--- D. commit-binding / sbatch-only gates (REAL mode) ---"
+# NOTE: no OUTPUT_ROOT here — under a (fake) SLURM_JOB_ID the launcher forces the
+# production literal, and the commit gate aborts long before anything is written.
 case_run "wrong EXPECT_SHA aborts" 2 "EXPECT_SHA" \
   -- ARM=C4L SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=99000000 \
-     EXPECT_SHA=0000000000000000000000000000000000000000 SLURM_JOB_ID=999999 "OUTPUT_ROOT=${OUT_ROOT}"
+     EXPECT_SHA=0000000000000000000000000000000000000000 SLURM_JOB_ID=999999
 case_run "real mode needs sbatch" 2 "must run under sbatch" \
   -- ARM=C4L SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=99000000 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}"
 
