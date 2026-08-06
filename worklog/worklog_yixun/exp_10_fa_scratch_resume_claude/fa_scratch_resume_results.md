@@ -2,7 +2,7 @@
 
 All evals: `eval_FLAC.py`, full unseen split (6,337/17), bf16, cfg 1.0, EMA; fa arm under `--cond-method fa_invariant`, vanilla comparators under vanilla eval (each arm's training protocol). 5 eval seeds (42–46) for every gated number.
 
-## Registered verdict: **SHORT** (R1 fixed-endpoint rule) · R3 equivariance PASS (exact) · candidate rule: no qualifier
+## Registered verdict: **SHORT** (R1 fixed-endpoint rule) · candidate rule: **no qualifier over the OBSERVED points** (S45000 screen was missed — cadence departure; all 10 observed points fail the bar, but full-window coverage is incomplete) · confirmatory R2/R3: **N/A — no candidate** (endpoint measurements below are CONTEXTUAL, per plan §2)
 
 ## R1 — fixed matched-step primary: fa B-F @67.5k vs P1 vanilla @67.5k (5-seed, both K)
 
@@ -13,19 +13,21 @@ All evals: `eval_FLAC.py`, full unseen split (6,337/17), bf16, cfg 1.0, EMA; fa 
 | fa B-F @67.5k | 8 | 10.041 ± 0.012 | 1.0050 ± 0.0012 | 42.107 ± 0.037 | 0.3178 ± 0.0002 | **6.666 ± 0.061** | **19.097 ± 0.089** | **26.732 ± 0.143** |
 | P1 vanilla @67.5k | 8 | **8.757 ± 0.011** | **0.9753 ± 0.0015** | **36.962 ± 0.060** | **0.3153 ± 0.0001** | 6.154 ± 0.168 | 17.942 ± 0.080 | 26.025 ± 0.135 |
 
-z-scores (BF−P1)/σ_c: K=1 T60 +21.3 / C50 +3.6 / EDT +13.6 / FD +2.8 / R@1 **+3.2** / R@5 **+5.2** / R@10 **+7.0**; K=8 T60 +79.0 / C50 +15.5 / EDT +72.5 / FD +13.9 / R@1 **+2.9** / R@5 **+9.6** / R@10 **+3.6**. **Split verdict: vanilla wins all decay/spectral metrics at the endpoint; fa wins ALL THREE retrieval metrics at BOTH K.** Tier per the bounded pre-registered rule (≥3/4 core metrics within 2σ_c): **SHORT**.
+z-scores (BF−P1)/σ_c: K=1 T60 +21.3 / C50 +3.6 / EDT +13.6 / FD +2.8 / R@1 **+3.2** / R@5 **+5.2** / R@10 **+7.0**; K=8 T60 +79.0 / C50 +15.5 / EDT +72.5 / FD +13.9 / R@1 **+2.9** / R@5 **+9.6** / R@10 **+3.6**. **Split verdict at the endpoint: vanilla wins the decay/spectral metrics (T60/C50/EDT/FD); fa wins all three retrieval metrics at both K.** Tier per the bounded pre-registered rule: **SHORT**. ONE TRAINING SEED per arm; five eval seeds.
 
-**Endpoint-draw caveat (pre-registered honesty, not a rescue):** the 67.5k B-F draw is band-worst — its own 42.5–65k screens ranged T60 8.58–9.42 / EDT 40.2–41.3 (62.5k: 8.582/1.0051/40.78/R6.11), and the endpoint (10.04/1.005/42.11) sits outside that band, the same endpoint-luck phenomenon documented for exp_07's B-V. The fixed rule reports the endpoint regardless; the window reading (R1b, exploratory) shows fa tracking vanilla's error metrics through 65k while leading retrieval from 50k on.
+**Endpoint-draw caveat (pre-registered honesty, not a rescue):** the 67.5k B-F draw is band-worst — its own 42.5–65k screens ranged T60 8.58–9.42 / EDT 40.2–41.3 (62.5k: 8.582/1.0051/40.78/R6.11), and the endpoint (10.04/1.005/42.11) sits outside that band, the same endpoint-luck phenomenon documented for exp_07's B-V. The fixed rule reports the endpoint regardless; the window reading (R1b, exploratory; single-eval-seed screens, no formal window statistic computed) shows fa tracking vanilla's error-metric band through 65k, with R@1 leads at some matched points (50k, 62.5k) and deficits at others (57.5k, 60k) — band-interleaved, not a uniform lead.
 
-## R2 — vs released Table-1: 0/8 at the endpoint (worst-draw; not the arm's representative point)
+## R2 (contextual — no registered candidate): endpoint vs released Table-1 = 0/8 (worst-draw point)
 
-## R3 — equivariance at the endpoint: PASS (exact)
-C₄ spreads (K=8 s42): T60 0.0009 / C50 0.0001 / EDT 0.0011 / R@1 0.0315; 45° control breaks (T60 +2.04, C50 +0.14, R@1 −2.05). fa is C₄-exact by construction and measured.
+## R3 (contextual — no registered candidate): conditioning C₄-exact by construction; endpoint metrics near-invariant
+C₄ spreads (K=8 s42): T60 0.0009 / C50 0.0001 / EDT 0.0011 / FD 0 / R@1 0.0315 / R@5 0.0473 / R@10 0.0631; 45° control breaks (T60 +2.04, C50 +0.14, R@1 −2.05). Decay/spectral metrics are ≤1e-3-invariant; retrieval metrics vary at the few-hundredths level (sampling noise scale).
 
 ## Standing matched-step evidence (from the exp_10 program, unaffected by the endpoint draw)
-- **40k, 5-seed, 12/12 cells: fa beats vanilla at matched recipe+steps** (T60 8.202 vs 8.993 K=8; all metrics, both K).
-- **Decomposition (5-seed 2×2):** vanilla+fa-eval DEGRADES (R@1 5.17→4.05) ⇒ fa's advantage is **training-side invariance**, not inference ensembling; both off-diagonal protocol-mismatch cells collapse (fa+vanilla-eval: 10.652/2.0817/80.86/R0.68 K=8).
+- **40k, 5-seed: fa beats vanilla at matched recipe+steps on 12 of 14 displayed cells** (T60/C50/EDT/R@1/R@5/R@10 at both K; **FD is the exception — worse at both K**: 0.3287 vs 0.3186 K1, 0.3332 vs 0.3218 K8).
+- **Decomposition (5-seed 2×2):** inference-only fa-averaging does NOT explain the advantage — applied to vanilla weights it mildly improves T60/C50 but worsens EDT/FD and degrades retrieval (R@1 5.17→4.05); the fa-trained model's own protocol-mismatch cell collapses outright (10.652/2.0817/80.86/R0.68 K=8). Evidence of a strong training×evaluation interaction; consistent with (not clean causal proof of) a training-side invariance benefit. One training seed per arm.
 - Costs: fa ≈ 3.5× training step time; 4× conditioning inference (cacheable per scene).
 
 ## Reproduction
 `bf_resume_launch.sh` (INITIAL sha-pinned anchor `5319feb4…` / RESTART namespace-gated), wandb `FLAC_exp10_BF` (`bm9t` leg), screens + gate JSONs beside `outputs_FLAC/exp10_BF/.../checkpoints/`; commands in `fa_scratch_resume_command.md`. Multi-machine note: a cluster copy of exp_10 stalled at 65k post-wipe (see worklog reconciliation) — all numbers here are from the completed original run on the A6000 box.
+
+**Aggregation note:** the P1@67.5k K=8 row uses `exp07_P1_selcurve_S67500.json` as its seed-42 member (no `gate67_K8_seed42` file exists; the selcurve eval is the identical protocol/seed) + gate67 seeds 43–46.

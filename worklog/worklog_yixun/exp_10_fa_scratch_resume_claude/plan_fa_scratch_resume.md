@@ -1,6 +1,6 @@
 # Plan — exp_10 fa_scratch_resume (B-F resumed from 40k under the correct protocol)
 
-**Author:** main session (Fable 5 seat) · **Rev 2** (2026-08-01; all plan-review findings applied — `fa_scratch_resume_codex_plan_review.md`) · **Status:** AWAITING Yixun approval.
+**Author:** main session (Fable 5 seat) · **Rev 2** (2026-08-01; all plan-review findings applied — `fa_scratch_resume_codex_plan_review.md`) · **Status:** APPROVED by Yixun 2026-08-01 ("Approve — proceed"); executed; closed 2026-08-05.
 **Commission (Q1):** "resume B-F from 40k as exp_10."
 
 ## 1. Design
