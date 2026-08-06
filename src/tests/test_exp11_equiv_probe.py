@@ -58,9 +58,24 @@ def test_expected_cells_cover_the_review_matrix():
         assert ("eval", n, 8) in cells
     # the evaluation schedules: full batch and the 6,337-split tail
     assert ("eval", 4, 64) in cells and ("eval", 32, 1) in cells
-    # train-mode qualification cells
-    assert ("train", 4, 8) in cells and ("train", 32, 8) in cells
+    # train-mode qualification: C4 only (see below)
+    assert ("train", 4, 8) in cells
     assert len(cells) == len(set(cells)), "duplicate cells in the plan"
+    assert len(cells) == 13
+
+
+def test_train_qualification_excludes_c32():
+    """Job 3646616: train-C32 OOMed at 42.3 GiB inside the LOOP reference.
+
+    The train-mode cell holds a full grad graph for BOTH paths' orbits, and C32's
+    only exists distributed (micro-8 x 8 ranks) in the real run — a single 46 GB
+    L40 cannot host it and does not need to. C32's train-path memory and
+    throughput are qualified by the 8x8 P0 spot cell on the real trainer, which
+    is already a launch precondition."""
+    cells = P.expected_cells()
+    assert ("train", 32, 8) not in cells
+    assert [c for c in cells if c[0] == "train"] == [("train", 4, 8)]
+    assert P.TRAIN_ORBITS == (4,)
 
 
 def test_orbit_angles():

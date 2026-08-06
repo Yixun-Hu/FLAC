@@ -13,7 +13,7 @@ What this probe can and cannot prove (review findings 1, 2, 4):
   the evaluation schedules B=64 (full batch) and B=1 (the 6,337-split tail case,
   the only evaluation batch whose grouping actually changes).
 
-* **TRAIN-MODE QUALIFICATION (recorded, NOT gated).** In train mode the RoPE
+* **TRAIN-MODE QUALIFICATION (recorded, NOT gated; C4 only).** In train mode the RoPE
   rescale is drawn once per forward, so chunked angles share a draw where the
   loop gave them independent ones. That is a DISCLOSED RECIPE CHANGE, applied
   identically to every arm including the contemporaneous C4L bridge; it is not a
@@ -25,7 +25,8 @@ What this probe can and cannot prove (review findings 1, 2, 4):
 
 VRAM requalification is NOT this probe's job: the batched peak is measured by the
 8x8 P0 spot cells (C4L/C8/C16/C32), which exercise the real train path including
-backward and checkpoint recomputation via ``p0_runner.py``.
+backward and checkpoint recomputation via ``p0_runner.py``. That is also why the
+train half stops at C4 — see ``TRAIN_ORBITS``.
 
 Fail-closed: every expected cell must produce both ViT ids with all-finite
 tensors, and an empty or short result set is a FAIL. Emits exactly one
@@ -47,7 +48,14 @@ REL_ABS_FLOOR = 1e-8         # elementwise rel = |a-b| / max(|b|, floor)
 EVAL_ORBITS = (4, 8, 16, 32)
 EVAL_TRAIN_BATCH = 8
 EVAL_SCHEDULE_BATCHES = (64, 1)
-TRAIN_ORBITS = (4, 32)
+# Train-mode qualification is C4 ONLY. A train cell holds a full gradient graph
+# for BOTH the batched and the loop orbit; at C32 that is ~42.3 GiB and it OOMed
+# inside the loop reference on a 46 GB L40 (job 3646616). That memory shape only
+# exists distributed in the real run (micro-8 per rank x 8 ranks), so a
+# single-GPU probe cannot host it and does not need to: C32's train-path memory
+# and throughput are qualified by the 8x8 P0 spot cell on the real trainer, which
+# is already a launch precondition.
+TRAIN_ORBITS = (4,)
 N_SAMPLES = 8
 
 # Pinned DINOv3 initialiser (same constants as assert_arm_configs_exp11.py).
@@ -266,7 +274,12 @@ def run_cell(cond, md, device, angles, mode, use_bf16, seed=1234):
                 else torch.autocast(device_type=device, enabled=False))
     grad = torch.enable_grad() if train else torch.no_grad()
 
-    outs = {}
+    # Memory hygiene (job 3646616): keep ONE path's graph resident at a time. Each
+    # side is run, immediately reduced to detached snapshots (plus, for the
+    # batched side, its backward), then its graph is dropped and the allocator
+    # cache released before the other side starts. Peak is therefore one path,
+    # not two.
+    snapshots, grads_finite = {}, None
     for label in ("batched", "loop"):
         torch.manual_seed(seed)           # identical RNG state before each side
         if device == "cuda":
@@ -274,25 +287,31 @@ def run_cell(cond, md, device, angles, mode, use_bf16, seed=1234):
         with grad, autocast:
             got = (yr.invariant_conditioning(cond, md, device, angles) if label == "batched"
                    else reference(cond, md, device, angles))
-        outs[label] = {k: got[k][0] for k in VIT_IDS if k in got}
+        side = {k: got[k][0] for k in VIT_IDS if k in got}
+        if train and label == "batched":
+            loss = sum(t.float().pow(2).mean() for t in side.values())
+            cond.zero_grad(set_to_none=True)
+            loss.backward()
+            grads = [p.grad for p in cond.parameters() if p.grad is not None]
+            grads_finite = bool(grads) and all(torch.isfinite(g).all().item() for g in grads)
+            cond.zero_grad(set_to_none=True)
+            del loss, grads
+        snapshots[label] = {k: v.detach().float().clone() for k, v in side.items()}
+        del got, side                      # release this path's graph before the next
+        if device == "cuda":
+            torch.cuda.empty_cache()
 
     finite = all(torch.isfinite(t).all().item()
-                 for side in outs.values() for t in side.values())
+                 for side in snapshots.values() for t in side.values())
     ids = {}
     for vit in VIT_IDS:
-        if vit not in outs["batched"] or vit not in outs["loop"]:
+        if vit not in snapshots["batched"] or vit not in snapshots["loop"]:
             continue
-        max_abs, rel_norm, rel_max = deviation(outs["batched"][vit], outs["loop"][vit])
+        max_abs, rel_norm, rel_max = deviation(snapshots["batched"][vit], snapshots["loop"][vit])
         ids[vit] = {"max_abs": max_abs, "rel_norm": rel_norm, "rel_max": rel_max}
-
-    grads_finite = None
-    if train:
-        loss = sum(t.float().pow(2).mean() for t in outs["batched"].values())
-        cond.zero_grad(set_to_none=True)
-        loss.backward()
-        grads = [p.grad for p in cond.parameters() if p.grad is not None]
-        grads_finite = bool(grads) and all(torch.isfinite(g).all().item() for g in grads)
-        cond.zero_grad(set_to_none=True)
+    del snapshots
+    if device == "cuda":
+        torch.cuda.empty_cache()
     return {"ids": ids, "finite": finite, "grads_finite": grads_finite,
             "gated": mode == "eval" and not use_bf16}
 

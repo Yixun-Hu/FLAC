@@ -23,13 +23,20 @@
 #
 # Submit:
 #   sbatch --job-name=exp11-equivprobe --gres=gpu:l40:1 --cpus-per-task=15 \
-#          --mem=24G --time=00:10:00 \
+#          --mem=24G --time=00:20:00 \
 #          --export=ALL,EXPECT_SHA=$(git rev-parse HEAD) \
 #          worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_equiv_probe.sbatch
 # ============================================================================
+# The first two attempts died without a GPU because these directives were absent
+# and only the submit line carried them; the file is now self-sufficient, and CLI
+# flags still override (the P0 convention).
 #SBATCH --partition=all
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
+#SBATCH --gres=gpu:l40:1
+#SBATCH --cpus-per-task=10
+#SBATCH --mem=24G
+#SBATCH --time=00:20:00
 #SBATCH --output=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/slurm_equivprobe_%x_%j.out
 
 set -uo pipefail
@@ -47,7 +54,7 @@ die() { echo "$1"; exit "${2:-2}"; }
 JID="${SLURM_JOB_ID:?must run under sbatch}"
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 : "${EXPECT_SHA:?EXPECT_SHA (full reviewed commit sha) must be exported at submission - abort}"
-EXPECT_CELLS="${EXPECT_CELLS:-14}"      # len(expected_cells()): 4 + 8 + 2 (see the probe)
+EXPECT_CELLS="${EXPECT_CELLS:-13}"      # len(expected_cells()): 4 + 8 eval + 1 train-C4
 EXPECT_SAMPLES="${EXPECT_SAMPLES:-8}"
 # Optional pin of the exact idx:relpath identities; when unset the wrapper still
 # requires EXPECT_SAMPLES distinct idx:relpath tokens (NEW-3).

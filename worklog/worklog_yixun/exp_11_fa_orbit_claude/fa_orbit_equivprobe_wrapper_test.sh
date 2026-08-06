@@ -43,7 +43,7 @@ IDS="0:a.wav,1:b.wav,2:c.wav,3:d.wav,4:e.wav,5:f.wav,6:g.wav,7:h.wav"
 
 # a canned probe stdout; $1 overrides fields
 canned() {
-  local verdict="${1:-PASS}" cells="${2:-14/14}" cfg="${3:-$CFG_SHA12}" \
+  local verdict="${1:-PASS}" cells="${2:-13/13}" cfg="${3:-$CFG_SHA12}" \
         ids="${4:-$IDS}" nsamples="${5:-8}" device="${6:-cuda}"
   printf 'probe: warming up\n'
   printf 'EQUIVPROBE cfg=%s vit_pin=114c13799502/4610ad75edef device=%s nsamples=%s ' \
@@ -63,7 +63,7 @@ PROBE_CFG="\${EXPDIR}/FLAC_AR_BF_C32.json"
 LOG="${TMP}/probe.log"
 CFG_SHA12="${CFG_SHA12}"
 EXPECT_SAMPLES=8
-EXPECT_CELLS=14
+EXPECT_CELLS=13
 EXPECT_IDS="${IDS}"
 TS=testts
 SLURM_JOB_ID=999
@@ -88,11 +88,11 @@ expect() {  # <name> <want-rc> <want-substring> <stub-out-file> [stub-rc]
 
 canned                                   > "${TMP}/ok.out"
 canned FAIL                              > "${TMP}/verdict_fail.out"
-canned PASS 13/14                        > "${TMP}/short_cells.out"
-canned PASS 14/14 deadbeef0000           > "${TMP}/wrong_cfg.out"
-canned PASS 14/14 "$CFG_SHA12" "0:x.wav" > "${TMP}/wrong_ids.out"
-canned PASS 14/14 "$CFG_SHA12" "$IDS" 4  > "${TMP}/wrong_nsamples.out"
-canned PASS 14/14 "$CFG_SHA12" "$IDS" 8 cpu > "${TMP}/cpu_device.out"
+canned PASS 12/13                        > "${TMP}/short_cells.out"
+canned PASS 13/13 deadbeef0000           > "${TMP}/wrong_cfg.out"
+canned PASS 13/13 "$CFG_SHA12" "0:x.wav" > "${TMP}/wrong_ids.out"
+canned PASS 13/13 "$CFG_SHA12" "$IDS" 4  > "${TMP}/wrong_nsamples.out"
+canned PASS 13/13 "$CFG_SHA12" "$IDS" 8 cpu > "${TMP}/cpu_device.out"
 { canned; canned; }                      > "${TMP}/two_lines.out"
 printf 'probe crashed before the result\n' > "${TMP}/no_line.out"
 
