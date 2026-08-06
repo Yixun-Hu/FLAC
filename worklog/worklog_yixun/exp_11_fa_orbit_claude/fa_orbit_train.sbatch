@@ -64,12 +64,12 @@ PINNED_MB="8"                              # micro-batch per GPU (8 x 8 = 64 = e
 PINNED_NGPU="8"                            # ranks
 PINNED_MAXSTEPS=40000                      # plan §2 primary matched-step budget
 PINNED_CHECKPOINT_EVERY=2500               # exp_07 cadence
-PINNED_MIN_FREE_MB="35500"                 # single floor = max across arms: C32 peak 30,817 + ~4.7 GB margin (reviewer-allowed max-floor form)
-PINNED_TIME_LIMIT_C4L="42:00:00"           # 40k/0.3604 = 30.8 h x1.3 + startup
-PINNED_TIME_LIMIT_C8="80:00:00"            # 40k/0.1863 = 59.6 h x1.3 + startup
-PINNED_TIME_LIMIT_C16="150:00:00"          # 40k/0.0982 = 113.2 h x1.3 + startup (< 7 d partition cap)
-PINNED_TIME_LIMIT_C32="167:00:00"          # partition cap 7 d; 40k needs ~215 h => PRE-REGISTERED 2-segment run: wall-stop ~step 30-31k, RESTART to 40k (~2.5 d)
-PINNED_P0_MANIFEST_SHA256="b2aeaf9c1e797d5268f02faa594cc416cb59c113e8c3a8be70ad7f34e242208e"  # p0_manifest_1334933 (official matrix); spot manifest 9bf1936 sha256 recorded in the pin commit message
+PINNED_MIN_FREE_MB="36500"                 # batched C32 peak 32,063 MiB + ~4.4 GB margin (max-across-arms floor)
+PINNED_TIME_LIMIT_C4L="24:00:00"           # batched 40k/0.6598 = 16.8 h x1.3 + startup
+PINNED_TIME_LIMIT_C8="35:00:00"            # batched 40k/0.4351 = 25.5 h x1.3 + startup
+PINNED_TIME_LIMIT_C16="60:00:00"           # batched 40k/0.2454 = 45.3 h x1.3 + startup
+PINNED_TIME_LIMIT_C32="112:00:00"          # batched 40k/0.1308 = 84.9 h x1.3 + startup — SINGLE segment (no wall-split needed)
+PINNED_P0_MANIFEST_SHA256="72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b"  # batched matrix manifest bd96575-…-a3ed28eb; spot manifest sha in the commit message
 # Environment pins (round-3 B6) — measured on the reviewed environment:
 PINNED_PYTHON="/n/fs/gatrdp/envs/flac/bin/python"
 PINNED_PL_VERSION="2.1.0"
