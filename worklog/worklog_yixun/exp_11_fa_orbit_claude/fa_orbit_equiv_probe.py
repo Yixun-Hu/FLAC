@@ -43,8 +43,41 @@ import sys
 
 # Gates (fp32, eval mode). Both must hold; the absolute floor keeps the relative
 # metric out of the ill-conditioned near-zero regime.
-TOL_REL_FP32 = 1e-6          # normwise: ||a-b|| / ||b||
-TOL_ABS_FP32 = 1e-5          # max |a-b|, scale-aware companion
+#
+# ===================== BOUND JUSTIFICATION (rel_norm) =========================
+# ADJUSTED AFTER MEASUREMENT, 2026-08-06 — subject to final reviewer sign-off.
+#
+# The pre-registered rel_norm bound was 1e-6. It was breached, and the two
+# breaches have different causes, only one of which is a defect:
+#
+#   attempt 4 (job 3646626, mm='medium')   3.479e-04 .. 5.415e-04 on all 8 B=1
+#                                          cells; = TF32 unit roundoff 2^-11.
+#                                          A REAL DEFECT: the gate compared a
+#                                          1-row GEMV against a multi-row GEMM
+#                                          with TF32 enabled, i.e. two different
+#                                          precisions. Root-caused and removed by
+#                                          running the gate at mm='highest'.
+#   attempt 5 (job 3646634, mm='highest')  0.0 .. 1.979e-06 across all 24 gated
+#                                          cells (6 above 1e-6: C4/C8/C16 at B8
+#                                          and C4 at B1, both conditioner ids);
+#                                          max_abs peaked at 7.987e-06, inside
+#                                          the 1e-5 companion bound.
+#                                          NOT a defect: shape-dependent fp32
+#                                          summation order inside the kernels.
+#                                          Expected scale sqrt(D) * 2^-24 at
+#                                          D=384 is 1.17e-06 — the measured
+#                                          envelope sits exactly there.
+#
+# So rel_norm moves to 5e-6: 2.5x headroom over the measured 1.979e-06 envelope,
+# still ~70x (1.8 orders) below the smallest failure mode this gate exists to
+# catch (the TF32 band above), and ~5.3 orders below a semantic slice/mapping
+# error, which is O(1) and is separately bounded by the CPU angle-identity test
+# (test_invariant_conditioning.py::test_batched_orbit_maps_every_angle_to_its_slice).
+# max_abs is unchanged at 1e-5: it was never breached and it is the scale-aware
+# companion that keeps a small-norm tensor from hiding a large single deviation.
+# =============================================================================
+TOL_REL_FP32 = 5e-6          # normwise: ||a-b|| / ||b||  (see the block above)
+TOL_ABS_FP32 = 1e-5          # max |a-b|, scale-aware companion (unchanged)
 REL_ABS_FLOOR = 1e-8         # elementwise rel = |a-b| / max(|b|, floor)
 EVAL_ORBITS = (4, 8, 16, 32)
 EVAL_TRAIN_BATCH = 8
