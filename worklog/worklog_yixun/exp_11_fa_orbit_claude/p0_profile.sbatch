@@ -167,16 +167,19 @@ else:
     elif angles != [k * 360.0 / want for k in range(want)]:
         bad.append(f"frame_avg_angles are not the uniform C{want} orbit")
 vits = [c for c in cfg["model"]["conditioning"]["configs"] if c["type"] == "ViTCoordinates"]
-if len(vits) != 2:
-    bad.append(f"expected 2 ViT conditioners, got {len(vits)}")
-want_gc = (fam == "CKPT4")
+if sorted(c["id"] for c in vits) != ["context_poses_vit", "source_vit"]:
+    bad.append(f"ViT conditioner ids {sorted(c['id'] for c in vits)} != the expected two")
+# Post-P0 (Yixun 2026-08-05): the no-ckpt recipe is OOM-infeasible for C8+ (45,457
+# MiB even at micro-8), so EVERY family runs checkpointed. The key must EXIST and
+# be literally True — an absent leaf is not an implicit answer here.
 for c in vits:
-    gc = c["config"].get("gradient_checkpointing", False)
-    if gc is not want_gc:                      # strict identity: 0/1 are not booleans
-        bad.append(f"{c['id']}: gradient_checkpointing={gc!r} (want {want_gc})")
+    if "gradient_checkpointing" not in c["config"]:
+        bad.append(f"{c['id']}: gradient_checkpointing key absent (want literal true)")
+    elif c["config"]["gradient_checkpointing"] is not True:
+        bad.append(f"{c['id']}: gradient_checkpointing={c['config']['gradient_checkpointing']!r} (want True)")
 if bad:
     sys.exit("CELL/CONFIG GATE: " + "; ".join(bad))
-print(f"gate OK: {fam} config has the expected orbit and grad-ckpt={want_gc}")
+print(f"gate OK: {fam} config has the expected orbit and grad-ckpt=True")
 PY
 
 # --- Lightning must NOT see a SLURM cluster environment (review B1) ---
@@ -269,14 +272,29 @@ BADTICKS="$(awk -v want="$NGPU" -v us=",${UUID_CSV}," '
     if (ut !~ /^[0-9]+(\.[0-9]+)?$/ || pw !~ /^[0-9]+(\.[0-9]+)?$/) { bad[t]=1; next }
     if ((t SUBSEP u) in seen) { bad[t]=1; next }        # duplicate UUID in one tick
     seen[t SUBSEP u]=1; n[t]++ }
-  END { nbad=0; for (t in n) if (n[t] != want && !(t in bad)) nbad++; for (t in bad) nbad++; print nbad+0 }' "$PEAKCSV")"
+  END { maxt = -1; for (t in n) if (t+0 > maxt) maxt = t+0
+        nbad = 0
+        # a short FINAL tick is benign: the stop-file can land mid-sample, and the
+        # tick is outside the measured window anyway. Every earlier tick must be complete.
+        for (t in n) if (n[t] != want && !(t in bad) && t+0 != maxt) nbad++
+        for (t in bad) nbad++
+        print nbad+0 }' "$PEAKCSV")"
 if [ "$NTICKS" -lt 2 ] || [ "$BADTICKS" -ne 0 ]; then
   echo "poller CSV invalid (ticks=${NTICKS}, incomplete/bad ticks=${BADTICKS}, want ${NGPU} uuid rows per tick)"
   MEAS_OK=0
 fi
-LAST_TS="$(awk '{for(i=1;i<=NF;i++){split($i,a,"=");if(a[1]=="ts")v=a[2]}} END{print v+0}' "$PEAKCSV")"
-LATE="$(awk -v a="$LAST_TS" -v b="$T1" 'BEGIN{print (b-a > 2.0) ? 1 : 0}')"
-if [ "$LATE" -eq 1 ]; then echo "poller stopped ${LAST_TS} > 2s before train end ${T1} - measurement INVALID"; MEAS_OK=0; fi
+# NOTE (diagnosed 2026-08-05 from the three rc=5 8-GPU cells): this used to be
+# `END{print v+0}`, and awk formats a non-integral number with OFMT %.6g — an
+# epoch timestamp (~1.786e9) was therefore SNAPPED to 1785970000, an error of up
+# to ~5000 s. The liveness comparison then measured rounding noise, not poller
+# health: it failed spuriously for every run that ended after the snap point (the
+# 8-GPU cells, which queued longest and so ran latest) and passed VACUOUSLY for
+# every run that ended before it. The tick data of all three cells was complete
+# (76x8 = 608 rows, every tick with exactly 8 UUIDs). Fix: print full precision,
+# and use a 5 s margin (one 0.5 s poll interval + NCCL/teardown slack).
+LAST_TS="$(awk '{for(i=1;i<=NF;i++){split($i,a,"=");if(a[1]=="ts")v=a[2]}} END{printf "%.6f", v+0}' "$PEAKCSV")"
+LATE="$(awk -v a="$LAST_TS" -v b="$T1" 'BEGIN{print (b-a > 5.0) ? 1 : 0}')"
+if [ "$LATE" -eq 1 ]; then echo "poller stopped ${LAST_TS} > 5s before train end ${T1} - measurement INVALID"; MEAS_OK=0; fi
 
 PEAK="$(awk 'BEGIN{m=-1} {for(i=1;i<=NF;i++){split($i,a,"=");if(a[1]=="mem" && a[2] ~ /^[0-9]+$/ && a[2]+0>m) m=a[2]+0}} END{print m}' "$PEAKCSV")"
 PER_UUID="$(awk '{u="";m="";for(i=1;i<=NF;i++){split($i,a,"=");if(a[1]=="uuid")u=a[2];if(a[1]=="mem")m=a[2]}

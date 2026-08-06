@@ -1,63 +1,52 @@
 #!/bin/bash
 # ============================================================================
-# exp_11 ARM TRAINING LAUNCHER — one orbit arm, one rung, plan §5 Round 2 + §10.
+# exp_11 ARM TRAINING LAUNCHER — one orbit arm at the ONE pinned P0 rung.
 #
-# Reuses the machinery already reviewed elsewhere: torchrun + SLURM-env
-# neutralization + world-size gate + UUID poller provenance from
-# p0_profile.sbatch; wandb identity gate, DINOv3 pin and init-identity gate from
-# exp_07's bf_scratch_launch.sh; restart-lineage gating from exp_10's
-# bf_resume_launch.sh. The arms train with train.py itself (parity: p0_runner.py
-# is profiling-only) — verified rank-safe under torchrun, see "torchrun" below.
+# Round-3 review (fa_orbit_codex_code_r3_review.md) rebuilt this script: the
+# recipe is now literally pinned rather than operator-supplied, restarts get
+# exp_10's torch.load depth, the run directory is locked, the exit taxonomy is a
+# tested function, and the environment/W&B destinations are gated.
 #
-# SUBMIT CONTRACT (the operator passes the resources; #SBATCH lines cannot read
-# the environment, and the wall limit comes from the P0-measured rate):
+# RECIPE (post-P0, Yixun 2026-08-05): every arm runs WITH ViT gradient
+# checkpointing. P0 measured the no-ckpt recipe INFEASIBLE for C8 and richer
+# orbits (OOM at micro-8, 45,457 MiB) while checkpointed peaks at ~9.4 GB, so all
+# four arms share one checkpointed rung and the ONLY delta between them is the
+# averaging orbit.
 #
-#   sbatch --job-name=exp11-<ARM>-train \
-#          --gres=gpu:l40:<N> --cpus-per-task=$((8+7*N)) --mem=$((12*N+12))G \
-#          --time=<from the P0 report: 40000 / steps_s + startup margin> \
-#          --export=ALL,ARM=<C4L|C8|C16|C32>,RUNG=<16x4|8x8>,EXPECT_SHA=<full sha>,\
-# MIN_FREE_MB=<from the P0 per-GPU peak + margin>[,MAXSTEPS=40000][,RESUME_CKPT=..,EXPECTED_STEP=..] \
-#          worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_train.sbatch
+# SUBMIT: never by hand — `fa_orbit_submit.sh <ARM>` derives every Slurm flag
+# from the pins below, so an operator cannot mis-enter --gres/--mem/--time.
+#   ARM                C4L | C8 | C16 | C32
+#   EXPECT_SHA         full reviewed commit sha (required)
+#   RESUME_CKPT/EXPECTED_STEP   crash restart only (see LINEAGE)
+#   SMOKE=1            the reviewed multi-GPU smoke (see SMOKE MODE)
+# RUNG / MAXSTEPS / MIN_FREE_MB / time limit are NOT operator inputs any more.
 #
-#   ARM          C4L | C8 | C16 | C32          (FA1/VAN are P0 cells, never arms)
-#   RUNG         16x4 | 8x8                    (32x2 is BARRED: C4L OOMed at that
-#                                               rung without grad-ckpt in the P0
-#                                               smoke — a measured bound)
-#   MAXSTEPS     default 40000 (the plan's primary matched-step budget)
-#   MIN_FREE_MB  OPERATOR INPUT from the P0 per-GPU peak of this arm+rung plus
-#                margin; no default, because guessing it would defeat the gate
-#   TIME LIMIT   OPERATOR INPUT computed from the P0 steps/s at launch time
-#   RESUME_CKPT / EXPECTED_STEP  crash restart only (exp_10 rules, below)
+# LINEAGE (fail-closed, exactly two stories):
+#   INITIAL  no RESUME_CKPT, EXPECTED_STEP unset/0, run directory absent.
+#   RESTART  EXPECTED_STEP > 0 AND RESUME_CKPT inside this arm's OWN
+#            <RUNDIR>/checkpoints/ AND the checkpoint passes
+#            fa_orbit_ckpt_preflight.py (embedded step/config/optimizer/
+#            scheduler/EMA + binding to the original launch manifest).
 #
-# LINEAGE (fail-closed, exactly two admissible stories):
-#   INITIAL  EXPECTED_STEP unset/0 and no RESUME_CKPT; the arm's run directory
-#            must not already exist (no clobber of a live or finished run).
-#   RESTART  EXPECTED_STEP > 0 AND RESUME_CKPT inside this arm's OWN save-dir
-#            (only this run writes there) AND MAXSTEPS > EXPECTED_STEP.
+# WORLD SIZE: no absence timer (round-3 B4 — a cold start with W&B has no
+# measured bound, and `scancel` bypassed classification). Instead: a watcher that
+# terminates the torchrun process group the moment Lightning reports the WRONG
+# rank count, plus the post-hoc classification in fa_orbit_classify.py.
 #
-# WORLD-SIZE PROTECTION (two layers, because a silent world-size-1 run would burn
-# days and produce BN-16/BN-8 statistics instead of BN-64):
-#   1. an early-abort WATCHDOG: a background timer scancels the job if Lightning's
-#      literal "All distributed processes registered. Starting with <N> processes"
-#      has not appeared in the training log within WATCHDOG_SEC (default 300);
-#   2. a POST-HOC gate on the same literal after training exits (rc 6 if absent).
-#   Training itself runs in the FOREGROUND through a synchronous tee, so the log
-#   both layers read is flushed by the time they read it.
+# torchrun: PL 2.1.0 elects TorchElastic before SLURMEnvironment, so the ranks
+# torchrun starts are used as-is; the SLURM rank variables are unset so
+# SLURMEnvironment cannot claim the job. train.py is unmodified and rank-safe:
+# WandbLogger.experiment is @rank_zero_experiment, and ModelCheckpoint.setup
+# broadcasts rank 0's dirpath to every rank.
 #
-# torchrun: Lightning 2.1.0 elects TorchElastic before SLURMEnvironment
-# (accelerator_connector.py:420), so the ranks torchrun starts are used as-is;
-# the SLURM rank variables are unset so SLURMEnvironment cannot claim the job and
-# stall waiting for ranks srun never launched. train.py needs NO modification
-# under this launcher: WandbLogger.experiment is @rank_zero_experiment (ranks > 0
-# get a _DummyExperiment, so train.py's `isinstance(logger.experiment.id, str)`
-# is simply False there and no rank-1 wandb run is created), logger.watch is
-# @rank_zero_only, and ModelCheckpoint.setup broadcasts rank 0's resolved dirpath
-# to every rank (model_checkpoint.py:265-267), so all ranks write one checkpoint
-# tree. rank_zero_only.rank reads RANK first, which torchrun sets.
+# SMOKE MODE (SMOKE=1): the reviewed pre-launch smoke. Bypasses ONLY the "pins
+# must be pinned" gate; every other gate still runs. Uses SMOKE_RUNG,
+# SMOKE_MAXSTEPS (small), SMOKE_MIN_FREE_MB, its own identity
+# (FLAC_exp11_smoke_<ARM> / exp11_smoke_<ARM>) and its own save-dir prefix, so a
+# smoke can never touch or resume an arm's real lineage.
 #
-# DRYRUN=1 runs every cheap gate, prints the exact train.py argv and its parity
-# diff against the exp_07 reference argv, and exits WITHOUT touching Slurm, GPUs,
-# wandb or torchrun (the commit/drift gate is advisory in that mode only).
+# TEST HOOK: OUTPUT_ROOT (default outputs_FLAC) relocates the output namespace so
+# the guard tests never write under a production prefix. It changes no gate.
 # ============================================================================
 #SBATCH --partition=all
 #SBATCH --nodes=1
@@ -65,7 +54,38 @@
 #SBATCH --output=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/slurm_train_%x_%j.out
 
 set -uo pipefail
+
+# ============================ PINNED RECIPE =================================
+# Filled from the reviewed P0 report; until then every value is the literal
+# placeholder and the launcher refuses to run (except under SMOKE=1).
+PIN_PLACEHOLDER="TO-PIN-AFTER-P0"
+PINNED_RUNG="TO-PIN-AFTER-P0"              # one of 32x2 / 16x4 / 8x8 (all feasible with grad-ckpt)
+PINNED_MB="TO-PIN-AFTER-P0"                # micro-batch per GPU  (MB x NGPU must be 64)
+PINNED_NGPU="TO-PIN-AFTER-P0"              # ranks
+PINNED_MAXSTEPS=40000                      # plan §2 primary matched-step budget
+PINNED_CHECKPOINT_EVERY=2500               # exp_07 cadence
+PINNED_MIN_FREE_MB="TO-PIN-AFTER-P0"       # per-GPU floor: P0 peak (~9.4 GB at 16x4) + margin
+PINNED_TIME_LIMIT_C4L="TO-PIN-AFTER-P0"    # per arm, from the P0 steps/s
+PINNED_TIME_LIMIT_C8="TO-PIN-AFTER-P0"
+PINNED_TIME_LIMIT_C16="TO-PIN-AFTER-P0"
+PINNED_TIME_LIMIT_C32="TO-PIN-AFTER-P0"
+PINNED_P0_MANIFEST_SHA256="TO-PIN-AFTER-P0"  # the P0 manifest these pins were read from
+# Environment pins (round-3 B6) — measured on the reviewed environment:
+PINNED_PYTHON="/n/fs/gatrdp/envs/flac/bin/python"
+PINNED_PL_VERSION="2.1.0"
+PINNED_TORCH_VERSION="2.7.0+cu126"
+PINNED_VAE_SHA256="8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9"
+# ============================================================================
+
 REPO=/n/fs/gatrdp/codespace/FLAC
+# TEST HOOK (guard tests only): sbatch copies this script to a spool dir, so the
+# repo path must be absolute; FA_ORBIT_REPO_OVERRIDE lets the guard suite point a
+# dry run at a worktree. It is honoured ONLY outside a Slurm job and scrubbed
+# immediately, so it can never influence a real launch.
+if [ -n "${FA_ORBIT_REPO_OVERRIDE:-}" ] && [ -z "${SLURM_JOB_ID:-}" ]; then
+  REPO="$FA_ORBIT_REPO_OVERRIDE"
+fi
+unset FA_ORBIT_REPO_OVERRIDE
 EXPDIR="$REPO/worklog/worklog_yixun/exp_11_fa_orbit_claude"
 EXP07="$REPO/worklog/worklog_yixun/exp_07_fa_scratch_claude"
 cd "$REPO" || exit 3
@@ -76,53 +96,81 @@ export HF_HOME=/n/fs/gatrdp/hf_cache
 export HF_HUB_OFFLINE=1
 
 DRYRUN="${DRYRUN:-0}"
-MAXSTEPS="${MAXSTEPS:-40000}"
-CHECKPOINT_EVERY="${CHECKPOINT_EVERY:-2500}"
-WATCHDOG_SEC="${WATCHDOG_SEC:-300}"
+SMOKE="${SMOKE:-0}"
+OUTPUT_ROOT="${OUTPUT_ROOT:-outputs_FLAC}"
 RESUME_CKPT="${RESUME_CKPT:-}"
 EXPECTED_STEP="${EXPECTED_STEP:-0}"
-MIN_FREE_MB="${MIN_FREE_MB:-}"
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 
-# --- A. parameters -----------------------------------------------------------
-[ -n "${ARM:-}" ] || { echo "ARM must be exported (C4L|C8|C16|C32) - abort"; exit 2; }
-[ -n "${RUNG:-}" ] || { echo "RUNG must be exported (16x4|8x8) - abort"; exit 2; }
-[ -n "${EXPECT_SHA:-}" ] || { echo "EXPECT_SHA (full reviewed commit sha) must be exported - abort"; exit 2; }
+die() { echo "$1"; exit "${2:-2}"; }
 
+# --- A. parameters ------------------------------------------------------------
+[ -n "${ARM:-}" ] || die "ARM must be exported (C4L|C8|C16|C32) - abort"
+[ -n "${EXPECT_SHA:-}" ] || die "EXPECT_SHA (full reviewed commit sha) must be exported - abort"
 case "$ARM" in
   C4L|C8|C16|C32) ;;
-  *) echo "ARM '${ARM}' is not a legal exp_11 arm — C4L|C8|C16|C32 only (FA1/VAN are P0 profiling cells, never arms) - abort"; exit 2 ;;
+  *) die "ARM '${ARM}' is not a legal exp_11 arm — C4L|C8|C16|C32 only (FA1/VAN/CKPT4 are P0 profiling cells, never arms) - abort" ;;
 esac
+case "$EXPECTED_STEP" in ''|*[!0-9]*) die "EXPECTED_STEP '${EXPECTED_STEP}' must be a non-negative integer - abort";; esac
+
+# --- B. the pins decide the recipe (round-3 B1) -------------------------------
+if [ "$SMOKE" = "1" ]; then
+  RUNG="${SMOKE_RUNG:-}"; MAXSTEPS="${SMOKE_MAXSTEPS:-30}"; MIN_FREE_MB="${SMOKE_MIN_FREE_MB:-}"
+  CHECKPOINT_EVERY="${SMOKE_CHECKPOINT_EVERY:-10}"
+  [ -n "$RUNG" ] || die "SMOKE=1 requires SMOKE_RUNG (32x2|16x4|8x8) - abort"
+  [ -n "$MIN_FREE_MB" ] || die "SMOKE=1 requires SMOKE_MIN_FREE_MB (per-GPU floor) - abort"
+  TIME_LIMIT="${SMOKE_TIME:-00:30:00}"
+  NAME="FLAC_exp11_smoke_${ARM}"; EXPNAME="exp11_smoke_${ARM}"
+  SAVEDIR="${OUTPUT_ROOT}/exp11_smoke/${ARM}"
+  echo "=== SMOKE MODE: pins bypassed, EVERY other gate active; identity ${EXPNAME} ==="
+else
+  for PIN_NAME in PINNED_RUNG PINNED_MB PINNED_NGPU PINNED_MIN_FREE_MB PINNED_P0_MANIFEST_SHA256 \
+                  "PINNED_TIME_LIMIT_${ARM}"; do
+    eval "PIN_VAL=\${$PIN_NAME}"
+    [ "$PIN_VAL" != "$PIN_PLACEHOLDER" ] || die "${PIN_NAME} is still '${PIN_PLACEHOLDER}': the P0 report has not been pinned into this launcher yet — no arm may launch (use SMOKE=1 for the pre-launch smoke) - abort"
+  done
+  RUNG="$PINNED_RUNG"; MAXSTEPS="$PINNED_MAXSTEPS"; MIN_FREE_MB="$PINNED_MIN_FREE_MB"
+  CHECKPOINT_EVERY="$PINNED_CHECKPOINT_EVERY"
+  eval "TIME_LIMIT=\${PINNED_TIME_LIMIT_${ARM}}"
+  NAME="FLAC_exp11_${ARM}"; EXPNAME="exp11_${ARM}"; SAVEDIR="${OUTPUT_ROOT}/exp11_${ARM}"
+fi
+
 case "$RUNG" in
-  16x4|8x8) ;;
-  32x2) echo "RUNG 32x2 is BARRED for the arms: the P0 smoke measured an OOM for C4L at 32x2 without ViT grad-ckpt, so every richer orbit OOMs too - use RUNG 16x4 or 8x8 - abort"; exit 2 ;;
-  *) echo "RUNG '${RUNG}' must be 16x4 or 8x8 - abort"; exit 2 ;;
+  32x2|16x4|8x8) ;;
+  *) die "rung '${RUNG}' must be 32x2, 16x4 or 8x8 - abort" ;;
 esac
 MB="${RUNG%x*}"; NGPU="${RUNG#*x}"
-[ "$((MB * NGPU))" -eq 64 ] || { echo "RUNG ${RUNG}: MB*NGPU = $((MB*NGPU)) != 64 (micro x N pin, plan §10) - abort"; exit 2; }
-case "$MAXSTEPS" in ''|*[!0-9]*) echo "MAXSTEPS '${MAXSTEPS}' must be a positive integer - abort"; exit 2;; esac
-[ "$MAXSTEPS" -gt 0 ] || { echo "MAXSTEPS '${MAXSTEPS}' must be > 0 - abort"; exit 2; }
-case "$EXPECTED_STEP" in ''|*[!0-9]*) echo "EXPECTED_STEP '${EXPECTED_STEP}' must be a non-negative integer - abort"; exit 2;; esac
-case "$CHECKPOINT_EVERY" in ''|*[!0-9]*) echo "CHECKPOINT_EVERY '${CHECKPOINT_EVERY}' must be a positive integer - abort"; exit 2;; esac
-
-NAME="FLAC_exp11_${ARM}"; EXPNAME="exp11_${ARM}"; SAVEDIR="outputs_FLAC/exp11_${ARM}"
+[ "$((MB * NGPU))" -eq 64 ] || die "rung ${RUNG}: MB*NGPU = $((MB*NGPU)) != 64 (micro x N pin, plan §10) - abort"
+if [ "$SMOKE" != "1" ]; then
+  [ "$MB" = "$PINNED_MB" ] && [ "$NGPU" = "$PINNED_NGPU" ] || die "pin inconsistency: rung ${RUNG} vs PINNED_MB=${PINNED_MB}/PINNED_NGPU=${PINNED_NGPU} - abort"
+  [ "$MAXSTEPS" = "40000" ] || die "PINNED_MAXSTEPS is ${MAXSTEPS}, the registered budget is 40000 - abort"
+fi
 RUNDIR="${SAVEDIR}/${NAME}/${EXPNAME}"
-echo "=== exp_11 arm ${ARM} @ rung ${RUNG} (MB ${MB} x ${NGPU} GPU) — ${TS} — host $(hostname) ==="
+echo "=== exp_11 arm ${ARM} @ rung ${RUNG} (MB ${MB} x ${NGPU} GPU, grad-ckpt ON) — ${TS} — host $(hostname) ==="
 
-# --- B. arm -> config (single source of truth) + semantic gate ----------------
-arm_config_for() {
-  case "$1" in
-    C4L|C8|C16|C32) echo "$EXPDIR/FLAC_AR_BF_$1.json" ;;
-    *) return 1 ;;
-  esac
-}
-MODEL_CONFIG="$(arm_config_for "$ARM")" || { echo "no config mapped for arm '${ARM}' - abort"; exit 2; }
+# --- C. commit binding + tracked-surface drift --------------------------------
+HEAD_SHA="$(git rev-parse HEAD 2>/dev/null)"
+DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src "$EXPDIR" "$EXP07/FLAC_AR_BF.json" 2>/dev/null)"
+if [ "$DRYRUN" = "1" ]; then
+  [ "$HEAD_SHA" = "$EXPECT_SHA" ] && echo "commit binding OK (dry run): ${HEAD_SHA}" \
+    || echo "DRY-RUN ADVISORY: HEAD ${HEAD_SHA} != EXPECT_SHA ${EXPECT_SHA} (a real launch aborts here)"
+  [ -z "$DRIFT" ] || echo "DRY-RUN ADVISORY: tracked measurement surfaces are modified (a real launch aborts here)"
+else
+  [ -n "${SLURM_JOB_ID:-}" ] || die "a real launch must run under sbatch (no SLURM_JOB_ID) - abort"
+  [ "$HEAD_SHA" = "$EXPECT_SHA" ] || die "HEAD ${HEAD_SHA} != EXPECT_SHA ${EXPECT_SHA} - abort"
+  [ -z "$DRIFT" ] || { echo "tracked measurement surfaces modified since review - abort:"; echo "$DRIFT"; exit 2; }
+  echo "commit binding OK: ${HEAD_SHA}"
+fi
+
+# --- D. arm -> config (single source) + semantic gate -------------------------
+arm_config_for() { case "$1" in C4L|C8|C16|C32) echo "$EXPDIR/FLAC_AR_BF_$1.json" ;; *) return 1 ;; esac; }
+MODEL_CONFIG="$(arm_config_for "$ARM")" || die "no config mapped for arm '${ARM}' - abort"
 MODEL_CONFIG_ABS="$(readlink -f "$MODEL_CONFIG" 2>/dev/null)"
-[ -n "$MODEL_CONFIG_ABS" ] && [ -f "$MODEL_CONFIG_ABS" ] || { echo "arm config '${MODEL_CONFIG}' does not exist - abort"; exit 2; }
+[ -n "$MODEL_CONFIG_ABS" ] && [ -f "$MODEL_CONFIG_ABS" ] || die "arm config '${MODEL_CONFIG}' does not exist - abort"
 CONFIG_SHA="$(sha256sum "$MODEL_CONFIG_ABS" | awk '{print $1}')"
 echo "config for ${ARM}: ${MODEL_CONFIG_ABS} sha256 ${CONFIG_SHA}"
 
-python3 - "$MODEL_CONFIG_ABS" "$ARM" <<'PY' || { echo "arm/config semantic gate FAILED - abort"; exit 2; }
+python3 - "$MODEL_CONFIG_ABS" "$ARM" <<'PY' || die "arm/config semantic gate FAILED - abort"
 import json, sys
 cfg = json.load(open(sys.argv[1])); arm = sys.argv[2]
 t = cfg.get("training", {}); bad = []
@@ -134,57 +182,45 @@ if not isinstance(angles, list) or len(angles) != want:
     bad.append(f"frame_avg_angles has {angles and len(angles)} entries (want {want})")
 elif angles != [k * 360.0 / want for k in range(want)]:
     bad.append(f"frame_avg_angles are not the uniform C{want} orbit")
-vits = [c for c in cfg["model"]["conditioning"]["configs"] if c["type"] == "ViTCoordinates"]
-if len(vits) != 2:
-    bad.append(f"expected 2 ViT conditioners, got {len(vits)}")
-for c in vits:                                  # the fast recipe: grad-ckpt OFF, strictly False
-    gc = c["config"].get("gradient_checkpointing", False)
-    if gc is not False:
-        bad.append(f"{c['id']}: gradient_checkpointing={gc!r} (want False)")
 if t.get("use_ema") is not True:
     bad.append(f"use_ema={t.get('use_ema')!r} (want True)")
+vits = [c for c in cfg["model"]["conditioning"]["configs"] if c["type"] == "ViTCoordinates"]
+if sorted(c["id"] for c in vits) != ["context_poses_vit", "source_vit"]:
+    bad.append(f"ViT conditioner ids {sorted(c['id'] for c in vits)} != the expected two")
+# Post-P0: grad-ckpt ON for every arm; the KEY must exist and be literally True
+for c in vits:
+    if "gradient_checkpointing" not in c["config"]:
+        bad.append(f"{c['id']}: gradient_checkpointing key absent (want literal true)")
+    elif c["config"]["gradient_checkpointing"] is not True:
+        bad.append(f"{c['id']}: gradient_checkpointing={c['config']['gradient_checkpointing']!r} (want True)")
 if bad:
     sys.exit("ARM/CONFIG GATE: " + "; ".join(bad))
-print(f"gate OK: {arm} config carries the uniform C{want} orbit, grad-ckpt False, EMA on")
+print(f"gate OK: {arm} carries the uniform C{want} orbit, grad-ckpt True, EMA on")
 PY
 
-# --- C. commit binding + tracked-surface drift -------------------------------
-# Fail-closed in real mode; advisory under DRYRUN so the parity report can be run
-# on a working tree (a dry run cannot start training).
-HEAD_SHA="$(git rev-parse HEAD 2>/dev/null)"
-DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src "$EXPDIR" "$EXP07/FLAC_AR_BF.json" 2>/dev/null)"
-if [ "$DRYRUN" = "1" ]; then
-  [ "$HEAD_SHA" = "$EXPECT_SHA" ] && echo "commit binding OK (dry run): ${HEAD_SHA}" \
-    || echo "DRY-RUN ADVISORY: HEAD ${HEAD_SHA} != EXPECT_SHA ${EXPECT_SHA} (a real launch aborts here)"
-  [ -z "$DRIFT" ] || echo "DRY-RUN ADVISORY: tracked measurement surfaces are modified (a real launch aborts here)"
-else
-  [ -n "${SLURM_JOB_ID:-}" ] || { echo "a real launch must run under sbatch (no SLURM_JOB_ID) - abort"; exit 2; }
-  [ "$HEAD_SHA" = "$EXPECT_SHA" ] || { echo "HEAD ${HEAD_SHA} != EXPECT_SHA ${EXPECT_SHA} - abort"; exit 2; }
-  [ -z "$DRIFT" ] || { echo "tracked measurement surfaces modified since review - abort:"; echo "$DRIFT"; exit 2; }
-  echo "commit binding OK: ${HEAD_SHA}"
-fi
-
-# --- D. lineage: INITIAL vs RESTART (exp_10 rules) ----------------------------
+# --- E. lineage: INITIAL vs RESTART -------------------------------------------
 SAVEDIR_REAL="$(realpath -m "$SAVEDIR")"
+CKPT_DIR_REAL="$(realpath -m "${RUNDIR}/checkpoints")"
+LAUNCH_MANIFEST_LINK="${SAVEDIR}/launch_manifest.txt"     # written by the INITIAL launch
 if [ "$EXPECTED_STEP" -eq 0 ]; then
   MODE="INITIAL"
-  [ -z "$RESUME_CKPT" ] || { echo "INITIAL launch must not carry RESUME_CKPT (set EXPECTED_STEP > 0 to declare a RESTART) - abort"; exit 2; }
-  [ ! -e "$RUNDIR" ] || { echo "run directory ${RUNDIR} already exists — an INITIAL launch never clobbers a previous run (restart with EXPECTED_STEP/RESUME_CKPT, or move it aside) - abort"; exit 2; }
+  [ -z "$RESUME_CKPT" ] || die "INITIAL launch must not carry RESUME_CKPT (set EXPECTED_STEP > 0 to declare a RESTART) - abort"
+  [ ! -e "$RUNDIR" ] || die "run directory ${RUNDIR} already exists — an INITIAL launch never clobbers a previous run - abort"
 else
   MODE="RESTART"
-  [ -n "$RESUME_CKPT" ] || { echo "EXPECTED_STEP ${EXPECTED_STEP} declares a RESTART, but RESTART requires RESUME_CKPT - abort"; exit 2; }
-  [ -f "$RESUME_CKPT" ] || { echo "RESUME_CKPT not found: ${RESUME_CKPT} - abort"; exit 2; }
+  [ -n "$RESUME_CKPT" ] || die "EXPECTED_STEP ${EXPECTED_STEP} declares a RESTART, but RESTART requires RESUME_CKPT - abort"
+  [ -f "$RESUME_CKPT" ] || die "RESUME_CKPT not found: ${RESUME_CKPT} - abort"
   RESUME_REAL="$(realpath -m "$RESUME_CKPT")"
+  # exactly this arm's own checkpoints directory — not merely somewhere below the save root
   case "$RESUME_REAL" in
-    "${SAVEDIR_REAL}"/*) ;;
-    *) echo "a RESTART may only resume a checkpoint written by this arm, i.e. one inside ${SAVEDIR_REAL}/"
-       echo "  got: ${RESUME_REAL} - abort"; exit 2 ;;
+    "${CKPT_DIR_REAL}"/*.ckpt) ;;
+    *) die "a RESTART may only resume a checkpoint from ${CKPT_DIR_REAL}/ (got ${RESUME_REAL}) - abort" ;;
   esac
-  [ "$MAXSTEPS" -gt "$EXPECTED_STEP" ] || { echo "MAXSTEPS ${MAXSTEPS} must exceed the resume step ${EXPECTED_STEP} - abort"; exit 2; }
+  [ "$MAXSTEPS" -gt "$EXPECTED_STEP" ] || die "MAXSTEPS ${MAXSTEPS} must exceed the resume step ${EXPECTED_STEP} - abort"
 fi
 echo "lineage: ${MODE} (expected_step ${EXPECTED_STEP}, max_steps ${MAXSTEPS}, ckpt every ${CHECKPOINT_EVERY})"
 
-# --- E. the exact train.py argv ----------------------------------------------
+# --- F. the exact train.py argv ----------------------------------------------
 ARGV=(
   --model-config "$MODEL_CONFIG_ABS"
   --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json
@@ -199,13 +235,12 @@ ARGV=(
 )
 [ "$MODE" = "RESTART" ] && ARGV+=(--ckpt-path "$RESUME_CKPT")
 
-# --- F. argv-parity dry run (plan N13) ---------------------------------------
-ARGV_FILE="$(mktemp)"; printf '%s\n' "${ARGV[@]}" > "$ARGV_FILE"
+# --- G. argv-parity dry run (plan N13; round-3 N9 tightened) ------------------
+ARGV_FILE="$(mktemp)" || die "mktemp failed - abort" 3
+printf '%s\n' "${ARGV[@]}" > "$ARGV_FILE" || die "could not write the argv file - abort" 3
 python3 - "$ARGV_FILE" "$MODE" <<'PY'
 import sys
-# The exp_07 B-F reference argv (bf_scratch_launch.sh), the lineage this sweep
-# continues. Anything differing outside the enumerated allowances is a silent
-# recipe change and aborts the launch.
+# The exp_07 B-F reference argv (bf_scratch_launch.sh) — the lineage this sweep continues.
 REF = """--model-config worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json
 --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json
 --pretransform-ckpt-path weights/FLAC/VAE.safetensors
@@ -213,120 +248,191 @@ REF = """--model-config worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_B
 --num-gpus 2 --strategy ddp_find_unused_parameters_true --sync-batchnorm true
 --logger wandb --checkpoint-every 2500
 --name FLAC_exp07_BF --experiment-name exp07_BF --save-dir outputs_FLAC/exp07_BF""".split()
-ALLOWED = {"--model-config", "--name", "--experiment-name", "--save-dir", "--max-steps",
-           "--num-gpus", "--batch-size", "--logger", "--ckpt-path"}
-
-new_tokens = open(sys.argv[1]).read().split("\n")
-if new_tokens and new_tokens[-1] == "":
-    new_tokens.pop()
+# Flags whose VALUE may differ from exp_07 (identity, budget, rung, resume):
+ALLOWED_DIFF = {"--model-config", "--name", "--experiment-name", "--save-dir", "--max-steps",
+                "--num-gpus", "--batch-size", "--logger", "--checkpoint-every", "--ckpt-path"}
+# Flags exp_07 left to defaults.ini and we state explicitly — whitelisted with their
+# EXACT expected values (round-3 N9: no "equals the mutable ini" escape hatch):
+ALLOWED_ADD = {"--num-nodes": "1", "--precision": "bf16-mixed", "--val-every": "-1",
+               "--val-dataset-config": "", "--gradient-clip-val": "0.0", "--ckpt-path": None}
+tokens = [t for t in open(sys.argv[1]).read().split("\n")]
+if tokens and tokens[-1] == "":
+    tokens.pop()
 mode = sys.argv[2]
 
-def as_map(tokens):
+def as_map(toks):
     out, i = {}, 0
-    while i < len(tokens):
-        flag = tokens[i]
+    while i < len(toks):
+        flag = toks[i]
         if not flag.startswith("--"):
             raise SystemExit(f"ARGV PARITY: stray token {flag!r}")
-        val = tokens[i + 1] if i + 1 < len(tokens) and not tokens[i + 1].startswith("--") else ""
+        val = toks[i + 1] if i + 1 < len(toks) and not toks[i + 1].startswith("--") else ""
+        if flag in out:
+            raise SystemExit(f"ARGV PARITY: duplicate flag {flag}")
         out[flag] = val
-        i += 2 if val != "" or (i + 1 < len(tokens) and not tokens[i + 1].startswith("--")) else 1
+        i += 2 if (i + 1 < len(toks) and not toks[i + 1].startswith("--")) else 1
     return out
 
-def defaults_ini():
-    vals = {}
-    for line in open("defaults.ini"):
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, _, v = line.partition("=")
-        vals["--" + k.strip().replace("_", "-")] = v.strip().strip("'\"")
-    return vals
-
-ref, new, ini = as_map(REF), as_map(new_tokens), defaults_ini()
-violations, allowed_diffs, explicit_defaults = [], [], []
+ref, new = as_map(REF), as_map(tokens)
+violations, allowed, explicit = [], [], []
 for flag in sorted(set(ref) | set(new)):
     if flag in ref and flag in new:
         if ref[flag] != new[flag]:
-            (allowed_diffs if flag in ALLOWED else violations).append(
+            (allowed if flag in ALLOWED_DIFF else violations).append(
                 f"{flag}: exp_07 {ref[flag]!r} -> exp_11 {new[flag]!r}")
-    elif flag in new:                       # explicit here, defaulted in exp_07
-        if flag in ALLOWED:
-            allowed_diffs.append(f"{flag}: added, {new[flag]!r}")
-        elif flag in ini and ini[flag] == new[flag]:
-            explicit_defaults.append(f"{flag}={new[flag]!r} (== defaults.ini)")
+    elif flag in new:
+        if flag == "--ckpt-path":
+            (allowed if mode == "RESTART" else violations).append(
+                f"--ckpt-path: {new[flag]!r} (RESTART only)")
+        elif flag in ALLOWED_ADD and ALLOWED_ADD[flag] == new[flag]:
+            explicit.append(f"{flag}={new[flag]!r} (whitelisted explicit default)")
         else:
-            violations.append(f"{flag}: added with {new[flag]!r}, defaults.ini has "
-                              f"{ini.get(flag, '<absent>')!r}")
+            violations.append(f"{flag}: added with {new[flag]!r}, not a whitelisted addition "
+                              f"(expected {ALLOWED_ADD.get(flag, '<not allowed>')!r})")
     else:
         violations.append(f"{flag}: present in exp_07 ({ref[flag]!r}), MISSING here")
 
 print("--- train.py argv ---")
 print(" ".join(f"{k} {v!r}" if v == "" else f"{k} {v}" for k, v in new.items()))
 print("--- argv parity vs exp_07 B-F ---")
-for d in allowed_diffs:
+for d in allowed:
     print(f"  allowed  {d}")
-for d in explicit_defaults:
+for d in explicit:
     print(f"  explicit {d}")
 if violations:
     print("ARGV PARITY VIOLATIONS:")
     for v in violations:
         print(f"  !! {v}")
     raise SystemExit(2)
-print(f"ARGV PARITY OK ({mode}): only the enumerated differences, everything else matches "
-      "exp_07 or restates a defaults.ini value")
+print(f"ARGV PARITY OK ({mode}): only whitelisted differences and additions")
 PY
 parity=$?
 rm -f "$ARGV_FILE"
-[ "$parity" -eq 0 ] || { echo "argv parity check FAILED - abort"; exit 2; }
+[ "$parity" -eq 0 ] || die "argv parity check FAILED - abort"
 if [ "$DRYRUN" = "1" ]; then
-  echo "DRY RUN complete: gates A–F passed for ARM=${ARM} RUNG=${RUNG} MODE=${MODE}; "
-  echo "  (Slurm/GPU/VRAM/wandb/ViT gates and training are skipped in DRYRUN)"
+  echo "DRY RUN complete: gates A–G passed for ARM=${ARM} RUNG=${RUNG} MODE=${MODE} SMOKE=${SMOKE}"
+  echo "  (Slurm/GPU/VRAM/env/wandb/ViT/lock gates and training are skipped in DRYRUN)"
   exit 0
 fi
 
-# --- G. Slurm shape + GPUs ----------------------------------------------------
-[ "${SLURM_JOB_NUM_NODES:-1}" = "1" ] || { echo "expected 1 node, got ${SLURM_JOB_NUM_NODES} - abort"; exit 2; }
-[ "${SLURM_NTASKS:-1}" = "1" ] || { echo "expected 1 task, got ${SLURM_NTASKS} - abort"; exit 2; }
-mapfile -t GPU_ROWS < <(nvidia-smi --query-gpu=uuid,name,memory.total --format=csv,noheader,nounits)
-[ "${#GPU_ROWS[@]}" -eq "$NGPU" ] || { echo "rung ${RUNG} needs exactly ${NGPU} visible GPU(s), got ${#GPU_ROWS[@]} - abort"; exit 2; }
+# --- H. Slurm allocation must match the pins (round-3 B1) ---------------------
+[ "${SLURM_JOB_NUM_NODES:-1}" = "1" ] || die "expected 1 node, got ${SLURM_JOB_NUM_NODES} - abort"
+[ "${SLURM_NTASKS:-1}" = "1" ] || die "expected 1 task, got ${SLURM_NTASKS} - abort"
+WANT_CPUS="$((8 + 7 * NGPU))"; WANT_MEM_MB="$(((12 * NGPU + 12) * 1024))"
+GOT_CPUS="${SLURM_CPUS_PER_TASK:-${SLURM_CPUS_ON_NODE:-0}}"
+GOT_MEM_MB="${SLURM_MEM_PER_NODE:-0}"
+[ "$GOT_CPUS" = "$WANT_CPUS" ] || die "allocated ${GOT_CPUS} CPUs, the pinned rung needs ${WANT_CPUS} — submit via fa_orbit_submit.sh - abort"
+[ "$GOT_MEM_MB" = "$WANT_MEM_MB" ] || die "allocated ${GOT_MEM_MB} MB RAM, the pinned rung needs ${WANT_MEM_MB} — submit via fa_orbit_submit.sh - abort"
+GOT_TIME="$(squeue -h -j "$SLURM_JOB_ID" -o %l 2>/dev/null | tr -d ' ')"
+norm_minutes() { awk -v t="$1" 'BEGIN{d=0; if (t ~ /-/) {split(t,p,"-"); d=p[1]; t=p[2]} n=split(t,c,":");
+  if (n==3) m=c[1]*60+c[2]+c[3]/60; else if (n==2) m=c[1]+c[2]/60; else m=t; printf "%d", d*1440+m}'; }
+[ "$(norm_minutes "$GOT_TIME")" = "$(norm_minutes "$TIME_LIMIT")" ] || die "allocated time ${GOT_TIME} != the pinned ${TIME_LIMIT} — submit via fa_orbit_submit.sh - abort"
+echo "allocation matches the pins: ${GOT_CPUS} cpus, ${GOT_MEM_MB} MB, ${GOT_TIME}"
+
+mapfile -t GPU_ROWS < <(nvidia-smi --query-gpu=uuid,name --format=csv,noheader,nounits)
+[ "${#GPU_ROWS[@]}" -eq "$NGPU" ] || die "rung ${RUNG} needs exactly ${NGPU} visible GPU(s), got ${#GPU_ROWS[@]} - abort"
 UUIDS=()
 for ROW in "${GPU_ROWS[@]}"; do
-  U="$(echo "$ROW" | cut -d, -f1 | tr -d ' ')"
-  N="$(echo "$ROW" | cut -d, -f2 | sed 's/^ *//')"
-  case "$N" in *L40*) ;; *) echo "allocated GPU '${N}' is not an L40 - abort"; exit 2;; esac
+  U="$(echo "$ROW" | cut -d, -f1 | tr -d ' ')"; N="$(echo "$ROW" | cut -d, -f2 | sed 's/^ *//')"
+  case "$N" in *L40*) ;; *) die "allocated GPU '${N}' is not an L40 - abort";; esac
   UUIDS+=("$U"); echo "GPU: ${N} ${U}"
 done
 UUID_CSV="$(IFS=,; echo "${UUIDS[*]}")"
 
-# --- H. per-GPU free-VRAM gate (MIN_FREE_MB is operator input from P0) -------
-[ -n "$MIN_FREE_MB" ] || { echo "MIN_FREE_MB must be exported (per-GPU floor from this arm+rung's P0 peak) - abort"; exit 2; }
-case "$MIN_FREE_MB" in ''|*[!0-9]*) echo "MIN_FREE_MB '${MIN_FREE_MB}' must be an integer - abort"; exit 2;; esac
+# --- I. environment identity gates (round-3 B6) -------------------------------
+REAL_PY="$(command -v python)"
+[ "$(readlink -f "$REAL_PY")" = "$(readlink -f "$PINNED_PYTHON")" ] || die "python resolves to ${REAL_PY}, pinned ${PINNED_PYTHON} - abort"
+python3 - "$PINNED_PL_VERSION" "$PINNED_TORCH_VERSION" <<'PY' || die "runtime version gate FAILED - abort"
+import sys
+import pytorch_lightning as pl, torch
+want_pl, want_torch = sys.argv[1], sys.argv[2]
+bad = []
+if pl.__version__ != want_pl:
+    bad.append(f"pytorch_lightning {pl.__version__} != pinned {want_pl}")
+if torch.__version__ != want_torch:
+    bad.append(f"torch {torch.__version__} != pinned {want_torch}")
+if bad:
+    sys.exit("; ".join(bad))
+print(f"runtime gate OK: pl {pl.__version__}, torch {torch.__version__}, cuda {torch.version.cuda}")
+PY
+VAE_SHA="$(sha256sum weights/FLAC/VAE.safetensors | awk '{print $1}')"
+[ "$VAE_SHA" = "$PINNED_VAE_SHA256" ] || die "weights/FLAC/VAE.safetensors sha256 ${VAE_SHA} != pinned ${PINNED_VAE_SHA256} - abort"
+echo "VAE pin OK: ${VAE_SHA}"
+DRIVER="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1)"
+CUDA_VER="$(python3 -c 'import torch; print(torch.version.cuda)')"
+
+# --- J. per-GPU free-VRAM gate (floor from the pins) --------------------------
 for U in "${UUIDS[@]}"; do
   FREE="$(nvidia-smi --id="$U" --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | tr -dc '0-9')"
-  [ -n "$FREE" ] || { echo "nvidia-smi free-mem query failed on ${U} - refusing to launch blind"; exit 2; }
-  [ "$FREE" -ge "$MIN_FREE_MB" ] || { echo "GPU ${U} free ${FREE} MiB < required ${MIN_FREE_MB} MiB - refusing to launch"; exit 2; }
+  [ -n "$FREE" ] || die "nvidia-smi free-mem query failed on ${U} - refusing to launch blind"
+  [ "$FREE" -ge "$MIN_FREE_MB" ] || die "GPU ${U} free ${FREE} MiB < required ${MIN_FREE_MB} MiB - refusing to launch"
 done
 echo "--- co-tenancy disclosure at launch ---"
 nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader 2>/dev/null || true
 
-# --- I. wandb identity gate (fail-closed; the arms train WITH wandb) ----------
-mkdir -p "$SAVEDIR"
+# --- K. atomic run-directory lock (round-3 B3) --------------------------------
+mkdir -p "$SAVEDIR" || die "could not create ${SAVEDIR} - abort" 3
+LOCKDIR="${SAVEDIR}/.launch_lock"
+LAUNCH_UUID="$(cat /proc/sys/kernel/random/uuid)"
+if mkdir "$LOCKDIR" 2>/dev/null; then
+  echo "lock acquired: ${LOCKDIR}"
+else
+  OWNER_JOB="$(awk '/^job /{print $2}' "${LOCKDIR}/owner" 2>/dev/null)"
+  if [ -n "$OWNER_JOB" ] && squeue -h -j "$OWNER_JOB" -o %i 2>/dev/null | grep -q "$OWNER_JOB"; then
+    die "arm ${ARM} is already owned by ACTIVE job ${OWNER_JOB} (${LOCKDIR}) — refusing a concurrent writer - abort"
+  fi
+  echo "STALE LOCK RECOVERY: ${LOCKDIR} was held by job '${OWNER_JOB:-<unknown>}', which is no longer in the queue; taking ownership"
+fi
+{ echo "job ${SLURM_JOB_ID}"; echo "uuid ${LAUNCH_UUID}"; echo "arm ${ARM}"; echo "mode ${MODE}"; echo "acquired ${TS}"; } > "${LOCKDIR}/owner" \
+  || die "could not write the lock owner file - abort" 3
+release_lock() { rm -rf "$LOCKDIR" 2>/dev/null; }
+trap release_lock EXIT
+
+# --- L. RESTART preflight (round-3 B2) ---------------------------------------
+CKPT_SHA=""
+if [ "$MODE" = "RESTART" ]; then
+  PRE_OUT="$(python3 "$EXPDIR/fa_orbit_ckpt_preflight.py" --ckpt "$RESUME_CKPT" \
+      --expected-step "$EXPECTED_STEP" --config "$MODEL_CONFIG_ABS" --max-steps "$MAXSTEPS" \
+      --arm "$ARM" --rung "$RUNG" --commit "$HEAD_SHA" \
+      ${LAUNCH_MANIFEST_LINK:+--launch-manifest "$LAUNCH_MANIFEST_LINK"} 2>&1)"
+  echo "$PRE_OUT"
+  echo "$PRE_OUT" | grep -q "^CKPT_SHA256 " || die "restart preflight FAILED - abort"
+  CKPT_SHA="$(echo "$PRE_OUT" | awk '/^CKPT_SHA256 /{print $2}')"
+fi
+
+# --- M. wandb: scrub, pin the destination, fix the run id (round-3 B7) --------
+unset WANDB_MODE WANDB_DISABLED WANDB_ENTITY WANDB_RUN_ID WANDB_RESUME WANDB_DIR WANDB_PROJECT WANDB_NAME
 export WANDB_DIR="$REPO/$SAVEDIR"
+export WANDB_MODE=online
 eval "$(grep -E '^[[:space:]]*export[[:space:]]+WANDB_API_KEY=' ~/.bashrc 2>/dev/null | tail -1)"
-python3 - <<'PY' || { echo "wandb identity gate FAILED (no logger fallback: the arms train with wandb) - abort"; exit 2; }
+WANDB_ENTITY_SEEN="$(python3 - <<'PY'
 import sys
 try:
-    import wandb; email = wandb.Api().viewer.email
+    import wandb
+    v = wandb.Api().viewer
 except Exception as e:
     sys.exit(f"wandb identity check FAILED: {e}")
-print("wandb identity:", email)
-sys.exit(0 if email == "yh4742@princeton.edu" else 2)
+if v.email != "yh4742@princeton.edu":
+    sys.exit(f"wandb identity {v.email} != yh4742@princeton.edu")
+print(v.entity)
 PY
+)" || die "wandb identity gate FAILED (no logger fallback: the arms train with wandb) - abort"
+echo "wandb identity OK: entity ${WANDB_ENTITY_SEEN}, mode ${WANDB_MODE}"
+if [ "$MODE" = "RESTART" ]; then
+  WANDB_RUN_ID="$(awk '/^wandb_run_id /{print $2}' "$LAUNCH_MANIFEST_LINK" 2>/dev/null)"
+  [ -n "$WANDB_RUN_ID" ] || die "RESTART needs the original wandb run id from ${LAUNCH_MANIFEST_LINK} - abort"
+  export WANDB_RUN_ID WANDB_RESUME=must
+  echo "wandb: resuming run ${WANDB_RUN_ID} (resume=must)"
+else
+  WANDB_RUN_ID="exp11-${ARM}-$(date +%s%N)-$(cut -c1-8 /proc/sys/kernel/random/uuid)"
+  export WANDB_RUN_ID
+  echo "wandb: new run id ${WANDB_RUN_ID}"
+fi
 
-# --- J. DINOv3 pin + init-identity gate (exp_07's checks, exp_11 arms) --------
-HF_HUB_OFFLINE=1 python3 "$EXPDIR/assert_arm_configs_exp11.py" "$ARM" || { echo "ViT-pin / init-identity GATE FAILED - abort"; exit 1; }
+# --- N. DINOv3 pin + init-identity gate (inside the allocation) ---------------
+HF_HUB_OFFLINE=1 python3 "$EXPDIR/assert_arm_configs_exp11.py" "$ARM" || die "ViT-pin / init-identity GATE FAILED - abort" 1
 
-# --- K. atomic pre-launch manifest (plan N12) --------------------------------
+# --- O. atomic manifest, duplicated to the save-dir (round-3 B5) --------------
 TRAINLOG="${EXPDIR}/fa_orbit_${TS}_${ARM}_${RUNG}_jid${SLURM_JOB_ID}_train.log"
 SAVEDIR_LOG="${SAVEDIR}/fa_orbit_${TS}_${ARM}_${RUNG}_jid${SLURM_JOB_ID}_train.log"
 MANIFEST="${EXPDIR}/fa_orbit_${TS}_${ARM}_${RUNG}_jid${SLURM_JOB_ID}_manifest.txt"
@@ -334,65 +440,72 @@ ENV_SHA="$(pip freeze 2>/dev/null | sha256sum | awk '{print $1}')"
 {
   echo "# exp_11 arm launch manifest"
   echo "timestamp ${TS}"
-  echo "job ${SLURM_JOB_ID} host $(hostname) mode ${MODE}"
+  echo "job ${SLURM_JOB_ID} host $(hostname) mode ${MODE} launch_uuid ${LAUNCH_UUID}"
   echo "arm ${ARM} rung ${RUNG} micro ${MB} ngpu ${NGPU} max_steps ${MAXSTEPS} ckpt_every ${CHECKPOINT_EVERY}"
   echo "commit ${HEAD_SHA}"
+  echo "p0_manifest_sha256 ${PINNED_P0_MANIFEST_SHA256}"
   echo "model_config ${MODEL_CONFIG_ABS}"
   echo "config_sha256 ${CONFIG_SHA}"
+  echo "vae_sha256 ${VAE_SHA}"
   echo "env_pip_freeze_sha256 ${ENV_SHA}"
+  echo "torch_version $(python3 -c 'import torch; print(torch.__version__)') cuda ${CUDA_VER} driver ${DRIVER}"
   echo "gpu_uuids ${UUID_CSV}"
-  echo "time_limit $(squeue -h -j "${SLURM_JOB_ID}" -o %l 2>/dev/null || echo unknown)"
-  echo "min_free_mb ${MIN_FREE_MB}"
-  echo "resume_ckpt ${RESUME_CKPT:-<none>} expected_step ${EXPECTED_STEP}"
+  echo "time_limit ${TIME_LIMIT} min_free_mb ${MIN_FREE_MB}"
+  echo "resume_ckpt ${RESUME_CKPT:-<none>} expected_step ${EXPECTED_STEP} resume_ckpt_sha256 ${CKPT_SHA:-<none>}"
   echo "save_dir ${SAVEDIR}"
   echo "train_log ${TRAINLOG}"
   echo "train_log_copy ${SAVEDIR_LOG}"
-  echo "wandb ${NAME}/${EXPNAME}"
+  echo "wandb_entity ${WANDB_ENTITY_SEEN} wandb_project ${NAME} wandb_name ${EXPNAME}"
+  echo "wandb_run_id ${WANDB_RUN_ID}"
   echo "command torchrun --standalone --nnodes=1 --nproc_per_node=${NGPU} train.py ${ARGV[*]}"
-} > "${MANIFEST}.tmp"
-mv "${MANIFEST}.tmp" "$MANIFEST"
-echo "manifest: ${MANIFEST}"
-python3 -c "import torch; print('torch', torch.__version__, 'cuda', torch.version.cuda)"
+} > "${MANIFEST}.tmp" || die "manifest write FAILED - abort" 3
+mv "${MANIFEST}.tmp" "$MANIFEST" || die "manifest publication FAILED - abort" 3
+cp "$MANIFEST" "${SAVEDIR}/$(basename "$MANIFEST")" || die "manifest copy to the save-dir FAILED - abort" 3
+[ "$MODE" = "INITIAL" ] && { cp "$MANIFEST" "$LAUNCH_MANIFEST_LINK" || die "launch-manifest link write FAILED - abort" 3; }
+echo "manifest: ${MANIFEST} (copied to ${SAVEDIR})"
 
-# --- L. world-size early-abort watchdog --------------------------------------
-# Literal from lightning_fabric/utilities/distributed.py:296 (PL 2.1.0).
-WORLD_MSG="All distributed processes registered. Starting with ${NGPU} processes"
-: > "$TRAINLOG"
-(
-  sleep "$WATCHDOG_SEC"
-  if ! grep -qF "$WORLD_MSG" "$TRAINLOG" 2>/dev/null; then
-    echo "WATCHDOG: '${WORLD_MSG}' absent after ${WATCHDOG_SEC}s — cancelling job ${SLURM_JOB_ID} rather than burn days at world size 1"
-    scancel "${SLURM_JOB_ID}"
-  fi
-) &
-WATCHDOG=$!
-
-# --- M. training: torchrun in the foreground, dual-tee, PIPESTATUS rc --------
-# The SLURM rank variables must not be visible: with them set, Lightning elects
-# SLURMEnvironment (creates_processes_externally) and never starts the ranks.
+# --- P. training: torchrun + FIFO tee (both statuses captured) ----------------
 unset SLURM_NTASKS SLURM_JOB_NAME SLURM_PROCID SLURM_LOCALID SLURM_NODEID
+: > "$TRAINLOG" || die "could not create ${TRAINLOG} - abort" 3
+: > "$SAVEDIR_LOG" || die "could not create ${SAVEDIR_LOG} - abort" 3
+FIFO="$(mktemp -u)"; mkfifo "$FIFO" || die "mkfifo failed - abort" 3
+tee -a "$TRAINLOG" "$SAVEDIR_LOG" < "$FIFO" &
+TEE_PID=$!
 echo "=== launching ${ARM} ${RUNG}: torchrun --standalone --nproc_per_node=${NGPU} train.py (${MODE}) ==="
-torchrun --standalone --nnodes=1 --nproc_per_node="$NGPU" train.py "${ARGV[@]}" 2>&1 \
-  | tee "$TRAINLOG" "$SAVEDIR_LOG"
-rc="${PIPESTATUS[0]}"
-kill "$WATCHDOG" 2>/dev/null; wait "$WATCHDOG" 2>/dev/null
+torchrun --standalone --nnodes=1 --nproc_per_node="$NGPU" train.py "${ARGV[@]}" > "$FIFO" 2>&1 &
+TR_PID=$!
 
-# --- N. post-hoc gates + classification --------------------------------------
-DONE_MSG="\`Trainer.fit\` stopped: \`max_steps=${MAXSTEPS}\` reached."   # fit_loop.py:167
-if ! grep -qF "$WORLD_MSG" "$TRAINLOG"; then
-  echo "WORLD-SIZE GATE FAILED: '${WORLD_MSG}' never appeared — this run did NOT train with ${NGPU} ranks"
-  [ "$rc" -eq 0 ] && rc=6
-fi
-if [ "$rc" -eq 0 ] && ! grep -qF "$DONE_MSG" "$TRAINLOG"; then
-  echo "NOTE: rc=0 without the completion marker (${DONE_MSG}) — treat as an early exit, not a finished budget"
-  rc=4
-fi
-if grep -Eq "CUDA out of memory|OutOfMemoryError" "$TRAINLOG"; then
-  echo "--- OOM excerpt (fail-honest, no fallback) ---"
-  grep -m1 -B2 -A10 -E "CUDA out of memory|OutOfMemoryError" "$TRAINLOG"
-  [ "$rc" -eq 0 ] && rc=3
-fi
+# world-size watcher: terminate the moment Lightning reports the WRONG rank count
+WORLD_RE="All distributed processes registered\. Starting with [0-9]+ processes"
+(
+  while kill -0 "$TR_PID" 2>/dev/null; do
+    if grep -Eq "$WORLD_RE" "$TRAINLOG" 2>/dev/null; then
+      GOT="$(grep -Eo "$WORLD_RE" "$TRAINLOG" | head -1 | grep -Eo '[0-9]+')"
+      if [ "$GOT" != "$NGPU" ]; then
+        echo "WORLD-SIZE WATCHER: Lightning started with ${GOT} processes, expected ${NGPU} — terminating torchrun"
+        pkill -TERM -P "$TR_PID" 2>/dev/null; kill -TERM "$TR_PID" 2>/dev/null
+      fi
+      exit 0
+    fi
+    sleep 5
+  done
+) &
+WATCHER=$!
+
+wait "$TR_PID"; rc=$?
+kill "$WATCHER" 2>/dev/null; wait "$WATCHER" 2>/dev/null
+wait "$TEE_PID"; tee_rc=$?
+rm -f "$FIFO"
+
+# --- Q. classification (tested taxonomy; see fa_orbit_classify.py) ------------
+python3 "$EXPDIR/fa_orbit_classify.py" --rc "$rc" --tee-rc "$tee_rc" --ngpu "$NGPU" \
+  --maxsteps "$MAXSTEPS" --log "$TRAINLOG" --log-copy "$SAVEDIR_LOG"
+final_rc=$?
 LAST_CKPT="$(ls -1t "${RUNDIR}/checkpoints"/*.ckpt 2>/dev/null | head -1)"
-echo "=== exp_11 ${ARM} ${RUNG} exited rc=${rc} at $(date '+%Y-%m-%d %H:%M:%S') | last ckpt: ${LAST_CKPT:-<none>} ==="
-echo "restart with: --export=ALL,ARM=${ARM},RUNG=${RUNG},EXPECT_SHA=${HEAD_SHA},MIN_FREE_MB=${MIN_FREE_MB},MAXSTEPS=${MAXSTEPS},EXPECTED_STEP=<step of that ckpt>,RESUME_CKPT=${LAST_CKPT:-<path>}"
-exit "$rc"
+{
+  echo "=== exp_11 ${ARM} ${RUNG} finished at $(date '+%Y-%m-%d %H:%M:%S') ==="
+  echo "torchrun rc=${rc} tee rc=${tee_rc} classified rc=${final_rc}"
+  echo "last checkpoint: ${LAST_CKPT:-<none>}"
+  echo "restart: fa_orbit_submit.sh ${ARM} --resume ${LAST_CKPT:-<path>} --expected-step <step>"
+} | tee -a "$TRAINLOG" "$SAVEDIR_LOG"
+exit "$final_rc"

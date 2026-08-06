@@ -1,0 +1,678 @@
+=== exp_11 P0 cell C4L_16x4 - 2026-08-05_18-34-48 - job 3638698 - run 72a8114-1785969226421855487-c8d5b51f - host neu316.neuronic.cs.princeton.edu ===
+commit binding OK: 72a811416b35c4bfb9282c5ce1c4370776329eb9
+GPU: NVIDIA L40 GPU-534d024c-7da7-7db1-63d0-06d67caa5f74 total 46068 MiB
+GPU: NVIDIA L40 GPU-3fef9619-ceed-a3f3-5488-64db12bf7c5b total 46068 MiB
+GPU: NVIDIA L40 GPU-fa0963a7-f7b4-e7f3-9c8d-a3ffc75ddce4 total 46068 MiB
+GPU: NVIDIA L40 GPU-30ce0ac4-648a-7364-bf87-01ae5312898f total 46068 MiB
+590.48.01
+590.48.01
+590.48.01
+590.48.01
+torch 2.7.0+cu126 cuda 12.6
+config for C4L: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json sha256 29edb5c1723e745058d58fa4315ffc9c339f5af5daee7f27b184b7524573413b
+gate OK: C4L config has the expected orbit and grad-ckpt=False
+W0805 18:34:52.520000 3266102 site-packages/torch/distributed/run.py:766] 
+W0805 18:34:52.520000 3266102 site-packages/torch/distributed/run.py:766] *****************************************
+W0805 18:34:52.520000 3266102 site-packages/torch/distributed/run.py:766] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0805 18:34:52.520000 3266102 site-packages/torch/distributed/run.py:766] *****************************************
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+[rank: 3] Seed set to 42
+[rank: 2] Seed set to 42
+[rank: 1] Seed set to 42
+[rank: 0] Seed set to 42
+Using Augmentations: Random Time Shift, Add NoiseUsing Augmentations: Random Time Shift, Add NoiseUsing Augmentations: Random Time Shift, Add Noise
+
+
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Running json scandir...Running json scandir...
+
+Running json scandir...
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+21.60M/21.60M parameters are trainable
+21.60M/21.60M parameters are trainable
+21.60M/21.60M parameters are trainable
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Using bfloat16 Automatic Mixed Precision (AMP)
+P0RUNNER: cfg=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json steps=30 micro=16 gpus=4 strategy=ddp_find_unused_parameters_true world_size_env=4
+P0RUNNER: cfg=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json steps=30 micro=16 gpus=4 strategy=ddp_find_unused_parameters_true world_size_env=4
+[rank: 3] Seed set to 42
+[rank: 1] Seed set to 42
+P0RUNNER: cfg=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json steps=30 micro=16 gpus=4 strategy=ddp_find_unused_parameters_true world_size_env=4
+[rank: 2] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 1, MEMBER: 2/4
+Initializing distributed: GLOBAL_RANK: 3, MEMBER: 4/4
+Initializing distributed: GLOBAL_RANK: 2, MEMBER: 3/4
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/connectors/logger_connector/logger_connector.py:67: Starting from v1.9.0, `tensorboardX` has been removed as a dependency of the `pytorch_lightning` package, due to potential conflicts with other packages in the ML ecosystem. For this reason, `logger=True` will use `CSVLogger` as the default logger, unless the `tensorboard` or `tensorboardX` packages are found. Please `pip install lightning[extra]` or one of them to enable TensorBoard support by default
+P0RUNNER: cfg=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json steps=30 micro=16 gpus=4 strategy=ddp_find_unused_parameters_true world_size_env=4
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/plugins/environments/slurm.py:191: The `srun` command is available on your system but is not used. HINT: If your intention is to run Lightning on SLURM, prepend your python command with `srun` like so: srun python3.10 /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixu ...
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+[rank: 0] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/4
+----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 4 processes
+----------------------------------------------------------------------------------------------------
+
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/callbacks/model_checkpoint.py:630: Checkpoint directory outputs_FLAC/exp11_p0 exists and is not empty.
+LOCAL_RANK: 3 - CUDA_VISIBLE_DEVICES: [0,1,2,3]
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1,2,3]
+LOCAL_RANK: 1 - CUDA_VISIBLE_DEVICES: [0,1,2,3]
+LOCAL_RANK: 2 - CUDA_VISIBLE_DEVICES: [0,1,2,3]
+
+  | Name          | Type                             | Params
+-------------------------------------------------------------------
+0 | diffusion     | ConditionedDiffusionModelWrapper | 64.5 M
+1 | diffusion_ema | EMA                              | 16.7 M
+2 | losses        | MultiLoss                        | 0     
+-------------------------------------------------------------------
+50.3 M    Trainable params
+30.9 M    Non-trainable params
+81.2 M    Total params
+324.893   Total estimated model params size (MB)
+Training: |          | 0/? [00:00<?, ?it/s]Training:   0%|          | 0/4550 [00:00<?, ?it/s]Epoch 0:   0%|          | 0/4550 [00:00<?, ?it/s] OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 3 has a total capacity of 44.39 GiB of which 15.19 MiB is free. Including non-PyTorch memory, this process has 44.37 GiB memory in use. Of the allocated memory 35.11 GiB is allocated by PyTorch, and 8.56 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 0 has a total capacity of 44.39 GiB of which 15.19 MiB is free. Including non-PyTorch memory, this process has 44.37 GiB memory in use. Of the allocated memory 35.11 GiB is allocated by PyTorch, and 8.56 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 1 has a total capacity of 44.39 GiB of which 15.19 MiB is free. Including non-PyTorch memory, this process has 44.37 GiB memory in use. Of the allocated memory 35.11 GiB is allocated by PyTorch, and 8.56 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 2 has a total capacity of 44.39 GiB of which 15.19 MiB is free. Including non-PyTorch memory, this process has 44.37 GiB memory in use. Of the allocated memory 35.11 GiB is allocated by PyTorch, and 8.56 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_runner.py", line 186, in <module>
+[rank3]:     sys.exit(main())
+[rank3]:   File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_runner.py", line 174, in main
+[rank3]:     trainer.fit(training_wrapper, train_dl)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 545, in fit
+[rank3]:     call._call_and_handle_interrupt(
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 43, in _call_and_handle_interrupt
+[rank3]:     return trainer.strategy.launcher.launch(trainer_fn, *args, trainer=trainer, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/launchers/subprocess_script.py", line 102, in launch
+[rank3]:     return function(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 581, in _fit_impl
+[rank3]:     self._run(model, ckpt_path=ckpt_path)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 990, in _run
+[rank3]:     results = self._run_stage()
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 1036, in _run_stage
+[rank3]:     self.fit_loop.run()
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 202, in run
+[rank3]:     self.advance()
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 359, in advance
+[rank3]:     self.epoch_loop.run(self._data_fetcher)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 136, in run
+[rank3]:     self.advance(data_fetcher)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 240, in advance
+[rank3]:     batch_output = self.automatic_optimization.run(trainer.optimizers[0], batch_idx, kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 187, in run
+[rank3]:     self._optimizer_step(batch_idx, closure)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 265, in _optimizer_step
+[rank3]:     call._call_lightning_module_hook(
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 157, in _call_lightning_module_hook
+[rank3]:     output = fn(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/core/module.py", line 1282, in optimizer_step
+[rank3]:     optimizer.step(closure=optimizer_closure)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/core/optimizer.py", line 151, in step
+[rank3]:     step_output = self._strategy.optimizer_step(self._optimizer, closure, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/ddp.py", line 263, in optimizer_step
+[rank3]:     optimizer_output = super().optimizer_step(optimizer, closure, model, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 230, in optimizer_step
+[rank3]:     return self.precision_plugin.optimizer_step(optimizer, model=model, closure=closure, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/amp.py", line 74, in optimizer_step
+[rank3]:     return super().optimizer_step(optimizer, model=model, closure=closure, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/precision_plugin.py", line 117, in optimizer_step
+[rank3]:     return optimizer.step(closure=closure, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/lr_scheduler.py", line 124, in wrapper
+[rank3]:     return func.__get__(opt, opt.__class__)(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/optimizer.py", line 485, in wrapper
+[rank3]:     out = func(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/optimizer.py", line 79, in _use_grad
+[rank3]:     ret = func(self, *args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/adam.py", line 225, in step
+[rank3]:     loss = closure()
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/precision_plugin.py", line 104, in _wrap_closure
+[rank3]:     closure_result = closure()
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 140, in __call__
+[rank3]:     self._result = self.closure(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+[rank3]:     return func(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 126, in closure
+[rank3]:     step_output = self._step_fn()
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 315, in _training_step
+[rank3]:     training_step_output = call._call_strategy_hook(trainer, "training_step", *kwargs.values())
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 309, in _call_strategy_hook
+[rank3]:     output = fn(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 381, in training_step
+[rank3]:     return self._forward_redirection(self.model, self.lightning_module, "training_step", *args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 628, in __call__
+[rank3]:     wrapper_output = wrapper_module(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1637, in forward
+[rank3]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1464, in _run_ddp_forward
+[rank3]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 621, in wrapped_forward
+[rank3]:     out = method(*_args, **_kwargs)
+[rank3]:   File "/n/fs/gatrdp/codespace/FLAC/src/training/diffusion.py", line 239, in training_step
+[rank3]:     conditioning = self._compute_conditioning(metadata)
+[rank3]:   File "/n/fs/gatrdp/codespace/FLAC/src/training/diffusion.py", line 216, in _compute_conditioning
+[rank3]:     return invariant_conditioning(
+[rank3]:   File "/n/fs/gatrdp/codespace/FLAC/src/data/yaw_rotation.py", line 300, in invariant_conditioning
+[rank3]:     part = conditioner(variants, device, only_ids=present)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/codespace/FLAC/src/models/conditioners.py", line 414, in forward
+[rank3]:     output[key] = conditioner(conditioner_inputs, device=device)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/codespace/FLAC/src/models/conditioners.py", line 286, in forward
+[rank3]:     outputs = self.vit(c)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/utils/generic.py", line 1064, in wrapper
+[rank3]:     outputs = func(self, *args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 523, in forward
+[rank3]:     hidden_states = layer_module(
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/modeling_layers.py", line 94, in __call__
+[rank3]:     return super().__call__(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 431, in forward
+[rank3]:     hidden_states = self.mlp(hidden_states)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 373, in forward
+[rank3]:     return self.down_proj(self.act_fn(self.up_proj(x)))
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/linear.py", line 125, in forward
+[rank3]:     return F.linear(input, self.weight, self.bias)
+[rank3]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 3 has a total capacity of 44.39 GiB of which 15.19 MiB is free. Including non-PyTorch memory, this process has 44.37 GiB memory in use. Of the allocated memory 35.11 GiB is allocated by PyTorch, and 8.56 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_runner.py", line 186, in <module>
+[rank0]:     sys.exit(main())
+[rank0]:   File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_runner.py", line 174, in main
+[rank0]:     trainer.fit(training_wrapper, train_dl)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 545, in fit
+[rank0]:     call._call_and_handle_interrupt(
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 43, in _call_and_handle_interrupt
+[rank0]:     return trainer.strategy.launcher.launch(trainer_fn, *args, trainer=trainer, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/launchers/subprocess_script.py", line 102, in launch
+[rank0]:     return function(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 581, in _fit_impl
+[rank0]:     self._run(model, ckpt_path=ckpt_path)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 990, in _run
+[rank0]:     results = self._run_stage()
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 1036, in _run_stage
+[rank0]:     self.fit_loop.run()
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 202, in run
+[rank0]:     self.advance()
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 359, in advance
+[rank0]:     self.epoch_loop.run(self._data_fetcher)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 136, in run
+[rank0]:     self.advance(data_fetcher)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 240, in advance
+[rank0]:     batch_output = self.automatic_optimization.run(trainer.optimizers[0], batch_idx, kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 187, in run
+[rank0]:     self._optimizer_step(batch_idx, closure)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 265, in _optimizer_step
+[rank0]:     call._call_lightning_module_hook(
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 157, in _call_lightning_module_hook
+[rank0]:     output = fn(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/core/module.py", line 1282, in optimizer_step
+[rank0]:     optimizer.step(closure=optimizer_closure)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/core/optimizer.py", line 151, in step
+[rank0]:     step_output = self._strategy.optimizer_step(self._optimizer, closure, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/ddp.py", line 263, in optimizer_step
+[rank0]:     optimizer_output = super().optimizer_step(optimizer, closure, model, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 230, in optimizer_step
+[rank0]:     return self.precision_plugin.optimizer_step(optimizer, model=model, closure=closure, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/amp.py", line 74, in optimizer_step
+[rank0]:     return super().optimizer_step(optimizer, model=model, closure=closure, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/precision_plugin.py", line 117, in optimizer_step
+[rank0]:     return optimizer.step(closure=closure, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/lr_scheduler.py", line 124, in wrapper
+[rank0]:     return func.__get__(opt, opt.__class__)(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/optimizer.py", line 485, in wrapper
+[rank0]:     out = func(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/optimizer.py", line 79, in _use_grad
+[rank0]:     ret = func(self, *args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/adam.py", line 225, in step
+[rank0]:     loss = closure()
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/precision_plugin.py", line 104, in _wrap_closure
+[rank0]:     closure_result = closure()
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 140, in __call__
+[rank0]:     self._result = self.closure(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+[rank0]:     return func(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 126, in closure
+[rank0]:     step_output = self._step_fn()
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 315, in _training_step
+[rank0]:     training_step_output = call._call_strategy_hook(trainer, "training_step", *kwargs.values())
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 309, in _call_strategy_hook
+[rank0]:     output = fn(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 381, in training_step
+[rank0]:     return self._forward_redirection(self.model, self.lightning_module, "training_step", *args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 628, in __call__
+[rank0]:     wrapper_output = wrapper_module(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1637, in forward
+[rank0]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1464, in _run_ddp_forward
+[rank0]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 621, in wrapped_forward
+[rank0]:     out = method(*_args, **_kwargs)
+[rank0]:   File "/n/fs/gatrdp/codespace/FLAC/src/training/diffusion.py", line 239, in training_step
+[rank0]:     conditioning = self._compute_conditioning(metadata)
+[rank0]:   File "/n/fs/gatrdp/codespace/FLAC/src/training/diffusion.py", line 216, in _compute_conditioning
+[rank0]:     return invariant_conditioning(
+[rank0]:   File "/n/fs/gatrdp/codespace/FLAC/src/data/yaw_rotation.py", line 300, in invariant_conditioning
+[rank0]:     part = conditioner(variants, device, only_ids=present)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/codespace/FLAC/src/models/conditioners.py", line 414, in forward
+[rank0]:     output[key] = conditioner(conditioner_inputs, device=device)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/codespace/FLAC/src/models/conditioners.py", line 286, in forward
+[rank0]:     outputs = self.vit(c)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/utils/generic.py", line 1064, in wrapper
+[rank0]:     outputs = func(self, *args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 523, in forward
+[rank0]:     hidden_states = layer_module(
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/modeling_layers.py", line 94, in __call__
+[rank0]:     return super().__call__(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 431, in forward
+[rank0]:     hidden_states = self.mlp(hidden_states)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 373, in forward
+[rank0]:     return self.down_proj(self.act_fn(self.up_proj(x)))
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/linear.py", line 125, in forward
+[rank0]:     return F.linear(input, self.weight, self.bias)
+[rank0]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 0 has a total capacity of 44.39 GiB of which 15.19 MiB is free. Including non-PyTorch memory, this process has 44.37 GiB memory in use. Of the allocated memory 35.11 GiB is allocated by PyTorch, and 8.56 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_runner.py", line 186, in <module>
+[rank1]:     sys.exit(main())
+[rank1]:   File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_runner.py", line 174, in main
+[rank1]:     trainer.fit(training_wrapper, train_dl)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 545, in fit
+[rank1]:     call._call_and_handle_interrupt(
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 43, in _call_and_handle_interrupt
+[rank1]:     return trainer.strategy.launcher.launch(trainer_fn, *args, trainer=trainer, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/launchers/subprocess_script.py", line 102, in launch
+[rank1]:     return function(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 581, in _fit_impl
+[rank1]:     self._run(model, ckpt_path=ckpt_path)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 990, in _run
+[rank1]:     results = self._run_stage()
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 1036, in _run_stage
+[rank1]:     self.fit_loop.run()
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 202, in run
+[rank1]:     self.advance()
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 359, in advance
+[rank1]:     self.epoch_loop.run(self._data_fetcher)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 136, in run
+[rank1]:     self.advance(data_fetcher)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 240, in advance
+[rank1]:     batch_output = self.automatic_optimization.run(trainer.optimizers[0], batch_idx, kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 187, in run
+[rank1]:     self._optimizer_step(batch_idx, closure)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 265, in _optimizer_step
+[rank1]:     call._call_lightning_module_hook(
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 157, in _call_lightning_module_hook
+[rank1]:     output = fn(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/core/module.py", line 1282, in optimizer_step
+[rank1]:     optimizer.step(closure=optimizer_closure)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/core/optimizer.py", line 151, in step
+[rank1]:     step_output = self._strategy.optimizer_step(self._optimizer, closure, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/ddp.py", line 263, in optimizer_step
+[rank1]:     optimizer_output = super().optimizer_step(optimizer, closure, model, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 230, in optimizer_step
+[rank1]:     return self.precision_plugin.optimizer_step(optimizer, model=model, closure=closure, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/amp.py", line 74, in optimizer_step
+[rank1]:     return super().optimizer_step(optimizer, model=model, closure=closure, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/precision_plugin.py", line 117, in optimizer_step
+[rank1]:     return optimizer.step(closure=closure, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/lr_scheduler.py", line 124, in wrapper
+[rank1]:     return func.__get__(opt, opt.__class__)(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/optimizer.py", line 485, in wrapper
+[rank1]:     out = func(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/optimizer.py", line 79, in _use_grad
+[rank1]:     ret = func(self, *args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/adam.py", line 225, in step
+[rank1]:     loss = closure()
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/precision_plugin.py", line 104, in _wrap_closure
+[rank1]:     closure_result = closure()
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 140, in __call__
+[rank1]:     self._result = self.closure(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+[rank1]:     return func(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 126, in closure
+[rank1]:     step_output = self._step_fn()
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 315, in _training_step
+[rank1]:     training_step_output = call._call_strategy_hook(trainer, "training_step", *kwargs.values())
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 309, in _call_strategy_hook
+[rank1]:     output = fn(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 381, in training_step
+[rank1]:     return self._forward_redirection(self.model, self.lightning_module, "training_step", *args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 628, in __call__
+[rank1]:     wrapper_output = wrapper_module(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1637, in forward
+[rank1]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1464, in _run_ddp_forward
+[rank1]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 621, in wrapped_forward
+[rank1]:     out = method(*_args, **_kwargs)
+[rank1]:   File "/n/fs/gatrdp/codespace/FLAC/src/training/diffusion.py", line 239, in training_step
+[rank1]:     conditioning = self._compute_conditioning(metadata)
+[rank1]:   File "/n/fs/gatrdp/codespace/FLAC/src/training/diffusion.py", line 216, in _compute_conditioning
+[rank1]:     return invariant_conditioning(
+[rank1]:   File "/n/fs/gatrdp/codespace/FLAC/src/data/yaw_rotation.py", line 300, in invariant_conditioning
+[rank1]:     part = conditioner(variants, device, only_ids=present)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/codespace/FLAC/src/models/conditioners.py", line 414, in forward
+[rank1]:     output[key] = conditioner(conditioner_inputs, device=device)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/codespace/FLAC/src/models/conditioners.py", line 286, in forward
+[rank1]:     outputs = self.vit(c)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/utils/generic.py", line 1064, in wrapper
+[rank1]:     outputs = func(self, *args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 523, in forward
+[rank1]:     hidden_states = layer_module(
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/modeling_layers.py", line 94, in __call__
+[rank1]:     return super().__call__(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 431, in forward
+[rank1]:     hidden_states = self.mlp(hidden_states)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 373, in forward
+[rank1]:     return self.down_proj(self.act_fn(self.up_proj(x)))
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/linear.py", line 125, in forward
+[rank1]:     return F.linear(input, self.weight, self.bias)
+[rank1]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 1 has a total capacity of 44.39 GiB of which 15.19 MiB is free. Including non-PyTorch memory, this process has 44.37 GiB memory in use. Of the allocated memory 35.11 GiB is allocated by PyTorch, and 8.56 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_runner.py", line 186, in <module>
+[rank2]:     sys.exit(main())
+[rank2]:   File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_runner.py", line 174, in main
+[rank2]:     trainer.fit(training_wrapper, train_dl)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 545, in fit
+[rank2]:     call._call_and_handle_interrupt(
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 43, in _call_and_handle_interrupt
+[rank2]:     return trainer.strategy.launcher.launch(trainer_fn, *args, trainer=trainer, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/launchers/subprocess_script.py", line 102, in launch
+[rank2]:     return function(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 581, in _fit_impl
+[rank2]:     self._run(model, ckpt_path=ckpt_path)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 990, in _run
+[rank2]:     results = self._run_stage()
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 1036, in _run_stage
+[rank2]:     self.fit_loop.run()
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 202, in run
+[rank2]:     self.advance()
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 359, in advance
+[rank2]:     self.epoch_loop.run(self._data_fetcher)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 136, in run
+[rank2]:     self.advance(data_fetcher)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 240, in advance
+[rank2]:     batch_output = self.automatic_optimization.run(trainer.optimizers[0], batch_idx, kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 187, in run
+[rank2]:     self._optimizer_step(batch_idx, closure)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 265, in _optimizer_step
+[rank2]:     call._call_lightning_module_hook(
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 157, in _call_lightning_module_hook
+[rank2]:     output = fn(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/core/module.py", line 1282, in optimizer_step
+[rank2]:     optimizer.step(closure=optimizer_closure)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/core/optimizer.py", line 151, in step
+[rank2]:     step_output = self._strategy.optimizer_step(self._optimizer, closure, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/ddp.py", line 263, in optimizer_step
+[rank2]:     optimizer_output = super().optimizer_step(optimizer, closure, model, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 230, in optimizer_step
+[rank2]:     return self.precision_plugin.optimizer_step(optimizer, model=model, closure=closure, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/amp.py", line 74, in optimizer_step
+[rank2]:     return super().optimizer_step(optimizer, model=model, closure=closure, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/precision_plugin.py", line 117, in optimizer_step
+[rank2]:     return optimizer.step(closure=closure, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/lr_scheduler.py", line 124, in wrapper
+[rank2]:     return func.__get__(opt, opt.__class__)(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/optimizer.py", line 485, in wrapper
+[rank2]:     out = func(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/optimizer.py", line 79, in _use_grad
+[rank2]:     ret = func(self, *args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/adam.py", line 225, in step
+[rank2]:     loss = closure()
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/precision_plugin.py", line 104, in _wrap_closure
+[rank2]:     closure_result = closure()
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 140, in __call__
+[rank2]:     self._result = self.closure(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+[rank2]:     return func(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 126, in closure
+[rank2]:     step_output = self._step_fn()
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 315, in _training_step
+[rank2]:     training_step_output = call._call_strategy_hook(trainer, "training_step", *kwargs.values())
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 309, in _call_strategy_hook
+[rank2]:     output = fn(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 381, in training_step
+[rank2]:     return self._forward_redirection(self.model, self.lightning_module, "training_step", *args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 628, in __call__
+[rank2]:     wrapper_output = wrapper_module(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1637, in forward
+[rank2]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1464, in _run_ddp_forward
+[rank2]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 621, in wrapped_forward
+[rank2]:     out = method(*_args, **_kwargs)
+[rank2]:   File "/n/fs/gatrdp/codespace/FLAC/src/training/diffusion.py", line 239, in training_step
+[rank2]:     conditioning = self._compute_conditioning(metadata)
+[rank2]:   File "/n/fs/gatrdp/codespace/FLAC/src/training/diffusion.py", line 216, in _compute_conditioning
+[rank2]:     return invariant_conditioning(
+[rank2]:   File "/n/fs/gatrdp/codespace/FLAC/src/data/yaw_rotation.py", line 300, in invariant_conditioning
+[rank2]:     part = conditioner(variants, device, only_ids=present)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/codespace/FLAC/src/models/conditioners.py", line 414, in forward
+[rank2]:     output[key] = conditioner(conditioner_inputs, device=device)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/codespace/FLAC/src/models/conditioners.py", line 286, in forward
+[rank2]:     outputs = self.vit(c)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/utils/generic.py", line 1064, in wrapper
+[rank2]:     outputs = func(self, *args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 523, in forward
+[rank2]:     hidden_states = layer_module(
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/modeling_layers.py", line 94, in __call__
+[rank2]:     return super().__call__(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 431, in forward
+[rank2]:     hidden_states = self.mlp(hidden_states)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 373, in forward
+[rank2]:     return self.down_proj(self.act_fn(self.up_proj(x)))
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/linear.py", line 125, in forward
+[rank2]:     return F.linear(input, self.weight, self.bias)
+[rank2]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 2 has a total capacity of 44.39 GiB of which 15.19 MiB is free. Including non-PyTorch memory, this process has 44.37 GiB memory in use. Of the allocated memory 35.11 GiB is allocated by PyTorch, and 8.56 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+Epoch 0:   0%|          | 0/4550 [00:06<?, ?it/s]
+W0805 18:35:13.538000 3266102 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 3266221 closing signal SIGTERM
+W0805 18:35:13.539000 3266102 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 3266222 closing signal SIGTERM
+W0805 18:35:13.539000 3266102 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 3266223 closing signal SIGTERM
+E0805 18:35:14.353000 3266102 site-packages/torch/distributed/elastic/multiprocessing/api.py:874] failed (exitcode: 1) local_rank: 3 (pid: 3266224) of binary: /n/fs/gatrdp/envs/flac/bin/python3.10
+Traceback (most recent call last):
+  File "/n/fs/gatrdp/envs/flac/bin/torchrun", line 6, in <module>
+    sys.exit(main())
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    return f(*args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/run.py", line 892, in main
+    run(args)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/run.py", line 883, in run
+    elastic_launch(
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 270, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_runner.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-08-05_18:35:13
+  host      : neu316.neuronic.cs.princeton.edu
+  rank      : 3 (local_rank: 3)
+  exitcode  : 1 (pid: 3266224)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+missing/blank P0STEP window marks in the train log
+=== RESULT: cell C4L_16x4 rc=1 | wall 24.219s (startup diagnostic) | window -1 -> -1 | peak 45151 MiB / 46068 MiB | measurement_valid=1 ===
+--- OOM (exact error excerpt; fail-honest, no fallback) ---
+81.2 M    Total params
+324.893   Total estimated model params size (MB)
+Training: |          | 0/? [00:00<?, ?it/s]Training:   0%|          | 0/4550 [00:00<?, ?it/s]Epoch 0:   0%|          | 0/4550 [00:00<?, ?it/s] OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 3 has a total capacity of 44.39 GiB of which 15.19 MiB is free. Including non-PyTorch memory, this process has 44.37 GiB memory in use. Of the allocated memory 35.11 GiB is allocated by PyTorch, and 8.56 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 0 has a total capacity of 44.39 GiB of which 15.19 MiB is free. Including non-PyTorch memory, this process has 44.37 GiB memory in use. Of the allocated memory 35.11 GiB is allocated by PyTorch, and 8.56 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 1 has a total capacity of 44.39 GiB of which 15.19 MiB is free. Including non-PyTorch memory, this process has 44.37 GiB memory in use. Of the allocated memory 35.11 GiB is allocated by PyTorch, and 8.56 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 2 has a total capacity of 44.39 GiB of which 15.19 MiB is free. Including non-PyTorch memory, this process has 44.37 GiB memory in use. Of the allocated memory 35.11 GiB is allocated by PyTorch, and 8.56 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_runner.py", line 186, in <module>
+[rank3]:     sys.exit(main())
+[rank3]:   File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_runner.py", line 174, in main
+[rank3]:     trainer.fit(training_wrapper, train_dl)
+[rank3]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 545, in fit
+[rank3]:     call._call_and_handle_interrupt(
+P0RESULT runid=72a8114-1785969226421855487-c8d5b51f sha=72a811416b35c4bfb9282c5ce1c4370776329eb9 jobid=3638698 cell=C4L_16x4 maxsteps=30 ngpu=4 mb=16 workers=6 rc=3 config_sha=29edb5c1723e745058d58fa4315ffc9c339f5af5daee7f27b184b7524573413b wall_fit=24.219 t10=-1 t30=-1 t10_mono=-1 t30_mono=-1 peak_overall_mib=45151 peak_per_uuid=GPU-30ce0ac4-648a-7364-bf87-01ae5312898f:45151,GPU-3fef9619-ceed-a3f3-5488-64db12bf7c5b:45151,GPU-534d024c-7da7-7db1-63d0-06d67caa5f74:45151,GPU-fa0963a7-f7b4-e7f3-9c8d-a3ffc75ddce4:45151 vram_csv=p0_C4L_16x4_2026-08-05_18-34-48_jid3638698_vram.csv pollcsv_sha256=f53426767b43c42addcf245cd2cd299f0eb03604fbadbf2ae9260c402e90bbbf valid=1
+cell C4L_16x4 NOT clean (rc=3, measurement_valid=1); see /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_C4L_16x4_2026-08-05_18-34-48_jid3638698_train.log

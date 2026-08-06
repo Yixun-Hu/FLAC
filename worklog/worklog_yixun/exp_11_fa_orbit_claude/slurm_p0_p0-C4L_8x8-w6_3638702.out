@@ -1,0 +1,197 @@
+=== exp_11 P0 cell C4L_8x8 - 2026-08-05_20-01-57 - job 3638702 - run 72a8114-1785969226421855487-c8d5b51f - host neu316.neuronic.cs.princeton.edu ===
+commit binding OK: 72a811416b35c4bfb9282c5ce1c4370776329eb9
+GPU: NVIDIA L40 GPU-534d024c-7da7-7db1-63d0-06d67caa5f74 total 46068 MiB
+GPU: NVIDIA L40 GPU-3fef9619-ceed-a3f3-5488-64db12bf7c5b total 46068 MiB
+GPU: NVIDIA L40 GPU-fa0963a7-f7b4-e7f3-9c8d-a3ffc75ddce4 total 46068 MiB
+GPU: NVIDIA L40 GPU-30ce0ac4-648a-7364-bf87-01ae5312898f total 46068 MiB
+GPU: NVIDIA L40 GPU-e6c725cb-8c69-4411-9ed5-c42378a63855 total 46068 MiB
+GPU: NVIDIA L40 GPU-a2319def-cd1a-539b-8107-c7d71825e97d total 46068 MiB
+GPU: NVIDIA L40 GPU-3aff73ab-b1cc-2c0d-df0b-e601296f2fcd total 46068 MiB
+GPU: NVIDIA L40 GPU-ad152f6f-34ff-9268-e7c4-350a4a8a3680 total 46068 MiB
+590.48.01
+590.48.01
+590.48.01
+590.48.01
+590.48.01
+590.48.01
+590.48.01
+590.48.01
+torch 2.7.0+cu126 cuda 12.6
+config for C4L: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json sha256 29edb5c1723e745058d58fa4315ffc9c339f5af5daee7f27b184b7524573413b
+gate OK: C4L config has the expected orbit and grad-ckpt=False
+W0805 20:02:01.603000 3285439 site-packages/torch/distributed/run.py:766] 
+W0805 20:02:01.603000 3285439 site-packages/torch/distributed/run.py:766] *****************************************
+W0805 20:02:01.603000 3285439 site-packages/torch/distributed/run.py:766] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0805 20:02:01.603000 3285439 site-packages/torch/distributed/run.py:766] *****************************************
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+[rank: 2] Seed set to 42
+[rank: 6] Seed set to 42
+[rank: 7] Seed set to 42
+[rank: 1] Seed set to 42
+[rank: 3] Seed set to 42
+[rank: 0] Seed set to 42
+[rank: 4] Seed set to 42
+[rank: 5] Seed set to 42
+Using Augmentations: Random Time Shift, Add NoiseUsing Augmentations: Random Time Shift, Add NoiseUsing Augmentations: Random Time Shift, Add NoiseUsing Augmentations: Random Time Shift, Add Noise
+Using Augmentations: Random Time Shift, Add Noise
+
+Using Augmentations: Random Time Shift, Add Noise
+Using Augmentations: Random Time Shift, Add Noise
+
+
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...Running json scandir...
+Running json scandir...
+Running json scandir...Running json scandir...
+
+
+Running json scandir...Running json scandir...
+
+Running json scandir...
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+21.60M/21.60M parameters are trainable
+21.60M/21.60M parameters are trainable21.60M/21.60M parameters are trainable
+
+21.60M/21.60M parameters are trainable
+21.60M/21.60M parameters are trainable
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+21.60M/21.60M parameters are trainable
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+21.60M/21.60M parameters are trainable
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+P0RUNNER: cfg=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json steps=30 micro=8 gpus=8 strategy=ddp_find_unused_parameters_true world_size_env=8
+P0RUNNER: cfg=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json steps=30 micro=8 gpus=8 strategy=ddp_find_unused_parameters_true world_size_env=8
+[rank: 2] Seed set to 42
+[rank: 6] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 2, MEMBER: 3/8
+Initializing distributed: GLOBAL_RANK: 6, MEMBER: 7/8
+P0RUNNER: cfg=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json steps=30 micro=8 gpus=8 strategy=ddp_find_unused_parameters_true world_size_env=8
+[rank: 4] Seed set to 42
+P0RUNNER: cfg=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json steps=30 micro=8 gpus=8 strategy=ddp_find_unused_parameters_true world_size_env=8
+[rank: 5] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 4, MEMBER: 5/8
+P0RUNNER: cfg=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json steps=30 micro=8 gpus=8 strategy=ddp_find_unused_parameters_true world_size_env=8
+Initializing distributed: GLOBAL_RANK: 5, MEMBER: 6/8
+[rank: 7] Seed set to 42
+P0RUNNER: cfg=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json steps=30 micro=8 gpus=8 strategy=ddp_find_unused_parameters_true world_size_env=8
+[rank: 1] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 7, MEMBER: 8/8
+Initializing distributed: GLOBAL_RANK: 1, MEMBER: 2/8
+P0RUNNER: cfg=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json steps=30 micro=8 gpus=8 strategy=ddp_find_unused_parameters_true world_size_env=8
+[rank: 3] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 3, MEMBER: 4/8
+Using bfloat16 Automatic Mixed Precision (AMP)
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/connectors/logger_connector/logger_connector.py:67: Starting from v1.9.0, `tensorboardX` has been removed as a dependency of the `pytorch_lightning` package, due to potential conflicts with other packages in the ML ecosystem. For this reason, `logger=True` will use `CSVLogger` as the default logger, unless the `tensorboard` or `tensorboardX` packages are found. Please `pip install lightning[extra]` or one of them to enable TensorBoard support by default
+P0RUNNER: cfg=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json steps=30 micro=8 gpus=8 strategy=ddp_find_unused_parameters_true world_size_env=8
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/plugins/environments/slurm.py:191: The `srun` command is available on your system but is not used. HINT: If your intention is to run Lightning on SLURM, prepend your python command with `srun` like so: srun python3.10 /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixu ...
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+[rank: 0] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/8
+----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 8 processes
+----------------------------------------------------------------------------------------------------
+
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/callbacks/model_checkpoint.py:630: Checkpoint directory outputs_FLAC/exp11_p0 exists and is not empty.
+LOCAL_RANK: 6 - CUDA_VISIBLE_DEVICES: [0,1,2,3,4,5,6,7]
+LOCAL_RANK: 3 - CUDA_VISIBLE_DEVICES: [0,1,2,3,4,5,6,7]
+LOCAL_RANK: 4 - CUDA_VISIBLE_DEVICES: [0,1,2,3,4,5,6,7]
+LOCAL_RANK: 1 - CUDA_VISIBLE_DEVICES: [0,1,2,3,4,5,6,7]
+LOCAL_RANK: 5 - CUDA_VISIBLE_DEVICES: [0,1,2,3,4,5,6,7]
+LOCAL_RANK: 7 - CUDA_VISIBLE_DEVICES: [0,1,2,3,4,5,6,7]
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1,2,3,4,5,6,7]
+LOCAL_RANK: 2 - CUDA_VISIBLE_DEVICES: [0,1,2,3,4,5,6,7]
+
+  | Name          | Type                             | Params
+-------------------------------------------------------------------
+0 | diffusion     | ConditionedDiffusionModelWrapper | 64.5 M
+1 | diffusion_ema | EMA                              | 16.7 M
+2 | losses        | MultiLoss                        | 0     
+-------------------------------------------------------------------
+50.3 M    Trainable params
+30.9 M    Non-trainable params
+81.2 M    Total params
+324.893   Total estimated model params size (MB)
+Training: |          | 0/? [00:00<?, ?it/s]Training:   0%|          | 0/4550 [00:00<?, ?it/s]Epoch 0:   0%|          | 0/4550 [00:00<?, ?it/s] Epoch 0:   0%|          | 1/4550 [00:05<7:18:09,  0.17it/s]Epoch 0:   0%|          | 1/4550 [00:05<7:18:13,  0.17it/s, v_num=16, train/loss=2.470, train/std_data=1.160, train/lr=5e-7, train/mse_loss=2.470]Epoch 0:   0%|          | 2/4550 [00:07<4:38:38,  0.27it/s, v_num=16, train/loss=2.470, train/std_data=1.160, train/lr=5e-7, train/mse_loss=2.470]Epoch 0:   0%|          | 2/4550 [00:07<4:38:40,  0.27it/s, v_num=16, train/loss=2.580, train/std_data=1.200, train/lr=9.95e-7, train/mse_loss=2.580]Epoch 0:   0%|          | 3/4550 [00:08<3:45:42,  0.34it/s, v_num=16, train/loss=2.580, train/std_data=1.200, train/lr=9.95e-7, train/mse_loss=2.580]Epoch 0:   0%|          | 3/4550 [00:08<3:45:43,  0.34it/s, v_num=16, train/loss=2.260, train/std_data=1.080, train/lr=1.49e-6, train/mse_loss=2.260]Epoch 0:   0%|          | 4/4550 [00:10<3:17:23,  0.38it/s, v_num=16, train/loss=2.260, train/std_data=1.080, train/lr=1.49e-6, train/mse_loss=2.260]Epoch 0:   0%|          | 4/4550 [00:10<3:17:24,  0.38it/s, v_num=16, train/loss=2.330, train/std_data=1.110, train/lr=1.97e-6, train/mse_loss=2.330]Epoch 0:   0%|          | 5/4550 [00:11<3:01:26,  0.42it/s, v_num=16, train/loss=2.330, train/std_data=1.110, train/lr=1.97e-6, train/mse_loss=2.330]Epoch 0:   0%|          | 5/4550 [00:11<3:01:27,  0.42it/s, v_num=16, train/loss=2.440, train/std_data=1.160, train/lr=2.45e-6, train/mse_loss=2.440]Epoch 0:   0%|          | 6/4550 [00:13<2:50:50,  0.44it/s, v_num=16, train/loss=2.440, train/std_data=1.160, train/lr=2.45e-6, train/mse_loss=2.440]Epoch 0:   0%|          | 6/4550 [00:13<2:50:50,  0.44it/s, v_num=16, train/loss=2.790, train/std_data=1.320, train/lr=2.93e-6, train/mse_loss=2.790]Epoch 0:   0%|          | 7/4550 [00:15<2:42:38,  0.47it/s, v_num=16, train/loss=2.790, train/std_data=1.320, train/lr=2.93e-6, train/mse_loss=2.790]Epoch 0:   0%|          | 7/4550 [00:15<2:42:38,  0.47it/s, v_num=16, train/loss=2.640, train/std_data=1.270, train/lr=3.4e-6, train/mse_loss=2.640] Epoch 0:   0%|          | 8/4550 [00:16<2:36:58,  0.48it/s, v_num=16, train/loss=2.640, train/std_data=1.270, train/lr=3.4e-6, train/mse_loss=2.640]Epoch 0:   0%|          | 8/4550 [00:16<2:36:58,  0.48it/s, v_num=16, train/loss=2.260, train/std_data=1.080, train/lr=3.86e-6, train/mse_loss=2.260]Epoch 0:   0%|          | 9/4550 [00:18<2:32:21,  0.50it/s, v_num=16, train/loss=2.260, train/std_data=1.080, train/lr=3.86e-6, train/mse_loss=2.260]Epoch 0:   0%|          | 9/4550 [00:18<2:32:22,  0.50it/s, v_num=16, train/loss=2.440, train/std_data=1.180, train/lr=4.32e-6, train/mse_loss=2.440]P0STEP step=10 t=1680488.922304 ts=1785974556.359338
+Epoch 0:   0%|          | 10/4550 [00:19<2:28:37,  0.51it/s, v_num=16, train/loss=2.440, train/std_data=1.180, train/lr=4.32e-6, train/mse_loss=2.440]Epoch 0:   0%|          | 10/4550 [00:19<2:28:37,  0.51it/s, v_num=16, train/loss=2.470, train/std_data=1.200, train/lr=4.78e-6, train/mse_loss=2.470]Epoch 0:   0%|          | 11/4550 [00:21<2:25:41,  0.52it/s, v_num=16, train/loss=2.470, train/std_data=1.200, train/lr=4.78e-6, train/mse_loss=2.470]Epoch 0:   0%|          | 11/4550 [00:21<2:25:41,  0.52it/s, v_num=16, train/loss=2.220, train/std_data=1.080, train/lr=5.23e-6, train/mse_loss=2.220]Epoch 0:   0%|          | 12/4550 [00:22<2:23:28,  0.53it/s, v_num=16, train/loss=2.220, train/std_data=1.080, train/lr=5.23e-6, train/mse_loss=2.220]Epoch 0:   0%|          | 12/4550 [00:22<2:23:28,  0.53it/s, v_num=16, train/loss=2.370, train/std_data=1.140, train/lr=5.68e-6, train/mse_loss=2.370]Epoch 0:   0%|          | 13/4550 [00:24<2:21:09,  0.54it/s, v_num=16, train/loss=2.370, train/std_data=1.140, train/lr=5.68e-6, train/mse_loss=2.370]Epoch 0:   0%|          | 13/4550 [00:24<2:21:09,  0.54it/s, v_num=16, train/loss=2.390, train/std_data=1.170, train/lr=6.12e-6, train/mse_loss=2.390]Epoch 0:   0%|          | 14/4550 [00:25<2:19:19,  0.54it/s, v_num=16, train/loss=2.390, train/std_data=1.170, train/lr=6.12e-6, train/mse_loss=2.390]Epoch 0:   0%|          | 14/4550 [00:25<2:19:19,  0.54it/s, v_num=16, train/loss=2.300, train/std_data=1.120, train/lr=6.56e-6, train/mse_loss=2.300]Epoch 0:   0%|          | 15/4550 [00:27<2:17:33,  0.55it/s, v_num=16, train/loss=2.300, train/std_data=1.120, train/lr=6.56e-6, train/mse_loss=2.300]Epoch 0:   0%|          | 15/4550 [00:27<2:17:33,  0.55it/s, v_num=16, train/loss=2.380, train/std_data=1.130, train/lr=7e-6, train/mse_loss=2.380]   Epoch 0:   0%|          | 16/4550 [00:28<2:16:04,  0.56it/s, v_num=16, train/loss=2.380, train/std_data=1.130, train/lr=7e-6, train/mse_loss=2.380]Epoch 0:   0%|          | 16/4550 [00:28<2:16:04,  0.56it/s, v_num=16, train/loss=2.550, train/std_data=1.210, train/lr=7.43e-6, train/mse_loss=2.550]Epoch 0:   0%|          | 17/4550 [00:30<2:15:02,  0.56it/s, v_num=16, train/loss=2.550, train/std_data=1.210, train/lr=7.43e-6, train/mse_loss=2.550]Epoch 0:   0%|          | 17/4550 [00:30<2:15:02,  0.56it/s, v_num=16, train/loss=2.350, train/std_data=1.140, train/lr=7.85e-6, train/mse_loss=2.350]Epoch 0:   0%|          | 18/4550 [00:31<2:14:02,  0.56it/s, v_num=16, train/loss=2.350, train/std_data=1.140, train/lr=7.85e-6, train/mse_loss=2.350]Epoch 0:   0%|          | 18/4550 [00:31<2:14:02,  0.56it/s, v_num=16, train/loss=3.320, train/std_data=1.530, train/lr=8.27e-6, train/mse_loss=3.320]Epoch 0:   0%|          | 19/4550 [00:33<2:13:00,  0.57it/s, v_num=16, train/loss=3.320, train/std_data=1.530, train/lr=8.27e-6, train/mse_loss=3.320]Epoch 0:   0%|          | 19/4550 [00:33<2:13:00,  0.57it/s, v_num=16, train/loss=2.160, train/std_data=1.090, train/lr=8.69e-6, train/mse_loss=2.160]Epoch 0:   0%|          | 20/4550 [00:35<2:12:19,  0.57it/s, v_num=16, train/loss=2.160, train/std_data=1.090, train/lr=8.69e-6, train/mse_loss=2.160]Epoch 0:   0%|          | 20/4550 [00:35<2:12:19,  0.57it/s, v_num=16, train/loss=2.230, train/std_data=1.110, train/lr=9.1e-6, train/mse_loss=2.230] Epoch 0:   0%|          | 21/4550 [00:36<2:11:24,  0.57it/s, v_num=16, train/loss=2.230, train/std_data=1.110, train/lr=9.1e-6, train/mse_loss=2.230]Epoch 0:   0%|          | 21/4550 [00:36<2:11:24,  0.57it/s, v_num=16, train/loss=2.370, train/std_data=1.170, train/lr=9.51e-6, train/mse_loss=2.370]Epoch 0:   0%|          | 22/4550 [00:38<2:10:34,  0.58it/s, v_num=16, train/loss=2.370, train/std_data=1.170, train/lr=9.51e-6, train/mse_loss=2.370]Epoch 0:   0%|          | 22/4550 [00:38<2:10:34,  0.58it/s, v_num=16, train/loss=2.670, train/std_data=1.230, train/lr=9.92e-6, train/mse_loss=2.670]Epoch 0:   1%|          | 23/4550 [00:39<2:09:56,  0.58it/s, v_num=16, train/loss=2.670, train/std_data=1.230, train/lr=9.92e-6, train/mse_loss=2.670]Epoch 0:   1%|          | 23/4550 [00:39<2:09:56,  0.58it/s, v_num=16, train/loss=3.220, train/std_data=1.470, train/lr=1.03e-5, train/mse_loss=3.220]Epoch 0:   1%|          | 24/4550 [00:41<2:09:14,  0.58it/s, v_num=16, train/loss=3.220, train/std_data=1.470, train/lr=1.03e-5, train/mse_loss=3.220]Epoch 0:   1%|          | 24/4550 [00:41<2:09:15,  0.58it/s, v_num=16, train/loss=2.660, train/std_data=1.250, train/lr=1.07e-5, train/mse_loss=2.660]Epoch 0:   1%|          | 25/4550 [00:42<2:08:39,  0.59it/s, v_num=16, train/loss=2.660, train/std_data=1.250, train/lr=1.07e-5, train/mse_loss=2.660]Epoch 0:   1%|          | 25/4550 [00:42<2:08:39,  0.59it/s, v_num=16, train/loss=2.580, train/std_data=1.240, train/lr=1.11e-5, train/mse_loss=2.580]Epoch 0:   1%|          | 26/4550 [00:44<2:08:09,  0.59it/s, v_num=16, train/loss=2.580, train/std_data=1.240, train/lr=1.11e-5, train/mse_loss=2.580]Epoch 0:   1%|          | 26/4550 [00:44<2:08:10,  0.59it/s, v_num=16, train/loss=2.620, train/std_data=1.250, train/lr=1.15e-5, train/mse_loss=2.620]Epoch 0:   1%|          | 27/4550 [00:46<2:08:43,  0.59it/s, v_num=16, train/loss=2.620, train/std_data=1.250, train/lr=1.15e-5, train/mse_loss=2.620]Epoch 0:   1%|          | 27/4550 [00:46<2:08:43,  0.59it/s, v_num=16, train/loss=2.580, train/std_data=1.220, train/lr=1.19e-5, train/mse_loss=2.580]Epoch 0:   1%|          | 28/4550 [00:47<2:09:11,  0.58it/s, v_num=16, train/loss=2.580, train/std_data=1.220, train/lr=1.19e-5, train/mse_loss=2.580]Epoch 0:   1%|          | 28/4550 [00:47<2:09:11,  0.58it/s, v_num=16, train/loss=2.350, train/std_data=1.120, train/lr=1.23e-5, train/mse_loss=2.350]Epoch 0:   1%|          | 29/4550 [00:49<2:08:43,  0.59it/s, v_num=16, train/loss=2.350, train/std_data=1.120, train/lr=1.23e-5, train/mse_loss=2.350]Epoch 0:   1%|          | 29/4550 [00:49<2:08:43,  0.59it/s, v_num=16, train/loss=2.190, train/std_data=1.080, train/lr=1.26e-5, train/mse_loss=2.190]P0STEP step=30 t=1680520.395675 ts=1785974587.832709
+Epoch 0:   1%|          | 30/4550 [00:51<2:08:21,  0.59it/s, v_num=16, train/loss=2.190, train/std_data=1.080, train/lr=1.26e-5, train/mse_loss=2.190]Epoch 0:   1%|          | 30/4550 [00:51<2:08:21,  0.59it/s, v_num=16, train/loss=2.650, train/std_data=1.280, train/lr=1.3e-5, train/mse_loss=2.650] Epoch 0:   1%|          | 30/4550 [00:51<2:08:21,  0.59it/s, v_num=16, train/loss=2.650, train/std_data=1.280, train/lr=1.3e-5, train/mse_loss=2.650]`Trainer.fit` stopped: `max_steps=30` reached.
+Epoch 0:   1%|          | 30/4550 [00:51<2:08:21,  0.59it/s, v_num=16, train/loss=2.650, train/std_data=1.280, train/lr=1.3e-5, train/mse_loss=2.650]
+P0RUNNER: window rate 0.635458 steps/s
+[rank0]:[W805 20:03:11.852425269 ProcessGroupNCCL.cpp:1476] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+poller stopped 1.78597e+09 > 2s before train end 1785974594.695439531 - measurement INVALID
+=== RESULT: cell C4L_8x8 rc=0 | wall 74.675s (startup diagnostic) | window 1680488.922304 -> 1680520.395675 | peak 37255 MiB / 46068 MiB | measurement_valid=0 ===
+FAIL: training completed but the measurement is invalid
+P0RESULT runid=72a8114-1785969226421855487-c8d5b51f sha=72a811416b35c4bfb9282c5ce1c4370776329eb9 jobid=3638702 cell=C4L_8x8 maxsteps=30 ngpu=8 mb=8 workers=6 rc=5 config_sha=29edb5c1723e745058d58fa4315ffc9c339f5af5daee7f27b184b7524573413b wall_fit=74.675 t10=1785974556.359338 t30=1785974587.832709 t10_mono=1680488.922304 t30_mono=1680520.395675 peak_overall_mib=37255 peak_per_uuid=GPU-30ce0ac4-648a-7364-bf87-01ae5312898f:37251,GPU-3aff73ab-b1cc-2c0d-df0b-e601296f2fcd:37255,GPU-3fef9619-ceed-a3f3-5488-64db12bf7c5b:37255,GPU-534d024c-7da7-7db1-63d0-06d67caa5f74:37235,GPU-a2319def-cd1a-539b-8107-c7d71825e97d:37255,GPU-ad152f6f-34ff-9268-e7c4-350a4a8a3680:37251,GPU-e6c725cb-8c69-4411-9ed5-c42378a63855:37235,GPU-fa0963a7-f7b4-e7f3-9c8d-a3ffc75ddce4:37255 vram_csv=p0_C4L_8x8_2026-08-05_20-01-57_jid3638702_vram.csv pollcsv_sha256=a699b1523f0557dee0092c48fde44a99eacbaeba31ace06e0c77cf8c3a054149 valid=0
+cell C4L_8x8 NOT clean (rc=5, measurement_valid=0); see /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_C4L_8x8_2026-08-05_20-01-57_jid3638702_train.log

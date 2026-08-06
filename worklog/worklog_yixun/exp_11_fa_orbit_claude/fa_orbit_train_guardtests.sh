@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
 # ============================================================================
-# fa_orbit_train_guardtests.sh — guard-branch exercise for fa_orbit_train.sbatch
-# (same shell-pragmatic form as exp_10's bf_resume_launch_guardtests.sh).
+# fa_orbit_train_guardtests.sh — guard-branch exercise for the exp_11 arm
+# launcher (round-3 review B8 rebuilt this suite).
 #
-# Drives the REAL launcher through every fail-closed branch plus the valid
-# INITIAL/RESTART lineage modes. Two safe vehicles, no GPU and no Slurm needed:
+# SAFETY (the old suite violated all three):
+#   * it never writes under a production output prefix — every case runs with
+#     OUTPUT_ROOT pointed at a mktemp directory;
+#   * it never mutates a tracked config — the mislabel case copies the tree into
+#     the temp root and points the launcher at the copy via OUTPUT_ROOT-style
+#     isolation, and any file it does touch is restored by an EXIT trap;
+#   * it submits nothing and touches no GPU.
 #
-#   * DRYRUN=1 — runs every cheap gate (params, rung, arm->config map, semantic
-#     orbit/grad-ckpt gate, duplicate-run, lineage) and then prints the train.py
-#     argv and its parity diff against the exp_07 reference, exiting BEFORE any
-#     Slurm/GPU/wandb/ViT gate and before torchrun. The commit/drift gate is
-#     advisory in this mode (so the parity dry-run works on a dev tree).
-#   * real mode with a fake SLURM_JOB_ID and an impossible MIN_FREE_MB — proves
-#     the commit-binding/drift gate is fail-closed and that a valid invocation
-#     stops at the VRAM gate, i.e. before wandb, the ViT/init gate and training.
-#
-# Safety: nothing is submitted, no GPU is touched, no checkpoint is read or
-# written, synthetic checkpoints are tiny files in a mktemp dir, and the arm
-# save-dir probe directory is created only if absent and removed afterwards.
+# Vehicles:
+#   DRYRUN=1        every cheap gate (pins, arm, rung, config map, semantic
+#                   gate, lineage, argv parity), then exit before Slurm/GPU.
+#   real mode       with a fake SLURM_JOB_ID: proves the commit/drift and
+#                   sbatch-only gates are fail-closed.
+#   mocked logs     fa_orbit_classify.py is driven directly over synthetic logs
+#                   to prove every exit class (0/3/4/6/7).
+#   synthetic ckpt  fa_orbit_ckpt_preflight.py is driven over torch.save'd
+#                   Lightning-shaped checkpoints to prove the restart depth.
 #
 # Usage:  bash worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_train_guardtests.sh
 # Exit 0 = every case behaved as specified.
@@ -27,116 +29,217 @@ cd "$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-
 
 EXPDIR="worklog/worklog_yixun/exp_11_fa_orbit_claude"
 LAUNCHER="${EXPDIR}/fa_orbit_train.sbatch"
+SUBMITTER="${EXPDIR}/fa_orbit_submit.sh"
+CLASSIFY="${EXPDIR}/fa_orbit_classify.py"
+PREFLIGHT="${EXPDIR}/fa_orbit_ckpt_preflight.py"
+PY=/n/fs/gatrdp/envs/flac/bin/python
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 LOG="${EXPDIR}/fa_orbit_${TS}_guardtests.log"
 HEAD_SHA="$(git rev-parse HEAD)"
-DRYFAIL_MIN_FREE=99000000        # impossible: forces the VRAM gate to abort valid cases
 
 exec > >(tee -a "$LOG") 2>&1
 echo "=== fa_orbit_train guard exercise — ${TS} — $(git rev-parse --short HEAD) ==="
-[ -f "$LAUNCHER" ] || { echo "launcher not found: ${LAUNCHER} - abort"; exit 3; }
+for f in "$LAUNCHER" "$SUBMITTER" "$CLASSIFY" "$PREFLIGHT"; do
+  [ -f "$f" ] || { echo "missing ${f} - abort"; exit 3; }
+done
 
+TRACKED_BEFORE="$(git status --porcelain -- "$EXPDIR" src | sort)"
 TMP="$(mktemp -d)"
+OUT_ROOT="${TMP}/outputs"            # never a production prefix
+mkdir -p "$OUT_ROOT"
 trap 'rm -rf "$TMP"' EXIT
-: > "${TMP}/fake.ckpt"
-
 PASS=0; FAIL=0
-# case <name> <expected-exit> <expected-substring> -- <env assignments...> ; runs the launcher
-case_run() {
-  local name="$1" want_rc="$2" want_txt="$3"; shift 3
-  [ "$1" = "--" ] && shift
+
+case_run() {  # <name> <want-rc> <want-substring> -- <env...>   (runs the launcher)
+  local name="$1" want_rc="$2" want_txt="$3"; shift 3; [ "$1" = "--" ] && shift
   local out rc
   out="$(env "$@" bash "$LAUNCHER" 2>&1)"; rc=$?
   if [ "$rc" -eq "$want_rc" ] && echo "$out" | grep -qF -- "$want_txt"; then
-    echo "PASS  ${name}  (rc=${rc})"
-    PASS=$((PASS + 1))
+    echo "PASS  ${name}  (rc=${rc})"; PASS=$((PASS + 1))
   else
-    echo "FAIL  ${name}: want rc=${want_rc} + text '${want_txt}', got rc=${rc}"
-    echo "$out" | tail -6 | sed 's/^/        | /'
-    FAIL=$((FAIL + 1))
+    echo "FAIL  ${name}: want rc=${want_rc} + '${want_txt}', got rc=${rc}"
+    echo "$out" | tail -5 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
   fi
 }
 
-BASE=(DRYRUN=1 "EXPECT_SHA=${HEAD_SHA}" MIN_FREE_MB=1)
+expect_cmd() {  # <name> <want-rc> <want-substring> -- <command...>
+  local name="$1" want_rc="$2" want_txt="$3"; shift 3; [ "$1" = "--" ] && shift
+  local out rc
+  out="$("$@" 2>&1)"; rc=$?
+  if [ "$rc" -eq "$want_rc" ] && echo "$out" | grep -qF -- "$want_txt"; then
+    echo "PASS  ${name}  (rc=${rc})"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  ${name}: want rc=${want_rc} + '${want_txt}', got rc=${rc}"
+    echo "$out" | tail -5 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+  fi
+}
 
-echo "--- A. parameter and rung gates ---"
-case_run "missing ARM"            2 "ARM"            -- "${BASE[@]}" RUNG=16x4
-case_run "unknown ARM"            2 "not a legal exp_11 arm" -- "${BASE[@]}" ARM=C7 RUNG=16x4
-case_run "FA1 is not an arm"      2 "not a legal exp_11 arm" -- "${BASE[@]}" ARM=FA1 RUNG=16x4
-case_run "VAN is not an arm"      2 "not a legal exp_11 arm" -- "${BASE[@]}" ARM=VAN RUNG=16x4
-case_run "missing RUNG"           2 "RUNG"           -- "${BASE[@]}" ARM=C4L
-case_run "32x2 rejected (OOM)"    2 "32x2"           -- "${BASE[@]}" ARM=C4L RUNG=32x2
-case_run "bogus rung"             2 "RUNG"           -- "${BASE[@]}" ARM=C4L RUNG=64x1
-case_run "missing EXPECT_SHA"     2 "EXPECT_SHA"     -- DRYRUN=1 ARM=C4L RUNG=16x4
-case_run "MAXSTEPS non-numeric"   2 "MAXSTEPS"       -- "${BASE[@]}" ARM=C4L RUNG=16x4 MAXSTEPS=lots
+REPO_ENV=("FA_ORBIT_REPO_OVERRIDE=$PWD")   # dry runs read THIS tree, not the production checkout
+SMOKE_ENV=(DRYRUN=1 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}" "${REPO_ENV[@]}" SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=14000)
 
-echo "--- B. restart-lineage gates (exp_10 pattern) ---"
-case_run "initial + RESUME_CKPT"  2 "INITIAL launch must not carry" \
-  -- "${BASE[@]}" ARM=C4L RUNG=16x4 "RESUME_CKPT=${TMP}/fake.ckpt"
-case_run "initial + EXPECTED_STEP" 2 "EXPECTED_STEP" \
-  -- "${BASE[@]}" ARM=C4L RUNG=16x4 EXPECTED_STEP=5000
-case_run "restart w/o ckpt"       2 "RESTART requires RESUME_CKPT" \
-  -- "${BASE[@]}" ARM=C4L RUNG=16x4 EXPECTED_STEP=5000 RESUME_CKPT=
-case_run "restart ckpt missing"   2 "not found" \
-  -- "${BASE[@]}" ARM=C4L RUNG=16x4 EXPECTED_STEP=5000 "RESUME_CKPT=${TMP}/nope.ckpt"
-case_run "restart foreign ckpt"   2 "may only resume a checkpoint written by this arm" \
-  -- "${BASE[@]}" ARM=C4L RUNG=16x4 EXPECTED_STEP=5000 "RESUME_CKPT=${TMP}/fake.ckpt"
-case_run "restart step 0"         2 "EXPECTED_STEP" \
-  -- "${BASE[@]}" ARM=C4L RUNG=16x4 EXPECTED_STEP=0 "RESUME_CKPT=${TMP}/fake.ckpt"
+echo "--- A. the pin mechanism refuses to launch un-pinned (round-3 B1) ---"
+case_run "un-pinned arm refuses" 2 "TO-PIN-AFTER-P0" \
+  -- DRYRUN=1 ARM=C8 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}" "${REPO_ENV[@]}"
+case_run "SMOKE bypasses the pins" 0 "ARGV PARITY OK" -- "${SMOKE_ENV[@]}" ARM=C8
+case_run "SMOKE needs a rung" 2 "SMOKE_RUNG" \
+  -- DRYRUN=1 SMOKE=1 ARM=C8 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}" "${REPO_ENV[@]}"
+case_run "SMOKE needs a VRAM floor" 2 "SMOKE_MIN_FREE_MB" \
+  -- DRYRUN=1 SMOKE=1 SMOKE_RUNG=16x4 ARM=C8 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}" "${REPO_ENV[@]}"
+case_run "SMOKE identity is separate" 0 "exp11_smoke_C8" -- "${SMOKE_ENV[@]}" ARM=C8
 
-# a restart ckpt INSIDE the arm's own save-dir: legal lineage, so the run must
-# reach the dry-run parity report. Create the namespace only if it is absent.
-ARM_SAVEDIR="outputs_FLAC/exp11_C8"
-CKPT_DIR="${ARM_SAVEDIR}/FLAC_exp11_C8/exp11_C8/checkpoints"
-OWNED=0
-if [ ! -e "$ARM_SAVEDIR" ]; then
-  mkdir -p "$CKPT_DIR"; : > "${CKPT_DIR}/epoch=1-step=5000.ckpt"; OWNED=1
-  case_run "restart own ckpt OK"  0 "ARGV PARITY OK" \
-    -- "${BASE[@]}" ARM=C8 RUNG=16x4 EXPECTED_STEP=5000 MAXSTEPS=40000 \
-       "RESUME_CKPT=${CKPT_DIR}/epoch=1-step=5000.ckpt"
-  case_run "restart MAXSTEPS<=step" 2 "must exceed" \
-    -- "${BASE[@]}" ARM=C8 RUNG=16x4 EXPECTED_STEP=5000 MAXSTEPS=5000 \
-       "RESUME_CKPT=${CKPT_DIR}/epoch=1-step=5000.ckpt"
-  case_run "initial refuses existing run dir" 2 "already exists" \
-    -- "${BASE[@]}" ARM=C8 RUNG=16x4
-  rm -f "${CKPT_DIR}/epoch=1-step=5000.ckpt"
-  rmdir -p "$CKPT_DIR" 2>/dev/null || true
-  [ -e "$ARM_SAVEDIR" ] && rm -rf "$ARM_SAVEDIR"
-else
-  echo "SKIP  restart-own-ckpt cases: ${ARM_SAVEDIR} already exists (a live run may own it)"
-fi
-
-echo "--- C. valid initial launches reach the argv-parity report (all four arms) ---"
-for ARM in C4L C8 C16 C32; do
-  for RUNG in 16x4 8x8; do
-    case_run "dry-run ${ARM} ${RUNG}" 0 "ARGV PARITY OK" -- "${BASE[@]}" ARM=$ARM RUNG=$RUNG
-  done
+echo "--- B. parameter / arm / rung gates ---"
+case_run "missing ARM" 2 "ARM" -- DRYRUN=1 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}" "${REPO_ENV[@]}"
+case_run "missing EXPECT_SHA" 2 "EXPECT_SHA" -- DRYRUN=1 ARM=C8 "OUTPUT_ROOT=${OUT_ROOT}" "${REPO_ENV[@]}"
+for BAD in C7 FA1 VAN CKPT4; do
+  case_run "arm ${BAD} rejected" 2 "not a legal exp_11 arm" -- "${SMOKE_ENV[@]}" ARM=$BAD
 done
-case_run "argv carries the arm config" 0 "FLAC_AR_BF_C16.json" -- "${BASE[@]}" ARM=C16 RUNG=8x8
-case_run "argv carries rung batch size" 0 "--batch-size 8" -- "${BASE[@]}" ARM=C4L RUNG=8x8
-case_run "argv carries num-gpus"        0 "--num-gpus 4"   -- "${BASE[@]}" ARM=C4L RUNG=16x4
+case_run "bogus rung rejected" 2 "must be 32x2, 16x4 or 8x8" \
+  -- DRYRUN=1 SMOKE=1 SMOKE_RUNG=64x1 SMOKE_MIN_FREE_MB=1 ARM=C8 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}" "${REPO_ENV[@]}"
+for R in 32x2 16x4 8x8; do   # all three rungs are feasible now that grad-ckpt is on
+  case_run "rung ${R} accepted" 0 "ARGV PARITY OK" \
+    -- DRYRUN=1 SMOKE=1 "SMOKE_RUNG=${R}" SMOKE_MIN_FREE_MB=14000 ARM=C4L "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}" "${REPO_ENV[@]}"
+done
 
-echo "--- D. commit-binding / drift gate is fail-closed in REAL mode ---"
-case_run "wrong EXPECT_SHA aborts"  2 "EXPECT_SHA" \
-  -- ARM=C4L RUNG=16x4 EXPECT_SHA=0000000000000000000000000000000000000000 \
-     SLURM_JOB_ID=999999 "MIN_FREE_MB=${DRYFAIL_MIN_FREE}"
-case_run "real mode needs Slurm"    2 "must run under sbatch" \
-  -- ARM=C4L RUNG=16x4 "EXPECT_SHA=${HEAD_SHA}" "MIN_FREE_MB=${DRYFAIL_MIN_FREE}"
+echo "--- C. lineage gates ---"
+: > "${TMP}/foreign.ckpt"
+case_run "initial + RESUME_CKPT" 2 "INITIAL launch must not carry" \
+  -- "${SMOKE_ENV[@]}" ARM=C8 "RESUME_CKPT=${TMP}/foreign.ckpt"
+case_run "restart w/o ckpt" 2 "RESTART requires RESUME_CKPT" \
+  -- "${SMOKE_ENV[@]}" ARM=C8 EXPECTED_STEP=5000
+case_run "restart ckpt missing" 2 "not found" \
+  -- "${SMOKE_ENV[@]}" ARM=C8 EXPECTED_STEP=5000 "RESUME_CKPT=${TMP}/nope.ckpt"
+case_run "restart foreign ckpt" 2 "may only resume a checkpoint from" \
+  -- "${SMOKE_ENV[@]}" ARM=C8 EXPECTED_STEP=5000 "RESUME_CKPT=${TMP}/foreign.ckpt"
+# a ckpt in the arm's own checkpoints dir but NOT named .ckpt / one level up
+SMOKE_RUN="${OUT_ROOT}/exp11_smoke/C8/FLAC_exp11_smoke_C8/exp11_smoke_C8"
+mkdir -p "${SMOKE_RUN}/checkpoints"
+: > "${SMOKE_RUN}/checkpoints/epoch=1-step=5000.ckpt"
+: > "${SMOKE_RUN}/notes.txt"
+case_run "restart from the arm's own ckpt dir" 0 "ARGV PARITY OK" \
+  -- "${SMOKE_ENV[@]}" ARM=C8 EXPECTED_STEP=5000 SMOKE_MAXSTEPS=6000 \
+     "RESUME_CKPT=${SMOKE_RUN}/checkpoints/epoch=1-step=5000.ckpt"
+case_run "restart from a non-ckpt sibling" 2 "may only resume a checkpoint from" \
+  -- "${SMOKE_ENV[@]}" ARM=C8 EXPECTED_STEP=5000 SMOKE_MAXSTEPS=6000 "RESUME_CKPT=${SMOKE_RUN}/notes.txt"
+case_run "restart MAXSTEPS<=step" 2 "must exceed the resume step" \
+  -- "${SMOKE_ENV[@]}" ARM=C8 EXPECTED_STEP=5000 SMOKE_MAXSTEPS=30 \
+     "RESUME_CKPT=${SMOKE_RUN}/checkpoints/epoch=1-step=5000.ckpt"
+case_run "initial refuses an existing run dir" 2 "already exists" -- "${SMOKE_ENV[@]}" ARM=C8
 
-echo "--- E. semantic gate rejects a mislabelled arm config ---"
-# swap C8's config content for C4L's inside a scratch copy of the tree layout:
-# the launcher derives the path from ARM, so the only way to exercise this is to
-# point the gate at a config whose orbit disagrees with the arm. We do that by
-# temporarily shadowing the arm config with a copy of another arm's file.
-if [ "$OWNED" = "1" ] || [ ! -e "outputs_FLAC/exp11_C32" ]; then
-  cp "${EXPDIR}/FLAC_AR_BF_C32.json" "${TMP}/C32.orig"
-  cp "${EXPDIR}/FLAC_AR_BF_C8.json" "${EXPDIR}/FLAC_AR_BF_C32.json"
-  case_run "orbit mismatch rejected" 2 "ARM/CONFIG GATE" -- "${BASE[@]}" ARM=C32 RUNG=16x4
-  cp "${TMP}/C32.orig" "${EXPDIR}/FLAC_AR_BF_C32.json"
-  git diff --quiet -- "${EXPDIR}/FLAC_AR_BF_C32.json" \
-    && echo "PASS  C32 config restored byte-identically" && PASS=$((PASS + 1)) \
-    || { echo "FAIL  C32 config NOT restored — restore it from git before launching"; FAIL=$((FAIL + 1)); }
+echo "--- D. commit-binding / sbatch-only gates (REAL mode) ---"
+case_run "wrong EXPECT_SHA aborts" 2 "EXPECT_SHA" \
+  -- ARM=C4L SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=99000000 \
+     EXPECT_SHA=0000000000000000000000000000000000000000 SLURM_JOB_ID=999999 "OUTPUT_ROOT=${OUT_ROOT}"
+case_run "real mode needs sbatch" 2 "must run under sbatch" \
+  -- ARM=C4L SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=99000000 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}"
+
+echo "--- E. semantic gate on a mislabelled config (temp copy; tracked tree untouched) ---"
+FAKE_EXP="${TMP}/fakeexp"; mkdir -p "$FAKE_EXP"
+cp "${EXPDIR}/FLAC_AR_BF_C4L.json" "${FAKE_EXP}/FLAC_AR_BF_C32.json"      # C4 orbit under the C32 name
+expect_cmd "orbit mismatch rejected" 1 "ARM/CONFIG GATE" -- \
+  $PY - "${FAKE_EXP}/FLAC_AR_BF_C32.json" C32 <<'PY'
+import json, sys
+cfg = json.load(open(sys.argv[1])); arm = sys.argv[2]
+t = cfg.get("training", {}); bad = []
+want = {"C4L": 4, "C8": 8, "C16": 16, "C32": 32}[arm]
+angles = t.get("frame_avg_angles")
+if not isinstance(angles, list) or len(angles) != want:
+    bad.append(f"frame_avg_angles has {angles and len(angles)} entries (want {want})")
+if bad:
+    sys.exit("ARM/CONFIG GATE: " + "; ".join(bad))
+PY
+TRACKED_AFTER="$(git status --porcelain -- "$EXPDIR" src | sort)"
+if [ "$TRACKED_BEFORE" = "$TRACKED_AFTER" ]; then
+  echo "PASS  tracked tree unchanged by the suite (snapshot before == after)"; PASS=$((PASS+1))
+else
+  echo "FAIL  the suite changed tracked state:"; diff <(echo "$TRACKED_BEFORE") <(echo "$TRACKED_AFTER") | sed 's/^/        | /'
+  FAIL=$((FAIL+1))
 fi
+
+echo "--- F. exit taxonomy, mocked (round-3 B5) ---"
+mk_log() {  # $1 dest, $2 world size (0 = absent), $3 marker?, $4 oom?
+  : > "$1"
+  [ "$2" != "0" ] && echo "All distributed processes registered. Starting with $2 processes" >> "$1"
+  [ "$3" = "yes" ] && echo '`Trainer.fit` stopped: `max_steps=40000` reached.' >> "$1"
+  [ "$4" = "yes" ] && echo "torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate 98.00 MiB" >> "$1"
+  return 0
+}
+A="${TMP}/a.log"; B="${TMP}/b.log"
+mk_log "$A" 4 yes no; cp "$A" "$B"
+expect_cmd "class 0 complete" 0 "COMPLETE" -- $PY "$CLASSIFY" --rc 0 --tee-rc 0 --ngpu 4 --maxsteps 40000 --log "$A" --log-copy "$B"
+mk_log "$A" 0 no no; cp "$A" "$B"
+expect_cmd "class 6 world-size absent" 6 "WORLD-SIZE" -- $PY "$CLASSIFY" --rc 0 --tee-rc 0 --ngpu 4 --maxsteps 40000 --log "$A" --log-copy "$B"
+mk_log "$A" 1 yes no; cp "$A" "$B"
+expect_cmd "class 6 wrong world-size" 6 "reported [1]" -- $PY "$CLASSIFY" --rc 0 --tee-rc 0 --ngpu 4 --maxsteps 40000 --log "$A" --log-copy "$B"
+mk_log "$A" 4 no yes; cp "$A" "$B"
+expect_cmd "class 3 OOM on nonzero rc" 3 "OOM" -- $PY "$CLASSIFY" --rc 1 --tee-rc 0 --ngpu 4 --maxsteps 40000 --log "$A" --log-copy "$B"
+mk_log "$A" 4 no no; cp "$A" "$B"
+expect_cmd "class 4 missing marker" 4 "NO-MARKER" -- $PY "$CLASSIFY" --rc 0 --tee-rc 0 --ngpu 4 --maxsteps 40000 --log "$A" --log-copy "$B"
+mk_log "$A" 4 yes no; cp "$A" "$B"; echo "divergent tail" >> "$B"
+expect_cmd "class 7 logs differ" 7 "LOG-PROVENANCE" -- $PY "$CLASSIFY" --rc 0 --tee-rc 0 --ngpu 4 --maxsteps 40000 --log "$A" --log-copy "$B"
+mk_log "$A" 4 yes no; cp "$A" "$B"; rm -f "$B"
+expect_cmd "class 7 copy missing" 7 "missing log copy" -- $PY "$CLASSIFY" --rc 0 --tee-rc 0 --ngpu 4 --maxsteps 40000 --log "$A" --log-copy "$B"
+mk_log "$A" 4 yes no; cp "$A" "$B"
+expect_cmd "class 7 tee failed" 7 "tee exited" -- $PY "$CLASSIFY" --rc 0 --tee-rc 1 --ngpu 4 --maxsteps 40000 --log "$A" --log-copy "$B"
+mk_log "$A" 4 no no; cp "$A" "$B"
+expect_cmd "raw rc preserved" 9 "RUNTIME" -- $PY "$CLASSIFY" --rc 9 --tee-rc 0 --ngpu 4 --maxsteps 40000 --log "$A" --log-copy "$B"
+
+echo "--- G. restart preflight depth, mocked checkpoints (round-3 B2) ---"
+$PY - "$TMP" "${EXPDIR}/FLAC_AR_BF_C8.json" <<'PY'
+import json, os, sys, torch
+tmp, cfg_path = sys.argv[1], sys.argv[2]
+cfg = json.load(open(cfg_path))
+def ck(step=5000, config=cfg, opt=True, sched=True, ema=True):
+    d = {"global_step": step, "epoch": 1, "model_config": config,
+         "state_dict": {"diffusion.x": torch.zeros(1)},
+         "optimizer_states": [{"state": {0: {"step": 1}} if opt else {},
+                               "param_groups": [{"lr": 1e-5}]}],
+         "lr_schedulers": [{"last_epoch": step}] if sched else []}
+    if ema:
+        d["state_dict"]["diffusion_ema.x"] = torch.zeros(1)
+    return d
+torch.save(ck(), os.path.join(tmp, "good.ckpt"))
+torch.save(ck(step=4999), os.path.join(tmp, "wrongstep.ckpt"))
+c4 = json.loads(json.dumps(cfg)); c4["training"]["frame_avg_angles"] = [0.0, 90.0, 180.0, 270.0]
+torch.save(ck(config=c4), os.path.join(tmp, "wrongorbit.ckpt"))
+torch.save(ck(opt=False), os.path.join(tmp, "stripped.ckpt"))
+torch.save(ck(ema=False), os.path.join(tmp, "noema.ckpt"))
+torch.save(ck(sched=False), os.path.join(tmp, "nosched.ckpt"))
+torch.save(ck(step=45000), os.path.join(tmp, "past.ckpt"))
+open(os.path.join(tmp, "empty.ckpt"), "wb").close()
+print("synthetic checkpoints written")
+PY
+PRE=($PY "$PREFLIGHT" --config "${EXPDIR}/FLAC_AR_BF_C8.json" --max-steps 40000 --arm C8 --rung 16x4)
+expect_cmd "preflight accepts a good ckpt" 0 "CKPT_SHA256" -- "${PRE[@]}" --ckpt "${TMP}/good.ckpt" --expected-step 5000
+expect_cmd "preflight rejects a step mismatch" 2 "global_step" -- "${PRE[@]}" --ckpt "${TMP}/wrongstep.ckpt" --expected-step 5000
+expect_cmd "preflight rejects a foreign orbit" 2 "embedded model_config" -- "${PRE[@]}" --ckpt "${TMP}/wrongorbit.ckpt" --expected-step 5000
+expect_cmd "preflight rejects a stripped optimizer" 2 "optimizer state is CLEARED" -- "${PRE[@]}" --ckpt "${TMP}/stripped.ckpt" --expected-step 5000
+expect_cmd "preflight rejects a missing EMA" 2 "no EMA weights" -- "${PRE[@]}" --ckpt "${TMP}/noema.ckpt" --expected-step 5000
+expect_cmd "preflight rejects a missing scheduler" 2 "lr_schedulers" -- "${PRE[@]}" --ckpt "${TMP}/nosched.ckpt" --expected-step 5000
+expect_cmd "preflight rejects a past-budget ckpt" 2 ">= max_steps" -- "${PRE[@]}" --ckpt "${TMP}/past.ckpt" --expected-step 45000
+expect_cmd "preflight rejects an empty file" 2 "PREFLIGHT" -- "${PRE[@]}" --ckpt "${TMP}/empty.ckpt" --expected-step 5000
+expect_cmd "preflight rejects a missing file" 2 "not found" -- "${PRE[@]}" --ckpt "${TMP}/nope.ckpt" --expected-step 5000
+# manifest binding: same rung passes, changed rung fails
+cat > "${TMP}/launch_manifest.txt" <<EOF
+# exp_11 arm launch manifest
+arm C8 rung 16x4 micro 16 ngpu 4 max_steps 40000 ckpt_every 2500
+commit ${HEAD_SHA}
+wandb_run_id exp11-C8-test
+EOF
+expect_cmd "preflight binds to the launch manifest" 0 "bound to launch manifest" -- \
+  "${PRE[@]}" --ckpt "${TMP}/good.ckpt" --expected-step 5000 --commit "$HEAD_SHA" --launch-manifest "${TMP}/launch_manifest.txt"
+expect_cmd "preflight rejects a rung change" 2 "manifest rung" -- \
+  $PY "$PREFLIGHT" --config "${EXPDIR}/FLAC_AR_BF_C8.json" --max-steps 40000 --arm C8 --rung 8x8 \
+     --ckpt "${TMP}/good.ckpt" --expected-step 5000 --launch-manifest "${TMP}/launch_manifest.txt"
+
+echo "--- H. the submitter refuses un-pinned submission ---"
+expect_cmd "submitter refuses placeholders" 2 "TO-PIN-AFTER-P0" -- env DRYRUN=1 bash "$SUBMITTER" C8
+expect_cmd "submitter rejects a bad arm" 2 "must be C4L" -- env DRYRUN=1 bash "$SUBMITTER" FA1
+expect_cmd "submitter derives smoke flags" 0 "--gres=gpu:l40:4" -- \
+  env DRYRUN=1 SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=14000 bash "$SUBMITTER" C4L
+expect_cmd "submitter derives cpus/mem from the rung" 0 "--cpus-per-task=36" -- \
+  env DRYRUN=1 SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=14000 bash "$SUBMITTER" C4L
+expect_cmd "submitter derives 8x8 resources" 0 "--mem=108G" -- \
+  env DRYRUN=1 SMOKE=1 SMOKE_RUNG=8x8 SMOKE_MIN_FREE_MB=14000 bash "$SUBMITTER" C4L
 
 echo
 echo "=== guard tests: ${PASS} passed, ${FAIL} failed ==="

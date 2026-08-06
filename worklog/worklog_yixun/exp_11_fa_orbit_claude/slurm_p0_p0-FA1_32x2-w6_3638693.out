@@ -1,0 +1,126 @@
+=== exp_11 P0 cell FA1_32x2 - 2026-08-05_18-33-48 - job 3638693 - run 72a8114-1785969226421855487-c8d5b51f - host neu322.neuronic.cs.princeton.edu ===
+commit binding OK: 72a811416b35c4bfb9282c5ce1c4370776329eb9
+GPU: NVIDIA L40 GPU-e8e2c8a3-fbe6-7e09-7291-d56de7556ead total 46068 MiB
+GPU: NVIDIA L40 GPU-d9f8b71c-d714-ebd2-c0d6-617b56bbc4fd total 46068 MiB
+590.48.01
+590.48.01
+torch 2.7.0+cu126 cuda 12.6
+config for FA1: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_FA1.json sha256 eea1d206c8114ea1a26998dc31f9b67fa84e574a950da0bb17db7cb05a061d78
+gate OK: FA1 config has the expected orbit and grad-ckpt=False
+W0805 18:33:55.581000 2785853 site-packages/torch/distributed/run.py:766] 
+W0805 18:33:55.581000 2785853 site-packages/torch/distributed/run.py:766] *****************************************
+W0805 18:33:55.581000 2785853 site-packages/torch/distributed/run.py:766] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0805 18:33:55.581000 2785853 site-packages/torch/distributed/run.py:766] *****************************************
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+[rank: 1] Seed set to 42
+[rank: 0] Seed set to 42
+Using Augmentations: Random Time Shift, Add NoiseUsing Augmentations: Random Time Shift, Add Noise
+
+Running json scandir...
+Running json scandir...
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable21.60M/21.60M parameters are trainable
+
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Using bfloat16 Automatic Mixed Precision (AMP)
+P0RUNNER: cfg=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_FA1.json steps=30 micro=32 gpus=2 strategy=ddp_find_unused_parameters_true world_size_env=2
+[rank: 1] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 1, MEMBER: 2/2
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/connectors/logger_connector/logger_connector.py:67: Starting from v1.9.0, `tensorboardX` has been removed as a dependency of the `pytorch_lightning` package, due to potential conflicts with other packages in the ML ecosystem. For this reason, `logger=True` will use `CSVLogger` as the default logger, unless the `tensorboard` or `tensorboardX` packages are found. Please `pip install lightning[extra]` or one of them to enable TensorBoard support by default
+P0RUNNER: cfg=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_FA1.json steps=30 micro=32 gpus=2 strategy=ddp_find_unused_parameters_true world_size_env=2
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/plugins/environments/slurm.py:191: The `srun` command is available on your system but is not used. HINT: If your intention is to run Lightning on SLURM, prepend your python command with `srun` like so: srun python3.10 /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixu ...
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+[rank: 0] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/2
+----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 2 processes
+----------------------------------------------------------------------------------------------------
+
+RuntimeError: CUDA error: uncorrectable ECC error encountered
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_runner.py", line 186, in <module>
+[rank1]:     sys.exit(main())
+[rank1]:   File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_runner.py", line 174, in main
+[rank1]:     trainer.fit(training_wrapper, train_dl)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 545, in fit
+[rank1]:     call._call_and_handle_interrupt(
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 43, in _call_and_handle_interrupt
+[rank1]:     return trainer.strategy.launcher.launch(trainer_fn, *args, trainer=trainer, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/launchers/subprocess_script.py", line 102, in launch
+[rank1]:     return function(*args, **kwargs)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 581, in _fit_impl
+[rank1]:     self._run(model, ckpt_path=ckpt_path)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 948, in _run
+[rank1]:     self.strategy.setup_environment()
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/ddp.py", line 147, in setup_environment
+[rank1]:     super().setup_environment()
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 128, in setup_environment
+[rank1]:     self.accelerator.setup_device(self.root_device)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/accelerators/cuda.py", line 45, in setup_device
+[rank1]:     torch.cuda.set_device(device)
+[rank1]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/cuda/__init__.py", line 529, in set_device
+[rank1]:     torch._C._cuda_setDevice(device)
+[rank1]: RuntimeError: CUDA error: uncorrectable ECC error encountered
+[rank1]: CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+[rank1]: For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+[rank1]: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+W0805 18:34:16.376000 2785853 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 2785963 closing signal SIGTERM
+E0805 18:34:16.597000 2785853 site-packages/torch/distributed/elastic/multiprocessing/api.py:874] failed (exitcode: 1) local_rank: 1 (pid: 2785964) of binary: /n/fs/gatrdp/envs/flac/bin/python3.10
+Traceback (most recent call last):
+  File "/n/fs/gatrdp/envs/flac/bin/torchrun", line 6, in <module>
+    sys.exit(main())
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    return f(*args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/run.py", line 892, in main
+    run(args)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/run.py", line 883, in run
+    elastic_launch(
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 270, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_runner.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-08-05_18:34:16
+  host      : neu322.neuronic.cs.princeton.edu
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 2785964)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+missing/blank P0STEP window marks in the train log
+=== RESULT: cell FA1_32x2 rc=1 | wall 23.112s (startup diagnostic) | window -1 -> -1 | peak 551 MiB / 46068 MiB | measurement_valid=1 ===
+P0RESULT runid=72a8114-1785969226421855487-c8d5b51f sha=72a811416b35c4bfb9282c5ce1c4370776329eb9 jobid=3638693 cell=FA1_32x2 maxsteps=30 ngpu=2 mb=32 workers=6 rc=1 config_sha=eea1d206c8114ea1a26998dc31f9b67fa84e574a950da0bb17db7cb05a061d78 wall_fit=23.112 t10=-1 t30=-1 t10_mono=-1 t30_mono=-1 peak_overall_mib=551 peak_per_uuid=GPU-d9f8b71c-d714-ebd2-c0d6-617b56bbc4fd:3,GPU-e8e2c8a3-fbe6-7e09-7291-d56de7556ead:551 vram_csv=p0_FA1_32x2_2026-08-05_18-33-48_jid3638693_vram.csv pollcsv_sha256=20d293139f015e7808bf322fafb88d75f3d6baedfdb5eb1c849ba333cb69a258 valid=1
+cell FA1_32x2 NOT clean (rc=1, measurement_valid=1); see /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/p0_FA1_32x2_2026-08-05_18-33-48_jid3638693_train.log

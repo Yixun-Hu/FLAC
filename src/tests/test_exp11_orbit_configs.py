@@ -2,14 +2,19 @@
 
 The arm configs ``FLAC_AR_BF_C{4L,8,16,32}.json`` plus the P0 attribution
 control ``FLAC_AR_BF_FA1.json`` are derived from the exp_07 from-scratch fa
-manifest ``FLAC_AR_BF.json`` and must differ from it in EXACTLY two leaf groups
-(plan Rev 3 §10): ``gradient_checkpointing`` ``true -> false`` in BOTH
-``ViTCoordinates`` conditioners (the Rev 3 fast recipe drops ViT grad-ckpt), and
-``training.frame_avg_angles`` for FA1/C8/C16/C32 ONLY -- C4L is the bridge
-control, angle-identical to the source manifest. FA1's single-angle orbit
-``[0.0]`` keeps the fa dispatch and the cylindrical pose path but runs exactly
-ONE ViT pass, so it is the profiling baseline the per-orbit-pass cost is fitted
-against (round-2 re-review B6); its spacing check is vacuous at n = 1. Any
+manifest ``FLAC_AR_BF.json`` and must differ from it in EXACTLY ONE leaf group:
+``training.frame_avg_angles`` (FA1/C8/C16/C32 only) -- and C4L must differ in
+NOTHING at all, because it is the bridge control and now re-runs the exp_07 B-F
+recipe verbatim.
+
+ViT gradient checkpointing stays TRUE in every arm (Yixun, post-P0): P0 measured
+that the no-ckpt recipe is INFEASIBLE for C8 and richer orbits -- OOM even at
+micro-batch 8 (45,457 MiB) -- while the checkpointed recipe peaks at ~9.4 GB, so
+the sweep runs uniformly checkpointed and the ONLY delta between arms is the
+averaging orbit. FA1's single-angle orbit ``[0.0]`` keeps the fa dispatch and the
+cylindrical pose path but runs exactly ONE ViT pass, so it is the profiling
+baseline the per-orbit-pass cost is fitted against (round-2 re-review B6); its
+spacing check is vacuous at n = 1. Any
 other differing leaf is a silent recipe change that would confound the sweep,
 so the deep-diff test fails on it and names the offending path. The orbit is
 additionally checked geometrically: uniform angles from 0.0 whose panorama
@@ -125,11 +130,13 @@ def _vit_gc_leaves(cfg: dict) -> list:
 
 def _assert_allowed_diff(arm: str, bf: dict, cfg: dict) -> None:
     """Fail unless ``cfg`` differs from the exp_07 manifest ``bf`` in exactly the
-    allowed leaves. Leaf VALUES are checked strictly: the checkpointing flags by
-    identity (``is True`` / ``is False``, so a falsy ``0``/``0.0`` is rejected)
-    and the orbit through :func:`_deep_diff` (so an int ``45`` is rejected)."""
+    allowed leaves: ``training.frame_avg_angles`` for every arm except C4L, which
+    must be leaf-for-leaf identical to the source manifest. Leaf VALUES are
+    checked strictly: both checkpointing flags by identity (``is True``, so a
+    truthy ``1`` is rejected) and the orbit through :func:`_deep_diff` (so an int
+    ``45`` is rejected)."""
     gc_base, gc_arm = _vit_gc_leaves(bf), _vit_gc_leaves(cfg)
-    expected_paths = {p for p, _ in gc_base}
+    expected_paths = set()
     if arm != "C4L":
         expected_paths.add("training.frame_avg_angles")
 
@@ -146,7 +153,10 @@ def _assert_allowed_diff(arm: str, bf: dict, cfg: dict) -> None:
     for (path, v_base), (path_arm, v_arm) in zip(gc_base, gc_arm):
         assert path == path_arm, f"{arm}: ViTCoordinates entries moved ({path_arm})"
         assert v_base is True, f"BF {path} is {v_base!r}, expected literal true"
-        assert v_arm is False, f"{arm}: {path} is {v_arm!r}, expected literal false"
+        assert v_arm is True, (
+            f"{arm}: {path} is {v_arm!r}, expected literal true — every arm runs the "
+            "checkpointed recipe (no-ckpt is OOM-infeasible for C8+, P0 2026-08-05)"
+        )
 
     if arm != "C4L":
         want = _orbit(_n_from_name(arm))
@@ -165,21 +175,29 @@ def test_allowed_diff_leaves(arm):
     _assert_allowed_diff(arm, _load(_BF_CONFIG), _load(_arm_path(arm)))
 
 
-def test_falsy_gc_leaf_is_rejected():
-    """Regression for the loose-tuple-comparison bug: ``0`` is falsy but is not
-    ``False``, and must not pass as the required ``true -> false`` change. The
-    mutation lives in memory only -- no temp config is written to the exp folder."""
+def test_non_boolean_gc_leaf_is_rejected():
+    """Regression for the loose-comparison bug, re-pointed after the grad-ckpt
+    pivot: ``1`` is truthy but is not ``True``, and a flipped ``False`` is a
+    silent recipe change; neither may pass. Mutations live in memory only -- no
+    temp config is written to the exp folder."""
     bf = _load(_BF_CONFIG)
     _assert_allowed_diff("C8", bf, _load(_arm_path("C8")))  # unmutated => passes
-    for falsy in (0, 0.0):
+    for bad in (1, 1.0, False, 0):
         cfg = _load(_arm_path("C8"))
         entry = next(
             e for e in cfg["model"]["conditioning"]["configs"]
             if e.get("type") == "ViTCoordinates"
         )
-        entry["config"]["gradient_checkpointing"] = falsy
+        entry["config"]["gradient_checkpointing"] = bad
         with pytest.raises(AssertionError):
             _assert_allowed_diff("C8", bf, cfg)
+
+
+def test_c4l_is_byte_identical_to_exp07_bf():
+    """The bridge arm re-runs the exp_07 B-F recipe verbatim, so its manifest is
+    the SAME BYTES — not merely the same parsed object."""
+    with open(_BF_CONFIG, "rb") as a, open(_arm_path("C4L"), "rb") as b:
+        assert a.read() == b.read(), "C4L must be byte-identical to exp_07 FLAC_AR_BF.json"
 
 
 # --------------------------------------------------------------------------- #
