@@ -23,7 +23,9 @@ Base: `b9e38ce` (exp_10 model_comparison rows). Branch: `check-equivariance-nece
 | 14 | `abbff5a` | NEW-1a — `FLAC_AR_VANCKPT.json` (canonical + the two grad-ckpt leaves) + deep-diff test: the canonical manifest could never pass the post-pivot gate |
 | 15 | `c89d05a` | NEW-1b/NEW-2/NEW-5 — P0 kit pivoted (VAN→VANCKPT, CKPT4 retired everywhere, matrix now 12 cells), OUTPUT_ROOT literal under Slurm, poller comment corrected and the 2 s liveness bound restored |
 | 16 | `983a7ff` | launcher residuals — flock ownership (B3), fail-closed manifest-commit binding (B2), pip-freeze/final-tee/preflight-transcript durability (B5), exported W&B entity + post-run run-identity verification (B7), intent manifest before sbatch (NEW-3), safe FIFO (NEW-4) |
-| 17 | `_(this commit)_` | fresh evidence — 72-case guard log and 78-case pytest log committed; ledger updated |
+| 17 | `d1477c1` | fresh evidence — 72-case guard log and 78-case pytest log committed; ledger updated |
+| 18 | `1479304` | **batched-orbit `invariant_conditioning`** (Q5) — same maths, reordered execution: rotated variants stacked along the batch dim into ≤ `FRAME_AVG_MAX_FWD_SAMPLES` = 64-sample chunks (P0 measured orbit cells at 28–34% GPU util, i.e. latency-bound), split back per angle, accumulated in the same ascending order; `_orbit_average_loop` preserved as the equivalence reference; equivalence tests over C ∈ {4,8,16,32} × B ∈ {1,2,3} (+ fp64 case) and the call-count test restated as a sample-count contract |
+| 19 | `_(this commit)_` | equivalence probe kit — `fa_orbit_equiv_probe.py` (real DINOv3 stack from the C32 arm config + real train-split samples; batched vs the library's own loop reference in fp32 and bf16 autocast for C4/C32; pre-registered fp32 rel ≤ 1e-6, bf16 rel ≤ 2e-3; one `EQUIVPROBE` line) and `fa_orbit_equiv_probe.sbatch` (1× L40, 10 min, p0-style commit/drift/GPU gates) |
 
 Notes: a commit cannot contain its own SHA (exp_07's amend lesson — never amend a SHA
 into the commit that carries it), so each round's hash is reported with its output and
