@@ -25,6 +25,17 @@ from transformers import AutoModel, AutoConfig
 # module of the model initialises byte-identically to the legacy (mean+Linear) arm.
 _COND_MLP_HIDDEN_SEED = 4242
 
+# exp_04: the REGISTERED `cond_pool` values -> the `dino_pool` selector each serves. The MLP
+# head construction below is SHARED by every entry (one code path, one RNG contract), so a
+# same-seed build of any two arms is bitwise identical and the pooling SELECTOR is their only
+# difference — which is exactly what the exp_04 (mean) vs exp_03 (max) factor-isolation
+# comparison rests on. Adding a value here is the ONLY way to register a new arm; anything
+# absent from this mapping fails closed.
+_COND_POOL_TO_DINO_POOL = {
+    'max_mlp': 'max',    # exp_03: token-axis amax
+    'mean_mlp': 'mean',  # exp_04: the LEGACY patch mean (pooler_output)
+}
+
 
 class AudioResNet18(nn.Module):
     def __init__(self, 
@@ -460,8 +471,9 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
     # ViTCoordinates conditioner (below); stays None for every legacy path, so the
     # reuse branch is byte-identical for legacy configs.
     _cyl_first_vit_block = None
-    # exp_03: how the dino path pools tokens. "mean" (the legacy patch mean) for EVERY path;
-    # only the cylindrical branch's `cond_pool: "max_mlp"` raises it to "max". Initialised here
+    # exp_03/exp_04: how the dino path pools tokens. "mean" (the legacy patch mean) for EVERY
+    # path; only the cylindrical branch's `cond_pool` knob can change it, via
+    # _COND_POOL_TO_DINO_POOL ("max_mlp" -> "max"; "mean_mlp" keeps "mean"). Initialised here
     # so the (unchanged) shared-backbone reuse branch can pass it on for the second conditioner.
     dino_pool = 'mean'
 
@@ -526,31 +538,38 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                     n_total_params = sum(p.numel() for p in vit_model.parameters())
                     print(f"{n_trainable_params / 1e6:.2f}M/{n_total_params / 1e6:.2f}M parameters are trainable")
 
-                    # exp_03 (max-pool + MLP head): two ADDITIVE, fail-closed knobs, parsed
-                    # ONLY inside this cylindrical branch so no legacy config can reach them.
+                    # exp_03/exp_04 (MLP conditioning head): two ADDITIVE, fail-closed knobs,
+                    # parsed ONLY inside this cylindrical branch so no legacy config can reach
+                    # them.
                     #   * `cond_pool` ABSENT  -> the legacy mean-pool + bare Linear head, on a
                     #     byte-identical code path (same modules, same RNG draws, same forward);
-                    #   * `cond_pool: "max_mlp"` -> token-axis amax + Linear->GELU->Linear;
+                    #   * `cond_pool: "max_mlp"`  -> token-axis amax + Linear->GELU->Linear;
+                    #   * `cond_pool: "mean_mlp"` -> the LEGACY mean pool (pooler_output) + the
+                    #     IDENTICAL Linear->GELU->Linear head, built by the SAME code below;
                     #   * any other value, an ORPHAN `cond_mlp_hidden` (no `cond_pool`), or a
                     #     non-int/bool/<=0 width -> ValueError (never a silent fallback).
                     # Both ViT blocks must carry equal values; the shared-backbone block-equality
                     # guard below is what enforces that.
                     cond_pool = vit_config.get('cond_pool', None)
                     cond_mlp_hidden = vit_config.get('cond_mlp_hidden', None)
-                    if cond_pool is not None and cond_pool != 'max_mlp':
+                    # The isinstance guard keeps the membership test fail-closed for unhashable
+                    # (list/dict) and non-string values, which `in` alone would raise TypeError on.
+                    if cond_pool is not None and (not isinstance(cond_pool, str)
+                                                  or cond_pool not in _COND_POOL_TO_DINO_POOL):
                         raise ValueError(
-                            f"Unknown cond_pool: {cond_pool!r}. Supported: 'max_mlp' (exp_03 "
-                            "max-pool + MLP head), or omit the field for the legacy mean-pool + "
-                            "Linear head (fail-closed: an unrecognised cond_pool never falls "
-                            "through to the legacy head)."
+                            f"Unknown cond_pool: {cond_pool!r}. Supported: "
+                            f"{sorted(_COND_POOL_TO_DINO_POOL)} ('max_mlp' = exp_03 max-pool + "
+                            "MLP head, 'mean_mlp' = exp_04 mean-pool + the same MLP head), or "
+                            "omit the field for the legacy mean-pool + Linear head (fail-closed: "
+                            "an unrecognised cond_pool never falls through to the legacy head)."
                         )
                     if cond_pool is None and cond_mlp_hidden is not None:
                         raise ValueError(
                             "cond_mlp_hidden is set without cond_pool: the width would be "
-                            "silently ignored by the legacy head. Set cond_pool='max_mlp' or "
-                            "remove cond_mlp_hidden."
+                            "silently ignored by the legacy head. Set a registered cond_pool "
+                            f"({sorted(_COND_POOL_TO_DINO_POOL)}) or remove cond_mlp_hidden."
                         )
-                    if cond_pool == 'max_mlp':
+                    if cond_pool is not None:
                         if cond_mlp_hidden is None:
                             cond_mlp_hidden = hidden_size   # declared default (384 at ViT-S/16)
                         if (isinstance(cond_mlp_hidden, bool)
@@ -564,7 +583,7 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                             raise ValueError(
                                 f"cond_mlp_hidden must equal the backbone hidden_size "
                                 f"({hidden_size}), got {cond_mlp_hidden}: the OUTPUT layer of the "
-                                "max_mlp head is the legacy Linear(hidden_size, cond_dim) drawn at "
+                                "MLP head is the legacy Linear(hidden_size, cond_dim) drawn at "
                                 "the legacy code point (that is what keeps it bitwise-equal to the "
                                 "legacy projection and leaves the downstream RNG stream intact), so "
                                 "the hidden layer must map hidden_size -> hidden_size."
@@ -574,7 +593,11 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                     # mean, [B, hidden]) and projects it with lin_proj. vit_proj is unused
                     # on the dino path (Identity), matching the legacy DINO branch.
                     lin_proj = nn.Linear(hidden_size, cond_dim) if cond_dim != hidden_size else nn.Identity()
-                    if cond_pool == 'max_mlp':
+                    if cond_pool is not None:
+                        # ONE construction for EVERY registered cond_pool value (exp_04 delta 1b):
+                        # the arms must be the same network up to `dino_pool`, so this block is
+                        # deliberately shared rather than copied per arm — a per-arm copy could
+                        # drift in draw order and silently break the cross-arm identity oracle.
                         # Construction order is load-bearing (plan §2.1 / review r2-F1):
                         #   1. the OUTPUT layer is the line above -- the IDENTICAL draws the legacy
                         #      lin_proj makes, at the identical code point, so the post-Linear
@@ -590,7 +613,7 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                             torch.random.default_generator.manual_seed(_COND_MLP_HIDDEN_SEED)
                             hidden_layer = nn.Linear(hidden_size, cond_mlp_hidden)
                         lin_proj = nn.Sequential(hidden_layer, nn.GELU(), out_layer)
-                        dino_pool = 'max'
+                        dino_pool = _COND_POOL_TO_DINO_POOL[cond_pool]
                     vit_proj = nn.Identity()
                     model_type = 'dino'
                     _cyl_first_vit_block = vit_config  # for the shared-backbone equality guard

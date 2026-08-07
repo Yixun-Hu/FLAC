@@ -329,8 +329,12 @@ def test_max_mlp_forward_is_the_mlp_of_the_token_amax(tiny_cyl_dir):
 # ------------------------------------------------------------------------------------ #
 # 3. fail-closed knob validation
 # ------------------------------------------------------------------------------------ #
-@pytest.mark.parametrize("value", ["max", "mean_mlp", "maxmlp", "MAX_MLP", "", True, 1])
+@pytest.mark.parametrize("value", ["max", "avg_mlp", "maxmlp", "MAX_MLP", "", True, 1])
 def test_unknown_cond_pool_value_raises(tiny_cyl_dir, value):
+    """exp_04 ADAPTATION (delta §7): ``"mean_mlp"`` moved from this invalid list to a
+    REGISTERED value (exp_04's mean-pool + the same MLP head, pinned by
+    ``test_exp04n_cond_pool.py``). Truly unknown values — ``"avg_mlp"`` in its place — must
+    still fail closed, so the knob never falls through to the legacy head."""
     cfg = _cyl_conditioning(tiny_cyl_dir, with_context=False, cond_pool=value)
     with pytest.raises(ValueError, match="cond_pool"):
         create_multi_conditioner_from_conditioning_config(cfg)
