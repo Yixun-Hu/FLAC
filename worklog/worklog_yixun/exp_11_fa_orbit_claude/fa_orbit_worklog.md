@@ -142,3 +142,8 @@
 - **Sign-off** — `fa_orbit_codex_signoff.md`: LAUNCH-APPROVED; pins vs batched P0 verified; adjusted equivalence bound judged pinned-to-predicted-noise (not fitted-to-pass); smoke evidence (runs 3646734 training-side + 3648568 fully green) satisfies precondition 7; acceptance-record contents enumerated and satisfied (see fa_orbit_command.md).
 - **Result** — `launched`: C4L job 3648665 (24 h limit) · C8 3648666 (35 h) · C16 3648667 (60 h) · C32 3648668 (112 h); each 8× L40, MB 8, 40k steps, ckpt/2500, batched fa_invariant, commit-bound 4884abc-era HEAD (see intent manifests). Expected completions from batched P0 rates: ~17 h / ~26 h / ~45 h / ~85 h.
 - **Next** — first-ckpt health checks (~63/96/170/320 min); round 4 kit (fa-protocol screens at matched cadence, C4 backfill, D1/D2/D3 probes, R1–R4 readouts) developed while arms train.
+
+## 2026-08-07 — ALL FOUR ARMS RUNNING (3648694–97); attempt-1 gate-kill logged
+
+- **Result** — `launched` (confirmed): C4L/C8/C16/C32 running on four full nodes, 8-rank registration verified on each. Attempt-1 (3648665–68) was killed by the commit-freeze trap (my post-submission record commit — third occurrence; rule hardened: no tracked changes between submission and all-jobs-started; records now written post-start). Expected completions from batched rates: C4L ~17 h, C8 ~26 h, C16 ~45 h, C32 ~85 h from start.
+- **Next** — first-ckpt health checks (63/96/170/320 min per arm); round-4 kit (screens/backfill/probes/readouts) development begins now so screens are ready before C4L@40k.

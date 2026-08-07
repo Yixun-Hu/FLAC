@@ -1,0 +1,2 @@
+=== exp_11 arm C8 @ rung 8x8 (MB 8 x 8 GPU, grad-ckpt ON) — 2026-08-06_18-49-56 — host neu315.neuronic.cs.princeton.edu ===
+HEAD 2b78f995a6d377676bd9d9fb60635ab90032b52d != EXPECT_SHA 2a6988e85a73cf6e607a8dff6ecea86ebae3059c - abort

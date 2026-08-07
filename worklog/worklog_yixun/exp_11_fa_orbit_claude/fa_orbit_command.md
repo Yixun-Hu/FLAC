@@ -41,3 +41,12 @@ SBATCH_EXCLUDE=neu322 SMOKE=0 DRYRUN=0 bash worklog/worklog_yixun/exp_11_fa_orbi
 - Final acceptance per arm: 40,000 steps reached, expected checkpoints on cadence, byte-identical dual durable logs, W&B run identity verified, classification rc=0.
 - Intent manifests + Slurm job IDs: appended below at submission.
 - SUBMITTED 2026-08-06: C4L → job 3648665 (fa_orbit_submission_C4L_1786054560338820300-09f373e3.txt) · C8 → 3648666 (…C8_1786054560465501451-9ffdd4d5.txt) · C16 → 3648667 (…C16_1786054560564868965-5fd4c1e1.txt) · C32 → 3648668 (…C32_1786054560670066214-c4a97ed7.txt)
+- **Attempt-1 launches (jobs 3648665–68) were gate-killed by my own post-submission job-ID-record commit** (HEAD moved while PENDING — third occurrence of this operational trap; ~40 min queue position lost, 2 s compute each). Standing rule now recorded: after submitting commit-bound jobs, NO tracked-file changes until every job is past its start gate.
+- **RESUBMITTED and RUNNING (recorded post-start per the new rule):**
+```
+3648696 exp11-C16-train 2026-08-06T20:55:48 neu316
+3648695 exp11-C8-train 2026-08-06T20:54:59 neu315
+3648694 exp11-C4L-train 2026-08-06T20:35:58 neu304
+3648697 exp11-C32-train 2026-08-07T00:16:28 neu310
+```
+  C4L → 3648694 · C8 → 3648695 · C16 → 3648696 · C32 → 3648697; all four world-size gates passed ("Starting with 8 processes").
