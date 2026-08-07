@@ -279,17 +279,21 @@ PY
 # --- I. the validator is a GATE, not advice (round-4 review B5) ---------------
 # A screen that cannot be validated must not announce a result: SCREENRESULT is
 # what the futility gate and the table generator consume.
-VALIDATOR_CONTRACT="futility"
-[ "$CELL" = "conf" ] && VALIDATOR_CONTRACT="table"
+# A confirmatory row cannot be validated alone -- the table contract is a
+# five-seed transaction -- so it must NOT claim it was (re-review item 5). Only a
+# futility screen, which IS a complete single-seed cell, reports validated=.
 if [ "$CELL" = "screen" ]; then
   python3 "$EXPDIR/exp11_validate_rows.py" --arm "$ARM" --step "$STEP" --k "$K" \
-    --contract "$VALIDATOR_CONTRACT" --verify-hashes "$METRICS" \
+    --contract futility --verify-hashes "$METRICS" \
     || die "row validation FAILED - refusing to emit SCREENRESULT for an unprovable row" 6
+  VALIDATED="futility"
 else
-  echo "NOTE: CELL=${CELL} is validated as a whole cell once all its seeds have landed:"
+  VALIDATED="pending-cell"
+  echo "NOTE: CELL=${CELL} is one row of a five-seed table cell; it is validated as a WHOLE cell"
+  echo "  once every seed has landed, and until then this row is NOT validated:"
   echo "  python3 ${EXPDIR}/exp11_validate_rows.py --arm ${ARM} --step ${STEP} --k ${K} --contract table --verify-hashes <all seed JSONs>"
 fi
 
-echo "SCREENRESULT arm=${ARM} cell=${CELL} step=${STEP} seed=${SEED} k=${K} rc=${EVAL_RC} validated=${VALIDATOR_CONTRACT} eval_name=${EVAL_NAME} metrics=${METRICS} sidecar=${METRICS}.screenmeta.json config_sha256=${CONFIG_SHA} ckpt_sha256=${CKPT_SHA} commit=${HEAD_SHA} log=${LOG}"
+echo "SCREENRESULT arm=${ARM} cell=${CELL} step=${STEP} seed=${SEED} k=${K} rc=${EVAL_RC} validated=${VALIDATED} eval_name=${EVAL_NAME} metrics=${METRICS} sidecar=${METRICS}.screenmeta.json config_sha256=${CONFIG_SHA} ckpt_sha256=${CKPT_SHA} commit=${HEAD_SHA} log=${LOG}"
 # --- END screen-run-and-record -------------------------------------------------
 exit 0

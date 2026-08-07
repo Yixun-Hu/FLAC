@@ -42,6 +42,16 @@ def _row_spec(label, proto, k, pats, **extra):
 # --------------------------------------------------------------------------- #
 # 1. exp_11 rows are recognised and carry their execution label
 # --------------------------------------------------------------------------- #
+def test_importing_the_generator_does_not_rewrite_the_table():
+    """Re-review item 6: at module scope the write ran on IMPORT, so merely
+    running pytest could regenerate the frozen table."""
+    table = os.path.join(_REPO_ROOT, "worklog", "worklog_yixun", "model_comparison.md")
+    before = open(table, "rb").read()
+    _load_module()                      # a second import, deliberately
+    assert open(table, "rb").read() == before, "importing the generator rewrote the table"
+    assert hasattr(G, "main"), "table generation must live behind main()"
+
+
 def test_exp11_rows_are_detected_from_their_patterns():
     assert G.is_exp11_row(["outputs_FLAC/exp11_C8/**/*exp11_C8_conf_S40000*.json"])
     assert not G.is_exp11_row(["outputs_FLAC/exp07_BF/**/*exp10_BF40_K8*.json"])
