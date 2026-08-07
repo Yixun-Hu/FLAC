@@ -189,12 +189,16 @@ if [ -n "${MEASURE_ROOT:-}" ] && [ -n "${SLURM_JOB_ID:-}" ]; then
   LEASE="${MEASURE_ROOT}/.leases/${SLURM_JOB_ID}"
   [ -f "$LEASE" ] || die "no lease ${LEASE} for this job — the worktree was not reserved for it - abort"
   grep -q "^jobid ${SLURM_JOB_ID}$" "$LEASE" || die "lease ${LEASE} does not name job ${SLURM_JOB_ID} - abort"
-  # Release through the helper so it happens under the store-wide lock, with a
-  # direct unlink as the fallback: a lease that outlives its job is only ever a
-  # delay (the sweep reaps it once Slurm reports the id gone), but a lease
-  # dropped while a sweep is mid-enumeration is a lost worktree.
+  # Release ONLY through the helper, so it always happens under the store-wide
+  # lock. There is deliberately no direct-unlink fallback: an unlocked rm can
+  # drop a lease while a sweep is mid-enumeration, and the sweep then deletes a
+  # worktree it believes is free. If the helper cannot run, the lease simply
+  # stays until the reaper proves — via a successful squeue — that this job id
+  # is gone. Keeping a lease too long costs one worktree; dropping one early
+  # costs a running job its code.
   MEASURE_HELPER="$EXPDIR/fa_orbit_measure_worktree.sh"
-  trap 'bash "$MEASURE_HELPER" --release "$SLURM_JOB_ID" "$MEASURE_ROOT" 2>/dev/null || rm -f "$LEASE"' EXIT
+  trap 'bash "$MEASURE_HELPER" --release "$SLURM_JOB_ID" "$MEASURE_ROOT" \
+          || echo "could not release ${LEASE}; leaving it for the reaper" >&2' EXIT
   echo "lease OK: ${LEASE}"
 fi
 

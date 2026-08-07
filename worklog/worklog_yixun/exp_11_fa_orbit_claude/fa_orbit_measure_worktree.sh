@@ -158,12 +158,24 @@ prunable() {  # $1 = worktree; prunable iff no lease names a live job (and reaps
 # established that the entry is unleased; this enforces the name shape and the
 # "a failure to remove is a warning, never an escalation" rule.
 remove_entry() {   # $1 = store entry, already proven unleased
+  local verdict
   is_sha_name "$(basename "$1")" \
     || { echo "  (refusing to remove ${1}: not a 40-hex store entry)" >&2; return 1; }
+  verdict="$(worktree_identity "$1")"
   # our own symlinks and .leases/ make `git worktree remove` bail out half-done,
-  # so clear them first, then confirm the directory is really gone
+  # so clear them first, then let git remove what git registered
   rm -rf "${1}/.leases" "${1}/AcousticRooms" "${1}/weights" 2>/dev/null
-  git -C "$MAIN_REPO" worktree remove --force "$1" >&2 2>/dev/null || true
+  if ! git -C "$MAIN_REPO" worktree remove --force "$1" >&2 2>/dev/null; then
+    # For a REGISTERED worktree git is the authority. If it declines, forcing an
+    # rm -rf would delete the checkout while leaving git's administrative files
+    # pointing at it — a corrupt store, from a sweep that was only tidying up.
+    # Leave it; the next sweep tries again, and preparation re-provisions it.
+    if [ "$verdict" = "valid" ]; then
+      echo "  (git declined to remove the registered worktree ${1}; leaving it in place)" >&2
+      return 1
+    fi
+  fi
+  # unregistered leftovers (git no longer knows them) are ours to clear
   if [ -d "$1" ]; then
     rm -rf "$1" 2>/dev/null || { echo "  (could not remove ${1}; leaving it for inspection)" >&2; return 1; }
   fi
@@ -207,10 +219,16 @@ mkdir -p "$ROOT" || die "cannot create ${ROOT}" 3
 LOCK="${ROOT}/.store.lock"
 
 lock_already_held() {
+  local have want
   [ "${FA_ORBIT_STORE_LOCK_HELD:-0}" = "1" ] || return 1
   # Trust the marker only if fd 8 really is this lock: a stray environment
-  # variable must never be able to turn locking off.
-  [ -e /proc/self/fd/8 ] && [ "$(readlink -f /proc/self/fd/8)" = "$(readlink -f "$LOCK")" ]
+  # variable must never be able to turn locking off. An unresolvable path gives
+  # the EMPTY string, and two empty strings compare equal — so a double readlink
+  # failure would read as a match. Require both to resolve.
+  [ -e /proc/self/fd/8 ] || return 1
+  have="$(readlink -f /proc/self/fd/8 2>/dev/null)" || return 1
+  want="$(readlink -f "$LOCK" 2>/dev/null)" || return 1
+  [ -n "$have" ] && [ -n "$want" ] && [ "$have" = "$want" ]
 }
 
 take_store_lock() {

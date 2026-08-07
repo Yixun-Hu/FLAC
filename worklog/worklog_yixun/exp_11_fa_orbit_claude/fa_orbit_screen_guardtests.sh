@@ -400,10 +400,11 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
     echo "FAIL  a mismatched lease was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
   fi
   rm -f "$WT/.leases/424242"
-  # the lease must come back on exit, and through the store lock (--release)
+  # The lease comes back on exit and ONLY through the store lock. There is
+  # deliberately no unlink fallback: an unlocked rm can drop a lease mid-sweep.
   if grep -q "trap 'bash \"\$MEASURE_HELPER\" --release" "$SCREEN" \
-     && grep -q 'rm -f "\$LEASE"' "$SCREEN"; then
-    echo "PASS  the screen returns its lease on exit, under the store lock"; PASS=$((PASS + 1))
+     && grep -q 'leaving it for the reaper' "$SCREEN"; then
+    echo "PASS  the screen returns its lease on exit, under the store lock only"; PASS=$((PASS + 1))
   else
     echo "FAIL  the screen never gives its lease back"; FAIL=$((FAIL + 1))
   fi
@@ -426,16 +427,23 @@ EOS
   cat > "${MOCK}/scontrol" <<'EOS'
 #!/usr/bin/env bash
 echo "scontrol $*" >> "$MOCK_TRACE"
+# record what the lease looked like AT THE MOMENT of release: a release that
+# ever runs against a missing or wrong lease is the ordering bug itself
+if [ "$1" = "release" ] && grep -q "^jobid $2$" "${MOCK_WT}/.leases/$2" 2>/dev/null; then
+  echo "release saw a VALID lease for $2" >> "$MOCK_TRACE"
+fi
 [ "${MOCK_RELEASE_FAILS:-0}" = "1" ] && exit 1
 exit 0
 EOS
   cat > "${MOCK}/scancel" <<'EOS'
 #!/usr/bin/env bash
 echo "scancel $*" >> "$MOCK_TRACE"
+[ "${MOCK_SCANCEL_FAILS:-0}" = "1" ] && exit 1
+exit 0
 EOS
   chmod +x "${MOCK}"/sbatch "${MOCK}"/scontrol "${MOCK}"/scancel
   TRACE="${TMP}/trace.txt"; : > "$TRACE"
-  out="$(env MOCK_TRACE="$TRACE" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
              FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
              bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
   LEASE_OK=0; [ -f "$WT/.leases/7654321" ] && LEASE_OK=1
@@ -456,16 +464,117 @@ EOS
     echo "FAIL  lease/release ordering not proven"; FAIL=$((FAIL + 1))
   fi
   bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
-  # a failing release must CANCEL the held job, not leave it queued unleased
+  # A failing release must CANCEL the held job — and KEEP the lease. The outcome
+  # is ambiguous (the job may yet run), and a lease we tidy away is a worktree a
+  # sweep deletes under a live job. Retaining costs one held tree until the
+  # reaper proves the id is gone.
   : > "$TRACE"
-  out="$(env MOCK_TRACE="$TRACE" MOCK_RELEASE_FAILS=1 FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" MOCK_RELEASE_FAILS=1 FA_ORBIT_SBATCH="${MOCK}/sbatch" \
              FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
              bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
-  if [ "$rc" -ne 0 ] && grep -q "scancel 7654321" "$TRACE" && [ ! -f "$WT/.leases/7654321" ]; then
-    echo "PASS  a failed release cancels the held job and drops its lease"; PASS=$((PASS + 1))
+  if [ "$rc" -eq 6 ] && grep -q "scancel 7654321" "$TRACE" && [ -f "$WT/.leases/7654321" ]; then
+    echo "PASS  a failed release cancels the job and RETAINS the lease"; PASS=$((PASS + 1))
   else
-    echo "FAIL  a failed release left an orphan (rc=${rc})"; sed 's/^/        | /' "$TRACE"
-    FAIL=$((FAIL + 1))
+    echo "FAIL  a failed release mishandled the lease (rc=${rc}, lease $([ -f "$WT/.leases/7654321" ] && echo kept || echo DROPPED))"
+    sed 's/^/        | /' "$TRACE"; FAIL=$((FAIL + 1))
+  fi
+  # ...and when scancel ALSO fails, the outcome is maximally uncertain: still keep it
+  : > "$TRACE"
+  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" MOCK_RELEASE_FAILS=1 MOCK_SCANCEL_FAILS=1 \
+             FA_ORBIT_SBATCH="${MOCK}/sbatch" FA_ORBIT_SCONTROL="${MOCK}/scontrol" \
+             FA_ORBIT_SCANCEL="${MOCK}/scancel" bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+  if [ "$rc" -eq 6 ] && [ -f "$WT/.leases/7654321" ] \
+     && echo "$out" | grep -q "scancel FAILED too"; then
+    echo "PASS  release AND scancel failing keeps the lease and says why"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  an uncertain cancellation did not retain the lease (rc=${rc})"
+    echo "$out" | tail -4 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+  fi
+  bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
+  # the lease is VALIDATED BEFORE the job is released, not after
+  : > "$TRACE"
+  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+             bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+  VAL_LINE="$(grep -n 'jobid \${JOBID}\$' "$SUB" | head -1 | cut -d: -f1)"
+  REL_LINE="$(grep -n 'SCONTROL" release' "$SUB" | head -1 | cut -d: -f1)"
+  if [ "$rc" -eq 0 ] && echo "$out" | grep -q "lease validated" \
+     && grep -q "release saw a VALID lease for 7654321" "$TRACE" \
+     && [ -n "$VAL_LINE" ] && [ -n "$REL_LINE" ] && [ "$VAL_LINE" -lt "$REL_LINE" ]; then
+    echo "PASS  the lease is validated BEFORE scontrol release (source + runtime)"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  release may run against an unvalidated lease (rc=${rc}, val@${VAL_LINE} rel@${REL_LINE})"
+    sed 's/^/        | /' "$TRACE"; FAIL=$((FAIL + 1))
+  fi
+  bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
+
+  # --- the marker is not proof: fd 8 must BE the store lock, at the OUTER entry
+  STORE_LOCK="${MAIN_TREE}/.measure_worktrees/.store.lock"
+  out="$(env FA_ORBIT_STORE_LOCK_HELD=1 MOCK_TRACE="$TRACE" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+             bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "only CLAIMS to hold the store lock"; then
+    echo "PASS  a forged lock marker with NO fd 8 is refused"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a forged marker with no fd 8 was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
+  fi
+  DECOY_LOCK="${TMP}/decoy.lock"; : > "$DECOY_LOCK"
+  out="$(env FA_ORBIT_STORE_LOCK_HELD=1 MOCK_TRACE="$TRACE" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+             bash -c 'exec 8>"$1"; exec bash "$2" ARM=C4L STEP=10000' _ "$DECOY_LOCK" "$SUB" 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "only CLAIMS to hold the store lock"; then
+    echo "PASS  a forged marker with the WRONG fd 8 is refused"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a forged marker pointing at another file was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
+  fi
+  # fd 8 on a DELETED file: readlink -f cannot resolve it, and an unresolvable
+  # path must never be read as a match (two empty strings compare equal)
+  GONE="${TMP}/gone.lock"; : > "$GONE"
+  out="$(env FA_ORBIT_STORE_LOCK_HELD=1 MOCK_TRACE="$TRACE" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+             bash -c 'exec 8>"$1"; rm -f "$1"; exec bash "$2" ARM=C4L STEP=10000' _ "$GONE" "$SUB" 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "only CLAIMS to hold the store lock"; then
+    echo "PASS  an unresolvable fd 8 (deleted file) is refused"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  an unresolvable fd 8 was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
+  fi
+  if grep -q '\[ -n "\$have" \] && \[ -n "\$want" \]' "$SUB" \
+     && grep -q '\[ -n "\$have" \] && \[ -n "\$want" \]' "$HELPER"; then
+    echo "PASS  both readlink results must be non-empty (no empty==empty match)"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  an empty readlink result could compare equal"; FAIL=$((FAIL + 1))
+  fi
+  # the outer entry checks the lock BEFORE any transaction step
+  ENTRY_LINE="$(grep -n 'fd8_is_the_store_lock ||' "$SUB" | head -1 | cut -d: -f1)"
+  FIRST_TXN="$(grep -n 'WT="\$("\$HELPER"' "$SUB" | head -1 | cut -d: -f1)"
+  if [ -n "$ENTRY_LINE" ] && [ -n "$FIRST_TXN" ] && [ "$ENTRY_LINE" -lt "$FIRST_TXN" ]; then
+    echo "PASS  the lock is proven at the outer entry, before any transaction"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  the lock check is downstream of the first transaction step"; FAIL=$((FAIL + 1))
+  fi
+  # no unlocked EXIT-trap unlink anywhere in the screen
+  if grep -q 'trap .*--release' "$SCREEN" && ! grep -q 'rm -f "\$LEASE"' "$SCREEN"; then
+    echo "PASS  the screen has no unlocked EXIT-trap unlink"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  the screen still drops its lease with an unlocked rm"; FAIL=$((FAIL + 1))
+  fi
+  # a REGISTERED worktree git declines to remove is left alone, not force-deleted
+  GITMOCK="${TMP}/gitmock"; mkdir -p "$GITMOCK"
+  printf '#!/usr/bin/env bash\ncase "$*" in *"worktree remove"*) echo "mock: declining" >&2; exit 128;; esac\nexec %s "$@"\n' \
+    "$(command -v git)" > "${GITMOCK}/git"; chmod +x "${GITMOCK}/git"
+  out="$(env PATH="${GITMOCK}:$PATH" bash "$HELPER" --prune 2>&1)"; rc=$?
+  if [ -d "$WT" ] && echo "$out" | grep -q "git declined to remove the registered worktree"; then
+    echo "PASS  a registered worktree git refuses to remove is left in place"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a removal failure escalated to rm -rf (tree $([ -d "$WT" ] && echo kept || echo DELETED))"
+    echo "$out" | tail -3 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+  fi
+  # ...and the store still works afterwards (assets re-provisioned)
+  BACK="$(bash "$HELPER" 2>/dev/null | tail -1)"
+  if [ "$BACK" = "$WT" ] && [ -e "$WT/AcousticRooms" ] && [ -e "$WT/weights" ]; then
+    echo "PASS  the store self-heals after a failed removal"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  the store did not recover after a failed removal ('${BACK}')"; FAIL=$((FAIL + 1))
   fi
   grep -q -- '--promote' "$SUB" \
     && { echo "FAIL  the placeholder/promote race is still in the submitter"; FAIL=$((FAIL + 1)); } \
