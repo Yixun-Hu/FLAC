@@ -40,9 +40,14 @@ CKPT = ("outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/"
         "epoch=2-step=10000.ckpt")
 
 
+REQUIRED_METRICS = {"T60": 12.3, "C50": 1.1, "EDT": 4.4,
+                    "RIR_to_GT_RIR_R@1": 0.5, "RIR_to_GT_RIR_R@5": 0.7,
+                    "RIR_to_GT_RIR_R@10": 0.9}
+
+
 def _record(**over):
     rec = {
-        "metrics": {"T60": 12.3, "C50": 1.1},
+        "metrics": dict(REQUIRED_METRICS),
         "ckpt_path": CKPT,
         "rotate_deg": 0.0,
         "cond_method": "fa_invariant",
@@ -53,6 +58,10 @@ def _record(**over):
         "source_sha": "a" * 40,
         "batch_size": 64,
         "n_samples": 6337,
+        "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
+        "seed": 42, "cfg_scale": 1.0, "steps": 1,
+        "eval_name": "exp11_C8_screen_S10000_s42_K8",
+        "weights_source": "ema", "device": "cuda",
     }
     rec.update(over)
     return rec
@@ -222,60 +231,230 @@ def test_empty_metrics_are_rejected(tmp_path):
 # --------------------------------------------------------------------------- #
 # 4. a CELL: the five eval seeds exactly once
 # --------------------------------------------------------------------------- #
-def _seed_row(tmp_path, seed, arm="C8", step=10000, k=8):
-    name = (f"epoch=2-step={step}_metrics_1_1.0_exp11_{arm}_screen_S{step}_s{seed}_K{k}"
-            f"_fa_invariant_a8.json")
+def _seed_row(tmp_path, seed, arm="C8", step=10000, k=8, cell="conf"):
+    """One row of a cell. Table cells are 'conf' (announcement 04's five seeds);
+    futility screens are 'screen' and are single-seed by contract."""
+    n_ang = {"C4L": 4, "C8": 8, "C16": 16, "C32": 32}[arm]
+    ev = f"exp11_{arm}_{cell}_S{step}_s{seed}_K{k}"
+    name = f"epoch=2-step={step}_metrics_1_1.0_{ev}_fa_invariant_a{n_ang}.json"
+    ck = (f"outputs_FLAC/exp11_{arm}/FLAC_exp11_{arm}/exp11_{arm}/checkpoints/"
+          f"epoch=2-step={step}.ckpt")
+    ang = [k2 * 360.0 / n_ang for k2 in range(n_ang)]
     return _write_row(
         tmp_path,
-        rec=_record(),
-        side=_sidecar(seed=seed, eval_name=f"exp11_{arm}_screen_S{step}_s{seed}_K{k}"),
+        rec=_record(frame_avg_angles=ang, ckpt_path=ck, seed=seed, eval_name=ev),
+        side=_sidecar(seed=seed, eval_name=ev, arm=arm, step=step, K=k,
+                      frame_avg_angles=ang, ckpt_path=ck),
         name=name)
 
 
 def test_cell_with_all_five_seeds_passes(tmp_path):
     paths = [_seed_row(tmp_path, s) for s in (42, 43, 44, 45, 46)]
-    rows, problems = V.validate_cell(paths, arm="C8", step=10000, expected_seeds=(42, 43, 44, 45, 46), k=8)
+    rows, problems = V.validate_cell(paths, arm="C8", step=10000, k=8, contract="table")
     assert problems == [], problems
     assert sorted(r["seed"] for r in rows) == [42, 43, 44, 45, 46]
 
 
 def test_cell_missing_a_seed_fails(tmp_path):
     paths = [_seed_row(tmp_path, s) for s in (42, 43, 44, 45)]
-    _rows, problems = V.validate_cell(paths, arm="C8", step=10000, expected_seeds=(42, 43, 44, 45, 46), k=8)
+    _rows, problems = V.validate_cell(paths, arm="C8", step=10000, k=8, contract="table")
     assert any("46" in p for p in problems)
 
 
 def test_cell_with_a_duplicated_seed_fails(tmp_path):
     paths = [_seed_row(tmp_path, s) for s in (42, 43, 44, 45, 46)]
-    dup = _write_row(tmp_path, side=_sidecar(seed=46, eval_name="exp11_C8_screen_S10000_s46_K8"),
-                     name="dup_metrics_1_1.0_exp11_C8_screen_S10000_s46_K8_fa_invariant_a8.json")
-    _rows, problems = V.validate_cell(paths + [dup], arm="C8", step=10000,
-                                      expected_seeds=(42, 43, 44, 45, 46), k=8)
+    dup = _seed_row(tmp_path, 46, step=10000)   # same (arm, step, seed) twice
+    _rows, problems = V.validate_cell(paths + [dup], arm="C8", step=10000, k=8, contract="table")
     assert any("more than once" in p or "duplicate" in p for p in problems)
 
 
 def test_single_seed_screen_cell_passes(tmp_path):
     """A futility screen is one seed by design (plan §4)."""
-    rows, problems = V.validate_cell([_seed_row(tmp_path, 42)], arm="C8", step=10000,
-                                     expected_seeds=(42,), k=8)
+    rows, problems = V.validate_cell([_seed_row(tmp_path, 42, cell="screen")], arm="C8",
+                                     step=10000, k=8, contract="futility")
     assert problems == [] and len(rows) == 1
 
 
 def test_cell_rejects_a_row_from_another_arm(tmp_path):
     paths = [_seed_row(tmp_path, 42), _seed_row(tmp_path, 43, arm="C4L")]
-    _rows, problems = V.validate_cell(paths, arm="C8", step=10000, expected_seeds=(42, 43), k=8)
+    _rows, problems = V.validate_cell(paths, arm="C8", step=10000, k=8, contract="table")
     assert problems
 
 
 def test_main_returns_nonzero_on_a_bad_cell(tmp_path, capsys):
     paths = [_seed_row(tmp_path, 42)]
-    rc = V.main(["--arm", "C8", "--step", "10000", "--k", "8", "--seeds", "42,43", *paths])
+    rc = V.main(["--arm", "C8", "--step", "10000", "--k", "8", "--contract", "table", *paths])
     assert rc != 0
     assert "43" in capsys.readouterr().out
 
 
 def test_main_returns_zero_on_a_good_cell(tmp_path, capsys):
-    paths = [_seed_row(tmp_path, s) for s in (42, 43)]
-    rc = V.main(["--arm", "C8", "--step", "10000", "--k", "8", "--seeds", "42,43", *paths])
+    rc = V.main(["--arm", "C8", "--step", "10000", "--k", "8", "--contract", "futility",
+                 _seed_row(tmp_path, 42, cell="screen")])
     assert rc == 0
     assert "VALIDATED" in capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------- #
+# 5. round-4 review B3: malformed and mislabelled rows must NOT pass
+# --------------------------------------------------------------------------- #
+def test_all_six_table_metrics_are_required(tmp_path):
+    partial = {"T60": 1.0, "C50": 2.0}
+    _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(metrics=partial)))
+    assert any("metrics" in p for p in problems)
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), "1.0", True, None])
+def test_non_finite_or_non_numeric_metrics_are_rejected(tmp_path, bad):
+    metrics = dict(REQUIRED_METRICS)
+    metrics["T60"] = bad
+    path = tmp_path / "m.json"
+    # json.dump writes NaN/Infinity as bare constants; write by hand so the strict
+    # loader sees exactly what a corrupted run would produce
+    path.write_text(json.dumps(_record(metrics=metrics)))
+    with open(V.sidecar_path_for(str(path)), "w") as fh:
+        json.dump(_sidecar(), fh)
+    _row, problems = V.validate_row(str(path))
+    assert problems
+
+
+def test_nan_constant_in_the_json_is_rejected_by_strict_loading(tmp_path):
+    path = tmp_path / ("epoch=2-step=10000_metrics_1_1.0_exp11_C8_screen_S10000_s42_K8"
+                       "_fa_invariant_a8.json")
+    path.write_text('{"metrics": {"T60": NaN}, "cond_method": "fa_invariant"}')
+    with open(V.sidecar_path_for(str(path)), "w") as fh:
+        json.dump(_sidecar(), fh)
+    _row, problems = V.validate_row(str(path))
+    assert any("NaN" in p or "constant" in p or "metrics" in p for p in problems)
+
+
+def test_duplicate_json_keys_are_rejected(tmp_path):
+    path = tmp_path / ("epoch=2-step=10000_metrics_1_1.0_exp11_C8_screen_S10000_s42_K8"
+                       "_fa_invariant_a8.json")
+    path.write_text('{"cond_method": "vanilla", "cond_method": "fa_invariant"}')
+    with open(V.sidecar_path_for(str(path)), "w") as fh:
+        json.dump(_sidecar(), fh)
+    _row, problems = V.validate_row(str(path))
+    assert any("duplicate" in p.lower() for p in problems)
+
+
+def test_a_filename_that_does_not_match_the_schema_is_rejected(tmp_path):
+    """Parse failure used to SKIP the filename checks entirely."""
+    path = _write_row(tmp_path, name="hand_edited_row.json")
+    _row, problems = V.validate_row(path)
+    assert any("filename" in p for p in problems)
+
+
+def test_filename_must_be_exactly_what_build_output_paths_generates(tmp_path):
+    bad = ("epoch=2-step=10000_metrics_1_1.0_exp11_C8_screen_S10000_s42_K8"
+           "_fa_invariant_a4.json")          # aN suffix disagrees with the C8 orbit
+    _row, problems = V.validate_row(_write_row(tmp_path, name=bad))
+    assert any("filename" in p for p in problems)
+
+
+def test_a_rotated_evaluation_cannot_masquerade_as_a_screen_row(tmp_path):
+    _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(rotate_deg=5.625)))
+    assert any("rotate_deg" in p for p in problems)
+
+
+def test_weights_source_must_prove_ema(tmp_path):
+    _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(weights_source="online")))
+    assert any("weights_source" in p for p in problems)
+    _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(weights_source=None)))
+    assert any("weights_source" in p for p in problems)
+
+
+def test_full_split_item_count_is_required(tmp_path):
+    _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(n_samples=64)))
+    assert any("n_samples" in p for p in problems)
+    _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(n_samples=None)))
+    assert any("n_samples" in p for p in problems)
+
+
+def test_source_sha_must_be_a_real_commit(tmp_path):
+    for bad in ("unknown", "not-a-sha", "abc"):
+        _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(source_sha=bad)))
+        assert any("source_sha" in p for p in problems), bad
+
+
+def test_record_runtime_fields_must_match_the_sidecar(tmp_path):
+    for field, bad in (("seed", 43), ("cfg_scale", 3.0), ("steps", 8),
+                       ("dataset_config", "other.json"), ("eval_name", "exp11_C8_screen_S1_s42_K8")):
+        _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(**{field: bad})))
+        assert problems, field
+
+
+def test_mandatory_sidecar_fields_cannot_be_absent(tmp_path):
+    for field in ("model_config_sha256", "ckpt_sha256", "commit", "use_ema", "cfg_scale"):
+        side = _sidecar()
+        del side[field]
+        _row, problems = V.validate_row(_write_row(tmp_path, side=side))
+        assert any(field in p for p in problems), field
+
+
+def test_hashes_are_recomputed_not_trusted(tmp_path):
+    """A sidecar hash that does not match the file it names is tampering."""
+    cfg = tmp_path / "FLAC_AR_BF_C8.json"
+    cfg.write_text('{"training": {"cond_method": "fa_invariant"}}')
+    good = V.sha256_file(str(cfg))
+    ok = _write_row(tmp_path, side=_sidecar(model_config=str(cfg), model_config_sha256=good))
+    _row, problems = V.validate_row(ok, verify_hashes=True)
+    assert not any("model_config_sha256" in p for p in problems), problems
+    bad = _write_row(tmp_path, side=_sidecar(model_config=str(cfg), model_config_sha256="e" * 64),
+                     name="epoch=2-step=10000_metrics_1_1.0_exp11_C8_screen_S10000_s42_K8_fa_invariant_a8.json")
+    _row, problems = V.validate_row(bad, verify_hashes=True)
+    assert any("model_config_sha256" in p for p in problems)
+
+
+# --------------------------------------------------------------------------- #
+# 6. round-4 review B4: purpose-specific contracts, not caller-chosen seeds
+# --------------------------------------------------------------------------- #
+def test_contracts_are_registered_not_supplied():
+    assert V.CONTRACTS["futility"]["seeds"] == (42,)
+    assert V.CONTRACTS["futility"]["cells"] == ("screen", "backfill")
+    assert V.CONTRACTS["table"]["seeds"] == (42, 43, 44, 45, 46)
+    assert V.CONTRACTS["table"]["cells"] == ("conf",)
+    assert V.CONTRACTS["r3"]["table_admissible"] is False
+    assert V.CONTRACTS["table"]["table_admissible"] is True
+
+
+def test_table_contract_rejects_a_screen_cell(tmp_path):
+    paths = [_seed_row(tmp_path, s, cell="screen") for s in (42, 43, 44, 45, 46)]
+    _rows, problems = V.validate_cell(paths, arm="C8", step=10000, k=8, contract="table")
+    assert any("cell" in p for p in problems)
+
+
+def test_futility_contract_rejects_a_second_seed(tmp_path):
+    paths = [_seed_row(tmp_path, s, cell="screen") for s in (42, 43)]
+    _rows, problems = V.validate_cell(paths, arm="C8", step=10000, k=8, contract="futility")
+    assert any("43" in p for p in problems)
+
+
+def test_r3_rows_are_never_table_admissible(tmp_path):
+    paths = [_seed_row(tmp_path, 42, cell="r3")]
+    _rows, problems = V.validate_cell(paths, arm="C8", step=10000, k=8, contract="table")
+    assert problems
+
+
+def test_cell_requires_one_identical_checkpoint_and_code_identity(tmp_path):
+    """All five table seeds must be the SAME checkpoint, config and evaluator."""
+    paths = [_seed_row(tmp_path, s) for s in (42, 43, 44, 45)]
+    odd = _write_row(
+        tmp_path,
+        rec=_record(seed=46, eval_name="exp11_C8_conf_S10000_s46_K8", source_sha="f" * 40),
+        side=_sidecar(seed=46, eval_name="exp11_C8_conf_S10000_s46_K8"),
+        name="epoch=2-step=10000_metrics_1_1.0_exp11_C8_conf_S10000_s46_K8_fa_invariant_a8.json")
+    _rows, problems = V.validate_cell(paths + [odd], arm="C8", step=10000, k=8, contract="table")
+    assert any("source_sha" in p or "identical" in p for p in problems)
+
+
+def test_cell_rejects_two_different_checkpoint_hashes(tmp_path):
+    paths = [_seed_row(tmp_path, s) for s in (42, 43, 44, 45)]
+    odd = _write_row(
+        tmp_path,
+        rec=_record(seed=46, eval_name="exp11_C8_conf_S10000_s46_K8"),
+        side=_sidecar(seed=46, eval_name="exp11_C8_conf_S10000_s46_K8", ckpt_sha256="9" * 64),
+        name="epoch=2-step=10000_metrics_1_1.0_exp11_C8_conf_S10000_s46_K8_fa_invariant_a8.json")
+    _rows, problems = V.validate_cell(paths + [odd], arm="C8", step=10000, k=8, contract="table")
+    assert any("ckpt_sha256" in p or "identical" in p for p in problems)
+
