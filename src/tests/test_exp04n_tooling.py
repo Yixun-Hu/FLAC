@@ -385,8 +385,13 @@ _RECORDS_DIR_ABS = ("/n/fs/gatrdp/codespace/cylindrical-dinov3/worklog/worklog_y
                     "exp_04_meanpool_mlp_cond_claude")
 
 # The ONLY differences allowed between an exp03n script and its exp04n counterpart: arm
-# identifiers. ``EXPECT_EXP09_SHA``/``--expect-exp09-sha`` become the exp_04 spelling of the
-# worktree pin (delta 0); the gate still accepts the inherited spelling.
+# identifiers.
+#
+# PLAN-NOTE (minimal fail-closed reading of delta 0 / deliverable 4): the delta makes
+# ``EXPECT_EXP04_SHA`` an ALIAS the GATE accepts. The run scripts and Slurm wrappers are
+# pinned here to the exp_04 spelling ONLY (the gate still accepts ``EXPECT_EXP09_SHA``), so a
+# submission environment left over from an exp_03 launch cannot pin this arm by accident —
+# the stricter of the two readings.
 ARM_SUBSTITUTIONS = (
     ("exp_03", "exp_04"),
     ("exp03", "exp04"),
@@ -454,7 +459,13 @@ def test_slurm_wrappers_are_the_exp03n_wrappers_up_to_the_arm_identifiers(exp04n
 def test_launcher_every_diff_from_exp09_is_marked_and_numbered():
     """House style (exp_02/exp_03): the launcher is a COPY of the reviewed exp-09 launcher in
     which every changed/added line carries a ``# EXP04 DIFF n/N`` marker, so a reviewer can
-    diff the two files and account for each line."""
+    diff the two files and account for each line.
+
+    PLAN-NOTE (minimal reading of deliverable 4): the marker DIFF BASE stays exp_03's — the
+    reviewed ``exp09_launch.sh`` — with the markers renumbered EXP04 DIFF n/19, because that
+    is what makes the count reviewable against the original. The exp03n -> exp04n
+    relationship the deliverable names is asserted separately and far more strictly by
+    ``test_run_scripts_are_the_exp03n_scripts_up_to_the_arm_identifiers`` above."""
     exp09 = _text(_EXP09_LAUNCH).splitlines()
     exp04n = _text(_LAUNCH).splitlines()
     added = [line for line in difflib.unified_diff(exp09, exp04n, n=0, lineterm="")
@@ -520,8 +531,10 @@ def test_launcher_refuses_without_the_frozen_vram_file_and_the_two_pins():
 
 
 def test_the_frozen_vram_file_is_not_committed_yet():
-    """The launcher REFUSES while this file is absent; it is written by hand, after review,
-    from THIS arm's probe (never inherited from exp_03's L40 measurement)."""
+    """PLAN-NOTE (deliverable 4, "probe produces; launcher refuses if absent"): the file is
+    deliberately NOT created by this implementation round. The launcher REFUSES while it is
+    absent; the value is written by hand, after review, from THIS arm's probe — never
+    inherited from exp_03's L40 measurement (which IS committed in this worktree)."""
     assert not (_EXP09_DIR / "exp04n_frozen_min_free.txt").exists(), (
         "exp04n_frozen_min_free.txt exists before this arm's probe has produced it"
     )

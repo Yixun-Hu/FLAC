@@ -117,9 +117,13 @@ def rel_l2(a, b):
 # the check
 # ------------------------------------------------------------------------------------ #
 def assert_exp04n_arm(geom):
-    """The conditioner must be THIS arm: mean pooling AND the MLP head. Mean pooling alone
-    is also the LEGACY arm's wiring, so certifying on it would attest a condition the
-    exp04n checkpoint does not serve."""
+    """The conditioner must be THIS arm: mean pooling AND the MLP head.
+
+    PLAN-NOTE (minimal fail-closed reading of delta §3): the delta says "identical structure"
+    to the exp_03 guard, whose scope check is ``dino_pool == 'max'``. The mirror-image check
+    alone would NOT be equivalent here: the LEGACY mean + bare-Linear arm also reports
+    ``dino_pool == 'mean'``, so a legacy checkpoint would be silently certified as exp_04.
+    The head shape is therefore required as well — the fail-closed reading."""
     pool = getattr(geom, "dino_pool", None)
     if pool != "mean":
         raise RuntimeError(

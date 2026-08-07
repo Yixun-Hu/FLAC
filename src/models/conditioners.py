@@ -552,8 +552,11 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                     # guard below is what enforces that.
                     cond_pool = vit_config.get('cond_pool', None)
                     cond_mlp_hidden = vit_config.get('cond_mlp_hidden', None)
-                    # The isinstance guard keeps the membership test fail-closed for unhashable
-                    # (list/dict) and non-string values, which `in` alone would raise TypeError on.
+                    # PLAN-NOTE (minimal fail-closed reading of delta §1): exp_03's `!= 'max_mlp'`
+                    # comparison accepted ANY config value and rejected it with a ValueError; a bare
+                    # `in <dict>` would instead raise TypeError for an unhashable value (list/dict).
+                    # The isinstance guard preserves the knob's ValueError contract for every JSON
+                    # value while the mapping stays the single registry of valid arms.
                     if cond_pool is not None and (not isinstance(cond_pool, str)
                                                   or cond_pool not in _COND_POOL_TO_DINO_POOL):
                         raise ValueError(
