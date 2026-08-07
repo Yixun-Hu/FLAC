@@ -412,3 +412,104 @@ sys.exit(G.main(["--repo-root", {str(root)!r}, "--allow-partial-exp11"]))
     for row in rows:   # ("BLOCKED" also appears in the header prose, so check ROWS)
         assert "12.000" in row, f"evidence did not resolve against --repo-root: {row}"
         assert "BLOCKED" not in row and "WITHHELD" not in row and "pending" not in row, row
+
+
+# --------------------------------------------------------------------------- #
+# 7. GO-recheck 3: regeneration must never destroy published evidence
+# --------------------------------------------------------------------------- #
+_HDR = ("| Model | eval | K | n | T60 ↓ | C50 ↓ | EDT ↓ | R@1 ↑ | R@5 ↑ | R@10 ↑ |\n"
+        "|---|---|---|---|---|---|---|---|---|---|\n")
+
+
+def _published(root, *rows):
+    (root / "worklog" / "worklog_yixun" / "model_comparison.md").write_text(
+        "# Model comparison — cross-experiment results table\n\n" + _HDR + "".join(rows))
+
+
+def _numeric(label, k, n=5, v="9.969 ± 0.039"):
+    return f"| {label} | vanilla eval | {k} | {n} | {v} | {v} | {v} | {v} | {v} | {v} |\n"
+
+
+def _pending(label, k, n=0):
+    return f"| {label} | vanilla eval | {k} | {n} | *pending ({n}/5 seeds on disk)* | | | | | |\n"
+
+
+def _render_as(mapping):
+    """A render_row stub driven by {(label, K): markdown_line}."""
+    def _stub(label, proto, K, files, **kw):
+        return mapping[(label, K)], False
+    return _stub
+
+
+def test_parse_table_rows_reads_the_published_table():
+    rows = G.parse_table_rows(_HDR + _numeric("A row", 1) + _pending("A row", 8, n=4))
+    assert rows[("A row", 1)] == {"n": 5, "numeric": True}
+    assert rows[("A row", 8)] == {"n": 4, "numeric": False}
+
+
+def test_numbers_turning_into_pending_aborts_without_writing(tmp_path, monkeypatch):
+    """The exact accident this guard exists for: a run with evidence off-disk
+    rewrites published numbers as 'pending (0/5 seeds on disk)'."""
+    root = _fake_main_tree(tmp_path, G.ROWS)
+    out = root / "worklog" / "worklog_yixun" / "model_comparison.md"
+    _published(root, _numeric("Anchor row", 1), _numeric("Anchor row", 8))
+    before = out.read_text()
+    monkeypatch.setattr(G, "ROWS", [("Anchor row", "vanilla eval", 1, ["nowhere/*.json"]),
+                                    ("Anchor row", "vanilla eval", 8, ["nowhere/*.json"])])
+    monkeypatch.setattr(G, "render_row", _render_as({("Anchor row", 1): _pending("Anchor row", 1).rstrip(),
+                                                     ("Anchor row", 8): _pending("Anchor row", 8).rstrip()}))
+    assert G.main(["--repo-root", str(root)]) != 0
+    assert out.read_text() == before, "a regressing regeneration still wrote the table"
+
+
+def test_seed_count_regression_aborts(tmp_path, monkeypatch):
+    """4/5 -> 0/5 is a regression even though neither cell carries numbers."""
+    root = _fake_main_tree(tmp_path, G.ROWS)
+    out = root / "worklog" / "worklog_yixun" / "model_comparison.md"
+    _published(root, _pending("Half row", 8, n=4))
+    before = out.read_text()
+    monkeypatch.setattr(G, "ROWS", [("Half row", "vanilla eval", 8, ["nowhere/*.json"])])
+    monkeypatch.setattr(G, "render_row", _render_as({("Half row", 8): _pending("Half row", 8, n=0).rstrip()}))
+    assert G.main(["--repo-root", str(root)]) != 0
+    assert out.read_text() == before
+
+
+def test_a_dropped_row_is_a_regression(tmp_path, monkeypatch):
+    root = _fake_main_tree(tmp_path, G.ROWS)
+    out = root / "worklog" / "worklog_yixun" / "model_comparison.md"
+    _published(root, _numeric("Anchor row", 1), _numeric("Gone row", 8))
+    before = out.read_text()
+    monkeypatch.setattr(G, "ROWS", [("Anchor row", "vanilla eval", 1, ["nowhere/*.json"])])
+    monkeypatch.setattr(G, "render_row", _render_as({("Anchor row", 1): _numeric("Anchor row", 1).rstrip()}))
+    assert G.main(["--repo-root", str(root)]) != 0
+    assert out.read_text() == before
+
+
+def test_the_flag_allows_an_audited_retraction(tmp_path, monkeypatch, capsys):
+    root = _fake_main_tree(tmp_path, G.ROWS)
+    out = root / "worklog" / "worklog_yixun" / "model_comparison.md"
+    _published(root, _numeric("Anchor row", 1))
+    monkeypatch.setattr(G, "ROWS", [("Anchor row", "vanilla eval", 1, ["nowhere/*.json"])])
+    monkeypatch.setattr(G, "render_row", _render_as({("Anchor row", 1): _pending("Anchor row", 1).rstrip()}))
+    assert G.main(["--repo-root", str(root), "--allow-row-regression"]) == 0
+    written = out.read_text()
+    assert "pending" in written
+    # audited: the affected row is named, in the file and on stderr
+    assert "REGRESSED" in written and "Anchor row (K=1)" in written
+    assert "Anchor row (K=1)" in capsys.readouterr().err
+
+
+def test_growing_and_fresh_rows_are_not_regressions(tmp_path, monkeypatch):
+    """Adding rows, and adding seeds to existing ones, must stay unremarkable."""
+    root = _fake_main_tree(tmp_path, G.ROWS)
+    out = root / "worklog" / "worklog_yixun" / "model_comparison.md"
+    _published(root, _pending("Growing row", 1, n=4))
+    monkeypatch.setattr(G, "ROWS", [("Growing row", "vanilla eval", 1, ["nowhere/*.json"]),
+                                    ("Brand new row", "vanilla eval", 8, ["nowhere/*.json"])])
+    monkeypatch.setattr(G, "render_row", _render_as({
+        ("Growing row", 1): _numeric("Growing row", 1, n=5).rstrip(),
+        ("Brand new row", 8): _pending("Brand new row", 8).rstrip()}))
+    assert G.main(["--repo-root", str(root)]) == 0
+    written = out.read_text()
+    assert "REGRESSED" not in written
+    assert "Brand new row" in written

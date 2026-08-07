@@ -8,7 +8,7 @@ cell is aggregated fresh from the raw per-seed metric JSONs on disk — numbers
 never live in this script. Rows whose JSON count is below MIN_SEEDS are rendered
 as pending. To add a model: append a row spec, rerun, commit.
 """
-import argparse, json, glob, os, statistics as st, sys, datetime
+import argparse, json, glob, os, re, statistics as st, sys, datetime
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT = os.path.join(REPO, "worklog", "worklog_yixun", "model_comparison.md")
@@ -245,6 +245,52 @@ def agg(patterns):
     n = len(files)
     return {k: (st.mean(v), st.stdev(v) if n > 1 else 0.0) for k, v in vals.items()}, n
 
+# --- the published table is EVIDENCE, and regeneration must not destroy it ----
+# A regeneration run from the wrong root, or with evidence temporarily off-disk,
+# silently rewrites rows that carry published numbers into "pending (0/5 seeds on
+# disk)". That is not a table update; it is data loss with a timestamp on it.
+# (Observed for real: a generator run with an argv bug replaced the exp_10 @67.5k
+# rows with 0/5 pending.) Any such rewrite now aborts the whole write.
+_NUMERIC_CELL = re.compile(r"^-?\d")
+
+
+def parse_table_rows(text):
+    """``{(label, K): {"n": int, "numeric": bool}}`` for every data row."""
+    rows = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("|") or set(line) <= set("|- "):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) < 5 or cells[0] == "Model":
+            continue
+        try:
+            k, n = int(cells[2]), int(cells[3])
+        except ValueError:
+            continue                      # header / footnote lines
+        rows[(cells[0], k)] = {"n": n, "numeric": bool(_NUMERIC_CELL.match(cells[4]))}
+    return rows
+
+
+def detect_row_regressions(old_rows, new_rows):
+    """What this regeneration would DESTROY. Empty means it only adds."""
+    problems = []
+    for key, was in sorted(old_rows.items()):
+        now = new_rows.get(key)
+        label, k = key
+        if now is None:
+            problems.append(f"{label} (K={k}): the row is in the published table but this "
+                            "run would drop it entirely")
+            continue
+        if was["numeric"] and not now["numeric"]:
+            problems.append(f"{label} (K={k}): published NUMBERS would become non-numeric "
+                            f"(n {was['n']} -> {now['n']})")
+        elif now["n"] < was["n"]:
+            problems.append(f"{label} (K={k}): evidence count would regress "
+                            f"{was['n']} -> {now['n']} seeds")
+    return problems
+
+
 def withheld_row(label, proto, K, n, why):
     """A row deliberately not published (an incomplete two-K transaction)."""
     return (f"| {label} | {proto} | {K} | {n} | **WITHHELD — {why}** | | | | | |")
@@ -260,6 +306,10 @@ def main(argv=None):
                     help="main-tree root for ALL evidence, the validator and the output "
                          "(default: the tree this file lives in). Never the cwd: screens "
                          "run from pinned worktrees.")
+    ap.add_argument("--allow-row-regression", action="store_true",
+                    help="permit a regeneration that turns published numbers into pending, "
+                         "drops a row, or lowers a seed count. Audited: the affected rows are "
+                         "printed either way. Use only for a deliberate retraction.")
     ap.add_argument("--allow-partial-exp11", action="store_true",
                     help="write the table even when an exp_11 update covers only one K; the "
                          "affected rows still render WITHHELD, never as numbers.")
@@ -325,6 +375,26 @@ def main(argv=None):
     if blocked_rows:
         lines += ["", f"**{len(blocked_rows)} row(s) BLOCKED by row validation:** "
                   + ", ".join(blocked_rows) + ". Fix the evidence, not the table."]
+    # --- would this run destroy published evidence? --------------------------
+    existing = ""
+    if os.path.isfile(out_path):
+        existing = open(out_path).read()
+    regressions = detect_row_regressions(parse_table_rows(existing),
+                                         parse_table_rows("\n".join(lines)))
+    if regressions:
+        head = ("REGRESSION in the published table — "
+                f"{len(regressions)} row(s) would lose evidence:")
+        print(head, file=sys.stderr)
+        for problem in regressions:
+            print("  -", problem, file=sys.stderr)
+        if not args.allow_row_regression:
+            print(f"  (nothing was written to {out_path}; restore the missing evidence, or "
+                  "rerun with --allow-row-regression if this retraction is deliberate)",
+                  file=sys.stderr)
+            return 4
+        print("  (proceeding: --allow-row-regression was given)", file=sys.stderr)
+        lines += ["", f"**{len(regressions)} row(s) REGRESSED in this regeneration "
+                  "(--allow-row-regression):** " + "; ".join(regressions)]
     if two_k:
         lines += ["", "**Incomplete exp_11 table update (both K required):** " + "; ".join(two_k)]
         if not args.allow_partial_exp11:

@@ -420,7 +420,8 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
 #!/usr/bin/env bash
 echo "sbatch $*" >> "$MOCK_TRACE"
 case "$*" in *--hold*) ;; *) echo "MOCK: sbatch was called WITHOUT --hold" >&2; exit 9;; esac
-echo 7654321
+[ -n "${MOCK_SBATCH_SLEEP:-}" ] && { touch "${MOCK_TRACE}.submitting"; sleep "$MOCK_SBATCH_SLEEP"; }
+echo "${MOCK_JOBID:-7654321}"
 EOS
   cat > "${MOCK}/scontrol" <<'EOS'
 #!/usr/bin/env bash
@@ -490,6 +491,93 @@ EOS
     FAIL=$((FAIL + 1))
   fi
   bash "$HELPER" --release 55555555 "$WT" >/dev/null 2>&1
+
+  # --- LOCK SPAN: a prune CANNOT interleave with a submission ----------------
+  # The gap the review is about: tree prepared -> (window) -> lease written. A
+  # sweep landing in that window sees a brand-new UNLEASED tree and deletes it,
+  # taking the queued job's code with it. The mock sbatch stalls inside exactly
+  # that window while a concurrent sweep tries to run.
+  : > "$TRACE"; rm -f "${TRACE}.submitting"
+  # The mock must hand back a job id Slurm KNOWS, because a real submission
+  # leases a real queued job — an invented id is (correctly) reaped as stale by
+  # the very sweep we are racing, which would test the reaper, not the lock.
+  LIVEJOB="$(squeue -h -u "$(id -un)" -o %i 2>/dev/null | head -1)"
+  [ -n "$LIVEJOB" ] || LIVEJOB=8765432
+  env MOCK_TRACE="$TRACE" MOCK_SBATCH_SLEEP=6 "MOCK_JOBID=${LIVEJOB}" \
+      FA_ORBIT_SBATCH="${MOCK}/sbatch" FA_ORBIT_SCONTROL="${MOCK}/scontrol" \
+      FA_ORBIT_SCANCEL="${MOCK}/scancel" bash "$SUB" ARM=C4L STEP=10000 \
+      > "${TMP}/submit.out" 2>&1 &
+  SUBMIT_PID=$!
+  for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "${TRACE}.submitting" ] && break; sleep 1; done
+  if [ -f "${TRACE}.submitting" ]; then
+    # (a) the store lock is genuinely HELD across the window — prove it directly
+    if flock -n 9 2>/dev/null 9>"${MAIN_TREE}/.measure_worktrees/.store.lock"; then
+      echo "FAIL  the store lock was FREE between preparation and leasing"; FAIL=$((FAIL + 1))
+      exec 9>&-
+    else
+      echo "PASS  the store lock spans preparation -> submission -> leasing"; PASS=$((PASS + 1))
+    fi
+    # (b) a concurrent sweep blocks on that lock, and finds the tree leased
+    PRUNE_OUT="$(timeout 30 bash "$HELPER" --prune 2>&1)"; PRUNE_RC=$?
+    wait "$SUBMIT_PID"; SUBMIT_RC=$?
+    if [ "$PRUNE_RC" -eq 0 ] && [ -d "$WT" ] && [ "$SUBMIT_RC" -eq 0 ] \
+       && [ -f "$WT/.leases/${LIVEJOB}" ] \
+       && ! echo "$PRUNE_OUT" | grep -q "pruning unleased measurement worktree ${WT}$"; then
+      echo "PASS  a concurrent prune waits and then keeps the freshly leased tree"; PASS=$((PASS + 1))
+    else
+      echo "FAIL  concurrent prune/submit interleaved (prune rc=${PRUNE_RC}, submit rc=${SUBMIT_RC}, tree $([ -d "$WT" ] && echo kept || echo DELETED))"
+      echo "$PRUNE_OUT" | tail -3 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+    fi
+    bash "$HELPER" --release "$LIVEJOB" "$WT" >/dev/null 2>&1
+  else
+    wait "$SUBMIT_PID" 2>/dev/null
+    echo "FAIL  the stalled-submission fixture never reached its window"; FAIL=$((FAIL + 1))
+  fi
+  # add_lease refuses a directory that is not a live registered worktree
+  NOTWT="${TMP}/not_a_worktree"; mkdir -p "$NOTWT"
+  out="$(bash "$HELPER" --lease 4242424 "$NOTWT" 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "worktree identity is invalid"; then
+    echo "PASS  a lease on a non-worktree directory is refused"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  leased a directory that is not a worktree (rc=${rc})"; FAIL=$((FAIL + 1))
+  fi
+  # --- SAFE CLEANUP: identity failure alone is never a licence to delete ------
+  STALE="${MAIN_TREE}/.measure_worktrees/$(printf 'f%.0s' $(seq 1 40))"
+  mkdir -p "${STALE}/.leases"
+  printf 'jobid 3648694\n' > "${STALE}/.leases/3648694"     # a LIVE job (a real arm)
+  bash "$HELPER" --prune >/dev/null 2>&1
+  if [ -d "$STALE" ]; then
+    echo "PASS  an identity-failed entry holding a LIVE lease is not deleted"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a live-leased entry was deleted on an identity failure"; FAIL=$((FAIL + 1))
+  fi
+  rm -f "${STALE}/.leases/3648694"
+  printf 'jobid 999999999\n' > "${STALE}/.leases/999999999"  # provably absent
+  bash "$HELPER" --prune >/dev/null 2>&1
+  if [ ! -d "$STALE" ]; then
+    echo "PASS  an identity-failed, provably unleased entry is cleaned up"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a stale unleased entry was left behind"; FAIL=$((FAIL + 1)); rm -rf "$STALE"
+  fi
+  # a squeue that cannot answer must block the deletion too
+  STALE2="${MAIN_TREE}/.measure_worktrees/$(printf 'e%.0s' $(seq 1 40))"
+  mkdir -p "${STALE2}/.leases"; printf 'jobid 777777777\n' > "${STALE2}/.leases/777777777"
+  env PATH="${FAKEQ}:$PATH" bash "$HELPER" --prune >/dev/null 2>&1
+  if [ -d "$STALE2" ]; then
+    echo "PASS  an unverifiable lease blocks deletion (transient error != absent)"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a squeue failure allowed a deletion"; FAIL=$((FAIL + 1))
+  fi
+  rm -rf "$STALE2"
+  # names that are not exactly 40 hex are never deleted
+  SHORT="${MAIN_TREE}/.measure_worktrees/deadbeef"; mkdir -p "$SHORT"
+  bash "$HELPER" --prune >/dev/null 2>&1
+  if [ -d "$SHORT" ]; then
+    echo "PASS  a non-40-hex store entry is never removed"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a short-named entry was removed"; FAIL=$((FAIL + 1))
+  fi
+  rmdir "$SHORT" 2>/dev/null
 else
   echo "FAIL  no worktree available for the asset/lease cases"; FAIL=$((FAIL + 1))
 fi

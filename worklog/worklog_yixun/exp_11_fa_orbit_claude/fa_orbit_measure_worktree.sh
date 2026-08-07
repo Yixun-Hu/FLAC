@@ -52,8 +52,49 @@ die() { echo "$1" >&2; exit "${2:-2}"; }
 
 lease_dir() { echo "${1}/.leases"; }
 
+# --- worktree identity -------------------------------------------------------
+# A DIRECTORY IS NOT A WORKTREE. `git worktree remove` can unregister a tree and
+# leave its directory behind (our own symlinks and .leases/ defeat its cleanup),
+# and because that leftover sits INSIDE the main checkout, `git -C` on it walks
+# UP and answers for the MAIN repo — HEAD matches, so a directory containing no
+# code at all looks reusable. Verify identity, never presence.
+#
+# The verdict is THREE-valued on purpose. "git could not answer" is not "this is
+# not a worktree": on a shared NFS filesystem a transient failure is ordinary,
+# and treating it as invalid would license deleting a live measurement tree.
+worktree_identity() {   # $1 = directory -> echoes valid | invalid | indeterminate
+  local top rc common main_common
+  if [ ! -e "$1/.git" ]; then echo invalid; return; fi   # definitive: no gitlink
+  top="$(git -C "$1" rev-parse --show-toplevel 2>/dev/null)"; rc=$?
+  if [ "$rc" -ne 0 ]; then echo indeterminate; return; fi
+  if [ "$(readlink -f "$top")" != "$(readlink -f "$1")" ]; then echo invalid; return; fi
+  common="$(git -C "$1" rev-parse --git-common-dir 2>/dev/null)" || { echo indeterminate; return; }
+  main_common="$(git -C "$MAIN_REPO" rev-parse --git-common-dir 2>/dev/null)" \
+    || { echo indeterminate; return; }
+  if [ "$(readlink -f "$common")" != "$(readlink -f "$main_common")" ]; then echo invalid; return; fi
+  echo valid
+}
+
+is_live_worktree() { [ "$(worktree_identity "$1")" = "valid" ]; }
+
+# Exactly 40 hex characters — the only shape this store ever creates, and the
+# only shape anything here is ever allowed to delete.
+is_sha_name() {
+  case "$1" in
+    *[!0-9a-f]*) return 1 ;;
+    ????????????????????????????????????????) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # --- lease helpers -----------------------------------------------------------
-add_lease() {   # $1 = job id (or pending token), $2 = worktree
+add_lease() {   # $1 = job id, $2 = worktree
+  # A lease on something that is not a live registered worktree is a lease on
+  # nothing: the caller would go on to run a job against a directory that holds
+  # no code. Refuse, and let the caller cancel.
+  local verdict; verdict="$(worktree_identity "$2")"
+  [ "$verdict" = "valid" ] \
+    || die "refusing to lease ${2}: worktree identity is ${verdict}, not a live registered worktree" 4
   mkdir -p "$(lease_dir "$2")" || die "cannot create the lease directory in $2" 3
   printf 'jobid %s\nheld_since %s\nhost %s\n' "$1" "$(date -Is)" "$(hostname)" \
     > "$(lease_dir "$2")/$1" || die "cannot write lease $1 in $2" 3
@@ -81,39 +122,69 @@ lease_is_live() {  # $1 = lease job id; 0 = live/unknown (KEEP), 1 = provably go
   esac
 }
 
-prunable() {  # $1 = worktree; prunable iff no lease file names a live job
-  local d; d="$(lease_dir "$1")"
-  [ -d "$d" ] || return 0
-  local f
+# PURE predicate: does any lease name a job that is live — or that we could not
+# prove is gone? No side effects, so it is safe to ask before deciding to delete.
+has_live_lease() {  # $1 = worktree; 0 = yes (KEEP), 1 = every lease provably gone
+  local d f; d="$(lease_dir "$1")"
+  [ -d "$d" ] || return 1
   for f in "$d"/*; do
     [ -e "$f" ] || continue
-    lease_is_live "$(basename "$f")" && return 1
-    echo "  stale lease $(basename "$f") in $1 (Slurm reports no such job)" >&2
-    rm -f "$f"
+    lease_is_live "$(basename "$f")" && return 0
   done
+  return 1
+}
+
+prunable() {  # $1 = worktree; prunable iff no lease names a live job (and reaps)
+  # Reap every PROVABLY dead lease as we go — a lease whose job Slurm says never
+  # existed is garbage whether or not its neighbours are live — then decide on
+  # what is left. (Deciding first and reaping second made reaping depend on
+  # which lease the loop happened to see first.)
+  local d f live=0; d="$(lease_dir "$1")"
+  if [ -d "$d" ]; then
+    for f in "$d"/*; do
+      [ -e "$f" ] || continue
+      if lease_is_live "$(basename "$f")"; then
+        live=1
+      else
+        echo "  stale lease $(basename "$f") in $1 (Slurm reports no such job)" >&2
+        rm -f "$f"
+      fi
+    done
+  fi
+  [ "$live" -eq 0 ]
+}
+
+# The ONLY code path that deletes anything. Every caller must already have
+# established that the entry is unleased; this enforces the name shape and the
+# "a failure to remove is a warning, never an escalation" rule.
+remove_entry() {   # $1 = store entry, already proven unleased
+  is_sha_name "$(basename "$1")" \
+    || { echo "  (refusing to remove ${1}: not a 40-hex store entry)" >&2; return 1; }
+  # our own symlinks and .leases/ make `git worktree remove` bail out half-done,
+  # so clear them first, then confirm the directory is really gone
+  rm -rf "${1}/.leases" "${1}/AcousticRooms" "${1}/weights" 2>/dev/null
+  git -C "$MAIN_REPO" worktree remove --force "$1" >&2 2>/dev/null || true
+  if [ -d "$1" ]; then
+    rm -rf "$1" 2>/dev/null || { echo "  (could not remove ${1}; leaving it for inspection)" >&2; return 1; }
+  fi
   return 0
 }
 
 prune_all() {  # never touches $KEEP_WT
   local keep="${1:-}"
-  local d
+  local d ID
   for d in "$ROOT"/*/; do
     [ -d "$d" ] || continue
     d="${d%/}"
     [ "$d" = "$keep" ] && continue
+    ID="$(worktree_identity "$d")"
+    if [ "$ID" = "indeterminate" ]; then
+      echo "skipping ${d}: identity indeterminate (git/filesystem error), never deleting on a maybe" >&2
+      continue
+    fi
     if prunable "$d"; then
       echo "pruning unleased measurement worktree ${d}" >&2
-      # our own symlinks and .leases/ make `git worktree remove` bail out
-      # half-done, so clear them first and confirm the directory is really gone
-      rm -rf "${d}/.leases" "${d}/AcousticRooms" "${d}/weights" 2>/dev/null
-      git -C "$MAIN_REPO" worktree remove --force "$d" >&2 2>/dev/null || true
-      if [ -d "$d" ]; then
-        case "$(basename "$d")" in
-          [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*)
-            rm -rf "$d" 2>/dev/null || echo "  (could not remove ${d}; leaving it for inspection)" >&2 ;;
-          *) echo "  (refusing to remove non-sha entry ${d})" >&2 ;;
-        esac
-      fi
+      remove_entry "$d"
     else
       echo "keeping leased worktree ${d}" >&2
     fi
@@ -125,12 +196,38 @@ cd "$MAIN_REPO" || die "cannot cd ${MAIN_REPO}" 3
 mkdir -p "$ROOT" || die "cannot create ${ROOT}" 3
 
 # ONE lock for the whole store, held by EVERY operation — creation, lease,
-# release and prune alike. Locking creation only still allowed a prune sweep to
-# enumerate leases while a submission was writing one; the two must never
-# interleave, so they take the same lock.
+# release and prune alike.
+#
+# LOCK SPAN. Locking each operation individually is not enough: a submission
+# prepares a tree, releases the lock, then leases it, and a prune sweep that runs
+# in that gap sees a brand-new, unleased tree and deletes it. `--with-lock CMD`
+# therefore holds the lock across the WHOLE prepare -> submit -> lease sequence.
+# The lock lives on fd 8, which children inherit, so nested calls from inside CMD
+# re-enter the SAME open file description instead of deadlocking on a second one.
 LOCK="${ROOT}/.store.lock"
-exec 8>"$LOCK" || die "cannot open the store lock ${LOCK}" 3
-flock 8 || die "cannot take the store lock ${LOCK}" 3
+
+lock_already_held() {
+  [ "${FA_ORBIT_STORE_LOCK_HELD:-0}" = "1" ] || return 1
+  # Trust the marker only if fd 8 really is this lock: a stray environment
+  # variable must never be able to turn locking off.
+  [ -e /proc/self/fd/8 ] && [ "$(readlink -f /proc/self/fd/8)" = "$(readlink -f "$LOCK")" ]
+}
+
+take_store_lock() {
+  lock_already_held && return 0
+  exec 8>"$LOCK" || die "cannot open the store lock ${LOCK}" 3
+  flock 8 || die "cannot take the store lock ${LOCK}" 3
+  export FA_ORBIT_STORE_LOCK_HELD=1
+}
+
+if [ "${1:-}" = "--with-lock" ]; then
+  shift
+  [ "$#" -gt 0 ] || die "--with-lock needs a command to run" 3
+  take_store_lock
+  exec "$@"          # fd 8 (and therefore the lock) is inherited for its lifetime
+fi
+
+take_store_lock
 
 case "${1:-}" in
   --lease)   add_lease "${2:?job id}" "${3:?worktree}" >/dev/null; exit 0 ;;
@@ -144,28 +241,27 @@ SHA="$(git rev-parse "${SHA}^{commit}")"
 WT="${ROOT}/${SHA}"
 
 # creation runs under the store lock taken above: concurrent submissions for one
-# SHA are idempotent, and no sweep can observe a half-built tree
-# A DIRECTORY IS NOT A WORKTREE. `git worktree remove` can unregister a tree and
-# still leave its directory behind (our own symlinks and .leases/ defeat its
-# cleanup), and because that leftover sits INSIDE the main checkout, `git -C` on
-# it walks UP and answers for the MAIN repo — HEAD matches, and the tree looks
-# reusable while containing no code at all. Verify identity, never presence.
-is_live_worktree() {   # $1 = candidate directory
-  [ -e "$1/.git" ] || return 1
-  [ "$(git -C "$1" rev-parse --show-toplevel 2>/dev/null)" = "$1" ] || return 1
-  [ "$(readlink -f "$(git -C "$1" rev-parse --git-common-dir 2>/dev/null)")" \
-    = "$(readlink -f "$(git -C "$MAIN_REPO" rev-parse --git-common-dir)")" ] || return 1
-}
-
-if [ -d "$WT" ] && ! is_live_worktree "$WT"; then
-  # only ever inside our own store, and only a <40-hex> directory
-  case "$(basename "$WT")" in
-    [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;;
-    *) die "refusing to clear ${WT}: not a sha-named store entry" 3 ;;
+# SHA are idempotent, and no sweep can observe a half-built tree.
+#
+# A failed identity check is NOT a licence to delete. An entry is cleared only if
+# it is BOTH definitively invalid AND provably unleased; an indeterminate verdict
+# (git or NFS having a bad day) or any lease we cannot prove is dead leaves the
+# directory exactly where it is, with a warning.
+if [ -d "$WT" ]; then
+  VERDICT="$(worktree_identity "$WT")"
+  case "$VERDICT" in
+    valid) ;;
+    indeterminate)
+      die "cannot establish the identity of ${WT} (git/filesystem error) - refusing to touch it" 3 ;;
+    invalid)
+      if has_live_lease "$WT"; then
+        die "${WT} is not a valid worktree but still holds a lease that is live or unverifiable - refusing to clear it" 3
+      fi
+      is_sha_name "$(basename "$WT")" || die "refusing to clear ${WT}: not a 40-hex store entry" 3
+      echo "clearing a half-removed, unleased worktree directory at ${WT}" >&2
+      git worktree prune >&2 2>/dev/null || true
+      remove_entry "$WT" || die "cannot clear the stale directory ${WT}" 3 ;;
   esac
-  echo "clearing a half-removed worktree directory at ${WT}" >&2
-  git worktree prune >&2 2>/dev/null || true
-  rm -rf "$WT" || die "cannot clear the stale directory ${WT}" 3
 fi
 
 if [ -d "$WT" ]; then
@@ -208,5 +304,7 @@ UNTRACKED="$(git -C "$WT" status --porcelain --untracked-files=all -- . 2>/dev/n
 [ -z "$UNTRACKED" ] || { echo "pinned worktree ${WT} carries untracked files (importable code?):" >&2; echo "$UNTRACKED" >&2; exit 2; }
 
 prune_all "$WT"
-flock -u 8            # released here anyway when the script exits and fd 8 closes
+# No explicit unlock: under --with-lock fd 8 is the CALLER's open file
+# description, and releasing it here would open exactly the gap this span
+# exists to close. A standalone run releases it by exiting.
 echo "$WT"
