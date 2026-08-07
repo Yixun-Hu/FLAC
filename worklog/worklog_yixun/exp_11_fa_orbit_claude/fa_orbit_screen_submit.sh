@@ -68,6 +68,21 @@ for kv in "$@"; do
 done
 [ -n "$ARM" ] && [ -n "$STEP" ] || { echo "usage: bash $0 ARM=C4L STEP=10000 [SEED=42] [K=8] [CELL=screen]" >&2; exit 2; }
 
+# 0b. PREFLIGHT: the campaign freeze must be engaged.
+# The campaign's validity argument rests on "no worktree is deleted while it
+# runs". Leaving that to operator discipline makes it a promise; requiring the
+# marker here makes it a precondition — a submission cannot happen unless the
+# guarantee is mechanically in force.
+FREEZE_MARKER="${MAIN_REPO}/.measure_worktrees/.campaign_freeze"
+if [ -e "$FREEZE_MARKER" ]; then
+  echo "campaign freeze: ACTIVE — $(head -1 "$FREEZE_MARKER" 2>/dev/null)"
+else
+  echo "campaign freeze: ABSENT" >&2
+  echo "refusing to submit: a measurement campaign requires the deletion freeze." >&2
+  echo "  engage it with: bash ${HELPER} --freeze" >&2
+  exit 2
+fi
+
 # 1. pin + assets (the helper refuses a dirty or mismatched tree)
 WT="$("$HELPER" | tail -1)"
 [ -d "$WT" ] || { echo "could not prepare a measurement worktree" >&2; exit 3; }

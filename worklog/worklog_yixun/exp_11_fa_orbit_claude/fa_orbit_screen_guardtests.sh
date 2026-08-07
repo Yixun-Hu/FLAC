@@ -416,6 +416,10 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
   # argv. What is proven is the ORDER — held submit, lease by the real id,
   # release — and that a failure at either step cancels the held job.
   SUB="${EXPDIR}/fa_orbit_screen_submit.sh"
+  FREEZE_MARKER="${MAIN_TREE}/.measure_worktrees/.campaign_freeze"
+  # A submission refuses to run without the campaign freeze, so engage it here.
+  # It is lifted again before the cases that must be free to delete.
+  bash "$HELPER" --freeze "guard suite" >/dev/null 2>&1
   MOCK="${TMP}/mockbin"; mkdir -p "$MOCK"
   cat > "${MOCK}/sbatch" <<'EOS'
 #!/usr/bin/env bash
@@ -558,6 +562,7 @@ EOS
   else
     echo "FAIL  the screen still drops its lease with an unlocked rm"; FAIL=$((FAIL + 1))
   fi
+  bash "$HELPER" --thaw >/dev/null 2>&1     # the cases below must be free to delete
   # a REGISTERED worktree git declines to remove is left alone, not force-deleted
   GITMOCK="${TMP}/gitmock"; mkdir -p "$GITMOCK"
   printf '#!/usr/bin/env bash\ncase "$*" in *"worktree remove"*) echo "mock: declining" >&2; exit 128;; esac\nexec %s "$@"\n' \
@@ -607,6 +612,7 @@ EOS
   # taking the queued job's code with it. The mock sbatch stalls inside exactly
   # that window while a concurrent sweep tries to run.
   : > "$TRACE"; rm -f "${TRACE}.submitting"
+  bash "$HELPER" --freeze "guard suite" >/dev/null 2>&1   # the submitter requires it
   # The mock must hand back a job id Slurm KNOWS, because a real submission
   # leases a real queued job — an invented id is (correctly) reaped as stale by
   # the very sweep we are racing, which would test the reaper, not the lock.
@@ -618,6 +624,11 @@ EOS
       > "${TMP}/submit.out" 2>&1 &
   SUBMIT_PID=$!
   for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "${TRACE}.submitting" ] && break; sleep 1; done
+  # Scaffolding: unlink the marker directly rather than via --thaw, which would
+  # block on the store lock the submission is holding. The point of THIS case is
+  # that the LOCK protects the tree, so the freeze must be out of the way; that
+  # freeze/thaw are themselves serialized is a separate case below.
+  rm -f "$FREEZE_MARKER"
   if [ -f "${TRACE}.submitting" ]; then
     # (a) the store lock is genuinely HELD across the window — prove it directly
     if flock -n 9 2>/dev/null 9>"${MAIN_TREE}/.measure_worktrees/.store.lock"; then
@@ -642,6 +653,101 @@ EOS
     wait "$SUBMIT_PID" 2>/dev/null
     echo "FAIL  the stalled-submission fixture never reached its window"; FAIL=$((FAIL + 1))
   fi
+  # --- CAMPAIGN FREEZE: deletion is mechanically impossible while it exists ---
+  echo
+  echo "--- campaign freeze ---"
+  FZ="${MAIN_TREE}/.measure_worktrees/$(printf 'a%.0s' $(seq 1 40))"
+  mkdir -p "${FZ}/.leases"; printf 'jobid 999999999\n' > "${FZ}/.leases/999999999"
+  bash "$HELPER" --freeze "guard case" >/dev/null 2>&1
+  out="$(bash "$HELPER" --prune 2>&1)"; rc=$?
+  if [ -d "$FZ" ] && echo "$out" | grep -q "freeze: keeping unleased worktree ${FZ}"; then
+    echo "PASS  a freeze blocks an explicit prune of an unleased entry"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  an explicit prune deleted under freeze (entry $([ -d "$FZ" ] && echo kept || echo GONE))"
+    echo "$out" | tail -3 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+  fi
+  if echo "$out" | grep -q "refusing to run 'git worktree prune'"; then
+    echo "PASS  even 'git worktree prune' is suppressed under freeze"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  git worktree prune still ran under freeze"; FAIL=$((FAIL + 1))
+  fi
+  # the IMPLICIT path: preparation must refuse to clear a half-removed entry
+  OLD_SHA="$(git rev-parse HEAD~1 2>/dev/null)"
+  if [ -n "$OLD_SHA" ]; then
+    HALF="${MAIN_TREE}/.measure_worktrees/${OLD_SHA}"
+    rm -rf "$HALF"; mkdir -p "$HALF"          # a directory with no .git: invalid
+    out="$(bash "$HELPER" "$OLD_SHA" 2>&1)"; rc=$?
+    if [ "$rc" -ne 0 ] && [ -d "$HALF" ] && echo "$out" | grep -q "thaw (--thaw) and clean it manually"; then
+      echo "PASS  a freeze blocks the IMPLICIT cleanup in the preparation path"; PASS=$((PASS + 1))
+    else
+      echo "FAIL  preparation cleared a stale entry under freeze (rc=${rc}, $([ -d "$HALF" ] && echo kept || echo DELETED))"
+      echo "$out" | tail -3 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+    fi
+    rmdir "$HALF" 2>/dev/null
+  else
+    echo "SKIP  implicit-cleanup case (no HEAD~1 to pin a second tree)"
+  fi
+  # remove_entry itself refuses, so no future caller can route around the freeze.
+  # Checked structurally over the function BODY: the freeze guard must be the
+  # first thing it does, before any check that could be reordered around it.
+  GUARD_POS="$(awk '/^remove_entry\(\)/{inf=1; n=0; next} inf&&/^}/{inf=0} inf{n++; if ($0 ~ /if frozen; then freeze_note/) {print n; exit}}' "$HELPER")"
+  DELETE_POS="$(awk '/^remove_entry\(\)/{inf=1; n=0; next} inf&&/^}/{inf=0} inf{n++; if ($0 ~ /rm -rf|worktree remove/) {print n; exit}}' "$HELPER")"
+  if [ -n "$GUARD_POS" ] && [ -n "$DELETE_POS" ] && [ "$GUARD_POS" -lt "$DELETE_POS" ]; then
+    echo "PASS  remove_entry — the only deleting function — refuses under freeze first"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  remove_entry's freeze guard is missing or after a delete (guard@${GUARD_POS:-none} delete@${DELETE_POS:-none})"
+    FAIL=$((FAIL + 1))
+  fi
+  # every rm -rf in the helper sits behind a freeze check
+  UNGUARDED="$(awk '/^remove_entry\(\)/{inf=1} inf&&/frozen/{ok=1} /rm -rf "\$1"/{if(!ok) print NR}' "$HELPER")"
+  if [ -z "$UNGUARDED" ]; then
+    echo "PASS  no recursive delete precedes a freeze check"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  unguarded rm -rf at line(s): ${UNGUARDED}"; FAIL=$((FAIL + 1))
+  fi
+  # thaw restores normal collection
+  bash "$HELPER" --thaw >/dev/null 2>&1
+  bash "$HELPER" --prune >/dev/null 2>&1
+  if [ ! -d "$FZ" ]; then
+    echo "PASS  --thaw restores collection (the entry is now removed)"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  the entry survived after --thaw"; FAIL=$((FAIL + 1)); rm -rf "$FZ"
+  fi
+  # freeze/thaw are serialized on the SAME store lock as everything else
+  bash "$HELPER" --with-lock sleep 5 >/dev/null 2>&1 &
+  HOLDER=$!
+  sleep 1
+  T0=$(date +%s)
+  bash "$HELPER" --freeze "serialization probe" >/dev/null 2>&1
+  T1=$(date +%s)
+  wait "$HOLDER" 2>/dev/null
+  if [ "$((T1 - T0))" -ge 3 ]; then
+    echo "PASS  --freeze waits on the store lock ($((T1 - T0))s behind a holder)"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  --freeze did not contend on the store lock ($((T1 - T0))s)"; FAIL=$((FAIL + 1))
+  fi
+  bash "$HELPER" --thaw >/dev/null 2>&1
+  # a submission without the freeze is refused: the condition is self-enforcing
+  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+             bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "requires the deletion freeze"; then
+    echo "PASS  a submission without the campaign freeze is refused"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a submission ran without the campaign freeze (rc=${rc})"; FAIL=$((FAIL + 1))
+  fi
+  bash "$HELPER" --freeze "guard suite" >/dev/null 2>&1
+  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+             bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+  if [ "$rc" -eq 0 ] && echo "$out" | grep -q "campaign freeze: ACTIVE"; then
+    echo "PASS  the submitter reports the freeze state in its preflight"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  the preflight does not report the freeze (rc=${rc})"; FAIL=$((FAIL + 1))
+  fi
+  bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
+  bash "$HELPER" --thaw >/dev/null 2>&1
+
   # add_lease refuses a directory that is not a live registered worktree
   NOTWT="${TMP}/not_a_worktree"; mkdir -p "$NOTWT"
   out="$(bash "$HELPER" --lease 4242424 "$NOTWT" 2>&1)"; rc=$?

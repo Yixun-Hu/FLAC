@@ -34,6 +34,9 @@
 #      dance; call --lease by hand only for an already-known job id)
 #   bash .../fa_orbit_measure_worktree.sh --release <jobid> <root>   # drop a lease
 #   bash .../fa_orbit_measure_worktree.sh --prune                    # sweep
+#   bash .../fa_orbit_measure_worktree.sh --freeze ["reason"]        # campaign:
+#   bash .../fa_orbit_measure_worktree.sh --thaw                     #  no deletes
+#   bash .../fa_orbit_measure_worktree.sh --frozen                   # rc 0=frozen
 # ============================================================================
 set -uo pipefail
 MAIN_REPO=/n/fs/gatrdp/codespace/FLAC
@@ -49,6 +52,22 @@ ASSET_TARGETS=(/n/fs/gatrdp/datasets/AcousticRooms /n/fs/gatrdp/codespace/FLAC/w
 BOOKKEEPING=(.leases)
 
 die() { echo "$1" >&2; exit "${2:-2}"; }
+
+# --- CAMPAIGN FREEZE ---------------------------------------------------------
+# While a measurement campaign is in flight, no worktree may be deleted by
+# anything, for any reason. Leases already protect trees whose jobs Slurm knows
+# about, but that is a proof about job state; a campaign wants a proof about
+# THIS SCRIPT: while the marker exists, every deletion path here is inert.
+#
+# Reaping lease FILES continues (a lease whose job provably never existed is
+# garbage either way, and removing it cannot lose a worktree). Preparation
+# continues too — trees are still created and reused. Only deletion stops.
+FREEZE_MARKER="${ROOT}/.campaign_freeze"
+frozen() { [ -e "$FREEZE_MARKER" ]; }
+
+freeze_note() {   # $1 = what was being attempted
+  echo "  CAMPAIGN FREEZE (${FREEZE_MARKER}): refusing to ${1}" >&2
+}
 
 lease_dir() { echo "${1}/.leases"; }
 
@@ -159,6 +178,9 @@ prunable() {  # $1 = worktree; prunable iff no lease names a live job (and reaps
 # "a failure to remove is a warning, never an escalation" rule.
 remove_entry() {   # $1 = store entry, already proven unleased
   local verdict
+  # The freeze is checked HERE, in the one function that deletes, so no caller
+  # can route around it — and again at each call site, so the log says why.
+  if frozen; then freeze_note "remove ${1}"; return 1; fi
   is_sha_name "$(basename "$1")" \
     || { echo "  (refusing to remove ${1}: not a 40-hex store entry)" >&2; return 1; }
   verdict="$(worktree_identity "$1")"
@@ -185,6 +207,10 @@ remove_entry() {   # $1 = store entry, already proven unleased
 prune_all() {  # never touches $KEEP_WT
   local keep="${1:-}"
   local d ID
+  if frozen; then
+    echo "campaign freeze active: no worktree will be removed by this sweep " \
+         "(stale lease FILES are still reaped)" >&2
+  fi
   for d in "$ROOT"/*/; do
     [ -d "$d" ] || continue
     d="${d%/}"
@@ -195,13 +221,23 @@ prune_all() {  # never touches $KEEP_WT
       continue
     fi
     if prunable "$d"; then
+      if frozen; then
+        echo "  freeze: keeping unleased worktree ${d} (would have been pruned)" >&2
+        continue
+      fi
       echo "pruning unleased measurement worktree ${d}" >&2
       remove_entry "$d"
     else
       echo "keeping leased worktree ${d}" >&2
     fi
   done
-  git -C "$MAIN_REPO" worktree prune >&2 2>/dev/null || true
+  # `git worktree prune` only drops administrative records, but it is still a
+  # pruning operation and the campaign guarantee is "nothing prunes".
+  if frozen; then
+    freeze_note "run 'git worktree prune'"
+  else
+    git -C "$MAIN_REPO" worktree prune >&2 2>/dev/null || true
+  fi
 }
 
 cd "$MAIN_REPO" || die "cannot cd ${MAIN_REPO}" 3
@@ -248,6 +284,26 @@ fi
 take_store_lock
 
 case "${1:-}" in
+  --freeze)
+    # under the store lock, like every other store operation
+    if frozen; then
+      echo "campaign freeze already active since $(head -1 "$FREEZE_MARKER" 2>/dev/null)" >&2
+    else
+      printf 'frozen_at %s\nby %s@%s\nreason %s\n' "$(date -Is)" "$(id -un)" "$(hostname)" \
+        "${2:-exp_11 measurement campaign}" > "$FREEZE_MARKER" \
+        || die "cannot write the freeze marker ${FREEZE_MARKER}" 3
+      echo "CAMPAIGN FREEZE ENGAGED at $(date -Is): no worktree in ${ROOT} can be deleted" >&2
+    fi
+    exit 0 ;;
+  --thaw)
+    if frozen; then
+      echo "campaign freeze LIFTED at $(date -Is) (was: $(head -1 "$FREEZE_MARKER" 2>/dev/null))" >&2
+      rm -f "$FREEZE_MARKER" || die "cannot remove the freeze marker ${FREEZE_MARKER}" 3
+    else
+      echo "no campaign freeze was active" >&2
+    fi
+    exit 0 ;;
+  --frozen)  frozen && { echo "frozen"; exit 0; }; echo "thawed"; exit 1 ;;
   --lease)   add_lease "${2:?job id}" "${3:?worktree}" >/dev/null; exit 0 ;;
   --release) release_lease "${2:?job id}" "${3:?worktree}"; exit 0 ;;
   --prune)   prune_all ""; exit 0 ;;
@@ -272,6 +328,9 @@ if [ -d "$WT" ]; then
     indeterminate)
       die "cannot establish the identity of ${WT} (git/filesystem error) - refusing to touch it" 3 ;;
     invalid)
+      if frozen; then
+        die "${WT} is a half-removed worktree, but a CAMPAIGN FREEZE is active - thaw (--thaw) and clean it manually, then re-freeze" 3
+      fi
       if has_live_lease "$WT"; then
         die "${WT} is not a valid worktree but still holds a lease that is live or unverifiable - refusing to clear it" 3
       fi
