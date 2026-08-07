@@ -450,6 +450,64 @@ def test_parser_cond_autocast_choices():
     assert b"invalid choice" not in good.stderr  # ...but not on choices
 
 
+# --------------------------------------------------------------------------- #
+# exp_11 round-4 review B1/B2: the record must PROVE the protocol it claims
+# --------------------------------------------------------------------------- #
+def test_weights_source_is_resolved_from_the_checkpoint_not_asserted():
+    """EMA must be proven, not claimed. eval_FLAC falls back to online weights
+    when a checkpoint carries no EMA entries; the record has to say which."""
+    ema_keys = ["model.a", "diffusion_ema.ema_model.a"]
+    assert eval_FLAC.resolve_weights_source({"use_ema": True}, ema_keys) == "ema"
+    # use_ema requested but the checkpoint has no EMA entries -> online, honestly
+    assert eval_FLAC.resolve_weights_source({"use_ema": True}, ["model.a"]) == "online"
+    assert eval_FLAC.resolve_weights_source({"use_ema": False}, ema_keys) == "online"
+    assert eval_FLAC.resolve_weights_source({}, ema_keys) == "online"
+
+
+def test_metrics_record_carries_the_runtime_protocol():
+    """A screen's protocol must be reconstructible from the metrics JSON alone:
+    which split ran, how many items, which seed/cfg/steps, which weights."""
+    rec = eval_FLAC.build_metrics_record(
+        {"T60": 1.0}, CKPT, rotate_deg=0.0, cond_method="fa_invariant",
+        frame_avg_angles=[0.0, 90.0, 180.0, 270.0], cond_autocast="bf16",
+        batch_size=64, n_samples=6337, dataset_config="ds.json", seed=42,
+        cfg_scale=1.0, steps=1, eval_name="exp11_C4L_screen_S10000_s42_K8",
+        weights_source="ema", device="cuda",
+    )
+    assert rec["n_samples"] == 6337 and rec["batch_size"] == 64
+    assert rec["dataset_config"] == "ds.json" and rec["seed"] == 42
+    assert rec["cfg_scale"] == 1.0 and rec["steps"] == 1
+    assert rec["eval_name"] == "exp11_C4L_screen_S10000_s42_K8"
+    assert rec["weights_source"] == "ema" and rec["device"] == "cuda"
+    json.loads(json.dumps(rec))
+
+
+def test_metrics_record_defaults_stay_none_not_wrong():
+    """Omitted runtime fields are explicit None — never a plausible-looking guess."""
+    rec = eval_FLAC.build_metrics_record(
+        {"T60": 1.0}, CKPT, rotate_deg=0.0, cond_method="vanilla", frame_avg_angles=None)
+    for key in ("dataset_config", "seed", "cfg_scale", "steps", "eval_name",
+                "weights_source", "device", "batch_size", "n_samples"):
+        assert rec[key] is None, key
+
+
+def test_rot_suffix_is_injective_for_fractional_angles():
+    """R3 evaluates 5.625 deg; `_rot{int(...)}` collapsed it onto `_rot5`.
+
+    Integer rotations keep their historical byte-identical names (exp_02 rot180
+    artifacts must still resolve); fractional ones get a decimal-safe suffix."""
+    p5 = eval_FLAC.build_output_paths(CKPT, 1, 1.0, "r3", cond_method="fa_invariant",
+                                      rotate_deg=5.0, n_angles=32)["metrics"]
+    p5625 = eval_FLAC.build_output_paths(CKPT, 1, 1.0, "r3", cond_method="fa_invariant",
+                                         rotate_deg=5.625, n_angles=32)["metrics"]
+    assert p5 != p5625, "5 deg and 5.625 deg must not share a filename"
+    assert p5.endswith("_rot5.json")
+    assert "rot5p625" in p5625
+    p22p5 = eval_FLAC.build_output_paths(CKPT, 1, 1.0, "r3", cond_method="fa_invariant",
+                                         rotate_deg=22.5, n_angles=32)["metrics"]
+    assert "rot22p5" in p22p5
+
+
 def test_records_carry_orbit_execution_provenance():
     """exp_11 F7: a metrics row must state WHICH orbit execution produced it.
 

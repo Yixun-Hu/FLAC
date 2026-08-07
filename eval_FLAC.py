@@ -45,12 +45,34 @@ def build_output_paths(
     ckpt_name = os.path.basename(ckpt_path).replace('.ckpt', '')
     directory = os.path.dirname(ckpt_path)
     method_suffix = '' if cond_method == 'vanilla' else f'_{cond_method}_a{n_angles}'
-    rot_suffix = '' if rotate_deg == 0.0 else f'_rot{int(rotate_deg)}'
+    # Integer rotations keep their historical byte-identical suffix (exp_02's
+    # _rot180 artifacts must still resolve); fractional ones would collide under
+    # int() -- R3 evaluates 5.625 deg, which used to land on _rot5 alongside 5 deg
+    # -- so they get a decimal-safe form: 5.625 -> rot5p625 (round-4 review B3).
+    if rotate_deg == 0.0:
+        rot_suffix = ''
+    elif float(rotate_deg).is_integer():
+        rot_suffix = f'_rot{int(rotate_deg)}'
+    else:
+        rot_suffix = '_rot' + repr(float(rotate_deg)).replace('.', 'p')
     stem = f'{steps}_{cfg_scale}_{eval_name}{method_suffix}{rot_suffix}'
     return {
         'metrics': os.path.join(directory, f'{ckpt_name}_metrics_{stem}.json'),
         'predictions': os.path.join(directory, f'{ckpt_name}_predictions_{stem}.pt'),
     }
+
+
+def resolve_weights_source(training_config, state_dict_keys):
+    """Which weights an evaluation will actually use: ``'ema'`` or ``'online'``.
+
+    ``evaluate_model`` swaps in EMA weights only when the config asks for them AND
+    the checkpoint carries ``diffusion_ema.ema_model.*`` entries; otherwise it
+    silently evaluates the online weights. A screen that merely *asserts* EMA in a
+    sidecar can therefore be wrong, so the record states what actually happened
+    (round-4 review B1)."""
+    wants_ema = bool((training_config or {}).get("use_ema", False))
+    has_ema = any(str(k).startswith("diffusion_ema.ema_model.") for k in state_dict_keys)
+    return "ema" if (wants_ema and has_ema) else "online"
 
 
 def source_sha():
@@ -78,7 +100,9 @@ def orbit_provenance(cond_method):
 
 
 def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame_avg_angles,
-                         cond_autocast='default', batch_size=None, n_samples=None):
+                         cond_autocast='default', batch_size=None, n_samples=None,
+                         dataset_config=None, seed=None, cfg_scale=None, steps=None,
+                         eval_name=None, weights_source=None, device=None):
     """Assemble the dict written to the metrics JSON.
 
     Extends the legacy ``{metrics, ckpt_path, rotate_deg}`` record with
@@ -106,6 +130,17 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
         # produced a row must be reconstructible from the row itself
         "batch_size": batch_size,
         "n_samples": n_samples,
+        # ...and so must the rest of the runtime protocol: which split ran, how
+        # many items were actually evaluated, and which weights were used. Omitted
+        # values stay explicitly None rather than a plausible-looking guess
+        # (round-4 review B2).
+        "dataset_config": dataset_config,
+        "seed": seed,
+        "cfg_scale": cfg_scale,
+        "steps": steps,
+        "eval_name": eval_name,
+        "weights_source": weights_source,
+        "device": device,
     }
 
 
@@ -239,7 +274,8 @@ def evaluate_model(
             new_key = key.replace('diffusion.', '')
             state_dict[new_key] = state_dict.pop(key)
     
-    # Use EMA weights if available
+    # Use EMA weights if available (the resolved source is recorded, not assumed)
+    weights_source = resolve_weights_source(training_config, state_dict.keys())
     if training_config.get("use_ema", False) and any(k.startswith('diffusion_ema.ema_model.') for k in state_dict.keys()):
         print('Using EMA model')
         for key in list(state_dict.keys()):
@@ -387,7 +423,10 @@ def evaluate_model(
     frame_angles_record = list(frame_avg_angles) if cond_method == 'fa_invariant' else None
     metrics_to_save = build_metrics_record(
         metrics_dict, ckpt_path, rotate_deg, cond_method, frame_angles_record,
-        cond_autocast=cond_autocast,
+        cond_autocast=cond_autocast, batch_size=batch_size, n_samples=c,
+        dataset_config=dataset_config_path, seed=seed, cfg_scale=cfg_scale,
+        steps=steps, eval_name=eval_name, weights_source=weights_source,
+        device=str(device),
     )
     path2save = output_paths['metrics']
     with open(path2save, 'w') as f:
