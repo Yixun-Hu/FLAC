@@ -147,3 +147,13 @@
 
 - **Result** — `launched` (confirmed): C4L/C8/C16/C32 running on four full nodes, 8-rank registration verified on each. Attempt-1 (3648665–68) was killed by the commit-freeze trap (my post-submission record commit — third occurrence; rule hardened: no tracked changes between submission and all-jobs-started; records now written post-start). Expected completions from batched rates: C4L ~17 h, C8 ~26 h, C16 ~45 h, C32 ~85 h from start.
 - **Next** — first-ckpt health checks (63/96/170/320 min per arm); round-4 kit (screens/backfill/probes/readouts) development begins now so screens are ready before C4L@40k.
+
+## 2026-08-07 — MEASUREMENT CAMPAIGN LIVE: first 13 screens complete (jobs 3649915–27, all validated)
+
+- **Operating conditions (verbatim per the final GO, `fa_orbit_codex_measurement_GO.md`)** — C1 single serialized submitter; C2 campaign freeze continuously engaged (engaged 2026-08-07T04:13:33); C3 pushed-HEAD submissions via the locked submitter; guards not run mid-campaign.
+- **First orbit-comparison numbers (single-seed s42 K8 screens — trajectory context only, NOT confirmatory):**
+  - @5000 (three-way matched step): R@1 monotone in orbit size — C16 1.199 > C8 1.120 > C4L 1.026; T60/C50/EDT within screen noise (10.22–10.26 / 1.504–1.519 / 55.0–55.6).
+  - @2500: C8 R@1 0.710 > C4L 0.663. @7500: C8 1.767 > C4L 1.673. @10000: C4L edges C8 on all four (9.64/1.248/46.9/2.178 vs 10.14/1.301/50.4/2.146).
+  - C4 backfill (historical curve for the 20k/30k gates): @20000 9.216/1.0742/43.45/R 3.219 · @30000 8.859/1.0592/39.46/R 4.134.
+- **Analysis** — retrieval shows a consistent (if small) early finer-orbit edge, cleanest as the three-way monotone ordering at 5k; acoustic-parameter metrics are within the known screen wobble. No gate is triggerable yet (arms below 20k). Everything defers to the 20k/30k gates and the 40k R1 paired readout.
+- **Next** — rolling screens as checkpoints land (C4L 17.5k/20k, C8 12.5k, C16 7.5k/10k, C32 first); C4L conf cells at 40k tonight.
