@@ -58,21 +58,24 @@ def test_exp11_rows_are_detected_from_their_patterns():
     assert not G.is_exp11_row(["weights/FLAC/FLAC_EMA_metrics_1_1.0_exp01_unseen_K1_seed42.json"])
 
 
-def test_every_registered_row_declares_its_orbit_execution():
-    """B7: 'fa eval' alone is not a protocol. Every fa row must say whether it was
-    produced by the legacy per-angle loop or the batched orbit."""
+def test_every_registered_fa_row_will_declare_its_orbit_execution():
+    """B7 via the deferred migration: the LABEL is applied at render time, so the
+    contract is that protocol_label() discloses loop-vs-batched for every fa row
+    once the migration runs (see the deferral test below for why it waits)."""
     for row in G.ROWS:
-        proto = row[1]
-        if "fa" in proto:
-            assert ("legacy-loop" in proto) or ("batched" in proto), (
-                f"row {row[0]!r} says {proto!r} — it must disclose loop vs batched")
+        label, proto, _K, pats = row[0], row[1], row[2], row[3]
+        if "fa" not in proto:
+            continue
+        migrated = G.protocol_label(proto, G.is_exp11_row(pats), evidence_ready=True)
+        assert ("legacy-loop" in migrated) or ("batched" in migrated), (
+            f"row {label!r} would render as {migrated!r} — it must disclose loop vs batched")
 
 
-def test_historical_fa_rows_are_labelled_legacy_loop():
-    labels = {row[0]: row[1] for row in G.ROWS}
-    for label, proto in labels.items():
-        if "fa" in proto and not G.is_exp11_row(row_pats(label)):
-            assert "legacy-loop" in proto, f"historical row {label!r} is not labelled legacy-loop"
+def test_historical_fa_rows_migrate_to_legacy_loop():
+    for row in G.ROWS:
+        proto, pats = row[1], row[3]
+        if "fa" in proto and not G.is_exp11_row(pats):
+            assert "legacy-loop" in G.protocol_label(proto, False, evidence_ready=True)
 
 
 def row_pats(label):
@@ -94,8 +97,18 @@ def _write_valid_cell(tmp_path, arm="C8", step=40000, k=8, seeds=(42, 43, 44, 45
     spec.loader.exec_module(V)
     n_ang = V.ARM_ORBITS[arm]
     angles = V.orbit_for(arm)
-    ck = (f"outputs_FLAC/exp11_{arm}/FLAC_exp11_{arm}/exp11_{arm}/checkpoints/"
-          f"epoch=8-step={step}.ckpt")
+    # a real (tiny) file so --verify-hashes can recompute, inside the arm's
+    # canonical run directory so the containment check is exercised too
+    ck_dir = tmp_path / "outputs_FLAC" / f"exp11_{arm}" / f"FLAC_exp11_{arm}" / f"exp11_{arm}" / "checkpoints"
+    ck_dir.mkdir(parents=True, exist_ok=True)
+    ck_file = ck_dir / f"epoch=8-step={step}.ckpt"
+    ck_file.write_bytes(b"synthetic checkpoint")
+    ck = str(ck_file)
+    cfg_file = tmp_path / f"FLAC_AR_BF_{arm}.json"
+    cfg_file.write_text('{"training": {"cond_method": "fa_invariant"}}')
+    import hashlib
+    ck_sha = hashlib.sha256(ck_file.read_bytes()).hexdigest()
+    cfg_sha = hashlib.sha256(cfg_file.read_bytes()).hexdigest()
     metrics = {"T60": 12.0, "C50": 1.0, "EDT": 4.0, "RIR_to_GT_RIR_R@1": 0.5,
                "RIR_to_GT_RIR_R@5": 0.7, "RIR_to_GT_RIR_R@10": 0.9}
     paths = []
@@ -105,15 +118,15 @@ def _write_valid_cell(tmp_path, arm="C8", step=40000, k=8, seeds=(42, 43, 44, 45
         rec = {"metrics": metrics, "ckpt_path": ck, "rotate_deg": 0.0,
                "cond_method": "fa_invariant", "frame_avg_angles": angles,
                "cond_autocast": "bf16", "orbit_execution": "batched",
-               "frame_avg_fwd_cap": 64, "source_sha": "a" * 40, "batch_size": 64,
+               "frame_avg_fwd_cap": 64, "source_sha": "d" * 40, "batch_size": 64,
                "n_samples": 6337,
                "dataset_config": V.EVAL_CONFIG_FOR_K[k], "seed": seed, "cfg_scale": 1.0,
                "steps": 1, "eval_name": ev, "weights_source": "ema", "device": "cuda"}
         side = {"arm": arm, "step": step, "seed": seed, "K": k, "eval_name": ev,
                 "cfg_scale": 1.0, "steps": 1,
-                "model_config": f"worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_{arm}.json",
-                "model_config_sha256": "b" * 64, "dataset_config": V.EVAL_CONFIG_FOR_K[k],
-                "ckpt_path": ck, "ckpt_sha256": "c" * 64, "use_ema": True,
+                "model_config": str(cfg_file), "model_config_sha256": cfg_sha,
+                "dataset_config": V.EVAL_CONFIG_FOR_K[k],
+                "ckpt_path": ck, "ckpt_sha256": ck_sha, "use_ema": True,
                 "frame_avg_angles": angles, "cond_method": "fa_invariant",
                 "cond_autocast": "bf16", "commit": "d" * 40}
         p = tmp_path / name
@@ -125,14 +138,14 @@ def _write_valid_cell(tmp_path, arm="C8", step=40000, k=8, seeds=(42, 43, 44, 45
 
 def test_gate_passes_a_validated_exp11_cell(tmp_path):
     paths = _write_valid_cell(tmp_path)
-    ok, problems = G.validate_exp11_cell(paths)
+    ok, problems = G.validate_exp11_cell(paths, repo_root=str(tmp_path))
     assert ok, problems
 
 
 def test_gate_refuses_a_cell_with_a_missing_sidecar(tmp_path):
     paths = _write_valid_cell(tmp_path)
     os.remove(paths[0] + ".screenmeta.json")
-    ok, problems = G.validate_exp11_cell(paths)
+    ok, problems = G.validate_exp11_cell(paths, repo_root=str(tmp_path))
     assert not ok and any("sidecar" in p for p in problems)
 
 
@@ -141,20 +154,20 @@ def test_gate_refuses_a_legacy_loop_row_in_an_exp11_cell(tmp_path):
     rec = json.load(open(paths[0]))
     rec["orbit_execution"] = "loop"
     open(paths[0], "w").write(json.dumps(rec))
-    ok, problems = G.validate_exp11_cell(paths)
+    ok, problems = G.validate_exp11_cell(paths, repo_root=str(tmp_path))
     assert not ok and any("orbit_execution" in p for p in problems)
 
 
 def test_gate_refuses_a_four_seed_table_cell(tmp_path):
     paths = _write_valid_cell(tmp_path, seeds=(42, 43, 44, 45))
-    ok, problems = G.validate_exp11_cell(paths)
+    ok, problems = G.validate_exp11_cell(paths, repo_root=str(tmp_path))
     assert not ok and any("46" in p for p in problems)
 
 
 def test_gate_refuses_a_screen_cell_as_a_table_row(tmp_path):
     """A single-seed futility screen must never become a table row."""
     paths = _write_valid_cell(tmp_path, seeds=(42,))
-    ok, problems = G.validate_exp11_cell(paths)
+    ok, problems = G.validate_exp11_cell(paths, repo_root=str(tmp_path))
     assert not ok
 
 
@@ -170,12 +183,59 @@ def test_render_blocks_an_invalid_exp11_row(tmp_path):
     rec = json.load(open(paths[0]))
     rec["n_samples"] = 64                        # a partial-split row
     open(paths[0], "w").write(json.dumps(rec))
-    line, blocked = G.render_row("C8 @40k", "fa eval (batched)", 8, paths)
+    line, blocked = G.render_row("C8 @40k", "fa eval (batched)", 8, paths, repo_root=str(tmp_path))
     assert blocked
     assert "BLOCKED" in line and "12.000" not in line, line
 
 
 def test_render_emits_numbers_for_a_valid_row(tmp_path):
     paths = _write_valid_cell(tmp_path)
-    line, blocked = G.render_row("C8 @40k", "fa eval (batched)", 8, paths)
+    line, blocked = G.render_row("C8 @40k", "fa eval (batched)", 8, paths, repo_root=str(tmp_path))
     assert not blocked and "12.000" in line
+
+
+# --------------------------------------------------------------------------- #
+# re-review items 3, 4b, 7
+# --------------------------------------------------------------------------- #
+def test_table_validation_recomputes_hashes(tmp_path):
+    """Item 3: the generator's gate must not trust the sidecar's own hashes."""
+    paths = _write_valid_cell(tmp_path)
+    ok, problems = G.validate_exp11_cell(paths, repo_root=str(tmp_path))
+    assert ok, problems
+    side = json.load(open(paths[0] + ".screenmeta.json"))
+    side["model_config_sha256"] = "e" * 64             # tampered
+    json.dump(side, open(paths[0] + ".screenmeta.json", "w"))
+    ok, problems = G.validate_exp11_cell(paths, repo_root=str(tmp_path))
+    assert not ok and any("model_config_sha256" in p for p in problems), problems
+
+
+def test_two_k_outer_gate(tmp_path):
+    """Item 4b: a table update must carry BOTH K cells of an exp_11 row."""
+    assert G.check_two_k_coverage({("C8 @40k", 1): True, ("C8 @40k", 8): True}) == []
+    missing = G.check_two_k_coverage({("C8 @40k", 8): True})
+    assert missing and "C8 @40k" in missing[0] and "K=1" in missing[0]
+    # a blocked half also breaks the transaction
+    half_blocked = G.check_two_k_coverage({("C8 @40k", 1): False, ("C8 @40k", 8): True})
+    assert half_blocked and "C8 @40k" in half_blocked[0]
+
+
+def test_label_migration_is_deferred_until_the_exp10_evidence_returns():
+    """Item 7: relabelling rewrites the table, and regenerating right now would
+    replace published exp_10 numbers with 'pending' because their JSONs are off
+    this machine. So the labels migrate ONLY when that evidence is present."""
+    assert G.exp10_evidence_present() in (True, False)
+    labels_now = G.protocol_label("fa eval", exp11=False, evidence_ready=False)
+    assert labels_now == "fa eval"                     # unchanged while deferred
+    labels_after = G.protocol_label("fa eval", exp11=False, evidence_ready=True)
+    assert labels_after == "fa eval (legacy-loop)"
+    assert G.protocol_label("fa eval", exp11=True, evidence_ready=False) == "fa eval (batched)"
+
+
+def test_deferred_migration_emits_a_loud_header_note():
+    header = G.build_header(evidence_ready=False)
+    joined = "\n".join(header)
+    assert "DEFERRED" in joined.upper()
+    assert "legacy-loop" in joined and "exp_10" in joined
+    ready = "\n".join(G.build_header(evidence_ready=True))
+    assert "DEFERRED" not in ready.upper()
+
