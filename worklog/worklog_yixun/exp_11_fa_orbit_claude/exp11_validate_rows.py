@@ -33,7 +33,9 @@ import sys
 
 def _repo_root(p):
     p = os.path.abspath(p)
-    while not os.path.isdir(os.path.join(p, ".git")):
+    # `.git` is a DIRECTORY in a normal checkout and a FILE in a linked worktree —
+    # measurements run from a pinned worktree, so both must count as the root.
+    while not os.path.exists(os.path.join(p, ".git")):
         parent = os.path.dirname(p)
         if parent == p:
             raise RuntimeError("repo root (.git) not found")
@@ -43,6 +45,11 @@ def _repo_root(p):
 
 REPO = _repo_root(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
+
+# Where the OUTPUTS live. Under worktree-pinned measurement the code root is the
+# pinned worktree while checkpoints and metrics stay in the main tree, so the
+# containment check must resolve against the main tree, not the code root.
+OUTPUT_ROOT_BASE = os.environ.get("EXP11_OUTPUT_ROOT") or REPO
 
 from src.data.yaw_rotation import (  # noqa: E402
     FRAME_AVG_MAX_FWD_SAMPLES, ORBIT_EXECUTION)
@@ -64,9 +71,19 @@ EXPECTED_STEPS = 1
 EXPECTED_AUTOCAST = "bf16"
 EXPECTED_WEIGHTS = "ema"
 EXPECTED_N_SAMPLES = 6337          # the full published unseen split (announcement 01)
-# The six metrics every comparison row reports (gen_model_comparison.KEYS).
+# The metric keys eval_FLAC ACTUALLY emits, pinned from a real record produced by
+# the C4 backfill screen (job 3649599, exp11_C4backfill_S20000_s42_K8): the
+# earlier "exact six" was the TABLE subset and rejected every genuine row.
+EMITTED_METRIC_KEYS = (
+    "T60", "C50", "EDT", "FD", "Invalid T60",
+    "RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5", "RIR_to_GT_RIR_R@10",
+    "RIR_to_geom_R@1", "RIR_to_geom_R@5", "RIR_to_geom_R@10",
+)
+# The six a comparison row reports (gen_model_comparison.KEYS) — a strict subset:
+# they must be present and finite, and the emission set must not drift either way.
 REQUIRED_METRIC_KEYS = ("T60", "C50", "EDT",
                         "RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5", "RIR_to_GT_RIR_R@10")
+assert set(REQUIRED_METRIC_KEYS) <= set(EMITTED_METRIC_KEYS)
 # Every one of these must be PRESENT in the evaluator's own record with the right
 # type — a missing or null field used to make its cross-check silently skip
 # (re-review item 1). (field, type, expected-or-None)
@@ -266,10 +283,16 @@ def validate_row(metrics_path, verify_hashes=False):
     if not isinstance(metrics, dict):
         problems.append(f"{tag}: metrics block is missing or not a mapping")
     else:
-        if set(metrics) != set(REQUIRED_METRIC_KEYS):
-            problems.append(f"{tag}: metrics keys {sorted(metrics)} != the registered six "
-                            f"{sorted(REQUIRED_METRIC_KEYS)}")
-        bad = [m for m in REQUIRED_METRIC_KEYS if m in metrics and not _finite_number(metrics[m])]
+        if set(metrics) != set(EMITTED_METRIC_KEYS):
+            extra = sorted(set(metrics) - set(EMITTED_METRIC_KEYS))
+            absent = sorted(set(EMITTED_METRIC_KEYS) - set(metrics))
+            problems.append(f"{tag}: metric key set drifted from the registered emission set "
+                            f"(unexpected {extra}, missing {absent})")
+        missing_table = [m for m in REQUIRED_METRIC_KEYS if m not in metrics]
+        if missing_table:
+            problems.append(f"{tag}: the table metrics {missing_table} are absent")
+        bad = [m for m in sorted(set(metrics) & set(EMITTED_METRIC_KEYS))
+               if not _finite_number(metrics[m])]
         if bad:
             problems.append(f"{tag}: metrics {bad} are not finite numbers (bools are not numbers)")
 
@@ -338,9 +361,9 @@ def validate_row(metrics_path, verify_hashes=False):
     # Containment by resolved PATH, not substring: "…/exp11_C8_backup/…" contains
     # the C8 prefix but is not the arm's run directory (re-review item 2).
     prefix = ARM_RUN_PREFIX[arm]
-    ckpt_real = os.path.realpath(os.path.join(REPO, ckpt)) if not os.path.isabs(ckpt) \
-        else os.path.realpath(ckpt)
-    root_real = os.path.realpath(os.path.join(REPO, prefix))
+    base = OUTPUT_ROOT_BASE
+    ckpt_real = os.path.realpath(ckpt if os.path.isabs(ckpt) else os.path.join(base, ckpt))
+    root_real = os.path.realpath(os.path.join(base, prefix))
     if os.path.commonpath([ckpt_real, root_real]) != root_real:
         problems.append(f"{tag}: ckpt {ckpt} is not inside this arm's own run directory ({prefix})")
     for field, rx, what in (("model_config_sha256", _SHA256_RE, "64-hex sha256"),
@@ -467,10 +490,16 @@ def main(argv=None):
     ap.add_argument("--k", type=int, required=True)
     ap.add_argument("--contract", required=True, choices=sorted(CONTRACTS),
                     help="futility (screens/backfill, seed 42, K8), table (conf, seeds 42-46), r3")
+    ap.add_argument("--output-root", default=None,
+                    help="where outputs_FLAC lives (default: this checkout; set to the MAIN tree "
+                         "when the code runs from a pinned measurement worktree)")
     ap.add_argument("--verify-hashes", action="store_true",
                     help="recompute the config/checkpoint sha256 instead of trusting the sidecar")
     ap.add_argument("paths", nargs="+", help="metrics JSONs (globs are expanded)")
     args = ap.parse_args(argv)
+    if args.output_root:
+        global OUTPUT_ROOT_BASE
+        OUTPUT_ROOT_BASE = args.output_root
 
     paths = []
     for p in args.paths:

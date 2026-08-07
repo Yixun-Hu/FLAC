@@ -88,6 +88,8 @@ def validate_exp11_cell(files, repo_root=None):
         V = _load_validator()
         if repo_root:                              # tests resolve the canonical arm
             V.REPO = repo_root                     # roots inside their fixture tree
+            V.OUTPUT_ROOT_BASE = repo_root         # (outputs live under the main tree
+                                                   #  in production; unchanged there)
     except Exception as exc:                       # the gate must not fail open
         return False, [f"cannot load the exp_11 validator ({exc})"]
     try:

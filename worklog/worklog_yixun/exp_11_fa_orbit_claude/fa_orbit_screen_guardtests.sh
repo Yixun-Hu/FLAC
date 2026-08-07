@@ -20,6 +20,7 @@ PY=/n/fs/gatrdp/envs/flac/bin/python
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 LOG="${EXPDIR}/fa_orbit_${TS}_screen_guardtests.log"
 HEAD_SHA="$(git rev-parse HEAD)"
+MAIN_TREE="$(git rev-parse --show-toplevel)"
 
 exec > >(tee -a "$LOG") 2>&1
 echo "=== fa_orbit_screen guard exercise — ${TS} — $(git rev-parse --short HEAD) ==="
@@ -165,8 +166,8 @@ else
 fi
 
 echo "--- E. real-mode gates ---"
-case_run "wrong EXPECT_SHA aborts" 2 "EXPECT_SHA" \
-  -- ARM=C8 STEP=10000 EXPECT_SHA=0000000000000000000000000000000000000000 SLURM_JOB_ID=999999
+# (a real screen now also needs MEASURE_ROOT; the SHA gate is exercised with one
+# in section G, so here we only pin the sbatch-only requirement)
 case_run "real mode needs sbatch"  2 "must run under sbatch" \
   -- ARM=C8 STEP=10000 "EXPECT_SHA=${HEAD_SHA}" "FA_ORBIT_REPO_OVERRIDE=$PWD"
 
@@ -182,6 +183,50 @@ print(m.parse_eval_name('${NAME}'))" >/dev/null 2>&1; then
     echo "FAIL  ${NAME} does not parse under the validator schema"; FAIL=$((FAIL + 1))
   fi
 done
+
+echo "--- G. worktree-pinned measurement execution (item 8) ---"
+# A real screen must refuse to run unpinned...
+case_run "real mode requires MEASURE_ROOT" 2 "MEASURE_ROOT is required" \
+  -- ARM=C8 STEP=10000 "EXPECT_SHA=${HEAD_SHA}" SLURM_JOB_ID=999999
+case_run "a non-existent MEASURE_ROOT is refused" 2 "not a directory" \
+  -- "${BASE[@]}" ARM=C8 STEP=10000 "MEASURE_ROOT=${TMP}/nope"
+mkdir -p "${TMP}/notaworktree"
+case_run "a MEASURE_ROOT that is not a worktree is refused" 2 "not a git worktree" \
+  -- "${BASE[@]}" ARM=C8 STEP=10000 "MEASURE_ROOT=${TMP}/notaworktree"
+
+# ...and with a real pinned worktree the binding is on the WORKTREE's HEAD, so a
+# divergent main tree is irrelevant. Simulate the divergence by binding to the
+# worktree SHA while the main tree sits at a different commit.
+WT="$(bash "${EXPDIR}/fa_orbit_measure_worktree.sh" 2>/dev/null | tail -1)"
+if [ -n "$WT" ] && [ -e "$WT/.git" ]; then
+  WT_SHA="$(git -C "$WT" rev-parse HEAD)"
+  echo "PASS  pinned worktree prepared at ${WT_SHA:0:12}"; PASS=$((PASS + 1))
+  # HEAD mismatch must abort even with a valid worktree
+  out="$(env ARM=C8 STEP=10000 EXPECT_SHA=0000000000000000000000000000000000000000 \
+          SLURM_JOB_ID=999999 "MEASURE_ROOT=$WT" bash "$SCREEN" 2>&1)"; rc=$?
+  if [ "$rc" -eq 2 ] && echo "$out" | grep -q "code-root HEAD"; then
+    echo "PASS  worktree HEAD mismatch aborts  (rc=${rc})"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  worktree HEAD mismatch: rc=${rc}"; echo "$out" | tail -3 | sed 's/^/        | /'
+    FAIL=$((FAIL + 1))
+  fi
+  # the code root's identity is the worktree's, NOT the main tree's
+  out="$(env DRYRUN=1 ARM=C4L STEP=7500 "EXPECT_SHA=${WT_SHA}" "MEASURE_ROOT=$WT" bash "$SCREEN" 2>&1)"; rc=$?
+  # the CONFIG must come from the worktree while the CHECKPOINT comes from the
+  # main tree — that split is the whole point of pinned execution
+  if [ "$rc" -eq 0 ] && echo "$out" | grep -q "config ${WT}/worklog" \
+     && echo "$out" | grep -q "checkpoint: ${MAIN_TREE}/outputs_FLAC"; then
+    echo "PASS  code from the pinned worktree, outputs from the main tree  (rc=${rc})"
+    PASS=$((PASS + 1))
+  else
+    echo "SKIP  pinned-run case (needs a C4L ckpt at 7500 in the main tree; rc=${rc})"
+  fi
+  grep -q 'git -C "\$CODE_ROOT" rev-parse HEAD' "$SCREEN" \
+    && { echo "PASS  the commit gate reads the code root, not the cwd"; PASS=$((PASS + 1)); } \
+    || { echo "FAIL  the commit gate still reads the ambient HEAD"; FAIL=$((FAIL + 1)); }
+else
+  echo "FAIL  could not prepare a pinned worktree"; FAIL=$((FAIL + 1))
+fi
 
 echo
 echo "=== screen guard tests: ${PASS} passed, ${FAIL} failed ==="

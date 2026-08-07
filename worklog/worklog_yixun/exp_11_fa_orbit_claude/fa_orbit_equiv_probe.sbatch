@@ -24,7 +24,7 @@
 # Submit:
 #   sbatch --job-name=exp11-equivprobe --gres=gpu:l40:1 --cpus-per-task=15 \
 #          --mem=24G --time=00:20:00 \
-#          --export=ALL,EXPECT_SHA=$(git rev-parse HEAD) \
+#          --export=ALL,EXPECT_SHA=$(git -C $MEASURE_ROOT rev-parse HEAD),MEASURE_ROOT=$MEASURE_ROOT \
 #          worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_equiv_probe.sbatch
 # ============================================================================
 # The first two attempts died without a GPU because these directives were absent
@@ -40,9 +40,25 @@
 #SBATCH --output=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/slurm_equivprobe_%x_%j.out
 
 set -uo pipefail
-REPO=/n/fs/gatrdp/codespace/FLAC
-EXPDIR="$REPO/worklog/worklog_yixun/exp_11_fa_orbit_claude"
-cd "$REPO" || exit 3
+MAIN_REPO=/n/fs/gatrdp/codespace/FLAC
+REPO="$MAIN_REPO"
+# --- WORKTREE-PINNED MEASUREMENT (item 8) ------------------------------------
+# Same contract as the screen driver: code from a worktree pinned to the
+# submission SHA, outputs/logs into the main tree. Development and measurement
+# are decoupled — the main checkout may keep committing while this probe runs.
+CODE_ROOT="$REPO"
+if [ -n "${MEASURE_ROOT:-}" ]; then
+  [ -d "$MEASURE_ROOT" ] && [ -e "$MEASURE_ROOT/.git" ] \
+    || { echo "MEASURE_ROOT '${MEASURE_ROOT}' is not a git worktree - abort"; exit 2; }
+  CODE_ROOT="$MEASURE_ROOT"
+else
+  echo "MEASURE_ROOT is required: prepare it with"
+  echo "  MEASURE_ROOT=\$(bash ${MAIN_REPO}/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_measure_worktree.sh)"
+  exit 2
+fi
+EXPDIR="$CODE_ROOT/worklog/worklog_yixun/exp_11_fa_orbit_claude"   # CODE (pinned)
+LOGDIR="$MAIN_REPO/worklog/worklog_yixun/exp_11_fa_orbit_claude"   # LOGS (main tree)
+cd "$CODE_ROOT" || exit 3
 unset PYTHONPATH PYTHONOPTIMIZE
 export PATH=/n/fs/gatrdp/envs/flac/bin:$PATH
 export PYTHONNOUSERSITE=1
@@ -63,15 +79,14 @@ EXPECT_IDS="${EXPECT_IDS:-}"
 echo "=== exp_11 batched-orbit qualification probe - ${TS} - job ${JID} - host $(hostname) ==="
 
 # --- commit binding + drift gate; every provenance command's status is checked -
-HEAD_SHA="$(git rev-parse HEAD 2>/dev/null)" || die "git rev-parse FAILED - abort"
+HEAD_SHA="$(git -C "$CODE_ROOT" rev-parse HEAD 2>/dev/null)" || die "git rev-parse FAILED - abort"
 [ -n "$HEAD_SHA" ] || die "git rev-parse returned nothing - abort"
 [ "$HEAD_SHA" = "$EXPECT_SHA" ] || die "HEAD ${HEAD_SHA} != EXPECT_SHA ${EXPECT_SHA} - abort"
 # The drift gate is scoped to CODE surfaces, not the whole exp folder: the four
 # arms are running and Slurm appends to their tracked *.out logs continuously, so
 # a folder-wide check would abort every screen on a live-log write. Configs,
 # drivers and validators are still fully covered.
-DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src eval_FLAC.py \
-          "$EXPDIR"/*.json "$EXPDIR"/*.py "$EXPDIR"/*.sbatch "$EXPDIR"/*.sh)" \
+DRIFT="$(git -C "$CODE_ROOT" status --porcelain --untracked-files=no)" \
   || die "git status FAILED - refusing to treat an error as a clean tree - abort"
 [ -z "$DRIFT" ] || { echo "tracked measurement surfaces modified since review - abort:"; echo "$DRIFT"; exit 2; }
 echo "commit binding OK: ${HEAD_SHA}"
@@ -112,7 +127,7 @@ echo "config sha256: ${CFG_SHA} (expect cfg=${CFG_SHA12} in the result line)"
 # is two commands, and the first one replaces PIPESTATUS with its own one-element
 # array -- under `set -u` the second expansion died with "PIPESTATUS[1]: unbound
 # variable" (exit 127), so every strict check below used to be unreachable.
-LOG="${LOG:-${EXPDIR}/fa_orbit_${TS}_jid${SLURM_JOB_ID}_equivprobe.log}"
+LOG="${LOG:-${LOGDIR}/fa_orbit_${TS}_jid${SLURM_JOB_ID}_equivprobe.log}"
 python3 "$EXPDIR/fa_orbit_equiv_probe.py" --config "$PROBE_CFG" 2>&1 | tee "$LOG"
 PIPE_RC=("${PIPESTATUS[@]}")
 PROBE_RC="${PIPE_RC[0]}"; TEE_RC="${PIPE_RC[1]}"

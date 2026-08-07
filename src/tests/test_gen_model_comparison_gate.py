@@ -109,8 +109,8 @@ def _write_valid_cell(tmp_path, arm="C8", step=40000, k=8, seeds=(42, 43, 44, 45
     import hashlib
     ck_sha = hashlib.sha256(ck_file.read_bytes()).hexdigest()
     cfg_sha = hashlib.sha256(cfg_file.read_bytes()).hexdigest()
-    metrics = {"T60": 12.0, "C50": 1.0, "EDT": 4.0, "RIR_to_GT_RIR_R@1": 0.5,
-               "RIR_to_GT_RIR_R@5": 0.7, "RIR_to_GT_RIR_R@10": 0.9}
+    # the FULL emission set eval_FLAC writes (pinned in the validator)
+    metrics = {k: 12.0 for k in V.EMITTED_METRIC_KEYS}
     paths = []
     for seed in seeds:
         ev = f"exp11_{arm}_conf_S{step}_s{seed}_K{k}"

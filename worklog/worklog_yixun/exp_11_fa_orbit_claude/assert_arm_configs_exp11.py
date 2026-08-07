@@ -33,7 +33,9 @@ import sys
 
 def _repo_root(p):  # marker-walk (same helper as exp_07's gate)
     p = os.path.abspath(p)
-    while not os.path.isdir(os.path.join(p, ".git")):
+    # `.git` is a DIRECTORY in a normal checkout and a FILE in a linked worktree —
+    # measurements run from a pinned worktree, so both must count as the root.
+    while not os.path.exists(os.path.join(p, ".git")):
         parent = os.path.dirname(p)
         if parent == p:
             raise RuntimeError("repo root (.git) not found")

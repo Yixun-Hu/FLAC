@@ -40,9 +40,11 @@ CKPT = ("outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/"
         "epoch=2-step=10000.ckpt")
 
 
-REQUIRED_METRICS = {"T60": 12.3, "C50": 1.1, "EDT": 4.4,
+# the FULL set eval_FLAC emits (pinned from job 3649599's real record)
+REQUIRED_METRICS = {"T60": 12.3, "C50": 1.1, "EDT": 4.4, "FD": 2.2, "Invalid T60": 0.0,
                     "RIR_to_GT_RIR_R@1": 0.5, "RIR_to_GT_RIR_R@5": 0.7,
-                    "RIR_to_GT_RIR_R@10": 0.9}
+                    "RIR_to_GT_RIR_R@10": 0.9, "RIR_to_geom_R@1": 0.4,
+                    "RIR_to_geom_R@5": 0.6, "RIR_to_geom_R@10": 0.8}
 
 
 def _record(**over):
@@ -298,6 +300,15 @@ def test_main_returns_zero_on_a_good_cell(tmp_path, capsys):
 # --------------------------------------------------------------------------- #
 # 5. round-4 review B3: malformed and mislabelled rows must NOT pass
 # --------------------------------------------------------------------------- #
+def test_the_real_emission_set_validates(tmp_path):
+    """The registered set is what eval_FLAC actually writes — the earlier
+    'exact six' was the table subset and rejected every genuine row (job 3649599)."""
+    _row, problems = V.validate_row(_write_row(tmp_path))
+    assert not any("metric" in p for p in problems), problems
+    assert set(V.REQUIRED_METRIC_KEYS) <= set(V.EMITTED_METRIC_KEYS)
+    assert "FD" in V.EMITTED_METRIC_KEYS and "RIR_to_geom_R@1" in V.EMITTED_METRIC_KEYS
+
+
 def test_all_six_table_metrics_are_required(tmp_path):
     partial = {"T60": 1.0, "C50": 2.0}
     _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(metrics=partial)))
@@ -506,11 +517,13 @@ def test_source_sha_must_equal_the_sidecar_commit(tmp_path):
     assert not any("source_sha" in p and "commit" in p for p in problems), problems
 
 
-def test_metric_key_set_must_be_exactly_the_six(tmp_path):
-    extra = dict(REQUIRED_METRICS)
-    extra["FD"] = 3.3
+def test_metric_key_set_drift_is_rejected_in_both_directions(tmp_path):
+    extra = dict(REQUIRED_METRICS); extra["NewMetric"] = 3.3
     _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(metrics=extra)))
-    assert any("metrics" in p for p in problems), problems
+    assert any("drifted" in p for p in problems), problems
+    fewer = dict(REQUIRED_METRICS); del fewer["FD"]
+    _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(metrics=fewer)))
+    assert any("drifted" in p for p in problems), problems
 
 
 def test_boolean_metrics_are_not_numbers(tmp_path):

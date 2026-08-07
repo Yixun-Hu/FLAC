@@ -25,9 +25,15 @@
 # Afterwards it writes the sidecar that exp11_validate_rows.py requires and
 # emits one SCREENRESULT line.
 #
+# WORKTREE-PINNED EXECUTION (item 8): code comes from a worktree pinned to the
+# submission SHA, outputs go to the main tree. Development and measurement are
+# therefore DECOUPLED — the main checkout may keep committing while jobs run, and
+# source_sha still equals the pinned SHA. MEASURE_ROOT is REQUIRED for a real run.
+#
 # Submit (resources are in the directives; CLI flags still override):
+#   MEASURE_ROOT=$(bash worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_measure_worktree.sh)
 #   sbatch --job-name=exp11-screen-C4L-10000 \
-#          --export=ALL,EXPECT_SHA=$(git rev-parse HEAD),ARM=C4L,STEP=10000 \
+#          --export=ALL,EXPECT_SHA=$(git -C $MEASURE_ROOT rev-parse HEAD),MEASURE_ROOT=$MEASURE_ROOT,ARM=C4L,STEP=10000 \
 #          worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_screen.sbatch
 #
 # DRYRUN=1 (outside Slurm) runs every gate, prints the eval argv and exits.
@@ -42,15 +48,36 @@
 #SBATCH --output=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/slurm_screen_%x_%j.out
 
 set -uo pipefail
-REPO=/n/fs/gatrdp/codespace/FLAC
+MAIN_REPO=/n/fs/gatrdp/codespace/FLAC        # where OUTPUTS and logs always live
+REPO="$MAIN_REPO"
 # TEST HOOK (guard tests only; ignored inside a Slurm job, like the launcher's):
 if [ -n "${FA_ORBIT_REPO_OVERRIDE:-}" ] && [ -z "${SLURM_JOB_ID:-}" ]; then
-  REPO="$FA_ORBIT_REPO_OVERRIDE"
+  REPO="$FA_ORBIT_REPO_OVERRIDE"; MAIN_REPO="$FA_ORBIT_REPO_OVERRIDE"
 fi
 unset FA_ORBIT_REPO_OVERRIDE
-EXPDIR="$REPO/worklog/worklog_yixun/exp_11_fa_orbit_claude"
-EXP07="$REPO/worklog/worklog_yixun/exp_07_fa_scratch_claude"
-cd "$REPO" || exit 3
+
+# --- WORKTREE-PINNED MEASUREMENT (item 8) ------------------------------------
+# Development and measurement are DECOUPLED: this job reads all code, configs and
+# validators from a git worktree pinned to the submission SHA, while writing every
+# output into the MAIN tree. Nothing the main checkout does during the run can
+# change what this job executed, so source_sha always equals the pinned SHA and
+# there is no reason to freeze development while measurements are in flight.
+# Prepare one with fa_orbit_measure_worktree.sh and export MEASURE_ROOT.
+CODE_ROOT="$REPO"
+if [ -n "${MEASURE_ROOT:-}" ]; then
+  [ -d "$MEASURE_ROOT" ] || { echo "MEASURE_ROOT '${MEASURE_ROOT}' is not a directory - abort"; exit 2; }
+  [ -e "$MEASURE_ROOT/.git" ] || { echo "MEASURE_ROOT '${MEASURE_ROOT}' is not a git worktree - abort"; exit 2; }
+  CODE_ROOT="$MEASURE_ROOT"
+elif [ -n "${SLURM_JOB_ID:-}" ]; then
+  echo "MEASURE_ROOT is required for a real screen: prepare it with"
+  echo "  MEASURE_ROOT=\$(bash ${MAIN_REPO}/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_measure_worktree.sh)"
+  echo "so the job's code identity cannot move while it runs - abort"
+  exit 2
+fi
+EXPDIR="$CODE_ROOT/worklog/worklog_yixun/exp_11_fa_orbit_claude"     # CODE (pinned)
+EXP07="$CODE_ROOT/worklog/worklog_yixun/exp_07_fa_scratch_claude"    # CODE (pinned)
+LOGDIR="$MAIN_REPO/worklog/worklog_yixun/exp_11_fa_orbit_claude"     # LOGS (main tree)
+cd "$CODE_ROOT" || exit 3
 unset PYTHONPATH PYTHONOPTIMIZE
 export PATH=/n/fs/gatrdp/envs/flac/bin:$PATH
 export PYTHONNOUSERSITE=1
@@ -65,8 +92,8 @@ K="${K:-8}"
 # table cell: seeds 42-46, K in {1,8}. The driver refuses combinations the
 # validator's contracts would reject, instead of labelling everything 'screen'.
 CELL="${CELL:-screen}"
-OUTPUT_ROOT="${OUTPUT_ROOT:-outputs_FLAC}"
-PRODUCTION_OUTPUT_ROOT="outputs_FLAC"
+OUTPUT_ROOT="${OUTPUT_ROOT:-$MAIN_REPO/outputs_FLAC}"
+PRODUCTION_OUTPUT_ROOT="$MAIN_REPO/outputs_FLAC"
 if [ -n "${SLURM_JOB_ID:-}" ]; then
   if [ -n "${OUTPUT_ROOT:-}" ] && [ "$OUTPUT_ROOT" != "$PRODUCTION_OUTPUT_ROOT" ]; then
     echo "ambient OUTPUT_ROOT='${OUTPUT_ROOT}' != '${PRODUCTION_OUTPUT_ROOT}' - abort"; exit 2
@@ -138,23 +165,23 @@ echo "=== exp_11 screen ${ARM} S${STEP} s${SEED} K${K} — ${TS} — host $(host
 echo "config ${MODEL_CONFIG} sha256 ${CONFIG_SHA} | orbit C${N_ANGLES} | eval-name ${EVAL_NAME}"
 
 # --- C. commit binding + tracked drift ---------------------------------------
-HEAD_SHA="$(git rev-parse HEAD 2>/dev/null)" || die "git rev-parse FAILED - abort"
+# The binding is on the CODE ROOT (the pinned worktree when one is used), so a
+# main tree that keeps committing during the run is irrelevant (item 8).
+HEAD_SHA="$(git -C "$CODE_ROOT" rev-parse HEAD 2>/dev/null)" || die "git rev-parse FAILED - abort"
 # The drift gate stays RECURSIVE over the experiment directory (so future
 # subdirectory helpers, manifests and decision-relevant markdown remain covered)
 # and excludes only the append-only live artifacts the running arms write:
 # their Slurm transcripts and this driver's own screen logs (round-4 NIT 1).
-DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src eval_FLAC.py \
-          "$EXPDIR" ":(exclude)$EXPDIR/slurm_train_*.out" ":(exclude)$EXPDIR/slurm_screen_*.out" \
-          ":(exclude)$EXPDIR/*_screen.log")" \
+DRIFT="$(git -C "$CODE_ROOT" status --porcelain --untracked-files=no)" \
   || die "git status FAILED - refusing to treat an error as a clean tree - abort"
 if [ "$DRYRUN" = "1" ]; then
   [ "$HEAD_SHA" = "$EXPECT_SHA" ] && echo "commit binding OK (dry run): ${HEAD_SHA}" \
     || echo "DRY-RUN ADVISORY: HEAD != EXPECT_SHA (a real screen aborts here)"
 else
   [ -n "${SLURM_JOB_ID:-}" ] || die "a real screen must run under sbatch - abort"
-  [ "$HEAD_SHA" = "$EXPECT_SHA" ] || die "HEAD ${HEAD_SHA} != EXPECT_SHA ${EXPECT_SHA} - abort"
-  [ -z "$DRIFT" ] || { echo "tracked surfaces modified since review - abort:"; echo "$DRIFT"; exit 2; }
-  echo "commit binding OK: ${HEAD_SHA}"
+  [ "$HEAD_SHA" = "$EXPECT_SHA" ] || die "code-root HEAD ${HEAD_SHA} != EXPECT_SHA ${EXPECT_SHA} - abort"
+  [ -z "$DRIFT" ] || { echo "the code root is not pristine - abort:"; echo "$DRIFT"; exit 2; }
+  echo "commit binding OK: ${HEAD_SHA} (code root ${CODE_ROOT})"
 fi
 
 # --- D. exactly ONE checkpoint at this step ----------------------------------
@@ -170,15 +197,16 @@ echo "checkpoint: ${CKPT}"
 if [ "$ARM" = "C4BACKFILL" ]; then
   BACKFILL_MANIFEST="$EXPDIR/c4_backfill_manifest.json"
   [ -f "$BACKFILL_MANIFEST" ] || die "backfill manifest missing: ${BACKFILL_MANIFEST} - abort"
-  python3 - "$BACKFILL_MANIFEST" "$STEP" "$CKPT" <<'PY' || die "backfill lineage gate FAILED - abort"
+  python3 - "$BACKFILL_MANIFEST" "$STEP" "$CKPT" "$MAIN_REPO" <<'PY' || die "backfill lineage gate FAILED - abort"
 import hashlib, json, os, sys
-man, step, ckpt = json.load(open(sys.argv[1])), sys.argv[2], sys.argv[3]
+man, step, ckpt, main_repo = json.load(open(sys.argv[1])), sys.argv[2], sys.argv[3], sys.argv[4]
 entry = man["checkpoints"].get(step)
 if entry is None:
     sys.exit(f"step {step} is not in the audited backfill manifest "
              f"(registered: {sorted(man['checkpoints'])})")
-if os.path.realpath(entry["path"]) != os.path.realpath(ckpt):
-    sys.exit(f"resolved checkpoint {ckpt} != the audited {entry['path']}")
+entry_path = entry["path"] if os.path.isabs(entry["path"]) else os.path.join(main_repo, entry["path"])
+if os.path.realpath(entry_path) != os.path.realpath(ckpt):
+    sys.exit(f"resolved checkpoint {ckpt} != the audited {entry_path}")
 h = hashlib.sha256()
 with open(ckpt, "rb") as fh:
     for chunk in iter(lambda: fh.read(1 << 20), b""):
@@ -200,9 +228,9 @@ fi
 if [ "$ARM" != "C4BACKFILL" ]; then
   ARM_LAUNCH_MANIFEST="${OUTPUT_ROOT}/exp11_${ARM}/launch_manifest.txt"
   [ -f "$ARM_LAUNCH_MANIFEST" ] || die "arm launch manifest missing: ${ARM_LAUNCH_MANIFEST} — a screen may only evaluate a checkpoint from a recorded launch - abort"
-  python3 - "$ARM_LAUNCH_MANIFEST" "$ARM" "$CKPT" "$CONFIG_SHA" "$CKPT_DIR" <<'PY' || die "arm launch-manifest lineage gate FAILED - abort"
+  python3 - "$ARM_LAUNCH_MANIFEST" "$ARM" "$CKPT" "$CONFIG_SHA" "$CKPT_DIR" "$MAIN_REPO" <<'PY' || die "arm launch-manifest lineage gate FAILED - abort"
 import os, sys
-man_path, arm, ckpt, cfg_sha, ckpt_dir = sys.argv[1:6]
+man_path, arm, ckpt, cfg_sha, ckpt_dir, main_repo = sys.argv[1:7]
 man = {}
 for line in open(man_path):
     line = line.strip()
@@ -222,7 +250,10 @@ if not save_dir:
     bad.append("manifest records no save_dir")
 else:
     want_dir = os.path.realpath(ckpt_dir)
-    canon = os.path.realpath(os.path.join(save_dir, f"FLAC_exp11_{arm}", f"exp11_{arm}", "checkpoints"))
+    # save_dir is recorded relative to the MAIN tree; under worktree-pinned
+    # execution the cwd is the pinned code root, so resolve it explicitly.
+    save_abs = save_dir if os.path.isabs(save_dir) else os.path.join(main_repo, save_dir)
+    canon = os.path.realpath(os.path.join(save_abs, f"FLAC_exp11_{arm}", f"exp11_{arm}", "checkpoints"))
     if want_dir != canon:
         bad.append(f"checkpoint dir {want_dir} is not the manifest's canonical {canon}")
     if os.path.realpath(os.path.dirname(ckpt)) != canon:
@@ -287,7 +318,7 @@ case "$(echo "${GPU_ROWS[0]}" | cut -d, -f2)" in *L40*) ;; *) die "not an L40 - 
 echo "GPU: ${GPU_ROWS[0]}"
 
 # --- BEGIN screen-run-and-record (guard-tested by fa_orbit_screen_guardtests.sh) --
-LOG="${LOG:-${EXPDIR}/fa_orbit_${TS}_${ARM}_S${STEP}_s${SEED}_K${K}_screen.log}"
+LOG="${LOG:-${LOGDIR}/fa_orbit_${TS}_${ARM}_S${STEP}_s${SEED}_K${K}_screen.log}"
 python eval_FLAC.py "${EVAL_ARGV[@]}" 2>&1 | tee "$LOG"
 PIPE_RC=("${PIPESTATUS[@]}")
 EVAL_RC="${PIPE_RC[0]}"; TEE_RC="${PIPE_RC[1]}"
@@ -329,14 +360,14 @@ PY
 # futility screen, which IS a complete single-seed cell, reports validated=.
 if [ "$CELL" = "screen" ]; then
   python3 "$EXPDIR/exp11_validate_rows.py" --arm "$ARM" --step "$STEP" --k "$K" \
-    --contract futility --verify-hashes "$METRICS" \
+    --contract futility --verify-hashes --output-root "$MAIN_REPO" "$METRICS" \
     || die "row validation FAILED - refusing to emit SCREENRESULT for an unprovable row" 6
   VALIDATED="futility"
 else
   VALIDATED="pending-cell"
   echo "NOTE: CELL=${CELL} is one row of a five-seed table cell; it is validated as a WHOLE cell"
   echo "  once every seed has landed, and until then this row is NOT validated:"
-  echo "  python3 ${EXPDIR}/exp11_validate_rows.py --arm ${ARM} --step ${STEP} --k ${K} --contract table --verify-hashes <all seed JSONs>"
+  echo "  python3 ${EXPDIR}/exp11_validate_rows.py --arm ${ARM} --step ${STEP} --k ${K} --contract table --verify-hashes --output-root ${MAIN_REPO} <all seed JSONs>"
 fi
 
 echo "SCREENRESULT arm=${ARM} cell=${CELL} step=${STEP} seed=${SEED} k=${K} rc=${EVAL_RC} validated=${VALIDATED} eval_name=${EVAL_NAME} metrics=${METRICS} sidecar=${METRICS}.screenmeta.json config_sha256=${CONFIG_SHA} ckpt_sha256=${CKPT_SHA} commit=${HEAD_SHA} log=${LOG}"

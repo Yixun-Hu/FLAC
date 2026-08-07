@@ -182,3 +182,6 @@ worklog/worklog_yixun/.last_model*
 worklog/worklog_yixun/.handoff_hook.lock
 worklog/worklog_yixun/handoff_log.md
 worklog/worklog_yixun/handoff_snapshots/
+
+# exp_11 measurement worktrees: pinned code caches, never sources
+.measure_worktrees/
