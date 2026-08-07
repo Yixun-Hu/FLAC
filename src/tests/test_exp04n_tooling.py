@@ -274,15 +274,70 @@ def test_gate_still_accepts_the_inherited_exp09_pin_env(pin_probe, monkeypatch):
     assert pin_probe()["sha"] == "bbbb2222"
 
 
-def test_gate_cli_flags_win_over_the_env(pin_probe, monkeypatch):
-    monkeypatch.setenv("EXPECT_EXP04_SHA", "aaaa1111")
+def test_gate_reads_the_pin_from_either_cli_flag(pin_probe):
     assert pin_probe(["--expect-exp04-sha", "cccc3333"])["sha"] == "cccc3333"
     assert pin_probe(["--expect-exp09-sha", "dddd4444"])["sha"] == "dddd4444"
 
 
-def test_gate_refuses_disagreeing_pin_spellings(gate, pin_probe):
-    with pytest.raises(RuntimeError, match="disagree"):
-        gate.main(["--expect-exp04-sha", "aaaa1111", "--expect-exp09-sha", "bbbb2222"])
+# The four registered spellings are ALIASES OF ONE VALUE. Any two supplied with DIFFERENT
+# SHAs must refuse: a precedence chain would run pinned to the winner while the operator
+# believed the other — most dangerously env/env, a stale exp_03 export sitting beside a
+# fresh exp_04 one (integrative review, finding 1).
+_PIN_SPELLINGS = ("--expect-exp04-sha", "--expect-exp09-sha",
+                  "EXPECT_EXP04_SHA", "EXPECT_EXP09_SHA")
+
+
+def _apply_pins(monkeypatch, pins):
+    """Split ``{spelling: value}`` into the argv the gate is called with, exporting the env
+    spellings on the way."""
+    argv = []
+    for name, value in pins.items():
+        assert name in _PIN_SPELLINGS, name
+        if name.startswith("--"):
+            argv += [name, value]
+        else:
+            monkeypatch.setenv(name, value)
+    return argv
+
+
+@pytest.mark.parametrize("pins", [
+    # env/env — the hazard a precedence chain hides
+    {"EXPECT_EXP04_SHA": "aaaa1111", "EXPECT_EXP09_SHA": "bbbb2222"},
+    # env/CLI, both orientations and both spellings
+    {"EXPECT_EXP04_SHA": "aaaa1111", "--expect-exp09-sha": "bbbb2222"},
+    {"EXPECT_EXP09_SHA": "bbbb2222", "--expect-exp04-sha": "aaaa1111"},
+    {"EXPECT_EXP04_SHA": "aaaa1111", "--expect-exp04-sha": "cccc3333"},
+    {"EXPECT_EXP09_SHA": "bbbb2222", "--expect-exp09-sha": "dddd4444"},
+    # CLI/CLI
+    {"--expect-exp04-sha": "aaaa1111", "--expect-exp09-sha": "bbbb2222"},
+    # three sources, one dissenter
+    {"EXPECT_EXP04_SHA": "aaaa1111", "EXPECT_EXP09_SHA": "aaaa1111",
+     "--expect-exp04-sha": "cccc3333"},
+])
+def test_gate_refuses_any_disagreeing_pin_spellings(gate, pin_probe, monkeypatch, pins):
+    argv = _apply_pins(monkeypatch, pins)
+    with pytest.raises(RuntimeError, match="disagree") as excinfo:
+        gate.main(argv)
+    message = str(excinfo.value)
+    for name, value in pins.items():
+        assert name in message and value in message, (
+            f"the refusal must name every supplied source and value ({name}={value})"
+        )
+
+
+@pytest.mark.parametrize("pins", [
+    {"EXPECT_EXP04_SHA": "eeee5555", "EXPECT_EXP09_SHA": "eeee5555"},
+    {"EXPECT_EXP04_SHA": "eeee5555", "--expect-exp09-sha": "eeee5555"},
+    {"EXPECT_EXP09_SHA": "eeee5555", "--expect-exp04-sha": "eeee5555"},
+    {"EXPECT_EXP04_SHA": "eeee5555", "--expect-exp04-sha": "eeee5555"},
+    {"EXPECT_EXP04_SHA": "eeee5555", "EXPECT_EXP09_SHA": "eeee5555",
+     "--expect-exp04-sha": "eeee5555", "--expect-exp09-sha": "eeee5555"},
+])
+def test_gate_accepts_agreeing_duplicate_pin_spellings(pin_probe, monkeypatch, pins):
+    """Duplicates are ambiguous only when they DISAGREE: an operator exporting both spellings
+    of the SAME SHA (the documented migration state) must still be able to launch."""
+    argv = _apply_pins(monkeypatch, pins)
+    assert pin_probe(argv)["sha"] == "eeee5555"
 
 
 def test_gate_passes_an_absent_pin_through_strict(pin_probe):

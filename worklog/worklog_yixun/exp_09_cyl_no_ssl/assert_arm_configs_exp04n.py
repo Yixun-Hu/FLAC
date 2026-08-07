@@ -35,6 +35,9 @@ Both config variants are accepted (``--config``); the variant is auto-detected f
 filename and can be forced with ``--config-variant``. ``EXPECT_PACKAGE_SHA`` and the
 worktree pin (``EXPECT_EXP04_SHA``, with ``EXPECT_EXP09_SHA`` still accepted as the
 inherited alias) are REQUIRED on the blessed path: no defaults, no registered fallback set.
+The pin spellings are ALIASES OF ONE VALUE: if two of the four registered sources (either
+CLI flag, either environment variable) are supplied with different SHAs, the gate refuses
+and names them — it never resolves the ambiguity by precedence.
 
 CPU-only, offline. Run from anywhere:
     HF_HUB_OFFLINE=1 python worklog/worklog_yixun/exp_09_cyl_no_ssl/assert_arm_configs_exp04n.py
@@ -419,12 +422,29 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     expect_package_sha = args.expect_package_sha or os.environ.get("EXPECT_PACKAGE_SHA") or None
-    expect_worktree_sha = (args.expect_exp04_sha or args.expect_exp09_sha
-                           or os.environ.get("EXPECT_EXP04_SHA")
-                           or os.environ.get("EXPECT_EXP09_SHA") or None)
-    if (args.expect_exp04_sha and args.expect_exp09_sha
-            and args.expect_exp04_sha != args.expect_exp09_sha):
-        raise RuntimeError("--expect-exp04-sha and --expect-exp09-sha disagree — refuse")
+
+    # The worktree pin can arrive by FOUR registered spellings (delta 0: EXPECT_EXP04_SHA is
+    # this arm's name, EXPECT_EXP09_SHA the inherited alias, each with a CLI flag). ANY two of
+    # them carrying DIFFERENT values is a submission-environment mix-up -- typically a stale
+    # exp_03 export sitting beside a fresh exp_04 one -- so the resolver refuses instead of
+    # silently picking a precedence winner, and names every source it saw. A precedence chain
+    # would let `EXPECT_EXP04_SHA=A EXPECT_EXP09_SHA=B` run pinned to A while the operator
+    # believed B; the entire point of the pin is that it cannot be ambiguous.
+    pin_sources = (
+        ("--expect-exp04-sha", args.expect_exp04_sha),
+        ("--expect-exp09-sha", args.expect_exp09_sha),
+        ("EXPECT_EXP04_SHA", os.environ.get("EXPECT_EXP04_SHA")),
+        ("EXPECT_EXP09_SHA", os.environ.get("EXPECT_EXP09_SHA")),
+    )
+    supplied = [(name, value) for name, value in pin_sources if value]
+    if len({value for _, value in supplied}) > 1:
+        raise RuntimeError(
+            "worktree pin: the registered spellings disagree — "
+            + "; ".join(f"{name}={value!r}" for name, value in supplied)
+            + ". They are aliases of ONE pin, so every supplied spelling must carry the SAME "
+            "SHA; refuse rather than pick one."
+        )
+    expect_worktree_sha = supplied[0][1] if supplied else None
 
     # 1. provenance: worktree executable trees clean + HEAD pinned (exp-09 machinery)
     exp09_gate.assert_exp09_provenance(REPO, expect_worktree_sha,
