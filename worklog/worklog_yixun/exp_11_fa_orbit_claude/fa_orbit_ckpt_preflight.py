@@ -38,6 +38,22 @@ def sha256_file(path):
     return h.hexdigest()
 
 
+def load_ckpt_config(path):
+    """The model_config embedded in a Lightning checkpoint, on CPU.
+
+    Shared with the screen driver (fa_orbit_screen.sbatch), which asserts the
+    checkpoint's own orbit before spending an evaluation on it: a screen that
+    silently evaluated the wrong arm's checkpoint would poison a futility gate."""
+    import torch
+    ck = torch.load(path, map_location="cpu", weights_only=False)
+    if not isinstance(ck, dict):
+        raise RuntimeError(f"not a Lightning checkpoint: {path}")
+    cfg = ck.get("model_config")
+    if not isinstance(cfg, dict):
+        raise RuntimeError(f"checkpoint carries no embedded model_config: {path}")
+    return cfg, ck.get("global_step")
+
+
 def parse_manifest(path):
     """The launcher's own manifest format: whitespace-separated `key value...`."""
     out = {}
