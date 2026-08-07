@@ -8,7 +8,7 @@ cell is aggregated fresh from the raw per-seed metric JSONs on disk — numbers
 never live in this script. Rows whose JSON count is below MIN_SEEDS are rendered
 as pending. To add a model: append a row spec, rerun, commit.
 """
-import json, glob, os, statistics as st, datetime
+import argparse, json, glob, os, statistics as st, sys, datetime
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT = os.path.join(REPO, "worklog", "worklog_yixun", "model_comparison.md")
@@ -59,20 +59,38 @@ EXP11_VALIDATOR = os.path.join(REPO, "worklog", "worklog_yixun", "exp_11_fa_orbi
                                "exp11_validate_rows.py")
 
 
+def repo_paths(repo_root=None):
+    """Resolve every path this generator touches against ONE explicit root.
+
+    Measurement now runs from pinned worktrees, so the cwd is routinely NOT the
+    main checkout. Globbing evidence relative to an ambient cwd would silently
+    find nothing (rendering published rows as *pending*) or, worse, find a
+    worktree's stale copy. Everything — evidence, validator, output — hangs off
+    this one root, which defaults to the main tree this file lives in."""
+    root = os.path.realpath(repo_root or REPO)
+    return {
+        "root": root,
+        "out": os.path.join(root, "worklog", "worklog_yixun", "model_comparison.md"),
+        "validator": os.path.join(root, "worklog", "worklog_yixun",
+                                  "exp_11_fa_orbit_claude", "exp11_validate_rows.py"),
+    }
+
+
 def is_exp11_row(patterns):
     """Does this row's evidence come from the exp_11 orbit sweep?"""
     return any("exp11_" in p for p in patterns)
 
 
-def _load_validator():
+def _load_validator(validator_path=None):
     import importlib.util
-    spec = importlib.util.spec_from_file_location("exp11_validate_rows", EXP11_VALIDATOR)
+    spec = importlib.util.spec_from_file_location("exp11_validate_rows",
+                                                  validator_path or EXP11_VALIDATOR)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
 
 
-def validate_exp11_cell(files, repo_root=None):
+def validate_exp11_cell(files, repo_root=None, validator_path=None):
     """Gate an exp_11 table cell (round-4 review B5).
 
     The validator used to be advisory: this script globbed raw JSONs and averaged
@@ -85,7 +103,10 @@ def validate_exp11_cell(files, repo_root=None):
     if not files:
         return True, []
     try:
-        V = _load_validator()
+        # NOTE: ``repo_root`` redirects where EVIDENCE is resolved; it does not
+        # decide which validator runs. main() passes an explicit validator_path
+        # for its root; everyone else gets this checkout's validator.
+        V = _load_validator(validator_path)
         if repo_root:                              # tests resolve the canonical arm
             V.REPO = repo_root                     # roots inside their fixture tree
             V.OUTPUT_ROOT_BASE = repo_root         # (outputs live under the main tree
@@ -130,9 +151,10 @@ EXP10_ENDPOINT_GLOBS = ["outputs_FLAC/exp10_BF/**/*exp10_BF67_K1_s4[2-6]*.json",
                         "outputs_FLAC/exp10_BF/**/*exp10_BF67_K8_s4[3-6]*.json"]
 
 
-def exp10_evidence_present():
+def exp10_evidence_present(repo_root=None):
     """Are the exp_10 endpoint JSONs back on this machine?"""
-    return all(glob.glob(os.path.join(REPO, g), recursive=True) for g in EXP10_ENDPOINT_GLOBS)
+    root = repo_paths(repo_root)["root"]
+    return all(glob.glob(os.path.join(root, g), recursive=True) for g in EXP10_ENDPOINT_GLOBS)
 
 
 def protocol_label(base, exp11, evidence_ready):
@@ -171,10 +193,11 @@ def build_header(evidence_ready):
     return head
 
 
-def render_row(label, proto, K, files, repo_root=None):
+def render_row(label, proto, K, files, repo_root=None, validator_path=None):
     """``(markdown_line, blocked)`` for one row, gating exp_11 evidence."""
     if is_exp11_row(files) or any("exp11_" in os.path.basename(f) for f in files):
-        ok, problems = validate_exp11_cell(files, repo_root=repo_root)
+        ok, problems = validate_exp11_cell(files, repo_root=repo_root,
+                                           validator_path=validator_path)
         if not ok:
             detail = problems[0] if problems else "unspecified"
             return (f"| {label} | {proto} | {K} | {len(files)} | "
@@ -212,11 +235,29 @@ def agg(patterns):
     n = len(files)
     return {k: (st.mean(v), st.stdev(v) if n > 1 else 0.0) for k, v in vals.items()}, n
 
-def main():
+def withheld_row(label, proto, K, n, why):
+    """A row deliberately not published (an incomplete two-K transaction)."""
+    return (f"| {label} | {proto} | {K} | {n} | **WITHHELD — {why}** | | | | | |")
+
+
+def main(argv=None):
     """Regenerate the table. Behind main() ON PURPOSE (round-4 re-review item 6):
     this module is imported by its tests, and at module scope the write below
     would rewrite model_comparison.md merely by running pytest — which would
     defeat the deliberate freeze while the exp_10 evidence is missing."""
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--repo-root", default=None,
+                    help="main-tree root for ALL evidence, the validator and the output "
+                         "(default: the tree this file lives in). Never the cwd: screens "
+                         "run from pinned worktrees.")
+    ap.add_argument("--allow-partial-exp11", action="store_true",
+                    help="write the table even when an exp_11 update covers only one K; the "
+                         "affected rows still render WITHHELD, never as numbers.")
+    args = ap.parse_args([] if argv is None else argv)
+    paths = repo_paths(args.repo_root)
+    root, out_path, validator = paths["root"], paths["out"], paths["validator"]
+
+    evidence_ready = exp10_evidence_present(root)
     lines = [
         "# Model comparison — cross-experiment results table",
         "",
@@ -226,39 +267,66 @@ def main():
         "mean ± std over eval seeds (target 5). Equivariant arms are evaluated under their own fa protocol "
         "(`--cond-method fa_invariant`); vanilla arms under vanilla eval. Single-seed screens never enter this table.",
         "",
-        "**Orbit execution (exp_11 disclosure).** `fa eval (legacy-loop)` rows were produced by the "
-        "per-angle frame-average loop; `fa eval (batched)` rows by the batched-orbit implementation, which "
-        "shares one train-mode RoPE draw per chunk and regroups the split's tail batch. The two are NOT "
-        "interchangeable: inference is reserved for the contemporaneous C4L bridge and the other exp_11 arms, "
-        "and legacy-loop rows are background, never a substitute for C4L. exp_11 rows are emitted only after "
-        "`exp11_validate_rows.py` passes the table contract for that cell; a cell that fails renders as "
-        "**BLOCKED**.",
+    ]
+    # The disclosure header (and, while the exp_10 evidence is away, the LABEL
+    # MIGRATION DEFERRED note) is built in exactly one place. It used to be
+    # duplicated inline here, so build_header() was dead code and the deferral
+    # note — the thing that tells a reader which rows are legacy-loop — never
+    # reached the generated file.
+    lines += build_header(evidence_ready)
+    lines += [
         "",
         "| Model | eval | K | n | T60 ↓ | C50 ↓ | EDT ↓ | R@1 ↑ | R@5 ↑ | R@10 ↑ |",
         "|---|---|---|---|---|---|---|---|---|---|",
     ]
-    evidence_ready = exp10_evidence_present()
-    blocked_rows, exp11_status = [], {}
+
+    rendered, blocked_rows, exp11_status = [], [], {}
     for label, proto, K, pats in ROWS:
-        files = sorted(set(sum((glob.glob(os.path.join(REPO, p), recursive=True) for p in pats), [])))
+        files = sorted(set(sum((glob.glob(os.path.join(root, p), recursive=True) for p in pats), [])))
         proto = protocol_label(proto, is_exp11_row(pats), evidence_ready)
-        line, blocked = render_row(label, proto, K, files)
-        lines.append(line)
+        line, blocked = render_row(label, proto, K, files, repo_root=root,
+                                   validator_path=validator)
+        rendered.append({"label": label, "proto": proto, "K": K, "n": len(files),
+                         "line": line, "exp11": is_exp11_row(pats)})
         if blocked:
             blocked_rows.append(f"{label} (K={K})")
         if is_exp11_row(pats) and files:
             exp11_status[(label, K)] = not blocked
+
+    # --- the two-K gate is TRANSACTIONAL, not advisory -----------------------
+    # An exp_11 label lands as a PAIR or not at all: a lone K=8 row invites a
+    # comparison against rows that carry both. On failure the affected label's
+    # rows are rewritten as WITHHELD (no number can leak) and the write is
+    # refused outright unless the operator explicitly accepts a partial table.
+    two_k = check_two_k_coverage(exp11_status)
+    if two_k:
+        bad_labels = {p.split(":")[0] for p in two_k}
+        for r in rendered:
+            if r["exp11"] and r["label"] in bad_labels:
+                r["line"] = withheld_row(r["label"], r["proto"], r["K"], r["n"],
+                                         "incomplete two-K update: this row publishes only "
+                                         "with its K=1 and K=8 partner")
+    lines += [r["line"] for r in rendered]
     lines += ["", "Provenance: row specs (glob patterns) live in `gen_model_comparison.py`; "
               "checkpoint paths and eval commands in each experiment's `_command.md`."]
     if blocked_rows:
         lines += ["", f"**{len(blocked_rows)} row(s) BLOCKED by row validation:** "
                   + ", ".join(blocked_rows) + ". Fix the evidence, not the table."]
-    two_k = check_two_k_coverage(exp11_status)
     if two_k:
         lines += ["", "**Incomplete exp_11 table update (both K required):** " + "; ".join(two_k)]
-    open(OUT, "w").write("\n".join(lines) + "\n")
-    print("wrote", OUT)
+        if not args.allow_partial_exp11:
+            print("ABORTED without writing — incomplete exp_11 update (both K required):",
+                  file=sys.stderr)
+            for problem in two_k:
+                print("  -", problem, file=sys.stderr)
+            print(f"  (nothing was written to {out_path}; land the missing K, or rerun with "
+                  "--allow-partial-exp11 to publish the affected rows as WITHHELD)",
+                  file=sys.stderr)
+            return 3
+    open(out_path, "w").write("\n".join(lines) + "\n")
+    print("wrote", out_path)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

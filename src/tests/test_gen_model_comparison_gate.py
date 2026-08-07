@@ -239,3 +239,96 @@ def test_deferred_migration_emits_a_loud_header_note():
     ready = "\n".join(G.build_header(evidence_ready=True))
     assert "DEFERRED" not in ready.upper()
 
+
+
+# --------------------------------------------------------------------------- #
+# 5. the three GO-check table residuals
+# --------------------------------------------------------------------------- #
+def _fake_main_tree(tmp_path, rows):
+    """A minimal MAIN tree: the generator's own file layout plus a row spec."""
+    root = tmp_path / "maintree"
+    (root / "worklog" / "worklog_yixun" / "exp_11_fa_orbit_claude").mkdir(parents=True)
+    (root / "worklog" / "worklog_yixun" / "model_comparison.md").write_text("PREVIOUS\n")
+    # the generator resolves its validator against the root as well
+    import shutil
+    shutil.copy(G.EXP11_VALIDATOR,
+                root / "worklog" / "worklog_yixun" / "exp_11_fa_orbit_claude"
+                     / "exp11_validate_rows.py")
+    return root
+
+
+def test_generator_resolves_everything_against_an_explicit_repo_root(tmp_path, monkeypatch):
+    """Residual 3: measurement runs from PINNED WORKTREES, so the cwd is routinely
+    not the main tree. Globbing evidence relative to an ambient cwd would render
+    published rows as *pending* (or read a worktree's stale copy)."""
+    root = _fake_main_tree(tmp_path, G.ROWS)
+    elsewhere = tmp_path / "a_pinned_worktree"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)                  # <- the whole point
+    paths = G.repo_paths(str(root))
+    assert paths["root"] == os.path.realpath(str(root))
+    assert paths["out"] == os.path.join(os.path.realpath(str(root)), "worklog",
+                                        "worklog_yixun", "model_comparison.md")
+    assert paths["validator"].startswith(os.path.realpath(str(root)))
+    rc = G.main(["--repo-root", str(root)])
+    assert rc == 0
+    written = (root / "worklog" / "worklog_yixun" / "model_comparison.md").read_text()
+    assert "Model comparison" in written, "the table was not written into the given root"
+    assert "PREVIOUS" not in written
+    # and nothing was written relative to the cwd
+    assert not (elsewhere / "worklog").exists(), "the generator wrote relative to the cwd"
+
+
+def test_generated_table_actually_carries_the_deferral_note(tmp_path, monkeypatch):
+    """Residual 2: build_header() existed but main() re-inlined its own header, so
+    the LABEL MIGRATION DEFERRED note — the only thing telling a reader which fa
+    rows are legacy-loop — never reached the file."""
+    root = _fake_main_tree(tmp_path, G.ROWS)
+    monkeypatch.setattr(G, "exp10_evidence_present", lambda *a, **k: False)
+    assert G.main(["--repo-root", str(root)]) == 0
+    written = (root / "worklog" / "worklog_yixun" / "model_comparison.md").read_text()
+    assert "LABEL MIGRATION DEFERRED" in written
+    for line in G.build_header(evidence_ready=False):
+        assert line.strip() == "" or line in written, f"header line missing: {line[:60]}"
+
+
+def test_two_k_gate_aborts_the_write_and_never_publishes_a_lone_k(tmp_path, monkeypatch):
+    """Residual 1: the two-K check was advisory — it appended a footnote while the
+    lone K row published its numbers anyway."""
+    root = _fake_main_tree(tmp_path, G.ROWS)
+    out = root / "worklog" / "worklog_yixun" / "model_comparison.md"
+    before = out.read_text()
+    # one exp_11 label, K=8 only
+    monkeypatch.setattr(G, "ROWS", [
+        ("C8 @40k", "fa eval", 8, ["outputs_FLAC/exp11_C8/**/*exp11_C8_conf_S40000*.json"]),
+    ])
+    monkeypatch.setattr(G, "render_row",
+                        lambda label, proto, K, files, **kw: (
+                            f"| {label} | {proto} | {K} | 5 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 |",
+                            False))
+    monkeypatch.setattr(G, "check_two_k_coverage",
+                        lambda status: ["C8 @40k: K=1 cell is absent — a table update must carry both K"])
+    rc = G.main(["--repo-root", str(root)])
+    assert rc != 0, "an incomplete two-K update must fail, not warn"
+    assert out.read_text() == before, "the table was rewritten during a failed transaction"
+    # with the explicit override the row still may not carry numbers
+    assert G.main(["--repo-root", str(root), "--allow-partial-exp11"]) == 0
+    written = out.read_text()
+    assert "WITHHELD" in written
+    assert "| C8 @40k | fa eval | 8 | 5 | 1.0 |" not in written
+
+
+def test_two_k_gate_lets_a_complete_pair_through(tmp_path, monkeypatch):
+    root = _fake_main_tree(tmp_path, G.ROWS)
+    monkeypatch.setattr(G, "ROWS", [
+        ("C8 @40k", "fa eval", 1, ["outputs_FLAC/exp11_C8/**/*K1*.json"]),
+        ("C8 @40k", "fa eval", 8, ["outputs_FLAC/exp11_C8/**/*K8*.json"]),
+    ])
+    monkeypatch.setattr(G, "render_row",
+                        lambda label, proto, K, files, **kw: (
+                            f"| {label} | {proto} | {K} | 5 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 |",
+                            False))
+    assert G.main(["--repo-root", str(root)]) == 0
+    written = (root / "worklog" / "worklog_yixun" / "model_comparison.md").read_text()
+    assert "WITHHELD" not in written
+    assert written.count("| C8 @40k | fa eval") == 2

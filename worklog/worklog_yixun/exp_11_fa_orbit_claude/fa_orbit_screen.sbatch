@@ -67,6 +67,22 @@ CODE_ROOT="$REPO"
 if [ -n "${MEASURE_ROOT:-}" ]; then
   [ -d "$MEASURE_ROOT" ] || { echo "MEASURE_ROOT '${MEASURE_ROOT}' is not a directory - abort"; exit 2; }
   [ -e "$MEASURE_ROOT/.git" ] || { echo "MEASURE_ROOT '${MEASURE_ROOT}' is not a git worktree - abort"; exit 2; }
+  # It must be a MANAGED, DETACHED worktree of THIS repository at the canonical
+  # location — not, say, the mutable main checkout passed in by hand.
+  WT_TOP="$(git -C "$MEASURE_ROOT" rev-parse --show-toplevel 2>/dev/null)"
+  WT_COMMON="$(git -C "$MEASURE_ROOT" rev-parse --git-common-dir 2>/dev/null)"
+  MAIN_COMMON="$(git -C "$MAIN_REPO" rev-parse --git-common-dir 2>/dev/null)"
+  [ -n "$WT_TOP" ] && [ "$(readlink -f "$WT_TOP")" = "$(readlink -f "$MEASURE_ROOT")" ] \
+    || { echo "MEASURE_ROOT is not the top level of its worktree ('${WT_TOP}') - abort"; exit 2; }
+  [ -n "$WT_COMMON" ] && [ "$(readlink -f "$WT_COMMON")" = "$(readlink -f "$MAIN_COMMON")" ] \
+    || { echo "MEASURE_ROOT belongs to another repository ('${WT_COMMON}') - abort"; exit 2; }
+  case "$(readlink -f "$MEASURE_ROOT")/" in
+    "$(readlink -f "$MAIN_REPO")/.measure_worktrees/"*) ;;
+    *) echo "MEASURE_ROOT is outside the managed .measure_worktrees/ area - abort"; exit 2 ;;
+  esac
+  if git -C "$MEASURE_ROOT" symbolic-ref -q HEAD >/dev/null 2>&1; then
+    echo "MEASURE_ROOT is on a BRANCH; a pinned measurement tree must be detached - abort"; exit 2
+  fi
   CODE_ROOT="$MEASURE_ROOT"
 elif [ -n "${SLURM_JOB_ID:-}" ]; then
   echo "MEASURE_ROOT is required for a real screen: prepare it with"
@@ -164,6 +180,36 @@ esac
 echo "=== exp_11 screen ${ARM} S${STEP} s${SEED} K${K} — ${TS} — host $(hostname) ==="
 echo "config ${MODEL_CONFIG} sha256 ${CONFIG_SHA} | orbit C${N_ANGLES} | eval-name ${EVAL_NAME}"
 
+# --- B2. lease: this job must hold one, and must give it back -----------------
+# The submitter writes .leases/<jobid> before sbatch returns and the pruner never
+# removes a leased tree (fa_orbit_measure_worktree.sh). A job that cannot find
+# its own lease is running in a tree nobody reserved for it: refuse, rather than
+# race a pruner that believes the tree is free.
+if [ -n "${MEASURE_ROOT:-}" ] && [ -n "${SLURM_JOB_ID:-}" ]; then
+  LEASE="${MEASURE_ROOT}/.leases/${SLURM_JOB_ID}"
+  [ -f "$LEASE" ] || die "no lease ${LEASE} for this job — the worktree was not reserved for it - abort"
+  grep -q "^jobid ${SLURM_JOB_ID}$" "$LEASE" || die "lease ${LEASE} does not name job ${SLURM_JOB_ID} - abort"
+  trap 'rm -f "$LEASE"' EXIT
+  echo "lease OK: ${LEASE}"
+fi
+
+# --- B3. the untracked runtime assets the eval resolves RELATIVELY ------------
+# A fresh worktree holds only TRACKED files, but the eval dataset config names
+# "AcousticRooms" and the arm configs name "weights/AGREE/AGREE_fullAR.pt", both
+# relative to the code root. Without them a pinned screen dies at startup, so
+# stat every one of them here rather than 20 minutes into a queue slot.
+for ASSET in AcousticRooms weights/AGREE/AGREE_fullAR.pt "$DATASET_CONFIG"; do
+  [ -e "$CODE_ROOT/$ASSET" ] \
+    || die "required runtime asset missing from the code root: ${CODE_ROOT}/${ASSET} — prepare the tree with fa_orbit_measure_worktree.sh - abort"
+done
+echo "runtime assets OK under ${CODE_ROOT} (AcousticRooms, weights/AGREE, ${DATASET_CONFIG})"
+
+# The ViT init is lineage-relevant at eval time too: same pin the probe gates on.
+python3 -c "
+import sys; sys.path.insert(0, '$EXPDIR')
+from fa_orbit_equiv_probe import assert_vit_pin
+assert_vit_pin(); print('DINOv3 cache pin OK')" || die "DINOv3 cache pin gate FAILED - abort"
+
 # --- C. commit binding + tracked drift ---------------------------------------
 # The binding is on the CODE ROOT (the pinned worktree when one is used), so a
 # main tree that keeps committing during the run is irrelevant (item 8).
@@ -227,10 +273,21 @@ fi
 # (re-review item 2).
 if [ "$ARM" != "C4BACKFILL" ]; then
   ARM_LAUNCH_MANIFEST="${OUTPUT_ROOT}/exp11_${ARM}/launch_manifest.txt"
+  # The COMMITTED registry is the only one a real run can use: FA_ORBIT_ARM_REGISTRY
+  # is honoured solely for a synthetic OUTPUT_ROOT, and a SLURM run has already
+  # been forced onto the production output root above — so this is a test seam,
+  # not a bypass.
+  ARM_REGISTRY="$EXPDIR/arm_launch_registry.json"
+  if [ -n "${FA_ORBIT_ARM_REGISTRY:-}" ]; then
+    [ "$OUTPUT_ROOT" != "$PRODUCTION_OUTPUT_ROOT" ] \
+      || die "FA_ORBIT_ARM_REGISTRY may not override the audited registry for the production output root - abort"
+    ARM_REGISTRY="$FA_ORBIT_ARM_REGISTRY"
+  fi
   [ -f "$ARM_LAUNCH_MANIFEST" ] || die "arm launch manifest missing: ${ARM_LAUNCH_MANIFEST} — a screen may only evaluate a checkpoint from a recorded launch - abort"
-  python3 - "$ARM_LAUNCH_MANIFEST" "$ARM" "$CKPT" "$CONFIG_SHA" "$CKPT_DIR" "$MAIN_REPO" <<'PY' || die "arm launch-manifest lineage gate FAILED - abort"
-import os, sys
-man_path, arm, ckpt, cfg_sha, ckpt_dir, main_repo = sys.argv[1:7]
+  [ -f "$ARM_REGISTRY" ] || die "audited arm launch registry missing: ${ARM_REGISTRY} - abort"
+  python3 - "$ARM_LAUNCH_MANIFEST" "$ARM" "$CKPT" "$CONFIG_SHA" "$CKPT_DIR" "$MAIN_REPO" "$ARM_REGISTRY" <<'PY' || die "arm launch-manifest lineage gate FAILED - abort"
+import hashlib, json, os, sys
+man_path, arm, ckpt, cfg_sha, ckpt_dir, main_repo, reg_path = sys.argv[1:8]
 man = {}
 for line in open(man_path):
     line = line.strip()
@@ -239,7 +296,36 @@ for line in open(man_path):
         man[k] = rest.strip()
 fields = ("arm " + man.get("arm", "")).split()
 kv = {fields[i]: fields[i + 1] for i in range(0, len(fields) - 1, 2)}
+jf = ("job " + man.get("job", "")).split()
+jkv = {jf[i]: jf[i + 1] for i in range(0, len(jf) - 1, 2)}
 bad = []
+# The manifest lives under gitignored outputs_FLAC and is MUTABLE: binding to
+# "whatever it says now" proves nothing, because anything that could forge a
+# checkpoint could forge its manifest too. Bind it to the COMMITTED, audited
+# registry — same bytes, and every launch fact re-checked field by field.
+reg = json.load(open(reg_path))["arms"].get(arm)
+if reg is None:
+    sys.exit(f"ARM LINEAGE GATE: {arm} is not in the audited launch registry {reg_path}")
+got_sha = hashlib.sha256(open(man_path, "rb").read()).hexdigest()
+if got_sha != reg["manifest_sha256"]:
+    bad.append(f"launch manifest sha256 {got_sha[:12]} != audited {reg['manifest_sha256'][:12]} — "
+               "the manifest changed after it was registered")
+for label, got_v, want_v in (("job", jkv.get("job"), reg["job"]),
+                             ("launch mode", jkv.get("mode"), reg["mode"]),
+                             ("launch_uuid", jkv.get("launch_uuid"), reg["launch_uuid"]),
+                             ("commit", man.get("commit"), reg["commit"]),
+                             ("rung", kv.get("rung"), reg["rung"]),
+                             ("max_steps", kv.get("max_steps"), reg["max_steps"]),
+                             ("config_sha256", man.get("config_sha256"), reg["config_sha256"]),
+                             ("vae_sha256", man.get("vae_sha256"), reg["vae_sha256"]),
+                             ("p0_manifest_sha256", man.get("p0_manifest_sha256"), reg["p0_manifest_sha256"]),
+                             ("save_dir", man.get("save_dir"), reg["save_dir"])):
+    if got_v != want_v:
+        bad.append(f"{label} {got_v!r} != registered {want_v!r}")
+if jkv.get("mode") != "INITIAL":
+    bad.append(f"launch mode {jkv.get('mode')!r} is not INITIAL (a restart is not a registered launch)")
+if int(reg.get("training_seed", -1)) != 42:
+    bad.append(f"registered training seed {reg.get('training_seed')!r} != 42")
 if kv.get("arm") != arm:
     bad.append(f"manifest arm {kv.get('arm')!r} != {arm!r}")
 if man.get("config_sha256") != cfg_sha:
@@ -260,9 +346,10 @@ else:
         bad.append(f"checkpoint {ckpt} does not live in the canonical run directory {canon}")
 if bad:
     sys.exit("ARM LINEAGE GATE: " + "; ".join(bad))
-print(f"arm lineage OK: {arm} bound to launch {man.get('job', '?')} "
-      f"(commit {man.get('commit', '?')[:12]}, rung {kv.get('rung')}, seed 42 recipe, "
-      f"config {cfg_sha[:12]})")
+print(f"arm lineage OK: {arm} bound to AUDITED launch job {reg['job']} ({reg['mode']}, uuid "
+      f"{reg['launch_uuid'][:8]}, commit {reg['commit'][:12]}, rung {reg['rung']}, "
+      f"max_steps {reg['max_steps']}, training seed {reg['training_seed']}); manifest "
+      f"{got_sha[:12]} as registered; config {cfg_sha[:12]}")
 PY
 fi
 
@@ -336,7 +423,11 @@ print(build_output_paths(sys.argv[1], 1, 1.0, sys.argv[2], cond_method="fa_invar
 PY
 )" || die "could not derive the metrics path - abort"
 [ -f "$METRICS" ] || die "metrics JSON not written: ${METRICS} - abort" 5
-python3 - "$METRICS" "$ARM" "$STEP" "$SEED" "$K" "$EVAL_NAME" "$MODEL_CONFIG" "$CONFIG_SHA" \
+# Recorded repo-RELATIVE: an absolute path into a pinned worktree becomes a
+# dangling reference the moment that (prunable) tree is removed.
+MODEL_CONFIG_REL="$(python3 -c "import os,sys; print(os.path.relpath(os.path.realpath(sys.argv[1]), sys.argv[2]))" "$MODEL_CONFIG" "$CODE_ROOT")" \
+  || die "could not make the model-config path repo-relative - abort"
+python3 - "$METRICS" "$ARM" "$STEP" "$SEED" "$K" "$EVAL_NAME" "$MODEL_CONFIG_REL" "$CONFIG_SHA" \
          "$DATASET_CONFIG" "$CKPT" "$CKPT_SHA" "$ANGLES" "$HEAD_SHA" <<'PY' || die "sidecar write FAILED - abort" 7
 import json, sys
 (metrics, arm, step, seed, k, eval_name, cfg, cfg_sha, ds, ckpt, ckpt_sha, angles, commit) = sys.argv[1:14]

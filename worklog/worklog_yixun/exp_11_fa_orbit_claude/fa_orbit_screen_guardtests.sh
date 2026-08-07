@@ -35,7 +35,7 @@ PASS=0; FAIL=0
 # WRONG (C4-labelled but C8-angled) config, a duplicate pair at 20000, and the
 # exp_07 backfill lineage @20000.
 $PY - "$OUT_ROOT" "$EXPDIR" <<'PY'
-import json, os, sys, torch
+import hashlib, json, os, sys, torch
 out, expdir = sys.argv[1], sys.argv[2]
 def ckpt(cfg, step, ema=True):
     sd = {"diffusion.model.a": torch.zeros(1)}
@@ -68,16 +68,60 @@ def manifest(arm, cfg_path):
     os.makedirs(d, exist_ok=True)
     sha = hashlib.sha256(open(cfg_path, "rb").read()).hexdigest()
     with open(os.path.join(d, "launch_manifest.txt"), "w") as fh:
+        fh.write(f"job 90000{JOBN[arm]} host synthetic mode INITIAL launch_uuid uuid-{arm}\n")
         fh.write(f"arm {arm} rung 8x8 micro 8 ngpu 8 max_steps 40000 ckpt_every 2500\n")
         fh.write("commit " + "0" * 40 + "\n")
+        fh.write(f"p0_manifest_sha256 {'a' * 64}\n")
         fh.write(f"config_sha256 {sha}\n")
+        fh.write(f"vae_sha256 {'b' * 64}\n")
         fh.write(f"save_dir {d}\n")
+    REG["arms"][arm] = {
+        "manifest_path": os.path.join(d, "launch_manifest.txt"),
+        "manifest_sha256": hashlib.sha256(
+            open(os.path.join(d, "launch_manifest.txt"), "rb").read()).hexdigest(),
+        "job": f"90000{JOBN[arm]}", "mode": "INITIAL", "launch_uuid": f"uuid-{arm}",
+        "commit": "0" * 40, "rung": "8x8", "micro": "8", "ngpu": "8",
+        "max_steps": "40000", "config_sha256": sha, "vae_sha256": "b" * 64,
+        "p0_manifest_sha256": "a" * 64, "save_dir": d, "training_seed": 42,
+    }
+JOBN = {"C4L": 1, "C8": 2, "C16": 3, "C32": 4}
+REG = {"arms": {}}
 manifest("C4L", os.path.join(expdir, "FLAC_AR_BF_C4L.json"))
 manifest("C16", os.path.join(expdir, "FLAC_AR_BF_C16.json"))
+with open(os.path.join(out, "arm_launch_registry.json"), "w") as fh:
+    json.dump(REG, fh, indent=2)
 print("synthetic checkpoints written")
 PY
 
-BASE=(DRYRUN=1 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}" "FA_ORBIT_REPO_OVERRIDE=$PWD")
+BASE=(DRYRUN=1 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}" "FA_ORBIT_REPO_OVERRIDE=$PWD"
+      "FA_ORBIT_ARM_REGISTRY=${OUT_ROOT}/arm_launch_registry.json")
+
+register_manifest() {  # <arm> — record the manifest as it stands, faithfully
+  $PY - "$1" "${OUT_ROOT}/exp11_$1/launch_manifest.txt" "${OUT_ROOT}/arm_launch_registry.json" <<'PY'
+import hashlib, json, sys
+arm, man_path, reg_path = sys.argv[1:4]
+raw = open(man_path, "rb").read()
+man = {}
+for line in raw.decode().splitlines():
+    line = line.strip()
+    if line and not line.startswith("#"):
+        k, _, rest = line.partition(" ")
+        man[k] = rest.strip()
+f = ("arm " + man.get("arm", "")).split(); kv = {f[i]: f[i+1] for i in range(0, len(f)-1, 2)}
+j = ("job " + man.get("job", "")).split(); jkv = {j[i]: j[i+1] for i in range(0, len(j)-1, 2)}
+reg = json.load(open(reg_path))
+reg["arms"][arm] = {
+    "manifest_path": man_path, "manifest_sha256": hashlib.sha256(raw).hexdigest(),
+    "job": jkv.get("job"), "mode": jkv.get("mode"), "launch_uuid": jkv.get("launch_uuid"),
+    "commit": man.get("commit"), "rung": kv.get("rung"), "micro": kv.get("micro"),
+    "ngpu": kv.get("ngpu"), "max_steps": kv.get("max_steps"),
+    "config_sha256": man.get("config_sha256"), "vae_sha256": man.get("vae_sha256"),
+    "p0_manifest_sha256": man.get("p0_manifest_sha256"), "save_dir": man.get("save_dir"),
+    "training_seed": 42,
+}
+json.dump(reg, open(reg_path, "w"), indent=2)
+PY
+}
 
 case_run() {  # <name> <want-rc> <want-substring> -- <env...>
   local name="$1" want_rc="$2" want_txt="$3"; shift 3; [ "$1" = "--" ] && shift
@@ -116,17 +160,21 @@ case_run "an arm ckpt with no launch manifest is refused" 2 "launch manifest mis
   -- "${BASE[@]}" ARM=C8 STEP=10000
 # ...and with a manifest whose config hash is another arm's, the lineage gate fires
 mkdir -p "${OUT_ROOT}/exp11_C8"
-{ echo "arm C8 rung 8x8 micro 8 ngpu 8 max_steps 40000 ckpt_every 2500"
-  echo "commit 0000000000000000000000000000000000000000"
-  echo "config_sha256 $($PY -c "import hashlib;print(hashlib.sha256(open('${EXPDIR}/FLAC_AR_BF_C4L.json','rb').read()).hexdigest())")"
-  echo "save_dir ${OUT_ROOT}/exp11_C8"; } > "${OUT_ROOT}/exp11_C8/launch_manifest.txt"
+write_c8_manifest() {  # $1 = which arm's config hash to record
+  { echo "job 900002 host synthetic mode INITIAL launch_uuid uuid-C8"
+    echo "arm C8 rung 8x8 micro 8 ngpu 8 max_steps 40000 ckpt_every 2500"
+    echo "commit 0000000000000000000000000000000000000000"
+    echo "p0_manifest_sha256 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    echo "config_sha256 $($PY -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "${EXPDIR}/FLAC_AR_BF_$1.json")"
+    echo "vae_sha256 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    echo "save_dir ${OUT_ROOT}/exp11_C8"; } > "${OUT_ROOT}/exp11_C8/launch_manifest.txt"
+  register_manifest C8            # audited AS WRITTEN: the field checks are the test
+}
+write_c8_manifest C4L
 case_run "a launch manifest for another config is refused" 2 "ARM LINEAGE GATE" \
   -- "${BASE[@]}" ARM=C8 STEP=10000
 # a correct manifest lets the same screen through
-{ echo "arm C8 rung 8x8 micro 8 ngpu 8 max_steps 40000 ckpt_every 2500"
-  echo "commit 0000000000000000000000000000000000000000"
-  echo "config_sha256 $($PY -c "import hashlib;print(hashlib.sha256(open('${EXPDIR}/FLAC_AR_BF_C8.json','rb').read()).hexdigest())")"
-  echo "save_dir ${OUT_ROOT}/exp11_C8"; } > "${OUT_ROOT}/exp11_C8/launch_manifest.txt"
+write_c8_manifest C8
 
 echo "--- D. valid screens reach the eval argv ---"
 case_run "C8 S10000 K8 default seed" 0 "exp11_C8_screen_S10000_s42_K8" -- "${BASE[@]}" ARM=C8 STEP=10000
@@ -201,7 +249,10 @@ WT="$(bash "${EXPDIR}/fa_orbit_measure_worktree.sh" 2>/dev/null | tail -1)"
 if [ -n "$WT" ] && [ -e "$WT/.git" ]; then
   WT_SHA="$(git -C "$WT" rev-parse HEAD)"
   echo "PASS  pinned worktree prepared at ${WT_SHA:0:12}"; PASS=$((PASS + 1))
-  # HEAD mismatch must abort even with a valid worktree
+  # HEAD mismatch must abort even with a valid worktree. This case is about the
+  # COMMIT gate, so give the simulated job a genuine lease first — otherwise the
+  # lease gate (which runs earlier, by design) is what we would be testing.
+  bash "${EXPDIR}/fa_orbit_measure_worktree.sh" --lease 999999 "$WT" >/dev/null 2>&1
   out="$(env ARM=C8 STEP=10000 EXPECT_SHA=0000000000000000000000000000000000000000 \
           SLURM_JOB_ID=999999 "MEASURE_ROOT=$WT" bash "$SCREEN" 2>&1)"; rc=$?
   if [ "$rc" -eq 2 ] && echo "$out" | grep -q "code-root HEAD"; then
@@ -226,6 +277,197 @@ if [ -n "$WT" ] && [ -e "$WT/.git" ]; then
     || { echo "FAIL  the commit gate still reads the ambient HEAD"; FAIL=$((FAIL + 1)); }
 else
   echo "FAIL  could not prepare a pinned worktree"; FAIL=$((FAIL + 1))
+fi
+
+
+# --- ASSETS: every untracked runtime input the eval resolves relatively ------
+# This is the crasher the GO check found: a fresh worktree has only TRACKED
+# files, so a pinned screen died at startup on the dataset symlink and weights.
+echo
+echo "--- assets + lease lifecycle (fa_orbit_measure_worktree.sh) ---"
+HELPER="${EXPDIR}/fa_orbit_measure_worktree.sh"
+if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
+  MISSING=""
+  for ASSET in AcousticRooms weights weights/AGREE/AGREE_fullAR.pt \
+               data/AR/unseen_eval.json \
+               src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json; do
+    [ -e "$WT/$ASSET" ] || MISSING="${MISSING} ${ASSET}"
+  done
+  if [ -z "$MISSING" ]; then
+    echo "PASS  every required runtime asset stats inside the worktree"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  missing from the worktree:${MISSING}"; FAIL=$((FAIL + 1))
+  fi
+  # and they must point where the MAIN tree points, not somewhere plausible
+  if [ "$(readlink -f "$WT/AcousticRooms")" = "$(readlink -f "${MAIN_TREE}/AcousticRooms")" ] \
+     && [ "$(readlink -f "$WT/weights")" = "$(readlink -f "${MAIN_TREE}/weights")" ]; then
+    echo "PASS  worktree assets resolve to the same targets as the main tree"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  worktree assets resolve elsewhere than the main tree"; FAIL=$((FAIL + 1))
+  fi
+  # the screen must REFUSE a code root without them rather than crash in eval
+  FAKE="${TMP}/fakeroot"; mkdir -p "$FAKE"
+  out="$(env DRYRUN=1 ARM=C8 STEP=10000 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=$OUT_ROOT" \
+         "FA_ORBIT_REPO_OVERRIDE=$FAKE" bash "$SCREEN" 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "PASS  a code root without the runtime assets is refused (rc=${rc})"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a code root without the runtime assets was accepted"; FAIL=$((FAIL + 1))
+  fi
+  grep -q 'required runtime asset missing from the code root' "$SCREEN" \
+    && { echo "PASS  the screen carries an explicit asset gate"; PASS=$((PASS + 1)); } \
+    || { echo "FAIL  the screen has no asset gate"; FAIL=$((FAIL + 1)); }
+
+  # --- LEASES ---------------------------------------------------------------
+  # (a) a leased worktree is never pruned
+  bash "$HELPER" --lease pending-guard "$WT" >/dev/null 2>&1
+  bash "$HELPER" --prune >/dev/null 2>&1
+  if [ -d "$WT" ] && [ -f "$WT/.leases/pending-guard" ]; then
+    echo "PASS  pruning skips a LEASED worktree"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  pruning removed a leased worktree"; FAIL=$((FAIL + 1))
+  fi
+  # (b) a lease naming a job Slurm no longer knows is stale -> collectable
+  DEADJOB=999999999
+  bash "$HELPER" --lease "$DEADJOB" "$WT" >/dev/null 2>&1
+  bash "$HELPER" --prune >/dev/null 2>&1
+  if [ ! -f "$WT/.leases/$DEADJOB" ]; then
+    echo "PASS  a stale lease (job gone from squeue) is reaped"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a stale lease survived a prune sweep"; FAIL=$((FAIL + 1))
+  fi
+  # (c) concurrent helper calls for the SAME sha are idempotent (one worktree).
+  # Wait on the helper PIDs EXPLICITLY: a bare `wait` here also waits on this
+  # script's own `tee` process substitution, which never exits.
+  RACE_PIDS=()
+  for _ in 1 2 3; do bash "$HELPER" >/dev/null 2>&1 & RACE_PIDS+=("$!"); done
+  for pid in "${RACE_PIDS[@]}"; do wait "$pid"; done
+  N="$(ls -1d "${MAIN_TREE}/.measure_worktrees/${WT_SHA}" 2>/dev/null | wc -l)"
+  SAME="$(bash "$HELPER" 2>/dev/null | tail -1)"
+  if [ "$N" -eq 1 ] && [ "$SAME" = "$WT" ]; then
+    echo "PASS  concurrent same-SHA calls are idempotent (one tree, same path)"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  concurrent same-SHA calls raced (n=${N}, path='${SAME}')"; FAIL=$((FAIL + 1))
+  fi
+  # (d) the tree currently being handed out is never swept
+  bash "$HELPER" --release pending-guard "$WT" >/dev/null 2>&1
+  KEPT="$(bash "$HELPER" 2>/dev/null | tail -1)"
+  if [ -d "$KEPT" ]; then
+    echo "PASS  the helper never prunes the worktree it is returning"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  the helper pruned the tree it just returned"; FAIL=$((FAIL + 1))
+  fi
+  # (e) a real (SLURM) run without its own lease must abort
+  bash "$HELPER" --release pending-guard "$WT" >/dev/null 2>&1
+  out="$(env ARM=C8 STEP=10000 "EXPECT_SHA=${WT_SHA}" "MEASURE_ROOT=$WT" SLURM_JOB_ID=424242 \
+         bash "$SCREEN" 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "no lease"; then
+    echo "PASS  a job without its own lease refuses to run"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a job ran in a tree nobody leased for it (rc=${rc})"; FAIL=$((FAIL + 1))
+  fi
+  # (f) a lease naming ANOTHER job is not this job's lease
+  mkdir -p "$WT/.leases"; printf 'jobid 111\n' > "$WT/.leases/424242"
+  out="$(env ARM=C8 STEP=10000 "EXPECT_SHA=${WT_SHA}" "MEASURE_ROOT=$WT" SLURM_JOB_ID=424242 \
+         bash "$SCREEN" 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "does not name job 424242"; then
+    echo "PASS  a lease naming another job is rejected"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a mismatched lease was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
+  fi
+  rm -f "$WT/.leases/424242"
+  grep -q "trap 'rm -f \"\$LEASE\"' EXIT" "$SCREEN" \
+    && { echo "PASS  the screen releases its lease on exit (trap)"; PASS=$((PASS + 1)); } \
+    || { echo "FAIL  the screen never gives its lease back"; FAIL=$((FAIL + 1)); }
+  grep -q "KEEP=3\|newest" "$HELPER" \
+    && { echo "FAIL  fixed-count pruning is still present"; FAIL=$((FAIL + 1)); } \
+    || { echo "PASS  fixed-count pruning is gone (leases only)"; PASS=$((PASS + 1)); }
+  # the submitter must lease BEFORE sbatch, and promote after
+  SUB="${EXPDIR}/fa_orbit_screen_submit.sh"
+  if [ -f "$SUB" ] && [ "$(grep -n -- '--lease' "$SUB" | head -1 | cut -d: -f1)" -lt \
+                        "$(grep -n 'sbatch --parsable' "$SUB" | head -1 | cut -d: -f1)" ] \
+     && grep -q -- '--promote' "$SUB"; then
+    echo "PASS  the submitter leases before sbatch and promotes after"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  the submitter does not lease before sbatch"; FAIL=$((FAIL + 1))
+  fi
+else
+  echo "FAIL  no worktree available for the asset/lease cases"; FAIL=$((FAIL + 1))
+fi
+
+# --- MEASURE_ROOT identity ---------------------------------------------------
+echo
+echo "--- MEASURE_ROOT identity ---"
+out="$(env DRYRUN=1 ARM=C8 STEP=10000 "EXPECT_SHA=${HEAD_SHA}" "MEASURE_ROOT=$MAIN_TREE" \
+       "OUTPUT_ROOT=$OUT_ROOT" bash "$SCREEN" 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "outside the managed .measure_worktrees/ area\|on a BRANCH"; then
+  echo "PASS  the mutable MAIN tree is refused as a MEASURE_ROOT (rc=${rc})"; PASS=$((PASS + 1))
+else
+  echo "FAIL  the main checkout was accepted as a pinned measurement root (rc=${rc})"; FAIL=$((FAIL + 1))
+fi
+
+# --- ARM LAUNCH REGISTRY (immutable binding) ---------------------------------
+echo
+echo "--- arm launch registry binding ---"
+REG="${EXPDIR}/arm_launch_registry.json"
+if [ -f "$REG" ]; then
+  echo "PASS  the audited arm launch registry is committed"; PASS=$((PASS + 1))
+  if $PY - "$REG" <<'PY'
+import json, sys
+reg = json.load(open(sys.argv[1]))
+arms = reg["arms"]
+assert set(arms) == {"C4L", "C8", "C16", "C32"}, sorted(arms)
+for a, v in arms.items():
+    for f in ("manifest_sha256", "job", "mode", "launch_uuid", "commit", "rung",
+              "max_steps", "config_sha256", "vae_sha256", "p0_manifest_sha256", "save_dir"):
+        assert v.get(f), f"{a}.{f} is empty"
+    assert v["mode"] == "INITIAL", (a, v["mode"])
+    assert len(v["manifest_sha256"]) == 64
+    assert int(v["training_seed"]) == 42
+PY
+  then echo "PASS  every arm is registered INITIAL, seed 42, with hashes"; PASS=$((PASS + 1))
+  else echo "FAIL  the registry is incomplete"; FAIL=$((FAIL + 1))
+  fi
+  # a TAMPERED manifest must be caught: same fields, different bytes
+  # tamper with the (synthetic) manifest AFTER it was registered: same fields,
+  # different bytes — only the sha256 binding can catch this
+  MAN="${OUT_ROOT}/exp11_C8/launch_manifest.txt"
+  cp "$MAN" "${TMP}/manifest.bak"
+  printf '# appended after registration by a guard test\n' >> "$MAN"
+  out="$(env "${BASE[@]}" ARM=C8 STEP=10000 bash "$SCREEN" 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "changed after it was registered"; then
+    echo "PASS  a launch manifest edited after registration is rejected"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a tampered launch manifest passed the gate (rc=${rc})"
+    echo "$out" | tail -3 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+  fi
+  cp "${TMP}/manifest.bak" "$MAN"
+  # ...and a RESTART launch (mode != INITIAL) is not a registered launch
+  sed -i 's/mode INITIAL/mode RESTART/' "$MAN"
+  $PY - "$MAN" "${OUT_ROOT}/arm_launch_registry.json" <<'PY'
+import hashlib, json, sys                      # re-register the tampered bytes so
+reg = json.load(open(sys.argv[2]))             # ONLY the mode differs
+reg["arms"]["C8"]["manifest_sha256"] = hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest()
+json.dump(reg, open(sys.argv[2], "w"), indent=2)
+PY
+  out="$(env "${BASE[@]}" ARM=C8 STEP=10000 bash "$SCREEN" 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "is not INITIAL"; then
+    echo "PASS  a RESTART launch is refused as a screen lineage"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a non-INITIAL launch was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
+  fi
+  cp "${TMP}/manifest.bak" "$MAN"
+  grep -q 'reg\["manifest_sha256"\]' "$SCREEN" \
+    && { echo "PASS  the screen binds the manifest by sha256, not by content alone"; PASS=$((PASS + 1)); } \
+    || { echo "FAIL  the screen still trusts the mutable manifest"; FAIL=$((FAIL + 1)); }
+  grep -q 'launch mode {jkv.get' "$SCREEN" \
+    && { echo "PASS  the screen parses and enforces mode INITIAL"; PASS=$((PASS + 1)); } \
+    || { echo "FAIL  INITIAL mode is not enforced"; FAIL=$((FAIL + 1)); }
+  grep -q 'seed 42 recipe' "$SCREEN" \
+    && { echo "FAIL  the seed is still only PRINTED, not checked"; FAIL=$((FAIL + 1)); } \
+    || { echo "PASS  the seed claim is verified against the registry, not printed"; PASS=$((PASS + 1)); }
+else
+  echo "FAIL  no arm launch registry"; FAIL=$((FAIL + 1))
 fi
 
 echo

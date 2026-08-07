@@ -1,0 +1,83 @@
+{
+  "_comment": [
+    "AUDITED exp_11 arm launch registry (final GO-check item 4 / review (b)).",
+    "The launch manifests live under gitignored outputs_FLAC and are therefore",
+    "MUTABLE evidence: binding a screen to 'whatever the manifest says now' proves",
+    "nothing. This committed registry pins each arm's manifest by sha256 plus the",
+    "launch facts a screen must re-check (job, INITIAL mode, launch uuid, commit,",
+    "rung, config/VAE/P0 hashes, canonical save-dir, training seed).",
+    "Recorded from the live manifests of the four running arms (jobs 3648694-97)."
+  ],
+  "recorded_at": "2026-08-07",
+  "training_seed": 42,
+  "arms": {
+    "C4L": {
+      "manifest_path": "outputs_FLAC/exp11_C4L/launch_manifest.txt",
+      "manifest_sha256": "d49df42d2f7f9c3f39f1aeb6631da84ef0e0a392c22a8271edadbd83885e814a",
+      "job": "3648694",
+      "mode": "INITIAL",
+      "launch_uuid": "ceb40a63-6ce3-4d38-a2b8-d6c21f1b8cc7",
+      "commit": "2b78f995a6d377676bd9d9fb60635ab90032b52d",
+      "rung": "8x8",
+      "micro": "8",
+      "ngpu": "8",
+      "max_steps": "40000",
+      "config_sha256": "3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328",
+      "vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9",
+      "p0_manifest_sha256": "72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b",
+      "save_dir": "outputs_FLAC/exp11_C4L",
+      "training_seed": 42
+    },
+    "C8": {
+      "manifest_path": "outputs_FLAC/exp11_C8/launch_manifest.txt",
+      "manifest_sha256": "fa1037c300fa3f1100667634864653690049271bd4e2815e419fb205c9068388",
+      "job": "3648695",
+      "mode": "INITIAL",
+      "launch_uuid": "1009ec7f-e5e2-443d-881e-57ae15525676",
+      "commit": "2b78f995a6d377676bd9d9fb60635ab90032b52d",
+      "rung": "8x8",
+      "micro": "8",
+      "ngpu": "8",
+      "max_steps": "40000",
+      "config_sha256": "af4c2f21c2d03bc51448a3c161878443a8e9afd1314695530baf4032e808b3f1",
+      "vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9",
+      "p0_manifest_sha256": "72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b",
+      "save_dir": "outputs_FLAC/exp11_C8",
+      "training_seed": 42
+    },
+    "C16": {
+      "manifest_path": "outputs_FLAC/exp11_C16/launch_manifest.txt",
+      "manifest_sha256": "deb07b532fea037d9354b5c635e9ad6a80ad8c022dabdc6dbe0a879a27be3979",
+      "job": "3648696",
+      "mode": "INITIAL",
+      "launch_uuid": "87e0d920-a64f-46f4-a085-2807ebf0f13c",
+      "commit": "2b78f995a6d377676bd9d9fb60635ab90032b52d",
+      "rung": "8x8",
+      "micro": "8",
+      "ngpu": "8",
+      "max_steps": "40000",
+      "config_sha256": "5d8b5c4390dd0e87685bba6ed06566fabe2e1ce5074cce3f6a1f38c442829a80",
+      "vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9",
+      "p0_manifest_sha256": "72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b",
+      "save_dir": "outputs_FLAC/exp11_C16",
+      "training_seed": 42
+    },
+    "C32": {
+      "manifest_path": "outputs_FLAC/exp11_C32/launch_manifest.txt",
+      "manifest_sha256": "b2d08bc0f27583bd78845e281380906b7f05a737444525f4e32cafa5106b395e",
+      "job": "3648697",
+      "mode": "INITIAL",
+      "launch_uuid": "64c9d2e0-88b7-4730-b36d-e6320274b1e2",
+      "commit": "2b78f995a6d377676bd9d9fb60635ab90032b52d",
+      "rung": "8x8",
+      "micro": "8",
+      "ngpu": "8",
+      "max_steps": "40000",
+      "config_sha256": "8584498e8e3b5d7014e61bc4c48ef71ca62139cdc9f2f30de031cae8da34abdf",
+      "vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9",
+      "p0_manifest_sha256": "72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b",
+      "save_dir": "outputs_FLAC/exp11_C32",
+      "training_seed": 42
+    }
+  }
+}
