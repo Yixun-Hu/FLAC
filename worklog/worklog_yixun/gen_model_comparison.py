@@ -18,6 +18,21 @@ MIN_SEEDS = 5
 
 # (model label, eval-protocol note, K, [glob patterns relative to repo root])
 ROWS = [
+ # --- neuronic line (2026-08-07): exp_02 P1 verification + exp_03 max_mlp ablation;
+ # raws imported under outputs_FLAC/{exp02_neuronic_import,exp03n_maxpoolmlp_import}
+ # (sha256 manifest in exp02_neuronic_import/IMPORT_SHA256SUMS.txt) ---
+ ("P1 @87.5k re-eval (neuronic, original ckpt)", "vanilla eval", 1, ["outputs_FLAC/exp02_neuronic_import/*orig87500_K1_s4[2-6].json"]),
+ ("P1 @87.5k re-eval (neuronic, original ckpt)", "vanilla eval", 8, ["outputs_FLAC/exp02_neuronic_import/*orig87500_K8_s4[2-6].json"]),
+ ("P1 rerun @87.5k (neuronic from-scratch)", "vanilla eval", 1, ["outputs_FLAC/exp02_neuronic_import/*new87500_K1_s4[2-6].json"]),
+ ("P1 rerun @87.5k (neuronic from-scratch)", "vanilla eval", 8, ["outputs_FLAC/exp02_neuronic_import/*new87500_K8_s4[2-6].json"]),
+ ("cyl no-SSL max_mlp @40k (exp_03 neuronic)", "fa eval, online", 1, ["outputs_FLAC/exp03n_maxpoolmlp_import/*exp03n_40000_online_K1_s4[2-6].json"]),
+ ("cyl no-SSL max_mlp @40k (exp_03 neuronic)", "fa eval, online", 8, ["outputs_FLAC/exp03n_maxpoolmlp_import/*exp03n_40000_online_K8_s4[2-6].json"]),
+ ("cyl no-SSL max_mlp @40k (exp_03 neuronic)", "fa eval, EMA", 1, ["outputs_FLAC/exp03n_maxpoolmlp_import/*exp03n_40000_ema_K1_s4[2-6].json"]),
+ ("cyl no-SSL max_mlp @40k (exp_03 neuronic)", "fa eval, EMA", 8, ["outputs_FLAC/exp03n_maxpoolmlp_import/*exp03n_40000_ema_K8_s4[2-6].json"]),
+ ("cyl no-SSL max_mlp @67.5k (exp_03 neuronic)", "fa eval, online", 1, ["outputs_FLAC/exp03n_maxpoolmlp_import/*exp03n_67500_online_K1_s4[2-6].json"]),
+ ("cyl no-SSL max_mlp @67.5k (exp_03 neuronic)", "fa eval, online", 8, ["outputs_FLAC/exp03n_maxpoolmlp_import/*exp03n_67500_online_K8_s4[2-6].json"]),
+ ("cyl no-SSL max_mlp @67.5k (exp_03 neuronic)", "fa eval, EMA", 1, ["outputs_FLAC/exp03n_maxpoolmlp_import/*exp03n_67500_ema_K1_s4[2-6].json"]),
+ ("cyl no-SSL max_mlp @67.5k (exp_03 neuronic)", "fa eval, EMA", 8, ["outputs_FLAC/exp03n_maxpoolmlp_import/*exp03n_67500_ema_K8_s4[2-6].json"]),
  ("released FLAC_EMA (exp_01 repro)", "vanilla eval", 1, ["weights/FLAC/FLAC_EMA_metrics_1_1.0_exp01_unseen_K1_seed4[2-6].json"]),
  ("released FLAC_EMA (exp_01 repro)", "vanilla eval", 8, ["weights/FLAC/FLAC_EMA_metrics_1_1.0_exp01_unseen_K8_seed4[2-6].json"]),
  ("B-V 8x8 vanilla @40k", "vanilla eval", 1, ["outputs_FLAC/exp07_BV/*exp07_BV40_K1_s4[2-6]*.json"]),
