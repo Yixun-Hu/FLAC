@@ -36,15 +36,18 @@ PASS=0; FAIL=0
 $PY - "$OUT_ROOT" "$EXPDIR" <<'PY'
 import json, os, sys, torch
 out, expdir = sys.argv[1], sys.argv[2]
-def ckpt(cfg, step):
+def ckpt(cfg, step, ema=True):
+    sd = {"diffusion.model.a": torch.zeros(1)}
+    if ema:                      # what eval_FLAC actually looks for
+        sd["diffusion_ema.ema_model.model.a"] = torch.zeros(1)
     return {"global_step": step, "epoch": step // 4550, "model_config": cfg,
-            "state_dict": {"diffusion_ema.x": torch.zeros(1)},
+            "state_dict": sd,
             "optimizer_states": [{"state": {0: {"step": 1}}, "param_groups": [{"lr": 1e-5}]}],
             "lr_schedulers": [{"last_epoch": step}]}
-def write(root, name, exp, cfg, step, epoch=2):
+def write(root, name, exp, cfg, step, epoch=2, ema=True):
     d = os.path.join(out, root, f"FLAC_{exp}", exp, "checkpoints")
     os.makedirs(d, exist_ok=True)
-    torch.save(ckpt(cfg, step), os.path.join(d, f"epoch={epoch}-step={step}.ckpt"))
+    torch.save(ckpt(cfg, step, ema), os.path.join(d, f"epoch={epoch}-step={step}.ckpt"))
 c8 = json.load(open(os.path.join(expdir, "FLAC_AR_BF_C8.json")))
 c4l = json.load(open(os.path.join(expdir, "FLAC_AR_BF_C4L.json")))
 bf = json.load(open("worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json"))
@@ -53,6 +56,8 @@ write("exp11_C8", "C8", "exp11_C8", c8, 12500)
 write("exp11_C8", "C8", "exp11_C8", c8, 20000)            # duplicate pair below
 write("exp11_C8", "C8", "exp11_C8", c8, 20000, epoch=3)
 write("exp11_C4L", "C4L", "exp11_C4L", c8, 10000)          # WRONG: C8 config under C4L
+write("exp11_C16", "C16", "exp11_C16", json.load(open(os.path.join(expdir, "FLAC_AR_BF_C16.json"))),
+      15000, ema=False)                                    # no EMA weights at all
 write("exp07_BF", "BF", "exp07_BF", bf, 20000)
 print("synthetic checkpoints written")
 PY
@@ -79,7 +84,8 @@ case_run "unknown arm"          2 "not screenable" -- "${BASE[@]}" ARM=VAN STEP=
 case_run "FA1 is not screenable" 2 "not screenable" -- "${BASE[@]}" ARM=FA1 STEP=10000
 case_run "non-numeric STEP"     2 "STEP"         -- "${BASE[@]}" ARM=C8 STEP=lots
 case_run "bad K"                2 "K"            -- "${BASE[@]}" ARM=C8 STEP=10000 K=4
-case_run "backfill step must be 10k/20k/30k" 2 "backfill covers steps" -- "${BASE[@]}" ARM=C4BACKFILL STEP=12500
+case_run "backfill rejects unregistered steps" 2 "registered at steps 20000/30000" -- "${BASE[@]}" ARM=C4BACKFILL STEP=12500
+case_run "backfill 10k is not a registered gate" 2 "registered at steps 20000/30000" -- "${BASE[@]}" ARM=C4BACKFILL STEP=10000
 
 echo "--- B. checkpoint discovery ---"
 case_run "no ckpt at that step"  2 "exactly 1 checkpoint" -- "${BASE[@]}" ARM=C8 STEP=99000
@@ -88,16 +94,45 @@ case_run "missing arm tree"      2 "exactly 1 checkpoint" -- "${BASE[@]}" ARM=C3
 
 echo "--- C. the ckpt/arm identity gate ---"
 case_run "C4L tree holding a C8 ckpt is rejected" 2 "CKPT/ARM GATE" -- "${BASE[@]}" ARM=C4L STEP=10000
+case_run "a checkpoint without EMA weights is rejected" 2 "no diffusion_ema.ema_model" \
+  -- "${BASE[@]}" ARM=C16 STEP=15000
 
 echo "--- D. valid screens reach the eval argv ---"
 case_run "C8 S10000 K8 default seed" 0 "exp11_C8_screen_S10000_s42_K8" -- "${BASE[@]}" ARM=C8 STEP=10000
-case_run "C8 S12500 seed 43"         0 "exp11_C8_screen_S12500_s43_K8" -- "${BASE[@]}" ARM=C8 STEP=12500 SEED=43
-case_run "K=1 uses the _1 split"     0 "acousticroom_unseeneval_1.json" -- "${BASE[@]}" ARM=C8 STEP=10000 K=1
+case_run "screen contract: seed 43 refused"  2 "seed 42 by contract" -- "${BASE[@]}" ARM=C8 STEP=12500 SEED=43
+case_run "screen contract: K=1 refused"      2 "K=8 by contract"     -- "${BASE[@]}" ARM=C8 STEP=10000 K=1
+case_run "conf cell admits seed 43"          0 "exp11_C8_conf_S12500_s43_K8" -- "${BASE[@]}" ARM=C8 STEP=12500 SEED=43 CELL=conf
+case_run "conf cell admits K=1"              0 "exp11_C8_conf_S10000_s42_K1" -- "${BASE[@]}" ARM=C8 STEP=10000 K=1 CELL=conf
+case_run "conf cell refuses seed 47"         2 "seeds 42-46"          -- "${BASE[@]}" ARM=C8 STEP=10000 SEED=47 CELL=conf
+case_run "backfill must stay a screen cell"  2 "futility-gate comparator" -- "${BASE[@]}" ARM=C4BACKFILL STEP=20000 CELL=conf
+case_run "K=1 uses the _1 split"     0 "acousticroom_unseeneval_1.json" -- "${BASE[@]}" ARM=C8 STEP=10000 K=1 CELL=conf
 case_run "K=8 uses the full split"   0 "acousticroom_unseeneval.json"   -- "${BASE[@]}" ARM=C8 STEP=10000
 case_run "C8 carries its 8-angle orbit" 0 "0.0,45.0,90.0,135.0,180.0,225.0,270.0,315.0" -- "${BASE[@]}" ARM=C8 STEP=10000
 case_run "protocol flags are pinned" 0 "--cond-autocast bf16 --cfg-scale 1.0 --steps 1" -- "${BASE[@]}" ARM=C8 STEP=10000
-case_run "backfill maps to exp_07"   0 "exp11_C4backfill_S20000_s42_K8" -- "${BASE[@]}" ARM=C4BACKFILL STEP=20000
-case_run "backfill uses the exp_07 config" 0 "exp_07_fa_scratch_claude/FLAC_AR_BF.json" -- "${BASE[@]}" ARM=C4BACKFILL STEP=20000
+# The backfill checkpoint is bound to the AUDITED manifest (path + sha256), so a
+# synthetic stand-in in the temp root must be refused; the positive path is
+# exercised against the real audited checkpoint below.
+case_run "a non-audited backfill ckpt is refused" 2 "audited" -- "${BASE[@]}" ARM=C4BACKFILL STEP=20000
+if [ "${GUARD_REAL_BACKFILL:-0}" = "1" ]; then
+  case_run "the audited backfill ckpt is accepted" 0 "exp11_C4backfill_S20000_s42_K8" \
+    -- DRYRUN=1 "EXPECT_SHA=${HEAD_SHA}" "FA_ORBIT_REPO_OVERRIDE=$PWD" ARM=C4BACKFILL STEP=20000
+else
+  echo "SKIP  the audited-backfill positive case (GUARD_REAL_BACKFILL=1 to hash the real 724 MB ckpt)"
+fi
+if $PY -c "
+import json,os,hashlib,sys
+m=json.load(open('${EXPDIR}/c4_backfill_manifest.json'))
+assert sorted(m['checkpoints'])==['20000','30000'], sorted(m['checkpoints'])
+assert m['training_seed']==42
+for s,e in m['checkpoints'].items():
+    assert len(e['sha256'])==64 and os.path.isfile(e['path']), (s,e['path'])
+assert hashlib.sha256(open(m['model_config'],'rb').read()).hexdigest()==m['model_config_sha256']
+" 2>/dev/null; then
+  echo "PASS  the audited backfill manifest is well-formed (20k/30k, seed 42, live paths, config hash)"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL  the audited backfill manifest is malformed or its files are missing"; FAIL=$((FAIL + 1))
+fi
 
 echo "--- E. real-mode gates ---"
 case_run "wrong EXPECT_SHA aborts" 2 "EXPECT_SHA" \

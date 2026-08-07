@@ -1,0 +1,31 @@
+{
+  "_comment": [
+    "AUDITED exp_07 B-F backfill manifest (exp_11 plan \u00a73/\u00a75, round-4 review B6).",
+    "The futility gates compare each arm's screens against the exp_07 B-F lineage",
+    "re-evaluated under the CURRENT batched fa protocol; these are the only",
+    "checkpoints admissible for that comparison. Steps 20k and 30k are the",
+    "pre-registered gates -- 10k is deliberately absent (round-4 NIT 2).",
+    "Recorded from the files on disk; the screen driver recomputes and compares."
+  ],
+  "lineage": "exp_07 B-F (fa_invariant C4, from scratch, seed 42)",
+  "training_seed": 42,
+  "model_config": "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json",
+  "model_config_sha256": "3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328",
+  "run_dir": "outputs_FLAC/exp07_BF/FLAC_exp07_BF/exp07_BF",
+  "recorded_at": "2026-08-07",
+  "recorded_by": "exp_11 round-4 fixes (Coder), verified by sha256sum on the files",
+  "checkpoints": {
+    "20000": {
+      "path": "outputs_FLAC/exp07_BF/FLAC_exp07_BF/exp07_BF/checkpoints/epoch=4-step=20000.ckpt",
+      "sha256": "2a288c3109b80ff03dd7e9105dfbd0710ed48882c275aefc52ee0ff891548a0b",
+      "bytes": 723922667,
+      "mtime": 1784616003.773404
+    },
+    "30000": {
+      "path": "outputs_FLAC/exp07_BF/FLAC_exp07_BF/exp07_BF/checkpoints/epoch=6-step=30000.ckpt",
+      "sha256": "cd9065a4454f7feefdf3d1bafd2900e43c7470acc467448ab4bc9632fca8fb2f",
+      "bytes": 723922667,
+      "mtime": 1784715379.7698681
+    }
+  }
+}

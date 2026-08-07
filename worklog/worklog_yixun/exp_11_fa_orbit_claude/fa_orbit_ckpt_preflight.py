@@ -54,6 +54,17 @@ def load_ckpt_config(path):
     return cfg, ck.get("global_step")
 
 
+def load_ckpt_state_keys(path):
+    """The checkpoint's state_dict KEYS (used to prove EMA weights exist before a
+    screen spends a GPU: eval_FLAC silently evaluates online weights when the EMA
+    entries are absent)."""
+    import torch
+    ck = torch.load(path, map_location="cpu", weights_only=False)
+    if not isinstance(ck, dict):
+        raise RuntimeError(f"not a Lightning checkpoint: {path}")
+    return list((ck.get("state_dict") or {}).keys())
+
+
 def parse_manifest(path):
     """The launcher's own manifest format: whitespace-separated `key value...`."""
     out = {}
