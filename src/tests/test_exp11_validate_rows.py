@@ -457,4 +457,3 @@ def test_cell_rejects_two_different_checkpoint_hashes(tmp_path):
         name="epoch=2-step=10000_metrics_1_1.0_exp11_C8_conf_S10000_s46_K8_fa_invariant_a8.json")
     _rows, problems = V.validate_cell(paths + [odd], arm="C8", step=10000, k=8, contract="table")
     assert any("ckpt_sha256" in p or "identical" in p for p in problems)
-
