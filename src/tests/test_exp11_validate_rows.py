@@ -55,7 +55,7 @@ def _record(**over):
         "cond_autocast": "bf16",
         "orbit_execution": "batched",
         "frame_avg_fwd_cap": 64,
-        "source_sha": "a" * 40,
+        "source_sha": "d" * 40,
         "batch_size": 64,
         "n_samples": 6337,
         "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
@@ -457,3 +457,116 @@ def test_cell_rejects_two_different_checkpoint_hashes(tmp_path):
         name="epoch=2-step=10000_metrics_1_1.0_exp11_C8_conf_S10000_s46_K8_fa_invariant_a8.json")
     _rows, problems = V.validate_cell(paths + [odd], arm="C8", step=10000, k=8, contract="table")
     assert any("ckpt_sha256" in p or "identical" in p for p in problems)
+
+
+# --------------------------------------------------------------------------- #
+# 7. re-review item 1: evaluator fields are MANDATORY and type-checked
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("field", [
+    "seed", "cfg_scale", "steps", "eval_name", "dataset_config", "batch_size",
+    "device", "weights_source", "n_samples", "cond_method", "cond_autocast",
+    "frame_avg_angles", "orbit_execution", "frame_avg_fwd_cap", "source_sha", "ckpt_path",
+])
+def test_absent_evaluator_field_is_a_failure_not_a_skip(tmp_path, field):
+    """Cross-checks used to be skipped when the evaluator field was missing/None,
+    so a record that simply omitted seed/cfg/steps passed."""
+    rec = _record()
+    del rec[field]
+    _row, problems = V.validate_row(_write_row(tmp_path, rec=rec))
+    assert any(field in p for p in problems), (field, problems)
+    rec = _record(**{field: None})
+    _row, problems = V.validate_row(_write_row(tmp_path, rec=rec))
+    assert any(field in p for p in problems), (field, problems)
+
+
+@pytest.mark.parametrize("field,bad", [
+    ("seed", "42"), ("steps", 1.0), ("batch_size", "64"), ("n_samples", 6337.0),
+    ("cfg_scale", "1.0"), ("device", 0), ("eval_name", 7),
+])
+def test_evaluator_fields_are_type_checked(tmp_path, field, bad):
+    _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(**{field: bad})))
+    assert any(field in p for p in problems), (field, problems)
+
+
+def test_batch_size_and_device_are_validated(tmp_path):
+    _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(batch_size=7)))
+    assert any("batch_size" in p for p in problems)
+    _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(device="cpu")))
+    assert any("device" in p for p in problems)
+
+
+def test_source_sha_must_equal_the_sidecar_commit(tmp_path):
+    """The evaluator's code identity and the driver's must be the same commit —
+    that equality is what makes record-vs-sidecar a real contradiction check."""
+    _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(source_sha="a" * 40),
+                                               side=_sidecar(commit="b" * 40)))
+    assert any("source_sha" in p and "commit" in p for p in problems), problems
+    _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(source_sha="a" * 40),
+                                               side=_sidecar(commit="a" * 40)))
+    assert not any("source_sha" in p and "commit" in p for p in problems), problems
+
+
+def test_metric_key_set_must_be_exactly_the_six(tmp_path):
+    extra = dict(REQUIRED_METRICS)
+    extra["FD"] = 3.3
+    _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(metrics=extra)))
+    assert any("metrics" in p for p in problems), problems
+
+
+def test_boolean_metrics_are_not_numbers(tmp_path):
+    metrics = dict(REQUIRED_METRICS)
+    metrics["T60"] = True
+    _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(metrics=metrics)))
+    assert any("metrics" in p for p in problems)
+
+
+def test_sha_fields_must_be_full_sha256_and_commits_40_hex(tmp_path):
+    _row, problems = V.validate_row(_write_row(tmp_path, side=_sidecar(ckpt_sha256="a" * 40)))
+    assert any("ckpt_sha256" in p for p in problems), problems
+    _row, problems = V.validate_row(_write_row(tmp_path, side=_sidecar(commit="d" * 64)))
+    assert any("commit" in p for p in problems), problems
+    _row, problems = V.validate_row(_write_row(tmp_path, rec=_record(source_sha="a" * 64)))
+    assert any("source_sha" in p for p in problems), problems
+
+
+# --------------------------------------------------------------------------- #
+# 8. re-review item 4: R3 is the registered FIVE-ANGLE set, not five seeds
+# --------------------------------------------------------------------------- #
+def test_r3_contract_registers_the_five_angles():
+    assert V.CONTRACTS["r3"]["rotations"] == (0.0, 5.625, 11.25, 22.5, 45.0)
+    assert V.CONTRACTS["r3"]["seeds"] == (42,)
+
+
+def _r3_row(tmp_path, rot, arm="C32", step=40000, k=8):
+    n_ang = V.ARM_ORBITS[arm]
+    ev = f"exp11_{arm}_r3_S{step}_s42_K{k}"
+    suffix = "" if rot == 0.0 else (f"_rot{int(rot)}" if float(rot).is_integer()
+                                    else "_rot" + repr(float(rot)).replace(".", "p"))
+    name = f"epoch=8-step={step}_metrics_1_1.0_{ev}_fa_invariant_a{n_ang}{suffix}.json"
+    ck = f"outputs_FLAC/exp11_{arm}/FLAC_exp11_{arm}/exp11_{arm}/checkpoints/epoch=8-step={step}.ckpt"
+    ang = V.orbit_for(arm)
+    return _write_row(
+        tmp_path,
+        rec=_record(frame_avg_angles=ang, ckpt_path=ck, rotate_deg=rot, eval_name=ev),
+        side=_sidecar(arm=arm, step=step, K=k, eval_name=ev, frame_avg_angles=ang, ckpt_path=ck),
+        name=name)
+
+
+def test_r3_cell_needs_all_five_rotations(tmp_path):
+    paths = [_r3_row(tmp_path, r) for r in (0.0, 5.625, 11.25, 22.5, 45.0)]
+    rows, problems = V.validate_cell(paths, arm="C32", step=40000, k=8, contract="r3")
+    assert problems == [], problems
+    assert sorted(r["rotate_deg"] for r in rows) == [0.0, 5.625, 11.25, 22.5, 45.0]
+
+    short = [_r3_row(tmp_path, r) for r in (0.0, 5.625, 11.25, 22.5)]
+    _rows, problems = V.validate_cell(short, arm="C32", step=40000, k=8, contract="r3")
+    assert any("45.0" in p for p in problems), problems
+
+
+def test_r3_rows_repeat_seed_42_without_being_duplicates(tmp_path):
+    """All five R3 files share seed 42 — the old exactly-once seed logic called
+    that a duplicate and made the registered block unvalidatable."""
+    paths = [_r3_row(tmp_path, r) for r in (0.0, 5.625, 11.25, 22.5, 45.0)]
+    _rows, problems = V.validate_cell(paths, arm="C32", step=40000, k=8, contract="r3")
+    assert not any("more than once" in p for p in problems), problems
+

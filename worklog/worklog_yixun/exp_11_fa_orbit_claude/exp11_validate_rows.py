@@ -67,6 +67,30 @@ EXPECTED_N_SAMPLES = 6337          # the full published unseen split (announceme
 # The six metrics every comparison row reports (gen_model_comparison.KEYS).
 REQUIRED_METRIC_KEYS = ("T60", "C50", "EDT",
                         "RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5", "RIR_to_GT_RIR_R@10")
+# Every one of these must be PRESENT in the evaluator's own record with the right
+# type — a missing or null field used to make its cross-check silently skip
+# (re-review item 1). (field, type, expected-or-None)
+MANDATORY_RECORD_FIELDS = (
+    ("cond_method", str, "fa_invariant"),
+    ("cond_autocast", str, EXPECTED_AUTOCAST),
+    ("orbit_execution", str, None),
+    ("frame_avg_fwd_cap", int, None),
+    ("source_sha", str, None),
+    ("ckpt_path", str, None),
+    ("rotate_deg", float, None),
+    ("seed", int, None),
+    ("cfg_scale", float, EXPECTED_CFG_SCALE),
+    ("steps", int, EXPECTED_STEPS),
+    ("eval_name", str, None),
+    ("dataset_config", str, None),
+    ("batch_size", int, None),
+    ("n_samples", int, EXPECTED_N_SAMPLES),
+    ("weights_source", str, EXPECTED_WEIGHTS),
+    ("device", str, None),
+    ("frame_avg_angles", list, None),
+)
+EXPECTED_BATCH_SIZE = 64           # eval_FLAC's registered evaluation batch
+EXPECTED_DEVICE_PREFIX = "cuda"    # a CPU evaluation is not the registered protocol
 MANDATORY_SIDECAR_FIELDS = (
     "arm", "step", "seed", "K", "eval_name", "cfg_scale", "steps", "model_config",
     "model_config_sha256", "dataset_config", "ckpt_path", "ckpt_sha256", "use_ema",
@@ -80,12 +104,18 @@ CONTRACTS = {
                  "table_admissible": False},
     "table":    {"cells": ("conf",), "seeds": (42, 43, 44, 45, 46), "K": (1, 8),
                  "table_admissible": True},
-    "r3":       {"cells": ("r3",), "seeds": (42,), "K": (8,), "table_admissible": False},
+    # R3 (plan §4) is ONE seed evaluated at five registered yaw offsets — the
+    # exactly-once SEED logic would call those five files duplicates, so this
+    # contract is keyed by ROTATIONS instead (re-review item 4).
+    "r3":       {"cells": ("r3",), "seeds": (42,), "K": (8,),
+                 "rotations": (0.0, 5.625, 11.25, 22.5, 45.0),
+                 "table_admissible": False},
 }
 # Provenance that must be IDENTICAL across every row of a cell.
 CELL_IDENTITY_FIELDS = ("cell", "ckpt_path", "ckpt_sha256", "model_config_sha256",
                         "source_sha", "commit", "orbit_execution")
-_SHA_RE = re.compile(r"^[0-9a-f]{40,64}$")
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 
 _SCREEN_RE = re.compile(r"^exp11_(C4L|C8|C16|C32)_(screen|conf|r3)_S(\d+)_s(\d+)_K(\d+)$")
 _BACKFILL_RE = re.compile(r"^exp11_C4backfill_S(\d+)_s(\d+)_K(\d+)$")
@@ -231,35 +261,50 @@ def validate_row(metrics_path, verify_hashes=False):
         problems.append(f"{tag}: dataset_config={side.get('dataset_config')!r} is not the "
                         f"K={k} unseen split ({want_ds})")
 
-    # --- the metrics themselves ----------------------------------------------
+    # --- the metrics themselves: EXACTLY the six, finite, numeric -------------
     metrics = rec.get("metrics")
     if not isinstance(metrics, dict):
         problems.append(f"{tag}: metrics block is missing or not a mapping")
     else:
-        absent = [m for m in REQUIRED_METRIC_KEYS if m not in metrics]
-        if absent:
-            problems.append(f"{tag}: metrics missing {absent}")
+        if set(metrics) != set(REQUIRED_METRIC_KEYS):
+            problems.append(f"{tag}: metrics keys {sorted(metrics)} != the registered six "
+                            f"{sorted(REQUIRED_METRIC_KEYS)}")
         bad = [m for m in REQUIRED_METRIC_KEYS if m in metrics and not _finite_number(metrics[m])]
         if bad:
-            problems.append(f"{tag}: metrics {bad} are not finite numbers")
+            problems.append(f"{tag}: metrics {bad} are not finite numbers (bools are not numbers)")
+
+    # --- every evaluator field: present, right type, right value (item 1) -----
+    for field, typ, expect in MANDATORY_RECORD_FIELDS:
+        if field not in rec or rec[field] is None:
+            problems.append(f"{tag}: evaluator record is missing {field} — an absent field is "
+                            "not a passing check")
+            continue
+        val = rec[field]
+        ok_type = isinstance(val, float) if typ is float else isinstance(val, typ)
+        if typ is float and isinstance(val, int) and not isinstance(val, bool):
+            ok_type = True                                   # 1 is an acceptable 1.0
+        if typ is int and isinstance(val, bool):
+            ok_type = False
+        if not ok_type:
+            problems.append(f"{tag}: {field}={val!r} is {type(val).__name__}, expected "
+                            f"{typ.__name__}")
+            continue
+        if expect is not None and val != expect:
+            problems.append(f"{tag}: {field}={val!r} != {expect!r}")
+    if isinstance(rec.get("batch_size"), int) and rec["batch_size"] != EXPECTED_BATCH_SIZE:
+        problems.append(f"{tag}: batch_size={rec['batch_size']} != the registered "
+                        f"{EXPECTED_BATCH_SIZE}")
+    if isinstance(rec.get("device"), str) and not rec["device"].startswith(EXPECTED_DEVICE_PREFIX):
+        problems.append(f"{tag}: device={rec['device']!r} is not a {EXPECTED_DEVICE_PREFIX} "
+                        "evaluation")
 
     # --- the record's own protocol statement ---------------------------------
-    if rec.get("cond_method") != "fa_invariant":
-        problems.append(f"{tag}: cond_method={rec.get('cond_method')!r} != 'fa_invariant'")
     if not _angles_equal(rec.get("frame_avg_angles"), want_angles):
         problems.append(f"{tag}: frame_avg_angles={rec.get('frame_avg_angles')!r} is not the "
                         f"exact C{ARM_ORBITS[arm]} orbit of {arm}")
-    if rec.get("cond_autocast") != EXPECTED_AUTOCAST:
-        problems.append(f"{tag}: cond_autocast={rec.get('cond_autocast')!r} != {EXPECTED_AUTOCAST!r}")
-    if rec.get("rotate_deg") != 0.0 and cell != "r3":
+    if float(rec.get("rotate_deg") or 0.0) != 0.0 and cell != "r3":
         problems.append(f"{tag}: rotate_deg={rec.get('rotate_deg')!r} — a rotated evaluation is "
                         "not a screen/table row")
-    if rec.get("weights_source") != EXPECTED_WEIGHTS:
-        problems.append(f"{tag}: weights_source={rec.get('weights_source')!r} != {EXPECTED_WEIGHTS!r} "
-                        "— EMA must be proven by the evaluator, not asserted by the driver")
-    if rec.get("n_samples") != EXPECTED_N_SAMPLES:
-        problems.append(f"{tag}: n_samples={rec.get('n_samples')!r} != {EXPECTED_N_SAMPLES} "
-                        "(the full unseen split)")
     if rec.get("orbit_execution") != ORBIT_EXECUTION:
         problems.append(f"{tag}: orbit_execution={rec.get('orbit_execution')!r} != "
                         f"{ORBIT_EXECUTION!r} — legacy-loop rows are not comparable with these")
@@ -267,15 +312,18 @@ def validate_row(metrics_path, verify_hashes=False):
         problems.append(f"{tag}: frame_avg_fwd_cap={rec.get('frame_avg_fwd_cap')!r} != "
                         f"{FRAME_AVG_MAX_FWD_SAMPLES}")
     src = str(rec.get("source_sha") or "")
-    if not _SHA_RE.match(src):
-        problems.append(f"{tag}: source_sha={rec.get('source_sha')!r} is not a commit sha")
+    if not _COMMIT_RE.match(src):
+        problems.append(f"{tag}: source_sha={rec.get('source_sha')!r} is not a 40-hex commit sha")
+    elif src != str(side.get("commit", "")):
+        problems.append(f"{tag}: source_sha {src[:12]} != sidecar commit "
+                        f"{str(side.get('commit'))[:12]} — evaluator and driver ran different code")
 
     # --- record vs sidecar: one story, field by field -------------------------
     for field in ("cond_method", "cond_autocast", "seed", "cfg_scale", "steps", "eval_name"):
-        if field in side and rec.get(field) is not None and side[field] != rec.get(field):
+        if side.get(field) != rec.get(field):
             problems.append(f"{tag}: sidecar and metrics disagree on {field} "
-                            f"({side[field]!r} vs {rec.get(field)!r})")
-    if rec.get("dataset_config") is not None and os.path.normpath(str(rec["dataset_config"])) != \
+                            f"({side.get(field)!r} vs {rec.get(field)!r})")
+    if os.path.normpath(str(rec.get("dataset_config", ""))) != \
             os.path.normpath(str(side.get("dataset_config", ""))):
         problems.append(f"{tag}: sidecar and metrics disagree on dataset_config")
     if not _angles_equal(side.get("frame_avg_angles"), want_angles):
@@ -290,9 +338,11 @@ def validate_row(metrics_path, verify_hashes=False):
     prefix = ARM_RUN_PREFIX[arm]
     if prefix not in ckpt.replace("\\", "/"):
         problems.append(f"{tag}: ckpt {ckpt} is not under this arm's own run directory ({prefix})")
-    for field in ("model_config_sha256", "ckpt_sha256", "commit"):
-        if not _SHA_RE.match(str(side.get(field) or "")):
-            problems.append(f"{tag}: sidecar {field}={side.get(field)!r} is not a hash/commit")
+    for field, rx, what in (("model_config_sha256", _SHA256_RE, "64-hex sha256"),
+                            ("ckpt_sha256", _SHA256_RE, "64-hex sha256"),
+                            ("commit", _COMMIT_RE, "40-hex commit")):
+        if not isinstance(side.get(field), str) or not rx.match(side[field]):
+            problems.append(f"{tag}: sidecar {field}={side.get(field)!r} is not a {what}")
 
     # --- hashes are recomputed, not trusted (round-4 review B3/B6) ------------
     if verify_hashes:
@@ -316,6 +366,7 @@ def validate_row(metrics_path, verify_hashes=False):
                         f"({want_name})")
 
     row = {"path": metrics_path, "arm": arm, "cell": cell, "step": step,
+           "rotate_deg": float(rec.get("rotate_deg") or 0.0),
            "seed": seed, "K": k, "ckpt_path": ckpt, "metrics": metrics if isinstance(metrics, dict) else {},
            "source_sha": rec.get("source_sha"), "eval_name": side.get("eval_name"),
            "ckpt_sha256": side.get("ckpt_sha256"),
@@ -369,21 +420,31 @@ def validate_cell(metrics_paths, arm, step, k, contract, verify_hashes=False):
             problems.append(f"{base}: cell type {row['cell']!r} is not admissible under the "
                             f"{contract} contract (allowed {spec['cells']})")
 
-    # --- the registered seed set, exactly once each --------------------------
+    # --- the registered replication set, exactly once each --------------------
+    # For screen/table cells the replication axis is the SEED; for R3 it is the
+    # yaw offset (one seed, five registered rotations) — the seed-keyed logic
+    # called those five files duplicates and made the block unvalidatable.
+    axis = "rotate_deg" if "rotations" in spec else "seed"
+    wanted = spec.get("rotations", spec["seeds"])
     seen = {}
     for row in rows:
-        seen.setdefault(row["seed"], []).append(row["path"])
-    for want in spec["seeds"]:
+        seen.setdefault(row[axis], []).append(row["path"])
+    if axis == "rotate_deg":
+        for row in rows:
+            if row["seed"] not in spec["seeds"]:
+                problems.append(f"{os.path.basename(row['path'])}: seed {row['seed']} is not the "
+                                f"registered R3 seed {spec['seeds']}")
+    for want in wanted:
         n = len(seen.get(want, []))
         if n == 0:
-            problems.append(f"{arm} S{step} K{k} [{contract}]: seed {want} is missing")
+            problems.append(f"{arm} S{step} K{k} [{contract}]: {axis} {want} is missing")
         elif n > 1:
-            problems.append(f"{arm} S{step} K{k} [{contract}]: seed {want} appears more than once "
+            problems.append(f"{arm} S{step} K{k} [{contract}]: {axis} {want} appears more than once "
                             f"({[os.path.basename(p) for p in seen[want]]})")
     for got in sorted(seen):
-        if got not in spec["seeds"]:
-            problems.append(f"{arm} S{step} K{k} [{contract}]: unexpected seed {got} "
-                            f"(the contract registers {spec['seeds']})")
+        if got not in wanted:
+            problems.append(f"{arm} S{step} K{k} [{contract}]: unexpected {axis} {got} "
+                            f"(the contract registers {wanted})")
 
     # --- one checkpoint, one config, one evaluator across the whole cell ------
     for field in CELL_IDENTITY_FIELDS:
