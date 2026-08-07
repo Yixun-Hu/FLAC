@@ -53,6 +53,14 @@ ROWS = [
  # exp_10 endpoint rows: registered in advance; render pending until the gate JSONs land
  ("fa scratch @67.5k (exp_10, pending gates)", "fa eval", 1, ["outputs_FLAC/exp10_BF/**/*exp10_BF67_K1_s4[2-6]*.json"]),
  ("fa scratch @67.5k (exp_10, pending gates)", "fa eval", 8, ["outputs_FLAC/exp10_BF/**/*exp10_BF67_K8_s4[3-6]*.json"]),
+ ("fa orbit C4L @40k (exp_11 bridge)", "fa eval", 1, ["outputs_FLAC/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/*step=40000_metrics_1_1.0_exp11_C4L_conf_S40000_s4[2-6]_K1_fa_invariant_a4.json"]),
+ ("fa orbit C4L @40k (exp_11 bridge)", "fa eval", 8, ["outputs_FLAC/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/*step=40000_metrics_1_1.0_exp11_C4L_conf_S40000_s4[2-6]_K8_fa_invariant_a4.json"]),
+ ("fa orbit C8 @40k (exp_11)", "fa eval", 1, ["outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/*step=40000_metrics_1_1.0_exp11_C8_conf_S40000_s4[2-6]_K1_fa_invariant_a8.json"]),
+ ("fa orbit C8 @40k (exp_11)", "fa eval", 8, ["outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/*step=40000_metrics_1_1.0_exp11_C8_conf_S40000_s4[2-6]_K8_fa_invariant_a8.json"]),
+ ("fa orbit C16 @40k (exp_11)", "fa eval", 1, ["outputs_FLAC/exp11_C16/FLAC_exp11_C16/exp11_C16/checkpoints/*step=40000_metrics_1_1.0_exp11_C16_conf_S40000_s4[2-6]_K1_fa_invariant_a16.json"]),
+ ("fa orbit C16 @40k (exp_11)", "fa eval", 8, ["outputs_FLAC/exp11_C16/FLAC_exp11_C16/exp11_C16/checkpoints/*step=40000_metrics_1_1.0_exp11_C16_conf_S40000_s4[2-6]_K8_fa_invariant_a16.json"]),
+ ("fa orbit C32 @40k (exp_11)", "fa eval", 1, ["outputs_FLAC/exp11_C32/FLAC_exp11_C32/exp11_C32/checkpoints/*step=40000_metrics_1_1.0_exp11_C32_conf_S40000_s4[2-6]_K1_fa_invariant_a32.json"]),
+ ("fa orbit C32 @40k (exp_11)", "fa eval", 8, ["outputs_FLAC/exp11_C32/FLAC_exp11_C32/exp11_C32/checkpoints/*step=40000_metrics_1_1.0_exp11_C32_conf_S40000_s4[2-6]_K8_fa_invariant_a32.json"]),
 ]
 
 EXP11_VALIDATOR = os.path.join(REPO, "worklog", "worklog_yixun", "exp_11_fa_orbit_claude",

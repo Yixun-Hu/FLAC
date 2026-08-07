@@ -157,3 +157,10 @@
   - C4 backfill (historical curve for the 20k/30k gates): @20000 9.216/1.0742/43.45/R 3.219 · @30000 8.859/1.0592/39.46/R 4.134.
 - **Analysis** — retrieval shows a consistent (if small) early finer-orbit edge, cleanest as the three-way monotone ordering at 5k; acoustic-parameter metrics are within the known screen wobble. No gate is triggerable yet (arms below 20k). Everything defers to the 20k/30k gates and the 40k R1 paired readout.
 - **Next** — rolling screens as checkpoints land (C4L 17.5k/20k, C8 12.5k, C16 7.5k/10k, C32 first); C4L conf cells at 40k tonight.
+
+## 2026-08-07 — C4L@40k CONFIRMED (5-seed × 2K, validated+hash-verified) → first exp_11 table row; BRIDGE EFFECT MEASURED
+
+- **Row (fa eval batched)** — K8: 8.414 ± 0.006 / 1.0095 ± 0.0009 / 41.499 ± 0.048 / R@1 5.119 ± 0.126 · K1: 9.761 ± 0.051 / 1.0822 ± 0.0054 / 44.026 ± 0.249 / 4.952 ± 0.134. All four arm row specs added to the generator (C8/C16/C32 render pending until their 40k).
+- **Bridge effect (the finding)** — C4L vs historical legacy-loop B-F@40k at K8: T60 +0.212, C50 +0.0317, EDT +2.71, R@1 −0.268 — the recipe/environment delta (8×8 rung + batched orbit + chunk-shared RoPE + L40 + torchrun DDP) shifts the absolute level measurably. **This is precisely why the review-mandated C4L bridge exists: orbit inferences (R1/trend) run against C4L, same recipe, and are untouched; cross-era comparisons vs historical rows would conflate this shift with the orbit effect and are excluded by the table's non-interchangeability rule.**
+- **Gate note** — the pre-registered futility comparator is the C4 backfill (historical recipe); given the measured bridge shift, gate verdicts will be reported with BOTH the registered backfill comparison and the C4L-trajectory context; no arm is near a kill (all tracking C4L's curve).
+- **Next** — C8@40k tonight → conf block; C4L trajectory analysis (17.5k–37.5k screens landed); R3 rotations + D-probes scheduling; C16 Aug 8, C32 Aug 10 → R1.
