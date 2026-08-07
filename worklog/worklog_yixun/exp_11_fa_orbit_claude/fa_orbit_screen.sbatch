@@ -189,7 +189,12 @@ if [ -n "${MEASURE_ROOT:-}" ] && [ -n "${SLURM_JOB_ID:-}" ]; then
   LEASE="${MEASURE_ROOT}/.leases/${SLURM_JOB_ID}"
   [ -f "$LEASE" ] || die "no lease ${LEASE} for this job — the worktree was not reserved for it - abort"
   grep -q "^jobid ${SLURM_JOB_ID}$" "$LEASE" || die "lease ${LEASE} does not name job ${SLURM_JOB_ID} - abort"
-  trap 'rm -f "$LEASE"' EXIT
+  # Release through the helper so it happens under the store-wide lock, with a
+  # direct unlink as the fallback: a lease that outlives its job is only ever a
+  # delay (the sweep reaps it once Slurm reports the id gone), but a lease
+  # dropped while a sweep is mid-enumeration is a lost worktree.
+  MEASURE_HELPER="$EXPDIR/fa_orbit_measure_worktree.sh"
+  trap 'bash "$MEASURE_HELPER" --release "$SLURM_JOB_ID" "$MEASURE_ROOT" 2>/dev/null || rm -f "$LEASE"' EXIT
   echo "lease OK: ${LEASE}"
 fi
 
@@ -203,6 +208,15 @@ for ASSET in AcousticRooms weights/AGREE/AGREE_fullAR.pt "$DATASET_CONFIG"; do
     || die "required runtime asset missing from the code root: ${CODE_ROOT}/${ASSET} — prepare the tree with fa_orbit_measure_worktree.sh - abort"
 done
 echo "runtime assets OK under ${CODE_ROOT} (AcousticRooms, weights/AGREE, ${DATASET_CONFIG})"
+# Existence is not identity. The AGREE conditioner is part of the measured
+# stack, so it is pinned by content exactly as the VAE is in fa_orbit_train.sbatch
+# — a swapped-but-present file would otherwise change every metric silently.
+PINNED_AGREE_SHA256="3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787"
+AGREE_SHA="$(sha256sum "$CODE_ROOT/weights/AGREE/AGREE_fullAR.pt" | awk '{print $1}')" \
+  || die "could not hash the AGREE checkpoint - abort"
+[ "$AGREE_SHA" = "$PINNED_AGREE_SHA256" ] \
+  || die "weights/AGREE/AGREE_fullAR.pt sha256 ${AGREE_SHA} != pinned ${PINNED_AGREE_SHA256} - abort"
+echo "AGREE pin OK: ${AGREE_SHA}"
 
 # The ViT init is lineage-relevant at eval time too: same pin the probe gates on.
 python3 -c "

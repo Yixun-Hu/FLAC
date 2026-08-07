@@ -247,6 +247,7 @@ def test_deferred_migration_emits_a_loud_header_note():
 def _fake_main_tree(tmp_path, rows):
     """A minimal MAIN tree: the generator's own file layout plus a row spec."""
     root = tmp_path / "maintree"
+    (root / ".git").mkdir(parents=True)      # the validator locates its root by .git
     (root / "worklog" / "worklog_yixun" / "exp_11_fa_orbit_claude").mkdir(parents=True)
     (root / "worklog" / "worklog_yixun" / "model_comparison.md").write_text("PREVIOUS\n")
     # the generator resolves its validator against the root as well
@@ -332,3 +333,82 @@ def test_two_k_gate_lets_a_complete_pair_through(tmp_path, monkeypatch):
     written = (root / "worklog" / "worklog_yixun" / "model_comparison.md").read_text()
     assert "WITHHELD" not in written
     assert written.count("| C8 @40k | fa eval") == 2
+
+
+# --------------------------------------------------------------------------- #
+# 6. GO-recheck: the CLI is real, and paths resolve to the ROOT not the cwd
+# --------------------------------------------------------------------------- #
+def _tree_with_exp11_evidence(tmp_path, k=8, arm="C8", step=40000, seeds=(42, 43, 44, 45, 46)):
+    """A main tree carrying a full, VALID exp_11 cell — so the generator has to
+    do real work (glob, validate, hash) rather than render 'pending' twice."""
+    import shutil
+    root = tmp_path / "maintree"
+    ev_dir = root / "outputs_FLAC" / f"exp11_{arm}"
+    ev_dir.mkdir(parents=True)
+    (root / ".git").mkdir()                  # ditto: a main tree is a git repo
+    # ...and carries the importable repo surface the validator reaches for:
+    # src.* (orbit constants) and eval_FLAC.build_output_paths (filename proof)
+    (root / "src").symlink_to(os.path.join(_REPO_ROOT, "src"))
+    (root / "eval_FLAC.py").symlink_to(os.path.join(_REPO_ROOT, "eval_FLAC.py"))
+    (root / "worklog" / "worklog_yixun" / "exp_11_fa_orbit_claude").mkdir(parents=True)
+    (root / "worklog" / "worklog_yixun" / "model_comparison.md").write_text("PREVIOUS\n")
+    shutil.copy(G.EXP11_VALIDATOR,
+                root / "worklog" / "worklog_yixun" / "exp_11_fa_orbit_claude"
+                     / "exp11_validate_rows.py")
+    paths = _write_valid_cell(ev_dir, arm=arm, step=step, k=k, seeds=seeds)
+    return root, paths
+
+
+def test_repo_root_is_reachable_from_the_command_line(tmp_path):
+    """The reviewer's find: main() parsed [] instead of sys.argv, so --repo-root
+    parsed and was then thrown away — every CLI run silently used the default
+    root. Invoke the generator as a PROCESS, from a foreign cwd."""
+    import subprocess, sys
+    root, _ = _tree_with_exp11_evidence(tmp_path)
+    foreign = tmp_path / "pinned_worktree"
+    foreign.mkdir()
+    out_file = root / "worklog" / "worklog_yixun" / "model_comparison.md"
+    before = out_file.read_text()
+    proc = subprocess.run([sys.executable, _GEN_PY, "--repo-root", str(root)],
+                          cwd=str(foreign), capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    written = out_file.read_text()
+    assert written != before, "--repo-root was ignored: the target table was not rewritten"
+    assert "Model comparison" in written
+    assert str(root) in proc.stdout, proc.stdout
+    # the default root (this real repo) must NOT have been touched
+    assert not (foreign / "worklog").exists()
+
+
+def test_repo_root_actually_finds_evidence_from_a_foreign_cwd(tmp_path, monkeypatch):
+    """The evidence globs, the validator and the hash recomputation must all
+    resolve against --repo-root. Registers a row pointing at the synthetic cell
+    and asserts real NUMBERS come out — 'pending' would mean nothing resolved."""
+    import subprocess, sys, json as _json
+    root, paths = _tree_with_exp11_evidence(tmp_path)
+    foreign = tmp_path / "elsewhere"
+    foreign.mkdir()
+    # a two-K registration so the transactional gate is satisfied
+    rows_py = tmp_path / "rows.py"
+    driver = f'''
+import importlib.util, sys, os
+spec = importlib.util.spec_from_file_location("gen", {_GEN_PY!r})
+G = importlib.util.module_from_spec(spec); spec.loader.exec_module(G)
+G.ROWS = [("C8 @40k (synthetic)", "fa eval", 8,
+           ["outputs_FLAC/exp11_C8/*_K8_*fa_invariant_a8.json"]),
+          ("C8 @40k (synthetic)", "fa eval", 1,
+           ["outputs_FLAC/exp11_C8/*_K1_*fa_invariant_a8.json"])]
+sys.exit(G.main(["--repo-root", {str(root)!r}, "--allow-partial-exp11"]))
+'''
+    rows_py.write_text(driver)
+    # K=1 half of the pair, so both rows have evidence
+    _write_valid_cell(root / "outputs_FLAC" / "exp11_C8", arm="C8", step=40000, k=1)
+    proc = subprocess.run([sys.executable, str(rows_py)], cwd=str(foreign),
+                          capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    written = (root / "worklog" / "worklog_yixun" / "model_comparison.md").read_text()
+    rows = [ln for ln in written.splitlines() if ln.startswith("| C8 @40k (synthetic)")]
+    assert len(rows) == 2, f"expected both K rows, got {rows}"
+    for row in rows:   # ("BLOCKED" also appears in the header prose, so check ROWS)
+        assert "12.000" in row, f"evidence did not resolve against --repo-root: {row}"
+        assert "BLOCKED" not in row and "WITHHELD" not in row and "pending" not in row, row

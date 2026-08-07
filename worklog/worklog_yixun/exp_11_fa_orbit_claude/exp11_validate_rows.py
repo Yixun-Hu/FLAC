@@ -376,7 +376,15 @@ def validate_row(metrics_path, verify_hashes=False):
     if verify_hashes:
         for field, path_field in (("model_config_sha256", "model_config"),
                                   ("ckpt_sha256", "ckpt_path")):
+            # The sidecar records the model config REPO-RELATIVE (an absolute
+            # path into a pinned worktree dangles once that tree is pruned), so
+            # resolve it against the registered root — never the ambient cwd,
+            # which for a validator run from a worktree is the wrong tree, and
+            # for a run from anywhere else is nothing at all.
             target = str(side.get(path_field, ""))
+            if target and not os.path.isabs(target):
+                target = os.path.join(OUTPUT_ROOT_BASE if path_field == "ckpt_path" else REPO,
+                                      target)
             if not os.path.isfile(target):
                 problems.append(f"{tag}: cannot recompute {field}: {target} is not readable")
                 continue

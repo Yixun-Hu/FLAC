@@ -8,17 +8,15 @@
 # the three things that must be atomic actually atomic:
 #
 #   1. pin      — a worktree at the submission SHA, assets provisioned
-#   2. LEASE    — written BEFORE sbatch can return, so no pruner can ever see
-#                 the tree as free while a job for it is queued. It is written
-#                 under a placeholder token and promoted to the real job id the
-#                 moment sbatch reports it; if sbatch fails, it is released.
+#   2. LEASE     — via sbatch --hold. Submitting held is what removes the last
+#                  two races: the job id exists BEFORE the lease is written, and
+#                  the job cannot start until it is released, so there is no
+#                  window in which a queued job has no lease (a pruner would
+#                  have seen its tree as free) and none in which a lease names a
+#                  placeholder instead of a job. If the lease write or the
+#                  release fails, the held job is CANCELLED — never orphaned.
 #   3. EXPECT_SHA — taken from the pinned tree, not from the (moving) main HEAD
 #
-#   bash fa_orbit_screen_submit.sh ARM=C4L STEP=10000 [SEED=42] [K=8] [CELL=screen]
-#
-# Prints the job id on success. Nothing here submits by itself: it needs the
-# ARM/STEP arguments and an explicit run.
-# ============================================================================
 set -euo pipefail
 MAIN_REPO=/n/fs/gatrdp/codespace/FLAC
 EXPDIR="$MAIN_REPO/worklog/worklog_yixun/exp_11_fa_orbit_claude"
@@ -38,25 +36,35 @@ WT="$("$HELPER" | tail -1)"
 [ -d "$WT" ] || { echo "could not prepare a measurement worktree" >&2; exit 3; }
 EXPECT_SHA="$(git -C "$WT" rev-parse HEAD)"
 
-# 2. lease under a placeholder BEFORE sbatch
-PENDING="pending-$$-$(date +%s)"
-bash "$HELPER" --lease "$PENDING" "$WT"
-cleanup() { bash "$HELPER" --release "$PENDING" "$WT" 2>/dev/null || true; }
-trap cleanup EXIT
-
+# 2. submit HELD: the id exists before the lease, the job runs after it
 JOB_NAME="exp11-screen-${ARM}-${STEP}-s${SEED}-K${K}"
-JOBID="$(sbatch --parsable \
+SBATCH="${FA_ORBIT_SBATCH:-sbatch}"          # guard-suite seam; a real run uses sbatch
+SCONTROL="${FA_ORBIT_SCONTROL:-scontrol}"
+SCANCEL="${FA_ORBIT_SCANCEL:-scancel}"
+JOBID="$("$SBATCH" --hold --parsable \
   --job-name="$JOB_NAME" \
   --output="${EXPDIR}/slurm_screen_%x_%j.out" \
   --export=ALL,MEASURE_ROOT="$WT",EXPECT_SHA="$EXPECT_SHA",ARM="$ARM",STEP="$STEP",SEED="$SEED",K="$K",CELL="$CELL" \
-  "$EXPDIR/fa_orbit_screen.sbatch")" || { echo "sbatch FAILED - lease released" >&2; exit 4; }
+  "$EXPDIR/fa_orbit_screen.sbatch")" || { echo "sbatch FAILED - nothing submitted" >&2; exit 4; }
 JOBID="${JOBID%%;*}"
+case "$JOBID" in ''|*[!0-9]*) echo "sbatch returned '${JOBID}', not a job id - abort" >&2; exit 4 ;; esac
+echo "submitted HELD as ${JOBID}"
 
-# 3. promote the placeholder to the real job id (the job validates this at start)
-bash "$HELPER" --promote "$PENDING" "$JOBID" "$WT"
-trap - EXIT
+# 3. lease it by its real id, then release it. Any failure cancels the held job:
+#    an unleased job would be one a sweep could pull the tree out from under.
+if ! bash "$HELPER" --lease "$JOBID" "$WT"; then
+  echo "could not write the lease for ${JOBID} - cancelling the held job" >&2
+  "$SCANCEL" "$JOBID" || echo "scancel FAILED - job ${JOBID} is held and UNLEASED, cancel it by hand" >&2
+  exit 5
+fi
+if ! "$SCONTROL" release "$JOBID"; then
+  echo "could not release ${JOBID} - cancelling it and dropping its lease" >&2
+  "$SCANCEL" "$JOBID" || echo "scancel FAILED - cancel job ${JOBID} by hand" >&2
+  bash "$HELPER" --release "$JOBID" "$WT" || true
+  exit 6
+fi
 
-echo "submitted ${JOB_NAME} as ${JOBID}"
+echo "released ${JOB_NAME} (${JOBID})"
 echo "  MEASURE_ROOT ${WT}"
 echo "  EXPECT_SHA   ${EXPECT_SHA}"
 echo "  lease        ${WT}/.leases/${JOBID}"

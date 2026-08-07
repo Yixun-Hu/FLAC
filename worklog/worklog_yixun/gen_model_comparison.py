@@ -82,9 +82,19 @@ def is_exp11_row(patterns):
 
 
 def _load_validator(validator_path=None):
+    """Import the validator module from an explicit path.
+
+    It puts its own repo root on sys.path to reach ``src.*``; make sure that
+    root is importable from here too, because a generator run from a pinned
+    worktree (or any foreign cwd) has no ``src`` on its path at all — the
+    failure mode is an unloadable validator, which fails the gate CLOSED and
+    would render every real row BLOCKED for the wrong reason."""
     import importlib.util
-    spec = importlib.util.spec_from_file_location("exp11_validate_rows",
-                                                  validator_path or EXP11_VALIDATOR)
+    path = os.path.abspath(validator_path or EXP11_VALIDATOR)
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(path))))
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    spec = importlib.util.spec_from_file_location("exp11_validate_rows", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -253,7 +263,10 @@ def main(argv=None):
     ap.add_argument("--allow-partial-exp11", action="store_true",
                     help="write the table even when an exp_11 update covers only one K; the "
                          "affected rows still render WITHHELD, never as numbers.")
-    args = ap.parse_args([] if argv is None else argv)
+    # argv=None means "the real command line" (argparse reads sys.argv[1:]).
+    # Passing [] here made --repo-root unreachable from the shell: the flag
+    # parsed, then main() threw the arguments away and used the default.
+    args = ap.parse_args(argv)
     paths = repo_paths(args.repo_root)
     root, out_path, validator = paths["root"], paths["out"], paths["validator"]
 

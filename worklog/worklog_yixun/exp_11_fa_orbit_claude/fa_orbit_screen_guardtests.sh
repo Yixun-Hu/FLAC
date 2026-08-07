@@ -317,6 +317,30 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
   grep -q 'required runtime asset missing from the code root' "$SCREEN" \
     && { echo "PASS  the screen carries an explicit asset gate"; PASS=$((PASS + 1)); } \
     || { echo "FAIL  the screen has no asset gate"; FAIL=$((FAIL + 1)); }
+  # existence is not identity: both assets are pinned by content/target
+  AGREE_PIN="$(grep -o 'PINNED_AGREE_SHA256="[0-9a-f]\{64\}"' "$SCREEN" | head -1 | cut -d'"' -f2)"
+  AGREE_REAL="$(sha256sum "${MAIN_TREE}/weights/AGREE/AGREE_fullAR.pt" | awk '{print $1}')"
+  if [ -n "$AGREE_PIN" ] && [ "$AGREE_PIN" = "$AGREE_REAL" ]; then
+    echo "PASS  AGREE_fullAR.pt is pinned by sha256 and matches (${AGREE_PIN:0:12})"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  AGREE pin '${AGREE_PIN:0:12}' != on-disk ${AGREE_REAL:0:12}"; FAIL=$((FAIL + 1))
+  fi
+  if grep -q "^ASSET_TARGETS=(/n/fs/gatrdp/datasets/AcousticRooms" "$HELPER" \
+     && grep -q "REGISTERED target" "$HELPER"; then
+    echo "PASS  the dataset symlink target is pinned literally in the helper"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  the helper follows the main-tree symlink wherever it points"; FAIL=$((FAIL + 1))
+  fi
+  # a repointed main-tree symlink must abort, not be followed
+  DECOY="${TMP}/decoy_corpus"; mkdir -p "$DECOY"
+  out="$(env FA_ORBIT_ASSET_TARGET_OVERRIDE="$DECOY" bash -c "
+    sed 's|^ASSET_TARGETS=(/n/fs/gatrdp/datasets/AcousticRooms|ASSET_TARGETS=(${DECOY}|' '$HELPER' \
+      > '${TMP}/helper_decoy.sh'; bash '${TMP}/helper_decoy.sh'" 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "REGISTERED target"; then
+    echo "PASS  an unregistered dataset target aborts the pin"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  an unregistered dataset target was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
+  fi
 
   # --- LEASES ---------------------------------------------------------------
   # (a) a leased worktree is never pruned
@@ -376,21 +400,96 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
     echo "FAIL  a mismatched lease was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
   fi
   rm -f "$WT/.leases/424242"
-  grep -q "trap 'rm -f \"\$LEASE\"' EXIT" "$SCREEN" \
-    && { echo "PASS  the screen releases its lease on exit (trap)"; PASS=$((PASS + 1)); } \
-    || { echo "FAIL  the screen never gives its lease back"; FAIL=$((FAIL + 1)); }
+  # the lease must come back on exit, and through the store lock (--release)
+  if grep -q "trap 'bash \"\$MEASURE_HELPER\" --release" "$SCREEN" \
+     && grep -q 'rm -f "\$LEASE"' "$SCREEN"; then
+    echo "PASS  the screen returns its lease on exit, under the store lock"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  the screen never gives its lease back"; FAIL=$((FAIL + 1))
+  fi
   grep -q "KEEP=3\|newest" "$HELPER" \
     && { echo "FAIL  fixed-count pruning is still present"; FAIL=$((FAIL + 1)); } \
     || { echo "PASS  fixed-count pruning is gone (leases only)"; PASS=$((PASS + 1)); }
-  # the submitter must lease BEFORE sbatch, and promote after
+  # --- the held-job submission sequence, driven by MOCKED Slurm binaries ------
+  # No job is submitted: sbatch/scontrol/scancel are shims that record their
+  # argv. What is proven is the ORDER — held submit, lease by the real id,
+  # release — and that a failure at either step cancels the held job.
   SUB="${EXPDIR}/fa_orbit_screen_submit.sh"
-  if [ -f "$SUB" ] && [ "$(grep -n -- '--lease' "$SUB" | head -1 | cut -d: -f1)" -lt \
-                        "$(grep -n 'sbatch --parsable' "$SUB" | head -1 | cut -d: -f1)" ] \
-     && grep -q -- '--promote' "$SUB"; then
-    echo "PASS  the submitter leases before sbatch and promotes after"; PASS=$((PASS + 1))
+  MOCK="${TMP}/mockbin"; mkdir -p "$MOCK"
+  cat > "${MOCK}/sbatch" <<'EOS'
+#!/usr/bin/env bash
+echo "sbatch $*" >> "$MOCK_TRACE"
+case "$*" in *--hold*) ;; *) echo "MOCK: sbatch was called WITHOUT --hold" >&2; exit 9;; esac
+echo 7654321
+EOS
+  cat > "${MOCK}/scontrol" <<'EOS'
+#!/usr/bin/env bash
+echo "scontrol $*" >> "$MOCK_TRACE"
+[ "${MOCK_RELEASE_FAILS:-0}" = "1" ] && exit 1
+exit 0
+EOS
+  cat > "${MOCK}/scancel" <<'EOS'
+#!/usr/bin/env bash
+echo "scancel $*" >> "$MOCK_TRACE"
+EOS
+  chmod +x "${MOCK}"/sbatch "${MOCK}"/scontrol "${MOCK}"/scancel
+  TRACE="${TMP}/trace.txt"; : > "$TRACE"
+  out="$(env MOCK_TRACE="$TRACE" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+             bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+  LEASE_OK=0; [ -f "$WT/.leases/7654321" ] && LEASE_OK=1
+  if [ "$rc" -eq 0 ] && [ "$LEASE_OK" -eq 1 ] \
+     && grep -q -- "--hold" "$TRACE" && grep -q "scontrol release 7654321" "$TRACE" \
+     && ! grep -q "scancel" "$TRACE"; then
+    echo "PASS  submit --hold -> lease by the real id -> scontrol release"; PASS=$((PASS + 1))
   else
-    echo "FAIL  the submitter does not lease before sbatch"; FAIL=$((FAIL + 1))
+    echo "FAIL  the held-submission sequence is wrong (rc=${rc}, lease=${LEASE_OK})"
+    sed 's/^/        | /' "$TRACE"; echo "$out" | tail -3 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
   fi
+  # the lease must exist BEFORE the release: order, not just presence
+  if [ "$(grep -n 'sbatch' "$TRACE" | head -1 | cut -d: -f1)" -lt \
+       "$(grep -n 'scontrol release' "$TRACE" | head -1 | cut -d: -f1)" ] \
+     && grep -q "jobid 7654321" "$WT/.leases/7654321" 2>/dev/null; then
+    echo "PASS  the lease names the real job id and predates the release"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  lease/release ordering not proven"; FAIL=$((FAIL + 1))
+  fi
+  bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
+  # a failing release must CANCEL the held job, not leave it queued unleased
+  : > "$TRACE"
+  out="$(env MOCK_TRACE="$TRACE" MOCK_RELEASE_FAILS=1 FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+             bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && grep -q "scancel 7654321" "$TRACE" && [ ! -f "$WT/.leases/7654321" ]; then
+    echo "PASS  a failed release cancels the held job and drops its lease"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a failed release left an orphan (rc=${rc})"; sed 's/^/        | /' "$TRACE"
+    FAIL=$((FAIL + 1))
+  fi
+  grep -q -- '--promote' "$SUB" \
+    && { echo "FAIL  the placeholder/promote race is still in the submitter"; FAIL=$((FAIL + 1)); } \
+    || { echo "PASS  no placeholder lease: --hold removed the promote race"; PASS=$((PASS + 1)); }
+  # every lease/prune operation takes the ONE store lock
+  if grep -q 'LOCK="${ROOT}/.store.lock"' "$HELPER" \
+     && [ "$(grep -n 'flock 8' "$HELPER" | head -1 | cut -d: -f1)" -lt \
+          "$(grep -n -- '--lease)' "$HELPER" | head -1 | cut -d: -f1)" ]; then
+    echo "PASS  lease/release/prune/create all run under one store-wide lock"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  lease operations are not under the creation lock"; FAIL=$((FAIL + 1))
+  fi
+  # a squeue that FAILS must not be read as "the job is gone"
+  FAKEQ="${MOCK}/failing"; mkdir -p "$FAKEQ"
+  printf '#!/usr/bin/env bash\necho "slurm_load_jobs error: Unable to contact slurm controller" >&2\nexit 1\n' \
+    > "${FAKEQ}/squeue"; chmod +x "${FAKEQ}/squeue"
+  bash "$HELPER" --lease 55555555 "$WT" >/dev/null 2>&1
+  out="$(env PATH="${FAKEQ}:$PATH" bash "$HELPER" --prune 2>&1)"
+  if [ -f "$WT/.leases/55555555" ] && echo "$out" | grep -q "treating the lease as LIVE"; then
+    echo "PASS  a squeue failure keeps the lease (absence must be PROVEN)"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a squeue failure was read as job-absent"; echo "$out" | tail -3 | sed 's/^/        | /'
+    FAIL=$((FAIL + 1))
+  fi
+  bash "$HELPER" --release 55555555 "$WT" >/dev/null 2>&1
 else
   echo "FAIL  no worktree available for the asset/lease cases"; FAIL=$((FAIL + 1))
 fi

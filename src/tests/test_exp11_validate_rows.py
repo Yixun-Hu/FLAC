@@ -583,3 +583,45 @@ def test_r3_rows_repeat_seed_42_without_being_duplicates(tmp_path):
     _rows, problems = V.validate_cell(paths, arm="C32", step=40000, k=8, contract="r3")
     assert not any("more than once" in p for p in problems), problems
 
+
+
+# --------------------------------------------------------------------------- #
+# GO-recheck item 4: repo-relative sidecar paths resolve against the ROOT
+# --------------------------------------------------------------------------- #
+def test_relative_model_config_resolves_against_the_repo_not_the_cwd(tmp_path, monkeypatch):
+    """The sidecar records `model_config` REPO-RELATIVE (an absolute path into a
+    pinned worktree dangles once that tree is pruned). Opening it against the
+    ambient cwd worked only because validators happened to run from the repo:
+    from a pinned worktree — or any other directory — the hash recomputation
+    would report the config 'not readable' and block a perfectly good row."""
+    import hashlib
+    cfg_rel = "worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C8.json"
+    cfg_abs = os.path.join(V.REPO, cfg_rel)
+    cfg_sha = hashlib.sha256(open(cfg_abs, "rb").read()).hexdigest()
+
+    ck_dir = tmp_path / "outputs_FLAC" / "exp11_C8" / "FLAC_exp11_C8" / "exp11_C8" / "checkpoints"
+    ck_dir.mkdir(parents=True)
+    ck = ck_dir / "epoch=2-step=10000.ckpt"
+    ck.write_bytes(b"synthetic checkpoint")
+    ck_sha = hashlib.sha256(ck.read_bytes()).hexdigest()
+
+    rec = _record(ckpt_path=str(ck))
+    side = _sidecar(ckpt_path=str(ck), ckpt_sha256=ck_sha,
+                    model_config=cfg_rel, model_config_sha256=cfg_sha)
+    path = _write_row(tmp_path, rec=rec, side=side)
+    monkeypatch.setattr(V, "OUTPUT_ROOT_BASE", str(tmp_path))
+
+    foreign = tmp_path / "some_pinned_worktree"
+    foreign.mkdir()
+    monkeypatch.chdir(foreign)                       # the whole point of the test
+    row, problems = V.validate_row(path, verify_hashes=True)
+    assert not problems, problems
+    assert row is not None
+
+    # and a WRONG hash is still caught — resolution must not become a bypass
+    bad = _sidecar(ckpt_path=str(ck), ckpt_sha256=ck_sha,
+                   model_config=cfg_rel, model_config_sha256="e" * 64)
+    path2 = _write_row(tmp_path, rec=rec, side=bad,
+                       name="epoch=2-step=10000_metrics_1_1.0_exp11_C8_screen_S10000_s42_K8_fa_invariant_a8.json")
+    _, problems2 = V.validate_row(path2, verify_hashes=True)
+    assert any("model_config_sha256 mismatch" in p for p in problems2), problems2
