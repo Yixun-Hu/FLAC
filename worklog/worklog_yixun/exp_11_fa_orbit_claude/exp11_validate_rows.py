@@ -335,9 +335,14 @@ def validate_row(metrics_path, verify_hashes=False):
         problems.append(f"{tag}: sidecar and metrics disagree on ckpt_path")
     if not os.path.basename(ckpt).endswith(f"step={step}.ckpt"):
         problems.append(f"{tag}: ckpt {os.path.basename(ckpt)} is not step {step}")
+    # Containment by resolved PATH, not substring: "…/exp11_C8_backup/…" contains
+    # the C8 prefix but is not the arm's run directory (re-review item 2).
     prefix = ARM_RUN_PREFIX[arm]
-    if prefix not in ckpt.replace("\\", "/"):
-        problems.append(f"{tag}: ckpt {ckpt} is not under this arm's own run directory ({prefix})")
+    ckpt_real = os.path.realpath(os.path.join(REPO, ckpt)) if not os.path.isabs(ckpt) \
+        else os.path.realpath(ckpt)
+    root_real = os.path.realpath(os.path.join(REPO, prefix))
+    if os.path.commonpath([ckpt_real, root_real]) != root_real:
+        problems.append(f"{tag}: ckpt {ckpt} is not inside this arm's own run directory ({prefix})")
     for field, rx, what in (("model_config_sha256", _SHA256_RE, "64-hex sha256"),
                             ("ckpt_sha256", _SHA256_RE, "64-hex sha256"),
                             ("commit", _COMMIT_RE, "40-hex commit")):

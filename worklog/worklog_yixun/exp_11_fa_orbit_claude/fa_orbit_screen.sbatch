@@ -190,6 +190,51 @@ print(f"backfill lineage OK: step {step} matches the audited manifest "
 PY
 fi
 
+# --- D3. arms only: bind the checkpoint to its arm's LAUNCH MANIFEST ---------
+# Discovery + embedded-config equality proves the recipe, not the run: any
+# checkpoint with a matching config dropped into the tree would pass. The arm's
+# own launch manifest (written by fa_orbit_train.sbatch at INITIAL launch)
+# records arm, rung, seed, config hash and canonical save-dir; the checkpoint
+# must sit in exactly that run directory and the config must be that manifest's
+# (re-review item 2).
+if [ "$ARM" != "C4BACKFILL" ]; then
+  ARM_LAUNCH_MANIFEST="${OUTPUT_ROOT}/exp11_${ARM}/launch_manifest.txt"
+  [ -f "$ARM_LAUNCH_MANIFEST" ] || die "arm launch manifest missing: ${ARM_LAUNCH_MANIFEST} — a screen may only evaluate a checkpoint from a recorded launch - abort"
+  python3 - "$ARM_LAUNCH_MANIFEST" "$ARM" "$CKPT" "$CONFIG_SHA" "$CKPT_DIR" <<'PY' || die "arm launch-manifest lineage gate FAILED - abort"
+import os, sys
+man_path, arm, ckpt, cfg_sha, ckpt_dir = sys.argv[1:6]
+man = {}
+for line in open(man_path):
+    line = line.strip()
+    if line and not line.startswith("#"):
+        k, _, rest = line.partition(" ")
+        man[k] = rest.strip()
+fields = ("arm " + man.get("arm", "")).split()
+kv = {fields[i]: fields[i + 1] for i in range(0, len(fields) - 1, 2)}
+bad = []
+if kv.get("arm") != arm:
+    bad.append(f"manifest arm {kv.get('arm')!r} != {arm!r}")
+if man.get("config_sha256") != cfg_sha:
+    bad.append(f"manifest config_sha256 {man.get('config_sha256', '')[:12]} != the config we would "
+               f"evaluate {cfg_sha[:12]}")
+save_dir = man.get("save_dir", "")
+if not save_dir:
+    bad.append("manifest records no save_dir")
+else:
+    want_dir = os.path.realpath(ckpt_dir)
+    canon = os.path.realpath(os.path.join(save_dir, f"FLAC_exp11_{arm}", f"exp11_{arm}", "checkpoints"))
+    if want_dir != canon:
+        bad.append(f"checkpoint dir {want_dir} is not the manifest's canonical {canon}")
+    if os.path.realpath(os.path.dirname(ckpt)) != canon:
+        bad.append(f"checkpoint {ckpt} does not live in the canonical run directory {canon}")
+if bad:
+    sys.exit("ARM LINEAGE GATE: " + "; ".join(bad))
+print(f"arm lineage OK: {arm} bound to launch {man.get('job', '?')} "
+      f"(commit {man.get('commit', '?')[:12]}, rung {kv.get('rung')}, seed 42 recipe, "
+      f"config {cfg_sha[:12]})")
+PY
+fi
+
 # --- E. the checkpoint's OWN embedded config must be this arm's ---------------
 python3 - "$CKPT" "$MODEL_CONFIG" "$N_ANGLES" "$STEP" "$EXPDIR" <<'PY' || die "checkpoint/arm identity gate FAILED - abort"
 import json, sys

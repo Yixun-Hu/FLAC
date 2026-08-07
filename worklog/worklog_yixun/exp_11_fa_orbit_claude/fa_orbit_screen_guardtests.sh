@@ -59,6 +59,20 @@ write("exp11_C4L", "C4L", "exp11_C4L", c8, 10000)          # WRONG: C8 config un
 write("exp11_C16", "C16", "exp11_C16", json.load(open(os.path.join(expdir, "FLAC_AR_BF_C16.json"))),
       15000, ema=False)                                    # no EMA weights at all
 write("exp07_BF", "BF", "exp07_BF", bf, 20000)
+# launch manifests so the LATER gates (identity, EMA) are the ones under test;
+# the "no manifest" case below uses an arm deliberately left without one.
+import hashlib
+def manifest(arm, cfg_path):
+    d = os.path.join(out, f"exp11_{arm}")
+    os.makedirs(d, exist_ok=True)
+    sha = hashlib.sha256(open(cfg_path, "rb").read()).hexdigest()
+    with open(os.path.join(d, "launch_manifest.txt"), "w") as fh:
+        fh.write(f"arm {arm} rung 8x8 micro 8 ngpu 8 max_steps 40000 ckpt_every 2500\n")
+        fh.write("commit " + "0" * 40 + "\n")
+        fh.write(f"config_sha256 {sha}\n")
+        fh.write(f"save_dir {d}\n")
+manifest("C4L", os.path.join(expdir, "FLAC_AR_BF_C4L.json"))
+manifest("C16", os.path.join(expdir, "FLAC_AR_BF_C16.json"))
 print("synthetic checkpoints written")
 PY
 
@@ -96,6 +110,22 @@ echo "--- C. the ckpt/arm identity gate ---"
 case_run "C4L tree holding a C8 ckpt is rejected" 2 "CKPT/ARM GATE" -- "${BASE[@]}" ARM=C4L STEP=10000
 case_run "a checkpoint without EMA weights is rejected" 2 "no diffusion_ema.ema_model" \
   -- "${BASE[@]}" ARM=C16 STEP=15000
+# the temp root has NO launch manifests, so every arm screen must refuse there
+case_run "an arm ckpt with no launch manifest is refused" 2 "launch manifest missing" \
+  -- "${BASE[@]}" ARM=C8 STEP=10000
+# ...and with a manifest whose config hash is another arm's, the lineage gate fires
+mkdir -p "${OUT_ROOT}/exp11_C8"
+{ echo "arm C8 rung 8x8 micro 8 ngpu 8 max_steps 40000 ckpt_every 2500"
+  echo "commit 0000000000000000000000000000000000000000"
+  echo "config_sha256 $($PY -c "import hashlib;print(hashlib.sha256(open('${EXPDIR}/FLAC_AR_BF_C4L.json','rb').read()).hexdigest())")"
+  echo "save_dir ${OUT_ROOT}/exp11_C8"; } > "${OUT_ROOT}/exp11_C8/launch_manifest.txt"
+case_run "a launch manifest for another config is refused" 2 "ARM LINEAGE GATE" \
+  -- "${BASE[@]}" ARM=C8 STEP=10000
+# a correct manifest lets the same screen through
+{ echo "arm C8 rung 8x8 micro 8 ngpu 8 max_steps 40000 ckpt_every 2500"
+  echo "commit 0000000000000000000000000000000000000000"
+  echo "config_sha256 $($PY -c "import hashlib;print(hashlib.sha256(open('${EXPDIR}/FLAC_AR_BF_C8.json','rb').read()).hexdigest())")"
+  echo "save_dir ${OUT_ROOT}/exp11_C8"; } > "${OUT_ROOT}/exp11_C8/launch_manifest.txt"
 
 echo "--- D. valid screens reach the eval argv ---"
 case_run "C8 S10000 K8 default seed" 0 "exp11_C8_screen_S10000_s42_K8" -- "${BASE[@]}" ARM=C8 STEP=10000
