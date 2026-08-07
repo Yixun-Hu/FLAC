@@ -67,7 +67,12 @@ MB="${RUNG%x*}"; NGPU="${RUNG#*x}"
 [ "$((MB * NGPU))" -eq 64 ] || { echo "rung ${RUNG}: MB*NGPU != 64 - abort"; exit 2; }
 
 # --- drift gate: a queued job must run reviewed, committed code --------------
-DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src "$EXPDIR" \
+# The drift gate is scoped to CODE surfaces, not the whole exp folder: the four
+# arms are running and Slurm appends to their tracked *.out logs continuously, so
+# a folder-wide check would abort every screen on a live-log write. Configs,
+# drivers and validators are still fully covered.
+DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src \
+         "$EXPDIR"/*.json "$EXPDIR"/*.py "$EXPDIR"/*.sbatch "$EXPDIR"/*.sh \
          worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json 2>/dev/null)"
 [ -z "$DRIFT" ] || { echo "tracked measurement surfaces have uncommitted changes - commit first, abort:"; echo "$DRIFT"; exit 2; }
 SHA="$(git rev-parse HEAD)"

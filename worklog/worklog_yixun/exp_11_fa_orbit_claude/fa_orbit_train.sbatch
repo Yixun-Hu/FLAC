@@ -161,7 +161,13 @@ echo "=== exp_11 arm ${ARM} @ rung ${RUNG} (MB ${MB} x ${NGPU} GPU, grad-ckpt ON
 
 # --- C. commit binding + tracked-surface drift --------------------------------
 HEAD_SHA="$(git rev-parse HEAD 2>/dev/null)"
-DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src "$EXPDIR" "$EXP07/FLAC_AR_BF.json" 2>/dev/null)"
+# The drift gate is scoped to CODE surfaces, not the whole exp folder: the four
+# arms are running and Slurm appends to their tracked *.out logs continuously, so
+# a folder-wide check would abort every screen on a live-log write. Configs,
+# drivers and validators are still fully covered.
+DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src \
+          "$EXPDIR"/*.json "$EXPDIR"/*.py "$EXPDIR"/*.sbatch "$EXPDIR"/*.sh \
+          "$EXP07/FLAC_AR_BF.json" 2>/dev/null)"
 if [ "$DRYRUN" = "1" ]; then
   [ "$HEAD_SHA" = "$EXPECT_SHA" ] && echo "commit binding OK (dry run): ${HEAD_SHA}" \
     || echo "DRY-RUN ADVISORY: HEAD ${HEAD_SHA} != EXPECT_SHA ${EXPECT_SHA} (a real launch aborts here)"

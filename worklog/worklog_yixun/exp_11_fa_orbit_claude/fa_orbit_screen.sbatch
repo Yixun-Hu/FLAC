@@ -120,7 +120,12 @@ echo "config ${MODEL_CONFIG} sha256 ${CONFIG_SHA} | orbit C${N_ANGLES} | eval-na
 
 # --- C. commit binding + tracked drift ---------------------------------------
 HEAD_SHA="$(git rev-parse HEAD 2>/dev/null)" || die "git rev-parse FAILED - abort"
-DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src eval_FLAC.py "$EXPDIR")" \
+# The drift gate is scoped to CODE surfaces, not the whole exp folder: the four
+# arms are running and Slurm appends to their tracked *.out logs continuously, so
+# a folder-wide check would abort every screen on a live-log write. Configs,
+# drivers and validators are still fully covered.
+DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src eval_FLAC.py \
+          "$EXPDIR"/*.json "$EXPDIR"/*.py "$EXPDIR"/*.sbatch "$EXPDIR"/*.sh)" \
   || die "git status FAILED - refusing to treat an error as a clean tree - abort"
 if [ "$DRYRUN" = "1" ]; then
   [ "$HEAD_SHA" = "$EXPECT_SHA" ] && echo "commit binding OK (dry run): ${HEAD_SHA}" \

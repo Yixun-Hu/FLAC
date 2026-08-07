@@ -66,7 +66,12 @@ echo "=== exp_11 batched-orbit qualification probe - ${TS} - job ${JID} - host $
 HEAD_SHA="$(git rev-parse HEAD 2>/dev/null)" || die "git rev-parse FAILED - abort"
 [ -n "$HEAD_SHA" ] || die "git rev-parse returned nothing - abort"
 [ "$HEAD_SHA" = "$EXPECT_SHA" ] || die "HEAD ${HEAD_SHA} != EXPECT_SHA ${EXPECT_SHA} - abort"
-DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src eval_FLAC.py "$EXPDIR")" \
+# The drift gate is scoped to CODE surfaces, not the whole exp folder: the four
+# arms are running and Slurm appends to their tracked *.out logs continuously, so
+# a folder-wide check would abort every screen on a live-log write. Configs,
+# drivers and validators are still fully covered.
+DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src eval_FLAC.py \
+          "$EXPDIR"/*.json "$EXPDIR"/*.py "$EXPDIR"/*.sbatch "$EXPDIR"/*.sh)" \
   || die "git status FAILED - refusing to treat an error as a clean tree - abort"
 [ -z "$DRIFT" ] || { echo "tracked measurement surfaces modified since review - abort:"; echo "$DRIFT"; exit 2; }
 echo "commit binding OK: ${HEAD_SHA}"
