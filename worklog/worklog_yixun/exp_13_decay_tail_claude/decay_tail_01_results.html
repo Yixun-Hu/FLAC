@@ -1,0 +1,11 @@
+<meta charset="utf-8"><title>exp_13 closing — decay tail</title>
+<style>body{font-family:system-ui,sans-serif;max-width:960px;margin:24px auto;padding:0 16px;background:#111;color:#eee}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #444;padding:5px 8px;text-align:right}th{background:#222}td:first-child{text-align:left}
+.hero{background:#1a4f7a;color:#fff;padding:14px 18px;border-radius:8px}.note{background:#222;border-left:4px solid #1a4f7a;padding:8px 14px;margin:10px 0}</style>
+<h1>exp_13 decay_tail — closing results</h1>
+<div class="hero"><b>Registered NULL (co-occurrence 0/8) · DT3 mechanism SUPPORTED (SD ratios 0.570/0.605 vs matched control; 95% CIs [0.145,2.241]/[0.154,2.379] include 1).</b>
+Quarter-lr tail on the 87.5k anchor (treatment via verified checkpoint rewrite; live-lr gate). The tightened trajectory converges to a different trade point: lineage-best C50 (0.926–0.935), R@1 7.006@93750 (single seed), T60 ~9.0. One training seed; screens single-eval-seed.</div>
+<h2>Tail screens (EMA K8 s42)</h2>
+<table><tr><th>step</th><th>T60 ↓</th><th>C50 ↓</th><th>EDT ↓</th><th>R@1 ↑</th></tr><tr><td>88750</td><td>8.569</td><td>0.9667</td><td>37.033</td><td>6.770</td></tr><tr><td>90000</td><td>8.880</td><td>0.9519</td><td>36.929</td><td>6.675</td></tr><tr><td>91250</td><td>9.060</td><td>0.9525</td><td>37.024</td><td>6.596</td></tr><tr><td>92500</td><td>9.209</td><td>0.9333</td><td>37.671</td><td>6.912</td></tr><tr><td>93750</td><td>9.027</td><td>0.9277</td><td>37.186</td><td>7.006</td></tr><tr><td>95000</td><td>8.985</td><td>0.9345</td><td>36.752</td><td>6.549</td></tr><tr><td>96250</td><td>9.017</td><td>0.9340</td><td>37.302</td><td>6.565</td></tr><tr><td>97500</td><td>9.074</td><td>0.9264</td><td>37.748</td><td>6.659</td></tr></table>
+<div class="note">Interpretation (post-hoc, n=1 arm): metric trades are structural; the anchor's 8/8 is a wide-band selection event. Full record: <code>decay_tail_results.md</code>.</div>
+<p style="color:#888">Numbers first in results.md; page inlined at the closure commit.</p>
