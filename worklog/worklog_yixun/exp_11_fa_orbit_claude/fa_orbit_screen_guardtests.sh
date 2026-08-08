@@ -630,6 +630,53 @@ EOS
   fi
   bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
 
+  # --- EXCLUDE= reaches sbatch as an explicit FLAG ---------------------------
+  # SBATCH_EXCLUDE is not a thing: sbatch documents 58 input environment
+  # variables and no --exclude equivalent among them, so relying on it meant no
+  # batch ever excluded anything. The flag is the fix.
+  : > "$TRACE"
+  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+             bash "$SUB" ARM=C4L STEP=10000 EXCLUDE=neu303,neu332 2>&1)"; rc=$?
+  if [ "$rc" -eq 0 ] && grep -q -- "--exclude=neu303,neu332" "$TRACE"; then
+    echo "PASS  EXCLUDE= is passed to sbatch as an explicit --exclude flag"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  EXCLUDE= did not reach sbatch (rc=${rc})"; sed 's/^/        | /' "$TRACE"
+    FAIL=$((FAIL + 1))
+  fi
+  bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
+  # no EXCLUDE given: no stray flag
+  : > "$TRACE"
+  env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+      FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+      bash "$SUB" ARM=C4L STEP=10000 >/dev/null 2>&1
+  if ! grep -q -- "--exclude" "$TRACE"; then
+    echo "PASS  no EXCLUDE= means no --exclude flag"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  an --exclude flag appeared without EXCLUDE="; FAIL=$((FAIL + 1))
+  fi
+  bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
+  # the env var that never worked is now refused loudly instead of ignored
+  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" SBATCH_EXCLUDE=neu303 \
+             FA_ORBIT_SBATCH="${MOCK}/sbatch" FA_ORBIT_SCONTROL="${MOCK}/scontrol" \
+             FA_ORBIT_SCANCEL="${MOCK}/scancel" bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "sbatch does not honour it"; then
+    echo "PASS  a set SBATCH_EXCLUDE is refused, not silently ignored"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  SBATCH_EXCLUDE was accepted as if it worked (rc=${rc})"; FAIL=$((FAIL + 1))
+  fi
+  # cell parameters travel with the job
+  : > "$TRACE"
+  env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+      FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+      bash "$SUB" ARM=C8 STEP=40000 CELL=r3 ROTATE_DEG=5.625 >/dev/null 2>&1
+  if grep -q "ROTATE_DEG=5.625" "$TRACE" && grep -q "CELL=r3" "$TRACE"; then
+    echo "PASS  the submitter exports the cell's own parameters to the job"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  cell parameters do not reach the job"; sed 's/^/        | /' "$TRACE"; FAIL=$((FAIL + 1))
+  fi
+  bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
+
   # --- the marker is not proof: fd 8 must BE the store lock, at the OUTER entry
   STORE_LOCK="${MAIN_TREE}/.measure_worktrees/.store.lock"
   out="$(env FA_ORBIT_STORE_LOCK_HELD=1 MOCK_TRACE="$TRACE" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
@@ -998,6 +1045,91 @@ PY
     || { echo "PASS  the seed claim is verified against the registry, not printed"; PASS=$((PASS + 1)); }
 else
   echo "FAIL  no arm launch registry"; FAIL=$((FAIL + 1))
+fi
+
+# --- default LOG names are cell-qualified and collision-free ----------------
+# Extract the driver's OWN naming block and evaluate it, so this tests the
+# shipped expression rather than a copy of it.
+echo
+echo "--- default screen-log naming ---"
+sed -n '/^LOG_CELL_TOKEN=""/,/^LOG="\${LOG:-/p' "$SCREEN" > "${TMP}/lognames.sh"
+if [ -s "${TMP}/lognames.sh" ]; then
+  name_for() {  # $1 CELL $2 ROT_TOKEN $3 EVAL_ORBIT $4 jobid
+    ( LOGDIR=/logs TS=2026-08-08_05-00-00 ARM=C8 STEP=40000 SEED=42 K=8 \
+      CELL="$1" ROT_TOKEN="$2" EVAL_ORBIT="$3" SLURM_JOB_ID="$4" LOG=""
+      unset LOG
+      . "${TMP}/lognames.sh" >/dev/null 2>&1
+      echo "$LOG" )
+  }
+  A="$(name_for r3 0 "" 111)"; B="$(name_for r3 5p625 "" 112)"
+  C="$(name_for r3 11p25 "" 113)"; D="$(name_for cross "" 16 114)"
+  E="$(name_for cross "" 32 115)"; F="$(name_for screen "" "" 116)"
+  U="$(printf '%s\n' "$A" "$B" "$C" "$D" "$E" "$F" | sort -u | grep -c .)"
+  if [ "$U" -eq 6 ]; then
+    echo "PASS  six same-second cells produce six DISTINCT default log names"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  default log names collide (${U} unique of 6)"
+    printf '%s\n' "$A" "$B" "$C" "$D" "$E" "$F" | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+  fi
+  # the two r3 rotations differ ONLY by their rotation token -> that is the fix
+  if [ "$A" != "$B" ] && echo "$B" | grep -q "_rot5p625_" && echo "$D" | grep -q "_a16_"; then
+    echo "PASS  r3 names carry the rotation and cross names the eval orbit"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  cell tokens missing from the default names ('${B}' / '${D}')"; FAIL=$((FAIL + 1))
+  fi
+  # still inside LOGDIR and still matching the drift-gate exemption
+  if echo "$B" | grep -q "^/logs/fa_orbit_.*_screen\.log$"; then
+    echo "PASS  default names stay in LOGDIR and keep the _screen.log suffix"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  '${B}' no longer matches the exempted screen-log shape"; FAIL=$((FAIL + 1))
+  fi
+  # an explicit LOG= still wins (operators can override; they just never need to)
+  G="$( LOGDIR=/logs TS=t ARM=C8 STEP=1 SEED=42 K=8 CELL=screen ROT_TOKEN="" EVAL_ORBIT="" \
+        LOG=/tmp/explicit.log; . "${TMP}/lognames.sh" >/dev/null 2>&1; echo "$LOG" )"
+  [ "$G" = "/tmp/explicit.log" ] \
+    && { echo "PASS  an explicit LOG= still overrides the default"; PASS=$((PASS + 1)); } \
+    || { echo "FAIL  LOG= override broken ('${G}')"; FAIL=$((FAIL + 1)); }
+else
+  echo "FAIL  could not extract the log-naming block from the driver"; FAIL=$((FAIL + 1))
+fi
+
+# --- the arm launcher untracks its own live transcript ----------------------
+echo
+echo "--- live transcript untracking (arm launcher) ---"
+TRAIN="${EXPDIR}/fa_orbit_train.sbatch"
+if grep -q 'git -C "\$REPO" rm --cached --quiet -- "\$SLURM_OUT_AT_LAUNCH"' "$TRAIN" \
+   && grep -q 'ls-files --error-unmatch "\$SLURM_OUT_AT_LAUNCH"' "$TRAIN"; then
+  echo "PASS  the launcher untracks its own Slurm transcript at launch"; PASS=$((PASS + 1))
+else
+  echo "FAIL  the launcher does not untrack its transcript"; FAIL=$((FAIL + 1))
+fi
+if grep -q 'slurm_transcript .* untrack ' "$TRAIN"; then
+  echo "PASS  the untrack outcome is recorded in the launch manifest"; PASS=$((PASS + 1))
+else
+  echo "FAIL  the manifest does not record the untrack state"; FAIL=$((FAIL + 1))
+fi
+if grep -q 'TRANSCRIPT POLICY' "$TRAIN" && grep -q 'git add -f' "$TRAIN"; then
+  echo "PASS  the closure procedure is documented in the launcher header"; PASS=$((PASS + 1))
+else
+  echo "FAIL  the transcript policy is undocumented"; FAIL=$((FAIL + 1))
+fi
+# absence must be tolerated (an already-untracked transcript is the steady state)
+if grep -q 'already-untracked' "$TRAIN" && grep -q 'untrack-FAILED' "$TRAIN"; then
+  echo "PASS  untracking tolerates absence and reports failure without aborting"; PASS=$((PASS + 1))
+else
+  echo "FAIL  untracking does not handle the absent/failed cases"; FAIL=$((FAIL + 1))
+fi
+# and no live arm transcript is tracked right now
+STILL_TRACKED="$(git ls-files -- "${EXPDIR}/slurm_train_exp11-*-train_36486*.out" 2>/dev/null \
+                 | while read -r f; do
+                     jid="${f##*_}"; jid="${jid%.out}"
+                     squeue -h -j "$jid" -o %i 2>/dev/null | grep -q "$jid" && echo "$f"
+                   done)"
+if [ -z "$STILL_TRACKED" ]; then
+  echo "PASS  no transcript of a RUNNING arm is tracked"; PASS=$((PASS + 1))
+else
+  echo "FAIL  a running arm's transcript is still tracked:"; echo "$STILL_TRACKED" | sed 's/^/        | /'
+  FAIL=$((FAIL + 1))
 fi
 
 echo

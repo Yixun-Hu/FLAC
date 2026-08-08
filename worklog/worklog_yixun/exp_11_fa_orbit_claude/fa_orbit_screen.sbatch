@@ -487,7 +487,20 @@ case "$(echo "${GPU_ROWS[0]}" | cut -d, -f2)" in *L40*) ;; *) die "not an L40 - 
 echo "GPU: ${GPU_ROWS[0]}"
 
 # --- BEGIN screen-run-and-record (guard-tested by fa_orbit_screen_guardtests.sh) --
-LOG="${LOG:-${LOGDIR}/fa_orbit_${TS}_${ARM}_S${STEP}_s${SEED}_K${K}_screen.log}"
+# The DEFAULT name is fully qualified so it never needs overriding: three of the
+# overnight incidents came from a hand-supplied LOG= (a tee into the pinned
+# worktree, then node-local /tmp paths that broke class-7 log provenance). It
+# carries the cell, whatever distinguishes that cell (rotation for r3, evaluated
+# orbit for cross) and the job id, so two cells started in the same second — five
+# R3 rotations submitted together — cannot collide. It stays inside LOGDIR and
+# keeps the _screen.log suffix the drift gate exempts.
+LOG_CELL_TOKEN=""
+case "$CELL" in
+  r3)    LOG_CELL_TOKEN="_rot${ROT_TOKEN}" ;;
+  cross) LOG_CELL_TOKEN="_a${EVAL_ORBIT}" ;;
+esac
+LOG_JID="${SLURM_JOB_ID:+_jid${SLURM_JOB_ID}}"
+LOG="${LOG:-${LOGDIR}/fa_orbit_${TS}_${ARM}_${CELL}${LOG_CELL_TOKEN}_S${STEP}_s${SEED}_K${K}${LOG_JID}_screen.log}"
 python eval_FLAC.py "${EVAL_ARGV[@]}" 2>&1 | tee "$LOG"
 PIPE_RC=("${PIPESTATUS[@]}")
 EVAL_RC="${PIPE_RC[0]}"; TEE_RC="${PIPE_RC[1]}"

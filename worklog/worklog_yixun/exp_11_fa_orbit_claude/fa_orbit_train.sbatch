@@ -52,6 +52,12 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --output=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/slurm_train_%x_%j.out
+# TRANSCRIPT POLICY. This file is written by Slurm for the whole life of the run.
+# During the run it is deliberately UNTRACKED (the job removes it from the index
+# at launch, see the untrack block below): a tracked file that a running job
+# appends to is one a git checkout/stash can unlink out from under the job's file
+# descriptor, freezing the visible transcript while the run continues. Completed
+# transcripts are committed by the OPERATOR at run closure with `git add -f`.
 
 set -uo pipefail
 
@@ -454,6 +460,41 @@ fi
 HF_HUB_OFFLINE=1 python3 "$EXPDIR/assert_arm_configs_exp11.py" "$ARM" || die "ViT-pin / init-identity GATE FAILED - abort" 1
 
 # --- O. atomic manifest, duplicated to the save-dir (round-3 B5) --------------
+# --- the live transcript must not be a TRACKED file while it is being written --
+# A tracked file that a running job appends to is a file git will happily
+# replace. `git rebase --autostash` (remote coordination between machines) stashes
+# the dirty working tree, checks out, and restores — and each of those steps
+# UNLINKS the path and writes a new inode. The job's stdout descriptor still
+# points at the old, now-nameless inode, so every subsequent line is written to a
+# file with no name and the visible transcript freezes forever. That is exactly
+# what happened to C16 (job 3648696): its transcript stops at Epoch 5 while the
+# run went on to step 40000, and all four arm transcripts froze at the same
+# instant, 02:04:07, during a rebase cycle.
+#
+# So: at launch, the job removes its OWN Slurm transcript from the index. The
+# file stays on disk untouched; it is simply no longer something git will move.
+# The operator commits completed transcripts at closure (git add -f).
+SLURM_OUT_AT_LAUNCH="$(scontrol show job "$SLURM_JOB_ID" 2>/dev/null \
+                        | tr ' ' '\n' | awk -F= '$1=="StdOut"{print $2; exit}')"
+UNTRACK_STATE="not-attempted"
+if [ -n "$SLURM_OUT_AT_LAUNCH" ]; then
+  if git -C "$REPO" ls-files --error-unmatch "$SLURM_OUT_AT_LAUNCH" >/dev/null 2>&1; then
+    if git -C "$REPO" rm --cached --quiet -- "$SLURM_OUT_AT_LAUNCH" 2>/dev/null; then
+      UNTRACK_STATE="untracked-at-launch"
+      echo "live transcript untracked for the duration of this run: ${SLURM_OUT_AT_LAUNCH}"
+      echo "  (the file is untouched on disk; commit it at closure with git add -f)"
+    else
+      UNTRACK_STATE="untrack-FAILED"
+      echo "WARNING: could not untrack ${SLURM_OUT_AT_LAUNCH}; a git working-tree"
+      echo "         operation during this run can still detach the transcript"
+    fi
+  else
+    UNTRACK_STATE="already-untracked"      # the normal steady state
+  fi
+else
+  UNTRACK_STATE="stdout-path-unknown"
+fi
+
 TRAINLOG="${EXPDIR}/fa_orbit_${TS}_${ARM}_${RUNG}_jid${SLURM_JOB_ID}_train.log"
 SAVEDIR_LOG="${SAVEDIR}/fa_orbit_${TS}_${ARM}_${RUNG}_jid${SLURM_JOB_ID}_train.log"
 MANIFEST="${EXPDIR}/fa_orbit_${TS}_${ARM}_${RUNG}_jid${SLURM_JOB_ID}_manifest.txt"
@@ -478,6 +519,7 @@ rm -f "$PIPFREEZE_FILE"
   echo "time_limit ${TIME_LIMIT} min_free_mb ${MIN_FREE_MB}"
   echo "resume_ckpt ${RESUME_CKPT:-<none>} expected_step ${EXPECTED_STEP} resume_ckpt_sha256 ${CKPT_SHA:-<none>}"
   echo "save_dir ${SAVEDIR}"
+  echo "slurm_transcript ${SLURM_OUT_AT_LAUNCH:-<unknown>} untrack ${UNTRACK_STATE}"
   echo "train_log ${TRAINLOG}"
   echo "train_log_copy ${SAVEDIR_LOG}"
   echo "wandb_entity ${WANDB_ENTITY_SEEN} wandb_project ${NAME} wandb_name ${EXPNAME}"

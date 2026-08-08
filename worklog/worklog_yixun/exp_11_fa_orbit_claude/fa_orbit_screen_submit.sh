@@ -59,14 +59,15 @@ else
   exec bash "$HELPER" --with-lock bash "$0" "$@"
 fi
 
-ARM=""; STEP=""; SEED=42; K=8; CELL=screen
+ARM=""; STEP=""; SEED=42; K=8; CELL=screen; EXCLUDE=""; ROTATE_DEG=""; EVAL_ORBIT=""
 for kv in "$@"; do
   case "$kv" in
-    ARM=*|STEP=*|SEED=*|K=*|CELL=*) eval "${kv%%=*}='${kv#*=}'" ;;
-    *) echo "unknown argument '${kv}' (expected ARM=/STEP=/SEED=/K=/CELL=)" >&2; exit 2 ;;
+    ARM=*|STEP=*|SEED=*|K=*|CELL=*|EXCLUDE=*|ROTATE_DEG=*|EVAL_ORBIT=*) eval "${kv%%=*}='${kv#*=}'" ;;
+    *) echo "unknown argument '${kv}' (expected ARM=/STEP=/SEED=/K=/CELL=/EXCLUDE=/ROTATE_DEG=/EVAL_ORBIT=)" >&2; exit 2 ;;
   esac
 done
-[ -n "$ARM" ] && [ -n "$STEP" ] || { echo "usage: bash $0 ARM=C4L STEP=10000 [SEED=42] [K=8] [CELL=screen]" >&2; exit 2; }
+[ -n "$ARM" ] && [ -n "$STEP" ] || { echo "usage: bash $0 ARM=C4L STEP=10000 [SEED=42] [K=8] [CELL=screen] [EXCLUDE=node[,node]] [ROTATE_DEG=..] [EVAL_ORBIT=..]" >&2; exit 2; }
+case "$EXCLUDE" in *[!A-Za-z0-9,._\[\]-]*) echo "EXCLUDE='${EXCLUDE}' is not a node list" >&2; exit 2 ;; esac
 
 # 0b. PREFLIGHT: the campaign freeze must be engaged.
 # The campaign's validity argument rests on "no worktree is deleted while it
@@ -89,14 +90,33 @@ WT="$("$HELPER" | tail -1)"
 EXPECT_SHA="$(git -C "$WT" rev-parse HEAD)"
 
 # 2. submit HELD: the id exists before the lease, the job runs after it
-JOB_NAME="exp11-screen-${ARM}-${STEP}-s${SEED}-K${K}"
+JOB_NAME="exp11-screen-${ARM}-${CELL}-${STEP}-s${SEED}-K${K}"
 SBATCH="${FA_ORBIT_SBATCH:-sbatch}"          # guard-suite seam; a real run uses sbatch
 SCONTROL="${FA_ORBIT_SCONTROL:-scontrol}"
 SCANCEL="${FA_ORBIT_SCANCEL:-scancel}"
+# Node exclusion is passed as an EXPLICIT FLAG, never through the environment.
+# SBATCH_EXCLUDE does not exist: of the 58 input environment variables sbatch
+# documents there is no --exclude equivalent (the lookalike SBATCH_EXCLUSIVE is
+# --exclusive, a different option entirely). sbatch therefore ignored it in
+# silence, and every batch that believed it was excluding sick nodes was not.
+EXCLUDE_ARGV=()
+if [ -n "$EXCLUDE" ]; then
+  EXCLUDE_ARGV=(--exclude="$EXCLUDE")
+  echo "excluding nodes: ${EXCLUDE}"
+elif [ -n "${SBATCH_EXCLUDE:-}" ]; then
+  echo "NOTE: SBATCH_EXCLUDE='${SBATCH_EXCLUDE}' is set but sbatch does not honour it;" >&2
+  echo "      pass EXCLUDE=${SBATCH_EXCLUDE} to this script instead - abort" >&2
+  exit 2
+fi
+# CELL-specific parameters travel with the job, not as ambient state.
+CELL_EXPORT=""
+[ -n "$ROTATE_DEG" ] && CELL_EXPORT="${CELL_EXPORT},ROTATE_DEG=${ROTATE_DEG}"
+[ -n "$EVAL_ORBIT" ] && CELL_EXPORT="${CELL_EXPORT},EVAL_ORBIT=${EVAL_ORBIT}"
 JOBID="$("$SBATCH" --hold --parsable \
   --job-name="$JOB_NAME" \
   --output="${EXPDIR}/slurm_screen_%x_%j.out" \
-  --export=ALL,MEASURE_ROOT="$WT",EXPECT_SHA="$EXPECT_SHA",ARM="$ARM",STEP="$STEP",SEED="$SEED",K="$K",CELL="$CELL" \
+  "${EXCLUDE_ARGV[@]}" \
+  --export=ALL,MEASURE_ROOT="$WT",EXPECT_SHA="$EXPECT_SHA",ARM="$ARM",STEP="$STEP",SEED="$SEED",K="$K",CELL="$CELL""$CELL_EXPORT" \
   "$EXPDIR/fa_orbit_screen.sbatch")" || { echo "sbatch FAILED - nothing submitted" >&2; exit 4; }
 JOBID="${JOBID%%;*}"
 case "$JOBID" in ''|*[!0-9]*) echo "sbatch returned '${JOBID}', not a job id - abort" >&2; exit 4 ;; esac

@@ -182,3 +182,33 @@
 - **Result** — C16 job 3648696 exited class 7 after 1d22h, but the substance is verified intact: ckpt global_step 40000 / epoch 8 / fa_invariant n_angles 16 / optimizer 449 entries / EMA 210 entries. The failure was the end-of-run dual-log verification; probable cause: my git rebase --autostash cycles (remote coordination with the other-machine session) stash-cycled the TRACKED live train log while the job appended — clobbering the tee'd copy mid-run. Classification honest: infra postmortem, training valid, row proceeds after conf evals.
 - **Lessons → fix round:** (1) submitter gains an explicit EXCLUDE= argument passed as sbatch --exclude (env proven dropped by the with-lock re-exec); (2) driver default LOG names gain cell/rot/orbit qualifiers; (3) live arm transcripts become untracked during runs (git rm --cached at launch, committed at completion) so remote coordination can never touch appending files.
 - **Standing:** THREE arms banked (C4L row published; C8+C16 ckpts verified, rows pending eval infra). C32 sole trainee (~20k). Submissions remain halted until the fix round closes.
+
+## 2026-08-08 (daylight) — FIX ROUND: exclusion root cause CORRECTED, log naming, live transcripts untracked
+
+- **Root cause (correction to the ~04:45 triage).** The exclusion failure is **not** an env drop through the
+  `--with-lock` re-exec. Measured directly: `SBATCH_EXCLUDE` survives that chain intact (plain child, and
+  after the helper's `exec`, both report the value). The real cause is that **`SBATCH_EXCLUDE` does not
+  exist**: `man sbatch` (Slurm 25.11.6) documents 58 input environment variables and there is no `--exclude`
+  equivalent among them — the lookalike is `SBATCH_EXCLUSIVE`, which is `--exclusive`, a different option.
+  sbatch therefore ignored the variable in silence, which means **no batch of the campaign ever had node
+  exclusion in effect**, not merely the third. Earlier batches avoided the sick nodes by luck.
+  Fix: `EXCLUDE=<nodelist>` argument → explicit `sbatch --exclude=<nodelist>`; and a *set* `SBATCH_EXCLUDE`
+  is now refused with a pointer to the argument, so the silent-ignore path cannot recur.
+- **C16 clobber CONFIRMED, with the mechanism refined.** Not "reset to an old committed blob": the on-disk
+  transcript (8,084,545 B) is far larger than the only committed blob for that path (970,913 B, `d960990`).
+  The mechanism is **descriptor detachment**. All four arm transcripts have the identical frozen mtime
+  `2026-08-08 02:04:07`, spanning the `rebase (start)…rebase (finish)` cycle at 01:23 and the 02:04 commit
+  (`a9af0d6`); each git working-tree write unlinks the path and creates a new inode, while the running job's
+  stdout descriptor keeps pointing at the old, now-nameless one. C16's visible transcript stops at Epoch 5
+  (1:44:21 in) — ≈28 h into a run that reached step 40000 — while its untracked tee'd copy holds the whole
+  run (Epoch 8, 13,336,561 B). **Live proof**: C32 is still running; its tee'd log is at Epoch 4 and growing
+  (mtime 19:28), while its tracked `.out` froze at Epoch 2 at 02:04:07. Substance was never at risk — the
+  checkpoints and the untracked tee'd copies are intact.
+- **Actions in this commit** — (1) `EXCLUDE=` argument → explicit flag (+ cell parameters exported with the
+  job); (2) default screen-log names carry CELL, the rotation or eval-orbit token and the job id, so no
+  `LOG=` override is ever needed (the three overnight path incidents all came from overrides) — proven: six
+  same-second cells produce six distinct names, and without the tokens two R3 rotations collide exactly;
+  (3) the arm launcher `git rm --cached`s its own Slurm transcript at launch (tolerating absence, recording
+  the outcome in the manifest, closure documented in the header), and **C32's live transcript is untracked
+  in this commit** so remote coordination can no longer touch it.
+- **Validation** — 114/114 screen guard cases (deletion/thaw cases skipped: campaign freeze engaged), 200 pytest.
