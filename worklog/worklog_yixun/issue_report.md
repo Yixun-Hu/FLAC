@@ -1,3 +1,7 @@
+
+## OPEN (2026-08-08, overnight): cross-machine metrics consolidation is HALF-DONE — table regen blocked benignly
+- A6000 side: 152 raw JSONs force-added + manifest (done). Cluster side: neuronic/exp_11 row evidence exists only on the cluster's disk (manifest committed, raws NOT) → the generator's new row-regression guard (their upgrade — working as intended) blocks regeneration on this box (6 rows would lose evidence). **Morning fix options: (a) cluster session force-adds its raws (mirrors my pattern), or (b) generator learns published-value carry-forward with a provenance note. My new rows (fa@62.5k, fa@25k matched-compute) are fully recorded in the exp_10 addendum; table regen deferred, nothing lost.**
+- ALSO OPEN: Codex API key 401-dead since ~01:00 — reviews ran on the SOP Opus-fallback seat (declared in each artifact). Needs Yixun's key fix.
 # Issue report — open issues, caveats, pending decisions
 
 Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items move to the bottom with resolution notes.
