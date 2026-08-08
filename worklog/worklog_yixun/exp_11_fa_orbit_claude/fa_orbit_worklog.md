@@ -170,3 +170,9 @@
 - **Result** — `partial` (infra/process, zero GPU cost): all 10 C8 conf jobs bound their worktree to 064e8e0b — an intermediate commit of the in-flight r3/cross coder round where fa_orbit_screen.sbatch references eval_FLAC.rot_token before eval_FLAC exports it; every job died at the render gate in seconds. C8@40k ckpt safe; C8 COMPLETED 0:0 in 27h54m.
 - **Operating rule (C4, appended to the campaign conditions)** — measurement submissions ONLY at round-closed SHAs: no submission while a coder round is open on measurement surfaces; verify suite-green HEAD before submitting.
 - **Next** — r3/cross round closes + review → resubmit C8 conf block at the closed SHA.
+
+## 2026-08-08 ~04:45 — overnight measurement HALTED (stop-loss); training arms unaffected
+
+- **Triage (all infra, zero wrong numbers):** (1) cluster ECC wave — uncorrectable-ECC failures across ≥8 nodes (neu301/303/305/306/317/319/322/332), small jobs funneling into sick GPUs; (2) **SBATCH_EXCLUDE env is dropped by the submitter's --with-lock re-exec** — proven: third-batch jobs landed on excluded neu303/332 — so no batch tonight actually had node exclusion; (3) two aux-LOG path mistakes of mine (tee into the pinned worktree; then node-local /tmp scratchpad paths breaking class-7 log provenance). Survivors: C8 trajectory screens 27.5k–37.5k + C16@20k gate screen (validated).
+- **Daylight fix list (small, reviewable):** submitter accepts EXCLUDE= argument → explicit sbatch --exclude (no env reliance); driver default LOG names gain cell/rot/orbit qualifiers (removes any need for LOG overrides); sick-node list to cluster admins (Yixun).
+- **Scorecard:** C4L row PUBLISHED ✓ · C8 trained+COMPLETED ✓ (row pending eval infra) · C16 ~28k ✓ · C32 ~17k ✓ · r3/cross kit built+reviewed+GO ✓ · campaign conditions held throughout (freeze on, fail-closed everywhere).
