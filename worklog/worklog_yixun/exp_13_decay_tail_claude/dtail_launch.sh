@@ -444,6 +444,7 @@ PY
   echo "anchor sha256 after retune: ${SHA_AFTER}"
   [ "$SHA_AFTER" = "$SHA_WANT" ] || { echo "ANCHOR SHA-256 CHANGED DURING THE RETUNE - abort"; exit 2; }
   echo "anchor unchanged"
+  echo "retuned-copy sha256: $(sha256sum "$RETUNED_CKPT" | cut -d" " -f1)"
   TRAIN_CKPT="$RETUNED_CKPT"
 fi
 
