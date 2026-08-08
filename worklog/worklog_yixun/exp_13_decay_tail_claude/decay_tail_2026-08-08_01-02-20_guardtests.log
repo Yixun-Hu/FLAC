@@ -1,0 +1,93 @@
+=== dtail_launch guard exercise - 2026-08-08_01-02-20 - 944741f ===
+launcher: worklog/worklog_yixun/exp_13_decay_tail_claude/dtail_launch.sh
+pin file digest    (manual recovery if hard-killed): bd3fc7db86549a4e529eb5052d86780830dc97557beaba1f8e8e53f32d544390
+dtail config sha256(manual recovery if hard-killed): 6cd0ee18b2a5e6e85abd23800f41f655b6d638537de704c2d59dec0a3abcdef1
+synthetic checkpoints written to /tmp/tmp.5zrDiYYZ13
+--- A. environment / knob validation ---
+PASS  rc=2   wrong conda env rejected
+PASS  rc=2   CHECKPOINT_EVERY=0
+PASS  rc=2   CHECKPOINT_EVERY=abc
+PASS  rc=2   CHECKPOINT_EVERY=-5
+PASS  rc=2   MAXSTEPS=abc
+PASS  rc=2   MAXSTEPS=0
+PASS  rc=2   MAXSTEPS=97500.5 (non-integer) rejected
+PASS  rc=2   EXPECTED_STEP=abc
+PASS  rc=2   MIN_FREE_DISK_MB=abc
+--- B. resume requirement ---
+PASS  rc=2   RESUME_CKPT unset
+PASS  rc=2   RESUME_CKPT missing file
+--- C. lineage-mode path gates ---
+PASS  rc=2   INITIAL with a non-anchor step-87500 ckpt rejected (wrong path, right step)
+PASS  rc=2   EXPECTED_STEP=87500 explicit + non-anchor path rejected
+PASS  rc=2   EXPECTED_STEP=80000 (pre-anchor restart) rejected
+PASS  rc=2   RESTART from outside the exp13 namespace rejected
+PASS  rc=2   INITIAL MAXSTEPS == 87500 rejected
+PASS  rc=2   INITIAL MAXSTEPS < 87500 rejected
+PASS  rc=2   MB=8 ACC=8 rung rejected
+PASS  rc=2   PROBE with a cadence that never saves rejected
+--- D. exp_13 scheduler-block asserts (dtail config temporarily swapped) ---
+PASS  rc=2   D1 scheduler block reverted to BVp1 (1e6/0.5) rejected
+  dtail config restored OK (sha256 6cd0ee18b2a5e6e85abd23800f41f655b6d638537de704c2d59dec0a3abcdef1)
+PASS  rc=2   D2 warmup 0.98 (not the preserved 0.99) rejected
+  dtail config restored OK (sha256 6cd0ee18b2a5e6e85abd23800f41f655b6d638537de704c2d59dec0a3abcdef1)
+PASS  rc=2   D3 extra key in the scheduler config rejected
+  dtail config restored OK (sha256 6cd0ee18b2a5e6e85abd23800f41f655b6d638537de704c2d59dec0a3abcdef1)
+PASS  rc=2   D4 stray final_lr_ratio key rejected
+  dtail config restored OK (sha256 6cd0ee18b2a5e6e85abd23800f41f655b6d638537de704c2d59dec0a3abcdef1)
+PASS  rc=2   D5 non-scheduler drift from BVp1 rejected
+  dtail config restored OK (sha256 6cd0ee18b2a5e6e85abd23800f41f655b6d638537de704c2d59dec0a3abcdef1)
+--- E. df floor on the outputs volume (bypass for guard-testing: MIN_FREE_DISK_MB=1) ---
+PASS  rc=2   df floor rejects an impossible free-space requirement
+PASS  rc=2   df floor bypass (MIN_FREE_DISK_MB=1) lets the run reach the sha pin
+--- F. anchor sha-256 pin (pin file temporarily swapped; anchor untouched) ---
+PASS  rc=2   sha mismatch (wrong pin) rejected
+PASS  rc=2   malformed pin file rejected
+PASS  rc=2   missing pin file rejected
+  pin file restored OK (bd3fc7db86549a4e529eb5052d86780830dc97557beaba1f8e8e53f32d544390)
+--- G. exp13 namespace: RESTART + retune-destination cases (synthetic ckpts in outputs_FLAC/exp13_DT) ---
+synthetic RESTART checkpoints + retuned placeholder written to outputs_FLAC/exp13_DT
+PASS  rc=2   RESTART MAXSTEPS == EXPECTED_STEP rejected
+PASS  rc=2   RESTART with a wrong EXPECTED_STEP rejected
+PASS  rc=2   RESTART on a BVp1-embedded ckpt rejected (exp_13 ckpts embed the dtail config)
+PASS  rc=2   optimizer-stripped ckpt rejected (exp_13 is warm-only)
+PASS  rc=2   VALID RESTART (dry-fail at the VRAM gate)
+--- G2. retune-destination guard (a retuned copy already exists) ---
+PASS  rc=2   INITIAL refuses to clobber an existing retuned copy
+PASS  rc=2   RETUNE_FORCE=1 gets past the retune pre-check (then dry-fails at VRAM)
+PASS  the retuned placeholder was never overwritten (the retune step is post-VRAM-gate)
+--- targeted cleanup of outputs_FLAC/exp13_DT ---
+  rm outputs_FLAC/exp13_DT/guardtest-restart-step=90000.ckpt
+  rm outputs_FLAC/exp13_DT/guardtest-bvp1cfg-step=90000.ckpt
+  rm outputs_FLAC/exp13_DT/guardtest-stripped-step=90000.ckpt
+  rm outputs_FLAC/exp13_DT/retuned_from_87500.ckpt
+  rmdir outputs_FLAC/exp13_DT (was empty)
+--- H. the VALID launches (real anchor, real pin, dry-fail at the VRAM gate) ---
+PASS  rc=2   H1 INITIAL accept: sha OK + BVp1 lineage OK + identity + defaults
+PASS  rc=2   H2 PROBE accept: MAXSTEPS 87515 / cadence 5 reaches the df gate with probe=1
+--- anchor + config integrity re-check (read-only throughout) ---
+PASS  anchor unchanged (bd3fc7db86549a4e529eb5052d86780830dc97557beaba1f8e8e53f32d544390)
+PASS  dtail config restored (6cd0ee18b2a5e6e85abd23800f41f655b6d638537de704c2d59dec0a3abcdef1)
+
+=== guard exercise: 41 passed, 0 failed ===
+  pin file restored OK (bd3fc7db86549a4e529eb5052d86780830dc97557beaba1f8e8e53f32d544390)
+  dtail config restored OK (sha256 6cd0ee18b2a5e6e85abd23800f41f655b6d638537de704c2d59dec0a3abcdef1)
+--- removing launcher logs created by this exercise ---
+  rm decay_tail_2026-08-08_01-03-06_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-04-16_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-04-30_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-04-42_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-04-55_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-05-08_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-05-22_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-05-35_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-05-53_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-06-10_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-06-23_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-06-43_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-06-58_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-07-13_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-07-28_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-07-43_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-08-00_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-08-19_exp13_DT_train.log
+  rm decay_tail_2026-08-08_01-08-38_exp13_DT_train.log
