@@ -482,10 +482,17 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                     # `gauge` key defaults to "cylindrical_xyz" here (NOT the package's
                     # own "none" default), so exp-09 configs cannot silently run gauge-off.
                     gauge = vit_config.get('gauge', 'cylindrical_xyz')
+                    # exp-12 arm knobs (absent keys -> package defaults "full"/"strip",
+                    # which are bit-identical to the legacy path; validated in-package).
+                    azimuth_mode = vit_config.get('azimuth_mode', 'full')
+                    prefix_mode = vit_config.get('prefix_mode', 'strip')
                     print(f"Loading cylindrical_dinov3 ViT from {model_name_or_path} "
-                          f"(gauge={gauge}, attn=eager)...")
+                          f"(gauge={gauge}, azimuth_mode={azimuth_mode}, "
+                          f"prefix_mode={prefix_mode}, attn=eager)...")
                     vit_model = CylindricalDINOv3ViTModel.from_pretrained(
-                        model_name_or_path, gauge=gauge, attn_implementation="eager",
+                        model_name_or_path, gauge=gauge,
+                        azimuth_mode=azimuth_mode, prefix_mode=prefix_mode,
+                        attn_implementation="eager",
                     )
 
                     if vit_config.get('freeze', False):
