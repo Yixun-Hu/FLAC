@@ -1,0 +1,20 @@
+{
+    "metrics": {
+        "T60": 10.3058,
+        "Invalid T60": 0.0,
+        "C50": 1.0425,
+        "EDT": 42.8998,
+        "FD": 0.3059,
+        "RIR_to_GT_RIR_R@1": 6.8487,
+        "RIR_to_GT_RIR_R@5": 19.899,
+        "RIR_to_GT_RIR_R@10": 27.6156,
+        "RIR_to_geom_R@1": 5.8703,
+        "RIR_to_geom_R@5": 17.8633,
+        "RIR_to_geom_R@10": 25.7693
+    },
+    "ckpt_path": "outputs_FLAC/exp07_BVextend/FLAC_exp07_BVextend/exp07_BVextend/checkpoints/epoch=20-step=92500.ckpt",
+    "rotate_deg": 0.0,
+    "cond_method": "vanilla",
+    "frame_avg_angles": null,
+    "cond_autocast": "bf16"
+}

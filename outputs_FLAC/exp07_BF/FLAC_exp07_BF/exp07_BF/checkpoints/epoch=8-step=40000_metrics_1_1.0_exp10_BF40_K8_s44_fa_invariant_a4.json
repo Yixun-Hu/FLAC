@@ -1,0 +1,25 @@
+{
+    "metrics": {
+        "T60": 8.22,
+        "Invalid T60": 0.0,
+        "C50": 0.9766,
+        "EDT": 38.912,
+        "FD": 0.333,
+        "RIR_to_GT_RIR_R@1": 5.46,
+        "RIR_to_GT_RIR_R@5": 16.4747,
+        "RIR_to_GT_RIR_R@10": 24.4122,
+        "RIR_to_geom_R@1": 4.1502,
+        "RIR_to_geom_R@5": 14.0918,
+        "RIR_to_geom_R@10": 21.3035
+    },
+    "ckpt_path": "outputs_FLAC/exp07_BF/FLAC_exp07_BF/exp07_BF/checkpoints/epoch=8-step=40000.ckpt",
+    "rotate_deg": 0.0,
+    "cond_method": "fa_invariant",
+    "frame_avg_angles": [
+        0.0,
+        90.0,
+        180.0,
+        270.0
+    ],
+    "cond_autocast": "bf16"
+}
