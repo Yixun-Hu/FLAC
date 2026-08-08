@@ -1,0 +1,32 @@
+{
+    "metrics": {
+        "T60": 10.2845,
+        "Invalid T60": 0.0,
+        "C50": 1.0006,
+        "EDT": 39.649,
+        "FD": 0.3018,
+        "RIR_to_GT_RIR_R@1": 6.8802,
+        "RIR_to_GT_RIR_R@5": 19.6939,
+        "RIR_to_GT_RIR_R@10": 27.947,
+        "RIR_to_geom_R@1": 5.602,
+        "RIR_to_geom_R@5": 17.8002,
+        "RIR_to_geom_R@10": 25.4221
+    },
+    "ckpt_path": "outputs_FLAC/exp13_DT/FLAC_exp13_DT/exp13_DT/checkpoints/epoch=20-step=93750.ckpt",
+    "rotate_deg": 0.0,
+    "cond_method": "vanilla",
+    "frame_avg_angles": null,
+    "cond_autocast": "bf16",
+    "orbit_execution": "n/a",
+    "frame_avg_fwd_cap": null,
+    "source_sha": "76cb41b5aa3435ecf4874f9f25531e673f31d9c8",
+    "batch_size": 64,
+    "n_samples": 6337,
+    "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json",
+    "seed": 46,
+    "cfg_scale": 1.0,
+    "steps": 1,
+    "eval_name": "exp13_DT93750_K1_s46",
+    "weights_source": "ema",
+    "device": "cuda"
+}
