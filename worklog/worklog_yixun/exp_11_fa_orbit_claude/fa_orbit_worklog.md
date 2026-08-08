@@ -164,3 +164,9 @@
 - **Bridge effect (the finding)** — C4L vs historical legacy-loop B-F@40k at K8: T60 +0.212, C50 +0.0317, EDT +2.71, R@1 −0.268 — the recipe/environment delta (8×8 rung + batched orbit + chunk-shared RoPE + L40 + torchrun DDP) shifts the absolute level measurably. **This is precisely why the review-mandated C4L bridge exists: orbit inferences (R1/trend) run against C4L, same recipe, and are untouched; cross-era comparisons vs historical rows would conflate this shift with the orbit effect and are excluded by the table's non-interchangeability rule.**
 - **Gate note** — the pre-registered futility comparator is the C4 backfill (historical recipe); given the measured bridge shift, gate verdicts will be reported with BOTH the registered backfill comparison and the C4L-trajectory context; no arm is near a kill (all tracking C4L's curve).
 - **Next** — C8@40k tonight → conf block; C4L trajectory analysis (17.5k–37.5k screens landed); R3 rotations + D-probes scheduling; C16 Aug 8, C32 Aug 10 → R1.
+
+## 2026-08-08 (overnight) — C8 conf block attempt 1 refused (10× exit 2): mid-round intermediate commit; operating rule added
+
+- **Result** — `partial` (infra/process, zero GPU cost): all 10 C8 conf jobs bound their worktree to 064e8e0b — an intermediate commit of the in-flight r3/cross coder round where fa_orbit_screen.sbatch references eval_FLAC.rot_token before eval_FLAC exports it; every job died at the render gate in seconds. C8@40k ckpt safe; C8 COMPLETED 0:0 in 27h54m.
+- **Operating rule (C4, appended to the campaign conditions)** — measurement submissions ONLY at round-closed SHAs: no submission while a coder round is open on measurement surfaces; verify suite-green HEAD before submitting.
+- **Next** — r3/cross round closes + review → resubmit C8 conf block at the closed SHA.
