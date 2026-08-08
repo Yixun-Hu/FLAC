@@ -65,6 +65,10 @@ ROWS = [
  ("P1 vanilla @40k + fa-eval (decomposition)", "fa eval", 8, ["outputs_FLAC/exp07_P1/**/*exp10_P140fae_K8_s4[2-6]*.json"]),
  ("fa scratch B-F @40k + vanilla-eval (2x2 off-diagonal)", "vanilla eval", 1, ["outputs_FLAC/exp07_BF/**/*exp10_BF40van_K1_s4[2-6]*.json"]),
  ("fa scratch B-F @40k + vanilla-eval (2x2 off-diagonal)", "vanilla eval", 8, ["outputs_FLAC/exp07_BF/**/*exp10_BF40van_K8_s4[2-6]*.json"]),
+ ("fa scratch @62.5k (band-typical best, exploratory)", "fa eval", 1, ["outputs_FLAC/exp10_BF/**/*exp10_BF62_K1_s4[2-6]*.json"]),
+ ("fa scratch @62.5k (band-typical best, exploratory)", "fa eval", 8, ["outputs_FLAC/exp10_BF/**/*exp10_BF62_K8_s4[3-6]*.json", "outputs_FLAC/exp10_BF/**/*exp10_BF_screen_S62500*.json"]),
+ ("fa scratch @25k (matched-compute vs anchor)", "fa eval", 1, ["outputs_FLAC/exp07_BF/**/*exp10_BFmc_K1_s4[2-6]*.json"]),
+ ("fa scratch @25k (matched-compute vs anchor)", "fa eval", 8, ["outputs_FLAC/exp07_BF/**/*exp10_BFmc_K8_s4[2-6]*.json"]),
  # exp_10 endpoint rows: registered in advance; render pending until the gate JSONs land
  ("fa scratch @67.5k (exp_10, pending gates)", "fa eval", 1, ["outputs_FLAC/exp10_BF/**/*exp10_BF67_K1_s4[2-6]*.json"]),
  ("fa scratch @67.5k (exp_10, pending gates)", "fa eval", 8, ["outputs_FLAC/exp10_BF/**/*exp10_BF67_K8_s4[3-6]*.json"]),
