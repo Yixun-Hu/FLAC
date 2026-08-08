@@ -551,8 +551,11 @@ def test_r3_contract_registers_the_five_angles():
 
 
 def _r3_row(tmp_path, rot, arm="C32", step=40000, k=8):
+    # The rotation now lives IN the eval name (exp11_<arm>_r3_rot<deg>_s42_K8):
+    # without it the five rows of a cell share one name and are told apart only
+    # by a field inside the file.
     n_ang = V.ARM_ORBITS[arm]
-    ev = f"exp11_{arm}_r3_S{step}_s42_K{k}"
+    ev = f"exp11_{arm}_r3_rot{V.rot_token(rot)}_s42_K{k}"
     suffix = "" if rot == 0.0 else (f"_rot{int(rot)}" if float(rot).is_integer()
                                     else "_rot" + repr(float(rot)).replace(".", "p"))
     name = f"epoch=8-step={step}_metrics_1_1.0_{ev}_fa_invariant_a{n_ang}{suffix}.json"
@@ -625,3 +628,113 @@ def test_relative_model_config_resolves_against_the_repo_not_the_cwd(tmp_path, m
                        name="epoch=2-step=10000_metrics_1_1.0_exp11_C8_screen_S10000_s42_K8_fa_invariant_a8.json")
     _, problems2 = V.validate_row(path2, verify_hashes=True)
     assert any("model_config_sha256 mismatch" in p for p in problems2), problems2
+
+
+# --------------------------------------------------------------------------- #
+# CROSS contract (R2 mechanism / D2): one checkpoint under orbits it was not
+# trained on. Never table-admissible; the eval orbit is the replication axis.
+# --------------------------------------------------------------------------- #
+def _cross_row(tmp_path, eval_orbit, arm="C8", step=40000, k=8):
+    train_orbit = V.ARM_ORBITS[arm]
+    ev = f"exp11_{arm}_cross_a{eval_orbit}_S{step}_s42_K{k}"
+    name = f"epoch=8-step={step}_metrics_1_1.0_{ev}_fa_invariant_a{eval_orbit}.json"
+    ck = (f"outputs_FLAC/exp11_{arm}/FLAC_exp11_{arm}/exp11_{arm}/checkpoints/"
+          f"epoch=8-step={step}.ckpt")
+    ang = [j * 360.0 / eval_orbit for j in range(eval_orbit)]   # the EVAL orbit
+    return _write_row(
+        tmp_path,
+        rec=_record(frame_avg_angles=ang, ckpt_path=ck, eval_name=ev),
+        side=_sidecar(arm=arm, step=step, K=k, eval_name=ev, frame_avg_angles=ang,
+                      ckpt_path=ck, training_orbit=train_orbit, eval_orbit=eval_orbit),
+        name=name)
+
+
+def test_cross_contract_is_registered_and_never_table_admissible():
+    spec = V.CONTRACTS["cross"]
+    assert spec["cells"] == ("cross",) and spec["seeds"] == (42,) and spec["K"] == (8,)
+    assert spec["table_admissible"] is False
+    assert spec["step"] == 40000
+    assert V.cross_orbits_for("C8") == (4, 16, 32)      # every orbit but its own
+    assert V.cross_orbits_for("C4BACKFILL") == (8, 16, 32)
+
+
+def test_cross_cell_needs_every_orbit_but_the_arms_own(tmp_path):
+    paths = [_cross_row(tmp_path, n) for n in (4, 16, 32)]
+    rows, problems = V.validate_cell(paths, arm="C8", step=40000, k=8, contract="cross")
+    assert problems == [], problems
+    assert sorted(r["eval_orbit"] for r in rows) == [4, 16, 32]
+    assert {r["training_orbit"] for r in rows} == {8}
+
+    short = [_cross_row(tmp_path, n) for n in (4, 16)]
+    _rows, problems = V.validate_cell(short, arm="C8", step=40000, k=8, contract="cross")
+    assert any("32 is missing" in p for p in problems), problems
+
+
+def test_cross_rejects_the_arms_own_training_orbit(tmp_path):
+    """Evaluating C8 at a8 is a screen/conf row. Calling it 'cross' would smuggle
+    an ordinary result into the mechanism evidence."""
+    path = _cross_row(tmp_path, 8, arm="C8")
+    _row, problems = V.validate_row(path)
+    assert any("OWN training orbit" in p for p in problems), problems
+
+
+def test_cross_sidecar_must_record_both_orbits(tmp_path):
+    arm, eval_orbit, step = "C8", 16, 40000
+    ev = f"exp11_{arm}_cross_a{eval_orbit}_S{step}_s42_K8"
+    name = f"epoch=8-step={step}_metrics_1_1.0_{ev}_fa_invariant_a{eval_orbit}.json"
+    ck = f"outputs_FLAC/exp11_{arm}/FLAC_exp11_{arm}/exp11_{arm}/checkpoints/epoch=8-step={step}.ckpt"
+    ang = [j * 360.0 / eval_orbit for j in range(eval_orbit)]
+    side = _sidecar(arm=arm, step=step, K=8, eval_name=ev, frame_avg_angles=ang, ckpt_path=ck)
+    path = _write_row(tmp_path, rec=_record(frame_avg_angles=ang, ckpt_path=ck, eval_name=ev),
+                      side=side, name=name)
+    _row, problems = V.validate_row(path)
+    assert any("must record training_orbit" in p for p in problems), problems
+    assert any("must record eval_orbit" in p for p in problems), problems
+
+
+def test_cross_record_angles_must_match_the_named_orbit(tmp_path):
+    """The name claims a16; the record must actually have evaluated 16 angles."""
+    arm, step = "C8", 40000
+    ev = f"exp11_{arm}_cross_a16_S{step}_s42_K8"
+    name = f"epoch=8-step={step}_metrics_1_1.0_{ev}_fa_invariant_a16.json"
+    ck = f"outputs_FLAC/exp11_{arm}/FLAC_exp11_{arm}/exp11_{arm}/checkpoints/epoch=8-step={step}.ckpt"
+    ang4 = [j * 90.0 for j in range(4)]                       # only four angles
+    path = _write_row(tmp_path, rec=_record(frame_avg_angles=ang4, ckpt_path=ck, eval_name=ev),
+                      side=_sidecar(arm=arm, step=step, K=8, eval_name=ev, frame_avg_angles=ang4,
+                                    ckpt_path=ck, training_orbit=8, eval_orbit=16),
+                      name=name)
+    _row, problems = V.validate_row(path)
+    assert any("the name claims a16" in p for p in problems), problems
+
+
+def test_cross_and_r3_are_registered_at_the_40k_endpoint_only(tmp_path):
+    paths = [_cross_row(tmp_path, n, step=40000) for n in (4, 16, 32)]
+    _rows, problems = V.validate_cell(paths, arm="C8", step=30000, k=8, contract="cross")
+    assert any("registered at step 40000 only" in p for p in problems), problems
+
+
+def test_r3_name_and_record_rotation_must_agree(tmp_path):
+    """The name is the row's identity; a record that rotated by something else
+    would make the five-row cell a set of unknowns."""
+    arm, step, rot = "C32", 40000, 22.5
+    ev = f"exp11_{arm}_r3_rot{V.rot_token(rot)}_s42_K8"
+    name = f"epoch=8-step={step}_metrics_1_1.0_{ev}_fa_invariant_a32_rot11p25.json"
+    ck = f"outputs_FLAC/exp11_{arm}/FLAC_exp11_{arm}/exp11_{arm}/checkpoints/epoch=8-step={step}.ckpt"
+    ang = V.orbit_for(arm)
+    path = _write_row(tmp_path, rec=_record(frame_avg_angles=ang, ckpt_path=ck, eval_name=ev,
+                                            rotate_deg=11.25),
+                      side=_sidecar(arm=arm, step=step, K=8, eval_name=ev, frame_avg_angles=ang,
+                                    ckpt_path=ck),
+                      name=name)
+    _row, problems = V.validate_row(path)
+    assert any("eval name says rotate_deg=22.5" in p for p in problems), problems
+
+
+def test_eval_names_are_injective_across_both_new_cell_types():
+    r3 = {f"exp11_C8_r3_rot{V.rot_token(r)}_s42_K8" for r in V.REGISTERED_ROTATIONS}
+    assert len(r3) == 5, r3
+    cross = {f"exp11_C8_cross_a{n}_S40000_s42_K8" for n in V.cross_orbits_for("C8")}
+    assert len(cross) == 3, cross
+    assert not (r3 & cross)
+    for n in r3 | cross:
+        V.parse_eval_name(n)          # every generated name parses back

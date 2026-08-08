@@ -16,6 +16,33 @@ from src.models import create_model_from_config
 from src.training import create_training_wrapper_from_config, create_metric_callback_from_config
 
 
+def rot_suffix(rotate_deg):
+    """The injective filename suffix for a yaw offset: ``5.625 -> '_rot5p625'``.
+
+    Integer rotations keep their historical byte-identical form (exp_02's
+    ``_rot180`` artifacts must still resolve); fractional ones would collide
+    under ``int()`` -- R3 evaluates 5.625 deg, which used to land on ``_rot5``
+    alongside 5 deg -- so they get a decimal-safe form (round-4 review B3).
+
+    Exposed as its own function because the R3 EVAL NAME needs the same
+    rendering as the filename: five rotation rows of one cell otherwise share an
+    eval name, and the identity that distinguishes them lives only in a field.
+    """
+    return '' if float(rotate_deg) == 0.0 else '_rot' + rot_token(rotate_deg)
+
+
+def rot_token(rotate_deg):
+    """The decimal-safe rendering of a yaw offset, with no empty case.
+
+    ``rot_suffix`` renders 0 as the empty string so unrotated filenames stay
+    byte-identical to the legacy ones. An eval NAME cannot do that -- `rot` with
+    nothing after it is not a name -- so the R3 naming uses this instead:
+    ``0 -> '0'``, ``5.625 -> '5p625'``.
+    """
+    d = float(rotate_deg)
+    return str(int(d)) if d.is_integer() else repr(d).replace('.', 'p')
+
+
 def build_output_paths(
     ckpt_path,
     steps,
@@ -45,17 +72,7 @@ def build_output_paths(
     ckpt_name = os.path.basename(ckpt_path).replace('.ckpt', '')
     directory = os.path.dirname(ckpt_path)
     method_suffix = '' if cond_method == 'vanilla' else f'_{cond_method}_a{n_angles}'
-    # Integer rotations keep their historical byte-identical suffix (exp_02's
-    # _rot180 artifacts must still resolve); fractional ones would collide under
-    # int() -- R3 evaluates 5.625 deg, which used to land on _rot5 alongside 5 deg
-    # -- so they get a decimal-safe form: 5.625 -> rot5p625 (round-4 review B3).
-    if rotate_deg == 0.0:
-        rot_suffix = ''
-    elif float(rotate_deg).is_integer():
-        rot_suffix = f'_rot{int(rotate_deg)}'
-    else:
-        rot_suffix = '_rot' + repr(float(rotate_deg)).replace('.', 'p')
-    stem = f'{steps}_{cfg_scale}_{eval_name}{method_suffix}{rot_suffix}'
+    stem = f'{steps}_{cfg_scale}_{eval_name}{method_suffix}{rot_suffix(rotate_deg)}'
     return {
         'metrics': os.path.join(directory, f'{ckpt_name}_metrics_{stem}.json'),
         'predictions': os.path.join(directory, f'{ckpt_name}_predictions_{stem}.pt'),

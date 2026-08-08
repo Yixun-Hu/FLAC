@@ -46,8 +46,16 @@ ROOT="${MAIN_REPO}/.measure_worktrees"
 # (anyone can repoint it at a different corpus between screens), so following it
 # blindly would let the measurement stack silently change datasets. Registered
 # target, or abort.
-ASSETS=(AcousticRooms weights)
-ASSET_TARGETS=(/n/fs/gatrdp/datasets/AcousticRooms /n/fs/gatrdp/codespace/FLAC/weights)
+# LEAF paths, not top-level directories: `weights/` became a TRACKED directory
+# when the exp_01 metric JSONs were force-added (commit 7543476), so a fresh
+# worktree materialises a real weights/FLAC/ holding those JSONs and nothing
+# else. Linking the parent is then impossible and linking nothing leaves the
+# evaluation without its conditioner. Each leaf the eval actually opens is
+# provisioned on its own, whatever its parent happens to be.
+ASSETS=(AcousticRooms weights/AGREE weights/FLAC/VAE.safetensors)
+ASSET_TARGETS=(/n/fs/gatrdp/datasets/AcousticRooms
+               /n/fs/gatrdp/codespace/FLAC/weights/AGREE
+               /n/fs/gatrdp/codespace/FLAC/weights/FLAC/VAE.safetensors)
 # Bookkeeping this script itself creates in the tree; never code.
 BOOKKEEPING=(.leases)
 
@@ -346,7 +354,19 @@ if [ -d "$WT" ]; then
   [ "$HAVE" = "$SHA" ] || die "existing ${WT} is at ${HAVE}, not ${SHA} - refusing to reuse"
   echo "reusing pinned worktree ${WT}" >&2
 else
-  git worktree add --detach "$WT" "$SHA" >&2 || die "git worktree add failed" 3
+  if ! git worktree add --detach "$WT" "$SHA" >&2; then
+    # "missing but already registered" — a registration whose directory is gone.
+    # Re-creating it destroys nothing (there is nothing there), so --force is
+    # safe here even under a campaign freeze, which forbids DELETING trees, not
+    # creating them. `git worktree prune` would also fix it, but that is a
+    # pruning operation and the freeze suppresses those on purpose.
+    if [ ! -e "$WT" ]; then
+      echo "clearing a stale registration for the missing ${WT} and re-creating it" >&2
+      git worktree add --detach --force "$WT" "$SHA" >&2 || die "git worktree add failed" 3
+    else
+      die "git worktree add failed" 3
+    fi
+  fi
   echo "created pinned worktree ${WT}" >&2
 fi
 
@@ -361,8 +381,15 @@ for i in "${!ASSETS[@]}"; do
     CUR="$(readlink -f "${WT}/${A}")"
     [ "$CUR" = "$SRC" ] || die "worktree asset ${WT}/${A} points at ${CUR}, not ${SRC}"
   elif [ -e "${WT}/${A}" ]; then
-    die "worktree already contains a non-symlink ${A} - refusing to touch it"
+    # A TRACKED path of the same name is the checkout's own content, not ours:
+    # accept it (it came from the pinned commit) rather than overwrite it.
+    if git -C "$WT" ls-files --error-unmatch "$A" >/dev/null 2>&1; then
+      echo "asset ${A} is tracked at this commit; using the checkout's own copy" >&2
+    else
+      die "worktree already contains an untracked non-symlink ${A} - refusing to touch it"
+    fi
   else
+    mkdir -p "$(dirname "${WT}/${A}")" || die "cannot create the parent of ${A} in ${WT}" 3
     ln -s "$SRC" "${WT}/${A}" || die "cannot link ${A} into ${WT}" 3
     echo "linked ${A} -> ${SRC}" >&2
   fi

@@ -138,35 +138,93 @@ case "$CELL" in
     [ "$K" = "8" ] || die "a futility screen is K=8 by contract (got K=${K}) - abort" ;;
   conf)
     case "$SEED" in 42|43|44|45|46) ;; *) die "a confirmatory cell uses seeds 42-46 (got ${SEED}) - abort";; esac ;;
-  *) die "CELL '${CELL}' must be 'screen' (futility) or 'conf' (confirmatory table cell) - abort" ;;
+  r3)
+    # plan §4 R3: ONE seed at five registered yaw offsets, at the 40k endpoint.
+    [ "$SEED" = "42" ] || die "an R3 cell is seed 42 by contract (got ${SEED}) - abort"
+    [ "$K" = "8" ] || die "an R3 cell is K=8 by contract (got K=${K}) - abort"
+    [ "$STEP" = "40000" ] || die "R3 is registered at the 40k endpoint only (got ${STEP}) - abort"
+    [ -n "${ROTATE_DEG:-}" ] || die "CELL=r3 needs ROTATE_DEG (one of 0, 5.625, 11.25, 22.5, 45) - abort"
+    case "$ROTATE_DEG" in
+      0|0.0|5.625|11.25|22.5|45|45.0) ;;
+      *) die "ROTATE_DEG '${ROTATE_DEG}' is not one of the registered R3 offsets {0, 5.625, 11.25, 22.5, 45} - abort" ;;
+    esac ;;
+  cross)
+    # R2 mechanism / D2: the checkpoint is still proven to BE this arm, but the
+    # evaluation deliberately runs an orbit the model was not trained on.
+    [ "$SEED" = "42" ] || die "a cross cell is seed 42 by contract (got ${SEED}) - abort"
+    [ "$K" = "8" ] || die "a cross cell is K=8 by contract (got K=${K}) - abort"
+    [ "$STEP" = "40000" ] || die "cross cells are registered at the 40k endpoint only (got ${STEP}) - abort"
+    [ -n "${EVAL_ORBIT:-}" ] || die "CELL=cross needs EVAL_ORBIT (4|8|16|32) - abort"
+    case "$EVAL_ORBIT" in
+      4|8|16|32) ;;
+      *) die "EVAL_ORBIT '${EVAL_ORBIT}' must be one of 4|8|16|32 - abort" ;;
+    esac ;;
+  *) die "CELL '${CELL}' must be screen (futility), conf (table cell), r3 (yaw offsets) or cross (orbit mismatch) - abort" ;;
 esac
-if [ "$ARM" = "C4BACKFILL" ] && [ "$CELL" != "screen" ]; then
-  die "the C4 backfill is a futility-gate comparator only (CELL=screen) - abort"
+if [ "$ARM" = "C4BACKFILL" ]; then
+  case "$CELL" in
+    screen|cross) ;;
+    *) die "the C4 backfill is a futility comparator (CELL=screen) and the legacy D2 sweep (CELL=cross) only - abort" ;;
+  esac
 fi
 if [ "$ARM" = "C4BACKFILL" ]; then
   # The plan pre-registers backfill gates at 20k and 30k ONLY (§3/§4). A 10k
   # backfill cell would look like registered evidence and is not (round-4 NIT 2);
   # the arms' own 10k screens remain fine — those are registered screen cadence.
+  # 20k/30k are the pre-registered futility gates; 40k is the LEGACY D2 endpoint
+  # (the historical C4 model, at its own orbit and across the others). 10k stays
+  # deliberately absent — it would look like registered evidence and is not.
   case "$STEP" in
-    20000|30000) ;;
-    *) die "the C4 backfill is registered at steps 20000/30000 only (plan §3), got ${STEP} - abort" ;;
+    20000|30000|40000) ;;
+    *) die "the C4 backfill is registered at steps 20000/30000/40000 only (plan §3), got ${STEP} - abort" ;;
   esac
+  if [ "$CELL" = "cross" ] && [ "$STEP" != "40000" ]; then
+    die "the legacy D2 cross sweep is the 40k endpoint only, got ${STEP} - abort"
+  fi
 fi
 
 # --- B. arm -> config, orbit, checkpoint tree, identity -----------------------
+# TRAIN_ANGLES is the arm's identity — what the checkpoint must embed, checked
+# in gate E and never relaxed. EVAL_ANGLES is what this evaluation actually
+# runs. They differ for exactly one cell type, CELL=cross, and that difference
+# IS the measurement (R2/D2). Everywhere else they are the same number.
 case "$ARM" in
   C4BACKFILL)
     MODEL_CONFIG="$EXP07/FLAC_AR_BF.json"
     CKPT_DIR="${OUTPUT_ROOT}/exp07_BF/FLAC_exp07_BF/exp07_BF/checkpoints"
-    N_ANGLES=4
-    EVAL_NAME="exp11_C4backfill_S${STEP}_s${SEED}_K${K}"
+    TRAIN_ANGLES=4
     ;;
   *)
     MODEL_CONFIG="$EXPDIR/FLAC_AR_BF_${ARM}.json"
     CKPT_DIR="${OUTPUT_ROOT}/exp11_${ARM}/FLAC_exp11_${ARM}/exp11_${ARM}/checkpoints"
-    case "$ARM" in C4L) N_ANGLES=4;; C8) N_ANGLES=8;; C16) N_ANGLES=16;; C32) N_ANGLES=32;; esac
-    EVAL_NAME="exp11_${ARM}_${CELL}_S${STEP}_s${SEED}_K${K}"
+    case "$ARM" in C4L) TRAIN_ANGLES=4;; C8) TRAIN_ANGLES=8;; C16) TRAIN_ANGLES=16;; C32) TRAIN_ANGLES=32;; esac
     ;;
+esac
+N_ANGLES="$TRAIN_ANGLES"
+ROTATE_DEG="${ROTATE_DEG:-0}"
+if [ "$CELL" = "cross" ]; then
+  N_ANGLES="$EVAL_ORBIT"
+  [ "$EVAL_ORBIT" != "$TRAIN_ANGLES" ] \
+    || die "CELL=cross with EVAL_ORBIT=${EVAL_ORBIT} is ${ARM}'s OWN training orbit — that is a screen/conf cell, not a cross-orbit measurement - abort"
+fi
+# The eval name carries whatever distinguishes the cell: the rotation for R3,
+# the evaluated orbit for cross. Without that, rows of one cell share a name.
+ROT_TOKEN="$(python3 -c "
+import sys; sys.path.insert(0, '$CODE_ROOT')
+from eval_FLAC import rot_token; print(rot_token(sys.argv[1]))" "$ROTATE_DEG")" \
+  || die "could not render the rotation token for ${ROTATE_DEG} - abort"
+case "$ARM" in
+  C4BACKFILL)
+    case "$CELL" in
+      cross) EVAL_NAME="exp11_C4backfill_cross_a${EVAL_ORBIT}_S${STEP}_s${SEED}_K${K}" ;;
+      *)     EVAL_NAME="exp11_C4backfill_S${STEP}_s${SEED}_K${K}" ;;
+    esac ;;
+  *)
+    case "$CELL" in
+      r3)    EVAL_NAME="exp11_${ARM}_r3_rot${ROT_TOKEN}_s${SEED}_K${K}" ;;
+      cross) EVAL_NAME="exp11_${ARM}_cross_a${EVAL_ORBIT}_S${STEP}_s${SEED}_K${K}" ;;
+      *)     EVAL_NAME="exp11_${ARM}_${CELL}_S${STEP}_s${SEED}_K${K}" ;;
+    esac ;;
 esac
 [ -f "$MODEL_CONFIG" ] || die "model config not found: ${MODEL_CONFIG} - abort"
 CONFIG_SHA="$(sha256sum "$MODEL_CONFIG" | awk '{print $1}')" || die "sha256sum failed - abort"
@@ -178,7 +236,8 @@ case "$K" in
 esac
 [ -f "$DATASET_CONFIG" ] || die "eval dataset config not found: ${DATASET_CONFIG} - abort"
 echo "=== exp_11 screen ${ARM} S${STEP} s${SEED} K${K} — ${TS} — host $(hostname) ==="
-echo "config ${MODEL_CONFIG} sha256 ${CONFIG_SHA} | orbit C${N_ANGLES} | eval-name ${EVAL_NAME}"
+echo "config ${MODEL_CONFIG} sha256 ${CONFIG_SHA} | trained C${TRAIN_ANGLES} | evaluated C${N_ANGLES}" \
+     "| rotate ${ROTATE_DEG} | eval-name ${EVAL_NAME}"
 
 # --- B2. lease: this job must hold one, and must give it back -----------------
 # The submitter writes .leases/<jobid> before sbatch returns and the pruner never
@@ -372,7 +431,9 @@ PY
 fi
 
 # --- E. the checkpoint's OWN embedded config must be this arm's ---------------
-python3 - "$CKPT" "$MODEL_CONFIG" "$N_ANGLES" "$STEP" "$EXPDIR" <<'PY' || die "checkpoint/arm identity gate FAILED - abort"
+# NOTE: TRAIN_ANGLES, not N_ANGLES — a cross cell evaluates a different orbit,
+# but the checkpoint must still BE this arm, trained on this arm's orbit.
+python3 - "$CKPT" "$MODEL_CONFIG" "$TRAIN_ANGLES" "$STEP" "$EXPDIR" <<'PY' || die "checkpoint/arm identity gate FAILED - abort"
 import json, sys
 ckpt, cfg_path, n_angles, step, expdir = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), sys.argv[5]
 sys.path.insert(0, expdir)
@@ -408,6 +469,9 @@ EVAL_ARGV=(
   --cond-autocast bf16 --cfg-scale 1.0 --steps 1
   --seed "$SEED" --eval-name "$EVAL_NAME"
 )
+if [ "$CELL" = "r3" ]; then
+  EVAL_ARGV+=(--rotate-deg "$ROTATE_DEG")
+fi
 echo "--- eval argv ---"
 echo "python eval_FLAC.py ${EVAL_ARGV[*]}"
 if [ "$DRYRUN" = "1" ]; then
@@ -432,11 +496,12 @@ EVAL_RC="${PIPE_RC[0]}"; TEE_RC="${PIPE_RC[1]}"
 
 # --- H. sidecar + result line -------------------------------------------------
 CKPT_SHA="$(sha256sum "$CKPT" | awk '{print $1}')" || die "ckpt sha256 FAILED - abort"
-METRICS="$(python3 - "$CKPT" "$EVAL_NAME" "$N_ANGLES" <<'PY'
+METRICS="$(python3 - "$CKPT" "$EVAL_NAME" "$N_ANGLES" "$ROTATE_DEG" <<'PY'
 import os, sys
 sys.path.insert(0, os.getcwd())
 from eval_FLAC import build_output_paths
 print(build_output_paths(sys.argv[1], 1, 1.0, sys.argv[2], cond_method="fa_invariant",
+                         rotate_deg=float(sys.argv[4]),
                          n_angles=int(sys.argv[3]))["metrics"])
 PY
 )" || die "could not derive the metrics path - abort"
@@ -446,15 +511,23 @@ PY
 MODEL_CONFIG_REL="$(python3 -c "import os,sys; print(os.path.relpath(os.path.realpath(sys.argv[1]), sys.argv[2]))" "$MODEL_CONFIG" "$CODE_ROOT")" \
   || die "could not make the model-config path repo-relative - abort"
 python3 - "$METRICS" "$ARM" "$STEP" "$SEED" "$K" "$EVAL_NAME" "$MODEL_CONFIG_REL" "$CONFIG_SHA" \
+         "$TRAIN_ANGLES" "$N_ANGLES" "$ROTATE_DEG" "$CELL" \
          "$DATASET_CONFIG" "$CKPT" "$CKPT_SHA" "$ANGLES" "$HEAD_SHA" <<'PY' || die "sidecar write FAILED - abort" 7
 import json, sys
-(metrics, arm, step, seed, k, eval_name, cfg, cfg_sha, ds, ckpt, ckpt_sha, angles, commit) = sys.argv[1:14]
+(metrics, arm, step, seed, k, eval_name, cfg, cfg_sha,
+ train_orbit, eval_orbit, rotate_deg, cell,
+ ds, ckpt, ckpt_sha, angles, commit) = sys.argv[1:18]
 side = {
     "arm": arm, "step": int(step), "seed": int(seed), "K": int(k), "eval_name": eval_name,
     "cfg_scale": 1.0, "steps": 1, "model_config": cfg, "model_config_sha256": cfg_sha,
     "dataset_config": ds, "ckpt_path": ckpt, "ckpt_sha256": ckpt_sha, "use_ema": True,
     "frame_avg_angles": [float(a) for a in angles.split(",")],
     "cond_method": "fa_invariant", "cond_autocast": "bf16", "commit": commit,
+    # What was TRAINED and what was EVALUATED, always both, so a single row can
+    # be read without knowing which cell type produced it. They differ only for
+    # CELL=cross, where the difference is the measurement.
+    "cell": cell, "training_orbit": int(train_orbit), "eval_orbit": int(eval_orbit),
+    "rotate_deg": float(rotate_deg),
 }
 with open(metrics + ".screenmeta.json", "w") as fh:
     json.dump(side, fh, indent=2)

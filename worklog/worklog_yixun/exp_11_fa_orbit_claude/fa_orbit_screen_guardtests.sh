@@ -28,6 +28,26 @@ echo "=== fa_orbit_screen guard exercise — ${TS} — $(git rev-parse --short H
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+
+# Several cases below need a store they are allowed to DELETE from, and get it
+# by thawing the campaign freeze. That is safe on an idle store and catastrophic
+# on a live one: a queued job's worktree can be swept while this suite runs.
+# (Learned the hard way — an earlier run of this suite left the store thawed
+# while a campaign was in flight; the leases held, but that was luck, not
+# design.) So: if a campaign freeze is active, those cases are SKIPPED and the
+# freeze is never touched. Everything that does not delete still runs.
+MEASURE_HELPER="${EXPDIR}/fa_orbit_measure_worktree.sh"
+CAMPAIGN_LIVE=0
+bash "$MEASURE_HELPER" --frozen >/dev/null 2>&1 && CAMPAIGN_LIVE=1
+[ "$CAMPAIGN_LIVE" = "1" ] && echo "NOTE: a CAMPAIGN FREEZE is active — deletion/thaw cases are skipped"
+
+skip_if_campaign() {   # $1 = description; returns 0 (skip) when a campaign is live
+  if [ "$CAMPAIGN_LIVE" = "1" ]; then
+    echo "SKIP  $1 — a campaign freeze is active; this suite will not thaw or delete"
+    return 0
+  fi
+  return 1
+}
 OUT_ROOT="${TMP}/outputs"
 PASS=0; FAIL=0
 
@@ -60,6 +80,8 @@ write("exp11_C4L", "C4L", "exp11_C4L", c8, 10000)          # WRONG: C8 config un
 write("exp11_C16", "C16", "exp11_C16", json.load(open(os.path.join(expdir, "FLAC_AR_BF_C16.json"))),
       15000, ema=False)                                    # no EMA weights at all
 write("exp07_BF", "BF", "exp07_BF", bf, 20000)
+write("exp11_C8", "C8", "exp11_C8", c8, 40000, epoch=8)   # R3 / cross endpoint
+write("exp07_BF", "BF", "exp07_BF", bf, 40000, epoch=8)   # legacy D2 endpoint
 # launch manifests so the LATER gates (identity, EMA) are the ones under test;
 # the "no manifest" case below uses an arm deliberately left without one.
 import hashlib
@@ -177,13 +199,61 @@ case_run "a launch manifest for another config is refused" 2 "ARM LINEAGE GATE" 
 write_c8_manifest C8
 
 echo "--- D. valid screens reach the eval argv ---"
+# --- CELL=r3 (plan §4): registered yaw offsets, injective names --------------
+case_run "r3 needs a rotation"       2 "needs ROTATE_DEG" -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3
+case_run "r3 rejects an unregistered offset" 2 "not one of the registered R3 offsets" \
+  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3 ROTATE_DEG=7
+case_run "r3 rejects 5.62 (near-miss)" 2 "not one of the registered R3 offsets" \
+  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3 ROTATE_DEG=5.62
+case_run "r3 is the 40k endpoint only" 2 "registered at the 40k endpoint only" \
+  -- "${BASE[@]}" ARM=C8 STEP=10000 CELL=r3 ROTATE_DEG=0
+case_run "r3 is seed 42 by contract"  2 "seed 42 by contract" \
+  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3 ROTATE_DEG=0 SEED=43
+case_run "r3 names carry the rotation" 0 "exp11_C8_r3_rot5p625_s42_K8" \
+  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3 ROTATE_DEG=5.625
+case_run "r3 passes --rotate-deg to the eval" 0 "--rotate-deg 22.5" \
+  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3 ROTATE_DEG=22.5
+case_run "r3 keeps the arm's OWN orbit" 0 "0.0,45.0,90.0,135.0,180.0,225.0,270.0,315.0" \
+  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3 ROTATE_DEG=45
+# --- CELL=cross (R2 mechanism / D2) -----------------------------------------
+case_run "cross needs an eval orbit" 2 "needs EVAL_ORBIT" -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=cross
+case_run "cross rejects an unregistered orbit" 2 "must be one of 4|8|16|32" \
+  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=cross EVAL_ORBIT=6
+case_run "cross refuses the arm's OWN orbit" 2 "OWN training orbit" \
+  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=cross EVAL_ORBIT=8
+case_run "cross runs the OTHER orbit" 0 "--frame-avg-angles 0.0,11.25,22.5,33.75" \
+  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=cross EVAL_ORBIT=32
+case_run "cross names carry the eval orbit" 0 "exp11_C8_cross_a16_S40000_s42_K8" \
+  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=cross EVAL_ORBIT=16
+case_run "cross is the 40k endpoint only" 2 "registered at the 40k endpoint only" \
+  -- "${BASE[@]}" ARM=C8 STEP=10000 CELL=cross EVAL_ORBIT=16
+# the checkpoint identity gate still proves the ckpt IS this arm (C8 embedded)
+case_run "cross still proves the ckpt is the arm" 0 "fa_invariant C8" \
+  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=cross EVAL_ORBIT=4
+# --- legacy D2: the backfill at 40k, screen and cross only ------------------
+# (rc=2 because the audited lineage gate rejects the SYNTHETIC 40k stand-in --
+#  correctly; the real checkpoint is exercised under GUARD_REAL_BACKFILL below.
+#  What these two prove is that 40k is now a REGISTERED step for these cells and
+#  that the D2 eval names are built right, both of which happen before that gate.)
+case_run "backfill 40k screen is a registered step" 2 "exp11_C4backfill_S40000_s42_K8" \
+  -- "${BASE[@]}" ARM=C4BACKFILL STEP=40000
+case_run "backfill 40k cross builds the D2 name" 2 "exp11_C4backfill_cross_a16_S40000_s42_K8" \
+  -- "${BASE[@]}" ARM=C4BACKFILL STEP=40000 CELL=cross EVAL_ORBIT=16
+case_run "backfill cross refuses C4's own orbit" 2 "OWN training orbit" \
+  -- "${BASE[@]}" ARM=C4BACKFILL STEP=40000 CELL=cross EVAL_ORBIT=4
+case_run "backfill cross is 40k only" 2 "40k endpoint only" \
+  -- "${BASE[@]}" ARM=C4BACKFILL STEP=20000 CELL=cross EVAL_ORBIT=8
+case_run "backfill still refuses conf/r3" 2 "futility comparator" \
+  -- "${BASE[@]}" ARM=C4BACKFILL STEP=40000 CELL=r3 ROTATE_DEG=0
+case_run "backfill 10k is still unregistered" 2 "registered at steps 20000/30000/40000" \
+  -- "${BASE[@]}" ARM=C4BACKFILL STEP=10000
 case_run "C8 S10000 K8 default seed" 0 "exp11_C8_screen_S10000_s42_K8" -- "${BASE[@]}" ARM=C8 STEP=10000
 case_run "screen contract: seed 43 refused"  2 "seed 42 by contract" -- "${BASE[@]}" ARM=C8 STEP=12500 SEED=43
 case_run "screen contract: K=1 refused"      2 "K=8 by contract"     -- "${BASE[@]}" ARM=C8 STEP=10000 K=1
 case_run "conf cell admits seed 43"          0 "exp11_C8_conf_S12500_s43_K8" -- "${BASE[@]}" ARM=C8 STEP=12500 SEED=43 CELL=conf
 case_run "conf cell admits K=1"              0 "exp11_C8_conf_S10000_s42_K1" -- "${BASE[@]}" ARM=C8 STEP=10000 K=1 CELL=conf
 case_run "conf cell refuses seed 47"         2 "seeds 42-46"          -- "${BASE[@]}" ARM=C8 STEP=10000 SEED=47 CELL=conf
-case_run "backfill must stay a screen cell"  2 "futility-gate comparator" -- "${BASE[@]}" ARM=C4BACKFILL STEP=20000 CELL=conf
+case_run "backfill must stay a screen/cross cell" 2 "futility comparator" -- "${BASE[@]}" ARM=C4BACKFILL STEP=20000 CELL=conf
 case_run "K=1 uses the _1 split"     0 "acousticroom_unseeneval_1.json" -- "${BASE[@]}" ARM=C8 STEP=10000 K=1 CELL=conf
 case_run "K=8 uses the full split"   0 "acousticroom_unseeneval.json"   -- "${BASE[@]}" ARM=C8 STEP=10000
 case_run "C8 carries its 8-angle orbit" 0 "0.0,45.0,90.0,135.0,180.0,225.0,270.0,315.0" -- "${BASE[@]}" ARM=C8 STEP=10000
@@ -195,13 +265,57 @@ case_run "a non-audited backfill ckpt is refused" 2 "audited" -- "${BASE[@]}" AR
 if [ "${GUARD_REAL_BACKFILL:-0}" = "1" ]; then
   case_run "the audited backfill ckpt is accepted" 0 "exp11_C4backfill_S20000_s42_K8" \
     -- DRYRUN=1 "EXPECT_SHA=${HEAD_SHA}" "FA_ORBIT_REPO_OVERRIDE=$PWD" ARM=C4BACKFILL STEP=20000
+  case_run "the audited 40k D2 endpoint is accepted" 0 "exp11_C4backfill_S40000_s42_K8" \
+    -- DRYRUN=1 "EXPECT_SHA=${HEAD_SHA}" "FA_ORBIT_REPO_OVERRIDE=$PWD" ARM=C4BACKFILL STEP=40000
+  case_run "the audited 40k D2 cross sweep is accepted" 0 "exp11_C4backfill_cross_a32_S40000_s42_K8" \
+    -- DRYRUN=1 "EXPECT_SHA=${HEAD_SHA}" "FA_ORBIT_REPO_OVERRIDE=$PWD" ARM=C4BACKFILL STEP=40000 \
+       CELL=cross EVAL_ORBIT=32
 else
   echo "SKIP  the audited-backfill positive case (GUARD_REAL_BACKFILL=1 to hash the real 724 MB ckpt)"
+fi
+# --- eval-name INJECTIVITY: distinct cells must not share a name ------------
+NAMES=""
+for ROT in 0 5.625 11.25 22.5 45; do
+  NAMES="${NAMES}$(env "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3 "ROTATE_DEG=${ROT}" bash "$SCREEN" 2>&1 \
+                   | sed -n 's/.*eval-name \(exp11_[A-Za-z0-9_.]*\).*/\1/p' | head -1)\n"
+done
+NR3="$(printf '%b' "$NAMES" | grep -c .)"; UR3="$(printf '%b' "$NAMES" | sort -u | grep -c .)"
+if [ "$NR3" -eq 5 ] && [ "$UR3" -eq 5 ]; then
+  echo "PASS  the five R3 rotations produce five DISTINCT eval names"; PASS=$((PASS + 1))
+else
+  echo "FAIL  R3 eval names collide (${UR3} unique of ${NR3})"; printf '%b' "$NAMES" | sed 's/^/        | /'
+  FAIL=$((FAIL + 1))
+fi
+NAMES=""
+for ORB in 4 16 32; do
+  NAMES="${NAMES}$(env "${BASE[@]}" ARM=C8 STEP=40000 CELL=cross "EVAL_ORBIT=${ORB}" bash "$SCREEN" 2>&1 \
+                   | sed -n 's/.*eval-name \(exp11_[A-Za-z0-9_.]*\).*/\1/p' | head -1)\n"
+done
+NX="$(printf '%b' "$NAMES" | grep -c .)"; UX="$(printf '%b' "$NAMES" | sort -u | grep -c .)"
+if [ "$NX" -eq 3 ] && [ "$UX" -eq 3 ]; then
+  echo "PASS  the three cross orbits produce three DISTINCT eval names"; PASS=$((PASS + 1))
+else
+  echo "FAIL  cross eval names collide (${UX} unique of ${NX})"; printf '%b' "$NAMES" | sed 's/^/        | /'
+  FAIL=$((FAIL + 1))
+fi
+# the audited manifest now registers the legacy D2 endpoint
+if $PY -c "
+import json,sys
+m=json.load(open('${EXPDIR}/c4_backfill_manifest.json'))
+e=m['checkpoints']['40000']
+assert e['sha256']=='5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328', e['sha256']
+assert e['path'].endswith('epoch=8-step=40000.ckpt'), e['path']
+assert int(e['bytes'])==723922667
+assert m['training_seed']==42
+"; then
+  echo "PASS  the audited backfill manifest registers the 40k D2 endpoint"; PASS=$((PASS + 1))
+else
+  echo "FAIL  the 40k backfill entry is missing or wrong"; FAIL=$((FAIL + 1))
 fi
 if $PY -c "
 import json,os,hashlib,sys
 m=json.load(open('${EXPDIR}/c4_backfill_manifest.json'))
-assert sorted(m['checkpoints'])==['20000','30000'], sorted(m['checkpoints'])
+assert sorted(m['checkpoints'])==['20000','30000','40000'], sorted(m['checkpoints'])
 assert m['training_seed']==42
 for s,e in m['checkpoints'].items():
     assert len(e['sha256'])==64 and os.path.isfile(e['path']), (s,e['path'])
@@ -288,8 +402,8 @@ echo "--- assets + lease lifecycle (fa_orbit_measure_worktree.sh) ---"
 HELPER="${EXPDIR}/fa_orbit_measure_worktree.sh"
 if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
   MISSING=""
-  for ASSET in AcousticRooms weights weights/AGREE/AGREE_fullAR.pt \
-               data/AR/unseen_eval.json \
+  for ASSET in AcousticRooms weights/AGREE weights/AGREE/AGREE_fullAR.pt \
+               weights/FLAC/VAE.safetensors data/AR/unseen_eval.json \
                src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json; do
     [ -e "$WT/$ASSET" ] || MISSING="${MISSING} ${ASSET}"
   done
@@ -299,8 +413,12 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
     echo "FAIL  missing from the worktree:${MISSING}"; FAIL=$((FAIL + 1))
   fi
   # and they must point where the MAIN tree points, not somewhere plausible
+  # leaf granularity: weights/ is TRACKED now (the exp_01 metric JSONs were
+  # force-added), so the checkout owns the parent and we provision the leaves
   if [ "$(readlink -f "$WT/AcousticRooms")" = "$(readlink -f "${MAIN_TREE}/AcousticRooms")" ] \
-     && [ "$(readlink -f "$WT/weights")" = "$(readlink -f "${MAIN_TREE}/weights")" ]; then
+     && [ "$(readlink -f "$WT/weights/AGREE")" = "$(readlink -f "${MAIN_TREE}/weights/AGREE")" ] \
+     && [ "$(readlink -f "$WT/weights/FLAC/VAE.safetensors")" \
+        = "$(readlink -f "${MAIN_TREE}/weights/FLAC/VAE.safetensors")" ]; then
     echo "PASS  worktree assets resolve to the same targets as the main tree"; PASS=$((PASS + 1))
   else
     echo "FAIL  worktree assets resolve elsewhere than the main tree"; FAIL=$((FAIL + 1))
@@ -562,6 +680,7 @@ EOS
   else
     echo "FAIL  the screen still drops its lease with an unlocked rm"; FAIL=$((FAIL + 1))
   fi
+  if ! skip_if_campaign "registered-worktree removal-failure handling"; then
   bash "$HELPER" --thaw >/dev/null 2>&1     # the cases below must be free to delete
   # a REGISTERED worktree git declines to remove is left alone, not force-deleted
   GITMOCK="${TMP}/gitmock"; mkdir -p "$GITMOCK"
@@ -580,6 +699,7 @@ EOS
     echo "PASS  the store self-heals after a failed removal"; PASS=$((PASS + 1))
   else
     echo "FAIL  the store did not recover after a failed removal ('${BACK}')"; FAIL=$((FAIL + 1))
+  fi
   fi
   grep -q -- '--promote' "$SUB" \
     && { echo "FAIL  the placeholder/promote race is still in the submitter"; FAIL=$((FAIL + 1)); } \
@@ -606,6 +726,7 @@ EOS
   fi
   bash "$HELPER" --release 55555555 "$WT" >/dev/null 2>&1
 
+  if ! skip_if_campaign "lock-span concurrent-prune demonstration"; then
   # --- LOCK SPAN: a prune CANNOT interleave with a submission ----------------
   # The gap the review is about: tree prepared -> (window) -> lease written. A
   # sweep landing in that window sees a brand-new UNLEASED tree and deletes it,
@@ -653,9 +774,11 @@ EOS
     wait "$SUBMIT_PID" 2>/dev/null
     echo "FAIL  the stalled-submission fixture never reached its window"; FAIL=$((FAIL + 1))
   fi
+  fi
   # --- CAMPAIGN FREEZE: deletion is mechanically impossible while it exists ---
   echo
   echo "--- campaign freeze ---"
+  if ! skip_if_campaign "campaign-freeze behaviour (freeze/thaw/prune cases)"; then
   FZ="${MAIN_TREE}/.measure_worktrees/$(printf 'a%.0s' $(seq 1 40))"
   mkdir -p "${FZ}/.leases"; printf 'jobid 999999999\n' > "${FZ}/.leases/999999999"
   bash "$HELPER" --freeze "guard case" >/dev/null 2>&1
@@ -747,6 +870,7 @@ EOS
   fi
   bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
   bash "$HELPER" --thaw >/dev/null 2>&1
+  fi
 
   # add_lease refuses a directory that is not a live registered worktree
   NOTWT="${TMP}/not_a_worktree"; mkdir -p "$NOTWT"
@@ -756,17 +880,20 @@ EOS
   else
     echo "FAIL  leased a directory that is not a worktree (rc=${rc})"; FAIL=$((FAIL + 1))
   fi
+  if ! skip_if_campaign "safe-cleanup deletion cases"; then
   # --- SAFE CLEANUP: identity failure alone is never a licence to delete ------
   STALE="${MAIN_TREE}/.measure_worktrees/$(printf 'f%.0s' $(seq 1 40))"
   mkdir -p "${STALE}/.leases"
-  printf 'jobid 3648694\n' > "${STALE}/.leases/3648694"     # a LIVE job (a real arm)
+  LIVE_ID="$(squeue -h -u "$(id -un)" -o %i 2>/dev/null | head -1)"
+  [ -n "$LIVE_ID" ] || LIVE_ID=3648694
+  printf 'jobid %s\n' "$LIVE_ID" > "${STALE}/.leases/${LIVE_ID}"   # a job Slurm knows NOW
   bash "$HELPER" --prune >/dev/null 2>&1
   if [ -d "$STALE" ]; then
     echo "PASS  an identity-failed entry holding a LIVE lease is not deleted"; PASS=$((PASS + 1))
   else
     echo "FAIL  a live-leased entry was deleted on an identity failure"; FAIL=$((FAIL + 1))
   fi
-  rm -f "${STALE}/.leases/3648694"
+  rm -f "${STALE}/.leases/${LIVE_ID}"
   printf 'jobid 999999999\n' > "${STALE}/.leases/999999999"  # provably absent
   bash "$HELPER" --prune >/dev/null 2>&1
   if [ ! -d "$STALE" ]; then
@@ -793,6 +920,7 @@ EOS
     echo "FAIL  a short-named entry was removed"; FAIL=$((FAIL + 1))
   fi
   rmdir "$SHORT" 2>/dev/null
+  fi
 else
   echo "FAIL  no worktree available for the asset/lease cases"; FAIL=$((FAIL + 1))
 fi

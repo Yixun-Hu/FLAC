@@ -126,16 +126,50 @@ CONTRACTS = {
     # contract is keyed by ROTATIONS instead (re-review item 4).
     "r3":       {"cells": ("r3",), "seeds": (42,), "K": (8,),
                  "rotations": (0.0, 5.625, 11.25, 22.5, 45.0),
+                 "step": 40000, "table_admissible": False},
+    # CROSS (R2 mechanism / D2): one checkpoint evaluated under orbits it was
+    # NOT trained on. Keyed by EVAL ORBIT, and the registered set is per-arm --
+    # every orbit except the arm's own, because "evaluated at its own orbit" is
+    # what screen/conf already are. Never table-admissible: a cross row is
+    # mechanism evidence, not a result for the model.
+    "cross":    {"cells": ("cross",), "seeds": (42,), "K": (8,),
+                 "orbits": "all-but-training", "step": 40000,
                  "table_admissible": False},
 }
+REGISTERED_ROTATIONS = CONTRACTS["r3"]["rotations"]
+ALL_ORBITS = (4, 8, 16, 32)
+R3_STEP = CONTRACTS["r3"]["step"]        # R3 and CROSS are registered at the
+CROSS_STEP = CONTRACTS["cross"]["step"]  # 40k endpoint only (plan §4)
+
+
+def cross_orbits_for(arm):
+    """The eval orbits a cross sweep must cover for ``arm``: all but its own."""
+    return tuple(n for n in ALL_ORBITS if n != ARM_ORBITS[arm])
 # Provenance that must be IDENTICAL across every row of a cell.
 CELL_IDENTITY_FIELDS = ("cell", "ckpt_path", "ckpt_sha256", "model_config_sha256",
                         "source_sha", "commit", "orbit_execution")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 
-_SCREEN_RE = re.compile(r"^exp11_(C4L|C8|C16|C32)_(screen|conf|r3)_S(\d+)_s(\d+)_K(\d+)$")
+_SCREEN_RE = re.compile(r"^exp11_(C4L|C8|C16|C32)_(screen|conf)_S(\d+)_s(\d+)_K(\d+)$")
 _BACKFILL_RE = re.compile(r"^exp11_C4backfill_S(\d+)_s(\d+)_K(\d+)$")
+# R3 carries the ROTATION in the name: the five rows of an R3 cell otherwise
+# share one eval name and are distinguishable only by a field inside the file.
+_R3_RE = re.compile(r"^exp11_(C4L|C8|C16|C32)_r3_rot(\d+(?:p\d+)?)_s(\d+)_K(\d+)$")
+# CROSS carries the EVAL orbit, which is exactly what varies across the cell.
+_CROSS_RE = re.compile(r"^exp11_(C4L|C8|C16|C32)_cross_a(\d+)_S(\d+)_s(\d+)_K(\d+)$")
+_BACKFILL_CROSS_RE = re.compile(r"^exp11_C4backfill_cross_a(\d+)_S(\d+)_s(\d+)_K(\d+)$")
+
+
+def rotation_from_token(tok):
+    """``'5p625' -> 5.625``. The inverse of eval_FLAC.rot_token."""
+    return float(tok.replace("p", "."))
+
+
+def rot_token(rotate_deg):
+    """Re-exported from eval_FLAC so callers render R3 names exactly one way."""
+    from eval_FLAC import rot_token as _t
+    return _t(rotate_deg)
 
 
 def orbit_for(arm):
@@ -152,12 +186,30 @@ def parse_eval_name(name):
     if m:
         return {"arm": m.group(1), "cell": m.group(2), "step": int(m.group(3)),
                 "seed": int(m.group(4)), "K": int(m.group(5))}
+    m = _R3_RE.match(name or "")
+    if m:
+        # The step is not in an R3 name because the contract registers exactly
+        # one (the 40k endpoint); the rotation takes the distinguishing slot.
+        return {"arm": m.group(1), "cell": "r3", "step": R3_STEP,
+                "rotate_deg": rotation_from_token(m.group(2)),
+                "seed": int(m.group(3)), "K": int(m.group(4))}
+    m = _CROSS_RE.match(name or "")
+    if m:
+        return {"arm": m.group(1), "cell": "cross", "eval_orbit": int(m.group(2)),
+                "step": int(m.group(3)), "seed": int(m.group(4)), "K": int(m.group(5))}
+    m = _BACKFILL_CROSS_RE.match(name or "")
+    if m:
+        return {"arm": "C4BACKFILL", "cell": "cross", "eval_orbit": int(m.group(1)),
+                "step": int(m.group(2)), "seed": int(m.group(3)), "K": int(m.group(4))}
     m = _BACKFILL_RE.match(name or "")
     if m:
         return {"arm": "C4BACKFILL", "cell": "backfill", "step": int(m.group(1)),
                 "seed": int(m.group(2)), "K": int(m.group(3))}
     raise ValueError(f"eval name {name!r} does not match the exp_11 schema "
-                     "(exp11_<arm>_<cell>_S<step>_s<seed>_K<k> or exp11_C4backfill_S..)")
+                     "(exp11_<arm>_<screen|conf>_S<step>_s<seed>_K<k>, "
+                     "exp11_<arm>_r3_rot<deg>_s<seed>_K<k>, "
+                     "exp11_<arm>_cross_a<orbit>_S<step>_s<seed>_K<k>, "
+                     "or exp11_C4backfill[_cross_a<orbit>]_S..)")
 
 
 def sidecar_path_for(metrics_path):
@@ -257,7 +309,21 @@ def validate_row(metrics_path, verify_hashes=False):
         return {}, [f"{tag}: {exc}"]
 
     arm, cell, step, seed, k = ident["arm"], ident["cell"], ident["step"], ident["seed"], ident["K"]
-    want_angles = orbit_for(arm)
+    # A CROSS row is the one case where the evaluated orbit is deliberately NOT
+    # the arm's training orbit: that mismatch is the measurement. Everything else
+    # (the checkpoint's own embedded angles, checked by the screen driver) still
+    # has to be the training orbit — this is about what the EVAL ran.
+    train_orbit = ARM_ORBITS[arm]
+    eval_orbit = ident.get("eval_orbit", train_orbit)
+    if cell == "cross":
+        if eval_orbit not in ALL_ORBITS:
+            problems.append(f"{os.path.basename(metrics_path)}: eval orbit a{eval_orbit} is not "
+                            f"one of the registered orbits {ALL_ORBITS}")
+        if eval_orbit == train_orbit:
+            problems.append(f"{os.path.basename(metrics_path)}: cross row evaluates {arm} at its "
+                            f"OWN training orbit C{train_orbit} — that is a screen/conf row, not "
+                            "a cross-orbit measurement")
+    want_angles = [j * 360.0 / eval_orbit for j in range(eval_orbit)]
 
     # --- the sidecar must agree with its own eval name -----------------------
     for field, want in (("arm", arm), ("step", step), ("seed", seed), ("K", k)):
@@ -328,6 +394,27 @@ def validate_row(metrics_path, verify_hashes=False):
     if float(rec.get("rotate_deg") or 0.0) != 0.0 and cell != "r3":
         problems.append(f"{tag}: rotate_deg={rec.get('rotate_deg')!r} — a rotated evaluation is "
                         "not a screen/table row")
+    if cell == "r3":
+        # The name says which rotation this row is; the record must agree, or the
+        # five rows of the cell are not the five rotations they claim to be.
+        named = float(ident["rotate_deg"])
+        got = float(rec.get("rotate_deg") or 0.0)
+        if abs(got - named) > 1e-9:
+            problems.append(f"{tag}: eval name says rotate_deg={named} but the record says {got}")
+        if named not in REGISTERED_ROTATIONS:
+            problems.append(f"{tag}: rotation {named} is not one of the registered R3 offsets "
+                            f"{REGISTERED_ROTATIONS}")
+    if cell == "cross":
+        # The sidecar must state BOTH orbits explicitly: a reader of one row has
+        # to be able to see what was trained and what was evaluated.
+        for field, want in (("training_orbit", train_orbit), ("eval_orbit", eval_orbit)):
+            if field not in side:
+                problems.append(f"{tag}: a cross sidecar must record {field}")
+            elif int(side[field]) != want:
+                problems.append(f"{tag}: sidecar {field}={side[field]!r} != {want}")
+        if len(rec.get("frame_avg_angles") or []) != eval_orbit:
+            problems.append(f"{tag}: the record evaluated {len(rec.get('frame_avg_angles') or [])} "
+                            f"angles, but the name claims a{eval_orbit}")
     if rec.get("orbit_execution") != ORBIT_EXECUTION:
         problems.append(f"{tag}: orbit_execution={rec.get('orbit_execution')!r} != "
                         f"{ORBIT_EXECUTION!r} — legacy-loop rows are not comparable with these")
@@ -394,7 +481,7 @@ def validate_row(metrics_path, verify_hashes=False):
                                 f"file {got} ({target})")
 
     # --- the filename must be EXACTLY what build_output_paths generates --------
-    want_name = _expected_filename(ckpt, side, arm, rec.get("rotate_deg", 0.0))
+    want_name = _expected_filename(ckpt, side, arm, rec.get("rotate_deg", 0.0), eval_orbit)
     if want_name is None:
         problems.append(f"{tag}: cannot derive the expected filename (bad ckpt/sidecar)")
     elif os.path.basename(metrics_path) != want_name:
@@ -403,6 +490,7 @@ def validate_row(metrics_path, verify_hashes=False):
 
     row = {"path": metrics_path, "arm": arm, "cell": cell, "step": step,
            "rotate_deg": float(rec.get("rotate_deg") or 0.0),
+           "eval_orbit": eval_orbit, "training_orbit": train_orbit,
            "seed": seed, "K": k, "ckpt_path": ckpt, "metrics": metrics if isinstance(metrics, dict) else {},
            "source_sha": rec.get("source_sha"), "eval_name": side.get("eval_name"),
            "ckpt_sha256": side.get("ckpt_sha256"),
@@ -411,14 +499,19 @@ def validate_row(metrics_path, verify_hashes=False):
     return row, problems
 
 
-def _expected_filename(ckpt_path, side, arm, rotate_deg):
-    """The filename ``eval_FLAC.build_output_paths`` would produce for this row."""
+def _expected_filename(ckpt_path, side, arm, rotate_deg, n_angles=None):
+    """The filename ``eval_FLAC.build_output_paths`` would produce for this row.
+
+    ``n_angles`` is the EVALUATED orbit, which for a cross row is not the arm's
+    training orbit — the ``aN`` in the filename follows what actually ran."""
+    if n_angles is None:
+        n_angles = ARM_ORBITS[arm]
     try:
         from eval_FLAC import build_output_paths
         paths = build_output_paths(ckpt_path, int(side["steps"]), float(side["cfg_scale"]),
                                    str(side["eval_name"]), cond_method="fa_invariant",
                                    rotate_deg=float(rotate_deg or 0.0),
-                                   n_angles=ARM_ORBITS[arm])
+                                   n_angles=int(n_angles))
         return os.path.basename(paths["metrics"])
     except Exception:
         return None
@@ -460,16 +553,23 @@ def validate_cell(metrics_paths, arm, step, k, contract, verify_hashes=False):
     # For screen/table cells the replication axis is the SEED; for R3 it is the
     # yaw offset (one seed, five registered rotations) — the seed-keyed logic
     # called those five files duplicates and made the block unvalidatable.
-    axis = "rotate_deg" if "rotations" in spec else "seed"
-    wanted = spec.get("rotations", spec["seeds"])
+    if "rotations" in spec:
+        axis, wanted = "rotate_deg", spec["rotations"]
+    elif "orbits" in spec:
+        # per-ARM: every registered orbit except the one it trained on
+        axis, wanted = "eval_orbit", cross_orbits_for(arm)
+    else:
+        axis, wanted = "seed", spec["seeds"]
+    if spec.get("step") is not None and step != spec["step"]:
+        problems.append(f"contract {contract} is registered at step {spec['step']} only, got {step}")
     seen = {}
     for row in rows:
         seen.setdefault(row[axis], []).append(row["path"])
-    if axis == "rotate_deg":
+    if axis in ("rotate_deg", "eval_orbit"):
         for row in rows:
             if row["seed"] not in spec["seeds"]:
                 problems.append(f"{os.path.basename(row['path'])}: seed {row['seed']} is not the "
-                                f"registered R3 seed {spec['seeds']}")
+                                f"registered {contract} seed {spec['seeds']}")
     for want in wanted:
         n = len(seen.get(want, []))
         if n == 0:
