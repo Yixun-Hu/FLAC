@@ -42,3 +42,8 @@
 
 ## 2026-08-05T21:09:36-04:00 — closure review CLOSE-WITH-FIXES → all fixes applied → exp_10 CLOSED
 - All findings applied verbatim: 12/14-not-12/12 (FD excepted, both K); retrieval-lead claim narrowed to gated points (57.5k/60k single-seed deficits acknowledged); decomposition narrowed to interaction-evidence (not clean causal attribution); R2/R3 relabeled contextual (no registered candidate; S45000 cadence gap disclosed); R3 "exact" scoped to conditioning-by-construction with per-metric spreads incl. retrieval; P1-K8 s42 selcurve substitution documented; two-machine provenance (hostname + endpoint sha) recorded; plan header/date/HTML metadata fixed. Verdict SHORT stands. **exp_10 CLOSED.**
+
+## 2026-08-08T00:34:45-04:00 — POST-CLOSURE ADDENDUM BLOCK (Yixun blanket approval overnight 2026-08-08): pre-registered before evals run
+- **A1 (62.5k confirm):** 5-seed × both K of `exp10_BF/.../step=62500` — POST-HOC selected as the band-typical best screen point (s42 T60 8.582, only sub-released T60 in the resumed leg); labeled EXPLORATORY in all tables (the registered candidate rule found no qualifier; this row does not alter the SHORT verdict).
+- **A2 (matched-compute readout):** fa-scratch at ~1/3.5 of the vanilla step budget vs vanilla at full budget — closes exp_10's open estimand approximately, using existing ckpts only; step-time ratio 3.5× from the exp_07/10 logs; approximation disclosed (no new training).
+- **A3 (pre-40k band diagnostic):** fa-eval of exp_07 B-F 30k–37.5k (in flight) → resolves whether 40k was band-typical or a best-draw; addendum to the closing analysis either way.
