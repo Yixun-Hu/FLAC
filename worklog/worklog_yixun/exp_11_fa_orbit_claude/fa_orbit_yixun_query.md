@@ -85,3 +85,13 @@ Adopt the batched-orbit execution of `invariant_conditioning`: identical averagi
 ### Summary
 
 The batched-orbit implementation is adopted as part of the exp_11 recipe, disclosed: identical averaging arithmetic; chunk-shared train-mode RoPE draws; applied identically to all four arms and the C4L bridge (sole inferential comparator); historical C4 rows labeled legacy-loop; eval-mode equivalence gated (fp32, 14 cells) since the augmentation is off at eval.
+
+## Query 8 (2026-08-07, ~23:50 EDT) — overnight blanket approval
+
+### Verbatim
+
+> Currently I will go to bed, so I will approve everythin after your recommendation util I wake up, potential 10h from now. Please go ahead
+
+### Summary
+
+Standing approval (~10 h window) for the Planner's recommendations within the exp_11 framework: conf blocks + table rows as arms land, trajectory screens and gate bookkeeping, the pre-registered R2/R3/D measurement cells (including the small reviewed driver extension they require), and analyses. Scope stays inside the approved plan; anything outside it waits for morning.
