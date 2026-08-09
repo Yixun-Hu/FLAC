@@ -56,10 +56,13 @@ from src.data.yaw_rotation import (  # noqa: E402
 
 # arm -> orbit size. C4BACKFILL is the exp_07 B-F lineage screened under the fa
 # protocol (plan §3); it is C4 by construction.
-ARM_ORBITS = {"C4L": 4, "C8": 8, "C16": 16, "C32": 32, "C4BACKFILL": 4}
+# VANL has NO orbit: not 1, none. Frame averaging is the single delta it exists
+# to remove, so every orbit-shaped question about it has to answer "n/a".
+ARM_ORBITS = {"C4L": 4, "C8": 8, "C16": 16, "C32": 32, "C4BACKFILL": 4, "VANL": None}
 ARM_RUN_PREFIX = {
     "C4L": "outputs_FLAC/exp11_C4L/", "C8": "outputs_FLAC/exp11_C8/",
     "C16": "outputs_FLAC/exp11_C16/", "C32": "outputs_FLAC/exp11_C32/",
+    "VANL": "outputs_FLAC/exp11_VANL/",
     "C4BACKFILL": "outputs_FLAC/exp07_BF/",
 }
 EVAL_CONFIG_FOR_K = {
@@ -87,6 +90,13 @@ assert set(REQUIRED_METRIC_KEYS) <= set(EMITTED_METRIC_KEYS)
 # Every one of these must be PRESENT in the evaluator's own record with the right
 # type — a missing or null field used to make its cross-check silently skip
 # (re-review item 1). (field, type, expected-or-None)
+# VANL (Q9) is the vanilla arm of this lineage. Three record fields are
+# necessarily different for it -- the conditioning method, and the two orbit
+# provenance fields that describe an orbit it never executes -- so they are
+# lifted out of the shared tuple and asserted per-protocol below.
+VANILLA_ARMS = ("VANL",)
+PROTOCOL_SPECIFIC_FIELDS = ("cond_method", "orbit_execution", "frame_avg_fwd_cap",
+                            "frame_avg_angles")
 MANDATORY_RECORD_FIELDS = (
     ("cond_method", str, "fa_invariant"),
     ("cond_autocast", str, EXPECTED_AUTOCAST),
@@ -151,7 +161,7 @@ CELL_IDENTITY_FIELDS = ("cell", "ckpt_path", "ckpt_sha256", "model_config_sha256
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 
-_SCREEN_RE = re.compile(r"^exp11_(C4L|C8|C16|C32)_(screen|conf)_S(\d+)_s(\d+)_K(\d+)$")
+_SCREEN_RE = re.compile(r"^exp11_(C4L|C8|C16|C32|VANL)_(screen|conf)_S(\d+)_s(\d+)_K(\d+)$")
 _BACKFILL_RE = re.compile(r"^exp11_C4backfill_S(\d+)_s(\d+)_K(\d+)$")
 # R3 carries the ROTATION in the name: the five rows of an R3 cell otherwise
 # share one eval name and are distinguishable only by a field inside the file.
@@ -172,11 +182,17 @@ def rot_token(rotate_deg):
     return _t(rotate_deg)
 
 
+def is_vanilla_arm(arm):
+    return arm in VANILLA_ARMS
+
+
 def orbit_for(arm):
-    """The exact uniform orbit an arm's rows must carry."""
+    """The exact uniform orbit an arm's rows must carry (``[]`` for a vanilla arm)."""
     if arm not in ARM_ORBITS:
         raise ValueError(f"unknown arm {arm!r}; known: {sorted(ARM_ORBITS)}")
     n = ARM_ORBITS[arm]
+    if n is None:
+        return []
     return [k * 360.0 / n for k in range(n)]
 
 
@@ -313,8 +329,10 @@ def validate_row(metrics_path, verify_hashes=False):
     # the arm's training orbit: that mismatch is the measurement. Everything else
     # (the checkpoint's own embedded angles, checked by the screen driver) still
     # has to be the training orbit — this is about what the EVAL ran.
-    train_orbit = ARM_ORBITS[arm]
-    eval_orbit = ident.get("eval_orbit", train_orbit)
+    # A vanilla arm has no orbit integer at all, so every orbit-shaped quantity
+    # below degenerates to zero/empty rather than raising on None.
+    train_orbit = ARM_ORBITS[arm] or 0
+    eval_orbit = ident.get("eval_orbit", train_orbit) or 0
     if cell == "cross":
         if eval_orbit not in ALL_ORBITS:
             problems.append(f"{os.path.basename(metrics_path)}: eval orbit a{eval_orbit} is not "
@@ -323,7 +341,7 @@ def validate_row(metrics_path, verify_hashes=False):
             problems.append(f"{os.path.basename(metrics_path)}: cross row evaluates {arm} at its "
                             f"OWN training orbit C{train_orbit} — that is a screen/conf row, not "
                             "a cross-orbit measurement")
-    want_angles = [j * 360.0 / eval_orbit for j in range(eval_orbit)]
+    want_angles = [j * 360.0 / eval_orbit for j in range(eval_orbit)] if eval_orbit else []
 
     # --- the sidecar must agree with its own eval name -----------------------
     for field, want in (("arm", arm), ("step", step), ("seed", seed), ("K", k)):
@@ -363,7 +381,10 @@ def validate_row(metrics_path, verify_hashes=False):
             problems.append(f"{tag}: metrics {bad} are not finite numbers (bools are not numbers)")
 
     # --- every evaluator field: present, right type, right value (item 1) -----
+    vanilla = is_vanilla_arm(arm)
     for field, typ, expect in MANDATORY_RECORD_FIELDS:
+        if vanilla and field in PROTOCOL_SPECIFIC_FIELDS:
+            continue                      # asserted per-protocol immediately below
         if field not in rec or rec[field] is None:
             problems.append(f"{tag}: evaluator record is missing {field} — an absent field is "
                             "not a passing check")
@@ -387,8 +408,29 @@ def validate_row(metrics_path, verify_hashes=False):
         problems.append(f"{tag}: device={rec['device']!r} is not a {EXPECTED_DEVICE_PREFIX} "
                         "evaluation")
 
+    # --- the VANILLA protocol statement (Q9 / NEW-6) --------------------------
+    if vanilla:
+        if rec.get("cond_method") != "vanilla":
+            problems.append(f"{tag}: cond_method={rec.get('cond_method')!r} — a {arm} row must be "
+                            "a vanilla evaluation")
+        if rec.get("orbit_execution") != "n/a":
+            problems.append(f"{tag}: orbit_execution={rec.get('orbit_execution')!r} != 'n/a' — "
+                            "a vanilla evaluation executes no orbit, and labelling it 'batched' "
+                            "would make it look protocol-compatible with a frame-averaged row")
+        if rec.get("frame_avg_fwd_cap") is not None:
+            problems.append(f"{tag}: frame_avg_fwd_cap={rec.get('frame_avg_fwd_cap')!r} — a "
+                            "vanilla row has no forward-sample cap")
+        if rec.get("frame_avg_angles"):
+            problems.append(f"{tag}: frame_avg_angles={rec.get('frame_avg_angles')!r} — a vanilla "
+                            "row carries no orbit")
+        if side.get("frame_avg_angles"):
+            problems.append(f"{tag}: the sidecar claims frame_avg_angles for a vanilla row")
+        if cell not in ("screen", "conf"):
+            problems.append(f"{tag}: cell {cell!r} is not registered for {arm} — r3 and cross ask "
+                            "orbit questions of a model that has no orbit")
+
     # --- the record's own protocol statement ---------------------------------
-    if not _angles_equal(rec.get("frame_avg_angles"), want_angles):
+    if not vanilla and not _angles_equal(rec.get("frame_avg_angles"), want_angles):
         problems.append(f"{tag}: frame_avg_angles={rec.get('frame_avg_angles')!r} is not the "
                         f"exact C{ARM_ORBITS[arm]} orbit of {arm}")
     if float(rec.get("rotate_deg") or 0.0) != 0.0 and cell != "r3":
@@ -415,10 +457,10 @@ def validate_row(metrics_path, verify_hashes=False):
         if len(rec.get("frame_avg_angles") or []) != eval_orbit:
             problems.append(f"{tag}: the record evaluated {len(rec.get('frame_avg_angles') or [])} "
                             f"angles, but the name claims a{eval_orbit}")
-    if rec.get("orbit_execution") != ORBIT_EXECUTION:
+    if not vanilla and rec.get("orbit_execution") != ORBIT_EXECUTION:
         problems.append(f"{tag}: orbit_execution={rec.get('orbit_execution')!r} != "
                         f"{ORBIT_EXECUTION!r} — legacy-loop rows are not comparable with these")
-    if rec.get("frame_avg_fwd_cap") != FRAME_AVG_MAX_FWD_SAMPLES:
+    if not vanilla and rec.get("frame_avg_fwd_cap") != FRAME_AVG_MAX_FWD_SAMPLES:
         problems.append(f"{tag}: frame_avg_fwd_cap={rec.get('frame_avg_fwd_cap')!r} != "
                         f"{FRAME_AVG_MAX_FWD_SAMPLES}")
     src = str(rec.get("source_sha") or "")
@@ -436,7 +478,7 @@ def validate_row(metrics_path, verify_hashes=False):
     if os.path.normpath(str(rec.get("dataset_config", ""))) != \
             os.path.normpath(str(side.get("dataset_config", ""))):
         problems.append(f"{tag}: sidecar and metrics disagree on dataset_config")
-    if not _angles_equal(side.get("frame_avg_angles"), want_angles):
+    if not vanilla and not _angles_equal(side.get("frame_avg_angles"), want_angles):
         problems.append(f"{tag}: sidecar frame_avg_angles are not {arm}'s exact orbit")
 
     # --- the checkpoint -------------------------------------------------------
@@ -481,7 +523,8 @@ def validate_row(metrics_path, verify_hashes=False):
                                 f"file {got} ({target})")
 
     # --- the filename must be EXACTLY what build_output_paths generates --------
-    want_name = _expected_filename(ckpt, side, arm, rec.get("rotate_deg", 0.0), eval_orbit)
+    want_name = _expected_filename(ckpt, side, arm, rec.get("rotate_deg", 0.0), eval_orbit,
+                                   cond_method="vanilla" if vanilla else "fa_invariant")
     if want_name is None:
         problems.append(f"{tag}: cannot derive the expected filename (bad ckpt/sidecar)")
     elif os.path.basename(metrics_path) != want_name:
@@ -499,17 +542,18 @@ def validate_row(metrics_path, verify_hashes=False):
     return row, problems
 
 
-def _expected_filename(ckpt_path, side, arm, rotate_deg, n_angles=None):
+def _expected_filename(ckpt_path, side, arm, rotate_deg, n_angles=None, cond_method=None):
     """The filename ``eval_FLAC.build_output_paths`` would produce for this row.
 
     ``n_angles`` is the EVALUATED orbit, which for a cross row is not the arm's
     training orbit — the ``aN`` in the filename follows what actually ran."""
-    if n_angles is None:
-        n_angles = ARM_ORBITS[arm]
+    if not n_angles:
+        n_angles = ARM_ORBITS[arm] or 0
     try:
         from eval_FLAC import build_output_paths
         paths = build_output_paths(ckpt_path, int(side["steps"]), float(side["cfg_scale"]),
-                                   str(side["eval_name"]), cond_method="fa_invariant",
+                                   str(side["eval_name"]),
+                                   cond_method=cond_method or "fa_invariant",
                                    rotate_deg=float(rotate_deg or 0.0),
                                    n_angles=int(n_angles))
         return os.path.basename(paths["metrics"])

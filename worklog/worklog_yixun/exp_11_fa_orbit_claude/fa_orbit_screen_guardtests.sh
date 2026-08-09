@@ -81,6 +81,9 @@ write("exp11_C16", "C16", "exp11_C16", json.load(open(os.path.join(expdir, "FLAC
       15000, ema=False)                                    # no EMA weights at all
 write("exp07_BF", "BF", "exp07_BF", bf, 20000)
 write("exp11_C8", "C8", "exp11_C8", c8, 40000, epoch=8)   # R3 / cross endpoint
+vanl = json.load(open(os.path.join(expdir, "FLAC_AR_VANCKPT.json")))
+write("exp11_VANL", "VANL", "exp11_VANL", vanl, 40000, epoch=8)   # the Q9 arm
+write("exp11_VANL", "VANL", "exp11_VANL", c4l, 12500, epoch=2)    # WRONG: an ORBIT ckpt
 write("exp07_BF", "BF", "exp07_BF", bf, 40000, epoch=8)   # legacy D2 endpoint
 # launch manifests so the LATER gates (identity, EMA) are the ones under test;
 # the "no manifest" case below uses an arm deliberately left without one.
@@ -106,10 +109,11 @@ def manifest(arm, cfg_path):
         "max_steps": "40000", "config_sha256": sha, "vae_sha256": "b" * 64,
         "p0_manifest_sha256": "a" * 64, "save_dir": d, "training_seed": 42,
     }
-JOBN = {"C4L": 1, "C8": 2, "C16": 3, "C32": 4}
+JOBN = {"C4L": 1, "C8": 2, "C16": 3, "C32": 4, "VANL": 5}
 REG = {"arms": {}}
 manifest("C4L", os.path.join(expdir, "FLAC_AR_BF_C4L.json"))
 manifest("C16", os.path.join(expdir, "FLAC_AR_BF_C16.json"))
+manifest("VANL", os.path.join(expdir, "FLAC_AR_VANCKPT.json"))
 with open(os.path.join(out, "arm_launch_registry.json"), "w") as fh:
     json.dump(REG, fh, indent=2)
 print("synthetic checkpoints written")
@@ -199,6 +203,21 @@ case_run "a launch manifest for another config is refused" 2 "ARM LINEAGE GATE" 
 write_c8_manifest C8
 
 echo "--- D. valid screens reach the eval argv ---"
+# --- VANL (Q9): the vanilla arm of this recipe ------------------------------
+case_run "VANL runs a VANILLA evaluation" 0 "--cond-method vanilla" \
+  -- "${BASE[@]}" ARM=VANL STEP=40000 CELL=conf SEED=43 K=1
+case_run "VANL builds the vanilla eval name" 0 "exp11_VANL_conf_S40000_s43_K1" \
+  -- "${BASE[@]}" ARM=VANL STEP=40000 CELL=conf SEED=43 K=1
+case_run "VANL uses the VANCKPT config" 0 "FLAC_AR_VANCKPT.json" \
+  -- "${BASE[@]}" ARM=VANL STEP=40000 CELL=conf SEED=43 K=1
+case_run "VANL announces itself as orbit-free" 0 "VANILLA (no orbit)" \
+  -- "${BASE[@]}" ARM=VANL STEP=40000
+case_run "VANL screen cells exist too" 0 "exp11_VANL_screen_S40000_s42_K8" \
+  -- "${BASE[@]}" ARM=VANL STEP=40000
+case_run "VANL refuses r3"    2 "not registered for VANL" -- "${BASE[@]}" ARM=VANL STEP=40000 CELL=r3 ROTATE_DEG=0
+case_run "VANL refuses cross" 2 "not registered for VANL" -- "${BASE[@]}" ARM=VANL STEP=40000 CELL=cross EVAL_ORBIT=16
+case_run "an ORBIT ckpt is refused as VANL" 2 "trained with an orbit and is not the vanilla arm" \
+  -- "${BASE[@]}" ARM=VANL STEP=12500 CELL=conf SEED=43 K=1
 # --- CELL=r3 (plan §4): registered yaw offsets, injective names --------------
 case_run "r3 needs a rotation"       2 "needs ROTATE_DEG" -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3
 case_run "r3 rejects an unregistered offset" 2 "not one of the registered R3 offsets" \
@@ -273,6 +292,19 @@ if [ "${GUARD_REAL_BACKFILL:-0}" = "1" ]; then
 else
   echo "SKIP  the audited-backfill positive case (GUARD_REAL_BACKFILL=1 to hash the real 724 MB ckpt)"
 fi
+# a vanilla evaluation must not be handed an orbit, even an empty one
+VOUT="$(env "${BASE[@]}" ARM=VANL STEP=40000 CELL=conf SEED=43 K=1 bash "$SCREEN" 2>&1)"
+if ! echo "$VOUT" | grep -q -- "--frame-avg-angles"; then
+  echo "PASS  the VANL argv carries no --frame-avg-angles at all"; PASS=$((PASS + 1))
+else
+  echo "FAIL  a vanilla evaluation was given an orbit"; FAIL=$((FAIL + 1))
+fi
+if echo "$VOUT" | grep -q "ckpt gate OK: step 40000, vanilla (no orbit)"; then
+  echo "PASS  the ckpt identity gate proves VANL is orbit-free"; PASS=$((PASS + 1))
+else
+  echo "FAIL  the VANL ckpt gate did not assert the absence of an orbit"; FAIL=$((FAIL + 1))
+fi
+
 # --- eval-name INJECTIVITY: distinct cells must not share a name ------------
 NAMES=""
 for ROT in 0 5.625 11.25 22.5 45; do
@@ -551,6 +583,12 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
   # A submission refuses to run without the campaign freeze, so engage it here.
   # It is lifted again before the cases that must be free to delete.
   bash "$HELPER" --freeze "guard suite" >/dev/null 2>&1
+  # A live campaign pin would send every submission below to the pinned commit
+  # instead of HEAD, which is correct behaviour and wrong for these tests. Park
+  # it for the duration; the pin's own cases set and restore it themselves.
+  SUITE_SAVED_PIN="$(bash "$HELPER" --pinned 2>/dev/null)"
+  [ "$SUITE_SAVED_PIN" = "<none>" ] && SUITE_SAVED_PIN=""
+  [ -n "$SUITE_SAVED_PIN" ] && bash "$HELPER" --unpin-campaign >/dev/null 2>&1
   MOCK="${TMP}/mockbin"; mkdir -p "$MOCK"
   cat > "${MOCK}/sbatch" <<'EOS'
 #!/usr/bin/env bash
@@ -852,6 +890,7 @@ EOS
     echo "FAIL  a short PIN_SHA was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
   fi
 
+  [ -n "${SUITE_SAVED_PIN:-}" ] && bash "$HELPER" --pin-campaign "$SUITE_SAVED_PIN" >/dev/null 2>&1
   # --- the marker is not proof: fd 8 must BE the store lock, at the OUTER entry
   STORE_LOCK="${MAIN_TREE}/.measure_worktrees/.store.lock"
   out="$(env FA_ORBIT_STORE_LOCK_HELD=1 MOCK_TRACE="$TRACE" FA_ORBIT_SBATCH="${MOCK}/sbatch" \

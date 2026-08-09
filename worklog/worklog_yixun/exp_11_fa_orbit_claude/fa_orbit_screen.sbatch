@@ -121,12 +121,12 @@ TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 die() { echo "$1"; exit "${2:-2}"; }
 
 # --- A. parameters ------------------------------------------------------------
-[ -n "${ARM:-}" ] || die "ARM must be exported (C4L|C8|C16|C32|C4BACKFILL) - abort"
+[ -n "${ARM:-}" ] || die "ARM must be exported (C4L|C8|C16|C32|VANL|C4BACKFILL) - abort"
 [ -n "${STEP:-}" ] || die "STEP must be exported - abort"
 [ -n "${EXPECT_SHA:-}" ] || die "EXPECT_SHA (full reviewed commit sha) must be exported - abort"
 case "$ARM" in
-  C4L|C8|C16|C32|C4BACKFILL) ;;
-  *) die "ARM '${ARM}' is not screenable (C4L|C8|C16|C32|C4BACKFILL) - abort" ;;
+  C4L|C8|C16|C32|VANL|C4BACKFILL) ;;
+  *) die "ARM '${ARM}' is not screenable (C4L|C8|C16|C32|VANL|C4BACKFILL) - abort" ;;
 esac
 case "$STEP" in ''|*[!0-9]*) die "STEP '${STEP}' must be a positive integer - abort";; esac
 [ "$STEP" -gt 0 ] || die "STEP must be > 0 - abort"
@@ -161,6 +161,15 @@ case "$CELL" in
     esac ;;
   *) die "CELL '${CELL}' must be screen (futility), conf (table cell), r3 (yaw offsets) or cross (orbit mismatch) - abort" ;;
 esac
+# VANL has no orbit, so the orbit-shaped cells are meaningless for it: r3 asks
+# what a yaw offset does to an invariant model, and cross asks what a different
+# orbit does. Neither question exists for a vanilla baseline.
+if [ "$ARM" = "VANL" ]; then
+  case "$CELL" in
+    screen|conf) ;;
+    *) die "CELL '${CELL}' is not registered for VANL — a vanilla arm has no orbit, so r3 and cross do not apply - abort" ;;
+  esac
+fi
 if [ "$ARM" = "C4BACKFILL" ]; then
   case "$CELL" in
     screen|cross) ;;
@@ -194,12 +203,19 @@ case "$ARM" in
     CKPT_DIR="${OUTPUT_ROOT}/exp07_BF/FLAC_exp07_BF/exp07_BF/checkpoints"
     TRAIN_ANGLES=4
     ;;
+  VANL)
+    MODEL_CONFIG="$EXPDIR/FLAC_AR_VANCKPT.json"
+    CKPT_DIR="${OUTPUT_ROOT}/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints"
+    TRAIN_ANGLES=0                       # no orbit: the arm's defining property
+    ;;
   *)
     MODEL_CONFIG="$EXPDIR/FLAC_AR_BF_${ARM}.json"
     CKPT_DIR="${OUTPUT_ROOT}/exp11_${ARM}/FLAC_exp11_${ARM}/exp11_${ARM}/checkpoints"
     case "$ARM" in C4L) TRAIN_ANGLES=4;; C8) TRAIN_ANGLES=8;; C16) TRAIN_ANGLES=16;; C32) TRAIN_ANGLES=32;; esac
     ;;
 esac
+COND_METHOD=fa_invariant
+[ "$ARM" = "VANL" ] && COND_METHOD=vanilla
 N_ANGLES="$TRAIN_ANGLES"
 ROTATE_DEG="${ROTATE_DEG:-0}"
 if [ "$CELL" = "cross" ]; then
@@ -236,16 +252,24 @@ case "$ARM" in
 esac
 [ -f "$MODEL_CONFIG" ] || die "model config not found: ${MODEL_CONFIG} - abort"
 CONFIG_SHA="$(sha256sum "$MODEL_CONFIG" | awk '{print $1}')" || die "sha256sum failed - abort"
-ANGLES="$(python3 -c "print(','.join(repr(k*360.0/$N_ANGLES) for k in range($N_ANGLES)))")" \
-  || die "could not build the orbit for ${ARM} - abort"
+if [ "$COND_METHOD" = "vanilla" ]; then
+  ANGLES=""
+else
+  ANGLES="$(python3 -c "print(','.join(repr(k*360.0/$N_ANGLES) for k in range($N_ANGLES)))")" \
+    || die "could not build the orbit for ${ARM} - abort"
+fi
 case "$K" in
   8) DATASET_CONFIG="src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json" ;;
   1) DATASET_CONFIG="src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json" ;;
 esac
 [ -f "$DATASET_CONFIG" ] || die "eval dataset config not found: ${DATASET_CONFIG} - abort"
 echo "=== exp_11 screen ${ARM} S${STEP} s${SEED} K${K} — ${TS} — host $(hostname) ==="
-echo "config ${MODEL_CONFIG} sha256 ${CONFIG_SHA} | trained C${TRAIN_ANGLES} | evaluated C${N_ANGLES}" \
-     "| rotate ${ROTATE_DEG} | eval-name ${EVAL_NAME}"
+if [ "$COND_METHOD" = "vanilla" ]; then
+  echo "config ${MODEL_CONFIG} sha256 ${CONFIG_SHA} | VANILLA (no orbit) | eval-name ${EVAL_NAME}"
+else
+  echo "config ${MODEL_CONFIG} sha256 ${CONFIG_SHA} | trained C${TRAIN_ANGLES} | evaluated C${N_ANGLES}" \
+       "| rotate ${ROTATE_DEG} | eval-name ${EVAL_NAME}"
+fi
 
 # --- B2. lease: this job must hold one, and must give it back -----------------
 # The submitter writes .leases/<jobid> before sbatch returns and the pruner never
@@ -449,9 +473,10 @@ fi
 # --- E. the checkpoint's OWN embedded config must be this arm's ---------------
 # NOTE: TRAIN_ANGLES, not N_ANGLES — a cross cell evaluates a different orbit,
 # but the checkpoint must still BE this arm, trained on this arm's orbit.
-python3 - "$CKPT" "$MODEL_CONFIG" "$TRAIN_ANGLES" "$STEP" "$EXPDIR" <<'PY' || die "checkpoint/arm identity gate FAILED - abort"
+python3 - "$CKPT" "$MODEL_CONFIG" "$TRAIN_ANGLES" "$STEP" "$EXPDIR" "$COND_METHOD" <<'PY' || die "checkpoint/arm identity gate FAILED - abort"
 import json, sys
 ckpt, cfg_path, n_angles, step, expdir = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), sys.argv[5]
+cond_method = sys.argv[6]
 sys.path.insert(0, expdir)
 from fa_orbit_ckpt_preflight import load_ckpt_config, load_ckpt_state_keys
 cfg, gstep = load_ckpt_config(ckpt)
@@ -461,19 +486,29 @@ want = [k * 360.0 / n_angles for k in range(n_angles)]
 bad = []
 if gstep != step:
     bad.append(f"embedded global_step {gstep} != {step}")
-if tr.get("cond_method") != "fa_invariant":
+if cond_method == "vanilla":
+    # For VANL the identity claim is an ABSENCE: this checkpoint must have been
+    # trained with no frame averaging at all. A vanilla screen run against an
+    # orbit checkpoint would look like a baseline and would not be one.
+    if tr.get("cond_method") not in (None, "vanilla"):
+        bad.append(f"embedded cond_method={tr.get('cond_method')!r} — not a vanilla checkpoint")
+    if "frame_avg_angles" in tr:
+        bad.append(f"embedded frame_avg_angles={tr['frame_avg_angles']!r} — this checkpoint "
+                   "was trained with an orbit and is not the vanilla arm")
+elif tr.get("cond_method") != "fa_invariant":
     bad.append(f"embedded cond_method={tr.get('cond_method')!r} != 'fa_invariant'")
 sd = ck_state_keys
 if not any(str(k).startswith("diffusion_ema.ema_model.") for k in sd):
     bad.append("checkpoint carries no diffusion_ema.ema_model.* weights — eval_FLAC would "
                "silently fall back to ONLINE weights and the row would not be an EMA row")
-if tr.get("frame_avg_angles") != want:
+if cond_method != "vanilla" and tr.get("frame_avg_angles") != want:
     bad.append(f"embedded frame_avg_angles={tr.get('frame_avg_angles')!r} != the C{n_angles} orbit")
 if cfg != json.load(open(cfg_path)):
     bad.append(f"embedded model_config != {cfg_path} (parsed-object mismatch)")
 if bad:
     sys.exit("CKPT/ARM GATE: " + "; ".join(bad))
-print(f"ckpt gate OK: step {gstep}, fa_invariant C{n_angles}, config matches {cfg_path}")
+kind = "vanilla (no orbit)" if cond_method == "vanilla" else f"fa_invariant C{n_angles}"
+print(f"ckpt gate OK: step {gstep}, {kind}, config matches {cfg_path}")
 PY
 
 # --- F. the eval argv ---------------------------------------------------------
@@ -481,10 +516,12 @@ EVAL_ARGV=(
   --model-config "$MODEL_CONFIG"
   --dataset-config "$DATASET_CONFIG"
   --ckpt-path "$CKPT"
-  --cond-method fa_invariant --frame-avg-angles "$ANGLES"
+  --cond-method "$COND_METHOD"
   --cond-autocast bf16 --cfg-scale 1.0 --steps 1
   --seed "$SEED" --eval-name "$EVAL_NAME"
 )
+# a vanilla evaluation is given NO orbit at all — not an empty one
+[ "$COND_METHOD" = "vanilla" ] || EVAL_ARGV+=(--frame-avg-angles "$ANGLES")
 if [ "$CELL" = "r3" ]; then
   EVAL_ARGV+=(--rotate-deg "$ROTATE_DEG")
 fi
@@ -525,11 +562,11 @@ EVAL_RC="${PIPE_RC[0]}"; TEE_RC="${PIPE_RC[1]}"
 
 # --- H. sidecar + result line -------------------------------------------------
 CKPT_SHA="$(sha256sum "$CKPT" | awk '{print $1}')" || die "ckpt sha256 FAILED - abort"
-METRICS="$(python3 - "$CKPT" "$EVAL_NAME" "$N_ANGLES" "$ROTATE_DEG" <<'PY'
+METRICS="$(python3 - "$CKPT" "$EVAL_NAME" "$N_ANGLES" "$ROTATE_DEG" "$COND_METHOD" <<'PY'
 import os, sys
 sys.path.insert(0, os.getcwd())
 from eval_FLAC import build_output_paths
-print(build_output_paths(sys.argv[1], 1, 1.0, sys.argv[2], cond_method="fa_invariant",
+print(build_output_paths(sys.argv[1], 1, 1.0, sys.argv[2], cond_method=sys.argv[5],
                          rotate_deg=float(sys.argv[4]),
                          n_angles=int(sys.argv[3]))["metrics"])
 PY
@@ -540,18 +577,18 @@ PY
 MODEL_CONFIG_REL="$(python3 -c "import os,sys; print(os.path.relpath(os.path.realpath(sys.argv[1]), sys.argv[2]))" "$MODEL_CONFIG" "$CODE_ROOT")" \
   || die "could not make the model-config path repo-relative - abort"
 python3 - "$METRICS" "$ARM" "$STEP" "$SEED" "$K" "$EVAL_NAME" "$MODEL_CONFIG_REL" "$CONFIG_SHA" \
-         "$TRAIN_ANGLES" "$N_ANGLES" "$ROTATE_DEG" "$CELL" \
+         "$TRAIN_ANGLES" "$N_ANGLES" "$ROTATE_DEG" "$CELL" "$COND_METHOD" \
          "$DATASET_CONFIG" "$CKPT" "$CKPT_SHA" "$ANGLES" "$HEAD_SHA" <<'PY' || die "sidecar write FAILED - abort" 7
 import json, sys
 (metrics, arm, step, seed, k, eval_name, cfg, cfg_sha,
- train_orbit, eval_orbit, rotate_deg, cell,
- ds, ckpt, ckpt_sha, angles, commit) = sys.argv[1:18]
+ train_orbit, eval_orbit, rotate_deg, cell, cond_method,
+ ds, ckpt, ckpt_sha, angles, commit) = sys.argv[1:19]
 side = {
     "arm": arm, "step": int(step), "seed": int(seed), "K": int(k), "eval_name": eval_name,
     "cfg_scale": 1.0, "steps": 1, "model_config": cfg, "model_config_sha256": cfg_sha,
     "dataset_config": ds, "ckpt_path": ckpt, "ckpt_sha256": ckpt_sha, "use_ema": True,
-    "frame_avg_angles": [float(a) for a in angles.split(",")],
-    "cond_method": "fa_invariant", "cond_autocast": "bf16", "commit": commit,
+    "frame_avg_angles": [float(a) for a in angles.split(",")] if angles else None,
+    "cond_method": cond_method, "cond_autocast": "bf16", "commit": commit,
     # What was TRAINED and what was EVALUATED, always both, so a single row can
     # be read without knowing which cell type produced it. They differ only for
     # CELL=cross, where the difference is the measurement.

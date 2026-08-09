@@ -738,3 +738,80 @@ def test_eval_names_are_injective_across_both_new_cell_types():
     assert not (r3 & cross)
     for n in r3 | cross:
         V.parse_eval_name(n)          # every generated name parses back
+
+
+# --------------------------------------------------------------------------- #
+# VANL (Q9): the vanilla arm of this lineage. Its rows must prove the ABSENCE of
+# frame averaging, and must never claim batched-orbit provenance.
+# --------------------------------------------------------------------------- #
+def _vanl_row(tmp_path, seed=42, step=40000, k=8, cell="conf", **over):
+    ev = f"exp11_VANL_{cell}_S{step}_s{seed}_K{k}"
+    name = f"epoch=8-step={step}_metrics_1_1.0_{ev}.json"      # no _fa_invariant_aN
+    ck = f"outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=8-step={step}.ckpt"
+    rec = _record(ckpt_path=ck, eval_name=ev, seed=seed,
+                  cond_method="vanilla", orbit_execution="n/a",
+                  dataset_config=V.EVAL_CONFIG_FOR_K[k])
+    rec.pop("frame_avg_fwd_cap", None)
+    rec["frame_avg_angles"] = None
+    rec.update(over)
+    side = _sidecar(arm="VANL", step=step, K=k, seed=seed, eval_name=ev, ckpt_path=ck,
+                    cond_method="vanilla", frame_avg_angles=None,
+                    dataset_config=V.EVAL_CONFIG_FOR_K[k])
+    return _write_row(tmp_path, rec=rec, side=side, name=name)
+
+
+def test_vanl_is_registered_with_no_orbit():
+    assert V.ARM_ORBITS["VANL"] is None
+    assert V.orbit_for("VANL") == []
+    assert V.is_vanilla_arm("VANL") and not V.is_vanilla_arm("C4L")
+    assert V.ARM_RUN_PREFIX["VANL"] == "outputs_FLAC/exp11_VANL/"
+    assert V.parse_eval_name("exp11_VANL_conf_S40000_s43_K1") == {
+        "arm": "VANL", "cell": "conf", "step": 40000, "seed": 43, "K": 1}
+
+
+def test_a_good_vanl_row_passes(tmp_path):
+    path = _vanl_row(tmp_path)
+    row, problems = V.validate_row(path)
+    assert problems == [], problems
+    assert row["arm"] == "VANL" and row["cell"] == "conf"
+
+
+def test_vanl_row_must_declare_orbit_execution_na(tmp_path):
+    """NEW-6: labelling a vanilla row 'batched' would make it look
+    protocol-compatible with a frame-averaged row."""
+    path = _vanl_row(tmp_path, orbit_execution="batched")
+    _row, problems = V.validate_row(path)
+    assert any("!= 'n/a'" in p for p in problems), problems
+
+
+def test_vanl_row_must_not_carry_an_orbit(tmp_path):
+    path = _vanl_row(tmp_path, frame_avg_angles=[0.0, 90.0, 180.0, 270.0])
+    _row, problems = V.validate_row(path)
+    assert any("carries no orbit" in p for p in problems), problems
+
+
+def test_vanl_row_must_be_a_vanilla_evaluation(tmp_path):
+    path = _vanl_row(tmp_path, cond_method="fa_invariant")
+    _row, problems = V.validate_row(path)
+    assert any("must be a vanilla evaluation" in p for p in problems), problems
+
+
+def test_vanl_row_must_not_carry_a_forward_cap(tmp_path):
+    path = _vanl_row(tmp_path, frame_avg_fwd_cap=64)
+    _row, problems = V.validate_row(path)
+    assert any("no forward-sample cap" in p for p in problems), problems
+
+
+def test_vanl_conf_cell_validates_under_the_table_contract(tmp_path):
+    paths = [_vanl_row(tmp_path, seed=s) for s in (42, 43, 44, 45, 46)]
+    rows, problems = V.validate_cell(paths, arm="VANL", step=40000, k=8, contract="table")
+    assert problems == [], problems
+    assert len(rows) == 5
+
+
+def test_r3_and_cross_are_not_registered_for_vanl():
+    """Orbit-shaped questions do not apply to a model with no orbit."""
+    for name in ("exp11_VANL_r3_rot5p625_s42_K8", "exp11_VANL_cross_a16_S40000_s42_K8"):
+        with pytest.raises(ValueError):
+            V.parse_eval_name(name)
+    assert V.cross_orbits_for("C8") == (4, 16, 32)     # unchanged for the orbit arms

@@ -513,3 +513,41 @@ def test_growing_and_fresh_rows_are_not_regressions(tmp_path, monkeypatch):
     written = out.read_text()
     assert "REGRESSED" not in written
     assert "Brand new row" in written
+
+
+# --------------------------------------------------------------------------- #
+# 8. VANL (Q9) — the vanilla arm of this recipe, labelled apart from legacy rows
+# --------------------------------------------------------------------------- #
+def test_vanl_rows_are_registered_as_a_two_k_pair():
+    vanl = [r for r in G.ROWS if "VANL" in r[0]]
+    assert len(vanl) == 2, f"expected a K=1/K=8 pair, got {vanl}"
+    assert {r[2] for r in vanl} == {1, 8}
+    for label, proto, _k, pats in vanl:
+        assert proto == "vanilla eval (batched-era)", proto
+        assert all("exp11_VANL" in p for p in pats), pats
+
+
+def test_vanl_is_labelled_apart_from_legacy_vanilla_rows():
+    """VANL vs C4L is frame averaging alone; VANL vs a legacy vanilla row still
+    carries the recipe/environment shift the C4L bridge measured. The table must
+    not let the two comparisons look alike."""
+    protos = {r[1] for r in G.ROWS}
+    assert "vanilla eval (batched-era)" in protos
+    assert "vanilla eval" in protos                       # the legacy rows keep theirs
+    legacy = [r for r in G.ROWS if r[1] == "vanilla eval"]
+    assert legacy and all("VANL" not in r[0] for r in legacy)
+
+
+def test_vanl_rows_are_exp11_rows_and_therefore_gated():
+    """They must go through the exp_11 validator like every other exp_11 row."""
+    vanl = [r for r in G.ROWS if "VANL" in r[0]]
+    for _label, _proto, _k, pats in vanl:
+        assert G.is_exp11_row(pats), pats
+
+
+def test_vanl_renders_pending_until_the_conf_block_lands(tmp_path):
+    root = _fake_main_tree(tmp_path, G.ROWS)
+    vanl = [r for r in G.ROWS if "VANL" in r[0]][0]
+    line, blocked = G.render_row(vanl[0], vanl[1], vanl[2], [], repo_root=str(root))
+    assert not blocked
+    assert "pending (0/5 seeds on disk)" in line

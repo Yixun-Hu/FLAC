@@ -79,6 +79,14 @@ ROWS = [
  ("fa scratch @25k (matched-compute vs anchor)", "fa eval", 8, ["outputs_FLAC/exp07_BF/**/*exp10_BFmc_K8_s4[2-6]*.json"]),
  ("decay-tail S93750 (C50/retrieval flavor, exploratory)", "vanilla eval", 1, ["outputs_FLAC/exp13_DT/**/*exp13_DT93750_K1_s4[2-6]*.json"]),
  ("decay-tail S93750 (C50/retrieval flavor, exploratory)", "vanilla eval", 8, ["outputs_FLAC/exp13_DT/**/*exp13_DT93750_K8_s4[3-6]*.json", "outputs_FLAC/exp13_DT/**/*exp13_DT_screen_S93750*.json"]),
+ # exp_11 VANL (Q9): the vanilla arm of THIS recipe. Labelled distinctly from the
+ # legacy vanilla rows on purpose — it is vanilla conditioning in the batched era,
+ # so VANL vs C4L is frame averaging alone, while VANL vs a legacy vanilla row
+ # would still carry the whole recipe/environment shift the C4L bridge measured.
+ ("fa-recipe vanilla VANL @40k (exp_11 baseline)", "vanilla eval (batched-era)", 1,
+  ["outputs_FLAC/exp11_VANL/**/*exp11_VANL_conf_S40000_s4[2-6]_K1*.json"]),
+ ("fa-recipe vanilla VANL @40k (exp_11 baseline)", "vanilla eval (batched-era)", 8,
+  ["outputs_FLAC/exp11_VANL/**/*exp11_VANL_conf_S40000_s4[2-6]_K8*.json"]),
  # exp_10 endpoint rows: registered in advance; render pending until the gate JSONs land
  ("fa scratch @67.5k (exp_10, pending gates)", "fa eval", 1, ["outputs_FLAC/exp10_BF/**/*exp10_BF67_K1_s4[2-6]*.json"]),
  ("fa scratch @67.5k (exp_10, pending gates)", "fa eval", 8, ["outputs_FLAC/exp10_BF/**/*exp10_BF67_K8_s4[3-6]*.json"]),
