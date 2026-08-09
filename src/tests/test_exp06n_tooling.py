@@ -489,6 +489,51 @@ def test_guard_cli_returns_zero_on_a_loadable_checkpoint(guard, tiny_dir, tmp_pa
     )
 
 
+# --- review B1: the PRODUCTION CLI pins the registered contract. NaN bounds make every
+# comparison silently false (NaN > x and NaN < x are both False), so an overridable bound
+# would let `--bound nan --negative-floor nan --angles 90` reach GUARD PASS while measuring
+# nothing. The CLI must accept EXACTLY angles {90,180,270}, finite bound 1e-4 and finite
+# negative floor 1e-3 — any other value refuses (string-pin style, like the MB=32 rung). --- #
+@pytest.mark.parametrize("argv_extra, match", [
+    (["--bound", "nan"], "bound"),
+    (["--negative-floor", "nan"], "floor|negative"),
+    (["--bound", "nan", "--negative-floor", "nan", "--angles", "90"], "angle|bound"),
+    (["--angles", "90"], "angle"),
+    (["--angles", "90,180"], "angle"),
+    (["--angles", "90,180,270,45"], "angle"),
+    (["--bound", "0.5"], "bound"),
+    (["--bound", "inf"], "bound"),
+    (["--negative-floor", "1e-9"], "floor|negative"),
+    (["--negative-floor", "inf"], "floor|negative"),
+])
+def test_guard_cli_pins_the_registered_contract(guard, tiny_dir, tmp_path, argv_extra, match):
+    ckpt_path, cfg_path, _ = _write_pl_checkpoint(tmp_path, tiny_dir)
+    with pytest.raises(RuntimeError, match=match):
+        guard.main([ckpt_path, "--model-config", cfg_path,
+                    "--height", "64", "--width", "128", *argv_extra])
+
+
+def test_guard_cli_accepts_the_registered_values_spelled_explicitly(guard, tiny_dir, tmp_path):
+    """Re-stating the registered contract on the command line is NOT an override."""
+    ckpt_path, cfg_path, _ = _write_pl_checkpoint(tmp_path, tiny_dir)
+    rc = guard.main([ckpt_path, "--model-config", cfg_path, "--height", "64", "--width", "128",
+                     "--angles", "90,180,270", "--bound", "1e-4", "--negative-floor", "1e-3"])
+    assert rc == 0
+
+
+def test_guard_library_refuses_nonfinite_bound_and_floor(guard, tiny_dir):
+    """Defense in depth below the CLI: the library comparisons themselves refuse a
+    non-finite or non-positive bound/floor rather than silently evaluating False
+    against NaN."""
+    mc = _build(_cyl_conditioning(tiny_dir, with_context=True, cond_pool="max_linear"))
+    geom = _geoms(mc)[0]
+    for bad in (float("nan"), float("inf"), 0.0, -1e-4):
+        with pytest.raises(RuntimeError, match="finite|positive"):
+            guard.check_equivariance(geom, bound=bad, **_TINY_GEOM)
+        with pytest.raises(RuntimeError, match="finite|positive"):
+            guard.check_gauge_off_negative_control(geom, floor=bad, **_TINY_GEOM)
+
+
 # ------------------------------------------------------------------------------------ #
 # 6. launch / probe / eval script contracts
 # ------------------------------------------------------------------------------------ #
@@ -723,14 +768,76 @@ def test_probe_is_the_two_phase_lifecycle_probe_with_the_launcher_gates():
 
 
 # ---- Slurm wrappers (cylindrical repo) ---------------------------------------------- #
+# Review B2/B3 add REAL functional lines to the wrappers, so pure byte-identity no longer
+# holds; instead every diff vs the renamed exp03n wrapper must be accounted for: each
+# ADDED line marked `EXP06 SBATCH DIFF n/N` (complete per-file numbering) and REMOVED
+# lines allowed ONLY in the eval wrapper's artifact-copy region (the B3 rewrite).
+_SBATCH_REMOVED_OK = {
+    "train_exp06n.sbatch": None,   # pure additions only (the B2 env sweep)
+    "probe_exp06n.sbatch": None,   # pure additions only (the B2 env sweep)
+    "eval_exp06n.sbatch": re.compile(r"cp -v|sha256sum|\$ART|IMPORT_DIR"),
+}
+
+
 @pytest.mark.parametrize("exp06n,exp03n", [("train_exp06n.sbatch", "train_exp03n.sbatch"),
                                            ("probe_exp06n.sbatch", "probe_exp03n.sbatch"),
                                            ("eval_exp06n.sbatch", "eval_exp03n.sbatch")])
-def test_slurm_wrappers_are_the_exp03n_wrappers_up_to_the_arm_identifiers(exp06n, exp03n):
-    got = _sbatch(exp06n)
-    want = _rename_arm(_sbatch(exp03n))
-    assert got == want, "\n".join(difflib.unified_diff(
-        want.splitlines(), got.splitlines(), "renamed exp03n", exp06n, lineterm=""))[:4000]
+def test_slurm_wrappers_are_renamed_exp03n_plus_marked_diffs_only(exp06n, exp03n):
+    got = _sbatch(exp06n).splitlines()
+    want = _rename_arm(_sbatch(exp03n)).splitlines()
+    added, removed = [], []
+    for line in difflib.unified_diff(want, got, n=0, lineterm=""):
+        if line.startswith("+") and not line.startswith("+++"):
+            added.append(line[1:])
+        elif line.startswith("-") and not line.startswith("---"):
+            removed.append(line[1:])
+    assert added, (
+        f"{exp06n} is byte-identical to the renamed exp03n wrapper — the review B2/B3 "
+        "hardening lines are missing"
+    )
+    markers = []
+    for line in added:
+        m = re.search(r"EXP06 SBATCH DIFF (\d+)/(\d+)", line)
+        assert m, f"unmarked {exp06n} diff line: {line[:140]}"
+        markers.append((int(m.group(1)), int(m.group(2))))
+    totals = {t for _, t in markers}
+    assert len(totals) == 1, f"inconsistent {exp06n} diff totals: {sorted(totals)}"
+    total = totals.pop()
+    assert sorted(n for n, _ in markers) == list(range(1, total + 1)), sorted(markers)
+    assert len(added) == total, f"{len(added)} added lines but the markers claim {total}"
+    removed_ok = _SBATCH_REMOVED_OK[exp06n]
+    if removed_ok is None:
+        assert removed == [], f"{exp06n} removed lines it must keep: {removed[:3]}"
+    else:
+        for line in removed:
+            assert removed_ok.search(line), (
+                f"{exp06n} removed a line OUTSIDE the declared copy region: {line[:140]}"
+            )
+
+
+# --- review B2: a stale submission export must not survive into the launcher/probe.
+# The launcher honors C1_FROZEN_MIN_FREE_FILE (re-points the frozen-VRAM binding at ANY
+# integer file), EXP06N_LOG_DIR (relocates the teed records log), MIN_FREE_MB (must equal
+# frozen, but unset is strictly safer) and CKPT_PATH (a stale export would silently turn a
+# fresh launch into a resume); the probe honors MIN_FREE_MB (would soften the provisional
+# co-tenancy floor), EXP06N_LOG_DIR and SAVE. Each wrapper must unset them explicitly. --- #
+def _unset_vars(text):
+    names = set()
+    for m in re.finditer(r"^\s*unset\s+(.+?)(?:\s*#.*)?$", text, flags=re.M):
+        names.update(m.group(1).split())
+    return names
+
+
+def test_train_sbatch_unsets_every_inheritable_launcher_env():
+    names = _unset_vars(_sbatch("train_exp06n.sbatch"))
+    for var in ("C1_FROZEN_MIN_FREE_FILE", "EXP06N_LOG_DIR", "MIN_FREE_MB", "CKPT_PATH"):
+        assert var in names, f"train_exp06n.sbatch must unset inheritable {var} (review B2)"
+
+
+def test_probe_sbatch_unsets_every_inheritable_probe_env():
+    names = _unset_vars(_sbatch("probe_exp06n.sbatch"))
+    for var in ("MIN_FREE_MB", "EXP06N_LOG_DIR", "SAVE"):
+        assert var in names, f"probe_exp06n.sbatch must unset inheritable {var} (review B2)"
 
 
 @pytest.mark.parametrize("name,gpus", [("train_exp06n.sbatch", "2"), ("probe_exp06n.sbatch", "2")])
@@ -928,3 +1035,151 @@ def test_eval_sbatch_retention_and_overwrite_guard():
         "the import-dir copy must be EMA-only"
     )
     assert re.search(r"\[ ! -e .*ART", text), "an existing artifact must abort the cell"
+
+
+# --- review B3: the ckpt-dir refusal alone is not enough — a same-named file already
+# sitting in the records folder or the EMA import dir would be silently cp-overwritten
+# AFTER the eval spent its GPU time. ALL THREE destinations preflight-refuse BEFORE any
+# compute, and every copy is no-clobber (recheck + copy + byte-verify). --------------- #
+def test_eval_sbatch_preflights_all_three_destinations_before_compute():
+    text = _sbatch("eval_exp06n.sbatch")
+    ckpt_refusal = text.index('[ ! -e "$ART" ]')
+    records_refusal = text.index('[ ! -e "${RECORDS}/${ART_BASE}" ]')
+    import_refusal = text.index('[ ! -e "${IMPORT_DIR}/${ART_BASE}" ]')
+    pin_gate = text.index("pin + arm-wiring gate, bound to the ACTUAL config")
+    eval_run = text.index("--- eval (mandatory")
+    for name, pos in (("ckpt-dir", ckpt_refusal), ("records", records_refusal),
+                      ("import", import_refusal)):
+        assert pos < pin_gate < eval_run, (
+            f"the {name} preflight refusal must run BEFORE the pin gate and the eval "
+            "(refusing after compute wastes the cell and still risks the clobber window)"
+        )
+
+
+def test_eval_sbatch_copies_are_no_clobber_and_byte_verified():
+    text = _sbatch("eval_exp06n.sbatch")
+    # the old unconditional-overwrite forms must be gone
+    assert 'cp -v "$ART" "$RECORDS/"' not in text, "records copy still clobbers (review B3)"
+    assert 'cp -v "$ART" "$IMPORT_DIR/"' not in text, "import copy still clobbers (review B3)"
+    # the no-clobber forms: recheck at copy time, explicit destination, byte-verify
+    assert 'cp -v "$ART" "${RECORDS}/${ART_BASE}"' in text
+    assert 'cp -v "$ART" "${IMPORT_DIR}/${ART_BASE}"' in text
+    assert text.count('[ ! -e "${RECORDS}/${ART_BASE}" ]') >= 2, (
+        "the records destination must be rechecked at copy time as well as preflighted"
+    )
+    assert text.count('[ ! -e "${IMPORT_DIR}/${ART_BASE}" ]') >= 2, (
+        "the import destination must be rechecked at copy time as well as preflighted"
+    )
+    assert 'cmp -s "$ART" "${RECORDS}/${ART_BASE}"' in text, "records copy must be byte-verified"
+    assert 'cmp -s "$ART" "${IMPORT_DIR}/${ART_BASE}"' in text, "import copy must be byte-verified"
+
+
+def test_eval_sbatch_appends_the_import_sha_manifest():
+    """B4/B5: every EMA artifact copied into the import dir appends its sha256 line
+    (repo-relative name, the established IMPORT_SHA256SUMS format) to the manifest."""
+    text = _sbatch("eval_exp06n.sbatch")
+    assert "IMPORT_SHA256SUMS.txt" in text
+    assert re.search(r'tee -a "\$\{IMPORT_DIR\}/IMPORT_SHA256SUMS\.txt"', text), (
+        "the sha256 line must be APPENDED to the import manifest, not just printed"
+    )
+    assert re.search(r'cd "\$WORKTREE" && sha256sum "outputs_FLAC/exp06n_maxpoollinear_import/', text), (
+        "manifest lines must carry repo-relative names (sha256sum -c from the repo root)"
+    )
+
+
+# ------------------------------------------------------------------------------------ #
+# 7. provenance deliverables (review B4): generator pending rows + import scaffolds
+# ------------------------------------------------------------------------------------ #
+_GEN_PATH = Path("/n/fs/gatrdp/codespace/cylindrical-dinov3/worklog/worklog_yixun_neuronic/"
+                 "gen_model_comparison_neuronic.py")
+_FLAC_MAIN_MANIFEST = Path("/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/"
+                           "exp06n_maxpoollinear_import/IMPORT_SHA256SUMS.txt")
+_WORKTREE_MANIFEST = _REPO_ROOT / "outputs_FLAC" / "exp06n_maxpoollinear_import" / "IMPORT_SHA256SUMS.txt"
+
+
+@pytest.fixture(scope="module")
+def gen():
+    if not _GEN_PATH.parent.exists():
+        pytest.skip(f"cylindrical worklog checkout not present at {_GEN_PATH.parent}")
+    return _load_module(_GEN_PATH, "gen_model_comparison_neuronic")
+
+
+def test_generator_registers_the_full_exp06_pending_row_matrix(gen):
+    """@40k/@67.5k x K{1,8} x ONLINE/EMA = 8 row specs, globbing the exp06n eval-name
+    family over the exp_06 records folder (mirrors the exp03n/exp04n row-spec shape)."""
+    exp06_rows = [r for r in gen.ROWS if "exp_06" in r[0]]
+    assert len(exp06_rows) == 8, f"expected 8 exp_06 row specs, got {len(exp06_rows)}"
+    seen = set()
+    for label, proto, k, patterns in exp06_rows:
+        assert "max_linear" in label, label
+        assert proto.startswith("fa eval, bf16, "), proto
+        stream = "online" if "ONLINE" in proto else "ema"
+        assert len(patterns) == 1, patterns
+        pattern = patterns[0]
+        assert "exp_06_maxpool_linear_cond_claude" in pattern, (
+            f"row glob must scan the exp_06 records folder: {pattern}"
+        )
+        step = "40000" if "40000" in pattern else "67500"
+        assert f"exp06n_{step}_{stream}_K{k}_s" in pattern, (
+            f"row glob must match the eval-name family exp06n_<step>_<stream>_K<k>_s<seed>: "
+            f"{pattern}"
+        )
+        assert ("@40k" in label) == (step == "40000"), (label, step)
+        assert ("@67.5k" in label) == (step == "67500"), (label, step)
+        seen.add((step, k, stream))
+    assert seen == {(s, k, t) for s in ("40000", "67500") for k in (1, 8)
+                    for t in ("online", "ema")}, sorted(seen)
+
+
+def test_generator_renders_the_exp06_rows_as_pending_until_raws_exist(gen):
+    """No exp06n raws are on disk yet, so every exp_06 row must render as pending —
+    exactly the canonical-table convention for not-yet-measured cells."""
+    exp06_rows = [r for r in gen.ROWS if "exp_06" in r[0]]
+    body = gen.render_body(exp06_rows)
+    data_lines = [l for l in body.splitlines() if l.startswith("| cyl no-SSL max_linear")]
+    assert len(data_lines) == 8, body
+    for line in data_lines:
+        assert "*pending (" in line, f"exp_06 row did not render as pending: {line}"
+
+
+def test_generator_exp03_exp04_row_specs_are_untouched(gen):
+    """The exp06 append must not disturb the existing registered rows."""
+    assert len([r for r in gen.ROWS if "exp_03" in r[0]]) == 8
+    assert len([r for r in gen.ROWS if "exp_04" in r[0]]) == 8
+    assert len([r for r in gen.ROWS if r[0].startswith("P1 ")]) == 4
+
+
+def _assert_manifest_scaffold(path: Path):
+    text = path.read_text()
+    lines = text.splitlines()
+    assert lines and lines[0].startswith("#"), (
+        f"{path} must open with the contract header (comment lines; sha256sum -c ignores them)"
+    )
+    header = [l for l in lines if l.startswith("#")]
+    assert any("append" in l.lower() for l in header), (
+        "the header must document the APPENDING contract (eval wrapper appends sha256 lines)"
+    )
+    assert any("sha256" in l.lower() for l in header)
+    for line in lines:
+        if line and not line.startswith("#"):
+            assert re.fullmatch(r"[0-9a-f]{64}  \S.*", line), (
+                f"non-header manifest line is not a sha256sum line: {line[:120]}"
+            )
+
+
+def test_worktree_import_scaffold_manifest_exists_with_the_contract_header():
+    """The dir the eval wrapper appends into (repo-rooted in THIS worktree, force-added:
+    outputs_FLAC/ is ignored — the 71e77a2 lesson)."""
+    if not _WORKTREE_MANIFEST.exists():
+        pytest.fail(f"required deliverable is missing: {_WORKTREE_MANIFEST}")
+    _assert_manifest_scaffold(_WORKTREE_MANIFEST)
+
+
+def test_flac_main_import_scaffold_manifest_exists_with_the_contract_header():
+    """The canonical-table-side landing zone in the main FLAC checkout (committed there
+    by the Planner; created by this round)."""
+    if not _FLAC_MAIN_MANIFEST.parent.parent.exists():
+        pytest.skip(f"FLAC main checkout not present at {_FLAC_MAIN_MANIFEST.parent.parent}")
+    if not _FLAC_MAIN_MANIFEST.exists():
+        pytest.fail(f"required deliverable is missing: {_FLAC_MAIN_MANIFEST}")
+    _assert_manifest_scaffold(_FLAC_MAIN_MANIFEST)
