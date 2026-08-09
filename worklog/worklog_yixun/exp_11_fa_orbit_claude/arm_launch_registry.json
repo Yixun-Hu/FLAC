@@ -6,9 +6,11 @@
     "nothing. This committed registry pins each arm's manifest by sha256 plus the",
     "launch facts a screen must re-check (job, INITIAL mode, launch uuid, commit,",
     "rung, config/VAE/P0 hashes, canonical save-dir, training seed).",
-    "Recorded from the live manifests of the four running arms (jobs 3648694-97)."
+    "VANL (Q9, job 3661520) recorded from its PUBLISHED launch manifest after the",
+    "INITIAL job started -- an sbatch return alone does not prove a launch happened.",
+    "Recorded from the live manifests of the running arms (3648694-97, 3661520)."
   ],
-  "recorded_at": "2026-08-07",
+  "recorded_at": "2026-08-09",
   "training_seed": 42,
   "arms": {
     "C4L": {
@@ -77,6 +79,23 @@
       "vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9",
       "p0_manifest_sha256": "72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b",
       "save_dir": "outputs_FLAC/exp11_C32",
+      "training_seed": 42
+    },
+    "VANL": {
+      "manifest_path": "outputs_FLAC/exp11_VANL/launch_manifest.txt",
+      "manifest_sha256": "113d06a284c6198cf9487e99a2efb7ccde94ae13e656a403fe2af0281d3de8b1",
+      "job": "3661520",
+      "mode": "INITIAL",
+      "launch_uuid": "7337b7ae-7d43-47aa-86b3-87b1daad9be7",
+      "commit": "81ddac372076ea92751ae09cbaf371df70f396e5",
+      "rung": "8x8",
+      "micro": "8",
+      "ngpu": "8",
+      "max_steps": "40000",
+      "config_sha256": "733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8",
+      "vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9",
+      "p0_manifest_sha256": "72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b",
+      "save_dir": "outputs_FLAC/exp11_VANL",
       "training_seed": 42
     }
   }

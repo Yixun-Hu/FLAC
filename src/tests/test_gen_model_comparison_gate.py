@@ -551,3 +551,23 @@ def test_vanl_renders_pending_until_the_conf_block_lands(tmp_path):
     line, blocked = G.render_row(vanl[0], vanl[1], vanl[2], [], repo_root=str(root))
     assert not blocked
     assert "pending (0/5 seeds on disk)" in line
+
+
+def test_no_exp11_row_glob_also_matches_its_sidecar():
+    """A trailing '*.json' matches '<name>.json.screenmeta.json' too, which hands
+    the validator ten files for a five-seed cell and BLOCKS the row on a glob bug."""
+    import fnmatch
+    for label, _proto, _k, pats in G.ROWS:
+        if not G.is_exp11_row(pats):
+            continue
+        for pat in pats:
+            probe = pat.replace("**/", "").replace("*", "x").replace("[2-6]", "2")
+            assert not fnmatch.fnmatch(probe + ".screenmeta.json", pat), (
+                f"{label}: glob {pat!r} also matches its sidecar")
+
+
+def test_vanl_and_c4l_q9_rows_share_the_q9_namespace():
+    q9 = [r for r in G.ROWS if "_q9_" in r[3][0]]
+    assert {r[2] for r in q9} == {1, 8}
+    arms = {("VANL" if "VANL" in r[3][0] else "C4L") for r in q9}
+    assert arms == {"VANL", "C4L"}, arms

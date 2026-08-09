@@ -8,6 +8,10 @@
 # checkpoints are torch.save'd into a mktemp OUTPUT_ROOT, so the real arms'
 # outputs are never read or written and no job is submitted.
 #
+# DO NOT RUN THIS SUITE DURING ACTIVE CAMPAIGN SUBMISSIONS. It parks the campaign
+# pin (restoring it via a trap, including on interrupt) and, on an idle store,
+# exercises deletion paths. Run it between submission batches.
+#
 # Usage: bash worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_screen_guardtests.sh
 # Exit 0 = every case behaved as specified.
 # ============================================================================
@@ -16,6 +20,7 @@ cd "$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-
 
 EXPDIR="worklog/worklog_yixun/exp_11_fa_orbit_claude"
 SCREEN="${EXPDIR}/fa_orbit_screen.sbatch"
+GUARD_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 PY=/n/fs/gatrdp/envs/flac/bin/python
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 LOG="${EXPDIR}/fa_orbit_${TS}_screen_guardtests.log"
@@ -81,6 +86,7 @@ write("exp11_C16", "C16", "exp11_C16", json.load(open(os.path.join(expdir, "FLAC
       15000, ema=False)                                    # no EMA weights at all
 write("exp07_BF", "BF", "exp07_BF", bf, 20000)
 write("exp11_C8", "C8", "exp11_C8", c8, 40000, epoch=8)   # R3 / cross endpoint
+write("exp11_C4L", "C4L", "exp11_C4L", c4l, 40000, epoch=8)      # the Q9 fa side
 vanl = json.load(open(os.path.join(expdir, "FLAC_AR_VANCKPT.json")))
 write("exp11_VANL", "VANL", "exp11_VANL", vanl, 40000, epoch=8)   # the Q9 arm
 write("exp11_VANL", "VANL", "exp11_VANL", c4l, 12500, epoch=2)    # WRONG: an ORBIT ckpt
@@ -218,6 +224,17 @@ case_run "VANL refuses r3"    2 "not registered for VANL" -- "${BASE[@]}" ARM=VA
 case_run "VANL refuses cross" 2 "not registered for VANL" -- "${BASE[@]}" ARM=VANL STEP=40000 CELL=cross EVAL_ORBIT=16
 case_run "an ORBIT ckpt is refused as VANL" 2 "trained with an orbit and is not the vanilla arm" \
   -- "${BASE[@]}" ARM=VANL STEP=12500 CELL=conf SEED=43 K=1
+# --- the Q9 round: VANL and C4L at ONE new pin, in their own namespace -------
+case_run "VANL q9 cell is registered" 0 "exp11_VANL_q9_S40000_s44_K8" \
+  -- "${BASE[@]}" ARM=VANL STEP=40000 CELL=q9 SEED=44
+case_run "C4L q9 cell is registered"  0 "exp11_C4L_q9_S40000_s44_K8" \
+  -- "${BASE[@]}" ARM=C4L STEP=40000 CELL=q9 SEED=44
+case_run "q9 is the VANL/C4L pair only" 2 "fa-vs-vanilla pair" \
+  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=q9 SEED=44
+case_run "q9 is the 40k endpoint only" 2 "40k endpoint only" \
+  -- "${BASE[@]}" ARM=VANL STEP=10000 CELL=q9 SEED=44
+case_run "q9 uses the confirmatory seeds" 2 "seeds 42-46" \
+  -- "${BASE[@]}" ARM=VANL STEP=40000 CELL=q9 SEED=47
 # --- CELL=r3 (plan §4): registered yaw offsets, injective names --------------
 case_run "r3 needs a rotation"       2 "needs ROTATE_DEG" -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3
 case_run "r3 rejects an unregistered offset" 2 "not one of the registered R3 offsets" \
@@ -588,7 +605,14 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
   # it for the duration; the pin's own cases set and restore it themselves.
   SUITE_SAVED_PIN="$(bash "$HELPER" --pinned 2>/dev/null)"
   [ "$SUITE_SAVED_PIN" = "<none>" ] && SUITE_SAVED_PIN=""
-  [ -n "$SUITE_SAVED_PIN" ] && bash "$HELPER" --unpin-campaign >/dev/null 2>&1
+  if [ -n "$SUITE_SAVED_PIN" ]; then
+    # TRAP-BACKED: restoring only on the normal path means a Ctrl-C, a timeout or
+    # any early exit leaves the campaign unpinned — the next submission would then
+    # silently measure at HEAD instead of the pin. Arm the restore BEFORE clearing.
+    trap 'bash "$MEASURE_HELPER" --pin-campaign "$SUITE_SAVED_PIN" >/dev/null 2>&1; rm -rf "$TMP"' EXIT
+    trap 'bash "$MEASURE_HELPER" --pin-campaign "$SUITE_SAVED_PIN" >/dev/null 2>&1; exit 130' INT TERM
+    bash "$HELPER" --unpin-campaign >/dev/null 2>&1
+  fi
   MOCK="${TMP}/mockbin"; mkdir -p "$MOCK"
   cat > "${MOCK}/sbatch" <<'EOS'
 #!/usr/bin/env bash
@@ -830,6 +854,44 @@ EOS
     echo "SKIP  campaign-pin cases (no HEAD~1)"
   fi
 
+  # --- the review's findings, asserted at the surfaces they name -------------
+  if grep -q 'in_set "\$val" C4L C8 C16 C32 VANL C4BACKFILL' "$SUB"; then
+    echo "PASS  the sanctioned submitter admits VANL"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  the submitter still rejects VANL"; FAIL=$((FAIL + 1))
+  fi
+  if grep -q 'in_set "\$val" screen conf r3 cross q9' "$SUB"; then
+    echo "PASS  the submitter admits the q9 cell"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  the submitter rejects CELL=q9"; FAIL=$((FAIL + 1))
+  fi
+  # trap-backed pin restoration: an interrupt must not leave the campaign unpinned
+  if grep -q "trap 'bash \"\$MEASURE_HELPER\" --pin-campaign" "$GUARD_SELF" \
+     && grep -q "INT TERM" "$GUARD_SELF"; then
+    echo "PASS  the pin is restored by a trap, not only on the happy path"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  pin parking has no interruption safety"; FAIL=$((FAIL + 1))
+  fi
+  if grep -q "DO NOT RUN THIS SUITE DURING ACTIVE CAMPAIGN SUBMISSIONS" "$GUARD_SELF"; then
+    echo "PASS  the suite documents that it must not run during submissions"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  the run-window caveat is undocumented"; FAIL=$((FAIL + 1))
+  fi
+  # the registry must carry VANL, recorded from the PUBLISHED manifest
+  if $PY -c "
+import json,sys
+r=json.load(open('${EXPDIR}/arm_launch_registry.json'))['arms']
+v=r.get('VANL') or sys.exit('VANL absent')
+assert v['job']=='3661520', v['job']
+assert v['mode']=='INITIAL', v['mode']
+assert len(v['manifest_sha256'])==64 and v['save_dir']=='outputs_FLAC/exp11_VANL'
+assert int(v['training_seed'])==42
+"; then
+    echo "PASS  the registry carries VANL from its published launch manifest"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  the VANL registry entry is missing or wrong"; FAIL=$((FAIL + 1))
+  fi
+
   # --- PIN_SHA: the campaign measures at ONE commit --------------------------
   SAVED_PIN2="$(bash "$HELPER" --pinned 2>/dev/null)"; [ "$SAVED_PIN2" = "<none>" ] && SAVED_PIN2=""
   bash "$HELPER" --unpin-campaign >/dev/null 2>&1     # these cases test PIN_SHA alone
@@ -890,7 +952,10 @@ EOS
     echo "FAIL  a short PIN_SHA was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
   fi
 
-  [ -n "${SUITE_SAVED_PIN:-}" ] && bash "$HELPER" --pin-campaign "$SUITE_SAVED_PIN" >/dev/null 2>&1
+  if [ -n "${SUITE_SAVED_PIN:-}" ]; then
+    bash "$HELPER" --pin-campaign "$SUITE_SAVED_PIN" >/dev/null 2>&1
+    trap 'rm -rf "$TMP"' EXIT; trap - INT TERM        # restored: stand the trap down
+  fi
   # --- the marker is not proof: fd 8 must BE the store lock, at the OUTER entry
   STORE_LOCK="${MAIN_TREE}/.measure_worktrees/.store.lock"
   out="$(env FA_ORBIT_STORE_LOCK_HELD=1 MOCK_TRACE="$TRACE" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
@@ -1207,7 +1272,7 @@ if [ -f "$REG" ]; then
 import json, sys
 reg = json.load(open(sys.argv[1]))
 arms = reg["arms"]
-assert set(arms) == {"C4L", "C8", "C16", "C32"}, sorted(arms)
+assert set(arms) == {"C4L", "C8", "C16", "C32", "VANL"}, sorted(arms)
 for a, v in arms.items():
     for f in ("manifest_sha256", "job", "mode", "launch_uuid", "commit", "rung",
               "max_steps", "config_sha256", "vae_sha256", "p0_manifest_sha256", "save_dir"):

@@ -78,8 +78,21 @@ REPO_ENV=("FA_ORBIT_REPO_OVERRIDE=$PWD")   # dry runs read THIS tree, not the pr
 SMOKE_ENV=(DRYRUN=1 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}" "${REPO_ENV[@]}" SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=14000)
 
 echo "--- A. the pin mechanism refuses to launch un-pinned (round-3 B1) ---"
-case_run "un-pinned arm refuses" 2 "TO-PIN-AFTER-P0" \
-  -- DRYRUN=1 ARM=C8 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}" "${REPO_ENV[@]}"
+# RETIRED: this asserted that an UNPINNED arm refuses, but every pin landed in
+# ea94995, so the placeholder no longer appears in any value and the case could
+# never fire. Replaced by the end state it was protecting, plus proof that the
+# refusal mechanism itself is still present to catch a future unpinned value.
+if grep -qE '^PINNED_[A-Z_]+="TO-PIN-AFTER-P0"' "$LAUNCHER"; then
+  echo "FAIL  a launcher pin is still the placeholder"; FAIL=$((FAIL+1))
+else
+  echo "PASS  every launcher pin holds a concrete value"; PASS=$((PASS+1))
+fi
+if grep -q 'PIN_PLACEHOLDER="TO-PIN-AFTER-P0"' "$LAUNCHER" \
+   && grep -q 'PIN_PLACEHOLDER' "$LAUNCHER"; then
+  echo "PASS  the launcher still refuses a placeholder pin if one returns"; PASS=$((PASS+1))
+else
+  echo "FAIL  the placeholder refusal mechanism is gone"; FAIL=$((FAIL+1))
+fi
 case_run "SMOKE bypasses the pins" 0 "ARGV PARITY OK" -- "${SMOKE_ENV[@]}" ARM=C8
 case_run "SMOKE needs a rung" 2 "SMOKE_RUNG" \
   -- DRYRUN=1 SMOKE=1 ARM=C8 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}" "${REPO_ENV[@]}"
@@ -246,7 +259,16 @@ expect_cmd "preflight rejects a missing running commit" 2 "no running commit" --
      --launch-manifest "${TMP}/launch_manifest.txt"
 
 echo "--- H. the submitter refuses un-pinned submission ---"
-expect_cmd "submitter refuses placeholders" 2 "TO-PIN-AFTER-P0" -- env DRYRUN=1 bash "$SUBMITTER" C8
+# RETIRED for the same reason as the launcher case above: all pins are concrete,
+# so the submitter's placeholder refusal is unreachable on the real file.
+if grep -qE '^PINNED_[A-Z_]+="TO-PIN-AFTER-P0"' "$SUBMITTER"; then
+  echo "FAIL  a submitter pin is still the placeholder"; FAIL=$((FAIL+1))
+else
+  echo "PASS  every submitter pin holds a concrete value"; PASS=$((PASS+1))
+fi
+grep -q 'PLACEHOLDER="TO-PIN-AFTER-P0"' "$SUBMITTER" \
+  && { echo "PASS  the submitter still refuses a placeholder pin if one returns"; PASS=$((PASS+1)); } \
+  || { echo "FAIL  the submitter placeholder refusal is gone"; FAIL=$((FAIL+1)); }
 expect_cmd "submitter rejects a bad arm" 2 "must be C4L" -- env DRYRUN=1 bash "$SUBMITTER" FA1
 expect_cmd "submitter derives smoke flags" 0 "--gres=gpu:l40:4" -- \
   env DRYRUN=1 SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=14000 bash "$SUBMITTER" C4L
@@ -314,8 +336,17 @@ grep -q 'final_tee_rc' "$LAUNCHER" && { echo "PASS  the final record's tee statu
   || { echo "FAIL  the final tee status is still discarded"; FAIL=$((FAIL+1)); }
 grep -q 'WANDB_ENTITY="\$WANDB_ENTITY_SEEN"' "$LAUNCHER" && { echo "PASS  the approved wandb entity is exported"; PASS=$((PASS+1)); } \
   || { echo "FAIL  WANDB_ENTITY is not exported"; FAIL=$((FAIL+1)); }
-grep -q 'wandb-metadata.json' "$LAUNCHER" && { echo "PASS  the created wandb run identity is verified post-run"; PASS=$((PASS+1)); } \
-  || { echo "FAIL  no post-run wandb identity verification"; FAIL=$((FAIL+1)); }
+# RETIRED: the readback moved out of the launcher into fa_orbit_wandb_readback.py
+# (71054cf, 15 unit tests) because PL's save_dir overrides WANDB_DIR; grepping the
+# launcher for wandb-metadata.json tested the superseded shape. Assert the real
+# contract instead: the launcher runs the readback and GATES its exit class on it.
+if grep -q 'fa_orbit_wandb_readback.py' "$LAUNCHER" \
+   && grep -q 'WANDB_CHECK_RC' "$LAUNCHER" \
+   && grep -q 'WANDB_CHECK_RC" -ne 0' "$LAUNCHER"; then
+  echo "PASS  the launcher runs the wandb readback and gates on its result"; PASS=$((PASS+1))
+else
+  echo "FAIL  no post-run wandb identity verification"; FAIL=$((FAIL+1))
+fi
 
 echo
 echo "=== guard tests: ${PASS} passed, ${FAIL} failed ==="

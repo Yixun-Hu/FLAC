@@ -87,9 +87,9 @@ for kv in "$@"; do
   esac
   key="${kv%%=*}"; val="${kv#*=}"
   case "$key" in
-    ARM)        in_set "$val" C4L C8 C16 C32 C4BACKFILL \
+    ARM)        in_set "$val" C4L C8 C16 C32 VANL C4BACKFILL \
                   || reject "ARM='${val}' is not a registered arm" ;;
-    CELL)       in_set "$val" screen conf r3 cross \
+    CELL)       in_set "$val" screen conf r3 cross q9 \
                   || reject "CELL='${val}' is not a registered cell type" ;;
     STEP)       is_num "$val" || reject "STEP='${val}' is not numeric" ;;
     SEED)       is_num "$val" || reject "SEED='${val}' is not numeric" ;;

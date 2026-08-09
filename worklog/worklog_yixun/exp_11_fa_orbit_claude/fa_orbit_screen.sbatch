@@ -138,6 +138,16 @@ case "$CELL" in
     [ "$K" = "8" ] || die "a futility screen is K=8 by contract (got K=${K}) - abort" ;;
   conf)
     case "$SEED" in 42|43|44|45|46) ;; *) die "a confirmatory cell uses seeds 42-46 (got ${SEED}) - abort";; esac ;;
+  q9)
+    # The Q9 fa-vs-vanilla round: VANL and C4L at ONE new pin. A separate cell
+    # from `conf` so re-measuring C4L does not overwrite its published 0c6e9ff
+    # evidence, which lives under the same checkpoint with the conf eval-name.
+    case "$ARM" in
+      VANL|C4L) ;;
+      *) die "CELL=q9 is the fa-vs-vanilla pair (VANL, C4L); got ${ARM} - abort" ;;
+    esac
+    case "$SEED" in 42|43|44|45|46) ;; *) die "a q9 cell uses seeds 42-46 (got ${SEED}) - abort";; esac
+    [ "$STEP" = "40000" ] || die "the Q9 round is the 40k endpoint only (got ${STEP}) - abort" ;;
   r3)
     # plan §4 R3: ONE seed at five registered yaw offsets, at the 40k endpoint.
     [ "$SEED" = "42" ] || die "an R3 cell is seed 42 by contract (got ${SEED}) - abort"
@@ -159,15 +169,15 @@ case "$CELL" in
       4|8|16|32) ;;
       *) die "EVAL_ORBIT '${EVAL_ORBIT}' must be one of 4|8|16|32 - abort" ;;
     esac ;;
-  *) die "CELL '${CELL}' must be screen (futility), conf (table cell), r3 (yaw offsets) or cross (orbit mismatch) - abort" ;;
+  *) die "CELL '${CELL}' must be screen (futility), conf (table cell), q9 (fa-vs-vanilla round), r3 (yaw offsets) or cross (orbit mismatch) - abort" ;;
 esac
 # VANL has no orbit, so the orbit-shaped cells are meaningless for it: r3 asks
 # what a yaw offset does to an invariant model, and cross asks what a different
 # orbit does. Neither question exists for a vanilla baseline.
 if [ "$ARM" = "VANL" ]; then
   case "$CELL" in
-    screen|conf) ;;
-    *) die "CELL '${CELL}' is not registered for VANL — a vanilla arm has no orbit, so r3 and cross do not apply - abort" ;;
+    screen|conf|q9) ;;
+    *) die "CELL '${CELL}' is not registered for VANL — r3 and cross are UNREGISTERED for a vanilla arm in this campaign - abort" ;;
   esac
 fi
 if [ "$ARM" = "C4BACKFILL" ]; then

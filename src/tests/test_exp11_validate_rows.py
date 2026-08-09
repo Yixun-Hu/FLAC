@@ -751,7 +751,9 @@ def _vanl_row(tmp_path, seed=42, step=40000, k=8, cell="conf", **over):
     rec = _record(ckpt_path=ck, eval_name=ev, seed=seed,
                   cond_method="vanilla", orbit_execution="n/a",
                   dataset_config=V.EVAL_CONFIG_FOR_K[k])
-    rec.pop("frame_avg_fwd_cap", None)
+    # BOTH orbit-provenance keys are present and explicitly null: that is the
+    # declaration "this evaluator ran no orbit", which omission would not make.
+    rec["frame_avg_fwd_cap"] = None
     rec["frame_avg_angles"] = None
     rec.update(over)
     side = _sidecar(arm="VANL", step=step, K=k, seed=seed, eval_name=ev, ckpt_path=ck,
@@ -787,7 +789,7 @@ def test_vanl_row_must_declare_orbit_execution_na(tmp_path):
 def test_vanl_row_must_not_carry_an_orbit(tmp_path):
     path = _vanl_row(tmp_path, frame_avg_angles=[0.0, 90.0, 180.0, 270.0])
     _row, problems = V.validate_row(path)
-    assert any("carries no orbit" in p for p in problems), problems
+    assert any("must be exactly null" in p for p in problems), problems
 
 
 def test_vanl_row_must_be_a_vanilla_evaluation(tmp_path):
@@ -799,7 +801,7 @@ def test_vanl_row_must_be_a_vanilla_evaluation(tmp_path):
 def test_vanl_row_must_not_carry_a_forward_cap(tmp_path):
     path = _vanl_row(tmp_path, frame_avg_fwd_cap=64)
     _row, problems = V.validate_row(path)
-    assert any("no forward-sample cap" in p for p in problems), problems
+    assert any("frame_avg_fwd_cap=64 must be exactly null" in p for p in problems), problems
 
 
 def test_vanl_conf_cell_validates_under_the_table_contract(tmp_path):
@@ -815,3 +817,58 @@ def test_r3_and_cross_are_not_registered_for_vanl():
         with pytest.raises(ValueError):
             V.parse_eval_name(name)
     assert V.cross_orbits_for("C8") == (4, 16, 32)     # unchanged for the orbit arms
+
+
+# --------------------------------------------------------------------------- #
+# VANL review findings 3 + the Q9 namespace
+# --------------------------------------------------------------------------- #
+def test_vanilla_schema_is_fail_closed_on_absent_keys(tmp_path):
+    """An ABSENT orbit-provenance key is not a declaration of 'no orbit'.
+    The first version accepted omission, which is fail-open."""
+    for missing in ("frame_avg_fwd_cap", "frame_avg_angles"):
+        path = _vanl_row(tmp_path, seed=42)
+        rec = json.load(open(path))
+        rec.pop(missing, None)
+        open(path, "w").write(json.dumps(rec))
+        _row, problems = V.validate_row(path)
+        assert any(f"must contain {missing}" in p for p in problems), (missing, problems)
+
+
+def test_vanilla_sidecar_angles_must_be_explicitly_null(tmp_path):
+    path = _vanl_row(tmp_path)
+    side_path = V.sidecar_path_for(path)
+    side = json.load(open(side_path))
+    del side["frame_avg_angles"]
+    open(side_path, "w").write(json.dumps(side))
+    _row, problems = V.validate_row(path)
+    # The mandatory-sidecar-field check catches absence first and returns early;
+    # either way the row is refused, which is the property under test.
+    assert any("frame_avg_angles" in p for p in problems), problems
+    # ...and a NON-null value is caught by the vanilla-specific rule
+    side["frame_avg_angles"] = [0.0, 90.0, 180.0, 270.0]
+    open(side_path, "w").write(json.dumps(side))
+    _row, problems = V.validate_row(path)
+    assert any("must be exactly null" in p for p in problems), problems
+
+
+def test_q9_is_a_separate_registered_namespace():
+    """Re-measuring C4L at the new pin under `conf` would overwrite its published
+    0c6e9ff evidence file-for-file; q9 keeps both rounds on disk."""
+    spec = V.CONTRACTS["q9"]
+    assert spec["cells"] == ("q9",) and spec["seeds"] == (42, 43, 44, 45, 46)
+    assert spec["K"] == (1, 8) and spec["step"] == 40000
+    assert spec["arms"] == ("VANL", "C4L") and spec["table_admissible"] is True
+    assert V.parse_eval_name("exp11_C4L_q9_S40000_s42_K8")["cell"] == "q9"
+
+
+def test_q9_refuses_arms_outside_the_pair(tmp_path):
+    paths = [_vanl_row(tmp_path, seed=s, cell="q9") for s in (42, 43, 44, 45, 46)]
+    _rows, problems = V.validate_cell(paths, arm="C8", step=40000, k=8, contract="q9")
+    assert any("registered for ('VANL', 'C4L') only" in p for p in problems), problems
+
+
+def test_a_full_q9_vanl_cell_validates(tmp_path):
+    paths = [_vanl_row(tmp_path, seed=s, cell="q9") for s in (42, 43, 44, 45, 46)]
+    rows, problems = V.validate_cell(paths, arm="VANL", step=40000, k=8, contract="q9")
+    assert problems == [], problems
+    assert len(rows) == 5

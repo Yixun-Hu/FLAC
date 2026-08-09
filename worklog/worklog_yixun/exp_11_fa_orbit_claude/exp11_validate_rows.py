@@ -131,6 +131,11 @@ CONTRACTS = {
                  "table_admissible": False},
     "table":    {"cells": ("conf",), "seeds": (42, 43, 44, 45, 46), "K": (1, 8),
                  "table_admissible": True},
+    # The Q9 round: VANL and C4L measured at ONE new pin, five seeds, both K.
+    # Same shape as `table` — it IS a table contract — but a distinct cell so the
+    # original campaign's conf evidence is preserved rather than overwritten.
+    "q9":       {"cells": ("q9",), "seeds": (42, 43, 44, 45, 46), "K": (1, 8),
+                 "step": 40000, "arms": ("VANL", "C4L"), "table_admissible": True},
     # R3 (plan §4) is ONE seed evaluated at five registered yaw offsets — the
     # exactly-once SEED logic would call those five files duplicates, so this
     # contract is keyed by ROTATIONS instead (re-review item 4).
@@ -161,7 +166,10 @@ CELL_IDENTITY_FIELDS = ("cell", "ckpt_path", "ckpt_sha256", "model_config_sha256
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 
-_SCREEN_RE = re.compile(r"^exp11_(C4L|C8|C16|C32|VANL)_(screen|conf)_S(\d+)_s(\d+)_K(\d+)$")
+# q9 is a SEPARATE conf namespace for the Q9 fa-vs-vanilla round. Re-measuring
+# C4L at the new pin under the old `conf` name would overwrite the published
+# 0c6e9ff evidence file-for-file; a distinct cell keeps both rounds on disk.
+_SCREEN_RE = re.compile(r"^exp11_(C4L|C8|C16|C32|VANL)_(screen|conf|q9)_S(\d+)_s(\d+)_K(\d+)$")
 _BACKFILL_RE = re.compile(r"^exp11_C4backfill_S(\d+)_s(\d+)_K(\d+)$")
 # R3 carries the ROTATION in the name: the five rows of an R3 cell otherwise
 # share one eval name and are distinguishable only by a field inside the file.
@@ -410,6 +418,21 @@ def validate_row(metrics_path, verify_hashes=False):
 
     # --- the VANILLA protocol statement (Q9 / NEW-6) --------------------------
     if vanilla:
+        # FAIL-CLOSED: an ABSENT key is not a passing check. The orbit provenance
+        # fields must be PRESENT and exactly None -- "the evaluator declared no
+        # orbit" and "the evaluator forgot to say" are different claims, and only
+        # the first one is evidence.
+        for f in ("frame_avg_fwd_cap", "frame_avg_angles"):
+            if f not in rec:
+                problems.append(f"{tag}: a vanilla record must contain {f} (explicitly null), "
+                                "not omit it — an absent field is not a declaration")
+            elif rec[f] is not None:
+                problems.append(f"{tag}: {f}={rec[f]!r} must be exactly null on a vanilla row")
+        if "frame_avg_angles" not in side:
+            problems.append(f"{tag}: a vanilla sidecar must contain frame_avg_angles (explicitly null)")
+        elif side["frame_avg_angles"] is not None:
+            problems.append(f"{tag}: sidecar frame_avg_angles={side['frame_avg_angles']!r} must be "
+                            "exactly null on a vanilla row")
         if rec.get("cond_method") != "vanilla":
             problems.append(f"{tag}: cond_method={rec.get('cond_method')!r} — a {arm} row must be "
                             "a vanilla evaluation")
@@ -417,17 +440,10 @@ def validate_row(metrics_path, verify_hashes=False):
             problems.append(f"{tag}: orbit_execution={rec.get('orbit_execution')!r} != 'n/a' — "
                             "a vanilla evaluation executes no orbit, and labelling it 'batched' "
                             "would make it look protocol-compatible with a frame-averaged row")
-        if rec.get("frame_avg_fwd_cap") is not None:
-            problems.append(f"{tag}: frame_avg_fwd_cap={rec.get('frame_avg_fwd_cap')!r} — a "
-                            "vanilla row has no forward-sample cap")
-        if rec.get("frame_avg_angles"):
-            problems.append(f"{tag}: frame_avg_angles={rec.get('frame_avg_angles')!r} — a vanilla "
-                            "row carries no orbit")
-        if side.get("frame_avg_angles"):
-            problems.append(f"{tag}: the sidecar claims frame_avg_angles for a vanilla row")
-        if cell not in ("screen", "conf"):
-            problems.append(f"{tag}: cell {cell!r} is not registered for {arm} — r3 and cross ask "
-                            "orbit questions of a model that has no orbit")
+        if cell not in ("screen", "conf", "q9"):
+            problems.append(f"{tag}: cell {cell!r} is not registered for {arm} — r3 and cross are "
+                            "UNREGISTERED for a vanilla arm in this campaign (yaw sensitivity is a "
+                            "meaningful question for it, just not one this round asks)")
 
     # --- the record's own protocol statement ---------------------------------
     if not vanilla and not _angles_equal(rec.get("frame_avg_angles"), want_angles):
@@ -606,6 +622,9 @@ def validate_cell(metrics_paths, arm, step, k, contract, verify_hashes=False):
         axis, wanted = "seed", spec["seeds"]
     if spec.get("step") is not None and step != spec["step"]:
         problems.append(f"contract {contract} is registered at step {spec['step']} only, got {step}")
+    if spec.get("arms") and arm not in spec["arms"]:
+        problems.append(f"contract {contract} is registered for {spec['arms']} only, got {arm} — "
+                        "the Q9 round is the fa-vs-vanilla pair, not the whole sweep")
     seen = {}
     for row in rows:
         seen.setdefault(row[axis], []).append(row["path"])

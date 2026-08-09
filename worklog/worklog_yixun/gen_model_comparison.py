@@ -83,10 +83,19 @@ ROWS = [
  # legacy vanilla rows on purpose — it is vanilla conditioning in the batched era,
  # so VANL vs C4L is frame averaging alone, while VANL vs a legacy vanilla row
  # would still carry the whole recipe/environment shift the C4L bridge measured.
+ # NOTE the EXACT metric suffix. A trailing "*.json" also matches each row's
+ # "<name>.json.screenmeta.json" sidecar, which would hand the validator ten
+ # files for a five-seed cell and render the row BLOCKED for a glob bug.
+ # The Q9 namespace (cell q9) keeps this round's evidence separate from the
+ # original campaign's conf cells, so C4L's 0c6e9ff rows are preserved.
  ("fa-recipe vanilla VANL @40k (exp_11 baseline)", "vanilla eval (batched-era)", 1,
-  ["outputs_FLAC/exp11_VANL/**/*exp11_VANL_conf_S40000_s4[2-6]_K1*.json"]),
+  ["outputs_FLAC/exp11_VANL/**/*exp11_VANL_q9_S40000_s4[2-6]_K1.json"]),
  ("fa-recipe vanilla VANL @40k (exp_11 baseline)", "vanilla eval (batched-era)", 8,
-  ["outputs_FLAC/exp11_VANL/**/*exp11_VANL_conf_S40000_s4[2-6]_K8*.json"]),
+  ["outputs_FLAC/exp11_VANL/**/*exp11_VANL_q9_S40000_s4[2-6]_K8.json"]),
+ ("C4L @40k re-measured at Q (Q9 fa side)", "fa eval (batched)", 1,
+  ["outputs_FLAC/exp11_C4L/**/*exp11_C4L_q9_S40000_s4[2-6]_K1_fa_invariant_a4.json"]),
+ ("C4L @40k re-measured at Q (Q9 fa side)", "fa eval (batched)", 8,
+  ["outputs_FLAC/exp11_C4L/**/*exp11_C4L_q9_S40000_s4[2-6]_K8_fa_invariant_a4.json"]),
  # exp_10 endpoint rows: registered in advance; render pending until the gate JSONs land
  ("fa scratch @67.5k (exp_10, pending gates)", "fa eval", 1, ["outputs_FLAC/exp10_BF/**/*exp10_BF67_K1_s4[2-6]*.json"]),
  ("fa scratch @67.5k (exp_10, pending gates)", "fa eval", 8, ["outputs_FLAC/exp10_BF/**/*exp10_BF67_K8_s4[3-6]*.json"]),
