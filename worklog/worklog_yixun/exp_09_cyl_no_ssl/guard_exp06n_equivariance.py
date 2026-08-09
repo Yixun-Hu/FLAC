@@ -134,6 +134,43 @@ def rel_l2(a, b):
 
 
 # ------------------------------------------------------------------------------------ #
+# contract pins (review r1 B1): the production values are REGISTERED, not parameters
+# ------------------------------------------------------------------------------------ #
+def _require_finite_positive(value, name):
+    """NaN compares False against everything, so a NaN bound/floor would silently disarm
+    every comparison below yet still reach the PASS banner. Refuse anything that is not a
+    finite positive number BEFORE any comparison uses it."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool) \
+            or not math.isfinite(value) or value <= 0:
+        raise RuntimeError(
+            f"{name} must be a finite positive number, got {value!r} — a NaN/inf/non-positive "
+            f"{name} makes every comparison silently false; refuse"
+        )
+
+
+def require_registered_contract(angles, bound, floor):
+    """The PRODUCTION guard contract is pinned (house style: the MB=32 rung string-pin):
+    EXACTLY the registered angles {90, 180, 270}, the finite registered bound 1e-4 and the
+    finite registered negative floor 1e-3. Re-stating a registered value is fine; ANY
+    other value refuses — there is no loosened-production invocation."""
+    if tuple(float(a) for a in angles) != DEFAULT_ANGLES:
+        raise RuntimeError(
+            f"production guard contract: angles {tuple(angles)!r} != the registered "
+            f"{DEFAULT_ANGLES} — the CLI pins the registered angle set; refuse"
+        )
+    if not (isinstance(bound, (int, float)) and math.isfinite(bound) and bound == DEFAULT_BOUND):
+        raise RuntimeError(
+            f"production guard contract: bound {bound!r} != the registered finite "
+            f"{DEFAULT_BOUND:g} (a NaN or loosened bound silently disarms the comparisons); refuse"
+        )
+    if not (isinstance(floor, (int, float)) and math.isfinite(floor) and floor == NEGATIVE_FLOOR):
+        raise RuntimeError(
+            f"production guard contract: negative floor {floor!r} != the registered finite "
+            f"{NEGATIVE_FLOOR:g}; refuse"
+        )
+
+
+# ------------------------------------------------------------------------------------ #
 # arm scope (B3: refuses max+MLP and legacy-mean)
 # ------------------------------------------------------------------------------------ #
 def assert_exp06n_arm(geom):
@@ -202,6 +239,7 @@ def check_equivariance(geom, angles=DEFAULT_ANGLES, bound=DEFAULT_BOUND,
     """POSITIVE check: A2b relative-L2 residual of the SERVED condition at each angle,
     with the B3 non-vacuity asserts (a)-(d) hard-enforced per angle. Returns
     ``{angle: residual}``; raises RuntimeError on any refusal."""
+    _require_finite_positive(bound, "bound")
     assert_exp06n_arm(geom)
     patch_size = geom.vit.config.patch_size
     if width % patch_size or height % patch_size:
@@ -258,6 +296,7 @@ def check_gauge_off_negative_control(geom, angles=DEFAULT_ANGLES, floor=NEGATIVE
     BREAK invariance to >= ``floor`` (10x the bound). Fed an invariant (gauge-on) model it
     REFUSES — a control that measures nothing must never report success. The token-roll
     assert (d) is deliberately absent here: gauge-off, the roll is EXPECTED to fail."""
+    _require_finite_positive(floor, "floor")
     assert_exp06n_arm(geom)
     patch_size = geom.vit.config.patch_size
     if width % patch_size or height % patch_size:
@@ -361,20 +400,25 @@ def main(argv=None):
     parser.add_argument("--model-config", default=DEFAULT_CONFIG,
                         help="the exp06n model config the checkpoint was trained with")
     parser.add_argument("--angles", default=",".join(str(int(a)) for a in DEFAULT_ANGLES),
-                        help="comma-separated registered yaw angles in degrees")
+                        help="PINNED to the registered {90,180,270}; any other value refuses "
+                             "(review r1 B1 — restating the registered set is allowed)")
     parser.add_argument("--bound", type=float, default=DEFAULT_BOUND,
-                        help="the registered A2b relative-L2 bound (default 1e-4)")
+                        help="PINNED to the registered finite 1e-4; any other value refuses")
     parser.add_argument("--negative-floor", type=float, default=NEGATIVE_FLOOR,
-                        help="the gauge-off control must reach at least this (default 1e-3)")
+                        help="PINNED to the registered finite 1e-3; any other value refuses")
     parser.add_argument("--height", type=int, default=256)
     parser.add_argument("--width", type=int, default=512)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", default="cpu")
     args = parser.parse_args(argv)
 
+    # review r1 B1: the production contract is pinned BEFORE any work — a NaN bound would
+    # make every comparison silently false yet still reach the PASS banner.
+    angles = tuple(float(a) for a in args.angles.split(","))
+    require_registered_contract(angles, args.bound, args.negative_floor)
+
     if not os.path.isfile(args.ckpt):
         raise RuntimeError(f"checkpoint not found: {args.ckpt}")
-    angles = tuple(float(a) for a in args.angles.split(","))
 
     # POSITIVE check on BOTH conditioners of the real (gauge-on) build
     geoms = load_geometry_conditioners(args.ckpt, args.model_config, device=args.device)
