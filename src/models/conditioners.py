@@ -460,9 +460,10 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
     # ViTCoordinates conditioner (below); stays None for every legacy path, so the
     # reuse branch is byte-identical for legacy configs.
     _cyl_first_vit_block = None
-    # exp_03: how the dino path pools tokens. "mean" (the legacy patch mean) for EVERY path;
-    # only the cylindrical branch's `cond_pool: "max_mlp"` raises it to "max". Initialised here
-    # so the (unchanged) shared-backbone reuse branch can pass it on for the second conditioner.
+    # exp_03/exp_06: how the dino path pools tokens. "mean" (the legacy patch mean) for EVERY
+    # path; only the cylindrical branch's `cond_pool` values "max_mlp"/"max_linear" raise it to
+    # "max". Initialised here so the (unchanged) shared-backbone reuse branch can pass it on
+    # for the second conditioner.
     dino_pool = 'mean'
 
     for conditioner_info in config["configs"]:
@@ -526,21 +527,29 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                     n_total_params = sum(p.numel() for p in vit_model.parameters())
                     print(f"{n_trainable_params / 1e6:.2f}M/{n_total_params / 1e6:.2f}M parameters are trainable")
 
-                    # exp_03 (max-pool + MLP head): two ADDITIVE, fail-closed knobs, parsed
-                    # ONLY inside this cylindrical branch so no legacy config can reach them.
+                    # exp_03 (max-pool + MLP head) / exp_06 (max-pool + LEGACY bare Linear):
+                    # ADDITIVE, fail-closed knobs, parsed ONLY inside this cylindrical branch
+                    # so no legacy config can reach them.
                     #   * `cond_pool` ABSENT  -> the legacy mean-pool + bare Linear head, on a
                     #     byte-identical code path (same modules, same RNG draws, same forward);
                     #   * `cond_pool: "max_mlp"` -> token-axis amax + Linear->GELU->Linear;
-                    #   * any other value, an ORPHAN `cond_mlp_hidden` (no `cond_pool`), or a
-                    #     non-int/bool/<=0 width -> ValueError (never a silent fallback).
+                    #   * `cond_pool: "max_linear"` -> token-axis amax + the LEGACY bare Linear
+                    #     head (exp_06: the pooling is the ONLY change — no new modules, no new
+                    #     parameters, no additional RNG draws, so a same-seed build is bitwise
+                    #     identical to the legacy arm's full state dict);
+                    #   * any other value, an ORPHAN `cond_mlp_hidden` (no `cond_pool`), a
+                    #     `cond_mlp_hidden` beside "max_linear" (no hidden layer exists to
+                    #     size), or a non-int/bool/<=0 width -> ValueError (never a silent
+                    #     fallback).
                     # Both ViT blocks must carry equal values; the shared-backbone block-equality
                     # guard below is what enforces that.
                     cond_pool = vit_config.get('cond_pool', None)
                     cond_mlp_hidden = vit_config.get('cond_mlp_hidden', None)
-                    if cond_pool is not None and cond_pool != 'max_mlp':
+                    if cond_pool is not None and cond_pool not in ('max_mlp', 'max_linear'):
                         raise ValueError(
                             f"Unknown cond_pool: {cond_pool!r}. Supported: 'max_mlp' (exp_03 "
-                            "max-pool + MLP head), or omit the field for the legacy mean-pool + "
+                            "max-pool + MLP head), 'max_linear' (exp_06 max-pool + the LEGACY "
+                            "bare Linear head), or omit the field for the legacy mean-pool + "
                             "Linear head (fail-closed: an unrecognised cond_pool never falls "
                             "through to the legacy head)."
                         )
@@ -549,6 +558,13 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                             "cond_mlp_hidden is set without cond_pool: the width would be "
                             "silently ignored by the legacy head. Set cond_pool='max_mlp' or "
                             "remove cond_mlp_hidden."
+                        )
+                    if cond_pool == 'max_linear' and cond_mlp_hidden is not None:
+                        raise ValueError(
+                            "cond_mlp_hidden is set with cond_pool='max_linear': the exp_06 "
+                            "head is the LEGACY bare Linear (no hidden layer exists to size), "
+                            "so the width would be silently ignored. Remove cond_mlp_hidden "
+                            "or use cond_pool='max_mlp'."
                         )
                     if cond_pool == 'max_mlp':
                         if cond_mlp_hidden is None:
@@ -590,6 +606,15 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                             torch.random.default_generator.manual_seed(_COND_MLP_HIDDEN_SEED)
                             hidden_layer = nn.Linear(hidden_size, cond_mlp_hidden)
                         lin_proj = nn.Sequential(hidden_layer, nn.GELU(), out_layer)
+                        dino_pool = 'max'
+                    elif cond_pool == 'max_linear':
+                        # exp_06 (max-pool + bare Linear): the head IS the legacy `lin_proj`
+                        # drawn on the construction line above — same class, same code point,
+                        # same global-RNG draw. This branch adds NO modules, NO parameters and
+                        # consumes NOT ONE additional RNG draw (bitwise full-state-dict oracle
+                        # vs the legacy arm; the branch sits AFTER the legacy Linear exactly
+                        # like the max_mlp branch, so construction order is untouched). Only
+                        # the pooling selector changes.
                         dino_pool = 'max'
                     vit_proj = nn.Identity()
                     model_type = 'dino'
