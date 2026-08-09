@@ -138,6 +138,14 @@ CONTRACTS = {
     # The Q9 round: VANL and C4L measured at ONE new pin, five seeds, both K.
     # Same shape as `table` — it IS a table contract — but a distinct cell so the
     # original campaign's conf evidence is preserved rather than overwritten.
+    # Q10 trajectory cells: five seeds x both K at each checkpoint ABOVE 40k, so
+    # the extended curve carries error bars. NOT table-admissible -- the table's
+    # comparison point stays 40k -- and not gate evidence either. Figure-admissible
+    # at the futility provenance bar (hash recomputation optional), because a
+    # trajectory point is read as a curve, not as a published number.
+    "traj":     {"cells": ("traj",), "seeds": (42, 43, 44, 45, 46), "K": (1, 8),
+                 "min_step_exclusive": 40000, "table_admissible": False,
+                 "figure_admissible": True},
     "q9":       {"cells": ("q9",), "seeds": (42, 43, 44, 45, 46), "K": (1, 8),
                  "step": 40000, "arms": ("VANL", "C4L"), "table_admissible": True},
     # R3 (plan §4) is ONE seed evaluated at five registered yaw offsets — the
@@ -173,7 +181,7 @@ _COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 # q9 is a SEPARATE conf namespace for the Q9 fa-vs-vanilla round. Re-measuring
 # C4L at the new pin under the old `conf` name would overwrite the published
 # 0c6e9ff evidence file-for-file; a distinct cell keeps both rounds on disk.
-_SCREEN_RE = re.compile(r"^exp11_(C4L|C8|C16|C32|VANL)_(screen|conf|q9)_S(\d+)_s(\d+)_K(\d+)$")
+_SCREEN_RE = re.compile(r"^exp11_(C4L|C8|C16|C32|VANL)_(screen|conf|q9|traj)_S(\d+)_s(\d+)_K(\d+)$")
 _BACKFILL_RE = re.compile(r"^exp11_C4backfill_S(\d+)_s(\d+)_K(\d+)$")
 # R3 carries the ROTATION in the name: the five rows of an R3 cell otherwise
 # share one eval name and are distinguishable only by a field inside the file.
@@ -633,6 +641,10 @@ def validate_cell(metrics_paths, arm, step, k, contract, verify_hashes=False):
         axis, wanted = "eval_orbit", cross_orbits_for(arm)
     else:
         axis, wanted = "seed", spec["seeds"]
+    lo = spec.get("min_step_exclusive")
+    if lo is not None and step <= lo:
+        problems.append(f"contract {contract} covers steps strictly above {lo} (got {step}) — "
+                        f"the <= {lo} curve is the single-seed screen record")
     if spec.get("step") is not None and step != spec["step"]:
         problems.append(f"contract {contract} is registered at step {spec['step']} only, got {step}")
     if spec.get("arms") and arm not in spec["arms"]:

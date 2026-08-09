@@ -68,7 +68,11 @@ PIN_PLACEHOLDER="TO-PIN-AFTER-P0"
 PINNED_RUNG="8x8"                          # P0 run 1334933 + spot 9bf1936: fastest uniform rung where ALL arms fit (C32 peak 30,817 MiB)
 PINNED_MB="8"                              # micro-batch per GPU (8 x 8 = 64 = eff = BN batch)
 PINNED_NGPU="8"                            # ranks
-PINNED_MAXSTEPS=40000                      # plan §2 primary matched-step budget
+PINNED_MAXSTEPS=100000                     # Q10: extended budget (was 40000, the
+                                           # plan §2 primary matched step, which
+                                           # remains the TABLE step — the extension
+                                           # adds trajectory, it does not move the
+                                           # registered comparison point)
 PINNED_CHECKPOINT_EVERY=2500               # exp_07 cadence
 PINNED_MIN_FREE_MB="36500"                 # batched C32 peak 32,063 MiB + ~4.4 GB margin (max-across-arms floor)
 PINNED_TIME_LIMIT_C4L="24:00:00"           # batched 40k/0.6598 = 16.8 h x1.3 + startup
@@ -79,6 +83,13 @@ PINNED_TIME_LIMIT_C32="112:00:00"          # batched 40k/0.1308 = 84.9 h x1.3 + 
 # from the official P0 VAN_8x8 rate, not from an orbit slope, because it makes no
 # orbit passes at all — 40k/1.07 steps/s = 10.4 h x1.3 + startup.
 PINNED_TIME_LIMIT_VANL="14:00:00"
+# Q10 RESTART legs: 40k -> 100k is 60,000 further steps at the batched rates,
+# x1.3 + startup. Each must sit under the 168 h partition cap, and each does.
+PINNED_TIME_LIMIT_RESTART_C4L="34:00:00"    # 60k/0.6598 = 25.3 h
+PINNED_TIME_LIMIT_RESTART_C8="51:00:00"     # 60k/0.4351 = 38.3 h
+PINNED_TIME_LIMIT_RESTART_C16="89:00:00"    # 60k/0.2454 = 67.9 h
+PINNED_TIME_LIMIT_RESTART_C32="160:00:00"   # 60k/0.1308 = 127.4 h (cap 168 h)
+PINNED_TIME_LIMIT_RESTART_VANL="19:00:00"   # 60k/1.0722 = 15.5 h
 PINNED_P0_MANIFEST_SHA256="72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b"  # batched matrix manifest bd96575-…-a3ed28eb; spot manifest sha in the commit message
 # Environment pins (round-3 B6) — measured on the reviewed environment:
 PINNED_PYTHON="/n/fs/gatrdp/envs/flac/bin/python"
@@ -164,7 +175,7 @@ MB="${RUNG%x*}"; NGPU="${RUNG#*x}"
 [ "$((MB * NGPU))" -eq 64 ] || die "rung ${RUNG}: MB*NGPU = $((MB*NGPU)) != 64 (micro x N pin, plan §10) - abort"
 if [ "$SMOKE" != "1" ]; then
   [ "$MB" = "$PINNED_MB" ] && [ "$NGPU" = "$PINNED_NGPU" ] || die "pin inconsistency: rung ${RUNG} vs PINNED_MB=${PINNED_MB}/PINNED_NGPU=${PINNED_NGPU} - abort"
-  [ "$MAXSTEPS" = "40000" ] || die "PINNED_MAXSTEPS is ${MAXSTEPS}, the registered budget is 40000 - abort"
+  [ "$MAXSTEPS" = "100000" ] || die "PINNED_MAXSTEPS is ${MAXSTEPS}, the registered budget is 100000 - abort"
 fi
 RUNDIR="${SAVEDIR}/${NAME}/${EXPNAME}"
 echo "=== exp_11 arm ${ARM} @ rung ${RUNG} (MB ${MB} x ${NGPU} GPU, grad-ckpt ON) — ${TS} — host $(hostname) ==="

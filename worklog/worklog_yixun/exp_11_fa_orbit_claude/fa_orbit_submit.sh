@@ -56,7 +56,14 @@ if [ "$SMOKE" = "1" ]; then
   JOBNAME="exp11-smoke-${ARM}"
 else
   RUNG="$(pin PINNED_RUNG)"
-  TIME_LIMIT="$(pin "PINNED_TIME_LIMIT_${ARM}")"
+  # A RESTART leg is a different budget from the INITIAL one: 60k further steps,
+  # not 40k from scratch. Selecting the INITIAL limit for a restart would wall-kill
+  # every arm partway through the extension.
+  if [ -n "${EXPECTED_STEP:-}" ] && [ "${EXPECTED_STEP:-0}" -gt 0 ]; then
+    TIME_LIMIT="$(pin "PINNED_TIME_LIMIT_RESTART_${ARM}")"
+  else
+    TIME_LIMIT="$(pin "PINNED_TIME_LIMIT_${ARM}")"
+  fi
   for V in "$RUNG" "$TIME_LIMIT" "$(pin PINNED_MIN_FREE_MB)" "$(pin PINNED_P0_MANIFEST_SHA256)"; do
     [ "$V" != "$PLACEHOLDER" ] || { echo "the launcher still carries ${PLACEHOLDER} pins: the P0 report has not been pinned yet — no arm may be submitted (use SMOKE=1 for the smoke) - abort"; exit 2; }
   done

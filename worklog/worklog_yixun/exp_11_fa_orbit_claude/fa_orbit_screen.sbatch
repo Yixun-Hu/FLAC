@@ -143,6 +143,16 @@ case "$CELL" in
     case "$K" in 1|8) ;; *) die "a screen cell is K=1 or K=8 (got K=${K}) - abort";; esac ;;
   conf)
     case "$SEED" in 42|43|44|45|46) ;; *) die "a confirmatory cell uses seeds 42-46 (got ${SEED}) - abort";; esac ;;
+  traj)
+    # Q10 trajectory cells: 5 seeds x both K at every NEW checkpoint above 40k.
+    # Strictly ABOVE 40000 -- the <=40k curve is the single-seed screen record and
+    # 40000 itself belongs to conf/q9. Non-gate, and never table-admissible: the
+    # table's comparison point stays 40k. These exist to give the figures error
+    # bars where the extension runs.
+    case "$SEED" in 42|43|44|45|46) ;; *) die "a traj cell uses seeds 42-46 (got ${SEED}) - abort";; esac
+    [ "$STEP" -gt 40000 ] || die "traj cells are strictly above 40000 (got ${STEP}); the <=40k curve is the screen record and 40000 is conf/q9 - abort"
+    [ "$STEP" -le 100000 ] || die "traj cells stop at the 100000 budget (got ${STEP}) - abort"
+    [ $(( STEP % 2500 )) -eq 0 ] || die "traj steps sit on the 2500 checkpoint grid (got ${STEP}) - abort" ;;
   q9)
     # The Q9 fa-vs-vanilla round: VANL and C4L at ONE new pin. A separate cell
     # from `conf` so re-measuring C4L does not overwrite its published 0c6e9ff
@@ -174,14 +184,14 @@ case "$CELL" in
       4|8|16|32) ;;
       *) die "EVAL_ORBIT '${EVAL_ORBIT}' must be one of 4|8|16|32 - abort" ;;
     esac ;;
-  *) die "CELL '${CELL}' must be screen (futility), conf (table cell), q9 (fa-vs-vanilla round), r3 (yaw offsets) or cross (orbit mismatch) - abort" ;;
+  *) die "CELL '${CELL}' must be screen (futility), conf (table cell), traj (Q10 trajectory), q9 (fa-vs-vanilla round), r3 (yaw offsets) or cross (orbit mismatch) - abort" ;;
 esac
 # VANL has no orbit, so the orbit-shaped cells are meaningless for it: r3 asks
 # what a yaw offset does to an invariant model, and cross asks what a different
 # orbit does. Neither question exists for a vanilla baseline.
 if [ "$ARM" = "VANL" ]; then
   case "$CELL" in
-    screen|conf|q9) ;;
+    screen|conf|q9|traj) ;;
     *) die "CELL '${CELL}' is not registered for VANL — r3 and cross are UNREGISTERED for a vanilla arm in this campaign - abort" ;;
   esac
 fi

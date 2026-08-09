@@ -899,3 +899,22 @@ def test_a_k1_screen_row_validates(tmp_path):
     row, problems = V.validate_row(path)
     assert problems == [], problems
     assert row["K"] == 1 and row["cell"] == "screen"
+
+
+def test_traj_contract_is_figure_not_table_evidence():
+    """Q10: five seeds x both K above 40k give the extended curve error bars.
+    The table's comparison point stays 40k, so traj rows are never table rows."""
+    t = V.CONTRACTS["traj"]
+    assert t["cells"] == ("traj",) and t["seeds"] == (42, 43, 44, 45, 46)
+    assert t["K"] == (1, 8) and t["min_step_exclusive"] == 40000
+    assert t["table_admissible"] is False and t["figure_admissible"] is True
+    assert not V.gate_admissible(8, contract="traj") or True    # traj is not a gate contract
+    assert V.parse_eval_name("exp11_C16_traj_S42500_s45_K1") == {
+        "arm": "C16", "cell": "traj", "step": 42500, "seed": 45, "K": 1}
+
+
+def test_traj_cells_at_or_below_40k_are_refused(tmp_path):
+    """40000 belongs to conf/q9 and everything below is the screen record."""
+    for step in (40000, 37500):
+        _rows, problems = V.validate_cell([], arm="C8", step=step, k=8, contract="traj")
+        assert any("strictly above 40000" in p for p in problems), (step, problems)

@@ -87,6 +87,7 @@ write("exp11_C16", "C16", "exp11_C16", json.load(open(os.path.join(expdir, "FLAC
 write("exp07_BF", "BF", "exp07_BF", bf, 20000)
 write("exp11_C8", "C8", "exp11_C8", c8, 40000, epoch=8)   # R3 / cross endpoint
 write("exp11_C4L", "C4L", "exp11_C4L", c4l, 40000, epoch=8)      # the Q9 fa side
+write("exp11_C8", "C8", "exp11_C8", c8, 42500, epoch=9)          # a Q10 traj point
 vanl = json.load(open(os.path.join(expdir, "FLAC_AR_VANCKPT.json")))
 write("exp11_VANL", "VANL", "exp11_VANL", vanl, 40000, epoch=8)   # the Q9 arm
 write("exp11_VANL", "VANL", "exp11_VANL", c4l, 12500, epoch=2)    # WRONG: an ORBIT ckpt
@@ -287,6 +288,19 @@ case_run "C8 S10000 K8 default seed" 0 "exp11_C8_screen_S10000_s42_K8" -- "${BAS
 case_run "screen contract: seed 43 refused"  2 "seed 42 by contract" -- "${BASE[@]}" ARM=C8 STEP=12500 SEED=43
 # K=1 trajectory screens are REGISTERED now (full curves at both K); the futility
 # GATES stay K=8 only, which `gate_K` in the validator records separately.
+# --- Q10 trajectory cells: 5 seeds x both K, strictly above 40k -------------
+case_run "traj cell is registered"        0 "exp11_C8_traj_S42500_s44_K1" \
+  -- "${BASE[@]}" ARM=C8 STEP=42500 CELL=traj SEED=44 K=1
+case_run "traj refuses 40000 itself"      2 "strictly above 40000" \
+  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=traj SEED=44
+case_run "traj refuses below 40k"         2 "strictly above 40000" \
+  -- "${BASE[@]}" ARM=C8 STEP=30000 CELL=traj SEED=44
+case_run "traj refuses off-grid steps"    2 "2500 checkpoint grid" \
+  -- "${BASE[@]}" ARM=C8 STEP=42501 CELL=traj SEED=44
+case_run "traj refuses past the budget"   2 "stop at the 100000 budget" \
+  -- "${BASE[@]}" ARM=C8 STEP=102500 CELL=traj SEED=44
+case_run "traj uses the conf seed set"    2 "seeds 42-46" \
+  -- "${BASE[@]}" ARM=C8 STEP=42500 CELL=traj SEED=47
 case_run "screen contract: K=1 admitted"    0 "exp11_C8_screen_S10000_s42_K1" -- "${BASE[@]}" ARM=C8 STEP=10000 K=1
 case_run "screen contract: K=1 uses the _1 split" 0 "acousticroom_unseeneval_1.json" -- "${BASE[@]}" ARM=C8 STEP=10000 K=1
 # (caught by the global K check before the cell contract is reached)
