@@ -52,10 +52,15 @@ ROOT="${MAIN_REPO}/.measure_worktrees"
 # else. Linking the parent is then impossible and linking nothing leaves the
 # evaluation without its conditioner. Each leaf the eval actually opens is
 # provisioned on its own, whatever its parent happens to be.
-ASSETS=(AcousticRooms weights/AGREE weights/FLAC/VAE.safetensors)
+# VAE.ckpt is here because the AGREE config chain loads it: it was the packaging
+# gap behind the halt — the worktree had VAE.safetensors but not VAE.ckpt, so a
+# pinned evaluation died on a file the main tree has had all along. No semantic
+# change on any surface; the tree was simply missing an input.
+ASSETS=(AcousticRooms weights/AGREE weights/FLAC/VAE.safetensors weights/FLAC/VAE.ckpt)
 ASSET_TARGETS=(/n/fs/gatrdp/datasets/AcousticRooms
                /n/fs/gatrdp/codespace/FLAC/weights/AGREE
-               /n/fs/gatrdp/codespace/FLAC/weights/FLAC/VAE.safetensors)
+               /n/fs/gatrdp/codespace/FLAC/weights/FLAC/VAE.safetensors
+               /n/fs/gatrdp/codespace/FLAC/weights/FLAC/VAE.ckpt)
 # Bookkeeping this script itself creates in the tree; never code.
 BOOKKEEPING=(.leases)
 

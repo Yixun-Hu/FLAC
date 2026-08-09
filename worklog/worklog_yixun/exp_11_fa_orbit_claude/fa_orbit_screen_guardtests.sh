@@ -403,7 +403,8 @@ HELPER="${EXPDIR}/fa_orbit_measure_worktree.sh"
 if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
   MISSING=""
   for ASSET in AcousticRooms weights/AGREE weights/AGREE/AGREE_fullAR.pt \
-               weights/FLAC/VAE.safetensors data/AR/unseen_eval.json \
+               weights/FLAC/VAE.safetensors weights/FLAC/VAE.ckpt \
+               data/AR/unseen_eval.json \
                src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json; do
     [ -e "$WT/$ASSET" ] || MISSING="${MISSING} ${ASSET}"
   done
@@ -442,6 +443,18 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
     echo "PASS  AGREE_fullAR.pt is pinned by sha256 and matches (${AGREE_PIN:0:12})"; PASS=$((PASS + 1))
   else
     echo "FAIL  AGREE pin '${AGREE_PIN:0:12}' != on-disk ${AGREE_REAL:0:12}"; FAIL=$((FAIL + 1))
+  fi
+  # VAE.ckpt is the file the halt was about: the AGREE config chain loads it and
+  # the worktree did not have it. Resolve it, and pin its content.
+  VAE_CKPT_PIN="$(grep -o 'PINNED_VAE_CKPT_SHA256="[0-9a-f]\{64\}"' "$SCREEN" | head -1 | cut -d'"' -f2)"
+  VAE_CKPT_REAL="$(sha256sum "${MAIN_TREE}/weights/FLAC/VAE.ckpt" | awk '{print $1}')"
+  if [ -e "$WT/weights/FLAC/VAE.ckpt" ] && [ -n "$VAE_CKPT_PIN" ] \
+     && [ "$VAE_CKPT_PIN" = "$VAE_CKPT_REAL" ]; then
+    echo "PASS  VAE.ckpt resolves in the worktree and matches its pin (${VAE_CKPT_PIN:0:12})"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL  VAE.ckpt missing or mispinned (pin '${VAE_CKPT_PIN:0:12}' vs ${VAE_CKPT_REAL:0:12})"
+    FAIL=$((FAIL + 1))
   fi
   if grep -q "^ASSET_TARGETS=(/n/fs/gatrdp/datasets/AcousticRooms" "$HELPER" \
      && grep -q "REGISTERED target" "$HELPER"; then
@@ -676,6 +689,63 @@ EOS
     echo "FAIL  cell parameters do not reach the job"; sed 's/^/        | /' "$TRACE"; FAIL=$((FAIL + 1))
   fi
   bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
+
+  # --- PIN_SHA: the campaign measures at ONE commit --------------------------
+  PIN="$(git rev-parse HEAD~1 2>/dev/null)"
+  if [ -n "$PIN" ]; then
+    : > "$TRACE"
+    out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+               FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+               bash "$SUB" ARM=C4L STEP=10000 "PIN_SHA=${PIN}" 2>&1)"; rc=$?
+    PINNED_WT="${MAIN_TREE}/.measure_worktrees/${PIN}"
+    if [ "$rc" -eq 0 ] && [ -d "$PINNED_WT" ] \
+       && [ "$(git -C "$PINNED_WT" rev-parse HEAD)" = "$PIN" ]; then
+      echo "PASS  PIN_SHA prepares the worktree AT the requested commit"; PASS=$((PASS + 1))
+    else
+      echo "FAIL  PIN_SHA did not pin the tree (rc=${rc})"; echo "$out" | tail -3 | sed 's/^/        | /'
+      FAIL=$((FAIL + 1))
+    fi
+    if grep -q "EXPECT_SHA=${PIN}" "$TRACE"; then
+      echo "PASS  EXPECT_SHA follows PIN_SHA into the sbatch export"; PASS=$((PASS + 1))
+    else
+      echo "FAIL  EXPECT_SHA does not match PIN_SHA in the export"
+      grep -o 'EXPECT_SHA=[0-9a-f]*' "$TRACE" | head -1 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+    fi
+    INTENT_F="$(ls -t ${EXPDIR}/fa_orbit_submission_C4L_screen_*_jid7654321.txt 2>/dev/null | head -1)"
+    if [ -n "$INTENT_F" ] && grep -q "pin_sha ${PIN}" "$INTENT_F"; then
+      echo "PASS  the intent manifest records the pin"; PASS=$((PASS + 1))
+    else
+      echo "FAIL  the intent manifest does not record the pin"; FAIL=$((FAIL + 1))
+    fi
+    [ -n "$INTENT_F" ] && rm -f "$INTENT_F"
+    bash "$HELPER" --release 7654321 "$PINNED_WT" >/dev/null 2>&1
+    # the pinned tree must carry the assets too, VAE.ckpt included
+    if [ -e "$PINNED_WT/weights/FLAC/VAE.ckpt" ] && [ -e "$PINNED_WT/weights/AGREE/AGREE_fullAR.pt" ] \
+       && [ -e "$PINNED_WT/AcousticRooms" ]; then
+      echo "PASS  a freshly pinned tree carries every runtime asset"; PASS=$((PASS + 1))
+    else
+      echo "FAIL  the pinned tree is missing runtime assets"; FAIL=$((FAIL + 1))
+    fi
+  else
+    echo "SKIP  PIN_SHA cases (no HEAD~1 available)"
+  fi
+  # a commit this repository does not have must be refused
+  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+             bash "$SUB" ARM=C4L STEP=10000 PIN_SHA=0123456789abcdef0123456789abcdef01234567 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "is not a commit in this repository"; then
+    echo "PASS  a non-existent PIN_SHA is refused"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a non-existent PIN_SHA was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
+  fi
+  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+             bash "$SUB" ARM=C4L STEP=10000 PIN_SHA=deadbeef 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "not 40 hex characters"; then
+    echo "PASS  a short PIN_SHA is refused"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a short PIN_SHA was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
+  fi
 
   # --- the marker is not proof: fd 8 must BE the store lock, at the OUTER entry
   STORE_LOCK="${MAIN_TREE}/.measure_worktrees/.store.lock"

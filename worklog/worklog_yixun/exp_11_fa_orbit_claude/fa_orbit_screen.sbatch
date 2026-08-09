@@ -209,10 +209,18 @@ if [ "$CELL" = "cross" ]; then
 fi
 # The eval name carries whatever distinguishes the cell: the rotation for R3,
 # the evaluated orbit for cross. Without that, rows of one cell share a name.
-ROT_TOKEN="$(python3 -c "
+# Only R3 names carry a rotation token, and only R3 therefore needs the renderer
+# from the code root. Importing it unconditionally made every cell depend on a
+# function that older pinned commits do not have — a screen/conf/cross cell at a
+# pre-r3 pin would die at the render gate for a token it never uses. (That is the
+# same shape of failure that killed the C8 conf block at 064e8e0b.)
+ROT_TOKEN=0
+if [ "$CELL" = "r3" ]; then
+  ROT_TOKEN="$(python3 -c "
 import sys; sys.path.insert(0, '$CODE_ROOT')
 from eval_FLAC import rot_token; print(rot_token(sys.argv[1]))" "$ROTATE_DEG")" \
-  || die "could not render the rotation token for ${ROTATE_DEG} - abort"
+    || die "could not render the rotation token for ${ROTATE_DEG} — CELL=r3 needs an eval_FLAC that exports rot_token (the pinned commit may predate it) - abort"
+fi
 case "$ARM" in
   C4BACKFILL)
     case "$CELL" in
@@ -266,7 +274,7 @@ fi
 # "AcousticRooms" and the arm configs name "weights/AGREE/AGREE_fullAR.pt", both
 # relative to the code root. Without them a pinned screen dies at startup, so
 # stat every one of them here rather than 20 minutes into a queue slot.
-for ASSET in AcousticRooms weights/AGREE/AGREE_fullAR.pt "$DATASET_CONFIG"; do
+for ASSET in AcousticRooms weights/AGREE/AGREE_fullAR.pt weights/FLAC/VAE.ckpt "$DATASET_CONFIG"; do
   [ -e "$CODE_ROOT/$ASSET" ] \
     || die "required runtime asset missing from the code root: ${CODE_ROOT}/${ASSET} — prepare the tree with fa_orbit_measure_worktree.sh - abort"
 done
@@ -280,6 +288,14 @@ AGREE_SHA="$(sha256sum "$CODE_ROOT/weights/AGREE/AGREE_fullAR.pt" | awk '{print 
 [ "$AGREE_SHA" = "$PINNED_AGREE_SHA256" ] \
   || die "weights/AGREE/AGREE_fullAR.pt sha256 ${AGREE_SHA} != pinned ${PINNED_AGREE_SHA256} - abort"
 echo "AGREE pin OK: ${AGREE_SHA}"
+# The AGREE config chain loads VAE.ckpt, so it is part of the measured stack and
+# is pinned by content exactly like AGREE and the launcher's VAE.safetensors.
+PINNED_VAE_CKPT_SHA256="6198ff0d781fa05f546d19a0137a830c3f265437193c3581d8043713e7271baf"
+VAE_CKPT_SHA="$(sha256sum "$CODE_ROOT/weights/FLAC/VAE.ckpt" | awk '{print $1}')" \
+  || die "could not hash weights/FLAC/VAE.ckpt - abort"
+[ "$VAE_CKPT_SHA" = "$PINNED_VAE_CKPT_SHA256" ] \
+  || die "weights/FLAC/VAE.ckpt sha256 ${VAE_CKPT_SHA} != pinned ${PINNED_VAE_CKPT_SHA256} - abort"
+echo "VAE.ckpt pin OK: ${VAE_CKPT_SHA}"
 
 # The ViT init is lineage-relevant at eval time too: same pin the probe gates on.
 python3 -c "

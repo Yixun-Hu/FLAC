@@ -59,13 +59,27 @@ else
   exec bash "$HELPER" --with-lock bash "$0" "$@"
 fi
 
-ARM=""; STEP=""; SEED=42; K=8; CELL=screen; EXCLUDE=""; ROTATE_DEG=""; EVAL_ORBIT=""
+ARM=""; STEP=""; SEED=42; K=8; CELL=screen; EXCLUDE=""; ROTATE_DEG=""; EVAL_ORBIT=""; PIN_SHA=""
 for kv in "$@"; do
   case "$kv" in
-    ARM=*|STEP=*|SEED=*|K=*|CELL=*|EXCLUDE=*|ROTATE_DEG=*|EVAL_ORBIT=*) eval "${kv%%=*}='${kv#*=}'" ;;
-    *) echo "unknown argument '${kv}' (expected ARM=/STEP=/SEED=/K=/CELL=/EXCLUDE=/ROTATE_DEG=/EVAL_ORBIT=)" >&2; exit 2 ;;
+    ARM=*|STEP=*|SEED=*|K=*|CELL=*|EXCLUDE=*|ROTATE_DEG=*|EVAL_ORBIT=*|PIN_SHA=*) eval "${kv%%=*}='${kv#*=}'" ;;
+    *) echo "unknown argument '${kv}' (expected ARM=/STEP=/SEED=/K=/CELL=/EXCLUDE=/ROTATE_DEG=/EVAL_ORBIT=/PIN_SHA=)" >&2; exit 2 ;;
   esac
 done
+# PIN_SHA pins the campaign to ONE commit regardless of where the branch has
+# moved: arms measured at different code SHAs are not comparable, which is the
+# whole point of a campaign. Must be a full 40-hex commit this repository has.
+if [ -n "$PIN_SHA" ]; then
+  BAD=0
+  case "$PIN_SHA" in
+    *[!0-9a-f]*) BAD=1 ;;
+    ????????????????????????????????????????) ;;
+    *) BAD=1 ;;
+  esac
+  [ "$BAD" -eq 0 ] || { echo "PIN_SHA='${PIN_SHA}' is not 40 hex characters" >&2; exit 2; }
+  git -C "$MAIN_REPO" rev-parse --verify --quiet "${PIN_SHA}^{commit}" >/dev/null \
+    || { echo "PIN_SHA ${PIN_SHA} is not a commit in this repository" >&2; exit 2; }
+fi
 [ -n "$ARM" ] && [ -n "$STEP" ] || { echo "usage: bash $0 ARM=C4L STEP=10000 [SEED=42] [K=8] [CELL=screen] [EXCLUDE=node[,node]] [ROTATE_DEG=..] [EVAL_ORBIT=..]" >&2; exit 2; }
 case "$EXCLUDE" in *[!A-Za-z0-9,._\[\]-]*) echo "EXCLUDE='${EXCLUDE}' is not a node list" >&2; exit 2 ;; esac
 
@@ -84,10 +98,17 @@ else
   exit 2
 fi
 
-# 1. pin + assets (the helper refuses a dirty or mismatched tree)
-WT="$("$HELPER" | tail -1)"
+# 1. pin + assets (the helper refuses a dirty or mismatched tree). With PIN_SHA
+#    the tree is prepared at THAT commit and EXPECT_SHA follows it, so the job's
+#    commit binding checks the pin, not wherever the branch has drifted to.
+WT="$("$HELPER" ${PIN_SHA:+"$PIN_SHA"} | tail -1)"
 [ -d "$WT" ] || { echo "could not prepare a measurement worktree" >&2; exit 3; }
 EXPECT_SHA="$(git -C "$WT" rev-parse HEAD)"
+if [ -n "$PIN_SHA" ] && [ "$EXPECT_SHA" != "$PIN_SHA" ]; then
+  echo "the prepared tree is at ${EXPECT_SHA}, not the requested PIN_SHA ${PIN_SHA}" >&2
+  exit 3
+fi
+[ -n "$PIN_SHA" ] && echo "campaign pin: ${PIN_SHA}"
 
 # 2. submit HELD: the id exists before the lease, the job runs after it
 JOB_NAME="exp11-screen-${ARM}-${CELL}-${STEP}-s${SEED}-K${K}"
@@ -163,7 +184,22 @@ if ! "$SCONTROL" release "$JOBID"; then
   exit 6
 fi
 
+# --- intent manifest: what was submitted, at which commit, with what exclusions
+INTENT="${EXPDIR}/fa_orbit_submission_${ARM}_${CELL}_S${STEP}_s${SEED}_K${K}_jid${JOBID}.txt"
+{ printf 'job %s name %s submitted_at %s by %s@%s\n' "$JOBID" "$JOB_NAME" "$(date -Is)" \
+         "$(id -un)" "$(hostname)"
+  printf 'arm %s cell %s step %s seed %s K %s\n' "$ARM" "$CELL" "$STEP" "$SEED" "$K"
+  printf 'pin_sha %s\n' "${PIN_SHA:-<none:HEAD>}"
+  printf 'expect_sha %s\n' "$EXPECT_SHA"
+  printf 'measure_root %s\n' "$WT"
+  printf 'exclude %s\n' "${EXCLUDE:-<none>}"
+  printf 'rotate_deg %s eval_orbit %s\n' "${ROTATE_DEG:-<n/a>}" "${EVAL_ORBIT:-<n/a>}"
+  printf 'lease %s\n' "${WT}/.leases/${JOBID}"
+} > "$INTENT" || echo "WARNING: could not write the intent manifest ${INTENT}" >&2
+echo "intent manifest: ${INTENT}"
+
 echo "released ${JOB_NAME} (${JOBID})"
 echo "  MEASURE_ROOT ${WT}"
 echo "  EXPECT_SHA   ${EXPECT_SHA}"
+echo "  PIN_SHA      ${PIN_SHA:-<none: HEAD>}"
 echo "  lease        ${WT}/.leases/${JOBID}"
