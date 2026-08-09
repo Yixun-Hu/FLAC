@@ -88,15 +88,22 @@ def row_pats(label):
 # --------------------------------------------------------------------------- #
 # 2. the gate itself
 # --------------------------------------------------------------------------- #
-def _write_valid_cell(tmp_path, arm="C8", step=40000, k=8, seeds=(42, 43, 44, 45, 46)):
-    """Five conf rows that pass exp11_validate_rows (sidecars included)."""
+def _write_valid_cell(tmp_path, arm="C8", step=40000, k=8, seeds=(42, 43, 44, 45, 46),
+                      cell="conf", source_sha="d" * 40):
+    """Five rows that pass exp11_validate_rows (sidecars included).
+
+    ``cell`` selects the registered namespace (conf, or q9 for the Q9 round) and
+    ``source_sha`` lets a caller build a round that spans two evaluator pins.
+    A vanilla arm gets the vanilla schema: no orbit in the filename, and both
+    orbit-provenance fields explicitly null."""
     spec = importlib.util.spec_from_file_location(
         "v", os.path.join(_REPO_ROOT, "worklog", "worklog_yixun", "exp_11_fa_orbit_claude",
                           "exp11_validate_rows.py"))
     V = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(V)
+    vanilla = V.is_vanilla_arm(arm)
     n_ang = V.ARM_ORBITS[arm]
-    angles = V.orbit_for(arm)
+    angles = None if vanilla else V.orbit_for(arm)
     # a real (tiny) file so --verify-hashes can recompute, inside the arm's
     # canonical run directory so the containment check is exercised too
     ck_dir = tmp_path / "outputs_FLAC" / f"exp11_{arm}" / f"FLAC_exp11_{arm}" / f"exp11_{arm}" / "checkpoints"
@@ -104,8 +111,9 @@ def _write_valid_cell(tmp_path, arm="C8", step=40000, k=8, seeds=(42, 43, 44, 45
     ck_file = ck_dir / f"epoch=8-step={step}.ckpt"
     ck_file.write_bytes(b"synthetic checkpoint")
     ck = str(ck_file)
-    cfg_file = tmp_path / f"FLAC_AR_BF_{arm}.json"
-    cfg_file.write_text('{"training": {"cond_method": "fa_invariant"}}')
+    cfg_file = tmp_path / (f"FLAC_AR_VANCKPT.json" if vanilla else f"FLAC_AR_BF_{arm}.json")
+    cfg_file.write_text('{"training": {}}' if vanilla
+                        else '{"training": {"cond_method": "fa_invariant"}}')
     import hashlib
     ck_sha = hashlib.sha256(ck_file.read_bytes()).hexdigest()
     cfg_sha = hashlib.sha256(cfg_file.read_bytes()).hexdigest()
@@ -113,12 +121,16 @@ def _write_valid_cell(tmp_path, arm="C8", step=40000, k=8, seeds=(42, 43, 44, 45
     metrics = {k: 12.0 for k in V.EMITTED_METRIC_KEYS}
     paths = []
     for seed in seeds:
-        ev = f"exp11_{arm}_conf_S{step}_s{seed}_K{k}"
-        name = f"epoch=8-step={step}_metrics_1_1.0_{ev}_fa_invariant_a{n_ang}.json"
+        ev = f"exp11_{arm}_{cell}_S{step}_s{seed}_K{k}"
+        suffix = "" if vanilla else f"_fa_invariant_a{n_ang}"
+        name = f"epoch=8-step={step}_metrics_1_1.0_{ev}{suffix}.json"
         rec = {"metrics": metrics, "ckpt_path": ck, "rotate_deg": 0.0,
-               "cond_method": "fa_invariant", "frame_avg_angles": angles,
-               "cond_autocast": "bf16", "orbit_execution": "batched",
-               "frame_avg_fwd_cap": 64, "source_sha": "d" * 40, "batch_size": 64,
+               "cond_method": "vanilla" if vanilla else "fa_invariant",
+               "frame_avg_angles": angles,
+               "cond_autocast": "bf16",
+               "orbit_execution": "n/a" if vanilla else "batched",
+               "frame_avg_fwd_cap": None if vanilla else 64,
+               "source_sha": source_sha, "batch_size": 64,
                "n_samples": 6337,
                "dataset_config": V.EVAL_CONFIG_FOR_K[k], "seed": seed, "cfg_scale": 1.0,
                "steps": 1, "eval_name": ev, "weights_source": "ema", "device": "cuda"}
@@ -127,8 +139,9 @@ def _write_valid_cell(tmp_path, arm="C8", step=40000, k=8, seeds=(42, 43, 44, 45
                 "model_config": str(cfg_file), "model_config_sha256": cfg_sha,
                 "dataset_config": V.EVAL_CONFIG_FOR_K[k],
                 "ckpt_path": ck, "ckpt_sha256": ck_sha, "use_ema": True,
-                "frame_avg_angles": angles, "cond_method": "fa_invariant",
-                "cond_autocast": "bf16", "commit": "d" * 40}
+                "frame_avg_angles": angles,
+                "cond_method": "vanilla" if vanilla else "fa_invariant",
+                "cond_autocast": "bf16", "commit": source_sha}
         p = tmp_path / name
         p.write_text(json.dumps(rec))
         (tmp_path / (name + ".screenmeta.json")).write_text(json.dumps(side))
@@ -522,7 +535,7 @@ def test_vanl_rows_are_registered_as_a_two_k_pair():
     vanl = [r for r in G.ROWS if "VANL" in r[0]]
     assert len(vanl) == 2, f"expected a K=1/K=8 pair, got {vanl}"
     assert {r[2] for r in vanl} == {1, 8}
-    for label, proto, _k, pats in vanl:
+    for label, proto, _k, pats in [r[:4] for r in vanl]:
         assert proto == "vanilla eval (batched-era)", proto
         assert all("exp11_VANL" in p for p in pats), pats
 
@@ -541,7 +554,7 @@ def test_vanl_is_labelled_apart_from_legacy_vanilla_rows():
 def test_vanl_rows_are_exp11_rows_and_therefore_gated():
     """They must go through the exp_11 validator like every other exp_11 row."""
     vanl = [r for r in G.ROWS if "VANL" in r[0]]
-    for _label, _proto, _k, pats in vanl:
+    for _label, _proto, _k, pats in [r[:4] for r in vanl]:
         assert G.is_exp11_row(pats), pats
 
 
@@ -553,17 +566,40 @@ def test_vanl_renders_pending_until_the_conf_block_lands(tmp_path):
     assert "pending (0/5 seeds on disk)" in line
 
 
-def test_no_exp11_row_glob_also_matches_its_sidecar():
+def _probe_name_for(pat):
+    """A concrete filename that the recursive glob ``pat`` should match."""
+    body = pat.replace("**/", "sub/").replace("[2-6]", "2")
+    return body.replace("*", "epoch=8-step=40000_metrics_1_1.0_", 1).replace("*", "")
+
+
+def test_no_exp11_row_glob_also_matches_its_sidecar(tmp_path):
     """A trailing '*.json' matches '<name>.json.screenmeta.json' too, which hands
-    the validator ten files for a five-seed cell and BLOCKS the row on a glob bug."""
-    import fnmatch
-    for label, _proto, _k, pats in G.ROWS:
+    the validator ten files for a five-seed cell and BLOCKS the row on a glob bug.
+
+    The earlier version of this test built its probe by stripping '**/', so the
+    probe did not match the metric glob either and the sidecar's non-match proved
+    nothing. It now writes REAL files and uses glob.glob(recursive=True): first
+    prove the metric side matches, then prove the sidecar beside it does not."""
+    import glob as _glob
+    checked = 0
+    for label, _proto, _k, pats in [r[:4] for r in G.ROWS]:
         if not G.is_exp11_row(pats):
             continue
         for pat in pats:
-            probe = pat.replace("**/", "").replace("*", "x").replace("[2-6]", "2")
-            assert not fnmatch.fnmatch(probe + ".screenmeta.json", pat), (
+            name = _probe_name_for(pat)
+            metric = tmp_path / name
+            metric.parent.mkdir(parents=True, exist_ok=True)
+            metric.write_text("{}")
+            sidecar = tmp_path / (name + ".screenmeta.json")
+            sidecar.write_text("{}")
+            hits = _glob.glob(os.path.join(str(tmp_path), pat), recursive=True)
+            assert str(metric) in hits, (
+                f"{label}: the probe {name!r} does not match its own glob {pat!r} — "
+                "the test would be vacuous")
+            assert str(sidecar) not in hits, (
                 f"{label}: glob {pat!r} also matches its sidecar")
+            checked += 1
+    assert checked >= 4, f"only {checked} exp_11 globs exercised"
 
 
 def test_vanl_and_c4l_q9_rows_share_the_q9_namespace():
@@ -571,3 +607,90 @@ def test_vanl_and_c4l_q9_rows_share_the_q9_namespace():
     assert {r[2] for r in q9} == {1, 8}
     arms = {("VANL" if "VANL" in r[3][0] else "C4L") for r in q9}
     assert arms == {"VANL", "C4L"}, arms
+
+
+
+# --------------------------------------------------------------------------- #
+# 9. Q-pin review: POPULATED q9 cells end-to-end, and the one-pin round gate
+# --------------------------------------------------------------------------- #
+def _q9_cell(ev_root, arm, k, seeds=(42, 43, 44, 45, 46), sha="d" * 40):
+    """Five q9 rows for one arm x K, written where the registered glob finds them."""
+    return _write_valid_cell(ev_root, arm=arm, step=40000, k=k, seeds=seeds,
+                             cell="q9", source_sha=sha)
+
+
+def _q9_tree(tmp_path, **kw):
+    import shutil
+    root = tmp_path / "maintree"
+    (root / ".git").mkdir(parents=True)
+    (root / "src").symlink_to(os.path.join(_REPO_ROOT, "src"))
+    (root / "eval_FLAC.py").symlink_to(os.path.join(_REPO_ROOT, "eval_FLAC.py"))
+    (root / "worklog" / "worklog_yixun" / "exp_11_fa_orbit_claude").mkdir(parents=True)
+    (root / "worklog" / "worklog_yixun" / "model_comparison.md").write_text("PREVIOUS\n")
+    shutil.copy(G.EXP11_VALIDATOR,
+                root / "worklog" / "worklog_yixun" / "exp_11_fa_orbit_claude"
+                     / "exp11_validate_rows.py")
+    for arm in ("VANL", "C4L"):
+        (root / "outputs_FLAC" / f"exp11_{arm}").mkdir(parents=True)
+    return root
+
+
+def test_populated_q9_rows_pass_under_the_q9_contract_and_fail_under_table(tmp_path):
+    """The reviewer's direct reproduction: the same five rows validate under q9
+    and are inadmissible under the generator's old hard-coded 'table'."""
+    root = _q9_tree(tmp_path)
+    paths = _q9_cell(root / "outputs_FLAC" / "exp11_VANL", "VANL", 8)
+    validator = str(root / "worklog" / "worklog_yixun" / "exp_11_fa_orbit_claude"
+                    / "exp11_validate_rows.py")
+    ok, problems = G.validate_exp11_cell(paths, repo_root=str(root),
+                                         validator_path=validator, contract="q9")
+    assert ok, problems
+    ok_t, problems_t = G.validate_exp11_cell(paths, repo_root=str(root),
+                                             validator_path=validator, contract="table")
+    assert not ok_t and any("not admissible" in p for p in problems_t), problems_t
+
+
+def test_a_complete_single_pin_q9_round_renders_numbers(tmp_path, monkeypatch):
+    """End-to-end through main(): four populated cells, one pin, real numbers."""
+    root = _q9_tree(tmp_path)
+    for arm, sub in (("VANL", "exp11_VANL"), ("C4L", "exp11_C4L")):
+        for k in (1, 8):
+            _q9_cell(root / "outputs_FLAC" / sub, arm, k)
+    assert G.main(["--repo-root", str(root)]) == 0
+    written = (root / "worklog" / "worklog_yixun" / "model_comparison.md").read_text()
+    q9_rows = [ln for ln in written.splitlines()
+               if ln.startswith("| fa-recipe vanilla VANL") or ln.startswith("| C4L @40k re-measured")]
+    assert len(q9_rows) == 4, q9_rows
+    for row in q9_rows:
+        assert "12.000" in row, f"populated q9 row did not render numbers: {row}"
+        assert "BLOCKED" not in row and "WITHHELD" not in row, row
+
+
+def test_q9_round_is_withheld_when_a_comparator_is_missing(tmp_path):
+    """One arm must not publish without the other: the delta is the estimand."""
+    root = _q9_tree(tmp_path)
+    for k in (1, 8):
+        _q9_cell(root / "outputs_FLAC" / "exp11_VANL", "VANL", k)
+    rc = G.main(["--repo-root", str(root)])
+    written = (root / "worklog" / "worklog_yixun" / "model_comparison.md").read_text()
+    assert "Q9 round WITHHELD" in written or rc != 0
+    vanl = [ln for ln in written.splitlines() if ln.startswith("| fa-recipe vanilla VANL")]
+    assert all("WITHHELD" in ln for ln in vanl), vanl
+
+
+def test_q9_round_is_withheld_when_the_cells_span_two_pins(tmp_path):
+    """Individually valid, jointly meaningless: a delta across two evaluator pins
+    confounds frame averaging with whatever else moved between them."""
+    root = _q9_tree(tmp_path)
+    for k in (1, 8):
+        _q9_cell(root / "outputs_FLAC" / "exp11_VANL", "VANL", k, sha="d" * 40)
+        _q9_cell(root / "outputs_FLAC" / "exp11_C4L", "C4L", k, sha="e" * 40)
+    G.main(["--repo-root", str(root)])
+    written = (root / "worklog" / "worklog_yixun" / "model_comparison.md").read_text()
+    assert "spans MORE THAN ONE evaluator pin" in written, written[-800:]
+
+
+def test_q9_rows_declare_their_contract():
+    q9 = [r for r in G.ROWS if len(r) > 4 and r[4] == "q9"]
+    assert len(q9) == 4, q9
+    assert {r[2] for r in q9} == {1, 8}

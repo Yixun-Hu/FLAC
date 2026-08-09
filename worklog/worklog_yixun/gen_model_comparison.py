@@ -89,13 +89,13 @@ ROWS = [
  # The Q9 namespace (cell q9) keeps this round's evidence separate from the
  # original campaign's conf cells, so C4L's 0c6e9ff rows are preserved.
  ("fa-recipe vanilla VANL @40k (exp_11 baseline)", "vanilla eval (batched-era)", 1,
-  ["outputs_FLAC/exp11_VANL/**/*exp11_VANL_q9_S40000_s4[2-6]_K1.json"]),
+  ["outputs_FLAC/exp11_VANL/**/*exp11_VANL_q9_S40000_s4[2-6]_K1.json"], "q9"),
  ("fa-recipe vanilla VANL @40k (exp_11 baseline)", "vanilla eval (batched-era)", 8,
-  ["outputs_FLAC/exp11_VANL/**/*exp11_VANL_q9_S40000_s4[2-6]_K8.json"]),
+  ["outputs_FLAC/exp11_VANL/**/*exp11_VANL_q9_S40000_s4[2-6]_K8.json"], "q9"),
  ("C4L @40k re-measured at Q (Q9 fa side)", "fa eval (batched)", 1,
-  ["outputs_FLAC/exp11_C4L/**/*exp11_C4L_q9_S40000_s4[2-6]_K1_fa_invariant_a4.json"]),
+  ["outputs_FLAC/exp11_C4L/**/*exp11_C4L_q9_S40000_s4[2-6]_K1_fa_invariant_a4.json"], "q9"),
  ("C4L @40k re-measured at Q (Q9 fa side)", "fa eval (batched)", 8,
-  ["outputs_FLAC/exp11_C4L/**/*exp11_C4L_q9_S40000_s4[2-6]_K8_fa_invariant_a4.json"]),
+  ["outputs_FLAC/exp11_C4L/**/*exp11_C4L_q9_S40000_s4[2-6]_K8_fa_invariant_a4.json"], "q9"),
  # exp_10 endpoint rows: registered in advance; render pending until the gate JSONs land
  ("fa scratch @67.5k (exp_10, pending gates)", "fa eval", 1, ["outputs_FLAC/exp10_BF/**/*exp10_BF67_K1_s4[2-6]*.json"]),
  ("fa scratch @67.5k (exp_10, pending gates)", "fa eval", 8, ["outputs_FLAC/exp10_BF/**/*exp10_BF67_K8_s4[3-6]*.json"]),
@@ -154,7 +154,7 @@ def _load_validator(validator_path=None):
     return mod
 
 
-def validate_exp11_cell(files, repo_root=None, validator_path=None):
+def validate_exp11_cell(files, repo_root=None, validator_path=None, contract="table"):
     """Gate an exp_11 table cell (round-4 review B5).
 
     The validator used to be advisory: this script globbed raw JSONs and averaged
@@ -181,12 +181,52 @@ def validate_exp11_cell(files, repo_root=None, validator_path=None):
         first, probs = V.validate_row(files[0])
         if not first:
             return False, probs
+        # The contract is a property of the ROW, not a constant: q9 rows live in
+        # their own registered cell and are inadmissible under `table`, so a
+        # hard-coded "table" renders every populated q9 row BLOCKED.
         rows, problems = V.validate_cell(files, arm=first["arm"], step=first["step"],
-                                         k=first["K"], contract="table",
+                                         k=first["K"], contract=contract,
                                          verify_hashes=True)   # item 3: never trust the sidecar
     except Exception as exc:
         return False, [f"validation raised {type(exc).__name__}: {exc}"]
     return (not problems), problems
+
+
+Q9_REQUIRED_CELLS = 4        # VANL x {K1,K8} and C4L x {K1,K8}
+
+
+def check_q9_round(q9_cells):
+    """The Q9 estimand is a WITHIN-PIN delta, so the round is one transaction.
+
+    Per-cell validation proves each arm x K block internally; it cannot see that
+    the four blocks belong together. Without this, one arm could publish without
+    its comparator, or the arms could be measured at different evaluator pins and
+    still validate individually — and the frame-averaging delta would then be
+    confounded with whatever moved between those pins, which is the one thing the
+    same-pin design exists to exclude."""
+    present = {key: files for key, files in q9_cells.items() if files}
+    if not present:
+        return []                                   # nothing landed yet: not an update
+    problems = []
+    if len(present) != Q9_REQUIRED_CELLS:
+        missing = [f"{lbl} (K={k})" for (lbl, k), f in sorted(q9_cells.items()) if not f]
+        problems.append(f"the Q9 round publishes as ONE transaction: {len(present)}/"
+                        f"{Q9_REQUIRED_CELLS} cells have evidence, missing "
+                        + (", ".join(missing) or "<unregistered cells>"))
+    shas = {}
+    for key, files in sorted(present.items()):
+        for f in files:
+            try:
+                sha = json.load(open(f)).get("source_sha")
+            except Exception as exc:
+                problems.append(f"{os.path.basename(f)}: unreadable while checking the Q9 pin ({exc})")
+                continue
+            shas.setdefault(str(sha), []).append(f"{key[0]} K={key[1]}")
+    if len(shas) > 1:
+        detail = "; ".join(f"{sha[:12]}: {sorted(set(cells))}" for sha, cells in sorted(shas.items()))
+        problems.append("the Q9 round spans MORE THAN ONE evaluator pin, so the VANL-vs-C4L "
+                        f"delta is not a within-pin comparison — {detail}")
+    return problems
 
 
 def check_two_k_coverage(status_by_row):
@@ -257,11 +297,11 @@ def build_header(evidence_ready):
     return head
 
 
-def render_row(label, proto, K, files, repo_root=None, validator_path=None):
+def render_row(label, proto, K, files, repo_root=None, validator_path=None, contract="table"):
     """``(markdown_line, blocked)`` for one row, gating exp_11 evidence."""
     if is_exp11_row(files) or any("exp11_" in os.path.basename(f) for f in files):
         ok, problems = validate_exp11_cell(files, repo_root=repo_root,
-                                           validator_path=validator_path)
+                                           validator_path=validator_path, contract=contract)
         if not ok:
             detail = problems[0] if problems else "unspecified"
             return (f"| {label} | {proto} | {K} | {len(files)} | "
@@ -397,14 +437,18 @@ def main(argv=None):
         "|---|---|---|---|---|---|---|---|---|---|",
     ]
 
-    rendered, blocked_rows, exp11_status = [], [], {}
-    for label, proto, K, pats in ROWS:
+    rendered, blocked_rows, exp11_status, q9_cells = [], [], {}, {}
+    for spec in ROWS:
+        label, proto, K, pats = spec[:4]
+        contract = spec[4] if len(spec) > 4 else "table"
         files = sorted(set(sum((glob.glob(os.path.join(root, p), recursive=True) for p in pats), [])))
         proto = protocol_label(proto, is_exp11_row(pats), evidence_ready)
         line, blocked = render_row(label, proto, K, files, repo_root=root,
-                                   validator_path=validator)
+                                   validator_path=validator, contract=contract)
         rendered.append({"label": label, "proto": proto, "K": K, "n": len(files),
                          "line": line, "exp11": is_exp11_row(pats)})
+        if contract == "q9":
+            q9_cells[(label, K)] = files
         if blocked:
             blocked_rows.append(f"{label} (K={K})")
         if is_exp11_row(pats) and files:
@@ -415,6 +459,19 @@ def main(argv=None):
     # comparison against rows that carry both. On failure the affected label's
     # rows are rewritten as WITHHELD (no number can leak) and the write is
     # refused outright unless the operator explicitly accepts a partial table.
+    q9_problems = check_q9_round(q9_cells)
+    if q9_problems:
+        print("Q9 ROUND is not publishable as one transaction:", file=sys.stderr)
+        for problem in q9_problems:
+            print("  -", problem, file=sys.stderr)
+        for r in rendered:
+            if (r["label"], r["K"]) in q9_cells:
+                r["line"] = withheld_row(r["label"], r["proto"], r["K"], r["n"],
+                                         "the Q9 round publishes only as a complete, single-pin "
+                                         "set of four cells")
+        lines_tail = ["", "**Q9 round WITHHELD:** " + "; ".join(q9_problems)]
+    else:
+        lines_tail = []
     two_k = check_two_k_coverage(exp11_status)
     if two_k:
         bad_labels = {p.split(":")[0] for p in two_k}
@@ -424,6 +481,7 @@ def main(argv=None):
                                          "incomplete two-K update: this row publishes only "
                                          "with its K=1 and K=8 partner")
     lines += [r["line"] for r in rendered]
+    lines += lines_tail
     lines += ["", "Provenance: row specs (glob patterns) live in `gen_model_comparison.py`; "
               "checkpoint paths and eval commands in each experiment's `_command.md`."]
     if blocked_rows:
