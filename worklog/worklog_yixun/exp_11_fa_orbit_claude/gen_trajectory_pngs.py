@@ -41,7 +41,8 @@ def draw(ax, data, mkey, mlabel, lower_better):
     ax.tick_params(labelsize=8.5)
 
 def main():
-    data = series()
+  for k in (8, 1):
+    data = series(k)
     # combined 2x3 grid
     fig, axes = plt.subplots(2, 3, figsize=(15, 8.5), dpi=160)
     for ax, (mk, ml, lb) in zip(axes.flat, METRICS):
@@ -54,10 +55,10 @@ def main():
                 handles.append(hi); labels.append(li)
     fig.legend(handles, labels, loc="lower center", ncol=len(labels),
                frameon=False, fontsize=9)
-    fig.suptitle("exp_11 — acoustic performance vs training step (K=8, full unseen split; "
+    fig.suptitle(f"exp_11 — acoustic performance vs training step (K={k}, full unseen split; "
                  "endpoint dot = 5-seed mean ± sd)", fontsize=11, y=0.995)
     fig.tight_layout(rect=(0, 0.05, 1, 0.97))
-    combined = os.path.join(ASSETS, "fa_orbit_trajectories_all.png")
+    combined = os.path.join(ASSETS, f"fa_orbit_trajectories_K{k}.png")
     fig.savefig(combined, facecolor="#fcfcfb")
     plt.close(fig)
     outs = [combined]
@@ -67,7 +68,7 @@ def main():
         draw(ax, data, mk, ml, lb)
         ax.legend(frameon=False, fontsize=8.5)
         fig.tight_layout()
-        p = os.path.join(ASSETS, f"fa_orbit_traj_{mk.replace('@','').replace('RIR_to_GT_RIR_','')}.png")
+        p = os.path.join(ASSETS, f"fa_orbit_traj_K{k}_{mk.replace('@','').replace('RIR_to_GT_RIR_','')}.png")
         fig.savefig(p, facecolor="#fcfcfb")
         plt.close(fig)
         outs.append(p)

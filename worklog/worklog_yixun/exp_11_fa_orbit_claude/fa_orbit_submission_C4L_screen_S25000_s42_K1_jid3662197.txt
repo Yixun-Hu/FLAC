@@ -1,0 +1,8 @@
+job 3662197 name exp11-screen-C4L-screen-25000-s42-K1 submitted_at 2026-08-09T14:36:21-04:00 by yh4742@neuronic.cs.princeton.edu
+arm C4L cell screen step 25000 seed 42 K 1
+pin_sha 0c6e9ffb616cbd788b420e67d62638ad40a7b13c campaign_pin 0c6e9ffb616cbd788b420e67d62638ad40a7b13c
+expect_sha 0c6e9ffb616cbd788b420e67d62638ad40a7b13c
+measure_root /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/0c6e9ffb616cbd788b420e67d62638ad40a7b13c
+exclude neu301,neu303,neu305,neu306,neu317,neu319,neu322,neu332
+rotate_deg <n/a> eval_orbit <n/a>
+lease /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/0c6e9ffb616cbd788b420e67d62638ad40a7b13c/.leases/3662197

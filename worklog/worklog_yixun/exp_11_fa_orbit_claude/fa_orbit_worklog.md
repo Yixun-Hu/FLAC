@@ -223,3 +223,8 @@
 
 - **State** — all measurement code signed off. Sequence on arm completion: C32 conf block @ campaign pin 0c6e9ff → C32 row → --pin-campaign bb9de07 → q9 blocks (VANL+C4L × K1/K8, seeds 42–46; one-pin gate enforced) → VANL row + within-pin frame-averaging delta → figure/table regeneration → closing package (R1 full + R2/R3 + results/analysis/HTML). VANL ~10 h out; C32 ~12 h out.
 - **Acceptance criteria (endgame, pre-registered):** C32 conf = 10/10 validated cells at 0c6e9ff; q9 = 20/20 validated at bb9de07 with check_q9_round PASS (single source_sha); every row through the generator's contract-correct gates; regression guard green on each regeneration.
+
+## 2026-08-09 — K=1 trajectory program + paired-K figures
+
+- **Data** — screen contract extended to K∈{1,8} (f893037; gates pinned K8-only via gate_K). 45 K=1 screens submitted; 44 evals completed and wrote valid records; every job self-refused SCREENRESULT because the PINNED worktree (0c6e9ff) carries the pre-K1 validator — **post-hoc validation under the current contract: 44/44 VALIDATED** (futility contract, hashes skipped for these figure-only cells; sidecar cross-checks intact). Deviation disclosed: figure-only cells validated out-of-band rather than in-job; no gate/table use. The 45th (backfill K1@40000) was gate-refused at the pin (manifest entry postdates it) and is omitted with disclosure.
+- **Figures** — fa_orbit_trajectories_K8.png + fa_orbit_trajectories_K1.png (+ per-metric K-named PNGs; _all.png = K8 alias); HTML carries both K blocks with per-K provenance notes (P1 legacy has no sub-40k K1 raws; backfill K1 = 20k/30k only).

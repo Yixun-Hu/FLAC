@@ -26,32 +26,37 @@ ARMS = [
     ("P1v",  "P1 vanilla legacy", "#4a3aa7", "#9085e9", "POINT",     0,  "3 2"),
 ]
 
-def series():
+def series(k=8):
     data = {}
     for key, label, cl, cd, tree, n, dash in ARMS:
         pts, conf = {}, None
         if tree == "POINT":
             pts = {}
             base = f"{REPO}/outputs_FLAC/exp07_P1/FLAC_exp07_P1/exp07_P1/checkpoints"
-            for f in glob.glob(f"{base}/*_metrics_*_exp07_P1_screen_S*_ema.json"):
-                if f.endswith(".screenmeta.json"): continue
-                step = int(f.split("_S")[1].split("_")[0])
-                if step <= 40000:
-                    m = json.load(open(f)); m = m.get("metrics", m)
-                    pts[step] = m
-            data[key] = dict(label=label, cl=cl, cd=cd, dash=dash, pts=pts,
-                conf={"T60": (8.993, 0.011), "C50": (1.0093, 0.0035), "EDT": (40.650, 0.101),
-                      "RIR_to_GT_RIR_R@1": (5.173, 0.138), "RIR_to_GT_RIR_R@5": (15.430, 0.197),
-                      "RIR_to_GT_RIR_R@10": (23.409, 0.056)})
+            if k == 8:
+                for f in glob.glob(f"{base}/*_metrics_*_exp07_P1_screen_S*_ema.json"):
+                    if f.endswith(".screenmeta.json"): continue
+                    step = int(f.split("_S")[1].split("_")[0])
+                    if step <= 40000:
+                        m = json.load(open(f)); m = m.get("metrics", m)
+                        pts[step] = m
+            p1conf = ({"T60": (8.993, 0.011), "C50": (1.0093, 0.0035), "EDT": (40.650, 0.101),
+                       "RIR_to_GT_RIR_R@1": (5.173, 0.138), "RIR_to_GT_RIR_R@5": (15.430, 0.197),
+                       "RIR_to_GT_RIR_R@10": (23.409, 0.056)}
+                      if k == 8 else
+                      {"T60": (10.287, 0.026), "C50": (1.0884, 0.0088), "EDT": (43.437, 0.397),
+                       "RIR_to_GT_RIR_R@1": (4.990, 0.115), "RIR_to_GT_RIR_R@5": (15.111, 0.129),
+                       "RIR_to_GT_RIR_R@10": (22.509, 0.181)})
+            data[key] = dict(label=label, cl=cl, cd=cd, dash=dash, pts=pts, conf=p1conf)
             continue
         if tree:
             base = f"{REPO}/outputs_FLAC/{tree}/FLAC_{tree}/{tree}/checkpoints"
             suffix = f"a{n}" if n else "vanilla"
-            for f in glob.glob(f"{base}/*_metrics_*_screen_S*_s42_K8_*{suffix}*.json"):
+            for f in glob.glob(f"{base}/*_metrics_*_screen_S*_s42_K{k}_*{suffix}*.json"):
                 if f.endswith(".screenmeta.json"): continue
                 m = json.load(open(f)); m = m.get("metrics", m)
                 pts[int(f.split("_S")[1].split("_")[0])] = m
-            cf = [json.load(open(f)) for f in glob.glob(f"{base}/*_metrics_*conf_S40000_s4[2-6]_K8_*{suffix}*.json")
+            cf = [json.load(open(f)) for f in glob.glob(f"{base}/*_metrics_*conf_S40000_s4[2-6]_K{k}_*{suffix}*.json")
                   if not f.endswith(".screenmeta.json")]
             cf = [c.get("metrics", c) for c in cf]
             if len(cf) == 5:
@@ -59,13 +64,17 @@ def series():
                         for k, _, _ in METRICS}
         else:  # legacy C4: backfill screens + historical 5-seed conf row values
             base = f"{REPO}/outputs_FLAC/exp07_BF/FLAC_exp07_BF/exp07_BF/checkpoints"
-            for f in glob.glob(f"{base}/*exp11_C4backfill_S*_s42_K8_*a4.json"):
+            for f in glob.glob(f"{base}/*exp11_C4backfill_S*_s42_K{k}_*a4.json"):
                 if f.endswith(".screenmeta.json"): continue
                 m = json.load(open(f)); m = m.get("metrics", m)
                 pts[int(f.split("_S")[1].split("_")[0])] = m
-            conf = {"T60": (8.202, 0.017), "C50": (0.9778, 0.0015),
-                    "EDT": (38.793, 0.074), "RIR_to_GT_RIR_R@1": (5.387, 0.075),
-                    "RIR_to_GT_RIR_R@5": (16.456, 0.038), "RIR_to_GT_RIR_R@10": (24.198, 0.164)}
+            conf = ({"T60": (8.202, 0.017), "C50": (0.9778, 0.0015),
+                     "EDT": (38.793, 0.074), "RIR_to_GT_RIR_R@1": (5.387, 0.075),
+                     "RIR_to_GT_RIR_R@5": (16.456, 0.038), "RIR_to_GT_RIR_R@10": (24.198, 0.164)}
+                    if k == 8 else
+                    {"T60": (9.543, 0.054), "C50": (1.0559, 0.0040),
+                     "EDT": (41.754, 0.347), "RIR_to_GT_RIR_R@1": (5.166, 0.166),
+                     "RIR_to_GT_RIR_R@5": (16.071, 0.241), "RIR_to_GT_RIR_R@10": (23.721, 0.150)})
         data[key] = dict(label=label, cl=cl, cd=cd, dash=dash, pts=pts, conf=conf)
     return data
 
@@ -118,7 +127,11 @@ def svg_panel(data, mkey, mlabel, lower_better, W=560, H=340):
     return "".join(out)
 
 def main():
-    data = series()
+    sections = []
+    for k in (8, 1):
+        data = series(k)
+        sections.append((k, data))
+    data = sections[0][1]
     css_series = "\n".join(
         f'.s-{k}{{stroke:{d["cl"]};fill:{d["cl"]}}} .lbl.s-{k}{{fill:{d["cl"]};stroke:none}}\n'
         f'[data-theme="dark"] .s-{k},.dark-auto .s-{k}{{stroke:{d["cd"]};fill:{d["cd"]}}}'
@@ -128,7 +141,12 @@ def main():
         f'<line x1="0" x2="26" y1="4" y2="4" class="ln s-{k}"'
         + (f' stroke-dasharray="{d["dash"]}"' if d["dash"] else "") + "/></svg>"
         f'<span class="note">{d["label"]}</span></span>' for k, d in data.items())
-    panels = "".join(f'<figure>{svg_panel(data, mk, ml, lb)}</figure>' for mk, ml, lb in METRICS)
+    blocks = ""
+    for k, dk in sections:
+        pan = "".join(f'<figure>{svg_panel(dk, mk, ml, lb)}</figure>' for mk, ml, lb in METRICS)
+        note = "" if k == 8 else "<p class=\"note\">K=1 note: P1 legacy has no sub-40k K=1 raws (exp_07 screened P1 at K=8 only) — only its published 5-seed 40k point; C4 legacy-loop K=1 backfill exists at 20k/30k (the 40k cell was refused at the campaign pin and is omitted).</p>"
+        blocks += f'<h2 style="font-size:1.05rem">K = {k}</h2>{note}<main>{pan}</main>'
+    panels = blocks
     rows = []
     for k, d in data.items():
         for s in sorted(d["pts"]):
@@ -158,7 +176,7 @@ recipe — background context, not the inferential comparator; C32 extends as it
 P1 vanilla legacy (violet, dotted): exp_07 EMA screens at that arm's 10k cadence (s42; finer 2.5k-grid points
 were never run for P1 — 12.5k/15k/…/37.5k do not exist as raws) with its published 5-seed 40k dot.</p>
 <div style="display:flex;gap:1.2rem;flex-wrap:wrap;margin:.4rem 0 .8rem">{legend}</div>
-<main>{panels}</main>
+{panels}
 <details><summary>Table view (all plotted screen values)</summary>
 <div style="overflow-x:auto"><table><tr><th>arm</th><th>step</th><th>T60</th><th>C50</th><th>EDT</th><th>R@1</th></tr>
 {''.join(rows)}</table></div></details>
