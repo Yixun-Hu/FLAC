@@ -95,3 +95,13 @@ The batched-orbit implementation is adopted as part of the exp_11 recipe, disclo
 ### Summary
 
 Standing approval (~10 h window) for the Planner's recommendations within the exp_11 framework: conf blocks + table rows as arms land, trajectory screens and gate bookkeeping, the pre-registered R2/R3/D measurement cells (including the small reviewed driver extension they require), and analyses. Scope stays inside the approved plan; anything outside it waits for morning.
+
+## Query 9 (2026-08-09) — vanilla bridge arm (VANL)
+
+### Verbatim
+
+> Could you please use L40 + 8×8 + SyncBN-64 + ViT grad-ckpt + Slurm/torchrun to train the P1 vanilla again for fair comparison as the baseline for fa method on neuronic? I mean, same training recipe with C4L, C8 on neuronic, the only diffference is using frame averaging or not.
+
+### Summary
+
+Add a fifth arm, VANL: vanilla conditioning under the identical exp_11 recipe (8×8 rung, SyncBN-64, ViT grad-ckpt ON, batched-era stack, Slurm/torchrun, seed 42, 40k steps). Config = FLAC_AR_VANCKPT.json (exists, tested). Makes the fa-vs-vanilla comparison single-delta within the new lineage: VANL vs C4L isolates frame averaging exactly. Evaluated under its own (vanilla) protocol per announcement 04. P0-measured rate 1.07 steps/s ⇒ ~10.5 h training.
