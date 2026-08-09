@@ -285,7 +285,13 @@ case_run "backfill 10k is still unregistered" 2 "registered at steps 20000/30000
   -- "${BASE[@]}" ARM=C4BACKFILL STEP=10000
 case_run "C8 S10000 K8 default seed" 0 "exp11_C8_screen_S10000_s42_K8" -- "${BASE[@]}" ARM=C8 STEP=10000
 case_run "screen contract: seed 43 refused"  2 "seed 42 by contract" -- "${BASE[@]}" ARM=C8 STEP=12500 SEED=43
-case_run "screen contract: K=1 refused"      2 "K=8 by contract"     -- "${BASE[@]}" ARM=C8 STEP=10000 K=1
+# K=1 trajectory screens are REGISTERED now (full curves at both K); the futility
+# GATES stay K=8 only, which `gate_K` in the validator records separately.
+case_run "screen contract: K=1 admitted"    0 "exp11_C8_screen_S10000_s42_K1" -- "${BASE[@]}" ARM=C8 STEP=10000 K=1
+case_run "screen contract: K=1 uses the _1 split" 0 "acousticroom_unseeneval_1.json" -- "${BASE[@]}" ARM=C8 STEP=10000 K=1
+# (caught by the global K check before the cell contract is reached)
+case_run "screen contract: K=4 still refused" 2 "must be 1 or 8"      -- "${BASE[@]}" ARM=C8 STEP=10000 K=4
+case_run "backfill K=1 is admitted"         2 "exp11_C4backfill_S20000_s42_K1" -- "${BASE[@]}" ARM=C4BACKFILL STEP=20000 K=1
 case_run "conf cell admits seed 43"          0 "exp11_C8_conf_S12500_s43_K8" -- "${BASE[@]}" ARM=C8 STEP=12500 SEED=43 CELL=conf
 case_run "conf cell admits K=1"              0 "exp11_C8_conf_S10000_s42_K1" -- "${BASE[@]}" ARM=C8 STEP=10000 K=1 CELL=conf
 case_run "conf cell refuses seed 47"         2 "seeds 42-46"          -- "${BASE[@]}" ARM=C8 STEP=10000 SEED=47 CELL=conf
@@ -852,6 +858,21 @@ EOS
     [ -n "$SAVED_PIN" ] && bash "$HELPER" --pin-campaign "$SAVED_PIN" >/dev/null 2>&1
   else
     echo "SKIP  campaign-pin cases (no HEAD~1)"
+  fi
+
+  # the gate K must NOT drift when the screen cadence widens
+  if $PY -c "
+import importlib.util,sys
+spec=importlib.util.spec_from_file_location('V','${EXPDIR}/exp11_validate_rows.py')
+V=importlib.util.module_from_spec(spec); spec.loader.exec_module(V)
+f=V.CONTRACTS['futility']
+assert f['K']==(1,8), f['K']
+assert f['gate_K']==(8,), f['gate_K']
+assert V.gate_admissible(8) and not V.gate_admissible(1)
+"; then
+    echo "PASS  screens run at both K while the futility GATE stays K=8"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  the gate K drifted with the screen cadence"; FAIL=$((FAIL + 1))
   fi
 
   # --- the review's findings, asserted at the surfaces they name -------------

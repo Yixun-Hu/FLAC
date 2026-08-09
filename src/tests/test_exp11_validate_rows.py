@@ -872,3 +872,30 @@ def test_a_full_q9_vanl_cell_validates(tmp_path):
     rows, problems = V.validate_cell(paths, arm="VANL", step=40000, k=8, contract="q9")
     assert problems == [], problems
     assert len(rows) == 5
+
+
+def test_screens_run_at_both_k_but_gates_stay_k8():
+    """Yixun: full trajectory curves at K=1 and K=8. The pre-registered futility
+    GATES are a narrower claim and must not widen with the cadence."""
+    f = V.CONTRACTS["futility"]
+    assert f["K"] == (1, 8)
+    assert f["gate_K"] == (8,)
+    assert V.gate_admissible(8) and not V.gate_admissible(1)
+    assert V.CONTRACTS["table"]["K"] == (1, 8)          # unchanged
+
+
+def test_a_k1_screen_row_validates(tmp_path):
+    ev = "exp11_C8_screen_S10000_s42_K1"
+    name = f"epoch=2-step=10000_metrics_1_1.0_{ev}_fa_invariant_a8.json"
+    ck = "outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=2-step=10000.ckpt"
+    ang = V.orbit_for("C8")
+    path = _write_row(tmp_path,
+                      rec=_record(frame_avg_angles=ang, ckpt_path=ck, eval_name=ev,
+                                  dataset_config=V.EVAL_CONFIG_FOR_K[1]),
+                      side=_sidecar(arm="C8", step=10000, K=1, eval_name=ev,
+                                    frame_avg_angles=ang, ckpt_path=ck,
+                                    dataset_config=V.EVAL_CONFIG_FOR_K[1]),
+                      name=name)
+    row, problems = V.validate_row(path)
+    assert problems == [], problems
+    assert row["K"] == 1 and row["cell"] == "screen"

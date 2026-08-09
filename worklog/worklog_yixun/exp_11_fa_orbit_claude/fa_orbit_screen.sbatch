@@ -135,7 +135,12 @@ case "$K" in 1|8) ;; *) die "K '${K}' must be 1 or 8 (the registered eval schedu
 case "$CELL" in
   screen)
     [ "$SEED" = "42" ] || die "a futility screen is seed 42 by contract (got ${SEED}); use CELL=conf for the 5-seed table cell - abort"
-    [ "$K" = "8" ] || die "a futility screen is K=8 by contract (got K=${K}) - abort" ;;
+    # K=1 and K=8 are both registered for TRAJECTORY screens (Yixun: full curves
+    # at both K). The futility GATES are a narrower thing and remain defined on
+    # K=8 ONLY -- widening the screen cadence must not silently widen what a gate
+    # verdict may be read from. The eval-name carries K, so the two families of
+    # screen files never collide.
+    case "$K" in 1|8) ;; *) die "a screen cell is K=1 or K=8 (got K=${K}) - abort";; esac ;;
   conf)
     case "$SEED" in 42|43|44|45|46) ;; *) die "a confirmatory cell uses seeds 42-46 (got ${SEED}) - abort";; esac ;;
   q9)

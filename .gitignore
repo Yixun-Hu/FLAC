@@ -185,3 +185,11 @@ worklog/worklog_yixun/handoff_snapshots/
 
 # exp_11 measurement worktrees: pinned code caches, never sources
 .measure_worktrees/
+
+# exp_11 live training transcripts. A tracked file that a running job appends to
+# is one a checkout/stash can unlink out from under the job's descriptor, which
+# froze C16's transcript mid-run (job 3648696). The launcher untracks its own at
+# launch, but that cannot defend against a later blanket `git add -A` -- which is
+# how VANL's came back. Ignoring them makes blanket adds safe; the operator still
+# commits COMPLETED transcripts deliberately with `git add -f`.
+worklog/worklog_yixun/exp_11_fa_orbit_claude/slurm_train_exp11-*.out

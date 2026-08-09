@@ -127,8 +127,12 @@ MANDATORY_SIDECAR_FIELDS = (
 # Purpose-specific contracts (round-4 review B4): the seed policy is REGISTERED,
 # never supplied by the caller, and an R3 rotation row is never table-admissible.
 CONTRACTS = {
-    "futility": {"cells": ("screen", "backfill"), "seeds": (42,), "K": (8,),
-                 "table_admissible": False},
+    # Trajectory screens run at BOTH K (full curves at K=1 and K=8). The futility
+    # GATES are narrower and stay K=8 only: `gate_K` records that separately so
+    # widening the cadence cannot drift the gate semantics. A K=1 screen is a
+    # perfectly good trajectory point and is NOT gate-admissible evidence.
+    "futility": {"cells": ("screen", "backfill"), "seeds": (42,), "K": (1, 8),
+                 "gate_K": (8,), "table_admissible": False},
     "table":    {"cells": ("conf",), "seeds": (42, 43, 44, 45, 46), "K": (1, 8),
                  "table_admissible": True},
     # The Q9 round: VANL and C4L measured at ONE new pin, five seeds, both K.
@@ -188,6 +192,15 @@ def rot_token(rotate_deg):
     """Re-exported from eval_FLAC so callers render R3 names exactly one way."""
     from eval_FLAC import rot_token as _t
     return _t(rotate_deg)
+
+
+def gate_admissible(k, contract="futility"):
+    """May a row at this K be read as FUTILITY-GATE evidence?
+
+    Trajectory screens exist at K=1 and K=8; the pre-registered gates are defined
+    on K=8. Keeping the two apart is the whole point of a separate `gate_K`."""
+    spec = CONTRACTS.get(contract, {})
+    return k in spec.get("gate_K", spec.get("K", ()))
 
 
 def is_vanilla_arm(arm):
