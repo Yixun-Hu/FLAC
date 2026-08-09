@@ -62,6 +62,21 @@ def series(k=8):
             if len(cf) == 5:
                 conf = {k: (statistics.mean([c[k] for c in cf]), statistics.stdev([c[k] for c in cf]))
                         for k, _, _ in METRICS}
+            # Q10: above 40k the curve is 5-seed, so it carries a band. Below and
+            # at 40k it stays the single-seed screen record plus the conf dot —
+            # deliberately NOT mixed, or the shading would mean two different
+            # things on the same line.
+            band = {}
+            by_step = {}
+            for f in glob.glob(f"{base}/*_metrics_*_traj_S*_s4[2-6]_K{k}_*{suffix}*.json"):
+                if f.endswith(".screenmeta.json"): continue
+                st = int(f.split("_traj_S")[1].split("_")[0])
+                m = json.load(open(f)); by_step.setdefault(st, []).append(m.get("metrics", m))
+            for st, ms in by_step.items():
+                if len(ms) == 5:            # a partial block is not a band
+                    band[st] = {mk: (statistics.mean([m[mk] for m in ms]),
+                                     statistics.stdev([m[mk] for m in ms]))
+                                for mk, _, _ in METRICS}
         else:  # legacy C4: backfill screens + historical 5-seed conf row values
             base = f"{REPO}/outputs_FLAC/exp07_BF/FLAC_exp07_BF/exp07_BF/checkpoints"
             for f in glob.glob(f"{base}/*exp11_C4backfill_S*_s42_K{k}_*a4.json"):
@@ -75,12 +90,14 @@ def series(k=8):
                     {"T60": (9.543, 0.054), "C50": (1.0559, 0.0040),
                      "EDT": (41.754, 0.347), "RIR_to_GT_RIR_R@1": (5.166, 0.166),
                      "RIR_to_GT_RIR_R@5": (16.071, 0.241), "RIR_to_GT_RIR_R@10": (23.721, 0.150)})
-        data[key] = dict(label=label, cl=cl, cd=cd, dash=dash, pts=pts, conf=conf)
+        data[key] = dict(label=label, cl=cl, cd=cd, dash=dash, pts=pts, conf=conf,
+                         band=locals().get("band", {}) if tree else {})
     return data
 
 def svg_panel(data, mkey, mlabel, lower_better, W=560, H=340):
     P = dict(l=56, r=132, t=18, b=40)
-    xs = sorted({s for d in data.values() for s in d["pts"]} | {40000})
+    xs = sorted({s for d in data.values() for s in d["pts"]}
+                | {s for d in data.values() for s in d.get("band", {})} | {40000})
     vals = [d["pts"][s][mkey] for d in data.values() for s in d["pts"] if mkey in d["pts"][s]]
     vals += [d["conf"][mkey][0] for d in data.values() if d["conf"]]
     lo, hi = min(vals), max(vals); pad = (hi - lo) * 0.08 or 1
@@ -92,7 +109,10 @@ def svg_panel(data, mkey, mlabel, lower_better, W=560, H=340):
         v = lo + (hi - lo) * i / 4
         out.append(f'<line x1="{P["l"]}" x2="{W-P["r"]}" y1="{Y(v):.1f}" y2="{Y(v):.1f}" class="grid"/>'
                    f'<text x="{P["l"]-6}" y="{Y(v)+4:.1f}" class="tick" text-anchor="end">{v:.2f}</text>')
-    for s in [10000, 20000, 30000, 40000]:
+    ticks = [10000, 20000, 30000, 40000]
+    if xs[-1] > 40000:
+        ticks += [t for t in (50000, 60000, 70000, 80000, 90000, 100000) if t <= xs[-1]]
+    for s in ticks:
         out.append(f'<text x="{X(s):.1f}" y="{H-P["b"]+16}" class="tick" text-anchor="middle">{s//1000}k</text>')
     out.append(f'<text x="{(P["l"]+W-P["r"])/2:.0f}" y="{H-8}" class="axis">training step</text>')
     for key, d in data.items():
@@ -110,8 +130,27 @@ def svg_panel(data, mkey, mlabel, lower_better, W=560, H=340):
             out.append(f'<line x1="{x:.1f}" x2="{x:.1f}" y1="{Y(m-sd):.1f}" y2="{Y(m+sd):.1f}" class="err s-{key}"/>'
                        f'<circle cx="{x:.1f}" cy="{Y(m):.1f}" r="4.5" class="pt s-{key}">'
                        f'<title>{d["label"]} 40k conf (5-seed): {m:.3f} ± {sd:.3f}</title></circle>')
-        lx, ly = pxy[-1]
-        d.setdefault("_lbl", {})[mkey] = (X(lx) + 14, Y(d["conf"][mkey][0] if d["conf"] else ly) + 4)
+        # Q10 band: mean line + shaded +-1 sd above 40k. Shading (not error bars)
+        # because at 2,500-step density 24 bars per arm would be unreadable; the
+        # band carries the same information as an envelope.
+        bxy = sorted((s, d["band"][s][mkey]) for s in d.get("band", {}) if mkey in d["band"][s])
+        if bxy:
+            anchor = [(40000, (d["conf"][mkey][0], d["conf"][mkey][1]))] if d["conf"] else []
+            seq = anchor + bxy
+            up = " ".join(f"{'M' if i==0 else 'L'}{X(s):.1f},{Y(m+sd):.1f}"
+                          for i, (s, (m, sd)) in enumerate(seq))
+            dn = " ".join(f"L{X(s):.1f},{Y(m-sd):.1f}" for s, (m, sd) in reversed(seq))
+            out.append(f'<path d="{up} {dn} Z" class="band s-{key}" fill-opacity="0.15" stroke="none"/>')
+            mid = " ".join(f"{'M' if i==0 else 'L'}{X(s):.1f},{Y(m):.1f}"
+                           for i, (s, (m, sd)) in enumerate(seq))
+            out.append(f'<path d="{mid}" class="ln s-{key}"{dash}/>')
+            for s, (m, sd) in bxy:
+                out.append(f'<circle cx="{X(s):.1f}" cy="{Y(m):.1f}" r="3" class="pt s-{key}">'
+                           f'<title>{d["label"]} @{s} (5-seed): {m:.3f} ± {sd:.3f}</title></circle>')
+        lx, ly = (bxy[-1][0], bxy[-1][1][0]) if bxy else pxy[-1]
+        d.setdefault("_lbl", {})[mkey] = (
+            X(lx) + 14,
+            Y(ly if bxy else (d["conf"][mkey][0] if d["conf"] else ly)) + 4)
     # collision pass: sort by y, push apart to >=14px, then emit
     lbls = sorted(((d["_lbl"][mkey][1], d["_lbl"][mkey][0], key, d["label"]) for key, d in data.items()
                    if "_lbl" in d and mkey in d["_lbl"]), key=lambda t: t[0])
@@ -170,7 +209,11 @@ table{{border-collapse:collapse;font-size:.85rem;margin-top:1rem}} td,th{{border
 details{{margin-top:1rem}} .note{{color:var(--mut);font-size:.85rem}}
 </style></head><body>
 <h1 style="font-size:1.2rem">exp_11 — acoustic performance vs training step (K=8, full unseen split)</h1>
-<p class="note">Lines: single-seed (s42) fa-protocol screens every 2,500–5,000 steps, each arm under its own orbit.
+<p class="note">Lines up to 40k: single-seed (s42) fa-protocol screens every 2,500–5,000 steps, each arm under its own orbit.
+The 40k marker is the 5-seed confirmatory block (mean ± sd). Beyond 40k (Q10 extension to 100k) the line is the
+5-seed trajectory mean with a shaded ±1 sd band — shading rather than error bars because at 2,500-step density the
+bars would collide. A step is drawn only when all five seeds are present, so a partially-landed block never appears
+as a narrower band.
 Terminal dots: 5-seed confirmatory mean ± sd at the 40k checkpoint. C4 legacy-loop (dashed pink) is the historical
 recipe — background context, not the inferential comparator; C32 extends as its screens land; VANL (green, dashed) trains now — its screens backfill after the post-C32 re-pin;
 P1 vanilla legacy (violet, dotted): exp_07 EMA screens at that arm's 10k cadence (s42; finer 2.5k-grid points
