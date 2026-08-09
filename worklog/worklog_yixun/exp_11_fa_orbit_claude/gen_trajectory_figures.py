@@ -13,7 +13,8 @@ import json, glob, math, os, statistics
 REPO = os.path.dirname(os.path.abspath(__file__)) + "/../../.."
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fa_orbit_02_trajectories.html")
 METRICS = [("T60", "T60 (%)", True), ("C50", "C50 (dB)", True),
-           ("EDT", "EDT (ms)", True), ("RIR_to_GT_RIR_R@1", "R@1 (%)", False)]
+           ("EDT", "EDT (ms)", True), ("RIR_to_GT_RIR_R@1", "R@1 (%)", False),
+           ("RIR_to_GT_RIR_R@5", "R@5 (%)", False), ("RIR_to_GT_RIR_R@10", "R@10 (%)", False)]
 # categorical slots 1-5 (validated reference instance, documented order), light/dark
 ARMS = [
     ("C4L",  "C4 (bridge)",   "#2a78d6", "#3987e5", "exp11_C4L",  4,  ""),
@@ -21,19 +22,28 @@ ARMS = [
     ("C16",  "C16",           "#1baf7a", "#199e70", "exp11_C16",  16, ""),
     ("C32",  "C32",           "#eda100", "#c98500", "exp11_C32",  32, "6 3"),
     ("C4bf", "C4 legacy-loop", "#e87ba4", "#d55181", None,        4,  "2 3"),
+    ("VANL", "vanilla (fa recipe)", "#008300", "#008300", "exp11_VANL", 0, "8 4"),
+    ("P1v",  "P1 vanilla legacy", "#4a3aa7", "#9085e9", "POINT",     0,  ""),
 ]
 
 def series():
     data = {}
     for key, label, cl, cd, tree, n, dash in ARMS:
         pts, conf = {}, None
+        if tree == "POINT":
+            data[key] = dict(label=label, cl=cl, cd=cd, dash=dash, pts={},
+                conf={"T60": (8.993, 0.011), "C50": (1.0093, 0.0035), "EDT": (40.650, 0.101),
+                      "RIR_to_GT_RIR_R@1": (5.173, 0.138), "RIR_to_GT_RIR_R@5": (15.430, 0.197),
+                      "RIR_to_GT_RIR_R@10": (23.409, 0.056)})
+            continue
         if tree:
             base = f"{REPO}/outputs_FLAC/{tree}/FLAC_{tree}/{tree}/checkpoints"
-            for f in glob.glob(f"{base}/*_metrics_*_screen_S*_s42_K8_*a{n}.json"):
+            suffix = f"a{n}" if n else "vanilla"
+            for f in glob.glob(f"{base}/*_metrics_*_screen_S*_s42_K8_*{suffix}*.json"):
                 if f.endswith(".screenmeta.json"): continue
                 m = json.load(open(f)); m = m.get("metrics", m)
                 pts[int(f.split("_S")[1].split("_")[0])] = m
-            cf = [json.load(open(f)) for f in glob.glob(f"{base}/*_metrics_*conf_S40000_s4[2-6]_K8_*a{n}.json")
+            cf = [json.load(open(f)) for f in glob.glob(f"{base}/*_metrics_*conf_S40000_s4[2-6]_K8_*{suffix}*.json")
                   if not f.endswith(".screenmeta.json")]
             cf = [c.get("metrics", c) for c in cf]
             if len(cf) == 5:
@@ -46,7 +56,8 @@ def series():
                 m = json.load(open(f)); m = m.get("metrics", m)
                 pts[int(f.split("_S")[1].split("_")[0])] = m
             conf = {"T60": (8.202, 0.017), "C50": (0.9778, 0.0015),
-                    "EDT": (38.793, 0.074), "RIR_to_GT_RIR_R@1": (5.387, 0.075)}
+                    "EDT": (38.793, 0.074), "RIR_to_GT_RIR_R@1": (5.387, 0.075),
+                    "RIR_to_GT_RIR_R@5": (16.456, 0.038), "RIR_to_GT_RIR_R@10": (24.198, 0.164)}
         data[key] = dict(label=label, cl=cl, cd=cd, dash=dash, pts=pts, conf=conf)
     return data
 
@@ -135,7 +146,8 @@ details{{margin-top:1rem}} .note{{color:var(--mut);font-size:.85rem}}
 <h1 style="font-size:1.2rem">exp_11 — acoustic performance vs training step (K=8, full unseen split)</h1>
 <p class="note">Lines: single-seed (s42) fa-protocol screens every 2,500–5,000 steps, each arm under its own orbit.
 Terminal dots: 5-seed confirmatory mean ± sd at the 40k checkpoint. C4 legacy-loop (dashed pink) is the historical
-recipe — background context, not the inferential comparator; C32/VANL extend as their data lands.</p>
+recipe — background context, not the inferential comparator; C32 extends as its screens land; VANL (green, dashed) trains now — its screens backfill after the post-C32 re-pin;
+P1 vanilla legacy (violet) contributes its published 5-seed 40k point.</p>
 <div style="display:flex;gap:1.2rem;flex-wrap:wrap;margin:.4rem 0 .8rem">{legend}</div>
 <main>{panels}</main>
 <details><summary>Table view (all plotted screen values)</summary>
