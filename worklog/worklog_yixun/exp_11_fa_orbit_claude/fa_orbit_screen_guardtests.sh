@@ -690,7 +690,111 @@ EOS
   fi
   bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
 
+  # --- argument values are DATA, never shell ---------------------------------
+  # The old parser eval'd the value, so a quote in it executed what followed.
+  CANARY="${TMP}/injected.canary"; rm -f "$CANARY"
+  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+             bash "$SUB" ARM=C4L STEP=10000 "PIN_SHA=x'; INJECTED=1; #'" 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "not 40 hex characters"; then
+    echo "PASS  the literal injection value is refused by shape"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  the injection value was not refused (rc=${rc})"; echo "$out" | tail -3 | sed 's/^/        | /'
+    FAIL=$((FAIL + 1))
+  fi
+  # ...and a payload that WOULD run under eval leaves no trace
+  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+             bash "$SUB" ARM=C4L STEP=10000 "PIN_SHA=x'; touch ${CANARY}; #'" 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && [ ! -e "$CANARY" ]; then
+    echo "PASS  an injected payload does not execute (no side effects)"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  an injected payload EXECUTED (canary $([ -e "$CANARY" ] && echo created || echo absent), rc=${rc})"
+    FAIL=$((FAIL + 1)); rm -f "$CANARY"
+  fi
+  # every key is shape-checked, not just PIN_SHA
+  for bad in "ARM=C4L;rm" "CELL=../etc" "STEP=1e4" "K=3" "EVAL_ORBIT=6" "EXCLUDE=neu1;id" "ROTATE_DEG=1.2.3"; do
+    env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+        FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+        bash "$SUB" ARM=C4L STEP=10000 "$bad" >/dev/null 2>&1 && { BADOK="$bad"; break; }
+  done
+  if [ -z "${BADOK:-}" ]; then
+    echo "PASS  malformed values are refused for every key"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  '${BADOK}' was accepted"; FAIL=$((FAIL + 1))
+  fi
+  # code only: the explanatory comment above the parser names the old eval
+  if grep -vE '^[[:space:]]*#' "$SUB" | grep -q 'eval[[:space:]]'; then
+    echo "FAIL  the submitter still evals an argument"; FAIL=$((FAIL + 1))
+  else
+    echo "PASS  no eval of argument text remains in the code"; PASS=$((PASS + 1))
+  fi
+
+  # --- CAMPAIGN PIN: one commit for the whole campaign -----------------------
+  SAVED_PIN="$(bash "$HELPER" --pinned 2>/dev/null)"; [ "$SAVED_PIN" = "<none>" ] && SAVED_PIN=""
+  PIN2="$(git rev-parse HEAD~1 2>/dev/null)"
+  if [ -n "$PIN2" ]; then
+    bash "$HELPER" --pin-campaign "$PIN2" >/dev/null 2>&1
+    : > "$TRACE"
+    out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+               FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+               bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+    if [ "$rc" -eq 0 ] && grep -q "EXPECT_SHA=${PIN2}" "$TRACE" \
+       && echo "$out" | grep -q "campaign pin (from"; then
+      echo "PASS  the campaign pin file is the DEFAULT pin"; PASS=$((PASS + 1))
+    else
+      echo "FAIL  the campaign pin was not used by default (rc=${rc})"; FAIL=$((FAIL + 1))
+    fi
+    bash "$HELPER" --release 7654321 "${MAIN_TREE}/.measure_worktrees/${PIN2}" >/dev/null 2>&1
+    rm -f ${EXPDIR}/fa_orbit_submission_C4L_screen_*_jid7654321.txt
+    # an explicit PIN_SHA that disagrees is refused
+    OTHER="$(git rev-parse HEAD 2>/dev/null)"
+    out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+               FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+               bash "$SUB" ARM=C4L STEP=10000 "PIN_SHA=${OTHER}" 2>&1)"; rc=$?
+    if [ "$rc" -ne 0 ] && echo "$out" | grep -q "disagrees with the campaign pin"; then
+      echo "PASS  a PIN_SHA disagreeing with the campaign pin is refused"; PASS=$((PASS + 1))
+    else
+      echo "FAIL  a disagreeing PIN_SHA was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
+    fi
+    # ...and agreeing with it is fine
+    out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+               FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+               bash "$SUB" ARM=C4L STEP=10000 "PIN_SHA=${PIN2}" 2>&1)"; rc=$?
+    [ "$rc" -eq 0 ] \
+      && { echo "PASS  an explicit PIN_SHA equal to the campaign pin is accepted"; PASS=$((PASS + 1)); } \
+      || { echo "FAIL  the agreeing PIN_SHA was refused (rc=${rc})"; FAIL=$((FAIL + 1)); }
+    bash "$HELPER" --release 7654321 "${MAIN_TREE}/.measure_worktrees/${PIN2}" >/dev/null 2>&1
+    rm -f ${EXPDIR}/fa_orbit_submission_C4L_screen_*_jid7654321.txt
+    # the pin is only changed by the explicit subcommand, and it is logged
+    LOGLINE="$(bash "$HELPER" --pin-campaign "$PIN2" 2>&1 | grep -c 'CAMPAIGN PIN set to')"
+    [ "$LOGLINE" -ge 1 ] \
+      && { echo "PASS  --pin-campaign logs the change"; PASS=$((PASS + 1)); } \
+      || { echo "FAIL  --pin-campaign is silent"; FAIL=$((FAIL + 1)); }
+    bash "$HELPER" --pin-campaign deadbeef >/dev/null 2>&1 \
+      && { echo "FAIL  --pin-campaign accepted a short sha"; FAIL=$((FAIL + 1)); } \
+      || { echo "PASS  --pin-campaign refuses a malformed sha"; PASS=$((PASS + 1)); }
+    # unset file -> the old HEAD behaviour returns
+    bash "$HELPER" --unpin-campaign >/dev/null 2>&1
+    : > "$TRACE"
+    env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+        FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+        bash "$SUB" ARM=C4L STEP=10000 >/dev/null 2>&1
+    if grep -q "EXPECT_SHA=$(git rev-parse HEAD)" "$TRACE"; then
+      echo "PASS  with no pin file, submission falls back to HEAD"; PASS=$((PASS + 1))
+    else
+      echo "FAIL  the unpinned fallback is not HEAD"; FAIL=$((FAIL + 1))
+    fi
+    bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
+    rm -f ${EXPDIR}/fa_orbit_submission_C4L_screen_*_jid7654321.txt
+    [ -n "$SAVED_PIN" ] && bash "$HELPER" --pin-campaign "$SAVED_PIN" >/dev/null 2>&1
+  else
+    echo "SKIP  campaign-pin cases (no HEAD~1)"
+  fi
+
   # --- PIN_SHA: the campaign measures at ONE commit --------------------------
+  SAVED_PIN2="$(bash "$HELPER" --pinned 2>/dev/null)"; [ "$SAVED_PIN2" = "<none>" ] && SAVED_PIN2=""
+  bash "$HELPER" --unpin-campaign >/dev/null 2>&1     # these cases test PIN_SHA alone
   PIN="$(git rev-parse HEAD~1 2>/dev/null)"
   if [ -n "$PIN" ]; then
     : > "$TRACE"
@@ -729,6 +833,7 @@ EOS
   else
     echo "SKIP  PIN_SHA cases (no HEAD~1 available)"
   fi
+  [ -n "$SAVED_PIN2" ] && bash "$HELPER" --pin-campaign "$SAVED_PIN2" >/dev/null 2>&1
   # a commit this repository does not have must be refused
   out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
              FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \

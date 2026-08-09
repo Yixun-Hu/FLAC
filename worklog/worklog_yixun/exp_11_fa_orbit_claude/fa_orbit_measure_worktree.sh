@@ -37,6 +37,9 @@
 #   bash .../fa_orbit_measure_worktree.sh --freeze ["reason"]        # campaign:
 #   bash .../fa_orbit_measure_worktree.sh --thaw                     #  no deletes
 #   bash .../fa_orbit_measure_worktree.sh --frozen                   # rc 0=frozen
+#   bash .../fa_orbit_measure_worktree.sh --pin-campaign <sha>       # campaign
+#   bash .../fa_orbit_measure_worktree.sh --unpin-campaign           #  commit
+#   bash .../fa_orbit_measure_worktree.sh --pinned                   # rc 0=pinned
 # ============================================================================
 set -uo pipefail
 MAIN_REPO=/n/fs/gatrdp/codespace/FLAC
@@ -77,6 +80,15 @@ die() { echo "$1" >&2; exit "${2:-2}"; }
 # continues too — trees are still created and reused. Only deletion stops.
 FREEZE_MARKER="${ROOT}/.campaign_freeze"
 frozen() { [ -e "$FREEZE_MARKER" ]; }
+
+# --- CAMPAIGN PIN ------------------------------------------------------------
+# The commit every measurement of this campaign is taken at. Arms measured at
+# different code SHAs are not comparable, and "remember to pass PIN_SHA" is not a
+# mechanism — so the pin lives in a file, the submitter defaults to it, and a
+# submission that names a DIFFERENT commit is refused rather than quietly
+# honoured. Changing the pin is therefore an explicit, logged act.
+PIN_MARKER="${ROOT}/.campaign_pin"
+campaign_pin() { [ -f "$PIN_MARKER" ] && head -1 "$PIN_MARKER" | tr -d '[:space:]'; }
 
 freeze_note() {   # $1 = what was being attempted
   echo "  CAMPAIGN FREEZE (${FREEZE_MARKER}): refusing to ${1}" >&2
@@ -317,6 +329,31 @@ case "${1:-}" in
     fi
     exit 0 ;;
   --frozen)  frozen && { echo "frozen"; exit 0; }; echo "thawed"; exit 1 ;;
+  --pin-campaign)
+    NEWPIN="${2:?a 40-hex commit sha}"
+    case "$NEWPIN" in
+      *[!0-9a-f]*) die "campaign pin '${NEWPIN}' is not 40 hex characters" ;;
+      ????????????????????????????????????????) ;;
+      *) die "campaign pin '${NEWPIN}' is not 40 hex characters" ;;
+    esac
+    git rev-parse --verify --quiet "${NEWPIN}^{commit}" >/dev/null \
+      || die "campaign pin ${NEWPIN} is not a commit in this repository"
+    OLDPIN="$(campaign_pin)"
+    # Writing the pin is not a deletion, so it is allowed under a freeze.
+    printf '%s\n' "$NEWPIN" > "$PIN_MARKER" || die "cannot write ${PIN_MARKER}" 3
+    printf '# set %s by %s@%s (previous: %s)\n' "$(date -Is)" "$(id -un)" "$(hostname)" \
+      "${OLDPIN:-<none>}" >> "$PIN_MARKER"
+    echo "CAMPAIGN PIN set to ${NEWPIN} at $(date -Is) (previous: ${OLDPIN:-<none>})" >&2
+    exit 0 ;;
+  --unpin-campaign)
+    if [ -f "$PIN_MARKER" ]; then
+      echo "CAMPAIGN PIN cleared at $(date -Is) (was: $(campaign_pin))" >&2
+      rm -f "$PIN_MARKER" || die "cannot remove ${PIN_MARKER}" 3
+    else
+      echo "no campaign pin was set" >&2
+    fi
+    exit 0 ;;
+  --pinned)  P="$(campaign_pin)"; [ -n "$P" ] && { echo "$P"; exit 0; }; echo "<none>"; exit 1 ;;
   --lease)   add_lease "${2:?job id}" "${3:?worktree}" >/dev/null; exit 0 ;;
   --release) release_lease "${2:?job id}" "${3:?worktree}"; exit 0 ;;
   --prune)   prune_all ""; exit 0 ;;
