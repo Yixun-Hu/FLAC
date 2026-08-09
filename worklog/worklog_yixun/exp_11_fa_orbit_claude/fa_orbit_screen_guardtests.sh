@@ -288,6 +288,47 @@ case_run "C8 S10000 K8 default seed" 0 "exp11_C8_screen_S10000_s42_K8" -- "${BAS
 case_run "screen contract: seed 43 refused"  2 "seed 42 by contract" -- "${BASE[@]}" ARM=C8 STEP=12500 SEED=43
 # K=1 trajectory screens are REGISTERED now (full curves at both K); the futility
 # GATES stay K=8 only, which `gate_K` in the validator records separately.
+# --- Q10 restart-chain lineage: >40k ckpts must descend from the audited run --
+# The synthetic registry is built from the fixture manifests, so it has no
+# restarts: a >40k checkpoint must therefore be refused outright.
+write_c8_ckpt_45k() { $PY - "$OUT_ROOT" "$EXPDIR" <<'PY'
+import json, os, sys, torch
+out, expdir = sys.argv[1], sys.argv[2]
+c8 = json.load(open(os.path.join(expdir, "FLAC_AR_BF_C8.json")))
+d = os.path.join(out, "exp11_C8", "FLAC_exp11_C8", "exp11_C8", "checkpoints")
+sd = {"diffusion.model.a": torch.zeros(1), "diffusion_ema.ema_model.model.a": torch.zeros(1)}
+torch.save({"global_step": 45000, "epoch": 9, "model_config": c8, "state_dict": sd,
+            "optimizer_states": [{"state": {0: {"step": 1}}, "param_groups": [{"lr": 1e-5}]}],
+            "lr_schedulers": [{"last_epoch": 45000}]}, os.path.join(d, "epoch=9-step=45000.ckpt"))
+PY
+}
+write_c8_ckpt_45k
+# (no anchor recorded for the synthetic arm, so the chain fails one step earlier)
+case_run "a >40k ckpt with no chain is refused" 2 "cannot be chained to its INITIAL run" \
+  -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
+# now give C8 an anchor and a leg that resumes from the WRONG checkpoint
+$PY - "${OUT_ROOT}/arm_launch_registry.json" <<'PY'
+import json, sys
+p = sys.argv[1]; r = json.load(open(p))
+r["arms"]["C8"]["final_ckpt_sha256"] = "a" * 64
+r["restarts"] = {"C8": [{"mode": "RESTART", "job": "999", "resume_ckpt_sha256": "b" * 64,
+                         "max_steps": "100000"}]}
+json.dump(r, open(p, "w"), indent=2)
+PY
+case_run "a RESTART resuming elsewhere is refused" 2 "the >40k lineage is not proven" \
+  -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
+# ...and a leg that chains correctly is accepted
+$PY - "${OUT_ROOT}/arm_launch_registry.json" <<'PY'
+import json, sys
+p = sys.argv[1]; r = json.load(open(p))
+r["restarts"]["C8"][0]["resume_ckpt_sha256"] = "a" * 64
+json.dump(r, open(p, "w"), indent=2)
+PY
+case_run "a correctly chained RESTART is accepted" 0 "restart chain OK: step 45000" \
+  -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
+case_run "<=40k ckpts need no restart row" 0 "exp11_C8_screen_S10000_s42_K8" \
+  -- "${BASE[@]}" ARM=C8 STEP=10000
+
 # --- Q10 trajectory cells: 5 seeds x both K, strictly above 40k -------------
 case_run "traj cell is registered"        0 "exp11_C8_traj_S42500_s44_K1" \
   -- "${BASE[@]}" ARM=C8 STEP=42500 CELL=traj SEED=44 K=1

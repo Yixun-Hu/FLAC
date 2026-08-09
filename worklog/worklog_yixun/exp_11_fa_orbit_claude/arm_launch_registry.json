@@ -8,7 +8,13 @@
     "rung, config/VAE/P0 hashes, canonical save-dir, training seed).",
     "VANL (Q9, job 3661520) recorded from its PUBLISHED launch manifest after the",
     "INITIAL job started -- an sbatch return alone does not prove a launch happened.",
-    "Recorded from the live manifests of the running arms (3648694-97, 3661520)."
+    "Recorded from the live manifests of the running arms (3648694-97, 3661520).",
+    "RESTART legs (Q10, 40k -> 100k) are recorded under 'restarts' as a CHAIN:",
+    "each entry's resume_ckpt_sha256 must equal the INITIAL entry's",
+    "final_ckpt_sha256, which is the audited 40k checkpoint that leg resumed",
+    "from. A checkpoint above 40k is therefore admissible only if the restart",
+    "that produced it provably descends from the audited INITIAL run.",
+    "Populate with fa_orbit_record_restart.py once a leg's manifest publishes."
   ],
   "recorded_at": "2026-08-09",
   "training_seed": 42,
@@ -28,7 +34,9 @@
       "vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9",
       "p0_manifest_sha256": "72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b",
       "save_dir": "outputs_FLAC/exp11_C4L",
-      "training_seed": 42
+      "training_seed": 42,
+      "final_ckpt_sha256": "ed9d7a869ecded98cab78ecc4cef83e579df6643c8ffe564912a9e8ec5c88de8",
+      "final_step": 40000
     },
     "C8": {
       "manifest_path": "outputs_FLAC/exp11_C8/launch_manifest.txt",
@@ -45,7 +53,9 @@
       "vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9",
       "p0_manifest_sha256": "72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b",
       "save_dir": "outputs_FLAC/exp11_C8",
-      "training_seed": 42
+      "training_seed": 42,
+      "final_ckpt_sha256": "4b58787774b5f15852f2603295d57bbe7a1e2d4e40ba217e548f55d643a52c4c",
+      "final_step": 40000
     },
     "C16": {
       "manifest_path": "outputs_FLAC/exp11_C16/launch_manifest.txt",
@@ -62,7 +72,9 @@
       "vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9",
       "p0_manifest_sha256": "72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b",
       "save_dir": "outputs_FLAC/exp11_C16",
-      "training_seed": 42
+      "training_seed": 42,
+      "final_ckpt_sha256": "a8a82309fe4a654efa8cbb00c6ffeeaa2fc765c5916b46cf12aaf2ec2b2d01f0",
+      "final_step": 40000
     },
     "C32": {
       "manifest_path": "outputs_FLAC/exp11_C32/launch_manifest.txt",
@@ -98,5 +110,6 @@
       "save_dir": "outputs_FLAC/exp11_VANL",
       "training_seed": 42
     }
-  }
+  },
+  "restarts": {}
 }

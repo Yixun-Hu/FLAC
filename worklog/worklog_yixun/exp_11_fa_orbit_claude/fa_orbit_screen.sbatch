@@ -486,6 +486,31 @@ else:
         bad.append(f"checkpoint dir {want_dir} is not the manifest's canonical {canon}")
     if os.path.realpath(os.path.dirname(ckpt)) != canon:
         bad.append(f"checkpoint {ckpt} does not live in the canonical run directory {canon}")
+# --- Q10: a checkpoint ABOVE 40k came from a RESTART leg, not the INITIAL run --
+# The INITIAL manifest cannot vouch for it. Bind it to a registry RESTART row
+# whose resume checkpoint IS the audited INITIAL 40k checkpoint, so the chain
+# from the reviewed launch to this checkpoint is unbroken. A restart that
+# resumed from somewhere else is a different experiment wearing this arm's name.
+step_i = int(os.path.basename(ckpt).split("step=")[1].split(".ckpt")[0])
+if step_i > 40000:
+    anchor = reg.get("final_ckpt_sha256")
+    legs = json.load(open(reg_path)).get("restarts", {}).get(arm, [])
+    if not anchor:
+        bad.append(f"{arm} has no audited final_ckpt_sha256, so a >40k checkpoint cannot be "
+                   "chained to its INITIAL run")
+    elif not legs:
+        bad.append(f"checkpoint at step {step_i} is above 40000 but {arm} has no RESTART entry in "
+                   "the audited registry — record the leg with fa_orbit_record_restart.py first")
+    else:
+        chained = [l for l in legs if l.get("resume_ckpt_sha256") == anchor
+                   and l.get("mode") == "RESTART"]
+        if not chained:
+            got = sorted({str(l.get("resume_ckpt_sha256"))[:12] for l in legs})
+            bad.append(f"no RESTART leg for {arm} resumes from the audited INITIAL checkpoint "
+                       f"{anchor[:12]} (legs resume from {got}) — the >40k lineage is not proven")
+        else:
+            print(f"restart chain OK: step {step_i} descends from job {chained[0].get('job')} "
+                  f"(RESTART, resumed {anchor[:12]}, max_steps {chained[0].get('max_steps')})")
 if bad:
     sys.exit("ARM LINEAGE GATE: " + "; ".join(bad))
 print(f"arm lineage OK: {arm} bound to AUDITED launch job {reg['job']} ({reg['mode']}, uuid "
