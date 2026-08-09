@@ -1,0 +1,80 @@
+<title>FLAC training trajectories — all arms, K=8</title>
+<style>
+:root{--bg:#FAFAF7;--surface:#FFFFFF;--ink:#1E2126;--ink2:#5A6068;--muted:#8A9099;--grid:#E4E4DE;--edge:#D8D8D2;
+--s1:#3D74D6;--s2:#178A73;--s3:#8A5CF6;--s4:#C97207;--s5:#D6456E;--tip:#FFFFFF;--tipedge:#C9C9C2}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15171C;--surface:#1C1F26;--ink:#E8EAED;--ink2:#A7ADB6;--muted:#7B8189;--grid:#2A2E36;--edge:#333842;
+--s1:#5B8DE8;--s2:#2FB89E;--s3:#A47FF8;--s4:#F09B2E;--s5:#E86A8C;--tip:#232730;--tipedge:#3A404C}}
+:root[data-theme="dark"]{--bg:#15171C;--surface:#1C1F26;--ink:#E8EAED;--ink2:#A7ADB6;--muted:#7B8189;--grid:#2A2E36;--edge:#333842;
+--s1:#5B8DE8;--s2:#2FB89E;--s3:#A47FF8;--s4:#F09B2E;--s5:#E86A8C;--tip:#232730;--tipedge:#3A404C}
+*{box-sizing:border-box}body{background:var(--bg);color:var(--ink);font:15px/1.55 "Avenir Next","Segoe UI",system-ui,sans-serif;margin:0;padding:28px 20px 48px}
+main{max-width:1060px;margin:0 auto}h1{font-size:1.5rem;margin:0 0 4px;text-wrap:balance}
+.sub{color:var(--ink2);max-width:68ch;margin:0 0 18px}
+.legend{display:flex;flex-wrap:wrap;gap:14px 22px;padding:10px 14px;background:var(--surface);border:1px solid var(--edge);border-radius:6px;margin-bottom:20px}
+.legend span{display:flex;align-items:center;gap:7px;font-size:.85rem;color:var(--ink2)}
+.sw{width:14px;height:3px;border-radius:2px;display:inline-block}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));gap:18px}
+.card{background:var(--surface);border:1px solid var(--edge);border-radius:6px;padding:14px 14px 6px}
+.card h2{font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);margin:0 0 6px;font-weight:600}
+svg{width:100%;height:auto;display:block}
+.tip{position:fixed;pointer-events:none;background:var(--tip);border:1px solid var(--tipedge);border-radius:5px;padding:7px 10px;font-size:.78rem;display:none;z-index:9;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.tip b{font-variant-numeric:tabular-nums}
+.note{color:var(--muted);font-size:.8rem;max-width:78ch;margin:18px 0}
+table{border-collapse:collapse;font-size:.78rem;font-variant-numeric:tabular-nums;min-width:720px}
+th,td{border:1px solid var(--edge);padding:3px 8px;text-align:right}th{background:var(--surface);position:sticky;top:0}
+td:first-child,th:first-child,td:nth-child(2),th:nth-child(2){text-align:left}
+.tablewrap{overflow-x:auto;border:1px solid var(--edge);border-radius:6px;max-height:420px;overflow-y:auto}
+details summary{cursor:pointer;color:var(--ink2);margin:22px 0 8px;font-weight:600}
+</style>
+<main data-palette="#3D74D6,#178A73,#8A5CF6,#C97207,#D6456E">
+<h1>FLAC training trajectories — every fa &amp; vanilla arm</h1>
+<p class="sub">All six acoustic metrics vs training step. K=8, eval seed 42, EMA weights, full unseen split (6,337 items / 17 rooms), per-scene mean. Each arm is evaluated under its own protocol: fa arms with C₄ frame-averaged conditioning, vanilla arms plain. Single-seed screen values — band oscillation of roughly ±0.5 T60 between adjacent checkpoints is normal; gated 5-seed rows live in model_comparison.md.</p>
+<div class="legend" id="legend"></div>
+<div class="grid" id="charts"></div>
+<p class="note">Coverage notes: fa scratch has no fa-protocol evals before 30k (its 10–20k screens predate the protocol fix and are excluded); it stops at its 67.5k budget. Decay-tail and fa fine-tune are continuations of the 87.5k anchor (itself the P1 curve's 87.5k point). The fa-scratch 40k spike and the P1 87.5k point are documented band-best draws.</p>
+<div class="tip" id="tip"></div>
+<details open><summary>Data table (all arms × steps × metrics)</summary><div class="tablewrap"><table id="tbl"></table></div></details>
+</main>
+<script>
+const DATA = {"P1 vanilla (SyncBN-64)": {"10000": [11.7837, 1.3775, 47.4808, 1.7832, 6.9118, 11.851], "20000": [8.4419, 1.0954, 45.418, 2.9194, 10.6517, 17.9896], "30000": [9.2003, 1.0958, 43.4281, 4.166, 14.2181, 21.8084], "40000": [8.9889, 1.0076, 40.6197, 5.1917, 15.6068, 23.3233], "50000": [8.6471, 0.9854, 37.6494, 5.5389, 16.5378, 24.5069], "55000": [8.5104, 0.9506, 36.9918, 5.9965, 18.1474, 25.6273], "57500": [8.4931, 0.9625, 36.427, 6.0596, 17.9896, 25.1854], "60000": [8.8928, 1.0146, 38.991, 6.3279, 18.1316, 26.0533], "62500": [8.815, 0.9486, 38.1607, 5.8703, 18.1947, 25.8009], "65000": [8.8874, 0.9604, 38.4611, 6.0439, 18.1, 26.1954], "67500": [8.7705, 0.9734, 36.9516, 6.2806, 17.9896, 25.9429], "70000": [8.0785, 0.939, 37.2285, 6.2332, 18.4157, 25.9902], "75000": [9.1157, 0.9407, 39.575, 6.6751, 18.6997, 26.7635], "80000": [8.8044, 0.9332, 37.1323, 6.8329, 19.3783, 27.6472], "85000": [8.9059, 0.9569, 38.0233, 6.249, 19.394, 27.3], "87500": [8.3068, 0.9643, 35.9729, 6.9749, 20.2777, 28.1048], "90000": [8.7851, 1.0099, 36.5978, 6.8487, 19.8517, 27.5998], "92500": [8.994, 0.93, 37.761, 6.5331, 19.6465, 27.4736], "95000": [8.4875, 0.9619, 37.1329, 6.4068, 19.2362, 27.1264], "97500": [9.0124, 0.9946, 38.5465, 6.5962, 19.5834, 27.6156], "100000": [9.5518, 0.9432, 39.0389, 6.754, 20.1515, 27.8839]}, "B-V 8\u00d78 vanilla": {"10000": [9.8167, 1.298, 48.6847, 1.9094, 7.3063, 12.4191], "20000": [8.9203, 1.0941, 45.6161, 3.7399, 12.1982, 19.394], "30000": [8.3375, 1.0116, 40.9575, 4.0398, 14.1076, 22.1714], "40000": [8.6027, 1.0047, 39.9907, 4.8288, 15.733, 23.4022], "50000": [8.9826, 0.9858, 40.3431, 5.2549, 15.9855, 23.5127], "60000": [9.1513, 0.9679, 38.2944, 5.7598, 17.9107, 25.501], "70000": [9.3755, 0.9873, 40.7769, 6.2017, 18.6997, 26.5267], "72500": [9.4718, 0.9618, 41.8355, 5.7125, 17.1374, 24.8067], "75000": [9.6379, 0.9927, 40.0246, 6.2648, 18.1, 25.4379], "77500": [9.2627, 0.9553, 41.9686, 6.1859, 18.5261, 26.3058], "80000": [9.9523, 0.9899, 44.0035, 6.4857, 19.2678, 27.5367], "82500": [9.9554, 0.9631, 41.7123, 6.7066, 20.0568, 27.7261], "85000": [9.8034, 0.9834, 40.7919, 6.8329, 18.9837, 27.0002], "87500": [9.6608, 0.9872, 42.3654, 6.4857, 19.2205, 26.5267], "90000": [10.1852, 1.0427, 43.9856, 6.0596, 18.1474, 25.7062], "92500": [9.3212, 0.9776, 40.7056, 7.0538, 19.9779, 28.089], "95000": [10.0296, 0.999, 43.946, 6.5173, 18.6997, 26.8897], "97500": [9.7101, 1.0119, 43.392, 6.4384, 19.11, 27.2369], "100000": [9.7984, 0.965, 43.4075, 6.9749, 19.6939, 27.8523]}, "decay-tail (vanilla)": {"88750": [8.569, 0.9667, 37.0329, 6.7698, 20.041, 28.1363], "90000": [8.8805, 0.9519, 36.929, 6.6751, 19.7412, 28.231], "91250": [9.0596, 0.9525, 37.0239, 6.5962, 19.8359, 28.2626], "92500": [9.2088, 0.9333, 37.6707, 6.9118, 20.1357, 28.1048], "93750": [9.0274, 0.9277, 37.1862, 7.0065, 20.3882, 28.6413], "95000": [8.9846, 0.9345, 36.7515, 6.5488, 19.3151, 27.6314], "96250": [9.0171, 0.934, 37.3017, 6.5646, 19.5834, 28.1521], "97500": [9.0738, 0.9264, 37.748, 6.6593, 19.8674, 28.4362]}, "fa scratch": {"30000": [8.8582, 1.0592, 39.4693, 4.1344, 14.155, 21.6033], "32500": [9.0217, 1.035, 40.6076, 4.308, 14.2339, 22.0925], "35000": [9.7329, 1.0347, 41.7841, 5.0497, 15.6383, 23.5443], "37500": [9.176, 1.0273, 41.4533, 5.8703, 17.3584, 24.8698], "40000": [8.1902, 0.9804, 38.8113, 5.3022, 16.3958, 24.2386], "42500": [8.689, 1.004, 40.8601, 5.176, 17.2321, 25.217], "47500": [9.0186, 1.0087, 41.0357, 5.5389, 17.5635, 25.2485], "50000": [9.4205, 1.0065, 40.8974, 6.1701, 17.8633, 25.722], "52500": [9.115, 1.0233, 40.4208, 5.744, 17.4531, 25.3117], "55000": [8.6686, 0.9735, 40.2097, 6.391, 17.8476, 25.6115], "57500": [9.2639, 0.9918, 40.4641, 6.0281, 18.0843, 26.0849], "60000": [9.2421, 0.9954, 41.2513, 6.2648, 18.7313, 25.7693], "62500": [8.5823, 1.0051, 40.7748, 6.107, 18.5261, 26.2427], "65000": [9.2772, 0.9869, 40.7045, 6.1543, 18.6839, 26.1954], "67500": [10.0365, 1.0052, 42.0801, 6.6909, 19.0311, 26.7477]}, "fa fine-tune Fw": {"88750": [8.6678, 0.9924, 39.2927, 6.5015, 19.3625, 27.4578], "90000": [8.4827, 0.9891, 38.7303, 6.3753, 19.4887, 27.3473], "92500": [8.6546, 0.9319, 40.3287, 6.5646, 19.0626, 26.7319], "95000": [8.4649, 0.9584, 37.5091, 6.8802, 19.8043, 27.9785], "97500": [8.6802, 0.9573, 40.0512, 6.5962, 19.2205, 27.1422]}};
+const METRICS=[["T60","T60 ↓ (% err)"],["C50","C50 ↓ (dB)"],["EDT","EDT ↓ (ms)"],["R@1","R@1 ↑ (%)"],["R@5","R@5 ↑ (%)"],["R@10","R@10 ↑ (%)"]];
+const ARMS=Object.keys(DATA);
+const css=getComputedStyle(document.documentElement);
+const COLS=["--s1","--s2","--s3","--s4","--s5"].map(v=>`var(${v})`);
+const legend=document.getElementById('legend');
+ARMS.forEach((a,i)=>{const s=document.createElement('span');s.innerHTML=`<i class="sw" style="background:${COLS[i]}"></i>${a}`;legend.appendChild(s);});
+const W=470,H=250,M={l:46,r:86,t:8,b:26};
+const tip=document.getElementById('tip');
+METRICS.forEach(([key,label],mi)=>{
+ const card=document.createElement('div');card.className='card';card.innerHTML=`<h2>${label}</h2>`;
+ let xs=[],ys=[];
+ ARMS.forEach(a=>{for(const st in DATA[a]){xs.push(+st);ys.push(DATA[a][st][mi]);}});
+ const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
+ const pad=(y1-y0)*0.07||1;
+ const X=s=>M.l+(s-x0)/(x1-x0)*(W-M.l-M.r), Y=v=>M.t+(1-(v-(y0-pad))/((y1+pad)-(y0-pad)))*(H-M.t-M.b);
+ let g='';
+ for(let t=0;t<=4;t++){const v=y0-pad+((y1+pad)-(y0-pad))*t/4;const y=Y(v);
+  g+=`<line x1="${M.l}" x2="${W-M.r}" y1="${y}" y2="${y}" stroke="var(--grid)" stroke-width="1"/><text x="${M.l-6}" y="${y+3}" text-anchor="end" font-size="9" fill="var(--muted)" style="font-variant-numeric:tabular-nums">${v.toFixed(key==='C50'?2:1)}</text>`;}
+ [20000,40000,60000,80000,100000].filter(s=>s>=x0&&s<=x1).forEach(s=>{g+=`<text x="${X(s)}" y="${H-8}" text-anchor="middle" font-size="9" fill="var(--muted)">${s/1000}k</text>`;});
+ let lines='',dots='';
+ ARMS.forEach((a,ai)=>{
+  const pts=Object.entries(DATA[a]).map(([st,row])=>[+st,row[mi]]).sort((p,q)=>p[0]-q[0]);
+  if(!pts.length)return;
+  lines+=`<path d="M${pts.map(p=>`${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join('L')}" fill="none" stroke="${COLS[ai]}" stroke-width="2" stroke-linejoin="round"/>`;
+  const last=pts[pts.length-1];
+  lines+=`<text x="${X(last[0])+5}" y="${Y(last[1])+3}" font-size="8.5" fill="${COLS[ai]}" font-weight="600">${a.split(' ')[0]}${a.includes('fine')?'-ft':a.includes('scratch')?'-sc':''}</text>`;
+  pts.forEach(p=>{dots+=`<circle cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="7" fill="transparent" stroke="none" data-a="${a}" data-s="${p[0]}" data-v="${p[1]}" data-c="${ai}"/><circle cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="2.1" fill="${COLS[ai]}" pointer-events="none"/>`;});
+ });
+ card.innerHTML+=`<svg viewBox="0 0 ${W} ${H}">${g}${lines}${dots}</svg>`;
+ document.getElementById('charts').appendChild(card);
+});
+document.addEventListener('mousemove',e=>{
+ const t=e.target;
+ if(t.tagName==='circle'&&t.dataset.a){tip.style.display='block';tip.style.left=(e.clientX+14)+'px';tip.style.top=(e.clientY-10)+'px';
+  tip.innerHTML=`${t.dataset.a} · step ${(+t.dataset.s).toLocaleString()}<br><b>${(+t.dataset.v).toFixed(4)}</b>`;}
+ else tip.style.display='none';});
+const tbl=document.getElementById('tbl');
+let h='<tr><th>Arm</th><th>Step</th><th>T60</th><th>C50</th><th>EDT</th><th>R@1</th><th>R@5</th><th>R@10</th></tr>';
+ARMS.forEach(a=>{Object.entries(DATA[a]).sort((p,q)=>+p[0]-+q[0]).forEach(([st,row])=>{
+ h+=`<tr><td>${a}</td><td>${(+st).toLocaleString()}</td>${row.map(v=>`<td>${v.toFixed(4)}</td>`).join('')}</tr>`;});});
+tbl.innerHTML=h;
+</script>
