@@ -105,3 +105,13 @@ Standing approval (~10 h window) for the Planner's recommendations within the ex
 ### Summary
 
 Add a fifth arm, VANL: vanilla conditioning under the identical exp_11 recipe (8×8 rung, SyncBN-64, ViT grad-ckpt ON, batched-era stack, Slurm/torchrun, seed 42, 40k steps). Config = FLAC_AR_VANCKPT.json (exists, tested). Makes the fa-vs-vanilla comparison single-delta within the new lineage: VANL vs C4L isolates frame averaging exactly. Evaluated under its own (vanilla) protocol per announcement 04. P0-measured rate 1.07 steps/s ⇒ ~10.5 h training.
+
+## Query 10 (2026-08-09) — extend all fa arms to 100k with 5-seed dual-K trajectory evals
+
+### Verbatim
+
+> Could you please train all the C4, C8, C16 and C32 to 100k, and everytime it has new checkpoint to be store you can eval it using K=1 and K=8 and add those numbers (mean +- std) into the trajectory figure?
+
+### Summary
+
+Extend C4L/C8/C16/C32 from 40k to 100k steps (restart machinery, same recipe/pins otherwise). Every new checkpoint (2.5k cadence): a 5-seed (42–46) × K∈{1,8} evaluation block; trajectory figures show mean ± std from 40k onward. Estimated: ~2,100 GPU-h training (C4L ~25h · C8 ~38h · C16 ~68h · C32 ~127h wall, 8 GPUs each) + ~210 GPU-h rolling evals; supersedes the plan's 67.5k extension option. 40k table rows stay the published R1 anchors; C32's pending 40k conf block still runs first.
