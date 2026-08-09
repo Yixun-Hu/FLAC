@@ -1,0 +1,94 @@
+=== fa_orbit_screen guard exercise — 2026-08-07_03-21-40 — e650d6a ===
+synthetic checkpoints written
+--- A. parameters ---
+PASS  missing ARM  (rc=2)
+PASS  missing STEP  (rc=2)
+PASS  missing EXPECT_SHA  (rc=2)
+PASS  unknown arm  (rc=2)
+PASS  FA1 is not screenable  (rc=2)
+PASS  non-numeric STEP  (rc=2)
+PASS  bad K  (rc=2)
+PASS  backfill rejects unregistered steps  (rc=2)
+PASS  backfill 10k is not a registered gate  (rc=2)
+--- B. checkpoint discovery ---
+PASS  no ckpt at that step  (rc=2)
+PASS  two ckpts at one step  (rc=2)
+PASS  missing arm tree  (rc=2)
+--- C. the ckpt/arm identity gate ---
+PASS  C4L tree holding a C8 ckpt is rejected  (rc=2)
+PASS  a checkpoint without EMA weights is rejected  (rc=2)
+PASS  an arm ckpt with no launch manifest is refused  (rc=2)
+PASS  a launch manifest for another config is refused  (rc=2)
+--- D. valid screens reach the eval argv ---
+PASS  C8 S10000 K8 default seed  (rc=0)
+PASS  screen contract: seed 43 refused  (rc=2)
+PASS  screen contract: K=1 refused  (rc=2)
+PASS  conf cell admits seed 43  (rc=0)
+PASS  conf cell admits K=1  (rc=0)
+PASS  conf cell refuses seed 47  (rc=2)
+PASS  backfill must stay a screen cell  (rc=2)
+PASS  K=1 uses the _1 split  (rc=0)
+PASS  K=8 uses the full split  (rc=0)
+PASS  C8 carries its 8-angle orbit  (rc=0)
+PASS  protocol flags are pinned  (rc=0)
+PASS  a non-audited backfill ckpt is refused  (rc=2)
+SKIP  the audited-backfill positive case (GUARD_REAL_BACKFILL=1 to hash the real 724 MB ckpt)
+PASS  the audited backfill manifest is well-formed (20k/30k, seed 42, live paths, config hash)
+--- E. real-mode gates ---
+PASS  real mode needs sbatch  (rc=2)
+--- F. the emitted eval name parses under the validator's schema ---
+PASS  exp11_C8_screen_S10000_s42_K8 parses under the validator schema
+PASS  exp11_C4backfill_S20000_s42_K8 parses under the validator schema
+--- G. worktree-pinned measurement execution (item 8) ---
+PASS  real mode requires MEASURE_ROOT  (rc=2)
+PASS  a non-existent MEASURE_ROOT is refused  (rc=2)
+PASS  a MEASURE_ROOT that is not a worktree is refused  (rc=2)
+PASS  pinned worktree prepared at e650d6a607d1
+PASS  worktree HEAD mismatch aborts  (rc=2)
+PASS  code from the pinned worktree, outputs from the main tree  (rc=0)
+PASS  the commit gate reads the code root, not the cwd
+
+--- assets + lease lifecycle (fa_orbit_measure_worktree.sh) ---
+PASS  every required runtime asset stats inside the worktree
+PASS  worktree assets resolve to the same targets as the main tree
+PASS  a code root without the runtime assets is refused (rc=2)
+PASS  the screen carries an explicit asset gate
+PASS  AGREE_fullAR.pt is pinned by sha256 and matches (3a13243d6c6a)
+PASS  the dataset symlink target is pinned literally in the helper
+PASS  an unregistered dataset target aborts the pin
+PASS  pruning skips a LEASED worktree
+PASS  a stale lease (job gone from squeue) is reaped
+PASS  concurrent same-SHA calls are idempotent (one tree, same path)
+PASS  the helper never prunes the worktree it is returning
+PASS  a job without its own lease refuses to run
+PASS  a lease naming another job is rejected
+PASS  the screen returns its lease on exit, under the store lock
+PASS  fixed-count pruning is gone (leases only)
+PASS  submit --hold -> lease by the real id -> scontrol release
+PASS  the lease names the real job id and predates the release
+PASS  a failed release cancels the held job and drops its lease
+PASS  no placeholder lease: --hold removed the promote race
+PASS  lease/release/prune/create all run under one store-wide lock
+PASS  a squeue failure keeps the lease (absence must be PROVEN)
+PASS  the store lock spans preparation -> submission -> leasing
+PASS  a concurrent prune waits and then keeps the freshly leased tree
+PASS  a lease on a non-worktree directory is refused
+PASS  an identity-failed entry holding a LIVE lease is not deleted
+PASS  an identity-failed, provably unleased entry is cleaned up
+PASS  an unverifiable lease blocks deletion (transient error != absent)
+PASS  a non-40-hex store entry is never removed
+
+--- MEASURE_ROOT identity ---
+PASS  the mutable MAIN tree is refused as a MEASURE_ROOT (rc=2)
+
+--- arm launch registry binding ---
+PASS  the audited arm launch registry is committed
+PASS  every arm is registered INITIAL, seed 42, with hashes
+PASS  a launch manifest edited after registration is rejected
+PASS  a RESTART launch is refused as a screen lineage
+PASS  the screen binds the manifest by sha256, not by content alone
+PASS  the screen parses and enforces mode INITIAL
+PASS  the seed claim is verified against the registry, not printed
+
+=== screen guard tests: 75 passed, 0 failed ===
+log: worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-07_03-21-40_screen_guardtests.log

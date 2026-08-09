@@ -1,0 +1,109 @@
+=== fa_orbit_screen guard exercise — 2026-08-07_02-27-19 — d273b15 ===
+synthetic checkpoints written
+--- A. parameters ---
+PASS  missing ARM  (rc=2)
+PASS  missing STEP  (rc=2)
+PASS  missing EXPECT_SHA  (rc=2)
+PASS  unknown arm  (rc=2)
+PASS  FA1 is not screenable  (rc=2)
+PASS  non-numeric STEP  (rc=2)
+PASS  bad K  (rc=2)
+PASS  backfill rejects unregistered steps  (rc=2)
+PASS  backfill 10k is not a registered gate  (rc=2)
+--- B. checkpoint discovery ---
+PASS  no ckpt at that step  (rc=2)
+PASS  two ckpts at one step  (rc=2)
+PASS  missing arm tree  (rc=2)
+--- C. the ckpt/arm identity gate ---
+FAIL  C4L tree holding a C8 ckpt is rejected: want rc=2 + 'CKPT/ARM GATE', got rc=2
+        | DINOv3 cache pin OK
+        | commit binding OK (dry run): d273b15392edba7ef85930eec4b0ba89916127ba
+        | checkpoint: /n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=2-step=10000.ckpt
+        | ARM LINEAGE GATE: launch manifest sha256 cea8df86cf43 != audited d49df42d2f7f — the manifest changed after it was registered; job None != registered '3648694'; launch mode None != registered 'INITIAL'; launch_uuid None != registered 'ceb40a63-6ce3-4d38-a2b8-d6c21f1b8cc7'; commit '0000000000000000000000000000000000000000' != registered '2b78f995a6d377676bd9d9fb60635ab90032b52d'; vae_sha256 None != registered '8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9'; p0_manifest_sha256 None != registered '72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b'; save_dir '/n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C4L' != registered 'outputs_FLAC/exp11_C4L'; launch mode None is not INITIAL (a restart is not a registered launch)
+        | arm launch-manifest lineage gate FAILED - abort
+FAIL  a checkpoint without EMA weights is rejected: want rc=2 + 'no diffusion_ema.ema_model', got rc=2
+        | DINOv3 cache pin OK
+        | commit binding OK (dry run): d273b15392edba7ef85930eec4b0ba89916127ba
+        | checkpoint: /n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C16/FLAC_exp11_C16/exp11_C16/checkpoints/epoch=2-step=15000.ckpt
+        | ARM LINEAGE GATE: launch manifest sha256 b02f3be41983 != audited deb07b532fea — the manifest changed after it was registered; job None != registered '3648696'; launch mode None != registered 'INITIAL'; launch_uuid None != registered '87e0d920-a64f-46f4-a085-2807ebf0f13c'; commit '0000000000000000000000000000000000000000' != registered '2b78f995a6d377676bd9d9fb60635ab90032b52d'; vae_sha256 None != registered '8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9'; p0_manifest_sha256 None != registered '72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b'; save_dir '/n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C16' != registered 'outputs_FLAC/exp11_C16'; launch mode None is not INITIAL (a restart is not a registered launch)
+        | arm launch-manifest lineage gate FAILED - abort
+PASS  an arm ckpt with no launch manifest is refused  (rc=2)
+PASS  a launch manifest for another config is refused  (rc=2)
+--- D. valid screens reach the eval argv ---
+FAIL  C8 S10000 K8 default seed: want rc=0 + 'exp11_C8_screen_S10000_s42_K8', got rc=2
+        | DINOv3 cache pin OK
+        | commit binding OK (dry run): d273b15392edba7ef85930eec4b0ba89916127ba
+        | checkpoint: /n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=2-step=10000.ckpt
+        | ARM LINEAGE GATE: launch manifest sha256 9d1a16ca8337 != audited fa1037c300fa — the manifest changed after it was registered; job None != registered '3648695'; launch mode None != registered 'INITIAL'; launch_uuid None != registered '1009ec7f-e5e2-443d-881e-57ae15525676'; commit '0000000000000000000000000000000000000000' != registered '2b78f995a6d377676bd9d9fb60635ab90032b52d'; vae_sha256 None != registered '8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9'; p0_manifest_sha256 None != registered '72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b'; save_dir '/n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C8' != registered 'outputs_FLAC/exp11_C8'; launch mode None is not INITIAL (a restart is not a registered launch)
+        | arm launch-manifest lineage gate FAILED - abort
+PASS  screen contract: seed 43 refused  (rc=2)
+PASS  screen contract: K=1 refused  (rc=2)
+FAIL  conf cell admits seed 43: want rc=0 + 'exp11_C8_conf_S12500_s43_K8', got rc=2
+        | DINOv3 cache pin OK
+        | commit binding OK (dry run): d273b15392edba7ef85930eec4b0ba89916127ba
+        | checkpoint: /n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=2-step=12500.ckpt
+        | ARM LINEAGE GATE: launch manifest sha256 9d1a16ca8337 != audited fa1037c300fa — the manifest changed after it was registered; job None != registered '3648695'; launch mode None != registered 'INITIAL'; launch_uuid None != registered '1009ec7f-e5e2-443d-881e-57ae15525676'; commit '0000000000000000000000000000000000000000' != registered '2b78f995a6d377676bd9d9fb60635ab90032b52d'; vae_sha256 None != registered '8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9'; p0_manifest_sha256 None != registered '72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b'; save_dir '/n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C8' != registered 'outputs_FLAC/exp11_C8'; launch mode None is not INITIAL (a restart is not a registered launch)
+        | arm launch-manifest lineage gate FAILED - abort
+FAIL  conf cell admits K=1: want rc=0 + 'exp11_C8_conf_S10000_s42_K1', got rc=2
+        | DINOv3 cache pin OK
+        | commit binding OK (dry run): d273b15392edba7ef85930eec4b0ba89916127ba
+        | checkpoint: /n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=2-step=10000.ckpt
+        | ARM LINEAGE GATE: launch manifest sha256 9d1a16ca8337 != audited fa1037c300fa — the manifest changed after it was registered; job None != registered '3648695'; launch mode None != registered 'INITIAL'; launch_uuid None != registered '1009ec7f-e5e2-443d-881e-57ae15525676'; commit '0000000000000000000000000000000000000000' != registered '2b78f995a6d377676bd9d9fb60635ab90032b52d'; vae_sha256 None != registered '8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9'; p0_manifest_sha256 None != registered '72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b'; save_dir '/n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C8' != registered 'outputs_FLAC/exp11_C8'; launch mode None is not INITIAL (a restart is not a registered launch)
+        | arm launch-manifest lineage gate FAILED - abort
+PASS  conf cell refuses seed 47  (rc=2)
+PASS  backfill must stay a screen cell  (rc=2)
+FAIL  K=1 uses the _1 split: want rc=0 + 'acousticroom_unseeneval_1.json', got rc=2
+        | DINOv3 cache pin OK
+        | commit binding OK (dry run): d273b15392edba7ef85930eec4b0ba89916127ba
+        | checkpoint: /n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=2-step=10000.ckpt
+        | ARM LINEAGE GATE: launch manifest sha256 9d1a16ca8337 != audited fa1037c300fa — the manifest changed after it was registered; job None != registered '3648695'; launch mode None != registered 'INITIAL'; launch_uuid None != registered '1009ec7f-e5e2-443d-881e-57ae15525676'; commit '0000000000000000000000000000000000000000' != registered '2b78f995a6d377676bd9d9fb60635ab90032b52d'; vae_sha256 None != registered '8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9'; p0_manifest_sha256 None != registered '72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b'; save_dir '/n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C8' != registered 'outputs_FLAC/exp11_C8'; launch mode None is not INITIAL (a restart is not a registered launch)
+        | arm launch-manifest lineage gate FAILED - abort
+FAIL  K=8 uses the full split: want rc=0 + 'acousticroom_unseeneval.json', got rc=2
+        | DINOv3 cache pin OK
+        | commit binding OK (dry run): d273b15392edba7ef85930eec4b0ba89916127ba
+        | checkpoint: /n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=2-step=10000.ckpt
+        | ARM LINEAGE GATE: launch manifest sha256 9d1a16ca8337 != audited fa1037c300fa — the manifest changed after it was registered; job None != registered '3648695'; launch mode None != registered 'INITIAL'; launch_uuid None != registered '1009ec7f-e5e2-443d-881e-57ae15525676'; commit '0000000000000000000000000000000000000000' != registered '2b78f995a6d377676bd9d9fb60635ab90032b52d'; vae_sha256 None != registered '8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9'; p0_manifest_sha256 None != registered '72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b'; save_dir '/n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C8' != registered 'outputs_FLAC/exp11_C8'; launch mode None is not INITIAL (a restart is not a registered launch)
+        | arm launch-manifest lineage gate FAILED - abort
+FAIL  C8 carries its 8-angle orbit: want rc=0 + '0.0,45.0,90.0,135.0,180.0,225.0,270.0,315.0', got rc=2
+        | DINOv3 cache pin OK
+        | commit binding OK (dry run): d273b15392edba7ef85930eec4b0ba89916127ba
+        | checkpoint: /n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=2-step=10000.ckpt
+        | ARM LINEAGE GATE: launch manifest sha256 9d1a16ca8337 != audited fa1037c300fa — the manifest changed after it was registered; job None != registered '3648695'; launch mode None != registered 'INITIAL'; launch_uuid None != registered '1009ec7f-e5e2-443d-881e-57ae15525676'; commit '0000000000000000000000000000000000000000' != registered '2b78f995a6d377676bd9d9fb60635ab90032b52d'; vae_sha256 None != registered '8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9'; p0_manifest_sha256 None != registered '72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b'; save_dir '/n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C8' != registered 'outputs_FLAC/exp11_C8'; launch mode None is not INITIAL (a restart is not a registered launch)
+        | arm launch-manifest lineage gate FAILED - abort
+FAIL  protocol flags are pinned: want rc=0 + '--cond-autocast bf16 --cfg-scale 1.0 --steps 1', got rc=2
+        | DINOv3 cache pin OK
+        | commit binding OK (dry run): d273b15392edba7ef85930eec4b0ba89916127ba
+        | checkpoint: /n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=2-step=10000.ckpt
+        | ARM LINEAGE GATE: launch manifest sha256 9d1a16ca8337 != audited fa1037c300fa — the manifest changed after it was registered; job None != registered '3648695'; launch mode None != registered 'INITIAL'; launch_uuid None != registered '1009ec7f-e5e2-443d-881e-57ae15525676'; commit '0000000000000000000000000000000000000000' != registered '2b78f995a6d377676bd9d9fb60635ab90032b52d'; vae_sha256 None != registered '8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9'; p0_manifest_sha256 None != registered '72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b'; save_dir '/n/fs/rfmprog/.tmp/yh4742/tmp.roKSvSabxG/outputs/exp11_C8' != registered 'outputs_FLAC/exp11_C8'; launch mode None is not INITIAL (a restart is not a registered launch)
+        | arm launch-manifest lineage gate FAILED - abort
+PASS  a non-audited backfill ckpt is refused  (rc=2)
+SKIP  the audited-backfill positive case (GUARD_REAL_BACKFILL=1 to hash the real 724 MB ckpt)
+PASS  the audited backfill manifest is well-formed (20k/30k, seed 42, live paths, config hash)
+--- E. real-mode gates ---
+PASS  real mode needs sbatch  (rc=2)
+--- F. the emitted eval name parses under the validator's schema ---
+PASS  exp11_C8_screen_S10000_s42_K8 parses under the validator schema
+PASS  exp11_C4backfill_S20000_s42_K8 parses under the validator schema
+--- G. worktree-pinned measurement execution (item 8) ---
+PASS  real mode requires MEASURE_ROOT  (rc=2)
+PASS  a non-existent MEASURE_ROOT is refused  (rc=2)
+PASS  a MEASURE_ROOT that is not a worktree is refused  (rc=2)
+FAIL  could not prepare a pinned worktree
+
+--- assets + lease lifecycle (fa_orbit_measure_worktree.sh) ---
+FAIL  no worktree available for the asset/lease cases
+
+--- MEASURE_ROOT identity ---
+PASS  the mutable MAIN tree is refused as a MEASURE_ROOT (rc=2)
+
+--- arm launch registry binding ---
+PASS  the audited arm launch registry is committed
+  File "<stdin>", line 1
+    || { echo "FAIL  the registry is incomplete"; FAIL=$((FAIL + 1)); }
+IndentationError: unexpected indent
+FAIL  a tampered launch manifest passed the gate (rc=2)
+PASS  the screen binds the manifest by sha256, not by content alone
+PASS  the screen parses and enforces mode INITIAL
+PASS  the seed claim is verified against the registry, not printed
+
+=== screen guard tests: 31 passed, 12 failed ===

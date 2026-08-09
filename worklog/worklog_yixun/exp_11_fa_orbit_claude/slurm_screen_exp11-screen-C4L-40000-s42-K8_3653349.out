@@ -1,0 +1,62 @@
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+=== exp_11 screen C4L S40000 s42 K8 — 2026-08-08_01-42-36 — host neu301.neuronic.cs.princeton.edu ===
+config /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/b58ebae626378317c25c19775871d206d708e723/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json sha256 3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328 | trained C4 | evaluated C4 | rotate 45 | eval-name exp11_C4L_r3_rot45_s42_K8
+lease OK: /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/b58ebae626378317c25c19775871d206d708e723/.leases/3653349
+runtime assets OK under /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/b58ebae626378317c25c19775871d206d708e723 (AcousticRooms, weights/AGREE, src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json)
+AGREE pin OK: 3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787
+DINOv3 cache pin OK
+commit binding OK: b58ebae626378317c25c19775871d206d708e723 (code root /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/b58ebae626378317c25c19775871d206d708e723)
+checkpoint: /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=8-step=40000.ckpt
+arm lineage OK: C4L bound to AUDITED launch job 3648694 (INITIAL, uuid ceb40a63, commit 2b78f995a6d3, rung 8x8, max_steps 40000, training seed 42); manifest d49df42d2f7f as registered; config 3e677204902c
+ckpt gate OK: step 40000, fa_invariant C4, config matches /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/b58ebae626378317c25c19775871d206d708e723/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json
+--- eval argv ---
+python eval_FLAC.py --model-config /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/b58ebae626378317c25c19775871d206d708e723/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json --ckpt-path /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=8-step=40000.ckpt --cond-method fa_invariant --frame-avg-angles 0.0,90.0,180.0,270.0 --cond-autocast bf16 --cfg-scale 1.0 --steps 1 --seed 42 --eval-name exp11_C4L_r3_rot45_s42_K8 --rotate-deg 45
+GPU: GPU-5111d0ff-0f03-1184-a759-adcb1b6c0ddb, NVIDIA L40
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+[rank: 0] Seed set to 42
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Using EMA model
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+Running json scandir...
+Found 6337 files in 17 subfolders
+Max audio length for metric computation: 8000
+Loading AGREE model from checkpoint:  weights/AGREE/AGREE_fullAR.pt
+Image model facebook/dinov3-vits16-pretrain-lvd1689m loaded, trainable params: 21.00M
+Traceback (most recent call last):
+  File "/n/fs/gatrdp/codespace/FLAC/.measure_worktrees/b58ebae626378317c25c19775871d206d708e723/eval_FLAC.py", line 495, in <module>
+    evaluate_model(
+  File "/n/fs/gatrdp/codespace/FLAC/.measure_worktrees/b58ebae626378317c25c19775871d206d708e723/eval_FLAC.py", line 345, in evaluate_model
+    metric_callback = create_metric_callback_from_config(model_config, dataset_id=dataset_config['datasets'][0]['id'])
+  File "/n/fs/gatrdp/codespace/FLAC/.measure_worktrees/b58ebae626378317c25c19775871d206d708e723/src/training/factory.py", line 97, in create_metric_callback_from_config
+    return AcousticMetricsCallback(
+  File "/n/fs/gatrdp/codespace/FLAC/.measure_worktrees/b58ebae626378317c25c19775871d206d708e723/src/metrics/metric_callback.py", line 89, in __init__
+    self._setup(AGREE_ckpt)
+  File "/n/fs/gatrdp/codespace/FLAC/.measure_worktrees/b58ebae626378317c25c19775871d206d708e723/src/metrics/metric_callback.py", line 123, in _setup
+    AGREE_model, encoder = loading_AGREE_model(AGREE_ckpt, self.device)
+  File "/n/fs/gatrdp/codespace/FLAC/.measure_worktrees/b58ebae626378317c25c19775871d206d708e723/src/metrics/metric_callback.py", line 435, in loading_AGREE_model
+    AGREE_model = CLIP(**AGREE_config)
+  File "/n/fs/gatrdp/codespace/FLAC/.measure_worktrees/b58ebae626378317c25c19775871d206d708e723/AGREE/AGREE/model.py", line 243, in __init__
+    self.audio = _build_audio_tower(embed_dim, audio_cfg, cast_dtype)
+  File "/n/fs/gatrdp/codespace/FLAC/.measure_worktrees/b58ebae626378317c25c19775871d206d708e723/AGREE/AGREE/model.py", line 127, in _build_audio_tower
+    audio = OobleckEncoder(
+  File "/n/fs/gatrdp/codespace/FLAC/.measure_worktrees/b58ebae626378317c25c19775871d206d708e723/AGREE/AGREE/audio_model.py", line 177, in __init__
+    self.load_pretrained(pretrained)
+  File "/n/fs/gatrdp/codespace/FLAC/.measure_worktrees/b58ebae626378317c25c19775871d206d708e723/AGREE/AGREE/audio_model.py", line 187, in load_pretrained
+    state_dict = torch.load(pretrained_path, map_location='cpu', weights_only=False)['state_dict']
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/serialization.py", line 1479, in load
+    with _open_file_like(f, "rb") as opened_file:
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/serialization.py", line 759, in _open_file_like
+    return _open_file(name_or_buffer, mode)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/serialization.py", line 740, in __init__
+    super().__init__(open(name, mode))
+FileNotFoundError: [Errno 2] No such file or directory: 'weights/FLAC/VAE.ckpt'
+eval_FLAC.py exited 1 (see worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_r3_C4L_rot45_1786167527.log)

@@ -1,0 +1,4 @@
+=== fa_orbit_train guard exercise — 2026-08-09_12-12-31 — 81ddac3 ===
+--- A. the pin mechanism refuses to launch un-pinned (round-3 B1) ---
+PASS  every launcher pin holds a concrete value
+worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_train_guardtests.sh: line 91: PIN_PLACEHOLDER: unbound variable

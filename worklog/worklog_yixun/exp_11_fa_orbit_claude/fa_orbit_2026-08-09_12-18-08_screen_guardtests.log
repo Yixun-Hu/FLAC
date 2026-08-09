@@ -1,0 +1,188 @@
+=== fa_orbit_screen guard exercise — 2026-08-09_12-18-08 — 81ddac3 ===
+NOTE: a CAMPAIGN FREEZE is active — deletion/thaw cases are skipped
+synthetic checkpoints written
+--- A. parameters ---
+PASS  missing ARM  (rc=2)
+PASS  missing STEP  (rc=2)
+PASS  missing EXPECT_SHA  (rc=2)
+PASS  unknown arm  (rc=2)
+PASS  FA1 is not screenable  (rc=2)
+PASS  non-numeric STEP  (rc=2)
+PASS  bad K  (rc=2)
+PASS  backfill rejects unregistered steps  (rc=2)
+PASS  backfill 10k is not a registered gate  (rc=2)
+--- B. checkpoint discovery ---
+PASS  no ckpt at that step  (rc=2)
+PASS  two ckpts at one step  (rc=2)
+PASS  missing arm tree  (rc=2)
+--- C. the ckpt/arm identity gate ---
+PASS  C4L tree holding a C8 ckpt is rejected  (rc=2)
+PASS  a checkpoint without EMA weights is rejected  (rc=2)
+PASS  an arm ckpt with no launch manifest is refused  (rc=2)
+PASS  a launch manifest for another config is refused  (rc=2)
+--- D. valid screens reach the eval argv ---
+PASS  VANL runs a VANILLA evaluation  (rc=0)
+PASS  VANL builds the vanilla eval name  (rc=0)
+PASS  VANL uses the VANCKPT config  (rc=0)
+PASS  VANL announces itself as orbit-free  (rc=0)
+PASS  VANL screen cells exist too  (rc=0)
+PASS  VANL refuses r3  (rc=2)
+PASS  VANL refuses cross  (rc=2)
+PASS  an ORBIT ckpt is refused as VANL  (rc=2)
+PASS  VANL q9 cell is registered  (rc=0)
+FAIL  C4L q9 cell is registered: want rc=0 + 'exp11_C4L_q9_S40000_s44_K8', got rc=2
+        | AGREE pin OK: 3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787
+        | VAE.ckpt pin OK: 6198ff0d781fa05f546d19a0137a830c3f265437193c3581d8043713e7271baf
+        | DINOv3 cache pin OK
+        | commit binding OK (dry run): 81ddac372076ea92751ae09cbaf371df70f396e5
+        | expected exactly 1 checkpoint at step 40000 under /n/fs/rfmprog/.tmp/yh4742/tmp.stqM5Jerrx/outputs/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints, found 0 - abort
+PASS  q9 is the VANL/C4L pair only  (rc=2)
+PASS  q9 is the 40k endpoint only  (rc=2)
+PASS  q9 uses the confirmatory seeds  (rc=2)
+PASS  r3 needs a rotation  (rc=2)
+PASS  r3 rejects an unregistered offset  (rc=2)
+PASS  r3 rejects 5.62 (near-miss)  (rc=2)
+PASS  r3 is the 40k endpoint only  (rc=2)
+PASS  r3 is seed 42 by contract  (rc=2)
+PASS  r3 names carry the rotation  (rc=0)
+PASS  r3 passes --rotate-deg to the eval  (rc=0)
+PASS  r3 keeps the arm's OWN orbit  (rc=0)
+PASS  cross needs an eval orbit  (rc=2)
+PASS  cross rejects an unregistered orbit  (rc=2)
+PASS  cross refuses the arm's OWN orbit  (rc=2)
+PASS  cross runs the OTHER orbit  (rc=0)
+PASS  cross names carry the eval orbit  (rc=0)
+PASS  cross is the 40k endpoint only  (rc=2)
+PASS  cross still proves the ckpt is the arm  (rc=0)
+PASS  backfill 40k screen is a registered step  (rc=2)
+PASS  backfill 40k cross builds the D2 name  (rc=2)
+PASS  backfill cross refuses C4's own orbit  (rc=2)
+PASS  backfill cross is 40k only  (rc=2)
+PASS  backfill still refuses conf/r3  (rc=2)
+PASS  backfill 10k is still unregistered  (rc=2)
+PASS  C8 S10000 K8 default seed  (rc=0)
+PASS  screen contract: seed 43 refused  (rc=2)
+PASS  screen contract: K=1 refused  (rc=2)
+PASS  conf cell admits seed 43  (rc=0)
+PASS  conf cell admits K=1  (rc=0)
+PASS  conf cell refuses seed 47  (rc=2)
+PASS  backfill must stay a screen/cross cell  (rc=2)
+PASS  K=1 uses the _1 split  (rc=0)
+PASS  K=8 uses the full split  (rc=0)
+PASS  C8 carries its 8-angle orbit  (rc=0)
+PASS  protocol flags are pinned  (rc=0)
+PASS  a non-audited backfill ckpt is refused  (rc=2)
+SKIP  the audited-backfill positive case (GUARD_REAL_BACKFILL=1 to hash the real 724 MB ckpt)
+PASS  the VANL argv carries no --frame-avg-angles at all
+PASS  the ckpt identity gate proves VANL is orbit-free
+PASS  the five R3 rotations produce five DISTINCT eval names
+PASS  the three cross orbits produce three DISTINCT eval names
+PASS  the audited backfill manifest registers the 40k D2 endpoint
+PASS  the audited backfill manifest is well-formed (20k/30k, seed 42, live paths, config hash)
+--- E. real-mode gates ---
+PASS  real mode needs sbatch  (rc=2)
+--- F. the emitted eval name parses under the validator's schema ---
+PASS  exp11_C8_screen_S10000_s42_K8 parses under the validator schema
+PASS  exp11_C4backfill_S20000_s42_K8 parses under the validator schema
+--- G. worktree-pinned measurement execution (item 8) ---
+PASS  real mode requires MEASURE_ROOT  (rc=2)
+PASS  a non-existent MEASURE_ROOT is refused  (rc=2)
+PASS  a MEASURE_ROOT that is not a worktree is refused  (rc=2)
+PASS  pinned worktree prepared at 81ddac372076
+PASS  worktree HEAD mismatch aborts  (rc=2)
+PASS  code from the pinned worktree, outputs from the main tree  (rc=0)
+PASS  the commit gate reads the code root, not the cwd
+
+--- assets + lease lifecycle (fa_orbit_measure_worktree.sh) ---
+PASS  every required runtime asset stats inside the worktree
+PASS  worktree assets resolve to the same targets as the main tree
+PASS  a code root without the runtime assets is refused (rc=2)
+PASS  the screen carries an explicit asset gate
+PASS  AGREE_fullAR.pt is pinned by sha256 and matches (3a13243d6c6a)
+PASS  VAE.ckpt resolves in the worktree and matches its pin (6198ff0d781f)
+PASS  the dataset symlink target is pinned literally in the helper
+PASS  an unregistered dataset target aborts the pin
+PASS  pruning skips a LEASED worktree
+PASS  a stale lease (job gone from squeue) is reaped
+PASS  concurrent same-SHA calls are idempotent (one tree, same path)
+PASS  the helper never prunes the worktree it is returning
+PASS  a job without its own lease refuses to run
+PASS  a lease naming another job is rejected
+PASS  the screen returns its lease on exit, under the store lock only
+PASS  fixed-count pruning is gone (leases only)
+PASS  submit --hold -> lease by the real id -> scontrol release
+PASS  the lease names the real job id and predates the release
+PASS  a failed release cancels the job and RETAINS the lease
+PASS  release AND scancel failing keeps the lease and says why
+PASS  the lease is validated BEFORE scontrol release (source + runtime)
+PASS  EXCLUDE= is passed to sbatch as an explicit --exclude flag
+PASS  no EXCLUDE= means no --exclude flag
+PASS  a set SBATCH_EXCLUDE is refused, not silently ignored
+PASS  the submitter exports the cell's own parameters to the job
+PASS  the literal injection value is refused by shape
+PASS  an injected payload does not execute (no side effects)
+PASS  malformed values are refused for every key
+PASS  no eval of argument text remains in the code
+PASS  the campaign pin file is the DEFAULT pin
+PASS  a PIN_SHA disagreeing with the campaign pin is refused
+PASS  an explicit PIN_SHA equal to the campaign pin is accepted
+PASS  --pin-campaign logs the change
+PASS  --pin-campaign refuses a malformed sha
+PASS  with no pin file, submission falls back to HEAD
+PASS  the sanctioned submitter admits VANL
+PASS  the submitter admits the q9 cell
+PASS  the pin is restored by a trap, not only on the happy path
+PASS  the suite documents that it must not run during submissions
+PASS  the registry carries VANL from its published launch manifest
+PASS  PIN_SHA prepares the worktree AT the requested commit
+PASS  EXPECT_SHA follows PIN_SHA into the sbatch export
+PASS  the intent manifest records the pin
+PASS  a freshly pinned tree carries every runtime asset
+PASS  a non-existent PIN_SHA is refused
+PASS  a short PIN_SHA is refused
+PASS  a forged lock marker with NO fd 8 is refused
+PASS  a forged marker with the WRONG fd 8 is refused
+PASS  an unresolvable fd 8 (deleted file) is refused
+PASS  both readlink results must be non-empty (no empty==empty match)
+PASS  the lock is proven at the outer entry, before any transaction
+PASS  the screen has no unlocked EXIT-trap unlink
+SKIP  registered-worktree removal-failure handling — a campaign freeze is active; this suite will not thaw or delete
+PASS  no placeholder lease: --hold removed the promote race
+PASS  lease/release/prune/create all run under one store-wide lock
+PASS  a squeue failure keeps the lease (absence must be PROVEN)
+SKIP  lock-span concurrent-prune demonstration — a campaign freeze is active; this suite will not thaw or delete
+
+--- campaign freeze ---
+SKIP  campaign-freeze behaviour (freeze/thaw/prune cases) — a campaign freeze is active; this suite will not thaw or delete
+PASS  a lease on a non-worktree directory is refused
+SKIP  safe-cleanup deletion cases — a campaign freeze is active; this suite will not thaw or delete
+
+--- MEASURE_ROOT identity ---
+PASS  the mutable MAIN tree is refused as a MEASURE_ROOT (rc=2)
+
+--- arm launch registry binding ---
+PASS  the audited arm launch registry is committed
+Traceback (most recent call last):
+  File "<stdin>", line 4, in <module>
+AssertionError: ['C16', 'C32', 'C4L', 'C8', 'VANL']
+FAIL  the registry is incomplete
+PASS  a launch manifest edited after registration is rejected
+PASS  a RESTART launch is refused as a screen lineage
+PASS  the screen binds the manifest by sha256, not by content alone
+PASS  the screen parses and enforces mode INITIAL
+PASS  the seed claim is verified against the registry, not printed
+
+--- default screen-log naming ---
+PASS  six same-second cells produce six DISTINCT default log names
+PASS  r3 names carry the rotation and cross names the eval orbit
+PASS  default names stay in LOGDIR and keep the _screen.log suffix
+PASS  an explicit LOG= still overrides the default
+
+--- live transcript untracking (arm launcher) ---
+PASS  the launcher untracks its own Slurm transcript at launch
+PASS  the untrack outcome is recorded in the launch manifest
+PASS  the closure procedure is documented in the launcher header
+PASS  untracking tolerates absence and reports failure without aborting
+PASS  no transcript of a RUNNING arm is tracked
+
+=== screen guard tests: 149 passed, 2 failed ===

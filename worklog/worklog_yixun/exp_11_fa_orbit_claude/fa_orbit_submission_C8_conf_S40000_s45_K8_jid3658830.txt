@@ -1,0 +1,8 @@
+job 3658830 name exp11-screen-C8-conf-40000-s45-K8 submitted_at 2026-08-08T23:58:12-04:00 by yh4742@neuronic.cs.princeton.edu
+arm C8 cell conf step 40000 seed 45 K 8
+pin_sha 0c6e9ffb616cbd788b420e67d62638ad40a7b13c campaign_pin 0c6e9ffb616cbd788b420e67d62638ad40a7b13c
+expect_sha 0c6e9ffb616cbd788b420e67d62638ad40a7b13c
+measure_root /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/0c6e9ffb616cbd788b420e67d62638ad40a7b13c
+exclude neu301,neu303,neu305,neu306,neu317,neu319,neu322,neu332
+rotate_deg <n/a> eval_orbit <n/a>
+lease /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/0c6e9ffb616cbd788b420e67d62638ad40a7b13c/.leases/3658830
