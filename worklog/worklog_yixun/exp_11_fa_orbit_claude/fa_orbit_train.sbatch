@@ -75,6 +75,10 @@ PINNED_TIME_LIMIT_C4L="24:00:00"           # batched 40k/0.6598 = 16.8 h x1.3 + 
 PINNED_TIME_LIMIT_C8="35:00:00"            # batched 40k/0.4351 = 25.5 h x1.3 + startup
 PINNED_TIME_LIMIT_C16="60:00:00"           # batched 40k/0.2454 = 45.3 h x1.3 + startup
 PINNED_TIME_LIMIT_C32="112:00:00"          # batched 40k/0.1308 = 84.9 h x1.3 + startup — SINGLE segment (no wall-split needed)
+# VANL is the vanilla-conditioning arm of the SAME recipe (Q9): its cost comes
+# from the official P0 VAN_8x8 rate, not from an orbit slope, because it makes no
+# orbit passes at all — 40k/1.07 steps/s = 10.4 h x1.3 + startup.
+PINNED_TIME_LIMIT_VANL="14:00:00"
 PINNED_P0_MANIFEST_SHA256="72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b"  # batched matrix manifest bd96575-…-a3ed28eb; spot manifest sha in the commit message
 # Environment pins (round-3 B6) — measured on the reviewed environment:
 PINNED_PYTHON="/n/fs/gatrdp/envs/flac/bin/python"
@@ -122,10 +126,10 @@ TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 die() { echo "$1"; exit "${2:-2}"; }
 
 # --- A. parameters ------------------------------------------------------------
-[ -n "${ARM:-}" ] || die "ARM must be exported (C4L|C8|C16|C32) - abort"
+[ -n "${ARM:-}" ] || die "ARM must be exported (C4L|C8|C16|C32|VANL) - abort"
 [ -n "${EXPECT_SHA:-}" ] || die "EXPECT_SHA (full reviewed commit sha) must be exported - abort"
 case "$ARM" in
-  C4L|C8|C16|C32) ;;
+  C4L|C8|C16|C32|VANL) ;;
   *) die "ARM '${ARM}' is not a legal exp_11 arm — C4L|C8|C16|C32 only (FA1/VAN/CKPT4 are P0 profiling cells, never arms) - abort" ;;
 esac
 case "$EXPECTED_STEP" in ''|*[!0-9]*) die "EXPECTED_STEP '${EXPECTED_STEP}' must be a non-negative integer - abort";; esac
@@ -186,7 +190,13 @@ else
 fi
 
 # --- D. arm -> config (single source) + semantic gate -------------------------
-arm_config_for() { case "$1" in C4L|C8|C16|C32) echo "$EXPDIR/FLAC_AR_BF_$1.json" ;; *) return 1 ;; esac; }
+arm_config_for() {
+  case "$1" in
+    C4L|C8|C16|C32) echo "$EXPDIR/FLAC_AR_BF_$1.json" ;;
+    VANL)           echo "$EXPDIR/FLAC_AR_VANCKPT.json" ;;
+    *) return 1 ;;
+  esac
+}
 MODEL_CONFIG="$(arm_config_for "$ARM")" || die "no config mapped for arm '${ARM}' - abort"
 MODEL_CONFIG_ABS="$(readlink -f "$MODEL_CONFIG" 2>/dev/null)"
 [ -n "$MODEL_CONFIG_ABS" ] && [ -f "$MODEL_CONFIG_ABS" ] || die "arm config '${MODEL_CONFIG}' does not exist - abort"
@@ -197,14 +207,26 @@ python3 - "$MODEL_CONFIG_ABS" "$ARM" <<'PY' || die "arm/config semantic gate FAI
 import json, sys
 cfg = json.load(open(sys.argv[1])); arm = sys.argv[2]
 t = cfg.get("training", {}); bad = []
-want = {"C4L": 4, "C8": 8, "C16": 16, "C32": 32}[arm]
-angles = t.get("frame_avg_angles")
-if t.get("cond_method") != "fa_invariant":
-    bad.append(f"cond_method={t.get('cond_method')!r} (want fa_invariant)")
-if not isinstance(angles, list) or len(angles) != want:
-    bad.append(f"frame_avg_angles has {angles and len(angles)} entries (want {want})")
-elif angles != [k * 360.0 / want for k in range(want)]:
-    bad.append(f"frame_avg_angles are not the uniform C{want} orbit")
+# VANL is the same recipe with the conditioning removed, so its gate is the
+# MIRROR IMAGE of the orbit arms': the orbit keys must be ABSENT, not merely
+# different. A vanilla config that carried a stray frame_avg_angles would be a
+# silently fa-flavoured baseline, which would destroy the single-delta claim.
+if arm == "VANL":
+    cm = t.get("cond_method")
+    if cm not in (None, "vanilla"):
+        bad.append(f"cond_method={cm!r} (want absent or 'vanilla')")
+    if "frame_avg_angles" in t:
+        bad.append(f"frame_avg_angles is present ({t['frame_avg_angles']!r}) — a vanilla arm has no orbit")
+    want = None
+else:
+    want = {"C4L": 4, "C8": 8, "C16": 16, "C32": 32}[arm]
+    angles = t.get("frame_avg_angles")
+    if t.get("cond_method") != "fa_invariant":
+        bad.append(f"cond_method={t.get('cond_method')!r} (want fa_invariant)")
+    if not isinstance(angles, list) or len(angles) != want:
+        bad.append(f"frame_avg_angles has {angles and len(angles)} entries (want {want})")
+    elif angles != [k * 360.0 / want for k in range(want)]:
+        bad.append(f"frame_avg_angles are not the uniform C{want} orbit")
 if t.get("use_ema") is not True:
     bad.append(f"use_ema={t.get('use_ema')!r} (want True)")
 vits = [c for c in cfg["model"]["conditioning"]["configs"] if c["type"] == "ViTCoordinates"]
@@ -218,7 +240,10 @@ for c in vits:
         bad.append(f"{c['id']}: gradient_checkpointing={c['config']['gradient_checkpointing']!r} (want True)")
 if bad:
     sys.exit("ARM/CONFIG GATE: " + "; ".join(bad))
-print(f"gate OK: {arm} carries the uniform C{want} orbit, grad-ckpt True, EMA on")
+if arm == "VANL":
+    print(f"gate OK: {arm} is vanilla (no cond_method, no orbit), grad-ckpt True, EMA on")
+else:
+    print(f"gate OK: {arm} carries the uniform C{want} orbit, grad-ckpt True, EMA on")
 PY
 
 # --- E. lineage: INITIAL vs RESTART -------------------------------------------

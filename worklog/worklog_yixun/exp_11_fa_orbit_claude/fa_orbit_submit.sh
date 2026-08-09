@@ -28,9 +28,9 @@ PLACEHOLDER="TO-PIN-AFTER-P0"
 [ -f "$SBATCH_FILE" ] || { echo "missing ${SBATCH_FILE} - abort"; exit 3; }
 
 ARM="${1:-}"
-[ -n "$ARM" ] || { echo "usage: $0 <C4L|C8|C16|C32> [--resume <ckpt> --expected-step <n>] - abort"; exit 2; }
+[ -n "$ARM" ] || { echo "usage: $0 <C4L|C8|C16|C32|VANL> [--resume <ckpt> --expected-step <n>] - abort"; exit 2; }
 shift
-case "$ARM" in C4L|C8|C16|C32) ;; *) echo "ARM '${ARM}' must be C4L|C8|C16|C32 - abort"; exit 2;; esac
+case "$ARM" in C4L|C8|C16|C32|VANL) ;; *) echo "ARM '${ARM}' must be C4L|C8|C16|C32|VANL - abort"; exit 2;; esac
 
 RESUME_CKPT=""; EXPECTED_STEP=0
 while [ $# -gt 0 ]; do

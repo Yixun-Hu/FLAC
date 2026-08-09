@@ -55,7 +55,12 @@ from src.training.factory import create_training_wrapper_from_config  # noqa: E4
 HERE = os.path.dirname(os.path.abspath(__file__))
 SEED = 42
 REFERENCE_ARM = "C4L"                       # the bridge arm every arm must match
-ARM_ORBIT = {"C4L": 4, "C8": 8, "C16": 16, "C32": 32}
+# VANL is the vanilla-conditioning arm of the SAME recipe (Q9). Its orbit is
+# None, not 1: it performs no frame averaging at all, which is exactly the single
+# delta that makes VANL-vs-C4L a clean fa-vs-vanilla comparison in this lineage.
+ARM_ORBIT = {"C4L": 4, "C8": 8, "C16": 16, "C32": 32, "VANL": None}
+ARM_CONFIG = {a: f"FLAC_AR_BF_{a}.json" for a in ("C4L", "C8", "C16", "C32")}
+ARM_CONFIG["VANL"] = "FLAC_AR_VANCKPT.json"
 
 # Verbatim from worklog/worklog_yixun/exp_07_fa_scratch_claude/assert_arm_configs.py
 VIT_REV = "114c1379950215c8b35dfcd4e90a5c251dde0d32"
@@ -88,7 +93,7 @@ def build(arm):
     torch.manual_seed(SEED)
     np.random.seed(SEED)
     random.seed(SEED)
-    cfg = json.load(open(os.path.join(HERE, f"FLAC_AR_BF_{arm}.json")))
+    cfg = json.load(open(os.path.join(HERE, ARM_CONFIG[arm])))
     model = create_model_from_config(cfg)
     wrapper = create_training_wrapper_from_config(cfg, model)
     return cfg, model, wrapper
@@ -104,12 +109,30 @@ def state_hash(model):
 
 
 def check_recipe(tag, w, n_angles):
-    if w.cond_method != "fa_invariant":
-        raise RuntimeError(f"{tag}: cond_method {w.cond_method!r} != 'fa_invariant'")
-    want = tuple(k * 360.0 / n_angles for k in range(n_angles))
-    got = tuple(w.frame_avg_angles)
-    if got != want:
-        raise RuntimeError(f"{tag}: frame_avg_angles {got} != the uniform C{n_angles} orbit {want}")
+    """Everything except the conditioning must be identical across arms.
+
+    ``n_angles is None`` selects the VANILLA variant: the assertion is then that
+    the wrapper does NOT frame-average — the mirror image of the orbit check, and
+    the thing that makes VANL a baseline rather than a differently-flavoured fa
+    run. Every other line below is shared, which is the point: one delta."""
+    if n_angles is None:
+        # The wrapper ALWAYS holds a frame_avg_angles tuple — src/training/diffusion.py
+        # falls back to DEFAULT_FRAME_ANGLES when the config omits the key — but the
+        # conditioning dispatch reads it only on the fa_invariant branch (diffusion.py
+        # ~215-221); under "vanilla" it goes straight to the vanilla path and the
+        # tuple is never consumed. So the assertion that matters is the DISPATCH, not
+        # the presence of an inert default. (The config itself is separately required
+        # to carry no orbit keys — checked below and in the launcher's semantic gate.)
+        if w.cond_method != "vanilla":
+            raise RuntimeError(f"{tag}: cond_method {w.cond_method!r} != 'vanilla' — this arm "
+                               "would frame-average, which is the very thing it exists not to do")
+    else:
+        if w.cond_method != "fa_invariant":
+            raise RuntimeError(f"{tag}: cond_method {w.cond_method!r} != 'fa_invariant'")
+        want = tuple(k * 360.0 / n_angles for k in range(n_angles))
+        got = tuple(w.frame_avg_angles)
+        if got != want:
+            raise RuntimeError(f"{tag}: frame_avg_angles {got} != the uniform C{n_angles} orbit {want}")
     if w.diffusion_ema is None:
         raise RuntimeError(f"{tag}: EMA missing")
     if w.cfg_dropout_prob != 0.1:
@@ -137,7 +160,8 @@ def check_recipe(tag, w, n_angles):
         raise RuntimeError(f"{tag}: scheduler {type(sched).__name__} @ {sc['interval']}")
     if (sched.inv_gamma, sched.power, sched.warmup) != (1000000, 0.5, 0.99):
         raise RuntimeError(f"{tag}: InverseLR fields drifted")
-    print(f"{tag}: wiring OK — fa_invariant C{n_angles} orbit, EMA on, cfg_dropout 0.1, "
+    cond = "vanilla (no orbit)" if n_angles is None else f"fa_invariant C{n_angles} orbit"
+    print(f"{tag}: wiring OK — {cond}, EMA on, cfg_dropout 0.1, "
           f"log_snr(-1.2,2.0), AdamW(initial_lr 5e-5, step-0 {pg['lr']:.3e}) + InverseLR@step")
 
 
@@ -148,7 +172,17 @@ def main(argv):
 
     assert_vit_pin()
 
-    print(f"building {arm} (fa_invariant C{ARM_ORBIT[arm]}) ...")
+    what = "vanilla" if ARM_ORBIT[arm] is None else f"fa_invariant C{ARM_ORBIT[arm]}"
+    print(f"building {arm} ({what}) ...")
+    if ARM_ORBIT[arm] is None:
+        # mirror of the launcher's semantic gate: the CONFIG must be orbit-free
+        raw = json.load(open(os.path.join(HERE, ARM_CONFIG[arm]))).get("training", {})
+        if raw.get("cond_method") not in (None, "vanilla"):
+            raise RuntimeError(f"{arm} config declares cond_method={raw.get('cond_method')!r}")
+        if "frame_avg_angles" in raw:
+            raise RuntimeError(f"{arm} config carries frame_avg_angles={raw['frame_avg_angles']!r} — "
+                               "a vanilla arm's config has no orbit")
+        print(f"{arm} config is orbit-free (no cond_method, no frame_avg_angles)")
     _, model_a, wrap_a = build(arm)
     check_recipe(arm, wrap_a, ARM_ORBIT[arm])
 
@@ -177,8 +211,10 @@ def main(argv):
     if ha != hr:
         raise RuntimeError(f"init state hashes differ:\n  {arm} {ha}\n  {REFERENCE_ARM} {hr}")
     print(f"init identity: state_dict sha256 match under seed {SEED}: {ha[:16]}…")
-    print(f"\nALL ASSERTS PASSED — {arm} is init-identical to {REFERENCE_ARM} and differs "
-          "only in the averaging orbit.")
+    delta = ("only in whether the conditioning is frame-averaged at all — this is the "
+             "fa-vs-vanilla single delta (Q9)") if ARM_ORBIT[arm] is None else \
+            "only in the averaging orbit"
+    print(f"\nALL ASSERTS PASSED — {arm} is init-identical to {REFERENCE_ARM} and differs {delta}.")
     return 0
 
 

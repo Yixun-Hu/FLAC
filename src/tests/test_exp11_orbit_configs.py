@@ -282,3 +282,67 @@ def test_c4l_bridge_identity():
     )
     diff = _deep_diff(bf_train, c4l_train)
     assert not diff, f"C4L training block differs from BF at: {sorted(diff)}"
+
+
+# --------------------------------------------------------------------------- #
+# VANL — the fifth arm (Q9): vanilla conditioning under the identical recipe,
+# so that VANL vs C4L isolates frame averaging and nothing else.
+# --------------------------------------------------------------------------- #
+_EXPDIR = os.path.dirname(_VANCKPT_CONFIG)
+_TRAIN_SBATCH = os.path.join(_EXPDIR, "fa_orbit_train.sbatch")
+_SUBMIT_SH = os.path.join(_EXPDIR, "fa_orbit_submit.sh")
+_ASSERT_GATE = os.path.join(_EXPDIR, "assert_arm_configs_exp11.py")
+
+
+def _text(path):
+    with open(path) as fh:
+        return fh.read()
+
+
+def test_vanl_is_a_launchable_arm():
+    train, submit = _text(_TRAIN_SBATCH), _text(_SUBMIT_SH)
+    assert "C4L|C8|C16|C32|VANL" in train, "the launcher does not admit VANL"
+    assert "C4L|C8|C16|C32|VANL" in submit, "the submitter does not admit VANL"
+
+
+def test_vanl_maps_to_the_vanckpt_config():
+    """One config, one mapping: VANL must not silently reuse an orbit manifest."""
+    train = _text(_TRAIN_SBATCH)
+    assert "VANL)           echo \"$EXPDIR/FLAC_AR_VANCKPT.json\"" in train, \
+        "VANL is not mapped to FLAC_AR_VANCKPT.json in arm_config_for"
+
+
+def test_vanl_time_limit_is_pinned_from_the_vanilla_rate():
+    """VANL's cost comes from the P0 VAN_8x8 rate, not an orbit slope: it makes
+    no orbit passes, so a limit interpolated from the orbit arms would be wrong."""
+    train = _text(_TRAIN_SBATCH)
+    assert 'PINNED_TIME_LIMIT_VANL="14:00:00"' in train
+    # and it is well below every orbit arm's limit, as a vanilla run must be
+    for other in ("24:00:00", "35:00:00", "60:00:00", "112:00:00"):
+        assert f'PINNED_TIME_LIMIT_VANL="{other}"' not in train
+
+
+def test_vanl_semantic_gate_is_the_mirror_image():
+    """The orbit arms are gated on HAVING the orbit; VANL on NOT having it.
+    A vanilla config carrying a stray frame_avg_angles would be an fa run wearing
+    a baseline's name, which would destroy the single-delta claim."""
+    train = _text(_TRAIN_SBATCH)
+    assert 'if arm == "VANL":' in train
+    assert "frame_avg_angles is present" in train, "the gate does not reject a stray orbit"
+    assert "want absent or 'vanilla'" in train, "the gate does not constrain cond_method"
+
+
+def test_vanl_is_registered_in_the_init_identity_gate():
+    gate = _text(_ASSERT_GATE)
+    assert '"VANL": None' in gate, "VANL is not registered with a null orbit"
+    assert 'ARM_CONFIG["VANL"] = "FLAC_AR_VANCKPT.json"' in gate
+    # the vanilla branch asserts the DISPATCH, since the wrapper always holds a
+    # default angle tuple that the vanilla path never reads
+    assert 'w.cond_method != "vanilla"' in gate
+
+
+def test_vanl_config_is_orbit_free():
+    """The property the whole arm rests on, asserted on the file itself."""
+    training = _load(_VANCKPT_CONFIG)["training"]
+    assert "frame_avg_angles" not in training
+    assert training.get("cond_method") in (None, "vanilla")
