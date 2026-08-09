@@ -1,0 +1,22 @@
+{
+    "metrics": {
+        "T60": 10.4053,
+        "Invalid T60": 0.0,
+        "C50": 1.118,
+        "EDT": 46.3319,
+        "FD": 0.3325,
+        "RIR_to_GT_RIR_R@1": 5.2864,
+        "RIR_to_GT_RIR_R@5": 16.3642,
+        "RIR_to_GT_RIR_R@10": 24.3648,
+        "RIR_to_geom_R@1": 4.1502,
+        "RIR_to_geom_R@5": 14.1865,
+        "RIR_to_geom_R@10": 20.7985
+    },
+    "ckpt_path": "/n/fs/gatrdp/outputs/exp04n_meanpoolmlp/FLAC_exp04n_meanpoolmlp/exp04n_meanpoolmlp/checkpoints/epoch=14-step=67500.ckpt",
+    "rotate_deg": 0.0,
+    "cond_method": "fa_invariant",
+    "frame_avg_angles": [
+        0.0
+    ],
+    "cond_autocast": "bf16"
+}

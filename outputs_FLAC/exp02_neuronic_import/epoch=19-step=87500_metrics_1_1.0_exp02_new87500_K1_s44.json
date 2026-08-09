@@ -1,0 +1,25 @@
+{
+    "metrics": {
+        "T60": 10.0594,
+        "Invalid T60": 0.0,
+        "C50": 1.0392,
+        "EDT": 41.3477,
+        "FD": 0.3056,
+        "RIR_to_GT_RIR_R@1": 6.5173,
+        "RIR_to_GT_RIR_R@5": 18.5103,
+        "RIR_to_GT_RIR_R@10": 26.4163,
+        "RIR_to_geom_R@1": 5.176,
+        "RIR_to_geom_R@5": 16.2064,
+        "RIR_to_geom_R@10": 24.0808
+    },
+    "ckpt_path": "/n/fs/gatrdp/outputs/exp02_P1rerun/FLAC_exp02_P1rerun/exp02_P1rerun/checkpoints/epoch=19-step=87500.ckpt",
+    "rotate_deg": 0.0,
+    "cond_method": "vanilla",
+    "frame_avg_angles": null,
+    "cond_autocast": "bf16",
+    "orbit_execution": "n/a",
+    "frame_avg_fwd_cap": null,
+    "source_sha": "2b78f995a6d377676bd9d9fb60635ab90032b52d",
+    "batch_size": null,
+    "n_samples": null
+}

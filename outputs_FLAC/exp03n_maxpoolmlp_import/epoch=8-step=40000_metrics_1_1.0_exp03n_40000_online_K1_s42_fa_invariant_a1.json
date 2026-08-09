@@ -1,0 +1,22 @@
+{
+    "metrics": {
+        "T60": 10.6176,
+        "Invalid T60": 0.0,
+        "C50": 1.1927,
+        "EDT": 48.3103,
+        "FD": 0.3472,
+        "RIR_to_GT_RIR_R@1": 2.9036,
+        "RIR_to_GT_RIR_R@5": 10.0679,
+        "RIR_to_GT_RIR_R@10": 16.0013,
+        "RIR_to_geom_R@1": 2.1461,
+        "RIR_to_geom_R@5": 8.1111,
+        "RIR_to_geom_R@10": 13.3502
+    },
+    "ckpt_path": "/n/fs/gatrdp/outputs/exp03n_maxpoolmlp/FLAC_exp03n_maxpoolmlp/exp03n_maxpoolmlp/checkpoints/epoch=8-step=40000.ckpt",
+    "rotate_deg": 0.0,
+    "cond_method": "fa_invariant",
+    "frame_avg_angles": [
+        0.0
+    ],
+    "cond_autocast": "bf16"
+}
