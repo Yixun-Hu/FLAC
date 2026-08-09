@@ -17,7 +17,7 @@ from gen_trajectory_figures import series, METRICS  # noqa: E402
 ASSETS = os.path.join(HERE, "fa_orbit_results_assets")
 os.makedirs(ASSETS, exist_ok=True)
 
-DASH = {"": "-", "6 3": (0, (6, 3)), "2 3": (0, (2, 3)), "8 4": (0, (8, 4))}
+DASH = {"": "-", "6 3": (0, (6, 3)), "2 3": (0, (2, 3)), "8 4": (0, (8, 4)), "3 2": (0, (3, 2))}
 
 def draw(ax, data, mkey, mlabel, lower_better):
     for key, d in data.items():

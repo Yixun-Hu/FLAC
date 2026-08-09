@@ -23,7 +23,7 @@ ARMS = [
     ("C32",  "C32",           "#eda100", "#c98500", "exp11_C32",  32, "6 3"),
     ("C4bf", "C4 legacy-loop", "#e87ba4", "#d55181", None,        4,  "2 3"),
     ("VANL", "vanilla (fa recipe)", "#008300", "#008300", "exp11_VANL", 0, "8 4"),
-    ("P1v",  "P1 vanilla legacy", "#4a3aa7", "#9085e9", "POINT",     0,  ""),
+    ("P1v",  "P1 vanilla legacy", "#4a3aa7", "#9085e9", "POINT",     0,  "3 2"),
 ]
 
 def series():
@@ -31,7 +31,15 @@ def series():
     for key, label, cl, cd, tree, n, dash in ARMS:
         pts, conf = {}, None
         if tree == "POINT":
-            data[key] = dict(label=label, cl=cl, cd=cd, dash=dash, pts={},
+            pts = {}
+            base = f"{REPO}/outputs_FLAC/exp07_P1/FLAC_exp07_P1/exp07_P1/checkpoints"
+            for f in glob.glob(f"{base}/*_metrics_*_exp07_P1_screen_S*_ema.json"):
+                if f.endswith(".screenmeta.json"): continue
+                step = int(f.split("_S")[1].split("_")[0])
+                if step <= 40000:
+                    m = json.load(open(f)); m = m.get("metrics", m)
+                    pts[step] = m
+            data[key] = dict(label=label, cl=cl, cd=cd, dash=dash, pts=pts,
                 conf={"T60": (8.993, 0.011), "C50": (1.0093, 0.0035), "EDT": (40.650, 0.101),
                       "RIR_to_GT_RIR_R@1": (5.173, 0.138), "RIR_to_GT_RIR_R@5": (15.430, 0.197),
                       "RIR_to_GT_RIR_R@10": (23.409, 0.056)})
@@ -147,7 +155,8 @@ details{{margin-top:1rem}} .note{{color:var(--mut);font-size:.85rem}}
 <p class="note">Lines: single-seed (s42) fa-protocol screens every 2,500–5,000 steps, each arm under its own orbit.
 Terminal dots: 5-seed confirmatory mean ± sd at the 40k checkpoint. C4 legacy-loop (dashed pink) is the historical
 recipe — background context, not the inferential comparator; C32 extends as its screens land; VANL (green, dashed) trains now — its screens backfill after the post-C32 re-pin;
-P1 vanilla legacy (violet) contributes its published 5-seed 40k point.</p>
+P1 vanilla legacy (violet, dotted): exp_07 EMA screens at that arm's 10k cadence (s42; finer 2.5k-grid points
+were never run for P1 — 12.5k/15k/…/37.5k do not exist as raws) with its published 5-seed 40k dot.</p>
 <div style="display:flex;gap:1.2rem;flex-wrap:wrap;margin:.4rem 0 .8rem">{legend}</div>
 <main>{panels}</main>
 <details><summary>Table view (all plotted screen values)</summary>
