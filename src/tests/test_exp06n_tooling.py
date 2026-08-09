@@ -775,7 +775,9 @@ def test_probe_is_the_two_phase_lifecycle_probe_with_the_launcher_gates():
 _SBATCH_REMOVED_OK = {
     "train_exp06n.sbatch": None,   # pure additions only (the B2 env sweep)
     "probe_exp06n.sbatch": None,   # pure additions only (the B2 env sweep)
-    "eval_exp06n.sbatch": re.compile(r"cp -v|sha256sum|\$ART|IMPORT_DIR"),
+    # the artifact-copy region rewritten by B3/R2; the bare `fi` is the EMA block's closer
+    # re-emitted by the differ (if/fi balance is backstopped by the bash -n parse test)
+    "eval_exp06n.sbatch": re.compile(r"cp -v|sha256sum|\$ART|IMPORT_DIR|^fi$"),
 }
 
 
