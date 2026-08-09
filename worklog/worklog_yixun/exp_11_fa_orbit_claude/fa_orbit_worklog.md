@@ -212,3 +212,9 @@
   the outcome in the manifest, closure documented in the header), and **C32's live transcript is untracked
   in this commit** so remote coordination can no longer touch it.
 - **Validation** — 114/114 screen guard cases (deletion/thaw cases skipped: campaign freeze engaged), 200 pytest.
+
+## 2026-08-09 — R1 (partial, C4L/C8/C16): finer orbits DEGRADE acoustic metrics monotonically; retrieval flat
+
+- **Rows published (5-seed, both K, campaign-pinned SHA 0c6e9ff, all validated+hash-verified).** Seed-paired deltas vs C4L (mean ± 95% paired-t CI, df=4), K8: C8: T60 +0.299±0.005, C50 −0.005±0.002, EDT +1.461±0.042, R@1 +0.063±0.175 (n.s.) · C16: T60 +0.929±0.023, C50 +0.014±0.003, EDT +3.854±0.093, R@1 +0.069±0.197 (n.s.). K1 mirrors K8.
+- **Co-primary verdicts (pre-registered: K8 T60 + K8 R@1, Holm):** C8 and C16 both SIGNIFICANTLY WORSE on T60 (p≪0.001), EQUIV on R@1 ⇒ per §4 rules both arms verdict DEGRADED. Trend C4L→C8→C16: monotone worsening in T60/EDT (≈ linear in orbit size); R@1 flat (the early 5k monotone-improving retrieval ordering did NOT persist to 40k).
+- **Reading (conditional on training seed 42, matched STEPS not compute):** refining the frame-average past C4 costs acoustic-parameter accuracy roughly linearly and buys nothing measurable in retrieval — while consuming 2–4× the compute. C8/C16 are strictly dominated at this budget. C32 (due ~Aug 10) completes the trend; R2/R3 cells will show whether yaw-flatness improved even as headline metrics degraded (mechanistically informative either way).
