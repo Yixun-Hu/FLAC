@@ -1,0 +1,7 @@
+# exp06n_maxpoollinear EMA import manifest (exp_06 plan B5; the 71e77a2 lesson: outputs_FLAC/
+# is gitignored, so this directory is force-added and every raw travels with a recorded hash).
+# APPENDING CONTRACT: eval_exp06n.sbatch APPENDS exactly one sha256 line per EMA eval artifact
+# it copies into this directory, in the repo-relative sha256sum format
+#   <sha256>  outputs_FLAC/exp06n_maxpoollinear_import/<artifact>.json
+# Lines are never edited, reordered or removed by tooling; humans only append via review.
+# Verify from the repo root:  sha256sum -c --ignore-missing outputs_FLAC/exp06n_maxpoollinear_import/IMPORT_SHA256SUMS.txt
