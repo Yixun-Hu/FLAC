@@ -829,15 +829,27 @@ def _unset_vars(text):
 
 
 def test_train_sbatch_unsets_every_inheritable_launcher_env():
+    """r1 B2 + r2 R1: the direct overrides AND the bash re-entry vectors — a child bash
+    re-sources $BASH_ENV (or $ENV under sh-mode), which could re-export the swept
+    variables AFTER the sweep."""
     names = _unset_vars(_sbatch("train_exp06n.sbatch"))
-    for var in ("C1_FROZEN_MIN_FREE_FILE", "EXP06N_LOG_DIR", "MIN_FREE_MB", "CKPT_PATH"):
-        assert var in names, f"train_exp06n.sbatch must unset inheritable {var} (review B2)"
+    for var in ("C1_FROZEN_MIN_FREE_FILE", "EXP06N_LOG_DIR", "MIN_FREE_MB", "CKPT_PATH",
+                "BASH_ENV", "ENV"):
+        assert var in names, f"train_exp06n.sbatch must unset inheritable {var} (review B2/R1)"
 
 
 def test_probe_sbatch_unsets_every_inheritable_probe_env():
     names = _unset_vars(_sbatch("probe_exp06n.sbatch"))
-    for var in ("MIN_FREE_MB", "EXP06N_LOG_DIR", "SAVE"):
-        assert var in names, f"probe_exp06n.sbatch must unset inheritable {var} (review B2)"
+    for var in ("MIN_FREE_MB", "EXP06N_LOG_DIR", "SAVE", "BASH_ENV", "ENV"):
+        assert var in names, f"probe_exp06n.sbatch must unset inheritable {var} (review B2/R1)"
+
+
+def test_eval_sbatch_unsets_the_bash_reentry_envs():
+    """The eval wrapper spawns no child bash script today, but the R1 sweep is uniform:
+    a future child bash must not re-source a stale $BASH_ENV/$ENV."""
+    names = _unset_vars(_sbatch("eval_exp06n.sbatch"))
+    for var in ("BASH_ENV", "ENV"):
+        assert var in names, f"eval_exp06n.sbatch must unset inheritable {var} (review r2 R1)"
 
 
 @pytest.mark.parametrize("name,gpus", [("train_exp06n.sbatch", "2"), ("probe_exp06n.sbatch", "2")])
@@ -1034,44 +1046,108 @@ def test_eval_sbatch_retention_and_overwrite_guard():
     assert re.search(r'if \[ "\$STREAM" = "ema" \];[\s\S]*IMPORT_DIR', text), (
         "the import-dir copy must be EMA-only"
     )
-    assert re.search(r"\[ ! -e .*ART", text), "an existing artifact must abort the cell"
+    assert 'reserve "$ART"' in text, "an existing/reserved artifact must abort the cell"
 
 
-# --- review B3: the ckpt-dir refusal alone is not enough — a same-named file already
-# sitting in the records folder or the EMA import dir would be silently cp-overwritten
-# AFTER the eval spent its GPU time. ALL THREE destinations preflight-refuse BEFORE any
-# compute, and every copy is no-clobber (recheck + copy + byte-verify). --------------- #
-def test_eval_sbatch_preflights_all_three_destinations_before_compute():
+# --- review B3 + r2 R2: plain absence checks race — two identical cells can both pass a
+# preflight, eval_FLAC.py opens ART with "w", and an ordinary cp has a check-then-use
+# window. ALL THREE destinations are ATOMICALLY reserved (noclobber sentinel) right after
+# the names are derived, and retention publishes via cp-to-tmp + mv -n + byte-verify. --- #
+def test_eval_sbatch_reserves_all_three_destinations_atomically_before_compute():
     text = _sbatch("eval_exp06n.sbatch")
-    ckpt_refusal = text.index('[ ! -e "$ART" ]')
-    records_refusal = text.index('[ ! -e "${RECORDS}/${ART_BASE}" ]')
-    import_refusal = text.index('[ ! -e "${IMPORT_DIR}/${ART_BASE}" ]')
+    assert re.search(r'\(\s*set -C;\s*: > "\$1\.reserve"\s*\)', text), (
+        "the reservation must be an ATOMIC noclobber create (set -C), not an absence check"
+    )
+    assert "trap cleanup_reserves EXIT" in text
+    art_reserve = text.index('reserve "$ART"')
+    records_reserve = text.index('reserve "${RECORDS}/${ART_BASE}"')
+    import_reserve = text.index('reserve "${IMPORT_DIR}/${ART_BASE}"')
     pin_gate = text.index("pin + arm-wiring gate, bound to the ACTUAL config")
     eval_run = text.index("--- eval (mandatory")
-    for name, pos in (("ckpt-dir", ckpt_refusal), ("records", records_refusal),
-                      ("import", import_refusal)):
+    for name, pos in (("ckpt-dir", art_reserve), ("records", records_reserve),
+                      ("import", import_reserve)):
         assert pos < pin_gate < eval_run, (
-            f"the {name} preflight refusal must run BEFORE the pin gate and the eval "
-            "(refusing after compute wastes the cell and still risks the clobber window)"
+            f"the {name} reservation must be taken BEFORE the pin gate and the eval "
+            "(reserving after compute wastes the cell and leaves the clobber window open)"
         )
+    # the reservation refuses BOTH a pre-existing final artifact and a held sentinel
+    assert re.search(r'reserve\(\)\s*\{[\s\S]*?\[ ! -e "\$1" \]', text), (
+        "reserve() must refuse a pre-existing final artifact"
+    )
+    assert "already held" in text, "a held sentinel (concurrent identical cell) must refuse"
 
 
-def test_eval_sbatch_copies_are_no_clobber_and_byte_verified():
+def test_eval_sbatch_publishes_via_staged_atomic_rename_and_verifies():
     text = _sbatch("eval_exp06n.sbatch")
     # the old unconditional-overwrite forms must be gone
     assert 'cp -v "$ART" "$RECORDS/"' not in text, "records copy still clobbers (review B3)"
     assert 'cp -v "$ART" "$IMPORT_DIR/"' not in text, "import copy still clobbers (review B3)"
-    # the no-clobber forms: recheck at copy time, explicit destination, byte-verify
-    assert 'cp -v "$ART" "${RECORDS}/${ART_BASE}"' in text
-    assert 'cp -v "$ART" "${IMPORT_DIR}/${ART_BASE}"' in text
-    assert text.count('[ ! -e "${RECORDS}/${ART_BASE}" ]') >= 2, (
-        "the records destination must be rechecked at copy time as well as preflighted"
+    assert 'cp -v "$ART"' not in text, "no direct cp of ART may remain — publish() only"
+    # publish(): stage to a tmp name, atomic no-clobber rename, detect the losing race,
+    # then byte-verify the published copy
+    assert re.search(r'local tmp="\$2\.tmp\.\$\$"', text), "publish must stage to a tmp name"
+    assert re.search(r'mv -n "\$tmp" "\$2"', text), "the rename must be no-clobber (mv -n)"
+    assert re.search(r'\[ ! -e "\$tmp" \]', text), (
+        "a surviving tmp file (mv -n lost the race) must abort, not be ignored"
     )
-    assert text.count('[ ! -e "${IMPORT_DIR}/${ART_BASE}" ]') >= 2, (
-        "the import destination must be rechecked at copy time as well as preflighted"
+    assert re.search(r'cmp -s "\$1" "\$2"', text), "the published copy must be byte-verified"
+    assert 'publish "$ART" "${RECORDS}/${ART_BASE}"' in text
+    assert 'publish "$ART" "${IMPORT_DIR}/${ART_BASE}"' in text
+
+
+def test_eval_sbatch_sentinels_cleared_only_after_verified_publishes():
+    text = _sbatch("eval_exp06n.sbatch")
+    assert "PUBLISH_OK=0" in text, "the success flag must start false"
+    ok_pos = text.rindex("PUBLISH_OK=1")
+    assert ok_pos > text.index('publish "$ART" "${RECORDS}/${ART_BASE}"'), (
+        "PUBLISH_OK may only be set after the verified publishes"
     )
-    assert 'cmp -s "$ART" "${RECORDS}/${ART_BASE}"' in text, "records copy must be byte-verified"
-    assert 'cmp -s "$ART" "${IMPORT_DIR}/${ART_BASE}"' in text, "import copy must be byte-verified"
+    assert ok_pos > text.index('publish "$ART" "${IMPORT_DIR}/${ART_BASE}"')
+    assert re.search(r'cleanup_reserves\(\)\s*\{[\s\S]*?PUBLISH_OK[\s\S]*?rm -f', text), (
+        "the EXIT trap must clear sentinels only when PUBLISH_OK is set"
+    )
+    assert "KEPT" in text, "on failure the sentinels must be kept (and said so) for inspection"
+
+
+def test_eval_sbatch_reserve_and_publish_functions_behave(tmp_path):
+    """FUNCTIONAL: extract reserve()/publish() from the wrapper and exercise them in a
+    bash harness — a second reservation must refuse, publishing onto a taken destination
+    must refuse WITHOUT touching it, and a clean publish must byte-match."""
+    text = _sbatch("eval_exp06n.sbatch")
+
+    def _fn(name):
+        m = re.search(rf"^{name}\(\) \{{[\s\S]*?^\}}", text, flags=re.M)
+        assert m, f"function {name}() not found in eval_exp06n.sbatch"
+        return m.group(0)
+
+    harness = "\n".join([
+        "set -uo pipefail", "RESERVES=()", "PUBLISH_OK=0",
+        _fn("reserve"), _fn("publish"),
+        'cd "$1"',
+        'echo payload > src.json',
+        '( reserve out.json ) && echo "R1=OK" || echo "R1=REFUSED"',
+        '( reserve out.json ) && echo "R2=OK" || echo "R2=REFUSED"',
+        'echo squatter > taken.json',
+        '( reserve taken.json ) && echo "R3=OK" || echo "R3=REFUSED"',
+        '( publish src.json out.json ) && echo "P1=OK" || echo "P1=REFUSED"',
+        'echo other > held.json',
+        '( publish src.json held.json ) && echo "P2=OK" || echo "P2=REFUSED"',
+    ])
+    script = tmp_path / "harness.sh"
+    script.write_text(harness + "\n")
+    proc = subprocess.run(["bash", str(script), str(tmp_path)],
+                          capture_output=True, text=True)
+    out = proc.stdout
+    assert "R1=OK" in out, f"first reservation must succeed:\n{out}\n{proc.stderr}"
+    assert "R2=REFUSED" in out, f"second reservation must refuse (atomicity):\n{out}"
+    assert "R3=REFUSED" in out, f"reserving over an existing final artifact must refuse:\n{out}"
+    assert "P1=OK" in out, f"publishing to a reserved-free destination must succeed:\n{out}"
+    assert (tmp_path / "out.json").read_text() == "payload\n"
+    assert "P2=REFUSED" in out, f"publishing onto a taken destination must refuse:\n{out}"
+    assert (tmp_path / "held.json").read_text() == "other\n", (
+        "the losing publish must leave the existing destination untouched"
+    )
+    assert not list(tmp_path.glob("*.tmp.*")), "no staging tmp files may survive"
 
 
 def test_eval_sbatch_appends_the_import_sha_manifest():
@@ -1106,11 +1182,17 @@ def gen():
 
 def test_generator_registers_the_full_exp06_pending_row_matrix(gen):
     """@40k/@67.5k x K{1,8} x ONLINE/EMA = 8 row specs, globbing the exp06n eval-name
-    family over the exp_06 records folder (mirrors the exp03n/exp04n row-spec shape)."""
+    family over the exp_06 records folder, each carrying the r2-R3 provenance VALIDATOR
+    as a 5th element (mirrors the exp03n/exp04n 4-tuple shape otherwise)."""
     exp06_rows = [r for r in gen.ROWS if "exp_06" in r[0]]
     assert len(exp06_rows) == 8, f"expected 8 exp_06 row specs, got {len(exp06_rows)}"
     seen = set()
-    for label, proto, k, patterns in exp06_rows:
+    for row in exp06_rows:
+        assert len(row) == 5, (
+            f"exp_06 row specs must carry the provenance validator (r2 R3): {row[0]}"
+        )
+        label, proto, k, patterns, validate = row
+        assert callable(validate), f"row validator is not callable: {label}"
         assert "max_linear" in label, label
         assert proto.startswith("fa eval, bf16, "), proto
         stream = "online" if "ONLINE" in proto else "ema"
@@ -1143,10 +1225,110 @@ def test_generator_renders_the_exp06_rows_as_pending_until_raws_exist(gen):
 
 
 def test_generator_exp03_exp04_row_specs_are_untouched(gen):
-    """The exp06 append must not disturb the existing registered rows."""
-    assert len([r for r in gen.ROWS if "exp_03" in r[0]]) == 8
-    assert len([r for r in gen.ROWS if "exp_04" in r[0]]) == 8
-    assert len([r for r in gen.ROWS if r[0].startswith("P1 ")]) == 4
+    """The exp06 append must not disturb the existing registered rows — same count, same
+    4-tuple shape, NO validator retrofitted (r2 R3 scopes validation to the NEW rows;
+    generalizing to older rows is deliberate follow-up, not this diff)."""
+    for token, count in (("exp_03", 8), ("exp_04", 8)):
+        rows = [r for r in gen.ROWS if token in r[0]]
+        assert len(rows) == count
+        assert all(len(r) == 4 for r in rows), f"{token} rows must stay 4-tuples"
+    p1_rows = [r for r in gen.ROWS if r[0].startswith("P1 ")]
+    assert len(p1_rows) == 4 and all(len(r) == 4 for r in p1_rows)
+
+
+# --- r2 R3 functional: the validator must reject wrong-protocol / wrong-arm / bad-seed
+# raws as HARD errors naming the file, accept a clean 5-seed row, and let short rows
+# stay pending. Exercised on synthetic raws in tmp dirs, via the REAL aggregate path. --- #
+_VALID_METRICS = {"T60": 1.0, "Invalid T60": 0.0, "C50": 0.5, "EDT": 2.0, "FD": 0.1,
+                  "RIR_to_GT_RIR_R@1": 10.0, "RIR_to_GT_RIR_R@5": 20.0,
+                  "RIR_to_GT_RIR_R@10": 30.0}
+
+
+def _write_raw(dirpath, seed, *, step="40000", stream="online", k=1, epoch=8, **overrides):
+    record = {
+        "metrics": dict(_VALID_METRICS),
+        "ckpt_path": (f"/n/fs/gatrdp/outputs/exp06n_maxpoollinear/FLAC_exp06n_maxpoollinear/"
+                      f"exp06n_maxpoollinear/checkpoints/epoch={epoch}-step={step}.ckpt"),
+        "rotate_deg": 0.0,
+        "cond_method": "fa_invariant",
+        "frame_avg_angles": [0.0],
+        "cond_autocast": "bf16",
+    }
+    record.update(overrides)
+    name = (f"epoch={epoch}-step={step}_metrics_1_1.0_"
+            f"exp06n_{step}_{stream}_K{k}_s{seed}_fa_invariant_a1.json")
+    path = Path(dirpath) / name
+    path.write_text(json.dumps(record) + "\n")
+    return path
+
+
+def _exp06_row(gen, dirpath, *, step="40000", stream="online", k=1):
+    return ("cyl no-SSL max_linear @40k (exp_06)", f"fa eval, bf16, {stream.upper()}", k,
+            [str(Path(dirpath) / f"*exp06n_{step}_{stream}_K{k}_s*.json")],
+            gen.make_exp06_validator(step))
+
+
+def test_generator_validator_accepts_a_clean_five_seed_row(gen, tmp_path):
+    for seed in range(42, 47):
+        _write_raw(tmp_path, seed)
+    body = gen.render_body([_exp06_row(gen, tmp_path)])
+    line = [l for l in body.splitlines() if l.startswith("| cyl no-SSL max_linear")][0]
+    assert "pending" not in line, line
+    assert "| 5 |" in line, line
+
+
+def test_generator_validator_keeps_a_short_row_pending_without_error(gen, tmp_path):
+    for seed in (42, 43, 44):
+        _write_raw(tmp_path, seed)
+    body = gen.render_body([_exp06_row(gen, tmp_path)])
+    line = [l for l in body.splitlines() if l.startswith("| cyl no-SSL max_linear")][0]
+    assert "*pending (3/5" in line, line
+
+
+@pytest.mark.parametrize("overrides, match", [
+    ({"cond_method": "vanilla"}, "cond_method"),
+    ({"cond_autocast": "default"}, "cond_autocast"),
+    ({"rotate_deg": 90.0}, "rotate_deg"),
+    ({"frame_avg_angles": [0.0, 90.0, 180.0, 270.0]}, "frame_avg_angles"),
+    # a WRONG-ARM raw renamed into the exp06 family: recorded ckpt_path betrays it
+    ({"ckpt_path": "/n/fs/gatrdp/outputs/exp03n_maxpoolmlp/FLAC_exp03n_maxpoolmlp/"
+                   "exp03n_maxpoolmlp/checkpoints/epoch=8-step=40000.ckpt"}, "save dir|ckpt_path"),
+    # right arm, WRONG STEP checkpoint under a 40000-named eval
+    ({"ckpt_path": "/n/fs/gatrdp/outputs/exp06n_maxpoollinear/FLAC_exp06n_maxpoollinear/"
+                   "exp06n_maxpoollinear/checkpoints/epoch=14-step=67500.ckpt"}, "step"),
+])
+def test_generator_validator_hard_errors_on_wrong_provenance(gen, tmp_path, overrides, match):
+    for seed in (42, 43, 44, 45):
+        _write_raw(tmp_path, seed)
+    bad = _write_raw(tmp_path, 46, **overrides)
+    with pytest.raises(RuntimeError, match=match) as excinfo:
+        gen.render_body([_exp06_row(gen, tmp_path)])
+    assert bad.name in str(excinfo.value), (
+        "the hard error must NAME the violating file (never a silent skip)"
+    )
+
+
+def test_generator_validator_hard_errors_on_seed_violations(gen, tmp_path):
+    # duplicate seed (5 files, distinct names via epoch, seeds 42,42,43,44,45)
+    for seed, epoch in ((42, 8), (42, 9), (43, 8), (44, 8), (45, 8)):
+        _write_raw(tmp_path, seed, epoch=epoch)
+    with pytest.raises(RuntimeError, match="seed"):
+        gen.render_body([_exp06_row(gen, tmp_path)])
+
+    out_of_range = tmp_path / "range"
+    out_of_range.mkdir()
+    for seed in (42, 43, 44, 45, 47):
+        _write_raw(out_of_range, seed)
+    with pytest.raises(RuntimeError, match="seed|42"):
+        gen.render_body([_exp06_row(gen, out_of_range)])
+
+    leak = tmp_path / "leak"
+    leak.mkdir()
+    for seed in range(42, 47):
+        _write_raw(leak, seed)
+    _write_raw(leak, 46, epoch=9)   # a 6th matching file
+    with pytest.raises(RuntimeError, match="more than|leak|seed"):
+        gen.render_body([_exp06_row(gen, leak)])
 
 
 def _assert_manifest_scaffold(path: Path):
