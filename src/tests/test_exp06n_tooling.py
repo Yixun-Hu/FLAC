@@ -821,23 +821,31 @@ def test_slurm_wrappers_are_renamed_exp03n_plus_marked_diffs_only(exp06n, exp03n
             )
 
 
-# --- review r3 F1: unset-list sweeps are DEFEATED by exported functions (a crafted
-# BASH_FUNC_unset%% makes the sweep a no-op; BASH_FUNC_bash%% re-exports before the child
-# bash invocation). The remedy is WHITELIST RE-EXEC: the FIRST executable line of every
-# wrapper re-execs itself through `/usr/bin/env -i` (drops EVERY inherited variable,
-# exported functions included) passing through ONLY the enumerated interface. The
-# dangerous overrides must NOT appear in any whitelist. ------------------------------- #
+# --- review r3 F1 / r4 residual: the r3 guard TRUSTED an inherited marker
+# (EXP06N_ENV_CLEAN pre-set => env -i skipped) and its `[`/`exec` names were shadowable by
+# imported exported functions. r4 kills the class in three unshadowable layers:
+#   1. `#SBATCH --export=NONE` + a documented explicit-whitelist submission contract —
+#      with a non-ALL export list Slurm never propagates BASH_FUNC_* into the job at all;
+#   2. FIRST executable line: a detector built ONLY from slash-path commands (function
+#      lookup never applies to names containing a slash; `if`/`then` are keywords) that
+#      REFUSES any env carrying BASH_FUNC_* (a wrong ALL-export submission);
+#   3. a marker-free `env -i` whitelist re-exec conditioned on OBSERVED dirt via the same
+#      slash-path pipeline — recursion terminates because the re-exec'd env contains no
+#      dirt; there is no marker to forge, and exec only runs in envs the detector proved
+#      function-free. The dangerous overrides must NOT appear in any whitelist. -------- #
 _FORBIDDEN_PASSTHROUGH = ("C1_FROZEN_MIN_FREE_FILE", "EXP06N_LOG_DIR", "MIN_FREE_MB",
                           "CKPT_PATH", "SAVE", "BASH_ENV", "ENV", "PYTHONPATH")
+_DIRT_VARS = ("C1_FROZEN_MIN_FREE_FILE", "MIN_FREE_MB", "EXP06N_LOG_DIR", "SAVE",
+              "CKPT_PATH", "BASH_ENV", "ENV")
 
-_REEXEC_COMMON = ("EXP06N_ENV_CLEAN=1", "PATH=/usr/bin:/bin",
-                  "EXPECT_PACKAGE_SHA=", "EXPECT_EXP06_SHA=")
+_REEXEC_COMMON = ("PATH=/usr/bin:/bin", "EXPECT_PACKAGE_SHA=", "EXPECT_EXP06_SHA=")
 _REEXEC_PER_WRAPPER = {
     "train_exp06n.sbatch": ("SLURM_JOB_ID=", "SLURM_NNODES=", "SLURM_NTASKS="),
     "probe_exp06n.sbatch": ("SLURM_JOB_ID=", "SLURM_NNODES=", "SLURM_NTASKS="),
-    "eval_exp06n.sbatch": ("STEP=", "STREAM=", "DRY_RUN=", "SLURM_ARRAY_TASK_ID=",
+    "eval_exp06n.sbatch": ("STEP=", "K=", "STREAM=", "DRY_RUN=", "SLURM_ARRAY_TASK_ID=",
                            "SLURM_JOB_ID=", "SLURM_NNODES=", "SLURM_NTASKS="),
 }
+_WRAPPERS = ["train_exp06n.sbatch", "probe_exp06n.sbatch", "eval_exp06n.sbatch"]
 
 
 def _first_executable_line(text):
@@ -849,26 +857,59 @@ def _first_executable_line(text):
     pytest.fail("wrapper has no executable line")
 
 
-@pytest.mark.parametrize("name", ["train_exp06n.sbatch", "probe_exp06n.sbatch",
-                                  "eval_exp06n.sbatch"])
-def test_wrapper_first_executable_line_is_the_whitelist_reexec_guard(name):
+@pytest.mark.parametrize("name", _WRAPPERS)
+def test_wrapper_declares_export_none_and_the_submission_contract(name):
+    text = _sbatch(name)
+    assert "#SBATCH --export=NONE" in text, (
+        f"{name}: the scheduler-level layer (#SBATCH --export=NONE) is missing (r4 F1.1)"
+    )
+    assert "--export=ALL" not in text, (
+        f"{name}: the wrapper must never mention (or invite) an ALL export"
+    )
+    assert "sbatch --export=EXPECT_" in text, (
+        f"{name}: the header must document the explicit-whitelist submission contract"
+    )
+    if name == "eval_exp06n.sbatch":
+        assert "--export=STEP=" in text, (
+            "the eval contract example must show the full cell interface (STEP/K/STREAM + pins)"
+        )
+
+
+@pytest.mark.parametrize("name", _WRAPPERS)
+def test_wrapper_first_executable_line_is_the_unshadowable_detector(name):
     text = _sbatch(name)
     first = _first_executable_line(text)
-    assert '[ -n "${EXP06N_ENV_CLEAN:-}" ] || exec /usr/bin/env -i' in first, (
-        f"{name}: the whitelist re-exec guard must be the FIRST executable line "
-        f"(anything earlier runs in the attacker-controlled env); got: {first[:120]}"
+    assert first.startswith("if /usr/bin/env | /usr/bin/grep -q '^BASH_FUNC_'"), (
+        f"{name}: the FIRST executable line must be the slash-path BASH_FUNC_ detector "
+        f"(nothing shadowable may run before it); got: {first[:120]}"
     )
-    assert '/bin/bash "$0" "$@"' in first, f"{name}: the guard must re-exec the wrapper itself"
+    assert "EXP06N_ENV_CLEAN" not in text, (
+        f"{name}: the r3 trusted marker must be GONE — a pre-settable marker is the r4 bypass"
+    )
+    # the refusal branch prints the submission contract
+    assert re.search(r"/usr/bin/printf[^\n]*--export=NONE", text) or re.search(
+        r"/usr/bin/printf[^\n]*sbatch --export=", text), (
+        f"{name}: the detector refusal must tell the operator HOW to resubmit correctly"
+    )
+    # the re-exec is conditioned on OBSERVED dirt via the same slash-path pipeline
+    dirt_alt = "|".join(_DIRT_VARS)
+    assert re.search(
+        rf"if /usr/bin/env \| /usr/bin/grep -qE '\^\({re.escape(dirt_alt)}\)='", text), (
+        f"{name}: the re-exec must trigger on the OBSERVED dirt list, not a trusted marker"
+    )
+    reexec_lines = [l for l in text.splitlines() if "exec /usr/bin/env -i" in l]
+    assert len(reexec_lines) == 1, f"{name}: exactly one env -i re-exec expected"
+    reexec = reexec_lines[0]
+    assert '/bin/bash "$0" "$@"' in reexec, f"{name}: the re-exec must re-run the wrapper itself"
     for token in _REEXEC_COMMON + _REEXEC_PER_WRAPPER[name]:
-        assert token in first, f"{name}: whitelist must pass through {token!r}"
+        assert token in reexec, f"{name}: whitelist must pass through {token!r}"
     for var in _FORBIDDEN_PASSTHROUGH:
-        assert f" {var}=" not in first, (
+        assert f" {var}=" not in reexec, (
             f"{name}: {var} must NOT survive the re-exec (it is the attack surface)"
         )
 
 
-@pytest.mark.parametrize("name", ["train_exp06n.sbatch", "probe_exp06n.sbatch",
-                                  "eval_exp06n.sbatch"])
+@pytest.mark.parametrize("name", _WRAPPERS)
 def test_wrapper_has_no_unset_sweep_left(name):
     """The unset-list approach is SUPERSEDED (r3 F1): keeping it would suggest it still
     carries protection. Only the original `unset PYTHONPATH` baseline line may remain."""
@@ -879,16 +920,71 @@ def test_wrapper_has_no_unset_sweep_left(name):
         )
 
 
+def _guard_block(text):
+    """The wrapper's verbatim guard: from the first executable line (the detector) through
+    the closing ``fi`` of the dirt-conditioned re-exec block."""
+    lines = text.splitlines()
+    start = None
+    fi_seen = 0
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if start is None:
+            if stripped and not stripped.startswith("#"):
+                start = i
+                assert stripped.startswith("if /usr/bin/env"), stripped[:80]
+            continue
+        if stripped.startswith("fi"):
+            fi_seen += 1
+            if fi_seen == 2:
+                return "\n".join(lines[start:i + 1])
+    pytest.fail("guard block (detector + dirt-conditioned re-exec) not found")
+
+
+@pytest.mark.parametrize("name", _WRAPPERS)
+@pytest.mark.parametrize("case", ["bash_func_bracket", "bash_func_exec", "stale_marker"])
+def test_wrapper_guard_survives_the_r4_attack_matrix(name, case, tmp_path):
+    """FUNCTIONAL (r4 F1.4): run the wrapper's VERBATIM guard block followed by an env
+    probe. A poisoned ``BASH_FUNC_[`` / ``BASH_FUNC_exec`` env must end in the DETECTOR
+    refusal (before any shadowable name runs); a stale EXP06N_ENV_CLEAN marker plus dirt
+    must end in a clean re-exec. In EVERY case the frozen-file poison must not survive."""
+    harness = "\n".join([
+        _guard_block(_sbatch(name)),
+        "C1_COUNT=$(/usr/bin/env | /usr/bin/grep -c '^C1_FROZEN_MIN_FREE_FILE=' || true)",
+        'echo "C1_COUNT=${C1_COUNT}"',
+    ])
+    script = tmp_path / f"guard_{name}.sh"
+    script.write_text(harness + "\n")
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path),
+           "C1_FROZEN_MIN_FREE_FILE": "/evil/frozen.txt"}
+    if case == "bash_func_bracket":
+        env["BASH_FUNC_[%%"] = "() { return 0; }"
+    elif case == "bash_func_exec":
+        env["BASH_FUNC_exec%%"] = "() { :; }"
+    else:
+        env["EXP06N_ENV_CLEAN"] = "1"   # the r3 bypass: a forged 'already clean' marker
+    proc = subprocess.run(["bash", str(script)], capture_output=True, text=True, env=env)
+    out = proc.stdout + proc.stderr
+    if case in ("bash_func_bracket", "bash_func_exec"):
+        assert proc.returncode != 0, f"{name}/{case}: the detector must REFUSE:\n{out}"
+        assert "BASH_FUNC" in out or "exported shell functions" in out, out
+        assert "C1_COUNT" not in out, "nothing after the detector may run in a poisoned env"
+    else:
+        assert proc.returncode == 0, f"{name}/{case}: clean re-exec expected:\n{out}"
+        assert "C1_COUNT=0" in out, (
+            f"{name}/{case}: the frozen-file poison SURVIVED a forged clean-marker env:\n{out}"
+        )
+
+
 def test_eval_dry_run_works_through_the_reexec_guard(tmp_path):
-    """END-TO-END: the dry run traverses the guard (subprocess env is NOT pre-cleaned),
-    so a passing dry run proves the whitelist forwards the whole eval interface — and a
-    poisoned inheritable plus an exported-function payload must be dropped by env -i."""
+    """END-TO-END: a function-free but DIRTY submission env traverses detector + re-exec,
+    and the dry run still renders — proving the whitelist forwards the whole eval
+    interface while the dirt is dropped."""
     env = dict(os.environ)
+    env.pop("EXP06N_ENV_CLEAN", None)
     env.update(DRY_RUN="1", STEP="40000", STREAM="online",
                EXPECT_PACKAGE_SHA="deadbeefdeadbeef", EXPECT_EXP06_SHA="cafebabecafebabe",
                SLURM_ARRAY_TASK_ID="3",
-               C1_FROZEN_MIN_FREE_FILE="/evil/frozen.txt",
-               **{"BASH_FUNC_poison%%": "() { echo poisoned; }"})
+               C1_FROZEN_MIN_FREE_FILE="/evil/frozen.txt")
     path = _SLURM_DIR / "eval_exp06n.sbatch"
     if not _SLURM_DIR.exists():
         pytest.skip(f"cylindrical slurm_neuronic checkout not present at {_SLURM_DIR}")
@@ -901,8 +997,25 @@ def test_eval_dry_run_works_through_the_reexec_guard(tmp_path):
     assert "K: 1  SEED: 45" in proc.stdout, (
         "SLURM_ARRAY_TASK_ID must survive the re-exec (idx 3 -> K1 seed 45)"
     )
-    assert "poisoned" not in proc.stdout, "the exported-function payload must be dropped"
     assert list(tmp_path.iterdir()) == [], "the dry run must stay side-effect free"
+
+
+def test_eval_dry_run_refuses_a_function_carrying_env(tmp_path):
+    """A BASH_FUNC_* payload (an ALL-export submission) must hit the detector refusal —
+    never reach the dry run."""
+    env = dict(os.environ)
+    env.update(DRY_RUN="1", STEP="40000", STREAM="online",
+               EXPECT_PACKAGE_SHA="x", EXPECT_EXP06_SHA="y", SLURM_ARRAY_TASK_ID="0",
+               **{"BASH_FUNC_poison%%": "() { echo poisoned; }"})
+    path = _SLURM_DIR / "eval_exp06n.sbatch"
+    if not _SLURM_DIR.exists():
+        pytest.skip("cylindrical slurm_neuronic checkout not present")
+    proc = subprocess.run(["bash", str(path)], capture_output=True, text=True, env=env,
+                          cwd=str(tmp_path))
+    assert proc.returncode != 0, "a function-carrying env must be refused by the detector"
+    assert "DRY_RUN (nothing executed" not in proc.stdout
+    assert "poisoned" not in proc.stdout + proc.stderr
+    assert list(tmp_path.iterdir()) == []
 
 
 @pytest.mark.parametrize("name,gpus", [("train_exp06n.sbatch", "2"), ("probe_exp06n.sbatch", "2")])
@@ -1537,6 +1650,13 @@ def test_generator_validator_hard_errors_on_wrong_provenance(gen, tmp_path, over
     ({"seed": 43}, "seed"),
     ({"eval_name": "exp06n_40000_ema_K1_s43"}, "eval_name"),
     ({"ckpt_path": "/somewhere/else/epoch=8-step=40000.ckpt"}, "ckpt_path"),
+    # r4 advisory: ckpt_sha256 must be EXACTLY 64 lowercase hex — a missing or all-null
+    # value is technically cell-constant and would otherwise slip the uniformity check
+    ({"ckpt_sha256": None}, "ckpt_sha256"),
+    ({"ckpt_sha256": ""}, "ckpt_sha256"),
+    ({"ckpt_sha256": "c" * 63}, "ckpt_sha256"),
+    ({"ckpt_sha256": "C" * 64}, "ckpt_sha256"),
+    ({"ckpt_sha256": "g" * 64}, "ckpt_sha256"),
 ])
 def test_generator_validator_hard_errors_on_sidecar_mismatch(gen, tmp_path, meta_overrides, match):
     for seed in (42, 43, 44, 45):
