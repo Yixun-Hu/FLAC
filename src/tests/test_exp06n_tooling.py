@@ -917,13 +917,20 @@ _FORBIDDEN_PASSTHROUGH = ("C1_FROZEN_MIN_FREE_FILE", "EXP06N_LOG_DIR", "MIN_FREE
 _DIRT_VARS = ("C1_FROZEN_MIN_FREE_FILE", "MIN_FREE_MB", "EXP06N_LOG_DIR", "SAVE",
               "CKPT_PATH", "BASH_ENV", "ENV")
 
-_REEXEC_COMMON = ("PATH=/usr/bin:/bin", "EXPECT_PACKAGE_SHA=", "EXPECT_EXP06_SHA=")
+# r8 (field: probe 3667698 crashed in Lightning's SLURMEnvironment, KeyError SLURM_NODEID):
+# the scheduler set is forwarded DYNAMICALLY — an array built by slash-path reads inside
+# the trigger branch — because Lightning/DDP needs the FULL ^SLURM_ namespace (NODEID,
+# LOCALID, PROCID, ...), not a hand-picked subset. The array form is REQUIRED
+# (SLURM_JOB_NAME may contain spaces; $(...) word-splitting would shred it).
+_REEXEC_COMMON = ("PATH=/usr/bin:/bin", "EXPECT_PACKAGE_SHA=", "EXPECT_EXP06_SHA=",
+                  "DRY_RUN=", '"${SLURM_PASS[@]}"')
 _REEXEC_PER_WRAPPER = {
-    "train_exp06n.sbatch": ("SLURM_JOB_ID=", "SLURM_NNODES=", "SLURM_NTASKS="),
-    "probe_exp06n.sbatch": ("SLURM_JOB_ID=", "SLURM_NNODES=", "SLURM_NTASKS="),
-    "eval_exp06n.sbatch": ("STEP=", "K=", "STREAM=", "DRY_RUN=", "SLURM_ARRAY_TASK_ID=",
-                           "SLURM_JOB_ID=", "SLURM_NNODES=", "SLURM_NTASKS="),
+    "train_exp06n.sbatch": (),
+    "probe_exp06n.sbatch": (),
+    "eval_exp06n.sbatch": ("STEP=", "K=", "STREAM="),
 }
+_SLURM_PASS_BLOCK = ("SLURM_PASS=(); while IFS= read -r kv; do SLURM_PASS+=(\"$kv\"); done "
+                     "< <(/usr/bin/env | /usr/bin/grep '^SLURM_')")
 _WRAPPERS = ["train_exp06n.sbatch", "probe_exp06n.sbatch", "eval_exp06n.sbatch"]
 
 
@@ -1000,6 +1007,23 @@ def test_wrapper_first_executable_line_is_the_sanitizing_guard(name):
         assert f" {var}=" not in reexec, (
             f"{name}: {var} must NOT survive the re-exec (it is the attack surface)"
         )
+    # r8: the FULL scheduler set is forwarded via the dynamic array, and no hand-picked
+    # static SLURM_ entry may remain (a subset is exactly the Lightning KeyError bug)
+    assert _SLURM_PASS_BLOCK in text, (
+        f"{name}: the dynamic SLURM_ forwarding block (array via slash-path reads) is "
+        "missing — Lightning needs the full ^SLURM_ namespace (field: job 3667698)"
+    )
+    assert text.index(_SLURM_PASS_BLOCK) < text.index("exec /usr/bin/env -i"), (
+        f"{name}: the SLURM_ array must be built inside the trigger branch BEFORE the exec"
+    )
+    assert not re.search(r" SLURM_[A-Z_]+=", reexec), (
+        f"{name}: static SLURM_ whitelist entries are superseded by the dynamic array "
+        "(a hand-picked subset re-creates the KeyError)"
+    )
+    assert "read builtin" in text, (
+        f"{name}: the residual note must cover the pre-sanitization read builtin in the "
+        "forwarding loop (same accepted class as the bare exec)"
+    )
     # the POST-SANITIZATION ASSERT is the fail-closed detector: it refuses (with the
     # submission contract) and sits AFTER the re-exec block
     assert re.search(r"/usr/bin/printf[^\n]*sbatch --export=", text), (
@@ -1100,6 +1124,54 @@ def test_wrapper_guard_sanitizes_the_r5_matrix(name, case, tmp_path):
         assert "SURVIVED sanitization" not in out, (
             f"{name}/{case}: the post-assert must PASS on the sanitized child:\n{out}"
         )
+
+
+_FAKE_SLURM = {
+    "SLURM_JOB_ID": "3667698",
+    "SLURM_NODEID": "0",
+    "SLURM_PROCID": "1",
+    "SLURM_JOB_NAME": "exp06n probe run",   # the space is the point: array forwarding only
+}
+
+
+@pytest.mark.parametrize("name", _WRAPPERS)
+def test_wrapper_guard_forwards_the_full_slurm_env_byte_exactly(name, tmp_path):
+    """FUNCTIONAL (r8, field job 3667698): under the measured neuronic condition (module
+    functions + dirt) the sanitizing re-exec must retain EVERY ^SLURM_ variable
+    byte-exactly — including one with a space — while the functions and the dirt die.
+    Lightning's SLURMEnvironment reads SLURM_NODEID/PROCID/...; a hand-picked whitelist
+    subset is exactly the KeyError crash."""
+    harness = "\n".join([
+        _guard_block(_sbatch(name)),
+        "C1_COUNT=$(/usr/bin/env | /usr/bin/grep -c '^C1_FROZEN_MIN_FREE_FILE=' || true)",
+        'echo "C1_COUNT=${C1_COUNT}"',
+        "FUNC_COUNT=$(/usr/bin/env | /usr/bin/grep -c '^BASH_FUNC_' || true)",
+        'echo "FUNC_COUNT=${FUNC_COUNT}"',
+        'echo "JOBID=[${SLURM_JOB_ID:-MISSING}]"',
+        'echo "NODEID=[${SLURM_NODEID:-MISSING}]"',
+        'echo "PROCID=[${SLURM_PROCID:-MISSING}]"',
+        'echo "JOBNAME=[${SLURM_JOB_NAME:-MISSING}]"',
+    ])
+    script = tmp_path / f"slurm_{name}.sh"
+    script.write_text(harness + "\n")
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path),
+           "C1_FROZEN_MIN_FREE_FILE": "/evil/frozen.txt"}
+    env.update(_MEASURED_MODULE_FUNCS)
+    env.update(_FAKE_SLURM)
+    proc = subprocess.run(["bash", str(script)], capture_output=True, text=True, env=env)
+    out = proc.stdout + proc.stderr
+    assert proc.returncode == 0, f"{name}: sanitizing re-exec failed:\n{out}"
+    assert "C1_COUNT=0" in out, f"{name}: the dirt survived:\n{out}"
+    assert "FUNC_COUNT=0" in out, f"{name}: module functions survived into the child:\n{out}"
+    assert "JOBID=[3667698]" in out, f"{name}: SLURM_JOB_ID lost/mangled:\n{out}"
+    assert "NODEID=[0]" in out, (
+        f"{name}: SLURM_NODEID lost — Lightning's SLURMEnvironment KeyError again:\n{out}"
+    )
+    assert "PROCID=[1]" in out, f"{name}: SLURM_PROCID lost:\n{out}"
+    assert "JOBNAME=[exp06n probe run]" in out, (
+        f"{name}: the space-containing SLURM_JOB_NAME was shredded — the forwarding must "
+        f"be the ARRAY form, never $(...) word-splitting:\n{out}"
+    )
 
 
 @pytest.mark.parametrize("name", _WRAPPERS)
