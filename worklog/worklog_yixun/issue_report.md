@@ -10,6 +10,8 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 
 ## Open issues / caveats (technical)
 
+0. **`CLAUDE.md` is gitignored and machine-local** (`.gitignore:177`, never tracked). Guidance written there does not reach the cluster session's checkout; the cross-machine channels are `announcement/*.md` + the four handoff docs. The eval-protocol rule was therefore promoted to `announcement/05_eval_protocol_flags.md`. **Awaiting Yixun: track CLAUDE.md, or keep it deliberately local?** Not changed unilaterally.
+
 1. **Late checkpoints are band draws, not trajectory points.** InverseLR holds lr ≈ 4.8e-5 through the whole run, so adjacent checkpoints swing ~±0.5 T60 / ~±2 EDT. This distorted three readings before it was quantified (B-V's band-max 67.5k endpoint; fa-scratch's band-best 40k spike; fa-scratch's band-worst 67.5k endpoint). exp_13 showed a decaying tail halves the band but lands on a different metric trade point rather than reproducing a wide-band best draw. **Mitigation, now standing: pre-registered window selection + held-out eval-seed confirmation; never quote a single screen as a result.**
 2. **Eval-protocol flags must be declared per arm.** `--cond-method vanilla|fa_invariant` mismatch yields plausible-but-catastrophic numbers in both directions (see HANDOFF "Load-bearing facts"). Root cause of exp_09's protocol error and the retracted exp_07 B-F conclusion. Now mandated in every launch/screen manifest.
 3. **DINOv3 initializer provenance** — the authors' snapshot revision is unknowable; ours is pinned (`114c1379…` / `4610ad75…`) and enforced fail-closed. Affects absolute-parity readings only.
