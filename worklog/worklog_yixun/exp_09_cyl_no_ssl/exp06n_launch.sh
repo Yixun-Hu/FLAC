@@ -22,7 +22,7 @@
 # ============================================================================
 set -uo pipefail
 cd /n/fs/gatrdp/codespace/exp06-maxpool-linear-cond || exit 3   # EXP06 DIFF 2/19: absolute worktree root for THIS cluster (handoff §3.2 hardcoded-root trap; the launcher is invoked from a Slurm wrapper in the cylindrical repo)
-export PYTHONPATH=/n/fs/gatrdp/codespace/cylindrical-dinov3/src   # EXP06 DIFF 3/19: process-local package src (reviewed convention; nothing installed into the conda env)
+export PYTHONPATH=/n/fs/gatrdp/codespace/cyl-pkg-exp09rerun/src   # EXP06 DIFF 3/19: process-local package src from the PINNED worktree @ fae735e2 (registered bytes, shared with exp_03/04/05) - the MAIN repo src drifted at 853a075 (/n/fs/gatrdp/codespace/cylindrical-dinov3/src now carries exp_12 knobs); reviewed convention, nothing installed into the conda env
 
 EXPDIR="worklog/worklog_yixun/exp_09_cyl_no_ssl"
 LOGGER="${LOGGER:-wandb}"
@@ -97,7 +97,7 @@ fi
 # (fail-closed, as B-F). Offline so the gate's own model construction cannot
 # contact the Hub and mutate the cache it just validated.
 EXPECT_PACKAGE_SHA="${EXPECT_PACKAGE_SHA:-}"; EXPECT_EXP06_SHA="${EXPECT_EXP06_SHA:-}"; [ -n "$EXPECT_PACKAGE_SHA" ] && [ -n "$EXPECT_EXP06_SHA" ] || { echo "REFUSING TO LAUNCH: both EXPECT_PACKAGE_SHA (cylindrical-dinov3 HEAD) and EXPECT_EXP06_SHA (worktree HEAD) must be set - no defaults, no fallback set"; exit 3; }   # EXP06 DIFF 8/19: BOTH pins REQUIRED
-HF_HUB_OFFLINE=1 python "${EXPDIR}/assert_arm_configs_exp06n.py" --expect-package-sha "$EXPECT_PACKAGE_SHA" --expect-exp06-sha "$EXPECT_EXP06_SHA" || { echo "GATE FAILED - abort"; exit 1; }   # EXP06 DIFF 9/19: exp06n gate (config contract + live arm wiring + bitwise common-init)
+HF_HUB_OFFLINE=1 CYL_SRC_PREFIX=/n/fs/gatrdp/codespace/cyl-pkg-exp09rerun/src/cylindrical_dinov3/ python "${EXPDIR}/assert_arm_configs_exp06n.py" --expect-package-sha "$EXPECT_PACKAGE_SHA" --expect-exp06-sha "$EXPECT_EXP06_SHA" || { echo "GATE FAILED - abort"; exit 1; }   # EXP06 DIFF 9/19: exp06n gate (config contract + live arm wiring + bitwise common-init), import-path pinned to the SAME worktree via CYL_SRC_PREFIX
 
 echo "--- env manifest ---"
 python -c "import torch; print('torch', torch.__version__, 'cuda', torch.version.cuda)"

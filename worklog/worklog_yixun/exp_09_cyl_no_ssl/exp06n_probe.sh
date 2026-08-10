@@ -7,10 +7,10 @@
 #   phase A: fresh run, 30 steps, checkpoint every 10  -> assert a step-30 ckpt exists;
 #   phase B: RESUME from that ckpt to ABSOLUTE step 40 -> assert a step-40 ckpt exists.
 # It samples per-rank VRAM throughout and PRINTS the measured peak, the RECOMMENDED frozen
-# free-VRAM value (peak x 1.15) and the checkpoint size, and (exp_06 plan B5) WRITES that value   # EXP06 PROBE DIFF 1/9
-# into exp06n_frozen_min_free.txt ITSELF - exp_06's OWN measurement, never an inherited number -   # EXP06 PROBE DIFF 2/9
-# refusing to run at all if the file already exists, so a reviewed frozen value is never   # EXP06 PROBE DIFF 3/9
-# clobbered. The written file still goes through review + commit BEFORE the full launch.   # EXP06 PROBE DIFF 4/9
+# free-VRAM value (peak x 1.15) and the checkpoint size, and (exp_06 plan B5) WRITES that value   # EXP06 PROBE DIFF 1/11
+# into exp06n_frozen_min_free.txt ITSELF - exp_06's OWN measurement, never an inherited number -   # EXP06 PROBE DIFF 2/11
+# refusing to run at all if the file already exists, so a reviewed frozen value is never   # EXP06 PROBE DIFF 3/11
+# clobbered. The written file still goes through review + commit BEFORE the full launch.   # EXP06 PROBE DIFF 4/11
 #
 # Every OTHER gate is the launcher's, unchanged and fail-closed: the same BN-64 rung, the
 # same pin gate (assert_arm_configs_exp06n.py with BOTH pins REQUIRED), the same wandb
@@ -26,7 +26,7 @@
 # ============================================================================
 set -uo pipefail
 cd /n/fs/gatrdp/codespace/exp06-maxpool-linear-cond || exit 3   # absolute worktree root for THIS cluster
-export PYTHONPATH=/n/fs/gatrdp/codespace/cylindrical-dinov3/src   # process-local package src
+export PYTHONPATH=/n/fs/gatrdp/codespace/cyl-pkg-exp09rerun/src   # process-local package src from the PINNED worktree @ fae735e2 (main-repo src drifted at 853a075)   # EXP06 PROBE DIFF 5/11
 
 EXPDIR="worklog/worklog_yixun/exp_09_cyl_no_ssl"
 RECORDS="/n/fs/gatrdp/codespace/cylindrical-dinov3/worklog/worklog_yixun_neuronic/exp_06_maxpool_linear_cond_claude"
@@ -35,10 +35,10 @@ MB="${MB:-32}"; ACC="${ACC:-1}"
 SAVE="${SAVE:-/n/fs/gatrdp/outputs/exp06n_maxpoollinear_PROBE}"
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 LOG="${EXP06N_LOG_DIR:-$RECORDS}/maxpool_linear_cond_${TS}_j${SLURM_JOB_ID:-nojob}_probe.log"
-# The frozen free-VRAM file this probe WRITES at the end (see the header); it must NOT   # EXP06 PROBE DIFF 5/9
-# exist yet - refused right below, so a reviewed frozen value is never clobbered.   # EXP06 PROBE DIFF 6/9
+# The frozen free-VRAM file this probe WRITES at the end (see the header); it must NOT   # EXP06 PROBE DIFF 6/11
+# exist yet - refused right below, so a reviewed frozen value is never clobbered.   # EXP06 PROBE DIFF 7/11
 FROZEN_FILE="${EXPDIR}/exp06n_frozen_min_free.txt"
-[ ! -e "$FROZEN_FILE" ] || { echo "REFUSING: frozen-records file '${FROZEN_FILE}' already exists - this probe WRITES it and must not clobber a reviewed value; remove it deliberately (git) if a re-measure is intended."; exit 3; }   # EXP06 PROBE DIFF 7/9
+[ ! -e "$FROZEN_FILE" ] || { echo "REFUSING: frozen-records file '${FROZEN_FILE}' already exists - this probe WRITES it and must not clobber a reviewed value; remove it deliberately (git) if a re-measure is intended."; exit 3; }   # EXP06 PROBE DIFF 8/11
 # PROVISIONAL floor for the probe itself (B-F's inherited 21,900 MiB). The full launch binds
 # the value DERIVED below instead, and refuses without the records file.
 MIN_FREE_MB="${MIN_FREE_MB:-21900}"
@@ -87,7 +87,7 @@ PY
 fi
 
 # --- the launcher's pin + arm-wiring gate, bound to the SAME config the probe trains ---
-HF_HUB_OFFLINE=1 python "${EXPDIR}/assert_arm_configs_exp06n.py" --expect-package-sha "$EXPECT_PACKAGE_SHA" --expect-exp06-sha "$EXPECT_EXP06_SHA" || { echo "GATE FAILED - abort"; exit 1; }
+HF_HUB_OFFLINE=1 CYL_SRC_PREFIX=/n/fs/gatrdp/codespace/cyl-pkg-exp09rerun/src/cylindrical_dinov3/ python "${EXPDIR}/assert_arm_configs_exp06n.py" --expect-package-sha "$EXPECT_PACKAGE_SHA" --expect-exp06-sha "$EXPECT_EXP06_SHA" || { echo "GATE FAILED - abort"; exit 1; }   # EXP06 PROBE DIFF 9/11
 
 echo "--- env manifest ---"
 python -c "import torch; print('torch', torch.__version__, 'cuda', torch.version.cuda)"
@@ -132,6 +132,6 @@ RECOMMENDED=$(( (PEAK * 115 + 99) / 100 ))   # peak x 1.15, rounded UP
 echo "PEAK per-rank VRAM used (MiB): ${PEAK}"
 echo "RECOMMENDED frozen MIN_FREE_MB (peak x 1.15, round up): ${RECOMMENDED}"
 echo "CKPT size (bytes): $(stat -c%s "$CKPT30")"
-printf '%s\n' "$RECOMMENDED" > "$FROZEN_FILE" || { echo "PROBE FAIL: could not write ${FROZEN_FILE}"; exit 1; }   # EXP06 PROBE DIFF 8/9
-echo "FROZEN: wrote MIN_FREE_MB=${RECOMMENDED} into ${FROZEN_FILE} (exp_06's OWN measured value). NEXT STEP (records + review): review and commit it BEFORE the full launch; exp06n_launch.sh binds this exact value and REFUSES while the file is absent."   # EXP06 PROBE DIFF 9/9
+printf '%s\n' "$RECOMMENDED" > "$FROZEN_FILE" || { echo "PROBE FAIL: could not write ${FROZEN_FILE}"; exit 1; }   # EXP06 PROBE DIFF 10/11
+echo "FROZEN: wrote MIN_FREE_MB=${RECOMMENDED} into ${FROZEN_FILE} (exp_06's OWN measured value). NEXT STEP (records + review): review and commit it BEFORE the full launch; exp06n_launch.sh binds this exact value and REFUSES while the file is absent."   # EXP06 PROBE DIFF 11/11
 echo "PROBE PASS: save + resume validated (30 -> 40) with the exp06n max-pool + bare-Linear head"
