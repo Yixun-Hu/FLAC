@@ -1,0 +1,8 @@
+launched_at: 2026-08-08T17:15:53-04:00
+gpu: 1  arm: C  run: exp12C_ray12
+exp12_sha: 24bffe2d15c66262bf93ca6091b2daa836cb9866
+package_sha: 853a0758d07f60e079d265987979f98394db5773
+model_config_sha256: 2b88d691e4758210264375b7b787f682fcbb8bb36c2d2998584f23d00b10b64f
+train_manifest_sha256: aa4e52d616fc42e88d5e4952c7e7ff266347615a60f93a0590b707f5eeaead03
+command: CUDA_VISIBLE_DEVICES=1 python train.py --model-config worklog/worklog_yixun/exp_12_arms/FLAC_AR_exp12C.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 67500 --batch-size 32 --accum-batches 2 --num-workers 6 --seed 42 --num-gpus 1 --logger wandb --checkpoint-every 2500 --name exp12C_ray12 --experiment-name exp12C_ray12 --save-dir outputs_FLAC/exp12C_ray12
+pid: 1047081

@@ -495,6 +495,28 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                         attn_implementation="eager",
                     )
 
+                    # exp-12 arm B: replace the official weights with an SSL-adapted
+                    # backbone (ssl_train.py's export). Absent key -> untouched legacy
+                    # path. The arm knobs the SSL stage used are recorded in the export
+                    # and must match this config: a lowband-pretrained backbone silently
+                    # loaded into a ray12 run would be a different model, so it fails
+                    # closed rather than training for six days on a mismatch.
+                    ssl_ckpt = vit_config.get('ssl_ckpt', None)
+                    if ssl_ckpt is not None:
+                        blob = torch.load(ssl_ckpt, map_location="cpu")
+                        for key, want in (("azimuth_mode", azimuth_mode),
+                                          ("prefix_mode", prefix_mode)):
+                            got = blob.get(key)
+                            if got is not None and got != want:
+                                raise ValueError(
+                                    f"ssl_ckpt {ssl_ckpt} was pretrained with {key}={got!r} "
+                                    f"but this config requests {key}={want!r}."
+                                )
+                        vit_model.load_state_dict(blob["backbone"], strict=True)
+                        print(f"Loaded SSL backbone from {ssl_ckpt} "
+                              f"(SSL step {blob.get('step')}, azimuth_mode={blob.get('azimuth_mode')}, "
+                              f"prefix_mode={blob.get('prefix_mode')})")
+
                     if vit_config.get('freeze', False):
                         print('Freezing ViT model parameters...')
                         for param in vit_model.parameters():
