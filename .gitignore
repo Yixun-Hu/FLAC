@@ -174,7 +174,6 @@ build/*
 AcousticRooms/
 HAA/
 weights/
-CLAUDE.md
 outputs_FLAC/
 # raw training logs exceed GitHub 100MB; compact versions (*_train_compact.log) are committed instead
 worklog/worklog_yixun/**/*_train.log
