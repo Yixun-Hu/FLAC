@@ -258,6 +258,114 @@ expect_cmd "preflight rejects a missing running commit" 2 "no running commit" --
   "${PRE[@]}" --ckpt "${TMP}/good.ckpt" --expected-step 5000 \
      --launch-manifest "${TMP}/launch_manifest.txt"
 
+echo "--- G2. Q10: the JOB selects and enforces the RESTART time pin (re-pin fix 1) ---"
+# The submitter allocated 34/51/89 h for the restart legs, but the job selected
+# the INITIAL pin and then refused its own allocation. The pin the job enforces
+# must follow the LEG, not the arm.
+Q10_RUN="${OUT_ROOT}/exp11_C8/FLAC_exp11_C8/exp11_C8"
+mkdir -p "${Q10_RUN}/checkpoints"
+: > "${Q10_RUN}/checkpoints/epoch=8-step=40000.ckpt"
+Q10_ENV=(DRYRUN=1 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}" "${REPO_ENV[@]}")
+case_run "a RESTART leg selects the RESTART pin" 0 "time pin PINNED_TIME_LIMIT_RESTART_C8=51:00:00" \
+  -- "${Q10_ENV[@]}" ARM=C8 EXPECTED_STEP=40000 \
+     "RESUME_CKPT=${Q10_RUN}/checkpoints/epoch=8-step=40000.ckpt"
+case_run "an INITIAL launch keeps the INITIAL pin" 0 "time pin PINNED_TIME_LIMIT_C16=60:00:00" \
+  -- "${Q10_ENV[@]}" ARM=C16
+if grep -q 'the \${TIME_PIN_NAME} pin' "$LAUNCHER"; then
+  echo "PASS  the allocation gate names the pin it enforced"; PASS=$((PASS+1))
+else
+  echo "FAIL  the allocation gate does not enforce the SELECTED time pin"; FAIL=$((FAIL+1))
+fi
+# submitter and job must pick the same pin for the same leg
+SUB_RESTART="$(env DRYRUN=1 bash "$SUBMITTER" C16 --resume "${Q10_RUN}/checkpoints/epoch=8-step=40000.ckpt" --expected-step 40000 2>&1)"
+if echo "$SUB_RESTART" | grep -q "time 89:00:00"; then
+  echo "PASS  submitter and job agree on the C16 RESTART pin"; PASS=$((PASS+1))
+else
+  echo "FAIL  the submitter no longer allocates the C16 RESTART pin"; FAIL=$((FAIL+1))
+fi
+
+echo "--- G3. Q10: the 40k -> 100k EXTENSION preflight contract (re-pin fix 1) ---"
+# The ordinary restart contract requires manifest max_steps == this run's budget
+# and manifest commit == the running commit. An extension violates both BY
+# DESIGN, so it gets its own contract: the original launch identity is preserved
+# (audited manifest bytes, job/uuid/commit/config/save-dir/seed, and the resumed
+# checkpoint IS the audited 40k anchor) while budget and commit may move.
+EXT_ROOT="${TMP}/ext"; EXT_SAVE="${EXT_ROOT}/exp11_C8"
+EXT_CKPT_DIR="${EXT_SAVE}/FLAC_exp11_C8/exp11_C8/checkpoints"
+mkdir -p "$EXT_CKPT_DIR" "${EXT_ROOT}/elsewhere"
+$PY - "$TMP" "${EXPDIR}/FLAC_AR_BF_C8.json" "$EXT_CKPT_DIR" "$EXT_SAVE" "${EXT_ROOT}/elsewhere" <<'PY'
+import hashlib, json, os, sys, torch
+tmp, cfg_path, ckpt_dir, save_dir, other = sys.argv[1:6]
+cfg = json.load(open(cfg_path))
+ck = {"global_step": 40000, "epoch": 8, "model_config": cfg,
+      "state_dict": {"diffusion.x": torch.zeros(1), "diffusion_ema.x": torch.zeros(1)},
+      "optimizer_states": [{"state": {0: {"step": 1}}, "param_groups": [{"lr": 1e-5}]}],
+      "lr_schedulers": [{"last_epoch": 40000}]}
+path = os.path.join(ckpt_dir, "epoch=8-step=40000.ckpt")
+torch.save(ck, path)
+torch.save(ck, os.path.join(other, "epoch=8-step=40000.ckpt"))
+h = hashlib.sha256(open(path, "rb").read()).hexdigest()
+cfg_sha = hashlib.sha256(open(cfg_path, "rb").read()).hexdigest()
+man = os.path.join(tmp, "ext_launch_manifest.txt")
+with open(man, "w") as fh:
+    fh.write("# exp_11 arm launch manifest\n")
+    fh.write("job 3648695 host neu000 mode INITIAL launch_uuid ext-uuid-c8\n")
+    fh.write("arm C8 rung 8x8 micro 8 ngpu 8 max_steps 40000 ckpt_every 2500\n")
+    fh.write("commit " + "2" * 40 + "\n")
+    fh.write(f"config_sha256 {cfg_sha}\n")
+    fh.write(f"save_dir {save_dir}\n")
+    fh.write("wandb_run_id exp11-C8-ext\n")
+reg = {"arms": {"C8": {
+    "manifest_path": man,
+    "manifest_sha256": hashlib.sha256(open(man, "rb").read()).hexdigest(),
+    "job": "3648695", "mode": "INITIAL", "launch_uuid": "ext-uuid-c8",
+    "commit": "2" * 40, "rung": "8x8", "max_steps": "40000",
+    "config_sha256": cfg_sha, "save_dir": save_dir, "training_seed": 42,
+    "final_ckpt_sha256": h, "final_step": 40000}}, "restarts": {}}
+json.dump(reg, open(os.path.join(tmp, "ext_registry.json"), "w"), indent=2)
+print("extension fixture written")
+PY
+EXT_CKPT="${EXT_CKPT_DIR}/epoch=8-step=40000.ckpt"
+EXT=($PY "$PREFLIGHT" --config "${EXPDIR}/FLAC_AR_BF_C8.json" --arm C8 --rung 8x8
+     --ckpt "$EXT_CKPT" --expected-step 40000 --commit "$HEAD_SHA"
+     --launch-manifest "${TMP}/ext_launch_manifest.txt" --extension
+     --launch-registry "${TMP}/ext_registry.json")
+expect_cmd "the ORDINARY contract refuses the extension (the bug)" 2 "manifest max_steps" -- \
+  $PY "$PREFLIGHT" --config "${EXPDIR}/FLAC_AR_BF_C8.json" --arm C8 --rung 8x8 \
+     --ckpt "$EXT_CKPT" --expected-step 40000 --commit "$HEAD_SHA" --max-steps 100000 \
+     --launch-manifest "${TMP}/ext_launch_manifest.txt"
+expect_cmd "extension accepts the 40k->100k leg" 0 "extension lineage OK" -- "${EXT[@]}" --max-steps 100000
+expect_cmd "extension keeps the ORIGINAL launch commit" 0 "launch commit 2222222222" -- "${EXT[@]}" --max-steps 100000
+expect_cmd "extension refuses a shrinking budget" 2 "does not extend" -- "${EXT[@]}" --max-steps 39000
+expect_cmd "extension refuses a foreign resume path" 2 "canonical run directory" -- \
+  $PY "$PREFLIGHT" --config "${EXPDIR}/FLAC_AR_BF_C8.json" --arm C8 --rung 8x8 --max-steps 100000 \
+     --ckpt "${EXT_ROOT}/elsewhere/epoch=8-step=40000.ckpt" --expected-step 40000 --commit "$HEAD_SHA" \
+     --launch-manifest "${TMP}/ext_launch_manifest.txt" --extension \
+     --launch-registry "${TMP}/ext_registry.json"
+$PY - "${TMP}/ext_registry.json" "${TMP}/reg_noanchor.json" "${TMP}/reg_wronganchor.json" \
+     "${TMP}/reg_wrongcommit.json" <<'PY'
+import json, sys
+src, noanchor, wronganchor, wrongcommit = sys.argv[1:5]
+r = json.load(open(src)); del r["arms"]["C8"]["final_ckpt_sha256"]
+json.dump(r, open(noanchor, "w"), indent=2)
+r = json.load(open(src)); r["arms"]["C8"]["final_ckpt_sha256"] = "c" * 64
+json.dump(r, open(wronganchor, "w"), indent=2)
+r = json.load(open(src)); r["arms"]["C8"]["commit"] = "9" * 40
+json.dump(r, open(wrongcommit, "w"), indent=2)
+PY
+ext_with_reg() { $PY "$PREFLIGHT" --config "${EXPDIR}/FLAC_AR_BF_C8.json" --arm C8 --rung 8x8 \
+  --max-steps 100000 --ckpt "$EXT_CKPT" --expected-step 40000 --commit "$HEAD_SHA" \
+  --launch-manifest "${TMP}/ext_launch_manifest.txt" --extension --launch-registry "$1"; }
+expect_cmd "extension refuses an arm with no audited anchor" 2 "no audited final_ckpt_sha256" -- \
+  ext_with_reg "${TMP}/reg_noanchor.json"
+expect_cmd "extension refuses a resume that is not the anchor" 2 "audited final checkpoint" -- \
+  ext_with_reg "${TMP}/reg_wronganchor.json"
+expect_cmd "extension refuses a manifest commit that is not the registered one" 2 "registered launch commit" -- \
+  ext_with_reg "${TMP}/reg_wrongcommit.json"
+printf 'tamper\n' >> "${TMP}/ext_launch_manifest.txt"
+expect_cmd "extension refuses a manifest that drifted after registration" 2 "changed after it was registered" -- \
+  "${EXT[@]}" --max-steps 100000
+
 echo "--- H. the submitter refuses un-pinned submission ---"
 # RETIRED for the same reason as the launcher case above: all pins are concrete,
 # so the submitter's placeholder refusal is unreachable on the real file.

@@ -151,19 +151,30 @@ if [ "$SMOKE" = "1" ]; then
   CHECKPOINT_EVERY="${SMOKE_CHECKPOINT_EVERY:-10}"
   [ -n "$RUNG" ] || die "SMOKE=1 requires SMOKE_RUNG (32x2|16x4|8x8) - abort"
   [ -n "$MIN_FREE_MB" ] || die "SMOKE=1 requires SMOKE_MIN_FREE_MB (per-GPU floor) - abort"
-  TIME_LIMIT="${SMOKE_TIME:-00:30:00}"
+  TIME_LIMIT="${SMOKE_TIME:-00:30:00}"; TIME_PIN_NAME="SMOKE_TIME"
   NAME="FLAC_exp11_smoke_${ARM}"; EXPNAME="exp11_smoke_${ARM}"
   SAVEDIR="${OUTPUT_ROOT}/exp11_smoke/${ARM}"
   echo "=== SMOKE MODE: pins bypassed, EVERY other gate active; identity ${EXPNAME} ==="
 else
+  # Q10 / re-pin fix 1: the wall pin follows the LEG, not the arm. A restart leg
+  # is 60,000 further steps, not 40,000 from scratch, so the submitter allocates
+  # PINNED_TIME_LIMIT_RESTART_<ARM>. The job selected PINNED_TIME_LIMIT_<ARM>
+  # regardless and then rejected its own (correct) allocation in gate H — the
+  # third hard-abort path the re-pin review found on jobs 3662828-30. The JOB now
+  # selects the same pin the submitter did and enforces THAT one.
+  if [ "$EXPECTED_STEP" -gt 0 ]; then
+    TIME_PIN_NAME="PINNED_TIME_LIMIT_RESTART_${ARM}"
+  else
+    TIME_PIN_NAME="PINNED_TIME_LIMIT_${ARM}"
+  fi
   for PIN_NAME in PINNED_RUNG PINNED_MB PINNED_NGPU PINNED_MIN_FREE_MB PINNED_P0_MANIFEST_SHA256 \
-                  "PINNED_TIME_LIMIT_${ARM}"; do
+                  "$TIME_PIN_NAME"; do
     eval "PIN_VAL=\${$PIN_NAME}"
     [ "$PIN_VAL" != "$PIN_PLACEHOLDER" ] || die "${PIN_NAME} is still '${PIN_PLACEHOLDER}': the P0 report has not been pinned into this launcher yet — no arm may launch (use SMOKE=1 for the pre-launch smoke) - abort"
   done
   RUNG="$PINNED_RUNG"; MAXSTEPS="$PINNED_MAXSTEPS"; MIN_FREE_MB="$PINNED_MIN_FREE_MB"
   CHECKPOINT_EVERY="$PINNED_CHECKPOINT_EVERY"
-  eval "TIME_LIMIT=\${PINNED_TIME_LIMIT_${ARM}}"
+  eval "TIME_LIMIT=\${${TIME_PIN_NAME}}"
   NAME="FLAC_exp11_${ARM}"; EXPNAME="exp11_${ARM}"; SAVEDIR="${OUTPUT_ROOT}/exp11_${ARM}"
 fi
 
@@ -277,7 +288,7 @@ else
   esac
   [ "$MAXSTEPS" -gt "$EXPECTED_STEP" ] || die "MAXSTEPS ${MAXSTEPS} must exceed the resume step ${EXPECTED_STEP} - abort"
 fi
-echo "lineage: ${MODE} (expected_step ${EXPECTED_STEP}, max_steps ${MAXSTEPS}, ckpt every ${CHECKPOINT_EVERY})"
+echo "lineage: ${MODE} (expected_step ${EXPECTED_STEP}, max_steps ${MAXSTEPS}, ckpt every ${CHECKPOINT_EVERY}, time pin ${TIME_PIN_NAME}=${TIME_LIMIT})"
 
 # --- F. the exact train.py argv ----------------------------------------------
 ARGV=(
@@ -385,8 +396,11 @@ GOT_MEM_MB="${SLURM_MEM_PER_NODE:-0}"
 GOT_TIME="$(squeue -h -j "$SLURM_JOB_ID" -o %l 2>/dev/null | tr -d ' ')"
 norm_minutes() { awk -v t="$1" 'BEGIN{d=0; if (t ~ /-/) {split(t,p,"-"); d=p[1]; t=p[2]} n=split(t,c,":");
   if (n==3) m=c[1]*60+c[2]+c[3]/60; else if (n==2) m=c[1]+c[2]/60; else m=t; printf "%d", d*1440+m}'; }
-[ "$(norm_minutes "$GOT_TIME")" = "$(norm_minutes "$TIME_LIMIT")" ] || die "allocated time ${GOT_TIME} != the pinned ${TIME_LIMIT} — submit via fa_orbit_submit.sh - abort"
-echo "allocation matches the pins: ${GOT_CPUS} cpus, ${GOT_MEM_MB} MB, ${GOT_TIME}"
+# The pin this ${MODE} leg is entitled to — an INITIAL allocation handed to a
+# RESTART leg (or the reverse) is refused here, in the job, not merely intended
+# by the submitter.
+[ "$(norm_minutes "$GOT_TIME")" = "$(norm_minutes "$TIME_LIMIT")" ] || die "allocated time ${GOT_TIME} != the ${TIME_PIN_NAME} pin ${TIME_LIMIT} this ${MODE} leg requires — submit via fa_orbit_submit.sh - abort"
+echo "allocation matches the pins: ${GOT_CPUS} cpus, ${GOT_MEM_MB} MB, ${GOT_TIME} (${TIME_PIN_NAME})"
 
 mapfile -t GPU_ROWS < <(nvidia-smi --query-gpu=uuid,name --format=csv,noheader,nounits)
 [ "${#GPU_ROWS[@]}" -eq "$NGPU" ] || die "rung ${RUNG} needs exactly ${NGPU} visible GPU(s), got ${#GPU_ROWS[@]} - abort"
@@ -451,10 +465,17 @@ mkdir -p "$SAVEDIR" || die "could not create ${SAVEDIR} - abort" 3
 # --- L. RESTART preflight (round-3 B2) ---------------------------------------
 CKPT_SHA=""
 if [ "$MODE" = "RESTART" ]; then
-  PRE_OUT="$(python3 "$EXPDIR/fa_orbit_ckpt_preflight.py" --ckpt "$RESUME_CKPT" \
-      --expected-step "$EXPECTED_STEP" --config "$MODEL_CONFIG_ABS" --max-steps "$MAXSTEPS" \
-      --arm "$ARM" --rung "$RUNG" --commit "$HEAD_SHA" \
-      ${LAUNCH_MANIFEST_LINK:+--launch-manifest "$LAUNCH_MANIFEST_LINK"} 2>&1)"
+  PRE_ARGS=(--ckpt "$RESUME_CKPT" --expected-step "$EXPECTED_STEP" --config "$MODEL_CONFIG_ABS"
+            --max-steps "$MAXSTEPS" --arm "$ARM" --rung "$RUNG" --commit "$HEAD_SHA")
+  [ -n "$LAUNCH_MANIFEST_LINK" ] && PRE_ARGS+=(--launch-manifest "$LAUNCH_MANIFEST_LINK")
+  # Q10 / re-pin fix 1: a real arm's restart is the 40k -> 100k EXTENSION, whose
+  # contract binds the ORIGINAL launch identity (audited manifest bytes, job,
+  # uuid, launch commit, config, save-dir, seed, and the 40k anchor itself)
+  # without demanding that the INITIAL budget/commit equal this leg's. SMOKE
+  # restarts have no registered launch and keep the ordinary contract.
+  [ "$SMOKE" != "1" ] && PRE_ARGS+=(--extension --launch-registry "$EXPDIR/arm_launch_registry.json"
+                                    --repo-root "$REPO")
+  PRE_OUT="$(python3 "$EXPDIR/fa_orbit_ckpt_preflight.py" "${PRE_ARGS[@]}" 2>&1)"
   echo "$PRE_OUT"
   echo "$PRE_OUT" | grep -q "^CKPT_SHA256 " || die "restart preflight FAILED - abort"
   CKPT_SHA="$(echo "$PRE_OUT" | awk '/^CKPT_SHA256 /{print $2}')"
