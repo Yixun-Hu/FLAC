@@ -25,7 +25,7 @@ Both project goals are **achieved and closed**. Three checkpoints are confirmed 
 
 Everything else is per-experiment folders under `worklog/worklog_yixun/exp_*/` (query → plan → reviews → params → command → results → analysis → HTML → commits log). Superseded narrative lives there; it is deliberately NOT inlined here any more.
 
-**exp_11 (fa_orbit — orbit-size sweep C4/C8/C16) is the ONLY active experiment, owned by the cluster session.** Its recipe decision was pending with Yixun as of 2026-08-05; its recent commits (`96aca57` and back) are re-pin fix rounds. Do not drive it from here.
+**exp_11 (fa_orbit) was finished by another agent (Yixun, 2026-08-10).** Cluster-owned work — this box neither tracks nor drives it; read its folder if you need its numbers.
 
 ## In flight right now
 - **Ours: NOTHING.** No training, no evals, no monitors.
@@ -33,9 +33,9 @@ Everything else is per-experiment folders under `worklog/worklog_yixun/exp_*/` (
 - GPU state at handoff: GPU0 5.9 GB used / 42.7 free, GPU1 14.9 / 33.6, both ~100% util from those runs. Plenty of room to co-tenant a 2-GPU DDP job (~16 GB/rank with grad-ckpt) if Yixun asks.
 
 ## Awaiting Yixun (nothing blocks autonomous work)
-1. **Cross-machine metrics consolidation, half-done.** This box committed 152+ raw metric JSONs + `A6000_METRICS_SHA256SUMS.txt`; the cluster's neuronic/exp_11 row evidence is still uncommitted, so `gen_model_comparison.py`'s row-regression guard (their upgrade, working correctly) blocks regeneration here. Fix = cluster force-adds its raws, or the generator learns published-value carry-forward. My newest rows are recorded in the exp_10/exp_13 results files meanwhile.
-2. **exp_11 recipe decision** (cluster thread).
-3. **Paper column selection** — which of the three flavors headline, and whether to add a fa-from-scratch column (post-retraction it is viable at 3.5× step cost, but exp_10's matched-COMPUTE readout shows the fine-tune route dominates).
+1. **Write-up target unclear.** "Paper columns" was the assistant's framing, not a stated goal — no paper artifact exists in this repo or the siblings. Concretely the open question is which of the three confirmed flavors and which comparison rows to feature *if* this program is written up. Yixun to say whether there is a target at all.
+2. **~~Metrics consolidation~~ → delegated** (2026-08-10): a cluster agent will commit the model JSONs; afterwards just re-run `gen_model_comparison.py` here.
+3. **~~exp_11~~ → closed by another agent** (2026-08-10). **Cluster work is not this box's concern** — do not track or drive it.
 
 ## Load-bearing technical facts (each of these cost real time to learn)
 - **Eval-protocol flags are part of the experiment, not a default.** `eval_FLAC.py --cond-method {vanilla,fa_invariant}` must match how the checkpoint was trained. A mismatch produces plausible-looking but catastrophic numbers: the fa-trained B-F@40k reads 8.202/0.978/38.79/R5.39 under fa eval and **10.652/2.082/80.86/R0.68** under vanilla eval. This caused exp_09's protocol error and a retracted exp_07 conclusion. Put the flag in every launch/screen manifest. Companions: `--rotate-deg` (C₄ sweeps + 45° control), `--frame-avg-angles`, `--cond-autocast bf16`.
@@ -44,9 +44,9 @@ Everything else is per-experiment folders under `worklog/worklog_yixun/exp_*/` (
 - **Launcher family** (all reviewed, guard-tested): `exp_07…/p1_ddp_launch.sh` → `exp_09…/f_arm_launch.sh` → `exp_10…/bf_resume_launch.sh` → `exp_13…/dtail_launch.sh`. Shared gates: conda+PL-version asserts, parsed-object config contract, sha-pinned resume lineage with INITIAL/RESTART modes, per-GPU free-VRAM floor, wandb identity gate, DINOv3 pin, df floor. Copy the newest one when starting an arm; each ships a `*_guardtests.sh`.
 - **Living results table:** `worklog/worklog_yixun/model_comparison.md`, regenerated ONLY by `gen_model_comparison.py` (glob-spec rows aggregated from raw per-seed JSONs; single-seed screens structurally excluded). **Announcement 04 mandates regenerate + commit + push on every model-results update.**
 
-## ⚠️ `CLAUDE.md` is gitignored — it does NOT propagate
+## `CLAUDE.md` is now TRACKED (2026-08-10, Yixun's call, `02dbb4c`)
 
-`.gitignore:177` lists `CLAUDE.md`, and it has never been tracked (`git ls-files` confirms). Anything written there is **local to one checkout**: the cluster session's machine has its own copy and will never see edits made here. The tracked, cross-machine channels for standing guidance are **`worklog/worklog_yixun/announcement/*.md`** and these four handoff docs. When a lesson must bind both machines, put it in an announcement (that is why the eval-protocol rule became `announcement/05_eval_protocol_flags.md`) and only mirror it into CLAUDE.md for local convenience. *Open question for Yixun: should CLAUDE.md be tracked so guidance propagates? Not changed unilaterally — the ignore looks deliberate.*
+It used to be gitignored and machine-local; the ignore line was removed and the file committed, so guidance propagates. ⚠️ **The other checkout will hit a one-time pull failure** (*"untracked working tree file would be overwritten by merge: CLAUDE.md"*) because it holds an untracked copy. Remedy there: `mv CLAUDE.md CLAUDE.md.local && git pull --rebase`, fold local-only guidance into the tracked file, delete the backup. Standing rules that must bind every machine still belong in `worklog/worklog_yixun/announcement/*.md` (e.g. `05_eval_protocol_flags.md`).
 
 ## Environment
 - conda env **`flac` for everything** (`source ~/miniconda3/etc/profile.d/conda.sh && conda activate flac`) — torch 2.7.0+cu126, PL 2.1.0, flash-attn active in the DiT. Env-bridge check (2026-07-20) proved eval results identical to 4 decimals across the old rir2rir env, so historical labels are provenance only.
