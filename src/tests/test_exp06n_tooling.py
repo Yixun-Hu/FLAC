@@ -895,18 +895,23 @@ def test_slurm_wrappers_are_renamed_exp03n_plus_marked_diffs_only(exp06n, exp03n
             )
 
 
-# --- review r3 F1 / r4 residual: the r3 guard TRUSTED an inherited marker
-# (EXP06N_ENV_CLEAN pre-set => env -i skipped) and its `[`/`exec` names were shadowable by
-# imported exported functions. r4 kills the class in three unshadowable layers:
-#   1. `#SBATCH --export=NONE` + a documented explicit-whitelist submission contract —
-#      with a non-ALL export list Slurm never propagates BASH_FUNC_* into the job at all;
-#   2. FIRST executable line: a detector built ONLY from slash-path commands (function
-#      lookup never applies to names containing a slash; `if`/`then` are keywords) that
-#      REFUSES any env carrying BASH_FUNC_* (a wrong ALL-export submission);
-#   3. a marker-free `env -i` whitelist re-exec conditioned on OBSERVED dirt via the same
-#      slash-path pipeline — recursion terminates because the re-exec'd env contains no
-#      dirt; there is no marker to forge, and exec only runs in envs the detector proved
-#      function-free. The dangerous overrides must NOT appear in any whitelist. -------- #
+# --- r5 field adaptation (probe 3666689 refused; envdiag job 3667570): neuronic's Slurm
+# injects the node's module-system functions (ml, which, module, scl, _module_raw) into
+# EVERY job env regardless of the --export list, so a function-free start state is
+# unachievable and r4's DETECT-AND-REFUSE can never pass. The guard is now
+# DETECT-AND-SANITIZE, still built only from slash-path commands and keywords:
+#   1. FIRST executable line: if ANY BASH_FUNC_* OR any dirt var is observed, re-exec
+#      through `env -i <whitelist> /bin/bash --noprofile --norc "$0" "$@"` — the child
+#      carries only the whitelist (no functions) and --noprofile --norc keeps the module
+#      init from re-defining them, so the trigger is false in the child (marker-free
+#      termination);
+#   2. immediately after: a POST-SANITIZATION ASSERT (same pipeline) that the env is now
+#      function-free and dirt-free — the fail-closed detector; refusal moves here;
+#   3. `#SBATCH --export=NONE` + the whitelist submission contract stay (the CLI list
+#      overrides the directive; NONE alone would start closer to a login env with MORE
+#      functions). ACCEPTED RESIDUAL: a hostile BASH_FUNC_exec/[ crafted in the submission
+#      shell could intercept the guard pre-sanitization — a self-attack, OUTSIDE the
+#      registered model. The dangerous overrides must NOT appear in any whitelist. ----- #
 _FORBIDDEN_PASSTHROUGH = ("C1_FROZEN_MIN_FREE_FILE", "EXP06N_LOG_DIR", "MIN_FREE_MB",
                           "CKPT_PATH", "SAVE", "BASH_ENV", "ENV", "PYTHONPATH")
 _DIRT_VARS = ("C1_FROZEN_MIN_FREE_FILE", "MIN_FREE_MB", "EXP06N_LOG_DIR", "SAVE",
@@ -947,40 +952,63 @@ def test_wrapper_declares_export_none_and_the_submission_contract(name):
         assert "--export=STEP=" in text, (
             "the eval contract example must show the full cell interface (STEP/K/STREAM + pins)"
         )
+    assert "overrides the none directive" in text.lower(), (
+        f"{name}: the header must note the CLI --export list OVERRIDES the NONE directive "
+        "(and that NONE alone would start closer to a login env with MORE functions)"
+    )
+
+
+# the combined trigger/assert pipeline: any imported function OR any dirt var
+_GUARD_PIPELINE = ("if /usr/bin/env | /usr/bin/grep -qE '^BASH_FUNC_|^("
+                   + "|".join(_DIRT_VARS) + ")='; then")
 
 
 @pytest.mark.parametrize("name", _WRAPPERS)
-def test_wrapper_first_executable_line_is_the_unshadowable_detector(name):
+def test_wrapper_first_executable_line_is_the_sanitizing_guard(name):
     text = _sbatch(name)
     first = _first_executable_line(text)
-    assert first.startswith("if /usr/bin/env | /usr/bin/grep -q '^BASH_FUNC_'"), (
-        f"{name}: the FIRST executable line must be the slash-path BASH_FUNC_ detector "
-        f"(nothing shadowable may run before it); got: {first[:120]}"
+    assert first.startswith(_GUARD_PIPELINE), (
+        f"{name}: the FIRST executable line must be the combined function-or-dirt "
+        f"sanitizing trigger (nothing shadowable may run before it); got: {first[:140]}"
+    )
+    assert text.count(_GUARD_PIPELINE) == 2, (
+        f"{name}: the SAME pipeline must appear exactly twice — the sanitizing trigger "
+        "and the post-sanitization assert"
     )
     assert "EXP06N_ENV_CLEAN" not in text, (
-        f"{name}: the r3 trusted marker must be GONE — a pre-settable marker is the r4 bypass"
+        f"{name}: the r3 trusted marker must stay GONE (no marker exists to forge)"
     )
-    # the refusal branch prints the submission contract
-    assert re.search(r"/usr/bin/printf[^\n]*--export=NONE", text) or re.search(
-        r"/usr/bin/printf[^\n]*sbatch --export=", text), (
-        f"{name}: the detector refusal must tell the operator HOW to resubmit correctly"
+    # measured provenance + accepted-residual note live NEXT to the guard
+    assert "3667570" in text, (
+        f"{name}: the guard comment must cite the measured envdiag job (module functions "
+        "injected under every export mode)"
     )
-    # the re-exec is conditioned on OBSERVED dirt via the same slash-path pipeline
-    dirt_alt = "|".join(_DIRT_VARS)
-    assert re.search(
-        rf"if /usr/bin/env \| /usr/bin/grep -qE '\^\({re.escape(dirt_alt)}\)='", text), (
-        f"{name}: the re-exec must trigger on the OBSERVED dirt list, not a trusted marker"
+    assert "OUTSIDE" in text and "self-attack" in text, (
+        f"{name}: the accepted-residual note (hostile submission shell) must sit by the guard"
     )
+    # exactly one env -i re-exec, now under --noprofile --norc
     reexec_lines = [l for l in text.splitlines() if "exec /usr/bin/env -i" in l]
     assert len(reexec_lines) == 1, f"{name}: exactly one env -i re-exec expected"
     reexec = reexec_lines[0]
-    assert '/bin/bash "$0" "$@"' in reexec, f"{name}: the re-exec must re-run the wrapper itself"
+    assert '/bin/bash --noprofile --norc "$0" "$@"' in reexec, (
+        f"{name}: the re-exec must re-run the wrapper under --noprofile --norc so the "
+        "module init cannot re-define functions in the child"
+    )
     for token in _REEXEC_COMMON + _REEXEC_PER_WRAPPER[name]:
         assert token in reexec, f"{name}: whitelist must pass through {token!r}"
     for var in _FORBIDDEN_PASSTHROUGH:
         assert f" {var}=" not in reexec, (
             f"{name}: {var} must NOT survive the re-exec (it is the attack surface)"
         )
+    # the POST-SANITIZATION ASSERT is the fail-closed detector: it refuses (with the
+    # submission contract) and sits AFTER the re-exec block
+    assert re.search(r"/usr/bin/printf[^\n]*sbatch --export=", text), (
+        f"{name}: the post-assert refusal must tell the operator HOW to resubmit correctly"
+    )
+    assert "SURVIVED sanitization" in text, f"{name}: the post-assert refusal must name itself"
+    assert text.index("SURVIVED sanitization") > text.index("exec /usr/bin/env -i"), (
+        f"{name}: the post-assert must come AFTER the sanitizing re-exec"
+    )
 
 
 @pytest.mark.parametrize("name", _WRAPPERS)
@@ -995,8 +1023,8 @@ def test_wrapper_has_no_unset_sweep_left(name):
 
 
 def _guard_block(text):
-    """The wrapper's verbatim guard: from the first executable line (the detector) through
-    the closing ``fi`` of the dirt-conditioned re-exec block."""
+    """The wrapper's verbatim guard: from the first executable line (the sanitizing
+    trigger) through the closing ``fi`` of the POST-SANITIZATION ASSERT block."""
     lines = text.splitlines()
     start = None
     fi_seen = 0
@@ -1011,16 +1039,34 @@ def _guard_block(text):
             fi_seen += 1
             if fi_seen == 2:
                 return "\n".join(lines[start:i + 1])
-    pytest.fail("guard block (detector + dirt-conditioned re-exec) not found")
+    pytest.fail("guard block (sanitizing trigger + post-sanitization assert) not found")
+
+
+def _guard_halves(text):
+    """Split the guard into (trigger block, post-assert block) at the second pipeline."""
+    block = _guard_block(text)
+    lines = block.splitlines()
+    seconds = [i for i, l in enumerate(lines) if l.startswith(_GUARD_PIPELINE)]
+    assert len(seconds) == 2, "expected the pipeline exactly twice inside the guard"
+    return "\n".join(lines[:seconds[1]]), "\n".join(lines[seconds[1]:])
+
+
+# the measured neuronic set (envdiag job 3667570): injected under EVERY export mode
+_MEASURED_MODULE_FUNCS = {
+    f"BASH_FUNC_{fn}%%": "() { :; }" for fn in ("ml", "which", "module", "scl", "_module_raw")
+}
 
 
 @pytest.mark.parametrize("name", _WRAPPERS)
-@pytest.mark.parametrize("case", ["bash_func_bracket", "bash_func_exec", "stale_marker"])
-def test_wrapper_guard_survives_the_r4_attack_matrix(name, case, tmp_path):
-    """FUNCTIONAL (r4 F1.4): run the wrapper's VERBATIM guard block followed by an env
-    probe. A poisoned ``BASH_FUNC_[`` / ``BASH_FUNC_exec`` env must end in the DETECTOR
-    refusal (before any shadowable name runs); a stale EXP06N_ENV_CLEAN marker plus dirt
-    must end in a clean re-exec. In EVERY case the frozen-file poison must not survive."""
+@pytest.mark.parametrize("case", ["module_set", "bash_func_bracket", "dirt_and_stale_marker",
+                                  "hostile_exec"])
+def test_wrapper_guard_sanitizes_the_r5_matrix(name, case, tmp_path):
+    """FUNCTIONAL (r5): run the wrapper's VERBATIM guard block followed by an env probe.
+    The MEASURED module-function set (plus dirt) must end in a clean re-exec with the
+    poison dead and the post-assert passing — the case the r4 refusal could never pass on
+    neuronic. ``BASH_FUNC_[`` sanitizes too (the guard uses no ``[``). A hostile
+    ``BASH_FUNC_exec`` (the accepted OUT-OF-MODEL residual) must still end fail-closed:
+    the no-op'd exec falls through to the post-assert, which refuses."""
     harness = "\n".join([
         _guard_block(_sbatch(name)),
         "C1_COUNT=$(/usr/bin/env | /usr/bin/grep -c '^C1_FROZEN_MIN_FREE_FILE=' || true)",
@@ -1030,31 +1076,66 @@ def test_wrapper_guard_survives_the_r4_attack_matrix(name, case, tmp_path):
     script.write_text(harness + "\n")
     env = {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path),
            "C1_FROZEN_MIN_FREE_FILE": "/evil/frozen.txt"}
-    if case == "bash_func_bracket":
+    if case == "module_set":
+        env.update(_MEASURED_MODULE_FUNCS)
+    elif case == "bash_func_bracket":
         env["BASH_FUNC_[%%"] = "() { return 0; }"
-    elif case == "bash_func_exec":
+    elif case == "dirt_and_stale_marker":
+        env["EXP06N_ENV_CLEAN"] = "1"   # historical marker: must mean NOTHING now
+    else:  # hostile_exec — outside the registered model, but must stay fail-closed
         env["BASH_FUNC_exec%%"] = "() { :; }"
-    else:
-        env["EXP06N_ENV_CLEAN"] = "1"   # the r3 bypass: a forged 'already clean' marker
     proc = subprocess.run(["bash", str(script)], capture_output=True, text=True, env=env)
     out = proc.stdout + proc.stderr
-    if case in ("bash_func_bracket", "bash_func_exec"):
-        assert proc.returncode != 0, f"{name}/{case}: the detector must REFUSE:\n{out}"
-        assert "BASH_FUNC" in out or "exported shell functions" in out, out
-        assert "C1_COUNT" not in out, "nothing after the detector may run in a poisoned env"
+    if case == "hostile_exec":
+        assert proc.returncode != 0, (
+            f"{name}/{case}: the post-assert must refuse when sanitization was subverted:\n{out}"
+        )
+        assert "SURVIVED sanitization" in out, out
+        assert "C1_COUNT" not in out, "nothing after the post-assert may run"
     else:
-        assert proc.returncode == 0, f"{name}/{case}: clean re-exec expected:\n{out}"
+        assert proc.returncode == 0, f"{name}/{case}: clean sanitizing re-exec expected:\n{out}"
         assert "C1_COUNT=0" in out, (
-            f"{name}/{case}: the frozen-file poison SURVIVED a forged clean-marker env:\n{out}"
+            f"{name}/{case}: the frozen-file poison SURVIVED sanitization:\n{out}"
+        )
+        assert "SURVIVED sanitization" not in out, (
+            f"{name}/{case}: the post-assert must PASS on the sanitized child:\n{out}"
         )
 
 
-def test_eval_dry_run_works_through_the_reexec_guard(tmp_path):
-    """END-TO-END: a function-free but DIRTY submission env traverses detector + re-exec,
-    and the dry run still renders — proving the whitelist forwards the whole eval
-    interface while the dirt is dropped."""
-    env = _function_free_env()
+@pytest.mark.parametrize("name", _WRAPPERS)
+def test_wrapper_post_assert_trips_when_a_function_survives_into_the_child(name, tmp_path):
+    """r5 item 5: simulate a BASH_FUNC_ SURVIVING the sanitization (inject one into the
+    guard's env -i line in a sandbox copy, exec'ing a second script that carries the
+    verbatim post-assert): the post-assert must refuse and the body must not run."""
+    trigger, post_assert = _guard_halves(_sbatch(name))
+    body = tmp_path / "body.sh"
+    body.write_text(post_assert + '\necho "REACHED_BODY"\n')
+    sabotaged = trigger.replace(
+        "exec /usr/bin/env -i ",
+        'exec /usr/bin/env -i "BASH_FUNC_evil%%=() { :; }" ', 1)
+    assert sabotaged != trigger, "sabotage injection failed to apply"
+    sabotaged = sabotaged.replace('/bin/bash --noprofile --norc "$0" "$@"',
+                                  f'/bin/bash --noprofile --norc "{body}"', 1)
+    driver = tmp_path / "driver.sh"
+    driver.write_text(sabotaged + "\n")
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path),
+           "C1_FROZEN_MIN_FREE_FILE": "/evil/frozen.txt"}   # dirt fires the trigger
+    proc = subprocess.run(["bash", str(driver)], capture_output=True, text=True, env=env)
+    out = proc.stdout + proc.stderr
+    assert proc.returncode == 3, (
+        f"{name}: a function surviving into the child must trip the post-assert:\n{out}"
+    )
+    assert "SURVIVED sanitization" in out, out
+    assert "REACHED_BODY" not in out, "the wrapper body must never run past a tripped post-assert"
+
+
+def test_eval_dry_run_works_through_the_sanitizing_guard(tmp_path):
+    """END-TO-END under the MEASURED neuronic condition: module functions + dirt in the
+    submission env; the guard sanitizes, the whitelist forwards the whole eval interface,
+    and the dry run renders."""
+    env = dict(os.environ)
     env.pop("EXP06N_ENV_CLEAN", None)
+    env.update(_MEASURED_MODULE_FUNCS)
     env.update(DRY_RUN="1", STEP="40000", STREAM="online",
                EXPECT_PACKAGE_SHA="deadbeefdeadbeef", EXPECT_EXP06_SHA="cafebabecafebabe",
                SLURM_ARRAY_TASK_ID="3",
@@ -1074,9 +1155,9 @@ def test_eval_dry_run_works_through_the_reexec_guard(tmp_path):
     assert list(tmp_path.iterdir()) == [], "the dry run must stay side-effect free"
 
 
-def test_eval_dry_run_refuses_a_function_carrying_env(tmp_path):
-    """A BASH_FUNC_* payload (an ALL-export submission) must hit the detector refusal —
-    never reach the dry run."""
+def test_eval_dry_run_sanitizes_a_function_carrying_env(tmp_path):
+    """r5 flip of the r4 refusal test: a BASH_FUNC_* payload is now SANITIZED (the r4
+    refusal could never pass on neuronic) — the dry run renders and the payload is dead."""
     env = _function_free_env()
     env.update(DRY_RUN="1", STEP="40000", STREAM="online",
                EXPECT_PACKAGE_SHA="x", EXPECT_EXP06_SHA="y", SLURM_ARRAY_TASK_ID="0",
@@ -1086,9 +1167,11 @@ def test_eval_dry_run_refuses_a_function_carrying_env(tmp_path):
         pytest.skip("cylindrical slurm_neuronic checkout not present")
     proc = subprocess.run(["bash", str(path)], capture_output=True, text=True, env=env,
                           cwd=str(tmp_path))
-    assert proc.returncode != 0, "a function-carrying env must be refused by the detector"
-    assert "DRY_RUN (nothing executed" not in proc.stdout
-    assert "poisoned" not in proc.stdout + proc.stderr
+    assert proc.returncode == 0, (
+        f"a function-carrying env must be SANITIZED, not refused:\n{proc.stderr}"
+    )
+    assert "DRY_RUN (nothing executed" in proc.stdout
+    assert "poisoned" not in proc.stdout + proc.stderr, "the payload must be dropped by env -i"
     assert list(tmp_path.iterdir()) == []
 
 
