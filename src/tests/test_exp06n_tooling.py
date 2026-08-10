@@ -777,10 +777,11 @@ _SBATCH_REMOVED_OK = {
     "train_exp06n.sbatch": None,   # pure additions only (the F1 re-exec guard)
     "probe_exp06n.sbatch": None,   # pure additions only (the F1 re-exec guard)
     # the artifact-copy region rewritten by B3/R2, the rehash MOVED before publication by
-    # r3 F2 (CKPT_SHA/rehash lines re-emitted at the new position); the bare `fi` is the
-    # EMA block's closer re-emitted by the differ (if/fi balance is backstopped by the
-    # bash -n parse test)
-    "eval_exp06n.sbatch": re.compile(r"cp -v|sha256sum|\$ART|IMPORT_DIR|CKPT_SHA|rehash|^fi$"),
+    # r3 F2 (CKPT_SHA/rehash lines re-emitted at the new position, plus the blank line
+    # that separated the old trailing rehash block); the bare `fi` is the EMA block's
+    # closer re-emitted by the differ (if/fi balance is backstopped by the bash -n parse
+    # test)
+    "eval_exp06n.sbatch": re.compile(r"cp -v|sha256sum|\$ART|IMPORT_DIR|CKPT_SHA|rehash|^fi$|^$"),
 }
 
 
@@ -1237,8 +1238,10 @@ def test_eval_sbatch_finalize_region_keeps_sentinels_on_rehash_mismatch(tmp_path
     bad = _run(tmp_path / "mutated", mutate=True)
     assert bad.returncode != 0, f"finalize must abort on a rehash mismatch:\n{bad.stdout}"
     assert "REHASH MISMATCH" in bad.stdout + bad.stderr
-    assert not list((tmp_path / "mutated" / "records").iterdir()), (
-        "NOTHING may be published after a rehash mismatch"
+    published = [p for p in (tmp_path / "mutated" / "records").iterdir()
+                 if not p.name.endswith(".reserve")]      # the KEPT sentinel is expected
+    assert not published, (
+        f"NOTHING may be published after a rehash mismatch, found {published}"
     )
     import_dir = tmp_path / "mutated" / "worktree" / "outputs_FLAC" / "exp06n_maxpoollinear_import"
     assert not (import_dir / "art.json").exists()
