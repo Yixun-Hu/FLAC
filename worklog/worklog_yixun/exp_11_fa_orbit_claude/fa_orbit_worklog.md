@@ -233,3 +233,57 @@
 
 - VANL job 3661520: 11h17m, 40k ckpt verified (vanilla dispatch, no angles key, full opt/EMA); class-7 = `tee exited 1` on the tracked transcript copy whose inode was detached by pre-gitignore rebases — same mechanism as C16, primary tee log intact. Row comes via the q9 block at the new pin per the Q′ prescription.
 - Queue note: restart legs PENDING behind the other session's exp05 program; C32 on schedule (~midday).
+
+## 2026-08-10T02:10:00-04:00 — RE-PIN REVIEW FIX ROUND 2/2: items 1, 2, 3 closed (06362f4, ac98e11, 60d4e31, 9469849)
+
+- **Goal** — close the re-pin review's remaining Required-fix items (1 restart time pin + extension
+  preflight, 2 per-checkpoint producer binding, 3 recorder hardening). Items 4 and 5-validator were
+  closed by the previous round (1c18920); 5-figures and 6 (C32 anchor + recorded legs in the final
+  pin) remain open and are NOT this round's scope.
+- **Change** —
+  - `fa_orbit_train.sbatch` (**gate-only**, no launch-path semantics): the wall pin follows the LEG
+    (`EXPECTED_STEP > 0` → `PINNED_TIME_LIMIT_RESTART_<ARM>`, matching the submitter), gate H
+    enforces the SELECTED pin by name, the lineage line prints it, and a real (non-smoke) restart
+    now runs the preflight with `--extension --launch-registry`.
+  - `fa_orbit_ckpt_preflight.py`: `check_extension_binding()` — the 40k→100k contract. Identity is
+    bound to the COMMITTED registry (manifest bytes, arm/job/uuid/LAUNCH commit/rung/config sha/
+    save-dir/seed 42, resume ckpt == the audited `final_ckpt_sha256` at `final_step`, in the
+    canonical run directory); the budget may only rise; the INITIAL budget/commit are NOT required
+    to equal the extension's — the review's exact wording.
+  - `fa_orbit_producer_manifest.py` (new): append-only per-leg `step → sha256 → path`, plus
+    `validate_leg()` / `verify_chain()`.
+  - `fa_orbit_record_restart.py` (rewritten): resume file must exist, must be canonical, always
+    re-hashed; all identity fields checked against the INITIAL row and the launcher's own Q10 pins;
+    atomic tmp+rename under an exclusive lock on the registry directory; duplicates refused; the
+    leg's producer manifest published/extended in the same transaction.
+  - `fa_orbit_screen.sbatch` >40k branch: re-hashes the checkpoint and admits it only on an exact
+    step/sha256/path match from a fully re-validated leg (and the leg's own restart manifest is
+    re-hashed too).
+- **Design choice (fix 2)** — the review allowed either the leg's JOB hashing checkpoints as it
+  saves, or the RECORDER capturing the inventory into an append-only per-leg file. Chose the
+  recorder: the first requires editing `fa_orbit_train.sbatch`'s training path while jobs
+  3662828-30 are queued against it (forbidden this round) and would put sustained multi-GB reads
+  beside a live training job on the shared filesystem. The recorder-side file is still immutable
+  evidence in the sense that matters here: it is tracked, screens read it from the PINNED worktree,
+  so a row can only become evidence by being committed into the campaign pin.
+- **Command / Validation** —
+  - RED: `fa_orbit_2026-08-10_01-24-26_guardtests.log` (time pin + extension: 12 new cases failing),
+    `fa_orbit_2026-08-10_01-37-34_failopen_repro.log` (HEAD recorder records a leg for a resume file
+    that does not exist, rc=0), `fa_orbit_2026-08-10_01-44-34_screen_guardtests.log` (a same-config
+    checkpoint from a WRONG restart **accepted**, `want rc=2 …, got rc=0`, eval argv built).
+  - GREEN: `fa_orbit_2026-08-10_01-57-49_guardtests.log` 87/87 · screen 172/172
+    (`fa_orbit_2026-08-10_01-49-16_screen_guardtests.log` = 171/171 before the last clause) ·
+    `test_exp11_restart_record.py` 46/46 · full suite 572 passed / 8 skipped
+    (`fa_orbit_2026-08-10_01-53-27_pytest_fix2gate.log`).
+  - Real-data rung: the queued C4L leg's extension preflight passes against the REAL registry and
+    the real 40k checkpoint — launch job 3648694, launch commit `2b78f99`, running commit `1c18920`,
+    `CKPT_SHA256 ed9d7a869ecded98…` == the registry anchor.
+- **Result** — `fix_ready`. Items 1/2/3 closed at `9469849`. Nothing submitted; no pushes; the
+  campaign freeze and the queue were not touched (3662828-30 still PENDING, C32 still RUNNING).
+- **Analysis** — all three were *real bugs* in provenance machinery, not infrastructure. Note that
+  the queued legs still carry `EXPECT_SHA=c85bc61` and will abort on the commit gate: they must be
+  cancelled and resubmitted at the final reviewed SHA, which is the review's own instruction and is
+  the operator's call, not this round's.
+- **Next** — Codex review of this round; then items 5-figures and 6 (C32@40k anchor, record the
+  legs with the hardened recorder, include those records in the single-pin candidate) before any
+  q9/traj/VANL submission.
