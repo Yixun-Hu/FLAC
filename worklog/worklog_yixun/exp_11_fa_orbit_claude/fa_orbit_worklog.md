@@ -287,3 +287,46 @@
 - **Next** — Codex review of this round; then items 5-figures and 6 (C32@40k anchor, record the
   legs with the hardened recorder, include those records in the single-pin candidate) before any
   q9/traj/VANL submission.
+
+## 2026-08-10T02:35:00-04:00 — RE-PIN REVIEW FIX ROUND (B): items 5-figures and 6-mechanism (557af4a, f69152c)
+
+- **Goal** — close the review's last two Required-fix items: the figure generators' unproven
+  five-seed/provenance claim plus their y-range, and the mechanism for adding an arm's audited
+  anchor (C32 tonight).
+- **Change** —
+  - `gen_trajectory_figures.py`: `validated_band()` harvests every >40k step through
+    `exp11_validate_rows.validate_cell(..., contract="traj")` — where the five unique seeds, the
+    common provenance (`CELL_IDENTITY_FIELDS`), the 2,500 grid, the >40000 floor and the 100000
+    ceiling already live — and REFUSES a step whole on any problem, disclosing it in the page and
+    on stdout. `value_extent()` is the single scale function (points + conf whiskers + band
+    envelope); `band_cell()` puts `mean ± sd [lo, hi]` in the table view, which also gained a
+    `source` column and the four-headers-for-six-columns fix.
+  - `gen_trajectory_pngs.py`: `set_ylim` from the same `value_extent`, so the two renders cannot
+    disagree about what fits.
+  - `fa_orbit_add_anchor.py` (new): audits the INITIAL launch chain, locates the exactly-one
+    checkpoint at the registered final step through the registry's save-dir, torch-loads it once
+    (step/config/optimizer/scheduler/EMA), re-hashes it, and writes `final_ckpt_sha256` /
+    `final_step` / `final_ckpt_path` atomically under the recorder's lock. Refuses to re-anchor a
+    different checkpoint; idempotent on the same one.
+- **Command / Validation** —
+  - RED: `fa_orbit_2026-08-10_02-19-46_bandharvest_repro.log` — five copies of ONE seed became a
+    published band under the HEAD generator (`T60 12.000 +- 1.581`), and its plotted range
+    (8.202, 8.993) excluded that band (needs [10.419, 13.581]) → "band OUTSIDE the plotted scale".
+    Same fixture now: `BAND STEPS: []`.
+  - GREEN: 92/92 train guard (`…02-28-11_guardtests.log`), 172/172 screen guard, 606 pytest
+    passed / 8 skipped (`…02-24-09_pytest_roundB.log`); 18 new figure tests, 16 new anchor tests.
+  - Real-data rung (anchor): over a copy of the registry with C4L's anchor removed,
+    `fa_orbit_add_anchor.py` re-derives `ed9d7a869ecded98…` — byte-identical to the committed C4L
+    anchor. `C32 --dry-run` refuses correctly today ("found 0" checkpoints at step 40000).
+  - Figures regenerated from the real tree: 57 screen points, 5 conf endpoints, 0 validated
+    trajectory points (no >40k evals exist yet). Only numeric movement in the page: the T60 floor
+    7.92 → 7.90, i.e. the conf whisker that used to sit outside the scale.
+- **Result** — `fix_ready`. All six review items now closed (1/2/3 at `9469849`, 4/5-validator at
+  `1c18920`, 5-figures at `557af4a`, 6-mechanism at `f69152c`). Nothing submitted; the registry was
+  not mutated (dry runs only); no pushes.
+- **Analysis** — the figure defect was the most dangerous of the six: it could not fail loudly,
+  it would simply have published a band that no five-seed block backed. It now fails by DRAWING
+  NOTHING and saying so. The anchor script closes the last hand-typed field in the chain.
+- **Next** — Codex review of round B; then C32@40k conf → `fa_orbit_add_anchor.py C32` → commit the
+  anchor → resubmit the restart legs at the pin-candidate base → record each leg (`--extend` as
+  they save) → q9/traj/VANL blocks.
