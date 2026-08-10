@@ -144,8 +144,8 @@ CONTRACTS = {
     # at the futility provenance bar (hash recomputation optional), because a
     # trajectory point is read as a curve, not as a published number.
     "traj":     {"cells": ("traj",), "seeds": (42, 43, 44, 45, 46), "K": (1, 8),
-                 "min_step_exclusive": 40000, "table_admissible": False,
-                 "figure_admissible": True},
+                 "min_step_exclusive": 40000, "max_step": 100000, "step_grid": 2500,
+                 "table_admissible": False, "figure_admissible": True},
     "q9":       {"cells": ("q9",), "seeds": (42, 43, 44, 45, 46), "K": (1, 8),
                  "step": 40000, "arms": ("VANL", "C4L"), "table_admissible": True},
     # R3 (plan §4) is ONE seed evaluated at five registered yaw offsets — the
@@ -207,8 +207,12 @@ def gate_admissible(k, contract="futility"):
 
     Trajectory screens exist at K=1 and K=8; the pre-registered gates are defined
     on K=8. Keeping the two apart is the whole point of a separate `gate_K`."""
+    # NO fallback to the contract's ordinary K. Falling back made
+    # gate_admissible(8, "traj") return True, so the "trajectory rows are never
+    # gate evidence" claim was false in the one function that encodes it. A
+    # contract is gate-bearing only if it says so, in gate_K, explicitly.
     spec = CONTRACTS.get(contract, {})
-    return k in spec.get("gate_K", spec.get("K", ()))
+    return k in spec.get("gate_K", ())
 
 
 def is_vanilla_arm(arm):
@@ -645,6 +649,12 @@ def validate_cell(metrics_paths, arm, step, k, contract, verify_hashes=False):
     if lo is not None and step <= lo:
         problems.append(f"contract {contract} covers steps strictly above {lo} (got {step}) — "
                         f"the <= {lo} curve is the single-seed screen record")
+    hi = spec.get("max_step")
+    if hi is not None and step > hi:
+        problems.append(f"contract {contract} stops at the {hi} budget (got {step})")
+    grid = spec.get("step_grid")
+    if grid is not None and step % grid:
+        problems.append(f"contract {contract} sits on the {grid}-step checkpoint grid (got {step})")
     if spec.get("step") is not None and step != spec["step"]:
         problems.append(f"contract {contract} is registered at step {spec['step']} only, got {step}")
     if spec.get("arms") and arm not in spec["arms"]:

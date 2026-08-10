@@ -908,7 +908,11 @@ def test_traj_contract_is_figure_not_table_evidence():
     assert t["cells"] == ("traj",) and t["seeds"] == (42, 43, 44, 45, 46)
     assert t["K"] == (1, 8) and t["min_step_exclusive"] == 40000
     assert t["table_admissible"] is False and t["figure_admissible"] is True
-    assert not V.gate_admissible(8, contract="traj") or True    # traj is not a gate contract
+    # No 'or True': traj is not a gate contract, and this must actually assert it.
+    assert not V.gate_admissible(8, contract="traj")
+    assert not V.gate_admissible(1, contract="traj")
+    assert not V.gate_admissible(8, contract="table")
+    assert not V.gate_admissible(8, contract="q9")
     assert V.parse_eval_name("exp11_C16_traj_S42500_s45_K1") == {
         "arm": "C16", "cell": "traj", "step": 42500, "seed": 45, "K": 1}
 
@@ -918,3 +922,13 @@ def test_traj_cells_at_or_below_40k_are_refused(tmp_path):
     for step in (40000, 37500):
         _rows, problems = V.validate_cell([], arm="C8", step=step, k=8, contract="traj")
         assert any("strictly above 40000" in p for p in problems), (step, problems)
+
+
+def test_traj_grid_and_ceiling_are_enforced_in_the_validator():
+    """The driver checked the 2500 grid and the 100k ceiling; the validator did
+    not, so a file that reached disk by any other route was accepted."""
+    for step, needle in ((42501, "checkpoint grid"), (102500, "100000 budget")):
+        _rows, problems = V.validate_cell([], arm="C8", step=step, k=8, contract="traj")
+        assert any(needle in p for p in problems), (step, problems)
+    _rows, problems = V.validate_cell([], arm="C8", step=42500, k=8, contract="traj")
+    assert not any("grid" in p or "budget" in p for p in problems), problems

@@ -660,7 +660,16 @@ if [ "$CELL" = "screen" ]; then
   python3 "$EXPDIR/exp11_validate_rows.py" --arm "$ARM" --step "$STEP" --k "$K" \
     --contract futility --verify-hashes --output-root "$MAIN_REPO" "$METRICS" \
     || die "row validation FAILED - refusing to emit SCREENRESULT for an unprovable row" 6
-  VALIDATED="futility"
+  # A K=1 screen and every traj row are FIGURE-ONLY: the pre-registered futility
+  # gates are defined on K=8 screens, so emitting a bare "futility" for them
+  # would let a reader take a non-gate row as gate evidence.
+  if [ "$CELL" = "traj" ]; then
+    VALIDATED="traj-figure-only-non-gate"
+  elif [ "$K" != "8" ]; then
+    VALIDATED="futility-figure-only-non-gate(K${K})"
+  else
+    VALIDATED="futility"
+  fi
 else
   VALIDATED="pending-cell"
   echo "NOTE: CELL=${CELL} is one row of a five-seed table cell; it is validated as a WHOLE cell"
