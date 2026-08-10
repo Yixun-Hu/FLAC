@@ -1,0 +1,10 @@
+=== re-pin fix 3 RED/GREEN: the recorder's fail-open resume path — 2026-08-10_01-37-34 ===
+repro driver: /tmp/claude-374349/-n-fs-gatrdp-codespace-FLAC/66305eb9-88c7-41df-95da-dde30a426dc2/scratchpad/red_failopen.py (OLD = git HEAD version, NEW = working tree)
+
+--- OLD (HEAD) recorder: rc=0
+recorded C8 RESTART job 3662829 chaining to eeeeeeeeeeee
+    registry restarts now: {"C8": [{"manifest_path": "/n/fs/rfmprog/.tmp/yh4742/tmpou581k5a/old/restart_manifest.txt", "manifest_sha256": "1996be56
+--- NEW recorder: rc=2
+RECORD REFUSED:
+  !! the resume checkpoint /gone/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=8-step=40000.ckpt does not exist — the recorder does NOT accept the manifest's claimed hash in its place
+    registry restarts now: {}
