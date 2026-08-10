@@ -1,0 +1,11 @@
+=== re-pin fix 5 RED/GREEN: figure harvest + y-range — 2026-08-10_02-15-07 ===
+repro driver: /tmp/claude-374349/-n-fs-gatrdp-codespace-FLAC/66305eb9-88c7-41df-95da-dde30a426dc2/scratchpad/red_bandharvest.py (OLD = git HEAD version, NEW = working tree)
+fixture: five traj files at S45000 that are seed 42 five times, valid sidecars
+
+--- OLD (HEAD) generator
+BAND STEPS: [45000]
+  band at 45000: T60 12.000 +- 1.581  (built from 5 files that are ONE seed)
+  OLD range -> (8.202, 8.993); band needs <= 10.419 and >= 13.581  => band OUTSIDE the plotted scale
+--- NEW generator
+BAND STEPS: []
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.

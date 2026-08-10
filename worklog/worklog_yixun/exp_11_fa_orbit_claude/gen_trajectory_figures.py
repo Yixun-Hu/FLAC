@@ -8,7 +8,12 @@ via prefers-color-scheme + data-theme, hover crosshair, and a table view.
 Planner one-off; reviewed with the closing package. Numbers come only from the
 metric JSONs — this page is presentation, never a source.
 """
-import json, glob, math, os, statistics
+import json, glob, math, os, statistics, sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import exp11_validate_rows as V          # noqa: E402  (the harvest gate, see validated_band)
 
 REPO = os.path.dirname(os.path.abspath(__file__)) + "/../../.."
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fa_orbit_02_trajectories.html")
@@ -26,10 +31,64 @@ ARMS = [
     ("P1v",  "P1 vanilla legacy", "#4a3aa7", "#9085e9", "POINT",     0,  "3 2"),
 ]
 
-def series(k=8):
+def validated_band(base, arm, k, suffix, validate=None, refusals=None):
+    """Q10 (>40k) band points, harvested ONLY through the row validator.
+
+    Re-pin review, fix 5: this used to draw a band whenever five files with the
+    right name shape existed — it never proved the five were seeds 42-46 exactly
+    once, never read a sidecar, and never required one checkpoint/config/source
+    SHA across them, so five duplicates or a mixed-pin block became a band. Every
+    step now goes through ``validate_cell(..., contract="traj")``, which is where
+    the five unique seeds, the common provenance (CELL_IDENTITY_FIELDS), the
+    2,500 grid, the >40000 floor and the 100000 ceiling are all enforced. A step
+    with ANY problem is refused outright and disclosed — never silently narrowed
+    into a partial band."""
+    validate = validate or V.validate_cell
+    by_step = {}
+    for f in sorted(glob.glob(f"{base}/*_metrics_*_traj_S*_s4[2-6]_K{k}_*{suffix}*.json")):
+        if f.endswith(".screenmeta.json"):
+            continue
+        by_step.setdefault(int(f.split("_traj_S")[1].split("_")[0]), []).append(f)
+    band = {}
+    for st, paths in sorted(by_step.items()):
+        rows, problems = validate(sorted(paths), arm, st, k, contract="traj")
+        if problems:
+            if refusals is not None:
+                refusals.append({"arm": arm, "K": k, "step": st, "files": len(paths),
+                                 "problems": problems})
+            continue
+        vals = {}
+        for mk, _, _ in METRICS:
+            xs = [r["metrics"][mk] for r in rows if mk in r.get("metrics", {})]
+            if len(xs) == len(rows) and len(xs) > 1:
+                vals[mk] = (statistics.mean(xs), statistics.stdev(xs))
+        if vals:
+            band[st] = vals
+    return band
+
+
+def value_extent(data, mkey):
+    """Every value a panel actually DRAWS: points, conf whiskers, band envelope.
+
+    Re-pin review, fix 5: the scale was computed from the points and the conf
+    MEANS only, so a band (or even a conf error bar) could render outside the
+    plotted range. Both generators scale from this one function."""
+    vals = [d["pts"][s][mkey] for d in data.values() for s in d["pts"] if mkey in d["pts"][s]]
+    for d in data.values():
+        if d.get("conf") and mkey in d["conf"]:
+            m, sd = d["conf"][mkey]
+            vals += [m - sd, m + sd]
+        for b in (d.get("band") or {}).values():
+            if mkey in b:
+                m, sd = b[mkey]
+                vals += [m - sd, m + sd]
+    return (min(vals), max(vals)) if vals else (0.0, 1.0)
+
+
+def series(k=8, refusals=None):
     data = {}
     for key, label, cl, cd, tree, n, dash in ARMS:
-        pts, conf = {}, None
+        pts, conf, band = {}, None, {}
         if tree == "POINT":
             pts = {}
             base = f"{REPO}/outputs_FLAC/exp07_P1/FLAC_exp07_P1/exp07_P1/checkpoints"
@@ -65,18 +124,9 @@ def series(k=8):
             # Q10: above 40k the curve is 5-seed, so it carries a band. Below and
             # at 40k it stays the single-seed screen record plus the conf dot —
             # deliberately NOT mixed, or the shading would mean two different
-            # things on the same line.
-            band = {}
-            by_step = {}
-            for f in glob.glob(f"{base}/*_metrics_*_traj_S*_s4[2-6]_K{k}_*{suffix}*.json"):
-                if f.endswith(".screenmeta.json"): continue
-                st = int(f.split("_traj_S")[1].split("_")[0])
-                m = json.load(open(f)); by_step.setdefault(st, []).append(m.get("metrics", m))
-            for st, ms in by_step.items():
-                if len(ms) == 5:            # a partial block is not a band
-                    band[st] = {mk: (statistics.mean([m[mk] for m in ms]),
-                                     statistics.stdev([m[mk] for m in ms]))
-                                for mk, _, _ in METRICS}
+            # things on the same line. Harvested through the validator, never by
+            # counting files (see validated_band).
+            band = validated_band(base, key, k, suffix, refusals=refusals)
         else:  # legacy C4: backfill screens + historical 5-seed conf row values
             base = f"{REPO}/outputs_FLAC/exp07_BF/FLAC_exp07_BF/exp07_BF/checkpoints"
             for f in glob.glob(f"{base}/*exp11_C4backfill_S*_s42_K{k}_*a4.json"):
@@ -91,16 +141,15 @@ def series(k=8):
                      "EDT": (41.754, 0.347), "RIR_to_GT_RIR_R@1": (5.166, 0.166),
                      "RIR_to_GT_RIR_R@5": (16.071, 0.241), "RIR_to_GT_RIR_R@10": (23.721, 0.150)})
         data[key] = dict(label=label, cl=cl, cd=cd, dash=dash, pts=pts, conf=conf,
-                         band=locals().get("band", {}) if tree else {})
+                         band=band if tree else {})
     return data
 
 def svg_panel(data, mkey, mlabel, lower_better, W=560, H=340):
     P = dict(l=56, r=132, t=18, b=40)
     xs = sorted({s for d in data.values() for s in d["pts"]}
                 | {s for d in data.values() for s in d.get("band", {})} | {40000})
-    vals = [d["pts"][s][mkey] for d in data.values() for s in d["pts"] if mkey in d["pts"][s]]
-    vals += [d["conf"][mkey][0] for d in data.values() if d["conf"]]
-    lo, hi = min(vals), max(vals); pad = (hi - lo) * 0.08 or 1
+    lo, hi = value_extent(data, mkey)       # points + conf whiskers + band envelope
+    pad = (hi - lo) * 0.08 or 1
     lo, hi = lo - pad, hi + pad
     def X(s): return P["l"] + (s - xs[0]) / (xs[-1] - xs[0]) * (W - P["l"] - P["r"])
     def Y(v): return P["t"] + (hi - v) / (hi - lo) * (H - P["t"] - P["b"])
@@ -165,10 +214,18 @@ def svg_panel(data, mkey, mlabel, lower_better, W=560, H=340):
     out.append("</svg>")
     return "".join(out)
 
+def band_cell(entry):
+    """`mean ± sd [lo, hi]` — the extrema the shading spans, not just its centre."""
+    if not entry:
+        return "<td>—</td>"
+    m, sd = entry
+    return f"<td>{m:.3f} ± {sd:.3f}<br><span class=\"note\">[{m - sd:.3f}, {m + sd:.3f}]</span></td>"
+
+
 def main():
-    sections = []
+    sections, refusals = [], []
     for k in (8, 1):
-        data = series(k)
+        data = series(k, refusals=refusals)
         sections.append((k, data))
     data = sections[0][1]
     css_series = "\n".join(
@@ -186,12 +243,33 @@ def main():
         note = "" if k == 8 else "<p class=\"note\">K=1 note: P1 legacy has no sub-40k K=1 raws (exp_07 screened P1 at K=8 only) — only its published 5-seed 40k point; C4 legacy-loop K=1 backfill exists at 20k/30k (the 40k cell was refused at the campaign pin and is omitted).</p>"
         blocks += f'<h2 style="font-size:1.05rem">K = {k}</h2>{note}<main>{pan}</main>'
     panels = blocks
+    # Table view: the plotted screen values AND, for every 5-seed row, the band
+    # EXTREMA that the shading actually spans (re-pin review, fix 5) — a reader
+    # can now read the envelope off the page instead of measuring the shading.
     rows = []
     for k, d in data.items():
         for s in sorted(d["pts"]):
             m = d["pts"][s]
-            rows.append(f"<tr><td>{d['label']}</td><td>{s}</td>" +
-                        "".join(f"<td>{m.get(mk, float('nan')):.3f}</td>" for mk, _, _ in METRICS) + "</tr>")
+            rows.append(f"<tr><td>{d['label']}</td><td>{s}</td><td>screen (s42)</td>" +
+                        "".join(f"<td>{m.get(mk, float('nan')):.3f}</td>" for mk, _, _ in METRICS) +
+                        "</tr>")
+        if d["conf"]:
+            rows.append(f"<tr><td>{d['label']}</td><td>40000</td><td>conf 5-seed</td>" +
+                        "".join(band_cell(d["conf"].get(mk)) for mk, _, _ in METRICS) + "</tr>")
+        for s in sorted(d.get("band") or {}):
+            b = d["band"][s]
+            rows.append(f"<tr><td>{d['label']}</td><td>{s}</td><td>traj 5-seed</td>" +
+                        "".join(band_cell(b.get(mk)) for mk, _, _ in METRICS) + "</tr>")
+    refusal_note = ""
+    if refusals:
+        items = "".join(
+            f"<li>{r['arm']} K={r['K']} S{r['step']}: {r['files']} file(s) present, refused — "
+            f"{r['problems'][0]}</li>" for r in refusals)
+        refusal_note = ('<p class="note"><strong>Refused trajectory blocks (disclosed):</strong> '
+                        "a >40k step is drawn only when its whole cell passes "
+                        "<code>validate_cell(contract=&quot;traj&quot;)</code> — five unique seeds "
+                        "42–46, one checkpoint/config/source SHA, on the 2,500 grid at or below "
+                        f"100000. These did not:</p><ul class=\"note\">{items}</ul>")
     html = f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>exp_11 trajectories — acoustic metrics vs training step</title>
 <style>
@@ -219,14 +297,21 @@ recipe — background context, not the inferential comparator; C32 extends as it
 P1 vanilla legacy (violet, dotted): exp_07 EMA screens at that arm's 10k cadence (s42; finer 2.5k-grid points
 were never run for P1 — 12.5k/15k/…/37.5k do not exist as raws) with its published 5-seed 40k dot.</p>
 <div style="display:flex;gap:1.2rem;flex-wrap:wrap;margin:.4rem 0 .8rem">{legend}</div>
+{refusal_note}
 {panels}
-<details><summary>Table view (all plotted screen values)</summary>
-<div style="overflow-x:auto"><table><tr><th>arm</th><th>step</th><th>T60</th><th>C50</th><th>EDT</th><th>R@1</th></tr>
+<details><summary>Table view (all plotted values; 5-seed rows carry the band extrema)</summary>
+<div style="overflow-x:auto"><table><tr><th>arm</th><th>step</th><th>source</th>
+{''.join(f'<th>{ml}</th>' for _, ml, _ in METRICS)}</tr>
 {''.join(rows)}</table></div></details>
 <style>{css_series}</style></body></html>"""
     open(OUT, "w").write(html)
     npts = sum(len(d["pts"]) for d in data.values())
-    print(f"wrote {OUT} ({npts} screen points, {sum(1 for d in data.values() if d['conf'])} conf endpoints)")
+    nband = sum(len(d.get("band") or {}) for _, dk in sections for d in dk.values())
+    print(f"wrote {OUT} ({npts} screen points, "
+          f"{sum(1 for d in data.values() if d['conf'])} conf endpoints, "
+          f"{nband} validated 5-seed trajectory points)")
+    for r in refusals:
+        print(f"  REFUSED {r['arm']} K={r['K']} S{r['step']} ({r['files']} file(s)): {r['problems'][0]}")
 
 if __name__ == "__main__":
     main()

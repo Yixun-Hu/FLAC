@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from gen_trajectory_figures import series, METRICS  # noqa: E402
+from gen_trajectory_figures import series, value_extent, METRICS  # noqa: E402
 
 ASSETS = os.path.join(HERE, "fa_orbit_results_assets")
 os.makedirs(ASSETS, exist_ok=True)
@@ -48,6 +48,13 @@ def draw(ax, data, mkey, mlabel, lower_better):
             ax.plot(bx, bm, linestyle=DASH.get(d["dash"], "-"), color=d["cl"], lw=2,
                     marker="o", ms=4, zorder=3,
                     label=None if (pxy or d.get("conf")) else d["label"])
+    # The y-range is the SAME computed extent the SVG uses — points, conf
+    # whiskers and band envelope — rather than whatever autoscale happens to
+    # cover, so the two renders cannot disagree about whether a band fits
+    # (re-pin review, fix 5).
+    lo, hi = value_extent(data, mkey)
+    pad = (hi - lo) * 0.08 or 1
+    ax.set_ylim(lo - pad, hi + pad)
     ax.set_title(f"{mlabel}  ({'lower' if lower_better else 'higher'} is better)",
                  fontsize=10, loc="left")
     ax.set_xlabel("training step", fontsize=9)
