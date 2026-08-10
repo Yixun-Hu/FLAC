@@ -23,6 +23,7 @@ os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
 import copy  # noqa: E402
 import difflib  # noqa: E402
+import hashlib  # noqa: E402
 import importlib.util  # noqa: E402
 import json  # noqa: E402
 import re  # noqa: E402
@@ -773,11 +774,13 @@ def test_probe_is_the_two_phase_lifecycle_probe_with_the_launcher_gates():
 # ADDED line marked `EXP06 SBATCH DIFF n/N` (complete per-file numbering) and REMOVED
 # lines allowed ONLY in the eval wrapper's artifact-copy region (the B3 rewrite).
 _SBATCH_REMOVED_OK = {
-    "train_exp06n.sbatch": None,   # pure additions only (the B2 env sweep)
-    "probe_exp06n.sbatch": None,   # pure additions only (the B2 env sweep)
-    # the artifact-copy region rewritten by B3/R2; the bare `fi` is the EMA block's closer
-    # re-emitted by the differ (if/fi balance is backstopped by the bash -n parse test)
-    "eval_exp06n.sbatch": re.compile(r"cp -v|sha256sum|\$ART|IMPORT_DIR|^fi$"),
+    "train_exp06n.sbatch": None,   # pure additions only (the F1 re-exec guard)
+    "probe_exp06n.sbatch": None,   # pure additions only (the F1 re-exec guard)
+    # the artifact-copy region rewritten by B3/R2, the rehash MOVED before publication by
+    # r3 F2 (CKPT_SHA/rehash lines re-emitted at the new position); the bare `fi` is the
+    # EMA block's closer re-emitted by the differ (if/fi balance is backstopped by the
+    # bash -n parse test)
+    "eval_exp06n.sbatch": re.compile(r"cp -v|sha256sum|\$ART|IMPORT_DIR|CKPT_SHA|rehash|^fi$"),
 }
 
 
@@ -817,41 +820,88 @@ def test_slurm_wrappers_are_renamed_exp03n_plus_marked_diffs_only(exp06n, exp03n
             )
 
 
-# --- review B2: a stale submission export must not survive into the launcher/probe.
-# The launcher honors C1_FROZEN_MIN_FREE_FILE (re-points the frozen-VRAM binding at ANY
-# integer file), EXP06N_LOG_DIR (relocates the teed records log), MIN_FREE_MB (must equal
-# frozen, but unset is strictly safer) and CKPT_PATH (a stale export would silently turn a
-# fresh launch into a resume); the probe honors MIN_FREE_MB (would soften the provisional
-# co-tenancy floor), EXP06N_LOG_DIR and SAVE. Each wrapper must unset them explicitly. --- #
-def _unset_vars(text):
-    names = set()
+# --- review r3 F1: unset-list sweeps are DEFEATED by exported functions (a crafted
+# BASH_FUNC_unset%% makes the sweep a no-op; BASH_FUNC_bash%% re-exports before the child
+# bash invocation). The remedy is WHITELIST RE-EXEC: the FIRST executable line of every
+# wrapper re-execs itself through `/usr/bin/env -i` (drops EVERY inherited variable,
+# exported functions included) passing through ONLY the enumerated interface. The
+# dangerous overrides must NOT appear in any whitelist. ------------------------------- #
+_FORBIDDEN_PASSTHROUGH = ("C1_FROZEN_MIN_FREE_FILE", "EXP06N_LOG_DIR", "MIN_FREE_MB",
+                          "CKPT_PATH", "SAVE", "BASH_ENV", "ENV", "PYTHONPATH")
+
+_REEXEC_COMMON = ("EXP06N_ENV_CLEAN=1", "PATH=/usr/bin:/bin",
+                  "EXPECT_PACKAGE_SHA=", "EXPECT_EXP06_SHA=")
+_REEXEC_PER_WRAPPER = {
+    "train_exp06n.sbatch": ("SLURM_JOB_ID=", "SLURM_NNODES=", "SLURM_NTASKS="),
+    "probe_exp06n.sbatch": ("SLURM_JOB_ID=", "SLURM_NNODES=", "SLURM_NTASKS="),
+    "eval_exp06n.sbatch": ("STEP=", "STREAM=", "DRY_RUN=", "SLURM_ARRAY_TASK_ID=",
+                           "SLURM_JOB_ID=", "SLURM_NNODES=", "SLURM_NTASKS="),
+}
+
+
+def _first_executable_line(text):
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        return line
+    pytest.fail("wrapper has no executable line")
+
+
+@pytest.mark.parametrize("name", ["train_exp06n.sbatch", "probe_exp06n.sbatch",
+                                  "eval_exp06n.sbatch"])
+def test_wrapper_first_executable_line_is_the_whitelist_reexec_guard(name):
+    text = _sbatch(name)
+    first = _first_executable_line(text)
+    assert '[ -n "${EXP06N_ENV_CLEAN:-}" ] || exec /usr/bin/env -i' in first, (
+        f"{name}: the whitelist re-exec guard must be the FIRST executable line "
+        f"(anything earlier runs in the attacker-controlled env); got: {first[:120]}"
+    )
+    assert '/bin/bash "$0" "$@"' in first, f"{name}: the guard must re-exec the wrapper itself"
+    for token in _REEXEC_COMMON + _REEXEC_PER_WRAPPER[name]:
+        assert token in first, f"{name}: whitelist must pass through {token!r}"
+    for var in _FORBIDDEN_PASSTHROUGH:
+        assert f" {var}=" not in first, (
+            f"{name}: {var} must NOT survive the re-exec (it is the attack surface)"
+        )
+
+
+@pytest.mark.parametrize("name", ["train_exp06n.sbatch", "probe_exp06n.sbatch",
+                                  "eval_exp06n.sbatch"])
+def test_wrapper_has_no_unset_sweep_left(name):
+    """The unset-list approach is SUPERSEDED (r3 F1): keeping it would suggest it still
+    carries protection. Only the original `unset PYTHONPATH` baseline line may remain."""
+    text = _sbatch(name)
     for m in re.finditer(r"^\s*unset\s+(.+?)(?:\s*#.*)?$", text, flags=re.M):
-        names.update(m.group(1).split())
-    return names
+        assert m.group(1).split() == ["PYTHONPATH"], (
+            f"{name}: superseded unset sweep still present: {m.group(0)[:120]}"
+        )
 
 
-def test_train_sbatch_unsets_every_inheritable_launcher_env():
-    """r1 B2 + r2 R1: the direct overrides AND the bash re-entry vectors — a child bash
-    re-sources $BASH_ENV (or $ENV under sh-mode), which could re-export the swept
-    variables AFTER the sweep."""
-    names = _unset_vars(_sbatch("train_exp06n.sbatch"))
-    for var in ("C1_FROZEN_MIN_FREE_FILE", "EXP06N_LOG_DIR", "MIN_FREE_MB", "CKPT_PATH",
-                "BASH_ENV", "ENV"):
-        assert var in names, f"train_exp06n.sbatch must unset inheritable {var} (review B2/R1)"
-
-
-def test_probe_sbatch_unsets_every_inheritable_probe_env():
-    names = _unset_vars(_sbatch("probe_exp06n.sbatch"))
-    for var in ("MIN_FREE_MB", "EXP06N_LOG_DIR", "SAVE", "BASH_ENV", "ENV"):
-        assert var in names, f"probe_exp06n.sbatch must unset inheritable {var} (review B2/R1)"
-
-
-def test_eval_sbatch_unsets_the_bash_reentry_envs():
-    """The eval wrapper spawns no child bash script today, but the R1 sweep is uniform:
-    a future child bash must not re-source a stale $BASH_ENV/$ENV."""
-    names = _unset_vars(_sbatch("eval_exp06n.sbatch"))
-    for var in ("BASH_ENV", "ENV"):
-        assert var in names, f"eval_exp06n.sbatch must unset inheritable {var} (review r2 R1)"
+def test_eval_dry_run_works_through_the_reexec_guard(tmp_path):
+    """END-TO-END: the dry run traverses the guard (subprocess env is NOT pre-cleaned),
+    so a passing dry run proves the whitelist forwards the whole eval interface — and a
+    poisoned inheritable plus an exported-function payload must be dropped by env -i."""
+    env = dict(os.environ)
+    env.update(DRY_RUN="1", STEP="40000", STREAM="online",
+               EXPECT_PACKAGE_SHA="deadbeefdeadbeef", EXPECT_EXP06_SHA="cafebabecafebabe",
+               SLURM_ARRAY_TASK_ID="3",
+               C1_FROZEN_MIN_FREE_FILE="/evil/frozen.txt",
+               **{"BASH_FUNC_poison%%": "() { echo poisoned; }"})
+    path = _SLURM_DIR / "eval_exp06n.sbatch"
+    if not _SLURM_DIR.exists():
+        pytest.skip(f"cylindrical slurm_neuronic checkout not present at {_SLURM_DIR}")
+    if not path.exists():
+        pytest.fail(f"required deliverable is missing: {path}")
+    proc = subprocess.run(["bash", str(path)], capture_output=True, text=True, env=env,
+                          cwd=str(tmp_path))
+    assert proc.returncode == 0, f"dry run through the guard failed:\n{proc.stderr}"
+    assert "DRY_RUN (nothing executed" in proc.stdout
+    assert "K: 1  SEED: 45" in proc.stdout, (
+        "SLURM_ARRAY_TASK_ID must survive the re-exec (idx 3 -> K1 seed 45)"
+    )
+    assert "poisoned" not in proc.stdout, "the exported-function payload must be dropped"
+    assert list(tmp_path.iterdir()) == [], "the dry run must stay side-effect free"
 
 
 @pytest.mark.parametrize("name,gpus", [("train_exp06n.sbatch", "2"), ("probe_exp06n.sbatch", "2")])
@@ -1111,6 +1161,102 @@ def test_eval_sbatch_sentinels_cleared_only_after_verified_publishes():
     assert "KEPT" in text, "on failure the sentinels must be kept (and said so) for inspection"
 
 
+# --- review r3 F2: publication preceded the checkpoint rehash — a concurrent checkpoint
+# mutation would leave PUBLISHED results and a cleared sentinel set. The rehash must run
+# BEFORE any publish(), and PUBLISH_OK only after (rehash OK) AND (all publishes). ----- #
+def test_eval_sbatch_rehashes_the_checkpoint_before_any_publish():
+    text = _sbatch("eval_exp06n.sbatch")
+    rehash = text.index('CKPT_SHA_POST=$(sha256sum "$CKPT"')
+    verdict = text.index('[ "$CKPT_SHA_POST" = "$CKPT_SHA_PRE" ]')
+    first_publish = text.index('publish "$ART" "${RECORDS}/${ART_BASE}"')
+    ok_pos = text.rindex("PUBLISH_OK=1")
+    assert rehash < verdict < first_publish, (
+        "the post-run checkpoint rehash must complete (and pass) BEFORE anything is "
+        "published — publishing first leaves results behind on a rehash failure"
+    )
+    assert ok_pos > first_publish and ok_pos > verdict, (
+        "PUBLISH_OK=1 requires rehash OK AND all publishes verified"
+    )
+    assert text.count("CKPT_SHA_POST=") == 1, "exactly one rehash site (the pre-publish one)"
+
+
+def test_eval_sbatch_finalize_region_keeps_sentinels_on_rehash_mismatch(tmp_path):
+    """FUNCTIONAL (r3 F2): run the wrapper's VERBATIM finalize region (rehash -> publish
+    -> PUBLISH_OK=1) in a sandbox. With a checkpoint mutated after CKPT_SHA_PRE, the
+    region must abort BEFORE publishing anything and the EXIT trap must KEEP the
+    sentinels; with an unmutated checkpoint it must publish, verify and clear them."""
+    text = _sbatch("eval_exp06n.sbatch")
+
+    def _fn(name):
+        m = re.search(rf"^{name}\(\) \{{[\s\S]*?^\}}", text, flags=re.M)
+        assert m, f"function {name}() not found in eval_exp06n.sbatch"
+        return m.group(0)
+
+    region_match = re.search(
+        r"(# --- post-eval read-only rehash[\s\S]*?PUBLISH_OK=1[^\n]*)", text)
+    assert region_match, "the finalize region (rehash -> publish -> PUBLISH_OK=1) not found"
+    finalize = region_match.group(1)
+
+    cleanup_match = re.search(r"^cleanup_reserves\(\) \{.*$", text, flags=re.M)
+    assert cleanup_match, "cleanup_reserves() not found"
+
+    def _run(sandbox, mutate):
+        sandbox.mkdir()
+        harness = "\n".join([
+            "set -euo pipefail",
+            "RESERVES=(); PUBLISH_OK=0",
+            _fn("reserve"), _fn("publish"), cleanup_match.group(0),
+            # F3's sidecar builder is stubbed: this test proves the F2 ORDERING, and the
+            # stub keeps the verbatim region runnable without the full eval context.
+            'write_evalmeta() { echo "{\\"stub\\":true}" > "$1"; }',
+            "trap cleanup_reserves EXIT",
+            'cd "$1"',
+            "mkdir -p records worktree/outputs_FLAC/exp06n_maxpoollinear_import",
+            "RECORDS=records",
+            "WORKTREE=worktree",
+            "IMPORT_DIR=worktree/outputs_FLAC/exp06n_maxpoollinear_import",
+            "CKPT_DIR=.",
+            "STREAM=ema",
+            "CKPT=ckpt.bin",
+            "echo weights > $CKPT",
+            "CKPT_SHA_PRE=$(sha256sum $CKPT | awk '{print $1}')",
+            "ART=art.json; ART_BASE=art.json",
+            'META_BASE="${ART_BASE}.evalmeta.json"',
+            'reserve "$ART"',
+            'reserve "${RECORDS}/${ART_BASE}"',
+            'reserve "${IMPORT_DIR}/${ART_BASE}"',
+            "echo metrics > $ART        # the eval writes the artifact",
+            ("echo tampered >> $CKPT    # concurrent checkpoint mutation" if mutate else ":"),
+            finalize,
+        ])
+        script = sandbox / "harness.sh"
+        script.write_text(harness + "\n")
+        return subprocess.run(["bash", str(script), str(sandbox)],
+                              capture_output=True, text=True)
+
+    bad = _run(tmp_path / "mutated", mutate=True)
+    assert bad.returncode != 0, f"finalize must abort on a rehash mismatch:\n{bad.stdout}"
+    assert "REHASH MISMATCH" in bad.stdout + bad.stderr
+    assert not list((tmp_path / "mutated" / "records").iterdir()), (
+        "NOTHING may be published after a rehash mismatch"
+    )
+    import_dir = tmp_path / "mutated" / "worktree" / "outputs_FLAC" / "exp06n_maxpoollinear_import"
+    assert not (import_dir / "art.json").exists()
+    kept = list((tmp_path / "mutated").glob("**/*.reserve"))
+    assert len(kept) == 3, f"all three sentinels must SURVIVE a rehash failure: {kept}"
+    assert "KEPT" in bad.stdout + bad.stderr
+
+    good = _run(tmp_path / "clean", mutate=False)
+    assert good.returncode == 0, f"clean finalize failed:\n{good.stdout}\n{good.stderr}"
+    assert (tmp_path / "clean" / "records" / "art.json").read_text() == "metrics\n"
+    assert (tmp_path / "clean" / "records" / "art.json.evalmeta.json").exists(), (
+        "the provenance sidecar must be published beside the records artifact (r3 F3)"
+    )
+    assert not list((tmp_path / "clean").glob("**/*.reserve")), (
+        "sentinels must be cleared after verified publishes"
+    )
+
+
 def test_eval_sbatch_reserve_and_publish_functions_behave(tmp_path):
     """FUNCTIONAL: extract reserve()/publish() from the wrapper and exercise them in a
     bash harness — a second reservation must refuse, publishing onto a taken destination
@@ -1163,6 +1309,34 @@ def test_eval_sbatch_appends_the_import_sha_manifest():
     assert re.search(r'cd "\$WORKTREE" && sha256sum "outputs_FLAC/exp06n_maxpoollinear_import/', text), (
         "manifest lines must carry repo-relative names (sha256sum -c from the repo root)"
     )
+
+
+# --- review r3 F3: the artifact JSON records neither stream nor config/ckpt hashes, so a
+# renamed online raw passes an EMA row. The wrapper writes a PROVENANCE SIDECAR
+# <ART_BASE>.evalmeta.json beside every published artifact (exp_11-proven pattern),
+# WITHOUT touching eval_FLAC.py; the generator cross-checks it per matched raw. -------- #
+def test_eval_sbatch_writes_and_publishes_the_provenance_sidecar():
+    text = _sbatch("eval_exp06n.sbatch")
+    assert 'META_BASE="${ART_BASE}.evalmeta.json"' in text
+    fn = re.search(r"^write_evalmeta\(\) \{[\s\S]*?^\}", text, flags=re.M)
+    assert fn, "write_evalmeta() (the sidecar builder) not found"
+    body = fn.group(0)
+    for field in ('"eval_name"', '"stream"', '"step"', '"seed"', '"K"', '"ckpt_path"',
+                  '"ckpt_sha256"', '"model_config"', '"model_config_sha256"',
+                  '"dataset_config"', '"argv"', '"worktree_head"', '"package_head"'):
+        assert field in body, f"sidecar must record {field}"
+    assert "hashlib" in body, "the model-config sha256 must be computed, not asserted"
+    assert "CKPT_SHA_POST" in body, (
+        "ckpt_sha256 must be the POST-RUN rehash value (the verified one)"
+    )
+    # the sidecar is reserved and published to ALL destinations the artifact reaches
+    for dest in ('"${CKPT_DIR}/${META_BASE}"', '"${RECORDS}/${META_BASE}"',
+                 '"${IMPORT_DIR}/${META_BASE}"'):
+        assert f"reserve {dest}" in text, f"sidecar destination {dest} must be reserved"
+        assert f'publish "$TMP_META" {dest}' in text, f"sidecar must be published to {dest}"
+    # the EMA import manifest records the sidecar too
+    assert re.search(r'sha256sum "outputs_FLAC/exp06n_maxpoollinear_import/\$\{META_BASE\}"',
+                     text), "the import manifest must also carry the sidecar's sha line"
 
 
 # ------------------------------------------------------------------------------------ #
@@ -1238,15 +1412,26 @@ def test_generator_exp03_exp04_row_specs_are_untouched(gen):
     assert len(p1_rows) == 4 and all(len(r) == 4 for r in p1_rows)
 
 
-# --- r2 R3 functional: the validator must reject wrong-protocol / wrong-arm / bad-seed
-# raws as HARD errors naming the file, accept a clean 5-seed row, and let short rows
-# stay pending. Exercised on synthetic raws in tmp dirs, via the REAL aggregate path. --- #
+# --- r2 R3 + r3 F3 functional: the validator must reject wrong-protocol / wrong-arm /
+# bad-seed raws AND crafted/renamed sidecar provenance as HARD errors naming the file,
+# accept a clean 5-seed row, and let short rows stay pending. Exercised on synthetic
+# raws + sidecars in tmp dirs, via the REAL aggregate path. --------------------------- #
 _VALID_METRICS = {"T60": 1.0, "Invalid T60": 0.0, "C50": 0.5, "EDT": 2.0, "FD": 0.1,
                   "RIR_to_GT_RIR_R@1": 10.0, "RIR_to_GT_RIR_R@5": 20.0,
                   "RIR_to_GT_RIR_R@10": 30.0}
 
+# the REGISTERED config hashes, computed from the committed files themselves so the
+# generator's hard-coded pins can never drift from the worktree reality unnoticed
+_CONFIG_SHA = {
+    "ema": hashlib.sha256((_EXP09_DIR / "FLAC_AR_exp06n.json").read_bytes()).hexdigest(),
+    "online": hashlib.sha256(
+        (_EXP09_DIR / "FLAC_AR_exp06n_online_eval.json").read_bytes()).hexdigest(),
+}
+_SHARED_CKPT_SHA = "c" * 64
 
-def _write_raw(dirpath, seed, *, step="40000", stream="online", k=1, epoch=8, **overrides):
+
+def _write_raw(dirpath, seed, *, step="40000", stream="online", k=1, epoch=8,
+               sidecar=True, meta_overrides=None, **overrides):
     record = {
         "metrics": dict(_VALID_METRICS),
         "ckpt_path": (f"/n/fs/gatrdp/outputs/exp06n_maxpoollinear/FLAC_exp06n_maxpoollinear/"
@@ -1261,13 +1446,42 @@ def _write_raw(dirpath, seed, *, step="40000", stream="online", k=1, epoch=8, **
             f"exp06n_{step}_{stream}_K{k}_s{seed}_fa_invariant_a1.json")
     path = Path(dirpath) / name
     path.write_text(json.dumps(record) + "\n")
+    if sidecar:
+        meta = {
+            "eval_name": f"exp06n_{step}_{stream}_K{k}_s{seed}",
+            "stream": stream,
+            "step": int(step),
+            "seed": int(seed),
+            "K": int(k),
+            "ckpt_path": record["ckpt_path"],
+            "ckpt_sha256": _SHARED_CKPT_SHA,
+            "model_config": ("worklog/worklog_yixun/exp_09_cyl_no_ssl/FLAC_AR_exp06n"
+                             + ("_online_eval" if stream == "online" else "") + ".json"),
+            "model_config_sha256": _CONFIG_SHA[stream],
+            "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json",
+            "argv": ["python", "eval_FLAC.py"],
+            "worktree_head": "w" * 40,
+            "package_head": "p" * 40,
+        }
+        meta.update(meta_overrides or {})
+        (Path(dirpath) / f"{name}.evalmeta.json").write_text(json.dumps(meta) + "\n")
     return path
 
 
 def _exp06_row(gen, dirpath, *, step="40000", stream="online", k=1):
+    # the tightened glob (r3 F3): must END at the artifact suffix so the *.evalmeta.json
+    # sidecars are never swept into the aggregate
     return ("cyl no-SSL max_linear @40k (exp_06)", f"fa eval, bf16, {stream.upper()}", k,
-            [str(Path(dirpath) / f"*exp06n_{step}_{stream}_K{k}_s*.json")],
-            gen.make_exp06_validator(step))
+            [str(Path(dirpath) / f"*exp06n_{step}_{stream}_K{k}_s*_fa_invariant_a1.json")],
+            gen.make_exp06_validator(step, stream, k))
+
+
+def test_generator_pins_equal_the_committed_config_hashes(gen):
+    """The generator hard-codes the two registered config sha256s; they must equal the
+    hashes of the files actually committed in this worktree."""
+    assert gen.EXP06_CONFIG_SHA256 == _CONFIG_SHA, (
+        f"generator pins {gen.EXP06_CONFIG_SHA256} != committed file hashes {_CONFIG_SHA}"
+    )
 
 
 def test_generator_validator_accepts_a_clean_five_seed_row(gen, tmp_path):
@@ -1310,6 +1524,44 @@ def test_generator_validator_hard_errors_on_wrong_provenance(gen, tmp_path, over
     )
 
 
+# --- r3 F3: the sidecar cross-checks. A renamed genuine ONLINE raw carries an online
+# sidecar (or none) — either must hard-fail the EMA row. --------------------------------- #
+@pytest.mark.parametrize("meta_overrides, match", [
+    ({"stream": "online"}, "stream"),                     # renamed online raw in an EMA row
+    ({"model_config_sha256": "0" * 64}, "config"),        # crafted/wrong config hash
+    ({"step": 67500}, "step"),
+    ({"K": 8}, '"K"|K '),
+    ({"seed": 43}, "seed"),
+    ({"eval_name": "exp06n_40000_ema_K1_s43"}, "eval_name"),
+    ({"ckpt_path": "/somewhere/else/epoch=8-step=40000.ckpt"}, "ckpt_path"),
+])
+def test_generator_validator_hard_errors_on_sidecar_mismatch(gen, tmp_path, meta_overrides, match):
+    for seed in (42, 43, 44, 45):
+        _write_raw(tmp_path, seed, stream="ema")
+    bad = _write_raw(tmp_path, 46, stream="ema", meta_overrides=meta_overrides)
+    with pytest.raises(RuntimeError, match=match) as excinfo:
+        gen.render_body([_exp06_row(gen, tmp_path, stream="ema")])
+    assert bad.name in str(excinfo.value)
+
+
+def test_generator_validator_hard_errors_on_a_missing_sidecar(gen, tmp_path):
+    for seed in (42, 43, 44, 45):
+        _write_raw(tmp_path, seed)
+    bad = _write_raw(tmp_path, 46, sidecar=False)
+    with pytest.raises(RuntimeError, match="sidecar|evalmeta") as excinfo:
+        gen.render_body([_exp06_row(gen, tmp_path)])
+    assert bad.name in str(excinfo.value)
+
+
+def test_generator_validator_hard_errors_on_divergent_ckpt_hashes(gen, tmp_path):
+    """All seeds of a cell must have evaluated the SAME checkpoint bytes."""
+    for seed in (42, 43, 44, 45):
+        _write_raw(tmp_path, seed)
+    _write_raw(tmp_path, 46, meta_overrides={"ckpt_sha256": "d" * 64})
+    with pytest.raises(RuntimeError, match="ckpt_sha256|checkpoint"):
+        gen.render_body([_exp06_row(gen, tmp_path)])
+
+
 def test_generator_validator_hard_errors_on_seed_violations(gen, tmp_path):
     # duplicate seed (5 files, distinct names via epoch, seeds 42,42,43,44,45)
     for seed, epoch in ((42, 8), (42, 9), (43, 8), (44, 8), (45, 8)):
@@ -1331,6 +1583,24 @@ def test_generator_validator_hard_errors_on_seed_violations(gen, tmp_path):
     _write_raw(leak, 46, epoch=9)   # a 6th matching file
     with pytest.raises(RuntimeError, match="more than|leak|seed"):
         gen.render_body([_exp06_row(gen, leak)])
+
+
+def test_generator_exp06_globs_do_not_match_the_sidecars(gen, tmp_path):
+    """The row globs must end at the artifact suffix: a sidecar swept into the aggregate
+    would either crash on a missing 'metrics' key or corrupt the count."""
+    for row in [r for r in gen.ROWS if "exp_06" in r[0]]:
+        pattern = row[3][0]
+        assert pattern.endswith("_fa_invariant_a1.json"), (
+            f"row glob must end at the artifact suffix so *.evalmeta.json never matches: "
+            f"{pattern}"
+        )
+    # and behaviorally: a lone sidecar (no raw) must not be counted or crash
+    _write_raw(tmp_path, 42)
+    (tmp_path / "epoch=8-step=40000_metrics_1_1.0_exp06n_40000_online_K1_s42"
+                "_fa_invariant_a1.json").unlink()   # leave only the sidecar behind
+    body = gen.render_body([_exp06_row(gen, tmp_path)])
+    line = [l for l in body.splitlines() if l.startswith("| cyl no-SSL max_linear")][0]
+    assert "*pending (0/5" in line, line
 
 
 def _assert_manifest_scaffold(path: Path):
