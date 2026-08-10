@@ -293,9 +293,10 @@ echo "--- G3. Q10: the 40k -> 100k EXTENSION preflight contract (re-pin fix 1) -
 EXT_ROOT="${TMP}/ext"; EXT_SAVE="${EXT_ROOT}/exp11_C8"
 EXT_CKPT_DIR="${EXT_SAVE}/FLAC_exp11_C8/exp11_C8/checkpoints"
 mkdir -p "$EXT_CKPT_DIR" "${EXT_ROOT}/elsewhere"
-$PY - "$TMP" "${EXPDIR}/FLAC_AR_BF_C8.json" "$EXT_CKPT_DIR" "$EXT_SAVE" "${EXT_ROOT}/elsewhere" <<'PY'
-import hashlib, json, os, sys, torch
-tmp, cfg_path, ckpt_dir, save_dir, other = sys.argv[1:6]
+$PY - "$TMP" "${EXPDIR}/FLAC_AR_BF_C8.json" "$EXT_CKPT_DIR" "$EXT_SAVE" "${EXT_ROOT}/elsewhere" "$LAUNCHER" <<'PY'
+import hashlib, json, os, re, sys, torch
+tmp, cfg_path, ckpt_dir, save_dir, other, launcher = sys.argv[1:7]
+vae_sha = re.search(r'^PINNED_VAE_SHA256="([^"]*)"', open(launcher).read(), re.M).group(1)
 cfg = json.load(open(cfg_path))
 ck = {"global_step": 40000, "epoch": 8, "model_config": cfg,
       "state_dict": {"diffusion.x": torch.zeros(1), "diffusion_ema.x": torch.zeros(1)},
@@ -312,7 +313,9 @@ with open(man, "w") as fh:
     fh.write("job 3648695 host neu000 mode INITIAL launch_uuid ext-uuid-c8\n")
     fh.write("arm C8 rung 8x8 micro 8 ngpu 8 max_steps 40000 ckpt_every 2500\n")
     fh.write("commit " + "2" * 40 + "\n")
+    fh.write(f"model_config {cfg_path}\n")
     fh.write(f"config_sha256 {cfg_sha}\n")
+    fh.write(f"vae_sha256 {vae_sha}\n")
     fh.write(f"save_dir {save_dir}\n")
     fh.write("wandb_run_id exp11-C8-ext\n")
 reg = {"arms": {"C8": {
@@ -320,7 +323,8 @@ reg = {"arms": {"C8": {
     "manifest_sha256": hashlib.sha256(open(man, "rb").read()).hexdigest(),
     "job": "3648695", "mode": "INITIAL", "launch_uuid": "ext-uuid-c8",
     "commit": "2" * 40, "rung": "8x8", "max_steps": "40000",
-    "config_sha256": cfg_sha, "save_dir": save_dir, "training_seed": 42,
+    "config_sha256": cfg_sha, "vae_sha256": vae_sha, "save_dir": save_dir,
+    "training_seed": 42,
     "final_ckpt_sha256": h, "final_step": 40000}}, "restarts": {}}
 json.dump(reg, open(os.path.join(tmp, "ext_registry.json"), "w"), indent=2)
 print("extension fixture written")
@@ -358,6 +362,20 @@ ext_with_reg() { $PY "$PREFLIGHT" --config "${EXPDIR}/FLAC_AR_BF_C8.json" --arm 
   --launch-manifest "${TMP}/ext_launch_manifest.txt" --extension --launch-registry "$1"; }
 expect_cmd "extension refuses an arm with no audited anchor" 2 "no audited final_ckpt_sha256" -- \
   ext_with_reg "${TMP}/reg_noanchor.json"
+# ...and fa_orbit_add_anchor.py is how that arm becomes extendable (fix 6): the
+# SAME registry that just refused is anchored and then accepted. This is C32's
+# sequence — audit the 40k checkpoint, write the anchor, then the leg may run.
+add_anchor() { $PY "${EXPDIR}/fa_orbit_add_anchor.py" C8 --registry "$1" \
+  --launcher "$LAUNCHER" --repo-root "$PWD" "${@:2}"; }
+expect_cmd "add_anchor dry run writes nothing" 0 "dry run, nothing written" -- \
+  add_anchor "${TMP}/reg_noanchor.json" --dry-run
+expect_cmd "add_anchor audits and writes the anchor" 0 "anchored C8 at step 40000" -- \
+  add_anchor "${TMP}/reg_noanchor.json"
+expect_cmd "the extension preflight accepts the freshly anchored arm" 0 "extension lineage OK" -- \
+  ext_with_reg "${TMP}/reg_noanchor.json"
+expect_cmd "add_anchor is idempotent" 0 "already anchored" -- add_anchor "${TMP}/reg_noanchor.json"
+expect_cmd "add_anchor refuses a manifest that disagrees with the registry" 2 "!= the registered" -- \
+  add_anchor "${TMP}/reg_wrongcommit.json"
 expect_cmd "extension refuses a resume that is not the anchor" 2 "audited final checkpoint" -- \
   ext_with_reg "${TMP}/reg_wronganchor.json"
 expect_cmd "extension refuses a manifest commit that is not the registered one" 2 "registered launch commit" -- \

@@ -50,3 +50,41 @@ SBATCH_EXCLUDE=neu322 SMOKE=0 DRYRUN=0 bash worklog/worklog_yixun/exp_11_fa_orbi
 3648697 exp11-C32-train 2026-08-07T00:16:28 neu310
 ```
   C4L → 3648694 · C8 → 3648695 · C16 → 3648696 · C32 → 3648697; all four world-size gates passed ("Starting with 8 processes").
+
+## Q10 PROVENANCE TOOLS (operator commands; no allocation, no submission)
+
+The 40k→100k extension is admissible only through two recorded steps. Both take an
+exclusive lock on the registry directory, publish tmp+rename, and refuse rather than
+overwrite; both accept `--dry-run` (audit and report, write nothing).
+
+**1. Anchor the arm** — once, when the arm's 40k checkpoint is final (for C32: the
+moment its 40k conf block validates). Re-hashes the checkpoint from disk and audits
+it (embedded step/config/optimizer/scheduler/EMA) against the arm's audited INITIAL
+launch manifest, then writes `final_ckpt_sha256` + `final_step` into the registry row.
+
+```bash
+/n/fs/gatrdp/envs/flac/bin/python worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_add_anchor.py C32 --dry-run
+/n/fs/gatrdp/envs/flac/bin/python worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_add_anchor.py C32
+```
+
+Verified against real data: run over a copy of the registry with the C4L anchor
+removed, it independently re-derives `ed9d7a869ecded98cab78ecc4cef83e579df6643c8ffe564912a9e8ec5c88de8`
+— byte-identical to the committed C4L anchor. `C32` today refuses correctly
+("expected exactly 1 checkpoint at step 40000 … found 0"). The anchor must exist
+BEFORE the leg's job starts: the extension preflight fails closed without it.
+
+**2. Record the leg** — after the restart job publishes its manifest; re-run with
+`--extend` as the leg saves more checkpoints (it re-hashes only the new ones and
+never adds a second registry row).
+
+```bash
+/n/fs/gatrdp/envs/flac/bin/python worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_record_restart.py \
+    C32 outputs_FLAC/exp11_C32/fa_orbit_<ts>_C32_8x8_jid<JID>_manifest.txt
+/n/fs/gatrdp/envs/flac/bin/python worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_record_restart.py \
+    C32 outputs_FLAC/exp11_C32/fa_orbit_<ts>_C32_8x8_jid<JID>_manifest.txt --extend
+```
+
+Both the registry row and the per-leg producer manifest
+(`fa_orbit_producer_<ARM>_job<JOB>.json`) must be COMMITTED and inside the campaign
+pin before a >40k screen can read them — screens read the registry from the pinned
+worktree, so an uncommitted record is invisible to the gate by design.

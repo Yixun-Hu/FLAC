@@ -44,6 +44,7 @@ def _load(name):
 
 PM = _load("fa_orbit_producer_manifest")
 REC = _load("fa_orbit_record_restart")
+ANCH = _load("fa_orbit_add_anchor")
 
 ARM = "C8"
 INITIAL_JOB = "3648695"
@@ -79,6 +80,7 @@ def world(tmp_path):
         "PINNED_MAXSTEPS=100000                     # Q10 budget",
         'PINNED_TIME_LIMIT_C8="35:00:00"',
         f'PINNED_TIME_LIMIT_RESTART_C8="{RESTART_TIME}"',
+        f'PINNED_VAE_SHA256="{"b" * 64}"',
     ]) + "\n")
     cfg = write(os.path.join(expdir, "FLAC_AR_BF_C8.json"), json.dumps({"training": {"a": 8}}))
     cfg_sha = sha(open(cfg, "rb").read())
@@ -399,3 +401,159 @@ def test_a_producer_manifest_from_another_leg_is_refused(world):
     PM.write_atomic(man_path, man)
     problems, _ = chain(world, 45000)
     assert problems and "!= the registry leg's" in problems[0]
+
+
+# --------------------------------------------------------------------------
+# fix 6 — the anchor: an arm's audited final checkpoint
+# --------------------------------------------------------------------------
+def _ckpt_blob(cfg, step=40000, opt=True, sched=True, ema=True):
+    import torch
+    sd = {"diffusion.x": torch.zeros(1)}
+    if ema:
+        sd["diffusion_ema.x"] = torch.zeros(1)
+    return {"global_step": step, "epoch": 8, "model_config": cfg, "state_dict": sd,
+            "optimizer_states": [{"state": {0: {"step": 1}} if opt else {},
+                                  "param_groups": [{"lr": 1e-5}]}],
+            "lr_schedulers": [{"last_epoch": step}] if sched else []}
+
+
+@pytest.fixture
+def unanchored(world):
+    """``world`` before its anchor exists: a real INITIAL manifest, a real torch
+    checkpoint at 40k, and no final_ckpt_sha256 — C32's state tonight."""
+    import torch
+    cfg = json.load(open(world["config"]))
+    ckpt_path = world["steps"][40000][0]
+    torch.save(_ckpt_blob(cfg), ckpt_path)
+    world["steps"][40000] = (ckpt_path, PM.sha256_file(ckpt_path))
+
+    man_rel = os.path.join(world["save_dir"], "launch_manifest.txt")
+    man_abs = os.path.join(world["root"], man_rel)
+    write(man_abs, "\n".join([
+        "# exp_11 arm launch manifest",
+        f"job {INITIAL_JOB} host neu000 mode INITIAL launch_uuid initial-uuid",
+        f"arm {ARM} rung 8x8 micro 8 ngpu 8 max_steps 40000 ckpt_every 2500",
+        f"commit {LAUNCH_COMMIT}",
+        f"p0_manifest_sha256 {'a' * 64}",
+        f"model_config {world['config']}",
+        f"config_sha256 {world['config_sha']}",
+        f"vae_sha256 {'b' * 64}",
+        f"save_dir {world['save_dir']}",
+        "wandb_run_id exp11-C8-initial", ""]))
+    reg = registry_of(world)
+    row = reg["arms"][ARM]
+    row["manifest_path"] = man_rel
+    row["manifest_sha256"] = PM.sha256_file(man_abs)
+    row.pop("final_ckpt_sha256", None)
+    row.pop("final_step", None)
+    with open(world["registry"], "w") as fh:
+        json.dump(reg, fh, indent=2)
+    world["manifest"] = man_abs
+    return world
+
+
+def run_anchor(world, *extra):
+    return ANCH.main([ARM, "--registry", world["registry"], "--launcher", world["launcher"],
+                      "--repo-root", world["root"], *extra])
+
+
+def test_add_anchor_records_the_audited_final_checkpoint(unanchored):
+    assert run_anchor(unanchored) == 0
+    row = registry_of(unanchored)["arms"][ARM]
+    assert row["final_ckpt_sha256"] == unanchored["steps"][40000][1]
+    assert row["final_step"] == 40000
+    assert row["final_ckpt_path"].endswith("epoch=8-step=40000.ckpt")
+    assert not row["final_ckpt_path"].startswith("/"), "the path must be repo-relative"
+
+
+def test_add_anchor_is_idempotent(unanchored, capsys):
+    assert run_anchor(unanchored) == 0
+    assert run_anchor(unanchored) == 0
+    assert "already anchored" in capsys.readouterr().out
+
+
+def test_add_anchor_refuses_to_re_anchor_a_different_checkpoint(unanchored, capsys):
+    import torch
+    assert run_anchor(unanchored) == 0
+    cfg = json.load(open(unanchored["config"]))
+    blob = _ckpt_blob(cfg)
+    blob["epoch"] = 9                       # same step, different bytes
+    torch.save(blob, unanchored["steps"][40000][0])
+    assert run_anchor(unanchored) == 2
+    assert "re-parent every leg" in capsys.readouterr().out
+
+
+def test_add_anchor_refuses_a_drifted_launch_manifest(unanchored, capsys):
+    with open(unanchored["manifest"], "a") as fh:
+        fh.write("tampered_field yes\n")
+    assert run_anchor(unanchored) == 2
+    assert "changed after registration" in capsys.readouterr().out
+    assert "final_ckpt_sha256" not in registry_of(unanchored)["arms"][ARM]
+
+
+@pytest.mark.parametrize("kw,needle", [
+    ({"step": 37500}, "embedded global_step"),
+    ({"opt": False}, "optimizer state"),
+    ({"sched": False}, "lr_schedulers"),
+    ({"ema": False}, "no EMA weights"),
+])
+def test_add_anchor_audits_the_checkpoint_itself(unanchored, capsys, kw, needle):
+    import torch
+    cfg = json.load(open(unanchored["config"]))
+    torch.save(_ckpt_blob(cfg, **kw), unanchored["steps"][40000][0])
+    assert run_anchor(unanchored) == 2
+    assert needle in capsys.readouterr().out
+
+
+def test_add_anchor_refuses_a_foreign_config(unanchored, capsys):
+    import torch
+    torch.save(_ckpt_blob({"training": {"a": 32}}), unanchored["steps"][40000][0])
+    assert run_anchor(unanchored) == 2
+    assert "embedded model_config" in capsys.readouterr().out
+
+
+def test_add_anchor_refuses_an_ambiguous_step(unanchored, capsys):
+    import torch
+    cfg = json.load(open(unanchored["config"]))
+    torch.save(_ckpt_blob(cfg), os.path.join(unanchored["ckpt_dir"], "epoch=9-step=40000.ckpt"))
+    assert run_anchor(unanchored) == 2
+    assert "exactly 1 checkpoint at step 40000" in capsys.readouterr().out
+
+
+def test_add_anchor_dry_run_writes_nothing(unanchored):
+    before = open(unanchored["registry"]).read()
+    assert run_anchor(unanchored, "--dry-run") == 0
+    assert open(unanchored["registry"]).read() == before
+
+
+def test_add_anchor_step_crosscheck_must_match_the_registered_budget(unanchored):
+    with pytest.raises(SystemExit) as exc:
+        run_anchor(unanchored, "--step", "50000")
+    assert "registered budget 40000" in str(exc.value)
+
+
+def test_add_anchor_refuses_an_arm_with_no_launch(unanchored):
+    with pytest.raises(SystemExit) as exc:
+        ANCH.main(["C16", "--registry", unanchored["registry"],
+                   "--launcher", unanchored["launcher"], "--repo-root", unanchored["root"]])
+    assert "no INITIAL registry entry" in str(exc.value)
+
+
+def test_a_leg_is_recordable_once_its_arm_is_anchored(unanchored, capsys):
+    """C32's ordering: the anchor is added when the 40k conf validates, and the
+    leg is recorded afterwards. The recorder must refuse before, and work after,
+    with no residue from the refusal."""
+    manifest = leg_manifest(unanchored)
+    assert run_record(unanchored, manifest) == 2
+    assert "no audited final_ckpt_sha256" in capsys.readouterr().out
+    assert registry_of(unanchored).get("restarts", {}) in ({}, {ARM: []})
+
+    assert run_anchor(unanchored) == 0
+
+    assert run_record(unanchored, manifest) == 0
+    legs = registry_of(unanchored)["restarts"][ARM]
+    assert len(legs) == 1 and legs[0]["chains_to"] == unanchored["steps"][40000][1]
+    man = PM.load(os.path.join(unanchored["expdir"], PM.manifest_name(ARM, LEG_JOB)))
+    assert sorted(man["checkpoints"], key=int) == ["42500", "45000"]
+    problems, note = chain(unanchored, 45000)
+    assert problems == [] and "producer binding OK" in note
