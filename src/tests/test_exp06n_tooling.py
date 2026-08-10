@@ -929,8 +929,13 @@ _REEXEC_PER_WRAPPER = {
     "probe_exp06n.sbatch": (),
     "eval_exp06n.sbatch": ("STEP=", "K=", "STREAM="),
 }
-_SLURM_PASS_BLOCK = ("SLURM_PASS=(); while IFS= read -r kv; do SLURM_PASS+=(\"$kv\"); done "
-                     "< <(/usr/bin/env | /usr/bin/grep '^SLURM_')")
+# r9: the enumeration must be NUL-delimited (`env -0` + `grep -z` + `read -d ''`) — a
+# line-based read TRUNCATES newline-containing SLURM values and lets a foreign multiline
+# value SYNTHESIZE a fake SLURM_* assignment (both reproduced by the reviewer). The
+# TRIGGER/post-assert pipelines may stay line-based: they only detect PRESENCE (a spoofed
+# hit merely sanitizes once / fails closed); only the enumeration must be NUL-clean.
+_SLURM_PASS_BLOCK = ("SLURM_PASS=(); while IFS= read -r -d '' kv; do SLURM_PASS+=(\"$kv\"); "
+                     "done < <(/usr/bin/env -0 | /usr/bin/grep -z '^SLURM_')")
 _WRAPPERS = ["train_exp06n.sbatch", "probe_exp06n.sbatch", "eval_exp06n.sbatch"]
 
 
@@ -1023,6 +1028,12 @@ def test_wrapper_first_executable_line_is_the_sanitizing_guard(name):
     assert "read builtin" in text, (
         f"{name}: the residual note must cover the pre-sanitization read builtin in the "
         "forwarding loop (same accepted class as the bare exec)"
+    )
+    # r9: the marker comment must state the line-based trigger is presence-only and the
+    # ENUMERATION is the NUL-clean part
+    assert "NUL" in text and "presence" in text, (
+        f"{name}: the guard comment must explain the r9 split — line-based trigger "
+        "(presence-only detection) vs NUL-delimited enumeration"
     )
     # the POST-SANITIZATION ASSERT is the fail-closed detector: it refuses (with the
     # submission contract) and sits AFTER the re-exec block
@@ -1131,6 +1142,9 @@ _FAKE_SLURM = {
     "SLURM_NODEID": "0",
     "SLURM_PROCID": "1",
     "SLURM_JOB_NAME": "exp06n probe run",   # the space is the point: array forwarding only
+    # r9: an embedded NEWLINE must survive byte-exactly — line-based enumeration truncates
+    # this to "alpha" and then hands "beta gamma" to env -i as a program name
+    "SLURM_MULTI": "alpha\nbeta gamma",
 }
 
 
@@ -1151,6 +1165,7 @@ def test_wrapper_guard_forwards_the_full_slurm_env_byte_exactly(name, tmp_path):
         'echo "NODEID=[${SLURM_NODEID:-MISSING}]"',
         'echo "PROCID=[${SLURM_PROCID:-MISSING}]"',
         'echo "JOBNAME=[${SLURM_JOB_NAME:-MISSING}]"',
+        'echo "MULTI=[${SLURM_MULTI:-MISSING}]"',
     ])
     script = tmp_path / f"slurm_{name}.sh"
     script.write_text(harness + "\n")
@@ -1172,6 +1187,40 @@ def test_wrapper_guard_forwards_the_full_slurm_env_byte_exactly(name, tmp_path):
         f"{name}: the space-containing SLURM_JOB_NAME was shredded — the forwarding must "
         f"be the ARRAY form, never $(...) word-splitting:\n{out}"
     )
+    assert "MULTI=[alpha\nbeta gamma]" in out, (
+        f"{name}: the newline-containing SLURM value was truncated — the enumeration must "
+        f"be NUL-delimited (r9):\n{out}"
+    )
+
+
+@pytest.mark.parametrize("name", _WRAPPERS)
+def test_wrapper_guard_does_not_synthesize_slurm_from_foreign_multilines(name, tmp_path):
+    """r9 injection repro: a NON-SLURM variable whose multiline value embeds a line
+    starting with ``SLURM_FAKE=`` must NOT produce any SLURM_FAKE in the child — with
+    line-based enumeration the embedded line matches ``^SLURM_`` and gets forwarded as a
+    real assignment; NUL-delimited records carry their true name at record start."""
+    harness = "\n".join([
+        _guard_block(_sbatch(name)),
+        'echo "FAKE=[${SLURM_FAKE:-ABSENT}]"',
+        'echo "INNOCENT=[${INNOCENT:-ABSENT}]"',
+        "C1_COUNT=$(/usr/bin/env | /usr/bin/grep -c '^C1_FROZEN_MIN_FREE_FILE=' || true)",
+        'echo "C1_COUNT=${C1_COUNT}"',
+    ])
+    script = tmp_path / f"inject_{name}.sh"
+    script.write_text(harness + "\n")
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path),
+           "C1_FROZEN_MIN_FREE_FILE": "/evil/frozen.txt",   # dirt fires the trigger
+           "INNOCENT": "x\nSLURM_FAKE=evil"}                # the injection payload
+    proc = subprocess.run(["bash", str(script)], capture_output=True, text=True, env=env)
+    out = proc.stdout + proc.stderr
+    assert proc.returncode == 0, f"{name}: sanitizing re-exec failed:\n{out}"
+    assert "FAKE=[ABSENT]" in out, (
+        f"{name}: a foreign multiline value SYNTHESIZED a SLURM_FAKE assignment (r9):\n{out}"
+    )
+    assert "INNOCENT=[ABSENT]" in out, (
+        f"{name}: the non-whitelisted foreign variable must die in env -i:\n{out}"
+    )
+    assert "C1_COUNT=0" in out, f"{name}: the dirt survived:\n{out}"
 
 
 @pytest.mark.parametrize("name", _WRAPPERS)
