@@ -548,7 +548,15 @@ _EXP03N_PROBE = _EXP09_DIR / "exp03n_probe.sh"
 # checkout is not beside this one.
 _SLURM_DIR = Path("/n/fs/gatrdp/codespace/cylindrical-dinov3/slurm_neuronic")
 _WORKTREE_ROOT_ABS = "/n/fs/gatrdp/codespace/exp06-maxpool-linear-cond"
-_CYL_SRC_ABS = "/n/fs/gatrdp/codespace/cylindrical-dinov3/src"
+# The MAIN repo's package src DRIFTED at 853a075 (2026-08-08, exp_12 knobs in
+# modeling_cylindrical_dinov3.py): it is FORBIDDEN as an import path anywhere in the
+# exp06n launch stack. The registered import source is the PINNED package worktree —
+# detached at fae735e2, src byte-identical to the registered exp-09 set, shared with the
+# exp_03/04/05 runs.
+_CYL_SRC_ABS = "/n/fs/gatrdp/codespace/cylindrical-dinov3/src"          # drifted; comments only
+_PKG_SRC_ABS = "/n/fs/gatrdp/codespace/cyl-pkg-exp09rerun/src"          # the registered bytes
+_PKG_PREFIX = _PKG_SRC_ABS + "/cylindrical_dinov3/"
+_PKG_WORKTREE_HEAD = "fae735e25440fa69558b53aa2e16dfab2c5cf2ee"
 _RECORDS_DIR_ABS = ("/n/fs/gatrdp/codespace/cylindrical-dinov3/worklog/worklog_yixun_neuronic/"
                     "exp_06_maxpool_linear_cond_claude")
 
@@ -610,22 +618,56 @@ def test_shell_scripts_parse(script):
     assert rc.returncode == 0, rc.stderr
 
 
+# The launcher is the renamed exp03n launcher EXCEPT the two REGISTERED launch-config
+# deltas (post-CLEARED, r5): the package import path and the gate invocation are pinned to
+# the cyl-pkg-exp09rerun worktree because the main repo's src drifted at 853a075. Each
+# delta is a declared exact line replacement (applied to the renamed baseline; the test
+# refuses if a declared line is missing or matches more than once).
+_LAUNCHER_PINNED_DELTAS = (
+    ("export PYTHONPATH=/n/fs/gatrdp/codespace/cylindrical-dinov3/src   "
+     "# EXP06 DIFF 3/19: process-local package src (reviewed convention; nothing "
+     "installed into the conda env)",
+     "export PYTHONPATH=/n/fs/gatrdp/codespace/cyl-pkg-exp09rerun/src   "
+     "# EXP06 DIFF 3/19: process-local package src from the PINNED worktree @ fae735e2 "
+     "(registered bytes, shared with exp_03/04/05) - the MAIN repo src drifted at 853a075 "
+     "(/n/fs/gatrdp/codespace/cylindrical-dinov3/src now carries exp_12 knobs); reviewed "
+     "convention, nothing installed into the conda env"),
+    ('HF_HUB_OFFLINE=1 python "${EXPDIR}/assert_arm_configs_exp06n.py" '
+     '--expect-package-sha "$EXPECT_PACKAGE_SHA" --expect-exp06-sha "$EXPECT_EXP06_SHA" '
+     '|| { echo "GATE FAILED - abort"; exit 1; }   # EXP06 DIFF 9/19: exp06n gate '
+     "(config contract + live arm wiring + bitwise common-init)",
+     "HF_HUB_OFFLINE=1 CYL_SRC_PREFIX=/n/fs/gatrdp/codespace/cyl-pkg-exp09rerun/src/cylindrical_dinov3/ "
+     'python "${EXPDIR}/assert_arm_configs_exp06n.py" '
+     '--expect-package-sha "$EXPECT_PACKAGE_SHA" --expect-exp06-sha "$EXPECT_EXP06_SHA" '
+     '|| { echo "GATE FAILED - abort"; exit 1; }   # EXP06 DIFF 9/19: exp06n gate '
+     "(config contract + live arm wiring + bitwise common-init), import-path pinned to "
+     "the SAME worktree via CYL_SRC_PREFIX"),
+)
+
+
 def test_launcher_is_the_exp03n_launcher_up_to_the_arm_identifiers():
     """Run identity, mechanically: every byte of exp06n_launch.sh outside ARM_SUBSTITUTIONS
-    is exp_03's — same recipe, same rung pin, same gates, same 67,500 steps. Any real edit
-    (a changed flag, a dropped refusal) shows up here as a diff."""
+    and the two DECLARED pinned-worktree deltas is exp_03's — same recipe, same rung pin,
+    same gates, same 67,500 steps. Any real edit (a changed flag, a dropped refusal) shows
+    up here as a diff."""
     got = _text(_LAUNCH)
     want = _rename_arm(_text(_EXP03N_LAUNCH))
+    for old, new in _LAUNCHER_PINNED_DELTAS:
+        assert want.count(old) == 1, (
+            f"declared pinned-delta baseline line not found exactly once: {old[:100]}"
+        )
+        want = want.replace(old, new)
     assert got == want, "\n".join(difflib.unified_diff(
-        want.splitlines(), got.splitlines(), "renamed exp03n", "exp06n_launch.sh",
-        lineterm=""))[:4000]
+        want.splitlines(), got.splitlines(), "renamed exp03n + pinned deltas",
+        "exp06n_launch.sh", lineterm=""))[:4000]
 
 
-# The probe is the ONE deliberate functional deviation (plan B5): it WRITES the frozen
-# free-VRAM file. Its diff against the renamed exp03n probe must be fully accounted for:
-# every ADDED line marked `EXP06 PROBE DIFF n/N` with complete numbering, every REMOVED
-# line part of the old by-hand frozen-file protocol prose.
-_REMOVED_LINE_OK = re.compile(r"(?i)frozen|writ|by hand|produce")
+# The probe deviates from the renamed exp03n probe ONLY by (a) the frozen-file write
+# (plan B5) and (b) the r5 pinned-worktree import/gate lines. Its diff must be fully
+# accounted for: every ADDED line marked `EXP06 PROBE DIFF n/N` with complete numbering,
+# every REMOVED line part of the frozen-file protocol prose OR the replaced
+# PYTHONPATH/gate lines.
+_REMOVED_LINE_OK = re.compile(r"(?i)frozen|writ|by hand|produce|PYTHONPATH|assert_arm_configs")
 
 
 def test_probe_diff_from_exp03n_is_fully_marked_and_frozen_file_scoped():
@@ -712,7 +754,12 @@ def test_launcher_keeps_every_scientific_flag_byte_identical():
 def test_launcher_binds_the_exp06n_arm_not_exp03n_or_exp09():
     launch = _text(_LAUNCH)
     assert f"cd {_WORKTREE_ROOT_ABS}" in launch, "the launcher must cd to the absolute worktree root"
-    assert f"export PYTHONPATH={_CYL_SRC_ABS}" in launch
+    assert f"export PYTHONPATH={_PKG_SRC_ABS}" in launch, (
+        "the launcher must import the package from the PINNED worktree (r5: main src drifted)"
+    )
+    assert f"CYL_SRC_PREFIX={_PKG_PREFIX}" in launch, (
+        "the launcher's gate invocation must pin the gate's import-path check to the same worktree"
+    )
     assert "FLAC_AR_exp06n.json" in launch
     assert "FLAC_AR_exp03n.json" not in launch and "FLAC_AR_exp09.json" not in launch
     assert "assert_arm_configs_exp06n.py" in launch
@@ -766,7 +813,12 @@ def test_probe_is_the_two_phase_lifecycle_probe_with_the_launcher_gates():
     assert re.search(r'\[ ! -e "\$SAVE" \]', probe), "the probe must refuse an existing save dir"
     assert "assert_arm_configs_exp06n.py" in probe
     assert "FLAC_AR_exp06n.json" in probe
-    assert f"export PYTHONPATH={_CYL_SRC_ABS}" in probe
+    assert f"export PYTHONPATH={_PKG_SRC_ABS}" in probe, (
+        "the probe must import the package from the PINNED worktree (r5: main src drifted)"
+    )
+    assert f"CYL_SRC_PREFIX={_PKG_PREFIX}" in probe, (
+        "the probe's gate invocation must pin the gate's import-path check to the same worktree"
+    )
     assert "EXPECT_PACKAGE_SHA" in probe and "EXPECT_EXP06_SHA" in probe
     assert "21900" in probe, "the provisional free-VRAM floor must be pinned"
     assert "1.15" in probe, "the probe must derive the 1.15x frozen value"
@@ -792,7 +844,8 @@ _SBATCH_REMOVED_OK = {
     # test); the old env-prefix submit example replaced by the r4 --export contract
     "eval_exp06n.sbatch": re.compile(
         r"cp -v|sha256sum|\$ART|IMPORT_DIR|CKPT_SHA|rehash|^fi$|^$"
-        r"|Submit \(both pins required\)|EXPECT_PACKAGE_SHA=\.\.\.|sbatch slurm_neuronic"),
+        r"|Submit \(both pins required\)|EXPECT_PACKAGE_SHA=\.\.\.|sbatch slurm_neuronic"
+        r"|PYTHONPATH|CYL_REPO"),
 }
 
 
@@ -1474,6 +1527,67 @@ def test_eval_sbatch_writes_and_publishes_the_provenance_sidecar():
     # the EMA import manifest records the sidecar too
     assert re.search(r'sha256sum "outputs_FLAC/exp06n_maxpoollinear_import/\$\{META_BASE\}"',
                      text), "the import manifest must also carry the sidecar's sha line"
+
+
+# --- r5 (post-CLEARED launch-config delta): the 2x2 arms must all train/eval against the
+# REGISTERED package bytes. The main repo's src drifted at 853a075, so every package
+# import in the exp06n stack resolves to the pinned worktree, the gate's import-path pin
+# follows it via CYL_SRC_PREFIX, and the eval wrapper's package-HEAD assert derives from
+# the SAME worktree the import resolves to. ------------------------------------------- #
+def test_eval_sbatch_imports_and_pins_the_package_worktree():
+    text = _sbatch("eval_exp06n.sbatch")
+    assert f"export PYTHONPATH={_PKG_SRC_ABS}" in text, (
+        "the eval must import the package from the PINNED worktree (r5: main src drifted)"
+    )
+    assert f"export CYL_SRC_PREFIX={_PKG_PREFIX}" in text, (
+        "the pin gate's import-path check must follow the same worktree (set post-re-exec; "
+        "it need not transit the whitelist)"
+    )
+    assert "CYL_REPO=/n/fs/gatrdp/codespace/cyl-pkg-exp09rerun" in text, (
+        "EXPECT_PACKAGE_SHA is the HEAD of the worktree the import resolves to, so the "
+        "worker-reported package HEAD must be derived from THAT worktree"
+    )
+    assert f"CYL_REPO={_CYL_SRC_ABS.rsplit('/src', 1)[0]}\n" not in text, (
+        "the main-repo HEAD is no longer the package pin"
+    )
+
+
+@pytest.mark.parametrize("path", [
+    _EXP09_DIR / "exp06n_launch.sh",
+    _EXP09_DIR / "exp06n_probe.sh",
+    _SLURM_DIR / "train_exp06n.sbatch",
+    _SLURM_DIR / "probe_exp06n.sbatch",
+    _SLURM_DIR / "eval_exp06n.sbatch",
+], ids=lambda p: p.name)
+def test_no_exp06n_file_imports_the_drifted_main_repo_src(path):
+    """The literal main-repo src path may appear ONLY inside comments (explaining the
+    drift) — never as an import path or command text."""
+    if not path.exists():
+        if str(path).startswith(str(_SLURM_DIR)) and not _SLURM_DIR.exists():
+            pytest.skip(f"cylindrical slurm_neuronic checkout not present at {_SLURM_DIR}")
+        pytest.fail(f"required deliverable is missing: {path}")
+    for i, line in enumerate(path.read_text().splitlines(), 1):
+        if _CYL_SRC_ABS in line:
+            before = line.split(_CYL_SRC_ABS)[0]
+            assert "#" in before, (
+                f"{path.name}:{i}: the DRIFTED main-repo src appears outside a comment: "
+                f"{line[:140]}"
+            )
+
+
+def test_gate_cyl_pin_resolves_the_pinned_worktree(gate, monkeypatch):
+    """r5 item 5: with CYL_SRC_PREFIX pointing at the pinned worktree, the gate's repo
+    derivation (three dirnames up from cyl.__file__) must land ON the worktree, whose
+    HEAD is the registered fae735e2 — the EXPECT_PACKAGE_SHA value fed at submission."""
+    import cylindrical_dinov3 as cyl
+
+    if not os.path.abspath(cyl.__file__).startswith(_PKG_PREFIX):
+        pytest.skip(f"cylindrical_dinov3 not imported from the pinned worktree "
+                    f"(got {cyl.__file__}); run the suite with PYTHONPATH={_PKG_SRC_ABS}")
+    monkeypatch.setattr(gate, "CYL_PATH_PREFIX", _PKG_PREFIX)
+    gate.assert_cyl_pin(_PKG_WORKTREE_HEAD)      # must PASS against the real worktree
+    with pytest.raises(RuntimeError, match="HEAD"):
+        gate.assert_cyl_pin("0" * 40)            # a wrong pin must refuse
 
 
 # ------------------------------------------------------------------------------------ #
