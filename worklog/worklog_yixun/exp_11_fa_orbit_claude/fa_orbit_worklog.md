@@ -228,3 +228,8 @@
 
 - **Data** — screen contract extended to K∈{1,8} (f893037; gates pinned K8-only via gate_K). 45 K=1 screens submitted; 44 evals completed and wrote valid records; every job self-refused SCREENRESULT because the PINNED worktree (0c6e9ff) carries the pre-K1 validator — **post-hoc validation under the current contract: 44/44 VALIDATED** (futility contract, hashes skipped for these figure-only cells; sidecar cross-checks intact). Deviation disclosed: figure-only cells validated out-of-band rather than in-job; no gate/table use. The 45th (backfill K1@40000) was gate-refused at the pin (manifest entry postdates it) and is omitted with disclosure.
 - **Figures** — fa_orbit_trajectories_K8.png + fa_orbit_trajectories_K1.png (+ per-metric K-named PNGs; _all.png = K8 alias); HTML carries both K blocks with per-K provenance notes (P1 legacy has no sub-40k K1 raws; backfill K1 = 20k/30k only).
+
+## 2026-08-10 — VANL COMPLETE-in-substance (class-7 = legacy tee casualty); C32 ~12h out; restart legs queued
+
+- VANL job 3661520: 11h17m, 40k ckpt verified (vanilla dispatch, no angles key, full opt/EMA); class-7 = `tee exited 1` on the tracked transcript copy whose inode was detached by pre-gitignore rebases — same mechanism as C16, primary tee log intact. Row comes via the q9 block at the new pin per the Q′ prescription.
+- Queue note: restart legs PENDING behind the other session's exp05 program; C32 on schedule (~midday).
