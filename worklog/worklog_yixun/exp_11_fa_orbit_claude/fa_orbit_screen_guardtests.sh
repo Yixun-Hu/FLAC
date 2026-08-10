@@ -407,6 +407,12 @@ tamper_leg expected_step 30000
 case_run "a leg that did not resume the audited final step is refused" 2 "no validated RESTART leg" \
   -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
 cp "${TMP}/reg_recorded.json" "${OUT_ROOT}/arm_launch_registry.json"
+# the leg's OWN restart manifest is mutable evidence and is re-hashed too
+cp "${OUT_ROOT}/restart_manifest_C8.txt" "${TMP}/restart_manifest_C8.txt"
+echo "tampered_field yes" >> "${OUT_ROOT}/restart_manifest_C8.txt"
+case_run "a RESTART manifest edited after recording is refused" 2 "changed after it was recorded" \
+  -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
+cp "${TMP}/restart_manifest_C8.txt" "${OUT_ROOT}/restart_manifest_C8.txt"
 expect_cmd "a duplicate record of the same leg is refused" 1 "ALREADY recorded" -- record_c8_leg
 case_run "<=40k ckpts need no restart row" 0 "exp11_C8_screen_S10000_s42_K8" \
   -- "${BASE[@]}" ARM=C8 STEP=10000

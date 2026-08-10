@@ -231,6 +231,19 @@ def verify_chain(reg, arm, step, ckpt_path, ckpt_sha, base_dir, repo_root="."):
         if bad:
             why.append(f"leg {leg.get('job', i)}: " + "; ".join(bad))
             continue
+        # The leg's OWN restart manifest is mutable evidence under gitignored
+        # outputs_FLAC, exactly like the INITIAL one the screen already re-hashes:
+        # it must still be there, and still be the bytes that were recorded.
+        leg_man = resolve(repo_root, str(leg.get("manifest_path")))
+        if not os.path.isfile(leg_man):
+            why.append(f"leg {leg.get('job')}: the registered RESTART manifest {leg_man} is gone")
+            continue
+        got = sha256_file(leg_man)
+        if got != leg.get("manifest_sha256"):
+            why.append(f"leg {leg.get('job')}: RESTART manifest {leg_man} now hashes {got[:12]}, "
+                       f"not the registered {str(leg.get('manifest_sha256'))[:12]} — it changed "
+                       "after it was recorded")
+            continue
         man_path = resolve(base_dir, str(leg.get("producer_manifest")))
         man = load(man_path)
         if man is None:

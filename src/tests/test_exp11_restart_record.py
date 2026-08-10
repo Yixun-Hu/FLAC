@@ -372,6 +372,24 @@ def test_the_screen_revalidates_every_leg_field(world, field, value, needle):
     assert problems and needle in problems[0]
 
 
+def test_the_registered_restart_manifest_is_rehashed_by_the_screen(world):
+    """The leg's own manifest is mutable evidence under outputs_FLAC; the screen
+    re-hashes it exactly as it already re-hashes the INITIAL one."""
+    assert run_record(world, leg_manifest(world)) == 0
+    recorded = registry_of(world)["restarts"][ARM][0]["manifest_path"]
+    with open(recorded, "a") as fh:
+        fh.write("tampered_field yes\n")
+    problems, _ = chain(world, 45000)
+    assert problems and "changed after it was recorded" in problems[0]
+
+
+def test_a_vanished_restart_manifest_admits_nothing(world):
+    assert run_record(world, leg_manifest(world)) == 0
+    os.unlink(registry_of(world)["restarts"][ARM][0]["manifest_path"])
+    problems, _ = chain(world, 45000)
+    assert problems and "is gone" in problems[0]
+
+
 def test_a_producer_manifest_from_another_leg_is_refused(world):
     """Swapping in a different leg's published file must not launder a checkpoint."""
     assert run_record(world, leg_manifest(world)) == 0
