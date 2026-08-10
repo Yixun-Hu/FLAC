@@ -584,6 +584,15 @@ def _text(path: Path) -> str:
     return path.read_text()
 
 
+def _function_free_env(extra=None):
+    """os.environ minus BASH_FUNC_* exported functions — the login shell exports functions
+    (e.g. module/ml) that the r4 detector rightly refuses, so tests exercising the
+    function-free path must not inherit them."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("BASH_FUNC_")}
+    env.update(extra or {})
+    return env
+
+
 def _sbatch(name: str) -> str:
     path = _SLURM_DIR / name
     if not _SLURM_DIR.exists():
@@ -780,8 +789,10 @@ _SBATCH_REMOVED_OK = {
     # r3 F2 (CKPT_SHA/rehash lines re-emitted at the new position, plus the blank line
     # that separated the old trailing rehash block); the bare `fi` is the EMA block's
     # closer re-emitted by the differ (if/fi balance is backstopped by the bash -n parse
-    # test)
-    "eval_exp06n.sbatch": re.compile(r"cp -v|sha256sum|\$ART|IMPORT_DIR|CKPT_SHA|rehash|^fi$|^$"),
+    # test); the old env-prefix submit example replaced by the r4 --export contract
+    "eval_exp06n.sbatch": re.compile(
+        r"cp -v|sha256sum|\$ART|IMPORT_DIR|CKPT_SHA|rehash|^fi$|^$"
+        r"|Submit \(both pins required\)|EXPECT_PACKAGE_SHA=\.\.\.|sbatch slurm_neuronic"),
 }
 
 
@@ -803,6 +814,12 @@ def test_slurm_wrappers_are_renamed_exp03n_plus_marked_diffs_only(exp06n, exp03n
     )
     markers = []
     for line in added:
+        if line.strip() == "#SBATCH --export=NONE" or not line.strip():
+            # permitted unmarked additions (r4 F1.1): the exact --export=NONE directive
+            # (Slurm directive lines cannot safely carry trailing comments; the directive
+            # itself is asserted by test_wrapper_declares_export_none_...) and blank
+            # separator lines, which carry no behavior
+            continue
         m = re.search(r"EXP06 SBATCH DIFF (\d+)/(\d+)", line)
         assert m, f"unmarked {exp06n} diff line: {line[:140]}"
         markers.append((int(m.group(1)), int(m.group(2))))
@@ -810,7 +827,11 @@ def test_slurm_wrappers_are_renamed_exp03n_plus_marked_diffs_only(exp06n, exp03n
     assert len(totals) == 1, f"inconsistent {exp06n} diff totals: {sorted(totals)}"
     total = totals.pop()
     assert sorted(n for n, _ in markers) == list(range(1, total + 1)), sorted(markers)
-    assert len(added) == total, f"{len(added)} added lines but the markers claim {total}"
+    marked_added = [l for l in added
+                    if l.strip() and l.strip() != "#SBATCH --export=NONE"]
+    assert len(marked_added) == total, (
+        f"{len(marked_added)} marked added lines but the markers claim {total}"
+    )
     removed_ok = _SBATCH_REMOVED_OK[exp06n]
     if removed_ok is None:
         assert removed == [], f"{exp06n} removed lines it must keep: {removed[:3]}"
@@ -979,7 +1000,7 @@ def test_eval_dry_run_works_through_the_reexec_guard(tmp_path):
     """END-TO-END: a function-free but DIRTY submission env traverses detector + re-exec,
     and the dry run still renders — proving the whitelist forwards the whole eval
     interface while the dirt is dropped."""
-    env = dict(os.environ)
+    env = _function_free_env()
     env.pop("EXP06N_ENV_CLEAN", None)
     env.update(DRY_RUN="1", STEP="40000", STREAM="online",
                EXPECT_PACKAGE_SHA="deadbeefdeadbeef", EXPECT_EXP06_SHA="cafebabecafebabe",
@@ -1003,7 +1024,7 @@ def test_eval_dry_run_works_through_the_reexec_guard(tmp_path):
 def test_eval_dry_run_refuses_a_function_carrying_env(tmp_path):
     """A BASH_FUNC_* payload (an ALL-export submission) must hit the detector refusal —
     never reach the dry run."""
-    env = dict(os.environ)
+    env = _function_free_env()
     env.update(DRY_RUN="1", STEP="40000", STREAM="online",
                EXPECT_PACKAGE_SHA="x", EXPECT_EXP06_SHA="y", SLURM_ARRAY_TASK_ID="0",
                **{"BASH_FUNC_poison%%": "() { echo poisoned; }"})
@@ -1085,7 +1106,7 @@ def _dry_run_eval(stream, *, step="40000", idx=0, cwd=None):
         pytest.skip(f"cylindrical slurm_neuronic checkout not present at {_SLURM_DIR}")
     if not path.exists():
         pytest.fail(f"required deliverable is missing: {path}")
-    env = dict(os.environ)
+    env = _function_free_env()
     env.update(DRY_RUN="1", STEP=step, STREAM=stream,
                EXPECT_PACKAGE_SHA="deadbeefdeadbeef", EXPECT_EXP06_SHA="cafebabecafebabe",
                SLURM_ARRAY_TASK_ID=str(idx))
@@ -1148,7 +1169,7 @@ def test_eval_dry_run_refuses_an_unknown_stream(tmp_path):
     path = _SLURM_DIR / "eval_exp06n.sbatch"
     if not _SLURM_DIR.exists():
         pytest.skip("cylindrical slurm_neuronic checkout not present")
-    env = dict(os.environ)
+    env = _function_free_env()
     env.update(DRY_RUN="1", STEP="40000", STREAM="EMA", EXPECT_PACKAGE_SHA="x",
                EXPECT_EXP06_SHA="y", SLURM_ARRAY_TASK_ID="0")
     proc = subprocess.run(["bash", str(path)], capture_output=True, text=True, env=env,
@@ -1160,7 +1181,7 @@ def test_eval_dry_run_refuses_without_the_worktree_pin(tmp_path):
     path = _SLURM_DIR / "eval_exp06n.sbatch"
     if not _SLURM_DIR.exists():
         pytest.skip("cylindrical slurm_neuronic checkout not present")
-    env = {k: v for k, v in os.environ.items()
+    env = {k: v for k, v in _function_free_env().items()
            if k not in ("EXPECT_EXP06_SHA", "EXPECT_EXP09_SHA")}
     env.update(DRY_RUN="1", STEP="40000", STREAM="online", EXPECT_PACKAGE_SHA="x",
                SLURM_ARRAY_TASK_ID="0")
