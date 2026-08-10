@@ -1103,16 +1103,45 @@ def test_wrapper_guard_sanitizes_the_r5_matrix(name, case, tmp_path):
 
 
 @pytest.mark.parametrize("name", _WRAPPERS)
+def test_wrapper_refusal_termination_is_unshadowable(name):
+    """r7: a surviving ``BASH_FUNC_exit%%`` shadows a bare ``exit 3``, letting execution
+    continue past the refusal. Termination must be ``/usr/bin/kill -9 $$`` (slash-path —
+    function lookup never applies; SIGKILL untrappable), with the bare ``exit 3`` kept
+    only as belt-and-suspenders AFTER the kill, and NOTHING bare on the refusal path
+    before the kill."""
+    text = _sbatch(name)
+    refusals = [l for l in text.splitlines()
+                if "SURVIVED sanitization" in l and "/usr/bin/printf" in l]
+    assert len(refusals) == 1, f"{name}: expected exactly one post-assert refusal line"
+    refusal = refusals[0]
+    assert '>&2; /usr/bin/kill -9 $$; exit 3' in refusal, (
+        f"{name}: the refusal must terminate via /usr/bin/kill -9 $$ BEFORE the "
+        f"belt-and-suspenders bare exit: {refusal[:160]}"
+    )
+    # nothing bare precedes termination: printf (slash-path) is the FIRST word, and the
+    # only commands on the line are printf -> kill -> (unreachable) exit
+    assert refusal.split()[0] == "/usr/bin/printf", refusal[:120]
+    assert re.search(r">&2; /usr/bin/kill -9 \$\$; exit 3(\s+#.*)?$", refusal), (
+        f"{name}: no other command may sit between the kill and the trailing exit"
+    )
+    assert "137" in text and "SIGKILL" in text, (
+        f"{name}: the marker comment must note the by-design exit status 137 (SIGKILL)"
+    )
+
+
+@pytest.mark.parametrize("name", _WRAPPERS)
 def test_wrapper_post_assert_trips_when_a_function_survives_into_the_child(name, tmp_path):
-    """r5 item 5: simulate a BASH_FUNC_ SURVIVING the sanitization (inject one into the
+    """r5 item 5 + r7 regression: simulate BASH_FUNC_* SURVIVING the sanitization —
+    including the reviewer's ``BASH_FUNC_exit%%`` shadow — by injecting them into the
     guard's env -i line in a sandbox copy, exec'ing a second script that carries the
-    verbatim post-assert): the post-assert must refuse and the body must not run."""
+    verbatim post-assert: the refusal must print, the process must die KILLED (137 /
+    SIGKILL by design), and the body must NEVER run."""
     trigger, post_assert = _guard_halves(_sbatch(name))
     body = tmp_path / "body.sh"
     body.write_text(post_assert + '\necho "REACHED_BODY"\n')
     sabotaged = trigger.replace(
         "exec /usr/bin/env -i ",
-        'exec /usr/bin/env -i "BASH_FUNC_evil%%=() { :; }" ', 1)
+        'exec /usr/bin/env -i "BASH_FUNC_evil%%=() { :; }" "BASH_FUNC_exit%%=() { :; }" ', 1)
     assert sabotaged != trigger, "sabotage injection failed to apply"
     sabotaged = sabotaged.replace('/bin/bash --noprofile --norc "$0" "$@"',
                                   f'/bin/bash --noprofile --norc "{body}"', 1)
@@ -1122,11 +1151,15 @@ def test_wrapper_post_assert_trips_when_a_function_survives_into_the_child(name,
            "C1_FROZEN_MIN_FREE_FILE": "/evil/frozen.txt"}   # dirt fires the trigger
     proc = subprocess.run(["bash", str(driver)], capture_output=True, text=True, env=env)
     out = proc.stdout + proc.stderr
-    assert proc.returncode == 3, (
-        f"{name}: a function surviving into the child must trip the post-assert:\n{out}"
+    assert proc.returncode in (137, -9), (
+        f"{name}: with a shadowed `exit`, the refusal must still DIE KILLED "
+        f"(got rc {proc.returncode}):\n{out}"
     )
     assert "SURVIVED sanitization" in out, out
-    assert "REACHED_BODY" not in out, "the wrapper body must never run past a tripped post-assert"
+    assert "REACHED_BODY" not in out, (
+        "the wrapper body must never run past a tripped post-assert — a shadowed exit "
+        "let it through (r7)"
+    )
 
 
 def test_eval_dry_run_works_through_the_sanitizing_guard(tmp_path):
