@@ -1,8 +1,8 @@
-job 7654321 name exp11-screen-C8-r3-40000-s42-K8 submitted_at 2026-08-09T14:30:55-04:00 by yh4742@neuronic.cs.princeton.edu
+job 7654321 name exp11-screen-C8-r3-40000-s42-K8 submitted_at 2026-08-10T01:53:00-04:00 by yh4742@neuronic.cs.princeton.edu
 arm C8 cell r3 step 40000 seed 42 K 8
 pin_sha <none:HEAD> campaign_pin <none>
-expect_sha 6d5ce87056201d1e301ca04ef0d425943ed55c9b
-measure_root /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/6d5ce87056201d1e301ca04ef0d425943ed55c9b
+expect_sha ac98e119644e683db8dad039189066d3d0b23903
+measure_root /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/ac98e119644e683db8dad039189066d3d0b23903
 exclude <none>
 rotate_deg 5.625 eval_orbit <n/a>
-lease /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/6d5ce87056201d1e301ca04ef0d425943ed55c9b/.leases/7654321
+lease /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/ac98e119644e683db8dad039189066d3d0b23903/.leases/7654321

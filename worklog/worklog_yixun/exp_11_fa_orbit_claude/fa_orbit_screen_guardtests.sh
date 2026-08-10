@@ -168,6 +168,18 @@ case_run() {  # <name> <want-rc> <want-substring> -- <env...>
   fi
 }
 
+expect_cmd() {  # <name> <want-rc> <want-substring> -- <command...>   (any command, not the driver)
+  local name="$1" want_rc="$2" want_txt="$3"; shift 3; [ "$1" = "--" ] && shift
+  local out rc
+  out="$("$@" 2>&1)"; rc=$?
+  if [ "$rc" -eq "$want_rc" ] && echo "$out" | grep -qF -- "$want_txt"; then
+    echo "PASS  ${name}  (rc=${rc})"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  ${name}: want rc=${want_rc} + '${want_txt}', got rc=${rc}"
+    echo "$out" | tail -5 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+  fi
+}
+
 echo "--- A. parameters ---"
 case_run "missing ARM"          2 "ARM"          -- "${BASE[@]}" STEP=10000
 case_run "missing STEP"         2 "STEP"         -- "${BASE[@]}" ARM=C8
@@ -307,25 +319,95 @@ write_c8_ckpt_45k
 case_run "a >40k ckpt with no chain is refused" 2 "cannot be chained to its INITIAL run" \
   -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
 # now give C8 an anchor and a leg that resumes from the WRONG checkpoint
-$PY - "${OUT_ROOT}/arm_launch_registry.json" <<'PY'
-import json, sys
-p = sys.argv[1]; r = json.load(open(p))
-r["arms"]["C8"]["final_ckpt_sha256"] = "a" * 64
+$PY - "${OUT_ROOT}/arm_launch_registry.json" "${OUT_ROOT}/exp11_C8" <<'PY'
+import hashlib, json, os, sys
+p, save = sys.argv[1], sys.argv[2]
+anchor = hashlib.sha256(open(os.path.join(save, "FLAC_exp11_C8", "exp11_C8", "checkpoints",
+                                          "epoch=8-step=40000.ckpt"), "rb").read()).hexdigest()
+r = json.load(open(p))
+r["arms"]["C8"]["final_ckpt_sha256"] = anchor
+r["arms"]["C8"]["final_step"] = 40000
 r["restarts"] = {"C8": [{"mode": "RESTART", "job": "999", "resume_ckpt_sha256": "b" * 64,
                          "max_steps": "100000"}]}
 json.dump(r, open(p, "w"), indent=2)
 PY
-case_run "a RESTART resuming elsewhere is refused" 2 "the >40k lineage is not proven" \
+case_run "a RESTART resuming elsewhere is refused" 2 "no validated RESTART leg" \
   -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
-# ...and a leg that chains correctly is accepted
-$PY - "${OUT_ROOT}/arm_launch_registry.json" <<'PY'
+# --- fix 2: the leg is RECORDED by the real recorder, so the registry row and the
+# per-leg producer manifest come from the same audited pipeline the operator uses.
+$PY - "${OUT_ROOT}" "${EXPDIR}" <<'PY'
+import hashlib, json, os, sys
+out, expdir = sys.argv[1], sys.argv[2]
+save = os.path.join(out, "exp11_C8")
+ckpt = os.path.join(save, "FLAC_exp11_C8", "exp11_C8", "checkpoints", "epoch=8-step=40000.ckpt")
+anchor = hashlib.sha256(open(ckpt, "rb").read()).hexdigest()
+cfg = os.path.join(expdir, "FLAC_AR_BF_C8.json")
+cfg_sha = hashlib.sha256(open(cfg, "rb").read()).hexdigest()
+open(os.path.join(out, "restart_manifest_C8.txt"), "w").write("\n".join([
+    "# exp_11 arm launch manifest",
+    "job 3662829 host synthetic mode RESTART launch_uuid leg-uuid-c8",
+    "arm C8 rung 8x8 micro 8 ngpu 8 max_steps 100000 ckpt_every 2500",
+    "commit " + "c" * 40,
+    "p0_manifest_sha256 " + "a" * 64,
+    f"model_config {cfg}",
+    f"config_sha256 {cfg_sha}",
+    "vae_sha256 " + "b" * 64,
+    "time_limit 51:00:00 min_free_mb 36500",
+    f"resume_ckpt {ckpt} expected_step 40000 resume_ckpt_sha256 {anchor}",
+    f"save_dir {save}", ""]))
+r = json.load(open(os.path.join(out, "arm_launch_registry.json")))
+r["restarts"] = {}
+json.dump(r, open(os.path.join(out, "arm_launch_registry.json"), "w"), indent=2)
+PY
+record_c8_leg() {   # the operator's own command, against the REAL launcher pins
+  $PY "$EXPDIR/fa_orbit_record_restart.py" C8 "${OUT_ROOT}/restart_manifest_C8.txt" \
+    --registry "${OUT_ROOT}/arm_launch_registry.json" \
+    --launcher "${EXPDIR}/fa_orbit_train.sbatch" --producer-dir "$OUT_ROOT" \
+    --repo-root "$PWD" "$@"
+}
+expect_cmd "the recorder publishes the leg and its producer manifest" 0 "checkpoint(s) added" \
+  -- record_c8_leg
+case_run "a PRODUCED >40k ckpt is accepted" 0 "producer binding OK: step 45000" \
+  -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
+# THE loophole: same arm, same config, same step, a valid recorded leg — but these
+# are not the bytes that leg produced. The old existential gate accepted this.
+cp "${OUT_ROOT}/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=9-step=45000.ckpt" "${TMP}/real45k.ckpt"
+$PY - "$OUT_ROOT" "$EXPDIR" <<'PY'
+import json, os, sys, torch
+out, expdir = sys.argv[1], sys.argv[2]
+c8 = json.load(open(os.path.join(expdir, "FLAC_AR_BF_C8.json")))
+d = os.path.join(out, "exp11_C8", "FLAC_exp11_C8", "exp11_C8", "checkpoints")
+sd = {"diffusion.model.a": torch.ones(1), "diffusion_ema.ema_model.model.a": torch.ones(1)}
+torch.save({"global_step": 45000, "epoch": 9, "model_config": c8, "state_dict": sd,
+            "optimizer_states": [{"state": {0: {"step": 2}}, "param_groups": [{"lr": 2e-5}]}],
+            "lr_schedulers": [{"last_epoch": 45000}]}, os.path.join(d, "epoch=9-step=45000.ckpt"))
+PY
+case_run "a same-config ckpt from a WRONG restart is refused" 2 "NOT the checkpoint that leg produced" \
+  -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
+cp "${TMP}/real45k.ckpt" "${OUT_ROOT}/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=9-step=45000.ckpt"
+# a registry row without its producer manifest is no longer evidence
+mv "${OUT_ROOT}/fa_orbit_producer_C8_job3662829.json" "${TMP}/producer.json"
+case_run "a leg with no producer manifest admits nothing" 2 "producer manifest" \
+  -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
+mv "${TMP}/producer.json" "${OUT_ROOT}/fa_orbit_producer_C8_job3662829.json"
+# ...and every leg field is re-validated, not just mode + resume hash
+tamper_leg() { $PY - "${OUT_ROOT}/arm_launch_registry.json" "$1" "$2" <<'PY'
 import json, sys
-p = sys.argv[1]; r = json.load(open(p))
-r["restarts"]["C8"][0]["resume_ckpt_sha256"] = "a" * 64
+p, field, value = sys.argv[1:4]
+r = json.load(open(p)); r["restarts"]["C8"][0][field] = value
 json.dump(r, open(p, "w"), indent=2)
 PY
-case_run "a correctly chained RESTART is accepted" 0 "restart chain OK: step 45000" \
+}
+cp "${OUT_ROOT}/arm_launch_registry.json" "${TMP}/reg_recorded.json"
+tamper_leg save_dir "${OUT_ROOT}/exp11_C16"
+case_run "a leg whose save_dir is not the audited one is refused" 2 "no validated RESTART leg" \
   -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
+cp "${TMP}/reg_recorded.json" "${OUT_ROOT}/arm_launch_registry.json"
+tamper_leg expected_step 30000
+case_run "a leg that did not resume the audited final step is refused" 2 "no validated RESTART leg" \
+  -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
+cp "${TMP}/reg_recorded.json" "${OUT_ROOT}/arm_launch_registry.json"
+expect_cmd "a duplicate record of the same leg is refused" 1 "ALREADY recorded" -- record_c8_leg
 case_run "<=40k ckpts need no restart row" 0 "exp11_C8_screen_S10000_s42_K8" \
   -- "${BASE[@]}" ARM=C8 STEP=10000
 

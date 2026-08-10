@@ -427,9 +427,9 @@ if [ "$ARM" != "C4BACKFILL" ]; then
   fi
   [ -f "$ARM_LAUNCH_MANIFEST" ] || die "arm launch manifest missing: ${ARM_LAUNCH_MANIFEST} — a screen may only evaluate a checkpoint from a recorded launch - abort"
   [ -f "$ARM_REGISTRY" ] || die "audited arm launch registry missing: ${ARM_REGISTRY} - abort"
-  python3 - "$ARM_LAUNCH_MANIFEST" "$ARM" "$CKPT" "$CONFIG_SHA" "$CKPT_DIR" "$MAIN_REPO" "$ARM_REGISTRY" <<'PY' || die "arm launch-manifest lineage gate FAILED - abort"
+  python3 - "$ARM_LAUNCH_MANIFEST" "$ARM" "$CKPT" "$CONFIG_SHA" "$CKPT_DIR" "$MAIN_REPO" "$ARM_REGISTRY" "$EXPDIR" <<'PY' || die "arm launch-manifest lineage gate FAILED - abort"
 import hashlib, json, os, sys
-man_path, arm, ckpt, cfg_sha, ckpt_dir, main_repo, reg_path = sys.argv[1:8]
+man_path, arm, ckpt, cfg_sha, ckpt_dir, main_repo, reg_path, expdir = sys.argv[1:9]
 man = {}
 for line in open(man_path):
     line = line.strip()
@@ -487,30 +487,28 @@ else:
     if os.path.realpath(os.path.dirname(ckpt)) != canon:
         bad.append(f"checkpoint {ckpt} does not live in the canonical run directory {canon}")
 # --- Q10: a checkpoint ABOVE 40k came from a RESTART leg, not the INITIAL run --
-# The INITIAL manifest cannot vouch for it. Bind it to a registry RESTART row
-# whose resume checkpoint IS the audited INITIAL 40k checkpoint, so the chain
-# from the reviewed launch to this checkpoint is unbroken. A restart that
-# resumed from somewhere else is a different experiment wearing this arm's name.
+# The INITIAL manifest cannot vouch for it. The first version of this gate was
+# EXISTENTIAL (re-pin review, finding 2): once ONE leg carried mode=RESTART and
+# the right resume hash, every later same-config checkpoint in this directory
+# passed, because nothing bound the evaluated FILE to the leg that produced it —
+# a checkpoint from a wrong restart, copied in, was admissible. Now the binding
+# is per checkpoint: this file is re-hashed and must appear, at exactly this
+# step, in the append-only PRODUCER MANIFEST of a leg whose every registry field
+# re-validates against the audited INITIAL row (see fa_orbit_producer_manifest.py).
 step_i = int(os.path.basename(ckpt).split("step=")[1].split(".ckpt")[0])
 if step_i > 40000:
-    anchor = reg.get("final_ckpt_sha256")
-    legs = json.load(open(reg_path)).get("restarts", {}).get(arm, [])
-    if not anchor:
-        bad.append(f"{arm} has no audited final_ckpt_sha256, so a >40k checkpoint cannot be "
-                   "chained to its INITIAL run")
-    elif not legs:
-        bad.append(f"checkpoint at step {step_i} is above 40000 but {arm} has no RESTART entry in "
-                   "the audited registry — record the leg with fa_orbit_record_restart.py first")
-    else:
-        chained = [l for l in legs if l.get("resume_ckpt_sha256") == anchor
-                   and l.get("mode") == "RESTART"]
-        if not chained:
-            got = sorted({str(l.get("resume_ckpt_sha256"))[:12] for l in legs})
-            bad.append(f"no RESTART leg for {arm} resumes from the audited INITIAL checkpoint "
-                       f"{anchor[:12]} (legs resume from {got}) — the >40k lineage is not proven")
-        else:
-            print(f"restart chain OK: step {step_i} descends from job {chained[0].get('job')} "
-                  f"(RESTART, resumed {anchor[:12]}, max_steps {chained[0].get('max_steps')})")
+    sys.path.insert(0, expdir)
+    import fa_orbit_producer_manifest as pm
+    h = hashlib.sha256()
+    with open(ckpt, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    chain_bad, note = pm.verify_chain(json.load(open(reg_path)), arm, step_i, ckpt,
+                                      h.hexdigest(), os.path.dirname(os.path.abspath(reg_path)),
+                                      main_repo)
+    bad += chain_bad
+    if note:
+        print(note)
 if bad:
     sys.exit("ARM LINEAGE GATE: " + "; ".join(bad))
 print(f"arm lineage OK: {arm} bound to AUDITED launch job {reg['job']} ({reg['mode']}, uuid "

@@ -14,7 +14,14 @@
     "final_ckpt_sha256, which is the audited 40k checkpoint that leg resumed",
     "from. A checkpoint above 40k is therefore admissible only if the restart",
     "that produced it provably descends from the audited INITIAL run.",
-    "Populate with fa_orbit_record_restart.py once a leg's manifest publishes."
+    "Populate with fa_orbit_record_restart.py once a leg's manifest publishes.",
+    "Chaining alone is NOT sufficient (re-pin review, finding 2): a leg is only",
+    "evidence for the checkpoints it actually PRODUCED, so every leg carries a",
+    "'producer_manifest' -- fa_orbit_producer_<ARM>_job<JOB>.json, append-only,",
+    "step -> sha256 re-hashed from disk by the recorder. The screen re-hashes the",
+    "checkpoint it is about to evaluate and admits it only on an exact",
+    "step/sha256/path match published by a leg whose every field here",
+    "re-validates against the arm's INITIAL row."
   ],
   "recorded_at": "2026-08-09",
   "training_seed": 42,
