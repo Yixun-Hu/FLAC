@@ -58,9 +58,13 @@ EXP11_CROSS_REFERENCES = {
 # The registry's config pin. The --config file must hash to exactly this.
 REGISTRY_CONFIG_SHA256 = "733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8"
 
-# Most specific first: the EMA weights live under diffusion_ema.ema_model.*,
-# alongside EMA bookkeeping buffers (initted/step) under diffusion_ema.*.
-EMA_PREFIX_CANDIDATES = ("diffusion_ema.ema_model.", "diffusion_ema.")
+# The EMA weights live under diffusion_ema.ema_model.*; diffusion_ema.initted /
+# .step are bookkeeping buffers and are NOT weights. Training EMAs only
+# self.diffusion.model (the DiT), so the online family to mirror is
+# diffusion.model.* — not all of diffusion.* (which also holds the conditioner
+# and the VAE pretransform).
+EMA_WEIGHT_PREFIX = "diffusion_ema.ema_model."
+ONLINE_MODEL_PREFIX = "diffusion.model."
 
 CHUNK_BYTES = 1 << 20
 
@@ -149,16 +153,72 @@ def snapshot_checkpoint(path):
     return checkpoint, digest, _identity(before)
 
 
-def _find_ema(state_dict):
-    for prefix in EMA_PREFIX_CANDIDATES:
-        matched = [k for k in state_dict if k.startswith(prefix)]
-        if matched:
-            return prefix, len(matched)
-    raise ValueError(
-        "no EMA weights found in the checkpoint state_dict (looked for prefixes "
-        f"{list(EMA_PREFIX_CANDIDATES)}): exp_15 evaluates EMA weights, so a "
-        "checkpoint without them cannot be admitted as the control"
+def summarize_ema(state_dict) -> dict:
+    """Require the EMA family to MIRROR the online DiT family, exactly.
+
+    Training wraps only ``self.diffusion.model`` in EMA, and evaluation overlays
+    those EMA keys onto the online model while keeping the online conditioner and
+    pretransform — so demanding a whole-model EMA would be wrong, but demanding
+    mere *presence* is far too weak: a checkpoint carrying only the EMA
+    bookkeeping buffers, one stray tensor, or a family whose suffixes/shapes have
+    drifted would be admitted and would then load wrong or silently partial
+    weights at eval time.
+
+    The contract is therefore suffix-set equality between ``diffusion.model.*``
+    and ``diffusion_ema.ema_model.*`` plus matching shape and dtype per suffix.
+    """
+    online = {
+        key[len(ONLINE_MODEL_PREFIX):]: value
+        for key, value in state_dict.items() if key.startswith(ONLINE_MODEL_PREFIX)
+    }
+    ema = {
+        key[len(EMA_WEIGHT_PREFIX):]: value
+        for key, value in state_dict.items() if key.startswith(EMA_WEIGHT_PREFIX)
+    }
+
+    if not online:
+        raise ValueError(
+            f"no online DiT weights ({ONLINE_MODEL_PREFIX}*) in the state_dict"
+        )
+    if not ema:
+        raise ValueError(
+            f"no EMA weights ({EMA_WEIGHT_PREFIX}*) in the state_dict: exp_15 "
+            "evaluates EMA weights, so a checkpoint without them cannot be "
+            "admitted as the control (bookkeeping buffers alone do not count)"
+        )
+
+    missing = sorted(set(online) - set(ema))
+    extra = sorted(set(ema) - set(online))
+    if missing or extra:
+        raise ValueError(
+            "EMA family does not mirror the online DiT: "
+            f"{len(missing)} missing {missing[:5]}, {len(extra)} unexpected "
+            f"{extra[:5]} (online {len(online)} keys, EMA {len(ema)} keys)"
+        )
+
+    for suffix in sorted(online):
+        a, b = online[suffix], ema[suffix]
+        if tuple(a.shape) != tuple(b.shape):
+            raise ValueError(
+                f"EMA/online shape mismatch for {suffix!r}: online {list(a.shape)} "
+                f"vs EMA {list(b.shape)}"
+            )
+        if a.dtype != b.dtype:
+            raise ValueError(
+                f"EMA/online dtype mismatch for {suffix!r}: online {a.dtype} vs "
+                f"EMA {b.dtype}"
+            )
+
+    inventory = "\n".join(
+        f"{suffix}:{list(ema[suffix].shape)}:{ema[suffix].dtype}"
+        for suffix in sorted(ema)
     )
+    return {
+        "ema_prefix": EMA_WEIGHT_PREFIX,
+        "ema_key_count": len(ema),
+        "online_model_key_count": len(online),
+        "ema_inventory_sha256": hashlib.sha256(inventory.encode()).hexdigest(),
+    }
 
 
 def canonical_sha256(obj) -> str:
@@ -190,7 +250,7 @@ def summarize_checkpoint(ckpt_path, expect_step: int, config_obj) -> dict:
     if not isinstance(state_dict, dict) or not state_dict:
         raise ValueError(f"{ckpt_path}: no usable 'state_dict'")
 
-    ema_prefix, ema_key_count = _find_ema(state_dict)
+    ema = summarize_ema(state_dict)
 
     # The config the checkpoint was TRAINED with. The file's sha proves only what
     # sits on disk today; this proves the checkpoint belongs to it.
@@ -214,10 +274,9 @@ def summarize_checkpoint(ckpt_path, expect_step: int, config_obj) -> dict:
         "global_step": global_step,
         "epoch": int(epoch) if epoch is not None else None,
         "state_dict_keys": len(state_dict),
-        "ema_prefix": ema_prefix,
-        "ema_key_count": ema_key_count,
+        **ema,
         "embedded_config_canonical_sha256": canonical_sha256(embedded_config),
-        "online_key_count": sum(1 for k in state_dict if k.startswith("diffusion.")),
+        "online_all_key_count": sum(1 for k in state_dict if k.startswith("diffusion.")),
         "optimizer_states": len(checkpoint.get("optimizer_states", []) or []),
         "lr_schedulers": len(checkpoint.get("lr_schedulers", []) or []),
         "loaded_with": {"mmap": True, "map_location": "cpu", "weights_only": True},

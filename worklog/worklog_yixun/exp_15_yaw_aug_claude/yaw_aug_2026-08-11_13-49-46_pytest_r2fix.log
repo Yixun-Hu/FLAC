@@ -1,0 +1,276 @@
+......F........FFFFFFF...                                                [100%]
+=================================== FAILURES ===================================
+_____________________________ test_record_content ______________________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7ff1d6f9cf70>
+
+    def test_record_content(rc, synthetic_ckpt):
+        ckpt = synthetic_ckpt()
+        record = rc.build_record(ckpt, CONTROL_CONFIG, expect_step=40000)
+    
+        ck = record["checkpoint"]
+        assert ck["sha256"] == hashlib.sha256(ckpt.read_bytes()).hexdigest()
+        assert ck["bytes"] == ckpt.stat().st_size
+        assert ck["global_step"] == 40000
+        assert ck["epoch"] == 8
+        assert ck["ema_prefix"] == "diffusion_ema.ema_model."
+        assert ck["ema_key_count"] == 2
+>       assert ck["online_model_key_count"] == 2      # diffusion.model.* only
+E       KeyError: 'online_model_key_count'
+
+src/tests/test_yaw_aug_record_control.py:202: KeyError
+____ test_rejects_incomplete_or_mismatched_ema[bookkeeping_only-overrides0] ____
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7ff1d6f9ec20>
+case = 'bookkeeping_only', overrides = {}
+
+    @pytest.mark.parametrize(
+        "case,overrides",
+        [
+            # bookkeeping only: initted/step present, not one EMA weight
+            ("bookkeeping_only", {}),
+            # a single EMA tensor out of two
+            ("partial", {_EMA + "layer.weight": torch.zeros(2, 2)}),
+            # a suffix the online model does not have
+            ("extra_suffix", {_EMA + "layer.weight": torch.zeros(2, 2),
+                              _EMA + "layer.bias": torch.zeros(2),
+                              _EMA + "layer.gain": torch.zeros(2)}),
+            # right count, wrong name
+            ("renamed_suffix", {_EMA + "layer.weight": torch.zeros(2, 2),
+                                _EMA + "layer.beta": torch.zeros(2)}),
+            # right names, wrong shape
+            ("shape_mismatch", {_EMA + "layer.weight": torch.zeros(2, 3),
+                                _EMA + "layer.bias": torch.zeros(2)}),
+            # right names and shapes, wrong dtype
+            ("dtype_mismatch", {_EMA + "layer.weight": torch.zeros(2, 2, dtype=torch.float64),
+                                _EMA + "layer.bias": torch.zeros(2)}),
+        ],
+    )
+    def test_rejects_incomplete_or_mismatched_ema(rc, synthetic_ckpt, case, overrides):
+        """Equal key COUNTS are not enough (review finding 2): eval overlays the EMA
+        DiT weights onto the online model, so a family that differs by a name, a
+        shape or a dtype is not a usable EMA of this model."""
+        ckpt = synthetic_ckpt(ema_overrides=overrides)
+>       with pytest.raises(ValueError, match="EMA"):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_record_control.py:338: Failed
+________ test_rejects_incomplete_or_mismatched_ema[partial-overrides1] _________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7ff1d6f9ecb0>
+case = 'partial'
+overrides = {'diffusion_ema.ema_model.layer.weight': tensor([[0., 0.],
+        [0., 0.]])}
+
+    @pytest.mark.parametrize(
+        "case,overrides",
+        [
+            # bookkeeping only: initted/step present, not one EMA weight
+            ("bookkeeping_only", {}),
+            # a single EMA tensor out of two
+            ("partial", {_EMA + "layer.weight": torch.zeros(2, 2)}),
+            # a suffix the online model does not have
+            ("extra_suffix", {_EMA + "layer.weight": torch.zeros(2, 2),
+                              _EMA + "layer.bias": torch.zeros(2),
+                              _EMA + "layer.gain": torch.zeros(2)}),
+            # right count, wrong name
+            ("renamed_suffix", {_EMA + "layer.weight": torch.zeros(2, 2),
+                                _EMA + "layer.beta": torch.zeros(2)}),
+            # right names, wrong shape
+            ("shape_mismatch", {_EMA + "layer.weight": torch.zeros(2, 3),
+                                _EMA + "layer.bias": torch.zeros(2)}),
+            # right names and shapes, wrong dtype
+            ("dtype_mismatch", {_EMA + "layer.weight": torch.zeros(2, 2, dtype=torch.float64),
+                                _EMA + "layer.bias": torch.zeros(2)}),
+        ],
+    )
+    def test_rejects_incomplete_or_mismatched_ema(rc, synthetic_ckpt, case, overrides):
+        """Equal key COUNTS are not enough (review finding 2): eval overlays the EMA
+        DiT weights onto the online model, so a family that differs by a name, a
+        shape or a dtype is not a usable EMA of this model."""
+        ckpt = synthetic_ckpt(ema_overrides=overrides)
+>       with pytest.raises(ValueError, match="EMA"):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_record_control.py:338: Failed
+______ test_rejects_incomplete_or_mismatched_ema[extra_suffix-overrides2] ______
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7ff1d6f9ed40>
+case = 'extra_suffix'
+overrides = {'diffusion_ema.ema_model.layer.weight': tensor([[0., 0.],
+        [0., 0.]]), 'diffusion_ema.ema_model.layer.bias': tensor([0., 0.]), 'diffusion_ema.ema_model.layer.gain': tensor([0., 0.])}
+
+    @pytest.mark.parametrize(
+        "case,overrides",
+        [
+            # bookkeeping only: initted/step present, not one EMA weight
+            ("bookkeeping_only", {}),
+            # a single EMA tensor out of two
+            ("partial", {_EMA + "layer.weight": torch.zeros(2, 2)}),
+            # a suffix the online model does not have
+            ("extra_suffix", {_EMA + "layer.weight": torch.zeros(2, 2),
+                              _EMA + "layer.bias": torch.zeros(2),
+                              _EMA + "layer.gain": torch.zeros(2)}),
+            # right count, wrong name
+            ("renamed_suffix", {_EMA + "layer.weight": torch.zeros(2, 2),
+                                _EMA + "layer.beta": torch.zeros(2)}),
+            # right names, wrong shape
+            ("shape_mismatch", {_EMA + "layer.weight": torch.zeros(2, 3),
+                                _EMA + "layer.bias": torch.zeros(2)}),
+            # right names and shapes, wrong dtype
+            ("dtype_mismatch", {_EMA + "layer.weight": torch.zeros(2, 2, dtype=torch.float64),
+                                _EMA + "layer.bias": torch.zeros(2)}),
+        ],
+    )
+    def test_rejects_incomplete_or_mismatched_ema(rc, synthetic_ckpt, case, overrides):
+        """Equal key COUNTS are not enough (review finding 2): eval overlays the EMA
+        DiT weights onto the online model, so a family that differs by a name, a
+        shape or a dtype is not a usable EMA of this model."""
+        ckpt = synthetic_ckpt(ema_overrides=overrides)
+>       with pytest.raises(ValueError, match="EMA"):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_record_control.py:338: Failed
+_____ test_rejects_incomplete_or_mismatched_ema[renamed_suffix-overrides3] _____
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7ff1d6f9e950>
+case = 'renamed_suffix'
+overrides = {'diffusion_ema.ema_model.layer.weight': tensor([[0., 0.],
+        [0., 0.]]), 'diffusion_ema.ema_model.layer.beta': tensor([0., 0.])}
+
+    @pytest.mark.parametrize(
+        "case,overrides",
+        [
+            # bookkeeping only: initted/step present, not one EMA weight
+            ("bookkeeping_only", {}),
+            # a single EMA tensor out of two
+            ("partial", {_EMA + "layer.weight": torch.zeros(2, 2)}),
+            # a suffix the online model does not have
+            ("extra_suffix", {_EMA + "layer.weight": torch.zeros(2, 2),
+                              _EMA + "layer.bias": torch.zeros(2),
+                              _EMA + "layer.gain": torch.zeros(2)}),
+            # right count, wrong name
+            ("renamed_suffix", {_EMA + "layer.weight": torch.zeros(2, 2),
+                                _EMA + "layer.beta": torch.zeros(2)}),
+            # right names, wrong shape
+            ("shape_mismatch", {_EMA + "layer.weight": torch.zeros(2, 3),
+                                _EMA + "layer.bias": torch.zeros(2)}),
+            # right names and shapes, wrong dtype
+            ("dtype_mismatch", {_EMA + "layer.weight": torch.zeros(2, 2, dtype=torch.float64),
+                                _EMA + "layer.bias": torch.zeros(2)}),
+        ],
+    )
+    def test_rejects_incomplete_or_mismatched_ema(rc, synthetic_ckpt, case, overrides):
+        """Equal key COUNTS are not enough (review finding 2): eval overlays the EMA
+        DiT weights onto the online model, so a family that differs by a name, a
+        shape or a dtype is not a usable EMA of this model."""
+        ckpt = synthetic_ckpt(ema_overrides=overrides)
+>       with pytest.raises(ValueError, match="EMA"):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_record_control.py:338: Failed
+_____ test_rejects_incomplete_or_mismatched_ema[shape_mismatch-overrides4] _____
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7ff1d6f9f5b0>
+case = 'shape_mismatch'
+overrides = {'diffusion_ema.ema_model.layer.weight': tensor([[0., 0., 0.],
+        [0., 0., 0.]]), 'diffusion_ema.ema_model.layer.bias': tensor([0., 0.])}
+
+    @pytest.mark.parametrize(
+        "case,overrides",
+        [
+            # bookkeeping only: initted/step present, not one EMA weight
+            ("bookkeeping_only", {}),
+            # a single EMA tensor out of two
+            ("partial", {_EMA + "layer.weight": torch.zeros(2, 2)}),
+            # a suffix the online model does not have
+            ("extra_suffix", {_EMA + "layer.weight": torch.zeros(2, 2),
+                              _EMA + "layer.bias": torch.zeros(2),
+                              _EMA + "layer.gain": torch.zeros(2)}),
+            # right count, wrong name
+            ("renamed_suffix", {_EMA + "layer.weight": torch.zeros(2, 2),
+                                _EMA + "layer.beta": torch.zeros(2)}),
+            # right names, wrong shape
+            ("shape_mismatch", {_EMA + "layer.weight": torch.zeros(2, 3),
+                                _EMA + "layer.bias": torch.zeros(2)}),
+            # right names and shapes, wrong dtype
+            ("dtype_mismatch", {_EMA + "layer.weight": torch.zeros(2, 2, dtype=torch.float64),
+                                _EMA + "layer.bias": torch.zeros(2)}),
+        ],
+    )
+    def test_rejects_incomplete_or_mismatched_ema(rc, synthetic_ckpt, case, overrides):
+        """Equal key COUNTS are not enough (review finding 2): eval overlays the EMA
+        DiT weights onto the online model, so a family that differs by a name, a
+        shape or a dtype is not a usable EMA of this model."""
+        ckpt = synthetic_ckpt(ema_overrides=overrides)
+>       with pytest.raises(ValueError, match="EMA"):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_record_control.py:338: Failed
+_____ test_rejects_incomplete_or_mismatched_ema[dtype_mismatch-overrides5] _____
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7ff1d6f9f490>
+case = 'dtype_mismatch'
+overrides = {'diffusion_ema.ema_model.layer.weight': tensor([[0., 0.],
+        [0., 0.]], dtype=torch.float64), 'diffusion_ema.ema_model.layer.bias': tensor([0., 0.])}
+
+    @pytest.mark.parametrize(
+        "case,overrides",
+        [
+            # bookkeeping only: initted/step present, not one EMA weight
+            ("bookkeeping_only", {}),
+            # a single EMA tensor out of two
+            ("partial", {_EMA + "layer.weight": torch.zeros(2, 2)}),
+            # a suffix the online model does not have
+            ("extra_suffix", {_EMA + "layer.weight": torch.zeros(2, 2),
+                              _EMA + "layer.bias": torch.zeros(2),
+                              _EMA + "layer.gain": torch.zeros(2)}),
+            # right count, wrong name
+            ("renamed_suffix", {_EMA + "layer.weight": torch.zeros(2, 2),
+                                _EMA + "layer.beta": torch.zeros(2)}),
+            # right names, wrong shape
+            ("shape_mismatch", {_EMA + "layer.weight": torch.zeros(2, 3),
+                                _EMA + "layer.bias": torch.zeros(2)}),
+            # right names and shapes, wrong dtype
+            ("dtype_mismatch", {_EMA + "layer.weight": torch.zeros(2, 2, dtype=torch.float64),
+                                _EMA + "layer.bias": torch.zeros(2)}),
+        ],
+    )
+    def test_rejects_incomplete_or_mismatched_ema(rc, synthetic_ckpt, case, overrides):
+        """Equal key COUNTS are not enough (review finding 2): eval overlays the EMA
+        DiT weights onto the online model, so a family that differs by a name, a
+        shape or a dtype is not a usable EMA of this model."""
+        ckpt = synthetic_ckpt(ema_overrides=overrides)
+>       with pytest.raises(ValueError, match="EMA"):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_record_control.py:338: Failed
+_______ test_ema_inventory_digest_is_deterministic_and_content_sensitive _______
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7ff1d6f9feb0>
+
+    def test_ema_inventory_digest_is_deterministic_and_content_sensitive(rc, synthetic_ckpt):
+        a = rc.build_record(synthetic_ckpt(), CONTROL_CONFIG, expect_step=40000)
+        b = rc.build_record(synthetic_ckpt(), CONTROL_CONFIG, expect_step=40000)
+>       assert a["checkpoint"]["ema_inventory_sha256"] == b["checkpoint"]["ema_inventory_sha256"]
+E       KeyError: 'ema_inventory_sha256'
+
+src/tests/test_yaw_aug_record_control.py:345: KeyError
+=========================== short test summary info ============================
+FAILED src/tests/test_yaw_aug_record_control.py::test_record_content - KeyErr...
+FAILED src/tests/test_yaw_aug_record_control.py::test_rejects_incomplete_or_mismatched_ema[bookkeeping_only-overrides0]
+FAILED src/tests/test_yaw_aug_record_control.py::test_rejects_incomplete_or_mismatched_ema[partial-overrides1]
+FAILED src/tests/test_yaw_aug_record_control.py::test_rejects_incomplete_or_mismatched_ema[extra_suffix-overrides2]
+FAILED src/tests/test_yaw_aug_record_control.py::test_rejects_incomplete_or_mismatched_ema[renamed_suffix-overrides3]
+FAILED src/tests/test_yaw_aug_record_control.py::test_rejects_incomplete_or_mismatched_ema[shape_mismatch-overrides4]
+FAILED src/tests/test_yaw_aug_record_control.py::test_rejects_incomplete_or_mismatched_ema[dtype_mismatch-overrides5]
+FAILED src/tests/test_yaw_aug_record_control.py::test_ema_inventory_digest_is_deterministic_and_content_sensitive
+8 failed, 17 passed in 7.54s

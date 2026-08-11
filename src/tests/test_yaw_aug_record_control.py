@@ -47,15 +47,24 @@ rc = pytest.fixture(scope="module")(lambda: _load_recorder())
 @pytest.fixture
 def synthetic_ckpt(tmp_path):
     """A PL-shaped checkpoint small enough to write in a test."""
-    def _make(global_step=40000, with_ema=True, model_config="control", **extra):
+    def _make(global_step=40000, with_ema=True, model_config="control",
+              ema_overrides=None, **extra):
         state = {
             "diffusion.model.layer.weight": torch.zeros(2, 2),
             "diffusion.model.layer.bias": torch.zeros(2),
+            # the online conditioner/pretransform keys the EMA deliberately omits
+            "diffusion.conditioner.embed.weight": torch.zeros(3),
+            "diffusion.pretransform.enc.weight": torch.zeros(3),
         }
         if with_ema:
             state["diffusion_ema.ema_model.layer.weight"] = torch.zeros(2, 2)
             state["diffusion_ema.ema_model.layer.bias"] = torch.zeros(2)
             state["diffusion_ema.initted"] = torch.tensor(True)
+            state["diffusion_ema.step"] = torch.tensor(global_step)
+        if ema_overrides is not None:
+            for key in [k for k in state if k.startswith("diffusion_ema.ema_model.")]:
+                del state[key]
+            state.update(ema_overrides)
         path = tmp_path / f"epoch=8-step={global_step}.ckpt"
         payload = {
             "global_step": global_step,
@@ -190,9 +199,12 @@ def test_record_content(rc, synthetic_ckpt):
     assert ck["epoch"] == 8
     assert ck["ema_prefix"] == "diffusion_ema.ema_model."
     assert ck["ema_key_count"] == 2
+    assert ck["online_model_key_count"] == 2      # diffusion.model.* only
+    assert ck["online_all_key_count"] == 4        # every diffusion.* key
     assert ck["optimizer_states"] == 1
     assert ck["lr_schedulers"] == 1
-    assert ck["state_dict_keys"] == 5
+    assert ck["state_dict_keys"] == 8
+    assert len(ck["ema_inventory_sha256"]) == 64
 
     assert record["config"]["sha256"] == REGISTRY_CONFIG_SHA
 
@@ -288,6 +300,57 @@ def test_detects_missing_ema_state(rc, synthetic_ckpt):
     ckpt = synthetic_ckpt(with_ema=False)
     with pytest.raises(ValueError, match="EMA"):
         rc.build_record(ckpt, CONTROL_CONFIG, expect_step=40000)
+
+
+# --------------------------------------------------------------------------- #
+# F2 — the EMA family must MATCH the online DiT family, not merely exist
+# --------------------------------------------------------------------------- #
+_EMA = "diffusion_ema.ema_model."
+
+
+@pytest.mark.parametrize(
+    "case,overrides",
+    [
+        # bookkeeping only: initted/step present, not one EMA weight
+        ("bookkeeping_only", {}),
+        # a single EMA tensor out of two
+        ("partial", {_EMA + "layer.weight": torch.zeros(2, 2)}),
+        # a suffix the online model does not have
+        ("extra_suffix", {_EMA + "layer.weight": torch.zeros(2, 2),
+                          _EMA + "layer.bias": torch.zeros(2),
+                          _EMA + "layer.gain": torch.zeros(2)}),
+        # right count, wrong name
+        ("renamed_suffix", {_EMA + "layer.weight": torch.zeros(2, 2),
+                            _EMA + "layer.beta": torch.zeros(2)}),
+        # right names, wrong shape
+        ("shape_mismatch", {_EMA + "layer.weight": torch.zeros(2, 3),
+                            _EMA + "layer.bias": torch.zeros(2)}),
+        # right names and shapes, wrong dtype
+        ("dtype_mismatch", {_EMA + "layer.weight": torch.zeros(2, 2, dtype=torch.float64),
+                            _EMA + "layer.bias": torch.zeros(2)}),
+    ],
+)
+def test_rejects_incomplete_or_mismatched_ema(rc, synthetic_ckpt, case, overrides):
+    """Equal key COUNTS are not enough (review finding 2): eval overlays the EMA
+    DiT weights onto the online model, so a family that differs by a name, a
+    shape or a dtype is not a usable EMA of this model."""
+    ckpt = synthetic_ckpt(ema_overrides=overrides)
+    with pytest.raises(ValueError, match="EMA"):
+        rc.build_record(ckpt, CONTROL_CONFIG, expect_step=40000)
+
+
+def test_ema_inventory_digest_is_deterministic_and_content_sensitive(rc, synthetic_ckpt):
+    a = rc.build_record(synthetic_ckpt(), CONTROL_CONFIG, expect_step=40000)
+    b = rc.build_record(synthetic_ckpt(), CONTROL_CONFIG, expect_step=40000)
+    assert a["checkpoint"]["ema_inventory_sha256"] == b["checkpoint"]["ema_inventory_sha256"]
+
+    expected = hashlib.sha256(
+        "\n".join([
+            "layer.bias:[2]:torch.float32",
+            "layer.weight:[2, 2]:torch.float32",
+        ]).encode()
+    ).hexdigest()
+    assert a["checkpoint"]["ema_inventory_sha256"] == expected
 
 
 def test_failed_validation_writes_nothing(rc, synthetic_ckpt, tmp_path):
