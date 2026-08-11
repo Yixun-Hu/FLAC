@@ -712,8 +712,18 @@ def test_write_golden_accepts_an_explicit_sha():
 
 
 def test_write_golden_rejects_a_placeholder_sha():
+    """Rejection must happen BEFORE anything is written.
+
+    While this guard was still red, this very test rewrote the committed fixture
+    with ``capture_commit: "unknown"`` (the record digests re-captured
+    identically, so only the provenance stamp was lost — it was restored from
+    git). The byte check below makes a future regression of the guard fail
+    loudly instead of quietly overwriting the round's reference.
+    """
+    before = GOLDEN_PATH.read_bytes()
     with pytest.raises(ValueError, match="SHA"):
         _write_golden("unknown")
+    assert GOLDEN_PATH.read_bytes() == before, "the golden fixture was overwritten"
 
 
 # --- §6.5-3 exactness: the drawn offset is the applied offset --------------- #
