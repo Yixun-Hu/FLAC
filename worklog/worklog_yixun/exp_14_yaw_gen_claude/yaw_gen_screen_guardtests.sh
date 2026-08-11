@@ -93,6 +93,26 @@ cp "$VALIDATOR" "${EXPDIR}/exp14_ckpt_expect.json" "$FAKE_EXP/"
 # ISOLATION BY DEFAULT: every case inherits a temporary MAIN_REPO (opt-outs are
 # enumerated in the header and are the only places this is unset).
 export YAW_GEN_MAIN_REPO="$FAKE_REPO"
+# PUSH/POP around every opt-out (review U2): the first `unset` used to leak
+# isolation-off through hundreds of unrelated lines, so a case inserted between
+# blocks would have inherited it. iso_off/iso_on are always paired, and
+# assert_isolated lets a section state its expectation out loud.
+iso_off() {   # $1 = why this block legitimately needs the real MAIN_REPO
+  ISO_SAVED="${YAW_GEN_MAIN_REPO:-}"
+  unset YAW_GEN_MAIN_REPO
+  echo "  (isolation OFF for: $1)"
+}
+iso_on() {
+  export YAW_GEN_MAIN_REPO="${ISO_SAVED:-$FAKE_REPO}"
+  ISO_SAVED=""
+}
+assert_isolated() {   # $1 = section name
+  if [ -n "${YAW_GEN_MAIN_REPO:-}" ]; then
+    echo "PASS  isolation armed entering: $1"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  isolation is OFF entering: $1 — an opt-out leaked"; FAIL=$((FAIL + 1))
+  fi
+}
 PIN_FILE="${TMP}/campaign_pin"          # the SEAM the kit is pointed at
 TEST_CMDLOG="${TMP}/command.md"
 LIVE_TRACE="${TMP}/live_submit.txt"     # where a simulated wave records its argv
@@ -864,8 +884,8 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
   # OPT-OUT 1 (see header): these cases exercise the SHARED measure-worktree
   # store deliberately — its lock, its leases and this suite's real worktree are
   # the subject — so they run against the real MAIN_REPO. They are still test
-  # mode, so they start no submit process.
-  unset YAW_GEN_MAIN_REPO
+  # mode, so they start no submit process. POPPED at the end of this block.
+  iso_off "the shared-store lease/lock cases"
   TRACE="${TMP}/trace.txt"; : > "$TRACE"
   out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
              YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
@@ -1011,7 +1031,11 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
     echo "FAIL  '${BADOK}' was accepted"; FAIL=$((FAIL + 1))
   fi
   # code only: the explanatory comment above the parser names the old eval
-  if grep -vE '^[[:space:]]*#' "$SUB" | grep -v 'unset -f' | grep -v '^ ' | grep -q 'eval[[:space:]]'; then
+  # `eval` in COMMAND POSITION only: an indented eval must still be caught (U3),
+  # while the preamble's `unset -f ... readonly eval declare` — where the word is
+  # an ARGUMENT — must not be. Matching the position, not the indentation, does
+  # both; the old `grep -v "^ "` discarded every indented line.
+  if grep -vE '^[[:space:]]*#' "$SUB" | grep -qE '(^|[;&|]|\bthen|\bdo|\{)[[:space:]]*eval[[:space:]]'; then
     echo "FAIL  the submitter still evals an argument"; FAIL=$((FAIL + 1))
   else
     echo "PASS  no eval of argument text remains in the code"; PASS=$((PASS + 1))
@@ -1491,10 +1515,12 @@ assert int(v['training_seed'])==42
 else
   echo "FAIL  no worktree available for the asset/lease cases"; FAIL=$((FAIL + 1))
 fi
+iso_on                      # POP opt-out 1: isolation is armed again from here
 
 # --- MEASURE_ROOT identity ---------------------------------------------------
 echo
 echo "--- MEASURE_ROOT identity ---"
+assert_isolated "MEASURE_ROOT identity / registry / log naming"
 out="$(env DRYRUN=1 ARM=C8 CELL=zref STEP=40000 "EXPECT_SHA=${HEAD_SHA}" "MEASURE_ROOT=$MAIN_TREE" \
        "OUTPUT_ROOT=$GOOD" bash "$SCREEN" 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ] && echo "$out" | grep -q "outside the managed .measure_worktrees/ area\|on a BRANCH"; then
@@ -1620,6 +1646,7 @@ fi
 # the right cell.
 echo
 echo "--- wave submitter: the 106-cell DRYRUN grid ---"
+assert_isolated "the DRYRUN grid and dedup cases"
 GRID_OUT="${TMP}/grid_all.txt"
 DRYRUN=1 bash "$GRID" WAVE=all > "$GRID_OUT" 2>"${TMP}/grid_all.err"; rc=$?
 if [ "$rc" -ne 0 ]; then
@@ -1703,7 +1730,7 @@ fi
 # submitter's job, under the store lock.
 # (the entry prelude names sbatch only to `unset -f` it, which is the opposite of
 #  calling it, so that line is excluded from the search)
-if grep -vE '^[[:space:]]*#' "$GRID" | grep -v 'unset -f' | grep -v '^ ' | grep -q 'sbatch'; then
+if grep -vE '^[[:space:]]*#' "$GRID" | grep -qE '(^|[;&|]|\bthen|\bdo|\{|"\$\()[[:space:]]*sbatch[[:space:]]'; then
   echo "FAIL  the wave submitter calls sbatch directly"; FAIL=$((FAIL + 1))
 else
   echo "PASS  the wave submitter never calls sbatch (it delegates, under the lock)"
@@ -1742,10 +1769,10 @@ p = V.metrics_path(ckpt, cell)
 json.dump({"metrics": {}, "eval_name": "nonsense"}, open(p, "w"))
 print(p)
 PY
-printf '%s\n' "$HEAD_SHA" > "$PIN_FILE"      # a live wave requires the pin FILE
+printf '%s\n' "$FAKE_PIN" > "$PIN_FILE"      # a wave requires the pin FILE
 OUT="$(env YAW_GEN_SQUEUE_FAILS=1 YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
         YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" OUTPUT_ROOT="$DEDUP" \
-        bash "$GRID" WAVE=vctl "PIN_SHA=${HEAD_SHA}" 2>&1)"; rc=$?
+        bash "$GRID" WAVE=vctl "PIN_SHA=${FAKE_PIN}" 2>&1)"; rc=$?
 if [ "$rc" -eq 3 ] && echo "$OUT" | grep -q "HALT:" \
    && echo "$OUT" | grep -q "Nothing was submitted"; then
   echo "PASS  an artifact that exists but does not validate HALTS the wave"; PASS=$((PASS + 1))
@@ -1762,7 +1789,7 @@ fi
 rm -f "${DEDUP}/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/"*_metrics_*.json
 OUT="$(env YAW_GEN_SQUEUE_FAILS=1 YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
         YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" OUTPUT_ROOT="$DEDUP" \
-        bash "$GRID" WAVE=vctl "PIN_SHA=${HEAD_SHA}" 2>&1)"; rc=$?
+        bash "$GRID" WAVE=vctl "PIN_SHA=${FAKE_PIN}" 2>&1)"; rc=$?
 rm -f "$PIN_FILE"
 if echo "$OUT" | grep -q "squeue failed - refusing to submit"; then
   echo "PASS  a squeue that fails stops the wave (absence is never assumed)"; PASS=$((PASS + 1))
@@ -1771,14 +1798,13 @@ else
   echo "$OUT" | tail -3 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
 fi
 
-export YAW_GEN_MAIN_REPO="$FAKE_REPO"    # isolation re-armed after opt-out 1
-
 # --- LIVE WAVE (mocked): the rails the review found missing -------------------
 # Nothing is submitted: in TEST MODE the wave starts no submission process at
 # all and records the argv it would have used; YAW_GEN_SQUEUE prints a scripted queue. What is proven is what the wave DECIDES
 # — which cells it skips, which it halts on, and which argv it would launch.
 echo
 echo "--- wave submitter: live-wave decisions (mocked submit + squeue) ---"
+assert_isolated "the live-wave decision cases"
 LIVE="${TMP}/live"; mkdir -p "$LIVE"
 LIVE_PIN="$FAKE_PIN"      # a commit of the ISOLATED root, not the campaign's
 LIVE_WT="${TMP}/live_wt"; mkdir -p "${LIVE_WT}/.leases"
@@ -2042,10 +2068,10 @@ else
 fi
 rm -f "$PIN_FILE"
 
-# OPT-OUT 1 continues (see header): every case from here on drives the SINGLE-CELL
-# submitter, whose store lock, lease and worktree are the real shared ones — that
-# machinery IS the subject. They remain test mode, so none can start a submission.
-unset YAW_GEN_MAIN_REPO
+# OPT-OUT 1 again (see header): the cases up to the trap check drive the
+# SINGLE-CELL submitter, whose store lock, lease and worktree are the real shared
+# ones — that machinery IS the subject. Still test mode: none can submit.
+iso_off "the held-job cancellation cases"
 
 # a HELD job whose intent manifest cannot be published is CANCELLED
 : > "$TRACE"
@@ -2095,6 +2121,8 @@ fi
 bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
 rm -f ${TEST_INTENT_DIR}/yaw_gen_submission_C4L_zref_*_jid7654321.txt
 
+iso_on                      # POP opt-out 2: isolation is armed again from here
+
 # --- Y1: a test may not reach ANY external submit executable ----------------
 # "Is this executable a mock?" is undecidable: a wrapper, a copy, a hard link or
 # an absolute path to the real sbatch all differ from the string "sbatch". The
@@ -2103,7 +2131,23 @@ rm -f ${TEST_INTENT_DIR}/yaw_gen_submission_C4L_zref_*_jid7654321.txt
 # wrapper that only records) so the CLASS is demonstrated without any risk of a
 # submission: what is asserted is the REFUSAL, not what the executable does.
 echo
+# U1: the preamble runs BEFORE `set -euo pipefail`, so a shadowed set() cannot
+# turn the shell options off either. Extracted from the shipped file and sourced,
+# the way the log-naming case tests the shipped naming block.
+sed -n '1,/^set -euo pipefail$/p' "$SUB" > "${TMP}/preamble.sh"
+PRE_FLAGS="$(bash -c 'set() { echo "SET-HIJACKED"; }; export -f set
+                      . "$1" >/dev/null 2>&1
+                      printf "%s|" "$-"; set -o | grep -E "^(errexit|nounset|pipefail)" | tr -d " \t" | tr "\n" "|"' \
+             _ "${TMP}/preamble.sh" 2>/dev/null)"
+case "$PRE_FLAGS" in
+  *errexiton*nounseton*pipefailon*) echo "PASS  a shadowed set() cannot disable errexit/nounset/pipefail (${PRE_FLAGS})"
+                                    PASS=$((PASS + 1)) ;;
+  *) echo "FAIL  the shell options did not survive a shadowed set(): '${PRE_FLAGS}'"
+     FAIL=$((FAIL + 1)) ;;
+esac
+
 echo "--- submit-executable overrides are refused, not trusted ---"
+assert_isolated "the submit-executable override probes"
 for SPELLING in "/bin/echo" "$(command -v sbatch 2>/dev/null || echo /usr/bin/sbatch)"; do
   out="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR -u YAW_GEN_MAIN_REPO "FA_ORBIT_SBATCH=${SPELLING}" \
          bash "$SUB_FAKE" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
@@ -2202,6 +2246,7 @@ fi
 # to the cell's own (injective) job name.
 echo
 echo "--- an unreadable job id cancels by NAME ---"
+iso_off "the malformed-job-id cancellation case"   # drives the real store lock
 : > "$TRACE"
 out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" YAW_GEN_TEST_JOBID="not-an-id" \
        bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
@@ -2213,6 +2258,7 @@ else
   echo "FAIL  a malformed job id left a possible job uncancelled (rc=${rc})"
   sed 's/^/        | /' "$TRACE"; FAIL=$((FAIL + 1))
 fi
+iso_on                      # POP: isolation armed again
 # structural: the guard is armed BEFORE the submission, not after it returns
 TRAP_LINE="$(grep -n '^trap cancel_held_job EXIT$' "$SUB" | head -1 | cut -d: -f1)"
 SUBMIT_LINE="$(grep -n 'JOBID="\$(slurm_submit_hold' "$SUB" | head -1 | cut -d: -f1)"

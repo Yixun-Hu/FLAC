@@ -26,6 +26,15 @@
 #                  release fails, the held job is CANCELLED — never orphaned.
 #   3. EXPECT_SHA — taken from the pinned tree, not from the (moving) main HEAD
 #
+# U1: the assignment and the special-builtin sweep come BEFORE `set`, so a
+# shadowed set() cannot intercept errexit/nounset/pipefail either. An assignment
+# involves no command lookup; POSIX mode then makes special builtins outrank
+# functions for the sweep that follows.
+POSIXLY_CORRECT=1
+unset -f unset set export builtin command exec trap readonly eval declare \
+         typeset local source env 2>/dev/null || true
+set +o posix
+unset POSIXLY_CORRECT
 set -euo pipefail
 # --- FIRST EXECUTABLE STATEMENTS: sanitize the world, then gate it -----------
 # THREAT MODEL (Planner, 2026-08-11): this kit defends against ACCIDENTS and
@@ -44,11 +53,6 @@ set -euo pipefail
 # follows is therefore guaranteed to be the real builtin even if an exported
 # unset() function was inherited. POSIX mode is dropped again immediately after
 # (verified: "${!YAW_GEN_@}" expands identically in both modes).
-POSIXLY_CORRECT=1
-unset -f unset set export builtin command exec trap readonly eval declare \
-         typeset local source env 2>/dev/null || true
-set +o posix
-unset POSIXLY_CORRECT
 PATH=/usr/bin:/bin:/usr/local/bin; export PATH
 unset -f sbatch scontrol scancel squeue sync git grep sed awk head tail tr \
          cat printf id date hostname readlink flock mktemp sha256sum cut wc ls \
