@@ -115,6 +115,58 @@ def test_default_call_predictions_meta_bytes_match_golden(case, stub_sha):
     assert json.dumps(meta, sort_keys=False) == case["predictions_meta_json_compact"]
 
 
+# --------------------------------------------------------------------------- #
+# EXPLICIT call style: rotate_mode='fixed' passed deliberately
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("case", MATRIX, ids=_case_id)
+def test_explicit_fixed_output_paths_match_golden(case):
+    paths = eval_FLAC.build_output_paths(
+        META["ckpt_path"], META["steps"], META["cfg_scale"], META["eval_name"],
+        cond_method=case["cond_method"], rotate_deg=case["rotate_deg"],
+        n_angles=case["n_angles"], rotate_mode="fixed", rotate_seed=None,
+    )
+    assert paths == case["output_paths"]
+
+
+@pytest.mark.parametrize("case", MATRIX, ids=_case_id)
+def test_explicit_fixed_metrics_record_bytes_match_golden(case, stub_sha):
+    """No new key, no reordered key, not one byte of difference — a fixed-mode
+    record written today must still be the record exp_11's rows were written as."""
+    rec = eval_FLAC.build_metrics_record(
+        META["metrics"], META["ckpt_path"], case["rotate_deg"], case["cond_method"],
+        case["frame_avg_angles"], rotate_mode="fixed", rotate_seed=None,
+        **_record_kwargs(case),
+    )
+    assert list(rec.keys()) == case["metrics_record_keys"]
+    assert json.dumps(rec, sort_keys=False, indent=4) == case["metrics_record_json_indent4"]
+    assert json.dumps(rec, sort_keys=False) == case["metrics_record_json_compact"]
+    for key in ("rotate_mode", "rotate_seed", "input_hash", "assignment_hash",
+                "stream_count", "img_w"):
+        assert key not in rec
+
+
+@pytest.mark.parametrize("case", MATRIX, ids=_case_id)
+def test_explicit_fixed_predictions_meta_bytes_match_golden(case, stub_sha):
+    meta = eval_FLAC.build_predictions_meta(
+        META["dataset_config"], META["seed"], META["n_samples"], case["cond_method"],
+        case["frame_avg_angles"], case["rotate_deg"], META["batch_size"],
+        META["cond_autocast"], rotate_mode="fixed", rotate_seed=None,
+    )
+    assert list(meta.keys()) == case["predictions_meta_keys"]
+    assert json.dumps(meta, sort_keys=False) == case["predictions_meta_json_compact"]
+
+
+def test_record_builders_reject_an_unknown_rotate_mode():
+    """A typo must not silently produce a fixed-mode record for a random run."""
+    with pytest.raises(ValueError, match="rotate_mode"):
+        eval_FLAC.build_metrics_record(
+            META["metrics"], META["ckpt_path"], 0.0, "vanilla", None, rotate_mode="randon")
+    with pytest.raises(ValueError, match="rotate_mode"):
+        eval_FLAC.build_predictions_meta(
+            META["dataset_config"], 42, 1, "vanilla", None, 0.0, 64, "default",
+            rotate_mode="randon")
+
+
 def test_defaults_only_record_matches_golden(stub_sha):
     """Every optional kwarg omitted: the None defaults and their order are pinned."""
     case = next(c for c in CASES if c.get("kwargs") == "defaults-only")

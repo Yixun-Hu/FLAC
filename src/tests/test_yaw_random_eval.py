@@ -11,7 +11,9 @@ RED first (cycle 1): ``draw_yaw_offsets`` / ``offsets_to_radians`` do not exist
 (AttributeError). Later cycles add the eval-side plan resolution, naming,
 canonical hashing and the batch application helper.
 """
+import json
 import math
+from pathlib import Path
 
 import pytest
 import torch
@@ -556,3 +558,366 @@ def test_verify_stream_count_message_names_both_counts():
     with pytest.raises(RuntimeError) as exc:
         eval_FLAC.verify_stream_count(_stream_of(), 6337)
     assert "3" in str(exc.value) and "6337" in str(exc.value)
+
+
+# =========================================================================== #
+# CYCLE 4 — batch application, random-mode provenance, evaluate_model wiring
+# =========================================================================== #
+IMG_W = 512
+
+
+def _batch(indices, img_w=IMG_W):
+    out = []
+    for i in indices:
+        md = _make_md(seed=i, img_w=img_w)
+        md["idx"] = i
+        out.append(md)
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# apply_rotation_plan — fixed mode is the legacy code path, unchanged
+# --------------------------------------------------------------------------- #
+def test_apply_rotation_plan_fixed_zero_is_a_no_op_on_the_same_object():
+    """rotate_deg 0 must not even touch the metadata (and must not require a
+    'depth' key -- the legacy branch never looked at one)."""
+    plan = eval_FLAC.resolve_rotation_plan("fixed", 0.0, None, 42)
+    md_list = [{"scene": "a"}, {"scene": "b"}]
+    assert eval_FLAC.apply_rotation_plan(md_list, plan) is md_list
+
+
+def test_apply_rotation_plan_fixed_nonzero_matches_the_legacy_comprehension():
+    plan = eval_FLAC.resolve_rotation_plan("fixed", 45.0, None, 42)
+    batch = _batch([0, 1, 2])
+    got = eval_FLAC.apply_rotation_plan(batch, plan)
+    want = [yr.rotate_scene_metadata(md, math.radians(45.0), IMG_W) for md in batch]
+    assert len(got) == len(want)
+    for g, w in zip(got, want):
+        for key in ("depth",) + yr.POSE_KEYS:
+            assert torch.equal(g[key], w[key]), key
+
+
+def test_apply_rotation_plan_fixed_ignores_generator_and_stream():
+    plan = eval_FLAC.resolve_rotation_plan("fixed", 45.0, None, 42)
+    stream = eval_FLAC.RotationStream()
+    g = _gen(42)
+    before = g.get_state()
+    eval_FLAC.apply_rotation_plan(_batch([0, 1]), plan, g, stream)
+    assert len(stream) == 0
+    assert torch.equal(before, g.get_state()), "fixed mode consumed randomness"
+
+
+# --------------------------------------------------------------------------- #
+# apply_rotation_plan — random mode
+# --------------------------------------------------------------------------- #
+def test_apply_rotation_plan_random_applies_the_drawn_per_sample_angles():
+    plan = eval_FLAC.resolve_rotation_plan("random", 0.0, 42, 42)
+    batch = _batch([0, 1, 2, 3])
+    stream = eval_FLAC.RotationStream()
+    got = eval_FLAC.apply_rotation_plan(batch, plan, _gen(42), stream)
+
+    expected_offsets = GOLDEN_SEED42_W512[:4]
+    assert stream.offsets == expected_offsets
+    for md, d, out in zip(batch, expected_offsets, got):
+        want = yr.rotate_scene_metadata(md, yr.offsets_to_radians([d], IMG_W)[0], IMG_W)
+        for key in ("depth",) + yr.POSE_KEYS:
+            assert torch.equal(out[key], want[key]), key
+
+
+def test_apply_rotation_plan_random_does_not_mutate_the_input():
+    plan = eval_FLAC.resolve_rotation_plan("random", 0.0, 42, 42)
+    batch = _batch([0, 1])
+    ref = [md["depth"].clone() for md in batch]
+    eval_FLAC.apply_rotation_plan(batch, plan, _gen(42), eval_FLAC.RotationStream())
+    for md, r in zip(batch, ref):
+        assert torch.equal(md["depth"], r)
+
+
+def test_apply_rotation_plan_random_records_pre_rotation_identity():
+    """The recorded context fingerprint must describe the item, not the rotation:
+    otherwise an R cell could never match its unrotated Z pair."""
+    plan = eval_FLAC.resolve_rotation_plan("random", 0.0, 42, 42)
+    batch = _batch([0, 1, 2])
+    stream = eval_FLAC.RotationStream()
+    eval_FLAC.apply_rotation_plan(batch, plan, _gen(42), stream)
+    for md, row in zip(batch, stream.rows):
+        assert row.target_id == eval_FLAC.sample_target_id(md)
+        assert row.context_ids == eval_FLAC.sample_context_ids(md)
+        assert row.img_w == IMG_W
+
+
+def test_apply_rotation_plan_random_stream_is_batch_partition_independent():
+    """(2) again, but through the real application helper: 4+4 == 8 == 3+3+2."""
+    plan = eval_FLAC.resolve_rotation_plan("random", 0.0, 42, 42)
+
+    def run(sizes):
+        stream = eval_FLAC.RotationStream()
+        g = _gen(42)
+        start = 0
+        for n in sizes:
+            eval_FLAC.apply_rotation_plan(_batch(range(start, start + n)), plan, g, stream)
+            start += n
+        return stream
+
+    flat = run([8])
+    assert flat.offsets == GOLDEN_SEED42_W512[:8]
+    for sizes in ([4, 4], [3, 3, 2], [1] * 8):
+        s = run(sizes)
+        assert s.offsets == flat.offsets
+        assert s.assignment_hash() == flat.assignment_hash()
+        assert s.input_hash() == flat.input_hash()
+
+
+def test_apply_rotation_plan_random_does_not_touch_global_rng():
+    plan = eval_FLAC.resolve_rotation_plan("random", 0.0, 42, 42)
+    torch.manual_seed(99)
+    before = torch.random.get_rng_state()
+    eval_FLAC.apply_rotation_plan(_batch([0, 1, 2]), plan, _gen(42),
+                                  eval_FLAC.RotationStream())
+    assert torch.equal(before, torch.random.get_rng_state())
+
+
+def test_apply_rotation_plan_random_requires_generator_and_stream():
+    """Fail closed: a missing generator would fall back to the global RNG and a
+    missing stream would run an unauditable assignment."""
+    plan = eval_FLAC.resolve_rotation_plan("random", 0.0, 42, 42)
+    with pytest.raises(ValueError):
+        eval_FLAC.apply_rotation_plan(_batch([0]), plan, None, eval_FLAC.RotationStream())
+    with pytest.raises(ValueError):
+        eval_FLAC.apply_rotation_plan(_batch([0]), plan, _gen(42), None)
+
+
+def test_apply_rotation_plan_random_requires_a_depth_panorama():
+    plan = eval_FLAC.resolve_rotation_plan("random", 0.0, 42, 42)
+    with pytest.raises(ValueError, match="depth"):
+        eval_FLAC.apply_rotation_plan([{"idx": 0, "relpath": "a.wav"}], plan, _gen(42),
+                                      eval_FLAC.RotationStream())
+
+
+# --------------------------------------------------------------------------- #
+# (10b) integration spy: the drawn offsets are the ones that reach the rotation
+# --------------------------------------------------------------------------- #
+def test_drawn_offsets_reach_rotate_scene_metadata_over_a_two_batch_stream(monkeypatch):
+    """Gate G3's pytest half. A correct draw that never reaches the rotation would
+    produce a perfectly self-consistent -- and completely unrotated -- cell."""
+    seen = []
+    real = eval_FLAC.rotate_scene_metadata
+
+    def spy(md, alpha_rad, img_w, **kwargs):
+        seen.append((alpha_rad, img_w))
+        return real(md, alpha_rad, img_w, **kwargs)
+
+    monkeypatch.setattr(eval_FLAC, "rotate_scene_metadata", spy)
+
+    plan = eval_FLAC.resolve_rotation_plan("random", 0.0, 42, 42)
+    stream = eval_FLAC.RotationStream()
+    g = _gen(42)
+    eval_FLAC.apply_rotation_plan(_batch(range(0, 8)), plan, g, stream)
+    eval_FLAC.apply_rotation_plan(_batch(range(8, 16)), plan, g, stream)
+
+    expected_angles = yr.offsets_to_radians(GOLDEN_SEED42_W512, IMG_W)
+    assert [a for a, _ in seen] == expected_angles
+    assert {w for _, w in seen} == {IMG_W}
+    assert stream.offsets == GOLDEN_SEED42_W512
+    assert len(stream) == 16
+
+
+# --------------------------------------------------------------------------- #
+# random-mode provenance in the metrics record / predictions meta
+# --------------------------------------------------------------------------- #
+def _random_record(**over):
+    kwargs = dict(
+        cond_autocast="bf16", batch_size=64, n_samples=6337,
+        dataset_config="ds.json", seed=42, cfg_scale=1.0, steps=1,
+        eval_name="exp14_C32_rgen_S40000_s42_K8", weights_source="ema", device="cuda",
+        rotate_mode="random", rotate_seed=42, input_hash="a" * 64,
+        assignment_hash="b" * 64, stream_count=6337, img_w=512,
+    )
+    kwargs.update(over)
+    return eval_FLAC.build_metrics_record(
+        {"T60": 1.0}, CKPT, 0.0, "fa_invariant", [0.0, 90.0], **kwargs)
+
+
+def test_random_record_nulls_rotate_deg_and_carries_the_provenance():
+    """rotate_deg must be null, never 0.0: a randomly-rotated cell and an
+    unrotated one must not be readable as the same protocol."""
+    rec = _random_record()
+    assert rec["rotate_deg"] is None
+    assert rec["rotate_mode"] == "random"
+    assert rec["rotate_seed"] == 42
+    assert rec["input_hash"] == "a" * 64
+    assert rec["assignment_hash"] == "b" * 64
+    assert rec["stream_count"] == 6337
+    assert rec["img_w"] == 512
+    assert json.loads(json.dumps(rec))["rotate_deg"] is None
+
+
+def test_random_record_keeps_the_legacy_keys_and_their_order():
+    """The random keys are APPENDED; every legacy key keeps its position, so a
+    collector can read both row generations with one schema."""
+    rec = _random_record()
+    legacy = [k for k in rec if k not in ("rotate_mode", "rotate_seed", "input_hash",
+                                          "assignment_hash", "stream_count", "img_w")]
+    reference = eval_FLAC.build_metrics_record({"T60": 1.0}, CKPT, 0.0, "vanilla", None)
+    assert legacy == list(reference.keys())
+    assert list(rec)[-6:] == ["rotate_mode", "rotate_seed", "input_hash",
+                              "assignment_hash", "stream_count", "img_w"]
+
+
+def test_random_predictions_meta_carries_the_same_provenance():
+    """Only written under --store_predictions (not this campaign), but a stored
+    prediction set must still name the assignment that produced it (review B5)."""
+    meta = eval_FLAC.build_predictions_meta(
+        "ds.json", 42, 6337, "vanilla", None, 0.0, 64, "bf16",
+        rotate_mode="random", rotate_seed=43, input_hash="c" * 64,
+        assignment_hash="d" * 64, stream_count=6337, img_w=512,
+    )
+    assert meta["rotate_deg"] is None
+    assert meta["rotate_mode"] == "random" and meta["rotate_seed"] == 43
+    assert meta["input_hash"] == "c" * 64 and meta["assignment_hash"] == "d" * 64
+    assert meta["stream_count"] == 6337 and meta["img_w"] == 512
+    json.loads(json.dumps(meta))
+
+
+# --------------------------------------------------------------------------- #
+# evaluate_model wiring
+# --------------------------------------------------------------------------- #
+def test_evaluate_model_rotation_guard_fires_before_any_work(tmp_path, monkeypatch):
+    """The guard must trip before file/model/dataloader work: every path below is
+    nonexistent, so late validation would surface FileNotFoundError instead."""
+    monkeypatch.setattr(
+        eval_FLAC, "create_model_from_config",
+        lambda *a, **k: pytest.fail("evaluate_model reached model construction"),
+    )
+    with pytest.raises(ValueError, match="rotate_deg"):
+        eval_FLAC.evaluate_model(
+            str(tmp_path / "m.json"), str(tmp_path / "d.json"), str(tmp_path / "c.ckpt"),
+            steps=1, cfg_scale=1.0, device="cpu", rotate_mode="random", rotate_deg=45.0)
+    with pytest.raises(ValueError, match="rotate_seed"):
+        eval_FLAC.evaluate_model(
+            str(tmp_path / "m.json"), str(tmp_path / "d.json"), str(tmp_path / "c.ckpt"),
+            steps=1, cfg_scale=1.0, device="cpu", rotate_mode="fixed", rotate_seed=42)
+    with pytest.raises(ValueError, match="rotate_mode"):
+        eval_FLAC.evaluate_model(
+            str(tmp_path / "m.json"), str(tmp_path / "d.json"), str(tmp_path / "c.ckpt"),
+            steps=1, cfg_scale=1.0, device="cpu", rotate_mode="randon")
+
+
+class _EmptyLoader:
+    """An empty dataloader that still reports its (empty) dataset, so the eval
+    loop is skipped without any model, GPU or data while the stream guard still
+    has an expected count to check against."""
+    dataset = []
+
+    def __iter__(self):
+        return iter([])
+
+
+def _stub_eval_stack(monkeypatch, tmp_path):
+    import types
+    model_cfg = tmp_path / "model.json"
+    model_cfg.write_text(json.dumps({
+        "model_type": "diffusion_cond", "sample_size": 64, "sample_rate": 22050,
+        "audio_channels": 1, "training": {"use_ema": False},
+    }))
+    dataset_cfg = tmp_path / "dataset.json"
+    dataset_cfg.write_text(json.dumps({"datasets": [{"id": "toy"}]}))
+    ckpt = tmp_path / "toy.ckpt"
+    torch.save({"state_dict": {}}, str(ckpt))
+
+    class _FakeModule:
+        def __init__(self):
+            self.diffusion = types.SimpleNamespace(
+                model=object(), pretransform=None, conditioner=None)
+            self.device = "cpu"
+
+        def eval(self):
+            return self
+
+        def requires_grad_(self, flag):
+            return self
+
+        def to(self, device):
+            return self
+
+    monkeypatch.setattr(
+        eval_FLAC, "create_model_from_config",
+        lambda cfg: types.SimpleNamespace(load_state_dict=lambda sd, strict=False: ([], [])))
+    monkeypatch.setattr(
+        eval_FLAC, "create_training_wrapper_from_config", lambda cfg, model: _FakeModule())
+    monkeypatch.setattr(eval_FLAC, "create_dataloader_from_config",
+                        lambda *a, **k: _EmptyLoader())
+    monkeypatch.setattr(
+        eval_FLAC, "create_metric_callback_from_config",
+        lambda *a, **k: types.SimpleNamespace(
+            update_metrics=lambda *a, **k: None,
+            compute_metrics=lambda split: {"T60": 1.0}))
+    return model_cfg, dataset_cfg, ckpt
+
+
+def test_evaluate_model_random_mode_writes_the_rotrand_artifact_with_provenance(
+        tmp_path, monkeypatch):
+    """End-to-end wiring on an empty split: the random plan must reach BOTH the
+    filename and the record, or a cell's provenance would describe a protocol it
+    did not run."""
+    model_cfg, dataset_cfg, ckpt = _stub_eval_stack(monkeypatch, tmp_path)
+    eval_FLAC.evaluate_model(
+        str(model_cfg), str(dataset_cfg), str(ckpt), steps=1, cfg_scale=1.0,
+        device="cpu", eval_name="exp14_wiring_K8", seed=44, rotate_mode="random")
+
+    out = tmp_path / "toy_metrics_1_1.0_exp14_wiring_K8_rotrand44.json"
+    assert out.exists(), "random-mode artifact not written at the _rotrand<seed> path"
+    saved = json.loads(out.read_text())
+    assert saved["rotate_deg"] is None
+    assert saved["rotate_mode"] == "random"
+    assert saved["rotate_seed"] == 44          # defaulted to the eval seed
+    assert saved["stream_count"] == 0          # empty split, verified against it
+    assert len(saved["input_hash"]) == 64 and len(saved["assignment_hash"]) == 64
+
+
+def test_evaluate_model_fixed_mode_artifact_has_no_random_keys(tmp_path, monkeypatch):
+    """The default invocation is untouched: legacy filename, legacy record."""
+    model_cfg, dataset_cfg, ckpt = _stub_eval_stack(monkeypatch, tmp_path)
+    eval_FLAC.evaluate_model(
+        str(model_cfg), str(dataset_cfg), str(ckpt), steps=1, cfg_scale=1.0,
+        device="cpu", eval_name="exp14_wiring_K8", seed=44)
+
+    out = tmp_path / "toy_metrics_1_1.0_exp14_wiring_K8.json"
+    assert out.exists()
+    saved = json.loads(out.read_text())
+    assert saved["rotate_deg"] == 0.0
+    for key in ("rotate_mode", "rotate_seed", "input_hash", "assignment_hash",
+                "stream_count", "img_w"):
+        assert key not in saved
+
+
+def test_evaluate_model_random_mode_fails_on_a_short_stream(tmp_path, monkeypatch):
+    """The substitution guard must fail the RUN, not warn: a stream shorter than
+    the split means the reported metrics are not the split's metrics."""
+    model_cfg, dataset_cfg, ckpt = _stub_eval_stack(monkeypatch, tmp_path)
+
+    class _ClaimsMoreItems(_EmptyLoader):
+        dataset = [None] * 6337
+
+    monkeypatch.setattr(eval_FLAC, "create_dataloader_from_config",
+                        lambda *a, **k: _ClaimsMoreItems())
+    with pytest.raises(RuntimeError, match="stream"):
+        eval_FLAC.evaluate_model(
+            str(model_cfg), str(dataset_cfg), str(ckpt), steps=1, cfg_scale=1.0,
+            device="cpu", eval_name="exp14_short", seed=42, rotate_mode="random")
+    assert not (tmp_path / "toy_metrics_1_1.0_exp14_short_rotrand42.json").exists()
+
+
+def test_cli_exposes_the_rotate_mode_and_seed_flags():
+    """argparse enforces --rotate-mode's choices; --rotate-seed takes an int."""
+    import subprocess
+    import sys
+    root = str(Path(__file__).resolve().parents[2])
+    bad = subprocess.run([sys.executable, "eval_FLAC.py", "--rotate-mode", "randon"],
+                         capture_output=True, cwd=root)
+    assert bad.returncode == 2 and b"invalid choice" in bad.stderr
+    good = subprocess.run(
+        [sys.executable, "eval_FLAC.py", "--rotate-mode", "random", "--rotate-seed", "42"],
+        capture_output=True, cwd=root)
+    assert good.returncode == 2                      # still missing required args...
+    assert b"invalid choice" not in good.stderr      # ...but the flags parsed

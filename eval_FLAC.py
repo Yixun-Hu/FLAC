@@ -12,6 +12,7 @@ import pytorch_lightning as pl
 
 from src.data.dataset import create_dataloader_from_config
 from src.data.yaw_rotation import (rotate_scene_metadata, invariant_conditioning,
+                                   draw_yaw_offsets, offsets_to_radians,
                                    DEFAULT_FRAME_ANGLES, ORBIT_EXECUTION,
                                    FRAME_AVG_MAX_FWD_SAMPLES)
 from src.models import create_model_from_config
@@ -353,6 +354,56 @@ def verify_stream_count(stream, expected):
         )
 
 
+def apply_rotation_plan(metadata, plan, generator=None, stream=None):
+    """Apply one batch's yaw rotation, per the resolved :class:`RotationPlan`.
+
+    Fixed mode reproduces the legacy eval-loop branch exactly: nothing at all
+    happens at ``rotate_deg == 0`` (the same list object is returned, and no
+    ``depth`` key is required), and a non-zero angle rotates every sample by it.
+
+    Random mode draws the WHOLE batch's offsets first --- one contiguous slice of
+    the dedicated generator's stream, in item order --- and only then does any
+    per-sample work. That ordering is what makes the assignment independent of
+    how the loader chunks the split. Each sample's PRE-rotation identity is
+    recorded into ``stream`` before it is rotated, so the audit describes the item
+    rather than the rotation.
+
+    Both ``generator`` and ``stream`` are required in random mode: a missing
+    generator would silently draw from the global RNG (perturbing the
+    evaluation's own sampling noise), and a missing stream would run an
+    unauditable assignment. Neither is used in fixed mode.
+    """
+    if plan.is_random:
+        if generator is None or stream is None:
+            raise ValueError(
+                "random rotation mode requires both a dedicated generator and a "
+                "RotationStream: without them the assignment is neither isolated "
+                "from the global RNG nor auditable."
+            )
+        if len(metadata) == 0:
+            return metadata
+        if "depth" not in metadata[0]:
+            raise ValueError(
+                "random yaw rotation needs the depth panorama to define the column "
+                "grid, but this sample's metadata has no 'depth' key."
+            )
+        img_w = int(metadata[0]["depth"].shape[-1])
+        # Draw the whole batch up front, in stream order, BEFORE any per-sample work.
+        offsets = draw_yaw_offsets(len(metadata), img_w, generator).tolist()
+        angles = offsets_to_radians(offsets, img_w)
+        rotated = []
+        for md, offset, alpha in zip(metadata, offsets, angles):
+            stream.record(md, offset, img_w)
+            rotated.append(rotate_scene_metadata(md, alpha, img_w))
+        return rotated
+
+    if plan.rotate_deg != 0.0:
+        alpha_rad = math.radians(plan.rotate_deg)
+        img_w = int(metadata[0]["depth"].shape[-1])
+        return [rotate_scene_metadata(md, alpha_rad, img_w) for md in metadata]
+    return metadata
+
+
 def resolve_weights_source(training_config, state_dict_keys):
     """Which weights an evaluation will actually use: ``'ema'`` or ``'online'``.
 
@@ -390,10 +441,39 @@ def orbit_provenance(cond_method):
     return "n/a", None
 
 
+def _rotation_provenance(record, rotate_mode, rotate_seed, input_hash,
+                         assignment_hash, stream_count, img_w):
+    """Add exp_14's random-rotation provenance to a record -- IN RANDOM MODE ONLY.
+
+    Fixed-mode records must stay byte-identical to every row already committed
+    (review B4), so nothing is added, removed or reordered there. In random mode
+    the keys are APPENDED (a collector reads both generations with one schema) and
+    ``rotate_deg`` is overwritten in place with ``None``: no single angle describes
+    the run, and recording 0.0 would make a randomly-rotated cell indistinguishable
+    from an unrotated one.
+    """
+    if rotate_mode not in ROTATE_MODES:
+        raise ValueError(
+            f"Unknown rotate_mode: {rotate_mode!r}; valid options: {list(ROTATE_MODES)}."
+        )
+    if rotate_mode != 'random':
+        return record
+    record["rotate_deg"] = None
+    record["rotate_mode"] = rotate_mode
+    record["rotate_seed"] = rotate_seed
+    record["input_hash"] = input_hash
+    record["assignment_hash"] = assignment_hash
+    record["stream_count"] = stream_count
+    record["img_w"] = img_w
+    return record
+
+
 def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame_avg_angles,
                          cond_autocast='default', batch_size=None, n_samples=None,
                          dataset_config=None, seed=None, cfg_scale=None, steps=None,
-                         eval_name=None, weights_source=None, device=None):
+                         eval_name=None, weights_source=None, device=None,
+                         rotate_mode='fixed', rotate_seed=None, input_hash=None,
+                         assignment_hash=None, stream_count=None, img_w=None):
     """Assemble the dict written to the metrics JSON.
 
     Extends the legacy ``{metrics, ckpt_path, rotate_deg}`` record with
@@ -405,9 +485,13 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
     are not interchangeable — the batched path changes the train-mode
     augmentation schedule and regroups the evaluation tail batch — so this is
     what makes "legacy-loop" a checkable label rather than a footnote.
+
+    Under ``rotate_mode='random'`` (exp_14) the record additionally carries the
+    §3.3 assignment provenance and nulls ``rotate_deg``; in fixed mode it is
+    byte-identical to the legacy record. See :func:`_rotation_provenance`.
     """
     execution, cap = orbit_provenance(cond_method)
-    return {
+    record = {
         "metrics": metrics_dict,
         "ckpt_path": ckpt_path,
         "rotate_deg": rotate_deg,
@@ -433,6 +517,8 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
         "weights_source": weights_source,
         "device": device,
     }
+    return _rotation_provenance(record, rotate_mode, rotate_seed, input_hash,
+                                assignment_hash, stream_count, img_w)
 
 
 def resolve_cond_autocast(mode):
@@ -451,14 +537,22 @@ def resolve_cond_autocast(mode):
 
 
 def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
-                           frame_avg_angles, rotate_deg, batch_size, cond_autocast):
+                           frame_avg_angles, rotate_deg, batch_size, cond_autocast,
+                           rotate_mode='fixed', rotate_seed=None, input_hash=None,
+                           assignment_hash=None, stream_count=None, img_w=None):
     """Sidecar meta saved by ``--store_predictions`` (read by the exp_02 comparator
     guard). Carries the same orbit-execution provenance as the metrics record:
     at the default evaluation batch the batched path degenerates to one angle per
     call for every full batch, but the split's tail batch is regrouped, so a
-    prediction set must name the execution that produced it."""
+    prediction set must name the execution that produced it.
+
+    exp_14 does not store predictions, but a stored set must still name the
+    rotation assignment that produced it, so the random-mode provenance is added
+    here on exactly the same conditional terms as in the metrics record (review
+    B5): nothing changes unless ``--store_predictions`` AND random mode are both
+    in play."""
     execution, cap = orbit_provenance(cond_method)
-    return {
+    meta = {
         "dataset_config": dataset_config_path,
         "seed": seed,
         "n_samples": n_samples,
@@ -471,6 +565,8 @@ def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
         "frame_avg_fwd_cap": cap,
         "source_sha": source_sha(),
     }
+    return _rotation_provenance(meta, rotate_mode, rotate_seed, input_hash,
+                                assignment_hash, stream_count, img_w)
 
 
 # Unexpected-key prefixes a PL-wrapper checkpoint legitimately leaves after
@@ -524,6 +620,8 @@ def evaluate_model(
     frame_avg_angles=None,
     cond_autocast='default',
     allow_partial_load=False,
+    rotate_mode='fixed',
+    rotate_seed=None,
 ):
     # Fail fast on an unknown cond_method (the CLI is guarded by argparse
     # choices, but programmatic callers would otherwise silently run vanilla
@@ -532,6 +630,10 @@ def evaluate_model(
         raise ValueError(
             f"Unknown cond_method: {cond_method!r}; valid options: 'vanilla', 'fa_invariant'."
         )
+
+    # Resolve (and validate) the rotation protocol before any file/model work:
+    # a misconfigured rotation must never reach a GPU (see resolve_rotation_plan).
+    rotation_plan = resolve_rotation_plan(rotate_mode, rotate_deg, rotate_seed, seed)
 
     # Fail fast on an unknown cond_autocast too (full-review condition C1).
     ac_enabled, ac_dtype = resolve_cond_autocast(cond_autocast)
@@ -618,6 +720,18 @@ def evaluate_model(
     # Metrics 
     metric_callback = create_metric_callback_from_config(model_config, dataset_id=dataset_config['datasets'][0]['id'])
 
+    # Yaw-rotation state. The random draw lives on its OWN cpu generator so it
+    # cannot advance the global RNG that seeds the diffusion noise -- otherwise a
+    # rotated cell and its paired unrotated cell would not share sampling noise.
+    rot_generator = None
+    rot_stream = None
+    if rotation_plan.is_random:
+        rot_generator = torch.Generator(device='cpu')
+        rot_generator.manual_seed(rotation_plan.rotate_seed)
+        rot_stream = RotationStream()
+        print(f"Random yaw rotation: per-sample offsets, rotation seed "
+              f"{rotation_plan.rotate_seed}")
+
     # Eval
     c=0
     if store_predictions:
@@ -628,13 +742,12 @@ def evaluate_model(
             reals, metadata = batch
             reals = reals.to(device)
 
-            # Optional yaw-rotation diagnostic: physically rotate the conditioning
-            # (depth panorama + source/context poses) while leaving context_audio
-            # and the target RIR fixed. See src/data/yaw_rotation.py.
-            if rotate_deg != 0.0:
-                alpha_rad = math.radians(rotate_deg)
-                img_w = int(metadata[0]["depth"].shape[-1])
-                metadata = [rotate_scene_metadata(md, alpha_rad, img_w) for md in metadata]
+            # Optional yaw rotation: physically rotate the conditioning (depth
+            # panorama + source/context poses) while leaving context_audio and the
+            # target RIR fixed. Fixed mode = one angle for the whole run; random
+            # mode = an independent per-sample draw. See src/data/yaw_rotation.py.
+            metadata = apply_rotation_plan(metadata, rotation_plan, rot_generator,
+                                           rot_stream)
 
             with cond_autocast_ctx():
                 if cond_method == 'fa_invariant':
@@ -695,6 +808,26 @@ def evaluate_model(
             c += reals.shape[0]
     
 
+    # Assignment integrity (plan §3.3). The dataset silently substitutes items on
+    # a load/silence failure, so a random cell only reports numbers once its
+    # stream is proven to be one position per split item; the check runs BEFORE
+    # the metrics are computed or written.
+    rotation_provenance = {}
+    if rotation_plan.is_random:
+        dataset = getattr(eval_dl, 'dataset', None)
+        verify_stream_count(rot_stream, None if dataset is None else len(dataset))
+        rotation_provenance = {
+            "rotate_mode": rotation_plan.mode,
+            "rotate_seed": rotation_plan.rotate_seed,
+            "input_hash": rot_stream.input_hash(),
+            "assignment_hash": rot_stream.assignment_hash(),
+            "stream_count": len(rot_stream),
+            "img_w": rot_stream.img_w,
+        }
+        print(f"Rotation assignment: {rotation_provenance['stream_count']} positions, "
+              f"input_hash {rotation_provenance['input_hash']}, "
+              f"assignment_hash {rotation_provenance['assignment_hash']}")
+
     # Compute and print metrics
     metrics_dict = metric_callback.compute_metrics("test")
     for metric_name, metric_value in metrics_dict.items():
@@ -710,6 +843,7 @@ def evaluate_model(
     output_paths = build_output_paths(
         ckpt_path, steps, cfg_scale, eval_name,
         cond_method=cond_method, rotate_deg=rotate_deg, n_angles=len(frame_avg_angles),
+        rotate_mode=rotation_plan.mode, rotate_seed=rotation_plan.rotate_seed,
     )
     frame_angles_record = list(frame_avg_angles) if cond_method == 'fa_invariant' else None
     metrics_to_save = build_metrics_record(
@@ -717,7 +851,7 @@ def evaluate_model(
         cond_autocast=cond_autocast, batch_size=batch_size, n_samples=c,
         dataset_config=dataset_config_path, seed=seed, cfg_scale=cfg_scale,
         steps=steps, eval_name=eval_name, weights_source=weights_source,
-        device=str(device),
+        device=str(device), **rotation_provenance,
     )
     path2save = output_paths['metrics']
     with open(path2save, 'w') as f:
@@ -733,6 +867,7 @@ def evaluate_model(
             "meta": build_predictions_meta(
                 dataset_config_path, seed, int(decoded_samples_all.shape[0]),
                 cond_method, frame_angles_record, rotate_deg, batch_size, cond_autocast,
+                **rotation_provenance,
             ),
         }
         torch.save(preds_bundle, path2save_preds)
@@ -754,7 +889,9 @@ if __name__ == "__main__":
     parser.add_argument("--eval-name", type=str, default='', help="Name of the evaluation run (optional)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for evaluation")
     parser.add_argument("--store_predictions", action='store_true', help="Whether to store predictions or not")
-    parser.add_argument("--rotate-deg", type=float, default=0.0, help="Yaw-rotate the conditioning (depth + poses) by this many degrees before eval; 0 disables (default).")
+    parser.add_argument("--rotate-deg", type=float, default=0.0, help="Yaw-rotate the conditioning (depth + poses) by this many degrees before eval; 0 disables (default). Fixed mode only.")
+    parser.add_argument("--rotate-mode", type=str, default="fixed", choices=["fixed", "random"], help="Yaw-rotation protocol: 'fixed' (default) rotates every sample by --rotate-deg; 'random' (exp_14) draws an independent panorama-column offset per sample from a generator seeded with --rotate-seed. The two are mutually exclusive: 'random' with a non-zero --rotate-deg is an error.")
+    parser.add_argument("--rotate-seed", type=int, default=None, help="Seed for the per-sample random yaw draw; defaults to --seed. Only valid with --rotate-mode random (passing it in fixed mode is an error, never a silent no-op).")
     parser.add_argument("--cond-method", type=str, default="vanilla", choices=["vanilla", "fa_invariant"], help="Conditioning method: 'vanilla' (single conditioner pass) or 'fa_invariant' (cylindrical pose invariants + C4 ViT frame average). Composes with --rotate-deg (rotation applied first).")
     parser.add_argument("--frame-avg-angles", type=str, default=",".join(str(int(a)) for a in DEFAULT_FRAME_ANGLES), help="Comma-separated yaw angles in degrees for fa_invariant frame averaging; the first must be 0. Ignored when --cond-method vanilla.")
     parser.add_argument("--cond-autocast", type=str, default="default", choices=["default", "bf16", "off"], help="Autocast mode for the conditioning call: 'default' = torch per-device default dtype (fp16 on cuda; the exp_01/exp_02 protocol), 'bf16' = bfloat16 (matches finetune_cond's bf16-mixed training), 'off' = no autocast (fp32, for exactness measurements).")
@@ -783,4 +920,6 @@ if __name__ == "__main__":
         frame_avg_angles=frame_avg_angles,
         cond_autocast=args.cond_autocast,
         allow_partial_load=args.allow_partial_load,
+        rotate_mode=args.rotate_mode,
+        rotate_seed=args.rotate_seed,
     )
