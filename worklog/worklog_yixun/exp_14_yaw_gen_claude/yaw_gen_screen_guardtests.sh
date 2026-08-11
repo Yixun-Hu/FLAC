@@ -1,35 +1,46 @@
 #!/usr/bin/env bash
 # ============================================================================
-# fa_orbit_screen_guardtests.sh — guard-branch exercise for fa_orbit_screen.sbatch.
+# yaw_gen_screen_guardtests.sh — guard-branch exercise for the exp_14 screen kit
+# (yaw_gen_screen.sbatch, yaw_gen_screen_submit.sh, yaw_gen_submit_grid.sh).
 #
-# DRYRUN=1 runs every cheap gate (parameters, arm->config/orbit mapping, commit
-# binding, the exactly-one-checkpoint rule and the ckpt/arm identity gate) and
-# then prints the eval argv instead of spending a GPU. Synthetic Lightning-shaped
-# checkpoints are torch.save'd into a mktemp OUTPUT_ROOT, so the real arms'
-# outputs are never read or written and no job is submitted.
+# DRYRUN=1 runs every cheap gate (parameters, the three-cell contract, the
+# arm->config/orbit mapping, commit binding, the exactly-one-checkpoint rule and
+# the ckpt/arm identity gate) and then prints the eval argv instead of spending a
+# GPU. Synthetic Lightning-shaped checkpoints are torch.save'd into mktemp output
+# roots, so the real arms' outputs are never read or written and no job is
+# submitted: sbatch/scontrol/scancel are mocked shims throughout.
 #
-# DO NOT RUN THIS SUITE DURING ACTIVE CAMPAIGN SUBMISSIONS. It parks the campaign
-# pin (restoring it via a trap, including on interrupt) and, on an idle store,
-# exercises deletion paths. Run it between submission batches.
+# DO NOT RUN THIS SUITE DURING ACTIVE CAMPAIGN SUBMISSIONS. On an IDLE store it
+# exercises deletion paths; while any campaign freeze is active those cases skip
+# themselves and the freeze is never lifted. exp_14 keeps its own campaign-pin
+# file, so unlike exp_11's suite this one never parks the store-wide pin marker —
+# it parks only its own, and restores it via a trap including on interrupt.
 #
-# Usage: bash worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_screen_guardtests.sh
+# Usage: bash worklog/worklog_yixun/exp_14_yaw_gen_claude/yaw_gen_screen_guardtests.sh
 # Exit 0 = every case behaved as specified.
 # ============================================================================
 set -uo pipefail
 cd "$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-toplevel)" || exit 3
 
-EXPDIR="worklog/worklog_yixun/exp_11_fa_orbit_claude"
-SCREEN="${EXPDIR}/fa_orbit_screen.sbatch"
+EXPDIR="worklog/worklog_yixun/exp_14_yaw_gen_claude"
+EXP11="worklog/worklog_yixun/exp_11_fa_orbit_claude"   # READ-ONLY: configs, registry, store helper
+SCREEN="${EXPDIR}/yaw_gen_screen.sbatch"
+SUB="${EXPDIR}/yaw_gen_screen_submit.sh"
+GRID="${EXPDIR}/yaw_gen_submit_grid.sh"
+VALIDATOR="${EXPDIR}/exp14_validate_cell.py"
+PIN_FILE="${EXPDIR}/yaw_gen_campaign_pin"
 GUARD_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 PY=/n/fs/gatrdp/envs/flac/bin/python
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
-LOG="${EXPDIR}/fa_orbit_${TS}_screen_guardtests.log"
+LOG="${EXPDIR}/yaw_gen_${TS}_screen_guardtests.log"
 HEAD_SHA="$(git rev-parse HEAD)"
 MAIN_TREE="$(git rev-parse --show-toplevel)"
 
 exec > >(tee -a "$LOG") 2>&1
-echo "=== fa_orbit_screen guard exercise — ${TS} — $(git rev-parse --short HEAD) ==="
-[ -f "$SCREEN" ] || { echo "missing ${SCREEN} - abort"; exit 3; }
+echo "=== yaw_gen screen kit guard exercise — ${TS} — $(git rev-parse --short HEAD) ==="
+for F in "$SCREEN" "$SUB" "$GRID" "$VALIDATOR"; do
+  [ -f "$F" ] || { echo "missing ${F} - abort"; exit 3; }
+done
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -41,10 +52,24 @@ trap 'rm -rf "$TMP"' EXIT
 # while a campaign was in flight; the leases held, but that was luck, not
 # design.) So: if a campaign freeze is active, those cases are SKIPPED and the
 # freeze is never touched. Everything that does not delete still runs.
-MEASURE_HELPER="${EXPDIR}/fa_orbit_measure_worktree.sh"
+MEASURE_HELPER="${EXP11}/fa_orbit_measure_worktree.sh"
+# The STORE-WIDE pin marker belongs to whichever campaign set it (exp_11's screens
+# use it). This suite must leave it untouched; the value is captured here and
+# compared again at the end, which is a behavioural check rather than a grep.
+STORE_PIN_MARKER="$(git rev-parse --show-toplevel)/.measure_worktrees/.campaign_pin"
+STORE_PIN_AT_START="$(head -1 "$STORE_PIN_MARKER" 2>/dev/null)"
 CAMPAIGN_LIVE=0
 bash "$MEASURE_HELPER" --frozen >/dev/null 2>&1 && CAMPAIGN_LIVE=1
 [ "$CAMPAIGN_LIVE" = "1" ] && echo "NOTE: a CAMPAIGN FREEZE is active — deletion/thaw cases are skipped"
+
+restore_suite_state() {  # put back anything this suite parked (trap-backed)
+  if [ "${SUITE_PIN_PARKED:-0}" = "1" ] && [ -f "${TMP}/campaign_pin.saved" ]; then
+    cp "${TMP}/campaign_pin.saved" "$PIN_FILE" 2>/dev/null || true
+  fi
+  if [ "${SUITE_ENGAGED_FREEZE:-0}" = "1" ]; then
+    bash "$MEASURE_HELPER" --thaw >/dev/null 2>&1 || true
+  fi
+}
 
 skip_if_campaign() {   # $1 = description; returns 0 (skip) when a campaign is live
   if [ "$CAMPAIGN_LIVE" = "1" ]; then
@@ -53,53 +78,57 @@ skip_if_campaign() {   # $1 = description; returns 0 (skip) when a campaign is l
   fi
   return 1
 }
-OUT_ROOT="${TMP}/outputs"
 PASS=0; FAIL=0
 
-# synthetic checkpoints: C8 @10000 (good), C8 @12500 (good), C4L @10000 with the
-# WRONG (C4-labelled but C8-angled) config, a duplicate pair at 20000, and the
-# exp_07 backfill lineage @20000.
-$PY - "$OUT_ROOT" "$EXPDIR" <<'PY'
+# --- synthetic output roots --------------------------------------------------
+# exp_14 pins STEP=40000, so the negative checkpoint cases cannot share one root
+# with the positive ones (a duplicate or EMA-less 40k file in the good root would
+# break every good case for that arm). Each pathology therefore gets its OWN root,
+# and a case selects it by overriding OUTPUT_ROOT/FA_ORBIT_ARM_REGISTRY after
+# BASE — env applies assignments in order, so the last one wins.
+#
+#   GOOD     all five arms at 40000, each with its own config and EMA weights
+#   NOEMA    C16 at 40000 with no diffusion_ema.* weights at all
+#   WRONGARM C4L's tree holding a C8-config checkpoint; VANL's holding an ORBIT one
+#   DUP      two epoch=*-step=40000.ckpt files for C8
+#   EMPTY    no arm trees at all
+GOOD="${TMP}/good"; NOEMA="${TMP}/noema"; WRONGARM="${TMP}/wrongarm"
+DUP="${TMP}/dup"; EMPTY="${TMP}/empty"
+mkdir -p "$EMPTY"
+$PY - "$EXP11" "$GOOD" "$NOEMA" "$WRONGARM" "$DUP" <<'PY'
 import hashlib, json, os, sys, torch
-out, expdir = sys.argv[1], sys.argv[2]
-def ckpt(cfg, step, ema=True):
+exp11, good, noema, wrongarm, dup = sys.argv[1:6]
+
+CFG = {a: os.path.join(exp11, f"FLAC_AR_BF_{a}.json") for a in ("C4L", "C8", "C16", "C32")}
+CFG["VANL"] = os.path.join(exp11, "FLAC_AR_VANCKPT.json")
+JOBN = {"C4L": 1, "C8": 2, "C16": 3, "C32": 4, "VANL": 5}
+
+
+def write_ckpt(root, arm, cfg_arm, step=40000, epoch=8, ema=True, tag=""):
+    cfg = json.load(open(CFG[cfg_arm]))
     sd = {"diffusion.model.a": torch.zeros(1)}
-    if ema:                      # what eval_FLAC actually looks for
+    if ema:                                  # what eval_FLAC actually looks for
         sd["diffusion_ema.ema_model.model.a"] = torch.zeros(1)
-    return {"global_step": step, "epoch": step // 4550, "model_config": cfg,
-            "state_dict": sd,
-            "optimizer_states": [{"state": {0: {"step": 1}}, "param_groups": [{"lr": 1e-5}]}],
-            "lr_schedulers": [{"last_epoch": step}]}
-def write(root, name, exp, cfg, step, epoch=2, ema=True):
-    d = os.path.join(out, root, f"FLAC_{exp}", exp, "checkpoints")
+    d = os.path.join(root, f"exp11_{arm}", f"FLAC_exp11_{arm}", f"exp11_{arm}", "checkpoints")
     os.makedirs(d, exist_ok=True)
-    torch.save(ckpt(cfg, step, ema), os.path.join(d, f"epoch={epoch}-step={step}.ckpt"))
-c8 = json.load(open(os.path.join(expdir, "FLAC_AR_BF_C8.json")))
-c4l = json.load(open(os.path.join(expdir, "FLAC_AR_BF_C4L.json")))
-bf = json.load(open("worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json"))
-write("exp11_C8", "C8", "exp11_C8", c8, 10000)
-write("exp11_C8", "C8", "exp11_C8", c8, 12500)
-write("exp11_C8", "C8", "exp11_C8", c8, 20000)            # duplicate pair below
-write("exp11_C8", "C8", "exp11_C8", c8, 20000, epoch=3)
-write("exp11_C4L", "C4L", "exp11_C4L", c8, 10000)          # WRONG: C8 config under C4L
-write("exp11_C16", "C16", "exp11_C16", json.load(open(os.path.join(expdir, "FLAC_AR_BF_C16.json"))),
-      15000, ema=False)                                    # no EMA weights at all
-write("exp07_BF", "BF", "exp07_BF", bf, 20000)
-write("exp11_C8", "C8", "exp11_C8", c8, 40000, epoch=8)   # R3 / cross endpoint
-write("exp11_C4L", "C4L", "exp11_C4L", c4l, 40000, epoch=8)      # the Q9 fa side
-write("exp11_C8", "C8", "exp11_C8", c8, 42500, epoch=9)          # a Q10 traj point
-vanl = json.load(open(os.path.join(expdir, "FLAC_AR_VANCKPT.json")))
-write("exp11_VANL", "VANL", "exp11_VANL", vanl, 40000, epoch=8)   # the Q9 arm
-write("exp11_VANL", "VANL", "exp11_VANL", c4l, 12500, epoch=2)    # WRONG: an ORBIT ckpt
-write("exp07_BF", "BF", "exp07_BF", bf, 40000, epoch=8)   # legacy D2 endpoint
-# launch manifests so the LATER gates (identity, EMA) are the ones under test;
-# the "no manifest" case below uses an arm deliberately left without one.
-import hashlib
-def manifest(arm, cfg_path):
-    d = os.path.join(out, f"exp11_{arm}")
+    torch.save({"global_step": step, "epoch": epoch, "model_config": cfg, "state_dict": sd,
+                "optimizer_states": [{"state": {0: {"step": 1}}, "param_groups": [{"lr": 1e-5}]}],
+                "lr_schedulers": [{"last_epoch": step}]},
+               os.path.join(d, f"epoch={epoch}-step={step}.ckpt"))
+
+
+def manifest(root, arm, reg):
+    """The arm's launch manifest, recorded in the root's own audited registry.
+
+    The config hash is always the arm's OWN config — the one the driver will
+    hash — so the D3 lineage gate passes and the LATER gates (EMA, embedded
+    config identity) are the ones under test.
+    """
+    d = os.path.join(root, f"exp11_{arm}")
     os.makedirs(d, exist_ok=True)
-    sha = hashlib.sha256(open(cfg_path, "rb").read()).hexdigest()
-    with open(os.path.join(d, "launch_manifest.txt"), "w") as fh:
+    sha = hashlib.sha256(open(CFG[arm], "rb").read()).hexdigest()
+    path = os.path.join(d, "launch_manifest.txt")
+    with open(path, "w") as fh:
         fh.write(f"job 90000{JOBN[arm]} host synthetic mode INITIAL launch_uuid uuid-{arm}\n")
         fh.write(f"arm {arm} rung 8x8 micro 8 ngpu 8 max_steps 40000 ckpt_every 2500\n")
         fh.write("commit " + "0" * 40 + "\n")
@@ -107,30 +136,56 @@ def manifest(arm, cfg_path):
         fh.write(f"config_sha256 {sha}\n")
         fh.write(f"vae_sha256 {'b' * 64}\n")
         fh.write(f"save_dir {d}\n")
-    REG["arms"][arm] = {
-        "manifest_path": os.path.join(d, "launch_manifest.txt"),
-        "manifest_sha256": hashlib.sha256(
-            open(os.path.join(d, "launch_manifest.txt"), "rb").read()).hexdigest(),
+    reg["arms"][arm] = {
+        "manifest_path": path,
+        "manifest_sha256": hashlib.sha256(open(path, "rb").read()).hexdigest(),
         "job": f"90000{JOBN[arm]}", "mode": "INITIAL", "launch_uuid": f"uuid-{arm}",
         "commit": "0" * 40, "rung": "8x8", "micro": "8", "ngpu": "8",
         "max_steps": "40000", "config_sha256": sha, "vae_sha256": "b" * 64,
         "p0_manifest_sha256": "a" * 64, "save_dir": d, "training_seed": 42,
     }
-JOBN = {"C4L": 1, "C8": 2, "C16": 3, "C32": 4, "VANL": 5}
-REG = {"arms": {}}
-manifest("C4L", os.path.join(expdir, "FLAC_AR_BF_C4L.json"))
-manifest("C16", os.path.join(expdir, "FLAC_AR_BF_C16.json"))
-manifest("VANL", os.path.join(expdir, "FLAC_AR_VANCKPT.json"))
-with open(os.path.join(out, "arm_launch_registry.json"), "w") as fh:
-    json.dump(REG, fh, indent=2)
-print("synthetic checkpoints written")
+
+
+def registry(root, arms):
+    reg = {"arms": {}}
+    for arm in arms:
+        manifest(root, arm, reg)
+    with open(os.path.join(root, "arm_launch_registry.json"), "w") as fh:
+        json.dump(reg, fh, indent=2)
+
+
+ALL = ("VANL", "C4L", "C8", "C16", "C32")
+for arm in ALL:
+    write_ckpt(good, arm, arm)
+registry(good, ALL)
+
+write_ckpt(noema, "C16", "C16", ema=False)
+registry(noema, ("C16",))
+
+write_ckpt(wrongarm, "C4L", "C8")          # C4L's tree, a C8-config checkpoint
+write_ckpt(wrongarm, "VANL", "C4L")        # VANL's tree, an ORBIT checkpoint
+registry(wrongarm, ("C4L", "VANL"))
+
+write_ckpt(dup, "C8", "C8", epoch=8)
+write_ckpt(dup, "C8", "C8", epoch=9)       # two files at the SAME step
+registry(dup, ("C8",))
+print("synthetic output roots written")
 PY
 
-BASE=(DRYRUN=1 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}" "FA_ORBIT_REPO_OVERRIDE=$PWD"
-      "FA_ORBIT_ARM_REGISTRY=${OUT_ROOT}/arm_launch_registry.json")
+# The NO-MANIFEST case needs an arm with a checkpoint and no launch manifest at
+# all; strip C32's from a copy of the good root rather than from the good root.
+NOMAN="${TMP}/noman"
+cp -r "$GOOD" "$NOMAN" && rm -f "${NOMAN}/exp11_C32/launch_manifest.txt"
 
-register_manifest() {  # <arm> — record the manifest as it stands, faithfully
-  $PY - "$1" "${OUT_ROOT}/exp11_$1/launch_manifest.txt" "${OUT_ROOT}/arm_launch_registry.json" <<'PY'
+BASE=(DRYRUN=1 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${GOOD}" "FA_ORBIT_REPO_OVERRIDE=$PWD"
+      "FA_ORBIT_ARM_REGISTRY=${GOOD}/arm_launch_registry.json")
+root_env() {   # <root> — select another synthetic output root (last env wins)
+  printf '%s\n' "OUTPUT_ROOT=$1" "FA_ORBIT_ARM_REGISTRY=$1/arm_launch_registry.json"
+}
+
+register_manifest() {  # <arm> [root] — record the manifest as it stands, faithfully
+  local _root="${2:-$GOOD}"
+  $PY - "$1" "${_root}/exp11_$1/launch_manifest.txt" "${_root}/arm_launch_registry.json" <<'PY'
 import hashlib, json, sys
 arm, man_path, reg_path = sys.argv[1:4]
 raw = open(man_path, "rb").read()
@@ -180,362 +235,184 @@ expect_cmd() {  # <name> <want-rc> <want-substring> -- <command...>   (any comma
   fi
 }
 
+# argv_of <env...> — the eval argv line one DRYRUN cell would run (or "").
+argv_of() { env "$@" bash "$SCREEN" 2>&1 | sed -n 's/^python eval_FLAC.py //p' | head -1; }
+argv_has() {  # <name> <argv> <needle>
+  case "$2" in
+    *"$3"*) echo "PASS  $1"; PASS=$((PASS + 1)) ;;
+    *) echo "FAIL  $1: '$3' absent from"; echo "        | $2"; FAIL=$((FAIL + 1)) ;;
+  esac
+}
+argv_lacks() {  # <name> <argv> <needle>  — an ABSENCE is a contract too
+  case "$2" in
+    *"$3"*) echo "FAIL  $1: '$3' present in"; echo "        | $2"; FAIL=$((FAIL + 1)) ;;
+    *) echo "PASS  $1"; PASS=$((PASS + 1)) ;;
+  esac
+}
+
 echo "--- A. parameters ---"
-case_run "missing ARM"          2 "ARM"          -- "${BASE[@]}" STEP=10000
-case_run "missing STEP"         2 "STEP"         -- "${BASE[@]}" ARM=C8
-case_run "missing EXPECT_SHA"   2 "EXPECT_SHA"   -- DRYRUN=1 ARM=C8 STEP=10000 "OUTPUT_ROOT=${OUT_ROOT}" "FA_ORBIT_REPO_OVERRIDE=$PWD"
-case_run "unknown arm"          2 "not screenable" -- "${BASE[@]}" ARM=VAN STEP=10000
-case_run "FA1 is not screenable" 2 "not screenable" -- "${BASE[@]}" ARM=FA1 STEP=10000
-case_run "non-numeric STEP"     2 "STEP"         -- "${BASE[@]}" ARM=C8 STEP=lots
-case_run "bad K"                2 "K"            -- "${BASE[@]}" ARM=C8 STEP=10000 K=4
-case_run "backfill rejects unregistered steps" 2 "registered at steps 20000/30000" -- "${BASE[@]}" ARM=C4BACKFILL STEP=12500
-case_run "backfill 10k is not a registered gate" 2 "registered at steps 20000/30000" -- "${BASE[@]}" ARM=C4BACKFILL STEP=10000
+case_run "missing ARM"        2 "ARM must be exported" -- "${BASE[@]}" CELL=zref
+case_run "missing STEP"       2 "STEP must be exported" -- "${BASE[@]}" ARM=C8 CELL=zref STEP=
+case_run "missing CELL"       2 "CELL must be exported" -- "${BASE[@]}" ARM=C8 STEP=40000
+case_run "missing EXPECT_SHA" 2 "EXPECT_SHA" \
+  -- DRYRUN=1 ARM=C8 CELL=zref STEP=40000 "OUTPUT_ROOT=${GOOD}" "FA_ORBIT_REPO_OVERRIDE=$PWD"
+case_run "unknown arm"        2 "not registered for exp_14" -- "${BASE[@]}" ARM=VAN CELL=zref STEP=40000
+case_run "FA1 is not an exp_14 arm" 2 "not registered for exp_14" -- "${BASE[@]}" ARM=FA1 CELL=zref STEP=40000
+# exp_11's comparator arm is NOT part of this campaign: a recycled command line
+# must not produce an exp_14-labelled row.
+case_run "C4BACKFILL is refused"  2 "not registered for exp_14" \
+  -- "${BASE[@]}" ARM=C4BACKFILL CELL=zref STEP=40000
+case_run "non-numeric STEP"   2 "STEP" -- "${BASE[@]}" ARM=C8 CELL=zref STEP=lots
+case_run "bad K"              2 "must be 1 or 8" -- "${BASE[@]}" ARM=C8 CELL=zref STEP=40000 K=4
+case_run "STEP 20000 is unregistered" 2 "STEP=40000 endpoint only" \
+  -- "${BASE[@]}" ARM=C8 CELL=zref STEP=20000
+case_run "STEP 42500 is unregistered" 2 "STEP=40000 endpoint only" \
+  -- "${BASE[@]}" ARM=C8 CELL=rgen STEP=42500
+# every exp_11 cell type is gone; naming one is an error, not a silent fallback
+for OLDCELL in screen conf traj q9 r3 cross; do
+  case_run "CELL=${OLDCELL} is not an exp_14 cell" 2 "must be rgen" \
+    -- "${BASE[@]}" ARM=C8 "CELL=${OLDCELL}" STEP=40000
+done
+case_run "rgen refuses seed 47"  2 "eval seeds 42-46" -- "${BASE[@]}" ARM=C8 CELL=rgen STEP=40000 SEED=47
+case_run "zref refuses seed 41"  2 "eval seeds 42-46" -- "${BASE[@]}" ARM=C8 CELL=zref STEP=40000 SEED=41
+# rgen draws its own angles and zref is the theta=0 reference: neither takes one
+case_run "rgen refuses ROTATE_DEG" 2 "takes no ROTATE_DEG" \
+  -- "${BASE[@]}" ARM=C8 CELL=rgen STEP=40000 ROTATE_DEG=45
+case_run "zref refuses ROTATE_DEG" 2 "takes no ROTATE_DEG" \
+  -- "${BASE[@]}" ARM=C8 CELL=zref STEP=40000 ROTATE_DEG=0
+case_run "an EVAL_ORBIT leftover is refused (rgen)" 2 "not an exp_14 parameter" \
+  -- "${BASE[@]}" ARM=C8 CELL=rgen STEP=40000 EVAL_ORBIT=16
+case_run "an EVAL_ORBIT leftover is refused (zref)" 2 "not an exp_14 parameter" \
+  -- "${BASE[@]}" ARM=C8 CELL=zref STEP=40000 EVAL_ORBIT=8
+case_run "vctl needs an angle"   2 "needs ROTATE_DEG" -- "${BASE[@]}" ARM=C4L CELL=vctl STEP=40000
+case_run "vctl is seed 42 only"  2 "seed 42 by contract" \
+  -- "${BASE[@]}" ARM=C4L CELL=vctl STEP=40000 SEED=43 ROTATE_DEG=90
+case_run "vctl is K=8 only"      2 "K=8 by contract" \
+  -- "${BASE[@]}" ARM=C4L CELL=vctl STEP=40000 K=1 ROTATE_DEG=90
+case_run "vctl refuses an unregistered angle" 2 "not a registered vctl angle" \
+  -- "${BASE[@]}" ARM=C4L CELL=vctl STEP=40000 ROTATE_DEG=22.5
+# THE tuple list: five arms at 90, C4L at 45, nothing else. VANL@45 is the one a
+# reader would expect to exist by symmetry and the plan deliberately does not.
+case_run "VANL@45 is UNREGISTERED" 2 "not one of the six registered controls" \
+  -- "${BASE[@]}" ARM=VANL CELL=vctl STEP=40000 ROTATE_DEG=45
+case_run "C8@45 is UNREGISTERED"   2 "not one of the six registered controls" \
+  -- "${BASE[@]}" ARM=C8 CELL=vctl STEP=40000 ROTATE_DEG=45
+case_run "C16@45 is UNREGISTERED"  2 "not one of the six registered controls" \
+  -- "${BASE[@]}" ARM=C16 CELL=vctl STEP=40000 ROTATE_DEG=45
+case_run "C32@45 is UNREGISTERED"  2 "not one of the six registered controls" \
+  -- "${BASE[@]}" ARM=C32 CELL=vctl STEP=40000 ROTATE_DEG=45
 
 echo "--- B. checkpoint discovery ---"
-case_run "no ckpt at that step"  2 "exactly 1 checkpoint" -- "${BASE[@]}" ARM=C8 STEP=99000
-case_run "two ckpts at one step" 2 "exactly 1 checkpoint" -- "${BASE[@]}" ARM=C8 STEP=20000
-case_run "missing arm tree"      2 "exactly 1 checkpoint" -- "${BASE[@]}" ARM=C32 STEP=10000
+case_run "no arm tree at all"     2 "exactly 1 checkpoint" \
+  -- "${BASE[@]}" $(root_env "$EMPTY") ARM=C8 CELL=zref STEP=40000
+case_run "two ckpts at one step"  2 "exactly 1 checkpoint" \
+  -- "${BASE[@]}" $(root_env "$DUP") ARM=C8 CELL=zref STEP=40000
 
 echo "--- C. the ckpt/arm identity gate ---"
-case_run "C4L tree holding a C8 ckpt is rejected" 2 "CKPT/ARM GATE" -- "${BASE[@]}" ARM=C4L STEP=10000
+case_run "C4L tree holding a C8 ckpt is rejected" 2 "CKPT/ARM GATE" \
+  -- "${BASE[@]}" $(root_env "$WRONGARM") ARM=C4L CELL=zref STEP=40000
+case_run "an ORBIT ckpt is refused as VANL" 2 "trained with an orbit and is not the vanilla arm" \
+  -- "${BASE[@]}" $(root_env "$WRONGARM") ARM=VANL CELL=zref STEP=40000
 case_run "a checkpoint without EMA weights is rejected" 2 "no diffusion_ema.ema_model" \
-  -- "${BASE[@]}" ARM=C16 STEP=15000
-# the temp root has NO launch manifests, so every arm screen must refuse there
+  -- "${BASE[@]}" $(root_env "$NOEMA") ARM=C16 CELL=zref STEP=40000
 case_run "an arm ckpt with no launch manifest is refused" 2 "launch manifest missing" \
-  -- "${BASE[@]}" ARM=C8 STEP=10000
+  -- "${BASE[@]}" $(root_env "$NOMAN") ARM=C32 CELL=zref STEP=40000
 # ...and with a manifest whose config hash is another arm's, the lineage gate fires
-mkdir -p "${OUT_ROOT}/exp11_C8"
 write_c8_manifest() {  # $1 = which arm's config hash to record
   { echo "job 900002 host synthetic mode INITIAL launch_uuid uuid-C8"
     echo "arm C8 rung 8x8 micro 8 ngpu 8 max_steps 40000 ckpt_every 2500"
     echo "commit 0000000000000000000000000000000000000000"
     echo "p0_manifest_sha256 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    echo "config_sha256 $($PY -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "${EXPDIR}/FLAC_AR_BF_$1.json")"
+    echo "config_sha256 $($PY -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "${EXP11}/FLAC_AR_BF_$1.json")"
     echo "vae_sha256 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-    echo "save_dir ${OUT_ROOT}/exp11_C8"; } > "${OUT_ROOT}/exp11_C8/launch_manifest.txt"
+    echo "save_dir ${GOOD}/exp11_C8"; } > "${GOOD}/exp11_C8/launch_manifest.txt"
   register_manifest C8            # audited AS WRITTEN: the field checks are the test
 }
 write_c8_manifest C4L
 case_run "a launch manifest for another config is refused" 2 "ARM LINEAGE GATE" \
-  -- "${BASE[@]}" ARM=C8 STEP=10000
-# a correct manifest lets the same screen through
-write_c8_manifest C8
+  -- "${BASE[@]}" ARM=C8 CELL=zref STEP=40000
+write_c8_manifest C8              # a correct manifest lets the same cell through
 
-echo "--- D. valid screens reach the eval argv ---"
-# --- VANL (Q9): the vanilla arm of this recipe ------------------------------
-case_run "VANL runs a VANILLA evaluation" 0 "--cond-method vanilla" \
-  -- "${BASE[@]}" ARM=VANL STEP=40000 CELL=conf SEED=43 K=1
-case_run "VANL builds the vanilla eval name" 0 "exp11_VANL_conf_S40000_s43_K1" \
-  -- "${BASE[@]}" ARM=VANL STEP=40000 CELL=conf SEED=43 K=1
-case_run "VANL uses the VANCKPT config" 0 "FLAC_AR_VANCKPT.json" \
-  -- "${BASE[@]}" ARM=VANL STEP=40000 CELL=conf SEED=43 K=1
-case_run "VANL announces itself as orbit-free" 0 "VANILLA (no orbit)" \
-  -- "${BASE[@]}" ARM=VANL STEP=40000
-case_run "VANL screen cells exist too" 0 "exp11_VANL_screen_S40000_s42_K8" \
-  -- "${BASE[@]}" ARM=VANL STEP=40000
-case_run "VANL refuses r3"    2 "not registered for VANL" -- "${BASE[@]}" ARM=VANL STEP=40000 CELL=r3 ROTATE_DEG=0
-case_run "VANL refuses cross" 2 "not registered for VANL" -- "${BASE[@]}" ARM=VANL STEP=40000 CELL=cross EVAL_ORBIT=16
-case_run "an ORBIT ckpt is refused as VANL" 2 "trained with an orbit and is not the vanilla arm" \
-  -- "${BASE[@]}" ARM=VANL STEP=12500 CELL=conf SEED=43 K=1
-# --- the Q9 round: VANL and C4L at ONE new pin, in their own namespace -------
-case_run "VANL q9 cell is registered" 0 "exp11_VANL_q9_S40000_s44_K8" \
-  -- "${BASE[@]}" ARM=VANL STEP=40000 CELL=q9 SEED=44
-case_run "C4L q9 cell is registered"  0 "exp11_C4L_q9_S40000_s44_K8" \
-  -- "${BASE[@]}" ARM=C4L STEP=40000 CELL=q9 SEED=44
-case_run "q9 is the VANL/C4L pair only" 2 "fa-vs-vanilla pair" \
-  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=q9 SEED=44
-case_run "q9 is the 40k endpoint only" 2 "40k endpoint only" \
-  -- "${BASE[@]}" ARM=VANL STEP=10000 CELL=q9 SEED=44
-case_run "q9 uses the confirmatory seeds" 2 "seeds 42-46" \
-  -- "${BASE[@]}" ARM=VANL STEP=40000 CELL=q9 SEED=47
-# --- CELL=r3 (plan §4): registered yaw offsets, injective names --------------
-case_run "r3 needs a rotation"       2 "needs ROTATE_DEG" -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3
-case_run "r3 rejects an unregistered offset" 2 "not one of the registered R3 offsets" \
-  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3 ROTATE_DEG=7
-case_run "r3 rejects 5.62 (near-miss)" 2 "not one of the registered R3 offsets" \
-  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3 ROTATE_DEG=5.62
-case_run "r3 is the 40k endpoint only" 2 "registered at the 40k endpoint only" \
-  -- "${BASE[@]}" ARM=C8 STEP=10000 CELL=r3 ROTATE_DEG=0
-case_run "r3 is seed 42 by contract"  2 "seed 42 by contract" \
-  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3 ROTATE_DEG=0 SEED=43
-case_run "r3 names carry the rotation" 0 "exp11_C8_r3_rot5p625_s42_K8" \
-  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3 ROTATE_DEG=5.625
-case_run "r3 passes --rotate-deg to the eval" 0 "--rotate-deg 22.5" \
-  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3 ROTATE_DEG=22.5
-case_run "r3 keeps the arm's OWN orbit" 0 "0.0,45.0,90.0,135.0,180.0,225.0,270.0,315.0" \
-  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3 ROTATE_DEG=45
-# --- CELL=cross (R2 mechanism / D2) -----------------------------------------
-case_run "cross needs an eval orbit" 2 "needs EVAL_ORBIT" -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=cross
-case_run "cross rejects an unregistered orbit" 2 "must be one of 4|8|16|32" \
-  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=cross EVAL_ORBIT=6
-case_run "cross refuses the arm's OWN orbit" 2 "OWN training orbit" \
-  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=cross EVAL_ORBIT=8
-case_run "cross runs the OTHER orbit" 0 "--frame-avg-angles 0.0,11.25,22.5,33.75" \
-  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=cross EVAL_ORBIT=32
-case_run "cross names carry the eval orbit" 0 "exp11_C8_cross_a16_S40000_s42_K8" \
-  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=cross EVAL_ORBIT=16
-case_run "cross is the 40k endpoint only" 2 "registered at the 40k endpoint only" \
-  -- "${BASE[@]}" ARM=C8 STEP=10000 CELL=cross EVAL_ORBIT=16
-# the checkpoint identity gate still proves the ckpt IS this arm (C8 embedded)
-case_run "cross still proves the ckpt is the arm" 0 "fa_invariant C8" \
-  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=cross EVAL_ORBIT=4
-# --- legacy D2: the backfill at 40k, screen and cross only ------------------
-# (rc=2 because the audited lineage gate rejects the SYNTHETIC 40k stand-in --
-#  correctly; the real checkpoint is exercised under GUARD_REAL_BACKFILL below.
-#  What these two prove is that 40k is now a REGISTERED step for these cells and
-#  that the D2 eval names are built right, both of which happen before that gate.)
-case_run "backfill 40k screen is a registered step" 2 "exp11_C4backfill_S40000_s42_K8" \
-  -- "${BASE[@]}" ARM=C4BACKFILL STEP=40000
-case_run "backfill 40k cross builds the D2 name" 2 "exp11_C4backfill_cross_a16_S40000_s42_K8" \
-  -- "${BASE[@]}" ARM=C4BACKFILL STEP=40000 CELL=cross EVAL_ORBIT=16
-case_run "backfill cross refuses C4's own orbit" 2 "OWN training orbit" \
-  -- "${BASE[@]}" ARM=C4BACKFILL STEP=40000 CELL=cross EVAL_ORBIT=4
-case_run "backfill cross is 40k only" 2 "40k endpoint only" \
-  -- "${BASE[@]}" ARM=C4BACKFILL STEP=20000 CELL=cross EVAL_ORBIT=8
-case_run "backfill still refuses conf/r3" 2 "futility comparator" \
-  -- "${BASE[@]}" ARM=C4BACKFILL STEP=40000 CELL=r3 ROTATE_DEG=0
-case_run "backfill 10k is still unregistered" 2 "registered at steps 20000/30000/40000" \
-  -- "${BASE[@]}" ARM=C4BACKFILL STEP=10000
-case_run "C8 S10000 K8 default seed" 0 "exp11_C8_screen_S10000_s42_K8" -- "${BASE[@]}" ARM=C8 STEP=10000
-case_run "screen contract: seed 43 refused"  2 "seed 42 by contract" -- "${BASE[@]}" ARM=C8 STEP=12500 SEED=43
-# K=1 trajectory screens are REGISTERED now (full curves at both K); the futility
-# GATES stay K=8 only, which `gate_K` in the validator records separately.
-# --- Q10 restart-chain lineage: >40k ckpts must descend from the audited run --
-# The synthetic registry is built from the fixture manifests, so it has no
-# restarts: a >40k checkpoint must therefore be refused outright.
-write_c8_ckpt_45k() { $PY - "$OUT_ROOT" "$EXPDIR" <<'PY'
-import json, os, sys, torch
-out, expdir = sys.argv[1], sys.argv[2]
-c8 = json.load(open(os.path.join(expdir, "FLAC_AR_BF_C8.json")))
-d = os.path.join(out, "exp11_C8", "FLAC_exp11_C8", "exp11_C8", "checkpoints")
-sd = {"diffusion.model.a": torch.zeros(1), "diffusion_ema.ema_model.model.a": torch.zeros(1)}
-torch.save({"global_step": 45000, "epoch": 9, "model_config": c8, "state_dict": sd,
-            "optimizer_states": [{"state": {0: {"step": 1}}, "param_groups": [{"lr": 1e-5}]}],
-            "lr_schedulers": [{"last_epoch": 45000}]}, os.path.join(d, "epoch=9-step=45000.ckpt"))
-PY
-}
-write_c8_ckpt_45k
-# (no anchor recorded for the synthetic arm, so the chain fails one step earlier)
-case_run "a >40k ckpt with no chain is refused" 2 "cannot be chained to its INITIAL run" \
-  -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
-# now give C8 an anchor and a leg that resumes from the WRONG checkpoint
-$PY - "${OUT_ROOT}/arm_launch_registry.json" "${OUT_ROOT}/exp11_C8" <<'PY'
-import hashlib, json, os, sys
-p, save = sys.argv[1], sys.argv[2]
-anchor = hashlib.sha256(open(os.path.join(save, "FLAC_exp11_C8", "exp11_C8", "checkpoints",
-                                          "epoch=8-step=40000.ckpt"), "rb").read()).hexdigest()
-r = json.load(open(p))
-r["arms"]["C8"]["final_ckpt_sha256"] = anchor
-r["arms"]["C8"]["final_step"] = 40000
-r["restarts"] = {"C8": [{"mode": "RESTART", "job": "999", "resume_ckpt_sha256": "b" * 64,
-                         "max_steps": "100000"}]}
-json.dump(r, open(p, "w"), indent=2)
-PY
-case_run "a RESTART resuming elsewhere is refused" 2 "no validated RESTART leg" \
-  -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
-# --- fix 2: the leg is RECORDED by the real recorder, so the registry row and the
-# per-leg producer manifest come from the same audited pipeline the operator uses.
-$PY - "${OUT_ROOT}" "${EXPDIR}" <<'PY'
-import hashlib, json, os, sys
-out, expdir = sys.argv[1], sys.argv[2]
-save = os.path.join(out, "exp11_C8")
-ckpt = os.path.join(save, "FLAC_exp11_C8", "exp11_C8", "checkpoints", "epoch=8-step=40000.ckpt")
-anchor = hashlib.sha256(open(ckpt, "rb").read()).hexdigest()
-cfg = os.path.join(expdir, "FLAC_AR_BF_C8.json")
-cfg_sha = hashlib.sha256(open(cfg, "rb").read()).hexdigest()
-open(os.path.join(out, "restart_manifest_C8.txt"), "w").write("\n".join([
-    "# exp_11 arm launch manifest",
-    "job 3662829 host synthetic mode RESTART launch_uuid leg-uuid-c8",
-    "arm C8 rung 8x8 micro 8 ngpu 8 max_steps 100000 ckpt_every 2500",
-    "commit " + "c" * 40,
-    "p0_manifest_sha256 " + "a" * 64,
-    f"model_config {cfg}",
-    f"config_sha256 {cfg_sha}",
-    "vae_sha256 " + "b" * 64,
-    "time_limit 51:00:00 min_free_mb 36500",
-    f"resume_ckpt {ckpt} expected_step 40000 resume_ckpt_sha256 {anchor}",
-    f"save_dir {save}", ""]))
-r = json.load(open(os.path.join(out, "arm_launch_registry.json")))
-r["restarts"] = {}
-json.dump(r, open(os.path.join(out, "arm_launch_registry.json"), "w"), indent=2)
-PY
-record_c8_leg() {   # the operator's own command, against the REAL launcher pins
-  $PY "$EXPDIR/fa_orbit_record_restart.py" C8 "${OUT_ROOT}/restart_manifest_C8.txt" \
-    --registry "${OUT_ROOT}/arm_launch_registry.json" \
-    --launcher "${EXPDIR}/fa_orbit_train.sbatch" --producer-dir "$OUT_ROOT" \
-    --repo-root "$PWD" "$@"
-}
-expect_cmd "the recorder publishes the leg and its producer manifest" 0 "checkpoint(s) added" \
-  -- record_c8_leg
-case_run "a PRODUCED >40k ckpt is accepted" 0 "producer binding OK: step 45000" \
-  -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
-# THE loophole: same arm, same config, same step, a valid recorded leg — but these
-# are not the bytes that leg produced. The old existential gate accepted this.
-cp "${OUT_ROOT}/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=9-step=45000.ckpt" "${TMP}/real45k.ckpt"
-$PY - "$OUT_ROOT" "$EXPDIR" <<'PY'
-import json, os, sys, torch
-out, expdir = sys.argv[1], sys.argv[2]
-c8 = json.load(open(os.path.join(expdir, "FLAC_AR_BF_C8.json")))
-d = os.path.join(out, "exp11_C8", "FLAC_exp11_C8", "exp11_C8", "checkpoints")
-sd = {"diffusion.model.a": torch.ones(1), "diffusion_ema.ema_model.model.a": torch.ones(1)}
-torch.save({"global_step": 45000, "epoch": 9, "model_config": c8, "state_dict": sd,
-            "optimizer_states": [{"state": {0: {"step": 2}}, "param_groups": [{"lr": 2e-5}]}],
-            "lr_schedulers": [{"last_epoch": 45000}]}, os.path.join(d, "epoch=9-step=45000.ckpt"))
-PY
-case_run "a same-config ckpt from a WRONG restart is refused" 2 "NOT the checkpoint that leg produced" \
-  -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
-cp "${TMP}/real45k.ckpt" "${OUT_ROOT}/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=9-step=45000.ckpt"
-# a registry row without its producer manifest is no longer evidence
-mv "${OUT_ROOT}/fa_orbit_producer_C8_job3662829.json" "${TMP}/producer.json"
-case_run "a leg with no producer manifest admits nothing" 2 "producer manifest" \
-  -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
-mv "${TMP}/producer.json" "${OUT_ROOT}/fa_orbit_producer_C8_job3662829.json"
-# ...and every leg field is re-validated, not just mode + resume hash
-tamper_leg() { $PY - "${OUT_ROOT}/arm_launch_registry.json" "$1" "$2" <<'PY'
-import json, sys
-p, field, value = sys.argv[1:4]
-r = json.load(open(p)); r["restarts"]["C8"][0][field] = value
-json.dump(r, open(p, "w"), indent=2)
-PY
-}
-cp "${OUT_ROOT}/arm_launch_registry.json" "${TMP}/reg_recorded.json"
-tamper_leg save_dir "${OUT_ROOT}/exp11_C16"
-case_run "a leg whose save_dir is not the audited one is refused" 2 "no validated RESTART leg" \
-  -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
-cp "${TMP}/reg_recorded.json" "${OUT_ROOT}/arm_launch_registry.json"
-tamper_leg expected_step 30000
-case_run "a leg that did not resume the audited final step is refused" 2 "no validated RESTART leg" \
-  -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
-cp "${TMP}/reg_recorded.json" "${OUT_ROOT}/arm_launch_registry.json"
-# the leg's OWN restart manifest is mutable evidence and is re-hashed too
-cp "${OUT_ROOT}/restart_manifest_C8.txt" "${TMP}/restart_manifest_C8.txt"
-echo "tampered_field yes" >> "${OUT_ROOT}/restart_manifest_C8.txt"
-case_run "a RESTART manifest edited after recording is refused" 2 "changed after it was recorded" \
-  -- "${BASE[@]}" ARM=C8 STEP=45000 CELL=traj SEED=44
-cp "${TMP}/restart_manifest_C8.txt" "${OUT_ROOT}/restart_manifest_C8.txt"
-expect_cmd "a duplicate record of the same leg is refused" 1 "ALREADY recorded" -- record_c8_leg
-case_run "<=40k ckpts need no restart row" 0 "exp11_C8_screen_S10000_s42_K8" \
-  -- "${BASE[@]}" ARM=C8 STEP=10000
+echo "--- D. the three registered cells reach the eval argv ---"
+# --- rgen: the headline cell -------------------------------------------------
+RGEN_ARGV="$(argv_of "${BASE[@]}" ARM=C32 CELL=rgen STEP=40000 SEED=44 K=8)"
+argv_has  "rgen passes --rotate-mode random with the eval seed" "$RGEN_ARGV" "--rotate-mode random --rotate-seed 44"
+argv_lacks "rgen passes NO fixed angle"                         "$RGEN_ARGV" "--rotate-deg"
+argv_has  "rgen names itself by its rotation seed"              "$RGEN_ARGV" "exp14_C32_rgen_S40000_s44_K8_rotrand44"
+argv_has  "rgen pins the campaign batch/worker settings"        "$RGEN_ARGV" "--batch-size 64 --num-workers 4"
+argv_has  "rgen pins the split size and records the stream"     "$RGEN_ARGV" "--expected-stream-count 6337 --record-stream"
+argv_has  "rgen pins the protocol flags"                        "$RGEN_ARGV" "--cond-autocast bf16 --cfg-scale 1.0 --steps 1"
+argv_has  "rgen keeps the arm's OWN orbit (C32)"                "$RGEN_ARGV" "--cond-method fa_invariant"
+# --- zref: the theta=0 reference is the BYTE-DEFAULT fixed path --------------
+ZREF_ARGV="$(argv_of "${BASE[@]}" ARM=C8 CELL=zref STEP=40000 SEED=42 K=8)"
+argv_lacks "zref passes no rotation flag of any kind"           "$ZREF_ARGV" "--rotate"
+argv_has  "zref names itself without a rotation token"          "$ZREF_ARGV" "exp14_C8_zref_S40000_s42_K8 "
+argv_has  "zref still records its assignment stream"            "$ZREF_ARGV" "--expected-stream-count 6337 --record-stream"
+argv_has  "zref keeps the arm's OWN orbit"                      "$ZREF_ARGV" "0.0,45.0,90.0,135.0,180.0,225.0,270.0,315.0"
+# --- vctl: the fixed-angle validity controls --------------------------------
+VCTL45="$(argv_of "${BASE[@]}" ARM=C4L CELL=vctl STEP=40000 ROTATE_DEG=45)"
+argv_has  "vctl passes its fixed angle"                         "$VCTL45" "--rotate-deg 45"
+argv_lacks "vctl passes no random-mode flag"                    "$VCTL45" "--rotate-mode"
+argv_has  "vctl names itself by its angle"                      "$VCTL45" "exp14_C4L_vctl_S40000_s42_K8_rot45"
+VCTL90="$(argv_of "${BASE[@]}" ARM=VANL CELL=vctl STEP=40000 ROTATE_DEG=90)"
+argv_has  "the VANL positive control is registered at 90"       "$VCTL90" "exp14_VANL_vctl_S40000_s42_K8_rot90"
+argv_has  "VANL runs a VANILLA evaluation"                      "$VCTL90" "--cond-method vanilla"
+argv_lacks "a vanilla evaluation is given no orbit at all"      "$VCTL90" "--frame-avg-angles"
+VCTL90F="$(argv_of "${BASE[@]}" ARM=C16 CELL=vctl STEP=40000 ROTATE_DEG=90.0)"
+argv_has  "90.0 canonicalises to the 90 token"                  "$VCTL90F" "exp14_C16_vctl_S40000_s42_K8_rot90"
+argv_has  "...and reaches the eval as 90"                       "$VCTL90F" "--rotate-deg 90"
+# --- splits ------------------------------------------------------------------
+K1_ARGV="$(argv_of "${BASE[@]}" ARM=C8 CELL=rgen STEP=40000 K=1 SEED=46)"
+argv_has "K=1 uses the _1 split"   "$K1_ARGV"   "acousticroom_unseeneval_1.json"
+argv_has "K=8 uses the full split" "$ZREF_ARGV" "acousticroom_unseeneval.json"
+argv_has "K=1 still names its K"   "$K1_ARGV"   "exp14_C8_rgen_S40000_s46_K1_rotrand46"
 
-# --- Q10 trajectory cells: 5 seeds x both K, strictly above 40k -------------
-case_run "traj cell is registered"        0 "exp11_C8_traj_S42500_s44_K1" \
-  -- "${BASE[@]}" ARM=C8 STEP=42500 CELL=traj SEED=44 K=1
-case_run "traj refuses 40000 itself"      2 "strictly above 40000" \
-  -- "${BASE[@]}" ARM=C8 STEP=40000 CELL=traj SEED=44
-case_run "traj refuses below 40k"         2 "strictly above 40000" \
-  -- "${BASE[@]}" ARM=C8 STEP=30000 CELL=traj SEED=44
-case_run "traj refuses off-grid steps"    2 "2500 checkpoint grid" \
-  -- "${BASE[@]}" ARM=C8 STEP=42501 CELL=traj SEED=44
-case_run "traj refuses past the budget"   2 "stop at the 100000 budget" \
-  -- "${BASE[@]}" ARM=C8 STEP=102500 CELL=traj SEED=44
-case_run "traj uses the conf seed set"    2 "seeds 42-46" \
-  -- "${BASE[@]}" ARM=C8 STEP=42500 CELL=traj SEED=47
-case_run "screen contract: K=1 admitted"    0 "exp11_C8_screen_S10000_s42_K1" -- "${BASE[@]}" ARM=C8 STEP=10000 K=1
-case_run "screen contract: K=1 uses the _1 split" 0 "acousticroom_unseeneval_1.json" -- "${BASE[@]}" ARM=C8 STEP=10000 K=1
-# (caught by the global K check before the cell contract is reached)
-case_run "screen contract: K=4 still refused" 2 "must be 1 or 8"      -- "${BASE[@]}" ARM=C8 STEP=10000 K=4
-case_run "backfill K=1 is admitted"         2 "exp11_C4backfill_S20000_s42_K1" -- "${BASE[@]}" ARM=C4BACKFILL STEP=20000 K=1
-case_run "conf cell admits seed 43"          0 "exp11_C8_conf_S12500_s43_K8" -- "${BASE[@]}" ARM=C8 STEP=12500 SEED=43 CELL=conf
-case_run "conf cell admits K=1"              0 "exp11_C8_conf_S10000_s42_K1" -- "${BASE[@]}" ARM=C8 STEP=10000 K=1 CELL=conf
-case_run "conf cell refuses seed 47"         2 "seeds 42-46"          -- "${BASE[@]}" ARM=C8 STEP=10000 SEED=47 CELL=conf
-case_run "backfill must stay a screen/cross cell" 2 "futility comparator" -- "${BASE[@]}" ARM=C4BACKFILL STEP=20000 CELL=conf
-case_run "K=1 uses the _1 split"     0 "acousticroom_unseeneval_1.json" -- "${BASE[@]}" ARM=C8 STEP=10000 K=1 CELL=conf
-case_run "K=8 uses the full split"   0 "acousticroom_unseeneval.json"   -- "${BASE[@]}" ARM=C8 STEP=10000
-case_run "C8 carries its 8-angle orbit" 0 "0.0,45.0,90.0,135.0,180.0,225.0,270.0,315.0" -- "${BASE[@]}" ARM=C8 STEP=10000
-case_run "protocol flags are pinned" 0 "--cond-autocast bf16 --cfg-scale 1.0 --steps 1" -- "${BASE[@]}" ARM=C8 STEP=10000
-# The backfill checkpoint is bound to the AUDITED manifest (path + sha256), so a
-# synthetic stand-in in the temp root must be refused; the positive path is
-# exercised against the real audited checkpoint below.
-case_run "a non-audited backfill ckpt is refused" 2 "audited" -- "${BASE[@]}" ARM=C4BACKFILL STEP=20000
-if [ "${GUARD_REAL_BACKFILL:-0}" = "1" ]; then
-  case_run "the audited backfill ckpt is accepted" 0 "exp11_C4backfill_S20000_s42_K8" \
-    -- DRYRUN=1 "EXPECT_SHA=${HEAD_SHA}" "FA_ORBIT_REPO_OVERRIDE=$PWD" ARM=C4BACKFILL STEP=20000
-  case_run "the audited 40k D2 endpoint is accepted" 0 "exp11_C4backfill_S40000_s42_K8" \
-    -- DRYRUN=1 "EXPECT_SHA=${HEAD_SHA}" "FA_ORBIT_REPO_OVERRIDE=$PWD" ARM=C4BACKFILL STEP=40000
-  case_run "the audited 40k D2 cross sweep is accepted" 0 "exp11_C4backfill_cross_a32_S40000_s42_K8" \
-    -- DRYRUN=1 "EXPECT_SHA=${HEAD_SHA}" "FA_ORBIT_REPO_OVERRIDE=$PWD" ARM=C4BACKFILL STEP=40000 \
-       CELL=cross EVAL_ORBIT=32
-else
-  echo "SKIP  the audited-backfill positive case (GUARD_REAL_BACKFILL=1 to hash the real 724 MB ckpt)"
-fi
-# a vanilla evaluation must not be handed an orbit, even an empty one
-VOUT="$(env "${BASE[@]}" ARM=VANL STEP=40000 CELL=conf SEED=43 K=1 bash "$SCREEN" 2>&1)"
-if ! echo "$VOUT" | grep -q -- "--frame-avg-angles"; then
-  echo "PASS  the VANL argv carries no --frame-avg-angles at all"; PASS=$((PASS + 1))
-else
-  echo "FAIL  a vanilla evaluation was given an orbit"; FAIL=$((FAIL + 1))
-fi
-if echo "$VOUT" | grep -q "ckpt gate OK: step 40000, vanilla (no orbit)"; then
-  echo "PASS  the ckpt identity gate proves VANL is orbit-free"; PASS=$((PASS + 1))
-else
-  echo "FAIL  the VANL ckpt gate did not assert the absence of an orbit"; FAIL=$((FAIL + 1))
-fi
-
-# --- eval-name INJECTIVITY: distinct cells must not share a name ------------
-NAMES=""
-for ROT in 0 5.625 11.25 22.5 45; do
-  NAMES="${NAMES}$(env "${BASE[@]}" ARM=C8 STEP=40000 CELL=r3 "ROTATE_DEG=${ROT}" bash "$SCREEN" 2>&1 \
-                   | sed -n 's/.*eval-name \(exp11_[A-Za-z0-9_.]*\).*/\1/p' | head -1)\n"
+# --- the eval NAME the driver renders is the validator's rule ----------------
+# The driver renders the rotation token in shell (importing eval_FLAC would cost
+# ~9 s of torch per DRYRUN cell); this is what stops the two rules from drifting.
+NAME_OK=1
+for SPEC in "C32 rgen 44 8 -:${RGEN_ARGV}" "C8 zref 42 8 -:${ZREF_ARGV}" \
+            "C4L vctl 42 8 45:${VCTL45}" "VANL vctl 42 8 90:${VCTL90}" \
+            "C8 rgen 46 1 -:${K1_ARGV}"; do
+  SPEC_CELL="${SPEC%%:*}"; SPEC_ARGV="${SPEC#*:}"
+  # shellcheck disable=SC2086
+  set -- $SPEC_CELL
+  WANT="$($PY - "$VALIDATOR" "$1" "$2" "$3" "$4" "$5" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("v", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+arm, cell, seed, k, rot = sys.argv[2:7]
+deg = None if rot == "-" else float(rot)
+print(m.eval_name(m.Cell(arm, cell, 40000, int(seed), int(k), deg)))
+PY
+)"
+  case "$SPEC_ARGV" in
+    *"--eval-name ${WANT}"*) ;;
+    *) echo "FAIL  driver eval-name != validator's for ${SPEC_CELL} (want ${WANT})"; NAME_OK=0 ;;
+  esac
 done
-NR3="$(printf '%b' "$NAMES" | grep -c .)"; UR3="$(printf '%b' "$NAMES" | sort -u | grep -c .)"
-if [ "$NR3" -eq 5 ] && [ "$UR3" -eq 5 ]; then
-  echo "PASS  the five R3 rotations produce five DISTINCT eval names"; PASS=$((PASS + 1))
-else
-  echo "FAIL  R3 eval names collide (${UR3} unique of ${NR3})"; printf '%b' "$NAMES" | sed 's/^/        | /'
-  FAIL=$((FAIL + 1))
-fi
-NAMES=""
-for ORB in 4 16 32; do
-  NAMES="${NAMES}$(env "${BASE[@]}" ARM=C8 STEP=40000 CELL=cross "EVAL_ORBIT=${ORB}" bash "$SCREEN" 2>&1 \
-                   | sed -n 's/.*eval-name \(exp11_[A-Za-z0-9_.]*\).*/\1/p' | head -1)\n"
-done
-NX="$(printf '%b' "$NAMES" | grep -c .)"; UX="$(printf '%b' "$NAMES" | sort -u | grep -c .)"
-if [ "$NX" -eq 3 ] && [ "$UX" -eq 3 ]; then
-  echo "PASS  the three cross orbits produce three DISTINCT eval names"; PASS=$((PASS + 1))
-else
-  echo "FAIL  cross eval names collide (${UX} unique of ${NX})"; printf '%b' "$NAMES" | sed 's/^/        | /'
-  FAIL=$((FAIL + 1))
-fi
-# the audited manifest now registers the legacy D2 endpoint
-if $PY -c "
-import json,sys
-m=json.load(open('${EXPDIR}/c4_backfill_manifest.json'))
-e=m['checkpoints']['40000']
-assert e['sha256']=='5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328', e['sha256']
-assert e['path'].endswith('epoch=8-step=40000.ckpt'), e['path']
-assert int(e['bytes'])==723922667
-assert m['training_seed']==42
-"; then
-  echo "PASS  the audited backfill manifest registers the 40k D2 endpoint"; PASS=$((PASS + 1))
-else
-  echo "FAIL  the 40k backfill entry is missing or wrong"; FAIL=$((FAIL + 1))
-fi
-if $PY -c "
-import json,os,hashlib,sys
-m=json.load(open('${EXPDIR}/c4_backfill_manifest.json'))
-assert sorted(m['checkpoints'])==['20000','30000','40000'], sorted(m['checkpoints'])
-assert m['training_seed']==42
-for s,e in m['checkpoints'].items():
-    assert len(e['sha256'])==64 and os.path.isfile(e['path']), (s,e['path'])
-assert hashlib.sha256(open(m['model_config'],'rb').read()).hexdigest()==m['model_config_sha256']
-" 2>/dev/null; then
-  echo "PASS  the audited backfill manifest is well-formed (20k/30k, seed 42, live paths, config hash)"
+if [ "$NAME_OK" = "1" ]; then
+  echo "PASS  the driver's shell-rendered eval names equal exp14_validate_cell.eval_name"
   PASS=$((PASS + 1))
 else
-  echo "FAIL  the audited backfill manifest is malformed or its files are missing"; FAIL=$((FAIL + 1))
+  FAIL=$((FAIL + 1))
 fi
 
 echo "--- E. real-mode gates ---"
 # (a real screen now also needs MEASURE_ROOT; the SHA gate is exercised with one
 # in section G, so here we only pin the sbatch-only requirement)
 case_run "real mode needs sbatch"  2 "must run under sbatch" \
-  -- ARM=C8 STEP=10000 "EXPECT_SHA=${HEAD_SHA}" "FA_ORBIT_REPO_OVERRIDE=$PWD"
+  -- ARM=C8 CELL=zref STEP=40000 "EXPECT_SHA=${HEAD_SHA}" "FA_ORBIT_REPO_OVERRIDE=$PWD"
 
-echo "--- F. the emitted eval name parses under the validator's schema ---"
-for NAME in "exp11_C8_screen_S10000_s42_K8" "exp11_C4backfill_S20000_s42_K8"; do
+echo "--- F. the emitted eval names parse under the validator's schema ---"
+# Every name the driver can emit must round-trip through the validator that the
+# collector will read, and a name from another campaign (or an unregistered cell)
+# must NOT parse: an artifact nobody registered may not be read as evidence.
+for NAME in "exp14_C32_rgen_S40000_s44_K8_rotrand44" "exp14_C8_zref_S40000_s42_K8" \
+            "exp14_C4L_vctl_S40000_s42_K8_rot45" "exp14_VANL_vctl_S40000_s42_K8_rot90"; do
   if $PY -c "
 import importlib.util,sys
-s=importlib.util.spec_from_file_location('v','${EXPDIR}/exp11_validate_rows.py')
+s=importlib.util.spec_from_file_location('v','${VALIDATOR}')
 m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
 print(m.parse_eval_name('${NAME}'))" >/dev/null 2>&1; then
     echo "PASS  ${NAME} parses under the validator schema"; PASS=$((PASS + 1))
@@ -543,29 +420,41 @@ print(m.parse_eval_name('${NAME}'))" >/dev/null 2>&1; then
     echo "FAIL  ${NAME} does not parse under the validator schema"; FAIL=$((FAIL + 1))
   fi
 done
+for NAME in "exp11_C8_screen_S10000_s42_K8" "exp14_VANL_vctl_S40000_s42_K8_rot45" \
+            "exp14_C8_rgen_S40000_s47_K8_rotrand47" "exp14_C8_conf_S40000_s42_K8"; do
+  if $PY -c "
+import importlib.util,sys
+s=importlib.util.spec_from_file_location('v','${VALIDATOR}')
+m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+m.parse_eval_name('${NAME}')" >/dev/null 2>&1; then
+    echo "FAIL  ${NAME} parsed as a registered exp_14 cell"; FAIL=$((FAIL + 1))
+  else
+    echo "PASS  ${NAME} is refused as unregistered"; PASS=$((PASS + 1))
+  fi
+done
 
 echo "--- G. worktree-pinned measurement execution (item 8) ---"
 # A real screen must refuse to run unpinned...
 case_run "real mode requires MEASURE_ROOT" 2 "MEASURE_ROOT is required" \
-  -- ARM=C8 STEP=10000 "EXPECT_SHA=${HEAD_SHA}" SLURM_JOB_ID=999999
+  -- ARM=C8 CELL=zref STEP=40000 "EXPECT_SHA=${HEAD_SHA}" SLURM_JOB_ID=999999
 case_run "a non-existent MEASURE_ROOT is refused" 2 "not a directory" \
-  -- "${BASE[@]}" ARM=C8 STEP=10000 "MEASURE_ROOT=${TMP}/nope"
+  -- "${BASE[@]}" ARM=C8 CELL=zref STEP=40000 "MEASURE_ROOT=${TMP}/nope"
 mkdir -p "${TMP}/notaworktree"
 case_run "a MEASURE_ROOT that is not a worktree is refused" 2 "not a git worktree" \
-  -- "${BASE[@]}" ARM=C8 STEP=10000 "MEASURE_ROOT=${TMP}/notaworktree"
+  -- "${BASE[@]}" ARM=C8 CELL=zref STEP=40000 "MEASURE_ROOT=${TMP}/notaworktree"
 
 # ...and with a real pinned worktree the binding is on the WORKTREE's HEAD, so a
 # divergent main tree is irrelevant. Simulate the divergence by binding to the
 # worktree SHA while the main tree sits at a different commit.
-WT="$(bash "${EXPDIR}/fa_orbit_measure_worktree.sh" 2>/dev/null | tail -1)"
+WT="$(bash "${MEASURE_HELPER}" 2>/dev/null | tail -1)"
 if [ -n "$WT" ] && [ -e "$WT/.git" ]; then
   WT_SHA="$(git -C "$WT" rev-parse HEAD)"
   echo "PASS  pinned worktree prepared at ${WT_SHA:0:12}"; PASS=$((PASS + 1))
   # HEAD mismatch must abort even with a valid worktree. This case is about the
   # COMMIT gate, so give the simulated job a genuine lease first — otherwise the
   # lease gate (which runs earlier, by design) is what we would be testing.
-  bash "${EXPDIR}/fa_orbit_measure_worktree.sh" --lease 999999 "$WT" >/dev/null 2>&1
-  out="$(env ARM=C8 STEP=10000 EXPECT_SHA=0000000000000000000000000000000000000000 \
+  bash "${MEASURE_HELPER}" --lease 999999 "$WT" >/dev/null 2>&1
+  out="$(env ARM=C8 CELL=zref STEP=40000 EXPECT_SHA=0000000000000000000000000000000000000000 \
           SLURM_JOB_ID=999999 "MEASURE_ROOT=$WT" bash "$SCREEN" 2>&1)"; rc=$?
   if [ "$rc" -eq 2 ] && echo "$out" | grep -q "code-root HEAD"; then
     echo "PASS  worktree HEAD mismatch aborts  (rc=${rc})"; PASS=$((PASS + 1))
@@ -574,15 +463,30 @@ if [ -n "$WT" ] && [ -e "$WT/.git" ]; then
     FAIL=$((FAIL + 1))
   fi
   # the code root's identity is the worktree's, NOT the main tree's
-  out="$(env DRYRUN=1 ARM=C4L STEP=7500 "EXPECT_SHA=${WT_SHA}" "MEASURE_ROOT=$WT" bash "$SCREEN" 2>&1)"; rc=$?
-  # the CONFIG must come from the worktree while the CHECKPOINT comes from the
-  # main tree — that split is the whole point of pinned execution
-  if [ "$rc" -eq 0 ] && echo "$out" | grep -q "config ${WT}/worklog" \
-     && echo "$out" | grep -q "checkpoint: ${MAIN_TREE}/outputs_FLAC"; then
-    echo "PASS  code from the pinned worktree, outputs from the main tree  (rc=${rc})"
-    PASS=$((PASS + 1))
+  # ...and the REAL campaign cell: code from the pinned worktree, checkpoint from
+  # the main tree. That split is the whole point of pinned execution, and this is
+  # the ONLY case that touches a real arm checkpoint — the identity gate loads it
+  # twice at ~724 MB, so on a shared login node it is opt-in (GUARD_REAL_CKPT=1)
+  # exactly like exp_11's GUARD_REAL_BACKFILL case.
+  if [ "${GUARD_REAL_CKPT:-0}" = "1" ]; then
+    out="$(env DRYRUN=1 ARM=C4L CELL=zref STEP=40000 "EXPECT_SHA=${WT_SHA}" \
+            "MEASURE_ROOT=$WT" bash "$SCREEN" 2>&1)"; rc=$?
+    if [ "$rc" -eq 0 ] && echo "$out" | grep -q "config ${WT}/worklog" \
+       && echo "$out" | grep -q "checkpoint: ${MAIN_TREE}/outputs_FLAC"; then
+      echo "PASS  code from the pinned worktree, outputs from the main tree  (rc=${rc})"
+      PASS=$((PASS + 1))
+    else
+      echo "FAIL  pinned-run case failed against the real C4L 40k ckpt (rc=${rc})"
+      echo "$out" | tail -3 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+    fi
+    # the registry that run re-verified is exp_11's, read IN PLACE
+    if echo "$out" | grep -q "arm lineage OK: C4L bound to AUDITED launch job 3648694"; then
+      echo "PASS  the pinned cell re-verified exp_11's audited launch registry"; PASS=$((PASS + 1))
+    else
+      echo "FAIL  the pinned cell did not bind to the audited registry"; FAIL=$((FAIL + 1))
+    fi
   else
-    echo "SKIP  pinned-run case (needs a C4L ckpt at 7500 in the main tree; rc=${rc})"
+    echo "SKIP  the real-checkpoint pinned-run case (GUARD_REAL_CKPT=1 to load the 724 MB ckpt)"
   fi
   grep -q 'git -C "\$CODE_ROOT" rev-parse HEAD' "$SCREEN" \
     && { echo "PASS  the commit gate reads the code root, not the cwd"; PASS=$((PASS + 1)); } \
@@ -597,7 +501,7 @@ fi
 # files, so a pinned screen died at startup on the dataset symlink and weights.
 echo
 echo "--- assets + lease lifecycle (fa_orbit_measure_worktree.sh) ---"
-HELPER="${EXPDIR}/fa_orbit_measure_worktree.sh"
+HELPER="${MEASURE_HELPER}"
 if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
   MISSING=""
   for ASSET in AcousticRooms weights/AGREE weights/AGREE/AGREE_fullAR.pt \
@@ -624,7 +528,7 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
   fi
   # the screen must REFUSE a code root without them rather than crash in eval
   FAKE="${TMP}/fakeroot"; mkdir -p "$FAKE"
-  out="$(env DRYRUN=1 ARM=C8 STEP=10000 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=$OUT_ROOT" \
+  out="$(env DRYRUN=1 ARM=C8 CELL=zref STEP=40000 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=$GOOD" \
          "FA_ORBIT_REPO_OVERRIDE=$FAKE" bash "$SCREEN" 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ]; then
     echo "PASS  a code root without the runtime assets is refused (rc=${rc})"; PASS=$((PASS + 1))
@@ -712,7 +616,7 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
   fi
   # (e) a real (SLURM) run without its own lease must abort
   bash "$HELPER" --release pending-guard "$WT" >/dev/null 2>&1
-  out="$(env ARM=C8 STEP=10000 "EXPECT_SHA=${WT_SHA}" "MEASURE_ROOT=$WT" SLURM_JOB_ID=424242 \
+  out="$(env ARM=C8 CELL=zref STEP=40000 "EXPECT_SHA=${WT_SHA}" "MEASURE_ROOT=$WT" SLURM_JOB_ID=424242 \
          bash "$SCREEN" 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "no lease"; then
     echo "PASS  a job without its own lease refuses to run"; PASS=$((PASS + 1))
@@ -721,7 +625,7 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
   fi
   # (f) a lease naming ANOTHER job is not this job's lease
   mkdir -p "$WT/.leases"; printf 'jobid 111\n' > "$WT/.leases/424242"
-  out="$(env ARM=C8 STEP=10000 "EXPECT_SHA=${WT_SHA}" "MEASURE_ROOT=$WT" SLURM_JOB_ID=424242 \
+  out="$(env ARM=C8 CELL=zref STEP=40000 "EXPECT_SHA=${WT_SHA}" "MEASURE_ROOT=$WT" SLURM_JOB_ID=424242 \
          bash "$SCREEN" 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "does not name job 424242"; then
     echo "PASS  a lease naming another job is rejected"; PASS=$((PASS + 1))
@@ -744,23 +648,32 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
   # No job is submitted: sbatch/scontrol/scancel are shims that record their
   # argv. What is proven is the ORDER — held submit, lease by the real id,
   # release — and that a failure at either step cancels the held job.
-  SUB="${EXPDIR}/fa_orbit_screen_submit.sh"
   FREEZE_MARKER="${MAIN_TREE}/.measure_worktrees/.campaign_freeze"
-  # A submission refuses to run without the campaign freeze, so engage it here.
-  # It is lifted again before the cases that must be free to delete.
-  bash "$HELPER" --freeze "guard suite" >/dev/null 2>&1
-  # A live campaign pin would send every submission below to the pinned commit
-  # instead of HEAD, which is correct behaviour and wrong for these tests. Park
-  # it for the duration; the pin's own cases set and restore it themselves.
-  SUITE_SAVED_PIN="$(bash "$HELPER" --pinned 2>/dev/null)"
-  [ "$SUITE_SAVED_PIN" = "<none>" ] && SUITE_SAVED_PIN=""
-  if [ -n "$SUITE_SAVED_PIN" ]; then
-    # TRAP-BACKED: restoring only on the normal path means a Ctrl-C, a timeout or
-    # any early exit leaves the campaign unpinned — the next submission would then
-    # silently measure at HEAD instead of the pin. Arm the restore BEFORE clearing.
-    trap 'bash "$MEASURE_HELPER" --pin-campaign "$SUITE_SAVED_PIN" >/dev/null 2>&1; rm -rf "$TMP"' EXIT
-    trap 'bash "$MEASURE_HELPER" --pin-campaign "$SUITE_SAVED_PIN" >/dev/null 2>&1; exit 130' INT TERM
-    bash "$HELPER" --unpin-campaign >/dev/null 2>&1
+  # A submission refuses to run without the campaign freeze. The freeze is
+  # STORE-WIDE and protects every campaign at once, so this suite engages it only
+  # if nobody else has, and restores whatever it found — a suite that thawed a
+  # neighbour's freeze would expose their queued jobs' worktrees to a sweep.
+  SUITE_ENGAGED_FREEZE=0
+  if ! bash "$HELPER" --frozen >/dev/null 2>&1; then
+    bash "$HELPER" --freeze "yaw_gen guard suite" >/dev/null 2>&1
+    SUITE_ENGAGED_FREEZE=1
+  fi
+  # exp_14's campaign pin is its OWN file, so parking it cannot disturb any other
+  # campaign (exp_11's store-wide .campaign_pin marker is never touched by this
+  # suite). It is parked because a live pin would send every mocked submission
+  # below to the pinned commit instead of HEAD; the pin's own cases set and
+  # restore it themselves.
+  #
+  # TRAP-BACKED: restoring only on the normal path means a Ctrl-C, a timeout or
+  # any early exit leaves the campaign unpinned — the next submission would then
+  # silently measure at HEAD instead of the pin. Arm the restore BEFORE clearing.
+  SUITE_PIN_PARKED=0
+  if [ -f "$PIN_FILE" ]; then
+    cp "$PIN_FILE" "${TMP}/campaign_pin.saved"
+    SUITE_PIN_PARKED=1
+    trap 'restore_suite_state; rm -rf "$TMP"' EXIT
+    trap 'restore_suite_state; exit 130' INT TERM
+    rm -f "$PIN_FILE"
   fi
   MOCK="${TMP}/mockbin"; mkdir -p "$MOCK"
   cat > "${MOCK}/sbatch" <<'EOS'
@@ -791,7 +704,7 @@ EOS
   TRACE="${TMP}/trace.txt"; : > "$TRACE"
   out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
              FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+             bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   LEASE_OK=0; [ -f "$WT/.leases/7654321" ] && LEASE_OK=1
   if [ "$rc" -eq 0 ] && [ "$LEASE_OK" -eq 1 ] \
      && grep -q -- "--hold" "$TRACE" && grep -q "scontrol release 7654321" "$TRACE" \
@@ -817,7 +730,7 @@ EOS
   : > "$TRACE"
   out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" MOCK_RELEASE_FAILS=1 FA_ORBIT_SBATCH="${MOCK}/sbatch" \
              FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+             bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   if [ "$rc" -eq 6 ] && grep -q "scancel 7654321" "$TRACE" && [ -f "$WT/.leases/7654321" ]; then
     echo "PASS  a failed release cancels the job and RETAINS the lease"; PASS=$((PASS + 1))
   else
@@ -828,7 +741,7 @@ EOS
   : > "$TRACE"
   out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" MOCK_RELEASE_FAILS=1 MOCK_SCANCEL_FAILS=1 \
              FA_ORBIT_SBATCH="${MOCK}/sbatch" FA_ORBIT_SCONTROL="${MOCK}/scontrol" \
-             FA_ORBIT_SCANCEL="${MOCK}/scancel" bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+             FA_ORBIT_SCANCEL="${MOCK}/scancel" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   if [ "$rc" -eq 6 ] && [ -f "$WT/.leases/7654321" ] \
      && echo "$out" | grep -q "scancel FAILED too"; then
     echo "PASS  release AND scancel failing keeps the lease and says why"; PASS=$((PASS + 1))
@@ -841,7 +754,7 @@ EOS
   : > "$TRACE"
   out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
              FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+             bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   VAL_LINE="$(grep -n 'jobid \${JOBID}\$' "$SUB" | head -1 | cut -d: -f1)"
   REL_LINE="$(grep -n 'SCONTROL" release' "$SUB" | head -1 | cut -d: -f1)"
   if [ "$rc" -eq 0 ] && echo "$out" | grep -q "lease validated" \
@@ -861,7 +774,7 @@ EOS
   : > "$TRACE"
   out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
              FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             bash "$SUB" ARM=C4L STEP=10000 EXCLUDE=neu303,neu332 2>&1)"; rc=$?
+             bash "$SUB" ARM=C4L CELL=zref STEP=40000 EXCLUDE=neu303,neu332 2>&1)"; rc=$?
   if [ "$rc" -eq 0 ] && grep -q -- "--exclude=neu303,neu332" "$TRACE"; then
     echo "PASS  EXCLUDE= is passed to sbatch as an explicit --exclude flag"; PASS=$((PASS + 1))
   else
@@ -873,7 +786,7 @@ EOS
   : > "$TRACE"
   env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
       FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-      bash "$SUB" ARM=C4L STEP=10000 >/dev/null 2>&1
+      bash "$SUB" ARM=C4L CELL=zref STEP=40000 >/dev/null 2>&1
   if ! grep -q -- "--exclude" "$TRACE"; then
     echo "PASS  no EXCLUDE= means no --exclude flag"; PASS=$((PASS + 1))
   else
@@ -883,7 +796,7 @@ EOS
   # the env var that never worked is now refused loudly instead of ignored
   out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" SBATCH_EXCLUDE=neu303 \
              FA_ORBIT_SBATCH="${MOCK}/sbatch" FA_ORBIT_SCONTROL="${MOCK}/scontrol" \
-             FA_ORBIT_SCANCEL="${MOCK}/scancel" bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+             FA_ORBIT_SCANCEL="${MOCK}/scancel" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "sbatch does not honour it"; then
     echo "PASS  a set SBATCH_EXCLUDE is refused, not silently ignored"; PASS=$((PASS + 1))
   else
@@ -893,20 +806,23 @@ EOS
   : > "$TRACE"
   env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
       FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-      bash "$SUB" ARM=C8 STEP=40000 CELL=r3 ROTATE_DEG=5.625 >/dev/null 2>&1
-  if grep -q "ROTATE_DEG=5.625" "$TRACE" && grep -q "CELL=r3" "$TRACE"; then
+      bash "$SUB" ARM=C4L CELL=vctl STEP=40000 ROTATE_DEG=45 >/dev/null 2>&1
+  if grep -q "ROTATE_DEG=45" "$TRACE" && grep -q "CELL=vctl" "$TRACE"; then
     echo "PASS  the submitter exports the cell's own parameters to the job"; PASS=$((PASS + 1))
   else
     echo "FAIL  cell parameters do not reach the job"; sed 's/^/        | /' "$TRACE"; FAIL=$((FAIL + 1))
   fi
   bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
+  # the mocked submission wrote a real intent manifest; it names a job that never
+  # existed, so leaving it behind would put a fictional launch in the record
+  rm -f ${EXPDIR}/yaw_gen_submission_C4L_vctl_*_jid7654321.txt
 
   # --- argument values are DATA, never shell ---------------------------------
   # The old parser eval'd the value, so a quote in it executed what followed.
   CANARY="${TMP}/injected.canary"; rm -f "$CANARY"
   out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
              FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             bash "$SUB" ARM=C4L STEP=10000 "PIN_SHA=x'; INJECTED=1; #'" 2>&1)"; rc=$?
+             bash "$SUB" ARM=C4L CELL=zref STEP=40000 "PIN_SHA=x'; INJECTED=1; #'" 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "not 40 hex characters"; then
     echo "PASS  the literal injection value is refused by shape"; PASS=$((PASS + 1))
   else
@@ -916,7 +832,7 @@ EOS
   # ...and a payload that WOULD run under eval leaves no trace
   out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
              FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             bash "$SUB" ARM=C4L STEP=10000 "PIN_SHA=x'; touch ${CANARY}; #'" 2>&1)"; rc=$?
+             bash "$SUB" ARM=C4L CELL=zref STEP=40000 "PIN_SHA=x'; touch ${CANARY}; #'" 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && [ ! -e "$CANARY" ]; then
     echo "PASS  an injected payload does not execute (no side effects)"; PASS=$((PASS + 1))
   else
@@ -924,10 +840,11 @@ EOS
     FAIL=$((FAIL + 1)); rm -f "$CANARY"
   fi
   # every key is shape-checked, not just PIN_SHA
-  for bad in "ARM=C4L;rm" "CELL=../etc" "STEP=1e4" "K=3" "EVAL_ORBIT=6" "EXCLUDE=neu1;id" "ROTATE_DEG=1.2.3"; do
+  for bad in "ARM=C4L;rm" "CELL=../etc" "CELL=screen" "STEP=1e4" "K=3" "EVAL_ORBIT=8" \
+             "EXCLUDE=neu1;id" "ROTATE_DEG=1.2.3"; do
     env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
         FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-        bash "$SUB" ARM=C4L STEP=10000 "$bad" >/dev/null 2>&1 && { BADOK="$bad"; break; }
+        bash "$SUB" ARM=C4L CELL=zref STEP=40000 "$bad" >/dev/null 2>&1 && { BADOK="$bad"; break; }
   done
   if [ -z "${BADOK:-}" ]; then
     echo "PASS  malformed values are refused for every key"; PASS=$((PASS + 1))
@@ -942,14 +859,15 @@ EOS
   fi
 
   # --- CAMPAIGN PIN: one commit for the whole campaign -----------------------
-  SAVED_PIN="$(bash "$HELPER" --pinned 2>/dev/null)"; [ "$SAVED_PIN" = "<none>" ] && SAVED_PIN=""
+  # exp_14 reads its own ${EXPDIR}/yaw_gen_campaign_pin, so these cases never
+  # touch the store-wide marker another campaign may be using right now.
   PIN2="$(git rev-parse HEAD~1 2>/dev/null)"
   if [ -n "$PIN2" ]; then
-    bash "$HELPER" --pin-campaign "$PIN2" >/dev/null 2>&1
+    printf '%s\n' "$PIN2" > "$PIN_FILE"
     : > "$TRACE"
     out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
                FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-               bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+               bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
     if [ "$rc" -eq 0 ] && grep -q "EXPECT_SHA=${PIN2}" "$TRACE" \
        && echo "$out" | grep -q "campaign pin (from"; then
       echo "PASS  the campaign pin file is the DEFAULT pin"; PASS=$((PASS + 1))
@@ -957,12 +875,12 @@ EOS
       echo "FAIL  the campaign pin was not used by default (rc=${rc})"; FAIL=$((FAIL + 1))
     fi
     bash "$HELPER" --release 7654321 "${MAIN_TREE}/.measure_worktrees/${PIN2}" >/dev/null 2>&1
-    rm -f ${EXPDIR}/fa_orbit_submission_C4L_screen_*_jid7654321.txt
+    rm -f ${EXPDIR}/yaw_gen_submission_C4L_zref_*_jid7654321.txt
     # an explicit PIN_SHA that disagrees is refused
     OTHER="$(git rev-parse HEAD 2>/dev/null)"
     out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
                FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-               bash "$SUB" ARM=C4L STEP=10000 "PIN_SHA=${OTHER}" 2>&1)"; rc=$?
+               bash "$SUB" ARM=C4L CELL=zref STEP=40000 "PIN_SHA=${OTHER}" 2>&1)"; rc=$?
     if [ "$rc" -ne 0 ] && echo "$out" | grep -q "disagrees with the campaign pin"; then
       echo "PASS  a PIN_SHA disagreeing with the campaign pin is refused"; PASS=$((PASS + 1))
     else
@@ -971,70 +889,80 @@ EOS
     # ...and agreeing with it is fine
     out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
                FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-               bash "$SUB" ARM=C4L STEP=10000 "PIN_SHA=${PIN2}" 2>&1)"; rc=$?
+               bash "$SUB" ARM=C4L CELL=zref STEP=40000 "PIN_SHA=${PIN2}" 2>&1)"; rc=$?
     [ "$rc" -eq 0 ] \
       && { echo "PASS  an explicit PIN_SHA equal to the campaign pin is accepted"; PASS=$((PASS + 1)); } \
       || { echo "FAIL  the agreeing PIN_SHA was refused (rc=${rc})"; FAIL=$((FAIL + 1)); }
     bash "$HELPER" --release 7654321 "${MAIN_TREE}/.measure_worktrees/${PIN2}" >/dev/null 2>&1
-    rm -f ${EXPDIR}/fa_orbit_submission_C4L_screen_*_jid7654321.txt
-    # the pin is only changed by the explicit subcommand, and it is logged
-    LOGLINE="$(bash "$HELPER" --pin-campaign "$PIN2" 2>&1 | grep -c 'CAMPAIGN PIN set to')"
-    [ "$LOGLINE" -ge 1 ] \
-      && { echo "PASS  --pin-campaign logs the change"; PASS=$((PASS + 1)); } \
-      || { echo "FAIL  --pin-campaign is silent"; FAIL=$((FAIL + 1)); }
-    bash "$HELPER" --pin-campaign deadbeef >/dev/null 2>&1 \
-      && { echo "FAIL  --pin-campaign accepted a short sha"; FAIL=$((FAIL + 1)); } \
-      || { echo "PASS  --pin-campaign refuses a malformed sha"; PASS=$((PASS + 1)); }
-    # unset file -> the old HEAD behaviour returns
-    bash "$HELPER" --unpin-campaign >/dev/null 2>&1
+    rm -f ${EXPDIR}/yaw_gen_submission_C4L_zref_*_jid7654321.txt
+    # a malformed pin FILE is refused rather than silently ignored
+    printf 'not-a-sha\n' > "$PIN_FILE"
+    out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
+               FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+               bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
+    if [ "$rc" -ne 0 ] && echo "$out" | grep -q "does not hold a 40-hex commit sha"; then
+      echo "PASS  a malformed campaign pin file is refused"; PASS=$((PASS + 1))
+    else
+      echo "FAIL  a malformed campaign pin file was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
+    fi
+    # no pin file -> the old HEAD behaviour returns
+    rm -f "$PIN_FILE"
     : > "$TRACE"
     env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
         FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-        bash "$SUB" ARM=C4L STEP=10000 >/dev/null 2>&1
+        bash "$SUB" ARM=C4L CELL=zref STEP=40000 >/dev/null 2>&1
     if grep -q "EXPECT_SHA=$(git rev-parse HEAD)" "$TRACE"; then
       echo "PASS  with no pin file, submission falls back to HEAD"; PASS=$((PASS + 1))
     else
       echo "FAIL  the unpinned fallback is not HEAD"; FAIL=$((FAIL + 1))
     fi
     bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
-    rm -f ${EXPDIR}/fa_orbit_submission_C4L_screen_*_jid7654321.txt
-    [ -n "$SAVED_PIN" ] && bash "$HELPER" --pin-campaign "$SAVED_PIN" >/dev/null 2>&1
+    rm -f ${EXPDIR}/yaw_gen_submission_C4L_zref_*_jid7654321.txt
+    # a live WAVE, unlike a single cell, REFUSES to run without the pin: 106
+    # cells are comparable only if they ran at one commit.
+    out="$(env YAW_GEN_SQUEUE=/bin/false bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
+    if [ "$rc" -ne 0 ] && echo "$out" | grep -q "refusing to submit a wave with no campaign pin"; then
+      echo "PASS  a live wave without a campaign pin is refused"; PASS=$((PASS + 1))
+    else
+      echo "FAIL  a wave ran with no campaign pin (rc=${rc})"; FAIL=$((FAIL + 1))
+    fi
   else
     echo "SKIP  campaign-pin cases (no HEAD~1)"
   fi
 
-  # the gate K must NOT drift when the screen cadence widens
-  if $PY -c "
-import importlib.util,sys
-spec=importlib.util.spec_from_file_location('V','${EXPDIR}/exp11_validate_rows.py')
-V=importlib.util.module_from_spec(spec); spec.loader.exec_module(V)
-f=V.CONTRACTS['futility']
-assert f['K']==(1,8), f['K']
-assert f['gate_K']==(8,), f['gate_K']
-assert V.gate_admissible(8) and not V.gate_admissible(1)
-"; then
-    echo "PASS  screens run at both K while the futility GATE stays K=8"; PASS=$((PASS + 1))
+  # --- the REGISTERED GRID, asserted at the surfaces that enforce it ---------
+  # The submitter's whitelist and the driver's contract must admit exactly the
+  # campaign's arms and cells: a submitter that still admitted an exp_11 cell
+  # type would queue jobs the driver then refuses, one wasted slot at a time.
+  if grep -q 'in_set "\$val" C4L C8 C16 C32 VANL' "$SUB" && ! grep -q 'C4BACKFILL' "$SUB"; then
+    echo "PASS  the submitter admits the five exp_14 arms and no comparator arm"; PASS=$((PASS + 1))
   else
-    echo "FAIL  the gate K drifted with the screen cadence"; FAIL=$((FAIL + 1))
+    echo "FAIL  the submitter's arm whitelist is not exp_14's five arms"; FAIL=$((FAIL + 1))
   fi
-
-  # --- the review's findings, asserted at the surfaces they name -------------
-  if grep -q 'in_set "\$val" C4L C8 C16 C32 VANL C4BACKFILL' "$SUB"; then
-    echo "PASS  the sanctioned submitter admits VANL"; PASS=$((PASS + 1))
+  if grep -q 'in_set "\$val" rgen zref vctl' "$SUB"; then
+    echo "PASS  the submitter admits exactly rgen/zref/vctl"; PASS=$((PASS + 1))
   else
-    echo "FAIL  the submitter still rejects VANL"; FAIL=$((FAIL + 1))
+    echo "FAIL  the submitter's cell whitelist is not exp_14's three cells"; FAIL=$((FAIL + 1))
   fi
-  if grep -q 'in_set "\$val" screen conf r3 cross q9' "$SUB"; then
-    echo "PASS  the submitter admits the q9 cell"; PASS=$((PASS + 1))
+  if grep -q 'EVAL_ORBIT' "$SUB"; then
+    echo "FAIL  the submitter still carries exp_11's EVAL_ORBIT parameter"; FAIL=$((FAIL + 1))
   else
-    echo "FAIL  the submitter rejects CELL=q9"; FAIL=$((FAIL + 1))
+    echo "PASS  EVAL_ORBIT is gone from the submitter"; PASS=$((PASS + 1))
   fi
   # trap-backed pin restoration: an interrupt must not leave the campaign unpinned
-  if grep -q "trap 'bash \"\$MEASURE_HELPER\" --pin-campaign" "$GUARD_SELF" \
+  if grep -q "trap 'restore_suite_state" "$GUARD_SELF" \
      && grep -q "INT TERM" "$GUARD_SELF"; then
     echo "PASS  the pin is restored by a trap, not only on the happy path"; PASS=$((PASS + 1))
   else
     echo "FAIL  pin parking has no interruption safety"; FAIL=$((FAIL + 1))
+  fi
+  # ...and this suite must never park the STORE-WIDE marker another campaign uses:
+  # exp_11's suite unpinned it for the duration, which would silently send a
+  # neighbour's concurrent submission to HEAD instead of their pin.
+  if [ "$(head -1 "$STORE_PIN_MARKER" 2>/dev/null)" = "$STORE_PIN_AT_START" ]; then
+    echo "PASS  the store-wide campaign pin is untouched by this suite"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  the store-wide campaign pin CHANGED during the suite"; FAIL=$((FAIL + 1))
   fi
   if grep -q "DO NOT RUN THIS SUITE DURING ACTIVE CAMPAIGN SUBMISSIONS" "$GUARD_SELF"; then
     echo "PASS  the suite documents that it must not run during submissions"; PASS=$((PASS + 1))
@@ -1044,7 +972,7 @@ assert V.gate_admissible(8) and not V.gate_admissible(1)
   # the registry must carry VANL, recorded from the PUBLISHED manifest
   if $PY -c "
 import json,sys
-r=json.load(open('${EXPDIR}/arm_launch_registry.json'))['arms']
+r=json.load(open('${EXP11}/arm_launch_registry.json'))['arms']
 v=r.get('VANL') or sys.exit('VANL absent')
 assert v['job']=='3661520', v['job']
 assert v['mode']=='INITIAL', v['mode']
@@ -1057,14 +985,13 @@ assert int(v['training_seed'])==42
   fi
 
   # --- PIN_SHA: the campaign measures at ONE commit --------------------------
-  SAVED_PIN2="$(bash "$HELPER" --pinned 2>/dev/null)"; [ "$SAVED_PIN2" = "<none>" ] && SAVED_PIN2=""
-  bash "$HELPER" --unpin-campaign >/dev/null 2>&1     # these cases test PIN_SHA alone
+  rm -f "$PIN_FILE"                                   # these cases test PIN_SHA alone
   PIN="$(git rev-parse HEAD~1 2>/dev/null)"
   if [ -n "$PIN" ]; then
     : > "$TRACE"
     out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
                FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-               bash "$SUB" ARM=C4L STEP=10000 "PIN_SHA=${PIN}" 2>&1)"; rc=$?
+               bash "$SUB" ARM=C4L CELL=zref STEP=40000 "PIN_SHA=${PIN}" 2>&1)"; rc=$?
     PINNED_WT="${MAIN_TREE}/.measure_worktrees/${PIN}"
     if [ "$rc" -eq 0 ] && [ -d "$PINNED_WT" ] \
        && [ "$(git -C "$PINNED_WT" rev-parse HEAD)" = "$PIN" ]; then
@@ -1079,7 +1006,7 @@ assert int(v['training_seed'])==42
       echo "FAIL  EXPECT_SHA does not match PIN_SHA in the export"
       grep -o 'EXPECT_SHA=[0-9a-f]*' "$TRACE" | head -1 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
     fi
-    INTENT_F="$(ls -t ${EXPDIR}/fa_orbit_submission_C4L_screen_*_jid7654321.txt 2>/dev/null | head -1)"
+    INTENT_F="$(ls -t ${EXPDIR}/yaw_gen_submission_C4L_zref_*_jid7654321.txt 2>/dev/null | head -1)"
     if [ -n "$INTENT_F" ] && grep -q "pin_sha ${PIN}" "$INTENT_F"; then
       echo "PASS  the intent manifest records the pin"; PASS=$((PASS + 1))
     else
@@ -1097,11 +1024,10 @@ assert int(v['training_seed'])==42
   else
     echo "SKIP  PIN_SHA cases (no HEAD~1 available)"
   fi
-  [ -n "$SAVED_PIN2" ] && bash "$HELPER" --pin-campaign "$SAVED_PIN2" >/dev/null 2>&1
   # a commit this repository does not have must be refused
   out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
              FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             bash "$SUB" ARM=C4L STEP=10000 PIN_SHA=0123456789abcdef0123456789abcdef01234567 2>&1)"; rc=$?
+             bash "$SUB" ARM=C4L CELL=zref STEP=40000 PIN_SHA=0123456789abcdef0123456789abcdef01234567 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "is not a commit in this repository"; then
     echo "PASS  a non-existent PIN_SHA is refused"; PASS=$((PASS + 1))
   else
@@ -1109,22 +1035,23 @@ assert int(v['training_seed'])==42
   fi
   out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
              FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             bash "$SUB" ARM=C4L STEP=10000 PIN_SHA=deadbeef 2>&1)"; rc=$?
+             bash "$SUB" ARM=C4L CELL=zref STEP=40000 PIN_SHA=deadbeef 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "not 40 hex characters"; then
     echo "PASS  a short PIN_SHA is refused"; PASS=$((PASS + 1))
   else
     echo "FAIL  a short PIN_SHA was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
   fi
 
-  if [ -n "${SUITE_SAVED_PIN:-}" ]; then
-    bash "$HELPER" --pin-campaign "$SUITE_SAVED_PIN" >/dev/null 2>&1
-    trap 'rm -rf "$TMP"' EXIT; trap - INT TERM        # restored: stand the trap down
+  if [ "${SUITE_PIN_PARKED:-0}" = "1" ]; then
+    cp "${TMP}/campaign_pin.saved" "$PIN_FILE"
+    SUITE_PIN_PARKED=0
+    trap 'restore_suite_state; rm -rf "$TMP"' EXIT    # the freeze restore stays armed
   fi
   # --- the marker is not proof: fd 8 must BE the store lock, at the OUTER entry
   STORE_LOCK="${MAIN_TREE}/.measure_worktrees/.store.lock"
   out="$(env FA_ORBIT_STORE_LOCK_HELD=1 MOCK_TRACE="$TRACE" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
              FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+             bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "only CLAIMS to hold the store lock"; then
     echo "PASS  a forged lock marker with NO fd 8 is refused"; PASS=$((PASS + 1))
   else
@@ -1133,7 +1060,7 @@ assert int(v['training_seed'])==42
   DECOY_LOCK="${TMP}/decoy.lock"; : > "$DECOY_LOCK"
   out="$(env FA_ORBIT_STORE_LOCK_HELD=1 MOCK_TRACE="$TRACE" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
              FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             bash -c 'exec 8>"$1"; exec bash "$2" ARM=C4L STEP=10000' _ "$DECOY_LOCK" "$SUB" 2>&1)"; rc=$?
+             bash -c 'exec 8>"$1"; exec bash "$2" ARM=C4L CELL=zref STEP=40000' _ "$DECOY_LOCK" "$SUB" 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "only CLAIMS to hold the store lock"; then
     echo "PASS  a forged marker with the WRONG fd 8 is refused"; PASS=$((PASS + 1))
   else
@@ -1144,7 +1071,7 @@ assert int(v['training_seed'])==42
   GONE="${TMP}/gone.lock"; : > "$GONE"
   out="$(env FA_ORBIT_STORE_LOCK_HELD=1 MOCK_TRACE="$TRACE" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
              FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             bash -c 'exec 8>"$1"; rm -f "$1"; exec bash "$2" ARM=C4L STEP=10000' _ "$GONE" "$SUB" 2>&1)"; rc=$?
+             bash -c 'exec 8>"$1"; rm -f "$1"; exec bash "$2" ARM=C4L CELL=zref STEP=40000' _ "$GONE" "$SUB" 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "only CLAIMS to hold the store lock"; then
     echo "PASS  an unresolvable fd 8 (deleted file) is refused"; PASS=$((PASS + 1))
   else
@@ -1231,7 +1158,7 @@ assert int(v['training_seed'])==42
   [ -n "$LIVEJOB" ] || LIVEJOB=8765432
   env MOCK_TRACE="$TRACE" MOCK_SBATCH_SLEEP=6 "MOCK_JOBID=${LIVEJOB}" \
       FA_ORBIT_SBATCH="${MOCK}/sbatch" FA_ORBIT_SCONTROL="${MOCK}/scontrol" \
-      FA_ORBIT_SCANCEL="${MOCK}/scancel" bash "$SUB" ARM=C4L STEP=10000 \
+      FA_ORBIT_SCANCEL="${MOCK}/scancel" bash "$SUB" ARM=C4L CELL=zref STEP=40000 \
       > "${TMP}/submit.out" 2>&1 &
   SUBMIT_PID=$!
   for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "${TRACE}.submitting" ] && break; sleep 1; done
@@ -1343,7 +1270,7 @@ assert int(v['training_seed'])==42
   # a submission without the freeze is refused: the condition is self-enforcing
   out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
              FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+             bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "requires the deletion freeze"; then
     echo "PASS  a submission without the campaign freeze is refused"; PASS=$((PASS + 1))
   else
@@ -1352,7 +1279,7 @@ assert int(v['training_seed'])==42
   bash "$HELPER" --freeze "guard suite" >/dev/null 2>&1
   out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
              FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             bash "$SUB" ARM=C4L STEP=10000 2>&1)"; rc=$?
+             bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   if [ "$rc" -eq 0 ] && echo "$out" | grep -q "campaign freeze: ACTIVE"; then
     echo "PASS  the submitter reports the freeze state in its preflight"; PASS=$((PASS + 1))
   else
@@ -1418,8 +1345,8 @@ fi
 # --- MEASURE_ROOT identity ---------------------------------------------------
 echo
 echo "--- MEASURE_ROOT identity ---"
-out="$(env DRYRUN=1 ARM=C8 STEP=10000 "EXPECT_SHA=${HEAD_SHA}" "MEASURE_ROOT=$MAIN_TREE" \
-       "OUTPUT_ROOT=$OUT_ROOT" bash "$SCREEN" 2>&1)"; rc=$?
+out="$(env DRYRUN=1 ARM=C8 CELL=zref STEP=40000 "EXPECT_SHA=${HEAD_SHA}" "MEASURE_ROOT=$MAIN_TREE" \
+       "OUTPUT_ROOT=$GOOD" bash "$SCREEN" 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ] && echo "$out" | grep -q "outside the managed .measure_worktrees/ area\|on a BRANCH"; then
   echo "PASS  the mutable MAIN tree is refused as a MEASURE_ROOT (rc=${rc})"; PASS=$((PASS + 1))
 else
@@ -1429,7 +1356,7 @@ fi
 # --- ARM LAUNCH REGISTRY (immutable binding) ---------------------------------
 echo
 echo "--- arm launch registry binding ---"
-REG="${EXPDIR}/arm_launch_registry.json"
+REG="${EXP11}/arm_launch_registry.json"
 if [ -f "$REG" ]; then
   echo "PASS  the audited arm launch registry is committed"; PASS=$((PASS + 1))
   if $PY - "$REG" <<'PY'
@@ -1451,10 +1378,10 @@ PY
   # a TAMPERED manifest must be caught: same fields, different bytes
   # tamper with the (synthetic) manifest AFTER it was registered: same fields,
   # different bytes — only the sha256 binding can catch this
-  MAN="${OUT_ROOT}/exp11_C8/launch_manifest.txt"
+  MAN="${GOOD}/exp11_C8/launch_manifest.txt"
   cp "$MAN" "${TMP}/manifest.bak"
   printf '# appended after registration by a guard test\n' >> "$MAN"
-  out="$(env "${BASE[@]}" ARM=C8 STEP=10000 bash "$SCREEN" 2>&1)"; rc=$?
+  out="$(env "${BASE[@]}" ARM=C8 CELL=zref STEP=40000 bash "$SCREEN" 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "changed after it was registered"; then
     echo "PASS  a launch manifest edited after registration is rejected"; PASS=$((PASS + 1))
   else
@@ -1464,13 +1391,13 @@ PY
   cp "${TMP}/manifest.bak" "$MAN"
   # ...and a RESTART launch (mode != INITIAL) is not a registered launch
   sed -i 's/mode INITIAL/mode RESTART/' "$MAN"
-  $PY - "$MAN" "${OUT_ROOT}/arm_launch_registry.json" <<'PY'
+  $PY - "$MAN" "${GOOD}/arm_launch_registry.json" <<'PY'
 import hashlib, json, sys                      # re-register the tampered bytes so
 reg = json.load(open(sys.argv[2]))             # ONLY the mode differs
 reg["arms"]["C8"]["manifest_sha256"] = hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest()
 json.dump(reg, open(sys.argv[2], "w"), indent=2)
 PY
-  out="$(env "${BASE[@]}" ARM=C8 STEP=10000 bash "$SCREEN" 2>&1)"; rc=$?
+  out="$(env "${BASE[@]}" ARM=C8 CELL=zref STEP=40000 bash "$SCREEN" 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "is not INITIAL"; then
     echo "PASS  a RESTART launch is refused as a screen lineage"; PASS=$((PASS + 1))
   else
@@ -1495,18 +1422,18 @@ fi
 # shipped expression rather than a copy of it.
 echo
 echo "--- default screen-log naming ---"
-sed -n '/^LOG_CELL_TOKEN=""/,/^LOG="\${LOG:-/p' "$SCREEN" > "${TMP}/lognames.sh"
+sed -n '/^LOG_CELL_TOKEN="\$CELL_TOKEN"/,/^LOG="\${LOG:-/p' "$SCREEN" > "${TMP}/lognames.sh"
 if [ -s "${TMP}/lognames.sh" ]; then
-  name_for() {  # $1 CELL $2 ROT_TOKEN $3 EVAL_ORBIT $4 jobid
-    ( LOGDIR=/logs TS=2026-08-08_05-00-00 ARM=C8 STEP=40000 SEED=42 K=8 \
-      CELL="$1" ROT_TOKEN="$2" EVAL_ORBIT="$3" SLURM_JOB_ID="$4" LOG=""
+  name_for() {  # $1 CELL $2 CELL_TOKEN $3 SEED $4 jobid
+    ( LOGDIR=/logs TS=2026-08-11_05-00-00 ARM=C8 STEP=40000 K=8 \
+      CELL="$1" CELL_TOKEN="$2" SEED="$3" SLURM_JOB_ID="$4" LOG=""
       unset LOG
       . "${TMP}/lognames.sh" >/dev/null 2>&1
       echo "$LOG" )
   }
-  A="$(name_for r3 0 "" 111)"; B="$(name_for r3 5p625 "" 112)"
-  C="$(name_for r3 11p25 "" 113)"; D="$(name_for cross "" 16 114)"
-  E="$(name_for cross "" 32 115)"; F="$(name_for screen "" "" 116)"
+  A="$(name_for rgen _rotrand42 42 111)"; B="$(name_for rgen _rotrand43 43 112)"
+  C="$(name_for zref "" 42 113)";        D="$(name_for vctl _rot90 42 114)"
+  E="$(name_for vctl _rot45 42 115)";    F="$(name_for zref "" 43 116)"
   U="$(printf '%s\n' "$A" "$B" "$C" "$D" "$E" "$F" | sort -u | grep -c .)"
   if [ "$U" -eq 6 ]; then
     echo "PASS  six same-second cells produce six DISTINCT default log names"; PASS=$((PASS + 1))
@@ -1514,20 +1441,20 @@ if [ -s "${TMP}/lognames.sh" ]; then
     echo "FAIL  default log names collide (${U} unique of 6)"
     printf '%s\n' "$A" "$B" "$C" "$D" "$E" "$F" | sed 's/^/        | /'; FAIL=$((FAIL + 1))
   fi
-  # the two r3 rotations differ ONLY by their rotation token -> that is the fix
-  if [ "$A" != "$B" ] && echo "$B" | grep -q "_rot5p625_" && echo "$D" | grep -q "_a16_"; then
-    echo "PASS  r3 names carry the rotation and cross names the eval orbit"; PASS=$((PASS + 1))
+  # the two rgen seeds differ ONLY by their rotation token — that is the fix
+  if [ "$A" != "$B" ] && echo "$B" | grep -q "_rotrand43_" && echo "$D" | grep -q "_rot90_"; then
+    echo "PASS  rgen names carry the rotation seed and vctl names the angle"; PASS=$((PASS + 1))
   else
     echo "FAIL  cell tokens missing from the default names ('${B}' / '${D}')"; FAIL=$((FAIL + 1))
   fi
   # still inside LOGDIR and still matching the drift-gate exemption
-  if echo "$B" | grep -q "^/logs/fa_orbit_.*_screen\.log$"; then
+  if echo "$B" | grep -q "^/logs/yaw_gen_.*_screen\.log$"; then
     echo "PASS  default names stay in LOGDIR and keep the _screen.log suffix"; PASS=$((PASS + 1))
   else
     echo "FAIL  '${B}' no longer matches the exempted screen-log shape"; FAIL=$((FAIL + 1))
   fi
   # an explicit LOG= still wins (operators can override; they just never need to)
-  G="$( LOGDIR=/logs TS=t ARM=C8 STEP=1 SEED=42 K=8 CELL=screen ROT_TOKEN="" EVAL_ORBIT="" \
+  G="$( LOGDIR=/logs TS=t ARM=C8 STEP=40000 SEED=42 K=8 CELL=zref CELL_TOKEN="" \
         LOG=/tmp/explicit.log; . "${TMP}/lognames.sh" >/dev/null 2>&1; echo "$LOG" )"
   [ "$G" = "/tmp/explicit.log" ] \
     && { echo "PASS  an explicit LOG= still overrides the default"; PASS=$((PASS + 1)); } \
@@ -1536,46 +1463,159 @@ else
   echo "FAIL  could not extract the log-naming block from the driver"; FAIL=$((FAIL + 1))
 fi
 
-# --- the arm launcher untracks its own live transcript ----------------------
+# --- THE REGISTERED GRID, end to end (yaw_gen_submit_grid.sh) ----------------
+# DRYRUN prints the exact submission argv for every cell and submits nothing.
+# Parsing those lines back into cells proves two things at once: that the printed
+# set IS the 106-cell grid, and that the argv the submitter would receive names
+# the right cell.
 echo
-echo "--- live transcript untracking (arm launcher) ---"
-TRAIN="${EXPDIR}/fa_orbit_train.sbatch"
-if grep -q 'git -C "\$REPO" rm --cached --quiet -- "\$SLURM_OUT_AT_LAUNCH"' "$TRAIN" \
-   && grep -q 'ls-files --error-unmatch "\$SLURM_OUT_AT_LAUNCH"' "$TRAIN"; then
-  echo "PASS  the launcher untracks its own Slurm transcript at launch"; PASS=$((PASS + 1))
-else
-  echo "FAIL  the launcher does not untrack its transcript"; FAIL=$((FAIL + 1))
-fi
-if grep -q 'slurm_transcript .* untrack ' "$TRAIN"; then
-  echo "PASS  the untrack outcome is recorded in the launch manifest"; PASS=$((PASS + 1))
-else
-  echo "FAIL  the manifest does not record the untrack state"; FAIL=$((FAIL + 1))
-fi
-if grep -q 'TRANSCRIPT POLICY' "$TRAIN" && grep -q 'git add -f' "$TRAIN"; then
-  echo "PASS  the closure procedure is documented in the launcher header"; PASS=$((PASS + 1))
-else
-  echo "FAIL  the transcript policy is undocumented"; FAIL=$((FAIL + 1))
-fi
-# absence must be tolerated (an already-untracked transcript is the steady state)
-if grep -q 'already-untracked' "$TRAIN" && grep -q 'untrack-FAILED' "$TRAIN"; then
-  echo "PASS  untracking tolerates absence and reports failure without aborting"; PASS=$((PASS + 1))
-else
-  echo "FAIL  untracking does not handle the absent/failed cases"; FAIL=$((FAIL + 1))
-fi
-# and no live arm transcript is tracked right now
-STILL_TRACKED="$(git ls-files -- "${EXPDIR}/slurm_train_exp11-*-train_36486*.out" 2>/dev/null \
-                 | while read -r f; do
-                     jid="${f##*_}"; jid="${jid%.out}"
-                     squeue -h -j "$jid" -o %i 2>/dev/null | grep -q "$jid" && echo "$f"
-                   done)"
-if [ -z "$STILL_TRACKED" ]; then
-  echo "PASS  no transcript of a RUNNING arm is tracked"; PASS=$((PASS + 1))
-else
-  echo "FAIL  a running arm's transcript is still tracked:"; echo "$STILL_TRACKED" | sed 's/^/        | /'
+echo "--- wave submitter: the 106-cell DRYRUN grid ---"
+GRID_OUT="${TMP}/grid_all.txt"
+DRYRUN=1 bash "$GRID" WAVE=all > "$GRID_OUT" 2>"${TMP}/grid_all.err"; rc=$?
+if [ "$rc" -ne 0 ]; then
+  echo "FAIL  DRYRUN WAVE=all exited ${rc}"; sed 's/^/        | /' "${TMP}/grid_all.err"
   FAIL=$((FAIL + 1))
+fi
+# every printed line back to "ARM CELL STEP SEED K ROT"
+$PY - "$GRID_OUT" > "${TMP}/grid_parsed.txt" <<'PY'
+import re, sys
+for line in open(sys.argv[1]):
+    line = line.strip()
+    if not line.startswith("bash "):
+        continue
+    kv = dict(p.split("=", 1) for p in line.split() if "=" in p)
+    print(" ".join([kv["ARM"], kv["CELL"], kv["STEP"], kv["SEED"], kv["K"],
+                    kv.get("ROTATE_DEG", "-")]))
+PY
+$PY "$VALIDATOR" grid --wave all | sort > "${TMP}/grid_expected.txt"
+sort "${TMP}/grid_parsed.txt" > "${TMP}/grid_got.txt"
+if diff -u "${TMP}/grid_expected.txt" "${TMP}/grid_got.txt" > "${TMP}/grid_diff.txt"; then
+  echo "PASS  the DRYRUN grid is EXACTLY the registered 106-cell set (sorted diff empty)"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL  the DRYRUN grid differs from the registered set:"
+  head -20 "${TMP}/grid_diff.txt" | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+fi
+# ...and the block structure, read from the PRINTED lines alone
+N_ALL="$(grep -c . "${TMP}/grid_got.txt")"
+N_RGEN="$(awk '$2=="rgen"' "${TMP}/grid_got.txt" | wc -l)"
+N_ZREF="$(awk '$2=="zref"' "${TMP}/grid_got.txt" | wc -l)"
+N_VCTL="$(awk '$2=="vctl"' "${TMP}/grid_got.txt" | wc -l)"
+N_UNIQ="$(sort -u "${TMP}/grid_got.txt" | grep -c .)"
+if [ "$N_ALL" = "106" ] && [ "$N_UNIQ" = "106" ] && [ "$N_RGEN" = "50" ] \
+   && [ "$N_ZREF" = "50" ] && [ "$N_VCTL" = "6" ]; then
+  echo "PASS  106 unique cells: 50 rgen + 50 zref + 6 vctl"; PASS=$((PASS + 1))
+else
+  echo "FAIL  block sizes wrong (all=${N_ALL} uniq=${N_UNIQ} rgen=${N_RGEN} zref=${N_ZREF} vctl=${N_VCTL})"
+  FAIL=$((FAIL + 1))
+fi
+VCTL_SET="$(awk '$2=="vctl" {print $1"@"$6}' "${TMP}/grid_got.txt" | sort | tr '\n' ' ')"
+if [ "$VCTL_SET" = "C16@90 C32@90 C4L@45 C4L@90 C8@90 VANL@90 " ]; then
+  echo "PASS  the six vctl tuples are exactly the registered ones (no VANL@45)"; PASS=$((PASS + 1))
+else
+  echo "FAIL  vctl tuples are '${VCTL_SET}'"; FAIL=$((FAIL + 1))
+fi
+# rgen/zref cover 5 arms x 2 K x 5 seeds, and only seeds 42-46
+BAD_SEED="$(awk '$2!="vctl" && ($4<42 || $4>46)' "${TMP}/grid_got.txt" | wc -l)"
+BAD_K="$(awk '$5!=1 && $5!=8' "${TMP}/grid_got.txt" | wc -l)"
+BAD_STEP="$(awk '$3!=40000' "${TMP}/grid_got.txt" | wc -l)"
+BAD_ROT="$(awk '$2!="vctl" && $6!="-"' "${TMP}/grid_got.txt" | wc -l)"
+if [ "$BAD_SEED" = "0" ] && [ "$BAD_K" = "0" ] && [ "$BAD_STEP" = "0" ] && [ "$BAD_ROT" = "0" ]; then
+  echo "PASS  every printed cell is s42-46, K in {1,8}, STEP=40000, no angle outside vctl"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL  grid contains unregistered parameters (seed=${BAD_SEED} K=${BAD_K} step=${BAD_STEP} rot=${BAD_ROT})"
+  FAIL=$((FAIL + 1))
+fi
+# waves partition the grid, and each prints only its own cells
+for W in vctl zref rgen; do
+  DRYRUN=1 bash "$GRID" "WAVE=${W}" 2>/dev/null | grep -c "CELL=${W}" > "${TMP}/w_${W}.txt"
+  DRYRUN=1 bash "$GRID" "WAVE=${W}" 2>/dev/null | grep -vc "CELL=${W}" >> "${TMP}/w_${W}.txt"
+done
+if [ "$(head -1 "${TMP}/w_vctl.txt")" = "6" ] && [ "$(head -1 "${TMP}/w_zref.txt")" = "50" ] \
+   && [ "$(head -1 "${TMP}/w_rgen.txt")" = "50" ] \
+   && [ "$(sed -n 2p "${TMP}/w_vctl.txt")" = "0" ] \
+   && [ "$(sed -n 2p "${TMP}/w_zref.txt")" = "0" ] \
+   && [ "$(sed -n 2p "${TMP}/w_rgen.txt")" = "0" ]; then
+  echo "PASS  the three waves partition the grid (6 / 50 / 50, nothing foreign)"; PASS=$((PASS + 1))
+else
+  echo "FAIL  wave selection is wrong"; FAIL=$((FAIL + 1))
+fi
+# a DRYRUN must not submit, classify or query the queue: point every seam at a
+# command that FAILS, and require success anyway.
+if DRYRUN=1 env YAW_GEN_SQUEUE=/bin/false YAW_GEN_SUBMIT=/bin/false \
+     bash "$GRID" WAVE=vctl >/dev/null 2>&1; then
+  echo "PASS  DRYRUN neither submits nor queries the queue"; PASS=$((PASS + 1))
+else
+  echo "FAIL  DRYRUN touched sbatch or squeue"; FAIL=$((FAIL + 1))
+fi
+# ...and the wave submitter never calls sbatch itself: that is the single-cell
+# submitter's job, under the store lock.
+if grep -vE '^[[:space:]]*#' "$GRID" | grep -q 'sbatch'; then
+  echo "FAIL  the wave submitter calls sbatch directly"; FAIL=$((FAIL + 1))
+else
+  echo "PASS  the wave submitter never calls sbatch (it delegates, under the lock)"
+  PASS=$((PASS + 1))
+fi
+for BADARG in "WAVE=conf" "WAVE=screen" "FOO=1" "PIN_SHA=deadbeef" "EXCLUDE=neu1;id"; do
+  if DRYRUN=1 bash "$GRID" "$BADARG" >/dev/null 2>&1; then
+    echo "FAIL  the wave submitter accepted '${BADARG}'"; FAIL=$((FAIL + 1))
+  else
+    echo "PASS  the wave submitter refuses '${BADARG}'"; PASS=$((PASS + 1))
+  fi
+done
+if DRYRUN=1 MAX_INFLIGHT=32 bash "$GRID" WAVE=vctl >/dev/null 2>&1; then
+  echo "FAIL  MAX_INFLIGHT above the 16-slot cap was accepted"; FAIL=$((FAIL + 1))
+else
+  echo "PASS  MAX_INFLIGHT is capped at the plan's 16 slots"; PASS=$((PASS + 1))
+fi
+
+# --- dedup is VALIDATE-before-skip (review B6) -------------------------------
+echo
+echo "--- wave submitter: validate-before-skip dedup ---"
+# A cell with NO artifact classifies MISSING; one with a broken artifact must
+# classify INVALID, and the wave must then halt without submitting anything.
+DEDUP="${TMP}/dedup_root"
+$PY - "$VALIDATOR" "$DEDUP" <<'PY'
+import importlib.util, json, os, sys
+spec = importlib.util.spec_from_file_location("v", sys.argv[1])
+V = importlib.util.module_from_spec(spec); spec.loader.exec_module(V)
+root = sys.argv[2]
+cell = V.Cell("C4L", "vctl", 40000, 42, 8, 90.0)
+d = os.path.join(root, "exp11_C4L", "FLAC_exp11_C4L", "exp11_C4L", "checkpoints")
+os.makedirs(d, exist_ok=True)
+ckpt = os.path.join(d, "epoch=8-step=40000.ckpt")
+open(ckpt, "wb").write(b"")                       # only its NAME matters here
+p = V.metrics_path(ckpt, cell)
+json.dump({"metrics": {}, "eval_name": "nonsense"}, open(p, "w"))
+print(p)
+PY
+OUT="$(env YAW_GEN_SQUEUE=/bin/false YAW_GEN_SUBMIT=/bin/false OUTPUT_ROOT="$DEDUP" \
+        bash "$GRID" WAVE=vctl "PIN_SHA=${HEAD_SHA}" 2>&1)"; rc=$?
+if [ "$rc" -eq 3 ] && echo "$OUT" | grep -q "HALT:" \
+   && echo "$OUT" | grep -q "Nothing was submitted"; then
+  echo "PASS  an artifact that exists but does not validate HALTS the wave"; PASS=$((PASS + 1))
+else
+  echo "FAIL  a broken artifact did not halt the wave (rc=${rc})"
+  echo "$OUT" | tail -4 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+fi
+if echo "$OUT" | grep -q "eval_name"; then
+  echo "PASS  the halt names the failing check, so it can be triaged"; PASS=$((PASS + 1))
+else
+  echo "FAIL  the halt does not say what was wrong"; FAIL=$((FAIL + 1))
+fi
+# with the broken artifact removed the same wave classifies every cell MISSING
+rm -f "${DEDUP}/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/"*_metrics_*.json
+OUT="$(env YAW_GEN_SQUEUE=/bin/false OUTPUT_ROOT="$DEDUP" \
+        bash "$GRID" WAVE=vctl "PIN_SHA=${HEAD_SHA}" 2>&1)"; rc=$?
+if echo "$OUT" | grep -q "squeue failed - refusing to submit"; then
+  echo "PASS  a squeue that fails stops the wave (absence is never assumed)"; PASS=$((PASS + 1))
+else
+  echo "FAIL  a squeue failure did not stop the wave (rc=${rc})"
+  echo "$OUT" | tail -3 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
 fi
 
 echo
-echo "=== screen guard tests: ${PASS} passed, ${FAIL} failed ==="
+echo "=== yaw_gen screen kit guard tests: ${PASS} passed, ${FAIL} failed ==="
 [ "$FAIL" -eq 0 ] || exit 1
 echo "log: ${LOG}"
