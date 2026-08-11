@@ -98,7 +98,11 @@
       "vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9",
       "p0_manifest_sha256": "72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b",
       "save_dir": "outputs_FLAC/exp11_C32",
-      "training_seed": 42
+      "training_seed": 42,
+      "final_ckpt_sha256": "1beca05a02ffc7b72884e54671ff2d6836789fadcfe2aa6f0ce27ca2f739c134",
+      "final_step": 40000,
+      "final_ckpt_path": "outputs_FLAC/exp11_C32/FLAC_exp11_C32/exp11_C32/checkpoints/epoch=8-step=40000.ckpt",
+      "anchored_at": "2026-08-10T23:40:52-04:00"
     },
     "VANL": {
       "manifest_path": "outputs_FLAC/exp11_VANL/launch_manifest.txt",
