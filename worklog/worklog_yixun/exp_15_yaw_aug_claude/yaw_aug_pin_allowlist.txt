@@ -1,0 +1,50 @@
+# exp_15 launch-pin diff allowlist (plan §3.3-2)
+#
+# YAWAUG trains at HEAD; its control (exp_11 VANL) trained at
+# 81ddac372076ea92751ae09cbaf371df70f396e5. Every production-surface file that
+# changed in between is a candidate SECOND factor in a comparison that claims to
+# have one. This file is the reviewed set: the launcher computes
+#     git diff --name-only 81ddac37..HEAD -- train.py defaults.ini src
+# and refuses to launch if anything in that list is not matched here.
+#
+# One shell glob per line ('#' starts a comment). Patterns are matched with the
+# shell's `case`, where '*' also matches '/', so `src/tests/*` covers
+# subdirectories such as src/tests/fixtures/.
+#
+# Observed diff at the time of review (15 files, all matched below; note that
+# train.py and defaults.ini are UNCHANGED since the control — the training entry
+# point this arm runs is literally the one VANL ran):
+#
+#   src/data/yaw_rotation.py
+#   src/tests/exp14_fixed_mode_golden.json
+#   src/tests/fixtures/exp15_yaw_aug_disabled_golden.json
+#   src/tests/test_exp11_restart_record.py
+#   src/tests/test_exp11_trajectory_figures.py
+#   src/tests/test_exp11_validate_rows.py
+#   src/tests/test_exp14_fixed_mode_snapshot.py
+#   src/tests/test_exp14_validate_cell.py
+#   src/tests/test_gen_model_comparison_gate.py
+#   src/tests/test_yaw_aug_arm_config.py
+#   src/tests/test_yaw_aug_record_control.py
+#   src/tests/test_yaw_aug_training.py
+#   src/tests/test_yaw_random_eval.py
+#   src/training/diffusion.py
+#   src/training/factory.py
+
+# exp_15's own training-side hook: the yaw_aug flags and the training_step
+# augmentation. Covered by the golden disabled-path regression, which proves the
+# yaw_aug-absent path is behaviourally unchanged — i.e. that this file is not a
+# second factor for the CONTROL, only the treatment for this arm.
+src/training/factory.py
+src/training/diffusion.py
+
+# The rotation library. exp_02 wrote rotate_scene_metadata; exp_11 added the
+# BATCHED frame-average orbit (fa_invariant only — this arm is vanilla and never
+# enters it); exp_14 added draw_yaw_offsets / offsets_to_radians /
+# yaw_column_shift, which are pure additions this arm's hook calls. No pre-existing
+# function's behaviour changed, so the vanilla training path is untouched.
+src/data/yaw_rotation.py
+
+# Tests and their fixtures. Never imported by train.py, so they cannot enter a
+# training run; listed because they legitimately move on every TDD round.
+src/tests/*
