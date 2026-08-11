@@ -138,6 +138,20 @@ def eval_name(cell):
             f"_K{int(cell.k)}{rotation_suffix(cell)}")
 
 
+def job_name(cell):
+    """The Slurm job name for one cell — injective over the grid.
+
+    The rotation token is load-bearing here, not decoration: C4L vctl@45 and
+    vctl@90 differ in nothing else, so without it a wave watching squeue reads one
+    as the other's in-flight job and silently drops a registered validity control
+    (review B2). Rendered with '-' separators because a job name is also a file
+    name (slurm_screen_%x_%j.out); the character set is [A-Za-z0-9._-].
+    """
+    token = rotation_suffix(cell).replace("_", "-")     # _rot45 -> -rot45
+    return (f"exp14-screen-{cell.arm}-{cell.cell}{token}"
+            f"-{int(cell.step)}-s{int(cell.seed)}-K{int(cell.k)}")
+
+
 def parse_eval_name(name):
     """Inverse of :func:`eval_name`, restricted to REGISTERED cells.
 
@@ -593,6 +607,17 @@ def _cell_from_args(args):
     return Cell(args.arm, args.cell, int(args.step), int(args.seed), int(args.k), deg)
 
 
+def _cmd_jobname(args):
+    """Print the canonical Slurm job name (both submitters are pinned to it)."""
+    try:
+        cell = _cell_from_args(args)
+    except ValueError as exc:
+        print(f"jobname: {exc}", file=sys.stderr)
+        return 2
+    print(job_name(cell))
+    return 0
+
+
 def _cmd_argv(args):
     """Print the canonical check argv (the driver's rendering is pinned to it)."""
     try:
@@ -677,6 +702,15 @@ def main(argv=None):
     c.add_argument("--ckpt-sha", default=None)
     c.add_argument("--expected-count", type=int, default=EXPECTED_COUNT)
     c.set_defaults(func=_cmd_check)
+
+    j = sub.add_parser("jobname", help="print the canonical Slurm job name for one cell")
+    j.add_argument("--arm", required=True)
+    j.add_argument("--cell", required=True)
+    j.add_argument("--step", required=True)
+    j.add_argument("--seed", required=True)
+    j.add_argument("--k", required=True)
+    j.add_argument("--rotate-deg", default=None)
+    j.set_defaults(func=_cmd_jobname)
 
     a = sub.add_parser("argv", help="print the canonical `check` argv for one cell")
     a.add_argument("--metrics", required=True)

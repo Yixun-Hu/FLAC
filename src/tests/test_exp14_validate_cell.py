@@ -928,3 +928,45 @@ def test_classify_uses_each_arm_s_OWN_digest(tmp_path):
                     "--pin", PIN, "--ckpt-expect", str(expect)])
     line = [l for l in out.splitlines() if l.startswith("C4L vctl 40000 42 8 90")][0]
     assert " INVALID " in line, line
+
+
+# --------------------------------------------------------------------------
+# 12. FB2 (review B2): the Slurm job name must identify the CELL
+#
+# C4L vctl@45 and C4L vctl@90 shared one job name, so while @90 was queued the
+# wave read @45 as the same in-flight cell and skipped it — silently dropping a
+# registered validity control from the campaign.
+# --------------------------------------------------------------------------
+def test_job_names_are_injective_over_the_whole_grid():
+    names = [V.job_name(c) for c in V.expected_grid()]
+    assert len(set(names)) == len(names) == 106
+
+
+def test_the_two_C4L_vctl_angles_have_different_job_names():
+    a = V.job_name(V.Cell("C4L", "vctl", 40000, 42, 8, 45.0))
+    b = V.job_name(V.Cell("C4L", "vctl", 40000, 42, 8, 90.0))
+    assert a != b and a.endswith("rot45") is False and "rot45" in a and "rot90" in b
+
+
+@pytest.mark.parametrize("cell,arm,seed,k,deg,want", [
+    ("rgen", "C32", 44, 8, None, "exp14-screen-C32-rgen-rotrand44-40000-s44-K8"),
+    ("zref", "C32", 44, 8, None, "exp14-screen-C32-zref-40000-s44-K8"),
+    ("vctl", "C4L", 42, 8, 45.0, "exp14-screen-C4L-vctl-rot45-40000-s42-K8"),
+    ("vctl", "VANL", 42, 8, 90.0, "exp14-screen-VANL-vctl-rot90-40000-s42-K8"),
+])
+def test_job_name_shape(cell, arm, seed, k, deg, want):
+    assert V.job_name(V.Cell(arm, cell, 40000, seed, k, deg)) == want
+
+
+def test_job_names_are_slurm_safe():
+    import re
+    for c in V.expected_grid():
+        assert re.fullmatch(r"[A-Za-z0-9._-]+", V.job_name(c)), c
+        assert V.job_name(c).startswith("exp14-")
+
+
+def test_cli_jobname_prints_the_name_both_scripts_must_render():
+    rc, out = _run(["jobname", "--arm", "C4L", "--cell", "vctl", "--step", "40000",
+                    "--seed", "42", "--k", "8", "--rotate-deg", "45"])
+    assert rc == 0
+    assert out.strip() == V.job_name(V.Cell("C4L", "vctl", 40000, 42, 8, 45.0))

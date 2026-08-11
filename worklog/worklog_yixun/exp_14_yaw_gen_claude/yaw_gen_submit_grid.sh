@@ -181,7 +181,15 @@ for i in "${!CELLS[@]}"; do
     "${ARM} ${CELL} ${STEP} ${SEED} ${K} ${ROT} "*) ;;
     *) reject "classifier row '${row}' does not describe cell '${CELLS[$i]}' - refusing to guess" ;;
   esac
-  JOB_NAME="exp14-screen-${ARM}-${CELL}-${STEP}-s${SEED}-K${K}"
+  # Identical rendering to yaw_gen_screen_submit.sh (both pinned to
+  # exp14_validate_cell.job_name by a guard case): the token is what keeps the
+  # two C4L vctl angles from reading as one in-flight cell (review B2).
+  JOB_TOKEN=""
+  case "$CELL" in
+    rgen) JOB_TOKEN="-rotrand${SEED}" ;;
+    vctl) JOB_TOKEN="-rot${ROT%.0}" ;;
+  esac
+  JOB_NAME="exp14-screen-${ARM}-${CELL}${JOB_TOKEN}-${STEP}-s${SEED}-K${K}"
   case "$row" in
     *" VALID "*)
       echo "SKIP  ${JOB_NAME}: already measured and valid at this pin"; SKIPPED=$((SKIPPED + 1)); continue ;;

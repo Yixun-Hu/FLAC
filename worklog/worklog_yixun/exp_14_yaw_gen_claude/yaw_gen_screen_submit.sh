@@ -181,8 +181,18 @@ fi
 
 # 2. submit HELD: the id exists before the lease, the job runs after it
 # The job name starts with exp14- so the wave submitter can count THIS campaign's
-# jobs in squeue without catching a neighbour's.
-JOB_NAME="exp14-screen-${ARM}-${CELL}-${STEP}-s${SEED}-K${K}"
+# jobs in squeue without catching a neighbour's, and it carries the ROTATION
+# TOKEN: C4L vctl@45 and vctl@90 differ in nothing else, so without it a wave
+# watching squeue reads one as the other's in-flight job and silently drops a
+# registered validity control (review B2). Rendered in shell here and in
+# yaw_gen_submit_grid.sh; a guard case pins both against
+# exp14_validate_cell.job_name, which is the one definition.
+JOB_TOKEN=""
+case "$CELL" in
+  rgen) JOB_TOKEN="-rotrand${SEED}" ;;
+  vctl) JOB_TOKEN="-rot${ROTATE_DEG%.0}" ;;
+esac
+JOB_NAME="exp14-screen-${ARM}-${CELL}${JOB_TOKEN}-${STEP}-s${SEED}-K${K}"
 SBATCH="${FA_ORBIT_SBATCH:-sbatch}"          # guard-suite seam; a real run uses sbatch
 SCONTROL="${FA_ORBIT_SCONTROL:-scontrol}"
 SCANCEL="${FA_ORBIT_SCANCEL:-scancel}"
