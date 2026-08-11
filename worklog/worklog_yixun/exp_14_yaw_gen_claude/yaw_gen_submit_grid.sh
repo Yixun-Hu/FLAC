@@ -44,12 +44,12 @@ COMMAND_LOG="$EXPDIR/yaw_gen_command.md"
 # (both may be redirected in TEST MODE only — see the TEST_MODE block below)
 PY="${YAW_GEN_PY:-/n/fs/gatrdp/envs/flac/bin/python}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-$MAIN_REPO/outputs_FLAC}"
-# Test seams, same shape as the single-cell submitter's: a real run uses the
-# real binaries. They exist so the guard suite can exercise the SEQUENCE without
-# submitting anything.
+# TEST MODE is a MODE, not a mock: in test mode this script starts NO submission
+# process at all (see submit_cell), so no override can re-introduce a path to the
+# real one. squeue and sync are read/flush commands and are overridable only in
+# test mode, for failure injection.
 SQUEUE="${YAW_GEN_SQUEUE:-squeue}"
 SYNC_CMD="${YAW_GEN_SYNC:-sync}"
-SUBMIT_CMD="${YAW_GEN_SUBMIT:-$SUBMIT}"
 
 DRYRUN="${DRYRUN:-0}"
 # TEST MODE exists so the guard suite can drive the wave's DECISIONS with mocked
@@ -90,19 +90,28 @@ is_num "$MAX_INFLIGHT" && [ "$MAX_INFLIGHT" -ge 1 ] && [ "$MAX_INFLIGHT" -le 16 
   || reject "MAX_INFLIGHT='${MAX_INFLIGHT}' must be 1..16 (plan §7 caps this campaign at 16 slots)"
 [ -f "$VALIDATE" ] || reject "validator missing: ${VALIDATE}"
 [ -f "$SUBMIT" ]   || reject "single-cell submitter missing: ${SUBMIT}"
+# An overridable SUBMITTER is exactly the hole a "is this a mock?" test cannot
+# close: a wrapper, a copy or a hard link that calls the real one passes every
+# such test. There is no override any more — in test mode the submission is
+# SIMULATED in-process (submit_cell), and in live mode it is always this
+# campaign's own submitter.
+[ -z "${YAW_GEN_SUBMIT:-}" ] \
+  || reject "YAW_GEN_SUBMIT no longer exists: a wave either runs ${SUBMIT} (live) or simulates the submission in-process (YAW_GEN_TEST_MODE=1). An overridable submitter cannot be proven to be a mock."
 if [ "$TEST_MODE" = "1" ]; then
-  [ -n "${YAW_GEN_SUBMIT:-}" ] \
-    && [ "$(readlink -f "${YAW_GEN_SUBMIT}" 2>/dev/null)" != "$(readlink -f "$SUBMIT")" ] \
-    || reject "YAW_GEN_TEST_MODE=1 may only run against a mocked submitter (set YAW_GEN_SUBMIT=...); refusing to run a wave that could really submit with test seams honoured"
-  # ...and only THEN may the campaign's own state be redirected. A test that
+  # Only in test mode may the campaign's own state be redirected. A test that
   # writes the live command log and the live pin file is not a test of the wave,
   # it is an edit of the campaign — and a RED run of this suite once submitted
   # four real jobs that way.
   [ -n "${YAW_GEN_PIN_FILE:-}" ] && PIN_FILE="$YAW_GEN_PIN_FILE"
   [ -n "${YAW_GEN_COMMAND_LOG:-}" ] && COMMAND_LOG="$YAW_GEN_COMMAND_LOG"
-elif [ -n "${YAW_GEN_PIN_FILE:-}${YAW_GEN_COMMAND_LOG:-}${YAW_GEN_WT_DIR:-}" ]; then
-  echo "NOTE: YAW_GEN_PIN_FILE / YAW_GEN_COMMAND_LOG / YAW_GEN_WT_DIR are IGNORED" >&2
-  echo "      without YAW_GEN_TEST_MODE=1 (which itself requires a mocked submitter)" >&2
+elif [ "$DRYRUN" != "1" ]; then
+  # (a DRYRUN reaches neither squeue nor the command log, so the seams are inert)
+  [ -z "${YAW_GEN_SQUEUE:-}${YAW_GEN_SYNC:-}" ] \
+    || reject "YAW_GEN_SQUEUE / YAW_GEN_SYNC are failure-injection seams and need YAW_GEN_TEST_MODE=1"
+  if [ -n "${YAW_GEN_PIN_FILE:-}${YAW_GEN_COMMAND_LOG:-}${YAW_GEN_WT_DIR:-}" ]; then
+    echo "NOTE: YAW_GEN_PIN_FILE / YAW_GEN_COMMAND_LOG / YAW_GEN_WT_DIR are IGNORED" >&2
+    echo "      without YAW_GEN_TEST_MODE=1" >&2
+  fi
 fi
 
 # --- the campaign pin --------------------------------------------------------
@@ -142,6 +151,8 @@ mapfile -t CELLS < <("$PY" "$VALIDATE" grid --wave "$WAVE") \
 # The banner goes to STDERR so a DRYRUN's stdout is exactly one line per cell
 # (the guard suite diffs it against the registered grid).
 echo "=== exp_14 ${WAVE} wave: ${#CELLS[@]} registered cells | pin ${PIN_SHA:-<none: DRYRUN>} ===" >&2
+
+test_record() { [ -n "${YAW_GEN_TEST_RECORD:-}" ] && printf '%s\n' "$*" >> "$YAW_GEN_TEST_RECORD"; return 0; }
 
 sync_file() {   # flush one file's bytes to disk; NONZERO when it cannot be done.
                 # A record that is not durable is not a record — that is the whole
@@ -287,6 +298,24 @@ for i in "${!CELLS[@]}"; do
   done
   ARGV="$(submit_argv "$ARM" "$CELL" "$STEP" "$SEED" "$K" "$ROT")"
   echo "SUBMIT ${JOB_NAME}"
+  # In test mode the submission is simulated HERE — no process is started, so a
+  # test cannot reach sbatch through any executable at all. The simulation still
+  # observes what matters: whether the command log carried this cell's LAUNCHING
+  # line at the moment the submission would have happened.
+  submit_cell() {
+    if [ "$TEST_MODE" = "1" ]; then
+      test_record "submit $*"
+      if grep -q 'LAUNCHING' "$COMMAND_LOG" 2>/dev/null; then
+        test_record "  launching-line-present"
+      else
+        test_record "  launching-line-MISSING"
+      fi
+      [ -n "${YAW_GEN_TEST_SUBMIT_RC:-}" ] && return "$YAW_GEN_TEST_SUBMIT_RC"
+      echo "submitted HELD as ${YAW_GEN_TEST_JOBID:-5550001}"
+      return 0
+    fi
+    bash "$SUBMIT" "$@"
+  }
   # The command log is written BEFORE the submission and flushed to disk, and a
   # failure to write it is FATAL (review B7). Recording afterwards means a crash
   # between sbatch and the append produces a job nobody can trace back to a
@@ -301,7 +330,7 @@ for i in "${!CELLS[@]}"; do
     || { echo "HALT: cannot durably record the command in ${COMMAND_LOG}; refusing to" >&2
          echo "  submit a job that would have no launch record." >&2; exit 6; }
   # shellcheck disable=SC2086
-  OUT="$(bash "$SUBMIT_CMD" $ARGV 2>&1)"; RC=$?
+  OUT="$(submit_cell $ARGV 2>&1)"; RC=$?
   echo "$OUT" | sed 's/^/       | /'
   JID="$(printf '%s\n' "$OUT" | sed -n 's/^submitted HELD as \([0-9][0-9]*\)$/\1/p' | tail -1)"
   log_command SUBMITTED "$JID" "$RC" \

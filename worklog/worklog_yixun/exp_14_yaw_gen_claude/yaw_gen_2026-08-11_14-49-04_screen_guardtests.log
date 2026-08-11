@@ -1,0 +1,259 @@
+=== yaw_gen screen kit guard exercise — 2026-08-11_14-49-04 — 135cb4b ===
+NOTE: a CAMPAIGN FREEZE is active — deletion/thaw cases are skipped
+synthetic output roots written
+--- A. parameters ---
+PASS  missing ARM  (rc=2)
+PASS  missing STEP  (rc=2)
+PASS  missing CELL  (rc=2)
+PASS  missing EXPECT_SHA  (rc=2)
+PASS  unknown arm  (rc=2)
+PASS  FA1 is not an exp_14 arm  (rc=2)
+PASS  C4BACKFILL is refused  (rc=2)
+PASS  non-numeric STEP  (rc=2)
+PASS  bad K  (rc=2)
+PASS  STEP 20000 is unregistered  (rc=2)
+PASS  STEP 42500 is unregistered  (rc=2)
+PASS  CELL=screen is not an exp_14 cell  (rc=2)
+PASS  CELL=conf is not an exp_14 cell  (rc=2)
+PASS  CELL=traj is not an exp_14 cell  (rc=2)
+PASS  CELL=q9 is not an exp_14 cell  (rc=2)
+PASS  CELL=r3 is not an exp_14 cell  (rc=2)
+PASS  CELL=cross is not an exp_14 cell  (rc=2)
+PASS  rgen refuses seed 47  (rc=2)
+PASS  zref refuses seed 41  (rc=2)
+PASS  rgen refuses ROTATE_DEG  (rc=2)
+PASS  zref refuses ROTATE_DEG  (rc=2)
+PASS  an EVAL_ORBIT leftover is refused (rgen)  (rc=2)
+PASS  an EVAL_ORBIT leftover is refused (zref)  (rc=2)
+PASS  vctl needs an angle  (rc=2)
+PASS  vctl is seed 42 only  (rc=2)
+PASS  vctl is K=8 only  (rc=2)
+PASS  vctl refuses an unregistered angle  (rc=2)
+PASS  VANL@45 is UNREGISTERED  (rc=2)
+PASS  C8@45 is UNREGISTERED  (rc=2)
+PASS  C16@45 is UNREGISTERED  (rc=2)
+PASS  C32@45 is UNREGISTERED  (rc=2)
+--- B. checkpoint discovery ---
+PASS  no arm tree at all  (rc=2)
+PASS  two ckpts at one step  (rc=2)
+--- C. the ckpt/arm identity gate ---
+PASS  C4L tree holding a C8 ckpt is rejected  (rc=2)
+PASS  an ORBIT ckpt is refused as VANL  (rc=2)
+PASS  a checkpoint without EMA weights is rejected  (rc=2)
+PASS  an arm ckpt with no launch manifest is refused  (rc=2)
+PASS  a launch manifest for another config is refused  (rc=2)
+--- D. the three registered cells reach the eval argv ---
+PASS  rgen passes --rotate-mode random with the eval seed
+PASS  rgen passes NO fixed angle
+PASS  rgen names itself by its rotation seed
+PASS  rgen pins the campaign batch/worker settings
+PASS  rgen pins the split size and records the stream
+PASS  rgen pins the protocol flags
+PASS  rgen keeps the arm's OWN orbit (C32)
+PASS  zref passes no rotation flag of any kind
+PASS  zref names itself without a rotation token
+PASS  zref still records its assignment stream
+PASS  zref keeps the arm's OWN orbit
+PASS  vctl passes its fixed angle
+PASS  vctl passes no random-mode flag
+PASS  vctl names itself by its angle
+PASS  the VANL positive control is registered at 90
+PASS  VANL runs a VANILLA evaluation
+PASS  a vanilla evaluation is given no orbit at all
+PASS  90.0 canonicalises to the 90 token
+PASS  ...and reaches the eval as 90
+PASS  K=1 uses the _1 split
+PASS  K=8 uses the full split
+PASS  K=1 still names its K
+PASS  the driver's cell-validation argv equals exp14_validate_cell.check_argv
+PASS  only vctl passes --rotate-deg to the validator (review B1)
+PASS  the driver's shell-rendered eval names equal exp14_validate_cell.eval_name
+--- E. real-mode gates ---
+PASS  real mode needs sbatch  (rc=2)
+--- F. the emitted eval names parse under the validator's schema ---
+PASS  exp14_C32_rgen_S40000_s44_K8_rotrand44 parses under the validator schema
+PASS  exp14_C8_zref_S40000_s42_K8 parses under the validator schema
+PASS  exp14_C4L_vctl_S40000_s42_K8_rot45 parses under the validator schema
+PASS  exp14_VANL_vctl_S40000_s42_K8_rot90 parses under the validator schema
+PASS  exp11_C8_screen_S10000_s42_K8 is refused as unregistered
+PASS  exp14_VANL_vctl_S40000_s42_K8_rot45 is refused as unregistered
+PASS  exp14_C8_rgen_S40000_s47_K8_rotrand47 is refused as unregistered
+PASS  exp14_C8_conf_S40000_s42_K8 is refused as unregistered
+--- G. worktree-pinned measurement execution (item 8) ---
+PASS  real mode requires MEASURE_ROOT  (rc=2)
+PASS  a non-existent MEASURE_ROOT is refused  (rc=2)
+PASS  a MEASURE_ROOT that is not a worktree is refused  (rc=2)
+PASS  pinned worktree prepared at 135cb4beb356
+PASS  worktree HEAD mismatch aborts  (rc=2)
+SKIP  the real-checkpoint pinned-run case (GUARD_REAL_CKPT=1 to load the 724 MB ckpt)
+PASS  the commit gate reads the code root, not the cwd
+
+--- assets + lease lifecycle (fa_orbit_measure_worktree.sh) ---
+PASS  every required runtime asset stats inside the worktree
+PASS  worktree assets resolve to the same targets as the main tree
+PASS  a code root without the runtime assets is refused (rc=2)
+PASS  the screen carries an explicit asset gate
+PASS  AGREE_fullAR.pt is pinned by sha256 and matches (3a13243d6c6a)
+PASS  VAE.ckpt resolves in the worktree and matches its pin (6198ff0d781f)
+PASS  the dataset symlink target is pinned literally in the helper
+PASS  an unregistered dataset target aborts the pin
+PASS  pruning skips a LEASED worktree
+PASS  a stale lease (job gone from squeue) is reaped
+PASS  concurrent same-SHA calls are idempotent (one tree, same path)
+PASS  the helper never prunes the worktree it is returning
+PASS  a job without its own lease refuses to run
+PASS  a lease naming another job is rejected
+PASS  the screen returns its lease on exit, under the store lock only
+PASS  fixed-count pruning is gone (leases only)
+PASS  submit --hold -> lease by the real id -> scontrol release
+PASS  the lease names the real job id and predates the release
+PASS  a failed release cancels the job and RETAINS the lease
+PASS  release AND scancel failing keeps the lease and says why
+FAIL  release may run against an unvalidated lease (rc=0, val@406 rel@)
+        | sbatch --hold --parsable --job-name=exp14-screen-C4L-zref-40000-s42-K8 --output=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_14_yaw_gen_claude/slurm_screen_%x_%j.out --export=ALL,MEASURE_ROOT=/n/fs/gatrdp/codespace/FLAC/.measure_worktrees/135cb4beb3569bb41f325459f0785bf970297de8,EXPECT_SHA=135cb4beb3569bb41f325459f0785bf970297de8,ARM=C4L,STEP=40000,SEED=42,K=8,CELL=zref /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_14_yaw_gen_claude/yaw_gen_screen.sbatch
+        | scontrol release 7654321
+        | release saw a VALID lease for 7654321
+PASS  EXCLUDE= is passed to sbatch as an explicit --exclude flag
+PASS  no EXCLUDE= means no --exclude flag
+PASS  a set SBATCH_EXCLUDE is refused, not silently ignored
+PASS  the submitter exports the cell's own parameters to the job
+PASS  the literal injection value is refused by shape
+PASS  an injected payload does not execute (no side effects)
+PASS  malformed values are refused for every key
+PASS  no eval of argument text remains in the code
+PASS  the campaign pin file is the DEFAULT pin
+PASS  a PIN_SHA disagreeing with the campaign pin is refused
+PASS  an explicit PIN_SHA equal to the campaign pin is accepted
+PASS  a malformed campaign pin file is refused
+PASS  with no pin file, submission falls back to HEAD
+worklog/worklog_yixun/exp_14_yaw_gen_claude/yaw_gen_screen_guardtests.sh: line 959: LIVE_TRACE: unbound variable
+FAIL  a wave ran with no campaign pin (rc=1)
+PASS  the submitter admits the five exp_14 arms and no comparator arm
+PASS  the submitter admits exactly rgen/zref/vctl
+PASS  EVAL_ORBIT is gone from the submitter
+PASS  the pin is restored by a trap, not only on the happy path
+PASS  the store-wide campaign pin is untouched by this suite
+PASS  the suite documents that it must not run during submissions
+PASS  the registry carries VANL from its published launch manifest
+PASS  PIN_SHA prepares the worktree AT the requested commit
+PASS  EXPECT_SHA follows PIN_SHA into the sbatch export
+PASS  the intent manifest records the pin
+PASS  a freshly pinned tree carries every runtime asset
+PASS  a non-existent PIN_SHA is refused
+PASS  a short PIN_SHA is refused
+PASS  a forged lock marker with NO fd 8 is refused
+PASS  a forged marker with the WRONG fd 8 is refused
+PASS  an unresolvable fd 8 (deleted file) is refused
+PASS  both readlink results must be non-empty (no empty==empty match)
+PASS  the lock is proven at the outer entry, before any transaction
+PASS  the screen has no unlocked EXIT-trap unlink
+SKIP  registered-worktree removal-failure handling — a campaign freeze is active; this suite will not thaw or delete
+PASS  no placeholder lease: --hold removed the promote race
+PASS  lease/release/prune/create all run under one store-wide lock
+PASS  a squeue failure keeps the lease (absence must be PROVEN)
+SKIP  lock-span concurrent-prune demonstration — a campaign freeze is active; this suite will not thaw or delete
+
+--- campaign freeze ---
+SKIP  campaign-freeze behaviour (freeze/thaw/prune cases) — a campaign freeze is active; this suite will not thaw or delete
+PASS  a lease on a non-worktree directory is refused
+SKIP  safe-cleanup deletion cases — a campaign freeze is active; this suite will not thaw or delete
+
+--- MEASURE_ROOT identity ---
+PASS  the mutable MAIN tree is refused as a MEASURE_ROOT (rc=2)
+
+--- arm launch registry binding ---
+PASS  the audited arm launch registry is committed
+PASS  every arm is registered INITIAL, seed 42, with hashes
+PASS  a launch manifest edited after registration is rejected
+PASS  a RESTART launch is refused as a screen lineage
+PASS  the screen binds the manifest by sha256, not by content alone
+PASS  the screen parses and enforces mode INITIAL
+PASS  the seed claim is verified against the registry, not printed
+
+--- default screen-log naming ---
+PASS  six same-second cells produce six DISTINCT default log names
+PASS  rgen names carry the rotation seed and vctl names the angle
+PASS  default names stay in LOGDIR and keep the _screen.log suffix
+PASS  an explicit LOG= still overrides the default
+
+--- wave submitter: the 106-cell DRYRUN grid ---
+PASS  the DRYRUN grid is EXACTLY the registered 106-cell set (sorted diff empty)
+PASS  106 unique cells: 50 rgen + 50 zref + 6 vctl
+PASS  the six vctl tuples are exactly the registered ones (no VANL@45)
+PASS  every printed cell is s42-46, K in {1,8}, STEP=40000, no angle outside vctl
+PASS  the three waves partition the grid (6 / 50 / 50, nothing foreign)
+FAIL  DRYRUN touched sbatch or squeue
+PASS  the wave submitter never calls sbatch (it delegates, under the lock)
+PASS  the wave submitter refuses 'WAVE=conf'
+PASS  the wave submitter refuses 'WAVE=screen'
+PASS  the wave submitter refuses 'FOO=1'
+PASS  the wave submitter refuses 'PIN_SHA=deadbeef'
+PASS  the wave submitter refuses 'EXCLUDE=neu1;id'
+PASS  MAX_INFLIGHT is capped at the plan's 16 slots
+
+--- wave submitter: validate-before-skip dedup ---
+/n/fs/rfmprog/.tmp/yh4742/tmp.UcmFo4IrQT/dedup_root/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=8-step=40000_metrics_1_1.0_exp14_C4L_vctl_S40000_s42_K8_rot90_fa_invariant_a4_rot90.json
+worklog/worklog_yixun/exp_14_yaw_gen_claude/yaw_gen_screen_guardtests.sh: line 1621: LIVE_TRACE: unbound variable
+FAIL  a broken artifact did not halt the wave (rc=1)
+        | 
+FAIL  the halt does not say what was wrong
+worklog/worklog_yixun/exp_14_yaw_gen_claude/yaw_gen_screen_guardtests.sh: line 1638: LIVE_TRACE: unbound variable
+FAIL  a squeue failure did not stop the wave (rc=1)
+        | 
+
+--- wave submitter: live-wave decisions (mocked submit + squeue) ---
+/n/fs/rfmprog/.tmp/yh4742/tmp.UcmFo4IrQT/live/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=8-step=40000_metrics_1_1.0_exp14_C4L_vctl_S40000_s42_K8_rot90_fa_invariant_a4_rot90.json
+PASS  a landed cell that validates against the AUDITED digest is skipped
+PASS  C4L vctl@45 and vctl@90 are separate cells with separate job names
+PASS  the command log is written BEFORE the submission, not after
+PASS  every job name the wave submits is exp14_validate_cell.job_name's
+PASS  an artifact from ANOTHER checkpoint halts the wave
+PASS  the halted wave submitted nothing at all
+PASS  an in-flight job that holds its lease is skipped as in flight
+PASS  a name-matching job with NO lease halts the wave
+PASS  PIN_SHA cannot substitute for the campaign pin file
+PASS  a PIN_SHA disagreeing with the pin file is refused
+PASS  a pin file naming an unknown commit is refused
+PASS  the campaign command log was never written by this suite
+
+--- wave submitter: the lease directory is derived from the pin ---
+FAIL  the lease seam weakened a live wave (rc=0)
+        |        | submitted HELD as 5550001
+        | SUBMIT exp14-screen-C4L-vctl-rot45-40000-s42-K8
+        |        | submitted HELD as 5550001
+        | === vctl wave done: 4 submitted, 1 already valid, 1 in flight ===
+FAIL  the wave looked for leases somewhere other than the pinned worktree
+FAIL  test mode ran a real submission path (rc=0)
+
+--- durability: a record that cannot be made durable stops the launch ---
+PASS  a wave whose command log cannot be flushed refuses to submit
+PASS  ...and it submitted nothing
+PASS  a held job whose intent manifest cannot be published is CANCELLED
+PASS  a submission killed between hold and release cancels the held job
+PASS  the interrupted submission exits nonzero (rc=143)
+
+--- submit-executable overrides are refused, not trusted ---
+PASS  FA_ORBIT_SBATCH='/bin/echo' is refused in live mode
+PASS  FA_ORBIT_SBATCH='/usr/bin/sbatch' is refused in live mode
+PASS  a wrapper script is refused and never executed
+PASS  an override is refused in TEST MODE too (test mode runs no submit command)
+PASS  the wave refuses an overridden submitter outright
+PASS  a live wave refuses the squeue/sync injection seams
+
+--- an unreadable job id cancels by NAME ---
+PASS  a malformed job id cancels by name and never releases
+PASS  the abort guard is armed BEFORE the submission (trap@364 < submit@368)
+PASS  INT/TERM cancel AND terminate nonzero (release can never follow)
+PASS  the submitter calls slurm_* wrappers only (no overridable binary)
+PASS  a truncated intent manifest is rejected by the reader
+PASS  ...and a sentinel-terminated one is accepted
+FAIL  the cancel trap is missing or misordered (sbatch@ arm@ rel@ disarm@474)
+
+--- single-cell submitter: DRYRUN ---
+PASS  DRYRUN prints the submission and prepares no worktree
+PASS  the single-cell submitter's job name is the validator's canonical one
+PASS  the submitter gives the two C4L vctl angles distinct job names
+FAIL  the intent manifest is still written after the job is released
+PASS  the screenmeta sidecar is published by atomic replace
+
+=== yaw_gen screen kit guard tests: 191 passed, 11 failed ===

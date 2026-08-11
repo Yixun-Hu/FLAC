@@ -164,19 +164,36 @@ done
 # redirect the campaign's own state — the guard suite writing the live
 # yaw_gen_command.md and yaw_gen_campaign_pin is precisely how a RED test run of
 # this suite once submitted four real jobs.
-SEAMS_OK=0
-case "${FA_ORBIT_SBATCH:-sbatch}" in
-  sbatch) ;;
-  *) SEAMS_OK=1 ;;                      # sbatch is a mock: nothing can be submitted
-esac
-[ "$DRYRUN" = "1" ] && SEAMS_OK=1       # ...and a dry run cannot submit at all
+# TEST MODE is a MODE, not a mock. Deciding "is this executable a mock?" is not
+# decidable — a wrapper, a copy, a hard link or an absolute path to the real
+# sbatch all differ from the string "sbatch" — so nothing is asked about the
+# executable any more: in test mode this script EXECUTES NO SUBMIT COMMAND AT
+# ALL. It simulates the Slurm interaction internally and records the argv it
+# would have run. A test therefore cannot reach sbatch even by accident, which is
+# the only property worth having (an earlier "mock" rule let a guard run submit
+# four real jobs).
+TEST_MODE=0
+[ "${YAW_GEN_TEST_MODE:-0}" = "1" ] && TEST_MODE=1
+[ "$DRYRUN" = "1" ] && TEST_MODE=1        # a dry run submits nothing by construction
+if [ "$TEST_MODE" = "1" ]; then
+  [ -z "${FA_ORBIT_SBATCH:-}${FA_ORBIT_SCONTROL:-}${FA_ORBIT_SCANCEL:-}" ] \
+    || reject "FA_ORBIT_SBATCH/SCONTROL/SCANCEL may not be set in test mode: test mode runs NO submit command, so an override could only re-introduce a path to the real one"
+else
+  # LIVE. The FA_ORBIT_* names survive only for exp_11 shared-helper
+  # compatibility, and the only value that means anything is the canonical
+  # binary; anything else used to be accepted as a "mock" and executed.
+  [ "${FA_ORBIT_SBATCH:-sbatch}" = "sbatch" ] \
+    && [ "${FA_ORBIT_SCONTROL:-scontrol}" = "scontrol" ] \
+    && [ "${FA_ORBIT_SCANCEL:-scancel}" = "scancel" ] \
+    || reject "a LIVE submission runs the canonical Slurm binaries: FA_ORBIT_SBATCH/SCONTROL/SCANCEL may only be set to 'sbatch'/'scontrol'/'scancel' (use YAW_GEN_TEST_MODE=1 to simulate)"
+fi
 PIN_FILE="${EXPDIR}/yaw_gen_campaign_pin"
 INTENT_DIR="$EXPDIR"
-if [ "$SEAMS_OK" = "1" ]; then
+if [ "$TEST_MODE" = "1" ]; then
   [ -n "${YAW_GEN_PIN_FILE:-}" ] && PIN_FILE="$YAW_GEN_PIN_FILE"
   [ -n "${YAW_GEN_INTENT_DIR:-}" ] && INTENT_DIR="$YAW_GEN_INTENT_DIR"
 elif [ -n "${YAW_GEN_PIN_FILE:-}${YAW_GEN_INTENT_DIR:-}" ]; then
-  reject "YAW_GEN_PIN_FILE / YAW_GEN_INTENT_DIR are test seams: they need a mocked sbatch (FA_ORBIT_SBATCH=...), never a path that could really submit"
+  reject "YAW_GEN_PIN_FILE / YAW_GEN_INTENT_DIR are test seams: they need YAW_GEN_TEST_MODE=1, never a run that could really submit"
 fi
 CAMPAIGN_PIN=""
 if [ -f "$PIN_FILE" ]; then
@@ -265,9 +282,43 @@ case "$CELL" in
   vctl) JOB_TOKEN="-rot${ROTATE_DEG%.0}" ;;
 esac
 JOB_NAME="exp14-screen-${ARM}-${CELL}${JOB_TOKEN}-${STEP}-s${SEED}-K${K}"
-SBATCH="${FA_ORBIT_SBATCH:-sbatch}"          # guard-suite seam; a real run uses sbatch
-SCONTROL="${FA_ORBIT_SCONTROL:-scontrol}"
-SCANCEL="${FA_ORBIT_SCANCEL:-scancel}"
+# --- the ONLY three places this script talks to Slurm ------------------------
+# In TEST MODE each one records what it would have done and returns a scripted
+# result; no process is started. In LIVE mode each runs the canonical binary.
+test_record() { [ -n "${YAW_GEN_TEST_RECORD:-}" ] && printf '%s\n' "$*" >> "$YAW_GEN_TEST_RECORD"; return 0; }
+
+slurm_submit_hold() {   # prints a job id on stdout, like `sbatch --parsable`
+  if [ "$TEST_MODE" = "1" ]; then
+    test_record "sbatch $*"
+    [ -n "${YAW_GEN_TEST_SUBMIT_SLEEP:-}" ] \
+      && { : > "${YAW_GEN_TEST_RECORD:-/dev/null}.submitting"; sleep "$YAW_GEN_TEST_SUBMIT_SLEEP"; }
+    case "$*" in *--hold*) ;; *) echo "TEST: submit called WITHOUT --hold" >&2; return 9 ;; esac
+    printf '%s\n' "${YAW_GEN_TEST_JOBID:-7654321}"
+    return 0
+  fi
+  sbatch "$@"
+}
+slurm_release() {       # $1 = job id
+  if [ "$TEST_MODE" = "1" ]; then
+    test_record "scontrol release $1"
+    grep -q "^jobid $1$" "${WT}/.leases/$1" 2>/dev/null \
+      && test_record "release saw a VALID lease for $1"
+    # a window the suite can interrupt, to prove a signal cancels the held job
+    [ -n "${YAW_GEN_TEST_RELEASE_SLEEP:-}" ] \
+      && { : > "${YAW_GEN_TEST_RECORD:-/dev/null}.releasing"; sleep "$YAW_GEN_TEST_RELEASE_SLEEP"; }
+    [ "${YAW_GEN_TEST_RELEASE_FAILS:-0}" = "1" ] && return 1
+    return 0
+  fi
+  scontrol release "$1"
+}
+slurm_cancel() {        # $1 = job id, or --name=<job name>
+  if [ "$TEST_MODE" = "1" ]; then
+    test_record "scancel $1"
+    [ "${YAW_GEN_TEST_SCANCEL_FAILS:-0}" = "1" ] && return 1
+    return 0
+  fi
+  scancel "$1"
+}
 # Node exclusion is passed as an EXPLICIT FLAG, never through the environment.
 # SBATCH_EXCLUDE does not exist: of the 58 input environment variables sbatch
 # documents there is no --exclude equivalent (the lookalike SBATCH_EXCLUSIVE is
@@ -286,29 +337,49 @@ fi
 CELL_EXPORT=""
 [ -n "$ROTATE_DEG" ] && CELL_EXPORT="${CELL_EXPORT},ROTATE_DEG=${ROTATE_DEG}"
 [ -n "$LOG" ] && CELL_EXPORT="${CELL_EXPORT},LOG=${LOG}"
-JOBID="$("$SBATCH" --hold --parsable \
+# --- the abort guard is armed BEFORE the submission, not after ---------------
+# `sbatch --hold` returning and the id being parsed are two different moments,
+# and between them lived a fatal exit (a malformed id) plus a signal window: a
+# job could exist with nothing arranged to cancel it. The guard is therefore
+# armed FIRST, and it can cancel with or without an id — the job NAME is known
+# before submission and is cell-injective (review B2), so `scancel --name=` is
+# the fallback. Cancelling a name that was never submitted is harmless; leaving a
+# held job that nobody knows about is not.
+ABORT_ACTIVE=1
+HELD_JOBID=""
+cancel_held_job() {
+  [ "${ABORT_ACTIVE:-0}" = "1" ] || return 0
+  ABORT_ACTIVE=0
+  if [ -n "${HELD_JOBID:-}" ]; then
+    echo "leaving job ${HELD_JOBID} HELD is not an option - cancelling it (lease RETAINED)" >&2
+    slurm_cancel "$HELD_JOBID" \
+      || echo "scancel FAILED - cancel job ${HELD_JOBID} by hand" >&2
+  else
+    echo "aborting with no job id in hand - cancelling by NAME ${JOB_NAME} in case the" >&2
+    echo "submission created a job we never learned the id of (lease RETAINED)" >&2
+    slurm_cancel "--name=${JOB_NAME}" \
+      || echo "scancel --name=${JOB_NAME} FAILED - check squeue by hand" >&2
+  fi
+}
+trap cancel_held_job EXIT
+trap 'cancel_held_job; exit 130' INT      # a signal must TERMINATE, not fall
+trap 'cancel_held_job; exit 143' TERM     # through into the release below
+
+JOBID="$(slurm_submit_hold --hold --parsable \
   --job-name="$JOB_NAME" \
   --output="${EXPDIR}/slurm_screen_%x_%j.out" \
   "${EXCLUDE_ARGV[@]}" \
   --export=ALL,MEASURE_ROOT="$WT",EXPECT_SHA="$EXPECT_SHA",ARM="$ARM",STEP="$STEP",SEED="$SEED",K="$K",CELL="$CELL""$CELL_EXPORT" \
   "$EXPDIR/yaw_gen_screen.sbatch")" || { echo "sbatch FAILED - nothing submitted" >&2; exit 4; }
 JOBID="${JOBID%%;*}"
-case "$JOBID" in ''|*[!0-9]*) echo "sbatch returned '${JOBID}', not a job id - abort" >&2; exit 4 ;; esac
-echo "submitted HELD as ${JOBID}"
-
-# From here until the release succeeds, ANY exit — an unguarded failure under
-# `set -e`, a Ctrl-C, a timeout — would otherwise leave a HELD job that no record
-# describes. The trap is armed immediately after the hold and stood down only
-# after a successful release; it is idempotent, so the explicit error paths below
-# can call it too without double-cancelling.
+case "$JOBID" in
+  ''|*[!0-9]*)
+    # The submission may well have SUCCEEDED and only its output be unreadable,
+    # so this exits through the same guard — by name, since there is no id.
+    echo "sbatch returned '${JOBID}', not a job id - abort" >&2; exit 4 ;;
+esac
 HELD_JOBID="$JOBID"
-cancel_held_job() {
-  [ -n "${HELD_JOBID:-}" ] || return 0
-  local jid="$HELD_JOBID"; HELD_JOBID=""
-  echo "leaving job ${jid} HELD is not an option - cancelling it (lease RETAINED)" >&2
-  "$SCANCEL" "$jid" || echo "scancel FAILED - cancel job ${jid} by hand" >&2
-}
-trap cancel_held_job EXIT INT TERM
+echo "submitted HELD as ${JOBID}"
 
 # 3. lease it by its real id, VALIDATE the lease, and only THEN release the job.
 #    All of this still runs inside the store lock taken at step 0.
@@ -389,9 +460,9 @@ fi
 echo "intent manifest: ${INTENT}"
 
 # 4. ...and only now let it run.
-if ! "$SCONTROL" release "$JOBID"; then
+if ! slurm_release "$JOBID"; then
   echo "could not release ${JOBID} - cancelling it; the lease is RETAINED" >&2
-  if "$SCANCEL" "$JOBID"; then
+  if slurm_cancel "$JOBID"; then
     echo "cancelled ${JOBID}; its lease stays until squeue proves the id is gone" >&2
   else
     echo "scancel FAILED too - job ${JOBID} may still run; cancel it by hand." >&2
@@ -400,7 +471,7 @@ if ! "$SCONTROL" release "$JOBID"; then
   fi
   exit 6
 fi
-HELD_JOBID=""; trap - EXIT INT TERM      # released: the job is no longer ours to cancel
+ABORT_ACTIVE=0; HELD_JOBID=""; trap - EXIT INT TERM   # released: no longer ours to cancel
 
 echo "released ${JOB_NAME} (${JOBID})"
 echo "  MEASURE_ROOT ${WT}"

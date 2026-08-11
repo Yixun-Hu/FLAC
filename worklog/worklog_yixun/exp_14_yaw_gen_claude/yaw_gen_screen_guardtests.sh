@@ -34,6 +34,7 @@ VALIDATOR="${EXPDIR}/exp14_validate_cell.py"
 # an earlier version wrote both and submitted four real jobs (all cancelled).
 LIVE_PIN_FILE="${EXPDIR}/yaw_gen_campaign_pin"
 LIVE_CMDLOG="${EXPDIR}/yaw_gen_command.md"
+LIVE_CMDLOG_SUM_AT_START="$(sha256sum "$LIVE_CMDLOG" 2>/dev/null | cut -d' ' -f1)"
 GUARD_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 PY=/n/fs/gatrdp/envs/flac/bin/python
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
@@ -50,6 +51,8 @@ done
 TMP="$(mktemp -d)"
 PIN_FILE="${TMP}/campaign_pin"          # the SEAM the kit is pointed at
 TEST_CMDLOG="${TMP}/command.md"
+LIVE_TRACE="${TMP}/live_submit.txt"     # where a simulated wave records its argv
+LIVE_QUEUE="${TMP}/live_queue.txt"      # ...and the queue it is shown
 TEST_INTENT_DIR="${TMP}/intents"; mkdir -p "$TEST_INTENT_DIR"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -723,48 +726,27 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
   trap 'restore_suite_state; rm -rf "$TMP"' EXIT
   trap 'restore_suite_state; exit 130' INT TERM
   rm -f "$PIN_FILE"
+  # NO MOCK BINARIES. "Is this executable a mock?" is not a decidable question —
+  # a wrapper, a copy, a hard link or an absolute path to the real sbatch all
+  # differ from the string "sbatch" — so the kit no longer asks it: in TEST MODE
+  # it runs no submit command at all and records the argv internally. The suite
+  # therefore drives it with YAW_GEN_TEST_MODE=1 + YAW_GEN_TEST_RECORD and reads
+  # the recorded argv, which is strictly more evidence than a mock produced.
   MOCK="${TMP}/mockbin"; mkdir -p "$MOCK"
-  cat > "${MOCK}/sbatch" <<'EOS'
-#!/usr/bin/env bash
-echo "sbatch $*" >> "$MOCK_TRACE"
-case "$*" in *--hold*) ;; *) echo "MOCK: sbatch was called WITHOUT --hold" >&2; exit 9;; esac
-[ -n "${MOCK_SBATCH_SLEEP:-}" ] && { touch "${MOCK_TRACE}.submitting"; sleep "$MOCK_SBATCH_SLEEP"; }
-echo "${MOCK_JOBID:-7654321}"
-EOS
-  cat > "${MOCK}/scontrol" <<'EOS'
-#!/usr/bin/env bash
-echo "scontrol $*" >> "$MOCK_TRACE"
-# record what the lease looked like AT THE MOMENT of release: a release that
-# ever runs against a missing or wrong lease is the ordering bug itself
-if [ "$1" = "release" ] && grep -q "^jobid $2$" "${MOCK_WT}/.leases/$2" 2>/dev/null; then
-  echo "release saw a VALID lease for $2" >> "$MOCK_TRACE"
-fi
-[ "${MOCK_RELEASE_FAILS:-0}" = "1" ] && exit 1
-exit 0
-EOS
-  cat > "${MOCK}/scancel" <<'EOS'
-#!/usr/bin/env bash
-echo "scancel $*" >> "$MOCK_TRACE"
-[ "${MOCK_SCANCEL_FAILS:-0}" = "1" ] && exit 1
-exit 0
-EOS
-  chmod +x "${MOCK}"/sbatch "${MOCK}"/scontrol "${MOCK}"/scancel
   # PIN THE MOCKED SUBMISSIONS TO *THIS* WORKTREE. Without a pin they follow HEAD,
   # and HEAD moves: the concurrent session in this shared checkout commits while
   # the suite runs, so a submission would prepare and lease a DIFFERENT tree than
   # the one these cases inspect ($WT) and every lease assertion would fail for a
   # reason that has nothing to do with the kit.
   printf '%s\n' "$WT_SHA" > "$PIN_FILE"
-  # Exported ONCE for the whole mocked block, so no invocation can accidentally
-  # fall back to the campaign's own pin file (and thus to a moving HEAD) or drop
-  # an intent manifest into the campaign folder. Both are honoured by the kit only
-  # because FA_ORBIT_SBATCH below is a mock.
+  # Exported ONCE for the whole block, so no invocation can accidentally fall back
+  # to the campaign's own pin file (and thus to a moving HEAD) or drop an intent
+  # manifest into the campaign folder. Both are honoured by the kit only because
+  # every invocation below runs in TEST MODE, which starts no submit command.
   export YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR"
   TRACE="${TMP}/trace.txt"; : > "$TRACE"
-  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-             bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
+  out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
+             YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   LEASE_OK=0; [ -f "$WT/.leases/7654321" ] && LEASE_OK=1
   if [ "$rc" -eq 0 ] && [ "$LEASE_OK" -eq 1 ] \
      && grep -q -- "--hold" "$TRACE" && grep -q "scontrol release 7654321" "$TRACE" \
@@ -788,10 +770,8 @@ EOS
   # sweep deletes under a live job. Retaining costs one held tree until the
   # reaper proves the id is gone.
   : > "$TRACE"
-  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" MOCK_RELEASE_FAILS=1 FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-             bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
+  out="$(env YAW_GEN_TEST_RELEASE_FAILS=1 YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
+             YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   if [ "$rc" -eq 6 ] && grep -q "scancel 7654321" "$TRACE" && [ -f "$WT/.leases/7654321" ]; then
     echo "PASS  a failed release cancels the job and RETAINS the lease"; PASS=$((PASS + 1))
   else
@@ -800,9 +780,9 @@ EOS
   fi
   # ...and when scancel ALSO fails, the outcome is maximally uncertain: still keep it
   : > "$TRACE"
-  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" MOCK_RELEASE_FAILS=1 MOCK_SCANCEL_FAILS=1 \
-             FA_ORBIT_SBATCH="${MOCK}/sbatch" FA_ORBIT_SCONTROL="${MOCK}/scontrol" \
-             FA_ORBIT_SCANCEL="${MOCK}/scancel" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
+  out="$(env YAW_GEN_TEST_RELEASE_FAILS=1 YAW_GEN_TEST_SCANCEL_FAILS=1 \
+             \
+             YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   if [ "$rc" -eq 6 ] && [ -f "$WT/.leases/7654321" ] \
      && echo "$out" | grep -q "scancel FAILED too"; then
     echo "PASS  release AND scancel failing keeps the lease and says why"; PASS=$((PASS + 1))
@@ -813,12 +793,10 @@ EOS
   bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
   # the lease is VALIDATED BEFORE the job is released, not after
   : > "$TRACE"
-  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-             bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
+  out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
+             YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   VAL_LINE="$(grep -n 'jobid \${JOBID}\$' "$SUB" | head -1 | cut -d: -f1)"
-  REL_LINE="$(grep -n 'SCONTROL" release' "$SUB" | head -1 | cut -d: -f1)"
+  REL_LINE="$(grep -n 'if ! slurm_release' "$SUB" | head -1 | cut -d: -f1)"
   if [ "$rc" -eq 0 ] && echo "$out" | grep -q "lease validated" \
      && grep -q "release saw a VALID lease for 7654321" "$TRACE" \
      && [ -n "$VAL_LINE" ] && [ -n "$REL_LINE" ] && [ "$VAL_LINE" -lt "$REL_LINE" ]; then
@@ -834,10 +812,8 @@ EOS
   # variables and no --exclude equivalent among them, so relying on it meant no
   # batch ever excluded anything. The flag is the fix.
   : > "$TRACE"
-  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-             bash "$SUB" ARM=C4L CELL=zref STEP=40000 EXCLUDE=neu303,neu332 2>&1)"; rc=$?
+  out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
+             YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 EXCLUDE=neu303,neu332 2>&1)"; rc=$?
   if [ "$rc" -eq 0 ] && grep -q -- "--exclude=neu303,neu332" "$TRACE"; then
     echo "PASS  EXCLUDE= is passed to sbatch as an explicit --exclude flag"; PASS=$((PASS + 1))
   else
@@ -847,10 +823,9 @@ EOS
   bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
   # no EXCLUDE given: no stray flag
   : > "$TRACE"
-  env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-      FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+  env   \
              YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-      bash "$SUB" ARM=C4L CELL=zref STEP=40000 >/dev/null 2>&1
+      YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 >/dev/null 2>&1
   if ! grep -q -- "--exclude" "$TRACE"; then
     echo "PASS  no EXCLUDE= means no --exclude flag"; PASS=$((PASS + 1))
   else
@@ -858,9 +833,9 @@ EOS
   fi
   bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
   # the env var that never worked is now refused loudly instead of ignored
-  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" SBATCH_EXCLUDE=neu303 \
-             FA_ORBIT_SBATCH="${MOCK}/sbatch" FA_ORBIT_SCONTROL="${MOCK}/scontrol" \
-             FA_ORBIT_SCANCEL="${MOCK}/scancel" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
+  out="$(env SBATCH_EXCLUDE=neu303 \
+             \
+             YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "sbatch does not honour it"; then
     echo "PASS  a set SBATCH_EXCLUDE is refused, not silently ignored"; PASS=$((PASS + 1))
   else
@@ -868,10 +843,9 @@ EOS
   fi
   # cell parameters travel with the job
   : > "$TRACE"
-  env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-      FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+  env   \
              YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-      bash "$SUB" ARM=C4L CELL=vctl STEP=40000 ROTATE_DEG=45 >/dev/null 2>&1
+      YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=vctl STEP=40000 ROTATE_DEG=45 >/dev/null 2>&1
   if grep -q "ROTATE_DEG=45" "$TRACE" && grep -q "CELL=vctl" "$TRACE"; then
     echo "PASS  the submitter exports the cell's own parameters to the job"; PASS=$((PASS + 1))
   else
@@ -885,10 +859,8 @@ EOS
   # --- argument values are DATA, never shell ---------------------------------
   # The old parser eval'd the value, so a quote in it executed what followed.
   CANARY="${TMP}/injected.canary"; rm -f "$CANARY"
-  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-             bash "$SUB" ARM=C4L CELL=zref STEP=40000 "PIN_SHA=x'; INJECTED=1; #'" 2>&1)"; rc=$?
+  out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
+             YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 "PIN_SHA=x'; INJECTED=1; #'" 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "not 40 hex characters"; then
     echo "PASS  the literal injection value is refused by shape"; PASS=$((PASS + 1))
   else
@@ -896,10 +868,8 @@ EOS
     FAIL=$((FAIL + 1))
   fi
   # ...and a payload that WOULD run under eval leaves no trace
-  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-             bash "$SUB" ARM=C4L CELL=zref STEP=40000 "PIN_SHA=x'; touch ${CANARY}; #'" 2>&1)"; rc=$?
+  out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
+             YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 "PIN_SHA=x'; touch ${CANARY}; #'" 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && [ ! -e "$CANARY" ]; then
     echo "PASS  an injected payload does not execute (no side effects)"; PASS=$((PASS + 1))
   else
@@ -909,10 +879,9 @@ EOS
   # every key is shape-checked, not just PIN_SHA
   for bad in "ARM=C4L;rm" "CELL=../etc" "CELL=screen" "STEP=1e4" "K=3" "EVAL_ORBIT=8" \
              "EXCLUDE=neu1;id" "ROTATE_DEG=1.2.3"; do
-    env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-        FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+    env     \
              YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-        bash "$SUB" ARM=C4L CELL=zref STEP=40000 "$bad" >/dev/null 2>&1 && { BADOK="$bad"; break; }
+        YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 "$bad" >/dev/null 2>&1 && { BADOK="$bad"; break; }
   done
   if [ -z "${BADOK:-}" ]; then
     echo "PASS  malformed values are refused for every key"; PASS=$((PASS + 1))
@@ -933,10 +902,8 @@ EOS
   if [ -n "$PIN2" ]; then
     printf '%s\n' "$PIN2" > "$PIN_FILE"
     : > "$TRACE"
-    out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-               FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-               bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
+    out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
+               YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
     if [ "$rc" -eq 0 ] && grep -q "EXPECT_SHA=${PIN2}" "$TRACE" \
        && echo "$out" | grep -q "campaign pin (from"; then
       echo "PASS  the campaign pin file is the DEFAULT pin"; PASS=$((PASS + 1))
@@ -947,20 +914,16 @@ EOS
     rm -f ${TEST_INTENT_DIR}/yaw_gen_submission_C4L_zref_*_jid7654321.txt
     # an explicit PIN_SHA that disagrees is refused
     OTHER="$(git rev-parse HEAD 2>/dev/null)"
-    out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-               FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-               bash "$SUB" ARM=C4L CELL=zref STEP=40000 "PIN_SHA=${OTHER}" 2>&1)"; rc=$?
+    out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
+               YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 "PIN_SHA=${OTHER}" 2>&1)"; rc=$?
     if [ "$rc" -ne 0 ] && echo "$out" | grep -q "disagrees with the campaign pin"; then
       echo "PASS  a PIN_SHA disagreeing with the campaign pin is refused"; PASS=$((PASS + 1))
     else
       echo "FAIL  a disagreeing PIN_SHA was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
     fi
     # ...and agreeing with it is fine
-    out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-               FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-               bash "$SUB" ARM=C4L CELL=zref STEP=40000 "PIN_SHA=${PIN2}" 2>&1)"; rc=$?
+    out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
+               YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 "PIN_SHA=${PIN2}" 2>&1)"; rc=$?
     [ "$rc" -eq 0 ] \
       && { echo "PASS  an explicit PIN_SHA equal to the campaign pin is accepted"; PASS=$((PASS + 1)); } \
       || { echo "FAIL  the agreeing PIN_SHA was refused (rc=${rc})"; FAIL=$((FAIL + 1)); }
@@ -968,10 +931,8 @@ EOS
     rm -f ${TEST_INTENT_DIR}/yaw_gen_submission_C4L_zref_*_jid7654321.txt
     # a malformed pin FILE is refused rather than silently ignored
     printf 'not-a-sha\n' > "$PIN_FILE"
-    out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-               FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-               bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
+    out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
+               YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
     if [ "$rc" -ne 0 ] && echo "$out" | grep -q "does not hold a 40-hex commit sha"; then
       echo "PASS  a malformed campaign pin file is refused"; PASS=$((PASS + 1))
     else
@@ -980,10 +941,9 @@ EOS
     # no pin file -> the old HEAD behaviour returns
     rm -f "$PIN_FILE"
     : > "$TRACE"
-    env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-        FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+    env     \
              YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-        bash "$SUB" ARM=C4L CELL=zref STEP=40000 >/dev/null 2>&1
+        YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 >/dev/null 2>&1
     UNPINNED_SHA="$(grep -o 'EXPECT_SHA=[0-9a-f]\{40\}' "$TRACE" | head -1 | cut -d= -f2)"
     if [ -n "$UNPINNED_SHA" ] && git merge-base --is-ancestor "$UNPINNED_SHA" HEAD 2>/dev/null; then
       echo "PASS  with no pin file, submission falls back to HEAD"; PASS=$((PASS + 1))
@@ -997,8 +957,8 @@ EOS
     # cells are comparable only if they ran at one commit.
     cp "$PIN_FILE" "${TMP}/pin_for_mocks" 2>/dev/null || true
     rm -f "$PIN_FILE"                       # THE point of this case: no pin file
-    out="$(env YAW_GEN_SQUEUE=/bin/false YAW_GEN_SUBMIT=/bin/false YAW_GEN_TEST_MODE=1 \
-               YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" \
+    out="$(env YAW_GEN_SQUEUE=/bin/false YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
+               YAW_GEN_PIN_FILE="${TMP}/no_such_pin" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" \
                bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
     cp "${TMP}/pin_for_mocks" "$PIN_FILE" 2>/dev/null || true
     if [ "$rc" -ne 0 ] && echo "$out" | grep -q "refusing to submit a wave with no campaign pin"; then
@@ -1069,10 +1029,8 @@ assert int(v['training_seed'])==42
   PIN="$(git rev-parse HEAD~1 2>/dev/null)"
   if [ -n "$PIN" ]; then
     : > "$TRACE"
-    out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-               FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-               bash "$SUB" ARM=C4L CELL=zref STEP=40000 "PIN_SHA=${PIN}" 2>&1)"; rc=$?
+    out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
+               YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 "PIN_SHA=${PIN}" 2>&1)"; rc=$?
     PINNED_WT="${MAIN_TREE}/.measure_worktrees/${PIN}"
     if [ "$rc" -eq 0 ] && [ -d "$PINNED_WT" ] \
        && [ "$(git -C "$PINNED_WT" rev-parse HEAD)" = "$PIN" ]; then
@@ -1106,19 +1064,15 @@ assert int(v['training_seed'])==42
     echo "SKIP  PIN_SHA cases (no HEAD~1 available)"
   fi
   # a commit this repository does not have must be refused
-  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-             bash "$SUB" ARM=C4L CELL=zref STEP=40000 PIN_SHA=0123456789abcdef0123456789abcdef01234567 2>&1)"; rc=$?
+  out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
+             YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 PIN_SHA=0123456789abcdef0123456789abcdef01234567 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "is not a commit in this repository"; then
     echo "PASS  a non-existent PIN_SHA is refused"; PASS=$((PASS + 1))
   else
     echo "FAIL  a non-existent PIN_SHA was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
   fi
-  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-             bash "$SUB" ARM=C4L CELL=zref STEP=40000 PIN_SHA=deadbeef 2>&1)"; rc=$?
+  out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
+             YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 PIN_SHA=deadbeef 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "not 40 hex characters"; then
     echo "PASS  a short PIN_SHA is refused"; PASS=$((PASS + 1))
   else
@@ -1128,19 +1082,15 @@ assert int(v['training_seed'])==42
   # (nothing to restore: the pin under test is the seam file in $TMP)
   # --- the marker is not proof: fd 8 must BE the store lock, at the OUTER entry
   STORE_LOCK="${MAIN_TREE}/.measure_worktrees/.store.lock"
-  out="$(env FA_ORBIT_STORE_LOCK_HELD=1 MOCK_TRACE="$TRACE" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-             bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
+  out="$(env FA_ORBIT_STORE_LOCK_HELD=1 YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
+             YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "only CLAIMS to hold the store lock"; then
     echo "PASS  a forged lock marker with NO fd 8 is refused"; PASS=$((PASS + 1))
   else
     echo "FAIL  a forged marker with no fd 8 was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
   fi
   DECOY_LOCK="${TMP}/decoy.lock"; : > "$DECOY_LOCK"
-  out="$(env FA_ORBIT_STORE_LOCK_HELD=1 MOCK_TRACE="$TRACE" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
+  out="$(env FA_ORBIT_STORE_LOCK_HELD=1 YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
              bash -c 'exec 8>"$1"; exec bash "$2" ARM=C4L CELL=zref STEP=40000' _ "$DECOY_LOCK" "$SUB" 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "only CLAIMS to hold the store lock"; then
     echo "PASS  a forged marker with the WRONG fd 8 is refused"; PASS=$((PASS + 1))
@@ -1150,9 +1100,7 @@ assert int(v['training_seed'])==42
   # fd 8 on a DELETED file: readlink -f cannot resolve it, and an unresolvable
   # path must never be read as a match (two empty strings compare equal)
   GONE="${TMP}/gone.lock"; : > "$GONE"
-  out="$(env FA_ORBIT_STORE_LOCK_HELD=1 MOCK_TRACE="$TRACE" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
+  out="$(env FA_ORBIT_STORE_LOCK_HELD=1 YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
              bash -c 'exec 8>"$1"; rm -f "$1"; exec bash "$2" ARM=C4L CELL=zref STEP=40000' _ "$GONE" "$SUB" 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "only CLAIMS to hold the store lock"; then
     echo "PASS  an unresolvable fd 8 (deleted file) is refused"; PASS=$((PASS + 1))
@@ -1238,9 +1186,9 @@ assert int(v['training_seed'])==42
   # the very sweep we are racing, which would test the reaper, not the lock.
   LIVEJOB="$(squeue -h -u "$(id -un)" -o %i 2>/dev/null | head -1)"
   [ -n "$LIVEJOB" ] || LIVEJOB=8765432
-  env MOCK_TRACE="$TRACE" MOCK_SBATCH_SLEEP=6 "MOCK_JOBID=${LIVEJOB}" \
-      FA_ORBIT_SBATCH="${MOCK}/sbatch" FA_ORBIT_SCONTROL="${MOCK}/scontrol" \
-      FA_ORBIT_SCANCEL="${MOCK}/scancel" bash "$SUB" ARM=C4L CELL=zref STEP=40000 \
+  env YAW_GEN_TEST_SUBMIT_SLEEP=6 "YAW_GEN_TEST_JOBID=${LIVEJOB}" \
+      \
+      YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 \
       > "${TMP}/submit.out" 2>&1 &
   SUBMIT_PID=$!
   for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "${TRACE}.submitting" ] && break; sleep 1; done
@@ -1350,20 +1298,16 @@ assert int(v['training_seed'])==42
   fi
   bash "$HELPER" --thaw >/dev/null 2>&1
   # a submission without the freeze is refused: the condition is self-enforcing
-  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-             bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
+  out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
+             YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "requires the deletion freeze"; then
     echo "PASS  a submission without the campaign freeze is refused"; PASS=$((PASS + 1))
   else
     echo "FAIL  a submission ran without the campaign freeze (rc=${rc})"; FAIL=$((FAIL + 1))
   fi
   bash "$HELPER" --freeze "guard suite" >/dev/null 2>&1
-  out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-             FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-             YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-             bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
+  out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
+             YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   if [ "$rc" -eq 0 ] && echo "$out" | grep -q "campaign freeze: ACTIVE"; then
     echo "PASS  the submitter reports the freeze state in its preflight"; PASS=$((PASS + 1))
   else
@@ -1627,7 +1571,7 @@ else
 fi
 # a DRYRUN must not submit, classify or query the queue: point every seam at a
 # command that FAILS, and require success anyway.
-if DRYRUN=1 env YAW_GEN_SQUEUE=/bin/false YAW_GEN_SUBMIT=/bin/false \
+if DRYRUN=1 env YAW_GEN_SQUEUE=/bin/false \
      bash "$GRID" WAVE=vctl >/dev/null 2>&1; then
   echo "PASS  DRYRUN neither submits nor queries the queue"; PASS=$((PASS + 1))
 else
@@ -1675,7 +1619,7 @@ json.dump({"metrics": {}, "eval_name": "nonsense"}, open(p, "w"))
 print(p)
 PY
 printf '%s\n' "$HEAD_SHA" > "$PIN_FILE"      # a live wave requires the pin FILE
-OUT="$(env YAW_GEN_SQUEUE=/bin/false YAW_GEN_SUBMIT=/bin/false YAW_GEN_TEST_MODE=1 \
+OUT="$(env YAW_GEN_SQUEUE=/bin/false YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
         YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" OUTPUT_ROOT="$DEDUP" \
         bash "$GRID" WAVE=vctl "PIN_SHA=${HEAD_SHA}" 2>&1)"; rc=$?
 if [ "$rc" -eq 3 ] && echo "$OUT" | grep -q "HALT:" \
@@ -1692,7 +1636,7 @@ else
 fi
 # with the broken artifact removed the same wave classifies every cell MISSING
 rm -f "${DEDUP}/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/"*_metrics_*.json
-OUT="$(env YAW_GEN_SQUEUE=/bin/false YAW_GEN_SUBMIT=/bin/false YAW_GEN_TEST_MODE=1 \
+OUT="$(env YAW_GEN_SQUEUE=/bin/false YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
         YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" OUTPUT_ROOT="$DEDUP" \
         bash "$GRID" WAVE=vctl "PIN_SHA=${HEAD_SHA}" 2>&1)"; rc=$?
 rm -f "$PIN_FILE"
@@ -1704,32 +1648,20 @@ else
 fi
 
 # --- LIVE WAVE (mocked): the rails the review found missing -------------------
-# Nothing is submitted: YAW_GEN_SUBMIT is a shim that records its argv, and
-# YAW_GEN_SQUEUE prints a scripted queue. What is proven is what the wave DECIDES
+# Nothing is submitted: in TEST MODE the wave starts no submission process at
+# all and records the argv it would have used; YAW_GEN_SQUEUE prints a scripted queue. What is proven is what the wave DECIDES
 # — which cells it skips, which it halts on, and which argv it would launch.
 echo
 echo "--- wave submitter: live-wave decisions (mocked submit + squeue) ---"
 LIVE="${TMP}/live"; mkdir -p "$LIVE"
 LIVE_PIN="$HEAD_SHA"
 LIVE_WT="${TMP}/live_wt"; mkdir -p "${LIVE_WT}/.leases"
-LIVE_TRACE="${TMP}/live_submit.txt"
-LIVE_QUEUE="${TMP}/live_queue.txt"; : > "$LIVE_QUEUE"
+: > "$LIVE_QUEUE"
 cat > "${TMP}/mock_squeue" <<'EOS'
 #!/usr/bin/env bash
 cat "$LIVE_QUEUE"
 EOS
-cat > "${TMP}/mock_submit" <<'EOS'
-#!/usr/bin/env bash
-# record the argv AND whether the wave had already written its LAUNCHING line
-echo "submit $*" >> "$LIVE_TRACE"
-if grep -q 'LAUNCHING' "$COMMAND_LOG_UNDER_TEST" 2>/dev/null; then
-  echo "  launching-line-present" >> "$LIVE_TRACE"
-else
-  echo "  launching-line-MISSING" >> "$LIVE_TRACE"
-fi
-echo "submitted HELD as 5550001"
-EOS
-chmod +x "${TMP}/mock_squeue" "${TMP}/mock_submit"
+chmod +x "${TMP}/mock_squeue"
 
 # one landed C4L vctl@90 cell, valid under the AUDITED digest
 $PY - "$VALIDATOR" "$LIVE" "$LIVE_PIN" <<'PY'
@@ -1778,8 +1710,8 @@ live_wave() {   # <extra env...> — run the vctl wave with everything mocked
   printf '%s\n' "$LIVE_PIN" > "$PIN_FILE"
   env LIVE_QUEUE="$LIVE_QUEUE" LIVE_TRACE="$LIVE_TRACE" \
       COMMAND_LOG_UNDER_TEST="$TEST_CMDLOG" \
-      YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_SUBMIT="${TMP}/mock_submit" \
-      YAW_GEN_TEST_MODE=1 YAW_GEN_WT_DIR="$LIVE_WT" YAW_GEN_PIN_FILE="$PIN_FILE" \
+      YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
+      YAW_GEN_TEST_RECORD="$LIVE_TRACE" YAW_GEN_WT_DIR="$LIVE_WT" YAW_GEN_PIN_FILE="$PIN_FILE" \
       YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" OUTPUT_ROOT="$LIVE" "$@" \
       bash "$GRID" WAVE=vctl 2>&1
 }
@@ -1865,7 +1797,7 @@ fi
 : > "$LIVE_QUEUE"
 # (g) the pin FILE is required even when PIN_SHA is supplied (review B3)
 rm -f "$PIN_FILE"
-OUT="$(env YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_SUBMIT="${TMP}/mock_submit" \
+OUT="$(env YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
        YAW_GEN_TEST_MODE=1 YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" \
        LIVE_QUEUE="$LIVE_QUEUE" OUTPUT_ROOT="$LIVE" bash "$GRID" WAVE=vctl \
        "PIN_SHA=${LIVE_PIN}" 2>&1)"; rc=$?
@@ -1878,7 +1810,7 @@ fi
 printf '%s\n' "$LIVE_PIN" > "$PIN_FILE"
 OTHER_PIN="$(git rev-parse "${LIVE_PIN}^" 2>/dev/null)"   # the pin's PARENT: never the pin
 if [ -n "$OTHER_PIN" ]; then
-  OUT="$(env YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_SUBMIT="${TMP}/mock_submit" \
+  OUT="$(env YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
          YAW_GEN_TEST_MODE=1 YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" \
          LIVE_QUEUE="$LIVE_QUEUE" OUTPUT_ROOT="$LIVE" bash "$GRID" WAVE=vctl \
          "PIN_SHA=${OTHER_PIN}" 2>&1)"; rc=$?
@@ -1890,7 +1822,7 @@ if [ -n "$OTHER_PIN" ]; then
 fi
 # (i) a pin file naming a commit this repository does not have is refused
 printf '%s\n' "0123456789abcdef0123456789abcdef01234567" > "$PIN_FILE"
-OUT="$(env YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_SUBMIT="${TMP}/mock_submit" \
+OUT="$(env YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
        YAW_GEN_TEST_MODE=1 YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" \
        LIVE_QUEUE="$LIVE_QUEUE" OUTPUT_ROOT="$LIVE" bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "is not a commit in this repository"; then
@@ -1900,10 +1832,12 @@ else
 fi
 rm -f "$PIN_FILE"
 # The live command log must be exactly as this suite found it: untouched.
-if [ -f "$LIVE_CMDLOG" ] && grep -q '5550001' "$LIVE_CMDLOG"; then
-  echo "FAIL  the suite wrote mocked entries into the CAMPAIGN command log"; FAIL=$((FAIL + 1))
+if [ "$(sha256sum "$LIVE_CMDLOG" 2>/dev/null | cut -d' ' -f1)" = "${LIVE_CMDLOG_SUM_AT_START}" ]; then
+  echo "PASS  the campaign command log is BYTE-IDENTICAL to what this suite found"
+  PASS=$((PASS + 1))
 else
-  echo "PASS  the campaign command log was never written by this suite"; PASS=$((PASS + 1))
+  echo "FAIL  the suite modified the CAMPAIGN command log"; FAIL=$((FAIL + 1))
+  diff <(echo) <(tail -3 "$LIVE_CMDLOG") | sed 's/^/        | /'
 fi
 
 # --- X1: the lease seam may not weaken a LIVE wave (re-verify B5) ------------
@@ -1919,36 +1853,33 @@ JOBID_SEAM=5557777
 printf '%s exp14-screen-C8-vctl-rot90-40000-s42-K8\n' "$JOBID_SEAM" > "$LIVE_QUEUE"
 printf 'jobid %s\n' "$JOBID_SEAM" > "${LIVE_WT}/.leases/${JOBID_SEAM}"   # lease in the SEAM dir only
 : > "$LIVE_TRACE"
-# NOT in test mode: the seams must be ignored, which also means this wave reads
-# the CAMPAIGN's pin file — so it is given one only for the duration.
-cp "$PIN_FILE" "$LIVE_PIN_FILE" 2>/dev/null || true
-OUT="$(env LIVE_QUEUE="$LIVE_QUEUE" LIVE_TRACE="$LIVE_TRACE" \
-        COMMAND_LOG_UNDER_TEST="$TEST_CMDLOG" \
-        YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_SUBMIT="${TMP}/mock_submit" \
-        YAW_GEN_WT_DIR="$LIVE_WT" OUTPUT_ROOT="$LIVE" \
-        bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
-rm -f "$LIVE_PIN_FILE"
+# NOT in test mode: the seam must be IGNORED, and the wave must stop before it
+# can submit anything. It is deliberately given no campaign pin, so it refuses at
+# the pin gate — a guard case may never reach the live submission path at all.
+OUT="$(env YAW_GEN_WT_DIR="$LIVE_WT" OUTPUT_ROOT="$LIVE" bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "IGNORED"; then
+  echo "PASS  a live wave says plainly that YAW_GEN_WT_DIR is ignored"; PASS=$((PASS + 1))
+else
+  echo "FAIL  a live wave did not report the ignored seam (rc=${rc})"; FAIL=$((FAIL + 1))
+fi
+OUT="$(env LIVE_QUEUE="$LIVE_QUEUE" \
+        YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
+        YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" \
+        OUTPUT_ROOT="$LIVE" bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
 if [ "$rc" -eq 5 ] && echo "$OUT" | grep -q "holds NO lease under"; then
-  echo "PASS  YAW_GEN_WT_DIR is IGNORED without test mode (the unleased job still halts)"
+  echo "PASS  the unleased in-flight job halts the wave even with the seam set"
   PASS=$((PASS + 1))
 else
-  echo "FAIL  the lease seam weakened a live wave (rc=${rc})"
+  echo "FAIL  the lease check did not halt (rc=${rc})"
   echo "$OUT" | tail -4 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
 fi
-if echo "$OUT" | grep -q "${MAIN_TREE}/.measure_worktrees/${LIVE_PIN}"; then
-  echo "PASS  the halt names the CAMPAIGN's worktree, not the overridden one"; PASS=$((PASS + 1))
+# ...and TEST MODE never starts a submission process: the record shows simulated
+# submissions and the queue never grows.
+N_EXP14_BEFORE="$(squeue -h -u "$(id -un)" -o "%j" 2>/dev/null | grep -c '^exp14-' || true)"
+if [ "$N_EXP14_BEFORE" = "0" ]; then
+  echo "PASS  no exp14- job exists after a simulated wave"; PASS=$((PASS + 1))
 else
-  echo "FAIL  the wave looked for leases somewhere other than the pinned worktree"; FAIL=$((FAIL + 1))
-fi
-# ...and test mode may not be used against the real submitter
-OUT="$(env LIVE_QUEUE="$LIVE_QUEUE" YAW_GEN_SQUEUE="${TMP}/mock_squeue" \
-        YAW_GEN_TEST_MODE=1 YAW_GEN_WT_DIR="$LIVE_WT" YAW_GEN_PIN_FILE="$PIN_FILE" \
-        YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" OUTPUT_ROOT="$LIVE" \
-        bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
-if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "may only run against a mocked submitter"; then
-  echo "PASS  YAW_GEN_TEST_MODE=1 refuses to drive the real submitter"; PASS=$((PASS + 1))
-else
-  echo "FAIL  test mode ran a real submission path (rc=${rc})"; FAIL=$((FAIL + 1))
+  echo "FAIL  a simulated wave left ${N_EXP14_BEFORE} exp14- jobs in the queue"; FAIL=$((FAIL + 1))
 fi
 rm -f "${LIVE_WT}/.leases/${JOBID_SEAM}"; : > "$LIVE_QUEUE"
 
@@ -1975,10 +1906,9 @@ rm -f "$PIN_FILE"
 : > "$TRACE"
 BLOCK="${TEST_INTENT_DIR}/yaw_gen_submission_C4L_zref_S40000_s42_K8_jid7654321.txt"
 rm -rf "$BLOCK"; mkdir -p "$BLOCK"          # publishing onto a directory must fail
-out="$(env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-           FA_ORBIT_SCONTROL="${MOCK}/scontrol" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
+out="$(env        \
              YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-           bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
+           YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ] && grep -q "scancel 7654321" "$TRACE" \
    && ! grep -q "scontrol release" "$TRACE"; then
   echo "PASS  a held job whose intent manifest cannot be published is CANCELLED"
@@ -1992,23 +1922,14 @@ bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
 
 # an interrupted submission (SIGTERM between hold and release) cancels too
 : > "$TRACE"
-cat > "${MOCK}/scontrol_slow" <<'EOS'
-#!/usr/bin/env bash
-echo "scontrol $*" >> "$MOCK_TRACE"
-[ "$1" = "release" ] && { touch "${MOCK_TRACE}.releasing"; sleep 10; }
-exit 0
-EOS
-chmod +x "${MOCK}/scontrol_slow"
 rm -f "${TRACE}.releasing"
-env MOCK_TRACE="$TRACE" MOCK_WT="$WT" FA_ORBIT_SBATCH="${MOCK}/sbatch" \
-    FA_ORBIT_SCONTROL="${MOCK}/scontrol_slow" FA_ORBIT_SCANCEL="${MOCK}/scancel" \
-    YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR" \
-    bash "$SUB" ARM=C4L CELL=zref STEP=40000 >/dev/null 2>&1 &
+env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" YAW_GEN_TEST_RELEASE_SLEEP=10 \
+    YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 >/dev/null 2>&1 &
 KILL_PID=$!
 for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "${TRACE}.releasing" ] && break; sleep 1; done
 if [ -f "${TRACE}.releasing" ]; then
   kill -TERM "$KILL_PID" 2>/dev/null
-  wait "$KILL_PID" 2>/dev/null
+  wait "$KILL_PID" 2>/dev/null; KILL_RC=$?
   if grep -q "scancel 7654321" "$TRACE"; then
     echo "PASS  a submission killed between hold and release cancels the held job"
     PASS=$((PASS + 1))
@@ -2016,12 +1937,111 @@ if [ -f "${TRACE}.releasing" ]; then
     echo "FAIL  an interrupted submission left a held job behind"; sed 's/^/        | /' "$TRACE"
     FAIL=$((FAIL + 1))
   fi
+  # ...and it must TERMINATE nonzero, so nothing downstream can run afterwards
+  if [ "$KILL_RC" -ne 0 ]; then
+    echo "PASS  the interrupted submission exits nonzero (rc=${KILL_RC})"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  an interrupted submission exited 0"; FAIL=$((FAIL + 1))
+  fi
 else
   wait "$KILL_PID" 2>/dev/null
   echo "FAIL  the interrupt fixture never reached the release window"; FAIL=$((FAIL + 1))
 fi
 bash "$HELPER" --release 7654321 "$WT" >/dev/null 2>&1
 rm -f ${TEST_INTENT_DIR}/yaw_gen_submission_C4L_zref_*_jid7654321.txt
+
+# --- Y1: a test may not reach ANY external submit executable ----------------
+# "Is this executable a mock?" is undecidable: a wrapper, a copy, a hard link or
+# an absolute path to the real sbatch all differ from the string "sbatch". The
+# kit therefore no longer asks — test mode starts no submit command at all — and
+# every override is refused. These cases use harmless stand-ins (/bin/echo and a
+# wrapper that only records) so the CLASS is demonstrated without any risk of a
+# submission: what is asserted is the REFUSAL, not what the executable does.
+echo
+echo "--- submit-executable overrides are refused, not trusted ---"
+for SPELLING in "/bin/echo" "$(command -v sbatch 2>/dev/null || echo /usr/bin/sbatch)"; do
+  out="$(env "FA_ORBIT_SBATCH=${SPELLING}" YAW_GEN_PIN_FILE="$PIN_FILE" \
+         bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "may only be set to 'sbatch'"; then
+    echo "PASS  FA_ORBIT_SBATCH='${SPELLING}' is refused in live mode"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  an absolute-path 'mock' was accepted (rc=${rc}) — it could be the real sbatch"
+    echo "$out" | tail -3 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+  fi
+done
+WRAP="${TMP}/sbatch_wrapper.sh"
+printf '#!/usr/bin/env bash\necho "WRAPPER-WOULD-HAVE-SUBMITTED $*" >> "%s"\necho 9999999\n' \
+  "${TMP}/wrapper_calls.txt" > "$WRAP"; chmod +x "$WRAP"
+rm -f "${TMP}/wrapper_calls.txt"
+out="$(env "FA_ORBIT_SBATCH=${WRAP}" YAW_GEN_PIN_FILE="$PIN_FILE" \
+       bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && [ ! -f "${TMP}/wrapper_calls.txt" ]; then
+  echo "PASS  a wrapper script is refused and never executed"; PASS=$((PASS + 1))
+else
+  echo "FAIL  a wrapper 'mock' ran (rc=${rc}) — a wrapper can call the real sbatch"
+  FAIL=$((FAIL + 1))
+fi
+out="$(env YAW_GEN_TEST_MODE=1 "FA_ORBIT_SBATCH=${WRAP}" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "may not be set in test mode"; then
+  echo "PASS  an override is refused in TEST MODE too (test mode runs no submit command)"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL  test mode accepted a submit-executable override (rc=${rc})"; FAIL=$((FAIL + 1))
+fi
+out="$(env YAW_GEN_SUBMIT="$WRAP" YAW_GEN_TEST_MODE=1 YAW_GEN_PIN_FILE="$PIN_FILE" \
+       bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "YAW_GEN_SUBMIT no longer exists"; then
+  echo "PASS  the wave refuses an overridden submitter outright"; PASS=$((PASS + 1))
+else
+  echo "FAIL  the wave accepted an overridden submitter (rc=${rc})"; FAIL=$((FAIL + 1))
+fi
+# a LIVE wave may not carry the failure-injection seams either
+out="$(env YAW_GEN_SQUEUE=/bin/false bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "need YAW_GEN_TEST_MODE=1"; then
+  echo "PASS  a live wave refuses the squeue/sync injection seams"; PASS=$((PASS + 1))
+else
+  echo "FAIL  a live wave accepted an injection seam (rc=${rc})"; FAIL=$((FAIL + 1))
+fi
+
+# --- Y2: an unparseable job id must still cancel, BY NAME --------------------
+# sbatch can succeed while its output is unreadable; the id is then unknown but
+# the JOB IS REAL. The abort guard is armed before the submission and falls back
+# to the cell's own (injective) job name.
+echo
+echo "--- an unreadable job id cancels by NAME ---"
+: > "$TRACE"
+out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" YAW_GEN_TEST_JOBID="not-an-id" \
+       bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] \
+   && grep -q -- "scancel --name=exp14-screen-C4L-zref-40000-s42-K8" "$TRACE" \
+   && ! grep -q "scontrol release" "$TRACE"; then
+  echo "PASS  a malformed job id cancels by name and never releases"; PASS=$((PASS + 1))
+else
+  echo "FAIL  a malformed job id left a possible job uncancelled (rc=${rc})"
+  sed 's/^/        | /' "$TRACE"; FAIL=$((FAIL + 1))
+fi
+# structural: the guard is armed BEFORE the submission, not after it returns
+TRAP_LINE="$(grep -n '^trap cancel_held_job EXIT$' "$SUB" | head -1 | cut -d: -f1)"
+SUBMIT_LINE="$(grep -n 'JOBID="\$(slurm_submit_hold' "$SUB" | head -1 | cut -d: -f1)"
+if [ -n "$TRAP_LINE" ] && [ -n "$SUBMIT_LINE" ] && [ "$TRAP_LINE" -lt "$SUBMIT_LINE" ]; then
+  echo "PASS  the abort guard is armed BEFORE the submission (trap@${TRAP_LINE} < submit@${SUBMIT_LINE})"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL  the abort guard is armed after the submission (trap@${TRAP_LINE:-none} submit@${SUBMIT_LINE:-none})"
+  FAIL=$((FAIL + 1))
+fi
+if grep -q "trap 'cancel_held_job; exit 130' INT" "$SUB" \
+   && grep -q "trap 'cancel_held_job; exit 143' TERM" "$SUB"; then
+  echo "PASS  INT/TERM cancel AND terminate nonzero (release can never follow)"; PASS=$((PASS + 1))
+else
+  echo "FAIL  a signal handler cancels but falls through"; FAIL=$((FAIL + 1))
+fi
+# and no external submit command survives anywhere in the kit's live path
+if grep -vE '^[[:space:]]*#' "$SUB" | grep -qE '"\$SBATCH"|"\$SCONTROL"|"\$SCANCEL"'; then
+  echo "FAIL  the submitter still executes an overridable Slurm binary variable"; FAIL=$((FAIL + 1))
+else
+  echo "PASS  the submitter calls slurm_* wrappers only (no overridable binary)"; PASS=$((PASS + 1))
+fi
 
 # a manifest without its completion sentinel is rejected BY THE READER
 PART="${TMP}/partial_manifest.txt"
@@ -2039,16 +2059,16 @@ else
 fi
 # structural: the cancel-on-abort trap is armed right after the hold and stood
 # down only after a successful release
-ARM_LINE="$(grep -n 'trap cancel_held_job EXIT INT TERM' "$SUB" | head -1 | cut -d: -f1)"
-SB_LINE="$(grep -n 'JOBID="\$("\$SBATCH" --hold' "$SUB" | head -1 | cut -d: -f1)"
-DISARM_LINE="$(grep -n 'HELD_JOBID=""; trap - EXIT INT TERM' "$SUB" | head -1 | cut -d: -f1)"
-REL_LINE3="$(grep -n 'SCONTROL" release' "$SUB" | head -1 | cut -d: -f1)"
+ARM_LINE="$(grep -n '^trap cancel_held_job EXIT$' "$SUB" | head -1 | cut -d: -f1)"
+SB_LINE="$(grep -n 'JOBID="\$(slurm_submit_hold' "$SUB" | head -1 | cut -d: -f1)"
+DISARM_LINE="$(grep -n 'ABORT_ACTIVE=0; HELD_JOBID=""; trap - EXIT INT TERM' "$SUB" | head -1 | cut -d: -f1)"
+REL_LINE3="$(grep -n 'if ! slurm_release' "$SUB" | head -1 | cut -d: -f1)"
 if [ -n "$ARM_LINE" ] && [ -n "$SB_LINE" ] && [ -n "$DISARM_LINE" ] && [ -n "$REL_LINE3" ] \
-   && [ "$SB_LINE" -lt "$ARM_LINE" ] && [ "$REL_LINE3" -lt "$DISARM_LINE" ]; then
-  echo "PASS  the cancel trap is armed after the hold and disarmed after the release"
+   && [ "$ARM_LINE" -lt "$SB_LINE" ] && [ "$REL_LINE3" -lt "$DISARM_LINE" ]; then
+  echo "PASS  the cancel trap is armed BEFORE the submission and disarmed after the release"
   PASS=$((PASS + 1))
 else
-  echo "FAIL  the cancel trap is missing or misordered (sbatch@${SB_LINE} arm@${ARM_LINE} rel@${REL_LINE3} disarm@${DISARM_LINE})"
+  echo "FAIL  the cancel trap is missing or misordered (arm@${ARM_LINE:-none} submit@${SB_LINE:-none} rel@${REL_LINE3:-none} disarm@${DISARM_LINE:-none})"
   FAIL=$((FAIL + 1))
 fi
 
@@ -2056,7 +2076,7 @@ fi
 echo
 echo "--- single-cell submitter: DRYRUN ---"
 WT_BEFORE="$(ls -1d "${MAIN_TREE}"/.measure_worktrees/*/ 2>/dev/null | wc -l)"
-DOUT="$(DRYRUN=1 bash "$SUB" ARM=C4L CELL=vctl STEP=40000 ROTATE_DEG=45 2>&1)"; rc=$?
+DOUT="$(DRYRUN=1 YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=vctl STEP=40000 ROTATE_DEG=45 2>&1)"; rc=$?
 WT_AFTER="$(ls -1d "${MAIN_TREE}"/.measure_worktrees/*/ 2>/dev/null | wc -l)"
 if [ "$rc" -eq 0 ] && echo "$DOUT" | grep -q "nothing submitted" \
    && [ "$WT_BEFORE" = "$WT_AFTER" ]; then
@@ -2072,7 +2092,7 @@ if [ "$DRY_NAME" = "$WANT_NAME" ]; then
 else
   echo "FAIL  submitter job name '${DRY_NAME}' != '${WANT_NAME}'"; FAIL=$((FAIL + 1))
 fi
-DRY_NAME90="$(DRYRUN=1 bash "$SUB" ARM=C4L CELL=vctl STEP=40000 ROTATE_DEG=90 2>&1 \
+DRY_NAME90="$(DRYRUN=1 YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=vctl STEP=40000 ROTATE_DEG=90 2>&1 \
               | sed -n 's/^DRYRUN job-name //p')"
 if [ -n "$DRY_NAME90" ] && [ "$DRY_NAME" != "$DRY_NAME90" ]; then
   echo "PASS  the submitter gives the two C4L vctl angles distinct job names"; PASS=$((PASS + 1))
@@ -2081,7 +2101,7 @@ else
 fi
 # the intent manifest is published while the job is HELD, before the release
 INT_LINE="$(grep -n 'if ! publish_intent; then' "$SUB" | head -1 | cut -d: -f1)"
-REL_LINE2="$(grep -n 'SCONTROL" release' "$SUB" | head -1 | cut -d: -f1)"
+REL_LINE2="$(grep -n 'if ! slurm_release' "$SUB" | head -1 | cut -d: -f1)"
 if [ -n "$INT_LINE" ] && [ -n "$REL_LINE2" ] && [ "$INT_LINE" -lt "$REL_LINE2" ] \
    && grep -q 'mv -f "\$tmp" "\$INTENT"' "$SUB" \
    && grep -q 'verify_manifest_complete "\$tmp"' "$SUB"; then
