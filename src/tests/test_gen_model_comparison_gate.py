@@ -66,7 +66,8 @@ def test_every_registered_fa_row_will_declare_its_orbit_execution():
         label, proto, _K, pats = row[0], row[1], row[2], row[3]
         if "fa" not in proto:
             continue
-        migrated = G.protocol_label(proto, G.is_exp11_row(pats), evidence_ready=True)
+        migrated = G.protocol_label(proto, G.is_batched_orbit_row(pats),
+                                    evidence_ready=True)
         assert ("legacy-loop" in migrated) or ("batched" in migrated), (
             f"row {label!r} would render as {migrated!r} — it must disclose loop vs batched")
 
@@ -74,7 +75,10 @@ def test_every_registered_fa_row_will_declare_its_orbit_execution():
 def test_historical_fa_rows_migrate_to_legacy_loop():
     for row in G.ROWS:
         proto, pats = row[1], row[3]
-        if "fa" in proto and not G.is_exp11_row(pats):
+        # is_batched_orbit_row is what main() actually passes; using is_exp11_row
+        # here would let an exp_14 row "pass" this test under a label the
+        # generator never renders for it.
+        if "fa" in proto and not G.is_batched_orbit_row(pats):
             assert "legacy-loop" in G.protocol_label(proto, False, evidence_ready=True)
 
 
@@ -531,8 +535,14 @@ def test_growing_and_fresh_rows_are_not_regressions(tmp_path, monkeypatch):
 # --------------------------------------------------------------------------- #
 # 8. VANL (Q9) — the vanilla arm of this recipe, labelled apart from legacy rows
 # --------------------------------------------------------------------------- #
+def _exp11_vanl_rows():
+    """The exp_11 (Q9) VANL rows. Scoped by contract, not by the substring "VANL":
+    exp_14's round-3 rows carry the same arm name and would otherwise be swept in."""
+    return [r for r in G.ROWS if "VANL" in r[0] and len(r) > 4 and r[4] == "q9"]
+
+
 def test_vanl_rows_are_registered_as_a_two_k_pair():
-    vanl = [r for r in G.ROWS if "VANL" in r[0]]
+    vanl = _exp11_vanl_rows()
     assert len(vanl) == 2, f"expected a K=1/K=8 pair, got {vanl}"
     assert {r[2] for r in vanl} == {1, 8}
     for label, proto, _k, pats in [r[:4] for r in vanl]:
@@ -553,14 +563,14 @@ def test_vanl_is_labelled_apart_from_legacy_vanilla_rows():
 
 def test_vanl_rows_are_exp11_rows_and_therefore_gated():
     """They must go through the exp_11 validator like every other exp_11 row."""
-    vanl = [r for r in G.ROWS if "VANL" in r[0]]
+    vanl = _exp11_vanl_rows()
     for _label, _proto, _k, pats in [r[:4] for r in vanl]:
         assert G.is_exp11_row(pats), pats
 
 
 def test_vanl_renders_pending_until_the_conf_block_lands(tmp_path):
     root = _fake_main_tree(tmp_path, G.ROWS)
-    vanl = [r for r in G.ROWS if "VANL" in r[0]][0]
+    vanl = _exp11_vanl_rows()[0]
     line, blocked = G.render_row(vanl[0], vanl[1], vanl[2], [], repo_root=str(root))
     assert not blocked
     assert "pending (0/5 seeds on disk)" in line
@@ -694,3 +704,266 @@ def test_q9_rows_declare_their_contract():
     q9 = [r for r in G.ROWS if len(r) > 4 and r[4] == "q9"]
     assert len(q9) == 4, q9
     assert {r[2] for r in q9} == {1, 8}
+
+
+# --------------------------------------------------------------------------- #
+# 10. exp_14 Z rows — five arms re-measured at ONE pin (plan §5.7, amended)
+# --------------------------------------------------------------------------- #
+# Round-3 amendment (worklog 2026-08-11 12:39): exp_11's Q9 already populated the
+# VANL row, so exp_14 no longer REPLACES any exp_11 spec — it ADDS its own
+# clearly-labelled Z rows and leaves exp_11's specs, rows and validator alone.
+import hashlib                                                       # noqa: E402
+
+import test_yaw_gen_collect as T                                     # noqa: E402
+
+EXP14_LABEL = "exp_14 Z (one-pin re-measurement)"
+V14 = T.V
+
+
+def _exp14_rows():
+    return [r for r in G.ROWS if len(r) > 4 and r[4] == "exp14z"]
+
+
+def test_exp14_rows_registered_for_all_five_arms_both_k():
+    rows = _exp14_rows()
+    assert len(rows) == 10, rows
+    arms = {r[0].split()[0] for r in rows}
+    assert arms == set(V14.ARMS), arms
+    for arm in V14.ARMS:
+        ks = {r[2] for r in rows if r[0].startswith(arm + " ")}
+        assert ks == {1, 8}, (arm, ks)
+
+
+def test_exp14_rows_carry_the_exact_label():
+    for label, proto, _k, pats in [r[:4] for r in _exp14_rows()]:
+        assert EXP14_LABEL in label, label
+        assert "exp14_" in pats[0] and "_zref_" in pats[0], pats
+        assert proto in ("vanilla eval (batched-era)", "fa eval (batched)"), proto
+
+
+def test_exp14_rows_are_not_gated_by_the_exp11_validator():
+    """Their evidence lives UNDER outputs_FLAC/exp11_<ARM>/ (the arm's own run
+    directory), so a naive 'exp11_ in the pattern' test would hand exp_14 rows to
+    a validator that only understands exp_11 eval names and block every one."""
+    for _label, _proto, _k, pats in [r[:4] for r in _exp14_rows()]:
+        assert G.is_exp14_row(pats), pats
+        assert not G.is_exp11_row(pats), pats
+        assert G.is_batched_orbit_row(pats), pats
+
+
+def test_exp14_fa_rows_are_labelled_batched_not_legacy_loop():
+    """exp_14 evaluates through the same batched orbit as exp_11; the deferred
+    legacy-loop migration must not relabel them."""
+    for _label, proto, _k, pats in [r[:4] for r in _exp14_rows()]:
+        migrated = G.protocol_label(proto, G.is_batched_orbit_row(pats),
+                                    evidence_ready=True)
+        assert "legacy-loop" not in migrated, migrated
+
+
+def test_no_exp14_row_glob_also_matches_its_sidecar(tmp_path):
+    import glob as _glob
+    for label, _proto, _k, pats in [r[:4] for r in _exp14_rows()]:
+        for pat in pats:
+            name = _probe_name_for(pat)
+            metric = tmp_path / name
+            metric.parent.mkdir(parents=True, exist_ok=True)
+            metric.write_text("{}")
+            for extra in (".screenmeta.json",):
+                (tmp_path / (name + extra)).write_text("{}")
+            (tmp_path / (name[:-len(".json")] + ".stream.json")).write_text("{}")
+            hits = _glob.glob(os.path.join(str(tmp_path), pat), recursive=True)
+            assert str(metric) in hits, f"{label}: probe does not match its own glob"
+            assert len(hits) == 1, f"{label}: glob {pat!r} also matched {hits}"
+
+
+# --- exp_11's registered specs must come through this round untouched --------
+EXP11_SPEC_DIGEST = "57820d20d7a47befb3a8a60a13893dfe91eeb3123449dd458b93c77152ea07d2"
+
+
+def _exp11_spec_fingerprint():
+    rows = [repr(tuple(r)) for r in G.ROWS if G.is_exp11_row(r[3])]
+    return len(rows), hashlib.sha256("\n".join(rows).encode()).hexdigest()
+
+
+def test_exp11_row_specs_are_byte_untouched():
+    """Round-3 contract: exp_14 ADDS rows. If this digest moves, an exp_11 spec
+    was edited — which this round is not allowed to do."""
+    count, digest = _exp11_spec_fingerprint()
+    assert (count, digest) == (EXP11_ROW_COUNT, EXP11_SPEC_DIGEST), (
+        f"exp_11 row specs changed: {count} rows, digest {digest}")
+
+
+EXP11_ROW_COUNT = 12
+
+
+# --- the exp_14 gate itself --------------------------------------------------
+def _exp14_tree(tmp_path, count=T.COUNT):
+    import shutil
+    root = tmp_path / "maintree"
+    (root / ".git").mkdir(parents=True)
+    (root / "src").symlink_to(os.path.join(_REPO_ROOT, "src"))
+    (root / "eval_FLAC.py").symlink_to(os.path.join(_REPO_ROOT, "eval_FLAC.py"))
+    for sub in ("exp_11_fa_orbit_claude", "exp_14_yaw_gen_claude"):
+        (root / "worklog" / "worklog_yixun" / sub).mkdir(parents=True)
+    (root / "worklog" / "worklog_yixun" / "model_comparison.md").write_text("PREVIOUS\n")
+    shutil.copy(G.EXP11_VALIDATOR, root / "worklog" / "worklog_yixun"
+                / "exp_11_fa_orbit_claude" / "exp11_validate_rows.py")
+    exp14 = root / "worklog" / "worklog_yixun" / "exp_14_yaw_gen_claude"
+    shutil.copy(os.path.join(_REPO_ROOT, "worklog", "worklog_yixun",
+                             "exp_14_yaw_gen_claude", "exp14_validate_cell.py"),
+                exp14 / "exp14_validate_cell.py")
+    (exp14 / "exp14_ckpt_expect.json").write_text(json.dumps(
+        {"step": V14.STEP, "arms": {a: {"sha256": s} for a, s in T.CKPT_SHA.items()}}))
+    return root
+
+
+def _exp14_cell_files(root, arm, k, seeds=(42, 43, 44, 45, 46), pin=T.PIN, **kw):
+    out = []
+    for seed in seeds:
+        cell = V14.Cell(arm, "zref", V14.STEP, seed, k, None)
+        out.append(T.write_cell(str(root / "outputs_FLAC"), cell, pin=pin, **kw))
+    return out
+
+
+@pytest.fixture()
+def small_count(monkeypatch):
+    """The campaign's real stream is 6,337 positions; a unit test uses 8."""
+    monkeypatch.setattr(G, "EXP14_EXPECTED_COUNT", T.COUNT)
+    return T.COUNT
+
+
+def test_exp14_expected_count_is_the_full_published_split():
+    assert G.EXP14_EXPECTED_COUNT == 6337 == V14.EXPECTED_COUNT
+
+
+def test_exp14_gate_passes_a_complete_validated_cell(tmp_path, small_count):
+    root = _exp14_tree(tmp_path)
+    files = _exp14_cell_files(root, "C8", 8)
+    ok, problems = G.validate_exp14_cell(files, repo_root=str(root))
+    assert ok, problems
+
+
+@pytest.mark.parametrize("patch,needle", [
+    ({"weights_source": "online"}, "weights_source"),
+    ({"cond_autocast": "default"}, "cond_autocast"),
+    ({"batch_size": 32}, "batch_size"),
+])
+def test_exp14_gate_refuses_a_cell_off_protocol(tmp_path, small_count, patch, needle):
+    root = _exp14_tree(tmp_path)
+    files = _exp14_cell_files(root, "C8", 8)
+    rec = json.load(open(files[0]))
+    rec.update(patch)
+    json.dump(rec, open(files[0], "w"))
+    ok, problems = G.validate_exp14_cell(files, repo_root=str(root))
+    assert not ok and any(needle in p for p in problems), problems
+
+
+def test_exp14_gate_refuses_a_wrong_checkpoint_digest(tmp_path, small_count):
+    """A table row must name WHICH checkpoint produced it (round-2 review B4)."""
+    root = _exp14_tree(tmp_path)
+    files = _exp14_cell_files(root, "C8", 8, ckpt_sha="0" * 64)
+    ok, problems = G.validate_exp14_cell(files, repo_root=str(root))
+    assert not ok and any("ckpt_sha256" in p for p in problems), problems
+
+
+def test_exp14_gate_refuses_a_four_seed_cell(tmp_path, small_count):
+    root = _exp14_tree(tmp_path)
+    files = _exp14_cell_files(root, "C8", 8, seeds=(42, 43, 44, 45))
+    ok, problems = G.validate_exp14_cell(files, repo_root=str(root))
+    assert not ok and any("46" in p for p in problems), problems
+
+
+def test_exp14_gate_refuses_a_rotated_cell_as_a_table_row(tmp_path, small_count):
+    """Only the unrotated Z block is a comparable table row; an R cell measured a
+    different estimand and would sit in the table looking like a θ=0 number."""
+    root = _exp14_tree(tmp_path)
+    files = [T.write_cell(str(root / "outputs_FLAC"),
+                          V14.Cell("C8", "rgen", V14.STEP, s, 8, None))
+             for s in (42, 43, 44, 45, 46)]
+    ok, problems = G.validate_exp14_cell(files, repo_root=str(root))
+    assert not ok and any("zref" in p or "unrotated" in p for p in problems), problems
+
+
+def test_exp14_gate_validates_the_stream_sidecar_when_it_is_present(tmp_path,
+                                                                    small_count):
+    root = _exp14_tree(tmp_path)
+    files = _exp14_cell_files(root, "C8", 8)
+    stream_path = V14.stream_path(files[0])
+    stream = json.load(open(stream_path))
+    stream["input_hash"] = "e" * 64                       # no longer recomputable
+    json.dump(stream, open(stream_path, "w"))
+    ok, problems = G.validate_exp14_cell(files, repo_root=str(root))
+    assert not ok and any("input_hash" in p for p in problems), problems
+
+
+def test_exp14_gate_admits_a_row_whose_stream_sidecar_is_not_in_this_checkout(
+        tmp_path, small_count):
+    """DECLARED SCOPE: the ~6,337-tuple assignment audits are not committed with
+    the table's evidence. The table gate proves the record and the submission
+    manifest; the per-position audit is re-validated by yaw_gen_collect.py on the
+    machine that holds it, and the header says so."""
+    root = _exp14_tree(tmp_path)
+    files = _exp14_cell_files(root, "C8", 8)
+    for path in files:
+        os.remove(V14.stream_path(path))
+    ok, problems = G.validate_exp14_cell(files, repo_root=str(root))
+    assert ok, problems
+    assert "stream" in "\n".join(G.build_header(evidence_ready=True)).lower()
+
+
+def test_exp14_round_needs_one_pin(tmp_path, small_count):
+    root = _exp14_tree(tmp_path)
+    cells = {("C8 …", 8): _exp14_cell_files(root, "C8", 8, pin="a" * 40),
+             ("C16 …", 8): _exp14_cell_files(root, "C16", 8, pin="b" * 40)}
+    problems = G.check_exp14_round(cells)
+    assert problems and any("pin" in p for p in problems), problems
+
+
+def test_exp14_round_needs_both_k(tmp_path, small_count):
+    root = _exp14_tree(tmp_path)
+    cells = {("C8 …", 8): _exp14_cell_files(root, "C8", 8), ("C8 …", 1): []}
+    problems = G.check_exp14_round(cells)
+    assert problems and any("K=1" in p for p in problems), problems
+
+
+def test_exp14_round_is_not_a_problem_before_anything_lands():
+    assert G.check_exp14_round({("C8 …", 8): [], ("C8 …", 1): []}) == []
+
+
+def test_exp14_rows_render_pending_until_the_block_lands(tmp_path):
+    root = _exp14_tree(tmp_path)
+    row = _exp14_rows()[0]
+    line, blocked = G.render_row(row[0], row[1], row[2], [], repo_root=str(root),
+                                 contract="exp14z")
+    assert not blocked and "pending (0/5 seeds on disk)" in line
+
+
+def test_populated_exp14_rows_render_numbers_end_to_end(tmp_path, small_count,
+                                                        monkeypatch):
+    root = _exp14_tree(tmp_path)
+    for arm in V14.ARMS:
+        for k in (1, 8):
+            _exp14_cell_files(root, arm, k)
+    assert G.main(["--repo-root", str(root)]) == 0
+    written = (root / "worklog" / "worklog_yixun" / "model_comparison.md").read_text()
+    rows = [ln for ln in written.splitlines() if EXP14_LABEL in ln and ln.startswith("|")]
+    assert len(rows) == 10, rows
+    for line in rows:
+        assert "BLOCKED" not in line and "WITHHELD" not in line and "pending" not in line
+        assert " ± " in line, line
+
+
+def test_an_incomplete_exp14_round_is_withheld_never_numeric(tmp_path, small_count):
+    """One K of one arm missing: the arm's rows publish as WITHHELD, and no
+    number from the incomplete round reaches the table."""
+    root = _exp14_tree(tmp_path)
+    for arm in V14.ARMS:
+        for k in (1, 8):
+            if arm == "C16" and k == 1:
+                continue
+            _exp14_cell_files(root, arm, k)
+    G.main(["--repo-root", str(root)])
+    written = (root / "worklog" / "worklog_yixun" / "model_comparison.md").read_text()
+    c16 = [ln for ln in written.splitlines()
+           if ln.startswith("| C16 ") and EXP14_LABEL in ln]
+    assert c16 and all("WITHHELD" in ln or "pending" in ln for ln in c16), c16
