@@ -1,0 +1,14 @@
+FAILED src/tests/test_yaw_gen_collect.py::test_suppress_validity_cells_removes_every_v_cell
+FAILED src/tests/test_yaw_gen_collect.py::test_suppress_validity_cells_also_filters_rendered_rows
+FAILED src/tests/test_yaw_gen_collect.py::test_render_block_table_is_byte_stable
+FAILED src/tests/test_yaw_gen_collect.py::test_render_gate_report_is_byte_stable
+FAILED src/tests/test_yaw_gen_collect.py::test_end_to_end_complete_grid_renders_every_section
+FAILED src/tests/test_yaw_gen_collect.py::test_headline_tables_never_contain_a_validity_cell_or_geom_retrieval
+FAILED src/tests/test_yaw_gen_collect.py::test_a_missing_seed_renders_pending_and_never_a_number
+FAILED src/tests/test_yaw_gen_collect.py::test_a_hash_mismatch_blocks_the_affected_contrast
+FAILED src/tests/test_yaw_gen_collect.py::test_a_failing_gate_suppresses_the_h_readouts
+FAILED src/tests/test_yaw_gen_collect.py::test_json_bundle_is_machine_readable_and_complete
+FAILED src/tests/test_yaw_gen_collect.py::test_cli_writes_markdown_and_json
+FAILED src/tests/test_yaw_gen_collect.py::test_cli_refuses_to_run_without_a_pin
+FAILED src/tests/test_yaw_gen_collect.py::test_cli_exit_code_reports_that_gates_did_not_pass
+13 failed, 1 passed, 72 deselected, 3 warnings in 71.60s (0:01:11)

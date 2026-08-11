@@ -1,0 +1,196 @@
+# exp_14 — random-yaw generalization: collected readouts
+
+Generated 2026-08-11T18:26:49-04:00 by `yaw_gen_collect.py` — every cell is re-validated from its own artifacts on each run; numbers never live in this file.
+
+- campaign pin `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` · step 40000 · seeds [42, 43, 44, 45, 46] · α=0.05 · stats backend: scipy
+- co-primary metrics: T60, RIR_to_GT_RIR_R@1 (Holm over the two, within each labelled hypothesis)
+- per-seed observation: split-level aggregate from each cell's own metrics record. Plan convention: per-scene mean (plan §4) — DEVIATION: no metrics JSON in this lineage carries a by_scene block (eval_per_scene is not set in the arm configs), so the per-scene mean is not recoverable from the committed artifacts; all cells are aggregated identically, so paired and cross-arm contrasts are unaffected and only absolute levels are item- not scene-weighted.
+
+## 1. Cell inventory
+
+- registered 106 · validated 105 · missing 1 · refused 0
+- random-yaw (R): 49 · unrotated (Z): 50 · validity (V): 6
+
+## 2. Validity gates (G1–G4) and the G5 check
+
+| gate | status | definition |
+|---|---|---|
+| G1 | PASS | \|m(V@90°,s42,K8) − m(Z,s42,K8)\| ≤ 0.5·σ̂(arm's 5 Z seeds) |
+| G2 | PASS | m_T60(VANL V@90°) − m_T60(VANL Z) ≥ 5·σ̂_T60(VANL) |
+| G3 | PASS | cell offsets == draw_yaw_offsets(n, 512, gen(rotate_seed)) |
+| G4 | PASS | cross-arm input/assignment hashes equal within (K, seed); Z.input_hash == R.input_hash within (arm, K, seed) |
+
+
+*G5 (external reproduction — a CHECK, never a gate): UNAVAILABLE.* exp_14 Z vs exp_11 conf @40k; disclose |Δ| > 3·√(σ11²+σ14²)/√5 (cross-pin: reported, never a halt)
+
+- C4L: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_7_kcxsab/pending
+- C8: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_7_kcxsab/pending
+- C16: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_7_kcxsab/pending
+- C32: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_7_kcxsab/pending
+
+## 3. Absolute robustness m_R (the PRIMARY criterion)
+
+**K=1** (descriptive)
+
+| arm | K | n | T60 ↓ | C50 ↓ | EDT ↓ | FD ↓ | RIR_to_GT_RIR_R@1 ↑ | RIR_to_GT_RIR_R@5 ↑ | RIR_to_GT_RIR_R@10 ↑ |
+|---|---|---|---|---|---|---|---|---|---|
+| VANL | 1 | 5 | 12.002 ± 0.019 | 1.000 ± 0.016 | 43.000 ± 0.016 | 0.400 ± 0.002 | 3.992 ± 0.025 | 15.000 ± 0.016 | 23.000 ± 0.016 |
+| C4L | 1 | 5 | 10.490 ± 0.032 | 1.000 ± 0.016 | 43.000 ± 0.016 | 0.370 ± 0.002 | 4.498 ± 0.025 | 15.000 ± 0.016 | 23.000 ± 0.016 |
+| C8 | 1 | 5 | 9.978 ± 0.019 | 1.000 ± 0.016 | 43.000 ± 0.016 | 0.360 ± 0.002 | 4.671 ± 0.011 | 15.000 ± 0.016 | 23.000 ± 0.016 |
+| C16 | 1 | 5 | 9.618 ± 0.019 | 1.000 ± 0.016 | 43.000 ± 0.016 | 0.352 ± 0.002 | 4.792 ± 0.028 | 15.000 ± 0.016 | 23.000 ± 0.016 |
+| C32 | 1 | 5 | 9.323 ± 0.032 | 1.000 ± 0.016 | 43.000 ± 0.016 | 0.347 ± 0.002 | 4.889 ± 0.023 | 15.000 ± 0.016 | 23.000 ± 0.016 |
+
+
+**K=8** (confirmatory)
+
+| arm | K | n | T60 ↓ | C50 ↓ | EDT ↓ | FD ↓ | RIR_to_GT_RIR_R@1 ↑ | RIR_to_GT_RIR_R@5 ↑ | RIR_to_GT_RIR_R@10 ↑ |
+|---|---|---|---|---|---|---|---|---|---|
+| VANL | 8 | 5 | 12.008 ± 0.019 | 1.000 ± 0.016 | 43.000 ± 0.016 | 0.400 ± 0.002 | 3.998 ± 0.028 | 15.000 ± 0.016 | 23.000 ± 0.016 |
+| C4L | 8 | 5 | 10.522 ± 0.019 | 1.000 ± 0.016 | 43.000 ± 0.016 | 0.370 ± 0.002 | 4.504 ± 0.023 | 15.000 ± 0.016 | 23.000 ± 0.016 |
+| C8 | 8 | 5 | 9.992 ± 0.019 | 1.000 ± 0.016 | 43.000 ± 0.016 | 0.360 ± 0.002 | 4.669 ± 0.025 | 15.000 ± 0.016 | 23.000 ± 0.016 |
+| C16 | 8 | 5 | 9.590 ± 0.032 | 1.000 ± 0.016 | 43.000 ± 0.016 | 0.352 ± 0.002 | 4.798 ± 0.025 | 15.000 ± 0.016 | 23.000 ± 0.016 |
+| C32 | 8 | — | *PENDING (4/5 seeds)* | | | | | | |
+
+
+## 4. Paired degradation Δ = m_R − m_Z (mean over 5 seed-paired diffs, ±½·95% CI)
+
+**K=1**
+
+| arm | K | n | T60 ↓ | C50 ↓ | EDT ↓ | FD ↓ | RIR_to_GT_RIR_R@1 ↑ | RIR_to_GT_RIR_R@5 ↑ | RIR_to_GT_RIR_R@10 ↑ |
+|---|---|---|---|---|---|---|---|---|---|
+| VANL | 1 | 5 | 3.002 ± 0.014 | 0.000 ± 0.000 | 0.000 ± 0.000 | 0.060 ± 0.000 | -1.008 ± 0.024 | 0.000 ± 0.000 | 0.000 ± 0.000 |
+| C4L | 1 | 5 | 1.490 ± 0.034 | 0.000 ± 0.000 | 0.000 ± 0.000 | 0.030 ± 0.000 | -0.502 ± 0.024 | 0.000 ± 0.000 | 0.000 ± 0.000 |
+| C8 | 1 | 5 | 0.978 ± 0.014 | 0.000 ± 0.000 | 0.000 ± 0.000 | 0.020 ± 0.000 | -0.329 ± 0.030 | 0.000 ± 0.000 | 0.000 ± 0.000 |
+| C16 | 1 | 5 | 0.618 ± 0.014 | 0.000 ± 0.000 | 0.000 ± 0.000 | 0.012 ± 0.000 | -0.208 ± 0.024 | 0.000 ± 0.000 | 0.000 ± 0.000 |
+| C32 | 1 | 5 | 0.323 ± 0.034 | 0.000 ± 0.000 | 0.000 ± 0.000 | 0.007 ± 0.000 | -0.111 ± 0.032 | 0.000 ± 0.000 | 0.000 ± 0.000 |
+
+
+**K=8**
+
+| arm | K | n | T60 ↓ | C50 ↓ | EDT ↓ | FD ↓ | RIR_to_GT_RIR_R@1 ↑ | RIR_to_GT_RIR_R@5 ↑ | RIR_to_GT_RIR_R@10 ↑ |
+|---|---|---|---|---|---|---|---|---|---|
+| VANL | 8 | 5 | 3.008 ± 0.014 | 0.000 ± 0.000 | 0.000 ± 0.000 | 0.060 ± 0.000 | -1.002 ± 0.024 | 0.000 ± 0.000 | 0.000 ± 0.000 |
+| C4L | 8 | 5 | 1.522 ± 0.014 | 0.000 ± 0.000 | 0.000 ± 0.000 | 0.030 ± 0.000 | -0.496 ± 0.030 | 0.000 ± 0.000 | 0.000 ± 0.000 |
+| C8 | 8 | 5 | 0.992 ± 0.014 | 0.000 ± 0.000 | 0.000 ± 0.000 | 0.020 ± 0.000 | -0.331 ± 0.024 | 0.000 ± 0.000 | 0.000 ± 0.000 |
+| C16 | 8 | 5 | 0.590 ± 0.034 | 0.000 ± 0.000 | 0.000 ± 0.000 | 0.012 ± 0.000 | -0.202 ± 0.024 | 0.000 ± 0.000 | 0.000 ± 0.000 |
+| C32 | 8 | — | *PENDING (0/5 seeds)* | | | | | | |
+
+
+## 5. Endpoint contrasts (H-P / H-M / H-S)
+
+**H-P (PRIMARY): m_R(C32) vs m_R(VANL)** (K=8)
+- PENDING — C32 R block at K=8 is PENDING (4/5 seeds)
+
+
+**H-M (mechanism): |Δ|(C32) vs |Δ|(C4L)** (K=8)
+- PENDING — C32 R block at K=8 is PENDING (4/5 seeds)
+
+
+**H-S (sanity): Δ(VANL) ≠ 0** (K=8)
+
+| metric | mean Δ | 95% CI | p | p (Holm) | favours first | won |
+|---|---|---|---|---|---|---|
+| T60 | 3.0080 | [2.9944, 3.0216] | 4.221e-11 | 8.443e-11 | no | yes |
+| RIR_to_GT_RIR_R@1 | -1.0020 | [-1.0259, -0.9781] | 3.258e-08 | 3.258e-08 | no | yes |
+
+**Verdict: SUPPORTED**
+
+
+*K=1 (descriptive repeat):*
+
+- H-P (PRIMARY): m_R(C32) vs m_R(VANL) → SUPPORTED
+- H-M (mechanism): |Δ|(C32) vs |Δ|(C4L) → SUPPORTED
+- H-S (sanity): Δ(VANL) ≠ 0 → SUPPORTED
+
+## 6. Adjacent fixed-order contrasts
+
+fixed-order adjacent contrasts on the plan's arm order, unadjusted and descriptive: no verdict attaches to them and the observed ranking is never turned into a confirmatory test
+
+*absolute m_R, fixed order VANL→C4L→C8→C16→C32*
+
+| pair | K | metric | mean Δ | 95% CI | p |
+|---|---|---|---|---|---|
+| VANL→C4L | 1 | T60 | -1.5120 | [-1.5596, -1.4644] | 9.914e-08 |
+| VANL→C4L | 1 | RIR_to_GT_RIR_R@1 | 0.5060 | [0.4788, 0.5332] | 8.414e-07 |
+| C4L→C8 | 1 | T60 | -0.5120 | [-0.5324, -0.4916] | 2.543e-07 |
+| C4L→C8 | 1 | RIR_to_GT_RIR_R@1 | 0.1727 | [0.1338, 0.2115] | 0.0002483 |
+| C8→C16 | 1 | T60 | -0.3600 | [-0.3600, -0.3600] | 0 |
+| C8→C16 | 1 | RIR_to_GT_RIR_R@1 | 0.1213 | [0.0754, 0.1673] | 0.001844 |
+| C16→C32 | 1 | T60 | -0.2947 | [-0.3151, -0.2743] | 2.311e-06 |
+| C16→C32 | 1 | RIR_to_GT_RIR_R@1 | 0.0969 | [0.0461, 0.1476] | 0.006081 |
+| VANL→C4L | 8 | T60 | -1.4860 | [-1.5132, -1.4588] | 1.134e-08 |
+| VANL→C4L | 8 | RIR_to_GT_RIR_R@1 | 0.5060 | [0.4574, 0.5546] | 8.502e-06 |
+| C4L→C8 | 8 | T60 | -0.5300 | [-0.5300, -0.5300] | 0 |
+| C4L→C8 | 8 | RIR_to_GT_RIR_R@1 | 0.1647 | [0.1250, 0.2043] | 0.0003232 |
+| C8→C16 | 8 | T60 | -0.4020 | [-0.4496, -0.3544] | 1.962e-05 |
+| C8→C16 | 8 | RIR_to_GT_RIR_R@1 | 0.1293 | [0.1021, 0.1565] | 0.0001903 |
+| C16→C32 | 8 | T60 | PENDING — 4/5 and 5/5 seeds on disk | | |
+| C16→C32 | 8 | RIR_to_GT_RIR_R@1 | PENDING — 4/5 and 5/5 seeds on disk | | |
+
+
+*|Δ| (flatness), same fixed order*
+
+| pair | K | metric | mean Δ | 95% CI | p |
+|---|---|---|---|---|---|
+| VANL→C4L | 1 | T60 | -1.5120 | [-1.5596, -1.4644] | 9.914e-08 |
+| VANL→C4L | 1 | RIR_to_GT_RIR_R@1 | -0.5060 | [-0.5332, -0.4788] | 8.414e-07 |
+| C4L→C8 | 1 | T60 | -0.5120 | [-0.5324, -0.4916] | 2.543e-07 |
+| C4L→C8 | 1 | RIR_to_GT_RIR_R@1 | -0.1727 | [-0.2115, -0.1338] | 0.0002483 |
+| C8→C16 | 1 | T60 | -0.3600 | [-0.3600, -0.3600] | 0 |
+| C8→C16 | 1 | RIR_to_GT_RIR_R@1 | -0.1213 | [-0.1673, -0.0754] | 0.001844 |
+| C16→C32 | 1 | T60 | -0.2947 | [-0.3151, -0.2743] | 2.311e-06 |
+| C16→C32 | 1 | RIR_to_GT_RIR_R@1 | -0.0969 | [-0.1476, -0.0461] | 0.006081 |
+| VANL→C4L | 8 | T60 | -1.4860 | [-1.5132, -1.4588] | 1.134e-08 |
+| VANL→C4L | 8 | RIR_to_GT_RIR_R@1 | -0.5060 | [-0.5546, -0.4574] | 8.502e-06 |
+| C4L→C8 | 8 | T60 | -0.5300 | [-0.5300, -0.5300] | 0 |
+| C4L→C8 | 8 | RIR_to_GT_RIR_R@1 | -0.1647 | [-0.2043, -0.1250] | 0.0003232 |
+| C8→C16 | 8 | T60 | -0.4020 | [-0.4496, -0.3544] | 1.962e-05 |
+| C8→C16 | 8 | RIR_to_GT_RIR_R@1 | -0.1293 | [-0.1565, -0.1021] | 0.0001903 |
+| C16→C32 | 8 | T60 | PENDING — 4/5 and 5/5 seeds on disk | | |
+| C16→C32 | 8 | RIR_to_GT_RIR_R@1 | PENDING — 4/5 and 5/5 seeds on disk | | |
+
+
+## 7. Geometry retrieval (rotated-gallery, confounded — descriptive only)
+
+rotated-gallery retrieval: in an R cell the gallery embeds the ROTATED point cloud through a non-yaw-invariant AGREE, so these numbers mix model robustness with AGREE's own yaw sensitivity. Cross-arm comparisons stay internally valid (the galleries are rotation-matched) but the level is confounded — descriptive only, never a headline or a co-primary.
+
+| block | arm | K | RIR_to_geom_R@1 | RIR_to_geom_R@5 | RIR_to_geom_R@10 |
+|---|---|---|---|---|---|
+| R | VANL | 1 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| R | VANL | 8 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| R | C4L | 1 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| R | C4L | 8 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| R | C8 | 1 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| R | C8 | 8 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| R | C16 | 1 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| R | C16 | 8 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| R | C32 | 1 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| R | C32 | 8 | *PENDING* | | |
+| Z | VANL | 1 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| Z | VANL | 8 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| Z | C4L | 1 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| Z | C4L | 8 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| Z | C8 | 1 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| Z | C8 | 8 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| Z | C16 | 1 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| Z | C16 | 8 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| Z | C32 | 1 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+| Z | C32 | 8 | 4.000 ± 0.016 | 13.000 ± 0.016 | 20.000 ± 0.016 |
+
+## 8. Validity cells (V) — QA only, never a headline
+
+| arm | angle | role | status | Δ vs unrotated (co-primaries) |
+|---|---|---|---|---|
+| C4L | 90° | in-group floor (G1) | OK | T60: 0.0000, RIR_to_GT_RIR_R@1: 0.0000 |
+| C8 | 90° | in-group floor (G1) | OK | T60: 0.0000, RIR_to_GT_RIR_R@1: 0.0000 |
+| C16 | 90° | in-group floor (G1) | OK | T60: 0.0000, RIR_to_GT_RIR_R@1: 0.0000 |
+| C32 | 90° | in-group floor (G1) | OK | T60: 0.0000, RIR_to_GT_RIR_R@1: 0.0000 |
+| VANL | 90° | positive control (exp_02 prior: vanilla degrades) | OK | T60: 3.4000, RIR_to_GT_RIR_R@1: -1.0000 |
+| C4L | 45° | off-group mechanism control — NO gate role | OK | T60: 0.6000, RIR_to_GT_RIR_R@1: 0.0000 |
+
+## 9. Refused and missing cells
+
+- no cell was refused.
+- 1 registered cell(s) have not landed: exp14_C32_rgen_S40000_s46_K8_rotrand46
+
+<!-- selftest scenario: pending · collector exit code: 4 · synthetic fixtures, 8-position stream -->
