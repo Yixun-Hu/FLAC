@@ -330,3 +330,10 @@
 - **Next** — Codex review of round B; then C32@40k conf → `fa_orbit_add_anchor.py C32` → commit the
   anchor → resubmit the restart legs at the pin-candidate base → record each leg (`--extend` as
   they save) → q9/traj/VANL blocks.
+
+## 2026-08-11 — q9 ROUND COMPLETE (pin 89f24cd, one-pin gate PASS): THE FRAME-AVERAGING DELTA REVERSES UNDER THE NEW RECIPE
+
+- **VANL @40k (vanilla eval, 5-seed):** K8 8.048±0.003 / 1.0219±0.0014 / 37.319±0.090 / R@1 4.949±0.075 · K1 9.303 / 1.0912 / 39.802 / 4.750.
+- **Paired fa−vanilla (C4L−VANL, single-delta at one pin), K8:** T60 +0.366±0.011 (fa WORSE), C50 −0.012±0.001 (fa better, tiny), EDT +4.180±0.091 (fa much worse), R@1 +0.170±0.165 (fa better, marginal), R@5/R@10 n.s. K1 concordant.
+- **Finding:** under the exp_11 recipe (8×8, batched orbit, chunk-shared RoPE, L40), frame averaging HURTS acoustic parameters and yields only a marginal retrieval edge — REVERSING the legacy-recipe result (exp_07 B-F > B-V on all metrics, confirmed exp_10 decomposition). The fa advantage is recipe-contingent. Leading mechanism candidates for the closing analysis: chunk-shared vs per-angle RoPE draws (the disclosed Q6 recipe change), micro-batch-8 BN statistics × conditioning interplay, orbit-averaged conditioning under the batched execution. Caveats: one training seed per arm; own-protocol evals per convention.
+- **Unbundling ruling honored:** q9 published pre-leg-records per the persisted ACCEPTABLE ruling; traj still awaits leg records + pin bump.

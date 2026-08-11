@@ -1,0 +1,23 @@
+{
+  "arm": "VANL",
+  "step": 40000,
+  "seed": 46,
+  "K": 8,
+  "eval_name": "exp11_VANL_q9_S40000_s46_K8",
+  "cfg_scale": 1.0,
+  "steps": 1,
+  "model_config": "worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_VANCKPT.json",
+  "model_config_sha256": "733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8",
+  "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
+  "ckpt_path": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=8-step=40000.ckpt",
+  "ckpt_sha256": "1095f49330b4e7b9c469d69fdbaab1772586055236964b5e347604e712988507",
+  "use_ema": true,
+  "frame_avg_angles": null,
+  "cond_method": "vanilla",
+  "cond_autocast": "bf16",
+  "commit": "89f24cd55c64a68c3021520822171fb91c8b60fe",
+  "cell": "q9",
+  "training_orbit": 0,
+  "eval_orbit": 0,
+  "rotate_deg": 0.0
+}
