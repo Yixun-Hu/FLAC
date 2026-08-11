@@ -16,7 +16,12 @@
 # SUBMIT: never by hand — `fa_orbit_submit.sh <ARM>` derives every Slurm flag
 # from the pins below, so an operator cannot mis-enter --gres/--mem/--time.
 #   ARM                C4L | C8 | C16 | C32
-#   EXPECT_SHA         full reviewed commit sha (required)
+#   EXPECT_SHA         full 40-hex reviewed commit OID (required). Binding is
+#                      by CONTENT of the training surfaces, not HEAD identity:
+#                      a launch is accepted when HEAD == EXPECT_SHA, or when
+#                      the training closure is byte-identical between the two
+#                      (two writers commit to this checkout; worklog/record
+#                      commits must not kill a queued leg).
 #   RESUME_CKPT/EXPECTED_STEP   crash restart only (see LINEAGE)
 #   SMOKE=1            the reviewed multi-GPU smoke (see SMOKE MODE)
 # RUNG / MAXSTEPS / MIN_FREE_MB / time limit are NOT operator inputs any more.
@@ -192,23 +197,71 @@ RUNDIR="${SAVEDIR}/${NAME}/${EXPNAME}"
 echo "=== exp_11 arm ${ARM} @ rung ${RUNG} (MB ${MB} x ${NGPU} GPU, grad-ckpt ON) — ${TS} — host $(hostname) ==="
 
 # --- C. commit binding + tracked-surface drift --------------------------------
-HEAD_SHA="$(git rev-parse HEAD 2>/dev/null)"
+HEAD_SHA="$(git rev-parse HEAD 2>/dev/null)" || HEAD_SHA=""
+EXPREL="${EXPDIR#"$REPO"/}"; EXP07REL="${EXP07#"$REPO"/}"
 # The drift gate is scoped to CODE surfaces, not the whole exp folder: the four
 # arms are running and Slurm appends to their tracked *.out logs continuously, so
 # a folder-wide check would abort every screen on a live-log write. Configs,
-# drivers and validators are still fully covered.
-DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src \
-          "$EXPDIR"/*.json "$EXPDIR"/*.py "$EXPDIR"/*.sbatch "$EXPDIR"/*.sh \
-          "$EXP07/FLAC_AR_BF.json" 2>/dev/null)"
+# drivers and validators are still fully covered. The patterns are QUOTED so
+# git, not the shell, expands them — a tracked file deleted from the worktree
+# still matches (content-gate review B2) — data/AR (the split JSONs the
+# dataloader opens) is covered, and a failing git status is fail-closed.
+DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src data/AR \
+          "$EXPREL/*.json" "$EXPREL/*.py" "$EXPREL/*.sbatch" "$EXPREL/*.sh" \
+          "$EXP07REL/FLAC_AR_BF.json" 2>&1)" \
+  || die "git status for the drift gate failed: ${DRIFT} - abort"
+# Commit binding is CONTENT-scoped: HEAD identity is sufficient but not
+# necessary. Two sessions commit to this checkout, so a pending leg must
+# survive commits that leave the training closure untouched — and abort on
+# any commit that changes it. The closure is what the job actually loads:
+# train.py, defaults.ini, src/, the data/AR split JSONs, the five arm
+# configs (enumerated — a shell glob would silently drop a config deleted
+# since EXPECT_SHA), this launcher, the four runtime helper scripts it
+# invokes, and exp_07's FLAC_AR_BF.json (C4L parity baseline).
+# Record/analysis files (registry, manifests, gen_*/validators, worklog)
+# are deliberately OUTSIDE the closure. Fail-closed on every edge:
+# EXPECT_SHA must be the full 40-hex commit OID (a symbolic ref like HEAD
+# would defeat the binding), the diff runs against the CAPTURED HEAD OID,
+# and HEAD is re-read afterwards to close the mid-gate-commit race.
+surface_diff_vs_expect() {
+  git diff --name-only "${EXPECT_SHA}" "${HEAD_SHA}" -- train.py defaults.ini src data/AR \
+      "$EXPDIR"/FLAC_AR_BF_C4L.json "$EXPDIR"/FLAC_AR_BF_C8.json \
+      "$EXPDIR"/FLAC_AR_BF_C16.json "$EXPDIR"/FLAC_AR_BF_C32.json \
+      "$EXPDIR"/FLAC_AR_VANCKPT.json "$EXPDIR"/fa_orbit_train.sbatch \
+      "$EXPDIR"/fa_orbit_ckpt_preflight.py "$EXPDIR"/assert_arm_configs_exp11.py \
+      "$EXPDIR"/fa_orbit_wandb_readback.py "$EXPDIR"/fa_orbit_classify.py \
+      "$EXP07/FLAC_AR_BF.json"
+}
+GATE_FAIL=""; GATE_OK_MSG=""
+if [ -z "$HEAD_SHA" ]; then
+  GATE_FAIL="cannot resolve HEAD"
+elif ! printf '%s\n' "$EXPECT_SHA" | grep -qE '^[0-9a-f]{40}$'; then
+  GATE_FAIL="EXPECT_SHA '${EXPECT_SHA}' is not a full lowercase 40-hex commit id"
+elif [ "$(git rev-parse --verify -q "${EXPECT_SHA}^{commit}" 2>/dev/null)" != "$EXPECT_SHA" ]; then
+  GATE_FAIL="EXPECT_SHA ${EXPECT_SHA} is not a commit known to this repo"
+elif [ "$HEAD_SHA" = "$EXPECT_SHA" ]; then
+  GATE_OK_MSG="commit binding OK: ${HEAD_SHA}"
+elif SD="$(surface_diff_vs_expect 2>&1)"; then
+  if [ -z "$SD" ]; then
+    GATE_OK_MSG="commit binding OK (content): training surfaces identical, EXPECT_SHA ${EXPECT_SHA} HEAD ${HEAD_SHA}"
+  else
+    GATE_FAIL="training surfaces changed since EXPECT_SHA ${EXPECT_SHA} (HEAD ${HEAD_SHA}): ${SD}"
+  fi
+else
+  GATE_FAIL="surface diff vs EXPECT_SHA failed: ${SD}"
+fi
+if [ -z "$GATE_FAIL" ] && [ "$(git rev-parse HEAD 2>/dev/null)" != "$HEAD_SHA" ]; then
+  GATE_FAIL="HEAD moved during the commit-binding check (was ${HEAD_SHA})"
+fi
 if [ "$DRYRUN" = "1" ]; then
-  [ "$HEAD_SHA" = "$EXPECT_SHA" ] && echo "commit binding OK (dry run): ${HEAD_SHA}" \
-    || echo "DRY-RUN ADVISORY: HEAD ${HEAD_SHA} != EXPECT_SHA ${EXPECT_SHA} (a real launch aborts here)"
+  [ -z "$GATE_FAIL" ] && echo "${GATE_OK_MSG} (dry run)" \
+    || echo "DRY-RUN ADVISORY: ${GATE_FAIL} (a real launch aborts here)"
   [ -z "$DRIFT" ] || echo "DRY-RUN ADVISORY: tracked measurement surfaces are modified (a real launch aborts here)"
 else
   [ -n "${SLURM_JOB_ID:-}" ] || die "a real launch must run under sbatch (no SLURM_JOB_ID) - abort"
-  [ "$HEAD_SHA" = "$EXPECT_SHA" ] || die "HEAD ${HEAD_SHA} != EXPECT_SHA ${EXPECT_SHA} - abort"
+  [ -z "$GATE_FAIL" ] || die "${GATE_FAIL} - abort"
+  echo "$GATE_OK_MSG"
   [ -z "$DRIFT" ] || { echo "tracked measurement surfaces modified since review - abort:"; echo "$DRIFT"; exit 2; }
-  echo "commit binding OK: ${HEAD_SHA}"
 fi
 
 # --- D. arm -> config (single source) + semantic gate -------------------------

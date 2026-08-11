@@ -147,6 +147,38 @@ case_run "wrong EXPECT_SHA aborts" 2 "EXPECT_SHA" \
 case_run "real mode needs sbatch" 2 "must run under sbatch" \
   -- ARM=C4L SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=99000000 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}"
 
+# Content-scoped binding (content-gate review B5): deterministic SYNTHETIC
+# fixtures — dangling commits built with git plumbing. No ref moves, the
+# tracked tree is untouched (only unreferenced objects are written; gc prunes
+# them), and a missing fixture is a FAILURE, never a SKIP: the identical-tree
+# case is the proof that record-only commits cannot kill a queued leg.
+# The gate acceptance text is asserted; the run then aborts at a later gate
+# (dirty-tree drift today, run-dir/allocation gates on a clean tree) with
+# rc=2 and nothing written.
+SYN_SAME="$(git commit-tree "$(git rev-parse 'HEAD^{tree}')" -p HEAD -m 'guardtest synthetic: identical tree' 2>/dev/null)"
+SYN_IDX="${TMP}/synidx"; SYN_CHG=""
+if GIT_INDEX_FILE="$SYN_IDX" git read-tree HEAD 2>/dev/null; then
+  SYN_BLOB="$(printf 'guardtest synthetic drift\n' | git hash-object -w --stdin 2>/dev/null)"
+  if [ -n "$SYN_BLOB" ] && GIT_INDEX_FILE="$SYN_IDX" git update-index --cacheinfo 100644 "$SYN_BLOB" train.py 2>/dev/null; then
+    SYN_TREE="$(GIT_INDEX_FILE="$SYN_IDX" git write-tree 2>/dev/null)"
+    [ -n "$SYN_TREE" ] && SYN_CHG="$(git commit-tree "$SYN_TREE" -p HEAD -m 'guardtest synthetic: train.py changed' 2>/dev/null)"
+  fi
+fi
+if [ -n "$SYN_SAME" ]; then
+  case_run "moved HEAD, surfaces identical -> gate passes" 2 "commit binding OK (content)" \
+    -- ARM=C4L SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=99000000 "EXPECT_SHA=${SYN_SAME}" SLURM_JOB_ID=999999
+else
+  echo "FAIL  could not synthesize the identical-tree fixture"; FAIL=$((FAIL+1))
+fi
+if [ -n "$SYN_CHG" ]; then
+  case_run "moved HEAD, surfaces changed -> aborts" 2 "training surfaces changed since EXPECT_SHA" \
+    -- ARM=C4L SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=99000000 "EXPECT_SHA=${SYN_CHG}" SLURM_JOB_ID=999999
+else
+  echo "FAIL  could not synthesize the changed-surface fixture"; FAIL=$((FAIL+1))
+fi
+case_run "symbolic EXPECT_SHA refused" 2 "not a full lowercase 40-hex" \
+  -- ARM=C4L SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=99000000 EXPECT_SHA=HEAD SLURM_JOB_ID=999999
+
 echo "--- E. semantic gate on a mislabelled config (temp copy; tracked tree untouched) ---"
 FAKE_EXP="${TMP}/fakeexp"; mkdir -p "$FAKE_EXP"
 cp "${EXPDIR}/FLAC_AR_BF_C4L.json" "${FAKE_EXP}/FLAC_AR_BF_C32.json"      # C4 orbit under the C32 name
