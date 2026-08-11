@@ -466,6 +466,83 @@ def test_main_writes_the_record(rc, synthetic_ckpt, tmp_path, capsys):
     assert "sha256" in capsys.readouterr().out
 
 
+# --------------------------------------------------------------------------- #
+# F6 — pin the REAL committed record (no checkpoint load; runs in milliseconds)
+# --------------------------------------------------------------------------- #
+COMMITTED_RECORD = _EXP15 / "yaw_aug_control_admission.json"
+RECORD_TRANSCRIPT = _EXP15 / "yaw_aug_2026-08-11_13-55-35_record_control.log"
+EXP11_REGISTRY = _REPO / "worklog/worklog_yixun/exp_11_fa_orbit_claude/arm_launch_registry.json"
+
+
+@pytest.fixture(scope="module")
+def committed_record():
+    assert COMMITTED_RECORD.is_file(), f"missing admission record: {COMMITTED_RECORD}"
+    return json.loads(COMMITTED_RECORD.read_text())
+
+
+def test_committed_record_pins_the_control_checkpoint(committed_record):
+    """The evidence artifact itself, not a synthetic stand-in.
+
+    Every VANL eval cell is admitted against these numbers; if they drift, the
+    control silently becomes a different model.
+    """
+    ck = committed_record["checkpoint"]
+    assert ck["path"] == (
+        "outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=8-step=40000.ckpt"
+    )
+    assert ck["sha256"] == (
+        "1095f49330b4e7b9c469d69fdbaab1772586055236964b5e347604e712988507"
+    )
+    assert ck["bytes"] == 723922539
+    assert ck["global_step"] == 40000 and ck["epoch"] == 8
+    assert ck["loaded_with"] == {"mmap": True, "map_location": "cpu", "weights_only": True}
+
+
+def test_committed_record_pins_the_ema_family(committed_record):
+    ck = committed_record["checkpoint"]
+    assert ck["ema_prefix"] == "diffusion_ema.ema_model."
+    # the EMA covers the DiT exactly: 210 == 210, not the 1066 all-diffusion count
+    assert ck["ema_key_count"] == 210
+    assert ck["online_model_key_count"] == 210
+    assert ck["online_all_key_count"] == 1066
+    assert ck["state_dict_keys"] == 1279
+    assert ck["optimizer_states"] == 1 and ck["lr_schedulers"] == 1
+    assert ck["ema_inventory_sha256"] == (
+        "68dc5ef53d4144cea4fd8210cae6c6769fd7370fd62499dc9f6fb449bb991fc2"
+    )
+
+
+def test_committed_record_binds_checkpoint_to_config(committed_record):
+    assert committed_record["config"]["sha256"] == REGISTRY_CONFIG_SHA
+    assert (committed_record["checkpoint"]["embedded_config_canonical_sha256"]
+            == committed_record["config"]["canonical_sha256"]
+            == "2023ccc63257ae4902caf30a7905d1b8719e1e0e2ec5964dde951481cd352a27")
+    assert committed_record["checks"] == {
+        "config_sha256_matches_registry": True,
+        "ema_state_present": True,
+        "embedded_config_equals_config_file": True,
+        "global_step_equals_expected": True,
+    }
+
+
+def test_committed_record_agrees_with_exp11_registry(committed_record):
+    """Cross-references are checked against exp_11's registry as it is on disk,
+    not against constants copied out of our own implementation."""
+    vanl = json.loads(EXP11_REGISTRY.read_text())["arms"]["VANL"]
+    xref = committed_record["exp_11_cross_references"]
+    for field in ("manifest_sha256", "commit", "rung", "vae_sha256", "job", "training_seed"):
+        assert xref[field] == vanl[field], f"{field} disagrees with exp_11's registry"
+    assert committed_record["config"]["sha256"] == vanl["config_sha256"]
+    # the gap this record exists to fill
+    assert "final_ckpt_sha256" not in vanl
+
+
+def test_committed_record_matches_its_transcript(committed_record):
+    """The committed record must be exactly what the logged run produced."""
+    body = RECORD_TRANSCRIPT.read_text().split("\nwrote ")[0]
+    assert json.loads(body) == committed_record
+
+
 def test_main_refuses_to_overwrite(rc, synthetic_ckpt, tmp_path):
     ckpt = synthetic_ckpt()
     out = tmp_path / "rec.json"
