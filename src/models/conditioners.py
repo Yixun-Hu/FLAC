@@ -22,6 +22,18 @@ from .cyl_vit import CylindricalViT
 from transformers import AutoModel, AutoConfig
 
 
+def _default_local_root():
+    """``<repo_root>/models``, derived from THIS FILE's location, never the CWD.
+
+    ``src/models/conditioners.py`` -> ``src/models`` -> ``src`` -> repo root. Kept a
+    named function so the lowest-priority root is one nameable thing (and so tests
+    can pin the priority order against a synthetic root); behavior is identical to
+    inlining the derivation.
+    """
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return os.path.join(repo_root, "models")
+
+
 def resolve_vit_model_path(name_or_path, local_root=None):
     """Prefer a local ViT snapshot directory over a bare hub id.
 
@@ -39,8 +51,9 @@ def resolve_vit_model_path(name_or_path, local_root=None):
     ``<repo_root>/models``, where ``repo_root`` is derived from THIS FILE's
     location (``src/models/`` -> ``src/`` -> repo root), never the CWD, so a job's
     working directory can never redirect the backbone. An id with no snapshot
-    under any root passes through unchanged (normal hub/cache behavior — and its
-    offline error — then applies).
+    under any root — or one whose basename is unresolvable by construction
+    (empty, ``.``, ``..``) — passes through unchanged (normal hub/cache behavior,
+    and its offline error, then applies).
 
     Args:
         name_or_path: hub id or path, as written in the model config.
@@ -55,7 +68,9 @@ def resolve_vit_model_path(name_or_path, local_root=None):
         return name_or_path, "explicit-dir"
 
     basename = os.path.basename(str(name_or_path).rstrip("/"))
-    if not basename:
+    # "" / "." / ".." would join to the root itself or its PARENT: unresolvable by
+    # construction, never a snapshot. Fail to passthrough rather than escape a root.
+    if not basename or basename in (os.curdir, os.pardir):
         return name_or_path, "passthrough"
 
     roots = []
@@ -64,9 +79,7 @@ def resolve_vit_model_path(name_or_path, local_root=None):
     env_root = os.environ.get("FLAC_LOCAL_MODEL_ROOT")
     if env_root:
         roots.append((env_root, "env-root"))
-    # src/models/conditioners.py -> src/models -> src -> repo root
-    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    roots.append((os.path.join(repo_root, "models"), "repo-root"))
+    roots.append((_default_local_root(), "repo-root"))
 
     for root, source_tag in roots:
         candidate = os.path.join(root, basename)

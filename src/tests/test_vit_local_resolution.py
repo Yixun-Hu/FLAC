@@ -12,13 +12,16 @@ embedding the portable hub id.
 
 Surfaces under test:
 
-* pure resolver: existing dir passes through as ``explicit-dir``; hub id resolves
-  under an explicit ``local_root`` (``local-root-arg``), under
-  ``$FLAC_LOCAL_MODEL_ROOT`` (``env-root``), or under ``<repo_root>/models``
-  (``repo-root``); no snapshot anywhere -> ``passthrough`` with the input
-  unchanged.
+* resolution PRIORITY, pinned with COMPETING roots so each relation is falsifiable
+  on any machine (no reliance on della's real ``models/`` symlink): explicit dir >
+  ``local_root`` arg > ``$FLAC_LOCAL_MODEL_ROOT`` > ``<repo_root>/models`` >
+  passthrough. The repo-root rule is redirected in tests by monkeypatching
+  ``_default_local_root``; the production derivation itself is pinned separately.
 * root derivation is anchored on THIS MODULE'S FILE, never the CWD: a decoy
   ``./models/<basename>`` in the process CWD must never be picked up.
+* hostile/edge basenames (``.``/``..``) never escape a root, snapshot dirs that are
+  SYMLINKS resolve normally (that is della's actual shape), and a BROKEN symlink is
+  skipped rather than returned.
 * call sites in ``create_multi_conditioner_from_conditioning_config``: BOTH the
   ``from_scratch`` (``AutoConfig.from_pretrained`` -> ``AutoModel.from_config``)
   and the normal (``AutoModel.from_pretrained``) branches receive the RESOLVED
@@ -51,9 +54,6 @@ _ENV_VAR = "FLAC_LOCAL_MODEL_ROOT"
 _HUB_ID = "facebook/dinov3-vits16-pretrain-lvd1689m"
 _HUB_BASENAME = "dinov3-vits16-pretrain-lvd1689m"
 
-# A backbone id that exists nowhere on disk (used where "no snapshot" is the point).
-_ABSENT_ID = "facebook/flac-test-no-such-vit-snapshot"
-
 # The id used to drive the call-site tests: distinctive, so resolution can only
 # come from the fake root the test controls.
 _FAKE_ID = "facebook/flac-test-fake-vit"
@@ -69,70 +69,162 @@ def _clean_env(monkeypatch):
 
 
 # --------------------------------------------------------------------------------------
-# 1-5: the pure resolver
+# the pure resolver: priority pinned with COMPETING roots (hermetic on any machine)
 # --------------------------------------------------------------------------------------
 
-def test_existing_dir_returned_unchanged(tmp_path):
-    """A path that is already a directory is a deliberate explicit choice: it is
-    returned byte-identically, tagged ``explicit-dir``, with no root search."""
-    d = tmp_path / "some-local-vit"
-    d.mkdir()
-    assert resolve_vit_model_path(str(d)) == (str(d), "explicit-dir")
+def _snapshot(parent):
+    """Create ``<parent>/<_HUB_BASENAME>`` (parents included) and return its path."""
+    d = os.path.join(str(parent), _HUB_BASENAME)
+    os.makedirs(d)
+    return d
 
 
-def test_hub_id_resolves_to_local_snapshot(tmp_path):
-    """A hub id whose basename exists under the explicit ``local_root`` resolves to
-    that directory, tagged ``local-root-arg``."""
-    models_root = tmp_path / "models_root"
-    snapshot = models_root / _HUB_BASENAME
-    snapshot.mkdir(parents=True)
-    assert resolve_vit_model_path(_HUB_ID, local_root=str(models_root)) == (
-        str(snapshot),
+def _competing_roots(tmp_path, monkeypatch, local=True, env=True, repo=True):
+    """Build all three roots, each optionally *holding a snapshot of the same
+    basename*, so every priority relation is falsifiable: a resolver that swapped
+    two rules, dropped one, or searched roots before an explicit dir would return a
+    different path. ``$FLAC_LOCAL_MODEL_ROOT`` is set and the repo-root rule is
+    redirected at ``_default_local_root``, so the outcome never depends on whether
+    this checkout has della's real ``models/`` symlink.
+
+    Returns ``(roots, snapshots)`` keyed by the source tag each root should yield.
+    """
+    roots, snapshots = {}, {}
+    for tag, populated in (("local-root-arg", local), ("env-root", env), ("repo-root", repo)):
+        root = tmp_path / tag
+        root.mkdir()
+        roots[tag] = str(root)
+        if populated:
+            snapshots[tag] = _snapshot(root)
+    monkeypatch.setenv(_ENV_VAR, roots["env-root"])
+    monkeypatch.setattr(conditioners, "_default_local_root", lambda: roots["repo-root"])
+    return roots, snapshots
+
+
+def test_existing_dir_beats_all_roots(tmp_path, monkeypatch):
+    """An input that is already a directory is a deliberate explicit choice: it wins
+    even when all three roots hold a competing snapshot of the same basename."""
+    roots, snapshots = _competing_roots(tmp_path, monkeypatch)
+    explicit = _snapshot(tmp_path / "explicit")
+
+    assert resolve_vit_model_path(explicit, local_root=roots["local-root-arg"]) == (
+        explicit,
+        "explicit-dir",
+    )
+    assert explicit not in snapshots.values()
+
+
+def test_local_root_arg_beats_env_root(tmp_path, monkeypatch):
+    """Both the explicit ``local_root`` and $FLAC_LOCAL_MODEL_ROOT hold the snapshot:
+    the argument wins (a caller's explicit root outranks the ambient environment)."""
+    roots, snapshots = _competing_roots(tmp_path, monkeypatch)
+    assert resolve_vit_model_path(_HUB_ID, local_root=roots["local-root-arg"]) == (
+        snapshots["local-root-arg"],
         "local-root-arg",
     )
 
 
-def test_hub_id_without_snapshot_unchanged(tmp_path):
-    """No snapshot under any root -> the input passes through unchanged so the
-    normal hub/cache behavior (and its offline error) still applies."""
-    empty_root = tmp_path / "empty_root"
-    empty_root.mkdir()
-    assert resolve_vit_model_path(_ABSENT_ID, local_root=str(empty_root)) == (
-        _ABSENT_ID,
+def test_env_root_beats_repo_root(tmp_path, monkeypatch):
+    """Both the env root and <repo_root>/models hold the snapshot: the env var wins,
+    so an operator can point a job at a scratch snapshot without touching the
+    checkout. (Repo root is a synthetic directory here, not della's models/.)"""
+    roots, snapshots = _competing_roots(tmp_path, monkeypatch, local=False)
+    assert resolve_vit_model_path(_HUB_ID) == (snapshots["env-root"], "env-root")
+
+
+def test_repo_root_fires_when_it_is_the_only_snapshot(tmp_path, monkeypatch):
+    """With local_root absent and the env root present but EMPTY, the repo-root rule
+    fires — and it is never the CWD: the process runs from a directory holding its
+    own decoy ``models/<basename>``, which must be ignored."""
+    roots, snapshots = _competing_roots(tmp_path, monkeypatch, local=False, env=False)
+    cwd = tmp_path / "elsewhere"
+    decoy = _snapshot(cwd / "models")
+    monkeypatch.chdir(cwd)
+
+    resolved, source = resolve_vit_model_path(_HUB_ID)
+    assert (resolved, source) == (snapshots["repo-root"], "repo-root")
+    assert resolved != decoy, "resolver used the CWD instead of the repo root"
+
+
+def test_default_local_root_is_repo_models_independent_of_cwd(tmp_path, monkeypatch):
+    """The production repo-root derivation itself (unpatched): ``<repo_root>/models``
+    computed from this module's file, identical before and after a chdir."""
+    expected = os.path.join(_REPO_ROOT, "models")
+    assert conditioners._default_local_root() == expected
+    monkeypatch.chdir(tmp_path)
+    assert conditioners._default_local_root() == expected
+
+
+def test_hub_id_without_snapshot_unchanged(tmp_path, monkeypatch):
+    """No snapshot under ANY root -> the input passes through unchanged, so normal
+    hub/cache behavior (and its offline error) still applies."""
+    roots, _ = _competing_roots(tmp_path, monkeypatch, local=False, env=False, repo=False)
+    assert resolve_vit_model_path(_HUB_ID, local_root=roots["local-root-arg"]) == (
+        _HUB_ID,
         "passthrough",
     )
 
 
-def test_env_var_root_wins_over_repo_root(tmp_path, monkeypatch):
-    """$FLAC_LOCAL_MODEL_ROOT is consulted before <repo_root>/models, so an operator
-    can point a job at a scratch snapshot without touching the checkout."""
-    env_root = tmp_path / "scratch_models"
-    snapshot = env_root / _HUB_BASENAME
-    snapshot.mkdir(parents=True)
-    monkeypatch.setenv(_ENV_VAR, str(env_root))
-
-    resolved, source = resolve_vit_model_path(_HUB_ID)
-    assert (resolved, source) == (str(snapshot), "env-root")
-    assert resolved != os.path.join(_REPO_ROOT, "models", _HUB_BASENAME)
-
-
-def test_repo_root_derived_from_file_not_cwd(tmp_path, monkeypatch):
-    """The repo root comes from ``conditioners.__file__``, never the CWD: running
-    from a directory that contains its own decoy ``models/<basename>`` must NOT
-    resolve to that decoy. On a checkout that has the real ``models/`` snapshot
-    (della), the repo snapshot is returned with tag ``repo-root``."""
-    decoy = tmp_path / "models" / _HUB_BASENAME
-    decoy.mkdir(parents=True)
+@pytest.mark.parametrize("weird", ["facebook/..", "facebook/.", "models/..", "a/b/.."])
+def test_dot_basenames_never_escape_a_root(tmp_path, monkeypatch, weird):
+    """``os.path.join(root, "..")`` is a real directory, so an unguarded resolver
+    would "resolve" a dot basename to the ROOT'S PARENT. Such ids are unresolvable
+    by construction: they must pass through untouched."""
+    roots, _ = _competing_roots(tmp_path, monkeypatch)
     monkeypatch.chdir(tmp_path)
+    assert resolve_vit_model_path(weird, local_root=roots["local-root-arg"]) == (
+        weird,
+        "passthrough",
+    )
 
-    resolved, source = resolve_vit_model_path(_HUB_ID)
-    assert resolved != str(decoy), "resolver used the CWD instead of the repo root"
 
-    repo_snapshot = os.path.join(_REPO_ROOT, "models", _HUB_BASENAME)
-    if os.path.isdir(repo_snapshot):
-        assert (resolved, source) == (repo_snapshot, "repo-root")
-    else:  # checkout without the della symlink: still must not use the CWD
-        assert (resolved, source) == (_HUB_ID, "passthrough")
+def test_bare_dot_input_is_returned_verbatim(tmp_path, monkeypatch):
+    """A bare ``.``/``..`` input is itself an existing directory, so the explicit-dir
+    rule returns it VERBATIM — nothing is joined against a root, so no root is
+    escaped there either (the loader receives exactly what the config said)."""
+    roots, _ = _competing_roots(tmp_path, monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    for literal in (".", ".."):
+        assert resolve_vit_model_path(literal, local_root=roots["local-root-arg"]) == (
+            literal,
+            "explicit-dir",
+        )
+
+
+def test_symlinked_snapshot_resolves(tmp_path, monkeypatch):
+    """della's snapshot is reached through symlinks (``models`` -> scratch), so a
+    snapshot entry that IS a symlink to a real directory must resolve normally."""
+    roots, _ = _competing_roots(tmp_path, monkeypatch, local=False, env=False, repo=False)
+    real = tmp_path / "real_snapshot_on_scratch"
+    real.mkdir()
+    link = os.path.join(roots["local-root-arg"], _HUB_BASENAME)
+    os.symlink(str(real), link)
+
+    assert resolve_vit_model_path(_HUB_ID, local_root=roots["local-root-arg"]) == (
+        link,
+        "local-root-arg",
+    )
+
+
+def test_broken_symlink_snapshot_is_skipped(tmp_path, monkeypatch):
+    """A dangling snapshot symlink (scratch wiped under the link) is NOT a snapshot:
+    resolution continues to the next root, and to passthrough when none is valid —
+    the broken path is never returned."""
+    roots, snapshots = _competing_roots(tmp_path, monkeypatch, local=False)
+    broken = os.path.join(roots["local-root-arg"], _HUB_BASENAME)
+    os.symlink(str(tmp_path / "was-wiped"), broken)
+
+    assert resolve_vit_model_path(_HUB_ID, local_root=roots["local-root-arg"]) == (
+        snapshots["env-root"],
+        "env-root",
+    )
+
+    monkeypatch.delenv(_ENV_VAR)
+    monkeypatch.setattr(conditioners, "_default_local_root", lambda: str(tmp_path / "gone"))
+    assert resolve_vit_model_path(_HUB_ID, local_root=roots["local-root-arg"]) == (
+        _HUB_ID,
+        "passthrough",
+    )
 
 
 # --------------------------------------------------------------------------------------
@@ -238,9 +330,10 @@ def test_callsite_from_config_uses_resolved_path(tmp_path, monkeypatch):
 
 
 def test_callsite_logs_resolved_path(tmp_path, monkeypatch, capsys):
-    """The load line names BOTH the original id and the resolved path plus the rule
-    that fired; when the resolution redirected and a model.safetensors is present,
-    its byte size and sha256 prefix are logged as weights provenance."""
+    """The load line carries the EXACT ``{original} -> {resolved} [{tag}]`` triple
+    (not the three tokens scattered across the log); when the resolution redirected
+    and a model.safetensors is present, its byte size and sha256 prefix are logged
+    as the run log's only ViT-weights provenance."""
     payload = b"flac-exp16-provenance-probe" * 4
     snapshot = _fake_root_with_snapshot(tmp_path, monkeypatch, safetensors_bytes=payload)
     _patch_transformers(monkeypatch)
@@ -248,8 +341,23 @@ def test_callsite_logs_resolved_path(tmp_path, monkeypatch, capsys):
     create_multi_conditioner_from_conditioning_config(_conditioning())
 
     out = capsys.readouterr().out
-    assert _FAKE_ID in out
-    assert snapshot in out
-    assert "env-root" in out
-    assert str(len(payload)) in out
-    assert hashlib.sha256(payload).hexdigest()[:16] in out
+    assert f"{_FAKE_ID} -> {snapshot} [env-root]" in out
+    assert f"{len(payload)} bytes" in out
+    assert f"sha256:{hashlib.sha256(payload).hexdigest()[:16]}" in out
+
+
+def test_callsite_without_safetensors_logs_no_provenance(tmp_path, monkeypatch, capsys):
+    """A snapshot directory with no model.safetensors (config-only dir, the
+    from_scratch case) must not crash the load: the provenance helper returns None
+    on OSError and the call site prints the resolution line only."""
+    snapshot = _fake_root_with_snapshot(tmp_path, monkeypatch)
+    _patch_transformers(monkeypatch)
+
+    assert conditioners._vit_weights_provenance(snapshot) is None
+
+    create_multi_conditioner_from_conditioning_config(_conditioning())
+
+    out = capsys.readouterr().out
+    assert f"{_FAKE_ID} -> {snapshot} [env-root]" in out
+    assert "sha256:" not in out
+    assert "model.safetensors" not in out
