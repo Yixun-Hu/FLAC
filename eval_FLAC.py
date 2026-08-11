@@ -4,6 +4,7 @@ import contextlib
 import json
 import math
 import subprocess
+from typing import NamedTuple, Optional
 from tqdm import tqdm
 import torch
 import pytorch_lightning as pl
@@ -43,6 +44,104 @@ def rot_token(rotate_deg):
     return str(int(d)) if d.is_integer() else repr(d).replace('.', 'p')
 
 
+ROTATE_MODES = ('fixed', 'random')
+
+
+class RotationPlan(NamedTuple):
+    """The resolved yaw-rotation protocol for one evaluation run.
+
+    ``mode='fixed'``  -- the legacy behaviour: every sample is rotated by the same
+    ``rotate_deg`` (0.0 meaning "not rotated at all"); ``rotate_seed`` is None.
+
+    ``mode='random'`` -- exp_14's estimand: each sample independently draws a
+    panorama-column offset from a generator seeded with ``rotate_seed``, so no
+    single angle describes the run and ``rotate_deg`` is None (recorded as JSON
+    ``null``), not 0.0 -- an unrotated run and a randomly-rotated one must never
+    be readable as the same protocol.
+    """
+    mode: str
+    rotate_deg: Optional[float]
+    rotate_seed: Optional[int]
+
+    @property
+    def is_random(self):
+        return self.mode == 'random'
+
+
+def resolve_rotation_plan(rotate_mode='fixed', rotate_deg=0.0, rotate_seed=None,
+                          eval_seed=None):
+    """Resolve (and validate) the rotation protocol before anything else runs.
+
+    Every failure here is a HARD error, never a silent precedence rule --- this is
+    the announcement-05 trap (eval-protocol flags are part of the experiment): a
+    mismatched flag produces plausible-looking, catastrophically wrong numbers.
+
+    - ``random`` with a non-zero ``rotate_deg``: a fixed angle and a per-sample
+      draw are mutually exclusive protocols, so there is no correct winner.
+    - ``fixed`` with an explicit ``rotate_seed``: silently ignoring it would let a
+      manifest record a rotation seed that influenced nothing (review B4).
+    - ``random`` with no seed anywhere: the assignment would be unreproducible.
+
+    In ``random`` mode an omitted ``rotate_seed`` resolves to the EVAL seed
+    (Yixun 2026-08-10), so a cell's rotation assignment is a function of the seed
+    it already reports.
+    """
+    if rotate_mode not in ROTATE_MODES:
+        raise ValueError(
+            f"Unknown rotate_mode: {rotate_mode!r}; valid options: {list(ROTATE_MODES)}."
+        )
+    if rotate_mode == 'fixed':
+        if rotate_seed is not None:
+            raise ValueError(
+                f"rotate_seed={rotate_seed!r} (--rotate-seed) is meaningless with "
+                "rotate_mode='fixed' and must not be silently ignored: a fixed rotation "
+                "draws nothing. Pass --rotate-mode random to use it."
+            )
+        return RotationPlan('fixed', float(rotate_deg), None)
+
+    if float(rotate_deg) != 0.0:
+        raise ValueError(
+            f"rotate_mode='random' is incompatible with rotate_deg={rotate_deg!r} "
+            "(--rotate-deg): a per-sample random yaw and a single fixed angle are "
+            "different protocols. Drop --rotate-deg (or use --rotate-mode fixed)."
+        )
+    resolved = rotate_seed if rotate_seed is not None else eval_seed
+    if resolved is None:
+        raise ValueError(
+            "--rotate-mode random needs a rotation seed: pass --rotate-seed, or an "
+            "eval --seed for it to default to. An unseeded assignment is not reproducible."
+        )
+    return RotationPlan('random', None, int(resolved))
+
+
+def rotation_token(rotate_mode='fixed', rotate_deg=0.0, rotate_seed=None):
+    """The identity token for a run's rotation: ``'45'`` / ``'5p625'`` / ``'rand42'``.
+
+    Fixed angles keep :func:`rot_token`'s rendering unchanged. A random-mode run
+    is identified by its RESOLVED rotation seed, because that seed --- not any
+    angle --- is what determines the assignment.
+    """
+    if rotate_mode == 'random':
+        if rotate_seed is None:
+            raise ValueError("random-mode naming requires a resolved rotate_seed")
+        return f'rand{int(rotate_seed)}'
+    return rot_token(rotate_deg)
+
+
+def rotation_suffix(rotate_mode='fixed', rotate_deg=0.0, rotate_seed=None):
+    """The filename suffix for a run's rotation; ``''`` for the unrotated case.
+
+    Fixed mode is byte-identical to :func:`rot_suffix` (legacy artifacts must
+    still resolve). Random mode appends ``_rotrand<seed>``, which is injective
+    both across rotation seeds and against every fixed token: a fixed token
+    always starts with a digit or ``'-'``, so it can never render as ``rand...``
+    (review B5 --- reusing one eval name across rotation seeds must not overwrite).
+    """
+    if rotate_mode == 'random':
+        return '_rot' + rotation_token(rotate_mode, rotate_deg, rotate_seed)
+    return rot_suffix(rotate_deg)
+
+
 def build_output_paths(
     ckpt_path,
     steps,
@@ -51,6 +150,8 @@ def build_output_paths(
     cond_method='vanilla',
     rotate_deg=0.0,
     n_angles=4,
+    rotate_mode='fixed',
+    rotate_seed=None,
 ):
     """Construct the metrics-JSON and predictions-.pt output paths for one run.
 
@@ -64,6 +165,9 @@ def build_output_paths(
     also land on the predictions name -- fixing the exp_02 bug where two
     ``rotate_deg`` values sharing an ``eval_name`` overwrote one predictions file.
 
+    ``rotate_mode='random'`` (exp_14) replaces the angle suffix with
+    ``_rotrand<rotate_seed>``; the fixed-mode names are unchanged down to the byte.
+
     Returns
     -------
     dict
@@ -72,7 +176,8 @@ def build_output_paths(
     ckpt_name = os.path.basename(ckpt_path).replace('.ckpt', '')
     directory = os.path.dirname(ckpt_path)
     method_suffix = '' if cond_method == 'vanilla' else f'_{cond_method}_a{n_angles}'
-    stem = f'{steps}_{cfg_scale}_{eval_name}{method_suffix}{rot_suffix(rotate_deg)}'
+    rot = rotation_suffix(rotate_mode, rotate_deg, rotate_seed)
+    stem = f'{steps}_{cfg_scale}_{eval_name}{method_suffix}{rot}'
     return {
         'metrics': os.path.join(directory, f'{ckpt_name}_metrics_{stem}.json'),
         'predictions': os.path.join(directory, f'{ckpt_name}_predictions_{stem}.pt'),

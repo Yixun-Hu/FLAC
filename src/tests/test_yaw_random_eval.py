@@ -16,6 +16,7 @@ import math
 import pytest
 import torch
 
+import eval_FLAC
 from src.data import yaw_rotation as yr
 
 
@@ -242,3 +243,132 @@ def test_draw_yaw_offsets_requires_a_generator():
 def test_draw_yaw_offsets_rejects_nonpositive_width(img_w):
     with pytest.raises(ValueError):
         yr.draw_yaw_offsets(4, img_w, _gen(0))
+
+
+# =========================================================================== #
+# CYCLE 2 — rotation-plan resolution + artifact naming (plan §5.2, review B4/B5)
+# =========================================================================== #
+CKPT = "weights/FLAC/FLAC_EMA.ckpt"
+
+
+# --------------------------------------------------------------------------- #
+# (7) guards — a misconfigured rotation must never run, and never be ignored
+# --------------------------------------------------------------------------- #
+def test_fixed_mode_plan_is_the_legacy_behaviour():
+    plan = eval_FLAC.resolve_rotation_plan("fixed", 45.0, None, 42)
+    assert plan.mode == "fixed"
+    assert plan.rotate_deg == 45.0
+    assert plan.rotate_seed is None
+    assert plan.is_random is False
+
+
+def test_random_mode_defaults_the_rotation_seed_to_the_eval_seed():
+    """Yixun 2026-08-10: rotation seed = eval seed. Then a cell's rotation
+    assignment is a function of the seed it already reports."""
+    plan = eval_FLAC.resolve_rotation_plan("random", 0.0, None, 44)
+    assert plan.mode == "random"
+    assert plan.rotate_seed == 44
+    assert plan.rotate_deg is None      # no fixed angle applies -> recorded as null
+    assert plan.is_random is True
+
+
+def test_random_mode_accepts_an_explicit_rotation_seed():
+    plan = eval_FLAC.resolve_rotation_plan("random", 0.0, 7, 42)
+    assert plan.rotate_seed == 7        # explicit wins; eval seed is not used
+
+
+def test_random_mode_resolves_a_string_eval_seed():
+    """evaluate_model documents str seeds (it int()s them); the plan is resolved
+    before that coercion, so it must do its own."""
+    assert eval_FLAC.resolve_rotation_plan("random", 0.0, None, "43").rotate_seed == 43
+
+
+def test_random_mode_with_nonzero_rotate_deg_raises():
+    """A fixed angle and a per-sample draw are mutually exclusive protocols; a
+    silent winner here is exactly the announcement-05 class of error."""
+    with pytest.raises(ValueError, match="rotate_deg"):
+        eval_FLAC.resolve_rotation_plan("random", 45.0, 42, 42)
+
+
+def test_fixed_mode_with_explicit_rotate_seed_raises():
+    """Review B4: an ignored --rotate-seed would make a manifest claim a rotation
+    seed that never influenced anything."""
+    with pytest.raises(ValueError, match="rotate_seed"):
+        eval_FLAC.resolve_rotation_plan("fixed", 0.0, 42, 42)
+
+
+def test_unknown_rotate_mode_raises():
+    with pytest.raises(ValueError, match="rotate_mode"):
+        eval_FLAC.resolve_rotation_plan("randon", 0.0, None, 42)
+
+
+def test_random_mode_without_any_seed_raises():
+    """No rotation seed and no eval seed -> unreproducible assignment; refuse."""
+    with pytest.raises(ValueError, match="seed"):
+        eval_FLAC.resolve_rotation_plan("random", 0.0, None, None)
+
+
+# --------------------------------------------------------------------------- #
+# (8) naming — injective across rotation seeds AND against fixed angles
+# --------------------------------------------------------------------------- #
+def test_rotation_token_and_suffix_fixed_are_the_legacy_renderings():
+    for deg in (0.0, 45.0, 90.0, 5.625):
+        assert eval_FLAC.rotation_token("fixed", deg, None) == eval_FLAC.rot_token(deg)
+        assert eval_FLAC.rotation_suffix("fixed", deg, None) == eval_FLAC.rot_suffix(deg)
+    assert eval_FLAC.rotation_suffix("fixed", 0.0, None) == ""       # byte-identical legacy
+    assert eval_FLAC.rotation_suffix() == ""                          # all-default call
+
+
+def test_rotation_token_and_suffix_random():
+    assert eval_FLAC.rotation_token("random", None, 42) == "rand42"
+    assert eval_FLAC.rotation_suffix("random", None, 42) == "_rotrand42"
+    # suffix is always '_rot' + token (the eval-NAME analogue the kit interpolates)
+    assert eval_FLAC.rotation_suffix("random", None, 43) == (
+        "_rot" + eval_FLAC.rotation_token("random", None, 43))
+
+
+def test_rotation_suffix_random_requires_a_resolved_seed():
+    with pytest.raises(ValueError, match="seed"):
+        eval_FLAC.rotation_suffix("random", None, None)
+
+
+def test_random_paths_are_injective_across_rotation_seeds():
+    """Review B5: reusing one eval name across rotation seeds must not overwrite —
+    the exact failure class build_output_paths exists to prevent."""
+    p42 = eval_FLAC.build_output_paths(
+        CKPT, 1, 1.0, "exp14_C32_rgen_S40000_K8", cond_method="fa_invariant",
+        n_angles=32, rotate_mode="random", rotate_seed=42)
+    p43 = eval_FLAC.build_output_paths(
+        CKPT, 1, 1.0, "exp14_C32_rgen_S40000_K8", cond_method="fa_invariant",
+        n_angles=32, rotate_mode="random", rotate_seed=43)
+    assert p42["metrics"] != p43["metrics"]
+    assert p42["predictions"] != p43["predictions"]
+    assert p42["metrics"].endswith("_fa_invariant_a32_rotrand42.json")
+    assert p43["metrics"].endswith("_fa_invariant_a32_rotrand43.json")
+
+
+def test_random_paths_are_injective_against_every_fixed_token():
+    """'_rotrand<seed>' can never collide with a fixed '_rot<tok>': fixed tokens
+    start with a digit or '-', so no fixed angle renders as 'rand...'."""
+    names = set()
+    for deg in (0.0, 42.0, 43.0, 45.0, 90.0, 5.625, 22.5, 180.0):
+        names.add(eval_FLAC.build_output_paths(
+            CKPT, 1, 1.0, "cell", rotate_deg=deg)["metrics"])
+    n_fixed = len(names)
+    for seed in (42, 43, 44, 45, 46):
+        names.add(eval_FLAC.build_output_paths(
+            CKPT, 1, 1.0, "cell", rotate_mode="random", rotate_seed=seed)["metrics"])
+    assert len(names) == n_fixed + 5, "a random name collided with a fixed one"
+
+
+def test_explicit_fixed_mode_paths_are_byte_identical_to_the_default_call():
+    """Passing rotate_mode='fixed' explicitly may not change a single byte."""
+    for cond_method, deg, n_angles in (("vanilla", 0.0, 4), ("vanilla", 45.0, 4),
+                                       ("fa_invariant", 0.0, 4), ("fa_invariant", 45.0, 4)):
+        default = eval_FLAC.build_output_paths(
+            CKPT, 1, 1.0, "cell", cond_method=cond_method, rotate_deg=deg,
+            n_angles=n_angles)
+        explicit = eval_FLAC.build_output_paths(
+            CKPT, 1, 1.0, "cell", cond_method=cond_method, rotate_deg=deg,
+            n_angles=n_angles, rotate_mode="fixed", rotate_seed=None)
+        assert default == explicit
