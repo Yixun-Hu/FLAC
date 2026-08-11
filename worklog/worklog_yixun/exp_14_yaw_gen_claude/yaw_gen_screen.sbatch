@@ -137,123 +137,100 @@ if [ -n "${SLURM_JOB_ID:-}" ]; then
 fi
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 
+# --- CAMPAIGN CONSTANTS (plan §3.2) -------------------------------------------
+# Not defaults and not overridable: the batch size regroups the split's tail
+# batch and the worker count decides which process serves which position, so a
+# cell that differs in either is not paired with the rest of its block. They are
+# LITERALS here and are recorded in every manifest; the collector rejects a cell
+# whose manifest deviates.
+#
+# BATCH_SIZE / NUM_WORKERS are the exp_11 conf-cell values: that kit passed
+# neither flag, so those cells ran at eval_FLAC.py's own argparse defaults
+# (--batch-size 64, --num-workers 4). NOTE that defaults.ini's `num_workers = 6`
+# is a prefigure key for train.py and never reaches eval_FLAC.py, which parses
+# its own argv — the effective exp_11 value was 4, so 4 is what this campaign
+# pins, passed EXPLICITLY so the recipe no longer depends on an argparse default.
+BATCH_SIZE=64
+NUM_WORKERS=4
+# The published unseen split: 6,337 items / 17 rooms (announcement 01), the same
+# item set at K=1 and K=8 (the _1 config changes max_context only). Passed as
+# --expected-stream-count so a subsampled or partly-failing split FAILS the cell
+# instead of reporting a plausible number over fewer items (review B1).
+EXPECTED_STREAM_COUNT=6337
+
 die() { echo "$1"; exit "${2:-2}"; }
 
 # --- A. parameters ------------------------------------------------------------
-[ -n "${ARM:-}" ] || die "ARM must be exported (C4L|C8|C16|C32|VANL|C4BACKFILL) - abort"
+[ -n "${ARM:-}" ] || die "ARM must be exported (VANL|C4L|C8|C16|C32) - abort"
 [ -n "${STEP:-}" ] || die "STEP must be exported - abort"
 [ -n "${EXPECT_SHA:-}" ] || die "EXPECT_SHA (full reviewed commit sha) must be exported - abort"
 case "$ARM" in
-  C4L|C8|C16|C32|VANL|C4BACKFILL) ;;
-  *) die "ARM '${ARM}' is not screenable (C4L|C8|C16|C32|VANL|C4BACKFILL) - abort" ;;
+  VANL|C4L|C8|C16|C32) ;;
+  *) die "ARM '${ARM}' is not registered for exp_14 (VANL|C4L|C8|C16|C32) - abort" ;;
 esac
 case "$STEP" in ''|*[!0-9]*) die "STEP '${STEP}' must be a positive integer - abort";; esac
-[ "$STEP" -gt 0 ] || die "STEP must be > 0 - abort"
+# ONE endpoint for the whole campaign (plan §3.1/§3.2): every arm's 40,000-step
+# checkpoint, at one campaign pin. A cell at any other step has no Z reference,
+# no seed block and no gate — it would look like registered evidence and is not.
+[ "$STEP" = "40000" ] || die "exp_14 is registered at the STEP=40000 endpoint only (got ${STEP}) - abort"
 case "$SEED" in ''|*[!0-9]*) die "SEED '${SEED}' must be an integer - abort";; esac
 case "$K" in 1|8) ;; *) die "K '${K}' must be 1 or 8 (the registered eval schedules) - abort";; esac
+# EVAL_ORBIT belonged to exp_11's cross cells and means nothing here: exp_14
+# always evaluates an arm under its OWN orbit. An exported leftover is refused
+# rather than ignored — a recycled exp_11 command line must not silently produce
+# an exp_14-labelled row (announcement 05).
+[ -z "${EVAL_ORBIT:-}" ] \
+  || die "EVAL_ORBIT='${EVAL_ORBIT}' is not an exp_14 parameter (every cell runs the arm's OWN orbit) - abort"
+ROTATE_MODE=fixed          # only CELL=rgen changes this
+ROTATE_SEED=""             # ...and only rgen resolves one
 case "$CELL" in
-  screen)
-    [ "$SEED" = "42" ] || die "a futility screen is seed 42 by contract (got ${SEED}); use CELL=conf for the 5-seed table cell - abort"
-    # K=1 and K=8 are both registered for TRAJECTORY screens (Yixun: full curves
-    # at both K). The futility GATES are a narrower thing and remain defined on
-    # K=8 ONLY -- widening the screen cadence must not silently widen what a gate
-    # verdict may be read from. The eval-name carries K, so the two families of
-    # screen files never collide.
-    case "$K" in 1|8) ;; *) die "a screen cell is K=1 or K=8 (got K=${K}) - abort";; esac ;;
-  conf)
-    case "$SEED" in 42|43|44|45|46) ;; *) die "a confirmatory cell uses seeds 42-46 (got ${SEED}) - abort";; esac ;;
-  traj)
-    # Q10 trajectory cells: 5 seeds x both K at every NEW checkpoint above 40k.
-    # Strictly ABOVE 40000 -- the <=40k curve is the single-seed screen record and
-    # 40000 itself belongs to conf/q9. Non-gate, and never table-admissible: the
-    # table's comparison point stays 40k. These exist to give the figures error
-    # bars where the extension runs.
-    case "$SEED" in 42|43|44|45|46) ;; *) die "a traj cell uses seeds 42-46 (got ${SEED}) - abort";; esac
-    [ "$STEP" -gt 40000 ] || die "traj cells are strictly above 40000 (got ${STEP}); the <=40k curve is the screen record and 40000 is conf/q9 - abort"
-    [ "$STEP" -le 100000 ] || die "traj cells stop at the 100000 budget (got ${STEP}) - abort"
-    [ $(( STEP % 2500 )) -eq 0 ] || die "traj steps sit on the 2500 checkpoint grid (got ${STEP}) - abort" ;;
-  q9)
-    # The Q9 fa-vs-vanilla round: VANL and C4L at ONE new pin. A separate cell
-    # from `conf` so re-measuring C4L does not overwrite its published 0c6e9ff
-    # evidence, which lives under the same checkpoint with the conf eval-name.
-    case "$ARM" in
-      VANL|C4L) ;;
-      *) die "CELL=q9 is the fa-vs-vanilla pair (VANL, C4L); got ${ARM} - abort" ;;
-    esac
-    case "$SEED" in 42|43|44|45|46) ;; *) die "a q9 cell uses seeds 42-46 (got ${SEED}) - abort";; esac
-    [ "$STEP" = "40000" ] || die "the Q9 round is the 40k endpoint only (got ${STEP}) - abort" ;;
-  r3)
-    # plan §4 R3: ONE seed at five registered yaw offsets, at the 40k endpoint.
-    [ "$SEED" = "42" ] || die "an R3 cell is seed 42 by contract (got ${SEED}) - abort"
-    [ "$K" = "8" ] || die "an R3 cell is K=8 by contract (got K=${K}) - abort"
-    [ "$STEP" = "40000" ] || die "R3 is registered at the 40k endpoint only (got ${STEP}) - abort"
-    [ -n "${ROTATE_DEG:-}" ] || die "CELL=r3 needs ROTATE_DEG (one of 0, 5.625, 11.25, 22.5, 45) - abort"
+  rgen|zref)
+    case "$SEED" in 42|43|44|45|46) ;; *) die "a ${CELL} cell uses eval seeds 42-46 (got ${SEED}) - abort";; esac
+    # Neither cell takes a fixed angle: rgen draws one per sample and zref is the
+    # theta=0 reference. Silently ignoring an exported ROTATE_DEG is exactly the
+    # trap review B4 closed on the CLI side, so it is a hard error here too.
+    [ -z "${ROTATE_DEG:-}" ] \
+      || die "CELL=${CELL} takes no ROTATE_DEG (got '${ROTATE_DEG}'): rgen draws a per-sample yaw and zref is the theta=0 reference; use CELL=vctl for a fixed angle - abort"
+    if [ "$CELL" = "rgen" ]; then
+      ROTATE_MODE=random
+      ROTATE_SEED="$SEED"    # rotation seed = eval seed (Yixun 2026-08-10)
+    fi ;;
+  vctl)
+    # The six pre-registered validity controls (plan §3.1). They are QA gates, not
+    # headline rows, and the tuple list is exhaustive: VANL@45 is NOT registered
+    # (the positive control is VANL@90; an off-group vanilla angle answers no
+    # question this campaign asked).
+    [ "$SEED" = "42" ] || die "a vctl cell is seed 42 by contract (got ${SEED}) - abort"
+    [ "$K" = "8" ] || die "a vctl cell is K=8 by contract (got K=${K}) - abort"
+    [ -n "${ROTATE_DEG:-}" ] || die "CELL=vctl needs ROTATE_DEG (one of the six registered tuples) - abort"
     case "$ROTATE_DEG" in
-      0|0.0|5.625|11.25|22.5|45|45.0) ;;
-      *) die "ROTATE_DEG '${ROTATE_DEG}' is not one of the registered R3 offsets {0, 5.625, 11.25, 22.5, 45} - abort" ;;
+      90|90.0|45|45.0) ;;
+      *) die "ROTATE_DEG '${ROTATE_DEG}' is not a registered vctl angle (90 or 45) - abort" ;;
+    esac
+    ROTATE_DEG="${ROTATE_DEG%.0}"          # canonical integer form: 90.0 -> 90
+    case "${ARM}@${ROTATE_DEG}" in
+      C4L@90|C8@90|C16@90|C32@90|VANL@90|C4L@45) ;;
+      *) die "vctl tuple ${ARM}@${ROTATE_DEG} is not one of the six registered controls: C4L@90, C8@90, C16@90, C32@90, VANL@90, C4L@45 (plan §3.1) - abort" ;;
     esac ;;
-  cross)
-    # R2 mechanism / D2: the checkpoint is still proven to BE this arm, but the
-    # evaluation deliberately runs an orbit the model was not trained on.
-    [ "$SEED" = "42" ] || die "a cross cell is seed 42 by contract (got ${SEED}) - abort"
-    [ "$K" = "8" ] || die "a cross cell is K=8 by contract (got K=${K}) - abort"
-    [ "$STEP" = "40000" ] || die "cross cells are registered at the 40k endpoint only (got ${STEP}) - abort"
-    [ -n "${EVAL_ORBIT:-}" ] || die "CELL=cross needs EVAL_ORBIT (4|8|16|32) - abort"
-    case "$EVAL_ORBIT" in
-      4|8|16|32) ;;
-      *) die "EVAL_ORBIT '${EVAL_ORBIT}' must be one of 4|8|16|32 - abort" ;;
-    esac ;;
-  *) die "CELL '${CELL}' must be screen (futility), conf (table cell), traj (Q10 trajectory), q9 (fa-vs-vanilla round), r3 (yaw offsets) or cross (orbit mismatch) - abort" ;;
+  *) die "CELL '${CELL}' must be rgen (random per-sample yaw), zref (theta=0 reference) or vctl (fixed-angle validity control) - abort" ;;
 esac
-# VANL has no orbit, so the orbit-shaped cells are meaningless for it: r3 asks
-# what a yaw offset does to an invariant model, and cross asks what a different
-# orbit does. Neither question exists for a vanilla baseline.
-if [ "$ARM" = "VANL" ]; then
-  case "$CELL" in
-    screen|conf|q9|traj) ;;
-    *) die "CELL '${CELL}' is not registered for VANL — r3 and cross are UNREGISTERED for a vanilla arm in this campaign - abort" ;;
-  esac
-fi
-if [ "$ARM" = "C4BACKFILL" ]; then
-  case "$CELL" in
-    screen|cross) ;;
-    *) die "the C4 backfill is a futility comparator (CELL=screen) and the legacy D2 sweep (CELL=cross) only - abort" ;;
-  esac
-fi
-if [ "$ARM" = "C4BACKFILL" ]; then
-  # The plan pre-registers backfill gates at 20k and 30k ONLY (§3/§4). A 10k
-  # backfill cell would look like registered evidence and is not (round-4 NIT 2);
-  # the arms' own 10k screens remain fine — those are registered screen cadence.
-  # 20k/30k are the pre-registered futility gates; 40k is the LEGACY D2 endpoint
-  # (the historical C4 model, at its own orbit and across the others). 10k stays
-  # deliberately absent — it would look like registered evidence and is not.
-  case "$STEP" in
-    20000|30000|40000) ;;
-    *) die "the C4 backfill is registered at steps 20000/30000/40000 only (plan §3), got ${STEP} - abort" ;;
-  esac
-  if [ "$CELL" = "cross" ] && [ "$STEP" != "40000" ]; then
-    die "the legacy D2 cross sweep is the 40k endpoint only, got ${STEP} - abort"
-  fi
-fi
 
 # --- B. arm -> config, orbit, checkpoint tree, identity -----------------------
-# TRAIN_ANGLES is the arm's identity — what the checkpoint must embed, checked
-# in gate E and never relaxed. EVAL_ANGLES is what this evaluation actually
-# runs. They differ for exactly one cell type, CELL=cross, and that difference
-# IS the measurement (R2/D2). Everywhere else they are the same number.
+# TRAIN_ANGLES is the arm's identity — what the checkpoint must embed, checked in
+# gate E and never relaxed. exp_14 always EVALUATES that same orbit (own-protocol
+# evaluation, announcement 04), so N_ANGLES never diverges from it; exp_11's
+# cross-orbit cells are not part of this campaign.
+#
+# The configs and checkpoint trees are exp_11's: this campaign re-measures the
+# exp_11 arms, it does not train anything.
 case "$ARM" in
-  C4BACKFILL)
-    MODEL_CONFIG="$EXP07/FLAC_AR_BF.json"
-    CKPT_DIR="${OUTPUT_ROOT}/exp07_BF/FLAC_exp07_BF/exp07_BF/checkpoints"
-    TRAIN_ANGLES=4
-    ;;
   VANL)
-    MODEL_CONFIG="$EXPDIR/FLAC_AR_VANCKPT.json"
+    MODEL_CONFIG="$EXP11/FLAC_AR_VANCKPT.json"
     CKPT_DIR="${OUTPUT_ROOT}/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints"
     TRAIN_ANGLES=0                       # no orbit: the arm's defining property
     ;;
   *)
-    MODEL_CONFIG="$EXPDIR/FLAC_AR_BF_${ARM}.json"
+    MODEL_CONFIG="$EXP11/FLAC_AR_BF_${ARM}.json"
     CKPT_DIR="${OUTPUT_ROOT}/exp11_${ARM}/FLAC_exp11_${ARM}/exp11_${ARM}/checkpoints"
     case "$ARM" in C4L) TRAIN_ANGLES=4;; C8) TRAIN_ANGLES=8;; C16) TRAIN_ANGLES=16;; C32) TRAIN_ANGLES=32;; esac
     ;;
