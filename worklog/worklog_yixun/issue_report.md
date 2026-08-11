@@ -38,3 +38,11 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 - ~~`train.py` hardcoded max_steps~~ → `--max-steps` flag (TDD).
 - ~~worklog layout~~ → per-user namespace `worklog/worklog_yixun/` (announcement 03).
 - ~~`cylindrical-dinov3` test location / missing pytest~~ → `src/tests/`, pytest installed by Yixun 2026-07-16.
+
+## Cluster session (exp_11) — open items as of 2026-08-11
+
+- **Two-writer checkout hazard, now mitigated for training legs:** content-scoped commit binding landed at `da7ee7f` (Codex-approved). Residual: commits that DO touch the closure (src/, train.py, arm configs, launcher+helpers, data/AR) still kill pending legs by design — announce before landing such commits while legs pend.
+- **Sick-node list (ECC waves Aug 7–9), awaiting Yixun's admin report:** neu301, neu303, neu305, neu306, neu317, neu319, neu322, neu332. neu305 has since hosted a healthy long job — the list may be partially stale. Screens exclude via `EXCLUDE=`; the training submitter has no exclusion path.
+- **Single-training-seed caveat** on every exp_11 arm (incl. VANL): all inference conditional on training seed 42; the fa-reversal finding is 5 EVAL seeds on 1 training run per arm.
+- **R2/R3 mechanism program** resubmitted (29 cells, jobs 3680738–66) after dying twice in ECC waves; if a third wave hits, resubmit from the same one-liner in the worklog (pin 89f24cd, campaign freeze must stay engaged).
+- **exp_11 traj >40k program** intentionally paused until leg records land + one pin bump (unbundle ruling); do not harvest >40k points into figures before `validate_cell(contract="traj")` passes them.
