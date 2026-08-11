@@ -1,16 +1,20 @@
-=== r2-fix4 RED proof — pre-fix 2131cfb vs the working tree — 2026-08-11T15:47:50-04:00 ===
+=== r2-fix4 RED proof — pre-fix 2131cfb vs the working tree — 2026-08-11T16:24:33-04:00 ===
+containment: MAIN_REPO=/n/fs/rfmprog/.tmp/yh4742/tmp.GyJAEdmLAi/fake_repo (stub store helper; the real store is unreachable)
 pre-fix blobs: grid c29de2cdb218 submit 8214b3fd0a25
 PASS  PRE-FIX: YAW_GEN_SQUEUE was EXECUTED in test mode (7 call(s))
         | STAND-IN RAN AS squeue: -h -u yh4742 -o %i %j
         | STAND-IN RAN AS squeue: -h -u yh4742 -o %i %j
 PASS  PRE-FIX: YAW_GEN_SYNC was EXECUTED by the single-cell submitter
-        | STAND-IN RAN AS sync: /n/fs/rfmprog/.tmp/yh4742/tmp.vybAXIRcck/yaw_gen_submission_C4L_zref_S40000_s42_K8_jid7654321.txt.tmp
+        | STAND-IN RAN AS sync: /n/fs/rfmprog/.tmp/yh4742/tmp.GyJAEdmLAi/yaw_gen_submission_C4L_zref_S40000_s42_K8_jid7654321.txt.tmp
 PASS  PRE-FIX (r2-fix2): an arbitrary FA_ORBIT_SBATCH was EXECUTED as the submitter
-        | STAND-IN RAN AS sbatch: --hold --parsable --job-name=exp14-screen-C4L-zref-40000-s42-K8 --output=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_14_yaw_gen_claude/slurm_screen_%x_%j.out --export=ALL,MEASURE_ROOT=/n/fs/gatrdp/codespace/FLAC/.measure_worktrees/e6039470d924fc2b31aff405d76d6112acb6da7e,EXPECT_SHA=e6039470d924fc2b31aff405d76d6112acb6da7e,ARM=C4L,STEP=40000,SEED=42,K=8,CELL=zref /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_14_yaw_gen_claude/yaw_gen_screen.sbatch
+        | STAND-IN RAN AS sbatch: --hold --parsable --job-name=exp14-screen-C4L-zref-40000-s42-K8 --output=/n/fs/rfmprog/.tmp/yh4742/tmp.GyJAEdmLAi/fake_repo/worklog/worklog_yixun/exp_14_yaw_gen_claude/slurm_screen_%x_%j.out --export=ALL,MEASURE_ROOT=/n/fs/rfmprog/.tmp/yh4742/tmp.GyJAEdmLAi/fake_repo,EXPECT_SHA=f6546cea9d44c519a330f5ce155f73d577ac4e97,ARM=C4L,STEP=40000,SEED=42,K=8,CELL=zref /n/fs/rfmprog/.tmp/yh4742/tmp.GyJAEdmLAi/fake_repo/worklog/worklog_yixun/exp_14_yaw_gen_claude/yaw_gen_screen.sbatch
 --- the same probes against the working tree ---
 PASS  POST-FIX: YAW_GEN_SQUEUE is refused by the entry allowlist and never executed
 PASS  POST-FIX: YAW_GEN_SYNC is refused by the entry allowlist and never executed
 PASS  POST-FIX: YAW_GEN_FOO is refused by the entry allowlist and never executed
 PASS  POST-FIX: FA_ORBIT_SBATCH is refused by the submitter and never executed
 PASS  POST-FIX: YAW_GEN_SYNC is refused by the submitter and never executed
-=== red proof: 8 passed, 0 failed ===
+PASS  CONTAINMENT: this proof wrote no lease into the real campaign store
+PASS  ...the pre-fix probes' leases landed in the TEMP store instead (7654321 )
+=== red proof: 10 passed, 0 failed ===
+redproof_rc=0

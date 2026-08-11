@@ -35,6 +35,59 @@
 #   bash yaw_gen_submit_grid.sh WAVE=rgen MAX_INFLIGHT=16
 # ============================================================================
 set -uo pipefail
+# --- FIRST EXECUTABLE STATEMENTS: sanitize the world, then gate it -----------
+# Order is the whole point (review W1). Everything below — the store-lock
+# re-exec, the allowlist gate itself — used to run with whatever PATH and
+# whatever exported shell functions the caller supplied, so a poisoned `env`
+# could have concealed the very variables the gate looks for. Nothing runs before
+# these lines: a fixed PATH, no inherited functions, and an enumeration that uses
+# bash's own variable table rather than any binary.
+PATH=/usr/bin:/bin:/usr/local/bin; export PATH
+unset -f env sbatch scontrol scancel squeue sync git grep sed awk head tail tr \
+         cat printf id date hostname readlink flock mktemp sha256sum cut wc ls \
+         rm mv cp mkdir sleep bash python3 2>/dev/null || true
+
+# ENTRY DOCTRINE, part 1: enumerate the environment NATIVELY. "${!YAW_GEN_@}"
+# expands to the NAMES of set shell variables with that prefix — bash's own
+# symbol table, so there is no command here to substitute or shadow.
+env_names_to_gate() { printf '%s\n' ${!YAW_GEN_@} ${!FA_ORBIT_@} 2>/dev/null; }
+env_allowlist_gate() {   # $1 = space-separated allowed names
+  local name a allowed
+  for name in $(env_names_to_gate); do
+    [ -n "$name" ] || continue
+    allowed=0
+    for a in $1; do [ "$name" = "$a" ] && allowed=1 && break; done
+    [ "$allowed" = "1" ] || {
+      echo "environment variable ${name} is not on this mode's allowlist: only the documented DATA seams are honoured (nothing here may name a command)" >&2
+      exit 2
+    }
+  done
+}
+
+DRYRUN="${DRYRUN:-0}"
+TEST_MODE="${YAW_GEN_TEST_MODE:-0}"
+[ "$DRYRUN" = "1" ] && TEST_MODE=1      # a dry run submits nothing by construction
+ALLOW_LIVE="YAW_GEN_TEST_MODE"
+#   YAW_GEN_TEST_MODE      "1" selects simulation (0/unset = live)
+ALLOW_TEST="YAW_GEN_TEST_MODE YAW_GEN_TEST_RECORD YAW_GEN_TEST_JOBID \
+YAW_GEN_TEST_SUBMIT_RC YAW_GEN_SQUEUE_FIXTURE YAW_GEN_SQUEUE_FAILS \
+YAW_GEN_SYNC_FAILS YAW_GEN_PIN_FILE YAW_GEN_COMMAND_LOG YAW_GEN_WT_DIR \
+YAW_GEN_INTENT_DIR"
+#   YAW_GEN_TEST_RECORD    path of a text file this script APPENDS its argv to
+#   YAW_GEN_TEST_JOBID     the job id a simulated submission reports (data)
+#   YAW_GEN_TEST_SUBMIT_RC the rc a simulated submission returns (data)
+#   YAW_GEN_SQUEUE_FIXTURE path of a text file holding "<jobid> <name>" lines —
+#                          READ as data, never executed
+#   YAW_GEN_SQUEUE_FAILS   "1" makes the simulated queue query fail
+#   YAW_GEN_SYNC_FAILS     "1" makes the simulated flush fail
+#   YAW_GEN_PIN_FILE       path of the campaign-pin file to read
+#   YAW_GEN_COMMAND_LOG    path of the command log to append to
+#   YAW_GEN_WT_DIR         directory whose .leases/ prove an in-flight job
+#   YAW_GEN_INTENT_DIR     not read here: allowed because a test environment that
+#                          drives the single-cell submitter carries it (data path)
+if [ "$TEST_MODE" = "1" ]; then env_allowlist_gate "$ALLOW_TEST"
+else                            env_allowlist_gate "$ALLOW_LIVE"; fi
+
 MAIN_REPO=/n/fs/gatrdp/codespace/FLAC
 EXPDIR="$MAIN_REPO/worklog/worklog_yixun/exp_14_yaw_gen_claude"
 SUBMIT="$EXPDIR/yaw_gen_screen_submit.sh"
@@ -52,12 +105,6 @@ OUTPUT_ROOT="${OUTPUT_ROOT:-$MAIN_REPO/outputs_FLAC}"
 # What test mode may still be given is DATA: a queue FIXTURE FILE to read, flags
 # that make a simulated call fail, and paths to write records to.
 
-DRYRUN="${DRYRUN:-0}"
-# TEST MODE exists so the guard suite can drive the wave's DECISIONS with mocked
-# Slurm and a fake lease directory. It is inert unless the submitter itself is a
-# mock: a run that could really submit may not also relax an invariant.
-TEST_MODE="${YAW_GEN_TEST_MODE:-0}"
-[ "$DRYRUN" = "1" ] && TEST_MODE=1      # a dry run submits nothing by construction
 MAX_INFLIGHT="${MAX_INFLIGHT:-16}"
 POLL_SECONDS="${POLL_SECONDS:-120}"
 
@@ -97,56 +144,18 @@ is_num "$MAX_INFLIGHT" && [ "$MAX_INFLIGHT" -ge 1 ] && [ "$MAX_INFLIGHT" -le 16 
 # such test. There is no override any more — in test mode the submission is
 # SIMULATED in-process (submit_cell), and in live mode it is always this
 # campaign's own submitter.
-# --- ENTRY DOCTRINE: an explicit per-mode allowlist, checked before anything ---
-# Anything named YAW_GEN_* or FA_ORBIT_* that is not listed here is refused, so a
-# new seam cannot be introduced by an environment that this script has never
-# heard of. Every allowlisted name carries DATA only.
-ALLOW_LIVE="YAW_GEN_TEST_MODE"
-#   YAW_GEN_TEST_MODE      "1" selects simulation (checked below; 0/unset = live)
-ALLOW_TEST="YAW_GEN_TEST_MODE YAW_GEN_TEST_RECORD YAW_GEN_TEST_JOBID \
-YAW_GEN_TEST_SUBMIT_RC YAW_GEN_SQUEUE_FIXTURE YAW_GEN_SQUEUE_FAILS \
-YAW_GEN_SYNC_FAILS YAW_GEN_PIN_FILE YAW_GEN_COMMAND_LOG YAW_GEN_WT_DIR \
-YAW_GEN_INTENT_DIR"
-#   YAW_GEN_TEST_RECORD    path of a text file this script APPENDS its argv to
-#   YAW_GEN_TEST_JOBID     the job id a simulated submission reports (data)
-#   YAW_GEN_TEST_SUBMIT_RC the rc a simulated submission returns (data)
-#   YAW_GEN_SQUEUE_FIXTURE path of a text file holding "<jobid> <name>" lines —
-#                          READ as data, never executed
-#   YAW_GEN_SQUEUE_FAILS   "1" makes the simulated queue query fail
-#   YAW_GEN_SYNC_FAILS     "1" makes the simulated flush fail
-#   YAW_GEN_PIN_FILE       path of the campaign-pin file to read
-#   YAW_GEN_COMMAND_LOG    path of the command log to append to
-#   YAW_GEN_WT_DIR         directory whose .leases/ prove an in-flight job
-#   YAW_GEN_INTENT_DIR     not read here: allowed because a test environment that
-#                          drives the single-cell submitter carries it (data path)
-env_allowlist_gate() {   # $1 = space-separated allowed names
-  local name allowed
-  while IFS='=' read -r name _; do
-    case "$name" in
-      YAW_GEN_*|FA_ORBIT_*) ;;
-      *) continue ;;
-    esac
-    allowed=0
-    for a in $1; do [ "$name" = "$a" ] && allowed=1 && break; done
-    [ "$allowed" = "1" ] || reject "environment variable ${name} is not on this mode's allowlist: the wave submitter honours only the documented DATA seams (nothing here may name a command)"
-  done <<< "$(env)"
-}
 if [ "$TEST_MODE" = "1" ]; then
   # Only in test mode may the campaign's own state be redirected. A test that
   # writes the live command log and the live pin file is not a test of the wave,
   # it is an edit of the campaign — and a RED run of this suite once submitted
   # four real jobs that way.
-  env_allowlist_gate "$ALLOW_TEST"
   [ -n "${YAW_GEN_PIN_FILE:-}" ] && PIN_FILE="$YAW_GEN_PIN_FILE"
   [ -n "${YAW_GEN_COMMAND_LOG:-}" ] && COMMAND_LOG="$YAW_GEN_COMMAND_LOG"
 else
-  env_allowlist_gate "$ALLOW_LIVE"
-  # LIVE: resolve the binaries ONCE, absolutely, from a sanitized PATH, after
-  # dropping any exported shell function of the same name. Thereafter only these
-  # stored paths are invoked, so neither PATH nor a function can swap them (Z2).
-  unset -f squeue sync 2>/dev/null || true
+  # LIVE: resolve the binaries ONCE, absolutely, on the PATH sanitized at entry
+  # and with any exported function of the same name already dropped (Z2).
   for _n in squeue sync; do
-    _p="$(PATH=/usr/bin:/bin:/usr/local/bin command -v "$_n" 2>/dev/null)" || _p=""
+    _p="$(command -v "$_n" 2>/dev/null)" || _p=""
     case "$_p" in
       /*) ;;
       *) reject "cannot resolve an absolute path for '${_n}' on a sanitized PATH" ;;

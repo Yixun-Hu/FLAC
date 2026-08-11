@@ -10,6 +10,12 @@
 # is proven is that the pre-fix code RAN what the environment named, which is the
 # whole vulnerability — a stand-in that had been `sbatch` would have submitted.
 #
+# CONTAINMENT (review W4): the pre-fix copies are retargeted with sed so their
+# MAIN_REPO is a temporary directory, and the shared store helper they call is a
+# stub this script writes. An earlier version ran them against the real repo and
+# left one stale lease in exp_11's campaign store; that cannot happen here — the
+# probes have no path to /n/fs/gatrdp/codespace/FLAC/.measure_worktrees at all.
+#
 # Then it runs the same probes against the CURRENT files and shows the refusals.
 #
 # Usage:  bash yaw_gen_redproof_r2fix4.sh [PRE_FIX_SHA]     (default: 2131cfb)
@@ -20,13 +26,51 @@ cd "$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-
 EXPDIR="worklog/worklog_yixun/exp_14_yaw_gen_claude"
 PRE="${1:-2131cfb}"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
-PASS=0; FAIL=0
+PASS=0; FAIL=0; START_EPOCH="$(date +%s)"
 ok()  { echo "PASS  $1"; PASS=$((PASS + 1)); }
 bad() { echo "FAIL  $1"; FAIL=$((FAIL + 1)); }
 
 echo "=== r2-fix4 RED proof — pre-fix ${PRE} vs the working tree — $(date -Is) ==="
-git show "${PRE}:${EXPDIR}/yaw_gen_submit_grid.sh"   > "${TMP}/pre_grid.sh"   || exit 3
-git show "${PRE}:${EXPDIR}/yaw_gen_screen_submit.sh" > "${TMP}/pre_submit.sh" || exit 3
+# --- containment: a temporary MAIN_REPO and a stub store helper -------------
+FAKE="${TMP}/fake_repo"
+FAKE_EXP="${FAKE}/worklog/worklog_yixun/exp_14_yaw_gen_claude"
+FAKE_E11="${FAKE}/worklog/worklog_yixun/exp_11_fa_orbit_claude"
+mkdir -p "$FAKE_EXP" "$FAKE_E11" "${FAKE}/.measure_worktrees" "${FAKE}/.leases"
+# a REAL (empty) git repository, so the pre-fix code's own commit checks pass and
+# the probes reach the call under test — without any path to the real repo
+git -c init.defaultBranch=main init -q "$FAKE"
+git -C "$FAKE" -c user.email=redproof@local -c user.name=redproof \
+    commit -q --allow-empty -m "redproof containment root"
+# the stub the pre-fix submitter will call instead of the real store helper: it
+# hands back a temp directory and records leases there, so no real worktree, no
+# real lease and no real lock are ever touched.
+cat > "${FAKE_E11}/fa_orbit_measure_worktree.sh" <<STUB
+#!/usr/bin/env bash
+case "\${1:-}" in
+  --with-lock) shift
+               exec 8>"${FAKE}/.measure_worktrees/.store.lock"
+               FA_ORBIT_STORE_LOCK_HELD=1 exec "\$@" ;;
+  --pinned)    echo "<none>"; exit 1 ;;
+  --frozen)    exit 0 ;;
+  --lease)     mkdir -p "${FAKE}/.leases"; printf 'jobid %s\n' "\$2" > "${FAKE}/.leases/\$2"; exit 0 ;;
+  --release)   rm -f "${FAKE}/.leases/\$2"; exit 0 ;;
+  *)           echo "${FAKE}"; exit 0 ;;
+esac
+STUB
+chmod +x "${FAKE_E11}/fa_orbit_measure_worktree.sh"
+: > "${FAKE}/.measure_worktrees/.campaign_freeze"
+retarget() {   # <sha> <basename> -> a pre-fix copy whose MAIN_REPO is the temp root
+  git show "${1}:${EXPDIR}/${2}" \
+    | sed "s|^MAIN_REPO=/n/fs/gatrdp/codespace/FLAC$|MAIN_REPO=${FAKE}|" > "${FAKE_EXP}/${2}"
+  [ -s "${FAKE_EXP}/${2}" ] || return 1
+  grep -q "^MAIN_REPO=${FAKE}$" "${FAKE_EXP}/${2}"
+}
+retarget "$PRE" yaw_gen_submit_grid.sh    || { echo "cannot retarget the pre-fix grid"; exit 3; }
+retarget "$PRE" yaw_gen_screen_submit.sh  || { echo "cannot retarget the pre-fix submitter"; exit 3; }
+cp "${EXPDIR}/exp14_validate_cell.py" "${EXPDIR}/exp14_ckpt_expect.json" "$FAKE_EXP/"
+cp "${FAKE_EXP}/yaw_gen_submit_grid.sh"   "${TMP}/pre_grid.sh"
+cp "${FAKE_EXP}/yaw_gen_screen_submit.sh" "${TMP}/pre_submit.sh"
+echo "containment: MAIN_REPO=${FAKE} (stub store helper; the real store is unreachable)"
 echo "pre-fix blobs: grid $(git rev-parse "${PRE}:${EXPDIR}/yaw_gen_submit_grid.sh" | cut -c1-12)" \
      "submit $(git rev-parse "${PRE}:${EXPDIR}/yaw_gen_screen_submit.sh" | cut -c1-12)"
 
@@ -36,15 +80,15 @@ STAND_IN="${TMP}/stand_in.sh"
 printf '#!/usr/bin/env bash\nprintf "STAND-IN RAN AS %%s: %%s\\n" "$STAND_IN_ROLE" "$*" >> "%s"\nexit 0\n' \
   "${TMP}/ran.txt" > "$STAND_IN"
 chmod +x "$STAND_IN"
-printf '%s\n' "$(git rev-parse HEAD)" > "${TMP}/pin"
+printf '%s\n' "$(git -C "$FAKE" rev-parse HEAD)" > "${TMP}/pin"
 mkdir -p "${TMP}/out"
 
 # --- (a) YAW_GEN_SQUEUE was EXEC'd in test mode ------------------------------
 rm -f "${TMP}/ran.txt"
-env STAND_IN_ROLE=squeue YAW_GEN_TEST_MODE=1 YAW_GEN_SQUEUE="$STAND_IN" \
+timeout 60 env STAND_IN_ROLE=squeue YAW_GEN_TEST_MODE=1 YAW_GEN_SQUEUE="$STAND_IN" \
     YAW_GEN_PIN_FILE="${TMP}/pin" YAW_GEN_COMMAND_LOG="${TMP}/cmd.md" \
     YAW_GEN_TEST_RECORD="${TMP}/rec.txt" OUTPUT_ROOT="${TMP}/out" \
-    bash "${TMP}/pre_grid.sh" WAVE=vctl >/dev/null 2>&1
+    bash "${FAKE_EXP}/yaw_gen_submit_grid.sh" WAVE=vctl >/dev/null 2>&1
 if grep -q "STAND-IN RAN AS squeue" "${TMP}/ran.txt" 2>/dev/null; then
   ok "PRE-FIX: YAW_GEN_SQUEUE was EXECUTED in test mode ($(grep -c . "${TMP}/ran.txt") call(s))"
   sed 's/^/        | /' "${TMP}/ran.txt" | head -2
@@ -54,11 +98,11 @@ fi
 
 # --- (b) YAW_GEN_SYNC was EXEC'd by the single-cell submitter ----------------
 rm -f "${TMP}/ran.txt"
-env STAND_IN_ROLE=sync DRYRUN=1 YAW_GEN_SYNC="$STAND_IN" YAW_GEN_PIN_FILE="${TMP}/pin" \
-    bash "${TMP}/pre_submit.sh" ARM=C4L CELL=zref STEP=40000 >/dev/null 2>&1
-env STAND_IN_ROLE=sync YAW_GEN_TEST_MODE=1 YAW_GEN_SYNC="$STAND_IN" \
+timeout 60 env STAND_IN_ROLE=sync DRYRUN=1 YAW_GEN_SYNC="$STAND_IN" YAW_GEN_PIN_FILE="${TMP}/pin" \
+    bash "${FAKE_EXP}/yaw_gen_screen_submit.sh" ARM=C4L CELL=zref STEP=40000 >/dev/null 2>&1
+timeout 60 env STAND_IN_ROLE=sync YAW_GEN_TEST_MODE=1 YAW_GEN_SYNC="$STAND_IN" \
     YAW_GEN_TEST_RECORD="${TMP}/rec2.txt" YAW_GEN_PIN_FILE="${TMP}/pin" \
-    YAW_GEN_INTENT_DIR="$TMP" bash "${TMP}/pre_submit.sh" ARM=C4L CELL=zref STEP=40000 \
+    YAW_GEN_INTENT_DIR="$TMP" bash "${FAKE_EXP}/yaw_gen_screen_submit.sh" ARM=C4L CELL=zref STEP=40000 \
     >/dev/null 2>&1
 if grep -q "STAND-IN RAN AS sync" "${TMP}/ran.txt" 2>/dev/null; then
   ok "PRE-FIX: YAW_GEN_SYNC was EXECUTED by the single-cell submitter"
@@ -70,11 +114,12 @@ fi
 # --- (c) FA_ORBIT_SBATCH: any spelling but "sbatch" counted as a mock --------
 # (closed one round earlier, in r2-fix3; kept here so the whole class is on file)
 rm -f "${TMP}/ran.txt"
-git show "2131cfb~1:${EXPDIR}/yaw_gen_screen_submit.sh" > "${TMP}/pre3_submit.sh" 2>/dev/null || true
+retarget "2131cfb~1" yaw_gen_screen_submit.sh 2>/dev/null \
+  && cp "${FAKE_EXP}/yaw_gen_screen_submit.sh" "${TMP}/pre3_submit.sh" || true
 if [ -s "${TMP}/pre3_submit.sh" ]; then
   env STAND_IN_ROLE=sbatch FA_ORBIT_SBATCH="$STAND_IN" FA_ORBIT_SCONTROL=/bin/true \
       FA_ORBIT_SCANCEL=/bin/true YAW_GEN_PIN_FILE="${TMP}/pin" YAW_GEN_INTENT_DIR="$TMP" \
-      bash "${TMP}/pre3_submit.sh" ARM=C4L CELL=zref STEP=40000 >/dev/null 2>&1
+      bash "${FAKE_EXP}/yaw_gen_screen_submit.sh" ARM=C4L CELL=zref STEP=40000 >/dev/null 2>&1
   if grep -q "STAND-IN RAN AS sbatch" "${TMP}/ran.txt" 2>/dev/null; then
     ok "PRE-FIX (r2-fix2): an arbitrary FA_ORBIT_SBATCH was EXECUTED as the submitter"
     sed 's/^/        | /' "${TMP}/ran.txt" | head -1
@@ -87,7 +132,7 @@ fi
 echo "--- the same probes against the working tree ---"
 for PROBE in "YAW_GEN_SQUEUE=${STAND_IN}" "YAW_GEN_SYNC=${STAND_IN}" "YAW_GEN_FOO=1"; do
   rm -f "${TMP}/ran.txt"
-  out="$(env STAND_IN_ROLE=probe YAW_GEN_TEST_MODE=1 "$PROBE" \
+  out="$(timeout 60 env STAND_IN_ROLE=probe YAW_GEN_TEST_MODE=1 "$PROBE" \
          YAW_GEN_PIN_FILE="${TMP}/pin" OUTPUT_ROOT="${TMP}/out" \
          bash "${EXPDIR}/yaw_gen_submit_grid.sh" WAVE=vctl 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "not on this mode's allowlist" \
@@ -99,7 +144,7 @@ for PROBE in "YAW_GEN_SQUEUE=${STAND_IN}" "YAW_GEN_SYNC=${STAND_IN}" "YAW_GEN_FO
 done
 for PROBE in "FA_ORBIT_SBATCH=${STAND_IN}" "YAW_GEN_SYNC=${STAND_IN}"; do
   rm -f "${TMP}/ran.txt"
-  out="$(env STAND_IN_ROLE=probe "$PROBE" bash "${EXPDIR}/yaw_gen_screen_submit.sh" \
+  out="$(timeout 60 env STAND_IN_ROLE=probe "$PROBE" bash "${EXPDIR}/yaw_gen_screen_submit.sh" \
          ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "not on this mode's allowlist" \
      && [ ! -f "${TMP}/ran.txt" ]; then
@@ -108,6 +153,20 @@ for PROBE in "FA_ORBIT_SBATCH=${STAND_IN}" "YAW_GEN_SYNC=${STAND_IN}"; do
     bad "POST-FIX: ${PROBE%%=*} was tolerated (rc=${rc})"
   fi
 done
+
+# --- containment, verified ---------------------------------------------------
+STORE=/n/fs/gatrdp/codespace/FLAC/.measure_worktrees
+LEAKED="$(find "$STORE" -name '7654321' -newermt "@${START_EPOCH}" 2>/dev/null | head -3)"
+if [ -z "$LEAKED" ]; then
+  ok "CONTAINMENT: this proof wrote no lease into the real campaign store"
+else
+  bad "CONTAINMENT: leaked into the real store: ${LEAKED}"
+fi
+if [ -n "$(ls -A "${FAKE}/.leases" 2>/dev/null)" ]; then
+  ok "...the pre-fix probes' leases landed in the TEMP store instead ($(ls "${FAKE}/.leases" | tr '\n' ' '))"
+else
+  ok "...the pre-fix probes wrote no lease at all"
+fi
 
 echo "=== red proof: ${PASS} passed, ${FAIL} failed ==="
 [ "$FAIL" -eq 0 ] || exit 1

@@ -27,6 +27,63 @@
 #   3. EXPECT_SHA — taken from the pinned tree, not from the (moving) main HEAD
 #
 set -euo pipefail
+# --- FIRST EXECUTABLE STATEMENTS: sanitize the world, then gate it -----------
+# Order is the whole point (review W1). Everything below — the manifest reader,
+# the store-lock re-exec, the allowlist gate itself — used to run with whatever
+# PATH and whatever exported shell functions the caller supplied, so a poisoned
+# `env` could have concealed the very variables the gate looks for. Nothing runs
+# before these three lines: a fixed PATH, no inherited functions, and an
+# enumeration that uses bash's own variable table rather than any binary.
+PATH=/usr/bin:/bin:/usr/local/bin; export PATH
+unset -f env sbatch scontrol scancel squeue sync git grep sed awk head tail tr \
+         cat printf id date hostname readlink flock mktemp sha256sum cut wc ls \
+         rm mv cp mkdir sleep bash python3 2>/dev/null || true
+
+# ENTRY DOCTRINE, part 1: enumerate the environment NATIVELY. "${!YAW_GEN_@}"
+# expands to the NAMES of set shell variables with that prefix — it is bash's own
+# symbol table, so there is no command here to substitute or shadow.
+env_names_to_gate() { printf '%s\n' ${!YAW_GEN_@} ${!FA_ORBIT_@} 2>/dev/null; }
+env_allowlist_gate() {   # $1 = space-separated allowed names
+  local name a allowed
+  for name in $(env_names_to_gate); do
+    [ -n "$name" ] || continue
+    allowed=0
+    for a in $1; do [ "$name" = "$a" ] && allowed=1 && break; done
+    [ "$allowed" = "1" ] || {
+      echo "environment variable ${name} is not on this mode's allowlist: only the documented DATA seams are honoured (nothing here may name a command)" >&2
+      exit 2
+    }
+  done
+}
+
+# The MODE is known from the environment alone (no arguments needed), so the gate
+# runs HERE — before the manifest reader, before the store-lock re-exec, before
+# anything else this script can do.
+DRYRUN="${DRYRUN:-0}"
+TEST_MODE=0
+[ "${YAW_GEN_TEST_MODE:-0}" = "1" ] && TEST_MODE=1
+[ "$DRYRUN" = "1" ] && TEST_MODE=1        # a dry run submits nothing by construction
+ALLOW_LIVE="FA_ORBIT_STORE_LOCK_HELD YAW_GEN_TEST_MODE"
+#   FA_ORBIT_STORE_LOCK_HELD  "1" from the shared store helper's lock protocol
+#   YAW_GEN_TEST_MODE         "1" selects simulation (0/unset = live)
+ALLOW_TEST="FA_ORBIT_STORE_LOCK_HELD YAW_GEN_TEST_MODE YAW_GEN_TEST_RECORD \
+YAW_GEN_TEST_JOBID YAW_GEN_TEST_SUBMIT_SLEEP YAW_GEN_TEST_RELEASE_SLEEP \
+YAW_GEN_TEST_RELEASE_FAILS YAW_GEN_TEST_SCANCEL_FAILS YAW_GEN_SYNC_FAILS \
+YAW_GEN_PIN_FILE YAW_GEN_INTENT_DIR"
+#   YAW_GEN_TEST_RECORD        path of a text file this script APPENDS its argv to
+#   YAW_GEN_TEST_JOBID         the job id a simulated submission reports (data)
+#   YAW_GEN_TEST_SUBMIT_SLEEP  seconds a simulated submission stalls (data)
+#   YAW_GEN_TEST_RELEASE_SLEEP seconds a simulated release stalls (data)
+#   YAW_GEN_TEST_RELEASE_FAILS "1" makes the simulated release fail
+#   YAW_GEN_TEST_SCANCEL_FAILS "1" makes the simulated cancel fail
+#   YAW_GEN_SYNC_FAILS         "1" makes the simulated flush fail
+#   YAW_GEN_PIN_FILE           path of the campaign-pin file to read
+#   YAW_GEN_INTENT_DIR         directory the intent manifest is written to
+# The re-exec below runs this script again from the top, so the child re-runs
+# this gate on the environment it actually received.
+if [ "$TEST_MODE" = "1" ]; then env_allowlist_gate "$ALLOW_TEST"
+else                            env_allowlist_gate "$ALLOW_LIVE"; fi
+
 MAIN_REPO=/n/fs/gatrdp/codespace/FLAC
 EXPDIR="$MAIN_REPO/worklog/worklog_yixun/exp_14_yaw_gen_claude"
 # The measure-worktree store is SHARED (one lock, one freeze, one lease space for
@@ -91,7 +148,6 @@ fd8_is_the_store_lock() {
   [ -n "$have" ] && [ -n "$want" ] && [ "$have" = "$want" ]
 }
 
-DRYRUN="${DRYRUN:-0}"
 if [ "${FA_ORBIT_STORE_LOCK_HELD:-0}" = "1" ]; then
   fd8_is_the_store_lock || {
     echo "FA_ORBIT_STORE_LOCK_HELD is set but fd 8 is not ${LOCKFILE} —" >&2
@@ -178,56 +234,17 @@ done
 # would have run. A test therefore cannot reach sbatch even by accident, which is
 # the only property worth having (an earlier "mock" rule let a guard run submit
 # four real jobs).
-TEST_MODE=0
-[ "${YAW_GEN_TEST_MODE:-0}" = "1" ] && TEST_MODE=1
-[ "$DRYRUN" = "1" ] && TEST_MODE=1        # a dry run submits nothing by construction
-
-# --- ENTRY DOCTRINE: an explicit per-mode allowlist, checked before anything ---
-# Anything named YAW_GEN_* or FA_ORBIT_* that is not listed here is REFUSED, so a
-# seam cannot be introduced by an environment this script has never heard of.
-# Every allowlisted name carries DATA only — none of them names a command.
-ALLOW_LIVE="FA_ORBIT_STORE_LOCK_HELD YAW_GEN_TEST_MODE"
-#   FA_ORBIT_STORE_LOCK_HELD  "1" from the shared store helper's lock protocol
-#   YAW_GEN_TEST_MODE         "1" selects simulation (0/unset = live)
-ALLOW_TEST="FA_ORBIT_STORE_LOCK_HELD YAW_GEN_TEST_MODE YAW_GEN_TEST_RECORD \
-YAW_GEN_TEST_JOBID YAW_GEN_TEST_SUBMIT_SLEEP YAW_GEN_TEST_RELEASE_SLEEP \
-YAW_GEN_TEST_RELEASE_FAILS YAW_GEN_TEST_SCANCEL_FAILS YAW_GEN_SYNC_FAILS \
-YAW_GEN_PIN_FILE YAW_GEN_INTENT_DIR"
-#   YAW_GEN_TEST_RECORD        path of a text file this script APPENDS its argv to
-#   YAW_GEN_TEST_JOBID         the job id a simulated submission reports (data)
-#   YAW_GEN_TEST_SUBMIT_SLEEP  seconds a simulated submission stalls (data)
-#   YAW_GEN_TEST_RELEASE_SLEEP seconds a simulated release stalls (data)
-#   YAW_GEN_TEST_RELEASE_FAILS "1" makes the simulated release fail
-#   YAW_GEN_TEST_SCANCEL_FAILS "1" makes the simulated cancel fail
-#   YAW_GEN_SYNC_FAILS         "1" makes the simulated flush fail
-#   YAW_GEN_PIN_FILE           path of the campaign-pin file to read
-#   YAW_GEN_INTENT_DIR         directory the intent manifest is written to
-env_allowlist_gate() {   # $1 = space-separated allowed names
-  local name allowed a
-  while IFS='=' read -r name _; do
-    case "$name" in
-      YAW_GEN_*|FA_ORBIT_*) ;;
-      *) continue ;;
-    esac
-    allowed=0
-    for a in $1; do [ "$name" = "$a" ] && allowed=1 && break; done
-    [ "$allowed" = "1" ] || reject "environment variable ${name} is not on this mode's allowlist: this submitter honours only the documented DATA seams (nothing here may name a command)"
-  done <<< "$(env)"
-}
-if [ "$TEST_MODE" = "1" ]; then
-  env_allowlist_gate "$ALLOW_TEST"
-else
-  env_allowlist_gate "$ALLOW_LIVE"
-  # LIVE: resolve every Slurm binary ONCE, absolutely, from a sanitized PATH,
-  # after dropping any exported shell FUNCTION of the same name. Only these
-  # stored paths are invoked afterwards, so neither PATH nor an exported function
-  # can substitute an implementation (Z2).
-  unset -f sbatch scontrol scancel sync 2>/dev/null || true
+# The mode and the allowlist were settled at the top of this script. What remains
+# for LIVE mode is resolving the binaries it will actually run.
+if [ "$TEST_MODE" != "1" ]; then
+  # Resolve every Slurm binary ONCE, absolutely, on the sanitized PATH set at
+  # entry and with any exported shell function of the same name already dropped.
+  # Only these stored paths are invoked afterwards (Z2).
   for _n in sbatch scontrol scancel sync; do
-    _p="$(PATH=/usr/bin:/bin:/usr/local/bin command -v "$_n" 2>/dev/null)" || _p=""
+    _p="$(command -v "$_n" 2>/dev/null)" || _p=""
     case "$_p" in
       /*) ;;
-      *) reject "cannot resolve an absolute path for '${_n}' on a sanitized PATH" ;;
+      *) reject "cannot resolve an absolute path for '${_n}' on the sanitized PATH" ;;
     esac
     [ -x "$_p" ] || reject "resolved '${_p}' for ${_n} is not executable"
     printf -v "BIN_${_n}" '%s' "$_p"
