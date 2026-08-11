@@ -175,6 +175,10 @@ AcousticRooms/
 HAA/
 weights/
 outputs_FLAC/
+# della runtime symlinks at the repo root: the dir-only rules above (a trailing
+# slash) do NOT match a symlink-to-directory, so name them without one.
+/models
+/AcousticRooms
 # raw training logs exceed GitHub 100MB; compact versions (*_train_compact.log) are committed instead
 worklog/worklog_yixun/**/*_train.log
 worklog/worklog_yixun/.last_model*
