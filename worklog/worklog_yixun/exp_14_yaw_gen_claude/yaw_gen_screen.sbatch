@@ -509,6 +509,10 @@ print(f"ckpt gate OK: step {gstep}, {kind}, config matches {cfg_path}")
 PY
 
 # --- F. the eval argv ---------------------------------------------------------
+# Every protocol flag is passed EXPLICITLY, including the ones whose value equals
+# an argparse default: announcement 05's rule is that eval-protocol flags are part
+# of the experiment, and a recipe that relies on a default silently changes when
+# the default does.
 EVAL_ARGV=(
   --model-config "$MODEL_CONFIG"
   --dataset-config "$DATASET_CONFIG"
@@ -516,16 +520,22 @@ EVAL_ARGV=(
   --cond-method "$COND_METHOD"
   --cond-autocast bf16 --cfg-scale 1.0 --steps 1
   --seed "$SEED" --eval-name "$EVAL_NAME"
+  --batch-size "$BATCH_SIZE" --num-workers "$NUM_WORKERS"
+  --expected-stream-count "$EXPECTED_STREAM_COUNT" --record-stream
 )
 # a vanilla evaluation is given NO orbit at all — not an empty one
 [ "$COND_METHOD" = "vanilla" ] || EVAL_ARGV+=(--frame-avg-angles "$ANGLES")
-if [ "$CELL" = "r3" ]; then
-  EVAL_ARGV+=(--rotate-deg "$ROTATE_DEG")
-fi
+# The yaw protocol, one branch per cell type. zref adds NOTHING: the theta=0
+# reference must run the byte-default fixed path, so it is the absence of these
+# flags — not --rotate-deg 0 — that defines it.
+case "$CELL" in
+  rgen) EVAL_ARGV+=(--rotate-mode random --rotate-seed "$ROTATE_SEED") ;;
+  vctl) EVAL_ARGV+=(--rotate-deg "$ROTATE_DEG") ;;
+esac
 echo "--- eval argv ---"
 echo "python eval_FLAC.py ${EVAL_ARGV[*]}"
 if [ "$DRYRUN" = "1" ]; then
-  echo "DRY RUN complete: gates A-E passed for ARM=${ARM} STEP=${STEP} SEED=${SEED} K=${K}"
+  echo "DRY RUN complete: gates A-E passed for ARM=${ARM} CELL=${CELL} STEP=${STEP} SEED=${SEED} K=${K}"
   exit 0
 fi
 
@@ -555,13 +565,19 @@ EVAL_RC="${PIPE_RC[0]}"; TEE_RC="${PIPE_RC[1]}"
 
 # --- H. sidecar + result line -------------------------------------------------
 CKPT_SHA="$(sha256sum "$CKPT" | awk '{print $1}')" || die "ckpt sha256 FAILED - abort"
-METRICS="$(python3 - "$CKPT" "$EVAL_NAME" "$N_ANGLES" "$ROTATE_DEG" "$COND_METHOD" <<'PY'
+# The path is DERIVED from eval_FLAC itself (never reconstructed by hand): the
+# rotation-suffix rule lives there, and a cell that looked for the wrong file
+# would report "metrics JSON not written" for a run that in fact succeeded.
+METRICS="$(python3 - "$CKPT" "$EVAL_NAME" "$N_ANGLES" "$ROTATE_DEG" "$COND_METHOD" \
+                    "$ROTATE_MODE" "$ROTATE_SEED" <<'PY'
 import os, sys
 sys.path.insert(0, os.getcwd())
 from eval_FLAC import build_output_paths
+mode, rseed = sys.argv[6], sys.argv[7]
 print(build_output_paths(sys.argv[1], 1, 1.0, sys.argv[2], cond_method=sys.argv[5],
                          rotate_deg=float(sys.argv[4]),
-                         n_angles=int(sys.argv[3]))["metrics"])
+                         n_angles=int(sys.argv[3]), rotate_mode=mode,
+                         rotate_seed=int(rseed) if rseed else None)["metrics"])
 PY
 )" || die "could not derive the metrics path - abort"
 [ -f "$METRICS" ] || die "metrics JSON not written: ${METRICS} - abort" 5
@@ -571,55 +587,60 @@ MODEL_CONFIG_REL="$(python3 -c "import os,sys; print(os.path.relpath(os.path.rea
   || die "could not make the model-config path repo-relative - abort"
 python3 - "$METRICS" "$ARM" "$STEP" "$SEED" "$K" "$EVAL_NAME" "$MODEL_CONFIG_REL" "$CONFIG_SHA" \
          "$TRAIN_ANGLES" "$N_ANGLES" "$ROTATE_DEG" "$CELL" "$COND_METHOD" \
-         "$DATASET_CONFIG" "$CKPT" "$CKPT_SHA" "$ANGLES" "$HEAD_SHA" <<'PY' || die "sidecar write FAILED - abort" 7
-import json, sys
+         "$DATASET_CONFIG" "$CKPT" "$CKPT_SHA" "$ANGLES" "$HEAD_SHA" \
+         "$ROTATE_MODE" "$ROTATE_SEED" "$EXPECTED_STREAM_COUNT" "$BATCH_SIZE" "$NUM_WORKERS" \
+         <<'PY' || die "sidecar write FAILED - abort" 7
+import json, os, sys
 (metrics, arm, step, seed, k, eval_name, cfg, cfg_sha,
  train_orbit, eval_orbit, rotate_deg, cell, cond_method,
- ds, ckpt, ckpt_sha, angles, commit) = sys.argv[1:19]
+ ds, ckpt, ckpt_sha, angles, commit,
+ rotate_mode, rotate_seed, expected_count, batch_size, workers) = sys.argv[1:24]
 side = {
     "arm": arm, "step": int(step), "seed": int(seed), "K": int(k), "eval_name": eval_name,
     "cfg_scale": 1.0, "steps": 1, "model_config": cfg, "model_config_sha256": cfg_sha,
     "dataset_config": ds, "ckpt_path": ckpt, "ckpt_sha256": ckpt_sha, "use_ema": True,
     "frame_avg_angles": [float(a) for a in angles.split(",")] if angles else None,
     "cond_method": cond_method, "cond_autocast": "bf16", "commit": commit,
-    # What was TRAINED and what was EVALUATED, always both, so a single row can
-    # be read without knowing which cell type produced it. They differ only for
-    # CELL=cross, where the difference is the measurement.
+    # What was TRAINED and what was EVALUATED, always both, so a single row can be
+    # read without knowing which cell type produced it. exp_14 always evaluates the
+    # arm's own orbit, so they agree here — recorded anyway, because a row that
+    # records only the number it used cannot be checked against the model it used.
     "cell": cell, "training_orbit": int(train_orbit), "eval_orbit": int(eval_orbit),
-    "rotate_deg": float(rotate_deg),
+    # THE YAW PROTOCOL (announcement 05). The two angle fields are deliberately
+    # exclusive and mirror eval_FLAC's own record: a fixed cell has an angle and no
+    # seed, a random cell has a seed and rotate_deg null. An unrotated cell and a
+    # randomly-rotated one must never be readable as the same protocol.
+    "rotate_mode": rotate_mode,
+    "rotate_deg": None if rotate_mode == "random" else float(rotate_deg),
+    "rotate_seed": int(rotate_seed) if rotate_seed else None,
+    # ...and the runtime pins the collector re-checks per cell (plan §3.2).
+    "expected_stream_count": int(expected_count),
+    "record_stream": True,
+    "stream_sidecar": os.path.basename(metrics)[:-len(".json")] + ".stream.json",
+    "batch_size": int(batch_size), "num_workers": int(workers),
 }
 with open(metrics + ".screenmeta.json", "w") as fh:
     json.dump(side, fh, indent=2)
 print("sidecar:", metrics + ".screenmeta.json")
 PY
 
-# --- I. the validator is a GATE, not advice (round-4 review B5) ---------------
-# A screen that cannot be validated must not announce a result: SCREENRESULT is
-# what the futility gate and the table generator consume.
-# A confirmatory row cannot be validated alone -- the table contract is a
-# five-seed transaction -- so it must NOT claim it was (re-review item 5). Only a
-# futility screen, which IS a complete single-seed cell, reports validated=.
-if [ "$CELL" = "screen" ]; then
-  python3 "$EXPDIR/exp11_validate_rows.py" --arm "$ARM" --step "$STEP" --k "$K" \
-    --contract futility --verify-hashes --output-root "$MAIN_REPO" "$METRICS" \
-    || die "row validation FAILED - refusing to emit SCREENRESULT for an unprovable row" 6
-  # A K=1 screen and every traj row are FIGURE-ONLY: the pre-registered futility
-  # gates are defined on K=8 screens, so emitting a bare "futility" for them
-  # would let a reader take a non-gate row as gate evidence.
-  if [ "$CELL" = "traj" ]; then
-    VALIDATED="traj-figure-only-non-gate"
-  elif [ "$K" != "8" ]; then
-    VALIDATED="futility-figure-only-non-gate(K${K})"
-  else
-    VALIDATED="futility"
-  fi
-else
-  VALIDATED="pending-cell"
-  echo "NOTE: CELL=${CELL} is one row of a five-seed table cell; it is validated as a WHOLE cell"
-  echo "  once every seed has landed, and until then this row is NOT validated:"
-  echo "  python3 ${EXPDIR}/exp11_validate_rows.py --arm ${ARM} --step ${STEP} --k ${K} --contract table --verify-hashes --output-root ${MAIN_REPO} <all seed JSONs>"
-fi
+# --- I. the validator is a GATE, not advice ----------------------------------
+# A cell that cannot be validated must not announce a result: SCREENRESULT is what
+# the wave submitter's dedup and the collector consume, and a cell that "looks
+# done" but fails validation is exactly the fail-open case review B6 closed.
+#
+# Unlike exp_11's table rows, ONE exp_14 cell is a complete self-contained
+# artifact — the metrics record plus its .stream.json assignment audit — so it can
+# and must be validated the moment it lands. Cross-cell equalities (Z<->R pairing,
+# cross-arm rotation matching, 5/5 seed blocks) belong to the collector and are
+# deliberately NOT claimed here.
+python3 "$EXPDIR/exp14_validate_cell.py" check --metrics "$METRICS" \
+  --arm "$ARM" --cell "$CELL" --step "$STEP" --seed "$SEED" --k "$K" \
+  --rotate-deg "$ROTATE_DEG" --pin "$HEAD_SHA" --ckpt-sha "$CKPT_SHA" \
+  --expected-count "$EXPECTED_STREAM_COUNT" \
+  || die "cell validation FAILED - refusing to emit SCREENRESULT for an unprovable cell" 6
+VALIDATED="cell-valid"
 
-echo "SCREENRESULT arm=${ARM} cell=${CELL} step=${STEP} seed=${SEED} k=${K} rc=${EVAL_RC} validated=${VALIDATED} eval_name=${EVAL_NAME} metrics=${METRICS} sidecar=${METRICS}.screenmeta.json config_sha256=${CONFIG_SHA} ckpt_sha256=${CKPT_SHA} commit=${HEAD_SHA} log=${LOG}"
+echo "SCREENRESULT arm=${ARM} cell=${CELL} step=${STEP} seed=${SEED} k=${K} rc=${EVAL_RC} validated=${VALIDATED} rotate_mode=${ROTATE_MODE} rotate_seed=${ROTATE_SEED:-<n/a>} rotate_deg=${ROTATE_DEG} eval_name=${EVAL_NAME} metrics=${METRICS} sidecar=${METRICS}.screenmeta.json stream=${METRICS%.json}.stream.json config_sha256=${CONFIG_SHA} ckpt_sha256=${CKPT_SHA} commit=${HEAD_SHA} log=${LOG}"
 # --- END screen-run-and-record -------------------------------------------------
 exit 0
