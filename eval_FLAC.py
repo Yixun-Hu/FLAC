@@ -401,23 +401,47 @@ def verify_stream_positions(stream):
             )
 
 
-def verify_stream_count(stream, expected):
-    """Substitution guard: the stream must have exactly one position per split item.
+def verify_stream_count(stream, dataset_count, expected=None):
+    """Substitution guard: one stream position per split item, and the right split.
 
-    A short stream means items were dropped; a long one means they were served
-    twice. Either way the cell did not evaluate the split it claims to have
-    evaluated, so it FAILS rather than reporting a number (plan §3.3).
+    Two independent checks, because they catch different failures:
+
+    * ``len(stream) == dataset_count`` --- a short stream means items were dropped,
+      a long one that they were served twice. This compares the run against
+      itself, so it can only detect an inconsistency, never a wrong split.
+    * ``... == expected`` --- the campaign's PRE-REGISTERED item count (6,337 for
+      the published unseen split, announcement 01). Without it the first check is
+      tautological: a zero-item or subsampled dataset is perfectly self-consistent
+      and used to produce a valid-looking artifact (review B1). Supplied by the
+      launch kit; omitting it leaves only the weaker check.
+
+    Either failure FAILS the cell rather than reporting a number (plan §3.3).
     """
     got = len(stream)
-    if expected is None:
+    if dataset_count is None:
         raise RuntimeError(
-            "cannot verify the rotation stream: the expected item count is unknown."
+            "cannot verify the rotation stream: the dataset item count is unknown."
         )
-    if got != int(expected):
+    dataset_count = int(dataset_count)
+    if got != dataset_count:
         raise RuntimeError(
-            f"rotation stream has {got} positions but the dataset holds {int(expected)} "
+            f"rotation stream has {got} positions but the dataset holds {dataset_count} "
             "items: the evaluated split does not match the configured one (dropped, "
             "duplicated or substituted items). Refusing to report metrics."
+        )
+    if expected is None:
+        return
+    expected = int(expected)
+    if expected <= 0:
+        raise RuntimeError(
+            f"expected_stream_count must be a positive item count, got {expected}."
+        )
+    if dataset_count != expected:
+        raise RuntimeError(
+            f"rotation stream and dataset agree on {got} items, but the pre-registered "
+            f"split has {expected}: this cell evaluated a different split than the "
+            "campaign declares (announcement 01 forbids new or subsampled eval "
+            "configurations). Refusing to report metrics."
         )
 
 
@@ -689,6 +713,7 @@ def evaluate_model(
     allow_partial_load=False,
     rotate_mode='fixed',
     rotate_seed=None,
+    expected_stream_count=None,
 ):
     # Fail fast on an unknown cond_method (the CLI is guarded by argparse
     # choices, but programmatic callers would otherwise silently run vanilla
@@ -701,6 +726,15 @@ def evaluate_model(
     # Resolve (and validate) the rotation protocol before any file/model work:
     # a misconfigured rotation must never reach a GPU (see resolve_rotation_plan).
     rotation_plan = resolve_rotation_plan(rotate_mode, rotate_deg, rotate_seed, seed)
+
+    # An expectation that cannot be checked must not be quietly accepted: a plain
+    # fixed-mode run accumulates no stream, so there is nothing to count.
+    if expected_stream_count is not None and not rotation_plan.is_random:
+        raise ValueError(
+            "expected_stream_count (--expected-stream-count) is only checkable when an "
+            "assignment stream is accumulated, i.e. under --rotate-mode random. "
+            "Passing it otherwise would record an expectation that was never verified."
+        )
 
     # Fail fast on an unknown cond_autocast too (full-review condition C1).
     ac_enabled, ac_dtype = resolve_cond_autocast(cond_autocast)
@@ -882,7 +916,8 @@ def evaluate_model(
     rotation_provenance = {}
     if rotation_plan.is_random:
         dataset = getattr(eval_dl, 'dataset', None)
-        verify_stream_count(rot_stream, None if dataset is None else len(dataset))
+        verify_stream_count(rot_stream, None if dataset is None else len(dataset),
+                            expected_stream_count)
         verify_stream_positions(rot_stream)
         rotation_provenance = {
             "rotate_mode": rotation_plan.mode,
@@ -960,6 +995,7 @@ if __name__ == "__main__":
     parser.add_argument("--rotate-deg", type=float, default=0.0, help="Yaw-rotate the conditioning (depth + poses) by this many degrees before eval; 0 disables (default). Fixed mode only.")
     parser.add_argument("--rotate-mode", type=str, default="fixed", choices=["fixed", "random"], help="Yaw-rotation protocol: 'fixed' (default) rotates every sample by --rotate-deg; 'random' (exp_14) draws an independent panorama-column offset per sample from a generator seeded with --rotate-seed. The two are mutually exclusive: 'random' with a non-zero --rotate-deg is an error.")
     parser.add_argument("--rotate-seed", type=int, default=None, help="Seed for the per-sample random yaw draw; defaults to --seed. Only valid with --rotate-mode random (passing it in fixed mode is an error, never a silent no-op).")
+    parser.add_argument("--expected-stream-count", type=int, default=None, help="Pre-registered number of items in the evaluated split (e.g. 6337 for the AR unseen split). When given, the run fails unless the dataset AND the accumulated assignment stream both hold exactly this many items; without it, the stream can only be checked against the dataset it came from.")
     parser.add_argument("--cond-method", type=str, default="vanilla", choices=["vanilla", "fa_invariant"], help="Conditioning method: 'vanilla' (single conditioner pass) or 'fa_invariant' (cylindrical pose invariants + C4 ViT frame average). Composes with --rotate-deg (rotation applied first).")
     parser.add_argument("--frame-avg-angles", type=str, default=",".join(str(int(a)) for a in DEFAULT_FRAME_ANGLES), help="Comma-separated yaw angles in degrees for fa_invariant frame averaging; the first must be 0. Ignored when --cond-method vanilla.")
     parser.add_argument("--cond-autocast", type=str, default="default", choices=["default", "bf16", "off"], help="Autocast mode for the conditioning call: 'default' = torch per-device default dtype (fp16 on cuda; the exp_01/exp_02 protocol), 'bf16' = bfloat16 (matches finetune_cond's bf16-mixed training), 'off' = no autocast (fp32, for exactness measurements).")
@@ -990,4 +1026,5 @@ if __name__ == "__main__":
         allow_partial_load=args.allow_partial_load,
         rotate_mode=args.rotate_mode,
         rotate_seed=args.rotate_seed,
+        expected_stream_count=args.expected_stream_count,
     )

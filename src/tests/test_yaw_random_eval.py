@@ -1016,3 +1016,79 @@ def test_evaluate_model_random_mode_runs_the_position_check(tmp_path, monkeypatc
         str(model_cfg), str(dataset_cfg), str(ckpt), steps=1, cfg_scale=1.0,
         device="cpu", eval_name="exp14_poscheck_fixed", seed=42)
     assert calls == [], "fixed mode without --record-stream accumulates no stream"
+
+
+# =========================================================================== #
+# ROUND-1 FIX BATCH — F1: the count check must be pre-registered, not tautological
+# =========================================================================== #
+# Codex code review B1: comparing the stream against len(dataset) compares the run
+# with itself. A zero-item dataset produced a perfectly "valid" random artifact.
+# The campaign's 6,337 is a PRE-REGISTERED number and has to be asserted as one.
+def test_verify_stream_count_accepts_a_matching_expected_count():
+    eval_FLAC.verify_stream_count(_stream_of(), 3, 3)
+
+
+def test_verify_stream_count_rejects_an_empty_dataset_against_the_expectation():
+    """The exact hole the review found: 0 == 0 used to pass."""
+    empty = eval_FLAC.RotationStream()
+    with pytest.raises(RuntimeError) as exc:
+        eval_FLAC.verify_stream_count(empty, 0, 6337)
+    assert "0" in str(exc.value) and "6337" in str(exc.value)
+
+
+def test_verify_stream_count_rejects_a_self_consistent_wrong_size_split():
+    """Stream and dataset agree with each other and BOTH disagree with the
+    pre-registered split -- e.g. a subsampled eval config (announcement 01)."""
+    with pytest.raises(RuntimeError) as exc:
+        eval_FLAC.verify_stream_count(_stream_of(), 3, 6337)
+    assert "3" in str(exc.value) and "6337" in str(exc.value)
+
+
+def test_verify_stream_count_rejects_a_nonpositive_expectation():
+    with pytest.raises(RuntimeError, match="expected"):
+        eval_FLAC.verify_stream_count(_stream_of(), 3, 0)
+
+
+def test_verify_stream_count_without_an_expectation_keeps_the_old_check():
+    eval_FLAC.verify_stream_count(_stream_of(), 3)
+    with pytest.raises(RuntimeError, match="stream"):
+        eval_FLAC.verify_stream_count(_stream_of(), 4)
+
+
+def test_evaluate_model_enforces_the_expected_stream_count(tmp_path, monkeypatch):
+    """End of the tautology on the real path: the empty stub split that used to
+    produce a valid artifact is now rejected, and nothing is written."""
+    model_cfg, dataset_cfg, ckpt = _stub_eval_stack(monkeypatch, tmp_path)
+    with pytest.raises(RuntimeError) as exc:
+        eval_FLAC.evaluate_model(
+            str(model_cfg), str(dataset_cfg), str(ckpt), steps=1, cfg_scale=1.0,
+            device="cpu", eval_name="exp14_expcount", seed=42, rotate_mode="random",
+            expected_stream_count=6337)
+    assert "6337" in str(exc.value)
+    assert not (tmp_path / "toy_metrics_1_1.0_exp14_expcount_rotrand42.json").exists()
+
+
+def test_expected_stream_count_without_a_stream_is_an_error(tmp_path, monkeypatch):
+    """Never silently ignored (the review-B4 class): in a plain fixed-mode run no
+    stream is accumulated, so the expectation could not be checked at all."""
+    monkeypatch.setattr(
+        eval_FLAC, "create_model_from_config",
+        lambda *a, **k: pytest.fail("evaluate_model reached model construction"))
+    with pytest.raises(ValueError, match="expected_stream_count"):
+        eval_FLAC.evaluate_model(
+            str(tmp_path / "m.json"), str(tmp_path / "d.json"), str(tmp_path / "c.ckpt"),
+            steps=1, cfg_scale=1.0, device="cpu", expected_stream_count=6337)
+
+
+def test_cli_exposes_the_expected_stream_count_flag():
+    import subprocess
+    import sys
+    root = str(Path(__file__).resolve().parents[2])
+    bad = subprocess.run(
+        [sys.executable, "eval_FLAC.py", "--expected-stream-count", "many"],
+        capture_output=True, cwd=root)
+    assert bad.returncode == 2 and b"invalid int value" in bad.stderr
+    good = subprocess.run(
+        [sys.executable, "eval_FLAC.py", "--expected-stream-count", "6337"],
+        capture_output=True, cwd=root)
+    assert good.returncode == 2 and b"invalid int value" not in good.stderr
