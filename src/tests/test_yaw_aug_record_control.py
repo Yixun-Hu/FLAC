@@ -46,7 +46,7 @@ rc = pytest.fixture(scope="module")(lambda: _load_recorder())
 @pytest.fixture
 def synthetic_ckpt(tmp_path):
     """A PL-shaped checkpoint small enough to write in a test."""
-    def _make(global_step=40000, with_ema=True):
+    def _make(global_step=40000, with_ema=True, model_config="control", **extra):
         state = {
             "diffusion.model.layer.weight": torch.zeros(2, 2),
             "diffusion.model.layer.bias": torch.zeros(2),
@@ -56,16 +56,21 @@ def synthetic_ckpt(tmp_path):
             state["diffusion_ema.ema_model.layer.bias"] = torch.zeros(2)
             state["diffusion_ema.initted"] = torch.tensor(True)
         path = tmp_path / f"epoch=8-step={global_step}.ckpt"
-        torch.save(
-            {
-                "global_step": global_step,
-                "epoch": 8,
-                "state_dict": state,
-                "optimizer_states": [{"state": {}}],
-                "lr_schedulers": [{"last_epoch": global_step}],
-            },
-            path,
-        )
+        payload = {
+            "global_step": global_step,
+            "epoch": 8,
+            "state_dict": state,
+            "optimizer_states": [{"state": {}}],
+            "lr_schedulers": [{"last_epoch": global_step}],
+        }
+        if model_config == "control":
+            # PL embeds the training config in the checkpoint; the real VANL
+            # checkpoint's copy equals FLAC_AR_VANCKPT.json exactly.
+            payload["model_config"] = json.loads(CONTROL_CONFIG.read_text())
+        elif model_config is not None:
+            payload["model_config"] = model_config
+        payload.update(extra)
+        torch.save(payload, path)
         return path
 
     return _make
@@ -116,9 +121,37 @@ def test_record_content(rc, synthetic_ckpt):
         "global_step_equals_expected": True,
         "config_sha256_matches_registry": True,
         "ema_state_present": True,
+        "embedded_config_equals_config_file": True,
     }
     # the record must be JSON-serialisable as written
     json.dumps(record)
+
+
+def test_record_binds_the_config_EMBEDDED_in_the_checkpoint(rc, synthetic_ckpt):
+    """The file's hash proves which config is on disk; only the checkpoint's own
+    embedded copy proves what this checkpoint was TRAINED with (plan §3.3-1)."""
+    record = rc.build_record(synthetic_ckpt(), CONTROL_CONFIG, expect_step=40000)
+    canonical = hashlib.sha256(
+        json.dumps(json.loads(CONTROL_CONFIG.read_text()), sort_keys=True,
+                   separators=(",", ":")).encode()
+    ).hexdigest()
+    assert record["checkpoint"]["embedded_config_canonical_sha256"] == canonical
+    assert record["config"]["canonical_sha256"] == canonical
+
+
+def test_detects_embedded_config_mismatch(rc, synthetic_ckpt):
+    """A checkpoint trained with a different config must not be admitted."""
+    other = json.loads(CONTROL_CONFIG.read_text())
+    other["training"]["cfg_dropout_prob"] = 0.5
+    with pytest.raises(ValueError, match="embedded"):
+        rc.build_record(synthetic_ckpt(model_config=other), CONTROL_CONFIG,
+                        expect_step=40000)
+
+
+def test_detects_missing_embedded_config(rc, synthetic_ckpt):
+    with pytest.raises(ValueError, match="model_config"):
+        rc.build_record(synthetic_ckpt(model_config=None), CONTROL_CONFIG,
+                        expect_step=40000)
 
 
 def test_record_is_readonly_wrt_its_inputs(rc, synthetic_ckpt, tmp_path):

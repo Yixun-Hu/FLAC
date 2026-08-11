@@ -1,0 +1,96 @@
+.FFFF........                                                            [100%]
+=================================== FAILURES ===================================
+_____________________________ test_record_content ______________________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f9105d1b640>
+
+    def test_record_content(rc, synthetic_ckpt):
+        ckpt = synthetic_ckpt()
+        record = rc.build_record(ckpt, CONTROL_CONFIG, expect_step=40000)
+    
+        ck = record["checkpoint"]
+        assert ck["sha256"] == hashlib.sha256(ckpt.read_bytes()).hexdigest()
+        assert ck["bytes"] == ckpt.stat().st_size
+        assert ck["global_step"] == 40000
+        assert ck["epoch"] == 8
+        assert ck["ema_prefix"] == "diffusion_ema.ema_model."
+        assert ck["ema_key_count"] == 2
+        assert ck["optimizer_states"] == 1
+        assert ck["lr_schedulers"] == 1
+        assert ck["state_dict_keys"] == 5
+    
+        assert record["config"]["sha256"] == REGISTRY_CONFIG_SHA
+    
+        xref = record["exp_11_cross_references"]
+        assert xref["manifest_sha256"] == (
+            "113d06a284c6198cf9487e99a2efb7ccde94ae13e656a403fe2af0281d3de8b1"
+        )
+        assert xref["commit"] == "81ddac372076ea92751ae09cbaf371df70f396e5"
+        assert xref["training_seed"] == 42
+        assert xref["rung"] == "8x8"
+        assert xref["vae_sha256"] == (
+            "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9"
+        )
+        assert xref["job"] == "3661520"
+    
+>       assert record["checks"] == {
+            "global_step_equals_expected": True,
+            "config_sha256_matches_registry": True,
+            "ema_state_present": True,
+            "embedded_config_equals_config_file": True,
+        }
+E       AssertionError: assert {'global_step...resent': True} == {'global_step...g_file': True}
+E         
+E         Omitting 3 identical items, use -vv to show
+E         Right contains 1 more item:
+E         {'embedded_config_equals_config_file': True}
+E         Use -v to get more diff
+
+src/tests/test_yaw_aug_record_control.py:120: AssertionError
+___________ test_record_binds_the_config_EMBEDDED_in_the_checkpoint ____________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f9105d1bd90>
+
+    def test_record_binds_the_config_EMBEDDED_in_the_checkpoint(rc, synthetic_ckpt):
+        """The file's hash proves which config is on disk; only the checkpoint's own
+        embedded copy proves what this checkpoint was TRAINED with (plan §3.3-1)."""
+        record = rc.build_record(synthetic_ckpt(), CONTROL_CONFIG, expect_step=40000)
+        canonical = hashlib.sha256(
+            json.dumps(json.loads(CONTROL_CONFIG.read_text()), sort_keys=True,
+                       separators=(",", ":")).encode()
+        ).hexdigest()
+>       assert record["checkpoint"]["embedded_config_canonical_sha256"] == canonical
+E       KeyError: 'embedded_config_canonical_sha256'
+
+src/tests/test_yaw_aug_record_control.py:138: KeyError
+____________________ test_detects_embedded_config_mismatch _____________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f9105d1b130>
+
+    def test_detects_embedded_config_mismatch(rc, synthetic_ckpt):
+        """A checkpoint trained with a different config must not be admitted."""
+        other = json.loads(CONTROL_CONFIG.read_text())
+        other["training"]["cfg_dropout_prob"] = 0.5
+>       with pytest.raises(ValueError, match="embedded"):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_record_control.py:146: Failed
+_____________________ test_detects_missing_embedded_config _____________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f9105d1ba30>
+
+    def test_detects_missing_embedded_config(rc, synthetic_ckpt):
+>       with pytest.raises(ValueError, match="model_config"):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_record_control.py:152: Failed
+=========================== short test summary info ============================
+FAILED src/tests/test_yaw_aug_record_control.py::test_record_content - Assert...
+FAILED src/tests/test_yaw_aug_record_control.py::test_record_binds_the_config_EMBEDDED_in_the_checkpoint
+FAILED src/tests/test_yaw_aug_record_control.py::test_detects_embedded_config_mismatch
+FAILED src/tests/test_yaw_aug_record_control.py::test_detects_missing_embedded_config
+4 failed, 9 passed in 6.70s

@@ -97,7 +97,19 @@ def _find_ema(state_dict):
     )
 
 
-def summarize_checkpoint(ckpt_path, expect_step: int) -> dict:
+def canonical_sha256(obj) -> str:
+    """Formatting-independent hash of a JSON-able object (sorted keys, no spaces).
+
+    The config *file* is hashed as raw bytes to match exp_11's registry pin; the
+    config embedded in the checkpoint went through pickle and has no byte form of
+    its own, so the two are compared canonically.
+    """
+    return hashlib.sha256(
+        json.dumps(obj, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def summarize_checkpoint(ckpt_path, expect_step: int, config_obj) -> dict:
     """Validate and summarise the checkpoint's embedded facts."""
     checkpoint, weights_only = _load_checkpoint(ckpt_path)
 
@@ -116,6 +128,20 @@ def summarize_checkpoint(ckpt_path, expect_step: int) -> dict:
 
     ema_prefix, ema_key_count = _find_ema(state_dict)
 
+    # The config the checkpoint was TRAINED with. The file's sha proves only what
+    # sits on disk today; this proves the checkpoint belongs to it.
+    if "model_config" not in checkpoint:
+        raise ValueError(
+            f"{ckpt_path}: no 'model_config' embedded in the checkpoint, so the "
+            "checkpoint cannot be bound to the config it was trained with"
+        )
+    embedded_config = checkpoint["model_config"]
+    if embedded_config != config_obj:
+        raise ValueError(
+            f"{ckpt_path}: the embedded model_config differs from the --config "
+            "file — this checkpoint was not trained with that config"
+        )
+
     epoch = checkpoint.get("epoch", None)
     return {
         "path": str(ckpt_path),
@@ -126,6 +152,7 @@ def summarize_checkpoint(ckpt_path, expect_step: int) -> dict:
         "state_dict_keys": len(state_dict),
         "ema_prefix": ema_prefix,
         "ema_key_count": ema_key_count,
+        "embedded_config_canonical_sha256": canonical_sha256(embedded_config),
         "online_key_count": sum(1 for k in state_dict if k.startswith("diffusion.")),
         "optimizer_states": len(checkpoint.get("optimizer_states", []) or []),
         "lr_schedulers": len(checkpoint.get("lr_schedulers", []) or []),
@@ -143,7 +170,8 @@ def build_record(ckpt_path, config_path, expect_step: int) -> dict:
             "was trained with"
         )
 
-    checkpoint = summarize_checkpoint(ckpt_path, expect_step)
+    config_obj = json.loads(Path(config_path).read_text())
+    checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
 
     return {
         "_meta": {
@@ -157,12 +185,17 @@ def build_record(ckpt_path, config_path, expect_step: int) -> dict:
             "expect_step": int(expect_step),
         },
         "checkpoint": checkpoint,
-        "config": {"path": str(config_path), "sha256": config_sha},
+        "config": {
+            "path": str(config_path),
+            "sha256": config_sha,
+            "canonical_sha256": canonical_sha256(config_obj),
+        },
         "exp_11_cross_references": dict(EXP11_CROSS_REFERENCES),
         "checks": {
             "global_step_equals_expected": True,
             "config_sha256_matches_registry": True,
             "ema_state_present": True,
+            "embedded_config_equals_config_file": True,
         },
     }
 
