@@ -58,13 +58,13 @@ def main(argv=None):
     import torch
     device = "cuda" if torch.cuda.is_available() else "cpu"
     P.assert_vit_pin()                                   # same DINOv3 pin gate as every arm
-    cond = P.build_conditioner(a.config, device)
+    _cfg, cond = P.build_conditioner(a.config, device)          # (cfg, conditioner)
     angles = P.orbit(4)                                  # C4, matching both arms under dispute
 
     results, rows = {}, []
     for B in [int(x) for x in a.batches.split(",")]:
         per_rep = []
-        md = P.real_samples(a.dataset_config, B, device, seed=42)
+        md, _ids = P.real_samples(a.dataset_config, B, device, seed=42)   # (metadata, sample_ids)
         for r in range(a.reps):
             cell = P.run_cell(cond, md, device, angles, mode="train",
                               use_bf16=(device == "cuda"), seed=1234 + r)

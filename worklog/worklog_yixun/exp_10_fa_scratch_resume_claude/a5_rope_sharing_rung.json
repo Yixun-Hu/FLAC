@@ -1,0 +1,121 @@
+{
+ "rows": [
+  {
+   "batch": 8,
+   "vit": "source_vit",
+   "rep": 0,
+   "rel_norm": 0.031185357724463635,
+   "max_abs": 0.03173828125
+  },
+  {
+   "batch": 8,
+   "vit": "context_poses_vit",
+   "rep": 0,
+   "rel_norm": 0.04479846119190569,
+   "max_abs": 0.08203125
+  },
+  {
+   "batch": 8,
+   "vit": "source_vit",
+   "rep": 1,
+   "rel_norm": 0.015142596371454249,
+   "max_abs": 0.01953125
+  },
+  {
+   "batch": 8,
+   "vit": "context_poses_vit",
+   "rep": 1,
+   "rel_norm": 0.03922795208868004,
+   "max_abs": 0.07421875
+  },
+  {
+   "batch": 8,
+   "vit": "source_vit",
+   "rep": 2,
+   "rel_norm": 0.05222651564838819,
+   "max_abs": 0.072265625
+  },
+  {
+   "batch": 8,
+   "vit": "context_poses_vit",
+   "rep": 2,
+   "rel_norm": 0.048699466301922185,
+   "max_abs": 0.09686279296875
+  },
+  {
+   "batch": 32,
+   "vit": "source_vit",
+   "rep": 0,
+   "rel_norm": 0.033311753989313776,
+   "max_abs": 0.046875
+  },
+  {
+   "batch": 32,
+   "vit": "context_poses_vit",
+   "rep": 0,
+   "rel_norm": 0.0423133133872105,
+   "max_abs": 0.08203125
+  },
+  {
+   "batch": 32,
+   "vit": "source_vit",
+   "rep": 1,
+   "rel_norm": 0.028106616787747854,
+   "max_abs": 0.05078125
+  },
+  {
+   "batch": 32,
+   "vit": "context_poses_vit",
+   "rep": 1,
+   "rel_norm": 0.03949222104672348,
+   "max_abs": 0.078125
+  },
+  {
+   "batch": 32,
+   "vit": "source_vit",
+   "rep": 2,
+   "rel_norm": 0.04444004128120098,
+   "max_abs": 0.0635986328125
+  },
+  {
+   "batch": 32,
+   "vit": "context_poses_vit",
+   "rep": 2,
+   "rel_norm": 0.04659093557693552,
+   "max_abs": 0.091796875
+  }
+ ],
+ "summary": {
+  "8": {
+   "context_poses_vit": {
+    "rel_norm_mean": 0.04424195986083597,
+    "rel_norm_max": 0.048699466301922185,
+    "angles_per_chunk": 8,
+    "shared_angles": 3
+   },
+   "source_vit": {
+    "rel_norm_mean": 0.03285148991476869,
+    "rel_norm_max": 0.05222651564838819,
+    "angles_per_chunk": 8,
+    "shared_angles": 3
+   }
+  },
+  "32": {
+   "context_poses_vit": {
+    "rel_norm_mean": 0.0427988233369565,
+    "rel_norm_max": 0.04659093557693552,
+    "angles_per_chunk": 2,
+    "shared_angles": 2
+   },
+   "source_vit": {
+    "rel_norm_mean": 0.0352861373527542,
+    "rel_norm_max": 0.04444004128120098,
+    "angles_per_chunk": 2,
+    "shared_angles": 2
+   }
+  }
+ },
+ "config": "/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json",
+ "device": "cuda",
+ "reps": 3
+}
