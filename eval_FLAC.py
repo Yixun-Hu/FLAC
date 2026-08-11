@@ -208,6 +208,7 @@ class StreamRow(NamedTuple):
     context_ids: List[str]
     img_w: int
     offset: Optional[int]
+    dataset_idx: Optional[int] = None
 
 
 def sample_target_id(md):
@@ -334,12 +335,14 @@ class RotationStream:
                 f"img_w changed mid-stream: {self.rows[0].img_w} -> {img_w}. The "
                 "column grid defines the offsets, so it cannot vary within a run."
             )
+        idx = md.get('idx', None)
         row = StreamRow(
             position=len(self.rows),
             target_id=sample_target_id(md),
             context_ids=sample_context_ids(md),
             img_w=img_w,
             offset=None if offset is None else int(offset),
+            dataset_idx=None if idx is None else int(idx),
         )
         self.rows.append(row)
         return row
@@ -368,6 +371,34 @@ class RotationStream:
 
     def assignment_hash(self):
         return canonical_stream_hash(self.assignment_tuples())
+
+
+def verify_stream_positions(stream):
+    """Substitution guard, positionally: stream position ``i`` must be dataset item ``i``.
+
+    Evaluation runs with ``shuffle=False`` over a sequential sampler, so this
+    holds by construction --- unless ``SampleDataset.__getitem__`` substituted a
+    random other item after a load or silence failure, which is exactly the event
+    the assignment audit exists to catch. A hash can only reveal that by
+    comparison against another cell; this catches it in the cell that suffered it.
+
+    Raises ``RuntimeError`` naming the FIRST offending position. An item without
+    an ``idx`` cannot be checked and is not silently accepted.
+    """
+    for row in stream.rows:
+        if row.dataset_idx is None:
+            raise RuntimeError(
+                f"rotation stream position {row.position} has no dataset 'idx', so it "
+                "cannot be checked against its position. Refusing to report metrics."
+            )
+        if row.dataset_idx != row.position:
+            raise RuntimeError(
+                f"rotation stream position {row.position} carries dataset idx "
+                f"{row.dataset_idx} (target {row.target_id!r}): the dataset served a "
+                "different item than the sequential sampler asked for -- "
+                "SampleDataset substitutes a random item on a load/silence failure. "
+                "Refusing to report metrics."
+            )
 
 
 def verify_stream_count(stream, expected):
@@ -852,6 +883,7 @@ def evaluate_model(
     if rotation_plan.is_random:
         dataset = getattr(eval_dl, 'dataset', None)
         verify_stream_count(rot_stream, None if dataset is None else len(dataset))
+        verify_stream_positions(rot_stream)
         rotation_provenance = {
             "rotate_mode": rotation_plan.mode,
             "rotate_seed": rotation_plan.rotate_seed,

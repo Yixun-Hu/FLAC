@@ -960,3 +960,59 @@ def test_sample_context_ids_still_accepts_the_real_loader_shape():
                                         dtype=torch.float32)}
     assert eval_FLAC.sample_context_ids(md) == [
         "1.000000,2.000000,3.000000", "-1.500000,0.250000,0.000000"]
+
+
+# =========================================================================== #
+# ROUND-1 FIX BATCH — F3: position i must carry dataset item i (accepted ruling 3)
+# =========================================================================== #
+# With shuffle=False and a sequential sampler, stream position i IS dataset index
+# i. The only way that breaks is SampleDataset's recursive substitution on a
+# load/silence failure -- which is precisely the event the audit exists to catch,
+# and which a hash alone can only reveal by comparison against another cell.
+def test_stream_rows_carry_the_dataset_index():
+    stream = _stream_of()
+    assert [r.dataset_idx for r in stream.rows] == [0, 1, 2]
+
+
+def test_verify_stream_positions_passes_on_a_sequential_stream():
+    eval_FLAC.verify_stream_positions(_stream_of())
+
+
+def test_verify_stream_positions_detects_a_substituted_item():
+    stream = eval_FLAC.RotationStream()
+    for position, idx in enumerate([0, 1, 4813, 3]):
+        md = _make_md(seed=idx)
+        md["idx"] = idx
+        stream.record(md, 0, IMG_W)
+    with pytest.raises(RuntimeError) as exc:
+        eval_FLAC.verify_stream_positions(stream)
+    msg = str(exc.value)
+    assert "2" in msg and "4813" in msg          # first offender, named
+    assert "3" not in msg.split("4813")[0]       # reported before any later row
+
+
+def test_verify_stream_positions_requires_an_index():
+    """An item with no 'idx' cannot be checked, so it is not silently accepted."""
+    stream = eval_FLAC.RotationStream()
+    md = _make_md(seed=0)
+    md.pop("idx", None)
+    stream.record(md, 0, IMG_W)
+    with pytest.raises(RuntimeError, match="idx"):
+        eval_FLAC.verify_stream_positions(stream)
+
+
+def test_evaluate_model_random_mode_runs_the_position_check(tmp_path, monkeypatch):
+    """Wiring proof: the check must run on the real path, not just be available."""
+    model_cfg, dataset_cfg, ckpt = _stub_eval_stack(monkeypatch, tmp_path)
+    calls = []
+    monkeypatch.setattr(eval_FLAC, "verify_stream_positions", lambda s: calls.append(s))
+    eval_FLAC.evaluate_model(
+        str(model_cfg), str(dataset_cfg), str(ckpt), steps=1, cfg_scale=1.0,
+        device="cpu", eval_name="exp14_poscheck", seed=42, rotate_mode="random")
+    assert len(calls) == 1
+
+    calls.clear()
+    eval_FLAC.evaluate_model(
+        str(model_cfg), str(dataset_cfg), str(ckpt), steps=1, cfg_scale=1.0,
+        device="cpu", eval_name="exp14_poscheck_fixed", seed=42)
+    assert calls == [], "fixed mode without --record-stream accumulates no stream"
