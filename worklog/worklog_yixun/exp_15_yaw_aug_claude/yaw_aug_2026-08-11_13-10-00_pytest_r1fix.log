@@ -1,0 +1,1567 @@
+FFFFFFFFFFF..FFFF.FFF                                                    [100%]
+=================================== FAILURES ===================================
+____________________________ test_banner_is_flushed ____________________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f439e954970>
+
+    def test_banner_is_flushed(monkeypatch):
+        """The launcher tees torchrun's stdout through a FIFO without
+        PYTHONUNBUFFERED, so a buffered banner can reach the log after the launch
+        gate has already given up (review finding 3)."""
+        calls = []
+        monkeypatch.setattr("builtins.print", lambda *a, **kw: calls.append((a, kw)))
+        _enabled_wrapper(img_w=512, seed=42).on_fit_start()
+        assert len(calls) == 1
+>       assert calls[0][1].get("flush") is True
+E       AssertionError: assert None is True
+E        +  where None = <built-in method get of dict object at 0x7f40f51f9ac0>('flush')
+E        +    where <built-in method get of dict object at 0x7f40f51f9ac0> = {}.get
+
+src/tests/test_yaw_aug_training.py:622: AssertionError
+___________ test_constructor_rejects_non_literal_bool_enabled[false] ___________
+
+enabled = 'false'
+
+    @pytest.mark.parametrize("enabled", ["false", "true", 1, 0, 1.0, None])
+    def test_constructor_rejects_non_literal_bool_enabled(enabled):
+        with pytest.raises(ValueError, match="yaw_aug_enabled"):
+>           _construct_directly(yaw_aug_enabled=enabled)
+
+src/tests/test_yaw_aug_training.py:647: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:639: in _construct_directly
+    return tdiff.DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = namespace(), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+yaw_aug_enabled = 'false', yaw_aug_img_w = 512, yaw_aug_seed = 0
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        self.yaw_aug_enabled = bool(yaw_aug_enabled)
+        self.yaw_aug_img_w = int(yaw_aug_img_w)
+        self.yaw_aug_seed = int(yaw_aug_seed)
+        if self.yaw_aug_enabled:
+            if self.yaw_aug_img_w <= 0:
+                raise ValueError(
+                    f"yaw_aug_img_w must be > 0, got {self.yaw_aug_img_w}"
+                )
+            if cond_method == "fa_invariant":
+                raise ValueError(
+                    "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                    "untested combination and out of scope for exp_15."
+                )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:242: AttributeError
+___________ test_constructor_rejects_non_literal_bool_enabled[true] ____________
+
+enabled = 'true'
+
+    @pytest.mark.parametrize("enabled", ["false", "true", 1, 0, 1.0, None])
+    def test_constructor_rejects_non_literal_bool_enabled(enabled):
+        with pytest.raises(ValueError, match="yaw_aug_enabled"):
+>           _construct_directly(yaw_aug_enabled=enabled)
+
+src/tests/test_yaw_aug_training.py:647: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:639: in _construct_directly
+    return tdiff.DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = namespace(), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+yaw_aug_enabled = 'true', yaw_aug_img_w = 512, yaw_aug_seed = 0
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        self.yaw_aug_enabled = bool(yaw_aug_enabled)
+        self.yaw_aug_img_w = int(yaw_aug_img_w)
+        self.yaw_aug_seed = int(yaw_aug_seed)
+        if self.yaw_aug_enabled:
+            if self.yaw_aug_img_w <= 0:
+                raise ValueError(
+                    f"yaw_aug_img_w must be > 0, got {self.yaw_aug_img_w}"
+                )
+            if cond_method == "fa_invariant":
+                raise ValueError(
+                    "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                    "untested combination and out of scope for exp_15."
+                )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:242: AttributeError
+_____________ test_constructor_rejects_non_literal_bool_enabled[1] _____________
+
+enabled = 1
+
+    @pytest.mark.parametrize("enabled", ["false", "true", 1, 0, 1.0, None])
+    def test_constructor_rejects_non_literal_bool_enabled(enabled):
+        with pytest.raises(ValueError, match="yaw_aug_enabled"):
+>           _construct_directly(yaw_aug_enabled=enabled)
+
+src/tests/test_yaw_aug_training.py:647: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:639: in _construct_directly
+    return tdiff.DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = namespace(), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+yaw_aug_enabled = 1, yaw_aug_img_w = 512, yaw_aug_seed = 0
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        self.yaw_aug_enabled = bool(yaw_aug_enabled)
+        self.yaw_aug_img_w = int(yaw_aug_img_w)
+        self.yaw_aug_seed = int(yaw_aug_seed)
+        if self.yaw_aug_enabled:
+            if self.yaw_aug_img_w <= 0:
+                raise ValueError(
+                    f"yaw_aug_img_w must be > 0, got {self.yaw_aug_img_w}"
+                )
+            if cond_method == "fa_invariant":
+                raise ValueError(
+                    "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                    "untested combination and out of scope for exp_15."
+                )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:242: AttributeError
+_____________ test_constructor_rejects_non_literal_bool_enabled[0] _____________
+
+enabled = 0
+
+    @pytest.mark.parametrize("enabled", ["false", "true", 1, 0, 1.0, None])
+    def test_constructor_rejects_non_literal_bool_enabled(enabled):
+        with pytest.raises(ValueError, match="yaw_aug_enabled"):
+>           _construct_directly(yaw_aug_enabled=enabled)
+
+src/tests/test_yaw_aug_training.py:647: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:639: in _construct_directly
+    return tdiff.DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = namespace(), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+yaw_aug_enabled = 0, yaw_aug_img_w = 512, yaw_aug_seed = 0
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        self.yaw_aug_enabled = bool(yaw_aug_enabled)
+        self.yaw_aug_img_w = int(yaw_aug_img_w)
+        self.yaw_aug_seed = int(yaw_aug_seed)
+        if self.yaw_aug_enabled:
+            if self.yaw_aug_img_w <= 0:
+                raise ValueError(
+                    f"yaw_aug_img_w must be > 0, got {self.yaw_aug_img_w}"
+                )
+            if cond_method == "fa_invariant":
+                raise ValueError(
+                    "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                    "untested combination and out of scope for exp_15."
+                )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:242: AttributeError
+____________ test_constructor_rejects_non_literal_bool_enabled[1.0] ____________
+
+enabled = 1.0
+
+    @pytest.mark.parametrize("enabled", ["false", "true", 1, 0, 1.0, None])
+    def test_constructor_rejects_non_literal_bool_enabled(enabled):
+        with pytest.raises(ValueError, match="yaw_aug_enabled"):
+>           _construct_directly(yaw_aug_enabled=enabled)
+
+src/tests/test_yaw_aug_training.py:647: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:639: in _construct_directly
+    return tdiff.DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = namespace(), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+yaw_aug_enabled = 1.0, yaw_aug_img_w = 512, yaw_aug_seed = 0
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        self.yaw_aug_enabled = bool(yaw_aug_enabled)
+        self.yaw_aug_img_w = int(yaw_aug_img_w)
+        self.yaw_aug_seed = int(yaw_aug_seed)
+        if self.yaw_aug_enabled:
+            if self.yaw_aug_img_w <= 0:
+                raise ValueError(
+                    f"yaw_aug_img_w must be > 0, got {self.yaw_aug_img_w}"
+                )
+            if cond_method == "fa_invariant":
+                raise ValueError(
+                    "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                    "untested combination and out of scope for exp_15."
+                )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:242: AttributeError
+___________ test_constructor_rejects_non_literal_bool_enabled[None] ____________
+
+enabled = None
+
+    @pytest.mark.parametrize("enabled", ["false", "true", 1, 0, 1.0, None])
+    def test_constructor_rejects_non_literal_bool_enabled(enabled):
+        with pytest.raises(ValueError, match="yaw_aug_enabled"):
+>           _construct_directly(yaw_aug_enabled=enabled)
+
+src/tests/test_yaw_aug_training.py:647: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:639: in _construct_directly
+    return tdiff.DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = namespace(), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+yaw_aug_enabled = None, yaw_aug_img_w = 512, yaw_aug_seed = 0
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        self.yaw_aug_enabled = bool(yaw_aug_enabled)
+        self.yaw_aug_img_w = int(yaw_aug_img_w)
+        self.yaw_aug_seed = int(yaw_aug_seed)
+        if self.yaw_aug_enabled:
+            if self.yaw_aug_img_w <= 0:
+                raise ValueError(
+                    f"yaw_aug_img_w must be > 0, got {self.yaw_aug_img_w}"
+                )
+            if cond_method == "fa_invariant":
+                raise ValueError(
+                    "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                    "untested combination and out of scope for exp_15."
+                )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:242: AttributeError
+___________________ test_constructor_rejects_bad_img_w[512] ____________________
+
+img_w = '512'
+
+    @pytest.mark.parametrize("img_w", ["512", 512.0, True, None, 0, -1])
+    def test_constructor_rejects_bad_img_w(img_w):
+        with pytest.raises(ValueError, match="yaw_aug_img_w"):
+>           _construct_directly(yaw_aug_enabled=True, yaw_aug_img_w=img_w, yaw_aug_seed=42)
+
+src/tests/test_yaw_aug_training.py:653: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:639: in _construct_directly
+    return tdiff.DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = namespace(), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+yaw_aug_enabled = True, yaw_aug_img_w = '512', yaw_aug_seed = 42
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        self.yaw_aug_enabled = bool(yaw_aug_enabled)
+        self.yaw_aug_img_w = int(yaw_aug_img_w)
+        self.yaw_aug_seed = int(yaw_aug_seed)
+        if self.yaw_aug_enabled:
+            if self.yaw_aug_img_w <= 0:
+                raise ValueError(
+                    f"yaw_aug_img_w must be > 0, got {self.yaw_aug_img_w}"
+                )
+            if cond_method == "fa_invariant":
+                raise ValueError(
+                    "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                    "untested combination and out of scope for exp_15."
+                )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:242: AttributeError
+__________________ test_constructor_rejects_bad_img_w[512.0] ___________________
+
+img_w = 512.0
+
+    @pytest.mark.parametrize("img_w", ["512", 512.0, True, None, 0, -1])
+    def test_constructor_rejects_bad_img_w(img_w):
+        with pytest.raises(ValueError, match="yaw_aug_img_w"):
+>           _construct_directly(yaw_aug_enabled=True, yaw_aug_img_w=img_w, yaw_aug_seed=42)
+
+src/tests/test_yaw_aug_training.py:653: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:639: in _construct_directly
+    return tdiff.DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = namespace(), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+yaw_aug_enabled = True, yaw_aug_img_w = 512.0, yaw_aug_seed = 42
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        self.yaw_aug_enabled = bool(yaw_aug_enabled)
+        self.yaw_aug_img_w = int(yaw_aug_img_w)
+        self.yaw_aug_seed = int(yaw_aug_seed)
+        if self.yaw_aug_enabled:
+            if self.yaw_aug_img_w <= 0:
+                raise ValueError(
+                    f"yaw_aug_img_w must be > 0, got {self.yaw_aug_img_w}"
+                )
+            if cond_method == "fa_invariant":
+                raise ValueError(
+                    "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                    "untested combination and out of scope for exp_15."
+                )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:242: AttributeError
+___________________ test_constructor_rejects_bad_img_w[True] ___________________
+
+img_w = True
+
+    @pytest.mark.parametrize("img_w", ["512", 512.0, True, None, 0, -1])
+    def test_constructor_rejects_bad_img_w(img_w):
+        with pytest.raises(ValueError, match="yaw_aug_img_w"):
+>           _construct_directly(yaw_aug_enabled=True, yaw_aug_img_w=img_w, yaw_aug_seed=42)
+
+src/tests/test_yaw_aug_training.py:653: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:639: in _construct_directly
+    return tdiff.DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = namespace(), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+yaw_aug_enabled = True, yaw_aug_img_w = True, yaw_aug_seed = 42
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        self.yaw_aug_enabled = bool(yaw_aug_enabled)
+        self.yaw_aug_img_w = int(yaw_aug_img_w)
+        self.yaw_aug_seed = int(yaw_aug_seed)
+        if self.yaw_aug_enabled:
+            if self.yaw_aug_img_w <= 0:
+                raise ValueError(
+                    f"yaw_aug_img_w must be > 0, got {self.yaw_aug_img_w}"
+                )
+            if cond_method == "fa_invariant":
+                raise ValueError(
+                    "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                    "untested combination and out of scope for exp_15."
+                )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:242: AttributeError
+___________________ test_constructor_rejects_bad_img_w[None] ___________________
+
+img_w = None
+
+    @pytest.mark.parametrize("img_w", ["512", 512.0, True, None, 0, -1])
+    def test_constructor_rejects_bad_img_w(img_w):
+        with pytest.raises(ValueError, match="yaw_aug_img_w"):
+>           _construct_directly(yaw_aug_enabled=True, yaw_aug_img_w=img_w, yaw_aug_seed=42)
+
+src/tests/test_yaw_aug_training.py:653: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:639: in _construct_directly
+    return tdiff.DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = namespace(), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+yaw_aug_enabled = True, yaw_aug_img_w = None, yaw_aug_seed = 42
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        self.yaw_aug_enabled = bool(yaw_aug_enabled)
+>       self.yaw_aug_img_w = int(yaw_aug_img_w)
+E       TypeError: int() argument must be a string, a bytes-like object or a real number, not 'NoneType'
+
+src/training/diffusion.py:200: TypeError
+____________________ test_constructor_rejects_bad_seed[42] _____________________
+
+seed = '42'
+
+    @pytest.mark.parametrize("seed", ["42", 42.0, True, None])
+    def test_constructor_rejects_bad_seed(seed):
+        with pytest.raises(ValueError, match="yaw_aug_seed"):
+>           _construct_directly(yaw_aug_enabled=True, yaw_aug_img_w=512, yaw_aug_seed=seed)
+
+src/tests/test_yaw_aug_training.py:659: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:639: in _construct_directly
+    return tdiff.DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = namespace(), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+yaw_aug_enabled = True, yaw_aug_img_w = 512, yaw_aug_seed = '42'
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        self.yaw_aug_enabled = bool(yaw_aug_enabled)
+        self.yaw_aug_img_w = int(yaw_aug_img_w)
+        self.yaw_aug_seed = int(yaw_aug_seed)
+        if self.yaw_aug_enabled:
+            if self.yaw_aug_img_w <= 0:
+                raise ValueError(
+                    f"yaw_aug_img_w must be > 0, got {self.yaw_aug_img_w}"
+                )
+            if cond_method == "fa_invariant":
+                raise ValueError(
+                    "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                    "untested combination and out of scope for exp_15."
+                )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:242: AttributeError
+___________________ test_constructor_rejects_bad_seed[42.0] ____________________
+
+seed = 42.0
+
+    @pytest.mark.parametrize("seed", ["42", 42.0, True, None])
+    def test_constructor_rejects_bad_seed(seed):
+        with pytest.raises(ValueError, match="yaw_aug_seed"):
+>           _construct_directly(yaw_aug_enabled=True, yaw_aug_img_w=512, yaw_aug_seed=seed)
+
+src/tests/test_yaw_aug_training.py:659: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:639: in _construct_directly
+    return tdiff.DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = namespace(), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+yaw_aug_enabled = True, yaw_aug_img_w = 512, yaw_aug_seed = 42.0
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        self.yaw_aug_enabled = bool(yaw_aug_enabled)
+        self.yaw_aug_img_w = int(yaw_aug_img_w)
+        self.yaw_aug_seed = int(yaw_aug_seed)
+        if self.yaw_aug_enabled:
+            if self.yaw_aug_img_w <= 0:
+                raise ValueError(
+                    f"yaw_aug_img_w must be > 0, got {self.yaw_aug_img_w}"
+                )
+            if cond_method == "fa_invariant":
+                raise ValueError(
+                    "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                    "untested combination and out of scope for exp_15."
+                )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:242: AttributeError
+___________________ test_constructor_rejects_bad_seed[True] ____________________
+
+seed = True
+
+    @pytest.mark.parametrize("seed", ["42", 42.0, True, None])
+    def test_constructor_rejects_bad_seed(seed):
+        with pytest.raises(ValueError, match="yaw_aug_seed"):
+>           _construct_directly(yaw_aug_enabled=True, yaw_aug_img_w=512, yaw_aug_seed=seed)
+
+src/tests/test_yaw_aug_training.py:659: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:639: in _construct_directly
+    return tdiff.DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = namespace(), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+yaw_aug_enabled = True, yaw_aug_img_w = 512, yaw_aug_seed = True
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        self.yaw_aug_enabled = bool(yaw_aug_enabled)
+        self.yaw_aug_img_w = int(yaw_aug_img_w)
+        self.yaw_aug_seed = int(yaw_aug_seed)
+        if self.yaw_aug_enabled:
+            if self.yaw_aug_img_w <= 0:
+                raise ValueError(
+                    f"yaw_aug_img_w must be > 0, got {self.yaw_aug_img_w}"
+                )
+            if cond_method == "fa_invariant":
+                raise ValueError(
+                    "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                    "untested combination and out of scope for exp_15."
+                )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:242: AttributeError
+___________________ test_constructor_rejects_bad_seed[None] ____________________
+
+seed = None
+
+    @pytest.mark.parametrize("seed", ["42", 42.0, True, None])
+    def test_constructor_rejects_bad_seed(seed):
+        with pytest.raises(ValueError, match="yaw_aug_seed"):
+>           _construct_directly(yaw_aug_enabled=True, yaw_aug_img_w=512, yaw_aug_seed=seed)
+
+src/tests/test_yaw_aug_training.py:659: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:639: in _construct_directly
+    return tdiff.DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = namespace(), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+yaw_aug_enabled = True, yaw_aug_img_w = 512, yaw_aug_seed = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        self.yaw_aug_enabled = bool(yaw_aug_enabled)
+        self.yaw_aug_img_w = int(yaw_aug_img_w)
+>       self.yaw_aug_seed = int(yaw_aug_seed)
+E       TypeError: int() argument must be a string, a bytes-like object or a real number, not 'NoneType'
+
+src/training/diffusion.py:201: TypeError
+__________________ test_write_golden_requires_an_explicit_sha __________________
+
+    def test_write_golden_requires_an_explicit_sha():
+        with pytest.raises(SystemExit, match="SHA"):
+>           _capture_sha_from_argv(["test_yaw_aug_training.py", "--write-golden"])
+E           NameError: name '_capture_sha_from_argv' is not defined
+
+src/tests/test_yaw_aug_training.py:672: NameError
+__________________ test_write_golden_accepts_an_explicit_sha ___________________
+
+    def test_write_golden_accepts_an_explicit_sha():
+        argv = ["test_yaw_aug_training.py", "--write-golden", "d3a0312"]
+>       assert _capture_sha_from_argv(argv) == "d3a0312"
+E       NameError: name '_capture_sha_from_argv' is not defined
+
+src/tests/test_yaw_aug_training.py:681: NameError
+_________________ test_write_golden_rejects_a_placeholder_sha __________________
+
+    def test_write_golden_rejects_a_placeholder_sha():
+>       with pytest.raises(ValueError, match="SHA"):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_training.py:685: Failed
+----------------------------- Captured stdout call -----------------------------
+wrote /n/fs/gatrdp/codespace/FLAC/src/tests/fixtures/exp15_yaw_aug_disabled_golden.json
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_yaw_aug_training.py::test_banner_is_flushed - Assertion...
+FAILED src/tests/test_yaw_aug_training.py::test_constructor_rejects_non_literal_bool_enabled[false]
+FAILED src/tests/test_yaw_aug_training.py::test_constructor_rejects_non_literal_bool_enabled[true]
+FAILED src/tests/test_yaw_aug_training.py::test_constructor_rejects_non_literal_bool_enabled[1]
+FAILED src/tests/test_yaw_aug_training.py::test_constructor_rejects_non_literal_bool_enabled[0]
+FAILED src/tests/test_yaw_aug_training.py::test_constructor_rejects_non_literal_bool_enabled[1.0]
+FAILED src/tests/test_yaw_aug_training.py::test_constructor_rejects_non_literal_bool_enabled[None]
+FAILED src/tests/test_yaw_aug_training.py::test_constructor_rejects_bad_img_w[512]
+FAILED src/tests/test_yaw_aug_training.py::test_constructor_rejects_bad_img_w[512.0]
+FAILED src/tests/test_yaw_aug_training.py::test_constructor_rejects_bad_img_w[True]
+FAILED src/tests/test_yaw_aug_training.py::test_constructor_rejects_bad_img_w[None]
+FAILED src/tests/test_yaw_aug_training.py::test_constructor_rejects_bad_seed[42]
+FAILED src/tests/test_yaw_aug_training.py::test_constructor_rejects_bad_seed[42.0]
+FAILED src/tests/test_yaw_aug_training.py::test_constructor_rejects_bad_seed[True]
+FAILED src/tests/test_yaw_aug_training.py::test_constructor_rejects_bad_seed[None]
+FAILED src/tests/test_yaw_aug_training.py::test_write_golden_requires_an_explicit_sha
+FAILED src/tests/test_yaw_aug_training.py::test_write_golden_accepts_an_explicit_sha
+FAILED src/tests/test_yaw_aug_training.py::test_write_golden_rejects_a_placeholder_sha
+18 failed, 3 passed, 86 deselected, 4 warnings in 17.59s

@@ -25,9 +25,14 @@ Harness notes:
   whole step; that requires ``src.models.transformer.flash_attn_func`` to be
   neutralised, since the installed flash-attn kernel is CUDA-only and this test
   is CPU-only. Both the capture and the replay disable it identically.
-* Regenerate the fixture deliberately (never to "fix" a red test) with
-  ``python src/tests/test_yaw_aug_training.py --write-golden`` from the repo
-  root, at a commit where the disabled path is known-good.
+* Regenerate the fixture deliberately (never to "fix" a red test), from the repo
+  root, at a commit where the disabled path is known-good, passing that commit
+  explicitly — the writer refuses to stamp the record "unknown"::
+
+      python src/tests/test_yaw_aug_training.py --write-golden $(git rev-parse HEAD)
+
+  The committed fixture was captured at ``d3a0312``, the parent of the first
+  exp_15 commit, i.e. before any production file of this round was edited.
 """
 import hashlib
 import json
@@ -236,7 +241,32 @@ def _capture_disabled_path():
     }
 
 
+def _capture_sha_from_argv(argv):
+    """Parse (and insist on) the capture SHA of a regeneration run.
+
+    The fixture's whole evidential value is that it was captured at a *named*
+    pre-change commit; a record stamped "unknown" would prove nothing about what
+    the disabled path did or when (review finding 5).
+    """
+    if "--write-golden" not in argv:
+        raise SystemExit(
+            "refusing to overwrite the golden fixture without --write-golden"
+        )
+    index = argv.index("--write-golden") + 1
+    if index >= len(argv) or argv[index].startswith("-"):
+        raise SystemExit(
+            "refusing to write the golden fixture without an explicit capture SHA. "
+            "Run: python src/tests/test_yaw_aug_training.py --write-golden "
+            "$(git rev-parse HEAD)"
+        )
+    return argv[index]
+
+
 def _write_golden(capture_sha):
+    if not capture_sha or capture_sha == "unknown":
+        raise ValueError(
+            f"capture SHA must be an explicit commit SHA, got {capture_sha!r}"
+        )
     GOLDEN_PATH.parent.mkdir(parents=True, exist_ok=True)
     _transformer.flash_attn_func = None          # same neutralisation as the fixture
     record = {
@@ -611,11 +641,79 @@ def test_banner_printed_once_at_fit_start(capsys):
     assert capsys.readouterr().out.count("yaw_aug ENABLED img_w=512 seed=42") == 1
 
 
+def test_banner_is_flushed(monkeypatch):
+    """The launcher tees torchrun's stdout through a FIFO without
+    PYTHONUNBUFFERED, so a buffered banner can reach the log after the launch
+    gate has already given up (review finding 3)."""
+    calls = []
+    monkeypatch.setattr("builtins.print", lambda *a, **kw: calls.append((a, kw)))
+    _enabled_wrapper(img_w=512, seed=42).on_fit_start()
+    assert len(calls) == 1
+    assert calls[0][1].get("flush") is True
+
+
 def test_no_banner_when_disabled(capsys):
     wrapper = _build_wrapper()
     _attach_stub_trainer(wrapper)
     wrapper.on_fit_start()
     assert "yaw_aug" not in capsys.readouterr().out
+
+
+# --- constructor guards reject rather than coerce (review finding 4) -------- #
+def _construct_directly(**yaw_aug_kwargs):
+    """Bypass the factory entirely: the constructor must fail closed on its own.
+
+    The yaw_aug validation runs before the constructor touches the model, so a
+    bare namespace stands in for it.
+    """
+    return tdiff.DiffusionCondTrainingWrapper(
+        types.SimpleNamespace(), lr=5e-6, use_ema=False, **yaw_aug_kwargs
+    )
+
+
+@pytest.mark.parametrize("enabled", ["false", "true", 1, 0, 1.0, None])
+def test_constructor_rejects_non_literal_bool_enabled(enabled):
+    with pytest.raises(ValueError, match="yaw_aug_enabled"):
+        _construct_directly(yaw_aug_enabled=enabled)
+
+
+@pytest.mark.parametrize("img_w", ["512", 512.0, True, None, 0, -1])
+def test_constructor_rejects_bad_img_w(img_w):
+    with pytest.raises(ValueError, match="yaw_aug_img_w"):
+        _construct_directly(yaw_aug_enabled=True, yaw_aug_img_w=img_w, yaw_aug_seed=42)
+
+
+@pytest.mark.parametrize("seed", ["42", 42.0, True, None])
+def test_constructor_rejects_bad_seed(seed):
+    with pytest.raises(ValueError, match="yaw_aug_seed"):
+        _construct_directly(yaw_aug_enabled=True, yaw_aug_img_w=512, yaw_aug_seed=seed)
+
+
+def test_constructor_does_not_coerce_valid_values():
+    wrapper = _build_wrapper(yaw_aug={"enabled": True, "img_w": 512, "seed": 42})
+    assert wrapper.yaw_aug_enabled is True
+    assert isinstance(wrapper.yaw_aug_img_w, int) and wrapper.yaw_aug_img_w == 512
+    assert isinstance(wrapper.yaw_aug_seed, int) and wrapper.yaw_aug_seed == 42
+
+
+# --- golden regeneration demands an explicit capture SHA (finding 5) -------- #
+def test_write_golden_requires_an_explicit_sha():
+    with pytest.raises(SystemExit, match="SHA"):
+        _capture_sha_from_argv(["test_yaw_aug_training.py", "--write-golden"])
+    with pytest.raises(SystemExit, match="SHA"):
+        _capture_sha_from_argv(["test_yaw_aug_training.py", "--write-golden", "--force"])
+    with pytest.raises(SystemExit):
+        _capture_sha_from_argv(["test_yaw_aug_training.py"])
+
+
+def test_write_golden_accepts_an_explicit_sha():
+    argv = ["test_yaw_aug_training.py", "--write-golden", "d3a0312"]
+    assert _capture_sha_from_argv(argv) == "d3a0312"
+
+
+def test_write_golden_rejects_a_placeholder_sha():
+    with pytest.raises(ValueError, match="SHA"):
+        _write_golden("unknown")
 
 
 # --- §6.5-3 exactness: the drawn offset is the applied offset --------------- #
@@ -857,7 +955,4 @@ def test_validation_step_never_augments(no_flash):
 
 
 if __name__ == "__main__":
-    if "--write-golden" not in sys.argv:
-        raise SystemExit("refusing to overwrite the golden fixture without --write-golden")
-    sha = sys.argv[sys.argv.index("--write-golden") + 1] if len(sys.argv) > 2 else "unknown"
-    _write_golden(sha)
+    _write_golden(_capture_sha_from_argv(sys.argv))

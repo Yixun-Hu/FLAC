@@ -196,19 +196,30 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
 
         # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
         # default and read only by training_step; validation/test are untouched.
-        self.yaw_aug_enabled = bool(yaw_aug_enabled)
-        self.yaw_aug_img_w = int(yaw_aug_img_w)
-        self.yaw_aug_seed = int(yaw_aug_seed)
-        if self.yaw_aug_enabled:
-            if self.yaw_aug_img_w <= 0:
-                raise ValueError(
-                    f"yaw_aug_img_w must be > 0, got {self.yaw_aug_img_w}"
-                )
-            if cond_method == "fa_invariant":
-                raise ValueError(
-                    "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
-                    "untested combination and out of scope for exp_15."
-                )
+        # The RAW arguments are validated — never coerced — with the same rules
+        # the factory applies, so direct construction is as fail-closed as the
+        # config path (round-1 review, finding 4): bool("false") is True and
+        # int("512") is 512, and either would have armed or disarmed the
+        # treatment on a typo without a word of complaint.
+        if not isinstance(yaw_aug_enabled, bool):
+            raise ValueError(
+                f"yaw_aug_enabled must be a bool, got {yaw_aug_enabled!r}"
+            )
+        if isinstance(yaw_aug_img_w, bool) or not isinstance(yaw_aug_img_w, int):
+            raise ValueError(f"yaw_aug_img_w must be an int, got {yaw_aug_img_w!r}")
+        if yaw_aug_img_w <= 0:
+            raise ValueError(f"yaw_aug_img_w must be > 0, got {yaw_aug_img_w}")
+        if isinstance(yaw_aug_seed, bool) or not isinstance(yaw_aug_seed, int):
+            raise ValueError(f"yaw_aug_seed must be an int, got {yaw_aug_seed!r}")
+        if yaw_aug_enabled and cond_method == "fa_invariant":
+            raise ValueError(
+                "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15."
+            )
+
+        self.yaw_aug_enabled = yaw_aug_enabled
+        self.yaw_aug_img_w = yaw_aug_img_w
+        self.yaw_aug_seed = yaw_aug_seed
 
         if use_ema:
             self.diffusion_ema = EMA(
@@ -337,7 +348,13 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
 
     @rank_zero_only
     def _print_yaw_aug_banner(self):
-        print(f"yaw_aug ENABLED img_w={self.yaw_aug_img_w} seed={self.yaw_aug_seed}")
+        # flush: the launcher tees torchrun's stdout through a FIFO without
+        # PYTHONUNBUFFERED, so a buffered banner could reach the log after the
+        # post-launch gate has already looked for it.
+        print(
+            f"yaw_aug ENABLED img_w={self.yaw_aug_img_w} seed={self.yaw_aug_seed}",
+            flush=True,
+        )
 
     def on_fit_start(self):
         """Announce the treatment once, on rank 0, before step 0.
