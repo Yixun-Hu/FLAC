@@ -372,3 +372,187 @@ def test_explicit_fixed_mode_paths_are_byte_identical_to_the_default_call():
             CKPT, 1, 1.0, "cell", cond_method=cond_method, rotate_deg=deg,
             n_angles=n_angles, rotate_mode="fixed", rotate_seed=None)
         assert default == explicit
+
+
+# =========================================================================== #
+# CYCLE 3 — the §3.3 assignment-integrity stream and its canonical hashes
+# =========================================================================== #
+# Golden canonical hashes, computed once from the SPECIFICATION's serialization
+# (one JSON array per tuple, sort_keys=True, separators=(",", ":"), LF-joined,
+# UTF-8, sha256 -- plan §3.3 / review B5), not from the implementation. They are
+# the cross-machine contract: two cells agree iff these strings agree.
+GOLDEN_INPUT_TUPLES = [
+    [0, "0|sceneA/0000/S001_R000_hybrid_IR.wav", ["1.000000,2.000000,3.000000"], 512],
+    [1, "1|sceneA/0000/S002_R000_hybrid_IR.wav",
+        ["-1.500000,0.250000,0.000000", "4.000000,-2.000000,1.000000"], 512],
+]
+GOLDEN_ASSIGNMENT_TUPLES = [
+    [0, "0|sceneA/0000/S001_R000_hybrid_IR.wav", 102],
+    [1, "1|sceneA/0000/S002_R000_hybrid_IR.wav", 435],
+]
+GOLDEN_INPUT_HASH = "ca051d20f50751828872e1f7d70771db3c2f8d6ccc34cfc1953033975d5ffd8f"
+GOLDEN_ASSIGNMENT_HASH = "903ced765558596534f74eb2c88509d608367e0c7dcbb85f4b8c3da95b9b48dd"
+GOLDEN_EMPTY_HASH = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+
+# --------------------------------------------------------------------------- #
+# (9) canonical hashing
+# --------------------------------------------------------------------------- #
+def test_canonical_stream_hash_matches_the_golden_values():
+    assert eval_FLAC.canonical_stream_hash(GOLDEN_INPUT_TUPLES) == GOLDEN_INPUT_HASH
+    assert eval_FLAC.canonical_stream_hash(GOLDEN_ASSIGNMENT_TUPLES) == GOLDEN_ASSIGNMENT_HASH
+    assert eval_FLAC.canonical_stream_hash([]) == GOLDEN_EMPTY_HASH  # sha256 of b""
+
+
+def test_canonical_stream_hash_is_order_sensitive():
+    """Position IS the identity here: the same items in a different order are a
+    different assignment, and the hash must say so."""
+    assert eval_FLAC.canonical_stream_hash(
+        list(reversed(GOLDEN_INPUT_TUPLES))) != GOLDEN_INPUT_HASH
+
+
+def test_canonical_stream_hash_accepts_tuples_and_lists_alike():
+    as_tuples = [tuple(t) for t in GOLDEN_ASSIGNMENT_TUPLES]
+    assert eval_FLAC.canonical_stream_hash(as_tuples) == GOLDEN_ASSIGNMENT_HASH
+
+
+def test_canonical_stream_hash_separates_neighbouring_fields():
+    """The LF join and compact separators must not let two different streams
+    serialize to the same bytes."""
+    a = eval_FLAC.canonical_stream_hash([[0, "a"], [1, "b"]])
+    b = eval_FLAC.canonical_stream_hash([[0, "a", 1, "b"]])
+    assert a != b
+
+
+# --------------------------------------------------------------------------- #
+# per-sample identity extraction
+# --------------------------------------------------------------------------- #
+def test_sample_target_id_is_index_plus_relpath():
+    md = _make_md(seed=3)
+    md["idx"] = 17
+    md["relpath"] = "sceneX/0002/S003_R004_hybrid_IR.wav"
+    assert eval_FLAC.sample_target_id(md) == "17|sceneX/0002/S003_R004_hybrid_IR.wav"
+
+
+def test_sample_target_id_falls_back_to_the_absolute_path():
+    md = {"idx": 5, "path": "/data/AR/sceneX/0002/S003_R004_hybrid_IR.wav"}
+    assert eval_FLAC.sample_target_id(md) == "5|/data/AR/sceneX/0002/S003_R004_hybrid_IR.wav"
+
+
+def test_sample_target_id_without_any_path_raises():
+    """An unidentifiable item makes the whole audit worthless -- fail, don't guess."""
+    with pytest.raises(ValueError, match="identity"):
+        eval_FLAC.sample_target_id({"idx": 5})
+
+
+def test_sample_context_ids_are_ordered_and_position_derived():
+    md = {"context_poses": torch.tensor([[1.0, 2.0, 3.0], [-1.5, 0.25, 0.0]])}
+    assert eval_FLAC.sample_context_ids(md) == [
+        "1.000000,2.000000,3.000000", "-1.500000,0.250000,0.000000"]
+    # order is part of the identity
+    flipped = {"context_poses": md["context_poses"].flip(0)}
+    assert eval_FLAC.sample_context_ids(flipped) == list(
+        reversed(eval_FLAC.sample_context_ids(md)))
+
+
+def test_sample_context_ids_distinguish_different_context_draws():
+    """AR_md draws the reference sources at random per sample; two different draws
+    must not fingerprint identically, or cross-arm matching proves nothing."""
+    a = {"context_poses": torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])}
+    b = {"context_poses": torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.5]])}
+    assert eval_FLAC.sample_context_ids(a) != eval_FLAC.sample_context_ids(b)
+
+
+def test_sample_context_ids_empty_when_absent():
+    assert eval_FLAC.sample_context_ids({"idx": 0}) == []
+
+
+def test_sample_context_ids_are_taken_before_rotation():
+    """Rotation rewrites context_poses; a fingerprint taken afterwards would
+    encode the rotation instead of the item and could never match a Z cell."""
+    md = _make_md(seed=9)
+    before = eval_FLAC.sample_context_ids(md)
+    rotated = yr.rotate_scene_metadata(md, math.pi / 2, 512)
+    assert eval_FLAC.sample_context_ids(rotated) != before
+
+
+# --------------------------------------------------------------------------- #
+# RotationStream accumulator
+# --------------------------------------------------------------------------- #
+def _stream_of(n=3, img_w=512, offsets=(102, 435, 348)):
+    stream = eval_FLAC.RotationStream()
+    for i in range(n):
+        md = _make_md(seed=i, img_w=img_w)
+        md["idx"] = i
+        stream.record(md, offsets[i], img_w)
+    return stream
+
+
+def test_rotation_stream_records_positions_in_order():
+    stream = _stream_of()
+    assert len(stream) == 3
+    assert [r.position for r in stream.rows] == [0, 1, 2]
+    assert [r.offset for r in stream.rows] == [102, 435, 348]
+    assert stream.img_w == 512
+    assert stream.target_ids == [r.target_id for r in stream.rows]
+
+
+def test_rotation_stream_hashes_use_the_canonical_serialization():
+    stream = _stream_of()
+    assert stream.input_hash() == eval_FLAC.canonical_stream_hash(stream.input_tuples())
+    assert stream.assignment_hash() == eval_FLAC.canonical_stream_hash(
+        stream.assignment_tuples())
+    # input tuples carry (i, target, context ids, img_w); assignment (i, target, d)
+    assert stream.input_tuples()[0] == [
+        0, stream.rows[0].target_id, stream.rows[0].context_ids, 512]
+    assert stream.assignment_tuples()[0] == [0, stream.rows[0].target_id, 102]
+
+
+def test_rotation_stream_input_hash_is_offset_independent():
+    """Z<->R pairing rests on this: the input hash must describe WHICH items and
+    contexts were evaluated, and nothing about the rotation applied to them."""
+    a = _stream_of(offsets=(102, 435, 348))
+    b = _stream_of(offsets=(7, 8, 9))
+    assert a.input_hash() == b.input_hash()
+    assert a.assignment_hash() != b.assignment_hash()
+
+
+def test_rotation_stream_detects_a_substituted_item():
+    """SampleDataset silently substitutes a random item on a load/silence failure
+    (dataset.py: `return self[random.randrange(len(self))]`). An offset-only hash
+    would be blind to it; the identity-bearing input hash is not."""
+    clean = _stream_of()
+    swapped = eval_FLAC.RotationStream()
+    for i, src in enumerate([0, 1, 99]):
+        md = _make_md(seed=src)
+        md["idx"] = src
+        swapped.record(md, (102, 435, 348)[i], 512)
+    assert swapped.input_hash() != clean.input_hash()
+    assert swapped.assignment_hash() != clean.assignment_hash()
+
+
+def test_rotation_stream_rejects_a_changing_panorama_width():
+    stream = _stream_of()
+    with pytest.raises(ValueError, match="img_w"):
+        stream.record(_make_md(seed=4, img_w=256), 5, 256)
+
+
+# --------------------------------------------------------------------------- #
+# substitution guard: count enforcement
+# --------------------------------------------------------------------------- #
+def test_verify_stream_count_passes_on_the_expected_count():
+    eval_FLAC.verify_stream_count(_stream_of(), 3)
+
+
+@pytest.mark.parametrize("expected", [2, 4, 6337])
+def test_verify_stream_count_raises_on_mismatch(expected):
+    """FAILED, not a silent pass (plan §3.3): a short or long stream means the
+    dataset did not deliver the split the cell claims to have evaluated."""
+    with pytest.raises(RuntimeError, match="stream"):
+        eval_FLAC.verify_stream_count(_stream_of(), expected)
+
+
+def test_verify_stream_count_message_names_both_counts():
+    with pytest.raises(RuntimeError) as exc:
+        eval_FLAC.verify_stream_count(_stream_of(), 6337)
+    assert "3" in str(exc.value) and "6337" in str(exc.value)

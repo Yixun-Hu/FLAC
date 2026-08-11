@@ -1,10 +1,11 @@
 import os
 import argparse
 import contextlib
+import hashlib
 import json
 import math
 import subprocess
-from typing import NamedTuple, Optional
+from typing import List, NamedTuple, Optional
 from tqdm import tqdm
 import torch
 import pytorch_lightning as pl
@@ -182,6 +183,174 @@ def build_output_paths(
         'metrics': os.path.join(directory, f'{ckpt_name}_metrics_{stem}.json'),
         'predictions': os.path.join(directory, f'{ckpt_name}_predictions_{stem}.pt'),
     }
+
+
+# Decimal places used to fingerprint a context-source position. Reference sources
+# in AR sit metres apart, so 1e-6 m never merges two of them, and a fixed-width
+# decimal string is stable across machines in a way float repr is not.
+CONTEXT_ID_PRECISION = 6
+
+
+class StreamRow(NamedTuple):
+    """One position of the evaluation stream, as it was actually evaluated."""
+    position: int
+    target_id: str
+    context_ids: List[str]
+    img_w: int
+    offset: Optional[int]
+
+
+def sample_target_id(md):
+    """Identity of the target item at one stream position: ``'<idx>|<relpath>'``.
+
+    ``SampleDataset.__getitem__`` silently substitutes a *random other item* when
+    a file fails to load or is silent (``return self[random.randrange(len(self))]``),
+    and the substituted sample carries its OWN ``idx``/``relpath``. Recording both
+    is therefore what makes the stream auditable: a hash over offsets alone would
+    prove the RNG sequence and nothing about which item received which offset.
+
+    Falls back to the absolute ``path`` when ``relpath`` is absent (it is only set
+    when the file sits under a configured root). An item with neither is a
+    hard error: an unidentifiable position makes the whole audit worthless.
+    """
+    idx = md.get('idx', None)
+    rel = md.get('relpath', None) or md.get('path', None)
+    if rel is None:
+        raise ValueError(
+            "cannot record stream identity: metadata carries neither 'relpath' nor "
+            "'path'. The assignment audit (plan §3.3) requires a per-item identity."
+        )
+    return f'{idx}|{rel}'
+
+
+def sample_context_ids(md):
+    """Ordered fingerprint of the reference sources this sample actually drew.
+
+    ``AR_md.get_custom_metadata`` picks the K context sources with
+    ``np.random.choice`` per sample and does NOT expose their paths, so the
+    strongest identity that reaches ``eval_FLAC`` is each source's 3D position
+    (``context_poses``, listener-relative, one row per reference in draw order).
+    Distinct sources sit metres apart, so a fixed 6-decimal rendering identifies
+    the draw exactly while being byte-stable across machines.
+
+    Read BEFORE any rotation: ``rotate_scene_metadata`` rewrites ``context_poses``,
+    and a fingerprint taken afterwards would encode the rotation instead of the
+    item (and could never match its unrotated pair).
+    """
+    poses = md.get('context_poses', None)
+    if poses is None:
+        return []
+    if hasattr(poses, 'dim') and poses.dim() == 1:
+        poses = poses.unsqueeze(0)
+    out = []
+    for row in poses:
+        vals = []
+        for v in row:
+            val = float(v)
+            if val == 0.0:
+                val = 0.0  # normalise -0.0, whose rendering would differ
+            vals.append(f'{val:.{CONTEXT_ID_PRECISION}f}')
+        out.append(','.join(vals))
+    return out
+
+
+def canonical_stream_hash(tuples):
+    """sha256 over an ordered tuple stream, in the pre-registered serialization.
+
+    One JSON array per tuple (``sort_keys=True``, ``separators=(",", ":")``),
+    LF-joined, UTF-8 (plan §3.3, review B5). Fixed here rather than left to
+    ``json`` defaults because this string is the cross-machine contract: two cells
+    are declared rotation-matched iff these digests agree, so whitespace or key
+    ordering may never depend on the writer.
+    """
+    payload = "\n".join(
+        json.dumps(list(t), sort_keys=True, separators=(",", ":")) for t in tuples
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+class RotationStream:
+    """Accumulates the §3.3 assignment record: what was evaluated, in what order,
+    with which rotation.
+
+    Two digests are derived from it, and they answer different questions:
+
+    * ``input_hash`` -- ``(i, target_id, context_ids, img_w)``: *which* items and
+      reference draws the cell saw. Independent of the rotation, so it is the
+      pairing key between a Z (unrotated) cell and its R (rotated) partner, and
+      the cross-arm equality check.
+    * ``assignment_hash`` -- ``(i, target_id, d_i)``: which item received which
+      offset. Equal across arms iff they were rotated identically.
+    """
+
+    def __init__(self):
+        self.rows = []
+
+    def __len__(self):
+        return len(self.rows)
+
+    def record(self, md, offset, img_w):
+        """Append one position. ``md`` must be the PRE-rotation metadata."""
+        img_w = int(img_w)
+        if self.rows and img_w != self.rows[0].img_w:
+            raise ValueError(
+                f"img_w changed mid-stream: {self.rows[0].img_w} -> {img_w}. The "
+                "column grid defines the offsets, so it cannot vary within a run."
+            )
+        row = StreamRow(
+            position=len(self.rows),
+            target_id=sample_target_id(md),
+            context_ids=sample_context_ids(md),
+            img_w=img_w,
+            offset=None if offset is None else int(offset),
+        )
+        self.rows.append(row)
+        return row
+
+    @property
+    def img_w(self):
+        return self.rows[0].img_w if self.rows else None
+
+    @property
+    def target_ids(self):
+        """Per-position target identities, for comparison against a split manifest."""
+        return [r.target_id for r in self.rows]
+
+    @property
+    def offsets(self):
+        return [r.offset for r in self.rows]
+
+    def input_tuples(self):
+        return [[r.position, r.target_id, r.context_ids, r.img_w] for r in self.rows]
+
+    def assignment_tuples(self):
+        return [[r.position, r.target_id, r.offset] for r in self.rows]
+
+    def input_hash(self):
+        return canonical_stream_hash(self.input_tuples())
+
+    def assignment_hash(self):
+        return canonical_stream_hash(self.assignment_tuples())
+
+
+def verify_stream_count(stream, expected):
+    """Substitution guard: the stream must have exactly one position per split item.
+
+    A short stream means items were dropped; a long one means they were served
+    twice. Either way the cell did not evaluate the split it claims to have
+    evaluated, so it FAILS rather than reporting a number (plan §3.3).
+    """
+    got = len(stream)
+    if expected is None:
+        raise RuntimeError(
+            "cannot verify the rotation stream: the expected item count is unknown."
+        )
+    if got != int(expected):
+        raise RuntimeError(
+            f"rotation stream has {got} positions but the dataset holds {int(expected)} "
+            "items: the evaluated split does not match the configured one (dropped, "
+            "duplicated or substituted items). Refusing to report metrics."
+        )
 
 
 def resolve_weights_source(training_config, state_dict_keys):
