@@ -1,0 +1,150 @@
+..........FFFF.FFF................                                       [100%]
+=================================== FAILURES ===================================
+_ test_embedded_config_comparison_is_type_strict[_set_bool_where_int-embedded] _
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f5a02f89870>
+mutate = <function _set_bool_where_int at 0x7f5a4f97b250>, needle = 'embedded'
+
+    @pytest.mark.parametrize("mutate,needle", [
+        (_set_bool_where_int, "embedded"),
+        (_set_float_where_int, "embedded"),
+        (_set_non_string_key, "key"),
+        (_set_non_finite, "finite"),
+    ])
+    def test_embedded_config_comparison_is_type_strict(rc, synthetic_ckpt, mutate, needle):
+        """Python equality says True == 1 and 1 == 1.0, so a type-changing drift
+        would pass an ``==`` check while its canonical hash differs from the file's —
+        a record that contradicts itself."""
+        ckpt = synthetic_ckpt(model_config=_control_with(mutate))
+>       with pytest.raises(ValueError, match=needle):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_record_control.py:296: Failed
+_ test_embedded_config_comparison_is_type_strict[_set_float_where_int-embedded] _
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f5a02f8a290>
+mutate = <function _set_float_where_int at 0x7f5a4f97b2e0>, needle = 'embedded'
+
+    @pytest.mark.parametrize("mutate,needle", [
+        (_set_bool_where_int, "embedded"),
+        (_set_float_where_int, "embedded"),
+        (_set_non_string_key, "key"),
+        (_set_non_finite, "finite"),
+    ])
+    def test_embedded_config_comparison_is_type_strict(rc, synthetic_ckpt, mutate, needle):
+        """Python equality says True == 1 and 1 == 1.0, so a type-changing drift
+        would pass an ``==`` check while its canonical hash differs from the file's —
+        a record that contradicts itself."""
+        ckpt = synthetic_ckpt(model_config=_control_with(mutate))
+>       with pytest.raises(ValueError, match=needle):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_record_control.py:296: Failed
+___ test_embedded_config_comparison_is_type_strict[_set_non_string_key-key] ____
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f5a02f8a5f0>
+mutate = <function _set_non_string_key at 0x7f5a4f97b370>, needle = 'key'
+
+    @pytest.mark.parametrize("mutate,needle", [
+        (_set_bool_where_int, "embedded"),
+        (_set_float_where_int, "embedded"),
+        (_set_non_string_key, "key"),
+        (_set_non_finite, "finite"),
+    ])
+    def test_embedded_config_comparison_is_type_strict(rc, synthetic_ckpt, mutate, needle):
+        """Python equality says True == 1 and 1 == 1.0, so a type-changing drift
+        would pass an ``==`` check while its canonical hash differs from the file's —
+        a record that contradicts itself."""
+        ckpt = synthetic_ckpt(model_config=_control_with(mutate))
+>       with pytest.raises(ValueError, match=needle):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'key'
+E         Actual message: '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-460/test_embedded_config_compariso2/epoch=8-step=40000.ckpt: the embedded model_config differs from the --config file — this checkpoint was not trained with that config'
+
+src/tests/test_yaw_aug_record_control.py:296: AssertionError
+____ test_embedded_config_comparison_is_type_strict[_set_non_finite-finite] ____
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f5a02f8b760>
+mutate = <function _set_non_finite at 0x7f5a4f97b400>, needle = 'finite'
+
+    @pytest.mark.parametrize("mutate,needle", [
+        (_set_bool_where_int, "embedded"),
+        (_set_float_where_int, "embedded"),
+        (_set_non_string_key, "key"),
+        (_set_non_finite, "finite"),
+    ])
+    def test_embedded_config_comparison_is_type_strict(rc, synthetic_ckpt, mutate, needle):
+        """Python equality says True == 1 and 1 == 1.0, so a type-changing drift
+        would pass an ``==`` check while its canonical hash differs from the file's —
+        a record that contradicts itself."""
+        ckpt = synthetic_ckpt(model_config=_control_with(mutate))
+>       with pytest.raises(ValueError, match=needle):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'finite'
+E         Actual message: '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-460/test_embedded_config_compariso3/epoch=8-step=40000.ckpt: the embedded model_config differs from the --config file — this checkpoint was not trained with that config'
+
+src/tests/test_yaw_aug_record_control.py:296: AssertionError
+__________________ test_global_step_must_be_a_real_int[40000] __________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f5a02f8aa70>
+bad_step = '40000'
+
+    @pytest.mark.parametrize("bad_step", ["40000", 40000.0, 40000.5, True])
+    def test_global_step_must_be_a_real_int(rc, synthetic_ckpt, bad_step):
+        """int("40000") and int(40000.5) both yield 40000 — neither is the endpoint."""
+        ckpt = synthetic_ckpt(global_step=40000)
+        payload = torch.load(ckpt, map_location="cpu", weights_only=True)
+        payload["global_step"] = bad_step
+        torch.save(payload, ckpt)
+>       with pytest.raises(ValueError, match="global_step"):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_record_control.py:313: Failed
+_________________ test_global_step_must_be_a_real_int[40000.0] _________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f5a02f8a710>
+bad_step = 40000.0
+
+    @pytest.mark.parametrize("bad_step", ["40000", 40000.0, 40000.5, True])
+    def test_global_step_must_be_a_real_int(rc, synthetic_ckpt, bad_step):
+        """int("40000") and int(40000.5) both yield 40000 — neither is the endpoint."""
+        ckpt = synthetic_ckpt(global_step=40000)
+        payload = torch.load(ckpt, map_location="cpu", weights_only=True)
+        payload["global_step"] = bad_step
+        torch.save(payload, ckpt)
+>       with pytest.raises(ValueError, match="global_step"):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_record_control.py:313: Failed
+_________________ test_global_step_must_be_a_real_int[40000.5] _________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f5a02f8b2e0>
+bad_step = 40000.5
+
+    @pytest.mark.parametrize("bad_step", ["40000", 40000.0, 40000.5, True])
+    def test_global_step_must_be_a_real_int(rc, synthetic_ckpt, bad_step):
+        """int("40000") and int(40000.5) both yield 40000 — neither is the endpoint."""
+        ckpt = synthetic_ckpt(global_step=40000)
+        payload = torch.load(ckpt, map_location="cpu", weights_only=True)
+        payload["global_step"] = bad_step
+        torch.save(payload, ckpt)
+>       with pytest.raises(ValueError, match="global_step"):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_record_control.py:313: Failed
+=========================== short test summary info ============================
+FAILED src/tests/test_yaw_aug_record_control.py::test_embedded_config_comparison_is_type_strict[_set_bool_where_int-embedded]
+FAILED src/tests/test_yaw_aug_record_control.py::test_embedded_config_comparison_is_type_strict[_set_float_where_int-embedded]
+FAILED src/tests/test_yaw_aug_record_control.py::test_embedded_config_comparison_is_type_strict[_set_non_string_key-key]
+FAILED src/tests/test_yaw_aug_record_control.py::test_embedded_config_comparison_is_type_strict[_set_non_finite-finite]
+FAILED src/tests/test_yaw_aug_record_control.py::test_global_step_must_be_a_real_int[40000]
+FAILED src/tests/test_yaw_aug_record_control.py::test_global_step_must_be_a_real_int[40000.0]
+FAILED src/tests/test_yaw_aug_record_control.py::test_global_step_must_be_a_real_int[40000.5]
+7 failed, 27 passed in 8.67s

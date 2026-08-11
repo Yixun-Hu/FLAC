@@ -257,6 +257,63 @@ def test_detects_missing_embedded_config(rc, synthetic_ckpt):
                         expect_step=40000)
 
 
+# --------------------------------------------------------------------------- #
+# F3 — type-strict comparison of the embedded config and the step
+# --------------------------------------------------------------------------- #
+def _control_with(mutation):
+    config = json.loads(CONTROL_CONFIG.read_text())
+    mutation(config)
+    return config
+
+
+def _set_bool_where_int(config):
+    config["audio_channels"] = True          # was 1: True == 1 in Python
+
+
+def _set_float_where_int(config):
+    config["sample_size"] = 10240.0          # was 10240: 10240 == 10240.0
+
+
+def _set_non_string_key(config):
+    config["training"]["metrics"][7] = "seven"
+
+
+def _set_non_finite(config):
+    config["training"]["cfg_dropout_prob"] = float("inf")
+
+
+@pytest.mark.parametrize("mutate,needle", [
+    (_set_bool_where_int, "embedded"),
+    (_set_float_where_int, "embedded"),
+    (_set_non_string_key, "key"),
+    (_set_non_finite, "finite"),
+])
+def test_embedded_config_comparison_is_type_strict(rc, synthetic_ckpt, mutate, needle):
+    """Python equality says True == 1 and 1 == 1.0, so a type-changing drift
+    would pass an ``==`` check while its canonical hash differs from the file's —
+    a record that contradicts itself."""
+    ckpt = synthetic_ckpt(model_config=_control_with(mutate))
+    with pytest.raises(ValueError, match=needle):
+        rc.build_record(ckpt, CONTROL_CONFIG, expect_step=40000)
+
+
+def test_canonical_hashes_are_asserted_equal(rc, synthetic_ckpt):
+    record = rc.build_record(synthetic_ckpt(), CONTROL_CONFIG, expect_step=40000)
+    assert (record["checkpoint"]["embedded_config_canonical_sha256"]
+            == record["config"]["canonical_sha256"])
+
+
+@pytest.mark.parametrize("bad_step", ["40000", 40000.0, 40000.5, True])
+def test_global_step_must_be_a_real_int(rc, synthetic_ckpt, bad_step):
+    """int("40000") and int(40000.5) both yield 40000 — neither is the endpoint."""
+    ckpt = synthetic_ckpt(global_step=40000)
+    payload = torch.load(ckpt, map_location="cpu", weights_only=True)
+    payload["global_step"] = bad_step
+    torch.save(payload, ckpt)
+    with pytest.raises(ValueError, match="global_step"):
+        rc.build_record(ckpt, CONTROL_CONFIG, expect_step=40000)
+
+
 def test_record_is_readonly_wrt_its_inputs(rc, synthetic_ckpt, tmp_path):
     ckpt = synthetic_ckpt()
     before = (hashlib.sha256(ckpt.read_bytes()).hexdigest(),

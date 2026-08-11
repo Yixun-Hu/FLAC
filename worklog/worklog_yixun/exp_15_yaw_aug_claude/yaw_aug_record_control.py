@@ -221,16 +221,49 @@ def summarize_ema(state_dict) -> dict:
     }
 
 
-def canonical_sha256(obj) -> str:
-    """Formatting-independent hash of a JSON-able object (sorted keys, no spaces).
+def validate_json_domain(obj, where: str = "$") -> None:
+    """Assert an object lives in the JSON type domain, strictly.
+
+    Canonicalisation is only trustworthy if it is injective on the inputs it is
+    given, and ``json.dumps`` is not: it *coerces* non-string dict keys
+    (``{1: x}`` and ``{"1": x}`` render identically) and emits the invalid
+    literals ``NaN``/``Infinity``. Rejecting those first is what lets the
+    canonical bytes stand in for the object.
+    """
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            if not isinstance(key, str):
+                raise ValueError(
+                    f"{where}: JSON object key {key!r} is {type(key).__name__}, not a "
+                    "string — canonicalisation would coerce it and hide the difference"
+                )
+            validate_json_domain(value, f"{where}.{key}")
+    elif isinstance(obj, list):
+        for index, value in enumerate(obj):
+            validate_json_domain(value, f"{where}[{index}]")
+    elif isinstance(obj, float):
+        if not math.isfinite(obj):
+            raise ValueError(f"{where}: {obj!r} is not a finite number")
+    elif not isinstance(obj, (str, bool, int, type(None))):
+        raise ValueError(f"{where}: {type(obj).__name__} is not a JSON type")
+
+
+def canonical_bytes(obj) -> bytes:
+    """Canonical JSON encoding: sorted keys, no whitespace, type-sensitive.
 
     The config *file* is hashed as raw bytes to match exp_11's registry pin; the
     config embedded in the checkpoint went through pickle and has no byte form of
-    its own, so the two are compared canonically.
+    its own, so the two are compared canonically. Encoding rather than ``==`` is
+    the point: Python says ``True == 1`` and ``1 == 1.0``, while the canonical
+    bytes are ``true``/``1``/``1.0`` — three different documents.
     """
-    return hashlib.sha256(
-        json.dumps(obj, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
+    validate_json_domain(obj)
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"),
+                      allow_nan=False).encode()
+
+
+def canonical_sha256(obj) -> str:
+    return hashlib.sha256(canonical_bytes(obj)).hexdigest()
 
 
 def summarize_checkpoint(ckpt_path, expect_step: int, config_obj) -> dict:
@@ -239,7 +272,13 @@ def summarize_checkpoint(ckpt_path, expect_step: int, config_obj) -> dict:
 
     if "global_step" not in checkpoint:
         raise ValueError(f"{ckpt_path}: no 'global_step' in the checkpoint")
-    global_step = int(checkpoint["global_step"])
+    global_step = checkpoint["global_step"]
+    # int("40000") and int(40000.5) both yield 40000; neither IS the endpoint.
+    if isinstance(global_step, bool) or not isinstance(global_step, int):
+        raise ValueError(
+            f"{ckpt_path}: embedded global_step is {global_step!r} "
+            f"({type(global_step).__name__}), expected a plain int"
+        )
     if global_step != int(expect_step):
         raise ValueError(
             f"{ckpt_path}: embedded global_step is {global_step}, expected "
@@ -260,10 +299,12 @@ def summarize_checkpoint(ckpt_path, expect_step: int, config_obj) -> dict:
             "checkpoint cannot be bound to the config it was trained with"
         )
     embedded_config = checkpoint["model_config"]
-    if embedded_config != config_obj:
+    embedded_bytes = canonical_bytes(embedded_config)
+    if embedded_bytes != canonical_bytes(config_obj):
         raise ValueError(
             f"{ckpt_path}: the embedded model_config differs from the --config "
-            "file — this checkpoint was not trained with that config"
+            "file (canonical bytes) — this checkpoint was not trained with that "
+            "config"
         )
 
     epoch = checkpoint.get("epoch", None)
@@ -275,7 +316,7 @@ def summarize_checkpoint(ckpt_path, expect_step: int, config_obj) -> dict:
         "epoch": int(epoch) if epoch is not None else None,
         "state_dict_keys": len(state_dict),
         **ema,
-        "embedded_config_canonical_sha256": canonical_sha256(embedded_config),
+        "embedded_config_canonical_sha256": hashlib.sha256(embedded_bytes).hexdigest(),
         "online_all_key_count": sum(1 for k in state_dict if k.startswith("diffusion.")),
         "optimizer_states": len(checkpoint.get("optimizer_states", []) or []),
         "lr_schedulers": len(checkpoint.get("lr_schedulers", []) or []),
@@ -298,7 +339,16 @@ def build_record(ckpt_path, config_path, expect_step: int) -> dict:
         )
 
     config_obj = json.loads(config_bytes)
+    config_canonical_sha = canonical_sha256(config_obj)
     checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
+
+    # Belt and braces: the record must never state two hashes that disagree.
+    if checkpoint["embedded_config_canonical_sha256"] != config_canonical_sha:
+        raise ValueError(
+            "internal inconsistency: the embedded config's canonical hash "
+            f"{checkpoint['embedded_config_canonical_sha256']} != the config "
+            f"file's {config_canonical_sha}"
+        )
 
     return {
         "_meta": {
@@ -315,7 +365,7 @@ def build_record(ckpt_path, config_path, expect_step: int) -> dict:
         "config": {
             "path": str(config_path),
             "sha256": config_sha,
-            "canonical_sha256": canonical_sha256(config_obj),
+            "canonical_sha256": config_canonical_sha,
         },
         "exp_11_cross_references": dict(EXP11_CROSS_REFERENCES),
         "checks": {
