@@ -536,12 +536,21 @@ esac
 # a DRYRUN shows both halves of what a real cell runs and a guard case can pin
 # this rendering against exp14_validate_cell.check_argv — the flags that decide
 # whether a finished cell is admissible must not be a second, drifting copy.
+# ...and it is rendered BY the validator, not beside it: the driver states the
+# cell (which it knows) and exp14_validate_cell.check_argv decides which flags
+# that cell's validation takes. There is therefore exactly ONE place that decides
+# whether --rotate-deg belongs in the argv — the review-B1 bug was two places
+# disagreeing about it. ROTATE_DEG is passed unconditionally because the
+# validator reads "0" as "no angle" (parse_deg) and omits the flag itself.
+# Cost: one torch-free python process per cell.
 build_validate_argv() {   # <metrics path> <ckpt sha256> -> fills VALIDATE_ARGV
-  VALIDATE_ARGV=(check --metrics "$1"
-                 --arm "$ARM" --cell "$CELL" --step "$STEP" --seed "$SEED" --k "$K")
-  [ "$CELL" = "vctl" ] && VALIDATE_ARGV+=(--rotate-deg "$ROTATE_DEG")
-  VALIDATE_ARGV+=(--pin "$HEAD_SHA" --ckpt-sha "$2"
-                  --expected-count "$EXPECTED_STREAM_COUNT")
+  local line
+  line="$(python3 "$EXPDIR/exp14_validate_cell.py" argv --metrics "$1" \
+            --arm "$ARM" --cell "$CELL" --step "$STEP" --seed "$SEED" --k "$K" \
+            --rotate-deg "$ROTATE_DEG" --pin "$HEAD_SHA" --ckpt-sha "$2" \
+            --expected-count "$EXPECTED_STREAM_COUNT")" \
+    || die "could not render the cell-validation argv - abort"
+  read -r -a VALIDATE_ARGV <<< "$line"
 }
 echo "--- eval argv ---"
 echo "python eval_FLAC.py ${EVAL_ARGV[*]}"

@@ -45,6 +45,34 @@ HELPER="$MAIN_REPO/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_measure
 # shell — would carry it into a run holding no lock at all. Verifying it inside
 # the helper is too late: by then this script has already prepared a tree. So
 # the check lives HERE, at the outer entry, before any transaction step.
+# The intent manifest ends with a fixed SENTINEL, and this is the reader that
+# checks it. A nonempty file is not a complete one: a crash mid-write leaves a
+# plausible-looking manifest that a collector would read as the launch record.
+MANIFEST_SENTINEL="manifest_complete yes"
+SYNC_CMD="${YAW_GEN_SYNC:-sync}"
+
+verify_manifest_complete() {   # <path>; nonzero unless it ends with the sentinel
+  [ -f "$1" ] || return 1
+  [ "$(tail -1 "$1" 2>/dev/null)" = "$MANIFEST_SENTINEL" ] || return 1
+  return 0
+}
+
+sync_file() {   # flush one file's bytes; NONZERO when durability cannot be had
+  command -v "$SYNC_CMD" >/dev/null 2>&1 || return 1
+  "$SYNC_CMD" "$1" 2>/dev/null && return 0
+  "$SYNC_CMD" 2>/dev/null && return 0
+  return 1
+}
+
+# `--verify-manifest <path>` is the read-only reader entry point (guard suite and
+# operators); it takes no lock and submits nothing.
+if [ "${1:-}" = "--verify-manifest" ]; then
+  verify_manifest_complete "${2:?a manifest path}" \
+    && { echo "manifest complete: $2"; exit 0; }
+  echo "manifest INCOMPLETE (no '${MANIFEST_SENTINEL}' sentinel): $2" >&2
+  exit 1
+fi
+
 LOCKFILE="${MAIN_REPO}/.measure_worktrees/.store.lock"
 
 fd8_is_the_store_lock() {
@@ -131,7 +159,25 @@ done
 # marker cannot mean two commits at once, and a campaign that read someone else's
 # pin would measure half its grid somewhere else. Refusal semantics are the
 # store marker's, unchanged.
+# TEST SEAMS, and the ONE rule that governs them: they are honoured only when the
+# submission path is provably a MOCK. A run that could really submit may never
+# redirect the campaign's own state — the guard suite writing the live
+# yaw_gen_command.md and yaw_gen_campaign_pin is precisely how a RED test run of
+# this suite once submitted four real jobs.
+SEAMS_OK=0
+case "${FA_ORBIT_SBATCH:-sbatch}" in
+  sbatch) ;;
+  *) SEAMS_OK=1 ;;                      # sbatch is a mock: nothing can be submitted
+esac
+[ "$DRYRUN" = "1" ] && SEAMS_OK=1       # ...and a dry run cannot submit at all
 PIN_FILE="${EXPDIR}/yaw_gen_campaign_pin"
+INTENT_DIR="$EXPDIR"
+if [ "$SEAMS_OK" = "1" ]; then
+  [ -n "${YAW_GEN_PIN_FILE:-}" ] && PIN_FILE="$YAW_GEN_PIN_FILE"
+  [ -n "${YAW_GEN_INTENT_DIR:-}" ] && INTENT_DIR="$YAW_GEN_INTENT_DIR"
+elif [ -n "${YAW_GEN_PIN_FILE:-}${YAW_GEN_INTENT_DIR:-}" ]; then
+  reject "YAW_GEN_PIN_FILE / YAW_GEN_INTENT_DIR are test seams: they need a mocked sbatch (FA_ORBIT_SBATCH=...), never a path that could really submit"
+fi
 CAMPAIGN_PIN=""
 if [ -f "$PIN_FILE" ]; then
   CAMPAIGN_PIN="$(head -1 "$PIN_FILE" | tr -d '[:space:]')"
@@ -250,6 +296,20 @@ JOBID="${JOBID%%;*}"
 case "$JOBID" in ''|*[!0-9]*) echo "sbatch returned '${JOBID}', not a job id - abort" >&2; exit 4 ;; esac
 echo "submitted HELD as ${JOBID}"
 
+# From here until the release succeeds, ANY exit — an unguarded failure under
+# `set -e`, a Ctrl-C, a timeout — would otherwise leave a HELD job that no record
+# describes. The trap is armed immediately after the hold and stood down only
+# after a successful release; it is idempotent, so the explicit error paths below
+# can call it too without double-cancelling.
+HELD_JOBID="$JOBID"
+cancel_held_job() {
+  [ -n "${HELD_JOBID:-}" ] || return 0
+  local jid="$HELD_JOBID"; HELD_JOBID=""
+  echo "leaving job ${jid} HELD is not an option - cancelling it (lease RETAINED)" >&2
+  "$SCANCEL" "$jid" || echo "scancel FAILED - cancel job ${jid} by hand" >&2
+}
+trap cancel_held_job EXIT INT TERM
+
 # 3. lease it by its real id, VALIDATE the lease, and only THEN release the job.
 #    All of this still runs inside the store lock taken at step 0.
 #
@@ -266,7 +326,7 @@ echo "submitted HELD as ${JOBID}"
 #    tree with no code in it.
 if ! bash "$HELPER" --lease "$JOBID" "$WT"; then
   echo "could not write the lease for ${JOBID} - cancelling the held job" >&2
-  "$SCANCEL" "$JOBID" || echo "scancel FAILED - job ${JOBID} is held and UNLEASED, cancel it by hand" >&2
+  cancel_held_job
   exit 5
 fi
 
@@ -274,7 +334,7 @@ fi
 # cancellation; after release it is a running job we cannot vouch for.
 if ! grep -q "^jobid ${JOBID}$" "${WT}/.leases/${JOBID}" 2>/dev/null; then
   echo "lease ${WT}/.leases/${JOBID} does not name ${JOBID} - cancelling (lease RETAINED)" >&2
-  "$SCANCEL" "$JOBID" || echo "scancel FAILED - cancel job ${JOBID} by hand" >&2
+  cancel_held_job
   exit 7
 fi
 echo "lease validated: ${WT}/.leases/${JOBID}"
@@ -286,7 +346,7 @@ echo "lease validated: ${WT}/.leases/${JOBID}"
 # published (atomically, tmp+rename in the same directory) BEFORE the release,
 # and a failure to publish it CANCELS the held job: a job with no launch record
 # is worse than no job.
-INTENT="${EXPDIR}/yaw_gen_submission_${ARM}_${CELL}_S${STEP}_s${SEED}_K${K}_jid${JOBID}.txt"
+INTENT="${INTENT_DIR}/yaw_gen_submission_${ARM}_${CELL}_S${STEP}_s${SEED}_K${K}_jid${JOBID}.txt"
 # The intent manifest records the EVAL-PROTOCOL flags this cell will run under,
 # not just its identity (announcement 05: a mismatched flag produces
 # plausible-looking, catastrophically wrong numbers, so the launch record has to
@@ -296,24 +356,34 @@ case "$CELL" in
   vctl) ROT_INTENT="rotate_mode fixed rotate_seed <n/a> rotate_deg ${ROTATE_DEG}" ;;
   *)    ROT_INTENT="rotate_mode fixed rotate_seed <n/a> rotate_deg 0" ;;
 esac
-{ printf 'job %s name %s submitted_at %s by %s@%s\n' "$JOBID" "$JOB_NAME" "$(date -Is)" \
-         "$(id -un)" "$(hostname)"
-  printf 'arm %s cell %s step %s seed %s K %s\n' "$ARM" "$CELL" "$STEP" "$SEED" "$K"
-  printf 'pin_sha %s campaign_pin %s\n' "${PIN_SHA:-<none:HEAD>}" "${CAMPAIGN_PIN:-<none>}"
-  printf 'expect_sha %s\n' "$EXPECT_SHA"
-  printf 'measure_root %s\n' "$WT"
-  printf 'exclude %s\n' "${EXCLUDE:-<none>}"
-  printf '%s\n' "$ROT_INTENT"
-  printf 'batch_size 64 num_workers 4 expected_stream_count 6337 record_stream yes\n'
-  printf 'cond_autocast bf16 cfg_scale 1.0 steps 1 use_ema yes\n'
-  printf 'lease %s\n' "${WT}/.leases/${JOBID}"
-} > "${INTENT}.tmp" && sync "${INTENT}.tmp" 2>/dev/null; \
-  mv -f "${INTENT}.tmp" "$INTENT"
-if [ ! -s "$INTENT" ]; then
+publish_intent() {   # write, flush, verify, then atomically replace. Any failure
+                     # is a failure of the whole publication, never a warning.
+  local tmp="${INTENT}.tmp"
+  rm -f "$tmp"
+  { printf 'job %s name %s submitted_at %s by %s@%s\n' "$JOBID" "$JOB_NAME" "$(date -Is)" \
+           "$(id -un)" "$(hostname)"
+    printf 'arm %s cell %s step %s seed %s K %s\n' "$ARM" "$CELL" "$STEP" "$SEED" "$K"
+    printf 'pin_sha %s campaign_pin %s\n' "${PIN_SHA:-<none:HEAD>}" "${CAMPAIGN_PIN:-<none>}"
+    printf 'expect_sha %s\n' "$EXPECT_SHA"
+    printf 'measure_root %s\n' "$WT"
+    printf 'exclude %s\n' "${EXCLUDE:-<none>}"
+    printf '%s\n' "$ROT_INTENT"
+    printf 'batch_size 64 num_workers 4 expected_stream_count 6337 record_stream yes\n'
+    printf 'cond_autocast bf16 cfg_scale 1.0 steps 1 use_ema yes\n'
+    printf 'lease %s\n' "${WT}/.leases/${JOBID}"
+    printf '%s\n' "$MANIFEST_SENTINEL"
+  } > "$tmp" || return 1
+  sync_file "$tmp" || return 1
+  # the RENAME SOURCE must itself be complete before it is published
+  verify_manifest_complete "$tmp" || return 1
+  mv -f "$tmp" "$INTENT" || return 1
+  verify_manifest_complete "$INTENT" || return 1
+}
+if ! publish_intent; then
   rm -f "${INTENT}.tmp"
   echo "could not publish the intent manifest ${INTENT} - cancelling the held job" >&2
   echo "(a job with no launch record is worse than no job; the lease is RETAINED)" >&2
-  "$SCANCEL" "$JOBID" || echo "scancel FAILED - cancel job ${JOBID} by hand" >&2
+  cancel_held_job
   exit 8
 fi
 echo "intent manifest: ${INTENT}"
@@ -330,6 +400,7 @@ if ! "$SCONTROL" release "$JOBID"; then
   fi
   exit 6
 fi
+HELD_JOBID=""; trap - EXIT INT TERM      # released: the job is no longer ours to cancel
 
 echo "released ${JOB_NAME} (${JOBID})"
 echo "  MEASURE_ROOT ${WT}"

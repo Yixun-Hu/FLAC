@@ -41,15 +41,21 @@ SUBMIT="$EXPDIR/yaw_gen_screen_submit.sh"
 VALIDATE="$EXPDIR/exp14_validate_cell.py"
 PIN_FILE="$EXPDIR/yaw_gen_campaign_pin"
 COMMAND_LOG="$EXPDIR/yaw_gen_command.md"
+# (both may be redirected in TEST MODE only — see the TEST_MODE block below)
 PY="${YAW_GEN_PY:-/n/fs/gatrdp/envs/flac/bin/python}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-$MAIN_REPO/outputs_FLAC}"
 # Test seams, same shape as the single-cell submitter's: a real run uses the
 # real binaries. They exist so the guard suite can exercise the SEQUENCE without
 # submitting anything.
 SQUEUE="${YAW_GEN_SQUEUE:-squeue}"
+SYNC_CMD="${YAW_GEN_SYNC:-sync}"
 SUBMIT_CMD="${YAW_GEN_SUBMIT:-$SUBMIT}"
 
 DRYRUN="${DRYRUN:-0}"
+# TEST MODE exists so the guard suite can drive the wave's DECISIONS with mocked
+# Slurm and a fake lease directory. It is inert unless the submitter itself is a
+# mock: a run that could really submit may not also relax an invariant.
+TEST_MODE="${YAW_GEN_TEST_MODE:-0}"
 MAX_INFLIGHT="${MAX_INFLIGHT:-16}"
 POLL_SECONDS="${POLL_SECONDS:-120}"
 
@@ -84,6 +90,20 @@ is_num "$MAX_INFLIGHT" && [ "$MAX_INFLIGHT" -ge 1 ] && [ "$MAX_INFLIGHT" -le 16 
   || reject "MAX_INFLIGHT='${MAX_INFLIGHT}' must be 1..16 (plan §7 caps this campaign at 16 slots)"
 [ -f "$VALIDATE" ] || reject "validator missing: ${VALIDATE}"
 [ -f "$SUBMIT" ]   || reject "single-cell submitter missing: ${SUBMIT}"
+if [ "$TEST_MODE" = "1" ]; then
+  [ -n "${YAW_GEN_SUBMIT:-}" ] \
+    && [ "$(readlink -f "${YAW_GEN_SUBMIT}" 2>/dev/null)" != "$(readlink -f "$SUBMIT")" ] \
+    || reject "YAW_GEN_TEST_MODE=1 may only run against a mocked submitter (set YAW_GEN_SUBMIT=...); refusing to run a wave that could really submit with test seams honoured"
+  # ...and only THEN may the campaign's own state be redirected. A test that
+  # writes the live command log and the live pin file is not a test of the wave,
+  # it is an edit of the campaign — and a RED run of this suite once submitted
+  # four real jobs that way.
+  [ -n "${YAW_GEN_PIN_FILE:-}" ] && PIN_FILE="$YAW_GEN_PIN_FILE"
+  [ -n "${YAW_GEN_COMMAND_LOG:-}" ] && COMMAND_LOG="$YAW_GEN_COMMAND_LOG"
+elif [ -n "${YAW_GEN_PIN_FILE:-}${YAW_GEN_COMMAND_LOG:-}${YAW_GEN_WT_DIR:-}" ]; then
+  echo "NOTE: YAW_GEN_PIN_FILE / YAW_GEN_COMMAND_LOG / YAW_GEN_WT_DIR are IGNORED" >&2
+  echo "      without YAW_GEN_TEST_MODE=1 (which itself requires a mocked submitter)" >&2
+fi
 
 # --- the campaign pin --------------------------------------------------------
 # A live wave REQUIRES the pin: 106 cells are comparable only if they ran at one
@@ -123,11 +143,15 @@ mapfile -t CELLS < <("$PY" "$VALIDATE" grid --wave "$WAVE") \
 # (the guard suite diffs it against the registered grid).
 echo "=== exp_14 ${WAVE} wave: ${#CELLS[@]} registered cells | pin ${PIN_SHA:-<none: DRYRUN>} ===" >&2
 
-sync_file() {   # flush one file's bytes to disk; a record that is not durable is
-                # not a record (the whole point of writing it BEFORE the launch)
+sync_file() {   # flush one file's bytes to disk; NONZERO when it cannot be done.
+                # A record that is not durable is not a record — that is the whole
+                # point of writing it before the launch — so an unconditional
+                # success here made the fatal check unreachable.
   local f="$1"
-  if command -v sync >/dev/null 2>&1; then sync "$f" 2>/dev/null || sync; fi
-  return 0
+  command -v "$SYNC_CMD" >/dev/null 2>&1 || return 1
+  "$SYNC_CMD" "$f" 2>/dev/null && return 0
+  "$SYNC_CMD" 2>/dev/null && return 0        # coreutils without per-file sync
+  return 1
 }
 
 submit_argv() {  # <arm> <cell> <step> <seed> <k> <rot>  -> the cell's submit argv
@@ -184,11 +208,27 @@ fi
 #
 # A squeue that FAILS is not evidence that nothing is running (exp_11's lease
 # reaper learned this the expensive way): refuse rather than flood the queue.
-# The pinned worktree whose .leases/ prove a queued job is really ours.
-# YAW_GEN_WT_DIR is a guard-suite seam (like FA_ORBIT_SBATCH): it can only make
-# the wave MORE cautious — a wrong directory turns in-flight jobs into HALTs, so
-# it cannot be used to skip a check.
-WT_DIR="${YAW_GEN_WT_DIR:-${MAIN_REPO}/.measure_worktrees/${PIN_SHA}}"
+# The pinned worktree whose .leases/ prove a queued job is really ours. In a LIVE
+# wave this is DERIVED from the campaign pin and nothing can redirect it: an
+# overridable lease directory is an overridable invariant — any directory holding
+# .leases/<jid> would let a wave skip a job that holds no lease in the campaign's
+# own worktree, which is the fail-open case the re-verify caught.
+#
+# The guard suite still needs to point it elsewhere, so the seam survives behind
+# TWO locks: YAW_GEN_TEST_MODE=1 must be set explicitly, and test mode itself
+# refuses to run unless the submitter is a mock (checked above). A live wave can
+# therefore never reach this branch.
+WT_DIR="${MAIN_REPO}/.measure_worktrees/${PIN_SHA}"
+if [ -n "${YAW_GEN_WT_DIR:-}" ]; then
+  if [ "$TEST_MODE" = "1" ]; then
+    WT_DIR="$YAW_GEN_WT_DIR"
+    echo "TEST MODE: lease directory overridden to ${WT_DIR}" >&2
+  else
+    echo "NOTE: YAW_GEN_WT_DIR is set but IGNORED — leases are read from the pinned" >&2
+    echo "      worktree ${WT_DIR} (override needs YAW_GEN_TEST_MODE=1 AND a mocked" >&2
+    echo "      submitter; a live wave may not relax the lease invariant)" >&2
+  fi
+fi
 QUEUED="$("$SQUEUE" -h -u "$(id -un)" -o "%i %j" 2>/dev/null)" \
   || reject "squeue failed - refusing to submit without knowing what is already queued"
 inflight_count() { printf '%s\n' "$QUEUED" | awk '{print $2}' | grep -c '^exp14-' ; }
