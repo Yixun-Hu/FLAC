@@ -44,6 +44,36 @@ def _splitmix64(x: int) -> int:
     return z ^ (z >> 31)
 
 
+_MASK32 = (1 << 32) - 1
+# Domain of the (step, rank) packing below. 2**20 steps is 26x the pre-registered
+# 40,000-step budget and 2**12 ranks is 512x the 8-rank rung; both are asserted
+# rather than wrapped, because a wrap would silently alias one cell's yaw stream
+# onto another's.
+_YAW_AUG_RANK_BITS = 12
+_YAW_AUG_MAX_RANK = 1 << _YAW_AUG_RANK_BITS
+_YAW_AUG_MAX_STEP = 1 << (32 - _YAW_AUG_RANK_BITS)
+# Murmur3 fmix32 constants; both multipliers are odd, hence invertible mod 2**32.
+_FMIX32_MUL1 = 0x85EBCA6B
+_FMIX32_MUL2 = 0xC2B2AE35
+
+
+def _fmix32(x: int) -> int:
+    """Murmur3's 32-bit finaliser — a *bijection* of ``[0, 2**32)`` onto itself.
+
+    Each step is individually invertible (``x ^= x >> k`` for k >= 16 on 32 bits,
+    and multiplication by an odd constant mod 2**32), so the composition is a
+    permutation: distinct inputs can never collide. That property, not the
+    avalanche quality, is what the seed derivation needs.
+    """
+    x &= _MASK32
+    x ^= x >> 16
+    x = (x * _FMIX32_MUL1) & _MASK32
+    x ^= x >> 13
+    x = (x * _FMIX32_MUL2) & _MASK32
+    x ^= x >> 16
+    return x
+
+
 def _yaw_aug_step_seed(seed: int, step: int, rank: int) -> int:
     """Deterministic generator seed for one (run seed, training step, rank).
 
@@ -55,36 +85,54 @@ def _yaw_aug_step_seed(seed: int, step: int, rank: int) -> int:
     sequential ``torch.Generator`` would instead have to be checkpointed, and
     PL checkpoints carry no RNG state.
 
-    The three counters are folded through successive SplitMix64 rounds, which
-    decorrelates adjacent steps and neighbouring ranks (a plain sum or xor would
-    let (step, rank) pairs collide, silently giving two ranks the same yaws).
-    The result is truncated to 63 bits: a valid, non-negative seed for
-    ``torch.Generator.manual_seed`` on every platform.
+    **The result is 32 bits wide on purpose** (round-1 code review, finding 1).
+    The pinned torch CPU generator seeds MT19937 from the low 32 bits only, so
+    ``s`` and ``s + 2**32`` are the same stream: a nominally 63-bit hash bought
+    no extra entropy and *did* collide — 10 collisions over the armed 40,000-step
+    x 8-rank domain, e.g. (526, 2) and (10156, 7) drew identical yaws. Instead of
+    hashing and hoping, the counters are packed into one 32-bit word and mapped
+    through a **keyed bijection** of that word:
+
+        v = (step << 12) | rank                  (injective on the asserted domain)
+        out = fmix32(v ^ k_lo) ^ k_hi            (bijections: xor-by-key, fmix32)
+
+    ``k_lo``/``k_hi`` are the two halves of ``splitmix64(seed)``, so different run
+    seeds give unrelated assignments while, *for a fixed seed*, distinct
+    ``(step, rank)`` cells provably get distinct effective seeds and therefore
+    distinct MT19937 streams. Zero collisions by construction, not by luck.
 
     Parameters
     ----------
     seed : int
         The run's ``training.yaw_aug.seed``.
     step : int
-        ``global_step`` at this optimisation step (>= 0).
+        ``global_step`` at this optimisation step, in ``[0, 2**20)``.
     rank : int
-        ``global_rank`` of this process (>= 0).
+        ``global_rank`` of this process, in ``[0, 2**12)``.
 
     Returns
     -------
     int
-        A seed in ``[0, 2**63)``.
+        A seed in ``[0, 2**32)``.
     """
     seed, step, rank = int(seed), int(step), int(rank)
-    if step < 0:
-        raise ValueError(f"yaw_aug step must be >= 0, got {step}")
-    if rank < 0:
-        raise ValueError(f"yaw_aug rank must be >= 0, got {rank}")
+    if not 0 <= step < _YAW_AUG_MAX_STEP:
+        raise ValueError(
+            f"yaw_aug step must be in [0, {_YAW_AUG_MAX_STEP}), got {step}: outside "
+            "that domain the (step, rank) packing is no longer injective"
+        )
+    if not 0 <= rank < _YAW_AUG_MAX_RANK:
+        raise ValueError(
+            f"yaw_aug rank must be in [0, {_YAW_AUG_MAX_RANK}), got {rank}: outside "
+            "that domain the (step, rank) packing is no longer injective"
+        )
 
-    h = _splitmix64(seed & _MASK64)
-    h = _splitmix64(h ^ (step & _MASK64))
-    h = _splitmix64(h ^ ((rank * _SPLITMIX64_GAMMA) & _MASK64))
-    return h & ((1 << 63) - 1)
+    key = _splitmix64(seed & _MASK64)
+    k_lo = key & _MASK32
+    k_hi = (key >> 32) & _MASK32
+
+    v = ((step << _YAW_AUG_RANK_BITS) | rank) & _MASK32
+    return _fmix32(v ^ k_lo) ^ k_hi
 
 
 class Profiler:

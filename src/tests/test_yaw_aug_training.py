@@ -301,11 +301,65 @@ def test_step_seed_is_deterministic():
     assert torch.equal(_offsets(42, 137, 3), _offsets(42, 137, 3))
 
 
-def test_step_seed_is_a_valid_63_bit_generator_seed():
+def test_step_seed_is_a_valid_32_bit_generator_seed():
+    """32 bits, because that is all the pinned torch CPU generator keeps.
+
+    See ``test_torch_cpu_generator_ignores_high_seed_bits``: returning a wider
+    value would only *look* like more entropy.
+    """
     for seed, step, rank in [(0, 0, 0), (42, 0, 0), (42, 39999, 7), (2**31, 10**6, 63)]:
         value = tdiff._yaw_aug_step_seed(seed, step, rank)
         assert isinstance(value, int)
-        assert 0 <= value < 2**63
+        assert 0 <= value < 2**32
+
+
+def test_torch_cpu_generator_ignores_high_seed_bits():
+    """Pinned-environment documentation test (round-1 review, finding 1).
+
+    torch 2.7.0's CPU MT19937 seeds from the low 32 bits only, so ``s`` and
+    ``s + 2**32`` are the same stream. This is *why* _yaw_aug_step_seed derives a
+    keyed 32-bit bijection instead of a well-avalanched 63-bit hash: only an
+    injection into the 32-bit space can promise distinct streams.
+    """
+    a = torch.randint(0, 512, (32,), generator=torch.Generator().manual_seed(12345))
+    b = torch.randint(0, 512, (32,), generator=torch.Generator().manual_seed(12345 + 2**32))
+    assert torch.equal(a, b), (
+        "the pinned torch CPU generator no longer aliases seeds modulo 2**32; the "
+        "assumption behind the 32-bit bijection in _yaw_aug_step_seed has changed "
+        "and the derivation should be revisited (a wider seed would now be usable)"
+    )
+
+
+def test_effective_seed_domain_is_collision_free():
+    """The whole armed domain — 40,000 steps x 8 ranks — maps to distinct seeds.
+
+    The predecessor of this function collided 10 times here (review finding 1),
+    e.g. (step=526, rank=2) and (step=10156, rank=7) drew identical yaw streams.
+    Distinctness is now structural, and this test checks the actual domain rather
+    than sampling it.
+    """
+    steps, ranks = 40000, 8
+    effective = {
+        tdiff._yaw_aug_step_seed(42, step, rank)
+        for step in range(steps)
+        for rank in range(ranks)
+    }
+    assert len(effective) == steps * ranks
+    assert max(effective) < 2**32 and min(effective) >= 0
+
+
+def test_reviewer_collision_pair_now_draws_different_streams():
+    """Regression on the concrete pair the reviewer exhibited."""
+    assert tdiff._yaw_aug_step_seed(42, 526, 2) != tdiff._yaw_aug_step_seed(42, 10156, 7)
+    assert not torch.equal(_offsets(42, 526, 2, n=64), _offsets(42, 10156, 7, n=64))
+
+
+@pytest.mark.parametrize("step,rank", [(2**20, 0), (2**20 + 1, 0), (0, 2**12), (0, 2**12 + 5)])
+def test_step_seed_rejects_out_of_domain_counters(step, rank):
+    """The bijection is only injective inside its declared domain, so leaving it
+    is a hard error rather than a silent wrap into another cell's stream."""
+    with pytest.raises(ValueError):
+        tdiff._yaw_aug_step_seed(42, step, rank)
 
 
 def test_step_seed_distinct_across_steps():

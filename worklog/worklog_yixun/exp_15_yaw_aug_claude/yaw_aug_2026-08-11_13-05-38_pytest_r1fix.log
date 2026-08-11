@@ -1,0 +1,126 @@
+.F.FFFFFF..........                                                      [100%]
+=================================== FAILURES ===================================
+_______________ test_step_seed_is_a_valid_32_bit_generator_seed ________________
+
+    def test_step_seed_is_a_valid_32_bit_generator_seed():
+        """32 bits, because that is all the pinned torch CPU generator keeps.
+    
+        See ``test_torch_cpu_generator_ignores_high_seed_bits``: returning a wider
+        value would only *look* like more entropy.
+        """
+        for seed, step, rank in [(0, 0, 0), (42, 0, 0), (42, 39999, 7), (2**31, 10**6, 63)]:
+            value = tdiff._yaw_aug_step_seed(seed, step, rank)
+            assert isinstance(value, int)
+>           assert 0 <= value < 2**32
+E           assert 2558736989570252433 < (2 ** 32)
+
+src/tests/test_yaw_aug_training.py:313: AssertionError
+_________________ test_effective_seed_domain_is_collision_free _________________
+
+    def test_effective_seed_domain_is_collision_free():
+        """The whole armed domain — 40,000 steps x 8 ranks — maps to distinct seeds.
+    
+        The predecessor of this function collided 10 times here (review finding 1),
+        e.g. (step=526, rank=2) and (step=10156, rank=7) drew identical yaw streams.
+        Distinctness is now structural, and this test checks the actual domain rather
+        than sampling it.
+        """
+        steps, ranks = 40000, 8
+        effective = {
+            tdiff._yaw_aug_step_seed(42, step, rank)
+            for step in range(steps)
+            for rank in range(ranks)
+        }
+        assert len(effective) == steps * ranks
+>       assert max(effective) < 2**32 and min(effective) >= 0
+E       assert (9223365379882074119 < (2 ** 32))
+E        +  where 9223365379882074119 = max({41025908876258, 72483322569166, 76867527417464, 80247821379050, 136397180971672, 153606717033201, ...})
+
+src/tests/test_yaw_aug_training.py:348: AssertionError
+___________ test_reviewer_collision_pair_now_draws_different_streams ___________
+
+    def test_reviewer_collision_pair_now_draws_different_streams():
+        """Regression on the concrete pair the reviewer exhibited."""
+        assert tdiff._yaw_aug_step_seed(42, 526, 2) != tdiff._yaw_aug_step_seed(42, 10156, 7)
+>       assert not torch.equal(_offsets(42, 526, 2, n=64), _offsets(42, 10156, 7, n=64))
+E       assert not True
+E        +  where True = <built-in method equal of type object at 0x7f2f7877df40>(tensor([296, 327, 339, 254, 415, 488, 408, 476,  82, 158, 314,  38, 393, 377,\n        130, 371, 432, 196, 414, 373, 40... 178, 188, 470, 173, 259, 374, 509,  97, 136, 348, 342, 421, 463, 155,\n        301,  26,  69,  59, 236,  30, 437, 360]), tensor([296, 327, 339, 254, 415, 488, 408, 476,  82, 158, 314,  38, 393, 377,\n        130, 371, 432, 196, 414, 373, 40... 178, 188, 470, 173, 259, 374, 509,  97, 136, 348, 342, 421, 463, 155,\n        301,  26,  69,  59, 236,  30, 437, 360]))
+E        +    where <built-in method equal of type object at 0x7f2f7877df40> = torch.equal
+E        +    and   tensor([296, 327, 339, 254, 415, 488, 408, 476,  82, 158, 314,  38, 393, 377,\n        130, 371, 432, 196, 414, 373, 40... 178, 188, 470, 173, 259, 374, 509,  97, 136, 348, 342, 421, 463, 155,\n        301,  26,  69,  59, 236,  30, 437, 360]) = _offsets(42, 526, 2, n=64)
+E        +    and   tensor([296, 327, 339, 254, 415, 488, 408, 476,  82, 158, 314,  38, 393, 377,\n        130, 371, 432, 196, 414, 373, 40... 178, 188, 470, 173, 259, 374, 509,  97, 136, 348, 342, 421, 463, 155,\n        301,  26,  69,  59, 236,  30, 437, 360]) = _offsets(42, 10156, 7, n=64)
+
+src/tests/test_yaw_aug_training.py:354: AssertionError
+___________ test_step_seed_rejects_out_of_domain_counters[1048576-0] ___________
+
+step = 1048576, rank = 0
+
+    @pytest.mark.parametrize("step,rank", [(2**20, 0), (2**20 + 1, 0), (0, 2**12), (0, 2**12 + 5)])
+    def test_step_seed_rejects_out_of_domain_counters(step, rank):
+        """The bijection is only injective inside its declared domain, so leaving it
+        is a hard error rather than a silent wrap into another cell's stream."""
+>       with pytest.raises(ValueError):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_training.py:361: Failed
+___________ test_step_seed_rejects_out_of_domain_counters[1048577-0] ___________
+
+step = 1048577, rank = 0
+
+    @pytest.mark.parametrize("step,rank", [(2**20, 0), (2**20 + 1, 0), (0, 2**12), (0, 2**12 + 5)])
+    def test_step_seed_rejects_out_of_domain_counters(step, rank):
+        """The bijection is only injective inside its declared domain, so leaving it
+        is a hard error rather than a silent wrap into another cell's stream."""
+>       with pytest.raises(ValueError):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_training.py:361: Failed
+____________ test_step_seed_rejects_out_of_domain_counters[0-4096] _____________
+
+step = 0, rank = 4096
+
+    @pytest.mark.parametrize("step,rank", [(2**20, 0), (2**20 + 1, 0), (0, 2**12), (0, 2**12 + 5)])
+    def test_step_seed_rejects_out_of_domain_counters(step, rank):
+        """The bijection is only injective inside its declared domain, so leaving it
+        is a hard error rather than a silent wrap into another cell's stream."""
+>       with pytest.raises(ValueError):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_training.py:361: Failed
+____________ test_step_seed_rejects_out_of_domain_counters[0-4101] _____________
+
+step = 0, rank = 4101
+
+    @pytest.mark.parametrize("step,rank", [(2**20, 0), (2**20 + 1, 0), (0, 2**12), (0, 2**12 + 5)])
+    def test_step_seed_rejects_out_of_domain_counters(step, rank):
+        """The bijection is only injective inside its declared domain, so leaving it
+        is a hard error rather than a silent wrap into another cell's stream."""
+>       with pytest.raises(ValueError):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_yaw_aug_training.py:361: Failed
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_yaw_aug_training.py::test_step_seed_is_a_valid_32_bit_generator_seed
+FAILED src/tests/test_yaw_aug_training.py::test_effective_seed_domain_is_collision_free
+FAILED src/tests/test_yaw_aug_training.py::test_reviewer_collision_pair_now_draws_different_streams
+FAILED src/tests/test_yaw_aug_training.py::test_step_seed_rejects_out_of_domain_counters[1048576-0]
+FAILED src/tests/test_yaw_aug_training.py::test_step_seed_rejects_out_of_domain_counters[1048577-0]
+FAILED src/tests/test_yaw_aug_training.py::test_step_seed_rejects_out_of_domain_counters[0-4096]
+FAILED src/tests/test_yaw_aug_training.py::test_step_seed_rejects_out_of_domain_counters[0-4101]
+7 failed, 12 passed, 55 deselected, 4 warnings in 14.97s
