@@ -1,0 +1,256 @@
+{
+  "_meta": {
+    "purpose": "exp_14 round 1 STEP 0: fixed-mode byte-compat contract (review B4). Captured from the UNMODIFIED base, before any eval_FLAC.py edit; fixed-mode calls must reproduce these exactly.",
+    "captured_from_sha": "44788e63ecd09560f87277f8d6c784871e1eecae",
+    "captured_utc": "2026-08-11T03:46:24.401569+00:00",
+    "source_sha_stub": "GOLDEN_SOURCE_SHA",
+    "ckpt_path": "weights/FLAC/FLAC_EMA.ckpt",
+    "eval_name": "exp14_snapshot_K8_s42",
+    "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
+    "metrics": {
+      "T60": 8.202,
+      "C50": 0.978,
+      "EDT": 38.79,
+      "FD": 1.234,
+      "R@1": 5.39,
+      "R@5": 12.5
+    },
+    "steps": 1,
+    "cfg_scale": 1.0,
+    "batch_size": 64,
+    "n_samples": 6337,
+    "seed": 42,
+    "cond_autocast": "bf16",
+    "weights_source": "ema",
+    "device": "cuda"
+  },
+  "cases": [
+    {
+      "cond_method": "vanilla",
+      "rotate_deg": 0.0,
+      "n_angles": 4,
+      "frame_avg_angles": null,
+      "output_paths": {
+        "metrics": "weights/FLAC/FLAC_EMA_metrics_1_1.0_exp14_snapshot_K8_s42.json",
+        "predictions": "weights/FLAC/FLAC_EMA_predictions_1_1.0_exp14_snapshot_K8_s42.pt"
+      },
+      "metrics_record_keys": [
+        "metrics",
+        "ckpt_path",
+        "rotate_deg",
+        "cond_method",
+        "frame_avg_angles",
+        "cond_autocast",
+        "orbit_execution",
+        "frame_avg_fwd_cap",
+        "source_sha",
+        "batch_size",
+        "n_samples",
+        "dataset_config",
+        "seed",
+        "cfg_scale",
+        "steps",
+        "eval_name",
+        "weights_source",
+        "device"
+      ],
+      "metrics_record_json_indent4": "{\n    \"metrics\": {\n        \"T60\": 8.202,\n        \"C50\": 0.978,\n        \"EDT\": 38.79,\n        \"FD\": 1.234,\n        \"R@1\": 5.39,\n        \"R@5\": 12.5\n    },\n    \"ckpt_path\": \"weights/FLAC/FLAC_EMA.ckpt\",\n    \"rotate_deg\": 0.0,\n    \"cond_method\": \"vanilla\",\n    \"frame_avg_angles\": null,\n    \"cond_autocast\": \"bf16\",\n    \"orbit_execution\": \"n/a\",\n    \"frame_avg_fwd_cap\": null,\n    \"source_sha\": \"GOLDEN_SOURCE_SHA\",\n    \"batch_size\": 64,\n    \"n_samples\": 6337,\n    \"dataset_config\": \"src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json\",\n    \"seed\": 42,\n    \"cfg_scale\": 1.0,\n    \"steps\": 1,\n    \"eval_name\": \"exp14_snapshot_K8_s42\",\n    \"weights_source\": \"ema\",\n    \"device\": \"cuda\"\n}",
+      "metrics_record_json_compact": "{\"metrics\": {\"T60\": 8.202, \"C50\": 0.978, \"EDT\": 38.79, \"FD\": 1.234, \"R@1\": 5.39, \"R@5\": 12.5}, \"ckpt_path\": \"weights/FLAC/FLAC_EMA.ckpt\", \"rotate_deg\": 0.0, \"cond_method\": \"vanilla\", \"frame_avg_angles\": null, \"cond_autocast\": \"bf16\", \"orbit_execution\": \"n/a\", \"frame_avg_fwd_cap\": null, \"source_sha\": \"GOLDEN_SOURCE_SHA\", \"batch_size\": 64, \"n_samples\": 6337, \"dataset_config\": \"src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json\", \"seed\": 42, \"cfg_scale\": 1.0, \"steps\": 1, \"eval_name\": \"exp14_snapshot_K8_s42\", \"weights_source\": \"ema\", \"device\": \"cuda\"}",
+      "predictions_meta_keys": [
+        "dataset_config",
+        "seed",
+        "n_samples",
+        "cond_method",
+        "frame_avg_angles",
+        "rotate_deg",
+        "batch_size",
+        "cond_autocast",
+        "orbit_execution",
+        "frame_avg_fwd_cap",
+        "source_sha"
+      ],
+      "predictions_meta_json_compact": "{\"dataset_config\": \"src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json\", \"seed\": 42, \"n_samples\": 6337, \"cond_method\": \"vanilla\", \"frame_avg_angles\": null, \"rotate_deg\": 0.0, \"batch_size\": 64, \"cond_autocast\": \"bf16\", \"orbit_execution\": \"n/a\", \"frame_avg_fwd_cap\": null, \"source_sha\": \"GOLDEN_SOURCE_SHA\"}"
+    },
+    {
+      "cond_method": "vanilla",
+      "rotate_deg": 45.0,
+      "n_angles": 4,
+      "frame_avg_angles": null,
+      "output_paths": {
+        "metrics": "weights/FLAC/FLAC_EMA_metrics_1_1.0_exp14_snapshot_K8_s42_rot45.json",
+        "predictions": "weights/FLAC/FLAC_EMA_predictions_1_1.0_exp14_snapshot_K8_s42_rot45.pt"
+      },
+      "metrics_record_keys": [
+        "metrics",
+        "ckpt_path",
+        "rotate_deg",
+        "cond_method",
+        "frame_avg_angles",
+        "cond_autocast",
+        "orbit_execution",
+        "frame_avg_fwd_cap",
+        "source_sha",
+        "batch_size",
+        "n_samples",
+        "dataset_config",
+        "seed",
+        "cfg_scale",
+        "steps",
+        "eval_name",
+        "weights_source",
+        "device"
+      ],
+      "metrics_record_json_indent4": "{\n    \"metrics\": {\n        \"T60\": 8.202,\n        \"C50\": 0.978,\n        \"EDT\": 38.79,\n        \"FD\": 1.234,\n        \"R@1\": 5.39,\n        \"R@5\": 12.5\n    },\n    \"ckpt_path\": \"weights/FLAC/FLAC_EMA.ckpt\",\n    \"rotate_deg\": 45.0,\n    \"cond_method\": \"vanilla\",\n    \"frame_avg_angles\": null,\n    \"cond_autocast\": \"bf16\",\n    \"orbit_execution\": \"n/a\",\n    \"frame_avg_fwd_cap\": null,\n    \"source_sha\": \"GOLDEN_SOURCE_SHA\",\n    \"batch_size\": 64,\n    \"n_samples\": 6337,\n    \"dataset_config\": \"src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json\",\n    \"seed\": 42,\n    \"cfg_scale\": 1.0,\n    \"steps\": 1,\n    \"eval_name\": \"exp14_snapshot_K8_s42\",\n    \"weights_source\": \"ema\",\n    \"device\": \"cuda\"\n}",
+      "metrics_record_json_compact": "{\"metrics\": {\"T60\": 8.202, \"C50\": 0.978, \"EDT\": 38.79, \"FD\": 1.234, \"R@1\": 5.39, \"R@5\": 12.5}, \"ckpt_path\": \"weights/FLAC/FLAC_EMA.ckpt\", \"rotate_deg\": 45.0, \"cond_method\": \"vanilla\", \"frame_avg_angles\": null, \"cond_autocast\": \"bf16\", \"orbit_execution\": \"n/a\", \"frame_avg_fwd_cap\": null, \"source_sha\": \"GOLDEN_SOURCE_SHA\", \"batch_size\": 64, \"n_samples\": 6337, \"dataset_config\": \"src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json\", \"seed\": 42, \"cfg_scale\": 1.0, \"steps\": 1, \"eval_name\": \"exp14_snapshot_K8_s42\", \"weights_source\": \"ema\", \"device\": \"cuda\"}",
+      "predictions_meta_keys": [
+        "dataset_config",
+        "seed",
+        "n_samples",
+        "cond_method",
+        "frame_avg_angles",
+        "rotate_deg",
+        "batch_size",
+        "cond_autocast",
+        "orbit_execution",
+        "frame_avg_fwd_cap",
+        "source_sha"
+      ],
+      "predictions_meta_json_compact": "{\"dataset_config\": \"src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json\", \"seed\": 42, \"n_samples\": 6337, \"cond_method\": \"vanilla\", \"frame_avg_angles\": null, \"rotate_deg\": 45.0, \"batch_size\": 64, \"cond_autocast\": \"bf16\", \"orbit_execution\": \"n/a\", \"frame_avg_fwd_cap\": null, \"source_sha\": \"GOLDEN_SOURCE_SHA\"}"
+    },
+    {
+      "cond_method": "fa_invariant",
+      "rotate_deg": 0.0,
+      "n_angles": 4,
+      "frame_avg_angles": [
+        0.0,
+        90.0,
+        180.0,
+        270.0
+      ],
+      "output_paths": {
+        "metrics": "weights/FLAC/FLAC_EMA_metrics_1_1.0_exp14_snapshot_K8_s42_fa_invariant_a4.json",
+        "predictions": "weights/FLAC/FLAC_EMA_predictions_1_1.0_exp14_snapshot_K8_s42_fa_invariant_a4.pt"
+      },
+      "metrics_record_keys": [
+        "metrics",
+        "ckpt_path",
+        "rotate_deg",
+        "cond_method",
+        "frame_avg_angles",
+        "cond_autocast",
+        "orbit_execution",
+        "frame_avg_fwd_cap",
+        "source_sha",
+        "batch_size",
+        "n_samples",
+        "dataset_config",
+        "seed",
+        "cfg_scale",
+        "steps",
+        "eval_name",
+        "weights_source",
+        "device"
+      ],
+      "metrics_record_json_indent4": "{\n    \"metrics\": {\n        \"T60\": 8.202,\n        \"C50\": 0.978,\n        \"EDT\": 38.79,\n        \"FD\": 1.234,\n        \"R@1\": 5.39,\n        \"R@5\": 12.5\n    },\n    \"ckpt_path\": \"weights/FLAC/FLAC_EMA.ckpt\",\n    \"rotate_deg\": 0.0,\n    \"cond_method\": \"fa_invariant\",\n    \"frame_avg_angles\": [\n        0.0,\n        90.0,\n        180.0,\n        270.0\n    ],\n    \"cond_autocast\": \"bf16\",\n    \"orbit_execution\": \"batched\",\n    \"frame_avg_fwd_cap\": 64,\n    \"source_sha\": \"GOLDEN_SOURCE_SHA\",\n    \"batch_size\": 64,\n    \"n_samples\": 6337,\n    \"dataset_config\": \"src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json\",\n    \"seed\": 42,\n    \"cfg_scale\": 1.0,\n    \"steps\": 1,\n    \"eval_name\": \"exp14_snapshot_K8_s42\",\n    \"weights_source\": \"ema\",\n    \"device\": \"cuda\"\n}",
+      "metrics_record_json_compact": "{\"metrics\": {\"T60\": 8.202, \"C50\": 0.978, \"EDT\": 38.79, \"FD\": 1.234, \"R@1\": 5.39, \"R@5\": 12.5}, \"ckpt_path\": \"weights/FLAC/FLAC_EMA.ckpt\", \"rotate_deg\": 0.0, \"cond_method\": \"fa_invariant\", \"frame_avg_angles\": [0.0, 90.0, 180.0, 270.0], \"cond_autocast\": \"bf16\", \"orbit_execution\": \"batched\", \"frame_avg_fwd_cap\": 64, \"source_sha\": \"GOLDEN_SOURCE_SHA\", \"batch_size\": 64, \"n_samples\": 6337, \"dataset_config\": \"src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json\", \"seed\": 42, \"cfg_scale\": 1.0, \"steps\": 1, \"eval_name\": \"exp14_snapshot_K8_s42\", \"weights_source\": \"ema\", \"device\": \"cuda\"}",
+      "predictions_meta_keys": [
+        "dataset_config",
+        "seed",
+        "n_samples",
+        "cond_method",
+        "frame_avg_angles",
+        "rotate_deg",
+        "batch_size",
+        "cond_autocast",
+        "orbit_execution",
+        "frame_avg_fwd_cap",
+        "source_sha"
+      ],
+      "predictions_meta_json_compact": "{\"dataset_config\": \"src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json\", \"seed\": 42, \"n_samples\": 6337, \"cond_method\": \"fa_invariant\", \"frame_avg_angles\": [0.0, 90.0, 180.0, 270.0], \"rotate_deg\": 0.0, \"batch_size\": 64, \"cond_autocast\": \"bf16\", \"orbit_execution\": \"batched\", \"frame_avg_fwd_cap\": 64, \"source_sha\": \"GOLDEN_SOURCE_SHA\"}"
+    },
+    {
+      "cond_method": "fa_invariant",
+      "rotate_deg": 45.0,
+      "n_angles": 4,
+      "frame_avg_angles": [
+        0.0,
+        90.0,
+        180.0,
+        270.0
+      ],
+      "output_paths": {
+        "metrics": "weights/FLAC/FLAC_EMA_metrics_1_1.0_exp14_snapshot_K8_s42_fa_invariant_a4_rot45.json",
+        "predictions": "weights/FLAC/FLAC_EMA_predictions_1_1.0_exp14_snapshot_K8_s42_fa_invariant_a4_rot45.pt"
+      },
+      "metrics_record_keys": [
+        "metrics",
+        "ckpt_path",
+        "rotate_deg",
+        "cond_method",
+        "frame_avg_angles",
+        "cond_autocast",
+        "orbit_execution",
+        "frame_avg_fwd_cap",
+        "source_sha",
+        "batch_size",
+        "n_samples",
+        "dataset_config",
+        "seed",
+        "cfg_scale",
+        "steps",
+        "eval_name",
+        "weights_source",
+        "device"
+      ],
+      "metrics_record_json_indent4": "{\n    \"metrics\": {\n        \"T60\": 8.202,\n        \"C50\": 0.978,\n        \"EDT\": 38.79,\n        \"FD\": 1.234,\n        \"R@1\": 5.39,\n        \"R@5\": 12.5\n    },\n    \"ckpt_path\": \"weights/FLAC/FLAC_EMA.ckpt\",\n    \"rotate_deg\": 45.0,\n    \"cond_method\": \"fa_invariant\",\n    \"frame_avg_angles\": [\n        0.0,\n        90.0,\n        180.0,\n        270.0\n    ],\n    \"cond_autocast\": \"bf16\",\n    \"orbit_execution\": \"batched\",\n    \"frame_avg_fwd_cap\": 64,\n    \"source_sha\": \"GOLDEN_SOURCE_SHA\",\n    \"batch_size\": 64,\n    \"n_samples\": 6337,\n    \"dataset_config\": \"src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json\",\n    \"seed\": 42,\n    \"cfg_scale\": 1.0,\n    \"steps\": 1,\n    \"eval_name\": \"exp14_snapshot_K8_s42\",\n    \"weights_source\": \"ema\",\n    \"device\": \"cuda\"\n}",
+      "metrics_record_json_compact": "{\"metrics\": {\"T60\": 8.202, \"C50\": 0.978, \"EDT\": 38.79, \"FD\": 1.234, \"R@1\": 5.39, \"R@5\": 12.5}, \"ckpt_path\": \"weights/FLAC/FLAC_EMA.ckpt\", \"rotate_deg\": 45.0, \"cond_method\": \"fa_invariant\", \"frame_avg_angles\": [0.0, 90.0, 180.0, 270.0], \"cond_autocast\": \"bf16\", \"orbit_execution\": \"batched\", \"frame_avg_fwd_cap\": 64, \"source_sha\": \"GOLDEN_SOURCE_SHA\", \"batch_size\": 64, \"n_samples\": 6337, \"dataset_config\": \"src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json\", \"seed\": 42, \"cfg_scale\": 1.0, \"steps\": 1, \"eval_name\": \"exp14_snapshot_K8_s42\", \"weights_source\": \"ema\", \"device\": \"cuda\"}",
+      "predictions_meta_keys": [
+        "dataset_config",
+        "seed",
+        "n_samples",
+        "cond_method",
+        "frame_avg_angles",
+        "rotate_deg",
+        "batch_size",
+        "cond_autocast",
+        "orbit_execution",
+        "frame_avg_fwd_cap",
+        "source_sha"
+      ],
+      "predictions_meta_json_compact": "{\"dataset_config\": \"src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json\", \"seed\": 42, \"n_samples\": 6337, \"cond_method\": \"fa_invariant\", \"frame_avg_angles\": [0.0, 90.0, 180.0, 270.0], \"rotate_deg\": 45.0, \"batch_size\": 64, \"cond_autocast\": \"bf16\", \"orbit_execution\": \"batched\", \"frame_avg_fwd_cap\": 64, \"source_sha\": \"GOLDEN_SOURCE_SHA\"}"
+    },
+    {
+      "cond_method": "vanilla",
+      "rotate_deg": 0.0,
+      "n_angles": 4,
+      "frame_avg_angles": null,
+      "kwargs": "defaults-only",
+      "output_paths": {
+        "metrics": "weights/FLAC/FLAC_EMA_metrics_1_1.0_exp14_snapshot_K8_s42.json",
+        "predictions": "weights/FLAC/FLAC_EMA_predictions_1_1.0_exp14_snapshot_K8_s42.pt"
+      },
+      "metrics_record_keys": [
+        "metrics",
+        "ckpt_path",
+        "rotate_deg",
+        "cond_method",
+        "frame_avg_angles",
+        "cond_autocast",
+        "orbit_execution",
+        "frame_avg_fwd_cap",
+        "source_sha",
+        "batch_size",
+        "n_samples",
+        "dataset_config",
+        "seed",
+        "cfg_scale",
+        "steps",
+        "eval_name",
+        "weights_source",
+        "device"
+      ],
+      "metrics_record_json_indent4": "{\n    \"metrics\": {\n        \"T60\": 8.202,\n        \"C50\": 0.978,\n        \"EDT\": 38.79,\n        \"FD\": 1.234,\n        \"R@1\": 5.39,\n        \"R@5\": 12.5\n    },\n    \"ckpt_path\": \"weights/FLAC/FLAC_EMA.ckpt\",\n    \"rotate_deg\": 0.0,\n    \"cond_method\": \"vanilla\",\n    \"frame_avg_angles\": null,\n    \"cond_autocast\": \"default\",\n    \"orbit_execution\": \"n/a\",\n    \"frame_avg_fwd_cap\": null,\n    \"source_sha\": \"GOLDEN_SOURCE_SHA\",\n    \"batch_size\": null,\n    \"n_samples\": null,\n    \"dataset_config\": null,\n    \"seed\": null,\n    \"cfg_scale\": null,\n    \"steps\": null,\n    \"eval_name\": null,\n    \"weights_source\": null,\n    \"device\": null\n}",
+      "metrics_record_json_compact": "{\"metrics\": {\"T60\": 8.202, \"C50\": 0.978, \"EDT\": 38.79, \"FD\": 1.234, \"R@1\": 5.39, \"R@5\": 12.5}, \"ckpt_path\": \"weights/FLAC/FLAC_EMA.ckpt\", \"rotate_deg\": 0.0, \"cond_method\": \"vanilla\", \"frame_avg_angles\": null, \"cond_autocast\": \"default\", \"orbit_execution\": \"n/a\", \"frame_avg_fwd_cap\": null, \"source_sha\": \"GOLDEN_SOURCE_SHA\", \"batch_size\": null, \"n_samples\": null, \"dataset_config\": null, \"seed\": null, \"cfg_scale\": null, \"steps\": null, \"eval_name\": null, \"weights_source\": null, \"device\": null}"
+    }
+  ]
+}
