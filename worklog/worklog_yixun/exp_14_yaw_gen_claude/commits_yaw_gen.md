@@ -47,3 +47,29 @@ Round 2 interrupted once by the account session limit (resumed post-4am reset, c
 **Round 2 CLOSED 2026-08-11T17:40 EDT** — closure basis: Codex checks #1–#6 (all findings either confirmed-closed or resolved by the final three mechanical diffs) + Planner verification of the U-batch (preamble order read directly; bash -n ×5; DRYRUN=106/nothing-submitted; pytest 254; queue 0). Guard suite 218/0 `suite_rc=0`; redproof 10/0 contained. Threat-model boundary: accidents/stray state (defended); adversarial shell environments (recorded, out of scope) — worklog 16:55 entry.
 
 Note: effective base drifted `89f24cd` → `44788e6` (concurrent session's worklog-only commit landed first; `eval_FLAC.py`/`yaw_rotation.py` byte-identical at both). `809ece5` interleaved in the range is the exp_15 scaffold (other session, worklog-only).
+
+## Round 3 — collector (plan §5.6) + model_comparison contract (plan §5.7, amended)
+
+| SHA | round | subject |
+|---|---|---|
+| `24fea16` | r3 | collector core — artifact parsing, provenance (validator IMPORTED), §3.3 equalities, 5/5 blocks |
+| `170aeee` | r3 | the §4 estimation conventions — paired-t (t₀.₉₇₅,₄ as a constant), Holm, metric directions |
+| `10aa981` | r3 | gates G1–G4 (blocking) + the G5 check (never blocking); per-angle assignment grouping fix |
+| `f874758` | r3 | readouts, rendering, CLI, JSON bundle + four self-test transcripts |
+| `825b7fc` | r3 | `gen_model_comparison.py`: ten exp_14 Z rows behind their own `exp14z` contract |
+
+Round-3 notes:
+
+- **exp_11 specs verified byte-untouched**: the exp_11 row-spec fingerprint is
+  identical loading `HEAD`'s `gen_model_comparison.py` and the new one —
+  `(12 rows, 57820d20d7a4…)` on both sides — and `test_exp11_row_specs_are_byte_untouched`
+  pins that digest going forward. Total ROWS 64 → 74 (+10 exp_14 Z rows).
+- **The published `model_comparison.md` was deliberately NOT regenerated.** Verified
+  instead against the real evidence tree through a symlinked sandbox root: the ten new
+  rows render `*pending (0/5 seeds on disk)*`, every existing row is byte-identical, and
+  the generator exits 0. Regeneration + push is the Planner's §6 sequencing step when the
+  VANL Z two-K × five-seed transaction completes.
+- **Rebase refused** (as the round-3 brief anticipated): the working tree carried the
+  OTHER session's uncommitted `exp_15` worklog edits, so `git pull --rebase` aborted with
+  "cannot pull with rebase: You have unstaged changes". Their files were never stashed,
+  cleaned or checked out; all five round-3 commits are local-only and unpushed.

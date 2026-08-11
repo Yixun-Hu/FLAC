@@ -1244,11 +1244,13 @@ def _delta_rows(results, k):
     rows = []
     for arm in ARM_ORDER:
         entry = results["paired"][arm][str(k)]
+        complete = entry["status"] == "OK"
         row = {"arm": arm, "K": int(k), "status": entry["status"],
-               "n": len(entry.get("metrics", {}) and SEEDS or []),
+               "n": len(SEEDS) if complete else len(entry.get("metrics", {})),
                "reasons": entry.get("reasons", []), "values": {}}
-        if entry["status"] == "OK":
-            row["n"] = len(SEEDS)
+        if complete:
+            # ± half the 95% CI width, so the Δ table's spread column is the
+            # interval the contrast actually used rather than a second statistic.
             row["values"] = {m: [v["mean"], (v["hi"] - v["lo"]) / 2.0]
                              for m, v in entry["metrics"].items()}
         rows.append(row)
