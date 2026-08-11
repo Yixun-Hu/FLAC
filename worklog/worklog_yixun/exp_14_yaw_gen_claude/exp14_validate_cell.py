@@ -270,8 +270,15 @@ def validate_metrics_record(rec, cell, pin=None, expected_count=EXPECTED_COUNT):
     want_split = SPLIT_K8 if int(cell.k) == 8 else SPLIT_K1
     if not str(ds).endswith(want_split):
         reasons.append(f"dataset_config {ds!r} is not the K={cell.k} split ({want_split})")
-    if rec.get("n_samples") is not None and rec.get("n_samples") != int(expected_count):
-        reasons.append(f"n_samples {rec.get('n_samples')!r} != expected {int(expected_count)}")
+    # n_samples is REQUIRED, not "checked when present": an absent count is
+    # exactly what a partially-evaluated split looks like.
+    if rec.get("n_samples") != int(expected_count):
+        reasons.append(f"n_samples {rec.get('n_samples')!r} != expected {int(expected_count)} "
+                       "(required: a cell that does not report its item count is not a "
+                       "complete evaluation of the split)")
+    # eval_FLAC falls back to ONLINE weights when the EMA entries are absent, and
+    # says so only in this field. A non-EMA row is not the registered cell.
+    _eq(reasons, "weights_source", rec.get("weights_source"), "ema")
     ckpt = str(rec.get("ckpt_path") or "")
     if f"step={int(cell.step)}." not in ckpt:
         reasons.append(f"ckpt_path {ckpt!r} is not a step={cell.step} checkpoint")
@@ -290,6 +297,7 @@ def validate_metrics_record(rec, cell, pin=None, expected_count=EXPECTED_COUNT):
                            "cell has no single angle, and 0.0 would read as unrotated")
         _eq(reasons, "rotate_seed", rec.get("rotate_seed"), rseed)
         _eq(reasons, "stream_count", rec.get("stream_count"), int(expected_count))
+        _eq(reasons, "img_w", rec.get("img_w"), IMG_W)
         for key in ("input_hash", "assignment_hash"):
             val = rec.get(key)
             if not (isinstance(val, str) and len(val) == 64):
@@ -335,6 +343,19 @@ def validate_stream_record(stream, cell, expected_count=EXPECTED_COUNT, record=N
             break
     if [row[2] if isinstance(row, list) and len(row) == 3 else None for row in asg] != list(offs):
         reasons.append("stored offsets disagree with the assignment tuples' offsets")
+    # Each assignment tuple must name the position and the TARGET the input stream
+    # says was evaluated there. Without this the two hashes can each be internally
+    # consistent while attributing an offset to an item that never received it —
+    # which is precisely what the audit exists to make impossible.
+    for i, row in enumerate(asg):
+        if not isinstance(row, list) or len(row) != 3 or row[0] != i:
+            reasons.append(f"assignment tuple {i} is malformed or out of position: {row!r}")
+            break
+        if i < len(inp) and isinstance(inp[i], list) and len(inp[i]) == 4 \
+                and row[1] != inp[i][1]:
+            reasons.append(f"assignment tuple {i} names target {row[1]!r} but the input "
+                           f"stream evaluated {inp[i][1]!r} at that position")
+            break
     _eq(reasons, "recomputed input_hash", stream.get("input_hash"), canonical_stream_hash(inp))
     _eq(reasons, "recomputed assignment_hash", stream.get("assignment_hash"),
         canonical_stream_hash(asg))
@@ -344,7 +365,13 @@ def validate_stream_record(stream, cell, expected_count=EXPECTED_COUNT, record=N
             stream.get("input_hash"))
         _eq(reasons, "record assignment_hash vs stream", record.get("assignment_hash"),
             stream.get("assignment_hash"))
-    img_w = stream.get("img_w") or IMG_W
+    # The estimand is defined on the 512-column grid (theta_i = d_i * 360/512), so
+    # the width is a campaign constant, not a value to be inferred: an absent img_w
+    # used to default to 512 and a different width used to pass.
+    img_w = stream.get("img_w")
+    if img_w != IMG_W:
+        reasons.append(f"stream img_w {img_w!r} != the campaign column grid {IMG_W}")
+        img_w = IMG_W if not isinstance(img_w, int) or img_w <= 0 else img_w
     bad = [o for o in offs if not isinstance(o, int) or o < 0 or o >= int(img_w)]
     if bad:
         reasons.append(f"{len(bad)} offset(s) fall outside the [0,{img_w}) column grid "
@@ -399,6 +426,22 @@ def _read_json(path):
         return json.load(fh)
 
 
+def _read_record(path, label):
+    """``(record, reasons)`` — a malformed or non-object payload NAMES itself.
+
+    Valid JSON that is not an object (a list, a string, ``null``) used to reach
+    ``.get`` and raise, which turns a triage question into a crashed submitter.
+    """
+    try:
+        obj = _read_json(path)
+    except (ValueError, OSError) as exc:
+        return None, [f"could not parse {label} JSON {path}: {exc}"]
+    if not isinstance(obj, dict):
+        return None, [f"{label} {path} is not a JSON object at the top level "
+                      f"(got {type(obj).__name__})"]
+    return obj, []
+
+
 def validate_cell(metrics, cell, pin=None, ckpt_sha=None, expected_count=EXPECTED_COUNT):
     """Every named reason this cell's artifacts are not valid; ``[]`` when they are.
 
@@ -410,21 +453,28 @@ def validate_cell(metrics, cell, pin=None, ckpt_sha=None, expected_count=EXPECTE
         raise ValueError(f"cell {tuple(cell)} is not registered in the exp_14 grid")
     if not os.path.isfile(metrics):
         return [f"metrics artifact missing: {metrics}"]
-    try:
-        rec = _read_json(metrics)
-    except (ValueError, OSError) as exc:
-        return [f"could not parse metrics JSON {metrics}: {exc}"]
-    reasons = validate_metrics_record(rec, cell, pin=pin, expected_count=expected_count)
+    rec, bad = _read_record(metrics, "metrics")
+    if rec is None:
+        return bad
+    # A VALID verdict must mean every CAMPAIGN check ran, not that some of them
+    # had no input (review B6). The pin and the checkpoint digest are the two that
+    # a caller could previously omit and still be told the cell is valid.
+    reasons = []
+    if pin is None:
+        reasons.append("campaign pin not supplied: a cell cannot be declared valid "
+                       "without checking which commit produced it")
+    if ckpt_sha is None:
+        reasons.append("expected ckpt sha256 not supplied: a cell cannot be declared "
+                       "valid without checking WHICH checkpoint it evaluated")
+    reasons += validate_metrics_record(rec, cell, pin=pin, expected_count=expected_count)
 
     meta_p = screenmeta_path(metrics)
     if not os.path.isfile(meta_p):
         reasons.append(f"screenmeta sidecar missing: {meta_p}")
     else:
-        try:
-            meta = _read_json(meta_p)
-        except (ValueError, OSError) as exc:
-            reasons.append(f"could not parse screenmeta JSON {meta_p}: {exc}")
-        else:
+        meta, bad = _read_record(meta_p, "screenmeta")
+        reasons += bad
+        if meta is not None:
             reasons += validate_screenmeta(meta, cell, pin=pin, ckpt_sha=ckpt_sha,
                                            expected_count=expected_count)
 
@@ -433,11 +483,9 @@ def validate_cell(metrics, cell, pin=None, ckpt_sha=None, expected_count=EXPECTE
         reasons.append(f"stream sidecar missing: {stream_p} (--record-stream is "
                        "mandatory for every exp_14 cell)")
     else:
-        try:
-            stream = _read_json(stream_p)
-        except (ValueError, OSError) as exc:
-            reasons.append(f"could not parse stream JSON {stream_p}: {exc}")
-        else:
+        stream, bad = _read_record(stream_p, "stream")
+        reasons += bad
+        if stream is not None:
             reasons += validate_stream_record(stream, cell, expected_count=expected_count,
                                               record=rec)
     return reasons

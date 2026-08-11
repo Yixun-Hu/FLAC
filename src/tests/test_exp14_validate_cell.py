@@ -710,3 +710,120 @@ def test_cli_argv_prints_the_same_argv_the_driver_must_render():
     c45 = V.Cell("C4L", "vctl", 40000, 42, 8, 45.0)
     assert printed == V.check_argv(c45, "/m.json", pin=PIN,
                                    ckpt_sha=CKPT_SHA, expected_count=COUNT)
+
+
+# --------------------------------------------------------------------------
+# 10. FB6 (review B6): six ways validation was not fail-closed
+#
+# Each of these produced a VALID verdict for an artifact nobody had actually
+# checked. "No reasons" must mean "every campaign check ran and passed", never
+# "the check was skipped because its input was absent".
+# --------------------------------------------------------------------------
+def test_a_record_without_n_samples_is_rejected(tmp_path):
+    m = _metrics("rgen")
+    del m["n_samples"]
+    p = _write_cell(tmp_path, "rgen", metrics=m)
+    assert any("n_samples" in r for r in
+               V.validate_cell(p, _cell("rgen"), pin=PIN, ckpt_sha=CKPT_SHA))
+
+
+def test_a_null_n_samples_is_rejected(tmp_path):
+    m = _metrics("zref")
+    m["n_samples"] = None
+    p = _write_cell(tmp_path, "zref", metrics=m)
+    assert any("n_samples" in r for r in
+               V.validate_cell(p, _cell("zref"), pin=PIN, ckpt_sha=CKPT_SHA))
+
+
+@pytest.mark.parametrize("weights", ["online", None, "ema_model"])
+def test_a_cell_not_evaluated_on_EMA_weights_is_rejected(tmp_path, weights):
+    # eval_FLAC silently falls back to ONLINE weights; a row that is not an EMA
+    # row is not the cell this campaign registered.
+    m = _metrics("zref")
+    m["weights_source"] = weights
+    p = _write_cell(tmp_path, "zref", metrics=m)
+    assert any("weights_source" in r for r in
+               V.validate_cell(p, _cell("zref"), pin=PIN, ckpt_sha=CKPT_SHA))
+
+
+def test_a_stream_without_img_w_is_rejected(tmp_path):
+    st = _stream("rgen", COUNT, lambda i: i % IMG_W)
+    del st["img_w"]
+    p = _write_cell(tmp_path, "rgen", stream=st)
+    assert any("img_w" in r for r in
+               V.validate_cell(p, _cell("rgen"), pin=PIN, ckpt_sha=CKPT_SHA))
+
+
+def test_a_stream_on_a_different_column_grid_is_rejected(tmp_path):
+    # The estimand is defined on the 512-column grid (theta = d * 360/512).
+    st = _stream("rgen", COUNT, lambda i: i % 256)
+    st["img_w"] = 256
+    st["input_tuples"] = [[i, t[1], t[2], 256] for i, t in enumerate(st["input_tuples"])]
+    st["input_hash"] = V.canonical_stream_hash(st["input_tuples"])
+    p = _write_cell(tmp_path, "rgen", stream=st)
+    assert any("img_w" in r for r in
+               V.validate_cell(p, _cell("rgen"), pin=PIN, ckpt_sha=CKPT_SHA))
+
+
+def test_a_random_record_whose_img_w_is_not_512_is_rejected(tmp_path):
+    m = _metrics("rgen")
+    m["img_w"] = 256
+    p = _write_cell(tmp_path, "rgen", metrics=m)
+    assert any("img_w" in r for r in
+               V.validate_cell(p, _cell("rgen"), pin=PIN, ckpt_sha=CKPT_SHA))
+
+
+def test_assignment_tuples_naming_another_target_are_rejected(tmp_path):
+    # Same offsets, same positions, but position 5 is attributed to a DIFFERENT
+    # item than the input stream says was evaluated there.
+    st = _stream("rgen", COUNT, lambda i: i % IMG_W)
+    st["assignment_tuples"][5][1] = "5|room/other.wav"
+    st["assignment_hash"] = V.canonical_stream_hash(st["assignment_tuples"])
+    p = _write_cell(tmp_path, "rgen", stream=st)
+    assert any("assignment" in r for r in
+               V.validate_cell(p, _cell("rgen"), pin=PIN, ckpt_sha=CKPT_SHA))
+
+
+def test_assignment_tuples_out_of_position_are_rejected(tmp_path):
+    st = _stream("zref", COUNT, lambda i: 0)
+    st["assignment_tuples"][7][0] = 700
+    st["assignment_hash"] = V.canonical_stream_hash(st["assignment_tuples"])
+    p = _write_cell(tmp_path, "zref", stream=st)
+    assert any("assignment" in r for r in
+               V.validate_cell(p, _cell("zref"), pin=PIN, ckpt_sha=CKPT_SHA))
+
+
+@pytest.mark.parametrize("payload", ["[1, 2, 3]", '"a string"', "null", "42"])
+def test_valid_json_that_is_not_a_record_is_a_named_reason(tmp_path, payload):
+    p = tmp_path / "epoch=8-step=40000_metrics_1_1.0_x.json"
+    p.write_text(payload)
+    reasons = V.validate_cell(str(p), _cell("zref"), pin=PIN, ckpt_sha=CKPT_SHA)
+    assert reasons and all(isinstance(r, str) for r in reasons)
+    assert any("not a JSON object" in r or "top level" in r for r in reasons)
+
+
+def test_a_sidecar_that_is_not_a_record_is_a_named_reason(tmp_path):
+    p = _write_cell(tmp_path, "zref")
+    open(p.replace(".json", ".stream.json"), "w").write("[]")
+    open(p + ".screenmeta.json", "w").write("[]")
+    reasons = V.validate_cell(p, _cell("zref"), pin=PIN, ckpt_sha=CKPT_SHA)
+    assert reasons and all(isinstance(r, str) for r in reasons)
+
+
+def test_a_cell_cannot_be_VALID_without_the_pin_check_having_run(tmp_path):
+    p = _write_cell(tmp_path, "zref")
+    reasons = V.validate_cell(p, _cell("zref"), pin=None, ckpt_sha=CKPT_SHA)
+    assert any("pin" in r for r in reasons), reasons
+
+
+def test_a_cell_cannot_be_VALID_without_the_checkpoint_check_having_run(tmp_path):
+    p = _write_cell(tmp_path, "zref")
+    reasons = V.validate_cell(p, _cell("zref"), pin=PIN, ckpt_sha=None)
+    assert any("ckpt" in r for r in reasons), reasons
+
+
+def test_cli_check_without_a_pin_or_ckpt_sha_is_never_VALID(tmp_path):
+    p = _write_cell(tmp_path, "rgen")
+    rc, out = _run(["check", "--metrics", p, "--arm", "C4L", "--cell", "rgen",
+                    "--step", "40000", "--seed", "42", "--k", "8"])
+    assert rc == 1 and "INVALID" in out
