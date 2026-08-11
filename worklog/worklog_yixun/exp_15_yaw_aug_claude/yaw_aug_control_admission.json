@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "expect_step": 40000,
+    "experiment": "exp_15",
+    "purpose": "immutable admission record for the VANL control checkpoint (plan \u00a73.3-1); re-validated by every VANL eval cell (gate G4)",
+    "recorded_utc": "2026-08-11T17:27:30+00:00",
+    "recorder": "worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py",
+    "torch": "2.7.0+cu126"
+  },
+  "checkpoint": {
+    "bytes": 723922539,
+    "ema_key_count": 210,
+    "ema_prefix": "diffusion_ema.ema_model.",
+    "embedded_config_canonical_sha256": "2023ccc63257ae4902caf30a7905d1b8719e1e0e2ec5964dde951481cd352a27",
+    "epoch": 8,
+    "global_step": 40000,
+    "loaded_with": {
+      "map_location": "cpu",
+      "mmap": true,
+      "weights_only": true
+    },
+    "lr_schedulers": 1,
+    "online_key_count": 1066,
+    "optimizer_states": 1,
+    "path": "outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=8-step=40000.ckpt",
+    "sha256": "1095f49330b4e7b9c469d69fdbaab1772586055236964b5e347604e712988507",
+    "state_dict_keys": 1279
+  },
+  "checks": {
+    "config_sha256_matches_registry": true,
+    "ema_state_present": true,
+    "embedded_config_equals_config_file": true,
+    "global_step_equals_expected": true
+  },
+  "config": {
+    "canonical_sha256": "2023ccc63257ae4902caf30a7905d1b8719e1e0e2ec5964dde951481cd352a27",
+    "path": "worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_VANCKPT.json",
+    "sha256": "733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8"
+  },
+  "exp_11_cross_references": {
+    "commit": "81ddac372076ea92751ae09cbaf371df70f396e5",
+    "job": "3661520",
+    "manifest_sha256": "113d06a284c6198cf9487e99a2efb7ccde94ae13e656a403fe2af0281d3de8b1",
+    "note": "exp_11's registry records NO final_ckpt_sha256 for VANL (job ended FAILED after the save); this record supplies that missing binding.",
+    "rung": "8x8",
+    "source": "worklog/worklog_yixun/exp_11_fa_orbit_claude/arm_launch_registry.json (arm VANL)",
+    "training_seed": 42,
+    "vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9"
+  }
+}
