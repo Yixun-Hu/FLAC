@@ -367,34 +367,6 @@ mapfile -t CKPTS < <(ls -1 "${CKPT_DIR}"/epoch=*-step=${STEP}.ckpt 2>/dev/null)
 CKPT="${CKPTS[0]}"
 echo "checkpoint: ${CKPT}"
 
-# --- D2. backfill only: the checkpoint must be the AUDITED one (review B6) ----
-# Parsed-config equality proves the recipe, not the file. For the historical
-# lineage the plan requires an audited seed-to-file manifest, so the backfill
-# checkpoint is bound to its recorded path AND sha256.
-if [ "$ARM" = "C4BACKFILL" ]; then
-  BACKFILL_MANIFEST="$EXPDIR/c4_backfill_manifest.json"
-  [ -f "$BACKFILL_MANIFEST" ] || die "backfill manifest missing: ${BACKFILL_MANIFEST} - abort"
-  python3 - "$BACKFILL_MANIFEST" "$STEP" "$CKPT" "$MAIN_REPO" <<'PY' || die "backfill lineage gate FAILED - abort"
-import hashlib, json, os, sys
-man, step, ckpt, main_repo = json.load(open(sys.argv[1])), sys.argv[2], sys.argv[3], sys.argv[4]
-entry = man["checkpoints"].get(step)
-if entry is None:
-    sys.exit(f"step {step} is not in the audited backfill manifest "
-             f"(registered: {sorted(man['checkpoints'])})")
-entry_path = entry["path"] if os.path.isabs(entry["path"]) else os.path.join(main_repo, entry["path"])
-if os.path.realpath(entry_path) != os.path.realpath(ckpt):
-    sys.exit(f"resolved checkpoint {ckpt} != the audited {entry_path}")
-h = hashlib.sha256()
-with open(ckpt, "rb") as fh:
-    for chunk in iter(lambda: fh.read(1 << 20), b""):
-        h.update(chunk)
-if h.hexdigest() != entry["sha256"]:
-    sys.exit(f"checkpoint sha256 {h.hexdigest()} != the audited {entry['sha256']}")
-print(f"backfill lineage OK: step {step} matches the audited manifest "
-      f"({entry['sha256'][:12]}..., seed {man['training_seed']})")
-PY
-fi
-
 # --- D3. arms only: bind the checkpoint to its arm's LAUNCH MANIFEST ---------
 # Discovery + embedded-config equality proves the recipe, not the run: any
 # checkpoint with a matching config dropped into the tree would pass. The arm's
@@ -402,23 +374,22 @@ fi
 # records arm, rung, seed, config hash and canonical save-dir; the checkpoint
 # must sit in exactly that run directory and the config must be that manifest's
 # (re-review item 2).
-if [ "$ARM" != "C4BACKFILL" ]; then
-  ARM_LAUNCH_MANIFEST="${OUTPUT_ROOT}/exp11_${ARM}/launch_manifest.txt"
-  # The COMMITTED registry is the only one a real run can use: FA_ORBIT_ARM_REGISTRY
-  # is honoured solely for a synthetic OUTPUT_ROOT, and a SLURM run has already
-  # been forced onto the production output root above — so this is a test seam,
-  # not a bypass.
-  ARM_REGISTRY="$EXPDIR/arm_launch_registry.json"
-  if [ -n "${FA_ORBIT_ARM_REGISTRY:-}" ]; then
-    [ "$OUTPUT_ROOT" != "$PRODUCTION_OUTPUT_ROOT" ] \
-      || die "FA_ORBIT_ARM_REGISTRY may not override the audited registry for the production output root - abort"
-    ARM_REGISTRY="$FA_ORBIT_ARM_REGISTRY"
-  fi
-  [ -f "$ARM_LAUNCH_MANIFEST" ] || die "arm launch manifest missing: ${ARM_LAUNCH_MANIFEST} — a screen may only evaluate a checkpoint from a recorded launch - abort"
-  [ -f "$ARM_REGISTRY" ] || die "audited arm launch registry missing: ${ARM_REGISTRY} - abort"
-  python3 - "$ARM_LAUNCH_MANIFEST" "$ARM" "$CKPT" "$CONFIG_SHA" "$CKPT_DIR" "$MAIN_REPO" "$ARM_REGISTRY" "$EXPDIR" <<'PY' || die "arm launch-manifest lineage gate FAILED - abort"
+ARM_LAUNCH_MANIFEST="${OUTPUT_ROOT}/exp11_${ARM}/launch_manifest.txt"
+# The COMMITTED registry is the only one a real run can use: FA_ORBIT_ARM_REGISTRY
+# is honoured solely for a synthetic OUTPUT_ROOT, and a SLURM run has already
+# been forced onto the production output root above — so this is a test seam,
+# not a bypass.
+ARM_REGISTRY="$EXP11/arm_launch_registry.json"     # exp_11's AUDITED registry, read in place
+if [ -n "${FA_ORBIT_ARM_REGISTRY:-}" ]; then
+  [ "$OUTPUT_ROOT" != "$PRODUCTION_OUTPUT_ROOT" ] \
+    || die "FA_ORBIT_ARM_REGISTRY may not override the audited registry for the production output root - abort"
+  ARM_REGISTRY="$FA_ORBIT_ARM_REGISTRY"
+fi
+[ -f "$ARM_LAUNCH_MANIFEST" ] || die "arm launch manifest missing: ${ARM_LAUNCH_MANIFEST} — a screen may only evaluate a checkpoint from a recorded launch - abort"
+[ -f "$ARM_REGISTRY" ] || die "audited arm launch registry missing: ${ARM_REGISTRY} - abort"
+python3 - "$ARM_LAUNCH_MANIFEST" "$ARM" "$CKPT" "$CONFIG_SHA" "$CKPT_DIR" "$MAIN_REPO" "$ARM_REGISTRY" <<'PY' || die "arm launch-manifest lineage gate FAILED - abort"
 import hashlib, json, os, sys
-man_path, arm, ckpt, cfg_sha, ckpt_dir, main_repo, reg_path, expdir = sys.argv[1:9]
+man_path, arm, ckpt, cfg_sha, ckpt_dir, main_repo, reg_path = sys.argv[1:8]
 man = {}
 for line in open(man_path):
     line = line.strip()
@@ -475,29 +446,17 @@ else:
         bad.append(f"checkpoint dir {want_dir} is not the manifest's canonical {canon}")
     if os.path.realpath(os.path.dirname(ckpt)) != canon:
         bad.append(f"checkpoint {ckpt} does not live in the canonical run directory {canon}")
-# --- Q10: a checkpoint ABOVE 40k came from a RESTART leg, not the INITIAL run --
-# The INITIAL manifest cannot vouch for it. The first version of this gate was
-# EXISTENTIAL (re-pin review, finding 2): once ONE leg carried mode=RESTART and
-# the right resume hash, every later same-config checkpoint in this directory
-# passed, because nothing bound the evaluated FILE to the leg that produced it —
-# a checkpoint from a wrong restart, copied in, was admissible. Now the binding
-# is per checkpoint: this file is re-hashed and must appear, at exactly this
-# step, in the append-only PRODUCER MANIFEST of a leg whose every registry field
-# re-validates against the audited INITIAL row (see fa_orbit_producer_manifest.py).
+# exp_14 measures the INITIAL run's 40k endpoint and nothing else. exp_11's
+# restart-chain gate (which binds a >40k checkpoint to the producer manifest of
+# the leg that made it) is therefore unreachable here and is deliberately NOT
+# carried over — importing a module for a branch that cannot fire is how the C8
+# conf block died at 064e8e0b. What IS carried over is the refusal: a checkpoint
+# above the audited endpoint has no lineage evidence in this campaign, so it is
+# rejected outright rather than evaluated on the INITIAL manifest's word.
 step_i = int(os.path.basename(ckpt).split("step=")[1].split(".ckpt")[0])
-if step_i > 40000:
-    sys.path.insert(0, expdir)
-    import fa_orbit_producer_manifest as pm
-    h = hashlib.sha256()
-    with open(ckpt, "rb") as fh:
-        for chunk in iter(lambda: fh.read(1 << 20), b""):
-            h.update(chunk)
-    chain_bad, note = pm.verify_chain(json.load(open(reg_path)), arm, step_i, ckpt,
-                                      h.hexdigest(), os.path.dirname(os.path.abspath(reg_path)),
-                                      main_repo)
-    bad += chain_bad
-    if note:
-        print(note)
+if step_i != 40000:
+    bad.append(f"checkpoint step {step_i} is not the audited 40000 endpoint; exp_14 has no "
+               "restart-chain evidence for any other step")
 if bad:
     sys.exit("ARM LINEAGE GATE: " + "; ".join(bad))
 print(f"arm lineage OK: {arm} bound to AUDITED launch job {reg['job']} ({reg['mode']}, uuid "
@@ -505,12 +464,13 @@ print(f"arm lineage OK: {arm} bound to AUDITED launch job {reg['job']} ({reg['mo
       f"max_steps {reg['max_steps']}, training seed {reg['training_seed']}); manifest "
       f"{got_sha[:12]} as registered; config {cfg_sha[:12]}")
 PY
-fi
 
 # --- E. the checkpoint's OWN embedded config must be this arm's ---------------
-# NOTE: TRAIN_ANGLES, not N_ANGLES — a cross cell evaluates a different orbit,
-# but the checkpoint must still BE this arm, trained on this arm's orbit.
-python3 - "$CKPT" "$MODEL_CONFIG" "$TRAIN_ANGLES" "$STEP" "$EXPDIR" "$COND_METHOD" <<'PY' || die "checkpoint/arm identity gate FAILED - abort"
+# The arm's identity is what it was TRAINED with, and it is asserted here whatever
+# yaw protocol the cell runs: a vctl cell that evaluated the wrong arm's
+# checkpoint would fail (or pass) a validity gate for the wrong model.
+# The preflight loader is exp_11's, read in place from its folder.
+python3 - "$CKPT" "$MODEL_CONFIG" "$TRAIN_ANGLES" "$STEP" "$EXP11" "$COND_METHOD" <<'PY' || die "checkpoint/arm identity gate FAILED - abort"
 import json, sys
 ckpt, cfg_path, n_angles, step, expdir = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), sys.argv[5]
 cond_method = sys.argv[6]
