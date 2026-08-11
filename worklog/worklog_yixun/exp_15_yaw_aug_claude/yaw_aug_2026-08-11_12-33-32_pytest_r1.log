@@ -1,0 +1,168 @@
+.FFFFFFFFF                                                               [100%]
+=================================== FAILURES ===================================
+_______________________ test_step_seed_is_deterministic ________________________
+
+    def test_step_seed_is_deterministic():
+>       assert tdiff._yaw_aug_step_seed(42, 137, 3) == tdiff._yaw_aug_step_seed(42, 137, 3)
+E       AttributeError: module 'src.training.diffusion' has no attribute '_yaw_aug_step_seed'
+
+src/tests/test_yaw_aug_training.py:300: AttributeError
+_______________ test_step_seed_is_a_valid_63_bit_generator_seed ________________
+
+    def test_step_seed_is_a_valid_63_bit_generator_seed():
+        for seed, step, rank in [(0, 0, 0), (42, 0, 0), (42, 39999, 7), (2**31, 10**6, 63)]:
+>           value = tdiff._yaw_aug_step_seed(seed, step, rank)
+E           AttributeError: module 'src.training.diffusion' has no attribute '_yaw_aug_step_seed'
+
+src/tests/test_yaw_aug_training.py:306: AttributeError
+_____________________ test_step_seed_distinct_across_steps _____________________
+
+    def test_step_seed_distinct_across_steps():
+>       seeds = [tdiff._yaw_aug_step_seed(42, step, 0) for step in range(4096)]
+
+src/tests/test_yaw_aug_training.py:312: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <range_iterator object at 0x7f137ff42040>
+
+>   seeds = [tdiff._yaw_aug_step_seed(42, step, 0) for step in range(4096)]
+E   AttributeError: module 'src.training.diffusion' has no attribute '_yaw_aug_step_seed'
+
+src/tests/test_yaw_aug_training.py:312: AttributeError
+_____________________ test_step_seed_distinct_across_ranks _____________________
+
+    def test_step_seed_distinct_across_ranks():
+>       seeds = [tdiff._yaw_aug_step_seed(42, 137, rank) for rank in range(64)]
+
+src/tests/test_yaw_aug_training.py:317: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <range_iterator object at 0x7f137ff6dbc0>
+
+>   seeds = [tdiff._yaw_aug_step_seed(42, 137, rank) for rank in range(64)]
+E   AttributeError: module 'src.training.diffusion' has no attribute '_yaw_aug_step_seed'
+
+src/tests/test_yaw_aug_training.py:317: AttributeError
+___________________ test_step_seed_distinct_across_run_seeds ___________________
+
+    def test_step_seed_distinct_across_run_seeds():
+>       seeds = [tdiff._yaw_aug_step_seed(run_seed, 137, 0) for run_seed in range(1024)]
+
+src/tests/test_yaw_aug_training.py:322: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <range_iterator object at 0x7f1380037510>
+
+>   seeds = [tdiff._yaw_aug_step_seed(run_seed, 137, 0) for run_seed in range(1024)]
+E   AttributeError: module 'src.training.diffusion' has no attribute '_yaw_aug_step_seed'
+
+src/tests/test_yaw_aug_training.py:322: AttributeError
+____________________ test_offsets_decorrelate_across_steps _____________________
+
+    def test_offsets_decorrelate_across_steps():
+        """Neighbouring steps must not share (or merely shift) their draws."""
+>       a = torch.cat([_offsets(42, step, 0, n=64) for step in range(0, 32)])
+
+src/tests/test_yaw_aug_training.py:328: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:328: in <listcomp>
+    a = torch.cat([_offsets(42, step, 0, n=64) for step in range(0, 32)])
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+seed = 42, step = 0, rank = 0, n = 64, img_w = 512
+
+    def _offsets(seed, step, rank, n=8, img_w=512):
+        """Draw one micro-batch of offsets exactly as ``training_step`` will."""
+        gen = torch.Generator()
+>       gen.manual_seed(tdiff._yaw_aug_step_seed(seed, step, rank))
+E       AttributeError: module 'src.training.diffusion' has no attribute '_yaw_aug_step_seed'
+
+src/tests/test_yaw_aug_training.py:295: AttributeError
+____________________ test_offsets_decorrelate_across_ranks _____________________
+
+    def test_offsets_decorrelate_across_ranks():
+        """The 8 ranks of one step must see 8 independent yaw assignments."""
+>       per_rank = [_offsets(42, 137, rank, n=64) for rank in range(8)]
+
+src/tests/test_yaw_aug_training.py:337: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:337: in <listcomp>
+    per_rank = [_offsets(42, 137, rank, n=64) for rank in range(8)]
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+seed = 42, step = 137, rank = 0, n = 64, img_w = 512
+
+    def _offsets(seed, step, rank, n=8, img_w=512):
+        """Draw one micro-batch of offsets exactly as ``training_step`` will."""
+        gen = torch.Generator()
+>       gen.manual_seed(tdiff._yaw_aug_step_seed(seed, step, rank))
+E       AttributeError: module 'src.training.diffusion' has no attribute '_yaw_aug_step_seed'
+
+src/tests/test_yaw_aug_training.py:295: AttributeError
+_________________________ test_draws_are_resume_exact __________________________
+
+    def test_draws_are_resume_exact():
+        """The property the counter-based scheme exists for (plan §3.1, review F5).
+    
+        A run killed at step N and resumed there must make exactly the draws the
+        uninterrupted run would have made: there is no stream state to checkpoint,
+        only the (seed, step, rank) counter, which the resumed process rebuilds from
+        the checkpoint's ``global_step``.
+        """
+        n, img_w, N, M = 8, 512, 25, 12
+    
+>       uninterrupted = [
+            _offsets(42, step, 0, n=n, img_w=img_w) for step in range(N + M)
+        ]
+
+src/tests/test_yaw_aug_training.py:354: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:355: in <listcomp>
+    _offsets(42, step, 0, n=n, img_w=img_w) for step in range(N + M)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+seed = 42, step = 0, rank = 0, n = 8, img_w = 512
+
+    def _offsets(seed, step, rank, n=8, img_w=512):
+        """Draw one micro-batch of offsets exactly as ``training_step`` will."""
+        gen = torch.Generator()
+>       gen.manual_seed(tdiff._yaw_aug_step_seed(seed, step, rank))
+E       AttributeError: module 'src.training.diffusion' has no attribute '_yaw_aug_step_seed'
+
+src/tests/test_yaw_aug_training.py:295: AttributeError
+___________________ test_step_seed_rejects_negative_counters ___________________
+
+    def test_step_seed_rejects_negative_counters():
+        with pytest.raises(ValueError):
+>           tdiff._yaw_aug_step_seed(42, -1, 0)
+E           AttributeError: module 'src.training.diffusion' has no attribute '_yaw_aug_step_seed'
+
+src/tests/test_yaw_aug_training.py:367: AttributeError
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_yaw_aug_training.py::test_step_seed_is_deterministic - ...
+FAILED src/tests/test_yaw_aug_training.py::test_step_seed_is_a_valid_63_bit_generator_seed
+FAILED src/tests/test_yaw_aug_training.py::test_step_seed_distinct_across_steps
+FAILED src/tests/test_yaw_aug_training.py::test_step_seed_distinct_across_ranks
+FAILED src/tests/test_yaw_aug_training.py::test_step_seed_distinct_across_run_seeds
+FAILED src/tests/test_yaw_aug_training.py::test_offsets_decorrelate_across_steps
+FAILED src/tests/test_yaw_aug_training.py::test_offsets_decorrelate_across_ranks
+FAILED src/tests/test_yaw_aug_training.py::test_draws_are_resume_exact - Attr...
+FAILED src/tests/test_yaw_aug_training.py::test_step_seed_rejects_negative_counters
+9 failed, 1 passed, 4 warnings in 14.71s

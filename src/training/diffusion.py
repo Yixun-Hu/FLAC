@@ -21,6 +21,65 @@ from .utils import create_optimizer_from_config, create_scheduler_from_config, l
 
 from time import time
 
+_MASK64 = (1 << 64) - 1
+# SplitMix64's golden-ratio increment and its two finalising multipliers
+# (Steele/Lea/Flood, "Fast splittable pseudorandom number generators").
+_SPLITMIX64_GAMMA = 0x9E3779B97F4A7C15
+_SPLITMIX64_MIX1 = 0xBF58476D1CE4E5B9
+_SPLITMIX64_MIX2 = 0x94D049BB133111EB
+
+
+def _splitmix64(x: int) -> int:
+    """One SplitMix64 round: avalanche a 64-bit word into a 64-bit word."""
+    z = (x + _SPLITMIX64_GAMMA) & _MASK64
+    z = ((z ^ (z >> 30)) * _SPLITMIX64_MIX1) & _MASK64
+    z = ((z ^ (z >> 27)) * _SPLITMIX64_MIX2) & _MASK64
+    return z ^ (z >> 31)
+
+
+def _yaw_aug_step_seed(seed: int, step: int, rank: int) -> int:
+    """Deterministic generator seed for one (run seed, training step, rank).
+
+    The yaw offsets of exp_15's augmentation are a pure function of
+    ``(yaw_aug.seed, global_step, global_rank, within-batch index)`` — a
+    *counter-based* scheme with no stream state (plan §3.1, review F5). Nothing
+    is carried between steps, so a run killed at step N and resumed there
+    reproduces exactly the draws the uninterrupted run would have made; a
+    sequential ``torch.Generator`` would instead have to be checkpointed, and
+    PL checkpoints carry no RNG state.
+
+    The three counters are folded through successive SplitMix64 rounds, which
+    decorrelates adjacent steps and neighbouring ranks (a plain sum or xor would
+    let (step, rank) pairs collide, silently giving two ranks the same yaws).
+    The result is truncated to 63 bits: a valid, non-negative seed for
+    ``torch.Generator.manual_seed`` on every platform.
+
+    Parameters
+    ----------
+    seed : int
+        The run's ``training.yaw_aug.seed``.
+    step : int
+        ``global_step`` at this optimisation step (>= 0).
+    rank : int
+        ``global_rank`` of this process (>= 0).
+
+    Returns
+    -------
+    int
+        A seed in ``[0, 2**63)``.
+    """
+    seed, step, rank = int(seed), int(step), int(rank)
+    if step < 0:
+        raise ValueError(f"yaw_aug step must be >= 0, got {step}")
+    if rank < 0:
+        raise ValueError(f"yaw_aug rank must be >= 0, got {rank}")
+
+    h = _splitmix64(seed & _MASK64)
+    h = _splitmix64(h ^ (step & _MASK64))
+    h = _splitmix64(h ^ ((rank * _SPLITMIX64_GAMMA) & _MASK64))
+    return h & ((1 << 63) - 1)
+
+
 class Profiler:
     def __init__(self):
         self.ticks = [[time(), None]]

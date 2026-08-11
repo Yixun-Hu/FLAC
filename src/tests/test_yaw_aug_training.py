@@ -41,6 +41,8 @@ import pytest
 import torch
 
 import src.models.transformer as _transformer
+import src.training.diffusion as tdiff
+from src.data import yaw_rotation as yr
 from src.models.factory import create_model_from_config
 from src.training.factory import create_training_wrapper_from_config
 
@@ -282,6 +284,89 @@ def test_disabled_path_matches_golden(no_flash):
         "global RNG state leaving training_step changed (the step consumed "
         "different randomness)"
     )
+
+
+# --------------------------------------------------------------------------- #
+# §6.5-1 counter-based step seed: determinism, decorrelation, resume-exactness
+# --------------------------------------------------------------------------- #
+def _offsets(seed, step, rank, n=8, img_w=512):
+    """Draw one micro-batch of offsets exactly as ``training_step`` will."""
+    gen = torch.Generator()
+    gen.manual_seed(tdiff._yaw_aug_step_seed(seed, step, rank))
+    return yr.draw_yaw_offsets(n, img_w, gen)
+
+
+def test_step_seed_is_deterministic():
+    assert tdiff._yaw_aug_step_seed(42, 137, 3) == tdiff._yaw_aug_step_seed(42, 137, 3)
+    assert torch.equal(_offsets(42, 137, 3), _offsets(42, 137, 3))
+
+
+def test_step_seed_is_a_valid_63_bit_generator_seed():
+    for seed, step, rank in [(0, 0, 0), (42, 0, 0), (42, 39999, 7), (2**31, 10**6, 63)]:
+        value = tdiff._yaw_aug_step_seed(seed, step, rank)
+        assert isinstance(value, int)
+        assert 0 <= value < 2**63
+
+
+def test_step_seed_distinct_across_steps():
+    seeds = [tdiff._yaw_aug_step_seed(42, step, 0) for step in range(4096)]
+    assert len(set(seeds)) == len(seeds), "step seeds collided within a single run"
+
+
+def test_step_seed_distinct_across_ranks():
+    seeds = [tdiff._yaw_aug_step_seed(42, 137, rank) for rank in range(64)]
+    assert len(set(seeds)) == len(seeds), "step seeds collided across ranks"
+
+
+def test_step_seed_distinct_across_run_seeds():
+    seeds = [tdiff._yaw_aug_step_seed(run_seed, 137, 0) for run_seed in range(1024)]
+    assert len(set(seeds)) == len(seeds), "step seeds collided across run seeds"
+
+
+def test_offsets_decorrelate_across_steps():
+    """Neighbouring steps must not share (or merely shift) their draws."""
+    a = torch.cat([_offsets(42, step, 0, n=64) for step in range(0, 32)])
+    b = torch.cat([_offsets(42, step, 0, n=64) for step in range(1, 33)])
+    assert not torch.equal(a, b)
+    # agreement should sit near chance (1/512), certainly nowhere near lockstep
+    assert (a == b).float().mean().item() < 0.05
+
+
+def test_offsets_decorrelate_across_ranks():
+    """The 8 ranks of one step must see 8 independent yaw assignments."""
+    per_rank = [_offsets(42, 137, rank, n=64) for rank in range(8)]
+    for i in range(len(per_rank)):
+        for j in range(i + 1, len(per_rank)):
+            assert not torch.equal(per_rank[i], per_rank[j])
+            assert (per_rank[i] == per_rank[j]).float().mean().item() < 0.05
+
+
+def test_draws_are_resume_exact():
+    """The property the counter-based scheme exists for (plan §3.1, review F5).
+
+    A run killed at step N and resumed there must make exactly the draws the
+    uninterrupted run would have made: there is no stream state to checkpoint,
+    only the (seed, step, rank) counter, which the resumed process rebuilds from
+    the checkpoint's ``global_step``.
+    """
+    n, img_w, N, M = 8, 512, 25, 12
+
+    uninterrupted = [
+        _offsets(42, step, 0, n=n, img_w=img_w) for step in range(N + M)
+    ]
+    # leg 1: steps 0..N-1, then the process dies (its generators die with it)
+    leg1 = [_offsets(42, step, 0, n=n, img_w=img_w) for step in range(N)]
+    # leg 2: a fresh process resumes at N with nothing but the counter
+    leg2 = [_offsets(42, step, 0, n=n, img_w=img_w) for step in range(N, N + M)]
+
+    assert all(torch.equal(x, y) for x, y in zip(uninterrupted, leg1 + leg2))
+
+
+def test_step_seed_rejects_negative_counters():
+    with pytest.raises(ValueError):
+        tdiff._yaw_aug_step_seed(42, -1, 0)
+    with pytest.raises(ValueError):
+        tdiff._yaw_aug_step_seed(42, 0, -1)
 
 
 if __name__ == "__main__":
