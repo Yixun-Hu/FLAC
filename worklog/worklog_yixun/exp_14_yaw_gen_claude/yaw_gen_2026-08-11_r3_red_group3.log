@@ -1,0 +1,10 @@
+        evaluate — and 'no gate evaluated' may never read as 'gate passed'."""
+FAILED src/tests/test_yaw_gen_collect.py::test_gates_pass_on_a_complete_well_formed_campaign
+FAILED src/tests/test_yaw_gen_collect.py::test_g1_fails_when_an_in_group_rotation_moves_the_metric
+FAILED src/tests/test_yaw_gen_collect.py::test_g2_fails_when_the_positive_control_does_not_degrade
+FAILED src/tests/test_yaw_gen_collect.py::test_g3_recomputes_the_golden_assignment_rather_than_trusting_it
+FAILED src/tests/test_yaw_gen_collect.py::test_g4_is_the_section_3_3_hash_equalities
+FAILED src/tests/test_yaw_gen_collect.py::test_g5_is_reported_but_never_gates
+FAILED src/tests/test_yaw_gen_collect.py::test_gates_report_pending_when_the_z_block_is_incomplete
+FAILED src/tests/test_yaw_gen_collect.py::test_collect_cells_separates_valid_missing_and_rejected
+8 failed, 63 passed, 3 warnings in 81.04s (0:01:21)

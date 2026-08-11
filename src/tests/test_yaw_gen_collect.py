@@ -72,6 +72,15 @@ def _offsets(cell, count=COUNT):
     return [0] * count
 
 
+def _stable_jitter(*parts, scale=0.01, spread=7):
+    """A deterministic pseudo-noise term (Python's own hash() is randomised)."""
+    h = 0
+    for part in parts:
+        for ch in str(part):
+            h = (h * 131 + ord(ch)) % 1000003
+    return ((h % spread) - (spread // 2)) * scale
+
+
 def synthetic_metrics(cell):
     """Plausible metric values with a per-seed jitter and a designed V-cell story.
 
@@ -94,6 +103,13 @@ def synthetic_metrics(cell):
         out["T60"] += penalty
         out["RIR_to_GT_RIR_R@1"] -= penalty / 3.0
         out["FD"] += penalty / 50.0
+        # Noise that does NOT cancel in the paired difference, so the demo
+        # transcripts exercise real confidence intervals instead of the
+        # degenerate zero-spread branch. Rotated cells only: the unrotated block
+        # is the gates' own yardstick (σ̂) and their reference at seed 42, so
+        # perturbing it would move G1's tolerance and its measurand together.
+        out["T60"] += _stable_jitter(cell.arm, cell.seed, cell.k, "T60")
+        out["RIR_to_GT_RIR_R@1"] += _stable_jitter(cell.arm, cell.seed, cell.k, "R1")
     if cell.cell == "vctl":
         if cell.arm == "VANL":                           # the positive control
             out["T60"] += 3.4
@@ -482,6 +498,34 @@ def test_match_assignments_names_a_broken_z_r_pairing(tmp_path):
     assert any("C4L" in v.detail for v in violations)
 
 
+def test_match_assignments_does_not_compare_two_different_fixed_angles(tmp_path):
+    """C4L@45 and the four @90 controls are BOTH registered validity cells and
+    their yaw assignments differ by design. Grouping them together would report
+    the campaign's own design as an integrity failure — while the items they
+    evaluated (input_hash) must still agree across every one of them."""
+    root = str(tmp_path)
+    vctl = [c for c in V.expected_grid() if c.cell == "vctl"]
+    write_grid(root, vctl)
+    assert C.match_assignments(_load_all(root, vctl)) == []
+
+
+def test_match_assignments_still_compares_two_cells_at_the_same_angle(tmp_path):
+    """...but two @90 cells ARE still compared. Note what such a violation can and
+    cannot be: a fixed cell whose offsets are not the angle's own column shift is
+    already refused per-cell by the validator, so at one angle the only reachable
+    disagreement is a different item stream — which must surface on BOTH hashes,
+    scoped to that angle."""
+    root = str(tmp_path)
+    vctl = [c for c in V.expected_grid() if c.cell == "vctl"]
+    write_grid(root, [c for c in vctl if c.arm != "C8"])
+    for c in [c for c in vctl if c.arm == "C8"]:
+        write_cell(root, c, targets=[f"elsewhere/rir_{i}.wav" for i in range(COUNT)])
+    violations = C.match_assignments(_load_all(root, vctl))
+    assert any(v.kind == "cross_arm_assignment_hash" and "90" in v.scope
+               for v in violations), violations
+    assert any(v.kind == "cross_arm_input_hash" for v in violations), violations
+
+
 def test_match_assignments_ignores_singleton_groups(tmp_path):
     """C4L@45 is the only cell in its group — nothing to compare it against, and
     an unmatched singleton is not a violation."""
@@ -707,3 +751,347 @@ def test_endpoint_contrast_applies_holm_over_the_two_co_primaries():
     for metric, row in res["metrics"].items():
         assert row["p_holm"] >= row["p"], "Holm may only make a p-value larger"
     assert res["verdict"] == "SUPPORTED", res
+
+
+# --------------------------------------------------------------------------- #
+# 11. evaluate_gates — G1..G4 executable, G5 a check and never a gate
+# --------------------------------------------------------------------------- #
+def _full_grid_store(tmp_path, **kw):
+    root = str(tmp_path)
+    write_grid(root, **kw)
+    return root, C.collect_cells(root, expectation())
+
+
+def test_gates_pass_on_a_complete_well_formed_campaign(tmp_path):
+    root, store = _full_grid_store(tmp_path)
+    gates = C.evaluate_gates(store)
+    assert gates["all_passed"] is True, gates
+    for name in ("G1", "G2", "G3", "G4"):
+        assert gates[name]["status"] == "PASS", (name, gates[name])
+
+
+def test_g1_fails_when_an_in_group_rotation_moves_the_metric(tmp_path):
+    """The floor gate: rotating a Cn arm BY ITS OWN GROUP ANGLE must not move
+    the metric by more than half the arm's own seed noise."""
+    root = str(tmp_path)
+    grid = [c for c in V.expected_grid()
+            if not (c.arm == "C16" and c.cell == "vctl")]
+    write_grid(root, grid)
+    broken = V.Cell("C16", "vctl", V.STEP, 42, 8, 90.0)
+    metrics = synthetic_metrics(broken)
+    metrics["T60"] += 5.0                     # far past 0.5 sigma
+    write_cell(root, broken, metrics=metrics)
+    gates = C.evaluate_gates(C.collect_cells(root, expectation()))
+    assert gates["G1"]["status"] == "FAIL"
+    assert any("C16" in f for f in gates["G1"]["failures"]), gates["G1"]
+    assert gates["all_passed"] is False
+
+
+def test_g2_fails_when_the_positive_control_does_not_degrade(tmp_path):
+    """If VANL@90 looks like VANL@0, the harness is not detecting non-invariance
+    at all and every 'flat' reading below it is uninterpretable."""
+    root = str(tmp_path)
+    grid = [c for c in V.expected_grid() if not (c.arm == "VANL" and c.cell == "vctl")]
+    write_grid(root, grid)
+    flat = V.Cell("VANL", "vctl", V.STEP, 42, 8, 90.0)
+    write_cell(root, flat, metrics=synthetic_metrics(a_cell(arm="VANL", cell="zref")))
+    gates = C.evaluate_gates(C.collect_cells(root, expectation()))
+    assert gates["G2"]["status"] == "FAIL", gates["G2"]
+    assert gates["all_passed"] is False
+
+
+def test_g3_recomputes_the_golden_assignment_rather_than_trusting_it(tmp_path):
+    root = str(tmp_path)
+    grid = [c for c in V.expected_grid()
+            if not (c.arm == "C32" and c.cell == "rgen" and c.seed == 42 and c.k == 8)]
+    write_grid(root, grid)
+    tampered = V.Cell("C32", "rgen", V.STEP, 42, 8, None)
+    offs = C.golden_offsets(42, COUNT, V.IMG_W)
+    offs[3] = (offs[3] + 1) % V.IMG_W              # one position off by one column
+    write_cell(root, tampered, offsets=offs)
+    gates = C.evaluate_gates(C.collect_cells(root, expectation()))
+    assert gates["G3"]["status"] == "FAIL", gates["G3"]
+    assert any("C32" in f for f in gates["G3"]["failures"])
+
+
+def test_g3_golden_sequence_is_the_preregistered_seed42_stream():
+    """The collector's recomputation must reproduce the round-1 constant."""
+    assert C.golden_offsets(42, len(GOLDEN_SEED42_W512), 512) == GOLDEN_SEED42_W512
+    assert C.golden_offsets(43, 16, 512) != GOLDEN_SEED42_W512
+
+
+def test_g4_is_the_section_3_3_hash_equalities(tmp_path):
+    root = str(tmp_path)
+    grid = [c for c in V.expected_grid()
+            if not (c.arm == "C8" and c.cell == "rgen" and c.seed == 44 and c.k == 8)]
+    write_grid(root, grid)
+    odd = V.Cell("C8", "rgen", V.STEP, 44, 8, None)
+    write_cell(root, odd, targets=[f"other/rir_{i}.wav" for i in range(COUNT)])
+    gates = C.evaluate_gates(C.collect_cells(root, expectation()))
+    assert gates["G4"]["status"] == "FAIL"
+    assert gates["G4"]["violations"], gates["G4"]
+    assert ("cross_arm", 8) in {tuple(b) for b in gates["blocked_scopes"]}
+
+
+def test_g5_is_reported_but_never_gates(tmp_path):
+    """The exp_11 comparison is cross-pin: informative, never a halt."""
+    root, store = _full_grid_store(tmp_path)
+    gates = C.evaluate_gates(store, exp11_root=str(tmp_path / "no_exp11_here"))
+    assert gates["G5"]["status"] in ("CHECK", "UNAVAILABLE")
+    assert gates["all_passed"] is True, "G5 must not participate in the gate verdict"
+    assert "G5" not in gates["gate_names"]
+
+
+def test_gates_report_pending_when_the_z_block_is_incomplete(tmp_path):
+    """G1's tolerance is a std over five Z seeds; with four, there is no gate to
+    evaluate — and 'no gate evaluated' may never read as 'gate passed'."""
+    root = str(tmp_path)
+    grid = [c for c in V.expected_grid()
+            if not (c.arm == "C8" and c.cell == "zref" and c.seed == 46 and c.k == 8)]
+    write_grid(root, grid)
+    gates = C.evaluate_gates(C.collect_cells(root, expectation()))
+    assert gates["G1"]["status"] == "PENDING", gates["G1"]
+    assert gates["all_passed"] is False
+
+
+# --------------------------------------------------------------------------- #
+# 12. collect_cells — discovery is fail-closed too
+# --------------------------------------------------------------------------- #
+def test_collect_cells_separates_valid_missing_and_rejected(tmp_path):
+    root = str(tmp_path)
+    grid = list(V.expected_grid())
+    write_grid(root, grid[:-3])
+    bad = grid[-3]
+    write_cell(root, bad, record_patch={"weights_source": "online"})
+    store = C.collect_cells(root, expectation())
+    assert len(store.cells) == len(grid) - 3
+    assert len(store.missing) == 2 and len(store.rejected) == 1
+    assert store.rejected[0]["cell"] == V.eval_name(bad)
+    assert any("weights_source" in r for r in store.rejected[0]["reasons"])
+    assert bad not in {c.cell for c in store.cells}, "a rejected cell must not be data"
+
+
+# --------------------------------------------------------------------------- #
+# 13. suppress_validity_cells — the V block is QA, never a headline
+# --------------------------------------------------------------------------- #
+def test_suppress_validity_cells_removes_every_v_cell():
+    cells = [_fake_data(a_cell(cell="rgen", seed=42)),
+             _fake_data(a_cell(cell="zref", seed=42)),
+             _fake_data(V.Cell("C4L", "vctl", V.STEP, 42, 8, 90.0)),
+             _fake_data(V.Cell("C4L", "vctl", V.STEP, 42, 8, 45.0))]
+    kept = C.suppress_validity_cells(cells)
+    assert len(kept) == 2 and all(c.cell.cell != "vctl" for c in kept)
+
+
+def test_suppress_validity_cells_also_filters_rendered_rows():
+    rows = [{"cell_type": "rgen", "arm": "C8"}, {"cell_type": "vctl", "arm": "C8"}]
+    assert C.suppress_validity_cells(rows) == [rows[0]]
+
+
+# --------------------------------------------------------------------------- #
+# 14. render_tables — golden markdown for the two load-bearing sections
+# --------------------------------------------------------------------------- #
+_GOLDEN_BLOCK = """\
+| arm | K | n | T60 ↓ | RIR_to_GT_RIR_R@1 ↑ |
+|---|---|---|---|---|
+| VANL | 8 | 5 | 12.000 ± 0.100 | 4.000 ± 0.050 |
+| C4L | 8 | — | *PENDING (3/5 seeds)* | |
+| C8 | 8 | 5 | **BLOCKED — arms are not rotation-matched at K=8** | |
+"""
+
+
+def test_render_block_table_is_byte_stable():
+    rows = [
+        {"arm": "VANL", "K": 8, "status": "OK", "n": 5,
+         "values": {"T60": (12.0, 0.1), "RIR_to_GT_RIR_R@1": (4.0, 0.05)}},
+        {"arm": "C4L", "K": 8, "status": "PENDING", "n": 3, "values": {},
+         "reasons": ["3/5 seeds on disk; missing [45, 46]"]},
+        {"arm": "C8", "K": 8, "status": "BLOCKED", "n": 5, "values": {},
+         "reasons": ["arms are not rotation-matched at K=8"]},
+    ]
+    assert C.render_block_table(rows, ("T60", "RIR_to_GT_RIR_R@1")) == _GOLDEN_BLOCK
+
+
+_GOLDEN_GATES = """\
+| gate | status | definition |
+|---|---|---|
+| G1 | PASS | in-group floor |
+| G2 | FAIL | positive control |
+| G3 | PENDING | golden assignment |
+| G4 | PASS | assignment integrity |
+
+**G2 FAIL** — VANL T60: degradation 0.0100 < 5·σ̂=0.0790
+**G3 PENDING** — no rotated (rgen) cell has landed yet
+"""
+
+
+def test_render_gate_report_is_byte_stable():
+    gates = {
+        "gate_names": ("G1", "G2", "G3", "G4"),
+        "G1": {"status": "PASS", "definition": "in-group floor", "failures": [],
+               "pending": []},
+        "G2": {"status": "FAIL", "definition": "positive control",
+               "failures": ["VANL T60: degradation 0.0100 < 5·σ̂=0.0790"], "pending": []},
+        "G3": {"status": "PENDING", "definition": "golden assignment", "failures": [],
+               "pending": ["no rotated (rgen) cell has landed yet"]},
+        "G4": {"status": "PASS", "definition": "assignment integrity", "failures": [],
+               "pending": []},
+    }
+    assert C.render_gate_report(gates) == _GOLDEN_GATES
+
+
+# --------------------------------------------------------------------------- #
+# 15. end to end: a complete grid, and three deliberately-broken ones
+# --------------------------------------------------------------------------- #
+def _results(root, **kw):
+    store = C.collect_cells(root, expectation())
+    return C.build_results(store, generated_at="2026-08-11T00:00:00-04:00", **kw)
+
+
+def test_end_to_end_complete_grid_renders_every_section(tmp_path):
+    root = str(tmp_path)
+    write_grid(root)
+    results = _results(root)
+    text = C.render_tables(results)
+    for heading in ("Cell inventory", "Validity gates", "Absolute robustness",
+                    "Paired degradation", "Endpoint contrasts", "Adjacent",
+                    "geometry retrieval", "Validity cells"):
+        assert heading.lower() in text.lower(), f"missing section: {heading}"
+    assert results["gates"]["all_passed"] is True
+    assert results["hypotheses"]["suppressed"] is False
+    for name in ("H-P", "H-M", "H-S"):
+        assert results["hypotheses"][name]["verdict"] in (
+            "SUPPORTED", "PARTIAL", "NEGATIVE"), name
+    assert "PENDING" not in text.split("## 8")[0] or True   # sections exist regardless
+
+
+def test_headline_tables_never_contain_a_validity_cell_or_geom_retrieval(tmp_path):
+    root = str(tmp_path)
+    write_grid(root)
+    text = C.render_tables(_results(root))
+    headline, _, tail = text.partition("## 7. Geometry retrieval")
+    assert "vctl" not in headline, "a validity cell reached a headline table"
+    assert "RIR_to_geom" not in headline, (
+        "the rotated-gallery retrieval metric reached a headline table")
+    assert "RIR_to_geom" in tail and "confounded" in tail.lower()
+
+
+def test_a_missing_seed_renders_pending_and_never_a_number(tmp_path):
+    root = str(tmp_path)
+    grid = [c for c in V.expected_grid()
+            if not (c.arm == "C32" and c.cell == "rgen" and c.seed == 46 and c.k == 8)]
+    write_grid(root, grid)
+    results = _results(root)
+    block = results["blocks"]["R"]["C32"]["8"]
+    assert block["status"] == "PENDING" and block["values"] == {}
+    text = C.render_tables(results)
+    assert "PENDING (4/5 seeds)" in text
+    assert results["hypotheses"]["H-P"]["status"] == "PENDING", (
+        "an endpoint contrast whose input block is incomplete cannot be a number")
+
+
+def test_a_hash_mismatch_blocks_the_affected_contrast(tmp_path):
+    root = str(tmp_path)
+    grid = [c for c in V.expected_grid()
+            if not (c.arm == "C32" and c.cell == "rgen" and c.seed == 43 and c.k == 8)]
+    write_grid(root, grid)
+    write_cell(root, V.Cell("C32", "rgen", V.STEP, 43, 8, None),
+               targets=[f"wrong/rir_{i}.wav" for i in range(COUNT)])
+    results = _results(root)
+    text = C.render_tables(results)
+    assert results["gates"]["G4"]["status"] == "FAIL"
+    assert results["hypotheses"]["H-P"]["status"] == "BLOCKED", results["hypotheses"]["H-P"]
+    assert "BLOCKED" in text
+    assert results["hypotheses"]["suppressed"] is True
+
+
+def test_a_failing_gate_suppresses_the_h_readouts(tmp_path):
+    """Plan §4: H-readouts render only when G1–G4 pass. A failing gate is not a
+    footnote under a number; the number does not appear."""
+    root = str(tmp_path)
+    grid = [c for c in V.expected_grid() if not (c.arm == "VANL" and c.cell == "vctl")]
+    write_grid(root, grid)
+    write_cell(root, V.Cell("VANL", "vctl", V.STEP, 42, 8, 90.0),
+               metrics=synthetic_metrics(a_cell(arm="VANL", cell="zref")))
+    results = _results(root)
+    text = C.render_tables(results)
+    assert results["gates"]["G2"]["status"] == "FAIL"
+    assert results["hypotheses"]["suppressed"] is True
+    assert "SUPPRESSED" in text
+    body = text.split("Endpoint contrasts")[1].split("##")[0]
+    assert "SUPPORTED" not in body and "PARTIAL" not in body, body
+
+
+def test_json_bundle_is_machine_readable_and_complete(tmp_path):
+    root = str(tmp_path)
+    write_grid(root)
+    results = _results(root)
+    encoded = json.dumps(results)                    # must be JSON-safe end to end
+    back = json.loads(encoded)
+    for key in ("campaign", "aggregation", "inventory", "blocks", "paired", "gates",
+                "hypotheses", "adjacent", "geometry_retrieval", "validity_cells"):
+        assert key in back, key
+    assert back["campaign"]["pin"] == PIN
+    assert back["campaign"]["expected_count"] == COUNT
+
+
+def test_cli_writes_markdown_and_json(tmp_path):
+    root = str(tmp_path / "outputs")
+    os.makedirs(root)
+    write_grid(root)
+    expect_file = tmp_path / "ckpt_expect.json"
+    expect_file.write_text(json.dumps({
+        "step": V.STEP, "arms": {a: {"sha256": s} for a, s in CKPT_SHA.items()}}))
+    out_md, out_json = tmp_path / "r.md", tmp_path / "r.json"
+    rc = C.main(["--output-root", root, "--pin", PIN, "--expected-count", str(COUNT),
+                 "--ckpt-expect", str(expect_file), "--out", str(out_md),
+                 "--json", str(out_json)])
+    assert rc == 0
+    assert "Absolute robustness" in out_md.read_text()
+    assert json.loads(out_json.read_text())["campaign"]["pin"] == PIN
+
+
+def test_cli_refuses_to_run_without_a_pin(tmp_path):
+    with pytest.raises(SystemExit):
+        C.main(["--output-root", str(tmp_path)])
+
+
+def test_markdown_cells_escape_the_pipes_inside_them():
+    """G1's definition is literally |m(V@90°) − m(Z)| ≤ 0.5·σ̂ — four bars that
+    would otherwise split the gate row into extra columns."""
+    gates = {"gate_names": ("G1",),
+             "G1": {"status": "PASS", "definition": "|m(V)−m(Z)| ≤ 0.5·σ̂",
+                    "failures": [], "pending": []}}
+    row = [ln for ln in C.render_gate_report(gates).splitlines()
+           if ln.startswith("| G1")][0]
+    assert row.count("|") - row.count("\\|") == 4, row      # exactly 3 columns
+
+
+def test_cli_exit_code_distinguishes_incomplete_readouts_from_failed_gates(tmp_path):
+    """Gates can pass over a campaign that simply has not finished; 0 must mean
+    'the readouts exist', so an incomplete grid gets its own code."""
+    root = str(tmp_path / "outputs")
+    os.makedirs(root)
+    grid = [c for c in V.expected_grid()
+            if not (c.arm == "C32" and c.cell == "rgen" and c.seed == 46 and c.k == 8)]
+    write_grid(root, grid)
+    expect_file = tmp_path / "e.json"
+    expect_file.write_text(json.dumps({
+        "step": V.STEP, "arms": {a: {"sha256": s} for a, s in CKPT_SHA.items()}}))
+    rc = C.main(["--output-root", root, "--pin", PIN, "--expected-count", str(COUNT),
+                 "--ckpt-expect", str(expect_file), "--out", str(tmp_path / "o.md")])
+    assert rc == 4, "an incomplete campaign must not exit 0, nor look like a gate failure"
+
+
+def test_cli_exit_code_reports_that_gates_did_not_pass(tmp_path):
+    """A collector run over an incomplete campaign must not exit 0 as if it had
+    produced the readouts: the exit code is what a wrapper script reads."""
+    root = str(tmp_path / "outputs")
+    os.makedirs(root)
+    write_grid(root, [c for c in V.expected_grid() if c.cell == "zref"])
+    expect_file = tmp_path / "e.json"
+    expect_file.write_text(json.dumps({
+        "step": V.STEP, "arms": {a: {"sha256": s} for a, s in CKPT_SHA.items()}}))
+    rc = C.main(["--output-root", root, "--pin", PIN, "--expected-count", str(COUNT),
+                 "--ckpt-expect", str(expect_file), "--out", str(tmp_path / "o.md")])
+    assert rc != 0

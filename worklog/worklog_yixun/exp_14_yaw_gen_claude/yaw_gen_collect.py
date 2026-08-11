@@ -190,10 +190,17 @@ def validate_cell_provenance(artifact, expected):
 
 
 def slim(artifact):
-    """Drop the tuple stream, keep what cross-cell reasoning needs."""
+    """Drop the tuple stream, keep what cross-cell reasoning needs.
+
+    Only NUMERIC metric entries are kept. The emission set is numeric today, but
+    a callback configured with ``eval_per_scene`` would add a nested ``by_scene``
+    block, and a nested dict silently entering an arithmetic mean is exactly the
+    kind of quiet wrong answer this collector exists to avoid.
+    """
     stream = artifact.stream
     return CellData(cell=artifact.cell, path=artifact.path,
-                    metrics=dict(artifact.record["metrics"]),
+                    metrics={k: float(v) for k, v in artifact.record["metrics"].items()
+                             if isinstance(v, (int, float)) and not isinstance(v, bool)},
                     input_hash=stream.get("input_hash"),
                     assignment_hash=stream.get("assignment_hash"),
                     offsets=tuple(stream.get("offsets") or ()),
@@ -238,16 +245,26 @@ def match_assignments(cells):
     the renderer can refuse exactly the affected contrasts and no others.
     """
     violations = []
-    groups = {}
+    # Two different groupings, because they answer two different questions.
+    # WHICH ITEMS ran is a property of the split and must agree across every cell
+    # at one (K, seed) — including the validity controls, which evaluate the same
+    # split. WHICH YAW each item received is only comparable among cells that ran
+    # the SAME rotation protocol: C4L@45 and C4L@90 are both registered validity
+    # cells and their assignments differ BY DESIGN, so grouping them together
+    # would report the campaign's own design as an integrity failure.
+    inputs, assignments = {}, {}
     for c in cells:
-        groups.setdefault((c.cell.cell, int(c.cell.k), int(c.cell.seed)), []).append(c)
-    for (celltype, k, seed), members in sorted(groups.items()):
-        if len(members) < 2:
-            continue                     # nothing to compare against; not a violation
-        for field, kind in (("input_hash", "cross_arm_input_hash"),
-                            ("assignment_hash", "cross_arm_assignment_hash")):
-            if kind.endswith("assignment_hash") and celltype == "zref":
-                continue                 # the unrotated block assigns nothing
+        key = (c.cell.cell, int(c.cell.k), int(c.cell.seed))
+        inputs.setdefault(key, []).append(c)
+        if c.cell.cell != "zref":        # the unrotated block assigns nothing
+            assignments.setdefault(key + (c.cell.rotate_deg,), []).append(c)
+    for groups, field, kind in ((inputs, "input_hash", "cross_arm_input_hash"),
+                                (assignments, "assignment_hash",
+                                 "cross_arm_assignment_hash")):
+        for key, members in sorted(groups.items(), key=lambda kv: str(kv[0])):
+            celltype, k, seed = key[0], key[1], key[2]
+            if len(members) < 2:
+                continue                 # nothing to compare against; not a violation
             seen = {}
             for c in members:
                 seen.setdefault(getattr(c, field), []).append(c.cell.arm)
@@ -255,9 +272,10 @@ def match_assignments(cells):
                 detail = "; ".join(
                     f"{(h or 'None')[:12]}: {sorted(arms)}" for h, arms in sorted(
                         seen.items(), key=lambda kv: (-len(kv[1]), str(kv[0]))))
+                angle = "" if len(key) < 4 or key[3] is None else f" @{V.fmt_deg(key[3])}°"
                 violations.append(Violation(
-                    kind=kind, scope=f"{celltype} K={k} s{seed}",
-                    detail=(f"{celltype} cells at K={k} seed {seed} disagree on "
+                    kind=kind, scope=f"{celltype}{angle} K={k} s{seed}",
+                    detail=(f"{celltype}{angle} cells at K={k} seed {seed} disagree on "
                             f"{field} — {detail}"),
                     blocks=(("cross_arm", k),)))
     paired = _by_cell(cells)
@@ -633,3 +651,802 @@ def endpoint_contrast(name, first, second, seeds, better="metric",
                           "favors_first": c.favors_first, "won": won}
     return {"name": name, "seeds": seeds, "alpha": alpha, "win_rule": win,
             "metrics": rows, "verdict": verdict([r["won"] for r in rows.values()])}
+
+
+# --------------------------------------------------------------------------- #
+# discovery: which registered cells actually landed
+# --------------------------------------------------------------------------- #
+class CellStore:
+    """Every registered cell, sorted into proven / absent / refused."""
+
+    def __init__(self, output_root, campaign, cells, missing, rejected):
+        self.output_root = output_root
+        self.campaign = campaign
+        self.cells = list(cells)
+        self.missing = list(missing)
+        self.rejected = list(rejected)
+        self.index = _by_cell(self.cells)
+
+    def get(self, arm, celltype, k, seed):
+        return self.index.get((arm, celltype, int(k), int(seed)))
+
+    def block(self, arm, celltype, k):
+        """The per-seed records of one (arm, cell type, K), seed-ordered."""
+        return [self.index[(arm, celltype, int(k), s)] for s in SEEDS
+                if (arm, celltype, int(k), s) in self.index]
+
+    def vctl(self, arm, deg):
+        for c in self.cells:
+            if (c.cell.cell == "vctl" and c.cell.arm == arm
+                    and float(c.cell.rotate_deg) == float(deg)):
+                return c
+        return None
+
+
+def collect_cells(output_root, campaign, grid=None, step=STEP):
+    """Read every registered cell that landed; refuse the rest, by name."""
+    cells, missing, rejected = [], [], []
+    ckpts = {}
+    for cell in (grid or expected_grid()):
+        if cell.arm not in ckpts:
+            ckpts[cell.arm] = V.checkpoint_path(output_root, cell.arm, step)
+        ckpt = ckpts[cell.arm]
+        if ckpt is None:
+            missing.append({"cell": V.eval_name(cell), "path": None,
+                            "reason": f"no unique step={step} checkpoint under "
+                                      f"{output_root}/exp11_{cell.arm}"})
+            continue
+        path = V.metrics_path(ckpt, cell)
+        if not os.path.isfile(path):
+            missing.append({"cell": V.eval_name(cell), "path": path,
+                            "reason": "not run yet"})
+            continue
+        data, reasons = load_cell(path, campaign)
+        if reasons:
+            rejected.append({"cell": V.eval_name(cell), "path": path, "reasons": reasons})
+        else:
+            cells.append(data)
+    return CellStore(output_root, campaign, cells, missing, rejected)
+
+
+# --------------------------------------------------------------------------- #
+# gates G1-G4 (executable, blocking) and G5 (a check, never a gate)
+# --------------------------------------------------------------------------- #
+GATE_NAMES = ("G1", "G2", "G3", "G4")
+CN_ARMS = tuple(a for a in ARM_ORDER if a != "VANL")
+
+
+def _z_std(store, arm, metric, k=8):
+    """σ̂ over the arm's five unrotated seeds at K — the gates' own yardstick."""
+    agg = aggregate_cell(store.block(arm, "zref", k))
+    if agg.status != "OK":
+        return None, agg
+    return agg.values[metric][1], agg
+
+
+def gate_g1(store, k=8, seed=42, tolerance=0.5):
+    """In-group floor: rotating a Cn arm by its OWN group angle must not move a
+    co-primary by more than half that arm's own five-seed spread (plan §4 G1)."""
+    failures, details, pending = [], [], []
+    for arm in CN_ARMS:
+        control = store.vctl(arm, 90.0)
+        reference = store.get(arm, "zref", k, seed)
+        if control is None or reference is None:
+            pending.append(f"{arm}: missing "
+                           + ("the 90° validity cell" if control is None
+                              else f"the unrotated seed-{seed} reference"))
+            continue
+        for metric in CO_PRIMARY:
+            sigma, agg = _z_std(store, arm, metric, k)
+            if sigma is None:
+                pending.append(f"{arm}: the K={k} unrotated block is {agg.status} "
+                               f"({agg.n}/5 seeds) — no σ̂, so no tolerance")
+                break
+            diff = abs(float(control.metrics[metric]) - float(reference.metrics[metric]))
+            bound = tolerance * sigma
+            row = {"arm": arm, "metric": metric, "diff": diff, "sigma": sigma,
+                   "bound": bound, "passed": diff <= bound}
+            details.append(row)
+            if not row["passed"]:
+                failures.append(f"{arm} {metric}: |Δ|={diff:.4f} > {tolerance}·σ̂="
+                                f"{bound:.4f} (σ̂={sigma:.4f})")
+    status = "PENDING" if pending else ("FAIL" if failures else "PASS")
+    return {"name": "G1", "status": status, "failures": failures, "pending": pending,
+            "details": details,
+            "definition": "|m(V@90°,s42,K8) − m(Z,s42,K8)| ≤ 0.5·σ̂(arm's 5 Z seeds)"}
+
+
+def gate_g2(store, k=8, seed=42, factor=5.0, metric="T60"):
+    """Positive control: VANL@90° must degrade far past VANL's own seed noise."""
+    control, reference = store.vctl("VANL", 90.0), store.get("VANL", "zref", k, seed)
+    if control is None or reference is None:
+        return {"name": "G2", "status": "PENDING",
+                "pending": ["VANL 90° validity cell or unrotated reference missing"],
+                "failures": [], "details": [],
+                "definition": "m_T60(VANL V@90°) − m_T60(VANL Z) ≥ 5·σ̂_T60(VANL)"}
+    sigma, agg = _z_std(store, "VANL", metric, k)
+    if sigma is None:
+        return {"name": "G2", "status": "PENDING",
+                "pending": [f"VANL K={k} unrotated block is {agg.status} ({agg.n}/5)"],
+                "failures": [], "details": [],
+                "definition": "m_T60(VANL V@90°) − m_T60(VANL Z) ≥ 5·σ̂_T60(VANL)"}
+    delta = float(control.metrics[metric]) - float(reference.metrics[metric])
+    bound = factor * sigma
+    passed = delta >= bound
+    return {"name": "G2", "status": "PASS" if passed else "FAIL",
+            "failures": ([] if passed else
+                         [f"VANL {metric}: degradation {delta:.4f} < {factor}·σ̂="
+                          f"{bound:.4f} — the harness is not detecting non-invariance"]),
+            "pending": [],
+            "details": [{"arm": "VANL", "metric": metric, "delta": delta,
+                         "sigma": sigma, "bound": bound, "passed": passed}],
+            "definition": "m_T60(VANL V@90°) − m_T60(VANL Z) ≥ 5·σ̂_T60(VANL)"}
+
+
+def gate_g3(store):
+    """Golden assignment: every rotated cell's offsets are RECOMPUTED here from
+    its rotation seed, so the gate proves the registered draw reached
+    ``rotate_scene_metadata`` — not that a stored sequence matches itself."""
+    failures, details = [], []
+    rgen = [c for c in store.cells if c.cell.cell == "rgen"]
+    if not rgen:
+        return {"name": "G3", "status": "PENDING", "failures": [],
+                "pending": ["no rotated (rgen) cell has landed yet"], "details": [],
+                "definition": "cell offsets == draw_yaw_offsets(n, 512, gen(rotate_seed))"}
+    for c in sorted(rgen, key=lambda c: (c.cell.arm, c.cell.k, c.cell.seed)):
+        want = golden_offsets(int(c.cell.seed), len(c.offsets), V.IMG_W)
+        ok = list(c.offsets) == want
+        details.append({"cell": V.eval_name(c.cell), "n": len(c.offsets), "passed": ok})
+        if not ok:
+            first = next((i for i, (a, b) in enumerate(zip(c.offsets, want)) if a != b),
+                         min(len(c.offsets), len(want)))
+            failures.append(f"{V.eval_name(c.cell)}: offsets differ from the seed-"
+                            f"{c.cell.seed} draw at position {first}")
+    return {"name": "G3", "status": "FAIL" if failures else "PASS", "failures": failures,
+            "pending": [], "details": details,
+            "definition": "cell offsets == draw_yaw_offsets(n, 512, gen(rotate_seed))"}
+
+
+def gate_g4(store):
+    """Assignment integrity: every plan §3.3 hash equality (see match_assignments)."""
+    violations = match_assignments(store.cells)
+    blocked = sorted({tuple(b) for v in violations for b in v.blocks})
+    return {"name": "G4", "status": "FAIL" if violations else "PASS",
+            "failures": [v.detail for v in violations], "pending": [],
+            "violations": [{"kind": v.kind, "scope": v.scope, "detail": v.detail,
+                            "blocks": [list(b) for b in v.blocks]} for v in violations],
+            "blocked_scopes": [list(b) for b in blocked],
+            "definition": "cross-arm input/assignment hashes equal within (K, seed); "
+                          "Z.input_hash == R.input_hash within (arm, K, seed)"}
+
+
+def exp11_conf_files(exp11_root, arm, k, step=STEP):
+    """exp_11's committed θ=0 conf rows for one (arm, K) — read-only, cross-pin."""
+    import glob as _glob
+    orbit = V.TRAIN_ORBIT[arm]
+    suffix = "" if orbit == 0 else f"_fa_invariant_a{orbit}"
+    pattern = os.path.join(
+        exp11_root, f"exp11_{arm}", f"FLAC_exp11_{arm}", f"exp11_{arm}", "checkpoints",
+        f"*step={step}_metrics_1_1.0_exp11_{arm}_conf_S{step}_s4[2-6]_K{k}{suffix}.json")
+    return sorted(_glob.glob(pattern))
+
+
+def gate_g5(store, exp11_root=None, k=8, metrics=CO_PRIMARY, factor=3.0):
+    """External reproduction — a CHECK, never a gate (plan §4 G5).
+
+    exp_14 re-measures θ=0 at ITS OWN pin; exp_11's committed conf rows were
+    measured at another one. A discrepancy is worth disclosing, and is worth
+    nothing as a halt: the two are not the same measurement.
+    """
+    root = exp11_root or store.output_root
+    rows, notes = [], []
+    for arm in CN_ARMS:
+        files = exp11_conf_files(root, arm, k)
+        if len(files) < len(SEEDS):
+            notes.append(f"{arm}: {len(files)}/5 exp_11 conf rows found under {root}")
+            continue
+        ours = aggregate_cell(store.block(arm, "zref", k))
+        if ours.status != "OK":
+            notes.append(f"{arm}: exp_14 Z block at K={k} is {ours.status}")
+            continue
+        for metric in metrics:
+            theirs = []
+            for path in files:
+                try:
+                    with open(path) as fh:
+                        theirs.append(float(json.load(fh)["metrics"][metric]))
+                except (ValueError, OSError, KeyError, TypeError) as exc:
+                    notes.append(f"{arm}: unreadable exp_11 row {path} ({exc})")
+                    theirs = []
+                    break
+            if len(theirs) != len(SEEDS):
+                continue
+            m11, s11 = st.mean(theirs), st.stdev(theirs)
+            m14, s14 = ours.values[metric]
+            bound = factor * math.sqrt(s11 ** 2 + s14 ** 2) / math.sqrt(len(SEEDS))
+            rows.append({"arm": arm, "metric": metric, "exp11_mean": m11,
+                         "exp11_std": s11, "exp14_mean": m14, "exp14_std": s14,
+                         "diff": m14 - m11, "bound": bound,
+                         "beyond": abs(m14 - m11) > bound})
+    return {"name": "G5", "status": "CHECK" if rows else "UNAVAILABLE", "rows": rows,
+            "notes": notes, "gates": False,
+            "definition": "exp_14 Z vs exp_11 conf @40k; disclose |Δ| > 3·√(σ11²+σ14²)/√5 "
+                          "(cross-pin: reported, never a halt)"}
+
+
+def evaluate_gates(store, exp11_root=None):
+    """G1–G4 (blocking) plus the G5 check, with the scopes G4 blocks."""
+    report = {"gate_names": GATE_NAMES}
+    report["G1"] = gate_g1(store)
+    report["G2"] = gate_g2(store)
+    report["G3"] = gate_g3(store)
+    report["G4"] = gate_g4(store)
+    report["G5"] = gate_g5(store, exp11_root=exp11_root)
+    # "Not evaluated" may never read as "passed": a PENDING gate suppresses the
+    # H-readouts exactly like a failing one, and says which it was.
+    report["all_passed"] = all(report[g]["status"] == "PASS" for g in GATE_NAMES)
+    report["blocked_scopes"] = report["G4"]["blocked_scopes"]
+    report["summary"] = ", ".join(f"{g}={report[g]['status']}" for g in GATE_NAMES)
+    return report
+
+
+# --------------------------------------------------------------------------- #
+# results: what the campaign says, and what it refuses to say
+# --------------------------------------------------------------------------- #
+# The per-seed observation, disclosed in the output itself. Plan §4 names a
+# PER-SCENE mean; the campaign's model configs do not set
+# ``training.metrics.eval_per_scene``, so no exp_11/exp_14 metrics JSON carries a
+# ``by_scene`` block and a per-scene mean is not recoverable from the committed
+# artifacts. Every arm, cell and seed is aggregated identically, so the paired and
+# cross-arm contrasts are unaffected; only the absolute levels are item-weighted
+# rather than scene-weighted — the same convention model_comparison.md publishes.
+AGGREGATION = {
+    "observation": "split-level aggregate from each cell's own metrics record",
+    "plan_convention": "per-scene mean (plan §4)",
+    "deviation": ("no metrics JSON in this lineage carries a by_scene block "
+                  "(eval_per_scene is not set in the arm configs), so the per-scene "
+                  "mean is not recoverable from the committed artifacts; all cells "
+                  "are aggregated identically, so paired and cross-arm contrasts are "
+                  "unaffected and only absolute levels are item- not scene-weighted"),
+}
+RESULTS_SCHEMA_VERSION = 1
+ADJACENT_PAIRS = tuple(zip(ARM_ORDER[1:], ARM_ORDER[:-1]))   # (later, earlier)
+
+
+def suppress_validity_cells(rows):
+    """The V block is QA (plan §3.1) — it never appears in a headline table."""
+    out = []
+    for row in rows:
+        celltype = (row.get("cell_type") if isinstance(row, dict)
+                    else getattr(row.cell, "cell", None))
+        if celltype != "vctl":
+            out.append(row)
+    return out
+
+
+def _block(agg, arm, k, blocked_reason=None):
+    row = {"arm": arm, "K": int(k), "status": agg.status, "n": agg.n,
+           "seeds": list(agg.seeds), "reasons": list(agg.reasons),
+           "values": {m: [v[0], v[1]] for m, v in agg.values.items()},
+           "per_seed": {m: {str(s): v for s, v in d.items()}
+                        for m, d in agg.per_seed.items()}}
+    if blocked_reason:
+        row.update({"status": "BLOCKED", "values": {}, "per_seed": {},
+                    "reasons": [blocked_reason]})
+    return row
+
+
+def _pending_note(agg):
+    return f"{agg.n}/{len(SEEDS)} seeds"
+
+
+def build_results(store, gates=None, generated_at=None, exp11_root=None, alpha=ALPHA):
+    """Everything the campaign supports, and a named reason for everything it does not."""
+    import datetime
+    gates = gates or evaluate_gates(store, exp11_root=exp11_root)
+    blocked = {tuple(b) for b in gates["blocked_scopes"]}
+    results = {
+        "schema_version": RESULTS_SCHEMA_VERSION,
+        "generated_at": generated_at or datetime.datetime.now().astimezone().isoformat(
+            timespec="seconds"),
+        "campaign": {"pin": store.campaign.pin, "output_root": store.output_root,
+                     "expected_count": store.campaign.expected_count, "step": STEP,
+                     "alpha": alpha, "stats_backend": STATS_BACKEND,
+                     "arm_order": list(ARM_ORDER), "seeds": list(SEEDS),
+                     "co_primary": list(CO_PRIMARY)},
+        "aggregation": dict(AGGREGATION),
+        "gates": gates,
+    }
+    counts = {"random-yaw (R)": 0, "unrotated (Z)": 0, "validity (V)": 0}
+    label = {"rgen": "random-yaw (R)", "zref": "unrotated (Z)", "vctl": "validity (V)"}
+    for c in store.cells:
+        counts[label[c.cell.cell]] += 1
+    results["inventory"] = {
+        "registered": len(expected_grid()), "valid": len(store.cells), "counts": counts,
+        "missing": store.missing, "rejected": store.rejected}
+
+    # --- absolute blocks, per arm and K -------------------------------------
+    aggs = {}
+    for kind, celltype in (("R", "rgen"), ("Z", "zref")):
+        results.setdefault("blocks", {})[kind] = {}
+        for arm in ARM_ORDER:
+            results["blocks"][kind][arm] = {}
+            for k in KS:
+                agg = aggregate_cell(store.block(arm, celltype, k))
+                aggs[(kind, arm, k)] = agg
+                results["blocks"][kind][arm][str(k)] = _block(agg, arm, k)
+
+    # --- paired degradation, per arm and K ----------------------------------
+    results["paired"] = {}
+    deltas = {}
+    for arm in ARM_ORDER:
+        results["paired"][arm] = {}
+        for k in KS:
+            z, r = aggs[("Z", arm, k)], aggs[("R", arm, k)]
+            pairs, problems = pair_seeds(store.block(arm, "zref", k),
+                                         store.block(arm, "rgen", k))
+            entry = {"arm": arm, "K": int(k), "metrics": {}, "abs_metrics": {},
+                     "reasons": list(problems)}
+            if ("paired", arm, int(k)) in blocked:
+                entry["status"] = "BLOCKED"
+                entry["reasons"].append("Z and R are not a matched pair at this "
+                                        "(arm, K) — see gate G4")
+            elif z.status != "OK" or r.status != "OK" or len(pairs) != len(SEEDS):
+                entry["status"] = "PENDING"
+                entry["reasons"] += [f"Z block {z.status} ({z.n}/5)",
+                                     f"R block {r.status} ({r.n}/5)"]
+            else:
+                entry["status"] = "OK"
+                for metric in HEADLINE_METRICS + CONFOUNDED_METRICS:
+                    if metric not in z.values or metric not in r.values:
+                        continue
+                    per_seed = {s: r.per_seed[metric][s] - z.per_seed[metric][s]
+                                for s in SEEDS}
+                    res = paired_t_ci(list(per_seed.values()), alpha=alpha)
+                    entry["metrics"][metric] = {
+                        "mean": res.mean, "lo": res.lo, "hi": res.hi, "t": res.t,
+                        "p": res.p, "df": res.df,
+                        "per_seed": {str(s): v for s, v in per_seed.items()}}
+                    entry["abs_metrics"][metric] = {
+                        "per_seed": {str(s): abs(v) for s, v in per_seed.items()},
+                        "mean": st.mean(abs(v) for v in per_seed.values())}
+                    deltas[(arm, int(k), metric)] = per_seed
+            results["paired"][arm][str(k)] = entry
+
+    # --- the labelled hypotheses (plan §4) ----------------------------------
+    results["hypotheses"] = _hypotheses(results, aggs, deltas, gates, blocked, alpha, k=8)
+    results["hypotheses_K1"] = _hypotheses(results, aggs, deltas, gates, blocked, alpha,
+                                           k=1, descriptive=True)
+    results["adjacent"] = _adjacent(aggs, deltas, blocked, alpha)
+    results["geometry_retrieval"] = {
+        "disclosure": ("rotated-gallery retrieval: in an R cell the gallery embeds the "
+                       "ROTATED point cloud through a non-yaw-invariant AGREE, so these "
+                       "numbers mix model robustness with AGREE's own yaw sensitivity. "
+                       "Cross-arm comparisons stay internally valid (the galleries are "
+                       "rotation-matched) but the level is confounded — descriptive only, "
+                       "never a headline or a co-primary."),
+        "metrics": list(CONFOUNDED_METRICS),
+        "blocks": {kind: {arm: {str(k): {
+            "status": aggs[(kind, arm, k)].status,
+            "values": {m: list(aggs[(kind, arm, k)].values[m])
+                       for m in CONFOUNDED_METRICS if m in aggs[(kind, arm, k)].values}}
+            for k in KS} for arm in ARM_ORDER} for kind in ("R", "Z")},
+    }
+    results["validity_cells"] = _validity_cells(store)
+    return results
+
+
+def _hypotheses(results, aggs, deltas, gates, blocked, alpha, k=8, descriptive=False):
+    """H-P / H-M / H-S at one K. Numbers exist only when the gates let them."""
+    out = {"K": int(k), "descriptive": bool(descriptive),
+           "suppressed": not gates["all_passed"],
+           "suppression_reason": ("" if gates["all_passed"] else
+                                  f"gates did not pass ({gates['summary']}); plan §4: "
+                                  "H-readouts render only when G1–G4 pass")}
+
+    def _status(needs_cross_arm, arms):
+        if needs_cross_arm and ("cross_arm", int(k)) in blocked:
+            return "BLOCKED", ("arms are not rotation-matched at K="
+                               f"{k} — see gate G4")
+        for arm in arms:
+            if ("paired", arm, int(k)) in blocked:
+                return "BLOCKED", f"{arm}: Z and R are not a matched pair at K={k}"
+        for arm in arms:
+            if aggs[("R", arm, k)].status != "OK":
+                return "PENDING", (f"{arm} R block at K={k} is "
+                                   f"{aggs[('R', arm, k)].status} "
+                                   f"({aggs[('R', arm, k)].n}/5 seeds)")
+            if aggs[("Z", arm, k)].status != "OK":
+                return "PENDING", (f"{arm} Z block at K={k} is "
+                                   f"{aggs[('Z', arm, k)].status} "
+                                   f"({aggs[('Z', arm, k)].n}/5 seeds)")
+        if not gates["all_passed"]:
+            return "SUPPRESSED", out["suppression_reason"]
+        return "OK", ""
+
+    def _per_seed(kind, arm):
+        return {m: {s: aggs[(kind, arm, k)].per_seed[m][s] for s in SEEDS}
+                for m in CO_PRIMARY if m in aggs[(kind, arm, k)].per_seed}
+
+    def _abs_delta(arm):
+        return {m: {s: abs(deltas[(arm, int(k), m)][s]) for s in SEEDS}
+                for m in CO_PRIMARY if (arm, int(k), m) in deltas}
+
+    def _delta(arm):
+        return {m: dict(deltas[(arm, int(k), m)]) for m in CO_PRIMARY
+                if (arm, int(k), m) in deltas}
+
+    # H-P (PRIMARY): absolute robustness, C32 vs VANL
+    label = "H-P (PRIMARY): m_R(C32) vs m_R(VANL)"
+    status, why = _status(True, ("C32", "VANL"))
+    out["H-P"] = {"name": label, "status": status, "reason": why, "K": int(k)}
+    if status == "OK":
+        out["H-P"].update(endpoint_contrast(
+            label, _per_seed("R", "C32"), _per_seed("R", "VANL"), SEEDS,
+            better="metric", alpha=alpha))
+    # H-M (mechanism): flatness, |Δ|(C32) vs |Δ|(C4L)
+    label = "H-M (mechanism): |Δ|(C32) vs |Δ|(C4L)"
+    status, why = _status(True, ("C32", "C4L"))
+    out["H-M"] = {"name": label, "status": status, "reason": why, "K": int(k)}
+    if status == "OK":
+        out["H-M"].update(endpoint_contrast(
+            label, _abs_delta("C32"), _abs_delta("C4L"), SEEDS, better="lower",
+            alpha=alpha))
+        side, why_side = _status(True, ("VANL", "C4L"))
+        if side == "OK":
+            out["H-M"]["alongside"] = endpoint_contrast(
+                "|Δ|(VANL) vs |Δ|(C4L)", _abs_delta("VANL"), _abs_delta("C4L"), SEEDS,
+                better="lower", alpha=alpha)
+    # H-S (sanity): vanilla is not yaw-robust
+    label = "H-S (sanity): Δ(VANL) ≠ 0"
+    status, why = _status(False, ("VANL",))
+    out["H-S"] = {"name": label, "status": status, "reason": why, "K": int(k)}
+    if status == "OK":
+        zero = {m: {s: 0.0 for s in SEEDS} for m in CO_PRIMARY}
+        out["H-S"].update(endpoint_contrast(label, _delta("VANL"), zero, SEEDS,
+                                            better="metric", alpha=alpha, win="nonzero"))
+    return out
+
+
+def _adjacent(aggs, deltas, blocked, alpha):
+    """Adjacent contrasts in the FIXED plan order — descriptive, never a verdict."""
+    out = {"order": list(ARM_ORDER),
+           "note": ("fixed-order adjacent contrasts on the plan's arm order, unadjusted "
+                    "and descriptive: no verdict attaches to them and the observed "
+                    "ranking is never turned into a confirmatory test"),
+           "absolute": [], "abs_delta": []}
+    for k in KS:
+        for later, earlier in ADJACENT_PAIRS:
+            for metric in CO_PRIMARY:
+                row = {"pair": f"{earlier}→{later}", "K": int(k), "metric": metric}
+                if ("cross_arm", int(k)) in blocked:
+                    row["status"] = "BLOCKED"
+                    row["reason"] = f"arms are not rotation-matched at K={k} (gate G4)"
+                    out["absolute"].append(dict(row))
+                    out["abs_delta"].append(dict(row))
+                    continue
+                a, b = aggs[("R", later, k)], aggs[("R", earlier, k)]
+                if a.status != "OK" or b.status != "OK" or metric not in a.per_seed:
+                    row["status"] = "PENDING"
+                    row["reason"] = f"{a.n}/5 and {b.n}/5 seeds on disk"
+                    out["absolute"].append(dict(row))
+                    out["abs_delta"].append(dict(row))
+                    continue
+                c = contrast(metric, [a.per_seed[metric][s] - b.per_seed[metric][s]
+                                      for s in SEEDS], better="metric", alpha=alpha)
+                out["absolute"].append(dict(row, status="OK", mean=c.mean, lo=c.lo,
+                                            hi=c.hi, p=c.p))
+                if (later, int(k), metric) in deltas and (earlier, int(k), metric) in deltas:
+                    d = contrast(metric,
+                                 [abs(deltas[(later, int(k), metric)][s])
+                                  - abs(deltas[(earlier, int(k), metric)][s])
+                                  for s in SEEDS], better="lower", alpha=alpha)
+                    out["abs_delta"].append(dict(row, status="OK", mean=d.mean, lo=d.lo,
+                                                 hi=d.hi, p=d.p))
+                else:
+                    out["abs_delta"].append(dict(row, status="PENDING",
+                                                 reason="paired Δ unavailable"))
+    return out
+
+
+def _validity_cells(store):
+    """The six V cells, with their own unrotated reference — QA, never headline."""
+    rows = []
+    for arm, deg in V.VCTL_TUPLES:
+        cell = store.vctl(arm, deg)
+        reference = store.get(arm, "zref", 8, 42)
+        row = {"arm": arm, "rotate_deg": float(deg), "role": (
+            "positive control (exp_02 prior: vanilla degrades)" if arm == "VANL"
+            else "in-group floor (G1)" if float(deg) == 90.0
+            else "off-group mechanism control — NO gate role")}
+        if cell is None:
+            row["status"] = "MISSING"
+        else:
+            row["status"] = "OK"
+            row["metrics"] = {m: cell.metrics.get(m) for m in CO_PRIMARY}
+            if reference is not None:
+                row["vs_unrotated"] = {m: cell.metrics.get(m, 0.0)
+                                       - reference.metrics.get(m, 0.0)
+                                       for m in CO_PRIMARY}
+        rows.append(row)
+    return rows
+
+
+# --------------------------------------------------------------------------- #
+# rendering
+# --------------------------------------------------------------------------- #
+def _arrow(metric):
+    return "↓" if metric_direction(metric) == "lower" else "↑"
+
+
+def _num(value, digits=3):
+    return f"{value:.{digits}f}"
+
+
+def _md_row(cells):
+    """One markdown row. An EMPTY cell renders as ``| |`` — the columns a refusal
+    leaves unfilled must look unfilled, not like a cell someone forgot to read.
+
+    Pipes inside a cell are escaped: G1's definition is literally
+    ``|m(V@90°) − m(Z)| ≤ 0.5·σ̂``, and unescaped those four bars would split the
+    row into extra columns and silently mangle the gate table.
+    """
+    out = []
+    for c in cells:
+        text = str(c).replace("|", "\\|")
+        out.append(f" {text} " if text != "" else " ")
+    return "|" + "|".join(out) + "|"
+
+
+def render_block_table(rows, metrics):
+    """One markdown table of per-arm blocks. PENDING and BLOCKED occupy the first
+    metric column and leave the rest empty — there is no cell in which a number
+    could be mistaken for a measured one."""
+    head = ["arm", "K", "n"] + [f"{m} {_arrow(m)}" for m in metrics]
+    out = [_md_row(head), "|" + "---|" * len(head)]
+    for row in rows:
+        arm, k, status = row["arm"], row["K"], row["status"]
+        if status == "OK":
+            cells = [_num(row["values"][m][0]) + " ± " + _num(row["values"][m][1])
+                     if m in row["values"] else "" for m in metrics]
+            out.append(_md_row([arm, k, row["n"]] + cells))
+            continue
+        reason = (row.get("reasons") or [""])[0]
+        if status == "PENDING":
+            note = f"*PENDING ({row['n']}/{len(SEEDS)} seeds)*"
+            count = "—"
+        else:
+            note = f"**BLOCKED — {reason}**"
+            count = str(row["n"])
+        out.append(_md_row([arm, k, count, note] + [""] * (len(metrics) - 1)))
+    return "\n".join(out) + "\n"
+
+
+def render_gate_report(gates):
+    """The gate table plus one line per failure or pending reason."""
+    out = [_md_row(["gate", "status", "definition"]), "|---|---|---|"]
+    notes = []
+    for name in gates["gate_names"]:
+        g = gates[name]
+        out.append(_md_row([name, g["status"], g.get("definition", "")]))
+        for line in list(g.get("failures") or []) + list(g.get("pending") or []):
+            notes.append(f"**{name} {g['status']}** — {line}")
+    if notes:
+        out += [""] + notes
+    return "\n".join(out) + "\n"
+
+
+def _rows_for(results, kind, k):
+    return [results["blocks"][kind][arm][str(k)] for arm in ARM_ORDER]
+
+
+def _delta_rows(results, k):
+    rows = []
+    for arm in ARM_ORDER:
+        entry = results["paired"][arm][str(k)]
+        row = {"arm": arm, "K": int(k), "status": entry["status"],
+               "n": len(entry.get("metrics", {}) and SEEDS or []),
+               "reasons": entry.get("reasons", []), "values": {}}
+        if entry["status"] == "OK":
+            row["n"] = len(SEEDS)
+            row["values"] = {m: [v["mean"], (v["hi"] - v["lo"]) / 2.0]
+                             for m, v in entry["metrics"].items()}
+        rows.append(row)
+    return rows
+
+
+def _render_hypothesis(entry):
+    """One labelled hypothesis: its co-primaries with Holm-adjusted p, or the
+    named reason there is nothing to print."""
+    out = [f"**{entry['name']}** (K={entry['K']})"]
+    if entry["status"] != "OK":
+        out.append(f"- {entry['status']} — {entry.get('reason') or 'no reason recorded'}")
+        return "\n".join(out) + "\n"
+    out += ["", "| metric | mean Δ | 95% CI | p | p (Holm) | favours first | won |",
+            "|---|---|---|---|---|---|---|"]
+    for metric, row in entry["metrics"].items():
+        out.append(f"| {metric} | {_num(row['mean'], 4)} | "
+                   f"[{_num(row['lo'], 4)}, {_num(row['hi'], 4)}] | {row['p']:.4g} | "
+                   f"{row['p_holm']:.4g} | {'yes' if row['favors_first'] else 'no'} | "
+                   f"{'yes' if row['won'] else 'no'} |")
+    out += ["", f"**Verdict: {entry['verdict']}**"]
+    if "alongside" in entry:
+        side = entry["alongside"]
+        out.append(f"- alongside — {side['name']}: verdict {side['verdict']}")
+    return "\n".join(out) + "\n"
+
+
+def _render_adjacent(rows, title):
+    out = [f"*{title}*", "",
+           "| pair | K | metric | mean Δ | 95% CI | p |", "|---|---|---|---|---|---|"]
+    for row in rows:
+        if row["status"] != "OK":
+            out.append(f"| {row['pair']} | {row['K']} | {row['metric']} | "
+                       f"{row['status']} — {row.get('reason', '')} | | |")
+            continue
+        out.append(f"| {row['pair']} | {row['K']} | {row['metric']} | "
+                   f"{_num(row['mean'], 4)} | [{_num(row['lo'], 4)}, "
+                   f"{_num(row['hi'], 4)}] | {row['p']:.4g} |")
+    return "\n".join(out) + "\n"
+
+
+def render_tables(results):
+    """The whole readout, in the plan's order, with every refusal visible."""
+    camp = results["campaign"]
+    gates = results["gates"]
+    out = ["# exp_14 — random-yaw generalization: collected readouts", "",
+           f"Generated {results['generated_at']} by `yaw_gen_collect.py` — every cell is "
+           "re-validated from its own artifacts on each run; numbers never live in this file.",
+           "",
+           f"- campaign pin `{camp['pin']}` · step {camp['step']} · seeds {camp['seeds']} "
+           f"· α={camp['alpha']} · stats backend: {camp['stats_backend']}",
+           f"- co-primary metrics: {', '.join(camp['co_primary'])} "
+           "(Holm over the two, within each labelled hypothesis)",
+           f"- per-seed observation: {results['aggregation']['observation']}. "
+           f"Plan convention: {results['aggregation']['plan_convention']} — "
+           f"DEVIATION: {results['aggregation']['deviation']}.",
+           "",
+           "## 1. Cell inventory", ""]
+    inv = results["inventory"]
+    out += [f"- registered {inv['registered']} · validated {inv['valid']} · "
+            f"missing {len(inv['missing'])} · refused {len(inv['rejected'])}",
+            "- " + " · ".join(f"{k}: {v}" for k, v in inv["counts"].items()), "",
+            "## 2. Validity gates (G1–G4) and the G5 check", "",
+            render_gate_report(gates), ""]
+    g5 = gates["G5"]
+    out += [f"*G5 (external reproduction — a CHECK, never a gate): {g5['status']}.* "
+            f"{g5['definition']}", ""]
+    if g5["rows"]:
+        out += ["| arm | metric | exp_11 conf | exp_14 Z | Δ | 3σ bound | beyond |",
+                "|---|---|---|---|---|---|---|"]
+        for row in g5["rows"]:
+            out.append(f"| {row['arm']} | {row['metric']} | "
+                       f"{_num(row['exp11_mean'])} ± {_num(row['exp11_std'])} | "
+                       f"{_num(row['exp14_mean'])} ± {_num(row['exp14_std'])} | "
+                       f"{_num(row['diff'], 4)} | {_num(row['bound'], 4)} | "
+                       f"{'YES' if row['beyond'] else 'no'} |")
+        out.append("")
+    for note in g5["notes"]:
+        out.append(f"- {note}")
+    out += ["", "## 3. Absolute robustness m_R (the PRIMARY criterion)", ""]
+    for k in KS:
+        out += [f"**K={k}** ({'confirmatory' if k == 8 else 'descriptive'})", "",
+                render_block_table(_rows_for(results, "R", k), HEADLINE_METRICS), ""]
+        if ("cross_arm", int(k)) in {tuple(b) for b in gates["blocked_scopes"]}:
+            out += [f"> **Cross-arm comparison at K={k} is BLOCKED** — the arms are not "
+                    "rotation-matched (gate G4). The per-arm levels above stand; no "
+                    "contrast between them may be read.", ""]
+    out += ["## 4. Paired degradation Δ = m_R − m_Z (mean over 5 seed-paired diffs, ±½·95% CI)", ""]
+    for k in KS:
+        out += [f"**K={k}**", "", render_block_table(_delta_rows(results, k),
+                                                     HEADLINE_METRICS), ""]
+    out += ["## 5. Endpoint contrasts (H-P / H-M / H-S)", ""]
+    hyp = results["hypotheses"]
+    if hyp["suppressed"]:
+        out += [f"> **SUPPRESSED — {hyp['suppression_reason']}.** No verdict is printed "
+                "below; fix the gate, do not read past it.", ""]
+    for name in ("H-P", "H-M", "H-S"):
+        out += [_render_hypothesis(hyp[name]), ""]
+    out += ["*K=1 (descriptive repeat):*", ""]
+    for name in ("H-P", "H-M", "H-S"):
+        entry = results["hypotheses_K1"][name]
+        verdict_text = entry.get("verdict", entry["status"])
+        out.append(f"- {entry['name']} → {verdict_text}"
+                   + ("" if entry["status"] == "OK" else f" ({entry.get('reason', '')})"))
+    adj = results["adjacent"]
+    out += ["", "## 6. Adjacent fixed-order contrasts", "", f"{adj['note']}", "",
+            _render_adjacent(adj["absolute"], "absolute m_R, fixed order "
+                             + "→".join(ARM_ORDER)), "",
+            _render_adjacent(adj["abs_delta"], "|Δ| (flatness), same fixed order"), "",
+            "## 7. Geometry retrieval (rotated-gallery, confounded — descriptive only)",
+            "", results["geometry_retrieval"]["disclosure"], ""]
+    geom = results["geometry_retrieval"]
+    out += ["| block | arm | K | " + " | ".join(CONFOUNDED_METRICS) + " |",
+            "|---|---|---|" + "---|" * len(CONFOUNDED_METRICS)]
+    for kind in ("R", "Z"):
+        for arm in ARM_ORDER:
+            for k in KS:
+                cell = geom["blocks"][kind][arm][str(k)]
+                if cell["status"] != "OK":
+                    out.append(f"| {kind} | {arm} | {k} | *{cell['status']}* | | |")
+                    continue
+                vals = " | ".join(_num(cell["values"][m][0]) + " ± "
+                                  + _num(cell["values"][m][1])
+                                  if m in cell["values"] else ""
+                                  for m in CONFOUNDED_METRICS)
+                out.append(f"| {kind} | {arm} | {k} | {vals} |")
+    out += ["", "## 8. Validity cells (V) — QA only, never a headline", "",
+            "| arm | angle | role | status | Δ vs unrotated (co-primaries) |",
+            "|---|---|---|---|---|"]
+    for row in results["validity_cells"]:
+        delta = row.get("vs_unrotated") or {}
+        detail = ", ".join(f"{m}: {_num(v, 4)}" for m, v in delta.items()) or "—"
+        out.append(f"| {row['arm']} | {_num(row['rotate_deg'], 0)}° | {row['role']} | "
+                   f"{row['status']} | {detail} |")
+    out += ["", "## 9. Refused and missing cells", ""]
+    if not inv["rejected"]:
+        out.append("- no cell was refused.")
+    for row in inv["rejected"]:
+        out.append(f"- **REFUSED** `{row['cell']}` — " + "; ".join(row["reasons"]))
+    missing = inv["missing"]
+    out.append(f"- {len(missing)} registered cell(s) have not landed"
+               + (": " + ", ".join(sorted(m["cell"] for m in missing[:12]))
+                  + (" …" if len(missing) > 12 else "") if missing else "."))
+    return "\n".join(out) + "\n"
+
+
+# --------------------------------------------------------------------------- #
+# CLI
+# --------------------------------------------------------------------------- #
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--output-root", required=True,
+                    help="the tree holding exp11_<ARM>/… run directories")
+    ap.add_argument("--pin", required=True,
+                    help="the campaign pin (source commit sha) every cell must carry")
+    ap.add_argument("--ckpt-expect", default=V.CKPT_EXPECT,
+                    help="audited arm -> checkpoint sha256 map (exp14_ckpt_expect.json)")
+    ap.add_argument("--expected-count", type=int, default=V.EXPECTED_COUNT)
+    ap.add_argument("--exp11-root", default=None,
+                    help="where exp_11's committed conf rows live (G5 check only)")
+    ap.add_argument("--out", default=None, help="markdown output (default: stdout)")
+    ap.add_argument("--json", dest="json_out", default=None, help="JSON bundle output")
+    args = ap.parse_args(argv)
+    try:
+        campaign = CampaignExpectation.from_files(args.pin, args.ckpt_expect,
+                                                  expected_count=args.expected_count)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    store = collect_cells(args.output_root, campaign)
+    results = build_results(store, exp11_root=args.exp11_root)
+    text = render_tables(results)
+    if args.out:
+        with open(args.out, "w") as fh:
+            fh.write(text)
+        print(f"wrote {args.out}")
+    else:
+        print(text)
+    if args.json_out:
+        with open(args.json_out, "w") as fh:
+            json.dump(results, fh, indent=2)
+        print(f"wrote {args.json_out}")
+    # The exit code is what a wrapper reads, so 0 must mean "the campaign produced
+    # its readouts" — not merely "the collector ran". A gate failure and an
+    # incomplete grid are different problems and get different codes.
+    gates = results["gates"]
+    if not gates["all_passed"]:
+        print(f"gates did not pass ({gates['summary']}): H-readouts are SUPPRESSED",
+              file=sys.stderr)
+        return 3
+    unfinished = {n: results["hypotheses"][n]["status"] for n in ("H-P", "H-M", "H-S")
+                  if results["hypotheses"][n]["status"] != "OK"}
+    if unfinished:
+        print(f"gates passed, but the readouts are not complete: {unfinished}",
+              file=sys.stderr)
+        return 4
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
