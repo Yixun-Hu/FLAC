@@ -2,3 +2,6 @@
 
 - `0a0cd23` — exp_16 scaffold: query, env-survey worklog, plan Rev 1; CLAUDE.md /init refresh.
 - (this commit) — plan review round 1 (Opus 5 fallback, REVISE) + plan Rev 2 + worklog entry.
+- `81a3c44` — .gitignore: `/models` + `/AcousticRooms` (symlink-matching rules).
+- `f69a3f8` — TDD red: `test_vit_local_resolution.py` (8 tests).
+- `dacd4d1` — TDD green: `resolve_vit_model_path` + provenance logging + call-site wiring.
