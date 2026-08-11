@@ -12,7 +12,7 @@ Used both by the standalone rotation-invariance diagnostic and by ``eval_FLAC.py
 (via its optional ``--rotate-deg`` flag).
 """
 import math
-from typing import Dict, Tuple
+from typing import Dict, List, Sequence, Tuple
 
 import torch
 
@@ -68,6 +68,88 @@ def wrap_angle(phi):
         The wrapped angle(s) in ``(-pi, pi]``, same type as the input.
     """
     return math.pi - (math.pi - phi) % (2.0 * math.pi)
+
+
+def draw_yaw_offsets(n: int, img_w: int, generator: torch.Generator) -> torch.Tensor:
+    """
+    Draw ``n`` independent panorama-column yaw offsets ``d ~ Uniform{0..img_w-1}``.
+
+    The unit of a *drawn* rotation is one panorama column, never a degree: an
+    integer column shift is applied by :func:`rotate_scene_metadata` with no
+    interpolation, so the offset that is recorded is exactly the offset that is
+    applied (``dj == d``; pinned by test). Angles come from
+    :func:`offsets_to_radians`.
+
+    The draw is taken from the CALLER'S generator and from nothing else. Two
+    properties follow, and both are load-bearing for exp_14's design:
+
+    * **Global-RNG isolation.** The evaluation's own sampling noise is drawn from
+      the global RNG seeded by ``pl.seed_everything(eval_seed)``. If the yaw draw
+      advanced that stream, a rotated cell and its paired unrotated cell would
+      sample different diffusion noise and the seed-paired contrast would be void.
+    * **Chunk independence.** Consecutive calls consume one contiguous stream, so
+      any batch partition of the same item order yields the same per-item
+      assignment; the batch size is pinned anyway, but the assignment does not
+      depend on that pin holding.
+
+    Parameters
+    ----------
+    n : int
+        Number of offsets (e.g. the current batch size). ``0`` is legal — a tail
+        batch of zero items consumes no randomness.
+    img_w : int
+        Panorama width in columns (the support is ``{0, ..., img_w-1}``).
+    generator : torch.Generator
+        A dedicated CPU generator, seeded with the rotation seed. Required: a
+        ``None`` here would silently fall back to the global RNG.
+
+    Returns
+    -------
+    torch.Tensor
+        ``int64`` tensor of shape ``[n]`` with values in ``[0, img_w)``.
+    """
+    if generator is None:
+        raise ValueError(
+            "draw_yaw_offsets requires a dedicated torch.Generator: passing None "
+            "would draw from the GLOBAL RNG and perturb the evaluation's own "
+            "sampling noise (see the docstring)."
+        )
+    n = int(n)
+    img_w = int(img_w)
+    if n < 0:
+        raise ValueError(f"n must be >= 0, got {n}")
+    if img_w <= 0:
+        raise ValueError(f"img_w must be > 0, got {img_w}")
+    return torch.randint(0, img_w, (n,), generator=generator, dtype=torch.long)
+
+
+def offsets_to_radians(offsets: Sequence, img_w: int) -> List[float]:
+    """
+    Convert panorama-column offsets to yaw angles in radians: ``d * 2*pi / img_w``.
+
+    Exact by construction on the column grid — :func:`rotate_scene_metadata`
+    re-quantises the angle back to ``round(alpha * img_w / 2pi) % img_w`` and
+    recovers the same ``d`` for every offset in the support (pinned by test), so
+    the recorded offset and the applied rotation can never disagree.
+
+    Parameters
+    ----------
+    offsets : Sequence
+        Column offsets: a ``torch.Tensor``, list, or any iterable of integers.
+    img_w : int
+        Panorama width in columns.
+
+    Returns
+    -------
+    List[float]
+        One angle in radians per offset, in the input order.
+    """
+    img_w = int(img_w)
+    if img_w <= 0:
+        raise ValueError(f"img_w must be > 0, got {img_w}")
+    if isinstance(offsets, torch.Tensor):
+        offsets = offsets.tolist()
+    return [float(int(d)) * 2.0 * math.pi / float(img_w) for d in offsets]
 
 
 def cylindrical_pose_features(
