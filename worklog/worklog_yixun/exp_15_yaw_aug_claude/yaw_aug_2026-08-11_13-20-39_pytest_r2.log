@@ -1,0 +1,142 @@
+EEFFF.                                                                   [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_arm_config_is_the_control_plus_exactly_one_insertion __
+
+    @pytest.fixture(scope="module")
+    def arm_text():
+>       assert ARM_CONFIG.is_file(), f"arm config not found: {ARM_CONFIG}"
+E       AssertionError: arm config not found: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json').is_file
+
+src/tests/test_yaw_aug_arm_config.py:43: AssertionError
+___ ERROR at setup of test_arm_config_semantic_diff_is_only_training_yaw_aug ___
+
+    @pytest.fixture(scope="module")
+    def arm_text():
+>       assert ARM_CONFIG.is_file(), f"arm config not found: {ARM_CONFIG}"
+E       AssertionError: arm config not found: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json').is_file
+
+src/tests/test_yaw_aug_arm_config.py:43: AssertionError
+=================================== FAILURES ===================================
+________________________ test_arm_config_stays_vanilla _________________________
+
+    def test_arm_config_stays_vanilla():
+        """Augmentation instead of architecture: the arm must NOT frame-average."""
+>       arm = json.loads(ARM_CONFIG.read_text())
+
+src/tests/test_yaw_aug_arm_config.py:76: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../envs/flac/lib/python3.10/pathlib.py:1134: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return self._accessor.open(self, mode, buffering, encoding, errors,
+                                   newline)
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json'
+
+../../envs/flac/lib/python3.10/pathlib.py:1119: FileNotFoundError
+________________ test_arm_config_parses_into_the_wrapper_flags _________________
+
+    def test_arm_config_parses_into_the_wrapper_flags():
+>       arm = json.loads(ARM_CONFIG.read_text())
+
+src/tests/test_yaw_aug_arm_config.py:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../envs/flac/lib/python3.10/pathlib.py:1134: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return self._accessor.open(self, mode, buffering, encoding, errors,
+                                   newline)
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json'
+
+../../envs/flac/lib/python3.10/pathlib.py:1119: FileNotFoundError
+____________________ test_arm_config_trips_no_factory_guard ____________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0a5f0ee0b0>
+
+    def test_arm_config_trips_no_factory_guard(monkeypatch):
+        """The real factory must accept this config — with the wrapper stubbed, so
+        the test does not build DINOv3."""
+        captured = {}
+    
+        class _Stub:
+            def __init__(self, model, **kwargs):
+                captured.update(kwargs)
+    
+        monkeypatch.setattr(tdiff, "DiffusionCondTrainingWrapper", _Stub)
+>       create_training_wrapper_from_config(json.loads(ARM_CONFIG.read_text()), object())
+
+src/tests/test_yaw_aug_arm_config.py:106: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../envs/flac/lib/python3.10/pathlib.py:1134: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return self._accessor.open(self, mode, buffering, encoding, errors,
+                                   newline)
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json'
+
+../../envs/flac/lib/python3.10/pathlib.py:1119: FileNotFoundError
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_yaw_aug_arm_config.py::test_arm_config_stays_vanilla - ...
+FAILED src/tests/test_yaw_aug_arm_config.py::test_arm_config_parses_into_the_wrapper_flags
+FAILED src/tests/test_yaw_aug_arm_config.py::test_arm_config_trips_no_factory_guard
+ERROR src/tests/test_yaw_aug_arm_config.py::test_arm_config_is_the_control_plus_exactly_one_insertion
+ERROR src/tests/test_yaw_aug_arm_config.py::test_arm_config_semantic_diff_is_only_training_yaw_aug
+3 failed, 1 passed, 4 warnings, 2 errors in 12.51s
