@@ -807,12 +807,36 @@ def gate_g3(store):
             "definition": "cell offsets == draw_yaw_offsets(n, 512, gen(rotate_seed))"}
 
 
+def _assignment_comparisons(cells):
+    """How many §3.3 equalities there actually were to check.
+
+    Zero is the reason G4 cannot report PASS on an empty campaign: "nothing
+    disagreed" is not evidence when nothing was compared.
+    """
+    groups, pairs = {}, 0
+    keys = set()
+    for c in cells:
+        key = (c.cell.cell, int(c.cell.k), int(c.cell.seed))
+        groups[key] = groups.get(key, 0) + 1
+        keys.add((c.cell.arm, c.cell.cell, int(c.cell.k), int(c.cell.seed)))
+    for arm, celltype, k, seed in keys:
+        if celltype == "zref" and (arm, "rgen", k, seed) in keys:
+            pairs += 1
+    return sum(n - 1 for n in groups.values() if n > 1) + pairs
+
+
 def gate_g4(store):
     """Assignment integrity: every plan §3.3 hash equality (see match_assignments)."""
     violations = match_assignments(store.cells)
     blocked = sorted({tuple(b) for v in violations for b in v.blocks})
-    return {"name": "G4", "status": "FAIL" if violations else "PASS",
-            "failures": [v.detail for v in violations], "pending": [],
+    comparisons = _assignment_comparisons(store.cells)
+    status = "FAIL" if violations else ("PASS" if comparisons else "PENDING")
+    return {"name": "G4", "status": status, "comparisons": comparisons,
+            "failures": [v.detail for v in violations],
+            "pending": ([] if comparisons else
+                        ["no cell pair or cross-arm group has landed yet: there is no "
+                         "hash equality to check, and 'nothing disagreed' is not "
+                         "evidence when nothing was compared"]),
             "violations": [{"kind": v.kind, "scope": v.scope, "detail": v.detail,
                             "blocks": [list(b) for b in v.blocks]} for v in violations],
             "blocked_scopes": [list(b) for b in blocked],

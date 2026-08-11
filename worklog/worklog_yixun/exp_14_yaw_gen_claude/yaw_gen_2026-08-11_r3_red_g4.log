@@ -1,0 +1,3 @@
+FAILED src/tests/test_yaw_gen_collect.py::test_g4_on_an_empty_campaign_is_pending_not_pass
+FAILED src/tests/test_yaw_gen_collect.py::test_g4_is_pass_only_once_comparisons_were_actually_made
+2 failed, 1 passed, 87 deselected, 3 warnings in 35.35s

@@ -833,6 +833,26 @@ def test_g4_is_the_section_3_3_hash_equalities(tmp_path):
     assert ("cross_arm", 8) in {tuple(b) for b in gates["blocked_scopes"]}
 
 
+def test_g4_on_an_empty_campaign_is_pending_not_pass(tmp_path):
+    """Nothing to compare is not the same as everything agreeing. With no cells
+    on disk there are no hash equalities to check, and a PASS there would report
+    a campaign that has not started as having satisfied its integrity gate."""
+    store = C.collect_cells(str(tmp_path), expectation())
+    assert store.cells == []
+    gates = C.evaluate_gates(store)
+    assert gates["G4"]["status"] == "PENDING", gates["G4"]
+    assert gates["all_passed"] is False
+
+
+def test_g4_is_pass_only_once_comparisons_were_actually_made(tmp_path):
+    root = str(tmp_path)
+    cells = _one_seed_slice()
+    write_grid(root, cells)
+    gates = C.evaluate_gates(C.collect_cells(root, expectation()))
+    assert gates["G4"]["status"] == "PASS"
+    assert gates["G4"]["comparisons"] > 0, gates["G4"]
+
+
 def test_g5_is_reported_but_never_gates(tmp_path):
     """The exp_11 comparison is cross-pin: informative, never a halt."""
     root, store = _full_grid_store(tmp_path)
