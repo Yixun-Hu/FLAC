@@ -625,12 +625,57 @@ def _rotation_provenance(record, rotate_mode, rotate_seed, input_hash,
     return record
 
 
+# Version of the per-scene payload below (exp_14 round-3 fix R3F1). Bumped when
+# the meaning of a field changes, so a collector never reads an old block under a
+# new contract.
+PER_SCENE_SCHEMA = 1
+
+
+def split_per_scene_metrics(metrics_dict):
+    """``(flat_metrics, by_scene_or_None)``.
+
+    ``AcousticMetricsCallback.compute_metrics`` returns the per-scene map nested
+    INSIDE the metrics dict under ``by_scene``. The record keeps ``metrics`` flat
+    and numeric -- every existing consumer reads ``record["metrics"][key]`` as a
+    number, and the exp_11 row validator pins that key set exactly -- so the map
+    is lifted out here and recorded beside it instead.
+    """
+    if "by_scene" not in metrics_dict:
+        return dict(metrics_dict), None
+    flat = {k: v for k, v in metrics_dict.items() if k != "by_scene"}
+    return flat, metrics_dict["by_scene"]
+
+
+def _per_scene_provenance(record, by_scene):
+    """Add the per-scene block -- ONLY when the run actually recorded one.
+
+    Fixed-mode legacy records stay byte-identical (review B4, still binding), so
+    nothing is added, removed or reordered unless ``--record-per-scene`` asked
+    for it. An EMPTY map is refused rather than recorded: a run that asked for
+    per-scene results and produced none did not measure the estimand, and
+    recording ``{}`` would publish that silence as a fact.
+    """
+    if by_scene is None:
+        return record
+    if not isinstance(by_scene, dict) or not by_scene:
+        raise ValueError(
+            f"per-scene recording produced {by_scene!r}: a run that asked for "
+            "per-scene results and produced none did not measure the per-scene "
+            "estimand, so there is nothing to record."
+        )
+    record["by_scene"] = by_scene
+    record["per_scene_schema"] = PER_SCENE_SCHEMA
+    record["scene_count"] = len(by_scene)
+    return record
+
+
 def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame_avg_angles,
                          cond_autocast='default', batch_size=None, n_samples=None,
                          dataset_config=None, seed=None, cfg_scale=None, steps=None,
                          eval_name=None, weights_source=None, device=None,
                          rotate_mode='fixed', rotate_seed=None, input_hash=None,
-                         assignment_hash=None, stream_count=None, img_w=None):
+                         assignment_hash=None, stream_count=None, img_w=None,
+                         by_scene=None):
     """Assemble the dict written to the metrics JSON.
 
     Extends the legacy ``{metrics, ckpt_path, rotate_deg}`` record with
@@ -674,8 +719,9 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
         "weights_source": weights_source,
         "device": device,
     }
-    return _rotation_provenance(record, rotate_mode, rotate_seed, input_hash,
-                                assignment_hash, stream_count, img_w)
+    record = _rotation_provenance(record, rotate_mode, rotate_seed, input_hash,
+                                  assignment_hash, stream_count, img_w)
+    return _per_scene_provenance(record, by_scene)
 
 
 def resolve_cond_autocast(mode):
@@ -781,6 +827,7 @@ def evaluate_model(
     rotate_seed=None,
     expected_stream_count=None,
     record_stream=False,
+    record_per_scene=False,
 ):
     # Fail fast on an unknown cond_method (the CLI is guarded by argparse
     # choices, but programmatic callers would otherwise silently run vanilla
@@ -888,7 +935,12 @@ def evaluate_model(
     )
 
     # Metrics 
-    metric_callback = create_metric_callback_from_config(model_config, dataset_id=dataset_config['datasets'][0]['id'])
+    # per_scene=True makes the callback accumulate a second, per-scene set of
+    # metric objects and return them under `by_scene` (exp_14 round-3 fix R3F1).
+    # Off by default: the legacy record shape is frozen.
+    metric_callback = create_metric_callback_from_config(
+        model_config, dataset_id=dataset_config['datasets'][0]['id'],
+        per_scene=record_per_scene)
 
     # Yaw-rotation state. The random draw lives on its OWN cpu generator so it
     # cannot advance the global RNG that seeds the diffusion noise -- otherwise a
@@ -1001,7 +1053,14 @@ def evaluate_model(
               f"assignment_hash {rotation_provenance['assignment_hash']}")
 
     # Compute and print metrics
-    metrics_dict = metric_callback.compute_metrics("test")
+    metrics_dict, by_scene = split_per_scene_metrics(
+        metric_callback.compute_metrics("test"))
+    if record_per_scene:
+        if by_scene is None:
+            raise RuntimeError(
+                "--record-per-scene was requested but the metric callback returned "
+                "no per-scene block; the per-scene estimand was not measured.")
+        print(f"Per-scene metrics recorded for {len(by_scene)} scene(s)")
     for metric_name, metric_value in metrics_dict.items():
         if metric_name == 'T60' or 'to' in metric_name:
             metric_name += ' (%)'
@@ -1023,7 +1082,7 @@ def evaluate_model(
         cond_autocast=cond_autocast, batch_size=batch_size, n_samples=c,
         dataset_config=dataset_config_path, seed=seed, cfg_scale=cfg_scale,
         steps=steps, eval_name=eval_name, weights_source=weights_source,
-        device=str(device), **rotation_provenance,
+        device=str(device), by_scene=by_scene, **rotation_provenance,
     )
     path2save = output_paths['metrics']
     with open(path2save, 'w') as f:
@@ -1073,6 +1132,7 @@ if __name__ == "__main__":
     parser.add_argument("--rotate-mode", type=str, default="fixed", choices=["fixed", "random"], help="Yaw-rotation protocol: 'fixed' (default) rotates every sample by --rotate-deg; 'random' (exp_14) draws an independent panorama-column offset per sample from a generator seeded with --rotate-seed. The two are mutually exclusive: 'random' with a non-zero --rotate-deg is an error.")
     parser.add_argument("--rotate-seed", type=int, default=None, help="Seed for the per-sample random yaw draw; defaults to --seed. Only valid with --rotate-mode random (passing it in fixed mode is an error, never a silent no-op).")
     parser.add_argument("--record-stream", action='store_true', help="Write a <metrics-stem>.stream.json sidecar carrying the full per-position assignment audit (canonical input tuples, offsets, both hashes). Works in fixed mode too, which is how an unrotated Z cell gets an input_hash to be paired against. The metrics record and its path are unaffected.")
+    parser.add_argument("--record-per-scene", action='store_true', help="Record a `by_scene` block in the metrics JSON: per-scene, per-metric values plus the scene ids (exp_14). This is what makes the PER-SCENE mean -- the plan's estimand and this repo's headline convention -- computable from the artifact. Off by default; without it the record is byte-identical to every row already committed.")
     parser.add_argument("--expected-stream-count", type=int, default=None, help="Pre-registered number of items in the evaluated split (e.g. 6337 for the AR unseen split). When given, the run fails unless the dataset AND the accumulated assignment stream both hold exactly this many items; without it, the stream can only be checked against the dataset it came from.")
     parser.add_argument("--cond-method", type=str, default="vanilla", choices=["vanilla", "fa_invariant"], help="Conditioning method: 'vanilla' (single conditioner pass) or 'fa_invariant' (cylindrical pose invariants + C4 ViT frame average). Composes with --rotate-deg (rotation applied first).")
     parser.add_argument("--frame-avg-angles", type=str, default=",".join(str(int(a)) for a in DEFAULT_FRAME_ANGLES), help="Comma-separated yaw angles in degrees for fa_invariant frame averaging; the first must be 0. Ignored when --cond-method vanilla.")
@@ -1106,4 +1166,5 @@ if __name__ == "__main__":
         rotate_seed=args.rotate_seed,
         expected_stream_count=args.expected_stream_count,
         record_stream=args.record_stream,
+        record_per_scene=args.record_per_scene,
     )

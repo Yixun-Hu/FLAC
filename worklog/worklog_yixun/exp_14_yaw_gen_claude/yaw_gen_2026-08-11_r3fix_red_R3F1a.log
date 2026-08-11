@@ -1,0 +1,5 @@
+FAILED src/tests/test_yaw_random_eval.py::test_per_scene_block_is_added_only_when_recorded
+FAILED src/tests/test_yaw_random_eval.py::test_per_scene_recording_refuses_an_empty_scene_map
+FAILED src/tests/test_yaw_random_eval.py::test_split_per_scene_block_separates_the_nested_map_from_flat_metrics
+FAILED src/tests/test_yaw_random_eval.py::test_record_per_scene_is_a_cli_flag_that_reaches_the_callback
+4 failed, 1 passed, 107 deselected, 3 warnings in 8.75s

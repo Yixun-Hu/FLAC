@@ -1342,3 +1342,69 @@ def test_random_offsets_attach_in_sampler_order_through_a_multiworker_dataloader
     # and both guards accept the stream this really produced
     eval_FLAC.verify_stream_positions(stream)
     eval_FLAC.verify_stream_count(stream, len(dataset), 8)
+
+
+# --------------------------------------------------------------------------- #
+# round-3 fix R3F1 — opt-in per-scene recording (the plan §4 estimand)
+#
+# The campaign's per-seed observation is the PER-SCENE mean (plan §4, and the
+# repo convention: paper headline numbers average per-scene results). The metric
+# callback can already produce it -- AcousticMetricsCallback(eval_per_scene=True)
+# accumulates a second, per-scene set of metric objects and returns them under
+# `by_scene` -- but eval_FLAC never asked for it, so no committed metrics JSON
+# carries one. These tests pin the flag that asks, and the record shape it adds.
+# --------------------------------------------------------------------------- #
+def test_per_scene_block_is_absent_without_the_flag():
+    """Legacy records are FROZEN: no new key appears unless the flag is passed."""
+    record = eval_FLAC.build_metrics_record(
+        {"T60": 9.0}, "/ckpt/epoch=8-step=40000.ckpt", 0.0, "vanilla", None)
+    for key in ("by_scene", "per_scene_schema", "scene_count"):
+        assert key not in record, f"{key} appeared in a record that never asked for it"
+
+
+def test_per_scene_block_is_added_only_when_recorded():
+    by_scene = {"Cafe/Cafe_idx_1": {"T60": 8.0, "RIR_to_GT_RIR_R@1": 5.0},
+                "Office/Office_idx_10": {"T60": 10.0, "RIR_to_GT_RIR_R@1": 7.0}}
+    record = eval_FLAC.build_metrics_record(
+        {"T60": 9.0}, "/ckpt/epoch=8-step=40000.ckpt", 0.0, "vanilla", None,
+        by_scene=by_scene)
+    assert record["by_scene"] == by_scene
+    assert record["scene_count"] == 2
+    assert record["per_scene_schema"] == eval_FLAC.PER_SCENE_SCHEMA
+    # the flat metrics block keeps its legacy shape: every consumer that reads
+    # record["metrics"][key] as a number must keep working
+    assert all(isinstance(v, (int, float)) for v in record["metrics"].values())
+
+
+def test_per_scene_recording_refuses_an_empty_scene_map():
+    """A run that asked for per-scene results and produced none did not measure
+    the estimand; recording {} would publish that silence as a fact."""
+    with pytest.raises(ValueError):
+        eval_FLAC.build_metrics_record(
+            {"T60": 9.0}, "/ckpt/epoch=8-step=40000.ckpt", 0.0, "vanilla", None,
+            by_scene={})
+
+
+def test_split_per_scene_block_separates_the_nested_map_from_flat_metrics():
+    """compute_metrics returns the per-scene map INSIDE the metrics dict; the
+    record keeps `metrics` flat and numeric, so the nested map is lifted out."""
+    computed = {"T60": 9.0, "C50": 1.0,
+                "by_scene": {"Cafe/Cafe_idx_1": {"T60": 8.0}}}
+    flat, by_scene = eval_FLAC.split_per_scene_metrics(computed)
+    assert flat == {"T60": 9.0, "C50": 1.0}
+    assert by_scene == {"Cafe/Cafe_idx_1": {"T60": 8.0}}
+    assert "by_scene" not in flat
+    # and without a per-scene block the metrics pass through untouched
+    flat2, none2 = eval_FLAC.split_per_scene_metrics({"T60": 9.0})
+    assert flat2 == {"T60": 9.0} and none2 is None
+
+
+def test_record_per_scene_is_a_cli_flag_that_reaches_the_callback():
+    """--record-per-scene is what turns eval_per_scene on; the factory already
+    takes per_scene, so the flag must be threaded through to it."""
+    import inspect
+    src = inspect.getsource(eval_FLAC)
+    assert "--record-per-scene" in src
+    assert "record_per_scene" in inspect.signature(eval_FLAC.evaluate_model).parameters
+    factory_call = src.split("create_metric_callback_from_config(")[1].split(")")[0]
+    assert "per_scene" in factory_call, factory_call
