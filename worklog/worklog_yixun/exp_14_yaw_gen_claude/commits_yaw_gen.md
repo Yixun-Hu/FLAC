@@ -37,5 +37,6 @@ Round 2 interrupted once by the account session limit (resumed post-4am reset, c
 | `1ab22a0` | r2-fix | B2 — Slurm job names carry the rotation token (cell-injective over all 106) |
 | `a201e3c` | r2-fix | B3+B5+B7+NIT8a/b — pin-file rail, lease-verified in-flight, atomic manifests, full-grid path pins, single-cell DRYRUN |
 | `0f056b4` | r2-fix | NIT8c — live-wave guard cases (guard suite 162→180) |
+| `135cb4b` | r2-fix2 | X1+X2+X3 — seams honored only on provably-non-submitting paths; durability traps + sentinel manifests; single-source check-argv. Includes the ⚠️ incident response (4 unplanned PENDING jobs cancelled at 00:00:00 elapsed; command log scrubbed of mock lines + annotated) |
 
 Note: effective base drifted `89f24cd` → `44788e6` (concurrent session's worklog-only commit landed first; `eval_FLAC.py`/`yaw_rotation.py` byte-identical at both). `809ece5` interleaved in the range is the exp_15 scaffold (other session, worklog-only).
