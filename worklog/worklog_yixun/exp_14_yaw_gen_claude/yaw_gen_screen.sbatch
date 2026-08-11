@@ -1,40 +1,51 @@
 #!/bin/bash
 # ============================================================================
-# exp_11 SCREEN DRIVER — one checkpoint, one arm, own protocol (plan §3/§4/§5).
+# exp_14 SCREEN DRIVER — one checkpoint, one arm, one yaw protocol (plan §5.4).
 #
-# Futility-gate screens (plan §4) and the C4 backfill (plan §3) run through this
-# single driver so they cannot drift apart:
+# Adapted from exp_11's fa_orbit_screen.sbatch (the verbatim copy is the parent
+# commit; exp_11's own kit stays read-only to this experiment). Three cell types,
+# all at the ONE 40k endpoint, each evaluated under the arm's OWN conditioning
+# protocol (announcement 04/05: VANL -> vanilla, Cn -> fa_invariant on the orbit
+# it was trained with):
 #
-#   ARM=C4L|C8|C16|C32   the arm's OWN checkpoint at STEP, evaluated under the
-#                        arm's OWN orbit (announcement 04: each model under its
-#                        own protocol), eval-name exp11_<ARM>_screen_S<STEP>_s<SEED>_K<K>
-#   ARM=C4BACKFILL       the exp_07 B-F lineage at STEP in {10000,20000,30000},
-#                        C4 orbit, eval-name exp11_C4backfill_S<STEP>_s<SEED>_K<K>
-#                        — the fa-protocol backfill the futility gates compare
-#                        against (the exp_07 S10000-S30000 screens were the
-#                        retracted mismatched-protocol evals).
+#   CELL=rgen   the HEADLINE cell: every eval sample independently draws a
+#               panorama-column yaw offset (--rotate-mode random --rotate-seed
+#               $SEED; rotation seed = eval seed, Yixun 2026-08-10). 5 arms x
+#               K in {1,8} x seeds 42-46 = 50 cells. Eval-name suffix _rotrand<SEED>.
+#   CELL=zref   the paired theta=0 REFERENCE for the same (arm, K, seed): NO
+#               rotation flags at all, i.e. the byte-default fixed path. Same
+#               50-cell shape, so Delta = m_R - m_Z is seed-paired.
+#   CELL=vctl   the six pre-registered fixed-angle VALIDITY controls (plan §3.1),
+#               s42 / K=8 only: C4L,C8,C16,C32,VANL @90 deg (in-group floor gates
+#               plus the VANL positive control) and C4L @45 deg (mechanism
+#               control). Never a headline row; every other tuple is refused.
 #
-# Protocol, matching exp_07/exp_10: full unseen split, EMA weights (the arm
-# config), cfg 1.0, 1 diffusion step, bf16 conditioning autocast, seed 42 by
-# default, K=8 by default (K=1 uses the _1 split).
+# Protocol constants, pinned identically for every cell (plan §3.2): the full
+# published unseen split (6,337 items / 17 rooms, announcement 01), EMA weights,
+# cfg 1.0, 1 diffusion step, bf16 conditioning autocast, --batch-size 64 and
+# --num-workers 4 (the exp_11 conf-cell values), plus --expected-stream-count 6337
+# and --record-stream so the §3.3 assignment audit (.stream.json) lands beside
+# every metrics JSON — that sidecar is what makes Z<->R pairing and the cross-arm
+# rotation match falsifiable rather than asserted.
 #
 # Fail-closed before spending the GPU: commit binding + tracked drift, exactly
 # one visible L40, EXACTLY ONE checkpoint matching the step, and the
-# checkpoint's OWN embedded model_config must carry this arm's orbit (a screen
-# that evaluated the wrong arm's checkpoint would poison a futility gate).
-# Afterwards it writes the sidecar that exp11_validate_rows.py requires and
-# emits one SCREENRESULT line.
+# checkpoint's OWN embedded model_config must carry this arm's orbit (a cell
+# that evaluated the wrong arm's checkpoint would poison the whole contrast).
+# Afterwards it writes the .screenmeta.json sidecar, VALIDATES the produced
+# artifacts with exp14_validate_cell.py and emits one SCREENRESULT line.
 #
 # WORKTREE-PINNED EXECUTION (item 8): code comes from a worktree pinned to the
 # submission SHA, outputs go to the main tree. Development and measurement are
 # therefore DECOUPLED — the main checkout may keep committing while jobs run, and
 # source_sha still equals the pinned SHA. MEASURE_ROOT is REQUIRED for a real run.
 #
-# Submit (resources are in the directives; CLI flags still override):
+# Submitted through yaw_gen_screen_submit.sh (which owns the pin/lease/hold
+# transaction) or, for a whole wave, yaw_gen_submit_grid.sh. By hand:
 #   MEASURE_ROOT=$(bash worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_measure_worktree.sh)
-#   sbatch --job-name=exp11-screen-C4L-10000 \
-#          --export=ALL,EXPECT_SHA=$(git -C $MEASURE_ROOT rev-parse HEAD),MEASURE_ROOT=$MEASURE_ROOT,ARM=C4L,STEP=10000 \
-#          worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_screen.sbatch
+#   sbatch --job-name=exp14-screen-C4L-rgen-40000-s42-K8 \
+#          --export=ALL,EXPECT_SHA=$(git -C $MEASURE_ROOT rev-parse HEAD),MEASURE_ROOT=$MEASURE_ROOT,ARM=C4L,STEP=40000,CELL=rgen \
+#          worklog/worklog_yixun/exp_14_yaw_gen_claude/yaw_gen_screen.sbatch
 #
 # DRYRUN=1 (outside Slurm) runs every gate, prints the eval argv and exits.
 # ============================================================================
@@ -45,7 +56,7 @@
 #SBATCH --cpus-per-task=10
 #SBATCH --mem=32G
 #SBATCH --time=03:00:00
-#SBATCH --output=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/slurm_screen_%x_%j.out
+#SBATCH --output=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_14_yaw_gen_claude/slurm_screen_%x_%j.out
 
 set -uo pipefail
 MAIN_REPO=/n/fs/gatrdp/codespace/FLAC        # where OUTPUTS and logs always live
@@ -90,9 +101,14 @@ elif [ -n "${SLURM_JOB_ID:-}" ]; then
   echo "so the job's code identity cannot move while it runs - abort"
   exit 2
 fi
-EXPDIR="$CODE_ROOT/worklog/worklog_yixun/exp_11_fa_orbit_claude"     # CODE (pinned)
-EXP07="$CODE_ROOT/worklog/worklog_yixun/exp_07_fa_scratch_claude"    # CODE (pinned)
-LOGDIR="$MAIN_REPO/worklog/worklog_yixun/exp_11_fa_orbit_claude"     # LOGS (main tree)
+EXPDIR="$CODE_ROOT/worklog/worklog_yixun/exp_14_yaw_gen_claude"      # CODE (pinned)
+# exp_11's folder is READ-ONLY PROVENANCE for this campaign: the audited arm
+# launch registry, the arms' model configs (whose sha256 that registry pins) and
+# the preflight/probe helpers live there and are referenced in place. Copying
+# them would create a second copy of an audited artifact — i.e. a second thing
+# that can drift out of agreement with the checkpoints it vouches for.
+EXP11="$CODE_ROOT/worklog/worklog_yixun/exp_11_fa_orbit_claude"      # CODE (pinned, read-only)
+LOGDIR="$MAIN_REPO/worklog/worklog_yixun/exp_14_yaw_gen_claude"      # LOGS (main tree)
 cd "$CODE_ROOT" || exit 3
 unset PYTHONPATH PYTHONOPTIMIZE
 export PATH=/n/fs/gatrdp/envs/flac/bin:$PATH
@@ -103,11 +119,14 @@ export HF_HUB_OFFLINE=1
 DRYRUN="${DRYRUN:-0}"
 SEED="${SEED:-42}"
 K="${K:-8}"
-# CELL selects the purpose-specific contract (round-4 review B4). 'screen' is the
-# futility cadence: seed 42, K=8, single seed by design. 'conf' is a confirmatory
-# table cell: seeds 42-46, K in {1,8}. The driver refuses combinations the
-# validator's contracts would reject, instead of labelling everything 'screen'.
-CELL="${CELL:-screen}"
+# CELL selects the purpose-specific contract. exp_14 has exactly three, and the
+# driver refuses every combination the plan does not pre-register — the point of
+# a registered grid is that an unregistered cell cannot be produced by accident
+# and then read as evidence. There is deliberately NO default: a cell type is a
+# protocol choice (announcement 05), and defaulting one would let an omitted
+# export decide the experiment.
+CELL="${CELL:-}"
+[ -n "$CELL" ] || { echo "CELL must be exported (rgen|zref|vctl) - abort"; exit 2; }
 OUTPUT_ROOT="${OUTPUT_ROOT:-$MAIN_REPO/outputs_FLAC}"
 PRODUCTION_OUTPUT_ROOT="$MAIN_REPO/outputs_FLAC"
 if [ -n "${SLURM_JOB_ID:-}" ]; then
@@ -312,7 +331,7 @@ if [ -n "${MEASURE_ROOT:-}" ] && [ -n "${SLURM_JOB_ID:-}" ]; then
   # stays until the reaper proves — via a successful squeue — that this job id
   # is gone. Keeping a lease too long costs one worktree; dropping one early
   # costs a running job its code.
-  MEASURE_HELPER="$EXPDIR/fa_orbit_measure_worktree.sh"
+  MEASURE_HELPER="$EXP11/fa_orbit_measure_worktree.sh"
   trap 'bash "$MEASURE_HELPER" --release "$SLURM_JOB_ID" "$MEASURE_ROOT" \
           || echo "could not release ${LEASE}; leaving it for the reaper" >&2' EXIT
   echo "lease OK: ${LEASE}"
@@ -348,7 +367,7 @@ echo "VAE.ckpt pin OK: ${VAE_CKPT_SHA}"
 
 # The ViT init is lineage-relevant at eval time too: same pin the probe gates on.
 python3 -c "
-import sys; sys.path.insert(0, '$EXPDIR')
+import sys; sys.path.insert(0, '$EXP11')
 from fa_orbit_equiv_probe import assert_vit_pin
 assert_vit_pin(); print('DINOv3 cache pin OK')" || die "DINOv3 cache pin gate FAILED - abort"
 
