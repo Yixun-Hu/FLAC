@@ -367,6 +367,45 @@ argv_has "K=1 uses the _1 split"   "$K1_ARGV"   "acousticroom_unseeneval_1.json"
 argv_has "K=8 uses the full split" "$ZREF_ARGV" "acousticroom_unseeneval.json"
 argv_has "K=1 still names its K"   "$K1_ARGV"   "exp14_C8_rgen_S40000_s46_K1_rotrand46"
 
+# --- the CELL-VALIDATION argv the driver renders is the validator's rule -----
+# Review B1 was exactly this rendering: a --rotate-deg 0 that the validator then
+# refused, which would have failed 100 of 106 cells AFTER their GPU time. The
+# driver's line must equal exp14_validate_cell's own, flag for flag.
+VAL_OK=1
+for SPEC in "C32 rgen 44 8 -" "C8 zref 42 8 -" "C4L vctl 42 8 45" "VANL vctl 42 8 90"; do
+  # shellcheck disable=SC2086
+  set -- $SPEC
+  V_ENV=("${BASE[@]}" "ARM=$1" "CELL=$2" STEP=40000 "SEED=$3" "K=$4")
+  [ "$5" = "-" ] || V_ENV+=("ROTATE_DEG=$5")
+  GOT="$(env "${V_ENV[@]}" bash "$SCREEN" 2>&1 \
+         | sed -n 's/^python3 exp14_validate_cell.py //p' | head -1)"
+  # The driver binds to the CODE ROOT's HEAD, which a concurrent session in this
+  # shared checkout can move mid-suite; the parity being tested is the FLAG SET,
+  # so the expectation is built with whatever pin the driver just reported.
+  DRIVER_PIN="$(printf '%s\n' "$GOT" | sed -n 's/.*--pin \([0-9a-f]\{40\}\).*/\1/p')"
+  A_ARGS=(argv --metrics "<metrics>" --arm "$1" --cell "$2" --step 40000 --seed "$3" --k "$4")
+  [ "$5" = "-" ] || A_ARGS+=(--rotate-deg "$5")
+  A_ARGS+=(--pin "${DRIVER_PIN:-$HEAD_SHA}" --ckpt-sha "<ckpt-sha256>" --expected-count 6337)
+  WANT="$($PY "$VALIDATOR" "${A_ARGS[@]}")"
+  if [ "$GOT" != "$WANT" ]; then
+    echo "FAIL  validation argv mismatch for ${SPEC}"
+    echo "        | driver:    ${GOT}"
+    echo "        | validator: ${WANT}"
+    VAL_OK=0
+  fi
+  case "$2" in
+    vctl) case "$GOT" in *--rotate-deg*) ;; *) echo "FAIL  vctl validation argv lost its angle"; VAL_OK=0 ;; esac ;;
+    *)    case "$GOT" in *--rotate-deg*) echo "FAIL  ${2} passes --rotate-deg to the validator (review B1)"; VAL_OK=0 ;; esac ;;
+  esac
+done
+if [ "$VAL_OK" = "1" ]; then
+  echo "PASS  the driver's cell-validation argv equals exp14_validate_cell.check_argv"
+  echo "PASS  only vctl passes --rotate-deg to the validator (review B1)"
+  PASS=$((PASS + 2))
+else
+  FAIL=$((FAIL + 1))
+fi
+
 # --- the eval NAME the driver renders is the validator's rule ----------------
 # The driver renders the rotation token in shell (importing eval_FLAC would cost
 # ~9 s of torch per DRYRUN cell); this is what stops the two rules from drifting.
@@ -1590,6 +1629,7 @@ p = V.metrics_path(ckpt, cell)
 json.dump({"metrics": {}, "eval_name": "nonsense"}, open(p, "w"))
 print(p)
 PY
+printf '%s\n' "$HEAD_SHA" > "$PIN_FILE"      # a live wave requires the pin FILE
 OUT="$(env YAW_GEN_SQUEUE=/bin/false YAW_GEN_SUBMIT=/bin/false OUTPUT_ROOT="$DEDUP" \
         bash "$GRID" WAVE=vctl "PIN_SHA=${HEAD_SHA}" 2>&1)"; rc=$?
 if [ "$rc" -eq 3 ] && echo "$OUT" | grep -q "HALT:" \
@@ -1608,11 +1648,250 @@ fi
 rm -f "${DEDUP}/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/"*_metrics_*.json
 OUT="$(env YAW_GEN_SQUEUE=/bin/false OUTPUT_ROOT="$DEDUP" \
         bash "$GRID" WAVE=vctl "PIN_SHA=${HEAD_SHA}" 2>&1)"; rc=$?
+rm -f "$PIN_FILE"
 if echo "$OUT" | grep -q "squeue failed - refusing to submit"; then
   echo "PASS  a squeue that fails stops the wave (absence is never assumed)"; PASS=$((PASS + 1))
 else
   echo "FAIL  a squeue failure did not stop the wave (rc=${rc})"
   echo "$OUT" | tail -3 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+fi
+
+# --- LIVE WAVE (mocked): the rails the review found missing -------------------
+# Nothing is submitted: YAW_GEN_SUBMIT is a shim that records its argv, and
+# YAW_GEN_SQUEUE prints a scripted queue. What is proven is what the wave DECIDES
+# — which cells it skips, which it halts on, and which argv it would launch.
+echo
+echo "--- wave submitter: live-wave decisions (mocked submit + squeue) ---"
+LIVE="${TMP}/live"; mkdir -p "$LIVE"
+LIVE_PIN="$HEAD_SHA"
+LIVE_WT="${TMP}/live_wt"; mkdir -p "${LIVE_WT}/.leases"
+LIVE_TRACE="${TMP}/live_submit.txt"
+LIVE_QUEUE="${TMP}/live_queue.txt"; : > "$LIVE_QUEUE"
+cat > "${TMP}/mock_squeue" <<'EOS'
+#!/usr/bin/env bash
+cat "$LIVE_QUEUE"
+EOS
+cat > "${TMP}/mock_submit" <<'EOS'
+#!/usr/bin/env bash
+# record the argv AND whether the wave had already written its LAUNCHING line
+echo "submit $*" >> "$LIVE_TRACE"
+if grep -q 'LAUNCHING' "$COMMAND_LOG_UNDER_TEST" 2>/dev/null; then
+  echo "  launching-line-present" >> "$LIVE_TRACE"
+else
+  echo "  launching-line-MISSING" >> "$LIVE_TRACE"
+fi
+echo "submitted HELD as 5550001"
+EOS
+chmod +x "${TMP}/mock_squeue" "${TMP}/mock_submit"
+
+# one landed C4L vctl@90 cell, valid under the AUDITED digest
+$PY - "$VALIDATOR" "$LIVE" "$LIVE_PIN" <<'PY'
+import importlib.util, json, os, sys
+spec = importlib.util.spec_from_file_location("v", sys.argv[1])
+V = importlib.util.module_from_spec(spec); spec.loader.exec_module(V)
+root, pin = sys.argv[2], sys.argv[3]
+sha = V.load_ckpt_expect()["C4L"]
+cell = V.Cell("C4L", "vctl", 40000, 42, 8, 90.0)
+d = os.path.join(root, "exp11_C4L", "FLAC_exp11_C4L", "exp11_C4L", "checkpoints")
+os.makedirs(d, exist_ok=True)
+ckpt = os.path.join(d, "epoch=8-step=40000.ckpt")
+open(ckpt, "wb").write(b"")
+p = V.metrics_path(ckpt, cell)
+name = V.eval_name(cell)
+tuples = [[i, f"{i}|r/{i}.wav", [f"c{i}"], 512] for i in range(V.EXPECTED_COUNT)]
+asg = [[i, t[1], 128] for i, t in enumerate(tuples)]
+json.dump({"metrics": {"T60_error": 1.0}, "ckpt_path": ckpt, "rotate_deg": 90.0,
+           "cond_method": "fa_invariant", "frame_avg_angles": [0.0, 90.0, 180.0, 270.0],
+           "cond_autocast": "bf16", "orbit_execution": "batched", "source_sha": pin,
+           "batch_size": 64, "n_samples": V.EXPECTED_COUNT,
+           "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
+           "seed": 42, "cfg_scale": 1.0, "steps": 1, "eval_name": name,
+           "weights_source": "ema", "device": "cuda"}, open(p, "w"))
+json.dump({"arm": "C4L", "step": 40000, "seed": 42, "K": 8, "eval_name": name,
+           "cfg_scale": 1.0, "steps": 1, "model_config": "x", "model_config_sha256": "c" * 64,
+           "dataset_config": "x", "ckpt_path": ckpt, "ckpt_sha256": sha, "use_ema": True,
+           "frame_avg_angles": [0.0, 90.0, 180.0, 270.0], "cond_method": "fa_invariant",
+           "cond_autocast": "bf16", "commit": pin, "cell": "vctl",
+           "training_orbit": 4, "eval_orbit": 4, "rotate_mode": "fixed",
+           "rotate_deg": 90.0, "rotate_seed": None, "expected_stream_count": V.EXPECTED_COUNT,
+           "record_stream": True, "stream_sidecar": "s", "batch_size": 64,
+           "num_workers": 4}, open(p + ".screenmeta.json", "w"))
+json.dump({"schema_version": 1, "fingerprint_schema": 1, "rotate_mode": "fixed",
+           "rotate_seed": None, "rotate_deg": 90.0, "img_w": 512,
+           "stream_count": V.EXPECTED_COUNT, "input_tuples": tuples,
+           "offsets": [128] * V.EXPECTED_COUNT, "assignment_tuples": asg,
+           "input_hash": V.canonical_stream_hash(tuples),
+           "assignment_hash": V.canonical_stream_hash(asg)},
+          open(p.replace(".json", ".stream.json"), "w"))
+print(p)
+PY
+
+live_wave() {   # <extra env...> — run the vctl wave with everything mocked
+  : > "$LIVE_TRACE"
+  printf '%s\n' "$LIVE_PIN" > "$PIN_FILE"
+  env LIVE_QUEUE="$LIVE_QUEUE" LIVE_TRACE="$LIVE_TRACE" \
+      COMMAND_LOG_UNDER_TEST="${EXPDIR}/yaw_gen_command.md" \
+      YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_SUBMIT="${TMP}/mock_submit" \
+      YAW_GEN_WT_DIR="$LIVE_WT" OUTPUT_ROOT="$LIVE" "$@" \
+      bash "$GRID" WAVE=vctl 2>&1
+}
+CMDLOG_BAK="${TMP}/command_md.bak"
+[ -f "${EXPDIR}/yaw_gen_command.md" ] && cp "${EXPDIR}/yaw_gen_command.md" "$CMDLOG_BAK"
+
+# (a) the landed, audited-digest cell is SKIPPED; every other vctl cell is submitted
+: > "$LIVE_QUEUE"
+OUT="$(live_wave)"; rc=$?
+if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q "SKIP  exp14-screen-C4L-vctl-rot90-40000-s42-K8: already measured"; then
+  echo "PASS  a landed cell that validates against the AUDITED digest is skipped"; PASS=$((PASS + 1))
+else
+  echo "FAIL  the valid cell was not skipped (rc=${rc})"; echo "$OUT" | tail -4 | sed 's/^/        | /'
+  FAIL=$((FAIL + 1))
+fi
+# (b) ...and C4L@45 is a DIFFERENT cell, submitted in the same wave (review B2)
+if grep -q 'CELL=vctl' "$LIVE_TRACE" && grep -q 'ROTATE_DEG=45' "$LIVE_TRACE" \
+   && echo "$OUT" | grep -q "SUBMIT exp14-screen-C4L-vctl-rot45-40000-s42-K8"; then
+  echo "PASS  C4L vctl@45 and vctl@90 are separate cells with separate job names"; PASS=$((PASS + 1))
+else
+  echo "FAIL  the two C4L vctl angles were not distinguished"; sed 's/^/        | /' "$LIVE_TRACE"
+  FAIL=$((FAIL + 1))
+fi
+# (c) the command log records the launch BEFORE the submitter runs (review B7)
+if grep -q "launching-line-present" "$LIVE_TRACE" && ! grep -q "launching-line-MISSING" "$LIVE_TRACE"; then
+  echo "PASS  the command log is written BEFORE the submission, not after"; PASS=$((PASS + 1))
+else
+  echo "FAIL  a job could be submitted before its command was recorded"; FAIL=$((FAIL + 1))
+fi
+# (d) every submitted job name equals the validator's canonical one
+NAME_MISMATCH=0
+for SPEC in "C4L vctl 42 8 45" "C8 vctl 42 8 90" "VANL vctl 42 8 90"; do
+  # shellcheck disable=SC2086
+  set -- $SPEC
+  WANT="$($PY "$VALIDATOR" jobname --arm "$1" --cell "$2" --step 40000 --seed "$3" \
+            --k "$4" --rotate-deg "$5")"
+  echo "$OUT" | grep -q "SUBMIT ${WANT}$" || { echo "FAIL  wave did not submit ${WANT}"; NAME_MISMATCH=1; }
+done
+if [ "$NAME_MISMATCH" = "0" ]; then
+  echo "PASS  every job name the wave submits is exp14_validate_cell.job_name's"; PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+fi
+# (e) a wrong-checkpoint artifact HALTS the wave (review B4)
+SM="$(ls "${LIVE}"/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/*.screenmeta.json)"
+cp "$SM" "${TMP}/sm.bak"
+$PY - "$SM" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); d["ckpt_sha256"] = "9" * 64
+json.dump(d, open(sys.argv[1], "w"))
+PY
+OUT="$(live_wave)"; rc=$?
+if [ "$rc" -eq 3 ] && echo "$OUT" | grep -q "HALT:" && echo "$OUT" | grep -q "ckpt_sha256"; then
+  echo "PASS  an artifact from ANOTHER checkpoint halts the wave"; PASS=$((PASS + 1))
+else
+  echo "FAIL  a wrong-checkpoint artifact did not halt the wave (rc=${rc})"
+  echo "$OUT" | tail -4 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+fi
+if [ ! -s "$LIVE_TRACE" ]; then
+  echo "PASS  the halted wave submitted nothing at all"; PASS=$((PASS + 1))
+else
+  echo "FAIL  the halted wave still submitted"; sed 's/^/        | /' "$LIVE_TRACE"; FAIL=$((FAIL + 1))
+fi
+cp "${TMP}/sm.bak" "$SM"
+# (f) an in-flight job WITH its lease is skipped; without it the wave HALTS (B5)
+JOBID_INFLIGHT=5559999
+printf '%s exp14-screen-C8-vctl-rot90-40000-s42-K8\n' "$JOBID_INFLIGHT" > "$LIVE_QUEUE"
+printf 'jobid %s\n' "$JOBID_INFLIGHT" > "${LIVE_WT}/.leases/${JOBID_INFLIGHT}"
+OUT="$(live_wave)"; rc=$?
+if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q "SKIP  exp14-screen-C8-vctl-rot90-40000-s42-K8: job ${JOBID_INFLIGHT} is in flight and holds its lease"; then
+  echo "PASS  an in-flight job that holds its lease is skipped as in flight"; PASS=$((PASS + 1))
+else
+  echo "FAIL  a leased in-flight job was not recognised (rc=${rc})"
+  echo "$OUT" | tail -4 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+fi
+rm -f "${LIVE_WT}/.leases/${JOBID_INFLIGHT}"
+OUT="$(live_wave)"; rc=$?
+if [ "$rc" -eq 5 ] && echo "$OUT" | grep -q "holds NO lease under"; then
+  echo "PASS  a name-matching job with NO lease halts the wave"; PASS=$((PASS + 1))
+else
+  echo "FAIL  an unleased in-flight job was treated as ours (rc=${rc})"
+  echo "$OUT" | tail -4 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+fi
+: > "$LIVE_QUEUE"
+# (g) the pin FILE is required even when PIN_SHA is supplied (review B3)
+rm -f "$PIN_FILE"
+OUT="$(env YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_SUBMIT="${TMP}/mock_submit" \
+       LIVE_QUEUE="$LIVE_QUEUE" OUTPUT_ROOT="$LIVE" bash "$GRID" WAVE=vctl \
+       "PIN_SHA=${LIVE_PIN}" 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "no campaign pin FILE"; then
+  echo "PASS  PIN_SHA cannot substitute for the campaign pin file"; PASS=$((PASS + 1))
+else
+  echo "FAIL  PIN_SHA bypassed the pin file (rc=${rc})"; FAIL=$((FAIL + 1))
+fi
+# (h) ...and a PIN_SHA that disagrees with the file is refused
+printf '%s\n' "$LIVE_PIN" > "$PIN_FILE"
+OTHER_PIN="$(git rev-parse "${LIVE_PIN}^" 2>/dev/null)"   # the pin's PARENT: never the pin
+if [ -n "$OTHER_PIN" ]; then
+  OUT="$(env YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_SUBMIT="${TMP}/mock_submit" \
+         LIVE_QUEUE="$LIVE_QUEUE" OUTPUT_ROOT="$LIVE" bash "$GRID" WAVE=vctl \
+         "PIN_SHA=${OTHER_PIN}" 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "disagrees with the campaign pin"; then
+    echo "PASS  a PIN_SHA disagreeing with the pin file is refused"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  a disagreeing PIN_SHA was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
+  fi
+fi
+# (i) a pin file naming a commit this repository does not have is refused
+printf '%s\n' "0123456789abcdef0123456789abcdef01234567" > "$PIN_FILE"
+OUT="$(env YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_SUBMIT="${TMP}/mock_submit" \
+       LIVE_QUEUE="$LIVE_QUEUE" OUTPUT_ROOT="$LIVE" bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "is not a commit in this repository"; then
+  echo "PASS  a pin file naming an unknown commit is refused"; PASS=$((PASS + 1))
+else
+  echo "FAIL  an unknown campaign pin was accepted (rc=${rc})"; FAIL=$((FAIL + 1))
+fi
+rm -f "$PIN_FILE"
+# restore the command log this section appended to
+if [ -f "$CMDLOG_BAK" ]; then cp "$CMDLOG_BAK" "${EXPDIR}/yaw_gen_command.md"
+else rm -f "${EXPDIR}/yaw_gen_command.md"; fi
+
+# --- the single-cell submitter's DRYRUN branch (review NIT 8) -----------------
+echo
+echo "--- single-cell submitter: DRYRUN ---"
+WT_BEFORE="$(ls -1d "${MAIN_TREE}"/.measure_worktrees/*/ 2>/dev/null | wc -l)"
+DOUT="$(DRYRUN=1 bash "$SUB" ARM=C4L CELL=vctl STEP=40000 ROTATE_DEG=45 2>&1)"; rc=$?
+WT_AFTER="$(ls -1d "${MAIN_TREE}"/.measure_worktrees/*/ 2>/dev/null | wc -l)"
+if [ "$rc" -eq 0 ] && echo "$DOUT" | grep -q "nothing submitted" \
+   && [ "$WT_BEFORE" = "$WT_AFTER" ]; then
+  echo "PASS  DRYRUN prints the submission and prepares no worktree"; PASS=$((PASS + 1))
+else
+  echo "FAIL  the submitter's DRYRUN did work it should not (rc=${rc}, trees ${WT_BEFORE}->${WT_AFTER})"
+  FAIL=$((FAIL + 1))
+fi
+DRY_NAME="$(echo "$DOUT" | sed -n 's/^DRYRUN job-name //p')"
+WANT_NAME="$($PY "$VALIDATOR" jobname --arm C4L --cell vctl --step 40000 --seed 42 --k 8 --rotate-deg 45)"
+if [ "$DRY_NAME" = "$WANT_NAME" ]; then
+  echo "PASS  the single-cell submitter's job name is the validator's canonical one"; PASS=$((PASS + 1))
+else
+  echo "FAIL  submitter job name '${DRY_NAME}' != '${WANT_NAME}'"; FAIL=$((FAIL + 1))
+fi
+DRY_NAME90="$(DRYRUN=1 bash "$SUB" ARM=C4L CELL=vctl STEP=40000 ROTATE_DEG=90 2>&1 \
+              | sed -n 's/^DRYRUN job-name //p')"
+if [ -n "$DRY_NAME90" ] && [ "$DRY_NAME" != "$DRY_NAME90" ]; then
+  echo "PASS  the submitter gives the two C4L vctl angles distinct job names"; PASS=$((PASS + 1))
+else
+  echo "FAIL  the submitter still collides the two C4L vctl angles"; FAIL=$((FAIL + 1))
+fi
+# the intent manifest is published while the job is HELD, before the release
+INT_LINE="$(grep -n 'mv -f "\${INTENT}.tmp" "\$INTENT"' "$SUB" | head -1 | cut -d: -f1)"
+REL_LINE2="$(grep -n 'SCONTROL" release' "$SUB" | head -1 | cut -d: -f1)"
+if [ -n "$INT_LINE" ] && [ -n "$REL_LINE2" ] && [ "$INT_LINE" -lt "$REL_LINE2" ]; then
+  echo "PASS  the intent manifest is published (atomically) BEFORE the release"; PASS=$((PASS + 1))
+else
+  echo "FAIL  the intent manifest is still written after the job is released"; FAIL=$((FAIL + 1))
+fi
+if grep -q 'os.replace(tmp, out)' "$SCREEN"; then
+  echo "PASS  the screenmeta sidecar is published by atomic replace"; PASS=$((PASS + 1))
+else
+  echo "FAIL  the screenmeta sidecar is written directly to its final path"; FAIL=$((FAIL + 1))
 fi
 
 echo

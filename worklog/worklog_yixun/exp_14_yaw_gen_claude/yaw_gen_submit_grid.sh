@@ -184,7 +184,11 @@ fi
 #
 # A squeue that FAILS is not evidence that nothing is running (exp_11's lease
 # reaper learned this the expensive way): refuse rather than flood the queue.
-WT_DIR="${MAIN_REPO}/.measure_worktrees/${PIN_SHA}"
+# The pinned worktree whose .leases/ prove a queued job is really ours.
+# YAW_GEN_WT_DIR is a guard-suite seam (like FA_ORBIT_SBATCH): it can only make
+# the wave MORE cautious — a wrong directory turns in-flight jobs into HALTs, so
+# it cannot be used to skip a check.
+WT_DIR="${YAW_GEN_WT_DIR:-${MAIN_REPO}/.measure_worktrees/${PIN_SHA}}"
 QUEUED="$("$SQUEUE" -h -u "$(id -un)" -o "%i %j" 2>/dev/null)" \
   || reject "squeue failed - refusing to submit without knowing what is already queued"
 inflight_count() { printf '%s\n' "$QUEUED" | awk '{print $2}' | grep -c '^exp14-' ; }

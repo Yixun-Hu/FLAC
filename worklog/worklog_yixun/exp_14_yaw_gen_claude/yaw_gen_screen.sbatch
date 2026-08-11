@@ -532,8 +532,22 @@ case "$CELL" in
   rgen) EVAL_ARGV+=(--rotate-mode random --rotate-seed "$ROTATE_SEED") ;;
   vctl) EVAL_ARGV+=(--rotate-deg "$ROTATE_DEG") ;;
 esac
+# The CELL-VALIDATION argv (gate I) is built by one function and printed here, so
+# a DRYRUN shows both halves of what a real cell runs and a guard case can pin
+# this rendering against exp14_validate_cell.check_argv — the flags that decide
+# whether a finished cell is admissible must not be a second, drifting copy.
+build_validate_argv() {   # <metrics path> <ckpt sha256> -> fills VALIDATE_ARGV
+  VALIDATE_ARGV=(check --metrics "$1"
+                 --arm "$ARM" --cell "$CELL" --step "$STEP" --seed "$SEED" --k "$K")
+  [ "$CELL" = "vctl" ] && VALIDATE_ARGV+=(--rotate-deg "$ROTATE_DEG")
+  VALIDATE_ARGV+=(--pin "$HEAD_SHA" --ckpt-sha "$2"
+                  --expected-count "$EXPECTED_STREAM_COUNT")
+}
 echo "--- eval argv ---"
 echo "python eval_FLAC.py ${EVAL_ARGV[*]}"
+build_validate_argv "<metrics>" "<ckpt-sha256>"
+echo "--- cell-validation argv ---"
+echo "python3 exp14_validate_cell.py ${VALIDATE_ARGV[*]}"
 if [ "$DRYRUN" = "1" ]; then
   echo "DRY RUN complete: gates A-E passed for ARM=${ARM} CELL=${CELL} STEP=${STEP} SEED=${SEED} K=${K}"
   exit 0
@@ -632,13 +646,7 @@ os.replace(tmp, out)
 print("sidecar:", out)
 PY
 
-VALIDATE_ARGV=(
-  check --metrics "$METRICS"
-  --arm "$ARM" --cell "$CELL" --step "$STEP" --seed "$SEED" --k "$K"
-)
-[ "$CELL" = "vctl" ] && VALIDATE_ARGV+=(--rotate-deg "$ROTATE_DEG")
-VALIDATE_ARGV+=(--pin "$HEAD_SHA" --ckpt-sha "$CKPT_SHA"
-                --expected-count "$EXPECTED_STREAM_COUNT")
+build_validate_argv "$METRICS" "$CKPT_SHA"
 
 # --- I. the validator is a GATE, not advice ----------------------------------
 # A cell that cannot be validated must not announce a result: SCREENRESULT is what
