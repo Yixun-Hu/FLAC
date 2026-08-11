@@ -42,20 +42,22 @@ VALIDATE="$EXPDIR/exp14_validate_cell.py"
 PIN_FILE="$EXPDIR/yaw_gen_campaign_pin"
 COMMAND_LOG="$EXPDIR/yaw_gen_command.md"
 # (both may be redirected in TEST MODE only — see the TEST_MODE block below)
-PY="${YAW_GEN_PY:-/n/fs/gatrdp/envs/flac/bin/python}"
+PY=/n/fs/gatrdp/envs/flac/bin/python     # the campaign interpreter, not overridable
 OUTPUT_ROOT="${OUTPUT_ROOT:-$MAIN_REPO/outputs_FLAC}"
-# TEST MODE is a MODE, not a mock: in test mode this script starts NO submission
-# process at all (see submit_cell), so no override can re-introduce a path to the
-# real one. squeue and sync are read/flush commands and are overridable only in
-# test mode, for failure injection.
-SQUEUE="${YAW_GEN_SQUEUE:-squeue}"
-SYNC_CMD="${YAW_GEN_SYNC:-sync}"
+# NO ENVIRONMENT VARIABLE CARRIES AN EXECUTABLE, in any mode. Every seam that
+# used to name a command (the submitter, squeue, sync, even the interpreter) is
+# gone: an env var that is exec'd is a way to run something else, and no amount
+# of "is it a mock?" reasoning makes that safe. Test mode SIMULATES those calls
+# in-process; live mode runs binaries resolved to absolute paths at entry (Z2).
+# What test mode may still be given is DATA: a queue FIXTURE FILE to read, flags
+# that make a simulated call fail, and paths to write records to.
 
 DRYRUN="${DRYRUN:-0}"
 # TEST MODE exists so the guard suite can drive the wave's DECISIONS with mocked
 # Slurm and a fake lease directory. It is inert unless the submitter itself is a
 # mock: a run that could really submit may not also relax an invariant.
 TEST_MODE="${YAW_GEN_TEST_MODE:-0}"
+[ "$DRYRUN" = "1" ] && TEST_MODE=1      # a dry run submits nothing by construction
 MAX_INFLIGHT="${MAX_INFLIGHT:-16}"
 POLL_SECONDS="${POLL_SECONDS:-120}"
 
@@ -95,23 +97,64 @@ is_num "$MAX_INFLIGHT" && [ "$MAX_INFLIGHT" -ge 1 ] && [ "$MAX_INFLIGHT" -le 16 
 # such test. There is no override any more — in test mode the submission is
 # SIMULATED in-process (submit_cell), and in live mode it is always this
 # campaign's own submitter.
-[ -z "${YAW_GEN_SUBMIT:-}" ] \
-  || reject "YAW_GEN_SUBMIT no longer exists: a wave either runs ${SUBMIT} (live) or simulates the submission in-process (YAW_GEN_TEST_MODE=1). An overridable submitter cannot be proven to be a mock."
+# --- ENTRY DOCTRINE: an explicit per-mode allowlist, checked before anything ---
+# Anything named YAW_GEN_* or FA_ORBIT_* that is not listed here is refused, so a
+# new seam cannot be introduced by an environment that this script has never
+# heard of. Every allowlisted name carries DATA only.
+ALLOW_LIVE="YAW_GEN_TEST_MODE"
+#   YAW_GEN_TEST_MODE      "1" selects simulation (checked below; 0/unset = live)
+ALLOW_TEST="YAW_GEN_TEST_MODE YAW_GEN_TEST_RECORD YAW_GEN_TEST_JOBID \
+YAW_GEN_TEST_SUBMIT_RC YAW_GEN_SQUEUE_FIXTURE YAW_GEN_SQUEUE_FAILS \
+YAW_GEN_SYNC_FAILS YAW_GEN_PIN_FILE YAW_GEN_COMMAND_LOG YAW_GEN_WT_DIR \
+YAW_GEN_INTENT_DIR"
+#   YAW_GEN_TEST_RECORD    path of a text file this script APPENDS its argv to
+#   YAW_GEN_TEST_JOBID     the job id a simulated submission reports (data)
+#   YAW_GEN_TEST_SUBMIT_RC the rc a simulated submission returns (data)
+#   YAW_GEN_SQUEUE_FIXTURE path of a text file holding "<jobid> <name>" lines —
+#                          READ as data, never executed
+#   YAW_GEN_SQUEUE_FAILS   "1" makes the simulated queue query fail
+#   YAW_GEN_SYNC_FAILS     "1" makes the simulated flush fail
+#   YAW_GEN_PIN_FILE       path of the campaign-pin file to read
+#   YAW_GEN_COMMAND_LOG    path of the command log to append to
+#   YAW_GEN_WT_DIR         directory whose .leases/ prove an in-flight job
+#   YAW_GEN_INTENT_DIR     not read here: allowed because a test environment that
+#                          drives the single-cell submitter carries it (data path)
+env_allowlist_gate() {   # $1 = space-separated allowed names
+  local name allowed
+  while IFS='=' read -r name _; do
+    case "$name" in
+      YAW_GEN_*|FA_ORBIT_*) ;;
+      *) continue ;;
+    esac
+    allowed=0
+    for a in $1; do [ "$name" = "$a" ] && allowed=1 && break; done
+    [ "$allowed" = "1" ] || reject "environment variable ${name} is not on this mode's allowlist: the wave submitter honours only the documented DATA seams (nothing here may name a command)"
+  done <<< "$(env)"
+}
 if [ "$TEST_MODE" = "1" ]; then
   # Only in test mode may the campaign's own state be redirected. A test that
   # writes the live command log and the live pin file is not a test of the wave,
   # it is an edit of the campaign — and a RED run of this suite once submitted
   # four real jobs that way.
+  env_allowlist_gate "$ALLOW_TEST"
   [ -n "${YAW_GEN_PIN_FILE:-}" ] && PIN_FILE="$YAW_GEN_PIN_FILE"
   [ -n "${YAW_GEN_COMMAND_LOG:-}" ] && COMMAND_LOG="$YAW_GEN_COMMAND_LOG"
-elif [ "$DRYRUN" != "1" ]; then
-  # (a DRYRUN reaches neither squeue nor the command log, so the seams are inert)
-  [ -z "${YAW_GEN_SQUEUE:-}${YAW_GEN_SYNC:-}" ] \
-    || reject "YAW_GEN_SQUEUE / YAW_GEN_SYNC are failure-injection seams and need YAW_GEN_TEST_MODE=1"
-  if [ -n "${YAW_GEN_PIN_FILE:-}${YAW_GEN_COMMAND_LOG:-}${YAW_GEN_WT_DIR:-}" ]; then
-    echo "NOTE: YAW_GEN_PIN_FILE / YAW_GEN_COMMAND_LOG / YAW_GEN_WT_DIR are IGNORED" >&2
-    echo "      without YAW_GEN_TEST_MODE=1" >&2
-  fi
+else
+  env_allowlist_gate "$ALLOW_LIVE"
+  # LIVE: resolve the binaries ONCE, absolutely, from a sanitized PATH, after
+  # dropping any exported shell function of the same name. Thereafter only these
+  # stored paths are invoked, so neither PATH nor a function can swap them (Z2).
+  unset -f squeue sync 2>/dev/null || true
+  for _n in squeue sync; do
+    _p="$(PATH=/usr/bin:/bin:/usr/local/bin command -v "$_n" 2>/dev/null)" || _p=""
+    case "$_p" in
+      /*) ;;
+      *) reject "cannot resolve an absolute path for '${_n}' on a sanitized PATH" ;;
+    esac
+    [ -x "$_p" ] || reject "resolved '${_p}' for ${_n} is not executable"
+    printf -v "BIN_${_n}" '%s' "$_p"
+  done
+  echo "resolved: squeue=${BIN_squeue} sync=${BIN_sync}" >&2
 fi
 
 # --- the campaign pin --------------------------------------------------------
@@ -159,10 +202,25 @@ sync_file() {   # flush one file's bytes to disk; NONZERO when it cannot be done
                 # point of writing it before the launch — so an unconditional
                 # success here made the fatal check unreachable.
   local f="$1"
-  command -v "$SYNC_CMD" >/dev/null 2>&1 || return 1
-  "$SYNC_CMD" "$f" 2>/dev/null && return 0
-  "$SYNC_CMD" 2>/dev/null && return 0        # coreutils without per-file sync
+  if [ "$TEST_MODE" = "1" ]; then
+    test_record "sync ${f}"
+    [ "${YAW_GEN_SYNC_FAILS:-0}" = "1" ] && return 1
+    return 0
+  fi
+  "$BIN_sync" "$f" 2>/dev/null && return 0
+  "$BIN_sync" 2>/dev/null && return 0         # coreutils without per-file sync
   return 1
+}
+
+queue_lines() {  # "<jobid> <name>" per line; NONZERO when the queue cannot be read
+  if [ "$TEST_MODE" = "1" ]; then
+    [ "${YAW_GEN_SQUEUE_FAILS:-0}" = "1" ] && return 1
+    # A FIXTURE FILE, read as data. There is no command here to substitute.
+    [ -n "${YAW_GEN_SQUEUE_FIXTURE:-}" ] || return 0
+    cat "$YAW_GEN_SQUEUE_FIXTURE" 2>/dev/null || return 1
+    return 0
+  fi
+  "$BIN_squeue" -h -u "$(id -un)" -o "%i %j" 2>/dev/null
 }
 
 submit_argv() {  # <arm> <cell> <step> <seed> <k> <rot>  -> the cell's submit argv
@@ -230,21 +288,17 @@ fi
 # refuses to run unless the submitter is a mock (checked above). A live wave can
 # therefore never reach this branch.
 WT_DIR="${MAIN_REPO}/.measure_worktrees/${PIN_SHA}"
-if [ -n "${YAW_GEN_WT_DIR:-}" ]; then
-  if [ "$TEST_MODE" = "1" ]; then
-    WT_DIR="$YAW_GEN_WT_DIR"
-    echo "TEST MODE: lease directory overridden to ${WT_DIR}" >&2
-  else
-    echo "NOTE: YAW_GEN_WT_DIR is set but IGNORED — leases are read from the pinned" >&2
-    echo "      worktree ${WT_DIR} (override needs YAW_GEN_TEST_MODE=1 AND a mocked" >&2
-    echo "      submitter; a live wave may not relax the lease invariant)" >&2
-  fi
+# In test mode only — a LIVE wave carrying this variable never gets here at all:
+# the entry allowlist refuses it outright, which is stronger than ignoring it.
+if [ -n "${YAW_GEN_WT_DIR:-}" ] && [ "$TEST_MODE" = "1" ]; then
+  WT_DIR="$YAW_GEN_WT_DIR"
+  echo "TEST MODE: lease directory overridden to ${WT_DIR}" >&2
 fi
-QUEUED="$("$SQUEUE" -h -u "$(id -un)" -o "%i %j" 2>/dev/null)" \
+QUEUED="$(queue_lines)" \
   || reject "squeue failed - refusing to submit without knowing what is already queued"
 inflight_count() { printf '%s\n' "$QUEUED" | awk '{print $2}' | grep -c '^exp14-' ; }
 refresh_queue() {
-  QUEUED="$("$SQUEUE" -h -u "$(id -un)" -o "%i %j" 2>/dev/null)" || return 1
+  QUEUED="$(queue_lines)" || return 1
   return 0
 }
 queued_jobid() {   # <job name> -> the job id Slurm reports for it, or ""

@@ -49,7 +49,6 @@ HELPER="$MAIN_REPO/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_measure
 # checks it. A nonempty file is not a complete one: a crash mid-write leaves a
 # plausible-looking manifest that a collector would read as the launch record.
 MANIFEST_SENTINEL="manifest_complete yes"
-SYNC_CMD="${YAW_GEN_SYNC:-sync}"
 
 verify_manifest_complete() {   # <path>; nonzero unless it ends with the sentinel
   [ -f "$1" ] || return 1
@@ -57,15 +56,22 @@ verify_manifest_complete() {   # <path>; nonzero unless it ends with the sentine
   return 0
 }
 
-sync_file() {   # flush one file's bytes; NONZERO when durability cannot be had
-  command -v "$SYNC_CMD" >/dev/null 2>&1 || return 1
-  "$SYNC_CMD" "$1" 2>/dev/null && return 0
-  "$SYNC_CMD" 2>/dev/null && return 0
+sync_file() {   # flush one file's bytes; NONZERO when durability cannot be had.
+                # No environment variable names the flusher: in test mode this is
+                # an internal no-op that RECORDS itself, and in live mode it is the
+                # absolute path resolved at entry (Z1/Z2).
+  if [ "${TEST_MODE:-0}" = "1" ]; then
+    test_record "sync $1"
+    [ "${YAW_GEN_SYNC_FAILS:-0}" = "1" ] && return 1
+    return 0
+  fi
+  "$BIN_sync" "$1" 2>/dev/null && return 0
+  "$BIN_sync" 2>/dev/null && return 0
   return 1
 }
 
 # `--verify-manifest <path>` is the read-only reader entry point (guard suite and
-# operators); it takes no lock and submits nothing.
+# operators); it takes no lock, submits nothing and reads no environment seam.
 if [ "${1:-}" = "--verify-manifest" ]; then
   verify_manifest_complete "${2:?a manifest path}" \
     && { echo "manifest complete: $2"; exit 0; }
@@ -175,17 +181,58 @@ done
 TEST_MODE=0
 [ "${YAW_GEN_TEST_MODE:-0}" = "1" ] && TEST_MODE=1
 [ "$DRYRUN" = "1" ] && TEST_MODE=1        # a dry run submits nothing by construction
+
+# --- ENTRY DOCTRINE: an explicit per-mode allowlist, checked before anything ---
+# Anything named YAW_GEN_* or FA_ORBIT_* that is not listed here is REFUSED, so a
+# seam cannot be introduced by an environment this script has never heard of.
+# Every allowlisted name carries DATA only — none of them names a command.
+ALLOW_LIVE="FA_ORBIT_STORE_LOCK_HELD YAW_GEN_TEST_MODE"
+#   FA_ORBIT_STORE_LOCK_HELD  "1" from the shared store helper's lock protocol
+#   YAW_GEN_TEST_MODE         "1" selects simulation (0/unset = live)
+ALLOW_TEST="FA_ORBIT_STORE_LOCK_HELD YAW_GEN_TEST_MODE YAW_GEN_TEST_RECORD \
+YAW_GEN_TEST_JOBID YAW_GEN_TEST_SUBMIT_SLEEP YAW_GEN_TEST_RELEASE_SLEEP \
+YAW_GEN_TEST_RELEASE_FAILS YAW_GEN_TEST_SCANCEL_FAILS YAW_GEN_SYNC_FAILS \
+YAW_GEN_PIN_FILE YAW_GEN_INTENT_DIR"
+#   YAW_GEN_TEST_RECORD        path of a text file this script APPENDS its argv to
+#   YAW_GEN_TEST_JOBID         the job id a simulated submission reports (data)
+#   YAW_GEN_TEST_SUBMIT_SLEEP  seconds a simulated submission stalls (data)
+#   YAW_GEN_TEST_RELEASE_SLEEP seconds a simulated release stalls (data)
+#   YAW_GEN_TEST_RELEASE_FAILS "1" makes the simulated release fail
+#   YAW_GEN_TEST_SCANCEL_FAILS "1" makes the simulated cancel fail
+#   YAW_GEN_SYNC_FAILS         "1" makes the simulated flush fail
+#   YAW_GEN_PIN_FILE           path of the campaign-pin file to read
+#   YAW_GEN_INTENT_DIR         directory the intent manifest is written to
+env_allowlist_gate() {   # $1 = space-separated allowed names
+  local name allowed a
+  while IFS='=' read -r name _; do
+    case "$name" in
+      YAW_GEN_*|FA_ORBIT_*) ;;
+      *) continue ;;
+    esac
+    allowed=0
+    for a in $1; do [ "$name" = "$a" ] && allowed=1 && break; done
+    [ "$allowed" = "1" ] || reject "environment variable ${name} is not on this mode's allowlist: this submitter honours only the documented DATA seams (nothing here may name a command)"
+  done <<< "$(env)"
+}
 if [ "$TEST_MODE" = "1" ]; then
-  [ -z "${FA_ORBIT_SBATCH:-}${FA_ORBIT_SCONTROL:-}${FA_ORBIT_SCANCEL:-}" ] \
-    || reject "FA_ORBIT_SBATCH/SCONTROL/SCANCEL may not be set in test mode: test mode runs NO submit command, so an override could only re-introduce a path to the real one"
+  env_allowlist_gate "$ALLOW_TEST"
 else
-  # LIVE. The FA_ORBIT_* names survive only for exp_11 shared-helper
-  # compatibility, and the only value that means anything is the canonical
-  # binary; anything else used to be accepted as a "mock" and executed.
-  [ "${FA_ORBIT_SBATCH:-sbatch}" = "sbatch" ] \
-    && [ "${FA_ORBIT_SCONTROL:-scontrol}" = "scontrol" ] \
-    && [ "${FA_ORBIT_SCANCEL:-scancel}" = "scancel" ] \
-    || reject "a LIVE submission runs the canonical Slurm binaries: FA_ORBIT_SBATCH/SCONTROL/SCANCEL may only be set to 'sbatch'/'scontrol'/'scancel' (use YAW_GEN_TEST_MODE=1 to simulate)"
+  env_allowlist_gate "$ALLOW_LIVE"
+  # LIVE: resolve every Slurm binary ONCE, absolutely, from a sanitized PATH,
+  # after dropping any exported shell FUNCTION of the same name. Only these
+  # stored paths are invoked afterwards, so neither PATH nor an exported function
+  # can substitute an implementation (Z2).
+  unset -f sbatch scontrol scancel sync 2>/dev/null || true
+  for _n in sbatch scontrol scancel sync; do
+    _p="$(PATH=/usr/bin:/bin:/usr/local/bin command -v "$_n" 2>/dev/null)" || _p=""
+    case "$_p" in
+      /*) ;;
+      *) reject "cannot resolve an absolute path for '${_n}' on a sanitized PATH" ;;
+    esac
+    [ -x "$_p" ] || reject "resolved '${_p}' for ${_n} is not executable"
+    printf -v "BIN_${_n}" '%s' "$_p"
+  done
+  echo "resolved: sbatch=${BIN_sbatch} scontrol=${BIN_scontrol} scancel=${BIN_scancel}"
 fi
 PIN_FILE="${EXPDIR}/yaw_gen_campaign_pin"
 INTENT_DIR="$EXPDIR"
@@ -296,7 +343,7 @@ slurm_submit_hold() {   # prints a job id on stdout, like `sbatch --parsable`
     printf '%s\n' "${YAW_GEN_TEST_JOBID:-7654321}"
     return 0
   fi
-  sbatch "$@"
+  "$BIN_sbatch" "$@"
 }
 slurm_release() {       # $1 = job id
   if [ "$TEST_MODE" = "1" ]; then
@@ -309,7 +356,7 @@ slurm_release() {       # $1 = job id
     [ "${YAW_GEN_TEST_RELEASE_FAILS:-0}" = "1" ] && return 1
     return 0
   fi
-  scontrol release "$1"
+  "$BIN_scontrol" release "$1"
 }
 slurm_cancel() {        # $1 = job id, or --name=<job name>
   if [ "$TEST_MODE" = "1" ]; then
@@ -317,7 +364,7 @@ slurm_cancel() {        # $1 = job id, or --name=<job name>
     [ "${YAW_GEN_TEST_SCANCEL_FAILS:-0}" = "1" ] && return 1
     return 0
   fi
-  scancel "$1"
+  "$BIN_scancel" "$1"
 }
 # Node exclusion is passed as an EXPLICIT FLAG, never through the environment.
 # SBATCH_EXCLUDE does not exist: of the 58 input environment variables sbatch

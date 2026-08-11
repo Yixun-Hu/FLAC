@@ -35,6 +35,7 @@ VALIDATOR="${EXPDIR}/exp14_validate_cell.py"
 LIVE_PIN_FILE="${EXPDIR}/yaw_gen_campaign_pin"
 LIVE_CMDLOG="${EXPDIR}/yaw_gen_command.md"
 LIVE_CMDLOG_SUM_AT_START="$(sha256sum "$LIVE_CMDLOG" 2>/dev/null | cut -d' ' -f1)"
+LIVE_PIN_AT_START="absent"; [ -f "$LIVE_PIN_FILE" ] && LIVE_PIN_AT_START="present"
 GUARD_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 PY=/n/fs/gatrdp/envs/flac/bin/python
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
@@ -54,7 +55,7 @@ TEST_CMDLOG="${TMP}/command.md"
 LIVE_TRACE="${TMP}/live_submit.txt"     # where a simulated wave records its argv
 LIVE_QUEUE="${TMP}/live_queue.txt"      # ...and the queue it is shown
 TEST_INTENT_DIR="${TMP}/intents"; mkdir -p "$TEST_INTENT_DIR"
-trap 'rm -rf "$TMP"' EXIT
+trap 'assert_campaign_untouched || SUITE_EXIT_BAD=1; rm -rf "$TMP"; [ "${SUITE_EXIT_BAD:-0}" = "1" ] && exit 1; exit "$?"' EXIT
 
 # Several cases below need a store they are allowed to DELETE from, and get it
 # by thawing the campaign freeze. That is safe on an idle store and catastrophic
@@ -72,6 +73,21 @@ STORE_PIN_AT_START="$(head -1 "$STORE_PIN_MARKER" 2>/dev/null)"
 CAMPAIGN_LIVE=0
 bash "$MEASURE_HELPER" --frozen >/dev/null 2>&1 && CAMPAIGN_LIVE=1
 [ "$CAMPAIGN_LIVE" = "1" ] && echo "NOTE: a CAMPAIGN FREEZE is active — deletion/thaw cases are skipped"
+
+assert_campaign_untouched() {   # runs at suite EXIT, after every case
+  local now
+  now="$(sha256sum "$LIVE_CMDLOG" 2>/dev/null | cut -d' ' -f1)"
+  if [ "$now" != "${LIVE_CMDLOG_SUM_AT_START:-}" ]; then
+    echo "FAIL  (suite exit) this suite MODIFIED the campaign command log"
+    return 1
+  fi
+  if [ -f "$LIVE_PIN_FILE" ] && [ "${LIVE_PIN_AT_START:-absent}" = "absent" ]; then
+    echo "FAIL  (suite exit) this suite created the campaign pin file"
+    return 1
+  fi
+  echo "PASS  (suite exit) campaign command log and pin file are exactly as found"
+  return 0
+}
 
 restore_suite_state() {  # put back anything this suite parked (trap-backed)
   if [ "${SUITE_PIN_PARKED:-0}" = "1" ] && [ -f "${TMP}/campaign_pin.saved" ]; then
@@ -723,7 +739,7 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
   # any early exit leaves the campaign unpinned — the next submission would then
   # silently measure at HEAD instead of the pin. Arm the restore BEFORE clearing.
   SUITE_PIN_PARKED=0
-  trap 'restore_suite_state; rm -rf "$TMP"' EXIT
+  trap 'restore_suite_state; assert_campaign_untouched || SUITE_EXIT_BAD=1; rm -rf "$TMP"; [ "${SUITE_EXIT_BAD:-0}" = "1" ] && exit 1; exit "$?"' EXIT
   trap 'restore_suite_state; exit 130' INT TERM
   rm -f "$PIN_FILE"
   # NO MOCK BINARIES. "Is this executable a mock?" is not a decidable question —
@@ -957,7 +973,7 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
     # cells are comparable only if they ran at one commit.
     cp "$PIN_FILE" "${TMP}/pin_for_mocks" 2>/dev/null || true
     rm -f "$PIN_FILE"                       # THE point of this case: no pin file
-    out="$(env YAW_GEN_SQUEUE=/bin/false YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
+    out="$(env YAW_GEN_SQUEUE_FAILS=1 YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
                YAW_GEN_PIN_FILE="${TMP}/no_such_pin" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" \
                bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
     cp "${TMP}/pin_for_mocks" "$PIN_FILE" 2>/dev/null || true
@@ -1571,7 +1587,7 @@ else
 fi
 # a DRYRUN must not submit, classify or query the queue: point every seam at a
 # command that FAILS, and require success anyway.
-if DRYRUN=1 env YAW_GEN_SQUEUE=/bin/false \
+if DRYRUN=1 env YAW_GEN_SQUEUE_FAILS=1 \
      bash "$GRID" WAVE=vctl >/dev/null 2>&1; then
   echo "PASS  DRYRUN neither submits nor queries the queue"; PASS=$((PASS + 1))
 else
@@ -1619,7 +1635,7 @@ json.dump({"metrics": {}, "eval_name": "nonsense"}, open(p, "w"))
 print(p)
 PY
 printf '%s\n' "$HEAD_SHA" > "$PIN_FILE"      # a live wave requires the pin FILE
-OUT="$(env YAW_GEN_SQUEUE=/bin/false YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
+OUT="$(env YAW_GEN_SQUEUE_FAILS=1 YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
         YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" OUTPUT_ROOT="$DEDUP" \
         bash "$GRID" WAVE=vctl "PIN_SHA=${HEAD_SHA}" 2>&1)"; rc=$?
 if [ "$rc" -eq 3 ] && echo "$OUT" | grep -q "HALT:" \
@@ -1636,7 +1652,7 @@ else
 fi
 # with the broken artifact removed the same wave classifies every cell MISSING
 rm -f "${DEDUP}/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/"*_metrics_*.json
-OUT="$(env YAW_GEN_SQUEUE=/bin/false YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
+OUT="$(env YAW_GEN_SQUEUE_FAILS=1 YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
         YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" OUTPUT_ROOT="$DEDUP" \
         bash "$GRID" WAVE=vctl "PIN_SHA=${HEAD_SHA}" 2>&1)"; rc=$?
 rm -f "$PIN_FILE"
@@ -1657,11 +1673,6 @@ LIVE="${TMP}/live"; mkdir -p "$LIVE"
 LIVE_PIN="$HEAD_SHA"
 LIVE_WT="${TMP}/live_wt"; mkdir -p "${LIVE_WT}/.leases"
 : > "$LIVE_QUEUE"
-cat > "${TMP}/mock_squeue" <<'EOS'
-#!/usr/bin/env bash
-cat "$LIVE_QUEUE"
-EOS
-chmod +x "${TMP}/mock_squeue"
 
 # one landed C4L vctl@90 cell, valid under the AUDITED digest
 $PY - "$VALIDATOR" "$LIVE" "$LIVE_PIN" <<'PY'
@@ -1708,9 +1719,9 @@ PY
 live_wave() {   # <extra env...> — run the vctl wave with everything mocked
   : > "$LIVE_TRACE"
   printf '%s\n' "$LIVE_PIN" > "$PIN_FILE"
-  env LIVE_QUEUE="$LIVE_QUEUE" LIVE_TRACE="$LIVE_TRACE" \
+  env LIVE_TRACE="$LIVE_TRACE" \
       COMMAND_LOG_UNDER_TEST="$TEST_CMDLOG" \
-      YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
+      YAW_GEN_SQUEUE_FIXTURE="$LIVE_QUEUE" YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
       YAW_GEN_TEST_RECORD="$LIVE_TRACE" YAW_GEN_WT_DIR="$LIVE_WT" YAW_GEN_PIN_FILE="$PIN_FILE" \
       YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" OUTPUT_ROOT="$LIVE" "$@" \
       bash "$GRID" WAVE=vctl 2>&1
@@ -1797,9 +1808,9 @@ fi
 : > "$LIVE_QUEUE"
 # (g) the pin FILE is required even when PIN_SHA is supplied (review B3)
 rm -f "$PIN_FILE"
-OUT="$(env YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
+OUT="$(env YAW_GEN_SQUEUE_FIXTURE="$LIVE_QUEUE" YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
        YAW_GEN_TEST_MODE=1 YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" \
-       LIVE_QUEUE="$LIVE_QUEUE" OUTPUT_ROOT="$LIVE" bash "$GRID" WAVE=vctl \
+       OUTPUT_ROOT="$LIVE" bash "$GRID" WAVE=vctl \
        "PIN_SHA=${LIVE_PIN}" 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "no campaign pin FILE"; then
   echo "PASS  PIN_SHA cannot substitute for the campaign pin file"; PASS=$((PASS + 1))
@@ -1810,9 +1821,9 @@ fi
 printf '%s\n' "$LIVE_PIN" > "$PIN_FILE"
 OTHER_PIN="$(git rev-parse "${LIVE_PIN}^" 2>/dev/null)"   # the pin's PARENT: never the pin
 if [ -n "$OTHER_PIN" ]; then
-  OUT="$(env YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
+  OUT="$(env YAW_GEN_SQUEUE_FIXTURE="$LIVE_QUEUE" YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
          YAW_GEN_TEST_MODE=1 YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" \
-         LIVE_QUEUE="$LIVE_QUEUE" OUTPUT_ROOT="$LIVE" bash "$GRID" WAVE=vctl \
+         OUTPUT_ROOT="$LIVE" bash "$GRID" WAVE=vctl \
          "PIN_SHA=${OTHER_PIN}" 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "disagrees with the campaign pin"; then
     echo "PASS  a PIN_SHA disagreeing with the pin file is refused"; PASS=$((PASS + 1))
@@ -1822,9 +1833,9 @@ if [ -n "$OTHER_PIN" ]; then
 fi
 # (i) a pin file naming a commit this repository does not have is refused
 printf '%s\n' "0123456789abcdef0123456789abcdef01234567" > "$PIN_FILE"
-OUT="$(env YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
+OUT="$(env YAW_GEN_SQUEUE_FIXTURE="$LIVE_QUEUE" YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
        YAW_GEN_TEST_MODE=1 YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" \
-       LIVE_QUEUE="$LIVE_QUEUE" OUTPUT_ROOT="$LIVE" bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
+       OUTPUT_ROOT="$LIVE" bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "is not a commit in this repository"; then
   echo "PASS  a pin file naming an unknown commit is refused"; PASS=$((PASS + 1))
 else
@@ -1853,17 +1864,38 @@ JOBID_SEAM=5557777
 printf '%s exp14-screen-C8-vctl-rot90-40000-s42-K8\n' "$JOBID_SEAM" > "$LIVE_QUEUE"
 printf 'jobid %s\n' "$JOBID_SEAM" > "${LIVE_WT}/.leases/${JOBID_SEAM}"   # lease in the SEAM dir only
 : > "$LIVE_TRACE"
-# NOT in test mode: the seam must be IGNORED, and the wave must stop before it
-# can submit anything. It is deliberately given no campaign pin, so it refuses at
-# the pin gate — a guard case may never reach the live submission path at all.
-OUT="$(env YAW_GEN_WT_DIR="$LIVE_WT" OUTPUT_ROOT="$LIVE" bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
-if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "IGNORED"; then
-  echo "PASS  a live wave says plainly that YAW_GEN_WT_DIR is ignored"; PASS=$((PASS + 1))
+# NOT in test mode. This case must be INCAPABLE of submitting even if a real
+# campaign pin exists, so it runs a COPY of the wave submitter whose MAIN_REPO is
+# a temporary directory: the real repo's pin file is invisible to it, the copy
+# finds no pin of its own, and it therefore stops at the pin gate — structurally,
+# not by luck of the campaign's current state.
+FAKE_REPO="${TMP}/fake_main_repo"
+mkdir -p "${FAKE_REPO}/worklog/worklog_yixun/exp_14_yaw_gen_claude"
+sed "s|^MAIN_REPO=/n/fs/gatrdp/codespace/FLAC$|MAIN_REPO=${FAKE_REPO}|" "$GRID"   > "${FAKE_REPO}/worklog/worklog_yixun/exp_14_yaw_gen_claude/yaw_gen_submit_grid.sh"
+cp "$SUB" "$VALIDATOR" "${FAKE_REPO}/worklog/worklog_yixun/exp_14_yaw_gen_claude/"
+GRID_FAKE="${FAKE_REPO}/worklog/worklog_yixun/exp_14_yaw_gen_claude/yaw_gen_submit_grid.sh"
+grep -q "^MAIN_REPO=${FAKE_REPO}$" "$GRID_FAKE"   && { echo "PASS  the live-refusal case runs against a temporary MAIN_REPO"; PASS=$((PASS + 1)); }   || { echo "FAIL  could not retarget the wave submitter's MAIN_REPO"; FAIL=$((FAIL + 1)); }
+OUT="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR \
+        OUTPUT_ROOT="$LIVE" bash "$GRID_FAKE" WAVE=vctl 2>&1)"; rc=$?
+if [ "$rc" -eq 2 ] && echo "$OUT" | grep -q "no campaign pin FILE" \
+   && echo "$OUT" | grep -q "${FAKE_REPO}"; then
+  echo "PASS  a live wave stops AT THE PIN GATE, with the real repo's pin invisible"
+  PASS=$((PASS + 1))
 else
-  echo "FAIL  a live wave did not report the ignored seam (rc=${rc})"; FAIL=$((FAIL + 1))
+  echo "FAIL  the live wave did not stop at the pin gate (rc=${rc})"
+  echo "$OUT" | tail -3 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
 fi
-OUT="$(env LIVE_QUEUE="$LIVE_QUEUE" \
-        YAW_GEN_SQUEUE="${TMP}/mock_squeue" YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
+# ...and a live wave that so much as CARRIES the lease seam is refused outright —
+# stronger than ignoring it, and it happens at the ENTRY, before any gate runs.
+OUT="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR \
+        YAW_GEN_WT_DIR="$LIVE_WT" OUTPUT_ROOT="$LIVE" bash "$GRID_FAKE" WAVE=vctl 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "YAW_GEN_WT_DIR is not on this mode's allowlist"; then
+  echo "PASS  a live wave carrying the lease seam is REFUSED at the entry"; PASS=$((PASS + 1))
+else
+  echo "FAIL  a live wave tolerated the lease seam (rc=${rc})"; FAIL=$((FAIL + 1))
+fi
+OUT="$(env \
+        YAW_GEN_SQUEUE_FIXTURE="$LIVE_QUEUE" YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
         YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" \
         OUTPUT_ROOT="$LIVE" bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
 if [ "$rc" -eq 5 ] && echo "$OUT" | grep -q "holds NO lease under"; then
@@ -1887,15 +1919,16 @@ rm -f "${LIVE_WT}/.leases/${JOBID_SEAM}"; : > "$LIVE_QUEUE"
 echo
 echo "--- durability: a record that cannot be made durable stops the launch ---"
 : > "$LIVE_TRACE"
-OUT="$(live_wave YAW_GEN_SYNC=/bin/false)"; rc=$?
+OUT="$(live_wave YAW_GEN_SYNC_FAILS=1)"; rc=$?
 if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "cannot durably record"; then
   echo "PASS  a wave whose command log cannot be flushed refuses to submit"; PASS=$((PASS + 1))
 else
   echo "FAIL  an unflushable command log did not stop the wave (rc=${rc})"
   echo "$OUT" | tail -3 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
 fi
-if [ ! -s "$LIVE_TRACE" ]; then
-  echo "PASS  ...and it submitted nothing"; PASS=$((PASS + 1))
+if ! grep -q '^submit ' "$LIVE_TRACE" 2>/dev/null; then
+  echo "PASS  ...and it submitted nothing (the record shows the flush, never a submit)"
+  PASS=$((PASS + 1))
 else
   echo "FAIL  it submitted despite the durability failure"; sed 's/^/        | /' "$LIVE_TRACE"
   FAIL=$((FAIL + 1))
@@ -1962,7 +1995,7 @@ echo "--- submit-executable overrides are refused, not trusted ---"
 for SPELLING in "/bin/echo" "$(command -v sbatch 2>/dev/null || echo /usr/bin/sbatch)"; do
   out="$(env "FA_ORBIT_SBATCH=${SPELLING}" YAW_GEN_PIN_FILE="$PIN_FILE" \
          bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
-  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "may only be set to 'sbatch'"; then
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "not on this mode's allowlist"; then
     echo "PASS  FA_ORBIT_SBATCH='${SPELLING}' is refused in live mode"; PASS=$((PASS + 1))
   else
     echo "FAIL  an absolute-path 'mock' was accepted (rc=${rc}) — it could be the real sbatch"
@@ -1982,7 +2015,7 @@ else
   FAIL=$((FAIL + 1))
 fi
 out="$(env YAW_GEN_TEST_MODE=1 "FA_ORBIT_SBATCH=${WRAP}" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "may not be set in test mode"; then
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "not on this mode's allowlist"; then
   echo "PASS  an override is refused in TEST MODE too (test mode runs no submit command)"
   PASS=$((PASS + 1))
 else
@@ -1990,17 +2023,64 @@ else
 fi
 out="$(env YAW_GEN_SUBMIT="$WRAP" YAW_GEN_TEST_MODE=1 YAW_GEN_PIN_FILE="$PIN_FILE" \
        bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "YAW_GEN_SUBMIT no longer exists"; then
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "not on this mode's allowlist"; then
   echo "PASS  the wave refuses an overridden submitter outright"; PASS=$((PASS + 1))
 else
   echo "FAIL  the wave accepted an overridden submitter (rc=${rc})"; FAIL=$((FAIL + 1))
 fi
 # a LIVE wave may not carry the failure-injection seams either
-out="$(env YAW_GEN_SQUEUE=/bin/false bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "need YAW_GEN_TEST_MODE=1"; then
-  echo "PASS  a live wave refuses the squeue/sync injection seams"; PASS=$((PASS + 1))
+out="$(env YAW_GEN_SQUEUE_FAILS=1 bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "not on this mode's allowlist"; then
+  echo "PASS  a live wave refuses the failure-injection seams"; PASS=$((PASS + 1))
 else
   echo "FAIL  a live wave accepted an injection seam (rc=${rc})"; FAIL=$((FAIL + 1))
+fi
+# an UNKNOWN seam name is refused in both modes: the allowlist is the doctrine
+for MODEENV in "YAW_GEN_TEST_MODE=1" "DRYRUN=0"; do
+  out="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR $MODEENV YAW_GEN_FOO=1 \
+         bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "YAW_GEN_FOO is not on this mode's allowlist"; then
+    echo "PASS  the wave refuses an unknown YAW_GEN_* seam (${MODEENV})"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  an unknown seam was tolerated (${MODEENV}, rc=${rc})"; FAIL=$((FAIL + 1))
+  fi
+  out="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR $MODEENV YAW_GEN_FOO=1 \
+         bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && echo "$out" | grep -q "YAW_GEN_FOO is not on this mode's allowlist"; then
+    echo "PASS  the submitter refuses an unknown YAW_GEN_* seam (${MODEENV})"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  the submitter tolerated an unknown seam (${MODEENV}, rc=${rc})"; FAIL=$((FAIL + 1))
+  fi
+done
+# ...and no executable-bearing name survives anywhere in either script
+if grep -vE '^[[:space:]]*#' "$SUB" "$GRID" | grep -qE 'YAW_GEN_(SQUEUE|SYNC|SUBMIT|PY)[^_]'; then
+  echo "FAIL  an executable-bearing env seam is still read"; FAIL=$((FAIL + 1))
+else
+  echo "PASS  no environment variable names a command in either script"; PASS=$((PASS + 1))
+fi
+
+# --- Z2: neither PATH nor an exported function can swap a Slurm binary -------
+echo
+echo "--- live binaries resolve to absolute paths from a sanitized PATH ---"
+FAKEBIN="${TMP}/fakebin"; mkdir -p "$FAKEBIN"
+printf '#!/usr/bin/env bash
+echo "FAKE-SQUEUE-RAN" >> "%s"
+' "${TMP}/fake_calls.txt" > "${FAKEBIN}/squeue"
+printf '#!/usr/bin/env bash
+echo "FAKE-SBATCH-RAN" >> "%s"
+' "${TMP}/fake_calls.txt" > "${FAKEBIN}/sbatch"
+chmod +x "${FAKEBIN}/squeue" "${FAKEBIN}/sbatch"
+rm -f "${TMP}/fake_calls.txt"
+RESOLVED="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR PATH="${FAKEBIN}:$PATH" bash -c '
+  sbatch() { echo "EXPORTED-FUNCTION-RAN"; }; export -f sbatch
+  squeue() { echo "EXPORTED-FUNCTION-RAN"; }; export -f squeue
+  bash "$1" WAVE=vctl 2>&1' _ "$GRID" | sed -n 's/^resolved: //p')"
+if [ "$RESOLVED" = "squeue=/usr/bin/squeue sync=/usr/bin/sync" ]    && [ ! -f "${TMP}/fake_calls.txt" ]; then
+  echo "PASS  a poisoned PATH and exported functions do not change the resolved binaries"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL  resolution was influenced ('${RESOLVED}', fake ran: $([ -f "${TMP}/fake_calls.txt" ] && echo YES || echo no))"
+  FAIL=$((FAIL + 1))
 fi
 
 # --- Y2: an unparseable job id must still cancel, BY NAME --------------------
