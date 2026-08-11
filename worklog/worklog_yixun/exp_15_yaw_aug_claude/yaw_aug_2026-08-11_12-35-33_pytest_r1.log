@@ -1,0 +1,2275 @@
+............FFFFFFFFFFFFFFFFFFFFFFFF                                     [100%]
+=================================== FAILURES ===================================
+___________________ test_enabled_yaw_aug_block_passes_flags ____________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fa106eb6f20>
+
+    def test_enabled_yaw_aug_block_passes_flags(monkeypatch):
+        captured = _capture_wrapper_kwargs(
+            monkeypatch, {"yaw_aug": {"enabled": True, "img_w": 512, "seed": 42}}
+        )
+        kwargs = captured["kwargs"]
+>       assert set(kwargs) == PRE_CHANGE_WRAPPER_KWARGS | {
+            "yaw_aug_enabled", "yaw_aug_img_w", "yaw_aug_seed"
+        }
+E       AssertionError: assert {'cfg_dropout...padding', ...} == {'cfg_dropout...padding', ...}
+E         
+E         Extra items in the right set:
+E         'yaw_aug_seed'
+E         'yaw_aug_img_w'
+E         'yaw_aug_enabled'
+E         Use -v to get more diff
+
+src/tests/test_yaw_aug_training.py:437: AssertionError
+______________________ test_yaw_aug_rejects_fa_invariant _______________________
+
+    def test_yaw_aug_rejects_fa_invariant():
+        """Augmentation on top of frame averaging is an untested combination."""
+>       _expect_factory_error(
+            {"cond_method": "fa_invariant", "yaw_aug": {"enabled": True, "img_w": 512, "seed": 42}},
+            "yaw_aug", "fa_invariant",
+        )
+
+src/tests/test_yaw_aug_training.py:447: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'fa_invariant'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+______________ test_yaw_aug_enabled_requires_seed_and_img_w[seed] ______________
+
+missing = 'seed'
+
+    @pytest.mark.parametrize("missing", ["seed", "img_w"])
+    def test_yaw_aug_enabled_requires_seed_and_img_w(missing):
+        block = {"enabled": True, "img_w": 512, "seed": 42}
+        block.pop(missing)
+>       _expect_factory_error({"yaw_aug": block}, "yaw_aug", missing)
+
+src/tests/test_yaw_aug_training.py:457: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+_____________ test_yaw_aug_enabled_requires_seed_and_img_w[img_w] ______________
+
+missing = 'img_w'
+
+    @pytest.mark.parametrize("missing", ["seed", "img_w"])
+    def test_yaw_aug_enabled_requires_seed_and_img_w(missing):
+        block = {"enabled": True, "img_w": 512, "seed": 42}
+        block.pop(missing)
+>       _expect_factory_error({"yaw_aug": block}, "yaw_aug", missing)
+
+src/tests/test_yaw_aug_training.py:457: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+______________________ test_yaw_aug_rejects_unknown_keys _______________________
+
+    def test_yaw_aug_rejects_unknown_keys():
+>       _expect_factory_error(
+            {"yaw_aug": {"enabled": True, "img_w": 512, "seed": 42, "img_h": 256}},
+            "yaw_aug", "img_h",
+        )
+
+src/tests/test_yaw_aug_training.py:461: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+_______________ test_yaw_aug_rejects_non_literal_bool_enabled[1] _______________
+
+enabled = 1
+
+    @pytest.mark.parametrize("enabled", [1, 0, "true", "false", None, 1.0])
+    def test_yaw_aug_rejects_non_literal_bool_enabled(enabled):
+        """A truthy 1 in the JSON must not silently switch the treatment on/off."""
+>       _expect_factory_error(
+            {"yaw_aug": {"enabled": enabled, "img_w": 512, "seed": 42}},
+            "yaw_aug", "enabled",
+        )
+
+src/tests/test_yaw_aug_training.py:470: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+_______________ test_yaw_aug_rejects_non_literal_bool_enabled[0] _______________
+
+enabled = 0
+
+    @pytest.mark.parametrize("enabled", [1, 0, "true", "false", None, 1.0])
+    def test_yaw_aug_rejects_non_literal_bool_enabled(enabled):
+        """A truthy 1 in the JSON must not silently switch the treatment on/off."""
+>       _expect_factory_error(
+            {"yaw_aug": {"enabled": enabled, "img_w": 512, "seed": 42}},
+            "yaw_aug", "enabled",
+        )
+
+src/tests/test_yaw_aug_training.py:470: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+_____________ test_yaw_aug_rejects_non_literal_bool_enabled[true] ______________
+
+enabled = 'true'
+
+    @pytest.mark.parametrize("enabled", [1, 0, "true", "false", None, 1.0])
+    def test_yaw_aug_rejects_non_literal_bool_enabled(enabled):
+        """A truthy 1 in the JSON must not silently switch the treatment on/off."""
+>       _expect_factory_error(
+            {"yaw_aug": {"enabled": enabled, "img_w": 512, "seed": 42}},
+            "yaw_aug", "enabled",
+        )
+
+src/tests/test_yaw_aug_training.py:470: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+_____________ test_yaw_aug_rejects_non_literal_bool_enabled[false] _____________
+
+enabled = 'false'
+
+    @pytest.mark.parametrize("enabled", [1, 0, "true", "false", None, 1.0])
+    def test_yaw_aug_rejects_non_literal_bool_enabled(enabled):
+        """A truthy 1 in the JSON must not silently switch the treatment on/off."""
+>       _expect_factory_error(
+            {"yaw_aug": {"enabled": enabled, "img_w": 512, "seed": 42}},
+            "yaw_aug", "enabled",
+        )
+
+src/tests/test_yaw_aug_training.py:470: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+_____________ test_yaw_aug_rejects_non_literal_bool_enabled[None] ______________
+
+enabled = None
+
+    @pytest.mark.parametrize("enabled", [1, 0, "true", "false", None, 1.0])
+    def test_yaw_aug_rejects_non_literal_bool_enabled(enabled):
+        """A truthy 1 in the JSON must not silently switch the treatment on/off."""
+>       _expect_factory_error(
+            {"yaw_aug": {"enabled": enabled, "img_w": 512, "seed": 42}},
+            "yaw_aug", "enabled",
+        )
+
+src/tests/test_yaw_aug_training.py:470: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+______________ test_yaw_aug_rejects_non_literal_bool_enabled[1.0] ______________
+
+enabled = 1.0
+
+    @pytest.mark.parametrize("enabled", [1, 0, "true", "false", None, 1.0])
+    def test_yaw_aug_rejects_non_literal_bool_enabled(enabled):
+        """A truthy 1 in the JSON must not silently switch the treatment on/off."""
+>       _expect_factory_error(
+            {"yaw_aug": {"enabled": enabled, "img_w": 512, "seed": 42}},
+            "yaw_aug", "enabled",
+        )
+
+src/tests/test_yaw_aug_training.py:470: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+_________________ test_yaw_aug_rejects_non_dict_block[enabled] _________________
+
+block = 'enabled'
+
+    @pytest.mark.parametrize("block", ["enabled", True, ["enabled"], 512])
+    def test_yaw_aug_rejects_non_dict_block(block):
+>       _expect_factory_error({"yaw_aug": block}, "yaw_aug")
+
+src/tests/test_yaw_aug_training.py:478: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+__________________ test_yaw_aug_rejects_non_dict_block[True] ___________________
+
+block = True
+
+    @pytest.mark.parametrize("block", ["enabled", True, ["enabled"], 512])
+    def test_yaw_aug_rejects_non_dict_block(block):
+>       _expect_factory_error({"yaw_aug": block}, "yaw_aug")
+
+src/tests/test_yaw_aug_training.py:478: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+_________________ test_yaw_aug_rejects_non_dict_block[block2] __________________
+
+block = ['enabled']
+
+    @pytest.mark.parametrize("block", ["enabled", True, ["enabled"], 512])
+    def test_yaw_aug_rejects_non_dict_block(block):
+>       _expect_factory_error({"yaw_aug": block}, "yaw_aug")
+
+src/tests/test_yaw_aug_training.py:478: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+___________________ test_yaw_aug_rejects_non_dict_block[512] ___________________
+
+block = 512
+
+    @pytest.mark.parametrize("block", ["enabled", True, ["enabled"], 512])
+    def test_yaw_aug_rejects_non_dict_block(block):
+>       _expect_factory_error({"yaw_aug": block}, "yaw_aug")
+
+src/tests/test_yaw_aug_training.py:478: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+______________________ test_yaw_aug_rejects_bad_img_w[0] _______________________
+
+img_w = 0
+
+    @pytest.mark.parametrize("img_w", [0, -512, 512.0, "512", True])
+    def test_yaw_aug_rejects_bad_img_w(img_w):
+>       _expect_factory_error(
+            {"yaw_aug": {"enabled": True, "img_w": img_w, "seed": 42}}, "yaw_aug", "img_w"
+        )
+
+src/tests/test_yaw_aug_training.py:483: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+_____________________ test_yaw_aug_rejects_bad_img_w[-512] _____________________
+
+img_w = -512
+
+    @pytest.mark.parametrize("img_w", [0, -512, 512.0, "512", True])
+    def test_yaw_aug_rejects_bad_img_w(img_w):
+>       _expect_factory_error(
+            {"yaw_aug": {"enabled": True, "img_w": img_w, "seed": 42}}, "yaw_aug", "img_w"
+        )
+
+src/tests/test_yaw_aug_training.py:483: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+____________________ test_yaw_aug_rejects_bad_img_w[512.0] _____________________
+
+img_w = 512.0
+
+    @pytest.mark.parametrize("img_w", [0, -512, 512.0, "512", True])
+    def test_yaw_aug_rejects_bad_img_w(img_w):
+>       _expect_factory_error(
+            {"yaw_aug": {"enabled": True, "img_w": img_w, "seed": 42}}, "yaw_aug", "img_w"
+        )
+
+src/tests/test_yaw_aug_training.py:483: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+_____________________ test_yaw_aug_rejects_bad_img_w[512] ______________________
+
+img_w = '512'
+
+    @pytest.mark.parametrize("img_w", [0, -512, 512.0, "512", True])
+    def test_yaw_aug_rejects_bad_img_w(img_w):
+>       _expect_factory_error(
+            {"yaw_aug": {"enabled": True, "img_w": img_w, "seed": 42}}, "yaw_aug", "img_w"
+        )
+
+src/tests/test_yaw_aug_training.py:483: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+_____________________ test_yaw_aug_rejects_bad_img_w[True] _____________________
+
+img_w = True
+
+    @pytest.mark.parametrize("img_w", [0, -512, 512.0, "512", True])
+    def test_yaw_aug_rejects_bad_img_w(img_w):
+>       _expect_factory_error(
+            {"yaw_aug": {"enabled": True, "img_w": img_w, "seed": 42}}, "yaw_aug", "img_w"
+        )
+
+src/tests/test_yaw_aug_training.py:483: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+_____________________ test_yaw_aug_rejects_bad_seed[42.0] ______________________
+
+seed = 42.0
+
+    @pytest.mark.parametrize("seed", [42.0, "42", True, None])
+    def test_yaw_aug_rejects_bad_seed(seed):
+>       _expect_factory_error(
+            {"yaw_aug": {"enabled": True, "img_w": 512, "seed": seed}}, "yaw_aug", "seed"
+        )
+
+src/tests/test_yaw_aug_training.py:490: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+______________________ test_yaw_aug_rejects_bad_seed[42] _______________________
+
+seed = '42'
+
+    @pytest.mark.parametrize("seed", [42.0, "42", True, None])
+    def test_yaw_aug_rejects_bad_seed(seed):
+>       _expect_factory_error(
+            {"yaw_aug": {"enabled": True, "img_w": 512, "seed": seed}}, "yaw_aug", "seed"
+        )
+
+src/tests/test_yaw_aug_training.py:490: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+_____________________ test_yaw_aug_rejects_bad_seed[True] ______________________
+
+seed = True
+
+    @pytest.mark.parametrize("seed", [42.0, "42", True, None])
+    def test_yaw_aug_rejects_bad_seed(seed):
+>       _expect_factory_error(
+            {"yaw_aug": {"enabled": True, "img_w": 512, "seed": seed}}, "yaw_aug", "seed"
+        )
+
+src/tests/test_yaw_aug_training.py:490: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+_____________________ test_yaw_aug_rejects_bad_seed[None] ______________________
+
+seed = None
+
+    @pytest.mark.parametrize("seed", [42.0, "42", True, None])
+    def test_yaw_aug_rejects_bad_seed(seed):
+>       _expect_factory_error(
+            {"yaw_aug": {"enabled": True, "img_w": 512, "seed": seed}}, "yaw_aug", "seed"
+        )
+
+src/tests/test_yaw_aug_training.py:490: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:414: in _expect_factory_error
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+src/training/factory.py:61: in create_training_wrapper_from_config
+    return DiffusionCondTrainingWrapper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(), model = <object object at 0x7fa108af3e90>
+lr = None, mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False
+optimizer_configs = {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}
+pre_encoded = False, cfg_dropout_prob = 0.0, timestep_sampler = 'uniform'
+timestep_sampler_options = {}, validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9]
+p_one_shot = 0.0, test_param = None, cond_method = 'vanilla'
+frame_avg_angles = None
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+    
+        if use_ema:
+            self.diffusion_ema = EMA(
+                self.diffusion.model,
+                beta=0.9999,
+                power=3/4,
+                update_every=1,
+                update_after_step=1,
+                include_online_model=False
+            )
+        else:
+            self.diffusion_ema = None
+    
+        self.mask_padding = mask_padding
+        self.mask_padding_dropout = mask_padding_dropout
+    
+        self.cfg_dropout_prob = cfg_dropout_prob
+    
+        self.rng = torch.quasirandom.SobolEngine(1, scramble=True)
+    
+        self.timestep_sampler = timestep_sampler
+    
+        self.timestep_sampler_options = {} if timestep_sampler_options is None else timestep_sampler_options
+    
+        if self.timestep_sampler == "log_snr":
+            self.mean_logsnr = self.timestep_sampler_options.get("mean_logsnr", -1.2)
+            self.std_logsnr = self.timestep_sampler_options.get("std_logsnr", 2.0)
+    
+        self.p_one_shot = p_one_shot
+    
+>       self.diffusion_objective = model.diffusion_objective
+E       AttributeError: 'object' object has no attribute 'diffusion_objective'
+
+src/training/diffusion.py:168: AttributeError
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_yaw_aug_training.py::test_enabled_yaw_aug_block_passes_flags
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_fa_invariant
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_enabled_requires_seed_and_img_w[seed]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_enabled_requires_seed_and_img_w[img_w]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_unknown_keys
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_non_literal_bool_enabled[1]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_non_literal_bool_enabled[0]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_non_literal_bool_enabled[true]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_non_literal_bool_enabled[false]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_non_literal_bool_enabled[None]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_non_literal_bool_enabled[1.0]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_non_dict_block[enabled]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_non_dict_block[True]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_non_dict_block[block2]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_non_dict_block[512]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_bad_img_w[0]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_bad_img_w[-512]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_bad_img_w[512.0]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_bad_img_w[512]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_bad_img_w[True]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_bad_seed[42.0]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_bad_seed[42]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_bad_seed[True]
+FAILED src/tests/test_yaw_aug_training.py::test_yaw_aug_rejects_bad_seed[None]
+24 failed, 12 passed, 4 warnings in 17.65s

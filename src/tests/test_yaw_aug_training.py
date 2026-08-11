@@ -369,6 +369,129 @@ def test_step_seed_rejects_negative_counters():
         tdiff._yaw_aug_step_seed(42, 0, -1)
 
 
+# --------------------------------------------------------------------------- #
+# §6.5-4 factory parsing of training.yaw_aug (+ its fail-closed guards)
+# --------------------------------------------------------------------------- #
+# The wrapper kwargs the factory passed BEFORE exp_15 existed. Plan §3.3-4: with
+# ``training.yaw_aug`` absent the construction call must be *literally* the
+# pre-change call — the control arm was trained through that call and the
+# comparison rests on it being untouched.
+PRE_CHANGE_WRAPPER_KWARGS = {
+    "lr", "mask_padding", "mask_padding_dropout", "use_ema", "log_loss_info",
+    "optimizer_configs", "pre_encoded", "cfg_dropout_prob", "timestep_sampler",
+    "timestep_sampler_options", "p_one_shot", "test_param", "cond_method",
+    "frame_avg_angles",
+}
+
+_SENTINEL_MODEL = object()
+
+
+def _capture_wrapper_kwargs(monkeypatch, training_overrides):
+    """Build through the real factory with the wrapper class stubbed out.
+
+    ``create_training_wrapper_from_config`` imports the wrapper inside the
+    function body, so patching the module attribute intercepts construction; the
+    model is never touched on the diffusion_cond branch, hence the sentinel.
+    """
+    captured = {}
+
+    class _Stub:
+        def __init__(self, model, **kwargs):
+            captured["model"] = model
+            captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(tdiff, "DiffusionCondTrainingWrapper", _Stub)
+    cfg = _base_config()
+    cfg["training"].update(training_overrides)
+    create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+    return captured
+
+
+def _expect_factory_error(training_overrides, *needles):
+    cfg = _base_config()
+    cfg["training"].update(training_overrides)
+    with pytest.raises(ValueError) as excinfo:
+        create_training_wrapper_from_config(cfg, _SENTINEL_MODEL)
+    message = str(excinfo.value)
+    for needle in needles:
+        assert needle in message, f"error message {message!r} does not name {needle!r}"
+
+
+def test_absent_yaw_aug_block_passes_no_new_kwargs(monkeypatch):
+    captured = _capture_wrapper_kwargs(monkeypatch, {})
+    assert captured["model"] is _SENTINEL_MODEL
+    assert set(captured["kwargs"]) == PRE_CHANGE_WRAPPER_KWARGS
+
+
+def test_disabled_yaw_aug_block_passes_no_new_kwargs(monkeypatch):
+    """``enabled: false`` is still the pre-change call — the default is False."""
+    captured = _capture_wrapper_kwargs(monkeypatch, {"yaw_aug": {"enabled": False}})
+    assert set(captured["kwargs"]) == PRE_CHANGE_WRAPPER_KWARGS
+
+
+def test_enabled_yaw_aug_block_passes_flags(monkeypatch):
+    captured = _capture_wrapper_kwargs(
+        monkeypatch, {"yaw_aug": {"enabled": True, "img_w": 512, "seed": 42}}
+    )
+    kwargs = captured["kwargs"]
+    assert set(kwargs) == PRE_CHANGE_WRAPPER_KWARGS | {
+        "yaw_aug_enabled", "yaw_aug_img_w", "yaw_aug_seed"
+    }
+    assert kwargs["yaw_aug_enabled"] is True
+    assert kwargs["yaw_aug_img_w"] == 512
+    assert kwargs["yaw_aug_seed"] == 42
+
+
+def test_yaw_aug_rejects_fa_invariant():
+    """Augmentation on top of frame averaging is an untested combination."""
+    _expect_factory_error(
+        {"cond_method": "fa_invariant", "yaw_aug": {"enabled": True, "img_w": 512, "seed": 42}},
+        "yaw_aug", "fa_invariant",
+    )
+
+
+@pytest.mark.parametrize("missing", ["seed", "img_w"])
+def test_yaw_aug_enabled_requires_seed_and_img_w(missing):
+    block = {"enabled": True, "img_w": 512, "seed": 42}
+    block.pop(missing)
+    _expect_factory_error({"yaw_aug": block}, "yaw_aug", missing)
+
+
+def test_yaw_aug_rejects_unknown_keys():
+    _expect_factory_error(
+        {"yaw_aug": {"enabled": True, "img_w": 512, "seed": 42, "img_h": 256}},
+        "yaw_aug", "img_h",
+    )
+
+
+@pytest.mark.parametrize("enabled", [1, 0, "true", "false", None, 1.0])
+def test_yaw_aug_rejects_non_literal_bool_enabled(enabled):
+    """A truthy 1 in the JSON must not silently switch the treatment on/off."""
+    _expect_factory_error(
+        {"yaw_aug": {"enabled": enabled, "img_w": 512, "seed": 42}},
+        "yaw_aug", "enabled",
+    )
+
+
+@pytest.mark.parametrize("block", ["enabled", True, ["enabled"], 512])
+def test_yaw_aug_rejects_non_dict_block(block):
+    _expect_factory_error({"yaw_aug": block}, "yaw_aug")
+
+
+@pytest.mark.parametrize("img_w", [0, -512, 512.0, "512", True])
+def test_yaw_aug_rejects_bad_img_w(img_w):
+    _expect_factory_error(
+        {"yaw_aug": {"enabled": True, "img_w": img_w, "seed": 42}}, "yaw_aug", "img_w"
+    )
+
+
+@pytest.mark.parametrize("seed", [42.0, "42", True, None])
+def test_yaw_aug_rejects_bad_seed(seed):
+    _expect_factory_error(
+        {"yaw_aug": {"enabled": True, "img_w": 512, "seed": seed}}, "yaw_aug", "seed"
+    )
+
+
 if __name__ == "__main__":
     if "--write-golden" not in sys.argv:
         raise SystemExit("refusing to overwrite the golden fixture without --write-golden")

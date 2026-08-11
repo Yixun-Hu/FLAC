@@ -2,6 +2,79 @@ import torch
 from torch.nn import Parameter
 from ..models.factory import create_model_from_config
 
+YAW_AUG_KEYS = ("enabled", "img_w", "seed")
+
+
+def _parse_yaw_aug_config(training_config):
+    """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+
+    exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+    failure mode here is fail-closed: a malformed block must stop the launch, not
+    quietly train the wrong arm — the whole experiment is one treatment against
+    one historical control, so a silently-off (or silently-on) augmentation is
+    unrecoverable after the fact.
+
+    Returns ``{}`` unless the block is present *and* enabled, so the disabled
+    path's construction call stays literally the pre-change call (plan §3.3-4:
+    the control was trained through that call).
+    """
+    if "yaw_aug" not in training_config:
+        return {}
+
+    block = training_config["yaw_aug"]
+    if not isinstance(block, dict):
+        raise ValueError(
+            f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+            f"got {type(block).__name__}"
+        )
+
+    unknown = [k for k in block if k not in YAW_AUG_KEYS]
+    if unknown:
+        raise ValueError(
+            f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+            f"allowed keys are {list(YAW_AUG_KEYS)}"
+        )
+
+    enabled = block.get("enabled", None)
+    if not isinstance(enabled, bool):
+        raise ValueError(
+            "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+            f"{enabled!r}"
+        )
+
+    if not enabled:
+        return {}
+
+    if training_config.get("cond_method", "vanilla") == "fa_invariant":
+        raise ValueError(
+            "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+            "untested combination and out of scope for exp_15: frame averaging "
+            "already symmetrises over the yaw subgroup."
+        )
+
+    for key in ("img_w", "seed"):
+        if key not in block:
+            raise ValueError(
+                f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                "assumed: the applied rotation must be stated by the config)"
+            )
+        if isinstance(block[key], bool) or not isinstance(block[key], int):
+            raise ValueError(
+                f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+            )
+
+    if block["img_w"] <= 0:
+        raise ValueError(
+            f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+        )
+
+    return {
+        "yaw_aug_enabled": True,
+        "yaw_aug_img_w": int(block["img_w"]),
+        "yaw_aug_seed": int(block["seed"]),
+    }
+
+
 def create_training_wrapper_from_config(model_config, model):
     model_type = model_config.get('model_type', None)
     assert model_type is not None, 'model_type must be specified in model config'
@@ -58,6 +131,10 @@ def create_training_wrapper_from_config(model_config, model):
     elif model_type == 'diffusion_cond':
        
         from .diffusion import DiffusionCondTrainingWrapper
+
+        # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+        yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+
         return DiffusionCondTrainingWrapper(
             model, 
             lr=training_config.get("learning_rate", None),
@@ -74,6 +151,7 @@ def create_training_wrapper_from_config(model_config, model):
             test_param = model_config.get("test_setup", None),
             cond_method = training_config.get("cond_method", "vanilla"),
             frame_avg_angles = training_config.get("frame_avg_angles", None),
+            **yaw_aug_kwargs,
         )
     
     else:
