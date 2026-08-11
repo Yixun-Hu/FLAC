@@ -921,3 +921,42 @@ def test_cli_exposes_the_rotate_mode_and_seed_flags():
         capture_output=True, cwd=root)
     assert good.returncode == 2                      # still missing required args...
     assert b"invalid choice" not in good.stderr      # ...but the flags parsed
+
+
+# =========================================================================== #
+# ROUND-1 FIX BATCH — F4: the context fingerprint is dtype-fragile, so pin it
+# =========================================================================== #
+# Codex code review N4 measured it on the real 6,415 unseen source/receiver pairs:
+# rendering the SAME positions as float64 changed two six-decimal strings and
+# float16 changed 5,032. The fingerprint is only stable because the loader happens
+# to hand us float32, so that assumption is now asserted rather than assumed.
+def test_context_fingerprint_schema_is_versioned():
+    assert eval_FLAC.CONTEXT_FINGERPRINT_SCHEMA == 1
+
+
+def test_sample_context_ids_rejects_non_float32_dtype():
+    for dtype in (torch.float64, torch.float16):
+        md = {"context_poses": torch.tensor([[1.0, 2.0, 3.0]], dtype=dtype)}
+        with pytest.raises(ValueError, match="float32"):
+            eval_FLAC.sample_context_ids(md)
+
+
+def test_sample_context_ids_rejects_non_finite_values():
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        md = {"context_poses": torch.tensor([[1.0, 2.0, bad]], dtype=torch.float32)}
+        with pytest.raises(ValueError, match="finite"):
+            eval_FLAC.sample_context_ids(md)
+
+
+@pytest.mark.parametrize("shape", [(3,), (2,), (1, 4), (2, 2), (0, 3), (1, 2, 3)])
+def test_sample_context_ids_rejects_wrong_shapes(shape):
+    md = {"context_poses": torch.zeros(shape, dtype=torch.float32)}
+    with pytest.raises(ValueError, match="shape"):
+        eval_FLAC.sample_context_ids(md)
+
+
+def test_sample_context_ids_still_accepts_the_real_loader_shape():
+    md = {"context_poses": torch.tensor([[1.0, 2.0, 3.0], [-1.5, 0.25, 0.0]],
+                                        dtype=torch.float32)}
+    assert eval_FLAC.sample_context_ids(md) == [
+        "1.000000,2.000000,3.000000", "-1.500000,0.250000,0.000000"]

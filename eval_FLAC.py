@@ -191,6 +191,15 @@ def build_output_paths(
 # decimal string is stable across machines in a way float repr is not.
 CONTEXT_ID_PRECISION = 6
 
+# Version of the context-fingerprint rule (precision, field order, dtype pin).
+# Recorded next to every fingerprint we persist: the rendering is stable only
+# under the assumptions asserted in sample_context_ids, so a future change to any
+# of them must be visible as a schema bump rather than as silently incomparable
+# hashes. Codex code review N4 measured the fragility on the real unseen split:
+# rendering the same positions as float64 changed two six-decimal strings and
+# float16 changed 5,032 of them.
+CONTEXT_FINGERPRINT_SCHEMA = 1
+
 
 class StreamRow(NamedTuple):
     """One position of the evaluation stream, as it was actually evaluated."""
@@ -237,12 +246,39 @@ def sample_context_ids(md):
     Read BEFORE any rotation: ``rotate_scene_metadata`` rewrites ``context_poses``,
     and a fingerprint taken afterwards would encode the rotation instead of the
     item (and could never match its unrotated pair).
+
+    The rendering is FAIL-CLOSED on its own assumptions (review N4). A six-decimal
+    string is only a stable identity while the tensor is exactly what the AR loader
+    produces --- ``torch.vstack`` of float32 ``[K, 3]`` positions --- and the
+    measured sensitivity is not academic: on the real unseen split, rendering the
+    same positions as float64 changes two strings and float16 changes 5,032. A
+    silently different dtype would therefore produce hashes that mismatch across
+    machines for no scientific reason, so it raises instead.
     """
     poses = md.get('context_poses', None)
     if poses is None:
         return []
-    if hasattr(poses, 'dim') and poses.dim() == 1:
-        poses = poses.unsqueeze(0)
+    if not isinstance(poses, torch.Tensor):
+        raise ValueError(
+            f"context_poses must be a torch.Tensor to be fingerprinted, got "
+            f"{type(poses).__name__}."
+        )
+    if poses.dtype != torch.float32:
+        raise ValueError(
+            f"context_poses must be float32 to be fingerprinted, got {poses.dtype}: "
+            "the six-decimal rendering is not dtype-stable (review N4), so a "
+            "different dtype would silently produce non-comparable hashes."
+        )
+    if poses.dim() != 2 or poses.shape[0] < 1 or poses.shape[1] != 3:
+        raise ValueError(
+            f"context_poses must have shape [K, 3] with K >= 1 to be fingerprinted, "
+            f"got {tuple(poses.shape)}."
+        )
+    if not bool(torch.isfinite(poses).all()):
+        raise ValueError(
+            "context_poses must be finite to be fingerprinted: a NaN or Inf position "
+            "renders to a string that cannot identify a reference source."
+        )
     out = []
     for row in poses:
         vals = []
