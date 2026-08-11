@@ -57,12 +57,19 @@ fd8_is_the_store_lock() {
   [ -n "$have" ] && [ -n "$want" ] && [ "$have" = "$want" ]
 }
 
+DRYRUN="${DRYRUN:-0}"
 if [ "${FA_ORBIT_STORE_LOCK_HELD:-0}" = "1" ]; then
   fd8_is_the_store_lock || {
     echo "FA_ORBIT_STORE_LOCK_HELD is set but fd 8 is not ${LOCKFILE} —" >&2
     echo "refusing to run a submission that only CLAIMS to hold the store lock" >&2
     exit 2
   }
+elif [ "$DRYRUN" = "1" ]; then
+  # A dry run performs no transaction: it prepares no worktree, writes no lease
+  # and submits nothing, so it takes no store lock and cannot contend with a live
+  # campaign. It exists so the argv this script would build is inspectable
+  # WITHOUT submitting (the reviewer could not exercise this script at all).
+  :
 else
   exec bash "$HELPER" --with-lock bash "$0" "$@"
 fi
@@ -151,6 +158,25 @@ fi
 # CELL is REQUIRED and has no default here or in the driver: a cell type is a
 # protocol choice (announcement 05), and defaulting one would let an omitted
 # argument decide the experiment.
+
+# --- DRYRUN: print what would be submitted, touch nothing --------------------
+if [ "$DRYRUN" = "1" ]; then
+  CELL_EXPORT_DRY=""
+  [ -n "$ROTATE_DEG" ] && CELL_EXPORT_DRY="${CELL_EXPORT_DRY},ROTATE_DEG=${ROTATE_DEG}"
+  [ -n "$LOG" ] && CELL_EXPORT_DRY="${CELL_EXPORT_DRY},LOG=${LOG}"
+  JOB_TOKEN_DRY=""
+  case "$CELL" in
+    rgen) JOB_TOKEN_DRY="-rotrand${SEED}" ;;
+    vctl) JOB_TOKEN_DRY="-rot${ROTATE_DEG%.0}" ;;
+  esac
+  echo "DRYRUN job-name exp14-screen-${ARM}-${CELL}${JOB_TOKEN_DRY}-${STEP}-s${SEED}-K${K}"
+  echo "DRYRUN pin ${PIN_SHA:-<none: HEAD>}"
+  echo "DRYRUN exclude ${EXCLUDE:-<none>}"
+  echo "DRYRUN export ARM=${ARM},STEP=${STEP},SEED=${SEED},K=${K},CELL=${CELL}${CELL_EXPORT_DRY}"
+  echo "DRYRUN driver ${EXPDIR}/yaw_gen_screen.sbatch"
+  echo "DRY RUN complete: no worktree prepared, no lease written, nothing submitted"
+  exit 0
+fi
 
 # 0b. PREFLIGHT: the campaign freeze must be engaged.
 # The campaign's validity argument rests on "no worktree is deleted while it
@@ -253,19 +279,13 @@ if ! grep -q "^jobid ${JOBID}$" "${WT}/.leases/${JOBID}" 2>/dev/null; then
 fi
 echo "lease validated: ${WT}/.leases/${JOBID}"
 
-if ! "$SCONTROL" release "$JOBID"; then
-  echo "could not release ${JOBID} - cancelling it; the lease is RETAINED" >&2
-  if "$SCANCEL" "$JOBID"; then
-    echo "cancelled ${JOBID}; its lease stays until squeue proves the id is gone" >&2
-  else
-    echo "scancel FAILED too - job ${JOBID} may still run; cancel it by hand." >&2
-    echo "The lease is deliberately kept: dropping it would let a sweep delete" >&2
-    echo "the worktree out from under a job that is still alive." >&2
-  fi
-  exit 6
-fi
-
-# --- intent manifest: what was submitted, at which commit, with what exclusions
+# --- intent manifest: written while the job is STILL HELD (review B7) ---------
+# Writing it after the release produced a window in which a running job had no
+# launch record, and a failure to write it was only a warning — so a crash could
+# leave an undocumented job reading a pinned worktree. The manifest is therefore
+# published (atomically, tmp+rename in the same directory) BEFORE the release,
+# and a failure to publish it CANCELS the held job: a job with no launch record
+# is worse than no job.
 INTENT="${EXPDIR}/yaw_gen_submission_${ARM}_${CELL}_S${STEP}_s${SEED}_K${K}_jid${JOBID}.txt"
 # The intent manifest records the EVAL-PROTOCOL flags this cell will run under,
 # not just its identity (announcement 05: a mismatched flag produces
@@ -287,8 +307,29 @@ esac
   printf 'batch_size 64 num_workers 4 expected_stream_count 6337 record_stream yes\n'
   printf 'cond_autocast bf16 cfg_scale 1.0 steps 1 use_ema yes\n'
   printf 'lease %s\n' "${WT}/.leases/${JOBID}"
-} > "$INTENT" || echo "WARNING: could not write the intent manifest ${INTENT}" >&2
+} > "${INTENT}.tmp" && sync "${INTENT}.tmp" 2>/dev/null; \
+  mv -f "${INTENT}.tmp" "$INTENT"
+if [ ! -s "$INTENT" ]; then
+  rm -f "${INTENT}.tmp"
+  echo "could not publish the intent manifest ${INTENT} - cancelling the held job" >&2
+  echo "(a job with no launch record is worse than no job; the lease is RETAINED)" >&2
+  "$SCANCEL" "$JOBID" || echo "scancel FAILED - cancel job ${JOBID} by hand" >&2
+  exit 8
+fi
 echo "intent manifest: ${INTENT}"
+
+# 4. ...and only now let it run.
+if ! "$SCONTROL" release "$JOBID"; then
+  echo "could not release ${JOBID} - cancelling it; the lease is RETAINED" >&2
+  if "$SCANCEL" "$JOBID"; then
+    echo "cancelled ${JOBID}; its lease stays until squeue proves the id is gone" >&2
+  else
+    echo "scancel FAILED too - job ${JOBID} may still run; cancel it by hand." >&2
+    echo "The lease is deliberately kept: dropping it would let a sweep delete" >&2
+    echo "the worktree out from under a job that is still alive." >&2
+  fi
+  exit 6
+fi
 
 echo "released ${JOB_NAME} (${JOBID})"
 echo "  MEASURE_ROOT ${WT}"

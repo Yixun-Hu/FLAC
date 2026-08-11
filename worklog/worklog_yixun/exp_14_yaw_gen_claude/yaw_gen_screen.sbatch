@@ -619,9 +619,17 @@ side = {
     "stream_sidecar": os.path.basename(metrics)[:-len(".json")] + ".stream.json",
     "batch_size": int(batch_size), "num_workers": int(workers),
 }
-with open(metrics + ".screenmeta.json", "w") as fh:
+# ATOMIC PUBLISH (review B7): tmp + os.replace in the SAME directory, so a reader
+# — the wave submitter's dedup, the collector — never sees a half-written manifest
+# and mistakes a truncated file for a malformed cell.
+out = metrics + ".screenmeta.json"
+tmp = out + ".tmp"
+with open(tmp, "w") as fh:
     json.dump(side, fh, indent=2)
-print("sidecar:", metrics + ".screenmeta.json")
+    fh.flush()
+    os.fsync(fh.fileno())
+os.replace(tmp, out)
+print("sidecar:", out)
 PY
 
 VALIDATE_ARGV=(

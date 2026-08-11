@@ -970,3 +970,40 @@ def test_cli_jobname_prints_the_name_both_scripts_must_render():
                     "--seed", "42", "--k", "8", "--rotate-deg", "45"])
     assert rc == 0
     assert out.strip() == V.job_name(V.Cell("C4L", "vctl", 40000, 42, 8, 45.0))
+
+
+# --------------------------------------------------------------------------
+# 13. FB8a (review NIT 8): pin the mirrored rules over the WHOLE grid
+#
+# The previous pins were transitive and sampled: three cells for the path rule,
+# and a grid diff that compared the validator's output with output enumerated
+# from the same validator. These compare every one of the 106 registered cells
+# against eval_FLAC itself — the import cost is paid once for the module.
+# --------------------------------------------------------------------------
+def test_every_registered_cell_matches_eval_FLAC_rotation_suffix_and_path():
+    import eval_FLAC
+    ckpt = "/o/exp11_X/checkpoints/epoch=8-step=40000.ckpt"
+    for c in V.expected_grid():
+        mode = "random" if c.cell == "rgen" else "fixed"
+        rseed = c.seed if c.cell == "rgen" else None
+        deg = 0.0 if c.rotate_deg is None else float(c.rotate_deg)
+        # the rotation token itself
+        assert V.rotation_suffix(c) == eval_FLAC.rotation_suffix(mode, deg, rseed), c
+        # ...and the whole metrics path it lands in
+        want = eval_FLAC.build_output_paths(
+            ckpt, V.STEPS, V.CFG_SCALE, V.eval_name(c),
+            cond_method=V.cond_method(c.arm), rotate_deg=deg,
+            n_angles=V.TRAIN_ORBIT[c.arm], rotate_mode=mode, rotate_seed=rseed,
+        )["metrics"]
+        assert V.metrics_path(ckpt, c) == want, c
+
+
+def test_every_registered_cell_lands_in_a_distinct_metrics_file():
+    ckpt = "/o/exp11_X/checkpoints/epoch=8-step=40000.ckpt"
+    paths = [V.metrics_path(ckpt, c) for c in V.expected_grid()]
+    assert len(set(paths)) == 106
+
+
+def test_every_registered_cell_has_a_distinct_stream_sidecar():
+    ckpt = "/o/exp11_X/checkpoints/epoch=8-step=40000.ckpt"
+    assert len({V.stream_path(V.metrics_path(ckpt, c)) for c in V.expected_grid()}) == 106
