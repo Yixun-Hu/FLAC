@@ -87,7 +87,23 @@ python -m baselines.eval_baselines --dataset {AR,HAA} --baseline KNN ...
 
 # Unwrap a training-wrapper checkpoint into a plain model checkpoint
 python unwrap_model.py --model-config ... --ckpt-path ... --name out --use-safetensors
+
+# Non-destructive finetune of a RELEASED checkpoint (exp_03 Route 1) — see below
+python finetune_cond.py --model-config ... --dataset-config ... --ckpt-path weights/FLAC/FLAC_EMA.ckpt \
+  --save-dir ./outputs_FLAC --cond-method fa_invariant --lr 5e-6 --max-steps 2000
+
+# BN-drift probe (read-only; repo-root tools/, not src/tools/)
+python tools/bn_drift_probe.py --ckpt-path weights/FLAC/FLAC_EMA.ckpt --dataset-config ... --n-batches 200
 ```
+
+`finetune_cond.py` is **not** `train.py` with different flags — it deliberately diverges from the
+training recipe so a released checkpoint can be continued as a control: `--lr` is a *constant* LR with
+the `InverseLR` scheduler **removed** (`--lr-schedule inverse-restart` restarts it from step 0, it does
+not resume the release's unknown final step), `use_ema` is forced `False` (the released weights already
+*are* the EMA average), and the VAE pretransform is frozen. `--cond-method` / `--frame-avg-angles` are
+injected into the model config's `training` block, so its checkpoints are directly loadable by
+`eval_FLAC.py --cond-method fa_invariant`. Also carries `--freeze-bn` (the exp_04-proven damage channel)
+and `--warmup-steps`.
 
 AGREE has its **own** CLI entry-point and **must be run from the `AGREE/` directory** so its relative paths resolve:
 
@@ -97,6 +113,45 @@ python -m AGREE_train.main --dataset-type {AR,HAA} --model {dinoV3,xRIR,openclip
 ```
 
 Upstream ships no lint config or formatter — don't invent one. Tests: per `worklog/worklog_yixun/announcement/02_test_driven_development.md`, all NEW code in this fork is developed test-first (pytest, in `src/tests/` — location chosen by Yixun); upstream release code is not retroactively covered.
+
+```bash
+# Whole suite / one file / one test. ALWAYS from the repo root, ALWAYS `python -m pytest` (see below).
+python -m pytest src/tests -q
+python -m pytest src/tests/test_yaw_symmetry.py -q
+python -m pytest src/tests/test_invariant_conditioning.py::test_name -q
+```
+
+⚠️ **pytest is not a project dependency** — it is absent from `pyproject.toml` and from at least one of
+the conda envs in use; `pip install pytest` into the active env before the first run. There is no pytest
+config file (no `testpaths`, no markers), so the path argument is required.
+
+⚠️ **`pip install .` is non-editable and copies a whole `src/` tree into site-packages.** That copy goes
+stale the moment you edit the repo and will shadow this checkout for any process whose `sys.path` puts
+site-packages first. Three consequences: run from the repo root, invoke pytest as `python -m pytest`
+(not the `pytest` binary), and note that `src/tests/conftest.py` and repo-root scripts like
+`tools/bn_drift_probe.py` explicitly prepend the repo root to `sys.path` for exactly this reason —
+don't "clean up" that boilerplate. After changing `src/`, either re-`pip install .` or rely on the
+root-relative invocation; never assume the installed copy is current.
+
+### Execution environments
+
+Runs land on two kinds of machine and the launch kits are not interchangeable:
+
+- **A6000 box** — interactive/`screen`, `run_*.sh` + `*_launch.sh` kits under the experiment folders.
+  Shared with sibling checkouts (see "Shared machine" above).
+- **Slurm clusters** (della `/scratch/gpfs/BLANCHETTE/yh4742/conda_envs/flac`; neuronic `/n/fs/gatrdp/…`) —
+  `*.sbatch` job scripts plus a `*_submit.sh` transaction wrapper and a `*_guardtests.sh` per experiment
+  (`exp_11_fa_orbit_claude/`, `exp_14_yaw_gen_claude/`). Submit through the wrapper, not bare `sbatch`:
+  it owns the pin/lease/hold sequence. Most sbatch scripts honor `DRYRUN=1` (runs every gate, prints the
+  eval argv, exits) — use it before spending a GPU.
+
+**Pinned measurement worktrees.** Measurement jobs must not read code from a checkout that development
+keeps committing to (jobs have been refused mid-run for a moved `source_sha`). `worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_measure_worktree.sh`
+creates a git worktree pinned to the submission SHA under `.measure_worktrees/<sha>/`, links the untracked
+runtime assets a fresh worktree lacks (`AcousticRooms` symlink, gitignored `weights/`), and prints the path
+as `MEASURE_ROOT`; **outputs still go to the main tree**. Trees are *leased* per job id under a store-wide
+`flock` (`--lease` / `--release` / `--prune` / `--freeze`), so a queued job's tree can never be pruned out
+from under it. Development and measurement are therefore decoupled — no commit freezes.
 
 ## Architecture
 
@@ -123,6 +178,30 @@ Conditioners are registered in `model.conditioning.configs[].id/type`; the most 
 
 When adding a third mode, update **both** dispatch sites (`training_step`/`validation_step`/`test_step` in `src/training/diffusion.py` and the inference path in `eval_FLAC.py`) — there is no central whitelist by design.
 
+### Yaw rotation & `cond_method` (`src/data/yaw_rotation.py`)
+
+The whole equivariance line of work (exp_02 → exp_15, this branch) runs through one module,
+`src/data/yaw_rotation.py`. Its public surface, in dependency order:
+
+- `DEFAULT_FRAME_ANGLES = (0, 90, 180, 270)` — the C₄ orbit. Any custom orbit **must start with 0**.
+- `cylindrical_pose_features` / `azimuth_rotation_matrix` / `yaw_column_shift` — the primitives: yaw is a
+  *column shift* on the depth panorama and a rotation on 3D poses, so the two must be applied together or
+  the conditioning silently desynchronizes.
+- `rotate_scene_metadata` — applies a yaw to a metadata dict (what `--rotate-deg` / `--rotate-mode random` use).
+- `invariant_conditioning` — the `fa_invariant` path: cylindrical pose invariants plus a ViT frame average
+  over the orbit (`_orbit_average_batched` / `_orbit_average_loop`).
+- `draw_yaw_offsets` — per-sample random offsets for the exp_14 `--rotate-mode random` protocol.
+- `yaw_transform_consistency` — the probe assertion used by the equivariance tests.
+
+`cond_method` is plumbed **exactly parallel to `flow_source`, but with the opposite failure mode**: it is
+read with `.get()` in `src/training/factory.py:75-76` (`training.cond_method`, `training.frame_avg_angles`),
+so a config that omits it **fails open to `"vanilla"`** instead of raising. Combined with `eval_FLAC.py`'s
+`--cond-method` also defaulting to `vanilla`, this is the exact mechanism behind the retracted exp_07/exp_09
+results — nothing anywhere errors when an fa-trained checkpoint is trained or evaluated as vanilla. Validation
+lives only in `DiffusionCondTrainingWrapper.__init__` (`src/training/diffusion.py:70`), which rejects unknown
+names but cannot detect a *missing* one. Same rule as `flow_source`: a new method means editing both the
+training dispatch (`src/training/diffusion.py:206-221`) and `eval_FLAC.py`.
+
 ### Dataset & metadata pipeline
 
 `src/data/dataset.py::create_dataloader_from_config` reads `dataset_config["datasets"]`, where each entry points at a `custom_metadata_module` Python file (e.g. `src/configs/dataset_configs/custom_metadata/AR_md.py`). That module exposes `get_custom_metadata(info, audio)` returning a per-sample dict consumed by both the conditioners (matched by `id`) and the metric callback (`scene`, `depth`, `source`).
@@ -137,7 +216,21 @@ The AR depth panorama is taken at the **listener** position; HAA reverses this a
 
 Paper headline numbers are computed by **averaging per-scene results**, not over all samples. The evaluation script prints both; use the per-scene mean for comparisons.
 
-**⚠️ Eval-protocol flags are part of the experiment, not defaults.** `eval_FLAC.py` takes `--cond-method {vanilla,fa_invariant}` (plus `--frame-avg-angles`, `--rotate-deg` for C₄ sweeps and the 45° negative control, `--cond-autocast {default,bf16,off}`). **The flag must match how the checkpoint was trained.** A mismatch produces plausible-looking but catastrophically wrong numbers in both directions — the fa-trained B-F@40k reads `8.202/0.978/38.79/R5.39` under fa eval and `10.652/2.082/80.86/R0.68` under vanilla eval. Evaluating fa checkpoints with the default (vanilla) conditioning caused exp_09's protocol error and one retracted exp_07 conclusion. **Put the eval-protocol flags in every launch/screen manifest; never rely on the default.**
+**⚠️ Eval-protocol flags are part of the experiment, not defaults.** `eval_FLAC.py` takes:
+
+| flag | purpose |
+|---|---|
+| `--cond-method {vanilla,fa_invariant}` | must match how the checkpoint was trained (see above) |
+| `--frame-avg-angles` | the orbit for `fa_invariant`; first angle must be `0` |
+| `--cond-autocast {default,bf16,off}` | `default` = fp16 on cuda (exp_01/02 protocol); `bf16` matches `finetune_cond`'s `bf16-mixed`; `off` = fp32 for exactness work |
+| `--rotate-deg` | fixed yaw applied to depth+poses *before* conditioning; C₄ sweeps and the 45° negative control. Fixed mode only |
+| `--rotate-mode {fixed,random}` | `random` (exp_14) draws an independent panorama-column offset per sample. Mutually exclusive with a non-zero `--rotate-deg` — that combination is an error |
+| `--rotate-seed` | seed for the random draw; defaults to `--seed`. Passing it in fixed mode is an **error**, never a silent no-op |
+| `--record-stream` | writes a `<metrics-stem>.stream.json` assignment audit (canonical input tuples, offsets, hashes). Works in fixed mode too — that is how an unrotated Z cell gets an `input_hash` to pair against a rotated R cell |
+| `--expected-stream-count` | pre-registered split size (**6337** for AR unseen). Without it the count check is tautological |
+| `--allow-partial-load` | downgrades an unclean checkpoint load to a warning. Off by default — leave it off unless the mismatch is understood |
+
+**The `--cond-method` flag must match how the checkpoint was trained.** A mismatch produces plausible-looking but catastrophically wrong numbers in both directions — the fa-trained B-F@40k reads `8.202/0.978/38.79/R5.39` under fa eval and `10.652/2.082/80.86/R0.68` under vanilla eval. Evaluating fa checkpoints with the default (vanilla) conditioning caused exp_09's protocol error and one retracted exp_07 conclusion. **Put the eval-protocol flags in every launch/screen manifest; never rely on the default.**
 
 Cross-experiment results live in `worklog/worklog_yixun/model_comparison.md`, regenerated **only** by `worklog/worklog_yixun/gen_model_comparison.py` (rows are glob specs aggregated from raw per-seed metric JSONs; single-seed screens are structurally excluded). Per announcement 04, regenerate + commit + push on every model-results update.
 
@@ -183,7 +276,10 @@ All FLAC configs in the repo currently use `"rectified_flow"`. Inference paths l
 - `AGREE/` — self-contained subproject. Its `AGREE_train.main` is independent of `src/training/`. Always invoke from inside `AGREE/`.
 - `baselines/eval_baselines.py` — unified KNN/RdnAcross/RdnSame/LinearInterp; reads AGREE for the FD metric.
 - `data/{AR,HAA}/*.json` — train/eval split files (not raw data). HAA depth maps ship in `data/HAA/depth/`.
+- `src/data/yaw_rotation.py` — the entire yaw/equivariance surface (rotation primitives, `invariant_conditioning`, random-yaw draws). See "Yaw rotation & `cond_method`" above.
 - `src/tools/` — checkpoint-surgery CLIs (`strip_optimizer_state.py`, `retune_lr_state.py`); copy-only, TDD-covered. See "Checkpoint surgery" above.
+- `tools/` (repo root, **distinct from `src/tools/`**) — `bn_drift_probe.py`, a read-only BatchNorm-drift instrument (hook-based Welford accumulation over BN *inputs*, asserts buffers unchanged). Run as `python tools/bn_drift_probe.py` from the repo root.
+- `finetune_cond.py` — released-checkpoint finetune entry point; see "Common commands". Not interchangeable with `train.py`.
 - `worklog/worklog_yixun/` — experiment records plus three living artifacts: `model_comparison.md` (+ `gen_model_comparison.py`), `A6000_METRICS_SHA256SUMS.txt` (raw metric JSONs are force-added past the `outputs_FLAC/` ignore so the table regenerates from git), and the trajectory figures `trajectories_all_arms*.{png,pdf,html}`.
 - `weights/`, `AcousticRooms/`, `HAA/`, `outputs_FLAC/`, `wandb/` — gitignored runtime locations; create or symlink as needed.
 
