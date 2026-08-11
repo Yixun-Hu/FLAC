@@ -1,0 +1,18 @@
+**Reviewer:** OpenAI Codex (gpt-5.6-sol, codex-cli 0.147.0, `codex exec`, GitHub-connector read-only — local sandbox unavailable on della) · **Date:** 2026-08-11
+**Round:** code round A (gitignore + ViT local resolver TDD) · **Verdict:** REVISE
+
+> Invocation note (Planner): `codex exec -s read-only` cannot execute local commands on della login nodes (`user.max_user_namespaces = 0` ⇒ bwrap cannot create its namespace), so this review ran through Codex's GitHub connector against the pushed branch (`Yixun-Hu/FLAC` @ `della-flac-chequity`, commits `81a3c44`/`f69a3f8`/`dacd4d1`, HEAD `34a1535` at review time). A first attempt against the unpushed branch produced no review and was discarded (raw logs in the session scratchpad). 232,101 tokens used.
+
+### BLOCKING findings
+
+1. The tests do not actually pin the advertised resolution priority hermetically. `test_hub_id_resolves_to_local_snapshot` has no competing environment root; `test_env_var_root_wins_over_repo_root` competes with a repo snapshot only when della's untracked runtime symlink exists; and `test_repo_root_derived_from_file_not_cwd` explicitly accepts passthrough on an ordinary checkout. Consequently, implementations that swap `local_root` and `$FLAC_LOCAL_MODEL_ROOT`, omit repo-root lookup, or consult a root before an explicit directory can still pass all eight tests outside della (`src/tests/test_vit_local_resolution.py:75`, `:83`, `:106`, `:119-135`). Strengthen these tests with competing `tmp_path` roots and monkeypatch `conditioners.__file__` to a synthetic repo containing `models/<basename>`. The production order itself is correct (`src/models/conditioners.py:54-76`); this is blocking because the round's TDD asset claims to pin that core contract but does not.
+
+### NON-BLOCKING findings / nits
+
+1. The logging test checks only that several tokens occur somewhere in stdout. A broken format lacking the required `original -> resolved [tag]` structure would pass (`src/tests/test_vit_local_resolution.py:240-255`). Assert the exact substring, and add a missing/unreadable-weights case to preserve `_vit_weights_provenance`'s `OSError`-safe behavior (`src/models/conditioners.py:79-95`, `:540-543`).
+
+2. Malformed identifiers ending in `/.` or `/..` can escape the selected root: `basename` becomes `"."` or `".."`, and `<root>/<basename>` is accepted as a directory (`src/models/conditioners.py:57`, `:71-74`). The repository-controlled DINOv3 ID is safe, so this is not presently blocking, but rejecting these two basename values would remove the path-traversal edge.
+
+3. Symlink behavior is sound because `os.path.isdir` follows both the explicit snapshot symlink and the repo-level `models` symlink (`src/models/conditioners.py:54`, `:73`), but the tests exercise only real directories. A symlink-to-directory and broken-symlink test would preserve the della-specific behavior explicitly.
+
+The implementation otherwise conforms: both Transformers entry points receive the resolved path (`src/models/conditioners.py:535`, `:538`), passthrough preserves the original argument and existing kwargs/trust behavior, HF offline-cache fallback remains available, and provenance hashing is limited to redirected paths. The `convnext` check still uses the original string (`src/models/conditioners.py:550`). The three commit manifests contain only `.gitignore`, the new test, and `conditioners.py`, confirming configs and `AGREE/` were untouched; `/models` and `/AcousticRooms` are correctly root-anchored (`.gitignore:180-181`). Once the priority tests are made deterministic, no production-code correction appears necessary.
