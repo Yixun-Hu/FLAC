@@ -1,0 +1,4 @@
+=========================== short test summary info ============================
+ERROR src/tests/test_yaw_gen_collect.py - FileNotFoundError: [Errno 2] No suc...
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+3 warnings, 1 error in 7.30s
