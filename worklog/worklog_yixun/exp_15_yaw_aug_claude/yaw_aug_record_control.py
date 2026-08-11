@@ -378,15 +378,32 @@ def build_record(ckpt_path, config_path, expect_step: int) -> dict:
 
 
 def write_record(record: dict, out_path) -> None:
-    """Write once. An existing record is evidence already relied upon: never touch it."""
+    """Write once, atomically-exclusively. An existing record is evidence.
+
+    ``exists()`` then ``write_text()`` is a check-then-write race, and it also
+    *follows* a dangling symlink — planting the record somewhere else entirely.
+    Serialising first and then creating with ``O_CREAT|O_EXCL|O_NOFOLLOW`` makes
+    the kernel arbitrate: the create fails if any entry (file, symlink, dangling
+    or not) already occupies the name.
+    """
     out_path = Path(out_path)
-    if out_path.exists():
+    payload = (json.dumps(record, indent=2, sort_keys=True) + "\n").encode()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(out_path, flags, 0o644)
+    except FileExistsError:
         raise FileExistsError(
             f"{out_path} already exists; the admission record is immutable and this "
             "script has no --force. Inspect the existing record instead."
         )
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
+    except OSError as error:                      # e.g. ELOOP on a symlink
+        raise FileExistsError(
+            f"{out_path} could not be exclusively created ({error.strerror}); "
+            "refusing to write through an existing directory entry."
+        )
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(payload)
 
 
 def main(argv=None) -> int:

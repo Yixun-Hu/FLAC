@@ -340,6 +340,37 @@ def test_refuses_to_overwrite_an_existing_record(rc, synthetic_ckpt, tmp_path):
     assert out.read_bytes() == original, "the existing record was modified"
 
 
+def test_write_record_refuses_to_follow_a_symlink(rc, synthetic_ckpt, tmp_path):
+    """A dangling symlink defeats exists() but is happily followed by write_text,
+    which would plant the record somewhere else entirely (review finding 5)."""
+    target = tmp_path / "elsewhere.json"
+    link = tmp_path / "rec.json"
+    link.symlink_to(target)
+    record = rc.build_record(synthetic_ckpt(), CONTROL_CONFIG, expect_step=40000)
+
+    with pytest.raises(FileExistsError):
+        rc.write_record(record, link)
+    assert not target.exists(), "the record was written through the symlink"
+
+
+def test_write_record_loses_a_creation_race(rc, synthetic_ckpt, tmp_path, monkeypatch):
+    """Check-then-write: another writer creates the file after the check."""
+    out = tmp_path / "rec.json"
+    record = rc.build_record(synthetic_ckpt(), CONTROL_CONFIG, expect_step=40000)
+
+    real_dumps = json.dumps
+
+    def _racing_dumps(*args, **kwargs):
+        if not out.exists():
+            out.write_text("someone else got here first")
+        return real_dumps(*args, **kwargs)
+
+    monkeypatch.setattr(rc.json, "dumps", _racing_dumps)
+    with pytest.raises(FileExistsError):
+        rc.write_record(record, out)
+    assert out.read_text() == "someone else got here first"
+
+
 def test_detects_step_mismatch(rc, synthetic_ckpt):
     ckpt = synthetic_ckpt(global_step=37500)
     with pytest.raises(ValueError, match="37500"):

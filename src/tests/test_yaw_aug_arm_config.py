@@ -26,36 +26,83 @@ ARM_CONFIG = _REPO / "worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG
 
 # The literal insertion, comma included: appended as the last key of the
 # "training" block, so every other byte of the control config is untouched.
-INSERTED_TEXT = (
-    ',\n'
-    '        "yaw_aug": {\n'
-    '            "enabled": true,\n'
-    '            "img_w": 512,\n'
-    '            "seed": 42\n'
-    '        }'
+# BYTES, not text: read_text() applies universal-newline decoding, under which a
+# wholesale CRLF drift would compare equal to the LF original.
+INSERTED_BYTES = (
+    b',\n'
+    b'        "yaw_aug": {\n'
+    b'            "enabled": true,\n'
+    b'            "img_w": 512,\n'
+    b'            "seed": 42\n'
+    b'        }'
 )
+
+# The end of the control file: the close of "training" and of the root object.
+# The insertion point is immediately before it.
+TRAILER_BYTES = b'\n    }\n}'
 
 EXPECTED_BLOCK = {"enabled": True, "img_w": 512, "seed": 42}
 
 
 @pytest.fixture(scope="module")
-def arm_text():
+def arm_bytes():
     assert ARM_CONFIG.is_file(), f"arm config not found: {ARM_CONFIG}"
-    return ARM_CONFIG.read_text()
+    return ARM_CONFIG.read_bytes()
 
 
 @pytest.fixture(scope="module")
-def control_text():
-    return CONTROL_CONFIG.read_text()
+def control_bytes():
+    return CONTROL_CONFIG.read_bytes()
 
 
-def test_arm_config_is_the_control_plus_exactly_one_insertion(arm_text, control_text):
-    """Byte-level single-delta proof."""
-    assert INSERTED_TEXT in arm_text, "the yaw_aug block is not formatted as expected"
-    assert arm_text.replace(INSERTED_TEXT, "", 1) == control_text, (
-        "FLAC_AR_YAWAUG.json differs from FLAC_AR_VANCKPT.json by more than the "
+@pytest.fixture(scope="module")
+def arm_text(arm_bytes):
+    return arm_bytes.decode()
+
+
+@pytest.fixture(scope="module")
+def control_text(control_bytes):
+    return control_bytes.decode()
+
+
+def test_arm_config_is_the_control_plus_exactly_one_insertion(arm_bytes, control_bytes):
+    """Byte-level single-delta proof, built forwards rather than by subtraction.
+
+    The expected arm file is CONSTRUCTED from the control's own bytes plus the
+    pinned insertion at a uniquely located boundary, then compared for exact
+    equality — so nothing (not even a newline-encoding change) can differ
+    anywhere else.
+    """
+    assert control_bytes.count(TRAILER_BYTES) == 1, (
+        "the end-of-training boundary is not unique in the control config; "
+        "the insertion point can no longer be located unambiguously"
+    )
+    assert control_bytes.endswith(TRAILER_BYTES)
+
+    prefix = control_bytes[: -len(TRAILER_BYTES)]
+    expected_arm_bytes = prefix + INSERTED_BYTES + TRAILER_BYTES
+
+    assert arm_bytes == expected_arm_bytes, (
+        "FLAC_AR_YAWAUG.json is not byte-for-byte the control config plus the "
         "yaw_aug block — the arm would no longer be a single-delta treatment"
     )
+
+
+def test_byte_comparison_would_catch_newline_drift(control_bytes):
+    """Negative control for the test above (review finding 4).
+
+    The previous version decoded both files with universal newlines, so a
+    wholesale CRLF rewrite compared EQUAL to the LF original. Proven here in
+    memory — no file is touched — that the byte comparison rejects it.
+    """
+    prefix = control_bytes[: -len(TRAILER_BYTES)]
+    genuine = prefix + INSERTED_BYTES + TRAILER_BYTES
+    crlf_drifted = genuine.replace(b"\n", b"\r\n")
+
+    assert crlf_drifted != genuine
+    assert crlf_drifted.decode().replace(INSERTED_BYTES.decode(), "", 1) != control_bytes.decode()
+    # ...whereas the OLD text-level comparison could not tell them apart:
+    assert crlf_drifted.decode().splitlines() == genuine.decode().splitlines()
 
 
 def test_arm_config_semantic_diff_is_only_training_yaw_aug(arm_text, control_text):

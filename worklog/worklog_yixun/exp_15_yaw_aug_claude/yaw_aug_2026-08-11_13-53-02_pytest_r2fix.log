@@ -1,0 +1,48 @@
+.....................FF.............                                     [100%]
+=================================== FAILURES ===================================
+________________ test_write_record_refuses_to_follow_a_symlink _________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f26a7693a30>
+tmp_path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-462/test_write_record_refuses_to_f0')
+
+    def test_write_record_refuses_to_follow_a_symlink(rc, synthetic_ckpt, tmp_path):
+        """A dangling symlink defeats exists() but is happily followed by write_text,
+        which would plant the record somewhere else entirely (review finding 5)."""
+        target = tmp_path / "elsewhere.json"
+        link = tmp_path / "rec.json"
+        link.symlink_to(target)
+        record = rc.build_record(synthetic_ckpt(), CONTROL_CONFIG, expect_step=40000)
+    
+>       with pytest.raises(FileExistsError):
+E       Failed: DID NOT RAISE FileExistsError
+
+src/tests/test_yaw_aug_record_control.py:351: Failed
+___________________ test_write_record_loses_a_creation_race ____________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f26a7693010>
+tmp_path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-462/test_write_record_loses_a_crea0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f26a76e3af0>
+
+    def test_write_record_loses_a_creation_race(rc, synthetic_ckpt, tmp_path, monkeypatch):
+        """Check-then-write: another writer creates the file after the check."""
+        out = tmp_path / "rec.json"
+        record = rc.build_record(synthetic_ckpt(), CONTROL_CONFIG, expect_step=40000)
+    
+        real_dumps = json.dumps
+    
+        def _racing_dumps(*args, **kwargs):
+            if not out.exists():
+                out.write_text("someone else got here first")
+            return real_dumps(*args, **kwargs)
+    
+        monkeypatch.setattr(rc.json, "dumps", _racing_dumps)
+>       with pytest.raises(FileExistsError):
+E       Failed: DID NOT RAISE FileExistsError
+
+src/tests/test_yaw_aug_record_control.py:369: Failed
+=========================== short test summary info ============================
+FAILED src/tests/test_yaw_aug_record_control.py::test_write_record_refuses_to_follow_a_symlink
+FAILED src/tests/test_yaw_aug_record_control.py::test_write_record_loses_a_creation_race
+2 failed, 34 passed in 9.59s
