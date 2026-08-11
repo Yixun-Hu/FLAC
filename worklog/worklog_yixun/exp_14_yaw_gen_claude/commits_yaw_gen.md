@@ -18,4 +18,24 @@ Base commit: `89f24cd` (branch `check-equivariance-necessity`; other-agent exp_1
 
 **Round 1 CLOSED 2026-08-11T01:02 EDT** — Codex re-verify `yaw_gen_codex_code_r1_reverify.md`: all findings confirmed closed; suites independently rerun (134 passed).
 
+| `b45fe21` | r2 | COMMIT A — verbatim copy of the exp_11 screen kit (blob SHAs in message, `cmp`-verified) |
+| `bcd5027` | r2 | sbatch delta 1/5 — namespace, paths, campaign constants |
+| `037de5d` | r2 | sbatch delta 2/5 — cell contract: {rgen,zref,vctl} × 5 arms, STEP=40000 only |
+| `74ebf16` | r2 | sbatch delta 3/5 — eval names, log names, protocol banner |
+| `f15bd20` | r2 | sbatch delta 4/5 — lineage gates: exp_11 registry read in place |
+| `139a36c` | r2 | sbatch delta 5/5 — eval argv, protocol manifest, per-cell validation |
+| `d4736c6` | r2 | `exp14_validate_cell.py` + TDD suite (74 tests) |
+| `a00f1ba` | r2 | single-cell submitter — exp_14 contract, own campaign pin |
+| `681ddf8` | r2 | `yaw_gen_submit_grid.sh` — wave submitter, validate-before-skip dedup |
+| `05e6c6d` | r2 | guard suite — exp_14 contract end to end (162 cases) + run logs |
+
+Round 2 interrupted once by the account session limit (resumed post-4am reset, completed 12:39 EDT). Interleaved non-exp_14 commits in the range belong to the concurrent session (exp_15 r1, exp_11 q9/restarts, exp_10 A4).
+
+| `5d6e349` | r2-fix | B1 — rgen/zref pass no `--rotate-deg`; tolerant `parse_deg`; single `check_argv` |
+| `98e276c` | r2-fix | B6 — six fail-closed validator gaps closed |
+| `06b66b0` | r2-fix | B4 — dedup rests on checkpoint identity; `exp14_ckpt_expect.json` (Cn digests == exp_11 registry; VANL established) |
+| `1ab22a0` | r2-fix | B2 — Slurm job names carry the rotation token (cell-injective over all 106) |
+| `a201e3c` | r2-fix | B3+B5+B7+NIT8a/b — pin-file rail, lease-verified in-flight, atomic manifests, full-grid path pins, single-cell DRYRUN |
+| `0f056b4` | r2-fix | NIT8c — live-wave guard cases (guard suite 162→180) |
+
 Note: effective base drifted `89f24cd` → `44788e6` (concurrent session's worklog-only commit landed first; `eval_FLAC.py`/`yaw_rotation.py` byte-identical at both). `809ece5` interleaved in the range is the exp_15 scaffold (other session, worklog-only).
