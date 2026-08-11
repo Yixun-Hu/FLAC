@@ -28,6 +28,11 @@
 # hardware amendment). Account/QOS are left to della's defaults (QOS is derived
 # from --time).
 #
+# --no-requeue (plan Rev 3 §3): measured cluster policy is already JobRequeue=0
+# and PreemptMode=OFF, so this is belt and braces — it pins determinism against a
+# manual `scontrol requeue` and against a future policy change. A silently
+# restarted cell would re-run from step 0 and overwrite its own metrics JSON.
+#
 # Submit through della_submit.sh (it owns the pushed-SHA check, the record
 # transaction and the export list). By hand:
 #   sbatch --job-name=exp16-eval-unseen_s42 \
@@ -42,6 +47,7 @@
 # ============================================================================
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
+#SBATCH --no-requeue
 #SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=32G

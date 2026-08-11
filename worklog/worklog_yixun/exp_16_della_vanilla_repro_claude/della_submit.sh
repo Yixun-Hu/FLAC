@@ -35,14 +35,17 @@
 # GATES: the measurement CLOSURE must be clean (worklog files may be dirty — the
 # command record itself is written while jobs are queued), and HEAD must be
 # pushed. The pushed check uses `git ls-remote` so a DRYRUN writes NOTHING, not
-# even FETCH_HEAD.
+# even FETCH_HEAD. A non-smoke `train` submission additionally requires the
+# committed Phase-1 verdict (see PHASE1_PASS below) — the plan's "Phase 1 gates
+# all training compute" is enforced here, not left to memory.
 #
 # DRYRUN=1 prints the sbatch line it WOULD run and exits: it submits nothing,
 # writes nothing, and reports gate failures as advisories so the argv stays
 # inspectable on a dirty/unpushed development tree.
 #
 # Exit codes: 2 usage, 3 closure dirty, 4 HEAD not pushed, 5 sbatch failed or
-# unparsable, 6 record write/verify failed (job cancelled), 7 release failed.
+# unparsable, 6 record write/verify failed (job cancelled), 7 release failed,
+# 8 Phase-1 verdict missing for a production training leg.
 # ============================================================================
 set -euo pipefail
 
@@ -51,6 +54,11 @@ EXPDIR="$REPO/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude"
 BRANCH=della-flac-chequity
 REMOTE=origin
 RECORD="$EXPDIR/della_vanilla_repro_command.md"
+# The committed Phase-1 verdict. Plan §5: Phase 1 gates ALL training compute, and
+# Rev 3 §2 makes that a file — values, deltas vs the pre-registered thresholds,
+# loader/count/load evidence and a verdict line — so "the gate passed" is a
+# reviewable artifact rather than something a submitter remembers.
+PHASE1_PASS_REL="worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/PHASE1_PASS.md"
 DRYRUN="${DRYRUN:-0}"
 export PYTHONDONTWRITEBYTECODE=1   # nothing here runs python, but the kit is uniform
 
@@ -155,6 +163,20 @@ if [ -n "$CLOSURE_DIRT" ]; then
     echo "$CLOSURE_DIRT" >&2
     die "the measurement closure is dirty - commit or stash before submitting" 3
   fi
+fi
+
+# --- B2. the Phase-1 verdict gates all production training (plan §5, Rev 3 §2) --
+# Fatal even under DRYRUN: this is not an argv-formatting question but the
+# experiment's own precondition, and a dry run that "passed" without it would be
+# read as evidence the leg is ready to go. --smoke is exempt because the smoke is
+# what PRICES the leg (it must be runnable before Phase 1 concludes); eval is
+# exempt because eval IS Phase 1.
+if [ "$KIND" = "train" ] && [ "$SMOKE" != "1" ]; then
+  [ -f "$REPO/$PHASE1_PASS_REL" ] \
+    || die "the Phase-1 gate (plan §5) has no verdict: ${PHASE1_PASS_REL} does not exist — Phase 1 gates all training compute; --smoke is exempt" 8
+  git -C "$REPO" cat-file -e "HEAD:${PHASE1_PASS_REL}" 2>/dev/null \
+    || die "the Phase-1 verdict ${PHASE1_PASS_REL} is not tracked at HEAD — an uncommitted verdict is not a reviewable gate (plan §5 / Rev 3 §2)" 8
+  echo "Phase-1 gate OK: ${PHASE1_PASS_REL} exists and is tracked at HEAD"
 fi
 
 # --- C. HEAD must be PUSHED ---------------------------------------------------

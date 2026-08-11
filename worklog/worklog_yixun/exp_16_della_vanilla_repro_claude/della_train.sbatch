@@ -37,6 +37,13 @@
 # Phase 2 runs on an A100 80GB per the plan's Yixun-approved hardware amendment
 # (recipe deviation = GPU architecture only; disclosed in every artifact).
 #
+# --no-requeue (plan Rev 3 §3): measured cluster policy is already JobRequeue=0
+# and PreemptMode=OFF, so this is belt and braces — it pins determinism against a
+# manual `scontrol requeue` and against a future policy change. A silently
+# requeued leg would restart from step 0 under the SAME job id while its earlier
+# checkpoints sat in the save-dir; recovery is the plan's explicit RESUME=1
+# runbook, never an automatic restart.
+#
 # Submit through della_submit.sh. By hand:
 #   sbatch --job-name=exp16-train --time=2-12:00:00 \
 #          --export=EXPECT_SHA=$(git -C /home/yh4742/codespace/FLAC rev-parse HEAD) \
@@ -50,6 +57,7 @@
 # ============================================================================
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
+#SBATCH --no-requeue
 #SBATCH --gres=gpu:a100:1
 #SBATCH --constraint=gpu80
 #SBATCH --cpus-per-task=10
