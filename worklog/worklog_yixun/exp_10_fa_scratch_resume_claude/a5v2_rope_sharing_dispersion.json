@@ -1,0 +1,222 @@
+{
+ "rows": [
+  {
+   "mode": "train",
+   "cap": 32,
+   "vit": "source_vit",
+   "dispersion": 0.04542839154601097,
+   "angles_per_chunk": 1,
+   "shared_angles": 1
+  },
+  {
+   "mode": "train",
+   "cap": 32,
+   "vit": "context_poses_vit",
+   "dispersion": 0.04179247096180916,
+   "angles_per_chunk": 1,
+   "shared_angles": 1
+  },
+  {
+   "mode": "train",
+   "cap": 64,
+   "vit": "source_vit",
+   "dispersion": 0.04652291536331177,
+   "angles_per_chunk": 2,
+   "shared_angles": 2
+  },
+  {
+   "mode": "train",
+   "cap": 64,
+   "vit": "context_poses_vit",
+   "dispersion": 0.04299123212695122,
+   "angles_per_chunk": 2,
+   "shared_angles": 2
+  },
+  {
+   "mode": "train",
+   "cap": 96,
+   "vit": "source_vit",
+   "dispersion": 0.04833521693944931,
+   "angles_per_chunk": 3,
+   "shared_angles": 3
+  },
+  {
+   "mode": "train",
+   "cap": 96,
+   "vit": "context_poses_vit",
+   "dispersion": 0.045752543956041336,
+   "angles_per_chunk": 3,
+   "shared_angles": 3
+  },
+  {
+   "mode": "eval",
+   "cap": 32,
+   "vit": "source_vit",
+   "dispersion": 0.0,
+   "angles_per_chunk": 1,
+   "shared_angles": 1
+  },
+  {
+   "mode": "eval",
+   "cap": 32,
+   "vit": "context_poses_vit",
+   "dispersion": 0.0,
+   "angles_per_chunk": 1,
+   "shared_angles": 1
+  },
+  {
+   "mode": "eval",
+   "cap": 64,
+   "vit": "source_vit",
+   "dispersion": 0.0,
+   "angles_per_chunk": 2,
+   "shared_angles": 2
+  },
+  {
+   "mode": "eval",
+   "cap": 64,
+   "vit": "context_poses_vit",
+   "dispersion": 0.0,
+   "angles_per_chunk": 2,
+   "shared_angles": 2
+  },
+  {
+   "mode": "eval",
+   "cap": 96,
+   "vit": "source_vit",
+   "dispersion": 0.0,
+   "angles_per_chunk": 3,
+   "shared_angles": 3
+  },
+  {
+   "mode": "eval",
+   "cap": 96,
+   "vit": "context_poses_vit",
+   "dispersion": 0.0,
+   "angles_per_chunk": 3,
+   "shared_angles": 3
+  }
+ ],
+ "summary": {
+  "train|cap32|source_vit": {
+   "dispersion": 0.04542839154601097,
+   "mean_norm": 20.780580520629883,
+   "angles_per_chunk": 1,
+   "shared_angles": 1
+  },
+  "train|cap32|context_poses_vit": {
+   "dispersion": 0.04179247096180916,
+   "mean_norm": 60.04150390625,
+   "angles_per_chunk": 1,
+   "shared_angles": 1
+  },
+  "train|cap64|source_vit": {
+   "dispersion": 0.04652291536331177,
+   "mean_norm": 20.78134536743164,
+   "angles_per_chunk": 2,
+   "shared_angles": 2
+  },
+  "train|cap64|context_poses_vit": {
+   "dispersion": 0.04299123212695122,
+   "mean_norm": 60.04609298706055,
+   "angles_per_chunk": 2,
+   "shared_angles": 2
+  },
+  "train|cap96|source_vit": {
+   "dispersion": 0.04833521693944931,
+   "mean_norm": 20.78175926208496,
+   "angles_per_chunk": 3,
+   "shared_angles": 3
+  },
+  "train|cap96|context_poses_vit": {
+   "dispersion": 0.045752543956041336,
+   "mean_norm": 60.04213333129883,
+   "angles_per_chunk": 3,
+   "shared_angles": 3
+  },
+  "eval|cap32|source_vit": {
+   "dispersion": 0.0,
+   "mean_norm": 20.823835372924805,
+   "angles_per_chunk": 1,
+   "shared_angles": 1
+  },
+  "eval|cap32|context_poses_vit": {
+   "dispersion": 0.0,
+   "mean_norm": 60.133689880371094,
+   "angles_per_chunk": 1,
+   "shared_angles": 1
+  },
+  "eval|cap64|source_vit": {
+   "dispersion": 0.0,
+   "mean_norm": 20.823835372924805,
+   "angles_per_chunk": 2,
+   "shared_angles": 2
+  },
+  "eval|cap64|context_poses_vit": {
+   "dispersion": 0.0,
+   "mean_norm": 60.133689880371094,
+   "angles_per_chunk": 2,
+   "shared_angles": 2
+  },
+  "eval|cap96|source_vit": {
+   "dispersion": 0.0,
+   "mean_norm": 20.823835372924805,
+   "angles_per_chunk": 3,
+   "shared_angles": 3
+  },
+  "eval|cap96|context_poses_vit": {
+   "dispersion": 0.0,
+   "mean_norm": 60.133689880371094,
+   "angles_per_chunk": 3,
+   "shared_angles": 3
+  }
+ },
+ "batch": 32,
+ "caps": [
+  32,
+  64,
+  96
+ ],
+ "seeds": 16,
+ "init_seed": 0,
+ "init_hash": "ecb008311fb1b44b",
+ "sample_ids": [
+  "0:single_channel_ir_1/Cafe/Cafe_idx_1/S006_R008_hybrid_IR.wav",
+  "1:single_channel_ir_1/Cafe/Cafe_idx_1/S008_R089_hybrid_IR.wav",
+  "2:single_channel_ir_1/Cafe/Cafe_idx_1/S002_R044_hybrid_IR.wav",
+  "3:single_channel_ir_1/Cafe/Cafe_idx_1/S009_R029_hybrid_IR.wav",
+  "4:single_channel_ir_1/Cafe/Cafe_idx_1/S003_R057_hybrid_IR.wav",
+  "5:single_channel_ir_1/Cafe/Cafe_idx_1/S007_R019_hybrid_IR.wav",
+  "6:single_channel_ir_1/Cafe/Cafe_idx_1/S001_R040_hybrid_IR.wav",
+  "7:single_channel_ir_1/Cafe/Cafe_idx_1/S003_R022_hybrid_IR.wav",
+  "8:single_channel_ir_1/Cafe/Cafe_idx_1/S005_R038_hybrid_IR.wav",
+  "9:single_channel_ir_1/Cafe/Cafe_idx_1/S006_R064_hybrid_IR.wav",
+  "10:single_channel_ir_1/Cafe/Cafe_idx_1/S006_R067_hybrid_IR.wav",
+  "11:single_channel_ir_1/Cafe/Cafe_idx_1/S007_R035_hybrid_IR.wav",
+  "12:single_channel_ir_1/Cafe/Cafe_idx_1/S009_R047_hybrid_IR.wav",
+  "13:single_channel_ir_1/Cafe/Cafe_idx_1/S009_R015_hybrid_IR.wav",
+  "14:single_channel_ir_1/Cafe/Cafe_idx_1/S010_R076_hybrid_IR.wav",
+  "15:single_channel_ir_1/Cafe/Cafe_idx_1/S007_R067_hybrid_IR.wav",
+  "16:single_channel_ir_1/Cafe/Cafe_idx_1/S010_R015_hybrid_IR.wav",
+  "17:single_channel_ir_1/Cafe/Cafe_idx_1/S003_R096_hybrid_IR.wav",
+  "18:single_channel_ir_1/Cafe/Cafe_idx_1/S005_R025_hybrid_IR.wav",
+  "19:single_channel_ir_1/Cafe/Cafe_idx_1/S007_R034_hybrid_IR.wav",
+  "20:single_channel_ir_1/Cafe/Cafe_idx_1/S010_R095_hybrid_IR.wav",
+  "21:single_channel_ir_1/Cafe/Cafe_idx_1/S002_R034_hybrid_IR.wav",
+  "22:single_channel_ir_1/Cafe/Cafe_idx_1/S009_R022_hybrid_IR.wav",
+  "23:single_channel_ir_1/Cafe/Cafe_idx_1/S006_R013_hybrid_IR.wav",
+  "24:single_channel_ir_1/Cafe/Cafe_idx_1/S002_R026_hybrid_IR.wav",
+  "25:single_channel_ir_1/Cafe/Cafe_idx_1/S002_R093_hybrid_IR.wav",
+  "26:single_channel_ir_1/Cafe/Cafe_idx_1/S007_R008_hybrid_IR.wav",
+  "27:single_channel_ir_1/Cafe/Cafe_idx_1/S005_R088_hybrid_IR.wav",
+  "28:single_channel_ir_1/Cafe/Cafe_idx_1/S004_R065_hybrid_IR.wav",
+  "29:single_channel_ir_1/Cafe/Cafe_idx_1/S010_R093_hybrid_IR.wav",
+  "30:single_channel_ir_1/Cafe/Cafe_idx_1/S008_R047_hybrid_IR.wav",
+  "31:single_channel_ir_1/Cafe/Cafe_idx_1/S001_R065_hybrid_IR.wav"
+ ],
+ "live_cap_default": 64,
+ "config": "/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json",
+ "dataset_config": "/home/yixunhu/codespace/FLAC/src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
+ "gpu": "NVIDIA RTX A6000",
+ "git": "7a575c5"
+}

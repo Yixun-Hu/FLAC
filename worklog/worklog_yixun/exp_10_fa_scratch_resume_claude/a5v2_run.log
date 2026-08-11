@@ -1,0 +1,31 @@
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Running json scandir...
+Found 6337 files in 17 subfolders
+live FRAME_AVG_MAX_FWD_SAMPLES=64  batch=32  init_hash=ecb008311fb1b44b
+  train cap= 32 (1 of 3 angles share a draw)  source_vit         dispersion 4.543e-02
+  train cap= 32 (1 of 3 angles share a draw)  context_poses_vit  dispersion 4.179e-02
+  train cap= 64 (2 of 3 angles share a draw)  source_vit         dispersion 4.652e-02
+  train cap= 64 (2 of 3 angles share a draw)  context_poses_vit  dispersion 4.299e-02
+  train cap= 96 (3 of 3 angles share a draw)  source_vit         dispersion 4.834e-02
+  train cap= 96 (3 of 3 angles share a draw)  context_poses_vit  dispersion 4.575e-02
+  eval  cap= 32 (1 of 3 angles share a draw)  source_vit         dispersion 0.000e+00
+  eval  cap= 32 (1 of 3 angles share a draw)  context_poses_vit  dispersion 0.000e+00
+  eval  cap= 64 (2 of 3 angles share a draw)  source_vit         dispersion 0.000e+00
+  eval  cap= 64 (2 of 3 angles share a draw)  context_poses_vit  dispersion 0.000e+00
+  eval  cap= 96 (3 of 3 angles share a draw)  source_vit         dispersion 0.000e+00
+  eval  cap= 96 (3 of 3 angles share a draw)  context_poses_vit  dispersion 0.000e+00
+
+=== A5 v2 verdict (prediction: dispersion grows with sharing, in train mode) ===
+  context_poses_vit  train 4.179e-02 < 4.299e-02 < 4.575e-02   | eval floor 0.00e+00 -> MONOTONE (prediction held)  [train >> floor]
+  source_vit         train 4.543e-02 < 4.652e-02 < 4.834e-02   | eval floor 0.00e+00 -> MONOTONE (prediction held)  [train >> floor]
+
+wrote /home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_10_fa_scratch_resume_claude/a5v2_rope_sharing_dispersion.json
