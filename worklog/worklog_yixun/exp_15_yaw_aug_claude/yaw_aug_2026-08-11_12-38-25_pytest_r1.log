@@ -1,0 +1,2698 @@
+....................................FFF...FFFFFFFFFFFFFFFFFFFFFFFFF      [100%]
+=================================== FAILURES ===================================
+____________________ test_wrapper_defaults_have_yaw_aug_off ____________________
+
+    def test_wrapper_defaults_have_yaw_aug_off():
+        wrapper = _build_wrapper()
+>       assert wrapper.yaw_aug_enabled is False
+
+src/tests/test_yaw_aug_training.py:544: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(
+  (diffusion): ConditionedDiffusionModelWrapper(
+    (model): DiTWrapper(
+      (model):...ias=True)
+        )
+      )
+    )
+  )
+  (losses): MultiLoss(
+    (losses): ModuleList(
+      (0): MSELoss()
+    )
+  )
+)
+name = 'yaw_aug_enabled'
+
+    def __getattr__(self, name: str) -> Union[Tensor, "Module"]:
+        if "_parameters" in self.__dict__:
+            _parameters = self.__dict__["_parameters"]
+            if name in _parameters:
+                return _parameters[name]
+        if "_buffers" in self.__dict__:
+            _buffers = self.__dict__["_buffers"]
+            if name in _buffers:
+                return _buffers[name]
+        if "_modules" in self.__dict__:
+            modules = self.__dict__["_modules"]
+            if name in modules:
+                return modules[name]
+>       raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
+E       AttributeError: 'DiffusionCondTrainingWrapper' object has no attribute 'yaw_aug_enabled'
+
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1940: AttributeError
+_____________________ test_factory_flags_reach_the_wrapper _____________________
+
+    def test_factory_flags_reach_the_wrapper():
+>       wrapper = _build_wrapper(yaw_aug={"enabled": True, "img_w": 512, "seed": 42})
+
+src/tests/test_yaw_aug_training.py:548: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+____________________ test_banner_printed_once_at_fit_start _____________________
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7fd97b2210c0>
+
+    def test_banner_printed_once_at_fit_start(capsys):
+>       wrapper = _enabled_wrapper(img_w=512, seed=42)
+
+src/tests/test_yaw_aug_training.py:555: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+_________________ test_augmentation_does_not_touch_global_rng __________________
+
+    def test_augmentation_does_not_touch_global_rng():
+>       wrapper = _enabled_wrapper(img_w=512, step=11, rank=0)
+
+src/tests/test_yaw_aug_training.py:578: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+________ test_enabled_step_leaves_the_same_global_rng_state_as_disabled ________
+
+no_flash = None
+
+    def test_enabled_step_leaves_the_same_global_rng_state_as_disabled(no_flash):
+        """Black-box form of the same property, through a whole training_step."""
+        digests = []
+        for training in ({}, {"yaw_aug": {"enabled": True, "img_w": 16, "seed": 42}}):
+            random.seed(GOLDEN_SEED); np.random.seed(GOLDEN_SEED); torch.manual_seed(GOLDEN_SEED)
+>           wrapper = _build_wrapper(**training)
+
+src/tests/test_yaw_aug_training.py:595: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+________________ test_training_step_applies_the_drawn_rotation _________________
+
+no_flash = None
+
+    def test_training_step_applies_the_drawn_rotation(no_flash):
+        img_w, step, rank, seed = 512, 13, 2, 42
+>       wrapper = _enabled_wrapper(img_w=img_w, seed=seed, step=step, rank=rank)
+
+src/tests/test_yaw_aug_training.py:606: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+__________________ test_training_step_leaves_reals_untouched ___________________
+
+no_flash = None
+
+    def test_training_step_leaves_reals_untouched(no_flash):
+        """A rigid yaw of the scene leaves the RIR unchanged — that is the whole
+        reason the augmented pair is a valid training pair."""
+>       wrapper = _enabled_wrapper(img_w=512)
+
+src/tests/test_yaw_aug_training.py:638: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+_____________________ test_draws_advance_with_global_step ______________________
+
+no_flash = None
+
+    def test_draws_advance_with_global_step(no_flash):
+        """Different steps must see different yaws; the same step reproduces."""
+        def seen_depths(step):
+            wrapper = _enabled_wrapper(img_w=512, step=step)
+            seen = _spy_conditioning(wrapper)
+            reals, metadata = _batch(2, img_w=512)
+            wrapper.training_step((reals, metadata), 0)
+            return [md["depth"].clone() for md in seen[0]]
+    
+>       a, b, a_again = seen_depths(0), seen_depths(1), seen_depths(0)
+
+src/tests/test_yaw_aug_training.py:654: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:648: in seen_depths
+    wrapper = _enabled_wrapper(img_w=512, step=step)
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+____________________ test_fixed_offset_integration_cases[0] ____________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fd9613a0eb0>
+no_flash = None, d = 0
+
+    @pytest.mark.parametrize("d", [0, 1, 128, 511])
+    def test_fixed_offset_integration_cases(monkeypatch, no_flash, d):
+        """Pin the geometry itself at four offsets, including the identity (d=0) and
+        the wrap-around neighbour (d=511)."""
+        img_w = 512
+>       monkeypatch.setattr(
+            tdiff, "draw_yaw_offsets",
+            lambda n, w, generator: torch.full((n,), d, dtype=torch.long),
+        )
+E       AttributeError: <module 'src.training.diffusion' from '/n/fs/gatrdp/codespace/FLAC/src/training/diffusion.py'> has no attribute 'draw_yaw_offsets'
+
+src/tests/test_yaw_aug_training.py:664: AttributeError
+____________________ test_fixed_offset_integration_cases[1] ____________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fd961430250>
+no_flash = None, d = 1
+
+    @pytest.mark.parametrize("d", [0, 1, 128, 511])
+    def test_fixed_offset_integration_cases(monkeypatch, no_flash, d):
+        """Pin the geometry itself at four offsets, including the identity (d=0) and
+        the wrap-around neighbour (d=511)."""
+        img_w = 512
+>       monkeypatch.setattr(
+            tdiff, "draw_yaw_offsets",
+            lambda n, w, generator: torch.full((n,), d, dtype=torch.long),
+        )
+E       AttributeError: <module 'src.training.diffusion' from '/n/fs/gatrdp/codespace/FLAC/src/training/diffusion.py'> has no attribute 'draw_yaw_offsets'
+
+src/tests/test_yaw_aug_training.py:664: AttributeError
+___________________ test_fixed_offset_integration_cases[128] ___________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fd97b168040>
+no_flash = None, d = 128
+
+    @pytest.mark.parametrize("d", [0, 1, 128, 511])
+    def test_fixed_offset_integration_cases(monkeypatch, no_flash, d):
+        """Pin the geometry itself at four offsets, including the identity (d=0) and
+        the wrap-around neighbour (d=511)."""
+        img_w = 512
+>       monkeypatch.setattr(
+            tdiff, "draw_yaw_offsets",
+            lambda n, w, generator: torch.full((n,), d, dtype=torch.long),
+        )
+E       AttributeError: <module 'src.training.diffusion' from '/n/fs/gatrdp/codespace/FLAC/src/training/diffusion.py'> has no attribute 'draw_yaw_offsets'
+
+src/tests/test_yaw_aug_training.py:664: AttributeError
+___________________ test_fixed_offset_integration_cases[511] ___________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fd9613a2d10>
+no_flash = None, d = 511
+
+    @pytest.mark.parametrize("d", [0, 1, 128, 511])
+    def test_fixed_offset_integration_cases(monkeypatch, no_flash, d):
+        """Pin the geometry itself at four offsets, including the identity (d=0) and
+        the wrap-around neighbour (d=511)."""
+        img_w = 512
+>       monkeypatch.setattr(
+            tdiff, "draw_yaw_offsets",
+            lambda n, w, generator: torch.full((n,), d, dtype=torch.long),
+        )
+E       AttributeError: <module 'src.training.diffusion' from '/n/fs/gatrdp/codespace/FLAC/src/training/diffusion.py'> has no attribute 'draw_yaw_offsets'
+
+src/tests/test_yaw_aug_training.py:664: AttributeError
+__________________________ test_guard_empty_metadata ___________________________
+
+    def test_guard_empty_metadata():
+        with pytest.raises(ValueError, match="yaw_aug"):
+>           _run_enabled_step([])
+
+src/tests/test_yaw_aug_training.py:696: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:689: in _run_enabled_step
+    wrapper = _enabled_wrapper(img_w=img_w)
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+_____________________ test_guard_metadata_not_a_list[None] _____________________
+
+bad = None
+
+    @pytest.mark.parametrize("bad", [None, {}, "metadata"])
+    def test_guard_metadata_not_a_list(bad):
+        with pytest.raises(ValueError, match="yaw_aug"):
+>           _run_enabled_step(bad)
+
+src/tests/test_yaw_aug_training.py:702: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:689: in _run_enabled_step
+    wrapper = _enabled_wrapper(img_w=img_w)
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+_____________________ test_guard_metadata_not_a_list[bad1] _____________________
+
+bad = {}
+
+    @pytest.mark.parametrize("bad", [None, {}, "metadata"])
+    def test_guard_metadata_not_a_list(bad):
+        with pytest.raises(ValueError, match="yaw_aug"):
+>           _run_enabled_step(bad)
+
+src/tests/test_yaw_aug_training.py:702: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:689: in _run_enabled_step
+    wrapper = _enabled_wrapper(img_w=img_w)
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+___________________ test_guard_metadata_not_a_list[metadata] ___________________
+
+bad = 'metadata'
+
+    @pytest.mark.parametrize("bad", [None, {}, "metadata"])
+    def test_guard_metadata_not_a_list(bad):
+        with pytest.raises(ValueError, match="yaw_aug"):
+>           _run_enabled_step(bad)
+
+src/tests/test_yaw_aug_training.py:702: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:689: in _run_enabled_step
+    wrapper = _enabled_wrapper(img_w=img_w)
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+_________________________ test_guard_sample_not_a_dict _________________________
+
+    def test_guard_sample_not_a_dict():
+        md = _make_md(0, img_w=512)
+        with pytest.raises(ValueError, match="yaw_aug"):
+>           _run_enabled_step([md, "not-a-dict"])
+
+src/tests/test_yaw_aug_training.py:708: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:689: in _run_enabled_step
+    wrapper = _enabled_wrapper(img_w=img_w)
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+___________________________ test_guard_missing_depth ___________________________
+
+    def test_guard_missing_depth():
+        md = _make_md(0, img_w=512)
+        del md["depth"]
+        with pytest.raises(ValueError, match="depth"):
+>           _run_enabled_step([md])
+
+src/tests/test_yaw_aug_training.py:715: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:689: in _run_enabled_step
+    wrapper = _enabled_wrapper(img_w=img_w)
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+_________________________ test_guard_wrong_depth_width _________________________
+
+    def test_guard_wrong_depth_width():
+        """The roll width is validated against the ACTUAL tensor, never trusted from
+        the config (plan §3.1, review F7)."""
+        md = _make_md(0, img_w=256)
+        with pytest.raises(ValueError, match="256"):
+>           _run_enabled_step([md], img_w=512)
+
+src/tests/test_yaw_aug_training.py:723: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:689: in _run_enabled_step
+    wrapper = _enabled_wrapper(img_w=img_w)
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+_____________________ test_guard_wrong_depth_shape[shape0] _____________________
+
+shape = (3, 512)
+
+    @pytest.mark.parametrize("shape", [(3, 512), (1, 4, 512), (3, 4, 512, 1)])
+    def test_guard_wrong_depth_shape(shape):
+        md = _make_md(0, img_w=512)
+        md["depth"] = torch.zeros(*shape)
+        with pytest.raises(ValueError, match="depth"):
+>           _run_enabled_step([md])
+
+src/tests/test_yaw_aug_training.py:731: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:689: in _run_enabled_step
+    wrapper = _enabled_wrapper(img_w=img_w)
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+_____________________ test_guard_wrong_depth_shape[shape1] _____________________
+
+shape = (1, 4, 512)
+
+    @pytest.mark.parametrize("shape", [(3, 512), (1, 4, 512), (3, 4, 512, 1)])
+    def test_guard_wrong_depth_shape(shape):
+        md = _make_md(0, img_w=512)
+        md["depth"] = torch.zeros(*shape)
+        with pytest.raises(ValueError, match="depth"):
+>           _run_enabled_step([md])
+
+src/tests/test_yaw_aug_training.py:731: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:689: in _run_enabled_step
+    wrapper = _enabled_wrapper(img_w=img_w)
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+_____________________ test_guard_wrong_depth_shape[shape2] _____________________
+
+shape = (3, 4, 512, 1)
+
+    @pytest.mark.parametrize("shape", [(3, 512), (1, 4, 512), (3, 4, 512, 1)])
+    def test_guard_wrong_depth_shape(shape):
+        md = _make_md(0, img_w=512)
+        md["depth"] = torch.zeros(*shape)
+        with pytest.raises(ValueError, match="depth"):
+>           _run_enabled_step([md])
+
+src/tests/test_yaw_aug_training.py:731: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:689: in _run_enabled_step
+    wrapper = _enabled_wrapper(img_w=img_w)
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+__________________ test_guard_wrong_pose_trailing_dim[source] __________________
+
+key = 'source'
+
+    @pytest.mark.parametrize("key", ["source", "source_vit", "context_poses", "context_poses_vit"])
+    def test_guard_wrong_pose_trailing_dim(key):
+        md = _make_md(0, img_w=512)
+        md[key] = torch.zeros(*md[key].shape[:-1], 2)
+        with pytest.raises(ValueError, match=key):
+>           _run_enabled_step([md])
+
+src/tests/test_yaw_aug_training.py:739: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:689: in _run_enabled_step
+    wrapper = _enabled_wrapper(img_w=img_w)
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+________________ test_guard_wrong_pose_trailing_dim[source_vit] ________________
+
+key = 'source_vit'
+
+    @pytest.mark.parametrize("key", ["source", "source_vit", "context_poses", "context_poses_vit"])
+    def test_guard_wrong_pose_trailing_dim(key):
+        md = _make_md(0, img_w=512)
+        md[key] = torch.zeros(*md[key].shape[:-1], 2)
+        with pytest.raises(ValueError, match=key):
+>           _run_enabled_step([md])
+
+src/tests/test_yaw_aug_training.py:739: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:689: in _run_enabled_step
+    wrapper = _enabled_wrapper(img_w=img_w)
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+______________ test_guard_wrong_pose_trailing_dim[context_poses] _______________
+
+key = 'context_poses'
+
+    @pytest.mark.parametrize("key", ["source", "source_vit", "context_poses", "context_poses_vit"])
+    def test_guard_wrong_pose_trailing_dim(key):
+        md = _make_md(0, img_w=512)
+        md[key] = torch.zeros(*md[key].shape[:-1], 2)
+        with pytest.raises(ValueError, match=key):
+>           _run_enabled_step([md])
+
+src/tests/test_yaw_aug_training.py:739: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:689: in _run_enabled_step
+    wrapper = _enabled_wrapper(img_w=img_w)
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+____________ test_guard_wrong_pose_trailing_dim[context_poses_vit] _____________
+
+key = 'context_poses_vit'
+
+    @pytest.mark.parametrize("key", ["source", "source_vit", "context_poses", "context_poses_vit"])
+    def test_guard_wrong_pose_trailing_dim(key):
+        md = _make_md(0, img_w=512)
+        md[key] = torch.zeros(*md[key].shape[:-1], 2)
+        with pytest.raises(ValueError, match=key):
+>           _run_enabled_step([md])
+
+src/tests/test_yaw_aug_training.py:739: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:689: in _run_enabled_step
+    wrapper = _enabled_wrapper(img_w=img_w)
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+________________________ test_guard_depth_not_a_tensor _________________________
+
+    def test_guard_depth_not_a_tensor():
+        md = _make_md(0, img_w=512)
+        md["depth"] = [[0.0] * 512]
+        with pytest.raises(ValueError, match="depth"):
+>           _run_enabled_step([md])
+
+src/tests/test_yaw_aug_training.py:746: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:689: in _run_enabled_step
+    wrapper = _enabled_wrapper(img_w=img_w)
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+_____________________ test_validation_step_never_augments ______________________
+
+no_flash = None
+
+    def test_validation_step_never_augments(no_flash):
+>       wrapper = _enabled_wrapper(img_w=512, step=13, rank=2)
+
+src/tests/test_yaw_aug_training.py:751: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:499: in _enabled_wrapper
+    wrapper = _build_wrapper(
+src/tests/test_yaw_aug_training.py:113: in _build_wrapper
+    return create_training_wrapper_from_config(cfg, model)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...}
+model = ConditionedDiffusionModelWrapper(
+  (model): DiTWrapper(
+    (model): DiffusionTransformer(
+      (timestep_features):...res=32, bias=True)
+        (dist_embedder_proj): Linear(in_features=27, out_features=32, bias=True)
+      )
+    )
+  )
+)
+
+    def create_training_wrapper_from_config(model_config, model):
+        model_type = model_config.get('model_type', None)
+        assert model_type is not None, 'model_type must be specified in model config'
+    
+        training_config = model_config.get('training', None)
+        assert training_config is not None, 'training config must be specified in model config'
+    
+        if model_type == 'autoencoder':
+            from .autoencoders import AutoencoderTrainingWrapper
+    
+            ema_copy = None
+    
+            if training_config.get("use_ema", False):
+                ema_copy = create_model_from_config(model_config)
+                ema_copy = create_model_from_config(model_config) # I don't know why this needs to be called twice but it broke when I called it once
+                # Copy each weight to the ema copy
+                for name, param in model.state_dict().items():
+                    if isinstance(param, Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    ema_copy.state_dict()[name].copy_(param)
+    
+            use_ema = training_config.get("use_ema", False)
+    
+            latent_mask_ratio = training_config.get("latent_mask_ratio", 0.0)
+    
+            teacher_model = training_config.get("teacher_model", None)
+            if teacher_model is not None:
+                teacher_model = create_model_from_config(teacher_model)
+                teacher_model = teacher_model.eval().requires_grad_(False)
+    
+                teacher_model_ckpt = training_config.get("teacher_model_ckpt", None)
+                if teacher_model_ckpt is not None:
+                    teacher_model.load_state_dict(torch.load(teacher_model_ckpt)["state_dict"])
+                else:
+                    raise ValueError("teacher_model_ckpt must be specified if teacher_model is specified")
+    
+            return AutoencoderTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                warmup_steps=training_config.get("warmup_steps", 0),
+                encoder_freeze_on_warmup=training_config.get("encoder_freeze_on_warmup", False),
+                sample_rate=model_config["sample_rate"],
+                loss_config=training_config.get("loss_configs", None),
+                eval_loss_config=training_config.get("eval_loss_configs", None),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                use_ema=use_ema,
+                ema_copy=ema_copy if use_ema else None,
+                force_input_mono=training_config.get("force_input_mono", False),
+                latent_mask_ratio=latent_mask_ratio,
+                teacher_model=teacher_model
+            )
+    
+        elif model_type == 'diffusion_cond':
+    
+            from .diffusion import DiffusionCondTrainingWrapper
+    
+            # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
+            yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+    
+>           return DiffusionCondTrainingWrapper(
+                model,
+                lr=training_config.get("learning_rate", None),
+                mask_padding=training_config.get("mask_padding", False),
+                mask_padding_dropout=training_config.get("mask_padding_dropout", 0.0),
+                use_ema = training_config.get("use_ema", True),
+                log_loss_info=training_config.get("log_loss_info", False),
+                optimizer_configs=training_config.get("optimizer_configs", None),
+                pre_encoded=training_config.get("pre_encoded", False),
+                cfg_dropout_prob = training_config.get("cfg_dropout_prob", 0.1),
+                timestep_sampler = training_config.get("timestep_sampler", "uniform"),
+                timestep_sampler_options = training_config.get("timestep_sampler_options", {}),
+                p_one_shot=training_config.get("p_one_shot", 0.0),
+                test_param = model_config.get("test_setup", None),
+                cond_method = training_config.get("cond_method", "vanilla"),
+                frame_avg_angles = training_config.get("frame_avg_angles", None),
+                **yaw_aug_kwargs,
+            )
+E           TypeError: DiffusionCondTrainingWrapper.__init__() got an unexpected keyword argument 'yaw_aug_enabled'
+
+src/training/factory.py:138: TypeError
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_yaw_aug_training.py::test_wrapper_defaults_have_yaw_aug_off
+FAILED src/tests/test_yaw_aug_training.py::test_factory_flags_reach_the_wrapper
+FAILED src/tests/test_yaw_aug_training.py::test_banner_printed_once_at_fit_start
+FAILED src/tests/test_yaw_aug_training.py::test_augmentation_does_not_touch_global_rng
+FAILED src/tests/test_yaw_aug_training.py::test_enabled_step_leaves_the_same_global_rng_state_as_disabled
+FAILED src/tests/test_yaw_aug_training.py::test_training_step_applies_the_drawn_rotation
+FAILED src/tests/test_yaw_aug_training.py::test_training_step_leaves_reals_untouched
+FAILED src/tests/test_yaw_aug_training.py::test_draws_advance_with_global_step
+FAILED src/tests/test_yaw_aug_training.py::test_fixed_offset_integration_cases[0]
+FAILED src/tests/test_yaw_aug_training.py::test_fixed_offset_integration_cases[1]
+FAILED src/tests/test_yaw_aug_training.py::test_fixed_offset_integration_cases[128]
+FAILED src/tests/test_yaw_aug_training.py::test_fixed_offset_integration_cases[511]
+FAILED src/tests/test_yaw_aug_training.py::test_guard_empty_metadata - TypeEr...
+FAILED src/tests/test_yaw_aug_training.py::test_guard_metadata_not_a_list[None]
+FAILED src/tests/test_yaw_aug_training.py::test_guard_metadata_not_a_list[bad1]
+FAILED src/tests/test_yaw_aug_training.py::test_guard_metadata_not_a_list[metadata]
+FAILED src/tests/test_yaw_aug_training.py::test_guard_sample_not_a_dict - Typ...
+FAILED src/tests/test_yaw_aug_training.py::test_guard_missing_depth - TypeErr...
+FAILED src/tests/test_yaw_aug_training.py::test_guard_wrong_depth_width - Typ...
+FAILED src/tests/test_yaw_aug_training.py::test_guard_wrong_depth_shape[shape0]
+FAILED src/tests/test_yaw_aug_training.py::test_guard_wrong_depth_shape[shape1]
+FAILED src/tests/test_yaw_aug_training.py::test_guard_wrong_depth_shape[shape2]
+FAILED src/tests/test_yaw_aug_training.py::test_guard_wrong_pose_trailing_dim[source]
+FAILED src/tests/test_yaw_aug_training.py::test_guard_wrong_pose_trailing_dim[source_vit]
+FAILED src/tests/test_yaw_aug_training.py::test_guard_wrong_pose_trailing_dim[context_poses]
+FAILED src/tests/test_yaw_aug_training.py::test_guard_wrong_pose_trailing_dim[context_poses_vit]
+FAILED src/tests/test_yaw_aug_training.py::test_guard_depth_not_a_tensor - Ty...
+FAILED src/tests/test_yaw_aug_training.py::test_validation_step_never_augments
+28 failed, 39 passed, 4 warnings in 17.18s

@@ -492,6 +492,280 @@ def test_yaw_aug_rejects_bad_seed(seed):
     )
 
 
+# --------------------------------------------------------------------------- #
+# §6.5-2,3,6,7,8 the training_step hook
+# --------------------------------------------------------------------------- #
+def _enabled_wrapper(img_w=16, seed=42, step=0, rank=0, **overrides):
+    wrapper = _build_wrapper(
+        yaw_aug={"enabled": True, "img_w": img_w, "seed": seed}, **overrides
+    )
+    _attach_stub_trainer(wrapper, global_step=step, global_rank=rank)
+    return wrapper
+
+
+def _spy_conditioning(wrapper):
+    """Record the metadata list each ``_compute_conditioning`` call receives."""
+    seen = []
+    original = wrapper._compute_conditioning
+
+    def _spy(metadata):
+        seen.append(metadata)
+        return original(metadata)
+
+    wrapper._compute_conditioning = _spy
+    return seen
+
+
+def _expected_offsets(seed, step, rank, n, img_w):
+    gen = torch.Generator()
+    gen.manual_seed(tdiff._yaw_aug_step_seed(seed, step, rank))
+    return yr.draw_yaw_offsets(n, img_w, gen)
+
+
+def _manual_rotate(md, d, img_w):
+    """A reference rotation computed from first principles, NOT via
+    ``rotate_scene_metadata`` — otherwise the test would only prove the code
+    agrees with itself."""
+    alpha = d * 2.0 * np.pi / img_w
+    c, s = float(np.cos(alpha)), float(np.sin(alpha))
+    rot = torch.tensor([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]], dtype=torch.float32)
+    out = dict(md)
+    rolled = torch.roll(md["depth"], shifts=d, dims=2)
+    out["depth"] = torch.einsum("ij,jhw->ihw", rot, rolled)
+    for key in ("source", "source_vit", "context_poses", "context_poses_vit"):
+        if key in md:
+            out[key] = torch.einsum("ij,...j->...i", rot, md[key])
+    return out
+
+
+# --- flags reach the wrapper ------------------------------------------------ #
+def test_wrapper_defaults_have_yaw_aug_off():
+    wrapper = _build_wrapper()
+    assert wrapper.yaw_aug_enabled is False
+
+
+def test_factory_flags_reach_the_wrapper():
+    wrapper = _build_wrapper(yaw_aug={"enabled": True, "img_w": 512, "seed": 42})
+    assert wrapper.yaw_aug_enabled is True
+    assert wrapper.yaw_aug_img_w == 512
+    assert wrapper.yaw_aug_seed == 42
+
+
+def test_banner_printed_once_at_fit_start(capsys):
+    wrapper = _enabled_wrapper(img_w=512, seed=42)
+    wrapper.on_fit_start()
+    assert capsys.readouterr().out.count("yaw_aug ENABLED img_w=512 seed=42") == 1
+
+
+def test_no_banner_when_disabled(capsys):
+    wrapper = _build_wrapper()
+    _attach_stub_trainer(wrapper)
+    wrapper.on_fit_start()
+    assert "yaw_aug" not in capsys.readouterr().out
+
+
+# --- §6.5-3 exactness: the drawn offset is the applied offset --------------- #
+@pytest.mark.parametrize("img_w", [16, 512])
+def test_every_drawn_angle_requantises_to_its_offset(img_w):
+    offsets = _expected_offsets(42, 0, 0, n=256, img_w=img_w)
+    for d in offsets.tolist() + list(range(img_w)):
+        alpha = yr.offsets_to_radians([d], img_w)[0]
+        assert yr.yaw_column_shift(alpha, img_w) == d
+
+
+# --- §6.5-2 global-RNG isolation ------------------------------------------- #
+def test_augmentation_does_not_touch_global_rng():
+    wrapper = _enabled_wrapper(img_w=512, step=11, rank=0)
+    _, metadata = _batch(4, img_w=512)
+    random.seed(3); np.random.seed(3); torch.manual_seed(3)
+    before = _rng_digest()
+    wrapper._apply_yaw_aug(metadata)
+    assert _rng_digest() == before, (
+        "the yaw draw/application consumed global randomness; the augmented arm "
+        "would then differ from the control by RNG displacement as well as by "
+        "the treatment"
+    )
+
+
+def test_enabled_step_leaves_the_same_global_rng_state_as_disabled(no_flash):
+    """Black-box form of the same property, through a whole training_step."""
+    digests = []
+    for training in ({}, {"yaw_aug": {"enabled": True, "img_w": 16, "seed": 42}}):
+        random.seed(GOLDEN_SEED); np.random.seed(GOLDEN_SEED); torch.manual_seed(GOLDEN_SEED)
+        wrapper = _build_wrapper(**training)
+        _attach_stub_trainer(wrapper, global_step=5)
+        reals, metadata = _batch(2)
+        wrapper.training_step((reals, metadata), 0)
+        digests.append(_rng_digest())
+    assert digests[0] == digests[1]
+
+
+# --- §6.5-6 application: exactly the drawn per-sample rotation -------------- #
+def test_training_step_applies_the_drawn_rotation(no_flash):
+    img_w, step, rank, seed = 512, 13, 2, 42
+    wrapper = _enabled_wrapper(img_w=img_w, seed=seed, step=step, rank=rank)
+    seen = _spy_conditioning(wrapper)
+    reals, metadata = _batch(3, img_w=img_w)
+    pristine = [{k: (v.clone() if torch.is_tensor(v) else v) for k, v in md.items()}
+                for md in metadata]
+
+    wrapper.training_step((reals, metadata), 0)
+
+    offsets = _expected_offsets(seed, step, rank, n=3, img_w=img_w).tolist()
+    assert len(seen) == 1
+    for md_in, md_out, d in zip(pristine, seen[0], offsets):
+        expected = _manual_rotate(md_in, d, img_w)
+        for key in ("depth", "source", "source_vit", "context_poses", "context_poses_vit"):
+            assert torch.equal(md_out[key], expected[key]), f"{key} not rotated by d={d}"
+            assert md_out[key].dtype == md_in[key].dtype
+
+    # untouched fields pass through bit-identically
+    for md_in, md_out in zip(pristine, seen[0]):
+        assert torch.equal(md_out["context_audio"], md_in["context_audio"])
+        assert torch.equal(md_out["padding_mask"], md_in["padding_mask"])
+        assert md_out["scene"] == md_in["scene"]
+
+    # the caller's batch is never mutated in place
+    for md_in, md_now in zip(pristine, metadata):
+        for key, value in md_in.items():
+            if torch.is_tensor(value):
+                assert torch.equal(md_now[key], value), f"input metadata {key} mutated"
+
+
+def test_training_step_leaves_reals_untouched(no_flash):
+    """A rigid yaw of the scene leaves the RIR unchanged — that is the whole
+    reason the augmented pair is a valid training pair."""
+    wrapper = _enabled_wrapper(img_w=512)
+    reals, metadata = _batch(2, img_w=512)
+    reference = reals.clone()
+    wrapper.training_step((reals, metadata), 0)
+    assert torch.equal(reals, reference)
+
+
+def test_draws_advance_with_global_step(no_flash):
+    """Different steps must see different yaws; the same step reproduces."""
+    def seen_depths(step):
+        wrapper = _enabled_wrapper(img_w=512, step=step)
+        seen = _spy_conditioning(wrapper)
+        reals, metadata = _batch(2, img_w=512)
+        wrapper.training_step((reals, metadata), 0)
+        return [md["depth"].clone() for md in seen[0]]
+
+    a, b, a_again = seen_depths(0), seen_depths(1), seen_depths(0)
+    assert all(torch.equal(x, y) for x, y in zip(a, a_again))
+    assert not all(torch.equal(x, y) for x, y in zip(a, b))
+
+
+@pytest.mark.parametrize("d", [0, 1, 128, 511])
+def test_fixed_offset_integration_cases(monkeypatch, no_flash, d):
+    """Pin the geometry itself at four offsets, including the identity (d=0) and
+    the wrap-around neighbour (d=511)."""
+    img_w = 512
+    monkeypatch.setattr(
+        tdiff, "draw_yaw_offsets",
+        lambda n, w, generator: torch.full((n,), d, dtype=torch.long),
+    )
+    wrapper = _enabled_wrapper(img_w=img_w)
+    seen = _spy_conditioning(wrapper)
+    reals, metadata = _batch(2, img_w=img_w)
+    pristine = [{k: (v.clone() if torch.is_tensor(v) else v) for k, v in md.items()}
+                for md in metadata]
+
+    wrapper.training_step((reals, metadata), 0)
+
+    for md_in, md_out in zip(pristine, seen[0]):
+        expected = _manual_rotate(md_in, d, img_w)
+        assert torch.allclose(md_out["depth"], expected["depth"], atol=1e-6)
+        for key in ("source", "source_vit", "context_poses", "context_poses_vit"):
+            assert torch.allclose(md_out[key], expected[key], atol=1e-6), key
+        if d == 0:
+            assert torch.equal(md_out["depth"], md_in["depth"])
+            for key in ("source", "source_vit", "context_poses", "context_poses_vit"):
+                assert torch.allclose(md_out[key], md_in[key], atol=1e-6)
+
+
+# --- §6.5-7 fail-closed schema guards -------------------------------------- #
+def _run_enabled_step(metadata, img_w=512):
+    wrapper = _enabled_wrapper(img_w=img_w)
+    n = len(metadata) if isinstance(metadata, (list, tuple)) else 1
+    reals = torch.zeros(max(n, 1), 4, 64)
+    wrapper.training_step((reals, metadata), 0)
+
+
+def test_guard_empty_metadata():
+    with pytest.raises(ValueError, match="yaw_aug"):
+        _run_enabled_step([])
+
+
+@pytest.mark.parametrize("bad", [None, {}, "metadata"])
+def test_guard_metadata_not_a_list(bad):
+    with pytest.raises(ValueError, match="yaw_aug"):
+        _run_enabled_step(bad)
+
+
+def test_guard_sample_not_a_dict():
+    md = _make_md(0, img_w=512)
+    with pytest.raises(ValueError, match="yaw_aug"):
+        _run_enabled_step([md, "not-a-dict"])
+
+
+def test_guard_missing_depth():
+    md = _make_md(0, img_w=512)
+    del md["depth"]
+    with pytest.raises(ValueError, match="depth"):
+        _run_enabled_step([md])
+
+
+def test_guard_wrong_depth_width():
+    """The roll width is validated against the ACTUAL tensor, never trusted from
+    the config (plan §3.1, review F7)."""
+    md = _make_md(0, img_w=256)
+    with pytest.raises(ValueError, match="256"):
+        _run_enabled_step([md], img_w=512)
+
+
+@pytest.mark.parametrize("shape", [(3, 512), (1, 4, 512), (3, 4, 512, 1)])
+def test_guard_wrong_depth_shape(shape):
+    md = _make_md(0, img_w=512)
+    md["depth"] = torch.zeros(*shape)
+    with pytest.raises(ValueError, match="depth"):
+        _run_enabled_step([md])
+
+
+@pytest.mark.parametrize("key", ["source", "source_vit", "context_poses", "context_poses_vit"])
+def test_guard_wrong_pose_trailing_dim(key):
+    md = _make_md(0, img_w=512)
+    md[key] = torch.zeros(*md[key].shape[:-1], 2)
+    with pytest.raises(ValueError, match=key):
+        _run_enabled_step([md])
+
+
+def test_guard_depth_not_a_tensor():
+    md = _make_md(0, img_w=512)
+    md["depth"] = [[0.0] * 512]
+    with pytest.raises(ValueError, match="depth"):
+        _run_enabled_step([md])
+
+
+# --- §6.5-8 validation never augments -------------------------------------- #
+def test_validation_step_never_augments(no_flash):
+    wrapper = _enabled_wrapper(img_w=512, step=13, rank=2)
+    seen = _spy_conditioning(wrapper)
+    reals, metadata = _batch(2, img_w=512)
+    pristine = [{k: (v.clone() if torch.is_tensor(v) else v) for k, v in md.items()}
+                for md in metadata]
+
+    wrapper.validation_step((reals, metadata), 0)
+
+    assert len(seen) == 1
+    for md_in, md_out in zip(pristine, seen[0]):
+        for key in ("depth", "source", "source_vit", "context_poses", "context_poses_vit"):
+            assert torch.equal(md_out[key], md_in[key]), (
+                f"validation_step rotated {key}: the val loss would no longer be "
+                "comparable to any earlier run"
+            )
+
+
 if __name__ == "__main__":
     if "--write-golden" not in sys.argv:
         raise SystemExit("refusing to overwrite the golden fixture without --write-golden")

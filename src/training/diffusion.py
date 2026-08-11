@@ -13,7 +13,14 @@ from torch import optim
 from torch.nn import functional as F
 from pytorch_lightning.utilities.rank_zero import rank_zero_only
 
-from ..data.yaw_rotation import invariant_conditioning, DEFAULT_FRAME_ANGLES
+from ..data.yaw_rotation import (
+    invariant_conditioning,
+    DEFAULT_FRAME_ANGLES,
+    POSE_KEYS,
+    draw_yaw_offsets,
+    offsets_to_radians,
+    rotate_scene_metadata,
+)
 from ..inference.sampling import get_alphas_sigmas, sample, sample_discrete_euler, sample_flow_pingpong, truncated_logistic_normal_rescaled, DistributionShift, sample_timesteps_logsnr
 from ..models.diffusion import ConditionedDiffusionModelWrapper
 from .losses import MSELoss, MultiLoss
@@ -117,7 +124,10 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             p_one_shot: float = 0.0,
             test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
             cond_method: str = "vanilla",
-            frame_avg_angles: tp.Optional[tp.List[float]] = None
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0
     ):
         super().__init__()
 
@@ -135,6 +145,22 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         self.frame_avg_angles = (
             tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
         )
+
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        self.yaw_aug_enabled = bool(yaw_aug_enabled)
+        self.yaw_aug_img_w = int(yaw_aug_img_w)
+        self.yaw_aug_seed = int(yaw_aug_seed)
+        if self.yaw_aug_enabled:
+            if self.yaw_aug_img_w <= 0:
+                raise ValueError(
+                    f"yaw_aug_img_w must be > 0, got {self.yaw_aug_img_w}"
+                )
+            if cond_method == "fa_invariant":
+                raise ValueError(
+                    "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                    "untested combination and out of scope for exp_15."
+                )
 
         if use_ema:
             self.diffusion_ema = EMA(
@@ -261,6 +287,103 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
 
         return [opt_diff]
 
+    @rank_zero_only
+    def _print_yaw_aug_banner(self):
+        print(f"yaw_aug ENABLED img_w={self.yaw_aug_img_w} seed={self.yaw_aug_seed}")
+
+    def on_fit_start(self):
+        """Announce the treatment once, on rank 0, before step 0.
+
+        The launch kit greps the job log for this line and kills a run that does
+        not print it: exp_15's whole contrast is "this arm was augmented, the
+        control was not", and a silently-disabled treatment would look like a
+        perfectly healthy run.
+        """
+        if self.yaw_aug_enabled:
+            self._print_yaw_aug_banner()
+
+    def _check_yaw_aug_metadata(self, metadata):
+        """Fail-closed schema validation of one training batch (plan §3.1, F7).
+
+        Every check is a hard error rather than a skip: a batch that quietly
+        declined to rotate would train the treatment arm as a partial control and
+        nothing downstream could detect it. In particular the panorama width is
+        validated against the ACTUAL depth tensor, never trusted from the config
+        — a config/data mismatch would otherwise roll by the wrong number of
+        columns and desynchronise depth from the poses.
+        """
+        if not isinstance(metadata, (list, tuple)):
+            raise ValueError(
+                f"yaw_aug: metadata must be a list of per-sample dicts, got "
+                f"{type(metadata).__name__}"
+            )
+        if len(metadata) == 0:
+            raise ValueError("yaw_aug: metadata is empty; nothing to augment")
+
+        for i, md in enumerate(metadata):
+            if not isinstance(md, dict):
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}] must be a dict, got {type(md).__name__}"
+                )
+            if "depth" not in md:
+                raise ValueError(f"yaw_aug: metadata[{i}] has no 'depth' field")
+            depth = md["depth"]
+            if not torch.is_tensor(depth):
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}]['depth'] must be a tensor, got "
+                    f"{type(depth).__name__}"
+                )
+            if depth.ndim != 3 or depth.shape[0] != 3:
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}]['depth'] must have shape [3, H, W], got "
+                    f"{list(depth.shape)}"
+                )
+            if depth.shape[2] != self.yaw_aug_img_w:
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}]['depth'] is {depth.shape[2]} columns "
+                    f"wide but yaw_aug_img_w is {self.yaw_aug_img_w}"
+                )
+            for key in POSE_KEYS:
+                if key in md:
+                    pose = md[key]
+                    if not torch.is_tensor(pose):
+                        raise ValueError(
+                            f"yaw_aug: metadata[{i}][{key!r}] must be a tensor, got "
+                            f"{type(pose).__name__}"
+                        )
+                    if pose.shape[-1] != 3:
+                        raise ValueError(
+                            f"yaw_aug: metadata[{i}][{key!r}] must have trailing "
+                            f"dimension 3, got {list(pose.shape)}"
+                        )
+
+    def _apply_yaw_aug(self, metadata):
+        """Rotate each sample's conditioning by its own freshly drawn yaw.
+
+        The offsets are a pure function of ``(yaw_aug_seed, global_step,
+        global_rank, index)`` — see :func:`_yaw_aug_step_seed`. The generator is
+        private to this call, so the global python/NumPy/torch streams are left
+        untouched and the augmented arm differs from the control only through the
+        treatment, never through RNG displacement.
+
+        ``reals`` (the target RIR), ``context_audio``, ``padding_mask`` and
+        ``scene`` are not rotated: a rigid yaw of the whole scene leaves the
+        impulse response unchanged, which is exactly what makes the rotated
+        conditioning + unchanged target a valid training pair.
+        """
+        self._check_yaw_aug_metadata(metadata)
+
+        generator = torch.Generator()
+        generator.manual_seed(
+            _yaw_aug_step_seed(self.yaw_aug_seed, int(self.global_step), int(self.global_rank))
+        )
+        offsets = draw_yaw_offsets(len(metadata), self.yaw_aug_img_w, generator)
+        angles = offsets_to_radians(offsets, self.yaw_aug_img_w)
+        return [
+            rotate_scene_metadata(md, alpha, self.yaw_aug_img_w)
+            for md, alpha in zip(metadata, angles)
+        ]
+
     def _compute_conditioning(self, metadata):
         """Dispatch conditioning by cond_method (exp_03 plan §2c).
 
@@ -281,6 +404,10 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         reals, metadata = batch
+
+        # exp_15: TRAINING-ONLY random yaw of the conditioning (plan §6.3).
+        if self.yaw_aug_enabled:
+            metadata = self._apply_yaw_aug(metadata)
 
         p = Profiler()
 
