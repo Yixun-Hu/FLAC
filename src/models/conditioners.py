@@ -1,5 +1,7 @@
 
 import functools
+import hashlib
+import os
 
 import torch
 import torch.utils.checkpoint
@@ -18,6 +20,79 @@ import numpy as np
 from .simplevit import SimpleViT
 from .cyl_vit import CylindricalViT
 from transformers import AutoModel, AutoConfig
+
+
+def resolve_vit_model_path(name_or_path, local_root=None):
+    """Prefer a local ViT snapshot directory over a bare hub id.
+
+    WHY: the FLAC release itself trained its ViT from a *local directory* — the
+    released checkpoint's embedded ``model_config`` carries
+    ``./Models/dinov3-vits16-pretrain-lvd1689m`` — while this repo's JSON configs
+    carry the portable hub id ``facebook/dinov3-vits16-pretrain-lvd1689m``. On an
+    offline cluster node (della compute nodes have no network) a hub id cannot be
+    fetched, so this maps the id onto the repo-level ``models/`` snapshot (a
+    symlink into scratch there) *at load time*. The configs therefore stay
+    byte-unchanged and checkpoints keep embedding the portable hub id.
+
+    Root resolution order: an input that is already an existing directory wins
+    outright; otherwise ``local_root`` argument -> ``$FLAC_LOCAL_MODEL_ROOT`` ->
+    ``<repo_root>/models``, where ``repo_root`` is derived from THIS FILE's
+    location (``src/models/`` -> ``src/`` -> repo root), never the CWD, so a job's
+    working directory can never redirect the backbone. An id with no snapshot
+    under any root passes through unchanged (normal hub/cache behavior — and its
+    offline error — then applies).
+
+    Args:
+        name_or_path: hub id or path, as written in the model config.
+        local_root: optional highest-priority root to search.
+
+    Returns:
+        ``(resolved_path, source_tag)`` with ``source_tag`` one of
+        ``explicit-dir``, ``local-root-arg``, ``env-root``, ``repo-root``,
+        ``passthrough`` — so the call site can log which rule fired.
+    """
+    if os.path.isdir(name_or_path):
+        return name_or_path, "explicit-dir"
+
+    basename = os.path.basename(str(name_or_path).rstrip("/"))
+    if not basename:
+        return name_or_path, "passthrough"
+
+    roots = []
+    if local_root is not None:
+        roots.append((local_root, "local-root-arg"))
+    env_root = os.environ.get("FLAC_LOCAL_MODEL_ROOT")
+    if env_root:
+        roots.append((env_root, "env-root"))
+    # src/models/conditioners.py -> src/models -> src -> repo root
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    roots.append((os.path.join(repo_root, "models"), "repo-root"))
+
+    for root, source_tag in roots:
+        candidate = os.path.join(root, basename)
+        if os.path.isdir(candidate):
+            return candidate, source_tag
+
+    return name_or_path, "passthrough"
+
+
+def _vit_weights_provenance(resolved_path):
+    """Size + sha256 prefix of ``<resolved_path>/model.safetensors``, or None.
+
+    The run log's only record of WHICH ViT weights a job actually loaded. Returns
+    None (never raises) when the file is absent or unreadable — config-only
+    snapshot dirs and the ``from_scratch`` path must not be broken by logging.
+    """
+    weights = os.path.join(resolved_path, "model.safetensors")
+    try:
+        size = os.path.getsize(weights)
+        h = hashlib.sha256()
+        with open(weights, "rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                h.update(chunk)
+    except OSError:
+        return None
+    return f"model.safetensors: {size} bytes, sha256:{h.hexdigest()[:16]}"
 
 
 class AudioResNet18(nn.Module):
@@ -450,12 +525,22 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                 if vit_config.get('hf_model_name_or_path', None) is not None:
                     model_name_or_path = vit_config.get('hf_model_name_or_path', None)
 
+                    # Map a hub id onto a local snapshot when one exists (offline
+                    # cluster nodes); pass-through otherwise. Resolve ONCE so both
+                    # load branches see the same path, and log which rule fired.
+                    resolved_path, resolve_source = resolve_vit_model_path(model_name_or_path)
+
                     if vit_config.get('from_scratch', False):
-                        print(f"Loading ViT model from scratch: {model_name_or_path}...")
-                        vit_model = AutoModel.from_config(AutoConfig.from_pretrained(model_name_or_path))
+                        print(f"Loading ViT model from scratch: {model_name_or_path} -> {resolved_path} [{resolve_source}]...")
+                        vit_model = AutoModel.from_config(AutoConfig.from_pretrained(resolved_path))
                     else:
-                        print(f"Loading ViT model from {model_name_or_path}...")
-                        vit_model = AutoModel.from_pretrained(model_name_or_path)
+                        print(f"Loading ViT model from {model_name_or_path} -> {resolved_path} [{resolve_source}]...")
+                        vit_model = AutoModel.from_pretrained(resolved_path)
+
+                    if resolved_path != model_name_or_path:
+                        provenance = _vit_weights_provenance(resolved_path)
+                        if provenance is not None:
+                            print(f"Local ViT snapshot {resolved_path} {provenance}")
 
                     if vit_config.get('freeze', False):
                         print('Freezing ViT model parameters...')
