@@ -392,18 +392,24 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
                     f"wide but yaw_aug_img_w is {self.yaw_aug_img_w}"
                 )
             for key in POSE_KEYS:
-                if key in md:
-                    pose = md[key]
-                    if not torch.is_tensor(pose):
-                        raise ValueError(
-                            f"yaw_aug: metadata[{i}][{key!r}] must be a tensor, got "
-                            f"{type(pose).__name__}"
-                        )
-                    if pose.shape[-1] != 3:
-                        raise ValueError(
-                            f"yaw_aug: metadata[{i}][{key!r}] must have trailing "
-                            f"dimension 3, got {list(pose.shape)}"
-                        )
+                # REQUIRED, not optional: rotate_scene_metadata skips absent keys,
+                # so a sample missing one would be rotated only partially (depth
+                # and three poses moved, the fourth left behind) — geometric
+                # nonsense that nothing downstream could detect.
+                if key not in md:
+                    raise ValueError(f"yaw_aug: metadata[{i}] has no {key!r} pose field")
+                pose = md[key]
+                if not torch.is_tensor(pose):
+                    raise ValueError(
+                        f"yaw_aug: metadata[{i}][{key!r}] must be a tensor, got "
+                        f"{type(pose).__name__}"
+                    )
+                # ndim first: a 0-d pose would make shape[-1] raise IndexError.
+                if pose.ndim < 1 or pose.shape[-1] != 3:
+                    raise ValueError(
+                        f"yaw_aug: metadata[{i}][{key!r}] must have trailing "
+                        f"dimension 3, got shape {list(pose.shape)}"
+                    )
 
     def _apply_yaw_aug(self, metadata):
         """Rotate each sample's conditioning by its own freshly drawn yaw.

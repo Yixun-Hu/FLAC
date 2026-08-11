@@ -1,0 +1,683 @@
+...................F.FFFFF.....                                          [100%]
+=================================== FAILURES ===================================
+__________________ test_guard_missing_pose_field[source_vit] ___________________
+
+key = 'source_vit'
+
+    @pytest.mark.parametrize("key", yr.POSE_KEYS)
+    def test_guard_missing_pose_field(key):
+        """All four pose fields are REQUIRED (review finding 2).
+    
+        ``rotate_scene_metadata`` skips absent keys, so a sample missing one would be
+        rotated only partially — depth and three poses moved, the fourth left behind
+        — which is geometric nonsense the model would silently train on. Detecting
+        exactly this schema drift is what the guard is for.
+        """
+        md = _make_md(0, img_w=512)
+        del md[key]
+        with pytest.raises(ValueError, match=key):
+>           _run_enabled_step([md])
+
+src/tests/test_yaw_aug_training.py:813: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:750: in _run_enabled_step
+    wrapper.training_step((reals, metadata), 0)
+src/training/diffusion.py:551: in training_step
+    output = self.diffusion(noised_inputs, t, cond=conditioning, cfg_dropout_prob = self.cfg_dropout_prob, **extra_args)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/diffusion.py:211: in forward
+    return self.model(x, t, **self.get_conditioning_inputs(cond), **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/diffusion.py:252: in forward
+    return self.model(
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/dit.py:415: in forward
+    return self._forward(
+src/models/dit.py:205: in _forward
+    output = self.transformer(x, prepend_embeds=prepend_inputs, context=cross_attn_cond, return_info=return_info, exit_layer_ix=exit_layer_ix, **extra_args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/transformer.py:843: in forward
+    x = checkpoint(layer, x, rotary_pos_emb = rotary_pos_emb, global_cond=global_cond, self_attention_flash_sliding_window = self.sliding_window, **kwargs)
+src/models/transformer.py:30: in checkpoint
+    return torch.utils.checkpoint.checkpoint(function, *args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/_compile.py:51: in inner
+    return disable_fn(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py:838: in _fn
+    return fn(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/utils/checkpoint.py:495: in checkpoint
+    ret = function(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/transformer.py:683: in forward
+    x = self.self_attn(x, rotary_pos_emb = rotary_pos_emb, flex_attention_block_mask = self_attention_block_mask, flex_attention_score_mod = self_attention_score_mod, flash_attn_sliding_window = self_attention_flash_sliding_window)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/transformer.py:523: in forward
+    out = self.apply_attn(q, k, v, causal = causal, flex_attention_block_mask = flex_attention_block_mask, flex_attention_score_mod = flex_attention_score_mod, flash_attn_sliding_window = flash_attn_sliding_window)
+src/models/transformer.py:436: in apply_attn
+    out = flash_attn_func(q, k, v, causal = causal, window_size=flash_attn_sliding_window if (flash_attn_sliding_window is not None) else [-1,-1])
+../../envs/flac/lib/python3.10/site-packages/flash_attn/flash_attn_interface.py:1201: in flash_attn_func
+    return FlashAttnFunc.apply(
+../../envs/flac/lib/python3.10/site-packages/torch/autograd/function.py:575: in apply
+    return super().apply(*args, **kwargs)  # type: ignore[misc]
+../../envs/flac/lib/python3.10/site-packages/flash_attn/flash_attn_interface.py:839: in forward
+    out_padded, softmax_lse, S_dmask, rng_state = _wrapped_flash_attn_forward(
+../../envs/flac/lib/python3.10/site-packages/torch/_ops.py:1158: in __call__
+    return self._op(*args, **(kwargs or {}))
+../../envs/flac/lib/python3.10/site-packages/torch/_library/autograd.py:113: in autograd_impl
+    result = forward_no_grad(*args, Metadata(keyset, keyword_only_args))
+../../envs/flac/lib/python3.10/site-packages/torch/_library/autograd.py:40: in forward_no_grad
+    result = op.redispatch(keyset & _C._after_autograd_keyset, *args, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <OpOverload(op='flash_attn._flash_attn_forward', overload='default')>
+keyset = DispatchKeySet(CPU)
+args = (tensor([[[[ 0.3762, -0.5122,  0.8569,  ...,  0.5859,  0.1207,  0.2256]],
+
+         [[-0.1458, -0.3267,  1.1865,  ...,...0,  ...,  1.2412, -0.3857,  0.3276]]]],
+       dtype=torch.float16, grad_fn=<ToCopyBackward0>), 0.0, 0.125, False, ...)
+kwargs = {}
+
+    def redispatch(self, /, keyset, *args, **kwargs):
+>       return self._handle.redispatch_boxed(keyset, *args, **kwargs)
+E       NotImplementedError: Could not run 'flash_attn::_flash_attn_forward' with arguments from the 'CPU' backend. This could be because the operator doesn't exist for this backend, or was omitted during the selective/custom build process (if using custom build). If you are a Facebook employee using PyTorch on mobile, please visit https://fburl.com/ptmfixes for possible resolutions. 'flash_attn::_flash_attn_forward' is only available for these backends: [CUDA, Meta, BackendSelect, Python, FuncTorchDynamicLayerBackMode, Functionalize, Named, Conjugate, Negative, ZeroTensor, ADInplaceOrView, AutogradOther, AutogradCPU, AutogradCUDA, AutogradHIP, AutogradXLA, AutogradMPS, AutogradIPU, AutogradXPU, AutogradHPU, AutogradVE, AutogradLazy, AutogradMTIA, AutogradPrivateUse1, AutogradPrivateUse2, AutogradPrivateUse3, AutogradMeta, AutogradNestedTensor, Tracer, AutocastCPU, AutocastMTIA, AutocastXPU, AutocastMPS, AutocastCUDA, FuncTorchBatched, BatchedNestedTensor, FuncTorchVmapMode, Batched, VmapMode, FuncTorchGradWrapper, PythonTLSSnapshot, FuncTorchDynamicLayerFrontMode, PreDispatch, PythonDispatcher].
+E       
+E       CUDA: registered at /dev/null:203 [kernel]
+E       Meta: registered at /dev/null:214 [kernel]
+E       BackendSelect: fallthrough registered at /pytorch/aten/src/ATen/core/BackendSelectFallbackKernel.cpp:3 [backend fallback]
+E       Python: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:194 [backend fallback]
+E       FuncTorchDynamicLayerBackMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:479 [backend fallback]
+E       Functionalize: registered at /pytorch/aten/src/ATen/FunctionalizeFallbackKernel.cpp:349 [backend fallback]
+E       Named: registered at /pytorch/aten/src/ATen/core/NamedRegistrations.cpp:7 [backend fallback]
+E       Conjugate: registered at /pytorch/aten/src/ATen/ConjugateFallback.cpp:17 [backend fallback]
+E       Negative: registered at /pytorch/aten/src/ATen/native/NegateFallback.cpp:18 [backend fallback]
+E       ZeroTensor: registered at /pytorch/aten/src/ATen/ZeroTensorFallback.cpp:86 [backend fallback]
+E       ADInplaceOrView: fallthrough registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:100 [backend fallback]
+E       AutogradOther: registered at /dev/null:203 [autograd kernel]
+E       AutogradCPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradCUDA: registered at /dev/null:203 [autograd kernel]
+E       AutogradHIP: registered at /dev/null:203 [autograd kernel]
+E       AutogradXLA: registered at /dev/null:203 [autograd kernel]
+E       AutogradMPS: registered at /dev/null:203 [autograd kernel]
+E       AutogradIPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradXPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradHPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradVE: registered at /dev/null:203 [autograd kernel]
+E       AutogradLazy: registered at /dev/null:203 [autograd kernel]
+E       AutogradMTIA: registered at /dev/null:203 [autograd kernel]
+E       AutogradPrivateUse1: registered at /dev/null:203 [autograd kernel]
+E       AutogradPrivateUse2: registered at /dev/null:203 [autograd kernel]
+E       AutogradPrivateUse3: registered at /dev/null:203 [autograd kernel]
+E       AutogradMeta: registered at /dev/null:203 [autograd kernel]
+E       AutogradNestedTensor: registered at /dev/null:203 [autograd kernel]
+E       Tracer: registered at /pytorch/torch/csrc/autograd/TraceTypeManual.cpp:294 [backend fallback]
+E       AutocastCPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:322 [backend fallback]
+E       AutocastMTIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:466 [backend fallback]
+E       AutocastXPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:504 [backend fallback]
+E       AutocastMPS: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:209 [backend fallback]
+E       AutocastCUDA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:165 [backend fallback]
+E       FuncTorchBatched: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:731 [backend fallback]
+E       BatchedNestedTensor: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:758 [backend fallback]
+E       FuncTorchVmapMode: fallthrough registered at /pytorch/aten/src/ATen/functorch/VmapModeRegistrations.cpp:27 [backend fallback]
+E       Batched: registered at /pytorch/aten/src/ATen/LegacyBatchingRegistrations.cpp:1075 [backend fallback]
+E       VmapMode: fallthrough registered at /pytorch/aten/src/ATen/VmapModeRegistrations.cpp:33 [backend fallback]
+E       FuncTorchGradWrapper: registered at /pytorch/aten/src/ATen/functorch/TensorWrapper.cpp:208 [backend fallback]
+E       PythonTLSSnapshot: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:202 [backend fallback]
+E       FuncTorchDynamicLayerFrontMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:475 [backend fallback]
+E       PreDispatch: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:206 [backend fallback]
+E       PythonDispatcher: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:198 [backend fallback]
+
+../../envs/flac/lib/python3.10/site-packages/torch/_ops.py:761: NotImplementedError
+_______________ test_guard_missing_pose_field[context_poses_vit] _______________
+
+key = 'context_poses_vit'
+
+    @pytest.mark.parametrize("key", yr.POSE_KEYS)
+    def test_guard_missing_pose_field(key):
+        """All four pose fields are REQUIRED (review finding 2).
+    
+        ``rotate_scene_metadata`` skips absent keys, so a sample missing one would be
+        rotated only partially — depth and three poses moved, the fourth left behind
+        — which is geometric nonsense the model would silently train on. Detecting
+        exactly this schema drift is what the guard is for.
+        """
+        md = _make_md(0, img_w=512)
+        del md[key]
+        with pytest.raises(ValueError, match=key):
+>           _run_enabled_step([md])
+
+src/tests/test_yaw_aug_training.py:813: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:750: in _run_enabled_step
+    wrapper.training_step((reals, metadata), 0)
+src/training/diffusion.py:551: in training_step
+    output = self.diffusion(noised_inputs, t, cond=conditioning, cfg_dropout_prob = self.cfg_dropout_prob, **extra_args)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/diffusion.py:211: in forward
+    return self.model(x, t, **self.get_conditioning_inputs(cond), **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/diffusion.py:252: in forward
+    return self.model(
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/dit.py:415: in forward
+    return self._forward(
+src/models/dit.py:205: in _forward
+    output = self.transformer(x, prepend_embeds=prepend_inputs, context=cross_attn_cond, return_info=return_info, exit_layer_ix=exit_layer_ix, **extra_args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/transformer.py:843: in forward
+    x = checkpoint(layer, x, rotary_pos_emb = rotary_pos_emb, global_cond=global_cond, self_attention_flash_sliding_window = self.sliding_window, **kwargs)
+src/models/transformer.py:30: in checkpoint
+    return torch.utils.checkpoint.checkpoint(function, *args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/_compile.py:51: in inner
+    return disable_fn(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py:838: in _fn
+    return fn(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/utils/checkpoint.py:495: in checkpoint
+    ret = function(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/transformer.py:683: in forward
+    x = self.self_attn(x, rotary_pos_emb = rotary_pos_emb, flex_attention_block_mask = self_attention_block_mask, flex_attention_score_mod = self_attention_score_mod, flash_attn_sliding_window = self_attention_flash_sliding_window)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/transformer.py:523: in forward
+    out = self.apply_attn(q, k, v, causal = causal, flex_attention_block_mask = flex_attention_block_mask, flex_attention_score_mod = flex_attention_score_mod, flash_attn_sliding_window = flash_attn_sliding_window)
+src/models/transformer.py:436: in apply_attn
+    out = flash_attn_func(q, k, v, causal = causal, window_size=flash_attn_sliding_window if (flash_attn_sliding_window is not None) else [-1,-1])
+../../envs/flac/lib/python3.10/site-packages/flash_attn/flash_attn_interface.py:1201: in flash_attn_func
+    return FlashAttnFunc.apply(
+../../envs/flac/lib/python3.10/site-packages/torch/autograd/function.py:575: in apply
+    return super().apply(*args, **kwargs)  # type: ignore[misc]
+../../envs/flac/lib/python3.10/site-packages/flash_attn/flash_attn_interface.py:839: in forward
+    out_padded, softmax_lse, S_dmask, rng_state = _wrapped_flash_attn_forward(
+../../envs/flac/lib/python3.10/site-packages/torch/_ops.py:1158: in __call__
+    return self._op(*args, **(kwargs or {}))
+../../envs/flac/lib/python3.10/site-packages/torch/_library/autograd.py:113: in autograd_impl
+    result = forward_no_grad(*args, Metadata(keyset, keyword_only_args))
+../../envs/flac/lib/python3.10/site-packages/torch/_library/autograd.py:40: in forward_no_grad
+    result = op.redispatch(keyset & _C._after_autograd_keyset, *args, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <OpOverload(op='flash_attn._flash_attn_forward', overload='default')>
+keyset = DispatchKeySet(CPU)
+args = (tensor([[[[-1.0469,  0.6597,  0.5308,  ..., -0.3401, -0.2593,  0.1887]],
+
+         [[ 0.1115, -0.0632,  0.4426,  ...,...6,  ..., -0.1354,  0.7500, -1.1533]]]],
+       dtype=torch.float16, grad_fn=<ToCopyBackward0>), 0.0, 0.125, False, ...)
+kwargs = {}
+
+    def redispatch(self, /, keyset, *args, **kwargs):
+>       return self._handle.redispatch_boxed(keyset, *args, **kwargs)
+E       NotImplementedError: Could not run 'flash_attn::_flash_attn_forward' with arguments from the 'CPU' backend. This could be because the operator doesn't exist for this backend, or was omitted during the selective/custom build process (if using custom build). If you are a Facebook employee using PyTorch on mobile, please visit https://fburl.com/ptmfixes for possible resolutions. 'flash_attn::_flash_attn_forward' is only available for these backends: [CUDA, Meta, BackendSelect, Python, FuncTorchDynamicLayerBackMode, Functionalize, Named, Conjugate, Negative, ZeroTensor, ADInplaceOrView, AutogradOther, AutogradCPU, AutogradCUDA, AutogradHIP, AutogradXLA, AutogradMPS, AutogradIPU, AutogradXPU, AutogradHPU, AutogradVE, AutogradLazy, AutogradMTIA, AutogradPrivateUse1, AutogradPrivateUse2, AutogradPrivateUse3, AutogradMeta, AutogradNestedTensor, Tracer, AutocastCPU, AutocastMTIA, AutocastXPU, AutocastMPS, AutocastCUDA, FuncTorchBatched, BatchedNestedTensor, FuncTorchVmapMode, Batched, VmapMode, FuncTorchGradWrapper, PythonTLSSnapshot, FuncTorchDynamicLayerFrontMode, PreDispatch, PythonDispatcher].
+E       
+E       CUDA: registered at /dev/null:203 [kernel]
+E       Meta: registered at /dev/null:214 [kernel]
+E       BackendSelect: fallthrough registered at /pytorch/aten/src/ATen/core/BackendSelectFallbackKernel.cpp:3 [backend fallback]
+E       Python: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:194 [backend fallback]
+E       FuncTorchDynamicLayerBackMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:479 [backend fallback]
+E       Functionalize: registered at /pytorch/aten/src/ATen/FunctionalizeFallbackKernel.cpp:349 [backend fallback]
+E       Named: registered at /pytorch/aten/src/ATen/core/NamedRegistrations.cpp:7 [backend fallback]
+E       Conjugate: registered at /pytorch/aten/src/ATen/ConjugateFallback.cpp:17 [backend fallback]
+E       Negative: registered at /pytorch/aten/src/ATen/native/NegateFallback.cpp:18 [backend fallback]
+E       ZeroTensor: registered at /pytorch/aten/src/ATen/ZeroTensorFallback.cpp:86 [backend fallback]
+E       ADInplaceOrView: fallthrough registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:100 [backend fallback]
+E       AutogradOther: registered at /dev/null:203 [autograd kernel]
+E       AutogradCPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradCUDA: registered at /dev/null:203 [autograd kernel]
+E       AutogradHIP: registered at /dev/null:203 [autograd kernel]
+E       AutogradXLA: registered at /dev/null:203 [autograd kernel]
+E       AutogradMPS: registered at /dev/null:203 [autograd kernel]
+E       AutogradIPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradXPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradHPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradVE: registered at /dev/null:203 [autograd kernel]
+E       AutogradLazy: registered at /dev/null:203 [autograd kernel]
+E       AutogradMTIA: registered at /dev/null:203 [autograd kernel]
+E       AutogradPrivateUse1: registered at /dev/null:203 [autograd kernel]
+E       AutogradPrivateUse2: registered at /dev/null:203 [autograd kernel]
+E       AutogradPrivateUse3: registered at /dev/null:203 [autograd kernel]
+E       AutogradMeta: registered at /dev/null:203 [autograd kernel]
+E       AutogradNestedTensor: registered at /dev/null:203 [autograd kernel]
+E       Tracer: registered at /pytorch/torch/csrc/autograd/TraceTypeManual.cpp:294 [backend fallback]
+E       AutocastCPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:322 [backend fallback]
+E       AutocastMTIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:466 [backend fallback]
+E       AutocastXPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:504 [backend fallback]
+E       AutocastMPS: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:209 [backend fallback]
+E       AutocastCUDA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:165 [backend fallback]
+E       FuncTorchBatched: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:731 [backend fallback]
+E       BatchedNestedTensor: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:758 [backend fallback]
+E       FuncTorchVmapMode: fallthrough registered at /pytorch/aten/src/ATen/functorch/VmapModeRegistrations.cpp:27 [backend fallback]
+E       Batched: registered at /pytorch/aten/src/ATen/LegacyBatchingRegistrations.cpp:1075 [backend fallback]
+E       VmapMode: fallthrough registered at /pytorch/aten/src/ATen/VmapModeRegistrations.cpp:33 [backend fallback]
+E       FuncTorchGradWrapper: registered at /pytorch/aten/src/ATen/functorch/TensorWrapper.cpp:208 [backend fallback]
+E       PythonTLSSnapshot: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:202 [backend fallback]
+E       FuncTorchDynamicLayerFrontMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:475 [backend fallback]
+E       PreDispatch: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:206 [backend fallback]
+E       PythonDispatcher: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:198 [backend fallback]
+
+../../envs/flac/lib/python3.10/site-packages/torch/_ops.py:761: NotImplementedError
+________________________ test_guard_scalar_pose[source] ________________________
+
+key = 'source'
+
+    @pytest.mark.parametrize("key", yr.POSE_KEYS)
+    def test_guard_scalar_pose(key):
+        """A 0-d pose must raise ValueError, not IndexError from ``shape[-1]``."""
+        md = _make_md(0, img_w=512)
+        md[key] = torch.tensor(1.0)
+        with pytest.raises(ValueError, match=key):
+>           _run_enabled_step([md])
+
+src/tests/test_yaw_aug_training.py:822: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:750: in _run_enabled_step
+    wrapper.training_step((reals, metadata), 0)
+src/training/diffusion.py:458: in training_step
+    metadata = self._apply_yaw_aug(metadata)
+src/training/diffusion.py:422: in _apply_yaw_aug
+    self._check_yaw_aug_metadata(metadata)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(
+  (diffusion): ConditionedDiffusionModelWrapper(
+    (model): DiTWrapper(
+      (model):...ias=True)
+        )
+      )
+    )
+  )
+  (losses): MultiLoss(
+    (losses): ModuleList(
+      (0): MSELoss()
+    )
+  )
+)
+metadata = [{'source': tensor(1.), 'source_vit': tensor([ 0.5684, -1.0845, -1.3986]), 'context_poses': tensor([[ 0.4033,  0.8380,...966,  0.1820]]), 'context_poses_vit': tensor([[-0.8567,  1.1006, -1.0712],
+        [ 0.1227, -0.5663,  0.3731]]), ...}]
+
+    def _check_yaw_aug_metadata(self, metadata):
+        """Fail-closed schema validation of one training batch (plan §3.1, F7).
+    
+        Every check is a hard error rather than a skip: a batch that quietly
+        declined to rotate would train the treatment arm as a partial control and
+        nothing downstream could detect it. In particular the panorama width is
+        validated against the ACTUAL depth tensor, never trusted from the config
+        — a config/data mismatch would otherwise roll by the wrong number of
+        columns and desynchronise depth from the poses.
+        """
+        if not isinstance(metadata, (list, tuple)):
+            raise ValueError(
+                f"yaw_aug: metadata must be a list of per-sample dicts, got "
+                f"{type(metadata).__name__}"
+            )
+        if len(metadata) == 0:
+            raise ValueError("yaw_aug: metadata is empty; nothing to augment")
+    
+        for i, md in enumerate(metadata):
+            if not isinstance(md, dict):
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}] must be a dict, got {type(md).__name__}"
+                )
+            if "depth" not in md:
+                raise ValueError(f"yaw_aug: metadata[{i}] has no 'depth' field")
+            depth = md["depth"]
+            if not torch.is_tensor(depth):
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}]['depth'] must be a tensor, got "
+                    f"{type(depth).__name__}"
+                )
+            if depth.ndim != 3 or depth.shape[0] != 3:
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}]['depth'] must have shape [3, H, W], got "
+                    f"{list(depth.shape)}"
+                )
+            if depth.shape[2] != self.yaw_aug_img_w:
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}]['depth'] is {depth.shape[2]} columns "
+                    f"wide but yaw_aug_img_w is {self.yaw_aug_img_w}"
+                )
+            for key in POSE_KEYS:
+                if key in md:
+                    pose = md[key]
+                    if not torch.is_tensor(pose):
+                        raise ValueError(
+                            f"yaw_aug: metadata[{i}][{key!r}] must be a tensor, got "
+                            f"{type(pose).__name__}"
+                        )
+>                   if pose.shape[-1] != 3:
+E                   IndexError: tuple index out of range
+
+src/training/diffusion.py:402: IndexError
+______________________ test_guard_scalar_pose[source_vit] ______________________
+
+key = 'source_vit'
+
+    @pytest.mark.parametrize("key", yr.POSE_KEYS)
+    def test_guard_scalar_pose(key):
+        """A 0-d pose must raise ValueError, not IndexError from ``shape[-1]``."""
+        md = _make_md(0, img_w=512)
+        md[key] = torch.tensor(1.0)
+        with pytest.raises(ValueError, match=key):
+>           _run_enabled_step([md])
+
+src/tests/test_yaw_aug_training.py:822: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:750: in _run_enabled_step
+    wrapper.training_step((reals, metadata), 0)
+src/training/diffusion.py:458: in training_step
+    metadata = self._apply_yaw_aug(metadata)
+src/training/diffusion.py:422: in _apply_yaw_aug
+    self._check_yaw_aug_metadata(metadata)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(
+  (diffusion): ConditionedDiffusionModelWrapper(
+    (model): DiTWrapper(
+      (model):...ias=True)
+        )
+      )
+    )
+  )
+  (losses): MultiLoss(
+    (losses): ModuleList(
+      (0): MSELoss()
+    )
+  )
+)
+metadata = [{'source': tensor([ 1.5410, -0.2934, -2.1788]), 'source_vit': tensor(1.), 'context_poses': tensor([[ 0.4033,  0.8380,...966,  0.1820]]), 'context_poses_vit': tensor([[-0.8567,  1.1006, -1.0712],
+        [ 0.1227, -0.5663,  0.3731]]), ...}]
+
+    def _check_yaw_aug_metadata(self, metadata):
+        """Fail-closed schema validation of one training batch (plan §3.1, F7).
+    
+        Every check is a hard error rather than a skip: a batch that quietly
+        declined to rotate would train the treatment arm as a partial control and
+        nothing downstream could detect it. In particular the panorama width is
+        validated against the ACTUAL depth tensor, never trusted from the config
+        — a config/data mismatch would otherwise roll by the wrong number of
+        columns and desynchronise depth from the poses.
+        """
+        if not isinstance(metadata, (list, tuple)):
+            raise ValueError(
+                f"yaw_aug: metadata must be a list of per-sample dicts, got "
+                f"{type(metadata).__name__}"
+            )
+        if len(metadata) == 0:
+            raise ValueError("yaw_aug: metadata is empty; nothing to augment")
+    
+        for i, md in enumerate(metadata):
+            if not isinstance(md, dict):
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}] must be a dict, got {type(md).__name__}"
+                )
+            if "depth" not in md:
+                raise ValueError(f"yaw_aug: metadata[{i}] has no 'depth' field")
+            depth = md["depth"]
+            if not torch.is_tensor(depth):
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}]['depth'] must be a tensor, got "
+                    f"{type(depth).__name__}"
+                )
+            if depth.ndim != 3 or depth.shape[0] != 3:
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}]['depth'] must have shape [3, H, W], got "
+                    f"{list(depth.shape)}"
+                )
+            if depth.shape[2] != self.yaw_aug_img_w:
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}]['depth'] is {depth.shape[2]} columns "
+                    f"wide but yaw_aug_img_w is {self.yaw_aug_img_w}"
+                )
+            for key in POSE_KEYS:
+                if key in md:
+                    pose = md[key]
+                    if not torch.is_tensor(pose):
+                        raise ValueError(
+                            f"yaw_aug: metadata[{i}][{key!r}] must be a tensor, got "
+                            f"{type(pose).__name__}"
+                        )
+>                   if pose.shape[-1] != 3:
+E                   IndexError: tuple index out of range
+
+src/training/diffusion.py:402: IndexError
+____________________ test_guard_scalar_pose[context_poses] _____________________
+
+key = 'context_poses'
+
+    @pytest.mark.parametrize("key", yr.POSE_KEYS)
+    def test_guard_scalar_pose(key):
+        """A 0-d pose must raise ValueError, not IndexError from ``shape[-1]``."""
+        md = _make_md(0, img_w=512)
+        md[key] = torch.tensor(1.0)
+        with pytest.raises(ValueError, match=key):
+>           _run_enabled_step([md])
+
+src/tests/test_yaw_aug_training.py:822: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:750: in _run_enabled_step
+    wrapper.training_step((reals, metadata), 0)
+src/training/diffusion.py:458: in training_step
+    metadata = self._apply_yaw_aug(metadata)
+src/training/diffusion.py:422: in _apply_yaw_aug
+    self._check_yaw_aug_metadata(metadata)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(
+  (diffusion): ConditionedDiffusionModelWrapper(
+    (model): DiTWrapper(
+      (model):...ias=True)
+        )
+      )
+    )
+  )
+  (losses): MultiLoss(
+    (losses): ModuleList(
+      (0): MSELoss()
+    )
+  )
+)
+metadata = [{'source': tensor([ 1.5410, -0.2934, -2.1788]), 'source_vit': tensor([ 0.5684, -1.0845, -1.3986]), 'context_poses': tensor(1.), 'context_poses_vit': tensor([[-0.8567,  1.1006, -1.0712],
+        [ 0.1227, -0.5663,  0.3731]]), ...}]
+
+    def _check_yaw_aug_metadata(self, metadata):
+        """Fail-closed schema validation of one training batch (plan §3.1, F7).
+    
+        Every check is a hard error rather than a skip: a batch that quietly
+        declined to rotate would train the treatment arm as a partial control and
+        nothing downstream could detect it. In particular the panorama width is
+        validated against the ACTUAL depth tensor, never trusted from the config
+        — a config/data mismatch would otherwise roll by the wrong number of
+        columns and desynchronise depth from the poses.
+        """
+        if not isinstance(metadata, (list, tuple)):
+            raise ValueError(
+                f"yaw_aug: metadata must be a list of per-sample dicts, got "
+                f"{type(metadata).__name__}"
+            )
+        if len(metadata) == 0:
+            raise ValueError("yaw_aug: metadata is empty; nothing to augment")
+    
+        for i, md in enumerate(metadata):
+            if not isinstance(md, dict):
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}] must be a dict, got {type(md).__name__}"
+                )
+            if "depth" not in md:
+                raise ValueError(f"yaw_aug: metadata[{i}] has no 'depth' field")
+            depth = md["depth"]
+            if not torch.is_tensor(depth):
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}]['depth'] must be a tensor, got "
+                    f"{type(depth).__name__}"
+                )
+            if depth.ndim != 3 or depth.shape[0] != 3:
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}]['depth'] must have shape [3, H, W], got "
+                    f"{list(depth.shape)}"
+                )
+            if depth.shape[2] != self.yaw_aug_img_w:
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}]['depth'] is {depth.shape[2]} columns "
+                    f"wide but yaw_aug_img_w is {self.yaw_aug_img_w}"
+                )
+            for key in POSE_KEYS:
+                if key in md:
+                    pose = md[key]
+                    if not torch.is_tensor(pose):
+                        raise ValueError(
+                            f"yaw_aug: metadata[{i}][{key!r}] must be a tensor, got "
+                            f"{type(pose).__name__}"
+                        )
+>                   if pose.shape[-1] != 3:
+E                   IndexError: tuple index out of range
+
+src/training/diffusion.py:402: IndexError
+__________________ test_guard_scalar_pose[context_poses_vit] ___________________
+
+key = 'context_poses_vit'
+
+    @pytest.mark.parametrize("key", yr.POSE_KEYS)
+    def test_guard_scalar_pose(key):
+        """A 0-d pose must raise ValueError, not IndexError from ``shape[-1]``."""
+        md = _make_md(0, img_w=512)
+        md[key] = torch.tensor(1.0)
+        with pytest.raises(ValueError, match=key):
+>           _run_enabled_step([md])
+
+src/tests/test_yaw_aug_training.py:822: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_yaw_aug_training.py:750: in _run_enabled_step
+    wrapper.training_step((reals, metadata), 0)
+src/training/diffusion.py:458: in training_step
+    metadata = self._apply_yaw_aug(metadata)
+src/training/diffusion.py:422: in _apply_yaw_aug
+    self._check_yaw_aug_metadata(metadata)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper(
+  (diffusion): ConditionedDiffusionModelWrapper(
+    (model): DiTWrapper(
+      (model):...ias=True)
+        )
+      )
+    )
+  )
+  (losses): MultiLoss(
+    (losses): ModuleList(
+      (0): MSELoss()
+    )
+  )
+)
+metadata = [{'source': tensor([ 1.5410, -0.2934, -2.1788]), 'source_vit': tensor([ 0.5684, -1.0845, -1.3986]), 'context_poses': tensor([[ 0.4033,  0.8380, -0.7193],
+        [-0.4033, -0.5966,  0.1820]]), 'context_poses_vit': tensor(1.), ...}]
+
+    def _check_yaw_aug_metadata(self, metadata):
+        """Fail-closed schema validation of one training batch (plan §3.1, F7).
+    
+        Every check is a hard error rather than a skip: a batch that quietly
+        declined to rotate would train the treatment arm as a partial control and
+        nothing downstream could detect it. In particular the panorama width is
+        validated against the ACTUAL depth tensor, never trusted from the config
+        — a config/data mismatch would otherwise roll by the wrong number of
+        columns and desynchronise depth from the poses.
+        """
+        if not isinstance(metadata, (list, tuple)):
+            raise ValueError(
+                f"yaw_aug: metadata must be a list of per-sample dicts, got "
+                f"{type(metadata).__name__}"
+            )
+        if len(metadata) == 0:
+            raise ValueError("yaw_aug: metadata is empty; nothing to augment")
+    
+        for i, md in enumerate(metadata):
+            if not isinstance(md, dict):
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}] must be a dict, got {type(md).__name__}"
+                )
+            if "depth" not in md:
+                raise ValueError(f"yaw_aug: metadata[{i}] has no 'depth' field")
+            depth = md["depth"]
+            if not torch.is_tensor(depth):
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}]['depth'] must be a tensor, got "
+                    f"{type(depth).__name__}"
+                )
+            if depth.ndim != 3 or depth.shape[0] != 3:
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}]['depth'] must have shape [3, H, W], got "
+                    f"{list(depth.shape)}"
+                )
+            if depth.shape[2] != self.yaw_aug_img_w:
+                raise ValueError(
+                    f"yaw_aug: metadata[{i}]['depth'] is {depth.shape[2]} columns "
+                    f"wide but yaw_aug_img_w is {self.yaw_aug_img_w}"
+                )
+            for key in POSE_KEYS:
+                if key in md:
+                    pose = md[key]
+                    if not torch.is_tensor(pose):
+                        raise ValueError(
+                            f"yaw_aug: metadata[{i}][{key!r}] must be a tensor, got "
+                            f"{type(pose).__name__}"
+                        )
+>                   if pose.shape[-1] != 3:
+E                   IndexError: tuple index out of range
+
+src/training/diffusion.py:402: IndexError
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_yaw_aug_training.py::test_guard_missing_pose_field[source_vit]
+FAILED src/tests/test_yaw_aug_training.py::test_guard_missing_pose_field[context_poses_vit]
+FAILED src/tests/test_yaw_aug_training.py::test_guard_scalar_pose[source] - I...
+FAILED src/tests/test_yaw_aug_training.py::test_guard_scalar_pose[source_vit]
+FAILED src/tests/test_yaw_aug_training.py::test_guard_scalar_pose[context_poses]
+FAILED src/tests/test_yaw_aug_training.py::test_guard_scalar_pose[context_poses_vit]
+6 failed, 25 passed, 55 deselected, 4 warnings in 22.74s

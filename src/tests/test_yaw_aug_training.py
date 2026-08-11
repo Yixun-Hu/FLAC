@@ -730,8 +730,12 @@ def test_fixed_offset_integration_cases(monkeypatch, no_flash, d):
     for md_in, md_out in zip(pristine, seen[0]):
         expected = _manual_rotate(md_in, d, img_w)
         assert torch.allclose(md_out["depth"], expected["depth"], atol=1e-6)
-        for key in ("source", "source_vit", "context_poses", "context_poses_vit"):
+        assert md_out["depth"].dtype == md_in["depth"].dtype
+        assert md_out["depth"].device == md_in["depth"].device
+        for key in yr.POSE_KEYS:
             assert torch.allclose(md_out[key], expected[key], atol=1e-6), key
+            assert md_out[key].dtype == md_in[key].dtype, key
+            assert md_out[key].device == md_in[key].device, key
         if d == 0:
             assert torch.equal(md_out["depth"], md_in["depth"])
             for key in ("source", "source_vit", "context_poses", "context_poses_vit"):
@@ -786,10 +790,42 @@ def test_guard_wrong_depth_shape(shape):
         _run_enabled_step([md])
 
 
-@pytest.mark.parametrize("key", ["source", "source_vit", "context_poses", "context_poses_vit"])
+@pytest.mark.parametrize("key", yr.POSE_KEYS)
 def test_guard_wrong_pose_trailing_dim(key):
     md = _make_md(0, img_w=512)
     md[key] = torch.zeros(*md[key].shape[:-1], 2)
+    with pytest.raises(ValueError, match=key):
+        _run_enabled_step([md])
+
+
+@pytest.mark.parametrize("key", yr.POSE_KEYS)
+def test_guard_missing_pose_field(key):
+    """All four pose fields are REQUIRED (review finding 2).
+
+    ``rotate_scene_metadata`` skips absent keys, so a sample missing one would be
+    rotated only partially — depth and three poses moved, the fourth left behind
+    — which is geometric nonsense the model would silently train on. Detecting
+    exactly this schema drift is what the guard is for.
+    """
+    md = _make_md(0, img_w=512)
+    del md[key]
+    with pytest.raises(ValueError, match=key):
+        _run_enabled_step([md])
+
+
+@pytest.mark.parametrize("key", yr.POSE_KEYS)
+def test_guard_scalar_pose(key):
+    """A 0-d pose must raise ValueError, not IndexError from ``shape[-1]``."""
+    md = _make_md(0, img_w=512)
+    md[key] = torch.tensor(1.0)
+    with pytest.raises(ValueError, match=key):
+        _run_enabled_step([md])
+
+
+@pytest.mark.parametrize("key", yr.POSE_KEYS)
+def test_guard_non_tensor_pose(key):
+    md = _make_md(0, img_w=512)
+    md[key] = [0.0, 0.0, 0.0]
     with pytest.raises(ValueError, match=key):
         _run_enabled_step([md])
 
