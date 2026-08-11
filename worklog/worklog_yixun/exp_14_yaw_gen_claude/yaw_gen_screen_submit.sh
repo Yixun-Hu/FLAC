@@ -28,19 +28,34 @@
 #
 set -euo pipefail
 # --- FIRST EXECUTABLE STATEMENTS: sanitize the world, then gate it -----------
-# Order is the whole point (review W1). Everything below — the manifest reader,
-# the store-lock re-exec, the allowlist gate itself — used to run with whatever
-# PATH and whatever exported shell functions the caller supplied, so a poisoned
-# `env` could have concealed the very variables the gate looks for. Nothing runs
-# before these three lines: a fixed PATH, no inherited functions, and an
-# enumeration that uses bash's own variable table rather than any binary.
+# THREAT MODEL (Planner, 2026-08-11): this kit defends against ACCIDENTS and
+# stray environment state — a leftover export, a seam left set by a previous
+# run, a test that forgets isolation. It is not hardened against an adversary
+# with arbitrary control of the calling shell; the preamble below is the cheap
+# part of that boundary, not a claim to have crossed it.
+#
+# Order is the whole point (review W1/V1). Everything after this — the gate, the
+# reader, the store-lock re-exec — used to run under whatever PATH and whatever
+# exported shell functions the caller supplied.
+#
+# POSIXLY_CORRECT is an ASSIGNMENT, so it involves no command lookup and cannot
+# be shadowed; in bash it turns on POSIX mode, where SPECIAL BUILTINS (set,
+# unset, export, eval, ...) are resolved BEFORE functions. The `unset -f` that
+# follows is therefore guaranteed to be the real builtin even if an exported
+# unset() function was inherited. POSIX mode is dropped again immediately after
+# (verified: "${!YAW_GEN_@}" expands identically in both modes).
+POSIXLY_CORRECT=1
+unset -f unset set export builtin command exec trap readonly eval declare \
+         typeset local source env 2>/dev/null || true
+set +o posix
+unset POSIXLY_CORRECT
 PATH=/usr/bin:/bin:/usr/local/bin; export PATH
-unset -f env sbatch scontrol scancel squeue sync git grep sed awk head tail tr \
+unset -f sbatch scontrol scancel squeue sync git grep sed awk head tail tr \
          cat printf id date hostname readlink flock mktemp sha256sum cut wc ls \
          rm mv cp mkdir sleep bash python3 2>/dev/null || true
 
 # ENTRY DOCTRINE, part 1: enumerate the environment NATIVELY. "${!YAW_GEN_@}"
-# expands to the NAMES of set shell variables with that prefix — it is bash's own
+# expands to the NAMES of set shell variables with that prefix — bash's own
 # symbol table, so there is no command here to substitute or shadow.
 env_names_to_gate() { printf '%s\n' ${!YAW_GEN_@} ${!FA_ORBIT_@} 2>/dev/null; }
 env_allowlist_gate() {   # $1 = space-separated allowed names
@@ -69,7 +84,7 @@ ALLOW_LIVE="FA_ORBIT_STORE_LOCK_HELD YAW_GEN_TEST_MODE"
 ALLOW_TEST="FA_ORBIT_STORE_LOCK_HELD YAW_GEN_TEST_MODE YAW_GEN_TEST_RECORD \
 YAW_GEN_TEST_JOBID YAW_GEN_TEST_SUBMIT_SLEEP YAW_GEN_TEST_RELEASE_SLEEP \
 YAW_GEN_TEST_RELEASE_FAILS YAW_GEN_TEST_SCANCEL_FAILS YAW_GEN_SYNC_FAILS \
-YAW_GEN_PIN_FILE YAW_GEN_INTENT_DIR"
+YAW_GEN_PIN_FILE YAW_GEN_INTENT_DIR YAW_GEN_MAIN_REPO"
 #   YAW_GEN_TEST_RECORD        path of a text file this script APPENDS its argv to
 #   YAW_GEN_TEST_JOBID         the job id a simulated submission reports (data)
 #   YAW_GEN_TEST_SUBMIT_SLEEP  seconds a simulated submission stalls (data)
@@ -77,6 +92,7 @@ YAW_GEN_PIN_FILE YAW_GEN_INTENT_DIR"
 #   YAW_GEN_TEST_RELEASE_FAILS "1" makes the simulated release fail
 #   YAW_GEN_TEST_SCANCEL_FAILS "1" makes the simulated cancel fail
 #   YAW_GEN_SYNC_FAILS         "1" makes the simulated flush fail
+#   YAW_GEN_MAIN_REPO          test-only root this script reads/writes under
 #   YAW_GEN_PIN_FILE           path of the campaign-pin file to read
 #   YAW_GEN_INTENT_DIR         directory the intent manifest is written to
 # The re-exec below runs this script again from the top, so the child re-runs
@@ -85,6 +101,14 @@ if [ "$TEST_MODE" = "1" ]; then env_allowlist_gate "$ALLOW_TEST"
 else                            env_allowlist_gate "$ALLOW_LIVE"; fi
 
 MAIN_REPO=/n/fs/gatrdp/codespace/FLAC
+# TEST MODE may relocate the whole tree this script reads and writes (review V3).
+# It is a DATA path like every other allowlisted seam, and it exists so a test
+# harness is isolated BY DEFAULT rather than by remembering to be: a case that
+# forgets isolation lands in the temp root, and one that tries it in live mode is
+# refused by the allowlist above.
+if [ "$TEST_MODE" = "1" ] && [ -n "${YAW_GEN_MAIN_REPO:-}" ]; then
+  MAIN_REPO="$YAW_GEN_MAIN_REPO"
+fi
 EXPDIR="$MAIN_REPO/worklog/worklog_yixun/exp_14_yaw_gen_claude"
 # The measure-worktree store is SHARED (one lock, one freeze, one lease space for
 # every campaign on this machine) and its helper lives in exp_11's folder, which

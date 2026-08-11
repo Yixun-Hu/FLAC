@@ -18,6 +18,12 @@
 #
 # Then it runs the same probes against the CURRENT files and shows the refusals.
 #
+# THREAT MODEL (Planner, 2026-08-11): accident prevention, not adversarial shell
+# environments. Every probe here — pre-fix AND post-fix — runs against COPIES of
+# the kit retargeted at a temporary MAIN_REPO, so no probe can touch the real
+# repository or the shared measure-worktree store, and the proof verifies that at
+# the end by comparing the store's whole lease listing before and after.
+#
 # Usage:  bash yaw_gen_redproof_r2fix4.sh [PRE_FIX_SHA]     (default: 2131cfb)
 # Exit 0 = every pre-fix escape reproduced AND every post-fix refusal held.
 # ============================================================================
@@ -27,6 +33,11 @@ EXPDIR="worklog/worklog_yixun/exp_14_yaw_gen_claude"
 PRE="${1:-2131cfb}"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 PASS=0; FAIL=0; START_EPOCH="$(date +%s)"
+# The real store's complete lease listing, before anything runs. Comparing this
+# (rather than looking for one job id) is what makes "we touched nothing" a
+# statement about the whole store.
+REAL_STORE=/n/fs/gatrdp/codespace/FLAC/.measure_worktrees
+STORE_BEFORE="$(ls -1 "$REAL_STORE"/*/.leases/* 2>/dev/null | sort)"
 ok()  { echo "PASS  $1"; PASS=$((PASS + 1)); }
 bad() { echo "FAIL  $1"; FAIL=$((FAIL + 1)); }
 
@@ -129,12 +140,20 @@ if [ -s "${TMP}/pre3_submit.sh" ]; then
 fi
 
 # --- POST-FIX: every one of those is refused ---------------------------------
-echo "--- the same probes against the working tree ---"
+# The CURRENT kit, retargeted the same way: a post-fix probe must not be the one
+# thing in this proof that runs the real submitter (review V2). The refusals it
+# asserts are produced by the entry allowlist, which is identical in the copy.
+CUR_EXP="${FAKE}/current"; mkdir -p "$CUR_EXP"
+for f in yaw_gen_submit_grid.sh yaw_gen_screen_submit.sh; do
+  sed "s|^MAIN_REPO=/n/fs/gatrdp/codespace/FLAC$|MAIN_REPO=${FAKE}|" "${EXPDIR}/${f}" > "${CUR_EXP}/${f}"
+done
+cp "${EXPDIR}/exp14_validate_cell.py" "${EXPDIR}/exp14_ckpt_expect.json" "$CUR_EXP/"
+echo "--- the same probes against the working tree (retargeted copies) ---"
 for PROBE in "YAW_GEN_SQUEUE=${STAND_IN}" "YAW_GEN_SYNC=${STAND_IN}" "YAW_GEN_FOO=1"; do
   rm -f "${TMP}/ran.txt"
   out="$(timeout 60 env STAND_IN_ROLE=probe YAW_GEN_TEST_MODE=1 "$PROBE" \
          YAW_GEN_PIN_FILE="${TMP}/pin" OUTPUT_ROOT="${TMP}/out" \
-         bash "${EXPDIR}/yaw_gen_submit_grid.sh" WAVE=vctl 2>&1)"; rc=$?
+         bash "${CUR_EXP}/yaw_gen_submit_grid.sh" WAVE=vctl 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "not on this mode's allowlist" \
      && [ ! -f "${TMP}/ran.txt" ]; then
     ok "POST-FIX: ${PROBE%%=*} is refused by the entry allowlist and never executed"
@@ -144,7 +163,7 @@ for PROBE in "YAW_GEN_SQUEUE=${STAND_IN}" "YAW_GEN_SYNC=${STAND_IN}" "YAW_GEN_FO
 done
 for PROBE in "FA_ORBIT_SBATCH=${STAND_IN}" "YAW_GEN_SYNC=${STAND_IN}"; do
   rm -f "${TMP}/ran.txt"
-  out="$(timeout 60 env STAND_IN_ROLE=probe "$PROBE" bash "${EXPDIR}/yaw_gen_screen_submit.sh" \
+  out="$(timeout 60 env STAND_IN_ROLE=probe "$PROBE" bash "${CUR_EXP}/yaw_gen_screen_submit.sh" \
          ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "not on this mode's allowlist" \
      && [ ! -f "${TMP}/ran.txt" ]; then
@@ -155,12 +174,12 @@ for PROBE in "FA_ORBIT_SBATCH=${STAND_IN}" "YAW_GEN_SYNC=${STAND_IN}"; do
 done
 
 # --- containment, verified ---------------------------------------------------
-STORE=/n/fs/gatrdp/codespace/FLAC/.measure_worktrees
-LEAKED="$(find "$STORE" -name '7654321' -newermt "@${START_EPOCH}" 2>/dev/null | head -3)"
-if [ -z "$LEAKED" ]; then
-  ok "CONTAINMENT: this proof wrote no lease into the real campaign store"
+STORE_AFTER="$(ls -1 "$REAL_STORE"/*/.leases/* 2>/dev/null | sort)"
+if [ "$STORE_BEFORE" = "$STORE_AFTER" ]; then
+  ok "CONTAINMENT: the real store's ENTIRE lease listing is unchanged ($(printf '%s' "$STORE_AFTER" | grep -c . || true) lease(s))"
 else
-  bad "CONTAINMENT: leaked into the real store: ${LEAKED}"
+  bad "CONTAINMENT: the real store's lease listing changed"
+  diff <(printf '%s\n' "$STORE_BEFORE") <(printf '%s\n' "$STORE_AFTER") | sed 's/^/        | /' | head -5
 fi
 if [ -n "$(ls -A "${FAKE}/.leases" 2>/dev/null)" ]; then
   ok "...the pre-fix probes' leases landed in the TEMP store instead ($(ls "${FAKE}/.leases" | tr '\n' ' '))"

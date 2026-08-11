@@ -10,6 +10,27 @@
 # roots, so the real arms' outputs are never read or written and no job is
 # submitted: sbatch/scontrol/scancel are mocked shims throughout.
 #
+# THREAT MODEL (Planner, 2026-08-11): this suite and the kit it exercises defend
+# against ACCIDENTS and stray environment state — a seam left set, a case that
+# forgets isolation, a rerun in a dirty shell. They are NOT hardened against an
+# adversary with arbitrary control of the calling shell or of this file; the
+# unshadowable preamble in both scripts is the cheap part of that boundary, not a
+# claim to have crossed it. Deliberately obfuscated cases are out of scope.
+#
+# ISOLATION IS THE DEFAULT (review V3): YAW_GEN_MAIN_REPO is exported for the
+# whole suite, so every invocation of the kit reads and writes under a TEMPORARY
+# root unless it explicitly opts out. A case that forgets isolation therefore
+# lands in the temp root, and one that tries to opt out in live mode is refused
+# by the kit's own allowlist. The complete opt-out list is:
+#
+#   1. the lease-lifecycle / mocked-submission block — exercises the SHARED
+#      measure-worktree store on purpose (its leases and lock are the subject);
+#   2. the live-refusal probes — run the $GRID_FAKE/$SUB_FAKE copies, which are
+#      already retargeted at a temp MAIN_REPO by sed, and must not carry the
+#      test-only seam in live mode (they pass `env -u`);
+#   3. the sbatch DRIVER cases (yaw_gen_screen.sbatch) — read-only DRYRUNs that
+#      never submit and need the real configs/checkpoint fixtures.
+#
 # DO NOT RUN THIS SUITE DURING ACTIVE CAMPAIGN SUBMISSIONS. On an IDLE store it
 # exercises deletion paths; while any campaign freeze is active those cases skip
 # themselves and the freeze is never lifted. exp_14 keeps its own campaign-pin
@@ -62,9 +83,16 @@ FAKE_EXP="${FAKE_REPO}/worklog/worklog_yixun/exp_14_yaw_gen_claude"
 mkdir -p "$FAKE_EXP"
 GRID_FAKE="${FAKE_EXP}/yaw_gen_submit_grid.sh"
 SUB_FAKE="${FAKE_EXP}/yaw_gen_screen_submit.sh"
+git -c init.defaultBranch=main init -q "$FAKE_REPO"
+git -C "$FAKE_REPO" -c user.email=guard@local -c user.name=guard commit -q --allow-empty -m "isolation root"
+git -C "$FAKE_REPO" -c user.email=guard@local -c user.name=guard commit -q --allow-empty -m "isolation head"
+FAKE_PIN="$(git -C "$FAKE_REPO" rev-parse HEAD)"
 sed "s|^MAIN_REPO=/n/fs/gatrdp/codespace/FLAC$|MAIN_REPO=${FAKE_REPO}|" "$GRID" > "$GRID_FAKE"
 sed "s|^MAIN_REPO=/n/fs/gatrdp/codespace/FLAC$|MAIN_REPO=${FAKE_REPO}|" "$SUB" > "$SUB_FAKE"
-cp "$VALIDATOR" "$FAKE_EXP/"
+cp "$VALIDATOR" "${EXPDIR}/exp14_ckpt_expect.json" "$FAKE_EXP/"
+# ISOLATION BY DEFAULT: every case inherits a temporary MAIN_REPO (opt-outs are
+# enumerated in the header and are the only places this is unset).
+export YAW_GEN_MAIN_REPO="$FAKE_REPO"
 PIN_FILE="${TMP}/campaign_pin"          # the SEAM the kit is pointed at
 TEST_CMDLOG="${TMP}/command.md"
 LIVE_TRACE="${TMP}/live_submit.txt"     # where a simulated wave records its argv
@@ -302,12 +330,11 @@ argv_lacks() {  # <name> <argv> <needle>  — an ABSENCE is a contract too
   esac
 }
 
-# --- STRUCTURAL INVARIANT (review W2) ---------------------------------------
-# No case in this suite may invoke the wave or the single-cell submitter in LIVE
-# mode against the REAL repository. Live probes must use the $GRID_FAKE/$SUB_FAKE
-# copies (temporary MAIN_REPO); anything else must carry YAW_GEN_TEST_MODE=1 or
-# DRYRUN=1. Asserted here, over this suite's own source, before any case runs —
-# so a case added later cannot quietly reintroduce a live-capable probe.
+# --- BEST-EFFORT LINT over this suite's own source (review V3) --------------
+# NOT an invariant: it is a substring scan, and a case written in another shape
+# would slip past it. The SOUND mechanism is the exported YAW_GEN_MAIN_REPO
+# above, which isolates every case by default. This lint is kept because it
+# catches the obvious shape cheaply and names the offending line.
 if $PY - "$GUARD_SELF" <<'PY'
 import sys
 src = open(sys.argv[1]).read().split("\n")
@@ -328,10 +355,10 @@ if bad:
 sys.exit(0)
 PY
 then
-  echo "PASS  no guard case invokes the real kit in live mode (structural invariant)"
+  echo "PASS  lint: no guard case invokes the real kit in live mode (best-effort scan)"
   PASS=$((PASS + 1))
 else
-  echo "FAIL  a guard case can reach the real kit's live submit path"; FAIL=$((FAIL + 1))
+  echo "FAIL  lint: a guard case looks able to reach the real kit's live submit path"; FAIL=$((FAIL + 1))
 fi
 if grep -q 'MAIN_REPO=\${FAKE_REPO}' "$GUARD_SELF" \
    && grep -q 'sed "s|\^MAIN_REPO=' "${EXPDIR}/yaw_gen_redproof_r2fix4.sh"; then
@@ -340,6 +367,16 @@ if grep -q 'MAIN_REPO=\${FAKE_REPO}' "$GUARD_SELF" \
 else
   echo "FAIL  the red proof can still run the kit against the real repository"; FAIL=$((FAIL + 1))
 fi
+
+# ...and the mechanism itself: with only the suite's default environment, an
+# invocation of the REAL wave submitter reads the TEMP root, not the repository.
+ISO="$(env YAW_GEN_TEST_MODE=1 bash "$GRID" WAVE=vctl 2>&1 | head -1)"
+case "$ISO" in
+  *"${FAKE_REPO}"*) echo "PASS  isolation is the DEFAULT: the kit reads the temp root, not the repo"
+                    PASS=$((PASS + 1)) ;;
+  *) echo "FAIL  a default-environment invocation did not land in the temp root: ${ISO}"
+     FAIL=$((FAIL + 1)) ;;
+esac
 
 echo "--- A. parameters ---"
 case_run "missing ARM"        2 "ARM must be exported" -- "${BASE[@]}" CELL=zref
@@ -824,6 +861,11 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
   # manifest into the campaign folder. Both are honoured by the kit only because
   # every invocation below runs in TEST MODE, which starts no submit command.
   export YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_INTENT_DIR="$TEST_INTENT_DIR"
+  # OPT-OUT 1 (see header): these cases exercise the SHARED measure-worktree
+  # store deliberately — its lock, its leases and this suite's real worktree are
+  # the subject — so they run against the real MAIN_REPO. They are still test
+  # mode, so they start no submit process.
+  unset YAW_GEN_MAIN_REPO
   TRACE="${TMP}/trace.txt"; : > "$TRACE"
   out="$(env YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" \
              YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$TRACE" bash "$SUB" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
@@ -969,7 +1011,7 @@ if [ -n "${WT:-}" ] && [ -d "$WT" ]; then
     echo "FAIL  '${BADOK}' was accepted"; FAIL=$((FAIL + 1))
   fi
   # code only: the explanatory comment above the parser names the old eval
-  if grep -vE '^[[:space:]]*#' "$SUB" | grep -q 'eval[[:space:]]'; then
+  if grep -vE '^[[:space:]]*#' "$SUB" | grep -v 'unset -f' | grep -v '^ ' | grep -q 'eval[[:space:]]'; then
     echo "FAIL  the submitter still evals an argument"; FAIL=$((FAIL + 1))
   else
     echo "PASS  no eval of argument text remains in the code"; PASS=$((PASS + 1))
@@ -1729,6 +1771,8 @@ else
   echo "$OUT" | tail -3 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
 fi
 
+export YAW_GEN_MAIN_REPO="$FAKE_REPO"    # isolation re-armed after opt-out 1
+
 # --- LIVE WAVE (mocked): the rails the review found missing -------------------
 # Nothing is submitted: in TEST MODE the wave starts no submission process at
 # all and records the argv it would have used; YAW_GEN_SQUEUE prints a scripted queue. What is proven is what the wave DECIDES
@@ -1736,7 +1780,7 @@ fi
 echo
 echo "--- wave submitter: live-wave decisions (mocked submit + squeue) ---"
 LIVE="${TMP}/live"; mkdir -p "$LIVE"
-LIVE_PIN="$HEAD_SHA"
+LIVE_PIN="$FAKE_PIN"      # a commit of the ISOLATED root, not the campaign's
 LIVE_WT="${TMP}/live_wt"; mkdir -p "${LIVE_WT}/.leases"
 : > "$LIVE_QUEUE"
 
@@ -1885,7 +1929,7 @@ else
 fi
 # (h) ...and a PIN_SHA that disagrees with the file is refused
 printf '%s\n' "$LIVE_PIN" > "$PIN_FILE"
-OTHER_PIN="$(git rev-parse "${LIVE_PIN}^" 2>/dev/null)"   # the pin's PARENT: never the pin
+OTHER_PIN="$(git -C "$FAKE_REPO" rev-parse "${LIVE_PIN}^" 2>/dev/null)"  # the pin's PARENT
 if [ -n "$OTHER_PIN" ]; then
   OUT="$(env YAW_GEN_SQUEUE_FIXTURE="$LIVE_QUEUE" YAW_GEN_TEST_MODE=1 YAW_GEN_TEST_RECORD="$LIVE_TRACE" \
          YAW_GEN_TEST_MODE=1 YAW_GEN_PIN_FILE="$PIN_FILE" YAW_GEN_COMMAND_LOG="$TEST_CMDLOG" \
@@ -1938,7 +1982,7 @@ printf 'jobid %s\n' "$JOBID_SEAM" > "${LIVE_WT}/.leases/${JOBID_SEAM}"   # lease
 grep -q "^MAIN_REPO=${FAKE_REPO}$" "$GRID_FAKE" && grep -q "^MAIN_REPO=${FAKE_REPO}$" "$SUB_FAKE" \
   && { echo "PASS  every live-mode probe runs against a temporary MAIN_REPO"; PASS=$((PASS + 1)); } \
   || { echo "FAIL  could not retarget the kit's MAIN_REPO"; FAIL=$((FAIL + 1)); }
-OUT="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR \
+OUT="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR -u YAW_GEN_MAIN_REPO \
         OUTPUT_ROOT="$LIVE" bash "$GRID_FAKE" WAVE=vctl 2>&1)"; rc=$?
 if [ "$rc" -eq 2 ] && echo "$OUT" | grep -q "no campaign pin FILE" \
    && echo "$OUT" | grep -q "${FAKE_REPO}"; then
@@ -1950,7 +1994,7 @@ else
 fi
 # ...and a live wave that so much as CARRIES the lease seam is refused outright —
 # stronger than ignoring it, and it happens at the ENTRY, before any gate runs.
-OUT="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR \
+OUT="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR -u YAW_GEN_MAIN_REPO \
         YAW_GEN_WT_DIR="$LIVE_WT" OUTPUT_ROOT="$LIVE" bash "$GRID_FAKE" WAVE=vctl 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "YAW_GEN_WT_DIR is not on this mode's allowlist"; then
   echo "PASS  a live wave carrying the lease seam is REFUSED at the entry"; PASS=$((PASS + 1))
@@ -1997,6 +2041,11 @@ else
   FAIL=$((FAIL + 1))
 fi
 rm -f "$PIN_FILE"
+
+# OPT-OUT 1 continues (see header): every case from here on drives the SINGLE-CELL
+# submitter, whose store lock, lease and worktree are the real shared ones — that
+# machinery IS the subject. They remain test mode, so none can start a submission.
+unset YAW_GEN_MAIN_REPO
 
 # a HELD job whose intent manifest cannot be published is CANCELLED
 : > "$TRACE"
@@ -2056,7 +2105,7 @@ rm -f ${TEST_INTENT_DIR}/yaw_gen_submission_C4L_zref_*_jid7654321.txt
 echo
 echo "--- submit-executable overrides are refused, not trusted ---"
 for SPELLING in "/bin/echo" "$(command -v sbatch 2>/dev/null || echo /usr/bin/sbatch)"; do
-  out="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR "FA_ORBIT_SBATCH=${SPELLING}" \
+  out="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR -u YAW_GEN_MAIN_REPO "FA_ORBIT_SBATCH=${SPELLING}" \
          bash "$SUB_FAKE" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "not on this mode's allowlist"; then
     echo "PASS  FA_ORBIT_SBATCH='${SPELLING}' is refused in live mode"; PASS=$((PASS + 1))
@@ -2069,7 +2118,7 @@ WRAP="${TMP}/sbatch_wrapper.sh"
 printf '#!/usr/bin/env bash\necho "WRAPPER-WOULD-HAVE-SUBMITTED $*" >> "%s"\necho 9999999\n' \
   "${TMP}/wrapper_calls.txt" > "$WRAP"; chmod +x "$WRAP"
 rm -f "${TMP}/wrapper_calls.txt"
-out="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR "FA_ORBIT_SBATCH=${WRAP}" \
+out="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR -u YAW_GEN_MAIN_REPO "FA_ORBIT_SBATCH=${WRAP}" \
        bash "$SUB_FAKE" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ] && [ ! -f "${TMP}/wrapper_calls.txt" ]; then
   echo "PASS  a wrapper script is refused and never executed"; PASS=$((PASS + 1))
@@ -2092,7 +2141,7 @@ else
   echo "FAIL  the wave accepted an overridden submitter (rc=${rc})"; FAIL=$((FAIL + 1))
 fi
 # a LIVE wave may not carry the failure-injection seams either
-out="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR YAW_GEN_SQUEUE_FAILS=1 \
+out="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR -u YAW_GEN_MAIN_REPO YAW_GEN_SQUEUE_FAILS=1 \
        bash "$GRID_FAKE" WAVE=vctl 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ] && echo "$out" | grep -q "not on this mode's allowlist"; then
   echo "PASS  a live wave refuses the failure-injection seams"; PASS=$((PASS + 1))
@@ -2101,14 +2150,14 @@ else
 fi
 # an UNKNOWN seam name is refused in both modes: the allowlist is the doctrine
 for MODEENV in "YAW_GEN_TEST_MODE=1" "DRYRUN=0"; do
-  out="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR $MODEENV YAW_GEN_FOO=1 \
+  out="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR -u YAW_GEN_MAIN_REPO $MODEENV YAW_GEN_FOO=1 \
          bash "$GRID_FAKE" WAVE=vctl 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "YAW_GEN_FOO is not on this mode's allowlist"; then
     echo "PASS  the wave refuses an unknown YAW_GEN_* seam (${MODEENV})"; PASS=$((PASS + 1))
   else
     echo "FAIL  an unknown seam was tolerated (${MODEENV}, rc=${rc})"; FAIL=$((FAIL + 1))
   fi
-  out="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR $MODEENV YAW_GEN_FOO=1 \
+  out="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR -u YAW_GEN_MAIN_REPO $MODEENV YAW_GEN_FOO=1 \
          bash "$SUB_FAKE" ARM=C4L CELL=zref STEP=40000 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && echo "$out" | grep -q "YAW_GEN_FOO is not on this mode's allowlist"; then
     echo "PASS  the submitter refuses an unknown YAW_GEN_* seam (${MODEENV})"; PASS=$((PASS + 1))
@@ -2135,7 +2184,7 @@ echo "FAKE-SBATCH-RAN" >> "%s"
 ' "${TMP}/fake_calls.txt" > "${FAKEBIN}/sbatch"
 chmod +x "${FAKEBIN}/squeue" "${FAKEBIN}/sbatch"
 rm -f "${TMP}/fake_calls.txt"
-RESOLVED="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR PATH="${FAKEBIN}:$PATH" bash -c '
+RESOLVED="$(env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR -u YAW_GEN_MAIN_REPO PATH="${FAKEBIN}:$PATH" bash -c '
   sbatch() { echo "EXPORTED-FUNCTION-RAN"; }; export -f sbatch
   squeue() { echo "EXPORTED-FUNCTION-RAN"; }; export -f squeue
   bash "$1" WAVE=vctl 2>&1' _ "$GRID_FAKE" | sed -n 's/^resolved: //p')"
@@ -2190,13 +2239,13 @@ fi
 # a manifest without its completion sentinel is rejected BY THE READER
 PART="${TMP}/partial_manifest.txt"
 printf 'job 1 name x submitted_at now by a@b\narm C4L cell zref step 40000 seed 42 K 8\n' > "$PART"
-if env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR bash "$SUB" --verify-manifest "$PART" >/dev/null 2>&1; then
+if env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR -u YAW_GEN_MAIN_REPO bash "$SUB" --verify-manifest "$PART" >/dev/null 2>&1; then
   echo "FAIL  a truncated intent manifest was accepted as complete"; FAIL=$((FAIL + 1))
 else
   echo "PASS  a truncated intent manifest is rejected by the reader"; PASS=$((PASS + 1))
 fi
 printf 'manifest_complete yes\n' >> "$PART"
-if env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR bash "$SUB" --verify-manifest "$PART" >/dev/null 2>&1; then
+if env -u YAW_GEN_PIN_FILE -u YAW_GEN_INTENT_DIR -u YAW_GEN_MAIN_REPO bash "$SUB" --verify-manifest "$PART" >/dev/null 2>&1; then
   echo "PASS  ...and a sentinel-terminated one is accepted"; PASS=$((PASS + 1))
 else
   echo "FAIL  a complete manifest was rejected"; FAIL=$((FAIL + 1))
