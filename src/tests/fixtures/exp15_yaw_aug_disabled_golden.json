@@ -1,0 +1,154 @@
+{
+  "_meta": {
+    "capture_commit": "d3a03129f4b070881ae1a8c8d37e6fb8321cb8ba",
+    "experiment": "exp_15",
+    "flash_attn_disabled": true,
+    "global_rank": 0,
+    "global_step": 7,
+    "master_seed": 20250810,
+    "numpy": "1.23.5",
+    "purpose": "golden disabled-path regression (plan \u00a73.3-3): the whole training_step with training.yaw_aug ABSENT",
+    "python": "3.10.20",
+    "torch": "2.7.0+cu126"
+  },
+  "record": {
+    "conditioning": {
+      "context_poses": {
+        "dtype": "torch.float32",
+        "sha256": "c4d44169c80f4437e2b8e96d7a731b42a328f97303e1347b44ad71202f1369db",
+        "shape": [
+          2,
+          2,
+          32
+        ]
+      },
+      "source": {
+        "dtype": "torch.float32",
+        "sha256": "12cc6e5c777d2453ff181deed7641c314dfc620213e50ea15edf10999d96090e",
+        "shape": [
+          2,
+          1,
+          32
+        ]
+      }
+    },
+    "loss_hex": "0x1.dfa5580000000p+0",
+    "loss_repr": "1.8736166954040527",
+    "metadata_into_conditioner": [
+      {
+        "context_audio": {
+          "dtype": "torch.float32",
+          "sha256": "20c6e35e3e872e6919db4bb1c9282018b562c8feaccb6f84b48cf4f295201512",
+          "shape": [
+            2,
+            8
+          ]
+        },
+        "context_poses": {
+          "dtype": "torch.float32",
+          "sha256": "69237905bdacce16cbedbad6319a48b9a1a903a06a6ab83a649f2241442c7d7b",
+          "shape": [
+            2,
+            3
+          ]
+        },
+        "context_poses_vit": {
+          "dtype": "torch.float32",
+          "sha256": "0e848e02df385d2c416a7d2a53ba68b4e7bfc005a0449a98a7e318c26dea90e4",
+          "shape": [
+            2,
+            3
+          ]
+        },
+        "depth": {
+          "dtype": "torch.float32",
+          "sha256": "573f56f5952249fab0630bca7691890e4f534be2b9f130d5148d82be018e1d2c",
+          "shape": [
+            3,
+            4,
+            16
+          ]
+        },
+        "padding_mask": {
+          "dtype": "torch.float32",
+          "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+          "shape": [
+            64
+          ]
+        },
+        "source": {
+          "dtype": "torch.float32",
+          "sha256": "1f113a802685b952ebcb6b03d5b1300a5d39021bff43a871c356f57b66b6c96c",
+          "shape": [
+            3
+          ]
+        },
+        "source_vit": {
+          "dtype": "torch.float32",
+          "sha256": "de9e1b06edcb3482657a3adf4c3f3ff587e84682174680a8b5edfa879cd8051d",
+          "shape": [
+            3
+          ]
+        }
+      },
+      {
+        "context_audio": {
+          "dtype": "torch.float32",
+          "sha256": "185773ddbdf9f9f16935d3407ede2ff632e838a080563f94e6ec87930ad8c7b2",
+          "shape": [
+            2,
+            8
+          ]
+        },
+        "context_poses": {
+          "dtype": "torch.float32",
+          "sha256": "cbabfcc1c1ca947935c014edc3ce71dce0db13030369ac513a7477635cde3c1c",
+          "shape": [
+            2,
+            3
+          ]
+        },
+        "context_poses_vit": {
+          "dtype": "torch.float32",
+          "sha256": "31f99a29660d7727250bb0f19acb8b06b94d50eca4e592d30ecafe21856c7fea",
+          "shape": [
+            2,
+            3
+          ]
+        },
+        "depth": {
+          "dtype": "torch.float32",
+          "sha256": "564ed0a0391b787b17c6375d9507acbd237f767232c6ec1dd456b284c8cb7fe4",
+          "shape": [
+            3,
+            4,
+            16
+          ]
+        },
+        "padding_mask": {
+          "dtype": "torch.float32",
+          "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+          "shape": [
+            64
+          ]
+        },
+        "source": {
+          "dtype": "torch.float32",
+          "sha256": "2a505f7114160ecc4a20b3d6a9dda2265853b9a43e93d222adace77b07f8d559",
+          "shape": [
+            3
+          ]
+        },
+        "source_vit": {
+          "dtype": "torch.float32",
+          "sha256": "19062b2ad8ac61ae2e094140cbf85e298e5ef65a7e3b8ed1982d5bb3213035e9",
+          "shape": [
+            3
+          ]
+        }
+      }
+    ],
+    "rng_after": "3ac59cabef953ea5b8c768ed4200d4b237e07b32dfcc8293b7737f4d560a9461",
+    "rng_before": "37b911011dbac80367d5c0d36f43071df8f6755fda3209ad44043b4efe094322"
+  }
+}
