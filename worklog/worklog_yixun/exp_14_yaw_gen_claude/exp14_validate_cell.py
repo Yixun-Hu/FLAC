@@ -223,6 +223,43 @@ def screenmeta_path(metrics):
     return metrics + ".screenmeta.json"
 
 
+# The audited per-arm checkpoint expectation, published once by
+# exp14_hash_ckpts.py and READ (never recomputed) from here on: re-hashing five
+# 724 MB files per wave on a shared login node is not a thing to do repeatedly.
+CKPT_EXPECT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "exp14_ckpt_expect.json")
+
+
+def load_ckpt_expect(path=CKPT_EXPECT, arms=ARMS, step=STEP):
+    """``arm -> sha256`` from the audited expectation; anything missing is fatal.
+
+    Fail-closed by construction (review B4): a dedup SKIP is a decision to keep a
+    number without re-measuring it, so it must rest on WHICH checkpoint produced
+    that number. An absent or incomplete expectation therefore raises rather than
+    letting the check quietly not run.
+    """
+    if not os.path.isfile(path):
+        raise ValueError(
+            f"audited checkpoint expectation missing: {path}. Publish it once with "
+            "exp14_hash_ckpts.py --write; a cell cannot be skipped as 'already "
+            "measured' without knowing which checkpoint measured it.")
+    with open(path) as fh:
+        raw = json.load(fh)
+    if not isinstance(raw, dict) or not isinstance(raw.get("arms"), dict):
+        raise ValueError(f"checkpoint expectation {path} is malformed")
+    if int(raw.get("step", -1)) != int(step):
+        raise ValueError(f"checkpoint expectation {path} is for step {raw.get('step')!r}, "
+                         f"not the campaign endpoint {step}")
+    out = {}
+    for arm in arms:
+        row = raw["arms"].get(arm)
+        sha = (row or {}).get("sha256")
+        if not (isinstance(sha, str) and len(sha) == 64):
+            raise ValueError(f"checkpoint expectation {path} has no sha256 for arm {arm}")
+        out[arm] = sha
+    return out
+
+
 def checkpoint_path(output_root, arm, step=STEP):
     """The arm's single checkpoint at ``step``, or None if it is not unique."""
     pat = os.path.join(output_root, f"exp11_{arm}", f"FLAC_exp11_{arm}",
@@ -593,6 +630,11 @@ def _cmd_check(args):
 
 def _cmd_classify(args):
     """One line per cell: identity, status, reasons. The wave submitter's input."""
+    try:
+        expect = load_ckpt_expect(args.ckpt_expect, arms=ARMS)
+    except ValueError as exc:
+        print(f"classify: {exc}", file=sys.stderr)
+        return 2
     ckpts = {}
     for cell in wave_cells(args.wave):
         if cell.arm not in ckpts:
@@ -606,7 +648,7 @@ def _cmd_classify(args):
         if not os.path.isfile(path):
             print(f"{_fmt_cell(cell)} MISSING {path}")
             continue
-        reasons = validate_cell(path, cell, pin=args.pin, ckpt_sha=args.ckpt_sha,
+        reasons = validate_cell(path, cell, pin=args.pin, ckpt_sha=expect[cell.arm],
                                 expected_count=args.expected_count)
         if reasons:
             print(f"{_fmt_cell(cell)} INVALID {path} :: " + "; ".join(reasons))
@@ -653,7 +695,8 @@ def main(argv=None):
     cl.add_argument("--wave", default="all", choices=list(WAVES))
     cl.add_argument("--output-root", required=True)
     cl.add_argument("--pin", default=None)
-    cl.add_argument("--ckpt-sha", default=None)
+    cl.add_argument("--ckpt-expect", default=CKPT_EXPECT,
+                    help="audited arm -> checkpoint sha256 map (exp14_ckpt_expect.json)")
     cl.add_argument("--expected-count", type=int, default=EXPECTED_COUNT)
     cl.set_defaults(func=_cmd_classify)
 

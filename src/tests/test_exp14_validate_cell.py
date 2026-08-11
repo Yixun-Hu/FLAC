@@ -827,3 +827,104 @@ def test_cli_check_without_a_pin_or_ckpt_sha_is_never_VALID(tmp_path):
     rc, out = _run(["check", "--metrics", p, "--arm", "C4L", "--cell", "rgen",
                     "--step", "40000", "--seed", "42", "--k", "8"])
     assert rc == 1 and "INVALID" in out
+
+
+# --------------------------------------------------------------------------
+# 11. FB4 (review B4): dedup must prove checkpoint identity
+#
+# `classify` supplied no expected digest, so the checkpoint check silently did
+# not run and a wave could SKIP a cell as "already measured" without ever
+# establishing WHICH checkpoint produced it. A skip is a decision to keep a
+# number; it needs the same identity evidence a fresh run would give.
+# --------------------------------------------------------------------------
+def _expect_file():
+    return os.path.join(_EXPDIR, "exp14_ckpt_expect.json")
+
+
+def test_the_audited_checkpoint_expectation_is_committed_for_every_arm():
+    exp = V.load_ckpt_expect(_expect_file())
+    assert set(exp) == {"VANL", "C4L", "C8", "C16", "C32"}
+    assert all(len(sha) == 64 and int(sha, 16) >= 0 for sha in exp.values())
+
+
+def test_the_expectation_records_where_each_digest_came_from():
+    raw = json.loads(open(_expect_file()).read())
+    assert raw["step"] == 40000
+    for arm, row in raw["arms"].items():
+        assert row["step"] == 40000 and row["bytes"] > 0
+        assert "exp_11" in row["source"] or "exp14_hash_ckpts" in row["source"]
+
+
+def _classify_root(tmp_path, arm="C4L", ckpt_sha=CKPT_SHA, valid=True):
+    """A synthetic output root holding ONE landed vctl cell for `arm`."""
+    cell = V.Cell(arm, "vctl", 40000, 42, 8, 90.0)
+    d = tmp_path / f"exp11_{arm}" / f"FLAC_exp11_{arm}" / f"exp11_{arm}" / "checkpoints"
+    d.mkdir(parents=True)
+    ckpt = d / "epoch=8-step=40000.ckpt"
+    ckpt.write_bytes(b"")                       # only its NAME matters to classify
+    p = V.metrics_path(str(ckpt), cell)
+    m = _metrics("vctl", arm=arm)
+    m["eval_name"] = V.eval_name(cell)
+    sm = _screenmeta("vctl", arm=arm)
+    sm["eval_name"] = V.eval_name(cell)
+    sm["ckpt_sha256"] = ckpt_sha
+    st = _stream("vctl", COUNT, lambda i: 128)
+    m["metrics"] = {"T60_error": 1.0} if valid else {}
+    open(p, "w").write(json.dumps(m))
+    open(p + ".screenmeta.json", "w").write(json.dumps(sm))
+    open(p.replace(".json", ".stream.json"), "w").write(json.dumps(st))
+    return p
+
+
+def test_classify_marks_a_cell_from_another_checkpoint_INVALID(tmp_path):
+    _classify_root(tmp_path, ckpt_sha="9" * 64)
+    expect = tmp_path / "expect.json"
+    expect.write_text(json.dumps({"step": 40000, "arms": {
+        a: {"sha256": CKPT_SHA, "path": "x", "bytes": 1, "step": 40000, "source": "t"}
+        for a in V.ARMS}}))
+    rc, out = _run(["classify", "--wave", "vctl", "--output-root", str(tmp_path),
+                    "--pin", PIN, "--ckpt-expect", str(expect)])
+    line = [l for l in out.splitlines() if l.startswith("C4L vctl 40000 42 8 90")][0]
+    assert " INVALID " in line and "ckpt_sha256" in line, line
+
+
+def test_classify_marks_a_matching_cell_VALID(tmp_path):
+    _classify_root(tmp_path)
+    expect = tmp_path / "expect.json"
+    expect.write_text(json.dumps({"step": 40000, "arms": {
+        a: {"sha256": CKPT_SHA, "path": "x", "bytes": 1, "step": 40000, "source": "t"}
+        for a in V.ARMS}}))
+    rc, out = _run(["classify", "--wave", "vctl", "--output-root", str(tmp_path),
+                    "--pin", PIN, "--ckpt-expect", str(expect)])
+    line = [l for l in out.splitlines() if l.startswith("C4L vctl 40000 42 8 90")][0]
+    assert " VALID " in line, line
+
+
+def test_classify_without_an_expectation_file_refuses(tmp_path):
+    _classify_root(tmp_path)
+    rc, out = _run(["classify", "--wave", "vctl", "--output-root", str(tmp_path),
+                    "--pin", PIN, "--ckpt-expect", str(tmp_path / "absent.json")])
+    assert rc == 2 and "VALID" not in out
+
+
+def test_classify_refuses_an_expectation_missing_an_arm(tmp_path):
+    expect = tmp_path / "expect.json"
+    expect.write_text(json.dumps({"step": 40000, "arms": {
+        "C4L": {"sha256": CKPT_SHA, "path": "x", "bytes": 1, "step": 40000, "source": "t"}}}))
+    rc, out = _run(["classify", "--wave", "rgen", "--output-root", str(tmp_path),
+                    "--pin", PIN, "--ckpt-expect", str(expect)])
+    assert rc == 2, out
+
+
+def test_classify_uses_each_arm_s_OWN_digest(tmp_path):
+    # C4L's cell is valid under C4L's digest; the same cell must not validate
+    # under C8's, or the mapping is not being used per arm.
+    _classify_root(tmp_path, arm="C4L", ckpt_sha=CKPT_SHA)
+    expect = tmp_path / "expect.json"
+    arms = {a: {"sha256": ("7" * 64 if a == "C4L" else CKPT_SHA), "path": "x",
+                "bytes": 1, "step": 40000, "source": "t"} for a in V.ARMS}
+    expect.write_text(json.dumps({"step": 40000, "arms": arms}))
+    rc, out = _run(["classify", "--wave", "vctl", "--output-root", str(tmp_path),
+                    "--pin", PIN, "--ckpt-expect", str(expect)])
+    line = [l for l in out.splitlines() if l.startswith("C4L vctl 40000 42 8 90")][0]
+    assert " INVALID " in line, line

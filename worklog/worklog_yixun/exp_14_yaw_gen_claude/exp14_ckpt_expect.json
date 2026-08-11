@@ -1,0 +1,47 @@
+{
+  "_comment": [
+    "AUDITED exp_14 checkpoint expectation: the ONE 40,000-step checkpoint",
+    "each arm is evaluated from. Read (never recomputed) by",
+    "exp14_validate_cell.py classify and by the collector, so a dedup SKIP",
+    "rests on checkpoint identity and not merely on a file's existence",
+    "(review B4). Regenerate only with exp14_hash_ckpts.py --write."
+  ],
+  "step": 40000,
+  "arms": {
+    "VANL": {
+      "path": "outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=8-step=40000.ckpt",
+      "sha256": "1095f49330b4e7b9c469d69fdbaab1772586055236964b5e347604e712988507",
+      "bytes": 723922539,
+      "step": 40000,
+      "source": "hashed by exp14_hash_ckpts.py (no exp_11 registry entry)"
+    },
+    "C4L": {
+      "path": "outputs_FLAC/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=8-step=40000.ckpt",
+      "sha256": "ed9d7a869ecded98cab78ecc4cef83e579df6643c8ffe564912a9e8ec5c88de8",
+      "bytes": 723922667,
+      "step": 40000,
+      "source": "exp_11 arm_launch_registry.final_ckpt_sha256 (re-hashed, agrees)"
+    },
+    "C8": {
+      "path": "outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=8-step=40000.ckpt",
+      "sha256": "4b58787774b5f15852f2603295d57bbe7a1e2d4e40ba217e548f55d643a52c4c",
+      "bytes": 723922667,
+      "step": 40000,
+      "source": "exp_11 arm_launch_registry.final_ckpt_sha256 (re-hashed, agrees)"
+    },
+    "C16": {
+      "path": "outputs_FLAC/exp11_C16/FLAC_exp11_C16/exp11_C16/checkpoints/epoch=8-step=40000.ckpt",
+      "sha256": "a8a82309fe4a654efa8cbb00c6ffeeaa2fc765c5916b46cf12aaf2ec2b2d01f0",
+      "bytes": 723922731,
+      "step": 40000,
+      "source": "exp_11 arm_launch_registry.final_ckpt_sha256 (re-hashed, agrees)"
+    },
+    "C32": {
+      "path": "outputs_FLAC/exp11_C32/FLAC_exp11_C32/exp11_C32/checkpoints/epoch=8-step=40000.ckpt",
+      "sha256": "1beca05a02ffc7b72884e54671ff2d6836789fadcfe2aa6f0ce27ca2f739c134",
+      "bytes": 723922923,
+      "step": 40000,
+      "source": "exp_11 arm_launch_registry.final_ckpt_sha256 (re-hashed, agrees)"
+    }
+  }
+}
