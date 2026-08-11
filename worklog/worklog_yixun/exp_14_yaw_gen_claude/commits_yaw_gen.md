@@ -57,6 +57,8 @@ Note: effective base drifted `89f24cd` → `44788e6` (concurrent session's workl
 | `10aa981` | r3 | gates G1–G4 (blocking) + the G5 check (never blocking); per-angle assignment grouping fix |
 | `f874758` | r3 | readouts, rendering, CLI, JSON bundle + four self-test transcripts |
 | `825b7fc` | r3 | `gen_model_comparison.py`: ten exp_14 Z rows behind their own `exp14z` contract |
+| `428f5b8` | r3 | ledger + battery logs + refreshed transcripts |
+| `fa66330` | r3 | G4 fail-open closed — an empty campaign reports PENDING, not PASS |
 
 Round-3 notes:
 
@@ -73,3 +75,5 @@ Round-3 notes:
   OTHER session's uncommitted `exp_15` worklog edits, so `git pull --rebase` aborted with
   "cannot pull with rebase: You have unstaged changes". Their files were never stashed,
   cleaned or checked out; all five round-3 commits are local-only and unpushed.
+- **Commit-boundary disclosure:** `10aa981` carries the gates AND the results/rendering/CLI source (843 lines of `yaw_gen_collect.py`); `f874758` carries the self-test driver, its four transcripts and the group-4 tests but no collector source. The subjects therefore under-describe the first and over-describe the second — read the two diffs together.
+- The concurrent session committed `608303e` (exp_06 rows + an exp_03/04 glob restoration) on top of this round. Verified that round 3 did not cause that regression: the exp_03/04 row specs are byte-identical between `5d4951e` (before round 3) and `825b7fc` (this round's table commit).
