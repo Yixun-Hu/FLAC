@@ -1,0 +1,32 @@
+{
+    "metrics": {
+        "T60": 9.2355,
+        "Invalid T60": 0.0,
+        "C50": 1.0843,
+        "EDT": 39.4521,
+        "FD": 0.3195,
+        "RIR_to_GT_RIR_R@1": 4.8288,
+        "RIR_to_GT_RIR_R@5": 15.4332,
+        "RIR_to_GT_RIR_R@10": 23.1498,
+        "RIR_to_geom_R@1": 4.024,
+        "RIR_to_geom_R@5": 13.3975,
+        "RIR_to_geom_R@10": 20.1357
+    },
+    "ckpt_path": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=8-step=40000.ckpt",
+    "rotate_deg": 0.0,
+    "cond_method": "vanilla",
+    "frame_avg_angles": null,
+    "cond_autocast": "bf16",
+    "orbit_execution": "n/a",
+    "frame_avg_fwd_cap": null,
+    "source_sha": "89f24cd55c64a68c3021520822171fb91c8b60fe",
+    "batch_size": 64,
+    "n_samples": 6337,
+    "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json",
+    "seed": 42,
+    "cfg_scale": 1.0,
+    "steps": 1,
+    "eval_name": "exp11_VANL_screen_S40000_s42_K1",
+    "weights_source": "ema",
+    "device": "cuda"
+}
