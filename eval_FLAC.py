@@ -13,6 +13,7 @@ import pytorch_lightning as pl
 from src.data.dataset import create_dataloader_from_config
 from src.data.yaw_rotation import (rotate_scene_metadata, invariant_conditioning,
                                    draw_yaw_offsets, offsets_to_radians,
+                                   yaw_column_shift,
                                    DEFAULT_FRAME_ANGLES, ORBIT_EXECUTION,
                                    FRAME_AVG_MAX_FWD_SAMPLES)
 from src.models import create_model_from_config
@@ -373,6 +374,52 @@ class RotationStream:
         return canonical_stream_hash(self.assignment_tuples())
 
 
+# Version of the .stream.json payload below. Bumped whenever a field's meaning
+# changes, so a collector never reads an old sidecar under a new contract.
+STREAM_SCHEMA_VERSION = 1
+
+
+def stream_sidecar_path(metrics_path):
+    """``<...>_metrics_<stem>.json`` -> ``<...>_metrics_<stem>.stream.json``.
+
+    A SEPARATE file, not extra keys in the metrics record: fixed-mode records and
+    their paths are frozen (review B4), and the tuple stream is ~6,337 entries --
+    orders of magnitude larger than the record it would otherwise swamp.
+    """
+    base = metrics_path[:-len('.json')] if metrics_path.endswith('.json') else metrics_path
+    return base + '.stream.json'
+
+
+def build_stream_record(plan, stream):
+    """The ``.stream.json`` payload: the assignment audit WITH its preimages.
+
+    A digest alone is unfalsifiable evidence --- it can declare two cells matched,
+    but when they do not match it cannot say where or why, and it cannot be
+    recomputed by anyone who does not already trust the writer (review B2). This
+    payload therefore carries the full ordered canonical tuples and the
+    per-position offsets, from which both hashes are recomputable, plus the
+    schema versions needed to read them under the right contract.
+
+    ``rotate_seed`` is null in fixed mode (nothing was drawn) and ``rotate_deg``
+    is null in random mode (no single angle describes the run) --- the same
+    asymmetry the metrics record uses, so the two never disagree.
+    """
+    return {
+        "schema_version": STREAM_SCHEMA_VERSION,
+        "fingerprint_schema": CONTEXT_FINGERPRINT_SCHEMA,
+        "rotate_mode": plan.mode,
+        "rotate_seed": plan.rotate_seed,
+        "rotate_deg": plan.rotate_deg,
+        "img_w": stream.img_w,
+        "stream_count": len(stream),
+        "input_tuples": stream.input_tuples(),
+        "offsets": stream.offsets,
+        "assignment_tuples": stream.assignment_tuples(),
+        "input_hash": stream.input_hash(),
+        "assignment_hash": stream.assignment_hash(),
+    }
+
+
 def verify_stream_positions(stream):
     """Substitution guard, positionally: stream position ``i`` must be dataset item ``i``.
 
@@ -445,12 +492,26 @@ def verify_stream_count(stream, dataset_count, expected=None):
         )
 
 
+def _batch_img_w(metadata):
+    """Panorama width for a batch, from the first sample's depth map."""
+    if "depth" not in metadata[0]:
+        raise ValueError(
+            "yaw rotation needs the depth panorama to define the column grid, but "
+            "this sample's metadata has no 'depth' key."
+        )
+    return int(metadata[0]["depth"].shape[-1])
+
+
 def apply_rotation_plan(metadata, plan, generator=None, stream=None):
     """Apply one batch's yaw rotation, per the resolved :class:`RotationPlan`.
 
     Fixed mode reproduces the legacy eval-loop branch exactly: nothing at all
     happens at ``rotate_deg == 0`` (the same list object is returned, and no
     ``depth`` key is required), and a non-zero angle rotates every sample by it.
+    Passing a ``stream`` in fixed mode (``--record-stream``) additionally records
+    each position with the run's CONSTANT column shift --- 0 for an unrotated Z
+    cell --- taken from :func:`yaw_column_shift`, the same rule the rotation
+    itself applies. Recording never changes what is returned.
 
     Random mode draws the WHOLE batch's offsets first --- one contiguous slice of
     the dedicated generator's stream, in item order --- and only then does any
@@ -473,12 +534,7 @@ def apply_rotation_plan(metadata, plan, generator=None, stream=None):
             )
         if len(metadata) == 0:
             return metadata
-        if "depth" not in metadata[0]:
-            raise ValueError(
-                "random yaw rotation needs the depth panorama to define the column "
-                "grid, but this sample's metadata has no 'depth' key."
-            )
-        img_w = int(metadata[0]["depth"].shape[-1])
+        img_w = _batch_img_w(metadata)
         # Draw the whole batch up front, in stream order, BEFORE any per-sample work.
         offsets = draw_yaw_offsets(len(metadata), img_w, generator).tolist()
         angles = offsets_to_radians(offsets, img_w)
@@ -488,9 +544,19 @@ def apply_rotation_plan(metadata, plan, generator=None, stream=None):
             rotated.append(rotate_scene_metadata(md, alpha, img_w))
         return rotated
 
+    # Fixed mode. With no stream and no angle there is nothing to do at all --
+    # not even a depth lookup, which the legacy branch never made.
+    if stream is None and plan.rotate_deg == 0.0:
+        return metadata
+    if len(metadata) == 0:
+        return metadata
+    img_w = _batch_img_w(metadata)
+    alpha_rad = math.radians(plan.rotate_deg)
+    if stream is not None:
+        dj = yaw_column_shift(alpha_rad, img_w)
+        for md in metadata:
+            stream.record(md, dj, img_w)
     if plan.rotate_deg != 0.0:
-        alpha_rad = math.radians(plan.rotate_deg)
-        img_w = int(metadata[0]["depth"].shape[-1])
         return [rotate_scene_metadata(md, alpha_rad, img_w) for md in metadata]
     return metadata
 
@@ -714,6 +780,7 @@ def evaluate_model(
     rotate_mode='fixed',
     rotate_seed=None,
     expected_stream_count=None,
+    record_stream=False,
 ):
     # Fail fast on an unknown cond_method (the CLI is guarded by argparse
     # choices, but programmatic callers would otherwise silently run vanilla
@@ -729,11 +796,13 @@ def evaluate_model(
 
     # An expectation that cannot be checked must not be quietly accepted: a plain
     # fixed-mode run accumulates no stream, so there is nothing to count.
-    if expected_stream_count is not None and not rotation_plan.is_random:
+    accumulate_stream = rotation_plan.is_random or bool(record_stream)
+    if expected_stream_count is not None and not accumulate_stream:
         raise ValueError(
             "expected_stream_count (--expected-stream-count) is only checkable when an "
-            "assignment stream is accumulated, i.e. under --rotate-mode random. "
-            "Passing it otherwise would record an expectation that was never verified."
+            "assignment stream is accumulated, i.e. under --rotate-mode random or "
+            "--record-stream. Passing it otherwise would record an expectation that "
+            "was never verified."
         )
 
     # Fail fast on an unknown cond_autocast too (full-review condition C1).
@@ -825,11 +894,10 @@ def evaluate_model(
     # cannot advance the global RNG that seeds the diffusion noise -- otherwise a
     # rotated cell and its paired unrotated cell would not share sampling noise.
     rot_generator = None
-    rot_stream = None
+    rot_stream = RotationStream() if accumulate_stream else None
     if rotation_plan.is_random:
         rot_generator = torch.Generator(device='cpu')
         rot_generator.manual_seed(rotation_plan.rotate_seed)
-        rot_stream = RotationStream()
         print(f"Random yaw rotation: per-sample offsets, rotation seed "
               f"{rotation_plan.rotate_seed}")
 
@@ -914,11 +982,12 @@ def evaluate_model(
     # stream is proven to be one position per split item; the check runs BEFORE
     # the metrics are computed or written.
     rotation_provenance = {}
-    if rotation_plan.is_random:
+    if rot_stream is not None:
         dataset = getattr(eval_dl, 'dataset', None)
         verify_stream_count(rot_stream, None if dataset is None else len(dataset),
                             expected_stream_count)
         verify_stream_positions(rot_stream)
+    if rotation_plan.is_random:
         rotation_provenance = {
             "rotate_mode": rotation_plan.mode,
             "rotate_seed": rotation_plan.rotate_seed,
@@ -962,6 +1031,14 @@ def evaluate_model(
 
     print(f"Metrics saved to {path2save}")
 
+    # Assignment sidecar (opt-in). Written only after every stream check above has
+    # passed, so its existence is itself evidence the cell validated.
+    if record_stream:
+        path2save_stream = stream_sidecar_path(path2save)
+        with open(path2save_stream, 'w') as f:
+            json.dump(build_stream_record(rotation_plan, rot_stream), f, indent=2)
+        print(f"Assignment stream saved to {path2save_stream}")
+
     if store_predictions:
         decoded_samples_all = torch.cat(decoded_samples, dim=0)
         path2save_preds = output_paths['predictions']
@@ -995,6 +1072,7 @@ if __name__ == "__main__":
     parser.add_argument("--rotate-deg", type=float, default=0.0, help="Yaw-rotate the conditioning (depth + poses) by this many degrees before eval; 0 disables (default). Fixed mode only.")
     parser.add_argument("--rotate-mode", type=str, default="fixed", choices=["fixed", "random"], help="Yaw-rotation protocol: 'fixed' (default) rotates every sample by --rotate-deg; 'random' (exp_14) draws an independent panorama-column offset per sample from a generator seeded with --rotate-seed. The two are mutually exclusive: 'random' with a non-zero --rotate-deg is an error.")
     parser.add_argument("--rotate-seed", type=int, default=None, help="Seed for the per-sample random yaw draw; defaults to --seed. Only valid with --rotate-mode random (passing it in fixed mode is an error, never a silent no-op).")
+    parser.add_argument("--record-stream", action='store_true', help="Write a <metrics-stem>.stream.json sidecar carrying the full per-position assignment audit (canonical input tuples, offsets, both hashes). Works in fixed mode too, which is how an unrotated Z cell gets an input_hash to be paired against. The metrics record and its path are unaffected.")
     parser.add_argument("--expected-stream-count", type=int, default=None, help="Pre-registered number of items in the evaluated split (e.g. 6337 for the AR unseen split). When given, the run fails unless the dataset AND the accumulated assignment stream both hold exactly this many items; without it, the stream can only be checked against the dataset it came from.")
     parser.add_argument("--cond-method", type=str, default="vanilla", choices=["vanilla", "fa_invariant"], help="Conditioning method: 'vanilla' (single conditioner pass) or 'fa_invariant' (cylindrical pose invariants + C4 ViT frame average). Composes with --rotate-deg (rotation applied first).")
     parser.add_argument("--frame-avg-angles", type=str, default=",".join(str(int(a)) for a in DEFAULT_FRAME_ANGLES), help="Comma-separated yaw angles in degrees for fa_invariant frame averaging; the first must be 0. Ignored when --cond-method vanilla.")
@@ -1027,4 +1105,5 @@ if __name__ == "__main__":
         rotate_mode=args.rotate_mode,
         rotate_seed=args.rotate_seed,
         expected_stream_count=args.expected_stream_count,
+        record_stream=args.record_stream,
     )

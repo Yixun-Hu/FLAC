@@ -245,6 +245,32 @@ def cylindrical_pose_features(
     return out
 
 
+def yaw_column_shift(alpha_rad: float, img_w: int) -> int:
+    """
+    The integer panorama-column shift a yaw angle quantises to: ``round(a*W/2pi) % W``.
+
+    This is the rule :func:`rotate_scene_metadata` applies, extracted so that code
+    which must *record* the applied shift (exp_14's assignment audit, which stores
+    a fixed-mode cell's constant offset) reads it from the same place the rotation
+    does. Two copies of this rule could drift, and a drifted copy would label a
+    cell with an offset it never applied --- the one thing the audit exists to make
+    impossible.
+
+    Parameters
+    ----------
+    alpha_rad : float
+        Requested yaw rotation angle in radians (any sign, any magnitude).
+    img_w : int
+        Panorama width in columns.
+
+    Returns
+    -------
+    int
+        The column shift in ``[0, img_w)``.
+    """
+    return int(round(alpha_rad * img_w / (2.0 * math.pi))) % int(img_w)
+
+
 def azimuth_rotation_matrix(alpha_rad: float) -> torch.Tensor:
     """
     Build a 3x3 rotation matrix about the vertical (z) axis.
@@ -303,7 +329,7 @@ def rotate_scene_metadata(
         A shallow-copied metadata dict with ``depth`` and the selected pose fields
         replaced by their rotated versions. The original dict is not mutated.
     """
-    dj = int(round(alpha_rad * img_w / (2.0 * math.pi))) % img_w
+    dj = yaw_column_shift(alpha_rad, img_w)
     alpha_eff = dj * 2.0 * math.pi / img_w
     rot = azimuth_rotation_matrix(alpha_eff)
 

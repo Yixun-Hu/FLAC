@@ -597,13 +597,16 @@ def test_apply_rotation_plan_fixed_nonzero_matches_the_legacy_comprehension():
             assert torch.equal(g[key], w[key]), key
 
 
-def test_apply_rotation_plan_fixed_ignores_generator_and_stream():
+def test_apply_rotation_plan_fixed_never_consumes_randomness():
+    """A fixed rotation draws nothing, so the generator must come back untouched.
+
+    (Fixed mode DOES fill a supplied stream -- with the run's constant column
+    shift -- since the F2 round-1 fix; that contract is pinned separately below.)
+    """
     plan = eval_FLAC.resolve_rotation_plan("fixed", 45.0, None, 42)
-    stream = eval_FLAC.RotationStream()
     g = _gen(42)
     before = g.get_state()
-    eval_FLAC.apply_rotation_plan(_batch([0, 1]), plan, g, stream)
-    assert len(stream) == 0
+    eval_FLAC.apply_rotation_plan(_batch([0, 1]), plan, g, eval_FLAC.RotationStream())
     assert torch.equal(before, g.get_state()), "fixed mode consumed randomness"
 
 
@@ -1092,3 +1095,188 @@ def test_cli_exposes_the_expected_stream_count_flag():
         [sys.executable, "eval_FLAC.py", "--expected-stream-count", "6337"],
         capture_output=True, cwd=root)
     assert good.returncode == 2 and b"invalid int value" not in good.stderr
+
+
+# =========================================================================== #
+# ROUND-1 FIX BATCH — F2: the opt-in .stream.json sidecar (review B2, ruling 1)
+# =========================================================================== #
+# A hash without its preimage is unfalsifiable: two cells can only be declared
+# rotation-matched, never diagnosed when they are not. The sidecar carries the
+# full canonical tuples and the offsets, so a mismatch can be localised to a
+# position. It is a SEPARATE file precisely so the metrics record and its path
+# stay byte-identical in both modes (the STEP-0 snapshots are untouched by F2).
+def test_yaw_column_shift_is_the_quantisation_rotate_scene_metadata_applies():
+    """The recorded fixed-mode offset must be the column shift actually applied,
+    so both come from one function rather than two copies of a rule."""
+    assert yr.yaw_column_shift(0.0, 512) == 0
+    assert yr.yaw_column_shift(math.radians(90.0), 512) == 128
+    assert yr.yaw_column_shift(math.radians(45.0), 512) == 64
+    assert yr.yaw_column_shift(math.radians(5.625), 512) == 8
+    assert yr.yaw_column_shift(math.radians(360.0), 512) == 0     # wraps
+    assert yr.yaw_column_shift(math.radians(-90.0), 512) == 384   # wraps
+
+    # ...and it is EXACTLY what rotate_scene_metadata rolls by: reconstructing the
+    # rotation from yaw_column_shift alone must reproduce the real output bit for
+    # bit, at angles on and off the column grid.
+    depth = _make_md(seed=2)["depth"]
+    for deg in (0.0, 45.0, 90.0, 5.625, 200.0, 37.3):
+        alpha = math.radians(deg)
+        dj = yr.yaw_column_shift(alpha, IMG_W)
+        rot = yr.azimuth_rotation_matrix(dj * 2.0 * math.pi / IMG_W)
+        expected = torch.einsum("ij,jhw->ihw", rot.to(depth.dtype),
+                                torch.roll(depth, shifts=dj, dims=2))
+        got = yr.rotate_scene_metadata({"depth": depth}, alpha, IMG_W)["depth"]
+        assert torch.equal(got, expected), f"{deg} deg"
+
+
+def test_stream_sidecar_path_sits_next_to_the_metrics_json():
+    metrics = "weights/FLAC/FLAC_EMA_metrics_1_1.0_exp14_C32_rgen_rotrand42.json"
+    assert eval_FLAC.stream_sidecar_path(metrics) == (
+        "weights/FLAC/FLAC_EMA_metrics_1_1.0_exp14_C32_rgen_rotrand42.stream.json")
+
+
+def test_build_stream_record_payload_is_complete_and_self_verifying():
+    plan = eval_FLAC.resolve_rotation_plan("random", 0.0, 42, 42)
+    stream = _stream_of()
+    rec = eval_FLAC.build_stream_record(plan, stream)
+
+    assert rec["schema_version"] == 1
+    assert rec["fingerprint_schema"] == eval_FLAC.CONTEXT_FINGERPRINT_SCHEMA
+    assert rec["rotate_mode"] == "random"
+    assert rec["rotate_seed"] == 42
+    assert rec["rotate_deg"] is None
+    assert rec["img_w"] == 512
+    assert rec["stream_count"] == 3
+    assert rec["offsets"] == [102, 435, 348]
+    assert rec["input_tuples"] == stream.input_tuples()
+    assert rec["assignment_tuples"] == stream.assignment_tuples()
+    # the digests must be recomputable from the stored preimages -- that is the
+    # entire point of storing them (review B2).
+    assert eval_FLAC.canonical_stream_hash(rec["input_tuples"]) == rec["input_hash"]
+    assert eval_FLAC.canonical_stream_hash(
+        rec["assignment_tuples"]) == rec["assignment_hash"]
+    json.loads(json.dumps(rec))
+
+
+def test_build_stream_record_fixed_mode_nulls_the_seed_and_keeps_the_angle():
+    plan = eval_FLAC.resolve_rotation_plan("fixed", 90.0, None, 42)
+    rec = eval_FLAC.build_stream_record(plan, _stream_of(offsets=(128, 128, 128)))
+    assert rec["rotate_mode"] == "fixed"
+    assert rec["rotate_seed"] is None
+    assert rec["rotate_deg"] == 90.0
+    assert rec["offsets"] == [128, 128, 128]
+
+
+# --------------------------------------------------------------------------- #
+# fixed-mode stream accumulation (only under --record-stream)
+# --------------------------------------------------------------------------- #
+def test_apply_rotation_plan_fixed_records_the_constant_column_shift():
+    plan = eval_FLAC.resolve_rotation_plan("fixed", 90.0, None, 42)
+    batch = _batch([0, 1, 2])
+    stream = eval_FLAC.RotationStream()
+    got = eval_FLAC.apply_rotation_plan(batch, plan, None, stream)
+    assert stream.offsets == [128, 128, 128]      # 90 deg == 128 columns of 512
+    assert [r.dataset_idx for r in stream.rows] == [0, 1, 2]
+    # ...and the rotation itself is unchanged by the recording
+    want = [yr.rotate_scene_metadata(md, math.radians(90.0), IMG_W) for md in batch]
+    for g, w in zip(got, want):
+        assert torch.equal(g["depth"], w["depth"])
+
+
+def test_apply_rotation_plan_fixed_zero_records_zero_offsets_without_rotating():
+    plan = eval_FLAC.resolve_rotation_plan("fixed", 0.0, None, 42)
+    batch = _batch([0, 1])
+    stream = eval_FLAC.RotationStream()
+    got = eval_FLAC.apply_rotation_plan(batch, plan, None, stream)
+    assert stream.offsets == [0, 0]
+    assert got is batch, "an unrotated run must still hand back the same objects"
+
+
+def test_apply_rotation_plan_fixed_zero_without_a_stream_is_still_a_pure_no_op():
+    """The legacy path must not acquire a 'depth' requirement (F2 regression)."""
+    plan = eval_FLAC.resolve_rotation_plan("fixed", 0.0, None, 42)
+    md_list = [{"scene": "a"}]
+    assert eval_FLAC.apply_rotation_plan(md_list, plan) is md_list
+
+
+# --------------------------------------------------------------------------- #
+# evaluate_model wiring
+# --------------------------------------------------------------------------- #
+def test_evaluate_model_writes_the_sidecar_only_when_asked(tmp_path, monkeypatch):
+    model_cfg, dataset_cfg, ckpt = _stub_eval_stack(monkeypatch, tmp_path)
+    eval_FLAC.evaluate_model(
+        str(model_cfg), str(dataset_cfg), str(ckpt), steps=1, cfg_scale=1.0,
+        device="cpu", eval_name="exp14_nosidecar", seed=42, rotate_mode="random")
+    assert not (tmp_path / "toy_metrics_1_1.0_exp14_nosidecar_rotrand42.stream.json").exists()
+
+    eval_FLAC.evaluate_model(
+        str(model_cfg), str(dataset_cfg), str(ckpt), steps=1, cfg_scale=1.0,
+        device="cpu", eval_name="exp14_sidecar", seed=42, rotate_mode="random",
+        record_stream=True)
+    side = tmp_path / "toy_metrics_1_1.0_exp14_sidecar_rotrand42.stream.json"
+    assert side.exists()
+    payload = json.loads(side.read_text())
+    assert payload["schema_version"] == 1
+    assert payload["rotate_mode"] == "random" and payload["rotate_seed"] == 42
+    assert payload["rotate_deg"] is None
+    assert eval_FLAC.canonical_stream_hash(
+        payload["input_tuples"]) == payload["input_hash"]
+
+
+def test_evaluate_model_fixed_mode_sidecar_leaves_the_metrics_bytes_alone(
+        tmp_path, monkeypatch):
+    """--record-stream may not perturb a single byte of the fixed-mode record."""
+    model_cfg, dataset_cfg, ckpt = _stub_eval_stack(monkeypatch, tmp_path)
+    monkeypatch.setattr(eval_FLAC, "source_sha", lambda: "STUB")
+
+    eval_FLAC.evaluate_model(
+        str(model_cfg), str(dataset_cfg), str(ckpt), steps=1, cfg_scale=1.0,
+        device="cpu", eval_name="exp14_zref", seed=42)
+    plain = (tmp_path / "toy_metrics_1_1.0_exp14_zref.json").read_text()
+
+    eval_FLAC.evaluate_model(
+        str(model_cfg), str(dataset_cfg), str(ckpt), steps=1, cfg_scale=1.0,
+        device="cpu", eval_name="exp14_zref", seed=42, record_stream=True)
+    with_flag = (tmp_path / "toy_metrics_1_1.0_exp14_zref.json").read_text()
+    assert with_flag == plain
+
+    side = tmp_path / "toy_metrics_1_1.0_exp14_zref.stream.json"
+    assert side.exists()
+    payload = json.loads(side.read_text())
+    assert payload["rotate_mode"] == "fixed"
+    assert payload["rotate_seed"] is None and payload["rotate_deg"] == 0.0
+
+
+def test_evaluate_model_no_sidecar_when_validation_fails(tmp_path, monkeypatch):
+    """Written only AFTER validation: a rejected cell leaves no artifact at all."""
+    model_cfg, dataset_cfg, ckpt = _stub_eval_stack(monkeypatch, tmp_path)
+    with pytest.raises(RuntimeError):
+        eval_FLAC.evaluate_model(
+            str(model_cfg), str(dataset_cfg), str(ckpt), steps=1, cfg_scale=1.0,
+            device="cpu", eval_name="exp14_badcount", seed=42, rotate_mode="random",
+            record_stream=True, expected_stream_count=6337)
+    assert not (tmp_path / "toy_metrics_1_1.0_exp14_badcount_rotrand42.stream.json").exists()
+    assert not (tmp_path / "toy_metrics_1_1.0_exp14_badcount_rotrand42.json").exists()
+
+
+def test_expected_stream_count_is_allowed_in_fixed_mode_under_record_stream(
+        tmp_path, monkeypatch):
+    """--record-stream makes a fixed-mode (Z) cell countable, so the expectation
+    becomes checkable there too -- and is enforced."""
+    model_cfg, dataset_cfg, ckpt = _stub_eval_stack(monkeypatch, tmp_path)
+    with pytest.raises(RuntimeError) as exc:
+        eval_FLAC.evaluate_model(
+            str(model_cfg), str(dataset_cfg), str(ckpt), steps=1, cfg_scale=1.0,
+            device="cpu", eval_name="exp14_zcount", seed=42, record_stream=True,
+            expected_stream_count=6337)
+    assert "6337" in str(exc.value)
+
+
+def test_cli_exposes_the_record_stream_flag():
+    import subprocess
+    import sys
+    root = str(Path(__file__).resolve().parents[2])
+    good = subprocess.run([sys.executable, "eval_FLAC.py", "--record-stream"],
+                          capture_output=True, cwd=root)
+    assert good.returncode == 2
+    assert b"unrecognized arguments" not in good.stderr
