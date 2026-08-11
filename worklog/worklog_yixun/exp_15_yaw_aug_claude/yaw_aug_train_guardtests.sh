@@ -200,7 +200,10 @@ echo "--- H. NEW: the semantic config gate rejects mutated configs (delta 3) ---
 # The REAL gate is exercised: a spooled launcher is pointed at a mutated copy of
 # the arm config. No tracked config is touched.
 mutate_config() {  # <tag> <python-mutation> -> path
-  local tag="$1" mut="$2" dst="${TMP}/cfg_${tag}.json"
+  # NB: separate declarations — bash expands every word of a `local` before it
+  # assigns any of them, so `local tag="$1" dst="...${tag}..."` trips `set -u`.
+  local tag="$1" mut="$2"
+  local dst="${TMP}/cfg_${tag}.json"
   $PY - "$ARM_CONFIG" "$dst" "$mut" <<'PY'
 import json, sys
 cfg = json.load(open(sys.argv[1]))
