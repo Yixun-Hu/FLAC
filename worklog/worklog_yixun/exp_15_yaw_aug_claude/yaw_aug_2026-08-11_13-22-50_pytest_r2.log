@@ -1,0 +1,164 @@
+EEEEEEEEEE                                                               [100%]
+==================================== ERRORS ====================================
+________ ERROR at setup of test_sha256_file_streams_and_matches_hashlib ________
+
+>   rc = pytest.fixture(scope="module")(lambda: _load_recorder())
+
+src/tests/test_yaw_aug_record_control.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _load_recorder():
+>       assert RECORDER_PATH.is_file(), f"recorder not found: {RECORDER_PATH}"
+E       AssertionError: recorder not found: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py').is_file
+
+src/tests/test_yaw_aug_record_control.py:36: AssertionError
+____________________ ERROR at setup of test_record_content _____________________
+
+>   rc = pytest.fixture(scope="module")(lambda: _load_recorder())
+
+src/tests/test_yaw_aug_record_control.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _load_recorder():
+>       assert RECORDER_PATH.is_file(), f"recorder not found: {RECORDER_PATH}"
+E       AssertionError: recorder not found: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py').is_file
+
+src/tests/test_yaw_aug_record_control.py:36: AssertionError
+___________ ERROR at setup of test_record_is_readonly_wrt_its_inputs ___________
+
+>   rc = pytest.fixture(scope="module")(lambda: _load_recorder())
+
+src/tests/test_yaw_aug_record_control.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _load_recorder():
+>       assert RECORDER_PATH.is_file(), f"recorder not found: {RECORDER_PATH}"
+E       AssertionError: recorder not found: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py').is_file
+
+src/tests/test_yaw_aug_record_control.py:36: AssertionError
+________ ERROR at setup of test_refuses_to_overwrite_an_existing_record ________
+
+>   rc = pytest.fixture(scope="module")(lambda: _load_recorder())
+
+src/tests/test_yaw_aug_record_control.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _load_recorder():
+>       assert RECORDER_PATH.is_file(), f"recorder not found: {RECORDER_PATH}"
+E       AssertionError: recorder not found: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py').is_file
+
+src/tests/test_yaw_aug_record_control.py:36: AssertionError
+_________________ ERROR at setup of test_detects_step_mismatch _________________
+
+>   rc = pytest.fixture(scope="module")(lambda: _load_recorder())
+
+src/tests/test_yaw_aug_record_control.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _load_recorder():
+>       assert RECORDER_PATH.is_file(), f"recorder not found: {RECORDER_PATH}"
+E       AssertionError: recorder not found: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py').is_file
+
+src/tests/test_yaw_aug_record_control.py:36: AssertionError
+______________ ERROR at setup of test_detects_config_sha_mismatch ______________
+
+>   rc = pytest.fixture(scope="module")(lambda: _load_recorder())
+
+src/tests/test_yaw_aug_record_control.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _load_recorder():
+>       assert RECORDER_PATH.is_file(), f"recorder not found: {RECORDER_PATH}"
+E       AssertionError: recorder not found: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py').is_file
+
+src/tests/test_yaw_aug_record_control.py:36: AssertionError
+_______________ ERROR at setup of test_detects_missing_ema_state _______________
+
+>   rc = pytest.fixture(scope="module")(lambda: _load_recorder())
+
+src/tests/test_yaw_aug_record_control.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _load_recorder():
+>       assert RECORDER_PATH.is_file(), f"recorder not found: {RECORDER_PATH}"
+E       AssertionError: recorder not found: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py').is_file
+
+src/tests/test_yaw_aug_record_control.py:36: AssertionError
+___________ ERROR at setup of test_failed_validation_writes_nothing ____________
+
+>   rc = pytest.fixture(scope="module")(lambda: _load_recorder())
+
+src/tests/test_yaw_aug_record_control.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _load_recorder():
+>       assert RECORDER_PATH.is_file(), f"recorder not found: {RECORDER_PATH}"
+E       AssertionError: recorder not found: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py').is_file
+
+src/tests/test_yaw_aug_record_control.py:36: AssertionError
+________________ ERROR at setup of test_main_writes_the_record _________________
+
+>   rc = pytest.fixture(scope="module")(lambda: _load_recorder())
+
+src/tests/test_yaw_aug_record_control.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _load_recorder():
+>       assert RECORDER_PATH.is_file(), f"recorder not found: {RECORDER_PATH}"
+E       AssertionError: recorder not found: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py').is_file
+
+src/tests/test_yaw_aug_record_control.py:36: AssertionError
+_______________ ERROR at setup of test_main_refuses_to_overwrite _______________
+
+>   rc = pytest.fixture(scope="module")(lambda: _load_recorder())
+
+src/tests/test_yaw_aug_record_control.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _load_recorder():
+>       assert RECORDER_PATH.is_file(), f"recorder not found: {RECORDER_PATH}"
+E       AssertionError: recorder not found: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py').is_file
+
+src/tests/test_yaw_aug_record_control.py:36: AssertionError
+=========================== short test summary info ============================
+ERROR src/tests/test_yaw_aug_record_control.py::test_sha256_file_streams_and_matches_hashlib
+ERROR src/tests/test_yaw_aug_record_control.py::test_record_content - Asserti...
+ERROR src/tests/test_yaw_aug_record_control.py::test_record_is_readonly_wrt_its_inputs
+ERROR src/tests/test_yaw_aug_record_control.py::test_refuses_to_overwrite_an_existing_record
+ERROR src/tests/test_yaw_aug_record_control.py::test_detects_step_mismatch - ...
+ERROR src/tests/test_yaw_aug_record_control.py::test_detects_config_sha_mismatch
+ERROR src/tests/test_yaw_aug_record_control.py::test_detects_missing_ema_state
+ERROR src/tests/test_yaw_aug_record_control.py::test_failed_validation_writes_nothing
+ERROR src/tests/test_yaw_aug_record_control.py::test_main_writes_the_record
+ERROR src/tests/test_yaw_aug_record_control.py::test_main_refuses_to_overwrite
+10 errors in 4.04s
