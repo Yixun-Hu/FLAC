@@ -352,15 +352,18 @@ else
     "${CKPT_DIR_REAL}"/*.ckpt) ;;
     *) die "a RESTART may only resume a checkpoint from ${CKPT_DIR_REAL}/ (got ${RESUME_REAL}) - abort" ;;
   esac
-  [ "$MAXSTEPS" -gt "$EXPECTED_STEP" ] || die "MAXSTEPS ${MAXSTEPS} must exceed the resume step ${EXPECTED_STEP} - abort"
   # The pre-registered endpoint caps every leg (plan §3.2/§6.6). exp_11's kit
   # arrived with the Q10 EXTENSION semantics, where a restart deliberately raised
   # the budget past the registered comparison point; exp_15 has no such mode, so a
   # leg that resumes at or beyond 40,000 — or targets beyond it — is refused here.
+  # Checked BEFORE the generic budget arithmetic below so an operator reaching for
+  # an extension is told what is actually wrong, not that 40000 fails to exceed
+  # 40000.
   if [ "$SMOKE" != "1" ]; then
     [ "$MAXSTEPS" -le 40000 ] || die "a RESTART leg may not target beyond the pre-registered 40000-step endpoint (MAXSTEPS ${MAXSTEPS}) - abort"
     [ "$EXPECTED_STEP" -lt 40000 ] || die "resume step ${EXPECTED_STEP} is already at/past the pre-registered 40000-step endpoint — there is nothing left to run and exp_15 has no extension mode - abort"
   fi
+  [ "$MAXSTEPS" -gt "$EXPECTED_STEP" ] || die "MAXSTEPS ${MAXSTEPS} must exceed the resume step ${EXPECTED_STEP} - abort"
 fi
 echo "lineage: ${MODE} (expected_step ${EXPECTED_STEP}, max_steps ${MAXSTEPS}, ckpt every ${CHECKPOINT_EVERY}, time pin ${TIME_PIN_NAME}=${TIME_LIMIT})"
 
