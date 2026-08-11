@@ -1,0 +1,22 @@
+{
+    "metrics": {
+        "T60": 10.3261,
+        "Invalid T60": 0.0,
+        "C50": 1.1142,
+        "EDT": 48.3878,
+        "FD": 0.3291,
+        "RIR_to_GT_RIR_R@1": 5.2233,
+        "RIR_to_GT_RIR_R@5": 15.9381,
+        "RIR_to_GT_RIR_R@10": 23.7178,
+        "RIR_to_geom_R@1": 4.1344,
+        "RIR_to_geom_R@5": 13.4606,
+        "RIR_to_geom_R@10": 20.3566
+    },
+    "ckpt_path": "/n/fs/gatrdp/outputs/exp06n_maxpoollinear/FLAC_exp06n_maxpoollinear/exp06n_maxpoollinear/checkpoints/epoch=14-step=67500.ckpt",
+    "rotate_deg": 0.0,
+    "cond_method": "fa_invariant",
+    "frame_avg_angles": [
+        0.0
+    ],
+    "cond_autocast": "bf16"
+}
