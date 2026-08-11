@@ -239,38 +239,22 @@ COND_METHOD=fa_invariant
 [ "$ARM" = "VANL" ] && COND_METHOD=vanilla
 N_ANGLES="$TRAIN_ANGLES"
 ROTATE_DEG="${ROTATE_DEG:-0}"
-if [ "$CELL" = "cross" ]; then
-  N_ANGLES="$EVAL_ORBIT"
-  [ "$EVAL_ORBIT" != "$TRAIN_ANGLES" ] \
-    || die "CELL=cross with EVAL_ORBIT=${EVAL_ORBIT} is ${ARM}'s OWN training orbit — that is a screen/conf cell, not a cross-orbit measurement - abort"
-fi
-# The eval name carries whatever distinguishes the cell: the rotation for R3,
-# the evaluated orbit for cross. Without that, rows of one cell share a name.
-# Only R3 names carry a rotation token, and only R3 therefore needs the renderer
-# from the code root. Importing it unconditionally made every cell depend on a
-# function that older pinned commits do not have — a screen/conf/cross cell at a
-# pre-r3 pin would die at the render gate for a token it never uses. (That is the
-# same shape of failure that killed the C8 conf block at 064e8e0b.)
-ROT_TOKEN=0
-if [ "$CELL" = "r3" ]; then
-  ROT_TOKEN="$(python3 -c "
-import sys; sys.path.insert(0, '$CODE_ROOT')
-from eval_FLAC import rot_token; print(rot_token(sys.argv[1]))" "$ROTATE_DEG")" \
-    || die "could not render the rotation token for ${ROTATE_DEG} — CELL=r3 needs an eval_FLAC that exports rot_token (the pinned commit may predate it) - abort"
-fi
-case "$ARM" in
-  C4BACKFILL)
-    case "$CELL" in
-      cross) EVAL_NAME="exp11_C4backfill_cross_a${EVAL_ORBIT}_S${STEP}_s${SEED}_K${K}" ;;
-      *)     EVAL_NAME="exp11_C4backfill_S${STEP}_s${SEED}_K${K}" ;;
-    esac ;;
-  *)
-    case "$CELL" in
-      r3)    EVAL_NAME="exp11_${ARM}_r3_rot${ROT_TOKEN}_s${SEED}_K${K}" ;;
-      cross) EVAL_NAME="exp11_${ARM}_cross_a${EVAL_ORBIT}_S${STEP}_s${SEED}_K${K}" ;;
-      *)     EVAL_NAME="exp11_${ARM}_${CELL}_S${STEP}_s${SEED}_K${K}" ;;
-    esac ;;
+# The eval name carries whatever distinguishes the cell — the fixed angle for a
+# vctl cell, the ROTATION SEED for a random one — because the metrics path is
+# derived from the eval name and two cells sharing a name overwrite each other.
+#
+# The token is rendered HERE, in shell, rather than by importing eval_FLAC, and
+# a guard test pins it to eval_FLAC.rotation_suffix() for every registered cell.
+# Importing eval_FLAC pulls in torch (~9 s per invocation): acceptable once per
+# real job (gate H does it after the eval), wasteful across a whole DRYRUN grid,
+# and exp_11 learned the hard way that a name renderer imported from the pinned
+# tree makes every cell depend on a function older pins may not have.
+CELL_TOKEN=""
+case "$CELL" in
+  rgen) CELL_TOKEN="_rotrand${ROTATE_SEED}" ;;   # == rotation_suffix('random', rotate_seed=SEED)
+  vctl) CELL_TOKEN="_rot${ROTATE_DEG}" ;;        # == rotation_suffix('fixed', 90) -> '_rot90'
 esac
+EVAL_NAME="exp14_${ARM}_${CELL}_S${STEP}_s${SEED}_K${K}${CELL_TOKEN}"
 [ -f "$MODEL_CONFIG" ] || die "model config not found: ${MODEL_CONFIG} - abort"
 CONFIG_SHA="$(sha256sum "$MODEL_CONFIG" | awk '{print $1}')" || die "sha256sum failed - abort"
 if [ "$COND_METHOD" = "vanilla" ]; then
@@ -284,13 +268,22 @@ case "$K" in
   1) DATASET_CONFIG="src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json" ;;
 esac
 [ -f "$DATASET_CONFIG" ] || die "eval dataset config not found: ${DATASET_CONFIG} - abort"
-echo "=== exp_11 screen ${ARM} S${STEP} s${SEED} K${K} — ${TS} — host $(hostname) ==="
+# The yaw protocol is printed on its own line, in the same words the manifest and
+# the metrics record use, so a log can be read for protocol compliance without
+# reconstructing it from flags (announcement 05).
+case "$CELL" in
+  rgen) ROT_DESC="random per-sample yaw, rotation seed ${ROTATE_SEED}" ;;
+  vctl) ROT_DESC="fixed yaw ${ROTATE_DEG} deg" ;;
+  *)    ROT_DESC="theta=0 (no rotation)" ;;
+esac
+echo "=== exp_14 ${CELL} ${ARM} S${STEP} s${SEED} K${K} — ${TS} — host $(hostname) ==="
 if [ "$COND_METHOD" = "vanilla" ]; then
   echo "config ${MODEL_CONFIG} sha256 ${CONFIG_SHA} | VANILLA (no orbit) | eval-name ${EVAL_NAME}"
 else
   echo "config ${MODEL_CONFIG} sha256 ${CONFIG_SHA} | trained C${TRAIN_ANGLES} | evaluated C${N_ANGLES}" \
-       "| rotate ${ROTATE_DEG} | eval-name ${EVAL_NAME}"
+       "| eval-name ${EVAL_NAME}"
 fi
+echo "yaw protocol: ${ROT_DESC} | split ${DATASET_CONFIG} (expect ${EXPECTED_STREAM_COUNT} items)"
 
 # --- B2. lease: this job must hold one, and must give it back -----------------
 # The submitter writes .leases/<jobid> before sbatch returns and the pruner never
@@ -583,21 +576,17 @@ mapfile -t GPU_ROWS < <(nvidia-smi --query-gpu=uuid,name --format=csv,noheader,n
 case "$(echo "${GPU_ROWS[0]}" | cut -d, -f2)" in *L40*) ;; *) die "not an L40 - abort";; esac
 echo "GPU: ${GPU_ROWS[0]}"
 
-# --- BEGIN screen-run-and-record (guard-tested by fa_orbit_screen_guardtests.sh) --
-# The DEFAULT name is fully qualified so it never needs overriding: three of the
-# overnight incidents came from a hand-supplied LOG= (a tee into the pinned
-# worktree, then node-local /tmp paths that broke class-7 log provenance). It
-# carries the cell, whatever distinguishes that cell (rotation for r3, evaluated
-# orbit for cross) and the job id, so two cells started in the same second — five
-# R3 rotations submitted together — cannot collide. It stays inside LOGDIR and
-# keeps the _screen.log suffix the drift gate exempts.
-LOG_CELL_TOKEN=""
-case "$CELL" in
-  r3)    LOG_CELL_TOKEN="_rot${ROT_TOKEN}" ;;
-  cross) LOG_CELL_TOKEN="_a${EVAL_ORBIT}" ;;
-esac
+# --- BEGIN screen-run-and-record (guard-tested by yaw_gen_screen_guardtests.sh) --
+# The DEFAULT name is fully qualified so it never needs overriding: three of
+# exp_11's overnight incidents came from a hand-supplied LOG= (a tee into the
+# pinned worktree, then node-local /tmp paths that broke log provenance). It
+# carries the cell, whatever distinguishes that cell (the fixed angle for vctl,
+# the rotation seed for rgen) and the job id, so cells started in the same second
+# — a whole submitted wave — cannot collide. It stays inside LOGDIR and keeps the
+# _screen.log suffix the drift gate exempts.
+LOG_CELL_TOKEN="$CELL_TOKEN"
 LOG_JID="${SLURM_JOB_ID:+_jid${SLURM_JOB_ID}}"
-LOG="${LOG:-${LOGDIR}/fa_orbit_${TS}_${ARM}_${CELL}${LOG_CELL_TOKEN}_S${STEP}_s${SEED}_K${K}${LOG_JID}_screen.log}"
+LOG="${LOG:-${LOGDIR}/yaw_gen_${TS}_${ARM}_${CELL}${LOG_CELL_TOKEN}_S${STEP}_s${SEED}_K${K}${LOG_JID}_screen.log}"
 python eval_FLAC.py "${EVAL_ARGV[@]}" 2>&1 | tee "$LOG"
 PIPE_RC=("${PIPESTATUS[@]}")
 EVAL_RC="${PIPE_RC[0]}"; TEE_RC="${PIPE_RC[1]}"
