@@ -1,0 +1,525 @@
+.FFFFFFFFFFFF.FFF.                                                       [100%]
+=================================== FAILURES ===================================
+_____________________ test_never_falls_back_to_unsafe_load _____________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f06c16a8ee0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f06c16ac4c0>
+
+    def test_never_falls_back_to_unsafe_load(rc, synthetic_ckpt, monkeypatch):
+        """Every torch.load this tool performs must be the SAFE one.
+    
+        A fail-closed admission tool must not deserialize an unpinned checkpoint with
+        weights_only=False — that executes pickle payloads — no matter what the safe
+        loader said.
+        """
+        seen = []
+        real_load = torch.load
+    
+        def _spy(*args, **kwargs):
+            seen.append(kwargs)
+            return real_load(*args, **kwargs)
+    
+        monkeypatch.setattr(rc.torch, "load", _spy)
+>       rc.build_record(synthetic_ckpt(), CONTROL_CONFIG, expect_step=40000)
+
+src/tests/test_yaw_aug_record_control.py:107: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:240: in build_record
+    checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:176: in summarize_checkpoint
+    checkpoint, sha256, identity = snapshot_checkpoint(ckpt_path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_never_falls_back_to_unsaf0/epoch=8-step=40000.ckpt')
+
+    def snapshot_checkpoint(path):
+        """Hash and load ONE stable snapshot; fail if the file moves underneath us.
+    
+        Returns ``(checkpoint, sha256, identity)``.
+        """
+>       fd = os.open(path, os.O_RDONLY)
+E       NameError: name 'os' is not defined
+
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:126: NameError
+___________________ test_safe_loader_failure_aborts_cleanly ____________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+tmp_path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_safe_loader_failure_abort0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f06c16df160>
+
+    def test_safe_loader_failure_aborts_cleanly(rc, tmp_path, monkeypatch):
+        """A checkpoint the safe loader rejects must abort, never retry unsafely."""
+        corrupt = tmp_path / "corrupt.ckpt"
+        corrupt.write_bytes(b"not a torch archive at all")
+    
+        calls = []
+        real_load = torch.load
+        monkeypatch.setattr(
+            rc.torch, "load",
+            lambda *a, **kw: (calls.append(kw), real_load(*a, **kw))[1],
+        )
+        with pytest.raises(ValueError, match="weights_only"):
+>           rc.build_record(corrupt, CONTROL_CONFIG, expect_step=40000)
+
+src/tests/test_yaw_aug_record_control.py:127: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:240: in build_record
+    checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:176: in summarize_checkpoint
+    checkpoint, sha256, identity = snapshot_checkpoint(ckpt_path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_safe_loader_failure_abort0/corrupt.ckpt')
+
+    def snapshot_checkpoint(path):
+        """Hash and load ONE stable snapshot; fail if the file moves underneath us.
+    
+        Returns ``(checkpoint, sha256, identity)``.
+        """
+>       fd = os.open(path, os.O_RDONLY)
+E       NameError: name 'os' is not defined
+
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:126: NameError
+____________ test_detects_checkpoint_replaced_between_hash_and_load ____________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f06c172b250>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f06c16e37f0>
+
+    def test_detects_checkpoint_replaced_between_hash_and_load(rc, synthetic_ckpt, monkeypatch):
+        """Replacement race: hash file A, validate file B — the record would bind a
+        checkpoint that was never inspected."""
+        ckpt = synthetic_ckpt()
+        other = synthetic_ckpt(global_step=37500)
+        real_safe_load = rc.safe_load_checkpoint
+    
+        def _swap_then_load(path):
+            os.replace(other, path)          # new inode at the same path
+            return real_safe_load(path)
+    
+        monkeypatch.setattr(rc, "safe_load_checkpoint", _swap_then_load)
+        with pytest.raises(ValueError, match="changed"):
+>           rc.build_record(ckpt, CONTROL_CONFIG, expect_step=40000)
+
+src/tests/test_yaw_aug_record_control.py:145: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:240: in build_record
+    checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:176: in summarize_checkpoint
+    checkpoint, sha256, identity = snapshot_checkpoint(ckpt_path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_detects_checkpoint_replac0/epoch=8-step=40000.ckpt')
+
+    def snapshot_checkpoint(path):
+        """Hash and load ONE stable snapshot; fail if the file moves underneath us.
+    
+        Returns ``(checkpoint, sha256, identity)``.
+        """
+>       fd = os.open(path, os.O_RDONLY)
+E       NameError: name 'os' is not defined
+
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:126: NameError
+__________________ test_detects_checkpoint_modified_in_place ___________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f06c172b520>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f06c16dbe80>
+
+    def test_detects_checkpoint_modified_in_place(rc, synthetic_ckpt, monkeypatch):
+        """Same inode, mutated underneath us — also a broken snapshot."""
+        ckpt = synthetic_ckpt()
+        real_safe_load = rc.safe_load_checkpoint
+    
+        def _touch_then_load(path):
+            result = real_safe_load(path)
+            with open(path, "ab") as handle:
+                handle.write(b"\0")
+            return result
+    
+        monkeypatch.setattr(rc, "safe_load_checkpoint", _touch_then_load)
+        with pytest.raises(ValueError, match="changed"):
+>           rc.build_record(ckpt, CONTROL_CONFIG, expect_step=40000)
+
+src/tests/test_yaw_aug_record_control.py:161: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:240: in build_record
+    checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:176: in summarize_checkpoint
+    checkpoint, sha256, identity = snapshot_checkpoint(ckpt_path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_detects_checkpoint_modifi0/epoch=8-step=40000.ckpt')
+
+    def snapshot_checkpoint(path):
+        """Hash and load ONE stable snapshot; fail if the file moves underneath us.
+    
+        Returns ``(checkpoint, sha256, identity)``.
+        """
+>       fd = os.open(path, os.O_RDONLY)
+E       NameError: name 'os' is not defined
+
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:126: NameError
+___________________________ test_config_is_read_once ___________________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f06c172a050>
+tmp_path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_config_is_read_once0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f06c168fdc0>
+
+    def test_config_is_read_once(rc, synthetic_ckpt, tmp_path, monkeypatch):
+        """The config bytes that are hashed must be the bytes that are parsed."""
+        reads = []
+        real_read_bytes = Path.read_bytes
+    
+        def _counting_read(self):
+            if self == CONTROL_CONFIG:
+                reads.append(1)
+            return real_read_bytes(self)
+    
+        monkeypatch.setattr(Path, "read_bytes", _counting_read)
+>       rc.build_record(synthetic_ckpt(), CONTROL_CONFIG, expect_step=40000)
+
+src/tests/test_yaw_aug_record_control.py:175: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:240: in build_record
+    checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:176: in summarize_checkpoint
+    checkpoint, sha256, identity = snapshot_checkpoint(ckpt_path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_config_is_read_once0/epoch=8-step=40000.ckpt')
+
+    def snapshot_checkpoint(path):
+        """Hash and load ONE stable snapshot; fail if the file moves underneath us.
+    
+        Returns ``(checkpoint, sha256, identity)``.
+        """
+>       fd = os.open(path, os.O_RDONLY)
+E       NameError: name 'os' is not defined
+
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:126: NameError
+_____________________________ test_record_content ______________________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f06c172af80>
+
+    def test_record_content(rc, synthetic_ckpt):
+        ckpt = synthetic_ckpt()
+>       record = rc.build_record(ckpt, CONTROL_CONFIG, expect_step=40000)
+
+src/tests/test_yaw_aug_record_control.py:184: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:240: in build_record
+    checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:176: in summarize_checkpoint
+    checkpoint, sha256, identity = snapshot_checkpoint(ckpt_path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_record_content0/epoch=8-step=40000.ckpt')
+
+    def snapshot_checkpoint(path):
+        """Hash and load ONE stable snapshot; fail if the file moves underneath us.
+    
+        Returns ``(checkpoint, sha256, identity)``.
+        """
+>       fd = os.open(path, os.O_RDONLY)
+E       NameError: name 'os' is not defined
+
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:126: NameError
+___________ test_record_binds_the_config_EMBEDDED_in_the_checkpoint ____________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f06c172add0>
+
+    def test_record_binds_the_config_EMBEDDED_in_the_checkpoint(rc, synthetic_ckpt):
+        """The file's hash proves which config is on disk; only the checkpoint's own
+        embedded copy proves what this checkpoint was TRAINED with (plan §3.3-1)."""
+>       record = rc.build_record(synthetic_ckpt(), CONTROL_CONFIG, expect_step=40000)
+
+src/tests/test_yaw_aug_record_control.py:224: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:240: in build_record
+    checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:176: in summarize_checkpoint
+    checkpoint, sha256, identity = snapshot_checkpoint(ckpt_path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_record_binds_the_config_E0/epoch=8-step=40000.ckpt')
+
+    def snapshot_checkpoint(path):
+        """Hash and load ONE stable snapshot; fail if the file moves underneath us.
+    
+        Returns ``(checkpoint, sha256, identity)``.
+        """
+>       fd = os.open(path, os.O_RDONLY)
+E       NameError: name 'os' is not defined
+
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:126: NameError
+____________________ test_detects_embedded_config_mismatch _____________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f06c172b490>
+
+    def test_detects_embedded_config_mismatch(rc, synthetic_ckpt):
+        """A checkpoint trained with a different config must not be admitted."""
+        other = json.loads(CONTROL_CONFIG.read_text())
+        other["training"]["cfg_dropout_prob"] = 0.5
+        with pytest.raises(ValueError, match="embedded"):
+>           rc.build_record(synthetic_ckpt(model_config=other), CONTROL_CONFIG,
+                            expect_step=40000)
+
+src/tests/test_yaw_aug_record_control.py:238: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:240: in build_record
+    checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:176: in summarize_checkpoint
+    checkpoint, sha256, identity = snapshot_checkpoint(ckpt_path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_detects_embedded_config_m0/epoch=8-step=40000.ckpt')
+
+    def snapshot_checkpoint(path):
+        """Hash and load ONE stable snapshot; fail if the file moves underneath us.
+    
+        Returns ``(checkpoint, sha256, identity)``.
+        """
+>       fd = os.open(path, os.O_RDONLY)
+E       NameError: name 'os' is not defined
+
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:126: NameError
+_____________________ test_detects_missing_embedded_config _____________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f06c172b5b0>
+
+    def test_detects_missing_embedded_config(rc, synthetic_ckpt):
+        with pytest.raises(ValueError, match="model_config"):
+>           rc.build_record(synthetic_ckpt(model_config=None), CONTROL_CONFIG,
+                            expect_step=40000)
+
+src/tests/test_yaw_aug_record_control.py:244: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:240: in build_record
+    checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:176: in summarize_checkpoint
+    checkpoint, sha256, identity = snapshot_checkpoint(ckpt_path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_detects_missing_embedded_0/epoch=8-step=40000.ckpt')
+
+    def snapshot_checkpoint(path):
+        """Hash and load ONE stable snapshot; fail if the file moves underneath us.
+    
+        Returns ``(checkpoint, sha256, identity)``.
+        """
+>       fd = os.open(path, os.O_RDONLY)
+E       NameError: name 'os' is not defined
+
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:126: NameError
+____________________ test_record_is_readonly_wrt_its_inputs ____________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f06c172beb0>
+tmp_path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_record_is_readonly_wrt_it0')
+
+    def test_record_is_readonly_wrt_its_inputs(rc, synthetic_ckpt, tmp_path):
+        ckpt = synthetic_ckpt()
+        before = (hashlib.sha256(ckpt.read_bytes()).hexdigest(),
+                  hashlib.sha256(CONTROL_CONFIG.read_bytes()).hexdigest())
+        rc.write_record(
+>           rc.build_record(ckpt, CONTROL_CONFIG, expect_step=40000), tmp_path / "rec.json"
+        )
+
+src/tests/test_yaw_aug_record_control.py:253: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:240: in build_record
+    checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:176: in summarize_checkpoint
+    checkpoint, sha256, identity = snapshot_checkpoint(ckpt_path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_record_is_readonly_wrt_it0/epoch=8-step=40000.ckpt')
+
+    def snapshot_checkpoint(path):
+        """Hash and load ONE stable snapshot; fail if the file moves underneath us.
+    
+        Returns ``(checkpoint, sha256, identity)``.
+        """
+>       fd = os.open(path, os.O_RDONLY)
+E       NameError: name 'os' is not defined
+
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:126: NameError
+_________________ test_refuses_to_overwrite_an_existing_record _________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f06c172b490>
+tmp_path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_refuses_to_overwrite_an_e0')
+
+    def test_refuses_to_overwrite_an_existing_record(rc, synthetic_ckpt, tmp_path):
+        out = tmp_path / "rec.json"
+>       record = rc.build_record(synthetic_ckpt(), CONTROL_CONFIG, expect_step=40000)
+
+src/tests/test_yaw_aug_record_control.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:240: in build_record
+    checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:176: in summarize_checkpoint
+    checkpoint, sha256, identity = snapshot_checkpoint(ckpt_path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_refuses_to_overwrite_an_e0/epoch=8-step=40000.ckpt')
+
+    def snapshot_checkpoint(path):
+        """Hash and load ONE stable snapshot; fail if the file moves underneath us.
+    
+        Returns ``(checkpoint, sha256, identity)``.
+        """
+>       fd = os.open(path, os.O_RDONLY)
+E       NameError: name 'os' is not defined
+
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:126: NameError
+__________________________ test_detects_step_mismatch __________________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f06c172b370>
+
+    def test_detects_step_mismatch(rc, synthetic_ckpt):
+        ckpt = synthetic_ckpt(global_step=37500)
+        with pytest.raises(ValueError, match="37500"):
+>           rc.build_record(ckpt, CONTROL_CONFIG, expect_step=40000)
+
+src/tests/test_yaw_aug_record_control.py:277: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:240: in build_record
+    checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:176: in summarize_checkpoint
+    checkpoint, sha256, identity = snapshot_checkpoint(ckpt_path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_detects_step_mismatch0/epoch=8-step=37500.ckpt')
+
+    def snapshot_checkpoint(path):
+        """Hash and load ONE stable snapshot; fail if the file moves underneath us.
+    
+        Returns ``(checkpoint, sha256, identity)``.
+        """
+>       fd = os.open(path, os.O_RDONLY)
+E       NameError: name 'os' is not defined
+
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:126: NameError
+________________________ test_detects_missing_ema_state ________________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f06c172acb0>
+
+    def test_detects_missing_ema_state(rc, synthetic_ckpt):
+        ckpt = synthetic_ckpt(with_ema=False)
+        with pytest.raises(ValueError, match="EMA"):
+>           rc.build_record(ckpt, CONTROL_CONFIG, expect_step=40000)
+
+src/tests/test_yaw_aug_record_control.py:290: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:240: in build_record
+    checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:176: in summarize_checkpoint
+    checkpoint, sha256, identity = snapshot_checkpoint(ckpt_path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_detects_missing_ema_state0/epoch=8-step=40000.ckpt')
+
+    def snapshot_checkpoint(path):
+        """Hash and load ONE stable snapshot; fail if the file moves underneath us.
+    
+        Returns ``(checkpoint, sha256, identity)``.
+        """
+>       fd = os.open(path, os.O_RDONLY)
+E       NameError: name 'os' is not defined
+
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:126: NameError
+____________________ test_failed_validation_writes_nothing _____________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f06c172bd00>
+tmp_path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_failed_validation_writes_0')
+
+    def test_failed_validation_writes_nothing(rc, synthetic_ckpt, tmp_path):
+        out = tmp_path / "rec.json"
+        with pytest.raises(ValueError):
+>           rc.build_record(synthetic_ckpt(global_step=1), CONTROL_CONFIG, expect_step=40000)
+
+src/tests/test_yaw_aug_record_control.py:296: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:240: in build_record
+    checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:176: in summarize_checkpoint
+    checkpoint, sha256, identity = snapshot_checkpoint(ckpt_path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_failed_validation_writes_0/epoch=8-step=1.ckpt')
+
+    def snapshot_checkpoint(path):
+        """Hash and load ONE stable snapshot; fail if the file moves underneath us.
+    
+        Returns ``(checkpoint, sha256, identity)``.
+        """
+>       fd = os.open(path, os.O_RDONLY)
+E       NameError: name 'os' is not defined
+
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:126: NameError
+_________________________ test_main_writes_the_record __________________________
+
+rc = <module 'yaw_aug_record_control' from '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py'>
+synthetic_ckpt = <function synthetic_ckpt.<locals>._make at 0x7f06c172a3b0>
+tmp_path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_main_writes_the_record0')
+capsys = <_pytest.capture.CaptureFixture object at 0x7f06c168df90>
+
+    def test_main_writes_the_record(rc, synthetic_ckpt, tmp_path, capsys):
+        ckpt = synthetic_ckpt()
+        out = tmp_path / "yaw_aug_control_admission.json"
+>       rc.main([
+            "--ckpt", str(ckpt),
+            "--config", str(CONTROL_CONFIG),
+            "--out", str(out),
+            "--expect-step", "40000",
+        ])
+
+src/tests/test_yaw_aug_record_control.py:306: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:293: in main
+    record = build_record(args.ckpt, args.config, args.expect_step)
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:240: in build_record
+    checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:176: in summarize_checkpoint
+    checkpoint, sha256, identity = snapshot_checkpoint(ckpt_path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-456/test_main_writes_the_record0/epoch=8-step=40000.ckpt')
+
+    def snapshot_checkpoint(path):
+        """Hash and load ONE stable snapshot; fail if the file moves underneath us.
+    
+        Returns ``(checkpoint, sha256, identity)``.
+        """
+>       fd = os.open(path, os.O_RDONLY)
+E       NameError: name 'os' is not defined
+
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_record_control.py:126: NameError
+=========================== short test summary info ============================
+FAILED src/tests/test_yaw_aug_record_control.py::test_never_falls_back_to_unsafe_load
+FAILED src/tests/test_yaw_aug_record_control.py::test_safe_loader_failure_aborts_cleanly
+FAILED src/tests/test_yaw_aug_record_control.py::test_detects_checkpoint_replaced_between_hash_and_load
+FAILED src/tests/test_yaw_aug_record_control.py::test_detects_checkpoint_modified_in_place
+FAILED src/tests/test_yaw_aug_record_control.py::test_config_is_read_once - N...
+FAILED src/tests/test_yaw_aug_record_control.py::test_record_content - NameEr...
+FAILED src/tests/test_yaw_aug_record_control.py::test_record_binds_the_config_EMBEDDED_in_the_checkpoint
+FAILED src/tests/test_yaw_aug_record_control.py::test_detects_embedded_config_mismatch
+FAILED src/tests/test_yaw_aug_record_control.py::test_detects_missing_embedded_config
+FAILED src/tests/test_yaw_aug_record_control.py::test_record_is_readonly_wrt_its_inputs
+FAILED src/tests/test_yaw_aug_record_control.py::test_refuses_to_overwrite_an_existing_record
+FAILED src/tests/test_yaw_aug_record_control.py::test_detects_step_mismatch
+FAILED src/tests/test_yaw_aug_record_control.py::test_detects_missing_ema_state
+FAILED src/tests/test_yaw_aug_record_control.py::test_failed_validation_writes_nothing
+FAILED src/tests/test_yaw_aug_record_control.py::test_main_writes_the_record
+15 failed, 3 passed in 7.44s

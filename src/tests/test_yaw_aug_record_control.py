@@ -18,6 +18,7 @@ real 724 MB checkpoint is touched exactly once, outside pytest.
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -83,6 +84,96 @@ def test_sha256_file_streams_and_matches_hashlib(rc, tmp_path):
     blob = tmp_path / "blob.bin"
     blob.write_bytes(bytes(range(256)) * 4096)          # 1 MiB, > one chunk
     assert rc.sha256_file(blob) == hashlib.sha256(blob.read_bytes()).hexdigest()
+
+
+# --------------------------------------------------------------------------- #
+# F1 — one stable, safely loaded snapshot
+# --------------------------------------------------------------------------- #
+def test_never_falls_back_to_unsafe_load(rc, synthetic_ckpt, monkeypatch):
+    """Every torch.load this tool performs must be the SAFE one.
+
+    A fail-closed admission tool must not deserialize an unpinned checkpoint with
+    weights_only=False — that executes pickle payloads — no matter what the safe
+    loader said.
+    """
+    seen = []
+    real_load = torch.load
+
+    def _spy(*args, **kwargs):
+        seen.append(kwargs)
+        return real_load(*args, **kwargs)
+
+    monkeypatch.setattr(rc.torch, "load", _spy)
+    rc.build_record(synthetic_ckpt(), CONTROL_CONFIG, expect_step=40000)
+
+    assert seen, "no checkpoint load happened at all"
+    for kwargs in seen:
+        assert kwargs.get("weights_only") is True
+        assert kwargs.get("mmap") is True
+
+
+def test_safe_loader_failure_aborts_cleanly(rc, tmp_path, monkeypatch):
+    """A checkpoint the safe loader rejects must abort, never retry unsafely."""
+    corrupt = tmp_path / "corrupt.ckpt"
+    corrupt.write_bytes(b"not a torch archive at all")
+
+    calls = []
+    real_load = torch.load
+    monkeypatch.setattr(
+        rc.torch, "load",
+        lambda *a, **kw: (calls.append(kw), real_load(*a, **kw))[1],
+    )
+    with pytest.raises(ValueError, match="weights_only"):
+        rc.build_record(corrupt, CONTROL_CONFIG, expect_step=40000)
+    assert all(kw.get("weights_only") is True for kw in calls)
+    assert len(calls) == 1, "the loader was retried after a safe-load failure"
+
+
+def test_detects_checkpoint_replaced_between_hash_and_load(rc, synthetic_ckpt, monkeypatch):
+    """Replacement race: hash file A, validate file B — the record would bind a
+    checkpoint that was never inspected."""
+    ckpt = synthetic_ckpt()
+    other = synthetic_ckpt(global_step=37500)
+    real_safe_load = rc.safe_load_checkpoint
+
+    def _swap_then_load(path):
+        os.replace(other, path)          # new inode at the same path
+        return real_safe_load(path)
+
+    monkeypatch.setattr(rc, "safe_load_checkpoint", _swap_then_load)
+    with pytest.raises(ValueError, match="changed"):
+        rc.build_record(ckpt, CONTROL_CONFIG, expect_step=40000)
+
+
+def test_detects_checkpoint_modified_in_place(rc, synthetic_ckpt, monkeypatch):
+    """Same inode, mutated underneath us — also a broken snapshot."""
+    ckpt = synthetic_ckpt()
+    real_safe_load = rc.safe_load_checkpoint
+
+    def _touch_then_load(path):
+        result = real_safe_load(path)
+        with open(path, "ab") as handle:
+            handle.write(b"\0")
+        return result
+
+    monkeypatch.setattr(rc, "safe_load_checkpoint", _touch_then_load)
+    with pytest.raises(ValueError, match="changed"):
+        rc.build_record(ckpt, CONTROL_CONFIG, expect_step=40000)
+
+
+def test_config_is_read_once(rc, synthetic_ckpt, tmp_path, monkeypatch):
+    """The config bytes that are hashed must be the bytes that are parsed."""
+    reads = []
+    real_read_bytes = Path.read_bytes
+
+    def _counting_read(self):
+        if self == CONTROL_CONFIG:
+            reads.append(1)
+        return real_read_bytes(self)
+
+    monkeypatch.setattr(Path, "read_bytes", _counting_read)
+    rc.build_record(synthetic_ckpt(), CONTROL_CONFIG, expect_step=40000)
+    assert len(reads) == 1, f"config read {len(reads)} times; hash and parse can disagree"
 
 
 # --------------------------------------------------------------------------- #

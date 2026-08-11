@@ -32,6 +32,8 @@ import argparse
 import datetime
 import hashlib
 import json
+import math
+import os
 import sys
 from pathlib import Path
 
@@ -72,17 +74,79 @@ def sha256_file(path, chunk_bytes: int = CHUNK_BYTES) -> str:
     return digest.hexdigest()
 
 
-def _load_checkpoint(path):
-    """Load with mmap so tensor storages stay on disk (only keys are inspected).
+def _sha256_fd(fd, chunk_bytes: int = CHUNK_BYTES) -> str:
+    """Hash the inode behind an ALREADY OPEN descriptor, from offset 0.
 
-    ``weights_only=True`` is attempted first and the outcome is recorded; a PL
-    checkpoint carries pickled non-tensor objects, so the safe loader may refuse
-    it. This is our own trusted file, produced by our own training job.
+    Hashing by path and loading by path are two lookups: between them the name
+    can be re-pointed at a different inode, and the record would then bind a
+    checkpoint that was never inspected. Hashing through a descriptor we keep
+    open pins the object being measured; :func:`snapshot_checkpoint` then proves
+    the path still resolves to that same object.
+    """
+    digest = hashlib.sha256()
+    offset = 0
+    while True:
+        chunk = os.pread(fd, chunk_bytes, offset)
+        if not chunk:
+            return digest.hexdigest()
+        digest.update(chunk)
+        offset += len(chunk)
+
+
+def _identity(stat_result):
+    return {
+        "device": stat_result.st_dev,
+        "inode": stat_result.st_ino,
+        "bytes": stat_result.st_size,
+        "mtime_ns": stat_result.st_mtime_ns,
+    }
+
+
+def safe_load_checkpoint(path):
+    """Load with mmap (storages stay on disk) and the SAFE unpickler only.
+
+    There is deliberately no ``weights_only=False`` fallback. This tool exists to
+    admit a checkpoint as evidence; falling back would deserialize an unvalidated
+    archive through arbitrary pickle payloads at exactly the moment the file's
+    trustworthiness is in question.
     """
     try:
-        return torch.load(path, map_location="cpu", mmap=True, weights_only=True), True
-    except Exception:
-        return torch.load(path, map_location="cpu", mmap=True, weights_only=False), False
+        return torch.load(path, map_location="cpu", mmap=True, weights_only=True)
+    except Exception as error:
+        raise ValueError(
+            f"{path}: the safe loader (mmap=True, weights_only=True) failed: "
+            f"{type(error).__name__}: {error}. Refusing to retry with "
+            "weights_only=False — an admission tool must not execute pickles."
+        )
+
+
+def snapshot_checkpoint(path):
+    """Hash and load ONE stable snapshot; fail if the file moves underneath us.
+
+    Returns ``(checkpoint, sha256, identity)``.
+    """
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        before = os.fstat(fd)
+        digest = _sha256_fd(fd)
+        checkpoint = safe_load_checkpoint(path)
+        after_fd = os.fstat(fd)
+        after_path = os.stat(path)
+        if _identity(after_fd) != _identity(before):
+            raise ValueError(
+                f"{path}: the checkpoint changed while it was being read "
+                f"(size/mtime moved on the same inode) — the hash and the "
+                "validated contents would describe different data"
+            )
+        if (after_path.st_dev, after_path.st_ino) != (before.st_dev, before.st_ino):
+            raise ValueError(
+                f"{path}: the path changed to a different file while it was being "
+                "read (inode replaced) — the hash and the validated contents would "
+                "describe different files"
+            )
+    finally:
+        os.close(fd)
+    return checkpoint, digest, _identity(before)
 
 
 def _find_ema(state_dict):
@@ -110,8 +174,8 @@ def canonical_sha256(obj) -> str:
 
 
 def summarize_checkpoint(ckpt_path, expect_step: int, config_obj) -> dict:
-    """Validate and summarise the checkpoint's embedded facts."""
-    checkpoint, weights_only = _load_checkpoint(ckpt_path)
+    """Validate and summarise ONE stable, safely loaded snapshot."""
+    checkpoint, sha256, identity = snapshot_checkpoint(ckpt_path)
 
     if "global_step" not in checkpoint:
         raise ValueError(f"{ckpt_path}: no 'global_step' in the checkpoint")
@@ -145,8 +209,8 @@ def summarize_checkpoint(ckpt_path, expect_step: int, config_obj) -> dict:
     epoch = checkpoint.get("epoch", None)
     return {
         "path": str(ckpt_path),
-        "bytes": Path(ckpt_path).stat().st_size,
-        "sha256": sha256_file(ckpt_path),
+        "bytes": identity["bytes"],
+        "sha256": sha256,
         "global_step": global_step,
         "epoch": int(epoch) if epoch is not None else None,
         "state_dict_keys": len(state_dict),
@@ -156,13 +220,17 @@ def summarize_checkpoint(ckpt_path, expect_step: int, config_obj) -> dict:
         "online_key_count": sum(1 for k in state_dict if k.startswith("diffusion.")),
         "optimizer_states": len(checkpoint.get("optimizer_states", []) or []),
         "lr_schedulers": len(checkpoint.get("lr_schedulers", []) or []),
-        "loaded_with": {"mmap": True, "map_location": "cpu", "weights_only": weights_only},
+        "loaded_with": {"mmap": True, "map_location": "cpu", "weights_only": True},
     }
 
 
 def build_record(ckpt_path, config_path, expect_step: int) -> dict:
     """The full admission record. Raises (writing nothing) on any failed check."""
-    config_sha = sha256_file(config_path)
+    # ONE read: the bytes that are hashed are the bytes that are parsed. Hashing
+    # and re-opening would leave room for the file to change in between, and the
+    # record would then pin a config that was never parsed.
+    config_bytes = Path(config_path).read_bytes()
+    config_sha = hashlib.sha256(config_bytes).hexdigest()
     if config_sha != REGISTRY_CONFIG_SHA256:
         raise ValueError(
             f"{config_path}: sha256 {config_sha} does not match exp_11's "
@@ -170,7 +238,7 @@ def build_record(ckpt_path, config_path, expect_step: int) -> dict:
             "was trained with"
         )
 
-    config_obj = json.loads(Path(config_path).read_text())
+    config_obj = json.loads(config_bytes)
     checkpoint = summarize_checkpoint(ckpt_path, expect_step, config_obj)
 
     return {
