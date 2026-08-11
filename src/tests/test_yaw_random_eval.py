@@ -1280,3 +1280,65 @@ def test_cli_exposes_the_record_stream_flag():
                           capture_output=True, cwd=root)
     assert good.returncode == 2
     assert b"unrecognized arguments" not in good.stderr
+
+
+# =========================================================================== #
+# ROUND-1 FIX BATCH — F5: prove the ordering through a REAL multi-worker loader
+# =========================================================================== #
+# Review N5: every other test drives the helper directly or through an empty stub
+# loader, so worker-process ordering was argued (PyTorch 2.7 defaults to
+# in_order=True; the repo pins shuffle=False / drop_last=false) rather than
+# observed. This observes it: two worker processes, a ragged batch split, and the
+# assertion that the golden seed-42 offsets land on items 0..7 in sampler order.
+class _TinyEvalDataset(torch.utils.data.Dataset):
+    """8 in-memory items shaped like the AR eval loader's output.
+
+    Module-level (not a closure) so it survives pickling to worker processes, and
+    the tensors are built per __getitem__ so the workers copy a description rather
+    than ~200 kB of panoramas.
+    """
+
+    def __init__(self, n=8, img_w=IMG_W, height=4):
+        self.n, self.img_w, self.height = n, img_w, height
+
+    def __len__(self):
+        return self.n
+
+    def __getitem__(self, idx):
+        g = torch.Generator().manual_seed(1000 + idx)
+        info = {
+            "idx": idx,
+            "relpath": f"sceneA/000{idx}/S00{idx}_R000_hybrid_IR.wav",
+            "scene": "sceneA",
+            "context_poses": torch.randn(2, 3, generator=g),
+            "depth": torch.randn(3, self.height, self.img_w, generator=g),
+        }
+        return torch.zeros(1, 16), info
+
+
+def test_random_offsets_attach_in_sampler_order_through_a_multiworker_dataloader():
+    from src.data.dataset import collation_fn   # the eval loader's own collate
+
+    dataset = _TinyEvalDataset()
+    loader = torch.utils.data.DataLoader(
+        dataset, batch_size=3, shuffle=False, drop_last=False, num_workers=2,
+        collate_fn=collation_fn,
+    )
+
+    plan = eval_FLAC.resolve_rotation_plan("random", 0.0, 42, 42)
+    stream = eval_FLAC.RotationStream()
+    g = _gen(42)
+    batch_sizes = []
+    for reals, metadata in loader:
+        batch_sizes.append(len(metadata))
+        eval_FLAC.apply_rotation_plan(metadata, plan, g, stream)
+
+    assert batch_sizes == [3, 3, 2], "ragged tail batch expected (drop_last=False)"
+    # the pre-registered assignment, item by item, across a worker boundary
+    assert stream.offsets == GOLDEN_SEED42_W512[:8]
+    assert [r.dataset_idx for r in stream.rows] == list(range(8))
+    assert [r.target_id for r in stream.rows] == [
+        f"{i}|sceneA/000{i}/S00{i}_R000_hybrid_IR.wav" for i in range(8)]
+    # and both guards accept the stream this really produced
+    eval_FLAC.verify_stream_positions(stream)
+    eval_FLAC.verify_stream_count(stream, len(dataset), 8)
