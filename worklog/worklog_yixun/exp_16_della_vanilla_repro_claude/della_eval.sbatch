@@ -17,22 +17,27 @@
 #   --batch-size/--num-workers  eval_FLAC's own defaults (64/4) ARE exp_01's protocol
 #   --rotate-deg          default 0.0; Phase 1 is unrotated by contract (announcement 05)
 #
+# ENVIRONMENT ISOLATION (review B1): della_submit.sh submits with an explicit
+# --export list, so the job inherits NOTHING from the submitting shell except
+# SLURM_* and the two parameters below. PATH is therefore set here explicitly —
+# without it git/nvidia-smi/awk would not resolve. (PYEXE is already absolute.)
+#
 # della specifics: NO --partition line — della REJECTS an explicit partition for
 # GPU jobs and auto-routes from the GRES request. H100s live only in pli*/cryoem/
 # ailab (unreachable by the blanchette account), so the kit targets A100 (plan §4d
 # hardware amendment). Account/QOS are left to della's defaults (QOS is derived
-# from --time), matching the round-B spec.
+# from --time).
 #
-# Submit through della_submit.sh (it owns the pushed-SHA check and the command
-# record). By hand:
+# Submit through della_submit.sh (it owns the pushed-SHA check, the record
+# transaction and the export list). By hand:
 #   sbatch --job-name=exp16-eval-unseen_s42 \
-#          --export=ALL,EXPECT_SHA=$(git -C /home/yh4742/codespace/FLAC rev-parse HEAD),CELL=unseen_s42 \
+#          --export=EXPECT_SHA=$(git -C /home/yh4742/codespace/FLAC rev-parse HEAD),CELL=unseen_s42 \
 #          /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_eval.sbatch
 #
 # DRYRUN=1 (outside Slurm) runs every gate that does not need a GPU, echoes the
-# FULL final argv and exits 0.
+# FULL final argv and exits 0 — writing NOTHING (no log, no directories).
 #
-# Exit codes: 2 parameters, 3 repo/cd, 4 commit binding, 5 interpreter provenance,
+# Exit codes: 2 parameters, 3 repo/cd, 4 closure binding, 5 interpreter provenance,
 # 6 GPU, 7 ntasks, 8 log durability, 9 missing artifact; otherwise eval_FLAC's own rc.
 # ============================================================================
 #SBATCH --nodes=1
@@ -50,11 +55,43 @@ REPO=/home/yh4742/codespace/FLAC
 PYEXE=/scratch/gpfs/BLANCHETTE/yh4742/conda_envs/flac/bin/python   # no conda activate needed
 EXPDIR="$REPO/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude"
 
+# The job inherits only SLURM_* + the explicit exports (review B1), so PATH must
+# be built here; every tool this script uses lives in /usr/bin on della.
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+# HOME is not part of the export list either. git and python tolerate its absence,
+# but torch/wandb resolve cache paths through it, so derive it rather than inherit.
+export HOME="${HOME:-$(getent passwd "$(id -un)" | cut -d: -f6)}"
+
 export HF_HOME=/scratch/gpfs/BLANCHETTE/yh4742/hf_cache
 export HF_HUB_OFFLINE=1          # della compute nodes are OFFLINE: fetches must fail
 export TRANSFORMERS_OFFLINE=1    # loudly, not hang, and the ViT resolves from models/
 export WANDB_MODE=offline
 export WANDB_DIR=/scratch/gpfs/BLANCHETTE/yh4742/FLAC/wandb
+# No .pyc anywhere: a stray __pycache__ under src/ would dirty the measurement
+# closure checked below (and a DRYRUN must leave the tree untouched). Belt and
+# braces with the -B flag on every interpreter call.
+export PYTHONDONTWRITEBYTECODE=1
+
+# --- THE MEASUREMENT CLOSURE (review B3; same list verbatim in all three kit files) --
+# Content-scoped rather than whole-tree: everything below can change what a job
+# COMPUTES, so it must be clean and identical to the submitted commit. The worklog
+# deliberately is NOT in it — the command record and the run logs are written
+# while jobs are queued, and a record commit must never invalidate a queued job.
+CLOSURE=(
+  src
+  data
+  train.py
+  eval_FLAC.py
+  finetune_cond.py
+  eval_pl.py
+  eval_VAE.py
+  unwrap_model.py
+  defaults.ini
+  pyproject.toml
+  worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_eval.sbatch
+  worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_train.sbatch
+  worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_submit.sh
+)
 
 DRYRUN="${DRYRUN:-0}"
 JOBKIND=eval
@@ -66,6 +103,18 @@ die() {   # <one-line GATEFAIL message> <distinct nonzero exit code>
   echo "GATEFAIL rc=${2} ${1}"
   exit "${2}"
 }
+
+# --- LOG FIRST, then every line below is captured (review B4) -----------------
+# The log is pre-opened so an unwritable path fails BEFORE the gates rather than
+# after the GPU is spent, and stdout/stderr are then exec'd into tee, so gate
+# output lands in the log too. NOTE: with exec-into-tee there is no pipeline to
+# inspect — if tee dies, the shell gets SIGPIPE on its next write and the default
+# disposition kills it, which is the fail-closed behaviour we want (a run whose
+# log stopped being durable must not keep going).
+if [ "$DRYRUN" != "1" ]; then
+  : > "$LOG" || { echo "GATEFAIL rc=8 could not open the run log ${LOG}"; exit 8; }
+  exec > >(tee -- "$LOG") 2>&1
+fi
 
 main() {
   echo "=== exp_16 eval — CELL=${CELL:-<unset>} — ${TS} — host $(hostname) — job ${SLURM_JOB_ID:-<none>} ==="
@@ -94,29 +143,39 @@ main() {
   [ -f "$DSCFG" ] || die "dataset config not found: ${DSCFG}" 2
   [ -e weights/FLAC/FLAC_EMA.ckpt ] || die "released checkpoint missing: weights/FLAC/FLAC_EMA.ckpt" 2
 
-  # --- B. commit binding + tracked drift --------------------------------------
-  # Untracked files are ignored on purpose: this driver's own logs and the Slurm
-  # transcripts land in EXPDIR while the job runs, and a job must not fail because
-  # it wrote its own log. Tracked drift is never tolerated — it would mean the code
-  # under measurement is not the code that was reviewed.
+  # --- B. closure binding (review B3) -----------------------------------------
+  # Two questions, both about CONTENT, neither about the whole tree:
+  #   (a) is the closure clean in the worktree right now?
+  #   (b) is it byte-identical to the submitted commit, even if HEAD has since
+  #       moved for a worklog/record commit?
+  # Together they bind the measurement to reviewed code while leaving the worklog
+  # writable — the exp_11 lesson, where record commits killed queued legs.
+  git -C "$REPO" cat-file -e "${EXPECT_SHA}^{commit}" 2>/dev/null \
+    || die "EXPECT_SHA ${EXPECT_SHA} is not a commit in ${REPO}" 4
   HEAD_SHA="$(git -C "$REPO" rev-parse HEAD 2>/dev/null)" || die "git rev-parse FAILED" 4
-  DRIFT="$(git -C "$REPO" status --porcelain --untracked-files=no)" \
-    || die "git status FAILED - refusing to treat an error as a clean tree" 4
-  [ "$HEAD_SHA" = "$EXPECT_SHA" ] || die "HEAD ${HEAD_SHA} != EXPECT_SHA ${EXPECT_SHA}" 4
-  [ -z "$DRIFT" ] || die "tracked files are dirty: $(echo "$DRIFT" | tr '\n' ';')" 4
-  echo "commit binding OK: ${HEAD_SHA}"
+  CLOSURE_DIRT="$(git -C "$REPO" status --porcelain -- "${CLOSURE[@]}")" \
+    || die "git status FAILED - refusing to treat an error as a clean closure" 4
+  [ -z "$CLOSURE_DIRT" ] \
+    || die "measurement closure is dirty: $(echo "$CLOSURE_DIRT" | tr '\n' ';')" 4
+  git -C "$REPO" diff --quiet "$EXPECT_SHA" HEAD -- "${CLOSURE[@]}"
+  DIFF_RC=$?
+  case "$DIFF_RC" in
+    0) ;;
+    1) die "measurement closure changed between EXPECT_SHA ${EXPECT_SHA} and HEAD ${HEAD_SHA}" 4 ;;
+    *) die "git diff FAILED (rc=${DIFF_RC}) - refusing to treat an error as an unchanged closure" 4 ;;
+  esac
+  echo "closure binding OK: EXPECT_SHA ${EXPECT_SHA} == HEAD ${HEAD_SHA} content over ${#CLOSURE[@]} paths"
 
   # --- C. interpreter provenance (plan §4d N4) --------------------------------
   # `pip install .` copied a whole src/ tree into site-packages; if that copy wins
   # the import, this job measures STALE code that looks exactly like the checkout.
-  # Assert the resolved module file lives under REPO (CWD is REPO, set above).
-  "$PYEXE" -c "import src.models.conditioners as c; assert c.__file__.startswith('$REPO'), c.__file__" \
+  "$PYEXE" -B -c "import src.models.conditioners as c; assert c.__file__.startswith('$REPO'), c.__file__" \
     || die "interpreter provenance FAILED: src.models.conditioners does not resolve under ${REPO}" 5
   echo "interpreter provenance OK: ${PYEXE} imports src.* from ${REPO}"
 
   # --- D. one task only -------------------------------------------------------
-  # train.py adds SLURM_PROCID to the seed and eval under srun -n>1 would run N
-  # duplicate evaluations over the same output paths (plan §1, N13).
+  # eval under srun -n>1 would run N duplicate evaluations over the same output
+  # paths (plan §1, N13).
   [ "${SLURM_NTASKS:-1}" -le 1 ] || die "SLURM_NTASKS=${SLURM_NTASKS} > 1: this kit is single-task only" 7
   echo "ntasks OK: ${SLURM_NTASKS:-1}"
 
@@ -147,7 +206,7 @@ main() {
     return 0
   fi
 
-  # --- F. GPU (arch disclosure: the plan's hardware amendment is A100, not H100) --
+  # --- F. GPU + output dirs ----------------------------------------------------
   # `nvidia-smi -L` prints its FAILURE MESSAGE ON STDOUT and exits 9 on a node with
   # no driver (measured on della9: two stdout lines, rc=9). A bare `| wc -l` would
   # therefore count error prose as GPUs — fail-open the moment that text is one
@@ -155,7 +214,12 @@ main() {
   GPU_LIST="$(nvidia-smi -L 2>/dev/null)" || die "nvidia-smi -L FAILED - no usable GPU on this node" 6
   GPU_COUNT="$(printf '%s\n' "$GPU_LIST" | grep -c '^GPU [0-9]')"
   [ "$GPU_COUNT" -eq 1 ] || die "expected exactly 1 visible GPU, got ${GPU_COUNT}" 6
-  echo "GPU: $(nvidia-smi --query-gpu=name,memory.total,uuid --format=csv,noheader)"
+  # Arch disclosure: the plan's hardware amendment is A100, not H100. It is a
+  # GATE, not a nicety — a cell whose GPU cannot be named cannot be disclosed.
+  GPUINFO="$(nvidia-smi --query-gpu=name,memory.total,uuid --format=csv,noheader)" \
+    || die "nvidia-smi --query-gpu FAILED - the GPU could not be disclosed" 6
+  echo "GPU: ${GPUINFO}"
+  mkdir -p "$WANDB_DIR" || die "could not create WANDB_DIR ${WANDB_DIR}" 3
 
   # --- G. run -----------------------------------------------------------------
   "$PYEXE" eval_FLAC.py "${EVAL_ARGV[@]}"
@@ -171,11 +235,5 @@ main() {
   return 0
 }
 
-if [ "$DRYRUN" = "1" ]; then
-  main
-  exit $?
-fi
-main 2>&1 | tee "$LOG"
-RCS=("${PIPESTATUS[@]}")
-[ "${RCS[1]}" -eq 0 ] || { echo "GATEFAIL rc=8 tee exited ${RCS[1]} - the run log ${LOG} is not durable"; exit 8; }
-exit "${RCS[0]}"
+main
+exit $?

@@ -8,24 +8,41 @@
 #
 # Usage:
 #   della_submit.sh eval  {unseen_s42|unseen_s43|seen_s42}
-#   della_submit.sh train [--smoke] [--time D-HH:MM:SS]
+#   della_submit.sh train [--smoke] [--resume] [--time D-HH:MM:SS]
 #
 #   --time is REQUIRED for a full training leg (the ETA comes from the smoke
 #   measurement x1.5, plan §5 Phase 2) and defaults to 01:00:00 for --smoke.
 #   della derives the QOS from --time; there is no --qos/--partition here, and
 #   della REJECTS an explicit partition for GPU jobs.
+#   --resume opts a production leg into continuing from its newest checkpoint;
+#   without it the driver REFUSES to start when checkpoints already exist.
 #
-# Gates (all fail-closed, distinct exit codes): tracked-file drift; HEAD not
-# pushed to origin/della-flac-chequity. A queued job reads the checkout at RUN
-# time, so an unpushed or dirty HEAD means the job's code identity is not the one
-# under review — and the sbatch drivers re-check the same SHA on the node.
+# ENVIRONMENT ISOLATION (review B1): jobs are submitted with an explicit
+# --export list, i.e. `--export=EXPECT_SHA=...,CELL=...`. Per sbatch(1) on Slurm
+# 25.11, the `[ALL,]<environment_variables>` form without the leading ALL exports
+# "all SLURM_* and SPANK option environment variables along with explicitly
+# defined variables" — and NOTHING else from this shell. `--export=NONE,VAR=...`
+# is NOT usable for this: the same man page states "User can not specify explicit
+# environment variables with NONE", so the parameters would never arrive (the
+# drivers would then fail closed at their EXPECT_SHA gate).
+#
+# TRANSACTION (review B3) — no released job may lack its record:
+#   sbatch --hold --parsable  ->  jobid          (queued, cannot start)
+#   append the record block under flock, then read the jobid back
+#   scontrol release <jobid>                     (only now can it start)
+#   any failure in between  ->  scancel <jobid>, report, exit nonzero
+#
+# GATES: the measurement CLOSURE must be clean (worklog files may be dirty — the
+# command record itself is written while jobs are queued), and HEAD must be
+# pushed. The pushed check uses `git ls-remote` so a DRYRUN writes NOTHING, not
+# even FETCH_HEAD.
 #
 # DRYRUN=1 prints the sbatch line it WOULD run and exits: it submits nothing,
-# writes nothing to the command record, and reports gate failures as advisories
-# so the argv stays inspectable on a dirty/unpushed development tree.
+# writes nothing, and reports gate failures as advisories so the argv stays
+# inspectable on a dirty/unpushed development tree.
 #
-# Exit codes: 2 usage, 3 tracked drift, 4 HEAD not pushed, 5 sbatch failed/
-# unparsable, 6 command-record write failed.
+# Exit codes: 2 usage, 3 closure dirty, 4 HEAD not pushed, 5 sbatch failed or
+# unparsable, 6 record write/verify failed (job cancelled), 7 release failed.
 # ============================================================================
 set -euo pipefail
 
@@ -35,12 +52,55 @@ BRANCH=della-flac-chequity
 REMOTE=origin
 RECORD="$EXPDIR/della_vanilla_repro_command.md"
 DRYRUN="${DRYRUN:-0}"
+export PYTHONDONTWRITEBYTECODE=1   # nothing here runs python, but the kit is uniform
+
+# --- THE MEASUREMENT CLOSURE (review B3; same list verbatim in all three kit files) --
+CLOSURE=(
+  src
+  data
+  train.py
+  eval_FLAC.py
+  finetune_cond.py
+  eval_pl.py
+  eval_VAE.py
+  unwrap_model.py
+  defaults.ini
+  pyproject.toml
+  worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_eval.sbatch
+  worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_train.sbatch
+  worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_submit.sh
+)
 
 die() { echo "GATEFAIL rc=${2} ${1}" >&2; exit "${2}"; }
 
 usage() {
   echo "usage: della_submit.sh eval {unseen_s42|unseen_s43|seen_s42}" >&2
-  echo "       della_submit.sh train [--smoke] [--time D-HH:MM:SS]" >&2
+  echo "       della_submit.sh train [--smoke] [--resume] [--time D-HH:MM:SS]" >&2
+}
+
+# Slurm accepts HH:MM:SS with HH > 23, but MM and SS are minutes and seconds:
+# "99:99:99" is a typo, not a 4-day budget, and must not become one.
+validate_time() {   # <value>; 0 iff D-HH:MM:SS or HH:MM:SS with MM,SS <= 59
+  local t="$1" days="" hms hh mm ss
+  case "$t" in
+    *-*) days="${t%%-*}"; hms="${t#*-}" ;;
+    *)   hms="$t" ;;
+  esac
+  if [ -n "$days" ]; then
+    case "$days" in ''|*[!0-9]*) return 1 ;; esac
+  fi
+  case "$hms" in
+    [0-9]:[0-9][0-9]:[0-9][0-9]|[0-9][0-9]:[0-9][0-9]:[0-9][0-9]|[0-9][0-9][0-9]:[0-9][0-9]:[0-9][0-9]) ;;
+    *) return 1 ;;
+  esac
+  hh="${hms%%:*}"; mm="${hms#*:}"; mm="${mm%%:*}"; ss="${hms##*:}"
+  [ "$((10#$mm))" -le 59 ] || return 1
+  [ "$((10#$ss))" -le 59 ] || return 1
+  # In the D-HH:MM:SS form the hour field is an hour-of-day and cannot exceed 23.
+  if [ -n "$days" ]; then
+    [ "$((10#$hh))" -le 23 ] || return 1
+  fi
+  return 0
 }
 
 # --- A. arguments -------------------------------------------------------------
@@ -50,7 +110,7 @@ case "$KIND" in
   *) usage; die "first argument must be 'eval' or 'train' (got '${KIND}')" 2 ;;
 esac
 
-CELL=""; SMOKE=0; TIME_LIMIT=""
+CELL=""; SMOKE=0; RESUME=0; TIME_LIMIT=""
 if [ "$KIND" = "eval" ]; then
   CELL="${1:-}"; shift || true
   case "$CELL" in
@@ -61,12 +121,14 @@ if [ "$KIND" = "eval" ]; then
 else
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --smoke) SMOKE=1; shift ;;
-      --time)  TIME_LIMIT="${2:-}"; shift 2 || die "--time needs a value" 2 ;;
+      --smoke)  SMOKE=1; shift ;;
+      --resume) RESUME=1; shift ;;
+      --time)   TIME_LIMIT="${2:-}"; shift 2 || die "--time needs a value" 2 ;;
       --time=*) TIME_LIMIT="${1#--time=}"; shift ;;
       *) usage; die "unknown train option '${1}'" 2 ;;
     esac
   done
+  [ "$SMOKE" = "0" ] || [ "$RESUME" = "0" ] || die "--smoke and --resume are mutually exclusive: a smoke always starts fresh" 2
   if [ "$SMOKE" = "1" ]; then
     TIME_LIMIT="${TIME_LIMIT:-01:00:00}"
   else
@@ -75,36 +137,35 @@ else
     # a multi-day run at whatever the default happened to be.
     [ -n "$TIME_LIMIT" ] || die "a full training leg needs an explicit --time D-HH:MM:SS (smoke defaults to 01:00:00)" 2
   fi
-  case "$TIME_LIMIT" in
-    [0-9]-[0-9][0-9]:[0-9][0-9]:[0-9][0-9]|[0-9][0-9]-[0-9][0-9]:[0-9][0-9]:[0-9][0-9]|[0-9][0-9]:[0-9][0-9]:[0-9][0-9]) ;;
-    *) die "--time '${TIME_LIMIT}' is not D-HH:MM:SS or HH:MM:SS" 2 ;;
-  esac
+  validate_time "$TIME_LIMIT" \
+    || die "--time '${TIME_LIMIT}' is not D-HH:MM:SS or HH:MM:SS with minutes/seconds <= 59" 2
 fi
 
-# --- B. tracked drift ---------------------------------------------------------
-DRIFT="$(git -C "$REPO" status --porcelain --untracked-files=no)" \
-  || die "git status FAILED - refusing to treat an error as a clean tree" 3
-if [ -n "$DRIFT" ]; then
+# --- B. the measurement closure must be clean --------------------------------
+# Scoped, not whole-tree (review B3): this script APPENDS to the command record
+# in the same directory, and the drivers write their logs there while jobs are
+# queued, so a whole-tree gate would make the kit unable to record itself.
+CLOSURE_DIRT="$(git -C "$REPO" status --porcelain -- "${CLOSURE[@]}")" \
+  || die "git status FAILED - refusing to treat an error as a clean closure" 3
+if [ -n "$CLOSURE_DIRT" ]; then
   if [ "$DRYRUN" = "1" ]; then
-    echo "DRY-RUN ADVISORY: tracked files are dirty (a real submit aborts here):"
-    echo "$DRIFT"
+    echo "DRY-RUN ADVISORY: the measurement closure is dirty (a real submit aborts here):"
+    echo "$CLOSURE_DIRT"
   else
-    echo "$DRIFT" >&2
-    die "tracked files are dirty - commit or stash before submitting" 3
+    echo "$CLOSURE_DIRT" >&2
+    die "the measurement closure is dirty - commit or stash before submitting" 3
   fi
 fi
 
 # --- C. HEAD must be PUSHED ---------------------------------------------------
 # The node re-checks EXPECT_SHA against the checkout at run time; binding a job
 # to a commit that exists only on this filesystem makes that check unverifiable
-# by anyone else (and unrecoverable if the checkout moves).
+# by anyone else (and unrecoverable if the checkout moves). ls-remote is a
+# READ-ONLY query: unlike `git fetch` it writes no FETCH_HEAD, so a DRYRUN leaves
+# the filesystem byte-identical. A failed query is FATAL, never assumed-OK.
 EXPECT_SHA="$(git -C "$REPO" rev-parse HEAD)" || die "git rev-parse HEAD FAILED" 4
-if [ "$DRYRUN" = "1" ]; then
-  git -C "$REPO" fetch --quiet "$REMOTE" "$BRANCH" 2>/dev/null || true
-else
-  git -C "$REPO" fetch --quiet "$REMOTE" "$BRANCH" || die "git fetch ${REMOTE} ${BRANCH} FAILED" 4
-fi
-REMOTE_SHA="$(git -C "$REPO" rev-parse "${REMOTE}/${BRANCH}" 2>/dev/null || echo '')"
+REMOTE_SHA="$(git -C "$REPO" ls-remote "$REMOTE" "refs/heads/${BRANCH}" | awk '{print $1}')" \
+  || die "git ls-remote ${REMOTE} refs/heads/${BRANCH} FAILED - cannot prove HEAD is pushed" 4
 if [ "$EXPECT_SHA" != "$REMOTE_SHA" ]; then
   if [ "$DRYRUN" = "1" ]; then
     echo "DRY-RUN ADVISORY: HEAD ${EXPECT_SHA} != ${REMOTE}/${BRANCH} ${REMOTE_SHA:-<none>} (a real submit aborts here)"
@@ -117,18 +178,24 @@ fi
 if [ "$KIND" = "eval" ]; then
   JOB_NAME="exp16-eval-${CELL}"
   SBATCH_ARGV=(
+    --hold --parsable
     --job-name="$JOB_NAME"
-    --export="ALL,EXPECT_SHA=${EXPECT_SHA},CELL=${CELL}"
+    --export="EXPECT_SHA=${EXPECT_SHA},CELL=${CELL}"
     "$EXPDIR/della_eval.sbatch"
   )
 else
   JOB_NAME="exp16-train"
-  EXPORTS="ALL,EXPECT_SHA=${EXPECT_SHA}"
+  EXPORTS="EXPECT_SHA=${EXPECT_SHA}"
   if [ "$SMOKE" = "1" ]; then
     JOB_NAME="exp16-train-smoke"
     EXPORTS="${EXPORTS},SMOKE=1"
   fi
+  if [ "$RESUME" = "1" ]; then
+    JOB_NAME="exp16-train-resume"
+    EXPORTS="${EXPORTS},RESUME=1"
+  fi
   SBATCH_ARGV=(
+    --hold --parsable
     --job-name="$JOB_NAME"
     --time="$TIME_LIMIT"
     --export="$EXPORTS"
@@ -143,36 +210,60 @@ if [ "$DRYRUN" = "1" ]; then
   exit 0
 fi
 
-# --- E. submit ----------------------------------------------------------------
+# --- E. submit HELD -----------------------------------------------------------
+# Held, so the record below is written while the job is queued but CANNOT start.
 SBATCH_OUT="$(sbatch "${SBATCH_ARGV[@]}")" || die "sbatch FAILED - nothing submitted" 5
-# Parsed from sbatch's own words rather than --parsable so the line recorded in
-# the worklog is byte-identical to the line that ran.
-JOBID="$(printf '%s\n' "$SBATCH_OUT" | awk '/Submitted batch job/ {print $NF}')"
+JOBID="${SBATCH_OUT%%;*}"        # --parsable prints "<jobid>[;<cluster>]"
 case "$JOBID" in
-  ''|*[!0-9]*) echo "$SBATCH_OUT" >&2; die "could not parse a job id out of sbatch's output" 5 ;;
+  ''|*[!0-9]*)
+    echo "sbatch returned: '${SBATCH_OUT}'" >&2
+    die "sbatch output is not a numeric job id - the job (if any) cannot be cancelled by name; check squeue" 5 ;;
 esac
+echo "submitted HELD as ${JOBID}"
 
-# --- F. record it (append-only) ----------------------------------------------
-if [ ! -f "$RECORD" ]; then
+# --- F. record it, then verify the record, then release ----------------------
+# flock serialises appends against a second submitter; the read-back is what makes
+# "recorded" a fact rather than an assumption (a full disk truncates silently).
+record_submission() {
   {
-    echo "# della_vanilla_repro — submission command record"
-    echo
-    echo "Append-only, written by \`della_submit.sh\` at submit time (plan §4d): the exact"
-    echo "sbatch line, the commit the job is bound to, and the job id Slurm returned."
-    echo
-  } > "$RECORD" || die "could not create the command record ${RECORD}" 6
+    flock -w 30 200 || return 1
+    if [ ! -s "$RECORD" ]; then
+      {
+        echo "# della_vanilla_repro — submission command record"
+        echo
+        echo "Append-only, written by \`della_submit.sh\` at submit time (plan §4d): the exact"
+        echo "sbatch line, the commit the job is bound to, and the job id Slurm returned."
+        echo "Each job is submitted HELD, recorded here, and only then released."
+        echo
+      } >&200 || return 1
+    fi
+    {
+      echo "## $(date -Is) — ${JOB_NAME} — job ${JOBID}"
+      echo
+      echo "- EXPECT_SHA: \`${EXPECT_SHA}\`"
+      echo "- job id: \`${JOBID}\`"
+      echo "- submitted by: \`$(whoami)@$(hostname)\`"
+      echo
+      echo '```bash'
+      echo "$SBATCH_LINE"
+      echo '```'
+      echo
+    } >&200 || return 1
+  } 200>>"$RECORD"
+  grep -q "job id: \`${JOBID}\`" "$RECORD"
+}
+
+if ! record_submission; then
+  echo "command-record write/verify FAILED for job ${JOBID} - cancelling it" >&2
+  scancel "$JOBID" || echo "scancel FAILED - cancel job ${JOBID} by hand" >&2
+  die "no released job may lack its record in ${RECORD}" 6
 fi
-{
-  echo "## $(date -Is) — ${JOB_NAME} — job ${JOBID}"
-  echo
-  echo "- EXPECT_SHA: \`${EXPECT_SHA}\`"
-  echo "- job id: \`${JOBID}\`"
-  echo "- submitted by: \`$(whoami)@$(hostname)\`"
-  echo
-  echo '```bash'
-  echo "$SBATCH_LINE"
-  echo '```'
-  echo
-} >> "$RECORD" || die "could not append to the command record ${RECORD}" 6
+echo "recorded in ${RECORD}"
+
+if ! scontrol release "$JOBID"; then
+  echo "scontrol release FAILED for ${JOBID} - cancelling it; its record block stays as evidence" >&2
+  scancel "$JOBID" || echo "scancel FAILED too - job ${JOBID} is HELD; release or cancel it by hand" >&2
+  die "could not release job ${JOBID}" 7
+fi
 
 echo "$JOBID"
