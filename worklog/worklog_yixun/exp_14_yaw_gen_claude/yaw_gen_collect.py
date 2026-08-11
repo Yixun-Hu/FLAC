@@ -370,7 +370,7 @@ def aggregate_cell(seed_records, seeds=SEEDS):
 # --------------------------------------------------------------------------- #
 # the golden assignment (gate G3's collector half)
 # --------------------------------------------------------------------------- #
-def golden_offsets(seed, n, img_w=V.IMG_W):
+def _golden_offsets_impl(seed, n, img_w=V.IMG_W):
     """The offsets rotation seed ``seed`` MUST have produced, recomputed here.
 
     Recomputed with ``draw_yaw_offsets`` itself — the function the evaluator
@@ -385,3 +385,251 @@ def golden_offsets(seed, n, img_w=V.IMG_W):
     gen = torch.Generator(device="cpu")
     gen.manual_seed(int(seed))
     return [int(x) for x in draw_yaw_offsets(int(n), int(img_w), gen).tolist()]
+
+
+_GOLDEN_CACHE = {}
+
+
+def golden_offsets(seed, n, img_w=V.IMG_W):
+    """:func:`_golden_offsets_impl`, memoised — 50 rgen cells share 5 sequences."""
+    key = (int(seed), int(n), int(img_w))
+    if key not in _GOLDEN_CACHE:
+        _GOLDEN_CACHE[key] = _golden_offsets_impl(*key)
+    return list(_GOLDEN_CACHE[key])
+
+
+# --------------------------------------------------------------------------- #
+# statistics (plan §4): 5 seed-paired observations, df = 4, two-sided 95%
+# --------------------------------------------------------------------------- #
+# Pre-registered in the plan, so it is a CONSTANT here and not a library call:
+# the campaign's interval must not depend on which numerical stack is installed
+# on the machine that renders the table.
+T_CRITICAL = {(0.05, 4): 2.7764451051977987}
+
+try:                                                  # optional, cross-checked by test
+    from scipy import stats as _scipy_stats
+    STATS_BACKEND = "scipy"
+except Exception:                                     # pragma: no cover - env-dependent
+    _scipy_stats = None
+    STATS_BACKEND = "pure-python (regularised incomplete beta)"
+
+
+def _betacf(a, b, x):
+    """Continued fraction for the incomplete beta function (Lentz's method)."""
+    maxit, eps, fpmin = 300, 3e-16, 1e-300
+    qab, qap, qam = a + b, a + 1.0, a - 1.0
+    c, d = 1.0, 1.0 - qab * x / qap
+    if abs(d) < fpmin:
+        d = fpmin
+    d = 1.0 / d
+    h = d
+    for m in range(1, maxit + 1):
+        m2 = 2 * m
+        aa = m * (b - m) * x / ((qam + m2) * (a + m2))
+        d = 1.0 + aa * d
+        if abs(d) < fpmin:
+            d = fpmin
+        c = 1.0 + aa / c
+        if abs(c) < fpmin:
+            c = fpmin
+        d = 1.0 / d
+        h *= d * c
+        aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))
+        d = 1.0 + aa * d
+        if abs(d) < fpmin:
+            d = fpmin
+        c = 1.0 + aa / c
+        if abs(c) < fpmin:
+            c = fpmin
+        d = 1.0 / d
+        delta = d * c
+        h *= delta
+        if abs(delta - 1.0) < eps:
+            break
+    return h
+
+
+def _betai(a, b, x):
+    """Regularised incomplete beta ``I_x(a, b)``."""
+    if x <= 0.0:
+        return 0.0
+    if x >= 1.0:
+        return 1.0
+    ln_beta = math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b)
+    front = math.exp(ln_beta + a * math.log(x) + b * math.log(1.0 - x))
+    if x < (a + 1.0) / (a + b + 2.0):
+        return front * _betacf(a, b, x) / a
+    return 1.0 - front * _betacf(b, a, 1.0 - x) / b
+
+
+def _student_t_sf(t, df):
+    """``P(T > t)`` for Student's t with ``df`` degrees of freedom, no scipy."""
+    df = float(df)
+    tail = 0.5 * _betai(df / 2.0, 0.5, df / (df + float(t) ** 2))
+    return tail if t >= 0 else 1.0 - tail
+
+
+def _student_t_ppf(q, df):
+    """Inverse of :func:`_student_t_sf`'s CDF, by bisection (fallback path)."""
+    if not 0.0 < q < 1.0:
+        raise ValueError(f"quantile must be in (0, 1), got {q}")
+    lo, hi = -1.0e3, 1.0e3
+    for _ in range(200):
+        mid = 0.5 * (lo + hi)
+        if (1.0 - _student_t_sf(mid, df)) < q:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
+def t_critical(alpha, df):
+    """Two-sided critical value; the campaign's (0.05, 4) is the plan's constant."""
+    key = (round(float(alpha), 10), int(df))
+    if key in T_CRITICAL:
+        return T_CRITICAL[key]
+    if _scipy_stats is not None:
+        return float(_scipy_stats.t.ppf(1.0 - alpha / 2.0, df))
+    return _student_t_ppf(1.0 - alpha / 2.0, df)       # pragma: no cover - env-dependent
+
+
+def _t_sf(t, df):
+    if _scipy_stats is not None:
+        return float(_scipy_stats.t.sf(t, df))
+    return _student_t_sf(t, df)                        # pragma: no cover - env-dependent
+
+
+TResult = namedtuple("TResult", "n df mean sd se t p lo hi alpha")
+
+
+def paired_t_ci(diffs, alpha=0.05):
+    """Two-sided paired-t estimate over the per-seed differences (plan §4).
+
+    Zero spread is not an error and not a licence: five identical non-zero
+    differences are a real effect with p → 0, five identical zeros are no effect
+    with p = 1. Reporting either as "undefined" would silently drop a co-primary
+    from the Holm family.
+    """
+    values = [float(d) for d in diffs]
+    n = len(values)
+    if n < 2:
+        raise ValueError(f"a paired-t estimate needs at least two observations, got {n}")
+    df = n - 1
+    mean = st.mean(values)
+    sd = st.stdev(values)
+    se = sd / math.sqrt(n)
+    crit = t_critical(alpha, df)
+    if se == 0.0:
+        t = math.inf if mean > 0 else (-math.inf if mean < 0 else 0.0)
+        p = 1.0 if mean == 0.0 else 0.0
+        return TResult(n, df, mean, sd, se, t, p, mean, mean, alpha)
+    t = mean / se
+    p = 2.0 * _t_sf(abs(t), df)
+    return TResult(n, df, mean, sd, se, t, min(p, 1.0),
+                   mean - crit * se, mean + crit * se, alpha)
+
+
+def holm_adjust(pvals):
+    """Holm step-down adjusted p-values, in the input order (ties included)."""
+    values = [float(p) for p in pvals]
+    m = len(values)
+    if m == 0:
+        return []
+    order = sorted(range(m), key=lambda i: values[i])
+    adjusted, running = [0.0] * m, 0.0
+    for rank, idx in enumerate(order):
+        running = max(running, (m - rank) * values[idx])
+        adjusted[idx] = min(1.0, running)
+    return adjusted
+
+
+# Plan §4 metric directions. "Lower is better" for the error metrics, "higher is
+# better" for retrieval. There is no default: a metric with no registered
+# direction cannot be scored "better" at all, so metric_direction RAISES.
+METRIC_DIRECTION = {
+    "T60": "lower", "C50": "lower", "EDT": "lower", "FD": "lower",
+    "RIR_to_GT_RIR_R@1": "higher", "RIR_to_GT_RIR_R@5": "higher",
+    "RIR_to_GT_RIR_R@10": "higher",
+    "RIR_to_geom_R@1": "higher", "RIR_to_geom_R@5": "higher",
+    "RIR_to_geom_R@10": "higher",
+}
+# The plan writes these as T60% and R@k; the metrics JSON spells them T60 and
+# RIR_to_GT_RIR_R@k. Both names reach the same direction, one table.
+METRIC_ALIAS = {"T60%": "T60", "T60 (%)": "T60", "R@1": "RIR_to_GT_RIR_R@1",
+                "R@5": "RIR_to_GT_RIR_R@5", "R@10": "RIR_to_GT_RIR_R@10",
+                "C50 (dB)": "C50", "EDT (ms)": "EDT"}
+# Co-primaries (plan §4, restored by the round-1 review's B3): the reported R@1
+# is RIR_to_GT_RIR_R@1, audio-to-audio. Only RIR_to_geom_R@k embeds the ROTATED
+# point cloud through a non-yaw-invariant AGREE, so only those are confounded in
+# a rotated cell — reported, but never in a headline table.
+CO_PRIMARY = ("T60", "RIR_to_GT_RIR_R@1")
+CONFOUNDED_METRICS = ("RIR_to_geom_R@1", "RIR_to_geom_R@5", "RIR_to_geom_R@10")
+HEADLINE_METRICS = ("T60", "C50", "EDT", "FD", "RIR_to_GT_RIR_R@1",
+                    "RIR_to_GT_RIR_R@5", "RIR_to_GT_RIR_R@10")
+ALPHA = 0.05
+
+
+def canonical_metric(metric):
+    return METRIC_ALIAS.get(metric, metric)
+
+
+def metric_direction(metric):
+    """``'lower'`` or ``'higher'`` — the complete plan §4 table, no default."""
+    name = canonical_metric(metric)
+    if name not in METRIC_DIRECTION:
+        raise KeyError(f"no registered direction for metric {metric!r}: it cannot be "
+                       "scored better-or-worse")
+    return METRIC_DIRECTION[name]
+
+
+Contrast = namedtuple("Contrast",
+                      "metric better n df mean lo hi t p favors_first significant")
+
+
+def contrast(metric, diffs, better="metric", alpha=ALPHA):
+    """One paired contrast ``first − second`` on one metric.
+
+    ``better`` is explicit because the answer is not always the metric's own
+    direction: an H-M contrast compares |Δ| — a MAGNITUDE of change — where
+    smaller is flatter no matter which way the underlying metric points.
+    """
+    if better == "metric":
+        better = metric_direction(metric)
+    if better not in ("lower", "higher"):
+        raise ValueError(f"better must be 'lower', 'higher' or 'metric', got {better!r}")
+    res = paired_t_ci(diffs, alpha=alpha)
+    favors = res.mean < 0 if better == "lower" else res.mean > 0
+    return Contrast(metric=canonical_metric(metric), better=better, n=res.n, df=res.df,
+                    mean=res.mean, lo=res.lo, hi=res.hi, t=res.t, p=res.p,
+                    favors_first=favors, significant=res.p < alpha)
+
+
+def verdict(flags):
+    """Plan §4: both co-primaries → SUPPORTED, exactly one → PARTIAL, else NEGATIVE."""
+    wins = sum(1 for f in flags if f)
+    if wins == len(flags) and wins > 0:
+        return "SUPPORTED"
+    return "PARTIAL" if wins else "NEGATIVE"
+
+
+def endpoint_contrast(name, first, second, seeds, better="metric",
+                      metrics=CO_PRIMARY, alpha=ALPHA, win="favor"):
+    """A labelled hypothesis: co-primary contrasts + Holm over exactly those two.
+
+    ``first``/``second`` are ``{metric: {seed: value}}``. ``win='favor'`` scores a
+    co-primary as won when it is significant AND points the hypothesised way
+    (H-P, H-M); ``win='nonzero'`` scores any significant difference (H-S, whose
+    claim is ``Δ ≠ 0``).
+    """
+    seeds = [int(s) for s in seeds]
+    rows, contrasts = {}, []
+    for metric in metrics:
+        diffs = [float(first[metric][s]) - float(second[metric][s]) for s in seeds]
+        contrasts.append(contrast(metric, diffs, better=better, alpha=alpha))
+    for c, p_holm in zip(contrasts, holm_adjust([c.p for c in contrasts])):
+        won = (p_holm < alpha) and (c.favors_first or win == "nonzero")
+        rows[c.metric] = {"mean": c.mean, "lo": c.lo, "hi": c.hi, "t": c.t, "p": c.p,
+                          "p_holm": p_holm, "df": c.df, "n": c.n, "better": c.better,
+                          "favors_first": c.favors_first, "won": won}
+    return {"name": name, "seeds": seeds, "alpha": alpha, "win_rule": win,
+            "metrics": rows, "verdict": verdict([r["won"] for r in rows.values()])}

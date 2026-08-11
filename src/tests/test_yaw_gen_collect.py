@@ -571,3 +571,139 @@ def test_aggregate_cell_rejects_a_mixed_block():
 def test_aggregate_cell_of_an_empty_block_is_pending():
     agg = C.aggregate_cell([])
     assert agg.status == "PENDING" and agg.n == 0 and agg.values == {}
+
+
+# --------------------------------------------------------------------------- #
+# 7. paired_t_ci — the §4 estimation convention, pinned to known values
+# --------------------------------------------------------------------------- #
+def test_paired_t_ci_matches_a_hand_computed_fixture():
+    """Five differences, df=4, two-sided 95%: mean ± t(.975,4)·s/√5."""
+    diffs = [1.0, 2.0, 3.0, 4.0, 5.0]
+    res = C.paired_t_ci(diffs)
+    mean, sd, n = 3.0, math.sqrt(2.5), 5
+    se = sd / math.sqrt(n)
+    assert res.df == 4 and res.n == 5
+    assert res.mean == pytest.approx(mean)
+    assert res.lo == pytest.approx(mean - 2.776445105 * se, rel=1e-6)
+    assert res.hi == pytest.approx(mean + 2.776445105 * se, rel=1e-6)
+    assert res.t == pytest.approx(mean / se)
+    assert res.p == pytest.approx(0.01324, abs=1e-4)
+
+
+def test_paired_t_critical_value_is_the_preregistered_constant():
+    """§4 pins t_{0.975,4} = 2.776445 whether or not scipy is installed."""
+    assert C.t_critical(0.05, 4) == pytest.approx(2.776445105, rel=1e-8)
+
+
+def test_paired_t_fallback_agrees_with_scipy():
+    """The pure-python survival function is the fallback when scipy is absent;
+    it must not be a different test from the one the campaign pre-registered."""
+    scipy_stats = pytest.importorskip("scipy.stats")
+    for df in (4, 3, 9):
+        for t in (0.0, 0.5, 1.234, 2.776445105, 6.0):
+            assert C._student_t_sf(t, df) == pytest.approx(
+                float(scipy_stats.t.sf(t, df)), rel=1e-6, abs=1e-9)
+        assert C._student_t_ppf(0.975, df) == pytest.approx(
+            float(scipy_stats.t.ppf(0.975, df)), rel=1e-6)
+
+
+def test_paired_t_ci_handles_zero_variance():
+    """Five identical differences: a real effect with no spread, and a zero
+    effect with no spread, must not both come back as 'significant'."""
+    same = C.paired_t_ci([2.0] * 5)
+    assert same.p == pytest.approx(0.0) and same.lo == same.hi == pytest.approx(2.0)
+    nothing = C.paired_t_ci([0.0] * 5)
+    assert nothing.p == pytest.approx(1.0) and nothing.mean == 0.0
+
+
+def test_paired_t_ci_refuses_fewer_than_two_observations():
+    with pytest.raises(ValueError):
+        C.paired_t_ci([1.0])
+
+
+# --------------------------------------------------------------------------- #
+# 8. holm_adjust
+# --------------------------------------------------------------------------- #
+def test_holm_adjust_known_fixture():
+    """Two co-primaries (the campaign's own case) and a three-way fixture."""
+    assert C.holm_adjust([0.01, 0.04]) == pytest.approx([0.02, 0.04])
+    assert C.holm_adjust([0.04, 0.01]) == pytest.approx([0.04, 0.02])
+    assert C.holm_adjust([0.01, 0.02, 0.03]) == pytest.approx([0.03, 0.04, 0.04])
+
+
+def test_holm_adjust_is_monotone_and_capped():
+    adj = C.holm_adjust([0.4, 0.5, 0.6])
+    assert adj == pytest.approx([1.0, 1.0, 1.0])
+    adj2 = C.holm_adjust([0.001, 0.9])
+    assert adj2[0] <= adj2[1]
+
+
+def test_holm_adjust_handles_ties():
+    assert C.holm_adjust([0.03, 0.03]) == pytest.approx([0.06, 0.06])
+    assert C.holm_adjust([]) == []
+
+
+# --------------------------------------------------------------------------- #
+# 9. metric_direction — the complete §4 table
+# --------------------------------------------------------------------------- #
+def test_metric_direction_is_the_complete_table():
+    for metric in ("T60", "C50", "EDT", "FD"):
+        assert C.metric_direction(metric) == "lower"
+    for metric in ("RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5", "RIR_to_GT_RIR_R@10",
+                   "RIR_to_geom_R@1", "RIR_to_geom_R@5", "RIR_to_geom_R@10"):
+        assert C.metric_direction(metric) == "higher"
+
+
+def test_metric_direction_accepts_the_plans_display_names():
+    assert C.metric_direction("T60%") == "lower"
+    assert C.metric_direction("R@1") == "higher"
+
+
+def test_metric_direction_refuses_an_unknown_metric():
+    """A metric with no registered direction cannot be scored 'better' at all."""
+    with pytest.raises(KeyError):
+        C.metric_direction("Invalid T60")
+    with pytest.raises(KeyError):
+        C.metric_direction("made_up")
+
+
+def test_co_primary_metrics_are_t60_and_audio_to_audio_r_at_1():
+    """Round-1 review B3: the reported R@1 is RIR_to_GT_RIR_R@1 (audio-to-audio).
+    Only RIR_to_geom_R@k embeds the rotated point cloud."""
+    assert C.CO_PRIMARY == ("T60", "RIR_to_GT_RIR_R@1")
+    assert all(m.startswith("RIR_to_geom") for m in C.CONFOUNDED_METRICS)
+    assert not set(C.CO_PRIMARY) & set(C.CONFOUNDED_METRICS)
+
+
+# --------------------------------------------------------------------------- #
+# 10. the contrast machinery
+# --------------------------------------------------------------------------- #
+def test_contrast_reads_direction_from_the_metric():
+    """Lower-is-better: a negative mean difference FAVOURS the first arm."""
+    lower = C.contrast("T60", [-1.0, -1.1, -0.9, -1.2, -1.0], better="lower")
+    assert lower.favors_first and lower.p < 0.05
+    higher = C.contrast("RIR_to_GT_RIR_R@1", [1.0, 1.1, 0.9, 1.2, 1.0], better="higher")
+    assert higher.favors_first and higher.p < 0.05
+    reversed_ = C.contrast("T60", [1.0, 1.1, 0.9, 1.2, 1.0], better="lower")
+    assert not reversed_.favors_first
+
+
+def test_verdict_rules_follow_the_plan():
+    """SUPPORTED = both co-primaries favour after Holm; PARTIAL = exactly one;
+    NEGATIVE = neither (or reversed)."""
+    assert C.verdict([True, True]) == "SUPPORTED"
+    assert C.verdict([True, False]) == "PARTIAL"
+    assert C.verdict([False, False]) == "NEGATIVE"
+
+
+def test_endpoint_contrast_applies_holm_over_the_two_co_primaries():
+    seeds = list(V.SEEDS)
+    first = {"T60": {s: 8.0 for s in seeds},
+             "RIR_to_GT_RIR_R@1": {s: 6.0 + 0.01 * i for i, s in enumerate(seeds)}}
+    second = {"T60": {s: 9.0 + 0.01 * i for i, s in enumerate(seeds)},
+              "RIR_to_GT_RIR_R@1": {s: 5.0 for s in seeds}}
+    res = C.endpoint_contrast("H-P demo", first, second, seeds, better="metric")
+    assert set(res["metrics"]) == set(C.CO_PRIMARY)
+    for metric, row in res["metrics"].items():
+        assert row["p_holm"] >= row["p"], "Holm may only make a p-value larger"
+    assert res["verdict"] == "SUPPORTED", res

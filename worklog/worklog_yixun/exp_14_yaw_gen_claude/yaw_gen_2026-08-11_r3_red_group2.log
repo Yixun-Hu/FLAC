@@ -1,0 +1,16 @@
+FAILED src/tests/test_yaw_gen_collect.py::test_paired_t_ci_matches_a_hand_computed_fixture
+FAILED src/tests/test_yaw_gen_collect.py::test_paired_t_critical_value_is_the_preregistered_constant
+FAILED src/tests/test_yaw_gen_collect.py::test_paired_t_fallback_agrees_with_scipy
+FAILED src/tests/test_yaw_gen_collect.py::test_paired_t_ci_handles_zero_variance
+FAILED src/tests/test_yaw_gen_collect.py::test_paired_t_ci_refuses_fewer_than_two_observations
+FAILED src/tests/test_yaw_gen_collect.py::test_holm_adjust_known_fixture - At...
+FAILED src/tests/test_yaw_gen_collect.py::test_holm_adjust_is_monotone_and_capped
+FAILED src/tests/test_yaw_gen_collect.py::test_holm_adjust_handles_ties - Att...
+FAILED src/tests/test_yaw_gen_collect.py::test_metric_direction_is_the_complete_table
+FAILED src/tests/test_yaw_gen_collect.py::test_metric_direction_accepts_the_plans_display_names
+FAILED src/tests/test_yaw_gen_collect.py::test_metric_direction_refuses_an_unknown_metric
+FAILED src/tests/test_yaw_gen_collect.py::test_co_primary_metrics_are_t60_and_audio_to_audio_r_at_1
+FAILED src/tests/test_yaw_gen_collect.py::test_contrast_reads_direction_from_the_metric
+FAILED src/tests/test_yaw_gen_collect.py::test_verdict_rules_follow_the_plan
+FAILED src/tests/test_yaw_gen_collect.py::test_endpoint_contrast_applies_holm_over_the_two_co_primaries
+15 failed, 47 passed, 3 warnings in 28.01s
