@@ -444,6 +444,47 @@ def validate_cell(metrics, cell, pin=None, ckpt_sha=None, expected_count=EXPECTE
 
 
 # --- CLI ---------------------------------------------------------------------
+def parse_deg(value):
+    """Tolerant reading of a rotation angle from a COMMAND LINE: float or None.
+
+    The shell has no null. A caller that means "no angle" can only say so by
+    omitting the flag, or by passing 0, "0", "0.0" or "" — and a validator that
+    treated the string "0" as "an angle was requested" rejected 100 of the 106
+    cells AFTER they had spent their GPU (review B1). Everything that spells
+    "nothing" therefore reads as None here, and everything else must parse as a
+    float or it is a hard usage error.
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text in ("", "none", "null", "-"):
+        return None
+    deg = float(text)                      # ValueError -> caller reports usage
+    return None if deg == 0.0 else deg
+
+
+def check_argv(cell, metrics, pin=None, ckpt_sha=None, expected_count=EXPECTED_COUNT):
+    """The canonical ``check`` argv for one cell — the ONE definition of it.
+
+    The screen driver renders these flags in shell (it already knows every value
+    and a python round-trip would cost a process); a guard case pins its rendering
+    against this function, so the two cannot drift. Note what is NOT here: a
+    ``--rotate-deg`` outside vctl. rgen draws its angles and zref has none, so
+    passing 0 would be a claim about a protocol neither of them ran.
+    """
+    argv = ["check", "--metrics", str(metrics), "--arm", cell.arm, "--cell", cell.cell,
+            "--step", str(int(cell.step)), "--seed", str(int(cell.seed)),
+            "--k", str(int(cell.k))]
+    if cell.cell == "vctl":
+        argv += ["--rotate-deg", fmt_deg(cell.rotate_deg)]
+    if pin is not None:
+        argv += ["--pin", str(pin)]
+    if ckpt_sha is not None:
+        argv += ["--ckpt-sha", str(ckpt_sha)]
+    argv += ["--expected-count", str(int(expected_count))]
+    return argv
+
+
 def _fmt_cell(cell):
     rot = "-" if cell.rotate_deg is None else fmt_deg(cell.rotate_deg)
     return f"{cell.arm} {cell.cell} {cell.step} {cell.seed} {cell.k} {rot}"
@@ -455,18 +496,36 @@ def _cmd_grid(args):
     return 0
 
 
-def _cmd_check(args):
-    deg = None
+def _cell_from_args(args):
+    """The Cell a CLI invocation names, or a usage error (ValueError)."""
+    deg = parse_deg(getattr(args, "rotate_deg", None))
     if args.cell == "vctl":
-        if args.rotate_deg is None:
-            print("check: a vctl cell needs --rotate-deg", file=sys.stderr)
-            return 2
-        deg = float(args.rotate_deg)
-    elif args.rotate_deg not in (None, 0, 0.0):
-        print(f"check: --rotate-deg {args.rotate_deg} is meaningless for a "
-              f"{args.cell} cell", file=sys.stderr)
+        if deg is None:
+            raise ValueError("a vctl cell needs a non-zero --rotate-deg")
+    elif deg is not None:
+        raise ValueError(f"--rotate-deg {args.rotate_deg} is meaningless for a "
+                         f"{args.cell} cell: rgen draws its own angles and zref has none")
+    return Cell(args.arm, args.cell, int(args.step), int(args.seed), int(args.k), deg)
+
+
+def _cmd_argv(args):
+    """Print the canonical check argv (the driver's rendering is pinned to it)."""
+    try:
+        cell = _cell_from_args(args)
+    except ValueError as exc:
+        print(f"argv: {exc}", file=sys.stderr)
         return 2
-    cell = Cell(args.arm, args.cell, int(args.step), int(args.seed), int(args.k), deg)
+    print(" ".join(check_argv(cell, args.metrics, pin=args.pin, ckpt_sha=args.ckpt_sha,
+                              expected_count=args.expected_count)))
+    return 0
+
+
+def _cmd_check(args):
+    try:
+        cell = _cell_from_args(args)
+    except ValueError as exc:
+        print(f"check: {exc}", file=sys.stderr)
+        return 2
     if not is_registered(cell):
         print(f"CELL {tuple(cell)} is not registered in the exp_14 grid")
         return 2
@@ -528,6 +587,19 @@ def main(argv=None):
     c.add_argument("--ckpt-sha", default=None)
     c.add_argument("--expected-count", type=int, default=EXPECTED_COUNT)
     c.set_defaults(func=_cmd_check)
+
+    a = sub.add_parser("argv", help="print the canonical `check` argv for one cell")
+    a.add_argument("--metrics", required=True)
+    a.add_argument("--arm", required=True)
+    a.add_argument("--cell", required=True)
+    a.add_argument("--step", required=True)
+    a.add_argument("--seed", required=True)
+    a.add_argument("--k", required=True)
+    a.add_argument("--rotate-deg", default=None)
+    a.add_argument("--pin", default=None)
+    a.add_argument("--ckpt-sha", default=None)
+    a.add_argument("--expected-count", type=int, default=EXPECTED_COUNT)
+    a.set_defaults(func=_cmd_argv)
 
     cl = sub.add_parser("classify", help="status of every cell in a wave (dedup input)")
     cl.add_argument("--wave", default="all", choices=list(WAVES))

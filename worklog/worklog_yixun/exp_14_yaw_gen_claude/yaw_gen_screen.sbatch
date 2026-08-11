@@ -624,6 +624,14 @@ with open(metrics + ".screenmeta.json", "w") as fh:
 print("sidecar:", metrics + ".screenmeta.json")
 PY
 
+VALIDATE_ARGV=(
+  check --metrics "$METRICS"
+  --arm "$ARM" --cell "$CELL" --step "$STEP" --seed "$SEED" --k "$K"
+)
+[ "$CELL" = "vctl" ] && VALIDATE_ARGV+=(--rotate-deg "$ROTATE_DEG")
+VALIDATE_ARGV+=(--pin "$HEAD_SHA" --ckpt-sha "$CKPT_SHA"
+                --expected-count "$EXPECTED_STREAM_COUNT")
+
 # --- I. the validator is a GATE, not advice ----------------------------------
 # A cell that cannot be validated must not announce a result: SCREENRESULT is what
 # the wave submitter's dedup and the collector consume, and a cell that "looks
@@ -634,10 +642,12 @@ PY
 # and must be validated the moment it lands. Cross-cell equalities (Z<->R pairing,
 # cross-arm rotation matching, 5/5 seed blocks) belong to the collector and are
 # deliberately NOT claimed here.
-python3 "$EXPDIR/exp14_validate_cell.py" check --metrics "$METRICS" \
-  --arm "$ARM" --cell "$CELL" --step "$STEP" --seed "$SEED" --k "$K" \
-  --rotate-deg "$ROTATE_DEG" --pin "$HEAD_SHA" --ckpt-sha "$CKPT_SHA" \
-  --expected-count "$EXPECTED_STREAM_COUNT" \
+# The argv is built ONCE, printed by DRYRUN and executed here, and a guard case
+# pins it against exp14_validate_cell.check_argv. --rotate-deg appears for vctl
+# ONLY: rgen draws its own angles and zref has none, so handing either of them a
+# "0" would be a claim about a protocol neither ran (review B1 — that flag made
+# 100 of 106 cells fail validation after spending their GPU).
+python3 "$EXPDIR/exp14_validate_cell.py" "${VALIDATE_ARGV[@]}" \
   || die "cell validation FAILED - refusing to emit SCREENRESULT for an unprovable cell" 6
 VALIDATED="cell-valid"
 

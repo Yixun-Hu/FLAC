@@ -628,3 +628,85 @@ def test_cli_classify_reports_one_line_per_cell_with_a_status(tmp_path):
     # no checkpoints under a synthetic output root -> every cell is MISSING
     assert all(" MISSING" in l for l in lines), lines
     assert rc == 0
+
+
+# --------------------------------------------------------------------------
+# 9. FB1 (review B1): the argv the SCREEN DRIVER actually renders
+#
+# Every completed rgen/zref job used to hand the validator `--rotate-deg 0`,
+# which argparse kept as the STRING "0"; `"0" not in (None, 0, 0.0)` made the
+# check a usage error, so 100 of 106 cells would have failed validation AFTER
+# spending their GPU. Two independent fixes, both pinned here: the driver passes
+# no angle outside vctl, and the parser is tolerant of every spelling of "no
+# angle" it could still be handed.
+# --------------------------------------------------------------------------
+def test_check_argv_carries_an_angle_only_for_vctl():
+    for c in V.expected_grid():
+        argv = V.check_argv(c, "/m.json", pin=PIN, ckpt_sha=CKPT_SHA)
+        assert ("--rotate-deg" in argv) == (c.cell == "vctl"), c
+
+
+def test_check_argv_round_trips_through_main(tmp_path):
+    for cell in ("rgen", "zref", "vctl"):
+        d = tmp_path / cell
+        d.mkdir()
+        p = _write_cell(d, cell)
+        c = _cell(cell)
+        rc, out = _run(V.check_argv(c, p, pin=PIN, ckpt_sha=CKPT_SHA,
+                                    expected_count=COUNT))
+        assert rc == 0, (cell, out)
+
+
+@pytest.mark.parametrize("cell,deg", [
+    ("rgen", "0"), ("zref", "0"), ("rgen", "0.0"), ("zref", None),
+])
+def test_cli_check_accepts_every_spelling_of_no_angle(tmp_path, cell, deg):
+    # The string "0" is what the shell renders; it is NOT a usage error.
+    p = _write_cell(tmp_path, cell)
+    argv = ["check", "--metrics", p, "--arm", "C4L", "--cell", cell,
+            "--step", "40000", "--seed", "42", "--k", "8", "--pin", PIN,
+            "--ckpt-sha", CKPT_SHA, "--expected-count", str(COUNT)]
+    if deg is not None:
+        argv += ["--rotate-deg", deg]
+    rc, out = _run(argv)
+    assert rc == 0, out
+
+
+@pytest.mark.parametrize("deg", ["45", "45.0"])
+def test_cli_check_parses_a_vctl_angle_as_a_float(tmp_path, deg):
+    m = _metrics("vctl")
+    m["rotate_deg"] = 45.0
+    sm = _screenmeta("vctl")
+    sm["rotate_deg"] = 45.0
+    sm["eval_name"] = m["eval_name"] = "exp14_C4L_vctl_S40000_s42_K8_rot45"
+    st = _stream("vctl")
+    st["rotate_deg"] = 45.0
+    st["offsets"] = [64] * COUNT
+    st["assignment_tuples"] = [[i, t[1], 64] for i, t in enumerate(st["input_tuples"])]
+    st["assignment_hash"] = V.canonical_stream_hash(st["assignment_tuples"])
+    p = _write_cell(tmp_path, "vctl", metrics=m, meta=sm, stream=st)
+    rc, out = _run(["check", "--metrics", p, "--arm", "C4L", "--cell", "vctl",
+                    "--step", "40000", "--seed", "42", "--k", "8",
+                    "--rotate-deg", deg, "--pin", PIN, "--ckpt-sha", CKPT_SHA,
+                    "--expected-count", str(COUNT)])
+    assert rc == 0, out
+
+
+def test_cli_check_still_refuses_a_real_angle_on_a_random_cell(tmp_path):
+    p = _write_cell(tmp_path, "rgen")
+    rc, out = _run(["check", "--metrics", p, "--arm", "C4L", "--cell", "rgen",
+                    "--step", "40000", "--seed", "42", "--k", "8",
+                    "--rotate-deg", "45", "--pin", PIN, "--ckpt-sha", CKPT_SHA])
+    assert rc == 2, out
+
+
+def test_cli_argv_prints_the_same_argv_the_driver_must_render():
+    rc, out = _run(["argv", "--arm", "C4L", "--cell", "vctl", "--step", "40000",
+                    "--seed", "42", "--k", "8", "--rotate-deg", "45",
+                    "--metrics", "/m.json", "--pin", PIN, "--ckpt-sha", CKPT_SHA,
+                    "--expected-count", str(COUNT)])
+    assert rc == 0
+    printed = out.split()
+    c45 = V.Cell("C4L", "vctl", 40000, 42, 8, 45.0)
+    assert printed == V.check_argv(c45, "/m.json", pin=PIN,
+                                   ckpt_sha=CKPT_SHA, expected_count=COUNT)
