@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # ============================================================================
-# fa_orbit_screen_submit.sh — submit ONE exp_11 screen against a pinned,
-# LEASED measurement worktree.
+# yaw_gen_screen_submit.sh — submit ONE exp_14 cell against a pinned, LEASED
+# measurement worktree. Adapted from exp_11's fa_orbit_screen_submit.sh; the
+# transaction below is unchanged, only the campaign it submits for.
+#
+# For a whole wave use yaw_gen_submit_grid.sh, which enumerates the registered
+# grid, dedups against landed artifacts and calls THIS script per cell.
 #
 # Screens used to be submitted by hand, which is how job 3649599 ended up
 # reading code that moved underneath it. Submitting through this script makes
@@ -24,8 +28,12 @@
 #
 set -euo pipefail
 MAIN_REPO=/n/fs/gatrdp/codespace/FLAC
-EXPDIR="$MAIN_REPO/worklog/worklog_yixun/exp_11_fa_orbit_claude"
-HELPER="$EXPDIR/fa_orbit_measure_worktree.sh"
+EXPDIR="$MAIN_REPO/worklog/worklog_yixun/exp_14_yaw_gen_claude"
+# The measure-worktree store is SHARED (one lock, one freeze, one lease space for
+# every campaign on this machine) and its helper lives in exp_11's folder, which
+# is read-only to this experiment. Referenced in place, never copied: a second
+# copy would be a second lock discipline over the same directory.
+HELPER="$MAIN_REPO/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_measure_worktree.sh"
 
 # --- OUTER ENTRY: prove the lock before anything transactional happens -------
 # Re-exec under the store lock so that preparation, submission and leasing are
@@ -59,7 +67,7 @@ else
   exec bash "$HELPER" --with-lock bash "$0" "$@"
 fi
 
-ARM=""; STEP=""; SEED=42; K=8; CELL=screen; EXCLUDE=""; ROTATE_DEG=""; EVAL_ORBIT=""
+ARM=""; STEP=40000; SEED=42; K=8; CELL=""; EXCLUDE=""; ROTATE_DEG=""
 PIN_SHA=""; LOG=""
 
 # --- argument parsing: NEVER eval a value ------------------------------------
@@ -87,14 +95,13 @@ for kv in "$@"; do
   esac
   key="${kv%%=*}"; val="${kv#*=}"
   case "$key" in
-    ARM)        in_set "$val" C4L C8 C16 C32 VANL C4BACKFILL \
+    ARM)        in_set "$val" C4L C8 C16 C32 VANL \
                   || reject "ARM='${val}' is not a registered arm" ;;
-    CELL)       in_set "$val" screen conf r3 cross q9 traj \
+    CELL)       in_set "$val" rgen zref vctl \
                   || reject "CELL='${val}' is not a registered cell type" ;;
     STEP)       is_num "$val" || reject "STEP='${val}' is not numeric" ;;
     SEED)       is_num "$val" || reject "SEED='${val}' is not numeric" ;;
     K)          in_set "$val" 1 8 || reject "K='${val}' is not 1 or 8" ;;
-    EVAL_ORBIT) in_set "$val" 4 8 16 32 || reject "EVAL_ORBIT='${val}' is not 4|8|16|32" ;;
     ROTATE_DEG) is_decimal "$val" || reject "ROTATE_DEG='${val}' is not a decimal number" ;;
     PIN_SHA)    is_hex40 "$val" || reject "PIN_SHA='${val}' is not 40 hex characters" ;;
     EXCLUDE)    is_nodelist "$val" || reject "EXCLUDE='${val}' is not a comma-separated node list" ;;
@@ -106,23 +113,33 @@ for kv in "$@"; do
                   *) reject "LOG='${val}' must be an absolute ${EXPDIR}/..._screen.log path" ;;
                 esac
                 case "$val" in *[!A-Za-z0-9/._-]*) reject "LOG='${val}' has unsafe characters" ;; esac ;;
-    *)          reject "unknown argument '${kv}' (expected ARM=/STEP=/SEED=/K=/CELL=/EXCLUDE=/ROTATE_DEG=/EVAL_ORBIT=/PIN_SHA=/LOG=)" ;;
+    *)          reject "unknown argument '${kv}' (expected ARM=/STEP=/SEED=/K=/CELL=/EXCLUDE=/ROTATE_DEG=/PIN_SHA=/LOG=)" ;;
   esac
   printf -v "$key" '%s' "$val"      # name whitelisted above; value never parsed
 done
 
 # --- the CAMPAIGN PIN is the default, and disagreement is refused ------------
-CAMPAIGN_PIN="$(bash "$HELPER" --pinned 2>/dev/null)" || CAMPAIGN_PIN=""
-[ "$CAMPAIGN_PIN" = "<none>" ] && CAMPAIGN_PIN=""
+# exp_14 keeps its OWN pin file rather than the store-wide .campaign_pin marker:
+# the store is shared with other campaigns (exp_11's screens, exp_15's), one
+# marker cannot mean two commits at once, and a campaign that read someone else's
+# pin would measure half its grid somewhere else. Refusal semantics are the
+# store marker's, unchanged.
+PIN_FILE="${EXPDIR}/yaw_gen_campaign_pin"
+CAMPAIGN_PIN=""
+if [ -f "$PIN_FILE" ]; then
+  CAMPAIGN_PIN="$(head -1 "$PIN_FILE" | tr -d '[:space:]')"
+  is_hex40 "$CAMPAIGN_PIN" \
+    || reject "campaign pin file ${PIN_FILE} does not hold a 40-hex commit sha"
+fi
 if [ -n "$CAMPAIGN_PIN" ]; then
   if [ -z "$PIN_SHA" ]; then
     PIN_SHA="$CAMPAIGN_PIN"
-    echo "campaign pin (from ${MAIN_REPO}/.measure_worktrees/.campaign_pin): ${PIN_SHA}"
+    echo "campaign pin (from ${PIN_FILE}): ${PIN_SHA}"
   elif [ "$PIN_SHA" != "$CAMPAIGN_PIN" ]; then
     echo "PIN_SHA=${PIN_SHA} disagrees with the campaign pin ${CAMPAIGN_PIN}." >&2
     echo "A campaign measures every arm at ONE commit; submitting one cell elsewhere" >&2
     echo "would silently make it incomparable. To change the pin deliberately:" >&2
-    echo "  bash ${HELPER} --pin-campaign ${PIN_SHA}" >&2
+    echo "  printf '%s\\n' ${PIN_SHA} > ${PIN_FILE}" >&2
     exit 2
   fi
 fi
@@ -130,7 +147,10 @@ if [ -n "$PIN_SHA" ]; then
   git -C "$MAIN_REPO" rev-parse --verify --quiet "${PIN_SHA}^{commit}" >/dev/null \
     || reject "PIN_SHA ${PIN_SHA} is not a commit in this repository"
 fi
-[ -n "$ARM" ] && [ -n "$STEP" ] || { echo "usage: bash $0 ARM=C4L STEP=10000 [SEED=42] [K=8] [CELL=screen] [EXCLUDE=node[,node]] [ROTATE_DEG=..] [EVAL_ORBIT=..] [PIN_SHA=<40hex>] [LOG=...]" >&2; exit 2; }
+[ -n "$ARM" ] && [ -n "$CELL" ] && [ -n "$STEP" ] || { echo "usage: bash $0 ARM=C4L CELL=rgen [STEP=40000] [SEED=42] [K=8] [EXCLUDE=node[,node]] [ROTATE_DEG=90] [PIN_SHA=<40hex>] [LOG=...]" >&2; exit 2; }
+# CELL is REQUIRED and has no default here or in the driver: a cell type is a
+# protocol choice (announcement 05), and defaulting one would let an omitted
+# argument decide the experiment.
 
 # 0b. PREFLIGHT: the campaign freeze must be engaged.
 # The campaign's validity argument rests on "no worktree is deleted while it
@@ -160,7 +180,9 @@ fi
 [ -n "$PIN_SHA" ] && echo "campaign pin: ${PIN_SHA}"
 
 # 2. submit HELD: the id exists before the lease, the job runs after it
-JOB_NAME="exp11-screen-${ARM}-${CELL}-${STEP}-s${SEED}-K${K}"
+# The job name starts with exp14- so the wave submitter can count THIS campaign's
+# jobs in squeue without catching a neighbour's.
+JOB_NAME="exp14-screen-${ARM}-${CELL}-${STEP}-s${SEED}-K${K}"
 SBATCH="${FA_ORBIT_SBATCH:-sbatch}"          # guard-suite seam; a real run uses sbatch
 SCONTROL="${FA_ORBIT_SCONTROL:-scontrol}"
 SCANCEL="${FA_ORBIT_SCANCEL:-scancel}"
@@ -181,14 +203,13 @@ fi
 # CELL-specific parameters travel with the job, not as ambient state.
 CELL_EXPORT=""
 [ -n "$ROTATE_DEG" ] && CELL_EXPORT="${CELL_EXPORT},ROTATE_DEG=${ROTATE_DEG}"
-[ -n "$EVAL_ORBIT" ] && CELL_EXPORT="${CELL_EXPORT},EVAL_ORBIT=${EVAL_ORBIT}"
 [ -n "$LOG" ] && CELL_EXPORT="${CELL_EXPORT},LOG=${LOG}"
 JOBID="$("$SBATCH" --hold --parsable \
   --job-name="$JOB_NAME" \
   --output="${EXPDIR}/slurm_screen_%x_%j.out" \
   "${EXCLUDE_ARGV[@]}" \
   --export=ALL,MEASURE_ROOT="$WT",EXPECT_SHA="$EXPECT_SHA",ARM="$ARM",STEP="$STEP",SEED="$SEED",K="$K",CELL="$CELL""$CELL_EXPORT" \
-  "$EXPDIR/fa_orbit_screen.sbatch")" || { echo "sbatch FAILED - nothing submitted" >&2; exit 4; }
+  "$EXPDIR/yaw_gen_screen.sbatch")" || { echo "sbatch FAILED - nothing submitted" >&2; exit 4; }
 JOBID="${JOBID%%;*}"
 case "$JOBID" in ''|*[!0-9]*) echo "sbatch returned '${JOBID}', not a job id - abort" >&2; exit 4 ;; esac
 echo "submitted HELD as ${JOBID}"
@@ -235,7 +256,16 @@ if ! "$SCONTROL" release "$JOBID"; then
 fi
 
 # --- intent manifest: what was submitted, at which commit, with what exclusions
-INTENT="${EXPDIR}/fa_orbit_submission_${ARM}_${CELL}_S${STEP}_s${SEED}_K${K}_jid${JOBID}.txt"
+INTENT="${EXPDIR}/yaw_gen_submission_${ARM}_${CELL}_S${STEP}_s${SEED}_K${K}_jid${JOBID}.txt"
+# The intent manifest records the EVAL-PROTOCOL flags this cell will run under,
+# not just its identity (announcement 05: a mismatched flag produces
+# plausible-looking, catastrophically wrong numbers, so the launch record has to
+# be readable for protocol compliance on its own).
+case "$CELL" in
+  rgen) ROT_INTENT="rotate_mode random rotate_seed ${SEED} rotate_deg <null>" ;;
+  vctl) ROT_INTENT="rotate_mode fixed rotate_seed <n/a> rotate_deg ${ROTATE_DEG}" ;;
+  *)    ROT_INTENT="rotate_mode fixed rotate_seed <n/a> rotate_deg 0" ;;
+esac
 { printf 'job %s name %s submitted_at %s by %s@%s\n' "$JOBID" "$JOB_NAME" "$(date -Is)" \
          "$(id -un)" "$(hostname)"
   printf 'arm %s cell %s step %s seed %s K %s\n' "$ARM" "$CELL" "$STEP" "$SEED" "$K"
@@ -243,7 +273,9 @@ INTENT="${EXPDIR}/fa_orbit_submission_${ARM}_${CELL}_S${STEP}_s${SEED}_K${K}_jid
   printf 'expect_sha %s\n' "$EXPECT_SHA"
   printf 'measure_root %s\n' "$WT"
   printf 'exclude %s\n' "${EXCLUDE:-<none>}"
-  printf 'rotate_deg %s eval_orbit %s\n' "${ROTATE_DEG:-<n/a>}" "${EVAL_ORBIT:-<n/a>}"
+  printf '%s\n' "$ROT_INTENT"
+  printf 'batch_size 64 num_workers 4 expected_stream_count 6337 record_stream yes\n'
+  printf 'cond_autocast bf16 cfg_scale 1.0 steps 1 use_ema yes\n'
   printf 'lease %s\n' "${WT}/.leases/${JOBID}"
 } > "$INTENT" || echo "WARNING: could not write the intent manifest ${INTENT}" >&2
 echo "intent manifest: ${INTENT}"
