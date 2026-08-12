@@ -1,0 +1,43 @@
+=== exp_15 plan §7 rung 4 — bounded real-AR readback ===
+commit: 7b3021b4c836c05657017a7f08a4761d60e70029
+argv: python worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_real_data_readback.py --batches 6 --batch-size 4
+
+dataset config : src/configs/dataset_configs/AR/train/acousticroom_train.json
+split          : data/AR/train.json
+reading        : 6 batches x 4 = 24 samples, num_workers=1, CPU
+offsets tested : (1, 128, 511) columns of 512
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+Traceback (most recent call last):
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 300, in _run_finalizers
+    finalizer()
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 224, in __call__
+    res = self._callback(*self._args, **self._kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 133, in _remove_temp_dir
+    rmtree(tempdir)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 725, in rmtree
+    _rmtree_safe_fd(fd, path, onerror)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 681, in _rmtree_safe_fd
+    onerror(os.unlink, fullname, sys.exc_info())
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 679, in _rmtree_safe_fd
+    os.unlink(entry.name, dir_fd=topfd)
+OSError: [Errno 16] Device or resource busy: '.nfs00000006d3b1ac0b0003707e'
+
+observed fields (sample 0):
+  depth: (3, 256, 512) torch.float64
+  source: (3,) torch.float32
+  source_vit: (1, 3) torch.float32
+  context_poses: (8, 3) torch.float32
+  context_poses_vit: (8, 3) torch.float32
+  context_audio: (8, 1, 9600) torch.float32
+  padding_mask: (10240,) torch.float32
+
+
+samples checked: 24 in 17.2s
+PASS — real AR records satisfy every contract the yaw augmentation relies on:
+  depth [3, 256, 512] float, finite
+  source / source_vit / context_poses / context_poses_vit present, float, finite, trailing dim 3
+  roll-by-d equivalence, exact (d, W-d) round-trip, panorama consistency,
+  pose-norm preservation and z-invariance at every tested offset
+exit: 0
