@@ -570,8 +570,10 @@ def test_match_assignments_ignores_singleton_groups(tmp_path):
 # --------------------------------------------------------------------------- #
 def _fake_data(cell):
     return C.CellData(cell=cell, path=f"/synthetic/{V.eval_name(cell)}.json",
-                      metrics=synthetic_metrics(cell), input_hash="i" * 64,
-                      assignment_hash="a" * 64, offsets=(), source_sha=PIN)
+                      metrics=synthetic_metrics(cell),
+                      flat_metrics={m: synthetic_metrics(cell)[m] for m in C.G5_METRICS},
+                      input_hash="i" * 64, assignment_hash="a" * 64, offsets=(),
+                      source_sha=PIN)
 
 
 def test_pair_seeds_pairs_the_five_registered_seeds():
@@ -1371,3 +1373,67 @@ def test_g2_follows_the_scene_mean_not_the_split_t60(tmp_path):
     gates = C.evaluate_gates(C.collect_cells(root, expectation()))
     assert gates["G2"]["status"] == "FAIL", (
         "G2 read the split-level T60 instead of the ruled scene-mean")
+
+
+# --------------------------------------------------------------------------- #
+# 18. round-3 CLOSURE fix FX5 (finding B6) — G5 must compare LIKE estimands
+#
+# After the per-metric ruling, exp_14's T60 observation is the scene-mean while
+# exp_11's committed rows only ever carried the flat split-level number. G5 is a
+# REPRODUCTION check, so it has to read exp_14's flat T60 too — otherwise its
+# difference and 3σ threshold compare two different quantities and would flag (or
+# excuse) a discrepancy that is really just the aggregation.
+# --------------------------------------------------------------------------- #
+def _exp11_conf_rows(root, arm, k, value, seeds=V.SEEDS, step=V.STEP):
+    """Five committed exp_11 conf rows for one (arm, K), at a chosen T60."""
+    orbit = V.TRAIN_ORBIT[arm]
+    suffix = "" if orbit == 0 else f"_fa_invariant_a{orbit}"
+    d = os.path.join(root, f"exp11_{arm}", f"FLAC_exp11_{arm}", f"exp11_{arm}",
+                     "checkpoints")
+    os.makedirs(d, exist_ok=True)
+    for i, seed in enumerate(seeds):
+        name = (f"epoch=8-step={step}_metrics_1_1.0_exp11_{arm}_conf_S{step}"
+                f"_s{seed}_K{k}{suffix}.json")
+        with open(os.path.join(d, name), "w") as fh:
+            json.dump({"metrics": {"T60": value + i * 0.01,
+                                   "RIR_to_GT_RIR_R@1": 5.0}}, fh)
+
+
+def test_g5_compares_flat_to_flat_not_scene_mean_to_flat(tmp_path):
+    root = str(tmp_path)
+    # every exp_14 cell: scene-mean T60 = 9.0-ish, flat (split) T60 = 20.0
+    for cell in V.expected_grid():
+        flat = dict(synthetic_metrics(cell), T60=20.0)
+        write_cell(root, cell, record_patch={"metrics": flat})
+    _exp11_conf_rows(root, "C8", 8, 20.0)          # exp_11 agrees with the FLAT value
+    gates = C.evaluate_gates(C.collect_cells(root, expectation()), exp11_root=root)
+    rows = [r for r in gates["G5"]["rows"] if r["arm"] == "C8" and r["metric"] == "T60"]
+    assert rows, gates["G5"]
+    row = rows[0]
+    assert row["exp14_mean"] == pytest.approx(20.0, abs=0.05), (
+        "G5 read the scene-mean T60 against exp_11's split-level number")
+    assert not row["beyond"], row
+    assert "flat" in gates["G5"]["definition"].lower() or "split" in row.get("source", "")
+
+
+def test_g5_flags_a_real_flat_discrepancy(tmp_path):
+    root = str(tmp_path)
+    for cell in V.expected_grid():
+        write_cell(root, cell, record_patch={"metrics": dict(synthetic_metrics(cell),
+                                                             T60=20.0)})
+    _exp11_conf_rows(root, "C8", 8, 30.0)          # a genuine 10-point difference
+    gates = C.evaluate_gates(C.collect_cells(root, expectation()), exp11_root=root)
+    row = [r for r in gates["G5"]["rows"] if r["arm"] == "C8" and r["metric"] == "T60"][0]
+    assert row["beyond"], row
+    assert gates["all_passed"] is True, "G5 must never gate, however loudly it reports"
+
+
+def test_g5_labels_the_source_it_read(tmp_path):
+    root = str(tmp_path)
+    for cell in V.expected_grid():
+        write_cell(root, cell)
+    _exp11_conf_rows(root, "C8", 8, synthetic_metrics(a_cell(arm="C8"))["T60"])
+    results = _results(root, exp11_root=root)
+    text = C.render_tables(results)
+    assert "split-level" in text.split("G5")[1][:600], (
+        "the G5 line does not say which estimand it compared")

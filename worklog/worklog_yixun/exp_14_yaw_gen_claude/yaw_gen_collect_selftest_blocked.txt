@@ -1,6 +1,6 @@
 # exp_14 — random-yaw generalization: collected readouts
 
-Generated 2026-08-11T21:39:15-04:00 by `yaw_gen_collect.py` — every cell is re-validated from its own artifacts on each run; numbers never live in this file.
+Generated 2026-08-11T23:02:16-04:00 by `yaw_gen_collect.py` — every cell is re-validated from its own artifacts on each run; numbers never live in this file.
 
 - campaign pin `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` · step 40000 · seeds [42, 43, 44, 45, 46] · α=0.05 · stats backend: scipy
 - co-primary metrics: T60, RIR_to_GT_RIR_R@1 (Holm over the two, within each labelled hypothesis)
@@ -27,12 +27,12 @@ Generated 2026-08-11T21:39:15-04:00 by `yaw_gen_collect.py` — every cell is re
 **G4 FAIL** — C32 K=8 seed 43: the unrotated cell's input_hash 49dbe8108948 != the rotated cell's e4e753f5676d — Z and R are not a pair
 
 
-*G5 (external reproduction — a CHECK, never a gate): UNAVAILABLE.* exp_14 Z vs exp_11 conf @40k; disclose |Δ| > 3·√(σ11²+σ14²)/√5 (cross-pin: reported, never a halt)
+*G5 (external reproduction — a CHECK, never a gate): UNAVAILABLE.* exp_14 Z vs exp_11 conf @40k, SPLIT-LEVEL on both sides (exp_11 never measured a scene-mean); disclose |Δ| > 3·√(σ11²+σ14²)/√5 (cross-pin: reported, never a halt)
 
-- C4L: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_fxd4wifx/blocked
-- C8: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_fxd4wifx/blocked
-- C16: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_fxd4wifx/blocked
-- C32: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_fxd4wifx/blocked
+- C4L: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_gb4z__l2/blocked
+- C8: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_gb4z__l2/blocked
+- C16: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_gb4z__l2/blocked
+- C32: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_gb4z__l2/blocked
 
 ## 3. Absolute robustness m_R (the PRIMARY criterion)
 

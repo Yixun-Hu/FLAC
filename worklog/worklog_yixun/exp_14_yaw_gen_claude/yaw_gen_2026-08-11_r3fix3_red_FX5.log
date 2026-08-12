@@ -1,0 +1,3 @@
+E         comparison failed
+FAILED src/tests/test_yaw_gen_collect.py::test_g5_compares_flat_to_flat_not_scene_mean_to_flat
+1 failed, 2 passed, 110 deselected, 3 warnings in 40.03s

@@ -82,7 +82,8 @@ CellArtifact = namedtuple("CellArtifact", "cell path record screenmeta stream")
 # The slim view kept after validation: everything the cross-cell reasoning needs
 # and nothing that would keep 106 × 6,337 tuples alive at once.
 CellData = namedtuple("CellData",
-                      "cell path metrics input_hash assignment_hash offsets source_sha")
+                      "cell path metrics flat_metrics input_hash assignment_hash "
+                      "offsets source_sha")
 
 Expectation = namedtuple("Expectation", "pin ckpt_sha expected_count")
 
@@ -249,6 +250,24 @@ def _scene_column(by_scene, metric):
     return (st.mean(column) if column else None), reasons
 
 
+def flat_observation(record, metrics=None):
+    """``(values, reasons)`` — the split-level payload, validated for G5's use."""
+    metrics = tuple(G5_METRICS if metrics is None else metrics)
+    flat = record.get("metrics")
+    if not isinstance(flat, dict):
+        return {}, ["metrics block is missing or is not an object"]
+    reasons, values = [], {}
+    for metric in metrics:
+        if metric not in flat:
+            reasons.append(f"the split-level metrics do not report {metric}, which the "
+                           "G5 reproduction check compares against exp_11")
+        elif not _finite(flat[metric]):
+            reasons.append(f"split-level {metric}={flat[metric]!r} is not a finite number")
+        else:
+            values[metric] = float(flat[metric])
+    return values, reasons
+
+
 def cell_observation(record, required=None, optional=None):
     """``(metrics, reasons)`` — each metric read from ITS ruled source.
 
@@ -309,9 +328,12 @@ def slim(artifact):
     """
     stream = artifact.stream
     metrics, reasons = cell_observation(artifact.record)
+    flat, flat_reasons = flat_observation(artifact.record)
+    reasons = list(reasons) + list(flat_reasons)
     if reasons:
         return None, reasons
     return CellData(cell=artifact.cell, path=artifact.path, metrics=metrics,
+                    flat_metrics=flat,
                     input_hash=stream.get("input_hash"),
                     assignment_hash=stream.get("assignment_hash"),
                     offsets=tuple(stream.get("offsets") or ()),
@@ -692,6 +714,11 @@ METRIC_ALIAS = {"T60%": "T60", "T60 (%)": "T60", "R@1": "RIR_to_GT_RIR_R@1",
 # point cloud through a non-yaw-invariant AGREE, so only those are confounded in
 # a rotated cell — reported, but never in a headline table.
 CO_PRIMARY = ("T60", "RIR_to_GT_RIR_R@1")
+# G5 is a REPRODUCTION check against exp_11's committed rows, and those rows only
+# ever carried the flat split-level numbers. So G5 compares FLAT to FLAT — the
+# scene-mean is this campaign's estimand, not a quantity exp_11 ever measured
+# (round-3 closure B6).
+G5_METRICS = CO_PRIMARY
 CONFOUNDED_METRICS = ("RIR_to_geom_R@1", "RIR_to_geom_R@5", "RIR_to_geom_R@10")
 HEADLINE_METRICS = ("T60", "C50", "EDT", "FD", "RIR_to_GT_RIR_R@1",
                     "RIR_to_GT_RIR_R@5", "RIR_to_GT_RIR_R@10")
@@ -982,10 +1009,17 @@ def gate_g5(store, exp11_root=None, k=8, metrics=CO_PRIMARY, factor=3.0):
         if len(files) < len(SEEDS):
             notes.append(f"{arm}: {len(files)}/5 exp_11 conf rows found under {root}")
             continue
-        ours = aggregate_cell(store.block(arm, "zref", k))
+        block = store.block(arm, "zref", k)
+        ours = aggregate_cell(block)
         if ours.status != "OK":
             notes.append(f"{arm}: exp_14 Z block at K={k} is {ours.status}")
             continue
+        # FLAT to FLAT (round-3 closure B6). exp_11's committed rows carry only
+        # the split-level numbers, so comparing them against exp_14's scene-mean
+        # would report the AGGREGATION as a reproduction discrepancy — or hide a
+        # real one behind it.
+        flat_seed = {m: [c.flat_metrics[m] for c in block if m in c.flat_metrics]
+                     for m in metrics}
         for metric in metrics:
             theirs = []
             for path in files:
@@ -999,16 +1033,24 @@ def gate_g5(store, exp11_root=None, k=8, metrics=CO_PRIMARY, factor=3.0):
             if len(theirs) != len(SEEDS):
                 continue
             m11, s11 = st.mean(theirs), st.stdev(theirs)
-            m14, s14 = ours.values[metric]
+            mine = flat_seed.get(metric) or []
+            if len(mine) != len(SEEDS):
+                notes.append(f"{arm}: exp_14 K={k} has {len(mine)}/{len(SEEDS)} "
+                             f"split-level {metric} values, so the flat-to-flat "
+                             "reproduction check cannot be made")
+                continue
+            m14, s14 = st.mean(mine), st.stdev(mine)
             bound = factor * math.sqrt(s11 ** 2 + s14 ** 2) / math.sqrt(len(SEEDS))
             rows.append({"arm": arm, "metric": metric, "exp11_mean": m11,
                          "exp11_std": s11, "exp14_mean": m14, "exp14_std": s14,
                          "diff": m14 - m11, "bound": bound,
+                         "source": "split-level (both sides)",
                          "beyond": abs(m14 - m11) > bound})
     return {"name": "G5", "status": "CHECK" if rows else "UNAVAILABLE", "rows": rows,
             "notes": notes, "gates": False,
-            "definition": "exp_14 Z vs exp_11 conf @40k; disclose |Δ| > 3·√(σ11²+σ14²)/√5 "
-                          "(cross-pin: reported, never a halt)"}
+            "definition": "exp_14 Z vs exp_11 conf @40k, SPLIT-LEVEL on both sides "
+                          "(exp_11 never measured a scene-mean); disclose "
+                          "|Δ| > 3·√(σ11²+σ14²)/√5 (cross-pin: reported, never a halt)"}
 
 
 def evaluate_gates(store, exp11_root=None):
