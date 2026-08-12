@@ -1,0 +1,10 @@
+
+==================================== ERRORS ====================================
+____________ ERROR collecting src/tests/test_exp14_validate_cell.py ____________
+src/tests/test_exp14_validate_cell.py:1020: in <module>
+    def _per_scene(n=V.EXPECTED_SCENES):
+E   AttributeError: module 'exp14_validate_cell' has no attribute 'EXPECTED_SCENES'. Did you mean: 'EXPECTED_COUNT'?
+=========================== short test summary info ============================
+ERROR src/tests/test_exp14_validate_cell.py - AttributeError: module 'exp14_v...
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.18s

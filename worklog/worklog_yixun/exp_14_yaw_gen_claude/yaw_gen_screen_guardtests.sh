@@ -489,6 +489,7 @@ argv_lacks "rgen passes NO fixed angle"                         "$RGEN_ARGV" "--
 argv_has  "rgen names itself by its rotation seed"              "$RGEN_ARGV" "exp14_C32_rgen_S40000_s44_K8_rotrand44"
 argv_has  "rgen pins the campaign batch/worker settings"        "$RGEN_ARGV" "--batch-size 64 --num-workers 4"
 argv_has  "rgen pins the split size and records the stream"     "$RGEN_ARGV" "--expected-stream-count 6337 --record-stream"
+argv_has  "rgen records the PER-SCENE block (plan §4 estimand)" "$RGEN_ARGV" "--record-per-scene"
 argv_has  "rgen pins the protocol flags"                        "$RGEN_ARGV" "--cond-autocast bf16 --cfg-scale 1.0 --steps 1"
 argv_has  "rgen keeps the arm's OWN orbit (C32)"                "$RGEN_ARGV" "--cond-method fa_invariant"
 # --- zref: the theta=0 reference is the BYTE-DEFAULT fixed path --------------
@@ -496,6 +497,7 @@ ZREF_ARGV="$(argv_of "${BASE[@]}" ARM=C8 CELL=zref STEP=40000 SEED=42 K=8)"
 argv_lacks "zref passes no rotation flag of any kind"           "$ZREF_ARGV" "--rotate"
 argv_has  "zref names itself without a rotation token"          "$ZREF_ARGV" "exp14_C8_zref_S40000_s42_K8 "
 argv_has  "zref still records its assignment stream"            "$ZREF_ARGV" "--expected-stream-count 6337 --record-stream"
+argv_has  "zref records the PER-SCENE block too (Delta is paired)" "$ZREF_ARGV" "--record-per-scene"
 argv_has  "zref keeps the arm's OWN orbit"                      "$ZREF_ARGV" "0.0,45.0,90.0,135.0,180.0,225.0,270.0,315.0"
 # --- vctl: the fixed-angle validity controls --------------------------------
 VCTL45="$(argv_of "${BASE[@]}" ARM=C4L CELL=vctl STEP=40000 ROTATE_DEG=45)"
@@ -533,7 +535,8 @@ for SPEC in "C32 rgen 44 8 -" "C8 zref 42 8 -" "C4L vctl 42 8 45" "VANL vctl 42 
   DRIVER_PIN="$(printf '%s\n' "$GOT" | sed -n 's/.*--pin \([0-9a-f]\{40\}\).*/\1/p')"
   A_ARGS=(argv --metrics "<metrics>" --arm "$1" --cell "$2" --step 40000 --seed "$3" --k "$4")
   [ "$5" = "-" ] || A_ARGS+=(--rotate-deg "$5")
-  A_ARGS+=(--pin "${DRIVER_PIN:-$HEAD_SHA}" --ckpt-sha "<ckpt-sha256>" --expected-count 6337)
+  A_ARGS+=(--pin "${DRIVER_PIN:-$HEAD_SHA}" --ckpt-sha "<ckpt-sha256>" --expected-count 6337
+           --expected-scenes 17)
   WANT="$($PY "$VALIDATOR" "${A_ARGS[@]}")"
   if [ "$GOT" != "$WANT" ]; then
     echo "FAIL  validation argv mismatch for ${SPEC}"
@@ -1832,7 +1835,13 @@ json.dump({"metrics": {"T60_error": 1.0}, "ckpt_path": ckpt, "rotate_deg": 90.0,
            "batch_size": 64, "n_samples": V.EXPECTED_COUNT,
            "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
            "seed": 42, "cfg_scale": 1.0, "steps": 1, "eval_name": name,
-           "weights_source": "ema", "device": "cuda"}, open(p, "w"))
+           "weights_source": "ema", "device": "cuda",
+           # the per-scene estimand (plan §4): a landed cell carries it or it is
+           # not a cell of this campaign (round-3 review B1)
+           "by_scene": {f"Room{i}/Room{i}_idx_{i}": {"T60": 9.0 + i}
+                        for i in range(V.EXPECTED_SCENES)},
+           "per_scene_schema": V.PER_SCENE_SCHEMA,
+           "scene_count": V.EXPECTED_SCENES}, open(p, "w"))
 json.dump({"arm": "C4L", "step": 40000, "seed": 42, "K": 8, "eval_name": name,
            "cfg_scale": 1.0, "steps": 1, "model_config": "x", "model_config_sha256": "c" * 64,
            "dataset_config": "x", "ckpt_path": ckpt, "ckpt_sha256": sha, "use_ema": True,
@@ -1840,7 +1849,8 @@ json.dump({"arm": "C4L", "step": 40000, "seed": 42, "K": 8, "eval_name": name,
            "cond_autocast": "bf16", "commit": pin, "cell": "vctl",
            "training_orbit": 4, "eval_orbit": 4, "rotate_mode": "fixed",
            "rotate_deg": 90.0, "rotate_seed": None, "expected_stream_count": V.EXPECTED_COUNT,
-           "record_stream": True, "stream_sidecar": "s", "batch_size": 64,
+           "record_stream": True, "record_per_scene": True,
+           "stream_sidecar": "s", "batch_size": 64,
            "num_workers": 4}, open(p + ".screenmeta.json", "w"))
 json.dump({"schema_version": 1, "fingerprint_schema": 1, "rotate_mode": "fixed",
            "rotate_seed": None, "rotate_deg": 90.0, "img_w": 512,

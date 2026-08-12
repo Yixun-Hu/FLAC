@@ -74,6 +74,12 @@ IMG_W = 512
 # sidecar written under another version is not comparable and is refused.
 STREAM_SCHEMA_VERSION = 1
 FINGERPRINT_SCHEMA = 1
+PER_SCENE_SCHEMA = 1
+# The published unseen split is 6,337 items across 17 ROOMS (announcement 01).
+# The campaign's per-seed observation is the per-scene mean (plan §4), so the
+# room count is a campaign constant exactly like the item count: a cell whose
+# per-scene block covers a different room set averaged a different estimand.
+EXPECTED_SCENES = 17
 SPLIT_K8 = "acousticroom_unseeneval.json"
 SPLIT_K1 = "acousticroom_unseeneval_1.json"
 
@@ -302,7 +308,8 @@ def _eq(reasons, label, got, want):
         reasons.append(f"{label} {got!r} != expected {want!r}")
 
 
-def validate_metrics_record(rec, cell, pin=None, expected_count=EXPECTED_COUNT):
+def validate_metrics_record(rec, cell, pin=None, expected_count=EXPECTED_COUNT,
+                            expected_scenes=EXPECTED_SCENES):
     """Named reasons why ``rec`` is not this cell's metrics record ([] = valid)."""
     reasons = []
     mode, deg, rseed = rotation_expectation(cell)
@@ -361,6 +368,40 @@ def validate_metrics_record(rec, cell, pin=None, expected_count=EXPECTED_COUNT):
         got = rec.get("rotate_deg")
         if got is None or float(got) != float(deg):
             reasons.append(f"rotate_deg {got!r} != expected {deg!r}")
+    reasons += _per_scene_reasons(rec, expected_scenes)
+    return reasons
+
+
+def _per_scene_reasons(rec, expected_scenes=EXPECTED_SCENES):
+    """Named reasons the per-scene block is not this campaign's (plan §4).
+
+    Required, with NO fallback. The estimand is the per-scene mean, so a cell
+    that did not record `by_scene` did not measure it — and a collector that
+    silently averaged over items instead would answer a different question in the
+    same table cell (round-3 review B1).
+    """
+    reasons = []
+    by_scene = rec.get("by_scene")
+    if not isinstance(by_scene, dict) or not by_scene:
+        return [f"by_scene {type(by_scene).__name__ if by_scene is not None else None} "
+                "is missing or empty: this campaign's observation is the PER-SCENE "
+                "mean, so a cell without per-scene results did not measure the "
+                "estimand (pass --record-per-scene)"]
+    if rec.get("per_scene_schema") != PER_SCENE_SCHEMA:
+        reasons.append(f"per_scene_schema {rec.get('per_scene_schema')!r} != "
+                       f"{PER_SCENE_SCHEMA} — written under another contract")
+    if len(by_scene) != int(expected_scenes):
+        reasons.append(f"by_scene covers {len(by_scene)} scene(s), not the split's "
+                       f"{int(expected_scenes)}: a per-scene mean over a different "
+                       "room set is a different number")
+    if rec.get("scene_count") != len(by_scene):
+        reasons.append(f"scene_count {rec.get('scene_count')!r} != the {len(by_scene)} "
+                       "scene(s) actually recorded")
+    for scene, payload in sorted(by_scene.items()):
+        if not isinstance(payload, dict) or not payload:
+            reasons.append(f"by_scene[{scene!r}] is not a metric mapping "
+                           f"({type(payload).__name__})")
+            break
     return reasons
 
 
@@ -462,6 +503,7 @@ def validate_screenmeta(meta, cell, pin=None, ckpt_sha=None,
     _eq(reasons, "screenmeta expected_stream_count", meta.get("expected_stream_count"),
         int(expected_count))
     _eq(reasons, "screenmeta record_stream", meta.get("record_stream"), True)
+    _eq(reasons, "screenmeta record_per_scene", meta.get("record_per_scene"), True)
     _eq(reasons, "screenmeta use_ema", meta.get("use_ema"), True)
     _eq(reasons, "screenmeta training_orbit", meta.get("training_orbit"), TRAIN_ORBIT[cell.arm])
     _eq(reasons, "screenmeta eval_orbit", meta.get("eval_orbit"), TRAIN_ORBIT[cell.arm])
@@ -493,7 +535,8 @@ def _read_record(path, label):
     return obj, []
 
 
-def validate_cell(metrics, cell, pin=None, ckpt_sha=None, expected_count=EXPECTED_COUNT):
+def validate_cell(metrics, cell, pin=None, ckpt_sha=None, expected_count=EXPECTED_COUNT,
+                  expected_scenes=EXPECTED_SCENES):
     """Every named reason this cell's artifacts are not valid; ``[]`` when they are.
 
     Raises ``ValueError`` for an UNREGISTERED cell before touching the filesystem:
@@ -517,7 +560,8 @@ def validate_cell(metrics, cell, pin=None, ckpt_sha=None, expected_count=EXPECTE
     if ckpt_sha is None:
         reasons.append("expected ckpt sha256 not supplied: a cell cannot be declared "
                        "valid without checking WHICH checkpoint it evaluated")
-    reasons += validate_metrics_record(rec, cell, pin=pin, expected_count=expected_count)
+    reasons += validate_metrics_record(rec, cell, pin=pin, expected_count=expected_count,
+                                      expected_scenes=expected_scenes)
 
     meta_p = screenmeta_path(metrics)
     if not os.path.isfile(meta_p):
@@ -562,7 +606,8 @@ def parse_deg(value):
     return None if deg == 0.0 else deg
 
 
-def check_argv(cell, metrics, pin=None, ckpt_sha=None, expected_count=EXPECTED_COUNT):
+def check_argv(cell, metrics, pin=None, ckpt_sha=None, expected_count=EXPECTED_COUNT,
+               expected_scenes=EXPECTED_SCENES):
     """The canonical ``check`` argv for one cell — the ONE definition of it.
 
     The screen driver renders these flags in shell (it already knows every value
@@ -580,7 +625,8 @@ def check_argv(cell, metrics, pin=None, ckpt_sha=None, expected_count=EXPECTED_C
         argv += ["--pin", str(pin)]
     if ckpt_sha is not None:
         argv += ["--ckpt-sha", str(ckpt_sha)]
-    argv += ["--expected-count", str(int(expected_count))]
+    argv += ["--expected-count", str(int(expected_count)),
+             "--expected-scenes", str(int(expected_scenes))]
     return argv
 
 
@@ -626,7 +672,8 @@ def _cmd_argv(args):
         print(f"argv: {exc}", file=sys.stderr)
         return 2
     print(" ".join(check_argv(cell, args.metrics, pin=args.pin, ckpt_sha=args.ckpt_sha,
-                              expected_count=args.expected_count)))
+                              expected_count=args.expected_count,
+                              expected_scenes=args.expected_scenes)))
     return 0
 
 
@@ -643,7 +690,8 @@ def _cmd_check(args):
         print(f"MISSING {eval_name(cell)}: {args.metrics}")
         return 3
     reasons = validate_cell(args.metrics, cell, pin=args.pin, ckpt_sha=args.ckpt_sha,
-                            expected_count=args.expected_count)
+                            expected_count=args.expected_count,
+                            expected_scenes=args.expected_scenes)
     if reasons:
         print(f"INVALID {eval_name(cell)} ({len(reasons)} reason(s)):")
         for r in reasons:
@@ -674,7 +722,8 @@ def _cmd_classify(args):
             print(f"{_fmt_cell(cell)} MISSING {path}")
             continue
         reasons = validate_cell(path, cell, pin=args.pin, ckpt_sha=expect[cell.arm],
-                                expected_count=args.expected_count)
+                                expected_count=args.expected_count,
+                                expected_scenes=args.expected_scenes)
         if reasons:
             print(f"{_fmt_cell(cell)} INVALID {path} :: " + "; ".join(reasons))
         else:
@@ -701,6 +750,7 @@ def main(argv=None):
     c.add_argument("--pin", default=None)
     c.add_argument("--ckpt-sha", default=None)
     c.add_argument("--expected-count", type=int, default=EXPECTED_COUNT)
+    c.add_argument("--expected-scenes", type=int, default=EXPECTED_SCENES)
     c.set_defaults(func=_cmd_check)
 
     j = sub.add_parser("jobname", help="print the canonical Slurm job name for one cell")
@@ -723,6 +773,7 @@ def main(argv=None):
     a.add_argument("--pin", default=None)
     a.add_argument("--ckpt-sha", default=None)
     a.add_argument("--expected-count", type=int, default=EXPECTED_COUNT)
+    a.add_argument("--expected-scenes", type=int, default=EXPECTED_SCENES)
     a.set_defaults(func=_cmd_argv)
 
     cl = sub.add_parser("classify", help="status of every cell in a wave (dedup input)")
@@ -732,6 +783,7 @@ def main(argv=None):
     cl.add_argument("--ckpt-expect", default=CKPT_EXPECT,
                     help="audited arm -> checkpoint sha256 map (exp14_ckpt_expect.json)")
     cl.add_argument("--expected-count", type=int, default=EXPECTED_COUNT)
+    cl.add_argument("--expected-scenes", type=int, default=EXPECTED_SCENES)
     cl.set_defaults(func=_cmd_classify)
 
     args = parser.parse_args(argv)

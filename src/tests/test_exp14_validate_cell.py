@@ -75,9 +75,23 @@ def _stream(cell, count=COUNT, offset_for=lambda i: 0):
     return rec
 
 
+def _scene_map(n=17):
+    """A per-scene block of the campaign's shape: one metric mapping per room."""
+    return {f"Room{i}/Room{i}_idx_{i}": {"T60": 9.0 + i, "C50": 1.0, "EDT": 43.0,
+                                         "FD": 0.34, "RIR_to_GT_RIR_R@1": 5.0,
+                                         "RIR_to_GT_RIR_R@5": 15.0,
+                                         "RIR_to_GT_RIR_R@10": 23.0}
+            for i in range(n)}
+
+
 def _metrics(cell, arm="C4L", seed=42, k=8):
     rec = {
         "metrics": {"T60_error": 1.0, "RIR_to_GT_RIR_R@1": 0.5},
+        # The estimand is the PER-SCENE mean (plan §4), so per-scene evidence is
+        # part of what makes a cell valid at all — not an extra (round-3 B1).
+        "by_scene": _scene_map(),
+        "per_scene_schema": 1,
+        "scene_count": 17,
         "ckpt_path": f"/o/exp11_{arm}/checkpoints/epoch=8-step=40000.ckpt",
         "rotate_deg": 0.0,
         "cond_method": "vanilla" if arm == "VANL" else "fa_invariant",
@@ -130,6 +144,7 @@ def _screenmeta(cell, arm="C4L", seed=42, k=8):
         "rotate_deg": None if cell == "rgen" else (90.0 if cell == "vctl" else 0.0),
         "rotate_seed": seed if cell == "rgen" else None,
         "expected_stream_count": COUNT, "record_stream": True,
+        "record_per_scene": True,
         "stream_sidecar": "m.stream.json",
         "batch_size": 64, "num_workers": 4,
     }
@@ -1007,3 +1022,90 @@ def test_every_registered_cell_lands_in_a_distinct_metrics_file():
 def test_every_registered_cell_has_a_distinct_stream_sidecar():
     ckpt = "/o/exp11_X/checkpoints/epoch=8-step=40000.ckpt"
     assert len({V.stream_path(V.metrics_path(ckpt, c)) for c in V.expected_grid()}) == 106
+
+
+# --------------------------------------------------------------------------- #
+# round-3 fix R3F1b — the campaign REQUIRES per-scene evidence
+#
+# The plan's estimand is the per-scene mean, so a cell that did not record
+# `by_scene` did not measure it. There is no fallback: this campaign's kit passes
+# --record-per-scene for every cell, and a cell without the block is INVALID
+# rather than "aggregated the other way".
+# --------------------------------------------------------------------------- #
+_per_scene = _scene_map
+
+
+def _record_with_scenes(cell="zref", arm="C4L", seed=42, k=8, **patch):
+    rec = _metrics(cell, arm=arm, seed=seed, k=k)
+    rec.update(patch)
+    return rec
+
+
+def test_expected_scenes_is_the_published_room_count():
+    assert V.EXPECTED_SCENES == 17
+    assert V.PER_SCENE_SCHEMA == 1
+
+
+def test_a_record_carrying_the_per_scene_block_validates():
+    cell = V.Cell("C4L", "zref", 40000, 42, 8, None)
+    assert V.validate_metrics_record(_record_with_scenes(), cell, pin=PIN,
+                                     expected_count=COUNT) == []
+
+
+def test_a_record_without_the_per_scene_block_is_invalid():
+    """No fallback: the per-scene mean is the estimand, so a cell that cannot
+    produce it is not a cell of this campaign."""
+    cell = V.Cell("C4L", "zref", 40000, 42, 8, None)
+    rec = _metrics("zref")
+    for key in ("by_scene", "per_scene_schema", "scene_count"):
+        rec.pop(key, None)
+    reasons = V.validate_metrics_record(rec, cell, pin=PIN, expected_count=COUNT)
+    assert reasons and any("by_scene" in r for r in reasons), reasons
+
+
+@pytest.mark.parametrize("patch,needle", [
+    ({"by_scene": {}}, "by_scene"),
+    ({"by_scene": []}, "by_scene"),
+    ({"scene_count": 3}, "scene_count"),
+    ({"per_scene_schema": 2}, "per_scene_schema"),
+])
+def test_a_malformed_per_scene_block_is_named(patch, needle):
+    cell = V.Cell("C4L", "zref", 40000, 42, 8, None)
+    reasons = V.validate_metrics_record(_record_with_scenes(**patch), cell, pin=PIN,
+                                        expected_count=COUNT)
+    assert reasons and any(needle in r for r in reasons), reasons
+
+
+def test_a_short_scene_map_is_rejected():
+    """16 of 17 rooms is a per-scene mean over a different room set."""
+    cell = V.Cell("C4L", "zref", 40000, 42, 8, None)
+    rec = _record_with_scenes(by_scene=_per_scene(16), scene_count=16)
+    reasons = V.validate_metrics_record(rec, cell, pin=PIN, expected_count=COUNT)
+    assert reasons and any("17" in r for r in reasons), reasons
+
+
+def test_a_scene_whose_payload_is_not_a_mapping_is_rejected():
+    cell = V.Cell("C4L", "zref", 40000, 42, 8, None)
+    scenes = _per_scene()
+    scenes["Room0/Room0_idx_0"] = 9.0
+    reasons = V.validate_metrics_record(_record_with_scenes(by_scene=scenes), cell,
+                                        pin=PIN, expected_count=COUNT)
+    assert reasons and any("Room0" in r for r in reasons), reasons
+
+
+def test_the_manifest_must_declare_per_scene_recording():
+    cell = V.Cell("C4L", "zref", 40000, 42, 8, None)
+    meta = _screenmeta(cell)
+    meta.pop("record_per_scene", None)
+    reasons = V.validate_screenmeta(meta, cell, expected_count=COUNT)
+    assert reasons and any("record_per_scene" in r for r in reasons), reasons
+
+
+def test_check_argv_carries_the_scene_expectation():
+    """The driver renders these flags in shell; the expectation that decides
+    admissibility must not be a second, drifting copy."""
+    cell = V.Cell("C4L", "zref", 40000, 42, 8, None)
+    argv = V.check_argv(cell, "/tmp/m.json", pin=PIN, ckpt_sha="a" * 64,
+                        expected_count=6337)
+    assert "--expected-scenes" in argv
+    assert argv[argv.index("--expected-scenes") + 1] == str(V.EXPECTED_SCENES)

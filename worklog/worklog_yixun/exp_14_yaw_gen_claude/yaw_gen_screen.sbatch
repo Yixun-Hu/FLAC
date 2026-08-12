@@ -26,7 +26,10 @@
 # --num-workers 4 (the exp_11 conf-cell values), plus --expected-stream-count 6337
 # and --record-stream so the §3.3 assignment audit (.stream.json) lands beside
 # every metrics JSON — that sidecar is what makes Z<->R pairing and the cross-arm
-# rotation match falsifiable rather than asserted.
+# rotation match falsifiable rather than asserted. --record-per-scene is passed
+# for EVERY cell too: the campaign's per-seed observation is the PER-SCENE mean
+# over the split's 17 rooms (plan §4), so a cell without a `by_scene` block did
+# not measure the estimand and the validator refuses it.
 #
 # Fail-closed before spending the GPU: commit binding + tracked drift, exactly
 # one visible L40, EXACTLY ONE checkpoint matching the step, and the
@@ -157,6 +160,10 @@ NUM_WORKERS=4
 # --expected-stream-count so a subsampled or partly-failing split FAILS the cell
 # instead of reporting a plausible number over fewer items (review B1).
 EXPECTED_STREAM_COUNT=6337
+# ...and its per-scene twin: 17 rooms (announcement 01). The per-seed observation
+# is the mean OVER SCENES, so a cell covering a different room set averaged a
+# different estimand — pinned here, recorded in the manifest, checked per cell.
+EXPECTED_SCENES=17
 
 die() { echo "$1"; exit "${2:-2}"; }
 
@@ -283,7 +290,7 @@ else
   echo "config ${MODEL_CONFIG} sha256 ${CONFIG_SHA} | trained C${TRAIN_ANGLES} | evaluated C${N_ANGLES}" \
        "| eval-name ${EVAL_NAME}"
 fi
-echo "yaw protocol: ${ROT_DESC} | split ${DATASET_CONFIG} (expect ${EXPECTED_STREAM_COUNT} items)"
+echo "yaw protocol: ${ROT_DESC} | split ${DATASET_CONFIG} (expect ${EXPECTED_STREAM_COUNT} items / ${EXPECTED_SCENES} scenes)"
 
 # --- B2. lease: this job must hold one, and must give it back -----------------
 # The submitter writes .leases/<jobid> before sbatch returns and the pruner never
@@ -522,6 +529,7 @@ EVAL_ARGV=(
   --seed "$SEED" --eval-name "$EVAL_NAME"
   --batch-size "$BATCH_SIZE" --num-workers "$NUM_WORKERS"
   --expected-stream-count "$EXPECTED_STREAM_COUNT" --record-stream
+  --record-per-scene
 )
 # a vanilla evaluation is given NO orbit at all — not an empty one
 [ "$COND_METHOD" = "vanilla" ] || EVAL_ARGV+=(--frame-avg-angles "$ANGLES")
@@ -548,7 +556,8 @@ build_validate_argv() {   # <metrics path> <ckpt sha256> -> fills VALIDATE_ARGV
   line="$(python3 "$EXPDIR/exp14_validate_cell.py" argv --metrics "$1" \
             --arm "$ARM" --cell "$CELL" --step "$STEP" --seed "$SEED" --k "$K" \
             --rotate-deg "$ROTATE_DEG" --pin "$HEAD_SHA" --ckpt-sha "$2" \
-            --expected-count "$EXPECTED_STREAM_COUNT")" \
+            --expected-count "$EXPECTED_STREAM_COUNT" \
+            --expected-scenes "$EXPECTED_SCENES")" \
     || die "could not render the cell-validation argv - abort"
   read -r -a VALIDATE_ARGV <<< "$line"
 }
@@ -639,6 +648,7 @@ side = {
     # ...and the runtime pins the collector re-checks per cell (plan §3.2).
     "expected_stream_count": int(expected_count),
     "record_stream": True,
+    "record_per_scene": True,
     "stream_sidecar": os.path.basename(metrics)[:-len(".json")] + ".stream.json",
     "batch_size": int(batch_size), "num_workers": int(workers),
 }
