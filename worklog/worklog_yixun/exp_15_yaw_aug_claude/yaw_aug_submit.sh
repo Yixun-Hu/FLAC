@@ -52,7 +52,8 @@ pin() {  # read one PINNED_* value out of the launcher (quoted or bare)
         exit }' "$SBATCH_FILE"
 }
 if [ "$SMOKE" = "1" ]; then
-  RUNG="${SMOKE_RUNG:?SMOKE=1 requires SMOKE_RUNG (32x2|16x4|8x8)}"
+  # The approved smoke runs the REAL topology (plan §7-6) — see the launcher.
+  RUNG="${SMOKE_RUNG:?SMOKE=1 requires SMOKE_RUNG (8x8, the production rung)}"
   TIME_LIMIT="${SMOKE_TIME:-00:30:00}"
   [ -n "${SMOKE_MIN_FREE_MB:-}" ] || { echo "SMOKE=1 requires SMOKE_MIN_FREE_MB - abort"; exit 2; }
   JOBNAME="exp15-smoke-${ARM}"
@@ -71,22 +72,31 @@ else
   done
   JOBNAME="exp15-${ARM}-train"
 fi
-case "$RUNG" in 32x2|16x4|8x8) ;; *) echo "rung '${RUNG}' must be 32x2|16x4|8x8 - abort"; exit 2;; esac
+case "$RUNG" in 8x8) ;; *) echo "rung '${RUNG}' must be 8x8 — exp_15 has ONE topology, smoke included - abort"; exit 2;; esac
 MB="${RUNG%x*}"; NGPU="${RUNG#*x}"
 [ "$((MB * NGPU))" -eq 64 ] || { echo "rung ${RUNG}: MB*NGPU != 64 - abort"; exit 2; }
 
 # --- drift gate: a queued job must run reviewed, committed code --------------
-# The drift gate is scoped to CODE surfaces, not the whole exp folder: Slurm
-# appends to tracked *.out transcripts continuously, so a folder-wide check would
-# abort on a live-log write. Configs, drivers and validators are fully covered,
-# including the exp_11 helpers this kit invokes read-only.
-DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src \
-         "$EXPDIR"/*.json "$EXPDIR"/*.py "$EXPDIR"/*.sbatch "$EXPDIR"/*.sh "$EXPDIR"/*.txt \
+# THE SAME CLOSURE THE WORKER ENFORCES (yaw_aug_train.sbatch section C), so the
+# submitter cannot queue a job the worker will refuse. Pathspecs are QUOTED so
+# git expands them and a DELETED tracked file still matches; data/AR carries the
+# split JSONs the dataloader opens (train.json is the one this run reads), whose
+# uncommitted edit would change the samples trained while every code hash stayed
+# put; src/tests is excluded because pytest-only code is never imported by
+# train.py and the concurrent TDD sessions land test files continuously; and a
+# FAILING git invocation is fatal, never an empty "clean" answer.
+DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src ":(exclude)src/tests" data/AR \
+         "$EXPDIR/FLAC_AR_YAWAUG.json" "$EXPDIR/yaw_aug_train.sbatch" "$EXPDIR/yaw_aug_submit.sh" \
+         "$EXPDIR/yaw_aug_record_control.py" "$EXPDIR/yaw_aug_pin_allowlist.txt" \
+         "$EXPDIR/yaw_aug_control_admission.json" \
          "$EXP11DIR/fa_orbit_ckpt_preflight.py" "$EXP11DIR/fa_orbit_classify.py" \
          "$EXP11DIR/fa_orbit_wandb_readback.py" "$EXP11DIR/FLAC_AR_VANCKPT.json" \
-         worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json 2>/dev/null)"
+         worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json 2>&1)" \
+  || { echo "git status for the drift gate failed: ${DRIFT} - abort"; exit 2; }
 [ -z "$DRIFT" ] || { echo "tracked measurement surfaces have uncommitted changes - commit first, abort:"; echo "$DRIFT"; exit 2; }
-SHA="$(git rev-parse HEAD)"
+SHA="$(git rev-parse HEAD 2>&1)" || { echo "git rev-parse HEAD failed: ${SHA} - abort"; exit 2; }
+printf '%s\n' "$SHA" | grep -qE '^[0-9a-f]{40}$' \
+  || { echo "HEAD did not resolve to a full 40-hex commit id ('${SHA}') - abort"; exit 2; }
 
 ARGS=(
   --job-name="$JOBNAME"

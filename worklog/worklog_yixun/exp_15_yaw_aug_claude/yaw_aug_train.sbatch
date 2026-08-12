@@ -2,9 +2,16 @@
 # ============================================================================
 # exp_15 YAWAUG TRAINING LAUNCHER — the single augmented arm at exp_11's rung.
 #
-# Derived VERBATIM from exp_11's fa_orbit_train.sbatch (commit a4bbe86) and then
-# re-pinned; every gate exp_11's three review rounds installed is retained. The
-# deltas are enumerated in plan §6.6 and each landed in its own commit.
+# Derived VERBATIM from exp_11's fa_orbit_train.sbatch (commit 50a526d, whose
+# blobs match exp_11's at parent de7c41d) and then re-pinned; every gate exp_11's
+# three review rounds installed is retained, plus its later content-scoped
+# binding fix (2b75036). The deltas are enumerated in plan §6.6.
+#
+# EXIT CLASSES: 0/3/4/6/7 are exp_11's taxonomy (fa_orbit_classify.py). exp_15
+# adds two, both about whether this run is the EXPERIMENT it claims to be:
+#   8  the yaw_aug banner never appeared before the first step (a green run that
+#      was not actually augmented), or a green run whose banner never appeared;
+#   9  the 40,000-step checkpoint could not be produced, audited or recorded.
 #
 # WHAT THIS ARM IS: vanilla-conditioned FLAC trained with a random horizontal
 # yaw applied to every training sample's CONDITIONING (plan §3.1). It is compared
@@ -168,8 +175,13 @@ case "$EXPECTED_STEP" in ''|*[!0-9]*) die "EXPECTED_STEP '${EXPECTED_STEP}' must
 if [ "$SMOKE" = "1" ]; then
   RUNG="${SMOKE_RUNG:-}"; MAXSTEPS="${SMOKE_MAXSTEPS:-30}"; MIN_FREE_MB="${SMOKE_MIN_FREE_MB:-}"
   CHECKPOINT_EVERY="${SMOKE_CHECKPOINT_EVERY:-10}"
-  [ -n "$RUNG" ] || die "SMOKE=1 requires SMOKE_RUNG (32x2|16x4|8x8) - abort"
+  [ -n "$RUNG" ] || die "SMOKE=1 requires SMOKE_RUNG (${PINNED_RUNG}) - abort"
   [ -n "$MIN_FREE_MB" ] || die "SMOKE=1 requires SMOKE_MIN_FREE_MB (per-GPU floor) - abort"
+  # The approved smoke is the REAL rung (plan §7-6: the point is to measure the
+  # augmented step rate on the production topology and prove the banner fires
+  # there). A smoke at 32x2 or 16x4 would measure a recipe nobody will run, and
+  # exp_11's kit accepted all three.
+  [ "$RUNG" = "$PINNED_RUNG" ] || die "SMOKE_RUNG '${RUNG}' != the pinned production rung ${PINNED_RUNG}: exp_15's smoke runs the real topology or not at all - abort"
   TIME_LIMIT="${SMOKE_TIME:-00:30:00}"; TIME_PIN_NAME="SMOKE_TIME"
   NAME="FLAC_exp15_smoke_${ARM}"; EXPNAME="exp15_smoke_${ARM}"
   SAVEDIR="${OUTPUT_ROOT}/exp15_smoke/${ARM}"
@@ -197,13 +209,15 @@ else
 fi
 
 case "$RUNG" in
-  32x2|16x4|8x8) ;;
-  *) die "rung '${RUNG}' must be 32x2, 16x4 or 8x8 - abort" ;;
+  8x8) ;;
+  *) die "rung '${RUNG}' must be 8x8 — exp_15 has ONE topology, the one VANL trained at - abort" ;;
 esac
 MB="${RUNG%x*}"; NGPU="${RUNG#*x}"
 [ "$((MB * NGPU))" -eq 64 ] || die "rung ${RUNG}: MB*NGPU = $((MB*NGPU)) != 64 (micro x N pin, plan §10) - abort"
+# micro/NGPU are pinned for SMOKE too (review finding 1): a smoke that measured a
+# different topology would answer a question nobody asked.
+[ "$MB" = "$PINNED_MB" ] && [ "$NGPU" = "$PINNED_NGPU" ] || die "pin inconsistency: rung ${RUNG} vs PINNED_MB=${PINNED_MB}/PINNED_NGPU=${PINNED_NGPU} - abort"
 if [ "$SMOKE" != "1" ]; then
-  [ "$MB" = "$PINNED_MB" ] && [ "$NGPU" = "$PINNED_NGPU" ] || die "pin inconsistency: rung ${RUNG} vs PINNED_MB=${PINNED_MB}/PINNED_NGPU=${PINNED_NGPU} - abort"
   # The pre-registered endpoint (plan §3.2/§5). A production launch at any other
   # budget is not the experiment that was registered.
   [ "$MAXSTEPS" = "40000" ] || die "PINNED_MAXSTEPS is ${MAXSTEPS}, the registered budget is 40000 - abort"
@@ -212,26 +226,71 @@ RUNDIR="${SAVEDIR}/${NAME}/${EXPNAME}"
 echo "=== exp_15 arm ${ARM} @ rung ${RUNG} (MB ${MB} x ${NGPU} GPU, grad-ckpt ON, yaw_aug ON) — ${TS} — host $(hostname) ==="
 
 # --- C. commit binding + tracked-surface drift --------------------------------
-HEAD_SHA="$(git rev-parse HEAD 2>/dev/null)"
-# The drift gate is scoped to CODE surfaces, not the whole exp folder: Slurm
-# appends to tracked *.out transcripts continuously, so a folder-wide check would
-# abort on a live-log write. Configs, drivers and validators are fully covered —
-# including the THREE exp_11 helpers this kit invokes read-only, so a silent edit
-# to one of them cannot reach a launch, and the control's own config.
-DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src \
-          "$EXPDIR"/*.json "$EXPDIR"/*.py "$EXPDIR"/*.sbatch "$EXPDIR"/*.sh "$EXPDIR"/*.txt \
-          "$EXP11DIR/fa_orbit_ckpt_preflight.py" "$EXP11DIR/fa_orbit_classify.py" \
-          "$EXP11DIR/fa_orbit_wandb_readback.py" "$EXP11DIR/FLAC_AR_VANCKPT.json" \
-          "$EXP07/FLAC_AR_BF.json" 2>/dev/null)"
+# Ported from exp_11's content-scoped gate (2b75036 and its predecessor): the
+# closure is what the JOB ACTUALLY LOADS, the pathspecs are QUOTED so git — not
+# the shell — expands them (a tracked file DELETED from the worktree still
+# matches), a failing git invocation is fatal rather than an empty "clean"
+# answer, and src/tests is excluded because pytest-only code is never imported by
+# train.py and the concurrent TDD sessions land test files continuously (that
+# exact over-broad closure killed exp_11 legs 3680875-78 on 2026-08-12).
+HEAD_SHA="$(git rev-parse HEAD 2>/dev/null)" || HEAD_SHA=""
+EXPREL="${EXPDIR#"$REPO"/}"; EXP11REL="${EXP11DIR#"$REPO"/}"; EXP07REL="${EXP07#"$REPO"/}"
+# The runtime closure, enumerated once and used by BOTH gates below. data/AR
+# holds the split JSONs the dataloader opens (train.json is the one this run
+# reads); an uncommitted edit there changes which samples are trained while
+# leaving every code hash intact, which is exactly the hole this closes.
+TRAINING_CLOSURE=(
+  train.py defaults.ini src ":(exclude)src/tests" data/AR
+  "$EXPREL/FLAC_AR_YAWAUG.json"
+  "$EXPREL/yaw_aug_train.sbatch" "$EXPREL/yaw_aug_submit.sh"
+  "$EXPREL/yaw_aug_record_control.py"            # imported by the completion gate
+  "$EXPREL/yaw_aug_pin_allowlist.txt" "$EXPREL/yaw_aug_control_admission.json"
+  "$EXP11REL/fa_orbit_ckpt_preflight.py" "$EXP11REL/fa_orbit_classify.py"
+  "$EXP11REL/fa_orbit_wandb_readback.py" "$EXP11REL/FLAC_AR_VANCKPT.json"
+  "$EXP07REL/FLAC_AR_BF.json"
+)
+DRIFT="$(git status --porcelain --untracked-files=no -- "${TRAINING_CLOSURE[@]}" 2>&1)" \
+  || die "git status for the drift gate failed: ${DRIFT} - abort"
+# Commit binding is CONTENT-scoped: HEAD identity is sufficient but not
+# necessary. Two sessions commit to this checkout, so a pending leg must survive
+# commits that leave the training closure untouched — and abort on any commit
+# that changes it. Fail-closed on every edge: EXPECT_SHA must be a full 40-hex
+# commit OID (a symbolic ref would defeat the binding), the diff runs against the
+# CAPTURED HEAD OID, and HEAD is re-read afterwards to close the
+# commit-during-the-gate race.
+surface_diff_vs_expect() {
+  git diff --name-only "${EXPECT_SHA}" "${HEAD_SHA}" -- "${TRAINING_CLOSURE[@]}"
+}
+GATE_FAIL=""; GATE_OK_MSG=""
+if [ -z "$HEAD_SHA" ]; then
+  GATE_FAIL="cannot resolve HEAD"
+elif ! printf '%s\n' "$EXPECT_SHA" | grep -qE '^[0-9a-f]{40}$'; then
+  GATE_FAIL="EXPECT_SHA '${EXPECT_SHA}' is not a full lowercase 40-hex commit id"
+elif [ "$(git rev-parse --verify -q "${EXPECT_SHA}^{commit}" 2>/dev/null)" != "$EXPECT_SHA" ]; then
+  GATE_FAIL="EXPECT_SHA ${EXPECT_SHA} is not a commit known to this repo"
+elif [ "$HEAD_SHA" = "$EXPECT_SHA" ]; then
+  GATE_OK_MSG="commit binding OK: ${HEAD_SHA}"
+elif SD="$(surface_diff_vs_expect 2>&1)"; then
+  if [ -z "$SD" ]; then
+    GATE_OK_MSG="commit binding OK (content): training surfaces identical, EXPECT_SHA ${EXPECT_SHA} HEAD ${HEAD_SHA}"
+  else
+    GATE_FAIL="training surfaces changed since EXPECT_SHA ${EXPECT_SHA} (HEAD ${HEAD_SHA}): ${SD}"
+  fi
+else
+  GATE_FAIL="surface diff vs EXPECT_SHA failed: ${SD}"
+fi
+if [ -z "$GATE_FAIL" ] && [ "$(git rev-parse HEAD 2>/dev/null)" != "$HEAD_SHA" ]; then
+  GATE_FAIL="HEAD moved during the commit-binding check (was ${HEAD_SHA})"
+fi
 if [ "$DRYRUN" = "1" ]; then
-  [ "$HEAD_SHA" = "$EXPECT_SHA" ] && echo "commit binding OK (dry run): ${HEAD_SHA}" \
-    || echo "DRY-RUN ADVISORY: HEAD ${HEAD_SHA} != EXPECT_SHA ${EXPECT_SHA} (a real launch aborts here)"
+  [ -z "$GATE_FAIL" ] && echo "${GATE_OK_MSG} (dry run)" \
+    || echo "DRY-RUN ADVISORY: ${GATE_FAIL} (a real launch aborts here)"
   [ -z "$DRIFT" ] || echo "DRY-RUN ADVISORY: tracked measurement surfaces are modified (a real launch aborts here)"
 else
   [ -n "${SLURM_JOB_ID:-}" ] || die "a real launch must run under sbatch (no SLURM_JOB_ID) - abort"
-  [ "$HEAD_SHA" = "$EXPECT_SHA" ] || die "HEAD ${HEAD_SHA} != EXPECT_SHA ${EXPECT_SHA} - abort"
+  [ -z "$GATE_FAIL" ] || die "${GATE_FAIL} - abort"
   [ -z "$DRIFT" ] || { echo "tracked measurement surfaces modified since review - abort:"; echo "$DRIFT"; exit 2; }
-  echo "commit binding OK: ${HEAD_SHA}"
+  echo "$GATE_OK_MSG"
 fi
 
 # --- C2. launch-pin diff allowlist (plan §3.3-2) ------------------------------
@@ -244,9 +303,8 @@ fi
 # training surface and cannot influence this run.
 ALLOWLIST_FILE="${EXPDIR}/yaw_aug_pin_allowlist.txt"
 [ -f "$ALLOWLIST_FILE" ] || die "the launch-pin allowlist ${ALLOWLIST_FILE} is missing - abort"
-PIN_DIFF="$(git diff --name-only "${PINNED_CONTROL_COMMIT}..HEAD" -- train.py defaults.ini src 2>/dev/null)"
-PIN_DIFF_RC=$?
-[ "$PIN_DIFF_RC" -eq 0 ] || die "could not diff ${PINNED_CONTROL_COMMIT}..HEAD (rc ${PIN_DIFF_RC}) — the allowlist gate cannot be evaluated - abort"
+PIN_DIFF="$(git diff --name-only "${PINNED_CONTROL_COMMIT}..HEAD" -- train.py defaults.ini src 2>&1)" \
+  || die "could not diff ${PINNED_CONTROL_COMMIT}..HEAD (${PIN_DIFF}) — the allowlist gate cannot be evaluated - abort"
 mapfile -t ALLOW_PATTERNS < <(sed -e 's/#.*//' -e 's/[[:space:]]*$//' "$ALLOWLIST_FILE" | grep -v '^$')
 [ "${#ALLOW_PATTERNS[@]}" -gt 0 ] || die "the launch-pin allowlist is empty - abort"
 PIN_SURPRISES=""
@@ -538,13 +596,32 @@ CUDA_VER="$(python3 -c 'import torch; print(torch.version.cuda)')"
 # taken on trust, with the manifest itself sha-gated against exp_11's registry so
 # a drifted or rewritten manifest cannot supply the agreement.
 [ -f "$PINNED_CONTROL_MANIFEST" ] || die "the control's launch manifest ${PINNED_CONTROL_MANIFEST} is missing — the §3.3-5 env cross-check cannot be made - abort"
-CONTROL_MANIFEST_SHA="$(sha256sum "$PINNED_CONTROL_MANIFEST" | awk '{print $1}')"
-[ "$CONTROL_MANIFEST_SHA" = "$PINNED_CONTROL_MANIFEST_SHA256" ] || die "control manifest sha256 ${CONTROL_MANIFEST_SHA} != exp_11's registry pin ${PINNED_CONTROL_MANIFEST_SHA256} - abort"
-python3 - "$PINNED_CONTROL_MANIFEST" "$PINNED_TORCH_VERSION" "$PINNED_PL_VERSION" "$PINNED_VAE_SHA256" \
+# ONE invocation, ONE read (round-2 finding 1, applied here): hashing with
+# sha256sum and then reopening the file in python are two lookups, and a
+# replacement in between would let unverified values be trusted. The bytes that
+# are hashed are the bytes that are parsed.
+python3 - "$PINNED_CONTROL_MANIFEST" "$PINNED_CONTROL_MANIFEST_SHA256" \
+         "$EXP11DIR/arm_launch_registry.json" "$PINNED_TORCH_VERSION" \
+         "$PINNED_PL_VERSION" "$PINNED_VAE_SHA256" \
   <<'PY' || die "control env cross-check FAILED - abort"
-import re, sys
-path, want_torch, want_pl, want_vae = sys.argv[1:5]
-text = open(path).read()
+import hashlib, json, re, sys
+path, pinned_sha, registry, want_torch, want_pl, want_vae = sys.argv[1:7]
+
+# The reviewed constant is the anchor; exp_11's live registry must AGREE with it
+# before it is allowed to vouch for anything.
+with open(registry, "rb") as fh:
+    reg_sha = json.loads(fh.read())["arms"]["VANL"]["manifest_sha256"]
+if reg_sha != pinned_sha:
+    sys.exit(f"exp_11's registry now records manifest_sha256 {reg_sha} for VANL, "
+             f"but the reviewed pin is {pinned_sha}: the control's identity moved")
+
+with open(path, "rb") as fh:
+    raw = fh.read()                      # the ONLY read
+got = hashlib.sha256(raw).hexdigest()
+if got != pinned_sha:
+    sys.exit(f"control manifest sha256 {got} != the pin {pinned_sha}")
+
+text = raw.decode()                      # ...parsed from those same bytes
 bad = []
 m = re.search(r'^torch_version (\S+)', text, re.M)
 if not m:
@@ -560,8 +637,9 @@ elif m.group(1) != want_vae:
 # is enforced against the live import above. Say so rather than imply coverage.
 if bad:
     sys.exit("CONTROL ENV CROSS-CHECK: " + "; ".join(bad))
-print(f"control env cross-check OK: torch and VAE agree with VANL's launch manifest "
-      f"(PL {want_pl} is gated against the live import; the control manifest does not record it)")
+print(f"control env cross-check OK: manifest sha {got} matches the reviewed pin AND "
+      f"exp_11's live registry; torch and VAE agree (PL {want_pl} is gated against "
+      "the live import; the control manifest does not record it)")
 PY
 
 # --- J. per-GPU free-VRAM gate (floor from the pins) --------------------------
@@ -732,7 +810,16 @@ echo "manifest: ${MANIFEST} (copied to ${SAVEDIR})"
 # control-admission record in round 2. That omission is not repeated: the INITIAL
 # launch registers here, fail-closed (a job that cannot be recorded does not
 # run), and the completion block below writes the audited final checkpoint hash.
-LAUNCH_REGISTRY="${EXPDIR}/yaw_aug_launch_registry.json"
+# A SMOKE registers in its OWN file (review finding 1). The plan's sequence is
+# smoke-then-launch, and a smoke that claimed arms.YAWAUG in the production
+# registry would make the real INITIAL abort as "already registered" — the gate
+# meant to protect the launch would be the thing that blocked it. The smoke still
+# exercises this code path, in its own namespace, which is the point of a smoke.
+if [ "$SMOKE" = "1" ]; then
+  LAUNCH_REGISTRY="${EXPDIR}/yaw_aug_smoke_registry.json"
+else
+  LAUNCH_REGISTRY="${EXPDIR}/yaw_aug_launch_registry.json"
+fi
 if [ "$MODE" = "INITIAL" ]; then
   python3 - "$LAUNCH_REGISTRY" "$ARM" "$MANIFEST" "$SLURM_JOB_ID" "$LAUNCH_UUID" "$HEAD_SHA" \
            "$RUNG" "$MAXSTEPS" "$CONFIG_SHA" "$VAE_SHA" "$SAVEDIR" "$WANDB_RUN_ID" \
@@ -807,10 +894,16 @@ printf 'PENDING\n' > "$BANNER_STATUS"
 # --- BEGIN banner-watcher-helper (guard-tested by yaw_aug_train_guardtests.sh) --
 yaw_aug_banner_verdict() {   # <log> <banner> <step-regex> -> OK | MISSING | PENDING
   local log="$1" banner="$2" step_re="$3"
-  # Banner first: within one poll a log can gain both lines, and the banner is
-  # printed before the first step, so seeing both means the gate PASSED.
-  if grep -qF -- "$banner" "$log" 2>/dev/null; then echo "OK"; return 0; fi
-  if grep -Eq -- "$step_re" "$log" 2>/dev/null; then echo "MISSING"; return 1; fi
+  local b s
+  # -F -x: the banner must be a WHOLE LINE. Substring matching would accept
+  # "yaw_aug ENABLED img_w=512 seed=420" for a seed-42 run, or any line that
+  # merely quotes the banner (this log also carries our own echoes of it).
+  b="$(grep -nFx -m1 -- "$banner" "$log" 2>/dev/null | cut -d: -f1)"
+  s="$(grep -nE -m1 -- "$step_re" "$log" 2>/dev/null | cut -d: -f1)"
+  # ORDER matters, not mere presence: the wrapper prints at on_fit_start, before
+  # any step. A banner appearing AFTER step evidence did not gate anything.
+  if [ -n "$b" ] && { [ -z "$s" ] || [ "$b" -lt "$s" ]; }; then echo "OK"; return 0; fi
+  if [ -n "$s" ]; then echo "MISSING"; return 1; fi
   echo "PENDING"; return 2
 }
 # --- END banner-watcher-helper -------------------------------------------------
@@ -873,33 +966,95 @@ final_rc=$?
 echo "$CLASSIFY_OUT"
 LAST_CKPT="$(ls -1t "${RUNDIR}/checkpoints"/*.ckpt 2>/dev/null | head -1)"
 
-# --- R2. record the audited final checkpoint in the registry ------------------
+# --- R2. AUDIT and record the final checkpoint (round-2 rigour, fail-closed) ---
 # The gap exp_11 left for VANL (no final_ckpt_sha256, which cost exp_15 a whole
-# round-2 admission recorder) is closed here, for this arm, at the moment the
-# file exists and the run is otherwise green.
-REGISTRY_FINAL_RC=0
-if [ "$final_rc" -eq 0 ] && [ "$BANNER_VERDICT" = "OK" ] && [ -n "$LAST_CKPT" ] && [ "$SMOKE" != "1" ]; then
-  python3 - "$LAUNCH_REGISTRY" "$ARM" "$LAST_CKPT" "$MAXSTEPS" <<'PY' || REGISTRY_FINAL_RC=$?
-import hashlib, json, os, sys
-path, arm, ckpt, max_steps = sys.argv[1:5]
-reg = json.load(open(path))
+# round-2 admission recorder) is closed here — to the SAME standard. Round 2
+# established what it takes to bind a checkpoint as evidence, and this block does
+# not re-implement any of it: it IMPORTS yaw_aug_record_control.py and calls the
+# reviewed primitives (snapshot_checkpoint's fd-pinned hash + safe mmap load +
+# before/after inode identity, canonical_bytes' type-strict config comparison,
+# summarize_ema's exact suffix/shape/dtype mirror and inventory digest).
+#
+# Fail-closed, class 9: a run whose 40k checkpoint cannot be produced AND audited
+# has not met the launch acceptance criteria, and saying so at exit is the whole
+# point — a green job with an unverified artifact is how exp_11's VANL became a
+# checkpoint identified only by a path.
+if [ "$SMOKE" = "1" ]; then
+  echo "completion audit: skipped (SMOKE has no 40k endpoint; its registry is ${LAUNCH_REGISTRY})"
+elif [ "$final_rc" -ne 0 ]; then
+  echo "completion audit: skipped (the run did not finish cleanly: class ${final_rc})"
+else
+  # The checkpoint is selected by the endpoint it must BE, not by mtime: PL names
+  # it epoch=<N>-step=<STEP>.ckpt, so exactly one file may match the pinned step.
+  COMPLETION_RC=0
+  python3 - "$EXPDIR/yaw_aug_record_control.py" "$LAUNCH_REGISTRY" "$ARM" \
+           "${RUNDIR}/checkpoints" "$MAXSTEPS" "$MODEL_CONFIG_ABS" <<'PY' || COMPLETION_RC=$?
+import glob, importlib.util, json, os, sys
+
+recorder_path, registry, arm, ckpt_dir, max_steps, config_path = sys.argv[1:7]
+max_steps = int(max_steps)
+
+spec = importlib.util.spec_from_file_location("yaw_aug_record_control", recorder_path)
+rc = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(rc)          # the round-2 recorder, imported not copied
+
+matches = sorted(glob.glob(os.path.join(ckpt_dir, f"*-step={max_steps}.ckpt")))
+if len(matches) != 1:
+    sys.exit(f"expected exactly ONE *-step={max_steps}.ckpt in {ckpt_dir}, found "
+             f"{len(matches)}: {matches}")
+ckpt = matches[0]
+
+checkpoint, digest, identity = rc.snapshot_checkpoint(ckpt)
+
+step = checkpoint.get("global_step")
+if isinstance(step, bool) or not isinstance(step, int):
+    sys.exit(f"{ckpt}: global_step is {step!r} ({type(step).__name__}), expected a plain int")
+if step != max_steps:
+    sys.exit(f"{ckpt}: embedded global_step {step} != the pinned endpoint {max_steps}")
+
+if "model_config" not in checkpoint:
+    sys.exit(f"{ckpt}: no embedded model_config — the checkpoint cannot be bound to "
+             "the config it was trained with")
+with open(config_path, "rb") as fh:
+    want_cfg = json.loads(fh.read())
+if rc.canonical_bytes(checkpoint["model_config"]) != rc.canonical_bytes(want_cfg):
+    sys.exit(f"{ckpt}: the embedded model_config is not {config_path} — this "
+             "checkpoint was not trained with the arm config")
+if checkpoint["model_config"].get("training", {}).get("yaw_aug") != \
+        {"enabled": True, "img_w": 512, "seed": 42}:
+    sys.exit(f"{ckpt}: the embedded config does not carry the registered yaw_aug block")
+
+ema = rc.summarize_ema(checkpoint.get("state_dict") or {})
+
+reg = json.load(open(registry))
 entry = reg["arms"][arm]
-h = hashlib.sha256()
-with open(ckpt, "rb") as fh:
-    for chunk in iter(lambda: fh.read(1 << 20), b""):
-        h.update(chunk)
-digest = h.hexdigest()
 if entry.get("final_ckpt_sha256") not in (None, digest):
     sys.exit(f"{arm} already carries a different final_ckpt_sha256 — refusing to overwrite")
 entry["final_ckpt_sha256"] = digest
-entry["final_step"] = int(max_steps)
+entry["final_step"] = step                    # from the CHECKPOINT, not the request
 entry["final_ckpt_path"] = ckpt
-tmp = path + ".tmp"
-json.dump(reg, open(tmp, "w"), indent=2, sort_keys=True)
-os.replace(tmp, path)
-print(f"registry: {arm} final_ckpt_sha256 {digest} (step {max_steps})")
+entry["final_ckpt_bytes"] = identity["bytes"]
+entry["final_ckpt_audit"] = {
+    "loaded_with": {"mmap": True, "map_location": "cpu", "weights_only": True},
+    "embedded_config_canonical_sha256":
+        rc.canonical_sha256(checkpoint["model_config"]),
+    **ema,
+}
+tmp = registry + ".tmp"
+with open(tmp, "w") as fh:
+    json.dump(reg, fh, indent=2, sort_keys=True)
+os.replace(tmp, registry)
+print(f"completion audit OK: {os.path.basename(ckpt)} step {step} sha256 {digest}")
+print(f"  EMA {ema['ema_key_count']} keys mirror {ema['online_model_key_count']} "
+      f"online DiT keys; inventory {ema['ema_inventory_sha256']}")
+print(f"registry: {arm} final_ckpt_sha256 recorded in {registry}")
 PY
-  [ "$REGISTRY_FINAL_RC" -eq 0 ] || echo "REGISTRY: could not record the final checkpoint hash (rc ${REGISTRY_FINAL_RC})"
+  if [ "$COMPLETION_RC" -ne 0 ]; then
+    echo "COMPLETION AUDIT FAILED (rc ${COMPLETION_RC}): the 40k checkpoint was not"
+    echo "  produced, not verifiable, or not recordable — this run does not meet the"
+    echo "  launch acceptance criteria (class 9)"
+    final_rc=9
+  fi
 fi
 
 # --- S. durable final record (round-3 B5 residual) ---------------------------
@@ -941,13 +1096,29 @@ if [ "$final_tee_rc" -ne 0 ] || [ "$PREFLIGHT_COPY_RC" -ne 0 ] || [ "$WANDB_CHEC
   echo "LOG-PROVENANCE: final record tee rc=${final_tee_rc}, preflight copy rc=${PREFLIGHT_COPY_RC}, wandb identity rc=${WANDB_CHECK_RC}"
   [ "$final_rc" -eq 0 ] && final_rc=7
 fi
-# exp_15 class 8: the run trained, but not as the treatment it claims to be. It
-# outranks a green classification — a complete, healthy, UNAUGMENTED run is the
-# failure this experiment cannot afford to publish.
-if [ "$BANNER_VERDICT" != "OK" ]; then
-  echo "YAW_AUG BANNER: verdict ${BANNER_VERDICT} — the augmentation was never announced by rank 0;"
-  echo "  this run may not be treated as YAWAUG (class 8)"
+# exp_15 class 8: the run trained, but not as the treatment it claims to be. A
+# complete, healthy, UNAUGMENTED run is the failure this experiment cannot afford
+# to publish, so class 8 outranks a green classification.
+#
+# PENDING is NOT that (review finding 5). A job that died before on_fit_start —
+# OOM, a bad allocation, an import error — has a real diagnosis already, and
+# relabelling it "banner missing" would send the next reader hunting the
+# augmentation for a fault that lives somewhere else. So: MISSING is always class
+# 8; PENDING only turns an otherwise GREEN run into class 8 (a green run must
+# have been augmented) and otherwise leaves the existing failure class intact.
+if [ "$BANNER_VERDICT" = "MISSING" ]; then
+  echo "YAW_AUG BANNER: training steps ran WITHOUT the banner — this run may not be"
+  echo "  treated as YAWAUG (class 8)"
   final_rc=8
+elif [ "$BANNER_VERDICT" != "OK" ]; then
+  if [ "$final_rc" -eq 0 ]; then
+    echo "YAW_AUG BANNER: verdict ${BANNER_VERDICT} on an otherwise COMPLETE run — the"
+    echo "  augmentation was never announced by rank 0; this run may not be treated as YAWAUG (class 8)"
+    final_rc=8
+  else
+    echo "YAW_AUG BANNER: verdict ${BANNER_VERDICT}; the run had already failed (class ${final_rc}),"
+    echo "  which keeps its own taxonomy — the banner never had a chance to print"
+  fi
 fi
 printf '%s\n' "$FINAL_RECORD"
 exit "$final_rc"
