@@ -922,7 +922,9 @@ def test_exp14_round_needs_one_pin(tmp_path, small_count):
     for arm, pin in (("VANL", "a" * 40), ("C8", "b" * 40)):
         for k in (1, 8):
             cells[(f"{arm} @40k", k)] = _exp14_cell_files(root, arm, k, pin=pin)
-    withheld, problems = G.check_exp14_round(cells)
+    # every row validates; only the PIN differs — status is not the issue here
+    status = {key: True for key in cells}
+    withheld, problems = G.check_exp14_round(cells, status)
     assert problems and any("pin" in p for p in problems), problems
     assert withheld == {"VANL @40k", "C8 @40k"}, withheld
 
@@ -934,7 +936,8 @@ def test_exp14_round_gates_each_arm_independently(tmp_path, small_count):
              ("VANL @40k", 8): _exp14_cell_files(root, "VANL", 8),
              ("C8 @40k", 8): _exp14_cell_files(root, "C8", 8),
              ("C8 @40k", 1): []}
-    withheld, problems = G.check_exp14_round(cells)
+    status = {key: bool(files) for key, files in cells.items()}
+    withheld, problems = G.check_exp14_round(cells, status)
     assert "VANL @40k" not in withheld, withheld
     assert "C8 @40k" in withheld
     assert problems and any("C8" in p and "K=1" in p for p in problems), problems
@@ -943,13 +946,16 @@ def test_exp14_round_gates_each_arm_independently(tmp_path, small_count):
 def test_exp14_round_needs_both_k(tmp_path, small_count):
     root = _exp14_tree(tmp_path)
     cells = {("C8 @40k", 8): _exp14_cell_files(root, "C8", 8), ("C8 @40k", 1): []}
-    withheld, problems = G.check_exp14_round(cells)
+    withheld, problems = G.check_exp14_round(cells, {("C8 @40k", 8): True,
+                                                     ("C8 @40k", 1): False})
     assert problems and any("K=1" in p for p in problems), problems
     assert withheld == {"C8 @40k"}
 
 
 def test_exp14_round_is_not_a_problem_before_anything_lands():
-    assert G.check_exp14_round({("C8 @40k", 8): [], ("C8 @40k", 1): []}) == (set(), [])
+    assert G.check_exp14_round({("C8 @40k", 8): [], ("C8 @40k", 1): []},
+                               {("C8 @40k", 8): False, ("C8 @40k", 1): False}) \
+        == (set(), [])
 
 
 def test_exp14_rows_render_pending_until_the_block_lands(tmp_path):
@@ -1122,3 +1128,46 @@ def test_agg_files_refuses_a_broken_payload_for_any_row_family(tmp_path):
         bad.write_text(json.dumps(payload))
         with pytest.raises(ValueError):
             G.agg_files([str(bad)])
+
+
+# --------------------------------------------------------------------------- #
+# 12. round-3 CLOSURE fix FX2 (finding A4/B2, REPRODUCED by the reviewer)
+#
+# check_exp14_round declared an arm ready from FILE COUNTS alone and never saw
+# the validation result computed while rendering. Five valid K=1 files plus five
+# K=8 files carrying one NaN therefore published a numeric K=1 row beside a
+# BLOCKED K=8 row — the two-K transaction violated in the one direction it
+# exists to prevent.
+# --------------------------------------------------------------------------- #
+def test_check_exp14_round_consumes_validation_status(tmp_path, small_count):
+    root = _exp14_tree(tmp_path)
+    cells = {("C8 @40k", 1): _exp14_cell_files(root, "C8", 1),
+             ("C8 @40k", 8): _exp14_cell_files(root, "C8", 8)}
+    ok_status = {("C8 @40k", 1): True, ("C8 @40k", 8): True}
+    withheld, problems = G.check_exp14_round(cells, ok_status)
+    assert withheld == set() and problems == []
+    # ...and the same files with the K=8 row failing validation
+    bad_status = {("C8 @40k", 1): True, ("C8 @40k", 8): False}
+    withheld, problems = G.check_exp14_round(cells, bad_status)
+    assert withheld == {"C8 @40k"}, withheld
+    assert problems and any("valid" in p.lower() for p in problems), problems
+
+
+def test_a_nan_in_one_k_withholds_its_partner_end_to_end(tmp_path, small_count):
+    """The reviewer's exact reproduction: five valid K=1 files, five K=8 files
+    with one T60=NaN. Neither row may publish numbers."""
+    root = _exp14_tree(tmp_path)
+    _exp14_cell_files(root, "C8", 1)
+    k8 = _exp14_cell_files(root, "C8", 8)
+    rec = json.load(open(k8[0]))
+    rec["metrics"]["T60"] = float("nan")
+    with open(k8[0], "w") as fh:
+        json.dump(rec, fh)
+    G.main(["--repo-root", str(root)])
+    written = (root / "worklog" / "worklog_yixun" / "model_comparison.md").read_text()
+    c8 = [ln for ln in written.splitlines()
+          if ln.startswith("| C8 ") and EXP14_LABEL in ln]
+    assert len(c8) == 2, c8
+    for line in c8:
+        assert " ± " not in line, f"a numeric partner leaked past the transaction: {line}"
+        assert "BLOCKED" in line or "WITHHELD" in line or "pending" in line, line

@@ -377,7 +377,7 @@ def exp14_arm_of(label):
     return str(label).split(" ", 1)[0]
 
 
-def check_exp14_round(exp14_cells):
+def check_exp14_round(exp14_cells, exp14_status):
     """Which exp_14 arms may publish, and why the others may not.
 
     Returns ``(withheld_labels, problems)``.
@@ -385,10 +385,18 @@ def check_exp14_round(exp14_cells):
     Two rules, deliberately at different scopes (round-3 review B4):
 
     * **Per ARM, a two-K transaction.** An arm publishes when BOTH its K rows
-      carry a full five-seed block, and not before — a lone K would invite a
-      K=8-only comparison against rows that carry both. It does NOT wait for the
-      other arms: §5.7 sequences the regeneration on VANL's own block completing,
-      so a campaign-wide gate would withhold exactly the row that triggered it.
+      carry a full five-seed block AND BOTH VALIDATED, and not before — a lone K
+      would invite a K=8-only comparison against rows that carry both. It does
+      NOT wait for the other arms: §5.7 sequences the regeneration on VANL's own
+      block completing, so a campaign-wide gate would withhold exactly the row
+      that triggered it.
+
+      ``exp14_status`` maps ``(label, K) -> bool`` and is REQUIRED: readiness
+      used to be declared from file counts alone, never seeing the validation
+      already computed while rendering, so five valid K=1 files beside five K=8
+      files carrying one NaN published a numeric K=1 row next to a BLOCKED K=8
+      one — the transaction violated in exactly the direction it exists to
+      prevent (round-3 closure A4/B2).
     * **Across ARMS, one campaign pin.** exp_14 is a one-pin campaign and its
       whole point is that VANL-vs-Cn carries no cross-pin difference. If the
       published arms disagree on ``source_sha``, none of them publishes.
@@ -409,8 +417,19 @@ def check_exp14_round(exp14_cells):
             problems.append(f"{arm}: publishes only as a complete two-K pair; "
                             + ", ".join(f"K={k} has {n}/{MIN_SEEDS} seeds"
                                         for k, n in sorted(short.items())))
-        else:
-            ready.add(arm)
+            continue
+        # counting files is not validating them: a five-file block can still be
+        # refused (a NaN, a wrong checkpoint digest, a missing stream audit), and
+        # its partner must not publish beside it.
+        invalid = sorted(k for (label, k) in exp14_cells
+                         if exp14_arm_of(label) == arm and exp14_cells[(label, k)]
+                         and not exp14_status.get((label, k), False))
+        if invalid:
+            problems.append(f"{arm}: K={', K='.join(str(k) for k in invalid)} did not "
+                            "validate — both K must be VALID, not merely present, or "
+                            "the pair publishes a number beside a refusal")
+            continue
+        ready.add(arm)
     for (label, k), files in sorted(present.items()):
         if exp14_arm_of(label) not in ready:
             continue                               # an unready arm cannot fix the pin
@@ -722,7 +741,7 @@ def main(argv=None):
     ]
 
     rendered, blocked_rows, exp11_status, q9_cells = [], [], {}, {}
-    exp14_cells = {}
+    exp14_cells, exp14_status = {}, {}
     for spec in ROWS:
         label, proto, K, pats = spec[:4]
         contract = spec[4] if len(spec) > 4 else "table"
@@ -736,6 +755,10 @@ def main(argv=None):
             q9_cells[(label, K)] = files
         if contract == "exp14z":
             exp14_cells[(label, K)] = files
+            # the validation result is computed RIGHT HERE while rendering; the
+            # transaction gate consumes it rather than re-deriving readiness from
+            # how many files happen to exist (round-3 closure A4/B2)
+            exp14_status[(label, K)] = bool(files) and not blocked
         if blocked:
             blocked_rows.append(f"{label} (K={K})")
         if is_exp11_row(pats) and files:
@@ -760,7 +783,7 @@ def main(argv=None):
     else:
         lines_tail = []
     # The exp_14 Z block is the same kind of transaction, one experiment later.
-    exp14_withheld, exp14_problems = check_exp14_round(exp14_cells)
+    exp14_withheld, exp14_problems = check_exp14_round(exp14_cells, exp14_status)
     if exp14_problems:
         print("exp_14 Z rows not publishable:", file=sys.stderr)
         for problem in exp14_problems:
