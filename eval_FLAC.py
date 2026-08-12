@@ -646,6 +646,33 @@ def split_per_scene_metrics(metrics_dict):
     return flat, metrics_dict["by_scene"]
 
 
+def resolve_metrics_payload(computed, record_per_scene=False):
+    """``(metrics_dict, by_scene)`` — what the record will carry.
+
+    FROZEN UNLESS ASKED (round-3 closure A1/B1). The callback emits ``by_scene``
+    on its own for some configurations — HAA turns per-scene metrics on
+    independently of this flag (``metric_callback.py``) — so lifting the block
+    unconditionally rewrote records that never asked for it: the legacy NESTED
+    ``metrics["by_scene"]`` disappeared and three top-level keys appeared. That
+    is exactly the re-keying of historical rows the byte-compat contract exists
+    to prevent, and it was invisible to the snapshot matrix, whose payloads carry
+    no per-scene block at all.
+
+    Without the flag the callback result is passed through untouched. With it,
+    the block is lifted — and a callback that produced none is an error, because
+    the run asked for the estimand and did not measure it.
+    """
+    if not record_per_scene:
+        return computed, None
+    metrics_dict, by_scene = split_per_scene_metrics(computed)
+    if by_scene is None:
+        raise RuntimeError(
+            "--record-per-scene was requested but the metric callback returned no "
+            "per-scene block; the per-scene estimand was not measured."
+        )
+    return metrics_dict, by_scene
+
+
 def _per_scene_provenance(record, by_scene):
     """Add the per-scene block -- ONLY when the run actually recorded one.
 
@@ -1053,13 +1080,9 @@ def evaluate_model(
               f"assignment_hash {rotation_provenance['assignment_hash']}")
 
     # Compute and print metrics
-    metrics_dict, by_scene = split_per_scene_metrics(
-        metric_callback.compute_metrics("test"))
-    if record_per_scene:
-        if by_scene is None:
-            raise RuntimeError(
-                "--record-per-scene was requested but the metric callback returned "
-                "no per-scene block; the per-scene estimand was not measured.")
+    metrics_dict, by_scene = resolve_metrics_payload(
+        metric_callback.compute_metrics("test"), record_per_scene)
+    if by_scene is not None:
         print(f"Per-scene metrics recorded for {len(by_scene)} scene(s)")
     for metric_name, metric_value in metrics_dict.items():
         if metric_name == 'T60' or 'to' in metric_name:

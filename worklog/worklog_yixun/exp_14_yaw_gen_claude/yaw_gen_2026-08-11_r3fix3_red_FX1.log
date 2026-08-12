@@ -1,0 +1,8 @@
+_______ test_an_unflagged_callback_that_emits_by_scene_is_passed_through _______
+    def test_an_unflagged_callback_that_emits_by_scene_is_passed_through(monkeypatch):
+FAILED src/tests/test_exp14_fixed_mode_snapshot.py::test_an_unflagged_callback_that_emits_by_scene_is_passed_through
+FAILED src/tests/test_exp14_fixed_mode_snapshot.py::test_unflagged_record_bytes_are_the_legacy_bytes
+FAILED src/tests/test_exp14_fixed_mode_snapshot.py::test_the_flag_still_lifts_the_block
+FAILED src/tests/test_exp14_fixed_mode_snapshot.py::test_the_flag_refuses_a_callback_that_produced_no_per_scene_block
+FAILED src/tests/test_exp14_fixed_mode_snapshot.py::test_evaluate_model_routes_through_the_resolver
+5 failed, 27 passed, 3 warnings in 9.05s

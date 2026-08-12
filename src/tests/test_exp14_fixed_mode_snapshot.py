@@ -179,3 +179,97 @@ def test_defaults_only_record_matches_golden(stub_sha):
         META["ckpt_path"], META["steps"], META["cfg_scale"], META["eval_name"],
     )
     assert paths == case["output_paths"]
+
+
+# --------------------------------------------------------------------------- #
+# round-3 CLOSURE fix FX1 (findings A1/B1, REPRODUCED by the reviewer)
+#
+# The per-scene lift ran UNCONDITIONALLY, so any configuration whose callback
+# already emits per-scene metrics — HAA enables them independently of exp_14's
+# flag (metric_callback.py:81) — had its legacy record rewritten: the nested
+# metrics["by_scene"] was REMOVED and top-level by_scene / per_scene_schema /
+# scene_count appeared, in a run that never asked for any of it.
+#
+# The existing snapshot matrix could not catch this: its callback payloads carry
+# no by_scene at all. These tests drive the payload that does.
+# --------------------------------------------------------------------------- #
+_CALLBACK_WITH_BY_SCENE = {
+    "T60": 9.0,
+    "C50": 1.0,
+    "by_scene": {"room_a": {"T60": 8.0, "C50": 0.9},
+                 "room_b": {"T60": 10.0, "C50": 1.1}},
+}
+
+# The legacy bytes: what an unflagged run has always serialized for this payload
+# — the callback result verbatim, nested by_scene included, and no per-scene
+# provenance keys anywhere.
+_LEGACY_RECORD_BYTES = json.dumps({
+    "metrics": _CALLBACK_WITH_BY_SCENE,
+    "ckpt_path": "/o/epoch=8-step=40000.ckpt",
+    "rotate_deg": 0.0,
+    "cond_method": "vanilla",
+    "frame_avg_angles": None,
+    "cond_autocast": "default",
+    "orbit_execution": "n/a",
+    "frame_avg_fwd_cap": None,
+    "source_sha": "stubbed",
+    "batch_size": None,
+    "n_samples": None,
+    "dataset_config": None,
+    "seed": None,
+    "cfg_scale": None,
+    "steps": None,
+    "eval_name": None,
+    "weights_source": None,
+    "device": None,
+}, indent=4)
+
+
+def _record_for(payload, by_scene, monkeypatch):
+    monkeypatch.setattr(eval_FLAC, "source_sha", lambda: "stubbed")
+    return eval_FLAC.build_metrics_record(
+        payload, "/o/epoch=8-step=40000.ckpt", 0.0, "vanilla", None, by_scene=by_scene)
+
+
+def test_an_unflagged_callback_that_emits_by_scene_is_passed_through(monkeypatch):
+    """No flag ⇒ the callback result is the metrics block, verbatim."""
+    payload, by_scene = eval_FLAC.resolve_metrics_payload(
+        dict(_CALLBACK_WITH_BY_SCENE), record_per_scene=False)
+    assert by_scene is None
+    assert payload == _CALLBACK_WITH_BY_SCENE
+    assert "by_scene" in payload, "the legacy NESTED per-scene block was removed"
+
+
+def test_unflagged_record_bytes_are_the_legacy_bytes(monkeypatch):
+    """The whole point of the frozen surface, pinned at byte level."""
+    payload, by_scene = eval_FLAC.resolve_metrics_payload(
+        dict(_CALLBACK_WITH_BY_SCENE), record_per_scene=False)
+    record = _record_for(payload, by_scene, monkeypatch)
+    assert json.dumps(record, indent=4) == _LEGACY_RECORD_BYTES
+    for key in ("by_scene", "per_scene_schema", "scene_count"):
+        assert key not in record, f"{key} appeared in a run that never asked for it"
+
+
+def test_the_flag_still_lifts_the_block(monkeypatch):
+    """...and with the flag, the exp_14 shape: flat metrics + top-level block."""
+    payload, by_scene = eval_FLAC.resolve_metrics_payload(
+        dict(_CALLBACK_WITH_BY_SCENE), record_per_scene=True)
+    assert "by_scene" not in payload and by_scene == _CALLBACK_WITH_BY_SCENE["by_scene"]
+    record = _record_for(payload, by_scene, monkeypatch)
+    assert record["by_scene"] == _CALLBACK_WITH_BY_SCENE["by_scene"]
+    assert record["scene_count"] == 2 and record["per_scene_schema"] == 1
+
+
+def test_the_flag_refuses_a_callback_that_produced_no_per_scene_block():
+    """Asking for the estimand and not getting it is an error, not a silent pass."""
+    with pytest.raises(RuntimeError):
+        eval_FLAC.resolve_metrics_payload({"T60": 9.0}, record_per_scene=True)
+
+
+def test_evaluate_model_routes_through_the_resolver():
+    """The seam must be the one the evaluation actually uses."""
+    import inspect
+    src = inspect.getsource(eval_FLAC.evaluate_model)
+    assert "resolve_metrics_payload(" in src
+    assert "split_per_scene_metrics(" not in src, (
+        "evaluate_model still splits unconditionally")
