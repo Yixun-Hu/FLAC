@@ -1648,6 +1648,90 @@ fi
 # set IS the 106-cell grid, and that the argv the submitter would receive names
 # the right cell.
 echo
+# --- round-3 closure B3/B4: the PRE-LAUNCH intent, and the tree it means ------
+echo "--- intent manifest: the full protocol contract (announcement 05) ---"
+assert_isolated "the intent-contract cases"
+# Read from the submitter's DRYRUN, which renders the contract the intent will
+# carry and provably prepares no worktree, takes no lease and publishes no file.
+# One case per FAMILY: rgen/zref on an fa arm, vctl on the vanilla one. The
+# post-run screenmeta cannot repair an incomplete PRE-LAUNCH intent — it is
+# written by the job that already ran, under whatever flags it got.
+intent_dry() {   # <ARM> <CELL> [SEED] [ROTATE_DEG]
+  local args=(ARM="$1" CELL="$2" STEP=40000 SEED="${3:-42}" K=8)
+  [ -n "${4:-}" ] && args+=(ROTATE_DEG="$4")
+  DRYRUN=1 bash "$SUB" "${args[@]}" 2>&1 | grep '^DRYRUN intent '
+}
+intent_has() {   # <label> <text> <needle>
+  if printf '%s\n' "$2" | grep -qF -- "$3"; then
+    echo "PASS  $1"; PASS=$((PASS + 1))
+  else
+    echo "FAIL  $1 (missing: $3)"
+    printf '%s\n' "$2" | head -10 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+  fi
+}
+I_RGEN="$(intent_dry C8 rgen 44)"
+intent_has "rgen intent records its conditioning method"  "$I_RGEN" "cond_method fa_invariant"
+intent_has "rgen intent records the arm's orbit angles"   "$I_RGEN" "frame_avg_angles 0,45,90,135,180,225,270,315"
+intent_has "rgen intent records the random rotation seed" "$I_RGEN" "rotate_mode random rotate_seed 44"
+intent_has "rgen intent records the split and its size"   "$I_RGEN" "expected_stream_count 6337 record_stream yes"
+intent_has "rgen intent records the per-scene estimand"   "$I_RGEN" "record_per_scene yes expected_scenes 17"
+I_ZREF="$(intent_dry C8 zref)"
+intent_has "zref intent records conditioning + orbit"     "$I_ZREF" "cond_method fa_invariant"
+intent_has "zref intent records the theta=0 protocol"     "$I_ZREF" "rotate_mode fixed rotate_seed <n/a> rotate_deg 0"
+intent_has "zref intent records the per-scene estimand"   "$I_ZREF" "record_per_scene yes expected_scenes 17"
+I_VCTL="$(intent_dry VANL vctl 42 90)"
+intent_has "vanilla vctl intent records vanilla method"   "$I_VCTL" "cond_method vanilla"
+intent_has "vanilla vctl intent carries NO orbit"         "$I_VCTL" "frame_avg_angles <none:vanilla>"
+intent_has "vctl intent records its fixed angle"          "$I_VCTL" "rotate_deg 90"
+intent_has "vctl intent records the per-scene estimand"   "$I_VCTL" "record_per_scene yes expected_scenes 17"
+# ...and the intent's contract IS the validator's, line for line
+CONTRACT_OK=1
+while IFS= read -r line; do
+  printf '%s\n' "$I_RGEN" | grep -qF -- "$line" || { CONTRACT_OK=0; echo "        | missing: $line"; }
+done < <($PY "$VALIDATOR" contract --arm C8 --cell rgen --step 40000 --seed 44 --k 8)
+if [ "$CONTRACT_OK" = "1" ]; then
+  echo "PASS  the intent's protocol contract IS exp14_validate_cell.contract_lines"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL  the intent and the validator's contract disagree"; FAIL=$((FAIL + 1))
+fi
+
+echo "--- wave submitter: a stray OUTPUT_ROOT cannot redirect a real wave ---"
+assert_isolated "the stray-OUTPUT_ROOT case"
+# The job aborts on a non-production OUTPUT_ROOT and the submitter forwards the
+# environment with --export=ALL, so an inherited value used to dedup against the
+# wrong tree and release jobs guaranteed to abort. Redirection is now honoured
+# only under an explicit YAW_GEN_TEST_MODE=1; every other mode forces the
+# production tree. Asserted through DRYRUN, which resolves and prints the
+# classification root and submits nothing.
+STRAY="${TMP}/stray_output_root"; mkdir -p "$STRAY"
+out="$(OUTPUT_ROOT="$STRAY" DRYRUN=1 bash "$GRID" WAVE=vctl 2>&1)"; rc=$?
+if echo "$out" | grep -q "ignoring inherited OUTPUT_ROOT"; then
+  echo "PASS  an inherited OUTPUT_ROOT is refused outside explicit test mode"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL  an inherited OUTPUT_ROOT was accepted (rc=${rc})"
+  printf '%s\n' "$out" | head -4 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+fi
+# the invariant, not a hard-coded path: the suite isolates MAIN_REPO by default,
+# so what must hold is that the wave resolved ITS OWN <MAIN_REPO>/outputs_FLAC
+# and never the stray value it inherited.
+if echo "$out" | grep -qE "classification root: .+/outputs_FLAC" \
+   && ! echo "$out" | grep -q "classification root: ${STRAY}"; then
+  echo "PASS  the wave resolves its own production tree, not the stray one"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL  the wave resolved the wrong classification root"
+  printf '%s\n' "$out" | grep "classification root" | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+fi
+# ...while an explicit test-mode redirect still works (the dedup cases rely on it)
+out="$(OUTPUT_ROOT="$STRAY" YAW_GEN_TEST_MODE=1 DRYRUN=1 bash "$GRID" WAVE=vctl 2>&1)"
+if echo "$out" | grep -q "classification root: ${STRAY}"; then
+  echo "PASS  an explicit test-mode redirect is still honoured"; PASS=$((PASS + 1))
+else
+  echo "FAIL  test mode lost its OUTPUT_ROOT seam"; FAIL=$((FAIL + 1))
+fi
+
 echo "--- wave submitter: the 106-cell DRYRUN grid ---"
 assert_isolated "the DRYRUN grid and dedup cases"
 GRID_OUT="${TMP}/grid_all.txt"

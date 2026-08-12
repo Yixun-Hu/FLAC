@@ -124,7 +124,33 @@ PIN_FILE="$EXPDIR/yaw_gen_campaign_pin"
 COMMAND_LOG="$EXPDIR/yaw_gen_command.md"
 # (both may be redirected in TEST MODE only — see the TEST_MODE block below)
 PY=/n/fs/gatrdp/envs/flac/bin/python     # the campaign interpreter, not overridable
-OUTPUT_ROOT="${OUTPUT_ROOT:-$MAIN_REPO/outputs_FLAC}"
+# THE PRODUCTION TREE IS A CONSTANT IN LIVE MODE (round-3 closure B4). An
+# inherited OUTPUT_ROOT used to be accepted from the ambient environment and then
+# classified against — while the single-cell submitter forwards the environment
+# to sbatch with --export=ALL and the job itself ABORTS on a non-production
+# value. A stray export therefore deduplicated against the wrong tree and
+# released jobs guaranteed to abort. Redirection stays a TEST-MODE datum only,
+# under the existing allowlist; live mode overwrites whatever it inherited and
+# exports the production root explicitly, so classification and execution cannot
+# disagree about which tree they mean.
+PRODUCTION_OUTPUT_ROOT="$MAIN_REPO/outputs_FLAC"
+# Redirection is honoured ONLY under an explicit YAW_GEN_TEST_MODE=1 (the same
+# datum-seam rule as every other test redirect). Not under DRYRUN: a dry run
+# exits before classification, so a redirect buys it nothing and accepting one
+# would leave a mode in which the printed plan and a later live wave disagree
+# about which tree they mean.
+if [ "${YAW_GEN_TEST_MODE:-0}" = "1" ]; then
+  OUTPUT_ROOT="${OUTPUT_ROOT:-$PRODUCTION_OUTPUT_ROOT}"
+else
+  if [ -n "${OUTPUT_ROOT:-}" ] && [ "$OUTPUT_ROOT" != "$PRODUCTION_OUTPUT_ROOT" ]; then
+    echo "NOTE: ignoring inherited OUTPUT_ROOT='${OUTPUT_ROOT}' - this wave" >&2
+    echo "      classifies and submits against ${PRODUCTION_OUTPUT_ROOT} only." >&2
+  fi
+  OUTPUT_ROOT="$PRODUCTION_OUTPUT_ROOT"
+fi
+# exported EXPLICITLY so the job the submitter releases with --export=ALL reads
+# the same tree this wave classified — the split between them was the defect.
+export OUTPUT_ROOT
 # NO ENVIRONMENT VARIABLE CARRIES AN EXECUTABLE, in any mode. Every seam that
 # used to name a command (the submitter, squeue, sync, even the interpreter) is
 # gone: an env var that is exec'd is a way to run something else, and no amount
@@ -271,6 +297,7 @@ submit_argv() {  # <arm> <cell> <step> <seed> <k> <rot>  -> the cell's submit ar
 
 # --- DRYRUN: print the exact submission line for every cell, submit nothing ---
 if [ "$DRYRUN" = "1" ]; then
+  echo "=== classification root: ${OUTPUT_ROOT} ===" >&2
   for line in "${CELLS[@]}"; do
     # shellcheck disable=SC2086
     set -- $line
