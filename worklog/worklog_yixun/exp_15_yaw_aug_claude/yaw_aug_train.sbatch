@@ -285,7 +285,8 @@ fi
 if [ "$DRYRUN" = "1" ]; then
   [ -z "$GATE_FAIL" ] && echo "${GATE_OK_MSG} (dry run)" \
     || echo "DRY-RUN ADVISORY: ${GATE_FAIL} (a real launch aborts here)"
-  [ -z "$DRIFT" ] || echo "DRY-RUN ADVISORY: tracked measurement surfaces are modified (a real launch aborts here)"
+  [ -z "$DRIFT" ] || { echo "DRY-RUN ADVISORY: tracked measurement surfaces are modified "\
+                            "(a real launch aborts here):"; echo "$DRIFT"; }
 else
   [ -n "${SLURM_JOB_ID:-}" ] || die "a real launch must run under sbatch (no SLURM_JOB_ID) - abort"
   [ -z "$GATE_FAIL" ] || die "${GATE_FAIL} - abort"

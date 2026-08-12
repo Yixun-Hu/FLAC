@@ -530,18 +530,19 @@ expect_cmd "  ... and the submitter refuses too" 2 "git status for the drift gat
 # the shared checkout untouched.
 WT="${TMP}/wt"
 if git worktree add --detach --quiet "$WT" HEAD 2>/dev/null; then
-  # REAL mode (fake job id): DRYRUN only prints an advisory, while a real
-  # launch names the offending files — which is what we assert on.
-  WT_ENV=(ARM=YAWAUG "YAW_AUG_REPO_OVERRIDE=${WT}" SLURM_JOB_ID=999999)
+  # DRYRUN, deliberately: YAW_AUG_REPO_OVERRIDE is honoured ONLY outside a Slurm
+  # job (so a test hook can never steer a real launch), which means a worktree
+  # case must run as a dry run. The advisory names the offending files, and the
+  # real-mode fail-closed path is covered by sections I and K on this checkout.
   WT_DRY=(ARM=YAWAUG "OUTPUT_ROOT=${OUT_ROOT}/wt" "YAW_AUG_REPO_OVERRIDE=${WT}" DRYRUN=1)
   WT_HEAD="$(git -C "$WT" rev-parse HEAD)"
   printf '\n' >> "${WT}/data/AR/train.json"
-  case_spool "a mutated data/AR/train.json is caught" "${WT}/${EXPDIR}/yaw_aug_train.sbatch" 2 \
-    "data/AR/train.json" -- "${WT_ENV[@]}" "EXPECT_SHA=${WT_HEAD}"
+  case_spool "a mutated data/AR/train.json is caught" "${WT}/${EXPDIR}/yaw_aug_train.sbatch" 0 \
+    "data/AR/train.json" -- "${WT_DRY[@]}" "EXPECT_SHA=${WT_HEAD}"
   git -C "$WT" checkout -- data/AR/train.json
   rm -f "${WT}/data/AR/train.json"
-  case_spool "a DELETED data/AR/train.json is caught (quoted pathspec)" "${WT}/${EXPDIR}/yaw_aug_train.sbatch" 2 \
-    "data/AR/train.json" -- "${WT_ENV[@]}" "EXPECT_SHA=${WT_HEAD}"
+  case_spool "a DELETED data/AR/train.json is caught (quoted pathspec)" "${WT}/${EXPDIR}/yaw_aug_train.sbatch" 0 \
+    "data/AR/train.json" -- "${WT_DRY[@]}" "EXPECT_SHA=${WT_HEAD}"
   git -C "$WT" checkout -- data/AR/train.json
   # a TEST-ONLY commit must NOT abort a pending job (exp_11 2b75036)
   echo "# guardtest scratch" >> "${WT}/src/tests/test_yaw_aug_training.py"
@@ -551,8 +552,8 @@ if git worktree add --detach --quiet "$WT" HEAD 2>/dev/null; then
   # ...but a runtime-surface commit MUST
   echo "# guardtest scratch" >> "${WT}/src/training/diffusion.py"
   git -C "$WT" -c user.email=g@t -c user.name=g commit -qam "runtime commit" >/dev/null 2>&1
-  case_spool "a src/training commit DOES abort a pending job" "${WT}/${EXPDIR}/yaw_aug_train.sbatch" 2 \
-    "training surfaces changed since EXPECT_SHA" -- "${WT_ENV[@]}" "EXPECT_SHA=${WT_HEAD}"
+  case_spool "a src/training commit DOES abort a pending job" "${WT}/${EXPDIR}/yaw_aug_train.sbatch" 0 \
+    "training surfaces changed since EXPECT_SHA" -- "${WT_DRY[@]}" "EXPECT_SHA=${WT_HEAD}"
   git worktree remove --force "$WT" >/dev/null 2>&1 || true
   git worktree prune >/dev/null 2>&1 || true
 else
