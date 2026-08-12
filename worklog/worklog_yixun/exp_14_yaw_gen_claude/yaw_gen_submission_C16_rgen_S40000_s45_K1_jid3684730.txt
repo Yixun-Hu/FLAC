@@ -1,0 +1,16 @@
+job 3684730 name exp14-screen-C16-rgen-rotrand45-40000-s45-K1 submitted_at 2026-08-12T09:57:37-04:00 by yh4742@neuronic.cs.princeton.edu
+arm C16 cell rgen step 40000 seed 45 K 1
+pin_sha e8ca26edb116cc56f0e62289cb65008c947079b7 campaign_pin e8ca26edb116cc56f0e62289cb65008c947079b7
+expect_sha e8ca26edb116cc56f0e62289cb65008c947079b7
+measure_root /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/e8ca26edb116cc56f0e62289cb65008c947079b7
+exclude neu301,neu303,neu305,neu306,neu317,neu319,neu322,neu332
+cond_method fa_invariant
+frame_avg_angles 0,22.5,45,67.5,90,112.5,135,157.5,180,202.5,225,247.5,270,292.5,315,337.5
+training_orbit 16 eval_orbit 16
+rotate_mode random rotate_seed 45 rotate_deg <null>
+split acousticroom_unseeneval_1.json expected_stream_count 6337 record_stream yes
+record_per_scene yes expected_scenes 10 (release grouping: AR room families)
+batch_size 64 num_workers 4
+cond_autocast bf16 cfg_scale 1.0 steps 1 use_ema yes
+lease /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/e8ca26edb116cc56f0e62289cb65008c947079b7/.leases/3684730
+manifest_complete yes
