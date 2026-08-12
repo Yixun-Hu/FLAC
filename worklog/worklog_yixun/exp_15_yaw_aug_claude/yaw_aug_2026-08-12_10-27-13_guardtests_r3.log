@@ -1,0 +1,196 @@
+=== yaw_aug_train guard exercise — 2026-08-12_10-27-13 — 6d2b17d ===
+--- A. pins are concrete and the refusal mechanism survives ---
+PASS  every launcher pin holds a concrete value
+PASS  the placeholder refusal mechanism is still present
+PASS  budget re-pinned to the registered 40000
+PASS  the production assertion enforces 40000
+PASS  INITIAL time pin is 24:00:00
+PASS  RESTART time pin is 24:00:00
+PASS  PYTHONUNBUFFERED is exported for the banner
+PASS  exp_11's Q10 extension mode is not invoked
+--- B. the happy path: a full DRYRUN passes every reachable gate ---
+PASS  INITIAL dry run passes  (rc=0)
+PASS    ... and names the 40k budget  (rc=0)
+PASS    ... and the accumulation gate reports 1  (rc=0)
+PASS    ... and the config gate accepts the arm config  (rc=0)
+PASS    ... and the allowlist gate passes on the real diff  (rc=0)
+PASS    ... and the INITIAL time pin is selected  (rc=0)
+--- C. parameter / arm gates ---
+PASS  missing ARM  (rc=2)
+PASS  missing EXPECT_SHA  (rc=2)
+PASS  arm VANL rejected  (rc=2)
+PASS  arm C4L rejected  (rc=2)
+PASS  arm C32 rejected  (rc=2)
+PASS  arm yawaug rejected  (rc=2)
+--- D. NEW: the budget pin (delta 2) ---
+PASS  production MAXSTEPS != 40000 dies  (rc=2)
+PASS  a SHORTER budget dies too (not just a longer one)  (rc=2)
+--- E. NEW: RESTART is capped at the pre-registered endpoint (delta 2) ---
+PASS  a RESTART resuming AT 40000 dies (the extension attempt)  (rc=2)
+PASS  a RESTART resuming PAST 40000 dies  (rc=2)
+PASS  a RESTART TARGETING beyond 40000 dies  (rc=2)
+PASS  a legitimate mid-run RESTART is accepted  (rc=0)
+PASS    ... and selects the RESTART time pin  (rc=0)
+--- F. lineage gates (inherited) ---
+PASS  initial + RESUME_CKPT  (rc=2)
+PASS  restart w/o ckpt  (rc=2)
+PASS  restart ckpt missing  (rc=2)
+PASS  restart foreign ckpt  (rc=2)
+PASS  initial refuses an existing run dir  (rc=2)
+--- G. NEW: the accumulation gate (delta 4, round-1 finding) ---
+PASS  accum != 1 dies  (rc=2)
+PASS  an argv with no --accum-batches dies  (rc=2)
+--- H. NEW: the semantic config gate rejects mutated configs (delta 3) ---
+PASS  config with cond_method rejected  (rc=2)
+PASS  config with frame_avg_angles rejected  (rc=2)
+PASS  yaw_aug disabled rejected  (rc=2)
+PASS  yaw_aug seed changed rejected  (rc=2)
+PASS  yaw_aug img_w changed rejected  (rc=2)
+PASS  yaw_aug block absent rejected  (rc=2)
+PASS  extra yaw_aug key rejected  (rc=2)
+PASS  grad-ckpt false rejected  (rc=2)
+PASS  EMA off rejected  (rc=2)
+PASS  a ViT at another resolution rejected  (rc=2)
+--- I. NEW: the launch-pin allowlist gate (delta 6, plan §3.3-2) ---
+PASS  DRYRUN names the unreviewed file  (rc=0)
+PASS    ... and says a real launch would abort  (rc=0)
+SKIP  real-mode allowlist case (working tree dirty; the drift gate fires first)
+PASS  an empty allowlist is refused  (rc=2)
+PASS  a missing allowlist is refused  (rc=2)
+changed production files: 16; unmatched: []
+PASS  the committed allowlist covers today's real diff
+--- J. NEW: the post-launch banner watcher (delta 5) ---
+PASS  banner helper extracted from the launcher
+PASS  banner present, no steps yet -> OK  (rc=0)
+PASS  banner present and training started -> OK  (rc=0)
+PASS  steps WITHOUT the banner -> MISSING (kill path)  (rc=1)
+PASS  neither yet -> PENDING (keep waiting)  (rc=2)
+PASS  a banner with the WRONG seed does not satisfy the gate  (rc=1)
+PASS  a banner with the WRONG img_w does not satisfy the gate  (rc=1)
+PASS  a missing banner forces exit class 8
+PASS  the watcher terminates the torchrun group
+--- K. commit-binding / sbatch-only gates (REAL mode) ---
+PASS  wrong EXPECT_SHA aborts  (rc=2)
+PASS  real mode needs sbatch  (rc=2)
+PASS  ambient OUTPUT_ROOT rejected under Slurm  (rc=2)
+PASS  launcher pins the production root literally
+PASS  submitter exports the fixed root, not ambient state
+--- L. env cross-check against the control's manifest (delta 7) ---
+PASS  the control manifest is sha-pinned to exp_11's registry value
+PASS  the control manifest on disk still hashes to that pin
+PASS  the control manifest records our pinned torch
+PASS  the control manifest records our pinned VAE
+--- M. the submitter ---
+PASS  submitter rejects a bad arm  (rc=2)
+FAIL  submitter derives 8x8 resources: want rc=0 + '--gres=gpu:l40:8', got rc=2
+        | tracked measurement surfaces have uncommitted changes - commit first, abort:
+        |  M worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_train.sbatch
+FAIL    ... cpus from the rung: want rc=0 + '--cpus-per-task=64', got rc=2
+        | tracked measurement surfaces have uncommitted changes - commit first, abort:
+        |  M worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_train.sbatch
+FAIL    ... mem from the rung: want rc=0 + '--mem=108G', got rc=2
+        | tracked measurement surfaces have uncommitted changes - commit first, abort:
+        |  M worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_train.sbatch
+FAIL    ... the INITIAL time pin: want rc=0 + 'time 24:00:00', got rc=2
+        | tracked measurement surfaces have uncommitted changes - commit first, abort:
+        |  M worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_train.sbatch
+FAIL    ... and submits NOTHING in DRYRUN: want rc=0 + 'DRYRUN sbatch', got rc=2
+        | tracked measurement surfaces have uncommitted changes - commit first, abort:
+        |  M worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_train.sbatch
+PASS  a dry run leaves no submission manifest behind
+PASS  intent manifest is published before the sbatch call
+PASS  an unrecordable job is cancelled
+--- N. plumbing that the launcher inherited and must keep ---
+PASS  no race-prone 'mktemp -u' FIFO
+PASS  FIFO removal is in the exit trap
+PASS  pip freeze status is checked before hashing
+PASS  the final record's tee status is captured
+PASS  launcher uses flock for run ownership
+PASS  the wandb readback still runs
+PASS  the launch registry is written
+PASS  the registry records final_ckpt_sha256 at completion
+--- O. exit taxonomy, mocked (exp_11's classifier, arm-agnostic) ---
+PASS  class 0 complete  (rc=0)
+PASS  class 6 world-size absent  (rc=6)
+PASS  class 6 wrong world-size  (rc=6)
+PASS  class 3 OOM on nonzero rc  (rc=3)
+PASS  class 4 missing marker  (rc=4)
+PASS  class 7 logs differ  (rc=7)
+--- P. restart preflight depth (exp_11's tool, our config) ---
+synthetic checkpoints written
+PASS  preflight accepts a good ckpt  (rc=0)
+PASS  preflight rejects a step mismatch  (rc=2)
+PASS  preflight rejects a ckpt trained WITHOUT yaw_aug  (rc=2)
+PASS  preflight rejects a stripped optimizer  (rc=2)
+PASS  preflight rejects a missing EMA  (rc=2)
+--- R. NEW (r3-fix F1): the smoke runs the real rung and its OWN registry ---
+PASS  smoke at 16x4 dies  (rc=2)
+PASS  smoke at 32x2 dies  (rc=2)
+PASS  smoke at the pinned 8x8 is accepted  (rc=0)
+PASS  submitter refuses a 16x4 smoke  (rc=2)
+PASS  a smoke registers in its own registry file
+PASS  registry-init code extracted from the launcher
+PASS  a SMOKE registers into the smoke registry  (rc=0)
+PASS    ... the smoke registry now holds arms.YAWAUG
+PASS    ... and the PRODUCTION registry was never created
+PASS  the production INITIAL then registers successfully  (rc=0)
+PASS    ... and a second production INITIAL is refused  (rc=1)
+--- S. NEW (r3-fix F2): the completion audit is round-2-rigorous, fail-closed ---
+PASS  completion audit extracted, and it imports the round-2 recorder
+PASS    ... and reuses summarize_ema
+PASS    ... and reuses canonical_bytes
+completion fixtures written
+PASS  a correct 40k checkpoint is audited and recorded  (rc=0)
+PASS    ... final_step comes from the checkpoint and the EMA audit is recorded
+PASS  completion rejects: wrongstep  (rc=1)
+PASS  completion rejects: wrongcfg  (rc=1)
+PASS  completion rejects: wrongema  (rc=1)
+PASS  completion rejects: empty  (rc=1)
+PASS  completion rejects: double  (rc=1)
+PASS  completion fails when the registry cannot be written  (rc=1)
+PASS  a failed completion audit forces exit class 9
+PASS    ... and says so loudly
+--- T. NEW (r3-fix F3/F4): the closure covers the split and fails CLOSED ---
+PASS  the worker closure covers data/AR (the training split)
+PASS  the submitter closure covers data/AR
+PASS  src/tests is excluded from the worker closure
+PASS  src/tests is excluded from the submitter closure
+PASS  a failing git status is fatal in the worker
+PASS  a failing git status is fatal in the submitter
+PASS  a broken git environment is fatal, not 'clean'  (rc=2)
+PASS    ... and the submitter refuses too  (rc=2)
+FAIL  a mutated data/AR/train.json is caught: want rc=0 + 'data/AR/train.json', got rc=0
+        |   explicit --val-every='-1' (whitelisted explicit default)
+        | ARGV PARITY OK (INITIAL): only whitelisted differences and additions
+        | DRY RUN complete: gates A–G passed for ARM=YAWAUG RUNG=8x8 MODE=INITIAL SMOKE=0
+        |   (the allowlist gate ran above, advisory-only here; Slurm/GPU/VRAM/env/wandb/lock
+        |    gates and training are skipped in DRYRUN)
+FAIL  a DELETED data/AR/train.json is caught (quoted pathspec): want rc=0 + 'data/AR/train.json', got rc=0
+        |   explicit --val-every='-1' (whitelisted explicit default)
+        | ARGV PARITY OK (INITIAL): only whitelisted differences and additions
+        | DRY RUN complete: gates A–G passed for ARM=YAWAUG RUNG=8x8 MODE=INITIAL SMOKE=0
+        |   (the allowlist gate ran above, advisory-only here; Slurm/GPU/VRAM/env/wandb/lock
+        |    gates and training are skipped in DRYRUN)
+PASS  a test-only commit does NOT abort a pending job  (rc=0)
+PASS  a src/training commit DOES abort a pending job  (rc=0)
+--- U. NEW (r3-fix F5/F6): banner exactness+taxonomy, manifest snapshot ---
+PASS  seed=420 does NOT satisfy the seed=42 gate  (rc=1)
+PASS  a PREFIXED banner line does not satisfy the gate  (rc=1)
+PASS  a SUFFIXED banner line does not satisfy the gate  (rc=1)
+PASS  a banner printed AFTER step evidence is MISSING  (rc=1)
+PASS  class 8 is driven by a definite MISSING
+PASS  a PENDING verdict preserves an existing failure class (OOM keeps class 3)
+PASS  the manifest is no longer hashed by a separate sha256sum pass
+PASS  the manifest is read exactly ONCE, and hashed+parsed from those bytes
+PASS  the real control manifest passes the snapshot gate  (rc=0)
+PASS  a tampered manifest fails the snapshot gate  (rc=1)
+PASS  a registry disagreeing with the reviewed pin is refused  (rc=1)
+--- Q. the suite touched nothing tracked, and submitted nothing ---
+FAIL  the suite changed tracked state:
+        | 2a3
+        | > ?? worklog/worklog_yixun/exp_11_fa_orbit_claude/exp11_mechanism_readout.py
+        | 133a135
+        | > ?? worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_codex_readout_review.md
+PASS  this suite never invokes sbatch or scancel
+
+=== guard tests: 136 passed, 8 failed ===

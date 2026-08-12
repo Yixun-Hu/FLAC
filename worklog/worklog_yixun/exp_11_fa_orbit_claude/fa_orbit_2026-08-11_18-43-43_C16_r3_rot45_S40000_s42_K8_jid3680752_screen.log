@@ -1,0 +1,92 @@
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+[rank: 0] Seed set to 42
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Using EMA model
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+Running json scandir...
+Found 6337 files in 17 subfolders
+Max audio length for metric computation: 8000
+Loading AGREE model from checkpoint:  weights/AGREE/AGREE_fullAR.pt
+Image model facebook/dinov3-vits16-pretrain-lvd1689m loaded, trainable params: 21.00M
+Loaded pretrained weights from weights/FLAC/VAE.ckpt
+Done loading AGREE model
+AGREE model loaded successfully
+Evaluating:   0%|          | 0/100 [00:00<?, ?it/s]Evaluating:   1%|          | 1/100 [00:30<49:46, 30.16s/it]Evaluating:   2%|▏         | 2/100 [00:44<34:19, 21.02s/it]Evaluating:   3%|▎         | 3/100 [00:59<29:15, 18.10s/it]Evaluating:   4%|▍         | 4/100 [01:15<27:24, 17.13s/it]Evaluating:   5%|▌         | 5/100 [01:30<26:09, 16.53s/it]Evaluating:   6%|▌         | 6/100 [01:45<25:12, 16.09s/it]Evaluating:   7%|▋         | 7/100 [01:59<23:37, 15.24s/it]Evaluating:   8%|▊         | 8/100 [02:11<22:04, 14.40s/it]Evaluating:   9%|▉         | 9/100 [02:24<21:12, 13.98s/it]Evaluating:  10%|█         | 10/100 [02:36<20:05, 13.40s/it]Evaluating:  11%|█         | 11/100 [02:49<19:27, 13.12s/it]Evaluating:  12%|█▏        | 12/100 [03:02<19:10, 13.07s/it]Evaluating:  13%|█▎        | 13/100 [03:15<18:48, 12.97s/it]Evaluating:  14%|█▍        | 14/100 [03:28<18:42, 13.05s/it]Evaluating:  15%|█▌        | 15/100 [03:40<18:11, 12.84s/it]Evaluating:  16%|█▌        | 16/100 [03:53<17:47, 12.70s/it]Evaluating:  17%|█▋        | 17/100 [04:05<17:27, 12.62s/it]Evaluating:  18%|█▊        | 18/100 [04:17<17:00, 12.44s/it]Evaluating:  19%|█▉        | 19/100 [04:32<17:42, 13.11s/it]Evaluating:  20%|██        | 20/100 [04:46<17:56, 13.46s/it]Evaluating:  21%|██        | 21/100 [05:01<18:19, 13.91s/it]Evaluating:  22%|██▏       | 22/100 [05:16<18:35, 14.30s/it]Evaluating:  23%|██▎       | 23/100 [05:30<18:07, 14.13s/it]Evaluating:  24%|██▍       | 24/100 [05:43<17:38, 13.93s/it]Evaluating:  25%|██▌       | 25/100 [05:57<17:12, 13.76s/it]Evaluating:  26%|██▌       | 26/100 [06:11<16:59, 13.77s/it]Evaluating:  27%|██▋       | 27/100 [06:24<16:33, 13.61s/it]Evaluating:  28%|██▊       | 28/100 [06:36<15:52, 13.23s/it]Evaluating:  29%|██▉       | 29/100 [06:49<15:35, 13.18s/it]Evaluating:  30%|███       | 30/100 [07:01<15:01, 12.88s/it]Evaluating:  31%|███       | 31/100 [07:14<14:52, 12.94s/it]Evaluating:  32%|███▏      | 32/100 [07:28<14:50, 13.10s/it]Evaluating:  33%|███▎      | 33/100 [07:41<14:33, 13.04s/it]Evaluating:  34%|███▍      | 34/100 [07:54<14:24, 13.10s/it]Evaluating:  35%|███▌      | 35/100 [08:08<14:26, 13.32s/it]Evaluating:  36%|███▌      | 36/100 [08:21<14:07, 13.23s/it]Evaluating:  37%|███▋      | 37/100 [08:34<13:49, 13.17s/it]Evaluating:  38%|███▊      | 38/100 [08:47<13:35, 13.16s/it]Evaluating:  39%|███▉      | 39/100 [09:00<13:14, 13.02s/it]Evaluating:  40%|████      | 40/100 [09:14<13:13, 13.23s/it]Evaluating:  41%|████      | 41/100 [09:26<12:50, 13.05s/it]Evaluating:  42%|████▏     | 42/100 [09:39<12:39, 13.09s/it]Evaluating:  43%|████▎     | 43/100 [09:52<12:26, 13.10s/it]Evaluating:  44%|████▍     | 44/100 [10:06<12:13, 13.09s/it]Evaluating:  45%|████▌     | 45/100 [10:18<11:54, 12.98s/it]Evaluating:  46%|████▌     | 46/100 [10:32<11:50, 13.16s/it]Evaluating:  47%|████▋     | 47/100 [10:45<11:38, 13.18s/it]Evaluating:  48%|████▊     | 48/100 [10:58<11:26, 13.19s/it]Evaluating:  49%|████▉     | 49/100 [11:12<11:14, 13.22s/it]Evaluating:  50%|█████     | 50/100 [11:25<11:08, 13.37s/it]Evaluating:  51%|█████     | 51/100 [11:39<11:01, 13.49s/it]Evaluating:  52%|█████▏    | 52/100 [11:53<10:53, 13.62s/it]Evaluating:  53%|█████▎    | 53/100 [12:07<10:38, 13.58s/it]Evaluating:  54%|█████▍    | 54/100 [12:20<10:21, 13.51s/it]Evaluating:  55%|█████▌    | 55/100 [12:34<10:11, 13.60s/it]Evaluating:  56%|█████▌    | 56/100 [12:47<09:53, 13.49s/it]Evaluating:  57%|█████▋    | 57/100 [13:00<09:35, 13.38s/it]Evaluating:  58%|█████▊    | 58/100 [13:13<09:22, 13.40s/it]Evaluating:  59%|█████▉    | 59/100 [13:26<09:00, 13.18s/it]Evaluating:  60%|██████    | 60/100 [13:39<08:45, 13.14s/it]Evaluating:  61%|██████    | 61/100 [13:53<08:34, 13.20s/it]Evaluating:  62%|██████▏   | 62/100 [14:06<08:24, 13.28s/it]Evaluating:  63%|██████▎   | 63/100 [14:19<08:11, 13.29s/it]Evaluating:  64%|██████▍   | 64/100 [14:33<08:01, 13.38s/it]Evaluating:  65%|██████▌   | 65/100 [14:46<07:45, 13.30s/it]Evaluating:  66%|██████▌   | 66/100 [14:59<07:30, 13.24s/it]Evaluating:  67%|██████▋   | 67/100 [15:13<07:19, 13.32s/it]Evaluating:  68%|██████▊   | 68/100 [15:25<07:02, 13.19s/it]Evaluating:  69%|██████▉   | 69/100 [15:38<06:45, 13.07s/it]Evaluating:  70%|███████   | 70/100 [15:54<06:51, 13.73s/it]Evaluating:  71%|███████   | 71/100 [16:08<06:48, 14.08s/it]Evaluating:  72%|███████▏  | 72/100 [16:24<06:44, 14.44s/it]Evaluating:  73%|███████▎  | 73/100 [16:38<06:24, 14.25s/it]Evaluating:  74%|███████▍  | 74/100 [16:50<05:53, 13.61s/it]Evaluating:  75%|███████▌  | 75/100 [17:02<05:31, 13.24s/it]Evaluating:  76%|███████▌  | 76/100 [17:15<05:13, 13.08s/it]Evaluating:  77%|███████▋  | 77/100 [17:27<04:58, 12.96s/it]Evaluating:  78%|███████▊  | 78/100 [17:40<04:45, 12.97s/it]Evaluating:  79%|███████▉  | 79/100 [17:54<04:34, 13.09s/it]Evaluating:  80%|████████  | 80/100 [18:07<04:23, 13.20s/it]Evaluating:  81%|████████  | 81/100 [18:21<04:13, 13.35s/it]Evaluating:  82%|████████▏ | 82/100 [18:34<03:58, 13.24s/it]Evaluating:  83%|████████▎ | 83/100 [18:47<03:46, 13.30s/it]Evaluating:  84%|████████▍ | 84/100 [19:00<03:29, 13.11s/it]Evaluating:  85%|████████▌ | 85/100 [19:15<03:24, 13.66s/it]Evaluating:  86%|████████▌ | 86/100 [19:30<03:17, 14.11s/it]Evaluating:  87%|████████▋ | 87/100 [19:46<03:09, 14.54s/it]Evaluating:  88%|████████▊ | 88/100 [20:01<02:59, 14.92s/it]Evaluating:  89%|████████▉ | 89/100 [20:18<02:48, 15.28s/it]Evaluating:  90%|█████████ | 90/100 [20:34<02:36, 15.62s/it]Evaluating:  91%|█████████ | 91/100 [20:51<02:23, 15.92s/it]Evaluating:  92%|█████████▏| 92/100 [21:02<01:57, 14.69s/it]Evaluating:  93%|█████████▎| 93/100 [21:13<01:35, 13.60s/it]Evaluating:  94%|█████████▍| 94/100 [21:25<01:17, 12.99s/it]Evaluating:  95%|█████████▌| 95/100 [21:36<01:01, 12.40s/it]Evaluating:  96%|█████████▌| 96/100 [21:47<00:48, 12.09s/it]Evaluating:  97%|█████████▋| 97/100 [21:59<00:35, 11.95s/it]Evaluating:  98%|█████████▊| 98/100 [22:11<00:23, 11.84s/it]Evaluating:  99%|█████████▉| 99/100 [22:22<00:11, 11.63s/it]Evaluating: 100%|██████████| 100/100 [22:22<00:00,  8.25s/it]Evaluating: 100%|██████████| 100/100 [22:22<00:00, 13.43s/it]
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 300, in _run_finalizers
+    finalizer()
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 224, in __call__
+    res = self._callback(*self._args, **self._kwargs)
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 300, in _run_finalizers
+    finalizer()
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 133, in _remove_temp_dir
+    rmtree(tempdir)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 725, in rmtree
+    _rmtree_safe_fd(fd, path, onerror)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 224, in __call__
+    res = self._callback(*self._args, **self._kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 681, in _rmtree_safe_fd
+    onerror(os.unlink, fullname, sys.exc_info())
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 133, in _remove_temp_dir
+    rmtree(tempdir)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 679, in _rmtree_safe_fd
+    os.unlink(entry.name, dir_fd=topfd)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 725, in rmtree
+    _rmtree_safe_fd(fd, path, onerror)
+OSError: [Errno 16] Device or resource busy: '.nfs00000006db1f898a0000ad96'
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 681, in _rmtree_safe_fd
+    onerror(os.unlink, fullname, sys.exc_info())
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 679, in _rmtree_safe_fd
+    os.unlink(entry.name, dir_fd=topfd)
+OSError: [Errno 16] Device or resource busy: '.nfs00000006e9641c2c0000ad97'
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 300, in _run_finalizers
+    finalizer()
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 300, in _run_finalizers
+    finalizer()
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 224, in __call__
+    res = self._callback(*self._args, **self._kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 224, in __call__
+    res = self._callback(*self._args, **self._kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 133, in _remove_temp_dir
+    rmtree(tempdir)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 133, in _remove_temp_dir
+    rmtree(tempdir)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 725, in rmtree
+    _rmtree_safe_fd(fd, path, onerror)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 725, in rmtree
+    _rmtree_safe_fd(fd, path, onerror)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 681, in _rmtree_safe_fd
+    onerror(os.unlink, fullname, sys.exc_info())
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 681, in _rmtree_safe_fd
+    onerror(os.unlink, fullname, sys.exc_info())
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 679, in _rmtree_safe_fd
+    os.unlink(entry.name, dir_fd=topfd)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 679, in _rmtree_safe_fd
+    os.unlink(entry.name, dir_fd=topfd)
+OSError: [Errno 16] Device or resource busy: '.nfs00000006e9c1045a0000ad99'
+OSError: [Errno 16] Device or resource busy: '.nfs00000006e7a556b90000ad98'
+Test/T60 (%) 9.3588
+Test/Invalid T60 0.0
+Test/C50 (dB) 1.0236
+Test/EDT (ms) 45.2635
+Test/FD 0.335
+Test/RIR_to_GT_RIR_R@1 (%) 5.2391
+Test/RIR_to_GT_RIR_R@5 (%) 16.522
+Test/RIR_to_GT_RIR_R@10 (%) 24.5384
+Test/RIR_to_geom_R@1 (%) 3.8031
+Test/RIR_to_geom_R@5 (%) 12.4033
+Test/RIR_to_geom_R@10 (%) 18.9522
+Metrics saved to /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp11_C16/FLAC_exp11_C16/exp11_C16/checkpoints/epoch=8-step=40000_metrics_1_1.0_exp11_C16_r3_rot45_s42_K8_fa_invariant_a16_rot45.json
+Evaluation complete!

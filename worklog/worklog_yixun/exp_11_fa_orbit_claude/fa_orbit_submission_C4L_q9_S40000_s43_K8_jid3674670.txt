@@ -1,0 +1,8 @@
+job 3674670 name exp11-screen-C4L-q9-40000-s43-K8 submitted_at 2026-08-10T23:42:26-04:00 by yh4742@neuronic.cs.princeton.edu
+arm C4L cell q9 step 40000 seed 43 K 8
+pin_sha 89f24cd55c64a68c3021520822171fb91c8b60fe campaign_pin 89f24cd55c64a68c3021520822171fb91c8b60fe
+expect_sha 89f24cd55c64a68c3021520822171fb91c8b60fe
+measure_root /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/89f24cd55c64a68c3021520822171fb91c8b60fe
+exclude neu301,neu303,neu305,neu306,neu317,neu319,neu322,neu332
+rotate_deg <n/a> eval_orbit <n/a>
+lease /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/89f24cd55c64a68c3021520822171fb91c8b60fe/.leases/3674670

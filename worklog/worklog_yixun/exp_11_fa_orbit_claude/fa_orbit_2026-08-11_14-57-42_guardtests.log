@@ -1,0 +1,125 @@
+=== fa_orbit_train guard exercise — 2026-08-11_14-57-42 — 135cb4b ===
+--- A. the pin mechanism refuses to launch un-pinned (round-3 B1) ---
+PASS  every launcher pin holds a concrete value
+PASS  the launcher still refuses a placeholder pin if one returns
+PASS  SMOKE bypasses the pins  (rc=0)
+PASS  SMOKE needs a rung  (rc=2)
+PASS  SMOKE needs a VRAM floor  (rc=2)
+PASS  SMOKE identity is separate  (rc=0)
+--- B. parameter / arm / rung gates ---
+PASS  missing ARM  (rc=2)
+PASS  missing EXPECT_SHA  (rc=2)
+PASS  arm C7 rejected  (rc=2)
+PASS  arm FA1 rejected  (rc=2)
+PASS  arm VAN rejected  (rc=2)
+PASS  arm CKPT4 rejected  (rc=2)
+PASS  bogus rung rejected  (rc=2)
+PASS  rung 32x2 accepted  (rc=0)
+PASS  rung 16x4 accepted  (rc=0)
+PASS  rung 8x8 accepted  (rc=0)
+--- C. lineage gates ---
+PASS  initial + RESUME_CKPT  (rc=2)
+PASS  restart w/o ckpt  (rc=2)
+PASS  restart ckpt missing  (rc=2)
+PASS  restart foreign ckpt  (rc=2)
+PASS  restart from the arm's own ckpt dir  (rc=0)
+PASS  restart from a non-ckpt sibling  (rc=2)
+PASS  restart MAXSTEPS<=step  (rc=2)
+PASS  initial refuses an existing run dir  (rc=2)
+--- D. commit-binding / sbatch-only gates (REAL mode) ---
+PASS  wrong EXPECT_SHA aborts  (rc=2)
+PASS  real mode needs sbatch  (rc=2)
+PASS  moved HEAD, surfaces identical -> gate passes  (rc=2)
+PASS  moved HEAD, surfaces changed -> aborts  (rc=2)
+--- E. semantic gate on a mislabelled config (temp copy; tracked tree untouched) ---
+PASS  orbit mismatch rejected  (rc=1)
+PASS  tracked tree unchanged by the suite (snapshot before == after)
+--- F. exit taxonomy, mocked (round-3 B5) ---
+PASS  class 0 complete  (rc=0)
+PASS  class 6 world-size absent  (rc=6)
+PASS  class 6 wrong world-size  (rc=6)
+PASS  class 3 OOM on nonzero rc  (rc=3)
+PASS  class 4 missing marker  (rc=4)
+PASS  class 7 logs differ  (rc=7)
+PASS  class 7 copy missing  (rc=7)
+PASS  class 7 tee failed  (rc=7)
+PASS  raw rc preserved  (rc=9)
+--- G. restart preflight depth, mocked checkpoints (round-3 B2) ---
+synthetic checkpoints written
+PASS  preflight accepts a good ckpt  (rc=0)
+PASS  preflight rejects a step mismatch  (rc=2)
+PASS  preflight rejects a foreign orbit  (rc=2)
+PASS  preflight rejects a stripped optimizer  (rc=2)
+PASS  preflight rejects a missing EMA  (rc=2)
+PASS  preflight rejects a missing scheduler  (rc=2)
+PASS  preflight rejects a past-budget ckpt  (rc=2)
+PASS  preflight rejects an empty file  (rc=2)
+PASS  preflight rejects a missing file  (rc=2)
+PASS  preflight binds to the launch manifest  (rc=0)
+PASS  preflight rejects a rung change  (rc=2)
+PASS  preflight rejects a manifest without a commit  (rc=2)
+PASS  preflight rejects a changed commit  (rc=2)
+PASS  preflight rejects a missing running commit  (rc=2)
+--- G2. Q10: the JOB selects and enforces the RESTART time pin (re-pin fix 1) ---
+PASS  a RESTART leg selects the RESTART pin  (rc=0)
+PASS  an INITIAL launch keeps the INITIAL pin  (rc=0)
+PASS  the allocation gate names the pin it enforced
+FAIL  the submitter no longer allocates the C16 RESTART pin
+--- G3. Q10: the 40k -> 100k EXTENSION preflight contract (re-pin fix 1) ---
+extension fixture written
+PASS  the ORDINARY contract refuses the extension (the bug)  (rc=2)
+PASS  extension accepts the 40k->100k leg  (rc=0)
+PASS  extension keeps the ORIGINAL launch commit  (rc=0)
+PASS  extension refuses a shrinking budget  (rc=2)
+PASS  extension refuses a foreign resume path  (rc=2)
+PASS  extension refuses an arm with no audited anchor  (rc=2)
+PASS  add_anchor dry run writes nothing  (rc=0)
+PASS  add_anchor audits and writes the anchor  (rc=0)
+PASS  the extension preflight accepts the freshly anchored arm  (rc=0)
+PASS  add_anchor is idempotent  (rc=0)
+PASS  add_anchor refuses a manifest that disagrees with the registry  (rc=2)
+PASS  extension refuses a resume that is not the anchor  (rc=2)
+PASS  extension refuses a manifest commit that is not the registered one  (rc=2)
+PASS  extension refuses a manifest that drifted after registration  (rc=2)
+--- H. the submitter refuses un-pinned submission ---
+PASS  every submitter pin holds a concrete value
+PASS  the submitter still refuses a placeholder pin if one returns
+PASS  submitter rejects a bad arm  (rc=2)
+FAIL  submitter derives smoke flags: want rc=0 + '--gres=gpu:l40:4', got rc=2
+        | tracked measurement surfaces have uncommitted changes - commit first, abort:
+        |  M worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_train.sbatch
+        |  M worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_train_guardtests.sh
+FAIL  submitter derives cpus/mem from the rung: want rc=0 + '--cpus-per-task=36', got rc=2
+        | tracked measurement surfaces have uncommitted changes - commit first, abort:
+        |  M worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_train.sbatch
+        |  M worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_train_guardtests.sh
+FAIL  submitter derives 8x8 resources: want rc=0 + '--mem=108G', got rc=2
+        | tracked measurement surfaces have uncommitted changes - commit first, abort:
+        |  M worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_train.sbatch
+        |  M worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_train_guardtests.sh
+--- I. flock run ownership, both contention directions (round-3 B3 residual) ---
+PASS  contender refused while the lock is held
+PASS  lock free after the holder exits (no stale-recovery path needed)
+PASS  launcher uses flock, not mkdir+stale recovery
+PASS  no rmdir-based lock release remains
+--- J. OUTPUT_ROOT is a literal inside a Slurm job (NEW-2) ---
+PASS  ambient OUTPUT_ROOT rejected under Slurm  (rc=2)
+PASS  launcher pins the production root literally
+PASS  submitter exports the fixed root, not ambient state
+--- K. the submitter publishes intent BEFORE sbatch (NEW-3) ---
+FAIL  dry run publishes no submission manifest: want rc=0 + 'DRYRUN sbatch', got rc=2
+        | tracked measurement surfaces have uncommitted changes - commit first, abort:
+        |  M worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_train.sbatch
+        |  M worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_train_guardtests.sh
+PASS  a dry run leaves no submission manifest behind
+PASS  intent manifest is published before the sbatch call
+PASS  an unrecordable job is cancelled
+--- L. FIFO and pip-freeze plumbing (NEW-4, B5 residual) ---
+PASS  FIFO no longer uses mktemp -u
+PASS  FIFO removal is in the exit trap
+PASS  pip freeze status is checked before hashing
+PASS  the final record's tee status is captured
+PASS  the approved wandb entity is exported
+PASS  the launcher runs the wandb readback and gates on its result
+
+=== guard tests: 89 passed, 5 failed ===

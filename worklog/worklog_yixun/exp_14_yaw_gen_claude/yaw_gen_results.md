@@ -10,11 +10,11 @@
 
 | arm | ΔT60 | ΔR@1 (split) |
 |---|---|---|
-| VANL | **+0.521 ± 0.037** | −0.51 |
-| C4L | **+0.531 ± 0.029** | −0.65 |
-| C8 | +0.049 ± 0.011 | +0.04 |
-| C16 | −0.003 ± 0.018 | +0.10 |
-| C32 | +0.006 ± 0.011 | +0.04 |
+| VANL | **+0.521 ± 0.037** | −0.505 |
+| C4L | **+0.531 ± 0.029** | −0.653 |
+| C8 | +0.049 ± 0.011 | +0.035 |
+| C16 | −0.003 ± 0.018 | +0.104 |
+| C32 | +0.006 ± 0.011 | +0.035 |
 
 **A sharp dose-response with saturation.** C4's orbit buys *no* protection against uniform random yaw — its degradation is statistically indistinguishable from vanilla (|Δ|(VANL) vs |Δ|(C4L): NEGATIVE verdict, p≈0.5). C8 is ~10× flatter (C4L→C8: −0.482, p=4.3e-6); **C16 and C32 are fully invariant** (Δ ≈ 0 within CI).
 

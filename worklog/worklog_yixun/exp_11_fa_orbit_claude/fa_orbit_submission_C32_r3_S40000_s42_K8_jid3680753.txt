@@ -1,0 +1,8 @@
+job 3680753 name exp11-screen-C32-r3-40000-s42-K8 submitted_at 2026-08-11T14:49:04-04:00 by yh4742@neuronic.cs.princeton.edu
+arm C32 cell r3 step 40000 seed 42 K 8
+pin_sha 89f24cd55c64a68c3021520822171fb91c8b60fe campaign_pin 89f24cd55c64a68c3021520822171fb91c8b60fe
+expect_sha 89f24cd55c64a68c3021520822171fb91c8b60fe
+measure_root /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/89f24cd55c64a68c3021520822171fb91c8b60fe
+exclude neu301,neu303,neu305,neu306,neu317,neu319,neu322,neu332
+rotate_deg 0 eval_orbit <n/a>
+lease /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/89f24cd55c64a68c3021520822171fb91c8b60fe/.leases/3680753

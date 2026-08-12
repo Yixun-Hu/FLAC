@@ -1,0 +1,8 @@
+job 3674693 name exp11-screen-VANL-screen-20000-s42-K8 submitted_at 2026-08-10T23:44:16-04:00 by yh4742@neuronic.cs.princeton.edu
+arm VANL cell screen step 20000 seed 42 K 8
+pin_sha 89f24cd55c64a68c3021520822171fb91c8b60fe campaign_pin 89f24cd55c64a68c3021520822171fb91c8b60fe
+expect_sha 89f24cd55c64a68c3021520822171fb91c8b60fe
+measure_root /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/89f24cd55c64a68c3021520822171fb91c8b60fe
+exclude neu303
+rotate_deg <n/a> eval_orbit <n/a>
+lease /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/89f24cd55c64a68c3021520822171fb91c8b60fe/.leases/3674693

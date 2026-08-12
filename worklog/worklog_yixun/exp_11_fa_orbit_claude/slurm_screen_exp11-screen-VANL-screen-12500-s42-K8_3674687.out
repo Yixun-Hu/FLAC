@@ -1,0 +1,111 @@
+=== exp_11 screen VANL S12500 s42 K8 — 2026-08-11_01-10-25 — host neu309.neuronic.cs.princeton.edu ===
+config /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/89f24cd55c64a68c3021520822171fb91c8b60fe/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_VANCKPT.json sha256 733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8 | VANILLA (no orbit) | eval-name exp11_VANL_screen_S12500_s42_K8
+lease OK: /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/89f24cd55c64a68c3021520822171fb91c8b60fe/.leases/3674687
+runtime assets OK under /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/89f24cd55c64a68c3021520822171fb91c8b60fe (AcousticRooms, weights/AGREE, src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json)
+AGREE pin OK: 3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787
+VAE.ckpt pin OK: 6198ff0d781fa05f546d19a0137a830c3f265437193c3581d8043713e7271baf
+DINOv3 cache pin OK
+commit binding OK: 89f24cd55c64a68c3021520822171fb91c8b60fe (code root /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/89f24cd55c64a68c3021520822171fb91c8b60fe)
+checkpoint: /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=2-step=12500.ckpt
+arm lineage OK: VANL bound to AUDITED launch job 3661520 (INITIAL, uuid 7337b7ae, commit 81ddac372076, rung 8x8, max_steps 40000, training seed 42); manifest 113d06a284c6 as registered; config 733ca52b66c4
+ckpt gate OK: step 12500, vanilla (no orbit), config matches /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/89f24cd55c64a68c3021520822171fb91c8b60fe/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_VANCKPT.json
+--- eval argv ---
+python eval_FLAC.py --model-config /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/89f24cd55c64a68c3021520822171fb91c8b60fe/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_VANCKPT.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json --ckpt-path /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=2-step=12500.ckpt --cond-method vanilla --cond-autocast bf16 --cfg-scale 1.0 --steps 1 --seed 42 --eval-name exp11_VANL_screen_S12500_s42_K8
+GPU: GPU-55d3df90-37ad-9265-83b5-9c753d307501, NVIDIA L40
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+[rank: 0] Seed set to 42
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Using EMA model
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+Running json scandir...
+Found 6337 files in 17 subfolders
+Max audio length for metric computation: 8000
+Loading AGREE model from checkpoint:  weights/AGREE/AGREE_fullAR.pt
+Image model facebook/dinov3-vits16-pretrain-lvd1689m loaded, trainable params: 21.00M
+Loaded pretrained weights from weights/FLAC/VAE.ckpt
+Done loading AGREE model
+AGREE model loaded successfully
+Evaluating:   0%|          | 0/100 [00:00<?, ?it/s]Evaluating:   1%|          | 1/100 [00:33<55:09, 33.43s/it]Evaluating:   2%|▏         | 2/100 [00:41<29:48, 18.25s/it]Evaluating:   3%|▎         | 3/100 [00:47<21:03, 13.02s/it]Evaluating:   4%|▍         | 4/100 [00:53<15:56,  9.96s/it]Evaluating:   5%|▌         | 5/100 [00:58<13:17,  8.40s/it]Evaluating:   6%|▌         | 6/100 [01:04<11:35,  7.40s/it]Evaluating:   7%|▋         | 7/100 [01:09<10:34,  6.82s/it]Evaluating:   8%|▊         | 8/100 [01:13<09:02,  5.89s/it]Evaluating:   9%|▉         | 9/100 [01:18<08:09,  5.38s/it]Evaluating:  10%|█         | 10/100 [01:22<07:34,  5.05s/it]Evaluating:  11%|█         | 11/100 [01:26<07:10,  4.83s/it]Evaluating:  12%|█▏        | 12/100 [01:31<06:53,  4.69s/it]Evaluating:  13%|█▎        | 13/100 [01:36<06:56,  4.79s/it]Evaluating:  14%|█▍        | 14/100 [01:40<06:42,  4.68s/it]Evaluating:  15%|█▌        | 15/100 [01:44<06:21,  4.49s/it]Evaluating:  16%|█▌        | 16/100 [01:48<06:08,  4.39s/it]Evaluating:  17%|█▋        | 17/100 [01:52<05:57,  4.31s/it]Evaluating:  18%|█▊        | 18/100 [01:58<06:28,  4.74s/it]Evaluating:  19%|█▉        | 19/100 [02:02<06:06,  4.52s/it]Evaluating:  20%|██        | 20/100 [02:06<05:50,  4.38s/it]Evaluating:  21%|██        | 21/100 [02:10<05:45,  4.37s/it]Evaluating:  22%|██▏       | 22/100 [02:18<07:00,  5.39s/it]Evaluating:  23%|██▎       | 23/100 [02:22<06:23,  4.98s/it]Evaluating:  24%|██▍       | 24/100 [02:26<05:54,  4.66s/it]Evaluating:  25%|██▌       | 25/100 [02:30<05:33,  4.45s/it]Evaluating:  26%|██▌       | 26/100 [02:37<06:23,  5.18s/it]Evaluating:  27%|██▋       | 27/100 [02:41<05:52,  4.83s/it]Evaluating:  28%|██▊       | 28/100 [02:45<05:29,  4.58s/it]Evaluating:  29%|██▉       | 29/100 [02:50<05:42,  4.82s/it]Evaluating:  30%|███       | 30/100 [02:54<05:20,  4.58s/it]Evaluating:  31%|███       | 31/100 [02:58<05:01,  4.37s/it]Evaluating:  32%|███▏      | 32/100 [03:02<04:49,  4.26s/it]Evaluating:  33%|███▎      | 33/100 [03:06<04:42,  4.22s/it]Evaluating:  34%|███▍      | 34/100 [03:11<04:49,  4.38s/it]Evaluating:  35%|███▌      | 35/100 [03:16<04:50,  4.48s/it]Evaluating:  36%|███▌      | 36/100 [03:20<04:38,  4.35s/it]Evaluating:  37%|███▋      | 37/100 [03:24<04:35,  4.37s/it]Evaluating:  38%|███▊      | 38/100 [03:29<04:33,  4.42s/it]Evaluating:  39%|███▉      | 39/100 [03:33<04:24,  4.34s/it]Evaluating:  40%|████      | 40/100 [03:37<04:16,  4.28s/it]Evaluating:  41%|████      | 41/100 [03:42<04:13,  4.30s/it]Evaluating:  42%|████▏     | 42/100 [03:46<04:10,  4.31s/it]Evaluating:  43%|████▎     | 43/100 [03:50<04:05,  4.30s/it]Evaluating:  44%|████▍     | 44/100 [03:55<04:03,  4.35s/it]Evaluating:  45%|████▌     | 45/100 [03:59<03:57,  4.32s/it]Evaluating:  46%|████▌     | 46/100 [04:03<03:53,  4.32s/it]Evaluating:  47%|████▋     | 47/100 [04:07<03:43,  4.21s/it]Evaluating:  48%|████▊     | 48/100 [04:11<03:36,  4.16s/it]Evaluating:  49%|████▉     | 49/100 [04:16<03:34,  4.21s/it]Evaluating:  50%|█████     | 50/100 [04:20<03:30,  4.21s/it]Evaluating:  51%|█████     | 51/100 [04:25<03:35,  4.39s/it]Evaluating:  52%|█████▏    | 52/100 [04:29<03:31,  4.40s/it]Evaluating:  53%|█████▎    | 53/100 [04:34<03:35,  4.59s/it]Evaluating:  54%|█████▍    | 54/100 [04:39<03:35,  4.68s/it]Evaluating:  55%|█████▌    | 55/100 [04:44<03:31,  4.70s/it]Evaluating:  56%|█████▌    | 56/100 [04:48<03:22,  4.61s/it]Evaluating:  57%|█████▋    | 57/100 [04:52<03:15,  4.56s/it]Evaluating:  58%|█████▊    | 58/100 [04:57<03:11,  4.55s/it]Evaluating:  59%|█████▉    | 59/100 [05:01<03:02,  4.46s/it]Evaluating:  60%|██████    | 60/100 [05:06<02:58,  4.47s/it]Evaluating:  61%|██████    | 61/100 [05:10<02:51,  4.40s/it]Evaluating:  62%|██████▏   | 62/100 [05:14<02:43,  4.30s/it]Evaluating:  63%|██████▎   | 63/100 [05:18<02:37,  4.26s/it]Evaluating:  64%|██████▍   | 64/100 [05:22<02:30,  4.17s/it]Evaluating:  65%|██████▌   | 65/100 [05:29<02:57,  5.08s/it]Evaluating:  66%|██████▌   | 66/100 [05:33<02:40,  4.71s/it]Evaluating:  67%|██████▋   | 67/100 [05:37<02:29,  4.53s/it]Evaluating:  68%|██████▊   | 68/100 [05:41<02:19,  4.35s/it]Evaluating:  69%|██████▉   | 69/100 [05:48<02:34,  4.98s/it]Evaluating:  70%|███████   | 70/100 [05:52<02:20,  4.68s/it]Evaluating:  71%|███████   | 71/100 [05:56<02:09,  4.48s/it]Evaluating:  72%|███████▏  | 72/100 [06:00<02:05,  4.49s/it]Evaluating:  73%|███████▎  | 73/100 [06:08<02:29,  5.55s/it]Evaluating:  74%|███████▍  | 74/100 [06:12<02:11,  5.06s/it]Evaluating:  75%|███████▌  | 75/100 [06:16<02:00,  4.82s/it]Evaluating:  76%|███████▌  | 76/100 [06:20<01:50,  4.61s/it]Evaluating:  77%|███████▋  | 77/100 [06:25<01:45,  4.60s/it]Evaluating:  78%|███████▊  | 78/100 [06:29<01:36,  4.40s/it]Evaluating:  79%|███████▉  | 79/100 [06:33<01:29,  4.28s/it]Evaluating:  80%|████████  | 80/100 [06:38<01:28,  4.40s/it]Evaluating:  81%|████████  | 81/100 [06:44<01:34,  4.95s/it]Evaluating:  82%|████████▏ | 82/100 [06:48<01:23,  4.63s/it]Evaluating:  83%|████████▎ | 83/100 [06:52<01:16,  4.51s/it]Evaluating:  84%|████████▍ | 84/100 [06:57<01:15,  4.72s/it]Evaluating:  85%|████████▌ | 85/100 [07:01<01:07,  4.51s/it]Evaluating:  86%|████████▌ | 86/100 [07:05<01:01,  4.37s/it]Evaluating:  87%|████████▋ | 87/100 [07:10<00:56,  4.35s/it]Evaluating:  88%|████████▊ | 88/100 [07:16<00:59,  4.92s/it]Evaluating:  89%|████████▉ | 89/100 [07:20<00:52,  4.81s/it]Evaluating:  90%|█████████ | 90/100 [07:25<00:46,  4.65s/it]Evaluating:  91%|█████████ | 91/100 [07:29<00:40,  4.49s/it]Evaluating:  92%|█████████▏| 92/100 [07:37<00:44,  5.54s/it]Evaluating:  93%|█████████▎| 93/100 [07:41<00:35,  5.11s/it]Evaluating:  94%|█████████▍| 94/100 [07:45<00:28,  4.78s/it]Evaluating:  95%|█████████▌| 95/100 [07:49<00:22,  4.55s/it]Evaluating:  96%|█████████▌| 96/100 [07:53<00:17,  4.37s/it]Evaluating:  97%|█████████▋| 97/100 [07:57<00:12,  4.23s/it]Evaluating:  98%|█████████▊| 98/100 [08:01<00:08,  4.13s/it]Evaluating:  99%|█████████▉| 99/100 [08:05<00:04,  4.06s/it]Evaluating: 100%|██████████| 100/100 [08:05<00:00,  2.93s/it]Evaluating: 100%|██████████| 100/100 [08:05<00:00,  4.85s/it]
+Traceback (most recent call last):
+Traceback (most recent call last):
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 300, in _run_finalizers
+    finalizer()
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 300, in _run_finalizers
+    finalizer()
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 224, in __call__
+    res = self._callback(*self._args, **self._kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 224, in __call__
+    res = self._callback(*self._args, **self._kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 133, in _remove_temp_dir
+    rmtree(tempdir)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 133, in _remove_temp_dir
+    rmtree(tempdir)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 725, in rmtree
+    _rmtree_safe_fd(fd, path, onerror)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 725, in rmtree
+    _rmtree_safe_fd(fd, path, onerror)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 681, in _rmtree_safe_fd
+    onerror(os.unlink, fullname, sys.exc_info())
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 681, in _rmtree_safe_fd
+    onerror(os.unlink, fullname, sys.exc_info())
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 679, in _rmtree_safe_fd
+    os.unlink(entry.name, dir_fd=topfd)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 679, in _rmtree_safe_fd
+    os.unlink(entry.name, dir_fd=topfd)
+OSError: [Errno 16] Device or resource busy: '.nfs00000006dcd3c07300008975'
+OSError: [Errno 16] Device or resource busy: '.nfs00000006e6423c5700008972'
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 300, in _run_finalizers
+    finalizer()
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 300, in _run_finalizers
+    finalizer()
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 224, in __call__
+    res = self._callback(*self._args, **self._kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 224, in __call__
+    res = self._callback(*self._args, **self._kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 133, in _remove_temp_dir
+    rmtree(tempdir)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 133, in _remove_temp_dir
+    rmtree(tempdir)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 725, in rmtree
+    _rmtree_safe_fd(fd, path, onerror)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 725, in rmtree
+    _rmtree_safe_fd(fd, path, onerror)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 681, in _rmtree_safe_fd
+    onerror(os.unlink, fullname, sys.exc_info())
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 681, in _rmtree_safe_fd
+    onerror(os.unlink, fullname, sys.exc_info())
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 679, in _rmtree_safe_fd
+    os.unlink(entry.name, dir_fd=topfd)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 679, in _rmtree_safe_fd
+    os.unlink(entry.name, dir_fd=topfd)
+OSError: [Errno 16] Device or resource busy: '.nfs00000006e115b76100008974'
+OSError: [Errno 16] Device or resource busy: '.nfs00000006cb9bfc3300008973'
+Test/T60 (%) 10.0973
+Test/Invalid T60 0.0
+Test/C50 (dB) 1.2466
+Test/EDT (ms) 47.9927
+Test/FD 0.3533
+Test/RIR_to_GT_RIR_R@1 (%) 2.0199
+Test/RIR_to_GT_RIR_R@5 (%) 8.0164
+Test/RIR_to_GT_RIR_R@10 (%) 13.792
+Test/RIR_to_geom_R@1 (%) 1.1835
+Test/RIR_to_geom_R@5 (%) 6.0439
+Test/RIR_to_geom_R@10 (%) 10.92
+Metrics saved to /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=2-step=12500_metrics_1_1.0_exp11_VANL_screen_S12500_s42_K8.json
+Evaluation complete!
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+sidecar: /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=2-step=12500_metrics_1_1.0_exp11_VANL_screen_S12500_s42_K8.json.screenmeta.json
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+VALIDATED VANL S12500 K8 [futility]: 1 row(s), seeds [42], ckpt epoch=2-step=12500.ckpt
+SCREENRESULT arm=VANL cell=screen step=12500 seed=42 k=8 rc=0 validated=futility eval_name=exp11_VANL_screen_S12500_s42_K8 metrics=/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=2-step=12500_metrics_1_1.0_exp11_VANL_screen_S12500_s42_K8.json sidecar=/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=2-step=12500_metrics_1_1.0_exp11_VANL_screen_S12500_s42_K8.json.screenmeta.json config_sha256=733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8 ckpt_sha256=ee79d2943680820fb351c71944a0b46aaed6f7d85da31d520023e7f52069dccd commit=89f24cd55c64a68c3021520822171fb91c8b60fe log=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-11_01-10-25_VANL_screen_S12500_s42_K8_jid3674687_screen.log
