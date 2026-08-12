@@ -1,0 +1,223 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>exp_14 — random-yaw generalization: results</title>
+<style>
+:root{--bg:#fcfcfb;--fg:#0b0b0b;--mut:#52514e;--line:#d9dee5;--card:#f5f5f2;
+      --ok:#0ca30c;--warn:#fab219;--accent:#2a78d6}
+@media(prefers-color-scheme:dark){:root{--bg:#1a1a19;--fg:#fff;--mut:#c3c2b7;--line:#3a4048;
+      --card:#232322;--ok:#0ca30c;--warn:#fab219;--accent:#3987e5}}
+[data-theme="dark"]{--bg:#1a1a19;--fg:#fff;--mut:#c3c2b7;--line:#3a4048;--card:#232322;--accent:#3987e5}
+[data-theme="light"]{--bg:#fcfcfb;--fg:#0b0b0b;--mut:#52514e;--line:#d9dee5;--card:#f5f5f2;--accent:#2a78d6}
+*{box-sizing:border-box}
+body{margin:0 auto;max-width:70rem;padding:1.5rem 1.5rem 4rem;background:var(--bg);color:var(--fg);
+     font:15px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+h1{font-size:1.35rem;margin:0 0 .3rem}
+h2{font-size:1.05rem;margin:2.2rem 0 .6rem;padding-bottom:.3rem;border-bottom:1px solid var(--line)}
+h3{font-size:.92rem;margin:1.4rem 0 .4rem}
+.note{color:var(--mut);font-size:.85rem}
+.prov{color:var(--mut);font-size:.83rem;margin:.2rem 0 1.4rem}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em}
+.verdicts{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.75rem;margin:1rem 0 .4rem}
+.v{background:var(--card);border:1px solid var(--line);border-radius:.5rem;padding:.7rem .85rem}
+.v .tag{font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.v .val{font-size:1.05rem;font-weight:700;margin:.15rem 0 .25rem}
+.v .val .s{font-size:.78rem;font-weight:600;padding:.1rem .4rem;border-radius:.25rem;vertical-align:.1em}
+.sup{background:rgba(12,163,12,.14);color:var(--ok)}
+.par{background:rgba(250,178,25,.18);color:#8a6100}
+@media(prefers-color-scheme:dark){.par{color:var(--warn)}}
+[data-theme="dark"] .par{color:var(--warn)}
+.v p{margin:0;font-size:.83rem;color:var(--mut)}
+figure{margin:.8rem 0 .4rem}
+figure img{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:.4rem}
+figcaption{color:var(--mut);font-size:.82rem;margin-top:.45rem}
+table{border-collapse:collapse;font-size:.85rem;width:100%;margin:.5rem 0 .3rem}
+th,td{border:1px solid var(--line);padding:.3rem .55rem;text-align:right}
+th:first-child,td:first-child{text-align:left}
+thead th{background:var(--card);font-weight:600}
+tbody tr:hover{background:var(--card)}
+.num{font-variant-numeric:tabular-nums}
+.pass{color:var(--ok);font-weight:600}
+.box{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--accent);
+     border-radius:.4rem;padding:.75rem .9rem;margin:1rem 0}
+.box.desc{border-left-color:var(--warn)}
+.box h3{margin-top:0}
+.box ul{margin:.4rem 0 0;padding-left:1.1rem}
+.box li{margin:.2rem 0;font-size:.87rem}
+.lab{display:inline-block;font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;
+     background:rgba(250,178,25,.18);color:#8a6100;padding:.1rem .4rem;border-radius:.25rem;font-weight:700}
+@media(prefers-color-scheme:dark){.lab{color:var(--warn)}}
+[data-theme="dark"] .lab{color:var(--warn)}
+footer{margin-top:2.5rem;padding-top:.8rem;border-top:1px solid var(--line);color:var(--mut);font-size:.8rem}
+</style></head><body>
+
+<h1>exp_14 — random-yaw generalization of frame-averaged conditioning</h1>
+<p class="prov">Campaign complete 2026-08-12 · <strong>106/106 cells VALID</strong> at one pin
+<code>e8ca26e</code> · gates G1–G4 all PASS · 5 arms × 2 K × 5 eval seeds, full unseen split
+(6,337 items). <strong>This page is a presentation layer</strong>: every number below is read from
+<code>yaw_gen_results.md</code> and the collector's <code>yaw_gen_collect_full_report.md</code>
+(machine-readable source: <code>yaw_gen_results_assets/results_bundle.json</code>). No number
+appears here first.</p>
+
+<h2>Verdicts (K=8 confirmatory, Holm over the two co-primaries)</h2>
+<div class="verdicts">
+  <div class="v">
+    <div class="tag">H-M · mechanism</div>
+    <div class="val">SUPPORTED <span class="s sup">both co-primaries</span></div>
+    <p>Higher group order is decisively flatter under random yaw: |Δ| C32 vs C4L, T60 −0.521
+    (Holm p=1.2e-6) and R@1 −0.574 (p=0.0024).</p>
+  </div>
+  <div class="v">
+    <div class="tag">H-P · primary, deployment</div>
+    <div class="val">PARTIAL <span class="s par">one of two</span></div>
+    <p>C32 vs vanilla on absolute m_R splits: C32 wins retrieval (+0.650, Holm p=0.0034) and
+    loses T60 (+0.250 worse, p=9.2e-5).</p>
+  </div>
+  <div class="v">
+    <div class="tag">H-S · sanity</div>
+    <div class="val">SUPPORTED <span class="s sup">both co-primaries</span></div>
+    <p>Vanilla is not yaw-robust: ΔT60 +0.521 (Holm p=4.9e-6), ΔR@1 −0.505 (p=0.0061) — the
+    positive control the whole design rests on.</p>
+  </div>
+</div>
+<p class="note">SUPPORTED = both co-primaries favour the hypothesis after Holm; PARTIAL = exactly
+one; NEGATIVE = neither. Co-primaries are T60 % (scene-mean) and R@1 (split-level), per the
+pre-registered aggregation ruling.</p>
+
+<h2>1 · The headline: a dose-response with saturation</h2>
+<figure>
+  <picture>
+    <source srcset="yaw_gen_results_assets/yaw_gen_dose_response_dark.png" media="(prefers-color-scheme: dark)">
+    <img src="yaw_gen_results_assets/yaw_gen_dose_response.png"
+         alt="Paired degradation versus frame-averaging group order at K=8. Delta T60 is +0.521 for vanilla and +0.531 for C4, then falls to +0.049 at C8 and to approximately zero at C16 (−0.003) and C32 (+0.006). The retrieval panel shows the mirror pattern: −0.505 and −0.653 for vanilla and C4, near zero or slightly positive for C8, C16 and C32.">
+  </picture>
+  <figcaption>Paired Δ = m_R − m_Z, K=8, five seed-paired differences per arm, 95% paired-t CI
+  (df=4). The middle panel is the same series zoomed to the saturated arms, its window sized from
+  their own confidence intervals.</figcaption>
+</figure>
+
+<table>
+<caption class="note" style="text-align:left;margin-bottom:.3rem">Paired degradation (results.md §1)</caption>
+<thead><tr><th>arm</th><th>ΔT60 % (scene-mean)</th><th>ΔR@1 (split)</th></tr></thead>
+<tbody class="num">
+<tr><td>VANL</td><td><strong>+0.521 ± 0.037</strong></td><td>−0.505</td></tr>
+<tr><td>C4L</td><td><strong>+0.531 ± 0.029</strong></td><td>−0.653</td></tr>
+<tr><td>C8</td><td>+0.049 ± 0.011</td><td>+0.035</td></tr>
+<tr><td>C16</td><td>−0.003 ± 0.018</td><td>+0.104</td></tr>
+<tr><td>C32</td><td>+0.006 ± 0.011</td><td>+0.035</td></tr>
+</tbody></table>
+<p class="note">Δ values are rendered at 3 dp throughout this page and its figures — the
+collector's own precision (<code>yaw_gen_collect_full_report.md</code>). Note for the record:
+<code>yaw_gen_results.md</code> §1 shows this column at 2 dp and gives VANL as −0.51, where the
+canonical value is −0.50498 (→ −0.505, as that file's own §3 and the full report both render it);
+this page follows the canonical figure. <strong>C4's orbit buys no protection</strong> against
+uniform random yaw — its degradation is statistically indistinguishable from vanilla
+(|Δ|(VANL) vs |Δ|(C4L): NEGATIVE, p≈0.5). C8 is ~10× flatter (C4L→C8 −0.482, p=4.3e-6);
+C16 and C32 are flat within their CI. Uniform draws are almost never near C4's four angles;
+the saturation point sits between C8 and C16.</p>
+
+<h2>2 · Absolute performance under random yaw (m_R — the pre-registered primary)</h2>
+<figure>
+  <picture>
+    <source srcset="yaw_gen_results_assets/yaw_gen_absolute_mr_dark.png" media="(prefers-color-scheme: dark)">
+    <img src="yaw_gen_results_assets/yaw_gen_absolute_mr.png"
+         alt="Dumbbell chart of unrotated m_Z to rotated m_R per arm for T60, C50 and R@1 at K=8. Vanilla and C4 show long connectors, meaning large degradation; C8, C16 and C32 show nearly coincident markers, meaning almost none.">
+  </picture>
+  <figcaption>Each row is one arm: hollow marker = unrotated m_Z, filled = random-yaw m_R, and the
+  connector is the degradation. Not a bar chart — these values sit in a narrow band, where a
+  zero-based bar hides every difference and a cropped bar overstates it.</figcaption>
+</figure>
+
+<table>
+<caption class="note" style="text-align:left;margin-bottom:.3rem">Absolute m_R at K=8 (results.md §2)</caption>
+<thead><tr><th>arm</th><th>T60 % (scene-mean) ↓</th><th>C50 dB ↓</th><th>EDT ms ↓</th><th>R@1 (split) ↑</th></tr></thead>
+<tbody class="num">
+<tr><td>VANL</td><td><strong>7.724</strong></td><td>0.954</td><td><strong>36.33</strong></td><td>4.44</td></tr>
+<tr><td>C4L</td><td>7.972</td><td>0.917</td><td>38.04</td><td>4.44</td></tr>
+<tr><td>C8</td><td><strong>7.726</strong></td><td>0.868</td><td>38.08</td><td>5.20</td></tr>
+<tr><td>C16</td><td>8.141</td><td>0.878</td><td>39.88</td><td><strong>5.28</strong></td></tr>
+<tr><td>C32</td><td>7.974</td><td><strong>0.863</strong></td><td>37.54</td><td>5.09</td></tr>
+</tbody></table>
+
+<h2>3 · Pre-registered contrasts</h2>
+<table>
+<thead><tr><th>hypothesis</th><th>metric</th><th>estimate</th><th>Holm p</th><th>verdict</th></tr></thead>
+<tbody class="num">
+<tr><td>H-P — m_R(C32) vs m_R(VANL)</td><td>T60</td><td>+0.250 (worse)</td><td>9.2e-5</td><td rowspan="2">PARTIAL</td></tr>
+<tr><td>H-P</td><td>R@1</td><td>+0.650 (better)</td><td>0.0034</td></tr>
+<tr><td>H-M — |Δ|(C32) vs |Δ|(C4L)</td><td>T60</td><td>−0.521 (flatter)</td><td>1.2e-6</td><td rowspan="2">SUPPORTED</td></tr>
+<tr><td>H-M</td><td>R@1</td><td>−0.574 (flatter)</td><td>0.0024</td></tr>
+<tr><td>H-S — Δ(VANL) ≠ 0</td><td>T60</td><td>+0.521</td><td>4.9e-6</td><td rowspan="2">SUPPORTED</td></tr>
+<tr><td>H-S</td><td>R@1</td><td>−0.505</td><td>0.0061</td></tr>
+</tbody></table>
+
+<div class="box desc">
+<h3><span class="lab">Descriptive</span> &nbsp;C8 is the efficient point at this training budget</h3>
+<p class="note" style="margin:.2rem 0 .3rem">Not pre-registered — an adjacent-contrast reading of
+the same data, reported as description, not as a tested claim.</p>
+<ul>
+<li>Ties vanilla on T60 under random yaw (7.726 vs 7.724).</li>
+<li>Beats it on C50 (0.868 vs 0.954, −9%) and retrieval (R@1 5.20 vs 4.44, +17%).</li>
+<li>Costs EDT (+1.75 ms: 38.08 vs 36.33).</li>
+<li>The fixed-order T60 chain is <strong>non-monotone</strong> (VANL→C4L worse, C4L→C8 better,
+C8→C16 worse, C16→C32 better): order effects mix the invariance benefit with per-arm training
+variance at a single training seed.</li>
+</ul>
+</div>
+
+<h2>4 · Validity gates</h2>
+<table>
+<thead><tr><th>gate</th><th>what it proves</th><th>result</th></tr></thead>
+<tbody>
+<tr><td>G1 · in-group floor</td><td>rotating a Cn arm by its own group angle moves neither
+co-primary beyond ½·σ̂ of that arm's five-seed spread</td><td class="pass">PASS</td></tr>
+<tr><td>G2 · positive control</td><td>VANL@90° degrades ≥ 5·σ̂ — the harness can detect
+non-invariance at all</td><td class="pass">PASS</td></tr>
+<tr><td>G3 · golden assignment</td><td>all 50 rotated cells' offsets recomputed from their
+rotation seed via <code>draw_yaw_offsets</code></td><td class="pass">PASS</td></tr>
+<tr><td>G4 · assignment integrity</td><td>135 hash equalities: cross-arm within (K, seed) and
+Z↔R within (arm, K, seed), 6,337 tuples per cell</td><td class="pass">PASS</td></tr>
+</tbody></table>
+
+<h3>G5 · external reproduction (a check, never a gate)</h3>
+<p class="note">exp_14's θ=0 cells vs exp_11's committed conf rows, split-level on both sides
+(exp_11 never measured a scene-mean). Different campaign pins, different evaluator worktrees,
+same checkpoints and protocol.</p>
+<table>
+<thead><tr><th>arm</th><th>exp_11 T60</th><th>exp_14 Z T60</th><th>Δ</th><th>3σ bound</th><th>beyond?</th></tr></thead>
+<tbody class="num">
+<tr><td>C4L</td><td>8.4144</td><td>8.4144</td><td><strong>0.0000</strong></td><td>0.0121</td><td>no</td></tr>
+<tr><td>C8</td><td>8.7136</td><td>8.7136</td><td><strong>0.0000</strong></td><td>0.0093</td><td>no</td></tr>
+<tr><td>C16</td><td>9.3435</td><td>9.3435</td><td><strong>0.0000</strong></td><td>0.0303</td><td>no</td></tr>
+<tr><td>C32</td><td>9.1468</td><td>9.1468</td><td><strong>0.0000</strong></td><td>0.0179</td><td>no</td></tr>
+</tbody></table>
+<p class="note">R@1 differences are likewise within bound (largest |Δ| 0.0284 against a 0.2461
+bound). Exact T60 reproduction across pins is the strongest pipeline-reproducibility evidence
+in this program to date.</p>
+
+<div class="box">
+<h3>Scope and caveats</h3>
+<ul>
+<li><strong>Single training seed (42) per arm</strong> — all cross-arm inference is conditional on
+these particular training runs (exp_11's standing caveat). This is the main threat to the
+descriptive deployment reading.</li>
+<li><strong>Matched steps (40k), not matched compute</strong> — larger orbits consumed 2–4× the
+training FLOPs. A matched-compute comparison is the top follow-up.</li>
+<li><strong>"Per-scene" = the release code's grouping = 10 room families</strong> (the split spans
+17 physical rooms); retrieval and FD are split-level global, per the pre-registered aggregation
+ruling. The two co-primaries therefore come from different aggregations, by design.</li>
+<li><strong><code>RIR_to_geom_R@k</code> is confounded under rotation</strong> (its gallery embeds
+the rotated point cloud) — quarantined to a descriptive block in the full report, never a
+headline or a co-primary.</li>
+<li>Random yaw is uniform over the 512 exact panorama columns; in-group draws are legitimate
+support mass (C32: 6.25% of draws).</li>
+</ul>
+</div>
+
+<footer>
+Figures: <code>yaw_gen_results_assets/make_figures.py</code>, regenerated deterministically from
+<code>results_bundle.json</code> (byte-identical on rerun; light and dark variants selected per
+surface, not auto-inverted). Sources of record: <code>yaw_gen_results.md</code> (summary),
+<code>yaw_gen_analysis.md</code> (judgment), <code>yaw_gen_collect_full_report.md</code>
+(canonical numbers). Page is self-contained: no external requests, assets referenced relatively.
+</footer>
+</body></html>

@@ -166,3 +166,21 @@ Nonfatal note: rung 1's log carries `OSError [Errno 16] Device or resource busy:
 from `multiprocessing.util._remove_temp_dir` (DataLoader worker temp dirs on NFS). They
 fire at worker teardown BEFORE the artifacts are written, touch no artifact path, and both
 sidecar hashes recompute over all 6,337 tuples — no integrity risk.
+
+## Results visualization (campaign complete)
+
+| SHA | subject |
+|---|---|
+| `7d36c94` | `yaw_gen_01_results.html` + `yaw_gen_results_assets/{make_figures.py, 4 PNGs}` |
+
+Presentation layer only — no number appears there first. Verification: 66 numeric tokens in the
+page traced mechanically to `yaw_gen_results.md` / `yaw_gen_collect_full_report.md` / the bundle;
+all three tables re-checked row-by-row against `results_bundle.json` at displayed precision;
+`html.parser` roundtrip clean (no unclosed tags, no external refs); figures byte-identical on
+regeneration.
+
+Two form decisions, taken from looking at the rendered output: the zoom panel is restricted to
+C8–C32 (a ±0.08 window over all five arms left a line entering from off-scale), and the absolute
+panel is a **dumbbell** rather than grouped bars (these values sit in a narrow band, where a
+zero-based bar hides every difference and a cropped bar overstates it — the connector now *is*
+the degradation).
