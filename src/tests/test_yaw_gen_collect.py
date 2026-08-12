@@ -942,7 +942,7 @@ def test_suppress_validity_cells_also_filters_rendered_rows():
 # 14. render_tables — golden markdown for the two load-bearing sections
 # --------------------------------------------------------------------------- #
 _GOLDEN_BLOCK = """\
-| arm | K | n | T60 ↓ | RIR_to_GT_RIR_R@1 ↑ |
+| arm | K | n | T60 (scene-mean) ↓ | RIR_to_GT_RIR_R@1 (split) ↑ |
 |---|---|---|---|---|
 | VANL | 8 | 5 | 12.000 ± 0.100 | 4.000 ± 0.050 |
 | C4L | 8 | — | *PENDING (3/5 seeds)* | |
@@ -1022,8 +1022,13 @@ def test_headline_tables_never_contain_a_validity_cell_or_geom_retrieval(tmp_pat
     write_grid(root)
     text = C.render_tables(_results(root))
     headline, _, tail = text.partition("## 7. Geometry retrieval")
-    assert "vctl" not in headline, "a validity cell reached a headline table"
-    assert "RIR_to_geom" not in headline, (
+    # TABLE ROWS only: the aggregation ruling in the header necessarily NAMES the
+    # geometry family (it is the thing being routed to the split-level source),
+    # so the invariant is that none of its NUMBERS reaches a headline table.
+    headline_tables = [ln for ln in headline.splitlines() if ln.startswith("|")]
+    assert not any("vctl" in ln for ln in headline_tables), (
+        "a validity cell reached a headline table")
+    assert not any("RIR_to_geom" in ln for ln in headline_tables), (
         "the rotated-gallery retrieval metric reached a headline table")
     assert "RIR_to_geom" in tail and "confounded" in tail.lower()
 
@@ -1181,11 +1186,11 @@ def test_a_scene_missing_a_reported_metric_is_rejected(tmp_path):
     KeyError later, in the middle of a contrast."""
     cell = a_cell()
     scenes = _scene_block(cell)
-    del scenes["Room3/Room3_idx_3"]["RIR_to_GT_RIR_R@1"]
+    del scenes["Room3/Room3_idx_3"]["C50"]          # an ACOUSTIC metric: scene-mean
     data, reasons = C.load_cell(write_cell(str(tmp_path), cell, by_scene=scenes),
                                 expectation())
     assert data is None
-    assert any("RIR_to_GT_RIR_R@1" in r and "Room3" in r for r in reasons), reasons
+    assert any("C50" in r and "Room3" in r for r in reasons), reasons
 
 
 @pytest.mark.parametrize("bad", [float("nan"), float("inf"), "9.0", None])
@@ -1204,19 +1209,18 @@ def test_the_geometry_metrics_are_optional_but_checked_when_present(tmp_path):
     """The confounded block is descriptive, so its absence is not a campaign
     failure — but a NaN in it must still never be published."""
     cell = a_cell()
-    scenes = _scene_block(cell)
-    for payload in scenes.values():
-        for metric in C.CONFOUNDED_METRICS:
-            payload.pop(metric)
-    data, reasons = C.load_cell(write_cell(str(tmp_path), cell, by_scene=scenes),
-                                expectation())
+    flat = {k: v for k, v in synthetic_metrics(cell).items()
+            if k not in C.CONFOUNDED_METRICS}
+    data, reasons = C.load_cell(
+        write_cell(str(tmp_path), cell, record_patch={"metrics": flat}), expectation())
     assert reasons == [] and data is not None
     assert not any(m in data.metrics for m in C.CONFOUNDED_METRICS)
 
-    scenes2 = _scene_block(cell)
-    scenes2["Room1/Room1_idx_1"]["RIR_to_geom_R@1"] = float("nan")
-    data2, reasons2 = C.load_cell(write_cell(str(tmp_path), a_cell(arm="C16"),
-                                             by_scene=scenes2), expectation())
+    flat2 = dict(synthetic_metrics(cell))
+    flat2["RIR_to_geom_R@1"] = float("nan")
+    data2, reasons2 = C.load_cell(
+        write_cell(str(tmp_path), a_cell(arm="C16"), record_patch={"metrics": flat2}),
+        expectation())
     assert data2 is None and any("RIR_to_geom_R@1" in r for r in reasons2), reasons2
 
 
@@ -1227,7 +1231,9 @@ def test_no_aggregation_deviation_language_survives():
     for phrase in ("DEVIATION", "contrasts are unaffected", "item-weighted rather than",
                    "not recoverable from the committed artifacts"):
         assert phrase not in source, f"stale aggregation language: {phrase!r}"
-    assert C.AGGREGATION["observation"].startswith("per-scene mean")
+    assert C.AGGREGATION["scene_mean"] == list(C.ACOUSTIC_METRICS)
+    assert C.AGGREGATION["split_level"] == list(C.SPLIT_LEVEL_METRICS)
+    assert "per-scene mean applies to the ACOUSTIC" in C.AGGREGATION["ruling"]
 
 
 def test_paired_pending_rows_carry_the_matched_pair_count(tmp_path):
@@ -1243,3 +1249,125 @@ def test_paired_pending_rows_carry_the_matched_pair_count(tmp_path):
     assert entry["pairs"] == 4, entry
     text = C.render_tables(results)
     assert "PENDING (4/5 pairs)" in text, "the Δ table still reports 0/5"
+
+
+# --------------------------------------------------------------------------- #
+# 17. r3-fix2 — the Planner's per-metric aggregation ruling
+#
+# Per-scene applies to the ACOUSTIC-PARAMETER family only. Retrieval and FD are
+# read from the split-level metrics, because a within-scene gallery is a
+# different, easier task and a one-room Frechet is small-sample biased.
+# --------------------------------------------------------------------------- #
+def test_aggregation_source_routes_each_metric():
+    for metric in ("T60", "C50", "EDT", "Invalid T60"):
+        assert C.aggregation_source(metric) == "scene-mean", metric
+    for metric in ("FD", "RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5",
+                   "RIR_to_GT_RIR_R@10", "RIR_to_geom_R@1", "RIR_to_geom_R@5",
+                   "RIR_to_geom_R@10"):
+        assert C.aggregation_source(metric) == "split", metric
+    with pytest.raises(KeyError):
+        C.aggregation_source("made_up")
+
+
+def test_the_co_primaries_come_from_different_sources():
+    """T60% is the scene-mean; R@1 is the split-level quantity exp_01's noise
+    floor was calibrated against."""
+    assert C.CO_PRIMARY == ("T60", "RIR_to_GT_RIR_R@1")
+    assert C.aggregation_source(C.CO_PRIMARY[0]) == "scene-mean"
+    assert C.aggregation_source(C.CO_PRIMARY[1]) == "split"
+
+
+def test_cell_metrics_are_routed_per_metric(tmp_path):
+    """The decisive test: build a cell whose two sources DISAGREE for both
+    families, and check each metric came from the ruled one."""
+    cell = a_cell()
+    flat = dict(synthetic_metrics(cell))
+    flat["T60"] = 100.0                      # split-level T60: must NOT be used
+    flat["RIR_to_GT_RIR_R@1"] = 7.5          # split-level R@1: MUST be used
+    flat["FD"] = 0.99                        # split-level FD: MUST be used
+    scenes = _scene_block(cell)              # scene means: T60 = the synthetic value
+    for payload in scenes.values():
+        payload["RIR_to_GT_RIR_R@1"] = 1.0   # scene retrieval: must NOT be used
+        payload["FD"] = 0.11                 # scene FD: must NOT be used
+    path = write_cell(str(tmp_path), cell, by_scene=scenes,
+                      record_patch={"metrics": flat})
+    data, reasons = C.load_cell(path, expectation())
+    assert reasons == [], reasons
+    assert data.metrics["T60"] == pytest.approx(synthetic_metrics(cell)["T60"])
+    assert data.metrics["T60"] != 100.0, "T60 was taken from the split-level block"
+    assert data.metrics["RIR_to_GT_RIR_R@1"] == pytest.approx(7.5)
+    assert data.metrics["FD"] == pytest.approx(0.99)
+
+
+def test_a_missing_split_level_metric_is_rejected(tmp_path):
+    """The split side gets the same consumer-level payload check as the scene one."""
+    cell = a_cell()
+    flat = dict(synthetic_metrics(cell))
+    del flat["RIR_to_GT_RIR_R@1"]
+    data, reasons = C.load_cell(
+        write_cell(str(tmp_path), cell, record_patch={"metrics": flat}), expectation())
+    assert data is None and any("RIR_to_GT_RIR_R@1" in r for r in reasons), reasons
+
+
+def test_a_non_finite_split_level_metric_is_rejected(tmp_path):
+    cell = a_cell()
+    flat = dict(synthetic_metrics(cell), FD=float("nan"))
+    data, reasons = C.load_cell(
+        write_cell(str(tmp_path), cell, record_patch={"metrics": flat}), expectation())
+    assert data is None and any("FD" in r for r in reasons), reasons
+
+
+def test_by_scene_is_still_required_even_though_retrieval_is_split(tmp_path):
+    """The acoustic family needs it, so the validator's demand is unchanged."""
+    cell = a_cell()
+    data, reasons = C.load_cell(write_cell(str(tmp_path), cell, by_scene=None),
+                                expectation())
+    assert data is None and any("by_scene" in r for r in reasons), reasons
+
+
+def test_report_labels_every_metrics_aggregation(tmp_path):
+    root = str(tmp_path)
+    write_grid(root)
+    text = C.render_tables(_results(root))
+    assert "T60 (scene-mean)" in text, "the acoustic metric is not labelled"
+    assert "RIR_to_GT_RIR_R@1 (split)" in text, "the retrieval metric is not labelled"
+    assert "FD (split)" in text
+    assert "C50 (scene-mean)" in text
+
+
+def test_the_planner_ruling_is_recorded_verbatim():
+    """Pre-registered before any cell ran; it must be readable in the artifact,
+    not only in a worklog entry."""
+    source = open(C.__file__).read()
+    for phrase in ("different, easier task", "noise-floor calibration",
+                   "small-sample"):
+        assert phrase in source, f"the ruling's reasoning is missing: {phrase!r}"
+    rendered = C.render_tables(C.build_results(
+        C.CellStore("/nowhere", expectation(), [], [], []),
+        generated_at="2026-08-11T00:00:00-04:00"))
+    assert "scene-mean" in rendered and "split-level" in rendered
+
+
+def test_gate_definitions_name_the_source_they_read(tmp_path):
+    root = str(tmp_path)
+    write_grid(root)
+    gates = C.evaluate_gates(C.collect_cells(root, expectation()))
+    assert "scene-mean" in gates["G2"]["definition"].lower(), gates["G2"]["definition"]
+    g1 = gates["G1"]["definition"].lower()
+    assert "source" in g1 and "scene-mean" in g1 and "split" in g1, g1
+
+
+def test_g2_follows_the_scene_mean_not_the_split_t60(tmp_path):
+    """G2's measurand is T60, so it must move with the SCENE-MEAN T60. Here the
+    split-level T60 shows a huge degradation and the scene-mean shows none: the
+    gate must fail."""
+    root = str(tmp_path)
+    grid = [c for c in V.expected_grid() if not (c.arm == "VANL" and c.cell == "vctl")]
+    write_grid(root, grid)
+    control = V.Cell("VANL", "vctl", V.STEP, 42, 8, 90.0)
+    reference = synthetic_metrics(a_cell(arm="VANL", cell="zref"))
+    flat = dict(reference, T60=reference["T60"] + 50.0)   # split says: huge degradation
+    write_cell(root, control, metrics=reference, record_patch={"metrics": flat})
+    gates = C.evaluate_gates(C.collect_cells(root, expectation()))
+    assert gates["G2"]["status"] == "FAIL", (
+        "G2 read the split-level T60 instead of the ruled scene-mean")

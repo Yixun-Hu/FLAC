@@ -1,0 +1,10 @@
+E         comparison failed
+FAILED src/tests/test_yaw_gen_collect.py::test_aggregation_source_routes_each_metric
+FAILED src/tests/test_yaw_gen_collect.py::test_the_co_primaries_come_from_different_sources
+FAILED src/tests/test_yaw_gen_collect.py::test_cell_metrics_are_routed_per_metric
+FAILED src/tests/test_yaw_gen_collect.py::test_a_missing_split_level_metric_is_rejected
+FAILED src/tests/test_yaw_gen_collect.py::test_a_non_finite_split_level_metric_is_rejected
+FAILED src/tests/test_yaw_gen_collect.py::test_report_labels_every_metrics_aggregation
+FAILED src/tests/test_yaw_gen_collect.py::test_the_planner_ruling_is_recorded_verbatim
+FAILED src/tests/test_yaw_gen_collect.py::test_gate_definitions_name_the_source_they_read
+8 failed, 2 passed, 100 deselected, 3 warnings in 34.14s

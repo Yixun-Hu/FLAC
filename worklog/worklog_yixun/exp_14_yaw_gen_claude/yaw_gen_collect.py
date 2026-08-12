@@ -194,71 +194,121 @@ def _finite(value):
             and math.isfinite(float(value)))
 
 
-def per_scene_mean(by_scene, required=None, optional=None):
-    """``(metrics, reasons)`` — the plan §4 observation: the mean OVER SCENES.
+# --- the per-metric aggregation ruling (Planner, 2026-08-11, PRE-REGISTERED ---
+# before any cell has run). Recorded verbatim because it decides what every
+# number below MEANS:
+#
+#   "per-scene mean applies to the ACOUSTIC-PARAMETER family only — T60 (incl.
+#    Invalid-T60 handling), C50, EDT — matching the paper convention the plan §4
+#    intended. RETRIEVAL (RIR_to_GT_RIR_R@k, and the quarantined RIR_to_geom_R@k)
+#    and FD use the SPLIT-LEVEL global metrics: within-scene retrieval among ~370
+#    items is a different, easier task whose levels are incomparable to every
+#    previously published number in this program, and exp_01's noise-floor
+#    calibration against released Table-1 was on the global quantity; one-room
+#    Frechet is additionally small-sample biased. Co-primaries therefore: T60%
+#    (per-scene mean) + RIR_to_GT_RIR_R@1 (split-level)."
+#
+# Both sources exist in every exp_14 record — the flat `metrics` block and the
+# `by_scene` block — so this is a reading rule, not a measurement change, and
+# by_scene stays REQUIRED for every cell because the acoustic family needs it.
+ACOUSTIC_METRICS = ("T60", "C50", "EDT", "Invalid T60")
+SPLIT_LEVEL_METRICS = ("FD", "RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5",
+                       "RIR_to_GT_RIR_R@10", "RIR_to_geom_R@1", "RIR_to_geom_R@5",
+                       "RIR_to_geom_R@10")
+AGGREGATION_SOURCE = dict(
+    [(m, "scene-mean") for m in ACOUSTIC_METRICS]
+    + [(m, "split") for m in SPLIT_LEVEL_METRICS])
 
-    This is the campaign's per-seed observation, and it is NOT the record's flat
-    metrics block: that one is item-weighted over all 6,337 items, and an
-    item-weighted difference and a scene-weighted difference are different
-    numbers whenever rooms differ in size or in room-level effect. There is no
-    fallback to it (round-3 review B1).
 
-    The payload is validated HERE, at the consumer (review B5): every metric this
-    collector will report must be present in every scene and be a finite number.
-    A metrics object that is merely non-empty passes the per-cell validator and
-    then raises KeyError — or worse, carries a NaN into a mean, a CI and a
-    verdict — halfway through a contrast.
+def aggregation_source(metric):
+    """``'scene-mean'`` or ``'split'`` — no default.
+
+    A metric with no ruled source cannot be aggregated at all: which of two
+    different quantities it names would be decided by accident.
+    """
+    name = canonical_metric(metric)
+    if name not in AGGREGATION_SOURCE:
+        raise KeyError(f"no ruled aggregation source for metric {metric!r}: the "
+                       "per-metric ruling decides scene-mean vs split-level, and "
+                       "guessing would silently choose one of two different numbers")
+    return AGGREGATION_SOURCE[name]
+
+
+def _scene_column(by_scene, metric):
+    """``(mean, reasons)`` over the scenes — the acoustic family's observation."""
+    reasons, column = [], []
+    for scene in sorted(by_scene):
+        payload = by_scene[scene]
+        if not isinstance(payload, dict) or metric not in payload:
+            return None, [f"scene {scene!r} does not report {metric}: the per-scene "
+                          "mean is undefined over a missing scene"]
+        if not _finite(payload[metric]):
+            return None, [f"scene {scene!r} reports {metric}={payload[metric]!r}, "
+                          "which is not a finite number"]
+        column.append(float(payload[metric]))
+    return (st.mean(column) if column else None), reasons
+
+
+def cell_observation(record, required=None, optional=None):
+    """``(metrics, reasons)`` — each metric read from ITS ruled source.
+
+    The payload is validated HERE, at the consumer (review B5), on whichever side
+    the metric is read from: every reported metric must be present and finite, or
+    the cell is refused by name. A metrics object that is merely non-empty passes
+    the per-cell validator and then raises KeyError — or carries a NaN into a
+    mean, a CI and a verdict — halfway through a contrast.
     """
     required = tuple(HEADLINE_METRICS if required is None else required)
     optional = tuple(CONFOUNDED_METRICS if optional is None else optional)
+    by_scene = record.get("by_scene")
+    flat = record.get("metrics")
+    if not isinstance(flat, dict):
+        return {}, ["metrics block is missing or is not an object"]
+    # by_scene is required for EVERY cell: the acoustic family is read from it,
+    # and a cell that never recorded one did not measure that estimand.
     if not isinstance(by_scene, dict) or not by_scene:
-        return {}, ["by_scene is missing or empty: this campaign's observation is the "
-                    "PER-SCENE mean, so a cell without per-scene results did not "
-                    "measure the estimand"]
-    reasons, values = [], {}
-    scenes = sorted(by_scene)
+        return {}, ["by_scene is missing or empty: the acoustic family's observation "
+                    "is the PER-SCENE mean, so a cell without per-scene results did "
+                    "not measure the estimand"]
+    reasons, values = [], []
+    values = {}
     for metric in required:
-        column = []
-        for scene in scenes:
-            payload = by_scene[scene]
-            if not isinstance(payload, dict) or metric not in payload:
-                reasons.append(f"scene {scene!r} does not report {metric}: the "
-                               "per-scene mean is undefined over a missing scene")
-                break
-            if not _finite(payload[metric]):
-                reasons.append(f"scene {scene!r} reports {metric}="
-                               f"{payload[metric]!r}, which is not a finite number")
-                break
-            column.append(float(payload[metric]))
+        if aggregation_source(metric) == "scene-mean":
+            mean, why = _scene_column(by_scene, metric)
+            if why:
+                reasons += why
+            else:
+                values[metric] = mean
+            continue
+        if metric not in flat:
+            reasons.append(f"the split-level metrics do not report {metric}, which "
+                           "this campaign reads from them by ruling")
+        elif not _finite(flat[metric]):
+            reasons.append(f"split-level {metric}={flat[metric]!r} is not a finite "
+                           "number")
         else:
-            values[metric] = st.mean(column)
+            values[metric] = float(flat[metric])
     for metric in optional:
-        present = [s for s in scenes if isinstance(by_scene[s], dict)
-                   and metric in by_scene[s]]
-        if not present:
-            continue                     # descriptive-only: absence is not a failure
-        if len(present) != len(scenes):
-            reasons.append(f"{metric} is reported by {len(present)} of {len(scenes)} "
-                           "scenes: a per-scene mean over a subset of rooms is a "
-                           "different number")
+        # descriptive-only (quarantined): absence is not a campaign failure, but a
+        # value that is present must still be publishable.
+        if aggregation_source(metric) != "split" or metric not in flat:
             continue
-        bad = [s for s in present if not _finite(by_scene[s][metric])]
-        if bad:
-            reasons.append(f"scene {bad[0]!r} reports {metric}="
-                           f"{by_scene[bad[0]][metric]!r}, which is not a finite number")
+        if not _finite(flat[metric]):
+            reasons.append(f"split-level {metric}={flat[metric]!r} is not a finite "
+                           "number")
             continue
-        values[metric] = st.mean(float(by_scene[s][metric]) for s in present)
+        values[metric] = float(flat[metric])
     return values, reasons
 
 
 def slim(artifact):
-    """Drop the tuple stream; keep the per-scene OBSERVATION and the hashes.
+    """Drop the tuple stream; keep the ROUTED observation and the hashes.
 
     ``(CellData, reasons)`` — a cell whose per-scene payload cannot be reduced to
     the metrics this collector reports comes back as reasons, never as data.
     """
     stream = artifact.stream
-    metrics, reasons = per_scene_mean(artifact.record.get("by_scene"))
+    metrics, reasons = cell_observation(artifact.record)
     if reasons:
         return None, reasons
     return CellData(cell=artifact.cell, path=artifact.path, metrics=metrics,
@@ -814,7 +864,9 @@ def gate_g1(store, k=8, seed=42, tolerance=0.5):
     status = "PENDING" if pending else ("FAIL" if failures else "PASS")
     return {"name": "G1", "status": status, "failures": failures, "pending": pending,
             "details": details,
-            "definition": "|m(V@90°,s42,K8) − m(Z,s42,K8)| ≤ 0.5·σ̂(arm's 5 Z seeds)"}
+            "definition": "|m(V@90°,s42,K8) − m(Z,s42,K8)| ≤ 0.5·σ̂(arm's 5 Z seeds), "
+                          "each co-primary read through its ruled source "
+                          "(T60 scene-mean, R@1 split-level)"}
 
 
 def gate_g2(store, k=8, seed=42, factor=5.0, metric="T60"):
@@ -824,13 +876,13 @@ def gate_g2(store, k=8, seed=42, factor=5.0, metric="T60"):
         return {"name": "G2", "status": "PENDING",
                 "pending": ["VANL 90° validity cell or unrotated reference missing"],
                 "failures": [], "details": [],
-                "definition": "m_T60(VANL V@90°) − m_T60(VANL Z) ≥ 5·σ̂_T60(VANL)"}
+                "definition": "m_T60(VANL V@90°) − m_T60(VANL Z) ≥ 5·σ̂_T60(VANL), T60 read as the SCENE-MEAN (ruled source)"}
     sigma, agg = _z_std(store, "VANL", metric, k)
     if sigma is None:
         return {"name": "G2", "status": "PENDING",
                 "pending": [f"VANL K={k} unrotated block is {agg.status} ({agg.n}/5)"],
                 "failures": [], "details": [],
-                "definition": "m_T60(VANL V@90°) − m_T60(VANL Z) ≥ 5·σ̂_T60(VANL)"}
+                "definition": "m_T60(VANL V@90°) − m_T60(VANL Z) ≥ 5·σ̂_T60(VANL), T60 read as the SCENE-MEAN (ruled source)"}
     delta = float(control.metrics[metric]) - float(reference.metrics[metric])
     bound = factor * sigma
     passed = delta >= bound
@@ -841,7 +893,7 @@ def gate_g2(store, k=8, seed=42, factor=5.0, metric="T60"):
             "pending": [],
             "details": [{"arm": "VANL", "metric": metric, "delta": delta,
                          "sigma": sigma, "bound": bound, "passed": passed}],
-            "definition": "m_T60(VANL V@90°) − m_T60(VANL Z) ≥ 5·σ̂_T60(VANL)"}
+            "definition": "m_T60(VANL V@90°) − m_T60(VANL Z) ≥ 5·σ̂_T60(VANL), T60 read as the SCENE-MEAN (ruled source)"}
 
 
 def gate_g3(store):
@@ -978,17 +1030,25 @@ def evaluate_gates(store, exp11_root=None):
 # --------------------------------------------------------------------------- #
 # results: what the campaign says, and what it refuses to say
 # --------------------------------------------------------------------------- #
-# The per-seed observation, stated in the output itself. This IS the plan's §4
-# estimand and the repo's headline convention (paper numbers average per-scene
-# results): every cell runs eval_FLAC with --record-per-scene, and a cell without
-# a `by_scene` block is refused rather than aggregated another way.
+# The per-seed observation, stated in the output itself, PER METRIC (the
+# Planner's 2026-08-11 ruling, quoted verbatim above AGGREGATION_SOURCE and
+# pre-registered before any cell ran).
 AGGREGATION = {
-    "observation": "per-scene mean over the split's 17 rooms (plan §4)",
-    "source": "each cell's own by_scene block, recorded by --record-per-scene",
-    "note": ("the flat `metrics` block in the same record is the item-weighted "
-             "split-level number and is deliberately NOT read here: an "
-             "item-weighted difference and a scene-weighted one are different "
-             "quantities whenever rooms differ in size or room-level effect"),
+    "ruling": ("per-scene mean applies to the ACOUSTIC-PARAMETER family only — T60 "
+               "(incl. Invalid-T60 handling), C50, EDT — matching the paper convention "
+               "plan §4 intended. RETRIEVAL (RIR_to_GT_RIR_R@k, and the quarantined "
+               "RIR_to_geom_R@k) and FD use the SPLIT-LEVEL global metrics: within-scene "
+               "retrieval among ~370 items is a different, easier task whose levels are "
+               "incomparable to every previously published number in this program, and "
+               "exp_01's noise-floor calibration against released Table-1 was on the "
+               "global quantity; one-room Frechet is additionally small-sample biased"),
+    "co_primary": ("T60% (per-scene mean) + RIR_to_GT_RIR_R@1 (split-level)"),
+    "scene_mean": list(ACOUSTIC_METRICS),
+    "split_level": list(SPLIT_LEVEL_METRICS),
+    "note": ("both sources exist in every exp_14 record — the flat `metrics` block and "
+             "the `by_scene` block — so this is a reading rule, not a measurement "
+             "change; by_scene stays REQUIRED for every cell because the acoustic "
+             "family is read from it"),
 }
 RESULTS_SCHEMA_VERSION = 1
 ADJACENT_PAIRS = tuple(zip(ARM_ORDER[1:], ARM_ORDER[:-1]))   # (later, earlier)
@@ -1260,6 +1320,16 @@ def _arrow(metric):
     return "↓" if metric_direction(metric) == "lower" else "↑"
 
 
+def _metric_label(metric):
+    """``T60 (scene-mean)`` / ``RIR_to_GT_RIR_R@1 (split)``.
+
+    The source is part of the metric's name in every table: two readers comparing
+    a T60 and an R@1 from this report are comparing quantities aggregated
+    differently, on purpose, and the column has to say so.
+    """
+    return f"{canonical_metric(metric)} ({aggregation_source(metric)})"
+
+
 def _num(value, digits=3):
     return f"{value:.{digits}f}"
 
@@ -1283,7 +1353,7 @@ def render_block_table(rows, metrics):
     """One markdown table of per-arm blocks. PENDING and BLOCKED occupy the first
     metric column and leave the rest empty — there is no cell in which a number
     could be mistaken for a measured one."""
-    head = ["arm", "K", "n"] + [f"{m} {_arrow(m)}" for m in metrics]
+    head = ["arm", "K", "n"] + [f"{_metric_label(m)} {_arrow(m)}" for m in metrics]
     out = [_md_row(head), "|" + "---|" * len(head)]
     for row in rows:
         arm, k, status = row["arm"], row["K"], row["status"]
@@ -1351,7 +1421,7 @@ def _render_hypothesis(entry):
     out += ["", "| metric | mean Δ | 95% CI | p | p (Holm) | favours first | won |",
             "|---|---|---|---|---|---|---|"]
     for metric, row in entry["metrics"].items():
-        out.append(f"| {metric} | {_num(row['mean'], 4)} | "
+        out.append(f"| {_metric_label(metric)} | {_num(row['mean'], 4)} | "
                    f"[{_num(row['lo'], 4)}, {_num(row['hi'], 4)}] | {row['p']:.4g} | "
                    f"{row['p_holm']:.4g} | {'yes' if row['favors_first'] else 'no'} | "
                    f"{'yes' if row['won'] else 'no'} |")
@@ -1367,10 +1437,11 @@ def _render_adjacent(rows, title):
            "| pair | K | metric | mean Δ | 95% CI | p |", "|---|---|---|---|---|---|"]
     for row in rows:
         if row["status"] != "OK":
-            out.append(f"| {row['pair']} | {row['K']} | {row['metric']} | "
+            out.append(f"| {row['pair']} | {row['K']} | "
+                       f"{_metric_label(row['metric'])} | "
                        f"{row['status']} — {row.get('reason', '')} | | |")
             continue
-        out.append(f"| {row['pair']} | {row['K']} | {row['metric']} | "
+        out.append(f"| {row['pair']} | {row['K']} | {_metric_label(row['metric'])} | "
                    f"{_num(row['mean'], 4)} | [{_num(row['lo'], 4)}, "
                    f"{_num(row['hi'], 4)}] | {row['p']:.4g} |")
     return "\n".join(out) + "\n"
@@ -1388,9 +1459,13 @@ def render_tables(results):
            f"· α={camp['alpha']} · stats backend: {camp['stats_backend']}",
            f"- co-primary metrics: {', '.join(camp['co_primary'])} "
            "(Holm over the two, within each labelled hypothesis)",
-           f"- per-seed observation: {results['aggregation']['observation']}, "
-           f"from {results['aggregation']['source']}. "
-           f"Note: {results['aggregation']['note']}.",
+           "- **per-metric aggregation (Planner ruling, pre-registered "
+           f"{results['generated_at'][:10]}):** "
+           f"{results['aggregation']['ruling']}. Co-primaries: "
+           f"{results['aggregation']['co_primary']}.",
+           f"  - scene-mean: {', '.join(results['aggregation']['scene_mean'])} · "
+           f"split-level: {', '.join(results['aggregation']['split_level'])}",
+           f"  - {results['aggregation']['note']}.",
            "",
            "## 1. Cell inventory", ""]
     inv = results["inventory"]
@@ -1447,7 +1522,8 @@ def render_tables(results):
             "## 7. Geometry retrieval (rotated-gallery, confounded — descriptive only)",
             "", results["geometry_retrieval"]["disclosure"], ""]
     geom = results["geometry_retrieval"]
-    out += ["| block | arm | K | " + " | ".join(CONFOUNDED_METRICS) + " |",
+    out += ["| block | arm | K | "
+            + " | ".join(_metric_label(m) for m in CONFOUNDED_METRICS) + " |",
             "|---|---|---|" + "---|" * len(CONFOUNDED_METRICS)]
     for kind in ("R", "Z"):
         for arm in ARM_ORDER:
