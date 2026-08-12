@@ -119,9 +119,33 @@ def synthetic_metrics(cell):
     return out
 
 
+SCENE_TEMPLATE = {"T60": 9.0, "C50": 1.0, "EDT": 43.0, "FD": 0.34,
+                  "RIR_to_GT_RIR_R@1": 5.0, "RIR_to_GT_RIR_R@5": 15.0,
+                  "RIR_to_GT_RIR_R@10": 23.0, "RIR_to_geom_R@1": 4.0,
+                  "RIR_to_geom_R@5": 13.0, "RIR_to_geom_R@10": 20.0,
+                  "Invalid T60": 0.0}
+
+
+def _scene_block(cell, metrics=None, n=V.EXPECTED_SCENES):
+    """Per-scene values that AVERAGE to the cell's metrics, exactly.
+
+    The offsets are symmetric about the middle scene, so their mean is zero: the
+    per-scene mean this campaign reports equals the value the fixture intends,
+    while no two scenes carry the same number (a per-scene mean that is right for
+    the wrong reason — every scene identical — would prove nothing)."""
+    base = dict(metrics if metrics is not None else synthetic_metrics(cell))
+    mid = (n - 1) / 2.0
+    scenes = {}
+    for i in range(n):
+        spread = (i - mid) * 0.01
+        scenes[f"Room{i}/Room{i}_idx_{i}"] = {
+            k: (v + spread if k != "Invalid T60" else v) for k, v in base.items()}
+    return scenes
+
+
 def write_cell(root, cell, *, pin=PIN, count=COUNT, metrics=None, record_patch=None,
                meta_patch=None, stream_patch=None, offsets=None, targets=None,
-               ckpt_sha=None):
+               ckpt_sha=None, by_scene=_scene_block):
     """Write one registered cell's three artifacts under a fake ``--output-root``.
 
     Returns the metrics path. Every ``*_patch`` is applied last, so a test can
@@ -163,6 +187,11 @@ def write_cell(root, cell, *, pin=PIN, count=COUNT, metrics=None, record_patch=N
         "seed": int(cell.seed), "cfg_scale": V.CFG_SCALE, "steps": V.STEPS,
         "eval_name": V.eval_name(cell), "weights_source": "ema", "device": "cuda",
     }
+    scenes = by_scene(cell, metrics) if callable(by_scene) else by_scene
+    if scenes is not None:
+        record["by_scene"] = scenes
+        record["per_scene_schema"] = V.PER_SCENE_SCHEMA
+        record["scene_count"] = len(scenes)
     if mode == "random":
         record["rotate_deg"] = None
         record.update({"rotate_mode": mode, "rotate_seed": rseed,
@@ -183,6 +212,7 @@ def write_cell(root, cell, *, pin=PIN, count=COUNT, metrics=None, record_patch=N
         "eval_orbit": V.TRAIN_ORBIT[cell.arm],
         "rotate_mode": mode, "rotate_deg": deg, "rotate_seed": rseed,
         "expected_stream_count": count, "record_stream": True,
+        "record_per_scene": True,
         "stream_sidecar": os.path.basename(metrics_path)[:-len(".json")] + ".stream.json",
         "batch_size": V.BATCH_SIZE, "num_workers": V.NUM_WORKERS,
     }
@@ -982,7 +1012,9 @@ def test_end_to_end_complete_grid_renders_every_section(tmp_path):
     for name in ("H-P", "H-M", "H-S"):
         assert results["hypotheses"][name]["verdict"] in (
             "SUPPORTED", "PARTIAL", "NEGATIVE"), name
-    assert "PENDING" not in text.split("## 8")[0] or True   # sections exist regardless
+    # R3F7: the complete-grid invariant, asserted rather than waved through
+    assert "PENDING" not in text and "BLOCKED" not in text.split("## 9")[0], (
+        "a complete, well-formed campaign rendered a refusal")
 
 
 def test_headline_tables_never_contain_a_validity_cell_or_geom_retrieval(tmp_path):
@@ -1115,3 +1147,99 @@ def test_cli_exit_code_reports_that_gates_did_not_pass(tmp_path):
     rc = C.main(["--output-root", root, "--pin", PIN, "--expected-count", str(COUNT),
                  "--ckpt-expect", str(expect_file), "--out", str(tmp_path / "o.md")])
     assert rc != 0
+
+
+# --------------------------------------------------------------------------- #
+# 16. round-3 fixes — the per-scene estimand and consumer-level payloads
+# --------------------------------------------------------------------------- #
+def test_the_observation_is_the_mean_over_scenes(tmp_path):
+    """R3F1 (review B1): the plan's estimand is the PER-SCENE mean. The flat
+    metrics block in the record is the split-level (item-weighted) number, which
+    is a DIFFERENT quantity — the collector must read by_scene."""
+    cell = a_cell()
+    scenes = {f"Room{i}/Room{i}_idx_{i}": dict(SCENE_TEMPLATE, T60=float(i))
+              for i in range(V.EXPECTED_SCENES)}
+    path = write_cell(str(tmp_path), cell, by_scene=scenes,
+                      record_patch={"metrics": dict(synthetic_metrics(cell), T60=999.0)})
+    data, reasons = C.load_cell(path, expectation())
+    assert reasons == [], reasons
+    assert data.metrics["T60"] == pytest.approx(sum(range(V.EXPECTED_SCENES))
+                                                / V.EXPECTED_SCENES)
+    assert data.metrics["T60"] != 999.0, "the collector read the item-weighted number"
+
+
+def test_a_cell_without_per_scene_results_is_invalid_with_no_fallback(tmp_path):
+    cell = a_cell()
+    path = write_cell(str(tmp_path), cell, by_scene=None)
+    data, reasons = C.load_cell(path, expectation())
+    assert data is None
+    assert any("by_scene" in r for r in reasons), reasons
+
+
+def test_a_scene_missing_a_reported_metric_is_rejected(tmp_path):
+    """R3F5: a nonempty payload missing R@1 used to pass validation and raise
+    KeyError later, in the middle of a contrast."""
+    cell = a_cell()
+    scenes = _scene_block(cell)
+    del scenes["Room3/Room3_idx_3"]["RIR_to_GT_RIR_R@1"]
+    data, reasons = C.load_cell(write_cell(str(tmp_path), cell, by_scene=scenes),
+                                expectation())
+    assert data is None
+    assert any("RIR_to_GT_RIR_R@1" in r and "Room3" in r for r in reasons), reasons
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), "9.0", None])
+def test_a_non_finite_or_non_numeric_metric_is_rejected(tmp_path, bad):
+    """R3F5: NaN must never reach a mean, a CI or a verdict."""
+    cell = a_cell()
+    scenes = _scene_block(cell)
+    scenes["Room0/Room0_idx_0"]["T60"] = bad
+    data, reasons = C.load_cell(write_cell(str(tmp_path), cell, by_scene=scenes),
+                                expectation())
+    assert data is None
+    assert any("T60" in r for r in reasons), reasons
+
+
+def test_the_geometry_metrics_are_optional_but_checked_when_present(tmp_path):
+    """The confounded block is descriptive, so its absence is not a campaign
+    failure — but a NaN in it must still never be published."""
+    cell = a_cell()
+    scenes = _scene_block(cell)
+    for payload in scenes.values():
+        for metric in C.CONFOUNDED_METRICS:
+            payload.pop(metric)
+    data, reasons = C.load_cell(write_cell(str(tmp_path), cell, by_scene=scenes),
+                                expectation())
+    assert reasons == [] and data is not None
+    assert not any(m in data.metrics for m in C.CONFOUNDED_METRICS)
+
+    scenes2 = _scene_block(cell)
+    scenes2["Room1/Room1_idx_1"]["RIR_to_geom_R@1"] = float("nan")
+    data2, reasons2 = C.load_cell(write_cell(str(tmp_path), a_cell(arm="C16"),
+                                             by_scene=scenes2), expectation())
+    assert data2 is None and any("RIR_to_geom_R@1" in r for r in reasons2), reasons2
+
+
+def test_no_aggregation_deviation_language_survives():
+    """R3F1: the estimand is measured now, so the deviation disclosure and the
+    'contrasts are unaffected' claim must be gone — not softened."""
+    source = open(C.__file__).read()
+    for phrase in ("DEVIATION", "contrasts are unaffected", "item-weighted rather than",
+                   "not recoverable from the committed artifacts"):
+        assert phrase not in source, f"stale aggregation language: {phrase!r}"
+    assert C.AGGREGATION["observation"].startswith("per-scene mean")
+
+
+def test_paired_pending_rows_carry_the_matched_pair_count(tmp_path):
+    """N6: a paired block with four matched pairs reported 0/5, because the count
+    was derived from the (deliberately empty) metrics dict."""
+    root = str(tmp_path)
+    grid = [c for c in V.expected_grid()
+            if not (c.arm == "C32" and c.cell == "rgen" and c.seed == 46 and c.k == 8)]
+    write_grid(root, grid)
+    results = _results(root)
+    entry = results["paired"]["C32"]["8"]
+    assert entry["status"] == "PENDING"
+    assert entry["pairs"] == 4, entry
+    text = C.render_tables(results)
+    assert "PENDING (4/5 pairs)" in text, "the Δ table still reports 0/5"

@@ -189,22 +189,83 @@ def validate_cell_provenance(artifact, expected):
     return reasons
 
 
-def slim(artifact):
-    """Drop the tuple stream, keep what cross-cell reasoning needs.
+def _finite(value):
+    return (isinstance(value, (int, float)) and not isinstance(value, bool)
+            and math.isfinite(float(value)))
 
-    Only NUMERIC metric entries are kept. The emission set is numeric today, but
-    a callback configured with ``eval_per_scene`` would add a nested ``by_scene``
-    block, and a nested dict silently entering an arithmetic mean is exactly the
-    kind of quiet wrong answer this collector exists to avoid.
+
+def per_scene_mean(by_scene, required=None, optional=None):
+    """``(metrics, reasons)`` — the plan §4 observation: the mean OVER SCENES.
+
+    This is the campaign's per-seed observation, and it is NOT the record's flat
+    metrics block: that one is item-weighted over all 6,337 items, and an
+    item-weighted difference and a scene-weighted difference are different
+    numbers whenever rooms differ in size or in room-level effect. There is no
+    fallback to it (round-3 review B1).
+
+    The payload is validated HERE, at the consumer (review B5): every metric this
+    collector will report must be present in every scene and be a finite number.
+    A metrics object that is merely non-empty passes the per-cell validator and
+    then raises KeyError — or worse, carries a NaN into a mean, a CI and a
+    verdict — halfway through a contrast.
+    """
+    required = tuple(HEADLINE_METRICS if required is None else required)
+    optional = tuple(CONFOUNDED_METRICS if optional is None else optional)
+    if not isinstance(by_scene, dict) or not by_scene:
+        return {}, ["by_scene is missing or empty: this campaign's observation is the "
+                    "PER-SCENE mean, so a cell without per-scene results did not "
+                    "measure the estimand"]
+    reasons, values = [], {}
+    scenes = sorted(by_scene)
+    for metric in required:
+        column = []
+        for scene in scenes:
+            payload = by_scene[scene]
+            if not isinstance(payload, dict) or metric not in payload:
+                reasons.append(f"scene {scene!r} does not report {metric}: the "
+                               "per-scene mean is undefined over a missing scene")
+                break
+            if not _finite(payload[metric]):
+                reasons.append(f"scene {scene!r} reports {metric}="
+                               f"{payload[metric]!r}, which is not a finite number")
+                break
+            column.append(float(payload[metric]))
+        else:
+            values[metric] = st.mean(column)
+    for metric in optional:
+        present = [s for s in scenes if isinstance(by_scene[s], dict)
+                   and metric in by_scene[s]]
+        if not present:
+            continue                     # descriptive-only: absence is not a failure
+        if len(present) != len(scenes):
+            reasons.append(f"{metric} is reported by {len(present)} of {len(scenes)} "
+                           "scenes: a per-scene mean over a subset of rooms is a "
+                           "different number")
+            continue
+        bad = [s for s in present if not _finite(by_scene[s][metric])]
+        if bad:
+            reasons.append(f"scene {bad[0]!r} reports {metric}="
+                           f"{by_scene[bad[0]][metric]!r}, which is not a finite number")
+            continue
+        values[metric] = st.mean(float(by_scene[s][metric]) for s in present)
+    return values, reasons
+
+
+def slim(artifact):
+    """Drop the tuple stream; keep the per-scene OBSERVATION and the hashes.
+
+    ``(CellData, reasons)`` — a cell whose per-scene payload cannot be reduced to
+    the metrics this collector reports comes back as reasons, never as data.
     """
     stream = artifact.stream
-    return CellData(cell=artifact.cell, path=artifact.path,
-                    metrics={k: float(v) for k, v in artifact.record["metrics"].items()
-                             if isinstance(v, (int, float)) and not isinstance(v, bool)},
+    metrics, reasons = per_scene_mean(artifact.record.get("by_scene"))
+    if reasons:
+        return None, reasons
+    return CellData(cell=artifact.cell, path=artifact.path, metrics=metrics,
                     input_hash=stream.get("input_hash"),
                     assignment_hash=stream.get("assignment_hash"),
                     offsets=tuple(stream.get("offsets") or ()),
-                    source_sha=artifact.record.get("source_sha"))
+                    source_sha=artifact.record.get("source_sha")), []
 
 
 def load_cell(path, campaign):
@@ -216,7 +277,7 @@ def load_cell(path, campaign):
     reasons = validate_cell_provenance(artifact, campaign.for_cell(artifact.cell))
     if reasons:
         return None, reasons
-    return slim(artifact), []
+    return slim(artifact)
 
 
 # --------------------------------------------------------------------------- #
@@ -917,21 +978,17 @@ def evaluate_gates(store, exp11_root=None):
 # --------------------------------------------------------------------------- #
 # results: what the campaign says, and what it refuses to say
 # --------------------------------------------------------------------------- #
-# The per-seed observation, disclosed in the output itself. Plan §4 names a
-# PER-SCENE mean; the campaign's model configs do not set
-# ``training.metrics.eval_per_scene``, so no exp_11/exp_14 metrics JSON carries a
-# ``by_scene`` block and a per-scene mean is not recoverable from the committed
-# artifacts. Every arm, cell and seed is aggregated identically, so the paired and
-# cross-arm contrasts are unaffected; only the absolute levels are item-weighted
-# rather than scene-weighted — the same convention model_comparison.md publishes.
+# The per-seed observation, stated in the output itself. This IS the plan's §4
+# estimand and the repo's headline convention (paper numbers average per-scene
+# results): every cell runs eval_FLAC with --record-per-scene, and a cell without
+# a `by_scene` block is refused rather than aggregated another way.
 AGGREGATION = {
-    "observation": "split-level aggregate from each cell's own metrics record",
-    "plan_convention": "per-scene mean (plan §4)",
-    "deviation": ("no metrics JSON in this lineage carries a by_scene block "
-                  "(eval_per_scene is not set in the arm configs), so the per-scene "
-                  "mean is not recoverable from the committed artifacts; all cells "
-                  "are aggregated identically, so paired and cross-arm contrasts are "
-                  "unaffected and only absolute levels are item- not scene-weighted"),
+    "observation": "per-scene mean over the split's 17 rooms (plan §4)",
+    "source": "each cell's own by_scene block, recorded by --record-per-scene",
+    "note": ("the flat `metrics` block in the same record is the item-weighted "
+             "split-level number and is deliberately NOT read here: an "
+             "item-weighted difference and a scene-weighted one are different "
+             "quantities whenever rooms differ in size or room-level effect"),
 }
 RESULTS_SCHEMA_VERSION = 1
 ADJACENT_PAIRS = tuple(zip(ARM_ORDER[1:], ARM_ORDER[:-1]))   # (later, earlier)
@@ -1010,7 +1067,7 @@ def build_results(store, gates=None, generated_at=None, exp11_root=None, alpha=A
             pairs, problems = pair_seeds(store.block(arm, "zref", k),
                                          store.block(arm, "rgen", k))
             entry = {"arm": arm, "K": int(k), "metrics": {}, "abs_metrics": {},
-                     "reasons": list(problems)}
+                     "pairs": len(pairs), "reasons": list(problems)}
             if ("paired", arm, int(k)) in blocked:
                 entry["status"] = "BLOCKED"
                 entry["reasons"].append("Z and R are not a matched pair at this "
@@ -1237,7 +1294,7 @@ def render_block_table(rows, metrics):
             continue
         reason = (row.get("reasons") or [""])[0]
         if status == "PENDING":
-            note = f"*PENDING ({row['n']}/{len(SEEDS)} seeds)*"
+            note = f"*PENDING ({row['n']}/{len(SEEDS)} {row.get('unit', 'seeds')})*"
             count = "—"
         else:
             note = f"**BLOCKED — {reason}**"
@@ -1269,9 +1326,12 @@ def _delta_rows(results, k):
     for arm in ARM_ORDER:
         entry = results["paired"][arm][str(k)]
         complete = entry["status"] == "OK"
+        # the count is the number of MATCHED PAIRS (review N6): a block with four
+        # pairs and a missing fifth seed reported 0/5, because the count used to
+        # come from the metrics dict that PENDING deliberately leaves empty
         row = {"arm": arm, "K": int(k), "status": entry["status"],
-               "n": len(SEEDS) if complete else len(entry.get("metrics", {})),
-               "reasons": entry.get("reasons", []), "values": {}}
+               "n": len(SEEDS) if complete else entry.get("pairs", 0),
+               "unit": "pairs", "reasons": entry.get("reasons", []), "values": {}}
         if complete:
             # ± half the 95% CI width, so the Δ table's spread column is the
             # interval the contrast actually used rather than a second statistic.
@@ -1328,9 +1388,9 @@ def render_tables(results):
            f"· α={camp['alpha']} · stats backend: {camp['stats_backend']}",
            f"- co-primary metrics: {', '.join(camp['co_primary'])} "
            "(Holm over the two, within each labelled hypothesis)",
-           f"- per-seed observation: {results['aggregation']['observation']}. "
-           f"Plan convention: {results['aggregation']['plan_convention']} — "
-           f"DEVIATION: {results['aggregation']['deviation']}.",
+           f"- per-seed observation: {results['aggregation']['observation']}, "
+           f"from {results['aggregation']['source']}. "
+           f"Note: {results['aggregation']['note']}.",
            "",
            "## 1. Cell inventory", ""]
     inv = results["inventory"]

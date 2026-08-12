@@ -1,0 +1,11 @@
+E         comparison failed
+FAILED src/tests/test_yaw_gen_collect.py::test_the_observation_is_the_mean_over_scenes
+FAILED src/tests/test_yaw_gen_collect.py::test_a_scene_missing_a_reported_metric_is_rejected
+FAILED src/tests/test_yaw_gen_collect.py::test_a_non_finite_or_non_numeric_metric_is_rejected[nan]
+FAILED src/tests/test_yaw_gen_collect.py::test_a_non_finite_or_non_numeric_metric_is_rejected[inf]
+FAILED src/tests/test_yaw_gen_collect.py::test_a_non_finite_or_non_numeric_metric_is_rejected[9.0]
+FAILED src/tests/test_yaw_gen_collect.py::test_a_non_finite_or_non_numeric_metric_is_rejected[None]
+FAILED src/tests/test_yaw_gen_collect.py::test_the_geometry_metrics_are_optional_but_checked_when_present
+FAILED src/tests/test_yaw_gen_collect.py::test_no_aggregation_deviation_language_survives
+FAILED src/tests/test_yaw_gen_collect.py::test_paired_pending_rows_carry_the_matched_pair_count
+9 failed, 2 passed, 89 deselected, 3 warnings in 27.02s

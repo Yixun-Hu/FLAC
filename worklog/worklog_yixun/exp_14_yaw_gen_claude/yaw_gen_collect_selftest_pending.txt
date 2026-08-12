@@ -1,10 +1,10 @@
 # exp_14 — random-yaw generalization: collected readouts
 
-Generated 2026-08-11T19:10:20-04:00 by `yaw_gen_collect.py` — every cell is re-validated from its own artifacts on each run; numbers never live in this file.
+Generated 2026-08-11T20:27:33-04:00 by `yaw_gen_collect.py` — every cell is re-validated from its own artifacts on each run; numbers never live in this file.
 
 - campaign pin `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` · step 40000 · seeds [42, 43, 44, 45, 46] · α=0.05 · stats backend: scipy
 - co-primary metrics: T60, RIR_to_GT_RIR_R@1 (Holm over the two, within each labelled hypothesis)
-- per-seed observation: split-level aggregate from each cell's own metrics record. Plan convention: per-scene mean (plan §4) — DEVIATION: no metrics JSON in this lineage carries a by_scene block (eval_per_scene is not set in the arm configs), so the per-scene mean is not recoverable from the committed artifacts; all cells are aggregated identically, so paired and cross-arm contrasts are unaffected and only absolute levels are item- not scene-weighted.
+- per-seed observation: per-scene mean over the split's 17 rooms (plan §4), from each cell's own by_scene block, recorded by --record-per-scene. Note: the flat `metrics` block in the same record is the item-weighted split-level number and is deliberately NOT read here: an item-weighted difference and a scene-weighted one are different quantities whenever rooms differ in size or room-level effect.
 
 ## 1. Cell inventory
 
@@ -23,10 +23,10 @@ Generated 2026-08-11T19:10:20-04:00 by `yaw_gen_collect.py` — every cell is re
 
 *G5 (external reproduction — a CHECK, never a gate): UNAVAILABLE.* exp_14 Z vs exp_11 conf @40k; disclose |Δ| > 3·√(σ11²+σ14²)/√5 (cross-pin: reported, never a halt)
 
-- C4L: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_5r9suy77/pending
-- C8: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_5r9suy77/pending
-- C16: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_5r9suy77/pending
-- C32: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_5r9suy77/pending
+- C4L: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_zgkfmojp/pending
+- C8: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_zgkfmojp/pending
+- C16: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_zgkfmojp/pending
+- C32: 0/5 exp_11 conf rows found under /n/fs/rfmprog/.tmp/yh4742/exp14_collect_selftest_zgkfmojp/pending
 
 ## 3. Absolute robustness m_R (the PRIMARY criterion)
 
@@ -73,7 +73,7 @@ Generated 2026-08-11T19:10:20-04:00 by `yaw_gen_collect.py` — every cell is re
 | C4L | 8 | 5 | 1.522 ± 0.014 | 0.000 ± 0.000 | 0.000 ± 0.000 | 0.030 ± 0.000 | -0.496 ± 0.030 | 0.000 ± 0.000 | 0.000 ± 0.000 |
 | C8 | 8 | 5 | 0.992 ± 0.014 | 0.000 ± 0.000 | 0.000 ± 0.000 | 0.020 ± 0.000 | -0.331 ± 0.024 | 0.000 ± 0.000 | 0.000 ± 0.000 |
 | C16 | 8 | 5 | 0.590 ± 0.034 | 0.000 ± 0.000 | 0.000 ± 0.000 | 0.012 ± 0.000 | -0.202 ± 0.024 | 0.000 ± 0.000 | 0.000 ± 0.000 |
-| C32 | 8 | — | *PENDING (0/5 seeds)* | | | | | | |
+| C32 | 8 | — | *PENDING (4/5 pairs)* | | | | | | |
 
 
 ## 5. Endpoint contrasts (H-P / H-M / H-S)
