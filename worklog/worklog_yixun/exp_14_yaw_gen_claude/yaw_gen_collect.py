@@ -1076,6 +1076,9 @@ def evaluate_gates(store, exp11_root=None):
 # Planner's 2026-08-11 ruling, quoted verbatim above AGGREGATION_SOURCE and
 # pre-registered before any cell ran).
 AGGREGATION = {
+    "grouping": ("scene-mean = mean over the 10 AR ROOM FAMILIES the release "
+                 "metric callback groups by (md['scene'] = the family, AR_md.py); "
+                 "the split's 17 physical rooms are its content, not its grouping"),
     "ruling": ("per-scene mean applies to the ACOUSTIC-PARAMETER family only — T60 "
                "(incl. Invalid-T60 handling), C50, EDT — matching the paper convention "
                "plan §4 intended. RETRIEVAL (RIR_to_GT_RIR_R@k, and the quarantined "
@@ -1505,6 +1508,7 @@ def render_tables(results):
            f"{results['generated_at'][:10]}):** "
            f"{results['aggregation']['ruling']}. Co-primaries: "
            f"{results['aggregation']['co_primary']}.",
+           f"  - {results['aggregation']['grouping']}.",
            f"  - scene-mean: {', '.join(results['aggregation']['scene_mean'])} · "
            f"split-level: {', '.join(results['aggregation']['split_level'])}",
            f"  - {results['aggregation']['note']}.",

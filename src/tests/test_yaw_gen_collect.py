@@ -134,12 +134,13 @@ def _scene_block(cell, metrics=None, n=V.EXPECTED_SCENES):
     while no two scenes carry the same number (a per-scene mean that is right for
     the wrong reason — every scene identical — would prove nothing)."""
     base = dict(metrics if metrics is not None else synthetic_metrics(cell))
-    mid = (n - 1) / 2.0
+    fams = list(V.EXPECTED_SCENE_KEYS)[:n]
+    mid = (len(fams) - 1) / 2.0
     scenes = {}
-    for i in range(n):
+    for i, fam in enumerate(fams):
         spread = (i - mid) * 0.01
-        scenes[f"Room{i}/Room{i}_idx_{i}"] = {
-            k: (v + spread if k != "Invalid T60" else v) for k, v in base.items()}
+        scenes[fam] = {k: (v + spread if k != "Invalid T60" else v)
+                       for k, v in base.items()}
     return scenes
 
 
@@ -1164,8 +1165,8 @@ def test_the_observation_is_the_mean_over_scenes(tmp_path):
     metrics block in the record is the split-level (item-weighted) number, which
     is a DIFFERENT quantity — the collector must read by_scene."""
     cell = a_cell()
-    scenes = {f"Room{i}/Room{i}_idx_{i}": dict(SCENE_TEMPLATE, T60=float(i))
-              for i in range(V.EXPECTED_SCENES)}
+    scenes = {fam: dict(SCENE_TEMPLATE, T60=float(i))
+              for i, fam in enumerate(V.EXPECTED_SCENE_KEYS)}
     path = write_cell(str(tmp_path), cell, by_scene=scenes,
                       record_patch={"metrics": dict(synthetic_metrics(cell), T60=999.0)})
     data, reasons = C.load_cell(path, expectation())
@@ -1188,11 +1189,11 @@ def test_a_scene_missing_a_reported_metric_is_rejected(tmp_path):
     KeyError later, in the middle of a contrast."""
     cell = a_cell()
     scenes = _scene_block(cell)
-    del scenes["Room3/Room3_idx_3"]["C50"]          # an ACOUSTIC metric: scene-mean
+    del scenes["Bedrooms"]["C50"]                   # an ACOUSTIC metric: scene-mean
     data, reasons = C.load_cell(write_cell(str(tmp_path), cell, by_scene=scenes),
                                 expectation())
     assert data is None
-    assert any("C50" in r and "Room3" in r for r in reasons), reasons
+    assert any("C50" in r and "Bedrooms" in r for r in reasons), reasons
 
 
 @pytest.mark.parametrize("bad", [float("nan"), float("inf"), "9.0", None])
@@ -1200,7 +1201,7 @@ def test_a_non_finite_or_non_numeric_metric_is_rejected(tmp_path, bad):
     """R3F5: NaN must never reach a mean, a CI or a verdict."""
     cell = a_cell()
     scenes = _scene_block(cell)
-    scenes["Room0/Room0_idx_0"]["T60"] = bad
+    scenes["Cafe"]["T60"] = bad
     data, reasons = C.load_cell(write_cell(str(tmp_path), cell, by_scene=scenes),
                                 expectation())
     assert data is None

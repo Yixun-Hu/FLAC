@@ -75,11 +75,21 @@ IMG_W = 512
 STREAM_SCHEMA_VERSION = 1
 FINGERPRINT_SCHEMA = 1
 PER_SCENE_SCHEMA = 1
-# The published unseen split is 6,337 items across 17 ROOMS (announcement 01).
-# The campaign's per-seed observation is the per-scene mean (plan §4), so the
-# room count is a campaign constant exactly like the item count: a cell whose
-# per-scene block covers a different room set averaged a different estimand.
-EXPECTED_SCENES = 17
+# WHAT "PER-SCENE" ACTUALLY GROUPS BY (established from rung 1's real artifact).
+# The released metric callback groups on ``md['scene']``, and ``AR_md.py`` sets
+# that to the room FAMILY -- ``rel_path.split('/')[-3]``, e.g. "Cafe" -- while
+# the per-room id (``[-2]``, e.g. "Cafe_idx_0") never reaches the callback. So
+# the release convention's per-scene mean is a mean over the split's 10 room
+# FAMILIES, not its 17 physical rooms; "6,337 items / 17 rooms" describes the
+# split's CONTENT, not the grouping. Rung 1 (C4L@90, jid 3682720) produced
+# exactly these ten keys.
+#
+# The key SET is pinned, not just its size: two different ten-family groupings
+# would be the same number of scenes and a different estimand.
+EXPECTED_SCENE_KEYS = ("Apartments", "Auditorium", "Bathrooms", "Bedrooms", "Cafe",
+                       "ListeningRoom", "LivingRoomsWithHallway", "MeetingRoom",
+                       "Office", "Restaurants")
+EXPECTED_SCENES = len(EXPECTED_SCENE_KEYS)          # 10
 SPLIT_K8 = "acousticroom_unseeneval.json"
 SPLIT_K1 = "acousticroom_unseeneval_1.json"
 
@@ -309,7 +319,8 @@ def _eq(reasons, label, got, want):
 
 
 def validate_metrics_record(rec, cell, pin=None, expected_count=EXPECTED_COUNT,
-                            expected_scenes=EXPECTED_SCENES):
+                            expected_scenes=EXPECTED_SCENES,
+                            expected_keys=EXPECTED_SCENE_KEYS):
     """Named reasons why ``rec`` is not this cell's metrics record ([] = valid)."""
     reasons = []
     mode, deg, rseed = rotation_expectation(cell)
@@ -368,11 +379,12 @@ def validate_metrics_record(rec, cell, pin=None, expected_count=EXPECTED_COUNT,
         got = rec.get("rotate_deg")
         if got is None or float(got) != float(deg):
             reasons.append(f"rotate_deg {got!r} != expected {deg!r}")
-    reasons += _per_scene_reasons(rec, expected_scenes)
+    reasons += _per_scene_reasons(rec, expected_scenes, expected_keys)
     return reasons
 
 
-def _per_scene_reasons(rec, expected_scenes=EXPECTED_SCENES):
+def _per_scene_reasons(rec, expected_scenes=EXPECTED_SCENES,
+                       expected_keys=EXPECTED_SCENE_KEYS):
     """Named reasons the per-scene block is not this campaign's (plan §4).
 
     Required, with NO fallback. The estimand is the per-scene mean, so a cell
@@ -390,10 +402,20 @@ def _per_scene_reasons(rec, expected_scenes=EXPECTED_SCENES):
     if rec.get("per_scene_schema") != PER_SCENE_SCHEMA:
         reasons.append(f"per_scene_schema {rec.get('per_scene_schema')!r} != "
                        f"{PER_SCENE_SCHEMA} — written under another contract")
-    if len(by_scene) != int(expected_scenes):
-        reasons.append(f"by_scene covers {len(by_scene)} scene(s), not the split's "
+    if expected_keys is not None:
+        got, want = set(by_scene), set(expected_keys)
+        if got != want:
+            missing, extra = sorted(want - got), sorted(got - want)
+            reasons.append(
+                f"by_scene groups {sorted(got)}, not the release grouping's "
+                f"{sorted(want)}"
+                + (f" (missing {missing})" if missing else "")
+                + (f" (unexpected {extra})" if extra else "")
+                + ": a mean over a different grouping is a different estimand")
+    elif len(by_scene) != int(expected_scenes):
+        reasons.append(f"by_scene covers {len(by_scene)} scene(s), not the expected "
                        f"{int(expected_scenes)}: a per-scene mean over a different "
-                       "room set is a different number")
+                       "grouping is a different number")
     if rec.get("scene_count") != len(by_scene):
         reasons.append(f"scene_count {rec.get('scene_count')!r} != the {len(by_scene)} "
                        "scene(s) actually recorded")
@@ -536,7 +558,7 @@ def _read_record(path, label):
 
 
 def validate_cell(metrics, cell, pin=None, ckpt_sha=None, expected_count=EXPECTED_COUNT,
-                  expected_scenes=EXPECTED_SCENES):
+                  expected_scenes=EXPECTED_SCENES, expected_keys=EXPECTED_SCENE_KEYS):
     """Every named reason this cell's artifacts are not valid; ``[]`` when they are.
 
     Raises ``ValueError`` for an UNREGISTERED cell before touching the filesystem:
@@ -561,7 +583,8 @@ def validate_cell(metrics, cell, pin=None, ckpt_sha=None, expected_count=EXPECTE
         reasons.append("expected ckpt sha256 not supplied: a cell cannot be declared "
                        "valid without checking WHICH checkpoint it evaluated")
     reasons += validate_metrics_record(rec, cell, pin=pin, expected_count=expected_count,
-                                      expected_scenes=expected_scenes)
+                                      expected_scenes=expected_scenes,
+                                      expected_keys=expected_keys)
 
     meta_p = screenmeta_path(metrics)
     if not os.path.isfile(meta_p):
@@ -663,7 +686,8 @@ def contract_lines(cell):
         + (str(int(rseed)) if rseed is not None else "<n/a>")
         + " rotate_deg " + ("<null>" if deg is None else fmt_deg(deg)),
         f"split {split} expected_stream_count {EXPECTED_COUNT} record_stream yes",
-        f"record_per_scene yes expected_scenes {EXPECTED_SCENES}",
+        f"record_per_scene yes expected_scenes {EXPECTED_SCENES}"
+        " (release grouping: AR room families)",
         f"batch_size {BATCH_SIZE} num_workers {NUM_WORKERS}",
         f"cond_autocast {COND_AUTOCAST} cfg_scale {CFG_SCALE} steps {STEPS} use_ema yes",
     ]

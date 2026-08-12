@@ -536,7 +536,7 @@ for SPEC in "C32 rgen 44 8 -" "C8 zref 42 8 -" "C4L vctl 42 8 45" "VANL vctl 42 
   A_ARGS=(argv --metrics "<metrics>" --arm "$1" --cell "$2" --step 40000 --seed "$3" --k "$4")
   [ "$5" = "-" ] || A_ARGS+=(--rotate-deg "$5")
   A_ARGS+=(--pin "${DRIVER_PIN:-$HEAD_SHA}" --ckpt-sha "<ckpt-sha256>" --expected-count 6337
-           --expected-scenes 17)
+           --expected-scenes 10)
   WANT="$($PY "$VALIDATOR" "${A_ARGS[@]}")"
   if [ "$GOT" != "$WANT" ]; then
     echo "FAIL  validation argv mismatch for ${SPEC}"
@@ -1674,16 +1674,16 @@ intent_has "rgen intent records its conditioning method"  "$I_RGEN" "cond_method
 intent_has "rgen intent records the arm's orbit angles"   "$I_RGEN" "frame_avg_angles 0,45,90,135,180,225,270,315"
 intent_has "rgen intent records the random rotation seed" "$I_RGEN" "rotate_mode random rotate_seed 44"
 intent_has "rgen intent records the split and its size"   "$I_RGEN" "expected_stream_count 6337 record_stream yes"
-intent_has "rgen intent records the per-scene estimand"   "$I_RGEN" "record_per_scene yes expected_scenes 17"
+intent_has "rgen intent records the per-scene estimand"   "$I_RGEN" "record_per_scene yes expected_scenes 10"
 I_ZREF="$(intent_dry C8 zref)"
 intent_has "zref intent records conditioning + orbit"     "$I_ZREF" "cond_method fa_invariant"
 intent_has "zref intent records the theta=0 protocol"     "$I_ZREF" "rotate_mode fixed rotate_seed <n/a> rotate_deg 0"
-intent_has "zref intent records the per-scene estimand"   "$I_ZREF" "record_per_scene yes expected_scenes 17"
+intent_has "zref intent records the per-scene estimand"   "$I_ZREF" "record_per_scene yes expected_scenes 10"
 I_VCTL="$(intent_dry VANL vctl 42 90)"
 intent_has "vanilla vctl intent records vanilla method"   "$I_VCTL" "cond_method vanilla"
 intent_has "vanilla vctl intent carries NO orbit"         "$I_VCTL" "frame_avg_angles <none:vanilla>"
 intent_has "vctl intent records its fixed angle"          "$I_VCTL" "rotate_deg 90"
-intent_has "vctl intent records the per-scene estimand"   "$I_VCTL" "record_per_scene yes expected_scenes 17"
+intent_has "vctl intent records the per-scene estimand"   "$I_VCTL" "record_per_scene yes expected_scenes 10"
 # ...and the intent's contract IS the validator's, line for line
 CONTRACT_OK=1
 while IFS= read -r line; do
@@ -1922,8 +1922,8 @@ json.dump({"metrics": {"T60_error": 1.0}, "ckpt_path": ckpt, "rotate_deg": 90.0,
            "weights_source": "ema", "device": "cuda",
            # the per-scene estimand (plan §4): a landed cell carries it or it is
            # not a cell of this campaign (round-3 review B1)
-           "by_scene": {f"Room{i}/Room{i}_idx_{i}": {"T60": 9.0 + i}
-                        for i in range(V.EXPECTED_SCENES)},
+           "by_scene": {fam: {"T60": 9.0 + i}
+                        for i, fam in enumerate(V.EXPECTED_SCENE_KEYS)},
            "per_scene_schema": V.PER_SCENE_SCHEMA,
            "scene_count": V.EXPECTED_SCENES}, open(p, "w"))
 json.dump({"arm": "C4L", "step": 40000, "seed": 42, "K": 8, "eval_name": name,

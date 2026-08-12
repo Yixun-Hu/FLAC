@@ -1,0 +1,3 @@
+INVALID exp14_C4L_vctl_S40000_s42_K8_rot90 (1 reason(s)):
+  - by_scene covers 10 scene(s), not the split's 17: a per-scene mean over a different room set is a different number
+VALID exp14_C4L_vctl_S40000_s42_K8_rot90 (outputs_FLAC/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=8-step=40000_metrics_1_1.0_exp14_C4L_vctl_S40000_s42_K8_rot90_fa_invariant_a4_rot90.json)

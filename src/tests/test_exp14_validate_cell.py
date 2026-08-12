@@ -75,13 +75,17 @@ def _stream(cell, count=COUNT, offset_for=lambda i: 0):
     return rec
 
 
-def _scene_map(n=17):
-    """A per-scene block of the campaign's shape: one metric mapping per room."""
-    return {f"Room{i}/Room{i}_idx_{i}": {"T60": 9.0 + i, "C50": 1.0, "EDT": 43.0,
-                                         "FD": 0.34, "RIR_to_GT_RIR_R@1": 5.0,
-                                         "RIR_to_GT_RIR_R@5": 15.0,
-                                         "RIR_to_GT_RIR_R@10": 23.0}
-            for i in range(n)}
+def _scene_map(n=None):
+    """A per-scene block of the campaign's shape: one mapping per ROOM FAMILY.
+
+    The keys are the release grouping's own ten families (AR_md sets md['scene']
+    to rel_path[-3]); a synthetic name would pass a count check and hide the fact
+    that the validator now pins the key SET."""
+    fams = V.EXPECTED_SCENE_KEYS[:n] if n is not None else V.EXPECTED_SCENE_KEYS
+    return {fam: {"T60": 9.0 + i, "C50": 1.0, "EDT": 43.0, "FD": 0.34,
+                  "RIR_to_GT_RIR_R@1": 5.0, "RIR_to_GT_RIR_R@5": 15.0,
+                  "RIR_to_GT_RIR_R@10": 23.0}
+            for i, fam in enumerate(fams)}
 
 
 def _metrics(cell, arm="C4L", seed=42, k=8):
@@ -91,7 +95,7 @@ def _metrics(cell, arm="C4L", seed=42, k=8):
         # part of what makes a cell valid at all — not an extra (round-3 B1).
         "by_scene": _scene_map(),
         "per_scene_schema": 1,
-        "scene_count": 17,
+        "scene_count": 10,
         "ckpt_path": f"/o/exp11_{arm}/checkpoints/epoch=8-step=40000.ckpt",
         "rotate_deg": 0.0,
         "cond_method": "vanilla" if arm == "VANL" else "fa_invariant",
@@ -1041,8 +1045,15 @@ def _record_with_scenes(cell="zref", arm="C4L", seed=42, k=8, **patch):
     return rec
 
 
-def test_expected_scenes_is_the_published_room_count():
-    assert V.EXPECTED_SCENES == 17
+def test_expected_scenes_is_the_release_grouping_not_the_room_count():
+    """rung-1 finding: the callback groups by ROOM FAMILY (md['scene'] =
+    rel_path[-3]), so the release convention's per-scene mean is over 10
+    families — the split's 17 physical rooms are its content, not its grouping."""
+    assert V.EXPECTED_SCENES == 10 == len(V.EXPECTED_SCENE_KEYS)
+    assert set(V.EXPECTED_SCENE_KEYS) == {
+        "Apartments", "Auditorium", "Bathrooms", "Bedrooms", "Cafe",
+        "ListeningRoom", "LivingRoomsWithHallway", "MeetingRoom", "Office",
+        "Restaurants"}
     assert V.PER_SCENE_SCHEMA == 1
 
 
@@ -1077,20 +1088,30 @@ def test_a_malformed_per_scene_block_is_named(patch, needle):
 
 
 def test_a_short_scene_map_is_rejected():
-    """16 of 17 rooms is a per-scene mean over a different room set."""
+    """Nine of ten families is a mean over a different grouping."""
     cell = V.Cell("C4L", "zref", 40000, 42, 8, None)
-    rec = _record_with_scenes(by_scene=_per_scene(16), scene_count=16)
+    rec = _record_with_scenes(by_scene=_per_scene(9), scene_count=9)
     reasons = V.validate_metrics_record(rec, cell, pin=PIN, expected_count=COUNT)
-    assert reasons and any("17" in r for r in reasons), reasons
+    assert reasons and any("Restaurants" in r for r in reasons), reasons
+
+
+def test_a_renamed_grouping_of_the_right_SIZE_is_rejected():
+    """The key SET is pinned, not its size: ten different groups would satisfy a
+    count check and be a different estimand."""
+    cell = V.Cell("C4L", "zref", 40000, 42, 8, None)
+    scenes = {f"Room{i}": payload for i, payload in enumerate(_per_scene().values())}
+    rec = _record_with_scenes(by_scene=scenes, scene_count=10)
+    reasons = V.validate_metrics_record(rec, cell, pin=PIN, expected_count=COUNT)
+    assert reasons and any("Room0" in r or "grouping" in r for r in reasons), reasons
 
 
 def test_a_scene_whose_payload_is_not_a_mapping_is_rejected():
     cell = V.Cell("C4L", "zref", 40000, 42, 8, None)
     scenes = _per_scene()
-    scenes["Room0/Room0_idx_0"] = 9.0
+    scenes["Cafe"] = 9.0
     reasons = V.validate_metrics_record(_record_with_scenes(by_scene=scenes), cell,
                                         pin=PIN, expected_count=COUNT)
-    assert reasons and any("Room0" in r for r in reasons), reasons
+    assert reasons and any("Cafe" in r for r in reasons), reasons
 
 
 def test_the_manifest_must_declare_per_scene_recording():
@@ -1127,7 +1148,7 @@ def test_the_contract_covers_every_protocol_field_announcement_05_requires():
     for needle in ("cond_method fa_invariant", "frame_avg_angles 0,45,",
                    "training_orbit 8", "rotate_mode fixed", "rotate_deg 0",
                    V.SPLIT_K1, "expected_stream_count 6337", "record_stream yes",
-                   "record_per_scene yes", "expected_scenes 17",
+                   "record_per_scene yes", "expected_scenes 10",
                    "batch_size 64 num_workers 4", "cond_autocast bf16",
                    "cfg_scale 1.0 steps 1 use_ema yes"):
         assert needle in text, f"the contract omits {needle!r}"
@@ -1140,3 +1161,43 @@ def test_the_contract_refuses_an_unregistered_cell():
         rc = V.main(["contract", "--arm", "C8", "--cell", "zref", "--step", "40000",
                      "--seed", "47", "--k", "8"])
     assert rc == 2 and "not registered" in err.getvalue()
+
+
+# --------------------------------------------------------------------------- #
+# r3-fix4 — the REAL rung-1 artifact (C4L@90, jid 3682720), read-only
+#
+# The campaign's first landed cell is the only fixture that can prove what the
+# release grouping actually produces. Pre-fix it was refused for "10 scene(s),
+# not the split's 17"; the artifact was right and the constant was wrong.
+# --------------------------------------------------------------------------- #
+_RUNG1 = os.path.join(
+    _REPO_ROOT, "outputs_FLAC", "exp11_C4L", "FLAC_exp11_C4L", "exp11_C4L",
+    "checkpoints",
+    "epoch=8-step=40000_metrics_1_1.0_exp14_C4L_vctl_S40000_s42_K8_rot90"
+    "_fa_invariant_a4_rot90.json")
+
+
+@pytest.mark.skipif(not os.path.isfile(_RUNG1),
+                    reason="rung-1 artifact not on this machine")
+def test_the_real_rung1_artifact_validates():
+    """Read-only end-to-end on real data: metrics + screenmeta + stream."""
+    with open(_RUNG1 + ".screenmeta.json") as fh:
+        meta = json.load(fh)
+    cell = V.Cell("C4L", "vctl", 40000, 42, 8, 90.0)
+    reasons = V.validate_cell(_RUNG1, cell, pin=meta["commit"],
+                              ckpt_sha=meta["ckpt_sha256"],
+                              expected_count=V.EXPECTED_COUNT)
+    assert reasons == [], reasons
+
+
+@pytest.mark.skipif(not os.path.isfile(_RUNG1),
+                    reason="rung-1 artifact not on this machine")
+def test_the_real_rung1_artifact_groups_by_room_family():
+    """The evidence for the constant, asserted against the artifact itself."""
+    with open(_RUNG1) as fh:
+        rec = json.load(fh)
+    assert set(rec["by_scene"]) == set(V.EXPECTED_SCENE_KEYS)
+    assert rec["scene_count"] == 10 and rec["n_samples"] == 6337
+    # ...and the 17-room reading would have refused it
+    reasons = V._per_scene_reasons(rec, expected_scenes=17, expected_keys=None)
+    assert reasons and "17" in reasons[0]

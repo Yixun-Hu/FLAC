@@ -14,7 +14,7 @@
 
 ## Protocol constants (every cell)
 
-Full published unseen split (announcement 01; K=8 `acousticroom_unseeneval.json`, K=1 `acousticroom_unseeneval_1.json`, expected stream count **6337** enforced), EMA weights, cfg 1.0, 1 diffusion step, bf16 conditioning autocast, `--batch-size 64 --num-workers 4`, `--record-stream`, `--record-per-scene`. Slurm per cell: 1× L40, 10 CPU, 32 GB, 3 h limit. Node excludes: ECC-flaky list (neu301/303/305/306/317/319/322/332).
+Full published unseen split (announcement 01; K=8 `acousticroom_unseeneval.json`, K=1 `acousticroom_unseeneval_1.json`, expected stream count **6337** enforced), EMA weights, cfg 1.0, 1 diffusion step, bf16 conditioning autocast, `--batch-size 64 --num-workers 4`, `--record-stream`, `--record-per-scene` (**expected_scenes 10** — the release family grouping; the split spans 17 physical rooms, but `AR_md.py` sets `md['scene']` to the room FAMILY, so the metric callback's per-scene mean is over 10 families). Slurm per cell: 1× L40, 10 CPU, 32 GB, 3 h limit. Node excludes: ECC-flaky list (neu301/303/305/306/317/319/322/332).
 
 ## Grid (106 cells, one campaign pin)
 
@@ -25,7 +25,7 @@ Full published unseen split (announcement 01; K=8 `acousticroom_unseeneval.json`
 ## Estimand & analysis (pre-registered; plan Rev 2 §4 + worklog rulings 2026-08-11)
 
 - Primary: absolute `m_R` (H-P endpoint C32 vs VANL, K=8). Secondary: paired Δ (H-M), sanity H-S.
-- Co-primaries: **T60% (per-scene mean)** + **RIR_to_GT_RIR_R@1 (split-level)**; Holm-2 per hypothesis; paired-t df=4, 95% CI.
+- Co-primaries: **T60% (scene-mean over the 10 room families — release grouping)** + **RIR_to_GT_RIR_R@1 (split-level)**; Holm-2 per hypothesis; paired-t df=4, 95% CI.
 - Aggregation routing: acoustic family (T60/C50/EDT) = scene-mean from `by_scene`; retrieval + FD = split-level flat. `RIR_to_geom_R@k` quarantined (rotated-gallery confound), descriptive only.
 - Gates before any H-readout: G1 in-group floor (≤0.5·σ̂_Z), G2 VANL@90 positive control (≥5·σ̂_T60), G3 golden seed-42 assignment, G4 stream-hash equalities. G5 exp_11 reproduction = check only.
 

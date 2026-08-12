@@ -28,8 +28,9 @@
 # every metrics JSON — that sidecar is what makes Z<->R pairing and the cross-arm
 # rotation match falsifiable rather than asserted. --record-per-scene is passed
 # for EVERY cell too: the campaign's per-seed observation is the PER-SCENE mean
-# over the split's 17 rooms (plan §4), so a cell without a `by_scene` block did
-# not measure the estimand and the validator refuses it.
+# over the split's 10 ROOM FAMILIES (plan §4 under the release grouping), so a
+# cell without a `by_scene` block did not measure the estimand and the validator
+# refuses it.
 #
 # Fail-closed before spending the GPU: commit binding + tracked drift, exactly
 # one visible L40, EXACTLY ONE checkpoint matching the step, and the
@@ -160,10 +161,14 @@ NUM_WORKERS=4
 # --expected-stream-count so a subsampled or partly-failing split FAILS the cell
 # instead of reporting a plausible number over fewer items (review B1).
 EXPECTED_STREAM_COUNT=6337
-# ...and its per-scene twin: 17 rooms (announcement 01). The per-seed observation
-# is the mean OVER SCENES, so a cell covering a different room set averaged a
-# different estimand — pinned here, recorded in the manifest, checked per cell.
-EXPECTED_SCENES=17
+# ...and its per-scene twin: 10 ROOM FAMILIES. The released metric callback groups
+# on md['scene'], and AR_md.py sets that to the family (rel_path[-3], e.g. "Cafe")
+# — the per-room id never reaches it. So the release convention's per-scene mean
+# is over the split's 10 families; "6,337 items / 17 rooms" describes the split's
+# CONTENT, not the grouping (established from rung 1's real artifact, jid 3682720).
+# The per-seed observation is that mean, so the grouping is a campaign constant:
+# pinned here, recorded in the manifest, and checked per cell as an exact KEY SET.
+EXPECTED_SCENES=10
 
 die() { echo "$1"; exit "${2:-2}"; }
 
