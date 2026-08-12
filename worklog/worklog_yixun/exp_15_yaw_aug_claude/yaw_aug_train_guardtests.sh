@@ -347,13 +347,17 @@ fi
 
 echo "--- M. the submitter ---"
 expect_cmd "submitter rejects a bad arm" 2 "must be YAWAUG" -- env DRYRUN=1 bash "$SUBMITTER" C8
-expect_cmd "submitter derives 8x8 resources" 0 "--gres=gpu:l40:8" -- env DRYRUN=1 bash "$SUBMITTER" YAWAUG
-expect_cmd "  ... cpus from the rung" 0 "--cpus-per-task=64" -- env DRYRUN=1 bash "$SUBMITTER" YAWAUG
-expect_cmd "  ... mem from the rung" 0 "--mem=108G" -- env DRYRUN=1 bash "$SUBMITTER" YAWAUG
-expect_cmd "  ... the INITIAL time pin" 0 "time 24:00:00" -- env DRYRUN=1 bash "$SUBMITTER" YAWAUG
-expect_cmd "  ... and submits NOTHING in DRYRUN" 0 "DRYRUN sbatch" -- env DRYRUN=1 bash "$SUBMITTER" YAWAUG
+# A production submission now requires a passing smoke record (full-fix F3), so
+# these resource-derivation cases carry an explicit waiver; the gate itself is
+# exercised in section W.
+SUB=(env DRYRUN=1 "SMOKE_WAIVER=guardtest: resource-derivation cases" bash "$SUBMITTER" YAWAUG)
+expect_cmd "submitter derives 8x8 resources" 0 "--gres=gpu:l40:8" -- "${SUB[@]}"
+expect_cmd "  ... cpus from the rung" 0 "--cpus-per-task=64" -- "${SUB[@]}"
+expect_cmd "  ... mem from the rung" 0 "--mem=108G" -- "${SUB[@]}"
+expect_cmd "  ... the INITIAL time pin" 0 "time 24:00:00" -- "${SUB[@]}"
+expect_cmd "  ... and submits NOTHING in DRYRUN" 0 "DRYRUN sbatch" -- "${SUB[@]}"
 INTENT_BEFORE="$(ls "${EXPDIR}"/yaw_aug_submission_*.txt 2>/dev/null | wc -l)"
-env DRYRUN=1 bash "$SUBMITTER" YAWAUG >/dev/null 2>&1
+"${SUB[@]}" >/dev/null 2>&1
 INTENT_AFTER="$(ls "${EXPDIR}"/yaw_aug_submission_*.txt 2>/dev/null | wc -l)"
 [ "$INTENT_BEFORE" = "$INTENT_AFTER" ]; check "a dry run leaves no submission manifest behind" $?
 awk '/^OUT=.*sbatch/{sb=NR} /^mv -n "\$TMP" "\$MANIFEST"/{mf=NR} END{exit !(mf && sb && mf < sb)}' "$SUBMITTER"
@@ -525,7 +529,7 @@ grep -q 'git status for the drift gate failed' "$SUBMITTER"; check "a failing gi
 case_run "a broken git environment is fatal, not 'clean'" 2 "git status for the drift gate failed" \
   -- "${BASE_ENV[@]}" ARM=YAWAUG GIT_DIR=/nonexistent/nope.git
 expect_cmd "  ... and the submitter refuses too" 2 "git status for the drift gate failed" -- \
-  env DRYRUN=1 GIT_DIR=/nonexistent/nope.git bash "$SUBMITTER" YAWAUG
+  env DRYRUN=1 GIT_DIR=/nonexistent/nope.git "SMOKE_WAIVER=guardtest: git-failure case" bash "$SUBMITTER" YAWAUG
 # End-to-end in a throwaway worktree: the real gates, over real mutations, with
 # the shared checkout untouched.
 WT="${TMP}/wt"
@@ -599,6 +603,111 @@ json.dump(d, open(sys.argv[2],'w'))" "${EXP11DIR}/arm_launch_registry.json" "${T
 else
   echo "SKIP  control-manifest snapshot cases (manifest not present on this machine)"
 fi
+
+echo "--- V. NEW (full-fix F1): end-of-run code is bound to a run-owned snapshot ---"
+grep -q 'CODE_SNAPSHOT="${SAVEDIR}/code_snapshot_jid${SLURM_JOB_ID}"' "$LAUNCHER"
+check "the job snapshots its end-of-run code into a run-owned dir" $?
+for TOOL in yaw_aug_record_control.py FLAC_AR_YAWAUG.json fa_orbit_classify.py \
+            fa_orbit_wandb_readback.py fa_orbit_ckpt_preflight.py; do
+  grep -q "\"\$EXPDIR/${TOOL}\"\|\"\$EXP11DIR/${TOOL}\"" "$LAUNCHER"
+  check "  ... ${TOOL} is in the snapshot set" $?
+done
+# every late invocation goes through snap(), and NONE reaches past it to the tree
+for LATE in fa_orbit_classify.py fa_orbit_wandb_readback.py yaw_aug_record_control.py; do
+  grep -q "snap ${LATE}" "$LAUNCHER"; check "  ... ${LATE} is invoked from the snapshot" $?
+done
+grep -nE 'python3 "\$EXP11DIR/(fa_orbit_classify|fa_orbit_wandb_readback)\.py"' "$LAUNCHER" >/dev/null
+check "  ... and no late path still runs the live copy" $((1 - $?))
+grep -q 'echo "snapshot_sha256' "$LAUNCHER"; check "  ... snapshot hashes are written into the manifest" $?
+# FUNCTIONAL: mutate the live recorder AFTER the snapshot and prove the
+# completion path still runs the snapshotted bytes.
+SNAPDIR="${TMP}/code_snapshot"; mkdir -p "$SNAPDIR"
+cp "${EXPDIR}/yaw_aug_record_control.py" "$SNAPDIR/"
+cp "$ARM_CONFIG" "$SNAPDIR/"
+SNAP_SHA_BEFORE="$(sha256sum "${SNAPDIR}/yaw_aug_record_control.py" | awk '{print $1}')"
+LIVE_COPY="${TMP}/live_recorder.py"      # stands in for the shared checkout's copy
+cp "${EXPDIR}/yaw_aug_record_control.py" "$LIVE_COPY"
+printf '\ndef summarize_ema(state_dict):\n    raise SystemExit("MUTATED LIVE RECORDER RAN")\n' >> "$LIVE_COPY"
+fresh_reg "${TMP}/snap_registry.json"
+expect_cmd "the completion path runs the SNAPSHOT, not the mutated live copy" 0 "completion audit OK" -- \
+  $PY "${TMP}/completion.py" "${SNAPDIR}/yaw_aug_record_control.py" "${TMP}/snap_registry.json" \
+      YAWAUG "$CK_DIR" 40000 "${SNAPDIR}/FLAC_AR_YAWAUG.json"
+expect_cmd "  ... while the mutated live copy WOULD have failed the run" 1 "MUTATED LIVE RECORDER RAN" -- \
+  $PY "${TMP}/completion.py" "$LIVE_COPY" "${TMP}/snap_registry.json" \
+      YAWAUG "$CK_DIR" 40000 "${SNAPDIR}/FLAC_AR_YAWAUG.json"
+[ "$SNAP_SHA_BEFORE" = "$(sha256sum "${SNAPDIR}/yaw_aug_record_control.py" | awk '{print $1}')" ]
+check "  ... and the snapshot's recorded hash still matches its bytes" $?
+
+echo "--- W. NEW (full-fix F3): storage-light smoke + the promotion gate ---"
+grep -q 'CHECKPOINT_EVERY="${SMOKE_CHECKPOINT_EVERY:-$((MAXSTEPS + 1))}"' "$LAUNCHER"
+check "the smoke's checkpoint interval defaults beyond its last step" $?
+case_run "a smoke whose interval would write a checkpoint dies" 2 "must write no checkpoints" \
+  -- "${SMOKE_ENV[@]}" ARM=YAWAUG SMOKE_MAXSTEPS=30 SMOKE_CHECKPOINT_EVERY=10
+grep -q 'SMOKE STORAGE VIOLATION' "$LAUNCHER"; check "the epilogue fails a smoke that wrote a checkpoint" $?
+grep -q 'yaw_aug_smoke_acceptance.json' "$LAUNCHER"; check "the smoke writes an acceptance record" $?
+grep -q 'rate_at_least_0.9x_VANL' "$LAUNCHER"; check "  ... scored against the 0.9x VANL rate floor" $?
+grep -q 'peak_vram_within_rung_floor' "$LAUNCHER"; check "  ... and the rung's VRAM ceiling" $?
+ACC="${EXPDIR}/yaw_aug_smoke_acceptance.json"
+ACC_SAVED=""
+if [ -f "$ACC" ]; then ACC_SAVED="${TMP}/acceptance.saved"; cp "$ACC" "$ACC_SAVED"; fi
+rm -f "$ACC"
+expect_cmd "production is REFUSED with no acceptance record" 2 "no smoke acceptance record" -- \
+  env DRYRUN=1 bash "$SUBMITTER" YAWAUG
+$PY -c "
+import json,sys
+json.dump({'verdict':'FAIL','checks':{'banner_seen':False},
+           'measured':{'steps_per_second':0.4,'peak_vram_mb':None,'banner_verdict':'MISSING'}},
+          open(sys.argv[1],'w'), indent=2)" "$ACC"
+expect_cmd "production is REFUSED on a FAIL record" 2 "does not say PASS" -- \
+  env DRYRUN=1 bash "$SUBMITTER" YAWAUG
+$PY -c "
+import json,sys
+json.dump({'verdict':'PASS','checks':{'banner_seen':True},
+           'measured':{'steps_per_second':1.02,'peak_vram_mb':9400,'banner_verdict':'OK'}},
+          open(sys.argv[1],'w'), indent=2)" "$ACC"
+expect_cmd "production is ACCEPTED on a PASS record" 0 "smoke acceptance: PASS" -- \
+  env DRYRUN=1 bash "$SUBMITTER" YAWAUG
+rm -f "$ACC"
+expect_cmd "an explicit waiver submits and LOGS the reason" 0 "SMOKE WAIVER" -- \
+  env DRYRUN=1 SMOKE_WAIVER="guardtest: no GPUs on this host" bash "$SUBMITTER" YAWAUG
+expect_cmd "  ... and the waived run still prints its sbatch line" 0 "DRYRUN sbatch" -- \
+  env DRYRUN=1 SMOKE_WAIVER="guardtest: no GPUs on this host" bash "$SUBMITTER" YAWAUG
+grep -q 'smoke_acceptance ${ACCEPT_FILE:-<n/a>} waiver ${SMOKE_WAIVER:-<none>}' "$SUBMITTER"
+check "the submission manifest records the record path and any waiver" $?
+[ -n "$ACC_SAVED" ] && cp "$ACC_SAVED" "$ACC"
+expect_cmd "a SMOKE submission needs no acceptance record" 0 "DRYRUN sbatch" -- \
+  env DRYRUN=1 SMOKE=1 SMOKE_RUNG=8x8 SMOKE_MIN_FREE_MB=14000 bash "$SUBMITTER" YAWAUG
+
+echo "--- X. NEW (full-fix F6): a RESTART leg is recorded in the registry ---"
+sed -n '/--- BEGIN registry-restart-python/,/--- END registry-restart-python/p' "$LAUNCHER" > "${TMP}/reg_restart.py"
+grep -q 'restarts' "${TMP}/reg_restart.py"; check "restart-registry code extracted from the launcher" $?
+RREG="${TMP}/restart_registry.json"
+reg_restart() {  # <registry> <job> <resume-step>
+  $PY "${TMP}/reg_restart.py" "$1" YAWAUG "${TMP}/man.txt" "$2" "uuid-$2" \
+      "${TMP}/resume.ckpt" "deadbeef$2" "$3" 40000 "$HEAD_SHA"
+}
+: > "${TMP}/resume.ckpt"
+$PY -c "
+import json,sys
+json.dump({'arms':{'YAWAUG':{'final_ckpt_sha256':None}},'restarts':{}}, open(sys.argv[1],'w'))" "$RREG"
+expect_cmd "a restart leg is appended" 0 "restart leg recorded" -- reg_restart "$RREG" 777 12500
+$PY -c "
+import json,sys
+legs=json.load(open(sys.argv[1]))['restarts']['YAWAUG']
+e=legs[0]
+sys.exit(0 if len(legs)==1 and e['job']=='777' and e['resume_step']==12500
+         and e['launch_uuid']=='uuid-777' and len(e['manifest_sha256'])==64
+         and e['resume_ckpt_sha256'].startswith('deadbeef') else 1)" "$RREG"
+check "  ... with job, uuid, manifest sha, source ckpt sha and step" $?
+expect_cmd "a second, distinct leg is appended too" 0 "restart leg recorded" -- reg_restart "$RREG" 888 25000
+expect_cmd "the same job is never recorded twice" 1 "already recorded" -- reg_restart "$RREG" 888 25000
+$PY -c "
+import json,sys
+json.dump({'arms':{},'restarts':{}}, open(sys.argv[1],'w'))" "${TMP}/orphan_registry.json"
+expect_cmd "an orphan restart (no INITIAL) is refused" 1 "orphan restart" -- \
+  reg_restart "${TMP}/orphan_registry.json" 999 12500
+expect_cmd "a restart with no registry at all is refused" 1 "does not exist" -- \
+  reg_restart "${TMP}/no_such_registry.json" 999 12500
 
 echo "--- Q. the suite touched nothing tracked, and submitted nothing ---"
 TRACKED_AFTER="$(git status --porcelain --untracked-files=no -- "$EXPDIR" "$EXP11DIR" src data/AR | sort)"
