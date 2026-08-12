@@ -270,4 +270,3 @@ PASS  the screenmeta sidecar is published by atomic replace
 === yaw_gen screen kit guard tests: 220 passed, 0 failed ===
 log: worklog/worklog_yixun/exp_14_yaw_gen_claude/yaw_gen_2026-08-11_21-05-18_screen_guardtests.log
 PASS  (suite exit) campaign command log and pin file are exactly as found
-suite_rc=0

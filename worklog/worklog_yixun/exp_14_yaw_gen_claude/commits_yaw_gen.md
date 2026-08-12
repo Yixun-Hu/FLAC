@@ -77,3 +77,24 @@ Round-3 notes:
   cleaned or checked out; all five round-3 commits are local-only and unpushed.
 - **Commit-boundary disclosure:** `10aa981` carries the gates AND the results/rendering/CLI source (843 lines of `yaw_gen_collect.py`); `f874758` carries the self-test driver, its four transcripts and the group-4 tests but no collector source. The subjects therefore under-describe the first and over-describe the second — read the two diffs together.
 - The concurrent session committed `608303e` (exp_06 rows + an exp_03/04 glob restoration) on top of this round. Verified that round 3 did not cause that regression: the exp_03/04 row specs are byte-identical between `5d4951e` (before round 3) and `825b7fc` (this round's table commit).
+
+## Round 3 FIX BATCH — Codex r3 review (REVISE, 5 blocking + 2 nits)
+
+| SHA | fix | subject |
+|---|---|---|
+| `32581d9` | R3F1a | **REOPENS eval_FLAC** — `--record-per-scene` adds a `by_scene` block; legacy records byte-frozen |
+| `1ef87b0` | R3F1b | **REOPENS the kit** — sbatch passes it for every cell; validator demands per-scene evidence; guard updated |
+| `d1eb141` | R3F1c + R3F5 + R3F6 + R3F7 | collector reports the per-scene mean (no fallback), consumer-level payload validation, matched-pair counts, vacuous assert removed |
+| `0d92aae` | R3F2 + R3F3 + R3F4 + R3F5 | table contract: row binding + exact seed multiset, stream audit required, per-arm two-K transactions at one pin, fail-closed aggregation |
+
+**The estimand is now measured, not amended.** `AcousticMetricsCallback(eval_per_scene=True)`
+already accumulated a per-scene metric set and returned it as `by_scene`;
+`create_metric_callback_from_config` already took `per_scene`. eval_FLAC simply never
+asked. Record schema added ONLY under the flag: top-level `by_scene`
+(`{scene: {metric: value}}`), `per_scene_schema` (=1), `scene_count` (=17). The flat
+`metrics` block keeps its legacy shape, so exp_11's exact key-set validator and
+`gen_model_comparison.agg_files` are unaffected.
+
+Batteries: 615 pytest passed (eight suites); guard suite 220 passed / 0 failed with
+`suite_rc=0`; DRYRUN grid diff empty (106 cells); zero `exp14-` jobs; campaign command
+log and pin file byte-identical on suite exit; no pin file exists (campaign not launched).

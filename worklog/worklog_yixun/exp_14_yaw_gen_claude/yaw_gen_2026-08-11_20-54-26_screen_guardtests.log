@@ -1,4 +1,4 @@
-=== yaw_gen screen kit guard exercise — 2026-08-11_21-05-18 — 1946815 ===
+=== yaw_gen screen kit guard exercise — 2026-08-11_20-54-26 — 0d92aae ===
 NOTE: a CAMPAIGN FREEZE is active — deletion/thaw cases are skipped
 synthetic output roots written
 PASS  lint: no guard case invokes the real kit in live mode (best-effort scan)
@@ -88,7 +88,7 @@ PASS  exp14_C8_conf_S40000_s42_K8 is refused as unregistered
 PASS  real mode requires MEASURE_ROOT  (rc=2)
 PASS  a non-existent MEASURE_ROOT is refused  (rc=2)
 PASS  a MEASURE_ROOT that is not a worktree is refused  (rc=2)
-PASS  pinned worktree prepared at 194681588d16
+PASS  pinned worktree prepared at 0d92aaee7774
 PASS  worktree HEAD mismatch aborts  (rc=2)
 SKIP  the real-checkpoint pinned-run case (GUARD_REAL_CKPT=1 to load the 724 MB ckpt)
 PASS  the commit gate reads the code root, not the cwd
@@ -196,14 +196,14 @@ PASS  the wave submitter refuses 'EXCLUDE=neu1;id'
 PASS  MAX_INFLIGHT is capped at the plan's 16 slots
 
 --- wave submitter: validate-before-skip dedup ---
-/n/fs/rfmprog/.tmp/yh4742/tmp.Vm2YHACczU/dedup_root/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=8-step=40000_metrics_1_1.0_exp14_C4L_vctl_S40000_s42_K8_rot90_fa_invariant_a4_rot90.json
+/n/fs/rfmprog/.tmp/yh4742/tmp.RIWsI2ZLNH/dedup_root/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=8-step=40000_metrics_1_1.0_exp14_C4L_vctl_S40000_s42_K8_rot90_fa_invariant_a4_rot90.json
 PASS  an artifact that exists but does not validate HALTS the wave
 PASS  the halt names the failing check, so it can be triaged
 PASS  a squeue that fails stops the wave (absence is never assumed)
 
 --- wave submitter: live-wave decisions (mocked submit + squeue) ---
 PASS  isolation armed entering: the live-wave decision cases
-/n/fs/rfmprog/.tmp/yh4742/tmp.Vm2YHACczU/live/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=8-step=40000_metrics_1_1.0_exp14_C4L_vctl_S40000_s42_K8_rot90_fa_invariant_a4_rot90.json
+/n/fs/rfmprog/.tmp/yh4742/tmp.RIWsI2ZLNH/live/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=8-step=40000_metrics_1_1.0_exp14_C4L_vctl_S40000_s42_K8_rot90_fa_invariant_a4_rot90.json
 PASS  a landed cell that validates against the AUDITED digest is skipped
 PASS  C4L vctl@45 and vctl@90 are separate cells with separate job names
 PASS  the command log is written BEFORE the submission, not after
@@ -268,6 +268,5 @@ PASS  the intent manifest is published (verified tmp -> atomic rename) BEFORE th
 PASS  the screenmeta sidecar is published by atomic replace
 
 === yaw_gen screen kit guard tests: 220 passed, 0 failed ===
-log: worklog/worklog_yixun/exp_14_yaw_gen_claude/yaw_gen_2026-08-11_21-05-18_screen_guardtests.log
+log: worklog/worklog_yixun/exp_14_yaw_gen_claude/yaw_gen_2026-08-11_20-54-26_screen_guardtests.log
 PASS  (suite exit) campaign command log and pin file are exactly as found
-suite_rc=0
