@@ -66,6 +66,21 @@ OFFSETS = (1, 128, 511)
 ATOL = 1e-4
 
 
+# Observed maximum |error| per assertion family, against a reference whose
+# coefficients are built directly in float64. The implementation builds its
+# rotation coefficients in float32 and upcasts (src/data/yaw_rotation.py), so the
+# agreement is dtype-preserving and within tolerance rather than bit-exact — this
+# records HOW far within, instead of asserting a bound and saying nothing more.
+MAXERR = {}
+
+
+def note(family, value):
+    value = float(value)
+    if value > MAXERR.get(family, -1.0):
+        MAXERR[family] = value
+    return value
+
+
 class Failures:
     def __init__(self):
         self.items = []
@@ -142,9 +157,10 @@ def check_sample(md, index, fail):
         out = rotate_scene_metadata(md, alpha, IMG_W)
         ref_depth, ref_poses = _manual_rotate(depth, poses, d, IMG_W)
 
-        fail.check(torch.allclose(out["depth"], ref_depth, atol=ATOL),
+        err = note("depth vs float64 reference", (out["depth"] - ref_depth).abs().max())
+        fail.check(err <= ATOL,
                    f"{tag} d={d}: rotated depth != an independent roll+z-rotation "
-                   f"(max |diff| {float((out['depth'] - ref_depth).abs().max()):.3e})")
+                   f"(max |diff| {err:.3e})")
         fail.check(out["depth"].dtype == depth.dtype and out["depth"].device == depth.device,
                    f"{tag} d={d}: depth dtype/device not preserved")
 
@@ -153,23 +169,27 @@ def check_sample(md, index, fail):
                    f"{tag} d={d}: depth z-component changed under a yaw rotation")
 
         # the rotated map is still a VALID equirectangular panorama
-        dev = yaw_transform_consistency(depth, IMG_W, (d * 360.0 / IMG_W,))[d * 360.0 / IMG_W]
+        dev = note("rotated panorama azimuth deviation (rad)",
+                   yaw_transform_consistency(depth, IMG_W, (d * 360.0 / IMG_W,))[d * 360.0 / IMG_W])
         fail.check(dev < 1e-2,
                    f"{tag} d={d}: rotated panorama is not equirectangular-consistent "
                    f"(max azimuth dev {dev:.2e})")
 
         # exact integer round-trip: d then W-d is the identity
         back = rotate_scene_metadata(out, offsets_to_radians([IMG_W - d], IMG_W)[0], IMG_W)
-        fail.check(torch.allclose(back["depth"], depth, atol=ATOL),
-                   f"{tag} d={d}: rotate-by-d then rotate-by-(W-d) did not return the original depth")
+        err = note("depth (d, W-d) round-trip", (back["depth"] - depth).abs().max())
+        fail.check(err <= ATOL,
+                   f"{tag} d={d}: rotate-by-d then rotate-by-(W-d) did not return the "
+                   f"original depth (max |diff| {err:.3e})")
 
         for key in POSE_KEYS:
             got, ref, orig = out[key], ref_poses[key], poses[key]
-            fail.check(torch.allclose(got, ref, atol=ATOL), f"{tag} d={d}: {key} != the reference rotation")
-            fail.check(torch.allclose(got.norm(dim=-1), orig.norm(dim=-1), atol=ATOL),
-                       f"{tag} d={d}: {key} norm not preserved")
-            fail.check(torch.allclose(got[..., 2], orig[..., 2], atol=ATOL),
-                       f"{tag} d={d}: {key} z-component changed")
+            e_ref = note("pose vs float64 reference", (got - ref).abs().max())
+            e_norm = note("pose norm preservation", (got.norm(dim=-1) - orig.norm(dim=-1)).abs().max())
+            e_z = note("pose z invariance", (got[..., 2] - orig[..., 2]).abs().max())
+            fail.check(e_ref <= ATOL, f"{tag} d={d}: {key} != the reference rotation ({e_ref:.3e})")
+            fail.check(e_norm <= ATOL, f"{tag} d={d}: {key} norm not preserved ({e_norm:.3e})")
+            fail.check(e_z <= ATOL, f"{tag} d={d}: {key} z-component changed ({e_z:.3e})")
 
     # untouched fields really are untouched
     out0 = rotate_scene_metadata(md, offsets_to_radians([7], IMG_W)[0], IMG_W)
@@ -227,8 +247,13 @@ def main(argv=None):
     print("PASS — real AR records satisfy every contract the yaw augmentation relies on:")
     print(f"  depth [3, {IMG_H}, {IMG_W}] float, finite")
     print("  source / source_vit / context_poses / context_poses_vit present, float, finite, trailing dim 3")
-    print("  roll-by-d equivalence, exact (d, W-d) round-trip, panorama consistency,")
+    print("  roll-by-d equivalence, (d, W-d) round-trip, panorama consistency,")
     print("  pose-norm preservation and z-invariance at every tested offset")
+    print(f"\nobserved max |error| per family (tolerance {ATOL:g}):")
+    for family, value in sorted(MAXERR.items(), key=lambda kv: -kv[1]):
+        print(f"  {value:.3e}   {family}")
+    print("  (the implementation builds float32 rotation coefficients and upcasts to the")
+    print("   input dtype, so agreement is dtype-preserving and within tolerance, not bitwise)")
     return 0
 
 

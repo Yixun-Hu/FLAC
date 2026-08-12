@@ -118,6 +118,10 @@ PINNED_CONTROL_COMMIT="81ddac372076ea92751ae09cbaf371df70f396e5"
 # log gate waits for the banner they imply, so a config and a gate cannot drift.
 PINNED_YAW_AUG_IMG_W="512"
 PINNED_YAW_AUG_SEED="42"
+# The smoke's step budget is a PIN, not an operator input: the submitter binds
+# the acceptance record's _meta.max_steps to it, so an off-recipe smoke cannot
+# promote production.
+PINNED_SMOKE_MAXSTEPS=30
 # ============================================================================
 
 REPO=/n/fs/gatrdp/codespace/FLAC
@@ -175,7 +179,8 @@ case "$EXPECTED_STEP" in ''|*[!0-9]*) die "EXPECTED_STEP '${EXPECTED_STEP}' must
 
 # --- B. the pins decide the recipe (round-3 B1) -------------------------------
 if [ "$SMOKE" = "1" ]; then
-  RUNG="${SMOKE_RUNG:-}"; MAXSTEPS="${SMOKE_MAXSTEPS:-30}"; MIN_FREE_MB="${SMOKE_MIN_FREE_MB:-}"
+  RUNG="${SMOKE_RUNG:-}"; MAXSTEPS="${SMOKE_MAXSTEPS:-$PINNED_SMOKE_MAXSTEPS}"
+  MIN_FREE_MB="${SMOKE_MIN_FREE_MB:-}"
   # STORAGE-LIGHT (plan §7-6, full-review F3). train.py always installs the
   # checkpoint callback, so the only way to write nothing is to put the interval
   # beyond the smoke's last step: 30 steps at every-10 would have written three
@@ -956,6 +961,19 @@ rm -f "$FIFO" && mkfifo "$FIFO" || die "mkfifo failed - abort" 3
 trap 'rm -f "$FIFO"' EXIT
 tee -a "$TRAINLOG" "$SAVEDIR_LOG" < "$FIFO" &
 TEE_PID=$!
+SMOKE_ACCEPT="${EXPDIR}/yaw_aug_smoke_acceptance.json"
+SMOKE_VRAM_SAMPLES="${SAVEDIR}/yaw_aug_${TS}_smoke_vram.csv"
+if [ "$SMOKE" = "1" ]; then
+  # (a) INVALIDATE any record still sitting at the fixed path (re-review F3-2).
+  # The submitter promotes on whatever is there; a previous smoke's PASS must not
+  # survive this one. It is renamed, not deleted — the evidence stays readable.
+  if [ -e "$SMOKE_ACCEPT" ]; then
+    SUPERSEDED="${SMOKE_ACCEPT%.json}.superseded.${TS}.json"
+    mv "$SMOKE_ACCEPT" "$SUPERSEDED" \
+      || die "could not supersede the stale acceptance record ${SMOKE_ACCEPT} - abort" 3
+    echo "smoke acceptance: superseded a stale record -> ${SUPERSEDED}"
+  fi
+fi
 echo "=== launching ${ARM} ${RUNG}: torchrun --standalone --nproc_per_node=${NGPU} train.py (${MODE}) ==="
 torchrun --standalone --nnodes=1 --nproc_per_node="$NGPU" train.py "${ARGV[@]}" > "$FIFO" 2>&1 &
 TR_PID=$!
@@ -1024,9 +1042,27 @@ yaw_aug_banner_verdict() {   # <log> <banner> <step-regex> -> OK | MISSING | PEN
 ) &
 BANNER_WATCHER=$!
 
+# (b) per-GPU VRAM sampler — the smoke's peak-memory evidence. Nothing in src/
+# reports it, and a smoke that cannot show it must not promote production, so the
+# measurement is taken here: every ~5 s, every allocated GPU, appended as
+# "<index>,<MiB>". The peak is the max over all samples and ranks.
+VRAM_SAMPLER=""
+if [ "$SMOKE" = "1" ]; then
+  : > "$SMOKE_VRAM_SAMPLES" || die "could not create ${SMOKE_VRAM_SAMPLES} - abort" 3
+  (
+    while kill -0 "$TR_PID" 2>/dev/null; do
+      nvidia-smi --query-gpu=index,memory.used --format=csv,noheader,nounits \
+        >> "$SMOKE_VRAM_SAMPLES" 2>/dev/null
+      sleep 5
+    done
+  ) &
+  VRAM_SAMPLER=$!
+fi
+
 wait "$TR_PID"; rc=$?
 kill "$WATCHER" 2>/dev/null; wait "$WATCHER" 2>/dev/null
 kill "$BANNER_WATCHER" 2>/dev/null; wait "$BANNER_WATCHER" 2>/dev/null
+[ -n "$VRAM_SAMPLER" ] && { kill "$VRAM_SAMPLER" 2>/dev/null; wait "$VRAM_SAMPLER" 2>/dev/null; }
 wait "$TEE_PID"; tee_rc=$?
 rm -f "$FIFO"
 # Re-read the log once the run is over: a run that died before its first step
@@ -1079,79 +1115,6 @@ LAST_CKPT="$(ls -1t "${RUNDIR}/checkpoints"/*.ckpt 2>/dev/null | head -1)"
 # checkpoint identified only by a path.
 if [ "$SMOKE" = "1" ]; then
   echo "completion audit: skipped (SMOKE has no 40k endpoint; its registry is ${LAUNCH_REGISTRY})"
-  # --- R3. smoke epilogue: storage assertion + acceptance record (F3) ---------
-  # The smoke's job is to answer two questions before 88 GPU-hours are spent:
-  # does the augmented path still run at the rung's rate, and does it fit? The
-  # answers become a RECORD, and yaw_aug_submit.sh refuses to submit production
-  # without a PASSing one — the sequencing is structural, not a note in a doc.
-  SMOKE_CKPTS="$(find "$RUNDIR" -name '*.ckpt' -type f 2>/dev/null | head -5)"
-  if [ -n "$SMOKE_CKPTS" ]; then
-    echo "SMOKE STORAGE VIOLATION: the storage-light smoke wrote checkpoint(s):"
-    printf '%s\n' "$SMOKE_CKPTS" | sed 's/^/    /'
-    final_rc=10
-  fi
-  SMOKE_ACCEPT="${EXPDIR}/yaw_aug_smoke_acceptance.json"
-  python3 - "$SMOKE_ACCEPT" "$TRAINLOG" "$MAXSTEPS" "$NGPU" "$MIN_FREE_MB" "$BANNER_VERDICT" \
-           "$SLURM_JOB_ID" "$HEAD_SHA" "$RUNG" "$([ -n "$SMOKE_CKPTS" ] && echo 1 || echo 0)" \
-           "$SECONDS" <<'PY' || echo "SMOKE ACCEPTANCE: record write FAILED"
-import json, os, re, sys
-(path, log, max_steps, ngpu, min_free_mb, banner, job, commit, rung,
- wrote_ckpt, wall_s) = sys.argv[1:12]
-max_steps, ngpu, wall_s = int(max_steps), int(ngpu), float(wall_s)
-text = open(log, errors="replace").read() if os.path.exists(log) else ""
-
-# steps/s: PL's progress bar prints "<it>/<total> [elapsed<remaining, R it/s]" or
-# "s/it"; take the LAST rate it reported, converting s/it if that is the form.
-rate = None
-for value, unit in re.findall(r'([0-9.]+)(s/it|it/s)', text):
-    try:
-        v = float(value)
-    except ValueError:
-        continue
-    rate = (1.0 / v) if unit == "s/it" and v else (v if unit == "it/s" else rate)
-steps = 0
-for m in re.finditer(r'(\d+)/(\d+)\s*\[', text):
-    steps = max(steps, int(m.group(1)))
-# peak VRAM: whatever the run reported, else left null for the operator to fill
-peaks = [float(x) for x in re.findall(r'max_memory_allocated[^0-9]*([0-9.]+)', text)]
-peak_mb = max(peaks) if peaks else None
-
-VANL_RATE = 1.05                 # measured VANL steps/s at this rung (plan §7-6)
-RATE_FLOOR = 0.9 * VANL_RATE
-checks = {
-    "banner_seen": banner == "OK",
-    "no_checkpoint_written": wrote_ckpt == "0",
-    "steps_completed": steps >= max_steps,
-    "rate_at_least_0.9x_VANL": (rate is not None and rate >= RATE_FLOOR),
-    "peak_vram_within_rung_floor": (peak_mb is None or peak_mb <= float(min_free_mb)),
-}
-record = {
-    "_meta": {"experiment": "exp_15", "kind": "smoke acceptance record",
-              "purpose": "gates the production submission (yaw_aug_submit.sh)",
-              "job": job, "commit": commit, "rung": rung, "ngpu": ngpu,
-              "max_steps": max_steps, "wall_seconds": round(wall_s, 1)},
-    "measured": {"banner_verdict": banner, "steps_observed": steps,
-                 "steps_per_second": rate, "peak_vram_mb": peak_mb,
-                 "peak_vram_source": "log readback" if peak_mb is not None else "not reported",
-                 "checkpoints_written": wrote_ckpt == "1"},
-    "thresholds": {"rate_floor_steps_per_second": RATE_FLOOR,
-                   "vanl_reference_steps_per_second": VANL_RATE,
-                   "peak_vram_ceiling_mb": float(min_free_mb)},
-    "checks": checks,
-    "verdict": "PASS" if all(checks.values()) else "FAIL",
-}
-tmp = path + ".tmp"
-with open(tmp, "w") as fh:
-    json.dump(record, fh, indent=2, sort_keys=True)
-os.replace(tmp, path)
-print(f"smoke acceptance: {record['verdict']} -> {path}")
-print("  " + json.dumps(record["checks"], sort_keys=True))
-print(f"  rate {rate} steps/s (floor {RATE_FLOOR}), peak {peak_mb} MB, steps {steps}/{max_steps}")
-PY
-  if [ -f "$SMOKE_ACCEPT" ] && ! grep -q '"verdict": "PASS"' "$SMOKE_ACCEPT"; then
-    echo "SMOKE ACCEPTANCE: FAIL — production must not be submitted on this evidence"
-    [ "$final_rc" -eq 0 ] && final_rc=10
-  fi
 elif [ "$final_rc" -ne 0 ]; then
   echo "completion audit: skipped (the run did not finish cleanly: class ${final_rc})"
 else
@@ -1295,5 +1258,123 @@ elif [ "$BANNER_VERDICT" != "OK" ]; then
     echo "  which keeps its own taxonomy — the banner never had a chance to print"
   fi
 fi
+# --- T. SMOKE acceptance record: published LAST, atomically (re-review F3-2) --
+# Everything that can condemn this run has now happened: the classifier has
+# spoken, the tee/preflight/W&B provenance has been judged, the banner verdict is
+# final, and the storage assertion below can still fire. Publishing earlier is
+# how a PASS got written and then outlived a later class-7 — so the record is
+# written HERE, once, to a temp file and renamed into place. A failure to write
+# it is itself class 10: a smoke whose evidence cannot be produced has not passed.
+if [ "$SMOKE" = "1" ] && [ "$DRYRUN" != "1" ]; then
+  SMOKE_CKPTS="$(find "$RUNDIR" -name '*.ckpt' -type f 2>/dev/null | head -5)"
+  if [ -n "$SMOKE_CKPTS" ]; then
+    echo "SMOKE STORAGE VIOLATION: the storage-light smoke wrote checkpoint(s):"
+    printf '%s\n' "$SMOKE_CKPTS" | sed 's/^/    /'
+    final_rc=10
+  fi
+  SMOKE_RECORD_RC=0
+  python3 - "$SMOKE_ACCEPT" "$TRAINLOG" "$SMOKE_VRAM_SAMPLES" "$MAXSTEPS" "$NGPU" \
+           "$MIN_FREE_MB" "$BANNER_VERDICT" "$SLURM_JOB_ID" "$HEAD_SHA" "$RUNG" \
+           "$([ -n "$SMOKE_CKPTS" ] && echo 1 || echo 0)" "$SECONDS" "$final_rc" "$rc" \
+           "$tee_rc" "$WANDB_CHECK_RC" "$PREFLIGHT_COPY_RC" \
+    <<'PY' || SMOKE_RECORD_RC=$?
+# --- BEGIN smoke-acceptance-python (guard-tested by yaw_aug_train_guardtests.sh) ---
+import json, os, re, sys
+(path, log, vram_csv, max_steps, ngpu, min_free_mb, banner, job, commit, rung,
+ wrote_ckpt, wall_s, final_rc, torchrun_rc, tee_rc, wandb_rc, preflight_rc) = sys.argv[1:18]
+max_steps, ngpu, wall_s = int(max_steps), int(ngpu), float(wall_s)
+text = open(log, errors="replace").read() if os.path.exists(log) else ""
+
+# steps/s from PL's progress bar, taking the LAST rate reported (s/it inverted).
+rate = None
+for value, unit in re.findall(r'([0-9.]+)(s/it|it/s)', text):
+    try:
+        v = float(value)
+    except ValueError:
+        continue
+    if unit == "s/it" and v:
+        rate = 1.0 / v
+    elif unit == "it/s":
+        rate = v
+steps = 0
+for m in re.finditer(r'(\d+)/(\d+)\s*\[', text):
+    steps = max(steps, int(m.group(1)))
+
+# peak VRAM from OUR sampler: "<gpu index>, <MiB>" lines, max over every sample.
+peak_mb, samples, per_gpu = None, 0, {}
+if os.path.exists(vram_csv):
+    for line in open(vram_csv, errors="replace"):
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) != 2:
+            continue
+        try:
+            idx, used = int(parts[0]), float(parts[1])
+        except ValueError:
+            continue
+        samples += 1
+        per_gpu[idx] = max(per_gpu.get(idx, 0.0), used)
+    if per_gpu:
+        peak_mb = max(per_gpu.values())
+
+VANL_RATE = 1.05                 # measured VANL steps/s at this rung (plan §7-6)
+RATE_FLOOR = 0.9 * VANL_RATE
+have_peak = isinstance(peak_mb, (int, float)) and not isinstance(peak_mb, bool) and peak_mb > 0
+checks = {
+    "banner_seen": banner == "OK",
+    "no_checkpoint_written": wrote_ckpt == "0",
+    "steps_completed": steps >= max_steps,
+    "rate_at_least_0.9x_VANL": (rate is not None and rate >= RATE_FLOOR),
+    # No measured peak is a FAIL, never a pass-by-default: an unmeasured smoke
+    # cannot certify that the augmented recipe fits the rung.
+    "peak_vram_measured": have_peak,
+    "peak_vram_within_rung_floor": (have_peak and peak_mb <= float(min_free_mb)),
+    # ...and every status that can condemn the run, folded into the verdict.
+    "exit_class_zero": final_rc == "0",
+    "torchrun_ok": torchrun_rc == "0",
+    "tee_ok": tee_rc == "0",
+    "wandb_provenance_ok": wandb_rc == "0",
+    "preflight_transcript_ok": preflight_rc == "0",
+}
+record = {
+    "_meta": {"experiment": "exp_15", "kind": "smoke acceptance record",
+              "purpose": "gates the production submission (yaw_aug_submit.sh)",
+              "job": job, "commit": commit, "rung": rung, "ngpu": ngpu,
+              "max_steps": max_steps, "wall_seconds": round(wall_s, 1)},
+    "measured": {"banner_verdict": banner, "steps_observed": steps,
+                 "steps_per_second": rate, "peak_vram_mb": peak_mb,
+                 "peak_vram_source": f"nvidia-smi sampler, {samples} samples over "
+                                     f"{len(per_gpu)} GPU(s)" if samples else "not sampled",
+                 "peak_vram_per_gpu_mb": {str(k): v for k, v in sorted(per_gpu.items())},
+                 "checkpoints_written": wrote_ckpt == "1",
+                 "exit_class": int(final_rc)},
+    "thresholds": {"rate_floor_steps_per_second": RATE_FLOOR,
+                   "vanl_reference_steps_per_second": VANL_RATE,
+                   "peak_vram_ceiling_mb": float(min_free_mb)},
+    "checks": checks,
+    "verdict": "PASS" if all(checks.values()) else "FAIL",
+}
+tmp = path + ".tmp"
+with open(tmp, "w") as fh:
+    json.dump(record, fh, indent=2, sort_keys=True)
+    fh.flush()
+    os.fsync(fh.fileno())
+os.replace(tmp, path)            # atomic publish
+print(f"smoke acceptance: {record['verdict']} -> {path}")
+print("  " + json.dumps(record["checks"], sort_keys=True))
+print(f"  rate {rate} steps/s (floor {RATE_FLOOR}), peak {peak_mb} MB over {samples} samples, "
+      f"steps {steps}/{max_steps}")
+sys.exit(0 if record["verdict"] == "PASS" else 11)
+# --- END smoke-acceptance-python ---
+PY
+  if [ "$SMOKE_RECORD_RC" -eq 11 ]; then
+    echo "SMOKE ACCEPTANCE: FAIL — production must not be submitted on this evidence"
+    [ "$final_rc" -eq 0 ] && final_rc=10
+  elif [ "$SMOKE_RECORD_RC" -ne 0 ]; then
+    echo "SMOKE ACCEPTANCE: the record could not be written (rc ${SMOKE_RECORD_RC});"
+    echo "  a smoke whose evidence cannot be produced has not passed (class 10)"
+    final_rc=10
+  fi
+fi
+
 printf '%s\n' "$FINAL_RECORD"
 exit "$final_rc"

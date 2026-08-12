@@ -29,6 +29,92 @@ PLACEHOLDER="TO-PIN-AFTER-P0"
 
 [ -f "$SBATCH_FILE" ] || { echo "missing ${SBATCH_FILE} - abort"; exit 3; }
 
+# --- acceptance-record gate (defined here, used by the promotion gate below) --
+# Prints the record's sha256 on success; prints the refusal reason and exits
+# nonzero otherwise.
+validate_acceptance_record() {   # <record> <recorder.py> <expect-commit> <rung> <ngpu> <max-steps>
+python3 - "$@" <<'PY'
+# --- BEGIN acceptance-gate-python (guard-tested by yaw_aug_train_guardtests.sh) ---
+import hashlib, importlib.util, json, sys
+
+record_path, recorder_path, want_commit, want_rung, want_ngpu, want_steps = sys.argv[1:7]
+
+try:
+    with open(record_path, "rb") as fh:
+        raw = fh.read()                      # the ONLY read: hashed and parsed
+except OSError as error:
+    sys.exit(f"no readable smoke acceptance record at {record_path} ({error.strerror})")
+
+try:
+    record = json.loads(raw)
+except Exception as error:
+    sys.exit(f"{record_path} is not parseable JSON ({error}); a substring test would "
+             "have promoted production on this file")
+
+spec = importlib.util.spec_from_file_location("yaw_aug_record_control", recorder_path)
+rc = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(rc)
+try:
+    rc.validate_json_domain(record)          # string keys, finite numbers, JSON types
+except ValueError as error:
+    sys.exit(f"{record_path}: {error}")
+
+if not isinstance(record, dict):
+    sys.exit(f"{record_path}: top level is {type(record).__name__}, not an object")
+
+SCHEMA = {
+    "_meta": ("experiment", "kind", "purpose", "job", "commit", "rung", "ngpu",
+              "max_steps", "wall_seconds"),
+    "measured": ("banner_verdict", "steps_observed", "steps_per_second",
+                 "peak_vram_mb", "peak_vram_source", "checkpoints_written"),
+    "thresholds": ("rate_floor_steps_per_second", "vanl_reference_steps_per_second",
+                   "peak_vram_ceiling_mb"),
+}
+for section, fields in SCHEMA.items():
+    block = record.get(section)
+    if not isinstance(block, dict):
+        sys.exit(f"{record_path}: '{section}' is missing or not an object")
+    missing = [f for f in fields if f not in block]
+    if missing:
+        sys.exit(f"{record_path}: {section} is missing {missing}")
+
+# The verdict must be the TOP-LEVEL string PASS. A nested or duplicated verdict
+# elsewhere in the document means nothing.
+verdict = record.get("verdict")
+if verdict != "PASS":
+    sys.exit(f"{record_path}: top-level verdict is {verdict!r}, not 'PASS'")
+
+checks = record.get("checks")
+if not isinstance(checks, dict) or not checks:
+    sys.exit(f"{record_path}: 'checks' is missing or not a non-empty object")
+for name, value in sorted(checks.items()):
+    if value is not True:                    # literally True, not truthy
+        sys.exit(f"{record_path}: check {name!r} is {value!r}, not true")
+
+meta = record["_meta"]
+binding = [
+    ("commit", meta["commit"], want_commit),
+    ("rung", meta["rung"], want_rung),
+    ("ngpu", meta["ngpu"], int(want_ngpu)),
+    ("max_steps", meta["max_steps"], int(want_steps)),
+]
+for field, got, want in binding:
+    if got != want:
+        sys.exit(f"{record_path}: _meta.{field} is {got!r} but this submission is "
+                 f"{want!r} — the record does not describe the run being promoted")
+if not isinstance(meta["ngpu"], int) or isinstance(meta["ngpu"], bool):
+    sys.exit(f"{record_path}: _meta.ngpu must be an int")
+
+peak = record["measured"]["peak_vram_mb"]
+if not isinstance(peak, (int, float)) or isinstance(peak, bool) or not peak > 0:
+    sys.exit(f"{record_path}: measured.peak_vram_mb is {peak!r}; a smoke without "
+             "measured VRAM evidence cannot promote production")
+
+print(hashlib.sha256(raw).hexdigest())
+# --- END acceptance-gate-python ---
+PY
+}
+
 ARM="${1:-}"
 [ -n "$ARM" ] || { echo "usage: $0 YAWAUG [--resume <ckpt> --expected-step <n>] - abort"; exit 2; }
 shift
@@ -71,31 +157,6 @@ else
     [ "$V" != "$PLACEHOLDER" ] || { echo "the launcher still carries ${PLACEHOLDER} pins: the P0 report has not been pinned yet — no arm may be submitted (use SMOKE=1 for the smoke) - abort"; exit 2; }
   done
   JOBNAME="exp15-${ARM}-train"
-  # --- promotion gate (full-review F3) ---------------------------------------
-  # Production is promoted FROM the smoke, not queued beside it. The plan's
-  # ladder puts the smoke before the launch precisely so 88 GPU-hours are never
-  # spent on an unmeasured recipe; two independently queued jobs would let them
-  # start in either order (and fight over the same arm lock). So: a production
-  # submission requires a PASSing smoke acceptance record, or an explicit,
-  # reasoned waiver that is recorded in the submission manifest.
-  ACCEPT_FILE="${EXPDIR}/yaw_aug_smoke_acceptance.json"
-  SMOKE_WAIVER="${SMOKE_WAIVER:-}"
-  if [ -n "$SMOKE_WAIVER" ]; then
-    echo "SMOKE WAIVER: production submitted without a passing smoke record."
-    echo "  reason: ${SMOKE_WAIVER}"
-  elif [ ! -f "$ACCEPT_FILE" ]; then
-    echo "no smoke acceptance record at ${ACCEPT_FILE} - abort"
-    echo "  run the smoke first (SMOKE=1 SMOKE_RUNG=8x8 SMOKE_MIN_FREE_MB=... $0 ${ARM}),"
-    echo "  or set SMOKE_WAIVER='<reason>' to submit deliberately without one."
-    exit 2
-  elif ! grep -q '"verdict": "PASS"' "$ACCEPT_FILE"; then
-    echo "the smoke acceptance record ${ACCEPT_FILE} does not say PASS - abort"
-    grep -E '"(verdict|steps_per_second|peak_vram_mb|banner_verdict)"' "$ACCEPT_FILE" | sed 's/^/    /'
-    echo "  fix the recipe or set SMOKE_WAIVER='<reason>' to override deliberately."
-    exit 2
-  else
-    echo "smoke acceptance: PASS (${ACCEPT_FILE})"
-  fi
 fi
 case "$RUNG" in 8x8) ;; *) echo "rung '${RUNG}' must be 8x8 — exp_15 has ONE topology, smoke included - abort"; exit 2;; esac
 MB="${RUNG%x*}"; NGPU="${RUNG#*x}"
@@ -122,6 +183,43 @@ DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini sr
 SHA="$(git rev-parse HEAD 2>&1)" || { echo "git rev-parse HEAD failed: ${SHA} - abort"; exit 2; }
 printf '%s\n' "$SHA" | grep -qE '^[0-9a-f]{40}$' \
   || { echo "HEAD did not resolve to a full 40-hex commit id ('${SHA}') - abort"; exit 2; }
+
+# --- promotion gate (full-review F3) ---------------------------------------
+# Production is promoted FROM the smoke, not queued beside it. The plan's
+# ladder puts the smoke before the launch precisely so 88 GPU-hours are never
+# spent on an unmeasured recipe; two independently queued jobs would let them
+# start in either order (and fight over the same arm lock). So: a production
+# submission requires a PASSing smoke acceptance record, or an explicit,
+# reasoned waiver that is recorded in the submission manifest.
+# Placed AFTER the drift gate so it can bind the record to the resolved
+# submission commit and topology.
+if [ "$SMOKE" != "1" ]; then
+  ACCEPT_FILE="${EXPDIR}/yaw_aug_smoke_acceptance.json"
+  ACCEPT_SHA256="<none>"
+  SMOKE_WAIVER="${SMOKE_WAIVER:-}"
+  if [ -n "$SMOKE_WAIVER" ]; then
+    echo "SMOKE WAIVER: production submitted without a passing smoke record."
+    echo "  reason: ${SMOKE_WAIVER}"
+  else
+    # The record is PARSED and BOUND, never grepped (re-review finding 1): a
+    # substring test would promote production on malformed JSON, on a nested
+    # {"x": {"verdict": "PASS"}}, or on a stale record from another commit or
+    # another rung. This reads the file ONCE, validates the schema type-strictly
+    # with the round-2 recorder's own JSON-domain helper, requires every check to
+    # be literally true, binds the record to THIS submission, and emits the
+    # same-bytes sha256 so the submission manifest pins the evidence itself.
+    ACCEPT_SHA256="$(validate_acceptance_record "$ACCEPT_FILE" \
+                        "$EXPDIR/yaw_aug_record_control.py" "$SHA" "$RUNG" "$NGPU" \
+                        "$(pin PINNED_SMOKE_MAXSTEPS)" 2>&1)" || {
+      echo "SMOKE ACCEPTANCE GATE: ${ACCEPT_SHA256}"
+      echo "  run the smoke first (SMOKE=1 SMOKE_RUNG=8x8 SMOKE_MIN_FREE_MB=... $0 ${ARM}),"
+      echo "  or set SMOKE_WAIVER='<reason>' to submit deliberately without one."
+      exit 2
+    }
+    echo "smoke acceptance: PASS, bound to this submission (${ACCEPT_FILE})"
+    echo "  record sha256 ${ACCEPT_SHA256}"
+  fi
+fi
 
 ARGS=(
   --job-name="$JOBNAME"
@@ -159,7 +257,7 @@ TMP="$(mktemp "${MANIFEST}.XXXXXX")" || exit 3
   echo "commit ${SHA}"
   echo "pins rung=${RUNG} maxsteps=$(pin PINNED_MAXSTEPS) ckpt_every=$(pin PINNED_CHECKPOINT_EVERY) min_free_mb=$(pin PINNED_MIN_FREE_MB) p0_manifest_sha256=$(pin PINNED_P0_MANIFEST_SHA256)"
   echo "resume ${RESUME_CKPT:-<none>} expected_step ${EXPECTED_STEP}"
-  echo "smoke_acceptance ${ACCEPT_FILE:-<n/a>} waiver ${SMOKE_WAIVER:-<none>}"
+  echo "smoke_acceptance ${ACCEPT_FILE:-<n/a>} sha256 ${ACCEPT_SHA256:-<none>} waiver ${SMOKE_WAIVER:-<none>}"
   echo "sbatch sbatch ${ARGS[*]}"
 } >> "$TMP" || { echo "intent manifest write failed - abort"; exit 3; }
 mv -n "$TMP" "$MANIFEST" || { echo "intent manifest publication failed - abort"; exit 2; }
