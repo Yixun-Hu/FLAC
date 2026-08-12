@@ -1,0 +1,51 @@
+{
+  "_meta": {
+    "commit": "bd6d8b913e6270dac4247829b9db6cf5825d3844",
+    "experiment": "exp_15",
+    "job": "3685989",
+    "kind": "smoke acceptance record",
+    "max_steps": 30,
+    "ngpu": 8,
+    "purpose": "gates the production submission (yaw_aug_submit.sh)",
+    "rung": "8x8",
+    "wall_seconds": 762.0
+  },
+  "checks": {
+    "banner_seen": true,
+    "exit_class_zero": true,
+    "no_checkpoint_written": true,
+    "peak_vram_measured": true,
+    "peak_vram_within_rung_floor": true,
+    "preflight_transcript_ok": true,
+    "rate_at_least_0.9x_VANL": false,
+    "steps_completed": true,
+    "tee_ok": true,
+    "torchrun_ok": true,
+    "wandb_provenance_ok": true
+  },
+  "measured": {
+    "banner_verdict": "OK",
+    "checkpoints_written": false,
+    "exit_class": 0,
+    "peak_vram_mb": 3277.0,
+    "peak_vram_per_gpu_mb": {
+      "0": 3257.0,
+      "1": 3277.0,
+      "2": 3277.0,
+      "3": 3273.0,
+      "4": 3257.0,
+      "5": 3277.0,
+      "6": 3277.0,
+      "7": 3273.0
+    },
+    "peak_vram_source": "nvidia-smi sampler, 424 samples over 8 GPU(s)",
+    "steps_observed": 30,
+    "steps_per_second": 0.2
+  },
+  "thresholds": {
+    "peak_vram_ceiling_mb": 14000.0,
+    "rate_floor_steps_per_second": 0.9450000000000001,
+    "vanl_reference_steps_per_second": 1.05
+  },
+  "verdict": "FAIL"
+}

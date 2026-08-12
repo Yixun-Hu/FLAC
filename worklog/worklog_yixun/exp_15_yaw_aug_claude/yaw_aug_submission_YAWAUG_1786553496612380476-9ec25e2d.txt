@@ -1,0 +1,11 @@
+# exp_15 arm submission (intent published BEFORE sbatch)
+intent_id 1786553496612380476-9ec25e2d
+submitted_at 2026-08-12T12:51:36-04:00
+arm YAWAUG rung 8x8 micro 8 ngpu 8
+jobname exp15-smoke-YAWAUG time 00:30:00 smoke 1
+commit bd6d8b913e6270dac4247829b9db6cf5825d3844
+pins rung=8x8 maxsteps=40000 ckpt_every=2500 min_free_mb=36500 p0_manifest_sha256=72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b
+resume <none> expected_step 0
+smoke_acceptance <n/a> sha256 <none> waiver <none>
+sbatch sbatch --job-name=exp15-smoke-YAWAUG --gres=gpu:l40:8 --cpus-per-task=64 --mem=108G --time=00:30:00 --export=ALL,ARM=YAWAUG,EXPECT_SHA=bd6d8b913e6270dac4247829b9db6cf5825d3844,OUTPUT_ROOT=outputs_FLAC,SMOKE=1,SMOKE_RUNG=8x8,SMOKE_MIN_FREE_MB=14000,SMOKE_MAXSTEPS=30,SMOKE_TIME=00:30:00 worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_train.sbatch
+jobid 3685989

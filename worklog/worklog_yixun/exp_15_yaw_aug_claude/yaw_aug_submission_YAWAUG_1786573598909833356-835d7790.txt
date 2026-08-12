@@ -1,0 +1,11 @@
+# exp_15 arm submission (intent published BEFORE sbatch)
+intent_id 1786573598909833356-835d7790
+submitted_at 2026-08-12T18:26:38-04:00
+arm YAWAUG rung 8x8 micro 8 ngpu 8
+jobname exp15-YAWAUG-train time 24:00:00 smoke 0
+commit bd6d8b913e6270dac4247829b9db6cf5825d3844
+pins rung=8x8 maxsteps=40000 ckpt_every=2500 min_free_mb=36500 p0_manifest_sha256=72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b
+resume <none> expected_step 0
+smoke_acceptance worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_smoke_acceptance.json sha256 <none> waiver rate floor 0.945 structurally unmeasurable in a 30-step smoke (PL running-average; VANL's own log: 0.37@30, 0.81@300, 0.89@1000). Yixun-approved waiver 2026-08-12 16:00 EDT; post-hoc windowed floors 0.849(100-300)/0.843(300-1000) with abort criterion — see yaw_aug_worklog.md 16:05 entry
+sbatch sbatch --job-name=exp15-YAWAUG-train --gres=gpu:l40:8 --cpus-per-task=64 --mem=108G --time=24:00:00 --export=ALL,ARM=YAWAUG,EXPECT_SHA=bd6d8b913e6270dac4247829b9db6cf5825d3844,OUTPUT_ROOT=outputs_FLAC worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_train.sbatch
+jobid 3687499
