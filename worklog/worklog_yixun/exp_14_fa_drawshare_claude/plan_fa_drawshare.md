@@ -1,38 +1,48 @@
-# Plan — exp_14 fa_drawshare (does chunk-shared RoPE cause the reversal?)
+# Plan — exp_14 fa_drawshare (does the chunk plan change FA training?)
 
-**Author:** main session (Opus 5, max effort) · **2026-08-11** · **Status:** DRAFT -> Codex plan review -> **Yixun approval required before any launch** (12-day GPU commitment).
+**Author:** main session (Opus 5, max effort) · **Rev 2**, 2026-08-12 — every finding of `fa_drawshare_codex_plan_review.md` applied · **Status:** re-review → **Yixun's final go before launch**.
+**Yixun's decisions:** "做，要把因果钉死" → after the review showed 12 days cannot support a causal claim, he chose **option B**: run the scaled-down version and scope the claim accordingly. Sequencing: **顺序跑**.
 
-## 1. Design — one delta, nothing else
+## 1. What this experiment can and cannot say (fixed up front)
 
-Two from-scratch FA arms, identical in every respect except the **effective chunk plan** (announcement 06):
+**One paired training seed (42) only.** Five eval seeds estimate generation noise for two fixed checkpoints; they say nothing about training-seed variability. Therefore the registered claim is:
 
-| arm | cap | angles/chunk (C4, micro-32) | meaning |
+> **the effect of the operational chunk plan on the seed-42 training trajectory** — suggestive evidence, NOT a general causal result.
+
+A general causal claim would need ≥3 paired training seeds (~36 d at our rate) and is explicitly out of scope. **A null result is likewise scoped:** without an equivalence CI inside a pre-registered margin, "no effect observed for this seed pair" ≠ "no effect". And because changing the cap also changes forward count, GEMM shapes and global RNG consumption, a positive result identifies **the chunk plan as an operational policy**, not RoPE draw covariance in isolation (that would need the fixed-shape control with prescribed draw mappings — out of scope here).
+
+## 2. Design — one delta, and it now hits the implicated regime
+
+| arm | `frame_avg_max_fwd_samples` | angles/chunk at micro-32 (C4) | corresponds to |
 |---|---|---|---|
-| **DS-PA** | 32 | 1 | per-angle draws = the July path that exp_07/exp_10's B-F used |
-| **DS-CS** | 64 (current default) | 2 | chunk-shared, what the code does today at our rung |
+| **DS-PA** | 32 | **1** | per-angle draws = exp_07/exp_10's B-F (July path) |
+| **DS-CS3** | 96 | **3** | fully shared = **exp_11's C4L regime** (`96 // 32 = 3`) |
 
-Everything else pinned to the exp_07 B-F recipe: `FLAC_AR_BF.json` (C4, `fa_invariant`), DDP micro-32 x 2 GPUs x accum 1 (eff 64), **SyncBN (BN=64)**, ViT grad-checkpointing on, seed 42, bf16, ckpt every 2,500, wandb, env `flac`, **40,000 steps** (the step where both the exp_10 and exp_11 evidence lives).
+Review correction applied: the earlier plan wrongly said micro-32 tops out at 2/3. Cap 96 reaches 3/3 at the same cost, so the two arms bracket the whole range and DS-CS3 matches the configuration exp_11 actually ran.
 
-**Honest limit stated up front:** our rung can only reach 2/3 sharing, while exp_11's micro-8 reaches 3/3. So this experiment tests *whether draw-sharing degrades FA training at all*, and estimates the slope from 1 -> 2 shared angles. It does NOT reproduce exp_11's exact configuration; if DS-CS is unharmed, 3/3 sharing is still not excluded (A5 v2 puts 3/3 only ~6-10% above 1/1 in surviving noise, so a null here makes the sharing explanation unlikely but not impossible).
+Everything else pinned to the exp_07 B-F recipe: `FLAC_AR_BF.json` (C4 `fa_invariant`), DDP micro-32 × 2 GPUs × accum 1 (eff 64), **SyncBN (BN=64)**, ViT grad-ckpt on, seed 42, bf16, ckpt/2,500, wandb, env `flac`, **40,000 steps**, from scratch. Eval flags declared explicitly per announcement 05 (`--cond-method fa_invariant --frame-avg-angles 0,90,180,270 --cond-autocast bf16 --rotate-deg 0`), chunk plan declared per announcement 06.
 
-## 2. Implementation (the one thing that needs new code)
+## 3. Implementation
 
-`FRAME_AVG_MAX_FWD_SAMPLES` is a module constant (`src/data/yaw_rotation.py:45`) with no per-run control. **Proposed: an environment override, default-preserving:**
+1. **Config key, not an environment override** (review H4 — an ambient env var is invisible to the checkpoint and leaks across sessions). Add validated `training.frame_avg_max_fwd_samples` (default **64**, so every existing recipe is byte-identical), read in `src/training/diffusion.py` where `invariant_conditioning` is called (`:469`) and threaded as a new keyword on that function — **no global mutation**. `train.py` already stamps `model_config` into every checkpoint (`:21`), so the plan travels with the weights and survives resume.
+   **TDD (`src/tests/`):** default → 64 and behaviour unchanged; explicit value honoured; non-integer / <1 / cap < micro-batch → fail closed; partitions at micro-32 for caps 32/64/96 → 1/2/3 angles; propagation without touching the module global; DDP rank agreement; checkpoint round-trip; full existing suite green.
+   ⚠️ **Shared-code caution:** this edits `src/data/yaw_rotation.py` + `src/training/diffusion.py`, which the cluster session also runs. Default-preserving by construction; announce before pushing.
+2. **Fit probe before committing 12 days** (review B1): cap 96 puts 96 samples in one ViT chunk vs 64 today (~1.5× activation memory). 15-step real DDP fit at micro-32 × 2 with grad-ckpt, VRAM sampled. **If cap 96 does not fit, stop and report — do not silently fall back to cap 64**, which would no longer test exp_11's regime.
+3. **From-scratch launcher** based on `bf_scratch_launch.sh` (review H6 — `f_arm_launch.sh` is resume-required and wrong for this), with distinct identities `exp14_DSPA` / `exp14_DSCS3`, the chunk plan echoed into the launch log and params file, plus the standard gates (env/PL, config contract, VRAM floor, wandb identity, DINOv3 pin, disk floor) and a resume path that re-asserts the arm's cap.
 
-```python
-FRAME_AVG_MAX_FWD_SAMPLES: int = int(os.environ.get("FLAC_FRAME_AVG_MAX_FWD_SAMPLES", "64"))
-```
+## 4. Readouts
 
-TDD in `src/tests/`: unset -> 64 (byte-identical behaviour for every existing recipe, including the cluster's); set -> honoured; non-integer/<1 -> fail closed; and a partition test that cap=32 at micro-32 yields 1 angle per chunk while cap=64 yields 2. **This edits SHARED code that the cluster session also runs**, so it must stay backward-compatible and be announced. Launcher = `f_arm_launch.sh` family + the env var + the chunk plan echoed into the launch log and params file (announcement 06).
+- **DS1 (primary):** DS-CS3 − DS-PA at 40,000 steps, 5 eval seeds, both K. Report per-metric deltas with σ_c **and** the explicit one-training-seed caveat. Reference for magnitude: exp_11's reported reversal (T60 +0.366, EDT +4.180). If |DS1| is a small fraction of that, the chunk plan is not a sufficient explanation and the rung/topology remains the open suspect.
+- **DS1b (trajectory, registered statistic):** mean of the 2,500-cadence screens over the last 10k steps (30,000–40,000 inclusive, 5 points) per arm — a band statistic, since single endpoints have misled this program three times.
+- **DS2 (cross-era replication check, NOT a reproducibility floor — review H5):** DS-PA@40k vs exp_07 B-F@40k. Bundles source drift, RNG/data order, environment and calendar, so it is contextual only; a July-launch-commit parity audit accompanies it.
+- **DS3 (contextual):** both arms vs vanilla P1@40k (5-seed on record) — does A4's conclusion hold under each chunk plan?
+- **Screens:** every 2,500 steps, EMA/K=8/s42/full split, both arms.
+- **Tiers:** EFFECT-OBSERVED (DS-CS3 worse beyond 2σ_c on T60 or EDT, seed-42 trajectory) / NO-EFFECT-OBSERVED (all six within 2σ_c; explicitly not an equivalence claim) / MIXED.
 
-## 3. Pre-registered readouts
+## 5. Sequencing, aborts, budget
 
-- **DS1 (primary, causal):** DS-CS minus DS-PA at 40,000 steps, 5 eval seeds, both K, own protocol (`--cond-method fa_invariant`). Effect = the causal contribution of draw-sharing at our rung. **Direction predicted: DS-CS worse.** Compare its size against exp_11's reported reversal (T60 +0.366, EDT +4.180): if DS-CS-minus-DS-PA is a small fraction of that, sharing is not a sufficient explanation and the rung/topology becomes the remaining suspect.
-- **DS2 (reproducibility, free):** DS-PA@40k vs exp_07 B-F@40k (8.202/0.9778/38.793/R5.387, 5-seed). Same method, same recipe, different data order and calendar month. Any gap is the arm-level reproducibility floor — a number this program has never measured and which bounds how much of ANY cross-arm difference is real.
-- **DS3:** both arms vs vanilla P1@40k (already 5-seed on record) — does the A4 conclusion survive under each chunk plan?
-- **Screens:** every 2,500 steps, EMA/K=8/s42/full split, both arms, so the comparison is band-level and not a single endpoint draw (the lesson of exp_07/exp_10).
-- **Tiers:** CAUSE-CONFIRMED = DS1 shows DS-CS worse beyond 2 sigma_c on T60 or EDT; NULL = |DS1| within 2 sigma_c on all six (sharing does not explain the reversal at our rung); MIXED otherwise. **A NULL is a publishable, useful result** — it clears the implementation and points at the rung.
+DS-PA first (it also serves DS2), then DS-CS3 — sequential per Yixun; 2 GPUs cannot host both at BN=64. ~40,000 steps at ~0.079 opt-steps/s co-tenant ≈ **5.9 d/arm**, **~12 d total plus ~1.5 d for probes, screens, gates and reviews → ETD ≈ 2026-08-26**. Start after the GPUs are free of our own eval work. **Hard aborts only:** wrong SHA/config/cap/world-size/BN, OOM, non-finite loss, disk floor. **No metric-driven stopping** — the futility discipline that stopped B-F is deliberately not used here, because a "bad-looking" DS-CS3 curve is the hypothesis, not a failure.
 
-## 4. Sequencing (Yixun: "顺序跑")
+## 6. Artifacts (SOP enumeration)
 
-DS-PA first (it doubles as DS2's reproducibility check), then DS-CS. Each ~40,000 steps at ~0.079 opt-steps/s co-tenant = **~5.9 days**; sequential total **~12 days**. Start after A6's eval block frees the GPUs (~2026-08-12 05:00) so neither is slowed. Hard aborts only; screens reviewable throughout; either arm resumable from any 2,500 checkpoint.
+`plan_fa_drawshare.md` (this) · `fa_drawshare_yixun_query.md` · `fa_drawshare_worklog.md` · `fa_drawshare_codex_plan_review.md` (+ re-review) · `src/data/yaw_rotation.py` & `src/training/diffusion.py` (cap threading) · `src/tests/test_frame_avg_cap_config.py` · `FLAC_AR_BF_DSPA.json` / `FLAC_AR_BF_DSCS3.json` · `dsarm_launch.sh` + `dsarm_launch_guardtests.sh` · `fa_drawshare_params_set_up.md` · `fa_drawshare_command.md` · results / analysis / HTML / closure review / `commits_fa_drawshare.md`.
