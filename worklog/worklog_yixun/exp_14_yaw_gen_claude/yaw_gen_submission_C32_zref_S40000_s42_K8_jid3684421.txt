@@ -1,0 +1,16 @@
+job 3684421 name exp14-screen-C32-zref-40000-s42-K8 submitted_at 2026-08-12T08:32:42-04:00 by yh4742@neuronic.cs.princeton.edu
+arm C32 cell zref step 40000 seed 42 K 8
+pin_sha e8ca26edb116cc56f0e62289cb65008c947079b7 campaign_pin e8ca26edb116cc56f0e62289cb65008c947079b7
+expect_sha e8ca26edb116cc56f0e62289cb65008c947079b7
+measure_root /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/e8ca26edb116cc56f0e62289cb65008c947079b7
+exclude neu301,neu303,neu305,neu306,neu317,neu319,neu322,neu332
+cond_method fa_invariant
+frame_avg_angles 0,11.25,22.5,33.75,45,56.25,67.5,78.75,90,101.25,112.5,123.75,135,146.25,157.5,168.75,180,191.25,202.5,213.75,225,236.25,247.5,258.75,270,281.25,292.5,303.75,315,326.25,337.5,348.75
+training_orbit 32 eval_orbit 32
+rotate_mode fixed rotate_seed <n/a> rotate_deg 0
+split acousticroom_unseeneval.json expected_stream_count 6337 record_stream yes
+record_per_scene yes expected_scenes 10 (release grouping: AR room families)
+batch_size 64 num_workers 4
+cond_autocast bf16 cfg_scale 1.0 steps 1 use_ema yes
+lease /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/e8ca26edb116cc56f0e62289cb65008c947079b7/.leases/3684421
+manifest_complete yes
