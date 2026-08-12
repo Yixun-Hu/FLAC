@@ -1,0 +1,32 @@
+{
+  "arm": "C8",
+  "step": 40000,
+  "seed": 42,
+  "K": 8,
+  "eval_name": "exp11_C8_r3_rot22p5_s42_K8",
+  "cfg_scale": 1.0,
+  "steps": 1,
+  "model_config": "worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C8.json",
+  "model_config_sha256": "af4c2f21c2d03bc51448a3c161878443a8e9afd1314695530baf4032e808b3f1",
+  "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
+  "ckpt_path": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=8-step=40000.ckpt",
+  "ckpt_sha256": "4b58787774b5f15852f2603295d57bbe7a1e2d4e40ba217e548f55d643a52c4c",
+  "use_ema": true,
+  "frame_avg_angles": [
+    0.0,
+    45.0,
+    90.0,
+    135.0,
+    180.0,
+    225.0,
+    270.0,
+    315.0
+  ],
+  "cond_method": "fa_invariant",
+  "cond_autocast": "bf16",
+  "commit": "89f24cd55c64a68c3021520822171fb91c8b60fe",
+  "cell": "r3",
+  "training_orbit": 8,
+  "eval_orbit": 8,
+  "rotate_deg": 22.5
+}

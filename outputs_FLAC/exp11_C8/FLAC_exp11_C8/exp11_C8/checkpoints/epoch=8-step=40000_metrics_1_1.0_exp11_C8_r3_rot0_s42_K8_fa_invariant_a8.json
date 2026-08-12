@@ -1,0 +1,41 @@
+{
+    "metrics": {
+        "T60": 8.7152,
+        "Invalid T60": 0.0,
+        "C50": 1.0048,
+        "EDT": 42.9373,
+        "FD": 0.34,
+        "RIR_to_GT_RIR_R@1": 5.1444,
+        "RIR_to_GT_RIR_R@5": 15.4963,
+        "RIR_to_GT_RIR_R@10": 23.4338,
+        "RIR_to_geom_R@1": 4.2449,
+        "RIR_to_geom_R@5": 13.4764,
+        "RIR_to_geom_R@10": 20.4355
+    },
+    "ckpt_path": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=8-step=40000.ckpt",
+    "rotate_deg": 0.0,
+    "cond_method": "fa_invariant",
+    "frame_avg_angles": [
+        0.0,
+        45.0,
+        90.0,
+        135.0,
+        180.0,
+        225.0,
+        270.0,
+        315.0
+    ],
+    "cond_autocast": "bf16",
+    "orbit_execution": "batched",
+    "frame_avg_fwd_cap": 64,
+    "source_sha": "89f24cd55c64a68c3021520822171fb91c8b60fe",
+    "batch_size": 64,
+    "n_samples": 6337,
+    "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
+    "seed": 42,
+    "cfg_scale": 1.0,
+    "steps": 1,
+    "eval_name": "exp11_C8_r3_rot0_s42_K8",
+    "weights_source": "ema",
+    "device": "cuda"
+}
