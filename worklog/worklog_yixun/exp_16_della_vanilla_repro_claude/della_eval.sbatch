@@ -51,7 +51,7 @@
 #SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=32G
-#SBATCH --time=04:00:00
+#SBATCH --time=02:00:00
 #SBATCH --output=/home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/slurm_eval_%x_%j.out
 
 set -uo pipefail
