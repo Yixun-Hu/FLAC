@@ -117,3 +117,7 @@
 - **Change** — `della_eval.sbatch` `--time` 04:00:00→02:00:00 (one line; still 8–18× exp_01's measured 6.5–15 min/run; improves backfill eligibility). Kit edit = closure change, so cells were scancel'd FIRST (12268240-42, never started, zero GPU), edit committed+pushed (`e2d77a2`), then resubmitted. Review note: batched into the next Codex round per SOP small-scripts clause; Planner-verified (bash -n, DRYRUN gates green, argv byte-identical).
 - **Command / Validation** — new cells: **12287666** (unseen_s42), **12287676** (unseen_s43), **12287677** (seen_s42), 2h limits, EXPECT_SHA `e2d77a2`. Monitor re-armed. Announcement 06 logged this morning (status board every response; ask on every real choice) — this resubmission was its first applied ask.
 - **Next** — Cells land → gate table → PHASE1_PASS.md or STOP.
+
+## 2026-08-12T10:20:00-04:00 — Yixun pre-authorizes Phase-2 launch on gate pass
+
+- **Result** — Yixun (verbatim): "Once phase-1 gate passes, go ahead and submit the training". Standing approval recorded: when ALL pre-registered Phase-1 thresholds pass (plan §5 + Rev 3 §2 JSON paths), the session writes + commits `PHASE1_PASS.md`, then immediately submits `della_submit.sh train --time 2-06:00:00` (A100-80GB, gpu-medium) without a further ask. A FAILED gate still stops everything and goes to Yixun as a diagnosis. The PHASE1_PASS interlock remains in force — the wrapper still refuses without the committed verdict file.
