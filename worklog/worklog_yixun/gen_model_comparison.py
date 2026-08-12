@@ -8,7 +8,7 @@ cell is aggregated fresh from the raw per-seed metric JSONs on disk — numbers
 never live in this script. Rows whose JSON count is below MIN_SEEDS are rendered
 as pending. To add a model: append a row spec, rerun, commit.
 """
-import argparse, json, glob, os, re, statistics as st, sys, datetime
+import argparse, json, glob, math, os, re, statistics as st, sys, datetime
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT = os.path.join(REPO, "worklog", "worklog_yixun", "model_comparison.md")
@@ -269,46 +269,42 @@ def _load_exp14_validator(repo_root=None):
 def _exp14_cell_reasons(V14, path, cell, pin, ckpt_sha, count):
     """Named reasons one exp_14 row is not the cell it claims to be.
 
-    DECLARED SCOPE. A landed cell is three files, but only two of them travel
-    with the table's evidence: the ~6,337-tuple ``.stream.json`` assignment
-    audits are far too large to force-add beside the metric JSONs. So the audit
-    is verified here when the checkout has it and is otherwise left to
-    ``yaw_gen_collect.py``, which runs on the machine that holds it and is
-    fail-closed about it. What the TABLE claims — this arm's θ=0 number, at this
-    pin, from this checkpoint, EMA, full split, five seeds — is fully proven by
-    the record and the submission manifest, both of which are required.
+    This is the IMPORTED top-level predicate — ``exp14_validate_cell.validate_cell``
+    — not a re-implementation that calls some of its parts. The stream audit is
+    therefore REQUIRED, exactly as it is for the screen driver and the collector
+    (round-3 review B3): the kit passes --record-stream for every cell, so a
+    missing ``.stream.json`` is a missing artifact, not a scope decision, and
+    without it the split order, substitutions, tuple counts and recomputed hashes
+    are all unproved while a numeric row publishes anyway.
     """
-    reasons = []
+    reasons = list(V14.validate_cell(path, cell, pin=pin, ckpt_sha=ckpt_sha,
+                                     expected_count=count))
+    # ...and the payload this TABLE will print: present, numeric, finite (B5).
+    # A cell can satisfy every provenance rule and still carry a NaN, which would
+    # propagate silently into a published mean.
     try:
         with open(path) as fh:
-            rec = json.load(fh)
+            metrics = (json.load(fh) or {}).get("metrics")
     except (ValueError, OSError) as exc:
-        return [f"unreadable metrics record ({exc})"]
-    reasons += V14.validate_metrics_record(rec, cell, pin=pin, expected_count=count)
-    meta_path = V14.screenmeta_path(path)
-    if not os.path.isfile(meta_path):
-        reasons.append(f"submission manifest missing: {os.path.basename(meta_path)}")
-    else:
-        try:
-            with open(meta_path) as fh:
-                reasons += V14.validate_screenmeta(json.load(fh), cell, pin=pin,
-                                                   ckpt_sha=ckpt_sha,
-                                                   expected_count=count)
-        except (ValueError, OSError) as exc:
-            reasons.append(f"unreadable submission manifest ({exc})")
-    stream_path = V14.stream_path(path)
-    if os.path.isfile(stream_path):
-        try:
-            with open(stream_path) as fh:
-                reasons += V14.validate_stream_record(json.load(fh), cell,
-                                                      expected_count=count, record=rec)
-        except (ValueError, OSError) as exc:
-            reasons.append(f"unreadable assignment audit ({exc})")
+        return reasons + [f"unreadable while checking the reported metrics ({exc})"]
+    if not isinstance(metrics, dict):
+        return reasons + ["metrics block is missing or is not an object"]
+    for _label, key in KEYS:
+        if key not in metrics:
+            reasons.append(f"metrics does not report {key}, which this table prints")
+        elif not _finite_number(metrics[key]):
+            reasons.append(f"metrics[{key!r}] = {metrics[key]!r} is not a finite number")
     return reasons
 
 
-def validate_exp14_cell(files, repo_root=None, expected_count=None):
+def validate_exp14_cell(files, repo_root=None, expected_count=None,
+                        expected_arm=None, expected_k=None):
     """Gate one exp_14 table cell: five unrotated seeds, one pin, one checkpoint.
+
+    ``expected_arm``/``expected_k`` come from the ROW CONTRACT, and binding them
+    is the point (round-3 review B2): a homogeneous five-seed C16 payload renamed
+    to match a C8 glob otherwise validates under the C8 label, and the table
+    publishes one arm's numbers beside another arm's name.
 
     Empty is not a failure — the generator already renders an empty cell as
     pending."""
@@ -338,7 +334,7 @@ def validate_exp14_cell(files, repo_root=None, expected_count=None):
             repo_paths(repo_root)["root"], *EXP14_DIR, "exp14_ckpt_expect.json"))
     except ValueError as exc:
         return False, [str(exc)]
-    seeds, arms, ks = set(), set(), set()
+    seeds, arms, ks = [], set(), set()
     for path, rec in sorted(records.items()):
         try:
             cell = V14.parse_eval_name(str(rec.get("eval_name") or ""))
@@ -349,7 +345,7 @@ def validate_exp14_cell(files, repo_root=None, expected_count=None):
             problems.append(f"{os.path.basename(path)}: only the UNROTATED (zref) block "
                             f"is a comparable table row; this is a {cell.cell} cell")
             continue
-        seeds.add(int(cell.seed))
+        seeds.append(int(cell.seed))
         arms.add(cell.arm)
         ks.add(int(cell.k))
         problems += [f"{os.path.basename(path)}: {r}" for r in
@@ -357,37 +353,67 @@ def validate_exp14_cell(files, repo_root=None, expected_count=None):
     if len(arms) > 1 or len(ks) > 1:
         problems.append(f"one cell is one (arm, K); this one spans arms {sorted(arms)} "
                         f"and K {sorted(ks)}")
-    missing = [s for s in V14.SEEDS if s not in seeds]
-    if missing:
-        problems.append(f"the cell is missing seed(s) {missing}: a table row is the "
-                        f"registered five-seed block {list(V14.SEEDS)}")
+    # the evidence must be the DECLARED row's, not merely self-consistent
+    if expected_arm is not None and arms and arms != {expected_arm}:
+        problems.append(f"the row declares arm {expected_arm} but its evidence is "
+                        f"{sorted(arms)}: a renamed payload is not a re-measurement")
+    if expected_k is not None and ks and ks != {int(expected_k)}:
+        problems.append(f"the row declares K={int(expected_k)} but its evidence is "
+                        f"K {sorted(ks)}")
+    # exactly one record per registered seed: "no seed missing" also holds for six
+    # files with a duplicate, which agg_files would then average as six
+    if sorted(seeds) != list(V14.SEEDS):
+        counts = {s: seeds.count(s) for s in sorted(set(seeds))}
+        dupes = sorted(s for s, n in counts.items() if n > 1)
+        problems.append(
+            f"the cell must be exactly {len(V14.SEEDS)} records, one per seed "
+            f"{list(V14.SEEDS)}; got {len(seeds)} with seeds {sorted(seeds)}"
+            + (f" (duplicated: {dupes})" if dupes else ""))
     return (not problems), problems
 
 
-def check_exp14_round(exp14_cells):
-    """The exp_14 Z rows publish as ONE transaction: both K, five seeds, one pin.
+def exp14_arm_of(label):
+    """The arm a registered exp_14 row label names (its first token)."""
+    return str(label).split(" ", 1)[0]
 
-    Same reasoning as the Q9 round one section down: per-cell validation proves
-    each arm × K block internally and cannot see that the blocks belong together.
-    A lone K, or two arms measured at different evaluator pins, would invite
-    exactly the cross-pin comparison the one-pin design exists to exclude.
+
+def check_exp14_round(exp14_cells):
+    """Which exp_14 arms may publish, and why the others may not.
+
+    Returns ``(withheld_labels, problems)``.
+
+    Two rules, deliberately at different scopes (round-3 review B4):
+
+    * **Per ARM, a two-K transaction.** An arm publishes when BOTH its K rows
+      carry a full five-seed block, and not before — a lone K would invite a
+      K=8-only comparison against rows that carry both. It does NOT wait for the
+      other arms: §5.7 sequences the regeneration on VANL's own block completing,
+      so a campaign-wide gate would withhold exactly the row that triggered it.
+    * **Across ARMS, one campaign pin.** exp_14 is a one-pin campaign and its
+      whole point is that VANL-vs-Cn carries no cross-pin difference. If the
+      published arms disagree on ``source_sha``, none of them publishes.
     """
     present = {key: files for key, files in exp14_cells.items() if files}
     if not present:
-        return []                                  # nothing landed yet: not an update
-    problems, shas = [], {}
-    labels = {label for label, _k in exp14_cells}
-    for label in sorted(labels):
-        for k in (1, 8):
-            files = exp14_cells.get((label, k))
-            if files is None:
-                problems.append(f"{label}: the K={k} row is not registered")
-            elif not files:
-                problems.append(f"{label}: K={k} has no evidence — the exp_14 Z rows "
-                                "publish only as a complete two-K pair")
-            elif len(files) < MIN_SEEDS:
-                problems.append(f"{label}: K={k} has {len(files)}/{MIN_SEEDS} seeds")
-    for key, files in sorted(present.items()):
+        return set(), []                           # nothing landed yet: not an update
+    problems, ready, shas = [], set(), {}
+    arms = {exp14_arm_of(label) for label, _k in exp14_cells}
+    for arm in sorted(arms):
+        rows = {k: exp14_cells.get((label, k))
+                for (label, k) in exp14_cells if exp14_arm_of(label) == arm}
+        if not any(rows.values()):
+            continue                               # this arm has not started
+        short = {k: (0 if f is None else len(f)) for k, f in rows.items()
+                 if f is None or len(f) < MIN_SEEDS}
+        if short:
+            problems.append(f"{arm}: publishes only as a complete two-K pair; "
+                            + ", ".join(f"K={k} has {n}/{MIN_SEEDS} seeds"
+                                        for k, n in sorted(short.items())))
+        else:
+            ready.add(arm)
+    for (label, k), files in sorted(present.items()):
+        if exp14_arm_of(label) not in ready:
+            continue                               # an unready arm cannot fix the pin
         for path in files:
             try:
                 with open(path) as fh:
@@ -396,13 +422,16 @@ def check_exp14_round(exp14_cells):
                 problems.append(f"{os.path.basename(path)}: unreadable while checking "
                                 f"the exp_14 pin ({exc})")
                 continue
-            shas.setdefault(str(sha), []).append(f"{key[0]} K={key[1]}")
+            shas.setdefault(str(sha), []).append(f"{label} K={k}")
     if len(shas) > 1:
         detail = "; ".join(f"{sha[:12]}: {sorted(set(cells))}"
                            for sha, cells in sorted(shas.items()))
-        problems.append("the exp_14 Z block spans MORE THAN ONE evaluator pin, so its "
-                        f"arms are not one-pin comparable — {detail}")
-    return problems
+        problems.append("the published exp_14 arms span MORE THAN ONE evaluator pin, so "
+                        f"VANL-vs-Cn is not a within-pin comparison — {detail}")
+        ready = set()                              # nobody publishes across pins
+    withheld = {label for label, _k in exp14_cells
+                if exp14_arm_of(label) not in ready}
+    return withheld, problems
 
 
 Q9_REQUIRED_CELLS = 4        # VANL x {K1,K8} and C4L x {K1,K8}
@@ -501,10 +530,11 @@ def build_header(evidence_ready):
         "at ONE evaluator pin, so VANL-vs-Cn among them is frame averaging alone. They "
         "are gated by `exp14_validate_cell.py` (the same predicate the screen driver and "
         "the wave submitter run) and publish only as a complete two-K, five-seed, "
-        "single-pin transaction. Declared scope: the per-position `.stream.json` "
-        "assignment audits are too large to commit beside the metric JSONs, so this gate "
-        "proves the metrics record and the submission manifest, and the assignment audit "
-        "is re-validated by `yaw_gen_collect.py` on the machine that holds it.",
+        "single-pin transaction, and each arm's pair publishes independently while all "
+        "published arms must share ONE campaign pin. The gate is the imported "
+        "`validate_cell` predicate in full: metrics record, submission manifest AND the "
+        "per-position `.stream.json` assignment audit, which must therefore travel with "
+        "the evidence — an unproved split order is not a publishable row.",
     ]
     if not evidence_ready:
         head += [
@@ -526,7 +556,9 @@ def render_row(label, proto, K, files, repo_root=None, validator_path=None, cont
     # so the exp_11 branch below would otherwise claim them and block every one on
     # an eval name its validator was never written to parse.
     if contract == "exp14z" or is_exp14_row([os.path.basename(f) for f in files]):
-        ok, problems = validate_exp14_cell(files, repo_root=repo_root)
+        ok, problems = validate_exp14_cell(files, repo_root=repo_root,
+                                           expected_arm=exp14_arm_of(label),
+                                           expected_k=K)
         if not ok:
             detail = problems[0] if problems else "unspecified"
             return (f"| {label} | {proto} | {K} | {len(files)} | "
@@ -547,13 +579,33 @@ def render_row(label, proto, K, files, repo_root=None, validator_path=None, cont
     return f"| {label} | {proto} | {K} | {n} | {cells} |", False
 
 
+def _finite_number(value):
+    """A published cell is a finite number, never a NaN wearing one's clothes."""
+    return (isinstance(value, (int, float)) and not isinstance(value, bool)
+            and math.isfinite(float(value)))
+
+
 def agg_files(files):
+    """Aggregate one cell's per-seed JSONs. RAISES on a payload it cannot print.
+
+    Round-3 review B5: a missing key raised KeyError deep inside a regeneration,
+    and a non-finite value propagated into a published mean as `nan`. Both are
+    now one named ValueError, which render_row turns into a BLOCKED row.
+    """
     if not files:
         return None, 0
     vals = {k: [] for k, _ in KEYS}
     for f in files:
-        d = json.load(open(f))["metrics"]
+        d = json.load(open(f))
+        d = d.get("metrics") if isinstance(d, dict) else None
+        if not isinstance(d, dict):
+            raise ValueError(f"{os.path.basename(f)}: no metrics object to aggregate")
         for k, kk in KEYS:
+            if kk not in d:
+                raise ValueError(f"{os.path.basename(f)}: does not report {kk}")
+            if not _finite_number(d[kk]):
+                raise ValueError(f"{os.path.basename(f)}: {kk} = {d[kk]!r} is not a "
+                                 "finite number")
             vals[k].append(d[kk])
     n = len(files)
     return {k: (st.mean(v), st.stdev(v) if n > 1 else 0.0) for k, v in vals.items()}, n
@@ -708,17 +760,18 @@ def main(argv=None):
     else:
         lines_tail = []
     # The exp_14 Z block is the same kind of transaction, one experiment later.
-    exp14_problems = check_exp14_round(exp14_cells)
+    exp14_withheld, exp14_problems = check_exp14_round(exp14_cells)
     if exp14_problems:
-        print("exp_14 Z block is not publishable as one transaction:", file=sys.stderr)
+        print("exp_14 Z rows not publishable:", file=sys.stderr)
         for problem in exp14_problems:
             print("  -", problem, file=sys.stderr)
-        for r in rendered:
-            if (r["label"], r["K"]) in exp14_cells and r["n"]:
-                r["line"] = withheld_row(r["label"], r["proto"], r["K"], r["n"],
-                                         "the exp_14 Z block publishes only as a "
-                                         "complete two-K, five-seed, single-pin set")
-        lines_tail += ["", "**exp_14 Z block WITHHELD:** " + "; ".join(exp14_problems)]
+    for r in rendered:
+        if (r["label"], r["K"]) in exp14_cells and r["n"] and r["label"] in exp14_withheld:
+            r["line"] = withheld_row(r["label"], r["proto"], r["K"], r["n"],
+                                     "this arm publishes only as a complete two-K, "
+                                     "five-seed block at the one campaign pin")
+    if exp14_problems:
+        lines_tail += ["", "**exp_14 Z rows WITHHELD:** " + "; ".join(exp14_problems)]
     two_k = check_two_k_coverage(exp11_status)
     if two_k:
         bad_labels = {p.split(":")[0] for p in two_k}

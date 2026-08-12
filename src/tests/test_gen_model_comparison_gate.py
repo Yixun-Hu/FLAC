@@ -896,38 +896,60 @@ def test_exp14_gate_validates_the_stream_sidecar_when_it_is_present(tmp_path,
     assert not ok and any("input_hash" in p for p in problems), problems
 
 
-def test_exp14_gate_admits_a_row_whose_stream_sidecar_is_not_in_this_checkout(
-        tmp_path, small_count):
-    """DECLARED SCOPE: the ~6,337-tuple assignment audits are not committed with
-    the table's evidence. The table gate proves the record and the submission
-    manifest; the per-position audit is re-validated by yaw_gen_collect.py on the
-    machine that holds it, and the header says so."""
+def test_exp14_gate_refuses_a_row_whose_stream_sidecar_is_absent(tmp_path,
+                                                                small_count):
+    """SUPERSEDED BY REVIEW B3. This test used to assert the opposite — that a
+    missing assignment audit was a declared scope reduction and a numeric row
+    could still publish. It cannot: without the sidecar the split order,
+    substitutions, tuple count and hashes are unproved, and a later collector run
+    is not coupled to publication."""
     root = _exp14_tree(tmp_path)
     files = _exp14_cell_files(root, "C8", 8)
     for path in files:
         os.remove(V14.stream_path(path))
-    ok, problems = G.validate_exp14_cell(files, repo_root=str(root))
-    assert ok, problems
-    assert "stream" in "\n".join(G.build_header(evidence_ready=True)).lower()
+    ok, problems = G.validate_exp14_cell(files, repo_root=str(root),
+                                         expected_arm="C8", expected_k=8)
+    assert not ok and any("stream" in p for p in problems), problems
+    header = "\n".join(G.build_header(evidence_ready=True))
+    assert "too large to commit" not in header, (
+        "the header still declares the scope reduction the review rejected")
 
 
 def test_exp14_round_needs_one_pin(tmp_path, small_count):
+    """Two READY arms at different pins: neither publishes."""
     root = _exp14_tree(tmp_path)
-    cells = {("C8 …", 8): _exp14_cell_files(root, "C8", 8, pin="a" * 40),
-             ("C16 …", 8): _exp14_cell_files(root, "C16", 8, pin="b" * 40)}
-    problems = G.check_exp14_round(cells)
+    cells = {}
+    for arm, pin in (("VANL", "a" * 40), ("C8", "b" * 40)):
+        for k in (1, 8):
+            cells[(f"{arm} @40k", k)] = _exp14_cell_files(root, arm, k, pin=pin)
+    withheld, problems = G.check_exp14_round(cells)
     assert problems and any("pin" in p for p in problems), problems
+    assert withheld == {"VANL @40k", "C8 @40k"}, withheld
+
+
+def test_exp14_round_gates_each_arm_independently(tmp_path, small_count):
+    """R3F4: a complete arm publishes even while another arm is half-landed."""
+    root = _exp14_tree(tmp_path)
+    cells = {("VANL @40k", 1): _exp14_cell_files(root, "VANL", 1),
+             ("VANL @40k", 8): _exp14_cell_files(root, "VANL", 8),
+             ("C8 @40k", 8): _exp14_cell_files(root, "C8", 8),
+             ("C8 @40k", 1): []}
+    withheld, problems = G.check_exp14_round(cells)
+    assert "VANL @40k" not in withheld, withheld
+    assert "C8 @40k" in withheld
+    assert problems and any("C8" in p and "K=1" in p for p in problems), problems
 
 
 def test_exp14_round_needs_both_k(tmp_path, small_count):
     root = _exp14_tree(tmp_path)
-    cells = {("C8 …", 8): _exp14_cell_files(root, "C8", 8), ("C8 …", 1): []}
-    problems = G.check_exp14_round(cells)
+    cells = {("C8 @40k", 8): _exp14_cell_files(root, "C8", 8), ("C8 @40k", 1): []}
+    withheld, problems = G.check_exp14_round(cells)
     assert problems and any("K=1" in p for p in problems), problems
+    assert withheld == {"C8 @40k"}
 
 
 def test_exp14_round_is_not_a_problem_before_anything_lands():
-    assert G.check_exp14_round({("C8 …", 8): [], ("C8 …", 1): []}) == []
+    assert G.check_exp14_round({("C8 @40k", 8): [], ("C8 @40k", 1): []}) == (set(), [])
 
 
 def test_exp14_rows_render_pending_until_the_block_lands(tmp_path):
@@ -967,3 +989,136 @@ def test_an_incomplete_exp14_round_is_withheld_never_numeric(tmp_path, small_cou
     c16 = [ln for ln in written.splitlines()
            if ln.startswith("| C16 ") and EXP14_LABEL in ln]
     assert c16 and all("WITHHELD" in ln or "pending" in ln for ln in c16), c16
+
+
+# --------------------------------------------------------------------------- #
+# 11. round-3 fixes to the exp_14 table contract
+# --------------------------------------------------------------------------- #
+def test_exp14_gate_binds_evidence_to_the_declared_row(tmp_path, small_count):
+    """R3F2 (B2): a homogeneous five-seed C16 payload renamed to match a C8 glob
+    validated under the C8 label, because the expected arm/K never reached the
+    gate. The row contract must bind them."""
+    root = _exp14_tree(tmp_path)
+    files = _exp14_cell_files(root, "C16", 8)
+    ok, problems = G.validate_exp14_cell(files, repo_root=str(root),
+                                         expected_arm="C8", expected_k=8)
+    assert not ok and any("C16" in p and "C8" in p for p in problems), problems
+    ok2, _ = G.validate_exp14_cell(files, repo_root=str(root),
+                                   expected_arm="C16", expected_k=8)
+    assert ok2
+
+
+def test_exp14_gate_binds_the_declared_k(tmp_path, small_count):
+    root = _exp14_tree(tmp_path)
+    files = _exp14_cell_files(root, "C8", 1)
+    ok, problems = G.validate_exp14_cell(files, repo_root=str(root),
+                                         expected_arm="C8", expected_k=8)
+    assert not ok and any("K" in p for p in problems), problems
+
+
+def test_exp14_gate_rejects_a_duplicate_seed_set(tmp_path, small_count):
+    """R3F2: six files with a duplicated seed passed (only MISSING seeds were
+    checked) and agg_files then averaged all six."""
+    root = _exp14_tree(tmp_path)
+    files = _exp14_cell_files(root, "C8", 8)
+    import shutil
+    dupe = files[0].replace("_s42_", "_s42dup_")
+    shutil.copy(files[0], dupe)
+    ok, problems = G.validate_exp14_cell(files + [dupe], repo_root=str(root),
+                                         expected_arm="C8", expected_k=8)
+    assert not ok and any("5" in p or "duplicate" in p.lower() for p in problems), problems
+
+
+def test_exp14_gate_requires_the_stream_audit_at_publication(tmp_path, small_count):
+    """R3F3 (B3): the stream sidecar is REQUIRED — the kit passes --record-stream
+    for every cell, so its absence is a missing artifact, not a scope decision."""
+    root = _exp14_tree(tmp_path)
+    files = _exp14_cell_files(root, "C8", 8)
+    os.remove(V14.stream_path(files[0]))
+    ok, problems = G.validate_exp14_cell(files, repo_root=str(root),
+                                         expected_arm="C8", expected_k=8)
+    assert not ok and any("stream" in p for p in problems), problems
+    line, blocked = G.render_row("C8 @40k — " + EXP14_LABEL, "fa eval (batched)", 8,
+                                 files, repo_root=str(root), contract="exp14z")
+    assert blocked and "BLOCKED" in line
+
+
+def test_exp14_gate_uses_the_top_level_validator(tmp_path, small_count):
+    """R3F3: 'the same predicate' means the imported validate_cell, not a
+    re-implementation that happens to call some of its parts."""
+    import inspect
+    src = inspect.getsource(G._exp14_cell_reasons)
+    assert "validate_cell(" in src, src
+
+
+def test_exp14_rows_publish_per_arm_not_per_campaign(tmp_path, small_count):
+    """R3F4 (B4): §5.7 sequencing regenerates the table when VANL reaches 5/5 on
+    both K. The round gate must therefore publish VANL alone, and not withhold it
+    until the other four arms finish."""
+    root = _exp14_tree(tmp_path)
+    for k in (1, 8):
+        _exp14_cell_files(root, "VANL", k)
+    assert G.main(["--repo-root", str(root)]) == 0
+    written = (root / "worklog" / "worklog_yixun" / "model_comparison.md").read_text()
+    vanl = [ln for ln in written.splitlines()
+            if ln.startswith("| VANL ") and EXP14_LABEL in ln]
+    assert len(vanl) == 2, vanl
+    for line in vanl:
+        assert "WITHHELD" not in line and "pending" not in line and " ± " in line, line
+    others = [ln for ln in written.splitlines()
+              if EXP14_LABEL in ln and ln.startswith("|") and not ln.startswith("| VANL ")]
+    assert others and all("pending" in ln for ln in others), others
+
+
+def test_exp14_one_k_arm_is_still_withheld(tmp_path, small_count):
+    """...but an arm with only one K is still not publishable."""
+    root = _exp14_tree(tmp_path)
+    _exp14_cell_files(root, "C8", 8)
+    G.main(["--repo-root", str(root)])
+    written = (root / "worklog" / "worklog_yixun" / "model_comparison.md").read_text()
+    c8 = [ln for ln in written.splitlines()
+          if ln.startswith("| C8 ") and EXP14_LABEL in ln]
+    assert c8 and all("WITHHELD" in ln or "pending" in ln for ln in c8), c8
+
+
+def test_exp14_arms_must_share_one_campaign_pin(tmp_path, small_count):
+    """R3F4: independent per-arm transactions, ONE campaign pin across all of
+    them — otherwise VANL-vs-Cn is a cross-pin comparison again."""
+    root = _exp14_tree(tmp_path)
+    for k in (1, 8):
+        _exp14_cell_files(root, "VANL", k, pin="a" * 40)
+        _exp14_cell_files(root, "C8", k, pin="b" * 40)
+    G.main(["--repo-root", str(root)])
+    written = (root / "worklog" / "worklog_yixun" / "model_comparison.md").read_text()
+    rows = [ln for ln in written.splitlines() if EXP14_LABEL in ln and ln.startswith("|")]
+    published = [ln for ln in rows if " ± " in ln]
+    assert not published, f"a mixed-pin campaign published numbers: {published}"
+    assert "MORE THAN ONE evaluator pin" in written
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf")])
+def test_a_non_finite_metric_never_reaches_the_table(tmp_path, small_count, bad):
+    """R3F5 (B5): NaN must not propagate into a published cell."""
+    root = _exp14_tree(tmp_path)
+    files = _exp14_cell_files(root, "C8", 8)
+    rec = json.load(open(files[0]))
+    rec["metrics"]["T60"] = bad
+    with open(files[0], "w") as fh:
+        json.dump(rec, fh)
+    ok, problems = G.validate_exp14_cell(files, repo_root=str(root),
+                                         expected_arm="C8", expected_k=8)
+    assert not ok and any("T60" in p for p in problems), problems
+
+
+def test_agg_files_refuses_a_broken_payload_for_any_row_family(tmp_path):
+    """R3F5: the aggregation itself must not average a NaN or raise KeyError deep
+    inside a table regeneration — for exp_11 rows just as much as exp_14 ones."""
+    good = tmp_path / "good.json"
+    good.write_text(json.dumps({"metrics": {k: 1.0 for _n, k in G.KEYS}}))
+    assert G.agg_files([str(good)])[1] == 1
+    for payload in ({"metrics": {"T60": float("nan")}},
+                    {"metrics": {"T60": 1.0}}):
+        bad = tmp_path / "bad.json"
+        bad.write_text(json.dumps(payload))
+        with pytest.raises(ValueError):
+            G.agg_files([str(bad)])

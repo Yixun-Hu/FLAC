@@ -1,0 +1,11 @@
+        """R3F2: six files with a duplicated seed passed (only MISSING seeds were
+FAILED src/tests/test_gen_model_comparison_gate.py::test_exp14_gate_binds_evidence_to_the_declared_row
+FAILED src/tests/test_gen_model_comparison_gate.py::test_exp14_gate_binds_the_declared_k
+FAILED src/tests/test_gen_model_comparison_gate.py::test_exp14_gate_rejects_a_duplicate_seed_set
+FAILED src/tests/test_gen_model_comparison_gate.py::test_exp14_gate_requires_the_stream_audit_at_publication
+FAILED src/tests/test_gen_model_comparison_gate.py::test_exp14_gate_uses_the_top_level_validator
+FAILED src/tests/test_gen_model_comparison_gate.py::test_exp14_rows_publish_per_arm_not_per_campaign
+FAILED src/tests/test_gen_model_comparison_gate.py::test_a_non_finite_metric_never_reaches_the_table[nan]
+FAILED src/tests/test_gen_model_comparison_gate.py::test_a_non_finite_metric_never_reaches_the_table[inf]
+FAILED src/tests/test_gen_model_comparison_gate.py::test_agg_files_refuses_a_broken_payload_for_any_row_family
+9 failed, 2 passed, 61 deselected, 3 warnings in 23.12s
