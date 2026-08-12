@@ -62,6 +62,12 @@ except ValueError as error:
 if not isinstance(record, dict):
     sys.exit(f"{record_path}: top level is {type(record).__name__}, not an object")
 
+# The verdict must be the TOP-LEVEL string PASS. A nested or duplicated verdict
+# elsewhere in the document means nothing.
+verdict = record.get("verdict")
+if verdict != "PASS":
+    sys.exit(f"{record_path}: top-level verdict is {verdict!r}, not 'PASS'")
+
 SCHEMA = {
     "_meta": ("experiment", "kind", "purpose", "job", "commit", "rung", "ngpu",
               "max_steps", "wall_seconds"),
@@ -78,11 +84,6 @@ for section, fields in SCHEMA.items():
     if missing:
         sys.exit(f"{record_path}: {section} is missing {missing}")
 
-# The verdict must be the TOP-LEVEL string PASS. A nested or duplicated verdict
-# elsewhere in the document means nothing.
-verdict = record.get("verdict")
-if verdict != "PASS":
-    sys.exit(f"{record_path}: top-level verdict is {verdict!r}, not 'PASS'")
 
 checks = record.get("checks")
 if not isinstance(checks, dict) or not checks:

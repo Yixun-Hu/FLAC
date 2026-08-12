@@ -639,6 +639,39 @@ expect_cmd "  ... while the mutated live copy WOULD have failed the run" 1 "MUTA
 check "  ... and the snapshot's recorded hash still matches its bytes" $?
 
 echo "--- W. NEW (full-fix F3): storage-light smoke + the promotion gate ---"
+# (record builders shared with section W2 below)
+GATE_SHA="$HEAD_SHA"
+gate() { $PY "${TMP}/gate.py" "$1" "${EXPDIR}/yaw_aug_record_control.py" \
+             "${2:-$GATE_SHA}" "${3:-8x8}" "${4:-8}" "${5:-30}"; }
+mk_record() {  # <path> <python mutation over `r`>
+  $PY - "$1" "$2" "$GATE_SHA" <<'PY'
+import json, sys
+path, mutation, commit = sys.argv[1:4]
+r = {
+    "_meta": {"experiment": "exp_15", "kind": "smoke acceptance record",
+              "purpose": "gates the production submission", "job": "4242",
+              "commit": commit, "rung": "8x8", "ngpu": 8, "max_steps": 30,
+              "wall_seconds": 31.0},
+    "measured": {"banner_verdict": "OK", "steps_observed": 30,
+                 "steps_per_second": 1.03, "peak_vram_mb": 9600.0,
+                 "peak_vram_source": "nvidia-smi sampler, 3 samples over 8 GPU(s)",
+                 "peak_vram_per_gpu_mb": {"0": 9600.0}, "checkpoints_written": False,
+                 "exit_class": 0},
+    "thresholds": {"rate_floor_steps_per_second": 0.945,
+                   "vanl_reference_steps_per_second": 1.05,
+                   "peak_vram_ceiling_mb": 36500.0},
+    "checks": {"banner_seen": True, "no_checkpoint_written": True,
+               "steps_completed": True, "rate_at_least_0.9x_VANL": True,
+               "peak_vram_measured": True, "peak_vram_within_rung_floor": True,
+               "exit_class_zero": True, "torchrun_ok": True, "tee_ok": True,
+               "wandb_provenance_ok": True, "preflight_transcript_ok": True},
+    "verdict": "PASS",
+}
+if mutation:
+    exec(mutation)
+json.dump(r, open(path, "w"), indent=2, sort_keys=True)
+PY
+}
 grep -q 'CHECKPOINT_EVERY="${SMOKE_CHECKPOINT_EVERY:-$((MAXSTEPS + 1))}"' "$LAUNCHER"
 check "the smoke's checkpoint interval defaults beyond its last step" $?
 case_run "a smoke whose interval would write a checkpoint dies" 2 "must write no checkpoints" \
@@ -651,32 +684,131 @@ ACC="${EXPDIR}/yaw_aug_smoke_acceptance.json"
 ACC_SAVED=""
 if [ -f "$ACC" ]; then ACC_SAVED="${TMP}/acceptance.saved"; cp "$ACC" "$ACC_SAVED"; fi
 rm -f "$ACC"
-expect_cmd "production is REFUSED with no acceptance record" 2 "no smoke acceptance record" -- \
+expect_cmd "production is REFUSED with no acceptance record" 2 "no readable smoke acceptance record" -- \
   env DRYRUN=1 bash "$SUBMITTER" YAWAUG
-$PY -c "
-import json,sys
-json.dump({'verdict':'FAIL','checks':{'banner_seen':False},
-           'measured':{'steps_per_second':0.4,'peak_vram_mb':None,'banner_verdict':'MISSING'}},
-          open(sys.argv[1],'w'), indent=2)" "$ACC"
-expect_cmd "production is REFUSED on a FAIL record" 2 "does not say PASS" -- \
+mk_record "$ACC" 'r["verdict"] = "FAIL"; r["checks"]["banner_seen"] = False'
+expect_cmd "production is REFUSED on a FAIL record" 2 "SMOKE ACCEPTANCE GATE" -- \
   env DRYRUN=1 bash "$SUBMITTER" YAWAUG
-$PY -c "
-import json,sys
-json.dump({'verdict':'PASS','checks':{'banner_seen':True},
-           'measured':{'steps_per_second':1.02,'peak_vram_mb':9400,'banner_verdict':'OK'}},
-          open(sys.argv[1],'w'), indent=2)" "$ACC"
-expect_cmd "production is ACCEPTED on a PASS record" 0 "smoke acceptance: PASS" -- \
+mk_record "$ACC" 'r["_meta"]["commit"] = "0"*40'
+expect_cmd "production is REFUSED on a record bound to another commit" 2 "_meta.commit" -- \
+  env DRYRUN=1 bash "$SUBMITTER" YAWAUG
+mk_record "$ACC" ""
+expect_cmd "production is ACCEPTED on a bound PASS record" 0 "bound to this submission" -- \
+  env DRYRUN=1 bash "$SUBMITTER" YAWAUG
+expect_cmd "  ... and the manifest line carries the record hash" 0 "record sha256" -- \
   env DRYRUN=1 bash "$SUBMITTER" YAWAUG
 rm -f "$ACC"
 expect_cmd "an explicit waiver submits and LOGS the reason" 0 "SMOKE WAIVER" -- \
   env DRYRUN=1 SMOKE_WAIVER="guardtest: no GPUs on this host" bash "$SUBMITTER" YAWAUG
 expect_cmd "  ... and the waived run still prints its sbatch line" 0 "DRYRUN sbatch" -- \
   env DRYRUN=1 SMOKE_WAIVER="guardtest: no GPUs on this host" bash "$SUBMITTER" YAWAUG
-grep -q 'smoke_acceptance ${ACCEPT_FILE:-<n/a>} waiver ${SMOKE_WAIVER:-<none>}' "$SUBMITTER"
-check "the submission manifest records the record path and any waiver" $?
+grep -q 'smoke_acceptance ${ACCEPT_FILE:-<n/a>} sha256' "$SUBMITTER"
+check "the submission manifest records the record path, its hash and any waiver" $?
 [ -n "$ACC_SAVED" ] && cp "$ACC_SAVED" "$ACC"
 expect_cmd "a SMOKE submission needs no acceptance record" 0 "DRYRUN sbatch" -- \
   env DRYRUN=1 SMOKE=1 SMOKE_RUNG=8x8 SMOKE_MIN_FREE_MB=14000 bash "$SUBMITTER" YAWAUG
+
+echo "--- W2. NEW (f3-fix 1): the promotion gate PARSES and BINDS the record ---"
+sed -n '/--- BEGIN acceptance-gate-python/,/--- END acceptance-gate-python/p' "$SUBMITTER" > "${TMP}/gate.py"
+grep -q 'validate_json_domain' "${TMP}/gate.py"; check "the gate is extracted and imports the recorder's type-domain helper" $?
+grep -q "grep -q '\"verdict\": \"PASS\"'" "$SUBMITTER"; check "  ... and the old substring test is gone" $((1 - $?))
+REC="${TMP}/acceptance.json"
+mk_record "$REC" ""
+expect_cmd "a well-formed, bound PASS record is accepted" 0 "" -- gate "$REC"
+[ "$(gate "$REC")" = "$(sha256sum "$REC" | awk '{print $1}')" ]
+check "  ... and the gate emits the record's same-bytes sha256" $?
+printf 'this is not json at all { "verdict": "PASS"\n' > "${TMP}/malformed.json"
+expect_cmd "malformed JSON is refused (the substring test would have passed it)" 1 "not parseable JSON" -- \
+  gate "${TMP}/malformed.json"
+printf '{"x": {"verdict": "PASS"}}\n' > "${TMP}/nested.json"
+expect_cmd "a NESTED verdict is refused" 1 "top-level verdict" -- gate "${TMP}/nested.json"
+printf '{"verdict": "PASS", "checks": {"a": true}}\n' > "${TMP}/thin.json"
+expect_cmd "a record missing whole sections is refused" 1 "is missing or not an object" -- \
+  gate "${TMP}/thin.json"
+expect_cmd "a missing record file is refused" 1 "no readable smoke acceptance record" -- \
+  gate "${TMP}/absent.json"
+mk_record "$REC" 'r["_meta"]["commit"] = "0"*40'
+expect_cmd "a STALE record from another commit is refused" 1 "_meta.commit" -- gate "$REC"
+mk_record "$REC" 'r["_meta"]["rung"] = "16x4"'
+expect_cmd "a record from another rung is refused" 1 "_meta.rung" -- gate "$REC"
+mk_record "$REC" 'r["_meta"]["ngpu"] = 4'
+expect_cmd "a record from another world size is refused" 1 "_meta.ngpu" -- gate "$REC"
+mk_record "$REC" 'r["_meta"]["max_steps"] = 500'
+expect_cmd "a record from another step budget is refused" 1 "_meta.max_steps" -- gate "$REC"
+mk_record "$REC" 'del r["checks"]["banner_seen"]; r["checks"]["banner_seen"] = False'
+expect_cmd "any FALSE check is refused" 1 "not true" -- gate "$REC"
+mk_record "$REC" 'r["checks"]["tee_ok"] = "true"'
+expect_cmd "a STRING 'true' check is refused (literal booleans only)" 1 "not true" -- gate "$REC"
+mk_record "$REC" 'r["checks"]["tee_ok"] = 1'
+expect_cmd "an INT 1 check is refused" 1 "not true" -- gate "$REC"
+mk_record "$REC" 'del r["checks"]'
+expect_cmd "a record with no checks at all is refused" 1 "'checks' is missing" -- gate "$REC"
+mk_record "$REC" 'r["verdict"] = "FAIL"'
+expect_cmd "a FAIL verdict is refused" 1 "not 'PASS'" -- gate "$REC"
+mk_record "$REC" 'r["measured"]["peak_vram_mb"] = None'
+expect_cmd "a record with no measured VRAM is refused" 1 "peak_vram_mb" -- gate "$REC"
+mk_record "$REC" 'r["measured"]["peak_vram_mb"] = float("nan")'
+expect_cmd "a non-finite VRAM value is refused by the type domain" 1 "finite" -- gate "$REC"
+mk_record "$REC" 'del r["_meta"]["wall_seconds"]'
+expect_cmd "a record missing a _meta field is refused" 1 "_meta is missing" -- gate "$REC"
+grep -q 'smoke_acceptance ${ACCEPT_FILE:-<n/a>} sha256 ${ACCEPT_SHA256:-<none>}' "$SUBMITTER"
+check "the submission manifest pins the record's sha256, not just its path" $?
+grep -q 'PINNED_SMOKE_MAXSTEPS' "$LAUNCHER"; check "the smoke's step budget is a launcher pin the gate binds to" $?
+
+echo "--- W3. NEW (f3-fix 2): the producer supersedes, measures and publishes last ---"
+sed -n '/--- BEGIN smoke-acceptance-python/,/--- END smoke-acceptance-python/p' "$LAUNCHER" > "${TMP}/producer.py"
+grep -q 'peak_vram_measured' "${TMP}/producer.py"; check "the producer is extracted and requires measured VRAM" $?
+grep -q 'superseded' "$LAUNCHER"; check "a stale record is superseded before the smoke runs" $?
+grep -q 'nvidia-smi --query-gpu=index,memory.used' "$LAUNCHER"; check "a VRAM sampler runs for the life of torchrun" $?
+grep -q 'os.replace(tmp, path)' "${TMP}/producer.py"; check "the record is published atomically" $?
+T_LINE="$(grep -n -- '--- T\. SMOKE acceptance record' "$LAUNCHER" | cut -d: -f1)"
+P_LINE="$(grep -nF 'printf' "$LAUNCHER" | grep 'FINAL_RECORD' | tail -1 | cut -d: -f1)"
+CLASSIFY_LINE="$(grep -n 'CLASSIFY_OUT="\$(python3' "$LAUNCHER" | cut -d: -f1)"
+[ -n "$T_LINE" ] && [ -n "$P_LINE" ] && [ "$T_LINE" -lt "$P_LINE" ] && [ "$CLASSIFY_LINE" -lt "$T_LINE" ]
+check "  ... at the very END of the job, after the classifier and every status" $?
+produce() {  # <out> <log> <vram-csv> <final_rc> <torchrun_rc> <tee_rc> <wandb_rc> <preflight_rc> [banner]
+  $PY "${TMP}/producer.py" "$1" "$2" "$3" 30 8 36500 "${9:-OK}" 4242 "$HEAD_SHA" 8x8 0 31 \
+      "$4" "$5" "$6" "$7" "$8"
+}
+printf 'Epoch 0: 100%%|##| 30/30 [00:28<00:00,  1.05it/s]\n' > "${TMP}/good_smoke.log"
+printf '0, 9400\n1, 9600\n0, 9500\n' > "${TMP}/vram_ok.csv"
+: > "${TMP}/vram_empty.csv"
+OUT="${TMP}/produced.json"
+rm -f "$OUT"
+expect_cmd "a clean smoke publishes PASS" 0 "smoke acceptance: PASS" -- \
+  produce "$OUT" "${TMP}/good_smoke.log" "${TMP}/vram_ok.csv" 0 0 0 0 0
+$PY -c "
+import json,sys
+r=json.load(open(sys.argv[1]))
+sys.exit(0 if r['verdict']=='PASS' and r['measured']['peak_vram_mb']==9600.0
+         and r['measured']['peak_vram_per_gpu_mb']=={'0':9500.0,'1':9600.0} else 1)" "$OUT"
+check "  ... with the per-GPU peak taken as the max over all samples and ranks" $?
+expect_cmd "  ... and the gate accepts what the producer wrote" 0 "" -- gate "$OUT"
+rm -f "$OUT"
+expect_cmd "NO measured VRAM => FAIL, never pass-by-default" 11 '"peak_vram_measured": false' -- \
+  produce "$OUT" "${TMP}/good_smoke.log" "${TMP}/vram_empty.csv" 0 0 0 0 0
+expect_cmd "  ... and the gate refuses that record" 1 "" -- gate "$OUT"
+rm -f "$OUT"
+expect_cmd "a W&B provenance failure => FAIL" 11 '"wandb_provenance_ok": false' -- \
+  produce "$OUT" "${TMP}/good_smoke.log" "${TMP}/vram_ok.csv" 0 0 0 7 0
+rm -f "$OUT"
+expect_cmd "a classifier class (nonzero exit class) => FAIL" 11 '"exit_class_zero": false' -- \
+  produce "$OUT" "${TMP}/good_smoke.log" "${TMP}/vram_ok.csv" 4 0 0 0 0
+rm -f "$OUT"
+expect_cmd "a tee failure => FAIL" 11 '"tee_ok": false' -- \
+  produce "$OUT" "${TMP}/good_smoke.log" "${TMP}/vram_ok.csv" 0 0 1 0 0
+rm -f "$OUT"
+expect_cmd "a MISSING banner => FAIL" 11 '"banner_seen": false' -- \
+  produce "$OUT" "${TMP}/good_smoke.log" "${TMP}/vram_ok.csv" 0 0 0 0 0 MISSING
+rm -f "$OUT"
+printf 'Epoch 0:  33%%|#| 10/30 [00:30<01:00,  3.00s/it]\n' > "${TMP}/slow_smoke.log"
+expect_cmd "an unfinished / too-slow smoke => FAIL" 11 '"rate_at_least_0.9x_VANL": false' -- \
+  produce "$OUT" "${TMP}/slow_smoke.log" "${TMP}/vram_ok.csv" 0 0 0 0 0
+expect_cmd "a record that cannot be written fails loudly" 1 "" -- \
+  produce "${TMP}/no_such_dir/rec.json" "${TMP}/good_smoke.log" "${TMP}/vram_ok.csv" 0 0 0 0 0
+grep -q 'SMOKE_RECORD_RC" -eq 11' "$LAUNCHER"; check "a FAIL verdict forces class 10" $?
+grep -q 'a smoke whose evidence cannot be produced has not passed (class 10)' "$LAUNCHER"
+check "  ... and so does a record-write failure" $?
 
 echo "--- X. NEW (full-fix F6): a RESTART leg is recorded in the registry ---"
 sed -n '/--- BEGIN registry-restart-python/,/--- END registry-restart-python/p' "$LAUNCHER" > "${TMP}/reg_restart.py"
