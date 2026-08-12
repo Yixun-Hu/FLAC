@@ -98,3 +98,25 @@ asked. Record schema added ONLY under the flag: top-level `by_scene`
 Batteries: 615 pytest passed (eight suites); guard suite 220 passed / 0 failed with
 `suite_rc=0`; DRYRUN grid diff empty (106 cells); zero `exp14-` jobs; campaign command
 log and pin file byte-identical on suite exit; no pin file exists (campaign not launched).
+
+## Round 3 FIX BATCH 2 — Planner ruling on per-metric aggregation
+
+| SHA | subject |
+|---|---|
+| `42fcfef` | per-metric aggregation: acoustic family scene-mean, retrieval + FD split-level |
+
+Ruling (pre-registered before any cell ran, quoted verbatim in `yaw_gen_collect.py`'s
+header and in every rendered report): per-scene applies to the ACOUSTIC-PARAMETER family
+only — T60 (incl. Invalid-T60 handling), C50, EDT. Retrieval (`RIR_to_GT_RIR_R@k`, and the
+quarantined `RIR_to_geom_R@k`) and FD use the SPLIT-LEVEL global metrics: within-scene
+retrieval among ~370 items is a different, easier task whose levels are incomparable to
+every previously published number in this program; exp_01's noise-floor calibration
+against released Table-1 was on the global quantity; one-room Frechet is small-sample
+biased. **Co-primaries: T60% (scene-mean) + RIR_to_GT_RIR_R@1 (split-level).**
+
+A reading rule, not a measurement change — both sources exist in every exp_14 record, so
+`eval_FLAC.py` and the kit are UNTOUCHED by this commit and `by_scene` stays required for
+every cell. `AGGREGATION_SOURCE` has no default (an unruled metric raises); G1/G2 read
+through it and name their source; every table column is labelled `(scene-mean)`/`(split)`.
+
+Battery: **625 pytest passed** over the eight suites. Transcripts regenerated.
