@@ -2,9 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Wait-time reporting (MANDATORY, every response)
+## Status + wait-time reporting (MANDATORY, every response)
 
-Whenever any runs are in flight that Yixun must wait on — code reviews, training, evals, probes, any background execution — END the response with: (1) an estimated completion time for EVERY running item (wall-clock ETA, not just duration), and (2) **the earliest time Yixun needs to be present** (the next moment a human decision could be required; state "no presence needed until X" when everything is autonomous).
+**Strengthened by Yixun 2026-08-11.** END EVERY response with a status block covering **ALL experiments, not only the ones running**: for each, its state (running / awaiting decision / closed) and, for anything in flight, a **wall-clock ETA (ETD), not a duration**. Then state **the earliest moment Yixun's intervention or decision is needed to steer the work** — say "no decision needed until X" only when that is literally true. Include runs owned by other sessions/checkouts that he is waiting on, clearly marked as not ours.
+
+## Ask, don't assume (MANDATORY)
+
+**Yixun 2026-08-11:** whenever you hit a problem and want confirmation about a choice — which option to take, how to do something, what to do next — **ask him**. Do not silently pick a branch and report it afterwards. Proceeding without asking is only for reversible steps that plainly follow from an instruction already given. When several open decisions exist, list them together with a recommendation for each.
 
 ## Universal code review (MANDATORY)
 
