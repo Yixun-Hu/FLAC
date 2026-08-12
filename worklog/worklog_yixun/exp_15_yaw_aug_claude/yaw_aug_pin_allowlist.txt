@@ -11,7 +11,9 @@
 # shell's `case`, where '*' also matches '/', so `src/tests/*` covers
 # subdirectories such as src/tests/fixtures/.
 #
-# Observed diff at the time of review (15 files, all matched below; note that
+# Observed diff in gate scope (16 files at the full review: 13 under src/tests
+# plus the three production files yaw_rotation.py, diffusion.py and factory.py;
+# it was 15 when this list was written and grew by one test file since). Note that
 # train.py and defaults.ini are UNCHANGED since the control — the training entry
 # point this arm runs is literally the one VANL ran):
 #
@@ -27,6 +29,7 @@
 #   src/tests/test_yaw_aug_arm_config.py
 #   src/tests/test_yaw_aug_record_control.py
 #   src/tests/test_yaw_aug_training.py
+#   src/tests/test_yaw_gen_collect.py
 #   src/tests/test_yaw_random_eval.py
 #   src/training/diffusion.py
 #   src/training/factory.py

@@ -11,7 +11,9 @@
 # adds two, both about whether this run is the EXPERIMENT it claims to be:
 #   8  the yaw_aug banner never appeared before the first step (a green run that
 #      was not actually augmented), or a green run whose banner never appeared;
-#   9  the 40,000-step checkpoint could not be produced, audited or recorded.
+#   9  the 40,000-step checkpoint could not be produced, audited or recorded;
+#  10  SMOKE only: it wrote a checkpoint (it must be storage-light) or failed its
+#      acceptance thresholds, so production may not be promoted from it.
 #
 # WHAT THIS ARM IS: vanilla-conditioned FLAC trained with a random horizontal
 # yaw applied to every training sample's CONDITIONING (plan §3.1). It is compared
@@ -174,7 +176,13 @@ case "$EXPECTED_STEP" in ''|*[!0-9]*) die "EXPECTED_STEP '${EXPECTED_STEP}' must
 # --- B. the pins decide the recipe (round-3 B1) -------------------------------
 if [ "$SMOKE" = "1" ]; then
   RUNG="${SMOKE_RUNG:-}"; MAXSTEPS="${SMOKE_MAXSTEPS:-30}"; MIN_FREE_MB="${SMOKE_MIN_FREE_MB:-}"
-  CHECKPOINT_EVERY="${SMOKE_CHECKPOINT_EVERY:-10}"
+  # STORAGE-LIGHT (plan §7-6, full-review F3). train.py always installs the
+  # checkpoint callback, so the only way to write nothing is to put the interval
+  # beyond the smoke's last step: 30 steps at every-10 would have written three
+  # 724 MB checkpoints AND charged their serialisation to the step-rate this
+  # smoke exists to measure. The epilogue asserts that nothing landed.
+  CHECKPOINT_EVERY="${SMOKE_CHECKPOINT_EVERY:-$((MAXSTEPS + 1))}"
+  [ "$CHECKPOINT_EVERY" -gt "$MAXSTEPS" ] || die "SMOKE_CHECKPOINT_EVERY ${CHECKPOINT_EVERY} <= SMOKE_MAXSTEPS ${MAXSTEPS}: the smoke must write no checkpoints - abort"
   [ -n "$RUNG" ] || die "SMOKE=1 requires SMOKE_RUNG (${PINNED_RUNG}) - abort"
   [ -n "$MIN_FREE_MB" ] || die "SMOKE=1 requires SMOKE_MIN_FREE_MB (per-GPU floor) - abort"
   # The approved smoke is the REAL rung (plan §7-6: the point is to measure the
@@ -328,6 +336,53 @@ if [ -n "$PIN_SURPRISES" ]; then
   fi
 else
   echo "launch-pin allowlist OK: $(printf '%s' "$PIN_DIFF" | grep -c . 2>/dev/null || echo 0) changed production file(s) since ${PINNED_CONTROL_COMMIT}, all allowlisted"
+fi
+
+# --- C3. run-owned code snapshot (full-review F1) -----------------------------
+# The closure above proves the tree is right AT START. It cannot prove anything
+# about hour 11: this job runs for ~11 hours in a shared checkout where two other
+# sessions commit continuously, and its END-OF-RUN code — the completion audit's
+# recorder, the classifier, the W&B readback — was being imported live from that
+# moving tree. A mid-run edit could therefore change admission behaviour, or turn
+# a finished 11-hour run into a class-9 failure, long after every gate had passed.
+#
+# So the moment the closure passes, the job takes its OWN copy of that code and
+# runs nothing else afterwards. The hashes go into the launch manifest, so the
+# artifact records which bytes actually judged it.
+CODE_SNAPSHOT=""
+SNAPSHOT_SHAS=()
+snap() {   # <basename> -> the run-owned copy (or the live path in DRYRUN)
+  if [ -n "$CODE_SNAPSHOT" ]; then echo "${CODE_SNAPSHOT}/$1"; else
+    case "$1" in
+      yaw_aug_*) echo "${EXPDIR}/$1" ;;
+      FLAC_AR_*) echo "${EXPDIR}/$1" ;;
+      *)         echo "${EXP11DIR}/$1" ;;
+    esac
+  fi
+}
+SNAPSHOT_SOURCES=(
+  "$EXPDIR/yaw_aug_record_control.py"        # imported by the completion audit
+  "$EXPDIR/FLAC_AR_YAWAUG.json"              # compared against the embedded config
+  "$EXP11DIR/fa_orbit_classify.py"           # decides the exit class
+  "$EXP11DIR/fa_orbit_wandb_readback.py"     # decides the provenance verdict
+  "$EXP11DIR/fa_orbit_ckpt_preflight.py"     # RESTART admission
+)
+if [ "$DRYRUN" = "1" ]; then
+  echo "code snapshot: skipped in DRYRUN (a real launch copies and hashes here);"
+  echo "  would snapshot: $(printf '%s ' "${SNAPSHOT_SOURCES[@]##*/}")"
+else
+  CODE_SNAPSHOT="${SAVEDIR}/code_snapshot_jid${SLURM_JOB_ID}"
+  mkdir -p "$CODE_SNAPSHOT" || die "could not create the code snapshot dir ${CODE_SNAPSHOT} - abort" 3
+  for SNAP_SRC in "${SNAPSHOT_SOURCES[@]}"; do
+    [ -f "$SNAP_SRC" ] || die "cannot snapshot ${SNAP_SRC}: not a file - abort" 3
+    SNAP_DST="${CODE_SNAPSHOT}/$(basename "$SNAP_SRC")"
+    cp -p "$SNAP_SRC" "$SNAP_DST" || die "could not snapshot ${SNAP_SRC} - abort" 3
+    cmp -s "$SNAP_SRC" "$SNAP_DST" || die "snapshot of ${SNAP_SRC} does not match its source - abort" 3
+    SNAPSHOT_SHAS+=("$(sha256sum "$SNAP_DST" | awk '{print $1}')  $(basename "$SNAP_SRC")")
+  done
+  chmod a-w "$CODE_SNAPSHOT"/* 2>/dev/null || true
+  echo "code snapshot: ${CODE_SNAPSHOT}"
+  printf '  %s\n' "${SNAPSHOT_SHAS[@]}"
 fi
 
 # --- D. arm -> config (single source) + semantic gate -------------------------
@@ -684,7 +739,7 @@ if [ "$MODE" = "RESTART" ]; then
   # forbids (the endpoint is pre-registered at 40k). A crash restart here keeps
   # the ORDINARY contract — same budget, same commit, same config, bound to this
   # arm's own launch manifest — which is the stricter of the two.
-  PRE_OUT="$(python3 "$EXP11DIR/fa_orbit_ckpt_preflight.py" "${PRE_ARGS[@]}" 2>&1)"
+  PRE_OUT="$(python3 "$(snap fa_orbit_ckpt_preflight.py)" "${PRE_ARGS[@]}" 2>&1)"
   echo "$PRE_OUT"
   echo "$PRE_OUT" | grep -q "^CKPT_SHA256 " || die "restart preflight FAILED - abort"
   CKPT_SHA="$(echo "$PRE_OUT" | awk '/^CKPT_SHA256 /{print $2}')"
@@ -796,6 +851,8 @@ rm -f "$PIPFREEZE_FILE"
   echo "resume_ckpt ${RESUME_CKPT:-<none>} expected_step ${EXPECTED_STEP} resume_ckpt_sha256 ${CKPT_SHA:-<none>}"
   echo "save_dir ${SAVEDIR}"
   echo "slurm_transcript ${SLURM_OUT_AT_LAUNCH:-<unknown>} untrack ${UNTRACK_STATE}"
+  echo "code_snapshot ${CODE_SNAPSHOT:-<none>}"
+  for SHA_LINE in "${SNAPSHOT_SHAS[@]:-}"; do [ -n "$SHA_LINE" ] && echo "snapshot_sha256 ${SHA_LINE}"; done
   echo "train_log ${TRAINLOG}"
   echo "train_log_copy ${SAVEDIR_LOG}"
   echo "wandb_entity ${WANDB_ENTITY_SEEN} wandb_project ${NAME} wandb_name ${EXPNAME}"
@@ -851,6 +908,42 @@ json.dump(reg, open(tmp, "w"), indent=2, sort_keys=True)
 os.replace(tmp, path)
 print(f"registered {arm} in {path} (job {job}, uuid {uuid})")
 # --- END registry-init-python ---
+PY
+else
+  # --- RESTART provenance (full-review F6) ------------------------------------
+  # The registry declared a "restarts" object that only INITIAL ever wrote to, so
+  # a resumed lineage was recoverable only by reading manifests. A restart leg is
+  # part of how the final checkpoint came to exist; it belongs in the record.
+  python3 - "$LAUNCH_REGISTRY" "$ARM" "$MANIFEST" "$SLURM_JOB_ID" "$LAUNCH_UUID" \
+           "$RESUME_CKPT" "$CKPT_SHA" "$EXPECTED_STEP" "$MAXSTEPS" "$HEAD_SHA" \
+    <<'PY' || die "restart registry write FAILED — refusing to run an unrecorded leg - abort" 3
+# --- BEGIN registry-restart-python (guard-tested by yaw_aug_train_guardtests.sh) ---
+import hashlib, json, os, sys
+(path, arm, manifest, job, uuid, resume_ckpt, ckpt_sha, expected_step,
+ max_steps, commit) = sys.argv[1:11]
+if not os.path.exists(path):
+    sys.exit(f"{path} does not exist: a RESTART presupposes a registered INITIAL")
+reg = json.load(open(path))
+reg.setdefault("restarts", {})
+if arm not in reg.get("arms", {}):
+    sys.exit(f"{arm} has no INITIAL entry in {path}: refusing to record an orphan restart")
+legs = reg["restarts"].setdefault(arm, [])
+if any(leg.get("job") == job for leg in legs):
+    sys.exit(f"job {job} is already recorded as a restart leg of {arm}")
+legs.append({
+    "job": job, "launch_uuid": uuid, "commit": commit,
+    "manifest_path": manifest,
+    "manifest_sha256": hashlib.sha256(open(manifest, "rb").read()).hexdigest(),
+    "resume_ckpt_path": resume_ckpt,
+    "resume_ckpt_sha256": ckpt_sha or None,
+    "resume_step": int(expected_step), "max_steps": int(max_steps),
+})
+tmp = path + ".tmp"
+json.dump(reg, open(tmp, "w"), indent=2, sort_keys=True)
+os.replace(tmp, path)
+print(f"restart leg recorded for {arm}: job {job} resuming step {expected_step} "
+      f"(ckpt sha {(ckpt_sha or '<none>')[:12]}…)")
+# --- END registry-restart-python ---
 PY
 fi
 
@@ -957,7 +1050,7 @@ echo "yaw_aug banner verdict: ${BANNER_VERDICT}"
 # wandb embeds in the directory name, across both candidate roots. Exactly one
 # match is required; a mismatch is a provenance failure (class 7), not a footnote.
 WANDB_CHECK_RC=0
-python3 "$EXP11DIR/fa_orbit_wandb_readback.py" --run-id "$WANDB_RUN_ID" \
+python3 "$(snap fa_orbit_wandb_readback.py)" --run-id "$WANDB_RUN_ID" \
   --root "$REPO" --root "$WANDB_DIR" \
   --entity "$WANDB_ENTITY" --project "$NAME" --name "$EXPNAME" || WANDB_CHECK_RC=$?
 if [ "$WANDB_CHECK_RC" -ne 0 ]; then
@@ -965,7 +1058,7 @@ if [ "$WANDB_CHECK_RC" -ne 0 ]; then
 fi
 
 # --- R. classification (tested taxonomy; see fa_orbit_classify.py) ------------
-CLASSIFY_OUT="$(python3 "$EXP11DIR/fa_orbit_classify.py" --rc "$rc" --tee-rc "$tee_rc" --ngpu "$NGPU" \
+CLASSIFY_OUT="$(python3 "$(snap fa_orbit_classify.py)" --rc "$rc" --tee-rc "$tee_rc" --ngpu "$NGPU" \
   --maxsteps "$MAXSTEPS" --log "$TRAINLOG" --log-copy "$SAVEDIR_LOG" 2>&1)"
 final_rc=$?
 echo "$CLASSIFY_OUT"
@@ -986,14 +1079,89 @@ LAST_CKPT="$(ls -1t "${RUNDIR}/checkpoints"/*.ckpt 2>/dev/null | head -1)"
 # checkpoint identified only by a path.
 if [ "$SMOKE" = "1" ]; then
   echo "completion audit: skipped (SMOKE has no 40k endpoint; its registry is ${LAUNCH_REGISTRY})"
+  # --- R3. smoke epilogue: storage assertion + acceptance record (F3) ---------
+  # The smoke's job is to answer two questions before 88 GPU-hours are spent:
+  # does the augmented path still run at the rung's rate, and does it fit? The
+  # answers become a RECORD, and yaw_aug_submit.sh refuses to submit production
+  # without a PASSing one — the sequencing is structural, not a note in a doc.
+  SMOKE_CKPTS="$(find "$RUNDIR" -name '*.ckpt' -type f 2>/dev/null | head -5)"
+  if [ -n "$SMOKE_CKPTS" ]; then
+    echo "SMOKE STORAGE VIOLATION: the storage-light smoke wrote checkpoint(s):"
+    printf '%s\n' "$SMOKE_CKPTS" | sed 's/^/    /'
+    final_rc=10
+  fi
+  SMOKE_ACCEPT="${EXPDIR}/yaw_aug_smoke_acceptance.json"
+  python3 - "$SMOKE_ACCEPT" "$TRAINLOG" "$MAXSTEPS" "$NGPU" "$MIN_FREE_MB" "$BANNER_VERDICT" \
+           "$SLURM_JOB_ID" "$HEAD_SHA" "$RUNG" "$([ -n "$SMOKE_CKPTS" ] && echo 1 || echo 0)" \
+           "$SECONDS" <<'PY' || echo "SMOKE ACCEPTANCE: record write FAILED"
+import json, os, re, sys
+(path, log, max_steps, ngpu, min_free_mb, banner, job, commit, rung,
+ wrote_ckpt, wall_s) = sys.argv[1:12]
+max_steps, ngpu, wall_s = int(max_steps), int(ngpu), float(wall_s)
+text = open(log, errors="replace").read() if os.path.exists(log) else ""
+
+# steps/s: PL's progress bar prints "<it>/<total> [elapsed<remaining, R it/s]" or
+# "s/it"; take the LAST rate it reported, converting s/it if that is the form.
+rate = None
+for value, unit in re.findall(r'([0-9.]+)(s/it|it/s)', text):
+    try:
+        v = float(value)
+    except ValueError:
+        continue
+    rate = (1.0 / v) if unit == "s/it" and v else (v if unit == "it/s" else rate)
+steps = 0
+for m in re.finditer(r'(\d+)/(\d+)\s*\[', text):
+    steps = max(steps, int(m.group(1)))
+# peak VRAM: whatever the run reported, else left null for the operator to fill
+peaks = [float(x) for x in re.findall(r'max_memory_allocated[^0-9]*([0-9.]+)', text)]
+peak_mb = max(peaks) if peaks else None
+
+VANL_RATE = 1.05                 # measured VANL steps/s at this rung (plan §7-6)
+RATE_FLOOR = 0.9 * VANL_RATE
+checks = {
+    "banner_seen": banner == "OK",
+    "no_checkpoint_written": wrote_ckpt == "0",
+    "steps_completed": steps >= max_steps,
+    "rate_at_least_0.9x_VANL": (rate is not None and rate >= RATE_FLOOR),
+    "peak_vram_within_rung_floor": (peak_mb is None or peak_mb <= float(min_free_mb)),
+}
+record = {
+    "_meta": {"experiment": "exp_15", "kind": "smoke acceptance record",
+              "purpose": "gates the production submission (yaw_aug_submit.sh)",
+              "job": job, "commit": commit, "rung": rung, "ngpu": ngpu,
+              "max_steps": max_steps, "wall_seconds": round(wall_s, 1)},
+    "measured": {"banner_verdict": banner, "steps_observed": steps,
+                 "steps_per_second": rate, "peak_vram_mb": peak_mb,
+                 "peak_vram_source": "log readback" if peak_mb is not None else "not reported",
+                 "checkpoints_written": wrote_ckpt == "1"},
+    "thresholds": {"rate_floor_steps_per_second": RATE_FLOOR,
+                   "vanl_reference_steps_per_second": VANL_RATE,
+                   "peak_vram_ceiling_mb": float(min_free_mb)},
+    "checks": checks,
+    "verdict": "PASS" if all(checks.values()) else "FAIL",
+}
+tmp = path + ".tmp"
+with open(tmp, "w") as fh:
+    json.dump(record, fh, indent=2, sort_keys=True)
+os.replace(tmp, path)
+print(f"smoke acceptance: {record['verdict']} -> {path}")
+print("  " + json.dumps(record["checks"], sort_keys=True))
+print(f"  rate {rate} steps/s (floor {RATE_FLOOR}), peak {peak_mb} MB, steps {steps}/{max_steps}")
+PY
+  if [ -f "$SMOKE_ACCEPT" ] && ! grep -q '"verdict": "PASS"' "$SMOKE_ACCEPT"; then
+    echo "SMOKE ACCEPTANCE: FAIL — production must not be submitted on this evidence"
+    [ "$final_rc" -eq 0 ] && final_rc=10
+  fi
 elif [ "$final_rc" -ne 0 ]; then
   echo "completion audit: skipped (the run did not finish cleanly: class ${final_rc})"
 else
   # The checkpoint is selected by the endpoint it must BE, not by mtime: PL names
   # it epoch=<N>-step=<STEP>.ckpt, so exactly one file may match the pinned step.
   COMPLETION_RC=0
-  python3 - "$EXPDIR/yaw_aug_record_control.py" "$LAUNCH_REGISTRY" "$ARM" \
-           "${RUNDIR}/checkpoints" "$MAXSTEPS" "$MODEL_CONFIG_ABS" <<'PY' || COMPLETION_RC=$?
+  # BOTH the recorder and the config it compares against are the run-owned
+  # snapshots (full-review F1), so an hour-11 edit cannot change this verdict.
+  python3 - "$(snap yaw_aug_record_control.py)" "$LAUNCH_REGISTRY" "$ARM" \
+           "${RUNDIR}/checkpoints" "$MAXSTEPS" "$(snap FLAC_AR_YAWAUG.json)" <<'PY' || COMPLETION_RC=$?
 # --- BEGIN completion-audit-python (guard-tested by yaw_aug_train_guardtests.sh) ---
 import glob, importlib.util, json, os, sys
 

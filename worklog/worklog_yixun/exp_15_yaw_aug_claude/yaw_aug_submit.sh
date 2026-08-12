@@ -71,6 +71,31 @@ else
     [ "$V" != "$PLACEHOLDER" ] || { echo "the launcher still carries ${PLACEHOLDER} pins: the P0 report has not been pinned yet — no arm may be submitted (use SMOKE=1 for the smoke) - abort"; exit 2; }
   done
   JOBNAME="exp15-${ARM}-train"
+  # --- promotion gate (full-review F3) ---------------------------------------
+  # Production is promoted FROM the smoke, not queued beside it. The plan's
+  # ladder puts the smoke before the launch precisely so 88 GPU-hours are never
+  # spent on an unmeasured recipe; two independently queued jobs would let them
+  # start in either order (and fight over the same arm lock). So: a production
+  # submission requires a PASSing smoke acceptance record, or an explicit,
+  # reasoned waiver that is recorded in the submission manifest.
+  ACCEPT_FILE="${EXPDIR}/yaw_aug_smoke_acceptance.json"
+  SMOKE_WAIVER="${SMOKE_WAIVER:-}"
+  if [ -n "$SMOKE_WAIVER" ]; then
+    echo "SMOKE WAIVER: production submitted without a passing smoke record."
+    echo "  reason: ${SMOKE_WAIVER}"
+  elif [ ! -f "$ACCEPT_FILE" ]; then
+    echo "no smoke acceptance record at ${ACCEPT_FILE} - abort"
+    echo "  run the smoke first (SMOKE=1 SMOKE_RUNG=8x8 SMOKE_MIN_FREE_MB=... $0 ${ARM}),"
+    echo "  or set SMOKE_WAIVER='<reason>' to submit deliberately without one."
+    exit 2
+  elif ! grep -q '"verdict": "PASS"' "$ACCEPT_FILE"; then
+    echo "the smoke acceptance record ${ACCEPT_FILE} does not say PASS - abort"
+    grep -E '"(verdict|steps_per_second|peak_vram_mb|banner_verdict)"' "$ACCEPT_FILE" | sed 's/^/    /'
+    echo "  fix the recipe or set SMOKE_WAIVER='<reason>' to override deliberately."
+    exit 2
+  else
+    echo "smoke acceptance: PASS (${ACCEPT_FILE})"
+  fi
 fi
 case "$RUNG" in 8x8) ;; *) echo "rung '${RUNG}' must be 8x8 — exp_15 has ONE topology, smoke included - abort"; exit 2;; esac
 MB="${RUNG%x*}"; NGPU="${RUNG#*x}"
@@ -134,6 +159,7 @@ TMP="$(mktemp "${MANIFEST}.XXXXXX")" || exit 3
   echo "commit ${SHA}"
   echo "pins rung=${RUNG} maxsteps=$(pin PINNED_MAXSTEPS) ckpt_every=$(pin PINNED_CHECKPOINT_EVERY) min_free_mb=$(pin PINNED_MIN_FREE_MB) p0_manifest_sha256=$(pin PINNED_P0_MANIFEST_SHA256)"
   echo "resume ${RESUME_CKPT:-<none>} expected_step ${EXPECTED_STEP}"
+  echo "smoke_acceptance ${ACCEPT_FILE:-<n/a>} waiver ${SMOKE_WAIVER:-<none>}"
   echo "sbatch sbatch ${ARGS[*]}"
 } >> "$TMP" || { echo "intent manifest write failed - abort"; exit 3; }
 mv -n "$TMP" "$MANIFEST" || { echo "intent manifest publication failed - abort"; exit 2; }
