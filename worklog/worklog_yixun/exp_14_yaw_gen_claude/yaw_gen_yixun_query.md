@@ -28,3 +28,11 @@
 **User's assumption/hypothesis:** unchanged — higher-order groups are expected to be more robust under random yaw than lower-order groups and vanilla.
 
 **Why the amendment:** Expected performance under uniformly-random yaw is the deployment-relevant estimand (a single robustness number per arm), rather than per-angle curves tied to the groups' own special angles. It also collapses the run grid (no angle dimension), at the cost of one small, guarded extension to `eval_FLAC.py` (per-sample random rotation mode — the current `--rotate-deg` applies one fixed angle to the whole run).
+
+## Query 3 — 2026-08-11T21:39 EDT (conditional launch approval)
+
+**Verbatim:**
+
+> Once the ladder passes, launch approve
+
+**Summary:** Launch of the full 106-cell campaign (Z + R waves after the V-cell/probe ladder rungs) is APPROVED, conditional only on the validation ladder passing (V-cell gates G1/G2 + assignment/golden gates + timing probe). No further sign-off needed between ladder pass and full-wave submission. If any ladder gate fails: halt and report, no launch.
