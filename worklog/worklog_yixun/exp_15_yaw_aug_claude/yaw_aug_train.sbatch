@@ -604,6 +604,7 @@ python3 - "$PINNED_CONTROL_MANIFEST" "$PINNED_CONTROL_MANIFEST_SHA256" \
          "$EXP11DIR/arm_launch_registry.json" "$PINNED_TORCH_VERSION" \
          "$PINNED_PL_VERSION" "$PINNED_VAE_SHA256" \
   <<'PY' || die "control env cross-check FAILED - abort"
+# --- BEGIN control-env-python (guard-tested by yaw_aug_train_guardtests.sh) ---
 import hashlib, json, re, sys
 path, pinned_sha, registry, want_torch, want_pl, want_vae = sys.argv[1:7]
 
@@ -640,6 +641,7 @@ if bad:
 print(f"control env cross-check OK: manifest sha {got} matches the reviewed pin AND "
       f"exp_11's live registry; torch and VAE agree (PL {want_pl} is gated against "
       "the live import; the control manifest does not record it)")
+# --- END control-env-python ---
 PY
 
 # --- J. per-GPU free-VRAM gate (floor from the pins) --------------------------
@@ -824,6 +826,7 @@ if [ "$MODE" = "INITIAL" ]; then
   python3 - "$LAUNCH_REGISTRY" "$ARM" "$MANIFEST" "$SLURM_JOB_ID" "$LAUNCH_UUID" "$HEAD_SHA" \
            "$RUNG" "$MAXSTEPS" "$CONFIG_SHA" "$VAE_SHA" "$SAVEDIR" "$WANDB_RUN_ID" \
     <<'PY' || die "launch registry write FAILED — refusing to run an unregistered job - abort" 3
+# --- BEGIN registry-init-python (guard-tested by yaw_aug_train_guardtests.sh) ---
 import hashlib, json, os, sys
 (path, arm, manifest, job, uuid, commit, rung, max_steps, config_sha,
  vae_sha, save_dir, wandb_run_id) = sys.argv[1:13]
@@ -846,6 +849,7 @@ tmp = path + ".tmp"
 json.dump(reg, open(tmp, "w"), indent=2, sort_keys=True)
 os.replace(tmp, path)
 print(f"registered {arm} in {path} (job {job}, uuid {uuid})")
+# --- END registry-init-python ---
 PY
 fi
 
@@ -989,6 +993,7 @@ else
   COMPLETION_RC=0
   python3 - "$EXPDIR/yaw_aug_record_control.py" "$LAUNCH_REGISTRY" "$ARM" \
            "${RUNDIR}/checkpoints" "$MAXSTEPS" "$MODEL_CONFIG_ABS" <<'PY' || COMPLETION_RC=$?
+# --- BEGIN completion-audit-python (guard-tested by yaw_aug_train_guardtests.sh) ---
 import glob, importlib.util, json, os, sys
 
 recorder_path, registry, arm, ckpt_dir, max_steps, config_path = sys.argv[1:7]
@@ -1048,6 +1053,7 @@ print(f"completion audit OK: {os.path.basename(ckpt)} step {step} sha256 {digest
 print(f"  EMA {ema['ema_key_count']} keys mirror {ema['online_model_key_count']} "
       f"online DiT keys; inventory {ema['ema_inventory_sha256']}")
 print(f"registry: {arm} final_ckpt_sha256 recorded in {registry}")
+# --- END completion-audit-python ---
 PY
   if [ "$COMPLETION_RC" -ne 0 ]; then
     echo "COMPLETION AUDIT FAILED (rc ${COMPLETION_RC}): the 40k checkpoint was not"
