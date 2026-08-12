@@ -1,0 +1,32 @@
+# Verdict: REQUEST-CHANGES
+
+v2 is a materially better pilot, but it does not yet establish that draw-sharing caused the exp_11 regression.
+
+1. **BLOCKING — uncertainty is missing.**  
+   The statistic at [probe:43](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_10_fa_scratch_resume_claude/rope_sharing_dispersion_probe.py:43) is a reasonable descriptive measure of stochastic output dispersion, but using the same 16 observations to estimate `xbar` and deviations biases it downward; it is not “exactly” noise variance. Prefer
+   \[
+   \sqrt{\sum_s\|x_s-\bar x\|_F^2/(n-1)}/\|\bar x\|_F.
+   \]
+   The cap32→96 changes are only context `+0.00396` = `+0.396 pp`, `+9.48%`, and source `+0.00291` = `+0.291 pp`, `+6.40%` ([raw:4](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_10_fa_scratch_resume_claude/a5v2_rope_sharing_dispersion.json:4), [raw:36](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_10_fa_scratch_resume_claude/a5v2_rope_sharing_dispersion.json:36)). `n=16` is not demonstrably sufficient without uncertainty.
+
+   Add a paired seed bootstrap that resamples the same seed indices across all caps and recomputes each cap’s MC mean and dispersion. Report simultaneous 95% CIs for `64−32`, `96−64`, `96−32`, and log-ratios across both ViTs. Persist seed-level results or an `S×S` Gram matrix; the present JSON retains only aggregates ([probe:105](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_10_fa_scratch_resume_claude/rope_sharing_dispersion_probe.py:105), [raw:100](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_10_fa_scratch_resume_claude/a5v2_rope_sharing_dispersion.json:100)). Treat these 16 as a pilot and size a disjoint confirmation run to a preregistered CI-width/effect threshold—likely substantially more seeds, plausibly 64–128+, but the required number cannot be derived from the aggregate artifact.
+
+2. **BLOCKING — fixed B/data isolates the operational cap schedule, not pure sharing.**  
+   Holding samples and B fixed ([probe:77](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_10_fa_scratch_resume_claude/rope_sharing_dispersion_probe.py:77)) fixes v1’s largest defect. Nevertheless, cap changes the stacked forward from 32 to 64 to 96 rows and changes the number and assignment of RNG draws ([probe:89](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_10_fa_scratch_resume_claude/rope_sharing_dispersion_probe.py:89), [yaw_rotation.py:501](/home/yixunhu/codespace/FLAC/src/data/yaw_rotation.py:501), [yaw_rotation.py:507](/home/yixunhu/codespace/FLAC/src/data/yaw_rotation.py:507)). Thus the result estimates “changing this production cap,” including GEMM/kernel shape and RNG topology, not the pure covariance effect of shared draws.
+
+   Add a fixed-shape experiment that pre-generates RoPE scales and injects mappings `[a,b,c]`, `[a,a,b]`, `[a,a,a]` while executing identical one-angle forwards. Separately run the changing chunk shapes with RoPE fixed/disabled to bound shape-only effects.
+
+3. **HIGH — the untrained-conditioner limitation remains fatal for the exp_11 explanation.**  
+   Seeding and hashing make this initialization reproducible ([probe:73](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_10_fa_scratch_resume_claude/rope_sharing_dispersion_probe.py:73)), but the helper still constructs a new model without loading an experiment checkpoint ([helper:280](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_equiv_probe.py:280)); the projection is freshly initialized ([conditioners.py:478](/home/yixunhu/codespace/FLAC/src/models/conditioners.py:478)), and the DINO backbone was trainable in the real arms. This is acceptable only as an “initialization-only mechanism pilot.” It cannot quantify either trained FA conditioner.
+
+   Likewise, the A5 cap32→96 dispersion delta and exp_11’s FA−vanilla EDT `+4.180 ms` ([exp_11 worklog:337](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_worklog.md:337)) are different estimands with different units. Directional plausibility exists, but the magnitudes do **not obviously match**; the writeup must say so. Only matched training with per-angle versus shared draws can establish causality.
+
+4. **HIGH — exact-zero eval shows determinism, not a numerical floor for the increment.**  
+   Dispersion is computed across repeated seeds within each cap. With eval-mode RoPE disabled, identical repetitions necessarily give zero. The driver never compares eval tensors *between caps*; it merely takes the maximum within-cap dispersion ([probe:116](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_10_fa_scratch_resume_claude/rope_sharing_dispersion_probe.py:116)). Therefore zero supports that train-mode seed sensitivity is real stochasticity, but it does not exclude cap-dependent GEMM effects or validate the monotone increments. Also, `train > 10*floor` becomes vacuous when `floor == 0` ([probe:123](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_10_fa_scratch_resume_claude/rope_sharing_dispersion_probe.py:123)). Add direct cross-cap tensor deviations, fixed-RoPE train mode, and fp32-highest controls.
+
+5. **MEDIUM — driver/provenance is not fail-closed.**  
+   Missing ViT IDs are silently skipped ([probe:98](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_10_fa_scratch_resume_claude/rope_sharing_dispersion_probe.py:98)); there are no finite/shape checks or `seeds >= 2` guard; duplicate effective partitions overwrite through the `shared_angles` dictionary, and incomplete cells can pass monotonicity vacuously ([probe:116](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_10_fa_scratch_resume_claude/rope_sharing_dispersion_probe.py:116)). Require exactly both ViTs and all six cells.
+
+   Provenance records only `HEAD`, not dirty state or driver/helper/config hashes ([probe:124](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_10_fa_scratch_resume_claude/rope_sharing_dispersion_probe.py:124)). The JSON records `7a575c5` ([raw:221](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_10_fa_scratch_resume_claude/a5v2_rope_sharing_dispersion.json:221)), but the driver was first committed later in `ce9003a`; the run therefore does not cryptographically bind its own source. Record full commit, dirty diff/status, full script/helper/config/dataset hashes, exact seed list, package/CUDA versions, matmul policy, and full parameter hash.
+
+No files were modified.
