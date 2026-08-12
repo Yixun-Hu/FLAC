@@ -142,3 +142,27 @@ Not mine, recorded for the Planner: **B5** (the launch sequence asks G1/G2 to pa
 Z exists — acceptance criteria need re-ordering: V/probe establish validity, assets, timing
 and G3; G1/G2/G4 only after Z lands) and **B7** (per-scene recording also recomputes
 per-scene FD/retrieval the ruling never reads — handled as a smoke-timing acceptance bound).
+
+## Round 3 FIX BATCH 4 — the per-scene grouping, corrected by rung 1's real data
+
+| SHA | subject |
+|---|---|
+| `3c2bcbe` | per-scene means 10 ROOM FAMILIES, not 17 rooms (validator key set, kit, collector, docs) |
+
+Rung 1 (C4L@90, jid 3682720) evaluated correctly and was refused by its own validator:
+`by_scene covers 10 scene(s), not the split's 17`. **The artifact was right.** `AR_md.py:27`
+sets `md['scene']` to the room FAMILY (`rel_path[-3]`), so the released callback's
+per-scene grouping is the split's **10 families**; the 17 physical rooms are the split's
+content. The check is now an exact KEY SET (`EXPECTED_SCENE_KEYS`), which is strictly
+stronger than the count it replaces.
+
+**Rung 1 is retroactively COMPLETE**: `check` returns VALID over all three artifacts, and
+`classify --wave vctl` reports `C4L vctl … VALID` with the other five controls `MISSING`.
+
+Battery: 641 pytest passed · guard 238/0 `suite_rc=0` · DRYRUN 106 empty · transcripts
+regenerated · no eval rerun.
+
+Nonfatal note: rung 1's log carries `OSError [Errno 16] Device or resource busy: '.nfs…'`
+from `multiprocessing.util._remove_temp_dir` (DataLoader worker temp dirs on NFS). They
+fire at worker teardown BEFORE the artifacts are written, touch no artifact path, and both
+sidecar hashes recompute over all 6,337 tuples — no integrity risk.
