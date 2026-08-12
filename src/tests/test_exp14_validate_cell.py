@@ -1109,3 +1109,34 @@ def test_check_argv_carries_the_scene_expectation():
                         expected_count=6337)
     assert "--expected-scenes" in argv
     assert argv[argv.index("--expected-scenes") + 1] == str(V.EXPECTED_SCENES)
+
+
+def test_the_contract_records_angles_as_the_flag_spells_them():
+    """round-3 closure B3: the intent documents --frame-avg-angles, so it must
+    carry the value that flag receives — not the filename-safe rendering."""
+    cell = V.Cell("C32", "rgen", 40000, 42, 8, None)
+    line = [l for l in V.contract_lines(cell) if l.startswith("frame_avg_angles")][0]
+    assert "11.25" in line and "p25" not in line, line
+    vanilla = V.Cell("VANL", "vctl", 40000, 42, 8, 90.0)
+    assert "frame_avg_angles <none:vanilla>" in V.contract_lines(vanilla)
+
+
+def test_the_contract_covers_every_protocol_field_announcement_05_requires():
+    cell = V.Cell("C8", "zref", 40000, 43, 1, None)
+    text = "\n".join(V.contract_lines(cell))
+    for needle in ("cond_method fa_invariant", "frame_avg_angles 0,45,",
+                   "training_orbit 8", "rotate_mode fixed", "rotate_deg 0",
+                   V.SPLIT_K1, "expected_stream_count 6337", "record_stream yes",
+                   "record_per_scene yes", "expected_scenes 17",
+                   "batch_size 64 num_workers 4", "cond_autocast bf16",
+                   "cfg_scale 1.0 steps 1 use_ema yes"):
+        assert needle in text, f"the contract omits {needle!r}"
+
+
+def test_the_contract_refuses_an_unregistered_cell():
+    import io, contextlib
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err):
+        rc = V.main(["contract", "--arm", "C8", "--cell", "zref", "--step", "40000",
+                     "--seed", "47", "--k", "8"])
+    assert rc == 2 and "not registered" in err.getvalue()

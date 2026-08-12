@@ -630,6 +630,61 @@ def check_argv(cell, metrics, pin=None, ckpt_sha=None, expected_count=EXPECTED_C
     return argv
 
 
+def _fmt_angle(deg):
+    """``90.0 -> '90'``, ``11.25 -> '11.25'`` — the flag's own spelling."""
+    d = float(deg)
+    return str(int(d)) if d.is_integer() else repr(d)
+
+
+def contract_lines(cell):
+    """The PROTOCOL CONTRACT for one cell, as the pre-launch intent records it.
+
+    Announcement 05: the eval-protocol flags are part of the experiment, and a
+    launch record has to be readable for protocol compliance on its own. The
+    post-run ``.screenmeta.json`` cannot repair an incomplete pre-launch intent —
+    it is written by the job that already ran under whatever flags it got.
+
+    Rendered HERE so the intent, the screen driver's argv and this validator's
+    admissibility rules are one definition rather than three that agree today
+    (round-3 closure B3).
+    """
+    mode, deg, rseed = rotation_expectation(cell)
+    angles = frame_avg_angles(cell.arm)
+    split = SPLIT_K8 if int(cell.k) == 8 else SPLIT_K1
+    return [
+        f"cond_method {cond_method(cell.arm)}",
+        # DECIMAL, not the filename-safe rendering: this line records the value
+        # --frame-avg-angles actually receives, and an intent that spelled 11.25
+        # as "11p25" would not be readable as the flag it documents.
+        "frame_avg_angles " + (",".join(_fmt_angle(a) for a in angles) if angles
+                               else "<none:vanilla>"),
+        f"training_orbit {TRAIN_ORBIT[cell.arm]} eval_orbit {TRAIN_ORBIT[cell.arm]}",
+        f"rotate_mode {mode} rotate_seed "
+        + (str(int(rseed)) if rseed is not None else "<n/a>")
+        + " rotate_deg " + ("<null>" if deg is None else fmt_deg(deg)),
+        f"split {split} expected_stream_count {EXPECTED_COUNT} record_stream yes",
+        f"record_per_scene yes expected_scenes {EXPECTED_SCENES}",
+        f"batch_size {BATCH_SIZE} num_workers {NUM_WORKERS}",
+        f"cond_autocast {COND_AUTOCAST} cfg_scale {CFG_SCALE} steps {STEPS} use_ema yes",
+    ]
+
+
+def _cmd_contract(args):
+    """Print the cell's protocol contract (the submitter writes it into the intent)."""
+    try:
+        cell = _cell_from_args(args)
+    except ValueError as exc:
+        print(f"contract: {exc}", file=sys.stderr)
+        return 2
+    if not is_registered(cell):
+        print(f"contract: {tuple(cell)} is not registered in the exp_14 grid",
+              file=sys.stderr)
+        return 2
+    for line in contract_lines(cell):
+        print(line)
+    return 0
+
+
 def _fmt_cell(cell):
     rot = "-" if cell.rotate_deg is None else fmt_deg(cell.rotate_deg)
     return f"{cell.arm} {cell.cell} {cell.step} {cell.seed} {cell.k} {rot}"
@@ -775,6 +830,16 @@ def main(argv=None):
     a.add_argument("--expected-count", type=int, default=EXPECTED_COUNT)
     a.add_argument("--expected-scenes", type=int, default=EXPECTED_SCENES)
     a.set_defaults(func=_cmd_argv)
+
+    ct = sub.add_parser("contract",
+                        help="print the cell's protocol contract (intent manifest)")
+    ct.add_argument("--arm", required=True)
+    ct.add_argument("--cell", required=True)
+    ct.add_argument("--step", required=True)
+    ct.add_argument("--seed", required=True)
+    ct.add_argument("--k", required=True)
+    ct.add_argument("--rotate-deg", default=None)
+    ct.set_defaults(func=_cmd_contract)
 
     cl = sub.add_parser("classify", help="status of every cell in a wave (dedup input)")
     cl.add_argument("--wave", default="all", choices=list(WAVES))

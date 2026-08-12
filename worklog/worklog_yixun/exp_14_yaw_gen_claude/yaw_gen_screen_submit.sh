@@ -281,6 +281,23 @@ if [ "$TEST_MODE" != "1" ]; then
 fi
 PIN_FILE="${EXPDIR}/yaw_gen_campaign_pin"
 INTENT_DIR="$EXPDIR"
+
+# --- the cell's PROTOCOL CONTRACT, rendered by the ONE definition of it -------
+# Announcement 05: the eval-protocol flags are part of the experiment, and the
+# pre-launch record must be readable for protocol compliance on its own — the
+# post-run screenmeta cannot repair it, being written by the job that already
+# ran. Round-3 closure B3: the intent used to name the rotation and nothing
+# else. It is rendered by exp14_validate_cell.contract_lines so the intent, the
+# driver's argv and the admissibility rules cannot drift apart.
+render_cell_contract() {
+  local args=(contract --arm "$ARM" --cell "$CELL" --step "$STEP"
+              --seed "$SEED" --k "$K")
+  [ "$CELL" = "vctl" ] && args+=(--rotate-deg "$ROTATE_DEG")
+  CELL_CONTRACT="$(python3 "$EXPDIR/exp14_validate_cell.py" "${args[@]}")" || {
+    echo "could not render the cell's protocol contract - nothing submitted" >&2
+    return 1
+  }
+}
 if [ "$TEST_MODE" = "1" ]; then
   [ -n "${YAW_GEN_PIN_FILE:-}" ] && PIN_FILE="$YAW_GEN_PIN_FILE"
   [ -n "${YAW_GEN_INTENT_DIR:-}" ] && INTENT_DIR="$YAW_GEN_INTENT_DIR"
@@ -329,6 +346,12 @@ if [ "$DRYRUN" = "1" ]; then
   echo "DRYRUN exclude ${EXCLUDE:-<none>}"
   echo "DRYRUN export ARM=${ARM},STEP=${STEP},SEED=${SEED},K=${K},CELL=${CELL}${CELL_EXPORT_DRY}"
   echo "DRYRUN driver ${EXPDIR}/yaw_gen_screen.sbatch"
+  # the PROTOCOL CONTRACT the intent manifest will carry, shown here so a dry run
+  # is a full protocol review (announcement 05) and not just an identity check
+  render_cell_contract || exit 2
+  printf '%s\n' "$CELL_CONTRACT" | while IFS= read -r line; do
+    echo "DRYRUN intent ${line}"
+  done
   echo "DRY RUN complete: no worktree prepared, no lease written, nothing submitted"
   exit 0
 fi
@@ -514,11 +537,13 @@ INTENT="${INTENT_DIR}/yaw_gen_submission_${ARM}_${CELL}_S${STEP}_s${SEED}_K${K}_
 # not just its identity (announcement 05: a mismatched flag produces
 # plausible-looking, catastrophically wrong numbers, so the launch record has to
 # be readable for protocol compliance on its own).
-case "$CELL" in
-  rgen) ROT_INTENT="rotate_mode random rotate_seed ${SEED} rotate_deg <null>" ;;
-  vctl) ROT_INTENT="rotate_mode fixed rotate_seed <n/a> rotate_deg ${ROTATE_DEG}" ;;
-  *)    ROT_INTENT="rotate_mode fixed rotate_seed <n/a> rotate_deg 0" ;;
-esac
+# ...and it records ALL of them, from the ONE renderer that defines them
+# (round-3 closure B3): the old intent named the rotation and nothing else, so a
+# held job's launch record could not be read for conditioning, orbit, split,
+# stream or per-scene compliance — and the post-run screenmeta cannot repair a
+# pre-launch intent, being written by the job that already ran.
+
+render_cell_contract || { echo "nothing submitted" >&2; exit 2; }
 publish_intent() {   # write, flush, verify, then atomically replace. Any failure
                      # is a failure of the whole publication, never a warning.
   local tmp="${INTENT}.tmp"
@@ -530,9 +555,7 @@ publish_intent() {   # write, flush, verify, then atomically replace. Any failur
     printf 'expect_sha %s\n' "$EXPECT_SHA"
     printf 'measure_root %s\n' "$WT"
     printf 'exclude %s\n' "${EXCLUDE:-<none>}"
-    printf '%s\n' "$ROT_INTENT"
-    printf 'batch_size 64 num_workers 4 expected_stream_count 6337 record_stream yes\n'
-    printf 'cond_autocast bf16 cfg_scale 1.0 steps 1 use_ema yes\n'
+    printf '%s\n' "$CELL_CONTRACT"
     printf 'lease %s\n' "${WT}/.leases/${JOBID}"
     printf '%s\n' "$MANIFEST_SENTINEL"
   } > "$tmp" || return 1
