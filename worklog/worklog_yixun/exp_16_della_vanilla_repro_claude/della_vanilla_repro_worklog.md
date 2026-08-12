@@ -110,3 +110,10 @@
 - **Result** — `passed`; full-review loop closed. **Operational consequence handled:** kit files sit inside the measurement closure, so `cf029e9` invalidated the three PENDING eval cells (bound to `EXPECT_SHA=2bddbcb`) — they would have died at the closure gate (by design, zero GPU cost). `scancel 12267442-4`, pushed, resubmitted via the wrapper: **12268240 (unseen_s42), 12268241 (unseen_s43), 12268242 (seen_s42)**, all PENDING; only queue position lost, and the resubmitted cells now carry `--no-requeue`. Old smoke monitor stopped; new monitor armed on the new ids.
 - **Analysis** — Two structural notes for the record: (1) kit edits and queued cells are mutually exclusive by construction (the closure gate covers the kit itself) — freeze kit changes while cells pend, or accept a cancel+resubmit cycle; (2) the launch interlock chain is now: evals land → Planner writes gate table → PHASE1_PASS.md committed at HEAD → only then can `della_submit.sh train` produce a job — plus Yixun's explicit go.
 - **Next** — Await 12268240-42; evaluate the gate; PHASE1_PASS.md or STOP.
+
+## 2026-08-12T10:00:00-04:00 — Queue tactics (Yixun-approved): eval cells resubmitted at 2h
+
+- **Goal** — Beat the overnight queue slip (est. start drifted 07:38→13:30; 357 pending on `gpu`, our rank ~295, zero idle A100s).
+- **Change** — `della_eval.sbatch` `--time` 04:00:00→02:00:00 (one line; still 8–18× exp_01's measured 6.5–15 min/run; improves backfill eligibility). Kit edit = closure change, so cells were scancel'd FIRST (12268240-42, never started, zero GPU), edit committed+pushed (`e2d77a2`), then resubmitted. Review note: batched into the next Codex round per SOP small-scripts clause; Planner-verified (bash -n, DRYRUN gates green, argv byte-identical).
+- **Command / Validation** — new cells: **12287666** (unseen_s42), **12287676** (unseen_s43), **12287677** (seen_s42), 2h limits, EXPECT_SHA `e2d77a2`. Monitor re-armed. Announcement 06 logged this morning (status board every response; ask on every real choice) — this resubmission was its first applied ask.
+- **Next** — Cells land → gate table → PHASE1_PASS.md or STOP.

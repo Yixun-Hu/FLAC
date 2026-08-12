@@ -74,3 +74,33 @@ sbatch --hold --parsable --job-name=exp16-eval-unseen_s43 --export=EXPECT_SHA=cf
 sbatch --hold --parsable --job-name=exp16-eval-seen_s42 --export=EXPECT_SHA=cf029e9b0e1bc9ca0da082c49ec61e589901dbdd,CELL=seen_s42 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_eval.sbatch
 ```
 
+## 2026-08-12T09:50:37-04:00 — exp16-eval-unseen_s42 — job 12287666
+
+- EXPECT_SHA: `e2d77a2522d1d67be35128600e68e06fb2666b92`
+- job id: `12287666`
+- submitted by: `yh4742@della9.princeton.edu`
+
+```bash
+sbatch --hold --parsable --job-name=exp16-eval-unseen_s42 --export=EXPECT_SHA=e2d77a2522d1d67be35128600e68e06fb2666b92,CELL=unseen_s42 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_eval.sbatch
+```
+
+## 2026-08-12T09:50:38-04:00 — exp16-eval-unseen_s43 — job 12287676
+
+- EXPECT_SHA: `e2d77a2522d1d67be35128600e68e06fb2666b92`
+- job id: `12287676`
+- submitted by: `yh4742@della9.princeton.edu`
+
+```bash
+sbatch --hold --parsable --job-name=exp16-eval-unseen_s43 --export=EXPECT_SHA=e2d77a2522d1d67be35128600e68e06fb2666b92,CELL=unseen_s43 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_eval.sbatch
+```
+
+## 2026-08-12T09:50:38-04:00 — exp16-eval-seen_s42 — job 12287677
+
+- EXPECT_SHA: `e2d77a2522d1d67be35128600e68e06fb2666b92`
+- job id: `12287677`
+- submitted by: `yh4742@della9.princeton.edu`
+
+```bash
+sbatch --hold --parsable --job-name=exp16-eval-seen_s42 --export=EXPECT_SHA=e2d77a2522d1d67be35128600e68e06fb2666b92,CELL=seen_s42 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_eval.sbatch
+```
+
