@@ -22,3 +22,11 @@
 **User's assumption/hypothesis:** Random-yaw training augmentation is the classical data-side alternative to architectural equivariance (the FA arms). The comparison against a matched no-aug vanilla control tests (a) what the augmentation costs or buys on the clean Table-1 protocol, and (b — confirmed secondary readout) whether it buys yaw robustness.
 
 **Why the experiment needs to run:** exp_02 proved vanilla FLAC is not yaw-invariant; exp_11 trained the C4–C32 FA-orbit arms and found headline θ=0 metrics *degrade* with orbit size at matched steps; exp_14 (planned) measures robustness of those trained arms. The missing arm of the augmentation-vs-architecture question is a model trained with yaw *augmentation* and no architectural invariance — the standard baseline any equivariance claim must beat. No such arm exists in the program.
+
+## Query 2 — 2026-08-11 (launch authorization)
+
+**Verbatim:**
+
+> Proceed once smoke is clean — no extra gate needed
+
+**Summary:** The 40k training launch is authorized to proceed autonomously as soon as the validation ladder (integrative full review + SMOKE rung on 8×L40) passes — no additional human approval gate before the real submission. Pre-launch report still posted for the record (params/command/acceptance criteria per SOP), but it is informational, not blocking.
