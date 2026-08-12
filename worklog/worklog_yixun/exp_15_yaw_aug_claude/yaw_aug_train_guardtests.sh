@@ -53,7 +53,10 @@ for f in "$LAUNCHER" "$SUBMITTER" "$ALLOWLIST" "$ARM_CONFIG" "$CLASSIFY" "$PREFL
   [ -f "$f" ] || { echo "missing ${f} - abort"; exit 3; }
 done
 
-TRACKED_BEFORE="$(git status --porcelain -- "$EXPDIR" "$EXP11DIR" src | sort)"
+TRACKED_BEFORE="$(git status --porcelain --untracked-files=no -- "$EXPDIR" "$EXP11DIR" src data/AR | sort)"
+# ...plus untracked files in OUR folder only: another session writes into
+# exp_11's during a run, and that is not this suite's doing.
+UNTRACKED_BEFORE="$(git status --porcelain --untracked-files=all -- "$EXPDIR" | sort)"
 TMP="$(mktemp -d)"
 OUT_ROOT="${TMP}/outputs"            # never a production prefix
 mkdir -p "$OUT_ROOT"
@@ -102,10 +105,21 @@ check() {  # <name> <condition-rc> — for grep-style structural assertions
 }
 
 spool() {  # <tag> [<sed-expr>...] -> path to a spooled launcher copy
+  # Every copy/substitution failure is fatal, and each substitution must actually
+  # CHANGE the file: a sed that silently matched nothing would hand the caller a
+  # pristine launcher and turn its case into a false green (review finding 7).
   local tag="$1"; shift
   local dst="${TMP}/spool_${tag}.sbatch"
-  cp "$LAUNCHER" "$dst"
-  for expr in "$@"; do sed -i "$expr" "$dst"; done
+  cp "$LAUNCHER" "$dst" || { echo "spool ${tag}: cp failed" >&2; return 3; }
+  local expr before
+  for expr in "$@"; do
+    before="$(md5sum < "$dst")"
+    sed -i "$expr" "$dst" || { echo "spool ${tag}: sed '${expr}' failed" >&2; return 3; }
+    if [ "$before" = "$(md5sum < "$dst")" ]; then
+      echo "spool ${tag}: sed '${expr}' matched nothing — the case would test an unmodified launcher" >&2
+      return 3
+    fi
+  done
   echo "$dst"
 }
 
@@ -164,8 +178,8 @@ case_run "a RESTART resuming PAST 40000 dies" 2 "at/past the pre-registered 4000
   -- "${BASE_ENV[@]}" ARM=YAWAUG EXPECTED_STEP=45000 \
      "RESUME_CKPT=${RUN}/checkpoints/epoch=8-step=40000.ckpt"
 # ...and with the budget assertion neutralised (spool), the cap itself fires:
-CAP="$(spool cap -e 's/\[ "\$MAXSTEPS" = "40000" \]/[ "$MAXSTEPS" = "50000" ]/' \
-                  -e 's/^PINNED_MAXSTEPS=40000/PINNED_MAXSTEPS=50000/')"
+CAP="$(spool cap 's/\[ "\$MAXSTEPS" = "40000" \]/[ "$MAXSTEPS" = "50000" ]/' \
+                 's/^PINNED_MAXSTEPS=40000/PINNED_MAXSTEPS=50000/')"
 case_spool "a RESTART TARGETING beyond 40000 dies" "$CAP" 2 "may not target beyond the pre-registered" \
   -- "${BASE_ENV[@]}" ARM=YAWAUG EXPECTED_STEP=12500 \
      "RESUME_CKPT=${RUN}/checkpoints/epoch=2-step=12500.ckpt"
@@ -408,9 +422,187 @@ expect_cmd "preflight rejects a ckpt trained WITHOUT yaw_aug" 2 "embedded model_
 expect_cmd "preflight rejects a stripped optimizer" 2 "optimizer state is CLEARED" -- "${PRE[@]}" --ckpt "${TMP}/stripped.ckpt" --expected-step 12500
 expect_cmd "preflight rejects a missing EMA" 2 "no EMA weights" -- "${PRE[@]}" --ckpt "${TMP}/noema.ckpt" --expected-step 12500
 
+echo "--- R. NEW (r3-fix F1): the smoke runs the real rung and its OWN registry ---"
+case_run "smoke at 16x4 dies" 2 "!= the pinned production rung" \
+  -- "${BASE_ENV[@]}" SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=14000 ARM=YAWAUG
+case_run "smoke at 32x2 dies" 2 "!= the pinned production rung" \
+  -- "${BASE_ENV[@]}" SMOKE=1 SMOKE_RUNG=32x2 SMOKE_MIN_FREE_MB=14000 ARM=YAWAUG
+case_run "smoke at the pinned 8x8 is accepted" 0 "ARGV PARITY OK" -- "${SMOKE_ENV[@]}" ARM=YAWAUG
+expect_cmd "submitter refuses a 16x4 smoke" 2 "must be 8x8" -- \
+  env DRYRUN=1 SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=14000 bash "$SUBMITTER" YAWAUG
+grep -q 'LAUNCH_REGISTRY="${EXPDIR}/yaw_aug_smoke_registry.json"' "$LAUNCHER"
+check "a smoke registers in its own registry file" $?
+# ...and functionally, with the launcher's OWN registry-init code extracted:
+sed -n '/--- BEGIN registry-init-python/,/--- END registry-init-python/p' "$LAUNCHER" > "${TMP}/reg_init.py"
+grep -q 'reg\["arms"\]\[arm\]' "${TMP}/reg_init.py"; check "registry-init code extracted from the launcher" $?
+SMOKE_REG="${TMP}/yaw_aug_smoke_registry.json"; PROD_REG="${TMP}/yaw_aug_launch_registry.json"
+: > "${TMP}/man.txt"; echo "arm YAWAUG" >> "${TMP}/man.txt"
+reg_init() {  # <registry> <job>
+  $PY "${TMP}/reg_init.py" "$1" YAWAUG "${TMP}/man.txt" "$2" uuid-$2 "$HEAD_SHA" \
+      8x8 40000 cfgsha vaesha "${TMP}/save" wandb-$2
+}
+expect_cmd "a SMOKE registers into the smoke registry" 0 "registered YAWAUG" -- reg_init "$SMOKE_REG" 111
+$PY -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if 'YAWAUG' in d['arms'] else 1)" "$SMOKE_REG"
+check "  ... the smoke registry now holds arms.YAWAUG" $?
+[ ! -e "$PROD_REG" ]; check "  ... and the PRODUCTION registry was never created" $?
+expect_cmd "the production INITIAL then registers successfully" 0 "registered YAWAUG" -- reg_init "$PROD_REG" 222
+expect_cmd "  ... and a second production INITIAL is refused" 1 "already registered" -- reg_init "$PROD_REG" 333
+
+echo "--- S. NEW (r3-fix F2): the completion audit is round-2-rigorous, fail-closed ---"
+sed -n '/--- BEGIN completion-audit-python/,/--- END completion-audit-python/p' "$LAUNCHER" > "${TMP}/completion.py"
+grep -q 'snapshot_checkpoint' "${TMP}/completion.py"; check "completion audit extracted, and it imports the round-2 recorder" $?
+grep -q 'summarize_ema' "${TMP}/completion.py"; check "  ... and reuses summarize_ema" $?
+grep -q 'canonical_bytes' "${TMP}/completion.py"; check "  ... and reuses canonical_bytes" $?
+CK_DIR="${TMP}/ckpts"; mkdir -p "$CK_DIR"
+$PY - "$CK_DIR" "$ARM_CONFIG" <<'PY'
+import json, os, sys, torch
+ck_dir, cfg_path = sys.argv[1], sys.argv[2]
+cfg = json.load(open(cfg_path))
+def ck(step=40000, config=None, ema="mirror"):
+    state = {"diffusion.model.layer.weight": torch.zeros(2, 2),
+             "diffusion.model.layer.bias": torch.zeros(2),
+             "diffusion.conditioner.e.weight": torch.zeros(3)}
+    if ema == "mirror":
+        state["diffusion_ema.ema_model.layer.weight"] = torch.zeros(2, 2)
+        state["diffusion_ema.ema_model.layer.bias"] = torch.zeros(2)
+    elif ema == "partial":
+        state["diffusion_ema.ema_model.layer.weight"] = torch.zeros(2, 2)
+    return {"global_step": step, "epoch": 8,
+            "model_config": cfg if config is None else config,
+            "state_dict": state, "optimizer_states": [{}], "lr_schedulers": [{}]}
+torch.save(ck(), os.path.join(ck_dir, "good", "epoch=8-step=40000.ckpt")
+           if False else os.path.join(ck_dir, "epoch=8-step=40000.ckpt"))
+for name, obj in [("wrongstep", ck(step=39000)),
+                  ("wrongcfg", ck(config={**cfg, "sample_size": 4096})),
+                  ("wrongema", ck(ema="partial"))]:
+    d = os.path.join(ck_dir, name); os.makedirs(d, exist_ok=True)
+    torch.save(obj, os.path.join(d, "epoch=8-step=40000.ckpt"))
+os.makedirs(os.path.join(ck_dir, "empty"), exist_ok=True)
+d = os.path.join(ck_dir, "double"); os.makedirs(d, exist_ok=True)
+torch.save(ck(), os.path.join(d, "epoch=8-step=40000.ckpt"))
+torch.save(ck(), os.path.join(d, "epoch=9-step=40000.ckpt"))
+print("completion fixtures written")
+PY
+fresh_reg() { $PY -c "
+import json,sys
+json.dump({'arms': {'YAWAUG': {'final_ckpt_sha256': None}}, 'restarts': {}}, open(sys.argv[1],'w'))" "$1"; }
+completion() {  # <ckpt-dir> <registry>
+  $PY "${TMP}/completion.py" "${EXPDIR}/yaw_aug_record_control.py" "$2" YAWAUG "$1" 40000 "$ARM_CONFIG"
+}
+AUD_REG="${TMP}/audit_registry.json"
+fresh_reg "$AUD_REG"
+expect_cmd "a correct 40k checkpoint is audited and recorded" 0 "completion audit OK" -- completion "$CK_DIR" "$AUD_REG"
+$PY -c "
+import json,sys
+e=json.load(open(sys.argv[1]))['arms']['YAWAUG']
+sys.exit(0 if e['final_step']==40000 and len(e['final_ckpt_sha256'])==64
+         and e['final_ckpt_audit']['ema_key_count']==2
+         and e['final_ckpt_audit']['online_model_key_count']==2 else 1)" "$AUD_REG"
+check "  ... final_step comes from the checkpoint and the EMA audit is recorded" $?
+for CASE in wrongstep wrongcfg wrongema empty double; do
+  fresh_reg "$AUD_REG"
+  case "$CASE" in
+    wrongstep) WANT="!= the pinned endpoint" ;;
+    wrongcfg)  WANT="not trained with the arm config" ;;
+    wrongema)  WANT="EMA" ;;
+    empty)     WANT="found 0" ;;
+    double)    WANT="found 2" ;;
+  esac
+  expect_cmd "completion rejects: ${CASE}" 1 "$WANT" -- completion "${CK_DIR}/${CASE}" "$AUD_REG"
+done
+expect_cmd "completion fails when the registry cannot be written" 1 "" -- \
+  completion "$CK_DIR" "${TMP}/no_such_dir/registry.json"
+grep -q 'final_rc=9' "$LAUNCHER"; check "a failed completion audit forces exit class 9" $?
+grep -q 'COMPLETION AUDIT FAILED' "$LAUNCHER"; check "  ... and says so loudly" $?
+
+echo "--- T. NEW (r3-fix F3/F4): the closure covers the split and fails CLOSED ---"
+grep -q 'data/AR' "$LAUNCHER"; check "the worker closure covers data/AR (the training split)" $?
+grep -q 'data/AR' "$SUBMITTER"; check "the submitter closure covers data/AR" $?
+grep -q ':(exclude)src/tests' "$LAUNCHER"; check "src/tests is excluded from the worker closure" $?
+grep -q ':(exclude)src/tests' "$SUBMITTER"; check "src/tests is excluded from the submitter closure" $?
+grep -q 'git status for the drift gate failed' "$LAUNCHER"; check "a failing git status is fatal in the worker" $?
+grep -q 'git status for the drift gate failed' "$SUBMITTER"; check "a failing git status is fatal in the submitter" $?
+case_run "a broken git environment is fatal, not 'clean'" 2 "git status for the drift gate failed" \
+  -- "${BASE_ENV[@]}" ARM=YAWAUG GIT_DIR=/nonexistent/nope.git
+expect_cmd "  ... and the submitter refuses too" 2 "git status for the drift gate failed" -- \
+  env DRYRUN=1 GIT_DIR=/nonexistent/nope.git bash "$SUBMITTER" YAWAUG
+# End-to-end in a throwaway worktree: the real gates, over real mutations, with
+# the shared checkout untouched.
+WT="${TMP}/wt"
+if git worktree add --detach --quiet "$WT" HEAD 2>/dev/null; then
+  # REAL mode (fake job id): DRYRUN only prints an advisory, while a real
+  # launch names the offending files — which is what we assert on.
+  WT_ENV=(ARM=YAWAUG "YAW_AUG_REPO_OVERRIDE=${WT}" SLURM_JOB_ID=999999)
+  WT_DRY=(ARM=YAWAUG "OUTPUT_ROOT=${OUT_ROOT}/wt" "YAW_AUG_REPO_OVERRIDE=${WT}" DRYRUN=1)
+  WT_HEAD="$(git -C "$WT" rev-parse HEAD)"
+  printf '\n' >> "${WT}/data/AR/train.json"
+  case_spool "a mutated data/AR/train.json is caught" "${WT}/${EXPDIR}/yaw_aug_train.sbatch" 2 \
+    "data/AR/train.json" -- "${WT_ENV[@]}" "EXPECT_SHA=${WT_HEAD}"
+  git -C "$WT" checkout -- data/AR/train.json
+  rm -f "${WT}/data/AR/train.json"
+  case_spool "a DELETED data/AR/train.json is caught (quoted pathspec)" "${WT}/${EXPDIR}/yaw_aug_train.sbatch" 2 \
+    "data/AR/train.json" -- "${WT_ENV[@]}" "EXPECT_SHA=${WT_HEAD}"
+  git -C "$WT" checkout -- data/AR/train.json
+  # a TEST-ONLY commit must NOT abort a pending job (exp_11 2b75036)
+  echo "# guardtest scratch" >> "${WT}/src/tests/test_yaw_aug_training.py"
+  git -C "$WT" -c user.email=g@t -c user.name=g commit -qam "test-only commit" >/dev/null 2>&1
+  case_spool "a test-only commit does NOT abort a pending job" "${WT}/${EXPDIR}/yaw_aug_train.sbatch" 0 \
+    "commit binding OK (content)" -- "${WT_DRY[@]}" "EXPECT_SHA=${WT_HEAD}"
+  # ...but a runtime-surface commit MUST
+  echo "# guardtest scratch" >> "${WT}/src/training/diffusion.py"
+  git -C "$WT" -c user.email=g@t -c user.name=g commit -qam "runtime commit" >/dev/null 2>&1
+  case_spool "a src/training commit DOES abort a pending job" "${WT}/${EXPDIR}/yaw_aug_train.sbatch" 2 \
+    "training surfaces changed since EXPECT_SHA" -- "${WT_ENV[@]}" "EXPECT_SHA=${WT_HEAD}"
+  git worktree remove --force "$WT" >/dev/null 2>&1 || true
+  git worktree prune >/dev/null 2>&1 || true
+else
+  echo "SKIP  worktree closure cases (git worktree add unavailable)"
+fi
+
+echo "--- U. NEW (r3-fix F5/F6): banner exactness+taxonomy, manifest snapshot ---"
+printf '%s\n' "yaw_aug ENABLED img_w=512 seed=420" "Epoch 0:  10%%" > "${TMP}/b7.log"
+expect_cmd "seed=420 does NOT satisfy the seed=42 gate" 1 "MISSING" -- \
+  yaw_aug_banner_verdict "${TMP}/b7.log" "$BANNER" "$STEP_RE"
+printf '%s\n' "INFO: yaw_aug ENABLED img_w=512 seed=42" "Epoch 0:  10%%" > "${TMP}/b8.log"
+expect_cmd "a PREFIXED banner line does not satisfy the gate" 1 "MISSING" -- \
+  yaw_aug_banner_verdict "${TMP}/b8.log" "$BANNER" "$STEP_RE"
+printf '%s\n' "yaw_aug ENABLED img_w=512 seed=42 (rank 0)" "Epoch 0:  10%%" > "${TMP}/b9.log"
+expect_cmd "a SUFFIXED banner line does not satisfy the gate" 1 "MISSING" -- \
+  yaw_aug_banner_verdict "${TMP}/b9.log" "$BANNER" "$STEP_RE"
+printf '%s\n' "Epoch 0:   0%%|  | 1/4550" "$BANNER" > "${TMP}/b10.log"
+expect_cmd "a banner printed AFTER step evidence is MISSING" 1 "MISSING" -- \
+  yaw_aug_banner_verdict "${TMP}/b10.log" "$BANNER" "$STEP_RE"
+grep -q 'if \[ "\$BANNER_VERDICT" = "MISSING" \]' "$LAUNCHER"; check "class 8 is driven by a definite MISSING" $?
+grep -q 'which keeps its own taxonomy' "$LAUNCHER"; check "a PENDING verdict preserves an existing failure class (OOM keeps class 3)" $?
+grep -q 'CONTROL_MANIFEST_SHA=' "$LAUNCHER"; check "the manifest is no longer hashed by a separate sha256sum pass" $((1 - $?))
+sed -n '/--- BEGIN control-env-python/,/--- END control-env-python/p' "$LAUNCHER" > "${TMP}/control_env.py"
+grep -c 'fh.read()' "${TMP}/control_env.py" >/dev/null
+[ "$(grep -c 'raw = fh.read()' "${TMP}/control_env.py")" = "1" ]
+check "the manifest is read exactly ONCE, and hashed+parsed from those bytes" $?
+CTRL_MAN=outputs_FLAC/exp11_VANL/launch_manifest.txt
+PIN=113d06a284c6198cf9487e99a2efb7ccde94ae13e656a403fe2af0281d3de8b1
+if [ -f "$CTRL_MAN" ]; then
+  ctrl_env() { $PY "${TMP}/control_env.py" "$1" "$2" "$3" 2.7.0+cu126 2.1.0 \
+      8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9; }
+  expect_cmd "the real control manifest passes the snapshot gate" 0 "control env cross-check OK" -- \
+    ctrl_env "$CTRL_MAN" "$PIN" "${EXP11DIR}/arm_launch_registry.json"
+  cp "$CTRL_MAN" "${TMP}/tampered_manifest.txt"; printf 'tamper\n' >> "${TMP}/tampered_manifest.txt"
+  expect_cmd "a tampered manifest fails the snapshot gate" 1 "!= the pin" -- \
+    ctrl_env "${TMP}/tampered_manifest.txt" "$PIN" "${EXP11DIR}/arm_launch_registry.json"
+  $PY -c "
+import json,sys
+d=json.load(open(sys.argv[1])); d['arms']['VANL']['manifest_sha256']='0'*64
+json.dump(d, open(sys.argv[2],'w'))" "${EXP11DIR}/arm_launch_registry.json" "${TMP}/reg_moved.json"
+  expect_cmd "a registry disagreeing with the reviewed pin is refused" 1 "the control's identity moved" -- \
+    ctrl_env "$CTRL_MAN" "$PIN" "${TMP}/reg_moved.json"
+else
+  echo "SKIP  control-manifest snapshot cases (manifest not present on this machine)"
+fi
+
 echo "--- Q. the suite touched nothing tracked, and submitted nothing ---"
-TRACKED_AFTER="$(git status --porcelain -- "$EXPDIR" "$EXP11DIR" src | sort)"
-if [ "$TRACKED_BEFORE" = "$TRACKED_AFTER" ]; then
+TRACKED_AFTER="$(git status --porcelain --untracked-files=no -- "$EXPDIR" "$EXP11DIR" src data/AR | sort)"
+UNTRACKED_AFTER="$(git status --porcelain --untracked-files=all -- "$EXPDIR" | sort)"
+if [ "$TRACKED_BEFORE" = "$TRACKED_AFTER" ] && [ "$UNTRACKED_BEFORE" = "$UNTRACKED_AFTER" ]; then
   echo "PASS  tracked tree unchanged by the suite (snapshot before == after)"; PASS=$((PASS+1))
 else
   echo "FAIL  the suite changed tracked state:"; diff <(echo "$TRACKED_BEFORE") <(echo "$TRACKED_AFTER") | sed 's/^/        | /'
