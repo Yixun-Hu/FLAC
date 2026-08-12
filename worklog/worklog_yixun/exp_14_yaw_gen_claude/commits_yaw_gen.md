@@ -120,3 +120,25 @@ every cell. `AGGREGATION_SOURCE` has no default (an unruled metric raises); G1/G
 through it and name their source; every table column is labelled `(scene-mean)`/`(split)`.
 
 Battery: **625 pytest passed** over the eight suites. Transcripts regenerated.
+
+## Round 3 FIX BATCH 3 — combined closure + integrative review (REVISE on both parts)
+
+| SHA | fix | surface |
+|---|---|---|
+| `a2ad7ab` | FX1 (A1/B1, reviewer-REPRODUCED) | ⚠️ **eval_FLAC** — per-scene lifting is genuinely opt-in |
+| `3ee16bb` | FX2 (A4/B2, reviewer-REPRODUCED) | `gen_model_comparison` — two-K transaction consumes validation |
+| `d9b18d3` | FX3 (B3) | ⚠️ **kit** — intent records the whole protocol via one contract renderer |
+| `e36c7be` | FX4 (B4) | ⚠️ **kit** — stray `OUTPUT_ROOT` cannot redirect a real wave |
+| `20ac890` | FX5 (B6) | collector — G5 compares flat-to-flat |
+
+**Batteries at the final state:** 638 pytest passed (eight suites, incl. the fixed-mode
+snapshot suite) · guard suite **238 passed / 0 failed, `suite_rc=0`** (18 new cases; the
+old 220/0 log is superseded and was not used as proof for the edited shell) · 106-cell
+DRYRUN diff empty · representative C32/K8/rgen DRYRUN prints the full protocol contract ·
+collector self-tests regenerated (exits 0/4/3/3) · five `bash -n` clean · zero `exp14-`
+jobs · command log and pin file byte-identical on suite exit.
+
+Not mine, recorded for the Planner: **B5** (the launch sequence asks G1/G2 to pass before
+Z exists — acceptance criteria need re-ordering: V/probe establish validity, assets, timing
+and G3; G1/G2/G4 only after Z lands) and **B7** (per-scene recording also recomputes
+per-scene FD/retrieval the ruling never reads — handled as a smoke-timing acceptance bound).
