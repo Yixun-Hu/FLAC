@@ -5,3 +5,4 @@ RESUME_CKPT=$ANCHOR MAXSTEPS=40015 LOGGER=none bash bf_resume_launch.sh
 ## 2x2 completion cell LAUNCHED 2026-08-04 12:07:59: fa-scratch BF@40k under VANILLA eval, 5-seed x both K
 ## ENDPOINT GATE BLOCK LAUNCHED 2026-08-05 18:18:24: 67.5k screen + R1 5-seed both K + R3 sweep
 ## Pre-40k band diagnostic LAUNCHED 2026-08-08 00:29:21: fa-eval of exp_07 B-F ckpts 30k-37.5k (K8 s42) — was 40k band-typical or a best-draw?
+## A6 rotation head-to-head LAUNCHED 2026-08-11 20:57:49: rot 90/45, seeds 42-46, K8 then K1
