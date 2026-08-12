@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Wait-time reporting (MANDATORY, every response)
 
-Whenever any runs are in flight that Yixun must wait on — code reviews, training, evals, probes, any background execution — END the response with: (1) an estimated completion time for EVERY running item (wall-clock ETA, not just duration), and (2) **the earliest time Yixun needs to be present** (the next moment a human decision could be required; state "no presence needed until X" when everything is autonomous).
+END **every** response — not only when runs are in flight — with a status board (announcement 06, Yixun 2026-08-11): (1) the status of ALL live experiment work (Slurm jobs, subagent rounds, reviews, background execution) with a wall-clock ETA/ETD for each (not just duration), and (2) **the earliest time Yixun needs to be present** (the next moment a human decision could be required; state "no presence needed until X" when everything is autonomous). Additionally, **every genuine choice point is asked, not decided** — when a problem arises where Yixun's confirmation of choice/method/scope could change the path, stop and ask with concrete options; only pre-approved plan steps and reversible mechanical work continue autonomously.
 
 ## Universal code review (MANDATORY)
 
