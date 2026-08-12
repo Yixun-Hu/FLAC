@@ -178,6 +178,20 @@ else
 fi
 case_run "symbolic EXPECT_SHA refused" 2 "not a full lowercase 40-hex" \
   -- ARM=C4L SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=99000000 EXPECT_SHA=HEAD SLURM_JOB_ID=999999
+# src/tests is excluded from the closure (pytest-only; TDD sessions land tests
+# continuously — a test-only commit must NOT kill a queued leg: 3680875-78).
+SYN_TIDX="${TMP}/syntidx"; SYN_TESTS=""
+if GIT_INDEX_FILE="$SYN_TIDX" git read-tree HEAD 2>/dev/null && [ -n "${SYN_BLOB:-}" ] \
+   && GIT_INDEX_FILE="$SYN_TIDX" git update-index --add --cacheinfo 100644 "$SYN_BLOB" src/tests/test_guardtest_synthetic.py 2>/dev/null; then
+  SYN_TTREE="$(GIT_INDEX_FILE="$SYN_TIDX" git write-tree 2>/dev/null)"
+  [ -n "$SYN_TTREE" ] && SYN_TESTS="$(git commit-tree "$SYN_TTREE" -p HEAD -m 'guardtest synthetic: src/tests only' 2>/dev/null)"
+fi
+if [ -n "$SYN_TESTS" ]; then
+  case_run "src/tests-only change -> gate passes" 2 "commit binding OK (content)" \
+    -- ARM=C4L SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=99000000 "EXPECT_SHA=${SYN_TESTS}" SLURM_JOB_ID=999999
+else
+  echo "FAIL  could not synthesize the src/tests-only fixture"; FAIL=$((FAIL+1))
+fi
 
 echo "--- E. semantic gate on a mislabelled config (temp copy; tracked tree untouched) ---"
 FAKE_EXP="${TMP}/fakeexp"; mkdir -p "$FAKE_EXP"

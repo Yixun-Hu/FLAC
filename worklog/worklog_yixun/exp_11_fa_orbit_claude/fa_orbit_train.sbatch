@@ -206,7 +206,7 @@ EXPREL="${EXPDIR#"$REPO"/}"; EXP07REL="${EXP07#"$REPO"/}"
 # git, not the shell, expands them — a tracked file deleted from the worktree
 # still matches (content-gate review B2) — data/AR (the split JSONs the
 # dataloader opens) is covered, and a failing git status is fail-closed.
-DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src data/AR \
+DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src ":(exclude)src/tests" data/AR \
           "$EXPREL/*.json" "$EXPREL/*.py" "$EXPREL/*.sbatch" "$EXPREL/*.sh" \
           "$EXP07REL/FLAC_AR_BF.json" 2>&1)" \
   || die "git status for the drift gate failed: ${DRIFT} - abort"
@@ -223,8 +223,12 @@ DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini sr
 # EXPECT_SHA must be the full 40-hex commit OID (a symbolic ref like HEAD
 # would defeat the binding), the diff runs against the CAPTURED HEAD OID,
 # and HEAD is re-read afterwards to close the mid-gate-commit race.
+# src/tests is EXCLUDED from both gates: pytest-only code, never imported by
+# train.py at runtime, and the TDD sessions land test files continuously —
+# gating them reproduced the exact kill this gate exists to prevent
+# (legs 3680875-78 died on a src/tests-only commit, 2026-08-12).
 surface_diff_vs_expect() {
-  git diff --name-only "${EXPECT_SHA}" "${HEAD_SHA}" -- train.py defaults.ini src data/AR \
+  git diff --name-only "${EXPECT_SHA}" "${HEAD_SHA}" -- train.py defaults.ini src ":(exclude)src/tests" data/AR \
       "$EXPDIR"/FLAC_AR_BF_C4L.json "$EXPDIR"/FLAC_AR_BF_C8.json \
       "$EXPDIR"/FLAC_AR_BF_C16.json "$EXPDIR"/FLAC_AR_BF_C32.json \
       "$EXPDIR"/FLAC_AR_VANCKPT.json "$EXPDIR"/fa_orbit_train.sbatch \
