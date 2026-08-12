@@ -560,10 +560,18 @@ PY
 export WANDB_ENTITY="$WANDB_ENTITY_SEEN"
 echo "wandb identity OK: entity ${WANDB_ENTITY} (exported), mode ${WANDB_MODE}"
 if [ "$MODE" = "RESTART" ]; then
-  WANDB_RUN_ID="$(awk '/^wandb_run_id /{print $2}' "$LAUNCH_MANIFEST_LINK" 2>/dev/null)"
-  [ -n "$WANDB_RUN_ID" ] || die "RESTART needs the original wandb run id from ${LAUNCH_MANIFEST_LINK} - abort"
-  export WANDB_RUN_ID WANDB_RESUME=must
-  echo "wandb: resuming run ${WANDB_RUN_ID} (resume=must)"
+  ORIG_WANDB_RUN_ID="$(awk '/^wandb_run_id /{print $2}' "$LAUNCH_MANIFEST_LINK" 2>/dev/null)"
+  [ -n "$ORIG_WANDB_RUN_ID" ] || die "RESTART needs the original wandb run id from ${LAUNCH_MANIFEST_LINK} - abort"
+  # A RESUMED wandb run refuses config changes: prefigure's push_wandb_config
+  # calls config.update() without allow_val_change, and a restart legitimately
+  # changes max_steps (40000->100000) and ckpt_path — legs 3684149/3684150
+  # died at exactly train.py:193 on this. So a restart runs as a FRESH run
+  # carrying the lineage in its name; curves split across runs but panels
+  # align on the step axis. train.py stays byte-unchanged (exp_15 admission
+  # pins it).
+  WANDB_RUN_ID="exp11-${ARM}-r${EXPECTED_STEP}-$(date +%s%N)-$(cut -c1-8 /proc/sys/kernel/random/uuid)"
+  export WANDB_RUN_ID
+  echo "wandb: new RESTART run id ${WANDB_RUN_ID} (continues ${ORIG_WANDB_RUN_ID}; not resumed — a resumed run refuses the changed max_steps/ckpt_path config)"
 else
   WANDB_RUN_ID="exp11-${ARM}-$(date +%s%N)-$(cut -c1-8 /proc/sys/kernel/random/uuid)"
   export WANDB_RUN_ID
