@@ -1,0 +1,31 @@
+=== yaw_aug_train.sbatch DRYRUN=1 (no submission, no GPU) ===
+=== exp_15 arm YAWAUG @ rung 8x8 (MB 8 x 8 GPU, grad-ckpt ON, yaw_aug ON) — 2026-08-12_10-45-01 — host neuronic.cs.princeton.edu ===
+commit binding OK: 367622317a75133ad77c6f83eac6fbb68ee8f800 (dry run)
+launch-pin allowlist OK: 16 changed production file(s) since 81ddac372076ea92751ae09cbaf371df70f396e5, all allowlisted
+config for YAWAUG: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json sha256 b14caae27afec2c53c38bea6e2574a48aa94bc86848ab17afae94cadf694b004
+gate OK: YAWAUG is vanilla (no cond_method, no orbit), yaw_aug {'enabled': True, 'img_w': 512, 'seed': 42}, grad-ckpt True, EMA on, DINOv3-S/16 at 256x512
+lineage: INITIAL (expected_step 0, max_steps 40000, ckpt every 2500, time pin PINNED_TIME_LIMIT_YAWAUG=24:00:00)
+accumulation gate OK: --accum-batches 1 (one optimizer step per micro-batch, so one independent yaw draw per sample per visit)
+--- train.py argv ---
+--model-config /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 40000 --batch-size 8 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 8 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --val-dataset-config '' --gradient-clip-val 0.0 --logger wandb --checkpoint-every 2500 --name FLAC_exp15_YAWAUG --experiment-name exp15_YAWAUG --save-dir outputs_FLAC/exp15_YAWAUG
+--- argv parity vs exp_07 B-F ---
+  allowed  --batch-size: exp_07 '32' -> exp_15 '8'
+  allowed  --experiment-name: exp_07 'exp07_BF' -> exp_15 'exp15_YAWAUG'
+  allowed  --max-steps: exp_07 '67500' -> exp_15 '40000'
+  allowed  --model-config: exp_07 'worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json' -> exp_15 '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json'
+  allowed  --name: exp_07 'FLAC_exp07_BF' -> exp_15 'FLAC_exp15_YAWAUG'
+  allowed  --num-gpus: exp_07 '2' -> exp_15 '8'
+  allowed  --save-dir: exp_07 'outputs_FLAC/exp07_BF' -> exp_15 'outputs_FLAC/exp15_YAWAUG'
+  explicit --gradient-clip-val='0.0' (whitelisted explicit default)
+  explicit --num-nodes='1' (whitelisted explicit default)
+  explicit --precision='bf16-mixed' (whitelisted explicit default)
+  explicit --val-dataset-config='' (whitelisted explicit default)
+  explicit --val-every='-1' (whitelisted explicit default)
+ARGV PARITY OK (INITIAL): only whitelisted differences and additions
+DRY RUN complete: gates A–G passed for ARM=YAWAUG RUNG=8x8 MODE=INITIAL SMOKE=0
+  (the allowlist gate ran above, advisory-only here; Slurm/GPU/VRAM/env/wandb/lock
+   gates and training are skipped in DRYRUN)
+
+=== yaw_aug_submit.sh DRYRUN=1 (prints the sbatch line, submits nothing) ===
+arm YAWAUG | rung 8x8 (8x8) | time 24:00:00 | commit 367622317a75133ad77c6f83eac6fbb68ee8f800 | smoke 0
+DRYRUN sbatch --job-name=exp15-YAWAUG-train --gres=gpu:l40:8 --cpus-per-task=64 --mem=108G --time=24:00:00 --export=ALL,ARM=YAWAUG,EXPECT_SHA=367622317a75133ad77c6f83eac6fbb68ee8f800,OUTPUT_ROOT=outputs_FLAC worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_train.sbatch
