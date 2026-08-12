@@ -43,7 +43,7 @@ CLASSIFY="${EXP11DIR}/fa_orbit_classify.py"
 PREFLIGHT="${EXP11DIR}/fa_orbit_ckpt_preflight.py"
 PY=/n/fs/gatrdp/envs/flac/bin/python
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
-LOG="${EXPDIR}/yaw_aug_${TS}_guardtests_r3.log"
+LOG="${EXPDIR}/yaw_aug_${TS}_guardtests_${GUARD_TAG:-r3fix}.log"
 HEAD_SHA="$(git rev-parse HEAD)"
 CONTROL_COMMIT="81ddac372076ea92751ae09cbaf371df70f396e5"
 
