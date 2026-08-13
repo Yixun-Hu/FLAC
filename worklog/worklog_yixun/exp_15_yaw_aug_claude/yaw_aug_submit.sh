@@ -173,10 +173,6 @@ if [ "$CHAIN" = "1" ]; then
   [ "${#LEG_STEPS}" -le 7 ] || { echo "LEG_STEPS '${LEG_STEPS}' is absurdly long — refusing to do arithmetic on it - abort"; exit 2; }
   [ "${#EXPECTED_STEP}" -le 7 ] || { echo "--expected-step '${EXPECTED_STEP}' is absurdly long - abort"; exit 2; }
   [ "$LEG_STEPS" -gt 0 ] || { echo "LEG_STEPS must be > 0 - abort"; exit 2; }
-  # PINNED, not tunable: every leg gets the same 1:30 wall (chain review, F6).
-  PINNED_LEG_STEPS="$(pin PINNED_LEG_STEPS)"
-  [ "$LEG_STEPS" = "$PINNED_LEG_STEPS" ] \
-    || { echo "LEG_STEPS ${LEG_STEPS} != the pinned ${PINNED_LEG_STEPS}: the per-leg wall pin is sized for ${PINNED_LEG_STEPS} steps — a different leg size needs its own reviewed time pin - abort"; exit 2; }
   # Boundary saves are STRUCTURAL: a leg can only resume from a checkpoint that
   # exists, and checkpoints exist only on the 2500 cadence.
   [ $((LEG_STEPS % CADENCE)) -eq 0 ] \
@@ -212,7 +208,12 @@ else
   # submitter and the job provably allocate and enforce the same pin.
   if [ "$CHAIN" = "1" ]; then
     # A chain leg is LEG_STEPS steps, not a whole run: a short wall pin is what
-    # makes it backfillable in the first place.
+    # makes it backfillable in the first place — and LEG_STEPS is therefore
+    # PINNED, not tunable (chain review, F6). Checked here, where pin() exists.
+    PINNED_LEG_STEPS="$(pin PINNED_LEG_STEPS)"
+    [ -n "$PINNED_LEG_STEPS" ] || { echo "could not read PINNED_LEG_STEPS from ${SBATCH_FILE} - abort"; exit 2; }
+    [ "$LEG_STEPS" = "$PINNED_LEG_STEPS" ] \
+      || { echo "LEG_STEPS ${LEG_STEPS} != the pinned ${PINNED_LEG_STEPS}: the per-leg wall pin is sized for ${PINNED_LEG_STEPS} steps — a different leg size needs its own reviewed time pin - abort"; exit 2; }
     TIME_LIMIT="$(pin PINNED_TIME_LIMIT_LEG)"
     TIME_PIN_NAME="PINNED_TIME_LIMIT_LEG"
   elif [ -n "${EXPECTED_STEP:-}" ] && [ "${EXPECTED_STEP:-0}" -gt 0 ]; then

@@ -77,6 +77,12 @@ skip_case() {   # <name> <reason> — a SKIP is a FAILURE under STRICT=1
     echo "SKIP  ${1} (${2})"; ledger SKIP "$1"
   fi
 }
+skip_env() {    # <name> <reason> — the case CANNOT run in this environment
+  # e.g. outputs_FLAC is gitignored, so a worktree has no control manifest. STRICT
+  # does not fail these; the union checker still demands a PASS in the OTHER
+  # environment, so they cannot quietly go uncovered either.
+  echo "SKIP  ${1} (environment: ${2})"; ledger SKIP "$1"
+}
 
 case_run() {  # <name> <want-rc> <want-substring> -- <env...>   (runs the REAL launcher)
   local name="$1" want_rc="$2" want_txt="$3"; shift 3; [ "$1" = "--" ] && shift
@@ -146,6 +152,11 @@ SUB_SPOOL="${TMP}/yaw_aug_submit_spooled.sh"
 ACC="${TMP}/spooled_acceptance.json"
 cp "$SUBMITTER" "$SUB_SPOOL" || { echo "could not spool the submitter"; exit 3; }
 sed -i "s|ACCEPT_FILE=\"\${EXPDIR}/yaw_aug_smoke_acceptance.json\"|ACCEPT_FILE=\"${ACC}\"|" "$SUB_SPOOL"
+# A spooled copy lives outside the repo, so its `cd $(git rev-parse --show-toplevel)`
+# would land in $HOME and every later gate would read the wrong tree. Pin it to
+# the tree under test, exactly as sbatch's spool keeps the launcher's absolute REPO.
+sed -i "s|^cd \"\$(git -C .*rev-parse --show-toplevel)\" .*|cd \"${PWD}\" || exit 3|" "$SUB_SPOOL"
+grep -q "^cd \"${PWD}\" || exit 3" "$SUB_SPOOL" || { echo "submitter spool did not pin its repo"; exit 3; }
 grep -q "ACCEPT_FILE=\"${ACC}\"" "$SUB_SPOOL" || { echo "submitter spool did not redirect ACCEPT_FILE"; exit 3; }
 
 # Cases that must reach the submitter's LATER gates need a clean training
@@ -400,7 +411,7 @@ if [ -f outputs_FLAC/exp11_VANL/launch_manifest.txt ]; then
   grep -q '^vae_sha256 8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9' outputs_FLAC/exp11_VANL/launch_manifest.txt
   check "the control manifest records our pinned VAE" $?
 else
-  skip_case "control-manifest cross-check" "manifest not present on this machine"
+  skip_env "control-manifest cross-check" "manifest not present in this tree"
 fi
 
 echo "--- M. the submitter ---"
@@ -660,7 +671,7 @@ json.dump(d, open(sys.argv[2],'w'))" "${EXP11DIR}/arm_launch_registry.json" "${T
   expect_cmd "a registry disagreeing with the reviewed pin is refused" 1 "the control's identity moved" -- \
     ctrl_env "$CTRL_MAN" "$PIN" "${TMP}/reg_moved.json"
 else
-  skip_case "control-manifest snapshot cases" "manifest not present on this machine"
+  skip_env "control-manifest snapshot cases" "manifest not present in this tree"
 fi
 
 echo "--- V. NEW (full-fix F1): end-of-run code is bound to a run-owned snapshot ---"
