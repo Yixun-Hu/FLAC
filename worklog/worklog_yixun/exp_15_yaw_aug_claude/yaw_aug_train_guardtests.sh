@@ -490,8 +490,9 @@ PY
 fresh_reg() { $PY -c "
 import json,sys
 json.dump({'arms': {'YAWAUG': {'final_ckpt_sha256': None}}, 'restarts': {}}, open(sys.argv[1],'w'))" "$1"; }
-completion() {  # <ckpt-dir> <registry>
-  $PY "${TMP}/completion.py" "${EXPDIR}/yaw_aug_record_control.py" "$2" YAWAUG "$1" 40000 "$ARM_CONFIG"
+completion() {  # <ckpt-dir> <registry> — monolithic shape: target == cap, chain off
+  $PY "${TMP}/completion.py" "${EXPDIR}/yaw_aug_record_control.py" "$2" YAWAUG "$1" 40000 \
+      "$ARM_CONFIG" 40000 0
 }
 AUD_REG="${TMP}/audit_registry.json"
 fresh_reg "$AUD_REG"
@@ -631,10 +632,10 @@ printf '\ndef summarize_ema(state_dict):\n    raise SystemExit("MUTATED LIVE REC
 fresh_reg "${TMP}/snap_registry.json"
 expect_cmd "the completion path runs the SNAPSHOT, not the mutated live copy" 0 "completion audit OK" -- \
   $PY "${TMP}/completion.py" "${SNAPDIR}/yaw_aug_record_control.py" "${TMP}/snap_registry.json" \
-      YAWAUG "$CK_DIR" 40000 "${SNAPDIR}/FLAC_AR_YAWAUG.json"
+      YAWAUG "$CK_DIR" 40000 "${SNAPDIR}/FLAC_AR_YAWAUG.json" 40000 0
 expect_cmd "  ... while the mutated live copy WOULD have failed the run" 1 "MUTATED LIVE RECORDER RAN" -- \
   $PY "${TMP}/completion.py" "$LIVE_COPY" "${TMP}/snap_registry.json" \
-      YAWAUG "$CK_DIR" 40000 "${SNAPDIR}/FLAC_AR_YAWAUG.json"
+      YAWAUG "$CK_DIR" 40000 "${SNAPDIR}/FLAC_AR_YAWAUG.json" 40000 0
 [ "$SNAP_SHA_BEFORE" = "$(sha256sum "${SNAPDIR}/yaw_aug_record_control.py" | awk '{print $1}')" ]
 check "  ... and the snapshot's recorded hash still matches its bytes" $?
 
@@ -840,6 +841,144 @@ expect_cmd "an orphan restart (no INITIAL) is refused" 1 "orphan restart" -- \
   reg_restart "${TMP}/orphan_registry.json" 999 12500
 expect_cmd "a restart with no registry at all is refused" 1 "does not exist" -- \
   reg_restart "${TMP}/no_such_registry.json" 999 12500
+
+echo "--- Y. NEW (chain): per-leg budgets, guards, and byte-compatible monolith ---"
+CHAIN_ROOT="${OUT_ROOT}/chain"
+CHAIN_RUN="${CHAIN_ROOT}/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints"
+mkdir -p "$CHAIN_RUN"
+for STEP in 2500 12500 37500; do : > "${CHAIN_RUN}/epoch=0-step=${STEP}.ckpt"; done
+CH_ENV=(DRYRUN=1 CHAIN=1 ARM=YAWAUG "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${CHAIN_ROOT}" "${REPO_ENV[@]}")
+# leg math
+case_run "chain INITIAL is 0 -> 2500" 0 "chain leg: 0 -> 2500 of 40000" -- "${CH_ENV[@]}"
+case_run "  ... and passes --max-steps 2500 to train.py" 0 "--max-steps 2500" -- "${CH_ENV[@]}"
+case_run "  ... under the per-leg wall pin" 0 "time pin PINNED_TIME_LIMIT_LEG=1:30:00" -- "${CH_ENV[@]}"
+case_run "a mid chain leg is 12500 -> 15000" 0 "chain leg: 12500 -> 15000 of 40000" \
+  -- "${CH_ENV[@]}" EXPECTED_STEP=12500 "RESUME_CKPT=${CHAIN_RUN}/epoch=0-step=12500.ckpt"
+case_run "the FINAL leg is 37500 -> 40000" 0 "chain leg: 37500 -> 40000 of 40000" \
+  -- "${CH_ENV[@]}" EXPECTED_STEP=37500 "RESUME_CKPT=${CHAIN_RUN}/epoch=0-step=37500.ckpt"
+case_run "an oversized LEG_STEPS clamps to the cap" 0 "chain leg: 37500 -> 40000 of 40000" \
+  -- "${CH_ENV[@]}" LEG_STEPS=10000 EXPECTED_STEP=37500 "RESUME_CKPT=${CHAIN_RUN}/epoch=0-step=37500.ckpt"
+case_run "a larger aligned LEG_STEPS is honoured" 0 "chain leg: 2500 -> 12500 of 40000" \
+  -- "${CH_ENV[@]}" LEG_STEPS=10000 EXPECTED_STEP=2500 "RESUME_CKPT=${CHAIN_RUN}/epoch=0-step=2500.ckpt"
+# guards
+case_run "a misaligned LEG_STEPS dies" 2 "not a multiple of the 2500-step checkpoint cadence" \
+  -- "${CH_ENV[@]}" LEG_STEPS=1000
+case_run "a zero LEG_STEPS dies" 2 "LEG_STEPS must be > 0" -- "${CH_ENV[@]}" LEG_STEPS=0
+case_run "a misaligned --expected-step dies" 2 "not on the 2500-step cadence" \
+  -- "${CH_ENV[@]}" EXPECTED_STEP=3000 "RESUME_CKPT=${CHAIN_RUN}/epoch=0-step=2500.ckpt"
+case_run "resuming AT the cap still dies" 2 "at/past the pre-registered" \
+  -- "${CH_ENV[@]}" EXPECTED_STEP=40000 "RESUME_CKPT=${CHAIN_RUN}/epoch=0-step=37500.ckpt"
+CAPBUST="$(spool capbust 's/^PINNED_CHAIN_CAP=40000/PINNED_CHAIN_CAP=50000/')"
+case_spool "a chain cap that is not the registered endpoint dies" "$CAPBUST" 2 \
+  "the pre-registered endpoint is 40000" -- "${CH_ENV[@]}"
+# the monolith is untouched
+case_run "CHAIN unset still trains the full 40000" 0 "max_steps 40000" \
+  -- "${BASE_ENV[@]}" ARM=YAWAUG
+case_run "  ... under the monolithic wall pin" 0 "time pin PINNED_TIME_LIMIT_YAWAUG=24:00:00" \
+  -- "${BASE_ENV[@]}" ARM=YAWAUG
+MONO_ARGV="$(env "${BASE_ENV[@]}" ARM=YAWAUG bash "$LAUNCHER" 2>&1 | sed -n '/^--model-config/p')"
+REF_ARGV="$(git show "${HEAD_SHA}:${LAUNCHER}" > "${TMP}/ref_launcher.sbatch" 2>/dev/null \
+            && env "${BASE_ENV[@]}" ARM=YAWAUG bash "${TMP}/ref_launcher.sbatch" 2>&1 | sed -n '/^--model-config/p')"
+[ -n "$MONO_ARGV" ] && [ "$MONO_ARGV" = "$REF_ARGV" ]
+check "the monolithic argv is byte-identical to the committed reference" $?
+
+echo "--- Z. NEW (chain): the self-chaining epilogue ---"
+sed -n '/--- BEGIN next-leg-helper/,/--- END next-leg-helper/p' "$LAUNCHER" > "${TMP}/nextleg.sh"
+grep -q 'submit_next_leg()' "${TMP}/nextleg.sh"; check "the next-leg helper is extracted from the launcher" $?
+# A STUB submitter stands in for the real one: this suite never submits anything.
+cat > "${TMP}/fake_submit_ok.sh" <<'EOS'
+#!/usr/bin/env bash
+echo "arm $1 | chain leg"
+echo "submitted YAWAUG -> job 4242424"
+exit 0
+EOS
+cat > "${TMP}/fake_submit_fail.sh" <<'EOS'
+#!/usr/bin/env bash
+echo "tracked measurement surfaces have uncommitted changes - commit first, abort"
+exit 2
+EOS
+chmod +x "${TMP}/fake_submit_ok.sh" "${TMP}/fake_submit_fail.sh"
+run_next_leg() {  # <stub> <manifest> ; ARM/LEG_STEPS/PINNED_CHAIN_CAP come from the env
+  ( ARM=YAWAUG LEG_STEPS=2500 PINNED_CHAIN_CAP=40000 \
+    CHAIN_SUBMIT_ATTEMPTS=3 CHAIN_SUBMIT_BACKOFF=0
+    # shellcheck disable=SC1090
+    . "${TMP}/nextleg.sh"
+    submit_next_leg "$1" "${CHAIN_RUN}/epoch=0-step=2500.ckpt" 2500 "$2" )
+}
+MAN_OK="${TMP}/manifest_ok.txt"; : > "$MAN_OK"
+expect_cmd "a successful submission is recorded with its job id" 0 "next leg submitted (job 4242424)" -- \
+  run_next_leg "${TMP}/fake_submit_ok.sh" "$MAN_OK"
+grep -q "^next_leg_command CHAIN=1 LEG_STEPS=2500 bash ${TMP}/fake_submit_ok.sh YAWAUG --resume ${CHAIN_RUN}/epoch=0-step=2500.ckpt --expected-step 2500$" "$MAN_OK"
+check "  ... and the manifest carries the exact command that was run" $?
+grep -q '^next_leg_submit_status SUBMITTED attempt 1 job 4242424$' "$MAN_OK"
+check "  ... with next_leg_submit_status SUBMITTED" $?
+MAN_FAIL="${TMP}/manifest_fail.txt"; : > "$MAN_FAIL"
+expect_cmd "three failed attempts stall the chain (nonzero)" 1 "CHAIN STALLED" -- \
+  run_next_leg "${TMP}/fake_submit_fail.sh" "$MAN_FAIL"
+grep -q '^next_leg_submit_status FAILED after 3 attempts$' "$MAN_FAIL"
+check "  ... and the manifest says FAILED after 3 attempts" $?
+grep -q '^next_leg_command ' "$MAN_FAIL"
+check "  ... while the recorded command survives for manual recovery" $?
+grep -c '^next_leg_command ' "$MAN_FAIL" | grep -qx 1
+check "  ... exactly once (recorded BEFORE the attempts, not per attempt)" $?
+grep -q 'final_rc=12' "$LAUNCHER"; check "a stalled chain exits on the distinct class 12" $?
+grep -q '#  12  CHAIN only' "$LAUNCHER"; check "  ... which is documented in the exit taxonomy" $?
+grep -q 'chain END: this leg reached the pre-registered cap' "$LAUNCHER"
+check "the FINAL leg submits no successor" $?
+awk '/if \[ "\$CHAIN" = "1" \] && \[ "\$COMPLETION_RC" -eq 0 \] && \[ "\$final_rc" -eq 0 \]/{g=NR} /submit_next_leg "\$REPO/{c=NR} END{exit !(g && c && g < c)}' "$LAUNCHER"
+check "the successor is submitted ONLY after a passing audit and a green leg" $?
+grep -q 'submit_next_leg "$REPO/$SUBMITTER_REL"' "$LAUNCHER"
+check "the successor goes through the LIVE submitter (it re-gates at then-current HEAD)" $?
+# leg-aware completion audit: only the cap leg closes the run out
+fresh_reg "${TMP}/chain_registry.json"
+expect_cmd "a mid-chain leg records a boundary, not a final checkpoint" 0 "leg boundary at step 40000" -- \
+  $PY "${TMP}/completion.py" "${EXPDIR}/yaw_aug_record_control.py" "${TMP}/chain_registry.json" \
+      YAWAUG "$CK_DIR" 40000 "$ARM_CONFIG" 50000 1
+$PY -c "
+import json,sys
+d=json.load(open(sys.argv[1]))
+legs=d['legs']['YAWAUG']
+sys.exit(0 if len(legs)==1 and legs[0]['step']==40000 and legs[0]['chain'] is True
+         and d['arms']['YAWAUG'].get('final_ckpt_sha256') is None else 1)" "${TMP}/chain_registry.json"
+check "  ... so final_ckpt_sha256 stays unset until the cap leg" $?
+fresh_reg "${TMP}/chain_registry2.json"
+expect_cmd "the CAP leg ends the chain" 0 "CHAIN END" -- \
+  $PY "${TMP}/completion.py" "${EXPDIR}/yaw_aug_record_control.py" "${TMP}/chain_registry2.json" \
+      YAWAUG "$CK_DIR" 40000 "$ARM_CONFIG" 40000 1
+$PY -c "
+import json,sys
+e=json.load(open(sys.argv[1]))['arms']['YAWAUG']
+sys.exit(0 if e['final_step']==40000 and len(e['final_ckpt_sha256'])==64 else 1)" "${TMP}/chain_registry2.json"
+check "  ... writing final_ckpt_sha256/final_step from the checkpoint" $?
+
+echo "--- Z2. NEW (chain): the submitter's chain surface ---"
+sed -n '/--- BEGIN chain-initial-manifest-python/,/--- END chain-initial-manifest-python/p' "$SUBMITTER" > "${TMP}/chain_initial.sh"
+grep -q 'chain_initial_manifest()' "${TMP}/chain_initial.sh"; check "the initial-manifest reader is extracted" $?
+initial_manifest() { ( . "${TMP}/chain_initial.sh"; chain_initial_manifest "$1" YAWAUG ); }
+$PY -c "
+import json,sys
+json.dump({'arms':{'YAWAUG':{'manifest_path':'/x/initial_manifest.txt'}},'restarts':{}}, open(sys.argv[1],'w'))" \
+  "${TMP}/chain_reg_ok.json"
+expect_cmd "a RESTART leg finds the INITIAL manifest in the registry" 0 "/x/initial_manifest.txt" -- \
+  initial_manifest "${TMP}/chain_reg_ok.json"
+$PY -c "
+import json,sys
+json.dump({'arms':{},'restarts':{}}, open(sys.argv[1],'w'))" "${TMP}/chain_reg_empty.json"
+expect_cmd "a RESTART leg with no registered INITIAL is refused" 1 "presupposes a registered first leg" -- \
+  initial_manifest "${TMP}/chain_reg_empty.json"
+expect_cmd "a missing registry is refused" 1 "cannot read the launch registry" -- \
+  initial_manifest "${TMP}/no_such_registry.json"
+grep -q 'chain_standing_waiver ${STANDING_WAIVER_REF}' "$SUBMITTER"
+check "every chain manifest cites the standing waiver" $?
+grep -q 'chain_initial_manifest ${CHAIN_INITIAL_MANIFEST' "$SUBMITTER"
+check "  ... and a RESTART leg names the INITIAL manifest" $?
+grep -q 'CHAIN=1,LEG_STEPS=' "$SUBMITTER"; check "CHAIN and LEG_STEPS are exported to the job" $?
+expect_cmd "the submitter refuses a misaligned LEG_STEPS" 2 "checkpoint cadence" -- \
+  env DRYRUN=1 CHAIN=1 LEG_STEPS=1234 bash "$SUBMITTER" YAWAUG
+expect_cmd "the submitter refuses a misaligned --expected-step" 2 "no boundary checkpoint can exist" -- \
+  env DRYRUN=1 CHAIN=1 bash "$SUBMITTER" YAWAUG --resume /x/c.ckpt --expected-step 3000
+expect_cmd "the submitter refuses a resume at the cap" 2 "chain is already complete" -- \
+  env DRYRUN=1 CHAIN=1 bash "$SUBMITTER" YAWAUG --resume /x/c.ckpt --expected-step 40000
 
 echo "--- Q. the suite touched nothing tracked, and submitted nothing ---"
 TRACKED_AFTER="$(git status --porcelain --untracked-files=no -- "$EXPDIR" "$EXP11DIR" src data/AR | sort)"
