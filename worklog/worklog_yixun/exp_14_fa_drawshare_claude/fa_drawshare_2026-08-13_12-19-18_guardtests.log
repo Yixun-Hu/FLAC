@@ -1,0 +1,88 @@
+=== dsarm_launch guard exercise - 2026-08-13_12-19-18 - 75144fc ===
+launcher: worklog/worklog_yixun/exp_14_fa_drawshare_claude/dsarm_launch.sh
+DSPA  config sha256 (manual recovery if hard-killed): 7f3a95679cd39a9a15b69de64a18cba28a03f8bb4c7ea9ca76d0aa20d6449663
+DSCS3 config sha256 (manual recovery if hard-killed): e4ffc8b96a2d6043b4c17f0a8183d6511e190f4717989219e8a12f99d5b920e9
+BF    config sha256 (read-only throughout)          : 3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328
+--- A. arm selection ---
+PASS  rc=2   ARM unset rejected
+PASS  rc=2   ARM=DSPA2 (near-miss) rejected
+PASS  rc=2   ARM=dspa (wrong case) rejected
+PASS  rc=2   ARM=BF (another experiment's arm) rejected
+--- B. environment / knob validation ---
+PASS  rc=2   wrong conda env rejected
+PASS  rc=2   MAXSTEPS=abc
+PASS  rc=2   MAXSTEPS=0
+PASS  rc=2   MAXSTEPS=40000.5 (non-integer) rejected
+PASS  rc=2   MAXSTEPS=-40000 rejected
+PASS  rc=2   CHECKPOINT_EVERY=0
+PASS  rc=2   CHECKPOINT_EVERY=abc
+PASS  rc=2   MAXSTEPS + CHECKPOINT_EVERY empty -> the registered defaults (40000 / 2500)
+PASS  rc=2   MB=8 ACC=8 rung rejected (accumulation never feeds BN)
+PASS  rc=2   MIN_FREE_DISK_MB=abc rejected
+PASS  rc=2   PROBE with a cadence that never saves rejected
+--- C. resume-declaration coupling ---
+PASS  rc=2   RESUME_CKPT without EXPECTED_STEP rejected
+PASS  rc=2   EXPECTED_STEP without RESUME_CKPT rejected
+PASS  rc=2   EXPECTED_STEP=abc rejected
+PASS  rc=2   RESUME_CKPT missing file rejected
+--- D. config contract (arm configs temporarily swapped) ---
+PASS  rc=2   D1 wrong cap (64) for DSPA rejected
+  arm configs restored OK
+PASS  rc=2   D1b DSCS3 carrying DSPA's cap rejected
+  arm configs restored OK
+PASS  rc=2   D2 missing cap key rejected (would silently inherit the module default)
+  arm configs restored OK
+PASS  rc=2   D3 boolean cap rejected
+  arm configs restored OK
+PASS  rc=2   D4 non-cap drift from BF rejected
+  arm configs restored OK
+PASS  rc=2   D5 cond_method drift to vanilla rejected
+  arm configs restored OK
+PASS  rc=2   D6 non-C4 orbit rejected
+  arm configs restored OK
+--- E. df floor on the outputs volume (bypass for guard-testing: MIN_FREE_DISK_MB=1) ---
+PASS  rc=2   df floor rejects an impossible free-space requirement
+PASS  rc=2   df floor bypass lets the run reach the VRAM gate
+--- F. RESTART lineage (synthetic ckpts in outputs_FLAC/exp14_DSPA) ---
+synthetic RESTART checkpoints written to outputs_FLAC/exp14_DSPA and /tmp/tmp.UWBoK1y9P8
+PASS  rc=2   F1 RESTART from outside this arm's namespace rejected
+PASS  rc=2   F2 RESTART MAXSTEPS <= EXPECTED_STEP rejected
+PASS  rc=2   F3 RESTART with a wrong EXPECTED_STEP rejected
+PASS  rc=2   F4 RESTART on a ckpt embedding the OTHER arm's cap rejected
+PASS  rc=2   F5 RESTART on a ckpt with NO cap key rejected
+PASS  rc=2   F6 VALID RESTART (dry-fail at the VRAM gate)
+--- targeted cleanup of outputs_FLAC/exp14_DSPA ---
+  rm outputs_FLAC/exp14_DSPA/guardtest-ok-step=20000.ckpt
+  rm outputs_FLAC/exp14_DSPA/guardtest-othercap-step=20000.ckpt
+  rm outputs_FLAC/exp14_DSPA/guardtest-nocapkey-step=20000.ckpt
+  rmdir outputs_FLAC/exp14_DSPA (was empty)
+--- G. the VALID launches: both arms + their declared chunk plans ---
+PASS  rc=2   G1 DSPA accept: identity, recipe, 1/3 per-angle chunk plan
+PASS  rc=2   G2 DSCS3 accept: identity, recipe, 3/3 shared chunk plan + the cap-96 VRAM note
+PASS  rc=2   G3 PROBE mode accepted with a cadence that does save
+--- config integrity re-check ---
+PASS  DSPA config unchanged (7f3a95679cd39a9a15b69de64a18cba28a03f8bb4c7ea9ca76d0aa20d6449663)
+PASS  DSCS3 config unchanged (e4ffc8b96a2d6043b4c17f0a8183d6511e190f4717989219e8a12f99d5b920e9)
+PASS  BF config unchanged (3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328)
+
+=== guard exercise: 40 passed, 0 failed ===
+  arm configs restored OK
+--- removing launcher logs created by this exercise ---
+  rm fa_drawshare_2026-08-13_12-20-00_exp14_DSPA_train.log
+  rm fa_drawshare_2026-08-13_12-20-15_exp14_DSPA_train.log
+  rm fa_drawshare_2026-08-13_12-20-56_exp14_DSPA_train.log
+  rm fa_drawshare_2026-08-13_12-21-06_exp14_DSCS3_train.log
+  rm fa_drawshare_2026-08-13_12-21-15_exp14_DSPA_train.log
+  rm fa_drawshare_2026-08-13_12-21-24_exp14_DSPA_train.log
+  rm fa_drawshare_2026-08-13_12-21-33_exp14_DSPA_train.log
+  rm fa_drawshare_2026-08-13_12-21-43_exp14_DSCS3_train.log
+  rm fa_drawshare_2026-08-13_12-21-52_exp14_DSPA_train.log
+  rm fa_drawshare_2026-08-13_12-22-01_exp14_DSPA_train.log
+  rm fa_drawshare_2026-08-13_12-22-10_exp14_DSPA_train.log
+  rm fa_drawshare_2026-08-13_12-22-33_exp14_DSPA_train.log
+  rm fa_drawshare_2026-08-13_12-22-44_exp14_DSPA_train.log
+  rm fa_drawshare_2026-08-13_12-22-55_exp14_DSPA_train.log
+  rm fa_drawshare_2026-08-13_12-23-06_exp14_DSPA_train.log
+  rm fa_drawshare_2026-08-13_12-23-17_exp14_DSPA_train.log
+  rm fa_drawshare_2026-08-13_12-23-27_exp14_DSCS3_train.log
+  rm fa_drawshare_2026-08-13_12-23-35_exp14_DSPA_train.log

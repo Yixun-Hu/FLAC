@@ -15,7 +15,7 @@ from src.data.yaw_rotation import (rotate_scene_metadata, invariant_conditioning
                                    draw_yaw_offsets, offsets_to_radians,
                                    yaw_column_shift,
                                    DEFAULT_FRAME_ANGLES, ORBIT_EXECUTION,
-                                   FRAME_AVG_MAX_FWD_SAMPLES)
+                                   FRAME_AVG_MAX_FWD_SAMPLES, resolve_frame_avg_cap)
 from src.models import create_model_from_config
 from src.training import create_training_wrapper_from_config, create_metric_callback_from_config
 
@@ -587,14 +587,20 @@ def source_sha():
         return "unknown"
 
 
-def orbit_provenance(cond_method):
+def orbit_provenance(cond_method, frame_avg_max_fwd_samples=None):
     """``(orbit_execution, frame_avg_fwd_cap)`` for a conditioning method.
 
     A vanilla evaluation executes NO orbit, so labelling it ``batched`` would be
     false provenance and would make a vanilla row look protocol-compatible with a
-    batched frame-averaged row."""
+    batched frame-averaged row.
+
+    The recorded cap is the one the run ACTUALLY applied. ``None`` -> the module
+    default (64), which is what every historical row carries and what exp_14 pins
+    as the common EVALUATION cap for both arms: each arm's TRAINING cap is a
+    property of its checkpoint, and the comparison is between training policies,
+    never between evaluation policies (plan §3.1)."""
     if cond_method == "fa_invariant":
-        return ORBIT_EXECUTION, FRAME_AVG_MAX_FWD_SAMPLES
+        return ORBIT_EXECUTION, resolve_frame_avg_cap(frame_avg_max_fwd_samples)
     return "n/a", None
 
 
@@ -702,7 +708,7 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
                          eval_name=None, weights_source=None, device=None,
                          rotate_mode='fixed', rotate_seed=None, input_hash=None,
                          assignment_hash=None, stream_count=None, img_w=None,
-                         by_scene=None):
+                         by_scene=None, frame_avg_max_fwd_samples=None):
     """Assemble the dict written to the metrics JSON.
 
     Extends the legacy ``{metrics, ckpt_path, rotate_deg}`` record with
@@ -718,8 +724,12 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
     Under ``rotate_mode='random'`` (exp_14) the record additionally carries the
     §3.3 assignment provenance and nulls ``rotate_deg``; in fixed mode it is
     byte-identical to the legacy record. See :func:`_rotation_provenance`.
+
+    ``frame_avg_max_fwd_samples`` is the cap this evaluation applied; ``None``
+    records the module default, i.e. the value every row already in the record
+    was produced under (exp_14 pins it to 64 explicitly on both arms).
     """
-    execution, cap = orbit_provenance(cond_method)
+    execution, cap = orbit_provenance(cond_method, frame_avg_max_fwd_samples)
     record = {
         "metrics": metrics_dict,
         "ckpt_path": ckpt_path,
@@ -769,7 +779,8 @@ def resolve_cond_autocast(mode):
 def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
                            frame_avg_angles, rotate_deg, batch_size, cond_autocast,
                            rotate_mode='fixed', rotate_seed=None, input_hash=None,
-                           assignment_hash=None, stream_count=None, img_w=None):
+                           assignment_hash=None, stream_count=None, img_w=None,
+                           frame_avg_max_fwd_samples=None):
     """Sidecar meta saved by ``--store_predictions`` (read by the exp_02 comparator
     guard). Carries the same orbit-execution provenance as the metrics record:
     at the default evaluation batch the batched path degenerates to one angle per
@@ -781,7 +792,7 @@ def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
     here on exactly the same conditional terms as in the metrics record (review
     B5): nothing changes unless ``--store_predictions`` AND random mode are both
     in play."""
-    execution, cap = orbit_provenance(cond_method)
+    execution, cap = orbit_provenance(cond_method, frame_avg_max_fwd_samples)
     meta = {
         "dataset_config": dataset_config_path,
         "seed": seed,
@@ -848,6 +859,7 @@ def evaluate_model(
     rotate_deg=0.0,
     cond_method='vanilla',
     frame_avg_angles=None,
+    frame_avg_max_fwd_samples=None,
     cond_autocast='default',
     allow_partial_load=False,
     rotate_mode='fixed',
@@ -863,6 +875,18 @@ def evaluate_model(
         raise ValueError(
             f"Unknown cond_method: {cond_method!r}; valid options: 'vanilla', 'fa_invariant'."
         )
+
+    # The EVALUATION chunk plan, validated before any file/model work for the same
+    # reason as the rotation protocol below: a misconfigured cap must never reach a
+    # GPU. It is a separate, explicitly pinned quantity from the cap a checkpoint
+    # was TRAINED under (exp_14 plan §3.1) -- both arms are evaluated at one common
+    # cap, and the value is recorded in the metrics row.
+    try:
+        frame_avg_max_fwd_samples = resolve_frame_avg_cap(frame_avg_max_fwd_samples)
+    except ValueError as err:                      # name the operator-facing knob
+        raise ValueError(
+            f"--frame-avg-max-fwd-samples (frame_avg_max_fwd_samples): {err}"
+        ) from err
 
     # Resolve (and validate) the rotation protocol before any file/model work:
     # a misconfigured rotation must never reach a GPU (see resolve_rotation_plan).
@@ -1003,7 +1027,8 @@ def evaluate_model(
                     # + C4 frame average of the ViT depth path. Applied AFTER the
                     # optional --rotate-deg above (that composition is the sanity check).
                     conditioning = invariant_conditioning(
-                        module.diffusion.conditioner, metadata, module.device, frame_avg_angles
+                        module.diffusion.conditioner, metadata, module.device, frame_avg_angles,
+                        max_fwd_samples=frame_avg_max_fwd_samples,
                     )
                 else:
                     conditioning = module.diffusion.conditioner(metadata, module.device)
@@ -1105,7 +1130,8 @@ def evaluate_model(
         cond_autocast=cond_autocast, batch_size=batch_size, n_samples=c,
         dataset_config=dataset_config_path, seed=seed, cfg_scale=cfg_scale,
         steps=steps, eval_name=eval_name, weights_source=weights_source,
-        device=str(device), by_scene=by_scene, **rotation_provenance,
+        device=str(device), by_scene=by_scene,
+        frame_avg_max_fwd_samples=frame_avg_max_fwd_samples, **rotation_provenance,
     )
     path2save = output_paths['metrics']
     with open(path2save, 'w') as f:
@@ -1129,7 +1155,7 @@ def evaluate_model(
             "meta": build_predictions_meta(
                 dataset_config_path, seed, int(decoded_samples_all.shape[0]),
                 cond_method, frame_angles_record, rotate_deg, batch_size, cond_autocast,
-                **rotation_provenance,
+                frame_avg_max_fwd_samples=frame_avg_max_fwd_samples, **rotation_provenance,
             ),
         }
         torch.save(preds_bundle, path2save_preds)
@@ -1159,6 +1185,7 @@ if __name__ == "__main__":
     parser.add_argument("--expected-stream-count", type=int, default=None, help="Pre-registered number of items in the evaluated split (e.g. 6337 for the AR unseen split). When given, the run fails unless the dataset AND the accumulated assignment stream both hold exactly this many items; without it, the stream can only be checked against the dataset it came from.")
     parser.add_argument("--cond-method", type=str, default="vanilla", choices=["vanilla", "fa_invariant"], help="Conditioning method: 'vanilla' (single conditioner pass) or 'fa_invariant' (cylindrical pose invariants + C4 ViT frame average). Composes with --rotate-deg (rotation applied first).")
     parser.add_argument("--frame-avg-angles", type=str, default=",".join(str(int(a)) for a in DEFAULT_FRAME_ANGLES), help="Comma-separated yaw angles in degrees for fa_invariant frame averaging; the first must be 0. Ignored when --cond-method vanilla.")
+    parser.add_argument("--frame-avg-max-fwd-samples", type=int, default=64, help="Largest number of samples in ONE fa_invariant frame-averaging forward. With C4 and a per-forward batch B this makes max(1, cap // B) angles share a chunk -- and, under train-mode DINOv3, one RoPE rescale draw (announcement 06). Default 64 = the value every evaluation in the record ran under; exp_14 pins it explicitly on both arms. Ignored when --cond-method vanilla.")
     parser.add_argument("--cond-autocast", type=str, default="default", choices=["default", "bf16", "off"], help="Autocast mode for the conditioning call: 'default' = torch per-device default dtype (fp16 on cuda; the exp_01/exp_02 protocol), 'bf16' = bfloat16 (matches finetune_cond's bf16-mixed training), 'off' = no autocast (fp32, for exactness measurements).")
     parser.add_argument("--allow-partial-load", action='store_true', help="Continue with a warning when the checkpoint does not load cleanly (missing or non-whitelisted unexpected keys) instead of raising.")
     args = parser.parse_args()
@@ -1183,6 +1210,7 @@ if __name__ == "__main__":
         rotate_deg=args.rotate_deg,
         cond_method=args.cond_method,
         frame_avg_angles=frame_avg_angles,
+        frame_avg_max_fwd_samples=args.frame_avg_max_fwd_samples,
         cond_autocast=args.cond_autocast,
         allow_partial_load=args.allow_partial_load,
         rotate_mode=args.rotate_mode,

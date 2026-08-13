@@ -173,6 +173,7 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
             cond_method: str = "vanilla",
             frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            frame_avg_max_fwd_samples: tp.Optional[int] = None,
             yaw_aug_enabled: bool = False,
             yaw_aug_img_w: int = 512,
             yaw_aug_seed: int = 0
@@ -193,6 +194,24 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         self.frame_avg_angles = (
             tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
         )
+        # exp_14: the frame-average chunk plan as a declared arm property
+        # (plan §3.1). None means "the yaw_rotation module default (64)", which is
+        # what every recipe already in the record ran under; the value is PASSED to
+        # invariant_conditioning, never assigned to the module global. Validated
+        # raw here so direct construction is as fail-closed as the config path
+        # (the exp_15 yaw_aug precedent).
+        if frame_avg_max_fwd_samples is not None:
+            if (isinstance(frame_avg_max_fwd_samples, bool)
+                    or not isinstance(frame_avg_max_fwd_samples, int)):
+                raise ValueError(
+                    "frame_avg_max_fwd_samples must be an int or None, got "
+                    f"{frame_avg_max_fwd_samples!r}"
+                )
+            if frame_avg_max_fwd_samples < 1:
+                raise ValueError(
+                    f"frame_avg_max_fwd_samples must be >= 1, got {frame_avg_max_fwd_samples}"
+                )
+        self.frame_avg_max_fwd_samples = frame_avg_max_fwd_samples
 
         # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
         # default and read only by training_step; validation/test are untouched.
@@ -464,10 +483,15 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         training_step, validation_step AND test_step so all inference/training
         sites share one dispatch point (the repo's flow_source precedent). The
         raise is a backstop; the constructor already rejects unknown values.
+
+        ``max_fwd_samples`` is passed as a KEYWORD: the parameter after ``angles``
+        is ``vit_ids``, so a positional slip would disable the frame average
+        instead of changing the chunk plan. ``None`` keeps the module default.
         """
         if self.cond_method == "fa_invariant":
             return invariant_conditioning(
-                self.diffusion.conditioner, metadata, self.device, self.frame_avg_angles
+                self.diffusion.conditioner, metadata, self.device, self.frame_avg_angles,
+                max_fwd_samples=self.frame_avg_max_fwd_samples,
             )
         if self.cond_method == "vanilla":
             return self.diffusion.conditioner(metadata, self.device)

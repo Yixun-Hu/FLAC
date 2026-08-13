@@ -75,6 +75,41 @@ def _parse_yaw_aug_config(training_config):
     }
 
 
+def _parse_frame_avg_cap_config(training_config):
+    """Validate ``training.frame_avg_max_fwd_samples`` and return its wrapper kwargs.
+
+    exp_14's treatment (plan §3.1). The frame-average chunk plan — how many orbit
+    angles share one conditioner forward, and therefore one train-mode DINOv3
+    RoPE draw — used to be derived from a module constant
+    (``yaw_rotation.FRAME_AVG_MAX_FWD_SAMPLES``), which announcement 06 flags as
+    "derived, not declared": the same JSON at a different micro-batch, or a month
+    apart, trains a different method. Declaring it here puts it in the config that
+    ``train.py`` embeds into every checkpoint, so an arm's chunk plan is auditable
+    after the fact and comparable across arms.
+
+    Absent key -> ``{}``, so the wrapper construction call is LITERALLY the
+    pre-change call and every recipe already in the record is byte-identical.
+
+    Every failure mode is fail-closed on the RAW value: a coerced ``int("32")`` or
+    a ``True`` that ``isinstance(_, int)`` happily accepts would arm the wrong
+    chunk plan for a six-day run without a word of complaint.
+    """
+    key = "frame_avg_max_fwd_samples"
+    if key not in training_config:
+        return {}
+
+    value = training_config[key]
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(
+            f"training.{key} must be an int (the frame-average per-forward sample "
+            f"cap), got {value!r}"
+        )
+    if value < 1:
+        raise ValueError(f"training.{key} must be >= 1, got {value}")
+
+    return {key: int(value)}
+
+
 def create_training_wrapper_from_config(model_config, model):
     model_type = model_config.get('model_type', None)
     assert model_type is not None, 'model_type must be specified in model config'
@@ -134,6 +169,9 @@ def create_training_wrapper_from_config(model_config, model):
 
         # exp_15: absent/disabled block -> {} -> the pre-change call verbatim.
         yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+        # exp_14: absent key -> {} -> likewise verbatim (cap defaults to the
+        # module's 64 inside invariant_conditioning, not here).
+        frame_avg_cap_kwargs = _parse_frame_avg_cap_config(training_config)
 
         return DiffusionCondTrainingWrapper(
             model, 
@@ -151,6 +189,7 @@ def create_training_wrapper_from_config(model_config, model):
             test_param = model_config.get("test_setup", None),
             cond_method = training_config.get("cond_method", "vanilla"),
             frame_avg_angles = training_config.get("frame_avg_angles", None),
+            **frame_avg_cap_kwargs,
             **yaw_aug_kwargs,
         )
     

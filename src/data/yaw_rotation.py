@@ -42,11 +42,45 @@ DEFAULT_FRAME_ANGLES: Tuple[float, ...] = (0.0, 90.0, 180.0, 270.0)
 # bridge, which is therefore the sole inferential comparator; historical rows
 # evaluated under the per-angle loop are labelled legacy-loop. In eval mode the
 # rescale is off, so eval-mode batched and loop results agree numerically.
+#
+# This is the DEFAULT, not the only value: announcement 06 requires every FA arm
+# to declare its effective chunk plan, and exp_14 makes the cap a per-arm config
+# key (``training.frame_avg_max_fwd_samples``) passed to
+# :func:`invariant_conditioning` as ``max_fwd_samples``. Nothing assigns to this
+# name at runtime -- see :func:`resolve_frame_avg_cap`.
 FRAME_AVG_MAX_FWD_SAMPLES: int = 64
 
 # Recorded in evaluation provenance so a metrics row states which orbit execution
 # produced it ('batched' here, 'loop' for the legacy per-angle path).
 ORBIT_EXECUTION: str = "batched"
+
+
+def resolve_frame_avg_cap(max_fwd_samples=None) -> int:
+    """The frame-average forward cap this call must use.
+
+    ``None`` -> :data:`FRAME_AVG_MAX_FWD_SAMPLES` (64), i.e. exactly the
+    behaviour every recipe already in the record was run under. Anything else is
+    validated and returned as-is; the module global is never rebound, because the
+    cap is a per-arm property (exp_14's ``training.frame_avg_max_fwd_samples``)
+    and a process-wide assignment would (a) leak into whatever else the process
+    later conditions and (b) survive a mid-step crash as a cap nobody declared.
+
+    Validation is on the RAW value and fail-closed. ``bool`` is rejected before
+    ``int`` because ``isinstance(True, int)`` is True and ``max(1, 64 // True)``
+    would quietly become a 64-angle chunk plan; a float or a numeric string is
+    rejected rather than coerced, because ``int("32")`` succeeding on a typo is
+    how an arm gets trained under a cap its config never stated.
+    """
+    if max_fwd_samples is None:
+        return FRAME_AVG_MAX_FWD_SAMPLES
+    if isinstance(max_fwd_samples, bool) or not isinstance(max_fwd_samples, int):
+        raise ValueError(
+            f"max_fwd_samples must be an int (the frame-average per-forward sample "
+            f"cap), got {max_fwd_samples!r}"
+        )
+    if max_fwd_samples < 1:
+        raise ValueError(f"max_fwd_samples must be >= 1, got {max_fwd_samples}")
+    return int(max_fwd_samples)
 
 
 def wrap_angle(phi):
@@ -358,6 +392,7 @@ def invariant_conditioning(
     device,
     angles: Tuple[float, ...] = DEFAULT_FRAME_ANGLES,
     vit_ids: Tuple[str, ...] = ("source_vit", "context_poses_vit"),
+    max_fwd_samples: "int | None" = None,
 ) -> Dict[str, object]:
     """
     Compute Route-1 yaw-symmetrized FLAC conditioning.
@@ -377,9 +412,12 @@ def invariant_conditioning(
     All remaining conditioners (e.g. the ``context_audio`` RIR encoder, which is
     already yaw-invariant and may carry BatchNorm running stats) are run **exactly
     once** — only the ``vit_ids`` conditioners see the rotated frames. Those are
-    executed in BATCHED chunks of at most :data:`FRAME_AVG_MAX_FWD_SAMPLES`
-    samples rather than one forward per angle (the orbit passes are
-    latency-bound; see the constant). The averaging arithmetic, the accumulation
+    executed in BATCHED chunks of at most ``max_fwd_samples`` samples (default
+    :data:`FRAME_AVG_MAX_FWD_SAMPLES`) rather than one forward per angle (the
+    orbit passes are latency-bound; see the constant). That partition IS the
+    method under announcement 06 -- it decides how many angles share one
+    train-mode RoPE draw -- so exp_14 declares it per arm rather than inheriting
+    a module constant. The averaging arithmetic, the accumulation
     order and the returned structure are unchanged; train-mode DINOv3's random
     RoPE rescale becomes chunk-shared, a disclosed recipe change applied
     identically to every arm. The caller's
@@ -401,6 +439,14 @@ def invariant_conditioning(
         identity / base pass). Defaults to :data:`DEFAULT_FRAME_ANGLES`.
     vit_ids : Tuple[str, ...], optional
         Conditioning ids whose outputs are frame-averaged (the ViT depth path).
+    max_fwd_samples : int or None, optional
+        Largest number of samples in ONE frame-averaging forward, i.e. the thing
+        that decides how many angles share a chunk (and therefore share a
+        train-mode RoPE draw — announcement 06). ``None`` (the default) means
+        :data:`FRAME_AVG_MAX_FWD_SAMPLES`, exactly today's behaviour. exp_14
+        passes the arm's ``training.frame_avg_max_fwd_samples`` here so the chunk
+        plan is a declared, checkpoint-embedded property of the arm rather than
+        an ambient constant.
 
     Returns
     -------
@@ -412,12 +458,17 @@ def invariant_conditioning(
     Raises
     ------
     ValueError
-        If ``angles`` is empty or ``angles[0] != 0.0``.
+        If ``angles`` is empty, ``angles[0] != 0.0``, or ``max_fwd_samples`` is
+        not a positive integer.
     """
     if len(angles) == 0:
         raise ValueError("angles must be non-empty")
     if angles[0] != 0.0:
         raise ValueError(f"angles[0] must be 0.0 (the identity pass), got {angles[0]}")
+    # Validated HERE, before the short-circuit returns below: an invalid cap must
+    # abort even on an orbit that happens to need no chunking, or a typo'd arm
+    # could train for days without the treatment ever being read.
+    cap = resolve_frame_avg_cap(max_fwd_samples)
 
     # 1. cylindrical (yaw-invariant) pose features; never mutates the caller's md.
     md_inv = [cylindrical_pose_features(md) for md in metadata]
@@ -431,7 +482,8 @@ def invariant_conditioning(
 
     # 3. frame-average ONLY the ViT conditioners over the rotation subgroup.
     img_w = int(metadata[0]["depth"].shape[-1])
-    accum = _orbit_average_batched(conditioner, md_inv, base, present, angles, img_w, device)
+    accum = _orbit_average_batched(conditioner, md_inv, base, present, angles, img_w, device,
+                                   cap=cap, cap_is_explicit=max_fwd_samples is not None)
 
     for i in present:
         base[i][0] = accum[i] / float(len(angles))
@@ -467,16 +519,21 @@ def _orbit_average_loop(conditioner, md_inv, base, present, angles, img_w, devic
     return accum
 
 
-def _orbit_average_batched(conditioner, md_inv, base, present, angles, img_w, device):
+def _orbit_average_batched(conditioner, md_inv, base, present, angles, img_w, device,
+                           cap=None, cap_is_explicit=False):
     """Same orbit sum as :func:`_orbit_average_loop`, executed as a few large forwards.
 
     The rotated variants of consecutive angles are concatenated along the batch
-    dimension into chunks of at most :data:`FRAME_AVG_MAX_FWD_SAMPLES` samples
-    (whole angles per chunk, so a chunk is ``k * B`` samples), each chunk is one
-    conditioner call, and the stacked output is split back per angle. Terms are
-    accumulated in the INPUT ANGLE ORDER starting from the angle-0 base, so the
-    additions are never reassociated: the averaging arithmetic is identical to
-    the loop.
+    dimension into chunks of at most ``cap`` samples (default
+    :data:`FRAME_AVG_MAX_FWD_SAMPLES`; whole angles per chunk, so a chunk is
+    ``k * B`` samples), each chunk is one conditioner call, and the stacked output
+    is split back per angle. Terms are accumulated in the INPUT ANGLE ORDER
+    starting from the angle-0 base, so the additions are never reassociated: the
+    averaging arithmetic is identical to the loop.
+
+    ``cap_is_explicit`` only selects which knob the over-cap error names — the
+    module constant, or the config key that overrode it. A caller that hands us a
+    cap it read from a config must not be told to edit a module global.
 
     What is NOT identical is the augmentation schedule under train-mode DINOv3:
     its random RoPE rescale is drawn once per forward, so a chunk's angles share
@@ -491,14 +548,18 @@ def _orbit_average_batched(conditioner, md_inv, base, present, angles, img_w, de
     rest = angles[1:]
     if not rest:
         return accum
+    if cap is None:
+        cap = FRAME_AVG_MAX_FWD_SAMPLES
+    cap_name = ("training.frame_avg_max_fwd_samples" if cap_is_explicit
+                else "FRAME_AVG_MAX_FWD_SAMPLES")
     batch = len(md_inv)
-    if batch > FRAME_AVG_MAX_FWD_SAMPLES:
+    if batch > cap:
         raise ValueError(
-            f"batch {batch} exceeds FRAME_AVG_MAX_FWD_SAMPLES "
-            f"({FRAME_AVG_MAX_FWD_SAMPLES}): a frame-average chunk is whole angles, so it "
+            f"batch {batch} exceeds {cap_name} "
+            f"({cap}): a frame-average chunk is whole angles, so it "
             "cannot be split below one angle -- lower the batch or raise the cap deliberately"
         )
-    angles_per_chunk = max(1, FRAME_AVG_MAX_FWD_SAMPLES // batch)
+    angles_per_chunk = max(1, cap // batch)
     for start in range(0, len(rest), angles_per_chunk):
         chunk = rest[start:start + angles_per_chunk]
         stacked = []
