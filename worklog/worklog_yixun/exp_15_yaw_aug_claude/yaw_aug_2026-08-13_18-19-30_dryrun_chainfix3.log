@@ -1,0 +1,10 @@
+=== chain DRYRUN: INITIAL shape (0->2500, standing waiver) — pin 3cbdc90 ===
+chain leg: 0 -> 2500 (LEG_STEPS 2500, cap 40000)
+SMOKE WAIVER: production submitted without a passing smoke record.
+  reason: standing 2026-08-12 waiver (worklog 16:05); chainfix3 transcript at pin 3cbdc90
+arm YAWAUG | rung 8x8 (8x8) | time 1:30:00 | commit 3cbdc900cab19e1037d05a5ee31fa485f1449f30 | smoke 0
+DRYRUN sbatch --job-name=exp15-YAWAUG-leg2500 --gres=gpu:l40:8 --cpus-per-task=64 --mem=108G --time=1:30:00 --export=ALL,ARM=YAWAUG,EXPECT_SHA=3cbdc900cab19e1037d05a5ee31fa485f1449f30,OUTPUT_ROOT=outputs_FLAC,CHAIN=1,LEG_STEPS=2500 worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_train.sbatch
+
+=== chain DRYRUN: RESTART shape (2500->5000) — correct fail-closed refusal: no INITIAL registered ===
+chain leg: 2500 -> 5000 (LEG_STEPS 2500, cap 40000)
+CHAIN RESTART: cannot read the launch registry worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_launch_registry.json: [Errno 2] No such file or directory: 'worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_launch_registry.json' - abort

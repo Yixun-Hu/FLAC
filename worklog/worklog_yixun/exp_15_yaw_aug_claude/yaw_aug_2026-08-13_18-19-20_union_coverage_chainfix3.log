@@ -1,0 +1,9 @@
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-13_18-16-17_guardtests_chainfix3_worktree.ledger: 363 case records
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-13_18-12-50_guardtests_chainfix3.ledger: 363 case records
+
+cases seen        : 363
+covered (>=1 PASS): 363
+failed anywhere   : 0
+never passed      : 0
+
+UNION COVERAGE: every case passed in at least one environment
