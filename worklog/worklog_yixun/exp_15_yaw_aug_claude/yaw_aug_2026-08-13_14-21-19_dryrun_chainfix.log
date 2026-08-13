@@ -1,0 +1,25 @@
+=== exp_15 CHAIN dry runs after the chain-fix loop — commit e0bfa3ad3994674d5c6d6b17f71eff785a42b379 ===
+
+--- launcher: chain INITIAL (0 -> 2500) ---
+lineage: INITIAL (expected_step 0, max_steps 2500, ckpt every 2500, time pin PINNED_TIME_LIMIT_LEG=1:30:00)
+chain leg: 0 -> 2500 of 40000 (LEG_STEPS 2500)
+--model-config /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 2500 --batch-size 8 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 8 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --val-dataset-config '' --gradient-clip-val 0.0 --logger wandb --checkpoint-every 2500 --name FLAC_exp15_YAWAUG --experiment-name exp15_YAWAUG --save-dir /n/fs/rfmprog/.tmp/yh4742/tmp.ebxDiKnPDP/o2/exp15_YAWAUG
+ARGV PARITY OK (INITIAL): only whitelisted differences and additions
+
+--- launcher: chain RESTART (2500 -> 5000) ---
+lineage: RESTART (expected_step 2500, max_steps 5000, ckpt every 2500, time pin PINNED_TIME_LIMIT_LEG=1:30:00)
+chain leg: 2500 -> 5000 of 40000 (LEG_STEPS 2500)
+--model-config /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 5000 --batch-size 8 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 8 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --val-dataset-config '' --gradient-clip-val 0.0 --logger wandb --checkpoint-every 2500 --name FLAC_exp15_YAWAUG --experiment-name exp15_YAWAUG --save-dir /n/fs/rfmprog/.tmp/yh4742/tmp.ebxDiKnPDP/o/exp15_YAWAUG --ckpt-path /n/fs/rfmprog/.tmp/yh4742/tmp.ebxDiKnPDP/o/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=0-step=2500.ckpt
+ARGV PARITY OK (RESTART): only whitelisted differences and additions
+
+--- submitter: chain INITIAL (clean worktree) ---
+  reason: chain: standing waiver, worklog 2026-08-12T16:05
+arm YAWAUG | rung 8x8 (8x8) | time 1:30:00 | commit e0bfa3ad3994674d5c6d6b17f71eff785a42b379 | smoke 0
+DRYRUN sbatch --job-name=exp15-YAWAUG-leg2500 --gres=gpu:l40:8 --cpus-per-task=64 --mem=108G --time=1:30:00 --export=ALL,ARM=YAWAUG,EXPECT_SHA=e0bfa3ad3994674d5c6d6b17f71eff785a42b379,OUTPUT_ROOT=outputs_FLAC,CHAIN=1,LEG_STEPS=2500 worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_train.sbatch
+
+--- submitter: chain RESTART leg 2, with intent token + dependency ---
+chain RESTART leg: promotion gate inherited from the INITIAL leg
+  initial manifest: worklog/.../leg1_manifest.txt
+  standing waiver : worklog 2026-08-12T16:05:00-04:00 (Yixun waived rate_at_least_0.9x_VANL; post-hoc windowed floors 0.849/0.843)
+arm YAWAUG | rung 8x8 (8x8) | time 1:30:00 | commit e0bfa3ad3994674d5c6d6b17f71eff785a42b379 | smoke 0
+DRYRUN sbatch --job-name=exp15-YAWAUG-leg5000-tok-abc123 --gres=gpu:l40:8 --cpus-per-task=64 --mem=108G --time=1:30:00 --export=ALL,ARM=YAWAUG,EXPECT_SHA=e0bfa3ad3994674d5c6d6b17f71eff785a42b379,OUTPUT_ROOT=outputs_FLAC,RESUME_CKPT=/n/fs/rfmprog/.tmp/yh4742/tmp.ebxDiKnPDP/o/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=0-step=2500.ckpt,EXPECTED_STEP=2500,CHAIN=1,LEG_STEPS=2500 --dependency=afterok:3699999 worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_train.sbatch

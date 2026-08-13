@@ -1,0 +1,11 @@
+=== union coverage: STRICT worktree run + main-checkout run ===
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-13_14-15-42_guardtests_chainfix_worktree.ledger: 311 case records
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-13_14-18-21_guardtests_chainfix.ledger: 311 case records
+
+cases seen        : 311
+covered (>=1 PASS): 311
+failed anywhere   : 0
+never passed      : 0
+
+UNION COVERAGE: every case passed in at least one environment
+exit: 0
