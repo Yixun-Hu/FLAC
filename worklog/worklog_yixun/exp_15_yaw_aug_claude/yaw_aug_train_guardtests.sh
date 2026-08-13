@@ -293,11 +293,16 @@ case_spool "DRYRUN names the unreviewed file" "$SURPRISE" 0 "src/training/diffus
 case_spool "  ... and says a real launch would abort" "$SURPRISE" 0 "a real launch aborts here" \
   -- "${BASE_ENV[@]}" ARM=YAWAUG
 # real mode (fake job id, clean tree required): the same surprise must be fatal
-if closure_clean; then
+# NB: under a Slurm job id the launcher ignores YAW_AUG_REPO_OVERRIDE by design,
+# so this case reads the PRODUCTION checkout — its precondition is that tree.
+PROD_REPO="$(awk -F= '/^REPO=/{print $2; exit}' "$LAUNCHER")"
+if [ -z "$(git -C "$PROD_REPO" status --porcelain --untracked-files=no -- \
+             train.py defaults.ini src ":(exclude)src/tests" data/AR \
+             "$EXPDIR" "$EXP11DIR" 2>/dev/null)" ]; then
   case_spool "a REAL launch dies on an unreviewed file" "$SURPRISE" 2 "unreviewed production-surface changes" \
     -- ARM=YAWAUG "EXPECT_SHA=${HEAD_SHA}" SLURM_JOB_ID=999999
 else
-  echo "SKIP  real-mode allowlist case (working tree dirty; the drift gate fires first)"
+  echo "SKIP  real-mode allowlist case (the production checkout is dirty; its drift gate fires first)"
 fi
 printf '' > "${TMP}/empty_allowlist.txt"
 EMPTY="$(spool allowempty "s|ALLOWLIST_FILE=\"\${EXPDIR}/yaw_aug_pin_allowlist.txt\"|ALLOWLIST_FILE=\"${TMP}/empty_allowlist.txt\"|")"
@@ -873,10 +878,13 @@ CHAIN_RUN="${CHAIN_ROOT}/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints
 mkdir -p "$CHAIN_RUN"
 for STEP in 2500 12500 37500; do : > "${CHAIN_RUN}/epoch=0-step=${STEP}.ckpt"; done
 CH_ENV=(DRYRUN=1 CHAIN=1 ARM=YAWAUG "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${CHAIN_ROOT}" "${REPO_ENV[@]}")
+# An INITIAL leg refuses a pre-existing run dir (by design), and the boundary
+# checkpoints above live in exactly such a dir — so leg 1 gets a fresh root.
+CH_INIT=(DRYRUN=1 CHAIN=1 ARM=YAWAUG "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}/chain_init" "${REPO_ENV[@]}")
 # leg math
-case_run "chain INITIAL is 0 -> 2500" 0 "chain leg: 0 -> 2500 of 40000" -- "${CH_ENV[@]}"
-case_run "  ... and passes --max-steps 2500 to train.py" 0 "--max-steps 2500" -- "${CH_ENV[@]}"
-case_run "  ... under the per-leg wall pin" 0 "time pin PINNED_TIME_LIMIT_LEG=1:30:00" -- "${CH_ENV[@]}"
+case_run "chain INITIAL is 0 -> 2500" 0 "chain leg: 0 -> 2500 of 40000" -- "${CH_INIT[@]}"
+case_run "  ... and passes --max-steps 2500 to train.py" 0 "--max-steps 2500" -- "${CH_INIT[@]}"
+case_run "  ... under the per-leg wall pin" 0 "time pin PINNED_TIME_LIMIT_LEG=1:30:00" -- "${CH_INIT[@]}"
 case_run "a mid chain leg is 12500 -> 15000" 0 "chain leg: 12500 -> 15000 of 40000" \
   -- "${CH_ENV[@]}" EXPECTED_STEP=12500 "RESUME_CKPT=${CHAIN_RUN}/epoch=0-step=12500.ckpt"
 case_run "the FINAL leg is 37500 -> 40000" 0 "chain leg: 37500 -> 40000 of 40000" \
@@ -887,15 +895,15 @@ case_run "a larger aligned LEG_STEPS is honoured" 0 "chain leg: 2500 -> 12500 of
   -- "${CH_ENV[@]}" LEG_STEPS=10000 EXPECTED_STEP=2500 "RESUME_CKPT=${CHAIN_RUN}/epoch=0-step=2500.ckpt"
 # guards
 case_run "a misaligned LEG_STEPS dies" 2 "not a multiple of the 2500-step checkpoint cadence" \
-  -- "${CH_ENV[@]}" LEG_STEPS=1000
-case_run "a zero LEG_STEPS dies" 2 "LEG_STEPS must be > 0" -- "${CH_ENV[@]}" LEG_STEPS=0
+  -- "${CH_INIT[@]}" LEG_STEPS=1000
+case_run "a zero LEG_STEPS dies" 2 "LEG_STEPS must be > 0" -- "${CH_INIT[@]}" LEG_STEPS=0
 case_run "a misaligned --expected-step dies" 2 "not on the 2500-step cadence" \
   -- "${CH_ENV[@]}" EXPECTED_STEP=3000 "RESUME_CKPT=${CHAIN_RUN}/epoch=0-step=2500.ckpt"
 case_run "resuming AT the cap still dies" 2 "at/past the pre-registered" \
   -- "${CH_ENV[@]}" EXPECTED_STEP=40000 "RESUME_CKPT=${CHAIN_RUN}/epoch=0-step=37500.ckpt"
 CAPBUST="$(spool capbust 's/^PINNED_CHAIN_CAP=40000/PINNED_CHAIN_CAP=50000/')"
 case_spool "a chain cap that is not the registered endpoint dies" "$CAPBUST" 2 \
-  "the pre-registered endpoint is 40000" -- "${CH_ENV[@]}"
+  "the pre-registered endpoint is 40000" -- "${CH_INIT[@]}"
 # the monolith is untouched
 case_run "CHAIN unset still trains the full 40000" 0 "max_steps 40000" \
   -- "${BASE_ENV[@]}" ARM=YAWAUG

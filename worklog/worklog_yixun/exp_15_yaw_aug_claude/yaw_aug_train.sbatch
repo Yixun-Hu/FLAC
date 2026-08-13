@@ -273,6 +273,7 @@ else
     [ "$LEG_STEPS" -gt 0 ] || die "LEG_STEPS must be > 0 - abort"
     [ $((LEG_STEPS % PINNED_CHAIN_CADENCE)) -eq 0 ] || die "LEG_STEPS ${LEG_STEPS} is not a multiple of the ${PINNED_CHAIN_CADENCE}-step checkpoint cadence: the leg would end where no checkpoint is written - abort"
     [ $((EXPECTED_STEP % PINNED_CHAIN_CADENCE)) -eq 0 ] || die "resume step ${EXPECTED_STEP} is not on the ${PINNED_CHAIN_CADENCE}-step cadence - abort"
+    [ "$EXPECTED_STEP" -lt "$PINNED_CHAIN_CAP" ] || die "resume step ${EXPECTED_STEP} is at/past the pre-registered ${PINNED_CHAIN_CAP}-step endpoint — the chain is complete - abort"
     MAXSTEPS=$((EXPECTED_STEP + LEG_STEPS))
     [ "$MAXSTEPS" -gt "$PINNED_CHAIN_CAP" ] && MAXSTEPS="$PINNED_CHAIN_CAP"
     [ $((MAXSTEPS % PINNED_CHAIN_CADENCE)) -eq 0 ] || die "leg target ${MAXSTEPS} is not on the ${PINNED_CHAIN_CADENCE}-step cadence - abort"
