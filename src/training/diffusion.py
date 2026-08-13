@@ -486,9 +486,21 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
 
         ``max_fwd_samples`` is passed as a KEYWORD: the parameter after ``angles``
         is ``vit_ids``, so a positional slip would disable the frame average
-        instead of changing the chunk plan. ``None`` keeps the module default.
+        instead of changing the chunk plan.
+
+        The no-cap case takes a SEPARATE branch that issues the original
+        four-argument call verbatim (r1 review finding 1). ``max_fwd_samples=None``
+        is numerically identical, but "identical behaviour" and "the literal
+        pre-change call" are different guarantees, and every arm already in the
+        record — including the cluster's in-flight exp_12C run — was trained
+        through the four-argument form. Only an arm that DECLARES a cap gets a
+        different call shape.
         """
         if self.cond_method == "fa_invariant":
+            if self.frame_avg_max_fwd_samples is None:
+                return invariant_conditioning(
+                    self.diffusion.conditioner, metadata, self.device, self.frame_avg_angles
+                )
             return invariant_conditioning(
                 self.diffusion.conditioner, metadata, self.device, self.frame_avg_angles,
                 max_fwd_samples=self.frame_avg_max_fwd_samples,

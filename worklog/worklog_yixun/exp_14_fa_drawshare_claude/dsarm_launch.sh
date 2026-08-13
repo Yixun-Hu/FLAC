@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # ============================================================================
-# dsarm_launch.sh - exp_14 (fa_drawshare): FROM-SCRATCH training of ONE
+# dsarm_launch.sh - exp_14 (fa_drawshare): training launcher for ONE
 # draw-sharing arm, 2-GPU DDP + SyncBN.
 #
 # Seats this round: main session claude-fable-5 (xhigh) per the model-change
 # flag; code by the Opus 5 Coder seat; codex MCP reviews (SOP §Roles).
+# Rev 2 - every finding of fa_drawshare_codex_code_r1_review.md applied.
 #
 # THE TREATMENT IS THE CHUNK PLAN, AND IT IS A CONFIG KEY.
 # src/data/yaw_rotation.py derives the orbit partition as
@@ -24,45 +25,63 @@
 # Everything else is pinned to the exp_07 B-F recipe and asserted below as a
 # parsed-object identity: the arm config must be FLAC_AR_BF.json PLUS EXACTLY
 # that one key. 32/GPU x 2 GPUs x accum 1 (eff 64), SyncBN (BN=64), ViT
-# grad-ckpt via config, seed 42, bf16-mixed (ini default), ckpt/2500, wandb,
-# env flac, 40,000 steps, from scratch.
+# grad-ckpt via config, seed 42, bf16-mixed (ini default), wandb, env flac.
 #
-# Based on the reviewed exp_07 bf_scratch_launch.sh (from-scratch; f_arm_launch.sh
-# is resume-REQUIRED and wrong for this) with exp_13's gate ordering.
+# ---------------------------------------------------------------------------
+# MODE IS EXPLICIT (r1 review finding 2). It is NEVER inferred from MAXSTEPS:
+# step-count inference made a 16-step run an "ordinary" run whose artifact gate
+# degraded to a warning, and re-labelled any nearly-finished restart a probe.
 #
-# RESUME (crash restart only - exp_14 arms are scratch runs):
-#   RESUME_CKPT + EXPECTED_STEP>0 both required, together. train.py rebuilds the
-#   wrapper from the CURRENT json (train.py:160) BEFORE PL loads the checkpoint
-#   (:230), so a changed cap would take effect silently on resume. The gate below
-#   therefore compares the checkpoint's EMBEDDED model_config against this arm's
-#   current JSON as parsed objects and aborts on ANY mismatch, and the checkpoint
-#   must live inside this arm's own save-dir.
+#   MODE=PROBE    short fit / plumbing probe. Its OWN save-dir and W&B identity
+#                 (FLAC_exp14_<ARM>_probe / exp14_<ARM>_probe /
+#                 outputs_FLAC/exp14_<ARM>_probe) - a probe NEVER writes into the
+#                 production namespace, so probe checkpoints can never be mistaken
+#                 for campaign artifacts. Defaults 15 steps, ckpt every 5.
+#                 Requires no admission evidence: the probe is how evidence is
+#                 EARNED.
+#   MODE=FULL     the production 40,000-step scratch run. Production identity.
+#                 Refuses to start if that namespace already holds checkpoints
+#                 (that is a RESTART, not a scratch launch).
+#   MODE=RESTART  crash restart of a FULL run: RESUME_CKPT + EXPECTED_STEP>0,
+#                 inside this arm's own production save-dir.
 #
-# PROBE mode: a SHORT window, MAXSTEPS - EXPECTED_STEP <= 15 (so MAXSTEPS <= 15
-# from scratch, and MAXSTEPS <= 40015 when restarting a finished 40,000-step arm).
-# It makes the post-run embedded-cap gate MANDATORY and requires CHECKPOINT_EVERY
-# to be small enough that PL actually saves inside the window. That gate - reload
-# the newest checkpoint, assert its EMBEDDED cap is this arm's cap - also runs
-# after any ordinary successful run; it is only in probe mode that a MISSING
-# checkpoint is an abort rather than a warning.
+# ADMISSION IS GATED, NOT ADVISORY (r1 review finding 3). FULL and RESTART both
+# require stamped evidence, verified against the current source SHA, the current
+# treatment-code fingerprint and the current arm-config hash by
+# stamp_evidence.py::require_evidence:
+#   * every arm      -> cap_fit_<ARM>.json           (plan §3.2 fit probe)
+#   * DSCS3 also     -> dspa_40k_audit_DSPA.json     (plan §5 sequencing gate)
+# A missing, stale, mis-hashed or FAIL-verdict record is a hard abort. FULL and
+# RESTART additionally refuse to run with a DIRTY treatment path, so the recorded
+# SHA describes what actually runs (guard-test bypass: ALLOW_DIRTY_TREATMENT=1).
 #
-# NOT the fit probe. Plan §3.2 requires a real 15-step DDP fit + VRAM measurement
-# before the cap-96 arm is committed to; the VRAM floor here is the standing
-# co-tenancy policy number (21,900 MiB), which was measured at cap 64 and has NOT
-# been requalified for cap 96. A loud NOTE is printed for DSCS3.
+# ARTIFACT READBACK, BOUND TO THIS INVOCATION (r1 review finding 2). After any
+# rc=0 run the newest checkpoint is reloaded and its EMBEDDED cap compared with
+# this arm's - but only a checkpoint that did not exist before this launch and
+# whose mtime is at or after this launch counts. Stale same-window evidence can
+# no longer discharge the gate, and a missing checkpoint is a hard abort in every
+# mode.
 #
-# Knobs (env): ARM MAXSTEPS CHECKPOINT_EVERY EXPECTED_STEP RESUME_CKPT LOGGER
-#              MB ACC MIN_FREE_MB MIN_FREE_DISK_MB
+# NOT the fit probe itself. Plan §3.2 requires a real 15-step DDP fit with VRAM
+# sampled before cap 96 is committed to; MODE=PROBE is how that is run, and
+# stamp_evidence.py is how its verdict is recorded. The VRAM floor here is the
+# standing co-tenancy number (21,900 MiB), measured at cap 64 and NOT requalified
+# for cap 96; a loud NOTE says so for DSCS3.
 #
-# Usage (arm 1, full 40k budget):
-#   ARM=DSPA bash worklog/worklog_yixun/exp_14_fa_drawshare_claude/dsarm_launch.sh
+# Knobs (env): ARM MODE MAXSTEPS CHECKPOINT_EVERY EXPECTED_STEP RESUME_CKPT
+#              LOGGER MB ACC MIN_FREE_MB MIN_FREE_DISK_MB ALLOW_DIRTY_TREATMENT
 #
-# Usage (probe: the embedded-cap read-back is the point of it):
-#   ARM=DSCS3 MAXSTEPS=15 CHECKPOINT_EVERY=5 \
-#     bash worklog/worklog_yixun/exp_14_fa_drawshare_claude/dsarm_launch.sh
+# Usage (fit/plumbing probe - earns the cap_fit evidence):
+#   ARM=DSCS3 MODE=PROBE bash worklog/worklog_yixun/exp_14_fa_drawshare_claude/dsarm_launch.sh
+#   # then, only if it really passed:
+#   python worklog/worklog_yixun/exp_14_fa_drawshare_claude/stamp_evidence.py \
+#     --kind cap_fit --arm DSCS3 --verdict PASS --log <that run's log> --notes "..."
 #
-# Usage (restart after a crash, from this arm's own 20k checkpoint):
-#   ARM=DSPA EXPECTED_STEP=20000 \
+# Usage (production arm):
+#   ARM=DSPA MODE=FULL bash worklog/worklog_yixun/exp_14_fa_drawshare_claude/dsarm_launch.sh
+#
+# Usage (crash restart):
+#   ARM=DSPA MODE=RESTART EXPECTED_STEP=20000 \
 #   RESUME_CKPT=outputs_FLAC/exp14_DSPA/FLAC_exp14_DSPA/exp14_DSPA/checkpoints/epoch=4-step=20000.ckpt \
 #     bash worklog/worklog_yixun/exp_14_fa_drawshare_claude/dsarm_launch.sh
 # ============================================================================
@@ -70,13 +89,13 @@ set -uo pipefail
 cd "$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-toplevel)" || exit 3
 
 EXPDIR07="worklog/worklog_yixun/exp_07_fa_scratch_claude"       # BF reference + pin gate
-EXPDIR14="worklog/worklog_yixun/exp_14_fa_drawshare_claude"     # arm configs, logs
+EXPDIR14="worklog/worklog_yixun/exp_14_fa_drawshare_claude"     # arm configs, evidence, logs
 BF_PATH="${EXPDIR07}/FLAC_AR_BF.json"                           # the single-delta base
 CAP_KEY="frame_avg_max_fwd_samples"
 ORBIT_ANGLES=4                                                  # C4: 1 identity + 3 rotated
-PROBE_WINDOW=15                                                 # MAXSTEPS-EXPECTED_STEP <= this => probe
 LOGGER="${LOGGER:-wandb}"
 MB="${MB:-32}"; ACC="${ACC:-1}"
+ALLOW_DIRTY_TREATMENT="${ALLOW_DIRTY_TREATMENT:-0}"
 
 _posint() { # $1=name $2=value -> must be a positive integer
   case "$2" in ''|*[!0-9]*) echo "$1 must be a positive integer (got '$2') - abort"; return 1;; esac
@@ -87,12 +106,30 @@ _posint() { # $1=name $2=value -> must be a positive integer
 # --- would be the single easiest way to spend six days on the wrong treatment) ---
 ARM="${ARM:-}"
 case "$ARM" in
-  DSPA)  MODEL_CONFIG_PATH="${EXPDIR14}/FLAC_AR_BF_DSPA.json";  WANT_CAP=32
-         NAME="FLAC_exp14_DSPA";  EXPNAME="exp14_DSPA";  SAVEDIR="outputs_FLAC/exp14_DSPA";;
-  DSCS3) MODEL_CONFIG_PATH="${EXPDIR14}/FLAC_AR_BF_DSCS3.json"; WANT_CAP=96
-         NAME="FLAC_exp14_DSCS3"; EXPNAME="exp14_DSCS3"; SAVEDIR="outputs_FLAC/exp14_DSCS3";;
+  DSPA)  MODEL_CONFIG_PATH="${EXPDIR14}/FLAC_AR_BF_DSPA.json";  WANT_CAP=32;;
+  DSCS3) MODEL_CONFIG_PATH="${EXPDIR14}/FLAC_AR_BF_DSCS3.json"; WANT_CAP=96;;
   *) echo "ARM must be exactly one of DSPA (cap 32, per-angle draws) or DSCS3 (cap 96, 3/3 shared)"
      echo "  got ARM='${ARM}' - abort"; exit 2;;
+esac
+
+# --- mode selection (explicit; never inferred from the step count) ---
+MODE="${MODE:-}"
+case "$MODE" in
+  PROBE)
+    NAME="FLAC_exp14_${ARM}_probe"; EXPNAME="exp14_${ARM}_probe"
+    SAVEDIR="outputs_FLAC/exp14_${ARM}_probe"
+    DEFAULT_MAXSTEPS=15; DEFAULT_CKPT_EVERY=5; NEEDS_EVIDENCE=0;;
+  FULL|RESTART)
+    NAME="FLAC_exp14_${ARM}"; EXPNAME="exp14_${ARM}"
+    SAVEDIR="outputs_FLAC/exp14_${ARM}"
+    DEFAULT_MAXSTEPS=40000; DEFAULT_CKPT_EVERY=2500; NEEDS_EVIDENCE=1;;
+  *) echo "MODE must be exactly one of PROBE (short fit/plumbing probe, its own namespace),"
+     echo "  FULL (the 40,000-step production scratch run) or RESTART (crash restart of a FULL run)."
+     echo "  got MODE='${MODE}' - abort"
+     echo "  (the mode is never inferred from MAXSTEPS: that made a 16-step run an 'ordinary' run"
+     echo "   whose artifact gate degraded to a warning, and re-labelled a nearly-finished restart"
+     echo "   a probe - r1 review finding 2)"
+     exit 2;;
 esac
 
 # --- environment gate (as exp_13/exp_10: plain `python` must not resolve to
@@ -106,8 +143,8 @@ sys.exit(0 if pl.__version__ == "2.1.0" else 2)
 PY
 
 # --- knob validation ---
-CHECKPOINT_EVERY="${CHECKPOINT_EVERY:-2500}"; _posint CHECKPOINT_EVERY "$CHECKPOINT_EVERY" || exit 2
-MAXSTEPS="${MAXSTEPS:-40000}";                _posint MAXSTEPS "$MAXSTEPS" || exit 2
+CHECKPOINT_EVERY="${CHECKPOINT_EVERY:-$DEFAULT_CKPT_EVERY}"; _posint CHECKPOINT_EVERY "$CHECKPOINT_EVERY" || exit 2
+MAXSTEPS="${MAXSTEPS:-$DEFAULT_MAXSTEPS}";                   _posint MAXSTEPS "$MAXSTEPS" || exit 2
 
 # invariant (exp_07 review): accumulation never feeds BN statistics, so the BN=64
 # mandate leaves exactly ONE legal rung - pinned literally (string equality;
@@ -117,40 +154,49 @@ MAXSTEPS="${MAXSTEPS:-40000}";                _posint MAXSTEPS "$MAXSTEPS" || ex
 [ -f "$MODEL_CONFIG_PATH" ] || { echo "arm config not found: ${MODEL_CONFIG_PATH} - abort"; exit 2; }
 [ -f "$BF_PATH" ]           || { echo "BF reference config not found: ${BF_PATH} - abort"; exit 2; }
 
-# --- resume mode (exp_14 arms train from SCRATCH; a resume is a crash restart and
-# --- must declare BOTH the file and the step it claims to be at) ---
+# --- resume arguments, per mode ---
 RESUME_CKPT="${RESUME_CKPT:-}"
 EXPECTED_STEP="${EXPECTED_STEP:-0}"
 case "$EXPECTED_STEP" in ''|*[!0-9]*) echo "EXPECTED_STEP must be a non-negative integer (got '${EXPECTED_STEP}') - abort"; exit 2;; esac
-MODE="SCRATCH"
-if [ -n "$RESUME_CKPT" ] || [ "$EXPECTED_STEP" -gt 0 ]; then
-  MODE="RESTART"
-  [ -n "$RESUME_CKPT" ] || { echo "EXPECTED_STEP ${EXPECTED_STEP} declares a RESTART but RESUME_CKPT is unset - abort"; exit 2; }
-  [ "$EXPECTED_STEP" -gt 0 ] || { echo "RESUME_CKPT was given but EXPECTED_STEP is 0/unset: a resume must state the step it claims to be at - abort"; exit 2; }
+SAVEDIR_REAL="$(realpath -m "$SAVEDIR")"
+
+if [ "$MODE" = "RESTART" ]; then
+  [ -n "$RESUME_CKPT" ] || { echo "MODE=RESTART requires RESUME_CKPT - abort"; exit 2; }
+  [ "$EXPECTED_STEP" -gt 0 ] || { echo "MODE=RESTART requires EXPECTED_STEP > 0: a resume must state the step it claims to be at - abort"; exit 2; }
   [ -f "$RESUME_CKPT" ] || { echo "RESUME_CKPT not found: ${RESUME_CKPT} - abort"; exit 2; }
   RESUME_REAL="$(realpath -m "$RESUME_CKPT")"
-  SAVEDIR_REAL="$(realpath -m "$SAVEDIR")"
   case "$RESUME_REAL" in
     "${SAVEDIR_REAL}"/*) ;;
-    *) echo "a ${ARM} RESTART may only resume a checkpoint written by THIS arm, i.e. one inside"
+    *) echo "a ${ARM} RESTART may only resume a checkpoint written by THIS arm's FULL run, i.e. one inside"
        echo "  ${SAVEDIR_REAL}/"
        echo "  got: ${RESUME_REAL}"
-       echo "  -> the two arms have different chunk plans; crossing them would train a third method. abort"
+       echo "  -> the two arms have different chunk plans, and a PROBE has its own namespace;"
+       echo "     crossing any of them would train a third method. abort"
        exit 2;;
   esac
   [ "$MAXSTEPS" -gt "$EXPECTED_STEP" ] || { echo "MAXSTEPS ${MAXSTEPS} must exceed the resume step ${EXPECTED_STEP} - abort"; exit 2; }
-fi
-
-# --- probe-mode cadence sanity: the post-run embedded-cap gate needs a checkpoint ---
-PROBE=0; [ $(( MAXSTEPS - EXPECTED_STEP )) -le "$PROBE_WINDOW" ] && PROBE=1
-if [ "$PROBE" -eq 1 ]; then
-  FIRST_SAVE=$(( (EXPECTED_STEP / CHECKPOINT_EVERY + 1) * CHECKPOINT_EVERY ))
-  [ "$FIRST_SAVE" -le "$MAXSTEPS" ] || {
-    echo "PROBE mode (${MAXSTEPS} - ${EXPECTED_STEP} <= ${PROBE_WINDOW} steps) but CHECKPOINT_EVERY=${CHECKPOINT_EVERY} would not save"
-    echo "  before ${MAXSTEPS} (first save at global_step ${FIRST_SAVE}); the post-run embedded-cap gate reads"
-    echo "  the probe's final checkpoint, so it would have nothing to read. Lower CHECKPOINT_EVERY. abort"
+else
+  [ -z "$RESUME_CKPT" ] || { echo "MODE=${MODE} is a from-scratch launch; RESUME_CKPT must be unset (use MODE=RESTART) - abort"; exit 2; }
+  [ "$EXPECTED_STEP" -eq 0 ] || { echo "MODE=${MODE} is a from-scratch launch; EXPECTED_STEP must be unset (use MODE=RESTART) - abort"; exit 2; }
+  # A scratch launch into a namespace that already holds checkpoints would mix two
+  # lineages under one identity - and, for FULL, would silently restart the arm.
+  EXISTING="$(find "$SAVEDIR" -name '*.ckpt' 2>/dev/null | head -3)"
+  [ -z "$EXISTING" ] || {
+    echo "MODE=${MODE} refuses to launch into a namespace that already holds checkpoints:"
+    echo "$EXISTING" | sed 's/^/    /'
+    echo "  -> to continue that run use MODE=RESTART; to redo it, archive ${SAVEDIR} first. abort"
     exit 2; }
 fi
+
+# --- checkpoint-cadence sanity: the post-run artifact readback is MANDATORY in
+# --- every mode, so the run must be able to save at least once ---
+FIRST_SAVE=$(( (EXPECTED_STEP / CHECKPOINT_EVERY + 1) * CHECKPOINT_EVERY ))
+[ "$FIRST_SAVE" -le "$MAXSTEPS" ] || {
+  echo "CHECKPOINT_EVERY=${CHECKPOINT_EVERY} would not save before MAXSTEPS=${MAXSTEPS}"
+  echo "  (first save at global_step ${FIRST_SAVE}); the post-run embedded-cap gate reads a"
+  echo "  checkpoint written BY THIS INVOCATION, so it would have nothing to read. Lower"
+  echo "  CHECKPOINT_EVERY. abort"
+  exit 2; }
 
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 LOG="${EXPDIR14}/fa_drawshare_${TS}_${EXPNAME}_train.log"
@@ -158,9 +204,9 @@ LOG="${EXPDIR14}/fa_drawshare_${TS}_${EXPNAME}_train.log"
 exec > >(tee -a "$LOG") 2>&1
 echo "=== exp_14 fa_drawshare ${ARM} (${MODE}) DDP+SyncBN - ${TS} - $(git rev-parse --short HEAD 2>/dev/null) ==="
 echo "identity: --name ${NAME} --experiment-name ${EXPNAME} --save-dir ${SAVEDIR}"
-echo "recipe: ${MB}x2x${ACC} eff64 seed42 -> ${MAXSTEPS} | ckpt-every ${CHECKPOINT_EVERY} | logger=${LOGGER} | probe=${PROBE}"
+echo "recipe: ${MB}x2x${ACC} eff64 seed42 -> ${MAXSTEPS} | ckpt-every ${CHECKPOINT_EVERY} | logger=${LOGGER}"
 echo "arm config: ${MODEL_CONFIG_PATH} (single delta vs ${BF_PATH}: training.${CAP_KEY}=${WANT_CAP})"
-echo "resume: '${RESUME_CKPT}' | expected_step=${EXPECTED_STEP} | mode=${MODE}"
+echo "mode=${MODE} | resume: '${RESUME_CKPT}' | expected_step=${EXPECTED_STEP} | evidence_required=${NEEDS_EVIDENCE}"
 
 # --- config contract (fail-closed, parsed objects, cheap so it runs FIRST):
 # --- (1) the arm config IS FLAC_AR_BF.json plus EXACTLY the one cap key;
@@ -180,10 +226,10 @@ KEY = "frame_avg_max_fwd_samples"
 
 arm, bf = json.load(open(arm_p)), json.load(open(bf_p))
 
-# (1) POSITIVE: the declared cap is this arm's cap, and nothing else moved.
+# (1) POSITIVE: the declared cap is this arm's cap, typed int, and nothing else moved.
 got = arm["training"].get(KEY)
-if got != want_cap or isinstance(got, bool):
-    sys.exit(f"{arm_p}: training.{KEY} is {got!r}, expected {want_cap!r}")
+if got != want_cap or isinstance(got, bool) or not isinstance(got, int):
+    sys.exit(f"{arm_p}: training.{KEY} is {got!r}, expected {want_cap!r} (a typed int)")
 stripped = copy.deepcopy(arm)
 del stripped["training"][KEY]
 if stripped != bf:
@@ -229,6 +275,52 @@ PY
 }
 dsarm_config_gate || { echo "config contract FAILED - abort"; exit 2; }
 
+# --- ADMISSION EVIDENCE (FULL/RESTART only; r1 review finding 3). The campaign's
+# --- two sequencing gates are discharged by stamped, hash-bound files, not by
+# --- prose: plan §3.2's cap fit for this arm, plus - for DSCS3 - plan §5's DS-PA
+# --- 40k audit. A PROBE requires none: the probe is how evidence is EARNED. ---
+if [ "$NEEDS_EVIDENCE" -eq 1 ]; then
+  echo "--- admission evidence for ${ARM} (${MODE}) ---"
+  # PYTHONDONTWRITEBYTECODE: importing stamp_evidence from the worklog directory
+  # must not litter it with a __pycache__ that then shows up as an untracked
+  # artifact of a launch.
+  ARM_LABEL="$ARM" EXPDIR14="$EXPDIR14" ALLOW_DIRTY="$ALLOW_DIRTY_TREATMENT" \
+  PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY' || { echo "ADMISSION EVIDENCE GATE FAILED - abort"; exit 2; }
+import os, sys
+sys.path.insert(0, os.path.join(os.getcwd(), os.environ["EXPDIR14"]))
+from stamp_evidence import (REQUIRED, dirty_treatment_paths, require_evidence,
+                            source_sha, treatment_fingerprint)
+
+arm = os.environ["ARM_LABEL"]
+root = os.getcwd()
+print(f"  source_sha        : {source_sha(root)}")
+print(f"  treatment_sha256  : {treatment_fingerprint(root)}")
+print(f"  required          : {[f'{k}({s})' for k, s in REQUIRED[arm]]}")
+ok, lines = require_evidence(arm, root)
+for line in lines:
+    print(line)
+
+dirty = dirty_treatment_paths(root)
+if dirty:
+    msg = ("  treatment paths are DIRTY: " + ", ".join(dirty) +
+           "\n  -> the recorded source_sha does not describe what would run. Commit them "
+           "(and re-stamp the evidence) before a production launch.")
+    if os.environ.get("ALLOW_DIRTY") == "1":
+        print(msg)
+        print("  ALLOW_DIRTY_TREATMENT=1 -> accepted (GUARD-TESTING ONLY; never on a real launch)")
+    else:
+        print(msg)
+        ok = False
+else:
+    print("  treatment paths clean (working tree == HEAD for the cap-threading files)")
+
+sys.exit(0 if ok else 2)
+PY
+  echo "admission evidence OK"
+else
+  echo "--- admission evidence: NOT required in MODE=PROBE (a probe is how evidence is earned) ---"
+fi
+
 # --- disk floor on the outputs volume (each 2,500-step checkpoint is ~690 MB;
 # --- 16 of them per arm). Bypass for guard-testing only: MIN_FREE_DISK_MB=1. ---
 MIN_FREE_DISK_MB="${MIN_FREE_DISK_MB:-20480}"; _posint MIN_FREE_DISK_MB "$MIN_FREE_DISK_MB" || exit 2
@@ -238,11 +330,15 @@ DISK_FREE_MB="$(df -P -B1M "$DF_TARGET" 2>/dev/null | awk 'NR==2{print $4}' | tr
 echo "disk: ${DISK_FREE_MB} MiB free on the volume holding ${DF_TARGET} (floor ${MIN_FREE_DISK_MB} MiB)"
 [ "$DISK_FREE_MB" -ge "$MIN_FREE_DISK_MB" ] || { echo "free disk ${DISK_FREE_MB} MiB < required ${MIN_FREE_DISK_MB} MiB - refusing to launch"; exit 2; }
 
-# --- RESTART only: the resume-safety gate the plan requires (re-review 4).
+# --- RESTART only: the resume-safety gate the plan requires (re-review 4),
+# --- at exp_10/13 full-state strength (r1 review finding 4).
 # --- train.py:160 rebuilds the wrapper from the CURRENT json BEFORE PL loads the
 # --- checkpoint at :230, so a cap edited between the crash and the restart would
 # --- silently take effect. The embedded model_config must therefore equal this
-# --- arm's current JSON as parsed objects - ANY mismatch aborts. ---
+# --- arm's current JSON under a TYPE-STRICT comparison - plain Python equality
+# --- reads 1 == 1.0 == True, so a cap serialised as 32.0, or `true` where an int
+# --- is meant, would pass a naive check and then take a different code path in
+# --- _parse_frame_avg_cap_config (which rejects both). ---
 if [ "$MODE" = "RESTART" ]; then
   RESUME_CKPT="$RESUME_CKPT" EXPECTED_STEP="$EXPECTED_STEP" ARM_CFG="$MODEL_CONFIG_PATH" \
   WANT_CAP="$WANT_CAP" python3 - <<'PY' || { echo "resume-lineage check FAILED - abort"; exit 2; }
@@ -250,30 +346,92 @@ import json, os, sys, torch
 p = os.environ["RESUME_CKPT"]; want = int(os.environ["EXPECTED_STEP"])
 cfg_path = os.environ["ARM_CFG"]; want_cap = int(os.environ["WANT_CAP"])
 KEY = "frame_avg_max_fwd_samples"
+
+
+def strict_diff(a, b, path="model_config"):
+    """First TYPE-STRICT difference between two parsed-JSON objects, or None.
+
+    `1 == 1.0 == True` in Python, so plain equality cannot tell an int cap from a
+    float or boolean one - exactly the values the factory rejects. Types are
+    compared before values, everywhere, recursively.
+    """
+    if type(a) is not type(b):
+        return f"{path}: type {type(a).__name__} != {type(b).__name__} ({a!r} vs {b!r})"
+    if isinstance(a, dict):
+        only_a = sorted(set(a) - set(b))
+        only_b = sorted(set(b) - set(a))
+        if only_a:
+            return f"{path}: key(s) {only_a} present in the checkpoint, absent from the config"
+        if only_b:
+            return f"{path}: key(s) {only_b} present in the config, absent from the checkpoint"
+        for k in a:
+            d = strict_diff(a[k], b[k], f"{path}.{k}")
+            if d:
+                return d
+        return None
+    if isinstance(a, list):
+        if len(a) != len(b):
+            return f"{path}: length {len(a)} != {len(b)}"
+        for i, (x, y) in enumerate(zip(a, b)):
+            d = strict_diff(x, y, f"{path}[{i}]")
+            if d:
+                return d
+        return None
+    return None if a == b else f"{path}: {a!r} != {b!r}"
+
+
 ck = torch.load(p, map_location="cpu", weights_only=False)
 if not isinstance(ck, dict):
     sys.exit(f"not a Lightning checkpoint: {p}")
 gs = ck.get("global_step")
 if gs != want:
     sys.exit(f"global_step {gs} != expected {want} (set EXPECTED_STEP to resume a different step)")
+
 mc = ck.get("model_config")
 if not isinstance(mc, dict):
     sys.exit("checkpoint carries no embedded 'model_config' dict -> cannot prove which chunk plan "
              "trained it; refusing to resume it under an assumed one")
 want_cfg = json.load(open(cfg_path))
-if mc != want_cfg:
+diff = strict_diff(mc, want_cfg)
+if diff is not None:
     embedded_cap = (mc.get("training") or {}).get(KEY, "<absent>")
-    sys.exit(f"embedded model_config != {cfg_path} (parsed-object mismatch). Embedded "
-             f"training.{KEY}={embedded_cap!r}, current={want_cap!r}. train.py rebuilds the "
-             "wrapper from the CURRENT json before loading the checkpoint, so resuming under a "
+    sys.exit(f"embedded model_config != {cfg_path} (type-strict mismatch)\n  first difference: {diff}\n"
+             f"  embedded training.{KEY}={embedded_cap!r}, current={want_cap!r}. train.py rebuilds "
+             "the wrapper from the CURRENT json before loading the checkpoint, so resuming under a "
              "different config would silently change the treatment mid-run")
-if "optimizer_states" not in ck:
-    sys.exit("no 'optimizer_states' key -> weights-only ckpt; PL 2.1 KeyErrors on resume")
+
+# --- full-state shape checks (exp_10/13 level). exp_14 arms have no reset
+# --- lineage: a cleared optimizer state, an absent param_group or a missing
+# --- scheduler means the wrong file, not a recoverable run.
+opts = ck.get("optimizer_states")
+if not opts:
+    sys.exit("no 'optimizer_states' -> weights-only ckpt; PL 2.1 KeyErrors on resume")
+if len(opts) != 1:
+    sys.exit(f"expected exactly 1 optimizer entry, found {len(opts)}")
+groups = opts[0].get("param_groups")
+if not groups:
+    sys.exit("optimizer state has no 'param_groups' -> not a resumable optimizer state")
+if len(groups) != 1:
+    sys.exit(f"expected exactly 1 param_group, found {len(groups)}")
+n_state = len(opts[0].get("state", {}))
+if not n_state:
+    sys.exit("optimizer state is CLEARED (stripped checkpoint) -> exp_14 arms are WARM "
+             "continuations; there is no optimizer-reset lineage in this experiment")
+scheds = ck.get("lr_schedulers")
+if not scheds:
+    sys.exit("no 'lr_schedulers' -> PL 2.1 KeyErrors on resume")
+s0 = scheds[0]
 sd = ck.get("state_dict") or {}
-if not any(k.startswith("diffusion_ema.") for k in sd):
+n_ema = sum(1 for k in sd if k.startswith("diffusion_ema."))
+if not n_ema:
     sys.exit("no EMA weights in state_dict (the arm config has use_ema true)")
+
+lr = groups[0].get("lr")
 print(f"resume lineage OK: {p}\n  global_step={gs} epoch={ck.get('epoch')} "
-      f"embedded model_config == {cfg_path} (training.{KEY}={want_cap})")
+      f"optimizer_state=FULL ({n_state} entries) lr={lr} ema_entries={n_ema}")
+print(f"  scheduler state: inv_gamma={s0.get('inv_gamma')} power={s0.get('power')} "
+      f"warmup={s0.get('warmup')} last_epoch={s0.get('last_epoch')}")
+print(f"  embedded model_config == {cfg_path} (type-strict), training.{KEY}={want_cap}")
 PY
 fi
 
@@ -286,9 +444,10 @@ if [ "$ARM" = "DSCS3" ]; then
 ## NOTE - the VRAM floor below (21,900 MiB) was measured at cap 64. DSCS3 puts ##
 ## 96 samples in ONE ViT chunk (~1.5x the activation footprint of 64), so the  ##
 ## floor is NOT requalified for this arm. Plan §3.2 gates DSCS3 on a REAL      ##
-## 15-step DDP fit probe with VRAM sampled; if cap 96 does not fit, STOP and   ##
-## report - do not silently fall back to cap 64, which would no longer test    ##
-## exp_11's topology.                                                          ##
+## 15-step DDP fit probe with VRAM sampled - run it as MODE=PROBE and record   ##
+## its verdict with stamp_evidence.py. If cap 96 does not fit, STOP and report ##
+## - do not silently fall back to cap 64, which would no longer test exp_11's  ##
+## topology.                                                                   ##
 ################################################################################
 NOTE
 fi
@@ -346,6 +505,14 @@ pip freeze 2>/dev/null | sha256sum | awk '{print "pip-freeze sha256:", $1}'
 echo "sync_batchnorm: true (fail-closed in train.py below num_gpus 2) | strategy: ddp_find_unused_parameters_true | rung: ${MB}x2x${ACC} | grad-ckpt: config"
 echo "arm: ${ARM} | mode: ${MODE} | model-config: ${MODEL_CONFIG_PATH} | cap: ${WANT_CAP}"
 
+# --- pre-run checkpoint inventory: the readback below only accepts a file that
+# --- is NOT in this list and whose mtime is at/after this launch, so a stale
+# --- checkpoint can never discharge the artifact gate (r1 review finding 2). ---
+RUN_START_EPOCH="$(date '+%s')"
+PRE_INVENTORY="$(mktemp)"
+find "$SAVEDIR" -name '*.ckpt' 2>/dev/null | sort > "$PRE_INVENTORY"
+echo "pre-run checkpoint inventory: $(wc -l < "$PRE_INVENTORY") file(s) under ${SAVEDIR} at epoch ${RUN_START_EPOCH}"
+
 RESUME_ARGS=()
 [ "$MODE" = "RESTART" ] && RESUME_ARGS=(--ckpt-path "$RESUME_CKPT")
 
@@ -363,38 +530,45 @@ rc=$?
 echo "=== exp_14 ${ARM} (${MODE}) exited rc=${rc} at $(date '+%Y-%m-%d %H:%M:%S') ==="
 
 # ============================================================================
-# Embedded-cap gate. The treatment is only real if it is IN THE ARTIFACT:
-# train.py's ModelConfigEmbedderCallback writes model_config into every
-# checkpoint, so the newest checkpoint is read back and its embedded cap compared
-# against this arm's. An analytic assertion cannot see a threading bug; this
-# reads what the run actually saved. Mandatory in PROBE mode (where a missing
-# checkpoint is itself the failure); after a long run it is the closing audit.
+# Embedded-cap readback - MANDATORY in every mode, bound to THIS invocation.
+#
+# The treatment is only real if it is IN THE ARTIFACT: train.py's
+# ModelConfigEmbedderCallback writes model_config into every checkpoint, so a
+# checkpoint written by this run is reloaded and its embedded cap compared with
+# this arm's. Candidates are restricted to files absent from the pre-run
+# inventory AND with mtime >= the launch timestamp; a stale checkpoint from an
+# earlier run in the same directory therefore cannot discharge the gate, and no
+# checkpoint at all is a hard abort (not a warning) in every mode.
 # ============================================================================
 if [ "$rc" -eq 0 ]; then
-  echo "--- embedded-cap gate (probe=${PROBE}) ---"
+  echo "--- embedded-cap readback (mode=${MODE}, bound to this invocation) ---"
   SAVEDIR="$SAVEDIR" WANT_CAP="$WANT_CAP" ARM_CFG="$MODEL_CONFIG_PATH" \
-  EXPECTED_STEP="$EXPECTED_STEP" MAXSTEPS="$MAXSTEPS" ARM_LABEL="$ARM" PROBE="$PROBE" \
-  python3 - <<'PY' || { echo "embedded-cap gate FAILED - abort"; exit 2; }
+  EXPECTED_STEP="$EXPECTED_STEP" MAXSTEPS="$MAXSTEPS" ARM_LABEL="$ARM" MODE="$MODE" \
+  PRE_INVENTORY="$PRE_INVENTORY" RUN_START_EPOCH="$RUN_START_EPOCH" \
+  python3 - <<'PY' || { rm -f "$PRE_INVENTORY"; echo "embedded-cap readback FAILED - abort"; exit 2; }
 import glob, json, os, sys, torch
 savedir = os.environ["SAVEDIR"]; want_cap = int(os.environ["WANT_CAP"])
 start = int(os.environ["EXPECTED_STEP"]); maxsteps = int(os.environ["MAXSTEPS"])
-label = os.environ["ARM_LABEL"]; cfg_path = os.environ["ARM_CFG"]
-probe = os.environ["PROBE"] == "1"
+label = os.environ["ARM_LABEL"]; cfg_path = os.environ["ARM_CFG"]; mode = os.environ["MODE"]
+run_start = float(os.environ["RUN_START_EPOCH"])
 KEY = "frame_avg_max_fwd_samples"
 
-cands = glob.glob(os.path.join(savedir, "**", "*.ckpt"), recursive=True)
-if not cands:
-    msg = (f"no checkpoint under {savedir} -> the embedded-cap gate has nothing to read "
-           "(lower CHECKPOINT_EVERY so PL saves inside the window)")
-    if probe:
-        sys.exit(msg)
-    print("WARNING: " + msg)
-    raise SystemExit(0)
-p = max(cands, key=os.path.getmtime)
+with open(os.environ["PRE_INVENTORY"]) as f:
+    pre = {line.strip() for line in f if line.strip()}
+
+allc = glob.glob(os.path.join(savedir, "**", "*.ckpt"), recursive=True)
+fresh = [p for p in allc if p not in pre and os.path.getmtime(p) >= run_start - 1]
+if not fresh:
+    sys.exit(f"no checkpoint written by THIS invocation under {savedir} "
+             f"({len(allc)} file(s) present, {len(pre)} of them pre-existing). The embedded-cap "
+             "gate only accepts an artifact this run produced, so there is nothing to verify -> "
+             "the run cannot be admitted")
+p = max(fresh, key=os.path.getmtime)
 ck = torch.load(p, map_location="cpu", weights_only=False)
 gs = ck.get("global_step")
 mc = ck.get("model_config")
-print(f"probe checkpoint: {p}\n  global_step={gs}")
+print(f"checkpoint written by this run: {p}\n  global_step={gs} "
+      f"({len(fresh)} fresh of {len(allc)} present)")
 fails = []
 if not (start < gs <= maxsteps):
     fails.append(f"global_step {gs} outside the run window ({start}, {maxsteps}]")
@@ -403,17 +577,22 @@ if not isinstance(mc, dict):
 else:
     got = (mc.get("training") or {}).get(KEY, "<absent>")
     print(f"  embedded training.{KEY} = {got!r}  (arm {label} declares {want_cap})")
-    if got != want_cap or isinstance(got, bool):
-        fails.append(f"embedded training.{KEY} {got!r} != {want_cap!r} -> the treatment did NOT "
-                     "reach the artifact")
+    if got != want_cap or isinstance(got, bool) or not isinstance(got, int):
+        fails.append(f"embedded training.{KEY} {got!r} != {want_cap!r} (typed int) -> the "
+                     "treatment did NOT reach the artifact")
     if mc != json.load(open(cfg_path)):
         fails.append(f"embedded model_config != {cfg_path} (parsed-object mismatch)")
 if fails:
-    sys.exit("PROBE embedded-cap gate FAILED:\n  - " + "\n  - ".join(fails))
-print(f"PROBE embedded-cap gate PASSED: the saved checkpoint declares "
+    sys.exit("embedded-cap readback FAILED:\n  - " + "\n  - ".join(fails))
+print(f"embedded-cap readback PASSED: the checkpoint this {mode} run wrote declares "
       f"training.{KEY}={want_cap} for arm {label}.")
+if mode == "PROBE":
+    print("PROBE complete. If - and only if - the fit/plumbing verdict is genuinely PASS, record "
+          "it with:\n  python worklog/worklog_yixun/exp_14_fa_drawshare_claude/stamp_evidence.py "
+          f"--kind cap_fit --arm {label} --verdict PASS --log <this log> --notes '<VRAM, throughput>'")
 PY
-  echo "PROBE embedded-cap gate OK"
+  echo "embedded-cap readback OK"
 fi
+rm -f "$PRE_INVENTORY"
 
 exit $rc

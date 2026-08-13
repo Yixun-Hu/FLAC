@@ -382,25 +382,42 @@ def test_direct_construction_rejects_non_positive_caps(bad):
 
 
 def test_wrapper_forwards_the_cap_to_invariant_conditioning(monkeypatch):
-    """The treatment must arrive at the call site as a KEYWORD (the 5th positional
-    parameter is ``vit_ids``: a positional slip there would silently disable the
-    frame average instead of changing the cap)."""
-    seen = {}
+    """Two contracts, one spy — it records the RAW call, so the assertions are on
+    the call SHAPE and not merely on its effect:
 
-    def _spy(conditioner, metadata, device, angles=None, vit_ids=None, **kwargs):
-        seen["args"] = (angles, vit_ids)
-        seen["kwargs"] = kwargs
+    1. No declared cap -> the call must be the LITERAL pre-change one: four
+       positional arguments and NO keyword at all (r1 review finding 1). An
+       equivalent ``max_fwd_samples=None`` is not the same guarantee, and every
+       arm in the record — including the cluster's in-flight exp_12C run — was
+       trained through the four-argument form.
+    2. A declared cap must arrive as a KEYWORD: the parameter after ``angles`` is
+       ``vit_ids``, so a positional slip would silently disable the frame average
+       instead of changing the chunk plan.
+    """
+    calls = []
+
+    def _spy(*args, **kwargs):
+        calls.append((args, kwargs))
+        conditioner, metadata, device = args[0], args[1], args[2]
         return conditioner(metadata, device)
 
     monkeypatch.setattr(tdiff, "invariant_conditioning", _spy)
-    wrapper = _direct(frame_avg_max_fwd_samples=96)
-    wrapper._compute_conditioning(_batch(2))
-    assert seen["kwargs"] == {"max_fwd_samples": 96}
-    assert seen["args"][1] is None, "vit_ids must not be filled positionally"
 
-    monkeypatch.setattr(tdiff, "invariant_conditioning", _spy)
+    # 1. default path: byte-for-byte the pre-change call
     _direct()._compute_conditioning(_batch(2))
-    assert seen["kwargs"] == {"max_fwd_samples": None}
+    args, kwargs = calls[-1]
+    assert kwargs == {}, (
+        f"the no-cap path must issue the original four-argument call with NO "
+        f"keyword; got keywords {sorted(kwargs)}"
+    )
+    assert len(args) == 4, f"expected exactly 4 positional args, got {len(args)}"
+    assert tuple(args[3]) == C4, "angles must still be the 4th positional argument"
+
+    # 2. declared cap: keyword only, vit_ids untouched
+    _direct(frame_avg_max_fwd_samples=96)._compute_conditioning(_batch(2))
+    args, kwargs = calls[-1]
+    assert kwargs == {"max_fwd_samples": 96}
+    assert len(args) == 4, "vit_ids must not be filled positionally"
 
 
 def test_wrapper_cap_reaches_the_real_partition():
@@ -693,3 +710,137 @@ def test_eval_cli_cap_reaches_the_conditioning_call_and_the_record(
     assert written["frame_avg_fwd_cap"] == (64 if cap is None else cap)
     assert written["cond_method"] == "fa_invariant"
     assert written["orbit_execution"] == "batched"
+
+
+# --------------------------------------------------------------------------- #
+# 8. admission-evidence contract (r1 review finding 3)
+#
+# The campaign's two sequencing gates -- plan §3.2's cap-96 fit probe and plan
+# §5's "DS-CS3 does not start until DS-PA passes its 40k audit" -- used to be
+# prose in a launcher comment. They are now discharged by stamped files that
+# `dsarm_launch.sh` verifies. These tests are the contract for `verify_evidence`:
+# every field is a claim to be refuted, and refusal is the default.
+# --------------------------------------------------------------------------- #
+def _stamp_mod():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "exp14_stamp_evidence", ARM_DIR / "stamp_evidence.py")
+    mod = importlib.util.module_from_spec(spec)
+    prev, sys.dont_write_bytecode = sys.dont_write_bytecode, True  # no __pycache__ in worklog/
+    try:
+        spec.loader.exec_module(mod)
+    finally:
+        sys.dont_write_bytecode = prev
+    return mod
+
+
+@pytest.fixture(scope="module")
+def stamp():
+    return _stamp_mod()
+
+
+def _valid_record(stamp, kind="cap_fit", arm="DSPA", log=None):
+    rec = stamp.build_record(kind, arm, "PASS", log or "CLAUDE.md", "unit test", str(_REPO))
+    return rec
+
+
+def _write(tmp_path, rec):
+    p = tmp_path / "evidence.json"
+    p.write_text(json.dumps(rec, indent=2))
+    return p
+
+
+def test_evidence_requirements_encode_the_plans_sequencing(stamp):
+    """DS-PA needs its own fit evidence; DS-CS3 needs its fit evidence AND the
+    DS-PA 40k audit -- the second six days do not start on a hunch (plan §5)."""
+    assert stamp.REQUIRED["DSPA"] == (("cap_fit", "DSPA"),)
+    assert stamp.REQUIRED["DSCS3"] == (("cap_fit", "DSCS3"), ("dspa_40k_audit", "DSPA"))
+    assert stamp.ARMS == {"DSPA": 32, "DSCS3": 96}
+
+
+def test_treatment_fingerprint_covers_every_cap_threading_file(stamp):
+    """If a file that can change the chunk plan is not in the fingerprint, stale
+    evidence would survive a change to the very thing it certifies."""
+    assert set(stamp.TREATMENT_PATHS) == {
+        "src/data/yaw_rotation.py", "src/training/diffusion.py",
+        "src/training/factory.py", "train.py",
+    }
+    for rel in stamp.TREATMENT_PATHS:
+        assert (_REPO / rel).is_file()
+
+
+def test_treatment_fingerprint_changes_when_a_treatment_file_changes(stamp, tmp_path):
+    """Proven on a COPY of the tree -- the real files are never touched."""
+    import shutil
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    for rel in stamp.TREATMENT_PATHS:
+        dst = root / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(_REPO / rel, dst)
+
+    before = stamp.treatment_fingerprint(str(root))
+    assert before == stamp.treatment_fingerprint(str(root)), "fingerprint must be stable"
+    target = root / "src/data/yaw_rotation.py"
+    target.write_text(target.read_text() + "\n# a one-character change\n")
+    assert stamp.treatment_fingerprint(str(root)) != before
+
+
+def test_valid_evidence_verifies(stamp, tmp_path):
+    ok, problems, rec = stamp.verify_evidence(
+        "cap_fit", "DSPA", str(_REPO), str(_write(tmp_path, _valid_record(stamp))))
+    assert ok, problems
+    assert rec["cap"] == 32 and rec["verdict"] == "PASS"
+
+
+def test_missing_evidence_is_a_failure_not_an_absence(stamp, tmp_path):
+    ok, problems, rec = stamp.verify_evidence(
+        "cap_fit", "DSCS3", str(_REPO), str(tmp_path / "nope.json"))
+    assert not ok and rec is None
+    assert any("missing evidence file" in p for p in problems)
+
+
+@pytest.mark.parametrize("field,value,needle", [
+    ("schema", 2, "schema"),
+    ("kind", "dspa_40k_audit", "kind"),
+    ("arm", "DSCS3", "arm"),
+    ("cap", 96, "cap"),
+    ("verdict", "FAIL", "the gate did NOT pass"),
+    ("treatment_sha256", "f" * 64, "describes a different method"),
+    ("model_config_sha256", "e" * 64, "model_config_sha256"),
+    ("source_sha", "0" * 40, "source_sha"),
+    ("log", "does/not/exist.log", "unsourced"),
+])
+def test_every_field_is_checked(stamp, tmp_path, field, value, needle):
+    """One tampered field at a time: each must be caught on its own, so no check
+    is load-bearing for another."""
+    rec = _valid_record(stamp)
+    rec[field] = value
+    ok, problems, _ = stamp.verify_evidence(
+        "cap_fit", "DSPA", str(_REPO), str(_write(tmp_path, rec)))
+    assert not ok, f"tampering with {field} was not caught"
+    assert any(needle in p for p in problems), problems
+
+
+def test_a_cap_fit_record_cannot_pass_as_the_40k_audit(stamp, tmp_path):
+    """The DS-CS3 gate is discharged by a PARITY AUDIT, not by a fit probe; the
+    filename alone must not be able to launder one into the other."""
+    rec = _valid_record(stamp)                      # kind == cap_fit
+    ok, problems, _ = stamp.verify_evidence(
+        "dspa_40k_audit", "DSPA", str(_REPO), str(_write(tmp_path, rec)))
+    assert not ok
+    assert any("kind" in p for p in problems)
+
+
+def test_build_record_refuses_a_40k_audit_about_the_wrong_arm(stamp):
+    with pytest.raises(ValueError, match="DSPA"):
+        stamp.build_record("dspa_40k_audit", "DSCS3", "PASS", "CLAUDE.md", "", str(_REPO))
+
+
+def test_evidence_paths_are_the_ones_the_launcher_names(stamp):
+    for kind, arm, stem in (("cap_fit", "DSPA", "cap_fit_DSPA.json"),
+                            ("cap_fit", "DSCS3", "cap_fit_DSCS3.json"),
+                            ("dspa_40k_audit", "DSPA", "dspa_40k_audit_DSPA.json")):
+        p = Path(stamp.evidence_path(kind, arm, str(_REPO)))
+        assert p.name == stem
+        assert p.parent == ARM_DIR / "evidence"
