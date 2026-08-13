@@ -155,8 +155,8 @@ sed -i "s|ACCEPT_FILE=\"\${EXPDIR}/yaw_aug_smoke_acceptance.json\"|ACCEPT_FILE=\
 # A spooled copy lives outside the repo, so its `cd $(git rev-parse --show-toplevel)`
 # would land in $HOME and every later gate would read the wrong tree. Pin it to
 # the tree under test, exactly as sbatch's spool keeps the launcher's absolute REPO.
-sed -i "s|^cd \"\$(git -C .*rev-parse --show-toplevel)\" .*|cd \"${PWD}\" || exit 3|" "$SUB_SPOOL"
-grep -q "^cd \"${PWD}\" || exit 3" "$SUB_SPOOL" || { echo "submitter spool did not pin its repo"; exit 3; }
+sed -i "s@^cd \"\$(git -C .*rev-parse --show-toplevel)\" .*@cd \"${PWD}\" || exit 3@" "$SUB_SPOOL"
+grep -qF "cd \"${PWD}\" || exit 3" "$SUB_SPOOL" || { echo "submitter spool did not pin its repo"; exit 3; }
 grep -q "ACCEPT_FILE=\"${ACC}\"" "$SUB_SPOOL" || { echo "submitter spool did not redirect ACCEPT_FILE"; exit 3; }
 
 # Cases that must reach the submitter's LATER gates need a clean training
