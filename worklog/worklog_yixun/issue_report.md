@@ -4,6 +4,8 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 
 ## Awaiting Yixun (decisions)
 
+0. **exp_14: GO given 2026-08-13** (option B scope: seed-42 trajectory, not general causality). No decisions pending until the DS-PA→DS-CS3 audit gate (~8/20) unless a hard abort fires.
+
 1. **Write-up target — UNCLEAR, and the framing was the assistant's, not Yixun's.** Earlier analyses recommended "paper columns / paper story"; Yixun flagged (2026-08-10) that no paper was ever specified. **There is no paper artifact in this repo or the sibling checkouts** — the only "paper" reference is CLAUDE.md's note that this repo implements the upstream *Few-shot Acoustic Synthesis with Multimodal Flow Matching* (CVPR 2026). What the assistant meant concretely: **which of the three confirmed checkpoint flavors, and which comparison rows, to feature when this equivariance program is written up.** Pending Yixun: is there a target (follow-up paper, thesis chapter, internal report, slides) — or should the framing be dropped from the records?
 2. **~~Cross-machine metrics consolidation~~ → DELEGATED (Yixun 2026-08-10):** another agent on the cluster will commit/update the model JSONs. Once its raws land, `gen_model_comparison.py` regenerates cleanly on this box (the row-regression guard will stop objecting). No action needed here beyond re-running the generator afterwards.
 3. **~~exp_11 recipe decision~~ → CLOSED (Yixun 2026-08-10):** another agent finished exp_11. **This box does not track or drive cluster work.**
