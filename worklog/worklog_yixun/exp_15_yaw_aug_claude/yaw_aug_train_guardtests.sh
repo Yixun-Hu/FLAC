@@ -948,11 +948,28 @@ case_run "CHAIN unset still trains the full 40000" 0 "max_steps 40000" \
   -- "${BASE_ENV[@]}" ARM=YAWAUG
 case_run "  ... under the monolithic wall pin" 0 "time pin PINNED_TIME_LIMIT_YAWAUG=24:00:00" \
   -- "${BASE_ENV[@]}" ARM=YAWAUG
-MONO_ARGV="$(env "${BASE_ENV[@]}" ARM=YAWAUG bash "$LAUNCHER" 2>&1 | sed -n '/^--model-config/p')"
-REF_ARGV="$(git show "${HEAD_SHA}:${LAUNCHER}" > "${TMP}/ref_launcher.sbatch" 2>/dev/null \
-            && env "${BASE_ENV[@]}" ARM=YAWAUG bash "${TMP}/ref_launcher.sbatch" 2>&1 | sed -n '/^--model-config/p')"
-[ -n "$MONO_ARGV" ] && [ "$MONO_ARGV" = "$REF_ARGV" ]
-check "the monolithic argv is byte-identical to the committed reference" $?
+# The golden is captured from the PRE-CHAIN reviewed launcher (44df1a2), not from
+# HEAD — comparing HEAD against HEAD proves nothing (chain review, finding 7).
+# OUTPUT_ROOT is a fixed literal and the repo path is normalised, so the only
+# thing that can differ is the argv itself. Emptiness is asserted: an empty
+# comparison is the classic vacuous green.
+GOLDEN_ARGV_FILE="${EXPDIR}/yaw_aug_monolith_argv_golden.txt"
+capture_argv() {  # <launcher> [chain-value]
+  env DRYRUN=1 ARM=YAWAUG "EXPECT_SHA=${HEAD_SHA}" OUTPUT_ROOT=/GOLDEN \
+      "YAW_AUG_REPO_OVERRIDE=${PWD}" ${2:+CHAIN=$2} bash "$1" 2>&1 \
+    | sed -n '/^--model-config/p' | sed "s|${PWD}|<REPO>|g"
+}
+GOLDEN_ARGV="$(cat "$GOLDEN_ARGV_FILE" 2>/dev/null)"
+[ -n "$GOLDEN_ARGV" ]; check "the pre-chain monolith argv golden is present and non-empty" $?
+MONO_UNSET="$(capture_argv "$LAUNCHER")"
+[ -n "$MONO_UNSET" ] && [ "$MONO_UNSET" = "$GOLDEN_ARGV" ]
+check "CHAIN unset builds the PRE-CHAIN argv byte-for-byte (44df1a2 golden)" $?
+MONO_ZERO="$(capture_argv "$LAUNCHER" 0)"
+[ -n "$MONO_ZERO" ] && [ "$MONO_ZERO" = "$GOLDEN_ARGV" ]
+check "CHAIN=0 builds the same pre-chain argv" $?
+CHAIN_ARGV="$(capture_argv "$LAUNCHER" 1)"
+[ -n "$CHAIN_ARGV" ] && [ "$CHAIN_ARGV" != "$GOLDEN_ARGV" ]
+check "  ... while CHAIN=1 genuinely differs (the comparison can detect change)" $?
 
 echo "--- Z. NEW (chain): the self-chaining epilogue ---"
 sed -n '/--- BEGIN next-leg-helper/,/--- END next-leg-helper/p' "$LAUNCHER" > "${TMP}/nextleg.sh"
