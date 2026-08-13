@@ -13,7 +13,10 @@
 #      was not actually augmented), or a green run whose banner never appeared;
 #   9  the 40,000-step checkpoint could not be produced, audited or recorded;
 #  10  SMOKE only: it wrote a checkpoint (it must be storage-light) or failed its
-#      acceptance thresholds, so production may not be promoted from it.
+#      acceptance thresholds, so production may not be promoted from it;
+#  12  CHAIN only: this leg trained and audited cleanly, but its SUCCESSOR could
+#      not be submitted. The training result stands; the chain has stalled and
+#      needs the recorded next_leg_command run by hand.
 #
 # WHAT THIS ARM IS: vanilla-conditioned FLAC trained with a random horizontal
 # yaw applied to every training sample's CONDITIONING (plan §3.1). It is compared
@@ -122,6 +125,12 @@ PINNED_YAW_AUG_SEED="42"
 # the acceptance record's _meta.max_steps to it, so an off-recipe smoke cannot
 # promote production.
 PINNED_SMOKE_MAXSTEPS=30
+# CHAIN (plan §12, Rev 3). The pre-registered endpoint does not move: it becomes
+# the chain's CAP, and every leg target must land on the checkpoint cadence at or
+# below it. A leg is short so it backfills into the scheduler's gaps.
+PINNED_CHAIN_CAP=40000
+PINNED_CHAIN_CADENCE=2500
+PINNED_TIME_LIMIT_LEG="1:30:00"        # 2500 steps ~42 min at ~1 it/s + startup + audit
 # ============================================================================
 
 REPO=/n/fs/gatrdp/codespace/FLAC
@@ -164,9 +173,49 @@ else
 fi
 RESUME_CKPT="${RESUME_CKPT:-}"
 EXPECTED_STEP="${EXPECTED_STEP:-0}"
+CHAIN="${CHAIN:-0}"
+LEG_STEPS="${LEG_STEPS:-2500}"
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 
 die() { echo "$1"; exit "${2:-2}"; }
+
+SUBMITTER_REL="worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_submit.sh"
+CHAIN_SUBMIT_ATTEMPTS="${CHAIN_SUBMIT_ATTEMPTS:-3}"
+CHAIN_SUBMIT_BACKOFF="${CHAIN_SUBMIT_BACKOFF:-30}"
+# --- BEGIN next-leg-helper (guard-tested by yaw_aug_train_guardtests.sh) ------
+# Records the intended command BEFORE trying it, then submits with bounded
+# retries. Recording first is the point: if every attempt fails, the operator (or
+# the supervising Monitor) has the exact line to run, and the job exits on a
+# distinct class so the failure cannot be mistaken for a training fault.
+submit_next_leg() {   # <submitter> <resume-ckpt> <boundary-step> <manifest>
+  local submitter="$1" ckpt="$2" step="$3" manifest="$4"
+  local cmd="CHAIN=1 LEG_STEPS=${LEG_STEPS} bash ${submitter} ${ARM} --resume ${ckpt} --expected-step ${step}"
+  echo "next_leg_command ${cmd}" >> "$manifest"
+  echo "chain: next leg is ${step} -> $(( step + LEG_STEPS > PINNED_CHAIN_CAP ? PINNED_CHAIN_CAP : step + LEG_STEPS ))"
+  echo "chain: recorded next_leg_command in ${manifest}"
+  local attempt out rc jid
+  attempt=1
+  while [ "$attempt" -le "$CHAIN_SUBMIT_ATTEMPTS" ]; do
+    out="$(CHAIN=1 LEG_STEPS="$LEG_STEPS" bash "$submitter" "$ARM" \
+             --resume "$ckpt" --expected-step "$step" 2>&1)"; rc=$?
+    printf '%s\n' "$out"
+    if [ "$rc" -eq 0 ]; then
+      jid="$(printf '%s\n' "$out" | awk '/submitted .* -> job/ {print $NF}' | tail -1)"
+      echo "next_leg_submit_status SUBMITTED attempt ${attempt} job ${jid:-<unparsed>}" >> "$manifest"
+      echo "chain: next leg submitted (job ${jid:-<unparsed>}) on attempt ${attempt}"
+      return 0
+    fi
+    echo "chain: next-leg submission attempt ${attempt}/${CHAIN_SUBMIT_ATTEMPTS} failed (rc ${rc})"
+    [ "$attempt" -lt "$CHAIN_SUBMIT_ATTEMPTS" ] && sleep "$CHAIN_SUBMIT_BACKOFF"
+    attempt=$((attempt + 1))
+  done
+  echo "next_leg_submit_status FAILED after ${CHAIN_SUBMIT_ATTEMPTS} attempts" >> "$manifest"
+  echo "CHAIN STALLED: the next leg could not be submitted. The exact command is"
+  echo "  recorded as 'next_leg_command' in ${manifest} — run it verbatim once the"
+  echo "  cause is cleared (class 12)."
+  return 1
+}
+# --- END next-leg-helper -----------------------------------------------------
 
 # --- A. parameters ------------------------------------------------------------
 [ -n "${ARM:-}" ] || die "ARM must be exported (YAWAUG) - abort"
@@ -217,6 +266,20 @@ else
   done
   RUNG="$PINNED_RUNG"; MAXSTEPS="$PINNED_MAXSTEPS"; MIN_FREE_MB="$PINNED_MIN_FREE_MB"
   CHECKPOINT_EVERY="$PINNED_CHECKPOINT_EVERY"
+  if [ "$CHAIN" = "1" ]; then
+    # This leg trains EXPECTED_STEP -> min(EXPECTED_STEP + LEG_STEPS, cap).
+    [ "$PINNED_CHAIN_CAP" = "40000" ] || die "PINNED_CHAIN_CAP is ${PINNED_CHAIN_CAP}, the pre-registered endpoint is 40000 - abort"
+    case "$LEG_STEPS" in ''|*[!0-9]*) die "LEG_STEPS '${LEG_STEPS}' must be a positive integer - abort";; esac
+    [ "$LEG_STEPS" -gt 0 ] || die "LEG_STEPS must be > 0 - abort"
+    [ $((LEG_STEPS % PINNED_CHAIN_CADENCE)) -eq 0 ] || die "LEG_STEPS ${LEG_STEPS} is not a multiple of the ${PINNED_CHAIN_CADENCE}-step checkpoint cadence: the leg would end where no checkpoint is written - abort"
+    [ $((EXPECTED_STEP % PINNED_CHAIN_CADENCE)) -eq 0 ] || die "resume step ${EXPECTED_STEP} is not on the ${PINNED_CHAIN_CADENCE}-step cadence - abort"
+    MAXSTEPS=$((EXPECTED_STEP + LEG_STEPS))
+    [ "$MAXSTEPS" -gt "$PINNED_CHAIN_CAP" ] && MAXSTEPS="$PINNED_CHAIN_CAP"
+    [ $((MAXSTEPS % PINNED_CHAIN_CADENCE)) -eq 0 ] || die "leg target ${MAXSTEPS} is not on the ${PINNED_CHAIN_CADENCE}-step cadence - abort"
+    [ "$MAXSTEPS" -le "$PINNED_CHAIN_CAP" ] || die "leg target ${MAXSTEPS} exceeds the chain cap ${PINNED_CHAIN_CAP} - abort"
+    [ "$MAXSTEPS" -gt "$EXPECTED_STEP" ] || die "leg target ${MAXSTEPS} does not advance past the resume step ${EXPECTED_STEP} - abort"
+    TIME_PIN_NAME="PINNED_TIME_LIMIT_LEG"
+  fi
   eval "TIME_LIMIT=\${${TIME_PIN_NAME}}"
   NAME="FLAC_exp15_${ARM}"; EXPNAME="exp15_${ARM}"; SAVEDIR="${OUTPUT_ROOT}/exp15_${ARM}"
 fi
@@ -232,8 +295,11 @@ MB="${RUNG%x*}"; NGPU="${RUNG#*x}"
 [ "$MB" = "$PINNED_MB" ] && [ "$NGPU" = "$PINNED_NGPU" ] || die "pin inconsistency: rung ${RUNG} vs PINNED_MB=${PINNED_MB}/PINNED_NGPU=${PINNED_NGPU} - abort"
 if [ "$SMOKE" != "1" ]; then
   # The pre-registered endpoint (plan §3.2/§5). A production launch at any other
-  # budget is not the experiment that was registered.
-  [ "$MAXSTEPS" = "40000" ] || die "PINNED_MAXSTEPS is ${MAXSTEPS}, the registered budget is 40000 - abort"
+  # budget is not the experiment that was registered. In CHAIN mode the endpoint
+  # is the CAP and this leg's budget is a checked fraction of it (above).
+  if [ "$CHAIN" != "1" ]; then
+    [ "$MAXSTEPS" = "40000" ] || die "PINNED_MAXSTEPS is ${MAXSTEPS}, the registered budget is 40000 - abort"
+  fi
 fi
 RUNDIR="${SAVEDIR}/${NAME}/${EXPNAME}"
 echo "=== exp_15 arm ${ARM} @ rung ${RUNG} (MB ${MB} x ${NGPU} GPU, grad-ckpt ON, yaw_aug ON) — ${TS} — host $(hostname) ==="
@@ -485,6 +551,7 @@ else
   [ "$MAXSTEPS" -gt "$EXPECTED_STEP" ] || die "MAXSTEPS ${MAXSTEPS} must exceed the resume step ${EXPECTED_STEP} - abort"
 fi
 echo "lineage: ${MODE} (expected_step ${EXPECTED_STEP}, max_steps ${MAXSTEPS}, ckpt every ${CHECKPOINT_EVERY}, time pin ${TIME_PIN_NAME}=${TIME_LIMIT})"
+[ "$CHAIN" = "1" ] && echo "chain leg: ${EXPECTED_STEP} -> ${MAXSTEPS} of ${PINNED_CHAIN_CAP} (LEG_STEPS ${LEG_STEPS})"
 
 # --- F. the exact train.py argv ----------------------------------------------
 # ACCUMULATION IS LOAD-BEARING (round-1 code review, accumulation finding).
@@ -1124,12 +1191,17 @@ else
   # BOTH the recorder and the config it compares against are the run-owned
   # snapshots (full-review F1), so an hour-11 edit cannot change this verdict.
   python3 - "$(snap yaw_aug_record_control.py)" "$LAUNCH_REGISTRY" "$ARM" \
-           "${RUNDIR}/checkpoints" "$MAXSTEPS" "$(snap FLAC_AR_YAWAUG.json)" <<'PY' || COMPLETION_RC=$?
+           "${RUNDIR}/checkpoints" "$MAXSTEPS" "$(snap FLAC_AR_YAWAUG.json)" \
+           "$PINNED_CHAIN_CAP" "$CHAIN" <<'PY' || COMPLETION_RC=$?
 # --- BEGIN completion-audit-python (guard-tested by yaw_aug_train_guardtests.sh) ---
 import glob, importlib.util, json, os, sys
 
-recorder_path, registry, arm, ckpt_dir, max_steps, config_path = sys.argv[1:7]
-max_steps = int(max_steps)
+(recorder_path, registry, arm, ckpt_dir, max_steps, config_path,
+ chain_cap, chain) = sys.argv[1:9]
+max_steps, chain_cap = int(max_steps), int(chain_cap)
+# In CHAIN mode this leg's endpoint is its OWN target; only the leg that reaches
+# the cap closes the run out. Monolithic runs have target == cap by construction.
+is_final_leg = (max_steps == chain_cap)
 
 spec = importlib.util.spec_from_file_location("yaw_aug_record_control", recorder_path)
 rc = importlib.util.module_from_spec(spec)
@@ -1165,18 +1237,28 @@ ema = rc.summarize_ema(checkpoint.get("state_dict") or {})
 
 reg = json.load(open(registry))
 entry = reg["arms"][arm]
-if entry.get("final_ckpt_sha256") not in (None, digest):
-    sys.exit(f"{arm} already carries a different final_ckpt_sha256 — refusing to overwrite")
-entry["final_ckpt_sha256"] = digest
-entry["final_step"] = step                    # from the CHECKPOINT, not the request
-entry["final_ckpt_path"] = ckpt
-entry["final_ckpt_bytes"] = identity["bytes"]
-entry["final_ckpt_audit"] = {
+audit = {
     "loaded_with": {"mmap": True, "map_location": "cpu", "weights_only": True},
     "embedded_config_canonical_sha256":
         rc.canonical_sha256(checkpoint["model_config"]),
     **ema,
 }
+# EVERY leg records its audited boundary checkpoint, so the chain's provenance is
+# a chain of hashes rather than a single endpoint with 15 unrecorded ancestors.
+legs = reg.setdefault("legs", {}).setdefault(arm, [])
+if any(leg.get("step") == step for leg in legs):
+    sys.exit(f"{arm} already has an audited leg at step {step} — refusing to overwrite")
+legs.append({"step": step, "ckpt_path": ckpt, "ckpt_sha256": digest,
+             "ckpt_bytes": identity["bytes"], "chain": chain == "1",
+             "audit": audit})
+if is_final_leg:
+    if entry.get("final_ckpt_sha256") not in (None, digest):
+        sys.exit(f"{arm} already carries a different final_ckpt_sha256 — refusing to overwrite")
+    entry["final_ckpt_sha256"] = digest
+    entry["final_step"] = step                # from the CHECKPOINT, not the request
+    entry["final_ckpt_path"] = ckpt
+    entry["final_ckpt_bytes"] = identity["bytes"]
+    entry["final_ckpt_audit"] = audit
 tmp = registry + ".tmp"
 with open(tmp, "w") as fh:
     json.dump(reg, fh, indent=2, sort_keys=True)
@@ -1184,14 +1266,44 @@ os.replace(tmp, registry)
 print(f"completion audit OK: {os.path.basename(ckpt)} step {step} sha256 {digest}")
 print(f"  EMA {ema['ema_key_count']} keys mirror {ema['online_model_key_count']} "
       f"online DiT keys; inventory {ema['ema_inventory_sha256']}")
-print(f"registry: {arm} final_ckpt_sha256 recorded in {registry}")
+if is_final_leg:
+    print(f"registry: {arm} final_ckpt_sha256 recorded in {registry} — CHAIN END")
+else:
+    print(f"registry: {arm} leg boundary at step {step} recorded in {registry} "
+          f"({chain_cap - step} steps to the cap)")
 # --- END completion-audit-python ---
 PY
   if [ "$COMPLETION_RC" -ne 0 ]; then
-    echo "COMPLETION AUDIT FAILED (rc ${COMPLETION_RC}): the 40k checkpoint was not"
-    echo "  produced, not verifiable, or not recordable — this run does not meet the"
-    echo "  launch acceptance criteria (class 9)"
+    echo "COMPLETION AUDIT FAILED (rc ${COMPLETION_RC}): this leg's boundary checkpoint"
+    echo "  was not produced, not verifiable, or not recordable — the run does not meet"
+    echo "  the launch acceptance criteria (class 9)"
     final_rc=9
+  fi
+
+  # --- R4. self-chaining: submit the NEXT leg (plan §12) ----------------------
+  # Strictly after this leg's audit passed and its registry entry was written. A
+  # login-node daemon is forbidden, so the chain advances by each leg submitting
+  # its successor; the session Monitor supervises and the manifest carries the
+  # exact command so recovery is mechanical rather than reconstructed.
+  #
+  # The SUBMITTER is deliberately the LIVE script, not a snapshot: it re-runs
+  # every gate at the then-current HEAD, so a leg submitted after a
+  # closure-breaking commit must fail closed rather than sneak through on stale
+  # bytes. Only the helpers this job itself invokes are snapshot-bound.
+  if [ "$CHAIN" = "1" ] && [ "$COMPLETION_RC" -eq 0 ] && [ "$final_rc" -eq 0 ]; then
+    if [ "$MAXSTEPS" -ge "$PINNED_CHAIN_CAP" ]; then
+      echo "chain END: this leg reached the pre-registered cap ${PINNED_CHAIN_CAP}; no successor is submitted"
+      echo "chain_status END at ${MAXSTEPS}" >> "$MANIFEST"
+    else
+      NEXT_CKPT="$(ls -1 "${RUNDIR}/checkpoints"/*-step=${MAXSTEPS}.ckpt 2>/dev/null | head -1)"
+      if [ -z "$NEXT_CKPT" ]; then
+        echo "CHAIN: the audited boundary checkpoint for step ${MAXSTEPS} vanished before submission"
+        echo "chain_status FAILED boundary checkpoint missing" >> "$MANIFEST"
+        final_rc=12
+      else
+        submit_next_leg "$REPO/$SUBMITTER_REL" "$NEXT_CKPT" "$MAXSTEPS" "$MANIFEST" || final_rc=12
+      fi
+    fi
   fi
 fi
 

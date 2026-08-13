@@ -10,6 +10,8 @@
 #
 #   ./yaw_aug_submit.sh YAWAUG
 #   ./yaw_aug_submit.sh YAWAUG --resume <ckpt> --expected-step 12500   # crash restart, <= 40k
+#   CHAIN=1 [LEG_STEPS=2500] ./yaw_aug_submit.sh YAWAUG                # chain leg 1: 0 -> 2500
+#   CHAIN=1 ./yaw_aug_submit.sh YAWAUG --resume <ckpt> --expected-step 2500   # leg 2: 2500 -> 5000
 #   SMOKE=1 SMOKE_RUNG=8x8 SMOKE_MIN_FREE_MB=14000 ./yaw_aug_submit.sh YAWAUG
 #   DRYRUN=1 ./yaw_aug_submit.sh YAWAUG     # print the sbatch line, submit nothing
 #
@@ -116,6 +118,28 @@ print(hashlib.sha256(raw).hexdigest())
 PY
 }
 
+# --- BEGIN chain-initial-manifest-python (guard-tested by yaw_aug_train_guardtests.sh) ---
+# Prints the INITIAL leg's manifest path from the launch registry; fails if this
+# arm has no registered first leg (a chain RESTART presupposes one).
+chain_initial_manifest() {   # <registry> <arm>
+python3 - "$@" <<'PY'
+import json, sys
+try:
+    reg = json.load(open(sys.argv[1]))
+except Exception as error:
+    sys.exit(f"cannot read the launch registry {sys.argv[1]}: {error}")
+entry = reg.get("arms", {}).get(sys.argv[2])
+if not entry:
+    sys.exit(f"{sys.argv[2]} has no INITIAL entry in the launch registry: a chain "
+             "RESTART leg presupposes a registered first leg")
+path = entry.get("manifest_path")
+if not path:
+    sys.exit(f"{sys.argv[2]}'s registry entry carries no manifest_path")
+print(path)
+PY
+}
+# --- END chain-initial-manifest-python ---
+
 ARM="${1:-}"
 [ -n "$ARM" ] || { echo "usage: $0 YAWAUG [--resume <ckpt> --expected-step <n>] - abort"; exit 2; }
 shift
@@ -130,6 +154,37 @@ while [ $# -gt 0 ]; do
   esac
 done
 case "$EXPECTED_STEP" in ''|*[!0-9]*) echo "--expected-step must be a non-negative integer - abort"; exit 2;; esac
+
+# --- CHAIN mode (plan §12, Rev 3) --------------------------------------------
+# The L40 pool is saturated and a 24 h monolith cannot get scheduled, so the same
+# pre-registered 40,000 steps are trained as a chain of short legs that backfill
+# into small gaps. Each leg resumes the previous boundary checkpoint; the ENDPOINT
+# does not move. CHAIN unset reproduces the reviewed monolithic behaviour exactly.
+CHAIN="${CHAIN:-0}"
+LEG_STEPS="${LEG_STEPS:-2500}"
+CHAIN_CAP=40000
+CADENCE=2500
+# The standing waiver every chain leg inherits (worklog 2026-08-12T16:05): the
+# smoke's rate check was waived by Yixun with post-hoc windowed floors. A chain
+# leg must cite it rather than silently skip a gate.
+STANDING_WAIVER_REF="worklog 2026-08-12T16:05:00-04:00 (Yixun waived rate_at_least_0.9x_VANL; post-hoc windowed floors 0.849/0.843)"
+if [ "$CHAIN" = "1" ]; then
+  case "$LEG_STEPS" in ''|*[!0-9]*) echo "LEG_STEPS '${LEG_STEPS}' must be a positive integer - abort"; exit 2;; esac
+  [ "$LEG_STEPS" -gt 0 ] || { echo "LEG_STEPS must be > 0 - abort"; exit 2; }
+  # Boundary saves are STRUCTURAL: a leg can only resume from a checkpoint that
+  # exists, and checkpoints exist only on the 2500 cadence.
+  [ $((LEG_STEPS % CADENCE)) -eq 0 ] \
+    || { echo "LEG_STEPS ${LEG_STEPS} is not a multiple of the ${CADENCE}-step checkpoint cadence: the leg would end where no checkpoint is written - abort"; exit 2; }
+  if [ "$EXPECTED_STEP" -gt 0 ]; then
+    [ $((EXPECTED_STEP % CADENCE)) -eq 0 ] \
+      || { echo "--expected-step ${EXPECTED_STEP} is not a multiple of ${CADENCE}: no boundary checkpoint can exist there - abort"; exit 2; }
+    [ "$EXPECTED_STEP" -lt "$CHAIN_CAP" ] \
+      || { echo "--expected-step ${EXPECTED_STEP} is at/past the pre-registered ${CHAIN_CAP}-step endpoint: the chain is already complete - abort"; exit 2; }
+  fi
+  LEG_TARGET=$((EXPECTED_STEP + LEG_STEPS))
+  [ "$LEG_TARGET" -gt "$CHAIN_CAP" ] && LEG_TARGET="$CHAIN_CAP"
+  echo "chain leg: ${EXPECTED_STEP} -> ${LEG_TARGET} (LEG_STEPS ${LEG_STEPS}, cap ${CHAIN_CAP})"
+fi
 
 # --- pins are read FROM the launcher, so submitter and job cannot disagree ----
 pin() {  # read one PINNED_* value out of the launcher (quoted or bare)
@@ -149,7 +204,12 @@ else
   # The wall pin follows the LEG. For exp_15 both pins are 24:00:00 (a crash
   # restart finishes the same 40k budget), but the selection is kept so the
   # submitter and the job provably allocate and enforce the same pin.
-  if [ -n "${EXPECTED_STEP:-}" ] && [ "${EXPECTED_STEP:-0}" -gt 0 ]; then
+  if [ "$CHAIN" = "1" ]; then
+    # A chain leg is LEG_STEPS steps, not a whole run: a short wall pin is what
+    # makes it backfillable in the first place.
+    TIME_LIMIT="$(pin PINNED_TIME_LIMIT_LEG)"
+    TIME_PIN_NAME="PINNED_TIME_LIMIT_LEG"
+  elif [ -n "${EXPECTED_STEP:-}" ] && [ "${EXPECTED_STEP:-0}" -gt 0 ]; then
     TIME_LIMIT="$(pin "PINNED_TIME_LIMIT_RESTART_${ARM}")"
   else
     TIME_LIMIT="$(pin "PINNED_TIME_LIMIT_${ARM}")"
@@ -158,6 +218,7 @@ else
     [ "$V" != "$PLACEHOLDER" ] || { echo "the launcher still carries ${PLACEHOLDER} pins: the P0 report has not been pinned yet — no arm may be submitted (use SMOKE=1 for the smoke) - abort"; exit 2; }
   done
   JOBNAME="exp15-${ARM}-train"
+  [ "$CHAIN" = "1" ] && JOBNAME="exp15-${ARM}-leg${LEG_TARGET}"
 fi
 case "$RUNG" in 8x8) ;; *) echo "rung '${RUNG}' must be 8x8 — exp_15 has ONE topology, smoke included - abort"; exit 2;; esac
 MB="${RUNG%x*}"; NGPU="${RUNG#*x}"
@@ -194,7 +255,21 @@ printf '%s\n' "$SHA" | grep -qE '^[0-9a-f]{40}$' \
 # reasoned waiver that is recorded in the submission manifest.
 # Placed AFTER the drift gate so it can bind the record to the resolved
 # submission commit and topology.
-if [ "$SMOKE" != "1" ]; then
+#
+# CHAIN SCOPE (plan §12): the gate guards the ENTRY to a training run, so in
+# chain mode it applies to the INITIAL leg only. A RESTART leg is a continuation
+# of an already-promoted run — re-gating it would demand a fresh smoke bound to
+# every new HEAD, i.e. it would make the chain unrunnable — so each RESTART leg
+# instead CITES the standing waiver and the INITIAL leg's manifest in its own
+# submission manifest, and inherits every other gate unchanged.
+CHAIN_INITIAL_MANIFEST=""
+if [ "$CHAIN" = "1" ] && [ "$EXPECTED_STEP" -gt 0 ]; then
+  CHAIN_INITIAL_MANIFEST="$(chain_initial_manifest "$EXPDIR/yaw_aug_launch_registry.json" "$ARM" 2>&1)" \
+    || { echo "CHAIN RESTART: ${CHAIN_INITIAL_MANIFEST} - abort"; exit 2; }
+  echo "chain RESTART leg: promotion gate inherited from the INITIAL leg"
+  echo "  initial manifest: ${CHAIN_INITIAL_MANIFEST}"
+  echo "  standing waiver : ${STANDING_WAIVER_REF}"
+elif [ "$SMOKE" != "1" ]; then
   ACCEPT_FILE="${EXPDIR}/yaw_aug_smoke_acceptance.json"
   ACCEPT_SHA256="<none>"
   SMOKE_WAIVER="${SMOKE_WAIVER:-}"
@@ -232,6 +307,7 @@ ARGS=(
 )
 [ "$SMOKE" = "1" ] && ARGS[5]="${ARGS[5]},SMOKE=1,SMOKE_RUNG=${SMOKE_RUNG},SMOKE_MIN_FREE_MB=${SMOKE_MIN_FREE_MB},SMOKE_MAXSTEPS=${SMOKE_MAXSTEPS:-30},SMOKE_TIME=${TIME_LIMIT}"
 [ -n "$RESUME_CKPT" ] && ARGS[5]="${ARGS[5]},RESUME_CKPT=${RESUME_CKPT},EXPECTED_STEP=${EXPECTED_STEP}"
+[ "$CHAIN" = "1" ] && ARGS[5]="${ARGS[5]},CHAIN=1,LEG_STEPS=${LEG_STEPS}"
 ARGS+=("$SBATCH_FILE")
 
 echo "arm ${ARM} | rung ${RUNG} (${MB}x${NGPU}) | time ${TIME_LIMIT} | commit ${SHA} | smoke ${SMOKE}"
@@ -259,6 +335,11 @@ TMP="$(mktemp "${MANIFEST}.XXXXXX")" || exit 3
   echo "pins rung=${RUNG} maxsteps=$(pin PINNED_MAXSTEPS) ckpt_every=$(pin PINNED_CHECKPOINT_EVERY) min_free_mb=$(pin PINNED_MIN_FREE_MB) p0_manifest_sha256=$(pin PINNED_P0_MANIFEST_SHA256)"
   echo "resume ${RESUME_CKPT:-<none>} expected_step ${EXPECTED_STEP}"
   echo "smoke_acceptance ${ACCEPT_FILE:-<n/a>} sha256 ${ACCEPT_SHA256:-<none>} waiver ${SMOKE_WAIVER:-<none>}"
+  if [ "$CHAIN" = "1" ]; then
+    echo "chain 1 leg_steps ${LEG_STEPS} leg_start ${EXPECTED_STEP} leg_target ${LEG_TARGET} cap ${CHAIN_CAP}"
+    echo "chain_standing_waiver ${STANDING_WAIVER_REF}"
+    echo "chain_initial_manifest ${CHAIN_INITIAL_MANIFEST:-<this leg is the INITIAL>}"
+  fi
   echo "sbatch sbatch ${ARGS[*]}"
 } >> "$TMP" || { echo "intent manifest write failed - abort"; exit 3; }
 mv -n "$TMP" "$MANIFEST" || { echo "intent manifest publication failed - abort"; exit 2; }
