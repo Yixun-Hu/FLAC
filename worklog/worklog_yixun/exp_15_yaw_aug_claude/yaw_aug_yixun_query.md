@@ -30,3 +30,13 @@
 > Proceed once smoke is clean — no extra gate needed
 
 **Summary:** The 40k training launch is authorized to proceed autonomously as soon as the validation ladder (integrative full review + SMOKE rung on 8×L40) passes — no additional human approval gate before the real submission. Pre-launch report still posted for the record (params/command/acceptance criteria per SOP), but it is informational, not blocking.
+
+## Query 3 — 2026-08-13 (chunked-training directive)
+
+**Verbatim:**
+
+> Right now I need you to do this: Currently the computing resources are really limited, so our job is hard to backfilled. The strategy I need you to help us training is to write a watchdog and split exp_15 to multiple jobs (for example, one job only train 2500 steps and then closed and next job resume from the previous 2500 steps checkpoints and trained based on that), please verify that current code support checkpoint resume (if not, you should write code support). Using this I think we don't need to wait for a such a long time.
+
+**Summary:** Replace the single 24 h job with a chain of short jobs (~2500 steps each) that resume from the previous leg's checkpoint, supervised by a watchdog, so each leg backfills into small scheduling gaps. Verify (or build) checkpoint-resume support.
+
+**Verification result (2026-08-13):** resume IS supported — the kit's RESTART mode (`--resume/--expected-step`, exp_11 Q10 lineage, proven on real 40k→100k legs), restart preflight, 40k cap, F6 registry leg-provenance, and the r1 counter-based yaw draws are resume-exact by design (tested). Missing and to be built: per-leg step budgets, short per-leg time pins, self-chaining submission. Design decision (login-node rules forbid persistent daemons): the "watchdog" = each leg's epilogue submits the next leg after its completion audit passes (cluster-native, session-independent), plus the session Monitor as supervisor/alerter with manual resubmission as the recovery path.
