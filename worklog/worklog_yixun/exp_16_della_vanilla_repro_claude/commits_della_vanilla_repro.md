@@ -21,3 +21,5 @@ branch point `e603947` (`della-flac-chequity`, cut from `check-equivariance-nece
 - `2a504fe` — smoke PASSED: 4550 steps/epoch live-confirms batch 64; 0.58 steps/s → Phase-2 ETA 33 h, gpu-medium `2-06:00:00`.
 - `4873813` — full integrative review (Codex REVISE: launch-procedure only) + plan Rev 3: A100 consistency, exact gate JSON paths + PHASE1_PASS interlock spec, no-requeue policy + interruption runbook.
 - `<this commit>` — codex round-C fixes: `#SBATCH --no-requeue` in both drivers, `PHASE1_PASS.md` interlock on non-smoke `train` submissions, this ledger completed through HEAD.
+- `ac734e9` — Rev 4 plan amendment + query 2 + resume-verification worklog.
+- `90079a7` — round D: della_chain.sbatch + della_chain_submit.sh (self-locating legs, two-strike watchdog, chain manifest).
