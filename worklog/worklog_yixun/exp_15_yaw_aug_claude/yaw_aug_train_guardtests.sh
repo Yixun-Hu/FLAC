@@ -47,6 +47,12 @@ LOG="${EXPDIR}/yaw_aug_${TS}_guardtests_${GUARD_TAG:-r3fix}.log"
 HEAD_SHA="$(git rev-parse HEAD)"
 CONTROL_COMMIT="81ddac372076ea92751ae09cbaf371df70f396e5"
 
+# Machine-readable ledger: one CASE line per case, so union coverage across the
+# two environments can be CHECKED rather than claimed (chain review, finding 8).
+# Created BEFORE the tracked-state snapshots below, so the suite's own evidence
+# files are not mistaken for the suite mutating the tree.
+LEDGER="${LOG%.log}.ledger"
+: > "$LEDGER"
 exec > >(tee -a "$LOG") 2>&1
 echo "=== yaw_aug_train guard exercise — ${TS} — $(git rev-parse --short HEAD) ==="
 for f in "$LAUNCHER" "$SUBMITTER" "$ALLOWLIST" "$ARM_CONFIG" "$CLASSIFY" "$PREFLIGHT"; do
@@ -62,16 +68,25 @@ OUT_ROOT="${TMP}/outputs"            # never a production prefix
 mkdir -p "$OUT_ROOT"
 trap 'rm -rf "$TMP"' EXIT
 PASS=0; FAIL=0
+STRICT="${STRICT:-0}"
+ledger() { printf '%s\t%s\n' "$1" "$2" >> "$LEDGER"; }
+skip_case() {   # <name> <reason> — a SKIP is a FAILURE under STRICT=1
+  if [ "$STRICT" = "1" ]; then
+    echo "FAIL  ${1} (STRICT: ${2})"; ledger FAIL "$1"; FAIL=$((FAIL + 1))
+  else
+    echo "SKIP  ${1} (${2})"; ledger SKIP "$1"
+  fi
+}
 
 case_run() {  # <name> <want-rc> <want-substring> -- <env...>   (runs the REAL launcher)
   local name="$1" want_rc="$2" want_txt="$3"; shift 3; [ "$1" = "--" ] && shift
   local out rc
   out="$(env "$@" bash "$LAUNCHER" 2>&1)"; rc=$?
   if [ "$rc" -eq "$want_rc" ] && echo "$out" | grep -qF -- "$want_txt"; then
-    echo "PASS  ${name}  (rc=${rc})"; PASS=$((PASS + 1))
+    echo "PASS  ${name}  (rc=${rc})"; ledger PASS "$name"; PASS=$((PASS + 1))
   else
     echo "FAIL  ${name}: want rc=${want_rc} + '${want_txt}', got rc=${rc}"
-    echo "$out" | tail -5 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+    echo "$out" | tail -5 | sed 's/^/        | /'; ledger FAIL "$name"; FAIL=$((FAIL + 1))
   fi
 }
 
@@ -80,10 +95,10 @@ case_spool() {  # <name> <launcher> <want-rc> <want-substring> -- <env...>
   local out rc
   out="$(env "$@" bash "$launcher" 2>&1)"; rc=$?
   if [ "$rc" -eq "$want_rc" ] && echo "$out" | grep -qF -- "$want_txt"; then
-    echo "PASS  ${name}  (rc=${rc})"; PASS=$((PASS + 1))
+    echo "PASS  ${name}  (rc=${rc})"; ledger PASS "$name"; PASS=$((PASS + 1))
   else
     echo "FAIL  ${name}: want rc=${want_rc} + '${want_txt}', got rc=${rc}"
-    echo "$out" | tail -5 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+    echo "$out" | tail -5 | sed 's/^/        | /'; ledger FAIL "$name"; FAIL=$((FAIL + 1))
   fi
 }
 
@@ -92,16 +107,16 @@ expect_cmd() {  # <name> <want-rc> <want-substring> -- <command...>
   local out rc
   out="$("$@" 2>&1)"; rc=$?
   if [ "$rc" -eq "$want_rc" ] && echo "$out" | grep -qF -- "$want_txt"; then
-    echo "PASS  ${name}  (rc=${rc})"; PASS=$((PASS + 1))
+    echo "PASS  ${name}  (rc=${rc})"; ledger PASS "$name"; PASS=$((PASS + 1))
   else
     echo "FAIL  ${name}: want rc=${want_rc} + '${want_txt}', got rc=${rc}"
-    echo "$out" | tail -5 | sed 's/^/        | /'; FAIL=$((FAIL + 1))
+    echo "$out" | tail -5 | sed 's/^/        | /'; ledger FAIL "$name"; FAIL=$((FAIL + 1))
   fi
 }
 
 check() {  # <name> <condition-rc> — for grep-style structural assertions
-  if [ "$2" -eq 0 ]; then echo "PASS  $1"; PASS=$((PASS + 1))
-  else echo "FAIL  $1"; FAIL=$((FAIL + 1)); fi
+  if [ "$2" -eq 0 ]; then echo "PASS  $1"; ledger PASS "$1"; PASS=$((PASS + 1))
+  else echo "FAIL  $1"; ledger FAIL "$1"; FAIL=$((FAIL + 1)); fi
 }
 
 spool() {  # <tag> [<sed-expr>...] -> path to a spooled launcher copy
@@ -137,17 +152,22 @@ grep -q "ACCEPT_FILE=\"${ACC}\"" "$SUB_SPOOL" || { echo "submitter spool did not
 # closure. Another session commits to this checkout continuously, so a dirty
 # closure is reported as a SKIP with its reason, never as a failure of this kit.
 closure_clean() {
-  [ -z "$(git status --porcelain --untracked-files=no -- train.py defaults.ini src \
-            ":(exclude)src/tests" data/AR "$EXPDIR" "$EXP11DIR/fa_orbit_ckpt_preflight.py" \
-            "$EXP11DIR/fa_orbit_classify.py" "$EXP11DIR/fa_orbit_wandb_readback.py" \
-            "$EXP11DIR/FLAC_AR_VANCKPT.json" 2>/dev/null)" ]
+  # stderr is captured and the exit status is honoured: a git failure is NOT
+  # "clean" (chain review, finding 8).
+  local out
+  out="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src \
+           ":(exclude)src/tests" data/AR "$EXPDIR" "$EXP11DIR/fa_orbit_ckpt_preflight.py" \
+           "$EXP11DIR/fa_orbit_classify.py" "$EXP11DIR/fa_orbit_wandb_readback.py" \
+           "$EXP11DIR/FLAC_AR_VANCKPT.json" 2>&1)" || {
+    echo "closure_clean: git status FAILED: ${out}" >&2; return 2; }
+  [ -z "$out" ]
 }
 if closure_clean; then CLOSURE_STATE="clean"; else CLOSURE_STATE="dirty"; fi
 echo "training closure at suite start: ${CLOSURE_STATE}"
 sub_case() {  # like expect_cmd, but skipped (not failed) when the closure is dirty
   local name="$1"
   if ! closure_clean; then
-    echo "SKIP  ${name} (training closure dirty — another session is mid-edit)"; return 0
+    skip_case "$name" "training closure dirty — another session is mid-edit"; return 0
   fi
   expect_cmd "$@"
 }
@@ -293,16 +313,20 @@ case_spool "DRYRUN names the unreviewed file" "$SURPRISE" 0 "src/training/diffus
 case_spool "  ... and says a real launch would abort" "$SURPRISE" 0 "a real launch aborts here" \
   -- "${BASE_ENV[@]}" ARM=YAWAUG
 # real mode (fake job id, clean tree required): the same surprise must be fatal
-# NB: under a Slurm job id the launcher ignores YAW_AUG_REPO_OVERRIDE by design,
-# so this case reads the PRODUCTION checkout — its precondition is that tree.
-PROD_REPO="$(awk -F= '/^REPO=/{print $2; exit}' "$LAUNCHER")"
-if [ -z "$(git -C "$PROD_REPO" status --porcelain --untracked-files=no -- \
-             train.py defaults.ini src ":(exclude)src/tests" data/AR \
-             "$EXPDIR" "$EXP11DIR" 2>/dev/null)" ]; then
-  case_spool "a REAL launch dies on an unreviewed file" "$SURPRISE" 2 "unreviewed production-surface changes" \
+# Under a Slurm job id the launcher ignores YAW_AUG_REPO_OVERRIDE by design, so a
+# spooled copy would read the PRODUCTION checkout. The spool therefore rewrites
+# the literal REPO= line to THIS tree — which in the clean-worktree run is the
+# worktree — so the case exercises the gate instead of skipping on someone else's
+# in-flight edit (chain review, finding 8).
+SURPRISE_REAL="$(spool allowlist_real \
+  "s|ALLOWLIST_FILE=\"\${EXPDIR}/yaw_aug_pin_allowlist.txt\"|ALLOWLIST_FILE=\"${TMP}/restrictive_allowlist.txt\"|" \
+  "s|^REPO=/n/fs/gatrdp/codespace/FLAC$|REPO=${PWD}   # guardtest: read THIS tree|")"
+if closure_clean; then
+  case_spool "a REAL launch dies on an unreviewed file" "$SURPRISE_REAL" 2 "unreviewed production-surface changes" \
     -- ARM=YAWAUG "EXPECT_SHA=${HEAD_SHA}" SLURM_JOB_ID=999999
 else
-  echo "SKIP  real-mode allowlist case (the production checkout is dirty; its drift gate fires first)"
+  skip_case "a REAL launch dies on an unreviewed file" \
+    "the drift gate fires first on this dirty tree; the strict clean-worktree run covers it"
 fi
 printf '' > "${TMP}/empty_allowlist.txt"
 EMPTY="$(spool allowempty "s|ALLOWLIST_FILE=\"\${EXPDIR}/yaw_aug_pin_allowlist.txt\"|ALLOWLIST_FILE=\"${TMP}/empty_allowlist.txt\"|")"
@@ -376,7 +400,7 @@ if [ -f outputs_FLAC/exp11_VANL/launch_manifest.txt ]; then
   grep -q '^vae_sha256 8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9' outputs_FLAC/exp11_VANL/launch_manifest.txt
   check "the control manifest records our pinned VAE" $?
 else
-  echo "SKIP  control-manifest cross-check (manifest not present on this machine)"
+  skip_case "control-manifest cross-check" "manifest not present on this machine"
 fi
 
 echo "--- M. the submitter ---"
@@ -596,7 +620,7 @@ if git worktree add --detach --quiet "$WT" HEAD 2>/dev/null; then
   git worktree remove --force "$WT" >/dev/null 2>&1 || true
   git worktree prune >/dev/null 2>&1 || true
 else
-  echo "SKIP  worktree closure cases (git worktree add unavailable)"
+  skip_case "worktree closure cases" "git worktree add unavailable"
 fi
 
 echo "--- U. NEW (r3-fix F5/F6): banner exactness+taxonomy, manifest snapshot ---"
@@ -636,7 +660,7 @@ json.dump(d, open(sys.argv[2],'w'))" "${EXP11DIR}/arm_launch_registry.json" "${T
   expect_cmd "a registry disagreeing with the reviewed pin is refused" 1 "the control's identity moved" -- \
     ctrl_env "$CTRL_MAN" "$PIN" "${TMP}/reg_moved.json"
 else
-  echo "SKIP  control-manifest snapshot cases (manifest not present on this machine)"
+  skip_case "control-manifest snapshot cases" "manifest not present on this machine"
 fi
 
 echo "--- V. NEW (full-fix F1): end-of-run code is bound to a run-owned snapshot ---"
@@ -889,14 +913,18 @@ case_run "a mid chain leg is 12500 -> 15000" 0 "chain leg: 12500 -> 15000 of 400
   -- "${CH_ENV[@]}" EXPECTED_STEP=12500 "RESUME_CKPT=${CHAIN_RUN}/epoch=0-step=12500.ckpt"
 case_run "the FINAL leg is 37500 -> 40000" 0 "chain leg: 37500 -> 40000 of 40000" \
   -- "${CH_ENV[@]}" EXPECTED_STEP=37500 "RESUME_CKPT=${CHAIN_RUN}/epoch=0-step=37500.ckpt"
-case_run "an oversized LEG_STEPS clamps to the cap" 0 "chain leg: 37500 -> 40000 of 40000" \
-  -- "${CH_ENV[@]}" LEG_STEPS=10000 EXPECTED_STEP=37500 "RESUME_CKPT=${CHAIN_RUN}/epoch=0-step=37500.ckpt"
-case_run "a larger aligned LEG_STEPS is honoured" 0 "chain leg: 2500 -> 12500 of 40000" \
+# LEG_STEPS is PINNED (chain review F6): one wall pin means one leg size.
+case_run "a larger aligned LEG_STEPS is now REFUSED" 2 "!= the pinned 2500" \
   -- "${CH_ENV[@]}" LEG_STEPS=10000 EXPECTED_STEP=2500 "RESUME_CKPT=${CHAIN_RUN}/epoch=0-step=2500.ckpt"
+case_run "  ... because the 1:30 wall pin is sized for 2500 steps" 2 "reviewed time pin" \
+  -- "${CH_INIT[@]}" LEG_STEPS=5000
+case_run "the last leg still clamps to the cap" 0 "chain leg: 37500 -> 40000 of 40000" \
+  -- "${CH_ENV[@]}" EXPECTED_STEP=37500 "RESUME_CKPT=${CHAIN_RUN}/epoch=0-step=37500.ckpt"
 # guards
-case_run "a misaligned LEG_STEPS dies" 2 "not a multiple of the 2500-step checkpoint cadence" \
-  -- "${CH_INIT[@]}" LEG_STEPS=1000
-case_run "a zero LEG_STEPS dies" 2 "LEG_STEPS must be > 0" -- "${CH_INIT[@]}" LEG_STEPS=0
+case_run "a misaligned LEG_STEPS dies" 2 "!= the pinned 2500" -- "${CH_INIT[@]}" LEG_STEPS=1000
+case_run "a zero LEG_STEPS dies" 2 "!= the pinned 2500" -- "${CH_INIT[@]}" LEG_STEPS=0
+case_run "an absurdly long LEG_STEPS is refused before any arithmetic" 2 "absurdly long" \
+  -- "${CH_INIT[@]}" LEG_STEPS=999999999999999999999
 case_run "a misaligned --expected-step dies" 2 "not on the 2500-step cadence" \
   -- "${CH_ENV[@]}" EXPECTED_STEP=3000 "RESUME_CKPT=${CHAIN_RUN}/epoch=0-step=2500.ckpt"
 case_run "resuming AT the cap still dies" 2 "at/past the pre-registered" \
@@ -918,10 +946,10 @@ check "the monolithic argv is byte-identical to the committed reference" $?
 echo "--- Z. NEW (chain): the self-chaining epilogue ---"
 sed -n '/--- BEGIN next-leg-helper/,/--- END next-leg-helper/p' "$LAUNCHER" > "${TMP}/nextleg.sh"
 grep -q 'submit_next_leg()' "${TMP}/nextleg.sh"; check "the next-leg helper is extracted from the launcher" $?
-# A STUB submitter stands in for the real one: this suite never submits anything.
+# STUB submitters: this suite never submits anything.
 cat > "${TMP}/fake_submit_ok.sh" <<'EOS'
 #!/usr/bin/env bash
-echo "arm $1 | chain leg"
+echo "arm $1 | chain leg | dependency ${CHAIN_DEPENDENCY:-<none>} | token ${CHAIN_INTENT_TOKEN:-<none>}"
 echo "submitted YAWAUG -> job 4242424"
 exit 0
 EOS
@@ -931,35 +959,31 @@ echo "tracked measurement surfaces have uncommitted changes - commit first, abor
 exit 2
 EOS
 chmod +x "${TMP}/fake_submit_ok.sh" "${TMP}/fake_submit_fail.sh"
-run_next_leg() {  # <stub> <manifest> ; ARM/LEG_STEPS/PINNED_CHAIN_CAP come from the env
-  ( ARM=YAWAUG LEG_STEPS=2500 PINNED_CHAIN_CAP=40000 \
-    CHAIN_SUBMIT_ATTEMPTS=3 CHAIN_SUBMIT_BACKOFF=0
+NEXTLEG_STATE="${TMP}/nextleg_state.json"
+run_next_leg() {  # <stub> ; records mark-submitted calls in MARKS
+  ( ARM=YAWAUG LEG_STEPS=2500 CHAIN_SUBMIT_ATTEMPTS=3 CHAIN_SUBMIT_BACKOFF=0
+    SLURM_JOB_ID=555 CHAIN_STATE_FILE="$NEXTLEG_STATE"
+    chain_state() { echo "chain_state $*" >> "${TMP}/marks.txt"; }
     # shellcheck disable=SC1090
     . "${TMP}/nextleg.sh"
-    submit_next_leg "$1" "${CHAIN_RUN}/epoch=0-step=2500.ckpt" 2500 "$2" )
+    submit_next_leg "$1" "${CHAIN_RUN}/epoch=0-step=2500.ckpt" 2500 "tok-abc123" 5000 )
 }
-MAN_OK="${TMP}/manifest_ok.txt"; : > "$MAN_OK"
+: > "${TMP}/marks.txt"
 expect_cmd "a successful submission is recorded with its job id" 0 "next leg submitted (job 4242424)" -- \
-  run_next_leg "${TMP}/fake_submit_ok.sh" "$MAN_OK"
-grep -q "^next_leg_command CHAIN=1 LEG_STEPS=2500 bash ${TMP}/fake_submit_ok.sh YAWAUG --resume ${CHAIN_RUN}/epoch=0-step=2500.ckpt --expected-step 2500$" "$MAN_OK"
-check "  ... and the manifest carries the exact command that was run" $?
-grep -q '^next_leg_submit_status SUBMITTED attempt 1 job 4242424$' "$MAN_OK"
-check "  ... with next_leg_submit_status SUBMITTED" $?
-MAN_FAIL="${TMP}/manifest_fail.txt"; : > "$MAN_FAIL"
+  run_next_leg "${TMP}/fake_submit_ok.sh"
+grep -q 'chain_state mark-submitted --target 2500 --jid 4242424' "${TMP}/marks.txt"
+check "  ... and the boundary is marked SUBMITTED with that jid" $?
+run_next_leg "${TMP}/fake_submit_ok.sh" > "${TMP}/nl.out" 2>&1
+grep -q 'dependency afterok:555' "${TMP}/nl.out"; check "  ... the child carries afterok on its parent" $?
+grep -q 'token tok-abc123' "${TMP}/nl.out"; check "  ... and the unique intent token" $?
+: > "${TMP}/marks.txt"
 expect_cmd "three failed attempts stall the chain (nonzero)" 1 "CHAIN STALLED" -- \
-  run_next_leg "${TMP}/fake_submit_fail.sh" "$MAN_FAIL"
-grep -q '^next_leg_submit_status FAILED after 3 attempts$' "$MAN_FAIL"
-check "  ... and the manifest says FAILED after 3 attempts" $?
-grep -q '^next_leg_command ' "$MAN_FAIL"
-check "  ... while the recorded command survives for manual recovery" $?
-grep -c '^next_leg_command ' "$MAN_FAIL" | grep -qx 1
-check "  ... exactly once (recorded BEFORE the attempts, not per attempt)" $?
+  run_next_leg "${TMP}/fake_submit_fail.sh"
+grep -q 'mark-submitted' "${TMP}/marks.txt"; check "  ... and nothing is marked SUBMITTED" $((1 - $?))
 grep -q 'final_rc=12' "$LAUNCHER"; check "a stalled chain exits on the distinct class 12" $?
 grep -q '#  12  CHAIN only' "$LAUNCHER"; check "  ... which is documented in the exit taxonomy" $?
 grep -q 'chain END: this leg reached the pre-registered cap' "$LAUNCHER"
 check "the FINAL leg submits no successor" $?
-awk '/if \[ "\$CHAIN" = "1" \] && \[ "\$COMPLETION_RC" -eq 0 \] && \[ "\$final_rc" -eq 0 \]/{g=NR} /submit_next_leg "\$REPO/{c=NR} END{exit !(g && c && g < c)}' "$LAUNCHER"
-check "the successor is submitted ONLY after a passing audit and a green leg" $?
 grep -q 'submit_next_leg "$REPO/$SUBMITTER_REL"' "$LAUNCHER"
 check "the successor goes through the LIVE submitter (it re-gates at then-current HEAD)" $?
 # leg-aware completion audit: only the cap leg closes the run out
@@ -1013,6 +1037,181 @@ sub_case "the submitter refuses a misaligned --expected-step" 2 "no boundary che
 sub_case "the submitter refuses a resume at the cap" 2 "chain is already complete" -- \
   env DRYRUN=1 CHAIN=1 bash "$SUB_SPOOL" YAWAUG --resume /x/c.ckpt --expected-step 40000
 
+echo "--- AA. NEW (chain-fix F3): advancement happens LAST, and only when green ---"
+sed -n '/--- BEGIN chain-advance-helper/,/--- END chain-advance-helper/p' "$LAUNCHER" > "${TMP}/advance.sh"
+grep -q 'chain_advance()' "${TMP}/advance.sh"; check "the advancement block is extracted from the launcher" $?
+# Functional: drive the REAL block with stubbed collaborators and assert whether
+# a successor was submitted. Static line-order checks cannot see a later class.
+cat > "${TMP}/drive_advance.sh" <<'EOS'
+set -uo pipefail
+SUBMITTED=0
+snap() { echo "${TMP_HELPERS}/$1"; }
+chain_state() { echo "chain_state $*"; return "${CHAIN_STATE_RC:-0}"; }
+submit_next_leg() { SUBMITTED=1; echo "SUBMIT CALLED with $*"; return "${SUBMIT_RC:-0}"; }
+ARM=YAWAUG; SAVEDIR="$WORKDIR"; LEG_STEPS=2500; PINNED_CHAIN_CAP=40000
+SUBMITTER_REL="x/submit.sh"; REPO="."; SLURM_JOB_ID=777; TRAINLOG="${TRAINLOG:-/dev/null}"
+MAXSTEPS="${MAXSTEPS:-2500}"; EXPECTED_STEP="${EXPECTED_STEP:-0}"
+AUDITED_SHA256="${AUDITED_SHA256-abc}"; AUDITED_CKPT=/x/c.ckpt; AUDITED_PARENT_STEP=0
+final_rc="$RC"
+. "$ADVANCE"
+chain_advance > "${WORKDIR}/advance.out" 2>&1
+echo "final_rc=${final_rc} submitted=${SUBMITTED}"
+EOS
+drive() {  # <rc> [env...] -> "final_rc=<n> submitted=<0|1>"
+  local rc="$1"; shift
+  env RC="$rc" ADVANCE="${TMP}/advance.sh" WORKDIR="$TMP" TMP_HELPERS="$EXPDIR" "$@" \
+      bash "${TMP}/drive_advance.sh"
+}
+for RC in 7 8 9; do
+  expect_cmd "a class-${RC} leg submits NO successor" 0 "submitted=0" -- drive "$RC"
+done
+expect_cmd "  ... and keeps its own exit class (7)" 0 "final_rc=7 submitted=0" -- drive 7
+expect_cmd "the FINAL (cap) leg submits no successor" 0 "submitted=0" -- \
+  drive 0 MAXSTEPS=40000 EXPECTED_STEP=37500
+grep -q "reached the pre-registered cap" "${TMP}/advance.out"
+check "  ... and says the chain ENDed" $?
+expect_cmd "a leg with no audited checkpoint submits nothing (class 12)" 0 "final_rc=12 submitted=0" -- \
+  drive 0 AUDITED_SHA256=
+# green mid-chain leg WITH a passing rate gate -> exactly one submission
+printf 'Epoch 0:   2%%| | 100/4550 [01:00<10:00,  1.00it/s]\nEpoch 0:   6%%| | 300/4550 [04:32<10:00,  1.00it/s]\nEpoch 0:  22%%| | 1000/4550 [17:32<10:00,  1.00it/s]\n' > "${TMP}/fast.log"
+expect_cmd "a green leg with a passing rate gate submits its successor" 0 "submitted=1" -- \
+  drive 0 "TRAINLOG=${TMP}/fast.log"
+grep -q "SUBMIT CALLED" "${TMP}/advance.out"; check "  ... exactly once, through submit_next_leg" $?
+grep -q -- "--dependency=\${CHAIN_DEPENDENCY}" "$SUBMITTER"
+check "the successor carries a Slurm afterok dependency" $?
+grep -q 'CHAIN_DEPENDENCY="afterok:${SLURM_JOB_ID}"' "$LAUNCHER"
+check "  ... naming the parent job" $?
+
+echo "--- AB. NEW (chain-fix F5): the waiver's post-hoc rate gate ---"
+RG="${EXPDIR}/yaw_aug_rate_gate.py"
+rate_gate() { $PY "$RG" --log "$1" --out "${TMP}/rate.json" --leg-target "${2:-2500}"; }
+expect_cmd "clean windows PASS" 0 "rate gate: PASS" -- rate_gate "${TMP}/fast.log"
+$PY -c "
+import json,sys
+w=json.load(open(sys.argv[1]))['windows']
+sys.exit(0 if abs(w[0]['rate_steps_per_second']-0.943)<0.01 else 1)" "${TMP}/rate.json"
+check "  ... reproducing VANL's own 0.943 for window 1" $?
+printf 'Epoch 0:   2%%| | 100/4550 [01:00<10:00,  1.00it/s]\nEpoch 0:   6%%| | 300/4550 [06:00<10:00,  1.00it/s]\nEpoch 0:  22%%| | 1000/4550 [19:00<10:00,  1.00it/s]\n' > "${TMP}/slow1.log"
+expect_cmd "a breach in window 1 (100->300) refuses" 1 "BREACH" -- rate_gate "${TMP}/slow1.log"
+printf 'Epoch 0:   2%%| | 100/4550 [01:00<10:00,  1.00it/s]\nEpoch 0:   6%%| | 300/4550 [04:32<10:00,  1.00it/s]\nEpoch 0:  22%%| | 1000/4550 [21:00<10:00,  1.00it/s]\n' > "${TMP}/slow2.log"
+expect_cmd "a breach in window 2 (300->1000) refuses" 1 "BREACH" -- rate_gate "${TMP}/slow2.log"
+printf 'Epoch 0:   2%%| | 100/4550 [01:00<10:00,  1.00it/s]\n' > "${TMP}/thin.log"
+expect_cmd "missing bar entries REFUSE (never pass by default)" 2 "INSUFFICIENT DATA" -- \
+  rate_gate "${TMP}/thin.log"
+: > "${TMP}/empty.log"
+expect_cmd "an empty log refuses" 2 "INSUFFICIENT DATA" -- rate_gate "${TMP}/empty.log"
+grep -q 'final_rc=13' "$LAUNCHER"; check "a rate-gate refusal stops the chain on class 13" $?
+grep -q '#  13  CHAIN only' "$LAUNCHER"; check "  ... documented in the exit taxonomy" $?
+
+echo "--- AC. NEW (chain-fix F4): submission is idempotent ---"
+CS="${EXPDIR}/yaw_aug_chain_state.py"
+st() { $PY "$CS" --state "${TMP}/chain_state.json" --arm YAWAUG "$@"; }
+rm -f "${TMP}/chain_state.json"
+expect_cmd "a boundary is recorded AUDITED" 0 "AUDITED" -- \
+  st record-audit --target 2500 --ckpt-sha256 aa --ckpt-path /x/c.ckpt --parent-step 0 --job 1
+expect_cmd "  ... idempotently on replay" 0 "already AUDITED" -- \
+  st record-audit --target 2500 --ckpt-sha256 aa --ckpt-path /x/c.ckpt --parent-step 0 --job 1
+expect_cmd "  ... but a DIFFERENT checkpoint at that boundary is refused" 1 "different checkpoint" -- \
+  st record-audit --target 2500 --ckpt-sha256 bb --ckpt-path /x/c.ckpt --parent-step 0 --job 1
+TOKEN1="$(st intend --target 2500 --next-target 5000 --command CMD | awk '{print $2}')"
+TOKEN2="$(st intend --target 2500 --next-target 5000 --command CMD | awk '{print $2}')"
+[ -n "$TOKEN1" ] && [ "$TOKEN1" = "$TOKEN2" ]
+check "an INTENDED boundary replays the SAME intent token" $?
+expect_cmd "intending an unaudited boundary is refused" 1 "has not been audited" -- \
+  st intend --target 7500 --next-target 10000 --command CMD
+st mark-submitted --target 2500 --jid 900001 >/dev/null
+expect_cmd "a SUBMITTED boundary refuses to be intended again" 3 "ALREADY_SUBMITTED 900001" -- \
+  st intend --target 2500 --next-target 5000 --command CMD
+expect_cmd "  ... and marking it with a different jid is refused" 1 "already SUBMITTED as job" -- \
+  st mark-submitted --target 2500 --jid 900002
+expect_cmd "  ... while re-marking the same jid is idempotent" 0 "already SUBMITTED" -- \
+  st mark-submitted --target 2500 --jid 900001
+expect_cmd "status reports the boundary" 0 "SUBMITTED" -- st status --target 2500
+grep -q 'squeue -h -n "exp15-${ARM}-leg${next_target}-${token}"' "$LAUNCHER"
+check "a post-sbatch crash is recovered by finding the intent token in the queue" $?
+grep -q 'CHAIN_INTENT_TOKEN' "$SUBMITTER"; check "  ... which the submitter puts in the job name" $?
+# registry legs: tip-bound, monotonic, idempotent, CHAIN-only
+fresh_reg "${TMP}/legs_reg.json"
+leg_audit() { $PY "${TMP}/completion.py" "${EXPDIR}/yaw_aug_record_control.py" "$1" YAWAUG \
+                 "$CK_DIR" 40000 "$ARM_CONFIG" "$2" "$3"; }
+expect_cmd "a chain leg appends a tip-bound entry" 0 "leg boundary at step 40000" -- \
+  leg_audit "${TMP}/legs_reg.json" 50000 1
+expect_cmd "  ... idempotently for the same checkpoint" 0 "already audited" -- \
+  leg_audit "${TMP}/legs_reg.json" 50000 1
+$PY -c "
+import json,sys
+legs=json.load(open(sys.argv[1]))['legs']['YAWAUG']
+sys.exit(0 if len(legs)==1 and legs[0]['parent_step']==0 and 'parent_ckpt_sha256' in legs[0] else 1)" \
+  "${TMP}/legs_reg.json"
+check "  ... naming the parent step and sha it continues" $?
+fresh_reg "${TMP}/mono_reg.json"
+expect_cmd "a MONOLITHIC run writes no legs and no chain wording" 0 "final_ckpt_sha256 recorded" -- \
+  leg_audit "${TMP}/mono_reg.json" 40000 0
+$PY -c "
+import json,sys
+d=json.load(open(sys.argv[1]))
+sys.exit(0 if 'legs' not in d else 1)" "${TMP}/mono_reg.json"
+check "  ... keeping the reviewed monolith registry shape (F7)" $?
+grep -q "CHAIN END" "${TMP}/mono_reg.json" 2>/dev/null; check "  ... and no CHAIN END in its output" $((1 - $?))
+
+echo "--- AD. NEW (chain-fix F1/F2): chain preflight and W&B lineage ---"
+CP="${EXPDIR}/yaw_aug_chain_preflight.py"
+$PY - "$TMP" "$ARM_CONFIG" <<'PY'
+import hashlib, json, os, sys, torch
+tmp, cfg_path = sys.argv[1], sys.argv[2]
+cfg = json.load(open(cfg_path))
+state = {"diffusion.model.layer.weight": torch.zeros(2, 2),
+         "diffusion.model.layer.bias": torch.zeros(2),
+         "diffusion_ema.ema_model.layer.weight": torch.zeros(2, 2),
+         "diffusion_ema.ema_model.layer.bias": torch.zeros(2)}
+ck = {"global_step": 2500, "epoch": 0, "model_config": cfg, "state_dict": state,
+      "optimizer_states": [{"state": {0: {"step": 1}}, "param_groups": [{"lr": 1e-5}]}],
+      "lr_schedulers": [{"last_epoch": 2500}]}
+path = os.path.join(tmp, "boundary.ckpt")
+torch.save(ck, path)
+sha = hashlib.sha256(open(path, "rb").read()).hexdigest()
+cfg_sha = hashlib.sha256(open(cfg_path, "rb").read()).hexdigest()
+man = os.path.join(tmp, "initial_manifest.txt")
+open(man, "w").write(
+    "# exp_15 arm launch manifest\njob 1 host h mode INITIAL launch_uuid u\n"
+    "arm YAWAUG rung 8x8 micro 8 ngpu 8 max_steps 2500 ckpt_every 2500\n"
+    f"config_sha256 {cfg_sha}\nvae_sha256 VAESHA\nwandb_run_id r\n")
+reg = {"arms": {"YAWAUG": {"manifest_path": man,
+                           "manifest_sha256": hashlib.sha256(open(man, "rb").read()).hexdigest(),
+                           "mode": "INITIAL", "rung": "8x8", "training_seed": 42,
+                           "config_sha256": cfg_sha, "vae_sha256": "VAESHA"}},
+       "legs": {"YAWAUG": [{"step": 2500, "ckpt_sha256": sha}]}, "restarts": {}}
+json.dump(reg, open(os.path.join(tmp, "chain_registry.json"), "w"), indent=2)
+bad = dict(reg); bad = json.loads(json.dumps(reg))
+bad["legs"]["YAWAUG"][0]["ckpt_sha256"] = "c" * 64
+json.dump(bad, open(os.path.join(tmp, "chain_registry_badsha.json"), "w"), indent=2)
+old = json.loads(json.dumps(reg)); old["legs"]["YAWAUG"][0]["step"] = 5000
+json.dump(old, open(os.path.join(tmp, "chain_registry_badtip.json"), "w"), indent=2)
+print("chain preflight fixture written")
+PY
+pre() { $PY "$CP" --ckpt "${TMP}/boundary.ckpt" --expected-step 2500 --target "${2:-5000}" \
+          --cap 40000 --config "$ARM_CONFIG" --arm YAWAUG --rung 8x8 --vae-sha256 VAESHA \
+          --launch-manifest "${TMP}/initial_manifest.txt" --registry "$1" \
+          --recorder "${EXPDIR}/yaw_aug_record_control.py"; }
+expect_cmd "the chain preflight admits a leg whose budget GROWS" 0 "CKPT_SHA256" -- \
+  pre "${TMP}/chain_registry.json" 5000
+expect_cmd "  ... binding the original launch identity" 0 "launch identity bound" -- \
+  pre "${TMP}/chain_registry.json" 5000
+expect_cmd "a checkpoint that is not the audited tip's sha is refused" 1 "not the checkpoint the chain recorded" -- \
+  pre "${TMP}/chain_registry_badsha.json" 5000
+expect_cmd "resuming a step that is not the tip is refused" 1 "the chain would fork" -- \
+  pre "${TMP}/chain_registry_badtip.json" 5000
+expect_cmd "a target beyond the cap is refused" 1 "does not advance within the cap" -- \
+  pre "${TMP}/chain_registry.json" 42500
+expect_cmd "a misaligned target is refused" 1 "not on the 2500-step cadence" -- \
+  pre "${TMP}/chain_registry.json" 6000
+grep -q 'snap yaw_aug_chain_preflight.py' "$LAUNCHER"
+check "the launcher uses the exp_15 preflight for chain legs" $?
+grep -q 'WANDB_RESUME=must' "$LAUNCHER"; check "no chain leg resumes a W&B run (WANDB_RESUME is gone)" $((1 - $?))
+grep -q 'WANDB_RUN_ID="exp15_${ARM}_leg${MAXSTEPS}-' "$LAUNCHER"
+check "every RESTART leg mints a fresh lineage-tagged W&B id" $?
+grep -q 'parent_wandb_run_id' "$LAUNCHER"; check "  ... recording the parent id in the manifest" $?
+
 echo "--- Q. the suite touched nothing tracked, and submitted nothing ---"
 TRACKED_AFTER="$(git status --porcelain --untracked-files=no -- "$EXPDIR" "$EXP11DIR" src data/AR | sort)"
 UNTRACKED_AFTER="$(git status --porcelain --untracked-files=all -- "$EXPDIR" | sort)"
@@ -1026,6 +1225,7 @@ grep -qE '^[[:space:]]*(sbatch|scancel) ' "$0" && { echo "FAIL  this suite invok
   || { echo "PASS  this suite never invokes sbatch or scancel"; PASS=$((PASS+1)); }
 
 echo
-echo "=== guard tests: ${PASS} passed, ${FAIL} failed ==="
+echo "=== guard tests: ${PASS} passed, ${FAIL} failed ($(grep -c "^SKIP" "$LEDGER" 2>/dev/null || echo 0) skipped, STRICT=${STRICT}) ==="
+echo "ledger: ${LEDGER}"
 [ "$FAIL" -eq 0 ] || exit 1
 echo "log: ${LOG}"

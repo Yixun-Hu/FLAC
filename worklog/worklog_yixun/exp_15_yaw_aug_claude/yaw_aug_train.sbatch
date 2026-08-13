@@ -1548,7 +1548,13 @@ fi
 # state machine under its own lock, so a manual replay of a SUBMITTED boundary
 # returns the existing job id instead of queueing a second trainer into the same
 # run directory.
-if [ "$CHAIN" = "1" ] && [ "$DRYRUN" != "1" ]; then
+# --- BEGIN chain-advance-helper (guard-tested by yaw_aug_train_guardtests.sh) -
+# Reads final_rc / AUDITED_* / MAXSTEPS from the environment and either advances
+# the chain or explains why it did not. Extracted as a function so the guard
+# suite can drive it with a class-7, class-8 or class-9 leg and prove that NO
+# successor is submitted — the ordering claim is the one that most needs
+# functional evidence, not a static check on line order.
+chain_advance() {
   CHAIN_STATE_FILE="${SAVEDIR}/yaw_aug_chain_state.json"
   chain_state() { python3 "$(snap yaw_aug_chain_state.py)" --state "$CHAIN_STATE_FILE" \
                     --arm "$ARM" --cap "$PINNED_CHAIN_CAP" "$@"; }
@@ -1602,6 +1608,11 @@ if [ "$CHAIN" = "1" ] && [ "$DRYRUN" != "1" ]; then
       fi
     fi
   fi
+}
+# --- END chain-advance-helper ------------------------------------------------
+
+if [ "$CHAIN" = "1" ] && [ "$DRYRUN" != "1" ]; then
+  chain_advance
 fi
 
 printf '%s\n' "$FINAL_RECORD"
