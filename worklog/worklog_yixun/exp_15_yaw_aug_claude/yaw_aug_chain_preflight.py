@@ -47,7 +47,11 @@ def manifest_fields(text):
         parts = line.split()
         if not parts:
             continue
-        if len(parts) >= 3 and parts[0] in ("arm", "job"):
+        # Multi-pair lines the launcher writes: "job 1 host h mode INITIAL ...",
+        # "arm YAWAUG rung 8x8 ...", and "chain 1 leg_steps 2500 ... cap 40000".
+        # Omitting "chain" here dropped cap/leg_steps and refused every real
+        # RESTART leg (caught by guardtest AD on first execution).
+        if len(parts) >= 3 and parts[0] in ("arm", "job", "chain"):
             for key, value in zip(parts[0::2], parts[1::2]):
                 fields.setdefault(key, value)
         elif len(parts) >= 2:
