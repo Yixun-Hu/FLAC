@@ -1,0 +1,32 @@
+{
+    "metrics": {
+        "T60": 8.6238,
+        "Invalid T60": 0.0,
+        "C50": 0.9688,
+        "EDT": 37.0803,
+        "FD": 0.3053,
+        "RIR_to_GT_RIR_R@1": 7.0696,
+        "RIR_to_GT_RIR_R@5": 19.4256,
+        "RIR_to_GT_RIR_R@10": 27.0317,
+        "RIR_to_geom_R@1": 5.744,
+        "RIR_to_geom_R@5": 16.6956,
+        "RIR_to_geom_R@10": 24.8698
+    },
+    "ckpt_path": "weights/FLAC/FLAC_EMA.ckpt",
+    "rotate_deg": 0.0,
+    "cond_method": "vanilla",
+    "frame_avg_angles": null,
+    "cond_autocast": "default",
+    "orbit_execution": "n/a",
+    "frame_avg_fwd_cap": null,
+    "source_sha": "3d6803f79e71754322a46ea8521e62ce38a29b08",
+    "batch_size": 64,
+    "n_samples": 6337,
+    "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
+    "seed": 42,
+    "cfg_scale": 1.0,
+    "steps": 1,
+    "eval_name": "exp16_calib_unseen_K8_seed42",
+    "weights_source": "online",
+    "device": "cuda"
+}
