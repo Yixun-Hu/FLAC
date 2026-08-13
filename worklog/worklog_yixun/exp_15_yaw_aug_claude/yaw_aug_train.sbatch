@@ -20,6 +20,10 @@
 #  13  CHAIN only: the waiver's post-hoc windowed rate condition was breached (or
 #      could not be measured) on leg 1 — the chain stops for triage, as the
 #      2026-08-12 waiver required.
+#  14  the TERMINAL status record could not be written. Truth first: a job whose
+#      durable record is missing exits nonzero even if everything else was green,
+#      so its afterok successor (already queued by then) can never be released —
+#      the exit surface names that successor and the scancel + re-run recovery.
 #
 # WHAT THIS ARM IS: vanilla-conditioned FLAC trained with a random horizontal
 # yaw applied to every training sample's CONDITIONING (plan §3.1). It is compared
@@ -917,6 +921,7 @@ rm -f "$PIPFREEZE_FILE"
 {
   echo "# exp_15 arm launch manifest"
   echo "timestamp ${TS}"
+  # --- BEGIN manifest-writer (guard-tested by yaw_aug_train_guardtests.sh) ---
   echo "job ${SLURM_JOB_ID} host $(hostname) mode ${MODE} launch_uuid ${LAUNCH_UUID}"
   echo "arm ${ARM} rung ${RUNG} micro ${MB} ngpu ${NGPU} max_steps ${MAXSTEPS} ckpt_every ${CHECKPOINT_EVERY}"
   echo "commit ${HEAD_SHA}"
@@ -940,6 +945,7 @@ rm -f "$PIPFREEZE_FILE"
   echo "wandb_run_id ${WANDB_RUN_ID}"
   echo "parent_wandb_run_id ${PARENT_WANDB_RUN_ID:-<none>}"
   echo "command torchrun --standalone --nnodes=1 --nproc_per_node=${NGPU} train.py ${ARGV[*]}"
+  # --- END manifest-writer ---
 } > "${MANIFEST}.tmp" || die "manifest write FAILED - abort" 3
 mv "${MANIFEST}.tmp" "$MANIFEST" || die "manifest publication FAILED - abort" 3
 cp "$MANIFEST" "${SAVEDIR}/$(basename "$MANIFEST")" || die "manifest copy to the save-dir FAILED - abort" 3
@@ -1578,6 +1584,9 @@ chain_advance() {
           4) CHAIN_NO_SUBMIT_REASON="STRANDED successor (its afterok parent failed); operator decision required"
              echo "CHAIN STALLED: ${CHAIN_NO_SUBMIT_REASON}"
              final_rc=12 ;;
+          5) CHAIN_NO_SUBMIT_REASON="the token-matching successor is DEAD (never adopted); re-run the recorded next_leg_command to submit fresh"
+             echo "CHAIN STALLED: ${CHAIN_NO_SUBMIT_REASON} (class 12)"
+             final_rc=12 ;;
           *) CHAIN_NO_SUBMIT_REASON="submission transaction failed (rc ${SUBMIT_RC})"
              echo "CHAIN STALLED: ${CHAIN_NO_SUBMIT_REASON}. Re-run the recorded"
              echo "  next_leg_command from ${CHAIN_STATE_FILE} — it is the state-aware"
@@ -1603,6 +1612,7 @@ fi
 # terminal record is written last, atomically (tmp+rename, the acceptance
 # record's pattern), and the printed summary uses ITS values.
 TERMINAL_RECORD="${SAVEDIR}/yaw_aug_terminal_status_jid${SLURM_JOB_ID:-local}.json"
+TERMINAL_WRITE_RC=0
 if [ "$DRYRUN" != "1" ]; then
   RATE_VERDICT="$(python3 -c 'import json,sys
 try:
@@ -1614,7 +1624,7 @@ except Exception:
            "${BANNER_VERDICT:-unknown}" "$CHAIN" "$EXPECTED_STEP" "$MAXSTEPS" \
            "$PINNED_CHAIN_CAP" "${CHAIN_SUCCESSOR_JID:-}" "${CHAIN_NO_SUBMIT_REASON:-}" \
            "$RATE_VERDICT" "$BOUNDARY_STATUS" "${SLURM_JOB_ID:-local}" "$MANIFEST" \
-    <<'PY' || echo "TERMINAL RECORD: write FAILED"
+    <<'PY' || TERMINAL_WRITE_RC=$?
 # --- BEGIN terminal-record-python (guard-tested by yaw_aug_train_guardtests.sh) ---
 import json, os, sys
 (path, final_rc, torchrun_rc, tee_rc, wandb_rc, banner, chain, leg_start, leg_target,
@@ -1644,6 +1654,23 @@ print(f"terminal status: exit class {record['exit_class']}, successor "
       f"rate gate {record['chain']['rate_gate_verdict']} -> {path}")
 # --- END terminal-record-python ---
 PY
+# --- BEGIN terminal-write-gate (guard-tested by yaw_aug_train_guardtests.sh) ---
+# Truth first (final verify, finding 3): a job whose durable terminal record
+# cannot be written must not exit 0 — but by this point chain_advance may have
+# ALREADY queued the successor with afterok on this job, and a nonzero exit
+# makes that dependency permanently unsatisfiable. That is a stranding of our
+# own design, so the surface names the child and the exact recovery.
+  if [ "${TERMINAL_WRITE_RC:-0}" -ne 0 ]; then
+    echo "TERMINAL RECORD: write FAILED (rc ${TERMINAL_WRITE_RC})"
+    if [ -n "${CHAIN_SUCCESSOR_JID:-}" ]; then
+      echo "CHAIN STALLED: successor ${CHAIN_SUCCESSOR_JID} is queued with afterok on THIS job,"
+      echo "  which now exits nonzero (class 14) — that dependency can never fire. Operator:"
+      echo "  scancel ${CHAIN_SUCCESSOR_JID}, fix the record path, then re-run the recorded"
+      echo "  transact-submit — it detects the dead child and submits a fresh successor once."
+    fi
+    [ "$final_rc" -eq 0 ] && final_rc=14
+  fi
+# --- END terminal-write-gate ---
 fi
 
 printf '%s\n' "$FINAL_RECORD"

@@ -152,6 +152,12 @@ def cmd_mark_submitted(state, args):
 SUCCESSFUL = {"COMPLETED"}
 LIVE = {"RUNNING", "PENDING", "CONFIGURING", "COMPLETING", "REQUEUED", "RESIZING",
         "SUSPENDED"}
+# A child in ANY of these states is dead and is NEVER adopted, regardless of the
+# parent's health (final verify, finding 1: the submitter itself cancels a job
+# whose manifest publication fails, so a CANCELLED child with a COMPLETED parent
+# is a reachable state — adopting it records a corpse as the chain's successor).
+TERMINAL_FAILED = {"CANCELLED", "FAILED", "TIMEOUT", "OUT_OF_MEMORY", "NODE_FAIL",
+                   "BOOT_FAIL", "DEADLINE", "REVOKED", "PREEMPTED"}
 
 
 def _run(cmd, what):
@@ -223,6 +229,24 @@ def cmd_transact_submit(state, args):
     state.write()
 
     existing_jid, existing_state = find_job_by_name(job_name, squeue_cmd, sacct_cmd)
+    if existing_jid and existing_state in TERMINAL_FAILED:
+        # Never adopted, never marked SUBMITTED. The intent token is ROTATED so
+        # that a re-run of this same operation searches a fresh job name, finds
+        # nothing, and submits exactly once — while the corpse stays on record.
+        entry.setdefault("dead_children", []).append(
+            {"jid": existing_jid, "state": existing_state, "token": token,
+             "detected_utc": now()})
+        entry["intent_token"] = f"{args.arm}-leg{args.next_target}-{uuid.uuid4().hex[:8]}"
+        entry["next_leg_job_name"] = (
+            f"exp15-{args.arm}-leg{args.next_target}-{entry['intent_token']}")
+        entry["next_leg_jid"] = None
+        state.write()
+        print(f"CHILD_DEAD {existing_jid} state={existing_state}")
+        print(f"  the token-matching successor ended {existing_state}; a dead child is "
+              "NEVER adopted, whatever its parent's state.")
+        print("  Not marked SUBMITTED. The intent token was rotated: re-run this same "
+              "transact-submit operation to submit a fresh successor exactly once.")
+        return 5
     if existing_jid:
         adopt = existing_state in SUCCESSFUL or existing_state == "RUNNING"
         if not adopt:

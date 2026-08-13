@@ -145,13 +145,20 @@ try:
         raw = fh.read()
 except OSError as error:
     sys.exit(f"the INITIAL manifest {path} is not readable: {error.strerror}")
-if entry.get("manifest_sha256") and hashlib.sha256(raw).hexdigest() != entry["manifest_sha256"]:
+registered_sha = entry.get("manifest_sha256")
+if not registered_sha:
+    sys.exit(f"{arm}'s registry entry carries no manifest_sha256 — an INITIAL whose "
+             "manifest was never hash-registered cannot anchor a chain (absence is "
+             "a refusal, never a skip)")
+if hashlib.sha256(raw).hexdigest() != registered_sha:
     sys.exit(f"{path} no longer hashes to the value registered at the INITIAL launch")
 text = raw.decode(errors="replace")
 fields = {}
 for line in text.splitlines():
     parts = line.split()
-    if len(parts) >= 3 and parts[0] in ("arm", "job", "chain"):
+    if len(parts) >= 3 and parts[0] in ("arm", "job", "chain", "torch_version",
+                                        "time_limit", "resume_ckpt",
+                                        "slurm_transcript", "wandb_entity"):
         fields.update(dict(zip(parts[0::2], parts[1::2])))
     elif len(parts) >= 2:
         fields.setdefault(parts[0], parts[1])
@@ -161,9 +168,13 @@ if fields.get("mode") != "INITIAL" or entry.get("mode") != "INITIAL":
 for label, got, want in (("manifest chain", fields.get("chain"), "1"),
                          ("manifest cap", fields.get("cap"), str(cap)),
                          ("manifest leg_steps", fields.get("leg_steps"), str(leg_steps)),
+                         ("manifest leg_start", fields.get("leg_start"), "0"),
+                         ("manifest leg_target", fields.get("leg_target"), str(leg_steps)),
+                         ("manifest max_steps", fields.get("max_steps"), str(leg_steps)),
                          ("registry chain", entry.get("chain"), True),
                          ("registry chain_cap", entry.get("chain_cap"), cap),
-                         ("registry chain_leg_steps", entry.get("chain_leg_steps"), leg_steps)):
+                         ("registry chain_leg_steps", entry.get("chain_leg_steps"), leg_steps),
+                         ("registry chain_initial_target", entry.get("chain_initial_target"), leg_steps)):
     if got != want:
         sys.exit(f"{path}: {label} is {got!r}, this chain is {want!r}")
 print(path)

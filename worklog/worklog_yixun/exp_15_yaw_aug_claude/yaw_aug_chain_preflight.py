@@ -48,10 +48,16 @@ def manifest_fields(text):
         if not parts:
             continue
         # Multi-pair lines the launcher writes: "job 1 host h mode INITIAL ...",
-        # "arm YAWAUG rung 8x8 ...", and "chain 1 leg_steps 2500 ... cap 40000".
+        # "arm YAWAUG rung 8x8 ...", "chain 1 leg_steps 2500 ... cap 40000",
+        # "torch_version ... cuda ... driver ...", "time_limit ... min_free_mb ...",
+        # "resume_ckpt ... expected_step ... resume_ckpt_sha256 ...",
+        # "slurm_transcript ... untrack ...", "wandb_entity ... wandb_project ...".
         # Omitting "chain" here dropped cap/leg_steps and refused every real
-        # RESTART leg (caught by guardtest AD on first execution).
-        if len(parts) >= 3 and parts[0] in ("arm", "job", "chain"):
+        # RESTART leg (caught by guardtest AD on first execution); the full set is
+        # pinned by the manifest-completeness guardtest against the REAL writer.
+        if len(parts) >= 3 and parts[0] in ("arm", "job", "chain", "torch_version",
+                                            "time_limit", "resume_ckpt",
+                                            "slurm_transcript", "wandb_entity"):
             for key, value in zip(parts[0::2], parts[1::2]):
                 fields.setdefault(key, value)
         elif len(parts) >= 2:
@@ -152,8 +158,11 @@ def main(argv=None):
     except OSError as error:
         sys.exit(f"CHAIN PREFLIGHT: cannot read the INITIAL manifest "
                  f"{args.launch_manifest}: {error.strerror}")
-    if entry.get("manifest_sha256") and \
-            hashlib.sha256(manifest_raw).hexdigest() != entry["manifest_sha256"]:
+    registered_sha = entry.get("manifest_sha256")
+    if not registered_sha:
+        sys.exit("CHAIN PREFLIGHT: the registry's INITIAL entry carries no "
+                 "manifest_sha256 — absence is a refusal, never a skip (final verify F2)")
+    if hashlib.sha256(manifest_raw).hexdigest() != registered_sha:
         sys.exit(f"CHAIN PREFLIGHT: {args.launch_manifest} no longer hashes to the value "
                  "registered at the INITIAL launch")
     fields = manifest_fields(manifest_raw.decode(errors="replace"))
@@ -181,6 +190,9 @@ def main(argv=None):
         ("manifest chain flag", fields.get("chain"), "1"),
         ("manifest cap", fields.get("cap"), str(args.cap)),
         ("manifest leg_steps", fields.get("leg_steps"), str(args.leg_steps)),
+        ("manifest leg_start", fields.get("leg_start"), "0"),
+        ("manifest leg_target", fields.get("leg_target"), str(args.leg_steps)),
+        ("manifest max_steps", fields.get("max_steps"), str(args.leg_steps)),
         ("registry chain flag", entry.get("chain"), True),
         ("registry chain_cap", entry.get("chain_cap"), args.cap),
         ("registry chain_leg_steps", entry.get("chain_leg_steps"), args.leg_steps),
