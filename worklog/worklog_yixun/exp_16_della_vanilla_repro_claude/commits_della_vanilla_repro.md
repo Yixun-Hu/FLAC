@@ -23,3 +23,5 @@ branch point `e603947` (`della-flac-chequity`, cut from `check-equivariance-nece
 - `<this commit>` — codex round-C fixes: `#SBATCH --no-requeue` in both drivers, `PHASE1_PASS.md` interlock on non-smoke `train` submissions, this ledger completed through HEAD.
 - `ac734e9` — Rev 4 plan amendment + query 2 + resume-verification worklog.
 - `90079a7` — round D: della_chain.sbatch + della_chain_submit.sh (self-locating legs, two-strike watchdog, chain manifest).
+- `428cb14` — round D review artifact (Codex REVISE).
+- `bd9f1c1` — round D fix loop: fail-closed squeue, checkpoint-indexed reseed, transaction lock, atomic stamp.
