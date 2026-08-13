@@ -123,6 +123,35 @@ spool() {  # <tag> [<sed-expr>...] -> path to a spooled launcher copy
   echo "$dst"
 }
 
+# The submitter's acceptance-record path is redirected into the temp root for
+# every gate case: yaw_aug_smoke_acceptance.json is a TRACKED artifact of the
+# real smoke, and a suite that rewrote it would both violate its own no-mutation
+# rule and dirty the closure for every later case.
+SUB_SPOOL="${TMP}/yaw_aug_submit_spooled.sh"
+ACC="${TMP}/spooled_acceptance.json"
+cp "$SUBMITTER" "$SUB_SPOOL" || { echo "could not spool the submitter"; exit 3; }
+sed -i "s|ACCEPT_FILE=\"\${EXPDIR}/yaw_aug_smoke_acceptance.json\"|ACCEPT_FILE=\"${ACC}\"|" "$SUB_SPOOL"
+grep -q "ACCEPT_FILE=\"${ACC}\"" "$SUB_SPOOL" || { echo "submitter spool did not redirect ACCEPT_FILE"; exit 3; }
+
+# Cases that must reach the submitter's LATER gates need a clean training
+# closure. Another session commits to this checkout continuously, so a dirty
+# closure is reported as a SKIP with its reason, never as a failure of this kit.
+closure_clean() {
+  [ -z "$(git status --porcelain --untracked-files=no -- train.py defaults.ini src \
+            ":(exclude)src/tests" data/AR "$EXPDIR" "$EXP11DIR/fa_orbit_ckpt_preflight.py" \
+            "$EXP11DIR/fa_orbit_classify.py" "$EXP11DIR/fa_orbit_wandb_readback.py" \
+            "$EXP11DIR/FLAC_AR_VANCKPT.json" 2>/dev/null)" ]
+}
+if closure_clean; then CLOSURE_STATE="clean"; else CLOSURE_STATE="dirty"; fi
+echo "training closure at suite start: ${CLOSURE_STATE}"
+sub_case() {  # like expect_cmd, but skipped (not failed) when the closure is dirty
+  local name="$1"
+  if ! closure_clean; then
+    echo "SKIP  ${name} (training closure dirty — another session is mid-edit)"; return 0
+  fi
+  expect_cmd "$@"
+}
+
 REPO_ENV=("YAW_AUG_REPO_OVERRIDE=$PWD")   # dry runs read THIS tree, not the production checkout
 BASE_ENV=(DRYRUN=1 "EXPECT_SHA=${HEAD_SHA}" "OUTPUT_ROOT=${OUT_ROOT}" "${REPO_ENV[@]}")
 SMOKE_ENV=("${BASE_ENV[@]}" SMOKE=1 SMOKE_RUNG=8x8 SMOKE_MIN_FREE_MB=14000)
@@ -264,7 +293,7 @@ case_spool "DRYRUN names the unreviewed file" "$SURPRISE" 0 "src/training/diffus
 case_spool "  ... and says a real launch would abort" "$SURPRISE" 0 "a real launch aborts here" \
   -- "${BASE_ENV[@]}" ARM=YAWAUG
 # real mode (fake job id, clean tree required): the same surprise must be fatal
-if [ -z "$(git status --porcelain --untracked-files=no -- train.py defaults.ini src "$EXPDIR" 2>/dev/null)" ]; then
+if closure_clean; then
   case_spool "a REAL launch dies on an unreviewed file" "$SURPRISE" 2 "unreviewed production-surface changes" \
     -- ARM=YAWAUG "EXPECT_SHA=${HEAD_SHA}" SLURM_JOB_ID=999999
 else
@@ -350,12 +379,12 @@ expect_cmd "submitter rejects a bad arm" 2 "must be YAWAUG" -- env DRYRUN=1 bash
 # A production submission now requires a passing smoke record (full-fix F3), so
 # these resource-derivation cases carry an explicit waiver; the gate itself is
 # exercised in section W.
-SUB=(env DRYRUN=1 "SMOKE_WAIVER=guardtest: resource-derivation cases" bash "$SUBMITTER" YAWAUG)
-expect_cmd "submitter derives 8x8 resources" 0 "--gres=gpu:l40:8" -- "${SUB[@]}"
-expect_cmd "  ... cpus from the rung" 0 "--cpus-per-task=64" -- "${SUB[@]}"
-expect_cmd "  ... mem from the rung" 0 "--mem=108G" -- "${SUB[@]}"
-expect_cmd "  ... the INITIAL time pin" 0 "time 24:00:00" -- "${SUB[@]}"
-expect_cmd "  ... and submits NOTHING in DRYRUN" 0 "DRYRUN sbatch" -- "${SUB[@]}"
+SUB=(env DRYRUN=1 "SMOKE_WAIVER=guardtest: resource-derivation cases" bash "$SUB_SPOOL" YAWAUG)
+sub_case "submitter derives 8x8 resources" 0 "--gres=gpu:l40:8" -- "${SUB[@]}"
+sub_case "  ... cpus from the rung" 0 "--cpus-per-task=64" -- "${SUB[@]}"
+sub_case "  ... mem from the rung" 0 "--mem=108G" -- "${SUB[@]}"
+sub_case "  ... the INITIAL time pin" 0 "time 24:00:00" -- "${SUB[@]}"
+sub_case "  ... and submits NOTHING in DRYRUN" 0 "DRYRUN sbatch" -- "${SUB[@]}"
 INTENT_BEFORE="$(ls "${EXPDIR}"/yaw_aug_submission_*.txt 2>/dev/null | wc -l)"
 "${SUB[@]}" >/dev/null 2>&1
 INTENT_AFTER="$(ls "${EXPDIR}"/yaw_aug_submission_*.txt 2>/dev/null | wc -l)"
@@ -433,7 +462,7 @@ case_run "smoke at 32x2 dies" 2 "!= the pinned production rung" \
   -- "${BASE_ENV[@]}" SMOKE=1 SMOKE_RUNG=32x2 SMOKE_MIN_FREE_MB=14000 ARM=YAWAUG
 case_run "smoke at the pinned 8x8 is accepted" 0 "ARGV PARITY OK" -- "${SMOKE_ENV[@]}" ARM=YAWAUG
 expect_cmd "submitter refuses a 16x4 smoke" 2 "must be 8x8" -- \
-  env DRYRUN=1 SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=14000 bash "$SUBMITTER" YAWAUG
+  env DRYRUN=1 SMOKE=1 SMOKE_RUNG=16x4 SMOKE_MIN_FREE_MB=14000 bash "$SUB_SPOOL" YAWAUG
 grep -q 'LAUNCH_REGISTRY="${EXPDIR}/yaw_aug_smoke_registry.json"' "$LAUNCHER"
 check "a smoke registers in its own registry file" $?
 # ...and functionally, with the launcher's OWN registry-init code extracted:
@@ -529,8 +558,8 @@ grep -q 'git status for the drift gate failed' "$LAUNCHER"; check "a failing git
 grep -q 'git status for the drift gate failed' "$SUBMITTER"; check "a failing git status is fatal in the submitter" $?
 case_run "a broken git environment is fatal, not 'clean'" 2 "git status for the drift gate failed" \
   -- "${BASE_ENV[@]}" ARM=YAWAUG GIT_DIR=/nonexistent/nope.git
-expect_cmd "  ... and the submitter refuses too" 2 "git status for the drift gate failed" -- \
-  env DRYRUN=1 GIT_DIR=/nonexistent/nope.git "SMOKE_WAIVER=guardtest: git-failure case" bash "$SUBMITTER" YAWAUG
+sub_case "  ... and the submitter refuses too" 2 "git status for the drift gate failed" -- \
+  env DRYRUN=1 GIT_DIR=/nonexistent/nope.git "SMOKE_WAIVER=guardtest: git-failure case" bash "$SUB_SPOOL" YAWAUG
 # End-to-end in a throwaway worktree: the real gates, over real mutations, with
 # the shared checkout untouched.
 WT="${TMP}/wt"
@@ -681,33 +710,29 @@ grep -q 'SMOKE STORAGE VIOLATION' "$LAUNCHER"; check "the epilogue fails a smoke
 grep -q 'yaw_aug_smoke_acceptance.json' "$LAUNCHER"; check "the smoke writes an acceptance record" $?
 grep -q 'rate_at_least_0.9x_VANL' "$LAUNCHER"; check "  ... scored against the 0.9x VANL rate floor" $?
 grep -q 'peak_vram_within_rung_floor' "$LAUNCHER"; check "  ... and the rung's VRAM ceiling" $?
-ACC="${EXPDIR}/yaw_aug_smoke_acceptance.json"
-ACC_SAVED=""
-if [ -f "$ACC" ]; then ACC_SAVED="${TMP}/acceptance.saved"; cp "$ACC" "$ACC_SAVED"; fi
 rm -f "$ACC"
-expect_cmd "production is REFUSED with no acceptance record" 2 "no readable smoke acceptance record" -- \
-  env DRYRUN=1 bash "$SUBMITTER" YAWAUG
+sub_case "production is REFUSED with no acceptance record" 2 "no readable smoke acceptance record" -- \
+  env DRYRUN=1 bash "$SUB_SPOOL" YAWAUG
 mk_record "$ACC" 'r["verdict"] = "FAIL"; r["checks"]["banner_seen"] = False'
-expect_cmd "production is REFUSED on a FAIL record" 2 "SMOKE ACCEPTANCE GATE" -- \
-  env DRYRUN=1 bash "$SUBMITTER" YAWAUG
+sub_case "production is REFUSED on a FAIL record" 2 "SMOKE ACCEPTANCE GATE" -- \
+  env DRYRUN=1 bash "$SUB_SPOOL" YAWAUG
 mk_record "$ACC" 'r["_meta"]["commit"] = "0"*40'
-expect_cmd "production is REFUSED on a record bound to another commit" 2 "_meta.commit" -- \
-  env DRYRUN=1 bash "$SUBMITTER" YAWAUG
+sub_case "production is REFUSED on a record bound to another commit" 2 "_meta.commit" -- \
+  env DRYRUN=1 bash "$SUB_SPOOL" YAWAUG
 mk_record "$ACC" ""
-expect_cmd "production is ACCEPTED on a bound PASS record" 0 "bound to this submission" -- \
-  env DRYRUN=1 bash "$SUBMITTER" YAWAUG
-expect_cmd "  ... and the manifest line carries the record hash" 0 "record sha256" -- \
-  env DRYRUN=1 bash "$SUBMITTER" YAWAUG
+sub_case "production is ACCEPTED on a bound PASS record" 0 "bound to this submission" -- \
+  env DRYRUN=1 bash "$SUB_SPOOL" YAWAUG
+sub_case "  ... and the manifest line carries the record hash" 0 "record sha256" -- \
+  env DRYRUN=1 bash "$SUB_SPOOL" YAWAUG
 rm -f "$ACC"
-expect_cmd "an explicit waiver submits and LOGS the reason" 0 "SMOKE WAIVER" -- \
-  env DRYRUN=1 SMOKE_WAIVER="guardtest: no GPUs on this host" bash "$SUBMITTER" YAWAUG
-expect_cmd "  ... and the waived run still prints its sbatch line" 0 "DRYRUN sbatch" -- \
-  env DRYRUN=1 SMOKE_WAIVER="guardtest: no GPUs on this host" bash "$SUBMITTER" YAWAUG
+sub_case "an explicit waiver submits and LOGS the reason" 0 "SMOKE WAIVER" -- \
+  env DRYRUN=1 SMOKE_WAIVER="guardtest: no GPUs on this host" bash "$SUB_SPOOL" YAWAUG
+sub_case "  ... and the waived run still prints its sbatch line" 0 "DRYRUN sbatch" -- \
+  env DRYRUN=1 SMOKE_WAIVER="guardtest: no GPUs on this host" bash "$SUB_SPOOL" YAWAUG
 grep -q 'smoke_acceptance ${ACCEPT_FILE:-<n/a>} sha256' "$SUBMITTER"
 check "the submission manifest records the record path, its hash and any waiver" $?
-[ -n "$ACC_SAVED" ] && cp "$ACC_SAVED" "$ACC"
-expect_cmd "a SMOKE submission needs no acceptance record" 0 "DRYRUN sbatch" -- \
-  env DRYRUN=1 SMOKE=1 SMOKE_RUNG=8x8 SMOKE_MIN_FREE_MB=14000 bash "$SUBMITTER" YAWAUG
+sub_case "a SMOKE submission needs no acceptance record" 0 "DRYRUN sbatch" -- \
+  env DRYRUN=1 SMOKE=1 SMOKE_RUNG=8x8 SMOKE_MIN_FREE_MB=14000 bash "$SUB_SPOOL" YAWAUG
 
 echo "--- W2. NEW (f3-fix 1): the promotion gate PARSES and BINDS the record ---"
 sed -n '/--- BEGIN acceptance-gate-python/,/--- END acceptance-gate-python/p' "$SUBMITTER" > "${TMP}/gate.py"
@@ -973,12 +998,12 @@ check "every chain manifest cites the standing waiver" $?
 grep -q 'chain_initial_manifest ${CHAIN_INITIAL_MANIFEST' "$SUBMITTER"
 check "  ... and a RESTART leg names the INITIAL manifest" $?
 grep -q 'CHAIN=1,LEG_STEPS=' "$SUBMITTER"; check "CHAIN and LEG_STEPS are exported to the job" $?
-expect_cmd "the submitter refuses a misaligned LEG_STEPS" 2 "checkpoint cadence" -- \
-  env DRYRUN=1 CHAIN=1 LEG_STEPS=1234 bash "$SUBMITTER" YAWAUG
-expect_cmd "the submitter refuses a misaligned --expected-step" 2 "no boundary checkpoint can exist" -- \
-  env DRYRUN=1 CHAIN=1 bash "$SUBMITTER" YAWAUG --resume /x/c.ckpt --expected-step 3000
-expect_cmd "the submitter refuses a resume at the cap" 2 "chain is already complete" -- \
-  env DRYRUN=1 CHAIN=1 bash "$SUBMITTER" YAWAUG --resume /x/c.ckpt --expected-step 40000
+sub_case "the submitter refuses a misaligned LEG_STEPS" 2 "checkpoint cadence" -- \
+  env DRYRUN=1 CHAIN=1 LEG_STEPS=1234 bash "$SUB_SPOOL" YAWAUG
+sub_case "the submitter refuses a misaligned --expected-step" 2 "no boundary checkpoint can exist" -- \
+  env DRYRUN=1 CHAIN=1 bash "$SUB_SPOOL" YAWAUG --resume /x/c.ckpt --expected-step 3000
+sub_case "the submitter refuses a resume at the cap" 2 "chain is already complete" -- \
+  env DRYRUN=1 CHAIN=1 bash "$SUB_SPOOL" YAWAUG --resume /x/c.ckpt --expected-step 40000
 
 echo "--- Q. the suite touched nothing tracked, and submitted nothing ---"
 TRACKED_AFTER="$(git status --porcelain --untracked-files=no -- "$EXPDIR" "$EXP11DIR" src data/AR | sort)"
