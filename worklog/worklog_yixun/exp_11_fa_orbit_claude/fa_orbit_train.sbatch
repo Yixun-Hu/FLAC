@@ -23,6 +23,11 @@
 #                      (two writers commit to this checkout; worklog/record
 #                      commits must not kill a queued leg).
 #   RESUME_CKPT/EXPECTED_STEP   crash restart only (see LINEAGE)
+#   CHUNK_END          optional, RESTART only: stop THIS job at that step (a
+#                      multiple of the 2500 checkpoint cadence, <= the budget) and
+#                      let the next job resume from it. The budget pin does not
+#                      move; only where this leg stops does. Chunk legs are
+#                      chained by fa_orbit_chunk_watchdog.sh via the submitter.
 #   SMOKE=1            the reviewed multi-GPU smoke (see SMOKE MODE)
 # RUNG / MAXSTEPS / MIN_FREE_MB / time limit are NOT operator inputs any more.
 #
@@ -95,6 +100,17 @@ PINNED_TIME_LIMIT_RESTART_C8="51:00:00"     # 60k/0.4351 = 38.3 h
 PINNED_TIME_LIMIT_RESTART_C16="89:00:00"    # 60k/0.2454 = 67.9 h
 PINNED_TIME_LIMIT_RESTART_C32="160:00:00"   # 60k/0.1308 = 127.4 h (cap 168 h)
 PINNED_TIME_LIMIT_RESTART_VANL="19:00:00"   # 60k/1.0722 = 15.5 h
+# Round 5 CHUNKED legs: the partition never backfills a 34-160 h allocation, so a
+# leg trains to the next 2500-step boundary and exits. One chunk at the batched
+# rates is 2500/rate, rounded up with the same x1.3 margin plus a generous
+# startup allowance (cold start + torch/PL import + the 40k-checkpoint load are a
+# fixed cost per leg and now amortise over 2500 steps, not 60000):
+#   C4L 2500/0.6598 = 1.05 h | C8 1.60 h | C16 2.83 h | C32 5.31 h | VANL 0.65 h
+PINNED_TIME_LIMIT_CHUNK_C4L="03:00:00"
+PINNED_TIME_LIMIT_CHUNK_C8="04:00:00"
+PINNED_TIME_LIMIT_CHUNK_C16="06:00:00"
+PINNED_TIME_LIMIT_CHUNK_C32="09:00:00"
+PINNED_TIME_LIMIT_CHUNK_VANL="02:30:00"
 PINNED_P0_MANIFEST_SHA256="72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b"  # batched matrix manifest bd96575-…-a3ed28eb; spot manifest sha in the commit message
 # Environment pins (round-3 B6) — measured on the reviewed environment:
 PINNED_PYTHON="/n/fs/gatrdp/envs/flac/bin/python"
@@ -137,6 +153,10 @@ else
 fi
 RESUME_CKPT="${RESUME_CKPT:-}"
 EXPECTED_STEP="${EXPECTED_STEP:-0}"
+# CHUNK_END (round 5): the step THIS job stops at. Empty = the leg runs to the
+# budget, which is every pre-round-5 leg. It narrows train.py's --max-steps only;
+# PINNED_MAXSTEPS remains the campaign budget and its gate is untouched.
+CHUNK_END="${CHUNK_END:-}"
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 
 die() { echo "$1"; exit "${2:-2}"; }
@@ -167,7 +187,12 @@ else
   # regardless and then rejected its own (correct) allocation in gate H — the
   # third hard-abort path the re-pin review found on jobs 3662828-30. The JOB now
   # selects the same pin the submitter did and enforces THAT one.
-  if [ "$EXPECTED_STEP" -gt 0 ]; then
+  # Round 5: a CHUNK leg is shorter again — it stops at the next boundary — so it
+  # carries the arm's CHUNK pin. Submitter and job select by the same rule, and
+  # gate H still enforces whichever pin was selected here.
+  if [ "$EXPECTED_STEP" -gt 0 ] && [ -n "$CHUNK_END" ]; then
+    TIME_PIN_NAME="PINNED_TIME_LIMIT_CHUNK_${ARM}"
+  elif [ "$EXPECTED_STEP" -gt 0 ]; then
     TIME_PIN_NAME="PINNED_TIME_LIMIT_RESTART_${ARM}"
   else
     TIME_PIN_NAME="PINNED_TIME_LIMIT_${ARM}"
@@ -193,6 +218,22 @@ if [ "$SMOKE" != "1" ]; then
   [ "$MB" = "$PINNED_MB" ] && [ "$NGPU" = "$PINNED_NGPU" ] || die "pin inconsistency: rung ${RUNG} vs PINNED_MB=${PINNED_MB}/PINNED_NGPU=${PINNED_NGPU} - abort"
   [ "$MAXSTEPS" = "100000" ] || die "PINNED_MAXSTEPS is ${MAXSTEPS}, the registered budget is 100000 - abort"
 fi
+
+# --- B2. CHUNK_END: where THIS job stops (round 5) ----------------------------
+# The budget gate above is untouched on purpose: CHUNK_END is the per-job stop,
+# PINNED_MAXSTEPS stays the campaign budget. STOPSTEP is what train.py is given.
+# Fail-closed on every edge, because a chunk that does not land ON a checkpoint
+# leaves the chain with nothing to resume.
+STOPSTEP="$MAXSTEPS"
+if [ -n "$CHUNK_END" ]; then
+  [ "$SMOKE" != "1" ] || die "CHUNK_END is a production chunk-chain input and has no meaning under SMOKE=1 (SMOKE_MAXSTEPS is the smoke's budget) - abort"
+  case "$CHUNK_END" in ''|*[!0-9]*) die "CHUNK_END '${CHUNK_END}' must be a positive integer - abort";; esac
+  [ "$EXPECTED_STEP" -gt 0 ] || die "CHUNK_END ${CHUNK_END} declares a chunk, but only a RESTART leg may be chunked (EXPECTED_STEP is 0) - abort"
+  [ "$CHUNK_END" -gt "$EXPECTED_STEP" ] || die "CHUNK_END ${CHUNK_END} must exceed the resume step ${EXPECTED_STEP} — this leg would produce no new checkpoint - abort"
+  [ "$CHUNK_END" -le "$MAXSTEPS" ] || die "CHUNK_END ${CHUNK_END} exceeds the budget ${MAXSTEPS} - abort"
+  [ "$((CHUNK_END % PINNED_CHECKPOINT_EVERY))" -eq 0 ] || die "CHUNK_END ${CHUNK_END} is not a multiple of the ${PINNED_CHECKPOINT_EVERY}-step checkpoint cadence: the chunk must end ON a checkpoint or the next chunk has nothing to resume - abort"
+  STOPSTEP="$CHUNK_END"
+fi
 RUNDIR="${SAVEDIR}/${NAME}/${EXPNAME}"
 echo "=== exp_11 arm ${ARM} @ rung ${RUNG} (MB ${MB} x ${NGPU} GPU, grad-ckpt ON) — ${TS} — host $(hostname) ==="
 
@@ -206,8 +247,14 @@ EXPREL="${EXPDIR#"$REPO"/}"; EXP07REL="${EXP07#"$REPO"/}"
 # git, not the shell, expands them — a tracked file deleted from the worktree
 # still matches (content-gate review B2) — data/AR (the split JSONs the
 # dataloader opens) is covered, and a failing git status is fail-closed.
+# arm_launch_registry.json is EXCLUDED (round-5 review B1): it is a lineage
+# RECORD the reviewed recorder writes as each chunk finishes, not a measurement
+# surface, and it is already outside the commit-binding closure below. Gating it
+# deadlocks the chunk chain — the recorder dirties it at 42500 and every later
+# leg, on every arm, would abort here until a human committed.
 DRIFT="$(git status --porcelain --untracked-files=no -- train.py defaults.ini src ":(exclude)src/tests" data/AR \
           "$EXPREL/*.json" "$EXPREL/*.py" "$EXPREL/*.sbatch" "$EXPREL/*.sh" \
+          ":(exclude)$EXPREL/arm_launch_registry.json" \
           "$EXP07REL/FLAC_AR_BF.json" 2>&1)" \
   || die "git status for the drift gate failed: ${DRIFT} - abort"
 # Commit binding is CONTENT-scoped: HEAD identity is sufficient but not
@@ -345,14 +392,14 @@ else
   esac
   [ "$MAXSTEPS" -gt "$EXPECTED_STEP" ] || die "MAXSTEPS ${MAXSTEPS} must exceed the resume step ${EXPECTED_STEP} - abort"
 fi
-echo "lineage: ${MODE} (expected_step ${EXPECTED_STEP}, max_steps ${MAXSTEPS}, ckpt every ${CHECKPOINT_EVERY}, time pin ${TIME_PIN_NAME}=${TIME_LIMIT})"
+echo "lineage: ${MODE} (expected_step ${EXPECTED_STEP}, max_steps ${MAXSTEPS}, chunk_end ${CHUNK_END:-<none>}, stops at ${STOPSTEP}, ckpt every ${CHECKPOINT_EVERY}, time pin ${TIME_PIN_NAME}=${TIME_LIMIT})"
 
 # --- F. the exact train.py argv ----------------------------------------------
 ARGV=(
   --model-config "$MODEL_CONFIG_ABS"
   --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json
   --pretransform-ckpt-path weights/FLAC/VAE.safetensors
-  --max-steps "$MAXSTEPS" --batch-size "$MB" --accum-batches 1 --num-workers 6 --seed 42
+  --max-steps "$STOPSTEP" --batch-size "$MB" --accum-batches 1 --num-workers 6 --seed 42
   --num-gpus "$NGPU" --num-nodes 1
   --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed
   --val-every -1 --val-dataset-config ''
@@ -530,8 +577,20 @@ if [ "$MODE" = "RESTART" ]; then
   # uuid, launch commit, config, save-dir, seed, and the 40k anchor itself)
   # without demanding that the INITIAL budget/commit equal this leg's. SMOKE
   # restarts have no registered launch and keep the ordinary contract.
-  [ "$SMOKE" != "1" ] && PRE_ARGS+=(--extension --launch-registry "$EXPDIR/arm_launch_registry.json"
-                                    --repo-root "$REPO")
+  #
+  # Round 5: only the FIRST leg off the anchor resumes the audited 40k checkpoint.
+  # A later chunk resumes the endpoint of the previous chunk, which is evidence
+  # only once fa_orbit_record_restart.py has written it as a chain link — so those
+  # legs bind with --chain, and an unrecorded predecessor refuses the launch.
+  if [ "$SMOKE" != "1" ]; then
+    if [ "$EXPECTED_STEP" -eq 40000 ]; then
+      PRE_ARGS+=(--extension)
+    else
+      PRE_ARGS+=(--chain)
+    fi
+    PRE_ARGS+=(--launch-registry "$EXPDIR/arm_launch_registry.json" --repo-root "$REPO")
+    [ -n "$CHUNK_END" ] && PRE_ARGS+=(--chunk-end "$CHUNK_END")
+  fi
   PRE_OUT="$(python3 "$EXPDIR/fa_orbit_ckpt_preflight.py" "${PRE_ARGS[@]}" 2>&1)"
   echo "$PRE_OUT"
   echo "$PRE_OUT" | grep -q "^CKPT_SHA256 " || die "restart preflight FAILED - abort"
@@ -640,6 +699,7 @@ rm -f "$PIPFREEZE_FILE"
   echo "gpu_uuids ${UUID_CSV}"
   echo "time_limit ${TIME_LIMIT} min_free_mb ${MIN_FREE_MB}"
   echo "resume_ckpt ${RESUME_CKPT:-<none>} expected_step ${EXPECTED_STEP} resume_ckpt_sha256 ${CKPT_SHA:-<none>}"
+  echo "chunk_end ${CHUNK_END:-<none>}"
   echo "save_dir ${SAVEDIR}"
   echo "slurm_transcript ${SLURM_OUT_AT_LAUNCH:-<unknown>} untrack ${UNTRACK_STATE}"
   echo "train_log ${TRAINLOG}"
@@ -707,8 +767,12 @@ if [ "$WANDB_CHECK_RC" -ne 0 ]; then
 fi
 
 # --- R. classification (tested taxonomy; see fa_orbit_classify.py) ------------
+# The completion literal Lightning prints is the stop step it was GIVEN, so the
+# classifier is told the step this leg was asked to reach. Without a chunk that
+# is MAXSTEPS, byte-identical to every pre-round-5 leg; with one it is the chunk
+# boundary, and a successful chunk classifies COMPLETE instead of NO-MARKER.
 CLASSIFY_OUT="$(python3 "$EXPDIR/fa_orbit_classify.py" --rc "$rc" --tee-rc "$tee_rc" --ngpu "$NGPU" \
-  --maxsteps "$MAXSTEPS" --log "$TRAINLOG" --log-copy "$SAVEDIR_LOG" 2>&1)"
+  --maxsteps "$STOPSTEP" --log "$TRAINLOG" --log-copy "$SAVEDIR_LOG" 2>&1)"
 final_rc=$?
 echo "$CLASSIFY_OUT"
 LAST_CKPT="$(ls -1t "${RUNDIR}/checkpoints"/*.ckpt 2>/dev/null | head -1)"
@@ -723,7 +787,9 @@ FINAL_RECORD="$(
   echo "torchrun rc=${rc} tee rc=${tee_rc} wandb_identity_rc=${WANDB_CHECK_RC} classified rc=${final_rc}"
   echo "$CLASSIFY_OUT"
   echo "last checkpoint: ${LAST_CKPT:-<none>}"
+  [ -n "$CHUNK_END" ] && echo "endpoint attestation: appended BELOW this record, once the exit class is settled (round-5 r2 blocking 2)"
   echo "restart: fa_orbit_submit.sh ${ARM} --resume ${LAST_CKPT:-<path>} --expected-step <step>"
+  [ -n "$CHUNK_END" ] && echo "next chunk: record this leg (fa_orbit_record_restart.py ${ARM} ${MANIFEST}), then fa_orbit_submit.sh ${ARM} --resume <ckpt at ${CHUNK_END}> --expected-step ${CHUNK_END} --chunk-end <${CHUNK_END}+${PINNED_CHECKPOINT_EVERY}>"
 )"
 printf '%s\n' "$FINAL_RECORD" | tee -a "$TRAINLOG" "$SAVEDIR_LOG" > /dev/null
 final_tee_rc="${PIPESTATUS[1]}"
@@ -750,6 +816,71 @@ fi
 if [ "$final_tee_rc" -ne 0 ] || [ "$PREFLIGHT_COPY_RC" -ne 0 ] || [ "$WANDB_CHECK_RC" -ne 0 ]; then
   echo "LOG-PROVENANCE: final record tee rc=${final_tee_rc}, preflight copy rc=${PREFLIGHT_COPY_RC}, wandb identity rc=${WANDB_CHECK_RC}"
   [ "$final_rc" -eq 0 ] && final_rc=7
+fi
+# ^^^ THE EXIT CLASS IS SETTLED HERE. Nothing below may change final_rc. ^^^
+
+# --- R2. ENDPOINT ATTESTATION: the job attests what it produced --------------
+# (round-5 B6, moved here by the round-5 r2 review, blockings 2 and 3.)
+#
+# The manifest is published BEFORE training, so on its own it proves only what
+# this job intended. The recorder would otherwise have to associate it with
+# whichever exactly-named checkpoint happened to sit in the shared directory — a
+# failed job's manifest plus a pre-existing same-arm checkpoint could become a
+# chain link, and re-hashing proves current bytes, not authorship. So the job
+# itself appends what it produced: the endpoint path, its step, and its sha256 as
+# this job sees it on disk. fa_orbit_record_restart.py REFUSES any chunk manifest
+# without this attestation, one attesting `<none>`, and one whose attested sha
+# does not match its own re-hash.
+#
+# BLOCKING 2 — WHERE this runs is load-bearing. It used to run right after the
+# classifier, where final_rc=0 was only PROVISIONAL: the final-record tee, the
+# preflight-copy and the W&B identity check can each still promote the class to 7
+# afterwards, so a job that ended up FAILED could carry a positive attestation.
+# It now runs after the settle point above, so a positive attestation is emitted
+# ONLY for the success class (final_rc == 0); every other class attests <none>.
+#
+# BLOCKING 3 — WHICH FILE is load-bearing too. train.py builds ModelCheckpoint
+# with Lightning's version counter at its default (enable_version_counter=True),
+# so a retry at the same boundary writes `epoch=E-step=N-v1.ckpt` beside the
+# unversioned file a previous failed attempt left behind. Globbing only the
+# unversioned name would attest the STALE bytes — another job's checkpoint. Both
+# name shapes are therefore searched and the NEWEST-mtime match wins: that is the
+# file THIS job just wrote. Its actual path is what is attested and recorded.
+ATTEST_LINE=""
+if [ -n "$CHUNK_END" ]; then
+  ENDPOINT_CKPT=""
+  if [ "$final_rc" -eq 0 ]; then
+    ENDPOINT_CKPT="$(ls -1t "${RUNDIR}/checkpoints"/*-step="${CHUNK_END}".ckpt \
+                              "${RUNDIR}/checkpoints"/*-step="${CHUNK_END}"-v*.ckpt 2>/dev/null | head -1)"
+  fi
+  if [ "$final_rc" -ne 0 ]; then
+    ATTEST_LINE="endpoint_ckpt <none> endpoint_step ${CHUNK_END} endpoint_class ${final_rc}"
+    echo "endpoint attestation: this leg's SETTLED class is ${final_rc}, not the success class — attesting <none>"
+  elif [ -z "$ENDPOINT_CKPT" ] || [ ! -f "$ENDPOINT_CKPT" ]; then
+    ATTEST_LINE="endpoint_ckpt <none> endpoint_step ${CHUNK_END} endpoint_class ${final_rc}"
+    echo "endpoint attestation: no *-step=${CHUNK_END}.ckpt or *-step=${CHUNK_END}-v*.ckpt under ${RUNDIR}/checkpoints — attesting <none>"
+  else
+    ENDPOINT_SHA="$(sha256sum "$ENDPOINT_CKPT" | awk '{print $1}')"
+    if [ -n "$ENDPOINT_SHA" ]; then
+      ATTEST_LINE="endpoint_ckpt ${ENDPOINT_CKPT} endpoint_step ${CHUNK_END} endpoint_sha256 ${ENDPOINT_SHA}"
+      echo "endpoint attestation: ${ENDPOINT_CKPT} step ${CHUNK_END} sha256 ${ENDPOINT_SHA} (newest match; settled class ${final_rc})"
+    else
+      ATTEST_LINE="endpoint_ckpt <none> endpoint_step ${CHUNK_END} endpoint_class ${final_rc}"
+      echo "endpoint attestation: sha256sum of ${ENDPOINT_CKPT} FAILED — attesting <none>"
+    fi
+  fi
+  # The manifest was written pre-run by THIS job; this is the same job appending
+  # to its own record. Both copies are kept identical.
+  if ! printf '%s\n' "$ATTEST_LINE" >> "$MANIFEST"; then
+    echo "ENDPOINT ATTESTATION COULD NOT BE APPENDED to ${MANIFEST} — the recorder will refuse this chunk (fail-closed); record it by hand only after auditing the checkpoint"
+  fi
+  printf '%s\n' "$ATTEST_LINE" >> "${SAVEDIR}/$(basename "$MANIFEST")" \
+    || echo "WARNING: could not append the endpoint attestation to the save-dir manifest copy"
+  # ...and into BOTH durable logs, so the transcript carries what the manifest
+  # carries. The classifier's log-equality check already ran; appending the same
+  # bytes to both copies keeps them identical.
+  printf 'endpoint attestation: %s\n' "$ATTEST_LINE" | tee -a "$TRAINLOG" "$SAVEDIR_LOG" > /dev/null \
+    || echo "WARNING: could not append the endpoint attestation to the durable logs"
 fi
 printf '%s\n' "$FINAL_RECORD"
 exit "$final_rc"
