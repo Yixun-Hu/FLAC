@@ -516,11 +516,19 @@ sed -n '/--- BEGIN registry-init-python/,/--- END registry-init-python/p' "$LAUN
 grep -q 'reg\["arms"\]\[arm\]' "${TMP}/reg_init.py"; check "registry-init code extracted from the launcher" $?
 SMOKE_REG="${TMP}/yaw_aug_smoke_registry.json"; PROD_REG="${TMP}/yaw_aug_launch_registry.json"
 : > "${TMP}/man.txt"; echo "arm YAWAUG" >> "${TMP}/man.txt"
-reg_init() {  # <registry> <job>
+reg_init() {  # <registry> <job> [chain] [cap] [leg-steps]
   $PY "${TMP}/reg_init.py" "$1" YAWAUG "${TMP}/man.txt" "$2" uuid-$2 "$HEAD_SHA" \
-      8x8 40000 cfgsha vaesha "${TMP}/save" wandb-$2
+      8x8 40000 cfgsha vaesha "${TMP}/save" wandb-$2 "${3:-0}" "${4:-40000}" "${5:-2500}"
 }
 expect_cmd "a SMOKE registers into the smoke registry" 0 "registered YAWAUG" -- reg_init "$SMOKE_REG" 111
+expect_cmd "  ... and a CHAIN INITIAL records its chain metadata" 0 "registered YAWAUG" -- \
+  reg_init "${TMP}/chain_init_registry.json" 444 1 40000 2500
+$PY -c "
+import json,sys
+e=json.load(open(sys.argv[1]))['arms']['YAWAUG']
+sys.exit(0 if e['chain'] is True and e['chain_cap']==40000 and e['chain_leg_steps']==2500
+         and e['chain_initial_target']==40000 else 1)" "${TMP}/chain_init_registry.json"
+check "  ... chain flag, cap, leg size and initial target" $?
 $PY -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if 'YAWAUG' in d['arms'] else 1)" "$SMOKE_REG"
 check "  ... the smoke registry now holds arms.YAWAUG" $?
 [ ! -e "$PROD_REG" ]; check "  ... and the PRODUCTION registry was never created" $?
@@ -982,47 +990,13 @@ CHAIN_ARGV="$(capture_argv "$LAUNCHER" 1)"
 check "  ... while CHAIN=1 genuinely differs (the comparison can detect change)" $?
 
 echo "--- Z. NEW (chain): the self-chaining epilogue ---"
-sed -n '/--- BEGIN next-leg-helper/,/--- END next-leg-helper/p' "$LAUNCHER" > "${TMP}/nextleg.sh"
-grep -q 'submit_next_leg()' "${TMP}/nextleg.sh"; check "the next-leg helper is extracted from the launcher" $?
-# STUB submitters: this suite never submits anything.
-cat > "${TMP}/fake_submit_ok.sh" <<'EOS'
-#!/usr/bin/env bash
-echo "arm $1 | chain leg | dependency ${CHAIN_DEPENDENCY:-<none>} | token ${CHAIN_INTENT_TOKEN:-<none>}"
-echo "submitted YAWAUG -> job 4242424"
-exit 0
-EOS
-cat > "${TMP}/fake_submit_fail.sh" <<'EOS'
-#!/usr/bin/env bash
-echo "tracked measurement surfaces have uncommitted changes - commit first, abort"
-exit 2
-EOS
-chmod +x "${TMP}/fake_submit_ok.sh" "${TMP}/fake_submit_fail.sh"
-NEXTLEG_STATE="${TMP}/nextleg_state.json"
-run_next_leg() {  # <stub> ; records mark-submitted calls in MARKS
-  ( ARM=YAWAUG LEG_STEPS=2500 CHAIN_SUBMIT_ATTEMPTS=3 CHAIN_SUBMIT_BACKOFF=0
-    SLURM_JOB_ID=555 CHAIN_STATE_FILE="$NEXTLEG_STATE"
-    chain_state() { echo "chain_state $*" >> "${TMP}/marks.txt"; }
-    # shellcheck disable=SC1090
-    . "${TMP}/nextleg.sh"
-    submit_next_leg "$1" "${CHAIN_RUN}/epoch=0-step=2500.ckpt" 2500 "tok-abc123" 5000 )
-}
-: > "${TMP}/marks.txt"
-expect_cmd "a successful submission is recorded with its job id" 0 "next leg submitted (job 4242424)" -- \
-  run_next_leg "${TMP}/fake_submit_ok.sh"
-grep -q 'chain_state mark-submitted --target 2500 --jid 4242424' "${TMP}/marks.txt"
-check "  ... and the boundary is marked SUBMITTED with that jid" $?
-run_next_leg "${TMP}/fake_submit_ok.sh" > "${TMP}/nl.out" 2>&1
-grep -q 'dependency afterok:555' "${TMP}/nl.out"; check "  ... the child carries afterok on its parent" $?
-grep -q 'token tok-abc123' "${TMP}/nl.out"; check "  ... and the unique intent token" $?
-: > "${TMP}/marks.txt"
-expect_cmd "three failed attempts stall the chain (nonzero)" 1 "CHAIN STALLED" -- \
-  run_next_leg "${TMP}/fake_submit_fail.sh"
-grep -q 'mark-submitted' "${TMP}/marks.txt"; check "  ... and nothing is marked SUBMITTED" $((1 - $?))
-grep -q 'final_rc=12' "$LAUNCHER"; check "a stalled chain exits on the distinct class 12" $?
-grep -q '#  12  CHAIN only' "$LAUNCHER"; check "  ... which is documented in the exit taxonomy" $?
+# The unlocked next-leg helper is GONE: submission is one transaction inside
+# yaw_aug_chain_state.py (section AE drives it, including the concurrency race).
+grep -q 'BEGIN next-leg-helper' "$LAUNCHER"; check "the unlocked next-leg helper is retired" $((1 - $?))
+grep -q 'transact-submit' "$LAUNCHER"; check "  ... replaced by the locked transaction" $?
 grep -q 'chain END: this leg reached the pre-registered cap' "$LAUNCHER"
 check "the FINAL leg submits no successor" $?
-grep -q 'submit_next_leg "$REPO/$SUBMITTER_REL"' "$LAUNCHER"
+grep -q -- '--submitter "${REPO}/${SUBMITTER_REL}"' "$LAUNCHER"
 check "the successor goes through the LIVE submitter (it re-gates at then-current HEAD)" $?
 # leg-aware completion audit: only the cap leg closes the run out
 fresh_reg "${TMP}/chain_registry.json"
@@ -1049,13 +1023,45 @@ check "  ... writing final_ckpt_sha256/final_step from the checkpoint" $?
 echo "--- Z2. NEW (chain): the submitter's chain surface ---"
 sed -n '/--- BEGIN chain-initial-manifest-python/,/--- END chain-initial-manifest-python/p' "$SUBMITTER" > "${TMP}/chain_initial.sh"
 grep -q 'chain_initial_manifest()' "${TMP}/chain_initial.sh"; check "the initial-manifest reader is extracted" $?
-initial_manifest() { ( . "${TMP}/chain_initial.sh"; chain_initial_manifest "$1" YAWAUG ); }
+initial_manifest() { ( . "${TMP}/chain_initial.sh"; chain_initial_manifest "$1" YAWAUG 40000 2500 ); }
+# A valid INITIAL: readable manifest, registered sha, mode INITIAL on BOTH sides,
+# and chain metadata describing THIS chain.
+INIT_MAN="${TMP}/valid_initial_manifest.txt"
+printf '%s\n' "# exp_15 arm launch manifest" \
+  "job 1 host h mode INITIAL launch_uuid u" \
+  "arm YAWAUG rung 8x8 micro 8 ngpu 8 max_steps 2500 ckpt_every 2500" \
+  "chain 1 leg_steps 2500 leg_start 0 leg_target 2500 cap 40000" > "$INIT_MAN"
+$PY -c "
+import hashlib, json, sys
+man = sys.argv[2]
+json.dump({'arms': {'YAWAUG': {'manifest_path': man,
+           'manifest_sha256': hashlib.sha256(open(man,'rb').read()).hexdigest(),
+           'mode': 'INITIAL', 'chain': True, 'chain_cap': 40000,
+           'chain_leg_steps': 2500, 'chain_initial_target': 2500}}, 'restarts': {}},
+          open(sys.argv[1], 'w'))" "${TMP}/chain_reg_ok.json" "$INIT_MAN"
+expect_cmd "a RESTART leg finds the validated INITIAL manifest" 0 "valid_initial_manifest" -- \
+  initial_manifest "${TMP}/chain_reg_ok.json"
 $PY -c "
 import json,sys
-json.dump({'arms':{'YAWAUG':{'manifest_path':'/x/initial_manifest.txt'}},'restarts':{}}, open(sys.argv[1],'w'))" \
-  "${TMP}/chain_reg_ok.json"
-expect_cmd "a RESTART leg finds the INITIAL manifest in the registry" 0 "/x/initial_manifest.txt" -- \
+d=json.load(open(sys.argv[1])); d['arms']['YAWAUG']['mode']='RESTART'
+json.dump(d, open(sys.argv[2],'w'))" "${TMP}/chain_reg_ok.json" "${TMP}/chain_reg_mode.json"
+expect_cmd "  ... and refuses when the registry mode is not INITIAL" 1 "both must be INITIAL" -- \
+  initial_manifest "${TMP}/chain_reg_mode.json"
+$PY -c "
+import json,sys
+d=json.load(open(sys.argv[1])); del d['arms']['YAWAUG']['chain_cap']
+json.dump(d, open(sys.argv[2],'w'))" "${TMP}/chain_reg_ok.json" "${TMP}/chain_reg_nometa.json"
+expect_cmd "  ... refuses missing chain metadata" 1 "this chain is" -- \
+  initial_manifest "${TMP}/chain_reg_nometa.json"
+printf 'tamper\n' >> "$INIT_MAN"
+expect_cmd "  ... and refuses a manifest tampered after registration" 1 "no longer hashes" -- \
   initial_manifest "${TMP}/chain_reg_ok.json"
+$PY -c "
+import hashlib,json,sys
+man=sys.argv[2]
+d=json.load(open(sys.argv[1]))
+d['arms']['YAWAUG']['manifest_sha256']=hashlib.sha256(open(man,'rb').read()).hexdigest()
+json.dump(d, open(sys.argv[1],'w'))" "${TMP}/chain_reg_ok.json" "$INIT_MAN"
 $PY -c "
 import json,sys
 json.dump({'arms':{},'restarts':{}}, open(sys.argv[1],'w'))" "${TMP}/chain_reg_empty.json"
@@ -1082,10 +1088,16 @@ grep -q 'chain_advance()' "${TMP}/advance.sh"; check "the advancement block is e
 # a successor was submitted. Static line-order checks cannot see a later class.
 cat > "${TMP}/drive_advance.sh" <<'EOS'
 set -uo pipefail
-SUBMITTED=0
+# chain_advance captures the transaction's output via $(...), so a stub variable
+# assignment dies in that subshell — the stub signals through a MARKER FILE.
+rm -f "${WORKDIR}/tx_submit.marker"
 snap() { echo "${TMP_HELPERS}/$1"; }
-chain_state() { echo "chain_state $*"; return "${CHAIN_STATE_RC:-0}"; }
-submit_next_leg() { SUBMITTED=1; echo "SUBMIT CALLED with $*"; return "${SUBMIT_RC:-0}"; }
+chain_state() {
+  case "$1" in
+    transact-submit) : > "${WORKDIR}/tx_submit.marker"; echo "SUBMITTED 4242"; return "${SUBMIT_RC:-0}" ;;
+    *) echo "chain_state $*"; return "${CHAIN_STATE_RC:-0}" ;;
+  esac
+}
 ARM=YAWAUG; SAVEDIR="$WORKDIR"; LEG_STEPS=2500; PINNED_CHAIN_CAP=40000
 SUBMITTER_REL="x/submit.sh"; REPO="."; SLURM_JOB_ID=777; TRAINLOG="${TRAINLOG:-/dev/null}"
 MAXSTEPS="${MAXSTEPS:-2500}"; EXPECTED_STEP="${EXPECTED_STEP:-0}"
@@ -1093,6 +1105,7 @@ AUDITED_SHA256="${AUDITED_SHA256-abc}"; AUDITED_CKPT=/x/c.ckpt; AUDITED_PARENT_S
 final_rc="$RC"
 . "$ADVANCE"
 chain_advance > "${WORKDIR}/advance.out" 2>&1
+SUBMITTED=0; [ -e "${WORKDIR}/tx_submit.marker" ] && SUBMITTED=1
 echo "final_rc=${final_rc} submitted=${SUBMITTED}"
 EOS
 drive() {  # <rc> [env...] -> "final_rc=<n> submitted=<0|1>"
@@ -1114,10 +1127,10 @@ expect_cmd "a leg with no audited checkpoint submits nothing (class 12)" 0 "fina
 printf 'Epoch 0:   2%%| | 100/4550 [01:00<10:00,  1.00it/s]\nEpoch 0:   6%%| | 300/4550 [04:32<10:00,  1.00it/s]\nEpoch 0:  22%%| | 1000/4550 [17:32<10:00,  1.00it/s]\n' > "${TMP}/fast.log"
 expect_cmd "a green leg with a passing rate gate submits its successor" 0 "submitted=1" -- \
   drive 0 "TRAINLOG=${TMP}/fast.log"
-grep -q "SUBMIT CALLED" "${TMP}/advance.out"; check "  ... exactly once, through submit_next_leg" $?
+grep -q "SUBMITTED 4242" "${TMP}/advance.out"; check "  ... exactly once, through the transaction" $?
 grep -q -- "--dependency=\${CHAIN_DEPENDENCY}" "$SUBMITTER"
 check "the successor carries a Slurm afterok dependency" $?
-grep -q 'CHAIN_DEPENDENCY="afterok:${SLURM_JOB_ID}"' "$LAUNCHER"
+grep -q -- '--dependency "afterok:${SLURM_JOB_ID}"' "$LAUNCHER"
 check "  ... naming the parent job" $?
 
 echo "--- AB. NEW (chain-fix F5): the waiver's post-hoc rate gate ---"
@@ -1165,8 +1178,7 @@ expect_cmd "  ... and marking it with a different jid is refused" 1 "already SUB
 expect_cmd "  ... while re-marking the same jid is idempotent" 0 "already SUBMITTED" -- \
   st mark-submitted --target 2500 --jid 900001
 expect_cmd "status reports the boundary" 0 "SUBMITTED" -- st status --target 2500
-grep -q 'squeue -h -n "exp15-${ARM}-leg${next_target}-${token}"' "$LAUNCHER"
-check "a post-sbatch crash is recovered by finding the intent token in the queue" $?
+grep -q 'find_job_by_name' "$CS"; check "a post-sbatch crash is recovered by finding the intent token in the queue" $?
 grep -q 'CHAIN_INTENT_TOKEN' "$SUBMITTER"; check "  ... which the submitter puts in the job name" $?
 # registry legs: tip-bound, monotonic, idempotent, CHAIN-only
 fresh_reg "${TMP}/legs_reg.json"
@@ -1213,11 +1225,14 @@ man = os.path.join(tmp, "initial_manifest.txt")
 open(man, "w").write(
     "# exp_15 arm launch manifest\njob 1 host h mode INITIAL launch_uuid u\n"
     "arm YAWAUG rung 8x8 micro 8 ngpu 8 max_steps 2500 ckpt_every 2500\n"
+    "chain 1 leg_steps 2500 leg_start 0 leg_target 2500 cap 40000\n"
     f"config_sha256 {cfg_sha}\nvae_sha256 VAESHA\nwandb_run_id r\n")
 reg = {"arms": {"YAWAUG": {"manifest_path": man,
                            "manifest_sha256": hashlib.sha256(open(man, "rb").read()).hexdigest(),
                            "mode": "INITIAL", "rung": "8x8", "training_seed": 42,
-                           "config_sha256": cfg_sha, "vae_sha256": "VAESHA"}},
+                           "config_sha256": cfg_sha, "vae_sha256": "VAESHA",
+                           "chain": True, "chain_cap": 40000, "chain_leg_steps": 2500,
+                           "chain_initial_target": 2500}},
        "legs": {"YAWAUG": [{"step": 2500, "ckpt_sha256": sha}]}, "restarts": {}}
 json.dump(reg, open(os.path.join(tmp, "chain_registry.json"), "w"), indent=2)
 bad = dict(reg); bad = json.loads(json.dumps(reg))
@@ -1243,12 +1258,192 @@ expect_cmd "a target beyond the cap is refused" 1 "does not advance within the c
   pre "${TMP}/chain_registry.json" 42500
 expect_cmd "a misaligned target is refused" 1 "not on the 2500-step cadence" -- \
   pre "${TMP}/chain_registry.json" 6000
+$PY -c "
+import json,sys
+d=json.load(open(sys.argv[1])); d['arms']['YAWAUG']['mode']='RESTART'
+json.dump(d, open(sys.argv[2],'w'), indent=2)" "${TMP}/chain_registry.json" "${TMP}/chain_registry_mode.json"
+expect_cmd "a registry entry not marked INITIAL is refused (BOTH must agree)" 1 "not INITIAL" -- \
+  pre "${TMP}/chain_registry_mode.json" 5000
+$PY -c "
+import json,sys
+d=json.load(open(sys.argv[1])); del d['arms']['YAWAUG']['chain_leg_steps']
+json.dump(d, open(sys.argv[2],'w'), indent=2)" "${TMP}/chain_registry.json" "${TMP}/chain_registry_nometa.json"
+expect_cmd "missing chain metadata is refused" 1 "this chain is" -- \
+  pre "${TMP}/chain_registry_nometa.json" 5000
 grep -q 'snap yaw_aug_chain_preflight.py' "$LAUNCHER"
 check "the launcher uses the exp_15 preflight for chain legs" $?
 grep -q 'WANDB_RESUME=must' "$LAUNCHER"; check "no chain leg resumes a W&B run (WANDB_RESUME is gone)" $((1 - $?))
 grep -q 'WANDB_RUN_ID="exp15_${ARM}_leg${MAXSTEPS}-' "$LAUNCHER"
 check "every RESTART leg mints a fresh lineage-tagged W&B id" $?
 grep -q 'parent_wandb_run_id' "$LAUNCHER"; check "  ... recording the parent id in the manifest" $?
+
+echo "--- AE. NEW (chain-fix2): submission is a single transaction ---"
+TX="${TMP}/tx"; mkdir -p "$TX"
+cat > "${TX}/stub_slow_submit.sh" <<'EOS'
+#!/usr/bin/env bash
+sleep 2
+echo "submitted YAWAUG -> job 5150$$" >> "$SUBMIT_LOG"
+echo "submitted YAWAUG -> job 5150$$"
+EOS
+cat > "${TX}/squeue_none.sh" <<'EOS'
+#!/usr/bin/env bash
+exit 0
+EOS
+cat > "${TX}/sacct_none.sh" <<'EOS'
+#!/usr/bin/env bash
+exit 0
+EOS
+cat > "${TX}/squeue_fail.sh" <<'EOS'
+#!/usr/bin/env bash
+echo "slurm_load_jobs error: Unable to contact slurm controller" >&2
+exit 1
+EOS
+cat > "${TX}/squeue_pending.sh" <<'EOS'
+#!/usr/bin/env bash
+echo "9001 PENDING"
+EOS
+cat > "${TX}/squeue_running.sh" <<'EOS'
+#!/usr/bin/env bash
+echo "9002 RUNNING"
+EOS
+cat > "${TX}/sacct_failed.sh" <<'EOS'
+#!/usr/bin/env bash
+echo "FAILED"
+EOS
+cat > "${TX}/sacct_completed.sh" <<'EOS'
+#!/usr/bin/env bash
+echo "COMPLETED"
+EOS
+chmod +x "${TX}"/*.sh
+tx_state() { $PY "$CS" --state "$1" --arm YAWAUG "${@:2}"; }
+tx_seed() { rm -f "$1"; tx_state "$1" record-audit --target 2500 --ckpt-sha256 aa \
+              --ckpt-path /x/c.ckpt --parent-step 0 --parent-ckpt-sha256 pp --job 1 >/dev/null; }
+tx_submit() {  # <state> <squeue> <sacct> [extra env...]
+  local st="$1" sq="$2" sa="$3"; shift 3
+  env YAW_AUG_SQUEUE_CMD="$sq" YAW_AUG_SACCT_CMD="$sa" "$@" \
+      $PY "$CS" --state "$st" --arm YAWAUG transact-submit --target 2500 --next-target 5000 \
+        --submitter "${TX}/stub_slow_submit.sh" --resume /x/c.ckpt --leg-steps 2500 \
+        --dependency afterok:999
+}
+# THE race: two concurrent transactions against a deliberately slow submitter.
+# wait is PID-scoped: under bash >= 5.1 a bare `wait` also waits for the suite's
+# own `exec > >(tee ...)` process substitution, which never exits until the suite
+# does — a guaranteed deadlock (found the hard way: four hung runs at this line).
+tx_seed "${TX}/race.json"
+: > "${TX}/submits.log"
+RACE_PIDS=()
+for _ in 1 2; do
+  ( tx_submit "${TX}/race.json" "${TX}/squeue_none.sh" "${TX}/sacct_none.sh" \
+      "SUBMIT_LOG=${TX}/submits.log" >> "${TX}/race.out" 2>&1 ) & RACE_PIDS+=("$!")
+done
+wait "${RACE_PIDS[@]}"
+[ "$(grep -c . "${TX}/submits.log")" = "1" ]
+check "two concurrent transactions produce EXACTLY ONE submission" $?
+grep -q "ALREADY_SUBMITTED" "${TX}/race.out"
+check "  ... and the loser returns the winner's job id, not a second submit" $?
+RACE_JID="$(awk '/^SUBMITTED /{print $2}' "${TX}/race.out")"
+grep -q "ALREADY_SUBMITTED ${RACE_JID}" "${TX}/race.out"
+check "  ... the SAME job id both times" $?
+# scheduler failure is fatal
+tx_seed "${TX}/schedfail.json"
+: > "${TX}/submits2.log"
+expect_cmd "a FAILING squeue refuses (never 'no job, submit')" 1 "SCHEDULER QUERY FAILED" -- \
+  tx_submit "${TX}/schedfail.json" "${TX}/squeue_fail.sh" "${TX}/sacct_none.sh" \
+    "SUBMIT_LOG=${TX}/submits2.log"
+[ ! -s "${TX}/submits2.log" ]; check "  ... and nothing was submitted" $?
+# a stranded child is reported, not adopted, not resubmitted, not cancelled
+tx_seed "${TX}/stranded.json"
+: > "${TX}/submits3.log"
+expect_cmd "a child whose afterok parent FAILED is STRANDED" 4 "STRANDED 9001" -- \
+  tx_submit "${TX}/stranded.json" "${TX}/squeue_pending.sh" "${TX}/sacct_failed.sh" \
+    "SUBMIT_LOG=${TX}/submits3.log"
+[ ! -s "${TX}/submits3.log" ]; check "  ... nothing is resubmitted" $?
+$PY -c "
+import json,sys
+b=json.load(open(sys.argv[1]))['boundaries']['2500']
+sys.exit(0 if b['state']=='INTENDED' and not b.get('next_leg_jid') else 1)" "${TX}/stranded.json"
+check "  ... and the boundary is NOT marked SUBMITTED" $?
+grep -q 'NOT cancelling it' "$CS"; check "  ... the helper never cancels a job itself" $?
+# a live/complete child IS adopted
+tx_seed "${TX}/adopt.json"
+: > "${TX}/submits4.log"
+expect_cmd "a RUNNING token-job is adopted instead of resubmitted" 0 "ADOPTED 9002" -- \
+  tx_submit "${TX}/adopt.json" "${TX}/squeue_running.sh" "${TX}/sacct_completed.sh" \
+    "SUBMIT_LOG=${TX}/submits4.log"
+[ ! -s "${TX}/submits4.log" ]; check "  ... with no new submission" $?
+# replay of a SUBMITTED boundary
+expect_cmd "replaying a SUBMITTED boundary returns the same jid" 3 "ALREADY_SUBMITTED 9002" -- \
+  tx_submit "${TX}/adopt.json" "${TX}/squeue_none.sh" "${TX}/sacct_none.sh" \
+    "SUBMIT_LOG=${TX}/submits4.log"
+$PY -c "
+import json,sys
+b=json.load(open(sys.argv[1]))['boundaries']['2500']
+cmd=b.get('next_leg_command') or ''
+sys.exit(0 if 'transact-submit' in cmd and 'sbatch' not in cmd else 1)" "${TX}/adopt.json"
+check "the advertised recovery command is the state-aware operation, not a raw sbatch" $?
+$PY -c "
+import json,sys
+b=json.load(open(sys.argv[1]))['boundaries']['2500']
+sys.exit(0 if b.get('parent_ckpt_sha256')=='pp' else 1)" "${TX}/adopt.json"
+check "parent_ckpt_sha256 is persisted in the boundary record" $?
+grep -q 'chain_state transact-submit' "$LAUNCHER"
+check "chain_advance submits ONLY through the transaction" $?
+grep -q 'submit_next_leg' "$LAUNCHER"; check "  ... and the old unlocked helper is gone" $((1 - $?))
+# ...and a real chain_advance drive persists the parent sha
+: > "${TMP}/marks2.txt"
+cat > "${TMP}/drive_parent.sh" <<'EOS'
+set -uo pipefail
+snap() { echo "${HELPERS}/$1"; }
+chain_state() { $PY "${HELPERS}/yaw_aug_chain_state.py" --state "$CSF" --arm YAWAUG --cap 40000 "$@"; }
+ARM=YAWAUG; SAVEDIR="$WORKDIR"; LEG_STEPS=2500; PINNED_CHAIN_CAP=40000
+SUBMITTER_REL="x"; REPO="."; SLURM_JOB_ID=42; TRAINLOG="$FASTLOG"; MAXSTEPS=5000
+EXPECTED_STEP=2500; AUDITED_SHA256=bb; AUDITED_CKPT=/x/d.ckpt; AUDITED_PARENT_STEP=2500
+AUDITED_PARENT_SHA256=aa; final_rc=0
+YAW_AUG_SQUEUE_CMD="$SQ" YAW_AUG_SACCT_CMD="$SA"
+export YAW_AUG_SQUEUE_CMD YAW_AUG_SACCT_CMD
+. "$ADVANCE"
+chain_advance >/dev/null 2>&1
+EOS
+env PY="$PY" HELPERS="$EXPDIR" CSF="${TX}/advance_state.json" WORKDIR="$TX" \
+    FASTLOG="${TMP}/fast.log" ADVANCE="${TMP}/advance.sh" SQ="${TX}/squeue_none.sh" \
+    SA="${TX}/sacct_none.sh" SUBMIT_LOG="${TX}/submits5.log" bash "${TMP}/drive_parent.sh" || true
+$PY -c "
+import json,sys
+b=json.load(open(sys.argv[1]))['boundaries']['5000']
+sys.exit(0 if b.get('parent_ckpt_sha256')=='aa' and b.get('parent_step')==2500 else 1)" \
+  "${TX}/advance_state.json" 2>/dev/null
+check "a real chain_advance drive records the parent step AND sha" $?
+
+echo "--- AF. NEW (chain-fix2): terminal status supersedes the stale final record ---"
+grep -q 'TERMINAL_RECORD=' "$LAUNCHER"; check "the launcher publishes a terminal status record" $?
+awk '/chain_advance$/{a=NR} /TERMINAL_RECORD=/{t=NR} END{exit !(a && t && a < t)}' "$LAUNCHER"
+check "  ... AFTER advancement, so it sees classes 12 and 13" $?
+grep -q 'os.replace(tmp, path)' "$LAUNCHER"; check "  ... written atomically (tmp + rename)" $?
+grep -q 'this supersedes any earlier' "$LAUNCHER"; check "  ... and the printed summary says so" $?
+# Drive the launcher's REAL record writer, not a copy: the block is extracted by
+# its markers (they are python comments inside the heredoc, so the extract runs).
+sed -n "/--- BEGIN terminal-record-python/,/--- END terminal-record-python/p" "$LAUNCHER" > "${TMP}/terminal.py"
+[ -s "${TMP}/terminal.py" ] && grep -q 'sys.argv\[1:17\]' "${TMP}/terminal.py"
+check "the terminal-record python is extracted from the launcher (non-empty)" $?
+term() {  # <out> <final_rc> <banner> <successor> <no-submit-reason> <rate-verdict>
+  $PY "${TMP}/terminal.py" "$1" "$2" 0 0 0 "$3" 1 0 2500 40000 "$4" "$5" "$6" "AUDITED" 42 /x/man.txt
+}
+expect_cmd "a rate-breach leg writes its terminal record" 0 "exit class 13" -- \
+  term "${TX}/term_breach.json" 13 MISSING "" "rate gate breach per waiver" "BREACH"
+$PY -c "
+import json,sys
+r=json.load(open(sys.argv[1]))
+sys.exit(0 if r['exit_class']==13 and r['chain']['successor_jid'] is None
+         and r['chain']['rate_gate_verdict']=='BREACH' else 1)" "${TX}/term_breach.json"
+check "  ... class 13, NO successor, verdict BREACH — from the real writer" $?
+expect_cmd "a green leg writes its terminal record" 0 "exit class 0" -- \
+  term "${TX}/term_green.json" 0 OK 4242 "" "PASS"
+$PY -c "
+import json,sys
+r=json.load(open(sys.argv[1]))
+sys.exit(0 if r['exit_class']==0 and r['chain']['successor_jid']=='4242'
+         and r['chain']['rate_gate_verdict']=='PASS' else 1)" "${TX}/term_green.json"
+check "  ... class 0 WITH the successor jid — from the real writer" $?
 
 echo "--- Q. the suite touched nothing tracked, and submitted nothing ---"
 TRACKED_AFTER="$(git status --porcelain --untracked-files=no -- "$EXPDIR" "$EXP11DIR" src data/AR | sort)"

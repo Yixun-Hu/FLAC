@@ -1615,6 +1615,7 @@ except Exception:
            "$PINNED_CHAIN_CAP" "${CHAIN_SUCCESSOR_JID:-}" "${CHAIN_NO_SUBMIT_REASON:-}" \
            "$RATE_VERDICT" "$BOUNDARY_STATUS" "${SLURM_JOB_ID:-local}" "$MANIFEST" \
     <<'PY' || echo "TERMINAL RECORD: write FAILED"
+# --- BEGIN terminal-record-python (guard-tested by yaw_aug_train_guardtests.sh) ---
 import json, os, sys
 (path, final_rc, torchrun_rc, tee_rc, wandb_rc, banner, chain, leg_start, leg_target,
  cap, successor, no_submit_reason, rate_verdict, boundary_status, job, manifest) = sys.argv[1:17]
@@ -1641,6 +1642,7 @@ os.replace(tmp, path)
 print(f"terminal status: exit class {record['exit_class']}, successor "
       f"{record['chain']['successor_jid'] or record['chain']['no_submit_reason'] or 'n/a'}, "
       f"rate gate {record['chain']['rate_gate_verdict']} -> {path}")
+# --- END terminal-record-python ---
 PY
 fi
 
