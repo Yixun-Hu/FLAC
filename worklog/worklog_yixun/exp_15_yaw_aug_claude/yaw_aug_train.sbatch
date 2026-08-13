@@ -186,46 +186,10 @@ die() { echo "$1"; exit "${2:-2}"; }
 SUBMITTER_REL="worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_submit.sh"
 CHAIN_SUBMIT_ATTEMPTS="${CHAIN_SUBMIT_ATTEMPTS:-3}"
 CHAIN_SUBMIT_BACKOFF="${CHAIN_SUBMIT_BACKOFF:-30}"
-# --- BEGIN next-leg-helper (guard-tested by yaw_aug_train_guardtests.sh) ------
-# The successor carries THREE things that make the chain safe:
-#   * --dependency=afterok on this job, so it cannot start while the parent still
-#     holds the run lock (finding 3) — it would have aborted on the flock;
-#   * a unique INTENT TOKEN in its job name, so a crash between sbatch and the
-#     status write is recoverable: the next attempt finds the queued job by name
-#     instead of submitting a second trainer into the same run dir (finding 4);
-#   * the exact command, recorded in the chain state BEFORE any attempt.
-submit_next_leg() {   # <submitter> <resume-ckpt> <boundary-step> <intent-token> <next-target>
-  local submitter="$1" ckpt="$2" step="$3" token="$4" next_target="$5"
-  local attempt out rc jid found
-  # Recovery first: a previous attempt may already have queued this token.
-  found="$(squeue -h -n "exp15-${ARM}-leg${next_target}-${token}" -o %i 2>/dev/null | head -1)"
-  if [ -n "$found" ]; then
-    echo "chain: intent ${token} is ALREADY QUEUED as job ${found} — adopting it, not resubmitting"
-    chain_state mark-submitted --target "$step" --jid "$found" || return 1
-    return 0
-  fi
-  attempt=1
-  while [ "$attempt" -le "$CHAIN_SUBMIT_ATTEMPTS" ]; do
-    out="$(CHAIN=1 LEG_STEPS="$LEG_STEPS" CHAIN_INTENT_TOKEN="$token" \
-           CHAIN_DEPENDENCY="afterok:${SLURM_JOB_ID}" \
-           bash "$submitter" "$ARM" --resume "$ckpt" --expected-step "$step" 2>&1)"; rc=$?
-    printf '%s\n' "$out"
-    if [ "$rc" -eq 0 ]; then
-      jid="$(printf '%s\n' "$out" | awk '/submitted .* -> job/ {print $NF}' | tail -1)"
-      chain_state mark-submitted --target "$step" --jid "${jid:-unknown}" || return 1
-      echo "chain: next leg submitted (job ${jid:-<unparsed>}) on attempt ${attempt}"
-      return 0
-    fi
-    echo "chain: next-leg submission attempt ${attempt}/${CHAIN_SUBMIT_ATTEMPTS} failed (rc ${rc})"
-    [ "$attempt" -lt "$CHAIN_SUBMIT_ATTEMPTS" ] && sleep "$CHAIN_SUBMIT_BACKOFF"
-    attempt=$((attempt + 1))
-  done
-  echo "CHAIN STALLED: the next leg could not be submitted after ${CHAIN_SUBMIT_ATTEMPTS} attempts."
-  echo "  The exact command is recorded in ${CHAIN_STATE_FILE} as next_leg_command; the"
-  echo "  boundary stays INTENDED, so replaying it submits exactly once (class 12)."
-  return 1
-}
-# --- END next-leg-helper -----------------------------------------------------
+# The next-leg helper is gone: submission is now ONE transaction inside
+# yaw_aug_chain_state.py's `transact-submit` (chain re-review F4), which holds the
+# boundary lock across the scheduler query, the sbatch and the state publication.
+# A shell function could not hold that lock across the helper invocations it made.
 
 # --- A. parameters ------------------------------------------------------------
 [ -n "${ARM:-}" ] || die "ARM must be exported (YAWAUG) - abort"
@@ -967,6 +931,7 @@ rm -f "$PIPFREEZE_FILE"
   echo "resume_ckpt ${RESUME_CKPT:-<none>} expected_step ${EXPECTED_STEP} resume_ckpt_sha256 ${CKPT_SHA:-<none>}"
   echo "save_dir ${SAVEDIR}"
   echo "slurm_transcript ${SLURM_OUT_AT_LAUNCH:-<unknown>} untrack ${UNTRACK_STATE}"
+  echo "chain ${CHAIN} leg_steps ${LEG_STEPS} leg_start ${EXPECTED_STEP} leg_target ${MAXSTEPS} cap ${PINNED_CHAIN_CAP}"
   echo "code_snapshot ${CODE_SNAPSHOT:-<none>}"
   for SHA_LINE in "${SNAPSHOT_SHAS[@]:-}"; do [ -n "$SHA_LINE" ] && echo "snapshot_sha256 ${SHA_LINE}"; done
   echo "train_log ${TRAINLOG}"
@@ -1000,11 +965,12 @@ fi
 if [ "$MODE" = "INITIAL" ]; then
   python3 - "$LAUNCH_REGISTRY" "$ARM" "$MANIFEST" "$SLURM_JOB_ID" "$LAUNCH_UUID" "$HEAD_SHA" \
            "$RUNG" "$MAXSTEPS" "$CONFIG_SHA" "$VAE_SHA" "$SAVEDIR" "$WANDB_RUN_ID" \
+           "$CHAIN" "$PINNED_CHAIN_CAP" "$LEG_STEPS" \
     <<'PY' || die "launch registry write FAILED — refusing to run an unregistered job - abort" 3
 # --- BEGIN registry-init-python (guard-tested by yaw_aug_train_guardtests.sh) ---
 import hashlib, json, os, sys
 (path, arm, manifest, job, uuid, commit, rung, max_steps, config_sha,
- vae_sha, save_dir, wandb_run_id) = sys.argv[1:13]
+ vae_sha, save_dir, wandb_run_id, chain, chain_cap, leg_steps) = sys.argv[1:16]
 reg = json.load(open(path)) if os.path.exists(path) else {"arms": {}, "restarts": {}}
 reg.setdefault("arms", {}); reg.setdefault("restarts", {})
 if arm in reg["arms"]:
@@ -1018,6 +984,9 @@ reg["arms"][arm] = {
     "vae_sha256": vae_sha, "save_dir": save_dir, "training_seed": 42,
     "wandb_run_id": wandb_run_id,
     "yaw_aug": {"enabled": True, "img_w": 512, "seed": 42},
+    # Chain metadata the RESTART preflight validates on every leg (re-review F1).
+    "chain": chain == "1", "chain_cap": int(chain_cap),
+    "chain_leg_steps": int(leg_steps), "chain_initial_target": int(max_steps),
     "final_ckpt_sha256": None, "final_step": None,
 }
 tmp = path + ".tmp"
@@ -1330,6 +1299,7 @@ os.replace(tmp, registry)
 print(f"AUDITED_CKPT {ckpt}")
 print(f"AUDITED_SHA256 {digest}")
 print(f"AUDITED_PARENT_STEP {legs[-2]['step'] if chain == '1' and len(legs) > 1 else 0}")
+print(f"AUDITED_PARENT_SHA256 {legs[-2]['ckpt_sha256'] if chain == '1' and len(legs) > 1 else ''}")
 print(f"completion audit OK: {os.path.basename(ckpt)} step {step} sha256 {digest}")
 print(f"  EMA {ema['ema_key_count']} keys mirror {ema['online_model_key_count']} "
       f"online DiT keys; inventory {ema['ema_inventory_sha256']}")
@@ -1347,6 +1317,7 @@ PY
   AUDITED_CKPT="$(printf '%s\n' "$COMPLETION_OUT" | awk '/^AUDITED_CKPT /{print $2}')"
   AUDITED_SHA256="$(printf '%s\n' "$COMPLETION_OUT" | awk '/^AUDITED_SHA256 /{print $2}')"
   AUDITED_PARENT_STEP="$(printf '%s\n' "$COMPLETION_OUT" | awk '/^AUDITED_PARENT_STEP /{print $2}')"
+  AUDITED_PARENT_SHA256="$(printf '%s\n' "$COMPLETION_OUT" | awk '/^AUDITED_PARENT_SHA256 /{print $2}')"
   if [ "$COMPLETION_RC" -ne 0 ]; then
     echo "COMPLETION AUDIT FAILED (rc ${COMPLETION_RC}): this leg's boundary checkpoint"
     echo "  was not produced, not verifiable, or not recordable — the run does not meet"
@@ -1555,9 +1526,8 @@ fi
 # successor is submitted — the ordering claim is the one that most needs
 # functional evidence, not a static check on line order.
 chain_advance() {
-  CHAIN_STATE_FILE="${SAVEDIR}/yaw_aug_chain_state.json"
-  chain_state() { python3 "$(snap yaw_aug_chain_state.py)" --state "$CHAIN_STATE_FILE" \
-                    --arm "$ARM" --cap "$PINNED_CHAIN_CAP" "$@"; }
+  CHAIN_SUCCESSOR_JID=""
+  CHAIN_NO_SUBMIT_REASON=""
   if [ "$final_rc" -ne 0 ]; then
     echo "CHAIN: leg ${EXPECTED_STEP} -> ${MAXSTEPS} ended class ${final_rc}; NO successor is"
     echo "  submitted. The chain stops here until the failure is adjudicated."
@@ -1568,7 +1538,7 @@ chain_advance() {
     # (a) record the audited boundary — idempotent, keyed by target step
     if ! chain_state record-audit --target "$MAXSTEPS" --ckpt-sha256 "$AUDITED_SHA256" \
            --ckpt-path "$AUDITED_CKPT" --parent-step "${AUDITED_PARENT_STEP:-0}" \
-           --job "$SLURM_JOB_ID"; then
+           --parent-ckpt-sha256 "${AUDITED_PARENT_SHA256:-}" --job "$SLURM_JOB_ID"; then
       echo "CHAIN: could not record the audited boundary in ${CHAIN_STATE_FILE}"
       final_rc=12
     elif [ "$MAXSTEPS" -ge "$PINNED_CHAIN_CAP" ]; then
@@ -1591,29 +1561,90 @@ chain_advance() {
       else
         NEXT_TARGET=$((MAXSTEPS + LEG_STEPS))
         [ "$NEXT_TARGET" -gt "$PINNED_CHAIN_CAP" ] && NEXT_TARGET="$PINNED_CHAIN_CAP"
-        NEXT_CMD="CHAIN=1 LEG_STEPS=${LEG_STEPS} bash ${SUBMITTER_REL} ${ARM} --resume ${AUDITED_CKPT} --expected-step ${MAXSTEPS}"
-        INTENT_OUT="$(chain_state intend --target "$MAXSTEPS" --next-target "$NEXT_TARGET" \
-                        --command "$NEXT_CMD" 2>&1)"; INTENT_RC=$?
-        printf '%s\n' "$INTENT_OUT"
-        if [ "$INTENT_RC" -eq 3 ]; then
-          echo "chain: boundary ${MAXSTEPS} was already submitted ($(printf '%s' "$INTENT_OUT" | awk '{print $2}')) — not submitting again"
-        elif [ "$INTENT_RC" -ne 0 ]; then
-          echo "CHAIN: could not record the submission intent"
-          final_rc=12
-        else
-          INTENT_TOKEN="$(printf '%s\n' "$INTENT_OUT" | awk '/^INTENT /{print $2}')"
-          submit_next_leg "$REPO/$SUBMITTER_REL" "$AUDITED_CKPT" "$MAXSTEPS" \
-                          "$INTENT_TOKEN" "$NEXT_TARGET" || final_rc=12
-        fi
+        # ONE transaction: the helper holds the boundary lock across its state
+        # re-read, the scheduler query, the sbatch and the publication of
+        # SUBMITTED, so two replayers cannot both submit (chain re-review F4).
+        SUBMIT_OUT="$(chain_state transact-submit --target "$MAXSTEPS" \
+                        --next-target "$NEXT_TARGET" \
+                        --submitter "${REPO}/${SUBMITTER_REL}" \
+                        --resume "$AUDITED_CKPT" --leg-steps "$LEG_STEPS" \
+                        --dependency "afterok:${SLURM_JOB_ID}" 2>&1)"; SUBMIT_RC=$?
+        printf '%s\n' "$SUBMIT_OUT"
+        case "$SUBMIT_RC" in
+          0) CHAIN_SUCCESSOR_JID="$(printf '%s\n' "$SUBMIT_OUT" | awk '/^(SUBMITTED|ADOPTED) /{print $2}' | tail -1)"
+             echo "chain: successor for boundary ${MAXSTEPS} is job ${CHAIN_SUCCESSOR_JID}" ;;
+          3) CHAIN_SUCCESSOR_JID="$(printf '%s\n' "$SUBMIT_OUT" | awk '/^ALREADY_SUBMITTED /{print $2}')"
+             echo "chain: boundary ${MAXSTEPS} was already submitted as ${CHAIN_SUCCESSOR_JID} — not submitting again" ;;
+          4) CHAIN_NO_SUBMIT_REASON="STRANDED successor (its afterok parent failed); operator decision required"
+             echo "CHAIN STALLED: ${CHAIN_NO_SUBMIT_REASON}"
+             final_rc=12 ;;
+          *) CHAIN_NO_SUBMIT_REASON="submission transaction failed (rc ${SUBMIT_RC})"
+             echo "CHAIN STALLED: ${CHAIN_NO_SUBMIT_REASON}. Re-run the recorded"
+             echo "  next_leg_command from ${CHAIN_STATE_FILE} — it is the state-aware"
+             echo "  operation, so replaying it submits exactly once (class 12)."
+             final_rc=12 ;;
+        esac
       fi
     fi
   fi
 }
 # --- END chain-advance-helper ------------------------------------------------
 
+CHAIN_STATE_FILE="${SAVEDIR}/yaw_aug_chain_state.json"
+chain_state() { python3 "$(snap yaw_aug_chain_state.py)" --state "$CHAIN_STATE_FILE" \
+                  --arm "$ARM" --cap "$PINNED_CHAIN_CAP" "$@"; }
 if [ "$CHAIN" = "1" ] && [ "$DRYRUN" != "1" ]; then
   chain_advance
 fi
 
+# --- V. TERMINAL record: the durable truth, published AFTER advancement ------
+# FINAL_RECORD is built before classes 7/8 and long before the chain's 12/13, so
+# on its own it can durably claim "classified rc=0" for a job that exits 13. The
+# terminal record is written last, atomically (tmp+rename, the acceptance
+# record's pattern), and the printed summary uses ITS values.
+TERMINAL_RECORD="${SAVEDIR}/yaw_aug_terminal_status_jid${SLURM_JOB_ID:-local}.json"
+if [ "$DRYRUN" != "1" ]; then
+  RATE_VERDICT="$(python3 -c 'import json,sys
+try:
+    print(json.load(open(sys.argv[1]))["verdict"])
+except Exception:
+    print("not evaluated")' "${SAVEDIR}/yaw_aug_rate_gate.json" 2>/dev/null || echo "not evaluated")"
+  BOUNDARY_STATUS="$( [ "$CHAIN" = "1" ] && chain_state status --target "$MAXSTEPS" 2>/dev/null || echo "n/a (monolith)" )"
+  python3 - "$TERMINAL_RECORD" "$final_rc" "$rc" "$tee_rc" "$WANDB_CHECK_RC" \
+           "${BANNER_VERDICT:-unknown}" "$CHAIN" "$EXPECTED_STEP" "$MAXSTEPS" \
+           "$PINNED_CHAIN_CAP" "${CHAIN_SUCCESSOR_JID:-}" "${CHAIN_NO_SUBMIT_REASON:-}" \
+           "$RATE_VERDICT" "$BOUNDARY_STATUS" "${SLURM_JOB_ID:-local}" "$MANIFEST" \
+    <<'PY' || echo "TERMINAL RECORD: write FAILED"
+import json, os, sys
+(path, final_rc, torchrun_rc, tee_rc, wandb_rc, banner, chain, leg_start, leg_target,
+ cap, successor, no_submit_reason, rate_verdict, boundary_status, job, manifest) = sys.argv[1:17]
+record = {
+    "_meta": {"experiment": "exp_15", "kind": "terminal status (supersedes the "
+              "pre-advancement final record)", "job": job, "manifest": manifest},
+    "exit_class": int(final_rc),
+    "components": {"torchrun_rc": int(torchrun_rc), "tee_rc": int(tee_rc),
+                   "wandb_rc": int(wandb_rc), "banner_verdict": banner},
+    "chain": {"enabled": chain == "1", "leg_start": int(leg_start),
+              "leg_target": int(leg_target), "cap": int(cap),
+              "boundary_status": boundary_status.strip(),
+              "successor_jid": successor or None,
+              "no_submit_reason": no_submit_reason or (
+                  None if successor else "chain END (cap reached)" if int(leg_target) >= int(cap)
+                  else "leg did not end green" if int(final_rc) else None),
+              "rate_gate_verdict": rate_verdict.strip()},
+}
+tmp = path + ".tmp"
+with open(tmp, "w") as fh:
+    json.dump(record, fh, indent=2, sort_keys=True)
+    fh.flush(); os.fsync(fh.fileno())
+os.replace(tmp, path)
+print(f"terminal status: exit class {record['exit_class']}, successor "
+      f"{record['chain']['successor_jid'] or record['chain']['no_submit_reason'] or 'n/a'}, "
+      f"rate gate {record['chain']['rate_gate_verdict']} -> {path}")
+PY
+fi
+
 printf '%s\n' "$FINAL_RECORD"
+echo "=== TERMINAL: exit class ${final_rc} (this supersedes any earlier 'classified rc' above) ==="
+[ "$CHAIN" = "1" ] && echo "  chain leg ${EXPECTED_STEP} -> ${MAXSTEPS} of ${PINNED_CHAIN_CAP}; successor ${CHAIN_SUCCESSOR_JID:-<none: ${CHAIN_NO_SUBMIT_REASON:-chain END or not green}>}"
 exit "$final_rc"

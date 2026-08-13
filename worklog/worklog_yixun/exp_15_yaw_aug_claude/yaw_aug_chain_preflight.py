@@ -62,6 +62,7 @@ def main(argv=None):
     ap.add_argument("--target", required=True, type=int)
     ap.add_argument("--cap", required=True, type=int)
     ap.add_argument("--cadence", default=2500, type=int)
+    ap.add_argument("--leg-steps", default=2500, type=int)
     ap.add_argument("--config", required=True)
     ap.add_argument("--arm", required=True)
     ap.add_argument("--rung", required=True)
@@ -165,9 +166,24 @@ def main(argv=None):
     ):
         if got != want:
             problems.append(f"{label} is {got!r}, the chain's INITIAL identity is {want!r}")
-    if not re.search(r"^mode INITIAL|mode INITIAL", manifest_raw.decode(errors="replace"), re.M) \
-            and entry.get("mode") != "INITIAL":
-        problems.append("the bound manifest is not an INITIAL launch manifest")
+    # BOTH must say INITIAL — "either" let a doctored manifest ride on a good
+    # registry entry, or the reverse (re-review F1).
+    if fields.get("mode") != "INITIAL":
+        problems.append(f"the bound manifest's mode is {fields.get('mode')!r}, not INITIAL")
+    if entry.get("mode") != "INITIAL":
+        problems.append(f"the registry entry's mode is {entry.get('mode')!r}, not INITIAL")
+    # ...and the chain metadata the INITIAL leg recorded must describe THIS chain.
+    for label, got, want in (
+        ("manifest chain flag", fields.get("chain"), "1"),
+        ("manifest cap", fields.get("cap"), str(args.cap)),
+        ("manifest leg_steps", fields.get("leg_steps"), str(args.leg_steps)),
+        ("registry chain flag", entry.get("chain"), True),
+        ("registry chain_cap", entry.get("chain_cap"), args.cap),
+        ("registry chain_leg_steps", entry.get("chain_leg_steps"), args.leg_steps),
+        ("registry chain_initial_target", entry.get("chain_initial_target"), args.leg_steps),
+    ):
+        if got != want:
+            problems.append(f"{label} is {got!r}, this chain is {want!r}")
     if problems:
         sys.exit("CHAIN PREFLIGHT: " + "; ".join(problems))
 

@@ -121,20 +121,51 @@ PY
 # --- BEGIN chain-initial-manifest-python (guard-tested by yaw_aug_train_guardtests.sh) ---
 # Prints the INITIAL leg's manifest path from the launch registry; fails if this
 # arm has no registered first leg (a chain RESTART presupposes one).
-chain_initial_manifest() {   # <registry> <arm>
+chain_initial_manifest() {   # <registry> <arm> <cap> <leg-steps>
 python3 - "$@" <<'PY'
-import json, sys
+import hashlib, json, sys
+registry, arm = sys.argv[1], sys.argv[2]
+cap, leg_steps = int(sys.argv[3]), int(sys.argv[4])
 try:
-    reg = json.load(open(sys.argv[1]))
+    reg = json.load(open(registry))
 except Exception as error:
-    sys.exit(f"cannot read the launch registry {sys.argv[1]}: {error}")
-entry = reg.get("arms", {}).get(sys.argv[2])
+    sys.exit(f"cannot read the launch registry {registry}: {error}")
+entry = reg.get("arms", {}).get(arm)
 if not entry:
-    sys.exit(f"{sys.argv[2]} has no INITIAL entry in the launch registry: a chain "
-             "RESTART leg presupposes a registered first leg")
+    sys.exit(f"{arm} has no INITIAL entry in the launch registry: a chain RESTART "
+             "leg presupposes a registered first leg")
 path = entry.get("manifest_path")
 if not path:
-    sys.exit(f"{sys.argv[2]}'s registry entry carries no manifest_path")
+    sys.exit(f"{arm}'s registry entry carries no manifest_path")
+# Returning an unchecked path was the hole (re-review F1): the file must exist,
+# still hash to what the INITIAL launch registered, say INITIAL, and describe
+# THIS chain — before any leg is queued against it.
+try:
+    with open(path, "rb") as fh:
+        raw = fh.read()
+except OSError as error:
+    sys.exit(f"the INITIAL manifest {path} is not readable: {error.strerror}")
+if entry.get("manifest_sha256") and hashlib.sha256(raw).hexdigest() != entry["manifest_sha256"]:
+    sys.exit(f"{path} no longer hashes to the value registered at the INITIAL launch")
+text = raw.decode(errors="replace")
+fields = {}
+for line in text.splitlines():
+    parts = line.split()
+    if len(parts) >= 3 and parts[0] in ("arm", "job", "chain"):
+        fields.update(dict(zip(parts[0::2], parts[1::2])))
+    elif len(parts) >= 2:
+        fields.setdefault(parts[0], parts[1])
+if fields.get("mode") != "INITIAL" or entry.get("mode") != "INITIAL":
+    sys.exit(f"{path}: manifest mode {fields.get('mode')!r} / registry mode "
+             f"{entry.get('mode')!r} — both must be INITIAL")
+for label, got, want in (("manifest chain", fields.get("chain"), "1"),
+                         ("manifest cap", fields.get("cap"), str(cap)),
+                         ("manifest leg_steps", fields.get("leg_steps"), str(leg_steps)),
+                         ("registry chain", entry.get("chain"), True),
+                         ("registry chain_cap", entry.get("chain_cap"), cap),
+                         ("registry chain_leg_steps", entry.get("chain_leg_steps"), leg_steps)):
+    if got != want:
+        sys.exit(f"{path}: {label} is {got!r}, this chain is {want!r}")
 print(path)
 PY
 }
@@ -277,7 +308,8 @@ printf '%s\n' "$SHA" | grep -qE '^[0-9a-f]{40}$' \
 # submission manifest, and inherits every other gate unchanged.
 CHAIN_INITIAL_MANIFEST=""
 if [ "$CHAIN" = "1" ] && [ "$EXPECTED_STEP" -gt 0 ]; then
-  CHAIN_INITIAL_MANIFEST="$(chain_initial_manifest "$EXPDIR/yaw_aug_launch_registry.json" "$ARM" 2>&1)" \
+  CHAIN_INITIAL_MANIFEST="$(chain_initial_manifest "$EXPDIR/yaw_aug_launch_registry.json" "$ARM" \
+                              "$CHAIN_CAP" "$LEG_STEPS" 2>&1)" \
     || { echo "CHAIN RESTART: ${CHAIN_INITIAL_MANIFEST} - abort"; exit 2; }
   echo "chain RESTART leg: promotion gate inherited from the INITIAL leg"
   echo "  initial manifest: ${CHAIN_INITIAL_MANIFEST}"

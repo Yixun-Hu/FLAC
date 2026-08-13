@@ -13,11 +13,24 @@ machine, under its own flock, in a file the job owns:
     INTENDED   the exact next-leg command is recorded, with a unique intent token
     SUBMITTED  the successor exists; its job id is recorded
 
-`intend` is the idempotency point. Called on an already-SUBMITTED boundary it
-reports the existing job id and exits 3, so the caller skips submission instead
-of issuing a second one. Called on an INTENDED boundary it returns the SAME
-token, so a replay re-uses the identity that may already be in the queue — which
-is what makes `--recover` able to find it.
+`transact-submit` is the ONLY sanctioned way to advance a boundary, and it is a
+single transaction: the per-boundary lock is held across the state re-read, the
+scheduler query, the sbatch, and the publication of SUBMITTED. The previous
+split (`intend` … then an unlocked squeue → sbatch → mark-submitted) let two
+replayers hold the same token, both see an empty queue, and both submit.
+
+Three rules make recovery safe rather than merely automatic:
+
+  * a scheduler query that FAILS is fatal. "squeue errored" is not "no job", and
+    guessing there is guarantees the double submission this file exists to
+    prevent;
+  * a token-matching job is only ADOPTED if it can still run — it is already
+    RUNNING/COMPLETED, or its `afterok` parent has not failed. A child whose
+    parent died can never be released by Slurm, so adopting it would leave the
+    chain silently dead;
+  * such a child is reported STRANDED with its job id and the operation refuses.
+    Nothing is cancelled from here: destroying a job is an operator's decision
+    made with the queue in front of them, not a helper's side effect.
 
 State lives beside the run (save-dir), never in the launch manifest: manifests
 are sha-registered at launch and must stay immutable.
@@ -27,6 +40,8 @@ import datetime
 import fcntl
 import json
 import os
+import shlex
+import subprocess
 import sys
 import uuid
 
@@ -134,6 +149,127 @@ def cmd_mark_submitted(state, args):
     return 0
 
 
+SUCCESSFUL = {"COMPLETED"}
+LIVE = {"RUNNING", "PENDING", "CONFIGURING", "COMPLETING", "REQUEUED", "RESIZING",
+        "SUSPENDED"}
+
+
+def _run(cmd, what):
+    """Run a scheduler query. A FAILED query is fatal — never 'no job'."""
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+    except OSError as error:
+        sys.exit(f"SCHEDULER QUERY FAILED ({what}): {error}; refusing to submit")
+    if proc.returncode != 0:
+        sys.exit(f"SCHEDULER QUERY FAILED ({what}, rc {proc.returncode}): "
+                 f"{proc.stderr.strip() or proc.stdout.strip()}; refusing to submit")
+    return proc.stdout
+
+
+def find_job_by_name(name, squeue_cmd, sacct_cmd):
+    """-> (jid, state) for a job with this exact name, or (None, None)."""
+    out = _run(squeue_cmd + ["-h", "-n", name, "-o", "%i %T"], "squeue")
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) >= 2:
+            return parts[0], parts[1].upper()
+    # Not queued: it may have already finished (or the crash happened after it
+    # ran). sacct is consulted, and its failure is equally fatal.
+    out = _run(sacct_cmd + ["-n", "-X", "--name", name, "--format=JobID,State"], "sacct")
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) >= 2:
+            return parts[0], parts[1].upper().split("+")[0]
+    return None, None
+
+
+def job_state(jid, sacct_cmd):
+    out = _run(sacct_cmd + ["-n", "-X", "-j", str(jid), "--format=State"], "sacct")
+    for line in out.splitlines():
+        if line.strip():
+            return line.strip().upper().split("+")[0]
+    return None
+
+
+def cmd_transact_submit(state, args):
+    """Re-read, query, submit, publish — all under ONE held lock."""
+    entry = state.boundary(args.target)
+    if not entry:
+        sys.exit(f"boundary {args.target} has not been audited — refusing to submit a "
+                 "successor for a boundary the chain never recorded")
+    if entry["state"] == "SUBMITTED":
+        print(f"ALREADY_SUBMITTED {entry['next_leg_jid']}")
+        return 3
+
+    squeue_cmd = shlex.split(os.environ.get("YAW_AUG_SQUEUE_CMD", "squeue"))
+    sacct_cmd = shlex.split(os.environ.get("YAW_AUG_SACCT_CMD", "sacct"))
+
+    if not entry.get("intent_token"):
+        entry["intent_token"] = f"{args.arm}-leg{args.next_target}-{uuid.uuid4().hex[:8]}"
+        entry["next_target"] = args.next_target
+        entry["state"] = "INTENDED"
+        entry["intended_utc"] = now()
+    token = entry["intent_token"]
+    job_name = f"exp15-{args.arm}-leg{args.next_target}-{token}"
+    entry["next_leg_job_name"] = job_name
+    # The advertised recovery command is this same state-aware operation, never a
+    # raw sbatch: running the wrapper twice is safe, running sbatch twice is not.
+    entry["next_leg_command"] = (
+        f"python3 {os.path.abspath(__file__)} --state {state.path} --arm {args.arm} "
+        f"--cap {state.cap} transact-submit --target {args.target} "
+        f"--next-target {args.next_target} --submitter {args.submitter} "
+        f"--resume {args.resume} --leg-steps {args.leg_steps}"
+        + (f" --dependency {args.dependency}" if args.dependency else ""))
+    state.write()
+
+    existing_jid, existing_state = find_job_by_name(job_name, squeue_cmd, sacct_cmd)
+    if existing_jid:
+        adopt = existing_state in SUCCESSFUL or existing_state == "RUNNING"
+        if not adopt:
+            parent = args.dependency.split(":")[-1] if args.dependency else None
+            parent_state = job_state(parent, sacct_cmd) if parent else None
+            if parent_state is None or parent_state in SUCCESSFUL or parent_state in LIVE:
+                adopt = True
+            else:
+                print(f"STRANDED {existing_jid} parent={parent} parent_state={parent_state}")
+                print(f"  job {existing_jid} ({existing_state}) can never be released: its "
+                      f"afterok parent ended {parent_state}. Not adopting it, not submitting "
+                      "a second leg, and NOT cancelling it — that is an operator decision.")
+                return 4
+        entry["state"] = "SUBMITTED"
+        entry["next_leg_jid"] = existing_jid
+        entry["submitted_utc"] = now()
+        entry["adopted"] = True
+        state.write()
+        print(f"ADOPTED {existing_jid} (state {existing_state}) — not resubmitting")
+        return 0
+
+    env = dict(os.environ, CHAIN="1", LEG_STEPS=str(args.leg_steps),
+               CHAIN_INTENT_TOKEN=token)
+    if args.dependency:
+        env["CHAIN_DEPENDENCY"] = args.dependency
+    cmd = ["bash", args.submitter, args.arm, "--resume", args.resume,
+           "--expected-step", str(args.target)]
+    print(f"submitting: {' '.join(cmd)} (token {token})")
+    proc = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    sys.stdout.write(proc.stdout)
+    sys.stderr.write(proc.stderr)
+    if proc.returncode != 0:
+        print(f"SUBMIT FAILED rc {proc.returncode}; boundary stays INTENDED (replaying this "
+              "operation submits exactly once)")
+        return 1
+    jid = None
+    for line in proc.stdout.splitlines():
+        if "submitted" in line and "-> job" in line:
+            jid = line.split()[-1]
+    entry["state"] = "SUBMITTED"
+    entry["next_leg_jid"] = jid or "unknown"
+    entry["submitted_utc"] = now()
+    state.write()
+    print(f"SUBMITTED {entry['next_leg_jid']}")
+    return 0
+
+
 def cmd_status(state, args):
     entry = state.boundary(args.target)
     if not entry:
@@ -171,10 +307,19 @@ def main(argv=None):
     d = sub.add_parser("status")
     d.add_argument("--target", type=int, required=True)
 
+    e = sub.add_parser("transact-submit")
+    e.add_argument("--target", type=int, required=True)
+    e.add_argument("--next-target", type=int, required=True)
+    e.add_argument("--submitter", required=True)
+    e.add_argument("--resume", required=True)
+    e.add_argument("--leg-steps", type=int, default=2500)
+    e.add_argument("--dependency", default=None)
+
     args = ap.parse_args(argv)
     with State(args.state, args.arm, args.cap) as state:
         return {"record-audit": cmd_record_audit, "intend": cmd_intend,
-                "mark-submitted": cmd_mark_submitted, "status": cmd_status}[args.cmd](state, args)
+                "mark-submitted": cmd_mark_submitted, "status": cmd_status,
+                "transact-submit": cmd_transact_submit}[args.cmd](state, args)
 
 
 if __name__ == "__main__":
