@@ -1445,6 +1445,159 @@ sys.exit(0 if r['exit_class']==0 and r['chain']['successor_jid']=='4242'
          and r['chain']['rate_gate_verdict']=='PASS' else 1)" "${TX}/term_green.json"
 check "  ... class 0 WITH the successor jid — from the real writer" $?
 
+echo "--- AG. NEW (chain-fix3): dead children, unconditional identity, terminal truth, parser completeness ---"
+# (1) a TERMINAL-FAILED child is NEVER adopted, whatever its parent's state.
+cat > "${TX}/sacct_ctl.sh" <<EOS
+#!/usr/bin/env bash
+if [ -e "${TX}/child_dead.flag" ]; then
+  for a in "\$@"; do [ "\$a" = "--name" ] && { echo "9003 CANCELLED"; exit 0; }; done
+  echo "COMPLETED"
+fi
+exit 0
+EOS
+chmod +x "${TX}/sacct_ctl.sh"
+tx_seed "${TX}/dead.json"
+: > "${TX}/submits_dead.log"; touch "${TX}/child_dead.flag"
+expect_cmd "a CANCELLED child with a HEALTHY parent is CHILD_DEAD, never adopted" 5 "CHILD_DEAD 9003" -- \
+  tx_submit "${TX}/dead.json" "${TX}/squeue_none.sh" "${TX}/sacct_ctl.sh" \
+    "SUBMIT_LOG=${TX}/submits_dead.log"
+[ ! -s "${TX}/submits_dead.log" ]; check "  ... nothing was submitted" $?
+$PY -c "
+import json,sys
+b=json.load(open(sys.argv[1]))['boundaries']['2500']
+dead=b.get('dead_children') or []
+sys.exit(0 if b['state']=='INTENDED' and not b.get('next_leg_jid')
+         and dead and dead[0]['jid']=='9003' and dead[0]['state']=='CANCELLED'
+         and b['intent_token'] != dead[0]['token'] else 1)" "${TX}/dead.json"
+check "  ... not SUBMITTED; corpse on record; intent token ROTATED" $?
+rm -f "${TX}/child_dead.flag"
+expect_cmd "re-running after CHILD_DEAD submits a fresh successor" 0 "SUBMITTED" -- \
+  tx_submit "${TX}/dead.json" "${TX}/squeue_none.sh" "${TX}/sacct_ctl.sh" \
+    "SUBMIT_LOG=${TX}/submits_dead.log"
+[ "$(grep -c . "${TX}/submits_dead.log")" = "1" ]; check "  ... exactly once" $?
+# (2) identity completeness is UNCONDITIONAL, both at submit time and in preflight.
+AG_MAN="${TMP}/ag_initial_manifest.txt"
+ag_build() {  # <manifest-out> <registry-out> [max_steps] [leg_start] [leg_target] [init_target]
+  printf '%s\n' "# exp_15 arm launch manifest" \
+    "job 1 host h mode INITIAL launch_uuid u" \
+    "arm YAWAUG rung 8x8 micro 8 ngpu 8 max_steps ${3:-2500} ckpt_every 2500" \
+    "chain 1 leg_steps 2500 leg_start ${4:-0} leg_target ${5:-2500} cap 40000" > "$1"
+  $PY -c "
+import hashlib, json, sys
+man, out, tgt = sys.argv[1], sys.argv[2], int(sys.argv[3])
+json.dump({'arms': {'YAWAUG': {'manifest_path': man,
+           'manifest_sha256': hashlib.sha256(open(man,'rb').read()).hexdigest(),
+           'mode': 'INITIAL', 'chain': True, 'chain_cap': 40000,
+           'chain_leg_steps': 2500, 'chain_initial_target': tgt}}, 'restarts': {}},
+          open(out, 'w'))" "$1" "$2" "${6:-2500}"
+}
+ag_build "$AG_MAN" "${TMP}/ag_reg_ok.json"
+expect_cmd "the strengthened submit-time validator still admits a valid INITIAL" 0 "ag_initial_manifest" -- \
+  initial_manifest "${TMP}/ag_reg_ok.json"
+$PY -c "
+import json,sys
+d=json.load(open(sys.argv[1])); del d['arms']['YAWAUG']['manifest_sha256']
+json.dump(d, open(sys.argv[2],'w'))" "${TMP}/ag_reg_ok.json" "${TMP}/ag_reg_nosha.json"
+expect_cmd "an INITIAL with NO registered manifest_sha256 is refused (absence != skip)" 1 "carries no manifest_sha256" -- \
+  initial_manifest "${TMP}/ag_reg_nosha.json"
+ag_build "${TMP}/ag_man_ms.txt" "${TMP}/ag_reg_ms.json" 5000
+expect_cmd "manifest max_steps != leg size is refused at submit time" 1 "manifest max_steps" -- \
+  initial_manifest "${TMP}/ag_reg_ms.json"
+ag_build "${TMP}/ag_man_ls.txt" "${TMP}/ag_reg_ls.json" 2500 100
+expect_cmd "manifest leg_start != 0 is refused at submit time" 1 "manifest leg_start" -- \
+  initial_manifest "${TMP}/ag_reg_ls.json"
+ag_build "${TMP}/ag_man_lt.txt" "${TMP}/ag_reg_lt.json" 2500 0 5000
+expect_cmd "manifest leg_target != leg size is refused at submit time" 1 "manifest leg_target" -- \
+  initial_manifest "${TMP}/ag_reg_lt.json"
+ag_build "${TMP}/ag_man_it.txt" "${TMP}/ag_reg_it.json" 2500 0 2500 5000
+expect_cmd "registry chain_initial_target != leg size is refused at submit time" 1 "registry chain_initial_target" -- \
+  initial_manifest "${TMP}/ag_reg_it.json"
+# ...and the worker preflight applies the same unconditional rules.
+pre2() {  # <registry> <manifest>
+  $PY "$CP" --ckpt "${TMP}/boundary.ckpt" --expected-step 2500 --target 5000 \
+    --cap 40000 --config "$ARM_CONFIG" --arm YAWAUG --rung 8x8 --vae-sha256 VAESHA \
+    --launch-manifest "$2" --registry "$1" --recorder "${EXPDIR}/yaw_aug_record_control.py"
+}
+$PY -c "
+import json,sys
+d=json.load(open(sys.argv[1])); del d['arms']['YAWAUG']['manifest_sha256']
+json.dump(d, open(sys.argv[2],'w'), indent=2)" "${TMP}/chain_registry.json" "${TMP}/ag_pre_nosha.json"
+expect_cmd "preflight refuses a registry entry with no manifest_sha256" 1 "carries no manifest_sha256" -- \
+  pre2 "${TMP}/ag_pre_nosha.json" "${TMP}/initial_manifest.txt"
+ag_prefix() {  # <new-manifest> <registry-out> <sed-expr>: mutate AD's manifest + re-hash
+  sed "$3" "${TMP}/initial_manifest.txt" > "$1"
+  $PY -c "
+import hashlib, json, sys
+d=json.load(open(sys.argv[1]))
+d['arms']['YAWAUG']['manifest_path']=sys.argv[3]
+d['arms']['YAWAUG']['manifest_sha256']=hashlib.sha256(open(sys.argv[3],'rb').read()).hexdigest()
+json.dump(d, open(sys.argv[2],'w'), indent=2)" "${TMP}/chain_registry.json" "$2" "$1"
+}
+ag_prefix "${TMP}/ag_pre_ms.txt" "${TMP}/ag_pre_ms.json" 's/max_steps 2500/max_steps 5000/'
+expect_cmd "preflight refuses manifest max_steps != leg size" 1 "manifest max_steps" -- \
+  pre2 "${TMP}/ag_pre_ms.json" "${TMP}/ag_pre_ms.txt"
+ag_prefix "${TMP}/ag_pre_lsx.txt" "${TMP}/ag_pre_lsx.json" 's/leg_start 0/leg_start 100/'
+expect_cmd "preflight refuses manifest leg_start != 0" 1 "manifest leg_start" -- \
+  pre2 "${TMP}/ag_pre_lsx.json" "${TMP}/ag_pre_lsx.txt"
+# (3) terminal truth: a failed record write fails the JOB, and names its stranded child.
+expect_cmd "the REAL terminal writer signals failure on an unwritable path" 1 "No such file or directory" -- \
+  $PY "${TMP}/terminal.py" "${TMP}/no_such_dir/t.json" 0 0 0 0 OK 1 0 2500 40000 4242 "" "PASS" "AUDITED" 42 /x/m
+sed -n '/--- BEGIN terminal-write-gate/,/--- END terminal-write-gate/p' "$LAUNCHER" > "${TMP}/twgate.sh"
+grep -q 'final_rc=14' "${TMP}/twgate.sh"; check "the terminal-write gate is extracted (class 14)" $?
+tw() {  # <write-rc> <successor> <final-rc-in> -> prints final_rc=<out>
+  ( TERMINAL_WRITE_RC="$1" CHAIN_SUCCESSOR_JID="$2" final_rc="$3"
+    . "${TMP}/twgate.sh"; echo "final_rc=${final_rc}" )
+}
+expect_cmd "write failure turns a green job into class 14" 0 "final_rc=14" -- tw 1 "" 0
+tw 1 7777 0 > "${TMP}/tw.out"
+grep -q "CHAIN STALLED: successor 7777 is queued with afterok" "${TMP}/tw.out"
+check "  ... naming the already-queued successor and its unsatisfiable dependency" $?
+grep -q "scancel 7777, fix the record path, then re-run the recorded" "${TMP}/tw.out"
+check "  ... and the exact scancel + transact-submit re-run recovery" $?
+expect_cmd "an existing failure class is PRESERVED (truth, not overwrite)" 0 "final_rc=9" -- tw 1 "" 9
+expect_cmd "a clean write leaves a green job green" 0 "final_rc=0" -- tw 0 "" 0
+grep -q '#  14  the TERMINAL status record' "$LAUNCHER"
+check "class 14 is documented in the exit taxonomy" $?
+expect_cmd "chain_advance routes a CHILD_DEAD transaction to class 12" 0 "final_rc=12" -- \
+  drive 0 "TRAINLOG=${TMP}/fast.log" SUBMIT_RC=5
+grep -q "DEAD" "${TMP}/advance.out"; check "  ... and says the successor was found dead" $?
+# (4) manifest_fields() is complete against the REAL writer.
+if $PY -c "import torch" 2>/dev/null; then
+  sed -n '/--- BEGIN manifest-writer/,/--- END manifest-writer/p' "$LAUNCHER" > "${TMP}/manwriter.sh"
+  [ -s "${TMP}/manwriter.sh" ]; check "the manifest writer is extracted from the launcher" $?
+  ( export PATH="$(dirname "$PY"):$PATH"
+    SLURM_JOB_ID=1; LAUNCH_UUID=u; MODE=INITIAL; ARM=YAWAUG; RUNG=8x8; MB=8; NGPU=8
+    MAXSTEPS=2500; CHECKPOINT_EVERY=2500; HEAD_SHA=h; PINNED_P0_MANIFEST_SHA256=p
+    MODEL_CONFIG_ABS=/x/c.json; CONFIG_SHA=cs; VAE_SHA=vs; ENV_SHA=es; CUDA_VER=12.6
+    DRIVER=555; UUID_CSV=g; TIME_LIMIT=1:30:00; MIN_FREE_MB=14000; RESUME_CKPT=
+    EXPECTED_STEP=0; CKPT_SHA=; SAVEDIR=/x; SLURM_OUT_AT_LAUNCH=/x/o; UNTRACK_STATE=n
+    CHAIN=1; LEG_STEPS=2500; PINNED_CHAIN_CAP=40000; CODE_SNAPSHOT=/x/s; TRAINLOG=/x/t
+    SAVEDIR_LOG=/x/tl; WANDB_ENTITY_SEEN=e; NAME=proj; EXPNAME=run; WANDB_RUN_ID=r
+    PARENT_WANDB_RUN_ID=; SNAPSHOT_SHAS=(); ARGV=(--a 1)
+    . "${TMP}/manwriter.sh" ) > "${TMP}/ag_real_manifest.txt" 2>/dev/null
+  $PY -c "
+import sys; sys.path.insert(0, '$EXPDIR')
+from yaw_aug_chain_preflight import manifest_fields
+f = manifest_fields(open('${TMP}/ag_real_manifest.txt').read())
+need = ['job','host','mode','launch_uuid','arm','rung','micro','ngpu','max_steps',
+        'ckpt_every','commit','p0_manifest_sha256','model_config','config_sha256',
+        'vae_sha256','env_pip_freeze_sha256','torch_version','cuda','driver',
+        'gpu_uuids','time_limit','min_free_mb','resume_ckpt','expected_step',
+        'resume_ckpt_sha256','save_dir','slurm_transcript','untrack','chain',
+        'leg_steps','leg_start','leg_target','cap','train_log','wandb_entity',
+        'wandb_project','wandb_name','wandb_run_id']
+missing = [k for k in need if k not in f]
+assert not missing, f'unretrievable keys: {missing}'
+assert f['cuda']=='12.6' and f['driver']=='555' and f['min_free_mb']=='14000'
+assert f['expected_step']=='0' and f['untrack']=='n' and f['wandb_project']=='proj'
+assert f['wandb_name']=='run' and f['cap']=='40000' and f['leg_target']=='2500'
+print('every launcher-written key is retrievable, later pairs included')"
+  check "manifest_fields() retrieves EVERY key the real writer emits (later pairs included)" $?
+else
+  skip_env "manifest_fields() retrieves EVERY key the real writer emits (later pairs included)" \
+    "no torch for the writer's torch_version line; covered by the flac-env run"
+fi
+
 echo "--- Q. the suite touched nothing tracked, and submitted nothing ---"
 TRACKED_AFTER="$(git status --porcelain --untracked-files=no -- "$EXPDIR" "$EXP11DIR" src data/AR | sort)"
 UNTRACKED_AFTER="$(git status --porcelain --untracked-files=all -- "$EXPDIR" | sort)"
