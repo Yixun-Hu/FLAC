@@ -1,3 +1,5 @@
+**Reviewer:** OpenAI Codex `gpt-5.6-sol`, reasoning effort xhigh, codex-cli, read-only sandbox · seat per SOP §Roles · 2026-08-12**
+
 ## Verdict: REQUEST-CHANGES
 
 Four prior findings are substantively resolved. Two launch-safety issues remain blocking.
