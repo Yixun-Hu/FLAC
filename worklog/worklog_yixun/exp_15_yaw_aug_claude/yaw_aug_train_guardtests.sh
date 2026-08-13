@@ -411,7 +411,13 @@ if [ -f outputs_FLAC/exp11_VANL/launch_manifest.txt ]; then
   grep -q '^vae_sha256 8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9' outputs_FLAC/exp11_VANL/launch_manifest.txt
   check "the control manifest records our pinned VAE" $?
 else
-  skip_env "control-manifest cross-check" "manifest not present in this tree"
+  # Name the cases this stands in for, so the union checker can match them
+  # against the environment where they DO run (a summary name matches nothing).
+  for MISSING_CASE in "the control manifest on disk still hashes to that pin" \
+                      "the control manifest records our pinned torch" \
+                      "the control manifest records our pinned VAE"; do
+    skip_env "$MISSING_CASE" "outputs_FLAC is gitignored: no manifest in this tree"
+  done
 fi
 
 echo "--- M. the submitter ---"
@@ -671,7 +677,11 @@ json.dump(d, open(sys.argv[2],'w'))" "${EXP11DIR}/arm_launch_registry.json" "${T
   expect_cmd "a registry disagreeing with the reviewed pin is refused" 1 "the control's identity moved" -- \
     ctrl_env "$CTRL_MAN" "$PIN" "${TMP}/reg_moved.json"
 else
-  skip_env "control-manifest snapshot cases" "manifest not present in this tree"
+  for MISSING_CASE in "the real control manifest passes the snapshot gate" \
+                      "a tampered manifest fails the snapshot gate" \
+                      "a registry disagreeing with the reviewed pin is refused"; do
+    skip_env "$MISSING_CASE" "outputs_FLAC is gitignored: no manifest in this tree"
+  done
 fi
 
 echo "--- V. NEW (full-fix F1): end-of-run code is bound to a run-owned snapshot ---"
