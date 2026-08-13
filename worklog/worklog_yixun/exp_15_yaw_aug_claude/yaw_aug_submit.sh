@@ -170,7 +170,13 @@ CADENCE=2500
 STANDING_WAIVER_REF="worklog 2026-08-12T16:05:00-04:00 (Yixun waived rate_at_least_0.9x_VANL; post-hoc windowed floors 0.849/0.843)"
 if [ "$CHAIN" = "1" ]; then
   case "$LEG_STEPS" in ''|*[!0-9]*) echo "LEG_STEPS '${LEG_STEPS}' must be a positive integer - abort"; exit 2;; esac
+  [ "${#LEG_STEPS}" -le 7 ] || { echo "LEG_STEPS '${LEG_STEPS}' is absurdly long — refusing to do arithmetic on it - abort"; exit 2; }
+  [ "${#EXPECTED_STEP}" -le 7 ] || { echo "--expected-step '${EXPECTED_STEP}' is absurdly long - abort"; exit 2; }
   [ "$LEG_STEPS" -gt 0 ] || { echo "LEG_STEPS must be > 0 - abort"; exit 2; }
+  # PINNED, not tunable: every leg gets the same 1:30 wall (chain review, F6).
+  PINNED_LEG_STEPS="$(pin PINNED_LEG_STEPS)"
+  [ "$LEG_STEPS" = "$PINNED_LEG_STEPS" ] \
+    || { echo "LEG_STEPS ${LEG_STEPS} != the pinned ${PINNED_LEG_STEPS}: the per-leg wall pin is sized for ${PINNED_LEG_STEPS} steps — a different leg size needs its own reviewed time pin - abort"; exit 2; }
   # Boundary saves are STRUCTURAL: a leg can only resume from a checkpoint that
   # exists, and checkpoints exist only on the 2500 cadence.
   [ $((LEG_STEPS % CADENCE)) -eq 0 ] \
@@ -218,7 +224,13 @@ else
     [ "$V" != "$PLACEHOLDER" ] || { echo "the launcher still carries ${PLACEHOLDER} pins: the P0 report has not been pinned yet — no arm may be submitted (use SMOKE=1 for the smoke) - abort"; exit 2; }
   done
   JOBNAME="exp15-${ARM}-train"
-  [ "$CHAIN" = "1" ] && JOBNAME="exp15-${ARM}-leg${LEG_TARGET}"
+  if [ "$CHAIN" = "1" ]; then
+    JOBNAME="exp15-${ARM}-leg${LEG_TARGET}"
+    # The parent embeds a unique intent token in the child's NAME so that a crash
+    # between sbatch and its own status write is recoverable by `squeue -n`
+    # rather than by a second submission (chain review, finding 4).
+    [ -n "${CHAIN_INTENT_TOKEN:-}" ] && JOBNAME="${JOBNAME}-${CHAIN_INTENT_TOKEN}"
+  fi
 fi
 case "$RUNG" in 8x8) ;; *) echo "rung '${RUNG}' must be 8x8 — exp_15 has ONE topology, smoke included - abort"; exit 2;; esac
 MB="${RUNG%x*}"; NGPU="${RUNG#*x}"
@@ -308,6 +320,9 @@ ARGS=(
 [ "$SMOKE" = "1" ] && ARGS[5]="${ARGS[5]},SMOKE=1,SMOKE_RUNG=${SMOKE_RUNG},SMOKE_MIN_FREE_MB=${SMOKE_MIN_FREE_MB},SMOKE_MAXSTEPS=${SMOKE_MAXSTEPS:-30},SMOKE_TIME=${TIME_LIMIT}"
 [ -n "$RESUME_CKPT" ] && ARGS[5]="${ARGS[5]},RESUME_CKPT=${RESUME_CKPT},EXPECTED_STEP=${EXPECTED_STEP}"
 [ "$CHAIN" = "1" ] && ARGS[5]="${ARGS[5]},CHAIN=1,LEG_STEPS=${LEG_STEPS}"
+# A chain successor must not start while its parent still owns the run lock: the
+# parent passes afterok:<its job id>, so Slurm — not luck — orders the legs.
+[ -n "${CHAIN_DEPENDENCY:-}" ] && ARGS+=("--dependency=${CHAIN_DEPENDENCY}")
 ARGS+=("$SBATCH_FILE")
 
 echo "arm ${ARM} | rung ${RUNG} (${MB}x${NGPU}) | time ${TIME_LIMIT} | commit ${SHA} | smoke ${SMOKE}"
@@ -339,6 +354,7 @@ TMP="$(mktemp "${MANIFEST}.XXXXXX")" || exit 3
     echo "chain 1 leg_steps ${LEG_STEPS} leg_start ${EXPECTED_STEP} leg_target ${LEG_TARGET} cap ${CHAIN_CAP}"
     echo "chain_standing_waiver ${STANDING_WAIVER_REF}"
     echo "chain_initial_manifest ${CHAIN_INITIAL_MANIFEST:-<this leg is the INITIAL>}"
+    echo "chain_intent_token ${CHAIN_INTENT_TOKEN:-<none>} dependency ${CHAIN_DEPENDENCY:-<none>}"
   fi
   echo "sbatch sbatch ${ARGS[*]}"
 } >> "$TMP" || { echo "intent manifest write failed - abort"; exit 3; }
