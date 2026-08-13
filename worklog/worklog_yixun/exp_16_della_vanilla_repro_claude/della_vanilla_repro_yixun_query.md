@@ -22,3 +22,13 @@ The published FLAC recipe, run on della's H100 with this repo's configs, reprodu
 ### Why the experiment needs to run
 
 This fork's equivariance line (exp_02→exp_15) so far compares against the *released* checkpoint or short screens. A full-budget vanilla reproduction on della (a) validates the entire della training pipeline end-to-end before any method experiments run here, (b) establishes the training noise floor for full-budget comparisons (how far a faithful re-run lands from the release), and (c) provides a locally-trained vanilla anchor for future full-budget method arms.
+
+## Query 2 — 2026-08-13 (chunked-training directive)
+
+### Verbatim
+
+> Right now I need you to do this: Currently the computing resources are really limited, so our job is hard to backfilled. The strategy I need you to help us training is to write a watchdog and split gpu-medium to multiple jobs (for example, one job only train 2500 steps and then closed and next job resume from the previous 2500 steps checkpoints and trained based on that), please verify that current code support checkpoint resume (if not, you should write code support). Using this I think we don't need to wait for a such a long time.
+
+### Summary / decisions
+
+Split Phase 2 into a self-resuming chain of short gpu-short jobs with a watchdog; verify (or add) checkpoint-resume support first. Verification found resume mechanically supported (train.py:230; optimizer/scheduler/EMA/loop state restored) but exposed the fixed-seed shuffle trap (same seed ⇒ identical permutation every leg ⇒ 2500-step legs would retrain the same ~55% subset 27×; proven empirically). Yixun chose: **7500 steps × 9 legs** (over 2500×27 and 15000×5) and **cancel both racers at chain submission**.
