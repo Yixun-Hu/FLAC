@@ -198,3 +198,8 @@
 - **Seat notes** — Coder seat: Opus 5 (to `e204961`) → **Claude Fable 5 fork** (from `f4671f3`), per the 20:45 entry; flagged per the role-attribution rule.
 - **Login-node hygiene flag (not ours to kill):** the other session's 15:38 guardtest trio (PIDs 265588/265601/265610) is hung at the pre-fix AE `wait` deadlock and will never exit; its four partial logs sit uncommitted in the exp folder. Surfaced to Yixun.
 - **Next** — Scoped Codex verification of `e204961`+`f4671f3`+`562be70` (the transaction implementation has not itself seen the Reviewer) → on GO: submit chain INITIAL.
+
+## 2026-08-13T19:15:00-04:00 — chain-fix3 complete (4/4 closed, no new defect); final GO check
+
+- **Result** — `passed`. Commits `c922148` (dead-child refusal with corpse record + token rotation, rc 5 → class 12; unconditional both-source identity incl. mandatory manifest_sha256 and the 0/2500/2500/2500 pins; terminal-write failure = class 14 with the queued-successor stranding surface + exact recovery; manifest_fields complete for all 38 keys) + `3cbdc90` (guardtest section AG, 27 cases) + `dfaf810` (evidence). Suites: **main 347/0, STRICT 359/0, union 363/363 SATISFIED**. Race/stranded core re-verified verbatim. No new implementation bug this cycle — first clean-on-first-contact cycle; convergence.
+- **Next** — Push; final scoped Codex pass on `c922148`+`3cbdc90` only; on GO: submit chain INITIAL, arm the chain monitor, done for the night.
