@@ -121,3 +121,10 @@
 ## 2026-08-12T10:20:00-04:00 — Yixun pre-authorizes Phase-2 launch on gate pass
 
 - **Result** — Yixun (verbatim): "Once phase-1 gate passes, go ahead and submit the training". Standing approval recorded: when ALL pre-registered Phase-1 thresholds pass (plan §5 + Rev 3 §2 JSON paths), the session writes + commits `PHASE1_PASS.md`, then immediately submits `della_submit.sh train --time 2-06:00:00` (A100-80GB, gpu-medium) without a further ask. A FAILED gate still stops everything and goes to Yixun as a diagnosis. The PHASE1_PASS interlock remains in force — the wrapper still refuses without the committed verdict file.
+
+## 2026-08-12T18:15:00-04:00 — Queue diagnosis + two-leg race strategy (Yixun-approved)
+
+- **Goal** — Explain the all-day eval queue wait; de-risk the training-leg queue wait.
+- **Result** — Diagnosis: cells rank ~273-275 of ~275 pending on `gpu` (prio 5095 vs 11k-17k ahead). Decomposition (sprio, 12287666): fairshare **2967** + QOS 2000 (gpu-short) + age 113 + size 15. Root cause is **account-level fairshare exhaustion**: blanchette EffectvUsage 0.101 vs NormShares 0.042 (~2.4× over-share; kw4335 = 82% of the account's 166M raw usage; yh4742's own usage 0.04%). Fair-tree charges the whole account. Backfill starved by 340-deep pending queue.
+- **Decision (Yixun, race option):** on Phase-1 PASS, submit BOTH a gpu-medium single leg (`--time 2-06:00:00`) and a gpu-short leg (`--time 23:30:00`, ~48k steps before timeout); first to start wins, loser scancel'd (three exclusion layers: Slurm `Dependency=singleton` on the shared job name, monitor-driven cancel ≤60 s, and the sbatch checkpoint-exists gate). gpu-short winner ⇒ planned RESUME=1 continuation per Rev 3 runbook (non-bit-exact resume disclosed in results; the gpu-medium single-leg outcome remains the preferred, cleaner artifact). Both submissions recorded in the command manifest as usual.
+- **Next** — Cells (12287666/76/77, est. start ~00:32) → gate → PASS ⇒ two-leg submission, FAIL ⇒ stop + diagnosis.
