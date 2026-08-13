@@ -40,8 +40,9 @@
 #
 # Exit codes: 2 parameters, 3 repo/dirs, 4 closure binding, 5 interpreter
 # provenance, 6 GPU, 7 ntasks, 8 log durability, 9 checkpoint discovery,
-# 10 mutual exclusion, 11 CHAINHALT (watchdog), 12 chain manifest,
-# 13 post-run target mismatch; otherwise train.py's own rc.
+# 10 mutual exclusion, 11 CHAINHALT / stamp, 12 chain manifest,
+# 13 post-run target mismatch, 14 the squeue query itself failed;
+# otherwise train.py's own rc.
 # ============================================================================
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -165,6 +166,30 @@ read_manifest() {
   return 0
 }
 
+# --- the attempts stamp: read / decide / halt (used under one lock, see gate G) --
+STAMP_S=-1; STAMP_N=0; STAMP_NEXT=1; STAMP_HALT=0
+stamp_read() {     # -> STAMP_S / STAMP_N ( -1 / 0 when there is no stamp yet )
+  STAMP_S=-1; STAMP_N=0
+  [ -f "$STAMP" ] || return 0
+  read -r STAMP_S STAMP_N < "$STAMP" || return 1
+  case "${STAMP_S}${STAMP_N}" in ''|*[!0-9]*) return 1 ;; esac
+  return 0
+}
+stamp_decide() {   # -> STAMP_HALT (two strikes at the same S) and STAMP_NEXT
+  STAMP_HALT=0
+  if [ "$STAMP_S" = "$S" ]; then
+    STAMP_NEXT=$((STAMP_N + 1))
+    [ "$STAMP_N" -lt 2 ] || STAMP_HALT=1
+  else
+    STAMP_NEXT=1     # progress since the stamp was written: strikes reset
+  fi
+}
+chainhalt() {
+  echo "CHAINHALT: two consecutive legs made no progress at step ${S} - systematic failure, chain halted"
+  cancel_later "CHAINHALT"
+  die "two consecutive legs made no progress at step ${S} - systematic failure, chain halted" 11
+}
+
 cancel_later() {   # <reason>
   if [ "${#MANIFEST_LATER[@]}" -eq 0 ]; then
     echo "no later legs in the manifest to cancel (${1})"
@@ -241,8 +266,20 @@ main() {
   [ "${SLURM_NTASKS:-1}" -le 1 ] || die "SLURM_NTASKS=${SLURM_NTASKS} > 1: this kit is single-task only" 7
   # Two GPU runs writing one save-dir would interleave checkpoints and make every
   # leg's S ambiguous. The racers and the chain must never overlap.
-  RUNNING="$(squeue -h -u "$(id -un)" -n "$EXCLUSIVE_NAMES" -t R -o '%i' 2>/dev/null \
-              | grep -v "^${SLURM_JOB_ID:-__none__}\$" | tr '\n' ' ')" || true
+  #
+  # The QUERY is checked before its OUTPUT is (review B1): a controller outage, an
+  # auth failure or a bad argument makes squeue print nothing and exit nonzero, and
+  # an empty result then reads exactly like "no other job is running" — the most
+  # dangerous possible misreading of this particular gate. Capture stdout and rc
+  # separately, refuse on rc, and only then filter. This stays fatal under DRYRUN:
+  # dry runs happen on the login node, where squeue works.
+  RUNNING_RAW="$(squeue -h -u "$(id -un)" -n "$EXCLUSIVE_NAMES" -t R -o '%i')"
+  SQ_RC=$?
+  [ "$SQ_RC" -eq 0 ] \
+    || die "squeue -h -u $(id -un) -n ${EXCLUSIVE_NAMES} -t R FAILED (rc=${SQ_RC}) - refusing to read a scheduler error as 'no other job is running'" 14
+  # grep exits 1 when everything was filtered out; that is a legitimate empty
+  # result HERE because the query itself already proved successful above.
+  RUNNING="$(printf '%s\n' "$RUNNING_RAW" | grep -v "^${SLURM_JOB_ID:-__none__}\$" | tr '\n' ' ')" || true
   RUNNING="$(echo "$RUNNING" | tr -s ' ' | sed 's/^ //;s/ $//')"
   [ -z "$RUNNING" ] \
     || die "another exp16 training job is RUNNING (${RUNNING}): a chain leg may not share the save-dir - cancel it first" 10
@@ -270,7 +307,14 @@ main() {
   fi
 
   LEG=$((S / CHAIN_CHUNK))
-  SEED=$((42 + LEG))
+  # CHECKPOINT-INDEXED reseeding (Codex round-D N1), not leg-indexed: a leg that
+  # crashes mid-chunk is retried from the last CHECKPOINT, not from the chunk
+  # boundary, so a leg-indexed seed would hand the retry the same seed as the
+  # original attempt and replay the same permutation over the steps that already
+  # succeeded. Indexing on the checkpoint makes every distinct resume point a
+  # distinct seed (S=60000 -> 66, a retry at S=62500 -> 67), while S=0 still gives
+  # the recipe's seed 42 and the probe still walks 42/43/44 at 0/100/200.
+  SEED=$((42 + S / CHECKPOINT_EVERY))
   TARGET=$((S + CHAIN_CHUNK))
   [ "$TARGET" -le "$CHAIN_TOTAL" ] || TARGET="$CHAIN_TOTAL"
 
@@ -279,26 +323,29 @@ main() {
   # consecutive no-progress attempt is a systematic failure (bad checkpoint, OOM,
   # a code bug) — nine legs would each reproduce it, so the chain stops instead.
   STAMP="$SAVEDIR/chain_attempts.stamp"
-  STAMP_S=-1; STAMP_N=0
-  if [ -f "$STAMP" ]; then
-    read -r STAMP_S STAMP_N < "$STAMP" || die "could not read the attempts stamp ${STAMP}" 11
-    case "${STAMP_S}${STAMP_N}" in ''|*[!0-9]*) die "attempts stamp ${STAMP} is malformed: '${STAMP_S} ${STAMP_N}'" 11 ;; esac
-  fi
-  if [ "$STAMP_S" = "$S" ] && [ "$STAMP_N" -ge 2 ]; then
-    echo "CHAINHALT: two consecutive legs made no progress at step ${S} - systematic failure, chain halted"
-    cancel_later "CHAINHALT"
-    die "two consecutive legs made no progress at step ${S} - systematic failure, chain halted" 11
-  fi
-  if [ "$STAMP_S" = "$S" ]; then NEXT_N=$((STAMP_N + 1)); else NEXT_N=1; fi
+  STAMP_LOCK="$SAVEDIR/.chain_stamp.lock"
+  # Read, decide and write happen INSIDE ONE lock, held on a SEPARATE lockfile
+  # (review N3). The previous version took the lock on the stamp itself with
+  # `200>"$STAMP"`, which truncates before the lock is granted — a second leg
+  # could read the emptied file and reset the strike count, defeating the
+  # watchdog exactly when two legs are contending, i.e. when it matters.
   if [ "$DRYRUN" = "1" ]; then
-    echo "DRYRUN would: write attempts stamp '${S} ${NEXT_N}' to ${STAMP}"
+    # Read-only preview: a dry run takes no lock and creates no lockfile, so it
+    # leaves the filesystem byte-identical.
+    stamp_read || die "attempts stamp ${STAMP} is unreadable or malformed" 11
+    stamp_decide
+    [ "$STAMP_HALT" = "0" ] || chainhalt
+    echo "DRYRUN would: write attempts stamp '${S} ${STAMP_NEXT}' to ${STAMP}"
   else
     mkdir -p "$SAVEDIR" || die "could not create save-dir ${SAVEDIR}" 3
-    (
-      flock -w 30 200 || exit 1
-      echo "$S $NEXT_N" >&200
-    ) 200>"$STAMP" || die "could not update the attempts stamp ${STAMP}" 11
-    echo "attempts stamp: ${S} ${NEXT_N}"
+    exec 9>"$STAMP_LOCK" || die "could not open the stamp lock ${STAMP_LOCK}" 11
+    flock -w 30 9 || die "could not take the stamp lock ${STAMP_LOCK} within 30s" 11
+    stamp_read || die "attempts stamp ${STAMP} is unreadable or malformed" 11
+    stamp_decide
+    [ "$STAMP_HALT" = "0" ] || chainhalt      # exits while still holding the lock
+    echo "$S $STAMP_NEXT" > "$STAMP" || die "could not update the attempts stamp ${STAMP}" 11
+    exec 9>&-
+    echo "attempts stamp: ${S} ${STAMP_NEXT}"
   fi
 
   # --- H. the argv -------------------------------------------------------------

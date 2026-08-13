@@ -26,7 +26,8 @@
 # Exit codes: 2 usage, 3 closure dirty, 4 HEAD not pushed, 5 sbatch failed or
 # unparsable, 6 record/manifest write or verify failed, 7 release failed,
 # 8 Phase-1 verdict missing, 9 a racer/chain job already exists,
-# 10 the probe save-dir is not clean.
+# 10 the probe save-dir is not clean, 11 the squeue query itself failed,
+# 12 another submission holds the transaction lock.
 # ============================================================================
 set -euo pipefail
 
@@ -61,7 +62,28 @@ CLOSURE=(
   worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_chain_submit.sh
 )
 
+SUBMIT_LOCK="$EXPDIR/.chain_submit.lock"
+
 die() { echo "GATEFAIL rc=${2} ${1}" >&2; exit "${2}"; }
+
+# --- ONE LOCK OVER THE WHOLE TRANSACTION (review N2) --------------------------
+# Every gate below reads scheduler and filesystem state that a CONCURRENT
+# submission is in the middle of changing: two invocations could both see "no
+# chain jobs exist", both submit, and the second would overwrite the first's
+# manifest — leaving legs whose manifest names another chain's ids. Re-exec once
+# under flock so check -> submit -> manifest -> record -> release is indivisible.
+# A DRYRUN performs no transaction and takes no lock, which is also what keeps it
+# from creating the lockfile.
+if [ "${CHAIN_SUBMIT_LOCK_HELD:-0}" != "1" ] && [ "${DRYRUN:-0}" != "1" ]; then
+  export CHAIN_SUBMIT_LOCK_HELD=1
+  RC=0
+  # `bash "$0"` rather than "$0": the kit's files are mode 644 like the rest of
+  # the worklog, so they are run through an interpreter, never exec'd directly.
+  flock -w 10 -E 99 "$SUBMIT_LOCK" bash "$0" "$@" || RC=$?
+  [ "$RC" -ne 99 ] || die "another chain submission is in progress (could not take ${SUBMIT_LOCK} within 10s)" 12
+  exit "$RC"
+fi
+
 usage() {
   echo "usage: della_chain_submit.sh chain --time D-HH:MM:SS" >&2
   echo "       della_chain_submit.sh probe" >&2
@@ -149,7 +171,27 @@ echo "Phase-1 gate OK: ${PHASE1_PASS_REL} exists and is tracked at HEAD"
 # The chain REPLACES the two-leg race (Yixun 2026-08-13). Two GPU runs writing one
 # save-dir would interleave checkpoints and make every leg's resume point
 # ambiguous, and a queued racer would do it hours later without anyone watching.
-EXISTING="$(squeue -h -u "$(id -un)" -n "$EXCLUSIVE_NAMES" -o '%i %j %T' 2>/dev/null | tr '\n' ';')" || true
+# The QUERY is checked before its OUTPUT is (review B1): a controller outage or a
+# bad argument makes squeue print nothing and exit nonzero, and an empty result
+# then reads as "no racers exist" — which is precisely the state this gate must
+# never invent. Under DRYRUN a failed query is an advisory (a dry run submits
+# nothing, so it cannot act on the misreading); a real submission refuses.
+# `|| SQ_RC=$?`, not a bare assignment then `$?`: this script runs under `set -e`,
+# where a failing command substitution inside an assignment aborts the shell
+# BEFORE the next line can inspect the status — the gate would then die silently
+# with rc=1 instead of reporting why. (Measured: the first cut of this fix did
+# exactly that. The leg driver runs without -e and is not affected.)
+SQ_RC=0
+EXISTING_RAW="$(squeue -h -u "$(id -un)" -n "$EXCLUSIVE_NAMES" -o '%i %j %T')" || SQ_RC=$?
+if [ "$SQ_RC" -ne 0 ]; then
+  if [ "$DRYRUN" = "1" ]; then
+    echo "DRY-RUN ADVISORY: squeue -h -u $(id -un) -n ${EXCLUSIVE_NAMES} FAILED (rc=${SQ_RC}); a real submit aborts here"
+    EXISTING_RAW=""
+  else
+    die "squeue -h -u $(id -un) -n ${EXCLUSIVE_NAMES} FAILED (rc=${SQ_RC}) - refusing to read a scheduler error as 'no racers exist'" 11
+  fi
+fi
+EXISTING="$(printf '%s' "$EXISTING_RAW" | tr '\n' ';')"
 if [ -n "${EXISTING%;}" ]; then
   if [ "$DRYRUN" = "1" ]; then
     echo "DRY-RUN ADVISORY: exp16 training jobs already exist (a real submit aborts here): ${EXISTING%;}"
@@ -212,12 +254,33 @@ fi
 
 # --- H. submit every leg HELD, linked afterany --------------------------------
 JOBIDS=()
+# Cleanup may only undo what THIS invocation did (review N2): a manifest that was
+# already there belongs to another chain, and deleting it would strand that
+# chain's legs (they refuse to run without one). Its bytes are kept so a failed
+# overwrite can be put back exactly.
+MANIFEST_EXISTED=0
+MANIFEST_PREEXISTING=""
+MANIFEST_WRITTEN=0
+if [ -f "$MANIFEST" ]; then
+  MANIFEST_EXISTED=1
+  MANIFEST_PREEXISTING="$(cat "$MANIFEST")"
+fi
+restore_manifest() {
+  [ "$MANIFEST_WRITTEN" = "1" ] || return 0     # we never touched it
+  if [ "$MANIFEST_EXISTED" = "1" ]; then
+    printf '%s\n' "$MANIFEST_PREEXISTING" > "$MANIFEST" \
+      && echo "restored the pre-existing manifest ${MANIFEST}" >&2 \
+      || echo "could NOT restore the pre-existing manifest ${MANIFEST} - repair it by hand" >&2
+  else
+    rm -f "$MANIFEST"
+  fi
+}
 abort_transaction() {   # <message>
   if [ "${#JOBIDS[@]}" -gt 0 ]; then
     echo "cancelling the partial chain: ${JOBIDS[*]}" >&2
     scancel "${JOBIDS[@]}" || echo "scancel FAILED - cancel ${JOBIDS[*]} by hand" >&2
   fi
-  rm -f "$MANIFEST"
+  restore_manifest
   die "$1" 5
 }
 SBATCH_LINES=()
@@ -241,6 +304,7 @@ done
 write_records() {
   {
     flock -w 30 200 || return 1
+    MANIFEST_WRITTEN=1        # from here on, cleanup owns this file
     printf '%s\n' "${JOBIDS[@]}" > "$MANIFEST" || return 1
     if [ ! -s "$RECORD" ]; then
       {
@@ -271,7 +335,7 @@ write_records() {
 if ! write_records; then
   echo "manifest/command-record write or verify FAILED - cancelling the whole chain" >&2
   scancel "${JOBIDS[@]}" || echo "scancel FAILED - cancel ${JOBIDS[*]} by hand" >&2
-  rm -f "$MANIFEST"
+  restore_manifest
   die "no released chain may lack its manifest and record" 6
 fi
 echo "manifest ${MANIFEST} and record ${RECORD} written and verified"
@@ -282,7 +346,7 @@ echo "manifest ${MANIFEST} and record ${RECORD} written and verified"
 if ! scontrol release "${JOBIDS[@]}"; then
   echo "scontrol release FAILED - cancelling the chain; the record block stays as evidence" >&2
   scancel "${JOBIDS[@]}" || echo "scancel FAILED too - jobs ${JOBIDS[*]} are HELD; release or cancel by hand" >&2
-  rm -f "$MANIFEST"
+  restore_manifest
   die "could not release the chain" 7
 fi
 echo "released ${NLEGS} legs: ${JOBIDS[*]}"
