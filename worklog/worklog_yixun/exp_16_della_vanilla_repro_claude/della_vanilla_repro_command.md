@@ -104,3 +104,23 @@ sbatch --hold --parsable --job-name=exp16-eval-unseen_s43 --export=EXPECT_SHA=e2
 sbatch --hold --parsable --job-name=exp16-eval-seen_s42 --export=EXPECT_SHA=e2d77a2522d1d67be35128600e68e06fb2666b92,CELL=seen_s42 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_eval.sbatch
 ```
 
+## 2026-08-12T22:39:07-04:00 — exp16-train — job 12313040
+
+- EXPECT_SHA: `f160659717a86d00f0085ad0e44d23cbb616f1d7`
+- job id: `12313040`
+- submitted by: `yh4742@della9.princeton.edu`
+
+```bash
+sbatch --hold --parsable --job-name=exp16-train --time=2-06:00:00 --export=EXPECT_SHA=f160659717a86d00f0085ad0e44d23cbb616f1d7 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_train.sbatch
+```
+
+## 2026-08-12T22:39:08-04:00 — exp16-train — job 12313041
+
+- EXPECT_SHA: `f160659717a86d00f0085ad0e44d23cbb616f1d7`
+- job id: `12313041`
+- submitted by: `yh4742@della9.princeton.edu`
+
+```bash
+sbatch --hold --parsable --job-name=exp16-train --time=23:30:00 --export=EXPECT_SHA=f160659717a86d00f0085ad0e44d23cbb616f1d7 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_train.sbatch
+```
+
