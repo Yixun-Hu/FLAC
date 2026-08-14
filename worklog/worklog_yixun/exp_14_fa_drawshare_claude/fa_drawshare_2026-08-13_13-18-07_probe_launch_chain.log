@@ -1,0 +1,343 @@
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+env gate: python 3.10.20 | pytorch_lightning 2.1.0 | torch 2.7.0+cu126
+=== exp_14 fa_drawshare DSCS3 (PROBE) DDP+SyncBN - 2026-08-13_13-18-13 - 7193e35 ===
+identity: --name FLAC_exp14_DSCS3_probe --experiment-name exp14_DSCS3_probe --save-dir outputs_FLAC/exp14_DSCS3_probe
+recipe: 32x2x1 eff64 seed42 -> 15 | ckpt-every 5 | logger=none
+arm config: worklog/worklog_yixun/exp_14_fa_drawshare_claude/FLAC_AR_BF_DSCS3.json (single delta vs worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json: training.frame_avg_max_fwd_samples=96)
+mode=PROBE | resume: '' | expected_step=0 | evidence_required=0
+config contract OK (DSCS3): worklog/worklog_yixun/exp_14_fa_drawshare_claude/FLAC_AR_BF_DSCS3.json == worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json + training.frame_avg_max_fwd_samples=96
+  CHUNK PLAN (announcement 06): cap=96 per-rank micro-batch=32 orbit=4 angles (3 rotated)
+    angles_per_chunk = max(1, 96 // 32) = 3
+    rotated-angle chunks = [3] (1 conditioner forward(s) of [96] samples)
+    shared-angle count = 3/3  (3 angles share one RoPE draw)
+--- admission evidence: NOT required in MODE=PROBE (a probe is how evidence is earned) ---
+disk: 124534 MiB free on the volume holding outputs_FLAC (floor 20480 MiB)
+################################################################################
+## NOTE - the VRAM floor below (21,900 MiB) was measured at cap 64. DSCS3 puts ##
+## 96 samples in ONE ViT chunk (~1.5x the activation footprint of 64), so the  ##
+## floor is NOT requalified for this arm. Plan §3.2 gates DSCS3 on a REAL      ##
+## 15-step DDP fit probe with VRAM sampled - run it as MODE=PROBE and record   ##
+## its verdict with stamp_evidence.py. If cap 96 does not fit, STOP and report ##
+## - do not silently fall back to cap 64, which would no longer test exp_11's  ##
+## topology.                                                                   ##
+################################################################################
+--- co-tenancy disclosure: compute apps at launch ---
+GPU-9c72ac69-836a-c2ee-89b7-4b51b68317a8, 3365868, python, 4414 MiB
+GPU-9c72ac69-836a-c2ee-89b7-4b51b68317a8, 3561757, python, 3362 MiB
+GPU-684b9600-ff40-5a6c-8ac6-66b9657330b3, 1047081, python, 5934 MiB
+GPU-684b9600-ff40-5a6c-8ac6-66b9657330b3, 3450880, /home/yixunhu/miniconda3/envs/rir2rir/bin/python, 17610 MiB
+GPU-684b9600-ff40-5a6c-8ac6-66b9657330b3, 3555804, /home/yixunhu/miniconda3/envs/rir2rir/bin/python, 1258 MiB
+0, 7809 MiB, 40734 MiB
+1, 24850 MiB, 23691 MiB
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+ViT pin OK: cache /home/yixunhu/.cache/huggingface/hub, single snapshot 114c13799502…, sha256 4610ad75edef… (launch with HF_HUB_OFFLINE=1)
+building B-V (vanilla) ...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+building B-F (fa_invariant) ...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+cond_method: BV='vanilla'  BF='fa_invariant'  BF angles=(0.0, 90.0, 180.0, 270.0)
+BV: wrapper wiring OK — EMA on, cfg_dropout 0.1, log_snr(-1.2,2.0); configure_optimizers() -> AdamW(initial_lr 5e-5, step-0 lr 5.000e-07 = warmup-live, (0.9,0.999), wd1e-3) + InverseLR(1e6,0.5,0.99)@step  OK
+BF: wrapper wiring OK — EMA on, cfg_dropout 0.1, log_snr(-1.2,2.0); configure_optimizers() -> AdamW(initial_lr 5e-5, step-0 lr 5.000e-07 = warmup-live, (0.9,0.999), wd1e-3) + InverseLR(1e6,0.5,0.99)@step  OK
+architecture: identical param names (753 tensors) and count (64.50M) in both arms
+init identity: state_dict sha256 match under seed 42: 44a2f6aadd7d2180…
+
+ALL ASSERTS PASSED — arms are init-identical and differ only in forward-time conditioning method.
+################################################################################
+## NOTE - READ THE LINES ABOVE CAREFULLY.                                     ##
+## assert_arm_configs.py is an exp_07 artifact. It builds FLAC_AR_BV.json and  ##
+## FLAC_AR_BF.json, and its printed schedule assertion                        ##
+##     "InverseLR(1e6,0.5,0.99)"                                              ##
+## is about THOSE exp_07 configs - not about the exp_14 arm launched here.    ##
+## It is kept for its DINOv3 initializer PIN + seeded init-identity check,    ##
+## which do apply: each exp_14 arm is FLAC_AR_BF.json plus one TRAINING key,  ##
+## so the module tree and its initialization are B-F's exactly.               ##
+## The authoritative exp_14 assertion is the config contract re-run below.    ##
+################################################################################
+config contract OK (DSCS3): worklog/worklog_yixun/exp_14_fa_drawshare_claude/FLAC_AR_BF_DSCS3.json == worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json + training.frame_avg_max_fwd_samples=96
+  CHUNK PLAN (announcement 06): cap=96 per-rank micro-batch=32 orbit=4 angles (3 rotated)
+    angles_per_chunk = max(1, 96 // 32) = 3
+    rotated-angle chunks = [3] (1 conditioner forward(s) of [96] samples)
+    shared-angle count = 3/3  (3 angles share one RoPE draw)
+--- env manifest ---
+torch 2.7.0+cu126 cuda 12.6
+0, 49140 MiB, 7809 MiB
+1, 49140 MiB, 24850 MiB
+pip-freeze sha256: 19e6a80127da736bf5bb70f4b7cb78c978367982085044e3db911ef1a6458b8f
+sync_batchnorm: true (fail-closed in train.py below num_gpus 2) | strategy: ddp_find_unused_parameters_true | rung: 32x2x1 | grad-ckpt: config
+arm: DSCS3 | mode: PROBE | model-config: worklog/worklog_yixun/exp_14_fa_drawshare_claude/FLAC_AR_BF_DSCS3.json | cap: 96
+pre-run checkpoint inventory: 0 file(s) under outputs_FLAC/exp14_DSCS3_probe at epoch 1786641524
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Using bfloat16 Automatic Mixed Precision (AMP)
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/connectors/logger_connector/logger_connector.py:67: Starting from v1.9.0, `tensorboardX` has been removed as a dependency of the `pytorch_lightning` package, due to potential conflicts with other packages in the ML ecosystem. For this reason, `logger=True` will use `CSVLogger` as the default logger, unless the `tensorboard` or `tensorboardX` packages are found. Please `pip install lightning[extra]` or one of them to enable TensorBoard support by default
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+[rank: 0] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/2
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+[rank: 1] Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+[rank: 1] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 1, MEMBER: 2/2
+----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 2 processes
+----------------------------------------------------------------------------------------------------
+
+Missing logger folder: outputs_FLAC/exp14_DSCS3_probe/lightning_logs
+Missing logger folder: outputs_FLAC/exp14_DSCS3_probe/lightning_logs
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/callbacks/model_checkpoint.py:630: Checkpoint directory outputs_FLAC/exp14_DSCS3_probe exists and is not empty.
+LOCAL_RANK: 1 - CUDA_VISIBLE_DEVICES: [0,1]
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1]
+
+  | Name          | Type                             | Params
+-------------------------------------------------------------------
+0 | diffusion     | ConditionedDiffusionModelWrapper | 64.5 M
+1 | diffusion_ema | EMA                              | 16.7 M
+2 | losses        | MultiLoss                        | 0     
+-------------------------------------------------------------------
+50.3 M    Trainable params
+30.9 M    Non-trainable params
+81.2 M    Total params
+324.893   Total estimated model params size (MB)
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Training: |          | 0/? [00:00<?, ?it/s]Training:   0%|          | 0/4550 [00:00<?, ?it/s]Epoch 0:   0%|          | 0/4550 [00:00<?, ?it/s] Epoch 0:   0%|          | 1/4550 [00:22<28:49:58,  0.04it/s]Epoch 0:   0%|          | 1/4550 [00:22<28:50:03,  0.04it/s, v_num=0, train/loss=2.390, train/std_data=1.140, train/lr=5e-7, train/mse_loss=2.390]Epoch 0:   0%|          | 2/4550 [00:40<25:31:02,  0.05it/s, v_num=0, train/loss=2.390, train/std_data=1.140, train/lr=5e-7, train/mse_loss=2.390]Epoch 0:   0%|          | 2/4550 [00:40<25:31:03,  0.05it/s, v_num=0, train/loss=2.610, train/std_data=1.230, train/lr=9.95e-7, train/mse_loss=2.610]Epoch 0:   0%|          | 3/4550 [00:57<24:21:17,  0.05it/s, v_num=0, train/loss=2.610, train/std_data=1.230, train/lr=9.95e-7, train/mse_loss=2.610]Epoch 0:   0%|          | 3/4550 [00:57<24:21:18,  0.05it/s, v_num=0, train/loss=2.400, train/std_data=1.160, train/lr=1.49e-6, train/mse_loss=2.400]Epoch 0:   0%|          | 4/4550 [01:15<23:59:32,  0.05it/s, v_num=0, train/loss=2.400, train/std_data=1.160, train/lr=1.49e-6, train/mse_loss=2.400]Epoch 0:   0%|          | 4/4550 [01:16<23:59:34,  0.05it/s, v_num=0, train/loss=2.360, train/std_data=1.130, train/lr=1.97e-6, train/mse_loss=2.360]Epoch 0:   0%|          | 5/4550 [01:33<23:42:19,  0.05it/s, v_num=0, train/loss=2.360, train/std_data=1.130, train/lr=1.97e-6, train/mse_loss=2.360]Epoch 0:   0%|          | 5/4550 [01:33<23:42:19,  0.05it/s, v_num=0, train/loss=2.410, train/std_data=1.160, train/lr=2.45e-6, train/mse_loss=2.410]Epoch 0:   0%|          | 6/4550 [01:53<23:51:59,  0.05it/s, v_num=0, train/loss=2.410, train/std_data=1.160, train/lr=2.45e-6, train/mse_loss=2.410]Epoch 0:   0%|          | 6/4550 [01:53<23:51:59,  0.05it/s, v_num=0, train/loss=2.430, train/std_data=1.180, train/lr=2.93e-6, train/mse_loss=2.430]Epoch 0:   0%|          | 7/4550 [02:11<23:39:57,  0.05it/s, v_num=0, train/loss=2.430, train/std_data=1.180, train/lr=2.93e-6, train/mse_loss=2.430]Epoch 0:   0%|          | 7/4550 [02:11<23:39:57,  0.05it/s, v_num=0, train/loss=2.520, train/std_data=1.200, train/lr=3.4e-6, train/mse_loss=2.520] Epoch 0:   0%|          | 8/4550 [02:29<23:33:41,  0.05it/s, v_num=0, train/loss=2.520, train/std_data=1.200, train/lr=3.4e-6, train/mse_loss=2.520]Epoch 0:   0%|          | 8/4550 [02:29<23:33:41,  0.05it/s, v_num=0, train/loss=2.240, train/std_data=1.080, train/lr=3.86e-6, train/mse_loss=2.240]Epoch 0:   0%|          | 9/4550 [02:46<23:20:50,  0.05it/s, v_num=0, train/loss=2.240, train/std_data=1.080, train/lr=3.86e-6, train/mse_loss=2.240]Epoch 0:   0%|          | 9/4550 [02:46<23:20:51,  0.05it/s, v_num=0, train/loss=2.550, train/std_data=1.220, train/lr=4.32e-6, train/mse_loss=2.550]Epoch 0:   0%|          | 10/4550 [03:04<23:12:59,  0.05it/s, v_num=0, train/loss=2.550, train/std_data=1.220, train/lr=4.32e-6, train/mse_loss=2.550]Epoch 0:   0%|          | 10/4550 [03:04<23:12:59,  0.05it/s, v_num=0, train/loss=2.420, train/std_data=1.160, train/lr=4.78e-6, train/mse_loss=2.420]Epoch 0:   0%|          | 11/4550 [03:22<23:11:25,  0.05it/s, v_num=0, train/loss=2.420, train/std_data=1.160, train/lr=4.78e-6, train/mse_loss=2.420]Epoch 0:   0%|          | 11/4550 [03:22<23:11:26,  0.05it/s, v_num=0, train/loss=2.350, train/std_data=1.130, train/lr=5.23e-6, train/mse_loss=2.350]Epoch 0:   0%|          | 12/4550 [03:38<22:59:27,  0.05it/s, v_num=0, train/loss=2.350, train/std_data=1.130, train/lr=5.23e-6, train/mse_loss=2.350]Epoch 0:   0%|          | 12/4550 [03:38<22:59:27,  0.05it/s, v_num=0, train/loss=2.440, train/std_data=1.180, train/lr=5.68e-6, train/mse_loss=2.440]Epoch 0:   0%|          | 13/4550 [03:56<22:53:33,  0.06it/s, v_num=0, train/loss=2.440, train/std_data=1.180, train/lr=5.68e-6, train/mse_loss=2.440]Epoch 0:   0%|          | 13/4550 [03:56<22:53:33,  0.06it/s, v_num=0, train/loss=2.360, train/std_data=1.120, train/lr=6.12e-6, train/mse_loss=2.360]Epoch 0:   0%|          | 14/4550 [04:13<22:50:34,  0.06it/s, v_num=0, train/loss=2.360, train/std_data=1.120, train/lr=6.12e-6, train/mse_loss=2.360]Epoch 0:   0%|          | 14/4550 [04:13<22:50:35,  0.06it/s, v_num=0, train/loss=2.310, train/std_data=1.120, train/lr=6.56e-6, train/mse_loss=2.310]Epoch 0:   0%|          | 15/4550 [04:31<22:46:19,  0.06it/s, v_num=0, train/loss=2.310, train/std_data=1.120, train/lr=6.56e-6, train/mse_loss=2.310]Epoch 0:   0%|          | 15/4550 [04:31<22:46:20,  0.06it/s, v_num=0, train/loss=2.490, train/std_data=1.190, train/lr=7e-6, train/mse_loss=2.490]   Epoch 0:   0%|          | 15/4550 [04:32<22:52:47,  0.06it/s, v_num=0, train/loss=2.490, train/std_data=1.190, train/lr=7e-6, train/mse_loss=2.490]`Trainer.fit` stopped: `max_steps=15` reached.
+Epoch 0:   0%|          | 15/4550 [04:32<22:52:48,  0.06it/s, v_num=0, train/loss=2.490, train/std_data=1.190, train/lr=7e-6, train/mse_loss=2.490]
+[rank0]:[W813 13:23:44.734502470 ProcessGroupNCCL.cpp:1476] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+[rank1]:[W813 13:23:45.357955200 TCPStore.cpp:125] [c10d] recvValue failed on SocketImpl(fd=22, addr=[localhost]:59818, remote=[localhost]:50123): failed to recv, got 0 bytes
+Exception raised from recvBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:678 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x70eeec1785e8 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8afe (0x70eed4da8afe in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baae40 (0x70eed4daae40 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5bab74a (0x70eed4dab74a in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x2a9 (0x70eed4da51a9 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x70ee91de09a9 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x70eeebcea0e6 in /home/yixunhu/miniconda3/envs/flac/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94a83 (0x70eeed294a83 in /lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126890 (0x70eeed326890 in /lib/x86_64-linux-gnu/libc.so.6)
+
+[rank1]:[W813 13:23:45.366974914 ProcessGroupNCCL.cpp:1659] [PG ID 0 PG GUID 0(default_pg) Rank 1] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: failed to recv, got 0 bytes
+=== exp_14 DSCS3 (PROBE) exited rc=0 at 2026-08-13 13:23:46 ===
+--- embedded-cap readback (mode=PROBE, bound to this invocation) ---
+checkpoint written by this run: outputs_FLAC/exp14_DSCS3_probe/epoch=0-step=15.ckpt
+  global_step=15 (3 fresh of 3 present)
+  embedded training.frame_avg_max_fwd_samples = 96  (arm DSCS3 declares 96)
+embedded-cap readback PASSED: the checkpoint this PROBE run wrote declares training.frame_avg_max_fwd_samples=96 for arm DSCS3.
+PROBE complete. If - and only if - the fit/plumbing verdict is genuinely PASS, record it with:
+  python worklog/worklog_yixun/exp_14_fa_drawshare_claude/stamp_evidence.py --kind cap_fit --arm DSCS3 --verdict PASS --log <this log> --notes '<VRAM, throughput>'
+embedded-cap readback OK
+=== PROBE DSCS3 rc=0 ===
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+env gate: python 3.10.20 | pytorch_lightning 2.1.0 | torch 2.7.0+cu126
+=== exp_14 fa_drawshare DSPA (PROBE) DDP+SyncBN - 2026-08-13_13-23-54 - 7193e35 ===
+identity: --name FLAC_exp14_DSPA_probe --experiment-name exp14_DSPA_probe --save-dir outputs_FLAC/exp14_DSPA_probe
+recipe: 32x2x1 eff64 seed42 -> 15 | ckpt-every 5 | logger=none
+arm config: worklog/worklog_yixun/exp_14_fa_drawshare_claude/FLAC_AR_BF_DSPA.json (single delta vs worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json: training.frame_avg_max_fwd_samples=32)
+mode=PROBE | resume: '' | expected_step=0 | evidence_required=0
+config contract OK (DSPA): worklog/worklog_yixun/exp_14_fa_drawshare_claude/FLAC_AR_BF_DSPA.json == worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json + training.frame_avg_max_fwd_samples=32
+  CHUNK PLAN (announcement 06): cap=32 per-rank micro-batch=32 orbit=4 angles (3 rotated)
+    angles_per_chunk = max(1, 32 // 32) = 1
+    rotated-angle chunks = [1, 1, 1] (3 conditioner forward(s) of [32, 32, 32] samples)
+    shared-angle count = 1/3  (per-angle draws (the July path))
+--- admission evidence: NOT required in MODE=PROBE (a probe is how evidence is earned) ---
+disk: 122462 MiB free on the volume holding outputs_FLAC (floor 20480 MiB)
+--- co-tenancy disclosure: compute apps at launch ---
+GPU-9c72ac69-836a-c2ee-89b7-4b51b68317a8, 3365868, python, 4414 MiB
+GPU-9c72ac69-836a-c2ee-89b7-4b51b68317a8, 3561757, python, 3362 MiB
+GPU-684b9600-ff40-5a6c-8ac6-66b9657330b3, 1047081, python, 5934 MiB
+GPU-684b9600-ff40-5a6c-8ac6-66b9657330b3, 3450880, /home/yixunhu/miniconda3/envs/rir2rir/bin/python, 17790 MiB
+GPU-684b9600-ff40-5a6c-8ac6-66b9657330b3, 3567076, /home/yixunhu/miniconda3/envs/rir2rir/bin/python, 1066 MiB
+0, 7809 MiB, 40734 MiB
+1, 24840 MiB, 23701 MiB
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+ViT pin OK: cache /home/yixunhu/.cache/huggingface/hub, single snapshot 114c13799502…, sha256 4610ad75edef… (launch with HF_HUB_OFFLINE=1)
+building B-V (vanilla) ...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+building B-F (fa_invariant) ...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+cond_method: BV='vanilla'  BF='fa_invariant'  BF angles=(0.0, 90.0, 180.0, 270.0)
+BV: wrapper wiring OK — EMA on, cfg_dropout 0.1, log_snr(-1.2,2.0); configure_optimizers() -> AdamW(initial_lr 5e-5, step-0 lr 5.000e-07 = warmup-live, (0.9,0.999), wd1e-3) + InverseLR(1e6,0.5,0.99)@step  OK
+BF: wrapper wiring OK — EMA on, cfg_dropout 0.1, log_snr(-1.2,2.0); configure_optimizers() -> AdamW(initial_lr 5e-5, step-0 lr 5.000e-07 = warmup-live, (0.9,0.999), wd1e-3) + InverseLR(1e6,0.5,0.99)@step  OK
+architecture: identical param names (753 tensors) and count (64.50M) in both arms
+init identity: state_dict sha256 match under seed 42: 44a2f6aadd7d2180…
+
+ALL ASSERTS PASSED — arms are init-identical and differ only in forward-time conditioning method.
+################################################################################
+## NOTE - READ THE LINES ABOVE CAREFULLY.                                     ##
+## assert_arm_configs.py is an exp_07 artifact. It builds FLAC_AR_BV.json and  ##
+## FLAC_AR_BF.json, and its printed schedule assertion                        ##
+##     "InverseLR(1e6,0.5,0.99)"                                              ##
+## is about THOSE exp_07 configs - not about the exp_14 arm launched here.    ##
+## It is kept for its DINOv3 initializer PIN + seeded init-identity check,    ##
+## which do apply: each exp_14 arm is FLAC_AR_BF.json plus one TRAINING key,  ##
+## so the module tree and its initialization are B-F's exactly.               ##
+## The authoritative exp_14 assertion is the config contract re-run below.    ##
+################################################################################
+config contract OK (DSPA): worklog/worklog_yixun/exp_14_fa_drawshare_claude/FLAC_AR_BF_DSPA.json == worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json + training.frame_avg_max_fwd_samples=32
+  CHUNK PLAN (announcement 06): cap=32 per-rank micro-batch=32 orbit=4 angles (3 rotated)
+    angles_per_chunk = max(1, 32 // 32) = 1
+    rotated-angle chunks = [1, 1, 1] (3 conditioner forward(s) of [32, 32, 32] samples)
+    shared-angle count = 1/3  (per-angle draws (the July path))
+--- env manifest ---
+torch 2.7.0+cu126 cuda 12.6
+0, 49140 MiB, 7809 MiB
+1, 49140 MiB, 24860 MiB
+pip-freeze sha256: 19e6a80127da736bf5bb70f4b7cb78c978367982085044e3db911ef1a6458b8f
+sync_batchnorm: true (fail-closed in train.py below num_gpus 2) | strategy: ddp_find_unused_parameters_true | rung: 32x2x1 | grad-ckpt: config
+arm: DSPA | mode: PROBE | model-config: worklog/worklog_yixun/exp_14_fa_drawshare_claude/FLAC_AR_BF_DSPA.json | cap: 32
+pre-run checkpoint inventory: 0 file(s) under outputs_FLAC/exp14_DSPA_probe at epoch 1786641863
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Using bfloat16 Automatic Mixed Precision (AMP)
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/connectors/logger_connector/logger_connector.py:67: Starting from v1.9.0, `tensorboardX` has been removed as a dependency of the `pytorch_lightning` package, due to potential conflicts with other packages in the ML ecosystem. For this reason, `logger=True` will use `CSVLogger` as the default logger, unless the `tensorboard` or `tensorboardX` packages are found. Please `pip install lightning[extra]` or one of them to enable TensorBoard support by default
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+[rank: 0] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/2
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+[rank: 1] Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+[rank: 1] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 1, MEMBER: 2/2
+----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 2 processes
+----------------------------------------------------------------------------------------------------
+
+Missing logger folder: outputs_FLAC/exp14_DSPA_probe/lightning_logs
+Missing logger folder: outputs_FLAC/exp14_DSPA_probe/lightning_logs
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/callbacks/model_checkpoint.py:630: Checkpoint directory outputs_FLAC/exp14_DSPA_probe exists and is not empty.
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1]
+LOCAL_RANK: 1 - CUDA_VISIBLE_DEVICES: [0,1]
+
+  | Name          | Type                             | Params
+-------------------------------------------------------------------
+0 | diffusion     | ConditionedDiffusionModelWrapper | 64.5 M
+1 | diffusion_ema | EMA                              | 16.7 M
+2 | losses        | MultiLoss                        | 0     
+-------------------------------------------------------------------
+50.3 M    Trainable params
+30.9 M    Non-trainable params
+81.2 M    Total params
+324.893   Total estimated model params size (MB)
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Training: |          | 0/? [00:00<?, ?it/s]Training:   0%|          | 0/4550 [00:00<?, ?it/s]Epoch 0:   0%|          | 0/4550 [00:00<?, ?it/s] Epoch 0:   0%|          | 1/4550 [00:23<29:24:42,  0.04it/s]Epoch 0:   0%|          | 1/4550 [00:23<29:24:48,  0.04it/s, v_num=0, train/loss=2.360, train/std_data=1.140, train/lr=5e-7, train/mse_loss=2.360]Epoch 0:   0%|          | 2/4550 [00:43<27:17:11,  0.05it/s, v_num=0, train/loss=2.360, train/std_data=1.140, train/lr=5e-7, train/mse_loss=2.360]Epoch 0:   0%|          | 2/4550 [00:43<27:17:13,  0.05it/s, v_num=0, train/loss=2.610, train/std_data=1.230, train/lr=9.95e-7, train/mse_loss=2.610]Epoch 0:   0%|          | 3/4550 [01:03<26:53:10,  0.05it/s, v_num=0, train/loss=2.610, train/std_data=1.230, train/lr=9.95e-7, train/mse_loss=2.610]Epoch 0:   0%|          | 3/4550 [01:03<26:53:11,  0.05it/s, v_num=0, train/loss=2.440, train/std_data=1.160, train/lr=1.49e-6, train/mse_loss=2.440]Epoch 0:   0%|          | 4/4550 [01:23<26:30:29,  0.05it/s, v_num=0, train/loss=2.440, train/std_data=1.160, train/lr=1.49e-6, train/mse_loss=2.440]Epoch 0:   0%|          | 4/4550 [01:23<26:30:30,  0.05it/s, v_num=0, train/loss=2.310, train/std_data=1.130, train/lr=1.97e-6, train/mse_loss=2.310]Epoch 0:   0%|          | 5/4550 [01:44<26:22:57,  0.05it/s, v_num=0, train/loss=2.310, train/std_data=1.130, train/lr=1.97e-6, train/mse_loss=2.310]Epoch 0:   0%|          | 5/4550 [01:44<26:22:58,  0.05it/s, v_num=0, train/loss=2.400, train/std_data=1.160, train/lr=2.45e-6, train/mse_loss=2.400]Epoch 0:   0%|          | 6/4550 [02:06<26:37:07,  0.05it/s, v_num=0, train/loss=2.400, train/std_data=1.160, train/lr=2.45e-6, train/mse_loss=2.400]Epoch 0:   0%|          | 6/4550 [02:06<26:37:08,  0.05it/s, v_num=0, train/loss=2.430, train/std_data=1.180, train/lr=2.93e-6, train/mse_loss=2.430]Epoch 0:   0%|          | 7/4550 [02:27<26:30:16,  0.05it/s, v_num=0, train/loss=2.430, train/std_data=1.180, train/lr=2.93e-6, train/mse_loss=2.430]Epoch 0:   0%|          | 7/4550 [02:27<26:30:16,  0.05it/s, v_num=0, train/loss=2.530, train/std_data=1.190, train/lr=3.4e-6, train/mse_loss=2.530] Epoch 0:   0%|          | 8/4550 [02:47<26:25:42,  0.05it/s, v_num=0, train/loss=2.530, train/std_data=1.190, train/lr=3.4e-6, train/mse_loss=2.530]Epoch 0:   0%|          | 8/4550 [02:47<26:25:43,  0.05it/s, v_num=0, train/loss=2.250, train/std_data=1.080, train/lr=3.86e-6, train/mse_loss=2.250]Epoch 0:   0%|          | 9/4550 [03:07<26:20:34,  0.05it/s, v_num=0, train/loss=2.250, train/std_data=1.080, train/lr=3.86e-6, train/mse_loss=2.250]Epoch 0:   0%|          | 9/4550 [03:07<26:20:35,  0.05it/s, v_num=0, train/loss=2.520, train/std_data=1.220, train/lr=4.32e-6, train/mse_loss=2.520]Epoch 0:   0%|          | 10/4550 [03:28<26:15:33,  0.05it/s, v_num=0, train/loss=2.520, train/std_data=1.220, train/lr=4.32e-6, train/mse_loss=2.520]Epoch 0:   0%|          | 10/4550 [03:28<26:15:33,  0.05it/s, v_num=0, train/loss=2.380, train/std_data=1.160, train/lr=4.78e-6, train/mse_loss=2.380]Epoch 0:   0%|          | 11/4550 [03:50<26:23:06,  0.05it/s, v_num=0, train/loss=2.380, train/std_data=1.160, train/lr=4.78e-6, train/mse_loss=2.380]Epoch 0:   0%|          | 11/4550 [03:50<26:23:06,  0.05it/s, v_num=0, train/loss=2.390, train/std_data=1.140, train/lr=5.23e-6, train/mse_loss=2.390]Epoch 0:   0%|          | 12/4550 [04:10<26:20:18,  0.05it/s, v_num=0, train/loss=2.390, train/std_data=1.140, train/lr=5.23e-6, train/mse_loss=2.390]Epoch 0:   0%|          | 12/4550 [04:10<26:20:19,  0.05it/s, v_num=0, train/loss=2.500, train/std_data=1.180, train/lr=5.68e-6, train/mse_loss=2.500]Epoch 0:   0%|          | 13/4550 [04:30<26:13:27,  0.05it/s, v_num=0, train/loss=2.500, train/std_data=1.180, train/lr=5.68e-6, train/mse_loss=2.500]Epoch 0:   0%|          | 13/4550 [04:30<26:13:27,  0.05it/s, v_num=0, train/loss=2.360, train/std_data=1.120, train/lr=6.12e-6, train/mse_loss=2.360]Epoch 0:   0%|          | 14/4550 [04:50<26:07:39,  0.05it/s, v_num=0, train/loss=2.360, train/std_data=1.120, train/lr=6.12e-6, train/mse_loss=2.360]Epoch 0:   0%|          | 14/4550 [04:50<26:07:39,  0.05it/s, v_num=0, train/loss=2.310, train/std_data=1.120, train/lr=6.56e-6, train/mse_loss=2.310]Epoch 0:   0%|          | 15/4550 [05:09<25:57:23,  0.05it/s, v_num=0, train/loss=2.310, train/std_data=1.120, train/lr=6.56e-6, train/mse_loss=2.310]Epoch 0:   0%|          | 15/4550 [05:09<25:57:23,  0.05it/s, v_num=0, train/loss=2.530, train/std_data=1.180, train/lr=7e-6, train/mse_loss=2.530]   Epoch 0:   0%|          | 15/4550 [05:10<26:04:07,  0.05it/s, v_num=0, train/loss=2.530, train/std_data=1.180, train/lr=7e-6, train/mse_loss=2.530]`Trainer.fit` stopped: `max_steps=15` reached.
+Epoch 0:   0%|          | 15/4550 [05:10<26:04:07,  0.05it/s, v_num=0, train/loss=2.530, train/std_data=1.180, train/lr=7e-6, train/mse_loss=2.530]
+[rank0]:[W813 13:30:02.625520650 ProcessGroupNCCL.cpp:1476] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+=== exp_14 DSPA (PROBE) exited rc=0 at 2026-08-13 13:30:04 ===
+--- embedded-cap readback (mode=PROBE, bound to this invocation) ---
+checkpoint written by this run: outputs_FLAC/exp14_DSPA_probe/epoch=0-step=15.ckpt
+  global_step=15 (3 fresh of 3 present)
+  embedded training.frame_avg_max_fwd_samples = 32  (arm DSPA declares 32)
+embedded-cap readback PASSED: the checkpoint this PROBE run wrote declares training.frame_avg_max_fwd_samples=32 for arm DSPA.
+PROBE complete. If - and only if - the fit/plumbing verdict is genuinely PASS, record it with:
+  python worklog/worklog_yixun/exp_14_fa_drawshare_claude/stamp_evidence.py --kind cap_fit --arm DSPA --verdict PASS --log <this log> --notes '<VRAM, throughput>'
+embedded-cap readback OK
+=== PROBE DSPA rc=0 ===
+usage: stamp_evidence.py [-h] --kind {cap_fit,dspa_40k_audit} --arm
+                         {DSCS3,DSPA} [--verify] [--verdict {PASS,FAIL}]
+                         [--log LOG] [--notes NOTES] [--force]
+stamp_evidence.py: error: unrecognized arguments: stamp
+usage: stamp_evidence.py [-h] --kind {cap_fit,dspa_40k_audit} --arm
+                         {DSCS3,DSPA} [--verify] [--verdict {PASS,FAIL}]
+                         [--log LOG] [--notes NOTES] [--force]
+stamp_evidence.py: error: unrecognized arguments: stamp
+=== evidence stamped; launching FULL DSPA ===
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+env gate: python 3.10.20 | pytorch_lightning 2.1.0 | torch 2.7.0+cu126
+=== exp_14 fa_drawshare DSPA (FULL) DDP+SyncBN - 2026-08-13_13-30-12 - 7193e35 ===
+identity: --name FLAC_exp14_DSPA --experiment-name exp14_DSPA --save-dir outputs_FLAC/exp14_DSPA
+recipe: 32x2x1 eff64 seed42 -> 40000 | ckpt-every 2500 | logger=wandb
+arm config: worklog/worklog_yixun/exp_14_fa_drawshare_claude/FLAC_AR_BF_DSPA.json (single delta vs worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json: training.frame_avg_max_fwd_samples=32)
+mode=FULL | resume: '' | expected_step=0 | evidence_required=1
+config contract OK (DSPA): worklog/worklog_yixun/exp_14_fa_drawshare_claude/FLAC_AR_BF_DSPA.json == worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json + training.frame_avg_max_fwd_samples=32
+  CHUNK PLAN (announcement 06): cap=32 per-rank micro-batch=32 orbit=4 angles (3 rotated)
+    angles_per_chunk = max(1, 32 // 32) = 1
+    rotated-angle chunks = [1, 1, 1] (3 conditioner forward(s) of [32, 32, 32] samples)
+    shared-angle count = 1/3  (per-angle draws (the July path))
+--- admission evidence for DSPA (FULL) ---
+  source_sha        : 7193e35d1b3693df3b3b148ad614adcc85ad3ec7
+  treatment_sha256  : eeac3f79e853b6e7745b04ae65e71e4ac2c7242280476e30d7f2cd5f545bfa0b
+  required          : ['cap_fit(DSPA)']
+  FAIL cap_fit (DSPA): worklog/worklog_yixun/exp_14_fa_drawshare_claude/evidence/cap_fit_DSPA.json
+         - missing evidence file worklog/worklog_yixun/exp_14_fa_drawshare_claude/evidence/cap_fit_DSPA.json
+  -> stamp it with stamp_evidence.py ONLY after the gate has actually passed; plan §3.2 (cap fit) and §5 (DS-PA 40k audit) are hard gates.
+  treatment paths clean (working tree == HEAD for the cap-threading files)
+ADMISSION EVIDENCE GATE FAILED - abort
+=== FULL DSPA exited rc=2 ===

@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "kind": "cap_fit",
+  "arm": "DSCS3",
+  "cap": 96,
+  "verdict": "PASS",
+  "source_sha": "7193e35d1b3693df3b3b148ad614adcc85ad3ec7",
+  "treatment_sha256": "eeac3f79e853b6e7745b04ae65e71e4ac2c7242280476e30d7f2cd5f545bfa0b",
+  "model_config_sha256": "e4ffc8b96a2d6043b4c17f0a8183d6511e190f4717989219e8a12f99d5b920e9",
+  "model_config": "worklog/worklog_yixun/exp_14_fa_drawshare_claude/FLAC_AR_BF_DSCS3.json",
+  "created": "2026-08-13T13:31:57-0400",
+  "log": "worklog/worklog_yixun/exp_14_fa_drawshare_claude/fa_drawshare_2026-08-13_13-18-13_exp14_DSCS3_probe_train.log",
+  "notes": "15/15 steps, no OOM, readback OK; peak GPU0 free ~7.8GB (heavier than forward-only estimate); ~0.055 it/s co-tenant early-step"
+}

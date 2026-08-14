@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "kind": "cap_fit",
+  "arm": "DSPA",
+  "cap": 32,
+  "verdict": "PASS",
+  "source_sha": "7193e35d1b3693df3b3b148ad614adcc85ad3ec7",
+  "treatment_sha256": "eeac3f79e853b6e7745b04ae65e71e4ac2c7242280476e30d7f2cd5f545bfa0b",
+  "model_config_sha256": "7f3a95679cd39a9a15b69de64a18cba28a03f8bb4c7ea9ca76d0aa20d6449663",
+  "model_config": "worklog/worklog_yixun/exp_14_fa_drawshare_claude/FLAC_AR_BF_DSPA.json",
+  "created": "2026-08-13T13:31:57-0400",
+  "log": "worklog/worklog_yixun/exp_14_fa_drawshare_claude/fa_drawshare_2026-08-13_13-23-54_exp14_DSPA_probe_train.log",
+  "notes": "15/15 steps, no OOM, readback OK; ~0.048 it/s co-tenant early-step"
+}
