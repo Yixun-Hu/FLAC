@@ -43,7 +43,21 @@
       "save_dir": "outputs_FLAC/exp11_C4L",
       "training_seed": 42,
       "final_ckpt_sha256": "ed9d7a869ecded98cab78ecc4cef83e579df6643c8ffe564912a9e8ec5c88de8",
-      "final_step": 40000
+      "final_step": 40000,
+      "chain": [
+        {
+          "job": "3691693",
+          "launch_uuid": "b67f0d4c-0f35-42da-8b47-60939f65d140",
+          "manifest_path": "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-14_00-00-42_C4L_8x8_jid3691693_manifest.txt",
+          "manifest_sha256": "0366e7c0104735fa0d73eb6d146d205f2648aad924d7eac0835a68d60297be83",
+          "resume_step": 40000,
+          "resume_ckpt_sha256": "ed9d7a869ecded98cab78ecc4cef83e579df6643c8ffe564912a9e8ec5c88de8",
+          "final_step": 42500,
+          "final_ckpt_sha256": "df6f698c02883c40c742cb7cca8e66c3996a834738e489a807ed48d95df0a548",
+          "final_ckpt_path": "outputs_FLAC/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=9-step=42500.ckpt",
+          "recorded_utc": "2026-08-14T05:30:36+00:00"
+        }
+      ]
     },
     "C8": {
       "manifest_path": "outputs_FLAC/exp11_C8/launch_manifest.txt",
