@@ -1,0 +1,8 @@
+launched_at: 2026-08-13T05:24:37-04:00
+gpu: 0  arm: B (native SSL)
+exp12_sha: 508a8169792f98f7327a239da9d0d769c3608ca8
+package_sha: 1191d2b6ab1d698247fba60b869ae5cf8a1068c1
+index_sha256: ab32994850504bcf350e0ca5da5b506e6d254c03b4fedaaf4ad7b0f1456df029
+train_manifest_sha256: aa4e52d616fc42e88d5e4952c7e7ff266347615a60f93a0590b707f5eeaead03
+resume: <none>
+pid: 3365868

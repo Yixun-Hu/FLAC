@@ -1,0 +1,34 @@
+[chain gpu0] waiting on exp12A_c3c4 pid 1047070 | 2026-08-10T18:14:11-04:00
+[chain gpu0] waiting on exp12A_c3c4 pid 1047070 | 2026-08-12T10:30:44-04:00
+[chain gpu0] exp12A_c3c4 pid 1047070 exited | 2026-08-13T04:10:46-04:00
+[chain gpu0] exp12A_c3c4 eval start (outputs_FLAC/exp12A_c3c4/exp12A_c3c4/exp12A_c3c4/checkpoints/epoch=14-step=67500.ckpt) | 2026-08-13T04:10:46-04:00
+=== eval exp12A_c3c4 | ckpt outputs_FLAC/exp12A_c3c4/exp12A_c3c4/exp12A_c3c4/checkpoints/epoch=14-step=67500.ckpt | gpu 0 | 2026-08-13T04:10:46-04:00 ===
+[run ] exp12A_c3c4_D1_K1_s42 2026-08-13T04:10:46-04:00
+[done] exp12A_c3c4_D1_K1_s42 rc=0 2026-08-13T04:17:28-04:00
+[run ] exp12A_c3c4_D1_K1_s43 2026-08-13T04:17:29-04:00
+[done] exp12A_c3c4_D1_K1_s43 rc=0 2026-08-13T04:24:08-04:00
+[run ] exp12A_c3c4_D1_K1_s44 2026-08-13T04:24:08-04:00
+[done] exp12A_c3c4_D1_K1_s44 rc=0 2026-08-13T04:30:47-04:00
+[run ] exp12A_c3c4_D1_K1_s45 2026-08-13T04:30:47-04:00
+[done] exp12A_c3c4_D1_K1_s45 rc=0 2026-08-13T04:37:28-04:00
+[run ] exp12A_c3c4_D1_K1_s46 2026-08-13T04:37:28-04:00
+[done] exp12A_c3c4_D1_K1_s46 rc=0 2026-08-13T04:44:09-04:00
+[run ] exp12A_c3c4_D1_K8_s42 2026-08-13T04:44:09-04:00
+[done] exp12A_c3c4_D1_K8_s42 rc=0 2026-08-13T04:52:11-04:00
+[run ] exp12A_c3c4_D1_K8_s43 2026-08-13T04:52:11-04:00
+[done] exp12A_c3c4_D1_K8_s43 rc=0 2026-08-13T05:00:17-04:00
+[run ] exp12A_c3c4_D1_K8_s44 2026-08-13T05:00:17-04:00
+[done] exp12A_c3c4_D1_K8_s44 rc=0 2026-08-13T05:08:25-04:00
+[run ] exp12A_c3c4_D1_K8_s45 2026-08-13T05:08:25-04:00
+[done] exp12A_c3c4_D1_K8_s45 rc=0 2026-08-13T05:16:32-04:00
+[run ] exp12A_c3c4_D1_K8_s46 2026-08-13T05:16:32-04:00
+[done] exp12A_c3c4_D1_K8_s46 rc=0 2026-08-13T05:24:37-04:00
+=== eval exp12A_c3c4 COMPLETE 2026-08-13T05:24:37-04:00 ===
+[chain gpu0] exp12A_c3c4 eval done rc=0 | 2026-08-13T05:24:37-04:00
+[chain gpu0] arm B SSL launch | 2026-08-13T05:24:37-04:00
+arm B SSL -> GPU0 pid 3365868
+[chain gpu0] arm B SSL running pid 3365868 | 2026-08-13T05:24:37-04:00
+[chain gpu0] arm B SSL pid 3365868 exited | 2026-08-13T16:12:37-04:00
+[chain gpu0] arm B SSL export present (86452232 bytes) | 2026-08-13T16:12:37-04:00
+[chain gpu0] arm B conditioning launch | 2026-08-13T16:12:37-04:00
+[chain gpu0] arm B conditioning running pid 3661509 | 2026-08-13T16:12:38-04:00

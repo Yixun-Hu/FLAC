@@ -1,0 +1,10 @@
+launched_at: 2026-08-13T16:12:37-04:00
+gpu: 0  run: exp12B_ssl_cond
+exp12_sha: 508a8169792f98f7327a239da9d0d769c3608ca8
+package_sha: fb0164cf77d0cc75f7c18f55efe1e03352420929
+model_config_sha256: 969430818081fbd31270f1690924959445a8f2731ab967fee9ad7d8347a147a4
+train_manifest_sha256: aa4e52d616fc42e88d5e4952c7e7ff266347615a60f93a0590b707f5eeaead03
+ssl_ckpt: outputs_FLAC/exp12B_ssl/backbone_final.pt
+ssl_ckpt_sha256: cdfa782d9b51f65463f0656df50a112586063dcfe2ab8bc1f3c9ed5d4518b68c
+command: CUDA_VISIBLE_DEVICES=0 python train.py --model-config worklog/worklog_yixun/exp_12_arms/FLAC_AR_exp12B.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 67500 --batch-size 32 --accum-batches 2 --num-workers 6 --seed 42 --num-gpus 1 --logger wandb --checkpoint-every 2500 --name exp12B_ssl_cond --experiment-name exp12B_ssl_cond --save-dir outputs_FLAC/exp12B_ssl_cond
+pid: 3661509
