@@ -208,3 +208,9 @@
 
 - **Result** — `passed`. Commits `b1314b1` (sacct State%-40 + canonical_state prefix normalization with ambiguous-truncation-fatal; SUBMITTED-replay checks the recorded successor's actual state and routes dead children through the corpse path within one locked transaction; parser completeness) + `b149f86` (evidence). Suites: **main 361/0, STRICT 373/0, union 376/376 SATISFIED**. Recovery compose verified literally (3-stage: submit → scancel+replay buries corpse and submits fresh exactly once → replay ALREADY_SUBMITTED). Scheduler-read audit: all state reads width-pinned in the state helper; submitter has zero scheduler calls; launcher's one squeue reads %l (no hazard). Coder seat: Fable fork (continuing; Opus limit).
 - **Next** — Push; final Codex GO check on `b1314b1`; on GO: chain INITIAL up.
+
+## 2026-08-14T11:20:00-04:00 — GO (zero findings) → CHAIN INITIAL LAUNCHED: job 3695627 (leg 1: 0→2500)
+
+- **Result** — `launched`. GO check #2: ZERO findings (`yaw_aug_codex_chain_go.md`). Chain INITIAL submitted at pin `fb4fc74` (= origin), job **3695627**, 1:30:00, `CHAIN=1 LEG_STEPS=2500`, standing waiver cited (in-chain rate gate enforces the floors at leg 1). Intent manifest `yaw_aug_submission_YAWAUG_1786718640213583894-a5cd327e.txt`.
+- **Acceptance criteria (leg 1, judged against):** starts at EXPECT_SHA fb4fc74; all start gates green; banner exact-line before step evidence; 2500/2500 steps; boundary ckpt `*step=2500.ckpt` audited (sha/step/config/EMA via snapshot-bound recorder); registry INITIAL entry + chain metadata written; rate gate PASS (0.849/0.843 windows) → leg 2 submitted via transact-submit with afterok; terminal record published. Any failure surfaces its class (8/9/10/12/13/14 taxonomy) + CHAIN STALLED where applicable.
+- **Next** — Chain monitor armed (state-file + squeue + registry tips). Then: results phase after 40k; eval kit rounds per the F5 deferral.
