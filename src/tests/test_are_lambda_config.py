@@ -336,6 +336,72 @@ def test_absent_lambda_never_calls_the_anchor_function(monkeypatch):
     assert torch.allclose(x_t - t[:, None, None] * seen["targets"], z, atol=1e-5)
 
 
+def _known_noise(n=2, scale=1.0, offset=0.0):
+    """A noise tensor the TEST owns: distinctive, reproducible, obviously not
+    whatever ``torch.randn_like`` would have produced."""
+    base = torch.arange(n * CH * LAT, dtype=torch.float32).reshape(n, CH, LAT)
+    return (base / 7.0 - 3.0) * scale + offset
+
+
+def _inject_noise(monkeypatch, *tensors):
+    """Make ``torch.randn_like`` hand back OUR tensors, in order.
+
+    Owning ``n`` is what turns the algebra check from an invariant into two
+    independent equations. ``diffusion.py`` calls ``randn_like`` exactly once per
+    noising site (training_step, and once per validation timestep), so the
+    sequence is unambiguous; the shape assertion makes a mis-wiring loud rather
+    than silently broadcasting.
+    """
+    supply = iter(tensors)
+
+    def _fake_randn_like(x, *args, **kwargs):
+        nxt = next(supply)
+        assert tuple(nxt.shape) == tuple(x.shape), (
+            f"injected noise {tuple(nxt.shape)} != requested {tuple(x.shape)}")
+        return nxt.to(device=x.device, dtype=x.dtype).clone()
+
+    monkeypatch.setattr(torch, "randn_like", _fake_randn_like)
+
+
+def _capture_validation_targets(monkeypatch):
+    """The REAL ``targets`` tensor validation_step built, as it built it.
+
+    ``validation_step`` never routes through ``self.losses`` -- it calls
+    ``F.mse_loss(output, targets)`` inline -- so the only honest way to see its
+    target is to intercept that call. Round 2's test instead RECONSTRUCTED the
+    noise from ``x_t`` and then rebuilt ``u`` from it, which made the assertion
+    algebraically tautological: it could not have failed for any implementation
+    (r2 review finding 4).
+    """
+    captured = []
+    real_mse = tdiff.F.mse_loss
+
+    def _spy(output, targets, *args, **kwargs):
+        captured.append(targets.detach().clone())
+        return real_mse(output, targets, *args, **kwargs)
+
+    monkeypatch.setattr(tdiff.F, "mse_loss", _spy)
+    return captured
+
+
+def _assert_flow_formulas(x_t, t, u, start, noise, where):
+    """The TWO equations rectified flow is, asserted separately.
+
+    ``x_t == (1-t)*start + t*noise`` and ``u == noise - start``.
+
+    The joint invariant ``x_t - t*u == start`` is necessary but NOT sufficient:
+    it is satisfied by any common bias ``c`` on the noise (``u = n-start+c`` with
+    ``x_t = (1-t)start + t*(n+c)``), because the bias cancels in the subtraction.
+    Pinning both formulas against a noise the test injected removes that whole
+    family, along with any scale error on the noise.
+    """
+    tt = t[:, None, None]
+    assert torch.allclose(x_t, (1 - tt) * start + tt * noise, atol=1e-6), (
+        f"{where}: the noised input is not (1-t)*start + t*noise")
+    assert torch.allclose(u, noise - start, atol=1e-6), (
+        f"{where}: the target is not noise - start")
+
+
 def _residual_invariant(wrapper):
     """``x_t - t*u`` for the last step, which must equal the flow's start point.
 
@@ -364,6 +430,10 @@ def test_both_the_noised_input_and_the_target_come_from_the_same_residual(monkey
     from the residual, noised input from the original ``z`` -- would have passed.
     This captures the MODEL INPUT and asserts the joint invariant, so it fails for
     that variant and for its mirror image.
+
+    NECESSARY BUT NOT SUFFICIENT (r2 review finding 4): the invariant cancels any
+    common bias on the noise, so it is kept for the mixed-origin family it does
+    discriminate, and the two separate formulas below carry the rest.
     """
     anchors = torch.full((2, CH, LAT), 0.25)
     monkeypatch.setattr(tdiff, "compute_are_anchors", lambda *a, **k: anchors)
@@ -413,32 +483,133 @@ def test_the_invariant_rejects_both_forbidden_variants():
     assert not torch.allclose(bad_b, r, atol=1e-3)
 
 
-def test_validation_noising_also_uses_the_residual(monkeypatch):
-    """Dispatch site 2 gets the same joint check, not just an "it was called" spy."""
+def test_training_pins_both_flow_formulas_against_an_injected_noise(monkeypatch):
+    """THE algebra test (r2 review finding 4).
+
+    The test supplies ``n``, so ``x_t == (1-t)r + t*n`` and ``u == n - r`` are two
+    independent equations rather than one invariant. Any common bias or scale
+    error on the noise breaks them while leaving ``x_t - t*u == r`` intact.
+    """
     anchors = torch.full((2, CH, LAT), 0.25)
     monkeypatch.setattr(tdiff, "compute_are_anchors", lambda *a, **k: anchors)
+    noise = _known_noise()
+    _inject_noise(monkeypatch, noise)
+
     reals, md = _batch()
     lam = 1.0
     w = _wrapper(are_lambda=lam, are_anchor=_anchor_block(**ANCHOR_KW))
-    w.validation_timesteps = [0.5]
-    w.validation_step_outputs = {"val/loss_0.5": []}
-    w.validation_step((reals, md), 0)
+    seen = _capture_targets(w)
+    w.training_step((reals, md), 0)
 
     z = w.diffusion.pretransform.encode(reals)
     residual = z - lam * anchors
     x_t, t = w.diffusion.seen_inputs[-1]
-    # validation builds `targets` inline rather than through self.losses, so the
-    # noise is recovered from the noised input the model actually saw and the
-    # target is rebuilt exactly as validation_step does (u = noise - start point).
-    noise = (x_t - (1 - t)[:, None, None] * residual) / t[:, None, None]
-    u = noise - residual
-    assert torch.allclose(x_t - t[:, None, None] * u, residual, atol=1e-5)
-    # the invariant would not hold against the raw latent -- i.e. validation really
-    # is noising the residual, not z
-    assert not torch.allclose(x_t - t[:, None, None] * u, z, atol=1e-3)
+    _assert_flow_formulas(x_t, t, seen["targets"], residual, noise, "training_step")
+    # ...and the start point really is the residual, not the raw latent
+    assert not torch.allclose(x_t, (1 - t[:, None, None]) * z
+                              + t[:, None, None] * noise, atol=1e-3)
+
+
+def test_training_without_lambda_pins_both_formulas_against_the_raw_latent(monkeypatch):
+    """The same two equations for the untreated objective, so the control arm's
+    algebra is pinned as tightly as the treatment's."""
+    noise = _known_noise()
+    _inject_noise(monkeypatch, noise)
+    reals, md = _batch()
+    w = _wrapper()
+    seen = _capture_targets(w)
+    w.training_step((reals, md), 0)
+
+    z = w.diffusion.pretransform.encode(reals)
+    x_t, t = w.diffusion.seen_inputs[-1]
+    _assert_flow_formulas(x_t, t, seen["targets"], z, noise, "training_step (lambda absent)")
+
+
+def test_validation_pins_both_flow_formulas_against_an_injected_noise(monkeypatch):
+    """Dispatch site 2, with the REAL target captured off ``F.mse_loss``.
+
+    Two timesteps, two injected noises, so the per-timestep wiring is pinned as
+    well as the algebra.
+    """
+    anchors = torch.full((2, CH, LAT), 0.25)
+    monkeypatch.setattr(tdiff, "compute_are_anchors", lambda *a, **k: anchors)
+    noises = [_known_noise(), _known_noise(scale=-0.5, offset=1.25)]
+    _inject_noise(monkeypatch, *noises)
+    captured = _capture_validation_targets(monkeypatch)
+
+    reals, md = _batch()
+    lam = 1.0
+    w = _wrapper(are_lambda=lam, are_anchor=_anchor_block(**ANCHOR_KW))
+    w.validation_timesteps = [0.3, 0.8]
+    w.validation_step_outputs = {"val/loss_0.3": [], "val/loss_0.8": []}
+    w.validation_step((reals, md), 0)
+
+    z = w.diffusion.pretransform.encode(reals)
+    residual = z - lam * anchors
+    assert len(captured) == 2 and len(w.diffusion.seen_inputs) == 2
+    for i, ts in enumerate(w.validation_timesteps):
+        x_t, t = w.diffusion.seen_inputs[i]
+        assert torch.allclose(t, torch.full((2,), ts))
+        _assert_flow_formulas(x_t, t, captured[i], residual, noises[i],
+                              f"validation_step @t={ts}")
+        assert not torch.allclose(captured[i], noises[i] - z, atol=1e-3)
+
+
+def test_validation_without_lambda_pins_both_formulas_against_the_raw_latent(monkeypatch):
+    noise = _known_noise()
+    _inject_noise(monkeypatch, noise)
+    captured = _capture_validation_targets(monkeypatch)
+    reals, md = _batch()
+    w = _wrapper()
+    w.validation_timesteps = [0.4]
+    w.validation_step_outputs = {"val/loss_0.4": []}
+    w.validation_step((reals, md), 0)
+
+    z = w.diffusion.pretransform.encode(reals)
+    x_t, t = w.diffusion.seen_inputs[-1]
+    _assert_flow_formulas(x_t, t, captured[0], z, noise,
+                          "validation_step (lambda absent)")
+
+
+def test_the_separate_formulas_reject_a_common_noise_bias():
+    """Non-vacuity for the r2 finding, on the criterion itself.
+
+    Builds the common-bias implementation by hand and shows that the invariant
+    accepts it while the two formulas do not. (The live mutation experiment --
+    adding a bias to the noise in diffusion.py and watching exactly this split
+    happen -- is recorded in are_port_r2_review_response.md.)
+    """
+    torch.manual_seed(3)
+    z = torch.randn(2, CH, LAT)
+    a = torch.full((2, CH, LAT), 0.25)
+    n = torch.randn(2, CH, LAT)
+    t = torch.tensor([0.3, 0.7])
+    tt = t[:, None, None]
+    lam, c = 1.0, 0.37
+    r = z - lam * a
+
+    # the common-bias variant: both endpoints consistent with (n + c)
+    x_t_bad = (1 - tt) * r + tt * n + tt * c
+    u_bad = n - r + c
+
+    # the invariant is BLIND to it -- the bias cancels
+    assert torch.allclose(x_t_bad - tt * u_bad, r, atol=1e-6)
+    # the two formulas, against the noise the test owns, are not
+    with pytest.raises(AssertionError):
+        _assert_flow_formulas(x_t_bad, t, u_bad, r, n, "common-bias variant")
+    # and a pure scale error is caught too
+    with pytest.raises(AssertionError):
+        _assert_flow_formulas((1 - tt) * r + tt * (n * 1.05), t, (n * 1.05) - r,
+                              r, n, "scaled-noise variant")
 
 
 def test_training_target_is_the_anchor_residual(monkeypatch):
+    """The delta between a real lambda and a zero anchor IS lambda*A.
+
+    Kept as the mixed-origin mutant's counterpart: it is the assertion the r1
+    mutation experiment showed PASSING under the forbidden variant, which is why
+    the injected-noise formulas above exist.
+    """
     anchors = torch.full((2, CH, LAT), 0.25)
     calls = []
 
