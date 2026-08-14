@@ -20,9 +20,11 @@
 #
 # The df floor is ALSO a gate under test (case E). Its documented bypass for
 # guard-testing is MIN_FREE_DISK_MB=1; the real launch must never set it.
-# ALLOW_DIRTY_TREATMENT=1 is likewise guard-test-only: this branch is developed
-# uncommitted, so a production-shaped FULL launch could not otherwise be
-# exercised at all. Its own gate is tested in case H.
+# ARE_GUARD_DRYRUN=1 is the ONLY tolerance for a dirty treatment tree, and it is
+# not a bypass: it also forces the launcher to abort before train.py, so setting
+# it can only PREVENT a run (case H3 proves that). It replaces round 1's
+# ALLOW_DIRTY_TREATMENT, which relaxed the gate and then launched anyway
+# (r1 review finding 3).
 #
 # Safety rules honoured here:
 #   * synthetic checkpoints are tiny PL-shaped dicts in a mktemp dir;
@@ -175,10 +177,37 @@ case_run "MB=8 ACC=8 rung rejected (accumulation never feeds BN)" 2 \
   "only the BN-compliant rung MB=32 ACC=1" -- ARM=AREV MODE=FULL MB=8 ACC=8
 case_run "MIN_FREE_DISK_MB=abc rejected" 2 "MIN_FREE_DISK_MB must be a positive integer" \
   -- ARM=AREV MODE=PROBE MIN_FREE_DISK_MB=abc
-case_run "a cadence that never saves is rejected in EVERY mode (readback is mandatory)" 2 \
+case_run "a cadence that never saves is rejected (readback is mandatory)" 2 \
   "would not save before MAXSTEPS" -- ARM=AREV MODE=PROBE MAXSTEPS=15 CHECKPOINT_EVERY=2500
-case_run "FULL with a cadence that never saves rejected too" 2 \
-  "would not save before MAXSTEPS" -- ARM=AREV MODE=FULL MAXSTEPS=1000 CHECKPOINT_EVERY=2500
+case_run "a longer probe with a cadence that never saves is rejected too" 2 \
+  "would not save before MAXSTEPS" -- ARM=AREV MODE=PROBE MAXSTEPS=1000 CHECKPOINT_EVERY=2500
+
+echo "--- B2. THE PINNED SCHEDULE (r1 review finding 1) ---"
+# Round 1 expressed 40,000/2,500 as overridable DEFAULTS, so a production-identity
+# run could stop anywhere. Each case below must be rejected BY THE SCHEDULE GATE -
+# named explicitly in the expected substrings - and not incidentally by some other
+# check, which is exactly how the old MAXSTEPS=1000 case passed for the wrong reason.
+case_run "B2.1 the review's counterexample: FULL 1000 steps, cadence 1" 2 \
+  "pinned to the pre-registered endpoint MAXSTEPS=40000|||CHECKPOINT_EVERY=2500|||schedule gate FAILED" \
+  -- ARM=AREV MODE=FULL MAXSTEPS=1000 CHECKPOINT_EVERY=1
+case_run "B2.2 FULL short of the endpoint rejected" 2 \
+  "pinned to the pre-registered endpoint MAXSTEPS=40000|||schedule gate FAILED" \
+  -- ARM=AREV MODE=FULL MAXSTEPS=39999
+case_run "B2.3 FULL beyond the endpoint rejected" 2 \
+  "pinned to the pre-registered endpoint MAXSTEPS=40000|||schedule gate FAILED" \
+  -- ARM=AREV MODE=FULL MAXSTEPS=67500
+case_run "B2.4 FULL on a denser cadence rejected (AR1b screens every 2,500)" 2 \
+  "CHECKPOINT_EVERY=2500|||schedule gate FAILED" \
+  -- ARM=AREV MODE=FULL CHECKPOINT_EVERY=1250
+case_run "B2.5 RESTART to a different endpoint rejected" 2 \
+  "pinned to the pre-registered endpoint MAXSTEPS=40000|||schedule gate FAILED" \
+  -- ARM=AREV MODE=RESTART EXPECTED_STEP=20000 MAXSTEPS=67500 RESUME_CKPT=/nope.ckpt
+case_run "B2.6 PROBE is deliberately FREE (the schedule gate must not fire)" 2 \
+  "schedule OK (PROBE): FREE|||refusing to launch" \
+  -- ARM=AREV MODE=PROBE MAXSTEPS=250 CHECKPOINT_EVERY=25 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
+case_run "B2.7 FULL at the pinned schedule passes the gate and says so" 2 \
+  "schedule OK (FULL): PINNED 40000 steps, ckpt every 2500" \
+  -- ARM=AREV MODE=FULL MIN_FREE_DISK_MB="$DRYFAIL_MIN_DISK"
 
 echo "--- C. mode/resume coupling ---"
 case_run "MODE=RESTART without RESUME_CKPT rejected" 2 \
@@ -292,7 +321,7 @@ else
   stamp are_fit AREV
   case_run "F2 FULL with valid are_fit evidence accepted (dry-fail at VRAM)" 2 \
     "admission evidence for AREV (FULL)|||OK   are_fit (AREV)|||admission evidence OK|||refusing to launch" \
-    -- ARM=AREV MODE=FULL MIN_FREE_MB="$DRYFAIL_MIN_FREE" ALLOW_DIRTY_TREATMENT=1
+    -- ARM=AREV MODE=FULL MIN_FREE_MB="$DRYFAIL_MIN_FREE" ARE_GUARD_DRYRUN=1
 
   # --- adversarial evidence: stale source SHA -------------------------------
   python3 - "${EVIDENCE_DIR}/are_fit_AREV.json" <<'PY'
@@ -303,7 +332,7 @@ json.dump(r, open(p, "w"), indent=2)
 PY
   case_run "F3 stale source_sha rejected (a source change is a hard abort)" 2 \
     "source_sha 000000000000... != HEAD|||ADMISSION EVIDENCE GATE FAILED" \
-    -- ARM=AREV MODE=FULL ALLOW_DIRTY_TREATMENT=1 MIN_FREE_DISK_MB="$DRYFAIL_MIN_DISK"
+    -- ARM=AREV MODE=FULL ARE_GUARD_DRYRUN=1 MIN_FREE_DISK_MB="$DRYFAIL_MIN_DISK"
   stamp are_fit AREV
 
   # --- adversarial evidence: the ARE code changed since stamping -------------
@@ -315,7 +344,7 @@ json.dump(r, open(p, "w"), indent=2)
 PY
   case_run "F4 mismatched treatment_sha256 rejected (the ARE code changed)" 2 \
     "treatment_sha256 ffffffffffffffff... != current|||describes a different method|||ADMISSION EVIDENCE GATE FAILED" \
-    -- ARM=AREV MODE=FULL ALLOW_DIRTY_TREATMENT=1 MIN_FREE_DISK_MB="$DRYFAIL_MIN_DISK"
+    -- ARM=AREV MODE=FULL ARE_GUARD_DRYRUN=1 MIN_FREE_DISK_MB="$DRYFAIL_MIN_DISK"
   stamp are_fit AREV
 
   # --- adversarial evidence: the arm config moved after stamping -------------
@@ -328,7 +357,7 @@ json.dump(c, open(p, "w"), indent=2)          # same object, different bytes
 PY
   case_run "F5 arm config re-serialised after stamping rejected (model_config_sha256)" 2 \
     "model_config_sha256|||ADMISSION EVIDENCE GATE FAILED" \
-    -- ARM=AREV MODE=FULL ALLOW_DIRTY_TREATMENT=1 MIN_FREE_DISK_MB="$DRYFAIL_MIN_DISK"
+    -- ARM=AREV MODE=FULL ARE_GUARD_DRYRUN=1 MIN_FREE_DISK_MB="$DRYFAIL_MIN_DISK"
   restore_cfgs
   stamp are_fit AREV
 
@@ -336,7 +365,7 @@ PY
   stamp are_fit AREV FAIL
   case_run "F6 FAIL-verdict evidence rejected (a failed gate is still evidence)" 2 \
     "verdict 'FAIL' != 'PASS'|||the gate did NOT pass|||ADMISSION EVIDENCE GATE FAILED" \
-    -- ARM=AREV MODE=FULL ALLOW_DIRTY_TREATMENT=1 MIN_FREE_DISK_MB="$DRYFAIL_MIN_DISK"
+    -- ARM=AREV MODE=FULL ARE_GUARD_DRYRUN=1 MIN_FREE_DISK_MB="$DRYFAIL_MIN_DISK"
   stamp are_fit AREV
 
   # --- adversarial evidence: the verdict's log is gone ----------------------
@@ -348,7 +377,7 @@ json.dump(r, open(p, "w"), indent=2)
 PY
   case_run "F7 unsourced verdict rejected (recorded log missing)" 2 \
     "does not exist -> the verdict is unsourced|||ADMISSION EVIDENCE GATE FAILED" \
-    -- ARM=AREV MODE=FULL ALLOW_DIRTY_TREATMENT=1 MIN_FREE_DISK_MB="$DRYFAIL_MIN_DISK"
+    -- ARM=AREV MODE=FULL ARE_GUARD_DRYRUN=1 MIN_FREE_DISK_MB="$DRYFAIL_MIN_DISK"
   stamp are_fit AREV
 
   # --- adversarial evidence: the record is about a different lambda ----------
@@ -360,7 +389,7 @@ json.dump(r, open(p, "w"), indent=2)
 PY
   case_run "F8 evidence about a different lambda rejected" 2 \
     "are_lambda 0.5 != 1.0|||ADMISSION EVIDENCE GATE FAILED" \
-    -- ARM=AREV MODE=FULL ALLOW_DIRTY_TREATMENT=1 MIN_FREE_DISK_MB="$DRYFAIL_MIN_DISK"
+    -- ARM=AREV MODE=FULL ARE_GUARD_DRYRUN=1 MIN_FREE_DISK_MB="$DRYFAIL_MIN_DISK"
   stamp are_fit AREV
 
   # --- adversarial evidence: the calibration record or the frozen VAE moved --
@@ -374,21 +403,37 @@ json.dump(r, open(p, "w"), indent=2)
 FUZZ
     case_run "F9 ${FIELD} mismatch rejected (a different anchor input)" 2 \
       "${FIELD} aaaaaaaaaaaaaaaa... != current|||ADMISSION EVIDENCE GATE FAILED" \
-      -- ARM=AREV MODE=FULL ALLOW_DIRTY_TREATMENT=1 MIN_FREE_DISK_MB="$DRYFAIL_MIN_DISK"
+      -- ARM=AREV MODE=FULL ARE_GUARD_DRYRUN=1 MIN_FREE_DISK_MB="$DRYFAIL_MIN_DISK"
     stamp are_fit AREV
   done
 
-  echo "--- H. dirty-treatment gate (ALLOW_DIRTY_TREATMENT is guard-test-only) ---"
+  echo "--- H. dirty-treatment gate (ARE_GUARD_DRYRUN is guard-suite-only) ---"
   if [ -n "$(git status --porcelain -- src/data/are_anchor.py src/data/dataset.py src/data/utils.py src/training/diffusion.py src/training/factory.py train.py)" ]; then
     case_run "H1 FULL refuses a dirty treatment path without the bypass" 2 \
       "treatment paths are DIRTY|||does not describe what would run|||ADMISSION EVIDENCE GATE FAILED" \
       -- ARM=AREV MODE=FULL MIN_FREE_DISK_MB="$DRYFAIL_MIN_DISK"
-    case_run "H2 the bypass is announced in the log when used" 2 \
-      "GUARD-TESTING ONLY; never on a real launch|||admission evidence OK" \
-      -- ARM=AREV MODE=FULL ALLOW_DIRTY_TREATMENT=1 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
+    case_run "H2 the tolerance is announced in the log when used" 2 \
+      "tolerated for THIS GATE ONLY|||no run can result|||admission evidence OK" \
+      -- ARM=AREV MODE=FULL ARE_GUARD_DRYRUN=1 MIN_FREE_MB="$DRYFAIL_MIN_FREE"
   else
     echo "SKIP  H1/H2 - the treatment paths are clean in this checkout, so the dirty branch"
     echo "SKIP        cannot be exercised without dirtying tracked source (refused)."
+  fi
+
+  # H3 runs whether or not the tree is dirty: it is the safety argument for the
+  # flag existing at all. Every gate up to and including VRAM is satisfied here
+  # (MIN_FREE_MB=1), so the ONLY thing standing between this invocation and
+  # train.py is the dry-run stop.
+  case_run "H3 ARE_GUARD_DRYRUN cannot launch training even when every gate passes" 2 \
+    "all pre-launch gates executed; refusing to launch training|||it can only PREVENT a run" \
+    -- ARM=AREV MODE=FULL ARE_GUARD_DRYRUN=1 MIN_FREE_MB=1
+  # ...and the flag is the ONLY dirty tolerance: the retired one must do nothing.
+  if [ -n "$(git status --porcelain -- src/data/are_anchor.py src/data/dataset.py src/data/utils.py src/training/diffusion.py src/training/factory.py train.py)" ]; then
+    case_run "H4 the retired ALLOW_DIRTY_TREATMENT bypass no longer exists" 2 \
+      "treatment paths are DIRTY|||ADMISSION EVIDENCE GATE FAILED" \
+      -- ARM=AREV MODE=FULL ALLOW_DIRTY_TREATMENT=1 MIN_FREE_DISK_MB="$DRYFAIL_MIN_DISK"
+  else
+    echo "SKIP  H4 - the treatment paths are clean, so there is no dirty state to bypass."
   fi
 fi
 
@@ -449,7 +494,7 @@ PY
   NS_NOGROUPS="${SAVEDIR_AREV}/guardtest-nogroups-step=20000.ckpt"
   NS_NOSCHED="${SAVEDIR_AREV}/guardtest-nosched-step=20000.ckpt"
   OUTSIDE="${TMP}/guardtest-outside-step=20000.ckpt"
-  EV_ARGS=(ALLOW_DIRTY_TREATMENT=1)
+  EV_ARGS=(ARE_GUARD_DRYRUN=1)
   [ "$EVIDENCE_OWNED" = "1" ] || EV_ARGS=()   # without evidence the gate stops earlier
 
   case_run "G0 MODE=FULL into a namespace that already holds checkpoints rejected" 2 \
@@ -458,8 +503,11 @@ PY
   case_run "G1 RESTART from outside this arm's namespace rejected" 2 \
     "may only resume a checkpoint written by THIS arm's FULL run" \
     -- ARM=AREV MODE=RESTART EXPECTED_STEP=20000 RESUME_CKPT="$OUTSIDE"
-  case_run "G2 RESTART MAXSTEPS <= EXPECTED_STEP rejected" 2 "must exceed the resume step 20000" \
-    -- ARM=AREV MODE=RESTART EXPECTED_STEP=20000 MAXSTEPS=20000 RESUME_CKPT="$NS_OK"
+  # MAXSTEPS is pinned to 40,000, so this check is now reached by claiming a resume
+  # step at or past the endpoint rather than by shortening the run.
+  case_run "G2 RESTART already at (or past) the endpoint rejected" 2 \
+    "must exceed the resume step 40000" \
+    -- ARM=AREV MODE=RESTART EXPECTED_STEP=40000 RESUME_CKPT="$NS_OK"
 
   if [ "$EVIDENCE_OWNED" = "1" ]; then
     case_run "G3 RESTART with a wrong EXPECTED_STEP rejected" 2 "global_step 20000 != expected 22500" \

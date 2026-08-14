@@ -690,3 +690,189 @@ def test_calibration_is_deterministic(tmp_path):
         rec.pop("created", None)
         outs.append(rec)
     assert outs[0] == outs[1]
+
+
+# --------------------------------------------------------------------------- #
+# 10. the time-shift publication, through the REAL augmentation and the REAL
+#     dataset (r1 code review, finding 5)
+# --------------------------------------------------------------------------- #
+def test_random_time_shift_publishes_the_displacement_it_applied():
+    """The module contract: ``last_shift`` is the number of samples the waveform
+    actually moved, not a nominal parameter."""
+    from src.data.utils import RandomTimeShift
+
+    shifter = RandomTimeShift(max_shift=10, p=1.0)
+    signal = torch.arange(1, 65, dtype=torch.float32).reshape(1, 64)
+    torch.manual_seed(0)
+    out = shifter(signal)
+    k = shifter.last_shift
+    assert 1 <= k <= 10
+    assert torch.equal(out[:, k:], signal[:, :-k]), "published shift != applied shift"
+    assert torch.equal(out[:, :k], torch.zeros(1, k))
+
+
+def test_random_time_shift_publishes_zero_when_it_declines():
+    from src.data.utils import RandomTimeShift
+
+    shifter = RandomTimeShift(max_shift=10, p=0.0)
+    signal = torch.arange(1, 33, dtype=torch.float32).reshape(1, 32)
+    out = shifter(signal)
+    assert shifter.last_shift == 0
+    assert torch.equal(out, signal)
+
+
+def test_publishing_the_shift_consumes_no_extra_rng():
+    """Recording a draw that already happened must not BE a draw: the ARE arm and
+    its control have to walk the same python RNG stream."""
+    import random
+
+    from src.data.utils import RandomTimeShift
+
+    shifter = RandomTimeShift(max_shift=10, p=0.5)
+    signal = torch.ones(1, 64)
+
+    random.seed(7)
+    for _ in range(50):
+        shifter(signal)
+    after_forward = random.getstate()
+
+    # the same number of draws, made by hand: one random(), and a randint() only
+    # when that random() cleared the probability gate
+    random.seed(7)
+    for _ in range(50):
+        if not (random.random() > 0.5):
+            random.randint(1, 10)
+    assert random.getstate() == after_forward
+
+
+def _tiny_ar_tree(root, n=4):
+    """A miniature AR tree the real ``SampleDataset`` can walk."""
+    import torchaudio
+
+    ir_root = root / "AcousticRooms" / "single_channel_ir_1" / "Toy" / "Toy_idx_0"
+    ir_root.mkdir(parents=True)
+    names = []
+    for k in range(n):
+        wav = torch.zeros(1, SAMPLE_SIZE)
+        wav[0, 500 + k] = 0.5                      # a single locatable impulse
+        name = f"S00{k}_R000_hybrid_IR.wav"
+        torchaudio.save(str(ir_root / name), wav, FS)
+        names.append(name)
+    split = root / "train.json"
+    split.write_text(json.dumps({"Toy": {"Toy_idx_0": names}}))
+    return split
+
+
+def _dataset(root, split, augs):
+    from src.data.dataset import LocalDatasetConfig, SampleDataset
+
+    cfg = LocalDatasetConfig(
+        id="Toy", path=str(root / "AcousticRooms"), json_file_path=str(split),
+        folder_name="single_channel_ir_1", conditioning={})
+    return SampleDataset([cfg], sample_size=SAMPLE_SIZE, sample_rate=FS,
+                         random_crop=False, force_channels="mono", augs=augs)
+
+
+def test_dataset_publishes_the_shift_that_actually_displaced_the_waveform(tmp_path):
+    """Integration, through the real loader and the real augmentation: the
+    metadata value must equal the displacement the returned audio really carries.
+
+    Round 1's tests supplied ``time_shift`` by hand, so nothing connected the
+    number to the waveform (r1 review finding 5).
+    """
+    import random
+
+    split = _tiny_ar_tree(tmp_path)
+    ds = _dataset(tmp_path, split, augs=True)
+    assert ds._time_shifter is not None
+
+    seen_shifted = False
+    for seed in range(40):
+        random.seed(seed)
+        audio, info = ds[0]
+        shift = info["time_shift"]
+        peak = int(torch.argmax(audio.abs()))
+        assert peak == 500 + shift, (
+            f"metadata says time_shift={shift} but the impulse moved to {peak}")
+        seen_shifted = seen_shifted or shift > 0
+    assert seen_shifted, "no seed in the sweep exercised a non-zero shift"
+
+
+def test_dataset_publishes_zero_when_there_is_no_augmentation(tmp_path):
+    split = _tiny_ar_tree(tmp_path)
+    ds = _dataset(tmp_path, split, augs=False)
+    assert ds._time_shifter is None
+    _, info = ds[0]
+    assert info["time_shift"] == 0
+
+
+def test_dataset_refuses_to_build_on_a_shifter_that_does_not_publish(tmp_path, monkeypatch):
+    """r1 review finding 5, fixed at the only place it CAN be fixed.
+
+    Round 1 defaulted a missing ``last_shift`` to 0 inside ``__getitem__``. That
+    is fail-open, and raising there would have been no better: ``__getitem__``
+    catches every exception and substitutes a random item, so the error would have
+    become an unbounded retry loop instead of a stop. The contract is therefore
+    proven at CONSTRUCTION, outside that handler.
+    """
+    from torch import nn
+
+    import src.data.dataset as dsmod
+
+    class _MuteShifter(nn.Module):
+        """A time shifter that applies a shift and tells nobody."""
+
+        def __init__(self, max_shift=10, p=0.5):
+            super().__init__()
+
+        def forward(self, signal):
+            return signal
+
+    monkeypatch.setattr(dsmod, "RandomTimeShift", _MuteShifter)
+    split = _tiny_ar_tree(tmp_path)
+    with pytest.raises(RuntimeError, match="publishes no 'last_shift'"):
+        _dataset(tmp_path, split, augs=True)
+
+
+def test_dataset_refuses_two_time_shifters_in_one_pipeline(tmp_path, monkeypatch):
+    """The published value would describe only one of them."""
+    import src.data.dataset as dsmod
+    from src.data.utils import RandomTimeShift
+
+    class _ExtraShifter(RandomTimeShift):
+        """Stands in for AddNoise's slot, but is itself a time shifter."""
+
+        def __init__(self, snr_db_range=None, noise_type=None, p=0.5):
+            super().__init__(max_shift=4, p=p)
+
+    monkeypatch.setattr(dsmod, "AddNoise", _ExtraShifter)
+    split = _tiny_ar_tree(tmp_path)
+    with pytest.raises(RuntimeError, match="RandomTimeShift modules"):
+        _dataset(tmp_path, split, augs=True)
+
+
+def test_a_reordered_pipeline_still_finds_the_shifter(tmp_path, monkeypatch):
+    """Resolution is BY TYPE, so moving the shifter off index 0 -- the exact
+    regression round 1's ``self.augs[0]`` would have missed -- changes nothing."""
+    import random
+
+    from torch import nn
+
+    import src.data.dataset as dsmod
+    from src.data.utils import AddNoise, RandomTimeShift
+
+    real_sequential = nn.Sequential
+
+    def _reversed_sequential(*mods):
+        return real_sequential(*reversed(mods))
+
+    monkeypatch.setattr(dsmod.torch.nn, "Sequential", _reversed_sequential)
+    split = _tiny_ar_tree(tmp_path)
+    ds = _dataset(tmp_path, split, augs=True)
+    assert isinstance(ds.augs[0], AddNoise)                 # not the shifter
+    assert isinstance(ds._time_shifter, RandomTimeShift)    # found anyway
+
+    for seed in range(20):
+        random.seed(seed)
+        audio, info = ds[0]
+        assert int(torch.argmax(audio.abs())) == 500 + info["time_shift"]

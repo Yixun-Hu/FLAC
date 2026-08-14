@@ -1,6 +1,7 @@
 import os
 import argparse
 import contextlib
+import copy
 import hashlib
 import json
 import math
@@ -13,6 +14,50 @@ import pytorch_lightning as pl
 from src.data.are_anchor import (apply_anchor_addback, build_anchor_bank,
                                  compute_are_anchors)
 from src.data.dataset import create_dataloader_from_config
+
+def _load_exp16_readback():
+    """exp_16's schedule/readback module, loaded BY PATH, LAZILY, and CACHED.
+
+    It owns the ONE type-strict comparison rule that the launcher's resume gate,
+    its post-run readback and eval's checkpoint binding all use. It lives with the
+    experiment rather than in ``src/`` so the launcher's cheap shell gates can
+    import it without pulling in torch.
+
+    Two constraints this function exists to respect, both learned the hard way:
+
+    * **``sys.path`` is never mutated.** A first revision did
+      ``sys.path.insert(0, <exp_16 dir>)`` at module scope, which put that
+      directory ahead of everything for the rest of the process — so a later
+      top-level ``import stamp_evidence`` (exp_14's evidence module, which the
+      model-comparison generator loads) would have resolved to exp_16's file.
+      Importing a module must not change what an unrelated import means.
+    * **It is LAZY.** A second revision called this at module scope, which made
+      ``import eval_FLAC`` fail in any tree that does not carry the exp_16
+      worklog folder — a pinned worktree, a partial checkout, or the
+      model-comparison gate's synthetic repo, which copies ``eval_FLAC.py`` and
+      the exp_11 validator and nothing else. That turned every validated row into
+      "cannot derive the expected filename". Only the ARE path needs this module,
+      so only the ARE path pays for it.
+    """
+    global _EXP16_READBACK
+    if _EXP16_READBACK is None:
+        import importlib.util
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "worklog", "worklog_yixun", "exp_16_are_port_claude",
+                            "readback.py")
+        if not os.path.isfile(path):
+            raise RuntimeError(
+                f"ARE evaluation needs exp_16's readback module at {path}, which this "
+                "checkout does not carry. (Only ARE runs need it; every other "
+                "evaluation imports eval_FLAC without it.)")
+        spec = importlib.util.spec_from_file_location("exp16_readback", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _EXP16_READBACK = module
+    return _EXP16_READBACK
+
+
+_EXP16_READBACK = None
 from src.data.yaw_rotation import (rotate_scene_metadata, invariant_conditioning,
                                    draw_yaw_offsets, offsets_to_radians,
                                    yaw_column_shift,
@@ -177,7 +222,8 @@ def resolve_are_lambda(training_config, are_lambda=None):
       back, and recording a lambda that influenced nothing is exactly the failure
       announcement 05 exists to prevent.
 
-    Whichever wins is recorded in the metrics row together with its source.
+    This resolves the DOSE only. Which anchor it is a dose OF is decided by
+    :func:`resolve_are_from_checkpoint`, which binds it to the checkpoint.
     """
     training_config = training_config or {}
     declared = training_config.get(ARE_LAMBDA_KEY, None)
@@ -196,6 +242,77 @@ def resolve_are_lambda(training_config, are_lambda=None):
             f"training.{ARE_ANCHOR_KEY} block, so the analytic anchor cannot be "
             "computed. Point --model-config at the ARE arm's config.")
     return lam, ("model_config" if are_lambda is None else "cli")
+
+
+def _are_declared(model_config):
+    """Does this parsed model config declare the ARE objective at all?"""
+    training = (model_config or {}).get("training") or {}
+    return ARE_LAMBDA_KEY in training or ARE_ANCHOR_KEY in training
+
+
+def resolve_are_from_checkpoint(embedded_model_config, file_model_config,
+                                are_lambda=None):
+    """``(lambda_or_None, source, anchor_block_or_None)`` — BOUND TO THE CHECKPOINT.
+
+    Round-1 defect (r1 code review, finding 2): ``evaluate_model`` read the
+    checkpoint and the ``--model-config`` JSON as two independent objects and then
+    took lambda AND the calibrated constants from the JSON alone. A checkpoint
+    trained against one anchor could therefore be evaluated against another — it
+    would load cleanly, the numbers would look plausible, and the metrics row
+    would record the *file's* provenance rather than the artifact's. Announcement
+    05's whole point is that this class of mismatch is invisible after the fact.
+
+    The rule, applied only when ARE is in play so that every non-ARE evaluation
+    stays byte-identical to the rows already committed:
+
+    1. The checkpoint MUST carry an embedded ``model_config``. Without it there is
+       no way to prove which anchor trained these weights, and an assumed one is
+       exactly what this function exists to forbid.
+    2. The embedded config and the ``--model-config`` file must agree
+       TYPE-STRICTLY (``1`` is not ``1.0``, which is precisely the distinction the
+       factory enforces).
+    3. The anchor block is then taken from the EMBEDDED config — the artifact is
+       the authority, the file is only checked against it.
+    4. ``--are-lambda`` may override the **dose** (AR3's ``{0, 0.5, 1}`` sweep) and
+       nothing else. It can never change *which* anchor is added back.
+
+    An arm is "in play" if either side declares ARE, so a checkpoint trained with
+    ARE cannot be quietly evaluated through a non-ARE config (which would silently
+    skip the add-back and report the residual as if it were an RIR).
+    """
+    embedded_declares = isinstance(embedded_model_config, dict) and _are_declared(
+        embedded_model_config)
+    file_declares = _are_declared(file_model_config)
+
+    if not (embedded_declares or file_declares or are_lambda is not None):
+        return None, None, None
+
+    if not isinstance(embedded_model_config, dict):
+        raise ValueError(
+            "ARE evaluation requires the checkpoint's embedded 'model_config', and this "
+            "checkpoint carries none. Without it the anchor this arm was TRAINED "
+            "against cannot be proven, and evaluating against an assumed one would "
+            "produce plausible, unfalsifiable numbers (announcement 05). Re-export the "
+            "checkpoint from a run whose train.py embedded its config.")
+
+    diff = _load_exp16_readback().type_strict_diff(
+        embedded_model_config, file_model_config,
+        label_a="the checkpoint", label_b="--model-config")
+    if diff is not None:
+        raise ValueError(
+            "the checkpoint's embedded model_config does not match --model-config "
+            f"(type-strict); first difference: {diff}. Refusing to evaluate: the "
+            "add-back anchor would not be the anchor this checkpoint was trained "
+            "against, and the metrics row would record the file's provenance rather "
+            "than the artifact's.")
+
+    embedded_training = embedded_model_config.get("training") or {}
+    lam, source = resolve_are_lambda(embedded_training, are_lambda)
+    if lam is None:
+        # reachable only when a --are-lambda was passed against a config that
+        # declares neither key; resolve_are_lambda has already raised for that.
+        return None, None, None
+    return lam, source, dict(embedded_training[ARE_ANCHOR_KEY])
 
 
 def are_suffix(are_lambda=None):
@@ -1021,6 +1138,12 @@ def evaluate_model(
     with open(model_config_path) as f:
         model_config = json.load(f)
 
+    # The comparison against the checkpoint's embedded config must be against the
+    # file AS WRITTEN: `training_config` is mutated below (use_ema is flipped once
+    # EMA weights are folded in), and comparing a mutated object would let a real
+    # mismatch slip through as "expected".
+    file_model_config = copy.deepcopy(model_config)
+
     training_config = model_config.get('training', None)
     
     # Load ckpt
@@ -1040,6 +1163,13 @@ def evaluate_model(
                 new_key = key.replace('diffusion_ema.ema_model.', 'model.')
                 state_dict[new_key] = state_dict.pop(key)
         training_config['use_ema'] = False
+
+    # exp_16 (ARE), r1 review finding 2: bind the add-back to the ARTIFACT before
+    # any model is built. A checkpoint trained against one anchor must never be
+    # evaluated against another, and this is the last point at which that can be
+    # refused for free.
+    are_lambda, are_lambda_source, are_anchor_cfg = resolve_are_from_checkpoint(
+        ckpt.get('model_config'), file_model_config, are_lambda)
 
     # Build model; assert the checkpoint actually loaded (full-review condition C2).
     model = create_model_from_config(model_config)
@@ -1063,18 +1193,18 @@ def evaluate_model(
         samples = model_config["sample_size"]
 
     # exp_16 (ARE): the sampler emits the RESIDUAL, so the query anchor is added
-    # back to the latent before the decode. The bank is built once, from the same
-    # frozen VAE the arm trained against, and its worst-case frame check runs here
-    # -- before any GPU sampling -- rather than mid-loop.
-    are_lambda, are_lambda_source = resolve_are_lambda(training_config, are_lambda)
-    are_bank, are_anchor_cfg = None, None
+    # back to the latent before the decode. lambda and the anchor block were bound
+    # to the checkpoint above; all that remains is to build the bank from the same
+    # frozen VAE the arm trained against, whose worst-case frame check runs here --
+    # before any GPU sampling -- rather than mid-loop.
+    are_bank = None
     if are_lambda is not None:
-        are_anchor_cfg = dict(training_config[ARE_ANCHOR_KEY])
         are_bank = build_anchor_bank(module.diffusion.pretransform,
                                      model_config["sample_rate"],
                                      model_config["sample_size"], are_anchor_cfg)
         print(f"ARE add-back ENABLED: lambda={are_lambda} (source: {are_lambda_source}), "
-              f"anchor={are_anchor_cfg}, kept latent frames 0..{are_bank.cfg.early_frames - 1}")
+              f"anchor={are_anchor_cfg} (from the CHECKPOINT's embedded model_config), "
+              f"kept latent frames 0..{are_bank.cfg.early_frames - 1}")
 
     # Fix seed
     if isinstance(seed, str):

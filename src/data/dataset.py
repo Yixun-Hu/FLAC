@@ -192,10 +192,39 @@ class SampleDataset(torch.utils.data.Dataset):
             print('Using Augmentations: Random Time Shift, Add Noise')
             self.augs = torch.nn.Sequential(
                 RandomTimeShift(max_shift=10, p=0.5),
-                AddNoise(snr_db_range=(40, 60), noise_type='pink', p=0.5), 
+                AddNoise(snr_db_range=(40, 60), noise_type='pink', p=0.5),
             )
         else:
             self.augs = None
+
+        # exp_16 (ARE): the time-shift augmentation is resolved BY TYPE, once, AT
+        # CONSTRUCTION, and its absence is a distinct fact from "it ran and shifted
+        # by 0". Round 1 read `getattr(self.augs[0], 'last_shift', 0)` inside
+        # __getitem__, which was fail-open twice over: reordering the pipeline, or
+        # a RandomTimeShift that stopped publishing, would both silently report an
+        # unshifted target and mis-place the anchor on half the training set
+        # (r1 review finding 5).
+        #
+        # The check lives HERE and not in __getitem__ on purpose: __getitem__ wraps
+        # its body in `except Exception -> return self[random.randrange(...)]`, so a
+        # contract violation raised there would be swallowed into an unbounded
+        # substitution loop rather than stopping the run. A constructor error
+        # cannot be caught by that handler.
+        self._time_shifter = None
+        if self.augs is not None:
+            shifters = [m for m in self.augs.modules() if isinstance(m, RandomTimeShift)]
+            if len(shifters) > 1:
+                raise RuntimeError(
+                    f"the augmentation pipeline holds {len(shifters)} RandomTimeShift "
+                    "modules; the published 'time_shift' would describe only one of them")
+            if shifters:
+                if not hasattr(shifters[0], "last_shift"):
+                    raise RuntimeError(
+                        "RandomTimeShift publishes no 'last_shift': the ARE anchor is "
+                        "placed at t* + this value, so a dataset that cannot report the "
+                        "shift it applied would systematically mis-place the anchor on "
+                        "every shifted sample with nothing downstream able to detect it")
+                self._time_shifter = shifters[0]
 
         self.root_paths = []
 
@@ -259,7 +288,17 @@ class SampleDataset(torch.utils.data.Dataset):
                 # read back here (no extra RNG value is consumed and the audio is
                 # untouched). Read immediately after the call, from this worker's
                 # own dataset copy, so it always describes THIS sample.
-                time_shift = int(getattr(self.augs[0], "last_shift", 0))
+                #
+                # FAIL CLOSED (r1 review finding 5): a DIRECT attribute read, with
+                # no default. The publishing contract was already proven at
+                # construction, so this cannot silently report 0; if the attribute
+                # ever vanished mid-run the AttributeError would substitute the
+                # sample, which is safe, rather than mislabel it, which is not.
+                # "No shifter in the pipeline" (time_shift stays 0) is a different,
+                # true fact and is the only case that yields 0 without an
+                # observation.
+                if self._time_shifter is not None:
+                    time_shift = int(self._time_shifter.last_shift)
 
             audio = audio.clamp(-1, 1)
 

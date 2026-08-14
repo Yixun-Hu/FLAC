@@ -101,8 +101,14 @@ class _StubDiffusion(nn.Module):
         self.pretransform = _StubPretransform()
         self.dist_shift = None
         self.io_channels = CH
+        self.seen_inputs = []
 
     def forward(self, x, t, cond=None, cfg_dropout_prob=0.0, **kwargs):
+        # x IS x_t, the noised input. Recording it is what lets the algebra test
+        # below check the NOISING as well as the target (r1 review finding 4:
+        # inspecting `targets` alone passes the forbidden "target from residual,
+        # noised input from the original z" implementation).
+        self.seen_inputs.append((x.detach().clone(), t.detach().clone()))
         return self.model(x)
 
     def get_conditioning_inputs(self, conditioning):
@@ -170,7 +176,7 @@ class _CaptureLosses(nn.Module):
 def _capture_targets(wrapper):
     seen = {}
     wrapper.losses = _CaptureLosses(seen)
-    return seen
+    return seen  # also reachable as wrapper.losses.seen
 
 
 ANCHOR_KW = dict(sample_rate=FS, sample_size=SAMPLE_SIZE)
@@ -321,10 +327,115 @@ def test_absent_lambda_never_calls_the_anchor_function(monkeypatch):
     reals, md = _batch()
     w.training_step((reals, md), 0)
     assert calls == []
+    # ...and the objective is the UNMODIFIED one. Round 1 asserted
+    # `targets + z == targets + z` here, which is true of anything; the real
+    # statement is the rectified-flow invariant x_t - t*u == z, evaluated against
+    # the raw latent rather than any residual.
     z = w.diffusion.pretransform.encode(reals)
-    # rectified flow: targets == noise - z, i.e. targets + z is the pure noise
-    assert torch.allclose(seen["targets"] + z, seen["targets"] + z)
-    assert seen["targets"].shape == z.shape
+    x_t, t = w.diffusion.seen_inputs[-1]
+    assert torch.allclose(x_t - t[:, None, None] * seen["targets"], z, atol=1e-5)
+
+
+def _residual_invariant(wrapper):
+    """``x_t - t*u`` for the last step, which must equal the flow's start point.
+
+    Rectified flow uses ``alphas = 1-t``, ``sigmas = t``, so with a start point
+    ``r`` and noise ``n``::
+
+        x_t = (1-t)*r + t*n        u = n - r
+        x_t - t*u = (1-t)*r + t*n - t*n + t*r = r
+
+    The noise cancels exactly, which is what makes this a JOINT statement about
+    the noised input and the target: it is only ``r`` when BOTH were built from
+    ``r``. If ``x_t`` came from ``z`` while ``u`` came from ``r = z - lam*A`` the
+    expression collapses to ``z - t*lam*A``; if the two are swapped it collapses
+    to ``z - (1-t)*lam*A``. Neither equals ``r`` except at a single degenerate
+    ``t``, so one test discriminates both forbidden variants.
+    """
+    x_t, t = wrapper.diffusion.seen_inputs[-1]
+    targets = wrapper.losses.seen["targets"]
+    return x_t - t[:, None, None] * targets
+
+
+def test_both_the_noised_input_and_the_target_come_from_the_same_residual(monkeypatch):
+    """The load-bearing algebra check (r1 review finding 4).
+
+    Round 1 inspected ``targets`` only, so the forbidden implementation -- target
+    from the residual, noised input from the original ``z`` -- would have passed.
+    This captures the MODEL INPUT and asserts the joint invariant, so it fails for
+    that variant and for its mirror image.
+    """
+    anchors = torch.full((2, CH, LAT), 0.25)
+    monkeypatch.setattr(tdiff, "compute_are_anchors", lambda *a, **k: anchors)
+    reals, md = _batch()
+    lam = 1.0
+
+    w = _wrapper(are_lambda=lam, are_anchor=_anchor_block(**ANCHOR_KW))
+    _capture_targets(w)
+    torch.manual_seed(11)
+    w.training_step((reals, md), 0)
+
+    z = w.diffusion.pretransform.encode(reals)
+    residual = z - lam * anchors
+    assert torch.allclose(_residual_invariant(w), residual, atol=1e-5)
+    # and it is genuinely NOT the unmodified latent, or the assertion would hold
+    # for the no-treatment implementation too
+    assert not torch.allclose(_residual_invariant(w), z, atol=1e-3)
+
+
+def test_the_invariant_rejects_both_forbidden_variants():
+    """Non-vacuity, on the criterion itself.
+
+    Constructs the two mixed implementations by hand and shows the invariant
+    refuses them. (The live mutation experiment -- editing diffusion.py to the
+    forbidden variant and observing the test above go red -- is recorded in the
+    round-2 review notes; this keeps the demonstration in the suite.)
+    """
+    torch.manual_seed(3)
+    z = torch.randn(2, CH, LAT)
+    a = torch.full((2, CH, LAT), 0.25)
+    n = torch.randn(2, CH, LAT)
+    t = torch.tensor([0.3, 0.7])
+    lam = 1.0
+    r = z - lam * a
+
+    def invariant(x_t, u):
+        return x_t - t[:, None, None] * u
+
+    # correct: both from r
+    assert torch.allclose(invariant((1 - t)[:, None, None] * r + t[:, None, None] * n,
+                                    n - r), r, atol=1e-6)
+    # forbidden A: noised input from z, target from r
+    bad_a = invariant((1 - t)[:, None, None] * z + t[:, None, None] * n, n - r)
+    assert not torch.allclose(bad_a, r, atol=1e-3)
+    # forbidden B: noised input from r, target from z
+    bad_b = invariant((1 - t)[:, None, None] * r + t[:, None, None] * n, n - z)
+    assert not torch.allclose(bad_b, r, atol=1e-3)
+
+
+def test_validation_noising_also_uses_the_residual(monkeypatch):
+    """Dispatch site 2 gets the same joint check, not just an "it was called" spy."""
+    anchors = torch.full((2, CH, LAT), 0.25)
+    monkeypatch.setattr(tdiff, "compute_are_anchors", lambda *a, **k: anchors)
+    reals, md = _batch()
+    lam = 1.0
+    w = _wrapper(are_lambda=lam, are_anchor=_anchor_block(**ANCHOR_KW))
+    w.validation_timesteps = [0.5]
+    w.validation_step_outputs = {"val/loss_0.5": []}
+    w.validation_step((reals, md), 0)
+
+    z = w.diffusion.pretransform.encode(reals)
+    residual = z - lam * anchors
+    x_t, t = w.diffusion.seen_inputs[-1]
+    # validation builds `targets` inline rather than through self.losses, so the
+    # noise is recovered from the noised input the model actually saw and the
+    # target is rebuilt exactly as validation_step does (u = noise - start point).
+    noise = (x_t - (1 - t)[:, None, None] * residual) / t[:, None, None]
+    u = noise - residual
+    assert torch.allclose(x_t - t[:, None, None] * u, residual, atol=1e-5)
+    # the invariant would not hold against the raw latent -- i.e. validation really
+    # is noising the residual, not z
+    assert not torch.allclose(x_t - t[:, None, None] * u, z, atol=1e-3)
 
 
 def test_training_target_is_the_anchor_residual(monkeypatch):
@@ -668,3 +779,113 @@ def test_lambda_one_actually_changes_the_step():
     _, _, params_plain, _, _ = _one_step()
     _, _, params_are, _, _ = _one_step(are_lambda=1.0, are_anchor=_anchor_block(**ANCHOR_KW))
     assert any(not torch.equal(x, y) for x, y in zip(params_plain, params_are))
+
+
+# --------------------------------------------------------------------------- #
+# 7. the add-back is bound to the CHECKPOINT, not to --model-config
+#    (r1 code review, finding 2)
+# --------------------------------------------------------------------------- #
+def _are_cfg(a_g=0.5, lam=1.0, delta_hat=0.0):
+    return {
+        "model_type": "diffusion_cond", "sample_rate": FS, "sample_size": SAMPLE_SIZE,
+        "training": {"use_ema": True, LAM_KEY: lam,
+                     ANCHOR_KEY: {"delta_hat": delta_hat, "a_g": a_g}},
+    }
+
+
+def _plain_cfg():
+    return {"model_type": "diffusion_cond", "sample_rate": FS,
+            "sample_size": SAMPLE_SIZE, "training": {"use_ema": True}}
+
+
+def test_non_are_evaluation_is_untouched_by_the_binding():
+    """Byte-compat: an arm that declares no ARE resolves to None and never
+    compares anything, so every row already in the record is unaffected -- even
+    when the checkpoint's embedded config differs from the file (which is common
+    for released checkpoints)."""
+    embedded = _plain_cfg()
+    embedded["training"]["something_else"] = 7
+    assert eval_FLAC.resolve_are_from_checkpoint(embedded, _plain_cfg(), None) == (
+        None, None, None)
+    # ...and a checkpoint with no embedded config at all is still fine
+    assert eval_FLAC.resolve_are_from_checkpoint(None, _plain_cfg(), None) == (
+        None, None, None)
+
+
+def test_are_evaluation_takes_the_anchor_from_the_checkpoint():
+    lam, source, anchor = eval_FLAC.resolve_are_from_checkpoint(
+        _are_cfg(), _are_cfg(), None)
+    assert lam == 1.0 and source == "model_config"
+    assert anchor == {"delta_hat": 0.0, "a_g": 0.5}
+
+
+def test_are_evaluation_rejects_a_checkpoint_with_no_embedded_config():
+    with pytest.raises(ValueError, match="embedded 'model_config'"):
+        eval_FLAC.resolve_are_from_checkpoint(None, _are_cfg(), None)
+
+
+def test_are_evaluation_rejects_a_mismatched_anchor():
+    """THE defect this closes: a checkpoint trained against one anchor being
+    evaluated against another, loading cleanly and recording false provenance."""
+    with pytest.raises(ValueError, match=r"are_anchor\.a_g"):
+        eval_FLAC.resolve_are_from_checkpoint(_are_cfg(a_g=0.5), _are_cfg(a_g=0.9), None)
+
+
+def test_are_evaluation_rejects_a_mismatched_lambda():
+    with pytest.raises(ValueError, match=LAM_KEY):
+        eval_FLAC.resolve_are_from_checkpoint(_are_cfg(lam=1.0), _are_cfg(lam=0.5), None)
+
+
+def test_are_evaluation_rejects_a_mismatched_delta_hat():
+    with pytest.raises(ValueError, match="delta_hat"):
+        eval_FLAC.resolve_are_from_checkpoint(
+            _are_cfg(delta_hat=0.0), _are_cfg(delta_hat=3.0), None)
+
+
+def test_are_evaluation_is_type_strict():
+    """``1 == 1.0`` in Python; the factory rejects the int, so the binding must
+    too or a config that could never have trained this checkpoint would pass."""
+    embedded = _are_cfg()
+    embedded["training"][LAM_KEY] = 1          # int, not float
+    with pytest.raises(ValueError, match="type int != float"):
+        eval_FLAC.resolve_are_from_checkpoint(embedded, _are_cfg(), None)
+
+
+def test_an_are_checkpoint_cannot_be_evaluated_through_a_non_are_config():
+    """Otherwise the add-back would be silently skipped and the RESIDUAL reported
+    as if it were an impulse response."""
+    with pytest.raises(ValueError, match="type-strict"):
+        eval_FLAC.resolve_are_from_checkpoint(_are_cfg(), _plain_cfg(), None)
+
+
+@pytest.mark.parametrize("dose", [0.0, 0.5, 1.0])
+def test_the_cli_overrides_only_the_dose(dose):
+    """AR3's sweep is a DOSE sweep: lambda may be overridden, the anchor may not."""
+    lam, source, anchor = eval_FLAC.resolve_are_from_checkpoint(
+        _are_cfg(a_g=0.5), _are_cfg(a_g=0.5), dose)
+    assert lam == dose and source == "cli"
+    assert anchor == {"delta_hat": 0.0, "a_g": 0.5}, (
+        "the CLI must not be able to change WHICH anchor is added back")
+
+
+def test_a_cli_dose_still_requires_a_matching_pair():
+    with pytest.raises(ValueError, match="type-strict"):
+        eval_FLAC.resolve_are_from_checkpoint(_are_cfg(a_g=0.5), _are_cfg(a_g=0.9), 0.5)
+
+
+def test_evaluate_model_refuses_a_mismatched_pair_before_building_anything(tmp_path, monkeypatch):
+    """End to end through ``evaluate_model``: the refusal must happen before a
+    single model is constructed, so it costs nothing and cannot reach a GPU."""
+    built = []
+    monkeypatch.setattr(eval_FLAC, "create_model_from_config",
+                        lambda cfg: built.append(cfg))
+
+    cfg_path = tmp_path / "arm.json"
+    cfg_path.write_text(json.dumps(_are_cfg(a_g=0.9)))
+    ckpt_path = tmp_path / "c.ckpt"
+    torch.save({"state_dict": {}, "model_config": _are_cfg(a_g=0.5)}, ckpt_path)
+
+    with pytest.raises(ValueError, match=r"are_anchor\.a_g"):
+        eval_FLAC.evaluate_model(str(cfg_path), "unused.json", str(ckpt_path),
+                                 steps=1, cfg_scale=1.0, device="cpu")
+    assert built == [], "a model was constructed before the mismatch was caught"

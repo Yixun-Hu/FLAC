@@ -37,13 +37,21 @@
 #   MODE=PROBE    short fit / plumbing probe. Its OWN save-dir and W&B identity
 #                 (FLAC_exp16_AREV_probe / exp16_AREV_probe /
 #                 outputs_FLAC/exp16_AREV_probe) - a probe NEVER writes into the
-#                 production namespace. Defaults 15 steps, ckpt every 5.
-#                 Requires no admission evidence: the probe is how evidence is
-#                 EARNED.
-#   MODE=FULL     the production 40,000-step scratch run. Production identity.
-#                 Refuses to start if that namespace already holds checkpoints.
+#                 production namespace. Defaults 15 steps, ckpt every 5, and its
+#                 schedule is deliberately FREE. Requires no admission evidence:
+#                 the probe is how evidence is EARNED.
+#   MODE=FULL     the production scratch run, PINNED to exactly 40,000 steps on a
+#                 2,500-step cadence. Production identity. Refuses to start if
+#                 that namespace already holds checkpoints.
 #   MODE=RESTART  crash restart of a FULL run: RESUME_CKPT + EXPECTED_STEP>0,
-#                 inside this arm's own production save-dir.
+#                 inside this arm's own production save-dir, finishing at the
+#                 same pinned endpoint on the same pinned cadence.
+#
+# THE SCHEDULE IS PINNED, NOT DEFAULTED (r1 review finding 1). Round 1 expressed
+# 40,000/2,500 as overridable shell defaults, so `MODE=FULL MAXSTEPS=1000` passed
+# every gate and produced a truncated arm with production provenance. The
+# endpoint, the cadence and the post-run verdict now live in readback.py, which
+# this script imports and src/tests/test_are_launch_schedule.py exercises.
 #
 # ADMISSION IS GATED, NOT ADVISORY. FULL and RESTART require stamped evidence,
 # verified against the current source SHA, the current ARE-code fingerprint and
@@ -51,15 +59,19 @@
 #   * are_fit_AREV.json   (plan §4 fit probe)
 # A missing, stale, mis-hashed or FAIL-verdict record is a hard abort. FULL and
 # RESTART additionally refuse to run with a DIRTY treatment path, so the recorded
-# SHA describes what actually runs (guard-test bypass: ALLOW_DIRTY_TREATMENT=1).
+# SHA describes what actually runs. There is NO env bypass for that refusal
+# (r1 review finding 3): the only thing that tolerates a dirty tree is
+# ARE_GUARD_DRYRUN=1, which ALSO makes this script exit before train.py, so
+# setting it can never produce a training run.
 # exp_14 also required a cross-arm sequencing record; exp_16 Phase 1 is a SINGLE
 # arm, so there is deliberately no second requirement to discharge.
 #
 # ARTIFACT READBACK, BOUND TO THIS INVOCATION. After any rc=0 run the newest
-# checkpoint is reloaded and its EMBEDDED are_lambda / are_anchor compared with
-# this arm's - but only a checkpoint that did not exist before this launch and
-# whose mtime is at or after this launch counts. A missing checkpoint is a hard
-# abort in every mode.
+# checkpoint is reloaded and readback.py::readback_problems is applied to it: for
+# FULL/RESTART it must prove global_step == 40,000, and in every mode the
+# embedded are_lambda / are_anchor must equal this arm's. Only a checkpoint that
+# did not exist before this launch and whose mtime is at or after this launch
+# counts. A missing checkpoint is a hard abort in every mode.
 #
 # NOT the fit probe itself. MODE=PROBE is how the probe is run and
 # stamp_evidence.py is how its verdict is recorded. The VRAM floor here is the
@@ -67,7 +79,8 @@
 # NOT requalified for ARE-V; a loud NOTE says so.
 #
 # Knobs (env): ARM MODE MAXSTEPS CHECKPOINT_EVERY EXPECTED_STEP RESUME_CKPT
-#              LOGGER MB ACC MIN_FREE_MB MIN_FREE_DISK_MB ALLOW_DIRTY_TREATMENT
+#              LOGGER MB ACC MIN_FREE_MB MIN_FREE_DISK_MB
+#              ARE_GUARD_DRYRUN (guard-suite only; see above - it cannot launch)
 #
 # Usage (fit/plumbing probe - earns the are_fit evidence):
 #   ARM=AREV MODE=PROBE bash worklog/worklog_yixun/exp_16_are_port_claude/are_launch.sh
@@ -93,7 +106,11 @@ LAM_KEY="are_lambda"
 ANCHOR_KEY="are_anchor"
 LOGGER="${LOGGER:-wandb}"
 MB="${MB:-32}"; ACC="${ACC:-1}"
-ALLOW_DIRTY_TREATMENT="${ALLOW_DIRTY_TREATMENT:-0}"
+# GUARD SUITE ONLY. Setting this tolerates a dirty treatment tree AND forces this
+# script to abort before train.py, so it can never produce a training run - which
+# is what makes it safe to expose at all (r1 review finding 3 replaced
+# ALLOW_DIRTY_TREATMENT, which relaxed the gate and then launched).
+ARE_GUARD_DRYRUN="${ARE_GUARD_DRYRUN:-0}"
 
 _posint() { # $1=name $2=value -> must be a positive integer
   case "$2" in ''|*[!0-9]*) echo "$1 must be a positive integer (got '$2') - abort"; return 1;; esac
@@ -143,6 +160,29 @@ PY
 # --- knob validation ---
 CHECKPOINT_EVERY="${CHECKPOINT_EVERY:-$DEFAULT_CKPT_EVERY}"; _posint CHECKPOINT_EVERY "$CHECKPOINT_EVERY" || exit 2
 MAXSTEPS="${MAXSTEPS:-$DEFAULT_MAXSTEPS}";                   _posint MAXSTEPS "$MAXSTEPS" || exit 2
+
+# --- THE PINNED SCHEDULE (r1 review finding 1). FULL/RESTART may not run to a
+# --- different endpoint or on a different cadence, whatever the caller asks for.
+# --- The rule lives in readback.py so a test can exercise it; this is the only
+# --- place it is applied to the invocation. ---
+MODE="$MODE" MAXSTEPS="$MAXSTEPS" CHECKPOINT_EVERY="$CHECKPOINT_EVERY" EXPDIR16="$EXPDIR16" \
+PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY' || { echo "schedule gate FAILED - abort"; exit 2; }
+import os, sys
+sys.path.insert(0, os.path.join(os.getcwd(), os.environ["EXPDIR16"]))
+from readback import pinned_schedule, schedule_problems
+
+mode = os.environ["MODE"]
+steps = int(os.environ["MAXSTEPS"]); every = int(os.environ["CHECKPOINT_EVERY"])
+problems = schedule_problems(mode, steps, every)
+for p in problems:
+    print(f"  {p}")
+pinned = pinned_schedule(mode)
+if pinned is None:
+    print(f"schedule OK ({mode}): FREE (probe) -> {steps} steps, ckpt every {every}")
+else:
+    print(f"schedule OK ({mode}): PINNED {pinned[0]} steps, ckpt every {pinned[1]}")
+sys.exit(2 if problems else 0)
+PY
 
 # invariant (exp_07 review): accumulation never feeds BN statistics, so the BN=64
 # mandate leaves exactly ONE legal rung - pinned literally (string equality;
@@ -203,6 +243,11 @@ exec > >(tee -a "$LOG") 2>&1
 echo "=== exp_16 are_port ${ARM} (${MODE}) DDP+SyncBN - ${TS} - $(git rev-parse --short HEAD 2>/dev/null) ==="
 echo "identity: --name ${NAME} --experiment-name ${EXPNAME} --save-dir ${SAVEDIR}"
 echo "recipe: ${MB}x2x${ACC} eff64 seed42 -> ${MAXSTEPS} | ckpt-every ${CHECKPOINT_EVERY} | logger=${LOGGER}"
+if [ "$MODE" = "PROBE" ]; then
+  echo "schedule: FREE (PROBE) - ${MAXSTEPS} steps, ckpt every ${CHECKPOINT_EVERY}"
+else
+  echo "schedule: PINNED (${MODE}) - endpoint ${MAXSTEPS} steps, ckpt every ${CHECKPOINT_EVERY}; the post-run readback requires global_step == ${MAXSTEPS}"
+fi
 echo "arm config: ${MODEL_CONFIG_PATH} (delta vs ${BASE_PATH}: training.${LAM_KEY}=${WANT_LAM} + training.${ANCHOR_KEY})"
 echo "mode=${MODE} | resume: '${RESUME_CKPT}' | expected_step=${EXPECTED_STEP} | evidence_required=${NEEDS_EVIDENCE}"
 
@@ -304,7 +349,7 @@ if [ "$NEEDS_EVIDENCE" -eq 1 ]; then
   # PYTHONDONTWRITEBYTECODE: importing stamp_evidence from the worklog directory
   # must not litter it with a __pycache__ that then shows up as an untracked
   # artifact of a launch.
-  ARM_LABEL="$ARM" EXPDIR16="$EXPDIR16" ALLOW_DIRTY="$ALLOW_DIRTY_TREATMENT" \
+  ARM_LABEL="$ARM" EXPDIR16="$EXPDIR16" GUARD_DRYRUN="$ARE_GUARD_DRYRUN" \
   PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY' || { echo "ADMISSION EVIDENCE GATE FAILED - abort"; exit 2; }
 import os, sys
 sys.path.insert(0, os.path.join(os.getcwd(), os.environ["EXPDIR16"]))
@@ -322,14 +367,16 @@ for line in lines:
 
 dirty = dirty_treatment_paths(root)
 if dirty:
-    msg = ("  treatment paths are DIRTY: " + ", ".join(dirty) +
-           "\n  -> the recorded source_sha does not describe what would run. Commit them "
-           "(and re-stamp the evidence) before a production launch.")
-    if os.environ.get("ALLOW_DIRTY") == "1":
-        print(msg)
-        print("  ALLOW_DIRTY_TREATMENT=1 -> accepted (GUARD-TESTING ONLY; never on a real launch)")
+    print("  treatment paths are DIRTY: " + ", ".join(dirty))
+    print("  -> the recorded source_sha does not describe what would run. Commit them "
+          "(and re-stamp the evidence) before a production launch.")
+    # The ONLY tolerance, and it is not a bypass: ARE_GUARD_DRYRUN also forces
+    # this script to abort before train.py (see the dry-run stop below), so it
+    # cannot be used to launch a run from a dirty tree - it can only prevent one.
+    if os.environ.get("GUARD_DRYRUN") == "1":
+        print("  ARE_GUARD_DRYRUN=1 -> tolerated for THIS GATE ONLY; this invocation is "
+              "already committed to aborting before train.py, so no run can result")
     else:
-        print(msg)
         ok = False
 else:
     print("  treatment paths clean (working tree == HEAD for the ARE files)")
@@ -361,43 +408,20 @@ echo "disk: ${DISK_FREE_MB} MiB free on the volume holding ${DF_TARGET} (floor $
 # --- (which rejects bools and requires numbers). ---
 if [ "$MODE" = "RESTART" ]; then
   RESUME_CKPT="$RESUME_CKPT" EXPECTED_STEP="$EXPECTED_STEP" ARM_CFG="$MODEL_CONFIG_PATH" \
-  WANT_LAM="$WANT_LAM" python3 - <<'PY' || { echo "resume-lineage check FAILED - abort"; exit 2; }
+  WANT_LAM="$WANT_LAM" EXPDIR16="$EXPDIR16" PYTHONDONTWRITEBYTECODE=1 \
+  python3 - <<'PY' || { echo "resume-lineage check FAILED - abort"; exit 2; }
 import json, os, sys, torch
+sys.path.insert(0, os.path.join(os.getcwd(), os.environ["EXPDIR16"]))
+from readback import type_strict_diff
+
 p = os.environ["RESUME_CKPT"]; want = int(os.environ["EXPECTED_STEP"])
 cfg_path = os.environ["ARM_CFG"]; want_lam = float(os.environ["WANT_LAM"])
 LAM, ANCH = "are_lambda", "are_anchor"
 
 
-def strict_diff(a, b, path="model_config"):
-    """First TYPE-STRICT difference between two parsed-JSON objects, or None.
-
-    `1 == 1.0 == True` in Python, so plain equality cannot tell a float lambda
-    from an int or boolean one - exactly the values the factory rejects. Types are
-    compared before values, everywhere, recursively.
-    """
-    if type(a) is not type(b):
-        return f"{path}: type {type(a).__name__} != {type(b).__name__} ({a!r} vs {b!r})"
-    if isinstance(a, dict):
-        only_a = sorted(set(a) - set(b))
-        only_b = sorted(set(b) - set(a))
-        if only_a:
-            return f"{path}: key(s) {only_a} present in the checkpoint, absent from the config"
-        if only_b:
-            return f"{path}: key(s) {only_b} present in the config, absent from the checkpoint"
-        for k in a:
-            d = strict_diff(a[k], b[k], f"{path}.{k}")
-            if d:
-                return d
-        return None
-    if isinstance(a, list):
-        if len(a) != len(b):
-            return f"{path}: length {len(a)} != {len(b)}"
-        for i, (x, y) in enumerate(zip(a, b)):
-            d = strict_diff(x, y, f"{path}[{i}]")
-            if d:
-                return d
-        return None
-    return None if a == b else f"{path}: {a!r} != {b!r}"
+def strict_diff(a, b):
+    """The shared rule, labelled for THIS call site (checkpoint vs config)."""
+    return type_strict_diff(a, b, label_a="the checkpoint", label_b="the config")
 
 
 ck = torch.load(p, map_location="cpu", weights_only=False)
@@ -479,6 +503,18 @@ done
 echo "--- co-tenancy disclosure: compute apps at launch ---"
 nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader 2>/dev/null || true
 nvidia-smi --query-gpu=index,memory.used,memory.free --format=csv,noheader 2>/dev/null || true
+
+# --- THE DRY-RUN STOP (guard suite only; r1 review finding 3). Everything above
+# --- has run for real. Nothing below ever will under this flag: the flag exists
+# --- so the guard exercise can drive the gate chain to completion WITHOUT the
+# --- launcher ever being able to start training, which is what lets the
+# --- dirty-tree tolerance above be safe. A production caller who sets it gets no
+# --- run at all - that is the point, not a side effect. ---
+if [ "$ARE_GUARD_DRYRUN" = "1" ]; then
+  echo "ARE_GUARD_DRYRUN=1 -> all pre-launch gates executed; refusing to launch training."
+  echo "  (this flag exists for are_launch_guardtests.sh; it can only PREVENT a run)"
+  exit 2
+fi
 
 # --- fail-closed wandb identity gate (only when wandb is requested) ---
 if [ "$LOGGER" = "wandb" ]; then
@@ -562,9 +598,13 @@ if [ "$rc" -eq 0 ]; then
   echo "--- embedded-lambda readback (mode=${MODE}, bound to this invocation) ---"
   SAVEDIR="$SAVEDIR" WANT_LAM="$WANT_LAM" ARM_CFG="$MODEL_CONFIG_PATH" \
   EXPECTED_STEP="$EXPECTED_STEP" MAXSTEPS="$MAXSTEPS" ARM_LABEL="$ARM" MODE="$MODE" \
-  PRE_INVENTORY="$PRE_INVENTORY" RUN_START_EPOCH="$RUN_START_EPOCH" \
+  PRE_INVENTORY="$PRE_INVENTORY" RUN_START_EPOCH="$RUN_START_EPOCH" EXPDIR16="$EXPDIR16" \
+  PYTHONDONTWRITEBYTECODE=1 \
   python3 - <<'PY' || { rm -f "$PRE_INVENTORY"; echo "embedded-lambda readback FAILED - abort"; exit 2; }
-import glob, json, os, sys, torch
+import glob, os, sys, torch
+sys.path.insert(0, os.path.join(os.getcwd(), os.environ["EXPDIR16"]))
+from readback import ENDPOINT_STEPS, load_json, readback_problems
+
 savedir = os.environ["SAVEDIR"]; want_lam = float(os.environ["WANT_LAM"])
 start = int(os.environ["EXPECTED_STEP"]); maxsteps = int(os.environ["MAXSTEPS"])
 label = os.environ["ARM_LABEL"]; cfg_path = os.environ["ARM_CFG"]; mode = os.environ["MODE"]
@@ -587,28 +627,21 @@ gs = ck.get("global_step")
 mc = ck.get("model_config")
 print(f"checkpoint written by this run: {p}\n  global_step={gs} "
       f"({len(fresh)} fresh of {len(allc)} present)")
-fails = []
-if not (start < gs <= maxsteps):
-    fails.append(f"global_step {gs} outside the run window ({start}, {maxsteps}]")
-if not isinstance(mc, dict):
-    fails.append("checkpoint carries no embedded 'model_config' dict")
-else:
-    got = (mc.get("training") or {}).get(LAM, "<absent>")
-    anch = (mc.get("training") or {}).get(ANCH, "<absent>")
-    print(f"  embedded training.{LAM} = {got!r}  (arm {label} declares {want_lam})")
-    print(f"  embedded training.{ANCH} = {anch!r}")
-    if isinstance(got, bool) or not isinstance(got, float) or got != want_lam:
-        fails.append(f"embedded training.{LAM} {got!r} != {want_lam!r} (typed float) -> the "
-                     "treatment did NOT reach the artifact")
-    if not isinstance(anch, dict) or not anch:
-        fails.append(f"embedded training.{ANCH} {anch!r} is not a populated object -> the "
-                     "calibrated constants did NOT reach the artifact")
-    if mc != json.load(open(cfg_path)):
-        fails.append(f"embedded model_config != {cfg_path} (parsed-object mismatch)")
+if isinstance(mc, dict):
+    training = mc.get("training") or {}
+    print(f"  embedded training.{LAM} = {training.get(LAM, '<absent>')!r}  "
+          f"(arm {label} declares {want_lam})")
+    print(f"  embedded training.{ANCH} = {training.get(ANCH, '<absent>')!r}")
+if mode != "PROBE":
+    print(f"  endpoint requirement: global_step must be exactly {ENDPOINT_STEPS}")
+
+# ONE implementation of the verdict, shared with src/tests/test_are_launch_schedule.py
+fails = readback_problems(mode, mc, gs, load_json(cfg_path), want_lam,
+                          expected_step=start, max_steps=maxsteps)
 if fails:
     sys.exit("embedded-lambda readback FAILED:\n  - " + "\n  - ".join(fails))
 print(f"embedded-lambda readback PASSED: the checkpoint this {mode} run wrote declares "
-      f"training.{LAM}={want_lam} for arm {label}.")
+      f"training.{LAM}={want_lam} for arm {label} at global_step {gs}.")
 if mode == "PROBE":
     print("PROBE complete. If - and only if - the fit/plumbing verdict is genuinely PASS, record "
           "it with:\n  python worklog/worklog_yixun/exp_16_are_port_claude/stamp_evidence.py "

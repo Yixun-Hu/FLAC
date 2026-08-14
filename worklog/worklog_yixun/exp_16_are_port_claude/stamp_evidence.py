@@ -58,20 +58,35 @@ KINDS = ("are_fit",)
 # arm -> its declared training.are_lambda
 ARMS = {"AREV": 1.0}
 
-# Files whose contents can change what the ARE objective IS. Order is part of the
-# hash: a stable order makes the digest reproducible across machines.
+# Files whose contents can change what the ARE objective IS, or what the launch
+# actually does. Order is part of the hash: a stable order makes the digest
+# reproducible across machines.
 #
 # ``src/data/{dataset,utils}.py`` are here because the loader's RandomTimeShift
 # draw is what the anchor's ``t*`` is corrected by: change how (or whether) that
 # draw is published and the anchor silently mis-places itself on half the
 # training set, with nothing else in the record to show for it.
+#
+# ``AR_md.py`` defines what ``source`` and ``depth`` MEAN (the listener frame and
+# the panorama convention), which is the entire input to ``r`` and to the LOS
+# gate.
+#
+# The launcher, its schedule/readback module, the dataset config and the train
+# split are here per r1 review finding 3: a dirty edit to any of them changes the
+# run -- its endpoint, its cadence, its data -- without touching a line of
+# ``src/``, and round 1's fingerprint would not have noticed.
 TREATMENT_PATHS = (
+    "data/AR/train.json",
+    "src/configs/dataset_configs/AR/train/acousticroom_train.json",
+    "src/configs/dataset_configs/custom_metadata/AR_md.py",
     "src/data/are_anchor.py",
     "src/data/dataset.py",
     "src/data/utils.py",
     "src/training/diffusion.py",
     "src/training/factory.py",
     "train.py",
+    "worklog/worklog_yixun/exp_16_are_port_claude/are_launch.sh",
+    "worklog/worklog_yixun/exp_16_are_port_claude/readback.py",
 )
 
 EXPDIR = "worklog/worklog_yixun/exp_16_are_port_claude"
