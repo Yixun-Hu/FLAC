@@ -1,0 +1,22 @@
+=== exp_15 plan §7 rung 4 — bounded real-AR readback ===
+commit: 7b3021b4c836c05657017a7f08a4761d60e70029
+argv: python worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_real_data_readback.py --batches 6 --batch-size 4
+
+dataset config : src/configs/dataset_configs/AR/train/acousticroom_train.json
+split          : data/AR/train.json
+reading        : 6 batches x 4 = 24 samples, num_workers=0, CPU
+offsets tested : (1, 128, 511) columns of 512
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+Traceback (most recent call last):
+  File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_real_data_readback.py", line 208, in <module>
+    sys.exit(main())
+  File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_real_data_readback.py", line 173, in main
+    loader = create_dataloader_from_config(
+  File "/n/fs/gatrdp/codespace/FLAC/src/data/dataset.py", line 405, in create_dataloader_from_config
+    return torch.utils.data.DataLoader(train_set, batch_size, shuffle=shuffle,
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 282, in __init__
+    raise ValueError("persistent_workers option needs num_workers > 0")
+ValueError: persistent_workers option needs num_workers > 0
+exit: 1

@@ -1,0 +1,308 @@
+PASS	every launcher pin holds a concrete value
+PASS	the placeholder refusal mechanism is still present
+PASS	budget re-pinned to the registered 40000
+PASS	the production assertion enforces 40000
+PASS	INITIAL time pin is 24:00:00
+PASS	RESTART time pin is 24:00:00
+PASS	PYTHONUNBUFFERED is exported for the banner
+PASS	exp_11's Q10 extension mode is not invoked
+PASS	INITIAL dry run passes
+PASS	  ... and names the 40k budget
+PASS	  ... and the accumulation gate reports 1
+PASS	  ... and the config gate accepts the arm config
+PASS	  ... and the allowlist gate passes on the real diff
+PASS	  ... and the INITIAL time pin is selected
+PASS	missing ARM
+PASS	missing EXPECT_SHA
+PASS	arm VANL rejected
+PASS	arm C4L rejected
+PASS	arm C32 rejected
+PASS	arm yawaug rejected
+PASS	production MAXSTEPS != 40000 dies
+PASS	a SHORTER budget dies too (not just a longer one)
+PASS	a RESTART resuming AT 40000 dies (the extension attempt)
+PASS	a RESTART resuming PAST 40000 dies
+PASS	a RESTART TARGETING beyond 40000 dies
+PASS	a legitimate mid-run RESTART is accepted
+PASS	  ... and selects the RESTART time pin
+PASS	initial + RESUME_CKPT
+PASS	restart w/o ckpt
+PASS	restart ckpt missing
+PASS	restart foreign ckpt
+PASS	initial refuses an existing run dir
+PASS	accum != 1 dies
+PASS	an argv with no --accum-batches dies
+PASS	config with cond_method rejected
+PASS	config with frame_avg_angles rejected
+PASS	yaw_aug disabled rejected
+PASS	yaw_aug seed changed rejected
+PASS	yaw_aug img_w changed rejected
+PASS	yaw_aug block absent rejected
+PASS	extra yaw_aug key rejected
+PASS	grad-ckpt false rejected
+PASS	EMA off rejected
+PASS	a ViT at another resolution rejected
+PASS	DRYRUN names the unreviewed file
+PASS	  ... and says a real launch would abort
+SKIP	a REAL launch dies on an unreviewed file
+PASS	an empty allowlist is refused
+PASS	a missing allowlist is refused
+PASS	the committed allowlist covers today's real diff
+PASS	banner helper extracted from the launcher
+PASS	banner present, no steps yet -> OK
+PASS	banner present and training started -> OK
+PASS	steps WITHOUT the banner -> MISSING (kill path)
+PASS	neither yet -> PENDING (keep waiting)
+PASS	a banner with the WRONG seed does not satisfy the gate
+PASS	a banner with the WRONG img_w does not satisfy the gate
+PASS	a missing banner forces exit class 8
+PASS	the watcher terminates the torchrun group
+PASS	wrong EXPECT_SHA aborts
+PASS	real mode needs sbatch
+PASS	ambient OUTPUT_ROOT rejected under Slurm
+PASS	launcher pins the production root literally
+PASS	submitter exports the fixed root, not ambient state
+PASS	the control manifest is sha-pinned to exp_11's registry value
+PASS	the control manifest on disk still hashes to that pin
+PASS	the control manifest records our pinned torch
+PASS	the control manifest records our pinned VAE
+PASS	submitter rejects a bad arm
+SKIP	submitter derives 8x8 resources
+SKIP	  ... cpus from the rung
+SKIP	  ... mem from the rung
+SKIP	  ... the INITIAL time pin
+SKIP	  ... and submits NOTHING in DRYRUN
+PASS	a dry run leaves no submission manifest behind
+PASS	intent manifest is published before the sbatch call
+PASS	an unrecordable job is cancelled
+PASS	no race-prone 'mktemp -u' FIFO
+PASS	FIFO removal is in the exit trap
+PASS	pip freeze status is checked before hashing
+PASS	the final record's tee status is captured
+PASS	launcher uses flock for run ownership
+PASS	the wandb readback still runs
+PASS	the launch registry is written
+PASS	the registry records final_ckpt_sha256 at completion
+PASS	class 0 complete
+PASS	class 6 world-size absent
+PASS	class 6 wrong world-size
+PASS	class 3 OOM on nonzero rc
+PASS	class 4 missing marker
+PASS	class 7 logs differ
+PASS	preflight accepts a good ckpt
+PASS	preflight rejects a step mismatch
+PASS	preflight rejects a ckpt trained WITHOUT yaw_aug
+PASS	preflight rejects a stripped optimizer
+PASS	preflight rejects a missing EMA
+PASS	smoke at 16x4 dies
+PASS	smoke at 32x2 dies
+PASS	smoke at the pinned 8x8 is accepted
+PASS	submitter refuses a 16x4 smoke
+PASS	a smoke registers in its own registry file
+PASS	registry-init code extracted from the launcher
+PASS	a SMOKE registers into the smoke registry
+PASS	  ... the smoke registry now holds arms.YAWAUG
+PASS	  ... and the PRODUCTION registry was never created
+PASS	the production INITIAL then registers successfully
+PASS	  ... and a second production INITIAL is refused
+PASS	completion audit extracted, and it imports the round-2 recorder
+PASS	  ... and reuses summarize_ema
+PASS	  ... and reuses canonical_bytes
+PASS	a correct 40k checkpoint is audited and recorded
+PASS	  ... final_step comes from the checkpoint and the EMA audit is recorded
+PASS	completion rejects: wrongstep
+PASS	completion rejects: wrongcfg
+PASS	completion rejects: wrongema
+PASS	completion rejects: empty
+PASS	completion rejects: double
+PASS	completion fails when the registry cannot be written
+PASS	a failed completion audit forces exit class 9
+PASS	  ... and says so loudly
+PASS	the worker closure covers data/AR (the training split)
+PASS	the submitter closure covers data/AR
+PASS	src/tests is excluded from the worker closure
+PASS	src/tests is excluded from the submitter closure
+PASS	a failing git status is fatal in the worker
+PASS	a failing git status is fatal in the submitter
+PASS	a broken git environment is fatal, not 'clean'
+SKIP	  ... and the submitter refuses too
+PASS	a mutated data/AR/train.json is caught
+PASS	a DELETED data/AR/train.json is caught (quoted pathspec)
+PASS	a test-only commit does NOT abort a pending job
+PASS	a src/training commit DOES abort a pending job
+PASS	seed=420 does NOT satisfy the seed=42 gate
+PASS	a PREFIXED banner line does not satisfy the gate
+PASS	a SUFFIXED banner line does not satisfy the gate
+PASS	a banner printed AFTER step evidence is MISSING
+PASS	class 8 is driven by a definite MISSING
+PASS	a PENDING verdict preserves an existing failure class (OOM keeps class 3)
+PASS	the manifest is no longer hashed by a separate sha256sum pass
+PASS	the manifest is read exactly ONCE, and hashed+parsed from those bytes
+PASS	the real control manifest passes the snapshot gate
+PASS	a tampered manifest fails the snapshot gate
+PASS	a registry disagreeing with the reviewed pin is refused
+PASS	the job snapshots its end-of-run code into a run-owned dir
+PASS	  ... yaw_aug_record_control.py is in the snapshot set
+PASS	  ... FLAC_AR_YAWAUG.json is in the snapshot set
+PASS	  ... fa_orbit_classify.py is in the snapshot set
+PASS	  ... fa_orbit_wandb_readback.py is in the snapshot set
+PASS	  ... fa_orbit_ckpt_preflight.py is in the snapshot set
+PASS	  ... fa_orbit_classify.py is invoked from the snapshot
+PASS	  ... fa_orbit_wandb_readback.py is invoked from the snapshot
+PASS	  ... yaw_aug_record_control.py is invoked from the snapshot
+PASS	  ... and no late path still runs the live copy
+PASS	  ... snapshot hashes are written into the manifest
+PASS	the completion path runs the SNAPSHOT, not the mutated live copy
+PASS	  ... while the mutated live copy WOULD have failed the run
+PASS	  ... and the snapshot's recorded hash still matches its bytes
+PASS	the smoke's checkpoint interval defaults beyond its last step
+PASS	a smoke whose interval would write a checkpoint dies
+PASS	the epilogue fails a smoke that wrote a checkpoint
+PASS	the smoke writes an acceptance record
+PASS	  ... scored against the 0.9x VANL rate floor
+PASS	  ... and the rung's VRAM ceiling
+SKIP	production is REFUSED with no acceptance record
+SKIP	production is REFUSED on a FAIL record
+SKIP	production is REFUSED on a record bound to another commit
+SKIP	production is ACCEPTED on a bound PASS record
+SKIP	  ... and the manifest line carries the record hash
+SKIP	an explicit waiver submits and LOGS the reason
+SKIP	  ... and the waived run still prints its sbatch line
+PASS	the submission manifest records the record path, its hash and any waiver
+SKIP	a SMOKE submission needs no acceptance record
+PASS	the gate is extracted and imports the recorder's type-domain helper
+PASS	  ... and the old substring test is gone
+PASS	a well-formed, bound PASS record is accepted
+PASS	  ... and the gate emits the record's same-bytes sha256
+PASS	malformed JSON is refused (the substring test would have passed it)
+PASS	a NESTED verdict is refused
+PASS	a record missing whole sections is refused
+PASS	a missing record file is refused
+PASS	a STALE record from another commit is refused
+PASS	a record from another rung is refused
+PASS	a record from another world size is refused
+PASS	a record from another step budget is refused
+PASS	any FALSE check is refused
+PASS	a STRING 'true' check is refused (literal booleans only)
+PASS	an INT 1 check is refused
+PASS	a record with no checks at all is refused
+PASS	a FAIL verdict is refused
+PASS	a record with no measured VRAM is refused
+PASS	a non-finite VRAM value is refused by the type domain
+PASS	a record missing a _meta field is refused
+PASS	the submission manifest pins the record's sha256, not just its path
+PASS	the smoke's step budget is a launcher pin the gate binds to
+PASS	the producer is extracted and requires measured VRAM
+PASS	a stale record is superseded before the smoke runs
+PASS	a VRAM sampler runs for the life of torchrun
+PASS	the record is published atomically
+PASS	  ... at the very END of the job, after the classifier and every status
+PASS	a clean smoke publishes PASS
+PASS	  ... with the per-GPU peak taken as the max over all samples and ranks
+PASS	  ... and the gate accepts what the producer wrote
+PASS	NO measured VRAM => FAIL, never pass-by-default
+PASS	  ... and the gate refuses that record
+PASS	a W&B provenance failure => FAIL
+PASS	a classifier class (nonzero exit class) => FAIL
+PASS	a tee failure => FAIL
+PASS	a MISSING banner => FAIL
+PASS	an unfinished / too-slow smoke => FAIL
+PASS	a record that cannot be written fails loudly
+PASS	a FAIL verdict forces class 10
+PASS	  ... and so does a record-write failure
+PASS	restart-registry code extracted from the launcher
+PASS	a restart leg is appended
+PASS	  ... with job, uuid, manifest sha, source ckpt sha and step
+PASS	a second, distinct leg is appended too
+PASS	the same job is never recorded twice
+PASS	an orphan restart (no INITIAL) is refused
+PASS	a restart with no registry at all is refused
+PASS	chain INITIAL is 0 -> 2500
+PASS	  ... and passes --max-steps 2500 to train.py
+PASS	  ... under the per-leg wall pin
+PASS	a mid chain leg is 12500 -> 15000
+PASS	the FINAL leg is 37500 -> 40000
+PASS	a larger aligned LEG_STEPS is now REFUSED
+PASS	  ... because the 1:30 wall pin is sized for 2500 steps
+PASS	the last leg still clamps to the cap
+PASS	a misaligned LEG_STEPS dies
+PASS	a zero LEG_STEPS dies
+PASS	an absurdly long LEG_STEPS is refused before any arithmetic
+PASS	a misaligned --expected-step dies
+PASS	resuming AT the cap still dies
+PASS	a chain cap that is not the registered endpoint dies
+PASS	CHAIN unset still trains the full 40000
+PASS	  ... under the monolithic wall pin
+PASS	the monolithic argv is byte-identical to the committed reference
+PASS	the next-leg helper is extracted from the launcher
+PASS	a successful submission is recorded with its job id
+PASS	  ... and the boundary is marked SUBMITTED with that jid
+PASS	  ... the child carries afterok on its parent
+PASS	  ... and the unique intent token
+PASS	three failed attempts stall the chain (nonzero)
+PASS	  ... and nothing is marked SUBMITTED
+PASS	a stalled chain exits on the distinct class 12
+PASS	  ... which is documented in the exit taxonomy
+PASS	the FINAL leg submits no successor
+PASS	the successor goes through the LIVE submitter (it re-gates at then-current HEAD)
+PASS	a mid-chain leg records a boundary, not a final checkpoint
+PASS	  ... so final_ckpt_sha256 stays unset until the cap leg
+PASS	the CAP leg ends the chain
+PASS	  ... writing final_ckpt_sha256/final_step from the checkpoint
+PASS	the initial-manifest reader is extracted
+PASS	a RESTART leg finds the INITIAL manifest in the registry
+PASS	a RESTART leg with no registered INITIAL is refused
+PASS	a missing registry is refused
+PASS	every chain manifest cites the standing waiver
+PASS	  ... and a RESTART leg names the INITIAL manifest
+PASS	CHAIN and LEG_STEPS are exported to the job
+SKIP	the submitter refuses a misaligned LEG_STEPS
+SKIP	the submitter refuses a misaligned --expected-step
+SKIP	the submitter refuses a resume at the cap
+PASS	the advancement block is extracted from the launcher
+PASS	a class-7 leg submits NO successor
+PASS	a class-8 leg submits NO successor
+PASS	a class-9 leg submits NO successor
+PASS	  ... and keeps its own exit class (7)
+PASS	the FINAL (cap) leg submits no successor
+PASS	  ... and says the chain ENDed
+PASS	a leg with no audited checkpoint submits nothing (class 12)
+PASS	a green leg with a passing rate gate submits its successor
+PASS	  ... exactly once, through submit_next_leg
+PASS	the successor carries a Slurm afterok dependency
+PASS	  ... naming the parent job
+PASS	clean windows PASS
+PASS	  ... reproducing VANL's own 0.943 for window 1
+PASS	a breach in window 1 (100->300) refuses
+PASS	a breach in window 2 (300->1000) refuses
+PASS	missing bar entries REFUSE (never pass by default)
+PASS	an empty log refuses
+PASS	a rate-gate refusal stops the chain on class 13
+PASS	  ... documented in the exit taxonomy
+PASS	a boundary is recorded AUDITED
+PASS	  ... idempotently on replay
+PASS	  ... but a DIFFERENT checkpoint at that boundary is refused
+PASS	an INTENDED boundary replays the SAME intent token
+PASS	intending an unaudited boundary is refused
+PASS	a SUBMITTED boundary refuses to be intended again
+PASS	  ... and marking it with a different jid is refused
+PASS	  ... while re-marking the same jid is idempotent
+PASS	status reports the boundary
+PASS	a post-sbatch crash is recovered by finding the intent token in the queue
+PASS	  ... which the submitter puts in the job name
+PASS	a chain leg appends a tip-bound entry
+PASS	  ... idempotently for the same checkpoint
+PASS	  ... naming the parent step and sha it continues
+PASS	a MONOLITHIC run writes no legs and no chain wording
+PASS	  ... keeping the reviewed monolith registry shape (F7)
+PASS	  ... and no CHAIN END in its output
+PASS	the chain preflight admits a leg whose budget GROWS
+PASS	  ... binding the original launch identity
+PASS	a checkpoint that is not the audited tip's sha is refused
+PASS	resuming a step that is not the tip is refused
+PASS	a target beyond the cap is refused
+PASS	a misaligned target is refused
+PASS	the launcher uses the exp_15 preflight for chain legs
+PASS	no chain leg resumes a W&B run (WANDB_RESUME is gone)
+PASS	every RESTART leg mints a fresh lineage-tagged W&B id
+PASS	  ... recording the parent id in the manifest

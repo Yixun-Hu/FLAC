@@ -1,0 +1,24 @@
+=== exp_15 plan §7 rung 4 — bounded real-AR readback ===
+commit: 7b3021b4c836c05657017a7f08a4761d60e70029
+argv: python worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_real_data_readback.py --batches 6 --batch-size 4
+
+dataset config : src/configs/dataset_configs/AR/train/acousticroom_train.json
+split          : data/AR/train.json
+reading        : 6 batches x 4 = 24 samples, num_workers=1, CPU
+offsets tested : (1, 128, 511) columns of 512
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+Traceback (most recent call last):
+  File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_real_data_readback.py", line 215, in <module>
+    sys.exit(main())
+  File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_real_data_readback.py", line 196, in main
+    check_sample(md, seen, fail)
+  File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_real_data_readback.py", line 124, in check_sample
+    ref_depth, ref_poses = _manual_rotate(depth, poses, d, IMG_W)
+  File "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_real_data_readback.py", line 86, in _manual_rotate
+    return (torch.einsum("ij,jhw->ihw", rot, rolled),
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/functional.py", line 422, in einsum
+    return _VF.einsum(equation, operands)  # type: ignore[attr-defined]
+RuntimeError: expected scalar type Double but found Float
+exit: 1

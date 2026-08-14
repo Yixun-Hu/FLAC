@@ -1,0 +1,27 @@
+{
+  "arms": {
+    "YAWAUG": {
+      "commit": "bd6d8b913e6270dac4247829b9db6cf5825d3844",
+      "config_sha256": "b14caae27afec2c53c38bea6e2574a48aa94bc86848ab17afae94cadf694b004",
+      "final_ckpt_sha256": null,
+      "final_step": null,
+      "job": "3685989",
+      "launch_uuid": "ec88b7dd-8e68-4992-93b6-f92a86e9e2a9",
+      "manifest_path": "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-12_17-49-31_YAWAUG_8x8_jid3685989_manifest.txt",
+      "manifest_sha256": "c3a9e1381d323697a902c706344c0f1e222a592e0c8aa7b19a3203716a7d9a6a",
+      "max_steps": "30",
+      "mode": "INITIAL",
+      "rung": "8x8",
+      "save_dir": "outputs_FLAC/exp15_smoke/YAWAUG",
+      "training_seed": 42,
+      "vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9",
+      "wandb_run_id": "exp15-YAWAUG-1786571853194865208-27e0d454",
+      "yaw_aug": {
+        "enabled": true,
+        "img_w": 512,
+        "seed": 42
+      }
+    }
+  },
+  "restarts": {}
+}
