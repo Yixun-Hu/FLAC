@@ -4,7 +4,7 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 
 ## Awaiting Yixun (decisions)
 
-0. **ARE-V launch is HELD (2026-08-14).** Code committed and reviewed; the Aug-16 22:00 evaluation deadline he set earlier is UNREACHABLE while the hold stands (~46 h training from go). One instruction reactivates it.
+0. **ARE-V is HELD INDEFINITELY (Yixun 2026-08-14: "ARE-V先不做").** Code committed, reviewed and parked launch-ready; the Aug-16 22:00 deadline is formally dropped and no longer tracked. One instruction reactivates it (~1 h to launch, ~46 h training).
 0b. **ARE ablation scheduling (ARE-FA, ARE-CYL)** — deferred by his instruction to the ARE-V completion discussion; includes choosing the cylindrical backbone (in-repo `cyl_vit` vs sibling cylindrical-dinov3, and which weights).
 
 0. **exp_14: GO given 2026-08-13** (option B scope: seed-42 trajectory, not general causality). No decisions pending until the DS-PA→DS-CS3 audit gate (~8/20) unless a hard abort fires.

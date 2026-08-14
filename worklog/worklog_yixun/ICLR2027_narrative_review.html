@@ -1,0 +1,626 @@
+<title>The m=0 Problem</title>
+<style>
+  :root {
+    --bg: #EEF1F4;
+    --surface: #FFFFFF;
+    --surface-2: #F7F9FA;
+    --ink: #141920;
+    --ink-soft: #3B454F;
+    --muted: #626E7B;
+    --rule: #D3DAE1;
+    --rule-soft: #E3E8ED;
+    --accent: #0B6E78;
+    --accent-soft: #D8EBED;
+    --risk: #A6431C;
+    --risk-soft: #F6E2D9;
+    --good: #2A6B47;
+    --good-soft: #DCEBE2;
+    --shadow: 0 1px 2px rgba(20,25,32,.06), 0 8px 24px rgba(20,25,32,.05);
+
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0E1216;
+      --surface: #161B21;
+      --surface-2: #1B2128;
+      --ink: #E7ECF1;
+      --ink-soft: #C2CBD4;
+      --muted: #8B98A6;
+      --rule: #29323B;
+      --rule-soft: #212932;
+      --accent: #3FB3BD;
+      --accent-soft: #14343A;
+      --risk: #DE8F66;
+      --risk-soft: #38221A;
+      --good: #6FBE92;
+      --good-soft: #1A2E24;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.28);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0E1216;
+    --surface: #161B21;
+    --surface-2: #1B2128;
+    --ink: #E7ECF1;
+    --ink-soft: #C2CBD4;
+    --muted: #8B98A6;
+    --rule: #29323B;
+    --rule-soft: #212932;
+    --accent: #3FB3BD;
+    --accent-soft: #14343A;
+    --risk: #DE8F66;
+    --risk-soft: #38221A;
+    --good: #6FBE92;
+    --good-soft: #1A2E24;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.28);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16.5px;
+    line-height: 1.62;
+    margin: 0;
+    padding: 0 1.25rem 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 62rem; margin: 0 auto; }
+  .col { max-width: 40rem; }
+
+  /* ---- masthead ---- */
+  header.mast {
+    padding: 4.5rem 0 2.25rem;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 2.5rem;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: .7rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 1.1rem;
+    display: flex; flex-wrap: wrap; gap: .5rem 1.25rem;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: clamp(2.4rem, 6vw, 3.9rem);
+    line-height: 1.02;
+    letter-spacing: -.015em;
+    margin: 0 0 1rem;
+    text-wrap: balance;
+  }
+  h1 em { font-style: italic; color: var(--accent); }
+  .standfirst {
+    font-family: var(--serif);
+    font-size: clamp(1.1rem, 2.2vw, 1.32rem);
+    line-height: 1.5;
+    color: var(--ink-soft);
+    max-width: 38rem;
+    margin: 0;
+  }
+
+  /* ---- sections ---- */
+  section { margin: 0 0 3.75rem; }
+  h2 {
+    font-family: var(--serif);
+    font-size: clamp(1.5rem, 3.2vw, 1.95rem);
+    line-height: 1.18;
+    letter-spacing: -.01em;
+    font-weight: 600;
+    margin: 0 0 .35rem;
+    text-wrap: balance;
+  }
+  h2 .num {
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .14em;
+    color: var(--accent);
+    display: block;
+    margin-bottom: .5rem;
+    font-weight: 500;
+  }
+  h3 {
+    font-family: var(--sans);
+    font-size: 1.02rem;
+    font-weight: 650;
+    letter-spacing: -.005em;
+    margin: 2rem 0 .4rem;
+  }
+  h4 {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+    margin: 0 0 .75rem;
+  }
+  p { margin: 0 0 1rem; max-width: 40rem; }
+  ul, ol { margin: 0 0 1rem; padding-left: 1.15rem; max-width: 40rem; }
+  li { margin-bottom: .5rem; }
+  a { color: var(--accent); }
+  strong { font-weight: 650; }
+  code, .n {
+    font-family: var(--mono);
+    font-size: .875em;
+    font-variant-numeric: tabular-nums;
+  }
+  code {
+    background: var(--surface-2);
+    border: 1px solid var(--rule-soft);
+    border-radius: 3px;
+    padding: .06em .32em;
+  }
+  hr.rule { border: 0; border-top: 1px solid var(--rule); margin: 0 0 2.5rem; }
+
+  /* ---- verdict panel ---- */
+  .verdict {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--risk);
+    border-radius: 4px;
+    padding: 1.5rem 1.6rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 3.5rem;
+  }
+  .verdict.go { border-left-color: var(--good); }
+  .verdict h4 { color: var(--risk); }
+  .verdict.go h4 { color: var(--good); }
+  .verdict p:last-child { margin-bottom: 0; }
+  .verdict .lede {
+    font-family: var(--serif);
+    font-size: 1.24rem;
+    line-height: 1.42;
+    color: var(--ink);
+  }
+
+  /* ---- chips ---- */
+  .chip {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: .64rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: .2em .55em;
+    border-radius: 3px;
+    vertical-align: .12em;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .chip.solid  { background: var(--good-soft); color: var(--good); border-color: var(--good); }
+  .chip.risk   { background: var(--risk-soft); color: var(--risk); border-color: var(--risk); }
+  .chip.untest { background: var(--surface-2); color: var(--muted); border-color: var(--rule); }
+  .chip.live   { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+
+  /* ---- tables ---- */
+  .tscroll { overflow-x: auto; margin: 0 0 1.1rem; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: .875rem; }
+  caption {
+    caption-side: bottom;
+    text-align: left;
+    font-size: .78rem;
+    color: var(--muted);
+    padding: .7rem .9rem;
+    border-top: 1px solid var(--rule-soft);
+    line-height: 1.45;
+  }
+  th, td {
+    padding: .55rem .9rem;
+    text-align: right;
+    border-bottom: 1px solid var(--rule-soft);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  th:first-child, td:first-child { text-align: left; white-space: normal; min-width: 11rem; }
+  thead th {
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+    border-bottom: 1px solid var(--rule);
+    background: var(--surface-2);
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.win  { color: var(--good); font-weight: 600; }
+  td.lose { color: var(--risk); font-weight: 600; }
+  tr.divider td { border-top: 1px solid var(--rule); }
+
+  /* ---- asset cards ---- */
+  .assets { display: grid; gap: 1rem; margin: 1.5rem 0 0; }
+  .asset {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 1.25rem 1.35rem;
+    box-shadow: var(--shadow);
+  }
+  .asset-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem; margin-bottom: .55rem; }
+  .asset-rank {
+    font-family: var(--mono);
+    font-size: .72rem;
+    color: var(--accent);
+    letter-spacing: .1em;
+  }
+  .asset-title { font-family: var(--serif); font-size: 1.2rem; font-weight: 600; margin: 0; flex: 1 1 14rem; }
+  .asset p { margin-bottom: .6rem; font-size: .95rem; }
+  .asset p:last-child { margin-bottom: 0; }
+  .src {
+    font-family: var(--mono);
+    font-size: .72rem;
+    color: var(--muted);
+    margin-top: .7rem;
+    padding-top: .6rem;
+    border-top: 1px solid var(--rule-soft);
+  }
+
+  /* ---- timeline ---- */
+  .tl { border-left: 2px solid var(--rule); margin: 1.5rem 0 0; padding-left: 1.5rem; display: grid; gap: 1.6rem; }
+  .tl-item { position: relative; }
+  .tl-item::before {
+    content: "";
+    position: absolute;
+    left: calc(-1.5rem - 6px);
+    top: .5rem;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg);
+  }
+  .tl-item.pending::before { background: var(--muted); }
+  .tl-date {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: .2rem;
+  }
+  .tl-item.pending .tl-date { color: var(--muted); }
+  .tl-title { font-weight: 650; margin: 0 0 .3rem; }
+  .tl p { font-size: .93rem; margin-bottom: 0; }
+
+  /* ---- decisions ---- */
+  .decision {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 1.15rem 1.3rem;
+    margin-bottom: 1rem;
+  }
+  .decision .q { font-weight: 650; margin: 0 0 .45rem; }
+  .decision p { font-size: .94rem; margin-bottom: 0; }
+  .rec { color: var(--accent); font-weight: 650; }
+
+  @media (max-width: 640px) {
+    body { font-size: 16px; padding: 0 1rem 4rem; }
+    header.mast { padding-top: 3rem; }
+  }
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="eyebrow">
+    <span>Program review</span>
+    <span>FLAC &middot; cylindrical-dinov3</span>
+    <span>14 Aug 2026</span>
+  </p>
+  <h1>The <em>m=0</em> Problem</h1>
+  <p class="standfirst">Reading every result in both worklogs against an ICLR 2027 submission: why the frame-averaging win cannot carry a paper on its own, and which finding buried in the physics synthesis can.</p>
+</header>
+
+<div class="verdict">
+  <h4>Bottom line</h4>
+  <p class="lede">&ldquo;FA beats vanilla at 40k&rdquo; is not a paper. It reverses under a better recipe, it sits on a checkpoint-band artifact, and at matched compute it loses badly &mdash; all documented in your own records, so a reviewer will find it.</p>
+  <p>But the corpus contains a much better paper. The <strong>azimuthal-harmonic account</strong> in <code>PHYSICS_CONSTRAINTS_synthesis_exp05_to_exp10.md</code> is a physics-derived theory that makes a falsifiable prediction, has that prediction confirmed across two independent architecture families, correctly predicts a failed intervention, and hands you a derived fix that has never been run. That is the shape of a strong ICLR submission, and the missing experiment is roughly two GPU-days.</p>
+</div>
+
+<hr class="rule">
+
+<section>
+  <h2><span class="num">01 &mdash; The problem with the FA story</span>Six reasons the 40k win will not survive review</h2>
+
+  <p>Each of these is in your own records, which means it would have to appear in the paper's own ablations. Together they are disqualifying for a claim built on frame averaging alone.</p>
+
+  <h3>1. The same comparison reverses sign when the baseline gets better</h3>
+  <p>This is the fatal one. The identical single-delta (frame averaging vs. its vanilla twin, matched steps, matched seed, K=8) favours FA under the legacy 2-GPU recipe and favours vanilla under the exp_11 L40 recipe.</p>
+
+  <div class="tscroll">
+    <table>
+      <thead>
+        <tr><th>Recipe &middot; arm @40k, K=8</th><th>T60 &darr;</th><th>C50 &darr;</th><th>EDT &darr;</th><th>R@1 &uarr;</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Legacy 2-GPU &mdash; vanilla (P1)</td><td>8.993</td><td>1.0093</td><td>40.650</td><td>5.173</td></tr>
+        <tr><td>Legacy 2-GPU &mdash; FA (B&#8209;F)</td><td class="win">8.202</td><td class="win">0.9778</td><td class="win">38.793</td><td class="win">5.387</td></tr>
+        <tr class="divider"><td>exp_11 L40 &mdash; vanilla (VANL)</td><td class="win">8.048</td><td>1.0219</td><td class="win">37.319</td><td>4.949</td></tr>
+        <tr><td>exp_11 L40 &mdash; FA (C4L)</td><td class="lose">8.414</td><td class="win">1.0095</td><td class="lose">41.499</td><td>5.091</td></tr>
+      </tbody>
+      <caption>Seed-paired delta under the exp_11 recipe: T60 <span class="n">+0.366&nbsp;&plusmn;&nbsp;0.011</span>, EDT <span class="n">+4.180&nbsp;&plusmn;&nbsp;0.091</span> &mdash; frame averaging is <em>worse</em>. Note the mechanism: the better recipe improved <em>vanilla</em> by 0.945 T60, which is larger than FA's entire claimed advantage.</caption>
+    </table>
+  </div>
+
+  <h3>2. The 40k win point is a band artifact, and your team already said so</h3>
+  <p>The learning rate never decays (<code>InverseLR</code> holds &asymp;4.8e&#8209;5 for the whole run), so adjacent checkpoints swing about &plusmn;0.5 T60. FA's 40k reading of <span class="n">8.190</span> sits 0.7&ndash;1.5 below <em>every</em> neighbour on both sides &mdash; 30k <span class="n">8.858</span>, 32.5k <span class="n">9.022</span>, 35k <span class="n">9.733</span>, 37.5k <span class="n">9.176</span>. The exp_10 A3 diagnostic already downgraded &ldquo;FA wins 12/14 cells&rdquo; to <strong>band parity</strong>.</p>
+
+  <h3>3. At matched compute, FA is not competitive</h3>
+  <p>Frame averaging costs <strong>3.5&times; per step</strong>. Equalising compute against the 87.5k vanilla anchor puts FA at 25k steps: T60 ties (<span class="n">8.316</span> vs <span class="n">8.293</span>) but C50 is <span class="n">1.077</span> vs <span class="n">0.966</span>, EDT <span class="n">40.72</span> vs <span class="n">35.95</span>, R@1 <span class="n">4.39</span> vs <span class="n">6.96</span>. Not close.</p>
+
+  <h3>4. The best model in the whole program is vanilla</h3>
+  <p>P1@87.5k beats the released Table&#8209;1 on 8/8 cells at both K. It has nothing to do with equivariance &mdash; it is batch-norm statistics, DDP and a longer budget. A paper claiming symmetry helps, whose own best checkpoint has no symmetry, is a hard sell.</p>
+
+  <h3>5. Every arm is a single training seed</h3>
+  <p>Five <em>eval</em> seeds control eval noise, not run-to-run training variance. The FA effect (0.4 T60) is smaller than the spread between your three vanilla @40k controls (<span class="n">8.048</span> / <span class="n">8.611</span> / <span class="n">8.993</span>). This is the objection that sinks otherwise-fine papers.</p>
+
+  <h3>6. The invariance FA delivers is not the invariance that matters</h3>
+  <p>C&#8324; frame averaging is exact at 0&deg;/90&deg;/180&deg;/270&deg; and buys <strong>zero</strong> robustness to arbitrary yaw &mdash; exp_14 measures C4's degradation as statistically indistinguishable from vanilla's (p&nbsp;&asymp;&nbsp;0.5). Reviewers who know the canonicalization literature will ask this immediately.</p>
+</section>
+
+<section>
+  <h2><span class="num">02 &mdash; Live right now</span>The experiment that decides whether FA survives at all</h2>
+  <p><span class="chip live">Running</span> &nbsp;exp_14 <code>fa_drawshare</code> (DS&#8209;PA arm, ~22 h in as of this writing) is precisely the causal test of the reversal. exp_11's analysis names the prime suspect: the <strong>batched-orbit path shares one stochastic RoPE rescale draw per chunk</strong> where the legacy loop drew per angle, which reduces augmentation diversity <em>only</em> on the FA side. That is the single known implementation difference separating the two recipes.</p>
+  <p>So the reversal has two possible readings, and you do not yet know which:</p>
+  <ul>
+    <li><strong>Implementation artifact</strong> &mdash; chunk-shared draws crippled FA training. The FA advantage is real; exp_11's C4L was handicapped.</li>
+    <li><strong>Genuine recipe interaction</strong> &mdash; FA's advantage only exists against a weakly-tuned baseline. The FA claim is dead as a headline.</li>
+  </ul>
+  <p><strong>It will not report in time to lead the paper.</strong> DS&#8209;PA is at roughly 4,400 of 40,000 steps after 22 hours &mdash; about 11% &mdash; running at ~198 steps/hour under co-tenancy. That projects to ~22 Aug for arm one, and DS&#8209;CS3 is gated behind it by design, landing near 1 Sept before any evaluation. Any pause to free GPUs pushes it further.</p>
+  <p>This is the strongest structural argument for <em>not</em> building the paper on frame averaging: the result that would rescue the FA claim arrives too late to be built on, and might not rescue it.</p>
+</section>
+
+<section>
+  <h2><span class="num">03 &mdash; The binding constraint</span>You cannot run everything, and right now you are trying to</h2>
+  <p>Five things want the same GPUs inside a five-week window. At current throughput they do not fit, and nothing has been cut.</p>
+
+  <div class="tscroll">
+    <table>
+      <thead>
+        <tr><th>Work</th><th>Pool</th><th>State</th><th>Lands</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>exp_14 DS&#8209;PA (drawshare arm 1)</td><td>A6000 &times;2</td><td>~11% of 40k</td><td>~22 Aug</td></tr>
+        <tr><td>exp_14 DS&#8209;CS3 (arm 2)</td><td>A6000 &times;2</td><td>gated, not started</td><td class="lose">~1 Sept</td></tr>
+        <tr><td>exp_15 yaw augmentation</td><td>cluster L40</td><td>leg 1 of 16, launched today</td><td>queue-dependent</td></tr>
+        <tr><td>exp_16 ARE&#8209;V</td><td>A6000 &times;2</td><td class="lose">blocked &mdash; plan review</td><td>not scheduled</td></tr>
+        <tr><td>exp_11 100k orbit legs</td><td>cluster L40</td><td>4 of 5 never started</td><td class="lose">no horizon</td></tr>
+      </tbody>
+      <caption>Two independent pools. The 8&times;L40 cluster trains a 40k arm in roughly 13 h of compute but is queue-bound, which is why exp_15 had to be re-architected into 2,500-step chained legs. The A6000 box is uncontested but slow, and is currently hosting the two longest jobs.</caption>
+    </table>
+  </div>
+
+  <p><strong>The mismatch is stark: the one experiment that would make this a positive-result paper &mdash; the source-steered readout arm &mdash; has not been designed, let alone queued</strong>, while eight GPU-days are committed to nailing down a foil and another eight to a method whose plan review returned four blockers.</p>
+
+  <h3>exp_16 ARE is not two days from running</h3>
+  <p>The Codex plan review returned <strong>REQUEST-CHANGES with four blockers</strong>, and at least two are substantive rather than procedural: changing the training target without also changing the forward-process <span class="n">x<sub>t</sub></span> construction would train an <em>inconsistent</em> field, and P1 is not a bit-identical &lambda;=0 control (same-seed P1 reruns already differ by ~2.9 ms EDT at 87.5k), so a contemporaneous control arm is needed for any causal claim. The anchor's VAE encode is also stochastic where it needs a posterior mean. The stated 16 Aug target is not reachable, and shipping it unfixed would produce an uninterpretable arm.</p>
+</section>
+
+<section>
+  <h2><span class="num">04 &mdash; Inventory</span>Five publishable assets, ranked</h2>
+
+  <div class="assets">
+
+    <div class="asset">
+      <div class="asset-head">
+        <span class="asset-rank">A</span>
+        <h3 class="asset-title" style="margin:0">The azimuthal-harmonic account of acoustic metrics</h3>
+        <span class="chip solid">Strongest</span>
+      </div>
+      <p>This is the paper. The synthesis derives that <strong>T60 is an m=0 functional</strong> of the room &mdash; Sabine's <span class="n">0.161&middot;V/(S&middot;&#257;)</span> is rotationally averaged &mdash; so an invariant, rotation-averaged readout is not merely adequate for it but variance-reducing. <strong>C50 and EDT are not m=0</strong>: they depend on source-relative early-reflection geometry, which lives in m&nbsp;&ge;&nbsp;1. Mean-pooling <em>is</em> the projection onto m=0, so it provably cannot express them.</p>
+      <p><strong>Correction, same day.</strong> I recomputed both 27-checkpoint sweeps from the raw per-seed JSONs, and the T60 half of that prediction does <em>not</em> survive. cyl@40k T60 <span class="n">8.314</span> is the <strong>global minimum of all 27 cylindrical checkpoints</strong> &mdash; neighbours <span class="n">9.502</span> (37.5k) and <span class="n">10.293</span> (42.5k), over a full point worse on both sides, against a flat P1 band. The original comparison also crossed steps (cyl@40k vs P1@55k) and crossed eval strata (<code>fa_invariant/bf16</code> vs <code>vanilla/default</code>).</p>
+      <div class="tscroll">
+        <table>
+          <thead><tr><th>Estimator</th><th>Arm</th><th>T60 &darr;</th><th>C50 &darr;</th><th>EDT &darr;</th></tr></thead>
+          <tbody>
+            <tr><td>@40k, matched step</td><td>cyl mean-pool</td><td class="win">8.314</td><td class="lose">1.0800</td><td class="win">39.09</td></tr>
+            <tr><td></td><td>P1 vanilla</td><td>8.904</td><td class="win">1.0100</td><td>40.78</td></tr>
+            <tr class="divider"><td>band mean &ge;37.5k</td><td>cyl mean-pool</td><td class="lose">9.749</td><td class="lose">1.0423</td><td class="lose">43.20</td></tr>
+            <tr><td></td><td>P1 vanilla</td><td class="win">8.761</td><td class="win">0.9985</td><td class="win">38.80</td></tr>
+          </tbody>
+          <caption>Under band aggregation the cylindrical arm loses all three. At matched step the EDT claim <em>reverses</em>. <strong>C50 is the only metric that survives every estimator</strong> &mdash; and C50 is the m&nbsp;&ge;&nbsp;1 signature, so the harmonic account keeps exactly one empirical leg.</caption>
+        </table>
+      </div>
+      <p><strong>A cleaner demonstration already exists, recipe-matched.</strong> Within one arm family: max-pool vs mean-pool @40k K=8 gives C50 <span class="n">1.0592</span> vs <span class="n">1.0811</span> (max better) and T60 <span class="n">8.896</span> vs <span class="n">8.622</span> (max worse), repeated in the MLP-head pair. Escaping m=0 buys C50 and costs T60, with no cross-recipe or cross-stratum comparison anywhere. Max-pool is also exactly roll-invariant &mdash; so <strong>the competitor is max-pool, not mean-pool</strong>, and the contribution must be reframed: mean and max are <em>lossy</em> invariants, source-steered pooling is the <em>complete</em> invariant on the roll orbit.</p>
+      <p>Two further results behave exactly as the theory demands. Distillation from a task-aligned teacher <em>failed</em> and spent the T60 win to buy partial C50 &mdash; you cannot distil back information the readout already discarded. And the fixed-linear invariant readout probe came back uniformly negative, which is what you expect if the missing structure is nonlinear and phase-bearing.</p>
+      <p>Best of all it yields a fix that is <em>derived rather than guessed</em>: <strong>source-steered Fourier pooling</strong>, <span class="n">F&#770;[m]&middot;e^{im&phi;<sub>s</sub>}</span>, which is exactly invariant <em>and</em> lossless because it retains m&nbsp;&ge;&nbsp;1 phase relative to the source. Partial support already exists &mdash; exp_12 arm A (low-band RoPE + m0-restricted registers) beats the naive cylindrical arm on 6/6 metrics at both K, closing 68% of the T60 gap and 86% of the C50 gap to vanilla FLAC.</p>
+      <p class="src">cylindrical-dinov3: PHYSICS_CONSTRAINTS synthesis &middot; exp_06 addendum-3 &middot; exp_10 &middot; exp_11 &middot; exp_12 arm A</p>
+    </div>
+
+    <div class="asset">
+      <div class="asset-head">
+        <span class="asset-rank">B</span>
+        <h3 class="asset-title" style="margin:0">Group order vs. pose robustness &mdash; the C4 trap</h3>
+        <span class="chip solid">Ready now</span>
+      </div>
+      <p>The cleanest self-contained result you own: 106 cells at one pin, all gates passing, external reproduction exact. Degradation under uniform random yaw, K=8, paired:</p>
+      <div class="tscroll">
+        <table>
+          <thead><tr><th>Orbit</th><th>&Delta;T60 (random yaw)</th><th>Reading</th></tr></thead>
+          <tbody>
+            <tr><td>VANL (none)</td><td>+0.521 &plusmn; 0.037</td><td>degrades</td></tr>
+            <tr><td>C4</td><td class="lose">+0.531 &plusmn; 0.029</td><td>buys nothing</td></tr>
+            <tr><td>C8</td><td>+0.049 &plusmn; 0.011</td><td>~10&times; flatter</td></tr>
+            <tr><td>C16</td><td class="win">&minus;0.003 &plusmn; 0.018</td><td>fully invariant</td></tr>
+            <tr><td>C32</td><td class="win">+0.006 &plusmn; 0.011</td><td>fully invariant</td></tr>
+          </tbody>
+          <caption>A sharp dose-response with saturation. Exact C&#8324; invariance at four angles confers no protection on the continuous distribution &mdash; and finer orbits that <em>do</em> confer it cost accuracy at canonical pose (C16 T60 <span class="n">9.343</span> vs C4's <span class="n">8.414</span>). That is a clean accuracy&ndash;robustness trade curve.</caption>
+        </table>
+      </div>
+      <p>Directly actionable for anyone applying frame averaging or canonicalization to panoramic input, and it generalises well beyond acoustics.</p>
+      <p class="src">FLAC exp_14 yaw_gen &mdash; closed 12 Aug, 5 eval seeds &times; 2 K &times; 5 arms</p>
+    </div>
+
+    <div class="asset">
+      <div class="asset-head">
+        <span class="asset-rank">C</span>
+        <h3 class="asset-title" style="margin:0">How symmetry gains get overstated &mdash; a measurement contribution</h3>
+        <span class="chip solid">Ready now</span>
+      </div>
+      <p>Three findings that are individually small and collectively a real methods contribution. <strong>Checkpoints are band draws, not trajectory points</strong>: under a non-decaying LR, adjacent checkpoints swing &plusmn;0.5 T60, roughly 1.5&times; the effect size being measured &mdash; three of your own conclusions were distorted by this before it was quantified. <strong>Protocol mismatch is catastrophic and silent</strong>: the same FA checkpoint reads <span class="n">8.202&nbsp;/&nbsp;0.978&nbsp;/&nbsp;38.79&nbsp;/&nbsp;5.39</span> under matched conditioning and <span class="n">10.652&nbsp;/&nbsp;2.082&nbsp;/&nbsp;80.86&nbsp;/&nbsp;0.68</span> under the default. <strong>Symmetry benefits are a train&times;eval interaction</strong>: the 2&times;2 shows inference-only averaging on vanilla weights actively hurts.</p>
+      <p class="src">FLAC exp_09 correction &middot; exp_10 decomposition + A3 &middot; exp_13</p>
+    </div>
+
+    <div class="asset">
+      <div class="asset-head">
+        <span class="asset-rank">D</span>
+        <h3 class="asset-title" style="margin:0">Cylindrical DINOv3 and the XYZ gauge</h3>
+        <span class="chip solid">Artifact</span>
+      </div>
+      <p>Exact C&#8323;&#8322; azimuth equivariance on the <em>official pretrained</em> DINOv3 ViT-S/16 with complete weight inheritance (<code>missing_keys == [] and unexpected_keys == []</code>): patch error <span class="n">2.26e&#8209;06</span>, pooled <span class="n">1.27e&#8209;06</span>, against a vanilla control at <span class="n">4.94e&#8209;01</span>. The XYZ gauge result is the more interesting half and makes a good figure: array-roll equivariance is <em>not</em> physical-yaw equivariance when channels are 3-vectors &mdash; gauge on <span class="n">5.21e&#8209;06</span>, gauge off <span class="n">2.46e&#8209;01</span>, a 4.7&times;10&#8308; separation.</p>
+      <p>Position carefully against ViewRope (arXiv 2602.07854), which is contemporaneous prior art on low-band geometry RoPE. Your claim is the verified port with strict checkpoint compatibility, not the mechanism.</p>
+      <p class="src">cylindrical-dinov3 exp_01, exp_03</p>
+    </div>
+
+    <div class="asset">
+      <div class="asset-head">
+        <span class="asset-rank">E</span>
+        <h3 class="asset-title" style="margin:0">ARE &mdash; analytic direct-path anchor for the flow target</h3>
+        <span class="chip risk">Blocked</span>
+      </div>
+      <p>A different axis entirely: reparameterise the rectified-flow target as a residual against an analytic direct-path anchor, aimed squarely at EDT &mdash; the one metric that has resisted every arm in the program. The anchor is analytically yaw-invariant, so it would compose with the equivariance line rather than compete with it. Genuinely promising as a <em>next</em> paper.</p>
+      <p>Not for this one. The plan review returned four blockers, the design would currently train an inconsistent field, no training has started, and it would consume a third of the remaining window on an unvalidated bet.</p>
+      <p class="src">FLAC exp_16 are_port &mdash; plan REQUEST-CHANGES, admission gate failing, 14 Aug</p>
+    </div>
+
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">05 &mdash; Recommendation</span>The narrative I would write</h2>
+  <div class="verdict go" style="margin-bottom:2.25rem">
+    <h4>Recommended title &mdash; unanimous top-1 across three judging lenses</h4>
+    <p class="lede" style="margin-bottom:1rem">Reverberation Time Is Rotation-Averaged, Clarity Is Not: An Azimuthal-Harmonic Account of Invariant Readouts in Room Impulse Response Generation</p>
+    <p>The main clause is a property of the acoustic functionals themselves &mdash; Sabine is a pure global average, C50 and EDT depend on source-relative early reflections &mdash; so no experimental outcome, single-seed objection or recipe reversal can falsify it. Crucially it blames <strong>invariant readouts, not equivariance</strong>: if source-steered pooling later works, an equivariant-and-accurate model would be a counterexample to any title that blamed the symmetry. &ldquo;An &hellip; Account of&rdquo; pre-registers the understanding-paper register with no method obligation.</p>
+    <p>Two usage notes: put <strong>yaw-equivariance in the abstract's first sentence and the keyword field</strong>, since the title carries only &ldquo;invariant&rdquo;; and gloss <em>clarity (C50)</em> and <em>early decay time (EDT)</em> in the opening lines so no reviewer reads &ldquo;clarity&rdquo; as a vague English word.</p>
+  </div>
+
+  <div class="tscroll">
+    <table>
+      <thead><tr><th>If &hellip;</th><th>Then title</th></tr></thead>
+      <tbody>
+        <tr><td>Seeds 43/44 soften the metric split</td><td style="text-align:left;white-space:normal">&hellip;<em>What Rotation-Invariant Readouts Can and Cannot Encode</em> &mdash; stakes the claim on provable expressivity rather than a measured split</td></tr>
+        <tr><td>The readout arm fails or never runs</td><td style="text-align:left;white-space:normal"><em>Exact Yaw Invariance Does Not Improve RIR Prediction, and Azimuthal Harmonics Explain Why</em> &mdash; only with seed replication <em>and</em> the exp_15 augmentation row</td></tr>
+        <tr><td>Source-steered pooling lands</td><td style="text-align:left;white-space:normal">Keep the main clause, swap the subtitle to <em>Source-Steered Fourier Pooling for Room Impulse Response Generation</em></td></tr>
+        <tr><td>It lands as the centerpiece</td><td style="text-align:left;white-space:normal">Go method-forward: <em>Source-Steered Fourier Pooling: Exactly Yaw-Invariant Readouts That Preserve Azimuthal Structure</em></td></tr>
+      </tbody>
+      <caption>The title follows from decision 1 below. If frame averaging stays the headline rather than the foil, every title here is wrong.</caption>
+    </table>
+  </div>
+
+  <p>The arc has seven beats, and note that frame averaging appears as the <strong>setup and the foil</strong>, never as the contribution.</p>
+
+  <ol>
+    <li><strong>Physics says the RIR field is yaw-equivariant. The models are not.</strong> Rotating the panorama by an angle that changes nothing physical moves the prediction by 0.19&ndash;0.22 relative L2 and degrades every metric by 9&ndash;23&sigma;, worst at 180&deg;.</li>
+    <li><strong>Both obvious fixes deliver machine-precision invariance.</strong> Frame averaging reaches <span class="n">4.9e&#8209;08</span> at the conditioning level; the equivariant backbone reaches <span class="n">2.3e&#8209;06</span>. The symmetry is not in doubt anywhere in the program.</li>
+    <li><strong>And neither improves accuracy at canonical pose.</strong> Present the recipe-contingency as a controlled result rather than a caveat &mdash; this is the honest core and it is genuinely interesting, because the equivariance literature reports positive results almost uniformly.</li>
+    <li><strong>Why: the symmetry was imposed in the wrong place.</strong> Invariance was applied to the <em>representation</em>, by projecting it onto m=0, rather than to the <em>prediction</em>. T60 survives because it is m=0; C50 and EDT are destroyed because they are not.</li>
+    <li><strong>The fix follows from the diagnosis.</strong> Source-steered invariant pooling, low-band RoPE, m0-restricted registers &mdash; exactly invariant without discarding m&nbsp;&ge;&nbsp;1.</li>
+    <li><strong>What invariance does buy is pose robustness</strong>, with the dose-response curve and the C4 trap.</li>
+    <li><strong>Practical guidance</strong> &mdash; the evaluation protocol, the band-draw warning, and the group-order choice.</li>
+  </ol>
+
+  <p>If beat 5 lands, this is a positive-result paper. If it only partially lands, beats 1&ndash;4 and 6 still make a solid ICLR &ldquo;empirical understanding&rdquo; submission, which is a well-established genre there. Either way you are not betting the paper on a single contested delta.</p>
+
+  <h3>Why this clears the novelty bar</h3>
+  <p>Equivariance in RIR generation is essentially unexplored &mdash; a literature sweep turns up neural acoustic fields and RIR benchmarks with no symmetry treatment. Negative-and-mechanistic results on imposed equivariance do exist (2D&#8209;to&#8209;3D pose lifting reports the same accuracy-for-robustness trade), which helps rather than hurts: it means the framing is legible to reviewers and you are extending a recognised line into a domain where the harmonic structure gives it real explanatory teeth.</p>
+</section>
+
+<section>
+  <h2><span class="num">06 &mdash; Five weeks</span>What to run, and what to cut</h2>
+  <p>Abstract is due <strong>18 September</strong>, full paper <strong>25 September</strong>. Working backwards, training has to stop around <strong>10 September</strong> to leave room for five-seed evaluation and writing. That is roughly four usable weeks, and the plan below only fits if things come off the queue.</p>
+
+  <h3>Cut first</h3>
+  <div class="tl">
+    <div class="tl-item pending">
+      <p class="tl-date">Cut &middot; frees ~8 GPU-days</p>
+      <p class="tl-title">DS&#8209;CS3, the second drawshare arm</p>
+      <p>It resolves why the FA comparison reversed. Under the recommended narrative the reversal is a reported finding, not the headline, and reporting both recipes honestly is already sufficient. Let DS&#8209;PA finish for the per-angle replication, then stop. If you later want the mechanism, exp_11's analysis names a much cheaper substitute &mdash; a screen-level A/B on C8, where the chunk-sharing delta is largest.</p>
+    </div>
+    <div class="tl-item pending">
+      <p class="tl-date">Cut &middot; frees the cluster</p>
+      <p class="tl-title">The 100k orbit legs</p>
+      <p>Four of five never started. C32 alone is ~160 h and changes no conclusion in the paper. The orbit question is answered at 40k.</p>
+    </div>
+    <div class="tl-item pending">
+      <p class="tl-date">Defer</p>
+      <p class="tl-title">ARE, unless the blockers are fixed this week</p>
+      <p>It is a genuinely interesting second axis but it is a five-week bet on an unreviewed design. Fix the plan properly and run it after the deadline, or run it only if a pool frees unexpectedly.</p>
+    </div>
+  </div>
+
+  <h3>Then run, in this order</h3>
+  <div class="tl">
+    <div class="tl-item">
+      <p class="tl-date">This week &middot; design now, run on the cluster</p>
+      <p class="tl-title">The source-steered readout arm</p>
+      <p>The headline experiment, and the only one that converts this program from a negative result into a positive one. One MLP-scale change with no backbone modification, ~13 h of L40 compute, and exp_12 arm A already indicates the direction works. It needs a plan and one review round first &mdash; about a day. Nothing else should start before this is queued.</p>
+    </div>
+    <div class="tl-item">
+      <p class="tl-date">Immediately after &middot; highest risk reduction</p>
+      <p class="tl-title">Two more training seeds on the headline pair</p>
+      <p>Every arm in both repositories is a single training run, and the effect sizes you are claiming are smaller than the spread between your own vanilla controls. Seeds 43 and 44 on whichever pair carries the headline is the difference between suggestive and established.</p>
+    </div>
+    <div class="tl-item">
+      <p class="tl-date">Already running &mdash; protect it</p>
+      <p class="tl-title">exp_15, the random-yaw augmentation baseline</p>
+      <p>Leg 1 of 16 launched today. Every reviewer will ask why not simply augment; without this row the paper is incomplete under any narrative. Do not let it get starved by the cuts above.</p>
+    </div>
+    <div class="tl-item pending">
+      <p class="tl-date">Free &mdash; finishing anyway</p>
+      <p class="tl-title">exp_12 arm C</p>
+      <p>A second point on the RoPE-design axis at no additional cost.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">07 &mdash; Exposure</span>What a reviewer will attack</h2>
+  <ul>
+    <li><strong>Single training seed.</strong> The one that actually sinks papers. Addressed above.</li>
+    <li><strong>&ldquo;Your best model has no symmetry.&rdquo;</strong> Own it in the abstract &mdash; it is the paper's point, not an embarrassment.</li>
+    <li><strong>One dataset.</strong> AR only. A small HAA transfer table would disproportionately help; the finetune recipe already exists in-repo.</li>
+    <li><strong>The m=1..4 variance decomposition is exploratory.</strong> 22 samples, one source index, a pretrained rather than task-trained backbone, unreviewed. It motivates the theory; it cannot be the evidence for it. Either re-run it properly at scale or present it explicitly as motivation.</li>
+    <li><strong>Prior art on low-band geometry RoPE</strong> (ViewRope) needs a careful positioning paragraph.</li>
+    <li><strong>Scope discipline.</strong> The corpus is enormous. Most of exp_03&ndash;06, 08, 09 and 13 will not appear at all, and trying to include them will produce an unreadable paper.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="num">08 &mdash; Over to you</span>Decisions I need before going further</h2>
+
+  <div class="decision">
+    <p class="q">Which paper are we writing?</p>
+    <p><span class="rec">Recommended: the harmonic account, with frame averaging as the foil.</span> Holding the FA framing means waiting on a result that now lands near 1 September and may not go your way. The harmonic account can be written from evidence you already hold.</p>
+  </div>
+
+  <div class="decision">
+    <p class="q">May I cut DS&#8209;CS3 and the 100k legs?</p>
+    <p><span class="rec">Recommended: yes.</span> Together they free roughly eight GPU-days on the A6000 box and unblock the cluster. This is the decision that makes everything else fit, and it is the one I most need from you &mdash; it stops work already in flight, so I will not do it unilaterally.</p>
+  </div>
+
+  <div class="decision">
+    <p class="q">Do I design the source-steered readout arm now?</p>
+    <p><span class="rec">Recommended: yes, starting today.</span> It is the only experiment that can turn this into a positive-result paper, it is cheap, and under the SOP it needs a plan and review round before it can run. Everything else in the schedule waits on it.</p>
+  </div>
+
+  <div class="decision">
+    <p class="q">What happens to ARE?</p>
+    <p><span class="rec">Recommended: fix the plan's four blockers properly, then defer past the deadline</span> unless a pool frees. The 16 August target is not reachable and the current design would train an inconsistent field. Tell me if you would rather I treat it as the primary bet instead &mdash; that is a legitimate but very different plan.</p>
+  </div>
+
+  <div class="decision">
+    <p class="q">Who is on the paper?</p>
+    <p>ICLR 2027 has new co-authorship and reciprocal-reviewing policies this year, and zhixuan's <code>Yaw-equi-ViT</code> contribution is merged into this repository. Worth settling early rather than in September.</p>
+  </div>
+
+</section>
+
+</div>

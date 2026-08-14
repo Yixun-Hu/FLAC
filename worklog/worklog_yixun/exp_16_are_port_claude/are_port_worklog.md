@@ -10,3 +10,8 @@
 ## 2026-08-14T14:03:55-04:00 — Yixun HOLD directive (verbatim): "could you please stop exp_14 DS-PA by the end of 5000 step checkpoint? and please hold the exp_14 DS-CS3 and exp_16 ARE-V not to be run."
 - DS-PA: pause-at-5000 watcher already armed (unchanged). DS-CS3: stays frozen. **ARE-V: tonight's probe/stamp/FULL launch CANCELLED; code stays committed + reviewed, launch-ready on his word.**
 - **Consequence stated:** the Aug-16 22:00 evaluation deadline is UNREACHABLE while the hold stands (training needs ~46 h from go). Reactivation = one instruction; probe+launch within ~1 h of it.
+
+## 2026-08-14T15:02:50-04:00 — Yixun: "ARE-V先不做" — HOLD CONFIRMED, deadline formally dropped
+- ARE-V stays unlaunched. The Aug-16 22:00 evaluation deadline he set earlier is now MOOT by his own instruction (the last launch window, tonight 23:00, will pass unused). No further deadline is tracked for exp_16.
+- **State parked launch-ready:** code committed (`6956cbc` r1, `50679ec` r2: 193 ARE tests, suite 1472 green, 76/76 guards, live mutation evidence); r2 fix-verify review in flight and will be archived; calibration done (δ̂=0, A_g=0.394574); arm config + launcher + evidence machinery complete. Reactivation cost from a cold start: probe + stamp + launch ≈ 1 h, then ~46 h training.
+- **Owed when it resumes:** SOP artifacts not yet written — `are_port_params_set_up.md` exists, still missing `are_port_command.md` (beyond the stub), `commits_are_port.md`, and the results/analysis/HTML/closure set.
