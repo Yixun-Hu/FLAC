@@ -158,6 +158,38 @@ LIVE = {"RUNNING", "PENDING", "CONFIGURING", "COMPLETING", "REQUEUED", "RESIZING
 # is a reachable state — adopting it records a corpse as the chain's successor).
 TERMINAL_FAILED = {"CANCELLED", "FAILED", "TIMEOUT", "OUT_OF_MEMORY", "NODE_FAIL",
                    "BOOT_FAIL", "DEADLINE", "REVOKED", "PREEMPTED"}
+KNOWN_STATES = sorted(SUCCESSFUL | LIVE | TERMINAL_FAILED)
+
+
+def canonical_state(raw):
+    """Resolve a scheduler-reported state to its canonical full name, or None.
+
+    sacct truncates overflowing fields with a trailing '+' at its DEFAULT column
+    width (10 for State), so OUT_OF_MEMORY arrives as 'OUT_OF_ME+' — an exact
+    set-membership test silently missed it and a dead child could be adopted
+    (GO check, finding 1). Widths are now requested explicitly AND this resolver
+    accepts a unique >= 4-character prefix, so a future width surprise still
+    resolves — or returns None, which every caller treats as fatal (fail closed:
+    an unreadable state never decides an adoption).
+    """
+    s = raw.strip().upper().split("+")[0].strip()
+    if not s:
+        return None
+    if s in KNOWN_STATES:
+        return s
+    if len(s) >= 4:
+        matches = [k for k in KNOWN_STATES if k.startswith(s)]
+        if len(matches) == 1:
+            return matches[0]
+    return None
+
+
+def _resolve_state(raw, where):
+    resolved = canonical_state(raw)
+    if resolved is None:
+        sys.exit(f"UNRESOLVABLE JOB STATE {raw!r} from {where}; refusing to let an "
+                 "unreadable state decide an adoption")
+    return resolved
 
 
 def _run(cmd, what):
@@ -173,42 +205,104 @@ def _run(cmd, what):
 
 
 def find_job_by_name(name, squeue_cmd, sacct_cmd):
-    """-> (jid, state) for a job with this exact name, or (None, None)."""
+    """-> (jid, canonical state) for a job with this exact name, or (None, None)."""
     out = _run(squeue_cmd + ["-h", "-n", name, "-o", "%i %T"], "squeue")
     for line in out.splitlines():
         parts = line.split()
         if len(parts) >= 2:
-            return parts[0], parts[1].upper()
+            return parts[0], _resolve_state(parts[1], "squeue by name")
     # Not queued: it may have already finished (or the crash happened after it
-    # ran). sacct is consulted, and its failure is equally fatal.
-    out = _run(sacct_cmd + ["-n", "-X", "--name", name, "--format=JobID,State"], "sacct")
+    # ran). sacct is consulted, and its failure is equally fatal. Widths are
+    # explicit so State is never '+'-truncated at the source.
+    out = _run(sacct_cmd + ["-n", "-X", "--name", name,
+                            "--format=JobID%-20,State%-40"], "sacct")
     for line in out.splitlines():
         parts = line.split()
         if len(parts) >= 2:
-            return parts[0], parts[1].upper().split("+")[0]
+            return parts[0], _resolve_state(parts[1], "sacct by name")
     return None, None
 
 
 def job_state(jid, sacct_cmd):
-    out = _run(sacct_cmd + ["-n", "-X", "-j", str(jid), "--format=State"], "sacct")
+    out = _run(sacct_cmd + ["-n", "-X", "-j", str(jid), "--format=State%-40"], "sacct")
     for line in out.splitlines():
         if line.strip():
-            return line.strip().upper().split("+")[0]
+            return _resolve_state(line.strip(), "sacct by jid")
     return None
+
+
+def probe_job(jid, squeue_cmd, sacct_cmd):
+    """Canonical state of a KNOWN jid; fatal whenever it cannot be decided.
+
+    squeue rejects long-gone job ids ('Invalid job id') — that alone is not an
+    error, it just means history must come from sacct. Any OTHER query failure
+    is fatal, and a jid that neither squeue nor sacct can account for is fatal
+    too: this is only called for a jid the state file records as SUBMITTED, so
+    'nobody knows it' must never silently become 'assume it is fine'.
+    """
+    try:
+        proc = subprocess.run(squeue_cmd + ["-h", "-j", str(jid), "-o", "%T"],
+                              capture_output=True, text=True)
+    except OSError as error:
+        sys.exit(f"SCHEDULER QUERY FAILED (squeue -j {jid}): {error}; refusing to decide")
+    if proc.returncode == 0:
+        for line in proc.stdout.splitlines():
+            if line.strip():
+                return _resolve_state(line.strip(), "squeue by jid")
+    elif "invalid job id" not in (proc.stderr or "").lower():
+        sys.exit(f"SCHEDULER QUERY FAILED (squeue -j {jid}, rc {proc.returncode}): "
+                 f"{proc.stderr.strip() or proc.stdout.strip()}; refusing to decide")
+    resolved = job_state(jid, sacct_cmd)
+    if resolved is None:
+        sys.exit(f"job {jid} is recorded as SUBMITTED but neither squeue nor sacct "
+                 "knows it; refusing to decide (fail closed)")
+    return resolved
+
+
+def _record_dead_child(entry, args, jid, dead_state):
+    """Corpse on record, token rotated, boundary back to INTENDED — never adopted."""
+    entry.setdefault("dead_children", []).append(
+        {"jid": jid, "state": dead_state, "token": entry.get("intent_token"),
+         "detected_utc": now()})
+    entry["intent_token"] = f"{args.arm}-leg{args.next_target}-{uuid.uuid4().hex[:8]}"
+    entry["next_leg_job_name"] = (
+        f"exp15-{args.arm}-leg{args.next_target}-{entry['intent_token']}")
+    entry["next_leg_jid"] = None
+    entry["state"] = "INTENDED"
 
 
 def cmd_transact_submit(state, args):
     """Re-read, query, submit, publish — all under ONE held lock."""
+    squeue_cmd = shlex.split(os.environ.get("YAW_AUG_SQUEUE_CMD", "squeue"))
+    sacct_cmd = shlex.split(os.environ.get("YAW_AUG_SACCT_CMD", "sacct"))
+
     entry = state.boundary(args.target)
     if not entry:
         sys.exit(f"boundary {args.target} has not been audited — refusing to submit a "
                  "successor for a boundary the chain never recorded")
     if entry["state"] == "SUBMITTED":
-        print(f"ALREADY_SUBMITTED {entry['next_leg_jid']}")
-        return 3
-
-    squeue_cmd = shlex.split(os.environ.get("YAW_AUG_SQUEUE_CMD", "squeue"))
-    sacct_cmd = shlex.split(os.environ.get("YAW_AUG_SACCT_CMD", "sacct"))
+        # ALREADY_SUBMITTED is only the answer while that submission can still
+        # run (GO check, finding 2: the terminal-write recovery says 'scancel
+        # the child, re-run transact-submit' — an unconditional rc 3 made that
+        # advice a no-op). Probe the recorded jid; a dead child is recorded as
+        # a corpse and a FRESH successor is submitted in this same transaction.
+        prior = entry.get("next_leg_jid")
+        if prior and prior != "unknown":
+            prior_state = probe_job(prior, squeue_cmd, sacct_cmd)
+        else:
+            _, prior_state = find_job_by_name(entry.get("next_leg_job_name", ""),
+                                              squeue_cmd, sacct_cmd)
+            if prior_state is None:
+                sys.exit(f"boundary {args.target} is SUBMITTED with no usable jid and "
+                         "no findable job name; refusing to decide (fail closed)")
+        if prior_state in TERMINAL_FAILED:
+            _record_dead_child(entry, args, prior, prior_state)
+            state.write()
+            print(f"CHILD_DEAD {prior} state={prior_state} — corpse recorded; submitting "
+                  "a fresh successor in this same locked transaction")
+        else:
+            print(f"ALREADY_SUBMITTED {prior}")
+            return 3
 
     if not entry.get("intent_token"):
         entry["intent_token"] = f"{args.arm}-leg{args.next_target}-{uuid.uuid4().hex[:8]}"
@@ -233,13 +327,7 @@ def cmd_transact_submit(state, args):
         # Never adopted, never marked SUBMITTED. The intent token is ROTATED so
         # that a re-run of this same operation searches a fresh job name, finds
         # nothing, and submits exactly once — while the corpse stays on record.
-        entry.setdefault("dead_children", []).append(
-            {"jid": existing_jid, "state": existing_state, "token": token,
-             "detected_utc": now()})
-        entry["intent_token"] = f"{args.arm}-leg{args.next_target}-{uuid.uuid4().hex[:8]}"
-        entry["next_leg_job_name"] = (
-            f"exp15-{args.arm}-leg{args.next_target}-{entry['intent_token']}")
-        entry["next_leg_jid"] = None
+        _record_dead_child(entry, args, existing_jid, existing_state)
         state.write()
         print(f"CHILD_DEAD {existing_jid} state={existing_state}")
         print(f"  the token-matching successor ended {existing_state}; a dead child is "

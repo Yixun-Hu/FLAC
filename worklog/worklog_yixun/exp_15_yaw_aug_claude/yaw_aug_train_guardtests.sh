@@ -1314,6 +1314,13 @@ cat > "${TX}/sacct_completed.sh" <<'EOS'
 #!/usr/bin/env bash
 echo "COMPLETED"
 EOS
+# Answers RUNNING for -j (jid) probes, nothing for --name searches: the child a
+# SUBMITTED replay probes is alive, while no job squats on a fresh token's name.
+cat > "${TX}/sacct_j_running.sh" <<'EOS'
+#!/usr/bin/env bash
+for a in "$@"; do [ "$a" = "-j" ] && { echo "RUNNING"; exit 0; }; done
+exit 0
+EOS
 chmod +x "${TX}"/*.sh
 tx_state() { $PY "$CS" --state "$1" --arm YAWAUG "${@:2}"; }
 tx_seed() { rm -f "$1"; tx_state "$1" record-audit --target 2500 --ckpt-sha256 aa \
@@ -1333,7 +1340,7 @@ tx_seed "${TX}/race.json"
 : > "${TX}/submits.log"
 RACE_PIDS=()
 for _ in 1 2; do
-  ( tx_submit "${TX}/race.json" "${TX}/squeue_none.sh" "${TX}/sacct_none.sh" \
+  ( tx_submit "${TX}/race.json" "${TX}/squeue_none.sh" "${TX}/sacct_j_running.sh" \
       "SUBMIT_LOG=${TX}/submits.log" >> "${TX}/race.out" 2>&1 ) & RACE_PIDS+=("$!")
 done
 wait "${RACE_PIDS[@]}"
@@ -1372,8 +1379,8 @@ expect_cmd "a RUNNING token-job is adopted instead of resubmitted" 0 "ADOPTED 90
     "SUBMIT_LOG=${TX}/submits4.log"
 [ ! -s "${TX}/submits4.log" ]; check "  ... with no new submission" $?
 # replay of a SUBMITTED boundary
-expect_cmd "replaying a SUBMITTED boundary returns the same jid" 3 "ALREADY_SUBMITTED 9002" -- \
-  tx_submit "${TX}/adopt.json" "${TX}/squeue_none.sh" "${TX}/sacct_none.sh" \
+expect_cmd "replaying a SUBMITTED boundary with a LIVE child returns the same jid" 3 "ALREADY_SUBMITTED 9002" -- \
+  tx_submit "${TX}/adopt.json" "${TX}/squeue_none.sh" "${TX}/sacct_j_running.sh" \
     "SUBMIT_LOG=${TX}/submits4.log"
 $PY -c "
 import json,sys
@@ -1573,7 +1580,7 @@ if $PY -c "import torch" 2>/dev/null; then
     EXPECTED_STEP=0; CKPT_SHA=; SAVEDIR=/x; SLURM_OUT_AT_LAUNCH=/x/o; UNTRACK_STATE=n
     CHAIN=1; LEG_STEPS=2500; PINNED_CHAIN_CAP=40000; CODE_SNAPSHOT=/x/s; TRAINLOG=/x/t
     SAVEDIR_LOG=/x/tl; WANDB_ENTITY_SEEN=e; NAME=proj; EXPNAME=run; WANDB_RUN_ID=r
-    PARENT_WANDB_RUN_ID=; SNAPSHOT_SHAS=(); ARGV=(--a 1)
+    PARENT_WANDB_RUN_ID=; SNAPSHOT_SHAS=(shaA shaB); ARGV=(--a 1)
     . "${TMP}/manwriter.sh" ) > "${TMP}/ag_real_manifest.txt" 2>/dev/null
   $PY -c "
 import sys; sys.path.insert(0, '$EXPDIR')
@@ -1585,18 +1592,102 @@ need = ['job','host','mode','launch_uuid','arm','rung','micro','ngpu','max_steps
         'gpu_uuids','time_limit','min_free_mb','resume_ckpt','expected_step',
         'resume_ckpt_sha256','save_dir','slurm_transcript','untrack','chain',
         'leg_steps','leg_start','leg_target','cap','train_log','wandb_entity',
-        'wandb_project','wandb_name','wandb_run_id']
+        'wandb_project','wandb_name','wandb_run_id','code_snapshot',
+        'snapshot_sha256','train_log_copy','parent_wandb_run_id','command']
 missing = [k for k in need if k not in f]
 assert not missing, f'unretrievable keys: {missing}'
 assert f['cuda']=='12.6' and f['driver']=='555' and f['min_free_mb']=='14000'
 assert f['expected_step']=='0' and f['untrack']=='n' and f['wandb_project']=='proj'
 assert f['wandb_name']=='run' and f['cap']=='40000' and f['leg_target']=='2500'
-print('every launcher-written key is retrievable, later pairs included')"
+assert f['code_snapshot']=='/x/s' and f['train_log_copy']=='/x/tl'
+assert f['parent_wandb_run_id']=='<none>' and f['command']=='torchrun'
+assert f['snapshot_sha256']=='shaA', 'repeated-key line must be emitted and parsed'
+print('every launcher-written key is retrievable, later pairs and repeats included')"
   check "manifest_fields() retrieves EVERY key the real writer emits (later pairs included)" $?
 else
   skip_env "manifest_fields() retrieves EVERY key the real writer emits (later pairs included)" \
     "no torch for the writer's torch_version line; covered by the flac-env run"
 fi
+
+echo "--- AH. NEW (chain-fix4): state truncation, dead-successor recovery ---"
+# (1) sacct's default width truncates State with '+': the resolver must treat
+# OUT_OF_ME+ as OUT_OF_MEMORY, keep RUNNING+ non-terminal, and refuse ambiguity.
+cat > "${TX}/sacct_oom_trunc.sh" <<'EOS'
+#!/usr/bin/env bash
+for a in "$@"; do [ "$a" = "--name" ] && { echo "9004 OUT_OF_ME+"; exit 0; }; done
+exit 0
+EOS
+cat > "${TX}/sacct_oom_full.sh" <<'EOS'
+#!/usr/bin/env bash
+for a in "$@"; do [ "$a" = "--name" ] && { echo "9005 OUT_OF_MEMORY"; exit 0; }; done
+exit 0
+EOS
+cat > "${TX}/sacct_running_trunc.sh" <<'EOS'
+#!/usr/bin/env bash
+for a in "$@"; do [ "$a" = "--name" ] && { echo "9006 RUNNING+"; exit 0; }; done
+exit 0
+EOS
+cat > "${TX}/sacct_ambiguous.sh" <<'EOS'
+#!/usr/bin/env bash
+for a in "$@"; do [ "$a" = "--name" ] && { echo "9007 COMP"; exit 0; }; done
+exit 0
+EOS
+chmod +x "${TX}"/sacct_*.sh
+tx_seed "${TX}/trunc1.json"; : > "${TX}/sl_t1.log"
+expect_cmd "a '+'-truncated OUT_OF_ME child is refused as dead" 5 "CHILD_DEAD 9004 state=OUT_OF_MEMORY" -- \
+  tx_submit "${TX}/trunc1.json" "${TX}/squeue_none.sh" "${TX}/sacct_oom_trunc.sh" "SUBMIT_LOG=${TX}/sl_t1.log"
+[ ! -s "${TX}/sl_t1.log" ]; check "  ... and nothing was submitted" $?
+tx_seed "${TX}/trunc2.json"; : > "${TX}/sl_t2.log"
+expect_cmd "a full OUT_OF_MEMORY child is refused the same way" 5 "CHILD_DEAD 9005 state=OUT_OF_MEMORY" -- \
+  tx_submit "${TX}/trunc2.json" "${TX}/squeue_none.sh" "${TX}/sacct_oom_full.sh" "SUBMIT_LOG=${TX}/sl_t2.log"
+tx_seed "${TX}/trunc3.json"; : > "${TX}/sl_t3.log"
+expect_cmd "a RUNNING+ truncation is NOT mistaken for terminal (adopted)" 0 "ADOPTED 9006" -- \
+  tx_submit "${TX}/trunc3.json" "${TX}/squeue_none.sh" "${TX}/sacct_running_trunc.sh" "SUBMIT_LOG=${TX}/sl_t3.log"
+[ ! -s "${TX}/sl_t3.log" ]; check "  ... with no new submission" $?
+tx_seed "${TX}/trunc4.json"; : > "${TX}/sl_t4.log"
+expect_cmd "an AMBIGUOUS truncation (COMP) is fatal, never a guess" 1 "UNRESOLVABLE JOB STATE" -- \
+  tx_submit "${TX}/trunc4.json" "${TX}/squeue_none.sh" "${TX}/sacct_ambiguous.sh" "SUBMIT_LOG=${TX}/sl_t4.log"
+[ ! -s "${TX}/sl_t4.log" ]; check "  ... and nothing was submitted on the refusal" $?
+grep -q 'State%-40' "$CS"; check "sacct State width is requested explicitly (no default-width truncation)" $?
+# (2) the advertised recovery is REAL: SUBMITTED -> child dies -> one replay
+# records the corpse AND submits fresh in the same locked transaction.
+cat > "${TX}/stub_submit_fast.sh" <<'EOS'
+#!/usr/bin/env bash
+echo "submitted YAWAUG -> job 61$$" >> "$SUBMIT_LOG"
+echo "submitted YAWAUG -> job 61$$"
+EOS
+cat > "${TX}/sacct_j_dead.sh" <<'EOS'
+#!/usr/bin/env bash
+for a in "$@"; do [ "$a" = "-j" ] && { echo "CANCELLED"; exit 0; }; done
+exit 0
+EOS
+chmod +x "${TX}/stub_submit_fast.sh" "${TX}/sacct_j_dead.sh"
+tx_submit2() {  # <state> <sacct> — fast stub submitter, shared log
+  env YAW_AUG_SQUEUE_CMD="${TX}/squeue_none.sh" YAW_AUG_SACCT_CMD="$2" \
+      SUBMIT_LOG="${TX}/sl_rec.log" \
+      $PY "$CS" --state "$1" --arm YAWAUG transact-submit --target 2500 --next-target 5000 \
+        --submitter "${TX}/stub_submit_fast.sh" --resume /x/c.ckpt --leg-steps 2500 \
+        --dependency afterok:999
+}
+tx_seed "${TX}/recover.json"; : > "${TX}/sl_rec.log"
+expect_cmd "recovery compose 1/3: the first transaction submits" 0 "SUBMITTED" -- \
+  tx_submit2 "${TX}/recover.json" "${TX}/sacct_j_running.sh"
+DEAD_JID="$($PY -c "import json;print(json.load(open('${TX}/recover.json'))['boundaries']['2500']['next_leg_jid'])")"
+expect_cmd "recovery compose 2/3: after scancel, ONE replay buries the corpse and submits fresh" 0 "fresh successor in this same locked transaction" -- \
+  tx_submit2 "${TX}/recover.json" "${TX}/sacct_j_dead.sh"
+[ "$(grep -c . "${TX}/sl_rec.log")" = "2" ]
+check "  ... exactly one NEW submission (two total across the compose)" $?
+$PY -c "
+import json,sys
+b=json.load(open(sys.argv[1]))['boundaries']['2500']
+dead=[d['jid'] for d in b.get('dead_children') or []]
+sys.exit(0 if b['state']=='SUBMITTED' and b['next_leg_jid'] not in (None, sys.argv[2])
+         and sys.argv[2] in dead else 1)" "${TX}/recover.json" "$DEAD_JID"
+check "  ... corpse ${DEAD_JID} recorded; fresh jid published" $?
+expect_cmd "recovery compose 3/3: the fresh child alive => ALREADY_SUBMITTED again" 3 "ALREADY_SUBMITTED" -- \
+  tx_submit2 "${TX}/recover.json" "${TX}/sacct_j_running.sh"
+[ "$(grep -c . "${TX}/sl_rec.log")" = "2" ]
+check "  ... and no third submission" $?
 
 echo "--- Q. the suite touched nothing tracked, and submitted nothing ---"
 TRACKED_AFTER="$(git status --porcelain --untracked-files=no -- "$EXPDIR" "$EXP11DIR" src data/AR | sort)"
