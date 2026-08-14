@@ -10,6 +10,8 @@ from tqdm import tqdm
 import torch
 import pytorch_lightning as pl
 
+from src.data.are_anchor import (apply_anchor_addback, build_anchor_bank,
+                                 compute_are_anchors)
 from src.data.dataset import create_dataloader_from_config
 from src.data.yaw_rotation import (rotate_scene_metadata, invariant_conditioning,
                                    draw_yaw_offsets, offsets_to_radians,
@@ -145,6 +147,80 @@ def rotation_suffix(rotate_mode='fixed', rotate_deg=0.0, rotate_seed=None):
     return rot_suffix(rotate_deg)
 
 
+ARE_LAMBDA_KEY = 'are_lambda'
+ARE_ANCHOR_KEY = 'are_anchor'
+
+
+def validate_are_lambda(value, who):
+    """One place that decides whether a lambda is admissible, for both sources."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{who} must be a number in [0, 1], got {value!r}")
+    if not 0.0 <= float(value) <= 1.0:
+        raise ValueError(f"{who} must be in [0, 1], got {value!r}")
+    return float(value)
+
+
+def resolve_are_lambda(training_config, are_lambda=None):
+    """``(lambda_or_None, source)`` — which anchor weight this evaluation applies.
+
+    Announcement 05 governs this: an eval flag is part of the experiment
+    definition, and a mismatch between the flag and how the checkpoint was
+    trained produces plausible, catastrophically wrong numbers. So:
+
+    * no flag -> the arm's OWN declared ``training.are_lambda`` (``None`` for
+      every arm already in the record, which is how their records stay
+      byte-identical);
+    * an explicit ``--are-lambda`` OVERRIDES it, including ``0.0`` — that is the
+      AR3 sweep, and 0.0 must be distinguishable from "not an ARE run";
+    * a flag on an arm with no ``training.are_anchor`` block is a HARD error, not
+      a silent no-op: without the calibrated constants there is no ``A`` to add
+      back, and recording a lambda that influenced nothing is exactly the failure
+      announcement 05 exists to prevent.
+
+    Whichever wins is recorded in the metrics row together with its source.
+    """
+    training_config = training_config or {}
+    declared = training_config.get(ARE_LAMBDA_KEY, None)
+    has_anchor = isinstance(training_config.get(ARE_ANCHOR_KEY, None), dict)
+
+    if are_lambda is None:
+        if declared is None:
+            return None, None
+        lam = validate_are_lambda(declared, f"model config training.{ARE_LAMBDA_KEY}")
+    else:
+        lam = validate_are_lambda(are_lambda, "--are-lambda")
+
+    if not has_anchor:
+        raise ValueError(
+            f"an ARE lambda ({lam}) was requested but the model config declares no "
+            f"training.{ARE_ANCHOR_KEY} block, so the analytic anchor cannot be "
+            "computed. Point --model-config at the ARE arm's config.")
+    return lam, ("model_config" if are_lambda is None else "cli")
+
+
+def are_suffix(are_lambda=None):
+    """``''`` / ``'_are0'`` / ``'_are0p5'`` / ``'_are1'`` — the lambda's filename token.
+
+    Empty for a non-ARE run, so every legacy artifact name is byte-identical.
+    Non-empty otherwise, because AR3 evaluates ONE checkpoint at three lambdas and
+    they must not overwrite one another's metrics file.
+    """
+    return '' if are_lambda is None else '_are' + rot_token(are_lambda)
+
+
+def apply_are_addback(latents, bank, are_lambda, metadata, device):
+    """``z_hat + lambda * A_query`` for one batch, before the decode.
+
+    ``metadata`` is the POST-rotation metadata: ``r`` is rotation-invariant and the
+    LOS lookup direction co-rotates with the panorama, so the anchor is the same
+    under a rotated and an unrotated evaluation. That invariance is a design goal
+    of the port (plan §2, yaw note), which is why the add-back sits here rather
+    than being computed from a pre-rotation copy.
+    """
+    return apply_anchor_addback(latents, compute_are_anchors(bank, metadata, device),
+                                are_lambda)
+
+
 def build_output_paths(
     ckpt_path,
     steps,
@@ -155,6 +231,7 @@ def build_output_paths(
     n_angles=4,
     rotate_mode='fixed',
     rotate_seed=None,
+    are_lambda=None,
 ):
     """Construct the metrics-JSON and predictions-.pt output paths for one run.
 
@@ -180,7 +257,7 @@ def build_output_paths(
     directory = os.path.dirname(ckpt_path)
     method_suffix = '' if cond_method == 'vanilla' else f'_{cond_method}_a{n_angles}'
     rot = rotation_suffix(rotate_mode, rotate_deg, rotate_seed)
-    stem = f'{steps}_{cfg_scale}_{eval_name}{method_suffix}{rot}'
+    stem = f'{steps}_{cfg_scale}_{eval_name}{method_suffix}{rot}{are_suffix(are_lambda)}'
     return {
         'metrics': os.path.join(directory, f'{ckpt_name}_metrics_{stem}.json'),
         'predictions': os.path.join(directory, f'{ckpt_name}_predictions_{stem}.pt'),
@@ -702,13 +779,30 @@ def _per_scene_provenance(record, by_scene):
     return record
 
 
+def _are_provenance(record, are_lambda, are_lambda_source, are_anchor):
+    """Add exp_16's anchor provenance -- ONLY when an anchor was actually applied.
+
+    Same conditional discipline as ``_rotation_provenance``: a non-ARE record must
+    stay byte-identical to every row already committed, and an ARE record must
+    name the lambda it applied AND where that lambda came from, because
+    ``--are-lambda`` can override the config (the AR3 sweep).
+    """
+    if are_lambda is None:
+        return record
+    record[ARE_LAMBDA_KEY] = are_lambda
+    record["are_lambda_source"] = are_lambda_source
+    record[ARE_ANCHOR_KEY] = are_anchor
+    return record
+
+
 def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame_avg_angles,
                          cond_autocast='default', batch_size=None, n_samples=None,
                          dataset_config=None, seed=None, cfg_scale=None, steps=None,
                          eval_name=None, weights_source=None, device=None,
                          rotate_mode='fixed', rotate_seed=None, input_hash=None,
                          assignment_hash=None, stream_count=None, img_w=None,
-                         by_scene=None, frame_avg_max_fwd_samples=None):
+                         by_scene=None, frame_avg_max_fwd_samples=None,
+                         are_lambda=None, are_lambda_source=None, are_anchor=None):
     """Assemble the dict written to the metrics JSON.
 
     Extends the legacy ``{metrics, ckpt_path, rotate_deg}`` record with
@@ -758,7 +852,8 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
     }
     record = _rotation_provenance(record, rotate_mode, rotate_seed, input_hash,
                                   assignment_hash, stream_count, img_w)
-    return _per_scene_provenance(record, by_scene)
+    record = _per_scene_provenance(record, by_scene)
+    return _are_provenance(record, are_lambda, are_lambda_source, are_anchor)
 
 
 def resolve_cond_autocast(mode):
@@ -867,6 +962,7 @@ def evaluate_model(
     expected_stream_count=None,
     record_stream=False,
     record_per_scene=False,
+    are_lambda=None,
 ):
     # Fail fast on an unknown cond_method (the CLI is guarded by argparse
     # choices, but programmatic callers would otherwise silently run vanilla
@@ -963,9 +1059,23 @@ def evaluate_model(
 
     if module.diffusion.pretransform is not None:
             samples = model_config["sample_size"] // module.diffusion.pretransform.downsampling_ratio
-    else: 
+    else:
         samples = model_config["sample_size"]
-    
+
+    # exp_16 (ARE): the sampler emits the RESIDUAL, so the query anchor is added
+    # back to the latent before the decode. The bank is built once, from the same
+    # frozen VAE the arm trained against, and its worst-case frame check runs here
+    # -- before any GPU sampling -- rather than mid-loop.
+    are_lambda, are_lambda_source = resolve_are_lambda(training_config, are_lambda)
+    are_bank, are_anchor_cfg = None, None
+    if are_lambda is not None:
+        are_anchor_cfg = dict(training_config[ARE_ANCHOR_KEY])
+        are_bank = build_anchor_bank(module.diffusion.pretransform,
+                                     model_config["sample_rate"],
+                                     model_config["sample_size"], are_anchor_cfg)
+        print(f"ARE add-back ENABLED: lambda={are_lambda} (source: {are_lambda_source}), "
+              f"anchor={are_anchor_cfg}, kept latent frames 0..{are_bank.cfg.early_frames - 1}")
+
     # Fix seed
     if isinstance(seed, str):
         seed = int(seed)
@@ -1057,7 +1167,12 @@ def evaluate_model(
             else:
                 raise ValueError(f"Unknown diffusion objective: {objective}")
 
-            # Decode 
+            # exp_16 (ARE): + lambda * A_query, on the LATENT, before the decode
+            if are_bank is not None:
+                fakes = apply_are_addback(fakes, are_bank, are_lambda, metadata,
+                                          module.device)
+
+            # Decode
             if module.diffusion.pretransform is not None:
                 fakes = module.diffusion.pretransform.decode(fakes)
             
@@ -1123,6 +1238,7 @@ def evaluate_model(
         ckpt_path, steps, cfg_scale, eval_name,
         cond_method=cond_method, rotate_deg=rotate_deg, n_angles=len(frame_avg_angles),
         rotate_mode=rotation_plan.mode, rotate_seed=rotation_plan.rotate_seed,
+        are_lambda=are_lambda,
     )
     frame_angles_record = list(frame_avg_angles) if cond_method == 'fa_invariant' else None
     metrics_to_save = build_metrics_record(
@@ -1131,7 +1247,9 @@ def evaluate_model(
         dataset_config=dataset_config_path, seed=seed, cfg_scale=cfg_scale,
         steps=steps, eval_name=eval_name, weights_source=weights_source,
         device=str(device), by_scene=by_scene,
-        frame_avg_max_fwd_samples=frame_avg_max_fwd_samples, **rotation_provenance,
+        frame_avg_max_fwd_samples=frame_avg_max_fwd_samples,
+        are_lambda=are_lambda, are_lambda_source=are_lambda_source,
+        are_anchor=are_anchor_cfg, **rotation_provenance,
     )
     path2save = output_paths['metrics']
     with open(path2save, 'w') as f:
@@ -1188,6 +1306,7 @@ if __name__ == "__main__":
     parser.add_argument("--frame-avg-max-fwd-samples", type=int, default=64, help="Largest number of samples in ONE fa_invariant frame-averaging forward. With C4 and a per-forward batch B this makes max(1, cap // B) angles share a chunk -- and, under train-mode DINOv3, one RoPE rescale draw (announcement 06). Default 64 = the value every evaluation in the record ran under; exp_14 pins it explicitly on both arms. Ignored when --cond-method vanilla.")
     parser.add_argument("--cond-autocast", type=str, default="default", choices=["default", "bf16", "off"], help="Autocast mode for the conditioning call: 'default' = torch per-device default dtype (fp16 on cuda; the exp_01/exp_02 protocol), 'bf16' = bfloat16 (matches finetune_cond's bf16-mixed training), 'off' = no autocast (fp32, for exactness measurements).")
     parser.add_argument("--allow-partial-load", action='store_true', help="Continue with a warning when the checkpoint does not load cleanly (missing or non-whitelisted unexpected keys) instead of raising.")
+    parser.add_argument("--are-lambda", type=float, default=None, help="exp_16 ARE: weight of the analytic direct-sound anchor added back to the sampled latent before decoding. Omit to use the arm's OWN training.are_lambda from --model-config (None for every non-ARE arm, which leaves the run and its record byte-identical to today). Passing it OVERRIDES the config -- including 0.0, which is the AR3 eval-time sweep and is recorded as such. Requires the model config to declare training.are_anchor; the applied value and its source are written into the metrics record and into the output filename.")
     args = parser.parse_args()
 
     if args.store_predictions:
@@ -1218,4 +1337,5 @@ if __name__ == "__main__":
         expected_stream_count=args.expected_stream_count,
         record_stream=args.record_stream,
         record_per_scene=args.record_per_scene,
+        are_lambda=args.are_lambda,
     )

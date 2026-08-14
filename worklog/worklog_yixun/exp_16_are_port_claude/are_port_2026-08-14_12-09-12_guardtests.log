@@ -1,0 +1,164 @@
+=== are_launch guard exercise - 2026-08-14_12-09-12 - 33efd98 ===
+launcher: worklog/worklog_yixun/exp_16_are_port_claude/are_launch.sh
+ARE  config sha256 (manual recovery if hard-killed): 05e4987f4d19bad374e0c97ede5dbfa5f9be535f1fa1a598d99990334998f3bb
+BVp1 config sha256 (read-only throughout)          : 733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8
+--- A. arm + mode selection (both explicit, both fail-closed) ---
+PASS  rc=2   ARM unset rejected
+PASS  rc=2   ARM=AREV2 (near-miss) rejected
+PASS  rc=2   ARM=arev (wrong case) rejected
+PASS  rc=2   ARM=DSPA (another experiment's arm) rejected
+PASS  rc=2   ARM=AREFA (a Phase-2 arm with no config) rejected
+PASS  rc=2   MODE unset rejected (never inferred from MAXSTEPS)
+PASS  rc=2   MODE=probe (wrong case) rejected
+PASS  rc=2   MODE=FIT (invented) rejected
+--- B. environment / knob validation ---
+PASS  rc=2   wrong conda env rejected
+PASS  rc=2   MAXSTEPS=abc
+PASS  rc=2   MAXSTEPS=0
+PASS  rc=2   MAXSTEPS=40000.5 (non-integer) rejected
+PASS  rc=2   MAXSTEPS=-40000 rejected
+PASS  rc=2   CHECKPOINT_EVERY=0
+PASS  rc=2   CHECKPOINT_EVERY=abc
+PASS  rc=2   MB=8 ACC=8 rung rejected (accumulation never feeds BN)
+PASS  rc=2   MIN_FREE_DISK_MB=abc rejected
+PASS  rc=2   a cadence that never saves is rejected in EVERY mode (readback is mandatory)
+PASS  rc=2   FULL with a cadence that never saves rejected too
+--- C. mode/resume coupling ---
+PASS  rc=2   MODE=RESTART without RESUME_CKPT rejected
+PASS  rc=2   MODE=RESTART without EXPECTED_STEP rejected
+PASS  rc=2   MODE=RESTART with a missing file rejected
+PASS  rc=2   MODE=FULL with RESUME_CKPT rejected (use MODE=RESTART)
+PASS  rc=2   MODE=PROBE with EXPECTED_STEP rejected
+PASS  rc=2   EXPECTED_STEP=abc rejected
+--- D. config contract (arm config temporarily swapped) ---
+PASS  rc=2   D1 wrong lambda (0.5) rejected
+  arm config restored OK
+PASS  rc=2   D2 missing lambda key rejected (an ARE arm that trains today's objective)
+  arm config restored OK
+PASS  rc=2   D3 boolean lambda rejected
+  arm config restored OK
+PASS  rc=2   D3b integer lambda 1 rejected (1 == 1.0 == True in python)
+  arm config restored OK
+PASS  rc=2   D4 missing anchor block rejected (no calibrated constants)
+  arm config restored OK
+PASS  rc=2   D5 extra anchor key rejected (a typo would be silently ignored)
+  arm config restored OK
+PASS  rc=2   D6 missing delta_hat rejected
+  arm config restored OK
+PASS  rc=2   D7 integer A_g rejected (a typed float is required)
+  arm config restored OK
+PASS  rc=2   D8 non-ARE drift from BVp1 rejected
+  arm config restored OK
+PASS  rc=2   D9 cond_method drift to fa_invariant rejected (ARE-FA is Phase 2)
+  arm config restored OK
+PASS  rc=2   D10 a delta_hat that pushes AR's longest path out of the kept frames rejected
+  arm config restored OK
+--- E. df floor on the outputs volume (bypass for guard-testing: MIN_FREE_DISK_MB=1) ---
+PASS  rc=2   df floor rejects an impossible free-space requirement
+PASS  rc=2   df floor bypass lets a PROBE reach the VRAM gate
+--- F. ADMISSION EVIDENCE: FULL/RESTART are GATED ---
+PASS  rc=2   F0 PROBE needs no admission evidence
+PASS  rc=2   F1 FULL with NO evidence rejected
+PASS  rc=2   F2 FULL with valid are_fit evidence accepted (dry-fail at VRAM)
+PASS  rc=2   F3 stale source_sha rejected (a source change is a hard abort)
+PASS  rc=2   F4 mismatched treatment_sha256 rejected (the ARE code changed)
+PASS  rc=2   F5 arm config re-serialised after stamping rejected (model_config_sha256)
+  arm config restored OK
+PASS  rc=2   F6 FAIL-verdict evidence rejected (a failed gate is still evidence)
+PASS  rc=2   F7 unsourced verdict rejected (recorded log missing)
+PASS  rc=2   F8 evidence about a different lambda rejected
+PASS  rc=2   F9 calibration_sha256 mismatch rejected (a different anchor input)
+PASS  rc=2   F9 vae_sha256 mismatch rejected (a different anchor input)
+--- H. dirty-treatment gate (ALLOW_DIRTY_TREATMENT is guard-test-only) ---
+PASS  rc=2   H1 FULL refuses a dirty treatment path without the bypass
+PASS  rc=2   H2 the bypass is announced in the log when used
+--- G. RESTART lineage (synthetic ckpts in outputs_FLAC/exp16_AREV) ---
+synthetic RESTART checkpoints written to outputs_FLAC/exp16_AREV and /tmp/tmp.MCZg41oQtM
+PASS  rc=2   G0 MODE=FULL into a namespace that already holds checkpoints rejected
+PASS  rc=2   G1 RESTART from outside this arm's namespace rejected
+PASS  rc=2   G2 RESTART MAXSTEPS <= EXPECTED_STEP rejected
+PASS  rc=2   G3 RESTART with a wrong EXPECTED_STEP rejected
+PASS  rc=2   G4 RESTART on a ckpt embedding a DIFFERENT lambda rejected
+PASS  rc=2   G5 RESTART on a ckpt with NO lambda key rejected (today's objective)
+PASS  rc=2   G6 RESTART on a ckpt whose lambda is int 1 rejected (TYPE-strict: 1 == 1.0 in python)
+PASS  rc=2   G7 optimizer-stripped ckpt rejected (exp_16's arm is warm-only)
+PASS  rc=2   G8 ckpt with no param_groups rejected
+PASS  rc=2   G9 ckpt with no lr_schedulers rejected
+PASS  rc=2   G10 VALID RESTART (evidence + full-state lineage, dry-fail at VRAM)
+--- targeted cleanup of outputs_FLAC/exp16_AREV ---
+  rm outputs_FLAC/exp16_AREV/guardtest-ok-step=20000.ckpt
+  rm outputs_FLAC/exp16_AREV/guardtest-otherlam-step=20000.ckpt
+  rm outputs_FLAC/exp16_AREV/guardtest-nolamkey-step=20000.ckpt
+  rm outputs_FLAC/exp16_AREV/guardtest-intlam-step=20000.ckpt
+  rm outputs_FLAC/exp16_AREV/guardtest-stripped-step=20000.ckpt
+  rm outputs_FLAC/exp16_AREV/guardtest-nogroups-step=20000.ckpt
+  rm outputs_FLAC/exp16_AREV/guardtest-nosched-step=20000.ckpt
+  rmdir outputs_FLAC/exp16_AREV (was empty)
+--- I. the VALID PROBE launch: identity, defaults, anchor + worst-case disclosure ---
+FAIL  rc=2 (want 2) I1 AREV PROBE accept: probe identity, 15/5 defaults, calibrated anchor, AR worst case
+      missing substring: floor is NOT requalified for ARE-V
+      | mode=PROBE | resume: '' | expected_step=0 | evidence_required=0
+      | config contract OK (AREV): worklog/worklog_yixun/exp_16_are_port_claude/FLAC_AR_ARE.json == worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json + training.are_lambda=1.0 + training.are_anchor={'delta_hat': 0.0, 'a_g': 0.3945743599778986}
+      |   ANCHOR: delta_hat=0.0 A_g=0.394574 p_exp=1.0 H=32 LOS>=0.95*r guard=0.05 m
+      |   TIME BASE: fs=22050 sample_size=10240 hop=1024 -> 10 latent frames, keeping 0..2
+      |   AUGMENTATION: the AR train loader's RandomTimeShift moves the target by 0..10 samples; the per-sample draw is published as metadata['time_shift'] and ADDED to t* (fail-closed if absent)
+      |   WORST CASE (AR max 27.1047 m + max shift 10): direct peak at sample 1752.4 (frame 1), kernel tail to 1784.4 -> needs 2 frame(s) <= 3 kept  [headroom to 47.13 m]
+      | --- admission evidence: NOT required in MODE=PROBE (a probe is how evidence is earned) ---
+      | disk: 108595 MiB free on the volume holding outputs_FLAC (floor 20480 MiB)
+      | ################################################################################
+      | ## NOTE - the VRAM floor below (21,900 MiB) is the campaign's STANDING         ##
+      | ## co-tenancy number, measured on the FA arm at cap 64. It is NOT requalified  ##
+      | ## for ARE-V, which has a different (vanilla, no-orbit) activation profile AND ##
+      | ## adds one B=1 frozen-VAE encode per sample inside training_step. Plan §4     ##
+      | ## gates this arm on a REAL 15-step DDP fit probe with VRAM sampled - run it   ##
+      | ## as MODE=PROBE and record its verdict with stamp_evidence.py. If it does not ##
+      | ## fit, STOP and report; do not lower the rung, which would break BN=64.       ##
+      | ################################################################################
+      | GPU 0 free 26634 MiB < required 99000000 MiB - refusing to launch
+PASS  rc=2   I2 a PROBE never writes into the production namespace
+--- config integrity re-check ---
+PASS  ARE config unchanged (05e4987f4d19bad374e0c97ede5dbfa5f9be535f1fa1a598d99990334998f3bb)
+PASS  BVp1 config unchanged (733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8)
+PASS  no probe namespace was created (every case dry-failed before train.py)
+
+=== guard exercise: 66 passed, 1 failed ===
+  arm config restored OK
+  rmdir worklog/worklog_yixun/exp_16_are_port_claude/evidence (created by this exercise, now empty)
+--- removing launcher logs created by this exercise ---
+  rm are_port_2026-08-14_12-10-06_exp16_AREV_probe_train.log
+  rm are_port_2026-08-14_12-11-14_exp16_AREV_probe_train.log
+  rm are_port_2026-08-14_12-11-25_exp16_AREV_probe_train.log
+  rm are_port_2026-08-14_12-11-36_exp16_AREV_probe_train.log
+  rm are_port_2026-08-14_12-11-46_exp16_AREV_probe_train.log
+  rm are_port_2026-08-14_12-11-57_exp16_AREV_probe_train.log
+  rm are_port_2026-08-14_12-12-09_exp16_AREV_probe_train.log
+  rm are_port_2026-08-14_12-12-21_exp16_AREV_probe_train.log
+  rm are_port_2026-08-14_12-12-33_exp16_AREV_probe_train.log
+  rm are_port_2026-08-14_12-12-43_exp16_AREV_probe_train.log
+  rm are_port_2026-08-14_12-12-54_exp16_AREV_probe_train.log
+  rm are_port_2026-08-14_12-13-04_exp16_AREV_probe_train.log
+  rm are_port_2026-08-14_12-13-14_exp16_AREV_probe_train.log
+  rm are_port_2026-08-14_12-13-24_exp16_AREV_probe_train.log
+  rm are_port_2026-08-14_12-13-34_exp16_AREV_probe_train.log
+  rm are_port_2026-08-14_12-13-44_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-13-54_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-14-04_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-14-13_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-14-24_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-14-35_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-14-45_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-14-55_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-15-05_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-15-16_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-15-27_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-15-39_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-16-12_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-16-26_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-16-40_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-16-53_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-17-06_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-17-19_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-17-31_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-17-44_exp16_AREV_train.log
+  rm are_port_2026-08-14_12-17-56_exp16_AREV_probe_train.log
+  rm are_port_2026-08-14_12-18-05_exp16_AREV_probe_train.log

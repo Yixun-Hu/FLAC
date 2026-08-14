@@ -13,6 +13,11 @@ from torch import optim
 from torch.nn import functional as F
 from pytorch_lightning.utilities.rank_zero import rank_zero_only
 
+from ..data.are_anchor import (
+    apply_anchor_addback,
+    build_anchor_bank,
+    compute_are_anchors,
+)
 from ..data.yaw_rotation import (
     invariant_conditioning,
     DEFAULT_FRAME_ANGLES,
@@ -176,7 +181,9 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             frame_avg_max_fwd_samples: tp.Optional[int] = None,
             yaw_aug_enabled: bool = False,
             yaw_aug_img_w: int = 512,
-            yaw_aug_seed: int = 0
+            yaw_aug_seed: int = 0,
+            are_lambda: tp.Optional[float] = None,
+            are_anchor: tp.Optional[dict] = None
     ):
         super().__init__()
 
@@ -239,6 +246,32 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         self.yaw_aug_enabled = yaw_aug_enabled
         self.yaw_aug_img_w = yaw_aug_img_w
         self.yaw_aug_seed = yaw_aug_seed
+
+        # exp_16 (ARE): the target reparameterisation z -> z - lambda*A(p).
+        # ``None`` means "not an ARE arm" and is NOT the same as 0.0: at None the
+        # anchor code is never entered at all, which is what keeps the absent-key
+        # path identical to the one P1 (the lambda=0 control) was trained through.
+        # Validated on the RAW arguments, as fail-closed as the config path.
+        if are_lambda is None:
+            if are_anchor is not None:
+                raise ValueError(
+                    "are_anchor was given without are_lambda: an anchor block that "
+                    "nothing weights would be silently ignored")
+        else:
+            if isinstance(are_lambda, bool) or not isinstance(are_lambda, (int, float)):
+                raise ValueError(
+                    f"are_lambda must be a number in [0, 1], got {are_lambda!r}")
+            if not 0.0 <= float(are_lambda) <= 1.0:
+                raise ValueError(f"are_lambda must be in [0, 1], got {are_lambda!r}")
+            if not isinstance(are_anchor, dict):
+                raise ValueError(
+                    f"are_lambda={are_lambda!r} requires an are_anchor dict carrying "
+                    "the calibrated constants and the model's time base, got "
+                    f"{are_anchor!r}")
+            are_lambda = float(are_lambda)
+        self.are_lambda = are_lambda
+        self.are_anchor = dict(are_anchor) if isinstance(are_anchor, dict) else None
+        self._are_bank = None
 
         if use_ema:
             self.diffusion_ema = EMA(
@@ -509,6 +542,50 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             return self.diffusion.conditioner(metadata, self.device)
         raise ValueError(f"Unknown cond_method: {self.cond_method}")
 
+    def _are_anchor_bank(self):
+        """The frozen-VAE anchor bank for this arm, built once, lazily.
+
+        Lazy because the pretransform's weights are loaded by ``train.py`` after
+        the wrapper is constructed, and because a non-ARE arm must never pay for
+        (or fail on) an anchor bank it does not use.
+        """
+        if self.are_lambda is None:
+            raise ValueError(
+                "this arm declares no are_lambda, so it has no anchor bank")
+        if self._are_bank is None:
+            anchor_cfg = {k: v for k, v in self.are_anchor.items()
+                          if k not in ("sample_rate", "sample_size")}
+            self._are_bank = build_anchor_bank(
+                self.diffusion.pretransform,
+                self.are_anchor["sample_rate"], self.are_anchor["sample_size"],
+                anchor_cfg)
+        return self._are_bank
+
+    def _are_anchors(self, metadata, like):
+        """Per-sample anchors for one batch, shape-checked against the latent.
+
+        ``compute_are_anchors`` is looked up as a module global on purpose: it is
+        the seam the tests spy on to prove that a non-ARE arm never enters this
+        code at all.
+        """
+        anchors = compute_are_anchors(self._are_anchor_bank(), metadata, self.device)
+        if tuple(anchors.shape) != tuple(like.shape):
+            raise ValueError(
+                f"ARE anchor shape {tuple(anchors.shape)} does not match the latent "
+                f"shape {tuple(like.shape)}: the anchor's sample_size/hop disagree "
+                "with the pretransform actually in use")
+        return anchors
+
+    def _are_residual_target(self, diffusion_input, metadata):
+        """``z -> z - lambda*A(p)`` — the TRAINING half of the reparameterisation.
+
+        Called from ``training_step`` AND ``validation_step``; ``test_step`` adds
+        the anchor back instead (CLAUDE.md's all-dispatch-sites rule). Consumes no
+        RNG, so an ARE arm sees exactly the noise sequence its lambda=0 control saw.
+        """
+        anchors = self._are_anchors(metadata, diffusion_input)
+        return diffusion_input - self.are_lambda * anchors.to(diffusion_input.dtype)
+
     def training_step(self, batch, batch_idx):
         reals, metadata = batch
 
@@ -557,6 +634,13 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
                 # Apply scale to pre-encoded latents if needed, as the pretransform encode function will not be run
                 if hasattr(self.diffusion.pretransform, "scale") and self.diffusion.pretransform.scale != 1.0:
                     diffusion_input = diffusion_input / self.diffusion.pretransform.scale
+
+        # exp_16 (ARE), dispatch site 1 of 3. Placed AFTER the encode and BEFORE
+        # the timestep/noise draws, so the treatment changes the target and
+        # nothing else: the anchor path touches no generator, hence this arm
+        # consumes the RNG stream identically to its lambda=0 control.
+        if self.are_lambda is not None:
+            diffusion_input = self._are_residual_target(diffusion_input, metadata)
 
         if self.timestep_sampler == "uniform":
             # Draw uniformly distributed continuous timesteps
@@ -692,6 +776,11 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
                 if hasattr(self.diffusion.pretransform, "scale") and self.diffusion.pretransform.scale != 1.0:
                     diffusion_input = diffusion_input / self.diffusion.pretransform.scale
 
+        # exp_16 (ARE), dispatch site 2 of 3: validation measures the objective the
+        # arm is actually training, so it uses the same residual target.
+        if self.are_lambda is not None:
+            diffusion_input = self._are_residual_target(diffusion_input, metadata)
+
         for validation_timestep in self.validation_timesteps:
 
             t = torch.full((reals.shape[0],), validation_timestep, device=self.device)
@@ -778,6 +867,13 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
                 sigmas[0] = 1.0
                 sigmas[-1] = 0.0
                 fakes = sample_flow_pingpong(model, noise, sigmas=sigmas, **cond_inputs, cfg_scale=self.cfg_scale, dist_shift=self.diffusion.dist_shift, batch_cfg=True, disable_tqdm=True)
+
+            # exp_16 (ARE), dispatch site 3 of 3 — the INFERENCE half. The sampler
+            # produced the residual, so the query anchor is added back to the
+            # LATENT, before the single decode.
+            if self.are_lambda is not None:
+                fakes = apply_anchor_addback(
+                    fakes, self._are_anchors(metadata, fakes), self.are_lambda)
 
             if self.diffusion.pretransform is not None:
                 fakes = self.diffusion.pretransform.decode(fakes)

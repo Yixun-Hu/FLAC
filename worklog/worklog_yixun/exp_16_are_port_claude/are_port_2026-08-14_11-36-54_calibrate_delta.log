@@ -1,0 +1,13 @@
+audio root : /home/yixunhu/codespace/FLAC/AcousticRooms
+split      : /home/yixunhu/codespace/FLAC/data/AR/train.json  (folder single_channel_ir_1)
+time base  : fs=22050  sample_size=10240  window=+/-45 samples
+draw       : rng(1508).choice over the sorted split, n=2560, LOS filter=on
+
+scanned 2560 drawn path(s): 2059 measured, 501 NLOS-rejected, 0 unreadable
+delta_hat_raw = +0.0242 samples (+0.0011 ms)  -> delta_hat = +0.0000  (R1 FIRED)
+A_g (l2, H=32) = 0.394574   [H=8/16/64: 0.376195, 0.380841, 0.486617]
+R2 Theil-Sen swing 0.117 samples over the r range -> ok
+R3 amplitude exponent p_hat 0.970 -> ok
+R4 edge saturation 0.0010 -> ok
+
+wrote worklog/worklog_yixun/exp_16_are_port_claude/are_calibration.json

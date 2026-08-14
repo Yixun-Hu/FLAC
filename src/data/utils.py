@@ -143,15 +143,25 @@ class RandomTimeShift(nn.Module):
         assert 0 <= p <= 1, "p must be between 0 and 1"
         self.max_shift = max_shift
         self.p = p
+        # exp_16 (ARE): the applied shift, published for the caller to record.
+        # The augmentation moves the target RIR forward by 1..max_shift samples
+        # with probability p while the GEOMETRY stays where it was, so anything
+        # that places a signal by time-of-flight (the ARE anchor) is off by
+        # exactly this many samples on the shifted half of the training set.
+        # Recording the draw that already happened costs no extra RNG value and
+        # leaves the returned signal bit-identical.
+        self.last_shift = 0
 
     def forward(self, signal):
         # If no shift or probability skip
         if self.max_shift == 0 or random.random() > self.p:
+            self.last_shift = 0
             return signal
         shifted = torch.zeros_like(signal)
 
         shift = random.randint(1, self.max_shift)
         shifted[:, shift:] = signal[:, :-shift]  # Initialize with zeros
+        self.last_shift = shift
 
         return shifted
         

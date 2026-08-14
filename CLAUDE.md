@@ -118,14 +118,14 @@ The DiT consumes:
 
 Conditioners are registered in `model.conditioning.configs[].id/type`; the most important types are `dist_embedder` (Fourier features for 3D positions), `ViTCoordinates` (DINOv3 / xRIR / OpenCLIP ViT over depth panoramas), and `rir` (mel-style STFT encoder over reference RIR waveforms). The `id` field is the contract with `cross_attention_cond_ids` / `global_cond_ids` *and* with the metadata keys produced by the dataset's `custom_metadata_module`.
 
-### `flow_source` is load-bearing
+### `flow_source` (STALE NOTE — corrected 2026-08-14)
 
 `training.flow_source` controls the starting point of the rectified-flow trajectory and is read with bracket access in `src/training/factory.py:66` — a missing key crashes with `KeyError` by design. Two modes:
 
 - `"gaussian"` — standard rectified flow from noise. Used by `FLAC_AR.json`, `FLAC_AR_S.json`, `FLAC_AR_AllCA.json`, `FLAC_AR_InContext.json`, `FLAC_AR_VAECtxt.json`, `FLAC_AR_noGeom.json`, `FLAC_HAA_finetune.json`.
 - `"nearest_ref"` — flow starts from the VAE encoding of the nearest reference RIR (`_pick_nearest_reference` in `src/training/diffusion.py`). Used by `FLAC_AR_nearestRef.json`. Training drops the picked reference from cross-attn context; inference keeps it (so K=1 deployment works). `eval_FLAC.py` mirrors the same dispatch.
 
-When adding a third mode, update **both** dispatch sites (`training_step`/`validation_step`/`test_step` in `src/training/diffusion.py` and the inference path in `eval_FLAC.py`) — there is no central whitelist by design.
+⚠️ 2026-08-14: `flow_source`/`nearest_ref` do NOT exist on branch `check-equivariance-necessity` — this section described an upstream/main-era mechanism. The branch's target-space mode is `training.are_lambda` (exp_16 ARE): latent replaced by z−λ·A at BOTH training dispatch sites + eval add-back. When adding modes, update all dispatch sites (`training_step`/`validation_step`/`test_step` in `src/training/diffusion.py` and the inference path in `eval_FLAC.py`) — there is no central whitelist by design.
 
 ### Dataset & metadata pipeline
 

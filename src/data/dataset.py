@@ -249,8 +249,17 @@ class SampleDataset(torch.utils.data.Dataset):
                 return self[random.randrange(len(self))]
 
             # Run augmentations on this sample
+            time_shift = 0
             if self.augs is not None:
                 audio = self.augs(audio)
+                # exp_16 (ARE): RandomTimeShift moves the target forward by
+                # 1..10 samples on half the training set while the geometry does
+                # not move. Anything that places a signal by time-of-flight must
+                # know the shift, so the draw the augmentation ALREADY made is
+                # read back here (no extra RNG value is consumed and the audio is
+                # untouched). Read immediately after the call, from this worker's
+                # own dataset copy, so it always describes THIS sample.
+                time_shift = int(getattr(self.augs[0], "last_shift", 0))
 
             audio = audio.clamp(-1, 1)
 
@@ -267,6 +276,9 @@ class SampleDataset(torch.utils.data.Dataset):
             info['json_file_path'] = self.json_file_path 
 
             info['idx'] = idx
+            # ALWAYS present (0 when no augmentation ran), so a consumer can fail
+            # closed on its absence instead of assuming an unshifted target.
+            info["time_shift"] = time_shift
             info["path"] = audio_filename
             info['sample_rate'] = self.sr
             info['sample_size'] = audio.shape[-1]

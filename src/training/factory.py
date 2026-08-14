@@ -1,5 +1,6 @@
 import torch
 from torch.nn import Parameter
+from ..data import are_anchor
 from ..models.factory import create_model_from_config
 
 YAW_AUG_KEYS = ("enabled", "img_w", "seed")
@@ -110,6 +111,95 @@ def _parse_frame_avg_cap_config(training_config):
     return {key: int(value)}
 
 
+ARE_LAMBDA_KEY = "are_lambda"
+ARE_ANCHOR_KEY = "are_anchor"
+
+
+def _parse_are_config(model_config, training_config):
+    """Validate ``training.are_lambda`` / ``training.are_anchor`` -> wrapper kwargs.
+
+    exp_16's treatment (plan §§1-3): FLAC's rectified flow learns
+    ``noise -> (z - lambda*A(p))`` instead of ``noise -> z``. That is the arm's
+    OBJECTIVE, so it has to be a declared, checkpoint-embedded property rather
+    than an ambient constant — the same reasoning announcement 06 applies to the
+    frame-average chunk plan.
+
+    Returns ``{}`` unless ``are_lambda`` is present, so an arm that does not
+    declare it is constructed through the LITERAL pre-change call. That matters
+    concretely here: exp_16's lambda=0 control is P1, a run that already
+    happened, and the comparison is only clean if the absent-key path is
+    byte-identical to the one P1 was trained through.
+
+    Every check is on the RAW value. ``True`` is an ``int``, ``"1"`` is not a
+    number however plausible it looks, and either would arm a ~1.8-day run at a
+    lambda nobody chose.
+    """
+    has_lambda = ARE_LAMBDA_KEY in training_config
+    has_anchor = ARE_ANCHOR_KEY in training_config
+
+    if not has_lambda:
+        if has_anchor:
+            raise ValueError(
+                f"training.{ARE_ANCHOR_KEY} is declared but training.{ARE_LAMBDA_KEY} "
+                "is not: an anchor block with no lambda would be parsed, recorded and "
+                "then ignored. State the lambda (0.0 for a declared control) or drop "
+                "the block.")
+        return {}
+
+    lam = training_config[ARE_LAMBDA_KEY]
+    if isinstance(lam, bool) or not isinstance(lam, (int, float)):
+        raise ValueError(
+            f"training.{ARE_LAMBDA_KEY} must be a number in [0, 1] (the weight of the "
+            f"analytic anchor in the target reparameterisation), got {lam!r}")
+    if not 0.0 <= float(lam) <= 1.0:
+        raise ValueError(
+            f"training.{ARE_LAMBDA_KEY} must be in [0, 1], got {lam!r}")
+
+    if not has_anchor:
+        raise ValueError(
+            f"training.{ARE_LAMBDA_KEY}={lam!r} requires a training.{ARE_ANCHOR_KEY} "
+            "block carrying the calibrated constants "
+            f"{list(are_anchor.ANCHOR_REQUIRED_KEYS)}: no default is assumed, because "
+            "an anchor placed at an uncalibrated onset is a different method.")
+
+    block = training_config[ARE_ANCHOR_KEY]
+    if not isinstance(block, dict):
+        raise ValueError(
+            f"training.{ARE_ANCHOR_KEY} must be an object with keys "
+            f"{list(are_anchor.ANCHOR_REQUIRED_KEYS)}, got {type(block).__name__}")
+
+    allowed = set(are_anchor.ANCHOR_REQUIRED_KEYS) | set(are_anchor.ANCHOR_OPTIONAL_KEYS)
+    unknown = sorted(k for k in block if k not in allowed)
+    if unknown:
+        # sample_rate / sample_size are named separately: they are not "unknown",
+        # they are the MODEL config's, and letting the block restate them would
+        # let the anchor's time base disagree with the audio the run trains on.
+        restated = [k for k in unknown if k in are_anchor.ANCHOR_MODEL_KEYS]
+        if restated:
+            raise ValueError(
+                f"training.{ARE_ANCHOR_KEY} may not restate {restated}: they are read "
+                "from the model config (sample_rate / sample_size), so a second copy "
+                "could silently disagree with the audio being trained on.")
+        raise ValueError(
+            f"training.{ARE_ANCHOR_KEY} has unknown key(s) {unknown}; allowed keys are "
+            f"{sorted(allowed)}")
+
+    for key in are_anchor.ANCHOR_REQUIRED_KEYS:
+        if key not in block:
+            raise ValueError(
+                f"training.{ARE_ANCHOR_KEY} requires '{key}': it is calibrated on the "
+                "AR train split and must be stated by the config, never defaulted.")
+    for key, value in block.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(
+                f"training.{ARE_ANCHOR_KEY}.{key} must be a number, got {value!r}")
+
+    resolved = dict(block)
+    resolved["sample_rate"] = model_config["sample_rate"]
+    resolved["sample_size"] = model_config["sample_size"]
+    return {ARE_LAMBDA_KEY: float(lam), ARE_ANCHOR_KEY: resolved}
+
+
 def create_training_wrapper_from_config(model_config, model):
     model_type = model_config.get('model_type', None)
     assert model_type is not None, 'model_type must be specified in model config'
@@ -172,6 +262,9 @@ def create_training_wrapper_from_config(model_config, model):
         # exp_14: absent key -> {} -> likewise verbatim (cap defaults to the
         # module's 64 inside invariant_conditioning, not here).
         frame_avg_cap_kwargs = _parse_frame_avg_cap_config(training_config)
+        # exp_16: absent are_lambda -> {} -> likewise verbatim (P1, the lambda=0
+        # control, was trained through exactly this call).
+        are_kwargs = _parse_are_config(model_config, training_config)
 
         return DiffusionCondTrainingWrapper(
             model, 
@@ -191,6 +284,7 @@ def create_training_wrapper_from_config(model_config, model):
             frame_avg_angles = training_config.get("frame_avg_angles", None),
             **frame_avg_cap_kwargs,
             **yaw_aug_kwargs,
+            **are_kwargs,
         )
     
     else:
