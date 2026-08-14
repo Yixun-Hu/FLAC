@@ -203,3 +203,8 @@
 
 - **Result** — `passed`. Commits `c922148` (dead-child refusal with corpse record + token rotation, rc 5 → class 12; unconditional both-source identity incl. mandatory manifest_sha256 and the 0/2500/2500/2500 pins; terminal-write failure = class 14 with the queued-successor stranding surface + exact recovery; manifest_fields complete for all 38 keys) + `3cbdc90` (guardtest section AG, 27 cases) + `dfaf810` (evidence). Suites: **main 347/0, STRICT 359/0, union 363/363 SATISFIED**. Race/stranded core re-verified verbatim. No new implementation bug this cycle — first clean-on-first-contact cycle; convergence.
 - **Next** — Push; final scoped Codex pass on `c922148`+`3cbdc90` only; on GO: submit chain INITIAL, arm the chain monitor, done for the night.
+
+## 2026-08-14T10:45:00-04:00 — chain-fix4 complete (3/3, full green); final GO check
+
+- **Result** — `passed`. Commits `b1314b1` (sacct State%-40 + canonical_state prefix normalization with ambiguous-truncation-fatal; SUBMITTED-replay checks the recorded successor's actual state and routes dead children through the corpse path within one locked transaction; parser completeness) + `b149f86` (evidence). Suites: **main 361/0, STRICT 373/0, union 376/376 SATISFIED**. Recovery compose verified literally (3-stage: submit → scancel+replay buries corpse and submits fresh exactly once → replay ALREADY_SUBMITTED). Scheduler-read audit: all state reads width-pinned in the state helper; submitter has zero scheduler calls; launcher's one squeue reads %l (no hazard). Coder seat: Fable fork (continuing; Opus limit).
+- **Next** — Push; final Codex GO check on `b1314b1`; on GO: chain INITIAL up.
