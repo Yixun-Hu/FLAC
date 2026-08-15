@@ -1,0 +1,34 @@
+=== exp_17 launcher guardtests — 2026-08-15_13-26-23 — bd92791 ===
+--- A. mode selection ---
+  PASS  A1 MODE unset  (rc=2)
+  PASS  A2 MODE lowercase  (rc=2)
+  PASS  A3 MODE invented  (rc=2)
+  PASS  A4 MODE near-miss  (rc=2)
+--- B. the BN-compliant rung is pinned literally ---
+  PASS  B1 accum smuggled  (rc=2)
+  PASS  B2 micro halved  (rc=2)
+  PASS  B3 non-numeric  (rc=2)
+--- C. config contract (the single-delta claim) ---
+  PASS  C1 width mismatch  (rc=2)
+  PASS  C2 bool-as-int  (rc=2)
+  PASS  C2b enabled as string  (rc=2)
+  PASS  C3 width as float  (rc=2)
+  PASS  C4 treatment missing  (rc=2)
+  PASS  C5 conditioning drift  (rc=2)
+  PASS  C6 EMA off  (rc=2)
+  PASS  C7 grad-ckpt off  (rc=2)
+  PASS  C8 non-treatment drift  (rc=2)
+  PASS  C9 type-only drift  (rc=2)
+--- D. resource floors ---
+  PASS  D1 disk floor  (rc=2)
+  PASS  D2 VRAM floor  (rc=2)
+--- E. accept paths reach the VRAM gate with everything else satisfied ---
+  PASS  E1 FULL accepted  (rc=2)
+  PASS  E2 SMOKE accepted  (rc=2)
+--- F. the smoke/full namespaces are distinct (no cross-contamination) ---
+  PASS  F1 SMOKE own namespace  (rc=2)
+  PASS  F2 FULL own namespace  (rc=2)
+  PASS  F3 FULL endpoint pinned  (rc=2)
+  PASS  F4 SMOKE never 40k  (rc=2)
+
+=== 25 passed, 0 failed ===
