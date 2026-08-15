@@ -975,8 +975,20 @@ def _fmt_cell(cell):
 
 
 def _cmd_grid(args):
+    """One cell per line. ``--with-jobname`` appends the canonical Slurm job name.
+
+    The wave submitter needs a job name per cell to read squeue, and rendering
+    one python process per cell for that would cost 42 of them. Emitting it as a
+    seventh field keeps the ONE definition (:func:`job_name`) without the process
+    tax — and without the shell re-implementation exp_14 had to pin with a guard
+    case. ``classify`` deliberately keeps the six-field prefix, so its rows stay
+    parseable by position.
+    """
     for cell in wave_cells(args.wave):
-        print(_fmt_cell(cell))
+        line = _fmt_cell(cell)
+        if args.with_jobname:
+            line = f"{line} {job_name(cell)}"
+        print(line)
     return 0
 
 
@@ -1138,6 +1150,8 @@ def main(argv=None):
 
     g = sub.add_parser("grid", help="print the registered grid (one cell per line)")
     g.add_argument("--wave", default="all", choices=list(WAVES))
+    g.add_argument("--with-jobname", action="store_true",
+                   help="append the canonical Slurm job name as a seventh field")
     g.set_defaults(func=_cmd_grid)
 
     c = _add_cell_args(sub.add_parser("check", help="validate ONE cell's artifacts"),
