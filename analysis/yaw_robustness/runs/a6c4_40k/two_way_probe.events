@@ -1,0 +1,2 @@
+2026-08-14T16:56:52-04:00 | START VAN40 K=8 rot=180 seed=42
+2026-08-14T17:06:21-04:00 | DONE VAN40 K=8 rot=180 seed=42 metrics=/home/yixunhu/codespace/FLAC/outputs_FLAC/exp07_P1/FLAC_exp07_P1/exp07_P1/checkpoints/epoch=8-step=40000_metrics_1_1.0_a6c4_VAN40_rot180_unseeneval_s42_rot180.json
