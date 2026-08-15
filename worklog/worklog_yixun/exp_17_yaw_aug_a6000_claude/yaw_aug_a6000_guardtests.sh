@@ -28,9 +28,13 @@ GUARDLOG="${EXPDIR}/yaw_aug_a6000_${TS}_guardtests.log"
 
 ARM_BACKUP="$(mktemp)"; cp "$ARM" "$ARM_BACKUP"
 ARM_SHA="$(sha256sum "$ARM" | cut -d' ' -f1)"
-CREATED_LOGS=()
 FAKE_SMOKE=""
 RESTORE_FAILED=0
+# Snapshot pre-existing train logs and delete the SET DIFFERENCE at exit.
+# Counting per case does not work: two launcher invocations inside the same
+# second share a timestamp, so they share a log path and the count never moves
+# even though a file was created (this suite's third run leaked 5 such logs).
+PREEXISTING_LOGS="$(ls "$EXPDIR"/*_train.log 2>/dev/null | sort)"
 
 restore_arm() {
   cp "$ARM_BACKUP" "$ARM"
@@ -41,8 +45,11 @@ restore_arm() {
 }
 cleanup() {
   restore_arm; rm -f "$ARM_BACKUP"
-  [ -n "$FAKE_SMOKE" ] && rm -f "$FAKE_SMOKE"
-  for f in "${CREATED_LOGS[@]:-}"; do [ -n "$f" ] && rm -f "$f"; done
+  [ -n "$FAKE_SMOKE" ] && rm -f "$FAKE_SMOKE" "${FAKE_SMOKE}.hidden"
+  comm -13 <(printf '%s\n' "$PREEXISTING_LOGS") \
+           <(ls "$EXPDIR"/*_train.log 2>/dev/null | sort) | while read -r f; do
+    [ -n "$f" ] && rm -f "$f"
+  done
 }
 trap cleanup EXIT
 
@@ -50,11 +57,8 @@ PASS=0; FAIL=0
 # case_run <name> <expected_rc> <expected_substring> <env assignments...>
 case_run() {
   local name="$1" want_rc="$2" want_txt="$3"; shift 3
-  local before; before="$(ls "$EXPDIR"/*_train.log 2>/dev/null | wc -l)"
   local out rc
   out="$(env "$@" bash "$LAUNCH" 2>&1)"; rc=$?
-  local after; after="$(ls "$EXPDIR"/*_train.log 2>/dev/null | wc -l)"
-  while IFS= read -r f; do CREATED_LOGS+=("$f"); done < <(ls -t "$EXPDIR"/*_train.log 2>/dev/null | head -n $(( after - before )) )
   if [ "$rc" = "$want_rc" ] && grep -qF -- "$want_txt" <<<"$out"; then
     echo "  PASS  ${name}  (rc=${rc})"; PASS=$((PASS+1))
   else
@@ -146,7 +150,6 @@ case_run "E2 SMOKE accepted"    0 "DRY_RUN: all gates passed"  MODE=SMOKE DRY_RU
 echo "--- F. the ACTUAL train.py argv, not a preflight paraphrase ---"
 FULL_ARGV="$(MODE=FULL DRY_RUN=1 bash "$LAUNCH" 2>&1 | grep -m1 '^ARGV: ')"
 SMOKE_ARGV="$(MODE=SMOKE DRY_RUN=1 bash "$LAUNCH" 2>&1 | grep -m1 '^ARGV: ')"
-while IFS= read -r f; do CREATED_LOGS+=("$f"); done < <(ls -t "$EXPDIR"/*_train.log 2>/dev/null | head -2)
 expect "F1 FULL endpoint 40000"   "$(grep -qF -- '--max-steps 40000' <<<"$FULL_ARGV" && echo 1)"
 expect "F2 FULL cadence 2500"     "$(grep -qF -- '--checkpoint-every 2500' <<<"$FULL_ARGV" && echo 1)"
 expect "F3 FULL own save-dir"     "$(grep -qF -- '--save-dir outputs_FLAC/exp17_YAWAUG' <<<"$FULL_ARGV" && ! grep -qF -- 'exp17_YAWAUG_smoke' <<<"$FULL_ARGV" && echo 1)"
@@ -176,7 +179,6 @@ echo "--- H. the banner check cannot satisfy itself from preflight output ---"
 # The whole point of the exact match: run the preflight alone and confirm none
 # of ITS lines would pass the post-run whole-line banner test.
 PREFLIGHT="$(MODE=SMOKE DRY_RUN=1 bash "$LAUNCH" 2>&1)"
-while IFS= read -r f; do CREATED_LOGS+=("$f"); done < <(ls -t "$EXPDIR"/*_train.log 2>/dev/null | head -1)
 expect "H1 preflight never emits the banner" \
   "$(tr '\r' '\n' <<<"$PREFLIGHT" | grep -qxF "$BANNER" && echo 0 || echo 1)"
 expect "H2 preflight does mention the treatment (non-vacuous)" \
