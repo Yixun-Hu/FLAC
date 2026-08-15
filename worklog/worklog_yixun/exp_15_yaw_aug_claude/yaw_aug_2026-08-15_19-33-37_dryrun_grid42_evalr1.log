@@ -1,0 +1,68 @@
+=== exp_15 eval grid — DRYRUN transcript (round E1) ===
+date        : 2026-08-15T19:33:37-04:00
+host        : neuronic.cs.princeton.edu
+commit      : 24a1bcdeb524d3fd29831ea13cd797917d8341ba
+command     : DRYRUN=1 bash worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_submit_grid.sh WAVE=all
+NOTE        : a dry run classifies nothing and submits nothing. It runs BEFORE
+              classification on purpose, which is why it can enumerate the whole
+              grid today while the training chain has not yet recorded
+              arms.YAWAUG.final_ckpt_sha256. A LIVE wave in this state HALTS.
+
+--- stderr (banner) ---
+=== exp_15 all wave: 42 registered cells | pin <none: DRYRUN> ===
+=== classification root: /n/fs/gatrdp/codespace/FLAC/outputs_FLAC ===
+DRY RUN: 42 cells enumerated, nothing submitted, nothing classified
+
+--- stdout: one submission line per registered cell ---
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=tbl STEP=40000 SEED=42 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=tbl STEP=40000 SEED=43 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=tbl STEP=40000 SEED=44 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=tbl STEP=40000 SEED=45 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=tbl STEP=40000 SEED=46 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=tbl STEP=40000 SEED=42 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=tbl STEP=40000 SEED=43 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=tbl STEP=40000 SEED=44 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=tbl STEP=40000 SEED=45 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=tbl STEP=40000 SEED=46 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=tbl STEP=40000 SEED=42 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=tbl STEP=40000 SEED=43 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=tbl STEP=40000 SEED=44 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=tbl STEP=40000 SEED=45 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=tbl STEP=40000 SEED=46 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=tbl STEP=40000 SEED=42 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=tbl STEP=40000 SEED=43 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=tbl STEP=40000 SEED=44 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=tbl STEP=40000 SEED=45 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=tbl STEP=40000 SEED=46 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=rrob STEP=40000 SEED=42 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=rrob STEP=40000 SEED=43 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=rrob STEP=40000 SEED=44 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=rrob STEP=40000 SEED=45 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=rrob STEP=40000 SEED=46 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=rrob STEP=40000 SEED=42 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=rrob STEP=40000 SEED=43 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=rrob STEP=40000 SEED=44 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=rrob STEP=40000 SEED=45 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=rrob STEP=40000 SEED=46 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=rrob STEP=40000 SEED=42 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=rrob STEP=40000 SEED=43 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=rrob STEP=40000 SEED=44 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=rrob STEP=40000 SEED=45 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=rrob STEP=40000 SEED=46 K=1
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=rrob STEP=40000 SEED=42 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=rrob STEP=40000 SEED=43 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=rrob STEP=40000 SEED=44 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=rrob STEP=40000 SEED=45 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=rrob STEP=40000 SEED=46 K=8
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=VANL CELL=vctl STEP=40000 SEED=42 K=8 ROTATE_DEG=90
+bash /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh ARM=YAWAUG CELL=vctl STEP=40000 SEED=42 K=8 ROTATE_DEG=90
+
+--- per-wave counts ---
+tbl   20 cells
+rrob  20 cells
+vctl  2 cells
+all   42 cells
+
+--- what a LIVE wave does in the same state (nothing submitted) ---
+  classify: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_launch_registry.json: arms.YAWAUG.final_ckpt_sha256=None / final_step=None — the training chain has NOT recorded its final checkpoint yet (legs recorded so far: [2500, 5000, 7500, 10000, 12500]). No YAWAUG eval cell can be admitted, classified or skipped until the chain completes 40,000 steps and its completion gate backfills that field. This is the pre-registered fail-closed state, not an error to work around.
+  (classify rc=2 -> yaw_aug_submit_grid.sh: 'could not classify the tbl wave', exit 2)

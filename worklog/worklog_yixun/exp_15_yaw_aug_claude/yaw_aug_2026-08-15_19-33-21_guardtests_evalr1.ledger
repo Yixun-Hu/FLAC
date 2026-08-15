@@ -1,0 +1,154 @@
+PASS	yaw_aug_screen.sbatch parses (bash -n)
+PASS	yaw_aug_screen_submit.sh parses (bash -n)
+PASS	yaw_aug_submit_grid.sh parses (bash -n)
+PASS	exp15_validate_cell.py compiles
+PASS	exp15_admit_ckpt.py compiles
+PASS	the eval kit never EXECUTES against the training kit's live files
+PASS	  ... and touches yaw_aug_record_control.py by import only
+PASS	the admission gate IMPORTS the recorder's primitives (never re-implements)
+PASS	this suite never invokes sbatch/scancel/scontrol
+PASS	lint: no guard case can reach the submitters' live path (best-effort scan)
+PASS	  ... and the env array it exempts really does set YAW_EVAL_TEST_MODE=1
+PASS	isolation is the DEFAULT: the submitters read the temp root
+PASS	the grid is exactly 42 cells
+PASS	  ... 20 tbl
+PASS	  ... 20 rrob
+PASS	  ... 2 vctl
+PASS	the vctl block is exactly VANL@90 and YAWAUG@90
+PASS	eval names are injective over the grid
+PASS	job names are injective over the grid
+PASS	every eval name round-trips through parse_eval_name
+PASS	an UNREGISTERED cell name is refused, not parsed
+PASS	validate_cell() refuses an unregistered cell before touching disk
+PASS	every cell's protocol argv is the plan's literal §4.2 string
+PASS	a T cell can NEVER carry --rotate-seed
+PASS	an R cell can NEVER carry a non-zero --rotate-deg
+PASS	the rotation seed of an R cell IS its eval seed
+PASS	the metrics path mirrors eval_FLAC.build_output_paths on all 42 cells
+PASS	campaign constants are exp_14's (comparability of the external check)
+PASS	missing ARM
+PASS	missing CELL
+PASS	missing STEP
+PASS	missing EXPECT_SHA
+PASS	an exp_14 arm is refused
+PASS	an exp_14 cell type is refused
+PASS	STEP 12500 is unregistered
+PASS	STEP 42500 is unregistered
+PASS	bad K
+PASS	tbl refuses seed 47
+PASS	rrob refuses seed 41
+PASS	tbl refuses ROTATE_DEG
+PASS	rrob refuses ROTATE_DEG
+PASS	an EVAL_ORBIT leftover is refused
+PASS	vctl needs an angle
+PASS	vctl is seed 42 only
+PASS	vctl is K=8 only
+PASS	vctl refuses 45 degrees (exp_14's angle, not ours)
+PASS	no checkpoint tree at all
+PASS	two checkpoints at one step
+PASS	real mode needs sbatch
+PASS	a synthetic admission source is refused for the PRODUCTION root
+PASS	a well-formed YAWAUG 40k checkpoint is ADMITTED
+PASS	a well-formed VANL 40k checkpoint is ADMITTED
+PASS	wrong embedded step is REFUSED
+PASS	a broken EMA<->online mirror is REFUSED
+PASS	a checkpoint trained WITHOUT yaw_aug is refused as YAWAUG
+PASS	  ... and its embedded config mismatch is named too
+PASS	a recorded sha that does not match the file is REFUSED
+PASS	a registry whose arm and leg disagree is REFUSED
+PASS	a tampered launch manifest is REFUSED
+PASS	a checkpoint outside the recorded location is REFUSED
+PASS	an UNFINISHED chain registry refuses admission, by name
+PASS	  ... and names the legs recorded so far
+PASS	  ... and the driver dies on it rather than evaluating
+PASS	the LIVE registry either admits YAWAUG or refuses it BY NAME — never silently
+PASS	  ... and a refusal is rc 1, never a pass
+PASS	the LIVE control record admits VANL at 40000
+PASS	  ... and the record's own booleans are NOT what admits it
+PASS	T argv: vanilla conditioning
+PASS	T argv: the pinned frame angles
+PASS	T argv: bf16 conditioning autocast
+PASS	T argv: fixed mode, angle 0
+PASS	T argv: NO --rotate-seed
+PASS	T argv: the campaign batch/worker pins
+PASS	T argv: the assignment audit is mandatory
+PASS	T argv: per-scene recording is mandatory
+PASS	T argv: the K=8 split
+PASS	T argv: the registered eval name
+PASS	K=1 uses the _1 split (same 6337 items)
+PASS	K=1 still expects 6337 items
+PASS	R argv: random mode with the eval seed
+PASS	R argv: angle stays zero
+PASS	R argv: the _rotrand token is in the eval name
+PASS	V argv: fixed 90 degrees
+PASS	V argv: NO --rotate-seed
+PASS	V argv: the _rot90 token is in the eval name
+PASS	the driver's cell-validation argv is check_argv's own rendering
+PASS	a well-formed T cell VALIDATES
+PASS	a well-formed R cell VALIDATES
+PASS	a well-formed V cell VALIDATES
+PASS	ONLINE weights are refused (EMA is the contract)
+PASS	a record claiming the fa angle list under vanilla is refused
+PASS	a manifest that never witnessed the pinned flag is refused
+PASS	a manifest with the wrong worker count is refused
+PASS	a manifest that mislabels the ARM's augmentation is refused
+PASS	a missing by_scene block is refused (wrong estimand)
+PASS	a short split is refused
+PASS	a stream hash that does not recompute is refused
+PASS	a random cell whose offsets never varied is refused
+PASS	a cell cannot be VALID without the campaign pin
+PASS	a cell cannot be VALID without the checkpoint digest
+PASS	an ABSENT artifact is MISSING (rc 3), not invalid
+PASS	a complete, protocol-conformant cell classifies VALID
+PASS	a cell whose artifacts exist but LIE classifies INVALID, with the reason
+PASS	  ... and neither is reported as MISSING
+PASS	an unfinished chain refuses to CLASSIFY at all (not 'MISSING')
+PASS	the wave HALTS (rc 3) on an artifact that does not validate
+PASS	  ... and says so in the words of the validate-before-skip rule
+PASS	  ... having submitted NOTHING
+PASS	with the corrupt cell gone the wave runs
+PASS	  ... the VALID cell is skipped as already measured
+PASS	  ... and only the missing cell is submitted
+PASS	  ... exactly one simulated submission
+PASS	  ... whose command log line was written BEFORE the submission
+PASS	  ... into the (redirected) command log
+PASS	DRYRUN WAVE=all prints exactly 42 cells
+PASS	DRYRUN:   ... 20 tbl
+PASS	DRYRUN:   ... 20 rrob
+PASS	DRYRUN:   ... 2 vctl, both at 90 degrees
+PASS	DRYRUN:   ... 21 per arm
+PASS	DRYRUN:   ... and no cell carries a rotation angle outside vctl
+PASS	DRYRUN submitted nothing at all
+PASS	the DRYRUN list IS the registered grid, cell for cell
+PASS	an unregistered WAVE is refused
+PASS	MAX_INFLIGHT above the campaign cap is refused
+PASS	concurrency counts only THIS campaign's screen jobs
+PASS	submitter: an exp_14 arm is refused
+PASS	submitter: an exp_14 cell type is refused
+PASS	an unknown KEY is refused
+PASS	a LOG outside the experiment folder is refused
+PASS	the job name comes from the validator
+PASS	the pre-launch intent records the whole protocol, not just the rotation
+PASS	  ... including the split and the stream/per-scene contract
+PASS	  ... and the arm's augmentation status
+PASS	a dry run submits nothing and prepares no worktree
+PASS	a dry run leaves no intent manifest behind
+PASS	the intent is published while the job is still HELD
+PASS	an unparseable job id is still cancelled, by NAME
+PASS	eval intents cannot be confused with the training kit's submission manifests
+PASS	the eval campaign keeps its OWN pin file
+PASS	--verify-manifest rejects a manifest with no completion sentinel
+PASS	  ... and accepts one that carries it
+PASS	a LIVE-mode run refuses the isolation seam itself
+PASS	a leftover YAW_AUG_* (training kit) is refused by the wave submitter
+PASS	a leftover YAW_GEN_* (exp_14) is refused by the wave submitter
+PASS	a leftover YAW_AUG_* is refused by the single-cell submitter
+PASS	a test seam without TEST_MODE is refused in a run that could submit
+PASS	SBATCH_EXCLUDE is refused rather than silently ignored (structural)
+PASS	node exclusion travels as an explicit --exclude flag (structural)
+PASS	EXCLUDE= is passed through to every cell of a wave
+PASS	a malformed EXCLUDE is refused
+PASS	tracked tree unchanged by the suite (snapshot before == after)
+PASS	this suite created/modified nothing in the exp_11 / exp_14 folders
+PASS	no screen driver was left running
+PASS	every case name in the ledger is unique

@@ -153,6 +153,23 @@ if [ -n "${SLURM_JOB_ID:-}" ]; then
   fi
   OUTPUT_ROOT="$PRODUCTION_OUTPUT_ROOT"
 fi
+# TEST SEAM for the admission sources, under the same lock exp_14 put on its
+# registry override: a synthetic admission record is honoured ONLY against a
+# synthetic output root, and a Slurm run has already been forced onto the
+# production root above. The check runs HERE, before any gate, so an attempt to
+# aim it at the real tree is refused immediately rather than after the driver has
+# hashed 350 MB of pinned weights — and so the refusal cannot be masked by an
+# unrelated earlier failure.
+ADMIT_SOURCE_ARGS=()
+if [ -n "${YAW_EVAL_CONTROL:-}${YAW_EVAL_REGISTRY:-}" ]; then
+  if [ "$OUTPUT_ROOT" = "$PRODUCTION_OUTPUT_ROOT" ]; then
+    echo "YAW_EVAL_CONTROL / YAW_EVAL_REGISTRY may not override the committed admission records for the production output root - abort"
+    exit 2
+  fi
+  [ -z "${YAW_EVAL_CONTROL:-}" ]  || ADMIT_SOURCE_ARGS+=(--control "$YAW_EVAL_CONTROL")
+  [ -z "${YAW_EVAL_REGISTRY:-}" ] || ADMIT_SOURCE_ARGS+=(--registry "$YAW_EVAL_REGISTRY")
+  echo "TEST MODE: admission sources overridden (synthetic output root ${OUTPUT_ROOT})"
+fi
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 
 # --- CAMPAIGN CONSTANTS (plan §4.2) -------------------------------------------
@@ -400,21 +417,10 @@ echo "checkpoint: ${CKPT}"
 # Until the training chain finishes 40,000 steps, arms.YAWAUG.final_ckpt_sha256 is
 # null and every YAWAUG cell is REFUSED here, by name, with the legs recorded so
 # far — the pre-registered fail-closed state, not an error to work around.
+# ADMIT_SOURCE_ARGS was resolved (and its production-root lock enforced) at entry.
 ADMIT_ARGS=(verify --arm "$ARM" --ckpt "$CKPT" --config "$MODEL_CONFIG"
             --launch-manifest "$LAUNCH_MANIFEST" --main-repo "$MAIN_REPO"
-            --expect-step "$STEP")
-# TEST SEAM, under the same lock exp_14 put on its registry override: a synthetic
-# admission source is honoured ONLY against a synthetic output root, and a Slurm
-# run has already been forced onto the production root above. A guard suite can
-# therefore exercise the ADMITTED path with a synthetic complete registry, and a
-# real cell can never reach that branch.
-if [ -n "${YAW_EVAL_CONTROL:-}${YAW_EVAL_REGISTRY:-}" ]; then
-  [ "$OUTPUT_ROOT" != "$PRODUCTION_OUTPUT_ROOT" ] \
-    || die "YAW_EVAL_CONTROL / YAW_EVAL_REGISTRY may not override the committed admission records for the production output root - abort"
-  [ -z "${YAW_EVAL_CONTROL:-}" ]  || ADMIT_ARGS+=(--control "$YAW_EVAL_CONTROL")
-  [ -z "${YAW_EVAL_REGISTRY:-}" ] || ADMIT_ARGS+=(--registry "$YAW_EVAL_REGISTRY")
-  echo "TEST MODE: admission sources overridden (synthetic output root ${OUTPUT_ROOT})"
-fi
+            --expect-step "$STEP" "${ADMIT_SOURCE_ARGS[@]+"${ADMIT_SOURCE_ARGS[@]}"}")
 ADMIT_OUT="$(python3 "$EXPDIR/exp15_admit_ckpt.py" "${ADMIT_ARGS[@]}" 2>&1)"; ADMIT_RC=$?
 echo "$ADMIT_OUT"
 [ "$ADMIT_RC" -eq 0 ] || die "CHECKPOINT ADMISSION gate FAILED (rc=${ADMIT_RC}) - abort"
