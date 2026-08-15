@@ -151,6 +151,18 @@ Trained checkpoints embed the PL training wrapper, which makes them large and ke
 
 When loading a VAE as a pretransform for FLAC training, pass the unwrapped `.safetensors` via `--pretransform-ckpt-path`; do not pass the wrapped `.ckpt`.
 
+### Chunked chain training (learned exp_15; kit in `worklog/worklog_yixun/exp_15_yaw_aug_claude/`)
+
+When the L40 pool is saturated, a monolithic multi-hour job may never backfill (exp_15's 24 h job sat >36 h and was cancelled unstarted). The remedy is a **chain of short legs** — 2,500 steps each, ~1.5 h wall — where every leg resumes from the previous boundary checkpoint and **submits its own successor**. Working kit: `yaw_aug_train.sbatch` (CHAIN mode), `yaw_aug_submit.sh`, `yaw_aug_chain_state.py`, `yaw_aug_chain_preflight.py`, `yaw_aug_rate_gate.py`. Hard-won rules, each of which cost a review round:
+
+- **PL resume itself is exact**: `--ckpt-path <step-N ckpt> --max-steps N+2500` trains exactly 2,500 more optimizer steps and saves the boundary (verified against installed PL 2.1 source; no fencepost). But `--accum-batches` must be 1 for any per-step-seeded logic — PL's `global_step` counts *optimizer* steps, so accumulation would hand every micro-batch in a window identical draws.
+- **A resumed W&B run refuses config changes.** Reusing the parent run id with `WANDB_RESUME=must` while `max_steps`/`ckpt_path` change kills the job (exp_11 hit this first, fixed in `3847212`). Every leg mints a fresh lineage-tagged run id and records the parent's.
+- **Submission must be one locked transaction** (state re-read → scheduler query → `sbatch` → publish under a single flock), or two crash-recovery replays can double-submit. Scheduler-query failure is **fatal**, never "no job found, submit".
+- **`sacct` truncates `State` at default width** — `OUT_OF_MEMORY` arrives as `OUT_OF_ME+`. Always request `State%-40` *and* normalize by prefix with ambiguous prefixes (e.g. `COMP`) fatal; otherwise an OOM-killed leg looks non-terminal and gets adopted as healthy.
+- **Never adopt a terminal-failed successor**, whatever the parent's state; record it as a corpse, rotate the intent token, submit fresh. Recovery is then idempotent: replaying can never fork the chain — so **never hand-write an `sbatch` for a leg**; re-run the `transact-submit` line from the leg manifest.
+- **Advance only on the complete per-leg verdict** (audit + banner + provenance), with `--dependency=afterok:<parent>` so a successor cannot race the parent's run lock.
+- **Disclose the asymmetry**: a chained run is not bit-equivalent to a monolithic one (PL restores optimizer/scheduler/EMA/loops, not RNG streams), so a chained arm compared against a monolithic control must say so.
+
 ### Checkpoint surgery on warm resume (`src/tools/`, learned exp_09 + exp_13)
 
 ⚠️ **A PL checkpoint's LR-scheduler state overrides the model config on resume.** `InverseLR` (`src/training/utils.py`) keeps `inv_gamma`/`power`/`warmup`/`final_lr` as instance attributes, so `LRScheduler.state_dict()` serializes them and PL's `load_state_dict` (`self.__dict__.update`) writes them back over whatever the incoming config built. **Changing a schedule in the JSON therefore has no effect on a warm resume** — measured: an intended 1.28e-5 decay tail silently stayed at 4.77e-5 for the whole run. To change a schedule mid-run you must rewrite the checkpoint:

@@ -2,6 +2,12 @@
 
 Assume the reader has NO memory beyond the repo + `master_experiment_tracker.md` + `issue_report.md` + this file. Updated at every handoff trigger (CLAUDE.md protocol): "handoff"/"new session"/"wrap up"/`/compact` **or a model change / model-limit swap**.
 
+**Last updated:** 2026-08-15 ~13:45 EDT — model change **Fable 5 → Opus 5 (1M)**, refreshed by the Fable 5 seat before handing over. **Current live state: exp_15 yaw_aug is TRAINING as a self-chaining 16-leg chunk chain — 7,500/40,000 steps, leg 3 running, rate gate PASSED (1.005 steps/s > VANL's 0.943 ⇒ the augmentation is throughput-free). Full detail in "In flight right now" below; that section is the one a fresh session must read first.** exp_14 CLOSED (campaign complete). exp_16 are_port scaffolded by the other session. Standing rules: status+ETD for ALL experiments every response; ask-before-choosing (CLAUDE.md 2026-08-11); **never move refs in this shared checkout** (see issue_report).
+
+_(Superseded 2026-08-13 header, kept for continuity: model change Opus 5 → Fable 5 (xhigh); exp_14 plan then Rev 3+fixes, APPROVE-ready, **awaiting Yixun's final go**_ (12-day sequential training, DS-PA → audit gate → DS-CS3); A6 rotation head-to-head COMPLETE and decisive (FA flat at 90°, both vanillas degrade, 45° control valid); A4 complete (FA 6/0 in the 40k budget); A5 v1 withdrawn / v2 pilot-only. Yixun's exp12A finished; exp12C ~45k/67.5k. Standing rules: status+ETD for ALL experiments every response; ask-before-choosing (CLAUDE.md 2026-08-11).
+
+> ⚠️ **Two sessions, two states — read both headers.** The exp_15 line above (chain TRAINING) is this session's; the exp_14/16/17 'HELD/IDLE' line below is the other session's and does **not** cover exp_15, whose chain Yixun explicitly directed and authorized (query 3, 2026-08-13).
+
 **Last updated:** 2026-08-14 ~14:10 EDT — model change **Fable 5 → Opus 5 (1M)**. **EVERYTHING OF OURS IS HELD/IDLE per Yixun 2026-08-14:** exp_14 DS-PA stops at its 5,000 ckpt (watcher armed, currently ~2.5k→5k); exp_14 DS-CS3 frozen; **exp_16 ARE-V held indefinitely — do NOT launch (Yixun 2026-08-14: "ARE-V先不做"; the Aug-16 deadline is dropped)** (code committed `6956cbc`, r1 review REQUEST-CHANGES, fix round in flight). Reactivating ARE-V = probe+stamp+launch within ~1 h of his word; training needs ~46 h wall (40k @0.259 steps/s + 6.9% anchor cost). **exp_16 scope is ARE-V ONLY**; ARE-FA/ARE-CYL deferred — he asked to be REMINDED at ARE-V completion to discuss scheduling them together (cyl backbone choice still open: in-repo `cyl_vit` vs sibling cylindrical-dinov3 + which weights). Recent science: A6 rotation head-to-head DECISIVE (FA flat at 90°, vanillas degrade, anchor EDT +5.83); A4 fair 40k grid FA 6/0.
 
 > ⚠️ **The main session ALTERNATES models mid-session** (established 2026-07-16; `issue_report.md` §8). The harness fails over between turns on its own, not only on `/model`, and **an incoming model has NO memory of the other model's turns in the same session.** Treat these four docs as the live intra-session channel: write state the moment it changes, and re-verify anything time-sensitive (`pgrep -af train.py`, `nvidia-smi`, newest ckpt mtime) before quoting an ETA. A stale in-flight entry WILL produce a wrong wait-time report.
@@ -28,7 +34,26 @@ Everything else is per-experiment folders under `worklog/worklog_yixun/exp_*/` (
 **exp_11 (fa_orbit) was finished by another agent (Yixun, 2026-08-10).** Cluster-owned work — this box neither tracks nor drives it; read its folder if you need its numbers.
 
 ## In flight right now
-- **Ours: NOTHING.** No training, no evals, no monitors.
+
+### ⚡ exp_15 yaw_aug CHAIN TRAINING — LIVE, self-driving (2026-08-15)
+
+**The augmentation-vs-architecture arm is training in 16 chunked legs of 2,500 steps each, each leg submitting the next itself.** Progress at this refresh: **7,500 / 40,000 steps** (legs 1–2 COMPLETE, leg 3 RUNNING).
+
+| Leg | Job | Started | Elapsed | State |
+|---|---|---|---|---|
+| 0→2500 | 3695627 | 08-15 05:19 | 42:45 | COMPLETED, audited |
+| 2500→5000 | 3698903 | 08-15 12:20 | 46:07 | COMPLETED, audited |
+| 5000→7500 | 3700165 | 08-15 13:07 | running | RUNNING |
+
+- **Rate gate PASSED** (the standing 2026-08-12 waiver's post-hoc obligation is now DISCHARGED): window 100→300 measured **1.005 steps/s** vs floor 0.849 — *faster* than VANL's own 0.943 windowed rate. **The augmentation costs no measurable throughput**; the earlier 30-step smoke's 0.2-vs-0.37 hint was node noise, as diagnosed. Record: `outputs_FLAC/exp15_YAWAUG/yaw_aug_rate_gate.json`.
+- **How it self-drives:** each leg, after training, audits its boundary checkpoint at round-2 rigor (fd-pinned sha, embedded step, canonical embedded-config equality, exact EMA↔DiT mirror), appends a tip-bound registry leg entry, then calls `yaw_aug_chain_state.py transact-submit` — one flock spanning state-reread → scheduler query → sbatch → publish — which submits the next leg with `--dependency=afterok:<parent>`. Chain state: `outputs_FLAC/exp15_YAWAUG/yaw_aug_chain_state.json` (boundaries keyed by target step: AUDITED → INTENDED → SUBMITTED).
+- **If it stalls:** the leg prints `CHAIN STALLED` and exits with a taxonomy class — 8 banner, 9 completion audit, 10 smoke, 12 submission, 13 rate-gate breach, 14 terminal-record write. Recovery is **idempotent and recorded**: re-run the `transact-submit` line named in the leg manifest; a dead successor is buried as a corpse (token rotated) and one fresh leg is submitted — replaying can never double-submit. Never hand-write an `sbatch` for a leg.
+- **Do not** commit anything touching `train.py`, `defaults.ini`, `src/` (minus `src/tests`), `data/AR`, the exp_15 kit/configs/helpers while legs are pending — the content-scoped binding will abort them fail-closed. Worklog/evidence commits are safe (proven repeatedly).
+- **ETA to 40k:** pace so far ≈ 2,500 steps / 2.8 h wall (≈45 min compute + variable backfill gap). 13 legs remain ⇒ **~1.5 days**, i.e. late 2026-08-16, gap-dependent. The cluster is saturated (0 idle nodes, ~286 queued); our own `vae_*`/`exp00_train`/exp_11 jobs share the account's fairshare.
+- **After 40k:** completion audit writes `final_ckpt_sha256`; then the eval phase — which is **NOT yet implemented** (plan §6.7–6.8 deferred by explicit record, review-mandated: its own TDD rounds + a second integrative review before any eval cell is submitted). Eval consumes exp_14's landed protocol (pin `e8ca26e`, **10 room families**, `input_hash`/`assignment_hash` contract, `_rotrand<seed>`).
+
+### Other
+- **Yixun's own runs, co-tenant — DO NOT TOUCH:** `vae_{human,allegro,shadow}` (running ~2 days), the `exp00_train` array (`3690362_*`, up to 12 concurrent), and exp_11's chunk legs from the cluster session. **Before assuming any `train.py` is ours, run `readlink /proc/<pid>/cwd`.**
 - **Yixun's own runs, co-tenant on both GPUs — DO NOT TOUCH:** `exp12A_c3c4` and `exp12C_ray12`, launched 2026-08-08 17:15, single-GPU each, `--batch-size 32 --accum-batches 2 --max-steps 67500`, wandb. **They run from a SEPARATE CHECKOUT** `~/codespace/exp-12-arms`, not this worktree — that is why their `worklog/worklog_yixun/exp_12_arms/` configs do not exist here. **Numbering collision:** in *this* repo `exp_12` = the cluster's mem_probe (closed); those arms are a different experiment line in a different clone. Sibling checkouts also exist for exp-08-cylvit-pe-cnn, exp-09-cyl-dinov3-no-ssl, exp-10-cyl-distill. **Before assuming any `train.py` is ours, run `readlink /proc/<pid>/cwd`.**
 - GPU state at handoff: GPU0 5.9 GB used / 42.7 free, GPU1 14.9 / 33.6, both ~100% util from those runs. Plenty of room to co-tenant a 2-GPU DDP job (~16 GB/rank with grad-ckpt) if Yixun asks.
 

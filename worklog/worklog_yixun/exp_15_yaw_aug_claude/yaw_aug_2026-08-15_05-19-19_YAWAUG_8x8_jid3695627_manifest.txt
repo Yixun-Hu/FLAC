@@ -1,0 +1,32 @@
+# exp_15 arm launch manifest
+timestamp 2026-08-15_05-19-19
+job 3695627 host neu323.neuronic.cs.princeton.edu mode INITIAL launch_uuid 8ce983e3-a186-433d-88ec-4189321fc137
+arm YAWAUG rung 8x8 micro 8 ngpu 8 max_steps 2500 ckpt_every 2500
+commit b9e5258a5a40695c694aae4878eb4df4d7df0550
+p0_manifest_sha256 72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b
+model_config /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json
+config_sha256 b14caae27afec2c53c38bea6e2574a48aa94bc86848ab17afae94cadf694b004
+vae_sha256 8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9
+env_pip_freeze_sha256 be4cdbe63e0d5484e02960968807576335ed2cf7febe908c871644d2ad3033d2
+torch_version 2.7.0+cu126 cuda 12.6 driver 590.48.01
+gpu_uuids GPU-1b2030f6-fd4f-7552-decf-7c69b071617b,GPU-dcc113f2-98e2-bebd-79b5-1b0834dda0a0,GPU-d9d6f311-c639-c652-d739-a6fedf72c35b,GPU-48e5794c-ccc5-bc73-8d5b-f1639081e621,GPU-bf4a8327-777d-c397-3a27-8d412c43aabc,GPU-b9374a97-1eff-8616-e530-f6ea65a8b2db,GPU-920b08d6-34ff-3e67-aa4d-c8b619d1e06d,GPU-b8652e16-4f8e-5cb0-3f70-f35d1b1efc32
+time_limit 1:30:00 min_free_mb 36500
+resume_ckpt <none> expected_step 0 resume_ckpt_sha256 <none>
+save_dir outputs_FLAC/exp15_YAWAUG
+slurm_transcript /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/slurm_train_exp15-YAWAUG-leg2500_3695627.out untrack already-untracked
+chain 1 leg_steps 2500 leg_start 0 leg_target 2500 cap 40000
+code_snapshot outputs_FLAC/exp15_YAWAUG/code_snapshot_jid3695627
+snapshot_sha256 db321846fcf142e5cfdb0dc12a92e34ddec5844c078ce2b1ab73e9bb4101e703  yaw_aug_record_control.py
+snapshot_sha256 b14caae27afec2c53c38bea6e2574a48aa94bc86848ab17afae94cadf694b004  FLAC_AR_YAWAUG.json
+snapshot_sha256 4255d7439600c152ee089571ae7eb63382355af7fddb8d31bb906d265b63a670  fa_orbit_classify.py
+snapshot_sha256 aa66da2352872e8f0e6d8fa2232e0a1173fb10c9647c95e2869e9563c4a687ca  fa_orbit_wandb_readback.py
+snapshot_sha256 3b31be46d266b013a363ac529b590bbe3c5c6a02bb78d390a00d5216c5ae49f6  fa_orbit_ckpt_preflight.py
+snapshot_sha256 cfc8cc74d4bbb5896633e32c76e3b7111f1ea7bbda4f3489f34494bd4adc1a2b  yaw_aug_chain_preflight.py
+snapshot_sha256 61d145c545fd360ee66d67aa31996f9cd089d88ac111ad744aa1017a0e90941a  yaw_aug_chain_state.py
+snapshot_sha256 0b2c1e4a4d3bb2c493165fd8b933ef009723cf33aeb05460d4e0aab6b5b5e7f9  yaw_aug_rate_gate.py
+train_log /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-15_05-19-19_YAWAUG_8x8_jid3695627_train.log
+train_log_copy outputs_FLAC/exp15_YAWAUG/yaw_aug_2026-08-15_05-19-19_YAWAUG_8x8_jid3695627_train.log
+wandb_entity yh4742-princeton-university wandb_project FLAC_exp15_YAWAUG wandb_name exp15_YAWAUG
+wandb_run_id exp15-YAWAUG-1786785578003641305-b8a09bb4
+parent_wandb_run_id <none>
+command torchrun --standalone --nnodes=1 --nproc_per_node=8 train.py --model-config /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 2500 --batch-size 8 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 8 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --val-dataset-config  --gradient-clip-val 0.0 --logger wandb --checkpoint-every 2500 --name FLAC_exp15_YAWAUG --experiment-name exp15_YAWAUG --save-dir outputs_FLAC/exp15_YAWAUG
