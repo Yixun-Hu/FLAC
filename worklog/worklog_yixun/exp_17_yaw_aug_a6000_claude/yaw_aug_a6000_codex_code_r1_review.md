@@ -1,0 +1,25 @@
+**Reviewer:** OpenAI Codex (GPT-5, API workspace agent, read-only sandbox) · **Date:** 2026-08-15
+
+**Overall verdict: REQUEST-CHANGES — do not GPU-smoke yet.**
+
+- [FLAC_AR_YAWAUG_A6000.json](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/FLAC_AR_YAWAUG_A6000.json:195) — **SHIP.** Current diff is byte-for-byte P1 plus exactly the registered `training.yaw_aug` block; vanilla, EMA, both grad-checkpoint pins, and width 512 are correct.
+
+- [yaw_aug_a6000_launch.sh](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/yaw_aug_a6000_launch.sh:23) — **REQUEST-CHANGES.**
+  - **Blocking:** no reviewed-source pin or clean-tree gate. Lines [62–63](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/yaw_aug_a6000_launch.sh:62) merely print short HEAD/dirty status; staged and untracked drift are ignored and nothing aborts. Dataset/VAE/arm hashes are only logged at [133–135](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/yaw_aug_a6000_launch.sh:133), never compared to pins.
+  - **Blocking:** banner check is false-positive. Preflight itself prints `yaw_aug...enabled` at [126–127](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/yaw_aug_a6000_launch.sh:126), satisfying the broad grep at [199](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/yaw_aug_a6000_launch.sh:199) even if diffusion never emits its exact banner. Match `^yaw_aug ENABLED img_w=512 seed=42$`, the actual print at [diffusion.py:407](/home/yixunhu/codespace/FLAC/src/training/diffusion.py:407). The check also occurs only after training exits, too late to prevent a wasted FULL run.
+  - **Blocking:** R3 is bypassable. `MAX_PROJECTED_HOURS` is overrideable at [34](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/yaw_aug_a6000_launch.sh:34), and FULL has no prerequisite proving a passing smoke. Projection at [208–217](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/yaw_aug_a6000_launch.sh:208) uses total startup-inclusive wall time, not post-warmup steady-state rate, and does not verify completed steps, finite loss, or topology.
+  - **Blocking:** smoke can write a checkpoint: cadence equals its endpoint at [46](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/yaw_aug_a6000_launch.sh:46) and is passed at [189](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/yaw_aug_a6000_launch.sh:189); `train.py` always installs that callback at [train.py:182](/home/yixunhu/codespace/FLAC/train.py:182). Use cadence greater than the smoke endpoint and assert zero checkpoints.
+  - FULL’s literal 40,000/2,500 and the two namespaces are correctly separated at [37–49](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/yaw_aug_a6000_launch.sh:37). The type-strict config and ViT-width checks at [80–125](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/yaw_aug_a6000_launch.sh:80) are sound.
+
+- [test_yaw_aug_a6000_arm_config.py](/home/yixunhu/codespace/FLAC/src/tests/test_yaw_aug_a6000_arm_config.py:1) — **REQUEST-CHANGES.**
+  - The width mutation guard at [253–266](/home/yixunhu/codespace/FLAC/src/tests/test_yaw_aug_a6000_arm_config.py:253) is still vacuous: it independently asserts that 256 differs from 512 instead of exercising the pin used at [216–230](/home/yixunhu/codespace/FLAC/src/tests/test_yaw_aug_a6000_arm_config.py:216). Extract one checker and require the mutated config to raise through it.
+  - Pin the historical P1 control SHA near [33](/home/yixunhu/codespace/FLAC/src/tests/test_yaw_aug_a6000_arm_config.py:33); otherwise coordinated drift of the live control and arm preserves every “P1 plus one” test.
+  - The parser mutation guards and strict-comparator guard are non-vacuous.
+
+- [yaw_aug_a6000_guardtests.sh](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/yaw_aug_a6000_guardtests.sh:1) — **REQUEST-CHANGES.**
+  - F1–F4 at [129–132](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/yaw_aug_a6000_guardtests.sh:129) inspect preflight echo text, not the actual `train.py` argv. Wrong `--max-steps`, cadence, or save-dir at launcher lines 186–191 would remain green.
+  - Missing required guards for source/data/VAE pins, exact banner, R3 pass/fail, FULL requiring smoke evidence, and zero smoke checkpoints.
+  - Cases invoke the real launcher at [46](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/yaw_aug_a6000_guardtests.sh:46) and rely on today’s VRAM gate for safety. Use a true dry-run/stubbed train boundary and temporary namespaces.
+  - Restoration mismatch only prints a warning at [29–32](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/yaw_aug_a6000_guardtests.sh:29), so the suite can report success without proving SHA restoration.
+
+Static review only; no Python tests, launcher, guard suite, or GPU smoke executed.

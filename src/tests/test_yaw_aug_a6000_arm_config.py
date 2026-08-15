@@ -1,17 +1,32 @@
-"""exp_17 round 1 — the A6000 Yaw-Aug arm config is P1's config plus one block.
+"""exp_17 — the A6000 Yaw-Aug arm config vs P1's, delta by delta.
 
-Plan Rev 2 §2.1: ``FLAC_AR_YAWAUG_A6000.json`` must be a byte-copy of exp_07's
-``FLAC_AR_BVp1.json`` — the config the P1 control arm was trained with — plus
-**exactly one** addition, ``training.yaw_aug``. The whole experiment is a
-single-delta contrast against P1, so any second difference between the two
-files, however innocuous, silently turns it into a two-factor comparison that no
-downstream statistic can untangle.
+Plan Rev 2 §2.1 required ``FLAC_AR_YAWAUG_A6000.json`` to be exp_07's
+``FLAC_AR_BVp1.json`` — the config P1 was trained with — plus **exactly one**
+addition, ``training.yaw_aug``.
 
-Hence a byte-level assertion built FORWARDS (construct the expected arm file
-from the control's own bytes plus the pinned insertion, then compare wholesale)
-rather than by subtraction, and ``read_bytes`` rather than ``read_text``: text
-decoding applies universal-newline translation, under which a wholesale CRLF
-rewrite would compare equal to the LF original.
+**Amendment (Yixun, 2026-08-15): ViT gradient checkpointing is turned OFF** to
+buy wall-clock (~43 h → ~30 h projected) now that both A6000s are dedicated to
+this arm. That makes the file differ from P1 in THREE places, so the contract
+below asserts exactly those three and nothing else:
+
+  1. ``training.yaw_aug`` added                        — the treatment
+  2. ``source_vit.gradient_checkpointing``     true→false
+  3. ``context_poses_vit.gradient_checkpointing`` true→false
+
+Deltas 2–3 are admissible because they are **numerically inert**, not because
+they are small: exp_07 measured ON-vs-OFF parameter gradients as *bitwise*
+identical (210 tensors, max abs diff 0.0) with unchanged ``state_dict`` sha256,
+and `src/tests/test_vit_gradient_checkpointing.py` pins that property. Gradient
+checkpointing trades memory for recompute; it cannot move the trajectory. The
+scientific claim therefore remains a single **algorithmic** delta against P1,
+with the memory/time knob disclosed. If that bitwise-identity evidence is ever
+withdrawn, this experiment's control claim must be re-argued.
+
+The comparison is built FORWARDS (construct the expected file from the control's
+own bytes plus the pinned edits, then compare wholesale) rather than by
+subtraction, and on ``read_bytes`` rather than ``read_text``: text decoding
+applies universal-newline translation, under which a wholesale CRLF rewrite
+would compare equal to the LF original.
 
 The four pins below are not decoration. ``img_w`` in particular must equal the
 ViT's ``img_w``: the augmentation rolls the depth panorama by an integer number
@@ -33,6 +48,12 @@ _REPO = Path(__file__).resolve().parents[2]
 CONTROL_CONFIG = _REPO / "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json"
 ARM_CONFIG = _REPO / "worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/FLAC_AR_YAWAUG_A6000.json"
 
+# The control's content, pinned. Without this, the live control file and the arm
+# file could drift together and every "arm == control + deltas" test below would
+# still pass while both had moved away from what P1 was actually trained with
+# (review finding). Recorded 2026-08-15 from the file P1's launcher consumed.
+CONTROL_SHA256 = "733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8"
+
 # The literal insertion, comma included: appended as the last key of the
 # "training" block so every other byte of the control config is untouched.
 INSERTED_BYTES = (
@@ -46,6 +67,11 @@ INSERTED_BYTES = (
 
 # The end of the control file: the close of "training" and of the root object.
 TRAILER_BYTES = b'\n    }\n}'
+
+# The numerically-inert memory/time edit (see module docstring): both ViT
+# conditioners drop gradient checkpointing.
+GRADCKPT_ON = b'"gradient_checkpointing": true'
+GRADCKPT_OFF = b'"gradient_checkpointing": false'
 
 EXPECTED_BLOCK = {"enabled": True, "img_w": 512, "seed": 42}
 
@@ -75,20 +101,54 @@ def control(control_bytes):
 # --------------------------------------------------------------------------- #
 # 1. the single-delta proof
 # --------------------------------------------------------------------------- #
-def test_arm_config_is_the_control_plus_exactly_one_insertion(arm_bytes, control_bytes):
+def test_the_control_config_is_the_pinned_one(control_bytes):
+    """Guard against coordinated drift: the baseline itself must not move."""
+    import hashlib
+    actual = hashlib.sha256(control_bytes).hexdigest()
+    assert actual == CONTROL_SHA256, (
+        f"the P1 control config has changed (sha256 {actual}); every "
+        "'arm == control + deltas' assertion below is meaningless until this "
+        "pin is re-derived from the file P1 was actually trained with"
+    )
+
+
+def test_arm_config_is_the_control_plus_exactly_the_registered_deltas(arm_bytes, control_bytes):
+    """Forward construction: control bytes + the three registered edits.
+
+    Anything else — a stray key, a reordered block, a newline-encoding change —
+    makes this fail, which is the point.
+    """
     assert control_bytes.count(TRAILER_BYTES) == 1, (
         "the end-of-training boundary is not unique in the control config; the "
         "insertion point can no longer be located unambiguously"
     )
     assert control_bytes.endswith(TRAILER_BYTES)
+    assert control_bytes.count(GRADCKPT_ON) == 2, (
+        "expected exactly two gradient_checkpointing:true in the control"
+    )
 
     prefix = control_bytes[: -len(TRAILER_BYTES)]
-    expected_arm_bytes = prefix + INSERTED_BYTES + TRAILER_BYTES
+    expected = prefix + INSERTED_BYTES + TRAILER_BYTES          # delta 1
+    expected = expected.replace(GRADCKPT_ON, GRADCKPT_OFF)      # deltas 2 and 3
 
-    assert arm_bytes == expected_arm_bytes, (
-        "FLAC_AR_YAWAUG_A6000.json is not byte-for-byte P1's config plus the "
-        "yaw_aug block — the arm would no longer be a single-delta treatment"
+    assert arm_bytes == expected, (
+        "FLAC_AR_YAWAUG_A6000.json is not P1's config plus exactly the three "
+        "registered deltas (yaw_aug block; both gradient_checkpointing flags "
+        "flipped off) — the arm is no longer the registered treatment"
     )
+
+
+def test_gradient_checkpointing_is_off_on_both_vit_conditioners(arm):
+    """The memory/time knob is deliberate, so assert it explicitly.
+
+    It is numerically inert (module docstring), which is why it is allowed to
+    differ from P1 at all; test_vit_gradient_checkpointing.py owns that proof.
+    """
+    vits = [c for c in arm["model"]["conditioning"]["configs"]
+            if c["type"] == "ViTCoordinates"]
+    assert len(vits) == 2
+    for c in vits:
+        assert c["config"]["gradient_checkpointing"] is False, c["id"]
 
 
 def test_byte_comparison_would_catch_newline_drift(control_bytes):
@@ -142,6 +202,12 @@ def test_removing_yaw_aug_leaves_a_type_strict_copy_of_the_control(arm, control)
     """
     stripped = json.loads(json.dumps(arm))
     stripped["training"].pop("yaw_aug")
+    # Undo the other two registered deltas too, so what remains must be the
+    # control exactly. Only these three keys may be reverted here: any further
+    # drift has nowhere to hide.
+    for c in stripped["model"]["conditioning"]["configs"]:
+        if c["type"] == "ViTCoordinates":
+            c["config"]["gradient_checkpointing"] = True
 
     assert strict_diff(stripped, control) is None
 
@@ -203,31 +269,30 @@ def test_pin_ema_is_on(arm):
     assert arm["training"]["use_ema"] is True
 
 
-def test_pin_gradient_checkpointing_on_both_vit_conditioners(arm):
-    vits = [
-        c for c in arm["model"]["conditioning"]["configs"]
+def check_width_pin(cfg):
+    """Raise unless the augmentation width matches every ViT's panorama width.
+
+    ONE checker, called by both the pin test and its mutation guard — the guard
+    must exercise the real check, not re-implement a comparison beside it
+    (review finding: the earlier guard merely asserted 256 != 512 and would have
+    passed even if the pin itself were deleted).
+    """
+    aug_w = cfg["training"]["yaw_aug"]["img_w"]
+    vit_ws = {
+        c["config"]["ViT"]["img_w"]
+        for c in cfg["model"]["conditioning"]["configs"]
         if c["type"] == "ViTCoordinates"
-    ]
-    assert len(vits) == 2, f"expected two ViT conditioners, found {len(vits)}"
-    for c in vits:
-        assert c["config"]["gradient_checkpointing"] is True, c["id"]
+    }
+    if vit_ws != {aug_w}:
+        raise AssertionError(
+            f"yaw_aug.img_w={aug_w} but ViT widths are {vit_ws}: the augmentation "
+            "would roll the panorama by the wrong number of columns and training "
+            "would proceed without error"
+        )
 
 
 def test_pin_augmentation_width_matches_the_vit_panorama_width(arm):
-    """The pin that silently corrupts the treatment if it drifts.
-
-    The augmentation rolls the depth panorama by an integer number of columns of
-    width ``yaw_aug.img_w``; the ViT consumes a panorama of width
-    ``ViT.img_w``. If the two disagree, every training sample is rotated by the
-    wrong angle and nothing raises.
-    """
-    aug_w = arm["training"]["yaw_aug"]["img_w"]
-    vit_ws = {
-        c["config"]["ViT"]["img_w"]
-        for c in arm["model"]["conditioning"]["configs"]
-        if c["type"] == "ViTCoordinates"
-    }
-    assert vit_ws == {aug_w}, f"yaw_aug.img_w={aug_w} but ViT widths are {vit_ws}"
+    check_width_pin(arm)
 
 
 # --------------------------------------------------------------------------- #
@@ -250,20 +315,25 @@ def test_the_factory_rejects_a_malformed_treatment_block(arm, mutate, why):
         _parse_yaw_aug_config(training)
 
 
-def test_a_width_mismatch_is_caught_by_the_pin(arm):
-    """Mutation guard for the img_w pin: 256 must fail the check above."""
+@pytest.mark.parametrize(
+    "mutate, why",
+    [
+        (lambda c: c["training"]["yaw_aug"].__setitem__("img_w", 256), "aug side"),
+        (lambda c: c["model"]["conditioning"]["configs"][1]["config"]["ViT"]
+                    .__setitem__("img_w", 256), "ViT side"),
+    ],
+)
+def test_a_width_mismatch_is_caught_by_the_pin(arm, mutate, why):
+    """Mutation guard that calls the REAL checker, from either side."""
     mutated = json.loads(json.dumps(arm))
-    mutated["training"]["yaw_aug"]["img_w"] = 256
+    mutate(mutated)
+    with pytest.raises(AssertionError, match="wrong number of columns"):
+        check_width_pin(mutated)
 
-    aug_w = mutated["training"]["yaw_aug"]["img_w"]
-    vit_ws = {
-        c["config"]["ViT"]["img_w"]
-        for c in mutated["model"]["conditioning"]["configs"]
-        if c["type"] == "ViTCoordinates"
-    }
-    assert vit_ws != {aug_w}, (
-        "the width pin would not notice a 256/512 mismatch — it is vacuous"
-    )
+
+def test_the_width_checker_passes_the_unmutated_arm(arm):
+    """Non-vacuity: the guard above must not pass for a trivial reason."""
+    check_width_pin(arm)  # must not raise
 
 
 def test_fa_invariant_plus_yaw_aug_is_refused(arm):
