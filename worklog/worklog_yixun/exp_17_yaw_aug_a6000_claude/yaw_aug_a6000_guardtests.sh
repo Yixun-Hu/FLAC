@@ -177,7 +177,8 @@ expect "F5 SMOKE own save-dir"           "$(eq "$(argval "$SMOKE_ARGV" --save-di
 expect "F6 SMOKE cadence exactly 1e6"    "$(eq "$(argval "$SMOKE_ARGV" --checkpoint-every)" 1000000)"
 expect "F7 micro-batch exactly 32"       "$(eq "$(argval "$FULL_ARGV" --batch-size)" 32)"
 expect "F7b accumulation exactly 1"      "$(eq "$(argval "$FULL_ARGV" --accum-batches)" 1)"
-expect "F8 gpus 2 + syncbn true"         "$(eq "$(argval "$FULL_ARGV" --num-gpus)" 2)$(eq "$(argval "$FULL_ARGV" --sync-batchnorm)" true)" 
+expect "F8a gpus exactly 2"              "$(eq "$(argval "$FULL_ARGV" --num-gpus)" 2)"
+expect "F8b sync-batchnorm true"         "$(eq "$(argval "$FULL_ARGV" --sync-batchnorm)" true)"
 expect "F9 the arm config is used"       "$(eq "$(argval "$FULL_ARGV" --model-config)" "$ARM")"
 expect "F10 seed exactly 42"             "$(eq "$(argval "$FULL_ARGV" --seed)" 42)"
 

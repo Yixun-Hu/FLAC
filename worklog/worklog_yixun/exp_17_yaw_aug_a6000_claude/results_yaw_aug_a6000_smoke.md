@@ -23,31 +23,40 @@ preflight output is deliberately worded so it cannot satisfy that match
 failure mode this experiment could not survive, and it would otherwise look
 like a perfectly successful run.
 
-## Measured rate
+## Measured rate — and why it is a RANGE, not a number
 
-The R3 number (38.2 h) includes process startup, ViT download/load, and the
-243-subfolder scandir, so it over-estimates by design — an upper bound is the
-safe direction for an abort threshold. The steady-state rate, taken from the
-tqdm elapsed stamps over steps 10 → 25:
+The R3 number includes process startup, ViT load, and the 243-subfolder scandir,
+so it over-estimates by design — an upper bound is the safe direction for an
+abort threshold. Steady state is taken from the tqdm elapsed stamps over
+steps 10 → 25.
 
-| Quantity | Value |
-|---|---|
-| Steady state | **2.200 s / optimizer step** |
-| 40,000 steps | **24.4 h** |
-| First checkpoint (2,500 steps) | 1.53 h |
-| Loss at step 25 | 2.47 (train/mse_loss), std_data 1.20 — normal cold-start range |
+| Smoke run | Wall (25 steps) | R3 upper bound | Steady state | 40k projection |
+|---|---|---|---|---|
+| 13:51:57 (pre-r2 launcher) | 86 s | 38.2 h | 2.200 s/step | 24.4 h |
+| 14:14 (final launcher) | 104 s | 46.2 h | 2.933 s/step | 32.6 h |
 
-For comparison, P1 vanilla measured 0.259 opt-steps/s = 3.86 s/step → 42.9 h at
-40k. The 1.75× speed-up is the ViT gradient-checkpointing change (registered
-deltas 2/3), not the augmentation: turning checkpointing off trades VRAM for
-skipped recompute. Its numerical status, stated at the strength the evidence
-actually supports (corrected after Codex r2): the regression test pins ON-vs-OFF
-parameter gradients as `torch.allclose(atol=1e-6, rtol=1e-5)` over >=100 tensors
-on an **fp32 CPU** probe, not `torch.equal`; the "210 tensors, max abs diff 0.0"
-figure is an exp_07 worklog observation, not a pinned invariant, and this arm
-trains bf16-mixed on CUDA. Exactness is expected by construction, not asserted
-in CI. Yixun
-freed both A6000s for this arm, which is what made the trade available.
+**The 33 % spread is GPU contention, not noise in our arm.** At the time of the
+second run two `eval_FLAC.py` processes owned by a *different* checkout
+(`/workspace`, evaluating `FLAC_AR_BVp1.json`) were holding ~1.9 GB each and
+drawing **22–23 % utilisation on both cards**. They are not ours and were not
+touched, per the standing rule against interfering with unowned runs.
+
+So the honest FULL estimate is **24 h if the cards are ours alone, ~33 h under
+the contention observed today**, and the R3 bound of 46.2 h holds either way.
+Loss at step 25 was identical across all three smokes (2.470 / std_data 1.200 /
+lr 1.11e-5), so the variance is throughput, not trajectory.
+
+For comparison, P1 vanilla measured 3.86 s/step → 42.9 h at 40k. The speed-up is
+the ViT gradient-checkpointing change (registered deltas 2/3), not the
+augmentation: checkpointing trades VRAM for recompute in the backward pass.
+Yixun freed both A6000s for this arm, which is what made the trade available.
+
+**Gate behaviour worth recording.** The new endpoint gate fired on the *second*
+smoke even though it had completed 25/25 steps: Lightning prints
+`` `Trainer.fit` stopped: `max_steps=25` reached. `` with backticks around the
+assignment, and the pattern omitted them. It failed closed — a re-run, not a
+false pass — but a gate that can never match is worthless, so guardtests
+I4a/I4b now pin both directions against the literal text.
 
 ## Topology confirmed in the log
 
