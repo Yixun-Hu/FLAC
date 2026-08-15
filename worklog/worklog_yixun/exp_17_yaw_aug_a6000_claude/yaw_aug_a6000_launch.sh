@@ -214,7 +214,7 @@ if [ "$MODE" = "FULL" ]; then
   for F in $(ls -t "${EXPDIR}"/*_exp17_YAWAUG_smoke_train.log 2>/dev/null); do
     N="$(tr '\r' '\n' < "$F")"
     grep -qxF "$BANNER"                          <<<"$N" || continue
-    grep -qF  "max_steps=${SMOKE_STEPS} reached" <<<"$N" || continue
+    grep -qF  "stopped: \`max_steps=${SMOKE_STEPS}\` reached" <<<"$N" || continue
     grep -qF  "All distributed processes registered. Starting with 2 processes" <<<"$N" || continue
     grep -qF  "smoke checkpoints: 0"             <<<"$N" || continue
     grep -qF  "SMOKE VERDICT: PASS"              <<<"$N" || continue
@@ -223,7 +223,7 @@ if [ "$MODE" = "FULL" ]; then
     SMOKE_EVIDENCE="$F"; break
   done
   [ -n "$SMOKE_EVIDENCE" ] || {
-    echo "FULL requires a COMPLETED smoke log in ${EXPDIR}: exact banner + 'max_steps=${SMOKE_STEPS} reached' + 2 ranks + zero checkpoints + PASS (and no FAIL) + passing source pins - none found - run MODE=SMOKE first - abort"; exit 2; }
+    echo "FULL requires a COMPLETED smoke log in ${EXPDIR}: exact banner + Lightning's \`max_steps=${SMOKE_STEPS}\` termination marker + 2 ranks + zero checkpoints + PASS (and no FAIL) + passing source pins - none found - run MODE=SMOKE first - abort"; exit 2; }
   echo "smoke evidence: ${SMOKE_EVIDENCE}"
 fi
 
@@ -313,8 +313,8 @@ fi
 # graceful interruption exits 0. The banner is printed from on_fit_start, i.e.
 # BEFORE step 0 — so rc=0 plus a banner is satisfied by a run that trained for
 # one minute. Bind the endpoint to evidence that only a completed run produces.
-if ! tr '\r' '\n' < "$LOG" | grep -qF "max_steps=${MAXSTEPS} reached"; then
-  echo "ENDPOINT NOT REACHED: '\`Trainer.fit\` stopped: max_steps=${MAXSTEPS} reached' absent from ${LOG} - this run did NOT complete its registered budget (interrupted runs can still exit 0) - treat as invalid"
+if ! tr '\r' '\n' < "$LOG" | grep -qF "stopped: \`max_steps=${MAXSTEPS}\` reached"; then
+  echo "ENDPOINT NOT REACHED: Lightning's '\`Trainer.fit\` stopped: \`max_steps=${MAXSTEPS}\` reached.' marker is absent from ${LOG} - this run did NOT complete its registered budget (interrupted runs can still exit 0) - treat as invalid"
   [ "$rc" -eq 0 ] && rc=6
 fi
 if [ "$MODE" = "FULL" ]; then

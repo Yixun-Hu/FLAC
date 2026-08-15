@@ -193,9 +193,9 @@ case_run "G3 FULL without smoke evidence" 2 "FULL requires a COMPLETED smoke log
 # termination marker out of the genuine one. r2 found the old gate accepted any
 # log merely containing the banner and the word PASS.
 DECOY="${EXPDIR}/0000-00-00_00-00-00_exp17_YAWAUG_smoke_train.log"
-grep -v "max_steps=25 reached" "${REAL_SMOKE}.guardhidden" > "$DECOY"
+grep -v 'max_steps=25` reached' "${REAL_SMOKE}.guardhidden" > "$DECOY"
 case_run "G4 incomplete smoke rejected"   2 "FULL requires a COMPLETED smoke log"  MODE=FULL DRY_RUN=1
-printf 'SMOKE VERDICT: PASS\nmax_steps=25 reached\n' > "$DECOY"
+printf 'SMOKE VERDICT: PASS\nstopped: `max_steps=25` reached.\n' > "$DECOY"
 case_run "G5 evidence lacking banner rejected" 2 "FULL requires a COMPLETED smoke log"  MODE=FULL DRY_RUN=1
 rm -f "$DECOY"
 unhide_all_smoke
@@ -242,8 +242,14 @@ r3_verdict() {  # r3_verdict <projected hours> -> PASS | FAIL
 expect "I3a under budget -> PASS"          "$(eq "$(r3_verdict 38.2)" PASS)"
 expect "I3b over budget -> FAIL"           "$(eq "$(r3_verdict 60.0)" FAIL)"
 expect "I3c uncomputable -> FAIL not PASS" "$(eq "$(r3_verdict '')" FAIL)"
-expect "I4 endpoint-reached gate rejects a truncated log" \
-  "$(printf 'Epoch 0: 10/4550\n' | grep -qF 'max_steps=40000 reached' && echo 0 || echo 1)"
+# The marker Lightning actually prints carries BACKTICKS around the assignment;
+# a pattern written without them silently never matches. This suite's own smoke
+# re-run exposed exactly that -- the gate fired on a run that had completed.
+LM='stopped: `max_steps=40000` reached'
+expect "I4a endpoint gate rejects a truncated log" \
+  "$(printf 'Epoch 0: 10/4550\n' | grep -qF "$LM" && echo 0 || echo 1)"
+expect "I4b endpoint gate accepts the real marker text" \
+  "$(printf '`Trainer.fit` stopped: `max_steps=40000` reached.\n' | grep -qF "$LM" && echo 1)"
 expect "I5 endpoint-checkpoint glob matches PL naming" \
   "$(echo 'epoch=8-step=40000.ckpt' | grep -qE '.*step=40000\.ckpt$' && echo 1)"
 
