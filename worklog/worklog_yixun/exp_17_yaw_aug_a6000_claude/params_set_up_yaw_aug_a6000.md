@@ -20,15 +20,25 @@ Everything a reader needs to reproduce or falsify the arm. Values marked
 | # | Delta | Why it is allowed |
 |---|---|---|
 | 1 | `training.yaw_aug = {enabled: true, img_w: 512, seed: 42}` | **the treatment** |
-| 2 | `gradient_checkpointing: true → false` on `source_vit` | numerically inert |
-| 3 | `gradient_checkpointing: true → false` on `context_poses_vit` | numerically inert |
+| 2 | `gradient_checkpointing: true → false` on `source_vit` | gradient-equivalent (see below) |
+| 3 | `gradient_checkpointing: true → false` on `context_poses_vit` | gradient-equivalent (see below) |
 
 Deltas 2/3 are a VRAM-for-time trade Yixun authorised on 2026-08-15 by freeing
-both A6000s for this arm. They are admissible as *non-treatment* because exp_07
-measured ViT gradient checkpointing ON vs OFF to produce **bitwise-identical
-parameter gradients** (210 tensors, max abs diff 0.0; `state_dict` sha256
-unchanged), pinned by `src/tests/test_vit_gradient_checkpointing.py`. Measured
-effect: 3.86 → 2.200 s/opt-step, i.e. 42.9 h → 24.4 h at 40k.
+both A6000s for this arm. They are admissible as *non-treatment* because
+gradient checkpointing recomputes activations in the backward pass rather than
+storing them — mathematically the same gradients.
+
+**Evidence, at its true strength** (corrected after the Codex r2 review, which
+caught the earlier wording overclaiming): `test_vit_gradient_checkpointing.py::`
+`test_gradient_identity_on_vs_off` asserts `torch.allclose(atol=1e-6,
+rtol=1e-5)` over ≥100 tensors and merely *prints* the observed max difference —
+it does **not** assert `torch.equal` or `max_diff == 0`. It is an **fp32 CPU**
+probe, while this arm trains **bf16-mixed on CUDA**. The "210 tensors, max abs
+diff 0.0" figure is a one-time exp_07 worklog observation, genuine but not a
+pinned invariant. Consequence for interpretation: any Yaw-Aug-vs-P1 difference
+smaller than that tolerance must not be attributed to the augmentation.
+
+Measured effect: 3.86 → 2.200 s/opt-step, i.e. 42.9 h → 24.4 h at 40k.
 
 Any **fourth** difference makes this a two-factor experiment and aborts the
 launch: the gate reverts all three deltas and requires type-strict equality with

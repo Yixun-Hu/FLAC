@@ -13,14 +13,28 @@ below asserts exactly those three and nothing else:
   2. ``source_vit.gradient_checkpointing``     true→false
   3. ``context_poses_vit.gradient_checkpointing`` true→false
 
-Deltas 2–3 are admissible because they are **numerically inert**, not because
-they are small: exp_07 measured ON-vs-OFF parameter gradients as *bitwise*
-identical (210 tensors, max abs diff 0.0) with unchanged ``state_dict`` sha256,
-and `src/tests/test_vit_gradient_checkpointing.py` pins that property. Gradient
-checkpointing trades memory for recompute; it cannot move the trajectory. The
-scientific claim therefore remains a single **algorithmic** delta against P1,
-with the memory/time knob disclosed. If that bitwise-identity evidence is ever
-withdrawn, this experiment's control claim must be re-argued.
+Deltas 2–3 are admissible because gradient checkpointing trades memory for
+recompute in the backward pass: mathematically it recomputes the same
+activations and cannot move the trajectory. State the *empirical* support for
+that at its true strength (corrected after the Codex r2 review, which caught
+this docstring overclaiming):
+
+  - ``src/tests/test_vit_gradient_checkpointing.py::test_gradient_identity_on_vs_off``
+    pins ON-vs-OFF parameter gradients as ``torch.allclose(atol=1e-6,
+    rtol=1e-5)`` over ≥100 tensors — **not** ``torch.equal``, and it only
+    *prints* the observed max difference rather than asserting it is 0.0.
+  - That probe runs in **float32 on CPU**; this arm trains **bf16-mixed on
+    CUDA**, where bitwise reproducibility is not guaranteed in either
+    configuration.
+  - The "210 tensors, max abs diff 0.0" figure is a one-time exp_07 worklog
+    *observation*, not a pinned invariant. It is genuine, and it is consistent
+    with the maths, but nothing in CI re-checks it.
+
+So the honest statement is: deltas 2–3 are *gradient-equivalent to allclose
+tolerance on an fp32 CPU probe*, and expected to be exact by construction. The
+scientific claim remains a single **algorithmic** delta against P1 with the
+memory/time knob disclosed — but any result that turns on a difference smaller
+than the tolerance above must not be attributed to the augmentation.
 
 The comparison is built FORWARDS (construct the expected file from the control's
 own bytes plus the pinned edits, then compare wholesale) rather than by
@@ -68,7 +82,7 @@ INSERTED_BYTES = (
 # The end of the control file: the close of "training" and of the root object.
 TRAILER_BYTES = b'\n    }\n}'
 
-# The numerically-inert memory/time edit (see module docstring): both ViT
+# The gradient-equivalent memory/time edit (see module docstring): both ViT
 # conditioners drop gradient checkpointing.
 GRADCKPT_ON = b'"gradient_checkpointing": true'
 GRADCKPT_OFF = b'"gradient_checkpointing": false'
@@ -141,8 +155,8 @@ def test_arm_config_is_the_control_plus_exactly_the_registered_deltas(arm_bytes,
 def test_gradient_checkpointing_is_off_on_both_vit_conditioners(arm):
     """The memory/time knob is deliberate, so assert it explicitly.
 
-    It is numerically inert (module docstring), which is why it is allowed to
-    differ from P1 at all; test_vit_gradient_checkpointing.py owns that proof.
+    It is gradient-equivalent (see the module docstring for the evidence's
+    true strength), which is why it may differ from P1 at all.
     """
     vits = [c for c in arm["model"]["conditioning"]["configs"]
             if c["type"] == "ViTCoordinates"]

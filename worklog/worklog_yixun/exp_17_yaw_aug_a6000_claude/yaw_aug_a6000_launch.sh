@@ -7,9 +7,11 @@
 # The arm is P1's config plus exactly THREE registered deltas:
 #   1. training.yaw_aug            — the treatment
 #   2/3. gradient_checkpointing     true -> false on both ViT conditioners
-# Deltas 2/3 are a memory/time knob only: exp_07 measured ON-vs-OFF parameter
-# gradients as bitwise identical (210 tensors, max abs diff 0.0), pinned by
-# src/tests/test_vit_gradient_checkpointing.py. P1@40k stays the control.
+# Deltas 2/3 are a memory/time knob only: grad-ckpt recomputes activations in
+# the backward pass. Evidence is allclose-grade, not bitwise-grade (Codex r2):
+# test_vit_gradient_checkpointing.py asserts allclose(atol=1e-6, rtol=1e-5) over
+# >=100 tensors on an fp32 CPU probe; exactness is expected by construction but
+# is not pinned in CI. P1@40k stays the control.
 # ANY fourth difference silently makes this a two-factor experiment.
 #
 # MODE=SMOKE  — short rate/fit measurement, in its OWN W&B + output namespace so
@@ -40,7 +42,6 @@ DRY_RUN="${DRY_RUN:-0}"
 LOGGER="${LOGGER:-wandb}"
 MB="${MB:-32}"          # micro-batch per GPU
 ACC="${ACC:-1}"         # accumulation
-SMOKE_STEPS="${SMOKE_STEPS:-25}"
 MIN_FREE_MB="${MIN_FREE_MB:-21900}"
 MIN_FREE_DISK_MB="${MIN_FREE_DISK_MB:-20480}"
 
@@ -50,9 +51,19 @@ MIN_FREE_DISK_MB="${MIN_FREE_DISK_MB:-20480}"
 # hands the abort decision to the same command line that wants to launch.
 ENDPOINT_STEPS=40000          # the registered endpoint
 FULL_CADENCE=2500             # the registered checkpoint cadence
+SMOKE_STEPS=25                # r2: was overridable. SMOKE_STEPS=0 is accepted by
+                              # Lightning, still emits the banner from
+                              # on_fit_start, and then divided by zero in the R3
+                              # projection -> empty PROJ_H -> the PASS branch ->
+                              # a qualifying "SMOKE VERDICT: PASS" with zero
+                              # optimizer steps. Pinned, and range-checked below.
 SMOKE_CADENCE=1000000         # >> SMOKE_STEPS: smoke must never write a ckpt
 MAX_PROJECTED_HOURS=55        # plan R3 abort threshold
 BANNER="yaw_aug ENABLED img_w=512 seed=42"   # EXACT text of diffusion.py:407
+
+# The invariant the cadence pin actually depends on, asserted rather than assumed.
+[ "$SMOKE_STEPS" -ge 1 ] && [ "$SMOKE_STEPS" -lt "$SMOKE_CADENCE" ] || {
+  echo "SMOKE_STEPS=${SMOKE_STEPS} must satisfy 1 <= steps < cadence ${SMOKE_CADENCE} - abort"; exit 2; }
 
 # Content pins for the code that defines the treatment. A clean-tree check only
 # says "nothing is modified"; these say "it is THIS code" even after a checkout,
@@ -64,6 +75,15 @@ PIN_train="bce1c94e648138459c056d82ac3e5f385e413b99f819b71bbbcd6d470d5f13ea  tra
 PIN_dataset="71f11e80b9b09db754e2ce42f517480a9fb85977f27990f7f01cdbdebfc9b242  src/configs/dataset_configs/AR/train/acousticroom_train.json"
 PIN_vae="8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9  weights/FLAC/VAE.safetensors"
 PIN_control="733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8  worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json"
+# r2: both of these decide training behaviour without appearing on the command
+# line. defaults.ini supplies every flag NOT passed below (train.py:96) — which
+# includes pretrained init (train.py:139), resume via ckpt_path (train.py:230),
+# and gradient clipping; an edit there could silently make this not-from-scratch
+# or not-P1-matched while every other gate and the banner still pass. And the
+# dataset config only NAMES the split: the actual item list is train.json.
+# Both currently match P1's launch commit e50d098; the defect was not binding them.
+PIN_defaults="09fe9f28ca78e6bc741797e15eeb6632259760d6efe58ffbb626d2ef9383a612  defaults.ini"
+PIN_split="aa4e52d616fc42e88d5e4952c7e7ff266347615a60f93a0590b707f5eeaead03  data/AR/train.json"
 
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 
@@ -95,11 +115,11 @@ echo "budget: mode=${MODE} | endpoint=${MAXSTEPS} | cadence=${CADENCE}"
 
 # --- source pins: the reviewed code, byte for byte --------------------------- #
 for P in "$PIN_yaw_rotation" "$PIN_diffusion" "$PIN_factory" "$PIN_train" \
-         "$PIN_dataset" "$PIN_vae" "$PIN_control"; do
+         "$PIN_dataset" "$PIN_vae" "$PIN_control" "$PIN_defaults" "$PIN_split"; do
   echo "$P" | sha256sum -c --status - || {
     echo "SOURCE PIN FAILED for '${P##*  }' - the reviewed code/config/weights moved under this experiment - abort"; exit 2; }
 done
-echo "source pins OK (7 files match the reviewed revision)"
+echo "source pins OK (9 files match the reviewed revision, incl. defaults.ini and the AR split)"
 
 # A dirty tracked tree under the code paths means the pins above were computed
 # from something that is not committed anywhere. Bookkeeping under EXPDIR is
@@ -109,14 +129,10 @@ DIRTY="$(git status --porcelain -- src train.py baselines 2>/dev/null | head -5)
   echo "tracked code tree is dirty - commit or stash before launching:"; echo "$DIRTY"; exit 2; }
 echo "tree clean under src/ train.py baselines/ | branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
 
-# --- FULL refuses to start into a namespace that already holds checkpoints ---- #
-if [ "$MODE" = "FULL" ] && [ -d "$SAVEDIR" ] && [ -n "$(find "$SAVEDIR" -name '*.ckpt' 2>/dev/null | head -1)" ]; then
-  echo "${SAVEDIR} already contains checkpoints - refusing to overwrite a run; move it aside or resume deliberately - abort"; exit 2
-fi
-
 # --- config contract: the arm is the control plus exactly three deltas ------- #
-# Deliberately BEFORE the FULL-only prerequisites below: a malformed treatment
-# should be reported as such, not masked by "you have no smoke on record".
+# Deliberately BEFORE every FULL-only prerequisite below (r2 ordering nit: the
+# namespace-occupancy check used to precede it): a malformed treatment should be
+# reported as such, not masked by "that directory is busy" or "you have no smoke".
 python - "$ARM_CFG" "$CONTROL_CFG" <<'PY' || { echo "CONFIG CONTRACT FAILED - abort"; exit 2; }
 import json, sys
 arm_p, ctl_p = sys.argv[1], sys.argv[2]
@@ -157,7 +173,8 @@ vits = [c for c in arm["model"]["conditioning"]["configs"] if c["type"] == "ViTC
 if len(vits) != 2:
     sys.exit(f"expected 2 ViT conditioners, found {len(vits)}")
 # Registered deltas 2/3: OFF here, ON in the control. Numerically inert
-# (exp_07 bitwise-identity evidence); asserted so it stays a DECISION.
+# (gradient-equivalent; see the header for the evidence's true strength);
+# asserted so it stays a DECISION rather than a default.
 for c in vits:
     if c["config"].get("gradient_checkpointing") is not False:
         sys.exit(f"gradient_checkpointing must be false on {c['id']} (registered delta)")
@@ -181,19 +198,32 @@ print(f"config contract OK: {arm_p} == {ctl_p} + training.yaw_aug{block} + grad-
 print(f"preflight treatment plan: width={block['img_w']} rng-seed={block['seed']} on={block['enabled']}")
 PY
 
-# --- FULL requires a passing SMOKE on record (plan R3 is a prerequisite) ----- #
+# --- FULL refuses to start into a namespace that already holds checkpoints ---- #
+if [ "$MODE" = "FULL" ] && [ -d "$SAVEDIR" ] && [ -n "$(find "$SAVEDIR" -name '*.ckpt' 2>/dev/null | head -1)" ]; then
+  echo "${SAVEDIR} already contains checkpoints - refusing to overwrite a run; move it aside or resume deliberately - abort"; exit 2
+fi
+
+# --- FULL requires a COMPLETED, passing SMOKE on record (plan R3 prerequisite) #
 # Without this, R3 is advisory: nothing stops a FULL launch that never measured
-# its own rate. The evidence must be a smoke log that BOTH saw the exact banner
-# AND recorded a PASS verdict.
+# its own rate. r2: "contains the banner and the word PASS" does not prove a
+# smoke ever RAN. The evidence must show a COMPLETED smoke on THIS code — the
+# banner, Lightning's own termination marker for the pinned step count, two
+# ranks, zero checkpoints, no FAIL verdict, and a passing source-pin line.
 if [ "$MODE" = "FULL" ]; then
   SMOKE_EVIDENCE=""
   for F in $(ls -t "${EXPDIR}"/*_exp17_YAWAUG_smoke_train.log 2>/dev/null); do
-    if tr '\r' '\n' < "$F" | grep -qxF "$BANNER" && grep -qF "SMOKE VERDICT: PASS" "$F"; then
-      SMOKE_EVIDENCE="$F"; break
-    fi
+    N="$(tr '\r' '\n' < "$F")"
+    grep -qxF "$BANNER"                          <<<"$N" || continue
+    grep -qF  "max_steps=${SMOKE_STEPS} reached" <<<"$N" || continue
+    grep -qF  "All distributed processes registered. Starting with 2 processes" <<<"$N" || continue
+    grep -qF  "smoke checkpoints: 0"             <<<"$N" || continue
+    grep -qF  "SMOKE VERDICT: PASS"              <<<"$N" || continue
+    grep -qF  "source pins OK"                   <<<"$N" || continue
+    grep -qF  "SMOKE VERDICT: FAIL"              <<<"$N" && continue
+    SMOKE_EVIDENCE="$F"; break
   done
   [ -n "$SMOKE_EVIDENCE" ] || {
-    echo "FULL requires a SMOKE log in ${EXPDIR} containing the exact treatment banner AND 'SMOKE VERDICT: PASS' - none found - run MODE=SMOKE first - abort"; exit 2; }
+    echo "FULL requires a COMPLETED smoke log in ${EXPDIR}: exact banner + 'max_steps=${SMOKE_STEPS} reached' + 2 ranks + zero checkpoints + PASS (and no FAIL) + passing source pins - none found - run MODE=SMOKE first - abort"; exit 2; }
   echo "smoke evidence: ${SMOKE_EVIDENCE}"
 fi
 
@@ -278,6 +308,26 @@ else
   [ "$rc" -eq 0 ] && rc=3
 fi
 
+# --- the run must have REACHED its registered endpoint ----------------------- #
+# r2: the installed Lightning catches KeyboardInterrupt without re-raising, so a
+# graceful interruption exits 0. The banner is printed from on_fit_start, i.e.
+# BEFORE step 0 — so rc=0 plus a banner is satisfied by a run that trained for
+# one minute. Bind the endpoint to evidence that only a completed run produces.
+if ! tr '\r' '\n' < "$LOG" | grep -qF "max_steps=${MAXSTEPS} reached"; then
+  echo "ENDPOINT NOT REACHED: '\`Trainer.fit\` stopped: max_steps=${MAXSTEPS} reached' absent from ${LOG} - this run did NOT complete its registered budget (interrupted runs can still exit 0) - treat as invalid"
+  [ "$rc" -eq 0 ] && rc=6
+fi
+if [ "$MODE" = "FULL" ]; then
+  # PL writes epoch=<N>-step=<M>.ckpt; the endpoint checkpoint is the deliverable.
+  if [ -z "$(find "$SAVEDIR" -name "*step=${ENDPOINT_STEPS}.ckpt" 2>/dev/null | head -1)" ]; then
+    echo "ENDPOINT CHECKPOINT MISSING: no *step=${ENDPOINT_STEPS}.ckpt under ${SAVEDIR} - the registered deliverable was not produced - treat as invalid"
+    [ "$rc" -eq 0 ] && rc=6
+  else
+    NCK="$(find "$SAVEDIR" -name '*.ckpt' 2>/dev/null | wc -l)"
+    echo "endpoint checkpoint present; ${NCK} checkpoints under ${SAVEDIR} (expected $(( ENDPOINT_STEPS / FULL_CADENCE )) at cadence ${FULL_CADENCE})"
+  fi
+fi
+
 # --- SMOKE must not have written a checkpoint -------------------------------- #
 if [ "$MODE" = "SMOKE" ]; then
   NCKPT="$(find "$SAVEDIR" -name '*.ckpt' 2>/dev/null | wc -l)"
@@ -304,8 +354,14 @@ PY
 )"
   echo "SMOKE: ${SMOKE_STEPS} steps in ${ELAPSED}s (includes startup) -> projected ${PROJ_H} h for ${ENDPOINT_STEPS} steps"
   echo "NOTE: this projection INCLUDES process startup/compile, so it OVER-estimates. It is an UPPER bound, which is the safe direction: a PASS here cannot be an under-estimate."
-  OVER="$(python -c "print(1 if float('${PROJ_H}') > float('${MAX_PROJECTED_HOURS}') else 0)")"
-  if [ "$OVER" = "1" ]; then
+  OVER="$(python -c "print(1 if float('${PROJ_H}') > float('${MAX_PROJECTED_HOURS}') else 0)" 2>/dev/null)"
+  # r2: an unchecked python failure left PROJ_H/OVER EMPTY, and an empty OVER is
+  # not "1", so the threshold silently took the PASS branch. A verdict that
+  # cannot be computed is a FAIL, never a pass.
+  if [ "$OVER" != "0" ] && [ "$OVER" != "1" ]; then
+    echo "SMOKE VERDICT: FAIL - the projection did not evaluate (PROJ_H='${PROJ_H}', OVER='${OVER}'); refusing to bless a run whose rate is unknown"
+    rc=4
+  elif [ "$OVER" = "1" ]; then
     echo "SMOKE VERDICT: FAIL - projected ${PROJ_H} h exceeds MAX_PROJECTED_HOURS=${MAX_PROJECTED_HOURS} (plan R3). Do NOT launch FULL; report and re-plan."
     rc=4
   else

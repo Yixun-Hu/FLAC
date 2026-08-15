@@ -40,8 +40,13 @@ tqdm elapsed stamps over steps 10 → 25:
 For comparison, P1 vanilla measured 0.259 opt-steps/s = 3.86 s/step → 42.9 h at
 40k. The 1.75× speed-up is the ViT gradient-checkpointing change (registered
 deltas 2/3), not the augmentation: turning checkpointing off trades VRAM for
-skipped recompute, and exp_07 measured it to be numerically inert (ON-vs-OFF
-parameter gradients bitwise identical, 210 tensors, max abs diff 0.0). Yixun
+skipped recompute. Its numerical status, stated at the strength the evidence
+actually supports (corrected after Codex r2): the regression test pins ON-vs-OFF
+parameter gradients as `torch.allclose(atol=1e-6, rtol=1e-5)` over >=100 tensors
+on an **fp32 CPU** probe, not `torch.equal`; the "210 tensors, max abs diff 0.0"
+figure is an exp_07 worklog observation, not a pinned invariant, and this arm
+trains bf16-mixed on CUDA. Exactness is expected by construction, not asserted
+in CI. Yixun
 freed both A6000s for this arm, which is what made the trade available.
 
 ## Topology confirmed in the log

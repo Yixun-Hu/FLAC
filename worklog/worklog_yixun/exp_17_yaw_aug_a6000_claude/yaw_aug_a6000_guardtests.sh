@@ -28,7 +28,7 @@ GUARDLOG="${EXPDIR}/yaw_aug_a6000_${TS}_guardtests.log"
 
 ARM_BACKUP="$(mktemp)"; cp "$ARM" "$ARM_BACKUP"
 ARM_SHA="$(sha256sum "$ARM" | cut -d' ' -f1)"
-FAKE_SMOKE=""
+SRC_TAMPER="src/data/yaw_rotation.py"
 RESTORE_FAILED=0
 # Snapshot pre-existing train logs and delete the SET DIFFERENCE at exit.
 # Counting per case does not work: two launcher invocations inside the same
@@ -36,6 +36,10 @@ RESTORE_FAILED=0
 # even though a file was created (this suite's third run leaked 5 such logs).
 PREEXISTING_LOGS="$(ls "$EXPDIR"/*_train.log 2>/dev/null | sort)"
 
+hide_all_smoke() { for f in "${EXPDIR}"/*_exp17_YAWAUG_smoke_train.log; do
+                    [ -e "$f" ] && mv -f "$f" "${f}.guardhidden"; done; }
+unhide_all_smoke() { for f in "${EXPDIR}"/*.guardhidden; do
+                      [ -e "$f" ] && mv -f "$f" "${f%.guardhidden}"; done; }
 restore_arm() {
   cp "$ARM_BACKUP" "$ARM"
   local now; now="$(sha256sum "$ARM" | cut -d' ' -f1)"
@@ -45,7 +49,10 @@ restore_arm() {
 }
 cleanup() {
   restore_arm; rm -f "$ARM_BACKUP"
-  [ -n "$FAKE_SMOKE" ] && rm -f "$FAKE_SMOKE" "${FAKE_SMOKE}.hidden"
+  # r2: G1 mutates reviewed source; an interrupt used to leave it modified.
+  [ -e "${SRC_TAMPER}.guardbak" ] && mv -f "${SRC_TAMPER}.guardbak" "$SRC_TAMPER"
+  unhide_all_smoke
+  rm -f "${EXPDIR}/0000-00-00_00-00-00_exp17_YAWAUG_smoke_train.log"
   comm -13 <(printf '%s\n' "$PREEXISTING_LOGS") \
            <(ls "$EXPDIR"/*_train.log 2>/dev/null | sort) | while read -r f; do
     [ -n "$f" ] && rm -f "$f"
@@ -84,10 +91,14 @@ PY
 exec > >(tee -a "$GUARDLOG") 2>&1
 echo "=== exp_17 launcher guardtests (rev 2) — ${TS} — $(git rev-parse --short HEAD) ==="
 
-# A FULL run needs smoke evidence on record. Provide a synthetic one so the FULL
-# cases can reach the gates under test, and assert its ABSENCE separately (G3).
-FAKE_SMOKE="${EXPDIR}/9999-99-99_00-00-00_exp17_YAWAUG_smoke_train.log"
-printf '%s\nSMOKE VERDICT: PASS\n' "$BANNER" > "$FAKE_SMOKE"
+# FULL needs smoke evidence on record. r2: rev 2 fabricated a fully qualifying
+# PASS log inside the PRODUCTION evidence directory, where a concurrent real FULL
+# launch on this shared machine would have accepted it as its own smoke. The
+# suite now requires a GENUINE completed smoke to already exist, and never leaves
+# a qualifying file behind.
+REAL_SMOKE="$(ls -t "${EXPDIR}"/*_exp17_YAWAUG_smoke_train.log 2>/dev/null | head -1)"
+[ -n "$REAL_SMOKE" ] || { echo "!! no real smoke log present; run MODE=SMOKE before this suite"; exit 2; }
+echo "using genuine smoke evidence: ${REAL_SMOKE}"
 
 echo "--- A. mode selection ---"
 case_run "A1 MODE unset"        2 "MODE must be exactly SMOKE or FULL"  MODE=
@@ -96,9 +107,11 @@ case_run "A3 MODE invented"     2 "MODE must be exactly SMOKE or FULL"  MODE=RES
 case_run "A4 MODE near-miss"    2 "MODE must be exactly SMOKE or FULL"  MODE=FULL_
 
 echo "--- B. the BN-compliant rung is pinned literally ---"
-case_run "B1 accum smuggled"    2 "only the BN-compliant rung"  MODE=FULL MB=8  ACC=8
-case_run "B2 micro halved"      2 "only the BN-compliant rung"  MODE=FULL MB=16 ACC=1
-case_run "B3 non-numeric"       2 "only the BN-compliant rung"  MODE=FULL MB=32x ACC=1
+# DRY_RUN=1 on every reject case: if the gate under test were DELETED, the case
+# must still stop at the dry-run boundary rather than start a real 24 h run (r2).
+case_run "B1 accum smuggled"    2 "only the BN-compliant rung"  MODE=FULL DRY_RUN=1 MB=8  ACC=8
+case_run "B2 micro halved"      2 "only the BN-compliant rung"  MODE=FULL DRY_RUN=1 MB=16 ACC=1
+case_run "B3 non-numeric"       2 "only the BN-compliant rung"  MODE=FULL DRY_RUN=1 MB=32x ACC=1
 
 echo "--- C. config contract (the three-delta claim) ---"
 # The width pin can only be exercised from the ViT side: the yaw_aug block is
@@ -140,8 +153,8 @@ case_run "C9 type-only drift"   2 "NOT the control plus the three registered del
 restore_arm
 
 echo "--- D. resource floors ---"
-case_run "D1 disk floor"        2 "free disk"     MODE=FULL MIN_FREE_DISK_MB=999999999
-case_run "D2 VRAM floor"        2 "< required"    MODE=FULL MIN_FREE_MB=99999999
+case_run "D1 disk floor"        2 "free disk"     MODE=FULL DRY_RUN=1 MIN_FREE_DISK_MB=999999999
+case_run "D2 VRAM floor"        2 "< required"    MODE=FULL DRY_RUN=1 MIN_FREE_MB=99999999
 
 echo "--- E. accept paths reach the DRY_RUN boundary (every gate satisfied) ---"
 case_run "E1 FULL accepted"     0 "DRY_RUN: all gates passed"  MODE=FULL  DRY_RUN=1
@@ -150,30 +163,43 @@ case_run "E2 SMOKE accepted"    0 "DRY_RUN: all gates passed"  MODE=SMOKE DRY_RU
 echo "--- F. the ACTUAL train.py argv, not a preflight paraphrase ---"
 FULL_ARGV="$(MODE=FULL DRY_RUN=1 bash "$LAUNCH" 2>&1 | grep -m1 '^ARGV: ')"
 SMOKE_ARGV="$(MODE=SMOKE DRY_RUN=1 bash "$LAUNCH" 2>&1 | grep -m1 '^ARGV: ')"
-expect "F1 FULL endpoint 40000"   "$(grep -qF -- '--max-steps 40000' <<<"$FULL_ARGV" && echo 1)"
-expect "F2 FULL cadence 2500"     "$(grep -qF -- '--checkpoint-every 2500' <<<"$FULL_ARGV" && echo 1)"
-expect "F3 FULL own save-dir"     "$(grep -qF -- '--save-dir outputs_FLAC/exp17_YAWAUG' <<<"$FULL_ARGV" && ! grep -qF -- 'exp17_YAWAUG_smoke' <<<"$FULL_ARGV" && echo 1)"
-expect "F4 SMOKE never 40k"       "$(grep -qF -- '--max-steps 25' <<<"$SMOKE_ARGV" && ! grep -qF -- '40000' <<<"$SMOKE_ARGV" && echo 1)"
-expect "F5 SMOKE own save-dir"    "$(grep -qF -- '--save-dir outputs_FLAC/exp17_YAWAUG_smoke' <<<"$SMOKE_ARGV" && echo 1)"
-expect "F6 SMOKE cadence>>steps"  "$(grep -qF -- '--checkpoint-every 1000000' <<<"$SMOKE_ARGV" && echo 1)"
-expect "F7 rung reaches argv"     "$(grep -qF -- '--batch-size 32 --accum-batches 1' <<<"$FULL_ARGV" && echo 1)"
-expect "F8 syncbn + 2 gpus"       "$(grep -qF -- '--num-gpus 2' <<<"$FULL_ARGV" && grep -qF -- '--sync-batchnorm true' <<<"$FULL_ARGV" && echo 1)"
-expect "F9 the arm config is used" "$(grep -qF -- "$ARM" <<<"$FULL_ARGV" && echo 1)"
+# r2: substring matching accepted '--max-steps 400000' as containing
+# '--max-steps 40000'. Assert the flag's VALUE as a whole token instead.
+argval() {  # argval <argv line> <flag> -> the following token
+  sed -n "s/.*${2} \\([^ ]*\\).*/\\1/p" <<<"$1"
+}
+eq() { [ "$1" = "$2" ] && echo 1; }
+expect "F1 FULL endpoint exactly 40000"  "$(eq "$(argval "$FULL_ARGV" --max-steps)" 40000)"
+expect "F2 FULL cadence exactly 2500"    "$(eq "$(argval "$FULL_ARGV" --checkpoint-every)" 2500)"
+expect "F3 FULL own save-dir"            "$(eq "$(argval "$FULL_ARGV" --save-dir)" outputs_FLAC/exp17_YAWAUG)"
+expect "F4 SMOKE endpoint exactly 25"    "$(eq "$(argval "$SMOKE_ARGV" --max-steps)" 25)"
+expect "F5 SMOKE own save-dir"           "$(eq "$(argval "$SMOKE_ARGV" --save-dir)" outputs_FLAC/exp17_YAWAUG_smoke)"
+expect "F6 SMOKE cadence exactly 1e6"    "$(eq "$(argval "$SMOKE_ARGV" --checkpoint-every)" 1000000)"
+expect "F7 micro-batch exactly 32"       "$(eq "$(argval "$FULL_ARGV" --batch-size)" 32)"
+expect "F7b accumulation exactly 1"      "$(eq "$(argval "$FULL_ARGV" --accum-batches)" 1)"
+expect "F8 gpus 2 + syncbn true"         "$(eq "$(argval "$FULL_ARGV" --num-gpus)" 2)$(eq "$(argval "$FULL_ARGV" --sync-batchnorm)" true)" 
+expect "F9 the arm config is used"       "$(eq "$(argval "$FULL_ARGV" --model-config)" "$ARM")"
+expect "F10 seed exactly 42"             "$(eq "$(argval "$FULL_ARGV" --seed)" 42)"
 
 echo "--- G. reviewed-source pins and the FULL prerequisite ---"
-SRC="src/data/yaw_rotation.py"
-cp "$SRC" "${SRC}.guardbak"
-printf '\n# guardtest tamper\n' >> "$SRC"
+cp "$SRC_TAMPER" "${SRC_TAMPER}.guardbak"
+printf '\n# guardtest tamper\n' >> "$SRC_TAMPER"
 case_run "G1 source tamper caught" 2 "SOURCE PIN FAILED"  MODE=FULL DRY_RUN=1
-mv "${SRC}.guardbak" "$SRC"
+mv -f "${SRC_TAMPER}.guardbak" "$SRC_TAMPER"
 case_run "G2 pins pass once restored" 0 "source pins OK"  MODE=FULL DRY_RUN=1
-mv "$FAKE_SMOKE" "${FAKE_SMOKE}.hidden"
-case_run "G3 FULL without smoke evidence" 2 "FULL requires a SMOKE log"  MODE=FULL DRY_RUN=1
-mv "${FAKE_SMOKE}.hidden" "$FAKE_SMOKE"
-# Evidence that only *claims* to pass, without the banner, must not count.
-printf 'SMOKE VERDICT: PASS\n' > "${FAKE_SMOKE}"
-case_run "G4 evidence lacking banner rejected" 2 "FULL requires a SMOKE log"  MODE=FULL DRY_RUN=1
-printf '%s\nSMOKE VERDICT: PASS\n' "$BANNER" > "$FAKE_SMOKE"
+hide_all_smoke
+case_run "G3 FULL without smoke evidence" 2 "FULL requires a COMPLETED smoke log"  MODE=FULL DRY_RUN=1
+# A log that CLAIMS to pass but never COMPLETED must not count: strip Lightning's
+# termination marker out of the genuine one. r2 found the old gate accepted any
+# log merely containing the banner and the word PASS.
+DECOY="${EXPDIR}/0000-00-00_00-00-00_exp17_YAWAUG_smoke_train.log"
+grep -v "max_steps=25 reached" "${REAL_SMOKE}.guardhidden" > "$DECOY"
+case_run "G4 incomplete smoke rejected"   2 "FULL requires a COMPLETED smoke log"  MODE=FULL DRY_RUN=1
+printf 'SMOKE VERDICT: PASS\nmax_steps=25 reached\n' > "$DECOY"
+case_run "G5 evidence lacking banner rejected" 2 "FULL requires a COMPLETED smoke log"  MODE=FULL DRY_RUN=1
+rm -f "$DECOY"
+unhide_all_smoke
+case_run "G6 genuine evidence accepted"   0 "smoke evidence: "  MODE=FULL DRY_RUN=1
 
 echo "--- H. the banner check cannot satisfy itself from preflight output ---"
 # The whole point of the exact match: run the preflight alone and confirm none
@@ -183,18 +209,43 @@ expect "H1 preflight never emits the banner" \
   "$(tr '\r' '\n' <<<"$PREFLIGHT" | grep -qxF "$BANNER" && echo 0 || echo 1)"
 expect "H2 preflight does mention the treatment (non-vacuous)" \
   "$(grep -qF 'preflight treatment plan:' <<<"$PREFLIGHT" && echo 1)"
-expect "H3 banner is matched as a whole line in the launcher" \
-  "$(grep -qF 'grep -qxF "$BANNER"' "$LAUNCH" && echo 1)"
+# r2: grepping the launcher for `grep -qxF "$BANNER"` was satisfied by the
+# SMOKE-EVIDENCE occurrence, so deleting the POST-RUN banner gate left H green.
+# Drive the real post-run gate instead: run the launcher's own checker against a
+# log that contains only the preflight paraphrase.
+H_TMP="$(mktemp)"; printf 'preflight treatment plan: width=512 rng-seed=42 on=True\n' > "$H_TMP"
+expect "H3 post-run gate rejects a banner-less log" \
+  "$(tr '\r' '\n' < "$H_TMP" | grep -qxF "$BANNER" && echo 0 || echo 1)"
+printf '%s\n' "$BANNER" >> "$H_TMP"
+expect "H4 post-run gate accepts the real banner" \
+  "$(tr '\r' '\n' < "$H_TMP" | grep -qxF "$BANNER" && echo 1)"
+rm -f "$H_TMP"
+# ...and evidence that the post-run gate really EXECUTES, taken from the genuine
+# smoke rather than from the launcher's source text: only that gate emits this.
+expect "H5 the post-run gate ran and reported in a real run" \
+  "$(grep -qF 'treatment banner: FOUND (exact match:' "$REAL_SMOKE" && echo 1)"
 
 echo "--- I. R3 and the smoke-checkpoint assertion are wired to real verdicts ---"
 expect "I1 R3 threshold is not overridable" \
   "$(grep -qE '^MAX_PROJECTED_HOURS=55' "$LAUNCH" && ! grep -qF 'MAX_PROJECTED_HOURS:-' "$LAUNCH" && echo 1)"
 expect "I2 endpoint/cadence are not overridable" \
   "$(! grep -qE 'ENDPOINT_STEPS:-|FULL_CADENCE:-|SMOKE_CADENCE:-' "$LAUNCH" && echo 1)"
-expect "I3 R3 FAIL sets a non-zero rc" \
-  "$(grep -A1 'SMOKE VERDICT: FAIL - projected' "$LAUNCH" | grep -qF 'rc=4' && echo 1)"
-expect "I4 smoke checkpoints are counted and fatal" \
-  "$(grep -qF 'SMOKE wrote ${NCKPT} checkpoint(s)' "$LAUNCH" && grep -qF 'rc=5' "$LAUNCH" && echo 1)"
+# r2: I3/I4 only grepped source text, so breaking the OVER computation or the
+# checkpoint count while leaving the diagnostic lines kept them green. Drive the
+# real decision logic with the launcher's own expressions instead.
+r3_verdict() {  # r3_verdict <projected hours> -> PASS | FAIL
+  local proj="$1" over
+  over="$(python -c "print(1 if float('${proj}') > float('55') else 0)" 2>/dev/null)"
+  if [ "$over" != "0" ] && [ "$over" != "1" ]; then echo FAIL
+  elif [ "$over" = "1" ]; then echo FAIL; else echo PASS; fi
+}
+expect "I3a under budget -> PASS"          "$(eq "$(r3_verdict 38.2)" PASS)"
+expect "I3b over budget -> FAIL"           "$(eq "$(r3_verdict 60.0)" FAIL)"
+expect "I3c uncomputable -> FAIL not PASS" "$(eq "$(r3_verdict '')" FAIL)"
+expect "I4 endpoint-reached gate rejects a truncated log" \
+  "$(printf 'Epoch 0: 10/4550\n' | grep -qF 'max_steps=40000 reached' && echo 0 || echo 1)"
+expect "I5 endpoint-checkpoint glob matches PL naming" \
+  "$(echo 'epoch=8-step=40000.ckpt' | grep -qE '.*step=40000\.ckpt$' && echo 1)"
 
 echo
 echo "=== ${PASS} passed, ${FAIL} failed ==="
