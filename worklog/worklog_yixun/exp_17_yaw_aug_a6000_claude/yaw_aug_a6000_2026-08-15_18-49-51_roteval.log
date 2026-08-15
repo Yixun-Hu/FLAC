@@ -1,0 +1,19 @@
+=== exp_17 C4 rotation-eval grid — 2026-08-15_18-49-51 — 5bda164 ===
+foreign run : /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG
+symlink farm: outputs_FLAC/exp17_YAWAUG_roteval   (all writes land here; the foreign tree is read-only)
+REFUSING TO START: training pid 1012326 is still alive.
+  Yixun chose 'run after training, zero interference' (2026-08-15).
+  Wait for it to finish, or re-run with TRAIN_PID= if that pid is stale.
+=== exp_17 C4 rotation-eval grid — 2026-08-15_18-49-51 — 5bda164 ===
+foreign run : /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG
+symlink farm: outputs_FLAC/exp17_YAWAUG_roteval   (all writes land here; the foreign tree is read-only)
+gate 1 OK: training pid 999999 is not running
+exp_17 FULL completion audit — /home/yixunhu/codespace/exp-17-yawaug-a6000/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/yaw_aug_a6000_2026-08-15_14-54-31_FULL.log
+  checkpoints found: 2
+VERDICT: INCOMPLETE / INVALID
+  - the run did not reach its registered endpoint: Lightning's '`Trainer.fit` stopped: `max_steps=40000` reached.' marker is absent (an interrupted run still exits 0)
+  - the endpoint checkpoint (*step=40000.ckpt) is missing; found steps [2500, 5000]
+  - expected 16 checkpoints at cadence 2500, found 2; the trajectory has gaps
+REFUSING TO START: the FULL run did not pass its completion audit (above).
+  Its checkpoints are not a completed 40k trajectory; evaluating them would
+  produce 128 plausible numbers for an experiment that did not finish.
