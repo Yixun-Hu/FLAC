@@ -70,6 +70,69 @@
         "parent_ckpt_sha256": "82c66a8ed38430e166d0859dc089a37c810f2edc4427474b67f6cb881e71650d",
         "parent_step": 2500,
         "step": 5000
+      },
+      {
+        "audit": {
+          "ema_inventory_sha256": "68dc5ef53d4144cea4fd8210cae6c6769fd7370fd62499dc9f6fb449bb991fc2",
+          "ema_key_count": 210,
+          "ema_prefix": "diffusion_ema.ema_model.",
+          "embedded_config_canonical_sha256": "0761a677e0f31b8ee32a27b3f8c8280689fb450e962509381388217b7b0e8667",
+          "loaded_with": {
+            "map_location": "cpu",
+            "mmap": true,
+            "weights_only": true
+          },
+          "online_model_key_count": 210
+        },
+        "chain": true,
+        "ckpt_bytes": 723927595,
+        "ckpt_path": "outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=1-step=7500.ckpt",
+        "ckpt_sha256": "3b87e60a1c2930298531b2469f48dce0e8e8a8190c9b8a0960ce9f65574d22a7",
+        "parent_ckpt_sha256": "e96ddafff96c75f1857e2fc5b21c67a9492e4dfcfaef32eeba1a5569504011dc",
+        "parent_step": 5000,
+        "step": 7500
+      },
+      {
+        "audit": {
+          "ema_inventory_sha256": "68dc5ef53d4144cea4fd8210cae6c6769fd7370fd62499dc9f6fb449bb991fc2",
+          "ema_key_count": 210,
+          "ema_prefix": "diffusion_ema.ema_model.",
+          "embedded_config_canonical_sha256": "0761a677e0f31b8ee32a27b3f8c8280689fb450e962509381388217b7b0e8667",
+          "loaded_with": {
+            "map_location": "cpu",
+            "mmap": true,
+            "weights_only": true
+          },
+          "online_model_key_count": 210
+        },
+        "chain": true,
+        "ckpt_bytes": 723927595,
+        "ckpt_path": "outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=2-step=10000.ckpt",
+        "ckpt_sha256": "dd25c6500a07286bacb7aa49e6effe6131b704323c48edb20446964384097781",
+        "parent_ckpt_sha256": "3b87e60a1c2930298531b2469f48dce0e8e8a8190c9b8a0960ce9f65574d22a7",
+        "parent_step": 7500,
+        "step": 10000
+      },
+      {
+        "audit": {
+          "ema_inventory_sha256": "68dc5ef53d4144cea4fd8210cae6c6769fd7370fd62499dc9f6fb449bb991fc2",
+          "ema_key_count": 210,
+          "ema_prefix": "diffusion_ema.ema_model.",
+          "embedded_config_canonical_sha256": "0761a677e0f31b8ee32a27b3f8c8280689fb450e962509381388217b7b0e8667",
+          "loaded_with": {
+            "map_location": "cpu",
+            "mmap": true,
+            "weights_only": true
+          },
+          "online_model_key_count": 210
+        },
+        "chain": true,
+        "ckpt_bytes": 723927595,
+        "ckpt_path": "outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=2-step=12500.ckpt",
+        "ckpt_sha256": "2de97b17a66ae668ac144d51271cf6e7b12153544836c21a0aa9f95aca40aa44",
+        "parent_ckpt_sha256": "dd25c6500a07286bacb7aa49e6effe6131b704323c48edb20446964384097781",
+        "parent_step": 10000,
+        "step": 12500
       }
     ]
   },
@@ -96,6 +159,28 @@
         "resume_ckpt_path": "outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=1-step=5000.ckpt",
         "resume_ckpt_sha256": "e96ddafff96c75f1857e2fc5b21c67a9492e4dfcfaef32eeba1a5569504011dc",
         "resume_step": 5000
+      },
+      {
+        "commit": "e8bfb0db3b6a518203f435cca37569685952d26b",
+        "job": "3700245",
+        "launch_uuid": "4927905c-7bdc-4cfa-ae2f-b19c6a5948a3",
+        "manifest_path": "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-15_16-00-40_YAWAUG_8x8_jid3700245_manifest.txt",
+        "manifest_sha256": "7d00a36e69abb5563394eb114c3f43a6fc3f25b9509a4589b92683b6f55e4395",
+        "max_steps": 10000,
+        "resume_ckpt_path": "outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=1-step=7500.ckpt",
+        "resume_ckpt_sha256": "3b87e60a1c2930298531b2469f48dce0e8e8a8190c9b8a0960ce9f65574d22a7",
+        "resume_step": 7500
+      },
+      {
+        "commit": "e8bfb0db3b6a518203f435cca37569685952d26b",
+        "job": "3700853",
+        "launch_uuid": "b88c3ce0-7388-4f71-b344-9b0d8bb8a5da",
+        "manifest_path": "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-15_16-59-45_YAWAUG_8x8_jid3700853_manifest.txt",
+        "manifest_sha256": "a288eebd463c2e29e7b8f2cd67f7c5115e2885fa0e367eeec116dc00bcc1c237",
+        "max_steps": 12500,
+        "resume_ckpt_path": "outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=2-step=10000.ckpt",
+        "resume_ckpt_sha256": "dd25c6500a07286bacb7aa49e6effe6131b704323c48edb20446964384097781",
+        "resume_step": 10000
       }
     ]
   }
