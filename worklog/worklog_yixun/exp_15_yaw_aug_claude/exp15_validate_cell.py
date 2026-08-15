@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""exp_14 — validate ONE yaw-generalization cell's artifacts (plan §3.1/§3.2/§3.3).
+"""exp_15 — validate ONE yaw-augmentation eval cell's artifacts (plan §4.1-§4.3, §5).
+
+Adapted from ``exp14_validate_cell.py`` (Yixun-approved plan deviation, worklog
+2026-08-15T14:45): exp_14's campaign is review-closed and already implements the
+assignment-integrity contract exp_15 adopted verbatim, so the machinery below is
+exp_14's with exp_15's grid, arms and protocol substituted. exp_14's own file is
+untouched.
 
 A landed cell is three files: the metrics record, its ``.screenmeta.json``
 submission manifest and its ``.stream.json`` assignment audit. This module
@@ -9,33 +15,40 @@ list of NAMED reasons, empty when the cell is valid.
 
 It is deliberately the same predicate in three places:
 
-* ``yaw_gen_screen.sbatch`` runs it before emitting SCREENRESULT, so a cell that
+* ``yaw_aug_screen.sbatch`` runs it before emitting SCREENRESULT, so a cell that
   cannot be validated never announces a result;
-* ``yaw_gen_submit_grid.sh`` runs it for dedup, where the rule is
-  validate-BEFORE-skip (review B6): a cell is skipped only when its artifacts
-  pass every check, and an artifact that exists but fails one HALTS the wave for
-  triage rather than being silently skipped or overwritten;
-* the round-3 collector runs it before any contrast.
+* ``yaw_aug_submit_grid.sh`` runs it for dedup, where the rule is
+  validate-BEFORE-skip (exp_14 review B6): a cell is skipped only when its
+  artifacts pass every check, and an artifact that exists but fails one HALTS the
+  wave for triage rather than being silently skipped or overwritten;
+* the collector (round E2) runs it before any contrast.
 
-What it does NOT do is cross-cell reasoning. Z<->R pairing, cross-arm rotation
-matching and 5/5 seed blocks are equalities BETWEEN cells (plan §3.3, gates
-G1-G4) and belong to the collector; claiming them per cell would be claiming
+What it does NOT do is cross-cell reasoning. T<->R pairing, cross-arm rotation
+matching and 5/5 seed blocks are equalities BETWEEN cells (plan §4.3, gates
+G1-G5) and belong to the collector; claiming them per cell would be claiming
 evidence this file cannot see.
 
-**No torch.** The submitter classifies ~100 cells on a shared login node, so this
-module imports nothing heavier than the standard library. Two rules that live in
-``eval_FLAC`` are therefore mirrored here — the canonical stream serialization
-and the metrics-path shape — and ``src/tests/test_exp14_validate_cell.py`` pins
-both mirrors to their originals so they cannot drift.
+**No torch.** The submitter classifies 42 cells on a shared login node, so this
+module imports nothing heavier than the standard library. The DEEP checkpoint
+admission (embedded step, canonical embedded-config equality, the EMA<->online
+mirror, the inventory digest) needs torch and therefore lives in
+``exp15_admit_ckpt.py``, which the screen driver runs per cell on the compute
+node before it spends the GPU. What this module does is read the two COMMITTED
+admission records for the expected sha256 — never a record's own boolean
+``checks`` block, which is a claim, not evidence.
+
+Two rules that live in ``eval_FLAC`` are mirrored here — the canonical stream
+serialization and the metrics-path shape — exactly as in exp_14.
 
 Usage
 -----
-    python3 exp14_validate_cell.py grid [--wave {vctl,zref,rgen,all}]
-    python3 exp14_validate_cell.py check --metrics PATH --arm ARM --cell CELL \\
+    python3 exp15_validate_cell.py grid [--wave {tbl,rrob,vctl,all}]
+    python3 exp15_validate_cell.py check --metrics PATH --arm ARM --cell CELL \\
         --step 40000 --seed SEED --k K [--rotate-deg DEG] [--pin SHA] \\
         [--ckpt-sha SHA] [--expected-count 6337]
-    python3 exp14_validate_cell.py classify --wave WAVE --output-root DIR \\
+    python3 exp15_validate_cell.py classify --wave WAVE --output-root DIR \\
         [--pin SHA] [--expected-count 6337]
+    python3 exp15_validate_cell.py expect [--arm ARM]
 
 ``check`` exits 0 (valid), 1 (invalid — reasons on stdout), 2 (unregistered cell
 or usage error) or 3 (the artifact is absent, which is a normal "not run yet").
@@ -48,20 +61,29 @@ import os
 import sys
 from collections import namedtuple
 
-# --- the registered campaign (plan §3.1/§3.2) --------------------------------
-ARMS = ("VANL", "C4L", "C8", "C16", "C32")
-TRAIN_ORBIT = {"VANL": 0, "C4L": 4, "C8": 8, "C16": 16, "C32": 32}
-CELLS = ("rgen", "zref", "vctl")
+# --- the registered campaign (plan §4.1/§4.2) --------------------------------
+# TWO arms, both VANILLA-conditioned. The arm's identity is not an orbit (that is
+# exp_11/exp_14's axis) but whether its TRAINING applied the random-yaw
+# augmentation — which is why TRAIN_YAW_AUG, not TRAIN_ORBIT, is the map the
+# checkpoint gate asserts against the embedded config.
+ARMS = ("YAWAUG", "VANL")
+TRAIN_YAW_AUG = {"YAWAUG": True, "VANL": False}
+CELLS = ("tbl", "rrob", "vctl")
 SEEDS = (42, 43, 44, 45, 46)
 KS = (1, 8)
 STEP = 40000
-# The six validity controls, exhaustively. VANL@45 is deliberately absent: the
-# positive control is VANL@90, and an off-group vanilla angle answers no question
+# The two validity controls, exhaustively, both at s42/K=8 (plan §4.1 block V):
+#   VANL   @90 — the POSITIVE control, gate G1: a vanilla model must degrade.
+#   YAWAUG @90 — DESCRIPTIVE ONLY (plan §5, review F3). It carries no gate role;
+#                gating on it would presuppose the augmentation succeeded.
+# No 45-degree control: exp_15 has no group structure for an off-group angle to
+# probe (that was exp_14's C4L mechanism control), so it would answer no question
 # this campaign asked.
-VCTL_TUPLES = (("C4L", 90.0), ("C8", 90.0), ("C16", 90.0), ("C32", 90.0),
-               ("VANL", 90.0), ("C4L", 45.0))
+VCTL_TUPLES = (("VANL", 90.0), ("YAWAUG", 90.0))
 # Campaign constants. Every cell must report exactly these or it is not a member
-# of the block it claims to belong to (plan §3.2).
+# of the block it claims to belong to (plan §4.2; exp_14 §3.2's values, kept
+# identical so exp_15's VANL T rows remain comparable to exp_14's VANL Z rows as
+# the pre-declared external check).
 EXPECTED_COUNT = 6337
 BATCH_SIZE = 64
 NUM_WORKERS = 4
@@ -69,20 +91,35 @@ COND_AUTOCAST = "bf16"
 CFG_SCALE = 1.0
 STEPS = 1
 IMG_W = 512
+# BOTH arms are vanilla-conditioned models, so every cell runs --cond-method
+# vanilla. --frame-avg-angles is INERT under vanilla but is pinned explicitly on
+# the command line per announcement 05 (never rely on a default): eval_FLAC's own
+# default is this same C4 list, and a recipe that relied on it would change
+# silently when the default did.
+COND_METHOD = "vanilla"
+FRAME_AVG_ANGLES_FLAG = "0,90,180,270"
+# ...and what eval_FLAC RECORDS for it. eval_FLAC.py:1127 writes the angle list
+# into the metrics record only for cond_method='fa_invariant' and None otherwise,
+# so the flag's value never reaches the record. The manifest therefore carries
+# BOTH — the effective value (None, mirroring the record) and the literal flag —
+# and this validator checks each against its own source. Asserting the flag
+# against the record would fail every cell; asserting only the record would let a
+# cell that never pinned the flag pass.
+FRAME_AVG_ANGLES_RECORDED = None
 # Schema versions this validator understands (eval_FLAC.STREAM_SCHEMA_VERSION /
-# CONTEXT_FINGERPRINT_SCHEMA). A bump means the meaning of a field changed, so a
-# sidecar written under another version is not comparable and is refused.
+# CONTEXT_FINGERPRINT_SCHEMA / PER_SCENE_SCHEMA). A bump means the meaning of a
+# field changed, so a sidecar written under another version is not comparable and
+# is refused.
 STREAM_SCHEMA_VERSION = 1
 FINGERPRINT_SCHEMA = 1
 PER_SCENE_SCHEMA = 1
-# WHAT "PER-SCENE" ACTUALLY GROUPS BY (established from rung 1's real artifact).
-# The released metric callback groups on ``md['scene']``, and ``AR_md.py`` sets
-# that to the room FAMILY -- ``rel_path.split('/')[-3]``, e.g. "Cafe" -- while
-# the per-room id (``[-2]``, e.g. "Cafe_idx_0") never reaches the callback. So
-# the release convention's per-scene mean is a mean over the split's 10 room
+# WHAT "PER-SCENE" ACTUALLY GROUPS BY (established by exp_14 from its rung-1
+# artifact). The released metric callback groups on ``md['scene']``, and
+# ``AR_md.py`` sets that to the room FAMILY -- ``rel_path.split('/')[-3]``, e.g.
+# "Cafe" -- while the per-room id (``[-2]``) never reaches the callback. So the
+# release convention's per-scene mean is a mean over the split's 10 room
 # FAMILIES, not its 17 physical rooms; "6,337 items / 17 rooms" describes the
-# split's CONTENT, not the grouping. Rung 1 (C4L@90, jid 3682720) produced
-# exactly these ten keys.
+# split's CONTENT, not the grouping.
 #
 # The key SET is pinned, not just its size: two different ten-family groupings
 # would be the same number of scenes and a different estimand.
@@ -93,13 +130,33 @@ EXPECTED_SCENES = len(EXPECTED_SCENE_KEYS)          # 10
 SPLIT_K8 = "acousticroom_unseeneval.json"
 SPLIT_K1 = "acousticroom_unseeneval_1.json"
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+# The two COMMITTED admission sources (plan §5 G4). Neither is recomputed here —
+# this module is torch-free — but neither is TRUSTED either: what is read is the
+# recorded sha256 and the recorded facts, and exp15_admit_ckpt.py re-derives all
+# of them from the checkpoint itself before any GPU is spent.
+CONTROL_ADMISSION = os.path.join(HERE, "yaw_aug_control_admission.json")
+LAUNCH_REGISTRY = os.path.join(HERE, "yaw_aug_launch_registry.json")
+# The arms' model configs, repo-relative. YAWAUG's is exp_15's own; VANL's is
+# exp_11's, referenced in place (copying an audited artifact creates a second
+# thing that can drift out of agreement with the checkpoint it vouches for).
+ARM_CONFIG_REL = {
+    "YAWAUG": "worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json",
+    "VANL": "worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_VANCKPT.json",
+}
+# Where each arm's 40k checkpoint lives, as a glob relative to an output root.
+ARM_CKPT_GLOB = {
+    "YAWAUG": ("exp15_YAWAUG", "FLAC_exp15_YAWAUG", "exp15_YAWAUG", "checkpoints"),
+    "VANL": ("exp11_VANL", "FLAC_exp11_VANL", "exp11_VANL", "checkpoints"),
+}
+
 Cell = namedtuple("Cell", "arm cell step seed k rotate_deg")
 
 
 def expected_grid():
-    """The 106 registered cells: 50 rgen + 50 zref + 6 vctl, all at STEP."""
+    """The 42 registered cells: 20 tbl + 20 rrob + 2 vctl, all at STEP."""
     cells = []
-    for name in ("rgen", "zref"):
+    for name in ("tbl", "rrob"):
         for arm in ARMS:
             for k in KS:
                 for seed in SEEDS:
@@ -111,12 +168,13 @@ def expected_grid():
 
 _GRID = expected_grid()
 _GRID_SET = frozenset(_GRID)
+GRID_SIZE = 42
 
-WAVES = ("vctl", "zref", "rgen", "all")
+WAVES = ("vctl", "tbl", "rrob", "all")
 
 
 def wave_cells(wave):
-    """The cells of one submission wave (plan §6: vctl first, then zref, then rgen)."""
+    """The cells of one submission wave (plan §7-8: vctl first, then tbl, then rrob)."""
     if wave not in WAVES:
         raise ValueError(f"unknown wave {wave!r}; registered waves: {list(WAVES)}")
     if wave == "all":
@@ -141,7 +199,7 @@ def rotation_suffix(cell):
     Mirrors eval_FLAC.rotation_suffix for the protocols this campaign uses, and is
     what the screen driver renders in shell for the eval name.
     """
-    if cell.cell == "rgen":
+    if cell.cell == "rrob":
         return f"_rotrand{int(cell.seed)}"
     if cell.cell == "vctl":
         return f"_rot{fmt_deg(cell.rotate_deg)}"
@@ -149,22 +207,29 @@ def rotation_suffix(cell):
 
 
 def eval_name(cell):
-    """``exp14_<ARM>_<CELL>_S<STEP>_s<SEED>_K<K><token>`` — injective over the grid."""
-    return (f"exp14_{cell.arm}_{cell.cell}_S{int(cell.step)}_s{int(cell.seed)}"
-            f"_K{int(cell.k)}{rotation_suffix(cell)}")
+    """``exp15_<ARM>_<CELL>[_rot...]_S<STEP>_s<SEED>_K<K>`` — injective over the grid.
+
+    Note the token's POSITION: exp_15's registered naming (plan §6.7) puts it
+    directly after the cell type, where exp_14 put it at the end. Both are
+    injective; this module is the one definition of exp_15's spelling and every
+    other file renders it from here or is pinned against it by a guard case.
+    """
+    return (f"exp15_{cell.arm}_{cell.cell}{rotation_suffix(cell)}"
+            f"_S{int(cell.step)}_s{int(cell.seed)}_K{int(cell.k)}")
 
 
 def job_name(cell):
     """The Slurm job name for one cell — injective over the grid.
 
-    The rotation token is load-bearing here, not decoration: C4L vctl@45 and
-    vctl@90 differ in nothing else, so without it a wave watching squeue reads one
-    as the other's in-flight job and silently drops a registered validity control
-    (review B2). Rendered with '-' separators because a job name is also a file
-    name (slurm_screen_%x_%j.out); the character set is [A-Za-z0-9._-].
+    The rotation token is load-bearing here, not decoration: VANL vctl@90 and a
+    hypothetical second VANL fixed-angle control would differ in nothing else, and
+    more immediately a wave watching squeue must not read one cell as another's
+    in-flight job (exp_14 review B2). Rendered with '-' separators because a job
+    name is also a file name (slurm_screen_%x_%j.out); the character set is
+    [A-Za-z0-9._-].
     """
-    token = rotation_suffix(cell).replace("_", "-")     # _rot45 -> -rot45
-    return (f"exp14-screen-{cell.arm}-{cell.cell}{token}"
+    token = rotation_suffix(cell).replace("_", "-")     # _rot90 -> -rot90
+    return (f"exp15-screen-{cell.arm}-{cell.cell}{token}"
             f"-{int(cell.step)}-s{int(cell.seed)}-K{int(cell.k)}")
 
 
@@ -175,12 +240,15 @@ def parse_eval_name(name):
     registered grid is that an unregistered artifact cannot be read as evidence.
     """
     parts = name.split("_")
-    if len(parts) < 6 or parts[0] != "exp14":
-        raise ValueError(f"{name!r} is not an exp_14 eval name")
+    if len(parts) < 6 or parts[0] != "exp15":
+        raise ValueError(f"{name!r} is not an exp_15 eval name")
     arm, cellname = parts[1], parts[2]
-    tail = parts[3:]
     if cellname not in CELLS:
-        raise ValueError(f"{name!r} names no exp_14 cell type")
+        raise ValueError(f"{name!r} names no exp_15 cell type")
+    tail = parts[3:]
+    token = ""
+    if tail and not tail[0].startswith("S"):
+        token, tail = tail[0], tail[1:]
     try:
         step = int(tail[0][1:]) if tail[0].startswith("S") else None
         seed = int(tail[1][1:]) if tail[1].startswith("s") else None
@@ -191,13 +259,12 @@ def parse_eval_name(name):
         raise ValueError(f"{name!r} does not carry S<step>_s<seed>_K<k>")
     deg = None
     if cellname == "vctl":
-        tok = tail[3] if len(tail) > 3 else ""
-        if not tok.startswith("rot") or tok.startswith("rotrand"):
+        if not token.startswith("rot") or token.startswith("rotrand"):
             raise ValueError(f"{name!r} is a vctl cell without a fixed-angle token")
         try:
-            deg = float(tok[len("rot"):].replace("p", "."))
+            deg = float(token[len("rot"):].replace("p", "."))
         except ValueError:
-            raise ValueError(f"{name!r} carries an unreadable rotation token {tok!r}")
+            raise ValueError(f"{name!r} carries an unreadable rotation token {token!r}")
     cell = Cell(arm, cellname, step, seed, k, deg)
     if eval_name(cell) != name:
         raise ValueError(f"{name!r} is not the registered name of the cell it describes "
@@ -207,11 +274,11 @@ def parse_eval_name(name):
     return cell
 
 
-# --- rules mirrored from eval_FLAC (pinned by tests) -------------------------
+# --- rules mirrored from eval_FLAC (pinned by guard cases) -------------------
 def canonical_stream_hash(tuples):
     """sha256 over an ordered tuple stream, in the pre-registered serialization.
 
-    Mirror of ``eval_FLAC.canonical_stream_hash`` (plan §3.3): one JSON array per
+    Mirror of ``eval_FLAC.canonical_stream_hash`` (plan §4.3): one JSON array per
     tuple, ``sort_keys=True``, ``separators=(",", ":")``, LF-joined, UTF-8.
     """
     payload = "\n".join(
@@ -226,20 +293,30 @@ def expected_column_shift(deg, img_w=IMG_W):
 
 
 def cond_method(arm):
-    return "vanilla" if arm == "VANL" else "fa_invariant"
+    """Both exp_15 arms are VANILLA models; the arm axis is training augmentation.
 
-
-def frame_avg_angles(arm):
-    n = TRAIN_ORBIT[arm]
-    return None if n == 0 else [k * 360.0 / n for k in range(n)]
+    Kept as a function (rather than inlining the constant) so the driver, the
+    intent contract and this validator go on having exactly one definition of it —
+    and so a future third arm cannot silently inherit 'vanilla'.
+    """
+    if arm not in TRAIN_YAW_AUG:
+        raise ValueError(f"{arm!r} is not an exp_15 arm")
+    return COND_METHOD
 
 
 def metrics_path(ckpt_path, cell):
-    """Where eval_FLAC writes this cell's metrics JSON (mirror of build_output_paths)."""
+    """Where eval_FLAC writes this cell's metrics JSON (mirror of build_output_paths).
+
+    The rotation suffix appears TWICE in the stem — once inside the eval name we
+    chose and once appended by eval_FLAC itself — which is exp_14's observed
+    behaviour on real artifacts and is deliberately reproduced rather than
+    "fixed": the path has to be whatever eval_FLAC actually writes.
+    """
     ckpt_name = os.path.basename(ckpt_path).replace(".ckpt", "")
     directory = os.path.dirname(ckpt_path)
-    method = cond_method(cell.arm)
-    method_suffix = "" if method == "vanilla" else f"_{method}_a{TRAIN_ORBIT[cell.arm]}"
+    # method_suffix is empty for every exp_15 cell (vanilla); spelled out rather
+    # than dropped so the mirror of build_output_paths stays readable as a mirror.
+    method_suffix = "" if cond_method(cell.arm) == "vanilla" else "_unreachable"
     stem = f"{STEPS}_{CFG_SCALE}_{eval_name(cell)}{method_suffix}{rotation_suffix(cell)}"
     return os.path.join(directory, f"{ckpt_name}_metrics_{stem}.json")
 
@@ -253,47 +330,187 @@ def screenmeta_path(metrics):
     return metrics + ".screenmeta.json"
 
 
-# The audited per-arm checkpoint expectation, published once by
-# exp14_hash_ckpts.py and READ (never recomputed) from here on: re-hashing five
-# 724 MB files per wave on a shared login node is not a thing to do repeatedly.
-CKPT_EXPECT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                           "exp14_ckpt_expect.json")
-
-
-def load_ckpt_expect(path=CKPT_EXPECT, arms=ARMS, step=STEP):
-    """``arm -> sha256`` from the audited expectation; anything missing is fatal.
-
-    Fail-closed by construction (review B4): a dedup SKIP is a decision to keep a
-    number without re-measuring it, so it must rest on WHICH checkpoint produced
-    that number. An absent or incomplete expectation therefore raises rather than
-    letting the check quietly not run.
-    """
+# --- checkpoint admission expectation (plan §5 G4) ---------------------------
+def _read_json_strict(path, label):
     if not os.path.isfile(path):
+        raise ValueError(f"{label} missing: {path}")
+    try:
+        with open(path) as fh:
+            obj = json.load(fh)
+    except (ValueError, OSError) as exc:
+        raise ValueError(f"{label} {path} could not be parsed: {exc}")
+    if not isinstance(obj, dict):
+        raise ValueError(f"{label} {path} is not a JSON object at the top level")
+    return obj
+
+
+def _sha256_or_raise(value, what, source):
+    if not (isinstance(value, str) and len(value) == 64
+            and all(c in "0123456789abcdef" for c in value)):
+        raise ValueError(f"{what} in {source} is {value!r}, not a lowercase sha256 digest")
+    return value
+
+
+def _vanl_expectation(path=CONTROL_ADMISSION, step=STEP):
+    """VANL's admission facts, from the committed control-admission record.
+
+    The record's own ``checks`` block is deliberately NOT read: it is the
+    recorder's claim that it validated the file, and a claim is not evidence.
+    What is taken is the MEASUREMENTS — sha256, size, embedded step, canonical
+    embedded-config digest, the EMA inventory digest — every one of which
+    exp15_admit_ckpt.py re-derives from the checkpoint itself.
+    """
+    rec = _read_json_strict(path, "VANL control-admission record")
+    ckpt = rec.get("checkpoint")
+    cfg = rec.get("config")
+    meta = rec.get("_meta") or {}
+    if not isinstance(ckpt, dict) or not isinstance(cfg, dict):
+        raise ValueError(f"{path} has no checkpoint/config block")
+    if int(meta.get("expect_step", -1)) != int(step):
+        raise ValueError(f"{path} was recorded for step {meta.get('expect_step')!r}, "
+                         f"not exp_15's endpoint {step}")
+    if int(ckpt.get("global_step", -1)) != int(step):
+        raise ValueError(f"{path} records global_step {ckpt.get('global_step')!r}, "
+                         f"not exp_15's endpoint {step}")
+    xref = rec.get("exp_11_cross_references") or {}
+    ckpt_rel = ckpt.get("path")
+    if not isinstance(ckpt_rel, str) or not ckpt_rel:
+        raise ValueError(f"{path} records no checkpoint path")
+    return {
+        "arm": "VANL",
+        "source": os.path.basename(path),
+        "sha256": _sha256_or_raise(ckpt.get("sha256"), "checkpoint sha256", path),
+        "bytes": int(ckpt["bytes"]) if isinstance(ckpt.get("bytes"), int) else None,
+        "step": int(step),
+        # WHERE the file must live and WHICH recorded launch produced it. A sha256
+        # says two files are the same bytes; it does not say the bytes came from a
+        # run this campaign registered, and a checkpoint dropped into the tree by
+        # hand would otherwise satisfy every other check.
+        "ckpt_path_rel": ckpt_rel,
+        "manifest_sha256": _sha256_or_raise(
+            xref.get("manifest_sha256"),
+            "exp_11_cross_references.manifest_sha256", path),
+        "embedded_config_canonical_sha256": _sha256_or_raise(
+            ckpt.get("embedded_config_canonical_sha256"),
+            "embedded_config_canonical_sha256", path),
+        "config_canonical_sha256": _sha256_or_raise(
+            cfg.get("canonical_sha256"), "config canonical_sha256", path),
+        "config_sha256": _sha256_or_raise(cfg.get("sha256"), "config sha256", path),
+        "config_rel": ARM_CONFIG_REL["VANL"],
+        "ema_inventory_sha256": _sha256_or_raise(
+            ckpt.get("ema_inventory_sha256"), "ema_inventory_sha256", path),
+        "ema_key_count": ckpt.get("ema_key_count"),
+        "online_model_key_count": ckpt.get("online_model_key_count"),
+    }
+
+
+def _yawaug_expectation(path=LAUNCH_REGISTRY, step=STEP):
+    """YAWAUG's admission facts, from the chain's committed launch registry.
+
+    ``final_ckpt_sha256`` is written by the chain's FINAL leg. Until 40k lands it
+    is ``null``, and this raises with that fact stated plainly — a cell must not
+    be admitted, skipped as "already valid", or evaluated against an expectation
+    that does not exist yet.
+
+    Two independent records of the same checkpoint are cross-checked: the arm
+    entry's ``final_ckpt_sha256``/``final_step`` and the leg list's step-40000
+    entry (with its own audit block). Disagreement is fatal — it means the
+    registry describes two different files.
+    """
+    reg = _read_json_strict(path, "YAWAUG launch registry")
+    arm = ((reg.get("arms") or {}).get("YAWAUG"))
+    if not isinstance(arm, dict):
+        raise ValueError(f"{path} has no arms.YAWAUG entry")
+    final_sha = arm.get("final_ckpt_sha256")
+    final_step = arm.get("final_step")
+    if final_sha is None or final_step is None:
         raise ValueError(
-            f"audited checkpoint expectation missing: {path}. Publish it once with "
-            "exp14_hash_ckpts.py --write; a cell cannot be skipped as 'already "
-            "measured' without knowing which checkpoint measured it.")
-    with open(path) as fh:
-        raw = json.load(fh)
-    if not isinstance(raw, dict) or not isinstance(raw.get("arms"), dict):
-        raise ValueError(f"checkpoint expectation {path} is malformed")
-    if int(raw.get("step", -1)) != int(step):
-        raise ValueError(f"checkpoint expectation {path} is for step {raw.get('step')!r}, "
-                         f"not the campaign endpoint {step}")
-    out = {}
-    for arm in arms:
-        row = raw["arms"].get(arm)
-        sha = (row or {}).get("sha256")
-        if not (isinstance(sha, str) and len(sha) == 64):
-            raise ValueError(f"checkpoint expectation {path} has no sha256 for arm {arm}")
-        out[arm] = sha
-    return out
+            f"{path}: arms.YAWAUG.final_ckpt_sha256={final_sha!r} / final_step="
+            f"{final_step!r} — the training chain has NOT recorded its final "
+            f"checkpoint yet (legs recorded so far: "
+            f"{sorted(int(l.get('step', -1)) for l in (reg.get('legs') or {}).get('YAWAUG') or [])}). "
+            "No YAWAUG eval cell can be admitted, classified or skipped until the "
+            "chain completes 40,000 steps and its completion gate backfills that "
+            "field. This is the pre-registered fail-closed state, not an error to "
+            "work around.")
+    if int(final_step) != int(step):
+        raise ValueError(f"{path}: arms.YAWAUG.final_step {final_step!r} is not exp_15's "
+                         f"pre-registered endpoint {step}")
+    legs = (reg.get("legs") or {}).get("YAWAUG") or []
+    hits = [l for l in legs if isinstance(l, dict) and int(l.get("step", -1)) == int(step)]
+    if len(hits) != 1:
+        raise ValueError(f"{path}: expected exactly one legs.YAWAUG entry at step {step}, "
+                         f"found {len(hits)}")
+    leg = hits[0]
+    audit = leg.get("audit") or {}
+    leg_sha = _sha256_or_raise(leg.get("ckpt_sha256"), f"legs.YAWAUG[step={step}].ckpt_sha256", path)
+    final_sha = _sha256_or_raise(final_sha, "arms.YAWAUG.final_ckpt_sha256", path)
+    if leg_sha != final_sha:
+        raise ValueError(f"{path}: arms.YAWAUG.final_ckpt_sha256 {final_sha[:12]} != the "
+                         f"step-{step} leg's ckpt_sha256 {leg_sha[:12]} — the registry "
+                         "describes two different checkpoints")
+    leg_path = leg.get("ckpt_path")
+    if not isinstance(leg_path, str) or not leg_path:
+        raise ValueError(f"{path}: legs.YAWAUG[step={step}] records no ckpt_path")
+    return {
+        "arm": "YAWAUG",
+        "source": os.path.basename(path),
+        "sha256": final_sha,
+        "bytes": int(leg["ckpt_bytes"]) if isinstance(leg.get("ckpt_bytes"), int) else None,
+        "step": int(step),
+        # See the VANL branch: identity of the bytes is not provenance of the run.
+        "ckpt_path_rel": leg_path,
+        "manifest_sha256": _sha256_or_raise(arm.get("manifest_sha256"),
+                                            "arms.YAWAUG.manifest_sha256", path),
+        "embedded_config_canonical_sha256": _sha256_or_raise(
+            audit.get("embedded_config_canonical_sha256"),
+            f"legs.YAWAUG[step={step}].audit.embedded_config_canonical_sha256", path),
+        # The registry pins the config by RAW file bytes; its canonical form is
+        # what the checkpoint embeds, so the two are recorded separately and
+        # exp15_admit_ckpt.py checks the file against both.
+        "config_canonical_sha256": _sha256_or_raise(
+            audit.get("embedded_config_canonical_sha256"),
+            f"legs.YAWAUG[step={step}].audit.embedded_config_canonical_sha256", path),
+        "config_sha256": _sha256_or_raise(arm.get("config_sha256"),
+                                          "arms.YAWAUG.config_sha256", path),
+        "config_rel": ARM_CONFIG_REL["YAWAUG"],
+        "ema_inventory_sha256": _sha256_or_raise(
+            audit.get("ema_inventory_sha256"),
+            f"legs.YAWAUG[step={step}].audit.ema_inventory_sha256", path),
+        "ema_key_count": audit.get("ema_key_count"),
+        "online_model_key_count": audit.get("online_model_key_count"),
+    }
+
+
+def admission_expectation(arm, control=CONTROL_ADMISSION, registry=LAUNCH_REGISTRY,
+                          step=STEP):
+    """Every admission fact recorded for ``arm``; raises (never guesses) otherwise."""
+    if arm == "VANL":
+        return _vanl_expectation(control, step)
+    if arm == "YAWAUG":
+        return _yawaug_expectation(registry, step)
+    raise ValueError(f"{arm!r} is not an exp_15 arm")
+
+
+def load_ckpt_expect(control=CONTROL_ADMISSION, registry=LAUNCH_REGISTRY,
+                     arms=ARMS, step=STEP):
+    """``arm -> sha256`` from the committed records; anything missing is fatal.
+
+    Fail-closed by construction (exp_14 review B4): a dedup SKIP is a decision to
+    keep a number without re-measuring it, so it must rest on WHICH checkpoint
+    produced that number. An absent or incomplete record therefore raises rather
+    than letting the check quietly not run — which, today, is exactly what happens
+    for YAWAUG while the chain is still running.
+    """
+    return {arm: admission_expectation(arm, control, registry, step)["sha256"]
+            for arm in arms}
 
 
 def checkpoint_path(output_root, arm, step=STEP):
     """The arm's single checkpoint at ``step``, or None if it is not unique."""
-    pat = os.path.join(output_root, f"exp11_{arm}", f"FLAC_exp11_{arm}",
-                       f"exp11_{arm}", "checkpoints", f"epoch=*-step={step}.ckpt")
+    if arm not in ARM_CKPT_GLOB:
+        raise ValueError(f"{arm!r} is not an exp_15 arm")
+    pat = os.path.join(output_root, *ARM_CKPT_GLOB[arm], f"epoch=*-step={step}.ckpt")
     hits = sorted(glob.glob(pat))
     return hits[0] if len(hits) == 1 else None
 
@@ -306,7 +523,7 @@ def rotation_expectation(cell):
     angle and no seed, a random cell has a seed and a NULL angle. Recording 0.0
     for a random cell would make it indistinguishable from an unrotated one.
     """
-    if cell.cell == "rgen":
+    if cell.cell == "rrob":
         return "random", None, int(cell.seed)
     if cell.cell == "vctl":
         return "fixed", float(cell.rotate_deg), None
@@ -334,7 +551,11 @@ def validate_metrics_record(rec, cell, pin=None, expected_count=EXPECTED_COUNT,
     _eq(reasons, "cond_autocast", rec.get("cond_autocast"), COND_AUTOCAST)
     _eq(reasons, "batch_size", rec.get("batch_size"), BATCH_SIZE)
     _eq(reasons, "cond_method", rec.get("cond_method"), cond_method(cell.arm))
-    _eq(reasons, "frame_avg_angles", rec.get("frame_avg_angles"), frame_avg_angles(cell.arm))
+    # eval_FLAC records the angle list only under fa_invariant; both exp_15 arms
+    # are vanilla, so the record must carry None here whatever the (pinned, inert)
+    # flag said. The flag itself is checked against the MANIFEST — see
+    # validate_screenmeta — because that is the only artifact that witnesses it.
+    _eq(reasons, "frame_avg_angles", rec.get("frame_avg_angles"), FRAME_AVG_ANGLES_RECORDED)
     ds = rec.get("dataset_config") or ""
     want_split = SPLIT_K8 if int(cell.k) == 8 else SPLIT_K1
     if not str(ds).endswith(want_split):
@@ -354,9 +575,12 @@ def validate_metrics_record(rec, cell, pin=None, expected_count=EXPECTED_COUNT,
     if pin is not None:
         _eq(reasons, "source_sha (campaign pin)", rec.get("source_sha"), pin)
     # --- the yaw protocol (announcement 05) ---
-    # Fixed-mode records are FROZEN (review B4): eval_FLAC adds the random-mode
-    # provenance keys only in random mode, so their presence on a zref/vctl cell
-    # means it ran a protocol other than the one it claims.
+    # Fixed-mode records are FROZEN (exp_14 review B4): eval_FLAC adds the
+    # random-mode provenance keys only in random mode, so their presence on a
+    # tbl/vctl cell means it ran a protocol other than the one it claims. This
+    # holds even though exp_15's tbl cells pass --rotate-mode fixed --rotate-deg 0
+    # EXPLICITLY: those flag values are eval_FLAC's own defaults, so the record is
+    # byte-identical to one written with no rotation flags at all.
     random_keys = ("rotate_mode", "rotate_seed", "input_hash", "assignment_hash",
                    "stream_count", "img_w")
     if mode == "random":
@@ -385,12 +609,12 @@ def validate_metrics_record(rec, cell, pin=None, expected_count=EXPECTED_COUNT,
 
 def _per_scene_reasons(rec, expected_scenes=EXPECTED_SCENES,
                        expected_keys=EXPECTED_SCENE_KEYS):
-    """Named reasons the per-scene block is not this campaign's (plan §4).
+    """Named reasons the per-scene block is not this campaign's (plan §5).
 
     Required, with NO fallback. The estimand is the per-scene mean, so a cell
     that did not record `by_scene` did not measure it — and a collector that
     silently averaged over items instead would answer a different question in the
-    same table cell (round-3 review B1).
+    same table cell.
     """
     reasons = []
     by_scene = rec.get("by_scene")
@@ -515,6 +739,14 @@ def validate_screenmeta(meta, cell, pin=None, ckpt_sha=None,
     _eq(reasons, "screenmeta eval_name", meta.get("eval_name"), eval_name(cell))
     _eq(reasons, "screenmeta cond_method", meta.get("cond_method"), cond_method(cell.arm))
     _eq(reasons, "screenmeta cond_autocast", meta.get("cond_autocast"), COND_AUTOCAST)
+    # BOTH spellings of the frame-average angles, from their two different
+    # sources: the effective value eval_FLAC recorded (None under vanilla) and the
+    # LITERAL flag the driver pinned (announcement 05). A manifest that carried
+    # only the first could not witness that the flag was ever passed.
+    _eq(reasons, "screenmeta frame_avg_angles", meta.get("frame_avg_angles"),
+        FRAME_AVG_ANGLES_RECORDED)
+    _eq(reasons, "screenmeta frame_avg_angles_flag", meta.get("frame_avg_angles_flag"),
+        FRAME_AVG_ANGLES_FLAG)
     _eq(reasons, "screenmeta rotate_mode", meta.get("rotate_mode"), mode)
     _eq(reasons, "screenmeta rotate_seed", meta.get("rotate_seed"), rseed)
     meta_deg = meta.get("rotate_deg")
@@ -527,8 +759,11 @@ def validate_screenmeta(meta, cell, pin=None, ckpt_sha=None,
     _eq(reasons, "screenmeta record_stream", meta.get("record_stream"), True)
     _eq(reasons, "screenmeta record_per_scene", meta.get("record_per_scene"), True)
     _eq(reasons, "screenmeta use_ema", meta.get("use_ema"), True)
-    _eq(reasons, "screenmeta training_orbit", meta.get("training_orbit"), TRAIN_ORBIT[cell.arm])
-    _eq(reasons, "screenmeta eval_orbit", meta.get("eval_orbit"), TRAIN_ORBIT[cell.arm])
+    # exp_15's arm axis: what the TRAINING did. exp_14 recorded training/eval
+    # orbit here; exp_15 has no orbit, and recording one would invite a reader to
+    # compare two campaigns' rows on a field that means different things.
+    _eq(reasons, "screenmeta train_yaw_aug", meta.get("train_yaw_aug"),
+        TRAIN_YAW_AUG[cell.arm])
     if pin is not None:
         _eq(reasons, "screenmeta commit (campaign pin)", meta.get("commit"), pin)
     if ckpt_sha is not None:
@@ -566,15 +801,15 @@ def validate_cell(metrics, cell, pin=None, ckpt_sha=None, expected_count=EXPECTE
     it is a question that should not have been asked.
     """
     if not is_registered(cell):
-        raise ValueError(f"cell {tuple(cell)} is not registered in the exp_14 grid")
+        raise ValueError(f"cell {tuple(cell)} is not registered in the exp_15 grid")
     if not os.path.isfile(metrics):
         return [f"metrics artifact missing: {metrics}"]
     rec, bad = _read_record(metrics, "metrics")
     if rec is None:
         return bad
     # A VALID verdict must mean every CAMPAIGN check ran, not that some of them
-    # had no input (review B6). The pin and the checkpoint digest are the two that
-    # a caller could previously omit and still be told the cell is valid.
+    # had no input (exp_14 review B6). The pin and the checkpoint digest are the
+    # two that a caller could previously omit and still be told the cell is valid.
     reasons = []
     if pin is None:
         reasons.append("campaign pin not supplied: a cell cannot be declared valid "
@@ -583,8 +818,8 @@ def validate_cell(metrics, cell, pin=None, ckpt_sha=None, expected_count=EXPECTE
         reasons.append("expected ckpt sha256 not supplied: a cell cannot be declared "
                        "valid without checking WHICH checkpoint it evaluated")
     reasons += validate_metrics_record(rec, cell, pin=pin, expected_count=expected_count,
-                                      expected_scenes=expected_scenes,
-                                      expected_keys=expected_keys)
+                                       expected_scenes=expected_scenes,
+                                       expected_keys=expected_keys)
 
     meta_p = screenmeta_path(metrics)
     if not os.path.isfile(meta_p):
@@ -599,7 +834,7 @@ def validate_cell(metrics, cell, pin=None, ckpt_sha=None, expected_count=EXPECTE
     stream_p = stream_path(metrics)
     if not os.path.isfile(stream_p):
         reasons.append(f"stream sidecar missing: {stream_p} (--record-stream is "
-                       "mandatory for every exp_14 cell)")
+                       "mandatory for every exp_15 cell)")
     else:
         stream, bad = _read_record(stream_p, "stream")
         reasons += bad
@@ -615,10 +850,10 @@ def parse_deg(value):
 
     The shell has no null. A caller that means "no angle" can only say so by
     omitting the flag, or by passing 0, "0", "0.0" or "" — and a validator that
-    treated the string "0" as "an angle was requested" rejected 100 of the 106
-    cells AFTER they had spent their GPU (review B1). Everything that spells
-    "nothing" therefore reads as None here, and everything else must parse as a
-    float or it is a hard usage error.
+    treated the string "0" as "an angle was requested" rejected 100 of exp_14's
+    106 cells AFTER they had spent their GPU (exp_14 review B1). Everything that
+    spells "nothing" therefore reads as None here, and everything else must parse
+    as a float or it is a hard usage error.
     """
     if value is None:
         return None
@@ -636,8 +871,8 @@ def check_argv(cell, metrics, pin=None, ckpt_sha=None, expected_count=EXPECTED_C
     The screen driver renders these flags in shell (it already knows every value
     and a python round-trip would cost a process); a guard case pins its rendering
     against this function, so the two cannot drift. Note what is NOT here: a
-    ``--rotate-deg`` outside vctl. rgen draws its angles and zref has none, so
-    passing 0 would be a claim about a protocol neither of them ran.
+    ``--rotate-deg`` outside vctl. rrob draws its angles and tbl's angle is zero,
+    so passing 0 would be a claim about a protocol neither of them ran.
     """
     argv = ["check", "--metrics", str(metrics), "--arm", cell.arm, "--cell", cell.cell,
             "--step", str(int(cell.step)), "--seed", str(int(cell.seed)),
@@ -650,6 +885,34 @@ def check_argv(cell, metrics, pin=None, ckpt_sha=None, expected_count=EXPECTED_C
         argv += ["--ckpt-sha", str(ckpt_sha)]
     argv += ["--expected-count", str(int(expected_count)),
              "--expected-scenes", str(int(expected_scenes))]
+    return argv
+
+
+def eval_argv_tail(cell):
+    """The PROTOCOL half of the eval_FLAC argv for one cell (plan §4.2, literal).
+
+    Rendered here so the screen driver, the pre-launch intent and the guard suite
+    all read ONE definition of the per-class flags. The identity half
+    (--model-config/--ckpt-path/--eval-name/...) stays in the driver, which is
+    what knows the paths.
+
+    Announcement 05 in one line: every value below is passed explicitly, including
+    the ones that equal an argparse default, because a recipe that relies on a
+    default changes silently when the default does.
+    """
+    mode, deg, rseed = rotation_expectation(cell)
+    argv = ["--cond-method", COND_METHOD,
+            "--frame-avg-angles", FRAME_AVG_ANGLES_FLAG,
+            "--cond-autocast", COND_AUTOCAST,
+            "--rotate-mode", mode]
+    if mode == "random":
+        # --rotate-seed is legal ONLY in random mode (eval_FLAC makes passing it in
+        # fixed mode a hard error, never a silent no-op), and the angle stays 0:
+        # a random cell draws per sample, so a non-zero --rotate-deg is refused by
+        # eval_FLAC as a contradiction.
+        argv += ["--rotate-seed", str(int(rseed)), "--rotate-deg", "0"]
+    else:
+        argv += ["--rotate-deg", fmt_deg(deg)]
     return argv
 
 
@@ -668,20 +931,16 @@ def contract_lines(cell):
     it is written by the job that already ran under whatever flags it got.
 
     Rendered HERE so the intent, the screen driver's argv and this validator's
-    admissibility rules are one definition rather than three that agree today
-    (round-3 closure B3).
+    admissibility rules are one definition rather than three that agree today.
     """
     mode, deg, rseed = rotation_expectation(cell)
-    angles = frame_avg_angles(cell.arm)
     split = SPLIT_K8 if int(cell.k) == 8 else SPLIT_K1
     return [
-        f"cond_method {cond_method(cell.arm)}",
-        # DECIMAL, not the filename-safe rendering: this line records the value
-        # --frame-avg-angles actually receives, and an intent that spelled 11.25
-        # as "11p25" would not be readable as the flag it documents.
-        "frame_avg_angles " + (",".join(_fmt_angle(a) for a in angles) if angles
-                               else "<none:vanilla>"),
-        f"training_orbit {TRAIN_ORBIT[cell.arm]} eval_orbit {TRAIN_ORBIT[cell.arm]}",
+        f"cond_method {COND_METHOD}",
+        # The LITERAL flag value, not the recorded one: this line documents what
+        # the command line will carry. It is inert under vanilla and pinned anyway.
+        f"frame_avg_angles {FRAME_AVG_ANGLES_FLAG} (inert under vanilla; pinned per announcement 05)",
+        f"train_yaw_aug {'yes' if TRAIN_YAW_AUG[cell.arm] else 'no'}",
         f"rotate_mode {mode} rotate_seed "
         + (str(int(rseed)) if rseed is not None else "<n/a>")
         + " rotate_deg " + ("<null>" if deg is None else fmt_deg(deg)),
@@ -690,6 +949,7 @@ def contract_lines(cell):
         " (release grouping: AR room families)",
         f"batch_size {BATCH_SIZE} num_workers {NUM_WORKERS}",
         f"cond_autocast {COND_AUTOCAST} cfg_scale {CFG_SCALE} steps {STEPS} use_ema yes",
+        "eval_argv_protocol " + " ".join(eval_argv_tail(cell)),
     ]
 
 
@@ -701,7 +961,7 @@ def _cmd_contract(args):
         print(f"contract: {exc}", file=sys.stderr)
         return 2
     if not is_registered(cell):
-        print(f"contract: {tuple(cell)} is not registered in the exp_14 grid",
+        print(f"contract: {tuple(cell)} is not registered in the exp_15 grid",
               file=sys.stderr)
         return 2
     for line in contract_lines(cell):
@@ -728,7 +988,7 @@ def _cell_from_args(args):
             raise ValueError("a vctl cell needs a non-zero --rotate-deg")
     elif deg is not None:
         raise ValueError(f"--rotate-deg {args.rotate_deg} is meaningless for a "
-                         f"{args.cell} cell: rgen draws its own angles and zref has none")
+                         f"{args.cell} cell: rrob draws its own angles and tbl is theta=0")
     return Cell(args.arm, args.cell, int(args.step), int(args.seed), int(args.k), deg)
 
 
@@ -740,6 +1000,32 @@ def _cmd_jobname(args):
         print(f"jobname: {exc}", file=sys.stderr)
         return 2
     print(job_name(cell))
+    return 0
+
+
+def _cmd_evalname(args):
+    """Print the canonical eval name (the driver's shell rendering is pinned to it)."""
+    try:
+        cell = _cell_from_args(args)
+    except ValueError as exc:
+        print(f"evalname: {exc}", file=sys.stderr)
+        return 2
+    print(eval_name(cell))
+    return 0
+
+
+def _cmd_evalargv(args):
+    """Print the cell class's PROTOCOL flags (plan §4.2), the one definition."""
+    try:
+        cell = _cell_from_args(args)
+    except ValueError as exc:
+        print(f"evalargv: {exc}", file=sys.stderr)
+        return 2
+    if not is_registered(cell):
+        print(f"evalargv: {tuple(cell)} is not registered in the exp_15 grid",
+              file=sys.stderr)
+        return 2
+    print(" ".join(eval_argv_tail(cell)))
     return 0
 
 
@@ -756,6 +1042,21 @@ def _cmd_argv(args):
     return 0
 
 
+def _cmd_expect(args):
+    """Print the admission expectation for one arm (or all) — the G4 input."""
+    arms = (args.arm,) if args.arm else ARMS
+    rc = 0
+    for arm in arms:
+        try:
+            exp = admission_expectation(arm, args.control, args.registry)
+        except ValueError as exc:
+            print(f"EXPECT-UNAVAILABLE {arm}: {exc}", file=sys.stderr)
+            rc = 1
+            continue
+        print(json.dumps(exp, sort_keys=True))
+    return rc
+
+
 def _cmd_check(args):
     try:
         cell = _cell_from_args(args)
@@ -763,7 +1064,7 @@ def _cmd_check(args):
         print(f"check: {exc}", file=sys.stderr)
         return 2
     if not is_registered(cell):
-        print(f"CELL {tuple(cell)} is not registered in the exp_14 grid")
+        print(f"CELL {tuple(cell)} is not registered in the exp_15 grid")
         return 2
     if not os.path.isfile(args.metrics):
         print(f"MISSING {eval_name(cell)}: {args.metrics}")
@@ -781,12 +1082,21 @@ def _cmd_check(args):
 
 
 def _cmd_classify(args):
-    """One line per cell: identity, status, reasons. The wave submitter's input."""
-    try:
-        expect = load_ckpt_expect(args.ckpt_expect, arms=ARMS)
-    except ValueError as exc:
-        print(f"classify: {exc}", file=sys.stderr)
-        return 2
+    """One line per cell: identity, status, reasons. The wave submitter's input.
+
+    Fail-closed on the ADMISSION side too: if an arm in this wave has no recorded
+    checkpoint expectation (today: YAWAUG, whose chain has not reached 40k), the
+    whole classification refuses rather than reporting its cells as MISSING —
+    "not measured yet" and "cannot be judged yet" are different states and only
+    the second one must stop a wave.
+    """
+    expect = {}
+    for arm in sorted({c.arm for c in wave_cells(args.wave)}):
+        try:
+            expect[arm] = admission_expectation(arm, args.control, args.registry)["sha256"]
+        except ValueError as exc:
+            print(f"classify: {exc}", file=sys.stderr)
+            return 2
     ckpts = {}
     for cell in wave_cells(args.wave):
         if cell.arm not in ckpts:
@@ -794,7 +1104,7 @@ def _cmd_classify(args):
         ckpt = ckpts[cell.arm]
         if ckpt is None:
             print(f"{_fmt_cell(cell)} MISSING no unique step={cell.step} checkpoint under "
-                  f"{args.output_root}/exp11_{cell.arm}")
+                  f"{args.output_root}/{ARM_CKPT_GLOB[cell.arm][0]}")
             continue
         path = metrics_path(ckpt, cell)
         if not os.path.isfile(path):
@@ -810,6 +1120,18 @@ def _cmd_classify(args):
     return 0
 
 
+def _add_cell_args(parser, metrics=False):
+    if metrics:
+        parser.add_argument("--metrics", required=True)
+    parser.add_argument("--arm", required=True)
+    parser.add_argument("--cell", required=True)
+    parser.add_argument("--step", required=True)
+    parser.add_argument("--seed", required=True)
+    parser.add_argument("--k", required=True)
+    parser.add_argument("--rotate-deg", default=None)
+    return parser
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = parser.add_subparsers(dest="cmd")
@@ -818,59 +1140,50 @@ def main(argv=None):
     g.add_argument("--wave", default="all", choices=list(WAVES))
     g.set_defaults(func=_cmd_grid)
 
-    c = sub.add_parser("check", help="validate ONE cell's artifacts")
-    c.add_argument("--metrics", required=True)
-    c.add_argument("--arm", required=True)
-    c.add_argument("--cell", required=True)
-    c.add_argument("--step", required=True)
-    c.add_argument("--seed", required=True)
-    c.add_argument("--k", required=True)
-    c.add_argument("--rotate-deg", default=None)
+    c = _add_cell_args(sub.add_parser("check", help="validate ONE cell's artifacts"),
+                       metrics=True)
     c.add_argument("--pin", default=None)
     c.add_argument("--ckpt-sha", default=None)
     c.add_argument("--expected-count", type=int, default=EXPECTED_COUNT)
     c.add_argument("--expected-scenes", type=int, default=EXPECTED_SCENES)
     c.set_defaults(func=_cmd_check)
 
-    j = sub.add_parser("jobname", help="print the canonical Slurm job name for one cell")
-    j.add_argument("--arm", required=True)
-    j.add_argument("--cell", required=True)
-    j.add_argument("--step", required=True)
-    j.add_argument("--seed", required=True)
-    j.add_argument("--k", required=True)
-    j.add_argument("--rotate-deg", default=None)
+    j = _add_cell_args(sub.add_parser("jobname", help="print the canonical Slurm job name"))
     j.set_defaults(func=_cmd_jobname)
 
-    a = sub.add_parser("argv", help="print the canonical `check` argv for one cell")
-    a.add_argument("--metrics", required=True)
-    a.add_argument("--arm", required=True)
-    a.add_argument("--cell", required=True)
-    a.add_argument("--step", required=True)
-    a.add_argument("--seed", required=True)
-    a.add_argument("--k", required=True)
-    a.add_argument("--rotate-deg", default=None)
+    e = _add_cell_args(sub.add_parser("evalname", help="print the canonical eval name"))
+    e.set_defaults(func=_cmd_evalname)
+
+    ea = _add_cell_args(sub.add_parser("evalargv",
+                                       help="print the cell class's eval-protocol flags"))
+    ea.set_defaults(func=_cmd_evalargv)
+
+    a = _add_cell_args(sub.add_parser("argv", help="print the canonical `check` argv"),
+                       metrics=True)
     a.add_argument("--pin", default=None)
     a.add_argument("--ckpt-sha", default=None)
     a.add_argument("--expected-count", type=int, default=EXPECTED_COUNT)
     a.add_argument("--expected-scenes", type=int, default=EXPECTED_SCENES)
     a.set_defaults(func=_cmd_argv)
 
-    ct = sub.add_parser("contract",
-                        help="print the cell's protocol contract (intent manifest)")
-    ct.add_argument("--arm", required=True)
-    ct.add_argument("--cell", required=True)
-    ct.add_argument("--step", required=True)
-    ct.add_argument("--seed", required=True)
-    ct.add_argument("--k", required=True)
-    ct.add_argument("--rotate-deg", default=None)
+    ct = _add_cell_args(sub.add_parser("contract",
+                                       help="print the cell's protocol contract"))
     ct.set_defaults(func=_cmd_contract)
+
+    x = sub.add_parser("expect", help="print the recorded checkpoint admission facts")
+    x.add_argument("--arm", default=None, choices=list(ARMS))
+    x.add_argument("--control", default=CONTROL_ADMISSION)
+    x.add_argument("--registry", default=LAUNCH_REGISTRY)
+    x.set_defaults(func=_cmd_expect)
 
     cl = sub.add_parser("classify", help="status of every cell in a wave (dedup input)")
     cl.add_argument("--wave", default="all", choices=list(WAVES))
     cl.add_argument("--output-root", required=True)
     cl.add_argument("--pin", default=None)
-    cl.add_argument("--ckpt-expect", default=CKPT_EXPECT,
-                    help="audited arm -> checkpoint sha256 map (exp14_ckpt_expect.json)")
+    cl.add_argument("--control", default=CONTROL_ADMISSION,
+                    help="committed VANL control-admission record")
+    cl.add_argument("--registry", default=LAUNCH_REGISTRY,
+                    help="committed YAWAUG chain launch registry")
     cl.add_argument("--expected-count", type=int, default=EXPECTED_COUNT)
     cl.add_argument("--expected-scenes", type=int, default=EXPECTED_SCENES)
     cl.set_defaults(func=_cmd_classify)
