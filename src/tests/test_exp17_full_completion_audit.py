@@ -59,7 +59,11 @@ def good_log(n_loss: int = 200) -> str:
     ]
     body += [f"Epoch 0: {i}/4550 [00:10<00:00, train/loss=0.6{i % 10}]"
              for i in range(n_loss)]
-    body.append(TERMINATION)
+    # REAL framing: tqdm never terminates its progress line, so Lightning's
+    # marker is APPENDED to the final progress record. Rev 2's fixture put it on
+    # a line of its own, which is why the tests were green while the tool would
+    # have rejected the genuine run (Codex review).
+    body[-1] = body[-1] + TERMINATION
     return "\n".join(body)
 
 
@@ -228,6 +232,15 @@ def test_a_banner_substring_does_not_count_as_the_banner():
     paraphrase = good_log().replace(
         BANNER, f"preflight: {BANNER} was requested")
     assert any("banner" in p.lower() for p in audit(log=paraphrase))
+
+
+def test_the_marker_appended_to_a_tqdm_line_is_accepted():
+    """The framing the real logs actually use — pinned as a regression."""
+    tail = f"Epoch 8: 4550/4550 [2:28:37<00:00, 0.51it/s]{TERMINATION}"
+    log = "\n".join([ARGV, TOPOLOGY, BANNER]
+                    + [f"Epoch 0: {i}/4550 train/loss=0.5" for i in range(60)]
+                    + [tail])
+    assert audit(log=log) == []
 
 
 def test_carriage_returns_do_not_hide_the_markers():

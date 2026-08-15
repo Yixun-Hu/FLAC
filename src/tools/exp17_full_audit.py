@@ -102,7 +102,13 @@ def audit_full_run(*, log: str, ckpt_names: list[str], rc: int | None,
         )
 
     # --- did it finish? the check the launching side lacks ------------------ #
-    if TERMINATION_LINE not in lineset:
+    # tqdm does not terminate its progress line, so Lightning's marker is
+    # APPENDED to the final progress record rather than standing alone. Requiring
+    # a whole line rejected a genuinely completed run (Codex review; the real
+    # smoke log proves the framing). Requiring the line to END with the marker
+    # accepts that framing while still rejecting a diagnostic that merely quotes
+    # it -- quoted text is followed by more words.
+    if not any(ln.endswith(TERMINATION_LINE) for ln in lines):
         problems.append(
             f"the run did not reach its registered endpoint of {ENDPOINT_STEPS} "
             f"steps: Lightning's termination line is absent as a whole line "

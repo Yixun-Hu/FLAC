@@ -13,6 +13,7 @@ See ``src/tests/test_exp17_rotation_grid.py`` for why each pin exists.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import NamedTuple
 
@@ -39,6 +40,11 @@ STEPS = "1"
 SEED = "42"
 COND_METHOD = "vanilla"     # the arm is vanilla-conditioned (announcement 05)
 ROTATE_MODE = "fixed"
+# model_comparison.md declares the protocol every row was produced under:
+# "full published unseen split (6,337 items / 17 rooms), EMA weights, cfg 1.0,
+# bf16 cond-autocast". eval_FLAC.py DEFAULTS to 'default', not bf16 -- so
+# omitting this flag silently produces numbers comparable to no existing row.
+COND_AUTOCAST = "bf16"
 
 
 class Cell(NamedTuple):
@@ -99,6 +105,7 @@ def cell_argv(c: Cell, *, model_config: str) -> list[str]:
         "--dataset-config", K_CONFIGS[c.k],
         "--ckpt-path", c.ckpt_path,
         "--cond-method", COND_METHOD,
+        "--cond-autocast", COND_AUTOCAST,
         "--rotate-mode", ROTATE_MODE,
         "--rotate-deg", str(float(c.rotate_deg)),
         "--cfg-scale", CFG_SCALE,
@@ -108,16 +115,34 @@ def cell_argv(c: Cell, *, model_config: str) -> list[str]:
     ]
 
 
-def pending_cells(grid: list[Cell], *, out_dir: Path) -> list[Cell]:
-    """Cells with no non-empty result yet.
+def cell_is_complete(c: Cell, *, out_dir: Path) -> bool:
+    """Is there an ADMISSIBLE result for this cell?
 
-    128 cells will not survive 12 uninterrupted hours, so the queue must be
-    resumable. A zero-byte JSON is a crashed eval, not a result.
+    "Non-empty file exists" is not enough (Codex review): a truncated JSON, a
+    ``{}``, or an output produced under the WRONG protocol would all suppress a
+    rerun and then be read as a result. So the record must parse, carry metrics,
+    and agree with the cell on every protocol field it records — which makes this
+    the artifact-admission gate as well as the resume predicate.
     """
-    out_dir = Path(out_dir)
-    pending = []
-    for c in grid:
-        hits = list(out_dir.rglob(f"*{cell_name(c)}*.json"))
-        if not any(p.is_file() and p.stat().st_size > 0 for p in hits):
-            pending.append(c)
-    return pending
+    for path in Path(out_dir).rglob(f"*{cell_name(c)}*.json"):
+        if not (path.is_file() and path.stat().st_size > 0):
+            continue
+        try:
+            rec = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue                       # truncated/crashed: rerun it
+        if not isinstance(rec, dict) or not rec.get("metrics"):
+            continue
+        if rec.get("cond_method") != COND_METHOD:
+            continue
+        if rec.get("cond_autocast") not in (None, COND_AUTOCAST):
+            continue                       # produced under a different protocol
+        if float(rec.get("rotate_deg", -1)) != float(c.rotate_deg):
+            continue                       # a different angle wrote this file
+        return True
+    return False
+
+
+def pending_cells(grid: list[Cell], *, out_dir: Path) -> list[Cell]:
+    """Cells with no ADMISSIBLE result yet — 128 cells will not run uninterrupted."""
+    return [c for c in grid if not cell_is_complete(c, out_dir=out_dir)]

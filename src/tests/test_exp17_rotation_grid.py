@@ -25,6 +25,8 @@ The things that can silently ruin the grid, and are therefore pinned here:
 
 Written by the main session seat (Claude Opus 5, max effort).
 """
+import json
+
 import pytest
 
 from src.tools.exp17_rotation_grid import (
@@ -134,6 +136,17 @@ def test_the_scoring_protocol_is_pinned_to_the_comparison_table():
     assert argv[argv.index("--seed") + 1] == "42"
 
 
+def test_the_registered_bf16_cond_autocast_is_passed_explicitly():
+    """model_comparison.md: every row is 'cfg 1.0, bf16 cond-autocast'.
+
+    eval_FLAC.py DEFAULTS to 'default', not bf16 — so omitting this flag makes
+    all 128 numbers comparable to no existing row in the table.
+    """
+    for c in build_grid(CKPTS):
+        argv = cell_argv(c, model_config=MODEL_CFG)
+        assert argv[argv.index("--cond-autocast") + 1] == "bf16"
+
+
 def test_the_checkpoint_path_is_the_one_for_that_cell():
     for c in build_grid(CKPTS):
         argv = cell_argv(c, model_config=MODEL_CFG)
@@ -160,13 +173,46 @@ def test_names_that_differ_only_by_rotation_are_distinct():
 # --------------------------------------------------------------------------- #
 # resumability — 128 cells will not survive an uninterrupted 12 h
 # --------------------------------------------------------------------------- #
+def _record(c, **over):
+    rec = {"metrics": {"T60": 1.0}, "cond_method": "vanilla",
+           "cond_autocast": "bf16", "rotate_deg": float(c.rotate_deg)}
+    rec.update(over)
+    return json.dumps(rec)
+
+
 def test_completed_cells_are_not_rerun(tmp_path):
     grid = build_grid(CKPTS)
     done = grid[0]
-    (tmp_path / f"{cell_name(done)}.json").write_text("{}")
+    (tmp_path / f"{cell_name(done)}.json").write_text(_record(done))
     remaining = pending_cells(grid, out_dir=tmp_path)
     assert done not in remaining
     assert len(remaining) == len(grid) - 1
+
+
+def test_an_empty_json_object_does_not_count_as_a_result(tmp_path):
+    """Rev 1's test explicitly blessed `{}` — Codex called that out."""
+    grid = build_grid(CKPTS)
+    (tmp_path / f"{cell_name(grid[0])}.json").write_text("{}")
+    assert grid[0] in pending_cells(grid, out_dir=tmp_path)
+
+
+def test_a_truncated_json_does_not_count_as_a_result(tmp_path):
+    grid = build_grid(CKPTS)
+    (tmp_path / f"{cell_name(grid[0])}.json").write_text('{"metrics": {"T60"')
+    assert grid[0] in pending_cells(grid, out_dir=tmp_path)
+
+
+@pytest.mark.parametrize("wrong", [
+    {"cond_method": "fa_invariant"},
+    {"cond_autocast": "default"},
+    {"rotate_deg": 45.0},
+])
+def test_a_result_produced_under_the_wrong_protocol_is_rerun(tmp_path, wrong):
+    """The resume predicate is also the artifact-admission gate."""
+    grid = build_grid(CKPTS)
+    c = grid[0]
+    (tmp_path / f"{cell_name(c)}.json").write_text(_record(c, **wrong))
+    assert c in pending_cells(grid, out_dir=tmp_path)
 
 
 def test_nothing_is_skipped_when_no_output_exists(tmp_path):

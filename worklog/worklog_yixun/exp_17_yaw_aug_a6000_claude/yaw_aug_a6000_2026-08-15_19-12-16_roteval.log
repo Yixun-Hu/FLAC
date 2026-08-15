@@ -1,0 +1,11 @@
+=== exp_17 C4 rotation-eval grid — 2026-08-15_19-12-16 — ae74320 ===
+foreign run : /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG
+symlink farm: outputs_FLAC/exp17_YAWAUG_roteval   (all writes land here; the foreign tree is read-only)
+REFUSING TO START: training pid 1012326 is still alive.
+  Yixun chose 'run after training, zero interference' (2026-08-15).
+  Wait for it to finish, or re-run with TRAIN_PID= if that pid is stale.
+=== exp_17 C4 rotation-eval grid — 2026-08-15_19-12-16 — ae74320 ===
+foreign run : /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG
+symlink farm: outputs_FLAC/exp17_YAWAUG_roteval   (all writes land here; the foreign tree is read-only)
+gate 1 OK: training pid 999999 is not running
+REFUSING TO START: the foreign log records no exit status yet

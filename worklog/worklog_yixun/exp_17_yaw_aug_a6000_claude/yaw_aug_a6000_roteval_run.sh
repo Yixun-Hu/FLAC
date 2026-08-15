@@ -33,7 +33,14 @@ FARM="outputs_FLAC/exp17_YAWAUG_roteval"
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 LOG="${EXPDIR}/yaw_aug_a6000_${TS}_roteval.log"
 
+# Single instance. Two starts would schedule duplicate cells, put two processes
+# on each card, and race writes to the same JSONs (Codex review).
+LOCK="${EXPDIR}/.roteval.lock"
+exec 9>"$LOCK"
+flock -n 9 || { echo "another roteval run holds ${LOCK} - abort"; exit 2; }
+
 mkdir -p "$FARM"
+[ -L "$FARM" ] && { echo "${FARM} is a symlink; refusing (writes could land elsewhere)"; exit 2; }
 exec > >(tee -a "$LOG") 2>&1
 echo "=== exp_17 C4 rotation-eval grid — ${TS} — $(git rev-parse --short HEAD) ==="
 echo "foreign run : ${FOREIGN_CKPT_DIR}"
@@ -53,8 +60,14 @@ echo "gate 1 OK: training pid ${TRAIN_PID} is not running"
 # --- gate 2: the run must have COMPLETED, not just stopped ------------------- #
 # Evaluating an interrupted run's checkpoints would produce 128 real-looking
 # numbers for a trajectory that never reached its endpoint.
+# The foreign launcher records its own exit status: "=== exp_17 FULL exit rc=N".
+# Hard-coding --rc 0 would defeat the audit's "an unknown status is not a zero
+# one" rule (Codex review), so parse the real one and refuse if it is absent.
+FRC="$(tr '\r' '\n' < "$FOREIGN_LOG" | sed -n 's/.*exit rc=\([0-9][0-9]*\).*/\1/p' | tail -1)"
+[ -n "$FRC" ] || { echo "REFUSING TO START: the foreign log records no exit status yet"; exit 2; }
+echo "foreign training exit status: rc=${FRC}"
 python -m src.tools.exp17_full_audit --log "$FOREIGN_LOG" \
-       --ckpt-dir "$FOREIGN_CKPT_DIR" --rc 0 || {
+       --ckpt-dir "$FOREIGN_CKPT_DIR" --rc "$FRC" || {
   echo "REFUSING TO START: the FULL run did not pass its completion audit (above)."
   echo "  Its checkpoints are not a completed 40k trajectory; evaluating them would"
   echo "  produce 128 plausible numbers for an experiment that did not finish."
@@ -62,10 +75,13 @@ python -m src.tools.exp17_full_audit --log "$FOREIGN_LOG" \
 echo "gate 2 OK: completion audit passed"
 
 # --- build the symlink farm -------------------------------------------------- #
+# Clear stale links first: an old link could silently point the grid at a
+# different run's checkpoint for the same step (Codex review).
+find "$FARM" -maxdepth 1 -name '*.ckpt' -delete
 N=0
 while IFS= read -r real; do
-  ln -sfn "$real" "${FARM}/$(basename "$real")"
-  N=$((N+1))
+  if ln -sfn "$real" "${FARM}/$(basename "$real")"; then N=$((N+1));
+  else echo "failed to link ${real} - abort"; exit 2; fi
 done < <(find "$FOREIGN_CKPT_DIR" -name '*.ckpt' | sort)
 echo "symlinked ${N} checkpoints into ${FARM}"
 [ "$N" -eq 16 ] || { echo "expected 16 checkpoints, linked ${N} - abort"; exit 2; }
@@ -97,7 +113,19 @@ rc=$?
 TOTAL="$(wc -l < "${EXPDIR}/.roteval_queue.txt")"
 echo "queue: ${TOTAL} pending cells (~11 min each; 2 in flight => ~$((TOTAL*11/2/60)) h)"
 
-i=0
+# A no-argument `wait` returns 0 regardless of child failures (GNU bash manual),
+# so rev 1 discarded every evaluator error. Wait on each PID and count failures.
+i=0; FAILED=0; PIDS=(); LABELS=()
+drain() {
+  local j
+  for j in "${!PIDS[@]}"; do
+    if ! wait "${PIDS[$j]}"; then
+      echo "  !! cell FAILED: ${LABELS[$j]} (see ${EXPDIR}/roteval_${LABELS[$j]}.log)"
+      FAILED=$((FAILED+1))
+    fi
+  done
+  PIDS=(); LABELS=()
+}
 while IFS= read -r line; do
   IFS=$'\t' read -r -a ARGV <<<"$line"
   GPU=$((i % 2))
@@ -105,11 +133,12 @@ while IFS= read -r line; do
   CELLLOG="${EXPDIR}/roteval_${NAME}.log"
   echo "[$((i+1))/${TOTAL}] gpu${GPU} ${NAME}"
   HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES="$GPU" "${ARGV[@]}" > "$CELLLOG" 2>&1 &
+  PIDS+=("$!"); LABELS+=("$NAME")
   i=$((i+1))
-  # two in flight, one per card
-  [ $((i % 2)) -eq 0 ] && wait
+  [ $((i % 2)) -eq 0 ] && drain
 done < "${EXPDIR}/.roteval_queue.txt"
-wait
+drain
+echo "evaluator failures: ${FAILED}"
 
 echo "=== grid finished at $(date '+%Y-%m-%d %H:%M:%S') ==="
 LEFT="$(python -c "
