@@ -35,8 +35,16 @@ rtol=1e-5)` over ≥100 tensors and merely *prints* the observed max difference 
 it does **not** assert `torch.equal` or `max_diff == 0`. It is an **fp32 CPU**
 probe, while this arm trains **bf16-mixed on CUDA**. The "210 tensors, max abs
 diff 0.0" figure is a one-time exp_07 worklog observation, genuine but not a
-pinned invariant. Consequence for interpretation: any Yaw-Aug-vs-P1 difference
-smaller than that tolerance must not be attributed to the augmentation.
+pinned invariant. **Codex r3 sharpened this further:** a single-step CPU allclose probe does not
+establish equivalence of a 40,000-step bf16-mixed CUDA *trajectory*, and
+sub-tolerance differences compound. So deltas 2/3 are a **disclosed numerical
+confound**: an arm built this way reports the augmentation AND the
+checkpointing change together, never the augmentation alone.
+
+⚠️ **This arm was stood down on 2026-08-15** in favour of the concurrently
+running arm that keeps checkpointing ON and therefore matches P1 exactly,
+carrying no such confound. This document is retained as the record of the
+OFF variant and of the reasoning that retired it.
 
 Measured effect: 3.86 → 2.200 s/opt-step, i.e. 42.9 h → 24.4 h at 40k.
 

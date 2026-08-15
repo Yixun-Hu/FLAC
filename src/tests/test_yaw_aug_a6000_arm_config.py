@@ -13,11 +13,11 @@ below asserts exactly those three and nothing else:
   2. ``source_vit.gradient_checkpointing``     true→false
   3. ``context_poses_vit.gradient_checkpointing`` true→false
 
-Deltas 2–3 are admissible because gradient checkpointing trades memory for
-recompute in the backward pass: mathematically it recomputes the same
-activations and cannot move the trajectory. State the *empirical* support for
-that at its true strength (corrected after the Codex r2 review, which caught
-this docstring overclaiming):
+Deltas 2–3 change *how* activations are obtained in the backward pass —
+recomputed rather than stored. Gradient checkpointing is **intended** to
+preserve the mathematical computation. What that intent is actually backed by,
+at its true strength (corrected twice: r2 caught the docstring claiming bitwise
+identity, r3 caught the surviving claim that it "cannot move the trajectory"):
 
   - ``src/tests/test_vit_gradient_checkpointing.py::test_gradient_identity_on_vs_off``
     pins ON-vs-OFF parameter gradients as ``torch.allclose(atol=1e-6,
@@ -30,11 +30,19 @@ this docstring overclaiming):
     *observation*, not a pinned invariant. It is genuine, and it is consistent
     with the maths, but nothing in CI re-checks it.
 
-So the honest statement is: deltas 2–3 are *gradient-equivalent to allclose
-tolerance on an fp32 CPU probe*, and expected to be exact by construction. The
-scientific claim remains a single **algorithmic** delta against P1 with the
-memory/time knob disclosed — but any result that turns on a difference smaller
-than the tolerance above must not be attributed to the augmentation.
+So the honest statement is: checkpointing is *intended* to preserve the
+computation, CPU gradients were *observed* allclose at one step — and
+**bf16-mixed CUDA trajectory equivalence over 40,000 steps is NOT established.**
+A single-step CPU allclose probe cannot establish it, and sub-tolerance
+differences compound across a long optimisation.
+
+**Therefore deltas 2–3 are a disclosed numerical confound, not a free knob.** An
+arm built from this file cannot attribute a Yaw-Aug-vs-P1 difference to the
+augmentation alone; it can only report the augmentation *and* the checkpointing
+change together. ⚠️ This is why, on 2026-08-15, Yixun chose to rely on the
+concurrently-running arm that keeps checkpointing ON and matches P1 exactly —
+that arm carries no such confound. This file is retained as the record of the
+OFF variant; see yaw_aug_a6000_codex_code_r3_review.md before reusing it.
 
 The comparison is built FORWARDS (construct the expected file from the control's
 own bytes plus the pinned edits, then compare wholesale) rather than by

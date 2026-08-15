@@ -14,6 +14,11 @@
 #  - Restoration is now FATAL, not a warning: a suite that cannot prove it put
 #    the arm config back must not report success.
 #
+# RETIRED 2026-08-15: stood down in favour of the concurrently-running arm.
+# DO NOT REUSE without applying yaw_aug_a6000_codex_code_r3_review.md (HEAD
+# binding, smoke-evidence revision binding, pipefail+tr|grep SIGPIPE, FULL NaN
+# check, guard H/I deletion-vacuity, concurrency-unsafe cleanup).
+#
 # Written by the main session seat (Claude Opus 5, max effort).
 # ============================================================================
 set -uo pipefail

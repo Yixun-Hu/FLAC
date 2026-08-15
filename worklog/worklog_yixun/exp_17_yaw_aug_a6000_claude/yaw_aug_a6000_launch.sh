@@ -25,6 +25,11 @@
 #               training. This is the boundary the guard suite asserts against:
 #               it inspects the real argv, not a preflight paraphrase.
 #
+# RETIRED 2026-08-15: stood down in favour of the concurrently-running arm.
+# DO NOT REUSE without applying yaw_aug_a6000_codex_code_r3_review.md (HEAD
+# binding, smoke-evidence revision binding, pipefail+tr|grep SIGPIPE, FULL NaN
+# check, guard H/I deletion-vacuity, concurrency-unsafe cleanup).
+#
 # Written by the main session seat (Claude Opus 5, max effort).
 # Rev 2: applies the Codex r1 review (source pins, exact banner, R3 hardening,
 #        no smoke checkpoints, real dry-run boundary).
