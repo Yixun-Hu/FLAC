@@ -1,0 +1,53 @@
+=== exp_17 launcher guardtests (rev 2) — 2026-08-15_13-45-29 — c5e44a7 ===
+--- A. mode selection ---
+  PASS  A1 MODE unset  (rc=2)
+  PASS  A2 MODE lowercase  (rc=2)
+  PASS  A3 MODE invented  (rc=2)
+  PASS  A4 MODE near-miss  (rc=2)
+--- B. the BN-compliant rung is pinned literally ---
+  PASS  B1 accum smuggled  (rc=2)
+  PASS  B2 micro halved  (rc=2)
+  PASS  B3 non-numeric  (rc=2)
+--- C. config contract (the three-delta claim) ---
+  PASS  C1 width mismatch  (rc=2)
+  PASS  C2 bool-as-int  (rc=2)
+  PASS  C2b enabled as string  (rc=2)
+  PASS  C3 width as float  (rc=2)
+  PASS  C4 treatment missing  (rc=2)
+  PASS  C5 conditioning drift  (rc=2)
+  PASS  C6 EMA off  (rc=2)
+  PASS  C7 grad-ckpt back on  (rc=2)
+  PASS  C8 non-treatment drift  (rc=2)
+  PASS  C9 type-only drift  (rc=2)
+--- D. resource floors ---
+  PASS  D1 disk floor  (rc=2)
+  PASS  D2 VRAM floor  (rc=2)
+--- E. accept paths reach the DRY_RUN boundary (every gate satisfied) ---
+  PASS  E1 FULL accepted  (rc=0)
+  PASS  E2 SMOKE accepted  (rc=0)
+--- F. the ACTUAL train.py argv, not a preflight paraphrase ---
+  PASS  F1 FULL endpoint 40000
+  PASS  F2 FULL cadence 2500
+  PASS  F3 FULL own save-dir
+  PASS  F4 SMOKE never 40k
+  PASS  F5 SMOKE own save-dir
+  PASS  F6 SMOKE cadence>>steps
+  PASS  F7 rung reaches argv
+  PASS  F8 syncbn + 2 gpus
+  PASS  F9 the arm config is used
+--- G. reviewed-source pins and the FULL prerequisite ---
+  PASS  G1 source tamper caught  (rc=2)
+  PASS  G2 pins pass once restored  (rc=0)
+  PASS  G3 FULL without smoke evidence  (rc=2)
+  PASS  G4 evidence lacking banner rejected  (rc=2)
+--- H. the banner check cannot satisfy itself from preflight output ---
+  PASS  H1 preflight never emits the banner
+  PASS  H2 preflight does mention the treatment (non-vacuous)
+  PASS  H3 banner is matched as a whole line in the launcher
+--- I. R3 and the smoke-checkpoint assertion are wired to real verdicts ---
+  PASS  I1 R3 threshold is not overridable
+  PASS  I2 endpoint/cadence are not overridable
+  PASS  I3 R3 FAIL sets a non-zero rc
+  PASS  I4 smoke checkpoints are counted and fatal
+
+=== 41 passed, 0 failed ===
