@@ -70,6 +70,8 @@ The launcher must refuse nonliteral batch/accum/GPU/step/cadence values, config 
 
 Estimated training time is approximately 43–50 hours from launch based on P1's measured ~0.26 steps/s plus bounded augmentation overhead. A 20–30 optimizer-step smoke on the same 2×A6000 rung will measure the actual post-warmup rate before the full launch; no checkpoint is written by the smoke.
 
+**Smoke abort threshold (R3, pre-registered).** Convert the smoke's post-warmup steady-state rate to a projected wall-clock for 40,000 steps. **If the projection exceeds 55 hours, do not launch** — stop, report the measured rate, and re-plan (options: accept the longer budget explicitly, or investigate the augmentation overhead, which the exp_15 review bounded as small). Launching a run that is already known to overrun its budget is not a decision to make silently at 3 a.m.
+
 The smoke gate is fail-closed: if its steady-state rate projects the 40k run beyond 55 wall-clock hours, or if either rank OOMs, produces non-finite loss, misses the treatment banner, or violates the expected device/batch topology, do not launch the full run; stop and re-plan with Yixun.
 
 ## 4. Validation ladder
@@ -120,7 +122,7 @@ Yaw-Aug@40k, K∈{1,8}, yaw ∈ {90°,180°,270°}, seeds 42–46: 30 new cells.
 
 Sixteen checkpoints × K=1 × yaw 0° × seed 42. The 40k cell may be reused from §6.1 after artifact validation, giving at most 15 additional jobs.
 
-All eval manifests bind checkpoint SHA, model-config SHA, source SHA, dataset config, K, seed, rotation, conditioning mode, frame angles, autocast, full item count, and metric output path. Existing artifacts are skipped only after validation.
+All eval manifests bind checkpoint SHA, model-config SHA, **both the TRAINING source SHA and the EVALUATION source SHA (R5 — they can differ if training is pinned and evaluation runs at a later HEAD)**, dataset config, K, seed, rotation, conditioning mode, frame angles, autocast, evaluation chunk plan, full item count, and metric output path. Existing artifacts are skipped only after validation.
 
 ## 7. Statistics and claims
 
@@ -130,6 +132,7 @@ All eval manifests bind checkpoint SHA, model-config SHA, source SHA, dataset co
 - Pre-registered regularization interpretation: improvement at yaw 0° is compatible with generic data-diversity regularization; evidence for yaw-specific learning requires substantially larger gains at 90°/180°/270° than at 0°. Do not attribute all rotated-input gains to learned yaw structure without this degradation-relative-to-0° analysis.
 - Robustness reports both absolute metrics by angle and degradation relative to each method's own 0° result.
 - Avoid claiming exact yaw invariance for Yaw-Aug; the test is empirical robustness/generalization.
+- **R1 — the regularization confound, registered before any Yaw-Aug metric is seen.** A yaw-augmented arm may beat the baselines on rotated inputs simply because random yaw increases effective data diversity (a generic regularizer), not because it learned anything yaw-specific. The 0° cells already collected in §6.1 are the discriminator, and the reading is fixed now: **pure regularization predicts a gain at 0° comparable to the gain at 90/180/270; yaw-specific learning predicts a much larger gain at the rotated angles than at 0°.** Report the 0° gain and the rotated gains side by side and state which pattern the data shows. Neither outcome is a failure — but the interpretation must not be chosen after seeing the numbers.
 - FD is reported but interpreted separately because prior FA results improve acoustic/retrieval metrics while FD can worsen.
 - The fixed endpoint, single training seed, source-generation difference, and checkpoint-band caveats are mandatory in the final analysis.
 

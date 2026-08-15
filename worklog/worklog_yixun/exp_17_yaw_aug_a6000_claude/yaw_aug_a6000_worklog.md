@@ -20,3 +20,8 @@
 - **Result** — `passed`; plan review closed and implementation authorized.
 - **Analysis** — Current-HEAD isolation is safer than an unverifiable historical pin and prevents the shared checkout from mutating beneath a 40k run.
 - **Next** — Create isolated worktree; implement config/tests/launcher; run review and validation ladder; launch if green.
+
+## 2026-08-15T12:55:21-04:00 — plan revised to Rev 2 against the Opus-5 verification review
+- B1 RESOLVED: `58d0b887` does not exist on this remote; base is now current HEAD in an isolated worktree, with the default-preservation argument for exp_14/exp_16 written out explicitly. **Supersedable if Yixun supplies the real SHA.**
+- R1 regularization-confound reading registered BEFORE any metric is seen (0° gain vs rotated gains). R2 eval flags corrected (`--frame-avg-angles` dropped as inert for vanilla; `--frame-avg-max-fwd-samples 64` declared per announcement 06). R3 smoke abort threshold pre-registered (>55 h projection ⇒ stop, do not launch). R4 GPU policy aligned to co-tenancy + free-VRAM floor. R5 manifests bind training AND evaluation source SHAs.
+- Sections verified correct in review (schema, draw key, pose fields, img_w, physics, config base, flags, existing grids, curve workers, P1 resume caveat) left unchanged.
