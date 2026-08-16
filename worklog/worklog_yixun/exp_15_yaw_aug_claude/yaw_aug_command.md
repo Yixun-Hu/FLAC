@@ -27,3 +27,9 @@ cd /n/fs/gatrdp/codespace/FLAC
 CHAIN=1 SMOKE_WAIVER="<standing 2026-08-12 waiver; rate gate enforced in-chain at leg 1>" \
   bash worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_submit.sh YAWAUG
 ```
+
+## 2026-08-16 — STRICT guard-suite verification as a scheduled CPU job (login node saturated)
+
+```bash
+sbatch worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_guardtests_cpu.sbatch   # job 3706376, 8 CPU / 24G / 5h
+```
