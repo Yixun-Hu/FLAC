@@ -1191,12 +1191,19 @@ canary_fatal() {
 }
 CANARY_PRIVBIN="${CANARY_ROOT}/privbin"
 mkdir -p "$CANARY_PRIVBIN" || canary_fatal "could not create the private bindir"
-for _t in bash sh git python3 grep sed awk head tail tr cat id date hostname \
-          readlink flock mktemp sha256sum cut wc ls rm mv cp mkdir sleep touch env tee; do
+# The list must cover everything the script AND the canary's stub helper invoke.
+# It did not include `dirname`, and removing /usr/bin therefore broke the stub
+# helper — six cases failed for want of one symlink. Enumerated deliberately:
+# anything not here is absent, which is the property we want, so the cost of an
+# omission is a visible failure rather than a silent fallback to a system binary.
+for _t in bash sh git python3 grep egrep fgrep sed awk head tail tr cat id date \
+          hostname readlink dirname basename flock mktemp sha256sum cut wc ls rm \
+          mv cp mkdir rmdir sleep touch env tee sort uniq diff find chmod stat \
+          printf expr true false; do
   _src="$(command -v "$_t" 2>/dev/null)" || _src=""
   [ -n "$_src" ] && ln -sf "$_src" "${CANARY_PRIVBIN}/${_t}"
 done
-for _need in bash git python3 sed grep awk readlink; do
+for _need in bash git python3 sed grep awk readlink dirname cat; do
   [ -x "${CANARY_PRIVBIN}/${_need}" ] \
     || canary_fatal "the private bindir lacks a working '${_need}'"
 done
@@ -1243,7 +1250,7 @@ printf '#!/bin/bash\n# MAINTREE-CANARY\nexit 0\n' \
   > "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen.sbatch"
 cat > "${CANARY_MAIN}/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_measure_worktree.sh" <<'HEOF'
 #!/usr/bin/env bash
-MR="$(cd "$(dirname "$0")/../../.." && pwd)"
+_self="$0"; _d="${_self%/*}"; MR="$(cd "${_d}/../../.." && pwd)"
 if [ "$1" = "--with-lock" ]; then
   shift; L="$MR/.measure_worktrees/.store.lock"; : > "$L"
   exec 8>"$L"; export FA_ORBIT_STORE_LOCK_HELD=1; exec "$@"
