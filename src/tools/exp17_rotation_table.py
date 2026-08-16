@@ -28,16 +28,19 @@ ROTATIONS = (0, 90, 180, 270)
 COND_METHOD = "vanilla"
 COND_AUTOCAST = "bf16"
 
-METRIC_KEYS = (
-    "Test/T60 (%)",
-    "Test/C50 (dB)",
-    "Test/EDT (ms)",
-    "Test/FD",
-    "Test/RIR_to_GT_RIR_R@1 (%)",
-)
-LOWER_IS_BETTER = {"Test/T60 (%)", "Test/C50 (dB)", "Test/EDT (ms)", "Test/FD"}
+# The keys as they exist IN the metric JSON ("T60", "C50", ...), which are NOT
+# the stdout labels ("Test/T60 (%)"). Verified against a live grid record.
+METRIC_KEYS = ("T60", "C50", "EDT", "FD", "RIR_to_GT_RIR_R@1")
+LOWER_IS_BETTER = {"T60", "C50", "EDT", "FD"}
 
-_NAME = re.compile(r"_S(\d+)_K(\d+)_rot(\d+)_seed(\d+)\.json$")
+# The eval_name is embedded mid-filename, NOT at the end: for non-zero angles
+# eval_FLAC appends its OWN rotation suffix after the seed, so real files read
+# `..._rot90_seed42_rot90.json` while 0-degree files read `..._rot0_seed42.json`.
+# An end-anchored pattern therefore matches only the 0-degree quarter of the
+# grid and silently drops every rotated cell (found live at 41/128 cells; the
+# fixture had idealized the names -- same lesson as the termination marker).
+_NAME = re.compile(r"_S(\d+)_K(\d+)_rot(\d+)_seed(\d+)")
+_EVAL_SUFFIX = re.compile(r"_seed\d+_rot(\d+)\.json$")
 
 
 class Cell(NamedTuple):
@@ -58,10 +61,19 @@ def load_cells(directory: Path) -> list[Cell]:
     """Every admissible metric JSON in ``directory``, or raise on a bad one."""
     cells = []
     for path in sorted(Path(directory).glob("*.json")):
+        if ".stream." in path.name or "_predictions_" in path.name:
+            continue                       # sidecars, never metric records
         m = _NAME.search(path.name)
         if not m:
-            continue                       # not a grid cell (stream sidecars etc.)
+            continue                       # not a grid cell
         step, k, rot = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        suf = _EVAL_SUFFIX.search(path.name)
+        if suf and int(suf.group(1)) != rot:
+            raise ValueError(
+                f"{path.name}: the evaluator-appended rotation suffix _rot{suf.group(1)} "
+                f"contradicts the rot{rot} in the eval name -- the file was produced "
+                f"under a different angle than its cell claims"
+            )
         rec = json.loads(path.read_text())
 
         if rec.get("cond_method") != COND_METHOD:
@@ -80,6 +92,9 @@ def load_cells(directory: Path) -> list[Cell]:
                 f"{path.name}: recorded rotate_deg={rec.get('rotate_deg')} "
                 f"contradicts the {rot} in its name — the orbit would be permuted"
             )
+        missing = [key for key in METRIC_KEYS if key not in rec["metrics"]]
+        if missing:
+            raise ValueError(f"{path.name}: metrics record lacks {missing}")
         cells.append(Cell(step, k, rot, rec["metrics"]))
     return cells
 
@@ -104,8 +119,8 @@ def orbit_rows(cells: list[Cell]) -> list[OrbitRow]:
 
 
 def render(rows: list[OrbitRow]) -> str:
-    short = {"Test/T60 (%)": "T60", "Test/C50 (dB)": "C50", "Test/EDT (ms)": "EDT",
-             "Test/FD": "FD", "Test/RIR_to_GT_RIR_R@1 (%)": "R@1"}
+    short = {"T60": "T60", "C50": "C50", "EDT": "EDT", "FD": "FD",
+             "RIR_to_GT_RIR_R@1": "R@1"}
     head = "| step | K | " + " | ".join(
         f"{short[m]}@0 | Δ{short[m]}" for m in METRIC_KEYS) + " |"
     sep = "|" + "---|" * (2 + 2 * len(METRIC_KEYS))

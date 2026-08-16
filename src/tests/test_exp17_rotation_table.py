@@ -30,12 +30,19 @@ def _write(tmp_path, step, k, rot, t60=9.0, **over):
     rec = {
         "cond_method": "vanilla", "cond_autocast": "bf16",
         "rotate_deg": float(rot),
-        "metrics": {"Test/T60 (%)": t60, "Test/C50 (dB)": 1.0,
-                    "Test/EDT (ms)": 40.0, "Test/FD": 0.3,
-                    "Test/RIR_to_GT_RIR_R@1 (%)": 5.0},
+        # the keys as they exist in real records (NOT the stdout labels)
+        "metrics": {"T60": t60, "C50": 1.0, "EDT": 40.0, "FD": 0.3,
+                    "RIR_to_GT_RIR_R@1": 5.0},
     }
     rec.update(over)
-    name = f"epoch=0-step={step}_metrics_1_1.0_exp17_YAWAUG_S{step}_K{k}_rot{rot}_seed42.json"
+    # REAL naming: eval_FLAC appends its own rotation suffix for non-zero
+    # angles, so rotated files carry it twice: `..._rot90_seed42_rot90.json`.
+    # The fixture must mirror the artifact, not an idealization -- an
+    # end-anchored parser passed the idealized fixture while dropping every
+    # rotated cell of the live grid.
+    suffix = f"_rot{rot}" if rot != 0 else ""
+    name = (f"epoch=0-step={step}_metrics_1_1.0_"
+            f"exp17_YAWAUG_S{step}_K{k}_rot{rot}_seed42{suffix}.json")
     (tmp_path / name).write_text(json.dumps(rec))
 
 
@@ -67,6 +74,22 @@ def test_a_cell_from_a_different_protocol_is_refused(tmp_path):
         load_cells(tmp_path)
 
 
+def test_a_contradictory_evaluator_suffix_is_refused(tmp_path):
+    """`..._rot90_seed42_rot270.json` = produced under a different angle."""
+    rec = {"cond_method": "vanilla", "cond_autocast": "bf16", "rotate_deg": 90.0,
+           "metrics": {k: 1.0 for k in METRIC_KEYS}}
+    bad = "epoch=0-step=2500_metrics_1_1.0_exp17_YAWAUG_S2500_K1_rot90_seed42_rot270.json"
+    (tmp_path / bad).write_text(json.dumps(rec))
+    with pytest.raises(ValueError, match="suffix"):
+        load_cells(tmp_path)
+
+
+def test_a_stream_sidecar_is_ignored(tmp_path):
+    _full_orbit(tmp_path)
+    (tmp_path / "epoch=0-step=40000_metrics_1_1.0_exp17_YAWAUG_S40000_K1_rot0_seed42.stream.json").write_text("{}")
+    assert len(load_cells(tmp_path)) == 4
+
+
 def test_a_cell_whose_recorded_angle_contradicts_its_name_is_refused(tmp_path):
     """The one mislabel that would silently permute the orbit."""
     _write(tmp_path, 40000, 1, 90, rotate_deg=270.0)
@@ -80,14 +103,14 @@ def test_a_cell_whose_recorded_angle_contradicts_its_name_is_refused(tmp_path):
 def test_the_spread_is_max_minus_min_over_the_orbit(tmp_path):
     _full_orbit(tmp_path, values=(9.0, 9.4, 9.1, 9.3))
     (row,) = orbit_rows(load_cells(tmp_path))
-    assert row.at_0["Test/T60 (%)"] == pytest.approx(9.0)
-    assert row.spread["Test/T60 (%)"] == pytest.approx(0.4)
+    assert row.at_0["T60"] == pytest.approx(9.0)
+    assert row.spread["T60"] == pytest.approx(0.4)
 
 
 def test_a_rotation_invariant_arm_has_zero_spread(tmp_path):
     _full_orbit(tmp_path, values=(9.0, 9.0, 9.0, 9.0))
     (row,) = orbit_rows(load_cells(tmp_path))
-    assert row.spread["Test/T60 (%)"] == pytest.approx(0.0)
+    assert row.spread["T60"] == pytest.approx(0.0)
 
 
 def test_an_incomplete_orbit_yields_no_row(tmp_path):
@@ -112,7 +135,7 @@ def test_a_spread_is_never_computed_across_K(tmp_path):
     for rot, v in zip(ROTATIONS, (5.0, 5.0, 5.0, 5.0)):
         _write(tmp_path, 40000, 8, rot, t60=v)
     rows = orbit_rows(load_cells(tmp_path))
-    assert all(r.spread["Test/T60 (%)"] == pytest.approx(0.0) for r in rows), (
+    assert all(r.spread["T60"] == pytest.approx(0.0) for r in rows), (
         "a K=1-vs-K=8 difference leaked into a rotation spread"
     )
 
