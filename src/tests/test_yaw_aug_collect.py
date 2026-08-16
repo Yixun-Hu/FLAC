@@ -39,7 +39,7 @@ def _cell(arm, kind, seed=42, k=8, deg=None):
 
 
 def write_cell(root, cell, *, n=8, pin=PIN, ckpt_sha=CKPT_SHA,
-               split=None, scene=None, offsets=None, targets=None,
+               split=None, scene=None, scene_drop=(), offsets=None, targets=None,
                meta_override=None, rec_override=None):
     """Write one cell's three artifacts under ``root``; return the metrics path."""
     mode, deg, rseed = V.rotation_expectation(cell)
@@ -49,6 +49,8 @@ def write_cell(root, cell, *, n=8, pin=PIN, ckpt_sha=CKPT_SHA,
 
     split_block = dict({m: 1.0 for m in V.REQUIRED_SPLIT_METRICS}, **(split or {}))
     scene_block = dict({m: 1.0 for m in V.REQUIRED_SCENE_METRICS}, **(scene or {}))
+    for _drop in scene_drop:                 # a MISSING key, not an overridden one
+        scene_block.pop(_drop, None)
 
     rel = list(targets or [f"Cafe/Cafe_idx_0/{i}.wav" for i in range(n)])
     inp = [[i, rel[i], ["ctx0"], V.IMG_W] for i in range(n)]
@@ -603,8 +605,10 @@ class TestFullGridHappyPath:
     def test_g3_and_g4_report_the_COMPLETE_obligation_set(self, tmp_path):
         res = run(tmp_path, values=flat_values)
         g3, g4 = res["gates"]["G3"], res["gates"]["G4"]
-        assert g3["checked"] == g3["expected"] == 52
-        assert g4["checked"] == g4["expected"] == 42
+        assert g3["checked"] == g3["expected"] == 50
+        # 40, not 42: review F3's V-gating leak closed in G4 too — a V cell that
+        # has not landed must not make the gate PENDING and suppress the readout.
+        assert g4["checked"] == g4["expected"] == 40
 
     def test_h1_yields_a_directional_verdict(self, tmp_path):
         res = run(tmp_path, values=flat_values)
@@ -629,7 +633,7 @@ class TestFullGridHappyPath:
     def test_the_report_has_every_planned_section(self, tmp_path):
         md = collect.render_report(run(tmp_path, values=flat_values))
         for heading in ("## Validity gates", "## K = 8 (confirmatory)",
-                        "## K = 1 (DESCRIPTIVE repeat)",
+                        "## K = 1 (descriptive repeat)",
                         "### H1 — clean cost/benefit",
                         "### H2 — does augmentation buy flatness?",
                         "### H3 — absolute deployment under rotation",
@@ -757,7 +761,7 @@ class TestG3ScopedBlocking:
         res = run(tmp_path, values=flat_values, skip={("VANL", "rrob", 1, 46)})
         g3 = res["gates"]["G3"]
         assert g3["status"] == "PENDING"
-        assert g3["checked"] < g3["expected"] == 52
+        assert g3["checked"] < g3["expected"] == 50
 
 
 class TestExternalChecksIntegration:
@@ -811,10 +815,13 @@ class TestGoldenReport:
         # the H1 table is the one a reader acts on; pin it exactly
         h1 = md.split("### H1 — clean cost/benefit (m_T YAWAUG vs VANL)")[1] \
                .split("### H2")[0].strip()
-        assert h1.splitlines()[0] == (
+        lines = [l for l in h1.splitlines() if l.strip()]
+        # the family label now precedes the table (K=8 confirmatory, K=1 not)
+        assert lines[0] == "_CONFIRMATORY (Holm over 2 co-primaries)_"
+        assert lines[1] == (
             "| metric | Δ (YAWAUG − VANL) | 95% CI | p | p (Holm-2) | verdict |")
-        assert h1.splitlines()[2].startswith("| T60 ↓ | -0.500 |")
-        assert h1.splitlines()[3].startswith("| R@1 ↑ | 0.500 |")
+        assert lines[3].startswith("| T60 ↓ | -0.500 |")
+        assert lines[4].startswith("| R@1 ↑ | 0.500 |")
 
     def test_the_bundle_is_STRICTLY_valid_json(self, tmp_path):
         # allow_nan=False is what JSON.parse enforces; a bare Infinity token
@@ -837,3 +844,229 @@ class TestGoldenReport:
 def st_stdev(values):
     import statistics
     return statistics.stdev(list(values))
+
+
+# =========================================================================== #
+# INTEGRATIVE review (NO-GO) — F2, F3, F4, F5, F7, F8.
+# =========================================================================== #
+class TestK1IsDescriptiveOnly:
+    """F2: exactly ONE confirmatory family — H1's two K=8 co-primaries."""
+
+    def test_k8_is_confirmatory_with_holm_and_verdicts(self, tmp_path):
+        res = run(tmp_path, values=flat_values)
+        h1 = res["hypotheses"]["8"]["H1"]
+        assert h1["confirmatory"] is True and "CONFIRMATORY" in h1["family"]
+        for row in h1["rows"]:
+            assert "p_holm" in row and "verdict" in row
+
+    def test_k1_is_descriptive_with_neither(self, tmp_path):
+        res = run(tmp_path, values=flat_values)
+        h1 = res["hypotheses"]["1"]["H1"]
+        assert h1["confirmatory"] is False and "DESCRIPTIVE" in h1["family"]
+        for row in h1["rows"]:
+            assert "p_holm" not in row and "verdict" not in row
+
+    def test_the_k1_table_has_no_holm_or_verdict_columns(self, tmp_path):
+        md = collect.render_report(run(tmp_path, values=flat_values))
+        k1 = md.split("## K = 1 (descriptive repeat)")[1].split("### H2")[0]
+        assert "Holm-2" not in k1 and "YAWAUG-SUPERIOR" not in k1
+        k8 = md.split("## K = 8 (confirmatory)")[1].split("### H2")[0]
+        assert "Holm-2" in k8
+
+    def test_the_k1_heading_says_descriptive(self, tmp_path):
+        md = collect.render_report(run(tmp_path, values=flat_values))
+        assert "## K = 1 (descriptive repeat)" in md
+        assert "**H1 (K=1, DESCRIPTIVE repeat)" in md or "K=1, DESCRIPTIVE" in md \
+            or "DESCRIPTIVE (K=1 repeat" in md
+
+
+class TestVCellsDoNotGate:
+    """F3: YAWAUG V is descriptive/mechanistic and carries no gate role."""
+
+    def test_v_owes_no_assignment_obligation(self):
+        kinds = {o[1] for o in collect.g3_obligations() if o[0] == "assignment_hash"}
+        assert kinds == {"rrob"}, kinds
+
+    def test_the_obligation_count_drops_to_50(self):
+        # 20 cross-arm input_hash (T and R only) + 10 R assignment + 20 pairings.
+        # V contributes NOTHING: it is descriptive and carries no gate role.
+        assert len(collect.g3_obligations()) == 50
+        assert not any(o[1] == "vctl" for o in collect.g3_obligations())
+
+    def test_a_V_hash_mismatch_does_not_block_any_hypothesis(self, tmp_path):
+        def break_v(cell, kw):
+            if cell.cell == "vctl" and cell.arm == "YAWAUG":
+                kw["offsets"] = [7] * 8          # not the fixed 90-degree shift
+            return kw
+        res = run(tmp_path, values=flat_values, mutate=break_v)
+        for k in ("8", "1"):
+            for h in ("H1", "H2", "H3"):
+                assert res["hypotheses"][k][h]["blocked"] is None, (k, h)
+
+    def test_a_missing_YAWAUG_V_cell_does_not_block_inference(self, tmp_path):
+        res = run(tmp_path, values=flat_values, skip={("YAWAUG", "vctl", 8, 42)})
+        assert res["gates"]["G3"]["status"] == "PASS"
+        assert res["hypotheses"]["8"]["H1"]["rows"], "H1 was blocked by a V cell"
+
+
+class TestInvalidT60Routing:
+    """F4: §13 puts Invalid T60 in the acoustic family."""
+
+    def test_the_validator_requires_it_per_scene(self):
+        assert "Invalid T60" in V.REQUIRED_SCENE_METRICS
+
+    def test_a_scene_missing_it_is_refused(self, tmp_path):
+        path = write_cell(str(tmp_path), _cell("YAWAUG", "tbl"),
+                          scene_drop=("Invalid T60",))
+        reasons = collect.validate_protocol(path, pin=PIN, ckpt_sha=CKPT_SHA,
+                                            expected_count=8)
+        assert any("Invalid T60" in r for r in reasons), reasons
+
+    def test_it_routes_as_a_scene_mean_not_split_level(self):
+        assert collect.aggregation_source("Invalid T60") == "scene-mean"
+
+    def test_it_has_a_direction_without_mutating_exp14s_table(self):
+        assert collect.metric_direction("Invalid T60") == "lower"
+        import yaw_gen_collect as G14
+        assert "Invalid T60" not in G14.METRIC_DIRECTION
+
+    def test_it_appears_in_the_descriptive_tables_not_the_confirmatory_family(self, tmp_path):
+        assert "Invalid T60" in collect.DESCRIPTIVE_METRICS
+        assert "Invalid T60" not in collect.CO_PRIMARY
+        md = collect.render_report(run(tmp_path, values=flat_values))
+        assert "Invalid T60" in md
+
+    def test_the_real_exp14_artifact_still_satisfies_the_widened_schema(self):
+        real = ("outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/"
+                "epoch=8-step=40000_metrics_1_1.0_exp14_VANL_rgen_S40000_s42_K8"
+                "_rotrand42_rotrand42.json")
+        if not os.path.isfile(real):
+            pytest.skip("exp_14 campaign artifacts not present in this tree")
+        rec = json.load(open(real))
+        assert V._per_scene_reasons(rec) == []
+
+
+class TestExp11ExternalCheck:
+    """F5: both pre-declared external references, descriptive and non-halting."""
+
+    def test_both_sources_are_reported(self, tmp_path):
+        res = run(tmp_path, values=flat_values)
+        assert {c["source"] for c in res["externals"]} == {"exp_14 Z", "exp_11 Q9"}
+
+    def test_neither_source_halts(self, tmp_path):
+        res = run(tmp_path, values=flat_values)
+        assert all(c["halting"] is False for c in res["externals"])
+
+    def test_exp11_acoustic_is_declared_incomparable_not_compared(self):
+        # exp_11's Q9 cells predate --record-per-scene, so their T60 is a
+        # split-level quantity — a different estimand from §13's scene mean.
+        ours = {"T60": {s: 1.0 for s in V.SEEDS},
+                "RIR_to_GT_RIR_R@1": {s: 1.0 for s in V.SEEDS}}
+        checks = collect._one_external("exp_11 Q9", ours, {"T60": {}, "RIR_to_GT_RIR_R@1": {}},
+                                       collect.CO_PRIMARY)
+        t60 = next(c for c in checks if c["metric"] == "T60")
+        assert t60["status"] == "UNAVAILABLE"
+        assert "different estimand" in t60["detail"]
+
+
+class TestG2ProbeIdentity:
+    """F8: the probe is the registered YAWAUG/rrob/K8/s42 cell, and is named."""
+
+    def test_g2_names_the_registered_probe(self, tmp_path):
+        res = run(tmp_path, values=flat_values)
+        assert res["gates"]["G2"]["probe"] == "exp15_YAWAUG_rrob_rotrand42_S40000_s42_K8"
+        assert "exp15_YAWAUG_rrob" in res["gates"]["G2"]["detail"]
+
+    def test_a_VANL_R_cell_cannot_stand_in_for_the_probe(self, tmp_path):
+        res = run(tmp_path, values=flat_values, skip={("YAWAUG", "rrob", 8, 42)})
+        assert res["gates"]["G2"]["status"] == "PENDING"
+        assert "has not landed" in res["gates"]["G2"]["detail"]
+
+
+class TestPublishRowTransaction:
+    """F7: the §6.9 trigger, executable and tested."""
+
+    def _publish(self):
+        import importlib.util
+        path = ("worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_publish_row.py")
+        spec = importlib.util.spec_from_file_location("yaw_aug_publish_row", path)
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        return m
+
+    def test_the_two_row_specs_are_registered_additively(self):
+        pub = self._publish()
+        specs, module = pub.row_specs()
+        assert len(specs) == 2
+        assert {s[2] for s in specs} == {1, 8}
+        assert all(s[4] == "exp15" for s in specs)
+        # ...and exp_11 / exp_14 specs are still present and untouched
+        labels = [r[0] for r in module.ROWS]
+        assert any("exp_11 baseline" in l for l in labels)
+        assert any("exp_14 Z" in l for l in labels)
+
+    def test_readiness_is_T_only_and_fires_when_T_is_complete(self, tmp_path):
+        pub = self._publish()
+        control, registry = _admission(tmp_path)
+        # ONLY the YAWAUG+VANL T cells: no R, no V at all
+        keep = {("YAWAUG", "tbl", 8), ("YAWAUG", "tbl", 1),
+                ("VANL", "tbl", 8), ("VANL", "tbl", 1)}
+        skip = {(c.arm, c.cell, int(c.k), int(c.seed)) for c in V.expected_grid()
+                if (c.arm, c.cell, int(c.k)) not in keep}
+        root = build_full_grid(tmp_path, values=flat_values, skip=skip)
+        got = pub.readiness(root, pin=PIN, expected_count=8,
+                            control=control, registry=registry)
+        assert got["ready"] is True, got["reasons"]
+        assert got["seeds"]["8"] == list(V.SEEDS)
+
+    def test_readiness_refuses_a_four_seed_block(self, tmp_path):
+        pub = self._publish()
+        control, registry = _admission(tmp_path)
+        root = build_full_grid(tmp_path, values=flat_values,
+                               skip={("YAWAUG", "tbl", 8, 46)})
+        got = pub.readiness(root, pin=PIN, expected_count=8,
+                            control=control, registry=registry)
+        assert got["ready"] is False
+        assert any("4/5" in r for r in got["reasons"]), got["reasons"]
+
+    def test_the_generator_routes_exp15_rows_through_scene_means(self, tmp_path):
+        """§13: T60/C50/EDT are ten-family means, retrieval stays split-level."""
+        pub = self._publish()
+        _specs, module = pub.row_specs()
+        d = tmp_path / "raws"
+        d.mkdir()
+        files = []
+        for seed in V.SEEDS:
+            cell = _cell("YAWAUG", "tbl", seed=seed)
+            files.append(write_cell(str(d), cell,
+                                    split={"T60": 99.0, "RIR_to_GT_RIR_R@1": 7.0},
+                                    scene={"T60": 3.0}))
+        values, n = module.agg_files_exp15(files)
+        assert n == 5
+        # the scene mean (3.0) is published, NOT the split-level 99.0
+        assert values["T60"][0] == pytest.approx(3.0)
+        # retrieval stays split-level
+        assert values["R@1"][0] == pytest.approx(7.0)
+
+    def test_the_generator_refuses_a_row_without_by_scene(self, tmp_path):
+        pub = self._publish()
+        _specs, module = pub.row_specs()
+        d = tmp_path / "raws2"
+        d.mkdir()
+        files = [write_cell(str(d), _cell("YAWAUG", "tbl", seed=s)) for s in V.SEEDS]
+        for f in files:                       # strip the block §13 routing needs
+            rec = json.load(open(f))
+            rec.pop("by_scene")
+            json.dump(rec, open(f, "w"))
+        with pytest.raises(ValueError, match="by_scene"):
+            module.agg_files_exp15(files)
+
+    def test_the_generator_refuses_a_non_T_cell_as_a_model_row(self, tmp_path):
+        pub = self._publish()
+        _specs, module = pub.row_specs()
+        d = tmp_path / "raws3"
+        d.mkdir()
+        files = [write_cell(str(d), _cell("YAWAUG", "rrob", seed=s)) for s in V.SEEDS]
+        ok, problems = module.validate_exp15_cell(files, expected_k=8)
+        assert ok is False
+        assert any("theta=0" in p or "T (" in p for p in problems), problems

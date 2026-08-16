@@ -149,10 +149,15 @@ REQUIRED_SPLIT_METRICS = (
     "RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5", "RIR_to_GT_RIR_R@10",
     "RIR_to_geom_R@1", "RIR_to_geom_R@5", "RIR_to_geom_R@10",
 )
-# Per scene, only the ACOUSTIC family is read (E2 takes FD and retrieval from the
-# split-level block — exp_14's pre-registered per-metric aggregation ruling), so
-# these three are what a per-scene payload must carry to be usable.
-REQUIRED_SCENE_METRICS = ("T60", "C50", "EDT")
+# Per scene, only the ACOUSTIC family is read (FD and retrieval come from the
+# split-level block — plan §13's ratified routing), so these are what a per-scene
+# payload must carry to be usable.
+#
+# `Invalid T60` is in that family BY RATIFICATION (plan §13 names it explicitly),
+# and the integrative review caught it missing here: the ten-group mean cannot be
+# routed from payloads that were never required to carry it. Verified present in
+# all ten groups of the real committed exp_14 artifact before being required.
+REQUIRED_SCENE_METRICS = ("T60", "Invalid T60", "C50", "EDT")
 SPLIT_K8 = "acousticroom_unseeneval.json"
 SPLIT_K1 = "acousticroom_unseeneval_1.json"
 
@@ -1207,6 +1212,45 @@ def _cmd_check(args):
     return 0
 
 
+def _cmd_cellstatus(args):
+    """VALID / MISSING / INVALID for ONE cell — the single-cell path's dedup.
+
+    The wave submitter has had validate-before-skip since round 1; the single-cell
+    path (which the runbook uses for the first V and probe launches) had no
+    equivalent and could therefore re-run a cell that had already landed
+    (integrative review F6). This is the same predicate, for one cell.
+    """
+    try:
+        cell = _cell_from_args(args)
+    except ValueError as exc:
+        print(f"cellstatus: {exc}", file=sys.stderr)
+        return 2
+    if not is_registered(cell):
+        print(f"cellstatus: {tuple(cell)} is not registered", file=sys.stderr)
+        return 2
+    try:
+        expect = admission_expectation(cell.arm, args.control, args.registry)["sha256"]
+    except ValueError as exc:
+        print(f"cellstatus: {exc}", file=sys.stderr)
+        return 2
+    ckpt = checkpoint_path(args.output_root, cell.arm, cell.step)
+    if ckpt is None:
+        print(f"MISSING no unique step={cell.step} checkpoint under {args.output_root}")
+        return 3
+    path = metrics_path(ckpt, cell)
+    if not os.path.isfile(path):
+        print(f"MISSING {path}")
+        return 3
+    reasons = validate_cell(path, cell, pin=args.pin, ckpt_sha=expect,
+                            expected_count=args.expected_count,
+                            expected_scenes=args.expected_scenes)
+    if reasons:
+        print(f"INVALID {path} :: " + "; ".join(reasons))
+        return 1
+    print(f"VALID {path}")
+    return 0
+
+
 def _cmd_classify(args):
     """One line per cell: identity, status, reasons. The wave submitter's input.
 
@@ -1303,6 +1347,16 @@ def main(argv=None):
     x.add_argument("--control", default=CONTROL_ADMISSION)
     x.add_argument("--registry", default=LAUNCH_REGISTRY)
     x.set_defaults(func=_cmd_expect)
+
+    cs = _add_cell_args(sub.add_parser("cellstatus",
+                                       help="VALID/MISSING/INVALID for ONE cell"))
+    cs.add_argument("--output-root", required=True)
+    cs.add_argument("--pin", default=None)
+    cs.add_argument("--control", default=CONTROL_ADMISSION)
+    cs.add_argument("--registry", default=LAUNCH_REGISTRY)
+    cs.add_argument("--expected-count", type=int, default=EXPECTED_COUNT)
+    cs.add_argument("--expected-scenes", type=int, default=EXPECTED_SCENES)
+    cs.set_defaults(func=_cmd_cellstatus)
 
     cl = sub.add_parser("classify", help="status of every cell in a wave (dedup input)")
     cl.add_argument("--wave", default="all", choices=list(WAVES))

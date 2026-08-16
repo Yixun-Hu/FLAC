@@ -1140,6 +1140,74 @@ grep -q 'no campaign pin FILE' "$SUB" && grep -q 'no campaign pin FILE' "$GRID"
 check "both submission paths refuse an unpinned live launch in the same words" $?
 grep -q 'refused BEFORE taking the shared store lock' "$SUB"
 check "  ... and the single-cell path refuses BEFORE taking the shared store lock" $?
+
+# --- F1 CANARY: only PINNED control-plane content is used and attributed -------
+# The blocking integrative finding: the pin bound the code the JOB read, but the
+# submitter, the validator that rendered identity/contract, and the driver handed
+# to sbatch all came from the MOVING main checkout. A post-pin edit could change
+# what executed while the artifact still recorded the pinned commit.
+#
+# This diverges the two trees deliberately and proves the pinned one wins.
+CANARY_WT="${TMP}/canary_wt"
+CANARY_EXP="${CANARY_WT}/worklog/worklog_yixun/exp_15_yaw_aug_claude"
+mkdir -p "$CANARY_EXP"
+cp "$SUB" "$GRID" "$CANARY_EXP/"
+# the PINNED validator renders a canary job name; the MAIN one is untouched
+sed 's|^    return (f"exp15-screen-{cell.arm}|    return ("PINNED-CANARY-" + f"exp15-screen-{cell.arm}|' \
+    "$VALIDATOR" > "${CANARY_EXP}/exp15_validate_cell.py"
+printf '#!/bin/bash\n# PINNED-DRIVER-CANARY\nexit 0\n' > "${CANARY_EXP}/yaw_aug_screen.sbatch"
+$PY -c "
+import sys
+src = open(sys.argv[1]).read()
+sys.exit(0 if 'PINNED-CANARY-' in src else 1)" "${CANARY_EXP}/exp15_validate_cell.py"
+check "canary: the pinned validator really does differ from the main one" $?
+CANARY_OUT="$(env -u YAW_EVAL_MAIN_REPO DRYRUN=1 "YAW_EVAL_PINNED_EXEC=${CANARY_WT}" \
+              bash "${CANARY_EXP}/yaw_aug_screen_submit.sh" ARM=YAWAUG CELL=tbl SEED=42 K=8 2>&1)"
+case "$CANARY_OUT" in
+  *"PINNED-CANARY-exp15-screen-YAWAUG-tbl"*)
+    echo "PASS  F1: identity is rendered by the PINNED validator, not the main one"
+    ledger PASS "F1: identity is rendered by the PINNED validator, not the main one"
+    PASS=$((PASS + 1)) ;;
+  *) echo "FAIL  F1: the main-tree validator rendered the identity"
+     printf '%s\n' "$CANARY_OUT" | head -4 | sed 's/^/        | /'
+     ledger FAIL "F1: identity is rendered by the PINNED validator, not the main one"
+     FAIL=$((FAIL + 1)) ;;
+esac
+case "$CANARY_OUT" in
+  *"DRYRUN driver ${CANARY_EXP}/yaw_aug_screen.sbatch"*)
+    echo "PASS  F1: the driver handed to sbatch comes from the PINNED tree"
+    ledger PASS "F1: the driver handed to sbatch comes from the PINNED tree"
+    PASS=$((PASS + 1)) ;;
+  *) echo "FAIL  F1: the driver path is not the pinned one"
+     printf '%s\n' "$CANARY_OUT" | grep -i driver | sed 's/^/        | /'
+     ledger FAIL "F1: the driver handed to sbatch comes from the PINNED tree"
+     FAIL=$((FAIL + 1)) ;;
+esac
+case "$CANARY_OUT" in
+  *"DRYRUN control-plane PINNED"*)
+    echo "PASS  F1: a pinned run SAYS it is pinned"
+    ledger PASS "F1: a pinned run SAYS it is pinned"; PASS=$((PASS + 1)) ;;
+  *) echo "FAIL  F1: a pinned run does not announce itself"
+     ledger FAIL "F1: a pinned run SAYS it is pinned"; FAIL=$((FAIL + 1)) ;;
+esac
+MAIN_OUT="$(env -u YAW_EVAL_MAIN_REPO DRYRUN=1 bash "$SUB" ARM=YAWAUG CELL=tbl SEED=42 K=8 2>&1)"
+case "$MAIN_OUT" in
+  *"PINNED-CANARY-"*) echo "FAIL  F1: the main tree leaked pinned content"
+                      ledger FAIL "F1: an unpinned dry run announces itself as MAIN-TREE"
+                      FAIL=$((FAIL + 1)) ;;
+  *"DRYRUN control-plane MAIN-TREE (unpinned)"*)
+                      echo "PASS  F1: an unpinned dry run announces itself as MAIN-TREE"
+                      ledger PASS "F1: an unpinned dry run announces itself as MAIN-TREE"
+                      PASS=$((PASS + 1)) ;;
+  *) echo "FAIL  F1: an unpinned dry run does not announce its tree"
+     ledger FAIL "F1: an unpinned dry run announces itself as MAIN-TREE"; FAIL=$((FAIL + 1)) ;;
+esac
+grep -q 'exec bash "$PINNED_SELF"' "$SUB" && grep -q 'exec bash "$PINNED_SELF"' "$GRID"
+check "F1: both entry points re-exec themselves from the pinned worktree" $?
+grep -q 'CODE_EXPDIR/yaw_aug_screen.sbatch' "$SUB"
+check "F1: sbatch receives the pinned driver, never the main copy" $?
+grep -q 'VALIDATE="$CODE_EXPDIR/exp15_validate_cell.py"' "$GRID"
+check "F1: wave enumeration/classification use the pinned validator" $?
 INTENTS_BEFORE="$(ls "${EXPDIR}"/yaw_aug_screen_submission_*.txt 2>/dev/null | wc -l)"
 sub_dry ARM=YAWAUG CELL=tbl SEED=42 K=8 >/dev/null 2>&1
 INTENTS_AFTER="$(ls "${EXPDIR}"/yaw_aug_screen_submission_*.txt 2>/dev/null | wc -l)"

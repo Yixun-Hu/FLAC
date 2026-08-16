@@ -92,10 +92,12 @@ DRYRUN="${DRYRUN:-0}"
 TEST_MODE=0
 [ "${YAW_EVAL_TEST_MODE:-0}" = "1" ] && TEST_MODE=1
 [ "$DRYRUN" = "1" ] && TEST_MODE=1        # a dry run submits nothing by construction
-ALLOW_LIVE="FA_ORBIT_STORE_LOCK_HELD YAW_EVAL_TEST_MODE"
+ALLOW_LIVE="FA_ORBIT_STORE_LOCK_HELD YAW_EVAL_TEST_MODE YAW_EVAL_PINNED_EXEC"
+#   YAW_EVAL_PINNED_EXEC  set BY THIS SCRIPT for its own re-exec from the pinned
+#                         worktree; its presence means "you are the pinned copy"
 #   FA_ORBIT_STORE_LOCK_HELD  "1" from the shared store helper's lock protocol
 #   YAW_EVAL_TEST_MODE        "1" selects simulation (0/unset = live)
-ALLOW_TEST="FA_ORBIT_STORE_LOCK_HELD YAW_EVAL_TEST_MODE YAW_EVAL_TEST_RECORD \
+ALLOW_TEST="FA_ORBIT_STORE_LOCK_HELD YAW_EVAL_TEST_MODE YAW_EVAL_PINNED_EXEC YAW_EVAL_TEST_RECORD \
 YAW_EVAL_TEST_JOBID YAW_EVAL_TEST_SUBMIT_SLEEP YAW_EVAL_TEST_RELEASE_SLEEP \
 YAW_EVAL_TEST_RELEASE_FAILS YAW_EVAL_TEST_SCANCEL_FAILS YAW_EVAL_SYNC_FAILS \
 YAW_EVAL_PIN_FILE YAW_EVAL_INTENT_DIR YAW_EVAL_MAIN_REPO"
@@ -124,6 +126,20 @@ if [ "$TEST_MODE" = "1" ] && [ -n "${YAW_EVAL_MAIN_REPO:-}" ]; then
   MAIN_REPO="$YAW_EVAL_MAIN_REPO"
 fi
 EXPDIR="$MAIN_REPO/worklog/worklog_yixun/exp_15_yaw_aug_claude"
+# --- WHERE THE EXECUTABLE CONTROL PLANE COMES FROM (integrative review F1) -----
+# The campaign pin used to bind only the CODE the job read; the submitter itself,
+# the validator that rendered identity/contract, and the driver script handed to
+# sbatch all came from the MAIN checkout, which moves. A post-pin edit could
+# therefore change what executed while the artifact still recorded the pinned
+# commit — the announcement-05 mismatch class the pin exists to eliminate.
+#
+# So: MAIN_REPO stays the production tree (outputs, logs, intents, pin file,
+# command log — all of which must NOT be pinned), and CODE_ROOT is the tree the
+# executable pieces are read from. A live run re-execs itself out of the pinned
+# worktree and sets YAW_EVAL_PINNED_EXEC, at which point CODE_ROOT is that tree.
+CODE_ROOT="$MAIN_REPO"
+[ -n "${YAW_EVAL_PINNED_EXEC:-}" ] && CODE_ROOT="$YAW_EVAL_PINNED_EXEC"
+CODE_EXPDIR="$CODE_ROOT/worklog/worklog_yixun/exp_15_yaw_aug_claude"
 # The measure-worktree store is SHARED (one lock, one freeze, one lease space for
 # every campaign on this machine) and its helper lives in exp_11's folder, which
 # is read-only to this experiment. Referenced in place, never copied: a second
@@ -321,7 +337,7 @@ INTENT_DIR="$EXPDIR"
 # name and the admissibility rules are ONE definition rather than four that agree
 # today. exp_14 rendered the job name in shell and pinned it with a guard case;
 # exp15_validate_cell is torch-free, so there is no reason to keep a second copy.
-VALIDATOR="$EXPDIR/exp15_validate_cell.py"
+VALIDATOR="$CODE_EXPDIR/exp15_validate_cell.py"
 render_cell_identity() {
   local args=(--arm "$ARM" --cell "$CELL" --step "$STEP" --seed "$SEED" --k "$K")
   [ "$CELL" = "vctl" ] && args+=(--rotate-deg "$ROTATE_DEG")
@@ -403,7 +419,13 @@ if [ "$DRYRUN" = "1" ]; then
   fi
   echo "DRYRUN exclude ${EXCLUDE:-<none>}"
   echo "DRYRUN export ARM=${ARM},STEP=${STEP},SEED=${SEED},K=${K},CELL=${CELL}${CELL_EXPORT_DRY}"
-  echo "DRYRUN driver ${EXPDIR}/yaw_aug_screen.sbatch"
+  echo "DRYRUN driver ${CODE_EXPDIR}/yaw_aug_screen.sbatch"
+  if [ -n "${YAW_EVAL_PINNED_EXEC:-}" ]; then
+    echo "DRYRUN control-plane PINNED (${CODE_ROOT})"
+  else
+    echo "DRYRUN control-plane MAIN-TREE (unpinned): this dry run reads the moving"
+    echo "DRYRUN   checkout. A LIVE submission re-execs from the pinned worktree first."
+  fi
   # the PROTOCOL CONTRACT the intent manifest will carry, shown here so a dry run
   # is a full protocol review (announcement 05) and not just an identity check
   printf '%s\n' "$CELL_CONTRACT" | while IFS= read -r line; do
@@ -439,6 +461,76 @@ if [ -n "$PIN_SHA" ] && [ "$EXPECT_SHA" != "$PIN_SHA" ]; then
   exit 3
 fi
 [ -n "$PIN_SHA" ] && echo "campaign pin: ${PIN_SHA}"
+
+# --- RE-EXEC FROM THE PINNED WORKTREE (integrative review F1) ------------------
+# Everything after this point — identity rendering, the contract in the intent
+# manifest, and the driver script handed to sbatch — must come from the pinned
+# tree, not from the checkout this process was started in. The child inherits fd
+# 8 and FA_ORBIT_STORE_LOCK_HELD, so it re-enters the same store lock rather than
+# deadlocking on a second one, and it re-runs every gate above on the environment
+# it actually receives.
+if [ -z "${YAW_EVAL_PINNED_EXEC:-}" ]; then
+  PINNED_SELF="${WT}/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh"
+  [ -f "$PINNED_SELF" ] \
+    || { echo "the pinned worktree has no submitter at ${PINNED_SELF} - abort" >&2; exit 3; }
+  echo "re-exec from the PINNED control plane: ${PINNED_SELF}"
+  YAW_EVAL_PINNED_EXEC="$WT"; export YAW_EVAL_PINNED_EXEC
+  exec bash "$PINNED_SELF" "$@"
+fi
+echo "control plane: PINNED (${CODE_ROOT})"
+
+# --- VALIDATE-BEFORE-SKIP + IN-FLIGHT GUARD + COMMAND LOG (review F6) ---------
+# The wave path has had all three since round 1; this path — the one the runbook
+# uses for the first V and probe launches — had none, so it could re-run a landed
+# cell, duplicate a queued one, or submit with no entry in yaw_aug_command.md
+# (plan §6.7 requires EVERY submission to be appended). Same predicates, one cell.
+COMMAND_LOG="${EXPDIR}/yaw_aug_command.md"
+[ "$TEST_MODE" = "1" ] && [ -n "${YAW_EVAL_COMMAND_LOG:-}" ] && COMMAND_LOG="$YAW_EVAL_COMMAND_LOG"
+CELL_STATUS_ARGS=(cellstatus --arm "$ARM" --cell "$CELL" --step "$STEP"
+                  --seed "$SEED" --k "$K" --output-root "${MAIN_REPO}/outputs_FLAC"
+                  --pin "$EXPECT_SHA")
+[ "$CELL" = "vctl" ] && CELL_STATUS_ARGS+=(--rotate-deg "$ROTATE_DEG")
+CELL_STATUS="$(python3 "$VALIDATOR" "${CELL_STATUS_ARGS[@]}" 2>&1)"; STATUS_RC=$?
+case "$STATUS_RC" in
+  0) echo "SKIP ${JOB_NAME}: already measured and VALID at this pin"
+     echo "  ${CELL_STATUS}"
+     exit 0 ;;
+  3) echo "cell not yet measured: ${CELL_STATUS}" ;;
+  1) echo "HALT: this cell's artifacts EXIST but do not validate." >&2
+     echo "  ${CELL_STATUS}" >&2
+     echo "  An artifact that exists but fails validation is a triage question: it" >&2
+     echo "  must not be skipped (it would be read as evidence) and must not be" >&2
+     echo "  overwritten (that destroys the evidence of what went wrong)." >&2
+     exit 3 ;;
+  *) echo "HALT: could not classify this cell - refusing to submit blind" >&2
+     echo "  ${CELL_STATUS}" >&2; exit 3 ;;
+esac
+# ...and it must not already be queued. A name alone is a claim; the lease is the
+# evidence (the wave path's rule, applied here).
+if [ "$TEST_MODE" != "1" ]; then
+  INFLIGHT_JID="$("$BIN_squeue" -h -u "$(id -un)" -o "%i %j" 2>/dev/null \
+                  | awk -v n="$JOB_NAME" '$2 == n {print $1; exit}')" || INFLIGHT_JID=""
+  if [ -n "$INFLIGHT_JID" ]; then
+    if grep -q "^jobid ${INFLIGHT_JID}$" "${WT}/.leases/${INFLIGHT_JID}" 2>/dev/null; then
+      echo "SKIP ${JOB_NAME}: job ${INFLIGHT_JID} is in flight and holds its lease"
+      exit 0
+    fi
+    echo "HALT: ${JOB_NAME} is queued as ${INFLIGHT_JID} but holds NO lease under" >&2
+    echo "  ${WT}/.leases/${INFLIGHT_JID} — skipping would wait for a cell that may" >&2
+    echo "  never land, submitting would duplicate it. Triage by hand." >&2
+    exit 5
+  fi
+fi
+log_command() {   # <state> <jid> <rc> — durable, and BEFORE the submission
+  printf -- '- `%s` **%s** %s jid `%s` rc %s — `bash %s ARM=%s CELL=%s STEP=%s SEED=%s K=%s%s`\n' \
+    "$(date -Is)" "$JOB_NAME" "$1" "${2:-<none>}" "${3:-<pending>}" "$0" \
+    "$ARM" "$CELL" "$STEP" "$SEED" "$K" \
+    "$([ -n "$ROTATE_DEG" ] && printf ' ROTATE_DEG=%s' "$ROTATE_DEG")" \
+    >> "$COMMAND_LOG" && sync_file "$COMMAND_LOG"
+}
+log_command LAUNCHING "" "" \
+  || { echo "HALT: cannot durably record the command in ${COMMAND_LOG}; refusing to" >&2
+       echo "  submit a job that would have no launch record." >&2; exit 6; }
 
 # 2. submit HELD: the id exists before the lease, the job runs after it
 # JOB_NAME was rendered above by exp15_validate_cell.job_name. It starts with
@@ -533,7 +625,7 @@ JOBID="$(slurm_submit_hold --hold --parsable \
   --output="${EXPDIR}/slurm_screen_%x_%j.out" \
   "${EXCLUDE_ARGV[@]}" \
   --export=ALL,MEASURE_ROOT="$WT",EXPECT_SHA="$EXPECT_SHA",ARM="$ARM",STEP="$STEP",SEED="$SEED",K="$K",CELL="$CELL""$CELL_EXPORT" \
-  "$EXPDIR/yaw_aug_screen.sbatch")" || { echo "sbatch FAILED - nothing submitted" >&2; exit 4; }
+  "$CODE_EXPDIR/yaw_aug_screen.sbatch")" || { echo "sbatch FAILED - nothing submitted" >&2; exit 4; }
 JOBID="${JOBID%%;*}"
 case "$JOBID" in
   ''|*[!0-9]*)
@@ -543,6 +635,8 @@ case "$JOBID" in
 esac
 HELD_JOBID="$JOBID"
 echo "submitted HELD as ${JOBID}"
+log_command SUBMITTED "$JOBID" "0" \
+  || echo "WARNING: could not append the outcome to ${COMMAND_LOG}" >&2
 
 # 3. lease it by its real id, VALIDATE the lease, and only THEN release the job.
 #    All of this still runs inside the store lock taken at step 0.

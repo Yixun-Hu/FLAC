@@ -136,6 +136,20 @@ ROWS = [
    + ("" if arm == "VANL" else f"_fa_invariant_a{orbit}") + ".json"], "exp14z")
  for arm, orbit in (("VANL", 0), ("C4L", 4), ("C8", 8), ("C16", 16), ("C32", 32))
  for k in (1, 8)
+] + [
+ # --- exp_15 YAWAUG (plan §6.9): the augmentation arm's Table-1 row ------------
+ # ADDITIVE, appended as its OWN list so no existing spec or comprehension is
+ # touched. exp_15 adds NOTHING for VANL — that row is exp_14's §5.7 contract, and
+ # exp_15's own VANL cells stay a results-local reproduction block (plan §6.9).
+ # contract="exp15" routes these through exp_15's validator AND through §13's
+ # ratified aggregation: T60/C50/EDT are the mean over the ten AR room families,
+ # retrieval stays split-level. The flat averaging every other row uses would
+ # publish a split-level T60 under a label that promises a scene mean.
+ # Registered in advance; renders *pending* until the five T cells land.
+ ("yaw-aug vanilla YAWAUG @40k (exp_15)", "vanilla eval, theta=0 (scene-routed)", 1,
+  ["outputs_FLAC/exp15_YAWAUG/**/*exp15_YAWAUG_tbl_S40000_s4[2-6]_K1.json"], "exp15"),
+ ("yaw-aug vanilla YAWAUG @40k (exp_15)", "vanilla eval, theta=0 (scene-routed)", 8,
+  ["outputs_FLAC/exp15_YAWAUG/**/*exp15_YAWAUG_tbl_S40000_s4[2-6]_K8.json"], "exp15"),
 ]
 
 EXP11_VALIDATOR = os.path.join(REPO, "worklog", "worklog_yixun", "exp_11_fa_orbit_claude",
@@ -372,6 +386,56 @@ def validate_exp14_cell(files, repo_root=None, expected_count=None,
     return (not problems), problems
 
 
+def validate_exp15_cell(files, repo_root=None, expected_k=None):
+    """``(ok, problems)`` for one exp_15 row, via exp_15's own validator.
+
+    ADDITIVE: no existing row reaches this. It refuses to publish a row whose
+    cells are not the registered exp_15 T cells at the pinned endpoint, are not
+    protocol-conformant, or are not five distinct seeds.
+    """
+    problems = []
+    try:
+        V = _load_exp15_validator()
+    except Exception as exc:                              # noqa: BLE001
+        return False, [f"could not load exp_15's validator: {exc}"]
+    seeds = set()
+    for f in sorted(files):
+        try:
+            cell = V.parse_eval_name(
+                os.path.basename(f).split("_metrics_", 1)[1]
+                .rsplit(".json", 1)[0].split("_", 2)[2])
+        except Exception:                                  # noqa: BLE001
+            # fall back to the authoritative matcher: reconstruct each registered
+            # basename and compare, exactly as the collector does
+            cell = None
+            stem = os.path.basename(f).split("_metrics_", 1)[0]
+            fake = os.path.join(os.path.dirname(f), stem + ".ckpt")
+            for candidate in V.expected_grid():
+                if os.path.basename(V.metrics_path(fake, candidate)) == os.path.basename(f):
+                    cell = candidate
+                    break
+        if cell is None:
+            problems.append(f"{os.path.basename(f)}: not a registered exp_15 cell")
+            continue
+        if cell.cell != "tbl":
+            problems.append(f"{os.path.basename(f)}: only the T (theta=0) block is "
+                            "publishable as a model row")
+        if expected_k is not None and int(cell.k) != int(expected_k):
+            problems.append(f"{os.path.basename(f)}: K={cell.k}, row says K={expected_k}")
+        seeds.add(int(cell.seed))
+        try:
+            record = json.load(open(f))
+        except Exception as exc:                           # noqa: BLE001
+            problems.append(f"{os.path.basename(f)}: unreadable ({exc})")
+            continue
+        reasons = V.validate_metrics_record(record, cell)
+        if reasons:
+            problems.append(f"{os.path.basename(f)}: {reasons[0]}")
+    if len(seeds) != MIN_SEEDS:
+        problems.append(f"{len(seeds)} distinct seeds, need {MIN_SEEDS}")
+    return (not problems), problems
+
+
 def exp14_arm_of(label):
     """The arm a registered exp_14 row label names (its first token)."""
     return str(label).split(" ", 1)[0]
@@ -589,7 +653,15 @@ def render_row(label, proto, K, files, repo_root=None, validator_path=None, cont
             detail = problems[0] if problems else "unspecified"
             return (f"| {label} | {proto} | {K} | {len(files)} | "
                     f"**BLOCKED — row validation failed:** {detail} | | | | | |"), True
-    r, n = agg_files(files)
+    if contract == "exp15":
+        ok, problems = validate_exp15_cell(files, repo_root=repo_root, expected_k=K)
+        if not ok:
+            detail = problems[0] if problems else "unspecified"
+            return (f"| {label} | {proto} | {K} | {len(files)} | "
+                    f"**BLOCKED — row validation failed:** {detail} | | | | | |"), True
+        r, n = agg_files_exp15(files)
+    else:
+        r, n = agg_files(files)
     if r is None or n < MIN_SEEDS:
         return (f"| {label} | {proto} | {K} | {n} | "
                 f"*pending ({n}/{MIN_SEEDS} seeds on disk)* | | | | | |"), False
@@ -626,6 +698,68 @@ def agg_files(files):
                 raise ValueError(f"{os.path.basename(f)}: {kk} = {d[kk]!r} is not a "
                                  "finite number")
             vals[k].append(d[kk])
+    n = len(files)
+    return {k: (st.mean(v), st.stdev(v) if n > 1 else 0.0) for k, v in vals.items()}, n
+
+
+EXP15_VALIDATOR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "exp_15_yaw_aug_claude",
+    "exp15_validate_cell.py")
+
+
+def _load_exp15_validator(path=None):
+    """exp_15's own validator, imported by path (same shape as exp_11/exp_14)."""
+    import importlib.util
+    target = os.path.abspath(path or EXP15_VALIDATOR)
+    spec = importlib.util.spec_from_file_location("exp15_validate_cell", target)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def agg_files_exp15(files):
+    """Aggregate exp_15 cells under plan §13's RATIFIED routing.
+
+    ADDITIVE — no existing row reaches this function, and ``agg_files`` is
+    untouched. It exists because §13 routes the acoustic family (T60, C50, EDT)
+    to the mean over the ten AR room-family groups, which this generator's flat
+    ``metrics``-block averaging cannot express: reusing it would publish a
+    split-level T60 under a label that promises a scene mean. Retrieval stays
+    split-level, which is what the flat path already did.
+    """
+    if not files:
+        return None, 0
+    V = _load_exp15_validator()
+    vals = {k: [] for k, _ in KEYS}
+    for f in files:
+        d = json.load(open(f))
+        flat = d.get("metrics") if isinstance(d, dict) else None
+        by_scene = d.get("by_scene") if isinstance(d, dict) else None
+        if not isinstance(flat, dict):
+            raise ValueError(f"{os.path.basename(f)}: no metrics object to aggregate")
+        if not isinstance(by_scene, dict) or len(by_scene) != len(V.EXPECTED_SCENE_KEYS):
+            raise ValueError(f"{os.path.basename(f)}: needs a by_scene block over the "
+                             f"{len(V.EXPECTED_SCENE_KEYS)} room families for §13 routing")
+        for k, kk in KEYS:
+            if kk in ("T60", "C50", "EDT"):          # acoustic -> ten-group mean
+                col = []
+                for scene in V.EXPECTED_SCENE_KEYS:
+                    payload = by_scene.get(scene)
+                    if not isinstance(payload, dict) or kk not in payload:
+                        raise ValueError(f"{os.path.basename(f)}: by_scene[{scene!r}] "
+                                         f"does not report {kk}")
+                    if not _finite_number(payload[kk]):
+                        raise ValueError(f"{os.path.basename(f)}: by_scene[{scene!r}]"
+                                         f".{kk} = {payload[kk]!r} is not finite")
+                    col.append(float(payload[kk]))
+                vals[k].append(st.mean(col))
+                continue
+            if kk not in flat:                        # retrieval -> split level
+                raise ValueError(f"{os.path.basename(f)}: does not report {kk}")
+            if not _finite_number(flat[kk]):
+                raise ValueError(f"{os.path.basename(f)}: {kk} = {flat[kk]!r} is not a "
+                                 "finite number")
+            vals[k].append(float(flat[kk]))
     n = len(files)
     return {k: (st.mean(v), st.stdev(v) if n > 1 else 0.0) for k, v in vals.items()}, n
 

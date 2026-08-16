@@ -82,12 +82,15 @@ env_allowlist_gate() {   # $1 = space-separated allowed names
 DRYRUN="${DRYRUN:-0}"
 TEST_MODE="${YAW_EVAL_TEST_MODE:-0}"
 [ "$DRYRUN" = "1" ] && TEST_MODE=1      # a dry run submits nothing by construction
-ALLOW_LIVE="YAW_EVAL_TEST_MODE"
+ALLOW_LIVE="YAW_EVAL_TEST_MODE YAW_EVAL_PINNED_EXEC"
+#   YAW_EVAL_PINNED_EXEC  set BY THIS SCRIPT for its own re-exec from the pinned
+#                         worktree; its presence means "you are the pinned copy"
 #   YAW_EVAL_TEST_MODE      "1" selects simulation (0/unset = live)
 ALLOW_TEST="YAW_EVAL_TEST_MODE YAW_EVAL_TEST_RECORD YAW_EVAL_TEST_JOBID \
 YAW_EVAL_TEST_SUBMIT_RC YAW_EVAL_SQUEUE_FIXTURE YAW_EVAL_SQUEUE_FAILS \
 YAW_EVAL_SYNC_FAILS YAW_EVAL_PIN_FILE YAW_EVAL_COMMAND_LOG YAW_EVAL_WT_DIR \
-YAW_EVAL_INTENT_DIR YAW_EVAL_MAIN_REPO YAW_EVAL_CONTROL YAW_EVAL_REGISTRY"
+YAW_EVAL_INTENT_DIR YAW_EVAL_MAIN_REPO YAW_EVAL_CONTROL YAW_EVAL_REGISTRY \
+YAW_EVAL_PINNED_EXEC"
 #   YAW_EVAL_TEST_RECORD    path of a text file this script APPENDS its argv to
 #   YAW_EVAL_TEST_JOBID     the job id a simulated submission reports (data)
 #   YAW_EVAL_TEST_SUBMIT_RC the rc a simulated submission returns (data)
@@ -114,8 +117,17 @@ if [ "$TEST_MODE" = "1" ] && [ -n "${YAW_EVAL_MAIN_REPO:-}" ]; then
   MAIN_REPO="$YAW_EVAL_MAIN_REPO"
 fi
 EXPDIR="$MAIN_REPO/worklog/worklog_yixun/exp_15_yaw_aug_claude"
-SUBMIT="$EXPDIR/yaw_aug_screen_submit.sh"
-VALIDATE="$EXPDIR/exp15_validate_cell.py"
+# See yaw_aug_screen_submit.sh: MAIN_REPO is the production tree (pin file,
+# command log, outputs); CODE_ROOT is where the EXECUTABLE control plane is read
+# from, which for a live wave is the pinned worktree (integrative review F1).
+# Enumeration and classification decide which cells run and which are skipped as
+# "already measured" — that is control-plane logic and must be pinned too.
+CODE_ROOT="$MAIN_REPO"
+[ -n "${YAW_EVAL_PINNED_EXEC:-}" ] && CODE_ROOT="$YAW_EVAL_PINNED_EXEC"
+CODE_EXPDIR="$CODE_ROOT/worklog/worklog_yixun/exp_15_yaw_aug_claude"
+HELPER="$MAIN_REPO/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_measure_worktree.sh"
+SUBMIT="$CODE_EXPDIR/yaw_aug_screen_submit.sh"
+VALIDATE="$CODE_EXPDIR/exp15_validate_cell.py"
 PIN_FILE="$EXPDIR/yaw_aug_screen_campaign_pin"
 # ONE command log for the whole experiment: the training legs and the eval cells
 # are the same experiment's launches, and a reader reconstructing what was run
@@ -242,6 +254,22 @@ if [ -n "$PIN_SHA" ] && [ -n "$CAMPAIGN_PIN" ] && [ "$PIN_SHA" != "$CAMPAIGN_PIN
 fi
 [ -n "$CAMPAIGN_PIN" ] && PIN_SHA="$CAMPAIGN_PIN"
 
+# --- RE-EXEC FROM THE PINNED WORKTREE (integrative review F1) ------------------
+# A live wave prepares (or reuses) the pinned tree and then runs ITSELF from it,
+# so enumeration, classification and the single-cell submitter it calls are all
+# the pinned versions. DRYRUN stays main-tree on purpose — it submits nothing —
+# and says so out loud below.
+if [ "$DRYRUN" != "1" ] && [ "$TEST_MODE" != "1" ] && [ -z "${YAW_EVAL_PINNED_EXEC:-}" ]; then
+  [ -f "$HELPER" ] || reject "measure-worktree helper missing: ${HELPER}"
+  WT_PREPARED="$(bash "$HELPER" "$PIN_SHA" | tail -1)"
+  [ -d "$WT_PREPARED" ] || reject "could not prepare the pinned worktree for ${PIN_SHA}"
+  PINNED_SELF="${WT_PREPARED}/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_submit_grid.sh"
+  [ -f "$PINNED_SELF" ] || reject "the pinned worktree has no wave submitter at ${PINNED_SELF}"
+  echo "re-exec from the PINNED control plane: ${PINNED_SELF}" >&2
+  YAW_EVAL_PINNED_EXEC="$WT_PREPARED"; export YAW_EVAL_PINNED_EXEC
+  exec bash "$PINNED_SELF" "$@"
+fi
+
 # --- the grid ----------------------------------------------------------------
 # Enumerated by the VALIDATOR, which is also what the driver and the guard suite
 # read: one definition of "the registered grid", not three. The seventh field is
@@ -255,6 +283,11 @@ mapfile -t CELLS < <("$PY" "$VALIDATE" grid --wave "$WAVE" --with-jobname) \
 # The banner goes to STDERR so a DRYRUN's stdout is exactly one line per cell
 # (the guard suite diffs it against the registered grid).
 echo "=== exp_15 ${WAVE} wave: ${#CELLS[@]} registered cells | pin ${PIN_SHA:-<none: DRYRUN>} ===" >&2
+if [ -n "${YAW_EVAL_PINNED_EXEC:-}" ]; then
+  echo "=== control plane: PINNED (${CODE_ROOT}) ===" >&2
+else
+  echo "=== control plane: MAIN-TREE (unpinned) — dry run only; a live wave re-execs from the pin ===" >&2
+fi
 
 test_record() { [ -n "${YAW_EVAL_TEST_RECORD:-}" ] && printf '%s\n' "$*" >> "$YAW_EVAL_TEST_RECORD"; return 0; }
 

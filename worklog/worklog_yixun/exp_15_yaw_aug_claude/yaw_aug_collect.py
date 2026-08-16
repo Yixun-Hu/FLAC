@@ -56,6 +56,7 @@ Usage
         --json yaw_aug_results.json
 """
 import argparse
+import glob
 import json
 import math
 import os
@@ -80,14 +81,31 @@ ALPHA = 0.05
 paired_t_ci = G14.paired_t_ci
 t_critical = G14.t_critical
 canonical_metric = G14.canonical_metric
-metric_direction = G14.metric_direction
 aggregation_source = G14.aggregation_source
+
+
+def metric_direction(metric):
+    """exp_14's direction table, extended (not mutated) with §13's Invalid T60."""
+    name = canonical_metric(metric)
+    if name in EXTRA_DIRECTION:
+        return EXTRA_DIRECTION[name]
+    return G14.metric_direction(name)
 cell_observation = G14.cell_observation
 pair_seeds = G14.pair_seeds
 aggregate_cell = G14.aggregate_cell
 golden_offsets = G14.golden_offsets
 CONFOUNDED_METRICS = G14.CONFOUNDED_METRICS
 HEADLINE_METRICS = G14.HEADLINE_METRICS
+# §13 puts Invalid T60 in the ACOUSTIC family (ten-room-family mean). exp_14's
+# HEADLINE_METRICS predates that ratification and omits it, so exp_15 carries its
+# own descriptive set rather than editing exp_14's (integrative review F4). It is
+# descriptive ONLY — never in the confirmatory family.
+DESCRIPTIVE_METRICS = ("T60", "Invalid T60", "C50", "EDT", "FD",
+                       "RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5", "RIR_to_GT_RIR_R@10")
+# ...and its direction, which exp_14's table also lacks. Fewer invalid T60
+# estimates is better. Looked up through metric_direction() below so exp_14's
+# dict is read, never mutated.
+EXTRA_DIRECTION = {"Invalid T60": "lower"}
 
 
 def holm(pvals):
@@ -378,10 +396,18 @@ def g3_obligations():
     for cell in registered_cells():
         kinds.setdefault((cell.cell, int(cell.k), int(cell.seed)), set()).add(cell.arm)
     for (kind, k, seed), arms in sorted(kinds.items()):
-        if len(arms) > 1:
-            out.append(("input_hash", kind, k, seed))
-            if kind in (R_BLOCK, V_BLOCK):
-                out.append(("assignment_hash", kind, k, seed))
+        # V owes NOTHING here (plan §5: YAWAUG@90 "carries no gate role";
+        # integrative review F3). Its artifacts are still validated and its hashes
+        # are still reported — as v_cell_problems, which suppress only the V
+        # mechanism readout. Requiring them let a missing or mismatched YAWAUG V
+        # cell hold the entire inference hostage.
+        if kind == V_BLOCK or len(arms) < 2:
+            continue
+        out.append(("input_hash", kind, k, seed))
+        # cross-arm assignment equality is a ROTATION-matching claim, so only the
+        # registered R pairs owe it (plan §4.3).
+        if kind == R_BLOCK:
+            out.append(("assignment_hash", kind, k, seed))
     pairs = {}
     for cell in registered_cells():
         pairs.setdefault((cell.arm, int(cell.k), int(cell.seed)), set()).add(cell.cell)
@@ -447,10 +473,11 @@ def g3_checked(cells):
         by_key.setdefault((art.cell.cell, int(art.cell.k), int(art.cell.seed)),
                           set()).add(art.cell.arm)
     for (kind, k, seed), arms in by_key.items():
-        if len(arms) > 1:
-            have.add(("input_hash", kind, k, seed))
-            if kind in (R_BLOCK, V_BLOCK):
-                have.add(("assignment_hash", kind, k, seed))
+        if kind == V_BLOCK or len(arms) < 2:
+            continue
+        have.add(("input_hash", kind, k, seed))
+        if kind == R_BLOCK:
+            have.add(("assignment_hash", kind, k, seed))
     pairs = {}
     for art in cells:
         pairs.setdefault((art.cell.arm, int(art.cell.k), int(art.cell.seed)),
@@ -468,11 +495,16 @@ def gate_g3(cells):
     violations found" over one landed pair is not the campaign's integrity, and a
     gate that verified nothing at all is PENDING, never PASS.
     """
-    violations = hash_violations(cells)
+    all_violations = hash_violations(cells)
+    # V-cell violations are REPORTED but do not fail the gate: they suppress the V
+    # mechanism readout only (integrative review F3).
+    violations = [v for v in all_violations if v.get("cell_class") != V_BLOCK]
+    v_only = [v for v in all_violations if v.get("cell_class") == V_BLOCK]
     expected = set(g3_obligations())
     checked = g3_checked(cells) & expected
     base = {"gate": "G3", "checked": len(checked), "expected": len(expected),
-            "problems": [v["message"] for v in violations], "violations": violations}
+            "problems": [v["message"] for v in violations], "violations": violations,
+            "v_cell_problems": [v["message"] for v in v_only]}
     if violations:
         return dict(base, status="FAIL",
                     detail=(f"{len(violations)} integrity violation(s) over "
@@ -507,16 +539,24 @@ def gate_g4(cells, control=None, registry=None):
         except ValueError as exc:
             problems.append(f"{arm}: {exc}")
     landed = {V.eval_name(a.cell): a for a in cells}
-    obligations = [V.eval_name(c) for c in registered_cells()]
+    # The OBLIGATION set is the 40 hypothesis cells (T and R). A V cell that has
+    # not landed must not make this gate PENDING and thereby suppress the
+    # readout — that is the same V-gating leak review F3 closed in G3, one gate
+    # over (plan §5: YAWAUG@90 "carries no gate role").
+    #
+    # A V cell that HAS landed is still compared, and a digest MISMATCH anywhere —
+    # V included — is still a FAIL: evaluating the wrong checkpoint is a defect
+    # wherever it happens. Only its absence is tolerated.
+    obligations = [V.eval_name(c) for c in registered_cells()
+                   if c.cell in (T_BLOCK, R_BLOCK)]
     checked = 0
-    for name in obligations:
-        art = landed.get(name)
-        if art is None:
-            continue
+    required = set(obligations)
+    for name, art in sorted(landed.items()):
         exp = expected.get(art.cell.arm)
         if exp is None:
             continue
-        checked += 1
+        if name in required:
+            checked += 1
         got = art.meta.get("ckpt_sha256")
         if got != exp["sha256"]:
             problems.append(f"{name} evaluated ckpt {got} but the committed record "
@@ -719,12 +759,15 @@ def gate_disposition(gates):
         kind, klass = violation["kind"], violation.get("cell_class")
         touched = set()
         if kind == "input_hash":
-            touched |= {("H1", k)} if klass == T_BLOCK else set()
-            touched |= {("H3", k)} if klass == R_BLOCK else set()
-            touched |= {("H2", k)}
+            # a CROSS-ARM input mismatch means the two arms did not evaluate the
+            # same items, which invalidates the contrast on that block AND the
+            # flatness contrast that reads it
+            touched |= {("H1", k), ("H2", k)} if klass == T_BLOCK else set()
+            touched |= {("H3", k), ("H2", k)} if klass == R_BLOCK else set()
         elif kind == "assignment_hash":
             touched |= {("H2", k), ("H3", k)}
         elif kind == "pairing":
+            # a WITHIN-ARM T<->R mismatch breaks only the seed-paired Δ, i.e. H2
             touched |= {("H2", k)}
         for scope in touched:
             scopes.setdefault(scope, []).append(violation["message"])
@@ -778,7 +821,7 @@ def route_observations(cells, metrics=None):
     The routing is plan §13's, applied by exp_14's ``cell_observation``: acoustic
     from the ten-group scene mean, FD and retrieval from the split-level block.
     """
-    metrics = tuple(HEADLINE_METRICS if metrics is None else metrics)
+    metrics = tuple(DESCRIPTIVE_METRICS if metrics is None else metrics)
     out = {}
     for art in cells:
         c = art.cell
@@ -839,11 +882,22 @@ def hypotheses(routed, disposition, k, metrics=CO_PRIMARY, alpha=ALPHA):
     vr = routed.get(("VANL", R_BLOCK, k), {})
 
     # --- H1: the clean cost/benefit, m_T(YAWAUG) vs m_T(VANL) ----------------
-    h1 = {"name": "H1", "k": k, "family": "CONFIRMATORY (Holm over 2 co-primaries)",
+    # THE CONFIRMATORY FAMILY IS K=8 ONLY (plan §5: "K=8 confirmatory; K=1 repeats
+    # everything descriptively"). K=1 gets the same paired machinery and the same
+    # CIs with NO Holm adjustment and NO superiority/inferiority verdict —
+    # rendering it as a second confirmatory family would inflate the multiplicity
+    # the plan deliberately fixed at two tests (integrative review F2).
+    confirmatory = int(k) == CONFIRMATORY_K
+    h1 = {"name": "H1", "k": k,
+          "family": ("CONFIRMATORY (Holm over 2 co-primaries)" if confirmatory
+                     else "DESCRIPTIVE (K=1 repeat; unadjusted, no verdicts)"),
+          "confirmatory": confirmatory,
           "blocked": blocked_for("H1"), "pending": pending_note(), "rows": []}
     if not h1["blocked"] and not h1["pending"]:
         if _complete(yt, metrics) and _complete(vt, metrics):
-            h1["rows"] = contrast_rows(yt, vt, metrics=metrics, alpha=alpha)
+            h1["rows"] = (contrast_rows(yt, vt, metrics=metrics, alpha=alpha)
+                          if confirmatory
+                          else secondary_rows(yt, vt, metrics=metrics, alpha=alpha))
         else:
             h1["pending"] = "the K=%s T blocks do not have all five seeds" % k
     out["H1"] = h1
@@ -908,27 +962,76 @@ def exp14_z_rows(output_root, k, arm="VANL", metrics=CO_PRIMARY, step=STEP):
     return per_seed
 
 
-def external_checks(routed, output_root, k=CONFIRMATORY_K, metrics=CO_PRIMARY):
-    """exp_15's VANL T rows vs exp_14's Z rows — DISCLOSED, never halting."""
-    ours = routed.get(("VANL", T_BLOCK, k), {})
-    theirs = exp14_z_rows(output_root, k, metrics=metrics)
+def exp11_q9_rows(output_root, k, metrics=CO_PRIMARY):
+    """exp_11's Q9 VANL rows — the OTHER pre-declared external reference.
+
+    Discovered by the same glob shape ``gen_model_comparison.py`` registers for
+    the Q9 contract (``*exp11_VANL_q9_S40000_s4[2-6]_K<k>.json``), so the two
+    read the same evidence rather than two descriptions of it. Descriptive and
+    non-halting, exactly like the exp_14 comparison (integrative review F5).
+    """
+    pattern = os.path.join(output_root, "exp11_VANL", "**",
+                           f"*exp11_VANL_q9_S{STEP}_s4[2-6]_K{k}.json")
+    per_seed = {m: {} for m in metrics}
+    for path in sorted(glob.glob(pattern, recursive=True)):
+        if path.endswith(".screenmeta.json") or path.endswith(".stream.json"):
+            continue
+        try:
+            record = _read_json_object(path, "exp_11 Q9")
+        except ArtifactError:
+            continue
+        seed = record.get("seed")
+        if not isinstance(seed, int):
+            continue
+        # SPLIT-LEVEL ONLY, deliberately. exp_11's Q9 cells predate
+        # --record-per-scene and carry no `by_scene` block at all, so their T60 is
+        # the split-level quantity — a DIFFERENT estimand from our ten-room-family
+        # mean under §13. Comparing the two would manufacture a discrepancy out of
+        # an aggregation difference, so the acoustic family is reported
+        # UNAVAILABLE for this source rather than compared.
+        values, reasons = G14.flat_observation(record, metrics=metrics)
+        if reasons:
+            continue
+        for m in metrics:
+            if aggregation_source(m) != "split" or m not in values:
+                continue
+            per_seed[m][int(seed)] = values[m]
+    return per_seed
+
+
+def _one_external(label, ours, theirs, metrics):
     checks = []
     for metric in metrics:
         a, b = ours.get(metric, {}), theirs.get(metric, {})
         if len(a) != len(SEEDS) or len(b) != len(SEEDS):
-            checks.append({"metric": canonical_metric(metric), "source": "exp_14 Z",
+            why = (f"needs 5 seeds on both sides; have {len(a)} (ours) and "
+                   f"{len(b)} ({label})")
+            if label == "exp_11 Q9" and aggregation_source(metric) == "scene-mean":
+                why = ("exp_11's Q9 cells predate --record-per-scene and carry no "
+                       "by_scene block, so their value is SPLIT-LEVEL — a different "
+                       "estimand from §13's ten-room-family mean. Not comparable, "
+                       "so not compared.")
+            checks.append({"metric": canonical_metric(metric), "source": label,
                            "status": "UNAVAILABLE", "halting": False,
-                           "detail": (f"needs 5 seeds on both sides; have "
-                                      f"{len(a)} (ours) and {len(b)} (exp_14)")})
+                           "detail": why})
             continue
         av = [a[s] for s in SEEDS]
         bv = [b[s] for s in SEEDS]
         chk = external_check(metric, st.mean(av), st.mean(bv),
                              st.stdev(av), st.stdev(bv))
-        chk["source"] = "exp_14 Z"
+        chk["source"] = label
         chk["status"] = "EXCEEDS" if chk["exceeds"] else "CONSISTENT"
         checks.append(chk)
     return checks
+
+
+def external_checks(routed, output_root, k=CONFIRMATORY_K, metrics=CO_PRIMARY):
+    """exp_15's VANL T rows vs exp_14's Z rows — DISCLOSED, never halting."""
+    ours = routed.get(("VANL", T_BLOCK, k), {})
+    return (_one_external("exp_14 Z", ours, exp14_z_rows(output_root, k, metrics=metrics),
+                          metrics)
+            + _one_external("exp_11 Q9", ours, exp11_q9_rows(output_root, k, metrics),
+                            metrics))
 
 
 # --------------------------------------------------------------------------- #
@@ -951,21 +1054,35 @@ def render_contrast_table(rows, title, blocked=None, pending=None, holm=True):
     return "\n".join(out) + "\n"
 
 
-def render_h1_table(rows, blocked=None, pending=None):
-    """H1's confirmatory table, or the word BLOCKED and no numbers at all."""
+def render_h1_table(rows, blocked=None, pending=None, k=CONFIRMATORY_K,
+                    confirmatory=None):
+    """H1's table for one K: confirmatory at K=8, descriptive at K=1.
+
+    The K=1 table deliberately has no Holm column and no verdict column — those
+    belong to the single registered confirmatory family, and printing them beside
+    a descriptive repeat is how a second family gets read into the record.
+    """
+    if confirmatory is None:
+        confirmatory = int(k) == CONFIRMATORY_K
+    tag = ("K=%s, co-primaries" % k if confirmatory
+           else "K=%s, DESCRIPTIVE repeat" % k)
     if blocked:
-        return (f"**H1 (K=8, co-primaries): BLOCKED** — {blocked}\n\n"
+        return (f"**H1 ({tag}): BLOCKED** — {blocked}\n\n"
                 "No numbers are reported for a blocked contrast.\n")
     if pending:
-        return (f"**H1 (K=8, co-primaries): PENDING** — {pending}\n\n"
+        return (f"**H1 ({tag}): PENDING** — {pending}\n\n"
                 "No numbers are reported for an incomplete block.\n")
-    out = ["| metric | Δ (YAWAUG − VANL) | 95% CI | p | p (Holm-2) | verdict |",
-           "| --- | --- | --- | --- | --- | --- |"]
+    cols = (["metric", "Δ (YAWAUG − VANL)", "95% CI", "p", "p (Holm-2)", "verdict"]
+            if confirmatory else
+            ["metric", "Δ (YAWAUG − VANL)", "95% CI", "p"])
+    out = ["| " + " | ".join(cols) + " |",
+           "| " + " | ".join("---" for _ in cols) + " |"]
     for row in rows:
-        out.append("| {m} | {d} | [{lo}, {hi}] | {p} | {ph} | {v} |".format(
-            m=_label(row["metric"]), d=_f(row["mean"]),
-            lo=_f(row["lo"]), hi=_f(row["hi"]),
-            p=_f(row["p"], 4), ph=_f(row["p_holm"], 4), v=row["verdict"]))
+        cells = [_label(row["metric"]), _f(row["mean"]),
+                 f"[{_f(row['lo'])}, {_f(row['hi'])}]", _f(row["p"], 4)]
+        if confirmatory:
+            cells += [_f(row["p_holm"], 4), row["verdict"]]
+        out.append("| " + " | ".join(cells) + " |")
     return "\n".join(out) + "\n"
 
 
@@ -1005,13 +1122,15 @@ def render_report(results):
         out += ["> **Gates incomplete:** " + ", ".join(disp["pending"])
                 + " — no hypothesis numbers are reported.", ""]
     for k in (CONFIRMATORY_K, 1):
-        tag = "confirmatory" if k == CONFIRMATORY_K else "DESCRIPTIVE repeat"
+        tag = "confirmatory" if k == CONFIRMATORY_K else "descriptive repeat"
         hyp = (results.get("hypotheses") or {}).get(str(k), {})
         out += [f"## K = {k} ({tag})", "",
                 "### H1 — clean cost/benefit (m_T YAWAUG vs VANL)", ""]
         h1 = hyp.get("H1", {})
-        out += [render_h1_table(h1.get("rows") or [], blocked=h1.get("blocked"),
-                                pending=h1.get("pending")), ""]
+        out += [f"_{h1.get('family', '')}_", "",
+                render_h1_table(h1.get("rows") or [], blocked=h1.get("blocked"),
+                                pending=h1.get("pending"), k=k,
+                                confirmatory=h1.get("confirmatory")), ""]
         for name, heading in (("H2", "H2 — does augmentation buy flatness? (secondary)"),
                               ("H3", "H3 — absolute deployment under rotation (secondary)")):
             h = hyp.get(name, {})
@@ -1022,7 +1141,7 @@ def render_report(results):
         for kind, label in ((T_BLOCK, "T block (θ=0)"), (R_BLOCK, "R block (random yaw)")):
             rows = (results.get("blocks") or {}).get(f"{kind}/{k}") or []
             out += [f"### {label} — mean ± std over seeds", "",
-                    render_block_table(rows, HEADLINE_METRICS), ""]
+                    render_block_table(rows, DESCRIPTIVE_METRICS), ""]
     out += ["## Validity-control cells (V block)", "",
             render_v_readouts(results.get("v_readouts") or []), "",
             "## External reproduction checks (non-halting)", "",
@@ -1049,12 +1168,18 @@ def build_results(output_root, pin=None, expected_count=V.EXPECTED_COUNT,
     gates = {"G3": gate_g3(cells), "G4": gate_g4(cells, control, registry),
              "G5": gate_g5({b: tuple(s) for b, s in seeds_by_block.items()
                             if b[1] in (T_BLOCK, R_BLOCK)})}
-    r_probe = next((a for a in cells if a.cell.cell == R_BLOCK
-                    and int(a.cell.seed) == 42
-                    and int(a.cell.k) == CONFIRMATORY_K), None)
-    gates["G2"] = (gate_g2(r_probe, expected_count) if r_probe else
-                   {"gate": "G2", "status": "PENDING",
-                    "detail": "no K=8 seed-42 random-yaw cell has landed yet"})
+    # The ladder names ONE probe: YAWAUG / rrob / K=8 / seed 42 (plan §7-8).
+    # Accepting "the first K=8 seed-42 R cell from either arm" could have gated
+    # the campaign on VANL's draw instead (integrative review F8).
+    probe_cell = V.Cell("YAWAUG", R_BLOCK, STEP, 42, CONFIRMATORY_K, None)
+    probe_name = V.eval_name(probe_cell)
+    r_probe = next((a for a in cells if a.cell == probe_cell), None)
+    if r_probe is None:
+        gates["G2"] = {"gate": "G2", "status": "PENDING", "probe": probe_name,
+                       "detail": f"the registered probe {probe_name} has not landed"}
+    else:
+        gates["G2"] = dict(gate_g2(r_probe, expected_count), probe=probe_name)
+        gates["G2"]["detail"] = f"{probe_name}: {gates['G2']['detail']}"
     routed = route_observations(cells)
     vanl_t = routed.get(("VANL", T_BLOCK, CONFIRMATORY_K), {}).get("T60", {})
     vctl = next((a for a in cells if a.cell.arm == "VANL"
@@ -1072,7 +1197,7 @@ def build_results(output_root, pin=None, expected_count=V.EXPECTED_COUNT,
     for kind in (T_BLOCK, R_BLOCK):
         for k in KS:
             blocks[f"{kind}/{k}"] = block_rows(routed, kind, k,
-                                               HEADLINE_METRICS + CONFOUNDED_METRICS)
+                                               DESCRIPTIVE_METRICS + CONFOUNDED_METRICS)
     v_readouts = []
     for art in sorted((a for a in cells if a.cell.cell == V_BLOCK),
                       key=lambda a: a.cell.arm):
