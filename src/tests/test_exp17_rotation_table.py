@@ -5,8 +5,13 @@ The scientific question this table answers is NOT "how good is Yaw-Aug" but
 quantity is a spread across the C4 orbit, and the pitfalls are about comparing
 like with like:
 
-* **Per-scene mean, not per-sample.** Paper headline numbers average per scene
-  (CLAUDE.md); mixing the two conventions changes the numbers.
+* **The estimand is the GLOBAL (sample-weighted) mean and must be labeled so.**
+  `--record-per-scene` is not passed, so the flat metric keys hold the global
+  mean over all 6,337 items — which is ALSO what every model_comparison raw
+  JSON holds (verified: probe JSON T60 == stdout T60; gen_model_comparison
+  reads the same flat key), so cross-row comparability is intact. But it is
+  NOT the per-scene paper convention, and an earlier revision of this
+  docstring wrongly claimed it was (review catch).
 * **A cell is only comparable within its own (step, K).** A rotation spread
   computed across different K, or across checkpoints, is meaningless.
 * **An incomplete orbit must not produce a spread.** With 3 of 4 angles present,
@@ -26,7 +31,7 @@ from src.tools.exp17_rotation_table import (
 )
 
 
-def _write(tmp_path, step, k, rot, t60=9.0, **over):
+def _write(tmp_path, step, k, rot, t60=9.0, arm="exp17_YAWAUG", **over):
     rec = {
         "cond_method": "vanilla", "cond_autocast": "bf16",
         "rotate_deg": float(rot),
@@ -42,13 +47,13 @@ def _write(tmp_path, step, k, rot, t60=9.0, **over):
     # rotated cell of the live grid.
     suffix = f"_rot{rot}" if rot != 0 else ""
     name = (f"epoch=0-step={step}_metrics_1_1.0_"
-            f"exp17_YAWAUG_S{step}_K{k}_rot{rot}_seed42{suffix}.json")
+            f"{arm}_S{step}_K{k}_rot{rot}_seed42{suffix}.json")
     (tmp_path / name).write_text(json.dumps(rec))
 
 
-def _full_orbit(tmp_path, step=40000, k=1, values=(9.0, 9.4, 9.1, 9.3)):
+def _full_orbit(tmp_path, step=40000, k=1, values=(9.0, 9.4, 9.1, 9.3), arm="exp17_YAWAUG"):
     for rot, v in zip(ROTATIONS, values):
-        _write(tmp_path, step, k, rot, t60=v)
+        _write(tmp_path, step, k, rot, t60=v, arm=arm)
 
 
 # --------------------------------------------------------------------------- #
@@ -153,3 +158,47 @@ def test_rows_are_ordered_by_step_then_K(tmp_path):
             _full_orbit(tmp_path, step=step, k=k)
     rows = orbit_rows(load_cells(tmp_path))
     assert [(r.step, r.k) for r in rows] == sorted((r.step, r.k) for r in rows)
+
+
+# --------------------------------------------------------------------------- #
+# arm and seed identity (review: last-write-wins could fabricate mixed orbits)
+# --------------------------------------------------------------------------- #
+def test_another_arms_cells_are_skipped_not_merged(tmp_path):
+    _full_orbit(tmp_path, arm="exp17_YAWAUG")
+    _full_orbit(tmp_path, arm="exp17_P1CTRL", values=(5.0, 5.0, 5.0, 5.0))
+    cells = load_cells(tmp_path, arm="exp17_YAWAUG")
+    assert len(cells) == 4
+    (row,) = orbit_rows(cells)
+    assert row.at_0["T60"] == pytest.approx(9.0), "a P1CTRL value leaked in"
+
+
+def test_complementary_partial_arms_cannot_fabricate_an_orbit(tmp_path):
+    """YAWAUG has 0/90, P1CTRL has 180/270: no orbit may emerge from the mix."""
+    for rot in (0, 90):
+        _write(tmp_path, 40000, 1, rot, arm="exp17_YAWAUG")
+    for rot in (180, 270):
+        _write(tmp_path, 40000, 1, rot, arm="exp17_P1CTRL")
+    assert orbit_rows(load_cells(tmp_path, arm="exp17_YAWAUG")) == []
+    assert orbit_rows(load_cells(tmp_path, arm="exp17_P1CTRL")) == []
+
+
+def test_a_duplicate_cell_identity_is_a_hard_error(tmp_path):
+    _write(tmp_path, 40000, 1, 90)
+    # same identity from a different checkpoint file prefix
+    rec = {"cond_method": "vanilla", "cond_autocast": "bf16", "rotate_deg": 90.0,
+           "metrics": {"T60": 1.0, "C50": 1.0, "EDT": 1.0, "FD": 1.0,
+                       "RIR_to_GT_RIR_R@1": 1.0}}
+    (tmp_path / "epoch=9-step=40000_metrics_1_1.0_exp17_YAWAUG_S40000_K1_rot90_seed42_rot90.json"
+     ).write_text(json.dumps(rec))
+    with pytest.raises(ValueError, match="duplicate"):
+        load_cells(tmp_path)
+
+
+def test_a_foreign_seed_is_refused(tmp_path):
+    rec = {"cond_method": "vanilla", "cond_autocast": "bf16", "rotate_deg": 0.0,
+           "metrics": {"T60": 1.0, "C50": 1.0, "EDT": 1.0, "FD": 1.0,
+                       "RIR_to_GT_RIR_R@1": 1.0}}
+    (tmp_path / "epoch=0-step=2500_metrics_1_1.0_exp17_YAWAUG_S2500_K1_rot0_seed43.json"
+     ).write_text(json.dumps(rec))
+    with pytest.raises(ValueError, match="seed"):
+        load_cells(tmp_path)

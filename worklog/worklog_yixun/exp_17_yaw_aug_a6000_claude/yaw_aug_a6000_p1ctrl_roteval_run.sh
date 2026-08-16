@@ -32,9 +32,13 @@ FARM="outputs_FLAC/exp17_P1CTRL_roteval"
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 LOG="${EXPDIR}/yaw_aug_a6000_${TS}_p1ctrl_roteval.log"
 
-LOCK="${EXPDIR}/.p1ctrl_roteval.lock"
+# THE SAME lock file the Yaw-Aug runner holds (review: a private lock plus
+# pgrep snapshots is one-sided and racy — the running YAWAUG process already
+# owns .roteval.lock, so acquiring it here is mutual exclusion with NO change
+# to the active script, and a YAWAUG resume cannot start under us either).
+LOCK="${EXPDIR}/.roteval.lock"
 exec 9>"$LOCK"
-flock -n 9 || { echo "another p1ctrl roteval holds ${LOCK} - abort"; exit 2; }
+flock -n 9 || { echo "the rotation-grid lock ${LOCK} is held (Yaw-Aug grid or another control) - abort"; exit 2; }
 
 mkdir -p "$FARM"
 [ -L "$FARM" ] && { echo "${FARM} is a symlink; refusing"; exit 2; }
@@ -62,8 +66,10 @@ echo "gate 2 OK: P1 config pin matches"
 find "$FARM" -maxdepth 1 -name '*.ckpt' -delete
 N=0
 for S in $(seq 2500 2500 40000); do
-  REAL="$(ls "${P1_CKPT_DIR}"/epoch=*-step=${S}.ckpt 2>/dev/null | head -1)"
-  [ -n "$REAL" ] || { echo "P1 checkpoint for step ${S} not found - abort"; exit 2; }
+  MATCHES=( "${P1_CKPT_DIR}"/epoch=*-step=${S}.ckpt )
+  [ -e "${MATCHES[0]}" ] || { echo "P1 checkpoint for step ${S} not found - abort"; exit 2; }
+  [ "${#MATCHES[@]}" -eq 1 ] || { echo "step ${S} has ${#MATCHES[@]} checkpoint files (${MATCHES[*]}) - refusing to pick one silently"; exit 2; }
+  REAL="${MATCHES[0]}"
   ln -sfn "$(readlink -f "$REAL")" "${FARM}/$(basename "$REAL")" || { echo "link failed for ${REAL}"; exit 2; }
   N=$((N+1))
 done
