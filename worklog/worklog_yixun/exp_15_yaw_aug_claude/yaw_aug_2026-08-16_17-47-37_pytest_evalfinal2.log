@@ -1,0 +1,29 @@
+=== exp_15 — eval-final2 (re-review F1-F4) ===
+date   : 2026-08-16T17:47:37-04:00
+commit : 431a4bf6a6faad6e43410c3ff469efb8a2dca6bf
+
+NOTE: three bounded chunks — login node saturated (load ~85, slice at its
+      50.3G ceiling); single full-suite runs get killed mid-flight.
+
+### chunk: TestParseCell or TestValidateProtocol or TestVerifyHashes or TestC...
+................................................................         [100%]
+64 passed, 62 deselected in 17.73s
+
+### chunk: TestFullGridHappyPath or TestGatesActuallyGate or TestG3ScopedBloc...
+.........................                                                [100%]
+25 passed, 101 deselected in 105.45s (0:01:45)
+
+### chunk: TestK1IsDescriptiveOnly or TestVCellsDoNotGate or TestInvalidT60Ro...
+.....................................                                    [100%]
+37 passed, 89 deselected in 88.73s (0:01:28)
+
+DONE
+.....................................                                    [100%]
+37 passed, 89 deselected in 80.09s (0:01:20)
+
+TOTAL: 64 + 25 + 37 = 126 tests
+DONE
+
+### NOTE: chunk 3 appears twice — the backgrounded copy finally completed
+### after I had already re-run it directly. Same 37 tests, both green.
+### DISTINCT TOTAL: 64 + 25 + 37 = 126.
