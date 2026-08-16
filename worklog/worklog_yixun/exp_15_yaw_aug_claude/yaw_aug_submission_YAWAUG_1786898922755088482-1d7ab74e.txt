@@ -1,0 +1,15 @@
+# exp_15 arm submission (intent published BEFORE sbatch)
+intent_id 1786898922755088482-1d7ab74e
+submitted_at 2026-08-16T12:48:42-04:00
+arm YAWAUG rung 8x8 micro 8 ngpu 8
+jobname exp15-YAWAUG-leg32500-YAWAUG-leg32500-8dee0816 time 1:30:00 smoke 0
+commit 94c728127691a535827242fe0a6776828b1e695f
+pins rung=8x8 maxsteps=40000 ckpt_every=2500 min_free_mb=36500 p0_manifest_sha256=72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b
+resume outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=6-step=30000.ckpt expected_step 30000
+smoke_acceptance <n/a> sha256 <none> waiver standing Yixun waiver 2026-08-12 16:00 EDT (rate floor unmeasurable in a 30-step smoke; VANL-log evidence); the windowed rate gate is enforced IN-CHAIN by yaw_aug_rate_gate.py at leg 1 before leg-2 submission — worklog 16:05 entry + plan §12
+chain 1 leg_steps 2500 leg_start 30000 leg_target 32500 cap 40000
+chain_standing_waiver worklog 2026-08-12T16:05:00-04:00 (Yixun waived rate_at_least_0.9x_VANL; post-hoc windowed floors 0.849/0.843)
+chain_initial_manifest /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-15_05-19-19_YAWAUG_8x8_jid3695627_manifest.txt
+chain_intent_token YAWAUG-leg32500-8dee0816 dependency afterok:3704835
+sbatch sbatch --job-name=exp15-YAWAUG-leg32500-YAWAUG-leg32500-8dee0816 --gres=gpu:l40:8 --cpus-per-task=64 --mem=108G --time=1:30:00 --export=ALL,ARM=YAWAUG,EXPECT_SHA=94c728127691a535827242fe0a6776828b1e695f,OUTPUT_ROOT=outputs_FLAC,RESUME_CKPT=outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=6-step=30000.ckpt,EXPECTED_STEP=30000,CHAIN=1,LEG_STEPS=2500 --dependency=afterok:3704835 worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_train.sbatch
+jobid 3705236
