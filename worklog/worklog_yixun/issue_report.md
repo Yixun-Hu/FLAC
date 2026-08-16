@@ -1,8 +1,10 @@
 # Issue report — open issues, caveats, pending decisions
 
-Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items move to the bottom with resolution notes. **Last refresh: 2026-08-10 (Opus 5 max seat, on the Fable 5 → Opus 5 model change).**
+Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items move to the bottom with resolution notes. **Last refresh: 2026-08-16 ~14:50 EDT (Fable 5 seat, on the Opus 5 → Fable 5 model change; exp_17 C4 grid running).**
 
 ## Awaiting Yixun (decisions)
+
+-1. **exp_17 C4 table lands ~20:30 EDT today (2026-08-16)** — grid 33/128 at refresh, 0 failures. Then two calls: **(a)** how to publish — the grid is single-eval-seed (42) and `gen_model_comparison.py` structurally excludes single-seed rows, so either run 5-seed endpoint cells afterwards for the living table or keep the grid as exp_17's own artifact; **(b)** whether to run the **P1-control rotation grid** under the identical protocol (~7 h on both GPUs) — without it, "augmentation bought rotational flatness" has no same-protocol vanilla baseline (exp_07 A6 is supporting but different-vintage evidence).
 
 0. **ARE-V is HELD INDEFINITELY (Yixun 2026-08-14: "ARE-V先不做").** Code committed, reviewed and parked launch-ready; the Aug-16 22:00 deadline is formally dropped and no longer tracked. One instruction reactivates it (~1 h to launch, ~46 h training).
 0b. **ARE ablation scheduling (ARE-FA, ARE-CYL)** — deferred by his instruction to the ARE-V completion discussion; includes choosing the cylindrical backbone (in-repo `cyl_vit` vs sibling cylindrical-dinov3, and which weights).
@@ -15,6 +17,8 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 
 ## Open issues / caveats (technical)
 
+0. **exp_17 outstanding review debt (non-blocking, queued for after the grid):** roteval-r1 non-blocking findings — completion-audit stale-log cross-invocation stitching, `--save-dir` suffix-match cross-worktree ambiguity, guard H/I deletion-vacuity, `argval()` flag-token boundary. Also our retired launcher/guardtests carry r3 blockers listed in-file; **do not reuse them without that pass.** The exp_17 C4 grid is **single eval seed (42)** — a caveat on every number until 5-seed endpoint cells exist.
+0b. **eval_FLAC.py writes metric JSONs to `dirname(--ckpt-path)`** — evaluating another checkout's checkpoints in place scatters files into their namespace; use a symlink farm (pattern in `yaw_aug_a6000_roteval_run.sh`).
 
 1. **Late checkpoints are band draws, not trajectory points.** InverseLR holds lr ≈ 4.8e-5 through the whole run, so adjacent checkpoints swing ~±0.5 T60 / ~±2 EDT. This distorted three readings before it was quantified (B-V's band-max 67.5k endpoint; fa-scratch's band-best 40k spike; fa-scratch's band-worst 67.5k endpoint). exp_13 showed a decaying tail halves the band but lands on a different metric trade point rather than reproducing a wide-band best draw. **Mitigation, now standing: pre-registered window selection + held-out eval-seed confirmation; never quote a single screen as a result.**
 2. **Eval-protocol flags must be declared per arm.** `--cond-method vanilla|fa_invariant` mismatch yields plausible-but-catastrophic numbers in both directions (see HANDOFF "Load-bearing facts"). Root cause of exp_09's protocol error and the retracted exp_07 B-F conclusion. Now mandated in every launch/screen manifest.
