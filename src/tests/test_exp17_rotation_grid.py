@@ -225,3 +225,39 @@ def test_an_empty_output_file_does_not_count_as_done(tmp_path):
     grid = build_grid(CKPTS)
     (tmp_path / f"{cell_name(grid[0])}.json").write_text("")
     assert grid[0] in pending_cells(grid, out_dir=tmp_path)
+
+
+# --------------------------------------------------------------------------- #
+# the P1 control arm — same grid, distinct identity
+# --------------------------------------------------------------------------- #
+def test_the_control_arm_yields_distinct_names_for_every_cell():
+    """A YAWAUG cell and its P1-control twin must never share a metric filename."""
+    from src.tools.exp17_rotation_grid import DEFAULT_ARM, P1_CONTROL_ARM
+    grid = build_grid(CKPTS)
+    yaw = {cell_name(c, arm=DEFAULT_ARM) for c in grid}
+    ctl = {cell_name(c, arm=P1_CONTROL_ARM) for c in grid}
+    assert yaw.isdisjoint(ctl)
+    assert len(ctl) == len(grid)
+
+
+def test_the_control_arm_reaches_the_eval_name_on_the_command_line():
+    from src.tools.exp17_rotation_grid import P1_CONTROL_ARM
+    c = build_grid(CKPTS)[0]
+    argv = cell_argv(c, model_config=MODEL_CFG, arm=P1_CONTROL_ARM)
+    assert argv[argv.index("--eval-name") + 1].startswith("exp17_P1CTRL_")
+
+
+def test_the_default_arm_is_byte_identical_to_the_pre_parameterisation_names():
+    """The RUNNING grid depends on these names; the default must not move."""
+    c = next(x for x in build_grid(CKPTS) if x.step == 2500 and x.k == 1 and x.rotate_deg == 0)
+    assert cell_name(c) == "exp17_YAWAUG_S2500_K1_rot0_seed42"
+
+
+def test_completion_of_one_arm_does_not_mark_the_other_done(tmp_path):
+    """The admission gate must scope by arm, or the control would skip cells
+    the YAWAUG grid already produced."""
+    from src.tools.exp17_rotation_grid import P1_CONTROL_ARM
+    grid = build_grid(CKPTS)
+    c = grid[0]
+    (tmp_path / f"{cell_name(c)}.json").write_text(_record(c))   # YAWAUG artifact
+    assert c in pending_cells(grid, out_dir=tmp_path, arm=P1_CONTROL_ARM)

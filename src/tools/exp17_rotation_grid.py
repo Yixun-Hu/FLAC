@@ -80,15 +80,22 @@ def build_grid(ckpts: dict[int, str]) -> list[Cell]:
     ]
 
 
-def cell_name(c: Cell) -> str:
+# Arm prefixes. The default keeps every existing call (incl. the running
+# grid's final pending-check) byte-identical; the P1 control uses its own so
+# the two grids can never collide on an eval name or a metric filename.
+DEFAULT_ARM = "exp17_YAWAUG"
+P1_CONTROL_ARM = "exp17_P1CTRL"
+
+
+def cell_name(c: Cell, *, arm: str = DEFAULT_ARM) -> str:
     """Unique identity for a cell; the metric JSON is named from it.
 
     Two cells sharing a name would overwrite each other's results silently.
     """
-    return f"exp17_YAWAUG_S{c.step}_K{c.k}_rot{c.rotate_deg}_seed{SEED}"
+    return f"{arm}_S{c.step}_K{c.k}_rot{c.rotate_deg}_seed{SEED}"
 
 
-def cell_argv(c: Cell, *, model_config: str) -> list[str]:
+def cell_argv(c: Cell, *, model_config: str, arm: str = DEFAULT_ARM) -> list[str]:
     """The exact command line for one cell.
 
     Every protocol flag is passed EXPLICITLY. Announcement 05: a mismatched
@@ -111,11 +118,11 @@ def cell_argv(c: Cell, *, model_config: str) -> list[str]:
         "--cfg-scale", CFG_SCALE,
         "--steps", STEPS,
         "--seed", SEED,
-        "--eval-name", cell_name(c),
+        "--eval-name", cell_name(c, arm=arm),
     ]
 
 
-def cell_is_complete(c: Cell, *, out_dir: Path) -> bool:
+def cell_is_complete(c: Cell, *, out_dir: Path, arm: str = DEFAULT_ARM) -> bool:
     """Is there an ADMISSIBLE result for this cell?
 
     "Non-empty file exists" is not enough (Codex review): a truncated JSON, a
@@ -124,7 +131,7 @@ def cell_is_complete(c: Cell, *, out_dir: Path) -> bool:
     and agree with the cell on every protocol field it records — which makes this
     the artifact-admission gate as well as the resume predicate.
     """
-    for path in Path(out_dir).rglob(f"*{cell_name(c)}*.json"):
+    for path in Path(out_dir).rglob(f"*{cell_name(c, arm=arm)}*.json"):
         if not (path.is_file() and path.stat().st_size > 0):
             continue
         try:
@@ -143,6 +150,7 @@ def cell_is_complete(c: Cell, *, out_dir: Path) -> bool:
     return False
 
 
-def pending_cells(grid: list[Cell], *, out_dir: Path) -> list[Cell]:
+def pending_cells(grid: list[Cell], *, out_dir: Path,
+                  arm: str = DEFAULT_ARM) -> list[Cell]:
     """Cells with no ADMISSIBLE result yet — 128 cells will not run uninterrupted."""
-    return [c for c in grid if not cell_is_complete(c, out_dir=out_dir)]
+    return [c for c in grid if not cell_is_complete(c, out_dir=out_dir, arm=arm)]
