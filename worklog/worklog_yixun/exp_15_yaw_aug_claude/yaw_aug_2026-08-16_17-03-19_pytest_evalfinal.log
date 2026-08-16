@@ -1,0 +1,21 @@
+=== exp_15 collector + publish transaction — eval-final ===
+date   : 2026-08-16T17:03:19-04:00
+commit : d7ec295d41cd2ef17e01bbe0ae9dd22437815a8f
+
+NOTE: run in three bounded chunks. The login node is saturated (load ~80,
+      user slice at its 50.3G memory ceiling) and single full-suite
+      invocations were being KILLED mid-run. Same 114 tests, same file.
+
+### chunk: TestParseCell or TestValidateProtocol or TestVerifyHashes or TestCheck...
+................................................................         [100%]
+64 passed, 50 deselected in 31.34s
+
+### chunk: TestFullGridHappyPath or TestGatesActuallyGate or TestG3ScopedBlocking...
+.........................                                                [100%]
+25 passed, 89 deselected in 84.59s (0:01:24)
+
+### chunk: TestK1IsDescriptiveOnly or TestVCellsDoNotGate or TestInvalidT60Routin...
+.........................                                                [100%]
+25 passed, 89 deselected in 56.03s
+
+DONE
