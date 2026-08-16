@@ -61,3 +61,18 @@
 - **Gap closed from outside** — `src/tools/exp17_full_audit.py` (+ 16 TDD tests): a pure function over (log text, checkpoint names, rc), so it is testable without a 21 h run and appliable read-only to a run we did not launch. Checks the endpoint marker *with Lightning's backticks*, `*step=40000.ckpt`, all 16 cadence checkpoints, the banner as a whole line, 2-rank topology, and finite loss. Verified against the live log: banner and topology matched real data; the three problems reported are exactly "not finished yet". This also covers r3's finding that NaN/Inf checking was SMOKE-only — a FULL that diverges late would otherwise reach 40k and pass every gate.
 - **Our launcher/guardtests are RETIRED** pending the r3 blockers (HEAD binding, smoke-evidence revision binding, `pipefail`+`tr|grep -q` SIGPIPE, FULL NaN check, guard-suite H/I deletion-vacuity, concurrency-unsafe cleanup). They must not be reused as-is.
 - **Process slip** — Codex r3 stalled 46 min at 0 % CPU on `Reading additional input from stdin...` because I omitted `< /dev/null`, which CLAUDE.md documents. Killed and relaunched correctly.
+
+## 2026-08-16T12:39:13-04:00 — FULL COMPLETE, audit PASSED
+
+- `exit rc=0`; 21 h 44 min wall; **16/16** cadence checkpoints (2,500 → 40,000), 11 GB; final train/loss 0.409 from 2.47; zero Traceback/OOM/Killed/RuntimeError across the whole log.
+- Completion audit: **COMPLETE** — endpoint reached, 16 cadence checkpoints, treatment banner present as a whole line, 2 ranks, all logged losses finite, log bound to the audited directory, foreign `exit rc=0` parsed rather than assumed.
+- **The r1 fix was load-bearing.** The real marker is `…train/mse_loss=0.409]\`Trainer.fit\` stopped: \`max_steps=40000\` reached.` — appended to the tqdm line, not standing alone. The whole-line match would have rejected this valid run; my fixture had put the marker on its own line, which is why the tests were green while the tool was broken.
+- Measured rate 1.931–1.966 s/step throughout, no thermal or contention decay.
+
+## 2026-08-16T12:47:17-04:00 — C4 rotation grid launched (127 of 128 cells)
+
+- **Probe first.** One cell (S40000/K=1/0°) run end-to-end before committing the queue: rc=0, **389 s** — so the real cost is 6.5 min/cell, not the 11 min estimated from historical logs, and the grid is ~6.9 h rather than ~12 h. The probe's artifact passed our own admission gate (`cond_method=vanilla`, `cond_autocast=bf16`, `rotate_deg=0.0`, 11 metrics), so the queue skipped it: 128 → 127.
+- Probe numbers (S40000, K=1, 0°): T60 9.366 / C50 1.083 / EDT 41.902 / FD 0.322 / R@1 5.034 / R@5 15.922 / R@10 22.992.
+- Both gates fired correctly in sequence: gate 1 (training pid dead), gate 2 (audit COMPLETE with the parsed foreign rc=0). Symlink farm built, 16 links, provenance printed — every write lands in our namespace, the foreign tree is read-only.
+- ⚠️ Cosmetic: the runner's queue banner still says "~11 min each => ~11 h" from the pre-probe constant. Not corrected mid-run — bash reads a script as it executes, so editing a running launcher corrupts it. Display only; execution unaffected.
+- `src/tools/exp17_rotation_table.py` (+11 TDD tests) written while the grid runs: one row per COMPLETE (step, K) orbit, reporting the value at 0° and the **C4 spread** (max − min). An incomplete orbit yields NO row by design — a 3-of-4 max-min is a smaller, flattering number, not the C4 spread. Cells whose recorded protocol disagrees, or whose recorded angle contradicts their filename, are hard errors: a silently permuted orbit would produce a plausible spread that means nothing.

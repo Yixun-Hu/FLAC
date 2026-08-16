@@ -1,0 +1,31 @@
+=== exp_17 C4 rotation-eval grid — 2026-08-16_12-47-17 — 58a307c ===
+foreign run : /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG
+symlink farm: outputs_FLAC/exp17_YAWAUG_roteval   (all writes land here; the foreign tree is read-only)
+gate 1 OK: training pid 1012326 is not running
+foreign training exit status: rc=0
+exp_17 FULL completion audit — /home/yixunhu/codespace/exp-17-yawaug-a6000/worklog/worklog_yixun/exp_17_yaw_aug_a6000_claude/yaw_aug_a6000_2026-08-15_14-54-31_FULL.log
+  usable checkpoints found: 16
+VERDICT: COMPLETE — endpoint reached, 16 cadence checkpoints, treatment banner present, 2 ranks, all logged losses finite
+gate 2 OK: completion audit passed
+symlinked 16 checkpoints into outputs_FLAC/exp17_YAWAUG_roteval
+--- provenance: the real checkpoints behind the links ---
+epoch=0-step=2500.ckpt -> /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=0-step=2500.ckpt
+epoch=1-step=5000.ckpt -> /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=1-step=5000.ckpt
+epoch=1-step=7500.ckpt -> /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=1-step=7500.ckpt
+epoch=2-step=10000.ckpt -> /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=2-step=10000.ckpt
+epoch=2-step=12500.ckpt -> /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=2-step=12500.ckpt
+epoch=3-step=15000.ckpt -> /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=3-step=15000.ckpt
+epoch=3-step=17500.ckpt -> /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=3-step=17500.ckpt
+epoch=4-step=20000.ckpt -> /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=4-step=20000.ckpt
+epoch=4-step=22500.ckpt -> /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=4-step=22500.ckpt
+epoch=5-step=25000.ckpt -> /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=5-step=25000.ckpt
+epoch=6-step=27500.ckpt -> /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=6-step=27500.ckpt
+epoch=6-step=30000.ckpt -> /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=6-step=30000.ckpt
+epoch=7-step=32500.ckpt -> /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=7-step=32500.ckpt
+epoch=7-step=35000.ckpt -> /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=7-step=35000.ckpt
+epoch=8-step=37500.ckpt -> /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=8-step=37500.ckpt
+epoch=8-step=40000.ckpt -> /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=8-step=40000.ckpt
+# 127 of 128 cells pending
+queue: 127 pending cells (~11 min each; 2 in flight => ~11 h)
+[1/127] gpu0 exp17_YAWAUG_S2500_K1_rot0_seed42
+[2/127] gpu1 exp17_YAWAUG_S2500_K1_rot90_seed42
