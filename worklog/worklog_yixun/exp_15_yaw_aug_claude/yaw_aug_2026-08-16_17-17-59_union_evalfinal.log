@@ -1,0 +1,49 @@
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-16_17-12-57_guardtests_evalfinal.ledger: 182 case records
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-16_17-17-59_guardtests_evalfinal.ledger: 182 case records
+
+cases seen        : 182
+covered (>=1 PASS): 182
+failed anywhere   : 40
+never passed      : 0
+  FAILED      ... and the driver dies on it rather than evaluating
+  FAILED    K=1 still expects 6337 items
+  FAILED    K=1 uses the _1 split (same 6337 items)
+  FAILED    R argv: angle stays zero
+  FAILED    R argv: random mode with the eval seed
+  FAILED    R argv: the _rotrand token is in the eval name
+  FAILED    STEP 12500 is unregistered
+  FAILED    STEP 42500 is unregistered
+  FAILED    T argv: bf16 conditioning autocast
+  FAILED    T argv: fixed mode, angle 0
+  FAILED    T argv: per-scene recording is mandatory
+  FAILED    T argv: the K=8 split
+  FAILED    T argv: the assignment audit is mandatory
+  FAILED    T argv: the campaign batch/worker pins
+  FAILED    T argv: the pinned frame angles
+  FAILED    T argv: the registered eval name
+  FAILED    T argv: vanilla conditioning
+  FAILED    V argv: fixed 90 degrees
+  FAILED    V argv: the _rot90 token is in the eval name
+  FAILED    a synthetic admission source is refused for the PRODUCTION root
+  FAILED    an EVAL_ORBIT leftover is refused
+  FAILED    an exp_14 arm is refused
+  FAILED    an exp_14 cell type is refused
+  FAILED    bad K
+  FAILED    missing ARM
+  FAILED    missing CELL
+  FAILED    missing EXPECT_SHA
+  FAILED    missing STEP
+  FAILED    no checkpoint tree at all
+  FAILED    real mode needs sbatch
+  FAILED    rrob refuses ROTATE_DEG
+  FAILED    rrob refuses seed 41
+  FAILED    tbl refuses ROTATE_DEG
+  FAILED    tbl refuses seed 47
+  FAILED    the driver's cell-validation argv is check_argv's own rendering
+  FAILED    two checkpoints at one step
+  FAILED    vctl is K=8 only
+  FAILED    vctl is seed 42 only
+  FAILED    vctl needs an angle
+  FAILED    vctl refuses 45 degrees (exp_14's angle, not ours)
+
+UNION COVERAGE: NOT SATISFIED

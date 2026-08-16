@@ -286,3 +286,8 @@
 
 - **Result** — Job 3706376: 142 passed / **40 failed — ALL the same signature** ("want rc=2 + <message>, got rc=2"): inside a Slurm allocation `SLURM_JOB_ID` is set, so the driver's under-sbatch branch (`yaw_aug_screen.sbatch:331`, MEASURE_ROOT demand) fires before the parameter gates the refusal cases assert on. Right refusal, wrong (earlier) message. Classification: **environment artifact of running the login-shell-designed suite inside an allocation — NOT a kit or test defect** (the same cases passed on the login node in every earlier round). Fix: the wrapper scrubs `SLURM_*` before invoking the suite (the suite itself never submits — self-checked). Resubmitted.
 - **Next** — green STRICT transcript → scoped re-review → ARMED.
+
+## 2026-08-16T20:35:00-04:00 — STRICT rerun GREEN (182/0); union 182/182; eval-final verification complete
+
+- **Result** — Job 3706403 (SLURM_*-scrubbed): **182 passed / 0 failed** incl. all F1 canary cases. The job's rc=1 came only from the wrapper's union glob sweeping the superseded env-artifact ledger (40 stale failures from run 1); rerun on the clean ledger: **182/182 covered, 0 failed anywhere — SATISFIED**. Superseded ledger renamed `.superseded_envartifact` so no future glob resurrects it. The eval-final round's outstanding verification is closed.
+- **Next** — scoped re-review of `f01b69a` (the 8-finding fix commit) → on GO, eval is ARMED: waits only on 40k + the campaign pin per runbook step 3.
