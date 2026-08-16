@@ -291,3 +291,9 @@
 
 - **Result** — Job 3706403 (SLURM_*-scrubbed): **182 passed / 0 failed** incl. all F1 canary cases. The job's rc=1 came only from the wrapper's union glob sweeping the superseded env-artifact ledger (40 stale failures from run 1); rerun on the clean ledger: **182/182 covered, 0 failed anywhere — SATISFIED**. Superseded ledger renamed `.superseded_envartifact` so no future glob resurrects it. The eval-final round's outstanding verification is closed.
 - **Next** — scoped re-review of `f01b69a` (the 8-finding fix commit) → on GO, eval is ARMED: waits only on 40k + the campaign pin per runbook step 3.
+
+## 2026-08-16T22:30:00-04:00 — Eval re-review: 5/9 closed, 4 remain (2 BLOCKING); final2 cycle dispatched
+
+- **Result** — `fix_ready`. Re-review saved (`yaw_aug_codex_eval_rereview.md`). Confirmed closed: K=1 descriptive, Invalid-T60 routing, exp_11 incomparability declaration (adjudicated scientifically correct), G2 probe pinning, SLURM scrub (adjudicated correct, not masking). Remaining: **F1** the `YAW_EVAL_PINNED_EXEC` marker is trusted unverified (bypass/forge surface; canary proved routing-after-trust, not bootstrap attribution); **F6** `set -e` kills the `cellstatus` rc=3 branch — the single-cell submitter cannot submit a MISSING cell (runbook steps 6/7 would die on first real use) + squeue unresolved/fail-open; **F7** readiness can fire from YAWAUG-only T cells (cross-arm equalities untested) and one K can publish alone; **F3-residual** a defective V cell's readout still renders numerically. Cycle evalfinal2 dispatched (marker verification against pin+worktree; rc-preserving capture; both-arms-both-K transaction; WITHHELD V readout).
+- **Chain** — leg 13 (30000→32500) STILL PENDING (~24 h in queue — the age-reset effect; Yixun's wait policy stands).
+- **Next** — evalfinal2 → verification (pytest + scrubbed CPU-job STRICT) → final scoped re-review → ARMED.
