@@ -83,7 +83,21 @@ done
 # Snapshot BEFORE the temp tree exists; the ledger/log above are this suite's own
 # evidence files and are excluded by being untracked in EXPDIR (compared as a set,
 # so their creation shows up identically in both snapshots).
-TRACKED_BEFORE="$(git status --porcelain --untracked-files=no -- "$EXPDIR" "$EXP11" "$EXP14" src data/AR eval_FLAC.py | sort)"
+# WORKTREE-vs-INDEX, not status-vs-HEAD (learned twice): `git status --porcelain`
+# changes the moment ANY session commits, so it answered "did anyone commit
+# during the run" rather than "did this suite modify a tracked file". Two
+# sessions commit to this checkout, so that was a false alarm waiting to happen —
+# and it fired, on my own mid-run commit. `git diff` (worktree vs index) is
+# invariant under commits and moves only if a file's CONTENT changes, which is
+# the question this case is actually asking.
+TRACKED_PATHS=("$EXPDIR" "$EXP11" "$EXP14" src data/AR eval_FLAC.py)
+tracked_snapshot() {
+  git diff --name-only -- "${TRACKED_PATHS[@]}" | sort
+  # ...plus the content digests of the files this suite actually drives, so a
+  # modify-then-stage sequence could not hide in the diff above either.
+  sha256sum "$SCREEN" "$SUB" "$GRID" "$VALIDATOR" "$ADMIT" "$GUARD_SELF" 2>/dev/null
+}
+TRACKED_BEFORE="$(tracked_snapshot)"
 # ...plus a name/size/mtime listing of the two READ-ONLY neighbour folders. The
 # git snapshot cannot see an untracked file appearing there, and those folders
 # belong to other experiments (one of them to a session that is writing to it
@@ -1183,14 +1197,14 @@ expect_cmd "a malformed EXCLUDE is refused" 2 "not a comma-separated node list" 
 
 echo
 echo "--- Z. the suite touched nothing tracked, and submitted nothing ---"
-TRACKED_AFTER="$(git status --porcelain --untracked-files=no -- "$EXPDIR" "$EXP11" "$EXP14" src data/AR eval_FLAC.py | sort)"
+TRACKED_AFTER="$(tracked_snapshot)"
 if [ "$TRACKED_BEFORE" = "$TRACKED_AFTER" ]; then
-  echo "PASS  tracked tree unchanged by the suite (snapshot before == after)"
-  ledger PASS "tracked tree unchanged by the suite (snapshot before == after)"; PASS=$((PASS+1))
+  echo "PASS  tracked tree unchanged by the suite (worktree content before == after)"
+  ledger PASS "tracked tree unchanged by the suite (worktree content before == after)"; PASS=$((PASS+1))
 else
   echo "FAIL  the suite changed tracked state:"
   diff <(echo "$TRACKED_BEFORE") <(echo "$TRACKED_AFTER") | sed 's/^/        | /'
-  ledger FAIL "tracked tree unchanged by the suite (snapshot before == after)"; FAIL=$((FAIL+1))
+  ledger FAIL "tracked tree unchanged by the suite (worktree content before == after)"; FAIL=$((FAIL+1))
 fi
 NEIGHBOURS_AFTER="$(ls -li --time-style=+%s "$EXP11" "$EXP14" | sort)"
 NEIGH_DIFF="$(diff <(printf '%s\n' "$NEIGHBOURS_BEFORE") <(printf '%s\n' "$NEIGHBOURS_AFTER") \
