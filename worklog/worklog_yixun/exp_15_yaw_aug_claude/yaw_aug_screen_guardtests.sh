@@ -88,12 +88,21 @@ TRACKED_BEFORE="$(git status --porcelain --untracked-files=no -- "$EXPDIR" "$EXP
 # git snapshot cannot see an untracked file appearing there, and those folders
 # belong to other experiments (one of them to a session that is writing to it
 # right now), so "did WE move anything" is the only question this suite may ask.
-NEIGHBOURS_BEFORE="$(ls -l --time-style=+%s "$EXP11" "$EXP14" | sort)"
+NEIGHBOURS_BEFORE="$(ls -li --time-style=+%s "$EXP11" "$EXP14" | sort)"
 
 TMP="$(mktemp -d)"
 trap 'suite_exit_trap' EXIT
 PASS=0; FAIL=0
 STRICT="${STRICT:-0}"
+# SKIP_HEAVY=1 omits every case that spends real CPU: the driver's own DRYRUN
+# deliberately runs the full checkpoint-admission gate before it exits (the E1
+# reviewer's warning), and the admission cases import torch per invocation. On a
+# loaded login node those dominate the runtime.
+#
+# This is NOT a way to get a green run cheaply. Skipped cases are recorded as
+# skip_env, so yaw_aug_union_coverage.py still demands a PASS for each of them in
+# some other transcript — a SKIP_HEAVY run alone can never satisfy coverage.
+SKIP_HEAVY="${SKIP_HEAVY:-0}"
 ledger() { printf '%s\t%s\n' "$1" "$2" >> "$LEDGER"; }
 
 suite_exit_trap() {   # PRESERVES the script's own exit status; only worsens it
@@ -133,6 +142,10 @@ skip_env() {    # <name> <reason> — the case CANNOT run in this environment.
 case_run() {  # <name> <want-rc> <want-substring> -- <env...>   (runs the DRIVER)
   local name="$1" want_rc="$2" want_txt="$3"; shift 3; [ "$1" = "--" ] && shift
   local out rc
+  if [ "$SKIP_HEAVY" = "1" ]; then
+    skip_env "$name" "SKIP_HEAVY: the driver's DRYRUN runs the checkpoint gate"
+    return 0
+  fi
   out="$(env "$@" bash "$SCREEN" 2>&1)"; rc=$?
   if [ "$rc" -eq "$want_rc" ] && echo "$out" | grep -qF -- "$want_txt"; then
     echo "PASS  ${name}  (rc=${rc})"; ledger PASS "$name"; PASS=$((PASS + 1))
@@ -152,6 +165,14 @@ expect_cmd() {  # <name> <want-rc> <want-substring> -- <command...>
     echo "$out" | tail -6 | sed 's/^/        | /'; ledger FAIL "$name"; FAIL=$((FAIL + 1))
   fi
 }
+heavy_cmd() {  # like expect_cmd, for cases that import torch per invocation
+  if [ "$SKIP_HEAVY" = "1" ]; then
+    skip_env "$1" "SKIP_HEAVY: imports torch per invocation"
+    return 0
+  fi
+  expect_cmd "$@"
+}
+
 check() {  # <name> <condition-rc> — for grep-style structural assertions
   if [ "$2" -eq 0 ]; then echo "PASS  $1"; ledger PASS "$1"; PASS=$((PASS + 1))
   else echo "FAIL  $1"; ledger FAIL "$1"; FAIL=$((FAIL + 1)); fi
@@ -160,14 +181,19 @@ eq_check() {  # <name> <got> <want>
   if [ "$2" = "$3" ]; then echo "PASS  $1"; ledger PASS "$1"; PASS=$((PASS + 1))
   else echo "FAIL  $1: got '$2' want '$3'"; ledger FAIL "$1"; FAIL=$((FAIL + 1)); fi
 }
-argv_of() { env "$@" bash "$SCREEN" 2>&1 | sed -n 's/^python eval_FLAC.py //p' | head -1; }
+argv_of() {
+  [ "$SKIP_HEAVY" = "1" ] && { printf ''; return 0; }
+  env "$@" bash "$SCREEN" 2>&1 | sed -n 's/^python eval_FLAC.py //p' | head -1
+}
 argv_has() {  # <name> <argv> <needle>
+  [ "$SKIP_HEAVY" = "1" ] && { skip_env "$1" "SKIP_HEAVY: needs a driver DRYRUN"; return 0; }
   case "$2" in
     *"$3"*) echo "PASS  $1"; ledger PASS "$1"; PASS=$((PASS + 1)) ;;
     *) echo "FAIL  $1: '$3' absent from"; echo "        | $2"; ledger FAIL "$1"; FAIL=$((FAIL + 1)) ;;
   esac
 }
 argv_lacks() {  # <name> <argv> <needle>  — an ABSENCE is a contract too
+  [ "$SKIP_HEAVY" = "1" ] && { skip_env "$1" "SKIP_HEAVY: needs a driver DRYRUN"; return 0; }
   case "$2" in
     *"$3"*) echo "FAIL  $1: '$3' present in"; echo "        | $2"; ledger FAIL "$1"; FAIL=$((FAIL + 1)) ;;
     *) echo "PASS  $1"; ledger PASS "$1"; PASS=$((PASS + 1)) ;;
@@ -548,7 +574,7 @@ for c in V.expected_grid():
         assert int(a[a.index("--rotate-seed") + 1]) == c.seed, c
 print("SEED==SEED")
 PY
-expect_cmd "the metrics path mirrors eval_FLAC.build_output_paths on all 42 cells" 0 "MIRROR OK 42" -- \
+heavy_cmd "the metrics path mirrors eval_FLAC.build_output_paths on all 42 cells" 0 "MIRROR OK 42" -- \
   $PY - <<'PY'
 import sys, os
 sys.path.insert(0, os.getcwd())
@@ -621,32 +647,32 @@ admit() {  # <root> <arm> [extra args...]
       --launch-manifest "$man" --main-repo / \
       --registry "${root}/registry.json" --control "${root}/control.json" "$@"
 }
-expect_cmd "a well-formed YAWAUG 40k checkpoint is ADMITTED" 0 "ADMITTED YAWAUG" -- admit "$GOOD" YAWAUG
-expect_cmd "a well-formed VANL 40k checkpoint is ADMITTED" 0 "ADMITTED VANL" -- admit "$GOOD" VANL
-expect_cmd "wrong embedded step is REFUSED" 1 "not the pre-registered endpoint 40000" -- admit "$WRONGSTEP" YAWAUG
-expect_cmd "a broken EMA<->online mirror is REFUSED" 1 "EMA/online mirror check FAILED" -- admit "$BROKENEMA" YAWAUG
+heavy_cmd "a well-formed YAWAUG 40k checkpoint is ADMITTED" 0 "ADMITTED YAWAUG" -- admit "$GOOD" YAWAUG
+heavy_cmd "a well-formed VANL 40k checkpoint is ADMITTED" 0 "ADMITTED VANL" -- admit "$GOOD" VANL
+heavy_cmd "wrong embedded step is REFUSED" 1 "not the pre-registered endpoint 40000" -- admit "$WRONGSTEP" YAWAUG
+heavy_cmd "a broken EMA<->online mirror is REFUSED" 1 "EMA/online mirror check FAILED" -- admit "$BROKENEMA" YAWAUG
 expect_cmd "a checkpoint trained WITHOUT yaw_aug is refused as YAWAUG" 1 \
   "embedded training.yaw_aug=None" -- admit "$WRONGCFG" YAWAUG
 expect_cmd "  ... and its embedded config mismatch is named too" 1 \
   "canonical bytes" -- admit "$WRONGCFG" YAWAUG
-expect_cmd "a recorded sha that does not match the file is REFUSED" 1 "checkpoint sha256: recomputed" -- \
+heavy_cmd "a recorded sha that does not match the file is REFUSED" 1 "checkpoint sha256: recomputed" -- \
   admit "$GOOD" YAWAUG --registry "${TMP}/registry_wrongsha.json"
 # A self-contradictory registry is an "expectation unavailable" condition (rc 2),
 # not a checkpoint refusal: nothing is knowable about the file until the record
 # agrees with itself, and reporting it as a bad checkpoint would misname the fault.
-expect_cmd "a registry whose arm and leg disagree is REFUSED" 2 "describes two different checkpoints" -- \
+heavy_cmd "a registry whose arm and leg disagree is REFUSED" 2 "describes two different checkpoints" -- \
   admit "$GOOD" YAWAUG --registry "${TMP}/registry_split.json"
-expect_cmd "a tampered launch manifest is REFUSED" 1 "manifest sha256" -- \
+heavy_cmd "a tampered launch manifest is REFUSED" 1 "manifest sha256" -- \
   admit "$GOOD" YAWAUG --launch-manifest "$YAWAUG_CONFIG"
-expect_cmd "a checkpoint outside the recorded location is REFUSED" 1 "is not the registered" -- \
+heavy_cmd "a checkpoint outside the recorded location is REFUSED" 1 "is not the registered" -- \
   admit "$GOOD" YAWAUG --registry "${TMP}/registry_wrongpath.json"
 # THE STATE THE LIVE REGISTRY IS IN TODAY, reproduced synthetically so the case
 # survives the chain finishing.
 expect_cmd "an UNFINISHED chain registry refuses admission, by name" 2 \
   "has NOT recorded its final checkpoint yet" -- admit "$GOOD" YAWAUG --registry "${TMP}/registry_unfinished.json"
-expect_cmd "  ... and names the legs recorded so far" 2 "legs recorded so far: [12500]" -- \
+heavy_cmd "  ... and names the legs recorded so far" 2 "legs recorded so far: [12500]" -- \
   admit "$GOOD" YAWAUG --registry "${TMP}/registry_unfinished.json"
-expect_cmd "  ... and the driver dies on it rather than evaluating" 2 "ADMISSION UNAVAILABLE" -- \
+heavy_cmd "  ... and the driver dies on it rather than evaluating" 2 "ADMISSION UNAVAILABLE" -- \
   env "${BASE[@]}" "YAW_EVAL_REGISTRY=${TMP}/registry_unfinished.json" ARM=YAWAUG CELL=tbl STEP=40000 \
       bash "$SCREEN"
 # ...and the LIVE record, as it actually stands right now. The two outcomes are
@@ -704,6 +730,11 @@ argv_has  "V argv: fixed 90 degrees" "$A_VCTL" "--rotate-mode fixed --rotate-deg
 argv_lacks "V argv: NO --rotate-seed" "$A_VCTL" "--rotate-seed"
 argv_has  "V argv: the _rot90 token is in the eval name" "$A_VCTL" "--eval-name exp15_VANL_vctl_rot90_S40000_s42_K8"
 # the cell-validation argv the driver renders IS the validator's own definition
+if [ "$SKIP_HEAVY" = "1" ]; then
+  VLINE=""
+  skip_env "the driver's cell-validation argv is check_argv's own rendering" \
+           "SKIP_HEAVY: needs a driver DRYRUN"
+else
 VLINE="$(env "${BASE[@]}" ARM=YAWAUG CELL=rrob STEP=40000 SEED=44 K=8 bash "$SCREEN" 2>&1 \
          | sed -n 's/^python3 exp15_validate_cell.py //p' | head -1)"
 eq_check "the driver's cell-validation argv is check_argv's own rendering" \
@@ -717,6 +748,7 @@ print(" ".join(V.check_argv(c, "<metrics>", pin=sys.argv[1], ckpt_sha="<ckpt-sha
                             expected_scenes=V.EXPECTED_SCENES)))
 PY
 )"
+fi
 
 echo
 echo "--- F. the per-cell VALIDATOR: artifacts that lie are named, not skipped ---"
@@ -752,15 +784,39 @@ stream = {"schema_version": 1, "fingerprint_schema": 1, "rotate_mode": mode,
           "input_hash": ih, "assignment_hash": ah}
 if brk == "streamhash":
     stream["input_hash"] = "0" * 64
-rec = {"metrics": {"t60": 1.0, "c50": 2.0}, "ckpt_path": ck, "rotate_deg": d,
+# WELL-FORMED fixtures (eval-r1 review finding 1): the previous
+# {"t60": 1.0, "c50": 2.0} stub codified the very weakness the review found —
+# it was accepted as a complete cell. These are the metric names a REAL exp_14
+# artifact carries, read back from the committed campaign.
+SPLIT = {m: 1.0 for m in V.REQUIRED_SPLIT_METRICS}
+SCENE = {m: 1.0 for m in V.REQUIRED_SCENE_METRICS}
+if brk == "metricmissing":
+    SPLIT.pop("FD")
+if brk == "metriccase":
+    SPLIT["t60"] = SPLIT.pop("T60")
+if brk == "metricnan":
+    SPLIT["FD"] = float("nan")
+if brk == "metricinf":
+    SPLIT["FD"] = float("inf")
+if brk == "metricbool":
+    SPLIT["FD"] = True
+if brk == "scenemissing":
+    SCENE = {m: 1.0 for m in V.REQUIRED_SCENE_METRICS if m != "EDT"}
+if brk == "scenenan":
+    SCENE = dict(SCENE, C50=float("nan"))
+rec = {"metrics": SPLIT, "ckpt_path": ck, "rotate_deg": d,
        "cond_method": "vanilla", "frame_avg_angles": None, "cond_autocast": "bf16",
        "source_sha": PIN, "batch_size": 64, "n_samples": n,
        "dataset_config": "src/configs/dataset_configs/AR/eval/"
                          + (V.SPLIT_K8 if int(k) == 8 else V.SPLIT_K1),
        "seed": int(seed), "cfg_scale": 1.0, "steps": 1, "eval_name": V.eval_name(c),
        "weights_source": "ema", "device": "cuda",
-       "by_scene": {s: {"t60": 1.0} for s in V.EXPECTED_SCENE_KEYS},
+       "by_scene": {s: dict(SCENE) for s in V.EXPECTED_SCENE_KEYS},
        "per_scene_schema": 1, "scene_count": 10}
+if brk == "extrascene":
+    rec["by_scene"]["Hallways"] = dict(SCENE); rec["scene_count"] = 11
+if brk == "dropscene":
+    rec["by_scene"].pop("Office"); rec["scene_count"] = 9
 if mode == "random":
     rec.update({"rotate_mode": "random", "rotate_deg": None, "rotate_seed": rseed,
                 "input_hash": ih, "assignment_hash": ah, "stream_count": n, "img_w": 512})
@@ -820,6 +876,45 @@ vcheck "a stream hash that does not recompute is refused" 1 "recomputed input_ha
   YAWAUG rrob 44 8 - 12 streamhash
 vcheck "a random cell whose offsets never varied is refused" 1 "the random path did not run" \
   YAWAUG rrob 45 8 - 12 offsets
+# --- the metric SCHEMA E2 will consume (eval-r1 review finding 1) -------------
+# Each of these used to classify VALID and be SKIPPED by the wave's dedup as
+# "already measured", which is the fail-open case validate-before-skip exists to
+# prevent, one level down from where it was being prevented.
+vcheck "a metrics block missing FD is refused" 1 "missing required metric(s) ['FD']" \
+  YAWAUG tbl 42 8 - 12 metricmissing
+vcheck "a wrong-cased 't60' is refused as a MISSING 'T60'" 1 "missing required metric(s) ['T60']" \
+  YAWAUG tbl 42 8 - 12 metriccase
+vcheck "a NaN metric is refused" 1 "non-finite/non-numeric" YAWAUG tbl 42 8 - 12 metricnan
+vcheck "an Inf metric is refused" 1 "non-finite/non-numeric" YAWAUG tbl 42 8 - 12 metricinf
+vcheck "a bool metric is refused (True is not 1.0)" 1 "non-finite/non-numeric" \
+  YAWAUG tbl 42 8 - 12 metricbool
+vcheck "a per-scene payload missing EDT is refused" 1 "missing required metric(s) ['EDT']" \
+  YAWAUG tbl 42 8 - 12 scenemissing
+vcheck "a per-scene NaN is refused" 1 "non-finite/non-numeric" YAWAUG tbl 42 8 - 12 scenenan
+vcheck "an ELEVENTH scene group is refused" 1 "not the release grouping" \
+  YAWAUG tbl 42 8 - 12 extrascene
+vcheck "a NINTH scene group is refused" 1 "not the release grouping" \
+  YAWAUG tbl 42 8 - 12 dropscene
+# ...and the schema is a READBACK, not a guess: the real committed exp_14 cell
+# must satisfy it, or we have invented a contract the eval code cannot meet.
+REAL14="outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=8-step=40000_metrics_1_1.0_exp14_VANL_rgen_S40000_s42_K8_rotrand42_rotrand42.json"
+if [ -f "$REAL14" ]; then
+  expect_cmd "a REAL exp_14 metrics artifact satisfies the new metric schema" 0 "SCHEMA OK" -- \
+    $PY - "$REAL14" <<'PY'
+import json, sys
+sys.path.insert(0, "worklog/worklog_yixun/exp_15_yaw_aug_claude")
+import exp15_validate_cell as V
+rec = json.load(open(sys.argv[1]))
+bad = V._metric_block_reasons(rec["metrics"], "metrics", V.REQUIRED_SPLIT_METRICS)
+bad += V._per_scene_reasons(rec)
+if bad:
+    raise SystemExit("real artifact REJECTED by our own schema: " + "; ".join(bad))
+print("SCHEMA OK")
+PY
+else
+  skip_env "a REAL exp_14 metrics artifact satisfies the new metric schema" \
+           "exp_14 campaign artifacts are not present in this tree"
+fi
 # ...and the two omissions that used to be silently survivable
 M_OK="$(mkart YAWAUG tbl 46 8 - 12)"
 expect_cmd "a cell cannot be VALID without the campaign pin" 1 "campaign pin not supplied" -- \
@@ -856,13 +951,15 @@ for arm, broken in (("VANL", False), ("YAWAUG", True)):
               "input_tuples": inp, "assignment_tuples": asg, "offsets": offs,
               "input_hash": V.canonical_stream_hash(inp),
               "assignment_hash": V.canonical_stream_hash(asg)}
-    rec = {"metrics": {"t60": 1.0}, "ckpt_path": ck, "rotate_deg": 90.0,
+    SPLIT = {m: 1.0 for m in V.REQUIRED_SPLIT_METRICS}
+    SCENE = {m: 1.0 for m in V.REQUIRED_SCENE_METRICS}
+    rec = {"metrics": SPLIT, "ckpt_path": ck, "rotate_deg": 90.0,
            "cond_method": "vanilla", "frame_avg_angles": None, "cond_autocast": "bf16",
            "source_sha": pin, "batch_size": 64, "n_samples": N,
            "dataset_config": "src/configs/dataset_configs/AR/eval/" + V.SPLIT_K8,
            "seed": 42, "cfg_scale": 1.0, "steps": 1, "eval_name": V.eval_name(c),
            "weights_source": "online" if broken else "ema", "device": "cuda",
-           "by_scene": {s: {"t60": 1.0} for s in V.EXPECTED_SCENE_KEYS},
+           "by_scene": {s: dict(SCENE) for s in V.EXPECTED_SCENE_KEYS},
            "per_scene_schema": 1, "scene_count": 10}
     sha = json.load(open(os.path.join(root, "registry.json")))["arms"]["YAWAUG"]["final_ckpt_sha256"] \
         if arm == "YAWAUG" else json.load(open(os.path.join(root, "control.json")))["checkpoint"]["sha256"]
@@ -981,6 +1078,48 @@ expect_cmd "  ... and the arm's augmentation status" 0 "DRYRUN intent train_yaw_
   sub_dry ARM=YAWAUG CELL=tbl SEED=42 K=8
 expect_cmd "a dry run submits nothing and prepares no worktree" 0 "no worktree prepared, no lease written" -- \
   sub_dry ARM=YAWAUG CELL=tbl SEED=42 K=8
+# --- a LIVE single submission REQUIRES the pin file (eval-r1 review finding 2) --
+# The wave path was already blocked by an absent pin; the single-cell path fell
+# back to HEAD, and the planned V/probe launches go through the single-cell path.
+# These run in LIVE mode on purpose (that is the subject), against a temp
+# MAIN_REPO, and every one exits 2 long before the freeze/worktree/lock steps.
+NOPIN_REPO="${TMP}/nopin_repo"
+mkdir -p "${NOPIN_REPO}/worklog/worklog_yixun/exp_15_yaw_aug_claude"
+git -c init.defaultBranch=main init -q "$NOPIN_REPO"
+git -C "$NOPIN_REPO" -c user.email=g@l -c user.name=g commit -q --allow-empty -m root
+NOPIN_HEAD="$(git -C "$NOPIN_REPO" rev-parse HEAD)"
+cp "$VALIDATOR" "${NOPIN_REPO}/worklog/worklog_yixun/exp_15_yaw_aug_claude/"
+NOPIN_SUB="${NOPIN_REPO}/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh"
+sed "s|^MAIN_REPO=/n/fs/gatrdp/codespace/FLAC$|MAIN_REPO=${NOPIN_REPO}|" "$SUB" > "$NOPIN_SUB"
+NOPIN_PIN="${NOPIN_REPO}/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_campaign_pin"
+# LINT-OK-live-refusal: the SUBJECT is the live pin requirement, so live mode is
+# required; it exits 2 at the pin check, before any transaction step.
+expect_cmd "a LIVE single submission with NO pin file refuses" 2 "no campaign pin FILE" -- \
+  env -u YAW_EVAL_MAIN_REPO bash "$NOPIN_SUB" ARM=YAWAUG CELL=tbl SEED=42 K=8
+printf '%s\n' "$NOPIN_HEAD" > "$NOPIN_PIN"
+# The MISMATCH branch runs before the DRYRUN block, so it is reachable
+# hermetically — no store-lock re-exec and no stub helper needed. PIN_SHA is only
+# ever an assertion about the file's content.
+expect_cmd "  ... and a PIN_SHA that contradicts the pin file refuses" 2 "disagrees with the campaign pin" -- \
+  env -u YAW_EVAL_MAIN_REPO DRYRUN=1 bash "$NOPIN_SUB" ARM=YAWAUG CELL=tbl SEED=42 K=8 \
+      PIN_SHA=deadbeef00000000000000000000000000000042
+expect_cmd "  ... while a PIN_SHA that AGREES is accepted" 0 "DRYRUN pin ${NOPIN_HEAD}" -- \
+  env -u YAW_EVAL_MAIN_REPO DRYRUN=1 bash "$NOPIN_SUB" ARM=YAWAUG CELL=tbl SEED=42 K=8 \
+      PIN_SHA="$NOPIN_HEAD"
+printf 'not-a-sha\n' > "$NOPIN_PIN"
+# LINT-OK-live-refusal: a malformed pin file must not read as "pinned".
+expect_cmd "  ... and a MALFORMED pin file is not a pin" 2 "no campaign pin FILE" -- \
+  env -u YAW_EVAL_MAIN_REPO bash "$NOPIN_SUB" ARM=YAWAUG CELL=tbl SEED=42 K=8
+rm -f "$NOPIN_PIN"
+expect_cmd "  ... while DRYRUN still runs unpinned" 0 "DRY RUN complete" -- \
+  env -u YAW_EVAL_MAIN_REPO DRYRUN=1 bash "$NOPIN_SUB" ARM=YAWAUG CELL=tbl SEED=42 K=8
+expect_cmd "  ... and says out loud that a live run would refuse" 0 \
+  "a LIVE submission would REFUSE here" -- \
+  env -u YAW_EVAL_MAIN_REPO DRYRUN=1 bash "$NOPIN_SUB" ARM=YAWAUG CELL=tbl SEED=42 K=8
+grep -q 'no campaign pin FILE' "$SUB" && grep -q 'no campaign pin FILE' "$GRID"
+check "both submission paths refuse an unpinned live launch in the same words" $?
+grep -q 'refused BEFORE taking the shared store lock' "$SUB"
+check "  ... and the single-cell path refuses BEFORE taking the shared store lock" $?
 INTENTS_BEFORE="$(ls "${EXPDIR}"/yaw_aug_screen_submission_*.txt 2>/dev/null | wc -l)"
 sub_dry ARM=YAWAUG CELL=tbl SEED=42 K=8 >/dev/null 2>&1
 INTENTS_AFTER="$(ls "${EXPDIR}"/yaw_aug_screen_submission_*.txt 2>/dev/null | wc -l)"
@@ -1047,29 +1186,46 @@ else
   diff <(echo "$TRACKED_BEFORE") <(echo "$TRACKED_AFTER") | sed 's/^/        | /'
   ledger FAIL "tracked tree unchanged by the suite (snapshot before == after)"; FAIL=$((FAIL+1))
 fi
-NEIGHBOURS_AFTER="$(ls -l --time-style=+%s "$EXP11" "$EXP14" | sort)"
-# The question this may ask is "did WE move anything", NOT "is the folder
-# pristine". A `git diff --quiet` here would be wrong twice over: another session
-# writes into exp_11's folder throughout (its live registry sits uncommitted), so
-# pristineness would fail on THEIR work — and a run of this suite that raced one
-# of their writes would fail on timing rather than on behaviour.
+NEIGHBOURS_AFTER="$(ls -li --time-style=+%s "$EXP11" "$EXP14" | sort)"
 NEIGH_DIFF="$(diff <(printf '%s\n' "$NEIGHBOURS_BEFORE") <(printf '%s\n' "$NEIGHBOURS_AFTER") \
               | grep '^[<>]' || true)"
-OURS_IN_NEIGH="$(printf '%s\n' "$NEIGH_DIFF" | grep -E 'exp15|yaw_aug_screen|guardtests|__pycache__' || true)"
-if [ -z "$OURS_IN_NEIGH" ]; then
-  echo "PASS  this suite created/modified nothing in the exp_11 / exp_14 folders"
-  ledger PASS "this suite created/modified nothing in the exp_11 / exp_14 folders"
+# WHAT THIS CAN AND CANNOT ESTABLISH (eval-r1 review finding 3).
+#
+# The previous version called a delta "ours" when its listing text contained
+# exp15/yaw_aug_screen/guardtests/__pycache__, and PASSed otherwise. That is not
+# attribution: a write to an EXISTING exp_11 or exp_14 filename would have been
+# reported as somebody else's and still passed. The causal claim is withdrawn.
+#
+# What is asserted now is only what the observation supports:
+#   * no delta  -> nothing in either folder changed while this suite ran. That
+#                  is a fact about the folders, and it is the outcome we want.
+#   * a delta   -> INCONCLUSIVE. Another session writes into exp_11's folder
+#                  continuously (its live registry is uncommitted right now), so
+#                  a delta is expected and this snapshot cannot say whose it is.
+#                  It is NOT reported as a pass.
+# The guarantees that do hold are structural and live in the case below it: the
+# suite exports PYTHONDONTWRITEBYTECODE=1 so no import can drop a .pyc there, and
+# no line of the kit or of this suite can write into either folder at all.
+if [ -z "$NEIGH_DIFF" ]; then
+  echo "PASS  nothing in the exp_11 / exp_14 folders changed while this suite ran"
+  ledger PASS "nothing in the exp_11 / exp_14 folders changed while this suite ran"
   PASS=$((PASS + 1))
-  [ -n "$NEIGH_DIFF" ] && {
-    echo "      (disclosure: another session changed these entries while we ran —"
-    printf '%s\n' "$NEIGH_DIFF" | sed 's/^/       /'
-    echo "       none of them ours)"; }
 else
-  echo "FAIL  this suite created/modified nothing in the exp_11 / exp_14 folders"
-  printf '%s\n' "$OURS_IN_NEIGH" | sed 's/^/        | /'
-  ledger FAIL "this suite created/modified nothing in the exp_11 / exp_14 folders"
-  FAIL=$((FAIL + 1))
+  skip_env "nothing in the exp_11 / exp_14 folders changed while this suite ran" \
+           "INCONCLUSIVE — entries changed during the run and this snapshot cannot attribute them; another session writes into exp_11 continuously"
+  printf '%s\n' "$NEIGH_DIFF" | sed 's/^/        | /'
 fi
+# ...and the SOUND half: neither the kit nor this suite contains any statement
+# that writes into those folders. A static property of the code, not a race with
+# whoever else is running.
+NEIGH_WRITES="$(grep -nE '(>|>>|cp |mv |rm |mkdir |touch |tee )[^|]*\$(EXP11|EXP14)\b' \
+                  "$GUARD_SELF" "$SCREEN" "$SUB" "$GRID" "$VALIDATOR" "$ADMIT" \
+                | grep -v 'grep -nE' || true)"
+[ -z "$NEIGH_WRITES" ]
+check "no line of the kit or this suite writes into the exp_11 / exp_14 folders" $?
+[ -n "$NEIGH_WRITES" ] && printf '%s\n' "$NEIGH_WRITES" | sed 's/^/        | /'
+grep -q 'export PYTHONDONTWRITEBYTECODE=1' "$GUARD_SELF"
+check "  ... and bytecode writing is disabled so an import cannot drop a .pyc there" $?
 ! pgrep -u "$(id -un)" -f 'yaw_aug_screen.sbatch' >/dev/null 2>&1
 check "no screen driver was left running" $?
 

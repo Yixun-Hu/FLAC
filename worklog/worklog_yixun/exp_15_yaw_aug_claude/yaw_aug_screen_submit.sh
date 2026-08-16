@@ -199,6 +199,35 @@ elif [ "$DRYRUN" = "1" ]; then
   # WITHOUT submitting.
   :
 else
+  # --- PRE-LOCK: a live submission needs the campaign pin FILE ----------------
+  # (eval-r1 review finding 2.) Checked HERE, before the store-lock re-exec, for
+  # two reasons: a submission that is going to be refused must not take the
+  # store-wide lock that every campaign on this machine contends for, and the
+  # refusal must not depend on the re-exec succeeding. The child re-runs this
+  # same block and then re-checks the pin against the parsed PIN_SHA below.
+  #
+  # No argument parsing is needed for this: the question is only whether the file
+  # exists and holds a commit-shaped sha. TEST MODE is exempt (it executes no
+  # submit command at all) and DRYRUN never reaches this branch.
+  if [ "$TEST_MODE" != "1" ]; then
+    _PRELOCK_PIN_FILE="${EXPDIR}/yaw_aug_screen_campaign_pin"
+    _PRELOCK_PIN=""
+    [ -f "$_PRELOCK_PIN_FILE" ] \
+      && _PRELOCK_PIN="$(head -1 "$_PRELOCK_PIN_FILE" 2>/dev/null | tr -d '[:space:]')"
+    case "$_PRELOCK_PIN" in
+      ????????????????????????????????????????)
+        case "$_PRELOCK_PIN" in *[!0-9a-f]*) _PRELOCK_PIN="" ;; esac ;;
+      *) _PRELOCK_PIN="" ;;
+    esac
+    if [ -z "$_PRELOCK_PIN" ]; then
+      echo "refusing to submit a cell with no campaign pin FILE (${_PRELOCK_PIN_FILE})." >&2
+      echo "  42 cells are comparable only if they ran at ONE commit, and PIN_SHA on a" >&2
+      echo "  command line is not that commitment — set it deliberately, once:" >&2
+      echo "  printf '%s\\n' \$(git -C ${MAIN_REPO} rev-parse HEAD) > ${_PRELOCK_PIN_FILE}" >&2
+      echo "  (refused BEFORE taking the shared store lock)" >&2
+      exit 2
+    fi
+  fi
   exec bash "$HELPER" --with-lock bash "$0" "$@"
 fi
 
@@ -333,6 +362,26 @@ if [ -n "$PIN_SHA" ]; then
   git -C "$MAIN_REPO" rev-parse --verify --quiet "${PIN_SHA}^{commit}" >/dev/null \
     || reject "PIN_SHA ${PIN_SHA} is not a commit in this repository"
 fi
+# --- a LIVE single submission REQUIRES the pin file, exactly as a wave does ----
+# (eval-r1 review finding 2.) This path used to fall back to whatever HEAD was if
+# the file was absent, so the planned single V/probe launches — the FIRST cells
+# of the campaign — could have been pinned somewhere the other 41 were not, and
+# the DRYRUN said so only as an easily-read-past `<none: HEAD>`.
+#
+# PIN_SHA on the command line is an ASSERTION about the file's content, never a
+# substitute for it: a campaign measures every cell at ONE commit, and a commit
+# named in an argument is a claim nothing durable records. The mismatch branch
+# above already refuses disagreement; this makes the file mandatory.
+#
+# DRYRUN and TEST MODE are exempt because neither can submit: a dry run prepares
+# no worktree and takes no lock, and test mode executes no submit command at all.
+if [ "$DRYRUN" != "1" ] && [ "$TEST_MODE" != "1" ] && [ -z "$CAMPAIGN_PIN" ]; then
+  echo "refusing to submit a cell with no campaign pin FILE (${PIN_FILE})." >&2
+  echo "  42 cells are comparable only if they ran at ONE commit, and PIN_SHA on a" >&2
+  echo "  command line is not that commitment — set it deliberately, once:" >&2
+  echo "  printf '%s\\n' \$(git -C ${MAIN_REPO} rev-parse HEAD) > ${PIN_FILE}" >&2
+  exit 2
+fi
 [ -n "$ARM" ] && [ -n "$CELL" ] && [ -n "$STEP" ] || { echo "usage: bash $0 ARM=YAWAUG CELL=tbl [STEP=40000] [SEED=42] [K=8] [EXCLUDE=node[,node]] [ROTATE_DEG=90] [PIN_SHA=<40hex>] [LOG=...]" >&2; exit 2; }
 # CELL is REQUIRED and has no default here or in the driver: a cell type is a
 # protocol choice (announcement 05), and defaulting one would let an omitted
@@ -345,7 +394,13 @@ if [ "$DRYRUN" = "1" ]; then
   [ -n "$ROTATE_DEG" ] && CELL_EXPORT_DRY="${CELL_EXPORT_DRY},ROTATE_DEG=${ROTATE_DEG}"
   [ -n "$LOG" ] && CELL_EXPORT_DRY="${CELL_EXPORT_DRY},LOG=${LOG}"
   echo "DRYRUN job-name ${JOB_NAME}"
-  echo "DRYRUN pin ${PIN_SHA:-<none: HEAD>}"
+  if [ -n "$PIN_SHA" ]; then
+    echo "DRYRUN pin ${PIN_SHA}"
+  else
+    # Not a green light: say plainly that the live path would refuse this.
+    echo "DRYRUN pin <none: no campaign pin file at ${PIN_FILE}>"
+    echo "DRYRUN NOTE a LIVE submission would REFUSE here — the pin file is required"
+  fi
   echo "DRYRUN exclude ${EXCLUDE:-<none>}"
   echo "DRYRUN export ARM=${ARM},STEP=${STEP},SEED=${SEED},K=${K},CELL=${CELL}${CELL_EXPORT_DRY}"
   echo "DRYRUN driver ${EXPDIR}/yaw_aug_screen.sbatch"

@@ -5,8 +5,13 @@ Every eval cell must prove, before it spends a GPU, that the file it is about to
 evaluate is the pre-registered 40,000-step checkpoint of the arm it claims. This
 module is that proof, and it RE-DERIVES every fact from the checkpoint itself:
 
-  * sha256 of the file, hashed through the same descriptor it is loaded from
-    (so the name cannot be re-pointed between the hash and the load);
+  * sha256 of the file, read through a descriptor that is HELD OPEN across the
+    load. ``torch.load`` then opens the path separately — the two are not one
+    descriptor — so the guarantee is not "hashed and loaded through the same fd"
+    but detection after the fact: the recorder re-stats both the held descriptor
+    and the path afterwards and refuses if the inode was replaced or the size or
+    mtime moved. That is adequate for a published, immutable checkpoint and is
+    stated here as what it is (eval-r1 review finding 4);
   * the embedded ``global_step``, which must be exactly 40,000 (a plain int —
     ``"40000"`` and ``40000.5`` are not the endpoint);
   * canonical-bytes equality between the checkpoint's embedded ``model_config``

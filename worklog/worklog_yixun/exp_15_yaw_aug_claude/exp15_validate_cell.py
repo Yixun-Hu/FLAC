@@ -57,6 +57,7 @@ import argparse
 import glob
 import hashlib
 import json
+import math
 import os
 import sys
 from collections import namedtuple
@@ -123,10 +124,35 @@ PER_SCENE_SCHEMA = 1
 #
 # The key SET is pinned, not just its size: two different ten-family groupings
 # would be the same number of scenes and a different estimand.
+#
+# VERIFIED, not assumed (eval-r1 review finding 1): this key set was read back
+# from a real committed exp_14 artifact —
+# outputs_FLAC/exp11_VANL/.../epoch=8-step=40000_metrics_1_1.0_exp14_VANL_rgen_S40000_s42_K8_rotrand42_rotrand42.json
+# — whose by_scene block has exactly these ten groups and whose scene_count is 10.
 EXPECTED_SCENE_KEYS = ("Apartments", "Auditorium", "Bathrooms", "Bedrooms", "Cafe",
                        "ListeningRoom", "LivingRoomsWithHallway", "MeetingRoom",
                        "Office", "Restaurants")
 EXPECTED_SCENES = len(EXPECTED_SCENE_KEYS)          # 10
+
+# --- the METRIC SCHEMA the collector (E2) will consume (review finding 1) -----
+# "Non-empty dict" was not a validation. A cell whose metrics block was missing
+# FD, spelled T60 in lower case, or carried NaN/Inf/True classified VALID and was
+# then SKIPPED by the wave submitter's dedup as "already measured" — i.e. the
+# fail-open case validate-before-skip exists to prevent, one level down.
+#
+# The required names are the ones a real exp_14 cell actually carries (same eval
+# code path, same metric callback), so this is a readback, not a guess. Extra
+# keys are allowed — a future callback may add one — but EVERY value present must
+# be a finite real number.
+REQUIRED_SPLIT_METRICS = (
+    "T60", "Invalid T60", "C50", "EDT", "FD",
+    "RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5", "RIR_to_GT_RIR_R@10",
+    "RIR_to_geom_R@1", "RIR_to_geom_R@5", "RIR_to_geom_R@10",
+)
+# Per scene, only the ACOUSTIC family is read (E2 takes FD and retrieval from the
+# split-level block — exp_14's pre-registered per-metric aggregation ruling), so
+# these three are what a per-scene payload must carry to be usable.
+REQUIRED_SCENE_METRICS = ("T60", "C50", "EDT")
 SPLIT_K8 = "acousticroom_unseeneval.json"
 SPLIT_K1 = "acousticroom_unseeneval_1.json"
 
@@ -535,15 +561,50 @@ def _eq(reasons, label, got, want):
         reasons.append(f"{label} {got!r} != expected {want!r}")
 
 
+def is_finite_real(value):
+    """A metric value must be a FINITE REAL number — and ``bool`` is not one.
+
+    ``isinstance(True, int)`` is True in Python, so a naive numeric check admits
+    ``True``/``False`` as 1/0; ``float('nan')`` and ``float('inf')`` are floats
+    that pass every isinstance test and then poison a mean, a paired difference
+    and a t-statistic silently. Both are excluded explicitly.
+    """
+    if isinstance(value, bool):
+        return False
+    if not isinstance(value, (int, float)):
+        return False
+    return math.isfinite(float(value))
+
+
+def _metric_block_reasons(block, label, required):
+    """Named reasons a metric mapping is not usable evidence ([] = usable)."""
+    reasons = []
+    if not isinstance(block, dict) or not block:
+        return [f"{label} is missing or empty "
+                f"({type(block).__name__ if block is not None else None})"]
+    missing = [m for m in required if m not in block]
+    if missing:
+        # Named individually: a wrong-cased 't60' shows up here as a MISSING
+        # 'T60', which is the failure a reader needs to see.
+        reasons.append(f"{label} is missing required metric(s) {missing} "
+                       f"(present: {sorted(block)})")
+    bad = sorted(k for k, v in block.items() if not is_finite_real(v))
+    if bad:
+        shown = {k: block[k] for k in bad[:4]}
+        reasons.append(f"{label} has {len(bad)} non-finite/non-numeric value(s) "
+                       f"{bad}: {shown} — a metric that is NaN, Inf, a bool or a "
+                       "string is not a measurement")
+    return reasons
+
+
 def validate_metrics_record(rec, cell, pin=None, expected_count=EXPECTED_COUNT,
                             expected_scenes=EXPECTED_SCENES,
                             expected_keys=EXPECTED_SCENE_KEYS):
     """Named reasons why ``rec`` is not this cell's metrics record ([] = valid)."""
     reasons = []
     mode, deg, rseed = rotation_expectation(cell)
-    metrics = rec.get("metrics")
-    if not isinstance(metrics, dict) or not metrics:
-        reasons.append("metrics block is missing or empty")
+    reasons += _metric_block_reasons(rec.get("metrics"), "metrics block",
+                                     REQUIRED_SPLIT_METRICS)
     _eq(reasons, "eval_name", rec.get("eval_name"), eval_name(cell))
     _eq(reasons, "seed", rec.get("seed"), int(cell.seed))
     _eq(reasons, "cfg_scale", rec.get("cfg_scale"), CFG_SCALE)
@@ -643,10 +704,16 @@ def _per_scene_reasons(rec, expected_scenes=EXPECTED_SCENES,
     if rec.get("scene_count") != len(by_scene):
         reasons.append(f"scene_count {rec.get('scene_count')!r} != the {len(by_scene)} "
                        "scene(s) actually recorded")
+    # Every scene's payload must itself be usable evidence: the per-seed
+    # observation for the acoustic family is the mean OVER these ten values, so
+    # one NaN or one missing T60 does not degrade the estimate, it destroys it.
     for scene, payload in sorted(by_scene.items()):
-        if not isinstance(payload, dict) or not payload:
-            reasons.append(f"by_scene[{scene!r}] is not a metric mapping "
-                           f"({type(payload).__name__})")
+        scene_reasons = _metric_block_reasons(payload, f"by_scene[{scene!r}]",
+                                              REQUIRED_SCENE_METRICS)
+        if scene_reasons:
+            # Report the FIRST offending scene in full rather than ten copies of
+            # the same sentence; the cell is refused either way.
+            reasons += scene_reasons
             break
     return reasons
 
