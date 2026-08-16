@@ -1102,10 +1102,14 @@ def render_external_table(checks):
 
 
 def render_v_readouts(v_rows):
+    """A defective V cell renders the WORD, never the number."""
     out = ["| arm | role | T60 | note |", "| --- | --- | --- | --- |"]
     for row in v_rows:
-        out.append(f"| {row['arm']} | {row['role']} | {_f(row.get('T60'))} | "
-                   f"{row['note']} |")
+        if row.get("withheld"):
+            value = f"WITHHELD (hash defect: {row['withheld']})"
+        else:
+            value = _f(row.get("T60"))
+        out.append(f"| {row['arm']} | {row['role']} | {value} | {row['note']} |")
     return "\n".join(out) + "\n"
 
 
@@ -1198,17 +1202,39 @@ def build_results(output_root, pin=None, expected_count=V.EXPECTED_COUNT,
         for k in KS:
             blocks[f"{kind}/{k}"] = block_rows(routed, kind, k,
                                                DESCRIPTIVE_METRICS + CONFOUNDED_METRICS)
+    # A V cell with a hash defect must not publish a NUMBER (re-review finding 4).
+    # Excluding its defects from G3 was right — they must not block inference —
+    # but the readout itself is exactly what those defects invalidate, so it is
+    # WITHHELD rather than printed. Reported per arm, keyed by the cell's own
+    # eval name so a reader can see which artifact is implicated.
+    v_defects = {}
+    for violation in (gates["G3"].get("v_cell_problems") or []):
+        for art in cells:
+            if art.cell.cell == V_BLOCK and V.eval_name(art.cell) in violation:
+                v_defects.setdefault(art.cell.arm, []).append(violation)
+                break
+        else:
+            v_defects.setdefault("*", []).append(violation)
     v_readouts = []
     for art in sorted((a for a in cells if a.cell.cell == V_BLOCK),
                       key=lambda a: a.cell.arm):
         vals, _ = cell_observation(art.record, required=("T60",), optional=())
-        v_readouts.append({
-            "arm": art.cell.arm, "T60": vals.get("T60"),
+        defects = v_defects.get(art.cell.arm, []) + v_defects.get("*", [])
+        row = {
+            "arm": art.cell.arm, "eval_name": V.eval_name(art.cell),
             "role": ("G1 positive control" if art.cell.arm == "VANL"
                      else "mechanism readout"),
             "note": ("gates the harness's ability to detect non-invariance"
                      if art.cell.arm == "VANL" else
-                     "DESCRIPTIVE ONLY — carries no gate role (plan §5, review F3)")})
+                     "DESCRIPTIVE ONLY — carries no gate role (plan §5, review F3)")}
+        if defects:
+            row["T60"] = None
+            row["withheld"] = "; ".join(defects)
+            row["note"] = ("WITHHELD (hash defect) — " + row["note"])
+        else:
+            row["T60"] = vals.get("T60")
+            row["withheld"] = None
+        v_readouts.append(row)
     return {"cells": [V.eval_name(a.cell) for a in cells],
             "missing": [[V.eval_name(c), why] for c, why in missing],
             "rejected": [[V.eval_name(c), why] for c, why in rejected],

@@ -233,6 +233,45 @@ fi
 # PIN_SHA is an ASSERTION, never a substitute: passing it used to satisfy the
 # "one commit" rule with no pin file at all, which is exactly the rail exp_14's
 # review B3 said the round claimed to have.
+# --- THE RE-EXEC MARKER IS VERIFIED, NEVER TRUSTED (re-review finding 1) -------
+# YAW_EVAL_PINNED_EXEC used to be believed on sight: nonempty meant "you are the
+# pinned copy", so an inherited or forged value redirected CODE_ROOT anywhere and
+# skipped the bootstrap entirely — the pin bound nothing. A marker that selects
+# which code executes has to be checked against something the caller cannot
+# choose, so it is checked against BOTH:
+#   (a) the canonical path the bootstrap would itself prepare for the pin file's
+#       SHA — realpath equality, so a symlink or a sibling tree cannot pass; and
+#   (b) that tree's own HEAD, which must equal the campaign pin exactly.
+# A mismatch is a HARD REFUSAL, not a fallback to re-exec: if the marker is wrong
+# we are already in a state nobody designed, and the safe move is to stop.
+# DRYRUN is permissive (it submits nothing) and labels itself as such.
+verify_pinned_marker() {   # $1 = claimed CODE_ROOT, $2 = campaign pin sha
+  local claimed="$1" pin="$2" want head
+  if [ "$DRYRUN" = "1" ]; then
+    echo "DRYRUN: pinned-exec marker accepted UNVERIFIED (a dry run submits nothing)" >&2
+    return 0
+  fi
+  if [ -z "$pin" ]; then
+    echo "YAW_EVAL_PINNED_EXEC is set but there is no campaign pin to verify it against" >&2
+    return 1
+  fi
+  want="$(readlink -f "${MAIN_REPO}/.measure_worktrees/${pin}" 2>/dev/null)" || want=""
+  claimed="$(readlink -f "$claimed" 2>/dev/null)" || claimed=""
+  if [ -z "$want" ] || [ -z "$claimed" ] || [ "$want" != "$claimed" ]; then
+    echo "REFUSING: YAW_EVAL_PINNED_EXEC='${claimed}' is not the worktree this pin" >&2
+    echo "  prepares ('${want}'). A marker that selects which code executes may not" >&2
+    echo "  be taken on trust." >&2
+    return 1
+  fi
+  head="$(git -C "$claimed" rev-parse HEAD 2>/dev/null)" || head=""
+  if [ "$head" != "$pin" ]; then
+    echo "REFUSING: the tree at '${claimed}' is at HEAD '${head}', not the campaign" >&2
+    echo "  pin '${pin}'." >&2
+    return 1
+  fi
+  return 0
+}
+
 CAMPAIGN_PIN=""
 if [ -f "$PIN_FILE" ]; then
   CAMPAIGN_PIN="$(head -1 "$PIN_FILE" | tr -d '[:space:]')"
@@ -253,6 +292,10 @@ if [ -n "$PIN_SHA" ] && [ -n "$CAMPAIGN_PIN" ] && [ "$PIN_SHA" != "$CAMPAIGN_PIN
   reject "PIN_SHA=${PIN_SHA} disagrees with the campaign pin ${CAMPAIGN_PIN} (${PIN_FILE})"
 fi
 [ -n "$CAMPAIGN_PIN" ] && PIN_SHA="$CAMPAIGN_PIN"
+if [ -n "${YAW_EVAL_PINNED_EXEC:-}" ] && [ "$TEST_MODE" != "1" ]; then
+  verify_pinned_marker "$YAW_EVAL_PINNED_EXEC" "$CAMPAIGN_PIN" || exit 2
+  echo "pinned-exec marker VERIFIED against ${CAMPAIGN_PIN}" >&2
+fi
 
 # --- RE-EXEC FROM THE PINNED WORKTREE (integrative review F1) ------------------
 # A live wave prepares (or reuses) the pinned tree and then runs ITSELF from it,

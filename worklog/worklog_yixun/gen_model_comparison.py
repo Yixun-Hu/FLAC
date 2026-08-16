@@ -398,7 +398,13 @@ def validate_exp15_cell(files, repo_root=None, expected_k=None):
         V = _load_exp15_validator()
     except Exception as exc:                              # noqa: BLE001
         return False, [f"could not load exp_15's validator: {exc}"]
+    # EXACTLY five files, not "five distinct seeds among however many matched":
+    # a glob that also caught a sidecar or a stale duplicate would otherwise
+    # publish a mean over six payloads (re-review finding 3).
+    if len(files) != MIN_SEEDS:
+        problems.append(f"{len(files)} files matched, need exactly {MIN_SEEDS}")
     seeds = set()
+    pins = set()
     for f in sorted(files):
         try:
             cell = V.parse_eval_name(
@@ -428,11 +434,41 @@ def validate_exp15_cell(files, repo_root=None, expected_k=None):
         except Exception as exc:                           # noqa: BLE001
             problems.append(f"{os.path.basename(f)}: unreadable ({exc})")
             continue
-        reasons = V.validate_metrics_record(record, cell)
+        # The screenmeta sidecar EXISTS and records the campaign pin; validating
+        # the metrics record alone left the published row unable to say which
+        # commit measured it (re-review finding 3).
+        meta_path = f + ".screenmeta.json"
+        pin = None
+        if not os.path.isfile(meta_path):
+            problems.append(f"{os.path.basename(f)}: no .screenmeta.json sidecar")
+        else:
+            try:
+                meta = json.load(open(meta_path))
+            except Exception as exc:                       # noqa: BLE001
+                problems.append(f"{os.path.basename(meta_path)}: unreadable ({exc})")
+                meta = None
+            if isinstance(meta, dict):
+                pin = meta.get("commit")
+                if not (isinstance(pin, str) and len(pin) == 40):
+                    problems.append(f"{os.path.basename(meta_path)}: records no "
+                                    "40-hex campaign pin")
+                    pin = None
+                pins.add(pin)
+                reasons = V.validate_screenmeta(meta, cell, pin=pin,
+                                                ckpt_sha=meta.get("ckpt_sha256"))
+                if reasons:
+                    problems.append(f"{os.path.basename(meta_path)}: {reasons[0]}")
+        reasons = V.validate_metrics_record(record, cell, pin=pin)
         if reasons:
             problems.append(f"{os.path.basename(f)}: {reasons[0]}")
     if len(seeds) != MIN_SEEDS:
         problems.append(f"{len(seeds)} distinct seeds, need {MIN_SEEDS}")
+    # ONE campaign pin across the row: five cells measured at different commits
+    # are not a row, they are five measurements wearing one label.
+    real_pins = {p for p in pins if p}
+    if len(real_pins) > 1:
+        problems.append(f"cells span {len(real_pins)} campaign pins: "
+                        + ", ".join(sorted(p[:12] for p in real_pins)))
     return (not problems), problems
 
 

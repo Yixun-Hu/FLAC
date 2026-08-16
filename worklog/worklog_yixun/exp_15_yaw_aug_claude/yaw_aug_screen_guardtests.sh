@@ -1141,67 +1141,128 @@ check "both submission paths refuse an unpinned live launch in the same words" $
 grep -q 'refused BEFORE taking the shared store lock' "$SUB"
 check "  ... and the single-cell path refuses BEFORE taking the shared store lock" $?
 
-# --- F1 CANARY: only PINNED control-plane content is used and attributed -------
-# The blocking integrative finding: the pin bound the code the JOB read, but the
-# submitter, the validator that rendered identity/contract, and the driver handed
-# to sbatch all came from the MOVING main checkout. A post-pin edit could change
-# what executed while the artifact still recorded the pinned commit.
+# --- F1 CANARY, LIVE-SHAPED (re-review finding 1) -----------------------------
+# The previous canary pre-set YAW_EVAL_PINNED_EXEC and ran under DRYRUN, so it
+# proved routing AFTER the marker was trusted — not that a main-tree live entry
+# reaches the pinned tree, and not that a forged marker is refused. This one
+# drives the REAL bootstrap: main-tree entry, no marker, a pin file, a prepared
+# worktree, and stub Slurm binaries.
 #
-# This diverges the two trees deliberately and proves the pinned one wins.
-CANARY_WT="${TMP}/canary_wt"
-CANARY_EXP="${CANARY_WT}/worklog/worklog_yixun/exp_15_yaw_aug_claude"
-mkdir -p "$CANARY_EXP"
-cp "$SUB" "$GRID" "$CANARY_EXP/"
-# the PINNED validator renders a canary job name; the MAIN one is untouched
-sed 's|^    return (f"exp15-screen-{cell.arm}|    return ("PINNED-CANARY-" + f"exp15-screen-{cell.arm}|' \
-    "$VALIDATOR" > "${CANARY_EXP}/exp15_validate_cell.py"
-printf '#!/bin/bash\n# PINNED-DRIVER-CANARY\nexit 0\n' > "${CANARY_EXP}/yaw_aug_screen.sbatch"
-$PY -c "
-import sys
-src = open(sys.argv[1]).read()
-sys.exit(0 if 'PINNED-CANARY-' in src else 1)" "${CANARY_EXP}/exp15_validate_cell.py"
-check "canary: the pinned validator really does differ from the main one" $?
-CANARY_OUT="$(env -u YAW_EVAL_MAIN_REPO DRYRUN=1 "YAW_EVAL_PINNED_EXEC=${CANARY_WT}" \
-              bash "${CANARY_EXP}/yaw_aug_screen_submit.sh" ARM=YAWAUG CELL=tbl SEED=42 K=8 2>&1)"
+# The stubs are reachable only because the COPY under test has its PATH line
+# rewritten: the real script hard-sets PATH=/usr/bin:/bin:/usr/local/bin at entry
+# (correctly — it is defending against a poisoned PATH), and an earlier version of
+# this canary therefore reached the REAL sbatch/squeue. A test vehicle must be
+# structurally incapable of that.
+CANARY_ROOT="${TMP}/f1_canary"
+CANARY_MAIN="${CANARY_ROOT}/main"
+CANARY_EXPREL="worklog/worklog_yixun/exp_15_yaw_aug_claude"
+CANARY_BIN="${CANARY_ROOT}/bin"
+mkdir -p "${CANARY_MAIN}/${CANARY_EXPREL}" \
+         "${CANARY_MAIN}/worklog/worklog_yixun/exp_11_fa_orbit_claude" \
+         "${CANARY_MAIN}/.measure_worktrees" "${CANARY_MAIN}/outputs_FLAC" "$CANARY_BIN"
+git -c init.defaultBranch=main init -q "$CANARY_MAIN"
+cp "$SUB" "$VALIDATOR" "${CANARY_MAIN}/${CANARY_EXPREL}/"
+cp "$LIVE_CONTROL" "$LIVE_REGISTRY" "${CANARY_MAIN}/${CANARY_EXPREL}/" 2>/dev/null || true
+printf '#!/bin/bash\n# WORKTREE-CANARY\nexit 0\n' \
+  > "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen.sbatch"
+sed -i "s|^MAIN_REPO=/n/fs/gatrdp/codespace/FLAC$|MAIN_REPO=${CANARY_MAIN}|" \
+    "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh"
+sed -i "s|^PATH=/usr/bin:/bin:/usr/local/bin; export PATH$|PATH=${CANARY_BIN}:/usr/bin:/bin; export PATH|" \
+    "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh"
+grep -q "^PATH=${CANARY_BIN}" "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh"
+check "F1 canary: the copy under test cannot reach real Slurm binaries" $?
+git -C "$CANARY_MAIN" add -A >/dev/null 2>&1
+git -C "$CANARY_MAIN" -c user.email=g@l -c user.name=g commit -qm pinned >/dev/null 2>&1
+CANARY_PIN="$(git -C "$CANARY_MAIN" rev-parse HEAD)"
+git -C "$CANARY_MAIN" worktree add -q --detach \
+    "${CANARY_MAIN}/.measure_worktrees/${CANARY_PIN}" "$CANARY_PIN" >/dev/null 2>&1
+printf '%s\n' "$CANARY_PIN" > "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_campaign_pin"
+touch "${CANARY_MAIN}/.measure_worktrees/.campaign_freeze"
+# ...and NOW diverge the main-tree driver. This canary must never appear.
+printf '#!/bin/bash\n# MAINTREE-CANARY\nexit 0\n' \
+  > "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen.sbatch"
+cat > "${CANARY_MAIN}/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_measure_worktree.sh" <<'HEOF'
+#!/usr/bin/env bash
+MR="$(cd "$(dirname "$0")/../../.." && pwd)"
+if [ "$1" = "--with-lock" ]; then
+  shift; L="$MR/.measure_worktrees/.store.lock"; : > "$L"
+  exec 8>"$L"; export FA_ORBIT_STORE_LOCK_HELD=1; exec "$@"
+fi
+if [ "$1" = "--lease" ]; then mkdir -p "$3/.leases"; printf 'jobid %s
+' "$2" > "$3/.leases/$2"; exit 0; fi
+echo "$MR/.measure_worktrees/$1"
+HEOF
+chmod +x "${CANARY_MAIN}/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_measure_worktree.sh"
+printf '#!/bin/bash\nfor a in "$@"; do case "$a" in */yaw_aug_screen.sbatch) echo "SUBMITTED-DRIVER=$a" >&2;; esac; done\necho 9999001\n' > "${CANARY_BIN}/sbatch"
+for _b in scontrol scancel squeue sync; do printf '#!/bin/bash\nexit 0\n' > "${CANARY_BIN}/${_b}"; done
+chmod +x "${CANARY_BIN}"/*
+CANARY_OUT="$(env -u YAW_EVAL_MAIN_REPO -u YAW_EVAL_PINNED_EXEC \
+              bash "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh" \
+              ARM=VANL CELL=vctl STEP=40000 SEED=42 K=8 ROTATE_DEG=90 2>&1)"
 case "$CANARY_OUT" in
-  *"PINNED-CANARY-exp15-screen-YAWAUG-tbl"*)
-    echo "PASS  F1: identity is rendered by the PINNED validator, not the main one"
-    ledger PASS "F1: identity is rendered by the PINNED validator, not the main one"
+  *"pinned-exec marker VERIFIED against ${CANARY_PIN}"*)
+    echo "PASS  F1: a main-tree live entry re-execs and VERIFIES the marker"
+    ledger PASS "F1: a main-tree live entry re-execs and VERIFIES the marker"
     PASS=$((PASS + 1)) ;;
-  *) echo "FAIL  F1: the main-tree validator rendered the identity"
-     printf '%s\n' "$CANARY_OUT" | head -4 | sed 's/^/        | /'
-     ledger FAIL "F1: identity is rendered by the PINNED validator, not the main one"
+  *) echo "FAIL  F1: the bootstrap did not verify its marker"
+     printf '%s\n' "$CANARY_OUT" | tail -5 | sed 's/^/        | /'
+     ledger FAIL "F1: a main-tree live entry re-execs and VERIFIES the marker"
      FAIL=$((FAIL + 1)) ;;
 esac
 case "$CANARY_OUT" in
-  *"DRYRUN driver ${CANARY_EXP}/yaw_aug_screen.sbatch"*)
-    echo "PASS  F1: the driver handed to sbatch comes from the PINNED tree"
-    ledger PASS "F1: the driver handed to sbatch comes from the PINNED tree"
-    PASS=$((PASS + 1)) ;;
-  *) echo "FAIL  F1: the driver path is not the pinned one"
-     printf '%s\n' "$CANARY_OUT" | grep -i driver | sed 's/^/        | /'
-     ledger FAIL "F1: the driver handed to sbatch comes from the PINNED tree"
-     FAIL=$((FAIL + 1)) ;;
+  *"SUBMITTED-DRIVER=${CANARY_MAIN}/.measure_worktrees/${CANARY_PIN}/"*)
+    echo "PASS  F1: sbatch received the WORKTREE driver"
+    ledger PASS "F1: sbatch received the WORKTREE driver"; PASS=$((PASS + 1)) ;;
+  *) echo "FAIL  F1: sbatch did not receive the worktree driver"
+     printf '%s\n' "$CANARY_OUT" | grep -i "SUBMITTED-DRIVER" | sed 's/^/        | /'
+     ledger FAIL "F1: sbatch received the WORKTREE driver"; FAIL=$((FAIL + 1)) ;;
 esac
 case "$CANARY_OUT" in
-  *"DRYRUN control-plane PINNED"*)
-    echo "PASS  F1: a pinned run SAYS it is pinned"
-    ledger PASS "F1: a pinned run SAYS it is pinned"; PASS=$((PASS + 1)) ;;
-  *) echo "FAIL  F1: a pinned run does not announce itself"
-     ledger FAIL "F1: a pinned run SAYS it is pinned"; FAIL=$((FAIL + 1)) ;;
+  *MAINTREE-CANARY*) echo "FAIL  F1: main-tree content leaked into the run"
+                     ledger FAIL "F1: the divergent main-tree driver is never used"
+                     FAIL=$((FAIL + 1)) ;;
+  *) echo "PASS  F1: the divergent main-tree driver is never used"
+     ledger PASS "F1: the divergent main-tree driver is never used"
+     PASS=$((PASS + 1)) ;;
 esac
-MAIN_OUT="$(env -u YAW_EVAL_MAIN_REPO DRYRUN=1 bash "$SUB" ARM=YAWAUG CELL=tbl SEED=42 K=8 2>&1)"
-case "$MAIN_OUT" in
-  *"PINNED-CANARY-"*) echo "FAIL  F1: the main tree leaked pinned content"
-                      ledger FAIL "F1: an unpinned dry run announces itself as MAIN-TREE"
+# --- F2: the missing-cell path must SUBMIT under set -e ----------------------
+case "$CANARY_OUT" in
+  *"cell not yet measured"*"submitted HELD as 9999001"*)
+    echo "PASS  F2: a MISSING cell survives errexit and submits"
+    ledger PASS "F2: a MISSING cell survives errexit and submits"; PASS=$((PASS + 1)) ;;
+  *) echo "FAIL  F2: the missing-cell path did not reach submission"
+     printf '%s\n' "$CANARY_OUT" | tail -6 | sed 's/^/        | /'
+     ledger FAIL "F2: a MISSING cell survives errexit and submits"; FAIL=$((FAIL + 1)) ;;
+esac
+# --- F1: a FORGED marker is refused, not silently honoured --------------------
+# LINT-OK-live-refusal: the subject IS the live-mode refusal.
+FORGED_OUT="$(env -u YAW_EVAL_MAIN_REPO "YAW_EVAL_PINNED_EXEC=${CANARY_MAIN}" \
+              bash "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh" \
+              ARM=VANL CELL=vctl STEP=40000 SEED=42 K=8 ROTATE_DEG=90 2>&1)"; FORGED_RC=$?
+eq_check "F1: a forged pinned-exec marker is REFUSED (rc 2)" "$FORGED_RC" "2"
+case "$FORGED_OUT" in
+  *"is not the worktree this pin"*)
+    echo "PASS  F1: the refusal names the mismatch"
+    ledger PASS "F1: the refusal names the mismatch"; PASS=$((PASS + 1)) ;;
+  *) echo "FAIL  F1: the forged marker was not refused by path"
+     printf '%s\n' "$FORGED_OUT" | tail -4 | sed 's/^/        | /'
+     ledger FAIL "F1: the refusal names the mismatch"; FAIL=$((FAIL + 1)) ;;
+esac
+case "$FORGED_OUT" in
+  *SUBMITTED-DRIVER*) echo "FAIL  F1: a forged marker still reached sbatch"
+                      ledger FAIL "F1: a forged marker submits nothing"
                       FAIL=$((FAIL + 1)) ;;
-  *"DRYRUN control-plane MAIN-TREE (unpinned)"*)
-                      echo "PASS  F1: an unpinned dry run announces itself as MAIN-TREE"
-                      ledger PASS "F1: an unpinned dry run announces itself as MAIN-TREE"
-                      PASS=$((PASS + 1)) ;;
-  *) echo "FAIL  F1: an unpinned dry run does not announce its tree"
-     ledger FAIL "F1: an unpinned dry run announces itself as MAIN-TREE"; FAIL=$((FAIL + 1)) ;;
+  *) echo "PASS  F1: a forged marker submits nothing"
+     ledger PASS "F1: a forged marker submits nothing"; PASS=$((PASS + 1)) ;;
 esac
+grep -q 'YAW_EVAL_LOCK_DEPTH' "$SUB"
+check "F1: the store-lock re-exec has a depth guard (cannot spin)" $?
+grep -q 'for _n in sbatch scontrol scancel squeue sync' "$SUB"
+check "F2: squeue is resolved in the live binary loop" $?
+grep -q 'could not query the queue' "$SUB"
+check "F2: a failed queue query is fail-closed, not an empty result" $?
+grep -q '|| STATUS_RC=\$?' "$SUB"
+check "F2: cellstatus is captured without errexit killing the branch" $?
 grep -q 'exec bash "$PINNED_SELF"' "$SUB" && grep -q 'exec bash "$PINNED_SELF"' "$GRID"
 check "F1: both entry points re-exec themselves from the pinned worktree" $?
 grep -q 'CODE_EXPDIR/yaw_aug_screen.sbatch' "$SUB"

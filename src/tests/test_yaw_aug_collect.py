@@ -1017,7 +1017,9 @@ class TestPublishRowTransaction:
         got = pub.readiness(root, pin=PIN, expected_count=8,
                             control=control, registry=registry)
         assert got["ready"] is True, got["reasons"]
-        assert got["seeds"]["8"] == list(V.SEEDS)
+        # keys are per ARM and K now: readiness requires BOTH arms (re-review F3)
+        assert got["seeds"]["YAWAUG/K8"] == list(V.SEEDS)
+        assert got["seeds"]["VANL/K8"] == list(V.SEEDS)
 
     def test_readiness_refuses_a_four_seed_block(self, tmp_path):
         pub = self._publish()
@@ -1070,3 +1072,143 @@ class TestPublishRowTransaction:
         ok, problems = module.validate_exp15_cell(files, expected_k=8)
         assert ok is False
         assert any("theta=0" in p or "T (" in p for p in problems), problems
+
+
+# =========================================================================== #
+# RE-REVIEW (NO-GO): F3 two-K transaction + both arms, F4 V readout withheld.
+# =========================================================================== #
+class TestVReadoutWithheld:
+    """Re-review F4: a defective V cell publishes the WORD, never the number."""
+
+    def _defective(self, tmp_path):
+        def break_v(cell, kw):
+            if cell.cell == "vctl" and cell.arm == "YAWAUG":
+                # individually VALID (offsets still the fixed 90-degree shift) but
+                # a different item set from VANL's V cell -> input_hash mismatch
+                kw["targets"] = [f"Office/Office_idx_9/{i}.wav" for i in range(8)]
+            return kw
+        return run(tmp_path, values=flat_values, mutate=break_v)
+
+    def test_the_defect_is_recorded_against_the_cell(self, tmp_path):
+        res = self._defective(tmp_path)
+        row = next(r for r in res["v_readouts"] if r["arm"] == "YAWAUG")
+        assert row["withheld"], row
+        assert row["T60"] is None
+
+    def test_the_number_is_absent_from_the_markdown(self, tmp_path):
+        res = self._defective(tmp_path)
+        md = collect.render_report(res)
+        v_section = md.split("## Validity-control cells (V block)")[1].split("##")[0]
+        assert "WITHHELD (hash defect" in v_section
+        # the YAWAUG V value under flat_values is 10.480 — it must not appear
+        assert "10.480" not in v_section
+
+    def test_the_number_is_absent_from_the_json(self, tmp_path):
+        res = self._defective(tmp_path)
+        blob = json.dumps(collect.results_bundle(res), ensure_ascii=False)
+        row = next(r for r in res["v_readouts"] if r["arm"] == "YAWAUG")
+        assert row["T60"] is None
+        assert '"T60": 10.48' not in blob
+
+    def test_a_healthy_V_cell_still_publishes_its_number(self, tmp_path):
+        res = run(tmp_path, values=flat_values)
+        for row in res["v_readouts"]:
+            assert row["withheld"] is None and row["T60"] is not None
+
+    def test_hypotheses_remain_unblocked_by_the_defect(self, tmp_path):
+        res = self._defective(tmp_path)
+        assert res["hypotheses"]["8"]["H1"]["blocked"] is None
+        assert res["hypotheses"]["8"]["H1"]["rows"]
+
+
+class TestTwoKTransaction:
+    """Re-review F3: both arms, both K, or nothing publishes."""
+
+    def _publish(self):
+        import importlib.util
+        path = "worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_publish_row.py"
+        spec = importlib.util.spec_from_file_location("yaw_aug_publish_row", path)
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        return m
+
+    def test_yawaug_alone_is_NOT_ready(self, tmp_path):
+        """The cross-arm equalities cannot be tested from one arm's cells."""
+        pub = self._publish()
+        control, registry = _admission(tmp_path)
+        keep = {("YAWAUG", "tbl", 8), ("YAWAUG", "tbl", 1)}
+        skip = {(c.arm, c.cell, int(c.k), int(c.seed)) for c in V.expected_grid()
+                if (c.arm, c.cell, int(c.k)) not in keep}
+        root = build_full_grid(tmp_path, values=flat_values, skip=skip)
+        got = pub.readiness(root, pin=PIN, expected_count=8,
+                            control=control, registry=registry)
+        assert got["ready"] is False
+        assert any("VANL" in r for r in got["reasons"]), got["reasons"]
+
+    def test_both_arms_both_K_is_ready(self, tmp_path):
+        pub = self._publish()
+        control, registry = _admission(tmp_path)
+        keep = {(a, "tbl", k) for a in ("YAWAUG", "VANL") for k in (1, 8)}
+        skip = {(c.arm, c.cell, int(c.k), int(c.seed)) for c in V.expected_grid()
+                if (c.arm, c.cell, int(c.k)) not in keep}
+        root = build_full_grid(tmp_path, values=flat_values, skip=skip)
+        got = pub.readiness(root, pin=PIN, expected_count=8,
+                            control=control, registry=registry)
+        assert got["ready"] is True, got["reasons"]
+        assert set(got["seeds"]) == {"YAWAUG/K1", "YAWAUG/K8", "VANL/K1", "VANL/K8"}
+
+    def test_the_untested_equalities_are_named_not_assumed(self, tmp_path):
+        pub = self._publish()
+        control, registry = _admission(tmp_path)
+        keep = {("YAWAUG", "tbl", 8), ("YAWAUG", "tbl", 1), ("VANL", "tbl", 8)}
+        skip = {(c.arm, c.cell, int(c.k), int(c.seed)) for c in V.expected_grid()
+                if (c.arm, c.cell, int(c.k)) not in keep}
+        root = build_full_grid(tmp_path, values=flat_values, skip=skip)
+        got = pub.readiness(root, pin=PIN, expected_count=8,
+                            control=control, registry=registry)
+        assert got["ready"] is False
+        assert any("cross-arm input_hash" in r for r in got["reasons"]), got["reasons"]
+
+    def test_the_checklist_is_concrete_and_emitted(self):
+        pub = self._publish()
+        for fragment in ("gen_model_comparison.py", "git add", "git pull --rebase",
+                         "exp_15 results:", "DO NOT repin", "yaw_aug_analysis.md"):
+            assert fragment in pub.PUBLISH_CHECKLIST, fragment
+
+    def test_the_generator_requires_exactly_five_files(self, tmp_path):
+        pub = self._publish()
+        _specs, module = pub.row_specs()
+        d = tmp_path / "six"
+        d.mkdir()
+        files = [write_cell(str(d), _cell("YAWAUG", "tbl", seed=s)) for s in V.SEEDS]
+        files.append(files[0])                    # a duplicate the glob might catch
+        ok, problems = module.validate_exp15_cell(files, expected_k=8)
+        assert ok is False
+        assert any("need exactly 5" in p for p in problems), problems
+
+    def test_the_generator_requires_the_campaign_pin_in_the_sidecar(self, tmp_path):
+        pub = self._publish()
+        _specs, module = pub.row_specs()
+        d = tmp_path / "nopin"
+        d.mkdir()
+        files = [write_cell(str(d), _cell("YAWAUG", "tbl", seed=s)) for s in V.SEEDS]
+        for f in files:                           # strip the pin the row must cite
+            meta = json.load(open(f + ".screenmeta.json"))
+            meta["commit"] = None
+            json.dump(meta, open(f + ".screenmeta.json", "w"))
+        ok, problems = module.validate_exp15_cell(files, expected_k=8)
+        assert ok is False
+        assert any("40-hex campaign pin" in p for p in problems), problems
+
+    def test_the_generator_refuses_cells_spanning_two_pins(self, tmp_path):
+        pub = self._publish()
+        _specs, module = pub.row_specs()
+        d = tmp_path / "twopins"
+        d.mkdir()
+        files = [write_cell(str(d), _cell("YAWAUG", "tbl", seed=s)) for s in V.SEEDS]
+        meta = json.load(open(files[0] + ".screenmeta.json"))
+        meta["commit"] = "b" * 40
+        json.dump(meta, open(files[0] + ".screenmeta.json", "w"))
+        ok, problems = module.validate_exp15_cell(files, expected_k=8)
+        assert ok is False
+        assert any("campaign pins" in p for p in problems), problems

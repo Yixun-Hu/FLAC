@@ -19,8 +19,11 @@ EXPD=worklog/worklog_yixun/exp_15_yaw_aug_claude
 # fires before the parameter gates the refusal cases assert on. Scrub them for
 # the suite only — the suite itself never submits (self-checked).
 for v in $(env | grep -o '^SLURM[A-Z_]*'); do unset "$v"; done
-STRICT=1 GUARD_TAG=evalfinal bash "$EXPD/yaw_aug_screen_guardtests.sh" 2>&1 | tee "$EXPD/yaw_aug_${TS}_guardtests_evalfinal.log"
+# TAG is a parameter so each review round gets its own ledger namespace and the
+# union check compares like with like. Default is this round's.
+TAG="${GUARD_TAG:-evalfinal2}"
+STRICT=1 GUARD_TAG="$TAG" bash "$EXPD/yaw_aug_screen_guardtests.sh" 2>&1 | tee "$EXPD/yaw_aug_${TS}_guardtests_${TAG}.log"
 rc=${PIPESTATUS[0]}
-python3 "$EXPD/yaw_aug_union_coverage.py" "$EXPD"/yaw_aug_*_guardtests_evalfinal.ledger 2>&1 | tee "$EXPD/yaw_aug_${TS}_union_evalfinal.log" || rc=1
+python3 "$EXPD/yaw_aug_union_coverage.py" "$EXPD"/yaw_aug_*_guardtests_${TAG}.ledger 2>&1 | tee "$EXPD/yaw_aug_${TS}_union_${TAG}.log" || rc=1
 echo "GUARDTESTS_RC=$rc"
 exit $rc

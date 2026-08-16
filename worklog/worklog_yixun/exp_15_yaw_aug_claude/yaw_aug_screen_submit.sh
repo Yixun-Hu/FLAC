@@ -92,7 +92,7 @@ DRYRUN="${DRYRUN:-0}"
 TEST_MODE=0
 [ "${YAW_EVAL_TEST_MODE:-0}" = "1" ] && TEST_MODE=1
 [ "$DRYRUN" = "1" ] && TEST_MODE=1        # a dry run submits nothing by construction
-ALLOW_LIVE="FA_ORBIT_STORE_LOCK_HELD YAW_EVAL_TEST_MODE YAW_EVAL_PINNED_EXEC"
+ALLOW_LIVE="FA_ORBIT_STORE_LOCK_HELD YAW_EVAL_TEST_MODE YAW_EVAL_PINNED_EXEC YAW_EVAL_LOCK_DEPTH"
 #   YAW_EVAL_PINNED_EXEC  set BY THIS SCRIPT for its own re-exec from the pinned
 #                         worktree; its presence means "you are the pinned copy"
 #   FA_ORBIT_STORE_LOCK_HELD  "1" from the shared store helper's lock protocol
@@ -100,7 +100,7 @@ ALLOW_LIVE="FA_ORBIT_STORE_LOCK_HELD YAW_EVAL_TEST_MODE YAW_EVAL_PINNED_EXEC"
 ALLOW_TEST="FA_ORBIT_STORE_LOCK_HELD YAW_EVAL_TEST_MODE YAW_EVAL_PINNED_EXEC YAW_EVAL_TEST_RECORD \
 YAW_EVAL_TEST_JOBID YAW_EVAL_TEST_SUBMIT_SLEEP YAW_EVAL_TEST_RELEASE_SLEEP \
 YAW_EVAL_TEST_RELEASE_FAILS YAW_EVAL_TEST_SCANCEL_FAILS YAW_EVAL_SYNC_FAILS \
-YAW_EVAL_PIN_FILE YAW_EVAL_INTENT_DIR YAW_EVAL_MAIN_REPO"
+YAW_EVAL_PIN_FILE YAW_EVAL_INTENT_DIR YAW_EVAL_MAIN_REPO YAW_EVAL_LOCK_DEPTH"
 #   YAW_EVAL_TEST_RECORD        path of a text file this script APPENDS its argv to
 #   YAW_EVAL_TEST_JOBID         the job id a simulated submission reports (data)
 #   YAW_EVAL_TEST_SUBMIT_SLEEP  seconds a simulated submission stalls (data)
@@ -138,6 +138,9 @@ EXPDIR="$MAIN_REPO/worklog/worklog_yixun/exp_15_yaw_aug_claude"
 # executable pieces are read from. A live run re-execs itself out of the pinned
 # worktree and sets YAW_EVAL_PINNED_EXEC, at which point CODE_ROOT is that tree.
 CODE_ROOT="$MAIN_REPO"
+# NOTE: the marker is only PROVISIONALLY honoured here, so that PIN_FILE and the
+# helper resolve; verify_pinned_marker below is what admits it, after the pin has
+# been read. Nothing executable is read from CODE_ROOT before that check.
 [ -n "${YAW_EVAL_PINNED_EXEC:-}" ] && CODE_ROOT="$YAW_EVAL_PINNED_EXEC"
 CODE_EXPDIR="$CODE_ROOT/worklog/worklog_yixun/exp_15_yaw_aug_claude"
 # The measure-worktree store is SHARED (one lock, one freeze, one lease space for
@@ -244,6 +247,19 @@ else
       exit 2
     fi
   fi
+  # DEPTH GUARD. This branch re-execs through the store-lock helper, and the child
+  # re-runs this same block: if the helper ever fails to establish the lock marker
+  # + fd 8, the child takes this branch again and the pair spins forever. Found by
+  # a canary whose stub helper did exactly that; a real helper that regressed
+  # would do the same, on a shared login node. One re-entry is all this needs.
+  YAW_EVAL_LOCK_DEPTH="${YAW_EVAL_LOCK_DEPTH:-0}"
+  if [ "$YAW_EVAL_LOCK_DEPTH" -ge 1 ]; then
+    echo "REFUSING: re-exec through ${HELPER} did not establish the store lock" >&2
+    echo "  (FA_ORBIT_STORE_LOCK_HELD='${FA_ORBIT_STORE_LOCK_HELD:-<unset>}', fd 8" >&2
+    echo "  not the lock file). Looping would spin; stopping instead." >&2
+    exit 2
+  fi
+  YAW_EVAL_LOCK_DEPTH=$((YAW_EVAL_LOCK_DEPTH + 1)); export YAW_EVAL_LOCK_DEPTH
   exec bash "$HELPER" --with-lock bash "$0" "$@"
 fi
 
@@ -315,7 +331,10 @@ if [ "$TEST_MODE" != "1" ]; then
   # Resolve every Slurm binary ONCE, absolutely, on the sanitized PATH set at
   # entry and with any exported shell function of the same name already dropped.
   # Only these stored paths are invoked afterwards.
-  for _n in sbatch scontrol scancel sync; do
+  # squeue is here because the in-flight guard below dereferences BIN_squeue; it
+  # was omitted, so that guard referenced an unset variable under `set -u`
+  # (re-review finding 2).
+  for _n in sbatch scontrol scancel squeue sync; do
     _p="$(command -v "$_n" 2>/dev/null)" || _p=""
     case "$_p" in
       /*) ;;
@@ -356,6 +375,45 @@ if [ "$TEST_MODE" = "1" ]; then
 elif [ -n "${YAW_EVAL_PIN_FILE:-}${YAW_EVAL_INTENT_DIR:-}" ]; then
   reject "YAW_EVAL_PIN_FILE / YAW_EVAL_INTENT_DIR are test seams: they need YAW_EVAL_TEST_MODE=1, never a run that could really submit"
 fi
+# --- THE RE-EXEC MARKER IS VERIFIED, NEVER TRUSTED (re-review finding 1) -------
+# YAW_EVAL_PINNED_EXEC used to be believed on sight: nonempty meant "you are the
+# pinned copy", so an inherited or forged value redirected CODE_ROOT anywhere and
+# skipped the bootstrap entirely — the pin bound nothing. A marker that selects
+# which code executes has to be checked against something the caller cannot
+# choose, so it is checked against BOTH:
+#   (a) the canonical path the bootstrap would itself prepare for the pin file's
+#       SHA — realpath equality, so a symlink or a sibling tree cannot pass; and
+#   (b) that tree's own HEAD, which must equal the campaign pin exactly.
+# A mismatch is a HARD REFUSAL, not a fallback to re-exec: if the marker is wrong
+# we are already in a state nobody designed, and the safe move is to stop.
+# DRYRUN is permissive (it submits nothing) and labels itself as such.
+verify_pinned_marker() {   # $1 = claimed CODE_ROOT, $2 = campaign pin sha
+  local claimed="$1" pin="$2" want head
+  if [ "$DRYRUN" = "1" ]; then
+    echo "DRYRUN: pinned-exec marker accepted UNVERIFIED (a dry run submits nothing)" >&2
+    return 0
+  fi
+  if [ -z "$pin" ]; then
+    echo "YAW_EVAL_PINNED_EXEC is set but there is no campaign pin to verify it against" >&2
+    return 1
+  fi
+  want="$(readlink -f "${MAIN_REPO}/.measure_worktrees/${pin}" 2>/dev/null)" || want=""
+  claimed="$(readlink -f "$claimed" 2>/dev/null)" || claimed=""
+  if [ -z "$want" ] || [ -z "$claimed" ] || [ "$want" != "$claimed" ]; then
+    echo "REFUSING: YAW_EVAL_PINNED_EXEC='${claimed}' is not the worktree this pin" >&2
+    echo "  prepares ('${want}'). A marker that selects which code executes may not" >&2
+    echo "  be taken on trust." >&2
+    return 1
+  fi
+  head="$(git -C "$claimed" rev-parse HEAD 2>/dev/null)" || head=""
+  if [ "$head" != "$pin" ]; then
+    echo "REFUSING: the tree at '${claimed}' is at HEAD '${head}', not the campaign" >&2
+    echo "  pin '${pin}'." >&2
+    return 1
+  fi
+  return 0
+}
+
 CAMPAIGN_PIN=""
 if [ -f "$PIN_FILE" ]; then
   CAMPAIGN_PIN="$(head -1 "$PIN_FILE" | tr -d '[:space:]')"
@@ -397,6 +455,10 @@ if [ "$DRYRUN" != "1" ] && [ "$TEST_MODE" != "1" ] && [ -z "$CAMPAIGN_PIN" ]; th
   echo "  command line is not that commitment — set it deliberately, once:" >&2
   echo "  printf '%s\\n' \$(git -C ${MAIN_REPO} rev-parse HEAD) > ${PIN_FILE}" >&2
   exit 2
+fi
+if [ -n "${YAW_EVAL_PINNED_EXEC:-}" ] && [ "$TEST_MODE" != "1" ]; then
+  verify_pinned_marker "$YAW_EVAL_PINNED_EXEC" "$CAMPAIGN_PIN" || exit 2
+  echo "pinned-exec marker VERIFIED against ${CAMPAIGN_PIN}"
 fi
 [ -n "$ARM" ] && [ -n "$CELL" ] && [ -n "$STEP" ] || { echo "usage: bash $0 ARM=YAWAUG CELL=tbl [STEP=40000] [SEED=42] [K=8] [EXCLUDE=node[,node]] [ROTATE_DEG=90] [PIN_SHA=<40hex>] [LOG=...]" >&2; exit 2; }
 # CELL is REQUIRED and has no default here or in the driver: a cell type is a
@@ -490,7 +552,15 @@ CELL_STATUS_ARGS=(cellstatus --arm "$ARM" --cell "$CELL" --step "$STEP"
                   --seed "$SEED" --k "$K" --output-root "${MAIN_REPO}/outputs_FLAC"
                   --pin "$EXPECT_SHA")
 [ "$CELL" = "vctl" ] && CELL_STATUS_ARGS+=(--rotate-deg "$ROTATE_DEG")
-CELL_STATUS="$(python3 "$VALIDATOR" "${CELL_STATUS_ARGS[@]}" 2>&1)"; STATUS_RC=$?
+# `VAL=$(cmd)` is an ORDINARY ASSIGNMENT: under `set -e` its non-zero exit status
+# terminates the shell before the next statement runs. cellstatus returns 3 for a
+# cell that has not been measured yet — the NORMAL case for every launch — so the
+# script died before reaching the `case` below and the runbook's first two steps
+# could never submit anything (re-review finding 2). `|| STATUS_RC=$?` keeps the
+# assignment's failure from being fatal while preserving BOTH the captured output
+# and the exact status.
+STATUS_RC=0
+CELL_STATUS="$(python3 "$VALIDATOR" "${CELL_STATUS_ARGS[@]}" 2>&1)" || STATUS_RC=$?
 case "$STATUS_RC" in
   0) echo "SKIP ${JOB_NAME}: already measured and VALID at this pin"
      echo "  ${CELL_STATUS}"
@@ -508,8 +578,19 @@ esac
 # ...and it must not already be queued. A name alone is a claim; the lease is the
 # evidence (the wave path's rule, applied here).
 if [ "$TEST_MODE" != "1" ]; then
-  INFLIGHT_JID="$("$BIN_squeue" -h -u "$(id -un)" -o "%i %j" 2>/dev/null \
-                  | awk -v n="$JOB_NAME" '$2 == n {print $1; exit}')" || INFLIGHT_JID=""
+  # A squeue that FAILS is not evidence that nothing is queued (exp_11's lease
+  # reaper learned this expensively). The old form swallowed the failure into an
+  # empty string, which reads as "clear to submit" — fail-closed instead.
+  QUEUE_RC=0
+  QUEUE_LINES="$("$BIN_squeue" -h -u "$(id -un)" -o "%i %j" 2>&1)" || QUEUE_RC=$?
+  if [ "$QUEUE_RC" -ne 0 ]; then
+    echo "HALT: could not query the queue (squeue rc=${QUEUE_RC}) — refusing to" >&2
+    echo "  submit without knowing what is already in flight." >&2
+    echo "  ${QUEUE_LINES}" >&2
+    exit 5
+  fi
+  INFLIGHT_JID="$(printf '%s\n' "$QUEUE_LINES" \
+                  | awk -v n="$JOB_NAME" '$2 == n {print $1; exit}')"
   if [ -n "$INFLIGHT_JID" ]; then
     if grep -q "^jobid ${INFLIGHT_JID}$" "${WT}/.leases/${INFLIGHT_JID}" 2>/dev/null; then
       echo "SKIP ${JOB_NAME}: job ${INFLIGHT_JID} is in flight and holds its lease"
