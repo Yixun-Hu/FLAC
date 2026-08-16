@@ -1156,7 +1156,7 @@ check "  ... and the single-cell path refuses BEFORE taking the shared store loc
 CANARY_ROOT="${TMP}/f1_canary"
 CANARY_MAIN="${CANARY_ROOT}/main"
 CANARY_EXPREL="worklog/worklog_yixun/exp_15_yaw_aug_claude"
-CANARY_BIN="${CANARY_ROOT}/bin"
+CANARY_BIN="${CANARY_ROOT}/slurmstubs"
 mkdir -p "${CANARY_MAIN}/${CANARY_EXPREL}" \
          "${CANARY_MAIN}/worklog/worklog_yixun/exp_11_fa_orbit_claude" \
          "${CANARY_MAIN}/.measure_worktrees" "${CANARY_MAIN}/outputs_FLAC" "$CANARY_BIN"
@@ -1210,9 +1210,24 @@ sed -i "s|^PATH=/usr/bin:/bin:/usr/local/bin; export PATH$|PATH=${CANARY_BIN}:${
 grep -q "^PATH=${CANARY_BIN}:${CANARY_PRIVBIN}; export PATH$" \
      "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh" \
   || canary_fatal "the canary copy's PATH line is not the sandboxed one"
-grep -q "/usr/bin" "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh" \
-  && grep -qE "^PATH=.*(/usr/bin|/bin)(:|$)" "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh" \
-  && canary_fatal "a system bindir survives on the canary copy's PATH"
+# Compare PATH ENTRIES, not substrings: the first version tested for the
+# substring "/bin" and matched the stub directory's own path, aborting a run whose
+# isolation was in fact correct. Split on ':' and compare each entry exactly.
+CANARY_PATH_LINE="$(grep -m1 '^PATH=' "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh")"
+CANARY_PATH_VAL="${CANARY_PATH_LINE#PATH=}"; CANARY_PATH_VAL="${CANARY_PATH_VAL%%;*}"
+_old_ifs="$IFS"; IFS=':'
+for _entry in $CANARY_PATH_VAL; do
+  case "$_entry" in
+    /usr/bin|/bin|/usr/local/bin|/sbin|/usr/sbin|/usr/local/sbin)
+      IFS="$_old_ifs"
+      canary_fatal "system bindir '${_entry}' is on the canary copy's PATH" ;;
+  esac
+done
+IFS="$_old_ifs"
+case ":${CANARY_PATH_VAL}:" in
+  *":${CANARY_BIN}:"*) ;;
+  *) canary_fatal "the stub dir is not on the canary copy's PATH" ;;
+esac
 echo "PASS  F1 canary: PATH contains no system bindir (prevention, not detection)"
 ledger PASS "F1 canary: PATH contains no system bindir (prevention, not detection)"
 PASS=$((PASS + 1))
