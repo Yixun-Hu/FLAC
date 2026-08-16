@@ -859,9 +859,66 @@ def _read_record(path, label):
     return obj, []
 
 
+def validate_payloads(record, meta, stream, cell, pin=None, ckpt_sha=None,
+                      expected_count=EXPECTED_COUNT, expected_scenes=EXPECTED_SCENES,
+                      expected_keys=EXPECTED_SCENE_KEYS):
+    """Every named reason these ALREADY-PARSED payloads are not this cell's.
+
+    This is the core; :func:`validate_cell` is the path-reading wrapper around it.
+    The split exists because validating one snapshot and aggregating a different
+    one is a real failure mode (eval-r2 review finding 5): the collector parses
+    the three artifacts once, keeps those objects, and must validate EXACTLY the
+    objects it will go on to average. A path-based validator re-reads the files,
+    so a concurrent replacement could be validated as version B while version A's
+    numbers are the ones that reach the table.
+
+    ``None`` for a payload means "that artifact was absent", which is named
+    rather than skipped.
+    """
+    if not is_registered(cell):
+        raise ValueError(f"cell {tuple(cell)} is not registered in the exp_15 grid")
+    # A VALID verdict must mean every CAMPAIGN check ran, not that some of them
+    # had no input (exp_14 review B6). The pin and the checkpoint digest are the
+    # two that a caller could previously omit and still be told the cell is valid.
+    reasons = []
+    if pin is None:
+        reasons.append("campaign pin not supplied: a cell cannot be declared valid "
+                       "without checking which commit produced it")
+    if ckpt_sha is None:
+        reasons.append("expected ckpt sha256 not supplied: a cell cannot be declared "
+                       "valid without checking WHICH checkpoint it evaluated")
+    if not isinstance(record, dict):
+        return reasons + ["metrics payload is absent or is not a JSON object"]
+    reasons += validate_metrics_record(record, cell, pin=pin,
+                                       expected_count=expected_count,
+                                       expected_scenes=expected_scenes,
+                                       expected_keys=expected_keys)
+    if meta is None:
+        reasons.append("screenmeta payload is absent")
+    elif not isinstance(meta, dict):
+        reasons.append("screenmeta payload is not a JSON object")
+    else:
+        reasons += validate_screenmeta(meta, cell, pin=pin, ckpt_sha=ckpt_sha,
+                                       expected_count=expected_count)
+    if stream is None:
+        reasons.append("stream payload is absent (--record-stream is mandatory for "
+                       "every exp_15 cell)")
+    elif not isinstance(stream, dict):
+        reasons.append("stream payload is not a JSON object")
+    else:
+        reasons += validate_stream_record(stream, cell, expected_count=expected_count,
+                                          record=record)
+    return reasons
+
+
 def validate_cell(metrics, cell, pin=None, ckpt_sha=None, expected_count=EXPECTED_COUNT,
                   expected_scenes=EXPECTED_SCENES, expected_keys=EXPECTED_SCENE_KEYS):
-    """Every named reason this cell's artifacts are not valid; ``[]`` when they are.
+    """Read this cell's three artifacts from disk and validate them.
+
+    The entry point the screen driver and the wave submitter use, where reading
+    from paths IS the job. It reads once and hands the parsed payloads to
+    :func:`validate_payloads`, so both callers run the same checks over one
+    definition of them.
 
     Raises ``ValueError`` for an UNREGISTERED cell before touching the filesystem:
     an artifact for a cell the plan never registered is not a validation failure,
@@ -874,41 +931,31 @@ def validate_cell(metrics, cell, pin=None, ckpt_sha=None, expected_count=EXPECTE
     rec, bad = _read_record(metrics, "metrics")
     if rec is None:
         return bad
-    # A VALID verdict must mean every CAMPAIGN check ran, not that some of them
-    # had no input (exp_14 review B6). The pin and the checkpoint digest are the
-    # two that a caller could previously omit and still be told the cell is valid.
-    reasons = []
-    if pin is None:
-        reasons.append("campaign pin not supplied: a cell cannot be declared valid "
-                       "without checking which commit produced it")
-    if ckpt_sha is None:
-        reasons.append("expected ckpt sha256 not supplied: a cell cannot be declared "
-                       "valid without checking WHICH checkpoint it evaluated")
-    reasons += validate_metrics_record(rec, cell, pin=pin, expected_count=expected_count,
-                                       expected_scenes=expected_scenes,
-                                       expected_keys=expected_keys)
-
-    meta_p = screenmeta_path(metrics)
+    prefix = []
+    meta = stream = None
+    meta_p, stream_p = screenmeta_path(metrics), stream_path(metrics)
     if not os.path.isfile(meta_p):
-        reasons.append(f"screenmeta sidecar missing: {meta_p}")
+        prefix.append(f"screenmeta sidecar missing: {meta_p}")
     else:
         meta, bad = _read_record(meta_p, "screenmeta")
-        reasons += bad
-        if meta is not None:
-            reasons += validate_screenmeta(meta, cell, pin=pin, ckpt_sha=ckpt_sha,
-                                           expected_count=expected_count)
-
-    stream_p = stream_path(metrics)
+        prefix += bad
     if not os.path.isfile(stream_p):
-        reasons.append(f"stream sidecar missing: {stream_p} (--record-stream is "
-                       "mandatory for every exp_15 cell)")
+        prefix.append(f"stream sidecar missing: {stream_p} (--record-stream is "
+                      "mandatory for every exp_15 cell)")
     else:
         stream, bad = _read_record(stream_p, "stream")
-        reasons += bad
-        if stream is not None:
-            reasons += validate_stream_record(stream, cell, expected_count=expected_count,
-                                              record=rec)
-    return reasons
+        prefix += bad
+    reasons = validate_payloads(rec, meta, stream, cell, pin=pin, ckpt_sha=ckpt_sha,
+                                expected_count=expected_count,
+                                expected_scenes=expected_scenes,
+                                expected_keys=expected_keys)
+    # A sidecar that was MISSING on disk is reported with its path (useful for an
+    # operator); validate_payloads only knows it was absent, so drop its
+    # path-free duplicate of the same fact.
+    generic = {"screenmeta payload is absent",
+               "stream payload is absent (--record-stream is mandatory for every "
+               "exp_15 cell)"}
+    return prefix + [r for r in reasons if r not in generic]
 
 
 # --- CLI ---------------------------------------------------------------------

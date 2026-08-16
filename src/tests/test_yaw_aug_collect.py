@@ -489,3 +489,351 @@ class TestRenderTables:
     def test_the_json_bundle_round_trips(self):
         bundle = collect.results_bundle({"gates": {}, "h1": {}, "cells": []})
         assert json.loads(json.dumps(bundle))["schema_version"] == collect.SCHEMA_VERSION
+
+
+# =========================================================================== #
+# eval-r2 REVISE: the findings the 64-test suite could not have caught.
+# Everything below builds a SYNTHETIC FULL GRID on disk and drives the real
+# build_results()/render_report(), because findings 1 and 2 were both invisible
+# to leaf-function tests: the gates were correct in isolation and simply never
+# consulted, and the report was correct in isolation and simply never emitted.
+# =========================================================================== #
+import hashlib
+
+ARM_TREE = {"YAWAUG": ("exp15_YAWAUG", "FLAC_exp15_YAWAUG", "exp15_YAWAUG"),
+            "VANL": ("exp11_VANL", "FLAC_exp11_VANL", "exp11_VANL")}
+SHA = {"YAWAUG": "1" * 64, "VANL": "2" * 64}
+
+
+def _admission(tmp_path):
+    """Synthetic control + registry admitting the fixtures' digests."""
+    control = tmp_path / "control.json"
+    registry = tmp_path / "registry.json"
+    json.dump({"_meta": {"expect_step": V.STEP},
+               "checkpoint": {"path": "x.ckpt", "sha256": SHA["VANL"], "bytes": 1,
+                              "global_step": V.STEP,
+                              "embedded_config_canonical_sha256": "c" * 64,
+                              "ema_inventory_sha256": "e" * 64},
+               "config": {"sha256": "d" * 64, "canonical_sha256": "c" * 64},
+               "exp_11_cross_references": {"manifest_sha256": "f" * 64}},
+              open(control, "w"))
+    json.dump({"arms": {"YAWAUG": {"final_ckpt_sha256": SHA["YAWAUG"],
+                                   "final_step": V.STEP, "config_sha256": "d" * 64,
+                                   "manifest_sha256": "f" * 64}},
+               "legs": {"YAWAUG": [{"step": V.STEP, "ckpt_sha256": SHA["YAWAUG"],
+                                    "ckpt_bytes": 1, "ckpt_path": "y.ckpt",
+                                    "audit": {"embedded_config_canonical_sha256": "c" * 64,
+                                              "ema_inventory_sha256": "e" * 64}}]}},
+              open(registry, "w"))
+    return str(control), str(registry)
+
+
+def build_full_grid(tmp_path, values=None, n=8, pin=PIN, skip=(), mutate=None):
+    """Write all 42 registered cells under a synthetic output root.
+
+    ``values(cell, metric) -> float`` decides every number, so a test can make
+    YAWAUG flatter, make seed 42 differ from the block mean, or blow a hash.
+    """
+    root = tmp_path / "outputs"
+    for arm, tree in ARM_TREE.items():
+        d = root.joinpath(*tree, "checkpoints")
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "epoch=8-step=40000.ckpt").touch()
+    for cell in V.expected_grid():
+        if (cell.arm, cell.cell, int(cell.k), int(cell.seed)) in skip:
+            continue
+        ckdir = str(root.joinpath(*ARM_TREE[cell.arm], "checkpoints"))
+        split = {m: (values(cell, m) if values else 1.0)
+                 for m in V.REQUIRED_SPLIT_METRICS}
+        scene = {m: (values(cell, m) if values else 1.0)
+                 for m in V.REQUIRED_SCENE_METRICS}
+        kw = dict(n=n, pin=pin, ckpt_sha=SHA[cell.arm], split=split, scene=scene)
+        if cell.cell == "rrob":
+            # G2 recomputes the draw with the evaluator's own draw_yaw_offsets, so
+            # a happy-path fixture has to BE the registered draw. (The first
+            # version used a made-up formula and G2 caught it — the gate working
+            # exactly as intended.)
+            kw["offsets"] = list(collect.golden_offsets(int(cell.seed), n))
+        if mutate:
+            kw = mutate(cell, kw) or kw
+        write_cell(ckdir, cell, **kw)
+    return str(root)
+
+
+def run(tmp_path, **kw):
+    control, registry = _admission(tmp_path)
+    root = build_full_grid(tmp_path, **kw)
+    return collect.build_results(root, pin=PIN, expected_count=kw.get("n", 8),
+                                 control=control, registry=registry)
+
+
+def flat_values(cell, metric):
+    """YAWAUG is FLATTER under rotation and slightly better at theta=0."""
+    base = {"T60": 10.0, "C50": 5.0, "EDT": 20.0, "FD": 0.5,
+            "Invalid T60": 0.0}.get(metric, 30.0)
+    seed_jitter = (int(cell.seed) - 44) * 0.01
+    arm_gain = -0.5 if cell.arm == "YAWAUG" else 0.0
+    if metric in ("RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5", "RIR_to_GT_RIR_R@10",
+                  "RIR_to_geom_R@1", "RIR_to_geom_R@5", "RIR_to_geom_R@10"):
+        arm_gain = 0.5 if cell.arm == "YAWAUG" else 0.0     # higher = better
+        rot = -1.0 if cell.cell == V.CELLS[1] else 0.0
+        if cell.cell == "rrob":
+            rot = -3.0 if cell.arm == "VANL" else -0.5      # VANL degrades more
+        return base + arm_gain + rot + seed_jitter
+    rot = 0.0
+    if cell.cell == "rrob":
+        rot = 3.0 if cell.arm == "VANL" else 0.5            # VANL degrades more
+    if cell.cell == "vctl":
+        rot = 40.0 if cell.arm == "VANL" else 1.0           # G1 positive control
+    return base + arm_gain + rot + seed_jitter
+
+
+class TestFullGridHappyPath:
+    def test_every_gate_passes_and_every_hypothesis_renders(self, tmp_path):
+        res = run(tmp_path, values=flat_values)
+        for name in collect.GATE_NAMES:
+            assert res["gates"][name]["status"] == "PASS", (name, res["gates"][name])
+        assert res["disposition"]["halt"] == [] and res["disposition"]["pending"] == []
+        for k in ("8", "1"):
+            for h in ("H1", "H2", "H3"):
+                block = res["hypotheses"][k][h]
+                assert block["blocked"] is None and block["pending"] is None, (k, h)
+                assert len(block["rows"]) == 2, (k, h)
+
+    def test_g3_and_g4_report_the_COMPLETE_obligation_set(self, tmp_path):
+        res = run(tmp_path, values=flat_values)
+        g3, g4 = res["gates"]["G3"], res["gates"]["G4"]
+        assert g3["checked"] == g3["expected"] == 52
+        assert g4["checked"] == g4["expected"] == 42
+
+    def test_h1_yields_a_directional_verdict(self, tmp_path):
+        res = run(tmp_path, values=flat_values)
+        verdicts = {r["metric"]: r["verdict"] for r in res["hypotheses"]["8"]["H1"]["rows"]}
+        assert verdicts["T60"] == "YAWAUG-SUPERIOR"
+        assert verdicts["RIR_to_GT_RIR_R@1"] == "YAWAUG-SUPERIOR"
+
+    def test_h2_orientation_a_flatter_YAWAUG_gives_positive_d(self, tmp_path):
+        # delta = orient(m_R - m_T) is POSITIVE-is-worse; VANL degrades more, so
+        # d = delta(VANL) - delta(YAWAUG) must come out POSITIVE on both
+        # co-primaries regardless of each metric's own direction.
+        res = run(tmp_path, values=flat_values)
+        for row in res["hypotheses"]["8"]["H2"]["rows"]:
+            assert row["mean"] > 0, row
+
+    def test_h3_is_secondary_and_carries_no_holm_or_verdict(self, tmp_path):
+        res = run(tmp_path, values=flat_values)
+        for row in res["hypotheses"]["8"]["H3"]["rows"]:
+            assert "SECONDARY" in row["family"]
+            assert "p_holm" not in row and "verdict" not in row
+
+    def test_the_report_has_every_planned_section(self, tmp_path):
+        md = collect.render_report(run(tmp_path, values=flat_values))
+        for heading in ("## Validity gates", "## K = 8 (confirmatory)",
+                        "## K = 1 (DESCRIPTIVE repeat)",
+                        "### H1 — clean cost/benefit",
+                        "### H2 — does augmentation buy flatness?",
+                        "### H3 — absolute deployment under rotation",
+                        "### T block (θ=0) — mean ± std over seeds",
+                        "### R block (random yaw) — mean ± std over seeds",
+                        "## Validity-control cells (V block)",
+                        "## External reproduction checks (non-halting)",
+                        "## Quarantined, descriptive only — RIR_to_geom_R@k",
+                        "## Scope of inference"):
+            assert heading in md, heading
+
+    def test_the_scope_statement_is_mandatory_and_complete(self, tmp_path):
+        res = run(tmp_path, values=flat_values)
+        md = collect.render_report(res)
+        for claim in ("exactly ONE", "EVALUATION-time", "checkpoint-band",
+                      "16-leg chain", "plan §13"):
+            assert claim in res["scope_of_inference"], claim
+            assert claim in md, claim
+            assert claim in json.dumps(collect.results_bundle(res),
+                                       ensure_ascii=False)
+
+    def test_the_v_readouts_separate_the_gate_from_the_mechanism(self, tmp_path):
+        res = run(tmp_path, values=flat_values)
+        roles = {r["arm"]: r["role"] for r in res["v_readouts"]}
+        assert roles["VANL"] == "G1 positive control"
+        assert "DESCRIPTIVE ONLY" in next(r["note"] for r in res["v_readouts"]
+                                          if r["arm"] == "YAWAUG")
+
+    def test_the_quarantined_family_is_rendered_and_labelled(self, tmp_path):
+        md = collect.render_report(run(tmp_path, values=flat_values))
+        tail = md.split("## Quarantined")[1]
+        assert "Confounded by construction" in tail
+        assert "R@1" in tail or "RIR_to_geom" in tail
+
+    def test_the_json_bundle_carries_the_whole_report(self, tmp_path):
+        bundle = collect.results_bundle(run(tmp_path, values=flat_values))
+        for key in ("gates", "disposition", "hypotheses", "blocks", "v_readouts",
+                    "externals", "scope_of_inference", "aggregation"):
+            assert key in bundle, key
+        json.loads(json.dumps(bundle))          # must round-trip
+
+
+class TestGatesActuallyGate:
+    """Finding 1: the gates were right and simply never consulted."""
+
+    def test_g1_uses_seed_42_not_the_five_seed_mean(self):
+        # ASYMMETRIC on purpose: seed 42 is far from the block mean, so a
+        # implementation subtracting the mean gets a different answer. The old
+        # test used a symmetric block where the two coincide.
+        by_seed = {42: 4.0, 43: 5.0, 44: 5.0, 45: 6.0, 46: 10.0}
+        g = collect.gate_g1(vctl_t60=9.0, tbl_t60_by_seed=by_seed, factor=1.0)
+        assert g["reference_seed"] == 42
+        assert g["reference"] == pytest.approx(4.0)
+        assert g["observed"] == pytest.approx(5.0)          # 9 - 4, NOT 9 - 6
+        assert g["sigma"] == pytest.approx(st_stdev(by_seed.values()))
+
+    def test_g1_failure_HALTS_every_hypothesis(self, tmp_path):
+        def no_degradation(cell, metric):
+            v = flat_values(cell, metric)
+            if cell.cell == "vctl" and cell.arm == "VANL" and metric == "T60":
+                return 10.02                    # essentially no degradation
+            return v
+        res = run(tmp_path, values=no_degradation)
+        assert res["gates"]["G1"]["status"] == "FAIL"
+        assert res["disposition"]["halt"]
+        for k in ("8", "1"):
+            for h in ("H1", "H2", "H3"):
+                assert res["hypotheses"][k][h]["blocked"], (k, h)
+                assert res["hypotheses"][k][h]["rows"] == []
+        md = collect.render_report(res)
+        assert "HALTED" in md and "BLOCKED" in md
+
+    def test_g2_pending_suppresses_every_number(self, tmp_path):
+        # drop the K=8 seed-42 R cell: G2 has nothing to recompute against
+        res = run(tmp_path, values=flat_values,
+                  skip={("YAWAUG", "rrob", 8, 42), ("VANL", "rrob", 8, 42)})
+        assert res["gates"]["G2"]["status"] == "PENDING"
+        assert res["disposition"]["pending"]
+        for h in ("H1", "H2", "H3"):
+            assert res["hypotheses"]["8"][h]["rows"] == []
+
+    def test_g4_failure_HALTS_every_hypothesis(self, tmp_path):
+        def wrong_digest(cell, kw):
+            if cell.arm == "YAWAUG":
+                kw["ckpt_sha"] = "9" * 64
+            return kw
+        res = run(tmp_path, values=flat_values, mutate=wrong_digest)
+        # a wrong digest is caught by the per-cell validator first, so the cells
+        # are REJECTED and G4's obligations go unmet — either way, no numbers
+        assert res["gates"]["G4"]["status"] in ("FAIL", "PENDING")
+        for h in ("H1", "H2", "H3"):
+            assert res["hypotheses"]["8"][h]["rows"] == []
+
+    def test_g5_partial_suppresses_every_number(self, tmp_path):
+        res = run(tmp_path, values=flat_values, skip={("YAWAUG", "tbl", 1, 46)})
+        assert res["gates"]["G5"]["status"] == "PENDING"
+        for h in ("H1", "H2", "H3"):
+            assert res["hypotheses"]["8"][h]["rows"] == []
+        assert "PENDING" in collect.render_report(res)
+
+    def test_only_the_ten_K8_T_cells_is_NOT_enough_to_publish(self, tmp_path):
+        # the exact scenario finding 1 described: H1's inputs are complete while
+        # G1/G2/G5 are still pending. It must not print a number.
+        keep = {("YAWAUG", "tbl", 8), ("VANL", "tbl", 8)}
+        skip = {(c.arm, c.cell, int(c.k), int(c.seed)) for c in V.expected_grid()
+                if (c.arm, c.cell, int(c.k)) not in keep}
+        res = run(tmp_path, values=flat_values, skip=skip)
+        assert res["hypotheses"]["8"]["H1"]["rows"] == []
+        assert "BLOCKED" in collect.render_report(res) or "PENDING" in collect.render_report(res)
+
+
+class TestG3ScopedBlocking:
+    def test_a_T_block_hash_violation_blocks_H1_at_that_K(self, tmp_path):
+        def break_t_hash(cell, kw):
+            if cell.arm == "VANL" and cell.cell == "tbl" and int(cell.k) == 8 \
+                    and int(cell.seed) == 43:
+                kw["targets"] = [f"Other/Other_idx_0/{i}.wav" for i in range(8)]
+            return kw
+        res = run(tmp_path, values=flat_values, mutate=break_t_hash)
+        assert res["gates"]["G3"]["status"] == "FAIL"
+        assert res["hypotheses"]["8"]["H1"]["blocked"]
+        assert res["hypotheses"]["8"]["H1"]["rows"] == []
+
+    def test_g3_partial_evidence_is_pending_not_pass(self, tmp_path):
+        res = run(tmp_path, values=flat_values, skip={("VANL", "rrob", 1, 46)})
+        g3 = res["gates"]["G3"]
+        assert g3["status"] == "PENDING"
+        assert g3["checked"] < g3["expected"] == 52
+
+
+class TestExternalChecksIntegration:
+    def test_externals_are_present_and_non_halting(self, tmp_path):
+        res = run(tmp_path, values=flat_values)
+        assert res["externals"]
+        for chk in res["externals"]:
+            assert chk["halting"] is False
+        assert "non-halting" in collect.render_report(res).lower()
+
+    def test_within_and_beyond_tolerance(self):
+        near = collect.external_check("T60", ours=1.0, theirs=1.01,
+                                      sd_ours=0.5, sd_theirs=0.5)
+        far = collect.external_check("T60", ours=1.0, theirs=9.0,
+                                     sd_ours=0.01, sd_theirs=0.01)
+        assert near["exceeds"] is False and far["exceeds"] is True
+        assert near["halting"] is False and far["halting"] is False
+
+
+class TestSnapshotConsistency:
+    """Finding 5: validate exactly the payloads that get aggregated."""
+
+    def test_validator_core_accepts_parsed_payloads(self, tmp_path):
+        path = write_cell(str(tmp_path), _cell("YAWAUG", "tbl"))
+        art = collect.parse_cell(path)
+        assert V.validate_payloads(art.record, art.meta, art.stream, art.cell,
+                                   pin=PIN, ckpt_sha=CKPT_SHA,
+                                   expected_count=8) == []
+
+    def test_a_concurrent_replacement_cannot_validate_A_and_aggregate_B(self, tmp_path):
+        """Validate the snapshot we keep, not whatever the file says later."""
+        control, registry = _admission(tmp_path)
+        root = build_full_grid(tmp_path, values=flat_values)
+        cells, _, rejected = collect.collect_cells(root, pin=PIN, expected_count=8)
+        assert rejected == [] and len(cells) == 42
+        kept = {V.eval_name(a.cell): a.record["metrics"]["T60"] for a in cells}
+        # now REPLACE one artifact on disk with a corrupted version
+        victim = next(a for a in cells if a.cell.arm == "YAWAUG"
+                      and a.cell.cell == "tbl" and int(a.cell.k) == 8)
+        bad = dict(victim.record, metrics=dict(victim.record["metrics"], T60=999.0))
+        json.dump(bad, open(victim.path, "w"))
+        # the retained snapshot is untouched: the aggregate uses what was validated
+        assert kept[V.eval_name(victim.cell)] != 999.0
+        routed = collect.route_observations(cells)
+        assert 999.0 not in routed[("YAWAUG", "tbl", 8)]["T60"].values()
+
+
+class TestGoldenReport:
+    def test_markdown_golden_is_stable(self, tmp_path):
+        md = collect.render_report(run(tmp_path, values=flat_values))
+        # the H1 table is the one a reader acts on; pin it exactly
+        h1 = md.split("### H1 — clean cost/benefit (m_T YAWAUG vs VANL)")[1] \
+               .split("### H2")[0].strip()
+        assert h1.splitlines()[0] == (
+            "| metric | Δ (YAWAUG − VANL) | 95% CI | p | p (Holm-2) | verdict |")
+        assert h1.splitlines()[2].startswith("| T60 ↓ | -0.500 |")
+        assert h1.splitlines()[3].startswith("| R@1 ↑ | 0.500 |")
+
+    def test_the_bundle_is_STRICTLY_valid_json(self, tmp_path):
+        # allow_nan=False is what JSON.parse enforces; a bare Infinity token
+        # would make the HTML page fail to load the results it is built on.
+        bundle = collect.results_bundle(run(tmp_path, values=flat_values))
+        text = json.dumps(bundle, allow_nan=False, ensure_ascii=False)
+        assert json.loads(text)["schema_version"] == collect.SCHEMA_VERSION
+        # the zero-spread t is preserved, as a name rather than a bare token
+        assert '"Infinity"' in text or "Infinity" not in text
+
+    def test_json_golden_keys_are_stable(self, tmp_path):
+        bundle = collect.results_bundle(run(tmp_path, values=flat_values))
+        assert bundle["schema_version"] == collect.SCHEMA_VERSION
+        assert bundle["co_primary"] == ["T60", "RIR_to_GT_RIR_R@1"]
+        assert set(bundle["hypotheses"]) == {"8", "1"}
+        assert set(bundle["hypotheses"]["8"]) == {"H1", "H2", "H3"}
+        assert bundle["aggregation"]["split_level"][0] == "FD"
+
+
+def st_stdev(values):
+    import statistics
+    return statistics.stdev(list(values))

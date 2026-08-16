@@ -210,50 +210,12 @@ def _hashes(art):
 
 
 def verify_hashes(cells):
-    """Every §4.3 equality, as NAMED problems ([] = the contrast may proceed)."""
-    problems = []
-    by_key = {}
-    for art in cells:
-        by_key.setdefault((int(art.cell.k), int(art.cell.seed)), []).append(art)
+    """Every §4.3 equality as NAMED messages ([] = the contrast may proceed).
 
-    # (a) across arms within (K, seed): input_hash equal for both arms, and
-    #     assignment_hash equal for the R cells.
-    for (k, seed), arts in sorted(by_key.items()):
-        for kind in (T_BLOCK, R_BLOCK, V_BLOCK):
-            same = [a for a in arts if a.cell.cell == kind]
-            if len({a.cell.arm for a in same}) < 2:
-                continue
-            ih = {a.cell.arm: _hashes(a)[0] for a in same}
-            if len(set(ih.values())) > 1:
-                problems.append(
-                    f"input_hash differs across arms at (K={k}, seed={seed}, "
-                    f"{kind}): {ih} — the arms did not evaluate the same items, so "
-                    "the cross-arm contrast is BLOCKED")
-            if kind in (R_BLOCK, V_BLOCK):
-                ah = {a.cell.arm: _hashes(a)[1] for a in same}
-                if len(set(ah.values())) > 1:
-                    problems.append(
-                        f"assignment_hash differs across arms at (K={k}, "
-                        f"seed={seed}, {kind}): {ah} — the arms did not receive the "
-                        "same rotations, so the contrast is not rotation-matched "
-                        "and is BLOCKED")
-
-    # (b) within (arm, K, seed): T.input_hash == R.input_hash — pairing validity.
-    by_arm = {}
-    for art in cells:
-        by_arm.setdefault((art.cell.arm, int(art.cell.k), int(art.cell.seed)),
-                          {})[art.cell.cell] = art
-    for (arm, k, seed), kinds in sorted(by_arm.items()):
-        t, r = kinds.get(T_BLOCK), kinds.get(R_BLOCK)
-        if t is None or r is None:
-            continue
-        if _hashes(t)[0] != _hashes(r)[0]:
-            problems.append(
-                f"T<->R pairing invalid for {arm} (K={k}, seed={seed}): the "
-                f"unrotated cell's input_hash {_hashes(t)[0]} != the rotated "
-                f"cell's {_hashes(r)[0]} — a seed-paired Δ over different item "
-                "sets is not a paired difference, so it is BLOCKED")
-    return problems
+    One implementation, two shapes: :func:`hash_violations` carries the scope each
+    violation blocks (which contrast, which K), this returns just the messages.
+    """
+    return [v["message"] for v in hash_violations(cells)]
 
 
 # --------------------------------------------------------------------------- #
@@ -341,12 +303,19 @@ def secondary_rows(first, second, seeds=SEEDS, metrics=CO_PRIMARY, alpha=ALPHA):
 # --------------------------------------------------------------------------- #
 # gates
 # --------------------------------------------------------------------------- #
-def gate_g1(vctl_t60, tbl_t60_by_seed, factor=5.0, seeds=SEEDS):
+def gate_g1(vctl_t60, tbl_t60_by_seed, factor=5.0, seeds=SEEDS, reference_seed=42):
     """G1 positive control: VANL@90° must degrade by ≥ factor·σ̂ of VANL's T block.
 
+    THE COMPARATOR IS SEED 42, not the five-seed mean (eval-r2 review finding 1).
+    Plan §5 pre-registers it literally: ``m_T60(VANL V@90°, s42, K8) − m_T60(VANL
+    T, s42, K8)``. The V cell IS a seed-42 cell, so the seed-paired difference is
+    the quantity the plan named; subtracting the block mean silently compares two
+    different draws. The five-seed SD is still what sets the threshold — that is
+    what σ̂ means here — so all five seeds remain required.
+
     A harness that cannot detect non-invariance in a model known not to have it
-    cannot be trusted to detect its absence anywhere else, so a FAIL here HALTS
-    the readout rather than annotating it.
+    cannot be trusted to detect its absence anywhere else, so a FAIL HALTS the
+    readout rather than annotating it.
     """
     present = sorted(int(s) for s in tbl_t60_by_seed)
     missing = [s for s in seeds if s not in present]
@@ -356,15 +325,16 @@ def gate_g1(vctl_t60, tbl_t60_by_seed, factor=5.0, seeds=SEEDS):
                           f"missing {missing}"}
     values = [float(tbl_t60_by_seed[s]) for s in present]
     sigma = st.stdev(values)
-    baseline = st.mean(values)
-    observed = float(vctl_t60) - baseline
+    reference = float(tbl_t60_by_seed[int(reference_seed)])
+    observed = float(vctl_t60) - reference
     threshold = factor * sigma
     return {"gate": "G1", "status": "PASS" if observed >= threshold else "FAIL",
             "observed": observed, "sigma": sigma, "factor": factor,
-            "threshold": threshold, "baseline": baseline,
-            "detail": (f"VANL@90° T60 {vctl_t60:.4f} − T-block mean {baseline:.4f} "
-                       f"= {observed:.4f}; need ≥ {factor}·σ̂({sigma:.4f}) "
-                       f"= {threshold:.4f}")}
+            "threshold": threshold, "reference": reference,
+            "reference_seed": int(reference_seed),
+            "detail": (f"VANL@90° T60 {vctl_t60:.4f} − VANL T seed-{reference_seed} "
+                       f"T60 {reference:.4f} = {observed:.4f}; need ≥ {factor}·"
+                       f"σ̂({sigma:.4f}) = {threshold:.4f}")}
 
 
 def gate_g2(artifact, expected_count=None):
@@ -396,88 +366,172 @@ def gate_g2(artifact, expected_count=None):
                        "registered ones")}
 
 
-def _comparable_groups(cells):
-    """How many §4.3 equalities there are actually two artifacts to compare."""
-    n = 0
+def g3_obligations():
+    """Every §4.3 equality the REGISTERED grid owes, as scope-tagged keys.
+
+    Enumerated from the grid, not from what landed: a gate that becomes PASS the
+    moment one pair agrees has not checked the campaign, it has checked a pair
+    (eval-r2 review finding 4).
+    """
+    out = []
+    kinds = {}
+    for cell in registered_cells():
+        kinds.setdefault((cell.cell, int(cell.k), int(cell.seed)), set()).add(cell.arm)
+    for (kind, k, seed), arms in sorted(kinds.items()):
+        if len(arms) > 1:
+            out.append(("input_hash", kind, k, seed))
+            if kind in (R_BLOCK, V_BLOCK):
+                out.append(("assignment_hash", kind, k, seed))
+    pairs = {}
+    for cell in registered_cells():
+        pairs.setdefault((cell.arm, int(cell.k), int(cell.seed)), set()).add(cell.cell)
+    for (arm, k, seed), ks in sorted(pairs.items()):
+        if {T_BLOCK, R_BLOCK} <= ks:
+            out.append(("pairing", arm, k, seed))
+    return tuple(out)
+
+
+def hash_violations(cells):
+    """Structured §4.3 violations: ``message`` plus the scope each one blocks."""
+    found = []
     by_key = {}
     for art in cells:
         by_key.setdefault((int(art.cell.k), int(art.cell.seed), art.cell.cell),
-                          set()).add(art.cell.arm)
-    n += sum(1 for arms in by_key.values() if len(arms) > 1)
+                          []).append(art)
+    for (k, seed, kind), arts in sorted(by_key.items()):
+        if len({a.cell.arm for a in arts}) < 2:
+            continue
+        ih = {a.cell.arm: _hashes(a)[0] for a in arts}
+        if len(set(ih.values())) > 1:
+            found.append({"kind": "input_hash", "cell_class": kind, "k": k,
+                          "seed": seed,
+                          "message": (f"input_hash differs across arms at (K={k}, "
+                                      f"seed={seed}, {kind}): {ih} — the arms did "
+                                      "not evaluate the same items, so the "
+                                      "cross-arm contrast is BLOCKED")})
+        if kind in (R_BLOCK, V_BLOCK):
+            ah = {a.cell.arm: _hashes(a)[1] for a in arts}
+            if len(set(ah.values())) > 1:
+                found.append({"kind": "assignment_hash", "cell_class": kind, "k": k,
+                              "seed": seed,
+                              "message": (f"assignment_hash differs across arms at "
+                                          f"(K={k}, seed={seed}, {kind}): {ah} — the "
+                                          "arms did not receive the same rotations, "
+                                          "so the contrast is not rotation-matched "
+                                          "and is BLOCKED")})
     by_arm = {}
     for art in cells:
         by_arm.setdefault((art.cell.arm, int(art.cell.k), int(art.cell.seed)),
-                          set()).add(art.cell.cell)
-    n += sum(1 for kinds in by_arm.values() if {T_BLOCK, R_BLOCK} <= kinds)
-    return n
+                          {})[art.cell.cell] = art
+    for (arm, k, seed), kinds in sorted(by_arm.items()):
+        t, r = kinds.get(T_BLOCK), kinds.get(R_BLOCK)
+        if t is None or r is None:
+            continue
+        if _hashes(t)[0] != _hashes(r)[0]:
+            found.append({"kind": "pairing", "arm": arm, "cell_class": None, "k": k,
+                          "seed": seed,
+                          "message": (f"T<->R pairing invalid for {arm} (K={k}, "
+                                      f"seed={seed}): the unrotated cell's "
+                                      f"input_hash {_hashes(t)[0]} != the rotated "
+                                      f"cell's {_hashes(r)[0]} — a seed-paired Δ "
+                                      "over different item sets is not a paired "
+                                      "difference, so it is BLOCKED")})
+    return found
+
+
+def g3_checked(cells):
+    """The subset of :func:`g3_obligations` for which two artifacts are present."""
+    have = set()
+    by_key = {}
+    for art in cells:
+        by_key.setdefault((art.cell.cell, int(art.cell.k), int(art.cell.seed)),
+                          set()).add(art.cell.arm)
+    for (kind, k, seed), arms in by_key.items():
+        if len(arms) > 1:
+            have.add(("input_hash", kind, k, seed))
+            if kind in (R_BLOCK, V_BLOCK):
+                have.add(("assignment_hash", kind, k, seed))
+    pairs = {}
+    for art in cells:
+        pairs.setdefault((art.cell.arm, int(art.cell.k), int(art.cell.seed)),
+                         set()).add(art.cell.cell)
+    for (arm, k, seed), ks in pairs.items():
+        if {T_BLOCK, R_BLOCK} <= ks:
+            have.add(("pairing", arm, k, seed))
+    return have
 
 
 def gate_g3(cells):
-    """G3 assignment integrity: every §4.3 equality (see :func:`verify_hashes`).
+    """G3 assignment integrity, against the COMPLETE registered obligation set.
 
-    A gate that COMPARED NOTHING is PENDING, never PASS. "No violations found"
-    over an empty set is vacuously true and would render green on a campaign
-    where not a single cell has landed — the fail-open reading this whole design
-    exists to refuse.
+    PASS only when every registered equality has actually been compared. "No
+    violations found" over one landed pair is not the campaign's integrity, and a
+    gate that verified nothing at all is PENDING, never PASS.
     """
-    problems = verify_hashes(cells)
-    compared = _comparable_groups(cells)
-    if problems:
-        return {"gate": "G3", "status": "FAIL", "problems": problems,
-                "compared": compared,
-                "detail": (f"{len(problems)} integrity violation(s); the affected "
-                           "contrasts are BLOCKED")}
-    if compared == 0:
-        return {"gate": "G3", "status": "PENDING", "problems": [], "compared": 0,
-                "detail": ("no hash equality has been TESTED yet: fewer than two "
-                           "comparable cells have landed, so this gate has "
-                           "verified nothing")}
-    return {"gate": "G3", "status": "PASS", "problems": [], "compared": compared,
-            "detail": f"all {compared} cross-arm and T↔R hash equalities hold"}
+    violations = hash_violations(cells)
+    expected = set(g3_obligations())
+    checked = g3_checked(cells) & expected
+    base = {"gate": "G3", "checked": len(checked), "expected": len(expected),
+            "problems": [v["message"] for v in violations], "violations": violations}
+    if violations:
+        return dict(base, status="FAIL",
+                    detail=(f"{len(violations)} integrity violation(s) over "
+                            f"{len(checked)}/{len(expected)} checked obligations; "
+                            "the affected contrasts are BLOCKED"))
+    if len(checked) < len(expected):
+        return dict(base, status="PENDING",
+                    detail=(f"only {len(checked)} of {len(expected)} registered hash "
+                            "equalities have both artifacts present; the rest have "
+                            "not been TESTED"))
+    return dict(base, status="PASS",
+                detail=f"all {len(expected)} registered hash equalities hold")
 
 
 def gate_g4(cells, control=None, registry=None):
-    """G4 admission: every cell's checkpoint is the pre-registered 40k file.
+    """G4 admission: every REGISTERED cell evaluated the pre-registered 40k file.
+
+    Both the arms AND the cells are enumerated from the grid (eval-r2 review
+    findings 4): driving either from what happens to be on disk let a single
+    landed cell turn the gate green while 41 obligations were unmet, and let
+    YAWAUG's missing admission record hide behind an absent cell.
 
     The DEEP recomputation is exp15_admit_ckpt's (it needs torch and runs in the
     job, before the GPU is spent). What is checked here is that each landed cell
-    RECORDS the admitted digest — the collector's job is to refuse a number whose
-    provenance disagrees with the committed record, not to re-hash 724 MB × 42.
+    RECORDS the admitted digest.
     """
-    problems = []
-    expected = {}
-    # Enumerated over the REGISTERED arms, not over whichever arms happen to have
-    # landed: while the training chain is unfinished YAWAUG has no admission
-    # record at all, and driving this loop from the cells on disk would hide that
-    # entirely whenever no YAWAUG cell had landed — which is exactly the state the
-    # campaign is in before it starts.
+    problems, expected = [], {}
     for arm in ARMS:
         try:
             expected[arm] = V.admission_expectation(
                 arm, control or V.CONTROL_ADMISSION, registry or V.LAUNCH_REGISTRY)
         except ValueError as exc:
             problems.append(f"{arm}: {exc}")
+    landed = {V.eval_name(a.cell): a for a in cells}
+    obligations = [V.eval_name(c) for c in registered_cells()]
     checked = 0
-    for art in cells:
+    for name in obligations:
+        art = landed.get(name)
+        if art is None:
+            continue
         exp = expected.get(art.cell.arm)
         if exp is None:
             continue
         checked += 1
         got = art.meta.get("ckpt_sha256")
         if got != exp["sha256"]:
-            problems.append(
-                f"{V.eval_name(art.cell)} evaluated ckpt {got} but the committed "
-                f"record admits {exp['sha256']}")
+            problems.append(f"{name} evaluated ckpt {got} but the committed record "
+                            f"admits {exp['sha256']}")
+    base = {"gate": "G4", "problems": problems, "checked": checked,
+            "expected": len(obligations)}
     if problems:
-        return {"gate": "G4", "status": "FAIL", "problems": problems,
-                "checked": checked,
-                "detail": f"{len(problems)} admission problem(s)"}
-    if checked == 0:
-        return {"gate": "G4", "status": "PENDING", "problems": [], "checked": 0,
-                "detail": ("no cell has been checked against an admission record "
-                           "yet: this gate has verified nothing")}
-    return {"gate": "G4", "status": "PASS", "problems": [], "checked": checked,
-            "detail": f"all {checked} cell(s) evaluated the admitted checkpoint"}
+        return dict(base, status="FAIL",
+                    detail=f"{len(problems)} admission problem(s)")
+    if checked < len(obligations):
+        return dict(base, status="PENDING",
+                    detail=(f"only {checked} of {len(obligations)} registered cells "
+                            "have been checked against an admission record"))
+    return dict(base, status="PASS",
+                detail=f"all {checked} registered cells evaluated the admitted checkpoint")
 
 
 def registered_blocks():
@@ -545,23 +599,6 @@ def _f(value, digits=3):
     return "—" if value is None else f"{float(value):.{digits}f}"
 
 
-def render_h1_table(rows, blocked=None):
-    """H1's confirmatory table, or the word BLOCKED and no numbers at all."""
-    if blocked:
-        # Deliberately not a table: a blocked contrast must not be rendered in a
-        # shape that invites reading a number out of it.
-        return (f"**H1 (K=8, co-primaries): BLOCKED** — {blocked}\n\n"
-                "No numbers are reported for a blocked contrast.\n")
-    out = ["| metric | Δ (YAWAUG − VANL) | 95% CI | p | p (Holm-2) | verdict |",
-           "| --- | --- | --- | --- | --- | --- |"]
-    for row in rows:
-        out.append("| {m} | {d} | [{lo}, {hi}] | {p} | {ph} | {v} |".format(
-            m=_label(row["metric"]), d=_f(row["mean"]),
-            lo=_f(row["lo"]), hi=_f(row["hi"]),
-            p=_f(row["p"], 4), ph=_f(row["p_holm"], 4), v=row["verdict"]))
-    return "\n".join(out) + "\n"
-
-
 def render_block_table(rows, metrics):
     """Mean ± std per block, or PENDING — never a four-seed mean."""
     head = ["| arm | K | status | " + " | ".join(_label(m) for m in metrics) + " |",
@@ -589,6 +626,28 @@ def render_gate_report(gates):
     return "\n".join(out) + "\n"
 
 
+def _json_safe(obj):
+    """Make a payload STRICTLY valid JSON without losing what it said.
+
+    ``paired_t_ci`` deliberately returns ±inf / p=0 for the zero-spread case (five
+    identical non-zero differences ARE a real effect), and ``json.dumps`` renders
+    that as the bare token ``Infinity`` — accepted by Python's own loader and
+    REJECTED by ``JSON.parse``, i.e. by the HTML page this bundle exists to feed.
+    Non-finite floats are therefore rendered as their names, as strings.
+    """
+    if isinstance(obj, float):
+        if math.isnan(obj):
+            return "NaN"
+        if math.isinf(obj):
+            return "Infinity" if obj > 0 else "-Infinity"
+        return obj
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    return obj
+
+
 def results_bundle(payload):
     """The JSON bundle the HTML page reads; versioned so a reader can tell."""
     bundle = {"schema_version": SCHEMA_VERSION, "experiment": "exp_15",
@@ -602,14 +661,84 @@ def results_bundle(payload):
               },
               "confounded_descriptive_only": list(CONFOUNDED_METRICS)}
     bundle.update(payload)
-    return bundle
+    return _json_safe(bundle)
 
 
 # --------------------------------------------------------------------------- #
 # discovery + the whole report
 # --------------------------------------------------------------------------- #
+SCOPE_OF_INFERENCE = (
+    "**Scope of inference (mandatory, plan §5).** Both arms have exactly ONE "
+    "training run each (seed 42). The five eval seeds estimate EVALUATION-time "
+    "variability — diffusion sampling and, in the R block, the rotation "
+    "assignment — NOT training-run variability (init, data order, hardware "
+    "nondeterminism) and NOT checkpoint-band position: matching seed and step "
+    "aligns the two draws' schedules but cannot pair away band variance. All "
+    "inference is conditional on these two specific training trajectories at the "
+    "pre-registered 40,000-step endpoint; no checkpoint selection was performed.\n\n"
+    "**Chained-vs-monolithic disclosure (plan §12).** The YAWAUG arm was trained "
+    "as a 16-leg chain, the VANL control monolithically. A chained run is not "
+    "bit-equivalent to a monolithic one: PL restores optimizer/scheduler/EMA/loop "
+    "state but not RNG streams, so data-order and dropout streams re-seed per "
+    "leg. The yaw-augmentation draws are exempt (counter-based on (seed, "
+    "global_step, rank, index), resume-exact). This asymmetry is disclosed, not "
+    "corrected for.\n\n"
+    "**Aggregation routing (plan §13, ratified pre-data).** T60/C50/EDT/Invalid "
+    "T60 are per-seed means over the ten room-family groups; FD and all retrieval "
+    "metrics are split-level values. R@1 := RIR_to_GT_RIR_R@1. RIR_to_geom_R@k is "
+    "quarantined descriptive-only under rotation."
+)
+
+# Gates whose FAILURE halts every hypothesis readout (plan §5: "Failure ⇒ HALT").
+HALTING_GATES = ("G1", "G2", "G4")
+REQUIRED_GATES = GATE_NAMES
+
+
+def gate_disposition(gates):
+    """What the gates permit: ``(halt, pending, g3_scopes)``.
+
+    ONE place decides whether a number may be emitted (eval-r2 review finding 1).
+    Previously only G3/G4 failures blocked H1, so a campaign could publish a
+    contrast while G1 had explicitly FAILED and G2/G5 were still PENDING — the
+    readout would have been read as validated when nothing had validated it.
+
+    * G1/G2/G4 FAIL  ⇒ HALT: every hypothesis renders BLOCKED, no numbers.
+    * ANY required gate PENDING ⇒ no hypothesis numbers (the campaign is not
+      finished being checked, which is different from having failed).
+    * G3 violations ⇒ block the SPECIFIC contrasts their scope touches.
+    """
+    halt = [f"{n} {gates.get(n, {}).get('status')}: {gates.get(n, {}).get('detail', '')}"
+            for n in HALTING_GATES if gates.get(n, {}).get("status") == "FAIL"]
+    if gates.get("G3", {}).get("status") == "FAIL":
+        pass                                  # scoped below, not a global halt
+    pending = [f"{n} PENDING" for n in REQUIRED_GATES
+               if gates.get(n, {}).get("status") == "PENDING"]
+    scopes = {}
+    for violation in gates.get("G3", {}).get("violations", []):
+        k = int(violation.get("k"))
+        kind, klass = violation["kind"], violation.get("cell_class")
+        touched = set()
+        if kind == "input_hash":
+            touched |= {("H1", k)} if klass == T_BLOCK else set()
+            touched |= {("H3", k)} if klass == R_BLOCK else set()
+            touched |= {("H2", k)}
+        elif kind == "assignment_hash":
+            touched |= {("H2", k), ("H3", k)}
+        elif kind == "pairing":
+            touched |= {("H2", k)}
+        for scope in touched:
+            scopes.setdefault(scope, []).append(violation["message"])
+    return {"halt": halt, "pending": pending, "g3_scopes": scopes}
+
+
 def collect_cells(output_root, pin=None, expected_count=V.EXPECTED_COUNT):
-    """``(artifacts, missing, rejected)`` over the registered grid."""
+    """``(artifacts, missing, rejected)`` over the registered grid.
+
+    Parses each cell ONCE and validates EXACTLY the payloads it retains
+    (eval-r2 review finding 5): the path-based validator re-reads all three
+    files, so a concurrent replacement could be validated as version B while
+    version A's numbers went on to the table.
+    """
     artifacts, missing, rejected = [], [], []
     ckpts = {}
     for cell in registered_cells():
@@ -629,9 +758,10 @@ def collect_cells(output_root, pin=None, expected_count=V.EXPECTED_COUNT):
             rejected.append((cell, str(exc)))
             continue
         try:
-            sha = art.meta.get("ckpt_sha256")
-            reasons = V.validate_cell(path, cell, pin=pin, ckpt_sha=sha,
-                                      expected_count=expected_count)
+            reasons = V.validate_payloads(
+                art.record, art.meta, art.stream, cell,
+                pin=pin, ckpt_sha=art.meta.get("ckpt_sha256"),
+                expected_count=expected_count)
         except ValueError as exc:
             rejected.append((cell, str(exc)))
             continue
@@ -642,41 +772,291 @@ def collect_cells(output_root, pin=None, expected_count=V.EXPECTED_COUNT):
     return artifacts, missing, rejected
 
 
-def _per_seed(cells, arm, kind, k, metrics):
-    """``{metric: {seed: value}}`` for one block, each metric from ITS source."""
-    out = {m: {} for m in metrics}
+def route_observations(cells, metrics=None):
+    """``{(arm, kind, K): {metric: {seed: value}}}`` — each metric from ITS source.
+
+    The routing is plan §13's, applied by exp_14's ``cell_observation``: acoustic
+    from the ten-group scene mean, FD and retrieval from the split-level block.
+    """
+    metrics = tuple(HEADLINE_METRICS if metrics is None else metrics)
+    out = {}
     for art in cells:
         c = art.cell
-        if (c.arm, c.cell, int(c.k)) != (arm, kind, int(k)):
+        values, reasons = cell_observation(art.record, required=metrics,
+                                           optional=CONFOUNDED_METRICS)
+        if reasons:
             continue
-        values, reasons = cell_observation(art.record, required=metrics, optional=())
+        block = out.setdefault((c.arm, c.cell, int(c.k)), {})
+        for metric, value in values.items():
+            block.setdefault(metric, {})[int(c.seed)] = value
+    return out
+
+
+def block_rows(routed, kind, k, metrics):
+    """Aggregate rows (mean ± std over the five seeds) for one cell class."""
+    rows = []
+    for arm in ARM_ORDER:
+        per_seed = routed.get((arm, kind, int(k)), {})
+        seeds = sorted(set.intersection(*[set(per_seed[m]) for m in metrics])
+                       if all(m in per_seed for m in metrics) else set())
+        if len(seeds) != len(SEEDS):
+            rows.append({"arm": arm, "K": k, "status": "PENDING", "seeds": tuple(seeds)})
+            continue
+        values = {m: (st.mean([per_seed[m][s] for s in seeds]),
+                      st.stdev([per_seed[m][s] for s in seeds])) for m in metrics}
+        rows.append({"arm": arm, "K": k, "status": "OK", "seeds": tuple(seeds),
+                     "values": values})
+    return rows
+
+
+def _complete(per_seed, metrics):
+    return all(m in per_seed and len(per_seed[m]) == len(SEEDS) for m in metrics)
+
+
+def hypotheses(routed, disposition, k, metrics=CO_PRIMARY, alpha=ALPHA):
+    """H1 (confirmatory at K=8), H2 and H3 (secondary) for one K.
+
+    Every one of them passes through the SAME disposition: a halting gate failure
+    blocks all three, any pending required gate suppresses all numbers, and a G3
+    violation blocks exactly the hypotheses its scope touches.
+    """
+    def blocked_for(name):
+        if disposition["halt"]:
+            return "gates HALTED: " + "; ".join(disposition["halt"])
+        scoped = disposition["g3_scopes"].get((name, int(k)))
+        if scoped:
+            return "; ".join(scoped)
+        return None
+
+    def pending_note():
+        return ("gates not yet complete: " + ", ".join(disposition["pending"])
+                if disposition["pending"] else None)
+
+    out = {}
+    yt = routed.get(("YAWAUG", T_BLOCK, k), {})
+    vt = routed.get(("VANL", T_BLOCK, k), {})
+    yr = routed.get(("YAWAUG", R_BLOCK, k), {})
+    vr = routed.get(("VANL", R_BLOCK, k), {})
+
+    # --- H1: the clean cost/benefit, m_T(YAWAUG) vs m_T(VANL) ----------------
+    h1 = {"name": "H1", "k": k, "family": "CONFIRMATORY (Holm over 2 co-primaries)",
+          "blocked": blocked_for("H1"), "pending": pending_note(), "rows": []}
+    if not h1["blocked"] and not h1["pending"]:
+        if _complete(yt, metrics) and _complete(vt, metrics):
+            h1["rows"] = contrast_rows(yt, vt, metrics=metrics, alpha=alpha)
+        else:
+            h1["pending"] = "the K=%s T blocks do not have all five seeds" % k
+    out["H1"] = h1
+
+    # --- H2: does the augmentation buy FLATNESS? -----------------------------
+    # delta(a,s) = orient(m_R - m_T) so POSITIVE means worse under rotation;
+    # d_s = delta(VANL,s) - delta(YAWAUG,s), expected > 0 if YAWAUG is flatter.
+    h2 = {"name": "H2", "k": k, "family": "SECONDARY (not confirmatory; unadjusted)",
+          "blocked": blocked_for("H2"), "pending": pending_note(), "rows": [],
+          "definition": ("δ(a,s) = orient(m_R(a,s) − m_T(a,s)); "
+                         "d_s = δ(VANL,s) − δ(YAWAUG,s); d > 0 ⇒ YAWAUG flatter")}
+    if not h2["blocked"] and not h2["pending"]:
+        if all(_complete(b, metrics) for b in (yt, vt, yr, vr)):
+            first, second = {}, {}
+            for metric in metrics:
+                dv = orient_metric(metric, [vr[metric][s] - vt[metric][s] for s in SEEDS])
+                dy = orient_metric(metric, [yr[metric][s] - yt[metric][s] for s in SEEDS])
+                first[metric] = {s: dv[i] for i, s in enumerate(SEEDS)}
+                second[metric] = {s: dy[i] for i, s in enumerate(SEEDS)}
+            h2["rows"] = secondary_rows(first, second, metrics=metrics, alpha=alpha)
+        else:
+            h2["pending"] = "H2 needs complete T and R blocks for both arms at K=%s" % k
+    out["H2"] = h2
+
+    # --- H3: absolute deployment comparison under rotation -------------------
+    h3 = {"name": "H3", "k": k, "family": "SECONDARY (not confirmatory; unadjusted)",
+          "blocked": blocked_for("H3"), "pending": pending_note(), "rows": [],
+          "definition": "m_R(YAWAUG) − m_R(VANL), seed-paired"}
+    if not h3["blocked"] and not h3["pending"]:
+        if _complete(yr, metrics) and _complete(vr, metrics):
+            h3["rows"] = secondary_rows(yr, vr, metrics=metrics, alpha=alpha)
+        else:
+            h3["pending"] = "the K=%s R blocks do not have all five seeds" % k
+    out["H3"] = h3
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# external checks (non-halting, plan §5)
+# --------------------------------------------------------------------------- #
+def exp14_z_rows(output_root, k, arm="VANL", metrics=CO_PRIMARY, step=STEP):
+    """exp_14's VANL zref rows at this K, read from its committed artifacts."""
+    ckpt = V.checkpoint_path(output_root, arm, step)
+    if ckpt is None:
+        return {}
+    directory, stem = os.path.dirname(ckpt), os.path.basename(ckpt)[:-len(".ckpt")]
+    per_seed = {m: {} for m in metrics}
+    for seed in SEEDS:
+        name = (f"{stem}_metrics_1_1.0_exp14_{arm}_zref_S{step}_s{seed}_K{k}.json")
+        path = os.path.join(directory, name)
+        if not os.path.isfile(path):
+            continue
+        try:
+            record = _read_json_object(path, "exp_14 zref")
+        except ArtifactError:
+            continue
+        values, reasons = cell_observation(record, required=metrics, optional=())
         if reasons:
             continue
         for m in metrics:
-            if m in values:
-                out[m][int(c.seed)] = values[m]
-    return out
+            per_seed[m][seed] = values[m]
+    return per_seed
+
+
+def external_checks(routed, output_root, k=CONFIRMATORY_K, metrics=CO_PRIMARY):
+    """exp_15's VANL T rows vs exp_14's Z rows — DISCLOSED, never halting."""
+    ours = routed.get(("VANL", T_BLOCK, k), {})
+    theirs = exp14_z_rows(output_root, k, metrics=metrics)
+    checks = []
+    for metric in metrics:
+        a, b = ours.get(metric, {}), theirs.get(metric, {})
+        if len(a) != len(SEEDS) or len(b) != len(SEEDS):
+            checks.append({"metric": canonical_metric(metric), "source": "exp_14 Z",
+                           "status": "UNAVAILABLE", "halting": False,
+                           "detail": (f"needs 5 seeds on both sides; have "
+                                      f"{len(a)} (ours) and {len(b)} (exp_14)")})
+            continue
+        av = [a[s] for s in SEEDS]
+        bv = [b[s] for s in SEEDS]
+        chk = external_check(metric, st.mean(av), st.mean(bv),
+                             st.stdev(av), st.stdev(bv))
+        chk["source"] = "exp_14 Z"
+        chk["status"] = "EXCEEDS" if chk["exceeds"] else "CONSISTENT"
+        checks.append(chk)
+    return checks
+
+
+# --------------------------------------------------------------------------- #
+# rendering
+# --------------------------------------------------------------------------- #
+def render_contrast_table(rows, title, blocked=None, pending=None, holm=True):
+    if blocked:
+        return f"**{title}: BLOCKED** — {blocked}\n\nNo numbers are reported for a blocked contrast.\n"
+    if pending:
+        return f"**{title}: PENDING** — {pending}\n\nNo numbers are reported for an incomplete block.\n"
+    cols = ["metric", "Δ", "95% CI", "p"] + (["p (Holm-2)", "verdict"] if holm else [])
+    out = ["| " + " | ".join(cols) + " |",
+           "| " + " | ".join("---" for _ in cols) + " |"]
+    for row in rows:
+        cells = [_label(row["metric"]), _f(row["mean"]),
+                 f"[{_f(row['lo'])}, {_f(row['hi'])}]", _f(row["p"], 4)]
+        if holm:
+            cells += [_f(row["p_holm"], 4), row["verdict"]]
+        out.append("| " + " | ".join(cells) + " |")
+    return "\n".join(out) + "\n"
+
+
+def render_h1_table(rows, blocked=None, pending=None):
+    """H1's confirmatory table, or the word BLOCKED and no numbers at all."""
+    if blocked:
+        return (f"**H1 (K=8, co-primaries): BLOCKED** — {blocked}\n\n"
+                "No numbers are reported for a blocked contrast.\n")
+    if pending:
+        return (f"**H1 (K=8, co-primaries): PENDING** — {pending}\n\n"
+                "No numbers are reported for an incomplete block.\n")
+    out = ["| metric | Δ (YAWAUG − VANL) | 95% CI | p | p (Holm-2) | verdict |",
+           "| --- | --- | --- | --- | --- | --- |"]
+    for row in rows:
+        out.append("| {m} | {d} | [{lo}, {hi}] | {p} | {ph} | {v} |".format(
+            m=_label(row["metric"]), d=_f(row["mean"]),
+            lo=_f(row["lo"]), hi=_f(row["hi"]),
+            p=_f(row["p"], 4), ph=_f(row["p_holm"], 4), v=row["verdict"]))
+    return "\n".join(out) + "\n"
+
+
+def render_external_table(checks):
+    out = ["| metric | source | ours | theirs | Δ | tolerance | status |",
+           "| --- | --- | --- | --- | --- | --- | --- |"]
+    for c in checks:
+        if c.get("status") == "UNAVAILABLE":
+            out.append(f"| {c['metric']} | {c.get('source','')} | — | — | — | — | "
+                       f"UNAVAILABLE ({c['detail']}) |")
+            continue
+        out.append("| {m} | {s} | {a} | {b} | {d} | {t} | {st} |".format(
+            m=_label(c["metric"]), s=c.get("source", ""), a=_f(c["ours"]),
+            b=_f(c["theirs"]), d=_f(c["difference"]), t=_f(c["tolerance"]),
+            st=c["status"]))
+    return "\n".join(out) + "\nNon-halting by construction: these are cross-pin comparisons.\n"
+
+
+def render_v_readouts(v_rows):
+    out = ["| arm | role | T60 | note |", "| --- | --- | --- | --- |"]
+    for row in v_rows:
+        out.append(f"| {row['arm']} | {row['role']} | {_f(row.get('T60'))} | "
+                   f"{row['note']} |")
+    return "\n".join(out) + "\n"
+
+
+def render_report(results):
+    """The whole §5/§6.8 report, in the order a reader must meet it."""
+    gates = results.get("gates", {})
+    out = ["# exp_15 yaw_aug — results", "",
+           "## Validity gates (read before any number)", "",
+           render_gate_report(gates), ""]
+    disp = results.get("disposition", {})
+    if disp.get("halt"):
+        out += ["> **HALTED.** " + "; ".join(disp["halt"]), ""]
+    if disp.get("pending"):
+        out += ["> **Gates incomplete:** " + ", ".join(disp["pending"])
+                + " — no hypothesis numbers are reported.", ""]
+    for k in (CONFIRMATORY_K, 1):
+        tag = "confirmatory" if k == CONFIRMATORY_K else "DESCRIPTIVE repeat"
+        hyp = (results.get("hypotheses") or {}).get(str(k), {})
+        out += [f"## K = {k} ({tag})", "",
+                "### H1 — clean cost/benefit (m_T YAWAUG vs VANL)", ""]
+        h1 = hyp.get("H1", {})
+        out += [render_h1_table(h1.get("rows") or [], blocked=h1.get("blocked"),
+                                pending=h1.get("pending")), ""]
+        for name, heading in (("H2", "H2 — does augmentation buy flatness? (secondary)"),
+                              ("H3", "H3 — absolute deployment under rotation (secondary)")):
+            h = hyp.get(name, {})
+            out += [f"### {heading}", "", f"_{h.get('definition', '')}_", "",
+                    render_contrast_table(h.get("rows") or [], f"{name} (K={k})",
+                                          blocked=h.get("blocked"),
+                                          pending=h.get("pending"), holm=False), ""]
+        for kind, label in ((T_BLOCK, "T block (θ=0)"), (R_BLOCK, "R block (random yaw)")):
+            rows = (results.get("blocks") or {}).get(f"{kind}/{k}") or []
+            out += [f"### {label} — mean ± std over seeds", "",
+                    render_block_table(rows, HEADLINE_METRICS), ""]
+    out += ["## Validity-control cells (V block)", "",
+            render_v_readouts(results.get("v_readouts") or []), "",
+            "## External reproduction checks (non-halting)", "",
+            render_external_table(results.get("externals") or []), "",
+            "## Quarantined, descriptive only — RIR_to_geom_R@k", "",
+            "_Confounded by construction: it retrieves against the geometry the R "
+            "block rotates (plan §13)._", "",
+            render_block_table((results.get("blocks") or {}).get(f"{R_BLOCK}/8") or [],
+                               CONFOUNDED_METRICS), "",
+            "## Scope of inference", "", SCOPE_OF_INFERENCE, ""]
+    return "\n".join(out)
 
 
 def build_results(output_root, pin=None, expected_count=V.EXPECTED_COUNT,
                   control=None, registry=None):
-    """Every gate, then every contrast — in that order, and never the reverse."""
+    """Every gate, then the disposition, then — only if it permits — the numbers."""
     cells, missing, rejected = collect_cells(output_root, pin=pin,
                                              expected_count=expected_count)
-    blocks = {}
+    seeds_by_block = {}
     for art in cells:
-        blocks.setdefault((art.cell.arm, art.cell.cell, int(art.cell.k)),
-                          []).append(int(art.cell.seed))
+        seeds_by_block.setdefault((art.cell.arm, art.cell.cell, int(art.cell.k)),
+                                  []).append(int(art.cell.seed))
 
     gates = {"G3": gate_g3(cells), "G4": gate_g4(cells, control, registry),
-             "G5": gate_g5({b: tuple(s) for b, s in blocks.items()
+             "G5": gate_g5({b: tuple(s) for b, s in seeds_by_block.items()
                             if b[1] in (T_BLOCK, R_BLOCK)})}
     r_probe = next((a for a in cells if a.cell.cell == R_BLOCK
-                    and int(a.cell.seed) == 42 and int(a.cell.k) == CONFIRMATORY_K), None)
+                    and int(a.cell.seed) == 42
+                    and int(a.cell.k) == CONFIRMATORY_K), None)
     gates["G2"] = (gate_g2(r_probe, expected_count) if r_probe else
                    {"gate": "G2", "status": "PENDING",
                     "detail": "no K=8 seed-42 random-yaw cell has landed yet"})
-    vanl_t = _per_seed(cells, "VANL", T_BLOCK, CONFIRMATORY_K, ("T60",))["T60"]
+    routed = route_observations(cells)
+    vanl_t = routed.get(("VANL", T_BLOCK, CONFIRMATORY_K), {}).get("T60", {})
     vctl = next((a for a in cells if a.cell.arm == "VANL"
                  and a.cell.cell == V_BLOCK), None)
     if vctl is None:
@@ -686,52 +1066,44 @@ def build_results(output_root, pin=None, expected_count=V.EXPECTED_COUNT,
         vals, _ = cell_observation(vctl.record, required=("T60",), optional=())
         gates["G1"] = gate_g1(vals.get("T60", float("nan")), vanl_t)
 
-    blocked = None
-    if gates["G3"]["status"] == "FAIL":
-        blocked = "; ".join(gates["G3"]["problems"][:2])
-    elif gates["G4"]["status"] == "FAIL":
-        blocked = "; ".join(gates["G4"]["problems"][:2])
-
-    h1 = {"blocked": blocked, "rows": []}
-    if blocked is None:
-        y = _per_seed(cells, "YAWAUG", T_BLOCK, CONFIRMATORY_K, CO_PRIMARY)
-        v = _per_seed(cells, "VANL", T_BLOCK, CONFIRMATORY_K, CO_PRIMARY)
-        if all(len(y[m]) == len(SEEDS) and len(v[m]) == len(SEEDS) for m in CO_PRIMARY):
-            h1["rows"] = contrast_rows(y, v)
-        else:
-            h1["blocked"] = None
-            h1["pending"] = True
+    disposition = gate_disposition(gates)
+    hyp = {str(k): hypotheses(routed, disposition, k) for k in (CONFIRMATORY_K, 1)}
+    blocks = {}
+    for kind in (T_BLOCK, R_BLOCK):
+        for k in KS:
+            blocks[f"{kind}/{k}"] = block_rows(routed, kind, k,
+                                               HEADLINE_METRICS + CONFOUNDED_METRICS)
+    v_readouts = []
+    for art in sorted((a for a in cells if a.cell.cell == V_BLOCK),
+                      key=lambda a: a.cell.arm):
+        vals, _ = cell_observation(art.record, required=("T60",), optional=())
+        v_readouts.append({
+            "arm": art.cell.arm, "T60": vals.get("T60"),
+            "role": ("G1 positive control" if art.cell.arm == "VANL"
+                     else "mechanism readout"),
+            "note": ("gates the harness's ability to detect non-invariance"
+                     if art.cell.arm == "VANL" else
+                     "DESCRIPTIVE ONLY — carries no gate role (plan §5, review F3)")})
     return {"cells": [V.eval_name(a.cell) for a in cells],
             "missing": [[V.eval_name(c), why] for c, why in missing],
             "rejected": [[V.eval_name(c), why] for c, why in rejected],
-            "blocks": {"/".join(str(x) for x in b): sorted(s)
-                       for b, s in sorted(blocks.items())},
-            "gates": gates, "h1": h1}
-
-
-def render_report(results):
-    out = ["## Gates (read before any number)", "",
-           render_gate_report(results.get("gates", {})), "",
-           "## H1 — clean cost/benefit at K=8 (confirmatory: Holm over 2 co-primaries)",
-           ""]
-    h1 = results.get("h1") or {}
-    if h1.get("pending"):
-        out.append("**PENDING** — not every (arm, K=8) T block has all 5 seeds.\n")
-    else:
-        out.append(render_h1_table(h1.get("rows") or [], blocked=h1.get("blocked")))
-    return "\n".join(out)
+            "blocks": blocks, "gates": gates, "disposition": disposition,
+            "hypotheses": hyp, "v_readouts": v_readouts,
+            "externals": external_checks(routed, output_root),
+            "scope_of_inference": SCOPE_OF_INFERENCE,
+            "h1": hyp[str(CONFIRMATORY_K)]["H1"]}
 
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = p.add_subparsers(dest="cmd")
     for name in ("report", "bundle"):
-        s = sub.add_parser(name)
-        s.add_argument("--output-root", required=True)
-        s.add_argument("--pin", default=None)
-        s.add_argument("--expected-count", type=int, default=V.EXPECTED_COUNT)
-        s.add_argument("--json", default=None)
-        s.set_defaults(cmd=name)
+        sp = sub.add_parser(name)
+        sp.add_argument("--output-root", required=True)
+        sp.add_argument("--pin", default=None)
+        sp.add_argument("--expected-count", type=int, default=V.EXPECTED_COUNT)
+        sp.add_argument("--json", default=None)
+        sp.set_defaults(cmd=name)
     args = p.parse_args(argv)
     if not getattr(args, "cmd", None):
         p.print_help()
@@ -741,8 +1113,10 @@ def main(argv=None):
     if args.cmd == "report":
         print(render_report(results))
     else:
-        bundle = results_bundle(results)
-        text = json.dumps(bundle, indent=2, sort_keys=True)
+        # ensure_ascii=False: the bundle carries §/±/θ from the plan and the
+        # report, and an escaped \u00a7 is not what a reader or the HTML page wants.
+        text = json.dumps(results_bundle(results), indent=2, sort_keys=True,
+                          ensure_ascii=False, allow_nan=False)
         if args.json:
             open(args.json, "w").write(text + "\n")
             print(f"wrote {args.json}")
