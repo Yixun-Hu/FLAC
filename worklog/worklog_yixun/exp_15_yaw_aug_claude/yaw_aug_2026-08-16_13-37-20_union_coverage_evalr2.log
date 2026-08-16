@@ -1,0 +1,9 @@
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-16_13-23-42_guardtests_evalr2fast.ledger: 174 case records
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-16_13-35-46_guardtests_evalr2.ledger: 174 case records
+
+cases seen        : 174
+covered (>=1 PASS): 174
+failed anywhere   : 0
+never passed      : 0
+
+UNION COVERAGE: every case passed in at least one environment

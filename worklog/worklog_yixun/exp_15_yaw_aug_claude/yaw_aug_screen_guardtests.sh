@@ -735,11 +735,17 @@ if [ "$SKIP_HEAVY" = "1" ]; then
   skip_env "the driver's cell-validation argv is check_argv's own rendering" \
            "SKIP_HEAVY: needs a driver DRYRUN"
 else
+# The driver reads git HEAD LIVE, while this suite captured HEAD_SHA at startup.
+# A commit landing mid-run (this repo has two sessions committing to it) made the
+# two disagree and failed the case for a reason that had nothing to do with the
+# rendering under test. Re-read HEAD next to the invocation, and compare against
+# THAT.
+PIN_AT_DRIVER="$(git rev-parse HEAD)"
 VLINE="$(env "${BASE[@]}" ARM=YAWAUG CELL=rrob STEP=40000 SEED=44 K=8 bash "$SCREEN" 2>&1 \
          | sed -n 's/^python3 exp15_validate_cell.py //p' | head -1)"
 eq_check "the driver's cell-validation argv is check_argv's own rendering" \
   "$VLINE" \
-  "$($PY - "$HEAD_SHA" <<'PY'
+  "$($PY - "$PIN_AT_DRIVER" <<'PY'
 import sys; sys.path.insert(0, "worklog/worklog_yixun/exp_15_yaw_aug_claude")
 import exp15_validate_cell as V
 c = V.Cell("YAWAUG", "rrob", 40000, 44, 8, None)
