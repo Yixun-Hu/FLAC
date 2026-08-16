@@ -472,6 +472,31 @@ def validate_exp15_cell(files, repo_root=None, expected_k=None):
     return (not problems), problems
 
 
+def check_exp15_round(rendered):
+    """``[problem, ...]`` — the exp_15 YAWAUG pair publishes whole or not at all.
+
+    ADDITIVE and exp_15-only: no other contract reaches this. A row is publishable
+    when it rendered a numeric line (not pending, not BLOCKED) for BOTH K.
+    """
+    rows = [r for r in rendered if r.get("contract") == "exp15"]
+    if not rows:
+        return []
+    problems = []
+    ks = sorted({r["K"] for r in rows})
+    if ks != [1, 8]:
+        problems.append(f"expected K=1 and K=8 rows, found {ks}")
+    for r in rows:
+        line = r.get("line", "")
+        if "BLOCKED" in line:
+            problems.append(f"K={r['K']} is BLOCKED")
+        elif "*pending" in line:
+            problems.append(f"K={r['K']} is pending ({r.get('n')}/{MIN_SEEDS} seeds)")
+    # ...and if either K is unpublishable, NEITHER publishes.
+    if problems:
+        problems.append("both K rows publish together or neither does")
+    return problems
+
+
 def exp14_arm_of(label):
     """The arm a registered exp_14 row label names (its first token)."""
     return str(label).split(" ", 1)[0]
@@ -920,7 +945,8 @@ def main(argv=None):
         line, blocked = render_row(label, proto, K, files, repo_root=root,
                                    validator_path=validator, contract=contract)
         rendered.append({"label": label, "proto": proto, "K": K, "n": len(files),
-                         "line": line, "exp11": is_exp11_row(pats)})
+                         "line": line, "exp11": is_exp11_row(pats),
+                         "contract": contract})
         if contract == "q9":
             q9_cells[(label, K)] = files
         if contract == "exp14z":
@@ -965,6 +991,23 @@ def main(argv=None):
                                      "five-seed block at the one campaign pin")
     if exp14_problems:
         lines_tail += ["", "**exp_14 Z rows WITHHELD:** " + "; ".join(exp14_problems)]
+    # The exp_15 YAWAUG pair is a transaction too (arming-check finding 3): the
+    # generator renders each K independently, so without this a numeric K=8 row
+    # could be written beside a BLOCKED/pending K=1 — half a Table-1 entry, which
+    # invites exactly the cross-K comparison the pairing exists to prevent.
+    exp15_cells = {(r["label"], r["K"]) for r in rendered
+                   if r.get("contract") == "exp15"}
+    exp15_problems = check_exp15_round(rendered)
+    if exp15_problems:
+        print("exp_15 YAWAUG rows not publishable as one transaction:", file=sys.stderr)
+        for problem in exp15_problems:
+            print("  -", problem, file=sys.stderr)
+        for r in rendered:
+            if (r["label"], r["K"]) in exp15_cells:
+                r["line"] = withheld_row(r["label"], r["proto"], r["K"], r["n"],
+                                         "the exp_15 YAWAUG row publishes only as a "
+                                         "complete K=1 + K=8 pair")
+        lines_tail += ["", "**exp_15 YAWAUG rows WITHHELD:** " + "; ".join(exp15_problems)]
     two_k = check_two_k_coverage(exp11_status)
     if two_k:
         bad_labels = {p.split(":")[0] for p in two_k}

@@ -11,9 +11,27 @@
 #SBATCH --output=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/slurm_guardtests_strict_%j.out
 set -uo pipefail
 source /usr/local/anaconda3/2024.02/etc/profile.d/conda.sh && conda activate flac
-cd /n/fs/gatrdp/codespace/FLAC
+# RUN_ROOT lets this run from a CLEAN WORKTREE at the fix commit rather than the
+# dirty main checkout, so the transcript's tested HEAD is the committed state the
+# reviewer will read (arming-check finding 4). Defaults to the main tree.
+RUN_ROOT="${RUN_ROOT:-/n/fs/gatrdp/codespace/FLAC}"
+cd "$RUN_ROOT" || exit 3
 TS=$(date +%Y-%m-%d_%H-%M-%S)
 EXPD=worklog/worklog_yixun/exp_15_yaw_aug_claude
+# --- COMMIT AND CONTENT BINDING ----------------------------------------------
+# HEAD alone is not enough: a dirty tree reports the same HEAD as a clean one.
+# Digest the eight files this suite actually drives, so the transcript states
+# exactly what was tested.
+echo "=== tested-root : ${RUN_ROOT}"
+echo "=== tested-HEAD : $(git -C "$RUN_ROOT" rev-parse HEAD)"
+echo "=== tree-dirty  : $(if git -C "$RUN_ROOT" diff --quiet && git -C "$RUN_ROOT" diff --cached --quiet; then echo no; else echo YES; fi)"
+echo "=== driven-file sha256:"
+for f in "$EXPD/yaw_aug_screen.sbatch" "$EXPD/yaw_aug_screen_submit.sh" \
+         "$EXPD/yaw_aug_submit_grid.sh" "$EXPD/yaw_aug_screen_guardtests.sh" \
+         "$EXPD/exp15_validate_cell.py" "$EXPD/exp15_admit_ckpt.py" \
+         "$EXPD/yaw_aug_collect.py" "$EXPD/yaw_aug_publish_row.py"; do
+  printf '===   %s  %s\n' "$(sha256sum "$f" 2>/dev/null | cut -c1-16)" "$f"
+done
 # The suite is written for a login-shell environment: with SLURM_* set, the
 # driver's under-sbatch branch (MEASURE_ROOT demand, yaw_aug_screen.sbatch:331)
 # fires before the parameter gates the refusal cases assert on. Scrub them for

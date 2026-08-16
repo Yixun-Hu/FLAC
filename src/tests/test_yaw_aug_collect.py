@@ -1212,3 +1212,58 @@ class TestTwoKTransaction:
         ok, problems = module.validate_exp15_cell(files, expected_k=8)
         assert ok is False
         assert any("campaign pins" in p for p in problems), problems
+
+
+# =========================================================================== #
+# ARMING CHECK: item 3 — the generator's exp_15 WRITE is transactional.
+# =========================================================================== #
+class TestGeneratorTwoKWrite:
+    def _gen(self):
+        import importlib.util
+        path = "worklog/worklog_yixun/gen_model_comparison.py"
+        spec = importlib.util.spec_from_file_location("gen_model_comparison", path)
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        return m
+
+    def _rows(self, k8_line, k1_line):
+        return [
+            {"label": "yaw-aug vanilla YAWAUG @40k (exp_15)", "proto": "p", "K": 8,
+             "n": 5, "line": k8_line, "exp11": False, "contract": "exp15"},
+            {"label": "yaw-aug vanilla YAWAUG @40k (exp_15)", "proto": "p", "K": 1,
+             "n": 5, "line": k1_line, "exp11": False, "contract": "exp15"},
+        ]
+
+    def test_both_numeric_publishes(self):
+        gen = self._gen()
+        rows = self._rows("| x | p | 8 | 5 | 1.000 ± 0.001 |",
+                          "| x | p | 1 | 5 | 2.000 ± 0.001 |")
+        assert gen.check_exp15_round(rows) == []
+
+    def test_one_K_blocked_withholds_the_pair(self):
+        gen = self._gen()
+        rows = self._rows("| x | p | 8 | 5 | 1.000 ± 0.001 |",
+                          "| x | p | 1 | 3 | **BLOCKED — row validation failed:** y |")
+        problems = gen.check_exp15_round(rows)
+        assert problems
+        assert any("both K rows publish together" in p for p in problems), problems
+
+    def test_one_K_pending_withholds_the_pair(self):
+        gen = self._gen()
+        rows = self._rows("| x | p | 8 | 5 | 1.000 ± 0.001 |",
+                          "| x | p | 1 | 3 | *pending (3/5 seeds on disk)* | | | | | |")
+        problems = gen.check_exp15_round(rows)
+        assert any("pending" in p for p in problems), problems
+
+    def test_a_missing_K_is_refused(self):
+        gen = self._gen()
+        rows = self._rows("| x | p | 8 | 5 | 1.000 ± 0.001 |",
+                          "| x | p | 1 | 5 | 2.000 ± 0.001 |")[:1]
+        problems = gen.check_exp15_round(rows)
+        assert any("found [8]" in p for p in problems), problems
+
+    def test_no_exp15_rows_is_not_a_problem(self):
+        """Other experiments' regenerations must be unaffected."""
+        gen = self._gen()
+        assert gen.check_exp15_round([{"label": "other", "K": 8, "n": 5,
+                                       "line": "| ... |", "contract": "table"}]) == []

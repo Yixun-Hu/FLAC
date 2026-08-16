@@ -246,7 +246,10 @@ fi
 # we are already in a state nobody designed, and the safe move is to stop.
 # DRYRUN is permissive (it submits nothing) and labels itself as such.
 verify_pinned_marker() {   # $1 = claimed CODE_ROOT, $2 = campaign pin sha
-  local claimed="$1" pin="$2" want head
+                           # rc 0 = verified AND we ARE the pinned copy
+                           # rc 3 = verified but $0 is elsewhere -> caller re-execs
+                           # rc 1 = forged/mismatched -> caller HARD REFUSES
+  local claimed="$1" pin="$2" want head self
   if [ "$DRYRUN" = "1" ]; then
     echo "DRYRUN: pinned-exec marker accepted UNVERIFIED (a dry run submits nothing)" >&2
     return 0
@@ -269,7 +272,20 @@ verify_pinned_marker() {   # $1 = claimed CODE_ROOT, $2 = campaign pin sha
     echo "  pin '${pin}'." >&2
     return 1
   fi
-  return 0
+  # ...and the EXECUTING SCRIPT must itself live in that tree (arming-check
+  # finding 1). Verifying the directory said nothing about who was running: a
+  # correct marker handed to the MAIN-tree copy passed every check above and then
+  # continued executing main-tree shell logic, with only subordinate paths
+  # pointing into the pinned tree. A correct marker with the wrong $0 is not an
+  # attack, it is a mis-invocation, so the safe move is to ROUTE to the pinned
+  # copy (rc 3) rather than refuse; only a bad marker refuses.
+  self="$(readlink -f "$0" 2>/dev/null)" || self=""
+  case "$self" in
+    "$claimed"/*) return 0 ;;
+    *) echo "pinned-exec marker is correct but this script is '${self}', outside" >&2
+       echo "  the verified tree — re-execing from that tree's own copy." >&2
+       return 3 ;;
+  esac
 }
 
 CAMPAIGN_PIN=""
@@ -293,8 +309,16 @@ if [ -n "$PIN_SHA" ] && [ -n "$CAMPAIGN_PIN" ] && [ "$PIN_SHA" != "$CAMPAIGN_PIN
 fi
 [ -n "$CAMPAIGN_PIN" ] && PIN_SHA="$CAMPAIGN_PIN"
 if [ -n "${YAW_EVAL_PINNED_EXEC:-}" ] && [ "$TEST_MODE" != "1" ]; then
-  verify_pinned_marker "$YAW_EVAL_PINNED_EXEC" "$CAMPAIGN_PIN" || exit 2
-  echo "pinned-exec marker VERIFIED against ${CAMPAIGN_PIN}" >&2
+  MARKER_RC=0
+  verify_pinned_marker "$YAW_EVAL_PINNED_EXEC" "$CAMPAIGN_PIN" || MARKER_RC=$?
+  case "$MARKER_RC" in
+    0) echo "pinned-exec marker VERIFIED against ${CAMPAIGN_PIN}" >&2 ;;
+    3) PINNED_SELF="${YAW_EVAL_PINNED_EXEC}/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_submit_grid.sh"
+       [ -f "$PINNED_SELF" ] || reject "the verified tree has no wave submitter at ${PINNED_SELF}"
+       echo "re-exec from the VERIFIED pinned copy: ${PINNED_SELF}" >&2
+       exec bash "$PINNED_SELF" "$@" ;;
+    *) exit 2 ;;
+  esac
 fi
 
 # --- RE-EXEC FROM THE PINNED WORKTREE (integrative review F1) ------------------

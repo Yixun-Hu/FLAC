@@ -1167,10 +1167,55 @@ printf '#!/bin/bash\n# WORKTREE-CANARY\nexit 0\n' \
   > "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen.sbatch"
 sed -i "s|^MAIN_REPO=/n/fs/gatrdp/codespace/FLAC$|MAIN_REPO=${CANARY_MAIN}|" \
     "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh"
-sed -i "s|^PATH=/usr/bin:/bin:/usr/local/bin; export PATH$|PATH=${CANARY_BIN}:/usr/bin:/bin; export PATH|" \
-    "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh"
-grep -q "^PATH=${CANARY_BIN}" "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh"
-check "F1 canary: the copy under test cannot reach real Slurm binaries" $?
+# --- ISOLATION BY PREVENTION, NOT DETECTION (arming-check finding 2) -----------
+# The previous rewrite left /usr/bin:/bin on the canary's PATH — where the real
+# Slurm clients live — and merely ASSERTED that the stubs came first, non-fatally,
+# in a suite that has no errexit. A failed sed, a missing stub or a lost +x bit
+# therefore fell through to the real scheduler. That is exactly how job 3706530
+# happened.
+#
+# So the canary's PATH now contains NO system bindir at all: the stub dir plus a
+# private dir holding explicit symlinks to the specific non-Slurm tools the script
+# uses. Anything not enumerated is simply absent, and the real sbatch is not on
+# the path by construction rather than by ordering.
+#
+# Every assertion in this block is FATAL to the section: `canary_fatal` exits the
+# suite outright. A recorded FAIL that lets execution continue is precisely the
+# shape that permitted a live submission.
+canary_fatal() {
+  echo "FATAL  ${1}" >&2
+  ledger FAIL "canary isolation: ${1}"
+  echo "=== ABORTING: the canary could not be proven isolated from real Slurm ===" >&2
+  rm -rf "$TMP" 2>/dev/null
+  exit 9
+}
+CANARY_PRIVBIN="${CANARY_ROOT}/privbin"
+mkdir -p "$CANARY_PRIVBIN" || canary_fatal "could not create the private bindir"
+for _t in bash sh git python3 grep sed awk head tail tr cat id date hostname \
+          readlink flock mktemp sha256sum cut wc ls rm mv cp mkdir sleep touch env tee; do
+  _src="$(command -v "$_t" 2>/dev/null)" || _src=""
+  [ -n "$_src" ] && ln -sf "$_src" "${CANARY_PRIVBIN}/${_t}"
+done
+for _need in bash git python3 sed grep awk readlink; do
+  [ -x "${CANARY_PRIVBIN}/${_need}" ] \
+    || canary_fatal "the private bindir lacks a working '${_need}'"
+done
+for _slurm in sbatch squeue scancel scontrol sacct srun salloc; do
+  [ -e "${CANARY_PRIVBIN}/${_slurm}" ] \
+    && canary_fatal "the private bindir contains a Slurm client '${_slurm}'"
+done
+sed -i "s|^PATH=/usr/bin:/bin:/usr/local/bin; export PATH$|PATH=${CANARY_BIN}:${CANARY_PRIVBIN}; export PATH|" \
+    "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh" \
+  || canary_fatal "could not rewrite the canary copy's PATH"
+grep -q "^PATH=${CANARY_BIN}:${CANARY_PRIVBIN}; export PATH$" \
+     "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh" \
+  || canary_fatal "the canary copy's PATH line is not the sandboxed one"
+grep -q "/usr/bin" "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh" \
+  && grep -qE "^PATH=.*(/usr/bin|/bin)(:|$)" "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh" \
+  && canary_fatal "a system bindir survives on the canary copy's PATH"
+echo "PASS  F1 canary: PATH contains no system bindir (prevention, not detection)"
+ledger PASS "F1 canary: PATH contains no system bindir (prevention, not detection)"
+PASS=$((PASS + 1))
 git -C "$CANARY_MAIN" add -A >/dev/null 2>&1
 git -C "$CANARY_MAIN" -c user.email=g@l -c user.name=g commit -qm pinned >/dev/null 2>&1
 CANARY_PIN="$(git -C "$CANARY_MAIN" rev-parse HEAD)"
@@ -1193,9 +1238,27 @@ if [ "$1" = "--lease" ]; then mkdir -p "$3/.leases"; printf 'jobid %s
 echo "$MR/.measure_worktrees/$1"
 HEOF
 chmod +x "${CANARY_MAIN}/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_measure_worktree.sh"
-printf '#!/bin/bash\nfor a in "$@"; do case "$a" in */yaw_aug_screen.sbatch) echo "SUBMITTED-DRIVER=$a" >&2;; esac; done\necho 9999001\n' > "${CANARY_BIN}/sbatch"
-for _b in scontrol scancel squeue sync; do printf '#!/bin/bash\nexit 0\n' > "${CANARY_BIN}/${_b}"; done
-chmod +x "${CANARY_BIN}"/*
+printf '#!/bin/bash\nfor a in "$@"; do case "$a" in */yaw_aug_screen.sbatch) echo "SUBMITTED-DRIVER=$a" >&2;; esac; done\necho 9999001\n' \
+  > "${CANARY_BIN}/sbatch" || canary_fatal "could not write the sbatch stub"
+for _b in scontrol scancel squeue sync sacct srun; do
+  printf '#!/bin/bash\nexit 0\n' > "${CANARY_BIN}/${_b}" \
+    || canary_fatal "could not write the ${_b} stub"
+done
+chmod +x "${CANARY_BIN}"/* || canary_fatal "could not make the stubs executable"
+# ...and every scheduler client the script could invoke must now resolve INSIDE
+# the stub dir, checked under the canary's own PATH. Fatal, before anything runs.
+for _slurm in sbatch squeue scancel scontrol; do
+  [ -x "${CANARY_BIN}/${_slurm}" ] \
+    || canary_fatal "stub '${_slurm}' is missing or not executable"
+  _res="$(PATH="${CANARY_BIN}:${CANARY_PRIVBIN}" command -v "$_slurm" 2>/dev/null)" || _res=""
+  case "$_res" in
+    "${CANARY_BIN}/${_slurm}") ;;
+    *) canary_fatal "'${_slurm}' resolves to '${_res}', not the stub dir" ;;
+  esac
+done
+echo "PASS  F1 canary: every Slurm client resolves to the stub dir (fatal if not)"
+ledger PASS "F1 canary: every Slurm client resolves to the stub dir (fatal if not)"
+PASS=$((PASS + 1))
 CANARY_OUT="$(env -u YAW_EVAL_MAIN_REPO -u YAW_EVAL_PINNED_EXEC \
               bash "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh" \
               ARM=VANL CELL=vctl STEP=40000 SEED=42 K=8 ROTATE_DEG=90 2>&1)"
@@ -1255,6 +1318,39 @@ case "$FORGED_OUT" in
   *) echo "PASS  F1: a forged marker submits nothing"
      ledger PASS "F1: a forged marker submits nothing"; PASS=$((PASS + 1)) ;;
 esac
+# --- the EXACT-MARKER BYPASS (arming-check finding 1) -------------------------
+# A CORRECT marker handed to the MAIN-tree copy used to pass every check and then
+# keep running main-tree shell logic, with only subordinate paths pointing into
+# the pinned tree. It must instead route to the pinned copy — not refuse (the
+# marker is right; the invocation is wrong) and not continue.
+EXACT_OUT="$(env -u YAW_EVAL_MAIN_REPO \
+             "YAW_EVAL_PINNED_EXEC=${CANARY_MAIN}/.measure_worktrees/${CANARY_PIN}" \
+             bash "${CANARY_MAIN}/${CANARY_EXPREL}/yaw_aug_screen_submit.sh" \
+             ARM=VANL CELL=vctl STEP=40000 SEED=42 K=8 ROTATE_DEG=90 2>&1)"
+case "$EXACT_OUT" in
+  *"re-exec from the VERIFIED pinned copy"*)
+    echo "PASS  F1: a correct marker on the MAIN-tree copy REROUTES to the pinned copy"
+    ledger PASS "F1: a correct marker on the MAIN-tree copy REROUTES to the pinned copy"
+    PASS=$((PASS + 1)) ;;
+  *) echo "FAIL  F1: main-tree logic continued under a correct marker"
+     printf '%s\n' "$EXACT_OUT" | tail -5 | sed 's/^/        | /'
+     ledger FAIL "F1: a correct marker on the MAIN-tree copy REROUTES to the pinned copy"
+     FAIL=$((FAIL + 1)) ;;
+esac
+case "$EXACT_OUT" in
+  *MAINTREE-CANARY*) echo "FAIL  F1: main-tree content executed under a correct marker"
+                     ledger FAIL "F1: the reroute runs pinned content only"
+                     FAIL=$((FAIL + 1)) ;;
+  *"SUBMITTED-DRIVER=${CANARY_MAIN}/.measure_worktrees/${CANARY_PIN}/"*)
+                     echo "PASS  F1: the reroute runs pinned content only"
+                     ledger PASS "F1: the reroute runs pinned content only"
+                     PASS=$((PASS + 1)) ;;
+  *) echo "FAIL  F1: the rerouted child did not submit the pinned driver"
+     printf '%s\n' "$EXACT_OUT" | grep -i "SUBMITTED-DRIVER" | sed 's/^/        | /'
+     ledger FAIL "F1: the reroute runs pinned content only"; FAIL=$((FAIL + 1)) ;;
+esac
+grep -q 'outside' "$SUB" && grep -q 'return 3' "$SUB"
+check "F1: verify_pinned_marker distinguishes wrong-\$0 (reroute) from forged (refuse)" $?
 grep -q 'YAW_EVAL_LOCK_DEPTH' "$SUB"
 check "F1: the store-lock re-exec has a depth guard (cannot spin)" $?
 grep -q 'for _n in sbatch scontrol scancel squeue sync' "$SUB"
