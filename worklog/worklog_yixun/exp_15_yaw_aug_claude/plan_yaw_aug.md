@@ -238,3 +238,14 @@ Training: job reports the pinned commit SHA; allowlist gate green; 1 node × 8 L
 - **Promotion gate scope:** the acceptance-record/waiver gate applies to the chain's INITIAL only (the standing Yixun waiver of 2026-08-12 carries; each RESTART manifest references it). Post-hoc windowed-rate floors (0.849/0.843) evaluate on the INITIAL leg's log (steps 100→300, 300→1000 fall inside leg 1... 300→1000 spans legs 1–2 at LEG_STEPS=2500 — the 300→1000 window is then computed within leg 2's log at its own steps if needed; both floors reported, breach ⇒ stop the chain).
 - **Monolith fallback:** job 3687499 stays queued until the chain's INITIAL is RUNNING, then is cancelled (logged); the run-dir lock prevents any double-write in the interim.
 - **Scientific disclosure (mandatory in `_analysis.md`):** a 16-leg chained run is not bit-equivalent to a monolithic run — PL restores optimizer/scheduler/EMA/loops but not RNG streams; data-order and dropout streams re-seed per leg. The yaw-augmentation draws are exempt (counter-based on (seed, global_step, rank, index) — resume-exact, r1-tested). The VANL control was monolithic; this asymmetry is disclosed. The LR schedule continues exactly from checkpoint state (the known PL scheduler-state carryover works in our favor here).
+
+---
+
+## 13. AMENDMENT Rev 4 (2026-08-16, ratified by Yixun pre-data): aggregation routing + retrieval identity
+
+Supersedes the flat "per-scene-mean aggregate" phrasing in §1 and §5 (an ambiguity the E2 review adjudicated as requiring explicit ratification, given pre-data):
+
+- **Acoustic family (T60, C50, EDT, Invalid T60):** per-seed observation = mean over the **ten room-family groups** (the release grouping exp_14 corrected to; verified by readback from a real committed artifact — `scene_count: 10`).
+- **FD and all retrieval metrics:** per-seed observation = the **split-level** value (no scene-mean): within-scene retrieval over ~370 items is an easier, incomparable task, and one-room Fréchet is small-sample biased.
+- **R@1 (co-primary) := `RIR_to_GT_RIR_R@1`** (audio-to-audio). **`RIR_to_geom_R@k` is quarantined descriptive-only** under rotation (it retrieves against the geometry the R block rotates — confounded by construction).
+- Matches exp_14's pre-registration exactly, which also preserves §5's own pre-registered external check against exp_14's Z rows (void under the literal reading). Recorded in `yaw_aug_collect.py`'s docstring and JSON bundle; ratified before any exp_15 eval cell has run.
