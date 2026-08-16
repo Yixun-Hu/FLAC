@@ -1,0 +1,28 @@
+=== exp_15 — eval-final3 (arming-check items 1-4) ===
+=== date        : 2026-08-16T18:16:01-04:00
+=== tested-root : /n/fs/rfmprog/.tmp/yh4742/claude-374349/-n-fs-gatrdp-codespace-FLAC/95df1be3-dd0a-40ba-a81d-d738a035bc82/scratchpad/verify_wt
+=== tested-HEAD : 2fcfdd6b7c905f9c153bcc3af55efb3f28ecca4b
+=== tree-dirty  : no
+=== driven-file sha256 (content binding, not just HEAD):
+===   e6303e1a742b0402  yaw_aug_screen.sbatch
+===   40cfe44ae8c09233  yaw_aug_screen_submit.sh
+===   109923c03399c943  yaw_aug_submit_grid.sh
+===   e0a0ee44427d746b  yaw_aug_screen_guardtests.sh
+===   50372e587fb0192f  exp15_validate_cell.py
+===   a9d32c9e64ef23ff  exp15_admit_ckpt.py
+===   8651ff98b6e7f43b  yaw_aug_collect.py
+===   fd4903dd6f05d984  yaw_aug_publish_row.py
+
+### chunk: TestParseCell or TestValidateProtocol or TestVerifyHashes or Tes...
+................................................................         [100%]
+64 passed, 67 deselected in 31.71s
+
+### chunk: TestFullGridHappyPath or TestGatesActuallyGate or TestG3ScopedBl...
+.........................                                                [100%]
+25 passed, 106 deselected in 102.03s (0:01:42)
+
+### chunk: TestK1IsDescriptiveOnly or TestVCellsDoNotGate or TestInvalidT60...
+.............s............................                               [100%]
+41 passed, 1 skipped, 89 deselected in 99.70s (0:01:39)
+
+DONE

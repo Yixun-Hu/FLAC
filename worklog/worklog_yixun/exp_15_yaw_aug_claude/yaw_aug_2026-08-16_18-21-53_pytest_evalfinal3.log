@@ -1,0 +1,30 @@
+=== exp_15 — eval-final3 pytest, from the COMMITTED tree ===
+=== date        : 2026-08-16T18:21:53-04:00
+=== tested-root : /n/fs/rfmprog/.tmp/yh4742/claude-374349/-n-fs-gatrdp-codespace-FLAC/95df1be3-dd0a-40ba-a81d-d738a035bc82/scratchpad/verify_wt2
+=== tested-HEAD : a26c9c7f9d232fe1f74a14c212bde69f58ab51c7
+=== tree-dirty  : no
+=== driven-file sha256:
+===   e6303e1a742b0402  yaw_aug_screen.sbatch
+===   40cfe44ae8c09233  yaw_aug_screen_submit.sh
+===   109923c03399c943  yaw_aug_submit_grid.sh
+===   211cce3fdeb9250b  yaw_aug_screen_guardtests.sh
+===   50372e587fb0192f  exp15_validate_cell.py
+===   a9d32c9e64ef23ff  exp15_admit_ckpt.py
+===   8651ff98b6e7f43b  yaw_aug_collect.py
+===   fd4903dd6f05d984  yaw_aug_publish_row.py
+
+### chunk: TestParseCell or TestValidateProtocol or TestVerifyHashes or Tes...
+................................................................         [100%]
+64 passed, 67 deselected in 16.24s
+
+### chunk: TestFullGridHappyPath or TestGatesActuallyGate or TestG3ScopedBl...
+.........................                                                [100%]
+25 passed, 106 deselected in 136.98s (0:02:16)
+
+### chunk: TestK1IsDescriptiveOnly or TestVCellsDoNotGate or TestInvalidT60...
+.............s............................                               [100%]
+=========================== short test summary info ============================
+SKIPPED [1] src/tests/test_yaw_aug_collect.py:944: exp_14 campaign artifacts not present in this tree
+41 passed, 1 skipped, 89 deselected in 144.38s (0:02:24)
+
+DONE

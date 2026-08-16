@@ -1,0 +1,9 @@
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-16_18-26-24_guardtests_evalfinal3.ledger: 193 case records
+
+cases seen        : 193
+covered (>=1 PASS): 192
+failed anywhere   : 0
+never passed      : 1
+  UNCOVERED a REAL exp_14 metrics artifact satisfies the new metric schema  (skipped in every environment)
+
+UNION COVERAGE: NOT SATISFIED

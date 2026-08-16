@@ -1,0 +1,255 @@
+
+EnvironmentNameNotFound: Could not find conda environment: flac
+You can list all discoverable environments with `conda info --envs`.
+
+
+=== tested-root : /n/fs/rfmprog/.tmp/yh4742/claude-374349/-n-fs-gatrdp-codespace-FLAC/95df1be3-dd0a-40ba-a81d-d738a035bc82/scratchpad/verify_wt3
+=== tested-HEAD : 7836b54c34b3e0babb0e5dfaf4d75c83ecdf3a0c
+=== tree-dirty  : no
+=== driven-file sha256:
+===   e6303e1a742b0402  worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen.sbatch
+===   40cfe44ae8c09233  worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_submit.sh
+===   109923c03399c943  worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_submit_grid.sh
+===   5b28d322fbedc064  worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_screen_guardtests.sh
+===   50372e587fb0192f  worklog/worklog_yixun/exp_15_yaw_aug_claude/exp15_validate_cell.py
+===   a9d32c9e64ef23ff  worklog/worklog_yixun/exp_15_yaw_aug_claude/exp15_admit_ckpt.py
+===   8651ff98b6e7f43b  worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_collect.py
+===   fd4903dd6f05d984  worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_publish_row.py
+=== exp_15 EVAL kit guard exercise — 2026-08-16_18-26-24 — 7836b54 ===
+synthetic roots written
+
+--- 0. static checks + the suite's own safety rails ---
+PASS  yaw_aug_screen.sbatch parses (bash -n)
+PASS  yaw_aug_screen_submit.sh parses (bash -n)
+PASS  yaw_aug_submit_grid.sh parses (bash -n)
+PASS  exp15_validate_cell.py compiles
+PASS  exp15_admit_ckpt.py compiles
+PASS  the eval kit never EXECUTES against the training kit's live files
+PASS    ... and touches yaw_aug_record_control.py by import only
+PASS  the admission gate IMPORTS the recorder's primitives (never re-implements)
+PASS  this suite never invokes sbatch/scancel/scontrol
+PASS  lint: no guard case can reach the submitters' live path (best-effort scan)
+PASS    ... and the env array it exempts really does set YAW_EVAL_TEST_MODE=1
+PASS  isolation is the DEFAULT: the submitters read the temp root
+
+--- A. THE REGISTERED 42-CELL GRID (one definition, exhaustively) ---
+PASS  the grid is exactly 42 cells
+PASS    ... 20 tbl
+PASS    ... 20 rrob
+PASS    ... 2 vctl
+PASS  the vctl block is exactly VANL@90 and YAWAUG@90
+PASS  eval names are injective over the grid
+PASS  job names are injective over the grid
+PASS  every eval name round-trips through parse_eval_name  (rc=0)
+PASS  an UNREGISTERED cell name is refused, not parsed  (rc=0)
+PASS  validate_cell() refuses an unregistered cell before touching disk  (rc=0)
+
+--- B. PER-CLASS PROTOCOL ARGV (plan §4.2, checked on ALL 42 cells) ---
+PASS  every cell's protocol argv is the plan's literal §4.2 string  (rc=0)
+PASS  a T cell can NEVER carry --rotate-seed  (rc=0)
+PASS  an R cell can NEVER carry a non-zero --rotate-deg  (rc=0)
+PASS  the rotation seed of an R cell IS its eval seed  (rc=0)
+PASS  the metrics path mirrors eval_FLAC.build_output_paths on all 42 cells  (rc=0)
+PASS  campaign constants are exp_14's (comparability of the external check)
+
+--- C. the DRIVER's parameter gates (real driver, DRYRUN, synthetic roots) ---
+PASS  missing ARM  (rc=2)
+PASS  missing CELL  (rc=2)
+PASS  missing STEP  (rc=2)
+PASS  missing EXPECT_SHA  (rc=2)
+PASS  an exp_14 arm is refused  (rc=2)
+PASS  an exp_14 cell type is refused  (rc=2)
+PASS  STEP 12500 is unregistered  (rc=2)
+PASS  STEP 42500 is unregistered  (rc=2)
+PASS  bad K  (rc=2)
+PASS  tbl refuses seed 47  (rc=2)
+PASS  rrob refuses seed 41  (rc=2)
+PASS  tbl refuses ROTATE_DEG  (rc=2)
+PASS  rrob refuses ROTATE_DEG  (rc=2)
+PASS  an EVAL_ORBIT leftover is refused  (rc=2)
+PASS  vctl needs an angle  (rc=2)
+PASS  vctl is seed 42 only  (rc=2)
+PASS  vctl is K=8 only  (rc=2)
+PASS  vctl refuses 45 degrees (exp_14's angle, not ours)  (rc=2)
+PASS  no checkpoint tree at all  (rc=2)
+PASS  two checkpoints at one step  (rc=2)
+PASS  real mode needs sbatch  (rc=2)
+PASS  a synthetic admission source is refused for the PRODUCTION root  (rc=2)
+
+--- D. CHECKPOINT ADMISSION (gate G4): every pathology, by name ---
+PASS  a well-formed YAWAUG 40k checkpoint is ADMITTED  (rc=0)
+PASS  a well-formed VANL 40k checkpoint is ADMITTED  (rc=0)
+PASS  wrong embedded step is REFUSED  (rc=1)
+PASS  a broken EMA<->online mirror is REFUSED  (rc=1)
+PASS  a checkpoint trained WITHOUT yaw_aug is refused as YAWAUG  (rc=1)
+PASS    ... and its embedded config mismatch is named too  (rc=1)
+PASS  a recorded sha that does not match the file is REFUSED  (rc=1)
+PASS  a registry whose arm and leg disagree is REFUSED  (rc=2)
+PASS  a tampered launch manifest is REFUSED  (rc=1)
+PASS  a checkpoint outside the recorded location is REFUSED  (rc=1)
+PASS  an UNFINISHED chain registry refuses admission, by name  (rc=2)
+PASS    ... and names the legs recorded so far  (rc=2)
+PASS    ... and the driver dies on it rather than evaluating  (rc=2)
+  (live registry state: chain RUNNING — YAWAUG has no final checkpoint yet)
+PASS  the LIVE registry either admits YAWAUG or refuses it BY NAME — never silently
+PASS    ... and a refusal is rc 1, never a pass
+PASS  the LIVE control record admits VANL at 40000  (rc=0)
+PASS    ... and the record's own booleans are NOT what admits it  (rc=0)
+
+--- E. the DRIVER emits the plan's argv end to end (full-path DRYRUNs) ---
+PASS  T argv: vanilla conditioning
+PASS  T argv: the pinned frame angles
+PASS  T argv: bf16 conditioning autocast
+PASS  T argv: fixed mode, angle 0
+PASS  T argv: NO --rotate-seed
+PASS  T argv: the campaign batch/worker pins
+PASS  T argv: the assignment audit is mandatory
+PASS  T argv: per-scene recording is mandatory
+PASS  T argv: the K=8 split
+PASS  T argv: the registered eval name
+PASS  K=1 uses the _1 split (same 6337 items)
+PASS  K=1 still expects 6337 items
+PASS  R argv: random mode with the eval seed
+PASS  R argv: angle stays zero
+PASS  R argv: the _rotrand token is in the eval name
+PASS  V argv: fixed 90 degrees
+PASS  V argv: NO --rotate-seed
+PASS  V argv: the _rot90 token is in the eval name
+PASS  the driver's cell-validation argv is check_argv's own rendering
+
+--- F. the per-cell VALIDATOR: artifacts that lie are named, not skipped ---
+PASS  a well-formed T cell VALIDATES  (rc=0)
+PASS  a well-formed R cell VALIDATES  (rc=0)
+PASS  a well-formed V cell VALIDATES  (rc=0)
+PASS  ONLINE weights are refused (EMA is the contract)  (rc=1)
+PASS  a record claiming the fa angle list under vanilla is refused  (rc=1)
+PASS  a manifest that never witnessed the pinned flag is refused  (rc=1)
+PASS  a manifest with the wrong worker count is refused  (rc=1)
+PASS  a manifest that mislabels the ARM's augmentation is refused  (rc=1)
+PASS  a missing by_scene block is refused (wrong estimand)  (rc=1)
+PASS  a short split is refused  (rc=1)
+PASS  a stream hash that does not recompute is refused  (rc=1)
+PASS  a random cell whose offsets never varied is refused  (rc=1)
+PASS  a metrics block missing FD is refused  (rc=1)
+PASS  a wrong-cased 't60' is refused as a MISSING 'T60'  (rc=1)
+PASS  a NaN metric is refused  (rc=1)
+PASS  an Inf metric is refused  (rc=1)
+PASS  a bool metric is refused (True is not 1.0)  (rc=1)
+PASS  a per-scene payload missing EDT is refused  (rc=1)
+PASS  a per-scene NaN is refused  (rc=1)
+PASS  an ELEVENTH scene group is refused  (rc=1)
+PASS  a NINTH scene group is refused  (rc=1)
+SKIP  a REAL exp_14 metrics artifact satisfies the new metric schema (environment: exp_14 campaign artifacts are not present in this tree)
+PASS  a cell cannot be VALID without the campaign pin  (rc=1)
+PASS  a cell cannot be VALID without the checkpoint digest  (rc=1)
+PASS  an ABSENT artifact is MISSING (rc 3), not invalid  (rc=3)
+
+--- G. dedup is VALIDATE-BEFORE-SKIP, and classification is fail-closed ---
+classification fixtures written
+PASS  a complete, protocol-conformant cell classifies VALID
+PASS  a cell whose artifacts exist but LIE classifies INVALID, with the reason
+PASS    ... and neither is reported as MISSING
+PASS  an unfinished chain refuses to CLASSIFY at all (not 'MISSING')  (rc=2)
+re-stamped
+PASS  the wave HALTS (rc 3) on an artifact that does not validate
+PASS    ... and says so in the words of the validate-before-skip rule
+PASS    ... having submitted NOTHING
+PASS  with the corrupt cell gone the wave runs
+PASS    ... the VALID cell is skipped as already measured
+PASS    ... and only the missing cell is submitted
+PASS    ... exactly one simulated submission
+PASS    ... whose command log line was written BEFORE the submission
+PASS    ... into the (redirected) command log
+
+--- H. DRYRUN enumerates the grid and submits nothing ---
+PASS  DRYRUN WAVE=all prints exactly 42 cells
+PASS  DRYRUN:   ... 20 tbl
+PASS  DRYRUN:   ... 20 rrob
+PASS  DRYRUN:   ... 2 vctl, both at 90 degrees
+PASS  DRYRUN:   ... 21 per arm
+PASS  DRYRUN:   ... and no cell carries a rotation angle outside vctl
+PASS  DRYRUN submitted nothing at all
+PASS  the DRYRUN list IS the registered grid, cell for cell
+PASS  an unregistered WAVE is refused  (rc=2)
+PASS  MAX_INFLIGHT above the campaign cap is refused  (rc=2)
+PASS  concurrency counts only THIS campaign's screen jobs
+
+--- I. the single-cell submitter: identity, contract, and refusals ---
+PASS  submitter: an exp_14 arm is refused  (rc=2)
+PASS  submitter: an exp_14 cell type is refused  (rc=2)
+PASS  an unknown KEY is refused  (rc=2)
+PASS  a LOG outside the experiment folder is refused  (rc=2)
+PASS  the job name comes from the validator  (rc=0)
+PASS  the pre-launch intent records the whole protocol, not just the rotation  (rc=0)
+PASS    ... including the split and the stream/per-scene contract  (rc=0)
+PASS    ... and the arm's augmentation status  (rc=0)
+PASS  a dry run submits nothing and prepares no worktree  (rc=0)
+PASS  a LIVE single submission with NO pin file refuses  (rc=2)
+PASS    ... and a PIN_SHA that contradicts the pin file refuses  (rc=2)
+PASS    ... while a PIN_SHA that AGREES is accepted  (rc=0)
+PASS    ... and a MALFORMED pin file is not a pin  (rc=2)
+PASS    ... while DRYRUN still runs unpinned  (rc=0)
+PASS    ... and says out loud that a live run would refuse  (rc=0)
+PASS  both submission paths refuse an unpinned live launch in the same words
+PASS    ... and the single-cell path refuses BEFORE taking the shared store lock
+PASS  F1 canary: PATH contains no system bindir (prevention, not detection)
+PASS  F1 canary: every Slurm client resolves to the stub dir (fatal if not)
+PASS  F1: a main-tree live entry re-execs and VERIFIES the marker
+PASS  F1: sbatch received the WORKTREE driver
+PASS  F1: the divergent main-tree driver is never used
+PASS  F2: a MISSING cell survives errexit and submits
+PASS  F1: a forged pinned-exec marker is REFUSED (rc 2)
+PASS  F1: the refusal names the mismatch
+PASS  F1: a forged marker submits nothing
+PASS  F1: a correct marker on the MAIN-tree copy REROUTES to the pinned copy
+PASS  F1: the reroute runs pinned content only
+PASS  F1: verify_pinned_marker distinguishes wrong-$0 (reroute) from forged (refuse)
+PASS  F1: the store-lock re-exec has a depth guard (cannot spin)
+PASS  F2: squeue is resolved in the live binary loop
+PASS  F2: a failed queue query is fail-closed, not an empty result
+PASS  F2: cellstatus is captured without errexit killing the branch
+PASS  F1: both entry points re-exec themselves from the pinned worktree
+PASS  F1: sbatch receives the pinned driver, never the main copy
+PASS  F1: wave enumeration/classification use the pinned validator
+PASS  a dry run leaves no intent manifest behind
+PASS  the intent is published while the job is still HELD
+PASS  an unparseable job id is still cancelled, by NAME
+PASS  eval intents cannot be confused with the training kit's submission manifests
+PASS  the eval campaign keeps its OWN pin file
+PASS  --verify-manifest rejects a manifest with no completion sentinel  (rc=1)
+PASS    ... and accepts one that carries it  (rc=0)
+PASS  a LIVE-mode run refuses the isolation seam itself  (rc=2)
+
+--- J. environment hygiene: neighbouring namespaces are REFUSED ---
+PASS  a leftover YAW_AUG_* (training kit) is refused by the wave submitter  (rc=2)
+PASS  a leftover YAW_GEN_* (exp_14) is refused by the wave submitter  (rc=2)
+PASS  a leftover YAW_AUG_* is refused by the single-cell submitter  (rc=2)
+PASS  a test seam without TEST_MODE is refused in a run that could submit  (rc=2)
+PASS  SBATCH_EXCLUDE is refused rather than silently ignored (structural)
+PASS  node exclusion travels as an explicit --exclude flag (structural)
+PASS  EXCLUDE= is passed through to every cell of a wave
+PASS  a malformed EXCLUDE is refused  (rc=2)
+
+--- Z. the suite touched nothing tracked, and submitted nothing ---
+PASS  tracked tree unchanged by the suite (worktree content before == after)
+PASS  nothing in the exp_11 / exp_14 folders changed while this suite ran
+PASS  no line of the kit or this suite writes into the exp_11 / exp_14 folders
+PASS    ... and bytecode writing is disabled so an import cannot drop a .pyc there
+PASS  no screen driver was left running
+PASS  every case name in the ledger is unique
+
+=== guard tests: 192 passed, 0 failed (1 skipped, STRICT=1) ===
+ledger: worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-16_18-26-24_guardtests_evalfinal3.ledger
+union coverage across transcripts:  /n/fs/gatrdp/envs/flac/bin/python worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_union_coverage.py worklog/worklog_yixun/exp_15_yaw_aug_claude/*_guardtests_evalr1.ledger
+log: worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-16_18-26-24_guardtests_evalfinal3.log
+PASS  (suite exit) campaign command log and pin file are exactly as found
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-16_18-26-24_guardtests_evalfinal3.ledger: 193 case records
+
+cases seen        : 193
+covered (>=1 PASS): 192
+failed anywhere   : 0
+never passed      : 1
+  UNCOVERED a REAL exp_14 metrics artifact satisfies the new metric schema  (skipped in every environment)
+
+UNION COVERAGE: NOT SATISFIED
+GUARDTESTS_RC=1

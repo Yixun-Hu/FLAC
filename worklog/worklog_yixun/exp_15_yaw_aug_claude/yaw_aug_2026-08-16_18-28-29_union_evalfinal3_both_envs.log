@@ -1,0 +1,15 @@
+=== union across BOTH environments ===
+=== main-tree (evalfinal2) + clean-worktree (evalfinal3, HEAD 7836b54)
+=== the one worktree SKIP — the REAL exp_14 artifact readback — cannot run
+=== there: outputs_FLAC is only partially tracked, so the campaign's
+=== gitignored artifacts are absent. It PASSES in the main-tree run.
+
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-16_17-48-10_guardtests_evalfinal2.ledger: 189 case records
+worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-16_18-26-24_guardtests_evalfinal3.ledger: 193 case records
+
+cases seen        : 194
+covered (>=1 PASS): 194
+failed anywhere   : 0
+never passed      : 0
+
+UNION COVERAGE: every case passed in at least one environment
