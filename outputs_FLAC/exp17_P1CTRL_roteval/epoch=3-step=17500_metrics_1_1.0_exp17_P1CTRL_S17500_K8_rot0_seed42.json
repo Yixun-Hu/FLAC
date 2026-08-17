@@ -1,0 +1,32 @@
+{
+    "metrics": {
+        "T60": 9.4293,
+        "Invalid T60": 0.0,
+        "C50": 1.261,
+        "EDT": 47.9502,
+        "FD": 0.3545,
+        "RIR_to_GT_RIR_R@1": 2.3671,
+        "RIR_to_GT_RIR_R@5": 8.8685,
+        "RIR_to_GT_RIR_R@10": 14.6126,
+        "RIR_to_geom_R@1": 1.6885,
+        "RIR_to_geom_R@5": 6.8644,
+        "RIR_to_geom_R@10": 11.7564
+    },
+    "ckpt_path": "outputs_FLAC/exp17_P1CTRL_roteval/epoch=3-step=17500.ckpt",
+    "rotate_deg": 0.0,
+    "cond_method": "vanilla",
+    "frame_avg_angles": null,
+    "cond_autocast": "bf16",
+    "orbit_execution": "n/a",
+    "frame_avg_fwd_cap": null,
+    "source_sha": "391910d1bd1759a063121375d1c66fe47822d785",
+    "batch_size": 64,
+    "n_samples": 6337,
+    "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
+    "seed": 42,
+    "cfg_scale": 1.0,
+    "steps": 1,
+    "eval_name": "exp17_P1CTRL_S17500_K8_rot0_seed42",
+    "weights_source": "ema",
+    "device": "cuda"
+}
