@@ -1,0 +1,9 @@
+resumed_at: 2026-08-17T12:42:50-04:00
+gpu: 0  run: exp12B_ssl_cond  from_step: 7500
+ckpt: outputs_FLAC/exp12B_ssl_cond/exp12B_ssl_cond/exp12B_ssl_cond/checkpoints/epoch=1-step=7500.ckpt
+ckpt_sha256: ad7f310ca86c83388271ea74ca56e462a92675976f7309a240841ac5c7386646
+exp12_sha: 5363256ca08764cc042c0cb406fd19fcc9d8c0aa
+package_sha: 0f1008dfbb66466d1f48aa9cdd7df3bebd04160f
+NOTE: fresh stochastic continuation -- RNG and dataloader position are NOT restored.
+command: CUDA_VISIBLE_DEVICES=0 python train.py --model-config worklog/worklog_yixun/exp_12_arms/FLAC_AR_exp12B.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --ckpt-path outputs_FLAC/exp12B_ssl_cond/exp12B_ssl_cond/exp12B_ssl_cond/checkpoints/epoch=1-step=7500.ckpt --max-steps 67500 --batch-size 32 --accum-batches 2 --num-workers 6 --seed 42 --num-gpus 1 --logger wandb --checkpoint-every 2500 --name exp12B_ssl_cond --experiment-name exp12B_ssl_cond --save-dir outputs_FLAC/exp12B_ssl_cond
+pid: 1838340

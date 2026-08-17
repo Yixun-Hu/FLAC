@@ -25,10 +25,10 @@ if [ ! -f "$CKPT" ]; then
   exit 2
 fi
 
-LOG=worklog/worklog_yixun/exp_12_arms/eval_$RUN.log
+LOG=worklog/worklog_yixun/exp_12_arms/eval_$RUN${K_VALUES:+_K${K_VALUES// /}}.log
 echo "=== eval $RUN | ckpt $CKPT | gpu $GPU | $(date -Is) ===" | tee -a "$LOG"
 
-for K in 1 8; do
+for K in ${K_VALUES:-1 8}; do
   case $K in
     1) DS=src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json ;;
     8) DS=src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json ;;
