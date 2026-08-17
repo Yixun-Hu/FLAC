@@ -93,3 +93,8 @@
 - Branch rebased onto latest `check-equivariance-necessity` (evidence for other sessions' rows restored; HANDOFF/tracker conflicts merged keeping both sessions' states per precedent; force-with-lease push). Found and logged: **table regeneration is cluster-only** — exp_11 rows' validator pins cluster-absolute ckpt paths; Yaw-Aug rows staged in the generator for the next cluster-side regen.
 - **(b) launched 23:55:48** after two false starts: (i) first attempt refused because my own YAWAUG progress-monitor's command line contained the runner's name and `pgrep -f` matched it — the monitor also never detected the grid's end for the same reason; monitor stopped, relaunched with a `[n]`-bracket pattern that cannot self-match. (ii) GPU check initially flagged "processes on both cards" — they are user kevinwang's `ga_flow_toy` jobs (~3–5 GB, 99% util), NOT ours; co-tenancy per standing policy with disclosure. **Expect the 6 h nominal queue to stretch (rough guess 8–12 h) under contention.**
 - All 16 P1 checkpoints farmed with exact-single-match resolution; 128 control cells queued (`exp17_P1CTRL_*`, arm-scoped).
+
+## 2026-08-17T12:20:00-04:00 — (b) ACCEPTED; (c) still pending; per-angle 5-seed fill running
+
+- **Yixun: "confirm b is done, I will confirm c is done late"** — (b) P1-control trajectory accepted; (c) 45° probe acceptance remains open.
+- Per-angle table request: Yaw-Aug rows exist 5-seed at 0° only; rotated angles were grid s42 singles. 24-cell fill (rot 90/180/270 × s43–46 × both K) launched ~12:03, ETA ~13:25 EDT.
