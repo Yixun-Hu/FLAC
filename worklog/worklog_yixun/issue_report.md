@@ -17,6 +17,8 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 
 ## Open issues / caveats (technical)
 
+-1. **`gen_model_comparison.py` can no longer run to completion on the A6000 box (found 2026-08-16).** The exp_11 rows' validator checks that each record's `ckpt_path` lies inside the arm's own run directory, but those records carry CLUSTER-absolute paths (`/n/fs/gatrdp/…`), so the predicate can only pass on the cluster filesystem. The row-regression guard then rightly refuses to write anything. NOT ours to fix (validator is the cluster session's). Consequence: **table regeneration is cluster-only for now**; exp_17's Yaw-Aug @40k rows are staged in the generator (this branch) with committed evidence and will publish on the next cluster-side regen. Flag to the cluster session on merge.
+
 0. **exp_17 outstanding review debt (non-blocking, queued for after the grid):** roteval-r1 non-blocking findings — completion-audit stale-log cross-invocation stitching, `--save-dir` suffix-match cross-worktree ambiguity, guard H/I deletion-vacuity, `argval()` flag-token boundary. Also our retired launcher/guardtests carry r3 blockers listed in-file; **do not reuse them without that pass.** The exp_17 C4 grid is **single eval seed (42)** — a caveat on every number until 5-seed endpoint cells exist.
 0b. **eval_FLAC.py writes metric JSONs to `dirname(--ckpt-path)`** — evaluating another checkout's checkpoints in place scatters files into their namespace; use a symlink farm (pattern in `yaw_aug_a6000_roteval_run.sh`).
 
