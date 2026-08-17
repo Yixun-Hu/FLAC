@@ -1,0 +1,23 @@
+# exp_11 arm launch manifest
+timestamp 2026-08-15_03-44-40
+job 3691697 host neu323.neuronic.cs.princeton.edu mode RESTART launch_uuid a6ad607c-dd62-4fba-b8b8-081f453e8576
+arm VANL rung 8x8 micro 8 ngpu 8 max_steps 100000 ckpt_every 2500
+commit b9e5258a5a40695c694aae4878eb4df4d7df0550
+p0_manifest_sha256 72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b
+model_config /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_VANCKPT.json
+config_sha256 733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8
+vae_sha256 8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9
+env_pip_freeze_sha256 be4cdbe63e0d5484e02960968807576335ed2cf7febe908c871644d2ad3033d2
+torch_version 2.7.0+cu126 cuda 12.6 driver 590.48.01
+gpu_uuids GPU-1b2030f6-fd4f-7552-decf-7c69b071617b,GPU-dcc113f2-98e2-bebd-79b5-1b0834dda0a0,GPU-d9d6f311-c639-c652-d739-a6fedf72c35b,GPU-48e5794c-ccc5-bc73-8d5b-f1639081e621,GPU-bf4a8327-777d-c397-3a27-8d412c43aabc,GPU-b9374a97-1eff-8616-e530-f6ea65a8b2db,GPU-920b08d6-34ff-3e67-aa4d-c8b619d1e06d,GPU-b8652e16-4f8e-5cb0-3f70-f35d1b1efc32
+time_limit 02:30:00 min_free_mb 36500
+resume_ckpt outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=8-step=40000.ckpt expected_step 40000 resume_ckpt_sha256 1095f49330b4e7b9c469d69fdbaab1772586055236964b5e347604e712988507
+chunk_end 45000
+save_dir outputs_FLAC/exp11_VANL
+slurm_transcript /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/slurm_train_exp11-VANL-train_3691697.out untrack already-untracked
+train_log /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-15_03-44-40_VANL_8x8_jid3691697_train.log
+train_log_copy outputs_FLAC/exp11_VANL/fa_orbit_2026-08-15_03-44-40_VANL_8x8_jid3691697_train.log
+wandb_entity yh4742-princeton-university wandb_project FLAC_exp11_VANL wandb_name exp11_VANL
+wandb_run_id exp11-VANL-r40000-1786780173616090536-dfffa407
+command torchrun --standalone --nnodes=1 --nproc_per_node=8 train.py --model-config /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_VANCKPT.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 45000 --batch-size 8 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 8 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --val-dataset-config  --gradient-clip-val 0.0 --logger wandb --checkpoint-every 2500 --name FLAC_exp11_VANL --experiment-name exp11_VANL --save-dir outputs_FLAC/exp11_VANL --ckpt-path outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=8-step=40000.ckpt
+endpoint_ckpt outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=9-step=45000.ckpt endpoint_step 45000 endpoint_sha256 bb84307ca9d97d3b9537535caa83abd2e462180d5037f63c9150e29d90feac82

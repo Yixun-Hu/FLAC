@@ -1,0 +1,23 @@
+# exp_11 arm launch manifest
+timestamp 2026-08-15_18-07-58
+job 3700658 host neu316.neuronic.cs.princeton.edu mode RESTART launch_uuid c2911319-fee8-4bc9-a208-b6ec68a586fe
+arm C4L rung 8x8 micro 8 ngpu 8 max_steps 100000 ckpt_every 2500
+commit e8bfb0db3b6a518203f435cca37569685952d26b
+p0_manifest_sha256 72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b
+model_config /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json
+config_sha256 3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328
+vae_sha256 8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9
+env_pip_freeze_sha256 be4cdbe63e0d5484e02960968807576335ed2cf7febe908c871644d2ad3033d2
+torch_version 2.7.0+cu126 cuda 12.6 driver 590.48.01
+gpu_uuids GPU-534d024c-7da7-7db1-63d0-06d67caa5f74,GPU-3fef9619-ceed-a3f3-5488-64db12bf7c5b,GPU-fa0963a7-f7b4-e7f3-9c8d-a3ffc75ddce4,GPU-30ce0ac4-648a-7364-bf87-01ae5312898f,GPU-e6c725cb-8c69-4411-9ed5-c42378a63855,GPU-a2319def-cd1a-539b-8107-c7d71825e97d,GPU-3aff73ab-b1cc-2c0d-df0b-e601296f2fcd,GPU-ad152f6f-34ff-9268-e7c4-350a4a8a3680
+time_limit 03:00:00 min_free_mb 36500
+resume_ckpt outputs_FLAC/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=10-step=50000.ckpt expected_step 50000 resume_ckpt_sha256 721b05a180c357286a943ed13d10fc7115eb5e57175f1f69336e2da8a6d5e26b
+chunk_end 52500
+save_dir outputs_FLAC/exp11_C4L
+slurm_transcript /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/slurm_train_exp11-C4L-train_3700658.out untrack already-untracked
+train_log /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-15_18-07-58_C4L_8x8_jid3700658_train.log
+train_log_copy outputs_FLAC/exp11_C4L/fa_orbit_2026-08-15_18-07-58_C4L_8x8_jid3700658_train.log
+wandb_entity yh4742-princeton-university wandb_project FLAC_exp11_C4L wandb_name exp11_C4L
+wandb_run_id exp11-C4L-r50000-1786831774717947408-1a821e6e
+command torchrun --standalone --nnodes=1 --nproc_per_node=8 train.py --model-config /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 52500 --batch-size 8 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 8 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --val-dataset-config  --gradient-clip-val 0.0 --logger wandb --checkpoint-every 2500 --name FLAC_exp11_C4L --experiment-name exp11_C4L --save-dir outputs_FLAC/exp11_C4L --ckpt-path outputs_FLAC/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=10-step=50000.ckpt
+endpoint_ckpt outputs_FLAC/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=11-step=52500.ckpt endpoint_step 52500 endpoint_sha256 61ec28e5fb646e8ad7aa0fc40ff3ebe14c923c3c7053c9ef4274626a0f3f40d2
