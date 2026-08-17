@@ -1,0 +1,28 @@
+=== exp_17 rot-seeds (90/180/270 x s43-46 x K1/K8) — 2026-08-17_10-11-11 — 915b420 ===
+[1/24] gpu0 exp17_YAWAUG_S40000_K1_rot90_seed43
+[2/24] gpu1 exp17_YAWAUG_S40000_K8_rot90_seed43
+[3/24] gpu0 exp17_YAWAUG_S40000_K1_rot90_seed44
+[4/24] gpu1 exp17_YAWAUG_S40000_K8_rot90_seed44
+[5/24] gpu0 exp17_YAWAUG_S40000_K1_rot90_seed45
+[6/24] gpu1 exp17_YAWAUG_S40000_K8_rot90_seed45
+[7/24] gpu0 exp17_YAWAUG_S40000_K1_rot90_seed46
+[8/24] gpu1 exp17_YAWAUG_S40000_K8_rot90_seed46
+[9/24] gpu0 exp17_YAWAUG_S40000_K1_rot180_seed43
+[10/24] gpu1 exp17_YAWAUG_S40000_K8_rot180_seed43
+[11/24] gpu0 exp17_YAWAUG_S40000_K1_rot180_seed44
+[12/24] gpu1 exp17_YAWAUG_S40000_K8_rot180_seed44
+[13/24] gpu0 exp17_YAWAUG_S40000_K1_rot180_seed45
+[14/24] gpu1 exp17_YAWAUG_S40000_K8_rot180_seed45
+[15/24] gpu0 exp17_YAWAUG_S40000_K1_rot180_seed46
+[16/24] gpu1 exp17_YAWAUG_S40000_K8_rot180_seed46
+[17/24] gpu0 exp17_YAWAUG_S40000_K1_rot270_seed43
+[18/24] gpu1 exp17_YAWAUG_S40000_K8_rot270_seed43
+[19/24] gpu0 exp17_YAWAUG_S40000_K1_rot270_seed44
+[20/24] gpu1 exp17_YAWAUG_S40000_K8_rot270_seed44
+[21/24] gpu0 exp17_YAWAUG_S40000_K1_rot270_seed45
+[22/24] gpu1 exp17_YAWAUG_S40000_K8_rot270_seed45
+[23/24] gpu0 exp17_YAWAUG_S40000_K1_rot270_seed46
+[24/24] gpu1 exp17_YAWAUG_S40000_K8_rot270_seed46
+failures: 0
+rot-seed JSONs: 24/24
+ROTSEEDS COMPLETE
