@@ -1,0 +1,32 @@
+{
+    "metrics": {
+        "T60": 9.7377,
+        "Invalid T60": 0.0,
+        "C50": 1.3051,
+        "EDT": 46.3848,
+        "FD": 0.3566,
+        "RIR_to_GT_RIR_R@1": 2.0041,
+        "RIR_to_GT_RIR_R@5": 8.4583,
+        "RIR_to_GT_RIR_R@10": 14.439,
+        "RIR_to_geom_R@1": 1.1677,
+        "RIR_to_geom_R@5": 4.671,
+        "RIR_to_geom_R@10": 8.0953
+    },
+    "ckpt_path": "outputs_FLAC/exp17_YAWAUG_roteval/epoch=2-step=12500.ckpt",
+    "rotate_deg": 90.0,
+    "cond_method": "vanilla",
+    "frame_avg_angles": null,
+    "cond_autocast": "bf16",
+    "orbit_execution": "n/a",
+    "frame_avg_fwd_cap": null,
+    "source_sha": "faf312e0e9aa7bd7a7026899359e1dbc6eed49c1",
+    "batch_size": 64,
+    "n_samples": 6337,
+    "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
+    "seed": 42,
+    "cfg_scale": 1.0,
+    "steps": 1,
+    "eval_name": "exp17_YAWAUG_S12500_K8_rot90_seed42",
+    "weights_source": "ema",
+    "device": "cuda"
+}
