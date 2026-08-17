@@ -1,0 +1,25 @@
+=== exp_17 extras (a: 5-seed endpoint, c: 45° probe) — 2026-08-16_21-51-28 — f44adc0 ===
+checkpoint: outputs_FLAC/exp17_YAWAUG_extras/epoch=8-step=40000.ckpt -> /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=8-step=40000.ckpt
+gpu0 exp17_YAWAUG_S40000_K1_rot0_seed43
+gpu1 exp17_YAWAUG_S40000_K8_rot0_seed43
+gpu0 exp17_YAWAUG_S40000_K1_rot0_seed44
+gpu1 exp17_YAWAUG_S40000_K8_rot0_seed44
+gpu0 exp17_YAWAUG_S40000_K1_rot0_seed45
+gpu1 exp17_YAWAUG_S40000_K8_rot0_seed45
+gpu0 exp17_YAWAUG_S40000_K1_rot0_seed46
+gpu1 exp17_YAWAUG_S40000_K8_rot0_seed46
+gpu0 exp17_YAWAUG_S40000_K1_rot45_seed42
+gpu1 exp17_YAWAUG_S40000_K8_rot45_seed42
+gpu0 exp17_YAWAUG_seen_S40000_K1_s42
+gpu1 exp17_YAWAUG_seen_S40000_K8_s42
+gpu0 exp17_YAWAUG_seen_S40000_K1_s43
+gpu1 exp17_YAWAUG_seen_S40000_K8_s43
+gpu0 exp17_YAWAUG_seen_S40000_K1_s44
+gpu1 exp17_YAWAUG_seen_S40000_K8_s44
+gpu0 exp17_YAWAUG_seen_S40000_K1_s45
+gpu1 exp17_YAWAUG_seen_S40000_K8_s45
+gpu0 exp17_YAWAUG_seen_S40000_K1_s46
+gpu1 exp17_YAWAUG_seen_S40000_K8_s46
+failures: 0
+extras JSONs present: 20/20
+EXTRAS COMPLETE
