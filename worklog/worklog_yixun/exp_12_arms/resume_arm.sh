@@ -24,7 +24,7 @@ REC=worklog/worklog_yixun/exp_12_arms
 case "$RUN" in
   exp12A_c3c4)     CFG=$REC/FLAC_AR_exp12A.json ;;
   exp12C_ray12)    CFG=$REC/FLAC_AR_exp12C.json ;;
-  exp12B_ssl_cond) CFG=$REC/FLAC_AR_exp12B.json ;;
+  exp12B_ssl_cond|exp12B_ssl_cond_ddp) CFG=$REC/FLAC_AR_exp12B.json ;;
   *) echo "REFUSE: unknown run '$RUN'"; exit 2 ;;
 esac
 

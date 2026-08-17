@@ -1,0 +1,10 @@
+launched_at: 2026-08-17T14:46:21-04:00
+run: exp12B_ssl_cond_ddp   recipe: 2-GPU DDP, batch 32/card, accum 1, effective 64, SyncBN ON
+exp12_sha: 51fde4f343855f1839555d72ebbd0b29fc82d62e
+package_sha: 0f1008dfbb66466d1f48aa9cdd7df3bebd04160f
+model_config_sha256: 969430818081fbd31270f1690924959445a8f2731ab967fee9ad7d8347a147a4
+train_manifest_sha256: aa4e52d616fc42e88d5e4952c7e7ff266347615a60f93a0590b707f5eeaead03
+ssl_ckpt: outputs_FLAC/exp12B_ssl/backbone_final.pt
+ssl_ckpt_sha256: cdfa782d9b51f65463f0656df50a112586063dcfe2ab8bc1f3c9ed5d4518b68c
+command: python train.py --model-config worklog/worklog_yixun/exp_12_arms/FLAC_AR_exp12B.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 67500 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --logger wandb --checkpoint-every 2500 --name exp12B_ssl_cond_ddp --experiment-name exp12B_ssl_cond_ddp --save-dir outputs_FLAC/exp12B_ssl_cond_ddp
+pid: 1903000
