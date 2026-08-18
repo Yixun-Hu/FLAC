@@ -64,7 +64,8 @@
                             "img_h": 256,
                             "img_w": 512
                         }, 
-                        "max_value": 1
+                        "max_value": 1,
+                        "gradient_checkpointing": true
                     }
                 }, 
 
@@ -80,7 +81,8 @@
                             "img_h": 256,
                             "img_w": 512
                         }, 
-                        "max_value": 1
+                        "max_value": 1,
+                        "gradient_checkpointing": true
                     }
                 }, 
 

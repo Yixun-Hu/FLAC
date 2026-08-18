@@ -167,7 +167,7 @@ PIN_k8="fe9c473784340d32e5e02cbfa62948c52a1a0d18bf9869606fdeb898b0de11fc  ${K8_C
 PIN_k1="140e0ce8422e03c5f6f37c1681d0bc68c1ca6fa5821289f5d1f726a17a66a46b  ${K1_CFG}"
 PIN_testsplit="d4e3e29fddeeab6d9343a7efa811f5c02e23c3e99bd44894898a45d2a33248a1  data/HAA/test_base.json"
 PIN_p1cfg="3639a9face84d13bcbb8f4472e78970c8e045952337f11b4f77d8798f786ba80  ${STOCK_CFG}"
-PIN_bfcfg="eb64e6c24e9aba58d984bf9088b4248e2abffea48f180b90602c342a60dd66cd  ${EXPDIR}/FLAC_HAA_finetune_BF.json"
+PIN_bfcfg="834e4933f2f5c8050f196043e11260e00023a7c31205a55961e0a77ca910c1dc  ${EXPDIR}/FLAC_HAA_finetune_BF.json"
 PIN_yawcfg="a03d106cd72744df40187b5c493010ecc996275b2afa32a4811d7c962c77cb53  ${EXPDIR}/FLAC_HAA_finetune_YAW.json"
 NPINS=0
 for P in "$PIN_eval" "$PIN_k8" "$PIN_k1" "$PIN_testsplit" "$PIN_p1cfg" "$PIN_bfcfg" "$PIN_yawcfg"; do

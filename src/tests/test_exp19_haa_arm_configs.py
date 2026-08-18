@@ -8,7 +8,8 @@ treatment:
 
   * **HAA-P1**  — vanilla. Consumes ``src/configs/model_configs/FLAC/HAA/
     FLAC_HAA_finetune.json`` **directly**; no copy exists, so it cannot drift.
-  * **HAA-BF**  — frame-averaged. Stock + exactly B-F's two AR training deltas.
+  * **HAA-BF**  — frame-averaged. Stock + exactly FOUR deltas: B-F's two AR
+    training keys, plus ViT gradient checkpointing restored on both conditioners.
   * **HAA-YAW** — yaw-augmented. Stock + exactly exp_17's ``training.yaw_aug``.
 
 Everything here is byte-level and forward-constructed: the expected arm file is
@@ -25,6 +26,24 @@ trained, and a checkpoint trained on a different orbit (say C8, or angles not
 starting at the identity) is not comparable to the B-F row it is meant to inherit
 from. The angle list is therefore compared against the *live* exp_07 B-F config,
 not against a remembered literal.
+
+**Deltas 3 and 4 — ViT gradient checkpointing ON (Yixun-approved 2026-08-18).**
+The first BF launch OOM'd on an *empty* A6000: 47.37 GiB requested against 47.40
+GiB free, i.e. the 4-angle frame-averaged training peak does not fit the card
+without recomputation. This is not a new knob but a RESTORATION — ``FLAC_AR_BF``,
+the arm this one inherits from, trains with ``gradient_checkpointing: true`` on
+both ViT conditioners, so the exp_19 BF arm now carries its parent's own memory
+recipe (placement and key order mirror that file: last key of each conditioner
+``config``, after ``max_value``). Gradient checkpointing is *intended* to
+preserve the mathematical computation; per the exp_17 discourse the evidence for
+that is **allclose-grade, not bitwise** — ``test_vit_gradient_checkpointing.py``
+pins ON-vs-OFF parameter gradients at ``allclose(atol=1e-6, rtol=1e-5)`` on an
+fp32 CPU probe, and bf16-mixed CUDA trajectory equivalence is not established.
+Here that caveat is *weaker* than it was in exp_17, because this change makes BF
+match its AR parent rather than diverge from a control: the P1/YAW arms are
+vanilla-conditioned and never had checkpointing to begin with, so the comparison
+BF-vs-P1 was always a comparison across conditioning topologies, not across
+checkpointing.
 
 Written by the exp_19 coder seat (Claude Opus 5, max effort).
 """
@@ -71,6 +90,17 @@ BF_INSERTED_BYTES = (
     b'            180.0,\n'
     b'            270.0\n'
     b'        ]'
+)
+
+# BF deltas 3 and 4: gradient checkpointing restored on BOTH ViT conditioners,
+# placed exactly where FLAC_AR_BF.json places it — the last key of each
+# conditioner's ``config``, immediately after ``max_value`` (mirrored placement is
+# asserted below against the live exp_07 file, not against this literal alone).
+BF_GRADCKPT_ANCHOR = b'"max_value": 1\n                    }'
+BF_GRADCKPT_INSERTED = (
+    b'"max_value": 1,\n'
+    b'                        "gradient_checkpointing": true\n'
+    b'                    }'
 )
 
 # exp_17's treatment block, byte for byte — IMPORTED from exp_17's own contract
@@ -193,14 +223,46 @@ def test_the_insertion_point_is_unambiguous(stock_bytes):
 # --------------------------------------------------------------------------- #
 # 2. forward byte construction
 # --------------------------------------------------------------------------- #
-def test_bf_arm_is_the_stock_plus_exactly_the_two_fa_deltas(bf_bytes, stock_bytes):
+def test_bf_arm_is_the_stock_plus_exactly_its_four_registered_deltas(bf_bytes, stock_bytes):
+    """Forward construction: stock bytes + the training block + both grad-ckpt keys.
+
+    Anything else — a stray key, a reordered block, a newline-encoding change, a
+    third conditioner acquiring checkpointing — makes this fail, which is the
+    point.
+    """
+    assert stock_bytes.count(BF_GRADCKPT_ANCHOR) == 2, (
+        "the stock config no longer has exactly two ViT conditioners ending in "
+        "'max_value': the grad-ckpt insertion point is no longer unambiguous"
+    )
     prefix = stock_bytes[: -len(TRAILER_BYTES)]
-    expected = prefix + BF_INSERTED_BYTES + TRAILER_BYTES
+    expected = prefix + BF_INSERTED_BYTES + TRAILER_BYTES           # deltas 1-2
+    expected = expected.replace(BF_GRADCKPT_ANCHOR, BF_GRADCKPT_INSERTED)  # 3-4
     assert bf_bytes == expected, (
         "FLAC_HAA_finetune_BF.json is not the stock HAA config plus exactly "
-        "cond_method + frame_avg_angles — the arm is no longer the registered "
-        "treatment"
+        "cond_method + frame_avg_angles + gradient_checkpointing on both ViTs — "
+        "the arm is no longer the registered treatment"
     )
+
+
+def test_the_grad_ckpt_placement_mirrors_exp07s_own_BF_config():
+    """Deltas 3-4 restore the parent arm's recipe, so they sit where it puts them.
+
+    Asserted against the LIVE ``FLAC_AR_BF.json`` rather than a remembered
+    literal: if exp_07's placement or key order moved, "we restored B-F's memory
+    recipe" would no longer be true and this must say so.
+    """
+    ar = json.loads(_bytes(AR_BF).decode())
+    ar_vits = [c for c in ar["model"]["conditioning"]["configs"]
+               if c["type"] == "ViTCoordinates"]
+    assert len(ar_vits) == 2
+    for c in ar_vits:
+        assert c["config"].get("gradient_checkpointing") is True, (
+            "exp_07's B-F no longer trains with ViT gradient checkpointing; the "
+            "exp_19 BF arm's deltas 3-4 no longer restore its parent's recipe"
+        )
+        assert list(c["config"]) == ["ViT", "max_value", "gradient_checkpointing"], (
+            f"exp_07 B-F's conditioner key order moved: {list(c['config'])}"
+        )
 
 
 def test_yaw_arm_is_the_stock_plus_exactly_the_yaw_aug_block(yaw_bytes, stock_bytes):
@@ -230,11 +292,51 @@ def test_byte_comparison_would_catch_newline_drift(stock_bytes):
 # --------------------------------------------------------------------------- #
 # 3. type-strict semantic equality
 # --------------------------------------------------------------------------- #
-def test_removing_the_fa_deltas_leaves_a_type_strict_copy_of_the_stock(bf, stock):
+def test_removing_all_four_deltas_leaves_a_type_strict_copy_of_the_stock(bf, stock):
+    """Semantic mirror of the byte test: types must match, not just values.
+
+    Only these four keys may be reverted here — anything else that drifted has
+    nowhere to hide.
+    """
     stripped = json.loads(json.dumps(bf))
     stripped["training"].pop("cond_method")
     stripped["training"].pop("frame_avg_angles")
+    reverted = 0
+    for c in stripped["model"]["conditioning"]["configs"]:
+        if c["type"] == "ViTCoordinates":
+            assert c["config"].pop("gradient_checkpointing") is True, c["id"]
+            reverted += 1
+    assert reverted == 2, f"expected 2 ViT conditioners, reverted {reverted}"
     assert strict_diff(stripped, stock) is None
+
+
+def test_the_grad_ckpt_flags_are_literal_booleans_on_both_conditioners(bf):
+    """``1`` would satisfy ``== True`` in Python and reach the ViT as an int.
+
+    Named separately from the byte test because the byte test would also fail for
+    a whitespace change, and this failure means something different.
+    """
+    vits = [c for c in bf["model"]["conditioning"]["configs"]
+            if c["type"] == "ViTCoordinates"]
+    assert len(vits) == 2
+    for c in vits:
+        flag = c["config"]["gradient_checkpointing"]
+        assert flag is True, f"{c['id']}: {flag!r}"
+        assert isinstance(flag, bool)
+
+
+def test_only_the_BF_arm_carries_gradient_checkpointing(stock, yaw):
+    """The OOM was BF's alone: the vanilla arms never built the 4-angle peak.
+
+    Adding it to P1 or YAW would change their memory recipe for no reason and,
+    worse, would make each of them differ from the config they were TRAINED with.
+    """
+    for name, cfg in (("stock/P1", stock), ("YAW", yaw)):
+        for c in cfg["model"]["conditioning"]["configs"]:
+            if c["type"] == "ViTCoordinates":
+                assert "gradient_checkpointing" not in c["config"], (
+                    f"{name} acquired gradient_checkpointing; only BF OOM'd"
+                )
 
 
 def test_removing_yaw_aug_leaves_a_type_strict_copy_of_the_stock(yaw, stock):

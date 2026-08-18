@@ -286,7 +286,7 @@ PIN_factory="6967ec9fd800bb991d6f2ee2aee890bb73c093bfc5f676617f590f1dbd9d330f  s
 PIN_probe="24110322095e125f844b6793cad5eda4b2cf42128e380d551ff22653cb921de0  ${PROBE_SCRIPT}"
 case "$ARM" in
   P1)  PIN_armcfg="" ;;   # P1's config IS the stock file, already pinned above
-  BF)  PIN_armcfg="eb64e6c24e9aba58d984bf9088b4248e2abffea48f180b90602c342a60dd66cd  ${ARM_CFG}" ;;
+  BF)  PIN_armcfg="834e4933f2f5c8050f196043e11260e00023a7c31205a55961e0a77ca910c1dc  ${ARM_CFG}" ;;
   YAW) PIN_armcfg="a03d106cd72744df40187b5c493010ecc996275b2afa32a4811d7c962c77cb53  ${ARM_CFG}" ;;
 esac
 [ -z "$ARM_CFG_SHA" ] || PIN_armcfg="${ARM_CFG_SHA}  ${ARM_CFG}"
