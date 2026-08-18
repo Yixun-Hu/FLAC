@@ -7,8 +7,22 @@
       "chain_leg_steps": 2500,
       "commit": "b9e5258a5a40695c694aae4878eb4df4d7df0550",
       "config_sha256": "b14caae27afec2c53c38bea6e2574a48aa94bc86848ab17afae94cadf694b004",
-      "final_ckpt_sha256": null,
-      "final_step": null,
+      "final_ckpt_audit": {
+        "ema_inventory_sha256": "68dc5ef53d4144cea4fd8210cae6c6769fd7370fd62499dc9f6fb449bb991fc2",
+        "ema_key_count": 210,
+        "ema_prefix": "diffusion_ema.ema_model.",
+        "embedded_config_canonical_sha256": "0761a677e0f31b8ee32a27b3f8c8280689fb450e962509381388217b7b0e8667",
+        "loaded_with": {
+          "map_location": "cpu",
+          "mmap": true,
+          "weights_only": true
+        },
+        "online_model_key_count": 210
+      },
+      "final_ckpt_bytes": 723927595,
+      "final_ckpt_path": "outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=8-step=40000.ckpt",
+      "final_ckpt_sha256": "16b964ecdfb9e2874783808b66fcf798ef284bac2756176f8a47dc23b125f98a",
+      "final_step": 40000,
       "job": "3695627",
       "launch_uuid": "8ce983e3-a186-433d-88ec-4189321fc137",
       "manifest_path": "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-15_05-19-19_YAWAUG_8x8_jid3695627_manifest.txt",
@@ -322,6 +336,48 @@
         "parent_ckpt_sha256": "dfd640037aed731f791f0c2c57368f18568780bcf17c2d74e3ae3c52a0abb1cb",
         "parent_step": 32500,
         "step": 35000
+      },
+      {
+        "audit": {
+          "ema_inventory_sha256": "68dc5ef53d4144cea4fd8210cae6c6769fd7370fd62499dc9f6fb449bb991fc2",
+          "ema_key_count": 210,
+          "ema_prefix": "diffusion_ema.ema_model.",
+          "embedded_config_canonical_sha256": "0761a677e0f31b8ee32a27b3f8c8280689fb450e962509381388217b7b0e8667",
+          "loaded_with": {
+            "map_location": "cpu",
+            "mmap": true,
+            "weights_only": true
+          },
+          "online_model_key_count": 210
+        },
+        "chain": true,
+        "ckpt_bytes": 723927595,
+        "ckpt_path": "outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=8-step=37500.ckpt",
+        "ckpt_sha256": "2ebbffc4666a20a0d6acbfad5c66affb394925cd5ac3dae0d2e66ce6d71f1c15",
+        "parent_ckpt_sha256": "46fa71875f087aebeae4c14bf85c09da89ab59a293a7185574f7d4dcd6836208",
+        "parent_step": 35000,
+        "step": 37500
+      },
+      {
+        "audit": {
+          "ema_inventory_sha256": "68dc5ef53d4144cea4fd8210cae6c6769fd7370fd62499dc9f6fb449bb991fc2",
+          "ema_key_count": 210,
+          "ema_prefix": "diffusion_ema.ema_model.",
+          "embedded_config_canonical_sha256": "0761a677e0f31b8ee32a27b3f8c8280689fb450e962509381388217b7b0e8667",
+          "loaded_with": {
+            "map_location": "cpu",
+            "mmap": true,
+            "weights_only": true
+          },
+          "online_model_key_count": 210
+        },
+        "chain": true,
+        "ckpt_bytes": 723927595,
+        "ckpt_path": "outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=8-step=40000.ckpt",
+        "ckpt_sha256": "16b964ecdfb9e2874783808b66fcf798ef284bac2756176f8a47dc23b125f98a",
+        "parent_ckpt_sha256": "2ebbffc4666a20a0d6acbfad5c66affb394925cd5ac3dae0d2e66ce6d71f1c15",
+        "parent_step": 37500,
+        "step": 40000
       }
     ]
   },
@@ -469,6 +525,28 @@
         "resume_ckpt_path": "outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=7-step=32500.ckpt",
         "resume_ckpt_sha256": "dfd640037aed731f791f0c2c57368f18568780bcf17c2d74e3ae3c52a0abb1cb",
         "resume_step": 32500
+      },
+      {
+        "commit": "88897e02e75710feef37044b6c0937135fa49a22",
+        "job": "3715551",
+        "launch_uuid": "12f7c5db-1fb0-44b4-8fdb-4847857cb16d",
+        "manifest_path": "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-18_04-12-54_YAWAUG_8x8_jid3715551_manifest.txt",
+        "manifest_sha256": "060d703d13b0949a23e994c1afc069a048b00a196681102e6d3be2f48a68ee0c",
+        "max_steps": 37500,
+        "resume_ckpt_path": "outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=7-step=35000.ckpt",
+        "resume_ckpt_sha256": "46fa71875f087aebeae4c14bf85c09da89ab59a293a7185574f7d4dcd6836208",
+        "resume_step": 35000
+      },
+      {
+        "commit": "88897e02e75710feef37044b6c0937135fa49a22",
+        "job": "3716203",
+        "launch_uuid": "1cf98f2e-17b3-4dc3-8ba2-05e88c0ff5a3",
+        "manifest_path": "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-18_06-55-31_YAWAUG_8x8_jid3716203_manifest.txt",
+        "manifest_sha256": "ed20dad5b761254c2a852368f79d375127eb3825a5000b873eef6b096ca81cd5",
+        "max_steps": 40000,
+        "resume_ckpt_path": "outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=8-step=37500.ckpt",
+        "resume_ckpt_sha256": "2ebbffc4666a20a0d6acbfad5c66affb394925cd5ac3dae0d2e66ce6d71f1c15",
+        "resume_step": 37500
       }
     ]
   }
