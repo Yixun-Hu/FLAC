@@ -1,0 +1,84 @@
+=== exp_19 HAA finetune | ARM=BF MODE=FULL GPU=1 | 2026-08-18_09-22-41 | HEAD d51bdb87ea2cab8787845f097578620593ead151 | dry_run=0 logger=wandb ===
+identity: name=FLAC_exp19_HAA_BF | experiment=exp19_HAA_BF | save-dir=outputs_FLAC/exp19_HAA_BF
+budget:   endpoint=1000 | cadence=10 | val-every=10 | batch=16x accum 4 = eff 64
+config:   worklog/worklog_yixun/exp_19_haa_finetune_claude/FLAC_HAA_finetune_BF.json
+init:     outputs_FLAC/exp19_inits/HAA_init_BF.ckpt
+locks:    worklog/worklog_yixun/exp_19_haa_finetune_claude/.haa_ft_BF.lock + worklog/worklog_yixun/exp_19_haa_finetune_claude/.haa_gpu1.lock held for the whole run; gate lock owned=1
+revision: EXPECT_SHA=d51bdb87ea2cab8787845f097578620593ead151 matches HEAD
+source pins OK (14 files match the reviewed revision, incl. both HAA split inventories)
+tree clean across the training closure (train.py defaults.ini baselines src/models src/data src/training src/configs src/inference src/metrics src/interface src/__init__.py data/HAA/train_base.json data/HAA/val_base.json) | branch: exp17-yawaug-scratch
+init gate OK: outputs_FLAC/exp19_inits/HAA_init_BF.ckpt matches its manifest line (19ea4302f515b7a3493b3339eb642aa6fe11be716a6a9245884c1288f732180b)
+config contract OK: worklog/worklog_yixun/exp_19_haa_finetune_claude/FLAC_HAA_finetune_BF.json == src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json + cond_method=fa_invariant + frame_avg_angles=[0.0, 90.0, 180.0, 270.0]
+preflight treatment plan: arm=BF deltas_registered=1-per-arm use_ema=True
+  train_base.json: root 'HAA' (symlink) -> /media/diskstation/yixunhu/FLAC/HAA; 4 scenes, 48 files
+    first: HAA/classroomBase/mono_rirs_22050Hz/0.wav (617338 bytes) OK
+    last: HAA/hallwayBase/mono_rirs_22050Hz/535.wav (617338 bytes) OK
+  val_base.json: root 'HAA' (symlink) -> /media/diskstation/yixunhu/FLAC/HAA; 4 scenes, 560 files
+    first: HAA/classroomBase/mono_rirs_22050Hz/1.wav (617338 bytes) OK
+    last: HAA/hallwayBase/mono_rirs_22050Hz/573.wav (617338 bytes) OK
+  dataset inventory OK (both splits' first and last files present and non-empty)
+R1 probe: required for the BF arm (it drives src/data/yaw_rotation.py)
+R1 probe DISCLOSURE: loads outputs_FLAC/exp19_inits/HAA_init_BF.ckpt through train.py's consumer path and measures the arm's own conditioner weights; subject and oracle share rotate_scene_metadata, so a shared gauge error is not detectable here (plan §3 R1)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+exp_19 R1 gate — fa_invariant conditioning on HAA metadata
+  model  : worklog/worklog_yixun/exp_19_haa_finetune_claude/FLAC_HAA_finetune_BF.json
+  data   : src/configs/dataset_configs/HAA/eval/haa_val.json
+  orbit  : (0.0, 90.0, 180.0, 270.0)   threshold 1e-05   device cuda
+  dtype  : float32 (no autocast — bf16 cannot resolve a 1e-5 gate); this is the precision the arms train and evaluate in
+  scope  : certifies pipeline/shape/mask consistency on real HAA data; subject and oracle share rotate_scene_metadata, so a shared gauge error is invisible here (see the module docstring + plan §3 R1)
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+  init   : outputs_FLAC/exp19_inits/HAA_init_BF.ckpt loaded strictly (1066 tensors)
+Running json scandir...
+Found 560 files in 4 subfolders
+  R1 GATE FAIL — do NOT launch HAA-BF; report to Yixun (plan §3 R1: the sign convention must not be silently changed)
+    classroomBase  out[context_audio][0]: 0.000e+00
+    classroomBase  out[context_audio][1]: 0.000e+00
+    classroomBase  out[context_poses][0]: 1.842e-05
+    classroomBase  out[context_poses][1]: 0.000e+00
+    classroomBase  out[context_poses_vit][0]: 3.427e-06
+    classroomBase  out[context_poses_vit][1]: 0.000e+00
+    classroomBase  out[source][0]: 0.000e+00
+    classroomBase  out[source][1]: 0.000e+00
+    classroomBase  out[source_vit][0]: 3.874e-07
+    classroomBase  out[source_vit][1]: 0.000e+00
+    classroomBase  out[context_audio][0]: 0.000e+00
+    classroomBase  out[context_audio][1]: 0.000e+00
+    classroomBase  out[context_poses][0]: 2.384e-05
+    classroomBase  out[context_poses][1]: 0.000e+00
+    classroomBase  out[context_poses_vit][0]: 3.427e-06
+    classroomBase  out[context_poses_vit][1]: 0.000e+00
+    classroomBase  out[source][0]: 0.000e+00
+    classroomBase  out[source][1]: 0.000e+00
+    classroomBase  out[source_vit][0]: 4.172e-07
+    classroomBase  out[source_vit][1]: 0.000e+00
+    classroomBase  out[context_audio][0]: 0.000e+00
+    classroomBase  out[context_audio][1]: 0.000e+00
+    classroomBase  out[context_poses][0]: 1.834e-05
+    classroomBase  out[context_poses][1]: 0.000e+00
+    classroomBase  out[context_poses_vit][0]: 3.427e-06
+    classroomBase  out[context_poses_vit][1]: 0.000e+00
+    classroomBase  out[source][0]: 0.000e+00
+    classroomBase  out[source][1]: 0.000e+00
+    classroomBase  out[source_vit][0]: 5.662e-07
+    classroomBase  out[source_vit][1]: 0.000e+00
+    classroomBase  out[context_audio][0]: 0.000e+00
+    classroomBase  out[context_audio][1]: 0.000e+00
+    classroomBase  out[context_poses][0]: 3.242e-05
+    classroomBase  out[context_poses][1]: 0.000e+00
+    classroomBase  out[context_poses_vit][0]: 1.758e-06
+    classroomBase  out[context_poses_vit][1]: 0.000e+00
+    classroomBase  out[source][0]: 0.000e+00
+    classroomBase  out[source][1]: 0.000e+00
+    classroomBase  out[source_vit][0]: 7.413e-07
+    classroomBase  out[source_vit][1]: 0.000e+00
+  record : worklog/worklog_yixun/exp_19_haa_finetune_claude/probe_haa_fa_invariance_BF_2026-08-18_09-22-41.json
+  worst orbit gap: 3.242e-05  (threshold 1e-05)
+R1 GATE REFUSED (probe rc=1): fa/rotate conditioning is not proven C4-invariant on HAA - do NOT launch BF; report to Yixun (plan §3 R1)

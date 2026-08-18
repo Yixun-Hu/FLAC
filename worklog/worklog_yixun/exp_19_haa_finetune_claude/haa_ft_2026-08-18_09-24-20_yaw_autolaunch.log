@@ -1,0 +1,3 @@
+P1 done cleanly; launching YAW on GPU0
+EXPECT_SHA=a02c091387d68f2278f90fca40151267412f2054 != HEAD e2c825a6346018e7ec80fb879e28071fc89e9be3 - this checkout is not the revision you reviewed - abort
+YAW launcher exited rc=2

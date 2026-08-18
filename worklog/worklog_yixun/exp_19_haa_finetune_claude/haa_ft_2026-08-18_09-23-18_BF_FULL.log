@@ -1,0 +1,235 @@
+=== exp_19 HAA finetune | ARM=BF MODE=FULL GPU=1 | 2026-08-18_09-23-18 | HEAD a02c091387d68f2278f90fca40151267412f2054 | dry_run=0 logger=wandb ===
+identity: name=FLAC_exp19_HAA_BF | experiment=exp19_HAA_BF | save-dir=outputs_FLAC/exp19_HAA_BF
+budget:   endpoint=1000 | cadence=10 | val-every=10 | batch=16x accum 4 = eff 64
+config:   worklog/worklog_yixun/exp_19_haa_finetune_claude/FLAC_HAA_finetune_BF.json
+init:     outputs_FLAC/exp19_inits/HAA_init_BF.ckpt
+locks:    worklog/worklog_yixun/exp_19_haa_finetune_claude/.haa_ft_BF.lock + worklog/worklog_yixun/exp_19_haa_finetune_claude/.haa_gpu1.lock held for the whole run; gate lock owned=1
+revision: EXPECT_SHA=a02c091387d68f2278f90fca40151267412f2054 matches HEAD
+source pins OK (14 files match the reviewed revision, incl. both HAA split inventories)
+tree clean across the training closure (train.py defaults.ini baselines src/models src/data src/training src/configs src/inference src/metrics src/interface src/__init__.py data/HAA/train_base.json data/HAA/val_base.json) | branch: exp17-yawaug-scratch
+init gate OK: outputs_FLAC/exp19_inits/HAA_init_BF.ckpt matches its manifest line (19ea4302f515b7a3493b3339eb642aa6fe11be716a6a9245884c1288f732180b)
+config contract OK: worklog/worklog_yixun/exp_19_haa_finetune_claude/FLAC_HAA_finetune_BF.json == src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json + cond_method=fa_invariant + frame_avg_angles=[0.0, 90.0, 180.0, 270.0]
+preflight treatment plan: arm=BF deltas_registered=1-per-arm use_ema=True
+  train_base.json: root 'HAA' (symlink) -> /media/diskstation/yixunhu/FLAC/HAA; 4 scenes, 48 files
+    first: HAA/classroomBase/mono_rirs_22050Hz/0.wav (617338 bytes) OK
+    last: HAA/hallwayBase/mono_rirs_22050Hz/535.wav (617338 bytes) OK
+  val_base.json: root 'HAA' (symlink) -> /media/diskstation/yixunhu/FLAC/HAA; 4 scenes, 560 files
+    first: HAA/classroomBase/mono_rirs_22050Hz/1.wav (617338 bytes) OK
+    last: HAA/hallwayBase/mono_rirs_22050Hz/573.wav (617338 bytes) OK
+  dataset inventory OK (both splits' first and last files present and non-empty)
+R1 probe: required for the BF arm (it drives src/data/yaw_rotation.py)
+R1 probe DISCLOSURE: loads outputs_FLAC/exp19_inits/HAA_init_BF.ckpt through train.py's consumer path and measures the arm's own conditioner weights; subject and oracle share rotate_scene_metadata, so a shared gauge error is not detectable here (plan §3 R1)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+exp_19 R1 gate — fa_invariant conditioning on HAA metadata
+  model  : worklog/worklog_yixun/exp_19_haa_finetune_claude/FLAC_HAA_finetune_BF.json
+  data   : src/configs/dataset_configs/HAA/eval/haa_val.json
+  orbit  : (0.0, 90.0, 180.0, 270.0)   threshold 1e-07   device cuda
+  dtype  : float64 — R1 ADJUDICATION RUN: model and metadata widened, so an fp32-rounding residual collapses while a real asymmetry survives. Not the production gate.
+  scope  : certifies pipeline/shape/mask consistency on real HAA data; subject and oracle share rotate_scene_metadata, so a shared gauge error is invisible here (see the module docstring + plan §3 R1)
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+  init   : outputs_FLAC/exp19_inits/HAA_init_BF.ckpt loaded strictly (1066 tensors)
+  cast   : model widened to torch.float64 for the measurement
+Running json scandir...
+Found 560 files in 4 subfolders
+    classroomBase  out[context_audio][0]: 0.000e+00
+    classroomBase  out[context_audio][1]: 0.000e+00
+    classroomBase  out[context_poses][0]: 4.508e-14
+    classroomBase  out[context_poses][1]: 0.000e+00
+    classroomBase  out[context_poses_vit][0]: 1.332e-15
+    classroomBase  out[context_poses_vit][1]: 0.000e+00
+    classroomBase  out[source][0]: 0.000e+00
+    classroomBase  out[source][1]: 0.000e+00
+    classroomBase  out[source_vit][0]: 9.992e-16
+    classroomBase  out[source_vit][1]: 0.000e+00
+    classroomBase  out[context_audio][0]: 0.000e+00
+    classroomBase  out[context_audio][1]: 0.000e+00
+    classroomBase  out[context_poses][0]: 5.773e-14
+    classroomBase  out[context_poses][1]: 0.000e+00
+    classroomBase  out[context_poses_vit][0]: 1.110e-15
+    classroomBase  out[context_poses_vit][1]: 0.000e+00
+    classroomBase  out[source][0]: 4.002e-14
+    classroomBase  out[source][1]: 0.000e+00
+    classroomBase  out[source_vit][0]: 1.110e-15
+    classroomBase  out[source_vit][1]: 0.000e+00
+    classroomBase  out[context_audio][0]: 0.000e+00
+    classroomBase  out[context_audio][1]: 0.000e+00
+    classroomBase  out[context_poses][0]: 5.007e-14
+    classroomBase  out[context_poses][1]: 0.000e+00
+    classroomBase  out[context_poses_vit][0]: 1.332e-15
+    classroomBase  out[context_poses_vit][1]: 0.000e+00
+    classroomBase  out[source][0]: 4.641e-14
+    classroomBase  out[source][1]: 0.000e+00
+    classroomBase  out[source_vit][0]: 8.327e-16
+    classroomBase  out[source_vit][1]: 0.000e+00
+    classroomBase  out[context_audio][0]: 0.000e+00
+    classroomBase  out[context_audio][1]: 0.000e+00
+    classroomBase  out[context_poses][0]: 5.315e-14
+    classroomBase  out[context_poses][1]: 0.000e+00
+    classroomBase  out[context_poses_vit][0]: 1.332e-15
+    classroomBase  out[context_poses_vit][1]: 0.000e+00
+    classroomBase  out[source][0]: 5.596e-14
+    classroomBase  out[source][1]: 0.000e+00
+    classroomBase  out[source_vit][0]: 8.604e-16
+    classroomBase  out[source_vit][1]: 0.000e+00
+  record : worklog/worklog_yixun/exp_19_haa_finetune_claude/probe_haa_fa_invariance_BF_2026-08-18_09-23-18.json
+  worst orbit gap: 5.773e-14  (threshold 1e-07)
+  R1 GATE PASS — fa_invariant conditioning is C4-invariant on HAA metadata
+R1 gate OK: threshold 1e-7
+namespace OK: outputs_FLAC/exp19_HAA_BF holds no checkpoints
+wandb: [wandb.Api()] Loaded credentials for https://api.wandb.ai from WANDB_API_KEY.
+wandb identity: yh4742@princeton.edu
+GPU 1 free 42301 MiB >= 20000 MiB floor
+disk: 246595 MiB free >= 72000 MiB floor (this arm projects 100 x ~690 MiB)
+--- co-tenancy disclosure: compute apps at launch ---
+GPU-9c72ac69-836a-c2ee-89b7-4b51b68317a8, 1903000, python, 6226 MiB
+GPU-684b9600-ff40-5a6c-8ac6-66b9657330b3, 1903477, /home/yixunhu/miniconda3/envs/flac/bin/python, 6204 MiB
+0, 6245 MiB, 42297 MiB
+1, 6239 MiB, 42301 MiB
+--- env manifest ---
+torch 2.7.0+cu126 cuda 12.6
+pip-freeze sha256: 143d7b7dea7bffb3aee04a549b46d02065256b5375f933a906162760f77e092c
+ARGV: python train.py --dataset-config src/configs/dataset_configs/HAA/train/haa_train.json --val-dataset-config src/configs/dataset_configs/HAA/eval/haa_val.json --model-config worklog/worklog_yixun/exp_19_haa_finetune_claude/FLAC_HAA_finetune_BF.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --pretrained-ckpt-path outputs_FLAC/exp19_inits/HAA_init_BF.ckpt --max-steps 1000 --batch-size 16 --accum-batches 4 --num-workers 8 --seed 42 --num-gpus 1 --precision bf16-mixed --val-every 10 --checkpoint-every 10 --logger wandb --name FLAC_exp19_HAA_BF --experiment-name exp19_HAA_BF --save-dir outputs_FLAC/exp19_HAA_BF
+init re-validated at the point of consumption: outputs_FLAC/exp19_inits/HAA_init_BF.ckpt
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+wandb: WARNING The anonymous setting has no effect and will be removed in a future version.
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from WANDB_API_KEY.
+wandb: Currently logged in as: yh4742 (yh4742-princeton-university) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run 8luoe58h
+wandb: Tracking run with wandb version 0.26.1
+wandb: Run data is saved locally in wandb/run-20260818_092512-8luoe58h
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run exp19_HAA_BF
+wandb: ⭐️ View project at https://wandb.ai/yh4742-princeton-university/FLAC_exp19_HAA_BF
+wandb: 🚀 View run at https://wandb.ai/yh4742-princeton-university/FLAC_exp19_HAA_BF/runs/8luoe58h
+wandb: logging graph, to disable use `wandb.watch(log_graph=False)`
+Using bfloat16 Automatic Mixed Precision (AMP)
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [1]
+
+  | Name          | Type                             | Params
+-------------------------------------------------------------------
+0 | diffusion     | ConditionedDiffusionModelWrapper | 64.5 M
+1 | diffusion_ema | EMA                              | 16.7 M
+2 | losses        | MultiLoss                        | 0     
+-------------------------------------------------------------------
+50.3 M    Trainable params
+30.9 M    Non-trainable params
+81.2 M    Total params
+324.893   Total estimated model params size (MB)
+Running json scandir...
+Found 48 files in 4 subfolders
+Running json scandir...
+Found 560 files in 4 subfolders
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Loading pretrained model...
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py:293: The number of training batches (3) is smaller than the logging interval Trainer(log_every_n_steps=100). Set a lower value for log_every_n_steps if you want to see logs for the training epoch.
+Training: |          | 0/? [00:00<?, ?it/s]Training:   0%|          | 0/3 [00:00<?, ?it/s]Epoch 0:   0%|          | 0/3 [00:00<?, ?it/s] OutOfMemoryError: CUDA out of memory. Tried to allocate 36.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 3.44 MiB is free. Process 1903477 has 6.06 GiB memory in use. Including non-PyTorch memory, this process has 41.30 GiB memory in use. Of the allocated memory 33.97 GiB is allocated by PyTorch, and 7.00 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+Traceback (most recent call last):
+  File "/home/yixunhu/codespace/FLAC/train.py", line 233, in <module>
+    main()
+  File "/home/yixunhu/codespace/FLAC/train.py", line 230, in main
+    trainer.fit(training_wrapper, train_dl, val_dl, ckpt_path=args.ckpt_path if args.ckpt_path else None)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 545, in fit
+    call._call_and_handle_interrupt(
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 44, in _call_and_handle_interrupt
+    return trainer_fn(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 581, in _fit_impl
+    self._run(model, ckpt_path=ckpt_path)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 990, in _run
+    results = self._run_stage()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 1036, in _run_stage
+    self.fit_loop.run()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 202, in run
+    self.advance()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 359, in advance
+    self.epoch_loop.run(self._data_fetcher)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 136, in run
+    self.advance(data_fetcher)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 240, in advance
+    batch_output = self.automatic_optimization.run(trainer.optimizers[0], batch_idx, kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 180, in run
+    closure()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 140, in __call__
+    self._result = self.closure(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 126, in closure
+    step_output = self._step_fn()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 315, in _training_step
+    training_step_output = call._call_strategy_hook(trainer, "training_step", *kwargs.values())
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 309, in _call_strategy_hook
+    output = fn(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 382, in training_step
+    return self.lightning_module.training_step(*args, **kwargs)
+  File "/home/yixunhu/codespace/FLAC/src/training/diffusion.py", line 609, in training_step
+    conditioning = self._compute_conditioning(metadata)
+  File "/home/yixunhu/codespace/FLAC/src/training/diffusion.py", line 534, in _compute_conditioning
+    return invariant_conditioning(
+  File "/home/yixunhu/codespace/FLAC/src/data/yaw_rotation.py", line 485, in invariant_conditioning
+    accum = _orbit_average_batched(conditioner, md_inv, base, present, angles, img_w, device,
+  File "/home/yixunhu/codespace/FLAC/src/data/yaw_rotation.py", line 568, in _orbit_average_batched
+    part = conditioner(stacked, device, only_ids=present)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/yixunhu/codespace/FLAC/src/models/conditioners.py", line 414, in forward
+    output[key] = conditioner(conditioner_inputs, device=device)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/yixunhu/codespace/FLAC/src/models/conditioners.py", line 286, in forward
+    outputs = self.vit(c)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/transformers/utils/generic.py", line 1064, in wrapper
+    outputs = func(self, *args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 523, in forward
+    hidden_states = layer_module(
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/transformers/modeling_layers.py", line 94, in __call__
+    return super().__call__(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 420, in forward
+    hidden_states, _ = self.attention(
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 296, in forward
+    query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 244, in apply_rotary_pos_emb
+    q_patches = (q_patches * cos) + (rotate_half(q_patches) * sin)
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 36.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 3.44 MiB is free. Process 1903477 has 6.06 GiB memory in use. Including non-PyTorch memory, this process has 41.30 GiB memory in use. Of the allocated memory 33.97 GiB is allocated by PyTorch, and 7.00 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[1;34mwandb[0m: 
+[1;34mwandb[0m: 🚀 View run [33mexp19_HAA_BF[0m at: [34mhttps://wandb.ai/yh4742-princeton-university/FLAC_exp19_HAA_BF/runs/8luoe58h[0m
+=== exp_19 HAA BF FULL exit rc=1 after 21s at 2026-08-18 09:25:25 ===
+ENDPOINT NOT REACHED: no line ENDS WITH Lightning's '`Trainer.fit` stopped: `max_steps=1000` reached.' in worklog/worklog_yixun/exp_19_haa_finetune_claude/haa_ft_2026-08-18_09-23-18_BF_FULL_train.log - this run did NOT complete its registered budget (interrupted runs can still exit 0) - treat as invalid
+fit health: no non-finite train/loss observed
+REQUIRED CHECKPOINT(S) MISSING at step(s) 410 1000 under outputs_FLAC/exp19_HAA_BF - both registered readings (step 410 and step 1000, plan B1) must exist - treat as invalid
+checkpoints under outputs_FLAC/exp19_HAA_BF: 0 (cadence 10 alone would give 100)
+=== exp_19 HAA BF FULL final rc=1 ===
