@@ -1,141 +1,100 @@
 # plan_loc_invert — exp_18: Inverting Vanilla FLAC for Source Localization (preflight)
 
-**Author:** Claude Fable 5 (Planner seat). **Rev 2, 2026-08-18** — folds all 11 findings of the Codex plan review (`loc_invert_codex_plan_review.md`, REQUEST-CHANGES on Rev 1 `4f3658e`; disposition in `loc_invert_worklog.md`). Status: awaiting the supplementary Opus fallback review delta, then **Yixun approval before any implementation**.
+**Author:** Claude Fable 5 (Planner seat). **Rev 3, 2026-08-18** — Rev 2 folded all 11 Codex review-of-record findings (`loc_invert_codex_plan_review.md`, C1–C11); Rev 3 folds the 23 supplementary Opus findings (`loc_invert_opus_plan_review.md`, O1–O23; disposition in `loc_invert_worklog.md`; O1/O2/O4/O14 independently re-verified by the Planner in code/data). Status: **awaiting Yixun approval before any implementation**.
 
 ## 1. Objective & research question
 
-Test whether a frozen, pretrained Vanilla FLAC contains enough source-position information to localize the source of a held-out RIR in an **unseen room**, purely by analysis-by-synthesis inversion (no localization training). exp_18 also delivers the protocol + code that the later cross-arm experiment (FA B-F, yaw-aug, cyl-DINOv3 FLAC) will reuse unchanged.
+Test whether a frozen, pretrained Vanilla FLAC contains enough source-position information to localize the source of a held-out RIR in an **unseen room**, purely by analysis-by-synthesis inversion. exp_18 also delivers the protocol + code the later cross-arm experiment (FA B-F, yaw-aug, cyl-DINOv3) reuses unchanged.
 
-**Registered success criterion (Codex C1):** the model must beat the **information-matched (context-conditioned) random baseline** (§2.6), not merely uniform-over-C — the context's target-exclusion structure alone already narrows the plausible candidate set.
+**Registered success criteria (C1/O1/O10):** FLAC must beat BOTH (i) the **context-conditioned random baseline** (information-matched: the 8 context source positions are visible in the conditioning, so the non-context eligible set is only ~2 candidates — verified: 16/17 unseen rooms have 10 sources; `LivingRoomsWithHallway_idx_30` has 9, where elimination alone names the target) and (ii) the **non-generative nearest-context control** (§2.6). Wiring controls (§2.8) must prove the candidate coordinate is load-bearing.
 
 ## 2. Protocol (registered)
 
 ### 2.1 Queries & identity audit
-- Split: the **full** existing unseen config `src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json` → `data/AR/unseen_eval.json`, 6,337 items / 17 rooms (announcement 01). Each item = one query: h_obs = h(S_gt, R), receiver known, source hidden.
-- Context: the standard pipeline (8 references from OTHER source nodes at the SAME receiver). Target-source exclusion holds by construction; the driver asserts it per query via the `sample_context_ids` fingerprint (positions rendered at 6 decimals; GT source position must be absent) and hard-fails on violation.
-- **Identity audit is fail-closed (Codex C2):** before any GPU generation, the driver enumerates the split and verifies each yielded item's `sample_target_id` (idx + relpath) against the expected enumeration — the FIRST mismatch (a `SampleDataset` silent substitution) aborts the run; precedent: `eval_FLAC.verify_stream_positions`. A headline artifact is written only after proving exactly 6,337 identities, no duplicates/omissions, 17 physical rooms; the split hash (sha256 over the ordered identity list) is recorded in the summary record. Smoke runs may *diagnose* substitutions; full runs must be repaired and rerun.
-- `pl.seed_everything(seed)` fixes context draws; `shuffle=False`.
+- Split: full `acousticroom_unseeneval.json` → `data/AR/unseen_eval.json`, 6,337 items / 17 rooms (announcement 01). Query: h_obs = h(S_gt, R), receiver known, source hidden.
+- Context: standard pipeline (8 refs from OTHER sources at the SAME receiver; exclusion by construction). The `sample_context_ids` fingerprint is recorded as a **regression/provenance guard** (O7 — it is not an independent leakage proof) and feeds each candidate's context-membership flag.
+- **Fail-closed identity audit (C2/O15):** pre-generation enumeration; first `sample_target_id` mismatch aborts; headline artifacts only after exactly 6,337 identities / 17 rooms verified; split hash recorded.
+- **Context-draw determinism (O8):** the per-item `np.random.choice` runs in worker processes, so the draw depends on `batch_size` AND `num_workers` — both are **pinned protocol values** (registered at launch), recorded in every manifest/output; `pl.seed_everything(seed)`, `shuffle=False`.
 
-### 2.2 Candidate set (metadata-defined; Codex C7)
-- C = the room's **valid source set enumerated from `metadata/` pair JSONs** (unique source ids with a `src_loc`), NOT from RIR filenames. GT included; expected M ≈ 10, logged per query. Node ids parsed numerically, naming-tolerant (`S010`/`S0010` quirk); `src_loc` uniqueness + cross-receiver consistency asserted (tol 1e-6).
-- Data-readback rung cross-checks the metadata source set against the RIR files present and fails on unexplained differences. Missing measured RIRs may shrink only the *oracle's* explicitly-reported eligibility set — never FLAC's candidate set or the headline denominator.
-- Per-candidate conditioning: `source`/`source_vit` = candidate position in the receiver camera frame (same transform as `AR_md.get_3d_point_camera_coord`, parity-tested); `depth`, `context_*` shared across the query's candidates.
+### 2.2 Candidate set (metadata-defined)
+- C = valid sources enumerated from `metadata/` pair JSONs (C7), GT included; M ≈ 10 (9 in LRH_idx_30), logged. Numeric, naming-tolerant id parsing (wav-name vs metadata-name are separate namespaces — the readback rung establishes the real metadata naming rather than assuming the `"S00"+str` quirk; O6). `src_loc` uniqueness + cross-receiver consistency asserted.
+- **Per-query geometry invariant (O6):** the GT candidate's camera-frame projection must equal the loader's `md['source']` exactly; mismatch aborts. Readback cross-checks metadata sources vs RIR files (Cafe_idx_1 has 922/1000 pairs — missing pairs shrink only the oracle's reported eligibility, never C or the headline denominator).
+- Per-candidate conditioning: `source`/`source_vit` swapped (shallow-copy metadata variant, shared tensors for untouched keys, base-not-mutated test; O19); `depth`/`context_*` shared.
 
 ### 2.3 Generation
-- Frozen FLAC, EMA weights, rectified flow, `steps=1`, `cfg_scale=1.0`. Protocol flags pinned and recorded everywhere per announcement 05 (Codex C5): `--cond-method vanilla --rotate-deg 0 --cond-autocast default`, frame-avg angles recorded `n/a`. The driver **fails closed** on `--rotate-deg != 0` and on unsupported checkpoint modes (`are_lambda != 0` declared, non-`rectified_flow` objective) (Codex C8).
-- K = 8 samples per candidate. **Deterministic noise bank (Codex C10):** noise for sample k of a query is keyed `(seed, query_id, k)` and **shared across that query's candidates** (common random numbers — candidate ranking is then execution-layout-independent and lower-variance). Tests: candidate-permutation invariance and one-batch-vs-two-batch equality of s_{m,k}; resume reproduces recorded context fingerprints and noise keys.
-- Conditioning computed once per query over the M candidate-metadata dicts; sampling tiles it K×. Numerical faithfulness to `eval_FLAC` is not assumed but **tested**: a one-query parity test runs the same ckpt/metadata/noise through both paths and asserts identical generated waveforms (§4.5).
+- Frozen FLAC, EMA weights (the `resolve_weights_source` outcome recorded; O9), rectified flow, `steps=1`, `cfg_scale=1.0`, `torch.set_float32_matmul_precision('medium')` as in `eval_FLAC` (O9). Announcement-05 flags pinned: `--cond-method vanilla --rotate-deg 0 --cond-autocast default`, fa-angles `n/a`; fail-closed on nonzero rotate-deg, ARE checkpoints, non-RF objectives (C5/C8).
+- K = 8; **deterministic noise bank** keyed `(seed, query_id, k)` via dedicated `torch.Generator`s (never the global stream), shared across candidates (common random numbers; C10). Permutation/batch-split equivalence + resume-reproducibility tests.
+- Conditioner runs once per query over the M metadata dicts. **Optional optimization** (compute the 8 shared context encodings once instead of M×; O13) is admissible ONLY behind a bit-parity test against the monolithic call, decided after R0 timing.
+- One-query **numerical parity test** vs the `eval_FLAC` generation path (same ckpt/metadata/noise ⇒ identical waveforms; C8).
 
-### 2.4 Scoring (protocol-parity with the established AR retrieval path; Codex C6)
-- E_a = AGREE audio branch. Preprocessing registered as the *established callback path*: decoded RIRs clamped to [-1,1], truncated to the **first 8,000 samples** (`AcousticMetricsCallback.max_len` for AR), then zero-padded to 10,240 inside `encode_audio` handling — verified by an **embedding-equality test** against the actual `update_metrics→Retrieval.compute_audio_features` route. h_obs takes the identical route.
-- AGREE loaded `.to(device).eval().requires_grad_(False)`, scored under `torch.inference_mode()`; batch-size-invariance test; checkpoint sha256 recorded.
-- s_{m,k} = cos(E_a(h_obs), E_a(ĥ_{m,k})); S_m = τ·log((1/K)Σ_k exp(s_{m,k}/τ)); prediction = argmax (lowest-index tie-break). All s_{m,k} logged.
+### 2.4 Scoring (deterministic readout; established preprocessing)
+- **Verified (O2):** AGREE's audio tower ends in a sampling `VAEBottleneck` (`audio_model.py:201` → `vae_sample` → `randn_like`, no eval guard) — the stock `encode_audio` is stochastic and consumes global RNG. **Registered scorer: the deterministic VAE-MEAN readout** — `layers(x)` → `chunk(2)[0]` (mean) → flatten → `project` → L2-normalize — implemented in `src/localization/agree_embed.py` without editing AGREE code. Tests: determinism; zero global-RNG consumption; stub-weights equality with the sampled path at stdev→0; batch-size invariance. R0 additionally **measures** the sampled readout's noise (100 draws, pairwise-cos distribution) as a labelled diagnostic (§2.8).
+- Preprocessing = the established AR metric route (C6, code-verified): clamp [-1,1] → first-8,000 samples (`max_len`) → tower's 10,240 handling; preprocessing-tensor equality test vs the real `update_metrics→Retrieval` route (exact-embedding equality vs the stock path is impossible under its sampling — compared at mean-readout instead).
+- AGREE `.eval().requires_grad_(False)`, `torch.inference_mode()`; ckpt sha256 recorded. s_{m,k} = cos; S_m = LME_τ via `torch.logsumexp` (τ=0.02 stability test; O18); argmax w/ lowest-index tie-break. All s_{m,k} logged at full float32 round-trip precision (hex or 17-sig-digit repr; offline-vs-online re-aggregation equality test; O18).
 
-### 2.5 Hyperparameter registration (Codex C4)
-- **LME with K=8 is the registered method** (per Yixun's spec) — dev selection may NOT replace it. The dev run (full seen split, `acousticroom_seeneval.json`) selects **τ only**, from the pre-registered grid {0.02, 0.05, 0.1, 0.2, 0.5} minimizing dev pooled-median e_loc; deterministic tie-break = smallest τ. Registered before the unseen run in `_params_set_up.md`.
-- mean, max, and K′ ∈ {1,2,4} are computed offline from the logged s_{m,k} and reported **only as labelled sensitivity analyses**.
+### 2.5 Hyperparameter registration
+- **LME with K=8 is the registered method** (C4); dev selects **τ only** from {0.02, 0.05, 0.1, 0.2, 0.5}, objective = dev **pooled mean e_loc** (median is a step function of top-1 at M≈10; O11), tie-break smallest τ. Registered in `_params_set_up.md`, **committed before R2 with its SHA recorded in the R2 manifest** (O17).
+- Dev scope: full seen split if R0's measured cost permits, else a labelled bounded dev slice (tuning-only, never in `_results.md`; O23) — decided at R0, recorded either way.
+- mean/max/K′∈{1,2,4}: labelled offline sensitivity only.
 
-### 2.6 Metrics & baselines (Codex C1, C3)
-- **Primary: pooled median e_loc over all 6,337 query errors** (matches the spec). Also pooled mean, success@0.5 m, success@1.0 m (err ≤ r).
-- Room identity for reporting = **physical room `scene_name/scene_id`** (17 rooms; `md['scene']` alone is the 10-way scene *type* and is not used for grouping). Labelled secondaries: equal-room macro stats (incl. mean of per-room medians), top-1 candidate accuracy, MRR.
-- **Baselines, identically weighted to the primary:**
-  - *Uniform-over-C* (the spec's literal baseline): exact per-query — E[e_loc] = mean candidate distance, success@r = fraction within r, pooled median from the per-candidate distance distribution (weight 1/M per query).
-  - *Context-conditioned (information-matched, REGISTERED comparison target)*: uniform over candidates whose source is NOT among the query's 8 context sources — exact, same formulas over the eligible set. Report the eligible-set-size distribution, each candidate's context-membership in the JSONL, and how often FLAC predicts a context-member candidate.
-- **Uncertainty:** metrics per seed; seed mean ± SD reported as run-to-run variability, SEPARATELY from a 17-room clustered bootstrap CI (resample rooms, 10,000 draws) on the primary — the SD over 3 seeds is never presented as a CI.
-- **GT-RIR oracle (upper diagnostic):** same scorer on measured candidate RIRs at the query receiver. The same-pair candidate IS h_obs ⇒ identity-oracle is a pipeline sanity check (~100% top-1) and labelled as such; a non-trivial oracle variant uses a second measurement of the same pair (e.g. another `single_channel_ir_*` channel) **iff** data readback confirms one exists; its (possibly reduced) eligibility set is reported explicitly.
+### 2.6 Metrics & baselines
+- **Primary: pooled median e_loc over the 6,337 queries** (C3). Also pooled mean, success@0.5 m, success@1.0 m (noting at M≈10 these are near-deterministic functions of top-1 — reported with that caveat; O11). Room key = `scene_name/scene_id` (17 rooms). Labelled secondaries: equal-room macro stats, top-1, MRR.
+- **Baselines, identical weighting/conventions (C1/C3/O5):**
+  - *Uniform-over-C* (spec's literal lower bound; exact).
+  - *Context-conditioned* (REGISTERED comparison target; exact, uniform over non-context candidates). Eligible-set-size distribution reported; **LRH_idx_30 (9 sources ⇒ eligible set = {GT}, baseline 100%, zero headroom) is reported separately and excluded from the information-matched aggregate, with that exclusion stated in `_results.md`**. Context-member-prediction rate reported.
+  - *Non-generative nearest-context control (O10)*: pick the context source whose measured RIR best matches h_obs in E_a; predict the candidate nearest that source. Needs no FLAC — attribution control for "is the generator adding anything".
+- **Statistics (C3/O12):** per-seed values; seed mean ± SD (variability, never a CI); 17-room clustered bootstrap CI on the primary; **paired per-query comparisons** (FLAC vs each baseline, room-clustered) pre-registered.
+- **Oracle (O4, revised):** measured-RIR runs need NO FLAC checkpoint ⇒ they run **the moment the dataset lands** (run R-1) together with the baselines. Identity variant = pipeline sanity only, and under the sampled-readout diagnostic its cos<1 scorer-noise is itself informative; under the registered mean readout identity-cos = 1 by construction. No `single_channel_ir_2+` is referenced anywhere in-repo — a second-measurement oracle exists only if dataset inspection finds one (readback rung); otherwise explicitly reported as unavailable.
 
-### 2.7 Heatmaps (Codex C11)
-Top-down per-query maps: candidates colored by softmax(S/T_disp), receiver, GT, prediction. **T_disp pre-registered = the registered τ.** The shaded region is labelled *candidate extent* (not a room boundary; a true boundary only if derivable from metadata). Case gallery by pre-registered rule (sharp-success = correct top-1, max top-2 margin; ambiguous = min margin; failure = max e_loc), 3 per category, rule-selected — no hand-picking.
+### 2.7 Heatmaps
+As Rev 2 (rule-selected gallery, T_disp = registered τ, candidate-extent labelling) + optional true room silhouette from the `md['depth']` point-cloud floor projection (O20).
 
-## 3. Checkpoints & assets (open decisions §8)
-As Rev 1: smoke may use released HF `FLAC_EMA.ckpt`; registered run on the program vanilla ckpt (recommended exp07_P1 anchor 87.5k). Scorer: recommended `AGREE_AR.pt` primary (train-split-only), `AGREE_fullAR.pt` labelled leaky diagnostic. Dataset must land on this box.
+### 2.8 Wiring & sensitivity controls (O3/O21 — run before the headline is interpreted)
+1. **Constant-source control:** regenerate a bounded, pre-registered slice with `source`/`source_vit` frozen at the room centroid for all candidates → localization must collapse to the context-conditioned baseline. Proves the coordinate conditioning is load-bearing.
+2. **Between/within-candidate power statistic:** with common random numbers, report var_m(mean_k s_{m,k}) / mean_m var_k(s_{m,k}) — candidate identity must move similarities more than sampling noise.
+3. **Scorer-noise measurement:** sampled-readout pairwise-cos distribution (R0) quantifies what the mean readout removes.
+4. **`--cond-autocast off` diagnostic** on a labelled slice to rule out fp16 ranking artifacts (O21).
 
-## 4. Implementation plan (per file, per-function tests — announcement 02)
+## 3. Checkpoints & assets (decisions §8)
+- FLAC ckpt for the exp_18 headline: **recommendation changed (O22) to released `FLAC_EMA.ckpt`** — it IS "pretrained Vanilla FLAC" per the spec, Table-1-verified on this exact box (exp_01), and HF-downloadable now (unblocks everything before any rsync). exp07_P1 / VANL@40k rows move to the cross-arm experiment.
+- Scorer: `AGREE_AR.pt` primary, `AGREE_fullAR.pt` labelled diagnostic.
+- **Additional assets verified as required (O14):** `weights/FLAC/VAE.ckpt` (wrapped ckpt; AGREE's audio tower loads it at construction, CWD-relative, before the AGREE state dict overwrites it) — comes with `download_weights.sh`; **gated DINOv3 HF access** (this box has no HF cache, `HF_HOME` unset) — needs `huggingface-cli login` (Yixun) or an HF-cache rsync; AcousticRooms with `metadata/` + `single_channel_ir_1/`.
 
-Additive only; no edits to release files. Tests in `src/tests/`. (Tables give the contract; tests named test_loc_*.)
+## 4. Implementation plan (per file, per-function tests)
 
-### 4.1 `src/localization/__init__.py` — package marker.
+As Rev 2 §4 with these deltas (full contracts live in the Rev 2 tables, which remain binding):
+- `candidates.py`: + `assert_gt_matches_loader(cand_set, md)` (O6; test: exact match passes, 1e-6 perturbation aborts); `candidate_metadata` becomes shallow-copy-with-key-swap (O19; base-intact test). `enumerate_metadata_sources` remains the candidate authority.
+- `scoring.py`: `aggregate` via `torch.logsumexp` + τ=0.02 stability test (O18); + `context_conditioned_baseline` handles the empty-eligible/GT-only case explicitly (LRH_idx_30 test); + `nearest_context_baseline(cand_xyz, ctx_xyz, ctx_sims)` (O10; hand-example test); + `paired_room_clustered_test(records_a, records_b)` (O12; synthetic test); + `power_statistic(sims)` (§2.8.2; test).
+- `agree_embed.py`: `embed_rirs(..., readout={'mean','sample'})`, mean = registered; tests: determinism, global-RNG-state unchanged (O2), stub stdev→0 equality, batch invariance, preprocessing-tensor equality vs real callback route (C6), pads-only-never-crops edge (O18).
+- `eval_localization.py`: + `--context-k` passthrough by dataset-config choice only (existing `_1/_4` configs); + pinned `--batch-size --num-workers` recorded in provenance (O8); + smoke query ids pinned to SEEN rooms (O16); + constant-source control mode `--control constant_source` (§2.8.1); + serialization precision round-trip test (O18); everything else per Rev 2 (audit, noise bank, layout, parity harness, gt_rir mode, smoke guard).
+- `loc_invert_heatmaps.py`: as Rev 2 + optional depth-silhouette helper (pure-function test on synthetic point cloud).
 
-### 4.2 `src/localization/candidates.py` (`src/tests/test_loc_candidates.py`)
-| Function | Contract / tests |
-|---|---|
-| `parse_ir_filename(name)` | numeric (src, rec) from `S…_R…_hybrid_IR.wav`; tests: std, `S010`, malformed→ValueError |
-| `enumerate_metadata_sources(meta_room_dir) -> dict[node, xyz]` | **candidate authority (C7)**: unique sources with `src_loc` from pair JSONs, naming-tolerant; tests: fixture tree incl. `S010`-style, uniqueness, cross-receiver consistency assert, inconsistent→error |
-| `find_pair_metadata(meta_room_dir, src, rec)` | naming-tolerant pair lookup; tests: both namings, missing→None |
-| `build_candidate_set(ir_path, metadata_path) -> CandidateSet` | dataclass(nodes, xyz_world, rec_loc, gt_node, gt_xyz, context-membership filled later); GT∈C asserted; deterministic order; tests: fixture room, GT missing from metadata→error |
-| `project_to_camera(rec_loc, xyz)` | translation-only; **parity test** vs importlib-loaded `AR_md.get_3d_point_camera_coord` on random points |
-| `candidate_metadata(base_md, cand_cam_xyz)` | deepcopy; only `source` ([3] f32) and `source_vit` ([1,3] f32) replaced; tests: key-diff exactness, dtypes, base not mutated |
-| `crosscheck_sources_vs_files(meta_nodes, room_dir)` | readback-rung check; tests: match, extra-file, missing-file cases |
-
-### 4.3 `src/localization/scoring.py` (pure; `src/tests/test_loc_scoring.py`)
-| Function | Contract / tests |
-|---|---|
-| `cosine_sims(obs [D], gen [M,K,D])` | norm-guard (≈1) raises; hand-built vectors |
-| `aggregate(sims, method, tau)` | lme/mean/max; lme→max (τ→0⁺), lme→mean (τ large), K=1 equality, τ≤0 lme→ValueError |
-| `predict_index(scores)` | argmax, lowest-index tie-break (test) |
-| `softmax_map(scores, T)` | sums to 1; shift-invariance; T>0 |
-| `localization_error`, `success_within` | L2; boundary err ≤ r (test) |
-| `uniform_baseline(cand_xyz, gt_xyz)` | exact mean/success/pooled-distances; hand example + seeded-MC agreement 1e-3 |
-| `context_conditioned_baseline(cand_xyz, gt_xyz, context_member_mask)` | **(C1)** exact over non-context candidates; eligible-size returned; tests: hand example, all-but-one case, GT-always-eligible invariant |
-| `noise_key(seed, query_id, k) -> generator seed` | **(C10)** stable hash, collision test over sample grid, k/query independence |
-| `summarize(records, radii)` | pooled primary + per-room(17) macro secondaries + top-1/MRR; identical weighting applied to both baselines; synthetic set with known answers |
-| `clustered_bootstrap_ci(records, by='room_id', n=10000, seed)` | **(C3)** resample rooms; tests: degenerate 1-room, reproducibility w/ seed |
-
-### 4.4 `src/localization/agree_embed.py` (`src/tests/test_loc_agree_embed.py`)
-| Function | Contract / tests |
-|---|---|
-| `load_agree_audio(ckpt, device)` | wraps `loading_AGREE_model`; returns model `.eval()`, all `requires_grad=False` (asserted in test w/ stub); integration test skipif no ckpt |
-| `preprocess_for_scoring(wav [B,1,T])` | clamp[-1,1] → first-8000 → shape contract; **embedding-equality test vs the real `update_metrics→Retrieval` route** (C6; integration, skipif no ckpt) |
-| `embed_rirs(model, wavs, device)` | inference_mode; L2-normalized f32 [B,D]; batch-size-invariance test (B=1 vs B=8, stub + integration) |
-
-### 4.5 `eval_localization.py` (root driver; `src/tests/test_eval_localization.py`)
-Flags: `--model-config --dataset-config --ckpt-path --agree-ckpt --num-samples --tau --agg --steps --cfg-scale --seed --cond-method --frame-avg-angles --rotate-deg --cond-autocast --score-source {flac,gt_rir} --out-dir --eval-name --smoke --max-queries` (`--max-queries` refuses without `--smoke`; smoke stamped in filename+record).
-**Reuse boundary (explicit, C8):** imports from `eval_FLAC`: `sample_target_id`, `sample_context_ids`, `source_sha`, `orbit_provenance`, `resolve_cond_autocast`, `check_load_integrity`, `resolve_are_from_checkpoint` (to fail closed on ARE ckpts); model build/EMA-remap follows `evaluate_model` lines-of-record and is covered by the parity test below — any divergence is a bug, not a protocol variant.
-| Unit | Contract / tests |
-|---|---|
-| `audit_split_identities(dl, expected)` | **(C2)** fail-closed on first mismatch; returns split hash; tests: clean pass, injected substitution→SystemExit, hash stability |
-| `build_noise_bank(seed, query_id, K, shape)` | keyed per §2.3; permutation + batch-split equivalence tests |
-| `run_query(...)` | M×K layout deterministic (candidate-major); layout test with stub sampler |
-| JSONL row schema | round-trip test; includes context-membership mask, noise keys, per-sample sims, protocol fields |
-| summary record | aggregation equals `scoring.summarize` on the same rows (test); provenance: git sha, ckpt sha256, agree sha256, split hash, all §2.3 flags |
-| `--score-source gt_rir` | uses measured files; marks identity candidate; eligibility-set reporting; unit test with fixture wavs |
-| smoke guard | refusal test |
-| **Parity harness** `parity_check_one_query(...)` | same ckpt/md/noise through driver path vs `eval_FLAC`-style reference path ⇒ identical waveforms (atol 0); integration, skipif no ckpt/data; ALSO run at rung 5 on the real smoke query |
-
-### 4.6 `worklog/…/loc_invert_heatmaps.py` (reviewed in a consolidated round; `src/tests/test_loc_heatmaps.py` for the pure parts)
-| Unit | Contract / tests |
-|---|---|
-| `select_cases(records, rule, n_per_cat)` | pre-registered rule of §2.7, deterministic; synthetic-records test |
-| `room_extent(records)` | candidate-extent bbox, honest labelling; test |
-| `render_heatmap(record, T_disp, out)` | writes PNG; smoke-tested on synthetic record (mpl Agg) |
-
-### 4.7 Explicitly NOT touched
-`train.py`, `defaults.ini`, `src/data/`, `src/models/`, `src/training/`, `data/AR/`, `AR_md.py`, release eval scripts.
-
-## 5. Run matrix
-| Run | Split | Ckpt | Mode | Purpose |
-|---|---|---|---|---|
-| R0 probe | pre-registered query ids from 2 rooms, `--smoke --max-queries 4` | released FLAC_EMA (or first rsynced) | flac, K=8, max-M batch | end-to-end pipe + **fit & timing probe (C9): peak memory + per-component times (cond / sample / decode / embed) at batch 64** |
-| R1 dev-tune | full seen split | registered vanilla ckpt | flac, K=8 | τ selection per §2.5 |
-| R2 registered | full unseen 6,337 | registered vanilla ckpt | flac, LME/K=8/τ* | headline; seeds 42/43/44, **one seed per GPU concurrently** (no sharding; if a sweep must shard, a merge gate proves disjoint-union = 6,337 identities) |
-| R3 oracle | full unseen | — | gt_rir | identity sanity + 2nd-channel variant iff available |
-| R4 baselines | full unseen | — | analytic | uniform + context-conditioned (CPU) |
+## 5. Run matrix (resequenced — O4 makes R-1 checkpoint-free)
+| Run | Needs | Split | Purpose |
+|---|---|---|---|
+| **R-1 dataset gate** | dataset + AGREE only (no FLAC ckpt) | full unseen | readback rung + oracle sanity + BOTH random baselines + nearest-context control + eligible-set stats — runs the moment AcousticRooms lands |
+| R0 probe | + FLAC ckpt | pre-registered SEEN-room queries, `--smoke` | end-to-end pipe, parity harness, **fit & timing probe** (peak mem + per-component times at batch 64, max-M, K=8), scorer-noise measurement, autocast-off diagnostic |
+| R1 dev-tune | 〃 | seen (full or labelled slice, R0-gated) | τ selection (§2.5) |
+| R2 registered | 〃 | full unseen | headline; seeds 42/43/44, one per GPU; params SHA pre-committed |
+| R2b (if approved, §8.4) | 〃 | full unseen, `acousticroom_unseeneval_1.json` | K_ctx=1 registered secondary: eligible set 9/10 ⇒ the strong test of acoustic (vs elimination) information |
+| R3 controls | 〃 | pre-registered slices | constant-source control + power statistic |
 
 ## 6. Validation ladder
-1. Static (`py_compile`, `git diff --check`). 2. Unit tests (§4, fixtures, no GPU/data). 3. Tiny synthetic forward (random-init model from config, 1 query × 2 cand × K=2). 4. Real-data readback (1 room): metadata naming (`S010`), source enumeration vs files, `src_loc` consistency, context fingerprint excludes GT, second-channel existence for the oracle. 5. R0 smoke incl. parity harness on a real query + identity-oracle 100% on smoke queries. 6. **Fit/timing probe = R0's measurement half — NOT waived (C9)**; full-run budget projected from it; if projection > 12 h/sweep, options go back to Yixun before R1. 7. Full runs per §5 with pre-launch acceptance criteria in `_worklog.md`.
+As Rev 2, with rung 4 (readback) additionally establishing: real metadata file naming (namespaces; O6), `single_channel_ir_2+` existence, gated-DINOv3/HF load, VAE.ckpt presence, per-room source counts vs the split-derived expectation (10×16 + 9×1). Rung 6 (fit/timing probe) not waived.
 
-## 7. Integrity controls (delta over Rev 1)
-Fail-closed identity audit (no exclusions in headline); metadata-defined candidates; information-matched baseline as the registered comparison; LME/K=8 fixed, τ-only dev tuning; scorer protocol = established 8,000-sample AR path with equality test; deterministic noise bank; announcement-05 flags pinned (`vanilla / rotate 0 / autocast default / fa-angles n/a`) in params, command file, every log and output row; smoke quarantined; per-seed + clustered-CI reporting.
+## 7. Integrity controls
+Rev 2 list + deterministic mean-readout scorer (no hidden scorer noise, no RNG cross-talk); pinned dataloader parallelism; geometry invariant per query; information-matched + non-generative controls as registered comparison targets; zero-headroom room handled openly; pre-registration commit-then-run (O17).
 
 ## 8. Open decisions for Yixun (recommendation first)
-1. **Registered vanilla ckpt**: exp07_P1 anchor 87.5k (recommended) vs released FLAC_EMA vs exp11_VANL@40k (defer matched-step row to cross-arm exp). Smoke uses released FLAC_EMA either way.
-2. **Scorer**: `AGREE_AR.pt` primary + `AGREE_fullAR.pt` labelled diagnostic (recommended) vs fullAR primary.
-3. **Seeds**: 42+43+44 (recommended; one per GPU, third follows) vs single seed.
-4. **K=8** registered (recommended; K′ sensitivity offline) — confirm.
-5. **Dataset onto this box**: rsync vs fresh download; confirm manifest = AcousticRooms (incl. `metadata/`, `single_channel_ir_1/`, any `single_channel_ir_2+` for the oracle variant) + chosen FLAC ckpt(s) + AGREE ckpts (HF-downloadable otherwise).
+1. **Approve Rev 3 protocol** as registered.
+2. **Headline ckpt = released `FLAC_EMA.ckpt`** (recommendation CHANGED per O22: spec-faithful "pretrained Vanilla FLAC", Table-1-verified on this box, downloadable now; program ckpts move to the cross-arm exp) — confirm, or name exp07_P1 / VANL@40k instead.
+3. **Scorer** = `AGREE_AR.pt` primary + fullAR labelled diagnostic; **deterministic mean readout** registered (the stock sampled readout becomes a diagnostic) — confirm.
+4. **K_ctx=1 secondary sweep (R2b)** via the existing `_1` config — recommended YES (it is the strong version of the scientific claim given the eligible-set-2 problem; ~doubles GPU cost) — approve or drop.
+5. **Seeds 42/43/44**, K=8 — confirm.
+6. **Dataset route**: rsync AcousticRooms (incl. `metadata/`) vs fresh download; **HF access for gated DINOv3** on this box (`huggingface-cli login` yourself, or rsync `~/.cache/huggingface` from the other box); FLAC/AGREE weights via `download_weights.sh` unless you prefer rsync.
 
-## 9. Compute budget (post-C9 honesty)
-Naive scaling of exp_01's 6.5 min basis by generated-sample count (×80) bounds a full sweep at ~8.7–13.7 h; conditioner amortization (shared context per query) should cut this substantially but is **unproven until R0 measures it**. Budget and the seed recommendation are finalized from R0's probe; >12 h/sweep projection returns to Yixun before R1.
+## 9. Compute budget (corrected basis; O13/C9)
+exp_01 K_ctx=8 eval ≈ **13 min**/seed (not the K=1 run's 6.5). Naive ×80 sample-count scaling bounds a sweep at ~17 h; expected with per-query conditioner sharing ~10–15 h; the optional context-encoding amortization (5× fewer ViT forwards, parity-gated) could bring it to a few hours. R0 measures; >12 h/sweep projection returns to Yixun before R1. R-1 and R4-style baselines: CPU/1-GPU minutes.
 
 ## 10. Deliverables
-As Rev 1 (params, command, logs, results, analysis, HTML+assets incl. rule-selected heatmap gallery, commit ledger). Cross-arm table remains OUT OF SCOPE for exp_18.
+As Rev 2. Cross-arm table out of scope.
