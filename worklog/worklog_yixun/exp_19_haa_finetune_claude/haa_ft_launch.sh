@@ -397,10 +397,21 @@ elif arm_id == "BF":
         sys.exit("frame_avg_angles[0] must be 0.0 (invariant_conditioning's contract)")
     stripped = json.loads(json.dumps(arm))
     stripped["training"].pop("cond_method"); stripped["training"].pop("frame_avg_angles")
+    # Registered deltas 3/4 (Yixun 2026-08-18): grad-ckpt restored on both ViT
+    # conditioners -- the fa 4-angle training peak measured 47.37/47.40 GiB on
+    # an EMPTY A6000, and FLAC_AR_BF itself trained with checkpointing ON.
+    reverted = 0
+    for c in stripped["model"]["conditioning"]["configs"]:
+        if c.get("type") == "ViTCoordinates":
+            if c["config"].pop("gradient_checkpointing", None) is not True:
+                sys.exit(f"BF requires gradient_checkpointing true on {c.get('id')} (registered delta 3/4)")
+            reverted += 1
+    if reverted != 2:
+        sys.exit(f"expected exactly 2 ViT conditioners carrying grad-ckpt, reverted {reverted}")
     d = strict(stripped, stock)
     if d:
         sys.exit(f"BF config is NOT the stock plus exactly its two registered deltas - {d}")
-    delta = f"cond_method=fa_invariant + frame_avg_angles={angles}"
+    delta = f"cond_method=fa_invariant + frame_avg_angles={angles} + grad-ckpt x2"
 
 else:  # YAW
     if "cond_method" in t:
