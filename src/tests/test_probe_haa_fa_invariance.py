@@ -495,9 +495,14 @@ class FakeConditioner:
     def __init__(self, drift=False):
         self.calls = 0
         self.drift = drift
+        self.seen_dtypes = set()
 
     def __call__(self, metadata, device, only_ids=None):
         self.calls += 1
+        # What dtype did the stack actually SEE? A --dtype flag that widened the
+        # model but handed it float32 metadata would be a type error in
+        # production and an untested no-op here.
+        self.seen_dtypes.add(metadata[0]["depth"].dtype)
         bump = float(self.calls) if self.drift else 0.0
         ids = only_ids if only_ids is not None else ("source_vit", "context_poses_vit",
                                                      "context_audio")
@@ -521,9 +526,10 @@ def _run_main(monkeypatch, tmp_path, drift=False, extra=()):
     cond, batches = _fake_stack(drift=drift)
     seen = {}
 
-    def fake_build(model_config, dataset_config, ckpt_path, device):
+    def fake_build(model_config, dataset_config, ckpt_path, device, dtype=torch.float32):
         seen["ckpt_path"] = ckpt_path
         seen["device"] = device
+        seen["dtype"] = dtype
         return cond, batches
 
     monkeypatch.setattr(probe, "_build_stack", fake_build)
@@ -617,6 +623,99 @@ def test_main_refuses_a_non_closed_orbit_before_touching_the_stack(monkeypatch, 
     rc = probe.main(["--ckpt-path", str(init), "--angles", "0", "90", "180",
                      "--out", str(tmp_path / "r.json"), "--device", "cpu"])
     assert rc == 2
+
+
+# --------------------------------------------------------------------------- #
+# 5c. --dtype: the R1 adjudication run (Yixun, 2026-08-18)
+# --------------------------------------------------------------------------- #
+def test_the_dtype_flag_defaults_to_the_precision_the_arms_run_in():
+    """float32 is the default, so the production gate is unchanged by this flag."""
+    args = probe.build_parser().parse_args([])
+    assert args.dtype == "float32"
+    assert probe.TORCH_DTYPES[args.dtype] is torch.float32
+    assert set(probe.TORCH_DTYPES) == {"float32", "float64"}
+
+
+def test_the_threshold_stays_independent_of_the_dtype_flag():
+    """The adjudication is run as ``--dtype float64 --threshold 1e-7``.
+
+    If widening also tightened the threshold, the 1e-5 production default would
+    silently change the day someone passed --dtype, and the launcher's gate would
+    no longer be the gate that was reviewed.
+    """
+    fp64 = probe.build_parser().parse_args(["--dtype", "float64"])
+    assert fp64.threshold == probe.THRESHOLD == 1e-5
+    tight = probe.build_parser().parse_args(["--dtype", "float64", "--threshold", "1e-7"])
+    assert tight.threshold == 1e-7 and tight.dtype == "float64"
+
+
+@pytest.mark.parametrize("flag, want", [("float32", torch.float32), ("float64", torch.float64)])
+def test_main_casts_BOTH_the_stack_and_the_metadata(monkeypatch, tmp_path, flag, want):
+    """--dtype must reach the model AND the tensors it is fed.
+
+    Parametrised over both values on purpose: asserting only the float64 case
+    could not tell a working flag from one that widens unconditionally, and a
+    model widened without its input is a dtype error in production rather than a
+    higher-precision measurement.
+    """
+    rc, record, cond, seen, _ = _run_main(monkeypatch, tmp_path, extra=("--dtype", flag))
+    assert rc == 0, record
+    assert seen["dtype"] is want, "the constructed stack was not asked for this dtype"
+    assert cond.seen_dtypes == {want}, f"the stack was fed {cond.seen_dtypes}"
+    assert record["dtype"] == flag, "the record must state the precision it measured at"
+
+
+def test_the_metadata_cast_leaves_non_float_fields_and_the_caller_alone():
+    """Widening indices or masks would change their meaning, not their precision.
+
+    And the gate runs inside an evaluation loop, so the caller's batch must come
+    back untouched — the same contract the rest of the probe keeps.
+    """
+    md = haa_metadata()
+    md["mic_index"] = torch.tensor([3, 7])
+    md["valid"] = torch.tensor([True, False])
+    out = probe.cast_metadata(md, torch.float64)
+
+    assert out["depth"].dtype == torch.float64
+    assert out["source"].dtype == torch.float64
+    assert out["context_audio"].dtype == torch.float64
+    assert out["mic_index"].dtype == torch.int64
+    assert out["valid"].dtype == torch.bool
+    assert out["scene"] == md["scene"]
+    assert md["depth"].dtype == torch.float32, "the caller's metadata was mutated"
+    assert out is not md
+
+
+def test_a_float64_run_still_reports_a_real_verdict(monkeypatch, tmp_path):
+    """Widening must not turn the gate into something that cannot fail.
+
+    The drifting stack is non-invariant for reasons precision cannot fix, so the
+    float64 run must still FAIL it — otherwise a float64 PASS would carry no
+    information about the pipeline at all.
+    """
+    rc, record, cond, seen, _ = _run_main(monkeypatch, tmp_path, drift=True,
+                                          extra=("--dtype", "float64"))
+    assert rc == 1
+    assert record["passed"] is False and record["dtype"] == "float64"
+    assert seen["dtype"] is torch.float64
+    assert record["worst_gap"] > probe.THRESHOLD
+
+
+def test_the_real_build_path_widens_the_model_after_the_strict_load():
+    """Order matters, and the real call needs DINOv3, so this is read from source.
+
+    Casting before the load would either refuse the float32 checkpoint or widen
+    the very tensors whose values the gate certifies; casting after it changes
+    arithmetic precision only.
+    """
+    src = PROBE_PATH.read_text()
+    load_at = src.index("model.load_state_dict(weights, strict=True)")
+    cast_at = src.index("model = model.to(dtype)")
+    assert load_at < cast_at, "the model is widened BEFORE the strict load"
+    assert ".detach().float().cpu()" not in src, (
+        "a hard .float() on the measured tensors would discard the float64 "
+        "precision the adjudication run exists to obtain"
+    )
 
 
 def test_the_real_build_path_loads_the_init_through_train_pys_transforms():

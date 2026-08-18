@@ -1,0 +1,82 @@
+{
+  "passed": false,
+  "worst_gap": 2.8252601623535156e-05,
+  "threshold": 1e-05,
+  "angles": [
+    0.0,
+    90.0,
+    180.0,
+    270.0
+  ],
+  "model_config": "/home/yixunhu/codespace/FLAC/src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json",
+  "dataset_config": "/home/yixunhu/codespace/FLAC/src/configs/dataset_configs/HAA/eval/haa_test.json",
+  "ckpt_path": "outputs_FLAC/exp19_inits/HAA_init_YAW.ckpt",
+  "ckpt_sha256": "6b11a7d4bc8c157b5a82d063c396e45ed7c1c75ee8e1f5bce4ccbdbed7a94d63",
+  "device": "cuda",
+  "dtype": "float32",
+  "measures_masks": true,
+  "scope": "pipeline/shape/mask consistency on real HAA data with the arm's own weights; subject and oracle share rotate_scene_metadata, so a shared gauge error is not detectable here (plan \u00a73 R1)",
+  "n_samples": 4,
+  "per_sample": [
+    {
+      "scene": "classroomBase",
+      "gaps": {
+        "out[context_audio][0]": 0.0,
+        "out[context_audio][1]": 0.0,
+        "out[context_poses][0]": 2.372264862060547e-05,
+        "out[context_poses][1]": 0.0,
+        "out[context_poses_vit][0]": 9.5367431640625e-07,
+        "out[context_poses_vit][1]": 0.0,
+        "out[source][0]": 0.0,
+        "out[source][1]": 0.0,
+        "out[source_vit][0]": 5.364418029785156e-07,
+        "out[source_vit][1]": 0.0
+      }
+    },
+    {
+      "scene": "classroomBase",
+      "gaps": {
+        "out[context_audio][0]": 0.0,
+        "out[context_audio][1]": 0.0,
+        "out[context_poses][0]": 1.722574234008789e-05,
+        "out[context_poses][1]": 0.0,
+        "out[context_poses_vit][0]": 1.1771917343139648e-06,
+        "out[context_poses_vit][1]": 0.0,
+        "out[source][0]": 0.0,
+        "out[source][1]": 0.0,
+        "out[source_vit][0]": 4.76837158203125e-07,
+        "out[source_vit][1]": 0.0
+      }
+    },
+    {
+      "scene": "classroomBase",
+      "gaps": {
+        "out[context_audio][0]": 0.0,
+        "out[context_audio][1]": 0.0,
+        "out[context_poses][0]": 2.8252601623535156e-05,
+        "out[context_poses][1]": 0.0,
+        "out[context_poses_vit][0]": 1.1026859283447266e-06,
+        "out[context_poses_vit][1]": 0.0,
+        "out[source][0]": 0.0,
+        "out[source][1]": 0.0,
+        "out[source_vit][0]": 6.556510925292969e-07,
+        "out[source_vit][1]": 0.0
+      }
+    },
+    {
+      "scene": "classroomBase",
+      "gaps": {
+        "out[context_audio][0]": 0.0,
+        "out[context_audio][1]": 0.0,
+        "out[context_poses][0]": 1.84476375579834e-05,
+        "out[context_poses][1]": 0.0,
+        "out[context_poses_vit][0]": 1.1771917343139648e-06,
+        "out[context_poses_vit][1]": 0.0,
+        "out[source][0]": 0.0,
+        "out[source][1]": 0.0,
+        "out[source_vit][0]": 4.76837158203125e-07,
+        "out[source_vit][1]": 0.0
+      }
+    }
+  ]
+}

@@ -33,6 +33,17 @@ FLOAT32: under ``--cond-autocast bf16`` (the evaluation default for the FA arms)
 bf16's ~3e-3 resolution would swamp the gate, and a gate that cannot fail is not
 a gate. Precision is reported in the record.
 
+``--dtype float64`` is the R1 ADJUDICATION run, not the gate. Yixun's
+pre-committed rule (2026-08-18): re-measure the same orbit with the model AND the
+metadata in double — if the worst orbit gap then falls below 1e-7, the fp32
+excess was precision noise and BF/YAW proceed; at or above 1e-7 the arms stay
+held. It is deliberately independent of ``--threshold`` (which keeps its 1e-5
+default, so the launcher's production gate is unchanged): the diagnostic is run
+by hand as ``--dtype float64 --threshold 1e-7``. Widening cannot manufacture
+invariance — a genuine asymmetry is a property of the arithmetic being performed,
+not of the precision it is performed in — so a float64 PASS is evidence about
+rounding, and a float64 FAIL is evidence about the pipeline.
+
 ⚠️ **What this gate does NOT certify** (Codex exp_19 r1, finding 4 — a standing
 limitation, not a bug to be fixed by more code). The subject and the oracle share
 one primitive: the orbit walked here calls :func:`rotate_scene_metadata`, and the
@@ -290,12 +301,40 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--num-samples", type=int, default=4,
                     help="how many HAA samples to probe")
     ap.add_argument("--device", default=None, help="default: cuda if available")
+    ap.add_argument("--dtype", choices=("float32", "float64"), default="float32",
+                    help="precision of the MEASUREMENT itself (default float32, the "
+                         "precision the arms train and evaluate in). float64 is the "
+                         "R1 adjudication run: it re-measures the same orbit with the "
+                         "model and the metadata in double, so a residual that is "
+                         "merely fp32 rounding collapses while a real asymmetry does "
+                         "not. Independent of --threshold on purpose.")
     ap.add_argument("--out", default=os.path.join(HERE, "probe_haa_fa_invariance_result.json"),
                     help="JSON record of the gate")
     return ap
 
 
-def _build_stack(model_config_path, dataset_config_path, ckpt_path, device):
+TORCH_DTYPES = {"float32": torch.float32, "float64": torch.float64}
+
+
+def cast_metadata(md, dtype):
+    """A copy of ``md`` with every FLOATING-POINT tensor cast to ``dtype``.
+
+    Casting the model without casting its input is a type error, not a
+    higher-precision measurement, so the panorama, the poses and the reference
+    RIRs move together. Integer and boolean fields (indices, masks) are left
+    alone — widening them would change what they mean, not how precisely they are
+    represented. The caller's dict is never mutated: the gate runs inside an
+    evaluation loop and a mutated batch would corrupt the run.
+    """
+    out = dict(md)
+    for key, value in md.items():
+        if torch.is_tensor(value) and value.is_floating_point():
+            out[key] = value.to(dtype)
+    return out
+
+
+def _build_stack(model_config_path, dataset_config_path, ckpt_path, device,
+                 dtype=torch.float32):
     """The ARM's conditioner (init loaded) + one HAA batch.
 
     ``ckpt_path`` is loaded through train.py's own consumer path — the same
@@ -327,6 +366,14 @@ def _build_stack(model_config_path, dataset_config_path, ckpt_path, device):
     weights = {k: v for k, v in weights.items() if 'losses' not in k}           # 147
     model.load_state_dict(weights, strict=True)                                 # 148
     print(f"  init   : {ckpt_path} loaded strictly ({len(weights)} tensors)")
+
+    # The cast happens AFTER the strict load, never before: the checkpoint is
+    # float32, and a float64 target would either refuse it or silently widen the
+    # very tensors whose values are being certified. Widening the loaded model is
+    # a change of arithmetic precision only.
+    if dtype != torch.float32:
+        model = model.to(dtype)
+        print(f"  cast   : model widened to {dtype} for the measurement")
 
     conditioner = model.conditioner.to(device)
     conditioner.eval().requires_grad_(False)   # eval mode also disables DINOv3's
@@ -371,18 +418,25 @@ def main(argv=None) -> int:
     from src.data.yaw_rotation import invariant_conditioning
 
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
+    torch_dtype = TORCH_DTYPES[args.dtype]
     print(f"exp_19 R1 gate — fa_invariant conditioning on HAA metadata")
     print(f"  model  : {args.model_config}")
     print(f"  data   : {args.dataset_config}")
     print(f"  orbit  : {angles}   threshold {args.threshold:g}   device {device}")
-    print(f"  dtype  : float32 (no autocast — bf16 cannot resolve a 1e-5 gate)")
+    if torch_dtype == torch.float32:
+        print(f"  dtype  : float32 (no autocast — bf16 cannot resolve a 1e-5 gate); "
+              "this is the precision the arms train and evaluate in")
+    else:
+        print(f"  dtype  : {args.dtype} — R1 ADJUDICATION RUN: model and metadata "
+              "widened, so an fp32-rounding residual collapses while a real "
+              "asymmetry survives. Not the production gate.")
     print( "  scope  : certifies pipeline/shape/mask consistency on real HAA data;"
            " subject and oracle share rotate_scene_metadata, so a shared gauge"
            " error is invisible here (see the module docstring + plan §3 R1)")
 
     try:
         conditioner, dl = _build_stack(args.model_config, args.dataset_config,
-                                       args.ckpt_path, device)
+                                       args.ckpt_path, device, torch_dtype)
     except Exception as e:                       # a stack we cannot build is not a pass
         print(f"probe_haa_fa_invariance REFUSED: could not build the stack: "
               f"{type(e).__name__}: {e}", file=sys.stderr)
@@ -399,7 +453,11 @@ def main(argv=None) -> int:
             tensor = entry[0]
             mask = entry[1] if len(entry) > 1 else None
             measured[cid] = [
-                tensor.detach().float().cpu(),
+                # ``.to(torch_dtype)``, never ``.float()``: under --dtype float64
+                # a hard cast to fp32 here would throw away the extra precision
+                # the run exists to obtain and the adjudication would re-measure
+                # fp32 rounding. A no-op in the default float32 mode.
+                tensor.detach().to(torch_dtype).cpu(),
                 mask.detach().cpu() if torch.is_tensor(mask) else mask,
             ]
         return measured
@@ -409,6 +467,9 @@ def main(argv=None) -> int:
         for batch in dl:
             _, metadata = batch
             for md in metadata:
+                # The model was widened in _build_stack; its input must follow,
+                # or the forward is a dtype error rather than a measurement.
+                md = cast_metadata(md, torch_dtype)
                 gaps = invariance_gaps(cond_fn, md, angles)
                 worst = max(worst, max(gaps.values()))
                 records.append({"scene": md.get("scene"),
@@ -438,7 +499,7 @@ def main(argv=None) -> int:
         "ckpt_path": args.ckpt_path,
         "ckpt_sha256": _sha256_file(args.ckpt_path),
         "device": str(device),
-        "dtype": "float32",
+        "dtype": args.dtype,
         "measures_masks": True,
         "scope": ("pipeline/shape/mask consistency on real HAA data with the arm's "
                   "own weights; subject and oracle share rotate_scene_metadata, so a "

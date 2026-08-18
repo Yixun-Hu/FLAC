@@ -280,7 +280,7 @@ PIN_stock="3639a9face84d13bcbb8f4472e78970c8e045952337f11b4f77d8798f786ba80  ${S
 PIN_yaw_rotation="bf8dd38f62dbd88461e9e215c9f639a57c6fefe673d1a9a4185df32ab5f848a1  src/data/yaw_rotation.py"
 PIN_diffusion="ef6a1f69459eabd77595bade192d269a0ce8a7ade2c8b4d8e50bb695c6e0f5fb  src/training/diffusion.py"
 PIN_factory="6967ec9fd800bb991d6f2ee2aee890bb73c093bfc5f676617f590f1dbd9d330f  src/training/factory.py"
-PIN_probe="8c5d96dc2b4571a0a8e3c13d0ef4af0a0bbb75f500eb1ff6f8af87e556fe9102  ${PROBE_SCRIPT}"
+PIN_probe="24110322095e125f844b6793cad5eda4b2cf42128e380d551ff22653cb921de0  ${PROBE_SCRIPT}"
 case "$ARM" in
   P1)  PIN_armcfg="" ;;   # P1's config IS the stock file, already pinned above
   BF)  PIN_armcfg="eb64e6c24e9aba58d984bf9088b4248e2abffea48f180b90602c342a60dd66cd  ${ARM_CFG}" ;;
