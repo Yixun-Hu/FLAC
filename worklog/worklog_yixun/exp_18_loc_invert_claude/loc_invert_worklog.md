@@ -23,3 +23,11 @@
   9. **Oracle subtlety**: for candidate = GT source at the same receiver, the "GT candidate RIR" IS h_obs ⇒ cosine 1 ⇒ identity-oracle is trivially 100% and only a pipeline sanity check. A non-trivial upper bound needs a second measurement of the same pair (e.g. another `single_channel_ir_*` channel folder if the dataset provides one) — to verify at data readback; plan carries both variants conditionally.
 - **Analysis** — No blocker to writing the plan; the run phase is blocked only on data/weights arrival. Protocol-integrity risks identified early: silent-substitution, S010 naming, scorer leakage, identity-oracle triviality, post-hoc τ/K tuning (solved by dev-split tuning + offline re-aggregation).
 - **Next** — Write `plan_loc_invert.md`; Codex plan review; revise; surface open decisions + plan to Yixun for approval.
+
+## 2026-08-18T15:25:00-0400 — Codex reviewer UNAVAILABLE on this box (401); declared fallback engaged
+
+- **Goal** — Run the SOP-mandated plan review (Codex gpt-5.6-sol, xhigh).
+- **Command / Validation** — `~/.local/bin/codex exec -s read-only -m gpt-5.6-sol -c model_reasoning_effort=xhigh --output-last-message … < /dev/null`; prompt archived in session scratchpad.
+- **Result** — failed: `401 Unauthorized — Missing bearer or basic authentication` on every transport; `~/.codex/auth.json` absent ⇒ Codex has never been authenticated on this box (mae-cab-lab-server). Infra classification: **infrastructure (auth), not a bug**.
+- **Analysis** — Per SOP role table + CLAUDE.md, the declared fallback reviewer when Codex is unavailable is **Claude Opus 5 at max effort**, with the substitution stated in the review by-line (never silent). Fallback engaged for the plan review round; Yixun asked to `codex login` on this box so subsequent rounds (code reviews) can return to Codex.
+- **Next** — Opus 5 fallback plan review → address findings → revise plan → surface to Yixun with open decisions.
