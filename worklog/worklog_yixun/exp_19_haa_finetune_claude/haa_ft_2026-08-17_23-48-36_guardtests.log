@@ -1,0 +1,152 @@
+=== exp_19 haa_ft_launch.sh guardtests — 2026-08-17_23-48-36 — HEAD cf22f2b ===
+scratch: /tmp/tmp.m7vDhtLpo1 (decoy inits + manifests; nothing synthetic enters a production namespace)
+NOTE: the R1 probe is STUBBED here (PROBE_CMD). Production refuses that override; the real probe runs unstubbed.
+--- A. ARM / GPU / MODE are matched exactly, never inferred ---
+  PASS  A1 ARM unset  (rc=2)
+  PASS  A2 ARM lowercase  (rc=2)
+  PASS  A3 ARM invented  (rc=2)
+  PASS  A4 GPU unset  (rc=2)
+  PASS  A5 GPU out of range  (rc=2)
+  PASS  A6 GPU non-numeric  (rc=2)
+  PASS  A7 MODE unset  (rc=2)
+  PASS  A8 MODE lowercase  (rc=2)
+  PASS  A9 MODE near-miss  (rc=2)
+--- B. the test overrides are a DRY_RUN-only facility ---
+  PASS  B1 PROBE_CMD refused outside DRY_RUN  (rc=2)
+  PASS  B2 MANIFEST refused outside DRY_RUN  (rc=2)
+  PASS  B3 INIT_DIR refused outside DRY_RUN  (rc=2)
+  PASS  B4 ARM_CFG_SHA refused outside DRY_RUN  (rc=2)
+  FAIL  B5 the override is disclosed when used: want rc=0 and text 'TEST OVERRIDE ACTIVE: PROBE_CMD'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+--- C. the init gate: manifest line, file, sha ---
+  FAIL  C1 manifest file absent: want rc=2 and text 'init manifest /tmp/tmp.m7vDhtLpo1/nope.txt not found'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  C2 no line for this arm: want rc=2 and text 'has 0 line(s) for'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  C3 ambiguous duplicate line: want rc=2 and text 'has 2 line(s) for'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  C4 wrong init sha: want rc=2 and text 'INIT SHA MISMATCH'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  C5 pinned init file missing: want rc=2 and text 'does not exist'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  C6 the real default manifest is the one production uses: want rc=2 and text 'init manifest worklog/worklog_yixun/exp_19_haa_finetune_claude/exp19_init_shas.txt not found'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+--- D. config contract: one registered treatment per arm ---
+  FAIL  D1 BF with yaw_aug smuggled in: want rc=2 and text 'BF arm must NOT carry yaw_aug'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  D2 BF orbit is not B-F's: want rc=2 and text 'must be B-F's float C4 orbit'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  D3 BF orbit ints for floats: want rc=2 and text 'must be B-F's float C4 orbit'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  D4 BF conditioning dropped: want rc=2 and text 'cond_method must be 'fa_invariant''; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  D5 BF non-delta drift: want rc=2 and text 'NOT the stock plus exactly its two registered deltas'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  D6 BF type-only drift: want rc=2 and text 'NOT the stock plus exactly its two registered deltas'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  D7 BF EMA off: want rc=2 and text 'use_ema must be true'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  D8 YAW with cond_method smuggled in: want rc=2 and text 'YAW arm must NOT carry cond_method'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  D9 YAW width mismatch (ViT side): want rc=2 and text 'roll the panorama by the wrong number of columns'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  D10 YAW bool-as-int: want rc=2 and text 'wrong TYPES'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  D11 YAW treatment altered: want rc=2 and text 'not the registered treatment'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  D12 YAW non-delta drift: want rc=2 and text 'NOT the stock plus exactly training.yaw_aug'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+--- E. the R1 probe gate is wired to the probe's real verdict ---
+  FAIL  E1 probe FAIL stops the arm: want rc=2 and text 'R1 GATE REFUSED (probe rc=1)'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  E2 probe REFUSAL is not a skip: want rc=2 and text 'R1 GATE REFUSED (probe rc=2)'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  E3 silent zero is not a pass: want rc=2 and text 'printed no 'R1 GATE PASS' verdict'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  E4 YAW is gated too (it rotates): want rc=2 and text 'R1 GATE REFUSED (probe rc=1)'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  E5 P1 skips the probe by name: want rc=0 and text 'R1 probe: SKIPPED for the P1 arm'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  E6 the standing r1 limitation is disclosed in every gated run: want rc=0 and text 'subject and oracle share rotate_scene_metadata'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  E7 the disclosure names the init the probe loads: want rc=0 and text 'R1 probe DISCLOSURE: loads /tmp/tmp.m7vDhtLpo1/inits/HAA_init_BF.ckpt through train.py's consumer path'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+--- F. accept paths: all three arms reach the dry-run boundary ---
+  FAIL  F1 P1 FULL accepted: want rc=0 and text 'DRY_RUN: all gates passed'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  F2 BF FULL accepted: want rc=0 and text 'DRY_RUN: all gates passed'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  F3 YAW FULL accepted: want rc=0 and text 'DRY_RUN: all gates passed'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  F4 BF SMOKE accepted: want rc=0 and text 'DRY_RUN: all gates passed'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  F5 P1 contract states the stock file is used directly: want rc=0 and text 'config contract OK: src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json == src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json + none (stock config used directly)'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  F6 the init gate reports a match: want rc=0 and text 'init gate OK:'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  FAIL  F7 source pins are reported: want rc=0 and text 'source pins OK'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+--- G. reviewed-source pins fire, and fire FIRST ---
+  PASS  G1 code tamper caught  (rc=2)
+  FAIL  G2 pins pass once restored: want rc=0 and text 'source pins OK'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+  PASS  G3 an edited arm config trips the byte pin before the contract  (rc=2)
+  FAIL  G4 restored arm config passes again: want rc=0 and text 'config contract OK'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+--- H. the ACTUAL train.py argv, per arm and per mode ---
+  FAIL  H1 FULL endpoint exactly 1000
+  FAIL  H2 FULL cadence exactly 10
+  FAIL  H3 FULL val-every exactly 10
+  FAIL  H4 SMOKE endpoint exactly 20
+  FAIL  H5 SMOKE cadence 1e6 (no ckpt)
+  FAIL  H6 SMOKE val-every 1e6
+  FAIL  H7 batch exactly 16
+  FAIL  H8 accumulation exactly 4
+  FAIL  H9 single GPU
+  FAIL  H10 precision bf16-mixed
+  FAIL  H11 seed exactly 42
+  FAIL  H12 num-workers exactly 8
+  FAIL  H13 train split is haa_train.json
+  FAIL  H14 val split is haa_val.json
+  FAIL  H15 VAE is the frozen pretransform
+  FAIL  H16 BF uses the BF config
+  FAIL  H17 YAW uses the YAW config
+  FAIL  H18 P1 uses the STOCK config
+  FAIL  H19 BF inits from the BF weights
+  FAIL  H20 P1 inits from the P1 weights
+--- H'. namespace separation (no arm can write into another's) ---
+  FAIL  H21 BF FULL save-dir
+  FAIL  H22 BF SMOKE save-dir
+  FAIL  H23 P1 FULL save-dir
+  FAIL  H24 YAW FULL save-dir
+  FAIL  H25 wandb run name per arm
+  FAIL  H26 wandb experiment per arm
+  FAIL  H27 smoke wandb identity differs
+  FAIL  H28 the four namespaces are pairwise distinct
+--- I. argval itself is strict (non-vacuity for section H) ---
+  PASS  I1 argval matches the flag as a whole token
+  PASS  I2 argval returns nothing for an absent flag
+  PASS  I3 eq rejects a value substring
+--- J. single instance through the gate phase ---
+  PASS  J1 a second launcher is refused while the gate lock is held  (rc=2)
+  FAIL  J2 and accepted once it is released: want rc=0 and text 'DRY_RUN: all gates passed'; got rc=2
+        last line:  M src/tools/extract_ema_weights.py
+--- K. properties of the launcher that must not silently regress ---
+  PASS  K1 the budget is not env-overridable
+  PASS  K2 post-run log reading never uses 'tr | grep -q' (pipefail SIGPIPE)
+  PASS  K3 the endpoint marker carries Lightning's backticks
+  PASS  K4 the endpoint is matched as line-ENDS-WITH, not substring
+  PASS  K5 the banner is matched as a WHOLE line
+  PASS  K6 the preflight never prints the banner text (self-satisfaction guard)
+  FAIL  K7 but the preflight IS non-vacuous about the treatment
+  PASS  K8 NaN/Inf is checked in BOTH modes, not SMOKE-only
+  PASS  K9 both registered readings (410 and 1000) are required for FULL
+  PASS  K10 the checkpoint count is REPORTED, not asserted equal
+  PASS  K11 the gate lock is released before training
+  PASS  K12 train.py output is piped synchronously (PIPESTATUS), not async tee
+  PASS  K13 DRY_RUN output never lands in the evidence directory
+  PASS  K14 the probe is given the arm's init via --ckpt-path
+  PASS  K15 the pinned probe sha is the current file
+
+=== 33 passed, 65 failed ===
+log: worklog/worklog_yixun/exp_19_haa_finetune_claude/haa_ft_2026-08-17_23-48-36_guardtests.log

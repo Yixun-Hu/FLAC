@@ -34,6 +34,7 @@ from pathlib import Path
 
 import pytest
 
+from src.tests.test_yaw_aug_a6000_arm_config import INSERTED_BYTES as EXP17_YAW_INSERTED_BYTES
 from src.training.factory import _parse_yaw_aug_config
 
 
@@ -72,16 +73,12 @@ BF_INSERTED_BYTES = (
     b'        ]'
 )
 
-# exp_17's treatment block, byte for byte (the same literal as
-# ``test_yaw_aug_a6000_arm_config.INSERTED_BYTES``).
-YAW_INSERTED_BYTES = (
-    b',\n'
-    b'        "yaw_aug": {\n'
-    b'            "enabled": true,\n'
-    b'            "img_w": 512,\n'
-    b'            "seed": 42\n'
-    b'        }'
-)
+# exp_17's treatment block, byte for byte — IMPORTED from exp_17's own contract
+# test rather than retyped (Codex exp_19 r1, non-blocking finding). A copied
+# literal would keep agreeing with itself after exp_17 moved; this way a drift
+# there fails the forward-construction test here, which is the point of claiming
+# "exactly the exp_17 treatment".
+YAW_INSERTED_BYTES = EXP17_YAW_INSERTED_BYTES
 
 EXPECTED_YAW_BLOCK = {"enabled": True, "img_w": 512, "seed": 42}
 EXPECTED_FRAME_ANGLES = [0.0, 90.0, 180.0, 270.0]
@@ -292,6 +289,22 @@ def test_the_bf_arm_values_match_exp07_BF(bf):
     assert all(isinstance(a, float) for a in bf["training"]["frame_avg_angles"])
     assert bf["training"]["frame_avg_angles"][0] == 0.0, (
         "invariant_conditioning requires angles[0] == 0.0 (the identity pass)"
+    )
+
+
+def test_the_yaw_delta_is_exp17s_own_literal_not_a_copy_of_it():
+    """The YAW arm inherits exp_17's treatment; the bytes come from exp_17.
+
+    Imported, so an edit to ``FLAC_AR_YAWAUG_A6000.json``'s registered block
+    breaks the forward construction above instead of leaving two literals that
+    quietly disagree. The parsed content is asserted here as well, so a drift is
+    reported as "exp_17's block changed" rather than as an opaque byte mismatch.
+    """
+    assert YAW_INSERTED_BYTES is EXP17_YAW_INSERTED_BYTES
+    parsed = json.loads(b'{"training": {"x": 0' + YAW_INSERTED_BYTES + b'}}')
+    assert parsed["training"]["yaw_aug"] == EXPECTED_YAW_BLOCK, (
+        "exp_17's registered treatment block has changed; the exp_19 YAW arm is "
+        "no longer inheriting the same treatment"
     )
 
 

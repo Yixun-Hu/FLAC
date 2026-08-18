@@ -1,0 +1,113 @@
+=== exp_19 haa_ft_launch.sh guardtests — 2026-08-17_23-34-30 — HEAD cf22f2b ===
+scratch: /tmp/tmp.WNOTDabPpS (decoy inits + manifests; nothing synthetic enters a production namespace)
+NOTE: the R1 probe is STUBBED here (PROBE_CMD). Production refuses that override; the real probe runs unstubbed.
+--- A. ARM / GPU / MODE are matched exactly, never inferred ---
+  PASS  A1 ARM unset  (rc=2)
+  PASS  A2 ARM lowercase  (rc=2)
+  PASS  A3 ARM invented  (rc=2)
+  PASS  A4 GPU unset  (rc=2)
+  PASS  A5 GPU out of range  (rc=2)
+  PASS  A6 GPU non-numeric  (rc=2)
+  PASS  A7 MODE unset  (rc=2)
+  PASS  A8 MODE lowercase  (rc=2)
+  PASS  A9 MODE near-miss  (rc=2)
+--- B. the test overrides are a DRY_RUN-only facility ---
+  PASS  B1 PROBE_CMD refused outside DRY_RUN  (rc=2)
+  PASS  B2 MANIFEST refused outside DRY_RUN  (rc=2)
+  PASS  B3 INIT_DIR refused outside DRY_RUN  (rc=2)
+  PASS  B4 ARM_CFG_SHA refused outside DRY_RUN  (rc=2)
+  PASS  B5 the override is disclosed when used  (rc=0)
+--- C. the init gate: manifest line, file, sha ---
+  PASS  C1 manifest file absent  (rc=2)
+  PASS  C2 no line for this arm  (rc=2)
+  PASS  C3 ambiguous duplicate line  (rc=2)
+  PASS  C4 wrong init sha  (rc=2)
+  PASS  C5 pinned init file missing  (rc=2)
+  PASS  C6 the real default manifest is the one production uses  (rc=2)
+--- D. config contract: one registered treatment per arm ---
+  PASS  D1 BF with yaw_aug smuggled in  (rc=2)
+  PASS  D2 BF orbit is not B-F's  (rc=2)
+  PASS  D3 BF orbit ints for floats  (rc=2)
+  PASS  D4 BF conditioning dropped  (rc=2)
+  PASS  D5 BF non-delta drift  (rc=2)
+  PASS  D6 BF type-only drift  (rc=2)
+  PASS  D7 BF EMA off  (rc=2)
+  PASS  D8 YAW with cond_method smuggled in  (rc=2)
+  PASS  D9 YAW width mismatch (ViT side)  (rc=2)
+  PASS  D10 YAW bool-as-int  (rc=2)
+  PASS  D11 YAW treatment altered  (rc=2)
+  PASS  D12 YAW non-delta drift  (rc=2)
+--- E. the R1 probe gate is wired to the probe's real verdict ---
+  PASS  E1 probe FAIL stops the arm  (rc=2)
+  PASS  E2 probe REFUSAL is not a skip  (rc=2)
+  PASS  E3 silent zero is not a pass  (rc=2)
+  PASS  E4 YAW is gated too (it rotates)  (rc=2)
+  PASS  E5 P1 skips the probe by name  (rc=0)
+  PASS  E6 the open r1 limitation is disclosed in every gated run  (rc=0)
+--- F. accept paths: all three arms reach the dry-run boundary ---
+  PASS  F1 P1 FULL accepted  (rc=0)
+  PASS  F2 BF FULL accepted  (rc=0)
+  PASS  F3 YAW FULL accepted  (rc=0)
+  PASS  F4 BF SMOKE accepted  (rc=0)
+  PASS  F5 P1 contract states the stock file is used directly  (rc=0)
+  PASS  F6 the init gate reports a match  (rc=0)
+  PASS  F7 source pins are reported  (rc=0)
+--- G. reviewed-source pins fire, and fire FIRST ---
+  PASS  G1 code tamper caught  (rc=2)
+  PASS  G2 pins pass once restored  (rc=0)
+  PASS  G3 an edited arm config trips the byte pin before the contract  (rc=2)
+  PASS  G4 restored arm config passes again  (rc=0)
+--- H. the ACTUAL train.py argv, per arm and per mode ---
+  PASS  H1 FULL endpoint exactly 1000
+  PASS  H2 FULL cadence exactly 10
+  PASS  H3 FULL val-every exactly 10
+  PASS  H4 SMOKE endpoint exactly 20
+  PASS  H5 SMOKE cadence 1e6 (no ckpt)
+  PASS  H6 SMOKE val-every 1e6
+  PASS  H7 batch exactly 16
+  PASS  H8 accumulation exactly 4
+  PASS  H9 single GPU
+  PASS  H10 precision bf16-mixed
+  PASS  H11 seed exactly 42
+  PASS  H12 num-workers exactly 8
+  PASS  H13 train split is haa_train.json
+  PASS  H14 val split is haa_val.json
+  PASS  H15 VAE is the frozen pretransform
+  PASS  H16 BF uses the BF config
+  PASS  H17 YAW uses the YAW config
+  PASS  H18 P1 uses the STOCK config
+  PASS  H19 BF inits from the BF weights
+  PASS  H20 P1 inits from the P1 weights
+--- H'. namespace separation (no arm can write into another's) ---
+  PASS  H21 BF FULL save-dir
+  PASS  H22 BF SMOKE save-dir
+  PASS  H23 P1 FULL save-dir
+  PASS  H24 YAW FULL save-dir
+  PASS  H25 wandb run name per arm
+  PASS  H26 wandb experiment per arm
+  PASS  H27 smoke wandb identity differs
+  PASS  H28 the four namespaces are pairwise distinct
+--- I. argval itself is strict (non-vacuity for section H) ---
+  PASS  I1 argval matches the flag as a whole token
+  PASS  I2 argval returns nothing for an absent flag
+  PASS  I3 eq rejects a value substring
+--- J. single instance through the gate phase ---
+  PASS  J1 a second launcher is refused while the gate lock is held  (rc=2)
+  PASS  J2 and accepted once it is released  (rc=0)
+--- K. properties of the launcher that must not silently regress ---
+  PASS  K1 the budget is not env-overridable
+  PASS  K2 post-run log reading never uses 'tr | grep -q' (pipefail SIGPIPE)
+  PASS  K3 the endpoint marker carries Lightning's backticks
+  PASS  K4 the endpoint is matched as line-ENDS-WITH, not substring
+  PASS  K5 the banner is matched as a WHOLE line
+  PASS  K6 the preflight never prints the banner text (self-satisfaction guard)
+  PASS  K7 but the preflight IS non-vacuous about the treatment
+  PASS  K8 NaN/Inf is checked in BOTH modes, not SMOKE-only
+  PASS  K9 both registered readings (410 and 1000) are required for FULL
+  PASS  K10 the checkpoint count is REPORTED, not asserted equal
+  PASS  K11 the gate lock is released before training
+  PASS  K12 train.py output is piped synchronously (PIPESTATUS), not async tee
+  PASS  K13 DRY_RUN output never lands in the evidence directory
+
+=== 95 passed, 0 failed ===
+log: worklog/worklog_yixun/exp_19_haa_finetune_claude/haa_ft_2026-08-17_23-34-30_guardtests.log

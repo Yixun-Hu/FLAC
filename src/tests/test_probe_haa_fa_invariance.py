@@ -22,7 +22,9 @@ that reports "invariant" for a broken rotation is worse than no gate at all.
 Written by the exp_19 coder seat (Claude Opus 5, max effort).
 """
 import functools
+import hashlib
 import importlib.util
+import json
 import math
 from pathlib import Path
 
@@ -457,11 +459,10 @@ def test_the_yaw_invariant_fields_are_passed_through_untouched():
 # 5. the CLI half exists and is wired for the gate
 # --------------------------------------------------------------------------- #
 def test_the_cli_defaults_are_the_haa_stack_and_the_registered_threshold():
-    """Not exercised end-to-end here (needs the dataset + DINOv3); its wiring is.
+    """``--threshold`` defaults to the plan's 1e-5 and the configs to the HAA stack.
 
-    ``--threshold`` defaults to the plan's 1e-5 and the model config defaults to
-    the stock HAA finetune config, so an operator running the gate with no flags
-    runs the gate that was registered.
+    ``--ckpt-path`` deliberately has NO default: the gate must be told which
+    init it is certifying (Codex r1 finding 5).
     """
     parser = probe.build_parser()
     args = parser.parse_args([])
@@ -469,6 +470,170 @@ def test_the_cli_defaults_are_the_haa_stack_and_the_registered_threshold():
     assert args.model_config.endswith("FLAC/HAA/FLAC_HAA_finetune.json")
     assert args.dataset_config.endswith("HAA/eval/haa_test.json")
     assert tuple(args.angles) == probe.C4_ANGLES
+    assert args.ckpt_path is None
+
+
+# --------------------------------------------------------------------------- #
+# 5b. main() end to end against a FAKE stack
+# --------------------------------------------------------------------------- #
+# Codex r1 named the gap: every core test above stays green if the CLI stops
+# building or invoking a stack at all. These drive main() itself — build ->
+# conditioning -> measurement -> verdict — with a stand-in conditioner, so the
+# wiring is exercised without a GPU, the HAA dataset or a DINOv3 download.
+class FakeConditioner:
+    """Shaped like ``MultiConditioner``: ``(metadata, device, only_ids=None)``.
+
+    Two families, mirroring the real stack: the ``*_vit`` ids read the panorama
+    (so ``invariant_conditioning`` must frame-average them), while
+    ``context_audio`` reads only the yaw-invariant reference RIRs. Every entry is
+    ``[tensor, mask]``, so the masks flow into the measurement too.
+
+    ``drift=True`` makes the output depend on the CALL COUNT — a stack that is
+    not a function of its input, which no amount of orbit averaging can rescue.
+    """
+
+    def __init__(self, drift=False):
+        self.calls = 0
+        self.drift = drift
+
+    def __call__(self, metadata, device, only_ids=None):
+        self.calls += 1
+        bump = float(self.calls) if self.drift else 0.0
+        ids = only_ids if only_ids is not None else ("source_vit", "context_poses_vit",
+                                                     "context_audio")
+        out = {}
+        for cid in ids:
+            if cid == "context_audio":
+                feats = torch.stack([m["context_audio"].reshape(-1)[:8] for m in metadata])
+            else:
+                feats = torch.stack([anisotropic_features(m) for m in metadata]) + bump
+            out[cid] = [feats.unsqueeze(1), torch.ones(len(metadata), 1)]
+        return out
+
+
+def _fake_stack(drift=False, n=2):
+    cond = FakeConditioner(drift=drift)
+    batches = [(torch.zeros(1, 1, 10240), [haa_metadata(seed=19 + i)]) for i in range(n)]
+    return cond, batches
+
+
+def _run_main(monkeypatch, tmp_path, drift=False, extra=()):
+    cond, batches = _fake_stack(drift=drift)
+    seen = {}
+
+    def fake_build(model_config, dataset_config, ckpt_path, device):
+        seen["ckpt_path"] = ckpt_path
+        seen["device"] = device
+        return cond, batches
+
+    monkeypatch.setattr(probe, "_build_stack", fake_build)
+    init = tmp_path / "HAA_init_BF.ckpt"
+    init.write_bytes(b"an init whose sha the record must carry")
+    out = tmp_path / "record.json"
+    rc = probe.main(["--ckpt-path", str(init), "--out", str(out),
+                     "--device", "cpu", "--num-samples", "2", *extra])
+    return rc, json.loads(out.read_text()) if out.exists() else None, cond, seen, init
+
+
+def test_main_builds_conditions_measures_and_passes(monkeypatch, tmp_path):
+    """The whole CLI path, with a stand-in stack: it must PASS and say why.
+
+    Also proves the stack is really used — a main() that skipped the conditioner
+    would leave ``calls == 0`` — and that the record binds the verdict to the
+    init's sha, so a gate result can be matched to the file that was launched.
+    """
+    rc, record, cond, seen, init = _run_main(monkeypatch, tmp_path)
+    assert rc == 0, record
+    assert record["passed"] is True
+    assert record["worst_gap"] < probe.THRESHOLD
+    assert record["n_samples"] == 2
+    assert cond.calls > 0, "main() never invoked the conditioner"
+    assert seen["ckpt_path"] == str(init) and seen["device"] == "cpu"
+    assert record["ckpt_path"] == str(init)
+    assert record["ckpt_sha256"] == hashlib.sha256(init.read_bytes()).hexdigest()
+
+
+def test_main_measures_the_masks_too(monkeypatch, tmp_path):
+    """r1 non-blocking finding: the mask slot is part of the conditioning.
+
+    A mask that moved with the rotation would change which tokens the DiT
+    attends to; measuring only ``entry[0]`` would not see it.
+    """
+    rc, record, *_ = _run_main(monkeypatch, tmp_path)
+    assert rc == 0
+    measured = set(record["per_sample"][0]["gaps"])
+    assert any(k.endswith("[1]") for k in measured), sorted(measured)
+    assert any(k.endswith("[0]") for k in measured), sorted(measured)
+    assert record["measures_masks"] is True
+
+
+def test_main_fails_the_gate_when_the_stack_is_not_invariant(monkeypatch, tmp_path):
+    """The other verdict, driven end to end.
+
+    Non-vacuity for the test above: if main() reported PASS unconditionally, or
+    never measured anything, this would not be distinguishable.
+    """
+    rc, record, cond, _, _ = _run_main(monkeypatch, tmp_path, drift=True)
+    assert rc == 1
+    assert record["passed"] is False
+    assert record["worst_gap"] > probe.THRESHOLD
+    assert cond.calls > 0
+
+
+def test_main_refuses_the_real_stack_without_an_init(tmp_path):
+    """No ``--ckpt-path``, no gate (Codex r1 finding 5).
+
+    A freshly constructed conditioner has random panorama/pose coupling, which is
+    exactly the part the documented pose-linear blind spot makes load-bearing —
+    so measuring it would certify something nobody is launching.
+    """
+    rc = probe.main(["--out", str(tmp_path / "r.json"), "--device", "cpu"])
+    assert rc == 2
+    assert not (tmp_path / "r.json").exists()
+
+
+def test_main_refuses_a_stack_it_cannot_build(monkeypatch, tmp_path):
+    """A stack that will not build is a REFUSAL, never a skip (plan R1)."""
+    def exploding_build(*a, **kw):
+        raise RuntimeError("no HAA dataset on this machine")
+
+    monkeypatch.setattr(probe, "_build_stack", exploding_build)
+    init = tmp_path / "init.ckpt"
+    init.write_bytes(b"x")
+    rc = probe.main(["--ckpt-path", str(init), "--out", str(tmp_path / "r.json"),
+                     "--device", "cpu"])
+    assert rc == 2
+    assert not (tmp_path / "r.json").exists()
+
+
+def test_main_refuses_a_non_closed_orbit_before_touching_the_stack(monkeypatch, tmp_path):
+    """Order matters: an unusable orbit must not first build a model."""
+    def exploding_build(*a, **kw):
+        raise AssertionError("the stack must not be built for an invalid orbit")
+
+    monkeypatch.setattr(probe, "_build_stack", exploding_build)
+    init = tmp_path / "init.ckpt"
+    init.write_bytes(b"x")
+    rc = probe.main(["--ckpt-path", str(init), "--angles", "0", "90", "180",
+                     "--out", str(tmp_path / "r.json"), "--device", "cpu"])
+    assert rc == 2
+
+
+def test_the_real_build_path_loads_the_init_through_train_pys_transforms():
+    """``_build_stack`` must use the CONSUMER path, not an ad-hoc load.
+
+    Read from the source because the real call needs DINOv3 and the HAA dataset:
+    what is pinned is that the init goes through ``load_ckpt_state_dict``, the
+    four train.py rewrites, and a STRICT load — a non-strict load would silently
+    leave the conditioner at its random initialisation, which is the exact defect
+    r1 finding 5 raised.
+    """
+    src = PROBE_PATH.read_text()
+    assert "from src.models.utils import load_ckpt_state_dict" in src
+    assert "load_state_dict(weights, strict=True)" in src
+    for rewrite in ("k.replace('diffusion.', '')", "k.replace('autoencoder.', '')",
+                    "'discriminator' not in k", "'losses' not in k"):
+        assert rewrite in src, rewrite
 
 
 def test_importing_the_probe_pulls_in_no_model_or_dataset_code():
