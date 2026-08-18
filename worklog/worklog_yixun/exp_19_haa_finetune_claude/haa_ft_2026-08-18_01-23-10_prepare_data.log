@@ -1,0 +1,20 @@
+INFO: Loading dataset from: HAA
+INFO: Output will be saved to: .haa_prep_staging
+INFO: Found 4 scenes
+INFO: Saved scenes metadata to .haa_prep_staging/scenes_metadata.json
+INFO: Processing scene: classroomBase
+WARNING: Missing RIR or position file for classroomBase
+INFO: Processing scene: complexBase
+WARNING: Missing RIR or position file for complexBase
+INFO: Processing scene: dampenedBase
+WARNING: Missing RIR or position file for dampenedBase
+INFO: Processing scene: hallwayBase
+WARNING: Missing RIR or position file for hallwayBase
+INFO: Successfully saved all metadata files to .haa_prep_staging
+INFO: Dataset preparation completed successfully!
+prep rc=0
+scenes: poses_metadata.json scenes_metadata.json test_base.json train_base.json val_base.json 
+wavs: 0
+52K	.haa_prep_staging
+train_base: DIFFERS
+val_base: DIFFERS

@@ -1,0 +1,18 @@
+INFO: Loading dataset from: .haa_raw_shim
+INFO: Output will be saved to: .haa_prep_staging
+INFO: Found 4 scenes
+INFO: Saved scenes metadata to .haa_prep_staging/scenes_metadata.json
+INFO: Processing scene: classroomBase
+INFO: Processing scene: complexBase
+INFO: Processing scene: dampenedBase
+INFO: Processing scene: hallwayBase
+INFO: Successfully saved all metadata files to .haa_prep_staging
+INFO: Dataset preparation completed successfully!
+prep rc=0
+wavs: 1890 (期望 1890 = 630+408+276+576)
+1.1G	.haa_prep_staging
+train_base semantic-equal: True
+val_base semantic-equal: True
+test_base semantic-equal: True
+SPLITS MATCH
+sample wav: 22050 Hz, 1 ch, 308647 frames
