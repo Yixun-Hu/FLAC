@@ -1,0 +1,157 @@
+=== exp_19 haa_ft_launch.sh guardtests — 2026-08-18_01-18-18 — HEAD 40bb737 ===
+scratch: /tmp/tmp.4ZCj5FjRh3 (decoy inits, manifests, dataset fixture, rehearsal dir)
+gate lock: held exclusively by this suite for its whole duration
+NOTE: the R1 probe is STUBBED here (PROBE_CMD). Production refuses that override.
+--- A. ARM / GPU / MODE / DRY_RUN are matched exactly, never inferred ---
+  PASS  A1 ARM unset  (rc=2)
+  PASS  A2 ARM lowercase  (rc=2)
+  PASS  A3 ARM invented  (rc=2)
+  PASS  A4 GPU unset  (rc=2)
+  PASS  A5 GPU out of range  (rc=2)
+  PASS  A6 GPU non-numeric  (rc=2)
+  PASS  A7 MODE unset  (rc=2)
+  PASS  A8 MODE lowercase  (rc=2)
+  PASS  A9 MODE near-miss  (rc=2)
+  PASS  A10 DRY_RUN invented  (rc=2)
+--- B. the test overrides are a DRY-only facility (each poisoned by EXPECT_SHA) ---
+  PASS  B1 PROBE_CMD refused in production  (rc=2)
+  PASS  B2 MANIFEST refused in production  (rc=2)
+  PASS  B3 INIT_DIR refused in production  (rc=2)
+  PASS  B4 ARM_CFG_SHA refused in production  (rc=2)
+  PASS  B5 HAA_ROOT refused in production  (rc=2)
+  PASS  B6 TRAIN_CMD refused in production  (rc=2)
+  PASS  B7 caller-held lock refused in production  (rc=2)
+  PASS  B8 THE POISON ITSELF: no EXPECT_SHA, no override, still refused  (rc=2)
+  PASS  B9 the override is disclosed when used  (rc=0)
+--- B'. revision binding (r2-B1) ---
+  PASS  B10 a wrong EXPECT_SHA is refused  (rc=2)
+  PASS  B11 a DRY FULL may omit EXPECT_SHA  (rc=0)
+  PASS  B12 a production SMOKE is not stopped by the revision gate
+  PASS  B13 HEAD is recorded in every mode
+--- C. the init gate: manifest line, file, sha ---
+  PASS  C1 manifest file absent  (rc=2)
+  PASS  C2 no line for this arm  (rc=2)
+  PASS  C3 ambiguous duplicate line  (rc=2)
+  PASS  C4 wrong init sha  (rc=2)
+  PASS  C5 pinned init file missing  (rc=2)
+  PASS  C6 the default manifest path is the production one
+--- D. config contract: one registered treatment per arm ---
+  PASS  D1 BF with yaw_aug smuggled in  (rc=2)
+  PASS  D2 BF orbit is not B-F's  (rc=2)
+  PASS  D3 BF orbit ints for floats  (rc=2)
+  PASS  D4 BF conditioning dropped  (rc=2)
+  PASS  D5 BF non-delta drift  (rc=2)
+  PASS  D6 BF type-only drift  (rc=2)
+  PASS  D7 BF EMA off  (rc=2)
+  PASS  D8 YAW with cond_method smuggled in  (rc=2)
+  PASS  D9 YAW width mismatch (ViT side)  (rc=2)
+  PASS  D10 YAW bool-as-int  (rc=2)
+  PASS  D11 YAW treatment altered  (rc=2)
+  PASS  D12 YAW non-delta drift  (rc=2)
+--- E. the dataset inventory gate (relocation-aware) ---
+  PASS  E1 a missing dataset root is refused  (rc=2)
+  PASS  E2 an empty (mid-copy) root is refused  (rc=2)
+  PASS  E3 a zero-length file is refused  (rc=2)
+  PASS  E4 a SYMLINKED root is accepted (the relocation shape)  (rc=0)
+  PASS  E5 the resolved target is logged  (rc=0)
+  PASS  E6 P1 is gated on the dataset too  (rc=2)
+--- F. the R1 probe gate is wired to the probe's real verdict ---
+  PASS  F1 probe FAIL stops the arm  (rc=2)
+  PASS  F2 probe REFUSAL is not a skip  (rc=2)
+  PASS  F3 silent zero is not a pass  (rc=2)
+  PASS  F4 YAW is gated too (it rotates)  (rc=2)
+  PASS  F5 P1 skips the probe by name  (rc=0)
+  PASS  F6 the standing r1 limitation is disclosed  (rc=0)
+  PASS  F7 the disclosure names the init the probe loads  (rc=0)
+--- G. accept paths: all three arms reach the dry-run boundary ---
+  PASS  G1 P1 FULL accepted  (rc=0)
+  PASS  G2 BF FULL accepted  (rc=0)
+  PASS  G3 YAW FULL accepted  (rc=0)
+  PASS  G4 BF SMOKE accepted  (rc=0)
+  PASS  G5 P1 contract states the stock file is used directly  (rc=0)
+  PASS  G6 the init gate reports a match  (rc=0)
+  PASS  G7 source pins are reported (incl. both splits)  (rc=0)
+--- H. reviewed-source pins and the closure, and the order they fire in ---
+  PASS  H1 pinned code tamper caught  (rc=2)
+  PASS  H2 pins pass once restored  (rc=0)
+  PASS  H3 an edited arm config trips the byte pin before the contract  (rc=2)
+  PASS  H4 a dirty training closure is refused  (rc=2)
+  PASS  H5 and clean again once restored  (rc=0)
+  PASS  H6 the HAA splits are inside the closure (r2-B1)
+--- I. the ACTUAL train.py argv, per arm and per mode ---
+  PASS  I1 FULL endpoint exactly 1000
+  PASS  I2 FULL cadence exactly 10
+  PASS  I3 FULL val-every exactly 10
+  PASS  I4 SMOKE endpoint exactly 20
+  PASS  I5 SMOKE cadence 1e6 (no ckpt)
+  PASS  I6 SMOKE val-every 1e6
+  PASS  I7 batch exactly 16
+  PASS  I8 accumulation exactly 4
+  PASS  I9 single GPU
+  PASS  I10 precision bf16-mixed
+  PASS  I11 seed exactly 42
+  PASS  I12 num-workers exactly 8
+  PASS  I13 train split is haa_train.json
+  PASS  I14 val split is haa_val.json
+  PASS  I15 VAE is the frozen pretransform
+  PASS  I16 BF uses the BF config
+  PASS  I17 YAW uses the YAW config
+  PASS  I18 P1 uses the STOCK config
+  PASS  I19 BF inits from the BF weights
+  PASS  I20 P1 inits from the P1 weights
+--- I'. namespace separation (no arm can write into another's) ---
+  PASS  I21 BF FULL save-dir
+  PASS  I22 BF SMOKE save-dir
+  PASS  I23 P1 FULL save-dir
+  PASS  I24 YAW FULL save-dir
+  PASS  I25 wandb run name per arm
+  PASS  I26 wandb experiment per arm
+  PASS  I27 smoke wandb identity differs
+  PASS  I28 the four namespaces are pairwise distinct
+  PASS  I29 argval matches the flag as a whole token
+  PASS  I30 eq rejects a value substring
+--- J. locks: per-arm and per-GPU, held for the WHOLE run (r2-B2) ---
+  PASS  J1 a launcher that must take the gate lock is refused while it is held  (rc=2)
+  PASS  J2 the caller-held path is accepted  (rc=0)
+  PASS  J3 the same ARM cannot be launched twice  (rc=2)
+  PASS  J4 the same GPU cannot be claimed twice  (rc=2)
+  PASS  J5 both are free again once released  (rc=0)
+  PASS  J6 the run locks are NOT closed before exec (the child inherits them)
+--- K. post-run verdicts, EXECUTED via the rehearsal mode ---
+  PASS  K1 a healthy FULL rehearsal ends rc=0  (rc=0)
+  PASS  K2 a failing train propagates its rc  (rc=7)
+  PASS  K3 a log without the endpoint marker is rejected  (rc=6)
+  PASS  K4 a log that merely QUOTES the marker is rejected  (rc=6)
+  PASS  K5 non-finite loss is rejected even with the endpoint reached  (rc=4)
+  PASS  K6 FULL without the step-410 reading is rejected  (rc=6)
+  PASS  K7 FULL without the endpoint checkpoint is rejected  (rc=6)
+  PASS  K8 a YAW run whose banner is absent is rejected  (rc=3)
+  PASS  K9 a YAW run WITH the banner passes  (rc=0)
+  PASS  K10 a banner PARAPHRASE does not satisfy the whole-line check  (rc=3)
+  PASS  K11 a SMOKE that wrote a checkpoint is rejected  (rc=5)
+  PASS  K12 a clean SMOKE reports zero checkpoints  (rc=0)
+  PASS  K13 rehearsal artifacts never land in a production namespace  (rc=0)
+  PASS  K14 rehearsal requires TRAIN_CMD  (rc=2)
+  PASS  K15 rehearsal requires a private REHEARSAL_DIR  (rc=2)
+  PASS  K16 an init replaced after gate 3 is caught before exec  (rc=2)
+--- M. resource floors: raisable, never lowerable ---
+  PASS  M1 a raised VRAM floor is honoured  (rc=2)
+  PASS  M2 a raised disk floor is honoured  (rc=2)
+  PASS  M3 a LOWERED VRAM floor is clamped back to the registered one  (rc=0)
+  PASS  M4 a LOWERED disk floor is clamped back to the registered one  (rc=0)
+  PASS  M5 the clamped floor is the one actually enforced  (rc=0)
+--- L. properties of the launcher that must not silently regress ---
+  PASS  L1 the budget is not env-overridable
+  PASS  L2 post-run log reading never uses 'tr | grep -q' (pipefail SIGPIPE)
+  PASS  L3 the endpoint marker carries Lightning's backticks
+  PASS  L4 the floors are clamped, never lowered, in production
+  PASS  L5 the preflight never prints the banner text (self-satisfaction guard)
+  PASS  L6 the probe is given the arm's init via --ckpt-path
+  PASS  L7 the pinned probe sha is the current file
+  PASS  L8 both HAA split files are content-pinned
+  PASS  L9 train.py output is piped synchronously (PIPESTATUS), not async tee
+  PASS  L10 DRY output goes to a per-invocation mktemp dir, not a shared one
+  PASS  L11 two dry runs never share a log directory (non-vacuity for L10)
+
+=== 135 passed, 0 failed ===
+log: worklog/worklog_yixun/exp_19_haa_finetune_claude/haa_ft_2026-08-18_01-18-18_guardtests.log

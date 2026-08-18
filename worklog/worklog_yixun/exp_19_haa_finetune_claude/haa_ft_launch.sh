@@ -2,7 +2,7 @@
 # ============================================================================
 # haa_ft_launch.sh — exp_19: HAA finetuning of three 40k AR inits.
 #
-#   ARM={P1|BF|YAW} GPU={0|1} MODE={SMOKE|FULL} [DRY_RUN=1] bash haa_ft_launch.sh
+#   ARM={P1|BF|YAW} GPU={0|1} MODE={SMOKE|FULL} EXPECT_SHA=<HEAD> bash haa_ft_launch.sh
 #
 # One arm, one card, the released HAA recipe (README "Finetuning on HAA"):
 # 1,000 steps, batch 16 x accum 4 = eff 64, AdamW 5e-6 + InverseLR, VAE frozen,
@@ -16,31 +16,38 @@
 #   YAW yaw_aug        stock + exactly exp_17's treatment block
 #
 # MODE=SMOKE — 20 steps in its OWN namespace, cadence >> endpoint so it can never
-#              write a checkpoint (asserted afterwards). Nothing it produces can
-#              be mistaken for, or resumed into, a FULL artifact.
+#              write a checkpoint (asserted afterwards).
 # MODE=FULL  — the registered 1,000-step endpoint, checkpoints every 10 so BOTH
 #              the step-410 and step-1000 readings exist (plan B1).
-# DRY_RUN=1  — run every gate, print the exact train.py argv, exit 0 before any
-#              side effect beyond this log. This is the boundary the guard suite
-#              asserts against: it inspects the REAL argv, never a paraphrase.
 #
-# Lessons carried from the exp_17 lineage and its Codex r3 debts:
+# DRY_RUN=0  — production. EXPECT_SHA is required for FULL, every test override is
+#              refused, and the resource floors cannot be lowered.
+# DRY_RUN=1  — run every gate, print the exact train.py argv, exit 0 before any
+#              side effect beyond the log. The guard suite asserts against the
+#              REAL argv, never a preflight paraphrase.
+# DRY_RUN=2  — REHEARSAL: every gate, then TRAIN_CMD in place of train.py, then
+#              the complete post-run verdict block. Exists so the post-run gates
+#              (endpoint, banner, NaN, 410/1000, smoke-ckpt, rc propagation) are
+#              EXECUTED by the guard suite instead of grepped for. Requires
+#              TRAIN_CMD and REHEARSAL_DIR, so its checkpoints and logs can never
+#              land in a production namespace.
+#
+# Lessons carried from the exp_17 lineage and the exp_19 Codex reviews:
 #  * post-run log checks never use `tr | grep -q` — under `pipefail` a `-q` early
 #    exit SIGPIPEs `tr` and the pipeline reports failure after a successful match
-#    (r3 blocking). The log is normalised to a file by REDIRECTION and grepped
-#    from the file.
-#  * the endpoint marker is matched with Lightning's REAL framing: tqdm leaves
-#    the progress line unterminated, so the marker is APPENDED to it. Matched as
-#    line-ENDS-WITH (src/tools/exp17_full_audit.py), not whole-line, not
-#    substring — a substring also matches a diagnostic that quotes it.
-#  * the treatment banner is matched as a WHOLE line, and the preflight
-#    deliberately never prints those words, so the check cannot satisfy itself.
-#  * NaN/Inf is checked in BOTH modes (r3: FULL could reach its endpoint,
-#    write a checkpoint and exit 0 with non-finite loss).
+#    (exp_17 r3). The log is normalised to a file by REDIRECTION and grepped.
+#  * the endpoint marker uses Lightning's REAL framing: tqdm leaves the progress
+#    line unterminated, so the marker is APPENDED to it — matched as
+#    line-ENDS-WITH (src/tools/exp17_full_audit.py), not whole-line, not substring.
+#  * the treatment banner is matched as a WHOLE line, and the preflight never
+#    prints those words, so the check cannot satisfy itself.
+#  * NaN/Inf is checked in BOTH modes (exp_17 r3).
 #  * train.py's output goes through a SYNCHRONOUS pipe to its own run log, so the
-#    post-run reader cannot race an undrained async `tee` (r3 non-blocking).
-#  * test overrides (PROBE_CMD / MANIFEST / INIT_DIR) are REFUSED unless
-#    DRY_RUN=1: a gate you can redirect from the environment is not a gate.
+#    post-run reader cannot race an undrained async `tee`.
+#  * r2-B1 revision + split binding: EXPECT_SHA, and the two data/HAA split files
+#    are pinned AND inside the clean-tree closure.
+#  * r2-B2 the per-arm and per-GPU locks are held for the WHOLE run.
+#  * r2-B6 the init sha is re-validated immediately before exec.
 #
 # Written by the exp_19 coder seat (Claude Opus 5, max effort).
 # ============================================================================
@@ -55,25 +62,39 @@ GPU="${GPU:-}"
 MODE="${MODE:-}"
 DRY_RUN="${DRY_RUN:-0}"
 LOGGER="${LOGGER:-wandb}"
-MIN_FREE_MB="${MIN_FREE_MB:-20000}"     # free VRAM floor on the CHOSEN card
-MIN_FREE_DISK_MB="${MIN_FREE_DISK_MB:-}"   # resolved per MODE below
+EXPECT_SHA="${EXPECT_SHA:-}"
 
-# Test-only overrides. Each one substitutes EVIDENCE for a gate, so each is
-# refused outside DRY_RUN (checked immediately after MODE validation) and each
-# is disclosed loudly in the log when used.
+# Floors. Raising them from the environment is allowed; LOWERING them is not
+# (r2 finding: they were overridable down to zero, so the floors were bypassable).
+# Clamped and disclosed below; DRY_RUN is exempt because it never allocates.
+DEFAULT_MIN_FREE_MB=20000
+MIN_FREE_MB="${MIN_FREE_MB:-$DEFAULT_MIN_FREE_MB}"
+MIN_FREE_DISK_MB="${MIN_FREE_DISK_MB:-}"
+
+# Test-only overrides. Each substitutes EVIDENCE for a gate, so each is refused
+# in production (DRY_RUN=0) and disclosed loudly in the log when used.
 MANIFEST_DEFAULT="${EXPDIR}/exp19_init_shas.txt"
 INIT_DIR_DEFAULT="outputs_FLAC/exp19_inits"
 MANIFEST="${MANIFEST:-$MANIFEST_DEFAULT}"
 INIT_DIR="${INIT_DIR:-$INIT_DIR_DEFAULT}"
 PROBE_CMD="${PROBE_CMD:-}"
 # Substitutes gate 2's ARM-CONFIG pin only. Without it the config-contract gate
-# (gate 4) is unreachable by mutation — every edit to an arm config trips the
-# byte pin first — and an unreachable gate is a gate nobody has ever tested.
+# is unreachable by mutation — every edit to an arm config trips the byte pin
+# first — and an unreachable gate is a gate nobody has ever tested.
 ARM_CFG_SHA="${ARM_CFG_SHA:-}"
+# Substitutes the dataset ROOT for the inventory gate, so the guard suite can
+# exercise it without a prepared 50 GB HAA tree.
+HAA_ROOT="${HAA_ROOT:-}"
+# DRY_RUN=2 only: what runs in place of train.py, and where its artifacts go.
+TRAIN_CMD="${TRAIN_CMD:-}"
+REHEARSAL_DIR="${REHEARSAL_DIR:-}"
+# The guard suite holds the gate lock for its whole duration so that no
+# production launcher can be mid-gates while an arm config is momentarily
+# mutated (r2-B3). Its own launcher children must therefore be told the caller
+# already holds it — otherwise they would deadlock against their own suite.
+GATE_LOCK_HELD_BY_CALLER="${GATE_LOCK_HELD_BY_CALLER:-}"
 
 # --- pinned constants: not overridable from the environment ------------------ #
-# A budget you can raise from the shell is not a budget: the same command line
-# that wants to launch would decide what the endpoint is.
 FULL_STEPS=1000               # the released HAA recipe's endpoint
 FULL_CADENCE=10               # README; also what makes step-410 exist (plan B1)
 FULL_VAL_EVERY=10             # README
@@ -95,14 +116,13 @@ STOCK_CFG="src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json"
 VAE="weights/FLAC/VAE.safetensors"
 PROBE_SCRIPT="${EXPDIR}/probe_haa_fa_invariance.py"
 
-# The invariant the smoke cadence pin depends on, asserted rather than assumed.
+# The invariants the cadence pins depend on, asserted rather than assumed.
 [ "$SMOKE_STEPS" -ge 1 ] && [ "$SMOKE_STEPS" -lt "$SMOKE_CADENCE" ] || {
   echo "SMOKE_STEPS=${SMOKE_STEPS} must satisfy 1 <= steps < cadence ${SMOKE_CADENCE} - abort"; exit 2; }
-# ...and the one the step-410 reading depends on.
 [ $(( MID_STEPS % FULL_CADENCE )) -eq 0 ] && [ "$MID_STEPS" -lt "$FULL_STEPS" ] || {
   echo "step ${MID_STEPS} is not on the cadence-${FULL_CADENCE} grid below ${FULL_STEPS} - abort"; exit 2; }
 
-# --- gate 1: ARM / GPU / MODE are matched EXACTLY, never inferred ------------ #
+# --- gate 1: ARM / GPU / MODE / DRY_RUN are matched EXACTLY, never inferred --- #
 case "$ARM" in
   P1|BF|YAW) ;;
   *) echo "ARM must be exactly P1, BF or YAW (got '${ARM}') - abort"; exit 2 ;;
@@ -115,13 +135,42 @@ case "$MODE" in
   SMOKE|FULL) ;;
   *) echo "MODE must be exactly SMOKE or FULL (got '${MODE}') - abort"; exit 2 ;;
 esac
+case "$DRY_RUN" in
+  0|1|2) ;;
+  *) echo "DRY_RUN must be exactly 0 (production), 1 (gate boundary) or 2 (post-run rehearsal), got '${DRY_RUN}' - abort"; exit 2 ;;
+esac
 
-# Evidence-substituting overrides are a DRY_RUN-only facility.
-if [ "$DRY_RUN" != "1" ]; then
+# --- gate 1b: the test overrides are refused in PRODUCTION -------------------- #
+# Checked BEFORE the EXPECT_SHA gate on purpose: the guard suite asserts these
+# messages, and EXPECT_SHA is what independently stops such a case from ever
+# reaching training if one of these refusals were deleted (r2-B5).
+if [ "$DRY_RUN" = "0" ]; then
   [ -z "$PROBE_CMD" ] || { echo "PROBE_CMD is a DRY_RUN-only test override and is set ('${PROBE_CMD}') - a real launch must run the REAL R1 probe - abort"; exit 2; }
   [ -z "$ARM_CFG_SHA" ] || { echo "ARM_CFG_SHA is a DRY_RUN-only test override and is set ('${ARM_CFG_SHA}') - a real launch must match the hard-coded arm-config pin - abort"; exit 2; }
+  [ -z "$HAA_ROOT" ] || { echo "HAA_ROOT is a DRY_RUN-only test override and is set ('${HAA_ROOT}') - a real launch must validate the REAL dataset root - abort"; exit 2; }
+  [ -z "$TRAIN_CMD" ] || { echo "TRAIN_CMD is a DRY_RUN-only test override and is set ('${TRAIN_CMD}') - a real launch must run train.py - abort"; exit 2; }
+  [ -z "$REHEARSAL_DIR" ] || { echo "REHEARSAL_DIR is a DRY_RUN-only test override and is set ('${REHEARSAL_DIR}') - abort"; exit 2; }
+  [ -z "$GATE_LOCK_HELD_BY_CALLER" ] || { echo "GATE_LOCK_HELD_BY_CALLER is a DRY_RUN-only test override and is set - a real launch must acquire the gate lock itself - abort"; exit 2; }
   [ "$MANIFEST" = "$MANIFEST_DEFAULT" ] || { echo "MANIFEST is a DRY_RUN-only test override and points at '${MANIFEST}' instead of ${MANIFEST_DEFAULT} - abort"; exit 2; }
   [ "$INIT_DIR" = "$INIT_DIR_DEFAULT" ] || { echo "INIT_DIR is a DRY_RUN-only test override and points at '${INIT_DIR}' instead of ${INIT_DIR_DEFAULT} - abort"; exit 2; }
+fi
+if [ "$DRY_RUN" = "2" ]; then
+  [ -n "$TRAIN_CMD" ] || { echo "DRY_RUN=2 (rehearsal) requires TRAIN_CMD - abort"; exit 2; }
+  [ -d "$REHEARSAL_DIR" ] || { echo "DRY_RUN=2 (rehearsal) requires REHEARSAL_DIR to be an existing directory (got '${REHEARSAL_DIR}') - its artifacts must never land in a production namespace - abort"; exit 2; }
+fi
+
+# --- gate 1c: revision binding (r2-B1) --------------------------------------- #
+# HEAD is RECORDED in every mode and BOUND in production FULL. The exp_17 r3 debt
+# was that a clean commit carrying changes to unpinned closure code passed every
+# gate; requiring the operator to name the revision they reviewed closes it, and
+# the closure-clean check below is what makes the name mean anything.
+HEAD_SHA="$(git rev-parse HEAD 2>/dev/null)"
+if [ "$DRY_RUN" = "0" ] && [ "$MODE" = "FULL" ]; then
+  [ -n "$EXPECT_SHA" ] || {
+    echo "EXPECT_SHA is REQUIRED for a production FULL launch: name the reviewed revision (git rev-parse HEAD) so the run is bound to it - abort"; exit 2; }
+  [ -n "$HEAD_SHA" ] || { echo "git rev-parse HEAD failed - refusing to launch an unidentifiable revision - abort"; exit 2; }
+  [ "$EXPECT_SHA" = "$HEAD_SHA" ] || {
+    echo "EXPECT_SHA=${EXPECT_SHA} != HEAD ${HEAD_SHA} - this checkout is not the revision you reviewed - abort"; exit 2; }
 fi
 
 case "$ARM" in
@@ -133,64 +182,99 @@ INIT="${INIT_DIR}/HAA_init_${ARM}.ckpt"
 
 case "$MODE" in
   SMOKE) SUFFIX="_smoke"; MAXSTEPS="$SMOKE_STEPS"; CADENCE="$SMOKE_CADENCE"; VALEVERY="$SMOKE_VAL_EVERY"
-         MIN_FREE_DISK_MB="${MIN_FREE_DISK_MB:-4096}" ;;
+         DEFAULT_MIN_FREE_DISK_MB=4096 ;;
   FULL)  SUFFIX="";       MAXSTEPS="$FULL_STEPS";  CADENCE="$FULL_CADENCE";  VALEVERY="$FULL_VAL_EVERY"
          # 100 checkpoints x ~690 MiB each (measured on the 40k artifacts) is
          # ~69 GiB PER ARM. This floor is not decoration: at cadence 10 the
          # deliverable is two orders of magnitude larger than a normal run's.
-         MIN_FREE_DISK_MB="${MIN_FREE_DISK_MB:-72000}" ;;
+         DEFAULT_MIN_FREE_DISK_MB=72000 ;;
 esac
+MIN_FREE_DISK_MB="${MIN_FREE_DISK_MB:-$DEFAULT_MIN_FREE_DISK_MB}"
+
 NAME="FLAC_exp19_HAA_${ARM}${SUFFIX}"
 EXPNAME="exp19_HAA_${ARM}${SUFFIX}"
-SAVEDIR="outputs_FLAC/exp19_HAA_${ARM}${SUFFIX}"
+if [ "$DRY_RUN" = "2" ]; then
+  SAVEDIR="${REHEARSAL_DIR}/exp19_HAA_${ARM}${SUFFIX}"      # never a production namespace
+else
+  SAVEDIR="outputs_FLAC/exp19_HAA_${ARM}${SUFFIX}"
+fi
 
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
-# DRY_RUN output is NOT production evidence and never lands in the evidence
-# directory: the exp_17 guard suite had to delete new logs out of EXPDIR at exit,
-# which its own review flagged as able to destroy a CONCURRENT real run's log.
-if [ "$DRY_RUN" = "1" ]; then
-  LOGDIR="${EXPDIR}/.dryrun_logs"; mkdir -p "$LOGDIR"
-  LOG="${LOGDIR}/haa_ft_${TS}_${ARM}_${MODE}_dryrun.log"
-else
-  LOGDIR="$EXPDIR"
-  LOG="${EXPDIR}/haa_ft_${TS}_${ARM}_${MODE}.log"
-fi
+# DRY output is NOT production evidence and never lands in the evidence
+# directory. A PER-INVOCATION mktemp dir, not a shared one: the guard suite used
+# to delete a shared `.dryrun_logs`, which could erase a concurrent dry run's log.
+case "$DRY_RUN" in
+  0) LOGDIR="$EXPDIR"; LOG="${EXPDIR}/haa_ft_${TS}_${ARM}_${MODE}.log" ;;
+  1) LOGDIR="$(mktemp -d -t haa_ft_dryrun.XXXXXXXX)" || { echo "mktemp failed - abort"; exit 2; }
+     LOG="${LOGDIR}/haa_ft_${TS}_${ARM}_${MODE}_dryrun.log" ;;
+  2) LOGDIR="${REHEARSAL_DIR}"; LOG="${LOGDIR}/haa_ft_${TS}_${ARM}_${MODE}_rehearsal.log" ;;
+esac
 RUNLOG="${LOGDIR}/haa_ft_${TS}_${ARM}_${MODE}_train.log"
 
-# --- single instance through the GATE phase ---------------------------------- #
-# Shared across arms on purpose: the gates read shared state (the manifest, the
-# namespace, one free-VRAM snapshot per card), and two launchers interleaving
-# through them could both pass a floor only one of them can satisfy.
-# RELEASED before train.py starts — the arms are MEANT to train concurrently,
-# one per card, so a lock held across training would serialise the experiment.
+# --- locks ------------------------------------------------------------------- #
+# (r2-B2) The per-arm and per-GPU locks are held for the WHOLE RUN, not just the
+# gate phase: before the first checkpoint exists, the namespace-occupancy check
+# cannot see a sibling launch, so two same-arm FULL runs could both pass and then
+# write into one SAVEDIR — and two arms could both claim one card during the
+# other's startup window. These fds are deliberately NOT closed before train.py:
+# bash keeps them open across the child, the child inherits them, and the locks
+# therefore stay held for as long as the run lives. That inheritance is the
+# mechanism, not an accident.
+ARM_LOCK="${EXPDIR}/.haa_ft_${ARM}.lock"
+GPU_LOCK="${EXPDIR}/.haa_gpu${GPU}.lock"
+exec 8>"$ARM_LOCK" || { echo "cannot open ${ARM_LOCK} - abort"; exit 2; }
+flock -n 8 || { echo "arm ${ARM} is already running or gating (${ARM_LOCK} held) - abort"; exit 2; }
+exec 7>"$GPU_LOCK" || { echo "cannot open ${GPU_LOCK} - abort"; exit 2; }
+flock -n 7 || { echo "GPU ${GPU} is already reserved by another exp_19 run (${GPU_LOCK} held) - abort"; exit 2; }
+
+# The shared gate lock stays GATE-PHASE-SCOPED: the gates read shared state (the
+# manifest, the namespace, one free-VRAM snapshot per card) and two launchers
+# interleaving through them could both pass a floor only one can satisfy — but
+# the arms are MEANT to train concurrently, one per card, so it is released
+# before train.py. It is also the lock the guard suite holds while an arm config
+# is momentarily mutated, which is why a caller may legitimately already own it.
 LOCK="${EXPDIR}/.haa_ft.lock"
-exec 9>"$LOCK" || { echo "cannot open ${LOCK} - abort"; exit 2; }
-flock -n 9 || { echo "another exp_19 launcher holds ${LOCK} (gate phase) - abort"; exit 2; }
+if [ -n "$GATE_LOCK_HELD_BY_CALLER" ]; then
+  GATE_LOCK_OWNED=0
+else
+  exec 9>"$LOCK" || { echo "cannot open ${LOCK} - abort"; exit 2; }
+  flock -n 9 || { echo "another exp_19 launcher holds ${LOCK} (gate phase) - abort"; exit 2; }
+  GATE_LOCK_OWNED=1
+fi
 
 exec > >(tee -a "$LOG") 2>&1
-echo "=== exp_19 HAA finetune | ARM=${ARM} MODE=${MODE} GPU=${GPU} | ${TS} | HEAD $(git rev-parse --short HEAD 2>/dev/null) | dry_run=${DRY_RUN} logger=${LOGGER} ==="
+echo "=== exp_19 HAA finetune | ARM=${ARM} MODE=${MODE} GPU=${GPU} | ${TS} | HEAD ${HEAD_SHA:-unknown} | dry_run=${DRY_RUN} logger=${LOGGER} ==="
 echo "identity: name=${NAME} | experiment=${EXPNAME} | save-dir=${SAVEDIR}"
 echo "budget:   endpoint=${MAXSTEPS} | cadence=${CADENCE} | val-every=${VALEVERY} | batch=${BATCH}x accum ${ACCUM} = eff $((BATCH*ACCUM))"
 echo "config:   ${ARM_CFG}"
 echo "init:     ${INIT}"
-[ "$DRY_RUN" = "1" ] && {
+echo "locks:    ${ARM_LOCK} + ${GPU_LOCK} held for the whole run; gate lock owned=${GATE_LOCK_OWNED}"
+[ "$DRY_RUN" = "0" ] && [ "$MODE" = "FULL" ] && echo "revision: EXPECT_SHA=${EXPECT_SHA} matches HEAD"
+if [ "$DRY_RUN" != "0" ]; then
+  echo "dry-run log dir: ${LOGDIR}"
   [ -n "$PROBE_CMD" ] && echo "!! TEST OVERRIDE ACTIVE: PROBE_CMD='${PROBE_CMD}' (the R1 gate is STUBBED; this run proves nothing about invariance)"
   [ "$MANIFEST" != "$MANIFEST_DEFAULT" ] && echo "!! TEST OVERRIDE ACTIVE: MANIFEST='${MANIFEST}'"
   [ "$INIT_DIR" != "$INIT_DIR_DEFAULT" ] && echo "!! TEST OVERRIDE ACTIVE: INIT_DIR='${INIT_DIR}'"
   [ -n "$ARM_CFG_SHA" ] && echo "!! TEST OVERRIDE ACTIVE: ARM_CFG_SHA='${ARM_CFG_SHA}' (gate 2's arm-config pin is SUBSTITUTED)"
-  true; }
+  [ -n "$HAA_ROOT" ] && echo "!! TEST OVERRIDE ACTIVE: HAA_ROOT='${HAA_ROOT}' (the dataset inventory is checked against a FIXTURE)"
+  [ -n "$TRAIN_CMD" ] && echo "!! TEST OVERRIDE ACTIVE: TRAIN_CMD='${TRAIN_CMD}' (train.py is NOT run; the post-run gates are being rehearsed)"
+  [ -n "$GATE_LOCK_HELD_BY_CALLER" ] && echo "!! TEST OVERRIDE ACTIVE: the caller holds ${LOCK}"
+  true
+fi
 
-# --- gate 2: source pins — the reviewed code/config/weights, byte for byte ---- #
-# The brief's eight, plus the exp_17-lineage additions: the treatment code
-# itself, and the R1 gate script (r3 blocking finding: the executed gate script
-# lived under the exempt worklog tree and was not content-pinned).
-# ⚠️ PIN_probe is EXPECTED to change when the exp_19 r1 review's fix batch lands;
-# update it deliberately and re-run the guard suite then.
+# --- gate 2: source pins — the reviewed code/config/weights/SPLITS, byte for byte #
+# (r2-B1) The dataset configs only NAME a split; the actual sample list lives in
+# data/HAA/*_base.json, so an edited split could train successfully while every
+# other gate reported success. Both are pinned here AND in the closure below.
+# ⚠️ PIN_probe changes whenever the probe does; update it deliberately and re-run
+# the guard suite then.
 PIN_train="bce1c94e648138459c056d82ac3e5f385e413b99f819b71bbbcd6d470d5f13ea  train.py"
 PIN_defaults="09fe9f28ca78e6bc741797e15eeb6632259760d6efe58ffbb626d2ef9383a612  defaults.ini"
 PIN_haamd="7a0906c34b9bccac3d6db198bd1bdac75688b54724292563968f53b088ad91a6  src/configs/dataset_configs/custom_metadata/HAA_md.py"
-PIN_traincfg="5a530327eb89c2745086fe777c9f9c179b40a419c6fe1baf8473d5ef8cb468c4  src/configs/dataset_configs/HAA/train/haa_train.json"
-PIN_valcfg="8f00393f49970448e3d87051265787a3ff3c2b819a7263c0398c789bb28b5d47  src/configs/dataset_configs/HAA/eval/haa_val.json"
+PIN_traincfg="5a530327eb89c2745086fe777c9f9c179b40a419c6fe1baf8473d5ef8cb468c4  ${DATASET_CFG}"
+PIN_valcfg="8f00393f49970448e3d87051265787a3ff3c2b819a7263c0398c789bb28b5d47  ${VAL_DATASET_CFG}"
+PIN_trainsplit="4ce6b46d5903b9a26b008c6996a1ae2913b49b8097ba745007bcc2fed32effe2  data/HAA/train_base.json"
+PIN_valsplit="445fc856d4bf3aca3cd772da9991713cc1e42245daf8f2541f71c4f9e89f2152  data/HAA/val_base.json"
 PIN_vae="8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9  weights/FLAC/VAE.safetensors"
 PIN_stock="3639a9face84d13bcbb8f4472e78970c8e045952337f11b4f77d8798f786ba80  ${STOCK_CFG}"
 PIN_yaw_rotation="bf8dd38f62dbd88461e9e215c9f639a57c6fefe673d1a9a4185df32ab5f848a1  src/data/yaw_rotation.py"
@@ -206,29 +290,27 @@ esac
 
 NPINS=0
 for P in "$PIN_train" "$PIN_defaults" "$PIN_haamd" "$PIN_traincfg" "$PIN_valcfg" \
-         "$PIN_vae" "$PIN_stock" "$PIN_yaw_rotation" "$PIN_diffusion" \
-         "$PIN_factory" "$PIN_probe" "$PIN_armcfg"; do
+         "$PIN_trainsplit" "$PIN_valsplit" "$PIN_vae" "$PIN_stock" \
+         "$PIN_yaw_rotation" "$PIN_diffusion" "$PIN_factory" "$PIN_probe" "$PIN_armcfg"; do
   [ -n "$P" ] || continue
   echo "$P" | sha256sum -c --status - || {
-    echo "SOURCE PIN FAILED for '${P##*  }' - the reviewed code/config/weights moved under this experiment - abort"; exit 2; }
+    echo "SOURCE PIN FAILED for '${P##*  }' - the reviewed code/config/weights/split moved under this experiment - abort"; exit 2; }
   NPINS=$((NPINS+1))
 done
-echo "source pins OK (${NPINS} files match the reviewed revision)"
+echo "source pins OK (${NPINS} files match the reviewed revision, incl. both HAA split inventories)"
 
 # A dirty tracked tree under the TRAINING CLOSURE means the pins were computed
-# from something committed nowhere. The closure is enumerated rather than taken
-# as "all of src/", and the exclusions are arguments, not conveniences:
+# from something committed nowhere, and it is what makes EXPECT_SHA meaningful.
+# The closure is enumerated rather than taken as "all of src/", and the
+# exclusions are arguments, not conveniences:
 #   * src/tests/ — no training process imports it; it cannot change a run.
 #   * src/tools/ — likewise not imported. Its one output that DOES reach a run is
-#     the init, and that is bound by sha in gate 3, which is strictly stronger
-#     than the cleanliness of the script that produced it.
+#     the init, and that is bound by sha in gate 3 (and again before exec), which
+#     is strictly stronger than the cleanliness of the script that produced it.
 #   * worklog/ — this script writes there while running.
-# (Known-insufficient on its own — clean COMMITTED drift in unpinned closure code
-# still passes, which is why HEAD is recorded in the banner above and the
-# behaviour-defining files are content-pinned in gate 2.)
 CLOSURE=(train.py defaults.ini baselines
          src/models src/data src/training src/configs src/inference src/metrics src/interface
-         src/__init__.py)
+         src/__init__.py data/HAA/train_base.json data/HAA/val_base.json)
 DIRTY="$(git status --porcelain -- "${CLOSURE[@]}" 2>/dev/null | head -5)"
 [ -z "$DIRTY" ] || {
   echo "tracked training closure is dirty - commit or stash before launching:"; echo "$DIRTY"; exit 2; }
@@ -238,8 +320,8 @@ echo "tree clean across the training closure (${CLOSURE[*]}) | branch: $(git rev
 # The init is the ONLY thing that differs between two otherwise identical arms,
 # so it is the one artifact a mix-up would make invisible. The manifest pins sha
 # AND path because they are two independent facts: WHICH BYTES (the extractor
-# writes a content-only sha — it serialises through a file object, so the hash
-# does not depend on the filename) and WHICH ARM they belong to. Matched on both.
+# writes a content-only sha) and WHICH ARM they belong to. Re-validated
+# immediately before exec (r2-B6) — this check alone leaves a window.
 [ -f "$MANIFEST" ] || {
   echo "init manifest ${MANIFEST} not found - extract the EMA inits first (python -m src.tools.extract_ema_weights) and record '<sha256>  <path>' lines there - abort"; exit 2; }
 MATCHES="$(awk -v p="$INIT" '$2 == p' "$MANIFEST")"
@@ -288,7 +370,7 @@ t = arm["training"]
 # Checked FIRST, and by name. Placed after the strict comparison it was
 # unreachable: `use_ema: false` also breaks equality against the stock, so the
 # operator would be told "not the stock plus its deltas" about the one setting
-# that decides whether the HAA rows are EMA rows at all (guard suite D7).
+# that decides whether the HAA rows are EMA rows at all.
 if t.get("use_ema") is not True:
     sys.exit("use_ema must be true: the inits are EMA weights and the HAA rows will be EMA rows")
 
@@ -351,21 +433,64 @@ print(f"config contract OK: {arm_p} == {stock_p} + {delta}")
 print(f"preflight treatment plan: arm={arm_id} deltas_registered=1-per-arm use_ema=True")
 PY
 
-# --- gate 5: R1 — fa/rotate machinery must be C4-invariant on HAA metadata ---- #
+# --- gate 5: the dataset root and both split inventories --------------------- #
+# HAA is being relocated to /media/diskstation and reached through a symlink. The
+# dataloader joins paths LEXICALLY (src/data/dataset.py:20), so a symlink works —
+# and so does a half-copied target, an empty mount, or a link pointing somewhere
+# else entirely. The resolved root is logged, and the FIRST and LAST audio file
+# each split actually references must exist and be non-empty. That is two stat
+# calls per split, and it is the difference between "the recipe named a split"
+# and "the split is on this disk right now".
+python - "${HAA_ROOT}" "$DATASET_CFG" "$VAL_DATASET_CFG" <<'PY' || { echo "DATASET INVENTORY GATE FAILED - abort"; exit 2; }
+import json, os, sys
+override = sys.argv[1] or None
+problems = []
+for cfg_path in sys.argv[2:]:
+    cfg = json.load(open(cfg_path))
+    ds = cfg["datasets"][0]
+    root = override or ds["path"]
+    folder = ds.get("folder_name", "binaural_rirs")
+    split_path = ds["json_file_path"]
+    split = json.load(open(split_path))
+    scenes = [s for s in split if split[s]]
+    if not scenes:
+        problems.append(f"{split_path}: no scene has any file")
+        continue
+    first = os.path.join(root, scenes[0], folder, split[scenes[0]][0])
+    last = os.path.join(root, scenes[-1], folder, split[scenes[-1]][-1])
+    real = os.path.realpath(root)
+    kind = "symlink" if os.path.islink(root) else ("dir" if os.path.isdir(root) else "MISSING")
+    print(f"  {os.path.basename(split_path)}: root '{root}' ({kind}) -> {real}; "
+          f"{len(scenes)} scenes, {sum(len(split[s]) for s in scenes)} files")
+    for role, p in (("first", first), ("last", last)):
+        if not os.path.isfile(p):
+            problems.append(f"{role} referenced file missing: {p}")
+        elif os.path.getsize(p) == 0:
+            problems.append(f"{role} referenced file is EMPTY: {p}")
+        else:
+            print(f"    {role}: {p} ({os.path.getsize(p)} bytes) OK")
+if problems:
+    print("the dataset is not ready on this machine:")
+    for p in problems:
+        print(f"  - {p}")
+    sys.exit(1)
+print("  dataset inventory OK (both splits' first and last files present and non-empty)")
+PY
+
+# --- gate 6: R1 — fa/rotate machinery must be C4-invariant on HAA metadata ---- #
 # BF and YAW BOTH ride src/data/yaw_rotation.py: BF averages the conditioner over
-# the C4 orbit, YAW rolls the panorama by a drawn offset. The machinery was only
-# ever validated on AR (listener-position panoramas); HAA renders at the SOURCE
-# and flips the map vertically. Plan §3 R1 makes this a HARD gate — a failure
-# STOPS the arm and is reported to Yixun; the sign convention is NOT silently
-# "fixed" here. P1 rotates nothing, so it is skipped, explicitly and by name.
+# the C4 orbit, YAW rolls the panorama by a drawn offset. Plan §3 R1 makes this a
+# HARD gate — a failure STOPS the arm and is reported to Yixun; the sign
+# convention is NOT silently "fixed" here. P1 rotates nothing, so it is skipped,
+# explicitly and by name.
 if [ "$ARM" = "P1" ]; then
   echo "R1 probe: SKIPPED for the P1 arm (vanilla conditioning rotates nothing)"
 else
   echo "R1 probe: required for the ${ARM} arm (it drives src/data/yaw_rotation.py)"
-  # The probe loads THIS ARM'S INIT through train.py's own consumer path before
-  # measuring (Codex exp_19 r1 finding 5, closed in the r1 fix batch), so the
-  # tensors under test are the ones the finetune starts from.
-  # ⚠️ STANDING LIMITATION (r1 finding 4, not closable by code): the probe's orbit
+  # The probe loads THIS ARM'S INIT through train.py's own consumer path (Codex
+  # exp_19 r1 finding 5, closed), so the tensors under test are the ones the
+  # finetune starts from.
+  # ⚠️ STANDING LIMITATION (r1 finding 4, accepted as demoted): the probe's orbit
   # and the frame average it measures both call rotate_scene_metadata, so a gauge
   # error inside that primitive moves both sides together and is invisible here.
   # A PASS certifies pipeline/shape/mask consistency on real HAA data with the
@@ -393,13 +518,13 @@ else
   echo "R1 gate OK: threshold ${PROBE_THRESHOLD}"
 fi
 
-# --- gate 6: namespace occupancy, then the logging identity ------------------- #
+# --- gate 7: namespace occupancy, then the logging identity ------------------- #
 if [ "$MODE" = "FULL" ] && [ -d "$SAVEDIR" ] && [ -n "$(find "$SAVEDIR" -name '*.ckpt' 2>/dev/null | head -1)" ]; then
   echo "${SAVEDIR} already contains checkpoints - refusing to overwrite or interleave with a run; move it aside or resume deliberately - abort"; exit 2
 fi
 echo "namespace OK: ${SAVEDIR} holds no checkpoints"
 
-if [ "$LOGGER" = "wandb" ] && [ "$DRY_RUN" != "1" ]; then
+if [ "$LOGGER" = "wandb" ] && [ "$DRY_RUN" = "0" ]; then
   eval "$(grep -E '^[[:space:]]*export[[:space:]]+WANDB_API_KEY=' ~/.bashrc 2>/dev/null | tail -1)"
   python - "$WANDB_IDENTITY" <<'PY'
 import sys
@@ -415,10 +540,21 @@ PY
   [ $? -eq 0 ] || { echo "wandb identity != ${WANDB_IDENTITY} - set the right key or use LOGGER=none - abort"; exit 2; }
 fi
 
-# --- gate 7: resource floors on the CHOSEN card, plus co-tenancy disclosure --- #
-# Standing policy: co-tenancy is allowed with an explicit floor and disclosure —
-# the other A6000 is expected to be running a sibling arm. Fail-CLOSED on a query
-# error: a card we cannot measure is not a card we launch onto.
+# --- gate 8: resource floors on the CHOSEN card, plus co-tenancy disclosure --- #
+# The floors may be RAISED from the environment but never lowered below the
+# registered defaults: a floor the launching command line can set to zero is not
+# a floor (r2 finding). Clamped in EVERY mode, not just production — the rule is
+# the same everywhere, and a rule that only exists on the path no test can reach
+# is a rule nobody has ever seen work (the guard suite drives this in DRY).
+if [ "$MIN_FREE_MB" -lt "$DEFAULT_MIN_FREE_MB" ] 2>/dev/null; then
+  echo "MIN_FREE_MB=${MIN_FREE_MB} is below the registered floor ${DEFAULT_MIN_FREE_MB}; CLAMPED (floors may be raised, never lowered)"
+  MIN_FREE_MB="$DEFAULT_MIN_FREE_MB"
+fi
+if [ "$MIN_FREE_DISK_MB" -lt "$DEFAULT_MIN_FREE_DISK_MB" ] 2>/dev/null; then
+  echo "MIN_FREE_DISK_MB=${MIN_FREE_DISK_MB} is below the registered floor ${DEFAULT_MIN_FREE_DISK_MB}; CLAMPED (floors may be raised, never lowered)"
+  MIN_FREE_DISK_MB="$DEFAULT_MIN_FREE_DISK_MB"
+fi
+
 FREE="$(nvidia-smi -i "$GPU" --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | tr -dc '0-9')"
 [ -n "$FREE" ] || { echo "nvidia-smi free-mem query failed on GPU ${GPU} - refusing to launch blind - abort"; exit 2; }
 [ "$FREE" -ge "$MIN_FREE_MB" ] || { echo "GPU ${GPU} free ${FREE} MiB < required ${MIN_FREE_MB} MiB - abort"; exit 2; }
@@ -437,7 +573,7 @@ echo "--- env manifest ---"
 python -c "import torch; print('torch', torch.__version__, 'cuda', torch.version.cuda)"
 pip freeze 2>/dev/null | sha256sum | awk '{print "pip-freeze sha256:", $1}'
 
-# --- gate 8: the exact argv, then the dry-run boundary ----------------------- #
+# --- gate 9: the exact argv, then the dry-run boundary ----------------------- #
 # The guard suite asserts against THIS line, so a wrong --max-steps, --save-dir
 # or --pretrained-ckpt-path cannot hide behind an agreeing preflight message.
 ARGV=(python train.py
@@ -456,12 +592,32 @@ if [ "$DRY_RUN" = "1" ]; then
   echo "DRY_RUN: all gates passed; train.py NOT launched"; exit 0
 fi
 
-# The gate phase is over: release the shared lock so a sibling arm can gate and
-# start on the other card while this one trains.
-exec 9>&-
+# --- gate 10 (r2-B6): the init, re-validated at the point of consumption ----- #
+# Gate 3 ran before the probe, the resource gates and the identity check; between
+# then and now the file could have been replaced, relocated, or completed by a
+# concurrent extraction. The manifest line is re-hashed here, last, so the bytes
+# train.py is about to open are the bytes that were pinned and probed.
+[ -f "$INIT" ] || { echo "INIT DISAPPEARED between gate 3 and launch: ${INIT} - abort"; exit 2; }
+printf '%s\n' "$MATCHES" | sha256sum -c --status - || {
+  echo "INIT SHA CHANGED between gate 3 and launch (${INIT}) - the bytes train.py would load are not the bytes that were pinned and probed - abort"; exit 2; }
+echo "init re-validated at the point of consumption: ${INIT}"
+
+# The GATE phase is over: release the shared lock so a sibling arm can gate and
+# start on the other card. The per-arm (fd 8) and per-GPU (fd 7) locks are
+# deliberately left OPEN — the child inherits them and they stay held for the
+# whole run, which is what stops a same-arm or same-card second launch.
+[ "$GATE_LOCK_OWNED" = "1" ] && exec 9>&-
+
+if [ "$DRY_RUN" = "2" ]; then
+  echo "REHEARSAL: running TRAIN_CMD in place of train.py; the post-run gates below are the real ones"
+  export SAVEDIR MAXSTEPS ARM MODE MID_STEPS FULL_STEPS
+  RUNNER=(bash -c "$TRAIN_CMD")
+else
+  RUNNER=(env HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES="$GPU" "${ARGV[@]}")
+fi
 
 START_EPOCH="$(date +%s)"
-HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES="$GPU" "${ARGV[@]}" 2>&1 | tee -a "$RUNLOG"
+"${RUNNER[@]}" 2>&1 | tee -a "$RUNLOG"
 rc="${PIPESTATUS[0]}"
 END_EPOCH="$(date +%s)"
 echo "=== exp_19 HAA ${ARM} ${MODE} exit rc=${rc} after $((END_EPOCH-START_EPOCH))s at $(date '+%Y-%m-%d %H:%M:%S') ==="
@@ -476,8 +632,7 @@ tr '\r' '\n' < "$RUNLOG" > "$NORM"
 
 # The augmentation must have been ACTIVE — YAW only; it is the only arm whose
 # treatment announces itself, and a silently disabled treatment looks exactly
-# like a successful run. WHOLE-LINE match against diffusion.py:406-408; a
-# substring grep would also match this script's own preflight output.
+# like a successful run. WHOLE-LINE match against diffusion.py:406-408.
 if [ "$ARM" = "YAW" ]; then
   if grep -qxF -- "$BANNER" "$NORM"; then
     echo "treatment banner: FOUND (exact whole-line match: '${BANNER}')"
@@ -490,8 +645,8 @@ fi
 # The run must have REACHED its endpoint. Lightning catches KeyboardInterrupt
 # without re-raising, so an interrupted run still exits 0. Framing matters: tqdm
 # leaves its progress line unterminated, so the marker is APPENDED to it —
-# matched as line-ENDS-WITH (src/tools/exp17_full_audit.py), which still rejects
-# a diagnostic that merely QUOTES the marker (quoted text has words after it).
+# matched as line-ENDS-WITH, which still rejects a diagnostic that merely QUOTES
+# the marker (quoted text has words after it).
 MARKER="\`Trainer.fit\` stopped: \`max_steps=${MAXSTEPS}\` reached."
 if ! awk -v m="$MARKER" 'substr($0, length($0)-length(m)+1) == m { found=1 }
                          END { exit found ? 0 : 1 }' "$NORM"; then
@@ -502,7 +657,7 @@ else
 fi
 
 # Fit health, in BOTH modes (exp_17 r3: NaN checking was SMOKE-only, so a FULL
-# run could go non-finite, still reach its endpoint, write checkpoints and exit 0).
+# run could go non-finite, still reach its endpoint, write checkpoints, exit 0).
 if grep -qiE 'train/loss=(nan|-?inf(inity)?)' "$NORM"; then
   echo "NON-FINITE LOSS observed in ${RUNLOG} - the fit is not healthy regardless of the endpoint - treat as invalid"
   [ "$rc" -eq 0 ] && rc=4
@@ -535,7 +690,7 @@ if [ "$MODE" = "SMOKE" ]; then
   else
     echo "smoke checkpoints: 0 (cadence ${SMOKE_CADENCE} >> endpoint ${SMOKE_STEPS}, as pinned)"
   fi
-  echo "SMOKE: ${SMOKE_STEPS} steps in $((END_EPOCH-START_EPOCH))s (includes startup) -> FULL projects ~$(( (END_EPOCH-START_EPOCH) * FULL_STEPS / SMOKE_STEPS / 60 )) min (upper bound: startup is amortised over 20 steps here)"
+  echo "SMOKE: ${SMOKE_STEPS} steps in $((END_EPOCH-START_EPOCH))s (includes startup) -> FULL projects ~$(( (END_EPOCH-START_EPOCH) * FULL_STEPS / SMOKE_STEPS / 60 )) min (upper bound: startup is amortised over ${SMOKE_STEPS} steps here)"
 fi
 
 echo "=== exp_19 HAA ${ARM} ${MODE} final rc=${rc} ==="
