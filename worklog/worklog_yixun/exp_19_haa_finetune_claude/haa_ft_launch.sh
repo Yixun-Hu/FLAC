@@ -106,7 +106,10 @@ BATCH=16                      # 16 x accum 4 = eff 64 (README)
 ACCUM=4
 NUM_WORKERS=8
 SEED=42
-PROBE_THRESHOLD="1e-5"        # plan R1
+PROBE_THRESHOLD=1e-7   # R1 gate re-parameterized per Yixun 2026-08-18 adjudication:
+                       # fp32@1e-5 measured precision noise (3e-5 on three unrelated
+                       # inits); fp64 measures 5.8e-14. float64@1e-7 is the calibrated,
+                       # stricter-in-meaning gate (exactness to fp64 rounding).
 BANNER="yaw_aug ENABLED img_w=512 seed=42"   # EXACT text of diffusion.py:406-408
 WANDB_IDENTITY="yh4742@princeton.edu"
 
@@ -503,6 +506,7 @@ else
     PROBE=(env HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES="$GPU" python "$PROBE_SCRIPT"
            --model-config "$ARM_CFG" --dataset-config "$VAL_DATASET_CFG"
            --ckpt-path "$INIT"
+           --dtype float64
            --threshold "$PROBE_THRESHOLD" --num-samples 4
            --out "${LOGDIR}/probe_haa_fa_invariance_${ARM}_${TS}.json")
   fi
