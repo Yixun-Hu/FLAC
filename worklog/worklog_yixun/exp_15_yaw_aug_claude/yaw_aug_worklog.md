@@ -334,3 +334,14 @@
 
 - **Result** — Final leg (job 3716203) COMPLETED; boundary 40000 AUDITED; registry closure written by the leg itself: `final_step: 40000`, **`final_ckpt_sha256: 16b964ecdfb9e2874783808b66fcf798ef284bac2756176f8a47dc23b125f98a`** (`epoch=8-step=40000.ckpt`, 723,927,595 B, on disk 07:42). Chain totals: 16 legs over ~3.2 days wall (compute ≈ 12 h — the rest queue), 1 content-gate abort (recovered), 0 training failures, 0 stalls, rate gate PASSED at leg 1. The chunked-chain strategy Yixun directed is validated end-to-end.
 - **Next (runbook)** — registry-closure commit+push (this commit) → campaign pin (step 3: the pushed closure commit) → torch-free admission expectations (step 5) → VANL vctl cell (step 6) → YAWAUG probe + G2 (step 7) → waves (8/9/11) → row transaction (10) → audit sweep (12) → collector + results (13).
+
+## 2026-08-18T14:30:00-04:00 — ✅ CAMPAIGN COMPLETE: 42/42 VALID, ALL GATES PASS — registered results in
+
+- **Result** — Audit sweep: 42 already-valid, 0 resubmissions, 0 in flight. Collector at pin `2906229`: **G1–G5 ALL PASS** (G1: the harness detects non-invariance at 6× threshold; G2: 6,337/6,337 golden offsets; G3: 50/50 hash equalities; G4: 40/40 admission checks; G5: 8/8 blocks 5-seed). External checks: exp_14 Z rows reproduce to Δ=0.000 (T60 AND R@1); exp_11 Q9 R@1 Δ=0.000, its T60 correctly declared incomparable.
+- **REGISTERED RESULTS (K=8 confirmatory, seed-paired, Holm-2):**
+  - **H1 (clean): YAWAUG-INFERIOR on both co-primaries** — T60 +1.300 [1.287, 1.312], R@1 −0.316 [−0.475, −0.156].
+  - **H2 (flatness, secondary): YAWAUG decisively flatter** — d(T60) 0.554 [0.521, 0.586], d(R@1) 0.354 [0.100, 0.607]. YAWAUG's own random-yaw degradation is statistically ZERO (T60 8.503→8.470); VANL degrades +0.521.
+  - **H3 (deployment, secondary): VANL still wins absolutely under rotation on T60** (+0.746 [0.704, 0.788] against YAWAUG); R@1 parity (0.038, ns).
+  - K=1 descriptive mirrors everything.
+- **Interpretation (preview for `_analysis.md`):** the augmentation buys essentially PERFECT yaw-flatness but at a clean-performance cost (+1.3 T60 at matched steps) exceeding what it returns at deployment — **the same trade exp_11 found for the architectural (FA-orbit) route. The "invariance tax" at matched steps appears mechanism-independent (data-side and architecture-side alike).** Caveats: single training seed per arm; matched steps ≠ matched compute; historical control; 16-leg chain vs monolithic control (all pre-registered disclosures).
+- **Next** — `_analysis.md` (Planner), HTML page + assets, `commits_yaw_aug.md`, tracker/HANDOFF refresh, experiment closure.
