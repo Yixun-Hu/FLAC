@@ -1,0 +1,9 @@
+=== exp_19 round-1 pytest record (filed by planner seat; coder ran under conda env flac) ===
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0
+collected 80 items
+src/tests/test_extract_ema_weights.py ...........................        [ 33%]
+src/tests/test_exp19_haa_arm_configs.py ...........................      [ 67%]
+src/tests/test_probe_haa_fa_invariance.py ..........................     [100%]
+============================== 80 passed in 9.98s ==============================
+(TDD baseline before implementation: 2 collection errors + 3 failed / 9 passed.)
+Arm shas: BF eb64e6c2… YAW a03d106c… | stock pin 3639a9fa…
