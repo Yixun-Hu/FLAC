@@ -1,0 +1,42 @@
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Using EMA model
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+Running json scandir...
+Found 1282 files in 4 subfolders
+Max audio length for metric computation: 9600
+Loading AGREE model from checkpoint:  weights/AGREE_HAA.pt
+Image model facebook/dinov3-vits16-pretrain-lvd1689m loaded, trainable params: 21.00M
+Loaded pretrained weights from weights/FLAC/VAE.ckpt
+Done loading AGREE model
+AGREE model loaded successfully
+Evaluating:   0%|          | 0/21 [00:00<?, ?it/s]/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/functional.py:730: UserWarning: stft with return_complex=False is deprecated. In a future pytorch release, stft will return complex tensors for all inputs, and return_complex=False will raise an error.
+Note: you can still call torch.view_as_real on the complex output to recover the old return format. (Triggered internally at /pytorch/aten/src/ATen/native/SpectralOps.cpp:875.)
+  return _VF.stft(  # type: ignore[attr-defined]
+Evaluating:   5%|▍         | 1/21 [00:22<07:34, 22.73s/it]Evaluating:  10%|▉         | 2/21 [00:37<05:39, 17.86s/it]Evaluating:  14%|█▍        | 3/21 [00:51<04:50, 16.11s/it]Evaluating:  19%|█▉        | 4/21 [01:05<04:23, 15.51s/it]Evaluating:  24%|██▍       | 5/21 [01:19<03:59, 14.94s/it]Evaluating:  29%|██▊       | 6/21 [01:34<03:41, 14.75s/it]Evaluating:  33%|███▎      | 7/21 [01:48<03:25, 14.67s/it]Evaluating:  38%|███▊      | 8/21 [02:02<03:09, 14.55s/it]Evaluating:  43%|████▎     | 9/21 [02:17<02:54, 14.58s/it]Evaluating:  48%|████▊     | 10/21 [02:31<02:39, 14.54s/it]Evaluating:  52%|█████▏    | 11/21 [02:46<02:24, 14.50s/it]Evaluating:  57%|█████▋    | 12/21 [03:00<02:09, 14.35s/it]Evaluating:  62%|██████▏   | 13/21 [03:13<01:52, 14.12s/it]Evaluating:  67%|██████▋   | 14/21 [03:28<01:39, 14.22s/it]Evaluating:  71%|███████▏  | 15/21 [03:42<01:25, 14.23s/it]Evaluating:  76%|███████▌  | 16/21 [03:56<01:11, 14.22s/it]Evaluating:  81%|████████  | 17/21 [04:11<00:57, 14.32s/it]Evaluating:  86%|████████▌ | 18/21 [04:26<00:43, 14.40s/it]Evaluating:  90%|█████████ | 19/21 [04:40<00:28, 14.48s/it]Evaluating:  95%|█████████▌| 20/21 [04:55<00:14, 14.50s/it]Evaluating: 100%|██████████| 21/21 [04:55<00:00, 10.34s/it]Evaluating: 100%|██████████| 21/21 [04:55<00:00, 14.09s/it]
+Per-scene metrics recorded for 4 scene(s)
+Test/T60 (%) 3.4957
+Test/Invalid T60 0.0
+Test/C50 (dB) 2.0301
+Test/EDT (ms) 94.3604
+Test/L1_STFT_MultiRes 3.4943
+Test/FD 0.4281
+Test/RIR_to_GT_RIR_R@1 (%) 2.8081
+Test/RIR_to_GT_RIR_R@5 (%) 14.1966
+Test/RIR_to_GT_RIR_R@10 (%) 24.727
+Test/RIR_to_geom_R@1 (%) 1.7161
+Test/RIR_to_geom_R@5 (%) 8.5803
+Test/RIR_to_geom_R@10 (%) 15.4446
+Test/Env 0.4194
+Metrics saved to outputs_FLAC/exp19_HAA_P1/FLAC_exp19_HAA_P1/exp19_HAA_P1/checkpoints/epoch=409-step=410_metrics_1_1.0_exp19_HAA_P1_S410_K1_s42.json
+Evaluation complete!
