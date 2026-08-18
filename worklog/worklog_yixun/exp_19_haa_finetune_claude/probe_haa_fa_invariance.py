@@ -339,7 +339,13 @@ def _build_stack(model_config_path, dataset_config_path, ckpt_path, device):
         sample_size=model_config["sample_size"],
         sample_rate=model_config["sample_rate"],
         audio_channels=model_config.get("audio_channels", 1),
-        num_workers=0,
+        # ONE worker, not zero: create_dataloader_from_config hardcodes
+        # persistent_workers=True (src/data/dataset.py:457), and PyTorch rejects
+        # that with num_workers=0 ("persistent_workers option needs
+        # num_workers > 0"). The gate must use the repo's OWN loader — the
+        # metadata shapes it produces are the thing under test — so the fix is
+        # the smallest legal worker count, not a hand-rolled DataLoader.
+        num_workers=1,
         shuffle=False,
     )
     return conditioner, dl
