@@ -1,0 +1,118 @@
+=== exp_15 rrob YAWAUG S40000 s43 K1 — 2026-08-18_09-50-11 — host neu318.neuronic.cs.princeton.edu ===
+config /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/290622922c77c415695bab645ed0eee9094215a2/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json sha256 b14caae27afec2c53c38bea6e2574a48aa94bc86848ab17afae94cadf694b004 | VANILLA (both arms) | train_yaw_aug true | eval-name exp15_YAWAUG_rrob_rotrand43_S40000_s43_K1
+yaw protocol: random per-sample yaw, rotation seed 43 | split src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json (expect 6337 items / 10 scenes)
+protocol argv (from exp15_validate_cell.eval_argv_tail): --cond-method vanilla --frame-avg-angles 0,90,180,270 --cond-autocast bf16 --rotate-mode random --rotate-seed 43 --rotate-deg 0
+lease OK: /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/290622922c77c415695bab645ed0eee9094215a2/.leases/3717995
+runtime assets OK under /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/290622922c77c415695bab645ed0eee9094215a2 (AcousticRooms, weights/AGREE, weights/FLAC/VAE.ckpt, src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json)
+AGREE pin OK: 3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787
+VAE.ckpt pin OK: 6198ff0d781fa05f546d19a0137a830c3f265437193c3581d8043713e7271baf
+DINOv3 cache pin OK
+commit binding OK: 290622922c77c415695bab645ed0eee9094215a2 (code root /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/290622922c77c415695bab645ed0eee9094215a2)
+checkpoint: /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=8-step=40000.ckpt
+admission OK: YAWAUG step 40000 config b14caae27afe embedded 0761a677e0f3 EMA 210 keys inv 68dc5ef53d41 [expectation: yaw_aug_launch_registry.json]
+ADMITTED YAWAUG ckpt_sha256=16b964ecdfb9e2874783808b66fcf798ef284bac2756176f8a47dc23b125f98a
+--- eval argv ---
+python eval_FLAC.py --model-config /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/290622922c77c415695bab645ed0eee9094215a2/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json --ckpt-path /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=8-step=40000.ckpt --cfg-scale 1.0 --steps 1 --seed 43 --eval-name exp15_YAWAUG_rrob_rotrand43_S40000_s43_K1 --batch-size 64 --num-workers 4 --expected-stream-count 6337 --record-stream --record-per-scene --cond-method vanilla --frame-avg-angles 0,90,180,270 --cond-autocast bf16 --rotate-mode random --rotate-seed 43 --rotate-deg 0
+--- cell-validation argv ---
+python3 exp15_validate_cell.py check --metrics <metrics> --arm YAWAUG --cell rrob --step 40000 --seed 43 --k 1 --pin 290622922c77c415695bab645ed0eee9094215a2 --ckpt-sha <ckpt-sha256> --expected-count 6337 --expected-scenes 10
+GPU: GPU-cc9bbc7e-1c38-4059-8c03-218cd9e3689b, NVIDIA L40
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+[rank: 0] Seed set to 43
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Using EMA model
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+Running json scandir...
+Found 6337 files in 17 subfolders
+Max audio length for metric computation: 8000
+Loading AGREE model from checkpoint:  weights/AGREE/AGREE_fullAR.pt
+Image model facebook/dinov3-vits16-pretrain-lvd1689m loaded, trainable params: 21.00M
+Loaded pretrained weights from weights/FLAC/VAE.ckpt
+Done loading AGREE model
+AGREE model loaded successfully
+Random yaw rotation: per-sample offsets, rotation seed 43
+Evaluating:   0%|          | 0/100 [00:00<?, ?it/s]Evaluating:   1%|          | 1/100 [00:21<36:11, 21.93s/it]Evaluating:   2%|▏         | 2/100 [00:28<21:16, 13.03s/it]Evaluating:   3%|▎         | 3/100 [00:35<16:25, 10.16s/it]Evaluating:   4%|▍         | 4/100 [00:42<14:09,  8.84s/it]Evaluating:   5%|▌         | 5/100 [00:49<12:47,  8.08s/it]Evaluating:   6%|▌         | 6/100 [00:55<12:02,  7.69s/it]Evaluating:   7%|▋         | 7/100 [01:02<11:23,  7.35s/it]Evaluating:   8%|▊         | 8/100 [01:09<10:51,  7.09s/it]Evaluating:   9%|▉         | 9/100 [01:15<10:33,  6.96s/it]Evaluating:  10%|█         | 10/100 [01:22<10:14,  6.83s/it]Evaluating:  11%|█         | 11/100 [01:28<10:02,  6.77s/it]Evaluating:  12%|█▏        | 12/100 [01:35<09:54,  6.75s/it]Evaluating:  13%|█▎        | 13/100 [01:42<09:46,  6.74s/it]Evaluating:  14%|█▍        | 14/100 [01:48<09:35,  6.69s/it]Evaluating:  15%|█▌        | 15/100 [01:55<09:24,  6.64s/it]Evaluating:  16%|█▌        | 16/100 [02:01<09:12,  6.58s/it]Evaluating:  17%|█▋        | 17/100 [02:08<09:04,  6.56s/it]Evaluating:  18%|█▊        | 18/100 [02:15<09:03,  6.62s/it]Evaluating:  19%|█▉        | 19/100 [02:21<08:52,  6.58s/it]Evaluating:  20%|██        | 20/100 [02:28<08:42,  6.53s/it]Evaluating:  21%|██        | 21/100 [02:35<08:44,  6.64s/it]Evaluating:  22%|██▏       | 22/100 [02:41<08:43,  6.72s/it]Evaluating:  23%|██▎       | 23/100 [02:48<08:32,  6.66s/it]Evaluating:  24%|██▍       | 24/100 [02:54<08:24,  6.63s/it]Evaluating:  25%|██▌       | 25/100 [03:01<08:16,  6.62s/it]Evaluating:  26%|██▌       | 26/100 [03:08<08:11,  6.64s/it]Evaluating:  27%|██▋       | 27/100 [03:14<08:00,  6.59s/it]Evaluating:  28%|██▊       | 28/100 [03:21<07:51,  6.55s/it]Evaluating:  29%|██▉       | 29/100 [03:27<07:43,  6.53s/it]Evaluating:  30%|███       | 30/100 [03:34<07:38,  6.56s/it]Evaluating:  31%|███       | 31/100 [03:40<07:30,  6.53s/it]Evaluating:  32%|███▏      | 32/100 [03:47<07:22,  6.51s/it]Evaluating:  33%|███▎      | 33/100 [03:53<07:18,  6.55s/it]Evaluating:  34%|███▍      | 34/100 [04:00<07:10,  6.52s/it]Evaluating:  35%|███▌      | 35/100 [04:06<07:02,  6.50s/it]Evaluating:  36%|███▌      | 36/100 [04:13<06:58,  6.53s/it]Evaluating:  37%|███▋      | 37/100 [04:20<06:53,  6.57s/it]Evaluating:  38%|███▊      | 38/100 [04:26<06:50,  6.63s/it]Evaluating:  39%|███▉      | 39/100 [04:33<06:44,  6.64s/it]Evaluating:  40%|████      | 40/100 [04:40<06:39,  6.65s/it]Evaluating:  41%|████      | 41/100 [04:46<06:32,  6.66s/it]Evaluating:  42%|████▏     | 42/100 [04:53<06:24,  6.62s/it]Evaluating:  43%|████▎     | 43/100 [05:00<06:18,  6.63s/it]Evaluating:  44%|████▍     | 44/100 [05:06<06:10,  6.62s/it]Evaluating:  45%|████▌     | 45/100 [05:13<06:05,  6.64s/it]Evaluating:  46%|████▌     | 46/100 [05:20<06:00,  6.69s/it]Evaluating:  47%|████▋     | 47/100 [05:26<05:56,  6.73s/it]Evaluating:  48%|████▊     | 48/100 [05:33<05:46,  6.67s/it]Evaluating:  49%|████▉     | 49/100 [05:39<05:38,  6.63s/it]Evaluating:  50%|█████     | 50/100 [05:46<05:29,  6.59s/it]Evaluating:  51%|█████     | 51/100 [05:53<05:22,  6.58s/it]Evaluating:  52%|█████▏    | 52/100 [05:59<05:14,  6.56s/it]Evaluating:  53%|█████▎    | 53/100 [06:06<05:09,  6.58s/it]Evaluating:  54%|█████▍    | 54/100 [06:12<05:03,  6.61s/it]Evaluating:  55%|█████▌    | 55/100 [06:19<04:56,  6.59s/it]Evaluating:  56%|█████▌    | 56/100 [06:26<04:52,  6.65s/it]Evaluating:  57%|█████▋    | 57/100 [06:33<04:48,  6.71s/it]Evaluating:  58%|█████▊    | 58/100 [06:39<04:42,  6.71s/it]Evaluating:  59%|█████▉    | 59/100 [06:46<04:35,  6.72s/it]Evaluating:  60%|██████    | 60/100 [06:53<04:28,  6.71s/it]Evaluating:  61%|██████    | 61/100 [07:00<04:24,  6.78s/it]Evaluating:  62%|██████▏   | 62/100 [07:06<04:15,  6.73s/it]Evaluating:  63%|██████▎   | 63/100 [07:13<04:05,  6.65s/it]Evaluating:  64%|██████▍   | 64/100 [07:19<03:58,  6.62s/it]Evaluating:  65%|██████▌   | 65/100 [07:26<03:51,  6.62s/it]Evaluating:  66%|██████▌   | 66/100 [07:32<03:43,  6.57s/it]Evaluating:  67%|██████▋   | 67/100 [07:39<03:37,  6.58s/it]Evaluating:  68%|██████▊   | 68/100 [07:46<03:30,  6.59s/it]Evaluating:  69%|██████▉   | 69/100 [07:52<03:25,  6.64s/it]Evaluating:  70%|███████   | 70/100 [07:59<03:17,  6.59s/it]Evaluating:  71%|███████   | 71/100 [08:05<03:11,  6.59s/it]Evaluating:  72%|███████▏  | 72/100 [08:12<03:05,  6.63s/it]Evaluating:  73%|███████▎  | 73/100 [08:19<03:00,  6.70s/it]Evaluating:  74%|███████▍  | 74/100 [08:25<02:52,  6.64s/it]Evaluating:  75%|███████▌  | 75/100 [08:32<02:45,  6.62s/it]Evaluating:  76%|███████▌  | 76/100 [08:39<02:39,  6.65s/it]Evaluating:  77%|███████▋  | 77/100 [08:45<02:33,  6.66s/it]Evaluating:  78%|███████▊  | 78/100 [08:52<02:25,  6.61s/it]Evaluating:  79%|███████▉  | 79/100 [08:58<02:18,  6.59s/it]Evaluating:  80%|████████  | 80/100 [09:05<02:11,  6.59s/it]Evaluating:  81%|████████  | 81/100 [09:12<02:06,  6.68s/it]Evaluating:  82%|████████▏ | 82/100 [09:18<01:59,  6.63s/it]Evaluating:  83%|████████▎ | 83/100 [09:25<01:53,  6.68s/it]Evaluating:  84%|████████▍ | 84/100 [09:32<01:46,  6.67s/it]Evaluating:  85%|████████▌ | 85/100 [09:38<01:39,  6.64s/it]Evaluating:  86%|████████▌ | 86/100 [09:45<01:32,  6.59s/it]Evaluating:  87%|████████▋ | 87/100 [09:52<01:26,  6.63s/it]Evaluating:  88%|████████▊ | 88/100 [09:58<01:19,  6.61s/it]Evaluating:  89%|████████▉ | 89/100 [10:05<01:12,  6.59s/it]Evaluating:  90%|█████████ | 90/100 [10:12<01:06,  6.65s/it]Evaluating:  91%|█████████ | 91/100 [10:18<01:00,  6.70s/it]Evaluating:  92%|█████████▏| 92/100 [10:25<00:53,  6.64s/it]Evaluating:  93%|█████████▎| 93/100 [10:31<00:46,  6.57s/it]Evaluating:  94%|█████████▍| 94/100 [10:38<00:39,  6.52s/it]Evaluating:  95%|█████████▌| 95/100 [10:44<00:32,  6.48s/it]Evaluating:  96%|█████████▌| 96/100 [10:50<00:25,  6.46s/it]Evaluating:  97%|█████████▋| 97/100 [10:57<00:19,  6.45s/it]Evaluating:  98%|█████████▊| 98/100 [11:03<00:12,  6.44s/it]Evaluating:  99%|█████████▉| 99/100 [11:10<00:06,  6.45s/it]Evaluating: 100%|██████████| 100/100 [11:11<00:00,  4.76s/it]Evaluating: 100%|██████████| 100/100 [11:11<00:00,  6.71s/it]
+Traceback (most recent call last):
+Traceback (most recent call last):
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 300, in _run_finalizers
+    finalizer()
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 300, in _run_finalizers
+    finalizer()
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 300, in _run_finalizers
+    finalizer()
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 300, in _run_finalizers
+    finalizer()
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 224, in __call__
+    res = self._callback(*self._args, **self._kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 224, in __call__
+    res = self._callback(*self._args, **self._kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 224, in __call__
+    res = self._callback(*self._args, **self._kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 224, in __call__
+    res = self._callback(*self._args, **self._kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 133, in _remove_temp_dir
+    rmtree(tempdir)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 133, in _remove_temp_dir
+    rmtree(tempdir)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 133, in _remove_temp_dir
+    rmtree(tempdir)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 725, in rmtree
+    _rmtree_safe_fd(fd, path, onerror)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 725, in rmtree
+    _rmtree_safe_fd(fd, path, onerror)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 725, in rmtree
+    _rmtree_safe_fd(fd, path, onerror)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/multiprocessing/util.py", line 133, in _remove_temp_dir
+    rmtree(tempdir)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 681, in _rmtree_safe_fd
+    onerror(os.unlink, fullname, sys.exc_info())
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 681, in _rmtree_safe_fd
+    onerror(os.unlink, fullname, sys.exc_info())
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 681, in _rmtree_safe_fd
+    onerror(os.unlink, fullname, sys.exc_info())
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 679, in _rmtree_safe_fd
+    os.unlink(entry.name, dir_fd=topfd)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 679, in _rmtree_safe_fd
+    os.unlink(entry.name, dir_fd=topfd)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 679, in _rmtree_safe_fd
+    os.unlink(entry.name, dir_fd=topfd)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 725, in rmtree
+    _rmtree_safe_fd(fd, path, onerror)
+OSError: [Errno 16] Device or resource busy: '.nfs00000006ec13d7880000ae09'
+OSError: [Errno 16] Device or resource busy: '.nfs00000006ec57cf330000ae08'
+OSError: [Errno 16] Device or resource busy: '.nfs00000006f06481610000ae0a'
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 681, in _rmtree_safe_fd
+    onerror(os.unlink, fullname, sys.exc_info())
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/shutil.py", line 679, in _rmtree_safe_fd
+    os.unlink(entry.name, dir_fd=topfd)
+OSError: [Errno 16] Device or resource busy: '.nfs00000006f3b21b110000ae07'
+Rotation assignment: 6337 positions, input_hash df150ea93d68a1e97caff05ddd3b69a4fb5ac1410df32ca9b3459deb82e363f8, assignment_hash ea95d3cb08c87a002bbabfe70f7b5c8a100aa30517e786306c6c8e59516a275d
+Per-scene metrics recorded for 10 scene(s)
+Test/T60 (%) 11.4815
+Test/Invalid T60 0.0
+Test/C50 (dB) 1.1903
+Test/EDT (ms) 48.2857
+Test/FD 0.3377
+Test/RIR_to_GT_RIR_R@1 (%) 4.0871
+Test/RIR_to_GT_RIR_R@5 (%) 14.0603
+Test/RIR_to_GT_RIR_R@10 (%) 21.4297
+Test/RIR_to_geom_R@1 (%) 3.0772
+Test/RIR_to_geom_R@5 (%) 10.9673
+Test/RIR_to_geom_R@10 (%) 16.8218
+Metrics saved to /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=8-step=40000_metrics_1_1.0_exp15_YAWAUG_rrob_rotrand43_S40000_s43_K1_rotrand43.json
+Assignment stream saved to /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=8-step=40000_metrics_1_1.0_exp15_YAWAUG_rrob_rotrand43_S40000_s43_K1_rotrand43.stream.json
+Evaluation complete!
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+sidecar: /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=8-step=40000_metrics_1_1.0_exp15_YAWAUG_rrob_rotrand43_S40000_s43_K1_rotrand43.json.screenmeta.json
+VALID exp15_YAWAUG_rrob_rotrand43_S40000_s43_K1 (/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=8-step=40000_metrics_1_1.0_exp15_YAWAUG_rrob_rotrand43_S40000_s43_K1_rotrand43.json)
+SCREENRESULT arm=YAWAUG cell=rrob step=40000 seed=43 k=1 rc=0 validated=cell-valid train_yaw_aug=true rotate_mode=random rotate_seed=43 rotate_deg=0 eval_name=exp15_YAWAUG_rrob_rotrand43_S40000_s43_K1 metrics=/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=8-step=40000_metrics_1_1.0_exp15_YAWAUG_rrob_rotrand43_S40000_s43_K1_rotrand43.json sidecar=/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=8-step=40000_metrics_1_1.0_exp15_YAWAUG_rrob_rotrand43_S40000_s43_K1_rotrand43.json.screenmeta.json stream=/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=8-step=40000_metrics_1_1.0_exp15_YAWAUG_rrob_rotrand43_S40000_s43_K1_rotrand43.stream.json config_sha256=b14caae27afec2c53c38bea6e2574a48aa94bc86848ab17afae94cadf694b004 ckpt_sha256=16b964ecdfb9e2874783808b66fcf798ef284bac2756176f8a47dc23b125f98a commit=290622922c77c415695bab645ed0eee9094215a2 log=/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_15_yaw_aug_claude/yaw_aug_2026-08-18_09-50-11_YAWAUG_rrob_rotrand43_S40000_s43_K1_jid3717995_screen.log

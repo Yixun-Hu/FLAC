@@ -1,0 +1,42 @@
+=== exp_15 rrob YAWAUG S40000 s45 K8 — 2026-08-18_10-04-13 — host neu320.neuronic.cs.princeton.edu ===
+config /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/290622922c77c415695bab645ed0eee9094215a2/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json sha256 b14caae27afec2c53c38bea6e2574a48aa94bc86848ab17afae94cadf694b004 | VANILLA (both arms) | train_yaw_aug true | eval-name exp15_YAWAUG_rrob_rotrand45_S40000_s45_K8
+yaw protocol: random per-sample yaw, rotation seed 45 | split src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json (expect 6337 items / 10 scenes)
+protocol argv (from exp15_validate_cell.eval_argv_tail): --cond-method vanilla --frame-avg-angles 0,90,180,270 --cond-autocast bf16 --rotate-mode random --rotate-seed 45 --rotate-deg 0
+lease OK: /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/290622922c77c415695bab645ed0eee9094215a2/.leases/3718002
+runtime assets OK under /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/290622922c77c415695bab645ed0eee9094215a2 (AcousticRooms, weights/AGREE, weights/FLAC/VAE.ckpt, src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json)
+AGREE pin OK: 3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787
+VAE.ckpt pin OK: 6198ff0d781fa05f546d19a0137a830c3f265437193c3581d8043713e7271baf
+DINOv3 cache pin OK
+commit binding OK: 290622922c77c415695bab645ed0eee9094215a2 (code root /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/290622922c77c415695bab645ed0eee9094215a2)
+checkpoint: /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=8-step=40000.ckpt
+admission OK: YAWAUG step 40000 config b14caae27afe embedded 0761a677e0f3 EMA 210 keys inv 68dc5ef53d41 [expectation: yaw_aug_launch_registry.json]
+ADMITTED YAWAUG ckpt_sha256=16b964ecdfb9e2874783808b66fcf798ef284bac2756176f8a47dc23b125f98a
+--- eval argv ---
+python eval_FLAC.py --model-config /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/290622922c77c415695bab645ed0eee9094215a2/worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json --ckpt-path /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp15_YAWAUG/FLAC_exp15_YAWAUG/exp15_YAWAUG/checkpoints/epoch=8-step=40000.ckpt --cfg-scale 1.0 --steps 1 --seed 45 --eval-name exp15_YAWAUG_rrob_rotrand45_S40000_s45_K8 --batch-size 64 --num-workers 4 --expected-stream-count 6337 --record-stream --record-per-scene --cond-method vanilla --frame-avg-angles 0,90,180,270 --cond-autocast bf16 --rotate-mode random --rotate-seed 45 --rotate-deg 0
+--- cell-validation argv ---
+python3 exp15_validate_cell.py check --metrics <metrics> --arm YAWAUG --cell rrob --step 40000 --seed 45 --k 8 --pin 290622922c77c415695bab645ed0eee9094215a2 --ckpt-sha <ckpt-sha256> --expected-count 6337 --expected-scenes 10
+GPU: GPU-654d3d7c-e993-946f-c028-96a0d84b9551, NVIDIA L40
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+[rank: 0] Seed set to 45
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Using EMA model
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+Running json scandir...
+Found 6337 files in 17 subfolders
+Max audio length for metric computation: 8000
+Loading AGREE model from checkpoint:  weights/AGREE/AGREE_fullAR.pt
+Image model facebook/dinov3-vits16-pretrain-lvd1689m loaded, trainable params: 21.00M
+Loaded pretrained weights from weights/FLAC/VAE.ckpt
+Done loading AGREE model
+AGREE model loaded successfully
+Random yaw rotation: per-sample offsets, rotation seed 45
+Evaluating:   0%|          | 0/100 [00:00<?, ?it/s]Evaluating:   1%|          | 1/100 [00:22<37:22, 22.66s/it]Evaluating:   2%|▏         | 2/100 [00:30<23:04, 14.13s/it]Evaluating:   3%|▎         | 3/100 [00:38<17:45, 10.98s/it]Evaluating:   4%|▍         | 4/100 [00:45<15:21,  9.59s/it]Evaluating:   5%|▌         | 5/100 [00:53<14:01,  8.86s/it]Evaluating:   6%|▌         | 6/100 [01:01<13:23,  8.54s/it]Evaluating:   7%|▋         | 7/100 [01:08<12:42,  8.20s/it]Evaluating:   8%|▊         | 8/100 [01:15<12:02,  7.85s/it]Evaluating:   9%|▉         | 9/100 [01:22<11:32,  7.62s/it]Evaluating:  10%|█         | 10/100 [01:30<11:19,  7.55s/it]Evaluating:  11%|█         | 11/100 [01:37<11:03,  7.45s/it]Evaluating:  12%|█▏        | 12/100 [01:44<10:45,  7.33s/it]Evaluating:  13%|█▎        | 13/100 [01:51<10:31,  7.26s/it]Evaluating:  14%|█▍        | 14/100 [01:58<10:23,  7.25s/it]Evaluating:  15%|█▌        | 15/100 [02:05<10:09,  7.17s/it]Evaluating:  16%|█▌        | 16/100 [02:12<09:58,  7.12s/it]Evaluating:  17%|█▋        | 17/100 [02:19<09:55,  7.17s/it]Evaluating:  18%|█▊        | 18/100 [02:27<09:46,  7.15s/it]Evaluating:  19%|█▉        | 19/100 [02:34<09:46,  7.24s/it]

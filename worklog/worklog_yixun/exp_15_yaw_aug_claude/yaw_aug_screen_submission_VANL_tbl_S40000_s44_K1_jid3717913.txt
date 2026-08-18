@@ -1,0 +1,17 @@
+job 3717913 name exp15-screen-VANL-tbl-40000-s44-K1 submitted_at 2026-08-18T09:13:31-04:00 by yh4742@neuronic.cs.princeton.edu
+arm VANL cell tbl step 40000 seed 44 K 1
+pin_sha 290622922c77c415695bab645ed0eee9094215a2 campaign_pin 290622922c77c415695bab645ed0eee9094215a2
+expect_sha 290622922c77c415695bab645ed0eee9094215a2
+measure_root /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/290622922c77c415695bab645ed0eee9094215a2
+exclude <none>
+cond_method vanilla
+frame_avg_angles 0,90,180,270 (inert under vanilla; pinned per announcement 05)
+train_yaw_aug no
+rotate_mode fixed rotate_seed <n/a> rotate_deg 0
+split acousticroom_unseeneval_1.json expected_stream_count 6337 record_stream yes
+record_per_scene yes expected_scenes 10 (release grouping: AR room families)
+batch_size 64 num_workers 4
+cond_autocast bf16 cfg_scale 1.0 steps 1 use_ema yes
+eval_argv_protocol --cond-method vanilla --frame-avg-angles 0,90,180,270 --cond-autocast bf16 --rotate-mode fixed --rotate-deg 0
+lease /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/290622922c77c415695bab645ed0eee9094215a2/.leases/3717913
+manifest_complete yes

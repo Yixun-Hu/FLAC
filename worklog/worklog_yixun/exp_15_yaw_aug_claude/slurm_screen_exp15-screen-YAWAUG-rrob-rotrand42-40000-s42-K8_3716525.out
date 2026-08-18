@@ -1,0 +1,1 @@
+CELL=rrob takes no ROTATE_DEG (got '0'): rrob draws a per-sample yaw and tbl is the theta=0 reference; use CELL=vctl for a fixed angle - abort

@@ -1,0 +1,17 @@
+job 3716534 name exp15-screen-YAWAUG-rrob-rotrand42-40000-s42-K8 submitted_at 2026-08-18T08:18:03-04:00 by yh4742@neuronic.cs.princeton.edu
+arm YAWAUG cell rrob step 40000 seed 42 K 8
+pin_sha 290622922c77c415695bab645ed0eee9094215a2 campaign_pin 290622922c77c415695bab645ed0eee9094215a2
+expect_sha 290622922c77c415695bab645ed0eee9094215a2
+measure_root /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/290622922c77c415695bab645ed0eee9094215a2
+exclude <none>
+cond_method vanilla
+frame_avg_angles 0,90,180,270 (inert under vanilla; pinned per announcement 05)
+train_yaw_aug yes
+rotate_mode random rotate_seed 42 rotate_deg <null>
+split acousticroom_unseeneval.json expected_stream_count 6337 record_stream yes
+record_per_scene yes expected_scenes 10 (release grouping: AR room families)
+batch_size 64 num_workers 4
+cond_autocast bf16 cfg_scale 1.0 steps 1 use_ema yes
+eval_argv_protocol --cond-method vanilla --frame-avg-angles 0,90,180,270 --cond-autocast bf16 --rotate-mode random --rotate-seed 42 --rotate-deg 0
+lease /n/fs/gatrdp/codespace/FLAC/.measure_worktrees/290622922c77c415695bab645ed0eee9094215a2/.leases/3716534
+manifest_complete yes
