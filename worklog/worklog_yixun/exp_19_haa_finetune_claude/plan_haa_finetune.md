@@ -1,7 +1,17 @@
 # exp_19 — HAA finetuning of P1-vanilla@40k and B-F FA@40k (plan, Rev 1)
 
 **Seat:** planned by Claude Fable 5 (main session). Coder seat per SOP: Opus 5 max.
-**Status: AWAITING YIXUN'S APPROVAL — nothing implemented.**
+**Status: APPROVED by Yixun 2026-08-17 (~12:40 EDT)** — B1: 1,000 steps (ckpt/10; step-410 exists as a byproduct, endpoint = 1000). B2: HAA-YAW third arm INCLUDED. B3: single-GPU recipe, two arms parallel one-per-card, third follows. B4: HAA_md.py untouched (released behavior).
+
+**R1 gauge analysis (planner seat, pre-implementation):** the yaw machinery is
+gauge-CONSISTENT on HAA — the HAA panorama's column→azimuth map is the standard
+CCW convention ((cosφcosθ, cosφsinθ, −sinφ), θ linear in column), the same
+orientation `rotate_scene_metadata` assumes, and that function rotates the
+STORED per-pixel 3D vectors themselves (not just rolling columns), so
+consistency depends only on the (x,y)→θ orientation. The deliberate minus lives
+in the vertical/translation components and does not enter yaw pairing. FA's C4
+orbit is additionally closed under sign flip regardless. The empirical R1 probe
+remains a launch gate to catch anything this reading missed.
 
 ## 0. The recipe, verified against the sources
 
