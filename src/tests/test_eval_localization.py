@@ -2793,3 +2793,26 @@ def test_integration_scorer_noise_mode_measures_the_sampled_readout(tmp_path):
     assert report["aggregate"]["pairwise"]["mean"] < 1.0        # genuinely stochastic
     assert os.path.exists(report["report_path"])
     assert _json.loads(open(report["report_path"]).read())["n_draws"] == 8
+
+
+# --------------------------------------------------------------------------- #
+# r4 item 2d (full-review F2): --mode reaggregate wires R1's offline selection.
+# --------------------------------------------------------------------------- #
+def test_reaggregate_mode_writes_a_report(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    run = el.run_evaluation(_run_args(tmp_path), loader, engine, _stub_context(root), "c", "a",
+                            expected=el.expected_split_identities(loader.dataset))
+    args = el.validate_args(el.parse_args(
+        ["--mode", "reaggregate", "--model-config", "m.json", "--dataset-config", "d.json",
+         "--rows", run["rows_path"], "--out-dir", str(tmp_path / "re"), "--eval-name", "R1"]))
+    report = el.run_reaggregate(args)
+    assert report["n_rows"] == 2 and report["selected"]["method"] == "lme"
+    assert report["selected"]["k_prime"] == 2                 # K'=8 unavailable at K=2
+    assert os.path.exists(report["report_path"])
+
+
+def test_reaggregate_mode_requires_rows():
+    with pytest.raises(SystemExit):
+        el.validate_args(el.parse_args(["--mode", "reaggregate", "--model-config", "m.json",
+                                        "--dataset-config", "d.json"]))

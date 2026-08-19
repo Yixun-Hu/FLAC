@@ -44,6 +44,8 @@ from src.training.diffusion import invariant_conditioning
 from src.training.factory import create_training_wrapper_from_config
 from src.data.dataset import create_dataloader_from_config, get_audio_filenames
 from src.localization.agree_embed import MAX_LEN, embed_rirs, load_agree_audio, sha256_file
+from src.localization.reaggregate import (decode_scores, decode_sims, encode_sims,
+                                          reaggregate)
 from src.localization.candidates import (CandidateSet, assert_gt_matches_loader,
                                          build_candidate_set, candidate_metadata,
                                          crosscheck_sources_vs_files,
@@ -348,21 +350,6 @@ def run_query(engine, base_md, cand_set, noise, obs_wav, batch_size=64, control=
     return out
 
 
-def encode_sims(sims):
-    """``[M, K]`` similarities as exact hex floats (``float.hex``).
-
-    The registered aggregation must be reproducible offline from the logged rows
-    (O18), so the serialization is lossless rather than pretty: widening a float32
-    to float64 is exact, and ``float.fromhex`` inverts it bit for bit.
-    """
-    return [[float(v).hex() for v in row] for row in sims.detach().cpu().float()]
-
-
-def decode_sims(payload):
-    """Inverse of :func:`encode_sims` -> float32 ``[M, K]``."""
-    return torch.tensor([[float.fromhex(v) for v in row] for row in payload], dtype=torch.float32)
-
-
 def room_id_from_relpath(relpath):
     """``'<scene>/<scene_id>'`` -- the 17-room key of plan §2.6."""
     parts = str(relpath).replace(os.sep, "/").strip("/").split("/")
@@ -443,11 +430,6 @@ def gt_reciprocal_rank(scores, gt_index, available=None):
     better = int((scores > gt_score).sum())
     tied_before = int((scores[:gt_index] == gt_score).sum())
     return 1.0 / (better + tied_before + 1)
-
-
-def decode_scores(payload):
-    """Inverse of the row's ``scores_hex`` -> float32 ``[M]``."""
-    return decode_sims([payload])[0]
 
 
 def build_row(query_id, room_id, relpath, receiver_node, cand_set, cam_xyz, sims,
@@ -1026,6 +1008,8 @@ def parse_args(argv=None):
     parser.add_argument("--num-workers", type=int, default=6)
     parser.add_argument("--out-dir", default="worklog/worklog_yixun/exp_18_loc_invert_claude")
     parser.add_argument("--eval-name", default="exp18_loc_invert")
+    parser.add_argument("--rows", nargs="+", default=None,
+                        help="rows JSONL file(s) for --mode reaggregate")
     parser.add_argument("--noise-draws", type=int, default=100,
                         help="sampled-readout draws for --mode scorer-noise (§2.8.3)")
     parser.add_argument("--noise-wavs", nargs="+", default=None,
@@ -1063,6 +1047,8 @@ def validate_args(args):
     if args.mode != "run":
         # Auxiliary modes score nothing generative; only the run mode needs the
         # generative protocol flags to be complete.
+        if args.mode == "reaggregate" and not args.rows:
+            _refuse("--rows is required for --mode reaggregate")
         if args.mode == "scorer-noise":
             if not args.agree_ckpt:
                 _refuse("--agree-ckpt is required for --mode scorer-noise")
@@ -1495,6 +1481,8 @@ def main(argv=None):
         return run_readback(args)
     if args.mode == "scorer-noise":
         return run_scorer_noise(args)
+    if args.mode == "reaggregate":
+        return run_reaggregate(args)
 
     validate_dataset_split(args)
     model_config, ckpt = load_and_validate_artifacts(args)
@@ -2054,4 +2042,23 @@ def run_scorer_noise(args):
     print(f"scorer noise over {report['n_draws']} sampled draws x {report['n_wavs']} RIRs: "
           f"pairwise cos mean={pairwise['mean']:.6f} p5={pairwise['p5']:.6f} "
           f"min={pairwise['min']:.6f} -> {report_path}")
+    return report
+
+
+def run_reaggregate(args):
+    """--mode reaggregate: R1's offline tau/aggregation/K' sweep + selection."""
+    report = reaggregate(args.rows)
+    report.update({"mode": "reaggregate", "source_sha": source_sha(),
+                   "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+    os.makedirs(str(args.out_dir), exist_ok=True)
+    report_path = os.path.join(str(args.out_dir), f"{args.eval_name}_reaggregate.json")
+    with open(report_path, "w") as handle:
+        json.dump(report, handle, sort_keys=True, indent=2)
+        handle.write("\n")
+    report["report_path"] = report_path
+    chosen = report["selected"]
+    print(f"reaggregate: {report['n_rows']} rows, {len(report['sweep'])} configurations -> "
+          f"{report_path}")
+    print(f"registered selection: {chosen['method']} tau={chosen['tau']} K'={chosen['k_prime']} "
+          f"(pooled mean e_loc {chosen['pooled_mean_e_loc']:.4f} m)")
     return report
