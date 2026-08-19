@@ -1,0 +1,26 @@
+=== exp_19 curve eval — 2026-08-19_10-28-52 — f9d9fe6 — GPU1 only ===
+[run] gpu1 exp19_HAA_P1_S100_K8_s42
+[run] gpu1 exp19_HAA_P1_S200_K8_s42
+[run] gpu1 exp19_HAA_P1_S300_K8_s42
+[run] gpu1 exp19_HAA_P1_S500_K8_s42
+[run] gpu1 exp19_HAA_P1_S600_K8_s42
+[run] gpu1 exp19_HAA_P1_S700_K8_s42
+[run] gpu1 exp19_HAA_P1_S800_K8_s42
+[run] gpu1 exp19_HAA_P1_S900_K8_s42
+[run] gpu1 exp19_HAA_BF_S100_K8_s42
+[run] gpu1 exp19_HAA_BF_S200_K8_s42
+[run] gpu1 exp19_HAA_BF_S300_K8_s42
+[run] gpu1 exp19_HAA_BF_S500_K8_s42
+[run] gpu1 exp19_HAA_BF_S600_K8_s42
+[run] gpu1 exp19_HAA_BF_S700_K8_s42
+[run] gpu1 exp19_HAA_BF_S800_K8_s42
+[run] gpu1 exp19_HAA_BF_S900_K8_s42
+[run] gpu1 exp19_HAA_YAW_S100_K8_s42
+[run] gpu1 exp19_HAA_YAW_S200_K8_s42
+[run] gpu1 exp19_HAA_YAW_S300_K8_s42
+[run] gpu1 exp19_HAA_YAW_S500_K8_s42
+[run] gpu1 exp19_HAA_YAW_S600_K8_s42
+[run] gpu1 exp19_HAA_YAW_S700_K8_s42
+[run] gpu1 exp19_HAA_YAW_S800_K8_s42
+[run] gpu1 exp19_HAA_YAW_S900_K8_s42
+curve eval done: ran 24, skipped 0, failed 0 (410/1000 points come from the existing grid)

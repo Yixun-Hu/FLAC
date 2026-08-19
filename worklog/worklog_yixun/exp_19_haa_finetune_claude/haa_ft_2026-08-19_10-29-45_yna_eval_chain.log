@@ -1,0 +1,3 @@
+launching YNA eval
+EXPECT_SHA=f9d9fe639ae01ef52b2a6c5f8e651152d7001553 != HEAD 97a30d7c1d1584e7e38aff814947af4cf23caef7 - this checkout is not the revision you reviewed - abort
+YNA eval rc=2
