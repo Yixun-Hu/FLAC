@@ -17,3 +17,4 @@
 | `59495a5` | r1 TDD cycle 8: `render_depth` (open3d raycast, abort-on-miss) + per-map QA + CLI; hand-derived six-wall oracle (18 tests) |
 | `e2fba7c` | r1 TDD cycle 9: `RAF_md` scene/poses/depth (no flipud) + bounded per-worker JSON + depth caches (15 tests) |
 | `b8ae279` | r1 TDD cycle 10: RAF_md context (train stochastic / eval deterministic), provenance tensors, collation contract (30 tests) |
+| `0a3e600` | r1 TDD cycle 11: RAF model + 3 dataset configs, pinned by a HAA-template diff whitelist (7 tests) |
