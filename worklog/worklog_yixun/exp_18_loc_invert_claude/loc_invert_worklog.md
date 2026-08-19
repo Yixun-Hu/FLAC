@@ -117,3 +117,10 @@
 - **Result** — passed. **Science note (validates the O2 fix):** stock sampled embedding differs by up to 0.011 between identical calls; cos(mean, sample) ≈ 0.999 — the registered mean readout sits on the stock embedding minus its sampling noise. Structure check confirmed the readout maps exactly onto `OobleckEncoder.layers→chunk→project` (reshape for the non-contiguous mean half; identical layout).
 - **Analysis** — Coder deviations 1–6 reviewed and accepted (CWD guard on the resolved config value, train-mode refusal, inference-clone, stock-path-equivalent sample readout, lazy imports, silent-skip caveat noted). Round 2 OPEN pending Codex r2 review.
 - **Next** — Codex r2 review; round 3 (driver) starts only after r2 closes.
+
+## 2026-08-19T20:00:00-0400 — Round 2 CLOSED (fix batch verified, incl. foreign-CWD + CUDA)
+
+- **Version Control** — r2fix commits `4d8f11c` (F3+F4) `58054d7` (F5 dependency-traversal parity) `50b3f66` (F1 repo-root-anchored assets) `22bf0ad` (F2 real-model B=8 + CUDA RNG isolation) `7335248` (ledger).
+- **Command / Validation** — Planner-independent: exp_18 suite **220 passed**; agree_embed file re-run from a foreign CWD (/tmp): **46 passed** incl. 8 integration (2 CUDA-conditional, executed on the A6000s). Measured: real-model batch invariance max|diff| 4.47e-08; CUDA mean readout leaves CPU + all CUDA generators untouched; sampled path advances the device generator (teeth witnessed).
+- **Result** — passed; round 2 CLOSED. Coder deviations 1–4 accepted (parameter removal + source-tie test; whole-model submodule walk; chdir fixture rationale; CUDA skipif semantics).
+- **Next** — Round 3: `eval_localization.py` driver + tests (largest round).
