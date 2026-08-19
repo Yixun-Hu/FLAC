@@ -1059,18 +1059,27 @@ def _dataset_tree(tmp_path, sources=((0, (0.0, 0.0, 1.0)), (3, (2.0, -1.0, 1.5))
     return root, wav_room
 
 
+_ROOM_SOURCES = {0: (0.0, 0.0, 1.0), 3: (2.0, -1.0, 1.5), 7: (-3.0, 4.0, 0.75)}
+
+
 def _query_md(root, wav_room, src=3, receiver=11, rec_loc=(1.0, 2.0, 0.5),
-              src_loc=(2.0, -1.0, 1.5)):
+              src_loc=None, context_nodes=(0,)):
+    """One loader item. The context poses are the camera-frame positions of OTHER
+    real sources in the room -- what AR_md actually produces -- so the fail-closed
+    membership resolution (r3 fix F7) has something to resolve against."""
     from src.localization.candidates import project_to_camera
+    src_loc = _ROOM_SOURCES[src] if src_loc is None else src_loc
     path = str(wav_room / f"S00{src}_R00{receiver}_hybrid_IR.wav")
     source = torch.as_tensor(project_to_camera(np.asarray(rec_loc), np.asarray(src_loc)),
                              dtype=torch.float32)
+    context = [n for n in context_nodes if n != src]
+    poses = torch.as_tensor(
+        np.stack([project_to_camera(np.asarray(rec_loc), np.asarray(_ROOM_SOURCES[n]))
+                  for n in context]), dtype=torch.float32)
+    audio = torch.stack([torch.full((1, 9600), 0.4 - 0.2 * i) for i in range(len(context))])
     return {"idx": 0, "path": path, "relpath": os.path.relpath(path, str(root)),
             "scene": "Cafe", "source": source, "source_vit": source.unsqueeze(0),
-            "context_poses": torch.tensor([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0]],
-                                          dtype=torch.float32),
-            "context_audio": torch.stack([torch.full((1, 9600), 0.4),
-                                          torch.full((1, 9600), -0.15)]),
+            "context_poses": poses, "context_audio": audio,
             "depth": torch.zeros(3, 4, 8)}
 
 
@@ -1141,7 +1150,7 @@ def _fake_run(tmp_path, nodes=(3, 0), batch_size=2):
     srcs = {0: (0.0, 0.0, 1.0), 3: (2.0, -1.0, 1.5), 7: (-3.0, 4.0, 0.75)}
     metadata, filenames = [], []
     for node in nodes:
-        md = _query_md(root, wav_room, src=node, src_loc=srcs[node])
+        md = _query_md(root, wav_room, src=node, src_loc=srcs[node], context_nodes=(0, 7))
         md["idx"] = len(metadata)
         metadata.append(md)
         filenames.append(md["path"])
@@ -1313,3 +1322,50 @@ def test_run_query_without_control_reports_identical_position_arrays():
     cand = _cand_set()
     out = el.run_query(engine, _base_md(cand), cand, el.build_noise_bank(1, "q", 2, (2, 8)), _OBS)
     np.testing.assert_array_equal(out["cand_cam_xyz"], out["conditioning_xyz_cam"])
+
+
+# --------------------------------------------------------------------------- #
+# r3 fix F7 (review finding 7): membership must fail CLOSED. A projection or
+# receiver mismatch silently enlarged the eligible set, which inflates the
+# information-matched baseline's headroom.
+# --------------------------------------------------------------------------- #
+def test_context_membership_mask_aborts_on_an_unresolvable_context_id():
+    cams = np.array([[0.5, -1.25, 2.0], [-3.0, 0.0, 1.0]])
+    with pytest.raises(ValueError):
+        el.context_membership_mask(cams, [el.render_position_id([9.0, 9.0, 9.0])])
+
+
+def test_context_membership_mask_aborts_on_candidate_fingerprint_collision():
+    cams = np.array([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]])
+    with pytest.raises(ValueError):
+        el.context_membership_mask(cams, [el.render_position_id(cams[0])])
+
+
+def test_context_membership_mask_aborts_when_the_gt_is_a_context_member():
+    """Context is drawn from OTHER sources by construction; GT appearing in it is
+    a wiring bug that would hand the answer to the baseline."""
+    cams = np.array([[0.5, -1.25, 2.0], [-3.0, 0.0, 1.0]])
+    with pytest.raises(ValueError):
+        el.context_membership_mask(cams, [el.render_position_id(cams[1])], gt_index=1)
+    assert el.context_membership_mask(cams, [el.render_position_id(cams[0])], gt_index=1) == \
+        [True, False]
+
+
+def test_context_membership_mask_allows_a_context_drawn_with_replacement():
+    """AR_md falls back to np.random.choice(replace=True) when a room has fewer
+    sources than the context size, so repeated ids are legitimate."""
+    cams = np.array([[0.5, -1.25, 2.0], [-3.0, 0.0, 1.0]])
+    ids = [el.render_position_id(cams[0])] * 3
+    assert el.context_membership_mask(cams, ids) == [True, False]
+
+
+def test_process_query_aborts_before_generation_on_a_bad_context(tmp_path):
+    root, wav_room = _dataset_tree(tmp_path)
+    md = _query_md(root, wav_room)
+    md["context_poses"] = torch.tensor([[99.0, 99.0, 99.0]], dtype=torch.float32)
+    md["context_audio"] = torch.full((1, 1, 9600), 0.3)
+    rec, engine = _engine()
+    args = _run_args(tmp_path)
+    with pytest.raises(ValueError):
+        el.process_query(args, engine, {"latent_shape": (2, 8)}, md, torch.full((1, 1, 9600), 0.2))
+    assert rec.calls == []                       # nothing was generated

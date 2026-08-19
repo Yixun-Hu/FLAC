@@ -278,10 +278,41 @@ def render_position_id(xyz):
     return ",".join(values)
 
 
-def context_membership_mask(cand_cam_xyz, context_ids):
-    """Which candidates the conditioning already reveals (plan §2.2, C1)."""
-    wanted = set(context_ids)
-    return [render_position_id(xyz) in wanted for xyz in np.asarray(cand_cam_xyz)]
+def context_membership_mask(cand_cam_xyz, context_ids, gt_index=None):
+    """Which candidates the conditioning already reveals (plan §2.2, C1).
+
+    Fail-closed (r3 review finding 7). A set-membership test would silently treat
+    an unmatched context source as "not a candidate" and thereby ENLARGE the
+    eligible set, which inflates the headroom of the information-matched
+    baseline -- the registered comparison target. So: candidate fingerprints must
+    be unique, every ordered context id must resolve to exactly one candidate, and
+    the GT may never be a context member (the context is drawn from OTHER sources
+    by construction). Repeated context ids are allowed: ``AR_md`` falls back to
+    ``np.random.choice(replace=True)`` in rooms with too few sources.
+    """
+    positions = np.asarray(cand_cam_xyz)
+    index_of = {}
+    for index, xyz in enumerate(positions):
+        fingerprint = render_position_id(xyz)
+        if fingerprint in index_of:
+            raise ValueError(
+                f"candidates {index_of[fingerprint]} and {index} render to the same position "
+                f"fingerprint {fingerprint!r}; candidate identity is ambiguous")
+        index_of[fingerprint] = index
+
+    mask = [False] * len(positions)
+    for position, context_id in enumerate(context_ids):
+        if context_id not in index_of:
+            raise ValueError(
+                f"context source {position} ({context_id!r}) matches no candidate of this query; "
+                "the conditioning and the candidate set disagree about the geometry")
+        mask[index_of[context_id]] = True
+
+    if gt_index is not None and mask[int(gt_index)]:
+        raise ValueError(
+            f"GT candidate {int(gt_index)} is a context member; context is drawn from OTHER "
+            "sources by construction, so this query's conditioning already reveals the answer")
+    return mask
 
 
 def gt_reciprocal_rank(scores, gt_index):
@@ -935,6 +966,12 @@ def process_query(args, engine, context, md, obs_wav):
     # BEFORE anything can touch the poses: the context fingerprint identifies the draw.
     context_ids = sample_context_ids(md)
 
+    # Membership is resolved BEFORE any generation so a conditioning/candidate
+    # geometry disagreement aborts instead of quietly enlarging the eligible set.
+    candidate_cams = candidate_camera_positions(cand_set)
+    context_mask = context_membership_mask(candidate_cams, context_ids,
+                                           gt_index=cand_set.gt_index)
+
     if args.score_source == "gt_rir":
         outcome = run_query_gt_rir(engine, cand_set, os.path.dirname(md["path"]),
                                    receiver_node, obs_wav)
@@ -951,7 +988,7 @@ def process_query(args, engine, context, md, obs_wav):
     return build_row(
         query_id=query_id, room_id=room_id, relpath=md["relpath"], receiver_node=receiver_node,
         cand_set=cand_set, cam_xyz=outcome["cand_cam_xyz"], sims=outcome["sims"],
-        context_mask=context_membership_mask(outcome["cand_cam_xyz"], context_ids),
+        context_mask=context_mask,
         noise_keys=noise_keys, tau=args.tau, agg=args.agg, control=args.control,
         score_source=args.score_source, smoke=bool(args.smoke), available=available,
         identity_index=identity_index, substituted=False,
