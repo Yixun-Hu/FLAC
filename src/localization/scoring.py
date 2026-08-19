@@ -399,10 +399,16 @@ def _cluster_bootstrap(payloads, statistic, n, seed):
 
 
 def _percentile_ci(samples, alpha):
-    alpha = float(alpha)
+    """Two-sided percentile interval with the interpolation rule pinned.
+
+    ``method="linear"`` is stated explicitly rather than inherited from NumPy's
+    default, so the registered endpoints cannot silently change with the library.
+    """
+    alpha = _finite_scalar(alpha, "alpha")
     if not 0.0 < alpha < 1.0:
         raise ValueError(f"alpha must be in (0, 1), got {alpha}")
-    lo, hi = np.percentile(samples, [100.0 * alpha / 2.0, 100.0 * (1.0 - alpha / 2.0)])
+    lo, hi = np.percentile(
+        samples, [100.0 * alpha / 2.0, 100.0 * (1.0 - alpha / 2.0)], method="linear")
     return float(lo), float(hi)
 
 

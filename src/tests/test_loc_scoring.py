@@ -757,3 +757,65 @@ def test_bootstrap_helpers_reject_nonfinite_records(bad):
     other = [{"query_id": "q0", "room_id": "A/A_idx_0", "e_loc": 1.0}]
     with pytest.raises(ValueError):
         paired_room_clustered_test(recs, other, n=10, seed=0)
+
+
+# --------------------------------------------------------------------------- #
+# r1 fix F3 (review finding 3): pin the registered statistical conventions.
+# The CI tests only checked bracketing/reproducibility and the paired test only
+# saw p = 0 / 1, so a different percentile interpolation or a one-sided p-value
+# would have passed. These fixtures pin both to exact numbers.
+# --------------------------------------------------------------------------- #
+def _bootstrap_statistics(values, n, seed):
+    """Re-derive the documented design independently: resample the k clusters
+    with replacement from ``default_rng(seed)``, one record per cluster, and take
+    the pooled median of the picks."""
+    import numpy as np
+    rng = np.random.default_rng(seed)
+    picks = rng.integers(0, len(values), size=(n, len(values)))
+    return np.sort(np.asarray([np.median(np.asarray(values)[p]) for p in picks]))
+
+
+def test_clustered_bootstrap_ci_uses_linear_percentile_interpolation():
+    """5 single-query rooms, n = 12, seed = 4: both 95% endpoints fall strictly
+    between two distinct order statistics, so the interpolation rule is visible.
+    Linear gives 1.275 / 8.075; lower would give 1.0 / 3.0, higher 2.0 / 10.0,
+    nearest 1.0 / 10.0, midpoint 1.5 / 6.5."""
+    import numpy as np
+    values = [0.0, 1.0, 2.0, 3.0, 10.0]
+    recs = [{"query_id": f"q{i}", "room_id": f"S{i}/S{i}_idx_0", "e_loc": v}
+            for i, v in enumerate(values)]
+    out = clustered_bootstrap_ci(recs, n=12, seed=4)
+
+    ordered = _bootstrap_statistics(values, 12, 4)
+    expected = []
+    for q in (0.025, 0.975):                       # explicit textbook linear rule
+        pos = q * (len(ordered) - 1)
+        low = int(np.floor(pos))
+        frac = pos - low
+        assert 0.0 < frac < 1.0 and ordered[low] != ordered[low + 1]
+        expected.append(ordered[low] + frac * (ordered[low + 1] - ordered[low]))
+
+    assert out["lo"] == pytest.approx(expected[0], abs=1e-12)
+    assert out["hi"] == pytest.approx(expected[1], abs=1e-12)
+    assert out["lo"] == pytest.approx(1.275, abs=1e-12)
+    assert out["hi"] == pytest.approx(8.075, abs=1e-12)
+
+
+def test_paired_room_clustered_test_pvalue_golden():
+    """3 single-query rooms with diffs (-1, +2, +3), n = 64, seed = 1: the
+    bootstrap medians are negative 12 times, so the registered two-sided value is
+    2 * 12/64 = 0.375 -- a one-sided proportion (0.1875) is a different number."""
+    import numpy as np
+    diffs = [-1.0, 2.0, 3.0]
+    a = [{"query_id": f"q{i}", "room_id": f"S{i}/S{i}_idx_0", "e_loc": 1.0 + d}
+         for i, d in enumerate(diffs)]
+    b = [{"query_id": f"q{i}", "room_id": f"S{i}/S{i}_idx_0", "e_loc": 1.0}
+         for i, _d in enumerate(diffs)]
+    out = paired_room_clustered_test(a, b, n=64, seed=1)
+
+    ordered = _bootstrap_statistics(diffs, 64, 1)
+    expected = min(1.0, 2.0 * min(float(np.mean(ordered <= 0.0)), float(np.mean(ordered >= 0.0))))
+    assert out["p_value"] == pytest.approx(expected, abs=1e-12)
+    assert out["p_value"] == pytest.approx(0.375, abs=1e-12)
+    assert out["p_value"] != pytest.approx(0.1875, abs=1e-12)     # not one-sided
+    assert 0.0 < out["p_value"] < 1.0
