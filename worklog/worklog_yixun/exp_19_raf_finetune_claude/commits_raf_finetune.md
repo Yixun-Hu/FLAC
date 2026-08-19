@@ -14,3 +14,4 @@
 | `40e0946` | r1 TDD cycle 5: `group_captures` (canonical 7-tuple key, exactly-36 invariant, `--allow-nonuniform`) + placement clustering (25 tests) |
 | `6f0c511` | r1 TDD cycle 6: `select_splits` (group-atomic FPS split, 12/24 support/test, val support pool) + split JSONs + splits record (41 tests) |
 | `4665018` | r1 TDD cycle 7: `resample_and_write` + amplitude audit, runtime metadata emission, prepare CLI (56 tests) |
+| `59495a5` | r1 TDD cycle 8: `render_depth` (open3d raycast, abort-on-miss) + per-map QA + CLI; hand-derived six-wall oracle (18 tests) |
