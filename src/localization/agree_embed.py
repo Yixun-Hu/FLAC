@@ -48,3 +48,40 @@ def preprocess_for_scoring(wavs):
     if out.shape[-1] < TOWER_LEN:
         out = torch.nn.functional.pad(out, (0, TOWER_LEN - out.shape[-1]))
     return out
+
+
+def embed_rirs(model, wavs, device, readout="mean"):
+    """Embed ``[B, 1, T]`` RIRs with the AGREE audio tower -> ``[B, D]`` float32 (CPU).
+
+    ``readout='mean'`` is the REGISTERED scorer: it runs the tower's own layers
+    and projection but substitutes the bottleneck's *mean* for its sample --
+    ``x = audio.layers(h)``, ``mean, scale = x.chunk(2, dim=1)``,
+    ``audio.project(mean.reshape(B, -1))`` -- reproducing
+    ``OobleckEncoder.forward`` (AGREE/AGREE/audio_model.py:199-204) with
+    ``vae_sample``'s ``randn_like`` removed. It is deterministic and consumes no
+    randomness, so scores cannot jitter and the driver's noise bank cannot be
+    desynchronized.
+
+    ``readout='sample'`` is the stock stochastic path (``model.audio(x)``, which
+    is exactly what ``encode_audio(x, normalize=True)`` runs -- AGREE/AGREE/
+    model.py:288-290) and is a labelled diagnostic only.
+
+    Embeddings are L2-normalized, as the retrieval route normalizes them.
+    """
+    if readout not in ("mean", "sample"):
+        raise ValueError(f"unknown readout {readout!r} (expected 'mean' or 'sample')")
+    if getattr(model, "training", False):
+        raise ValueError("the scorer must be in eval mode; call load_agree_audio (plan §2.4)")
+
+    x = preprocess_for_scoring(wavs).to(device)
+    with torch.inference_mode():
+        if readout == "mean":
+            audio = model.audio
+            hidden = audio.layers(x)
+            mean, _scale = hidden.chunk(2, dim=1)
+            features = audio.project(mean.reshape(hidden.shape[0], -1))
+        else:
+            features = model.audio(x)
+        embeddings = torch.nn.functional.normalize(features.float(), dim=-1).cpu()
+    # leave inference mode behind: the driver stores, stacks and scores these.
+    return embeddings.clone()

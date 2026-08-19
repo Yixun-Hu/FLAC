@@ -10,7 +10,7 @@ tower's 10,240 padding.
 import pytest
 import torch
 
-from src.localization.agree_embed import MAX_LEN, TOWER_LEN, preprocess_for_scoring
+from src.localization.agree_embed import MAX_LEN, TOWER_LEN, embed_rirs, preprocess_for_scoring
 
 
 # --------------------------------------------------------------------------- #
@@ -100,3 +100,120 @@ def test_preprocess_rejects_nonfinite_input(bad):
 def test_preprocess_rejects_bad_shapes(bad):
     with pytest.raises(ValueError):
         preprocess_for_scoring(bad)
+
+
+# --------------------------------------------------------------------------- #
+# embed_rirs -- the registered deterministic VAE-mean readout (plan §2.4)
+#
+# The stub mirrors ``OobleckEncoder`` (AGREE/AGREE/audio_model.py:199-204) and
+# uses the REAL ``VAEBottleneck``, so the sampled path under test is the stock
+# stochastic one, not a re-implementation. ``scale_value`` controls the
+# bottleneck's stdev = softplus(scale) + 1e-4: -30 gives ~1e-4 (sampling is
+# effectively off), +5 gives ~5 (sampling dominates).
+# --------------------------------------------------------------------------- #
+from AGREE.AGREE.audio_model import VAEBottleneck   # noqa: E402
+
+
+class _StubLayers(torch.nn.Module):
+    def __init__(self, latent, length, scale_value):
+        super().__init__()
+        self.latent, self.length, self.scale_value = latent, length, scale_value
+
+    def forward(self, x):
+        b = x.shape[0]
+        mean = x.reshape(b, -1)[:, : self.latent * self.length].reshape(b, self.latent, self.length)
+        return torch.cat([mean, torch.full_like(mean, self.scale_value)], dim=1)
+
+
+class _StubAudio(torch.nn.Module):
+    def __init__(self, latent=4, length=5, embed=6, scale_value=-30.0, seed=0):
+        super().__init__()
+        self.layers = _StubLayers(latent, length, scale_value)
+        self.bottleneck = VAEBottleneck()
+        self.project = torch.nn.Linear(latent * length, embed)
+        g = torch.Generator().manual_seed(seed)
+        with torch.no_grad():
+            self.project.weight.copy_(torch.randn(embed, latent * length, generator=g))
+            self.project.bias.copy_(torch.randn(embed, generator=g))
+
+    def forward(self, x):                      # mirrors OobleckEncoder.forward
+        x = self.layers(x)
+        latents = self.bottleneck.encode(x, return_info=False)
+        latents = latents.view(x.size(0), -1)
+        return self.project(latents)
+
+
+class _StubModel(torch.nn.Module):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.audio = _StubAudio(**kwargs)
+        self.eval()                            # the scorer is always frozen + eval
+
+
+def _wavs(b=4, t=9000, seed=18):
+    g = torch.Generator().manual_seed(seed)
+    return torch.randn(b, 1, t, generator=g) * 0.4
+
+
+def test_embed_rirs_shape_dtype_and_normalization():
+    out = embed_rirs(_StubModel(embed=6), _wavs(), "cpu")
+    assert tuple(out.shape) == (4, 6)
+    assert out.dtype == torch.float32 and out.device.type == "cpu"
+    assert torch.allclose(out.norm(dim=-1), torch.ones(4), atol=1e-5)
+    assert out.requires_grad is False
+    assert out.is_inference() is False          # usable as an ordinary tensor downstream
+
+
+def test_embed_rirs_mean_readout_is_bitwise_deterministic():
+    model, wavs = _StubModel(), _wavs()
+    assert torch.equal(embed_rirs(model, wavs, "cpu"), embed_rirs(model, wavs, "cpu"))
+
+
+def test_embed_rirs_mean_readout_does_not_touch_the_global_rng():
+    """O2: the registered readout must draw no randomness at all -- otherwise it
+    would both jitter scores and desynchronize the driver's noise bank."""
+    model, wavs = _StubModel(), _wavs()
+    before = torch.random.get_rng_state()
+    embed_rirs(model, wavs, "cpu", readout="mean")
+    assert torch.equal(torch.random.get_rng_state(), before)
+
+    # contrast: the stock sampled path DOES consume the global stream
+    before = torch.random.get_rng_state()
+    embed_rirs(model, wavs, "cpu", readout="sample")
+    assert not torch.equal(torch.random.get_rng_state(), before)
+
+
+def test_embed_rirs_sample_matches_mean_when_the_bottleneck_stdev_vanishes():
+    model, wavs = _StubModel(scale_value=-30.0), _wavs()      # stdev ~ 1e-4
+    mean_emb = embed_rirs(model, wavs, "cpu", readout="mean")
+    sampled = embed_rirs(model, wavs, "cpu", readout="sample")
+    assert torch.allclose(mean_emb, sampled, atol=1e-3)
+
+
+def test_embed_rirs_sample_diverges_from_mean_at_a_large_bottleneck_stdev():
+    """Proves the mean path really bypasses sampling rather than coincidentally
+    agreeing with it."""
+    model, wavs = _StubModel(scale_value=5.0), _wavs()        # stdev ~ 5
+    mean_emb = embed_rirs(model, wavs, "cpu", readout="mean")
+    sampled = embed_rirs(model, wavs, "cpu", readout="sample")
+    assert (mean_emb - sampled).abs().max() > 1e-2
+    assert torch.equal(mean_emb, embed_rirs(model, wavs, "cpu", readout="mean"))
+
+
+def test_embed_rirs_is_batch_size_invariant():
+    model, wavs = _StubModel(), _wavs(b=8)
+    batched = embed_rirs(model, wavs, "cpu")
+    one_by_one = torch.cat([embed_rirs(model, wavs[i:i + 1], "cpu") for i in range(8)])
+    assert torch.allclose(batched, one_by_one, atol=1e-6)
+
+
+def test_embed_rirs_rejects_bad_readout_and_nonfinite_input():
+    model = _StubModel()
+    with pytest.raises(ValueError):
+        embed_rirs(model, _wavs(), "cpu", readout="median")
+    bad = _wavs()
+    bad[0, 0, 0] = float("nan")
+    with pytest.raises(ValueError):
+        embed_rirs(model, bad, "cpu")
+    with pytest.raises(ValueError):
+        embed_rirs(model, torch.zeros(2, 100), "cpu")
