@@ -208,13 +208,21 @@ def context_conditioned_baseline(cand_xyz, gt_xyz, context_member_mask, radii=(0
     return out
 
 
-def nearest_context_baseline(cand_xyz, ctx_xyz, ctx_sims):
+def nearest_context_baseline(cand_xyz, ctx_xyz, ctx_sims, eligible_mask=None):
     """Non-generative control (O10): index of the candidate nearest the
     best-matching context source (no generator involved).
 
     ``ctx_sims`` are similarities between the observed RIR and each context RIR;
     both the best-context and the nearest-candidate choices break ties by lowest
     index, as everywhere else in the readout.
+
+    ``eligible_mask`` (``[M]`` booleans, optional) restricts the prediction to
+    the eligible candidates -- context sources are themselves candidates, so the
+    unmasked control normally names the best-matching context source itself,
+    while masking them out runs the same control over the information-matched
+    eligible set. ``None`` leaves the raw behaviour unchanged; an all-False mask
+    is refused rather than silently predicting nothing. The returned index is
+    always into the original candidate order.
     """
     cand = _points(cand_xyz, "cand_xyz")
     ctx = _points(ctx_xyz, "ctx_xyz")
@@ -223,7 +231,17 @@ def nearest_context_baseline(cand_xyz, ctx_xyz, ctx_sims):
         raise ValueError(f"ctx_sims has {sims.numel()} entries for {ctx.shape[0]} context sources")
     _require_finite(sims, "ctx_sims")
     best_ctx = predict_index(sims)
-    return predict_index(-torch.linalg.norm(cand - ctx[best_ctx], dim=-1))
+    distances = torch.linalg.norm(cand - ctx[best_ctx], dim=-1)
+
+    if eligible_mask is None:
+        return predict_index(-distances)
+    mask = torch.as_tensor(eligible_mask, dtype=torch.bool).reshape(-1)
+    if mask.numel() != cand.shape[0]:
+        raise ValueError(f"eligible_mask has {mask.numel()} entries for {cand.shape[0]} candidates")
+    eligible = torch.nonzero(mask, as_tuple=False).reshape(-1)
+    if eligible.numel() == 0:
+        raise ValueError("eligible_mask excludes every candidate; nothing to predict")
+    return int(eligible[predict_index(-distances[eligible])].item())
 
 
 def noise_key(seed, query_id, k):

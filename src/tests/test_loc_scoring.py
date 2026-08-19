@@ -832,3 +832,48 @@ def test_paired_room_clustered_test_pvalue_golden():
     assert out["p_value"] == pytest.approx(0.375, abs=1e-12)
     assert out["p_value"] != pytest.approx(0.1875, abs=1e-12)     # not one-sided
     assert 0.0 < out["p_value"] < 1.0
+
+
+# --------------------------------------------------------------------------- #
+# r1 fix F5 (Planner ruling 4b): optional eligibility mask on the O10 control.
+# Context sources are themselves candidates, so the raw control normally names
+# the context source itself; the mask lets a caller run the same control over
+# the information-matched eligible set instead.
+# --------------------------------------------------------------------------- #
+def test_nearest_context_baseline_none_mask_is_the_raw_behaviour():
+    assert nearest_context_baseline(_CAND, _CTX, torch.tensor([0.2, 0.8]), None) == 0
+    assert nearest_context_baseline(_CAND, _CTX, torch.tensor([0.9, 0.2]),
+                                    eligible_mask=None) == 2
+
+
+def test_nearest_context_baseline_mask_changes_the_prediction():
+    raw = nearest_context_baseline(_CAND, _CTX, torch.tensor([0.2, 0.8]))
+    masked = nearest_context_baseline(_CAND, _CTX, torch.tensor([0.2, 0.8]),
+                                      eligible_mask=[False, True, True, True])
+    assert raw == 0 and masked == 1                     # nearest ELIGIBLE candidate
+
+
+def test_nearest_context_baseline_mask_forces_a_non_context_prediction():
+    """Context sources sit in C, so the raw control predicts the context source
+    itself (distance 0); excluding the context members forces a real guess."""
+    ctx = torch.stack([_CAND[1], _CAND[2]])
+    sims = torch.tensor([0.9, 0.2])
+    assert nearest_context_baseline(_CAND, ctx, sims) == 1          # the context source
+    masked = nearest_context_baseline(_CAND, ctx, sims,
+                                      eligible_mask=[True, False, False, True])
+    assert masked == 0
+
+
+def test_nearest_context_baseline_mask_keeps_lowest_original_index_tie_break():
+    mid = torch.tensor([[0.5, 0.0, 0.0]])               # equidistant from candidates 0 and 1
+    sims = torch.tensor([1.0])
+    assert nearest_context_baseline(_CAND, mid, sims, eligible_mask=[True, True, False, False]) == 0
+    assert nearest_context_baseline(_CAND, mid, sims, eligible_mask=[False, True, True, True]) == 1
+
+
+def test_nearest_context_baseline_rejects_bad_masks():
+    sims = torch.tensor([0.2, 0.8])
+    with pytest.raises(ValueError):
+        nearest_context_baseline(_CAND, _CTX, sims, eligible_mask=[False] * 4)   # nothing eligible
+    with pytest.raises(ValueError):
+        nearest_context_baseline(_CAND, _CTX, sims, eligible_mask=[True, True, True])
