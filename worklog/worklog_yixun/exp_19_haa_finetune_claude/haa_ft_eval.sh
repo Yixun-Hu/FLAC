@@ -81,7 +81,7 @@ case "$DRY_RUN" in
 esac
 for A in $ARMS; do
   case "$A" in
-    P1|BF|YAW) ;;
+    P1|BF|YAW|YNA) ;;
     *) echo "ARMS must be a subset of 'P1 BF YAW' (got token '${A}') - abort"; exit 2 ;;
   esac
 done
@@ -181,6 +181,7 @@ echo "source pins OK (${NPINS} files: evaluator, both K configs, the test split,
 arm_config() {
   case "$1" in
     P1)  printf '%s' "$STOCK_CFG" ;;
+    YNA) printf '%s' "$STOCK_CFG" ;;
     BF)  printf '%s' "${EXPDIR}/FLAC_HAA_finetune_BF.json" ;;
     YAW) printf '%s' "${EXPDIR}/FLAC_HAA_finetune_YAW.json" ;;
   esac
