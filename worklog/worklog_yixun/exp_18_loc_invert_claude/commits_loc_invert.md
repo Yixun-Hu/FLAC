@@ -90,3 +90,19 @@
 | `a39c9b3` | F4 (HIGH #4) | summary: `flac_excl_gt_only` + masked control on the same retained subset, clustered CI, paired room-clustered tests, power statistic per row + aggregate | +128 −4 |
 | `da8a284` | F2 (HIGH #2) | M×K parity — always-running synthetic (full conditioning, bitwise) + real-asset seen-room test (bitwise at `--cond-autocast off`; batch split bitwise at the registered default) | +285 −1 |
 | `06588eb` | — | `__main__` guard defect found by the CLI parity re-run + `--num-workers >= 1` guard | +26 −6 |
+| `5114f9e` | — | ledger append for the r3 fix batch | +25 |
+
+## Round 4 (integrative full review `loc_invert_codex_code_full_review.md` + plan Rev 3.1)
+
+| SHA | Item | Description | changed lines |
+|---|---|---|---|
+| `c3ad3c8` | R4-1 (F1) | frozen room manifest (`build_room_manifest`, `manifest_sha256`, `candidate_set_from_manifest`); per-query disk enumeration deleted; real 17-room unseen test pins Rev 3.1 §1 (M=10 everywhere, LRH S10 wav-absent) | +261 −21 |
+| `03c6fe3` | R4-6 + R4-7 | resolved device block (requested/index/name/capability/UUID); finite `--frame-avg-angles` at parse time; registration validated before any model load | +85 −6 |
+| `ba73723` | R4-3 (F3) | fail-closed context evidence: `resolve_context_k`, `assert_query_context` (pre-generation), `assert_context_evidence_complete` (publication gate); no leniency flag | +154 −3 |
+| `af708e3` | R4-5 (F5) | cell-unique `artifact_stem` + `artifact_paths` refusing existing final/`.partial` targets unless `--overwrite`; manifest published as an artifact | +102 −35 |
+| `4c0a1fc` | R4-4 (F4) | machine-checked registration: `--registration-manifest`, git commit + byte-equality verification, every locked field + seed-membership checked before model loads | +254 −15 |
+| `e851c0a` | R4-2a (F2) | `--mode readback` — R-1's dataset gate (crosscheck both ways, split-vs-metadata counts, wav readback at 22050, depth presence), JSON report, nonzero exit | +207 −3 |
+| `92f132a` + `ac1d1ab` | R4-2b (F2) | always-on per-query component timings + CUDA peak memory; `probe_summary` in the run summary (R0's probe = a smoke summary) | +156 −4, +3 −1 |
+| `0693f59` | R4-2c (F2) | `--mode scorer-noise` — §2.8.3 sampled-readout measurement (pairwise cos + vs-mean stats), AGREE only | +192 −3 |
+| `f86de94` | R4-2d (F2) | `src/localization/reaggregate.py` + `--mode reaggregate` — R1's offline τ/agg/K′ sweep and registered selection; the sims codec moves there (single definition) | +413 −20 |
+| `1dd2e25` | — | `__main__` guard defect recurred; now asserted structurally on the module AST | +16 −3 |
