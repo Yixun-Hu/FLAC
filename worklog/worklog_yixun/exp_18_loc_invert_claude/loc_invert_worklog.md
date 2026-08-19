@@ -85,3 +85,10 @@
 - **Result** — Yixun (verbatim): "approve; 2: FLAC_EMA; 3: yes; 4: yes; 5: yes; 6: for the dataset, please wait, I am downloading it to /media/diskstation/yixunhu/FLAC/AcousticRooms/, and I have finished the `huggingface-cli login`."
   Locked: headline ckpt = released `FLAC_EMA.ckpt`; scorer = `AGREE_AR.pt` primary + `fullAR` diagnostic with deterministic VAE-mean readout; K_ctx=1 secondary sweep R2b APPROVED; seeds 42/43/44, K=8; dataset arriving at `/media/diskstation/yixunhu/FLAC/AcousticRooms/` (wait for Yixun's completion); HF gated-DINOv3 access ready.
 - **Next** — TDD Round 1 (Coder: `candidates.py` + `scoring.py` + tests) in parallel with `download_weights.sh`; R-1 dataset gate when the download completes.
+
+## 2026-08-19T16:20:00-0400 — Coordination: second session claimed exp_19 (RAF finetune) on this checkout/branch
+
+- **Goal** — Record cross-session coordination so numbering and file ownership stay conflict-free.
+- **Result** — Peer session "flac-d9" (same checkout, same branch `localization-exp`) claimed **exp_19** for a Yixun-directed FLAC finetune on RAF (facebookresearch/real-acoustic-fields, HAA-recipe style); its scaffold is committed. Its code will live in `data/RAF/`, a new `RAF_md.py`, and new dataset configs — disjoint from exp_18's files. It commits path-scoped only.
+- **Analysis** — Consequences for exp_18: (1) the future cross-arm localization experiment takes **exp_20+**; (2) two writers share this working tree — our commits stay path-scoped (they already are: Coder round commits name their files explicitly) and we re-check `git log` before committing; (3) no protocol impact.
+- **Next** — unchanged (await Coder r1 completion → Codex r1 review).
