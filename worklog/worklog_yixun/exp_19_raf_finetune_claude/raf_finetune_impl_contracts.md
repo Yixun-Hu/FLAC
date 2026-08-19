@@ -43,3 +43,9 @@ Tests: synthetic mini-room fixture (3 groups × 36 tiny WAVs) exercising every p
 
 ## Ground rules
 - NEVER touch: `src/localization/`, `src/tests/test_loc_*`, anything under `worklog/worklog_yixun/exp_18_*` (peer session owns them). No installs, no GPU, no full-suite pytest (run `pytest src/tests/test_raf_*.py` and directly-touched test files only). No edits to `AcousticRooms/` or `/media/diskstation` data (read-only). `git pull --rebase` is NOT needed (local branch), but commits must be path-scoped and <200 changed code lines each where feasible.
+
+## Amendment 1 (post-r1, 2026-08-19 ~19:30) — registered resolutions of Coder deviations D1/D3/D5
+- **D1 (rx trailing sentinel):** `load_room_index` accepts EXACTLY ONE trailing `all_rx` line IFF (i) it is the final line, (ii) all three fields parse as NaN, and (iii) after dropping it the counts satisfy len(rx)==len(tx)==#capture dirs. The drop is recorded in the returned index (`rx_trailing_sentinel_dropped: true`) and propagated into `raf_splits_record.json`. Any other mismatch still aborts. NaN anywhere else in either file still aborts. (Cycle 13; fixture with and without sentinel, plus a mid-file NaN abort test.)
+- **D3:** contract C's "y_p" was a typo for "the height (third pipeline) component" — Coder's reading is registered.
+- **D5:** the val-group 12-mic support pool is registered as specified in the Coder's report (selected groups of every role get an FPS support pool; val groups contribute all 36 as val items, pool used as context only), recorded via `support_ids`.
+All other deviations (D6–D13, D15, D17) are accepted as recorded in the Coder's r1 report (archived at `raf_finetune_coder_r1_report.md`). D14 (`l1_stft_multires` hardcoded `.cuda()`) is a pre-existing latent CPU landmine, out of r1 scope, tracked for the issue report. D16 (peer sweep of `test_raf_md.py` into `9627449`) is benign; peer asked to path-scope.
