@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 import numpy as np
+import pytorch_lightning as pl
 import torch
 import torchaudio
 
@@ -37,7 +38,8 @@ from src.inference.sampling import sample_discrete_euler
 from src.models.factory import create_model_from_config
 from src.training.diffusion import invariant_conditioning
 from src.training.factory import create_training_wrapper_from_config
-from src.localization.agree_embed import MAX_LEN, embed_rirs
+from src.data.dataset import create_dataloader_from_config
+from src.localization.agree_embed import MAX_LEN, embed_rirs, load_agree_audio, sha256_file
 from src.localization.candidates import (assert_gt_matches_loader, build_candidate_set,
                                          candidate_metadata, parse_ir_filename,
                                          project_to_camera)
@@ -979,3 +981,73 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256):
     write_summary(summary_path, summary, provenance)
     return {"rows_path": rows_path, "summary_path": summary_path, "rows": rows,
             "summary": summary, "provenance": provenance}
+
+
+def scoring_only_engine(agree, device):
+    """An :class:`Engine` that can score but not generate (measured-RIR oracle).
+
+    The oracle needs no FLAC checkpoint, so it must be able to run the moment the
+    dataset lands (plan §2.6, run R-1); the generation callables refuse rather
+    than exist as stubs that could quietly return something.
+    """
+    def _unavailable(*_args, **_kwargs):
+        raise ValueError("generation is unavailable under --score-source gt_rir")
+
+    return Engine(device=device, io_channels=0, latent_samples=0, conditioner=_unavailable,
+                  cond_inputs_fn=_unavailable, sampler=_unavailable, decoder=_unavailable,
+                  embedder=lambda wavs: embed_rirs(agree.model, wavs, device, readout="mean"))
+
+
+def build_dataloader(args, model_config):
+    """The eval loader at the PINNED parallelism (O8), unshuffled."""
+    with open(args.dataset_config) as handle:
+        dataset_config = json.load(handle)
+    return create_dataloader_from_config(
+        dataset_config, batch_size=args.batch_size, num_workers=args.num_workers,
+        sample_rate=model_config["sample_rate"], sample_size=model_config["sample_size"],
+        audio_channels=model_config.get("audio_channels", 1), shuffle=False)
+
+
+def main(argv=None):
+    """CLI entry: validate, build, audit, evaluate, summarize."""
+    args = validate_args(parse_args(argv))
+    with open(args.model_config) as handle:
+        model_config = json.load(handle)
+    torch.set_float32_matmul_precision("medium")
+
+    agree = load_agree_audio(args.agree_ckpt, args.device)
+    if args.score_source == "gt_rir":
+        engine = scoring_only_engine(agree, args.device)
+        context = {"weights_source": "n/a", "latent_shape": None, "device": args.device}
+        ckpt_sha256 = "n/a"
+    else:
+        engine, context = build_engine(args, agree=agree, device=args.device)
+        ckpt_sha256 = sha256_file(args.ckpt_path)
+
+    # Seeded exactly where evaluate_model seeds it -- after the model build and
+    # before the loader, because the per-item context draw happens in the workers.
+    pl.seed_everything(args.seed, workers=True)
+    loader = build_dataloader(args, model_config)
+
+    if args.parity_check:
+        obs_wav, md = next(_iter_items(loader))
+        noise = build_noise_bank(args.seed, sample_target_id(md), 1, context["latent_shape"])
+        result = parity_check_one_query(args, engine, context, [md], noise)
+        print(f"parity_check_one_query: {result}")
+        if not result["match"]:
+            _refuse(f"generation parity with eval_FLAC FAILED: {result}")
+        return result
+
+    result = run_evaluation(args, loader, engine, context, ckpt_sha256, agree.ckpt_sha256)
+    summary = result["summary"]
+    print(f"rows:    {result['rows_path']}")
+    print(f"summary: {result['summary_path']}")
+    print(f"primary ({summary['flac']['primary_name']}): {summary['flac']['primary']:.4f} m over "
+          f"{summary['n_queries']} queries / {summary['n_rooms']} rooms")
+    print(f"context-conditioned baseline: "
+          f"{summary['baselines']['context_conditioned']['primary']:.4f} m")
+    return result
+
+
+if __name__ == "__main__":
+    main()

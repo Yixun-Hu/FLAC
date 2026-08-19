@@ -1246,3 +1246,28 @@ def test_main_refuses_a_missing_checkpoint_only_for_the_generative_mode():
     with pytest.raises(SystemExit):
         el.validate_args(el.parse_args(argv))                  # flac mode needs a ckpt
     el.validate_args(el.parse_args(argv + ["--score-source", "gt_rir"]))
+
+
+def test_scoring_only_engine_embeds_but_refuses_to_generate():
+    """R-1 runs the measured-RIR oracle before any checkpoint exists, so the
+    generation callables must be absent-by-construction rather than silently
+    returning something."""
+    class _Agree:
+        model = None
+
+    engine = el.scoring_only_engine(_Agree(), "cpu")
+    for call in (engine.conditioner, engine.cond_inputs_fn, engine.sampler, engine.decoder):
+        with pytest.raises(ValueError):
+            call(None)
+
+
+def test_main_is_wired_and_validates_before_touching_assets(tmp_path):
+    """main() refuses an invalid protocol before it opens a config or a ckpt."""
+    with pytest.raises(SystemExit):
+        el.main(["--model-config", "nope.json", "--dataset-config", "nope.json",
+                 "--ckpt-path", "nope.ckpt", "--agree-ckpt", "nope.pt",
+                 "--num-samples", "2", "--rotate-deg", "45"])
+    with pytest.raises(SystemExit):
+        el.main(["--model-config", "nope.json", "--dataset-config", "nope.json",
+                 "--ckpt-path", "nope.ckpt", "--agree-ckpt", "nope.pt",
+                 "--num-samples", "2", "--max-queries", "3"])
