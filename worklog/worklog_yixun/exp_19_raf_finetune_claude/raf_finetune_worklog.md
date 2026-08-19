@@ -44,3 +44,13 @@ Branch `localization-exp` (shared with exp_18; this experiment is driven by the 
 
 - **Decision record** — Blanket approval adopts the recommendation-first option of every §10 decision: (1) Mapping H is v1; Mapping A (unseen-source) becomes its own later experiment; (2) N_g=16 groups/room, 12/24 per group, 4 val groups, farthest-point selection; (3) **open3d install into the `flac` env AUTHORIZED**; (4) normalization rule: none unless readback shows off-scale, else one train-support-derived scalar; (5) **HAA Zenodo download for R-cal AUTHORIZED**; (6) 5 eval seeds 42–46 paired, T60-demotion rule as registered.
 - **Next** — Implementation contracts → Opus 5 max-effort Coder (TDD, commit-per-cycle) → consolidated Codex code review → fix round; open3d install + HAA acquisition started in parallel; readback rung fires when FurnishedRoom finishes unzipping.
+
+## 2026-08-19T19:09:21-0400 — R-cal data landed; FurnishedRoom complete; readback pre-checks
+
+- **Goal** — Progress the approved pipeline while the Coder runs (cycle 6/12 at 19:05).
+- **Result** —
+  1. **open3d 0.19.0** installed into `flac` (approved decision 3), raycast smoke exact; no pinned core packages changed.
+  2. **HAA base rooms downloaded** (4 zips, 29.5 GB, byte-exact vs Zenodo, log `haa_download_2026-08-19.log`); extract→released-`prepare_data.py`→runtime-layout chain running in background (log `haa_prepare_2026-08-19.log`); only `RIRs.npy`/`xyzs.npy` extracted per README.
+  3. **FurnishedRoom extraction COMPLETE** (Yixun's process finished 18:29): 39,132 captures, ids 000000–039131, same schema + same all_rx trailing-line off-by-one as EmptyRoom.
+  4. **Group-invariant pre-check:** FurnishedRoom = 1,086 unique tx poses — **1,085 groups of exactly 36 + ONE group of 72** (one source pose captured twice, presumably at two array placements). Handling rule (within plan §2's recorded-deviation clause): **v1 selection eligibility = exactly-36 groups only**; the 72-group goes to the explicit reserve list with its anomaly recorded in `raf_splits_record.json`. To be echoed in the prep run's output and the results caveats.
+- **Next** — Coder report → consolidated Codex code review → fix round; then formal readback rung (both rooms) → prep run → depth renders → smoke; R-cal HAA finetune queued behind the chain's completion.
