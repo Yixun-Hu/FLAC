@@ -173,3 +173,10 @@
 
 - **Result** — Peer's Leg A had a constant `--eval-name` overwriting its per-seed metric JSONs; killed + restarted with per-seed names (same defect class as our full-review F5, caught in their runner script). GPU 1 now frees ≈20:15–20:20 EDT and is then ours indefinitely; GPU 0 / Leg B unaffected (~21:00–22:30, its post-train eval stays on GPU 0).
 - **Analysis** — No exp_18 delay: the actual launch gate is the r4 focused review (~21:00 EDT), after which GPU 1 will already be free. Sequencing unchanged.
+
+## 2026-08-19T20:40:00-0400 — r4 delivered; Planner verification PASSED; deviations ruled
+
+- **Version Control** — r4 commits `c3ad3c8` (frozen manifest) `03c6fe3` (device provenance + early validation + finite fa-angles) `ba73723` (fail-closed context evidence) `af708e3` (cell-unique stems + no-overwrite) `4c0a1fc` (machine-checked registration) `e851c0a` (--mode readback) `92f132a ac1d1ab` (probe timings + peak-mem) `0693f59` (--mode scorer-noise) `f86de94` (reaggregate module + mode) `1dd2e25` (__main__ recurrence, now AST-pinned) `01b7cce` (ledger).
+- **Command / Validation** — Planner-independent: **455 passed** (5 files); CLI seen-split parity re-run: match=True, 0.0. Real-data: manifest 24 s one-off; all 17 rooms 10 metadata sources; LRH wavs 1..9 (Rev 3.1 §1 executable).
+- **Analysis — Planner rulings on r4 deviations:** (1) context-evidence leniency dropped entirely — ACCEPTED (strongest form; offline-only None path documented). (2) scorer-noise held to seen split — ACCEPTED as registered (diagnostic; seen suffices). (3) K′-skip with reported k_primes_evaluated — ACCEPTED. (4) mode-scoped required flags — ACCEPTED. (5) single sims codec in reaggregate — ACCEPTED. (6) AST guard — ACCEPTED. GPU note: exp_19's Leg B occupies GPU 0 (20.4 GB); GPU 1 near-free (2.3 GB residue).
+- **Next** — Focused Codex review of r4 (the launch gate) → R-1 readback + oracle → R0 probe on GPU 1.
