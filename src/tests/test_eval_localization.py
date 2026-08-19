@@ -167,3 +167,178 @@ def test_build_noise_bank_rejects_bad_arguments():
         el.build_noise_bank(42, "q0", 4, (4,))
     with pytest.raises(ValueError):
         el.build_noise_bank(42, "q0", 4, (4, 0))
+
+
+# --------------------------------------------------------------------------- #
+# run_query  (unit c) -- candidate-major layout [m*K + k], one conditioner call
+# over the M candidate metadata dicts, common random numbers across candidates.
+# The engine is the seam: real callables in a run, recording fakes here.
+# --------------------------------------------------------------------------- #
+import numpy as np                                                    # noqa: E402
+from src.localization.candidates import CandidateSet, project_to_camera  # noqa: E402
+
+_REC = np.array([1.0, 2.0, 0.5])
+_NODES = [0, 3, 7]
+_XYZ = np.array([[0.0, 0.0, 1.0], [2.0, -1.0, 1.5], [-3.0, 4.0, 0.75]])
+
+
+def _cand_set(nodes=None, xyz=None, gt_node=3):
+    nodes = _NODES if nodes is None else nodes
+    xyz = _XYZ if xyz is None else xyz
+    return CandidateSet(nodes=nodes, xyz_world=xyz, rec_loc=_REC,
+                        gt_node=gt_node, gt_xyz=xyz[nodes.index(gt_node)])
+
+
+def _base_md(cand_set=None):
+    cand_set = cand_set or _cand_set()
+    source = torch.as_tensor(project_to_camera(cand_set.rec_loc, cand_set.gt_xyz),
+                             dtype=torch.float32)
+    return {"scene": "Cafe", "idx": 7, "source": source, "source_vit": source.unsqueeze(0),
+            "depth": torch.zeros(3, 4, 8), "context_audio": torch.zeros(2, 1, 16)}
+
+
+class _RecordingEngine:
+    """Fake generation stack that keeps candidate identity and noise identity
+    distinguishable in the output, and records exactly what each row received."""
+
+    def __init__(self, latent=(2, 8), embed_dim=6):
+        self.latent, self.embed_dim = latent, embed_dim
+        self.device, self.io_channels, self.latent_samples = "cpu", latent[0], latent[1]
+        self.calls, self.seen_metadata = [], []
+
+    def conditioner(self, metadata, device):
+        self.seen_metadata.append(metadata)
+        return {"source": (torch.stack([md["source"] for md in metadata]), None)}
+
+    def cond_inputs_fn(self, conditioning):
+        return {"global_cond": conditioning["source"][0], "cross_attn_cond": None}
+
+    def sampler(self, noise, cond_inputs):
+        self.calls.append({"noise": noise.clone(), "global_cond": cond_inputs["global_cond"].clone()})
+        return noise + cond_inputs["global_cond"].sum(-1)[:, None, None]
+
+    def decoder(self, latents):
+        return latents.reshape(latents.shape[0], 1, -1)
+
+    def embedder(self, wavs):
+        feats = wavs.reshape(wavs.shape[0], -1)[:, : self.embed_dim]
+        return torch.nn.functional.normalize(feats.float(), dim=-1)
+
+
+def _engine_kwargs(rec):
+    return dict(device=rec.device, io_channels=rec.io_channels, latent_samples=rec.latent_samples,
+                conditioner=rec.conditioner, cond_inputs_fn=rec.cond_inputs_fn,
+                sampler=rec.sampler, decoder=rec.decoder, embedder=rec.embedder)
+
+
+def _engine():
+    rec = _RecordingEngine()
+    return rec, el.Engine(**_engine_kwargs(rec))
+
+
+_OBS = torch.ones(1, 1, 16) * 0.1
+
+
+def test_run_query_layout_is_candidate_major():
+    """Row m*K + k must carry candidate m's conditioning and noise draw k."""
+    rec, engine = _engine()
+    cand = _cand_set()
+    noise = el.build_noise_bank(42, "q0", 4, (2, 8))
+    out = el.run_query(engine, _base_md(cand), cand, noise, _OBS, batch_size=64)
+
+    assert tuple(out["sims"].shape) == (3, 4) and out["sims"].dtype == torch.float32
+    assert len(rec.calls) == 1 and len(rec.seen_metadata) == 1        # one conditioner call
+    seen_noise = rec.calls[0]["noise"]
+    seen_cond = rec.calls[0]["global_cond"]
+    cams = torch.as_tensor(out["cand_cam_xyz"], dtype=torch.float32)
+    for m in range(3):
+        for k in range(4):
+            row = m * 4 + k
+            assert torch.equal(seen_noise[row], noise[k])
+            assert torch.equal(seen_cond[row], cams[m])
+
+
+def test_run_query_is_invariant_to_batch_splitting():
+    rec_a, engine_a = _engine()
+    rec_b, engine_b = _engine()
+    cand, noise = _cand_set(), el.build_noise_bank(42, "q0", 4, (2, 8))
+    whole = el.run_query(engine_a, _base_md(cand), cand, noise, _OBS, batch_size=64)
+    split = el.run_query(engine_b, _base_md(cand), cand, noise, _OBS, batch_size=5)
+    assert len(rec_b.calls) > len(rec_a.calls)                        # really did split
+    assert torch.equal(whole["sims"], split["sims"])
+
+
+def test_run_query_per_candidate_results_do_not_depend_on_the_other_candidates():
+    """Common random numbers per (query, k): dropping a candidate must not change
+    what the retained candidates generate.
+
+    The generated waveforms are compared BITWISE -- that is the pipeline claim.
+    The similarities are compared at atol 1e-7 because ``cosine_sims`` reduces a
+    [M, K, D] batched matmul, which reassociates differently at M=3 and M=2
+    (measured 6e-08); that is a float32 property of the scoring reduction, not a
+    dependence of one candidate on another.
+    """
+    _rec, engine = _engine()
+    noise = el.build_noise_bank(42, "q0", 3, (2, 8))
+    full = el.run_query(engine, _base_md(), _cand_set(), noise, _OBS, return_wavs=True)
+    subset_nodes, subset_xyz = [0, 3], _XYZ[:2]
+    subset = _cand_set(nodes=subset_nodes, xyz=subset_xyz)
+    _rec2, engine2 = _engine()
+    part = el.run_query(engine2, _base_md(subset), subset, noise, _OBS, return_wavs=True)
+    assert torch.equal(full["wavs"][: 2 * 3], part["wavs"])           # 2 candidates x K=3
+    assert torch.allclose(full["sims"][:2], part["sims"], rtol=0, atol=1e-7)
+
+
+def test_run_query_permuting_the_noise_bank_permutes_the_sample_axis():
+    _rec, engine = _engine()
+    cand = _cand_set()
+    noise = el.build_noise_bank(42, "q0", 4, (2, 8))
+    base = el.run_query(engine, _base_md(cand), cand, noise, _OBS)
+    order = [2, 0, 3, 1]
+    _rec2, engine2 = _engine()
+    permuted = el.run_query(engine2, _base_md(cand), cand, noise[order], _OBS)
+    assert torch.equal(permuted["sims"], base["sims"][:, order])
+
+
+def test_run_query_constant_source_control_passes_one_identical_position():
+    """§2.8.1: every candidate is conditioned on the SAME centroid position, so a
+    working pipeline must collapse to the context-conditioned baseline."""
+    rec, engine = _engine()
+    cand = _cand_set()
+    noise = el.build_noise_bank(42, "q0", 2, (2, 8))
+    out = el.run_query(engine, _base_md(cand), cand, noise, _OBS, control="constant_source")
+
+    passed = torch.stack([md["source"] for md in rec.seen_metadata[0]])
+    centroid = torch.as_tensor(
+        np.stack([project_to_camera(cand.rec_loc, xyz) for xyz in cand.xyz_world]).mean(axis=0),
+        dtype=torch.float32)
+    assert torch.allclose(passed, centroid.expand(3, 3), atol=0)
+    assert out["control"] == "constant_source"
+    assert torch.equal(out["sims"][0], out["sims"][1])                # identical conditioning
+
+
+def test_run_query_enforces_the_gt_geometry_invariant():
+    _rec, engine = _engine()
+    cand = _cand_set()
+    md = _base_md(cand)
+    md["source"] = md["source"] + 1e-3
+    with pytest.raises(AssertionError):
+        el.run_query(engine, md, cand, el.build_noise_bank(42, "q0", 2, (2, 8)), _OBS)
+
+
+def test_run_query_does_not_mutate_the_base_metadata():
+    _rec, engine = _engine()
+    cand = _cand_set()
+    md = _base_md(cand)
+    original = md["source"].clone()
+    el.run_query(engine, md, cand, el.build_noise_bank(42, "q0", 2, (2, 8)), _OBS)
+    assert torch.equal(md["source"], original)
+    assert set(md) >= {"scene", "depth", "context_audio"}
+
+
+def test_run_query_returns_candidate_camera_positions():
+    _rec, engine = _engine()
+    cand = _cand_set()
+    out = el.run_query(engine, _base_md(cand), cand, el.build_noise_bank(1, "q", 2, (2, 8)), _OBS)
+    expected = np.stack([project_to_camera(cand.rec_loc, xyz) for xyz in cand.xyz_world])
+    np.testing.assert_array_equal(out["cand_cam_xyz"], expected)
