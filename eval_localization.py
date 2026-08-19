@@ -21,6 +21,7 @@ import copy
 import hashlib
 import itertools
 import json
+import math
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -685,7 +686,8 @@ def parse_args(argv=None):
     parser.add_argument("--dataset-config", required=True)
     parser.add_argument("--ckpt-path", default=None)
     parser.add_argument("--agree-ckpt", required=True)
-    parser.add_argument("--num-samples", type=int, required=True, help="K samples per candidate")
+    parser.add_argument("--num-samples", type=int, default=None,
+                        help="K samples per candidate (required for --score-source flac)")
     parser.add_argument("--tau", type=float, default=0.02)
     parser.add_argument("--agg", choices=["lme", "mean", "max"], default="lme")
     parser.add_argument("--steps", type=int, default=1)
@@ -713,8 +715,25 @@ def _refuse(message):
     raise SystemExit(f"exp_18 loc_invert REFUSED: {message}")
 
 
+def _finite_flag(value, name):
+    number = float(value)
+    if not math.isfinite(number):
+        _refuse(f"{name} must be a finite number, got {value}")
+    return number
+
+
 def validate_args(args):
     """Every fail-closed rule that can be checked before touching a file or a GPU."""
+    _finite_flag(args.rotate_deg, "--rotate-deg")
+    _finite_flag(args.cfg_scale, "--cfg-scale")
+    if args.tau is not None:
+        _finite_flag(args.tau, "--tau")
+    if int(args.steps) < 1:
+        _refuse(f"--steps must be >= 1, got {args.steps}")
+    if int(args.num_workers) < 0:
+        _refuse(f"--num-workers must be >= 0, got {args.num_workers}")
+    if args.max_queries is not None and int(args.max_queries) < 1:
+        _refuse(f"--max-queries must be >= 1, got {args.max_queries}")
     if float(args.rotate_deg) != 0.0:
         _refuse(f"--rotate-deg {args.rotate_deg} is not implemented in this driver; the "
                 "registered protocol is rotate_deg=0 (announcement 05)")
@@ -723,10 +742,14 @@ def validate_args(args):
                 "truncated run can never be mistaken for a headline artifact")
     if args.agg == "lme" and (args.tau is None or float(args.tau) <= 0.0):
         _refuse(f"--tau must be > 0 for --agg lme, got {args.tau}")
-    if int(args.num_samples) < 1:
+    if args.num_samples is not None and int(args.num_samples) < 1:
         _refuse(f"--num-samples (K) must be >= 1, got {args.num_samples}")
+    if args.score_source == "flac" and args.num_samples is None:
+        _refuse("--num-samples (K) is required for --score-source flac")
     if int(args.batch_size) < 1:
         _refuse(f"--batch-size must be >= 1, got {args.batch_size}")
+    if args.agg == "lme" and args.tau is not None and not math.isfinite(float(args.tau)):
+        _refuse(f"--tau must be finite for --agg lme, got {args.tau}")
     if args.score_source == "flac" and not args.ckpt_path:
         _refuse("--ckpt-path is required to score generated RIRs; only --score-source gt_rir "
                 "(the measured-RIR oracle) runs without a checkpoint")
@@ -783,7 +806,7 @@ def prepare_state_dict(ckpt, training_config):
     return state_dict, weights_source
 
 
-def build_engine(args, agree=None, device=None):
+def build_engine(args, agree=None, device=None, model_config=None, ckpt=None):
     """Build the frozen generator and wrap it as an :class:`Engine`.
 
     Follows ``eval_FLAC.evaluate_model``'s lines of record (eval_FLAC.py:1134-1198)
@@ -796,13 +819,15 @@ def build_engine(args, agree=None, device=None):
     device = device or getattr(args, "device", "cpu")
     torch.set_float32_matmul_precision("medium")
 
-    with open(args.model_config) as handle:
-        model_config = json.load(handle)
+    if model_config is None:
+        with open(args.model_config) as handle:
+            model_config = json.load(handle)
     file_model_config = copy.deepcopy(model_config)
     assert_rectified_flow(model_config)
 
     training_config = model_config.get("training", None)
-    ckpt = torch.load(args.ckpt_path, map_location="cpu")
+    if ckpt is None:
+        ckpt = torch.load(args.ckpt_path, map_location="cpu")
     # Earlier than evaluate_model does it: an ARE artifact must never reach a model build.
     assert_no_are(ckpt.get("model_config"), file_model_config)
     state_dict, weights_source = prepare_state_dict(ckpt, training_config)
@@ -1059,8 +1084,9 @@ def build_dataloader(args, model_config):
 def main(argv=None):
     """CLI entry: validate, build, audit, evaluate, summarize."""
     args = validate_args(parse_args(argv))
-    with open(args.model_config) as handle:
-        model_config = json.load(handle)
+    # CPU-only refusals first: objective and ARE are checked before the scorer or
+    # the generator is constructed, let alone moved to a device (finding 9).
+    model_config, ckpt = load_and_validate_artifacts(args)
     torch.set_float32_matmul_precision("medium")
 
     agree = load_agree_audio(args.agree_ckpt, args.device)
@@ -1069,7 +1095,8 @@ def main(argv=None):
         context = {"weights_source": "n/a", "latent_shape": None, "device": args.device}
         ckpt_sha256 = "n/a"
     else:
-        engine, context = build_engine(args, agree=agree, device=args.device)
+        engine, context = build_engine(args, agree=agree, device=args.device,
+                                       model_config=model_config, ckpt=ckpt)
         ckpt_sha256 = sha256_file(args.ckpt_path)
 
     # Seeded exactly where evaluate_model seeds it -- after the model build and
@@ -1099,3 +1126,21 @@ def main(argv=None):
 
 if __name__ == "__main__":
     main()
+
+
+def load_and_validate_artifacts(args):
+    """CPU-only artifact validation, BEFORE anything is built or moved to a device.
+
+    Reads the model config and (for generative runs) the checkpoint's metadata and
+    refuses a foreign objective or an ARE artifact there and then -- previously
+    those refusals lived in ``build_engine``, i.e. after the AGREE scorer had
+    already been constructed on the target device (r3 review finding 9).
+    """
+    with open(args.model_config) as handle:
+        model_config = json.load(handle)
+    assert_rectified_flow(model_config)
+    ckpt = None
+    if args.score_source == "flac":
+        ckpt = torch.load(args.ckpt_path, map_location="cpu")
+        assert_no_are(ckpt.get("model_config"), copy.deepcopy(model_config))
+    return model_config, ckpt

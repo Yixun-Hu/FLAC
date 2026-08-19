@@ -815,9 +815,12 @@ def test_parse_args_defaults_match_the_registered_protocol():
     assert args.batch_size > 0 and args.num_workers >= 0
 
 
-def test_parse_args_requires_num_samples():
+def test_num_samples_is_required_for_generation_and_optional_for_the_oracle():
+    """The oracle scores one measured RIR per candidate, so K is meaningless
+    there; generation cannot proceed without it."""
     with pytest.raises(SystemExit):
-        el.parse_args(_CLI[:-2])
+        el.validate_args(el.parse_args(_CLI[:-2]))
+    el.validate_args(el.parse_args(_CLI[:-2] + ["--score-source", "gt_rir"]))
 
 
 @pytest.mark.parametrize("flag,value", [("--agg", "median"), ("--cond-method", "canon"),
@@ -1369,3 +1372,66 @@ def test_process_query_aborts_before_generation_on_a_bad_context(tmp_path):
     with pytest.raises(ValueError):
         el.process_query(args, engine, {"latent_shape": (2, 8)}, md, torch.full((1, 1, 9600), 0.2))
     assert rec.calls == []                       # nothing was generated
+
+
+# --------------------------------------------------------------------------- #
+# r3 fix F9 (review finding 9): numeric guards must reject non-finite and
+# degenerate values, and the artifact validation must happen on CPU BEFORE any
+# model is constructed or moved to a device.
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("flag,value", [
+    ("--tau", "nan"), ("--tau", "inf"),
+    ("--cfg-scale", "nan"), ("--cfg-scale", "-inf"),
+    ("--steps", "0"), ("--steps", "-1"),
+    ("--num-workers", "-1"),
+    ("--batch-size", "0"),
+    ("--num-samples", "0"),
+])
+def test_validate_args_rejects_degenerate_numbers(flag, value):
+    with pytest.raises(SystemExit):
+        el.validate_args(el.parse_args(_CLI + [flag, value]))
+
+
+def test_validate_args_rejects_a_non_positive_smoke_limit():
+    with pytest.raises(SystemExit):
+        el.validate_args(el.parse_args(_CLI + ["--smoke", "--max-queries", "0"]))
+    el.validate_args(el.parse_args(_CLI + ["--smoke", "--max-queries", "1"]))
+
+
+def test_load_and_validate_artifacts_refuses_a_foreign_objective(tmp_path):
+    config = tmp_path / "m.json"
+    config.write_text(_json.dumps({"model": {"diffusion": {"diffusion_objective": "v"}},
+                                   "sample_size": 10240, "sample_rate": 22050}))
+    args = el.parse_args(["--model-config", str(config), "--dataset-config", "d.json",
+                          "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt", "--num-samples", "2"])
+    with pytest.raises(SystemExit):
+        el.load_and_validate_artifacts(args)
+
+
+def test_load_and_validate_artifacts_runs_before_the_scorer_is_built(tmp_path, monkeypatch):
+    """A wrong objective or an ARE artifact must be refused on CPU, before the
+    AGREE scorer is constructed or anything is moved to a device."""
+    config = tmp_path / "m.json"
+    config.write_text(_json.dumps({"model": {"diffusion": {"diffusion_objective": "v"}},
+                                   "sample_size": 10240, "sample_rate": 22050}))
+
+    def _never(*args, **kwargs):
+        raise AssertionError("the scorer must not be built before the artifacts validate")
+
+    monkeypatch.setattr(el, "load_agree_audio", _never)
+    monkeypatch.setattr(el, "build_engine", _never)
+    with pytest.raises(SystemExit):
+        el.main(["--model-config", str(config), "--dataset-config", "d.json",
+                 "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt", "--num-samples", "2",
+                 "--device", "cpu"])
+
+
+def test_load_and_validate_artifacts_skips_the_checkpoint_for_the_oracle(tmp_path):
+    config = tmp_path / "m.json"
+    config.write_text(_json.dumps({"model": {"diffusion": {"diffusion_objective": "rectified_flow"}},
+                                   "sample_size": 10240, "sample_rate": 22050}))
+    args = el.validate_args(el.parse_args(
+        ["--model-config", str(config), "--dataset-config", "d.json", "--agree-ckpt", "a.pt",
+         "--score-source", "gt_rir"]))
+    model_config, ckpt = el.load_and_validate_artifacts(args)
+    assert ckpt is None and model_config["sample_size"] == 10240
