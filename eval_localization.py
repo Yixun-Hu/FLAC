@@ -1182,10 +1182,10 @@ def build_dataloader(args, model_config, dataset_config=None):
 def main(argv=None):
     """CLI entry: validate, build, audit, evaluate, summarize."""
     args = validate_args(parse_args(argv))
-    # CPU-only refusals first: objective and ARE are checked before the scorer or
-    # the generator is constructed, let alone moved to a device (finding 9).
-    dataset_config = load_dataset_config(args)
-    validate_dataset_split(args, dataset_config)          # O16, before any asset is opened
+    # O16 first (this reads the dataset config only for smoke/parity runs), then
+    # the CPU-only artifact refusals: objective and ARE are checked before the
+    # scorer or the generator is constructed, let alone moved to a device (F9).
+    validate_dataset_split(args)
     model_config, ckpt = load_and_validate_artifacts(args)
     torch.set_float32_matmul_precision("medium")
 
