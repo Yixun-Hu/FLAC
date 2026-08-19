@@ -258,3 +258,192 @@ def test_depth_cache_hands_out_independent_tensors(raf_md, runtime_root):
 
 def test_default_depth_cache_bound_is_64(raf_md):
     assert raf_md._DEPTH_CACHE_MAX == 64
+
+
+# --------------------------------------------------------------------------- #
+# acoustic context (cycle 10)
+# --------------------------------------------------------------------------- #
+def _context_ids(md):
+    return [f"{int(i):06d}" for i in md["context_capture_ids"].tolist()]
+
+
+def test_context_shapes_and_dtypes(raf_md, runtime_root):
+    md = raf_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+    assert md["context_audio"].shape == (8, 1, 9600)
+    assert md["context_audio"].dtype == torch.float32
+    assert md["context_poses"].shape == (8, 3)
+    assert torch.equal(md["context_poses_vit"], md["context_poses"])
+    assert md["context_capture_ids"].shape == (8,)
+    assert md["context_capture_ids"].dtype == torch.int64
+    assert md["sample_target_id"].dtype == torch.int64
+    assert md["sample_target_id"].item() == 0
+    assert md["sample_target_id"].shape == ()
+
+
+def test_context_pool_is_the_group_support_minus_the_target(raf_md, runtime_root):
+    md = raf_md.get_custom_metadata(_info(runtime_root, "000003"), None)
+    ids = _context_ids(md)
+    support = [f"{i:06d}" for i in range(N_SUPPORT)]
+    assert set(ids).issubset(set(support))
+    assert "000003" not in ids
+    assert len(set(ids)) == 8
+
+
+def test_context_pool_of_a_test_item_is_the_full_support(raf_md, runtime_root):
+    md = raf_md.get_custom_metadata(_info(runtime_root, f"{N_SUPPORT:06d}"), None)
+    support = {f"{i:06d}" for i in range(N_SUPPORT)}
+    assert set(_context_ids(md)).issubset(support)
+
+
+def test_context_poses_are_source_centred(raf_md, runtime_root):
+    md = raf_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+    for slot, cid in enumerate(_context_ids(md)):
+        m = int(cid)
+        expected = np.array([m * 0.1, 1.0 + 0.05 * m, 0.6 + 0.01 * m]) - np.array([0.0, 0.0, 1.5])
+        np.testing.assert_allclose(md["context_poses"][slot].numpy(), expected, atol=1e-6)
+
+
+def test_context_audio_is_cropped_and_padded_to_max_len(raf_md, runtime_root):
+    long_md = raf_md.get_custom_metadata(
+        _info(runtime_root, "000000", _modalities(max_len=9600)), None)
+    assert long_md["context_audio"].shape[-1] == 9600
+    pad_md = raf_md.get_custom_metadata(
+        _info(runtime_root, "000000", _modalities(max_len=20000)), None)
+    assert pad_md["context_audio"].shape[-1] == 20000
+    assert torch.all(pad_md["context_audio"][:, :, 12000:] == 0)
+    assert torch.any(pad_md["context_audio"][:, :, :12000] != 0)
+
+
+def test_train_mode_context_is_stochastic_but_seed_reproducible(raf_md, runtime_root):
+    info = _info(runtime_root, "000000", _modalities(deterministic=False, max_context=4))
+    np.random.seed(0)
+    a = _context_ids(raf_md.get_custom_metadata(info, None))
+    np.random.seed(0)
+    b = _context_ids(raf_md.get_custom_metadata(info, None))
+    np.random.seed(1)
+    c = _context_ids(raf_md.get_custom_metadata(info, None))
+    assert a == b
+    assert a != c
+
+
+def test_eval_mode_context_ignores_every_ambient_rng(raf_md, runtime_root):
+    """Deterministic draws must not depend on worker topology, item order, or the
+    diffusion seed: only on (room, capture id)."""
+    info = _info(runtime_root, "000003", _modalities(deterministic=True))
+    np.random.seed(0)
+    torch.manual_seed(0)
+    first = _context_ids(raf_md.get_custom_metadata(info, None))
+    np.random.seed(7)
+    torch.manual_seed(1234)
+    for other in ("000001", "000002"):   # other items drawn in between
+        raf_md.get_custom_metadata(_info(runtime_root, other,
+                                         _modalities(deterministic=True)), None)
+    second = _context_ids(raf_md.get_custom_metadata(info, None))
+    assert first == second
+
+
+def test_eval_mode_context_survives_a_fresh_module_load(runtime_root):
+    """A second worker process re-executes the hook; it must draw the same set."""
+    info = _info(runtime_root, "000005", _modalities(deterministic=True))
+    a = _context_ids(load_raf_md().get_custom_metadata(info, None))
+    b = _context_ids(load_raf_md().get_custom_metadata(info, None))
+    assert a == b
+
+
+def test_eval_mode_context_differs_between_targets_and_rooms(raf_md, runtime_root):
+    a = _context_ids(raf_md.get_custom_metadata(
+        _info(runtime_root, "000000", _modalities(deterministic=True)), None))
+    b = _context_ids(raf_md.get_custom_metadata(
+        _info(runtime_root, "000001", _modalities(deterministic=True)), None))
+    assert a != b
+    # the seed is (room, capture id): a different room name must change the draw
+    pool = [f"{i:06d}" for i in range(N_SUPPORT)]
+    assert (raf_md.select_context_ids("EmptyRoom", "000000", pool, 8, True)
+            != raf_md.select_context_ids("FurnishedRoom", "000000", pool, 8, True))
+
+
+def test_deterministic_draw_ignores_the_pool_order(raf_md):
+    pool = [f"{i:06d}" for i in range(N_SUPPORT)]
+    a = raf_md.select_context_ids(ROOM, "000000", pool, 8, True)
+    b = raf_md.select_context_ids(ROOM, "000000", list(reversed(pool)), 8, True)
+    assert a == b
+
+
+def test_context_pool_too_small_fails_closed(raf_md, runtime_root):
+    with pytest.raises(ValueError):
+        raf_md.get_custom_metadata(
+            _info(runtime_root, "000000", _modalities(max_context=N_SUPPORT)), None)
+
+
+def test_context_can_be_switched_off(raf_md, runtime_root):
+    md = raf_md.get_custom_metadata(
+        _info(runtime_root, "000000", _modalities(context=False)), None)
+    for key in ("context_audio", "context_poses", "context_capture_ids",
+                "sample_target_id"):
+        assert key not in md
+
+
+def test_cached_base_metadata_is_never_mutated(raf_md, runtime_root):
+    path = os.path.join(str(runtime_root), ROOM, "metadata", "groups_metadata.json")
+    with open(path) as f:
+        on_disk = json.load(f)
+    for cid in ("000000", "000005", f"{N_PER_GROUP:06d}"):
+        raf_md.get_custom_metadata(_info(runtime_root, cid), None)
+    assert raf_md.load_json_cached(path) == on_disk
+
+
+# --------------------------------------------------------------------------- #
+# shape contract through the REAL collation path (cycle 10)
+# --------------------------------------------------------------------------- #
+def _dataset(runtime_root, tmp_path, deterministic=False):
+    from src.data.dataset import LocalDatasetConfig, SampleDataset
+
+    split = {ROOM: [f"{i:06d}.wav" for i in range(8)]}
+    split_path = tmp_path / "train_base.json"
+    with open(split_path, "w") as f:
+        json.dump(split, f)
+
+    config = LocalDatasetConfig(
+        id="RAF",
+        path=str(runtime_root),
+        custom_metadata_fn=load_raf_md().get_custom_metadata,
+        json_file_path=str(split_path),
+        folder_name="mono_rirs_22050Hz",
+        conditioning=_modalities(deterministic=deterministic),
+    )
+    return SampleDataset([config], sample_size=10240, sample_rate=22050,
+                         random_crop=False, force_channels="mono", augs=False)
+
+
+def test_batch_shapes_through_the_real_collation_path(runtime_root, tmp_path):
+    from src.data.dataset import collation_fn
+
+    dataset = _dataset(runtime_root, tmp_path)
+    assert len(dataset) == 8
+    audio, metadata = collation_fn([dataset[i] for i in range(4)])
+    assert audio.shape == (4, 1, 10240)
+    assert audio.dtype == torch.float32
+    assert len(metadata) == 4
+    for md in metadata:
+        assert md["scene"] == ROOM
+        assert md["source"].shape == (3,)
+        assert md["source_vit"].shape == (1, 3)
+        assert md["context_poses"].shape == (8, 3)
+        assert md["context_poses_vit"].shape == (8, 3)
+        assert md["context_audio"].shape == (8, 1, 9600)
+        assert md["depth"].shape == (3, 256, 512)
+        assert md["depth"].dtype == torch.float32
+        assert torch.isfinite(md["depth"]).all()
+        assert md["context_capture_ids"].shape == (8,)
+        assert md["sample_target_id"].dtype == torch.int64
+
+
+def test_provenance_identifies_the_item_after_collation(runtime_root, tmp_path):
+    from src.data.dataset import collation_fn
+
+    dataset = _dataset(runtime_root, tmp_path, deterministic=True)
+    _, metadata = collation_fn([dataset[i] for i in range(4)])
+    assert [int(md["sample_target_id"]) for md in metadata] == [0, 1, 2, 3]
+    for md in metadata:
+        target = int(md["sample_target_id"])
+        assert target not in md["context_capture_ids"].tolist()

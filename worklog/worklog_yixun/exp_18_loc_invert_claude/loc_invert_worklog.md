@@ -155,3 +155,9 @@
 - **Result** — Codex full review: **r3 formally CLOSED** (Part 1: 7 RESOLVED, 2 PARTIALLY — leftovers folded into r4). New: 4 HIGH (frozen candidate manifest; reviewed R-1/R0/R1 entry points; fail-open context control; toothless registration gate), 2 MEDIUM (cell-name collisions; device provenance), 1 NIT (late refusal). Verdict REQUEST-CHANGES; R-1/R0/R1/R2 all HELD until the r4 fix batch passes a focused review. Review independently confirmed the rung-4 M=10 finding and endorsed the autocast ruling CONDITIONAL on the frozen manifest.
 - **Change** — plan Rev 3.1 amendment appended (factual LRH correction + enforcement hardenings; no science-protocol change ⇒ Yixun informed, not re-gated).
 - **Next** — Coder r4 batch (F1–F7 + Part-1 leftovers) → focused Codex fix review → launches.
+
+## 2026-08-20T00:50:00-0400 — Coordination: exp_19 occupies both GPUs (R-cal legs)
+
+- **Result** — Peer session launched exp_19 R-cal: GPU 0 = HAA finetune train.py (1–3 h, DO NOT TOUCH), GPU 1 = FLAC_HAA 5-seed eval (~1–2 h, peer offers pause if we need it urgently).
+- **Analysis — exp_18 sequencing impact:** r4 round + focused fix review are CPU-bound (its small CUDA tests co-tenant harmlessly). R-1 readback is CPU-only; R-1 oracle can co-tenant or wait. **R0's probe must run on an IDLE GPU** — its timing/peak-memory numbers feed the §9 budget decision and co-tenancy would contaminate them. Peer legs end ≈02:00–04:00 EDT; R0 ready ≈03:00 — minor contention, resolved by checking nvidia-smi before launch and waiting for a free GPU rather than pausing the peer's eval (not urgent). Shared-machine etiquette honored: no touching their train.py; `readlink /proc/<pid>/cwd` before assuming ownership of anything.
+- **Next** — r4 completion → focused fix review → R-1 readback (CPU, immediately) → R-1 oracle + R0 on a free GPU.
