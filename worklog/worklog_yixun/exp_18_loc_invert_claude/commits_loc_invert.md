@@ -22,3 +22,14 @@
 | `d9cba5d` | r1 cycle 9: `noise_key` (sha256 canonical payload, C10) + `power_statistic` (§2.8.2) | +130 |
 | `69f52e0` | r1 cycle 10: `summarize` — pooled-median primary + labelled per-room/macro secondaries | +227 |
 | `e8b6d49` | r1 cycle 11: `clustered_bootstrap_ci` (C3) + `paired_room_clustered_test` (O12) | +248 |
+
+### Round 1 fix batch (Codex review `loc_invert_codex_code_r1_review.md`, REQUEST-CHANGES)
+
+| SHA | Finding | Description | changed lines |
+|---|---|---|---|
+| `c09b7e8` | F1 (HIGH, finding 1) | finiteness guards in `scoring.py` — NaN/Inf rejected at every numerical entry point (`_require_finite` / `_finite_scalar` / `_check_radii`) | +150 −13 |
+| `089ab2f` | F1 (HIGH, finding 1) | finiteness guards in `candidates.py` — JSON `NaN`/`Infinity` coordinates, `_xyz`, `xyz_world`, `candidate_metadata` torch path | +75 −2 |
+| `cf4c0bc` | F2 (MEDIUM, finding 2) | cross-node `src_loc` uniqueness enforced in `enumerate_metadata_sources` (the candidate authority, plan §2.2) at `SRC_LOC_TOL` | +53 −3 |
+| `5693876` | F3 (MEDIUM, finding 3) | explicit `method="linear"` percentile + golden CI-endpoint and two-sided p-value fixtures (mutation-verified) | +70 −2 |
+| `2ecc62f` | F4 (NIT, finding 4) | Monte-Carlo agreement now genuinely holds at 1e-3 for all three metrics (chunked 6.4e7 draws, ~5σ) | +19 −6 |
+| `1cb5d92` | F5 (Planner ruling 4b) | optional `eligible_mask` on `nearest_context_baseline` (raw behaviour unchanged at `None`; all-False / length mismatch refused) | +65 −2 |
