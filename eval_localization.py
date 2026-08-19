@@ -27,7 +27,7 @@ import torch
 import torchaudio
 
 from eval_FLAC import (CONTEXT_ID_PRECISION, orbit_provenance, resolve_are_from_checkpoint,
-                       sample_target_id, source_sha)
+                       resolve_weights_source, sample_target_id, source_sha)
 from src.localization.agree_embed import MAX_LEN
 from src.localization.candidates import (assert_gt_matches_loader, candidate_metadata,
                                          parse_ir_filename, project_to_camera)
@@ -692,3 +692,29 @@ def assert_no_are(embedded_model_config, file_model_config):
     if are_lambda is not None:
         _refuse(f"the checkpoint declares ARE (lambda={are_lambda}, source={source}); exp_18 "
                 "scores vanilla FLAC samples, not anchor residuals")
+
+
+def prepare_state_dict(ckpt, training_config):
+    """``(state_dict, weights_source)`` -- evaluate_model's EMA lines of record.
+
+    Mirrors ``eval_FLAC.evaluate_model`` (eval_FLAC.py:1146-1167) exactly: strip
+    the ``diffusion.`` prefix, resolve which weights will ACTUALLY be used (O9),
+    fold ``diffusion_ema.ema_model.*`` in as ``model.*`` when the config asks for
+    EMA and the checkpoint carries it, and flip ``use_ema`` off so the wrapper
+    does not rebuild a shadow at eval time. Divergence here is a silent
+    wrong-weights bug, which is why it is a separately tested function.
+    """
+    state_dict = ckpt["state_dict"]
+    for key in list(state_dict.keys()):
+        if key.startswith("diffusion."):
+            state_dict[key.replace("diffusion.", "")] = state_dict.pop(key)
+
+    weights_source = resolve_weights_source(training_config, state_dict.keys())
+    if (training_config or {}).get("use_ema", False) and any(
+            k.startswith("diffusion_ema.ema_model.") for k in state_dict.keys()):
+        print("Using EMA model")
+        for key in list(state_dict.keys()):
+            if key.startswith("diffusion_ema.ema_model."):
+                state_dict[key.replace("diffusion_ema.ema_model.", "model.")] = state_dict.pop(key)
+        training_config["use_ema"] = False
+    return state_dict, weights_source

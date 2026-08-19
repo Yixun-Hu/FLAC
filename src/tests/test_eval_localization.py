@@ -874,3 +874,65 @@ def test_assert_no_are_guard():
         el.assert_no_are(are_config, are_config)
     with pytest.raises(SystemExit):           # declared in the file config alone
         el.assert_no_are(None, are_config)
+
+
+# --------------------------------------------------------------------------- #
+# prepare_state_dict  (unit h, part 2) -- evaluate_model's EMA lines of record
+# (eval_FLAC.py:1146-1167), factored out so they are testable without a ckpt.
+# --------------------------------------------------------------------------- #
+def _fake_ckpt(with_ema=True):
+    """Shaped like a real training checkpoint (verified against weights/FLAC/FLAC.ckpt):
+    the online weight is ``diffusion.model.<X>`` and its EMA shadow is
+    ``diffusion_ema.ema_model.<X>``, so both land on ``model.<X>`` after the remap."""
+    state = {"diffusion.model.w": torch.ones(2), "diffusion.pretransform.p": torch.zeros(2)}
+    if with_ema:
+        state["diffusion_ema.ema_model.w"] = torch.full((2,), 9.0)
+    return {"state_dict": state}
+
+
+def test_prepare_state_dict_strips_the_diffusion_prefix_and_folds_ema():
+    state, source = el.prepare_state_dict(_fake_ckpt(), {"use_ema": True})
+    assert source == "ema"
+    assert "diffusion.model.w" not in state and "diffusion_ema.ema_model.w" not in state
+    assert torch.equal(state["model.w"], torch.full((2,), 9.0))       # EMA weights won
+    assert "pretransform.p" in state
+
+
+def test_prepare_state_dict_keeps_online_weights_when_no_ema_present():
+    state, source = el.prepare_state_dict(_fake_ckpt(with_ema=False), {"use_ema": True})
+    assert source == "online"
+    assert torch.equal(state["model.w"], torch.ones(2))
+
+
+def test_prepare_state_dict_keeps_online_weights_when_config_disables_ema():
+    state, source = el.prepare_state_dict(_fake_ckpt(), {"use_ema": False})
+    assert source == "online"
+    assert torch.equal(state["model.w"], torch.ones(2))
+
+
+def test_prepare_state_dict_reports_the_resolved_source_like_eval_flac():
+    from eval_FLAC import resolve_weights_source
+    ckpt = _fake_ckpt()
+    keys = [k.replace("diffusion.", "", 1) if k.startswith("diffusion.") else k
+            for k in ckpt["state_dict"]]
+    assert el.prepare_state_dict(ckpt, {"use_ema": True})[1] == resolve_weights_source(
+        {"use_ema": True}, keys)
+
+
+def test_prepare_state_dict_on_the_released_export_shape_reports_online():
+    """weights/FLAC/FLAC_EMA.ckpt ships ALREADY flattened (keys start with model./
+    conditioner./pretransform.) and carries no EMA shadow, so the honest resolved
+    source is 'online' even though the weights themselves are the EMA export --
+    exactly the distinction resolve_weights_source exists to record (O9)."""
+    released = {"state_dict": {"model.model.w": torch.ones(2), "conditioner.c": torch.zeros(2)}}
+    state, source = el.prepare_state_dict(released, {"use_ema": True})
+    assert source == "online"
+    assert set(state) == {"model.model.w", "conditioner.c"}
+
+
+def test_prepare_state_dict_flips_use_ema_off_in_the_training_config():
+    """evaluate_model sets training_config['use_ema'] = False after folding EMA in,
+    so the training wrapper does not rebuild an EMA shadow at eval time."""
+    training = {"use_ema": True}
+    el.prepare_state_dict(_fake_ckpt(), training)
+    assert training["use_ema"] is False
