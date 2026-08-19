@@ -909,8 +909,11 @@ def validate_args(args):
         _finite_flag(args.tau, "--tau")
     if int(args.steps) < 1:
         _refuse(f"--steps must be >= 1, got {args.steps}")
-    if int(args.num_workers) < 0:
-        _refuse(f"--num-workers must be >= 0, got {args.num_workers}")
+    if int(args.num_workers) < 1:
+        # create_dataloader_from_config hardcodes persistent_workers=True, which
+        # torch refuses at num_workers=0; refuse here rather than crash in the loader.
+        _refuse(f"--num-workers must be >= 1 (the release dataloader sets "
+                f"persistent_workers=True), got {args.num_workers}")
     if args.max_queries is not None and int(args.max_queries) < 1:
         _refuse(f"--max-queries must be >= 1, got {args.max_queries}")
     if float(args.rotate_deg) != 0.0:
@@ -1343,9 +1346,6 @@ def main(argv=None):
     return result
 
 
-if __name__ == "__main__":
-    main()
-
 
 def load_and_validate_artifacts(args):
     """CPU-only artifact validation, BEFORE anything is built or moved to a device.
@@ -1388,3 +1388,6 @@ def validate_dataset_split(args, dataset_config=None):
             f"declares seeneval={config.get('seeneval')!r}, unseeneval={config.get('unseeneval')!r} "
             "(O16: the held-out split is not a debugging surface)")
     return config
+
+if __name__ == "__main__":
+    main()

@@ -1397,7 +1397,7 @@ def test_process_query_aborts_before_generation_on_a_bad_context(tmp_path):
     ("--tau", "nan"), ("--tau", "inf"),
     ("--cfg-scale", "nan"), ("--cfg-scale", "-inf"),
     ("--steps", "0"), ("--steps", "-1"),
-    ("--num-workers", "-1"),
+    ("--num-workers", "-1"), ("--num-workers", "0"),
     ("--batch-size", "0"),
     ("--num-samples", "0"),
 ])
@@ -2117,3 +2117,20 @@ def test_integration_real_mk_batch_split_is_bitwise_irrelevant(real_engine):
 
     replay = _real_mk_replay(args, engine, context, md, cand, noise, "default")
     assert torch.allclose(whole["wavs"], replay, rtol=0, atol=2e-3)
+
+
+def test_module_runs_as_a_script_with_every_symbol_defined():
+    """Regression: the __main__ guard once sat mid-file, so anything defined after
+    it did not exist when the driver was RUN (imports in tests still passed). The
+    CLI must reach its own refusal, not a NameError."""
+    import subprocess
+    import sys
+    result = subprocess.run(
+        [sys.executable, os.path.join(_REPO_ROOT, "eval_localization.py"),
+         "--model-config", "missing.json", "--dataset-config", "missing.json",
+         "--ckpt-path", "missing.ckpt", "--agree-ckpt", "missing.pt",
+         "--num-samples", "2", "--rotate-deg", "45"],
+        cwd=_REPO_ROOT, capture_output=True, text=True, timeout=600)
+    assert result.returncode != 0
+    assert "REFUSED" in (result.stderr + result.stdout)
+    assert "NameError" not in result.stderr
