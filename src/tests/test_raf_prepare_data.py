@@ -569,3 +569,219 @@ def test_splits_record_group_entries_carry_the_canonical_tuple(mini_room):
     assert entry["role"] in {"train_test", "val", "reserve"}
     assert entry["placement_key"]
     assert len(entry["tx_xyz_p"]) == 3
+
+
+# --------------------------------------------------------------------------- #
+# resample_and_write + amplitude audit (cycle 7)
+# --------------------------------------------------------------------------- #
+def test_resample_writes_float32_wavs_at_22050(tmp_path, mini_room):
+    out_room = tmp_path / "runtime" / "EmptyRoom"
+    audit = raf_prepare.resample_and_write(mini_room, str(out_room),
+                                           ["000000", "000001", "000002"])
+    assert audit["n_files"] == 3
+    assert audit["target_sr"] == 22050
+    assert audit["subtype"] == "FLOAT"
+    for cid in ("000000", "000001", "000002"):
+        path = out_room / "mono_rirs_22050Hz" / f"{cid}.wav"
+        assert path.exists()
+        info = sf.info(str(path))
+        assert info.samplerate == 22050
+        assert info.channels == 1
+        assert info.subtype == "FLOAT"
+        data, _ = sf.read(str(path), dtype="float32")
+        # 4800 samples at 48 kHz -> 2205 at 22.05 kHz (+- the resampler's edge)
+        assert abs(len(data) - 2205) <= 2
+        assert np.isfinite(data).all()
+
+
+def test_resample_audit_records_peaks_and_silence_flags(tmp_path, mini_room):
+    out_room = tmp_path / "runtime" / "EmptyRoom"
+    audit = raf_prepare.resample_and_write(mini_room, str(out_room), ["000000"])
+    entry = audit["files"]["000000"]
+    assert 0.005 < entry["peak"] < 0.02          # synthetic RIRs peak at 0.01
+    assert -50.0 < entry["dbfs"] < -30.0
+    assert entry["silent_at_threshold"] is False
+    assert entry["dbfs_crop"] <= entry["dbfs"] + 1e-6
+    assert audit["silence_threshold_db"] == -60.0
+    assert audit["n_silent"] == 0
+    assert set(audit["peak_stats"]) == {"count", "min", "p25", "median", "p75",
+                                        "max", "mean"}
+
+
+def test_resample_audit_flags_a_sub_60db_file_without_aborting(tmp_path):
+    """The loader silently substitutes items below -60 dBFS; the audit must count them."""
+    write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1), rir_peak=1e-5)
+    room_dir = os.path.join(str(tmp_path), "archived", "EmptyRoom")
+    audit = raf_prepare.resample_and_write(room_dir, str(tmp_path / "runtime" / "EmptyRoom"),
+                                           ["000000"])
+    assert audit["files"]["000000"]["silent_at_threshold"] is True
+    assert audit["n_silent"] == 1
+
+
+def test_resample_aborts_on_wrong_source_rate(tmp_path, mini_room):
+    sf.write(os.path.join(mini_room, "data", "000000", "rir.wav"),
+             _rir(0), 44100, subtype="FLOAT")
+    with pytest.raises(ValueError):
+        raf_prepare.resample_and_write(mini_room, str(tmp_path / "out"), ["000000"])
+
+
+def test_resample_aborts_on_nan_input(tmp_path, mini_room):
+    sig = _rir(0)
+    sig[10] = np.nan
+    sf.write(os.path.join(mini_room, "data", "000000", "rir.wav"), sig, 48000,
+             subtype="FLOAT")
+    with pytest.raises(ValueError):
+        raf_prepare.resample_and_write(mini_room, str(tmp_path / "out"), ["000000"])
+
+
+def test_resample_aborts_on_clipping(tmp_path, mini_room):
+    sig = _rir(0)
+    sig[10] = 1.5
+    sf.write(os.path.join(mini_room, "data", "000000", "rir.wav"), sig, 48000,
+             subtype="FLOAT")
+    with pytest.raises(ValueError):
+        raf_prepare.resample_and_write(mini_room, str(tmp_path / "out"), ["000000"])
+
+
+def test_resample_aborts_on_multichannel_input(tmp_path, mini_room):
+    stereo = np.stack([_rir(0), _rir(1)], axis=1)
+    sf.write(os.path.join(mini_room, "data", "000000", "rir.wav"), stereo, 48000,
+             subtype="FLOAT")
+    with pytest.raises(ValueError):
+        raf_prepare.resample_and_write(mini_room, str(tmp_path / "out"), ["000000"])
+
+
+# --------------------------------------------------------------------------- #
+# runtime metadata (cycle 7)
+# --------------------------------------------------------------------------- #
+def test_runtime_metadata_shapes_and_roles(mini_room):
+    index = raf_prepare.load_room_index(mini_room)
+    groups, _ = raf_prepare.group_captures(index)
+    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    poses, groups_meta = raf_prepare.build_runtime_metadata(index, groups, split)
+
+    # only captures of SELECTED groups are runtime-visible
+    assert len(poses) == 3 * N_MICS
+    assert set(groups_meta) == set(split["train_test_groups"] + split["val_groups"])
+
+    entry = poses["000000"]
+    assert set(entry) == {"tx_xyz_p", "quat_raw", "rx_p", "group_key", "split_role"}
+    assert len(entry["tx_xyz_p"]) == 3 and len(entry["rx_p"]) == 3
+    assert len(entry["quat_raw"]) == 4
+    assert entry["tx_xyz_p"] == [0.0, 0.0, 1.5]           # RAF (0, 1.5, 0) -> (X, Z, Y)
+    assert entry["rx_p"] == [2.0, -1.0, 0.0]              # RAF (2, 0, -1)  -> (X, Z, Y)
+    assert entry["group_key"] == groups[0]["group_key"]
+    assert entry["split_role"] in {"train", "test", "val"}
+    assert all(isinstance(k, str) and len(k) == 6 for k in poses)
+
+    gm = groups_meta[groups[0]["group_key"]]
+    assert set(gm) == {"tx_xyz_p", "depth_file", "train_ids", "role"}
+    assert gm["depth_file"] == f"{groups[0]['group_key']}_depth_image.npy"
+    assert len(gm["train_ids"]) == 12
+    assert gm["role"] == "train_test"
+
+
+def test_runtime_metadata_roles_agree_with_the_split(mini_room):
+    index = raf_prepare.load_room_index(mini_room)
+    groups, _ = raf_prepare.group_captures(index)
+    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    poses, _ = raf_prepare.build_runtime_metadata(index, groups, split)
+    for gk, ids in split["train_ids"].items():
+        assert all(poses[c]["split_role"] == "train" for c in ids)
+    for gk, ids in split["test_ids"].items():
+        assert all(poses[c]["split_role"] == "test" for c in ids)
+    for gk, ids in split["val_ids"].items():
+        assert all(poses[c]["split_role"] == "val" for c in ids)
+
+
+def test_runtime_metadata_is_json_serialisable(mini_room):
+    index = raf_prepare.load_room_index(mini_room)
+    groups, _ = raf_prepare.group_captures(index)
+    split = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1, n_train=12)
+    poses, groups_meta = raf_prepare.build_runtime_metadata(index, groups, split)
+    json.dumps({"poses": poses, "groups": groups_meta})
+
+
+# --------------------------------------------------------------------------- #
+# CLI (cycle 7)
+# --------------------------------------------------------------------------- #
+def _run_cli(tmp_path, extra=()):
+    raf_root = tmp_path / "raf"
+    write_room(str(raf_root), "EmptyRoom")
+    write_room(str(raf_root), "FurnishedRoom")
+    out = tmp_path / "runtime" / "RAF"
+    split_dir = tmp_path / "splits"
+    argv = ["--raf-root", str(raf_root), "--output-dir", str(out),
+            "--split-dir", str(split_dir), "--rooms", "EmptyRoom", "FurnishedRoom",
+            "--n-groups", "2", "--n-val-groups", "1", "--n-train", "12",
+            "--full-crosscheck"] + list(extra)
+    raf_prepare.main(argv)
+    return out, split_dir
+
+
+def test_cli_emits_every_artifact(tmp_path):
+    out, split_dir = _run_cli(tmp_path)
+    for name in ("train_base.json", "val_base.json", "test_base.json",
+                 "raf_splits_record.json", "raf_amplitude_audit.json"):
+        assert (split_dir / name).exists(), name
+    for room in ("EmptyRoom", "FurnishedRoom"):
+        assert (out / room / "metadata" / "poses_metadata.json").exists()
+        assert (out / room / "metadata" / "groups_metadata.json").exists()
+        wavs = sorted((out / room / "mono_rirs_22050Hz").glob("*.wav"))
+        assert len(wavs) == 3 * N_MICS   # all captures of the 3 selected groups
+
+
+def test_cli_split_files_cover_both_rooms_and_match_the_wavs(tmp_path):
+    out, split_dir = _run_cli(tmp_path)
+    with open(split_dir / "train_base.json") as f:
+        train = json.load(f)
+    with open(split_dir / "test_base.json") as f:
+        test = json.load(f)
+    with open(split_dir / "val_base.json") as f:
+        val = json.load(f)
+    assert set(train) == set(test) == set(val) == {"EmptyRoom", "FurnishedRoom"}
+    assert len(train["EmptyRoom"]) == 24 and len(test["EmptyRoom"]) == 48
+    assert len(val["EmptyRoom"]) == 36
+    for room in ("EmptyRoom", "FurnishedRoom"):
+        for name in train[room] + test[room] + val[room]:
+            assert (out / room / "mono_rirs_22050Hz" / name).exists()
+
+
+def test_cli_runtime_metadata_covers_every_split_item(tmp_path):
+    out, split_dir = _run_cli(tmp_path)
+    with open(split_dir / "test_base.json") as f:
+        test = json.load(f)
+    with open(out / "EmptyRoom" / "metadata" / "poses_metadata.json") as f:
+        poses = json.load(f)
+    with open(out / "EmptyRoom" / "metadata" / "groups_metadata.json") as f:
+        groups_meta = json.load(f)
+    for name in test["EmptyRoom"]:
+        cid = name[:-4]
+        assert cid in poses
+        gk = poses[cid]["group_key"]
+        assert gk in groups_meta
+        assert cid not in groups_meta[gk]["train_ids"]   # test items are not support
+
+
+def test_cli_aborts_on_the_trailing_nan_line(tmp_path):
+    raf_root = tmp_path / "raf"
+    write_room(str(raf_root), "EmptyRoom", extra_rx_lines=("nan,nan,nan",))
+    with pytest.raises(ValueError):
+        raf_prepare.main(["--raf-root", str(raf_root),
+                          "--output-dir", str(tmp_path / "out"),
+                          "--split-dir", str(tmp_path / "splits"),
+                          "--rooms", "EmptyRoom",
+                          "--n-groups", "2", "--n-val-groups", "1"])
+
+
+def test_cli_is_idempotent(tmp_path):
+    out, split_dir = _run_cli(tmp_path)
+    with open(split_dir / "train_base.json") as f:
+        first = json.load(f)
+    raf_root = tmp_path / "raf"
+    raf_prepare.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                      "--split-dir", str(split_dir), "--rooms", "EmptyRoom",
+                      "FurnishedRoom", "--n-groups", "2", "--n-val-groups", "1",
+                      "--n-train", "12", "--full-crosscheck"])
+    with open(split_dir / "train_base.json") as f:
+        assert json.load(f) == first

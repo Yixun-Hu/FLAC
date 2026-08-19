@@ -12,3 +12,4 @@
 | `7802290` | r1 TDD cycle 3: `RAF_TO_PIPELINE` gauge constant + deterministic `farthest_point_selection` (58 tests) |
 | `c773bda` | r1 TDD cycle 4: `load_room_index` (positional, fail-closed count invariant) + seeded per-capture cross-check (13 tests) |
 | `40e0946` | r1 TDD cycle 5: `group_captures` (canonical 7-tuple key, exactly-36 invariant, `--allow-nonuniform`) + placement clustering (25 tests) |
+| `6f0c511` | r1 TDD cycle 6: `select_splits` (group-atomic FPS split, 12/24 support/test, val support pool) + split JSONs + splits record (41 tests) |

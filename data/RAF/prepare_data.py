@@ -25,7 +25,9 @@ import logging
 import os
 import sys
 
+import librosa
 import numpy as np
+import soundfile as sf
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:  # raf_common.py is a sibling script, not an installed package
@@ -43,6 +45,15 @@ logger = logging.getLogger(__name__)
 
 CAPTURE_ID_WIDTH = 6
 DEFAULT_CROSSCHECK_SAMPLE = 200
+SOURCE_SR = 48000
+TARGET_SR = 22050
+RIR_FOLDER = "mono_rirs_22050Hz"
+DEPTH_SUFFIX = "_depth_image.npy"
+# The FLAC loader crops to sample_size and drops anything below -60 dBFS
+# (src/data/dataset.py::is_silence) — both mirrored here so the audit measures
+# exactly what the runtime will see.
+LOADER_SAMPLE_SIZE = 10240
+SILENCE_THRESHOLD_DB = -60.0
 
 
 def _read_pose_lines(path):
@@ -492,3 +503,200 @@ def build_splits_record(per_room, params):
             ],
         }
     return {"params": params, "git_describe": _git_describe(), "rooms": rooms}
+
+
+def resample_and_write(room_dir, out_room_dir, capture_ids, target_sr=TARGET_SR,
+                       orig_sr=SOURCE_SR, sample_size=LOADER_SAMPLE_SIZE,
+                       silence_db=SILENCE_THRESHOLD_DB, folder_name=RIR_FOLDER):
+    """Resample the given captures to 22.05 kHz float32 WAVs + amplitude audit.
+
+    ``subtype='FLOAT'`` is a declared divergence from HAA's PCM16 default: RAF RIRs
+    peak near 0.01, so 16-bit would leave the decay tail only ~56 dB above the
+    quantisation floor.
+
+    Fail-closed on a wrong source rate, a multi-channel file, non-finite samples,
+    or |x| > 1 after resampling. The per-file peak and the sub-``silence_db`` flag
+    are recorded but NOT fatal: the flag is what tells us how many items the
+    dataloader would silently substitute (``src/data/dataset.py::is_silence``),
+    which is a fact about the corpus rather than a preparation failure.
+    """
+    dest = os.path.join(out_room_dir, folder_name)
+    os.makedirs(dest, exist_ok=True)
+
+    files, peaks, n_silent = {}, [], 0
+    for capture_id in capture_ids:
+        src = os.path.join(room_dir, "data", capture_id, "rir.wav")
+        audio, sr = sf.read(src, dtype="float32", always_2d=True)
+        if sr != orig_sr:
+            raise ValueError(f"{src}: expected {orig_sr} Hz, got {sr} Hz")
+        if audio.shape[1] != 1:
+            raise ValueError(f"{src}: expected mono, got {audio.shape[1]} channels")
+        wave = audio[:, 0]
+        if not np.isfinite(wave).all():
+            raise ValueError(f"{src}: source holds non-finite samples")
+        src_peak = float(np.abs(wave).max())
+        # Checked on the SOURCE as well as the output: the anti-alias filter can
+        # pull a lone out-of-range spike back under 1.0, and the loader clamps to
+        # [-1, 1], so an over-range source would be silently distorted at runtime.
+        if src_peak > 1.0:
+            raise ValueError(f"{src}: source signal is out of range (peak {src_peak:.6f} > 1.0)")
+
+        out = librosa.resample(wave, orig_sr=orig_sr, target_sr=target_sr)
+        out = np.asarray(out, dtype=np.float32)
+        if not np.isfinite(out).all():
+            raise ValueError(f"{src}: resampling produced non-finite samples")
+        peak = float(np.abs(out).max())
+        if peak > 1.0:
+            raise ValueError(f"{src}: resampled signal clips (peak {peak:.6f} > 1.0)")
+
+        sf.write(os.path.join(dest, f"{capture_id}.wav"), out, target_sr, subtype="FLOAT")
+
+        crop_peak = float(np.abs(out[:sample_size]).max())
+        dbfs = _dbfs(peak)
+        dbfs_crop = _dbfs(crop_peak)
+        # The loader crops to sample_size BEFORE its silence test, so the crop is
+        # the number that decides substitution.
+        silent = bool(dbfs_crop < silence_db)
+        n_silent += int(silent)
+        peaks.append(peak)
+        files[capture_id] = {
+            "peak": peak,
+            "peak_crop": crop_peak,
+            "dbfs": dbfs,
+            "dbfs_crop": dbfs_crop,
+            "silent_at_threshold": silent,
+            "n_samples": int(out.shape[0]),
+        }
+
+    return {
+        "n_files": len(files),
+        "orig_sr": int(orig_sr),
+        "target_sr": int(target_sr),
+        "subtype": "FLOAT",
+        "sample_size": int(sample_size),
+        "silence_threshold_db": float(silence_db),
+        "n_silent": n_silent,
+        "peak_stats": _distance_stats(peaks),
+        "files": files,
+    }
+
+
+def _dbfs(peak):
+    return float(20.0 * np.log10(peak)) if peak > 0.0 else float("-inf")
+
+
+def build_runtime_metadata(index, groups, split):
+    """Loader-visible metadata for one room: (poses_metadata, groups_metadata).
+
+    Only captures of SELECTED groups appear: those are the only files the runtime
+    ever opens, and every worker loads this JSON. The reserve groups are listed in
+    ``raf_splits_record.json`` instead (they carry no depth map and no support pool,
+    so an entry here would also make the depth renderer render them).
+    """
+    role_of = {}
+    for gk, ids in split["train_ids"].items():
+        role_of.update({c: "train" for c in ids})
+    for gk, ids in split["test_ids"].items():
+        role_of.update({c: "test" for c in ids})
+    for gk, ids in split["val_ids"].items():
+        role_of.update({c: "val" for c in ids})
+
+    by_id = {r["capture_id"]: r for r in index}
+    selected = list(split["train_test_groups"]) + list(split["val_groups"])
+    by_key = {g["group_key"]: g for g in groups}
+
+    poses, groups_meta = {}, {}
+    for gk in selected:
+        g = by_key[gk]
+        tx_p = [float(v) for v in g["tx_xyz_p"]]
+        for i, capture_id in enumerate(g["capture_ids"]):
+            if capture_id not in role_of:
+                raise ValueError(
+                    f"capture {capture_id} of selected group {gk} has no split role")
+            poses[capture_id] = {
+                "tx_xyz_p": tx_p,
+                "quat_raw": [float(v) for v in by_id[capture_id]["quat"]],
+                "rx_p": [float(v) for v in g["rx_xyz_p"][i]],
+                "group_key": gk,
+                "split_role": role_of[capture_id],
+            }
+        groups_meta[gk] = {
+            "tx_xyz_p": tx_p,
+            "depth_file": f"{gk}{DEPTH_SUFFIX}",
+            "train_ids": list(split["support_ids"][gk]),
+            "role": split["roles"][gk],
+        }
+    return poses, groups_meta
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(description="Prepare the RAF dataset for FLAC")
+    parser.add_argument('--raf-root', required=True,
+                        help="RAF release root (holds archived/<Room>/ and 3d_models/)")
+    parser.add_argument('--output-dir', required=True,
+                        help="runtime dataset root; rooms are written as <output>/<Room>/")
+    parser.add_argument('--split-dir', default='data/RAF',
+                        help="where the canonical split JSONs + records are written")
+    parser.add_argument('--rooms', nargs='+', default=['EmptyRoom', 'FurnishedRoom'])
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--n-groups', type=int, default=16)
+    parser.add_argument('--n-val-groups', type=int, default=4)
+    parser.add_argument('--n-train', type=int, default=12)
+    parser.add_argument('--crosscheck-sample', type=int, default=DEFAULT_CROSSCHECK_SAMPLE)
+    parser.add_argument('--full-crosscheck', action='store_true',
+                        help="cross-check every capture instead of a seeded sample")
+    parser.add_argument('--allow-nonuniform', action='store_true',
+                        help="record rather than abort on groups that do not hold 36 captures")
+    return parser
+
+
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+
+    per_room, audits = {}, {}
+    for room in args.rooms:
+        room_dir = os.path.join(args.raf_root, "archived", room)
+        logger.info("reading %s", room_dir)
+        index = load_room_index(room_dir)
+        crosscheck = crosscheck_captures(room_dir, index, n_sample=args.crosscheck_sample,
+                                         seed=args.seed, full=args.full_crosscheck)
+        logger.info("%s: cross-checked %d captures (%s)", room, crosscheck["checked"],
+                    crosscheck["mode"])
+        groups, group_report = group_captures(index, allow_nonuniform=args.allow_nonuniform)
+        logger.info("%s: %d captures in %d groups over %d placements", room,
+                    len(index), group_report["n_groups"], group_report["n_placements"])
+        split = select_splits(groups, n_groups=args.n_groups,
+                              n_val_groups=args.n_val_groups, n_train=args.n_train)
+
+        out_room = os.path.join(args.output_dir, room)
+        selected_ids = [c for gk in split["train_test_groups"] + split["val_groups"]
+                        for c in next(g for g in groups if g["group_key"] == gk)["capture_ids"]]
+        audits[room] = resample_and_write(room_dir, out_room, selected_ids)
+        logger.info("%s: wrote %d resampled RIRs (%d below %g dBFS)", room,
+                    audits[room]["n_files"], audits[room]["n_silent"],
+                    audits[room]["silence_threshold_db"])
+
+        poses, groups_meta = build_runtime_metadata(index, groups, split)
+        _write_json(os.path.join(out_room, "metadata", "poses_metadata.json"), poses)
+        _write_json(os.path.join(out_room, "metadata", "groups_metadata.json"), groups_meta)
+
+        per_room[room] = {"groups": groups, "split": split,
+                          "group_report": group_report, "crosscheck": crosscheck}
+
+    paths = write_split_files(args.split_dir, assemble_split_jsons(per_room))
+    params = {"seed": args.seed, "n_groups": args.n_groups,
+              "n_val_groups": args.n_val_groups, "n_train": args.n_train,
+              "rooms": list(args.rooms), "raf_root": args.raf_root,
+              "output_dir": args.output_dir,
+              "crosscheck": "full" if args.full_crosscheck else f"sample:{args.crosscheck_sample}",
+              "allow_nonuniform": bool(args.allow_nonuniform)}
+    _write_json(os.path.join(args.split_dir, "raf_splits_record.json"),
+                build_splits_record(per_room, params))
+    _write_json(os.path.join(args.split_dir, "raf_amplitude_audit.json"),
+                {"params": params, "rooms": audits})
+    logger.info("split files written: %s", ", ".join(sorted(paths.values())))
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
