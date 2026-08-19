@@ -642,7 +642,8 @@ def _args(**over):
                 cond_method="vanilla", frame_avg_angles=None, rotate_deg=0.0,
                 cond_autocast="default", score_source="flac", control="none",
                 batch_size=64, num_workers=6, out_dir="out", eval_name="exp18_R2",
-                smoke=False, max_queries=None)
+                smoke=False, max_queries=None, registration_sha=None, parity_check=False,
+                device="cpu")
     base.update(over)
     return types.SimpleNamespace(**base)
 
@@ -1669,3 +1670,82 @@ def test_run_evaluation_checks_identity_before_generating(tmp_path):
         el.run_evaluation(_run_args(tmp_path), loader, engine, _stub_context(), "c", "a",
                           expected=expected)
     assert rec.calls == []                                 # aborted before any generation
+
+
+# --------------------------------------------------------------------------- #
+# r3 fix F6 (review finding 6): the provenance record must pin the registration
+# commit (O17), the config CONTENTS, the context draw's parameters (O8) and the
+# numerics of the box the run happened on.
+# --------------------------------------------------------------------------- #
+_R3FIX_PROVENANCE_KEYS = {
+    "registration_sha", "model_config_sha256", "dataset_config_sha256", "context_k",
+    "loader_shuffle", "loader_drop_last", "device_name", "float32_matmul_precision",
+    "torch_version", "cuda_version", "cudnn_version", "torchaudio_version",
+    "transformers_version", "tf32_matmul", "tf32_cudnn", "cudnn_deterministic",
+    "flash_attn_available", "context_stream_digest",
+}
+
+
+def _real_dataset_config():
+    return _json.loads(open(_UNSEEN_CONFIG).read())
+
+
+def test_build_provenance_records_the_environment_and_config_contents(tmp_path):
+    import hashlib as _h
+    model_config = tmp_path / "m.json"
+    model_config.write_text(_json.dumps({"model": {}}))
+    args = _args(model_config=str(model_config), dataset_config=_UNSEEN_CONFIG,
+                 registration_sha="deadbeef")
+    record = el.build_provenance(args, ckpt_sha256="a", agree_sha256="b", split_hash="c",
+                                 weights_source="ema", n_queries=3,
+                                 dataset_config=_real_dataset_config(),
+                                 context_digest="ctxdigest")
+    assert _R3FIX_PROVENANCE_KEYS <= set(record)
+    assert record["registration_sha"] == "deadbeef"
+    assert record["model_config_sha256"] == _h.sha256(
+        open(model_config, "rb").read()).hexdigest()
+    assert record["dataset_config_sha256"] == _h.sha256(open(_UNSEEN_CONFIG, "rb").read()).hexdigest()
+    assert record["context_k"] == 8                      # modalities.acoustic_context.max_context
+    assert record["loader_shuffle"] is False and record["loader_drop_last"] is False
+    assert record["float32_matmul_precision"] == torch.get_float32_matmul_precision()
+    assert record["flash_attn_available"] in (True, False)
+    assert record["context_stream_digest"] == "ctxdigest"
+    assert isinstance(record["device_name"], str) and record["device_name"]
+
+
+def test_build_provenance_defaults_unavailable_fields_to_na(tmp_path):
+    record = el.build_provenance(_args(model_config="missing.json"), ckpt_sha256="a",
+                                 agree_sha256="b", split_hash="c", weights_source="ema",
+                                 n_queries=1)
+    assert record["registration_sha"] == "n/a"
+    assert record["model_config_sha256"] == "n/a"          # the file does not exist
+    assert len(record["dataset_config_sha256"]) == 64      # the default config does
+    assert record["context_k"] is None and record["context_stream_digest"] == "n/a"
+
+
+def test_assert_registration_sha_is_required_for_a_registered_unseen_run():
+    unseen = _real_dataset_config()
+    args = _split_args(_UNSEEN_CONFIG)
+    with pytest.raises(SystemExit):
+        el.assert_registration_sha(args, unseen)
+    el.assert_registration_sha(_split_args(_UNSEEN_CONFIG, "--registration-sha", "abc123"), unseen)
+
+
+def test_assert_registration_sha_is_not_required_for_smoke_seen_or_oracle_runs():
+    unseen, seen = _real_dataset_config(), _json.loads(open(_SEEN_CONFIG).read())
+    el.assert_registration_sha(_split_args(_SEEN_CONFIG), seen)
+    el.assert_registration_sha(_split_args(_SEEN_CONFIG, "--smoke", "--max-queries", "2"), seen)
+    oracle = el.parse_args(["--model-config", "m.json", "--dataset-config", _UNSEEN_CONFIG,
+                            "--agree-ckpt", "a.pt", "--score-source", "gt_rir"])
+    el.assert_registration_sha(oracle, unseen)           # registered checkpoint-free R-1 run
+
+
+def test_context_stream_digest_is_order_sensitive_and_uses_the_fingerprints():
+    from eval_FLAC import canonical_stream_hash
+    rows = [{"context_xyz_cam": [[1.0, 0.0, 0.0], [0.0, 2.0, 0.0]]},
+            {"context_xyz_cam": [[3.0, 0.0, 0.0]]}]
+    expected = canonical_stream_hash([
+        tuple(el.render_position_id(xyz) for xyz in row["context_xyz_cam"]) for row in rows])
+    assert el.context_stream_digest(rows) == expected
+    assert el.context_stream_digest(rows) != el.context_stream_digest(list(reversed(rows)))
+    assert el.context_stream_digest([{"e_loc": 1.0}]) == "n/a"

@@ -31,7 +31,8 @@ import pytorch_lightning as pl
 import torch
 import torchaudio
 
-from eval_FLAC import (CONTEXT_ID_PRECISION, check_load_integrity, orbit_provenance,
+from eval_FLAC import (CONTEXT_ID_PRECISION, canonical_stream_hash, check_load_integrity,
+                       orbit_provenance,
                        resolve_are_from_checkpoint, resolve_cond_autocast,
                        resolve_weights_source, sample_context_ids, sample_target_id, source_sha)
 from src.data.yaw_rotation import DEFAULT_FRAME_ANGLES
@@ -574,7 +575,54 @@ def summarize_run(rows, radii=DEFAULT_RADII):
     }
 
 
-def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source, n_queries):
+def _file_sha256(path):
+    """sha256 of a config FILE's contents (a path alone proves nothing, O17)."""
+    try:
+        return sha256_file(path)
+    except (OSError, TypeError):
+        return "n/a"
+
+
+def _flash_attn_available():
+    import importlib.util
+    return importlib.util.find_spec("flash_attn") is not None
+
+
+def _package_version(name):
+    try:
+        module = __import__(name)
+        return str(getattr(module, "__version__", "unknown"))
+    except Exception:
+        return "n/a"
+
+
+def context_stream_digest(rows):
+    """Digest of the ordered per-query context draw actually used (O8).
+
+    The context sources are drawn per item inside the dataloader workers, so the
+    only proof of what a run conditioned on is the ordered fingerprint stream the
+    rows carry. Serialized through eval_FLAC's own canonical stream hash.
+    """
+    stream = [tuple(render_position_id(xyz) for xyz in row["context_xyz_cam"])
+              for row in rows if "context_xyz_cam" in row]
+    if not stream:
+        return "n/a"
+    return canonical_stream_hash(stream)
+
+
+def assert_registration_sha(args, dataset_config):
+    """O17: a registered unseen generative run must name its pre-registration commit."""
+    registered = (bool((dataset_config or {}).get("unseeneval", False))
+                  and args.score_source == "flac" and not args.smoke)
+    if registered and not args.registration_sha:
+        _refuse(
+            "--registration-sha is required for a registered unseen run (O17): the parameter "
+            "file must be committed BEFORE the run and its SHA recorded in the manifest")
+    return args
+
+
+def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source, n_queries,
+                     dataset_config=None, context_digest=None):
     """Everything needed to reproduce or falsify the run, in one record.
 
     Announcement 05: a row is only interpretable next to the protocol it was
@@ -617,7 +665,27 @@ def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source
         "smoke": bool(args.smoke),
         "max_queries": None if args.max_queries is None else int(args.max_queries),
         "eval_name": args.eval_name,
+        "registration_sha": args.registration_sha or "n/a",
+        "model_config_sha256": _file_sha256(args.model_config),
+        "dataset_config_sha256": _file_sha256(args.dataset_config),
+        "context_k": (((dataset_config or {}).get("modalities") or {})
+                      .get("acoustic_context", {}) or {}).get("max_context"),
+        "loader_shuffle": False,
+        "loader_drop_last": bool((dataset_config or {}).get("drop_last", True)),
+        "context_stream_digest": context_digest or "n/a",
+        "device_name": (torch.cuda.get_device_name(0)
+                        if str(getattr(args, "device", "cpu")).startswith("cuda")
+                        and torch.cuda.is_available() else "cpu"),
+        "float32_matmul_precision": torch.get_float32_matmul_precision(),
         "torch_version": torch.__version__,
+        "cuda_version": str(torch.version.cuda),
+        "cudnn_version": str(torch.backends.cudnn.version()),
+        "torchaudio_version": _package_version("torchaudio"),
+        "transformers_version": _package_version("transformers"),
+        "tf32_matmul": bool(torch.backends.cuda.matmul.allow_tf32),
+        "tf32_cudnn": bool(torch.backends.cudnn.allow_tf32),
+        "cudnn_deterministic": bool(torch.backends.cudnn.deterministic),
+        "flash_attn_available": _flash_attn_available(),
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
 
@@ -771,6 +839,9 @@ def parse_args(argv=None):
     parser.add_argument("--num-workers", type=int, default=6)
     parser.add_argument("--out-dir", default="worklog/worklog_yixun/exp_18_loc_invert_claude")
     parser.add_argument("--eval-name", default="exp18_loc_invert")
+    parser.add_argument("--registration-sha", default=None,
+                        help="commit SHA of the pre-registered params file (O17); "
+                             "required for a registered unseen generative run")
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--max-queries", type=int, default=None)
     parser.add_argument("--parity-check", action="store_true",
@@ -1096,7 +1167,8 @@ def process_query(args, engine, context, md, obs_wav):
         context_sims_hex=evidence.get("context_sims_hex"))
 
 
-def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, expected=None):
+def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, expected=None,
+                   dataset_config=None):
     """Score every query under a fail-closed identity contract (plan §2.1, C2).
 
     The audit is IN the scoring loop, not a separate earlier pass (r3 review
@@ -1146,7 +1218,9 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
 
     summary = summarize_run(rows)
     provenance = build_provenance(args, ckpt_sha256, agree_sha256, split,
-                                  context["weights_source"], len(rows))
+                                  context["weights_source"], len(rows),
+                                  dataset_config=dataset_config,
+                                  context_digest=context_stream_digest(rows))
     write_summary(partial_summary, summary, provenance)
     os.replace(partial_rows, rows_path)          # publish only verified artifacts
     os.replace(partial_summary, summary_path)
@@ -1203,6 +1277,7 @@ def main(argv=None):
     # before the loader, because the per-item context draw happens in the workers.
     pl.seed_everything(args.seed, workers=True)
     dataset_config = load_dataset_config(args)
+    assert_registration_sha(args, dataset_config)        # O17, before any query runs
     loader = build_dataloader(args, model_config, dataset_config)
 
     if args.parity_check:
@@ -1217,7 +1292,7 @@ def main(argv=None):
     expected = expected_split_identities_from_config(dataset_config)
     print(f"registered split: {len(expected)} queries")
     result = run_evaluation(args, loader, engine, context, ckpt_sha256, agree.ckpt_sha256,
-                            expected=expected)
+                            expected=expected, dataset_config=dataset_config)
     summary = result["summary"]
     print(f"rows:    {result['rows_path']}")
     print(f"summary: {result['summary_path']}")
