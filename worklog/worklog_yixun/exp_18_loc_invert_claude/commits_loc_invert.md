@@ -33,3 +33,14 @@
 | `5693876` | F3 (MEDIUM, finding 3) | explicit `method="linear"` percentile + golden CI-endpoint and two-sided p-value fixtures (mutation-verified) | +70 −2 |
 | `2ecc62f` | F4 (NIT, finding 4) | Monte-Carlo agreement now genuinely holds at 1e-3 for all three metrics (chunked 6.4e7 draws, ~5σ) | +19 −6 |
 | `1cb5d92` | F5 (Planner ruling 4b) | optional `eligible_mask` on `nearest_context_baseline` (raw behaviour unchanged at `None`; all-False / length mismatch refused) | +65 −2 |
+| `c33617e` | — | ledger append for the r1 fix batch | +14 |
+
+## Round 2 (Coder: Claude Opus 5) — `src/localization/agree_embed.py` + tests
+
+| SHA | Description | changed lines |
+|---|---|---|
+| `56d321a` | r2 cycle 1: `preprocess_for_scoring` — clamp → `max_len`=8000 slice → pad to 10240, pinned by a C6 composition test against the cited release expressions | +152 |
+| `a664041` | r2 cycle 2: `embed_rirs` — registered deterministic VAE-mean readout (+ `sample` diagnostic); stub wired to the REAL `VAEBottleneck` | +155 −1 |
+| `e16ac40` | r2 cycle 3: `load_agree_audio` — reuses `loading_AGREE_model`, freezes + asserts eval/no-grad, CWD guard for the CWD-relative `VAE.ckpt`, `LoadedAgree` with ckpt sha256 | +123 −1 |
+| `836f16a` | r2 cycle 4: integration tests on the real AGREE scorer (skipif on assets; frozen/eval, deterministic unit-norm [2,512], sampled path stochastic, RNG isolation) | +71 |
+| `4a4ff7e` | r2 cycle 5: explicit O18 pads-only-never-crops test over T ∈ {1 … 20000} | +15 |
