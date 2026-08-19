@@ -7,6 +7,7 @@ exp_19 (RAF finetune), contract section B. TDD cycles:
   placement clustering
 * cycle 6 — ``select_splits``, split-JSON emission, splits record
 * cycle 7 — ``resample_and_write`` + amplitude audit, runtime metadata, CLI
+* cycle 13 — the trailing all-NaN ``all_rx`` sentinel rule (contracts Amendment 1)
 
 Every fixture here is SYNTHETIC (pytest ``tmp_path``). The real RAF corpus under
 /media/diskstation is read-only and is never touched by the test-suite.
@@ -144,20 +145,104 @@ def test_load_room_index_tolerates_trailing_blank_lines(tmp_path):
     assert len(raf_prepare.load_room_index(room_dir)) == N_MICS
 
 
-def test_load_room_index_aborts_on_the_observed_trailing_nan_rx_line(tmp_path):
-    """The real corpus ships one extra ``nan,nan,nan`` line in all_rx_pos.txt.
-
-    Fail-closed by contract (plan Rev 2 section 2): the off-by-one is resolved by a
-    human at the readback rung, never silently absorbed here.
-    """
+def test_load_room_index_accepts_the_observed_trailing_nan_sentinel(tmp_path):
+    """Contracts Amendment 1 (D1): the released corpus ships exactly one trailing
+    ``nan,nan,nan`` line in all_rx_pos.txt. It is dropped IFF it is the final line,
+    all three fields are NaN, and the counts line up after the drop — and the drop
+    is RECORDED, never silent."""
     write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1),
                extra_rx_lines=("nan,nan,nan",))
     room_dir = os.path.join(str(tmp_path), "archived", "EmptyRoom")
+    index = raf_prepare.load_room_index(room_dir)
+    assert len(index) == N_MICS
+    assert index.rx_trailing_sentinel_dropped is True
+    assert index[-1]["capture_id"] == f"{N_MICS - 1:06d}"
+    assert np.isfinite(index[-1]["rx_xyz"]).all()
+
+
+def test_load_room_index_records_no_sentinel_when_there_is_none(tmp_path):
+    write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1))
+    room_dir = os.path.join(str(tmp_path), "archived", "EmptyRoom")
+    assert raf_prepare.load_room_index(room_dir).rx_trailing_sentinel_dropped is False
+
+
+def test_load_room_index_aborts_on_two_trailing_nan_lines(tmp_path):
+    """EXACTLY one sentinel is tolerated; two means something else is wrong."""
+    write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1),
+               extra_rx_lines=("nan,nan,nan", "nan,nan,nan"))
+    room_dir = os.path.join(str(tmp_path), "archived", "EmptyRoom")
     with pytest.raises(ValueError) as exc:
         raf_prepare.load_room_index(room_dir)
-    msg = str(exc.value)
-    assert "all_rx_pos.txt" in msg
-    assert str(N_MICS + 1) in msg and str(N_MICS) in msg
+    assert "all_rx_pos.txt" in str(exc.value)
+
+
+def test_load_room_index_aborts_when_counts_are_still_wrong_after_the_drop(tmp_path):
+    """A trailing sentinel does not license a count mismatch: here all_tx is also
+    one line short, so dropping the sentinel still leaves rx != tx."""
+    write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1),
+               extra_rx_lines=("nan,nan,nan",))
+    room_dir = os.path.join(str(tmp_path), "archived", "EmptyRoom")
+    p = os.path.join(room_dir, "metadata", "all_tx_pos.txt")
+    lines = open(p).read().splitlines()
+    open(p, "w").write("\n".join(lines[:-1]) + "\n")
+    with pytest.raises(ValueError):
+        raf_prepare.load_room_index(room_dir)
+
+
+def test_load_room_index_aborts_on_a_trailing_nan_line_in_all_tx(tmp_path):
+    """The sentinel rule is rx-only: nothing licenses a stray tx line."""
+    write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1),
+               extra_tx_lines=("nan,nan,nan,nan,nan,nan,nan",))
+    room_dir = os.path.join(str(tmp_path), "archived", "EmptyRoom")
+    with pytest.raises(ValueError):
+        raf_prepare.load_room_index(room_dir)
+
+
+@pytest.mark.parametrize("filename,replacement", [
+    ("all_rx_pos.txt", "nan,nan,nan"),
+    ("all_rx_pos.txt", "1.0,nan,3.0"),
+    ("all_tx_pos.txt", "nan,nan,nan,nan,nan,nan,nan"),
+    ("all_tx_pos.txt", "0.1,0.9,0.0,0.1,1.0,nan,0.0"),
+])
+def test_load_room_index_aborts_on_a_mid_file_nan(tmp_path, filename, replacement):
+    """NaN anywhere other than the single trailing rx sentinel still aborts."""
+    write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1))
+    room_dir = os.path.join(str(tmp_path), "archived", "EmptyRoom")
+    p = os.path.join(room_dir, "metadata", filename)
+    lines = open(p).read().splitlines()
+    lines[7] = replacement
+    open(p, "w").write("\n".join(lines) + "\n")
+    with pytest.raises(ValueError):
+        raf_prepare.load_room_index(room_dir)
+
+
+def test_load_room_index_does_not_drop_a_final_nan_that_is_a_data_line(tmp_path):
+    """Counts already match, so the last line is DATA — a NaN there is a corrupt
+    capture, not a sentinel, and must abort rather than silently shorten the room."""
+    write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1))
+    room_dir = os.path.join(str(tmp_path), "archived", "EmptyRoom")
+    p = os.path.join(room_dir, "metadata", "all_rx_pos.txt")
+    lines = open(p).read().splitlines()
+    lines[-1] = "nan,nan,nan"
+    open(p, "w").write("\n".join(lines) + "\n")
+    with pytest.raises(ValueError):
+        raf_prepare.load_room_index(room_dir)
+
+
+def test_load_room_index_does_not_drop_a_trailing_inf_line(tmp_path):
+    """The sentinel is NaN specifically; inf is a corrupt value, not a sentinel."""
+    write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1),
+               extra_rx_lines=("inf,inf,inf",))
+    room_dir = os.path.join(str(tmp_path), "archived", "EmptyRoom")
+    with pytest.raises(ValueError):
+        raf_prepare.load_room_index(room_dir)
+
+
+def test_sentinel_flag_read_is_fail_closed():
+    """A plain list carries no provenance: reading the flag off one must raise,
+    never report a comfortable False."""
+    with pytest.raises(AttributeError):
+        raf_prepare.sentinel_flag_of([])
 
 
 def test_load_room_index_aborts_when_a_capture_dir_is_missing(tmp_path):
@@ -510,7 +595,9 @@ def _one_room_payload(mini_room):
     split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
     return {"EmptyRoom": {"groups": groups, "split": split, "group_report": group_report,
                           "crosscheck": {"mode": "full", "checked": len(index),
-                                         "mismatches": 0}}}
+                                         "mismatches": 0},
+                          "rx_trailing_sentinel_dropped":
+                              raf_prepare.sentinel_flag_of(index)}}
 
 
 def test_assemble_split_jsons_has_the_haa_shape(mini_room):
@@ -763,9 +850,11 @@ def test_cli_runtime_metadata_covers_every_split_item(tmp_path):
         assert cid not in groups_meta[gk]["train_ids"]   # test items are not support
 
 
-def test_cli_aborts_on_the_trailing_nan_line(tmp_path):
+def test_cli_still_aborts_on_a_count_mismatch_the_sentinel_rule_does_not_cover(tmp_path):
+    """Amendment 1 licenses ONE trailing all-NaN rx line and nothing else: two of
+    them still stop the CLI before anything is written."""
     raf_root = tmp_path / "raf"
-    write_room(str(raf_root), "EmptyRoom", extra_rx_lines=("nan,nan,nan",))
+    write_room(str(raf_root), "EmptyRoom", extra_rx_lines=("nan,nan,nan", "nan,nan,nan"))
     with pytest.raises(ValueError):
         raf_prepare.main(["--raf-root", str(raf_root),
                           "--output-dir", str(tmp_path / "out"),
@@ -785,3 +874,42 @@ def test_cli_is_idempotent(tmp_path):
                       "--n-train", "12", "--full-crosscheck"])
     with open(split_dir / "train_base.json") as f:
         assert json.load(f) == first
+
+
+# --------------------------------------------------------------------------- #
+# trailing-sentinel provenance end to end (cycle 13)
+# --------------------------------------------------------------------------- #
+def test_splits_record_carries_the_sentinel_flag(mini_room):
+    payload = _one_room_payload(mini_room)
+    record = raf_prepare.build_splits_record(payload, {"seed": 0})
+    assert record["rooms"]["EmptyRoom"]["rx_trailing_sentinel_dropped"] is False
+
+
+def test_splits_record_requires_the_sentinel_flag(mini_room):
+    """Fail-closed: a payload that never observed the pose files cannot claim
+    'no sentinel dropped' by omission."""
+    payload = _one_room_payload(mini_room)
+    del payload["EmptyRoom"]["rx_trailing_sentinel_dropped"]
+    with pytest.raises(KeyError):
+        raf_prepare.build_splits_record(payload, {"seed": 0})
+
+
+def test_cli_records_the_sentinel_drop_per_room(tmp_path):
+    """One room ships the sentinel, the other does not: the record must say so
+    per room, since it is the only evidence a line was dropped at all."""
+    raf_root = tmp_path / "raf"
+    write_room(str(raf_root), "EmptyRoom", extra_rx_lines=("nan,nan,nan",))
+    write_room(str(raf_root), "FurnishedRoom")
+    split_dir = tmp_path / "splits"
+    raf_prepare.main(["--raf-root", str(raf_root),
+                      "--output-dir", str(tmp_path / "runtime" / "RAF"),
+                      "--split-dir", str(split_dir),
+                      "--rooms", "EmptyRoom", "FurnishedRoom",
+                      "--n-groups", "2", "--n-val-groups", "1", "--n-train", "12",
+                      "--full-crosscheck"])
+    with open(split_dir / "raf_splits_record.json") as f:
+        record = json.load(f)
+    assert record["rooms"]["EmptyRoom"]["rx_trailing_sentinel_dropped"] is True
+    assert record["rooms"]["FurnishedRoom"]["rx_trailing_sentinel_dropped"] is False
+    # the sentinel room still has every capture: the dropped line was not data
+    assert record["rooms"]["EmptyRoom"]["group_report"]["n_captures"] == 3 * N_MICS

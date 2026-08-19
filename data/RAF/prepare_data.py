@@ -22,6 +22,7 @@ import argparse
 import hashlib
 import json
 import logging
+import math
 import os
 import sys
 
@@ -92,31 +93,87 @@ def _capture_dirs(room_dir):
     return names
 
 
+class RoomIndex(list):
+    """The capture list PLUS how the pose files had to be read to produce it.
+
+    A plain list would carry no record of the dropped ``all_rx`` sentinel, and the
+    drop must be visible in ``raf_splits_record.json`` — so the provenance travels
+    with the data rather than beside it. Slicing/copying yields a plain list, which
+    is deliberate: only the object that was actually read may make the claim (see
+    ``sentinel_flag_of``).
+    """
+
+    def __init__(self, records, rx_trailing_sentinel_dropped):
+        super().__init__(records)
+        self.rx_trailing_sentinel_dropped = bool(rx_trailing_sentinel_dropped)
+
+
+def sentinel_flag_of(index):
+    """Read the sentinel provenance off an index, FAIL-CLOSED.
+
+    A direct attribute read with no default: something that never observed the
+    pose files (a plain list, a slice) raises instead of quietly asserting the
+    comfortable "no line was dropped".
+    """
+    return index.rx_trailing_sentinel_dropped
+
+
+def _is_nan_triplet(line):
+    """True iff the line is exactly three fields that ALL parse as NaN."""
+    fields = line.strip().split(",")
+    if len(fields) != 3:
+        return False
+    for field in fields:
+        try:
+            value = float(field)
+        except (TypeError, ValueError):
+            return False
+        if not math.isnan(value):   # inf is a corrupt value, not a sentinel
+            return False
+    return True
+
+
 def load_room_index(room_dir):
     """Read one room's positional pose index.
 
     Returns:
-        list of dicts ``{index, capture_id, quat [4], tx_xyz [3], rx_xyz [3]}``,
-        ordered by capture id (== line order in the ``all_*`` files).
+        ``RoomIndex`` (a list of ``{index, capture_id, quat [4], tx_xyz [3],
+        rx_xyz [3]}`` ordered by capture id == line order in the ``all_*`` files)
+        carrying ``rx_trailing_sentinel_dropped``.
 
-    Aborts unless ``len(all_tx) == len(all_rx) == #capture dirs``. The released
-    corpus violates this (``all_rx_pos.txt`` carries one extra ``nan,nan,nan``
-    line); resolving it is a readback-rung decision, not something this loader may
-    absorb.
+    Requires ``len(all_tx) == len(all_rx) == #capture dirs``, with exactly ONE
+    registered exception (contracts Amendment 1, D1): a single trailing
+    ``nan,nan,nan`` line in ``all_rx_pos.txt`` — which the released corpus ships —
+    is dropped iff it is the final line, all three fields are NaN, and the counts
+    line up once it is gone. The drop is recorded, never silent. Every other
+    mismatch aborts, and NaN anywhere else in either file aborts at the parser.
     """
     meta_dir = os.path.join(room_dir, "metadata")
-    tx_lines = _read_pose_lines(os.path.join(meta_dir, "all_tx_pos.txt"))
-    rx_lines = _read_pose_lines(os.path.join(meta_dir, "all_rx_pos.txt"))
+    tx_path = os.path.join(meta_dir, "all_tx_pos.txt")
+    rx_path = os.path.join(meta_dir, "all_rx_pos.txt")
+    tx_lines = _read_pose_lines(tx_path)
+    rx_lines = _read_pose_lines(rx_path)
     capture_ids = _capture_dirs(room_dir)
+
+    sentinel_dropped = False
+    if (len(rx_lines) == len(tx_lines) + 1
+            and len(tx_lines) == len(capture_ids)
+            and _is_nan_triplet(rx_lines[-1])):
+        logger.warning(
+            "%s: dropping the trailing all-NaN sentinel line %d of all_rx_pos.txt "
+            "(%r) per contracts Amendment 1; %d data lines remain",
+            room_dir, len(rx_lines), rx_lines[-1].strip(), len(tx_lines))
+        rx_lines = rx_lines[:-1]
+        sentinel_dropped = True
 
     if not (len(tx_lines) == len(rx_lines) == len(capture_ids)):
         raise ValueError(
             f"{room_dir}: pose/capture count mismatch — all_tx_pos.txt has "
             f"{len(tx_lines)} lines, all_rx_pos.txt has {len(rx_lines)} lines, "
             f"and there are {len(capture_ids)} capture directories. Refusing to "
-            "guess which lines are data (the released corpus ships a trailing "
-            "'nan,nan,nan' line in all_rx_pos.txt — that must be resolved "
-            "explicitly at the readback rung).")
+            "guess which lines are data (only a SINGLE trailing all-NaN line in "
+            "all_rx_pos.txt is droppable, and only when the counts line up "
+            "afterwards).")
 
     index = []
     for i, capture_id in enumerate(capture_ids):
@@ -132,7 +189,7 @@ def load_room_index(room_dir):
             "tx_xyz": tx_xyz,
             "rx_xyz": rx_xyz,
         })
-    return index
+    return RoomIndex(index, sentinel_dropped)
 
 
 def crosscheck_captures(room_dir, index, n_sample=DEFAULT_CROSSCHECK_SAMPLE, seed=0,
@@ -489,6 +546,9 @@ def build_splits_record(per_room, params):
             "group_report": {k: v for k, v in payload["group_report"].items()
                              if k != "placements"},
             "crosscheck": payload["crosscheck"],
+            # How the pose files were read (contracts Amendment 1, D1). Indexed,
+            # not .get(): a payload that never observed them may not claim False.
+            "rx_trailing_sentinel_dropped": bool(payload["rx_trailing_sentinel_dropped"]),
             "group_details": [
                 {
                     "group_key": g["group_key"],
@@ -681,7 +741,8 @@ def main(argv=None):
         _write_json(os.path.join(out_room, "metadata", "groups_metadata.json"), groups_meta)
 
         per_room[room] = {"groups": groups, "split": split,
-                          "group_report": group_report, "crosscheck": crosscheck}
+                          "group_report": group_report, "crosscheck": crosscheck,
+                          "rx_trailing_sentinel_dropped": sentinel_flag_of(index)}
 
     paths = write_split_files(args.split_dir, assemble_split_jsons(per_room))
     params = {"seed": args.seed, "n_groups": args.n_groups,
