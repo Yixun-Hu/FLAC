@@ -1089,13 +1089,17 @@ import json as _json  # noqa: E402
 
 def _dataset_tree(tmp_path, sources=((0, (0.0, 0.0, 1.0)), (3, (2.0, -1.0, 1.5)),
                                      (7, (-3.0, 4.0, 0.75))), receiver=11,
-                  rec_loc=(1.0, 2.0, 0.5)):
-    """A miniature AcousticRooms tree: metadata pair JSONs + IR wavs."""
+                  rec_loc=(1.0, 2.0, 0.5), with_depth=True):
+    """A miniature AcousticRooms tree: metadata pair JSONs + IR wavs (+ depth maps)."""
     root = tmp_path / "AcousticRooms"
     meta_room = root / "metadata" / "Cafe" / "Cafe_idx_1"
     wav_room = root / "single_channel_ir_1" / "Cafe" / "Cafe_idx_1"
     meta_room.mkdir(parents=True, exist_ok=True)
     wav_room.mkdir(parents=True, exist_ok=True)
+    if with_depth:
+        depth_room = root / "depth_map" / "Cafe" / "Cafe_idx_1"
+        depth_room.mkdir(parents=True, exist_ok=True)
+        np.save(str(depth_room / f"{receiver}.npy"), np.zeros((4, 8), dtype=np.float32))
     for node, xyz in sources:
         (meta_room / f"S00{node}_R00{receiver}.json").write_text(_json.dumps(
             {"src_loc": list(xyz), "rec_loc": list(rec_loc), "IR_norm": 1.0}))
@@ -2559,3 +2563,85 @@ def test_verify_registration_end_to_end_on_a_real_commit(tmp_path):
                       "--registration-manifest", path, "--seed", "43", "--num-samples", "4")
     with pytest.raises(SystemExit):
         el.verify_registration(bad, unseen, _resolved(num_samples=4), repo_root=str(tmp_path))
+
+
+# --------------------------------------------------------------------------- #
+# r4 item 2a (full-review F2): --mode readback, R-1's gate. crosscheck_sources_vs_files
+# had no caller at all; the rung-4 readback was being done by hand.
+# --------------------------------------------------------------------------- #
+def _readback_args(tmp_path, root, split_path, **over):
+    config = tmp_path / "d.json"
+    config.write_text(_json.dumps({
+        "dataset_type": "audio_dir", "seeneval": True,
+        "modalities": {"acoustic_context": {"load": True, "max_context": 2}},
+        "datasets": [{"id": "AcousticRooms", "path": str(root),
+                      "json_file_path": str(split_path),
+                      "folder_name": "single_channel_ir_1"}]}))
+    argv = ["--mode", "readback", "--model-config", "m.json", "--dataset-config", str(config),
+            "--out-dir", str(tmp_path / "out"), "--eval-name", "R_minus_1"]
+    for flag, value in over.items():
+        argv += [flag] if value is True else [flag, str(value)]
+    return el.validate_args(el.parse_args(argv))
+
+
+def _write_split(tmp_path, files=("S003_R0011_hybrid_IR.wav", "S000_R0011_hybrid_IR.wav")):
+    path = tmp_path / "split.json"
+    path.write_text(_json.dumps({"Cafe": {"Cafe_idx_1": list(files)}}))
+    return path
+
+
+def test_readback_mode_reports_a_clean_room(tmp_path):
+    root, _wav_room = _dataset_tree(tmp_path)
+    args = _readback_args(tmp_path, root, _write_split(tmp_path))
+    report = el.run_readback(args)
+    assert report["ok"] is True and report["failures"] == []
+    room = report["rooms"]["Cafe/Cafe_idx_1"]
+    assert room["metadata_nodes"] == [0, 3, 7] and room["wav_nodes"] == [0, 3, 7]
+    assert room["split_sources"] == [0, 3] and room["split_files"] == 2
+    assert room["sample_rate"] == 22050 and room["wav_readback_ok"] is True
+    assert room["depth_present"] == 1 and room["depth_missing"] == []
+    assert len(report["manifest_sha256"]) == 64
+    assert os.path.exists(report["report_path"])
+    assert _json.loads(open(report["report_path"]).read())["ok"] is True
+
+
+def test_readback_mode_records_a_metadata_only_source_as_a_warning(tmp_path):
+    """LivingRoomsWithHallway_idx_30 is exactly this shape (Rev 3.1 §1): a node
+    with metadata and no wavs shrinks the oracle, it does not fail the gate."""
+    root, wav_room = _dataset_tree(tmp_path)
+    os.remove(str(wav_room / "S007_R0011_hybrid_IR.wav"))
+    report = el.run_readback(_readback_args(tmp_path, root, _write_split(tmp_path)))
+    assert report["ok"] is True
+    room = report["rooms"]["Cafe/Cafe_idx_1"]
+    assert room["metadata_only_nodes"] == [7]
+    assert any("metadata-only" in w for w in report["warnings"])
+
+
+def test_readback_mode_fails_on_a_wav_without_metadata(tmp_path):
+    root, wav_room = _dataset_tree(tmp_path)
+    _write_rir(str(wav_room), 42, 11, 0.5)                       # no pair JSON for node 42
+    with pytest.raises(SystemExit):
+        el.run_readback(_readback_args(tmp_path, root, _write_split(tmp_path)))
+    report = _json.loads(open(os.path.join(str(tmp_path / "out"),
+                                           "R_minus_1_readback.json")).read())
+    assert report["ok"] is False
+    assert any("42" in failure for failure in report["failures"])
+
+
+def test_readback_mode_fails_on_a_missing_split_file_or_depth_map(tmp_path):
+    root, wav_room = _dataset_tree(tmp_path)
+    os.remove(str(wav_room / "S003_R0011_hybrid_IR.wav"))        # a SPLIT file is gone
+    with pytest.raises(SystemExit):
+        el.run_readback(_readback_args(tmp_path, root, _write_split(tmp_path)))
+
+    root2, _wav2 = _dataset_tree(tmp_path / "b", with_depth=False)
+    with pytest.raises(SystemExit):
+        el.run_readback(_readback_args(tmp_path / "b", root2, _write_split(tmp_path / "b")))
+
+
+def test_readback_mode_needs_no_checkpoint_or_scorer(tmp_path):
+    """R-1 runs the moment the dataset lands: no ckpt, no AGREE, no GPU."""
+    root, _wav_room = _dataset_tree(tmp_path)
+    args = _readback_args(tmp_path, root, _write_split(tmp_path))
+    assert args.ckpt_path is None and args.agree_ckpt is None
+    assert el.run_readback(args)["ok"] is True

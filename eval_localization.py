@@ -45,6 +45,7 @@ from src.data.dataset import create_dataloader_from_config, get_audio_filenames
 from src.localization.agree_embed import MAX_LEN, embed_rirs, load_agree_audio, sha256_file
 from src.localization.candidates import (CandidateSet, assert_gt_matches_loader,
                                          build_candidate_set, candidate_metadata,
+                                         crosscheck_sources_vs_files,
                                          enumerate_metadata_sources, find_pair_metadata,
                                          parse_ir_filename, project_to_camera)
 from src.localization.scoring import (DEFAULT_RADII, aggregate, clustered_bootstrap_ci,
@@ -927,10 +928,14 @@ def parse_args(argv=None):
     """CLI for the exp_18 driver; the registered defaults are the plan's §2.3 pins."""
     parser = argparse.ArgumentParser(
         description="exp_18 loc_invert: source localization by analysis-by-synthesis inversion")
+    parser.add_argument("--mode", choices=["run", "readback", "scorer-noise", "reaggregate"],
+                        default="run", help="run: score queries; readback: the R-1 "
+                             "dataset gate; scorer-noise: the §2.8.3 measurement; "
+                             "reaggregate: R1's offline sweep")
     parser.add_argument("--model-config", required=True)
     parser.add_argument("--dataset-config", required=True)
     parser.add_argument("--ckpt-path", default=None)
-    parser.add_argument("--agree-ckpt", required=True)
+    parser.add_argument("--agree-ckpt", default=None)
     parser.add_argument("--num-samples", type=int, default=None,
                         help="K samples per candidate (required for --score-source flac)")
     parser.add_argument("--tau", type=float, default=0.02)
@@ -976,6 +981,14 @@ def _finite_flag(value, name):
 
 def validate_args(args):
     """Every fail-closed rule that can be checked before touching a file or a GPU."""
+    if args.mode != "run":
+        # Auxiliary modes score nothing generative; only the run mode needs the
+        # generative protocol flags to be complete.
+        if args.mode == "scorer-noise" and not args.agree_ckpt:
+            _refuse("--agree-ckpt is required for --mode scorer-noise")
+        return args
+    if not args.agree_ckpt:
+        _refuse("--agree-ckpt is required to score RIRs")
     _finite_flag(args.rotate_deg, "--rotate-deg")
     _finite_flag(args.cfg_scale, "--cfg-scale")
     if args.tau is not None:
@@ -1391,6 +1404,9 @@ def main(argv=None):
     # O16 first (this reads the dataset config only for smoke/parity runs), then
     # the CPU-only artifact refusals: objective and ARE are checked before the
     # scorer or the generator is constructed, let alone moved to a device (F9).
+    if args.mode == "readback":
+        return run_readback(args)
+
     validate_dataset_split(args)
     model_config, ckpt = load_and_validate_artifacts(args)
     dataset_config = load_dataset_config(args)
@@ -1742,3 +1758,105 @@ def verify_registration(args, dataset_config, resolved, repo_root=None):
                                           repo_root=repo_root)
     check_registration_fields(manifest, resolved, registered)
     return True
+
+
+def run_readback(args):
+    """R-1's dataset gate (plan §6 rung 4, Rev 3.1 §3): does the data hold up?
+
+    Freezes the candidate manifest, cross-checks metadata sources against the wav
+    files in both directions, compares the split's own source list against the
+    metadata authority, loads one real wav per room to confirm it decodes at the
+    AR sample rate, and checks a depth map exists for every receiver the split
+    uses. A metadata-declared source with no wavs is a WARNING (the registered
+    LivingRoomsWithHallway shape); a wav with no metadata, a missing split file, a
+    bad sample rate or a missing depth map is a FAILURE and exits nonzero.
+    """
+    dataset_config = load_dataset_config(args)
+    entry = (dataset_config.get("datasets") or [None])[0]
+    if entry is None:
+        _refuse("the dataset config declares no datasets")
+    with open(entry["json_file_path"]) as handle:
+        split = json.load(handle)
+    manifest = build_room_manifest(entry["path"], split,
+                                   folder_name=entry.get("folder_name", DEFAULT_IR_FOLDER))
+    root, folder = manifest["dataset_root"], manifest["folder_name"]
+
+    rooms, failures, warnings = {}, [], []
+    for room_id, room in sorted(manifest["rooms"].items()):
+        scene, scene_id = room["scene"], room["scene_id"]
+        wav_dir = os.path.join(root, folder, scene, scene_id)
+        depth_dir = os.path.join(root, "depth_map", scene, scene_id)
+        cross = crosscheck_sources_vs_files(room["nodes"], wav_dir)
+
+        split_files = list(split[scene][scene_id])
+        split_sources, receivers, missing_files = set(), set(), []
+        for fname in split_files:
+            src, rec = parse_ir_filename(fname)
+            split_sources.add(src)
+            receivers.add(rec)
+            if not os.path.isfile(os.path.join(wav_dir, fname)):
+                missing_files.append(fname)
+
+        depth_missing = [rec for rec in sorted(receivers)
+                         if not os.path.isfile(os.path.join(depth_dir, f"{rec}.npy"))]
+        sample_rate, readback_ok, readback_error = None, False, None
+        present = [f for f in split_files if os.path.isfile(os.path.join(wav_dir, f))]
+        if present:
+            try:
+                wav, sample_rate = torchaudio.load(os.path.join(wav_dir, present[0]))
+                readback_ok = bool(wav.numel() > 0 and torch.isfinite(wav).all())
+            except Exception as err:                       # noqa: BLE001 - reported, not raised
+                readback_error = f"{type(err).__name__}: {err}"
+
+        rooms[room_id] = {
+            "metadata_nodes": room["nodes"], "wav_nodes": room["wav_nodes"],
+            "metadata_only_nodes": cross["missing_files"], "wav_only_nodes": cross["extra_files"],
+            "split_files": len(split_files), "split_sources": sorted(split_sources),
+            "split_receivers": len(receivers), "missing_split_files": missing_files,
+            "depth_present": len(receivers) - len(depth_missing), "depth_missing": depth_missing,
+            "sample_rate": sample_rate, "wav_readback_ok": readback_ok,
+            "wav_readback_error": readback_error,
+        }
+        if cross["extra_files"]:
+            failures.append(f"{room_id}: wav sources without metadata: {cross['extra_files']}")
+        if cross["missing_files"]:
+            warnings.append(f"{room_id}: metadata-only sources (no wavs): {cross['missing_files']}")
+        if not split_sources <= set(room["nodes"]):
+            failures.append(f"{room_id}: split names sources absent from metadata: "
+                            f"{sorted(split_sources - set(room['nodes']))}")
+        if missing_files:
+            failures.append(f"{room_id}: {len(missing_files)} split files are absent on disk "
+                            f"(first: {missing_files[:3]})")
+        if depth_missing:
+            failures.append(f"{room_id}: no depth map for receivers {depth_missing[:5]}")
+        if not present:
+            failures.append(f"{room_id}: no split file present to read back")
+        elif not readback_ok:
+            failures.append(f"{room_id}: wav readback failed ({readback_error})")
+        elif sample_rate != AR_SAMPLE_RATE:
+            failures.append(f"{room_id}: sample rate {sample_rate} != {AR_SAMPLE_RATE}")
+
+    report = {
+        "mode": "readback", "dataset_config": args.dataset_config,
+        "dataset_root": root, "n_rooms": len(rooms),
+        "manifest_sha256": manifest_sha256(manifest),
+        "source_sha": source_sha(), "created_utc": datetime.now(timezone.utc).isoformat(
+            timespec="seconds"),
+        "rooms": rooms, "warnings": warnings, "failures": failures, "ok": not failures,
+    }
+    os.makedirs(str(args.out_dir), exist_ok=True)
+    report_path = os.path.join(str(args.out_dir), f"{args.eval_name}_readback.json")
+    with open(report_path, "w") as handle:
+        json.dump(report, handle, sort_keys=True, indent=2)
+        handle.write("\n")
+    report["report_path"] = report_path
+
+    print(f"readback: {len(rooms)} rooms, {len(warnings)} warnings, {len(failures)} failures "
+          f"-> {report_path}")
+    for line in warnings:
+        print(f"  WARNING {line}")
+    for line in failures:
+        print(f"  FAILURE {line}")
+    if failures:
+        raise SystemExit(f"readback gate FAILED with {len(failures)} failures; see {report_path}")
+    return report
