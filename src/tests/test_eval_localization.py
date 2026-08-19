@@ -1034,3 +1034,88 @@ def test_integration_generation_is_reproducible_for_a_fixed_noise_key(real_engin
     second = engine.decoder(engine.sampler(
         noise, engine.cond_inputs_fn(engine.conditioner(metadata, engine.device))))
     assert torch.equal(first, second)
+
+
+# --------------------------------------------------------------------------- #
+# per-query wiring  (unit h, part 3): dataset-folder derivation, candidate set,
+# context evidence for the O10 control.
+# --------------------------------------------------------------------------- #
+import json as _json  # noqa: E402
+
+
+def _dataset_tree(tmp_path, sources=((0, (0.0, 0.0, 1.0)), (3, (2.0, -1.0, 1.5)),
+                                     (7, (-3.0, 4.0, 0.75))), receiver=11,
+                  rec_loc=(1.0, 2.0, 0.5)):
+    """A miniature AcousticRooms tree: metadata pair JSONs + IR wavs."""
+    root = tmp_path / "AcousticRooms"
+    meta_room = root / "metadata" / "Cafe" / "Cafe_idx_1"
+    wav_room = root / "single_channel_ir_1" / "Cafe" / "Cafe_idx_1"
+    meta_room.mkdir(parents=True, exist_ok=True)
+    wav_room.mkdir(parents=True, exist_ok=True)
+    for node, xyz in sources:
+        (meta_room / f"S00{node}_R00{receiver}.json").write_text(_json.dumps(
+            {"src_loc": list(xyz), "rec_loc": list(rec_loc), "IR_norm": 1.0}))
+        _write_rir(str(wav_room), node, receiver, 0.1 * (node + 1))
+    return root, wav_room
+
+
+def _query_md(root, wav_room, src=3, receiver=11, rec_loc=(1.0, 2.0, 0.5),
+              src_loc=(2.0, -1.0, 1.5)):
+    from src.localization.candidates import project_to_camera
+    path = str(wav_room / f"S00{src}_R00{receiver}_hybrid_IR.wav")
+    source = torch.as_tensor(project_to_camera(np.asarray(rec_loc), np.asarray(src_loc)),
+                             dtype=torch.float32)
+    return {"idx": 0, "path": path, "relpath": os.path.relpath(path, str(root)),
+            "scene": "Cafe", "source": source, "source_vit": source.unsqueeze(0),
+            "context_poses": torch.zeros(2, 3, dtype=torch.float32),
+            "context_audio": torch.zeros(2, 1, 9600),
+            "depth": torch.zeros(3, 4, 8)}
+
+
+def test_dataset_folder_from_md_mirrors_the_release_derivation(tmp_path):
+    root, wav_room = _dataset_tree(tmp_path)
+    md = _query_md(root, wav_room)
+    assert el.dataset_folder_from_md(md).rstrip("/") == str(root)
+
+
+def test_query_candidate_set_builds_from_the_metadata_authority(tmp_path):
+    root, wav_room = _dataset_tree(tmp_path)
+    cand = el.query_candidate_set(_query_md(root, wav_room))
+    assert cand.nodes == [0, 3, 7] and cand.gt_node == 3
+    np.testing.assert_allclose(cand.rec_loc, [1.0, 2.0, 0.5])
+
+
+def test_context_evidence_scores_the_measured_context_rirs(tmp_path):
+    """The O10 control needs cos(h_obs, context RIR) -- available from the
+    metadata the loader already carries, with no extra file reads."""
+    root, wav_room = _dataset_tree(tmp_path)
+    md = _query_md(root, wav_room)
+    md["context_poses"] = torch.tensor([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0]], dtype=torch.float32)
+    md["context_audio"] = torch.stack([torch.full((1, 9600), 0.3), torch.full((1, 9600), -0.2)])
+    _rec, engine = _engine()
+    obs = torch.full((1, 1, 9600), 0.3)
+
+    evidence = el.context_evidence(engine, md, obs)
+    assert evidence["context_xyz_cam"] == [[1.0, 0.0, 0.0], [0.0, 2.0, 0.0]]
+    sims = el.decode_scores(evidence["context_sims_hex"])
+    assert tuple(sims.shape) == (2,)
+    assert sims[0] == pytest.approx(1.0, abs=1e-6)     # identical waveform to the observation
+    assert sims[1] < sims[0]
+
+
+def test_context_evidence_is_none_without_context_metadata(tmp_path):
+    root, wav_room = _dataset_tree(tmp_path)
+    md = _query_md(root, wav_room)
+    md.pop("context_audio")
+    _rec, engine = _engine()
+    assert el.context_evidence(engine, md, torch.zeros(1, 1, 9600)) is None
+
+
+def test_build_row_carries_optional_context_evidence():
+    cand = _cand_set()
+    row = el.build_row(**_row_kwargs(context_xyz_cam=[[0.0, 0.0, 0.0]],
+                                     context_sims_hex=el.encode_sims(
+                                         torch.tensor([[0.5]], dtype=torch.float32))[0]))
+    assert row["context_xyz_cam"] == [[0.0, 0.0, 0.0]]
+    assert el.decode_scores(row["context_sims_hex"])[0] == pytest.approx(0.5)
+    assert "context_xyz_cam" not in el.build_row(**_row_kwargs())

@@ -37,8 +37,9 @@ from src.models.factory import create_model_from_config
 from src.training.diffusion import invariant_conditioning
 from src.training.factory import create_training_wrapper_from_config
 from src.localization.agree_embed import MAX_LEN, embed_rirs
-from src.localization.candidates import (assert_gt_matches_loader, candidate_metadata,
-                                         parse_ir_filename, project_to_camera)
+from src.localization.candidates import (assert_gt_matches_loader, build_candidate_set,
+                                         candidate_metadata, parse_ir_filename,
+                                         project_to_camera)
 from src.localization.scoring import (DEFAULT_RADII, aggregate, context_conditioned_baseline,
                                       cosine_sims, localization_error,
                                       nearest_context_baseline, noise_key, predict_index,
@@ -286,7 +287,8 @@ def decode_scores(payload):
 
 def build_row(query_id, room_id, relpath, receiver_node, cand_set, cam_xyz, sims,
               context_mask, noise_keys, tau, agg, control, score_source, smoke,
-              available=None, identity_index=None, substituted=False):
+              available=None, identity_index=None, substituted=False,
+              context_xyz_cam=None, context_sims_hex=None):
     """One JSONL query record: raw evidence first, derived quantities alongside.
 
     ``sims_hex``/``scores_hex`` are the exact float32 values (O18), so the
@@ -312,7 +314,7 @@ def build_row(query_id, room_id, relpath, receiver_node, cand_set, cam_xyz, sims
     error = localization_error(cand_set.xyz_world[pred_index], cand_set.gt_xyz)
     context_mask = [bool(m) for m in context_mask]
 
-    return {
+    row = {
         "query_id": query_id,
         "room_id": room_id,
         "relpath": relpath,
@@ -348,6 +350,11 @@ def build_row(query_id, room_id, relpath, receiver_node, cand_set, cam_xyz, sims
         "substituted": bool(substituted),
         "smoke": bool(smoke),
     }
+    if context_xyz_cam is not None and context_sims_hex is not None:
+        # optional evidence for the non-generative control (O10)
+        row["context_xyz_cam"] = [[float(v) for v in xyz] for xyz in context_xyz_cam]
+        row["context_sims_hex"] = list(context_sims_hex)
+    return row
 
 
 def write_row(handle, row):
@@ -853,3 +860,37 @@ def parity_check_one_query(args, engine, context, metadata, noise):
     return {"match": bool(torch.equal(driver, reference)),
             "max_abs_diff": float((driver - reference).abs().max()),
             "shape": list(driver.shape)}
+
+
+def dataset_folder_from_md(md):
+    """The dataset root the loader read this item from.
+
+    Same derivation as ``AR_md.get_custom_metadata`` (AR_md.py:11-14): peel the
+    relative path off the absolute one, so the metadata authority is found the
+    way the release loader finds it rather than by a driver-side convention.
+    """
+    full_path, rel_path = md["path"], md["relpath"]
+    common_suffix = os.path.commonpath([full_path[::-1], rel_path[::-1]])[::-1]
+    return full_path[: -len(common_suffix)]
+
+
+def query_candidate_set(md):
+    """The metadata-declared candidate set for one query (C7)."""
+    return build_candidate_set(md["path"], os.path.join(dataset_folder_from_md(md), "metadata"))
+
+
+def context_evidence(engine, md, obs_wav):
+    """``{context_xyz_cam, context_sims_hex}`` for the O10 control, or ``None``.
+
+    The control needs the similarity between the observed RIR and each CONTEXT
+    RIR; both the context waveforms and their camera-frame positions are already
+    in the loader's metadata, so no extra file is read and no generation happens.
+    """
+    poses, audio = md.get("context_poses"), md.get("context_audio")
+    if poses is None or audio is None:
+        return None
+    embeddings = engine.embedder(audio.to(engine.device))
+    obs_embedding = engine.embedder(obs_wav.to(engine.device))[0]
+    sims = cosine_sims(obs_embedding, embeddings.unsqueeze(1)).reshape(1, -1)
+    return {"context_xyz_cam": [[float(v) for v in row] for row in poses],
+            "context_sims_hex": encode_sims(sims)[0]}
