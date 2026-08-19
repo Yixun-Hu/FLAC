@@ -1271,3 +1271,45 @@ def test_main_is_wired_and_validates_before_touching_assets(tmp_path):
         el.main(["--model-config", "nope.json", "--dataset-config", "nope.json",
                  "--ckpt-path", "nope.ckpt", "--agree-ckpt", "nope.pt",
                  "--num-samples", "2", "--max-queries", "3"])
+
+
+# --------------------------------------------------------------------------- #
+# r3 fix F3 (review finding 3): the constant-source control must NOT overwrite
+# the candidate geometry that rows, membership and the baselines depend on.
+# --------------------------------------------------------------------------- #
+def test_run_query_control_keeps_candidate_geometry_and_only_moves_conditioning():
+    rec, engine = _engine()
+    cand = _cand_set()
+    noise = el.build_noise_bank(42, "q0", 2, (2, 8))
+    out = el.run_query(engine, _base_md(cand), cand, noise, _OBS, control="constant_source")
+
+    true_positions = el.candidate_camera_positions(cand)
+    np.testing.assert_array_equal(out["cand_cam_xyz"], true_positions)       # untouched
+    centroid = true_positions.mean(axis=0)
+    np.testing.assert_allclose(out["conditioning_xyz_cam"], np.repeat(centroid[None], 3, axis=0))
+    passed = torch.stack([md["source"] for md in rec.seen_metadata[0]])
+    assert torch.allclose(passed, torch.as_tensor(centroid, dtype=torch.float32).expand(3, 3),
+                          atol=0)
+
+
+def test_run_query_control_leaves_context_membership_intact():
+    """With centroid geometry in the row, every candidate would look absent from
+    the context and the information-matched comparison would be meaningless."""
+    _rec, engine = _engine()
+    cand = _cand_set()
+    cams = el.candidate_camera_positions(cand)
+    context_ids = [el.render_position_id(cams[0]), el.render_position_id(cams[2])]
+    noise = el.build_noise_bank(42, "q0", 2, (2, 8))
+
+    plain = el.run_query(engine, _base_md(cand), cand, noise, _OBS)
+    controlled = el.run_query(engine, _base_md(cand), cand, noise, _OBS,
+                              control="constant_source")
+    assert el.context_membership_mask(controlled["cand_cam_xyz"], context_ids) == \
+        el.context_membership_mask(plain["cand_cam_xyz"], context_ids) == [True, False, True]
+
+
+def test_run_query_without_control_reports_identical_position_arrays():
+    _rec, engine = _engine()
+    cand = _cand_set()
+    out = el.run_query(engine, _base_md(cand), cand, el.build_noise_bank(1, "q", 2, (2, 8)), _OBS)
+    np.testing.assert_array_equal(out["cand_cam_xyz"], out["conditioning_xyz_cam"])

@@ -183,21 +183,31 @@ def run_query(engine, base_md, cand_set, noise, obs_wav, batch_size=64, control=
     random numbers, C10) and per-candidate results cannot depend on the batching.
     The conditioner runs ONCE over the M candidate metadata dicts (plan §2.3), the
     GT geometry invariant is checked against the loader's own metadata before any
-    generation (O6), and ``control='constant_source'`` freezes every candidate at
-    the candidate centroid (§2.8.1) so a working pipeline must collapse to the
-    context-conditioned baseline.
+    generation (O6), and ``control='constant_source'`` freezes every candidate's
+    CONDITIONING at the candidate centroid (§2.8.1) so a working pipeline must
+    collapse to the context-conditioned baseline.
+
+    The two position arrays are kept apart on purpose (r3 review finding 3): the
+    candidate geometry is what rows, context membership and the baselines are
+    computed from and is never modified, while only the conditioning positions are
+    substituted by the control. Overwriting the geometry would make every
+    candidate look absent from the context and invalidate the very comparison the
+    control exists to make.
     """
     if control not in ("none", "constant_source"):
         raise ValueError(f"unknown control {control!r} (expected 'none' or 'constant_source')")
     assert_gt_matches_loader(cand_set, base_md)
 
-    positions = candidate_camera_positions(cand_set)
+    candidate_positions = candidate_camera_positions(cand_set)
+    conditioning_positions = candidate_positions
     if control == "constant_source":
-        positions = np.repeat(positions.mean(axis=0, keepdims=True), positions.shape[0], axis=0)
+        conditioning_positions = np.repeat(
+            candidate_positions.mean(axis=0, keepdims=True), candidate_positions.shape[0], axis=0)
 
-    num_candidates = positions.shape[0]
+    num_candidates = candidate_positions.shape[0]
     num_samples = int(noise.shape[0])
-    metadata = [candidate_metadata(base_md, positions[m]) for m in range(num_candidates)]
+    metadata = [candidate_metadata(base_md, conditioning_positions[m])
+                for m in range(num_candidates)]
 
     conditioning = engine.conditioner(metadata, engine.device)
     cond_inputs = engine.cond_inputs_fn(conditioning)
@@ -220,7 +230,8 @@ def run_query(engine, base_md, cand_set, noise, obs_wav, batch_size=64, control=
     obs_embedding = engine.embedder(obs_wav.to(engine.device))[0]
     sims = cosine_sims(obs_embedding, embeddings.reshape(num_candidates, num_samples, -1))
 
-    out = {"sims": sims.float().cpu(), "cand_cam_xyz": positions, "control": control,
+    out = {"sims": sims.float().cpu(), "cand_cam_xyz": candidate_positions,
+           "conditioning_xyz_cam": conditioning_positions, "control": control,
            "num_candidates": num_candidates, "num_samples": num_samples}
     if return_wavs:
         out["wavs"] = wavs
