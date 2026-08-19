@@ -507,3 +507,121 @@ def test_write_row_appends_and_flushes_per_row(tmp_path):
         assert len(el.read_rows(path)) == 1        # readable before the file is closed
         el.write_row(handle, el.build_row(**_row_kwargs(query_id="9|x.wav")))
     assert len(el.read_rows(path)) == 2
+
+
+# --------------------------------------------------------------------------- #
+# summarize_run  (unit e, part 1) -- scoring.summarize on the rows, both random
+# baselines under IDENTICAL conventions, and the non-generative control.
+# --------------------------------------------------------------------------- #
+from src.localization.scoring import (context_conditioned_baseline,  # noqa: E402
+                                      nearest_context_baseline, summarize,
+                                      uniform_baseline)
+
+
+def _rows_fixture():
+    """Two rooms, three queries; query 2 is the GT-only (zero-headroom) case."""
+    cand = _cand_set()
+    cams = el.candidate_camera_positions(cand)
+    common = dict(cand_set=cand, cam_xyz=cams, receiver_node=11, noise_keys=[1, 2],
+                  tau=0.02, agg="lme", control="none", score_source="flac", smoke=False)
+    specs = [
+        ("q0", "Cafe/Cafe_idx_1", [[0.1, 0.1], [0.9, 0.9], [0.2, 0.2]], [True, False, False]),
+        ("q1", "Cafe/Cafe_idx_1", [[0.9, 0.9], [0.1, 0.1], [0.2, 0.2]], [False, False, True]),
+        ("q2", "Bedrooms/Bedrooms_idx_2", [[0.2, 0.2], [0.5, 0.5], [0.9, 0.9]], [True, False, True]),
+    ]
+    rows = []
+    for query_id, room_id, sims, mask in specs:
+        rows.append(el.build_row(
+            query_id=query_id, room_id=room_id,
+            relpath=f"single_channel_ir_1/{room_id}/S003_R011_hybrid_IR.wav",
+            sims=torch.tensor(sims, dtype=torch.float32), context_mask=mask, **common))
+    return rows
+
+
+def test_summarize_run_flac_block_equals_scoring_summarize_on_the_same_rows():
+    rows = _rows_fixture()
+    summary = el.summarize_run(rows, radii=(0.5, 1.0))
+    expected = summarize([{"query_id": r["query_id"], "room_id": r["room_id"],
+                           "e_loc": r["e_loc"], "top1": r["top1"], "rr": r["rr"]} for r in rows],
+                         radii=(0.5, 1.0))
+    assert summary["flac"] == expected
+    assert summary["n_queries"] == 3 and summary["n_rooms"] == 2
+
+
+def test_summarize_run_baselines_use_identical_weighting():
+    rows = _rows_fixture()
+    summary = el.summarize_run(rows, radii=(0.5, 1.0))
+
+    uniform_records, context_records = [], []
+    for row in rows:
+        cand = np.asarray(row["candidate_xyz_world"])
+        gt = np.asarray(row["gt_xyz_world"])
+        u = uniform_baseline(cand, gt, radii=(0.5, 1.0))
+        c = context_conditioned_baseline(cand, gt, row["context_member"], radii=(0.5, 1.0))
+        uniform_records.append({"query_id": row["query_id"], "room_id": row["room_id"],
+                                "distances": u["distances"], "top1": u["top1"]})
+        context_records.append({"query_id": row["query_id"], "room_id": row["room_id"],
+                                "distances": c["distances"], "top1": c["top1"]})
+    assert summary["baselines"]["uniform"] == summarize(uniform_records, radii=(0.5, 1.0))
+    assert summary["baselines"]["context_conditioned"] == summarize(context_records,
+                                                                    radii=(0.5, 1.0))
+
+
+def test_summarize_run_reports_the_gt_only_room_separately_and_excludes_it():
+    rows = _rows_fixture()
+    summary = el.summarize_run(rows)
+    assert summary["gt_only"]["n_queries"] == 1
+    assert summary["gt_only"]["rooms"] == ["Bedrooms/Bedrooms_idx_2"]
+    excl = summary["baselines"]["context_conditioned_excl_gt_only"]
+    assert excl["n_queries"] == 2                      # the zero-headroom query is dropped
+    assert summary["baselines"]["context_conditioned"]["n_queries"] == 3
+
+
+def test_summarize_run_reports_eligible_sizes_and_context_prediction_rate():
+    rows = _rows_fixture()
+    summary = el.summarize_run(rows)
+    assert summary["eligible_set_sizes"]["histogram"] == {"1": 1, "2": 2}
+    assert summary["eligible_set_sizes"]["min"] == 1 and summary["eligible_set_sizes"]["max"] == 2
+    # q0 predicts candidate 1 (non-context), q1 predicts candidate 0 (non-context),
+    # q2 predicts candidate 2, which IS a context member
+    assert summary["context_member_prediction_rate"] == pytest.approx(1 / 3)
+
+
+def test_summarize_run_nearest_context_control_when_rows_carry_context_evidence():
+    rows = _rows_fixture()
+    cams = el.candidate_camera_positions(_cand_set())
+    for row in rows:
+        row["context_xyz_cam"] = [list(cams[0]), list(cams[2])]
+        row["context_sims_hex"] = el.encode_sims(torch.tensor([[0.2, 0.8]],
+                                                              dtype=torch.float32))[0]
+    summary = el.summarize_run(rows)
+
+    raw_records, masked_records = [], []
+    for row in rows:
+        cand = np.asarray(row["candidate_xyz_world"])
+        cam = np.asarray(row["candidate_xyz_cam"])
+        ctx = np.asarray(row["context_xyz_cam"])
+        sims = el.decode_scores(row["context_sims_hex"])
+        raw = nearest_context_baseline(cam, ctx, sims)
+        eligible = [not m for m in row["context_member"]]
+        masked = nearest_context_baseline(cam, ctx, sims, eligible_mask=eligible)
+        gt = np.asarray(row["gt_xyz_world"])
+        raw_records.append({"query_id": row["query_id"], "room_id": row["room_id"],
+                            "e_loc": float(np.linalg.norm(cand[raw] - gt)),
+                            "top1": 1.0 if raw == row["gt_index"] else 0.0})
+        masked_records.append({"query_id": row["query_id"], "room_id": row["room_id"],
+                               "e_loc": float(np.linalg.norm(cand[masked] - gt)),
+                               "top1": 1.0 if masked == row["gt_index"] else 0.0})
+    assert summary["controls"]["nearest_context_raw"] == summarize(raw_records)
+    assert summary["controls"]["nearest_context_masked"] == summarize(masked_records)
+
+
+def test_summarize_run_control_is_none_without_context_evidence():
+    summary = el.summarize_run(_rows_fixture())
+    assert summary["controls"]["nearest_context_raw"] is None
+    assert summary["controls"]["nearest_context_masked"] is None
+
+
+def test_summarize_run_refuses_empty_rows():
+    with pytest.raises(ValueError):
+        el.summarize_run([])

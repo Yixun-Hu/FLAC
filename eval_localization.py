@@ -26,8 +26,10 @@ import torch
 from eval_FLAC import CONTEXT_ID_PRECISION, sample_target_id
 from src.localization.candidates import (assert_gt_matches_loader, candidate_metadata,
                                          project_to_camera)
-from src.localization.scoring import (aggregate, cosine_sims, localization_error,
-                                      noise_key, predict_index)
+from src.localization.scoring import (DEFAULT_RADII, aggregate, context_conditioned_baseline,
+                                      cosine_sims, localization_error,
+                                      nearest_context_baseline, noise_key, predict_index,
+                                      summarize, uniform_baseline)
 
 
 def expected_split_identities(dataset):
@@ -350,3 +352,106 @@ def read_rows(path):
             if line:
                 rows.append(json.loads(line))
     return rows
+
+
+def _query_record(row, extra=None):
+    record = {"query_id": row["query_id"], "room_id": row["room_id"], "e_loc": row["e_loc"],
+              "top1": row["top1"], "rr": row["rr"]}
+    if extra:
+        record.update(extra)
+    return record
+
+
+def _baseline_records(rows, kind, radii):
+    """Per-query baseline expectations as summarize-shaped records.
+
+    The whole per-candidate distance list is carried, so :func:`summarize` applies
+    the same 1/M within-query weighting it applies to a FLAC row (C1/C3). ``rr`` is
+    deliberately absent: a random guesser has no ranking, and inventing one would
+    be a protocol invention rather than a measurement.
+    """
+    records = []
+    for row in rows:
+        candidates = np.asarray(row["candidate_xyz_world"], dtype=np.float64)
+        gt = np.asarray(row["gt_xyz_world"], dtype=np.float64)
+        if kind == "uniform":
+            out = uniform_baseline(candidates, gt, radii=radii)
+        else:
+            out = context_conditioned_baseline(candidates, gt, row["context_member"], radii=radii)
+        records.append({"query_id": row["query_id"], "room_id": row["room_id"],
+                        "distances": out["distances"], "top1": out["top1"]})
+    return records
+
+
+def _nearest_context_records(rows, masked):
+    """Records for the non-generative control (O10), or ``None`` if the rows do
+    not carry the observed-vs-context similarities it needs."""
+    records = []
+    for row in rows:
+        if "context_xyz_cam" not in row or "context_sims_hex" not in row:
+            return None
+        cand_cam = np.asarray(row["candidate_xyz_cam"], dtype=np.float64)
+        ctx_cam = np.asarray(row["context_xyz_cam"], dtype=np.float64)
+        sims = decode_scores(row["context_sims_hex"])
+        eligible = [not m for m in row["context_member"]] if masked else None
+        pred = nearest_context_baseline(cand_cam, ctx_cam, sims, eligible_mask=eligible)
+        candidates = np.asarray(row["candidate_xyz_world"], dtype=np.float64)
+        records.append({
+            "query_id": row["query_id"], "room_id": row["room_id"],
+            "e_loc": localization_error(candidates[pred], np.asarray(row["gt_xyz_world"])),
+            "top1": 1.0 if pred == row["gt_index"] else 0.0})
+    return records
+
+
+def summarize_run(rows, radii=DEFAULT_RADII):
+    """Aggregate JSONL rows into the run summary (plan §2.6).
+
+    Everything statistical goes through ``scoring.summarize`` -- the FLAC rows and
+    both random baselines under identical weighting and boundary conventions -- so
+    a comparison can never be an artifact of two aggregation paths. The
+    zero-headroom (GT-only eligible set) queries are reported separately AND
+    excluded from a second information-matched block, as registered.
+    """
+    rows = list(rows)
+    if not rows:
+        raise ValueError("summarize_run needs at least one row")
+
+    eligible_sizes = [int(row["n_eligible"]) for row in rows]
+    histogram = {}
+    for size in eligible_sizes:
+        histogram[str(size)] = histogram.get(str(size), 0) + 1
+    gt_only_rows = [row for row in rows if row["gt_only"]]
+    kept = [row for row in rows if not row["gt_only"]]
+    context_predictions = [1.0 if row["context_member"][row["pred_index"]] else 0.0 for row in rows]
+
+    raw_control = _nearest_context_records(rows, masked=False)
+    masked_control = _nearest_context_records(rows, masked=True)
+
+    return {
+        "flac": summarize([_query_record(row) for row in rows], radii=radii),
+        "baselines": {
+            "uniform": summarize(_baseline_records(rows, "uniform", radii), radii=radii),
+            "context_conditioned": summarize(
+                _baseline_records(rows, "context", radii), radii=radii),
+            "context_conditioned_excl_gt_only": (
+                summarize(_baseline_records(kept, "context", radii), radii=radii) if kept else None),
+        },
+        "controls": {
+            "nearest_context_raw": summarize(raw_control, radii=radii) if raw_control else None,
+            "nearest_context_masked": (
+                summarize(masked_control, radii=radii) if masked_control else None),
+        },
+        "eligible_set_sizes": {
+            "histogram": histogram,
+            "min": min(eligible_sizes),
+            "max": max(eligible_sizes),
+            "mean": float(np.mean(eligible_sizes)),
+        },
+        "gt_only": {
+            "n_queries": len(gt_only_rows),
+            "rooms": sorted({row["room_id"] for row in gt_only_rows}),
+        },
+        "context_member_prediction_rate": float(np.mean(context_predictions)),
+        "n_queries": len(rows),
+        "n_rooms": len({row["room_id"] for row in rows}),
+    }
