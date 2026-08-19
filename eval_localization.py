@@ -18,7 +18,10 @@ standing proof of that (C8).
 import hashlib
 import os
 
+import torch
+
 from eval_FLAC import sample_target_id
+from src.localization.scoring import noise_key
 
 
 def expected_split_identities(dataset):
@@ -82,3 +85,27 @@ def audit_split_identities(source, expected):
             f"identity audit ABORT: stream is shorter than the split "
             f"({len(observed)} < {len(expected)} items)")
     return split_hash(observed)
+
+
+def build_noise_bank(seed, query_id, num_samples, latent_shape, device="cpu"):
+    """The query's K latent noise draws, keyed by ``(seed, query_id, k)`` (plan §2.3).
+
+    One dedicated ``torch.Generator`` per draw -- never the global stream, which
+    the conditioner/dataloader also advance -- so the bank is identical on every
+    machine, survives a resume, and is SHARED across the query's candidates
+    (common random numbers, C10). Draws are made on CPU and then moved, exactly as
+    ``evaluate_model`` does, so the bank does not depend on the compute device.
+    """
+    num_samples = int(num_samples)
+    if num_samples < 1:
+        raise ValueError(f"num_samples (K) must be >= 1, got {num_samples}")
+    shape = tuple(int(s) for s in latent_shape)
+    if len(shape) != 2 or any(s < 1 for s in shape):
+        raise ValueError(f"latent_shape must be [channels, samples] with positive dims, got {shape}")
+
+    draws = []
+    for k in range(num_samples):
+        generator = torch.Generator(device="cpu")
+        generator.manual_seed(noise_key(seed, query_id, k))
+        draws.append(torch.randn(shape, generator=generator))
+    return torch.stack(draws).to(device)

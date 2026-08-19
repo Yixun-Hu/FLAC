@@ -111,3 +111,59 @@ def test_audit_split_identities_accepts_a_plain_metadata_iterable():
     expected = el.expected_split_identities(dataset)
     stream = [_md(i, f) for i, f in enumerate(dataset.filenames)]
     assert el.audit_split_identities(stream, expected) == el.split_hash(expected)
+
+
+# --------------------------------------------------------------------------- #
+# build_noise_bank  (unit b) -- plan §2.3: deterministic, keyed by
+# (seed, query_id, k), shared across candidates (common random numbers, C10),
+# and never drawn from the global stream.
+# --------------------------------------------------------------------------- #
+import torch                                    # noqa: E402
+from src.localization.scoring import noise_key  # noqa: E402
+
+_LATENT = (4, 16)
+
+
+def test_build_noise_bank_shape_and_dtype():
+    bank = el.build_noise_bank(42, "q0", 8, _LATENT)
+    assert tuple(bank.shape) == (8, 4, 16)
+    assert bank.dtype == torch.float32 and bank.device.type == "cpu"
+
+
+def test_build_noise_bank_is_keyed_by_scoring_noise_key():
+    """Pins the bank to scoring.noise_key: sample k is exactly what a generator
+    seeded with noise_key(seed, query_id, k) draws."""
+    bank = el.build_noise_bank(42, "Cafe/Cafe_idx_1/S008_R089", 3, _LATENT)
+    for k in range(3):
+        g = torch.Generator().manual_seed(noise_key(42, "Cafe/Cafe_idx_1/S008_R089", k))
+        assert torch.equal(bank[k], torch.randn(_LATENT, generator=g))
+
+
+def test_build_noise_bank_is_reproducible_and_query_specific():
+    a = el.build_noise_bank(42, "q0", 4, _LATENT)
+    assert torch.equal(a, el.build_noise_bank(42, "q0", 4, _LATENT))      # resume-safe
+    assert not torch.equal(a, el.build_noise_bank(42, "q1", 4, _LATENT))
+    assert not torch.equal(a, el.build_noise_bank(43, "q0", 4, _LATENT))
+    assert not torch.equal(a[0], a[1])                                    # k is load-bearing
+
+
+def test_build_noise_bank_never_touches_the_global_rng():
+    before = torch.random.get_rng_state()
+    el.build_noise_bank(42, "q0", 8, _LATENT)
+    assert torch.equal(torch.random.get_rng_state(), before)
+
+
+def test_build_noise_bank_prefix_is_stable_in_k():
+    """A K=8 bank starts with the K=4 bank: enlarging K cannot renumber samples."""
+    small = el.build_noise_bank(42, "q0", 4, _LATENT)
+    large = el.build_noise_bank(42, "q0", 8, _LATENT)
+    assert torch.equal(large[:4], small)
+
+
+def test_build_noise_bank_rejects_bad_arguments():
+    with pytest.raises(ValueError):
+        el.build_noise_bank(42, "q0", 0, _LATENT)
+    with pytest.raises(ValueError):
+        el.build_noise_bank(42, "q0", 4, (4,))
+    with pytest.raises(ValueError):
+        el.build_noise_bank(42, "q0", 4, (4, 0))
