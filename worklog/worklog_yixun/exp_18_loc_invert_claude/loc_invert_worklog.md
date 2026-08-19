@@ -140,3 +140,12 @@
 - **Result** — fix_ready; round 3 fix batch VERIFIED by Planner. Given the round contained a BLOCKER, formal r3 closure is delegated to the Codex integrative `full` review (launched next), which re-verifies F1–F9 and reviews the whole exp_18 diff before any launch. Observed nit passed to that review: the registration-sha refusal fires post-checkpoint-load (wasteful ordering, still fail-closed).
 - **Analysis** — Coder deviations accepted: workers≥1 (persistent_workers constraint), F5 per Planner wording (smoke identity allowlist lives in params at R0, enforcement-by-record), `canonical_stream_hash` third import (justified), pre-flight audit dropped in favor of the load-bearing in-loop check, `substituted` always False by construction (abort semantics).
 - **Next** — Integrative full review → validation ladder rungs 3–5 → R-1 on Yixun's dataset word.
+
+## 2026-08-20T00:15:00-0400 — Dataset COMPLETE (Yixun confirmed); rung 4 real-data readback PASSED
+
+- **Goal** — Validation rung 4 on the complete dataset (Yixun: "AcousticRooms is now copied to /media/diskstation/yixunhu/FLAC/AcousticRooms").
+- **Result** — passed, with three protocol-relevant findings:
+  1. **Metadata naming = `S0010_R0089.json`** (`"S00"+str(node)`, unpadded int concatenation) — the release code's convention is CORRECT for metadata; wav names (`S010_…`, 3-digit padded) are a different namespace, as the Opus review suspected. Our numeric matching handles both; the S010-quirk worry from the 2026-08-18 recon entry is RESOLVED as a non-issue.
+  2. **All 17 unseen rooms have 10 metadata sources** (candidate authority ⇒ M=10 everywhere). `LivingRoomsWithHallway_idx_30`'s source 10 has metadata but ZERO wavs (225 = 9×25 on disk) ⇒ context can never contain it ⇒ its eligible set = {GT, S10} = 2, same 50% information-matched chance as the other rooms; the gt_only exclusion clause will never fire (kept as a guard). Oracle eligibility shrinks by one there, by design.
+  3. **No second measurement channel exists** (`single_channel_ir_zip` = per-scene zips of channel 1) ⇒ non-trivial oracle variant unavailable; identity-oracle = sanity-only, per plan fallback. Depth maps: per-receiver (256,512) float64 — matches AR_md. Wav sanity: (1,64542)@22050.
+- **Next** — Integrative full review verdict → R-1 launch (params/command/acceptance-criteria written at launch per SOP).
