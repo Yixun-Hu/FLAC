@@ -27,6 +27,18 @@ MAX_LEN = 8000
 TOWER_LEN = 10240
 
 
+def _training_submodules(model):
+    """Names of every submodule still in train mode (``<root>`` for the model).
+
+    Checking only the parent is not enough: ``ResidualUnit.forward`` branches on
+    ``self.training``, so a train-mode child changes the tower's arithmetic while
+    ``model.training`` still reads False.
+    """
+    if hasattr(model, "named_modules"):
+        return [name or "<root>" for name, module in model.named_modules() if module.training]
+    return ["<root>"] if getattr(model, "training", False) else []
+
+
 def _require_finite(tensor, what):
     """Fail closed on NaN / +-Inf (a threshold guard alone would let NaN pass)."""
     if not bool(torch.isfinite(tensor).all()):
@@ -74,8 +86,11 @@ def embed_rirs(model, wavs, device, readout="mean"):
     """
     if readout not in ("mean", "sample"):
         raise ValueError(f"unknown readout {readout!r} (expected 'mean' or 'sample')")
-    if getattr(model, "training", False):
-        raise ValueError("the scorer must be in eval mode; call load_agree_audio (plan §2.4)")
+    training = _training_submodules(model)
+    if training:
+        raise ValueError(
+            f"the scorer must be fully in eval mode; still training: {training[:5]} "
+            "-- call load_agree_audio (plan §2.4)")
 
     x = preprocess_for_scoring(wavs).to(device)
     with torch.inference_mode():
@@ -113,7 +128,7 @@ def sha256_file(path, chunk_bytes=1 << 20):
     return digest.hexdigest()
 
 
-def load_agree_audio(ckpt_path, device, config_name=AGREE_CONFIG_NAME):
+def load_agree_audio(ckpt_path, device):
     """Load the AGREE scorer through the release loader, frozen and in eval mode.
 
     Reuses ``src.metrics.metric_callback.loading_AGREE_model`` -- the loading
@@ -122,21 +137,25 @@ def load_agree_audio(ckpt_path, device, config_name=AGREE_CONFIG_NAME):
     weights are reachable, because that path is stored in the model config as a
     CWD-RELATIVE string (``weights/FLAC/VAE.ckpt``) and is opened while the tower
     is being built -- so running from anywhere but the repo root fails late and
-    obscurely. Every parameter is then frozen and both invariants are asserted.
+    obscurely. The config validated here is ``AGREE_CONFIG_NAME``, the one the
+    reused loader itself constructs (metric_callback.py:434); it is deliberately
+    not a parameter, since validating any other config would check a pretrained
+    path the loaded model never touches. Every parameter is then frozen and both
+    invariants are asserted.
     """
     ckpt_path = str(ckpt_path)
     if not os.path.isfile(ckpt_path):
         raise FileNotFoundError(f"AGREE checkpoint not found: {ckpt_path}")
 
     from AGREE.AGREE.factory import get_model_config
-    config = get_model_config(config_name)
+    config = get_model_config(AGREE_CONFIG_NAME)
     if config is None:
-        raise ValueError(f"unknown AGREE model config {config_name!r}")
+        raise ValueError(f"unknown AGREE model config {AGREE_CONFIG_NAME!r}")
     pretrained = (config.get("audio_cfg") or {}).get("pretrained")
-    if pretrained and not os.path.isabs(pretrained) and not os.path.exists(pretrained):
-        raise FileNotFoundError(
-            f"AGREE audio tower needs {pretrained!r}, which is resolved against the working "
-            f"directory (now {os.getcwd()!r}); run from the repo root")
+    if pretrained and not os.path.isfile(pretrained):
+        where = "an absolute path" if os.path.isabs(pretrained) else (
+            f"resolved against the working directory (now {os.getcwd()!r}); run from the repo root")
+        raise FileNotFoundError(f"AGREE audio tower needs {pretrained!r}, which is {where}")
 
     from src.metrics.metric_callback import loading_AGREE_model
     model, _audio_tower = loading_AGREE_model(ckpt_path, device)
@@ -145,8 +164,9 @@ def load_agree_audio(ckpt_path, device, config_name=AGREE_CONFIG_NAME):
     for param in model.parameters():
         param.requires_grad_(False)
 
-    if model.training:
-        raise RuntimeError("AGREE scorer failed to enter eval mode")
+    training = _training_submodules(model)
+    if training:
+        raise RuntimeError(f"AGREE scorer failed to enter eval mode: {training[:5]}")
     unfrozen = [name for name, param in model.named_parameters() if param.requires_grad]
     if unfrozen:
         raise RuntimeError(f"AGREE scorer parameters still require grad: {unfrozen[:5]}")

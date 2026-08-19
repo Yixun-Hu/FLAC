@@ -11,6 +11,7 @@ import pytest
 import torch
 
 from src.localization.agree_embed import (
+    AGREE_CONFIG_NAME,
     MAX_LEN,
     TOWER_LEN,
     embed_rirs,
@@ -281,11 +282,51 @@ def test_load_agree_audio_refuses_a_wrong_working_directory(tmp_path, monkeypatc
         load_agree_audio(ckpt, "cpu")
 
 
-def test_load_agree_audio_refuses_an_unknown_model_config(tmp_path):
+def test_load_agree_audio_has_no_configurable_config_name():
+    """r2 fix F3: a configurable name could validate the pretrained path of a
+    config the reused loader never builds. The name is not a parameter at all."""
+    import inspect
+    assert "config_name" not in inspect.signature(load_agree_audio).parameters
+
+
+def test_agree_config_name_is_the_one_the_reused_loader_constructs():
+    """Ties our hardcoded name to metric_callback.loading_AGREE_model's source, so
+    a change there fails here instead of silently validating the wrong config."""
+    import inspect
+    from src.metrics.metric_callback import loading_AGREE_model
+    assert f"get_model_config('{AGREE_CONFIG_NAME}')" in inspect.getsource(loading_AGREE_model)
+
+
+def test_load_agree_audio_refuses_a_missing_absolute_pretrained_path(tmp_path, monkeypatch):
+    """r2 fix F3: an absolute-but-missing pretrained path used to slip past the
+    early guard and fail deep inside construction."""
+    import AGREE.AGREE.factory as agree_factory
+    import src.metrics.metric_callback as mc
+
+    def _never(*args, **kwargs):
+        raise AssertionError("loading_AGREE_model must not run when pretrained weights are missing")
+
+    monkeypatch.setattr(mc, "loading_AGREE_model", _never)
+    monkeypatch.setattr(agree_factory, "get_model_config",
+                        lambda name: {"audio_cfg": {"pretrained": str(tmp_path / "abs" / "VAE.ckpt")}})
     ckpt = tmp_path / "AGREE_AR.pt"
     ckpt.write_bytes(b"not a real checkpoint")
+    with pytest.raises(FileNotFoundError):
+        load_agree_audio(ckpt, "cpu")
+
+
+def test_embed_rirs_refuses_a_scorer_with_any_training_submodule():
+    """r2 fix F4: the parent staying eval is not enough -- ResidualUnit branches on
+    self.training, so a train-mode child silently changes the tower's arithmetic."""
+    model = _StubModel()
+    embed_rirs(model, _wavs(b=1), "cpu")               # fully eval: fine
+    model.audio.train()
     with pytest.raises(ValueError):
-        load_agree_audio(ckpt, "cpu", config_name="no_such_config")
+        embed_rirs(model, _wavs(b=1), "cpu")
+    model.eval()
+    model.audio.layers.train()                         # a deeper submodule
+    with pytest.raises(ValueError):
+        embed_rirs(model, _wavs(b=1), "cpu")
 
 
 # --------------------------------------------------------------------------- #
