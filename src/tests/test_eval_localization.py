@@ -1749,3 +1749,87 @@ def test_context_stream_digest_is_order_sensitive_and_uses_the_fingerprints():
     assert el.context_stream_digest(rows) == expected
     assert el.context_stream_digest(rows) != el.context_stream_digest(list(reversed(rows)))
     assert el.context_stream_digest([{"e_loc": 1.0}]) == "n/a"
+
+
+# --------------------------------------------------------------------------- #
+# r3 fix F4 (review finding 4): the summary must carry the registered
+# comparisons -- FLAC on the SAME retained subset as the information-matched
+# baseline, the 17-room clustered CI, the paired room-clustered tests, and the
+# §2.8.2 power statistic.
+# --------------------------------------------------------------------------- #
+from src.localization.scoring import (clustered_bootstrap_ci,  # noqa: E402
+                                      paired_room_clustered_test, power_statistic)
+
+
+def _rows_with_context():
+    rows = _rows_fixture()
+    cams = el.candidate_camera_positions(_cand_set())
+    for row in rows:
+        row["context_xyz_cam"] = [list(cams[0]), list(cams[2])]
+        row["context_sims_hex"] = el.encode_sims(torch.tensor([[0.2, 0.8]],
+                                                              dtype=torch.float32))[0]
+    return rows
+
+
+def test_build_row_records_the_per_query_power_statistic():
+    row = el.build_row(**_row_kwargs())
+    sims = _row_kwargs()["sims"]
+    assert row["power_statistic"] == pytest.approx(power_statistic(sims))
+    single = el.build_row(**_row_kwargs(sims=torch.tensor([[0.5], [0.9], [0.1]],
+                                                          dtype=torch.float32),
+                                        noise_keys=[1]))
+    assert single["power_statistic"] is None            # K = 1: no within-candidate variance
+
+
+def test_summarize_run_matches_flac_to_the_same_retained_subset():
+    rows = _rows_fixture()
+    summary = el.summarize_run(rows, bootstrap_n=50, bootstrap_seed=1)
+    kept = [r for r in rows if not r["gt_only"]]
+    expected = summarize([{"query_id": r["query_id"], "room_id": r["room_id"],
+                           "e_loc": r["e_loc"], "top1": r["top1"], "rr": r["rr"]} for r in kept])
+    assert summary["flac_excl_gt_only"] == expected
+    assert summary["flac_excl_gt_only"]["n_queries"] == \
+        summary["baselines"]["context_conditioned_excl_gt_only"]["n_queries"]
+
+
+def test_summarize_run_includes_the_clustered_ci_on_the_primary():
+    rows = _rows_fixture()
+    summary = el.summarize_run(rows, bootstrap_n=50, bootstrap_seed=1)
+    records = [{"query_id": r["query_id"], "room_id": r["room_id"], "e_loc": r["e_loc"]}
+               for r in rows]
+    assert summary["statistics"]["clustered_ci"] == clustered_bootstrap_ci(
+        records, n=50, seed=1)
+
+
+def test_summarize_run_includes_the_paired_room_clustered_tests():
+    rows = _rows_with_context()
+    summary = el.summarize_run(rows, bootstrap_n=50, bootstrap_seed=1)
+    flac = [{"query_id": r["query_id"], "room_id": r["room_id"], "e_loc": r["e_loc"]}
+            for r in rows]
+    context = []
+    for row in rows:
+        out = context_conditioned_baseline(np.asarray(row["candidate_xyz_world"]),
+                                           np.asarray(row["gt_xyz_world"]),
+                                           row["context_member"])
+        context.append({"query_id": row["query_id"], "room_id": row["room_id"],
+                        "distances": out["distances"]})
+    assert summary["statistics"]["paired_vs_context_conditioned"] == paired_room_clustered_test(
+        flac, context, n=50, seed=1)
+    assert summary["statistics"]["paired_vs_nearest_context_masked"] is not None
+
+
+def test_summarize_run_paired_control_is_none_without_context_evidence():
+    summary = el.summarize_run(_rows_fixture(), bootstrap_n=20, bootstrap_seed=1)
+    assert summary["statistics"]["paired_vs_nearest_context_masked"] is None
+    assert summary["controls"]["nearest_context_masked_excl_gt_only"] is None
+
+
+def test_summarize_run_aggregates_the_power_statistic_distribution():
+    rows = _rows_fixture()
+    summary = el.summarize_run(rows, bootstrap_n=20, bootstrap_seed=1)
+    values = [row["power_statistic"] for row in rows]
+    block = summary["power_statistic"]
+    assert block["n_queries"] == 3
+    assert block["mean"] == pytest.approx(float(np.mean(values)))
+    assert block["median"] == pytest.approx(float(np.median(values)))
+    assert block["min"] == pytest.approx(min(values)) and block["max"] == pytest.approx(max(values))

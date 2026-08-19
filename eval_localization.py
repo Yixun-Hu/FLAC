@@ -45,9 +45,10 @@ from src.localization.agree_embed import MAX_LEN, embed_rirs, load_agree_audio, 
 from src.localization.candidates import (assert_gt_matches_loader, build_candidate_set,
                                          candidate_metadata, parse_ir_filename,
                                          project_to_camera)
-from src.localization.scoring import (DEFAULT_RADII, aggregate, context_conditioned_baseline,
-                                      cosine_sims, localization_error,
-                                      nearest_context_baseline, noise_key, predict_index,
+from src.localization.scoring import (DEFAULT_RADII, aggregate, clustered_bootstrap_ci,
+                                      context_conditioned_baseline, cosine_sims,
+                                      localization_error, nearest_context_baseline, noise_key,
+                                      paired_room_clustered_test, power_statistic, predict_index,
                                       summarize, uniform_baseline)
 
 
@@ -440,6 +441,8 @@ def build_row(query_id, room_id, relpath, receiver_node, cand_set, cam_xyz, sims
         "e_loc": float(error),
         "top1": 1.0 if pred_index == gt_index else 0.0,
         "rr": gt_reciprocal_rank(scores, gt_index, available=available),
+        "power_statistic": (float(power_statistic(sims))
+                            if sims.shape[0] > 1 and sims.shape[1] > 1 else None),
         "tau": float(tau) if tau is not None else None,
         "agg": agg,
         "control": control,
@@ -521,7 +524,7 @@ def _nearest_context_records(rows, masked):
     return records
 
 
-def summarize_run(rows, radii=DEFAULT_RADII):
+def summarize_run(rows, radii=DEFAULT_RADII, bootstrap_n=10000, bootstrap_seed=0):
     """Aggregate JSONL rows into the run summary (plan §2.6).
 
     Everything statistical goes through ``scoring.summarize`` -- the FLAC rows and
@@ -544,9 +547,44 @@ def summarize_run(rows, radii=DEFAULT_RADII):
 
     raw_control = _nearest_context_records(rows, masked=False)
     masked_control = _nearest_context_records(rows, masked=True)
+    kept_masked_control = _nearest_context_records(kept, masked=True) if kept else None
+
+    # Statistics (plan §2.6/C3/O12). The paired tests compare FLAC to the
+    # information-matched baseline and to the non-generative control on the SAME
+    # queries; the CI is the 17-room clustered interval on the pooled median.
+    flac_points = [{"query_id": row["query_id"], "room_id": row["room_id"],
+                    "e_loc": row["e_loc"]} for row in rows]
+    context_points = [{"query_id": rec["query_id"], "room_id": rec["room_id"],
+                       "distances": rec["distances"]}
+                      for rec in _baseline_records(rows, "context", radii)]
+    statistics = {
+        "clustered_ci": clustered_bootstrap_ci(flac_points, n=bootstrap_n, seed=bootstrap_seed),
+        "paired_vs_context_conditioned": paired_room_clustered_test(
+            flac_points, context_points, n=bootstrap_n, seed=bootstrap_seed),
+        "paired_vs_nearest_context_masked": (
+            paired_room_clustered_test(
+                flac_points,
+                [{"query_id": rec["query_id"], "room_id": rec["room_id"], "e_loc": rec["e_loc"]}
+                 for rec in masked_control],
+                n=bootstrap_n, seed=bootstrap_seed) if masked_control else None),
+    }
+
+    power_values = [row["power_statistic"] for row in rows
+                    if row.get("power_statistic") is not None]
+    power_block = None
+    if power_values:
+        power_block = {"n_queries": len(power_values),
+                       "mean": float(np.mean(power_values)),
+                       "median": float(np.median(power_values)),
+                       "min": float(np.min(power_values)),
+                       "max": float(np.max(power_values))}
 
     return {
         "flac": summarize([_query_record(row) for row in rows], radii=radii),
+        "flac_excl_gt_only": (summarize([_query_record(row) for row in kept], radii=radii)
+                              if kept else None),
+        "statistics": statistics,
+        "power_statistic": power_block,
         "baselines": {
             "uniform": summarize(_baseline_records(rows, "uniform", radii), radii=radii),
             "context_conditioned": summarize(
@@ -558,6 +596,8 @@ def summarize_run(rows, radii=DEFAULT_RADII):
             "nearest_context_raw": summarize(raw_control, radii=radii) if raw_control else None,
             "nearest_context_masked": (
                 summarize(masked_control, radii=radii) if masked_control else None),
+            "nearest_context_masked_excl_gt_only": (
+                summarize(kept_masked_control, radii=radii) if kept_masked_control else None),
         },
         "eligible_set_sizes": {
             "histogram": histogram,
