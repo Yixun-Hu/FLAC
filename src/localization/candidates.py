@@ -98,3 +98,20 @@ def enumerate_metadata_sources(meta_room_dir):
         else:
             sources[src], seen_in[src] = xyz, path
     return {node: sources[node] for node in sorted(sources)}
+
+
+def _xyz(value, what):
+    arr = np.asarray(value, dtype=np.float64)
+    if arr.shape != (3,):
+        raise ValueError(f"{what} must be 3 floats, got shape {arr.shape}")
+    return arr
+
+
+def project_to_camera(rec_loc, xyz):
+    """World -> receiver-frame coordinates: the translation the loader applies.
+
+    Identical arithmetic (one subtraction per axis) to
+    ``AR_md.get_3d_point_camera_coord(source_pose=rec_loc, point_3d=xyz)``, so
+    the candidate conditioning reproduces ``md['source']`` bit-exactly.
+    """
+    return _xyz(xyz, "xyz") - _xyz(rec_loc, "rec_loc")

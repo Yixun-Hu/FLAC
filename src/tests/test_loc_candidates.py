@@ -8,6 +8,7 @@ lookup matches on parsed numeric identity, never on a reconstructed fixed
 format), metadata pair JSONs as the candidate authority, and a shallow-copy
 metadata variant that swaps only ``source``/``source_vit``.
 """
+import importlib.util
 import json
 import os
 
@@ -18,6 +19,7 @@ from src.localization.candidates import (
     enumerate_metadata_sources,
     find_pair_metadata,
     parse_ir_filename,
+    project_to_camera,
 )
 
 
@@ -176,3 +178,53 @@ def test_enumerate_metadata_sources_empty_or_missing_dir_raises(tmp_path):
         enumerate_metadata_sources(empty)
     with pytest.raises(ValueError):
         enumerate_metadata_sources(tmp_path / "does_not_exist")
+
+
+# --------------------------------------------------------------------------- #
+# project_to_camera -- parity with the release loader's projection
+# --------------------------------------------------------------------------- #
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_AR_MD_PATH = os.path.join(
+    _REPO_ROOT, "src", "configs", "dataset_configs", "custom_metadata", "AR_md.py")
+
+
+def _load_ar_md():
+    """Load the release metadata module exactly as ``src/data/dataset.py`` does."""
+    spec = importlib.util.spec_from_file_location("metadata_module", _AR_MD_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_project_to_camera_matches_ar_md_release_math():
+    """Bit-exact parity with ``AR_md.get_3d_point_camera_coord`` on 100 random
+    points. Both are the same single subtraction per axis, so exact float
+    equality (rtol=atol=0) is the contract -- any drift means the candidate
+    conditioning would not reproduce the loader's ``md['source']``."""
+    ar_md = _load_ar_md()
+    rng = np.random.default_rng(18)
+    for _ in range(100):
+        rec_loc = (rng.uniform(-10.0, 10.0, size=3)).tolist()
+        xyz = (rng.uniform(-10.0, 10.0, size=3)).tolist()
+        expected = ar_md.get_3d_point_camera_coord(source_pose=rec_loc, point_3d=xyz)
+        got = project_to_camera(rec_loc, xyz)
+        np.testing.assert_array_equal(got, np.asarray(expected, dtype=np.float64))
+
+
+def test_project_to_camera_is_translation():
+    rec = np.array([1.0, -2.0, 0.5])
+    np.testing.assert_array_equal(project_to_camera(rec, rec), np.zeros(3))
+    np.testing.assert_array_equal(
+        project_to_camera(rec, np.array([2.0, 0.0, 1.5])), np.array([1.0, 2.0, 1.0]))
+
+
+def test_project_to_camera_dtype_and_shape():
+    out = project_to_camera([0, 0, 0], [1, 2, 3])
+    assert isinstance(out, np.ndarray) and out.shape == (3,) and out.dtype == np.float64
+
+
+def test_project_to_camera_rejects_bad_shape():
+    with pytest.raises(ValueError):
+        project_to_camera([0.0, 0.0], [1.0, 2.0, 3.0])
+    with pytest.raises(ValueError):
+        project_to_camera([0.0, 0.0, 0.0], [1.0, 2.0])
