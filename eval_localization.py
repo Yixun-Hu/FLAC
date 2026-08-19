@@ -1026,6 +1026,12 @@ def parse_args(argv=None):
     parser.add_argument("--num-workers", type=int, default=6)
     parser.add_argument("--out-dir", default="worklog/worklog_yixun/exp_18_loc_invert_claude")
     parser.add_argument("--eval-name", default="exp18_loc_invert")
+    parser.add_argument("--noise-draws", type=int, default=100,
+                        help="sampled-readout draws for --mode scorer-noise (§2.8.3)")
+    parser.add_argument("--noise-wavs", nargs="+", default=None,
+                        help="explicit RIR files for --mode scorer-noise")
+    parser.add_argument("--noise-wav-count", type=int, default=4,
+                        help="how many split RIRs to measure when --noise-wavs is absent")
     parser.add_argument("--overwrite", action="store_true",
                         help="replace an existing artifact for this exact cell")
     parser.add_argument("--registration-manifest", default=None,
@@ -1057,8 +1063,13 @@ def validate_args(args):
     if args.mode != "run":
         # Auxiliary modes score nothing generative; only the run mode needs the
         # generative protocol flags to be complete.
-        if args.mode == "scorer-noise" and not args.agree_ckpt:
-            _refuse("--agree-ckpt is required for --mode scorer-noise")
+        if args.mode == "scorer-noise":
+            if not args.agree_ckpt:
+                _refuse("--agree-ckpt is required for --mode scorer-noise")
+            if int(args.noise_draws) < 2:
+                _refuse(f"--noise-draws must be >= 2, got {args.noise_draws}")
+            if int(args.noise_wav_count) < 1:
+                _refuse(f"--noise-wav-count must be >= 1, got {args.noise_wav_count}")
         return args
     if not args.agree_ckpt:
         _refuse("--agree-ckpt is required to score RIRs")
@@ -1482,6 +1493,8 @@ def main(argv=None):
     # scorer or the generator is constructed, let alone moved to a device (F9).
     if args.mode == "readback":
         return run_readback(args)
+    if args.mode == "scorer-noise":
+        return run_scorer_noise(args)
 
     validate_dataset_split(args)
     model_config, ckpt = load_and_validate_artifacts(args)
@@ -1577,7 +1590,7 @@ def validate_dataset_split(args, dataset_config=None):
     exactly what pre-registration exists to prevent. Registered unseen runs --
     including the checkpoint-free R-1 oracle -- are untouched.
     """
-    if not (args.smoke or args.parity_check):
+    if not (args.smoke or args.parity_check or args.mode == "scorer-noise"):
         return dataset_config
     config = dataset_config if dataset_config is not None else load_dataset_config(args)
     if bool(config.get("unseeneval", False)) or not bool(config.get("seeneval", False)):
@@ -1935,4 +1948,110 @@ def run_readback(args):
         print(f"  FAILURE {line}")
     if failures:
         raise SystemExit(f"readback gate FAILED with {len(failures)} failures; see {report_path}")
+    return report
+
+
+def _cos_stats(values):
+    values = np.asarray(values, dtype=np.float64).reshape(-1)
+    return {"min": float(values.min()), "mean": float(values.mean()),
+            "p5": float(np.percentile(values, 5, method="linear")),
+            "p50": float(np.percentile(values, 50, method="linear")),
+            "max": float(values.max())}
+
+
+def measure_scorer_noise(mean_embeddings, sampled_draws):
+    """Quantify what the registered mean readout removes (plan §2.8.3).
+
+    ``mean_embeddings`` is ``[B, D]`` from the deterministic readout,
+    ``sampled_draws`` is ``[N, B, D]`` from the stock stochastic one. Reports, per
+    wav and pooled, the pairwise cosine distribution ACROSS draws and the cosine
+    of each draw against the mean readout -- i.e. the scorer noise the registered
+    readout eliminates by construction.
+    """
+    if sampled_draws.ndim != 3 or sampled_draws.shape[0] < 2:
+        raise ValueError("sampled_draws must be [N, B, D] with N >= 2 draws")
+    mean_embeddings = mean_embeddings.detach().cpu().double()
+    sampled_draws = sampled_draws.detach().cpu().double()
+
+    per_wav, all_pairwise, all_vs_mean = [], [], []
+    for index in range(mean_embeddings.shape[0]):
+        draws = sampled_draws[:, index, :]
+        gram = draws @ draws.T
+        upper = gram[torch.triu(torch.ones_like(gram), diagonal=1) > 0]
+        vs_mean = draws @ mean_embeddings[index]
+        per_wav.append({"pairwise": _cos_stats(upper.numpy()),
+                        "vs_mean": _cos_stats(vs_mean.numpy())})
+        all_pairwise.append(upper.numpy())
+        all_vs_mean.append(vs_mean.numpy())
+    return {"n_draws": int(sampled_draws.shape[0]), "n_wavs": int(mean_embeddings.shape[0]),
+            "per_wav": per_wav,
+            "aggregate": {"pairwise": _cos_stats(np.concatenate(all_pairwise)),
+                          "vs_mean": _cos_stats(np.concatenate(all_vs_mean))}}
+
+
+def _load_noise_wavs(paths):
+    wavs = []
+    for path in paths:
+        wav, rate = torchaudio.load(str(path))
+        if rate != AR_SAMPLE_RATE:
+            raise ValueError(f"{path}: sample rate must be {AR_SAMPLE_RATE}, got {rate}")
+        wav = wav[:1, :MAX_LEN].clamp(-1.0, 1.0)
+        if wav.shape[-1] < MAX_LEN:
+            wav = torch.nn.functional.pad(wav, (0, MAX_LEN - wav.shape[-1]))
+        wavs.append(wav.unsqueeze(0))
+    return torch.cat(wavs, dim=0)
+
+
+def resolve_noise_wavs(args):
+    """Explicit ``--noise-wavs``, else the first files of the (seen) split."""
+    if args.noise_wavs:
+        return [str(p) for p in args.noise_wavs]
+    dataset_config = load_dataset_config(args)
+    entry = (dataset_config.get("datasets") or [None])[0]
+    if entry is None:
+        _refuse("the dataset config declares no datasets")
+    with open(entry["json_file_path"]) as handle:
+        split = json.load(handle)
+    folder = entry.get("folder_name", DEFAULT_IR_FOLDER)
+    paths = []
+    for scene in sorted(split):
+        for scene_id in sorted(split[scene]):
+            for fname in sorted(split[scene][scene_id]):
+                candidate = os.path.join(entry["path"], folder, scene, scene_id, fname)
+                if os.path.isfile(candidate):
+                    paths.append(candidate)
+                if len(paths) >= int(args.noise_wav_count):
+                    return paths
+    if not paths:
+        _refuse("no wav from the split is present to measure scorer noise on")
+    return paths
+
+
+def run_scorer_noise(args):
+    """--mode scorer-noise: the §2.8.3 diagnostic. Loads AGREE only."""
+    validate_dataset_split(args)
+    paths = resolve_noise_wavs(args)
+    agree = load_agree_audio(args.agree_ckpt, args.device)
+    wavs = _load_noise_wavs(paths)
+
+    mean_embeddings = embed_rirs(agree.model, wavs, args.device, readout="mean")
+    draws = torch.stack([embed_rirs(agree.model, wavs, args.device, readout="sample")
+                         for _ in range(int(args.noise_draws))])
+    report = measure_scorer_noise(mean_embeddings, draws)
+    report.update({
+        "mode": "scorer-noise", "agree_ckpt": args.agree_ckpt,
+        "agree_sha256": agree.ckpt_sha256, "wavs": paths, "device": args.device,
+        "source_sha": source_sha(),
+        "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    })
+    os.makedirs(str(args.out_dir), exist_ok=True)
+    report_path = os.path.join(str(args.out_dir), f"{args.eval_name}_scorer_noise.json")
+    with open(report_path, "w") as handle:
+        json.dump(report, handle, sort_keys=True, indent=2)
+        handle.write("\n")
+    report["report_path"] = report_path
+    pairwise = report["aggregate"]["pairwise"]
+    print(f"scorer noise over {report['n_draws']} sampled draws x {report['n_wavs']} RIRs: "
+          f"pairwise cos mean={pairwise['mean']:.6f} p5={pairwise['p5']:.6f} "
+          f"min={pairwise['min']:.6f} -> {report_path}")
     return report

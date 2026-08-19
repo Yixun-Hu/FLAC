@@ -2723,3 +2723,73 @@ def test_run_evaluation_summary_carries_the_probe_block(tmp_path):
     assert probe["n_queries"] == 2 and set(probe["components"]) == set(_PROBE_COMPONENTS)
     assert probe["peak_memory_bytes"] is None                 # CPU run
     assert all("timings_s" in row for row in result["rows"])
+
+
+# --------------------------------------------------------------------------- #
+# r4 item 2c (full-review F2): --mode scorer-noise, the §2.8.3 measurement of
+# what the registered mean readout removes. The engine hard-wires the mean
+# readout, so the sampled path had no reviewed caller.
+# --------------------------------------------------------------------------- #
+def test_measure_scorer_noise_on_identical_draws_is_degenerate():
+    mean = torch.nn.functional.normalize(torch.randn(2, 6), dim=-1)
+    draws = mean.unsqueeze(0).expand(5, 2, 6).contiguous()
+    stats = el.measure_scorer_noise(mean, draws)
+    assert stats["aggregate"]["pairwise"]["mean"] == pytest.approx(1.0, abs=1e-6)
+    assert stats["aggregate"]["pairwise"]["min"] == pytest.approx(1.0, abs=1e-6)
+    assert stats["aggregate"]["vs_mean"]["mean"] == pytest.approx(1.0, abs=1e-6)
+    assert stats["n_draws"] == 5 and stats["n_wavs"] == 2
+
+
+def test_measure_scorer_noise_detects_spread():
+    g = torch.Generator().manual_seed(0)
+    mean = torch.nn.functional.normalize(torch.randn(1, 8, generator=g), dim=-1)
+    draws = torch.nn.functional.normalize(
+        mean.unsqueeze(0) + 0.3 * torch.randn(20, 1, 8, generator=g), dim=-1)
+    stats = el.measure_scorer_noise(mean, draws)
+    assert 0.0 < stats["aggregate"]["pairwise"]["mean"] < 1.0
+    assert stats["aggregate"]["pairwise"]["p5"] <= stats["aggregate"]["pairwise"]["mean"]
+    assert stats["per_wav"][0]["vs_mean"]["mean"] < 1.0
+
+
+def test_measure_scorer_noise_needs_two_draws():
+    mean = torch.nn.functional.normalize(torch.randn(1, 4), dim=-1)
+    with pytest.raises(ValueError):
+        el.measure_scorer_noise(mean, mean.unsqueeze(0))
+
+
+_AGREE_CKPT = os.path.join(_REPO_ROOT, "weights", "AGREE", "AGREE_AR.pt")
+agree_integration = pytest.mark.skipif(
+    not (os.path.isfile(_AGREE_CKPT) and _dinov3_cache_present()),
+    reason="the AGREE checkpoint or the gated DINOv3 HF cache is absent")
+
+
+@agree_integration
+def test_integration_scorer_noise_mode_measures_the_sampled_readout(tmp_path):
+    """The real AGREE, 2 fixture RIRs, 8 draws: the sampled readout must be
+    stochastic and its distance from the registered mean readout quantified."""
+    room = str(tmp_path / "Cafe_idx_1")
+    _write_rir(room, 0, 11, 0.10)
+    _write_rir(room, 3, 11, 0.25)
+    previous = os.getcwd()
+    os.chdir(_REPO_ROOT)
+    try:
+        args = el.validate_args(el.parse_args([
+            "--mode", "scorer-noise", "--model-config", _FLAC_CONFIG,
+            "--dataset-config", _SEEN_CONFIG, "--agree-ckpt", _AGREE_CKPT,
+            "--noise-draws", "8", "--noise-wavs",
+            os.path.join(room, "S000_R0011_hybrid_IR.wav"),
+            os.path.join(room, "S003_R0011_hybrid_IR.wav"),
+            "--out-dir", str(tmp_path / "out"), "--eval-name", "R0_noise", "--device", "cpu"]))
+        report = el.run_scorer_noise(args)
+    finally:
+        os.chdir(previous)
+
+    assert report["n_draws"] == 8 and report["n_wavs"] == 2
+    assert len(report["agree_sha256"]) == 64
+    for block in ("pairwise", "vs_mean"):
+        stats = report["aggregate"][block]
+        assert -1.0 <= stats["min"] <= stats["mean"] <= 1.0 + 1e-6
+        assert stats["p5"] <= stats["mean"] + 1e-6
+    assert report["aggregate"]["pairwise"]["mean"] < 1.0        # genuinely stochastic
+    assert os.path.exists(report["report_path"])
+    assert _json.loads(open(report["report_path"]).read())["n_draws"] == 8
