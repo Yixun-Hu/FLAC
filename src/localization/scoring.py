@@ -15,6 +15,36 @@ import torch
 NORM_TOL = 1e-4
 
 
+def _require_finite(value, what):
+    """Fail closed on NaN / +-Inf.
+
+    Threshold guards alone are not enough: ``NaN > tol`` is False, so a NaN
+    embedding would pass the norm check and a NaN error would be silently scored
+    as a failure. Every numerical entry point routes through here.
+    """
+    if isinstance(value, torch.Tensor):
+        ok = bool(torch.isfinite(value).all())
+    else:
+        ok = bool(np.all(np.isfinite(np.asarray(value, dtype=np.float64))))
+    if not ok:
+        raise ValueError(f"{what} must be finite (no NaN or Inf)")
+    return value
+
+
+def _finite_scalar(value, what):
+    x = float(value)
+    if not math.isfinite(x):
+        raise ValueError(f"{what} must be finite (no NaN or Inf), got {x}")
+    return x
+
+
+def _check_radii(radii):
+    for r in radii:
+        r = _finite_scalar(r, "radius")
+        if r < 0.0:
+            raise ValueError(f"radius must be >= 0, got {r}")
+
+
 def cosine_sims(obs, gen):
     """Cosine similarities between one observation and ``M x K`` generations.
 
@@ -30,6 +60,8 @@ def cosine_sims(obs, gen):
     if gen.shape[-1] != obs.shape[0]:
         raise ValueError(f"embedding dim mismatch: obs {obs.shape[0]} vs gen {gen.shape[-1]}")
 
+    _require_finite(obs, "obs")
+    _require_finite(gen, "gen")
     obs_dev = (obs.norm(dim=-1) - 1.0).abs().max().item()
     if obs_dev > NORM_TOL:
         raise ValueError(f"obs is not L2-normalized (|‖v‖-1| = {obs_dev:g} > {NORM_TOL:g})")
@@ -50,6 +82,7 @@ def aggregate(sims, method="lme", tau=None):
     """
     if sims.ndim != 2:
         raise ValueError(f"sims must be [M, K], got shape {tuple(sims.shape)}")
+    _require_finite(sims, "sims")
     if method == "mean":
         return sims.mean(dim=-1)
     if method == "max":
@@ -57,7 +90,7 @@ def aggregate(sims, method="lme", tau=None):
     if method == "lme":
         if tau is None:
             raise ValueError("method 'lme' requires tau")
-        tau = float(tau)
+        tau = _finite_scalar(tau, "tau")
         if tau <= 0.0:
             raise ValueError(f"tau must be > 0 for method 'lme', got {tau}")
         return tau * (torch.logsumexp(sims / tau, dim=-1) - math.log(sims.shape[-1]))
@@ -68,6 +101,7 @@ def predict_index(scores):
     """Index of the highest score, ties broken by lowest index (registered)."""
     if scores.ndim != 1 or scores.numel() == 0:
         raise ValueError(f"scores must be a non-empty [M] tensor, got shape {tuple(scores.shape)}")
+    _require_finite(scores, "scores")
     winners = torch.nonzero(scores == scores.max(), as_tuple=False)
     return int(winners[0].item())
 
@@ -76,7 +110,8 @@ def softmax_map(scores, T):
     """Temperature-``T`` softmax over candidates: a [M] distribution summing to 1."""
     if scores.ndim != 1 or scores.numel() == 0:
         raise ValueError(f"scores must be a non-empty [M] tensor, got shape {tuple(scores.shape)}")
-    T = float(T)
+    _require_finite(scores, "scores")
+    T = _finite_scalar(T, "T")
     if T <= 0.0:
         raise ValueError(f"T must be > 0, got {T}")
     return torch.softmax(scores / T, dim=-1)
@@ -86,7 +121,7 @@ def _point(value, what):
     xyz = torch.as_tensor(value, dtype=torch.float64).reshape(-1)
     if xyz.numel() != 3:
         raise ValueError(f"{what} must be 3 coordinates, got {tuple(torch.as_tensor(value).shape)}")
-    return xyz
+    return _require_finite(xyz, what)
 
 
 def localization_error(pred_xyz, gt_xyz):
@@ -96,17 +131,17 @@ def localization_error(pred_xyz, gt_xyz):
 
 def success_within(error, radius):
     """``True`` iff ``error <= radius`` -- the boundary counts as a success."""
-    radius = float(radius)
+    radius = _finite_scalar(radius, "radius")
     if radius < 0.0:
         raise ValueError(f"radius must be >= 0, got {radius}")
-    return bool(float(error) <= radius)
+    return bool(_finite_scalar(error, "error") <= radius)
 
 
 def _points(value, what):
     xyz = torch.as_tensor(value, dtype=torch.float64)
     if xyz.ndim != 2 or xyz.shape[1] != 3 or xyz.shape[0] == 0:
         raise ValueError(f"{what} must be a non-empty [N, 3] array, got shape {tuple(xyz.shape)}")
-    return xyz
+    return _require_finite(xyz, what)
 
 
 def _gt_index(cand, gt):
@@ -121,9 +156,7 @@ def _gt_index(cand, gt):
 def _expectations(distances, radii):
     """Exact expectations of a uniform draw over the eligible candidates."""
     n = int(distances.numel())
-    for r in radii:
-        if float(r) < 0.0:
-            raise ValueError(f"radius must be >= 0, got {r}")
+    _check_radii(radii)
     return {
         "n_eligible": n,
         "distances": [float(d) for d in distances],
@@ -188,6 +221,7 @@ def nearest_context_baseline(cand_xyz, ctx_xyz, ctx_sims):
     sims = torch.as_tensor(ctx_sims, dtype=torch.float64).reshape(-1)
     if sims.numel() != ctx.shape[0]:
         raise ValueError(f"ctx_sims has {sims.numel()} entries for {ctx.shape[0]} context sources")
+    _require_finite(sims, "ctx_sims")
     best_ctx = predict_index(sims)
     return predict_index(-torch.linalg.norm(cand - ctx[best_ctx], dim=-1))
 
@@ -219,6 +253,7 @@ def power_statistic(sims):
         raise ValueError("power_statistic needs at least 2 candidates")
     if sims.shape[1] < 2:
         raise ValueError("power_statistic needs at least 2 samples per candidate")
+    _require_finite(sims, "sims")
     s = sims.double()
     between = torch.var(s.mean(dim=-1))
     within = torch.var(s, dim=-1).mean()
@@ -249,6 +284,7 @@ def _record_values(rec):
             raise ValueError(f"record has an empty 'distances' list: {rec!r}")
     else:
         values = np.asarray([float(rec["e_loc"])], dtype=np.float64)
+    _require_finite(values, f"record {'distances' if has_dist else 'e_loc'}")
     return values, np.full(values.shape, 1.0 / values.size, dtype=np.float64)
 
 
@@ -273,7 +309,8 @@ def _optional_column(records, key):
     ``ValueError`` if only some records carry it (silent mixing would bias it)."""
     present = [key in rec for rec in records]
     if all(present):
-        return np.asarray([float(rec[key]) for rec in records], dtype=np.float64)
+        return _require_finite(
+            np.asarray([float(rec[key]) for rec in records], dtype=np.float64), f"record {key!r}")
     if any(present):
         raise ValueError(f"field {key!r} is present in only {sum(present)}/{len(records)} records")
     return None
@@ -304,9 +341,7 @@ def summarize(records, radii=DEFAULT_RADII):
     records = list(records)
     if not records:
         raise ValueError("summarize needs at least one record")
-    for r in radii:
-        if float(r) < 0.0:
-            raise ValueError(f"radius must be >= 0, got {r}")
+    _check_radii(radii)
 
     per_query = [_record_values(rec) for rec in records]
     top1 = _optional_column(records, "top1")

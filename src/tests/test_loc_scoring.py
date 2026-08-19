@@ -655,3 +655,105 @@ def test_paired_room_clustered_test_rejects_unpaired_inputs():
     with pytest.raises(ValueError):
         paired_room_clustered_test([{"room_id": "A/A_idx_0", "e_loc": 1.0}],
                                    [{"room_id": "A/A_idx_0", "e_loc": 1.0}], n=10, seed=0)
+
+
+# --------------------------------------------------------------------------- #
+# r1 fix F1 (review finding 1): non-finite values must fail closed everywhere.
+# `NaN > tol` is False, so a bare threshold check lets NaN through and the
+# pipeline then reports superficially valid success/top-1 numbers next to NaN
+# errors. Every entry point rejects NaN and +/-Inf instead.
+# --------------------------------------------------------------------------- #
+_NONFINITE = [float("nan"), float("inf"), float("-inf")]
+
+
+@pytest.mark.parametrize("bad", _NONFINITE)
+def test_cosine_sims_rejects_nonfinite_obs_and_gen(bad):
+    obs = _unit(1.0, 0.0, 0.0)
+    gen = torch.stack([torch.stack([_unit(1.0, 0.0, 0.0)])])
+    with pytest.raises(ValueError):
+        cosine_sims(torch.tensor([bad, 0.0, 0.0]), gen)
+    bad_gen = gen.clone()
+    bad_gen[0, 0, 1] = bad
+    with pytest.raises(ValueError):
+        cosine_sims(obs, bad_gen)
+
+
+@pytest.mark.parametrize("bad", _NONFINITE)
+@pytest.mark.parametrize("method", ["lme", "mean", "max"])
+def test_aggregate_rejects_nonfinite_sims(bad, method):
+    with pytest.raises(ValueError):
+        aggregate(torch.tensor([[0.5, bad]]), method, tau=0.02)
+
+
+@pytest.mark.parametrize("bad", _NONFINITE)
+def test_aggregate_rejects_nonfinite_tau(bad):
+    with pytest.raises(ValueError):
+        aggregate(_SIMS, "lme", tau=bad)
+
+
+@pytest.mark.parametrize("bad", _NONFINITE)
+def test_softmax_map_and_predict_index_reject_nonfinite(bad):
+    with pytest.raises(ValueError):
+        softmax_map(torch.tensor([0.1, bad]), T=0.2)
+    with pytest.raises(ValueError):
+        softmax_map(torch.tensor([0.1, 0.9]), T=bad)
+    with pytest.raises(ValueError):
+        predict_index(torch.tensor([0.1, bad]))
+
+
+@pytest.mark.parametrize("bad", _NONFINITE)
+def test_power_statistic_rejects_nonfinite_sims(bad):
+    with pytest.raises(ValueError):
+        power_statistic(torch.tensor([[0.1, 0.2], [0.3, bad]]))
+
+
+@pytest.mark.parametrize("bad", _NONFINITE)
+def test_localization_error_and_success_within_reject_nonfinite(bad):
+    with pytest.raises(ValueError):
+        localization_error([0.0, 0.0, 0.0], [1.0, bad, 0.0])
+    with pytest.raises(ValueError):
+        success_within(bad, 1.0)
+    with pytest.raises(ValueError):
+        success_within(0.5, bad)
+
+
+@pytest.mark.parametrize("bad", _NONFINITE)
+def test_baselines_reject_nonfinite_coordinates(bad):
+    """A NaN candidate used to give success@1 = 0.5 with a NaN mean error."""
+    cand = _CAND.clone()
+    cand[2, 0] = bad
+    with pytest.raises(ValueError):
+        uniform_baseline(cand, _GT)
+    with pytest.raises(ValueError):
+        context_conditioned_baseline(cand, _GT, [False, True, False, True])
+    with pytest.raises(ValueError):
+        uniform_baseline(_CAND, torch.tensor([bad, 0.0, 0.0]))
+    with pytest.raises(ValueError):
+        nearest_context_baseline(cand, _CTX, torch.tensor([0.2, 0.8]))
+    with pytest.raises(ValueError):
+        nearest_context_baseline(_CAND, _CTX, torch.tensor([0.2, bad]))
+
+
+@pytest.mark.parametrize("bad", _NONFINITE)
+def test_summarize_rejects_nonfinite_records(bad):
+    """A NaN e_loc used to be silently counted as a failure rather than refused."""
+    with pytest.raises(ValueError):
+        summarize([{"room_id": "A/A_idx_0", "e_loc": bad}])
+    with pytest.raises(ValueError):
+        summarize([{"room_id": "A/A_idx_0", "distances": [1.0, bad]}])
+    with pytest.raises(ValueError):
+        summarize([{"room_id": "A/A_idx_0", "e_loc": 1.0, "top1": bad, "rr": 1.0}])
+    with pytest.raises(ValueError):
+        summarize([{"room_id": "A/A_idx_0", "e_loc": 1.0, "rr": bad}])
+    with pytest.raises(ValueError):
+        summarize([{"room_id": "A/A_idx_0", "e_loc": 1.0}], radii=(bad,))
+
+
+@pytest.mark.parametrize("bad", _NONFINITE)
+def test_bootstrap_helpers_reject_nonfinite_records(bad):
+    recs = [{"query_id": "q0", "room_id": "A/A_idx_0", "e_loc": bad}]
+    with pytest.raises(ValueError):
+        clustered_bootstrap_ci(recs, n=10, seed=0)
+    other = [{"query_id": "q0", "room_id": "A/A_idx_0", "e_loc": 1.0}]
+    with pytest.raises(ValueError):
+        paired_room_clustered_test(recs, other, n=10, seed=0)
