@@ -1202,6 +1202,7 @@ def main(argv=None):
     # Seeded exactly where evaluate_model seeds it -- after the model build and
     # before the loader, because the per-item context draw happens in the workers.
     pl.seed_everything(args.seed, workers=True)
+    dataset_config = load_dataset_config(args)
     loader = build_dataloader(args, model_config, dataset_config)
 
     if args.parity_check:
