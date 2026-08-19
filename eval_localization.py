@@ -316,10 +316,20 @@ def context_membership_mask(cand_cam_xyz, context_ids, gt_index=None):
     return mask
 
 
-def gt_reciprocal_rank(scores, gt_index):
-    """Reciprocal rank of the GT candidate, ties broken by lowest index."""
+def gt_reciprocal_rank(scores, gt_index, available=None):
+    """Reciprocal rank of the GT candidate, ties broken by lowest index.
+
+    Ranked over the AVAILABLE candidates only: in ``gt_rir`` mode a candidate
+    without a measured file carries a placeholder score, and letting a placeholder
+    out-rank the GT would understate the oracle (r3 review finding 8).
+    """
     scores = torch.as_tensor(scores).reshape(-1)
     gt_index = int(gt_index)
+    if available is not None:
+        keep = [i for i, flag in enumerate(available) if flag]
+        if gt_index not in keep:
+            raise ValueError(f"GT candidate {gt_index} is not available; its rank is undefined")
+        gt_index, scores = keep.index(gt_index), scores[torch.tensor(keep, dtype=torch.long)]
     gt_score = scores[gt_index]
     better = int((scores > gt_score).sum())
     tied_before = int((scores[:gt_index] == gt_score).sum())
@@ -387,7 +397,7 @@ def build_row(query_id, room_id, relpath, receiver_node, cand_set, cam_xyz, sims
         "pred_xyz_world": [float(v) for v in cand_set.xyz_world[pred_index]],
         "e_loc": float(error),
         "top1": 1.0 if pred_index == gt_index else 0.0,
-        "rr": gt_reciprocal_rank(scores, gt_index),
+        "rr": gt_reciprocal_rank(scores, gt_index, available=available),
         "tau": float(tau) if tau is not None else None,
         "agg": agg,
         "control": control,
@@ -547,7 +557,7 @@ def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source
         "n_queries": int(n_queries),
         "weights_source": weights_source,
         "readout": "mean",
-        "num_samples": int(args.num_samples),
+        "num_samples": effective_num_samples(args),
         "tau": float(args.tau) if args.tau is not None else None,
         "agg": args.agg,
         "steps": int(args.steps),
@@ -571,12 +581,18 @@ def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source
     }
 
 
-def output_paths(out_dir, eval_name, num_samples, seed, smoke):
+def effective_num_samples(args):
+    """K actually used: the oracle scores exactly one measured RIR per candidate."""
+    return 1 if args.score_source == "gt_rir" else int(args.num_samples)
+
+
+def output_paths(out_dir, eval_name, num_samples, seed, smoke, score_source="flac"):
     """``(rows_path, summary_path)``; the seed and K are in the name because the
     protocol runs three seeds, and a smoke run is stamped so it can never be
     mistaken for a headline artifact."""
     os.makedirs(str(out_dir), exist_ok=True)
-    stem = f"{eval_name}_K{int(num_samples)}_seed{int(seed)}" + ("_smoke" if smoke else "")
+    tag = "gt_rir_K1" if score_source == "gt_rir" else f"K{int(num_samples)}"
+    stem = f"{eval_name}_{tag}_seed{int(seed)}" + ("_smoke" if smoke else "")
     return (os.path.join(str(out_dir), f"{stem}_rows.jsonl"),
             os.path.join(str(out_dir), f"{stem}_summary.json"))
 
@@ -622,8 +638,14 @@ def measured_rir_paths(room_wav_dir, cand_set, receiver_node):
                 src, rec = parse_ir_filename(fname)
             except ValueError:
                 continue
-            if rec == int(receiver_node):
-                by_source[src] = os.path.join(room_wav_dir, fname)
+            if rec != int(receiver_node):
+                continue
+            if src in by_source:
+                raise ValueError(
+                    f"two files claim S{src}_R{receiver_node} in {room_wav_dir}: "
+                    f"{os.path.basename(by_source[src])} and {fname}; which RIR the oracle "
+                    "scored would be unresolvable")
+            by_source[src] = os.path.join(room_wav_dir, fname)
     return [by_source.get(int(node)) for node in cand_set.nodes]
 
 
@@ -673,8 +695,13 @@ def run_query_gt_rir(engine, cand_set, room_wav_dir, receiver_node, obs_wav):
             sims[index, 0] = present[cursor, 0]
             cursor += 1
     gt_index = cand_set.gt_index
+    if not available[gt_index]:
+        raise ValueError(
+            f"the identity (GT) candidate S{cand_set.gt_node}_R{receiver_node} has no measured "
+            f"RIR in {room_wav_dir}; the oracle would be scoring a query whose own answer is "
+            "not in the scored set")
     return {"sims": sims, "available": available, "cand_cam_xyz": candidate_camera_positions(cand_set),
-            "identity_index": gt_index if available[gt_index] else None,
+            "identity_index": gt_index,
             "num_candidates": len(cand_set.nodes), "num_samples": 1}
 
 
@@ -750,6 +777,13 @@ def validate_args(args):
         _refuse(f"--batch-size must be >= 1, got {args.batch_size}")
     if args.agg == "lme" and args.tau is not None and not math.isfinite(float(args.tau)):
         _refuse(f"--tau must be finite for --agg lme, got {args.tau}")
+    if args.score_source == "gt_rir":
+        for flag, value in (("--ckpt-path", args.ckpt_path),
+                            ("--parity-check", args.parity_check),
+                            ("--control constant_source", args.control == "constant_source")):
+            if value:
+                _refuse(f"{flag} is meaningless under --score-source gt_rir (no generation "
+                        "happens); refusing rather than recording a protocol that did not run")
     if args.score_source == "flac" and not args.ckpt_path:
         _refuse("--ckpt-path is required to score generated RIRs; only --score-source gt_rir "
                 "(the measured-RIR oracle) runs without a checkpoint")
@@ -1036,8 +1070,9 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256):
         (md for _reals, md in itertools.islice(_iter_items(loader), len(expected))), expected)
     print(f"identity audit passed: {len(expected)} queries, split_hash={split[:12]}...")
 
-    rows_path, summary_path = output_paths(args.out_dir, args.eval_name, args.num_samples,
-                                           args.seed, args.smoke)
+    rows_path, summary_path = output_paths(args.out_dir, args.eval_name,
+                                           effective_num_samples(args), args.seed, args.smoke,
+                                           score_source=args.score_source)
     rows, seen_rooms = [], set()
     with open(rows_path, "w") as handle:
         for obs_wav, md in itertools.islice(_iter_items(loader), len(expected)):

@@ -820,7 +820,9 @@ def test_num_samples_is_required_for_generation_and_optional_for_the_oracle():
     there; generation cannot proceed without it."""
     with pytest.raises(SystemExit):
         el.validate_args(el.parse_args(_CLI[:-2]))
-    el.validate_args(el.parse_args(_CLI[:-2] + ["--score-source", "gt_rir"]))
+    oracle = ["--model-config", "m.json", "--dataset-config", "d.json", "--agree-ckpt", "a.pt",
+              "--score-source", "gt_rir"]
+    el.validate_args(el.parse_args(oracle))
 
 
 @pytest.mark.parametrize("flag,value", [("--agg", "median"), ("--cond-method", "canon"),
@@ -1165,9 +1167,12 @@ def _fake_run(tmp_path, nodes=(3, 0), batch_size=2):
 
 
 def _run_args(tmp_path, **over):
+    oracle = over.get("--score-source") == "gt_rir"
     argv = ["--model-config", "m.json", "--dataset-config", "d.json",
-            "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt", "--num-samples", "2",
+            "--agree-ckpt", "a.pt", "--num-samples", "2",
             "--out-dir", str(tmp_path / "out"), "--eval-name", "unit", "--device", "cpu"]
+    if not oracle:      # the oracle refuses a checkpoint: no generation happens (r3 fix F8)
+        argv += ["--ckpt-path", "c.ckpt"]
     for flag, value in over.items():
         argv += [flag] if value is True else [flag, str(value)]
     return el.validate_args(el.parse_args(argv))
@@ -1435,3 +1440,65 @@ def test_load_and_validate_artifacts_skips_the_checkpoint_for_the_oracle(tmp_pat
          "--score-source", "gt_rir"]))
     model_config, ckpt = el.load_and_validate_artifacts(args)
     assert ckpt is None and model_config["sample_size"] == 10240
+
+
+# --------------------------------------------------------------------------- #
+# r3 fix F8 (review finding 8): gt_rir must be unambiguous and must not record a
+# protocol it did not run.
+# --------------------------------------------------------------------------- #
+def test_measured_rir_paths_reject_duplicate_numeric_matches(tmp_path):
+    room = str(tmp_path / "Cafe_idx_1")
+    _write_rir(room, 3, 11, 0.2)
+    _write_rir(room, 3, 11, 0.3, name="S003_R011_hybrid_IR.wav")      # same (3, 11)
+    with pytest.raises(ValueError):
+        el.measured_rir_paths(room, _cand_set(), receiver_node=11)
+
+
+def test_run_query_gt_rir_aborts_when_the_identity_candidate_is_missing(tmp_path):
+    room = str(tmp_path / "Cafe_idx_1")
+    _write_rir(room, 0, 11, 0.1)                                      # GT (node 3) absent
+    _rec, engine = _engine()
+    cand = _cand_set()
+    with pytest.raises(ValueError):
+        el.run_query_gt_rir(engine, cand, room, 11, torch.full((1, 1, 8000), 0.1))
+
+
+def test_gt_reciprocal_rank_ranks_over_available_candidates_only():
+    scores = torch.tensor([0.99, 0.50, 0.10])
+    assert el.gt_reciprocal_rank(scores, 1) == pytest.approx(0.5)
+    # candidate 0 has no measured file: it must not out-rank the GT
+    assert el.gt_reciprocal_rank(scores, 1, available=[False, True, True]) == pytest.approx(1.0)
+    assert el.gt_reciprocal_rank(scores, 2, available=[False, True, True]) == pytest.approx(0.5)
+
+
+def test_build_row_rank_uses_the_available_set(tmp_path):
+    kwargs = _row_kwargs(sims=torch.tensor([[0.99], [0.10], [0.50]], dtype=torch.float32),
+                         noise_keys=[], available=[False, True, True],
+                         score_source="gt_rir", identity_index=1, agg="max", tau=None)
+    row = el.build_row(**kwargs)
+    assert row["rr"] == pytest.approx(0.5)          # GT second among the two available
+    assert row["pred_index"] == 2
+
+
+@pytest.mark.parametrize("extra", [["--ckpt-path", "c.ckpt"],
+                                   ["--control", "constant_source"],
+                                   ["--parity-check"]])
+def test_validate_args_refuses_irrelevant_flags_in_oracle_mode(extra):
+    argv = ["--model-config", "m.json", "--dataset-config", "d.json", "--agree-ckpt", "a.pt",
+            "--score-source", "gt_rir"] + extra
+    with pytest.raises(SystemExit):
+        el.validate_args(el.parse_args(argv))
+
+
+def test_output_paths_and_provenance_record_the_oracle_as_k1(tmp_path):
+    args = el.validate_args(el.parse_args(
+        ["--model-config", "m.json", "--dataset-config", "d.json", "--agree-ckpt", "a.pt",
+         "--score-source", "gt_rir", "--out-dir", str(tmp_path), "--eval-name", "R_minus_1"]))
+    assert el.effective_num_samples(args) == 1
+    rows, summary = el.output_paths(args.out_dir, args.eval_name, el.effective_num_samples(args),
+                                    args.seed, args.smoke, score_source=args.score_source)
+    assert os.path.basename(rows) == "R_minus_1_gt_rir_K1_seed42_rows.jsonl"
+    assert "gt_rir_K1" in os.path.basename(summary)
+    record = el.build_provenance(args, ckpt_sha256="n/a", agree_sha256="b", split_hash="c",
+                                 weights_source="n/a", n_queries=3)
+    assert record["num_samples"] == 1 and record["score_source"] == "gt_rir"
