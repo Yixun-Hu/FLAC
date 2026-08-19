@@ -499,3 +499,43 @@ def test_assert_gt_matches_loader_aborts_on_nonfinite_loader_source(tmp_path, ba
     cs = build_candidate_set(_ir_path(tmp_path, 7, 3), tmp_path / "metadata")
     with pytest.raises(AssertionError):
         assert_gt_matches_loader(cs, {"source": torch.tensor([bad, 0.0, 0.0])})
+
+
+# --------------------------------------------------------------------------- #
+# r1 fix F2 (review finding 2): cross-node src_loc uniqueness.
+# The candidate authority is enumerate_metadata_sources (plan §2.2), so the
+# invariant is enforced there: two DIFFERENT nodes at the same (or
+# tolerance-equivalent) position would make "the candidate equal to gt_xyz"
+# ambiguous downstream instead of failing here.
+# --------------------------------------------------------------------------- #
+def test_enumerate_metadata_sources_rejects_duplicate_positions_across_nodes(tmp_path):
+    room = _build_room(tmp_path)
+    for rec, rec_loc in _REC_LOCS.items():
+        _write_pair(room, 10, rec, _SRC_LOCS[7], rec_loc)      # node 10 sits on node 7
+    with pytest.raises(ValueError):
+        enumerate_metadata_sources(room)
+
+
+def test_enumerate_metadata_sources_rejects_tolerance_equivalent_positions(tmp_path):
+    room = _build_room(tmp_path)
+    nudged = tuple(v + 5e-7 for v in _SRC_LOCS[7])             # within SRC_LOC_TOL = 1e-6
+    for rec, rec_loc in _REC_LOCS.items():
+        _write_pair(room, 10, rec, nudged, rec_loc)
+    with pytest.raises(ValueError):
+        enumerate_metadata_sources(room)
+
+
+def test_enumerate_metadata_sources_accepts_positions_just_outside_tolerance(tmp_path):
+    room = _build_room(tmp_path)
+    apart = (_SRC_LOCS[7][0] + 1e-3, _SRC_LOCS[7][1], _SRC_LOCS[7][2])
+    for rec, rec_loc in _REC_LOCS.items():
+        _write_pair(room, 10, rec, apart, rec_loc)
+    assert sorted(enumerate_metadata_sources(room)) == [0, 7, 10]
+
+
+def test_build_candidate_set_inherits_the_uniqueness_invariant(tmp_path):
+    room = _build_room(tmp_path)
+    for rec, rec_loc in _REC_LOCS.items():
+        _write_pair(room, 10, rec, _SRC_LOCS[7], rec_loc)
+    with pytest.raises(ValueError):
+        build_candidate_set(_ir_path(tmp_path, 7, 3), tmp_path / "metadata")

@@ -95,8 +95,10 @@ def enumerate_metadata_sources(meta_room_dir):
     """``{src_node: xyz_world}`` for every source in the room's pair JSONs.
 
     This is the candidate authority (C7): the candidate set is what ``metadata/``
-    declares, not what the wav directory happens to contain. ``src_loc`` must be
-    consistent across the receivers that observe the same source (``SRC_LOC_TOL``).
+    declares, not what the wav directory happens to contain. Two invariants are
+    enforced at this single authoritative place (plan §2.2): ``src_loc`` is
+    consistent across the receivers that observe the same source, and no two
+    DIFFERENT nodes share a position -- both within ``SRC_LOC_TOL``.
     """
     pairs = _pair_files(meta_room_dir)
     if not pairs:
@@ -111,7 +113,15 @@ def enumerate_metadata_sources(meta_room_dir):
                     f"{os.path.basename(seen_in[src])} vs {xyz.tolist()} in {os.path.basename(path)}")
         else:
             sources[src], seen_in[src] = xyz, path
-    return {node: sources[node] for node in sorted(sources)}
+    nodes = sorted(sources)
+    for i, node_a in enumerate(nodes):
+        for node_b in nodes[i + 1:]:
+            if np.allclose(sources[node_a], sources[node_b], rtol=0.0, atol=SRC_LOC_TOL):
+                raise ValueError(
+                    f"sources {node_a} and {node_b} share the position "
+                    f"{sources[node_a].tolist()} (within {SRC_LOC_TOL:g} m) in {meta_room_dir}; "
+                    "candidate identity would be ambiguous")
+    return {node: sources[node] for node in nodes}
 
 
 def _xyz(value, what):
