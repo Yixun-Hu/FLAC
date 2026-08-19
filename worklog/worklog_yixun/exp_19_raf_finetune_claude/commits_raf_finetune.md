@@ -19,3 +19,5 @@
 | `b8ae279` | r1 TDD cycle 10: RAF_md context (train stochastic / eval deterministic), provenance tensors, collation contract (30 tests) |
 | `0a3e600` | r1 TDD cycle 11: RAF model + 3 dataset configs, pinned by a HAA-template diff whitelist (7 tests) |
 | `6c1432e` | r1 TDD cycle 12: RAF in `metric_callback` + `RT60Error` (9600 window, per-scene, T30) + fail-closed FD/retrieval guard + AR/HAA regressions (21 tests) |
+| `92bb9d3` | r1 ledger catch-up row for cycle 12 |
+| `1d1af86` | r1 TDD cycle 13: `all_rx` trailing all-NaN sentinel rule (Amendment 1 D1) — accepted once, recorded in `RoomIndex` + splits record; every other mismatch/NaN still aborts (70 tests) |
