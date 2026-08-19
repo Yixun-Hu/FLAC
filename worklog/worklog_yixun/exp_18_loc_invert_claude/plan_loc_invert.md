@@ -98,3 +98,14 @@ exp_01 K_ctx=8 eval ≈ **13 min**/seed (not the K=1 run's 6.5). Naive ×80 samp
 
 ## 10. Deliverables
 As Rev 2. Cross-arm table out of scope.
+
+---
+
+## Rev 3.1 amendment (2026-08-20, Planner; post rung-4 readback + integrative full review — factual corrections and enforcement hardenings, no change to the approved science protocol)
+
+1. **LRH_idx_30 corrected (rung 4 fact):** ALL 17 unseen rooms have 10 metadata-defined sources ⇒ M=10 everywhere; LRH's source 10 has metadata but no wavs ⇒ its eligible set = {GT, S10} = 2, the same 50% information-matched chance as every other room. §2.6's gt_only exclusion clause is retained purely as a guard; it is expected never to fire. Oracle eligibility shrinks by one in LRH by design. No second measurement channel exists ⇒ identity-oracle is sanity-only (the §2.6 fallback stands).
+2. **Frozen candidate manifest (full-review F1):** candidates are precomputed once per run into a room-level manifest (nodes, coordinates, wav availability), consistency-checked, sha256-hashed into provenance, and consumed from memory per query — no per-query disk enumeration. The same manifest hash is required across seeds/arms (enforced via item 4).
+3. **Reviewed entry points (full-review F2):** `--mode readback` (R-1 gate), always-on per-query component timing + CUDA peak-memory in run summaries (R0's probe = its smoke summary), `--mode scorer-noise` (§2.8.3 measurement), `--mode reaggregate` (R1's offline τ/agg/K′ sweep + the registered smallest-τ selection) — all TDD'd and Codex-reviewed like everything else.
+4. **Machine-checked registration (full-review F4):** registered unseen runs require a committed JSON registration manifest locking {config hashes, ckpt/scorer shas, K, τ, agg, cond-method, autocast, steps, cfg-scale, seeds, readout, candidate-manifest hash}; the driver verifies `--registration-sha` is a real commit containing that exact manifest and refuses any locked-field mismatch BEFORE loading models.
+5. **Cell-unique artifact names + no silent overwrite (full-review F5); complete device provenance (F6); all validation before model loads (F7); fail-closed context evidence for AR rows (F3); finite `--frame-avg-angles` (Part-1 #9 leftover).**
+6. **R0 smoke identities:** the exact first-N seen-split identities are recorded in `_params_set_up.md` at R0 launch (per full-review launch conditions).

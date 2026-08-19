@@ -149,3 +149,9 @@
   2. **All 17 unseen rooms have 10 metadata sources** (candidate authority ⇒ M=10 everywhere). `LivingRoomsWithHallway_idx_30`'s source 10 has metadata but ZERO wavs (225 = 9×25 on disk) ⇒ context can never contain it ⇒ its eligible set = {GT, S10} = 2, same 50% information-matched chance as the other rooms; the gt_only exclusion clause will never fire (kept as a guard). Oracle eligibility shrinks by one there, by design.
   3. **No second measurement channel exists** (`single_channel_ir_zip` = per-scene zips of channel 1) ⇒ non-trivial oracle variant unavailable; identity-oracle = sanity-only, per plan fallback. Depth maps: per-receiver (256,512) float64 — matches AR_md. Wav sanity: (1,64542)@22050.
 - **Next** — Integrative full review verdict → R-1 launch (params/command/acceptance-criteria written at launch per SOP).
+
+## 2026-08-20T00:40:00-0400 — Integrative full review: r3 CLOSED; launches HELD pending r4 batch; plan Rev 3.1
+
+- **Result** — Codex full review: **r3 formally CLOSED** (Part 1: 7 RESOLVED, 2 PARTIALLY — leftovers folded into r4). New: 4 HIGH (frozen candidate manifest; reviewed R-1/R0/R1 entry points; fail-open context control; toothless registration gate), 2 MEDIUM (cell-name collisions; device provenance), 1 NIT (late refusal). Verdict REQUEST-CHANGES; R-1/R0/R1/R2 all HELD until the r4 fix batch passes a focused review. Review independently confirmed the rung-4 M=10 finding and endorsed the autocast ruling CONDITIONAL on the frozen manifest.
+- **Change** — plan Rev 3.1 amendment appended (factual LRH correction + enforcement hardenings; no science-protocol change ⇒ Yixun informed, not re-gated).
+- **Next** — Coder r4 batch (F1–F7 + Part-1 leftovers) → focused Codex fix review → launches.

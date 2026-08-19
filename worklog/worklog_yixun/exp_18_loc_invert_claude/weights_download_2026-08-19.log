@@ -1,0 +1,6 @@
+[33m⚠️  Warning: 'huggingface-cli download' is deprecated. Use 'hf download' instead.[0m
+Fetching 7 files:   0%|          | 0/7 [00:00<?, ?it/s]Fetching 7 files: 100%|██████████| 7/7 [00:00<00:00, 582.77it/s]
+/home/yixunhu/codespace/FLAC/weights/FLAC
+[33m⚠️  Warning: 'huggingface-cli download' is deprecated. Use 'hf download' instead.[0m
+Fetching 5 files:   0%|          | 0/5 [00:00<?, ?it/s]Fetching 5 files: 100%|██████████| 5/5 [00:00<00:00, 531.92it/s]
+/home/yixunhu/codespace/FLAC/weights/AGREE
