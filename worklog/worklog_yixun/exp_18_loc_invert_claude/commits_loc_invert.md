@@ -44,3 +44,13 @@
 | `e16ac40` | r2 cycle 3: `load_agree_audio` — reuses `loading_AGREE_model`, freezes + asserts eval/no-grad, CWD guard for the CWD-relative `VAE.ckpt`, `LoadedAgree` with ckpt sha256 | +123 −1 |
 | `836f16a` | r2 cycle 4: integration tests on the real AGREE scorer (skipif on assets; frozen/eval, deterministic unit-norm [2,512], sampled path stochastic, RNG isolation) | +71 |
 | `4a4ff7e` | r2 cycle 5: explicit O18 pads-only-never-crops test over T ∈ {1 … 20000} | +15 |
+| `ec496f3` | ledger append for round 2 | +12 |
+
+### Round 2 fix batch (Codex review `loc_invert_codex_code_r2_review.md`, APPROVE-WITH-CHANGES)
+
+| SHA | Finding | Description | changed lines |
+|---|---|---|---|
+| `4d8f11c` | F3 (MED #3) + F4 (NIT #4) | `config_name` removed — the guard validates the config the reused loader builds (tied to its source), `os.path.isfile` for relative **and** absolute `pretrained`; eval-mode refusal walks `named_modules` so a train-mode child is refused | +75 −14 |
+| `58054d7` | F5 (NIT #5) | parity test now *traverses* the dependency route (real `AcousticMetricsCallback.max_len` + real `Retrieval.update` → `compute_audio_features` with a recording fake AGREE); mutation-verified | +37 |
+| `50b3f66` | F1 (MED #1) | integration asset detection anchored at the repo root via `__file__`; module-scoped `repo_root_cwd` fixture; regression test that present assets never skip | +37 −6 |
+| `22bf0ad` | F2 (MED #2) | real-model B=8 vs 8×B=1 batch invariance (atol 1e-6) + CUDA-conditional CPU&CUDA RNG-isolation test with a sampled-path companion | +56 |
