@@ -19,11 +19,13 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 import numpy as np
 import torch
 
-from eval_FLAC import CONTEXT_ID_PRECISION, sample_target_id
+from eval_FLAC import (CONTEXT_ID_PRECISION, orbit_provenance, sample_target_id,
+                       source_sha)
 from src.localization.candidates import (assert_gt_matches_loader, candidate_metadata,
                                          project_to_camera)
 from src.localization.scoring import (DEFAULT_RADII, aggregate, context_conditioned_baseline,
@@ -455,3 +457,85 @@ def summarize_run(rows, radii=DEFAULT_RADII):
         "n_queries": len(rows),
         "n_rooms": len({row["room_id"] for row in rows}),
     }
+
+
+def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source, n_queries):
+    """Everything needed to reproduce or falsify the run, in one record.
+
+    Announcement 05: a row is only interpretable next to the protocol it was
+    produced under, so every pinned quantity is written down -- including the
+    dataloader parallelism, which the per-item context draw depends on (O8), the
+    resolved weights source (O9) and the scorer readout (§2.4).
+    """
+    orbit_execution, frame_avg_cap = orbit_provenance(args.cond_method)
+    angles = "n/a" if args.cond_method != "fa_invariant" else (
+        None if args.frame_avg_angles is None else [float(a) for a in args.frame_avg_angles])
+    return {
+        "experiment": "exp_18_loc_invert",
+        "source_sha": source_sha(),
+        "model_config": args.model_config,
+        "dataset_config": args.dataset_config,
+        "ckpt_path": args.ckpt_path,
+        "ckpt_sha256": ckpt_sha256,
+        "agree_ckpt": args.agree_ckpt,
+        "agree_sha256": agree_sha256,
+        "split_hash": split_hash,
+        "n_queries": int(n_queries),
+        "weights_source": weights_source,
+        "readout": "mean",
+        "num_samples": int(args.num_samples),
+        "tau": float(args.tau) if args.tau is not None else None,
+        "agg": args.agg,
+        "steps": int(args.steps),
+        "cfg_scale": float(args.cfg_scale),
+        "seed": int(args.seed),
+        "cond_method": args.cond_method,
+        "frame_avg_angles": angles,
+        "rotate_deg": float(args.rotate_deg),
+        "cond_autocast": args.cond_autocast,
+        "orbit_execution": orbit_execution,
+        "frame_avg_fwd_cap": frame_avg_cap,
+        "score_source": args.score_source,
+        "control": args.control,
+        "batch_size": int(args.batch_size),
+        "num_workers": int(args.num_workers),
+        "smoke": bool(args.smoke),
+        "max_queries": None if args.max_queries is None else int(args.max_queries),
+        "eval_name": args.eval_name,
+        "torch_version": torch.__version__,
+        "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+
+
+def output_paths(out_dir, eval_name, num_samples, seed, smoke):
+    """``(rows_path, summary_path)``; the seed and K are in the name because the
+    protocol runs three seeds, and a smoke run is stamped so it can never be
+    mistaken for a headline artifact."""
+    os.makedirs(str(out_dir), exist_ok=True)
+    stem = f"{eval_name}_K{int(num_samples)}_seed{int(seed)}" + ("_smoke" if smoke else "")
+    return (os.path.join(str(out_dir), f"{stem}_rows.jsonl"),
+            os.path.join(str(out_dir), f"{stem}_summary.json"))
+
+
+def jsonable(obj):
+    """Normalize a summary for JSON: numeric dict keys become strings explicitly.
+
+    ``success`` is keyed by radius (a float), and json would coerce those keys
+    silently. Doing it here makes the on-disk schema a stated contract -- readers
+    look up ``success["1.0"]`` -- instead of an encoder side effect.
+    """
+    if isinstance(obj, dict):
+        return {(str(k) if isinstance(k, (int, float)) else k): jsonable(v)
+                for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [jsonable(v) for v in obj]
+    return obj
+
+
+def write_summary(path, summary, provenance):
+    """Write the summary record (provenance first, then the aggregates)."""
+    with open(str(path), "w") as handle:
+        json.dump({"provenance": jsonable(provenance), "summary": jsonable(summary)}, handle,
+                  sort_keys=True, indent=2)
+        handle.write("\n")
+    return str(path)

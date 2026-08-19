@@ -625,3 +625,97 @@ def test_summarize_run_control_is_none_without_context_evidence():
 def test_summarize_run_refuses_empty_rows():
     with pytest.raises(ValueError):
         el.summarize_run([])
+
+
+# --------------------------------------------------------------------------- #
+# provenance / output paths / summary writer  (unit e, part 2)
+# --------------------------------------------------------------------------- #
+import os     # noqa: E402
+import types  # noqa: E402
+
+
+def _args(**over):
+    base = dict(model_config="src/configs/model_configs/m.json",
+                dataset_config="src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
+                ckpt_path="weights/FLAC/FLAC_EMA.ckpt", agree_ckpt="weights/AGREE/AGREE_AR.pt",
+                num_samples=8, tau=0.02, agg="lme", steps=1, cfg_scale=1.0, seed=42,
+                cond_method="vanilla", frame_avg_angles=None, rotate_deg=0.0,
+                cond_autocast="default", score_source="flac", control="none",
+                batch_size=64, num_workers=6, out_dir="out", eval_name="exp18_R2",
+                smoke=False, max_queries=None)
+    base.update(over)
+    return types.SimpleNamespace(**base)
+
+
+_REQUIRED_PROVENANCE_KEYS = {
+    "experiment", "source_sha", "model_config", "dataset_config", "ckpt_path", "ckpt_sha256",
+    "agree_ckpt", "agree_sha256", "split_hash", "n_queries", "weights_source", "readout",
+    "num_samples", "tau", "agg", "steps", "cfg_scale", "seed", "cond_method",
+    "frame_avg_angles", "rotate_deg", "cond_autocast", "orbit_execution", "frame_avg_fwd_cap",
+    "score_source", "control", "batch_size", "num_workers", "smoke", "max_queries",
+    "eval_name", "torch_version", "created_utc",
+}
+
+
+def test_build_provenance_records_every_protocol_quantity():
+    from eval_FLAC import orbit_provenance
+    record = el.build_provenance(_args(), ckpt_sha256="a" * 64, agree_sha256="b" * 64,
+                                 split_hash="c" * 64, weights_source="ema", n_queries=6337)
+    assert _REQUIRED_PROVENANCE_KEYS <= set(record)
+    assert record["experiment"] == "exp_18_loc_invert"
+    assert record["readout"] == "mean" and record["weights_source"] == "ema"
+    assert record["num_samples"] == 8 and record["tau"] == 0.02 and record["agg"] == "lme"
+    assert record["steps"] == 1 and record["cfg_scale"] == 1.0 and record["seed"] == 42
+    assert record["batch_size"] == 64 and record["num_workers"] == 6
+    assert record["rotate_deg"] == 0.0 and record["cond_autocast"] == "default"
+    assert record["frame_avg_angles"] == "n/a"                       # vanilla: no orbit
+    assert (record["orbit_execution"], record["frame_avg_fwd_cap"]) == orbit_provenance("vanilla")
+    assert record["ckpt_sha256"] == "a" * 64 and record["split_hash"] == "c" * 64
+    assert record["smoke"] is False and len(record["source_sha"]) > 0
+
+
+def test_build_provenance_records_frame_avg_angles_when_symmetrized():
+    record = el.build_provenance(_args(cond_method="fa_invariant", frame_avg_angles=[0.0, 90.0]),
+                                 ckpt_sha256="a", agree_sha256="b", split_hash="c",
+                                 weights_source="online", n_queries=1)
+    assert record["frame_avg_angles"] == [0.0, 90.0]
+    assert record["orbit_execution"] != "n/a"
+
+
+def test_build_provenance_stamps_smoke():
+    record = el.build_provenance(_args(smoke=True, max_queries=4), ckpt_sha256="a",
+                                 agree_sha256="b", split_hash="c", weights_source="ema",
+                                 n_queries=4)
+    assert record["smoke"] is True and record["max_queries"] == 4
+
+
+def test_output_paths_stamp_smoke_seed_and_k(tmp_path):
+    rows, summary = el.output_paths(tmp_path / "out", "exp18_R2", num_samples=8, seed=43,
+                                    smoke=False)
+    assert os.path.basename(rows) == "exp18_R2_K8_seed43_rows.jsonl"
+    assert os.path.basename(summary) == "exp18_R2_K8_seed43_summary.json"
+    assert os.path.isdir(os.path.dirname(rows))                      # created on demand
+
+    smoke_rows, smoke_summary = el.output_paths(tmp_path / "out", "exp18_R2", num_samples=8,
+                                                seed=43, smoke=True)
+    assert os.path.basename(smoke_rows) == "exp18_R2_K8_seed43_smoke_rows.jsonl"
+    assert "_smoke_" in os.path.basename(smoke_summary)
+
+
+def test_write_summary_round_trips(tmp_path):
+    import json
+    rows = _rows_fixture()
+    summary = el.summarize_run(rows)
+    provenance = el.build_provenance(_args(), ckpt_sha256="a", agree_sha256="b",
+                                     split_hash="c", weights_source="ema", n_queries=len(rows))
+    path = tmp_path / "summary.json"
+    el.write_summary(path, summary, provenance)
+    payload = json.loads(open(path).read())
+    # json has no numeric keys, so the success-radius keys are rendered as strings
+    # by an explicit normalizer rather than silently by the encoder.
+    assert payload["summary"] == el.jsonable(summary)
+    assert payload["provenance"] == provenance
+    assert payload["summary"]["flac"]["pooled"]["success"]["1.0"] == pytest.approx(
+        summary["flac"]["pooled"]["success"][1.0])
+    assert payload["summary"]["flac"]["primary_name"] == "pooled_median_e_loc"
+    assert el.jsonable(summary)["flac"]["primary"] == summary["flac"]["primary"]
