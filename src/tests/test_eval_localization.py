@@ -2255,3 +2255,56 @@ def test_process_query_refuses_to_run_without_a_frozen_manifest(tmp_path):
     with pytest.raises(SystemExit):
         el.process_query(_run_args(tmp_path), engine, {"latent_shape": (2, 8)}, md,
                          torch.full((1, 1, 9600), 0.2))
+
+
+# --------------------------------------------------------------------------- #
+# r4 items 6+7 (full-review F6, F7 and the Part-1 #9 leftover)
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("bad", ["nan", "inf", "-inf"])
+def test_frame_avg_angles_reject_non_finite_values_at_parse_time(bad):
+    with pytest.raises(SystemExit):
+        el.parse_args(_CLI + ["--cond-method", "fa_invariant", "--frame-avg-angles", "0", bad])
+    el.parse_args(_CLI + ["--cond-method", "fa_invariant", "--frame-avg-angles", "0", "90"])
+
+
+def test_device_provenance_block_on_cpu():
+    block = el.device_provenance("cpu")
+    assert block["device_requested"] == "cpu" and block["device_name"] == "cpu"
+    assert block["device_index"] is None and block["device_capability"] is None
+    assert block["device_uuid"] == "n/a"
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="no CUDA device")
+def test_device_provenance_resolves_the_requested_cuda_index():
+    index = min(1, torch.cuda.device_count() - 1)
+    block = el.device_provenance(f"cuda:{index}")
+    assert block["device_index"] == index
+    assert block["device_name"] == torch.cuda.get_device_name(index)
+    assert tuple(block["device_capability"]) == torch.cuda.get_device_capability(index)
+    assert isinstance(block["device_uuid"], str) and block["device_uuid"]
+
+
+def test_provenance_carries_the_resolved_device_block():
+    record = el.build_provenance(_args(), ckpt_sha256="a", agree_sha256="b", split_hash="c",
+                                 weights_source="ema", n_queries=1)
+    for key in ("device_requested", "device_index", "device_name", "device_capability",
+                "device_uuid"):
+        assert key in record
+
+
+def test_main_validates_registration_before_loading_any_model(tmp_path, monkeypatch):
+    """A registered unseen run without --registration-sha must be refused before
+    the checkpoint is read and before AGREE is constructed (F7)."""
+    def _never(*args, **kwargs):
+        raise AssertionError("nothing may be loaded before registration validates")
+
+    monkeypatch.setattr(el, "load_agree_audio", _never)
+    monkeypatch.setattr(el, "build_engine", _never)
+    monkeypatch.setattr(el, "load_and_validate_artifacts",
+                        lambda args: ({"model": {"diffusion": {
+                            "diffusion_objective": "rectified_flow"}},
+                            "sample_size": 10240, "sample_rate": 22050}, None))
+    with pytest.raises(SystemExit):
+        el.main(["--model-config", "m.json", "--dataset-config", _UNSEEN_CONFIG,
+                 "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt", "--num-samples", "8",
+                 "--device", "cpu"])

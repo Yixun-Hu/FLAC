@@ -662,6 +662,26 @@ def assert_registration_sha(args, dataset_config):
     return args
 
 
+def device_provenance(device):
+    """Identify the device the run ACTUALLY used (full-review F6).
+
+    ``device_name`` used to query CUDA index 0 regardless of the requested device,
+    which is simply wrong for ``--device cuda:1`` and useless for cross-machine
+    reproduction. The requested string, the resolved index, the name, the compute
+    capability and the UUID (when the build exposes it) are all recorded.
+    """
+    requested = str(device)
+    if requested.startswith("cuda") and torch.cuda.is_available():
+        index = int(requested.split(":", 1)[1]) if ":" in requested else torch.cuda.current_device()
+        properties = torch.cuda.get_device_properties(index)
+        return {"device_requested": requested, "device_index": index,
+                "device_name": torch.cuda.get_device_name(index),
+                "device_capability": list(torch.cuda.get_device_capability(index)),
+                "device_uuid": str(getattr(properties, "uuid", "n/a"))}
+    return {"device_requested": requested, "device_index": None, "device_name": "cpu",
+            "device_capability": None, "device_uuid": "n/a"}
+
+
 def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source, n_queries,
                      dataset_config=None, context_digest=None, candidate_manifest_sha256=None):
     """Everything needed to reproduce or falsify the run, in one record.
@@ -715,9 +735,7 @@ def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source
         "loader_drop_last": bool((dataset_config or {}).get("drop_last", True)),
         "context_stream_digest": context_digest or "n/a",
         "candidate_manifest_sha256": candidate_manifest_sha256 or "n/a",
-        "device_name": (torch.cuda.get_device_name(0)
-                        if str(getattr(args, "device", "cpu")).startswith("cuda")
-                        and torch.cuda.is_available() else "cpu"),
+        **device_provenance(getattr(args, "device", "cpu")),
         "float32_matmul_precision": torch.get_float32_matmul_precision(),
         "torch_version": torch.__version__,
         "cuda_version": str(torch.version.cuda),
@@ -856,6 +874,14 @@ def run_query_gt_rir(engine, cand_set, room_wav_dir, receiver_node, obs_wav):
             "num_candidates": len(cand_set.nodes), "num_samples": 1}
 
 
+def _finite_angle(value):
+    """argparse type: a frame-average angle must be a finite number."""
+    number = float(value)
+    if not math.isfinite(number):
+        raise argparse.ArgumentTypeError(f"frame-average angle must be finite, got {value!r}")
+    return number
+
+
 def parse_args(argv=None):
     """CLI for the exp_18 driver; the registered defaults are the plan's §2.3 pins."""
     parser = argparse.ArgumentParser(
@@ -872,7 +898,7 @@ def parse_args(argv=None):
     parser.add_argument("--cfg-scale", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--cond-method", choices=["vanilla", "fa_invariant"], default="vanilla")
-    parser.add_argument("--frame-avg-angles", type=float, nargs="+", default=None)
+    parser.add_argument("--frame-avg-angles", type=_finite_angle, nargs="+", default=None)
     parser.add_argument("--rotate-deg", type=float, default=0.0)
     parser.add_argument("--cond-autocast", choices=["default", "bf16", "off"], default="default")
     parser.add_argument("--score-source", choices=["flac", "gt_rir"], default="flac")
@@ -1313,6 +1339,8 @@ def main(argv=None):
     # scorer or the generator is constructed, let alone moved to a device (F9).
     validate_dataset_split(args)
     model_config, ckpt = load_and_validate_artifacts(args)
+    dataset_config = load_dataset_config(args)
+    assert_registration_sha(args, dataset_config)        # O17, before any model load
     torch.set_float32_matmul_precision("medium")
 
     agree = load_agree_audio(args.agree_ckpt, args.device)
@@ -1328,8 +1356,6 @@ def main(argv=None):
     # Seeded exactly where evaluate_model seeds it -- after the model build and
     # before the loader, because the per-item context draw happens in the workers.
     pl.seed_everything(args.seed, workers=True)
-    dataset_config = load_dataset_config(args)
-    assert_registration_sha(args, dataset_config)        # O17, before any query runs
     loader = build_dataloader(args, model_config, dataset_config)
 
     if args.parity_check:
