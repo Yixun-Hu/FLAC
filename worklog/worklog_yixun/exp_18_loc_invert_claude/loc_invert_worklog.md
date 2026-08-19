@@ -78,3 +78,10 @@
 - **Change** — `plan_loc_invert.md` rewritten as Rev 3 (Rev 2 preserved at `e71df84`).
 - **Analysis** — Both reviews converged on the two protocol-critical flaws (context-exclusion information leak; fail-closed identity audit), and each contributed unique blockers (Codex: estimand/scorer-protocol/parity; Opus: stochastic scorer/wiring controls/asset gaps). Cross-model + fallback double review was worth the accident that produced it.
 - **Next** — Approval package to Yixun (Rev 3 + updated decision list). Implementation starts only on his approval.
+
+## 2026-08-19T09:00:00-0400 — Yixun APPROVED plan Rev 3; decisions locked
+
+- **Goal** — Record the approval gate (SOP artifact #2 sign-off).
+- **Result** — Yixun (verbatim): "approve; 2: FLAC_EMA; 3: yes; 4: yes; 5: yes; 6: for the dataset, please wait, I am downloading it to /media/diskstation/yixunhu/FLAC/AcousticRooms/, and I have finished the `huggingface-cli login`."
+  Locked: headline ckpt = released `FLAC_EMA.ckpt`; scorer = `AGREE_AR.pt` primary + `fullAR` diagnostic with deterministic VAE-mean readout; K_ctx=1 secondary sweep R2b APPROVED; seeds 42/43/44, K=8; dataset arriving at `/media/diskstation/yixunhu/FLAC/AcousticRooms/` (wait for Yixun's completion); HF gated-DINOv3 access ready.
+- **Next** — TDD Round 1 (Coder: `candidates.py` + `scoring.py` + tests) in parallel with `download_weights.sh`; R-1 dataset gate when the download completes.
