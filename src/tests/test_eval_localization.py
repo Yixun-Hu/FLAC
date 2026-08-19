@@ -1502,3 +1502,46 @@ def test_output_paths_and_provenance_record_the_oracle_as_k1(tmp_path):
     record = el.build_provenance(args, ckpt_sha256="n/a", agree_sha256="b", split_hash="c",
                                  weights_source="n/a", n_queries=3)
     assert record["num_samples"] == 1 and record["score_source"] == "gt_rir"
+
+
+# --------------------------------------------------------------------------- #
+# r3 fix F5 (review finding 5, O16): smoke and parity runs must read a SEEN
+# split. Probing the unseen split repeatedly with a debug tool is exactly the
+# pre-registration leak the protocol forbids.
+# --------------------------------------------------------------------------- #
+_SEEN_CONFIG = os.path.join(_REPO_ROOT, "src", "configs", "dataset_configs", "AR", "eval",
+                            "acousticroom_seeneval.json")
+_UNSEEN_CONFIG = os.path.join(_REPO_ROOT, "src", "configs", "dataset_configs", "AR", "eval",
+                              "acousticroom_unseeneval.json")
+
+
+def _split_args(dataset_config, *extra):
+    return el.parse_args(["--model-config", "m.json", "--dataset-config", dataset_config,
+                          "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
+                          "--num-samples", "2", *extra])
+
+
+def test_validate_dataset_split_refuses_smoke_on_the_unseen_split():
+    with pytest.raises(SystemExit):
+        el.validate_dataset_split(_split_args(_UNSEEN_CONFIG, "--smoke", "--max-queries", "2"))
+    with pytest.raises(SystemExit):
+        el.validate_dataset_split(_split_args(_UNSEEN_CONFIG, "--parity-check"))
+
+
+def test_validate_dataset_split_allows_smoke_and_parity_on_the_seen_split():
+    el.validate_dataset_split(_split_args(_SEEN_CONFIG, "--smoke", "--max-queries", "2"))
+    el.validate_dataset_split(_split_args(_SEEN_CONFIG, "--parity-check"))
+
+
+def test_validate_dataset_split_leaves_registered_unseen_runs_alone():
+    el.validate_dataset_split(_split_args(_UNSEEN_CONFIG))
+    oracle = el.parse_args(["--model-config", "m.json", "--dataset-config", _UNSEEN_CONFIG,
+                            "--agree-ckpt", "a.pt", "--score-source", "gt_rir"])
+    el.validate_dataset_split(oracle)                       # registered R-1 oracle run
+
+
+def test_validate_dataset_split_refuses_a_split_that_declares_neither(tmp_path):
+    config = tmp_path / "d.json"
+    config.write_text(_json.dumps({"dataset_type": "audio_dir", "datasets": []}))
+    with pytest.raises(SystemExit):
+        el.validate_dataset_split(_split_args(str(config), "--smoke"))

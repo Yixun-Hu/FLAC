@@ -1121,6 +1121,7 @@ def main(argv=None):
     args = validate_args(parse_args(argv))
     # CPU-only refusals first: objective and ARE are checked before the scorer or
     # the generator is constructed, let alone moved to a device (finding 9).
+    validate_dataset_split(args)          # O16, before any asset is opened
     model_config, ckpt = load_and_validate_artifacts(args)
     torch.set_float32_matmul_precision("medium")
 
@@ -1179,3 +1180,28 @@ def load_and_validate_artifacts(args):
         ckpt = torch.load(args.ckpt_path, map_location="cpu")
         assert_no_are(ckpt.get("model_config"), copy.deepcopy(model_config))
     return model_config, ckpt
+
+
+def load_dataset_config(args):
+    """Parse the dataset config (content, not just the path)."""
+    with open(args.dataset_config) as handle:
+        return json.load(handle)
+
+
+def validate_dataset_split(args, dataset_config=None):
+    """O16: debug-shaped runs may only read a SEEN split.
+
+    ``--smoke`` and ``--parity-check`` are iterated during development; pointing
+    them at the held-out split would leak it before the registered run, which is
+    exactly what pre-registration exists to prevent. Registered unseen runs --
+    including the checkpoint-free R-1 oracle -- are untouched.
+    """
+    if not (args.smoke or args.parity_check):
+        return dataset_config
+    config = dataset_config if dataset_config is not None else load_dataset_config(args)
+    if bool(config.get("unseeneval", False)) or not bool(config.get("seeneval", False)):
+        _refuse(
+            f"--smoke/--parity-check require a SEEN-split dataset config; {args.dataset_config!r} "
+            f"declares seeneval={config.get('seeneval')!r}, unseeneval={config.get('unseeneval')!r} "
+            "(O16: the held-out split is not a debugging surface)")
+    return config
