@@ -21,3 +21,4 @@
 | `6c1432e` | r1 TDD cycle 12: RAF in `metric_callback` + `RT60Error` (9600 window, per-scene, T30) + fail-closed FD/retrieval guard + AR/HAA regressions (21 tests) |
 | `92bb9d3` | r1 ledger catch-up row for cycle 12 |
 | `1d1af86` | r1 TDD cycle 13: `all_rx` trailing all-NaN sentinel rule (Amendment 1 D1) — accepted once, recorded in `RoomIndex` + splits record; every other mismatch/NaN still aborts (70 tests) |
+| `6c0a16e` | r2 fix R3: capture-id stream fingerprints in `eval_FLAC.py` (AR/HAA byte-identical; per-run fingerprint_schema 1/2) (29 tests) |
