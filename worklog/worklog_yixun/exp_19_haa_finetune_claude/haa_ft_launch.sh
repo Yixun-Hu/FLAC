@@ -127,8 +127,8 @@ PROBE_SCRIPT="${EXPDIR}/probe_haa_fa_invariance.py"
 
 # --- gate 1: ARM / GPU / MODE / DRY_RUN are matched EXACTLY, never inferred --- #
 case "$ARM" in
-  P1|BF|YAW) ;;
-  *) echo "ARM must be exactly P1, BF or YAW (got '${ARM}') - abort"; exit 2 ;;
+  P1|BF|YAW|YNA) ;;
+  *) echo "ARM must be exactly P1, BF, YAW or YNA (got '${ARM}') - abort"; exit 2 ;;
 esac
 case "$GPU" in
   0|1) ;;
@@ -178,10 +178,12 @@ fi
 
 case "$ARM" in
   P1)  ARM_CFG="$STOCK_CFG" ;;
+  YNA) ARM_CFG="$STOCK_CFG" ;;  # ablation arm (Yixun 2026-08-19): YAW's INIT, stock finetune — separates "aug-during-FT burden" from "YAW representation transfers worse"
   BF)  ARM_CFG="${EXPDIR}/FLAC_HAA_finetune_BF.json" ;;
   YAW) ARM_CFG="${EXPDIR}/FLAC_HAA_finetune_YAW.json" ;;
 esac
-INIT="${INIT_DIR}/HAA_init_${ARM}.ckpt"
+INIT_ARM="$ARM"; [ "$ARM" = "YNA" ] && INIT_ARM="YAW"   # YNA = YAW's init + stock finetune
+INIT="${INIT_DIR}/HAA_init_${INIT_ARM}.ckpt"
 
 case "$MODE" in
   SMOKE) SUFFIX="_smoke"; MAXSTEPS="$SMOKE_STEPS"; CADENCE="$SMOKE_CADENCE"; VALEVERY="$SMOKE_VAL_EVERY"
@@ -286,6 +288,7 @@ PIN_factory="6967ec9fd800bb991d6f2ee2aee890bb73c093bfc5f676617f590f1dbd9d330f  s
 PIN_probe="24110322095e125f844b6793cad5eda4b2cf42128e380d551ff22653cb921de0  ${PROBE_SCRIPT}"
 case "$ARM" in
   P1)  PIN_armcfg="" ;;   # P1's config IS the stock file, already pinned above
+  YNA) PIN_armcfg="" ;;   # same stock file
   BF)  PIN_armcfg="834e4933f2f5c8050f196043e11260e00023a7c31205a55961e0a77ca910c1dc  ${ARM_CFG}" ;;
   YAW) PIN_armcfg="a03d106cd72744df40187b5c493010ecc996275b2afa32a4811d7c962c77cb53  ${ARM_CFG}" ;;
 esac
@@ -377,12 +380,12 @@ t = arm["training"]
 if t.get("use_ema") is not True:
     sys.exit("use_ema must be true: the inits are EMA weights and the HAA rows will be EMA rows")
 
-if arm_id == "P1":
+if arm_id in ("P1", "YNA"):
     # P1 consumes the stock file itself; anything else is a copy that can drift.
     if arm_bytes != stock_bytes:
-        sys.exit(f"P1 must run the stock config bytes; {arm_p} differs from {stock_p}")
+        sys.exit(f"{arm_id} must run the stock config bytes; {arm_p} differs from {stock_p}")
     if "cond_method" in t or "yaw_aug" in t:
-        sys.exit("P1 is the vanilla arm; a treatment key is present")
+        sys.exit(f"{arm_id} is a vanilla-finetune arm; a treatment key is present")
     delta = "none (stock config used directly)"
 
 elif arm_id == "BF":
@@ -497,8 +500,8 @@ PY
 # HARD gate — a failure STOPS the arm and is reported to Yixun; the sign
 # convention is NOT silently "fixed" here. P1 rotates nothing, so it is skipped,
 # explicitly and by name.
-if [ "$ARM" = "P1" ]; then
-  echo "R1 probe: SKIPPED for the P1 arm (vanilla conditioning rotates nothing)"
+if [ "$ARM" = "P1" ] || [ "$ARM" = "YNA" ]; then
+  echo "R1 probe: SKIPPED for the ${ARM} arm (vanilla conditioning rotates nothing)"
 else
   echo "R1 probe: required for the ${ARM} arm (it drives src/data/yaw_rotation.py)"
   # The probe loads THIS ARM'S INIT through train.py's own consumer path (Codex
