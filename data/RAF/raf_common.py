@@ -147,3 +147,65 @@ def stable_context_seed(room, capture_id):
             f"strings), got {type(room).__name__}/{type(capture_id).__name__}")
     digest = hashlib.sha256(f"RAF|{room}|{capture_id}".encode("utf-8")).digest()
     return int.from_bytes(digest[:8], "big") & ((1 << 63) - 1)
+
+
+# Registered candidate gauge, RAF world (X front, Y up, Z left) -> pipeline frame:
+#     (x_p, y_p, z_p) = (X_RAF, Z_RAF, Y_RAF)
+# so the pipeline's third axis is UP, matching AR/HAA (whose poses carry the
+# camera/mic height in the third slot) and matching the vertical component of
+# convert_equirect_to_camera_coord. det = -1: RAF's (front, up, left) triad is
+# left-handed, the pipeline frame is right-handed.
+#
+# CANDIDATE, NOT FINAL: the mapping is pinned at the readback rung (plan Rev 2
+# section 4). Everything downstream imports this one constant, so re-pinning is a
+# one-line change here; nothing else in the RAF path transforms coordinates.
+RAF_TO_PIPELINE = np.array([
+    [1.0, 0.0, 0.0],
+    [0.0, 0.0, 1.0],
+    [0.0, 1.0, 0.0],
+], dtype=np.float64)
+
+
+def farthest_point_selection(points, k, start='centroid-nearest'):
+    """Deterministic farthest-point selection over ``points`` [N, 3].
+
+    Start = the point nearest the centroid (ties -> lowest index); each further
+    step takes the point maximising the distance to the already-selected set
+    (ties -> lowest index). No RNG is involved, so the result depends only on the
+    input array — the split it produces is reproducible from the record alone.
+
+    The returned sequence is a PREFIX sequence: ``fps(k)[:j] == fps(j)``, which is
+    what lets ``select_splits`` take the first N_g entries as train/test groups and
+    then *continue the same sequence* for the validation groups.
+
+    Returns:
+        list[int] of length k.
+    """
+    if start != 'centroid-nearest':
+        raise ValueError(f"unsupported start policy {start!r}; only 'centroid-nearest'")
+    pts = np.asarray(points, dtype=np.float64)
+    if pts.ndim != 2 or pts.shape[1] != 3:
+        raise ValueError(f"points must have shape [N, 3], got {pts.shape}")
+    if not np.all(np.isfinite(pts)):
+        raise ValueError("points hold non-finite values")
+    n = pts.shape[0]
+    if not isinstance(k, (int, np.integer)) or isinstance(k, bool):
+        raise ValueError(f"k must be an int, got {k!r}")
+    k = int(k)
+    if k < 1 or k > n:
+        raise ValueError(f"k must satisfy 1 <= k <= N ({n}), got {k}")
+
+    first = int(np.argmin(np.linalg.norm(pts - pts.mean(axis=0), axis=1)))
+    selected = [first]
+    # Distance from every point to the selected set. Already-selected points are
+    # parked at -1 so a degenerate all-duplicate cloud (every distance 0) can
+    # never re-select one of them.
+    min_dist = np.linalg.norm(pts - pts[first], axis=1)
+    min_dist[first] = -1.0
+    while len(selected) < k:
+        nxt = int(np.argmax(min_dist))
+        selected.append(nxt)
+        d = np.linalg.norm(pts - pts[nxt], axis=1)
+        min_dist = np.minimum(min_dist, d)
+        min_dist[selected] = -1.0
+    return selected

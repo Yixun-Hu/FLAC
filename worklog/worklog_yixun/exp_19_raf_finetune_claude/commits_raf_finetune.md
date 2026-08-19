@@ -8,3 +8,4 @@
 | `5268a1f` | Codex plan review (REQUEST-CHANGES, C1–C16) + plan Rev 2 + disposition |
 | `f8a5643` | approval recorded (plan Rev 2 + 6 decisions locked; date typo in entry corrected next commit) |
 | `8ac6fad` | r1 TDD cycle 1: `raf_common` fail-closed tx/rx parsers + `canonicalize_quat` (27 tests) |
+| `250cf03` | r1 TDD cycle 2: `equirect_directions` (exact inverse of the pipeline pixel->ray map) + `stable_context_seed` (42 tests) |

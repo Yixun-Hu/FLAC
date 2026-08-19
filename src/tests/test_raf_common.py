@@ -308,3 +308,103 @@ def test_stable_context_seed_is_a_valid_torch_generator_seed():
     assert isinstance(seed, int)
     assert 0 <= seed < (1 << 63)
     torch.Generator().manual_seed(seed)  # must not raise
+
+
+# --------------------------------------------------------------------------- #
+# RAF_TO_PIPELINE (cycle 3)
+# --------------------------------------------------------------------------- #
+def test_raf_to_pipeline_is_the_registered_axis_permutation():
+    """(x_p, y_p, z_p) = (X_RAF, Z_RAF, Y_RAF): RAF is X front, Y up, Z left."""
+    M = raf_common.RAF_TO_PIPELINE
+    assert M.shape == (3, 3)
+    assert M.dtype == np.float64
+    assert (M @ np.array([1.0, 2.0, 3.0])).tolist() == [1.0, 3.0, 2.0]
+
+
+def test_raf_to_pipeline_basis_images():
+    M = raf_common.RAF_TO_PIPELINE
+    assert (M @ np.array([1.0, 0.0, 0.0])).tolist() == [1.0, 0.0, 0.0]  # front -> +x
+    assert (M @ np.array([0.0, 1.0, 0.0])).tolist() == [0.0, 0.0, 1.0]  # up    -> +z
+    assert (M @ np.array([0.0, 0.0, 1.0])).tolist() == [0.0, 1.0, 0.0]  # left  -> +y
+
+
+def test_raf_to_pipeline_is_a_handedness_flip():
+    """det = -1: RAF (front, up, left) is left-handed, the pipeline frame is not.
+
+    Recorded, not incidental — it is why the transformed mesh's triangle winding
+    inverts (irrelevant for raycast distances) and why the constant must never be
+    "fixed" into a rotation without re-deriving the whole gauge.
+    """
+    assert np.isclose(np.linalg.det(raf_common.RAF_TO_PIPELINE), -1.0)
+
+
+# --------------------------------------------------------------------------- #
+# farthest_point_selection (cycle 3)
+# --------------------------------------------------------------------------- #
+_LINE_PTS = np.array([[0.0, 0, 0], [1.0, 0, 0], [2.0, 0, 0], [3.0, 0, 0], [10.0, 0, 0]])
+
+
+def test_fps_hand_checked_order_on_a_line():
+    """Hand derivation for x = [0, 1, 2, 3, 10]:
+
+    centroid x = 16/5 = 3.2 -> nearest is index 3 (|3-3.2| = 0.2)   -> start 3
+    |x - 3|          = [3, 2, 1, 0, 7]            -> argmax 4
+    min dist to {3,4}= [3, 2, 1, 0, 0]            -> argmax 0
+    min dist to {3,4,0} = [-, 1, 1, -, -]         -> tie 1 vs 2 -> lowest index 1
+    remaining                                      -> 2
+    """
+    assert raf_common.farthest_point_selection(_LINE_PTS, 5) == [3, 4, 0, 1, 2]
+
+
+def test_fps_is_a_prefix_sequence():
+    """select_splits takes the first N_g and then "continues the same sequence"."""
+    full = raf_common.farthest_point_selection(_LINE_PTS, 5)
+    for k in range(1, 6):
+        assert raf_common.farthest_point_selection(_LINE_PTS, k) == full[:k]
+
+
+def test_fps_start_is_nearest_to_centroid_with_lowest_index_tiebreak():
+    pts = np.array([[-1.0, 0, 0], [1.0, 0, 0]])  # both 1.0 from the centroid
+    assert raf_common.farthest_point_selection(pts, 1) == [0]
+
+
+def test_fps_handles_duplicate_points_without_reselecting():
+    pts = np.array([[0.0, 0, 0], [0.0, 0, 0], [5.0, 0, 0]])
+    out = raf_common.farthest_point_selection(pts, 3)
+    assert sorted(out) == [0, 1, 2]
+    assert out[:2] == [0, 2]
+
+
+def test_fps_is_independent_of_global_rng_state():
+    np.random.seed(1234)
+    a = raf_common.farthest_point_selection(_LINE_PTS, 4)
+    np.random.seed(4321)
+    b = raf_common.farthest_point_selection(_LINE_PTS, 4)
+    assert a == b
+
+
+def test_fps_returns_plain_ints():
+    out = raf_common.farthest_point_selection(_LINE_PTS, 3)
+    assert isinstance(out, list)
+    assert all(type(i) is int for i in out)
+
+
+@pytest.mark.parametrize("k", [0, -1, 6])
+def test_fps_rejects_bad_k(k):
+    with pytest.raises(ValueError):
+        raf_common.farthest_point_selection(_LINE_PTS, k)
+
+
+@pytest.mark.parametrize("pts", [
+    np.zeros((4, 2)),
+    np.zeros(3),
+    np.array([[0.0, 0, 0], [np.nan, 0, 0]]),
+])
+def test_fps_rejects_bad_points(pts):
+    with pytest.raises(ValueError):
+        raf_common.farthest_point_selection(pts, 1)
+
+
+def test_fps_rejects_unknown_start_policy():
+    with pytest.raises(ValueError):
+        raf_common.farthest_point_selection(_LINE_PTS, 2, start="random")
