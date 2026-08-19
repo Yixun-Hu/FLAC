@@ -190,3 +190,7 @@
 
 - **Result** — F1/F3/F6 + both finiteness partials RESOLVED; F2/F4/F5/F7 PARTIAL. New: H1 GPU timings not wall-correct (`_sync` ignores device index — would have corrupted R0's GPU-1 numbers), H2 readback doesn't enforce the M=10/17-room + depth-shape invariants, M3 aux modes silently overwrite, M4 registration accepts committish (no ancestry), M5 ckpt torch.load precedes registration checks, M6 scorer-noise seen-hold bypassable + unseeded draws. Also confirmed: no r4 semantic change to the generation path (parity result stands); reaggregate math clean.
 - **Next** — Coder r5 batch (all 6) → focused re-review → launches. R-1/R0 ETD slips to ≈23:00 EDT.
+
+## 2026-08-19 (see date line in commit) — Coordination: GPU 1 free; peer's eval_FLAC sha incoming
+
+- **Result** — Peer confirms GPU 1 free (Leg A done, 5 seeds stream-audited); Leg B holds GPU 0 until ~21:00–22:30. Their eval_FLAC.py additive commit is being written; sha to follow; our binding AR-byte-identity constraint is being verified against the suites we named before it lands. exp_18 unaffected: r5 in flight, launches still gated on the focused re-review; merged-tree re-verification remains the pre-launch step once the sha arrives.
