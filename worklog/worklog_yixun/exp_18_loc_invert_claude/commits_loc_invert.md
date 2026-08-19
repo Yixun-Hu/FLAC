@@ -54,3 +54,23 @@
 | `58054d7` | F5 (NIT #5) | parity test now *traverses* the dependency route (real `AcousticMetricsCallback.max_len` + real `Retrieval.update` → `compute_audio_features` with a recording fake AGREE); mutation-verified | +37 |
 | `50b3f66` | F1 (MED #1) | integration asset detection anchored at the repo root via `__file__`; module-scoped `repo_root_cwd` fixture; regression test that present assets never skip | +37 −6 |
 | `22bf0ad` | F2 (MED #2) | real-model B=8 vs 8×B=1 batch invariance (atol 1e-6) + CUDA-conditional CPU&CUDA RNG-isolation test with a sampled-path companion | +56 |
+| `7335248` | — | ledger append for the r2 fix batch | +19 |
+
+## Round 3 (Coder: Claude Opus 5) — `eval_localization.py` driver + tests
+
+| SHA | Unit | Description | changed lines |
+|---|---|---|---|
+| `7af1979` | a | fail-closed split identity audit (`expected_split_identities`, `split_hash`, `audit_split_identities` → SystemExit on first mismatch) | +197 |
+| `210fbeb` | b | `build_noise_bank` — per-`(seed, query_id, k)` generators via `scoring.noise_key`, global RNG untouched | +83 |
+| `e682216` | c | `run_query` + `Engine` seam — candidate-major `m*K+k` layout, one conditioner call, O6 invariant, `constant_source` control | +271 −1 |
+| `667a017` | d | exact `float.hex` sims serialization, `room_id_from_relpath`, context-membership by eval_FLAC's fingerprint rule, `gt_reciprocal_rank` | +122 −1 |
+| `52d5a81` | d | `build_row` schema + `write_row`/`read_rows` (flush per row, bitwise round trip) | +191 −1 |
+| `221a195` | e | `summarize_run` — FLAC + both baselines + O10 control (raw & masked), gt_only handling, eligible-set stats | +225 −2 |
+| `ab326e4` | e | `build_provenance`, `output_paths` (K/seed/smoke stamped), `write_summary` + `jsonable` | +179 −1 |
+| `cbd7f2b` | f | `gt_rir` measured-RIR oracle (`measured_rir_paths`, `load_measured_rirs`, `run_query_gt_rir`) | +152 −1 |
+| `1cf834e` | h | CLI `parse_args` + `validate_args` + `assert_rectified_flow` / `assert_no_are` startup refusals | +159 −2 |
+| `56a5848` | h | `prepare_state_dict` — evaluate_model's EMA lines of record, fixtures shaped like the real ckpts | +89 −1 |
+| `6bcbc8b` | g | `build_engine` + `parity_check_one_query`; real-ckpt integration parity **match=True, diff 0.0** | +235 −2 |
+| `afb8fc3` | h | per-query wiring (`dataset_folder_from_md`, `query_candidate_set`, `context_evidence`) | +130 −4 |
+| `b33f3ed` | h | `process_query` + `run_evaluation` (audit-first, JSONL streaming, smoke truncation) | +216 −4 |
+| `12b8ecc` | h | `main()` + `scoring_only_engine` + `--parity-check` | +98 −1 |
