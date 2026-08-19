@@ -755,15 +755,47 @@ def effective_num_samples(args):
     return 1 if args.score_source == "gt_rir" else int(args.num_samples)
 
 
-def output_paths(out_dir, eval_name, num_samples, seed, smoke, score_source="flac"):
-    """``(rows_path, summary_path)``; the seed and K are in the name because the
-    protocol runs three seeds, and a smoke run is stamped so it can never be
-    mistaken for a headline artifact."""
-    os.makedirs(str(out_dir), exist_ok=True)
-    tag = "gt_rir_K1" if score_source == "gt_rir" else f"K{int(num_samples)}"
-    stem = f"{eval_name}_{tag}_seed{int(seed)}" + ("_smoke" if smoke else "")
-    return (os.path.join(str(out_dir), f"{stem}_rows.jsonl"),
-            os.path.join(str(out_dir), f"{stem}_summary.json"))
+def artifact_stem(args):
+    """A file stem that names the CELL, not just the run (full-review F5).
+
+    Diagnostic cells differing only in control mode, autocast, aggregation, tau or
+    scorer used to collide and overwrite one another. Every cell-defining field is
+    in the name, so two different protocols can never share a path.
+    """
+    scorer = os.path.splitext(os.path.basename(str(args.agree_ckpt)))[0] or "none"
+    marker = ("smoke" if args.smoke
+              else ("registered" if getattr(args, "registration_manifest", None) else "dev"))
+    parts = [str(args.eval_name), args.score_source, f"ctl-{args.control}", args.cond_method,
+             f"ac-{args.cond_autocast}", args.agg]
+    if args.agg == "lme" and args.tau is not None:
+        parts.append(f"tau{float(args.tau):g}")
+    parts += [f"K{effective_num_samples(args)}", f"seed{int(args.seed)}", f"scorer-{scorer}",
+              marker]
+    return "_".join(parts)
+
+
+def artifact_paths(args, overwrite=None):
+    """``{rows, summary, manifest}`` paths for this cell; refuses to clobber.
+
+    ``os.replace`` would silently overwrite a finished artifact, and a leftover
+    ``.partial`` means an earlier run of this exact cell died -- both are refused
+    unless ``--overwrite`` is given explicitly.
+    """
+    out_dir = str(args.out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+    stem = artifact_stem(args)
+    paths = {"rows": os.path.join(out_dir, f"{stem}_rows.jsonl"),
+             "summary": os.path.join(out_dir, f"{stem}_summary.json"),
+             "manifest": os.path.join(out_dir, f"{stem}_manifest.json")}
+    if overwrite is None:
+        overwrite = bool(getattr(args, "overwrite", False))
+    if not overwrite:
+        for kind, path in paths.items():
+            for candidate in (path, path + ".partial"):
+                if os.path.exists(candidate):
+                    _refuse(f"{kind} target already exists: {candidate}. This cell has already "
+                            "been run (or died mid-run); pass --overwrite to replace it")
+    return paths
 
 
 def jsonable(obj):
@@ -907,6 +939,10 @@ def parse_args(argv=None):
     parser.add_argument("--num-workers", type=int, default=6)
     parser.add_argument("--out-dir", default="worklog/worklog_yixun/exp_18_loc_invert_claude")
     parser.add_argument("--eval-name", default="exp18_loc_invert")
+    parser.add_argument("--overwrite", action="store_true",
+                        help="replace an existing artifact for this exact cell")
+    parser.add_argument("--registration-manifest", default=None,
+                        help="committed JSON manifest locking the registered protocol (O17)")
     parser.add_argument("--registration-sha", default=None,
                         help="commit SHA of the pre-registered params file (O17); "
                              "required for a registered unseen generative run")
@@ -1268,9 +1304,8 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
     if not expected:
         _refuse("the registered split enumerates no queries")
 
-    rows_path, summary_path = output_paths(args.out_dir, args.eval_name,
-                                           effective_num_samples(args), args.seed, args.smoke,
-                                           score_source=args.score_source)
+    paths = artifact_paths(args)
+    rows_path, summary_path = paths["rows"], paths["summary"]
     partial_rows, partial_summary = rows_path + ".partial", summary_path + ".partial"
     rows, scored, seen_rooms = [], [], set()
 
@@ -1305,9 +1340,14 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
                                   candidate_manifest_sha256=(manifest_sha256(manifest)
                                                              if manifest else None))
     write_summary(partial_summary, summary, provenance)
+    if manifest is not None:
+        with open(paths["manifest"] + ".partial", "w") as handle:
+            json.dump(manifest, handle, sort_keys=True, separators=(",", ":"))
+        os.replace(paths["manifest"] + ".partial", paths["manifest"])
     os.replace(partial_rows, rows_path)          # publish only verified artifacts
     os.replace(partial_summary, summary_path)
-    return {"rows_path": rows_path, "summary_path": summary_path, "rows": rows,
+    return {"rows_path": rows_path, "summary_path": summary_path,
+            "manifest_path": paths["manifest"], "rows": rows,
             "summary": summary, "provenance": provenance}
 
 

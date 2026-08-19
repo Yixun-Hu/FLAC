@@ -696,17 +696,49 @@ def test_build_provenance_stamps_smoke():
     assert record["smoke"] is True and record["max_queries"] == 4
 
 
-def test_output_paths_stamp_smoke_seed_and_k(tmp_path):
-    rows, summary = el.output_paths(tmp_path / "out", "exp18_R2", num_samples=8, seed=43,
-                                    smoke=False)
-    assert os.path.basename(rows) == "exp18_R2_K8_seed43_rows.jsonl"
-    assert os.path.basename(summary) == "exp18_R2_K8_seed43_summary.json"
-    assert os.path.isdir(os.path.dirname(rows))                      # created on demand
+def test_artifact_stem_carries_every_cell_defining_field(tmp_path):
+    args = _run_args(tmp_path, **{"--eval-name": "exp18_R2", "--tau": "0.05", "--seed": "43"})
+    stem = el.artifact_stem(args)
+    for token in ("exp18_R2", "flac", "vanilla", "ac-default", "lme", "tau0.05", "K2", "seed43",
+                  "scorer-a"):
+        assert token in stem, f"{token} missing from {stem}"
 
-    smoke_rows, smoke_summary = el.output_paths(tmp_path / "out", "exp18_R2", num_samples=8,
-                                                seed=43, smoke=True)
-    assert os.path.basename(smoke_rows) == "exp18_R2_K8_seed43_smoke_rows.jsonl"
-    assert "_smoke_" in os.path.basename(smoke_summary)
+
+def test_artifact_stems_are_unique_across_differing_cells(tmp_path):
+    variants = [
+        {}, {"--seed": "43"}, {"--tau": "0.05"}, {"--agg": "mean"},
+        {"--control": "constant_source"}, {"--cond-autocast": "off"},
+        {"--cond-method": "fa_invariant"}, {"--num-samples": "4"},
+        {"--eval-name": "other"}, {"--smoke": True},
+    ]
+    stems = {el.artifact_stem(_run_args(tmp_path, **v)) for v in variants}
+    assert len(stems) == len(variants)
+    oracle = el.artifact_stem(_run_args(tmp_path, **{"--score-source": "gt_rir"}))
+    assert "gt_rir" in oracle and "K1" in oracle and oracle not in stems
+
+
+def test_artifact_stem_marks_smoke_registered_and_dev(tmp_path):
+    assert el.artifact_stem(_run_args(tmp_path)).endswith("_dev")
+    assert el.artifact_stem(_run_args(tmp_path, **{"--smoke": True})).endswith("_smoke")
+    registered = _run_args(tmp_path, **{"--registration-manifest": "reg.json"})
+    assert el.artifact_stem(registered).endswith("_registered")
+
+
+def test_artifact_paths_refuse_existing_targets_unless_overwrite(tmp_path):
+    args = _run_args(tmp_path)
+    paths = el.artifact_paths(args)
+    assert set(paths) == {"rows", "summary", "manifest"}
+    assert os.path.isdir(os.path.dirname(paths["rows"]))
+
+    open(paths["rows"], "w").close()
+    with pytest.raises(SystemExit):
+        el.artifact_paths(args)
+    assert el.artifact_paths(_run_args(tmp_path, **{"--overwrite": True}))["rows"] == paths["rows"]
+
+    os.remove(paths["rows"])
+    open(paths["summary"] + ".partial", "w").close()
+    with pytest.raises(SystemExit):
+        el.artifact_paths(args)                      # a stale .partial is a refusal too
 
 
 def test_write_summary_round_trips(tmp_path):
@@ -1251,9 +1283,7 @@ def test_run_evaluation_aborts_before_writing_when_the_audit_fails(tmp_path):
     with pytest.raises(SystemExit):
         el.run_evaluation(args, loader, engine, _stub_context(_root), "c", "a",
                           expected=el.expected_split_identities(loader.dataset))
-    rows_path, _summary = el.output_paths(args.out_dir, args.eval_name, args.num_samples,
-                                          args.seed, args.smoke)
-    assert not os.path.exists(rows_path)                       # nothing was written
+    assert not os.path.exists(el.artifact_paths(args, overwrite=True)["rows"])  # nothing written
 
 
 def test_run_evaluation_constant_source_control_is_recorded(tmp_path):
@@ -1511,15 +1541,13 @@ def test_validate_args_refuses_irrelevant_flags_in_oracle_mode(extra):
         el.validate_args(el.parse_args(argv))
 
 
-def test_output_paths_and_provenance_record_the_oracle_as_k1(tmp_path):
+def test_provenance_records_the_oracle_as_k1(tmp_path):
     args = el.validate_args(el.parse_args(
         ["--model-config", "m.json", "--dataset-config", "d.json", "--agree-ckpt", "a.pt",
          "--score-source", "gt_rir", "--out-dir", str(tmp_path), "--eval-name", "R_minus_1"]))
     assert el.effective_num_samples(args) == 1
-    rows, summary = el.output_paths(args.out_dir, args.eval_name, el.effective_num_samples(args),
-                                    args.seed, args.smoke, score_source=args.score_source)
-    assert os.path.basename(rows) == "R_minus_1_gt_rir_K1_seed42_rows.jsonl"
-    assert "gt_rir_K1" in os.path.basename(summary)
+    stem = el.artifact_stem(args)
+    assert stem.startswith("R_minus_1_gt_rir") and "_K1_" in stem
     record = el.build_provenance(args, ckpt_sha256="n/a", agree_sha256="b", split_hash="c",
                                  weights_source="n/a", n_queries=3)
     assert record["num_samples"] == 1 and record["score_source"] == "gt_rir"
@@ -1643,8 +1671,8 @@ def test_run_evaluation_aborts_when_the_scoring_pass_substitutes(tmp_path):
     args = _run_args(tmp_path)
     with pytest.raises(SystemExit):
         el.run_evaluation(args, attacker, engine, _stub_context(_root), "c", "a", expected=expected)
-    rows_path, summary_path = el.output_paths(args.out_dir, args.eval_name, 2, args.seed, False)
-    assert not os.path.exists(rows_path) and not os.path.exists(summary_path)
+    paths = el.artifact_paths(args, overwrite=True)
+    assert not os.path.exists(paths["rows"]) and not os.path.exists(paths["summary"])
 
 
 def test_run_evaluation_aborts_at_the_end_gate_when_the_scoring_pass_truncates(tmp_path):
@@ -1656,8 +1684,7 @@ def test_run_evaluation_aborts_at_the_end_gate_when_the_scoring_pass_truncates(t
     args = _run_args(tmp_path)
     with pytest.raises(SystemExit):
         el.run_evaluation(args, attacker, engine, _stub_context(_root), "c", "a", expected=expected)
-    rows_path, _summary = el.output_paths(args.out_dir, args.eval_name, 2, args.seed, False)
-    assert not os.path.exists(rows_path)
+    assert not os.path.exists(el.artifact_paths(args, overwrite=True)["rows"])
 
 
 def test_run_evaluation_hashes_the_scored_stream_and_publishes_atomically(tmp_path):
