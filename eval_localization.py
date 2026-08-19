@@ -16,6 +16,8 @@ duplicates none of it. The model build, EMA remap and sampling follow
 standing proof of that (C8).
 """
 import argparse
+import contextlib
+import copy
 import hashlib
 import json
 import os
@@ -26,9 +28,15 @@ import numpy as np
 import torch
 import torchaudio
 
-from eval_FLAC import (CONTEXT_ID_PRECISION, orbit_provenance, resolve_are_from_checkpoint,
+from eval_FLAC import (CONTEXT_ID_PRECISION, check_load_integrity, orbit_provenance,
+                       resolve_are_from_checkpoint, resolve_cond_autocast,
                        resolve_weights_source, sample_target_id, source_sha)
-from src.localization.agree_embed import MAX_LEN
+from src.data.yaw_rotation import DEFAULT_FRAME_ANGLES
+from src.inference.sampling import sample_discrete_euler
+from src.models.factory import create_model_from_config
+from src.training.diffusion import invariant_conditioning
+from src.training.factory import create_training_wrapper_from_config
+from src.localization.agree_embed import MAX_LEN, embed_rirs
 from src.localization.candidates import (assert_gt_matches_loader, candidate_metadata,
                                          parse_ir_filename, project_to_camera)
 from src.localization.scoring import (DEFAULT_RADII, aggregate, context_conditioned_baseline,
@@ -718,3 +726,130 @@ def prepare_state_dict(ckpt, training_config):
                 state_dict[key.replace("diffusion_ema.ema_model.", "model.")] = state_dict.pop(key)
         training_config["use_ema"] = False
     return state_dict, weights_source
+
+
+def build_engine(args, agree=None, device=None):
+    """Build the frozen generator and wrap it as an :class:`Engine`.
+
+    Follows ``eval_FLAC.evaluate_model``'s lines of record (eval_FLAC.py:1134-1198)
+    step for step -- matmul precision, config load, ARE refusal, state-dict remap,
+    load-integrity check, wrapper construction, eval/no-grad, device move, latent
+    length from the pretransform's downsampling ratio -- because any divergence
+    would mean exp_18 scores a different generative process than the release
+    evaluation does. :func:`parity_check_one_query` is the standing proof (C8).
+    """
+    device = device or getattr(args, "device", "cpu")
+    torch.set_float32_matmul_precision("medium")
+
+    with open(args.model_config) as handle:
+        model_config = json.load(handle)
+    file_model_config = copy.deepcopy(model_config)
+    assert_rectified_flow(model_config)
+
+    training_config = model_config.get("training", None)
+    ckpt = torch.load(args.ckpt_path, map_location="cpu")
+    # Earlier than evaluate_model does it: an ARE artifact must never reach a model build.
+    assert_no_are(ckpt.get("model_config"), file_model_config)
+    state_dict, weights_source = prepare_state_dict(ckpt, training_config)
+
+    model_obj = create_model_from_config(model_config)
+    missing, unexpected = model_obj.load_state_dict(state_dict, strict=False)
+    check_load_integrity(missing, unexpected, False)
+
+    model_config["training"] = training_config
+    module = create_training_wrapper_from_config(model_config, model_obj)
+    module.eval().requires_grad_(False)
+    module.to(device)
+    with torch.amp.autocast(device):
+        model = module.diffusion.model
+
+    if module.diffusion.pretransform is not None:
+        latent_samples = model_config["sample_size"] // module.diffusion.pretransform.downsampling_ratio
+    else:
+        latent_samples = model_config["sample_size"]
+
+    ac_enabled, ac_dtype = resolve_cond_autocast(args.cond_autocast)
+    frame_avg_angles = tuple(
+        float(a) for a in (args.frame_avg_angles if args.frame_avg_angles else DEFAULT_FRAME_ANGLES))
+
+    def cond_autocast_ctx():
+        if not ac_enabled:
+            return contextlib.nullcontext()
+        if ac_dtype is None:
+            return torch.amp.autocast(device)
+        return torch.amp.autocast(device, dtype=ac_dtype)
+
+    def conditioner(metadata, _device):
+        with cond_autocast_ctx():
+            if args.cond_method == "fa_invariant":
+                return invariant_conditioning(module.diffusion.conditioner, metadata,
+                                              module.device, frame_avg_angles)
+            return module.diffusion.conditioner(metadata, module.device)
+
+    def sampler(noise, cond_inputs):
+        with torch.no_grad():
+            return sample_discrete_euler(model, noise, args.steps, **cond_inputs,
+                                         cfg_scale=args.cfg_scale,
+                                         dist_shift=module.diffusion.dist_shift,
+                                         batch_cfg=True, disable_tqdm=True)
+
+    def decoder(latents):
+        with torch.no_grad():
+            if module.diffusion.pretransform is not None:
+                return module.diffusion.pretransform.decode(latents)
+            return latents
+
+    def embedder(wavs):
+        if agree is None:
+            raise ValueError("no AGREE scorer was loaded; embedding is unavailable")
+        return embed_rirs(agree.model, wavs, device, readout="mean")
+
+    engine = Engine(device=device, io_channels=module.diffusion.io_channels,
+                    latent_samples=latent_samples, conditioner=conditioner,
+                    cond_inputs_fn=module.diffusion.get_conditioning_inputs,
+                    sampler=sampler, decoder=decoder, embedder=embedder)
+    context = {"module": module, "model": model, "model_config": model_config,
+               "weights_source": weights_source, "device": device,
+               "latent_shape": (module.diffusion.io_channels, latent_samples)}
+    return engine, context
+
+
+def parity_check_one_query(args, engine, context, metadata, noise):
+    """C8: the driver's generation path vs a straight-line ``evaluate_model`` replay.
+
+    Same checkpoint, same metadata, same noise through (i) the engine's closures
+    and (ii) the reference call sequence written out here from
+    ``eval_FLAC.evaluate_model`` (conditioning under the resolved autocast ->
+    ``get_conditioning_inputs`` -> ``sample_discrete_euler`` with cfg_scale,
+    dist_shift and batch_cfg -> pretransform decode -> clamp). Identical waveforms
+    is the contract; anything else is a divergence, not a variant.
+    """
+    module, model = context["module"], context["model"]
+    noise = noise.to(engine.device)
+
+    driver = engine.decoder(engine.sampler(
+        noise, engine.cond_inputs_fn(engine.conditioner(metadata, engine.device)))).clamp(-1.0, 1.0)
+
+    ac_enabled, ac_dtype = resolve_cond_autocast(args.cond_autocast)
+    if not ac_enabled:
+        reference_ctx = contextlib.nullcontext()
+    elif ac_dtype is None:
+        reference_ctx = torch.amp.autocast(context["device"])
+    else:
+        reference_ctx = torch.amp.autocast(context["device"], dtype=ac_dtype)
+
+    with torch.no_grad():
+        with reference_ctx:
+            conditioning = module.diffusion.conditioner(metadata, module.device)
+        cond_inputs = module.diffusion.get_conditioning_inputs(conditioning)
+        reference = sample_discrete_euler(model, noise, args.steps, **cond_inputs,
+                                          cfg_scale=args.cfg_scale,
+                                          dist_shift=module.diffusion.dist_shift,
+                                          batch_cfg=True, disable_tqdm=True)
+        if module.diffusion.pretransform is not None:
+            reference = module.diffusion.pretransform.decode(reference)
+        reference = reference.clamp(-1.0, 1.0)
+
+    return {"match": bool(torch.equal(driver, reference)),
+            "max_abs_diff": float((driver - reference).abs().max()),
+            "shape": list(driver.shape)}

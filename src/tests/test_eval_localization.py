@@ -936,3 +936,101 @@ def test_prepare_state_dict_flips_use_ema_off_in_the_training_config():
     training = {"use_ema": True}
     el.prepare_state_dict(_fake_ckpt(), training)
     assert training["use_ema"] is False
+
+
+# --------------------------------------------------------------------------- #
+# INTEGRATION: build_engine + parity_check_one_query on the REAL checkpoint (C8).
+# Repo-root-anchored asset detection (r2 review finding 1): present assets must
+# make the test RUN, whatever the working directory is. CPU, one candidate, K=1.
+# --------------------------------------------------------------------------- #
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_FLAC_CKPT = os.path.join(_REPO_ROOT, "weights", "FLAC", "FLAC_EMA.ckpt")
+_FLAC_CONFIG = os.path.join(_REPO_ROOT, "src", "configs", "model_configs", "FLAC", "AR",
+                            "FLAC_AR.json")
+_DATASET_CONFIG = os.path.join(_REPO_ROOT, "src", "configs", "dataset_configs", "AR", "eval",
+                               "acousticroom_unseeneval.json")
+
+
+def _dinov3_cache_present():
+    hub = os.environ.get("HF_HUB_CACHE") or os.path.join(
+        os.environ.get("HF_HOME") or os.path.expanduser("~/.cache/huggingface"), "hub")
+    return os.path.isdir(os.path.join(hub, "models--facebook--dinov3-vits16-pretrain-lvd1689m"))
+
+
+def _gen_assets_present():
+    return (os.path.isfile(_FLAC_CKPT) and os.path.isfile(_FLAC_CONFIG)
+            and _dinov3_cache_present())
+
+
+_HAVE_GEN_ASSETS = _gen_assets_present()
+gen_integration = pytest.mark.skipif(
+    not _HAVE_GEN_ASSETS, reason="FLAC checkpoint/config or the gated DINOv3 HF cache are absent")
+
+
+def test_generation_asset_detection_is_repo_root_anchored(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert _gen_assets_present() is _HAVE_GEN_ASSETS
+    if (os.path.isfile(_FLAC_CKPT) and os.path.isfile(_FLAC_CONFIG) and _dinov3_cache_present()):
+        assert _HAVE_GEN_ASSETS is True
+
+
+def _synthetic_metadata(seed=0):
+    """One query's conditioning without touching the dataset: the shapes the AR
+    loader produces (depth [3,256,512], 8 context RIRs of 9600 samples, poses)."""
+    g = torch.Generator().manual_seed(seed)
+    source = torch.randn(3, generator=g)
+    return {"scene": "Cafe", "source": source, "source_vit": source.unsqueeze(0),
+            "context_poses": torch.randn(8, 3, generator=g),
+            "context_poses_vit": torch.randn(8, 3, generator=g),
+            "context_audio": torch.randn(8, 1, 9600, generator=g) * 0.1,
+            "depth": torch.rand(3, 256, 512, generator=g) * 3.0}
+
+
+@pytest.fixture(scope="module")
+def real_engine():
+    previous = os.getcwd()
+    os.chdir(_REPO_ROOT)
+    try:
+        args = el.parse_args([
+            "--model-config", _FLAC_CONFIG, "--dataset-config", _DATASET_CONFIG,
+            "--ckpt-path", _FLAC_CKPT, "--agree-ckpt", "unused-for-parity",
+            "--num-samples", "1", "--device", "cpu"])
+        el.validate_args(args)
+        engine, context = el.build_engine(args, agree=None, device="cpu")
+        yield args, engine, context
+    finally:
+        os.chdir(previous)
+
+
+@gen_integration
+def test_integration_build_engine_follows_the_reference_construction(real_engine):
+    args, engine, context = real_engine
+    assert context["weights_source"] == "online"      # the released EMA export ships flattened
+    assert context["latent_shape"] == (engine.io_channels, engine.latent_samples)
+    assert engine.latent_samples == 10240 // context["module"].diffusion.pretransform.downsampling_ratio
+    assert context["module"].training is False
+    assert not any(p.requires_grad for p in context["module"].parameters())
+
+
+@gen_integration
+def test_integration_parity_one_query_matches_the_eval_flac_path(real_engine):
+    """C8: same ckpt + metadata + noise through the driver path and a straight-line
+    replay of evaluate_model's calls must give IDENTICAL waveforms."""
+    args, engine, context = real_engine
+    noise = el.build_noise_bank(42, "parity_query", 1, context["latent_shape"])
+    result = el.parity_check_one_query(args, engine, context, [_synthetic_metadata()], noise)
+    assert result["match"] is True
+    assert result["max_abs_diff"] == 0.0
+    assert result["shape"] == [1, 1, 10240]
+
+
+@gen_integration
+def test_integration_generation_is_reproducible_for_a_fixed_noise_key(real_engine):
+    args, engine, context = real_engine
+    metadata = [_synthetic_metadata(seed=3)]
+    noise = el.build_noise_bank(42, "repeat_query", 1, context["latent_shape"])
+    first = engine.decoder(engine.sampler(
+        noise, engine.cond_inputs_fn(engine.conditioner(metadata, engine.device))))
+    second = engine.decoder(engine.sampler(
+        noise, engine.cond_inputs_fn(engine.conditioner(metadata, engine.device))))
+    assert torch.equal(first, second)
