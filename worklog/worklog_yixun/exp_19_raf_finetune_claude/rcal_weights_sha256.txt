@@ -1,0 +1,3 @@
+7d817b718e6bea7013fff43a3ab8ded25919434a4fbe444fac5dc47831aa0b92  weights/FLAC/FLAC_HAA.ckpt
+f3d47e9edd8dfc10050b8df9acfeeef49e1f386b434aefcd3a3ec175b4c0c4aa  weights/FLAC/FLAC_EMA.ckpt
+8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9  weights/FLAC/VAE.safetensors
