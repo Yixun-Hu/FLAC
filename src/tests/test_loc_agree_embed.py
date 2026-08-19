@@ -90,6 +90,21 @@ def test_preprocess_matches_the_real_metric_route_composition():
         assert torch.equal(preprocess_for_scoring(wav), route.float())
 
 
+@pytest.mark.parametrize("length", [1, 100, 7999, 8000, 8001, 10239, 10240, 10241, 20000])
+def test_preprocess_output_length_is_invariant_and_pads_only(length):
+    """O18: the release route pads but never crops (Retrieval.py:46-47 has no
+    else-branch), so the tower length must be reached by padding alone -- which
+    holds because the max_len slice runs first. Whatever T is, the output is
+    exactly TOWER_LEN and the content window is the first min(T, MAX_LEN)
+    samples, with zeros after it."""
+    keep = min(length, MAX_LEN)
+    wav = torch.full((1, 1, length), 0.75)
+    out = preprocess_for_scoring(wav)
+    assert tuple(out.shape) == (1, 1, TOWER_LEN)
+    assert torch.all(out[..., :keep] == 0.75)
+    assert torch.all(out[..., keep:] == 0.0)
+
+
 @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
 def test_preprocess_rejects_nonfinite_input(bad):
     wav = torch.zeros(1, 1, 100)
