@@ -1186,7 +1186,8 @@ def test_run_evaluation_end_to_end_writes_rows_and_summary(tmp_path):
     loader, _root = _fake_run(tmp_path)
     _rec, engine = _engine()
     args = _run_args(tmp_path)
-    result = el.run_evaluation(args, loader, engine, _stub_context(), "ck" * 32, "ag" * 32)
+    result = el.run_evaluation(args, loader, engine, _stub_context(), "ck" * 32, "ag" * 32,
+                               expected=el.expected_split_identities(loader.dataset))
 
     rows = el.read_rows(result["rows_path"])
     assert len(rows) == 2 and os.path.exists(result["summary_path"])
@@ -1205,10 +1206,12 @@ def test_run_evaluation_end_to_end_writes_rows_and_summary(tmp_path):
 def test_run_evaluation_row_is_reproducible_across_runs(tmp_path):
     loader, _root = _fake_run(tmp_path)
     _rec, engine = _engine()
-    first = el.run_evaluation(_run_args(tmp_path / "a"), loader, engine, _stub_context(), "c", "a")
+    first = el.run_evaluation(_run_args(tmp_path / "a"), loader, engine, _stub_context(), "c", "a",
+                              expected=el.expected_split_identities(loader.dataset))
     loader2, _root2 = _fake_run(tmp_path)
     _rec2, engine2 = _engine()
-    second = el.run_evaluation(_run_args(tmp_path / "b"), loader2, engine2, _stub_context(), "c", "a")
+    second = el.run_evaluation(_run_args(tmp_path / "b"), loader2, engine2, _stub_context(), "c", "a",
+                               expected=el.expected_split_identities(loader2.dataset))
     assert [r["sims_hex"] for r in first["rows"]] == [r["sims_hex"] for r in second["rows"]]
 
 
@@ -1216,7 +1219,8 @@ def test_run_evaluation_smoke_truncates_after_auditing_the_truncated_enumeration
     loader, _root = _fake_run(tmp_path)
     _rec, engine = _engine()
     args = _run_args(tmp_path, **{"--smoke": True, "--max-queries": 1})
-    result = el.run_evaluation(args, loader, engine, _stub_context(), "c", "a")
+    result = el.run_evaluation(args, loader, engine, _stub_context(), "c", "a",
+                               expected=el.expected_split_identities(loader.dataset))
     rows = el.read_rows(result["rows_path"])
     assert len(rows) == 1 and rows[0]["smoke"] is True
     assert "_smoke_" in os.path.basename(result["rows_path"])
@@ -1231,7 +1235,8 @@ def test_run_evaluation_aborts_before_writing_when_the_audit_fails(tmp_path):
     _rec, engine = _engine()
     args = _run_args(tmp_path)
     with pytest.raises(SystemExit):
-        el.run_evaluation(args, loader, engine, _stub_context(), "c", "a")
+        el.run_evaluation(args, loader, engine, _stub_context(), "c", "a",
+                          expected=el.expected_split_identities(loader.dataset))
     rows_path, _summary = el.output_paths(args.out_dir, args.eval_name, args.num_samples,
                                           args.seed, args.smoke)
     assert not os.path.exists(rows_path)                       # nothing was written
@@ -1241,7 +1246,8 @@ def test_run_evaluation_constant_source_control_is_recorded(tmp_path):
     loader, _root = _fake_run(tmp_path)
     _rec, engine = _engine()
     args = _run_args(tmp_path, **{"--control": "constant_source"})
-    result = el.run_evaluation(args, loader, engine, _stub_context(), "c", "a")
+    result = el.run_evaluation(args, loader, engine, _stub_context(), "c", "a",
+                               expected=el.expected_split_identities(loader.dataset))
     assert all(row["control"] == "constant_source" for row in result["rows"])
     assert result["provenance"]["control"] == "constant_source"
 
@@ -1250,7 +1256,8 @@ def test_run_evaluation_gt_rir_mode_scores_measured_files(tmp_path):
     loader, _root = _fake_run(tmp_path)
     _rec, engine = _engine()
     args = _run_args(tmp_path, **{"--score-source": "gt_rir", "--agg": "max"})
-    result = el.run_evaluation(args, loader, engine, _stub_context(), "c", "a")
+    result = el.run_evaluation(args, loader, engine, _stub_context(), "c", "a",
+                               expected=el.expected_split_identities(loader.dataset))
     rows = result["rows"]
     assert all(row["score_source"] == "gt_rir" and row["n_samples"] == 1 for row in rows)
     assert all(row["noise_keys"] == [] for row in rows)
@@ -1545,3 +1552,120 @@ def test_validate_dataset_split_refuses_a_split_that_declares_neither(tmp_path):
     config.write_text(_json.dumps({"dataset_type": "audio_dir", "datasets": []}))
     with pytest.raises(SystemExit):
         el.validate_dataset_split(_split_args(str(config), "--smoke"))
+
+
+# --------------------------------------------------------------------------- #
+# r3 fix F1 (review finding 1, BLOCKER): the identity audit had a TOCTOU hole --
+# a loader that was clean during the audit pass could substitute during the
+# scoring pass and the wrong query entered the artifact. The expectation is now
+# derived from the SPLIT JSON (not from the object being audited), checked per
+# row BEFORE generation, gated on count+rooms at the end, hashed over the SCORED
+# stream, and published atomically.
+# --------------------------------------------------------------------------- #
+def _split_dataset_config(tmp_path, root, order=("S003_R0011_hybrid_IR.wav",
+                                                 "S000_R0011_hybrid_IR.wav")):
+    split = tmp_path / "split.json"
+    split.write_text(_json.dumps({"Cafe": {"Cafe_idx_1": list(order)}}))
+    return {"dataset_type": "audio_dir", "seeneval": True,
+            "datasets": [{"id": "AcousticRooms", "path": str(root),
+                          "json_file_path": str(split),
+                          "folder_name": "single_channel_ir_1"}]}
+
+
+def test_expected_split_identities_come_from_the_split_json_not_the_loader(tmp_path):
+    root, _wav_room = _dataset_tree(tmp_path)
+    config = _split_dataset_config(tmp_path, root)
+    identities = el.expected_split_identities_from_config(config)
+    assert identities == [
+        "0|single_channel_ir_1/Cafe/Cafe_idx_1/S003_R0011_hybrid_IR.wav",
+        "1|single_channel_ir_1/Cafe/Cafe_idx_1/S000_R0011_hybrid_IR.wav",
+    ]
+
+
+def test_expected_split_identities_follow_the_split_order(tmp_path):
+    root, _wav_room = _dataset_tree(tmp_path)
+    flipped = _split_dataset_config(tmp_path, root, order=("S000_R0011_hybrid_IR.wav",
+                                                           "S003_R0011_hybrid_IR.wav"))
+    assert el.expected_split_identities_from_config(flipped)[0].endswith("S000_R0011_hybrid_IR.wav")
+
+
+def test_assert_scored_stream_gates_count_and_rooms():
+    expected = ["0|ir/Cafe/Cafe_idx_1/a.wav", "1|ir/Bed/Bed_idx_0/b.wav"]
+    assert el.assert_scored_stream(expected, expected) == el.split_hash(expected)
+    with pytest.raises(SystemExit):
+        el.assert_scored_stream(expected[:1], expected)                  # short
+    with pytest.raises(SystemExit):
+        el.assert_scored_stream(["0|ir/Cafe/Cafe_idx_1/a.wav"] * 2, expected)   # wrong rooms
+
+
+class _TOCTOULoader:
+    """Clean on the first full iteration, corrupt on every later one."""
+
+    def __init__(self, batches, dataset, mode):
+        self.batches, self.dataset, self.mode, self.passes = batches, dataset, mode, 0
+
+    def __iter__(self):
+        self.passes += 1
+        if self.passes == 1:
+            yield from self.batches
+            return
+        if self.mode == "truncate":
+            yield (self.batches[0][0][:1], self.batches[0][1][:1])
+            return
+        reals, metadata = self.batches[0]
+        poisoned = [dict(md) for md in metadata]
+        poisoned[-1]["idx"] = 99                                 # silent substitution
+        yield (reals, poisoned)
+
+
+def test_run_evaluation_aborts_when_the_scoring_pass_substitutes(tmp_path):
+    """The exact TOCTOU attack: audit pass clean, scoring pass substituted."""
+    loader, _root = _fake_run(tmp_path)
+    expected = el.expected_split_identities(loader.dataset)
+    attacker = _TOCTOULoader(loader.batches, loader.dataset, mode="substitute")
+    assert el.audit_split_identities(attacker, expected) == el.split_hash(expected)  # pass 1 clean
+
+    _rec, engine = _engine()
+    args = _run_args(tmp_path)
+    with pytest.raises(SystemExit):
+        el.run_evaluation(args, attacker, engine, _stub_context(), "c", "a", expected=expected)
+    rows_path, summary_path = el.output_paths(args.out_dir, args.eval_name, 2, args.seed, False)
+    assert not os.path.exists(rows_path) and not os.path.exists(summary_path)
+
+
+def test_run_evaluation_aborts_at_the_end_gate_when_the_scoring_pass_truncates(tmp_path):
+    loader, _root = _fake_run(tmp_path)
+    expected = el.expected_split_identities(loader.dataset)
+    attacker = _TOCTOULoader(loader.batches, loader.dataset, mode="truncate")
+    el.audit_split_identities(attacker, expected)                        # pass 1 clean
+    _rec, engine = _engine()
+    args = _run_args(tmp_path)
+    with pytest.raises(SystemExit):
+        el.run_evaluation(args, attacker, engine, _stub_context(), "c", "a", expected=expected)
+    rows_path, _summary = el.output_paths(args.out_dir, args.eval_name, 2, args.seed, False)
+    assert not os.path.exists(rows_path)
+
+
+def test_run_evaluation_hashes_the_scored_stream_and_publishes_atomically(tmp_path):
+    loader, _root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    args = _run_args(tmp_path)
+    expected = el.expected_split_identities(loader.dataset)
+    result = el.run_evaluation(args, loader, engine, _stub_context(), "c", "a", expected=expected)
+
+    scored = [row["query_id"] for row in result["rows"]]
+    assert result["provenance"]["split_hash"] == el.split_hash(scored)
+    assert os.path.exists(result["rows_path"]) and os.path.exists(result["summary_path"])
+    assert not os.path.exists(result["rows_path"] + ".partial")
+    assert not os.path.exists(result["summary_path"] + ".partial")
+
+
+def test_run_evaluation_checks_identity_before_generating(tmp_path):
+    loader, _root = _fake_run(tmp_path)
+    loader.batches[0][1][0]["idx"] = 42                    # first item already substituted
+    rec, engine = _engine()
+    expected = el.expected_split_identities(loader.dataset)
+    with pytest.raises(SystemExit):
+        el.run_evaluation(_run_args(tmp_path), loader, engine, _stub_context(), "c", "a",
+                          expected=expected)
+    assert rec.calls == []                                 # aborted before any generation

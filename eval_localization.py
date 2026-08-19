@@ -39,7 +39,7 @@ from src.inference.sampling import sample_discrete_euler
 from src.models.factory import create_model_from_config
 from src.training.diffusion import invariant_conditioning
 from src.training.factory import create_training_wrapper_from_config
-from src.data.dataset import create_dataloader_from_config
+from src.data.dataset import create_dataloader_from_config, get_audio_filenames
 from src.localization.agree_embed import MAX_LEN, embed_rirs, load_agree_audio, sha256_file
 from src.localization.candidates import (assert_gt_matches_loader, build_candidate_set,
                                          candidate_metadata, parse_ir_filename,
@@ -50,6 +50,54 @@ from src.localization.scoring import (DEFAULT_RADII, aggregate, context_conditio
                                       summarize, uniform_baseline)
 
 
+def _identities(filenames, root_paths):
+    """``'<position>|<relpath>'`` per file, mirroring SampleDataset's own relpath
+    derivation (every root that is a substring is applied in order, last wins)."""
+    identities = []
+    for idx, filename in enumerate(filenames):
+        relpath = None
+        for root_path in root_paths:
+            if root_path in filename:
+                relpath = os.path.relpath(filename, root_path)
+        identities.append(f"{idx}|{relpath if relpath is not None else filename}")
+    return identities
+
+
+def expected_split_identities_from_config(dataset_config):
+    """The registered enumeration, derived from the SPLIT JSON and folder layout.
+
+    Independent of the dataset object being audited (r3 review finding 1): an
+    expectation read off ``loader.dataset`` proves only that the object agrees
+    with itself. This rebuilds the file list the way ``SampleDataset`` builds it
+    -- ``get_audio_filenames`` on the same config values, concatenated in config
+    order -- so the audit compares the run against the SPLIT.
+    """
+    roots, filenames = [], []
+    for audio_dir in dataset_config.get("datasets", None) or []:
+        path = audio_dir["path"]
+        roots.append(path)
+        filenames.extend(get_audio_filenames(
+            paths=path, keywords=None, json_file_path=audio_dir.get("json_file_path"),
+            folder_name=audio_dir.get("folder_name")))
+    return _identities(filenames, roots)
+
+
+def assert_scored_stream(scored, expected):
+    """End-of-run gate: the scored stream IS the registered split; returns its hash."""
+    scored, expected = list(scored), list(expected)
+    if len(scored) != len(expected):
+        raise SystemExit(
+            f"identity gate ABORT: scored {len(scored)} queries, the split declares "
+            f"{len(expected)}; a truncated or over-long run must not be summarized")
+    scored_rooms = {room_id_from_relpath(identity.split("|", 1)[1]) for identity in scored}
+    expected_rooms = {room_id_from_relpath(identity.split("|", 1)[1]) for identity in expected}
+    if scored_rooms != expected_rooms:
+        raise SystemExit(
+            f"identity gate ABORT: scored rooms {sorted(scored_rooms)} != split rooms "
+            f"{sorted(expected_rooms)}")
+    return split_hash(scored)
+
+
 def expected_split_identities(dataset):
     """The identities a split declares, in dataset order, without loading audio.
 
@@ -58,14 +106,7 @@ def expected_split_identities(dataset):
     the expectation is built from the file list alone -- an audit that re-derived
     its expectation from the loaded stream would prove nothing.
     """
-    identities = []
-    for idx, filename in enumerate(dataset.filenames):
-        relpath = None
-        for root_path in dataset.root_paths:
-            if root_path in filename:
-                relpath = os.path.relpath(filename, root_path)
-        identities.append(f"{idx}|{relpath if relpath is not None else filename}")
-    return identities
+    return _identities(dataset.filenames, dataset.root_paths)
 
 
 def split_hash(identities):
@@ -1055,38 +1096,60 @@ def process_query(args, engine, context, md, obs_wav):
         context_sims_hex=evidence.get("context_sims_hex"))
 
 
-def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256):
-    """Audit the split, then score every query, then summarize (plan §2.1/§2.6).
+def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, expected=None):
+    """Score every query under a fail-closed identity contract (plan §2.1, C2).
 
-    The audit runs FIRST and over the same enumeration the run will use -- under
-    ``--smoke --max-queries N`` that is the truncated one -- so a substituted item
-    aborts before a single row is written and no headline artifact can exist for
-    an unverified split.
+    The audit is IN the scoring loop, not a separate earlier pass (r3 review
+    finding 1): ``SampleDataset`` substitutes a random other item on a load
+    failure, so a pre-pass that saw the right item proves nothing about the pass
+    that produced the numbers. Every position's identity is checked against the
+    registered enumeration BEFORE that query is generated, the run is gated on the
+    scored count and room set at the end, the recorded split hash is computed over
+    the SCORED stream, and the artifacts are written to ``.partial`` paths and
+    renamed only once the gate passes -- so a final-named file always denotes a
+    fully verified run. A separate pre-flight audit remains available as
+    :func:`audit_split_identities`, but it is no longer load-bearing.
     """
-    expected = expected_split_identities(loader.dataset)
+    if expected is None:
+        expected = expected_split_identities_from_config(load_dataset_config(args))
+    expected = list(expected)
     if args.smoke and args.max_queries is not None:
         expected = expected[: int(args.max_queries)]
-    split = audit_split_identities(
-        (md for _reals, md in itertools.islice(_iter_items(loader), len(expected))), expected)
-    print(f"identity audit passed: {len(expected)} queries, split_hash={split[:12]}...")
+    if not expected:
+        _refuse("the registered split enumerates no queries")
 
     rows_path, summary_path = output_paths(args.out_dir, args.eval_name,
                                            effective_num_samples(args), args.seed, args.smoke,
                                            score_source=args.score_source)
-    rows, seen_rooms = [], set()
-    with open(rows_path, "w") as handle:
-        for obs_wav, md in itertools.islice(_iter_items(loader), len(expected)):
+    partial_rows, partial_summary = rows_path + ".partial", summary_path + ".partial"
+    rows, scored, seen_rooms = [], [], set()
+
+    with open(partial_rows, "w") as handle:
+        for position, (obs_wav, md) in enumerate(itertools.islice(_iter_items(loader),
+                                                                  len(expected))):
+            identity = sample_target_id(md)
+            if identity != expected[position]:
+                raise SystemExit(
+                    f"identity gate ABORT at position {position}: expected "
+                    f"{expected[position]!r}, got {identity!r} (silent substitution?); "
+                    "no query is scored under an unverified identity")
             row = process_query(args, engine, context, md, obs_wav)
             write_row(handle, row)
             rows.append(row)
+            scored.append(identity)
             if row["room_id"] not in seen_rooms:
                 seen_rooms.add(row["room_id"])
                 print(f"[{len(rows)}/{len(expected)}] room {row['room_id']}")
 
+    split = assert_scored_stream(scored, expected)
+    print(f"identity gate passed: {len(scored)} queries, split_hash={split[:12]}...")
+
     summary = summarize_run(rows)
     provenance = build_provenance(args, ckpt_sha256, agree_sha256, split,
                                   context["weights_source"], len(rows))
-    write_summary(summary_path, summary, provenance)
+    write_summary(partial_summary, summary, provenance)
+    os.replace(partial_rows, rows_path)          # publish only verified artifacts
+    os.replace(partial_summary, summary_path)
     return {"rows_path": rows_path, "summary_path": summary_path, "rows": rows,
             "summary": summary, "provenance": provenance}
 
@@ -1106,10 +1169,10 @@ def scoring_only_engine(agree, device):
                   embedder=lambda wavs: embed_rirs(agree.model, wavs, device, readout="mean"))
 
 
-def build_dataloader(args, model_config):
+def build_dataloader(args, model_config, dataset_config=None):
     """The eval loader at the PINNED parallelism (O8), unshuffled."""
-    with open(args.dataset_config) as handle:
-        dataset_config = json.load(handle)
+    if dataset_config is None:
+        dataset_config = load_dataset_config(args)
     return create_dataloader_from_config(
         dataset_config, batch_size=args.batch_size, num_workers=args.num_workers,
         sample_rate=model_config["sample_rate"], sample_size=model_config["sample_size"],
@@ -1121,7 +1184,8 @@ def main(argv=None):
     args = validate_args(parse_args(argv))
     # CPU-only refusals first: objective and ARE are checked before the scorer or
     # the generator is constructed, let alone moved to a device (finding 9).
-    validate_dataset_split(args)          # O16, before any asset is opened
+    dataset_config = load_dataset_config(args)
+    validate_dataset_split(args, dataset_config)          # O16, before any asset is opened
     model_config, ckpt = load_and_validate_artifacts(args)
     torch.set_float32_matmul_precision("medium")
 
@@ -1138,7 +1202,7 @@ def main(argv=None):
     # Seeded exactly where evaluate_model seeds it -- after the model build and
     # before the loader, because the per-item context draw happens in the workers.
     pl.seed_everything(args.seed, workers=True)
-    loader = build_dataloader(args, model_config)
+    loader = build_dataloader(args, model_config, dataset_config)
 
     if args.parity_check:
         obs_wav, md = next(_iter_items(loader))
@@ -1149,7 +1213,10 @@ def main(argv=None):
             _refuse(f"generation parity with eval_FLAC FAILED: {result}")
         return result
 
-    result = run_evaluation(args, loader, engine, context, ckpt_sha256, agree.ckpt_sha256)
+    expected = expected_split_identities_from_config(dataset_config)
+    print(f"registered split: {len(expected)} queries")
+    result = run_evaluation(args, loader, engine, context, ckpt_sha256, agree.ckpt_sha256,
+                            expected=expected)
     summary = result["summary"]
     print(f"rows:    {result['rows_path']}")
     print(f"summary: {result['summary_path']}")
