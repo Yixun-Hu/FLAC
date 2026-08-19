@@ -74,3 +74,19 @@
 | `afb8fc3` | h | per-query wiring (`dataset_folder_from_md`, `query_candidate_set`, `context_evidence`) | +130 −4 |
 | `b33f3ed` | h | `process_query` + `run_evaluation` (audit-first, JSONL streaming, smoke truncation) | +216 −4 |
 | `12b8ecc` | h | `main()` + `scoring_only_engine` + `--parity-check` | +98 −1 |
+| `42cf879` | — | ledger append for round 3 | +22 |
+
+### Round 3 fix batch (Codex review `loc_invert_codex_code_r3_review.md`, REQUEST-CHANGES)
+
+| SHA | Finding | Description | changed lines |
+|---|---|---|---|
+| `156c714` | F3 (HIGH #3) | `constant_source` no longer overwrites candidate geometry — immutable `candidate_positions` vs substituted `conditioning_positions` | +61 −8 |
+| `3ead435` | F7 (MED #7) | fail-closed context membership (fingerprint→index map, collisions, unresolvable ids, GT-in-context) resolved BEFORE generation | +104 −11 |
+| `4e3b4a5` | F9 (MED #9) | finite/domain guards on all numeric flags + `load_and_validate_artifacts` on CPU before the scorer or generator is built | +122 −11 |
+| `bdaeb04` | F8 (MED #8) | gt_rir: duplicate `(src, rec)` matches raise, rank over available only, identity must exist, mode refuses ckpt/control/parity, `gt_rir_K1` stamping | +115 −13 |
+| `f11f137` | F5 (HIGH #5) | O16 — `--smoke`/`--parity-check` require a SEEN split, checked from the dataset-config CONTENT | +69 |
+| `e9de5c0` + `4d3369e` + `380dfe3` | F1 (BLOCKER #1) | identity TOCTOU closed: split-JSON-derived expectation, in-loop pre-generation check, end gate on count+rooms, hash over the SCORED stream, `.partial` atomic publish; + `main()` refusal-order follow-ups | +227 −36, +1, +4 −4 |
+| `90a62da` | F6 (HIGH #6) | provenance: registration SHA (O17), config content hashes, context K, loader semantics, context-stream digest (O8), device/precision/versions/TF32/flash_attn | +161 −6 |
+| `a39c9b3` | F4 (HIGH #4) | summary: `flac_excl_gt_only` + masked control on the same retained subset, clustered CI, paired room-clustered tests, power statistic per row + aggregate | +128 −4 |
+| `da8a284` | F2 (HIGH #2) | M×K parity — always-running synthetic (full conditioning, bitwise) + real-asset seen-room test (bitwise at `--cond-autocast off`; batch split bitwise at the registered default) | +285 −1 |
+| `06588eb` | — | `__main__` guard defect found by the CLI parity re-run + `--num-workers >= 1` guard | +26 −6 |
