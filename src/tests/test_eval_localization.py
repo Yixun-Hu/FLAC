@@ -2645,3 +2645,79 @@ def test_readback_mode_needs_no_checkpoint_or_scorer(tmp_path):
     args = _readback_args(tmp_path, root, _write_split(tmp_path))
     assert args.ckpt_path is None and args.agree_ckpt is None
     assert el.run_readback(args)["ok"] is True
+
+
+# --------------------------------------------------------------------------- #
+# r4 item 2b (full-review F2): R0's probe = a smoke run's summary. Per-query
+# component timings and CUDA peak memory are always on, so the registered fit /
+# timing probe needs no separate unreviewed script.
+# --------------------------------------------------------------------------- #
+_PROBE_COMPONENTS = ("conditioning", "sampling", "decode", "embed", "scoring")
+
+
+def test_run_query_reports_per_component_timings():
+    _rec, engine = _engine()
+    cand = _cand_set()
+    out = el.run_query(engine, _base_md(cand), cand, el.build_noise_bank(1, "q", 2, (2, 8)), _OBS)
+    timings = out["timings_s"]
+    assert set(timings) == set(_PROBE_COMPONENTS)
+    assert all(isinstance(v, float) and v >= 0.0 for v in timings.values())
+
+
+def test_run_query_gt_rir_reports_timings(tmp_path):
+    room = str(tmp_path / "Cafe_idx_1")
+    _write_rir(room, 0, 11, 0.1)
+    _write_rir(room, 3, 11, 0.2)
+    _rec, engine = _engine()
+    cand = _cand_set()
+    obs = el.load_measured_rirs(room, cand, 11)[0][1:2]
+    out = el.run_query_gt_rir(engine, cand, room, 11, obs)
+    assert set(out["timings_s"]) == set(_PROBE_COMPONENTS)
+
+
+def test_build_row_carries_the_timings():
+    row = el.build_row(**_row_kwargs(timings={"conditioning": 0.5, "sampling": 1.0,
+                                              "decode": 0.25, "embed": 0.1, "scoring": 0.01}))
+    assert row["timings_s"]["sampling"] == pytest.approx(1.0)
+    assert el.build_row(**_row_kwargs())["timings_s"] is None
+
+
+def test_probe_summary_aggregates_components_and_memory():
+    rows = [{"timings_s": {name: float(i + 1) for name in _PROBE_COMPONENTS}} for i in range(20)]
+    probe = el.probe_summary(rows, peak_memory_bytes=1234)
+    assert probe["n_queries"] == 20 and probe["peak_memory_bytes"] == 1234
+    block = probe["components"]["sampling"]
+    values = [float(i + 1) for i in range(20)]
+    assert block["mean"] == pytest.approx(float(np.mean(values)))
+    assert block["p50"] == pytest.approx(float(np.percentile(values, 50, method="linear")))
+    assert block["p95"] == pytest.approx(float(np.percentile(values, 95, method="linear")))
+    assert probe["total_s"]["mean"] == pytest.approx(5 * float(np.mean(values)))
+
+
+def test_probe_summary_is_none_without_timings():
+    assert el.probe_summary([{"e_loc": 1.0}], peak_memory_bytes=None) is None
+
+
+def test_peak_memory_helpers_are_cpu_safe():
+    el.reset_peak_memory("cpu")
+    assert el.read_peak_memory("cpu") is None
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="no CUDA device")
+def test_peak_memory_helpers_measure_on_cuda():
+    el.reset_peak_memory("cuda")
+    block = torch.empty(1024 * 1024, device="cuda")          # 4 MB
+    peak = el.read_peak_memory("cuda")
+    assert isinstance(peak, int) and peak >= block.numel() * 4
+    del block
+
+
+def test_run_evaluation_summary_carries_the_probe_block(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    result = el.run_evaluation(_run_args(tmp_path), loader, engine, _stub_context(root), "c", "a",
+                               expected=el.expected_split_identities(loader.dataset))
+    probe = result["summary"]["probe"]
+    assert probe["n_queries"] == 2 and set(probe["components"]) == set(_PROBE_COMPONENTS)
+    assert probe["peak_memory_bytes"] is None                 # CPU run
+    assert all("timings_s" in row for row in result["rows"])

@@ -23,6 +23,7 @@ import itertools
 import json
 import math
 import subprocess
+import time
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -221,6 +222,52 @@ def candidate_camera_positions(cand_set):
     return np.stack([project_to_camera(cand_set.rec_loc, xyz) for xyz in cand_set.xyz_world])
 
 
+def _sync(device):
+    """Make a wall-clock reading meaningful on CUDA (kernels are async)."""
+    if str(device).startswith("cuda") and torch.cuda.is_available():
+        torch.cuda.synchronize()
+
+
+def reset_peak_memory(device):
+    """Start the peak-memory measurement for this run (R0's fit probe)."""
+    if str(device).startswith("cuda") and torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats(device if ":" in str(device) else None)
+
+
+def read_peak_memory(device):
+    """Peak allocated bytes since the reset, or ``None`` off CUDA."""
+    if str(device).startswith("cuda") and torch.cuda.is_available():
+        return int(torch.cuda.max_memory_allocated(device if ":" in str(device) else None))
+    return None
+
+
+PROBE_COMPONENTS = ("conditioning", "sampling", "decode", "embed", "scoring")
+
+
+def probe_summary(rows, peak_memory_bytes):
+    """Aggregate the per-query component timings (plan Rev 3.1 §3).
+
+    R0's registered fit/timing probe is just a smoke run's summary, so the
+    instrumentation is always on rather than living in a separate script.
+    """
+    timed = [row["timings_s"] for row in rows if row.get("timings_s")]
+    if not timed:
+        return None
+    components = {}
+    for name in PROBE_COMPONENTS:
+        values = np.asarray([float(t.get(name, 0.0)) for t in timed], dtype=np.float64)
+        components[name] = {"mean": float(values.mean()),
+                            "p50": float(np.percentile(values, 50, method="linear")),
+                            "p95": float(np.percentile(values, 95, method="linear"))}
+    totals = np.asarray([sum(float(t.get(name, 0.0)) for name in PROBE_COMPONENTS)
+                         for t in timed], dtype=np.float64)
+    return {"n_queries": len(timed), "peak_memory_bytes": peak_memory_bytes,
+            "components": components,
+            "total_s": {"mean": float(totals.mean()),
+                        "p50": float(np.percentile(totals, 50, method="linear")),
+                        "p95": float(np.percentile(totals, 95, method="linear"))}}
+
+
 def run_query(engine, base_md, cand_set, noise, obs_wav, batch_size=64, control="none",
               return_wavs=False):
     """Score every candidate of one query: sims ``[M, K]``.
@@ -256,8 +303,12 @@ def run_query(engine, base_md, cand_set, noise, obs_wav, batch_size=64, control=
     metadata = [candidate_metadata(base_md, conditioning_positions[m])
                 for m in range(num_candidates)]
 
+    timings = {name: 0.0 for name in PROBE_COMPONENTS}
+    started = time.perf_counter()
     conditioning = engine.conditioner(metadata, engine.device)
     cond_inputs = engine.cond_inputs_fn(conditioning)
+    _sync(engine.device)
+    timings["conditioning"] = time.perf_counter() - started
 
     total_rows = num_candidates * num_samples
     rows = torch.arange(total_rows)
@@ -269,17 +320,29 @@ def run_query(engine, base_md, cand_set, noise, obs_wav, batch_size=64, control=
         stop = min(start + max(1, int(batch_size)), total_rows)
         chunk_noise = noise.index_select(0, sample_of_row[start:stop]).to(engine.device)
         chunk_cond = _expand_cond_inputs(cond_inputs, candidate_of_row[start:stop].to(engine.device))
+        started = time.perf_counter()
         latents = engine.sampler(chunk_noise, chunk_cond)
+        _sync(engine.device)
+        timings["sampling"] += time.perf_counter() - started
+        started = time.perf_counter()
         wavs.append(engine.decoder(latents).clamp(-1.0, 1.0))
+        _sync(engine.device)
+        timings["decode"] += time.perf_counter() - started
     wavs = torch.cat(wavs, dim=0)
 
+    started = time.perf_counter()
     embeddings = engine.embedder(wavs)
     obs_embedding = engine.embedder(obs_wav.to(engine.device))[0]
+    _sync(engine.device)
+    timings["embed"] = time.perf_counter() - started
+    started = time.perf_counter()
     sims = cosine_sims(obs_embedding, embeddings.reshape(num_candidates, num_samples, -1))
+    timings["scoring"] = time.perf_counter() - started
 
     out = {"sims": sims.float().cpu(), "cand_cam_xyz": candidate_positions,
            "conditioning_xyz_cam": conditioning_positions, "control": control,
-           "num_candidates": num_candidates, "num_samples": num_samples}
+           "num_candidates": num_candidates, "num_samples": num_samples,
+           "timings_s": timings}
     if return_wavs:
         out["wavs"] = wavs
     return out
@@ -390,7 +453,7 @@ def decode_scores(payload):
 def build_row(query_id, room_id, relpath, receiver_node, cand_set, cam_xyz, sims,
               context_mask, noise_keys, tau, agg, control, score_source, smoke,
               available=None, identity_index=None, substituted=False,
-              context_xyz_cam=None, context_sims_hex=None):
+              context_xyz_cam=None, context_sims_hex=None, timings=None):
     """One JSONL query record: raw evidence first, derived quantities alongside.
 
     ``sims_hex``/``scores_hex`` are the exact float32 values (O18), so the
@@ -453,6 +516,8 @@ def build_row(query_id, room_id, relpath, receiver_node, cand_set, cam_xyz, sims
         "identity_index": None if identity_index is None else int(identity_index),
         "substituted": bool(substituted),
         "smoke": bool(smoke),
+        "timings_s": (None if timings is None
+                      else {name: float(timings.get(name, 0.0)) for name in PROBE_COMPONENTS}),
     }
     if context_xyz_cam is not None and context_sims_hex is not None:
         # optional evidence for the non-generative control (O10)
@@ -894,10 +959,18 @@ def run_query_gt_rir(engine, cand_set, room_wav_dir, receiver_node, obs_wav):
     unavailable, so the row still carries the full candidate set while the
     prediction is taken over the available ones only.
     """
+    timings = {name: 0.0 for name in PROBE_COMPONENTS}
+    started = time.perf_counter()
     wavs, available, _paths = load_measured_rirs(room_wav_dir, cand_set, receiver_node)
+    timings["decode"] = time.perf_counter() - started      # file load stands in for decode
+    started = time.perf_counter()
     embeddings = engine.embedder(wavs.to(engine.device))
     obs_embedding = engine.embedder(obs_wav.to(engine.device))[0]
+    _sync(engine.device)
+    timings["embed"] = time.perf_counter() - started
+    started = time.perf_counter()
     present = cosine_sims(obs_embedding, embeddings.unsqueeze(1))
+    timings["scoring"] = time.perf_counter() - started
 
     sims = torch.zeros(len(cand_set.nodes), 1, dtype=torch.float32)
     cursor = 0
@@ -913,7 +986,7 @@ def run_query_gt_rir(engine, cand_set, room_wav_dir, receiver_node, obs_wav):
             "not in the scored set")
     return {"sims": sims, "available": available, "cand_cam_xyz": candidate_camera_positions(cand_set),
             "identity_index": gt_index,
-            "num_candidates": len(cand_set.nodes), "num_samples": 1}
+            "num_candidates": len(cand_set.nodes), "num_samples": 1, "timings_s": timings}
 
 
 def _finite_angle(value):
@@ -1300,7 +1373,8 @@ def process_query(args, engine, context, md, obs_wav):
         score_source=args.score_source, smoke=bool(args.smoke), available=available,
         identity_index=identity_index, substituted=False,
         context_xyz_cam=evidence.get("context_xyz_cam"),
-        context_sims_hex=evidence.get("context_sims_hex"))
+        context_sims_hex=evidence.get("context_sims_hex"),
+        timings=outcome.get("timings_s"))
 
 
 def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, expected=None,
@@ -1330,6 +1404,7 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
     rows_path, summary_path = paths["rows"], paths["summary"]
     partial_rows, partial_summary = rows_path + ".partial", summary_path + ".partial"
     rows, scored, seen_rooms = [], [], set()
+    reset_peak_memory(context.get("device", "cpu"))
 
     with open(partial_rows, "w") as handle:
         for position, (obs_wav, md) in enumerate(itertools.islice(_iter_items(loader),
@@ -1354,6 +1429,7 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
     print(f"identity gate passed: {len(scored)} queries, split_hash={split[:12]}...")
 
     summary = summarize_run(rows)
+    summary["probe"] = probe_summary(rows, read_peak_memory(context.get("device", "cpu")))
     manifest = context.get("manifest")
     provenance = build_provenance(args, ckpt_sha256, agree_sha256, split,
                                   context["weights_source"], len(rows),
