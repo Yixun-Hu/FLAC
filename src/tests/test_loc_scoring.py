@@ -12,7 +12,14 @@ import math
 import pytest
 import torch
 
-from src.localization.scoring import aggregate, cosine_sims
+from src.localization.scoring import (
+    aggregate,
+    cosine_sims,
+    localization_error,
+    predict_index,
+    softmax_map,
+    success_within,
+)
 
 
 def _unit(*values):
@@ -139,3 +146,70 @@ def test_aggregate_rejects_unknown_method_and_bad_shape():
 def test_aggregate_preserves_dtype():
     assert aggregate(_SIMS, "lme", tau=0.05).dtype == torch.float32
     assert aggregate(_SIMS.double(), "lme", tau=0.05).dtype == torch.float64
+
+
+# --------------------------------------------------------------------------- #
+# predict_index / softmax_map
+# --------------------------------------------------------------------------- #
+def test_predict_index_argmax():
+    assert predict_index(torch.tensor([0.1, 0.9, 0.5])) == 1
+    assert isinstance(predict_index(torch.tensor([0.1, 0.9])), int)
+
+
+def test_predict_index_lowest_index_tie_break():
+    assert predict_index(torch.tensor([0.5, 0.9, 0.9])) == 1
+    assert predict_index(torch.tensor([0.9, 0.9, 0.9])) == 0
+
+
+def test_predict_index_rejects_bad_shape():
+    with pytest.raises(ValueError):
+        predict_index(torch.tensor([[0.1, 0.9]]))
+    with pytest.raises(ValueError):
+        predict_index(torch.tensor([]))
+
+
+def test_softmax_map_sums_to_one_and_ranks_scores():
+    p = softmax_map(torch.tensor([0.1, 0.9, 0.5]), T=0.2)
+    assert tuple(p.shape) == (3,)
+    assert abs(float(p.sum()) - 1.0) < 1e-6
+    assert int(torch.argmax(p)) == 1
+    assert float(p[1]) > float(p[2]) > float(p[0])
+
+
+def test_softmax_map_is_shift_invariant():
+    scores = torch.tensor([0.1, 0.9, 0.5])
+    a = softmax_map(scores, T=0.3)
+    b = softmax_map(scores + 5.0, T=0.3)
+    assert torch.allclose(a, b, atol=1e-6)
+
+
+@pytest.mark.parametrize("bad_T", [0.0, -0.3])
+def test_softmax_map_requires_positive_temperature(bad_T):
+    with pytest.raises(ValueError):
+        softmax_map(torch.tensor([0.1, 0.9]), T=bad_T)
+
+
+# --------------------------------------------------------------------------- #
+# localization_error / success_within
+# --------------------------------------------------------------------------- #
+def test_localization_error_is_l2():
+    assert localization_error([0.0, 0.0, 0.0], [3.0, 4.0, 0.0]) == pytest.approx(5.0)
+    assert localization_error(torch.tensor([1.0, 2.0, 3.0]),
+                              torch.tensor([1.0, 2.0, 3.0])) == pytest.approx(0.0)
+    assert isinstance(localization_error([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]), float)
+
+
+def test_localization_error_rejects_bad_shape():
+    with pytest.raises(ValueError):
+        localization_error([0.0, 0.0], [1.0, 0.0, 0.0])
+
+
+def test_success_within_boundary_is_inclusive():
+    assert success_within(1.0, 1.0) is True          # e_loc <= r counts as success
+    assert success_within(0.9999, 1.0) is True
+    assert success_within(1.0001, 1.0) is False
+
+
+def test_success_within_rejects_negative_radius():
+    with pytest.raises(ValueError):
+        success_within(0.5, -1.0)

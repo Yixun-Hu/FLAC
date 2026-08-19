@@ -59,3 +59,41 @@ def aggregate(sims, method="lme", tau=None):
             raise ValueError(f"tau must be > 0 for method 'lme', got {tau}")
         return tau * (torch.logsumexp(sims / tau, dim=-1) - math.log(sims.shape[-1]))
     raise ValueError(f"unknown aggregation method {method!r} (expected 'lme', 'mean' or 'max')")
+
+
+def predict_index(scores):
+    """Index of the highest score, ties broken by lowest index (registered)."""
+    if scores.ndim != 1 or scores.numel() == 0:
+        raise ValueError(f"scores must be a non-empty [M] tensor, got shape {tuple(scores.shape)}")
+    winners = torch.nonzero(scores == scores.max(), as_tuple=False)
+    return int(winners[0].item())
+
+
+def softmax_map(scores, T):
+    """Temperature-``T`` softmax over candidates: a [M] distribution summing to 1."""
+    if scores.ndim != 1 or scores.numel() == 0:
+        raise ValueError(f"scores must be a non-empty [M] tensor, got shape {tuple(scores.shape)}")
+    T = float(T)
+    if T <= 0.0:
+        raise ValueError(f"T must be > 0, got {T}")
+    return torch.softmax(scores / T, dim=-1)
+
+
+def _point(value, what):
+    xyz = torch.as_tensor(value, dtype=torch.float64).reshape(-1)
+    if xyz.numel() != 3:
+        raise ValueError(f"{what} must be 3 coordinates, got {tuple(torch.as_tensor(value).shape)}")
+    return xyz
+
+
+def localization_error(pred_xyz, gt_xyz):
+    """Euclidean distance (metres) between a predicted and the true position."""
+    return float(torch.linalg.norm(_point(pred_xyz, "pred_xyz") - _point(gt_xyz, "gt_xyz")))
+
+
+def success_within(error, radius):
+    """``True`` iff ``error <= radius`` -- the boundary counts as a success."""
+    radius = float(radius)
+    if radius < 0.0:
+        raise ValueError(f"radius must be >= 0, got {radius}")
+    return bool(float(error) <= radius)
