@@ -637,6 +637,7 @@ def test_summarize_run_refuses_empty_rows():
 # provenance / output paths / summary writer  (unit e, part 2)
 # --------------------------------------------------------------------------- #
 import os     # noqa: E402
+import time   # noqa: E402
 import types  # noqa: E402
 
 
@@ -2654,7 +2655,7 @@ def test_readback_mode_needs_no_checkpoint_or_scorer(tmp_path):
 # component timings and CUDA peak memory are always on, so the registered fit /
 # timing probe needs no separate unreviewed script.
 # --------------------------------------------------------------------------- #
-_PROBE_COMPONENTS = ("conditioning", "sampling", "decode", "embed", "scoring")
+_PROBE_COMPONENTS = ("conditioning", "sampling", "decode", "embed", "scoring")   # run_query's
 
 
 def test_run_query_reports_per_component_timings():
@@ -2685,7 +2686,7 @@ def test_build_row_carries_the_timings():
 
 
 def test_probe_summary_aggregates_components_and_memory():
-    rows = [{"timings_s": {name: float(i + 1) for name in _PROBE_COMPONENTS}} for i in range(20)]
+    rows = [{"timings_s": {name: float(i + 1) for name in el.PROBE_COMPONENTS}} for i in range(20)]
     probe = el.probe_summary(rows, peak_memory_bytes=1234)
     assert probe["n_queries"] == 20 and probe["peak_memory_bytes"] == 1234
     block = probe["components"]["sampling"]
@@ -2693,7 +2694,9 @@ def test_probe_summary_aggregates_components_and_memory():
     assert block["mean"] == pytest.approx(float(np.mean(values)))
     assert block["p50"] == pytest.approx(float(np.percentile(values, 50, method="linear")))
     assert block["p95"] == pytest.approx(float(np.percentile(values, 95, method="linear")))
-    assert probe["total_s"]["mean"] == pytest.approx(5 * float(np.mean(values)))
+    assert probe["total_s"]["mean"] == pytest.approx(len(el.PROBE_COMPONENTS)
+                                                    * float(np.mean(values)))
+    assert probe["total_wall_s"] is None                  # these rows carry no wall time
 
 
 def test_probe_summary_is_none_without_timings():
@@ -2720,7 +2723,8 @@ def test_run_evaluation_summary_carries_the_probe_block(tmp_path):
     result = el.run_evaluation(_run_args(tmp_path), loader, engine, _stub_context(root), "c", "a",
                                expected=el.expected_split_identities(loader.dataset))
     probe = result["summary"]["probe"]
-    assert probe["n_queries"] == 2 and set(probe["components"]) == set(_PROBE_COMPONENTS)
+    assert probe["n_queries"] == 2 and set(probe["components"]) == set(el.PROBE_COMPONENTS)
+    assert probe["total_wall_s"]["mean"] > 0.0
     assert probe["peak_memory_bytes"] is None                 # CPU run
     assert all("timings_s" in row for row in result["rows"])
 
@@ -2829,3 +2833,119 @@ def test_the_main_guard_is_the_last_statement_in_the_module():
     assert isinstance(last, ast.If), f"the module must end with the __main__ guard, got {last}"
     assert ast.dump(last.test).count("__name__") == 1
     assert isinstance(last.body[0], ast.Expr)
+
+
+# --------------------------------------------------------------------------- #
+# r5 item 1 (r4 review H1): R0's timings must be WALL-correct on the target GPU.
+# _sync ignored the device (so GPU-1 work could be timed against a GPU-0 sync),
+# scoring stopped its timer before the .cpu() wait, there was no leading sync, and
+# context_evidence was untimed.
+# --------------------------------------------------------------------------- #
+def test_resolve_cuda_index_reads_the_requested_device():
+    assert el._resolve_cuda_index("cpu") is None
+    if torch.cuda.is_available():
+        assert el._resolve_cuda_index("cuda:1") == 1
+        assert el._resolve_cuda_index("cuda") == torch.cuda.current_device()
+    else:
+        assert el._resolve_cuda_index("cuda:1") is None
+
+
+def test_timed_brackets_every_interval_with_leading_and_trailing_sync(monkeypatch):
+    """A spy over _sync proves each component is drained before the clock starts
+    and waited for before it stops."""
+    events = []
+    monkeypatch.setattr(el, "_sync", lambda device: events.append(("sync", str(device))))
+    timings = {}
+    with el._timed(timings, "sampling", "cuda:1"):
+        events.append(("work", "sampling"))
+    assert events == [("sync", "cuda:1"), ("work", "sampling"), ("sync", "cuda:1")]
+    assert timings["sampling"] >= 0.0
+
+
+def test_run_query_syncs_around_every_timed_component(monkeypatch):
+    events = []
+    monkeypatch.setattr(el, "_sync", lambda device: events.append("sync"))
+    rec = _RecordingEngine()
+    for name in ("conditioner", "sampler", "decoder", "embedder"):
+        original = getattr(rec, name)
+
+        def wrapped(*a, _o=original, _n=name, **kw):
+            events.append(_n)
+            return _o(*a, **kw)
+
+        setattr(rec, name, wrapped)
+    engine = el.Engine(**_engine_kwargs(rec))
+    cand = _cand_set()
+    out = el.run_query(engine, _base_md(cand), cand, el.build_noise_bank(1, "q", 2, (2, 8)), _OBS)
+
+    assert set(out["timings_s"]) == set(el.PROBE_COMPONENTS) - {"context", "total_wall"}
+    for name in ("conditioner", "sampler", "decoder", "embedder"):
+        position = events.index(name)
+        assert events[position - 1] == "sync", f"no leading sync before {name}"
+        assert "sync" in events[position + 1:position + 3], f"no trailing sync after {name}"
+    assert events[-1] == "sync"                      # scoring's trailing sync is last
+
+
+def test_process_query_times_context_evidence_and_the_whole_query(tmp_path):
+    root, wav_room = _dataset_tree(tmp_path)
+    md = _query_md(root, wav_room)
+    _rec, engine = _engine()
+    context = _stub_context(root)
+    context["context_k"] = 2
+    row = el.process_query(_run_args(tmp_path), engine, context, md, torch.full((1, 1, 9600), 0.2))
+    timings = row["timings_s"]
+    assert "context" in timings and "total_wall" in timings
+    assert timings["context"] > 0.0
+    component_sum = sum(timings[name] for name in el.PROBE_COMPONENTS)
+    assert timings["total_wall"] >= component_sum - 1e-6      # wall covers the components
+
+
+def test_probe_summary_reports_both_component_sum_and_measured_wall():
+    rows = [{"timings_s": {**{name: 1.0 for name in el.PROBE_COMPONENTS}, "total_wall": 8.0}}
+            for _ in range(4)]
+    probe = el.probe_summary(rows, peak_memory_bytes=None)
+    assert probe["total_s"]["mean"] == pytest.approx(float(len(el.PROBE_COMPONENTS)))
+    assert probe["total_wall_s"]["mean"] == pytest.approx(8.0)
+    assert set(probe["components"]) == set(el.PROBE_COMPONENTS)
+
+
+@pytest.mark.skipif(torch.cuda.device_count() < 2, reason="needs two CUDA devices")
+def test_timed_waits_for_the_requested_cuda_device_not_device_zero():
+    """The reviewer's exact scenario. The kernels are large enough that the CPU
+    runs far ahead of the GPU (launch cost ~1 ms vs ~0.5 s of work), so a
+    synchronization on the WRONG device returns immediately while ours waits."""
+    def queue_work(index, size=8192, iters=12):
+        with torch.cuda.device(index):
+            a = torch.randn(size, size, device=f"cuda:{index}")
+            b = torch.randn(size, size, device=f"cuda:{index}")
+            for _ in range(iters):
+                a = torch.mm(a, b)
+        return a
+
+    for index in (0, 1):                      # warm both CUDA contexts
+        warm = queue_work(index, size=1024, iters=1)
+        torch.cuda.synchronize(index)
+        del warm
+
+    try:
+        torch.cuda.synchronize(1)
+        started = time.perf_counter()
+        held = queue_work(1)
+        torch.cuda.synchronize(0)             # the OLD behaviour: wrong device
+        wrong_device = time.perf_counter() - started
+        torch.cuda.synchronize(1)
+        del held
+
+        timings = {}
+        torch.cuda.synchronize(1)
+        with el._timed(timings, "sampling", "cuda:1"):
+            held = queue_work(1)
+        measured = timings["sampling"]
+        del held
+    finally:
+        torch.cuda.empty_cache()
+
+    assert measured > 0.1, f"the timed interval did not wait for cuda:1 ({measured:.4f}s)"
+    assert wrong_device < measured * 0.2, (
+        f"a cuda:0 synchronization waited {wrong_device:.4f}s against our {measured:.4f}s; "
+        "the test cannot discriminate")

@@ -224,10 +224,41 @@ def candidate_camera_positions(cand_set):
     return np.stack([project_to_camera(cand_set.rec_loc, xyz) for xyz in cand_set.xyz_world])
 
 
+def _resolve_cuda_index(device):
+    """The CUDA index a device string names, or ``None`` off CUDA."""
+    name = str(device)
+    if not name.startswith("cuda") or not torch.cuda.is_available():
+        return None
+    return int(name.split(":", 1)[1]) if ":" in name else torch.cuda.current_device()
+
+
 def _sync(device):
-    """Make a wall-clock reading meaningful on CUDA (kernels are async)."""
-    if str(device).startswith("cuda") and torch.cuda.is_available():
-        torch.cuda.synchronize()
+    """Drain the REQUESTED device (r4 review H1).
+
+    ``torch.cuda.synchronize()`` without an index waits on the current device,
+    which for an ``R0`` pinned to GPU 1 could return while its work is still
+    queued -- reporting a fraction of the real time.
+    """
+    index = _resolve_cuda_index(device)
+    if index is not None:
+        torch.cuda.synchronize(index)
+
+
+@contextlib.contextmanager
+def _timed(timings, name, device):
+    """Time one component with a LEADING and a TRAILING synchronization.
+
+    Leading, so a previous query's outstanding work is not billed to this
+    interval; trailing, so the interval actually contains the work it names --
+    scoring used to stop its clock before the ``.cpu()`` that does the waiting.
+    """
+    _sync(device)
+    started = time.perf_counter()
+    try:
+        yield
+    finally:
+        _sync(device)
+        timings[name] = timings.get(name, 0.0) + (time.perf_counter() - started)
 
 
 def reset_peak_memory(device):
@@ -243,7 +274,10 @@ def read_peak_memory(device):
     return None
 
 
-PROBE_COMPONENTS = ("conditioning", "sampling", "decode", "embed", "scoring")
+PROBE_COMPONENTS = ("conditioning", "sampling", "decode", "embed", "scoring",
+                    "context")
+#: separately measured whole-query wall time (not a component sum).
+PROBE_WALL = "total_wall"
 
 
 def probe_summary(rows, peak_memory_bytes):
@@ -261,13 +295,17 @@ def probe_summary(rows, peak_memory_bytes):
         components[name] = {"mean": float(values.mean()),
                             "p50": float(np.percentile(values, 50, method="linear")),
                             "p95": float(np.percentile(values, 95, method="linear"))}
-    totals = np.asarray([sum(float(t.get(name, 0.0)) for name in PROBE_COMPONENTS)
-                         for t in timed], dtype=np.float64)
+    def _block(values):
+        values = np.asarray(values, dtype=np.float64)
+        return {"mean": float(values.mean()),
+                "p50": float(np.percentile(values, 50, method="linear")),
+                "p95": float(np.percentile(values, 95, method="linear"))}
+
+    totals = [sum(float(t.get(name, 0.0)) for name in PROBE_COMPONENTS) for t in timed]
+    walls = [float(t[PROBE_WALL]) for t in timed if t.get(PROBE_WALL) is not None]
     return {"n_queries": len(timed), "peak_memory_bytes": peak_memory_bytes,
-            "components": components,
-            "total_s": {"mean": float(totals.mean()),
-                        "p50": float(np.percentile(totals, 50, method="linear")),
-                        "p95": float(np.percentile(totals, 95, method="linear"))}}
+            "components": components, "total_s": _block(totals),
+            "total_wall_s": _block(walls) if walls else None}
 
 
 def run_query(engine, base_md, cand_set, noise, obs_wav, batch_size=64, control="none",
@@ -305,12 +343,10 @@ def run_query(engine, base_md, cand_set, noise, obs_wav, batch_size=64, control=
     metadata = [candidate_metadata(base_md, conditioning_positions[m])
                 for m in range(num_candidates)]
 
-    timings = {name: 0.0 for name in PROBE_COMPONENTS}
-    started = time.perf_counter()
-    conditioning = engine.conditioner(metadata, engine.device)
-    cond_inputs = engine.cond_inputs_fn(conditioning)
-    _sync(engine.device)
-    timings["conditioning"] = time.perf_counter() - started
+    timings = {name: 0.0 for name in PROBE_COMPONENTS if name != "context"}
+    with _timed(timings, "conditioning", engine.device):
+        conditioning = engine.conditioner(metadata, engine.device)
+        cond_inputs = engine.cond_inputs_fn(conditioning)
 
     total_rows = num_candidates * num_samples
     rows = torch.arange(total_rows)
@@ -322,26 +358,21 @@ def run_query(engine, base_md, cand_set, noise, obs_wav, batch_size=64, control=
         stop = min(start + max(1, int(batch_size)), total_rows)
         chunk_noise = noise.index_select(0, sample_of_row[start:stop]).to(engine.device)
         chunk_cond = _expand_cond_inputs(cond_inputs, candidate_of_row[start:stop].to(engine.device))
-        started = time.perf_counter()
-        latents = engine.sampler(chunk_noise, chunk_cond)
-        _sync(engine.device)
-        timings["sampling"] += time.perf_counter() - started
-        started = time.perf_counter()
-        wavs.append(engine.decoder(latents).clamp(-1.0, 1.0))
-        _sync(engine.device)
-        timings["decode"] += time.perf_counter() - started
+        with _timed(timings, "sampling", engine.device):
+            latents = engine.sampler(chunk_noise, chunk_cond)
+        with _timed(timings, "decode", engine.device):
+            wavs.append(engine.decoder(latents).clamp(-1.0, 1.0))
     wavs = torch.cat(wavs, dim=0)
 
-    started = time.perf_counter()
-    embeddings = engine.embedder(wavs)
-    obs_embedding = engine.embedder(obs_wav.to(engine.device))[0]
-    _sync(engine.device)
-    timings["embed"] = time.perf_counter() - started
-    started = time.perf_counter()
-    sims = cosine_sims(obs_embedding, embeddings.reshape(num_candidates, num_samples, -1))
-    timings["scoring"] = time.perf_counter() - started
+    with _timed(timings, "embed", engine.device):
+        embeddings = engine.embedder(wavs)
+        obs_embedding = engine.embedder(obs_wav.to(engine.device))[0]
+    with _timed(timings, "scoring", engine.device):
+        # the .cpu() transfer is the actual wait: it belongs INSIDE this interval
+        sims = cosine_sims(obs_embedding,
+                           embeddings.reshape(num_candidates, num_samples, -1)).float().cpu()
 
-    out = {"sims": sims.float().cpu(), "cand_cam_xyz": candidate_positions,
+    out = {"sims": sims, "cand_cam_xyz": candidate_positions,
            "conditioning_xyz_cam": conditioning_positions, "control": control,
            "num_candidates": num_candidates, "num_samples": num_samples,
            "timings_s": timings}
@@ -499,7 +530,8 @@ def build_row(query_id, room_id, relpath, receiver_node, cand_set, cam_xyz, sims
         "substituted": bool(substituted),
         "smoke": bool(smoke),
         "timings_s": (None if timings is None
-                      else {name: float(timings.get(name, 0.0)) for name in PROBE_COMPONENTS}),
+                      else {**{name: float(timings.get(name, 0.0)) for name in PROBE_COMPONENTS},
+                            PROBE_WALL: float(timings.get(PROBE_WALL, 0.0))}),
     }
     if context_xyz_cam is not None and context_sims_hex is not None:
         # optional evidence for the non-generative control (O10)
@@ -941,18 +973,14 @@ def run_query_gt_rir(engine, cand_set, room_wav_dir, receiver_node, obs_wav):
     unavailable, so the row still carries the full candidate set while the
     prediction is taken over the available ones only.
     """
-    timings = {name: 0.0 for name in PROBE_COMPONENTS}
-    started = time.perf_counter()
-    wavs, available, _paths = load_measured_rirs(room_wav_dir, cand_set, receiver_node)
-    timings["decode"] = time.perf_counter() - started      # file load stands in for decode
-    started = time.perf_counter()
-    embeddings = engine.embedder(wavs.to(engine.device))
-    obs_embedding = engine.embedder(obs_wav.to(engine.device))[0]
-    _sync(engine.device)
-    timings["embed"] = time.perf_counter() - started
-    started = time.perf_counter()
-    present = cosine_sims(obs_embedding, embeddings.unsqueeze(1))
-    timings["scoring"] = time.perf_counter() - started
+    timings = {name: 0.0 for name in PROBE_COMPONENTS if name != "context"}
+    with _timed(timings, "decode", engine.device):         # file load stands in for decode
+        wavs, available, _paths = load_measured_rirs(room_wav_dir, cand_set, receiver_node)
+    with _timed(timings, "embed", engine.device):
+        embeddings = engine.embedder(wavs.to(engine.device))
+        obs_embedding = engine.embedder(obs_wav.to(engine.device))[0]
+    with _timed(timings, "scoring", engine.device):
+        present = cosine_sims(obs_embedding, embeddings.unsqueeze(1)).float().cpu()
 
     sims = torch.zeros(len(cand_set.nodes), 1, dtype=torch.float32)
     cursor = 0
@@ -1328,40 +1356,52 @@ def _iter_items(loader):
 
 
 def process_query(args, engine, context, md, obs_wav):
-    """One query end to end: candidate set -> generation/oracle -> scored row."""
-    query_id = sample_target_id(md)
-    room_id = room_id_from_relpath(md["relpath"])
-    gt_node, receiver_node = parse_ir_filename(md["path"])
-    manifest = context.get("manifest")
-    if manifest is None:
-        _refuse("no frozen candidate manifest in the run context; per-query disk enumeration "
-                "was removed so that M cannot change mid-run (plan Rev 3.1 §2)")
-    cand_set = candidate_set_from_manifest(manifest, room_id, gt_node, receiver_node)
-    # BEFORE anything can touch the poses: the context fingerprint identifies the draw.
-    context_ids = sample_context_ids(md)
+    """One query end to end: candidate set -> generation/oracle -> scored row.
 
-    context_k = context.get("context_k")
-    if context_k is not None:
-        assert_query_context(md, context_k)
-    # Membership is resolved BEFORE any generation so a conditioning/candidate
-    # geometry disagreement aborts instead of quietly enlarging the eligible set.
-    candidate_cams = candidate_camera_positions(cand_set)
-    context_mask = context_membership_mask(candidate_cams, context_ids,
-                                           gt_index=cand_set.gt_index)
+    The whole body sits inside a separately synchronized wall-clock timer, and
+    the context-control embedding is timed as its own component, so R0's probe
+    accounts for every part of a scored query (r4 review H1).
+    """
+    timings = {}
+    with _timed(timings, PROBE_WALL, engine.device):
+        query_id = sample_target_id(md)
+        room_id = room_id_from_relpath(md["relpath"])
+        gt_node, receiver_node = parse_ir_filename(md["path"])
+        manifest = context.get("manifest")
+        if manifest is None:
+            _refuse("no frozen candidate manifest in the run context; per-query disk enumeration "
+                    "was removed so that M cannot change mid-run (plan Rev 3.1 §2)")
+        cand_set = candidate_set_from_manifest(manifest, room_id, gt_node, receiver_node)
+        # BEFORE anything can touch the poses: the context fingerprint identifies the draw.
+        context_ids = sample_context_ids(md)
 
-    if args.score_source == "gt_rir":
-        outcome = run_query_gt_rir(engine, cand_set, os.path.dirname(md["path"]),
-                                   receiver_node, obs_wav)
-        noise_keys, available = [], outcome["available"]
-        identity_index = outcome["identity_index"]
-    else:
-        noise = build_noise_bank(args.seed, query_id, args.num_samples, context["latent_shape"])
-        noise_keys = [noise_key(args.seed, query_id, k) for k in range(int(args.num_samples))]
-        outcome = run_query(engine, md, cand_set, noise, obs_wav, batch_size=args.batch_size,
-                            control=args.control)
-        available, identity_index = None, None
+        context_k = context.get("context_k")
+        if context_k is not None:
+            assert_query_context(md, context_k)
+        # Membership is resolved BEFORE any generation so a conditioning/candidate
+        # geometry disagreement aborts instead of quietly enlarging the eligible set.
+        candidate_cams = candidate_camera_positions(cand_set)
+        context_mask = context_membership_mask(candidate_cams, context_ids,
+                                               gt_index=cand_set.gt_index)
 
-    evidence = context_evidence(engine, md, obs_wav) or {}
+        if args.score_source == "gt_rir":
+            outcome = run_query_gt_rir(engine, cand_set, os.path.dirname(md["path"]),
+                                       receiver_node, obs_wav)
+            noise_keys, available = [], outcome["available"]
+            identity_index = outcome["identity_index"]
+        else:
+            noise = build_noise_bank(args.seed, query_id, args.num_samples,
+                                     context["latent_shape"])
+            noise_keys = [noise_key(args.seed, query_id, k)
+                          for k in range(int(args.num_samples))]
+            outcome = run_query(engine, md, cand_set, noise, obs_wav,
+                                batch_size=args.batch_size, control=args.control)
+            available, identity_index = None, None
+
+        timings.update(outcome.get("timings_s") or {})
+        with _timed(timings, "context", engine.device):
+            evidence = context_evidence(engine, md, obs_wav) or {}
+
     return build_row(
         query_id=query_id, room_id=room_id, relpath=md["relpath"], receiver_node=receiver_node,
         cand_set=cand_set, cam_xyz=outcome["cand_cam_xyz"], sims=outcome["sims"],
@@ -1371,7 +1411,7 @@ def process_query(args, engine, context, md, obs_wav):
         identity_index=identity_index, substituted=False,
         context_xyz_cam=evidence.get("context_xyz_cam"),
         context_sims_hex=evidence.get("context_sims_hex"),
-        timings=outcome.get("timings_s"))
+        timings=timings)
 
 
 def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, expected=None,
