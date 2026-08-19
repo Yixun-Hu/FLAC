@@ -14,11 +14,14 @@ import torch
 
 from src.localization.scoring import (
     aggregate,
+    context_conditioned_baseline,
     cosine_sims,
     localization_error,
+    nearest_context_baseline,
     predict_index,
     softmax_map,
     success_within,
+    uniform_baseline,
 )
 
 
@@ -213,3 +216,122 @@ def test_success_within_boundary_is_inclusive():
 def test_success_within_rejects_negative_radius():
     with pytest.raises(ValueError):
         success_within(0.5, -1.0)
+
+
+# --------------------------------------------------------------------------- #
+# uniform_baseline (spec's literal lower bound)
+# --------------------------------------------------------------------------- #
+_CAND = torch.tensor([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [3.0, 0.0, 0.0], [0.0, 4.0, 0.0]])
+_GT = torch.tensor([0.0, 0.0, 0.0])                       # candidate 0; distances 0/1/3/4
+
+
+def test_uniform_baseline_hand_example():
+    out = uniform_baseline(_CAND, _GT, radii=(0.5, 1.0))
+    assert out["n_candidates"] == 4 and out["n_eligible"] == 4
+    assert out["distances"] == pytest.approx([0.0, 1.0, 3.0, 4.0])
+    assert out["mean_error"] == pytest.approx(2.0)
+    assert out["success"][0.5] == pytest.approx(0.25)
+    assert out["success"][1.0] == pytest.approx(0.5)      # boundary counts
+    assert out["top1"] == pytest.approx(0.25)
+
+
+def test_uniform_baseline_matches_monte_carlo():
+    """Exact expectations must agree with a seeded uniform draw over C (1e-3)."""
+    import numpy as np
+    out = uniform_baseline(_CAND, _GT, radii=(0.5, 1.0))
+    rng = np.random.default_rng(18)
+    draws = rng.integers(0, 4, size=4000000)   # sd(p_hat) ~ 2e-4, so 1e-3 is ~5 sigma
+    dists = np.asarray(out["distances"])[draws]
+    assert dists.mean() == pytest.approx(out["mean_error"], abs=1e-2)
+    assert (dists <= 1.0).mean() == pytest.approx(out["success"][1.0], abs=1e-3)
+    assert (dists <= 0.5).mean() == pytest.approx(out["success"][0.5], abs=1e-3)
+
+
+def test_uniform_baseline_accepts_numpy_inputs():
+    import numpy as np
+    out = uniform_baseline(np.asarray(_CAND.numpy(), dtype=np.float64), np.zeros(3))
+    assert out["mean_error"] == pytest.approx(2.0)
+
+
+# --------------------------------------------------------------------------- #
+# context_conditioned_baseline -- REGISTERED comparison target (C1)
+# --------------------------------------------------------------------------- #
+def test_context_conditioned_baseline_hand_example():
+    mask = [False, True, False, True]                     # candidates 1 and 3 are context
+    out = context_conditioned_baseline(_CAND, _GT, mask, radii=(0.5, 1.0))
+    assert out["n_candidates"] == 4 and out["n_eligible"] == 2
+    assert out["distances"] == pytest.approx([0.0, 3.0])
+    assert out["mean_error"] == pytest.approx(1.5)
+    assert out["success"][0.5] == pytest.approx(0.5)
+    assert out["success"][1.0] == pytest.approx(0.5)
+    assert out["top1"] == pytest.approx(0.5)
+    assert out["gt_only"] is False
+
+
+def test_context_conditioned_baseline_gt_only_edge_case():
+    """LivingRoomsWithHallway_idx_30: 9 sources, 8 in context => eligible == {GT},
+    so elimination alone names the target (baseline top-1 = 1.0, zero headroom).
+    The flag lets callers exclude/label the room instead of silently averaging it."""
+    cand = torch.cat([_GT.unsqueeze(0), torch.arange(1.0, 9.0).reshape(8, 1) * torch.tensor([[1.0, 0.0, 0.0]])])
+    mask = [False] + [True] * 8
+    out = context_conditioned_baseline(cand, _GT, mask, radii=(0.5, 1.0))
+    assert out["gt_only"] is True
+    assert out["n_eligible"] == 1
+    assert out["distances"] == pytest.approx([0.0])
+    assert out["mean_error"] == pytest.approx(0.0)
+    assert out["success"][0.5] == pytest.approx(1.0)
+    assert out["success"][1.0] == pytest.approx(1.0)
+    assert out["top1"] == pytest.approx(1.0)
+
+
+def test_context_conditioned_baseline_gt_must_be_eligible():
+    """GT is excluded from the context draw by construction; a mask that claims
+    otherwise is a wiring bug, not a baseline to average over."""
+    with pytest.raises(ValueError):
+        context_conditioned_baseline(_CAND, _GT, [True, False, False, False])
+
+
+def test_context_conditioned_baseline_requires_gt_in_candidates():
+    with pytest.raises(ValueError):
+        context_conditioned_baseline(_CAND, torch.tensor([9.0, 9.0, 9.0]),
+                                     [False, True, False, True])
+
+
+def test_context_conditioned_baseline_rejects_bad_mask():
+    with pytest.raises(ValueError):
+        context_conditioned_baseline(_CAND, _GT, [False, True, False])
+
+
+def test_context_conditioned_baseline_all_eligible_equals_uniform():
+    """Identical conventions: with an empty context the two baselines coincide."""
+    a = uniform_baseline(_CAND, _GT, radii=(0.5, 1.0))
+    b = context_conditioned_baseline(_CAND, _GT, [False] * 4, radii=(0.5, 1.0))
+    assert b["distances"] == pytest.approx(a["distances"])
+    assert b["mean_error"] == pytest.approx(a["mean_error"])
+    assert b["success"] == pytest.approx(a["success"])
+    assert b["top1"] == pytest.approx(a["top1"])
+
+
+# --------------------------------------------------------------------------- #
+# nearest_context_baseline -- non-generative control (O10)
+# --------------------------------------------------------------------------- #
+_CTX = torch.tensor([[2.9, 0.0, 0.0], [0.1, 0.0, 0.0]])
+
+
+def test_nearest_context_baseline_hand_example():
+    assert nearest_context_baseline(_CAND, _CTX, torch.tensor([0.2, 0.8])) == 0
+    assert nearest_context_baseline(_CAND, _CTX, torch.tensor([0.9, 0.2])) == 2
+    assert isinstance(nearest_context_baseline(_CAND, _CTX, torch.tensor([0.9, 0.2])), int)
+
+
+def test_nearest_context_baseline_lowest_index_tie_breaks():
+    assert nearest_context_baseline(_CAND, _CTX, torch.tensor([0.5, 0.5])) == 2   # ctx tie -> ctx 0
+    mid = torch.tensor([[0.5, 0.0, 0.0]])
+    assert nearest_context_baseline(_CAND, mid, torch.tensor([1.0])) == 0         # candidate tie
+
+
+def test_nearest_context_baseline_rejects_bad_shapes():
+    with pytest.raises(ValueError):
+        nearest_context_baseline(_CAND, _CTX, torch.tensor([0.5]))                # len mismatch
+    with pytest.raises(ValueError):
+        nearest_context_baseline(_CAND, torch.zeros(0, 3), torch.zeros(0))        # empty context

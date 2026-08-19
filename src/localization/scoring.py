@@ -97,3 +97,93 @@ def success_within(error, radius):
     if radius < 0.0:
         raise ValueError(f"radius must be >= 0, got {radius}")
     return bool(float(error) <= radius)
+
+
+def _points(value, what):
+    xyz = torch.as_tensor(value, dtype=torch.float64)
+    if xyz.ndim != 2 or xyz.shape[1] != 3 or xyz.shape[0] == 0:
+        raise ValueError(f"{what} must be a non-empty [N, 3] array, got shape {tuple(xyz.shape)}")
+    return xyz
+
+
+def _gt_index(cand, gt):
+    """Index of the GT row in the candidate set (GT is in C by construction)."""
+    hits = torch.nonzero((cand == gt).all(dim=-1), as_tuple=False).reshape(-1)
+    if hits.numel() != 1:
+        raise ValueError(
+            f"expected exactly one candidate equal to gt_xyz {gt.tolist()}, found {hits.numel()}")
+    return int(hits[0].item())
+
+
+def _expectations(distances, radii):
+    """Exact expectations of a uniform draw over the eligible candidates."""
+    n = int(distances.numel())
+    for r in radii:
+        if float(r) < 0.0:
+            raise ValueError(f"radius must be >= 0, got {r}")
+    return {
+        "n_eligible": n,
+        "distances": [float(d) for d in distances],
+        "mean_error": float(distances.mean()),
+        "success": {float(r): float((distances <= float(r)).double().mean()) for r in radii},
+        "top1": 1.0 / n,
+    }
+
+
+def uniform_baseline(cand_xyz, gt_xyz, radii=(0.5, 1.0)):
+    """Uniform-over-C baseline: exact expectations, no sampling.
+
+    ``distances`` is the pooled per-candidate distance list; the per-query weight
+    of 1/M over those distances is applied by :func:`summarize`.
+    """
+    cand = _points(cand_xyz, "cand_xyz")
+    gt = _point(gt_xyz, "gt_xyz")
+    _gt_index(cand, gt)
+    out = _expectations(torch.linalg.norm(cand - gt, dim=-1), radii)
+    out["n_candidates"] = cand.shape[0]
+    return out
+
+
+def context_conditioned_baseline(cand_xyz, gt_xyz, context_member_mask, radii=(0.5, 1.0)):
+    """Information-matched baseline (C1): uniform over the NON-context candidates.
+
+    The 8 context source positions are visible in the conditioning, so a guesser
+    that only eliminates them is the registered comparison target. GT is never a
+    context member (excluded by construction) -- a mask that says otherwise is a
+    wiring bug and raises. When every non-GT candidate is in the context the
+    eligible set is ``{GT}``: the returned ``gt_only`` flag marks that
+    zero-headroom case (top-1 = 1.0) so callers can exclude or label it.
+    """
+    cand = _points(cand_xyz, "cand_xyz")
+    gt = _point(gt_xyz, "gt_xyz")
+    mask = torch.as_tensor(context_member_mask, dtype=torch.bool).reshape(-1)
+    if mask.numel() != cand.shape[0]:
+        raise ValueError(
+            f"context_member_mask has {mask.numel()} entries for {cand.shape[0]} candidates")
+    gt_idx = _gt_index(cand, gt)
+    if bool(mask[gt_idx]):
+        raise ValueError(
+            "GT candidate is flagged as a context member; context is drawn from OTHER "
+            "sources by construction, so this is a wiring bug")
+    eligible = cand[~mask]
+    out = _expectations(torch.linalg.norm(eligible - gt, dim=-1), radii)
+    out["n_candidates"] = cand.shape[0]
+    out["gt_only"] = out["n_eligible"] == 1
+    return out
+
+
+def nearest_context_baseline(cand_xyz, ctx_xyz, ctx_sims):
+    """Non-generative control (O10): index of the candidate nearest the
+    best-matching context source (no generator involved).
+
+    ``ctx_sims`` are similarities between the observed RIR and each context RIR;
+    both the best-context and the nearest-candidate choices break ties by lowest
+    index, as everywhere else in the readout.
+    """
+    cand = _points(cand_xyz, "cand_xyz")
+    ctx = _points(ctx_xyz, "ctx_xyz")
+    sims = torch.as_tensor(ctx_sims, dtype=torch.float64).reshape(-1)
+    if sims.numel() != ctx.shape[0]:
+        raise ValueError(f"ctx_sims has {sims.numel()} entries for {ctx.shape[0]} context sources")
+    best_ctx = predict_index(sims)
+    return predict_index(-torch.linalg.norm(cand - ctx[best_ctx], dim=-1))
