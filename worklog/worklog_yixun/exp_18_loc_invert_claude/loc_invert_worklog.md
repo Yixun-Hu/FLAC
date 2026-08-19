@@ -180,3 +180,8 @@
 - **Command / Validation** — Planner-independent: **455 passed** (5 files); CLI seen-split parity re-run: match=True, 0.0. Real-data: manifest 24 s one-off; all 17 rooms 10 metadata sources; LRH wavs 1..9 (Rev 3.1 §1 executable).
 - **Analysis — Planner rulings on r4 deviations:** (1) context-evidence leniency dropped entirely — ACCEPTED (strongest form; offline-only None path documented). (2) scorer-noise held to seen split — ACCEPTED as registered (diagnostic; seen suffices). (3) K′-skip with reported k_primes_evaluated — ACCEPTED. (4) mode-scoped required flags — ACCEPTED. (5) single sims codec in reaggregate — ACCEPTED. (6) AST guard — ACCEPTED. GPU note: exp_19's Leg B occupies GPU 0 (20.4 GB); GPU 1 near-free (2.3 GB residue).
 - **Next** — Focused Codex review of r4 (the launch gate) → R-1 readback + oracle → R0 probe on GPU 1.
+
+## 2026-08-19T21:00:00-0400 — Coordination: exp_19 will touch eval_FLAC.py (additive context-capture-ids branch)
+
+- **Result** — Peer's review requires an additive branch in eval_FLAC.py's stream recorder (activates only on a RAF-only metadata key; AR pledged byte-identical; snapshot suites must stay green). exp_18 imports `sample_context_ids` + `canonical_stream_hash` from that file. Our position (sent): proceed NOW so the change predates all exp_18 launches; AR byte-identity is binding for our membership/digest machinery; ping the sha; if it slips past ~22:00 EDT, hold until R-1/R0 finish. On their sha landing: re-run the 455-test suite + bit-parity check on the merged tree before launching.
+- **Analysis** — No exp_18 code state is uncommitted; no run in flight. All registered exp_18 runs will thus launch from a single post-change code state — cleaner than the alternative orderings.
