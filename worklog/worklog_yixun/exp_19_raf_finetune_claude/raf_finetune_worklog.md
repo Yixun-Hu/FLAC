@@ -21,3 +21,13 @@ Branch `localization-exp` (shared with exp_18; this experiment is driven by the 
   2. **Structural delta**: HAA has ONE fixed speaker per room (`speaker_xyz` per scene ⇒ a single pre-rendered `{scene}_depth_image.npy` at the source suffices). RAF has per-sample 6DoF source AND listener poses ⇒ depth panoramas must be **rendered from the OBJ mesh per position** (equirect 256×512), and the render-position convention (source, HAA-style, vs listener, AR-style) plus RAF→FLAC coordinate mapping (RAF: X-front/Y-up/Z-left) are plan-level decisions.
   3. Few-shot split design for RAF (how many train RIRs, how sampled from the dense grid) is a plan-level registered choice; HAA's 12/room is the precedent.
 - **Next** — When unzip lands: data readback (RIR folder schema, channel count, sample rate, pose format). Meanwhile: draft `plan_raf_finetune.md` with data-dependent facts explicitly deferred to a readback rung (exp_18 pattern), then Codex review → Yixun approval.
+
+## 2026-08-19T16:53:10-0400 — Data readback (EmptyRoom), meshes verified, plan Rev 1 drafted, Codex review fired
+
+- **Goal** — Turn the landed EmptyRoom data + HAA-recipe recon into `plan_raf_finetune.md` Rev 1.
+- **Result** — passed:
+  1. Meshes: all 6 files byte-exact vs the S3 index (EmptyRoom obj 214,624,032 / jpg 21,607,805 / mtl 175; Furnished obj 211,966,369 / jpg 21,346,537 / mtl 175).
+  2. EmptyRoom readback: 47,484 captures (`data/<id>/{rir.wav,tx_pos.txt,rx_pos.txt}`), RIR mono/48 kHz/float32/1.5 s (peak ~0.01), tx = quat(4)+xyz(3), rx = xyz, 1,319 unique tx lines ⇒ ~36 rx/tx — the HAA-style same-source-other-receivers context relation exists in RAF.
+  3. HAA mapping decoded (`HAA_md.py`): source-centered frame, listener into the `source` slot, context = other receivers of same source from the train pool, depth at source. Plan adopts it per-source for RAF.
+  4. Plan Rev 1 written (10 sections, 6 open decisions incl. AGREE-RAF absence ⇒ no FD/retrieval in v1, open3d install approval, split constants). Codex review launched in background with the no-install clause; output → `raf_finetune_codex_plan_review.md`.
+- **Next** — Fold Codex findings → Rev 2 → surface plan + open decisions to Yixun for approval. No implementation before approval.
