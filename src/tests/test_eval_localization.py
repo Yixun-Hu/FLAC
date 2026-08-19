@@ -175,7 +175,8 @@ def test_build_noise_bank_rejects_bad_arguments():
 # The engine is the seam: real callables in a run, recording fakes here.
 # --------------------------------------------------------------------------- #
 import numpy as np                                                    # noqa: E402
-from src.localization.candidates import CandidateSet, project_to_camera  # noqa: E402
+from src.localization.candidates import (CandidateSet, candidate_metadata,  # noqa: E402
+                                         project_to_camera)
 
 _REC = np.array([1.0, 2.0, 0.5])
 _NODES = [0, 3, 7]
@@ -1833,3 +1834,286 @@ def test_summarize_run_aggregates_the_power_statistic_distribution():
     assert block["mean"] == pytest.approx(float(np.mean(values)))
     assert block["median"] == pytest.approx(float(np.median(values)))
     assert block["min"] == pytest.approx(min(values)) and block["max"] == pytest.approx(max(values))
+
+
+# --------------------------------------------------------------------------- #
+# r3 fix F2 (review finding 2): parity must exercise the DEFINING M x K path --
+# candidate tiling, cross-attention conditioning and masks, common noise --
+# not just a single-item generation. (a) always-running synthetic model.
+# --------------------------------------------------------------------------- #
+from src.inference.sampling import sample_discrete_euler          # noqa: E402
+from src.models.factory import create_model_from_config           # noqa: E402
+from src.training.factory import create_training_wrapper_from_config  # noqa: E402
+
+
+def _tiny_module():
+    """A random-init diffusion_cond model that produces the FULL conditioning the
+    real config produces: cross_attn_cond + cross_attn_mask + global_cond."""
+    cfg = {
+        "model_type": "diffusion_cond", "sample_size": 64, "sample_rate": 22050,
+        "audio_channels": 1,
+        "model": {
+            "conditioning": {"configs": [
+                {"id": "source", "type": "dist_embedder",
+                 "config": {"num_freqs": 4, "max_freq": 4, "ch_dim": 1, "include_in": True}},
+                {"id": "context_poses", "type": "dist_embedder",
+                 "config": {"num_freqs": 4, "max_freq": 4, "ch_dim": 1, "include_in": True}}],
+                "cond_dim": 32},
+            "diffusion": {"cross_attention_cond_ids": ["context_poses"],
+                          "global_cond_ids": ["source"], "type": "dit",
+                          "diffusion_objective": "rectified_flow",
+                          "config": {"io_channels": 4, "embed_dim": 64, "depth": 1,
+                                     "num_heads": 2, "cond_token_dim": 32,
+                                     "global_cond_dim": 32,
+                                     "transformer_type": "continuous_transformer",
+                                     "global_cond_type": "adaLN"}},
+            "io_channels": 4},
+        "training": {"timestep_sampler": "uniform", "cfg_dropout_prob": 0.0, "use_ema": False,
+                     "optimizer_configs": {"diffusion": {"optimizer": {
+                         "type": "AdamW", "config": {"lr": 5e-6, "betas": [0.9, 0.999],
+                                                     "weight_decay": 1e-3}}}}}}
+    module = create_training_wrapper_from_config(cfg, create_model_from_config(cfg))
+    module.eval().requires_grad_(False)
+    return module
+
+
+def _tiny_engine(module, recorder=None):
+    dit = module.diffusion.model
+
+    def sampler(noise, cond_inputs):
+        if recorder is not None:
+            recorder.append({k: (v.clone() if torch.is_tensor(v) else v)
+                             for k, v in cond_inputs.items()})
+        with torch.no_grad():
+            return sample_discrete_euler(dit, noise, 1, **cond_inputs, cfg_scale=1.0,
+                                         dist_shift=module.diffusion.dist_shift,
+                                         batch_cfg=True, disable_tqdm=True)
+
+    def embedder(wavs):
+        feats = wavs.reshape(wavs.shape[0], -1)[:, :8]
+        return torch.nn.functional.normalize(feats.float(), dim=-1)
+
+    return el.Engine(device="cpu", io_channels=4, latent_samples=64,
+                     conditioner=lambda mds, dev: module.diffusion.conditioner(mds, "cpu"),
+                     cond_inputs_fn=module.diffusion.get_conditioning_inputs,
+                     sampler=sampler,
+                     decoder=lambda latents: latents.reshape(latents.shape[0], 1, -1),
+                     embedder=embedder)
+
+
+def _tiny_query(module, cand):
+    """Base metadata for the tiny model: real GT projection + context poses."""
+    source = torch.as_tensor(project_to_camera(cand.rec_loc, cand.gt_xyz), dtype=torch.float32)
+    g = torch.Generator().manual_seed(5)
+    return {"source": source, "source_vit": source.unsqueeze(0),
+            "context_poses": torch.randn(2, 3, generator=g)}
+
+
+@pytest.mark.parametrize("batch_size", [64, 4])
+def test_run_query_matches_a_candidate_major_replay_with_full_conditioning(batch_size):
+    """M=3, K=2 through run_query vs an explicit per-(m, k) replay: identical
+    waveforms, and every conditioning key -- including the cross-attention mask --
+    on row m*K+k is candidate m's."""
+    module = _tiny_module()
+    cand = _cand_set()
+    base_md = _tiny_query(module, cand)
+    noise = el.build_noise_bank(42, "mk_parity", 2, (4, 64))
+    seen = []
+    engine = _tiny_engine(module, recorder=seen)
+
+    out = el.run_query(engine, base_md, cand, noise, _OBS, batch_size=batch_size,
+                       return_wavs=True)
+
+    cams = el.candidate_camera_positions(cand)
+    replay = []
+    with torch.no_grad():
+        for m in range(3):
+            md_m = candidate_metadata(base_md, cams[m])
+            cond_m = module.diffusion.get_conditioning_inputs(
+                module.diffusion.conditioner([md_m], "cpu"))
+            for k in range(2):
+                latents = sample_discrete_euler(
+                    module.diffusion.model, noise[k:k + 1], 1, **cond_m, cfg_scale=1.0,
+                    dist_shift=module.diffusion.dist_shift, batch_cfg=True, disable_tqdm=True)
+                replay.append(latents.reshape(1, 1, -1).clamp(-1.0, 1.0))
+    assert torch.equal(out["wavs"], torch.cat(replay))
+
+    # every conditioning key, per row, is candidate m's -- masks included
+    batched = module.diffusion.get_conditioning_inputs(module.diffusion.conditioner(
+        [candidate_metadata(base_md, cams[m]) for m in range(3)], "cpu"))
+    recorded = {}
+    for chunk in seen:
+        for key, value in chunk.items():
+            if torch.is_tensor(value):
+                recorded.setdefault(key, []).append(value)
+    assert set(recorded) >= {"cross_attn_cond", "cross_attn_mask", "global_cond"}
+    for key, chunks in recorded.items():
+        rows = torch.cat(chunks)
+        assert rows.shape[0] == 6
+        for m in range(3):
+            for k in range(2):
+                assert torch.equal(rows[m * 2 + k], batched[key][m]), f"{key} row {m}*2+{k}"
+
+
+def test_run_query_mk_replay_is_stable_across_the_batch_split():
+    module = _tiny_module()
+    cand = _cand_set()
+    base_md = _tiny_query(module, cand)
+    noise = el.build_noise_bank(42, "mk_parity", 2, (4, 64))
+    whole = el.run_query(_tiny_engine(module), base_md, cand, noise, _OBS, batch_size=64,
+                         return_wavs=True)
+    split = el.run_query(_tiny_engine(module), base_md, cand, noise, _OBS, batch_size=4,
+                         return_wavs=True)
+    assert torch.equal(whole["wavs"], split["wavs"])
+    assert torch.equal(whole["sims"], split["sims"])
+
+
+# --------------------------------------------------------------------------- #
+# r3 fix F2(b): the same M x K parity on REAL assets -- a seen-split query, real
+# metadata (depth + drawn context), the released checkpoint. The dataset is
+# mid-download, so the room probe skips with a precise reason if nothing local is
+# complete.
+# --------------------------------------------------------------------------- #
+_SEEN_SPLIT_JSON = os.path.join(_REPO_ROOT, "data", "AR", "seen_eval.json")
+_AR_ROOT = os.path.join(_REPO_ROOT, "AcousticRooms")
+_AR_MD_PATH = os.path.join(_REPO_ROOT, "src", "configs", "dataset_configs", "custom_metadata",
+                           "AR_md.py")
+
+
+def _find_complete_seen_query(min_candidates=3):
+    """First seen-split query whose wav, pair JSONs and depth map are all local."""
+    if not (os.path.isfile(_SEEN_SPLIT_JSON) and os.path.isdir(_AR_ROOT)):
+        return None
+    from src.localization.candidates import build_candidate_set, parse_ir_filename
+    split = _json.loads(open(_SEEN_SPLIT_JSON).read())
+    metadata_root = os.path.join(_AR_ROOT, "metadata")
+    for scene in sorted(split):
+        for room in sorted(split[scene]):
+            wav_dir = os.path.join(_AR_ROOT, "single_channel_ir_1", scene, room)
+            depth_dir = os.path.join(_AR_ROOT, "depth_map", scene, room)
+            if not (os.path.isdir(wav_dir) and os.path.isdir(depth_dir)):
+                continue
+            for fname in sorted(split[scene][room]):
+                wav = os.path.join(wav_dir, fname)
+                if not os.path.isfile(wav):
+                    continue
+                try:
+                    _src, receiver = parse_ir_filename(fname)
+                except ValueError:
+                    continue
+                if not os.path.isfile(os.path.join(depth_dir, f"{receiver}.npy")):
+                    continue
+                try:
+                    cand = build_candidate_set(wav, metadata_root)
+                except (ValueError, OSError):
+                    continue
+                if len(cand.nodes) >= min_candidates:
+                    return {"wav": wav, "cand": cand, "scene": scene, "room": room}
+    return None
+
+
+_SEEN_QUERY = _find_complete_seen_query() if _HAVE_GEN_ASSETS else None
+real_mk_integration = pytest.mark.skipif(
+    not (_HAVE_GEN_ASSETS and _SEEN_QUERY is not None),
+    reason="no SEEN-split room with wav + metadata pair JSONs + depth_map is complete locally "
+           "(AcousticRooms is mid-download), or the FLAC/DINOv3 assets are absent")
+
+
+def _real_query_metadata(entry):
+    """The loader's own metadata for that query (AR_md, importlib-loaded by path)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("metadata_module", _AR_MD_PATH)
+    ar_md = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ar_md)
+    info = {"path": entry["wav"], "relpath": os.path.relpath(entry["wav"], _AR_ROOT),
+            "modalities": {"acoustic_context": {"load": True, "max_context": 8, "max_len": 9600},
+                           "depth": {"load": True}, "poses": {"load": True}}}
+    return ar_md.get_custom_metadata(info, None)
+
+
+def _real_mk_replay(args, engine, context, md, cand, noise, autocast_mode):
+    """Explicit per-(m, k) replay of evaluate_model's calls for the same query."""
+    import contextlib
+    module, model = context["module"], context["model"]
+    cams = el.candidate_camera_positions(cand)
+    replay = []
+    with torch.no_grad():
+        for m in range(len(cand.nodes)):
+            cond_ctx = (torch.amp.autocast(context["device"]) if autocast_mode == "default"
+                        else contextlib.nullcontext())
+            with cond_ctx:
+                conditioning = module.diffusion.conditioner([candidate_metadata(md, cams[m])],
+                                                            module.device)
+            cond_inputs = module.diffusion.get_conditioning_inputs(conditioning)
+            for k in range(int(noise.shape[0])):
+                latents = sample_discrete_euler(
+                    model, noise[k:k + 1].to(engine.device), args.steps, **cond_inputs,
+                    cfg_scale=args.cfg_scale, dist_shift=module.diffusion.dist_shift,
+                    batch_cfg=True, disable_tqdm=True)
+                replay.append(module.diffusion.pretransform.decode(latents).clamp(-1.0, 1.0))
+    return torch.cat(replay)
+
+
+def _real_mk_setup(entry, min_keep=3):
+    md = _real_query_metadata(entry)
+    full = entry["cand"]
+    keep = sorted({full.gt_node} | set(full.nodes[:min_keep]))[:min_keep]
+    rows = [full.nodes.index(n) for n in keep]
+    cand = CandidateSet(nodes=keep, xyz_world=full.xyz_world[rows], rec_loc=full.rec_loc,
+                        gt_node=full.gt_node, gt_xyz=full.gt_xyz)
+    return md, cand
+
+
+def _light_embedder(wavs):
+    """Keeps the 350 MB AGREE load out of a GENERATION-parity test."""
+    return torch.nn.functional.normalize(
+        wavs.reshape(wavs.shape[0], -1)[:, :8].float() + 1e-3, dim=-1)
+
+
+@real_mk_integration
+def test_integration_real_mk_parity_is_exact_without_conditioning_autocast():
+    """M=3 real candidates, K=2, released checkpoint, --cond-autocast off: the
+    driver's M x K path IS the candidate-major replay, bit for bit."""
+    import dataclasses
+    previous = os.getcwd()
+    os.chdir(_REPO_ROOT)
+    try:
+        args = el.validate_args(el.parse_args([
+            "--model-config", _FLAC_CONFIG, "--dataset-config", _SEEN_CONFIG,
+            "--ckpt-path", _FLAC_CKPT, "--agree-ckpt", "unused", "--num-samples", "2",
+            "--device", "cpu", "--cond-autocast", "off"]))
+        engine, context = el.build_engine(args, agree=None, device="cpu")
+        engine = dataclasses.replace(engine, embedder=_light_embedder)
+        md, cand = _real_mk_setup(_SEEN_QUERY)
+        noise = el.build_noise_bank(42, "real_mk", 2, context["latent_shape"])
+        obs = torch.full((1, 1, 9600), 0.1)
+
+        out = el.run_query(engine, md, cand, noise, obs, batch_size=64, return_wavs=True)
+        assert tuple(out["sims"].shape) == (len(cand.nodes), 2)
+        assert torch.equal(out["wavs"], _real_mk_replay(args, engine, context, md, cand, noise,
+                                                        "off"))
+    finally:
+        os.chdir(previous)
+
+
+@real_mk_integration
+def test_integration_real_mk_batch_split_is_bitwise_irrelevant(real_engine):
+    """At the REGISTERED --cond-autocast default, splitting the M x K rows into two
+    chunks changes nothing bitwise; the replay agrees to ~1e-3 of full scale
+    because that autocast conditions in bf16, whose reduction order depends on how
+    many candidates are conditioned together -- a property of the conditioner's
+    precision, not of the driver's wiring (the fp32 test above is exact)."""
+    import dataclasses
+    args, engine, context = real_engine
+    engine = dataclasses.replace(engine, embedder=_light_embedder)
+    md, cand = _real_mk_setup(_SEEN_QUERY)
+    noise = el.build_noise_bank(42, "real_mk", 2, context["latent_shape"])
+    obs = torch.full((1, 1, 9600), 0.1)
+
+    whole = el.run_query(engine, md, cand, noise, obs, batch_size=64, return_wavs=True)
+    chunked = el.run_query(engine, md, cand, noise, obs, batch_size=3, return_wavs=True)
+    assert torch.equal(whole["wavs"], chunked["wavs"])
+    assert torch.equal(whole["sims"], chunked["sims"])
+
+    replay = _real_mk_replay(args, engine, context, md, cand, noise, "default")
+    assert torch.allclose(whole["wavs"], replay, rtol=0, atol=2e-3)
