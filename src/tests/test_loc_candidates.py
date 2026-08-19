@@ -440,3 +440,62 @@ def test_crosscheck_sources_vs_files_missing_file(tmp_path):
 def test_crosscheck_sources_vs_files_missing_dir_raises(tmp_path):
     with pytest.raises(ValueError):
         crosscheck_sources_vs_files([0, 1], tmp_path / "nope")
+
+
+# --------------------------------------------------------------------------- #
+# r1 fix F1 (review finding 1): non-finite coordinates must fail closed.
+# JSON literally admits NaN/Infinity, so metadata is a real entry point.
+# --------------------------------------------------------------------------- #
+_NONFINITE = [float("nan"), float("inf"), float("-inf")]
+
+
+@pytest.mark.parametrize("bad", _NONFINITE)
+def test_enumerate_metadata_sources_rejects_nonfinite_src_loc(tmp_path, bad):
+    """Written for every receiver of that source, so the cross-receiver
+    consistency check cannot be what fires (allclose(inf, inf) is True)."""
+    room = _build_room(tmp_path)
+    for rec, rec_loc in _REC_LOCS.items():
+        _write_pair(room, 7, rec, (bad, -2.0, 1.25), rec_loc)
+    with pytest.raises(ValueError):
+        enumerate_metadata_sources(room)
+
+
+@pytest.mark.parametrize("bad", _NONFINITE)
+def test_build_candidate_set_rejects_nonfinite_rec_loc(tmp_path, bad):
+    room = _build_room(tmp_path)
+    _write_pair(room, 7, 3, _SRC_LOCS[7], (0.0, bad, 1.0))
+    with pytest.raises(ValueError):
+        build_candidate_set(_ir_path(tmp_path, 7, 3), tmp_path / "metadata")
+
+
+@pytest.mark.parametrize("bad", _NONFINITE)
+def test_project_to_camera_and_candidate_metadata_reject_nonfinite(bad):
+    with pytest.raises(ValueError):
+        project_to_camera([0.0, 0.0, 0.0], [1.0, bad, 3.0])
+    with pytest.raises(ValueError):
+        project_to_camera([bad, 0.0, 0.0], [1.0, 2.0, 3.0])
+    with pytest.raises(ValueError):
+        candidate_metadata(_base_md(), np.array([0.0, bad, 1.0]))
+    with pytest.raises(ValueError):
+        candidate_metadata(_base_md(), torch.tensor([0.0, bad, 1.0]))
+
+
+@pytest.mark.parametrize("bad", _NONFINITE)
+def test_candidate_set_rejects_nonfinite_coordinates(bad):
+    xyz = np.array([[0.0, 0.0, 1.0], [1.5, -2.0, 1.25]])
+    rec = np.array([0.25, 0.5, 1.0])
+    bad_xyz = xyz.copy()
+    bad_xyz[0, 2] = bad
+    with pytest.raises(ValueError):
+        CandidateSet(nodes=[0, 7], xyz_world=bad_xyz, rec_loc=rec, gt_node=7, gt_xyz=xyz[1])
+    with pytest.raises(ValueError):
+        CandidateSet(nodes=[0, 7], xyz_world=xyz, rec_loc=np.array([bad, 0.5, 1.0]),
+                     gt_node=7, gt_xyz=xyz[1])
+
+
+@pytest.mark.parametrize("bad", _NONFINITE)
+def test_assert_gt_matches_loader_aborts_on_nonfinite_loader_source(tmp_path, bad):
+    _build_room(tmp_path)
+    cs = build_candidate_set(_ir_path(tmp_path, 7, 3), tmp_path / "metadata")
+    with pytest.raises(AssertionError):
+        assert_gt_matches_loader(cs, {"source": torch.tensor([bad, 0.0, 0.0])})

@@ -20,6 +20,18 @@ _PAIR_NAME_RE = re.compile(r"^S(\d+)_R(\d+)\.json$")
 SRC_LOC_TOL = 1e-6
 
 
+def _require_finite(array, what):
+    """Fail closed on NaN / +-Inf coordinates.
+
+    JSON admits ``NaN``/``Infinity`` literals, so metadata is a real entry point
+    for non-finite values; letting one through would silently poison every
+    projection and distance downstream.
+    """
+    if not np.all(np.isfinite(np.asarray(array, dtype=np.float64))):
+        raise ValueError(f"{what} must be finite (no NaN or Inf)")
+    return array
+
+
 def parse_ir_filename(name):
     """Return ``(src_node, rec_node)`` parsed from an AR IR file name.
 
@@ -76,7 +88,7 @@ def _loc_array(meta, key, path):
     xyz = np.asarray(meta[key], dtype=np.float64)
     if xyz.shape != (3,):
         raise ValueError(f"pair metadata {path}: {key!r} must be 3 floats, got shape {xyz.shape}")
-    return xyz
+    return _require_finite(xyz, f"pair metadata {path}: {key!r}")
 
 
 def enumerate_metadata_sources(meta_room_dir):
@@ -106,7 +118,7 @@ def _xyz(value, what):
     arr = np.asarray(value, dtype=np.float64)
     if arr.shape != (3,):
         raise ValueError(f"{what} must be 3 floats, got shape {arr.shape}")
-    return arr
+    return _require_finite(arr, what)
 
 
 def project_to_camera(rec_loc, xyz):
@@ -140,6 +152,7 @@ class CandidateSet:
         self.gt_xyz = _xyz(self.gt_xyz, "gt_xyz")
         if self.xyz_world.ndim != 2 or self.xyz_world.shape[1] != 3:
             raise ValueError(f"xyz_world must be [M, 3], got shape {self.xyz_world.shape}")
+        _require_finite(self.xyz_world, "xyz_world")
         if len(self.nodes) != self.xyz_world.shape[0]:
             raise ValueError(
                 f"nodes ({len(self.nodes)}) and xyz_world ({self.xyz_world.shape[0]}) disagree")
@@ -206,6 +219,7 @@ def candidate_metadata(base_md, cand_cam_xyz):
         source = cand_cam_xyz.detach().to(torch.float32).reshape(-1).clone()
         if source.numel() != 3:
             raise ValueError(f"cand_cam_xyz must be 3 floats, got {tuple(cand_cam_xyz.shape)}")
+        _require_finite(source.numpy(), "cand_cam_xyz")
     else:
         source = torch.as_tensor(_xyz(cand_cam_xyz, "cand_cam_xyz"), dtype=torch.float32)
     md = dict(base_md)
