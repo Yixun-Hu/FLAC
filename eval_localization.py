@@ -42,9 +42,10 @@ from src.training.diffusion import invariant_conditioning
 from src.training.factory import create_training_wrapper_from_config
 from src.data.dataset import create_dataloader_from_config, get_audio_filenames
 from src.localization.agree_embed import MAX_LEN, embed_rirs, load_agree_audio, sha256_file
-from src.localization.candidates import (assert_gt_matches_loader, build_candidate_set,
-                                         candidate_metadata, parse_ir_filename,
-                                         project_to_camera)
+from src.localization.candidates import (CandidateSet, assert_gt_matches_loader,
+                                         build_candidate_set, candidate_metadata,
+                                         enumerate_metadata_sources, find_pair_metadata,
+                                         parse_ir_filename, project_to_camera)
 from src.localization.scoring import (DEFAULT_RADII, aggregate, clustered_bootstrap_ci,
                                       context_conditioned_baseline, cosine_sims,
                                       localization_error, nearest_context_baseline, noise_key,
@@ -662,7 +663,7 @@ def assert_registration_sha(args, dataset_config):
 
 
 def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source, n_queries,
-                     dataset_config=None, context_digest=None):
+                     dataset_config=None, context_digest=None, candidate_manifest_sha256=None):
     """Everything needed to reproduce or falsify the run, in one record.
 
     Announcement 05: a row is only interpretable next to the protocol it was
@@ -713,6 +714,7 @@ def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source
         "loader_shuffle": False,
         "loader_drop_last": bool((dataset_config or {}).get("drop_last", True)),
         "context_stream_digest": context_digest or "n/a",
+        "candidate_manifest_sha256": candidate_manifest_sha256 or "n/a",
         "device_name": (torch.cuda.get_device_name(0)
                         if str(getattr(args, "device", "cpu")).startswith("cuda")
                         and torch.cuda.is_available() else "cpu"),
@@ -1174,9 +1176,13 @@ def _iter_items(loader):
 def process_query(args, engine, context, md, obs_wav):
     """One query end to end: candidate set -> generation/oracle -> scored row."""
     query_id = sample_target_id(md)
-    cand_set = query_candidate_set(md)
     room_id = room_id_from_relpath(md["relpath"])
-    _src_node, receiver_node = parse_ir_filename(md["path"])
+    gt_node, receiver_node = parse_ir_filename(md["path"])
+    manifest = context.get("manifest")
+    if manifest is None:
+        _refuse("no frozen candidate manifest in the run context; per-query disk enumeration "
+                "was removed so that M cannot change mid-run (plan Rev 3.1 §2)")
+    cand_set = candidate_set_from_manifest(manifest, room_id, gt_node, receiver_node)
     # BEFORE anything can touch the poses: the context fingerprint identifies the draw.
     context_ids = sample_context_ids(md)
 
@@ -1260,10 +1266,13 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
     print(f"identity gate passed: {len(scored)} queries, split_hash={split[:12]}...")
 
     summary = summarize_run(rows)
+    manifest = context.get("manifest")
     provenance = build_provenance(args, ckpt_sha256, agree_sha256, split,
                                   context["weights_source"], len(rows),
                                   dataset_config=dataset_config,
-                                  context_digest=context_stream_digest(rows))
+                                  context_digest=context_stream_digest(rows),
+                                  candidate_manifest_sha256=(manifest_sha256(manifest)
+                                                             if manifest else None))
     write_summary(partial_summary, summary, provenance)
     os.replace(partial_rows, rows_path)          # publish only verified artifacts
     os.replace(partial_summary, summary_path)
@@ -1334,6 +1343,9 @@ def main(argv=None):
 
     expected = expected_split_identities_from_config(dataset_config)
     print(f"registered split: {len(expected)} queries")
+    context["manifest"] = manifest_for_dataset_config(dataset_config)
+    print(f"candidate manifest frozen: {len(context['manifest']['rooms'])} rooms, "
+          f"sha256={manifest_sha256(context['manifest'])[:12]}...")
     result = run_evaluation(args, loader, engine, context, ckpt_sha256, agree.ckpt_sha256,
                             expected=expected, dataset_config=dataset_config)
     summary = result["summary"]
@@ -1391,3 +1403,110 @@ def validate_dataset_split(args, dataset_config=None):
 
 if __name__ == "__main__":
     main()
+
+
+DEFAULT_IR_FOLDER = "single_channel_ir_1"
+
+
+def build_room_manifest(dataset_root, split_config, folder_name=DEFAULT_IR_FOLDER):
+    """Freeze the candidate authority for the whole run (plan Rev 3.1 §2).
+
+    Enumerating candidates from disk per query let M -- and therefore the
+    conditioning batch composition, which the registered bf16 autocast is
+    sensitive to -- change between seeds if the dataset moved underneath the run.
+    This walks every room of the split ONCE, records the metadata-declared nodes
+    with their (consistency-checked) coordinates, the receiver positions the split
+    actually uses, and which nodes have any wav at all, and is then consumed from
+    memory. It is JSON-serializable and hashed into provenance.
+    """
+    dataset_root = str(dataset_root)
+    rooms = {}
+    for scene in sorted(split_config):
+        for scene_id in sorted(split_config[scene]):
+            room_id = f"{scene}/{scene_id}"
+            meta_dir = os.path.join(dataset_root, "metadata", scene, scene_id)
+            wav_dir = os.path.join(dataset_root, folder_name, scene, scene_id)
+            if not os.path.isdir(meta_dir):
+                raise SystemExit(
+                    f"candidate manifest ABORT: {room_id} is in the split but has no metadata "
+                    f"directory at {meta_dir}; the candidate authority is incomplete")
+            try:
+                sources = enumerate_metadata_sources(meta_dir)
+            except ValueError as err:
+                raise SystemExit(f"candidate manifest ABORT for {room_id}: {err}")
+
+            wav_nodes, receivers = set(), {}
+            if os.path.isdir(wav_dir):
+                for fname in os.listdir(wav_dir):
+                    try:
+                        src, _rec = parse_ir_filename(fname)
+                    except ValueError:
+                        continue
+                    wav_nodes.add(src)
+            for fname in sorted(split_config[scene][scene_id]):
+                try:
+                    _src, rec = parse_ir_filename(fname)
+                except ValueError:
+                    raise SystemExit(f"candidate manifest ABORT: {room_id} lists a non-IR "
+                                     f"file {fname!r}")
+                if str(rec) in receivers:
+                    continue
+                pair_path = None
+                for node in sorted(sources):
+                    pair_path = find_pair_metadata(meta_dir, node, rec)
+                    if pair_path is not None:
+                        break
+                if pair_path is None:
+                    raise SystemExit(
+                        f"candidate manifest ABORT: {room_id} receiver {rec} has no pair "
+                        f"metadata; its query frame cannot be established")
+                with open(pair_path) as handle:
+                    rec_loc = json.load(handle)["rec_loc"]
+                receivers[str(rec)] = [float(v) for v in rec_loc]
+
+            nodes = sorted(sources)
+            rooms[room_id] = {
+                "scene": scene,
+                "scene_id": scene_id,
+                "nodes": nodes,
+                "xyz_world": [[float(v) for v in sources[node]] for node in nodes],
+                "wav_nodes": sorted(wav_nodes),
+                "receivers": receivers,
+                "n_metadata_sources": len(nodes),
+                "n_wav_sources": len(wav_nodes),
+            }
+    return {"dataset_root": dataset_root, "folder_name": folder_name, "rooms": rooms}
+
+
+def manifest_sha256(manifest):
+    """sha256 over the canonical JSON of the frozen manifest."""
+    payload = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def candidate_set_from_manifest(manifest, room_id, gt_node, rec_node):
+    """The query's candidate set, from the frozen manifest -- no disk access."""
+    room = manifest["rooms"].get(room_id)
+    if room is None:
+        raise ValueError(f"room {room_id!r} is not in the frozen candidate manifest")
+    rec_loc = room["receivers"].get(str(int(rec_node)))
+    if rec_loc is None:
+        raise ValueError(f"receiver {rec_node} of {room_id} is not in the frozen manifest")
+    nodes = [int(n) for n in room["nodes"]]
+    if int(gt_node) not in nodes:
+        raise ValueError(f"GT source {gt_node} is not a candidate of {room_id}")
+    xyz = np.asarray(room["xyz_world"], dtype=np.float64)
+    return CandidateSet(nodes=nodes, xyz_world=xyz, rec_loc=np.asarray(rec_loc, dtype=np.float64),
+                        gt_node=int(gt_node), gt_xyz=xyz[nodes.index(int(gt_node))])
+
+
+def manifest_for_dataset_config(dataset_config):
+    """Freeze the candidate manifest for every room the dataset config's split names."""
+    entries = dataset_config.get("datasets", None) or []
+    if len(entries) != 1:
+        _refuse(f"the candidate manifest expects exactly one dataset entry, got {len(entries)}")
+    entry = entries[0]
+    with open(entry["json_file_path"]) as handle:
+        split = json.load(handle)
+    return build_room_manifest(entry["path"], split,
+                               folder_name=entry.get("folder_name", DEFAULT_IR_FOLDER))

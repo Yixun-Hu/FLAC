@@ -1180,15 +1180,20 @@ def _run_args(tmp_path, **over):
     return el.validate_args(el.parse_args(argv))
 
 
-def _stub_context():
-    return {"weights_source": "ema", "latent_shape": (2, 8), "device": "cpu"}
+def _stub_context(root=None, split=None):
+    """The run context. A frozen candidate manifest is mandatory on the query path
+    (r4 item 1), so the fixtures build one from the miniature dataset tree."""
+    context = {"weights_source": "ema", "latent_shape": (2, 8), "device": "cpu"}
+    if root is not None:
+        context["manifest"] = el.build_room_manifest(str(root), split or _split_dict())
+    return context
 
 
 def test_run_evaluation_end_to_end_writes_rows_and_summary(tmp_path):
     loader, _root = _fake_run(tmp_path)
     _rec, engine = _engine()
     args = _run_args(tmp_path)
-    result = el.run_evaluation(args, loader, engine, _stub_context(), "ck" * 32, "ag" * 32,
+    result = el.run_evaluation(args, loader, engine, _stub_context(_root), "ck" * 32, "ag" * 32,
                                expected=el.expected_split_identities(loader.dataset))
 
     rows = el.read_rows(result["rows_path"])
@@ -1208,11 +1213,11 @@ def test_run_evaluation_end_to_end_writes_rows_and_summary(tmp_path):
 def test_run_evaluation_row_is_reproducible_across_runs(tmp_path):
     loader, _root = _fake_run(tmp_path)
     _rec, engine = _engine()
-    first = el.run_evaluation(_run_args(tmp_path / "a"), loader, engine, _stub_context(), "c", "a",
+    first = el.run_evaluation(_run_args(tmp_path / "a"), loader, engine, _stub_context(_root), "c", "a",
                               expected=el.expected_split_identities(loader.dataset))
     loader2, _root2 = _fake_run(tmp_path)
     _rec2, engine2 = _engine()
-    second = el.run_evaluation(_run_args(tmp_path / "b"), loader2, engine2, _stub_context(), "c", "a",
+    second = el.run_evaluation(_run_args(tmp_path / "b"), loader2, engine2, _stub_context(_root2), "c", "a",
                                expected=el.expected_split_identities(loader2.dataset))
     assert [r["sims_hex"] for r in first["rows"]] == [r["sims_hex"] for r in second["rows"]]
 
@@ -1221,7 +1226,7 @@ def test_run_evaluation_smoke_truncates_after_auditing_the_truncated_enumeration
     loader, _root = _fake_run(tmp_path)
     _rec, engine = _engine()
     args = _run_args(tmp_path, **{"--smoke": True, "--max-queries": 1})
-    result = el.run_evaluation(args, loader, engine, _stub_context(), "c", "a",
+    result = el.run_evaluation(args, loader, engine, _stub_context(_root), "c", "a",
                                expected=el.expected_split_identities(loader.dataset))
     rows = el.read_rows(result["rows_path"])
     assert len(rows) == 1 and rows[0]["smoke"] is True
@@ -1237,7 +1242,7 @@ def test_run_evaluation_aborts_before_writing_when_the_audit_fails(tmp_path):
     _rec, engine = _engine()
     args = _run_args(tmp_path)
     with pytest.raises(SystemExit):
-        el.run_evaluation(args, loader, engine, _stub_context(), "c", "a",
+        el.run_evaluation(args, loader, engine, _stub_context(_root), "c", "a",
                           expected=el.expected_split_identities(loader.dataset))
     rows_path, _summary = el.output_paths(args.out_dir, args.eval_name, args.num_samples,
                                           args.seed, args.smoke)
@@ -1248,7 +1253,7 @@ def test_run_evaluation_constant_source_control_is_recorded(tmp_path):
     loader, _root = _fake_run(tmp_path)
     _rec, engine = _engine()
     args = _run_args(tmp_path, **{"--control": "constant_source"})
-    result = el.run_evaluation(args, loader, engine, _stub_context(), "c", "a",
+    result = el.run_evaluation(args, loader, engine, _stub_context(_root), "c", "a",
                                expected=el.expected_split_identities(loader.dataset))
     assert all(row["control"] == "constant_source" for row in result["rows"])
     assert result["provenance"]["control"] == "constant_source"
@@ -1258,7 +1263,7 @@ def test_run_evaluation_gt_rir_mode_scores_measured_files(tmp_path):
     loader, _root = _fake_run(tmp_path)
     _rec, engine = _engine()
     args = _run_args(tmp_path, **{"--score-source": "gt_rir", "--agg": "max"})
-    result = el.run_evaluation(args, loader, engine, _stub_context(), "c", "a",
+    result = el.run_evaluation(args, loader, engine, _stub_context(_root), "c", "a",
                                expected=el.expected_split_identities(loader.dataset))
     rows = result["rows"]
     assert all(row["score_source"] == "gt_rir" and row["n_samples"] == 1 for row in rows)
@@ -1384,7 +1389,7 @@ def test_process_query_aborts_before_generation_on_a_bad_context(tmp_path):
     rec, engine = _engine()
     args = _run_args(tmp_path)
     with pytest.raises(ValueError):
-        el.process_query(args, engine, {"latent_shape": (2, 8)}, md, torch.full((1, 1, 9600), 0.2))
+        el.process_query(args, engine, _stub_context(root), md, torch.full((1, 1, 9600), 0.2))
     assert rec.calls == []                       # nothing was generated
 
 
@@ -1630,7 +1635,7 @@ def test_run_evaluation_aborts_when_the_scoring_pass_substitutes(tmp_path):
     _rec, engine = _engine()
     args = _run_args(tmp_path)
     with pytest.raises(SystemExit):
-        el.run_evaluation(args, attacker, engine, _stub_context(), "c", "a", expected=expected)
+        el.run_evaluation(args, attacker, engine, _stub_context(_root), "c", "a", expected=expected)
     rows_path, summary_path = el.output_paths(args.out_dir, args.eval_name, 2, args.seed, False)
     assert not os.path.exists(rows_path) and not os.path.exists(summary_path)
 
@@ -1643,7 +1648,7 @@ def test_run_evaluation_aborts_at_the_end_gate_when_the_scoring_pass_truncates(t
     _rec, engine = _engine()
     args = _run_args(tmp_path)
     with pytest.raises(SystemExit):
-        el.run_evaluation(args, attacker, engine, _stub_context(), "c", "a", expected=expected)
+        el.run_evaluation(args, attacker, engine, _stub_context(_root), "c", "a", expected=expected)
     rows_path, _summary = el.output_paths(args.out_dir, args.eval_name, 2, args.seed, False)
     assert not os.path.exists(rows_path)
 
@@ -1653,7 +1658,7 @@ def test_run_evaluation_hashes_the_scored_stream_and_publishes_atomically(tmp_pa
     _rec, engine = _engine()
     args = _run_args(tmp_path)
     expected = el.expected_split_identities(loader.dataset)
-    result = el.run_evaluation(args, loader, engine, _stub_context(), "c", "a", expected=expected)
+    result = el.run_evaluation(args, loader, engine, _stub_context(_root), "c", "a", expected=expected)
 
     scored = [row["query_id"] for row in result["rows"]]
     assert result["provenance"]["split_hash"] == el.split_hash(scored)
@@ -1668,7 +1673,7 @@ def test_run_evaluation_checks_identity_before_generating(tmp_path):
     rec, engine = _engine()
     expected = el.expected_split_identities(loader.dataset)
     with pytest.raises(SystemExit):
-        el.run_evaluation(_run_args(tmp_path), loader, engine, _stub_context(), "c", "a",
+        el.run_evaluation(_run_args(tmp_path), loader, engine, _stub_context(_root), "c", "a",
                           expected=expected)
     assert rec.calls == []                                 # aborted before any generation
 
@@ -2134,3 +2139,119 @@ def test_module_runs_as_a_script_with_every_symbol_defined():
     assert result.returncode != 0
     assert "REFUSED" in (result.stderr + result.stdout)
     assert "NameError" not in result.stderr
+
+
+# --------------------------------------------------------------------------- #
+# r4 item 1 (full-review F1, plan Rev 3.1 §2): the candidate authority is frozen
+# ONCE per run into a room manifest, hashed into provenance and consumed from
+# memory. Per-query disk re-enumeration could change M -- and therefore the
+# autocast conditioning batch composition -- between seeds.
+# --------------------------------------------------------------------------- #
+def _split_dict():
+    return {"Cafe": {"Cafe_idx_1": ["S003_R0011_hybrid_IR.wav", "S000_R0011_hybrid_IR.wav"]}}
+
+
+def test_build_room_manifest_freezes_nodes_coordinates_and_wav_availability(tmp_path):
+    root, _wav_room = _dataset_tree(tmp_path)
+    manifest = el.build_room_manifest(str(root), _split_dict())
+    room = manifest["rooms"]["Cafe/Cafe_idx_1"]
+    assert room["nodes"] == [0, 3, 7]
+    assert room["xyz_world"][1] == [2.0, -1.0, 1.5]
+    assert room["wav_nodes"] == [0, 3, 7]
+    assert room["receivers"]["11"] == [1.0, 2.0, 0.5]         # rec_loc frozen per receiver
+    assert room["n_metadata_sources"] == 3 and room["n_wav_sources"] == 3
+    assert manifest["folder_name"] == "single_channel_ir_1"
+
+
+def test_build_room_manifest_is_deterministic_and_hashable(tmp_path):
+    root, _wav_room = _dataset_tree(tmp_path)
+    first = el.build_room_manifest(str(root), _split_dict())
+    second = el.build_room_manifest(str(root), _split_dict())
+    assert first == second
+    assert el.manifest_sha256(first) == el.manifest_sha256(second)
+    moved = _json.loads(_json.dumps(first))
+    moved["rooms"]["Cafe/Cafe_idx_1"]["xyz_world"][0][0] += 0.001
+    assert el.manifest_sha256(moved) != el.manifest_sha256(first)
+
+
+def test_build_room_manifest_is_json_serializable(tmp_path):
+    root, _wav_room = _dataset_tree(tmp_path)
+    manifest = el.build_room_manifest(str(root), _split_dict())
+    assert _json.loads(_json.dumps(manifest)) == manifest
+
+
+def test_build_room_manifest_aborts_on_a_missing_room(tmp_path):
+    root, _wav_room = _dataset_tree(tmp_path)
+    split = {"Cafe": {"Cafe_idx_1": ["S003_R0011_hybrid_IR.wav"]},
+             "Ghost": {"Ghost_idx_0": ["S000_R000_hybrid_IR.wav"]}}
+    with pytest.raises(SystemExit):
+        el.build_room_manifest(str(root), split)
+
+
+def test_candidate_set_from_manifest_equals_the_on_disk_construction(tmp_path):
+    root, wav_room = _dataset_tree(tmp_path)
+    manifest = el.build_room_manifest(str(root), _split_dict())
+    md = _query_md(root, wav_room)
+    from_disk = el.query_candidate_set(md)
+    frozen = el.candidate_set_from_manifest(manifest, "Cafe/Cafe_idx_1", gt_node=3, rec_node=11)
+    assert frozen.nodes == from_disk.nodes and frozen.gt_node == from_disk.gt_node
+    np.testing.assert_array_equal(frozen.xyz_world, from_disk.xyz_world)
+    np.testing.assert_array_equal(frozen.rec_loc, from_disk.rec_loc)
+    np.testing.assert_array_equal(frozen.gt_xyz, from_disk.gt_xyz)
+
+
+def test_candidate_set_from_manifest_aborts_on_an_unknown_room_or_receiver(tmp_path):
+    root, _wav_room = _dataset_tree(tmp_path)
+    manifest = el.build_room_manifest(str(root), _split_dict())
+    with pytest.raises(ValueError):
+        el.candidate_set_from_manifest(manifest, "Ghost/Ghost_idx_0", 3, 11)
+    with pytest.raises(ValueError):
+        el.candidate_set_from_manifest(manifest, "Cafe/Cafe_idx_1", 3, 99)
+    with pytest.raises(ValueError):
+        el.candidate_set_from_manifest(manifest, "Cafe/Cafe_idx_1", 99, 11)
+
+
+# --- real unseen split (Rev 3.1 §1: the corrected LRH fact) ------------------ #
+_UNSEEN_SPLIT_JSON = os.path.join(_REPO_ROOT, "data", "AR", "unseen_eval.json")
+_HAVE_UNSEEN_ROOMS = (os.path.isfile(_UNSEEN_SPLIT_JSON) and os.path.isdir(_AR_ROOT)
+                      and os.path.isdir(os.path.join(_AR_ROOT, "metadata")))
+unseen_rooms = pytest.mark.skipif(
+    not _HAVE_UNSEEN_ROOMS, reason="the unseen split's AcousticRooms metadata is not local")
+
+
+@unseen_rooms
+def test_integration_every_unseen_room_has_ten_metadata_sources():
+    """Rev 3.1 §1: all 17 unseen rooms have M=10; LivingRoomsWithHallway_idx_30's
+    source 10 has metadata but no wavs, so its eligible set is {GT, S10} = 2 --
+    NOT the retired M=9 / GT-only case."""
+    split = _json.loads(open(_UNSEEN_SPLIT_JSON).read())
+    manifest = el.build_room_manifest(_AR_ROOT, split)
+    assert len(manifest["rooms"]) == 17
+    assert {len(room["nodes"]) for room in manifest["rooms"].values()} == {10}
+    lrh = manifest["rooms"]["LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30"]
+    assert lrh["nodes"] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    assert lrh["wav_nodes"] == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    assert sorted(set(lrh["nodes"]) - set(lrh["wav_nodes"])) == [10]
+    for room_id, room in manifest["rooms"].items():
+        if room_id != "LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30":
+            assert room["wav_nodes"] == room["nodes"], room_id
+
+
+def test_run_evaluation_records_the_frozen_manifest_hash(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    context = _stub_context(root)
+    result = el.run_evaluation(_run_args(tmp_path), loader, engine, context, "c", "a",
+                               expected=el.expected_split_identities(loader.dataset))
+    assert result["provenance"]["candidate_manifest_sha256"] == el.manifest_sha256(
+        context["manifest"])
+    assert len(result["provenance"]["candidate_manifest_sha256"]) == 64
+
+
+def test_process_query_refuses_to_run_without_a_frozen_manifest(tmp_path):
+    root, wav_room = _dataset_tree(tmp_path)
+    md = _query_md(root, wav_room)
+    _rec, engine = _engine()
+    with pytest.raises(SystemExit):
+        el.process_query(_run_args(tmp_path), engine, {"latent_shape": (2, 8)}, md,
+                         torch.full((1, 1, 9600), 0.2))
