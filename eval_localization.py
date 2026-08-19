@@ -1212,6 +1212,9 @@ def process_query(args, engine, context, md, obs_wav):
     # BEFORE anything can touch the poses: the context fingerprint identifies the draw.
     context_ids = sample_context_ids(md)
 
+    context_k = context.get("context_k")
+    if context_k is not None:
+        assert_query_context(md, context_k)
     # Membership is resolved BEFORE any generation so a conditioning/candidate
     # geometry disagreement aborts instead of quietly enlarging the eligible set.
     candidate_cams = candidate_camera_positions(cand_set)
@@ -1288,6 +1291,8 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
                 seen_rooms.add(row["room_id"])
                 print(f"[{len(rows)}/{len(expected)}] room {row['room_id']}")
 
+    if context.get("context_k") is not None:
+        assert_context_evidence_complete(rows, context["context_k"])
     split = assert_scored_stream(scored, expected)
     print(f"identity gate passed: {len(scored)} queries, split_hash={split[:12]}...")
 
@@ -1370,6 +1375,7 @@ def main(argv=None):
     expected = expected_split_identities_from_config(dataset_config)
     print(f"registered split: {len(expected)} queries")
     context["manifest"] = manifest_for_dataset_config(dataset_config)
+    context["context_k"] = resolve_context_k(dataset_config)
     print(f"candidate manifest frozen: {len(context['manifest']['rooms'])} rooms, "
           f"sha256={manifest_sha256(context['manifest'])[:12]}...")
     result = run_evaluation(args, loader, engine, context, ckpt_sha256, agree.ckpt_sha256,
@@ -1536,3 +1542,59 @@ def manifest_for_dataset_config(dataset_config):
         split = json.load(handle)
     return build_room_manifest(entry["path"], split,
                                folder_name=entry.get("folder_name", DEFAULT_IR_FOLDER))
+
+
+def resolve_context_k(dataset_config):
+    """The registered context size K_ctx, or a refusal.
+
+    The nearest-context control is a registered success criterion (plan §2.6), so
+    a configuration that cannot produce it is refused up front rather than
+    published with the control missing (full-review F3).
+    """
+    acoustic = ((dataset_config or {}).get("modalities") or {}).get("acoustic_context") or {}
+    if not acoustic.get("load", False):
+        _refuse("the dataset config does not load acoustic_context; the registered "
+                "nearest-context control (O10) could not be computed")
+    context_k = acoustic.get("max_context")
+    if not isinstance(context_k, int) or context_k < 1:
+        _refuse(f"the dataset config declares max_context={context_k!r}; a positive integer "
+                "context size is required")
+    return int(context_k)
+
+
+def assert_query_context(md, context_k):
+    """Every query must carry exactly the configured context, in loader shape."""
+    poses, audio = md.get("context_poses"), md.get("context_audio")
+    if poses is None or audio is None:
+        raise ValueError("query metadata carries no context_poses/context_audio; the registered "
+                         "nearest-context control cannot be computed for it")
+    if not isinstance(poses, torch.Tensor) or poses.dim() != 2 or poses.shape[1] != 3:
+        raise ValueError(f"context_poses must be a [K, 3] tensor, got "
+                         f"{tuple(poses.shape) if isinstance(poses, torch.Tensor) else type(poses)}")
+    if poses.dtype != torch.float32:
+        raise ValueError(f"context_poses must be float32 (the fingerprint rendering is not "
+                         f"dtype-stable), got {poses.dtype}")
+    if not isinstance(audio, torch.Tensor) or audio.dim() not in (2, 3):
+        raise ValueError("context_audio must be a [K, T] or [K, 1, T] tensor")
+    if poses.shape[0] != context_k or audio.shape[0] != context_k:
+        raise ValueError(
+            f"query carries {poses.shape[0]} context poses / {audio.shape[0]} context RIRs, "
+            f"but the dataset config registers K_ctx={context_k}")
+    if not bool(torch.isfinite(poses).all()):
+        raise ValueError("context_poses must be finite")
+    return context_k
+
+
+def assert_context_evidence_complete(rows, context_k):
+    """Publication gate: every row carries the full-length control evidence."""
+    for row in rows:
+        evidence = row.get("context_xyz_cam")
+        if evidence is None:
+            raise SystemExit(
+                f"context gate ABORT: query {row.get('query_id')!r} has no context evidence; "
+                "the registered nearest-context control would silently vanish from the summary")
+        if len(evidence) != int(context_k):
+            raise SystemExit(
+                f"context gate ABORT: query {row.get('query_id')!r} carries {len(evidence)} "
+                f"context sources, the dataset config registers K_ctx={context_k}")
+    return True

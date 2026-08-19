@@ -618,6 +618,11 @@ def test_summarize_run_nearest_context_control_when_rows_carry_context_evidence(
 
 
 def test_summarize_run_control_is_none_without_context_evidence():
+    """Pure-aggregation behaviour for rows that carry no evidence (e.g. an offline
+    re-aggregation of foreign rows). A RUN can never produce such rows: the driver
+    validates the context per query and gates publication on full-length evidence
+    (r4 item 3 / full-review F3).
+    """
     summary = el.summarize_run(_rows_fixture())
     assert summary["controls"]["nearest_context_raw"] is None
     assert summary["controls"]["nearest_context_masked"] is None
@@ -1070,7 +1075,7 @@ _ROOM_SOURCES = {0: (0.0, 0.0, 1.0), 3: (2.0, -1.0, 1.5), 7: (-3.0, 4.0, 0.75)}
 
 
 def _query_md(root, wav_room, src=3, receiver=11, rec_loc=(1.0, 2.0, 0.5),
-              src_loc=None, context_nodes=(0,)):
+              src_loc=None, context_nodes=None):
     """One loader item. The context poses are the camera-frame positions of OTHER
     real sources in the room -- what AR_md actually produces -- so the fail-closed
     membership resolution (r3 fix F7) has something to resolve against."""
@@ -1079,7 +1084,9 @@ def _query_md(root, wav_room, src=3, receiver=11, rec_loc=(1.0, 2.0, 0.5),
     path = str(wav_room / f"S00{src}_R00{receiver}_hybrid_IR.wav")
     source = torch.as_tensor(project_to_camera(np.asarray(rec_loc), np.asarray(src_loc)),
                              dtype=torch.float32)
-    context = [n for n in context_nodes if n != src]
+    # every OTHER source in the room: a constant context size, as a real room gives
+    context = [n for n in (sorted(_ROOM_SOURCES) if context_nodes is None else context_nodes)
+               if n != src]
     poses = torch.as_tensor(
         np.stack([project_to_camera(np.asarray(rec_loc), np.asarray(_ROOM_SOURCES[n]))
                   for n in context]), dtype=torch.float32)
@@ -1157,7 +1164,7 @@ def _fake_run(tmp_path, nodes=(3, 0), batch_size=2):
     srcs = {0: (0.0, 0.0, 1.0), 3: (2.0, -1.0, 1.5), 7: (-3.0, 4.0, 0.75)}
     metadata, filenames = [], []
     for node in nodes:
-        md = _query_md(root, wav_room, src=node, src_loc=srcs[node], context_nodes=(0, 7))
+        md = _query_md(root, wav_room, src=node, src_loc=srcs[node])
         md["idx"] = len(metadata)
         metadata.append(md)
         filenames.append(md["path"])
@@ -2308,3 +2315,85 @@ def test_main_validates_registration_before_loading_any_model(tmp_path, monkeypa
         el.main(["--model-config", "m.json", "--dataset-config", _UNSEEN_CONFIG,
                  "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt", "--num-samples", "8",
                  "--device", "cpu"])
+
+
+# --------------------------------------------------------------------------- #
+# r4 item 3 (full-review F3): the nearest-context control is a REGISTERED success
+# criterion, so a run that cannot compute it must abort -- not publish with the
+# control set to None. No leniency flag: a half-registered artifact is worse than
+# a refusal.
+# --------------------------------------------------------------------------- #
+def test_resolve_context_k_reads_the_registered_context_size():
+    assert el.resolve_context_k(_json.loads(open(_UNSEEN_CONFIG).read())) == 8
+    one = _json.loads(open(os.path.join(_REPO_ROOT, "src", "configs", "dataset_configs", "AR",
+                                        "eval", "acousticroom_unseeneval_1.json")).read())
+    assert el.resolve_context_k(one) == 1
+
+
+@pytest.mark.parametrize("config", [
+    {"modalities": {}},
+    {"modalities": {"acoustic_context": {"load": False, "max_context": 8}}},
+    {"modalities": {"acoustic_context": {"load": True}}},
+    {"modalities": {"acoustic_context": {"load": True, "max_context": 0}}},
+])
+def test_resolve_context_k_refuses_a_run_that_cannot_produce_the_control(config):
+    with pytest.raises(SystemExit):
+        el.resolve_context_k(config)
+
+
+def test_assert_query_context_accepts_the_loader_shapes(tmp_path):
+    root, wav_room = _dataset_tree(tmp_path)
+    el.assert_query_context(_query_md(root, wav_room), 2)
+
+
+def test_assert_query_context_aborts_on_missing_or_mis_shaped_context(tmp_path):
+    root, wav_room = _dataset_tree(tmp_path)
+    base = _query_md(root, wav_room)
+    for mutate in (
+        lambda md: md.pop("context_poses"),
+        lambda md: md.pop("context_audio"),
+        lambda md: md.__setitem__("context_poses", md["context_poses"][:1]),
+        lambda md: md.__setitem__("context_audio", md["context_audio"][:1]),
+        lambda md: md.__setitem__("context_poses", md["context_poses"].double()),
+        lambda md: md.__setitem__("context_poses", torch.zeros(2, 4)),
+        lambda md: md.__setitem__("context_audio", torch.zeros(2)),
+    ):
+        md = dict(base)
+        mutate(md)
+        with pytest.raises(ValueError):
+            el.assert_query_context(md, 2)
+
+
+def test_process_query_aborts_before_generation_when_context_is_short(tmp_path):
+    root, wav_room = _dataset_tree(tmp_path)
+    md = _query_md(root, wav_room)
+    md["context_poses"] = md["context_poses"][:1]
+    md["context_audio"] = md["context_audio"][:1]
+    rec, engine = _engine()
+    context = _stub_context(root)
+    context["context_k"] = 2
+    with pytest.raises(ValueError):
+        el.process_query(_run_args(tmp_path), engine, context, md,
+                         torch.full((1, 1, 9600), 0.2))
+    assert rec.calls == []
+
+
+def test_assert_context_evidence_complete_gates_publication():
+    good = [{"context_xyz_cam": [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], "query_id": "q0"}]
+    el.assert_context_evidence_complete(good, 2)
+    with pytest.raises(SystemExit):
+        el.assert_context_evidence_complete([{"query_id": "q0"}], 2)
+    with pytest.raises(SystemExit):
+        el.assert_context_evidence_complete(good, 8)          # short context
+
+
+def test_run_evaluation_publishes_a_full_length_context_digest(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    context = _stub_context(root)
+    context["context_k"] = 2
+    result = el.run_evaluation(_run_args(tmp_path), loader, engine, context, "c", "a",
+                               expected=el.expected_split_identities(loader.dataset))
+    assert result["provenance"]["context_stream_digest"] != "n/a"
+    assert all(len(row["context_xyz_cam"]) == 2 for row in result["rows"])
+    assert result["summary"]["controls"]["nearest_context_masked"] is not None
