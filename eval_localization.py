@@ -22,7 +22,7 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 
-from eval_FLAC import sample_target_id
+from eval_FLAC import CONTEXT_ID_PRECISION, sample_target_id
 from src.localization.candidates import (assert_gt_matches_loader, candidate_metadata,
                                          project_to_camera)
 from src.localization.scoring import cosine_sims, noise_key
@@ -204,3 +204,59 @@ def run_query(engine, base_md, cand_set, noise, obs_wav, batch_size=64, control=
     if return_wavs:
         out["wavs"] = wavs
     return out
+
+
+def encode_sims(sims):
+    """``[M, K]`` similarities as exact hex floats (``float.hex``).
+
+    The registered aggregation must be reproducible offline from the logged rows
+    (O18), so the serialization is lossless rather than pretty: widening a float32
+    to float64 is exact, and ``float.fromhex`` inverts it bit for bit.
+    """
+    return [[float(v).hex() for v in row] for row in sims.detach().cpu().float()]
+
+
+def decode_sims(payload):
+    """Inverse of :func:`encode_sims` -> float32 ``[M, K]``."""
+    return torch.tensor([[float.fromhex(v) for v in row] for row in payload], dtype=torch.float32)
+
+
+def room_id_from_relpath(relpath):
+    """``'<scene>/<scene_id>'`` -- the 17-room key of plan §2.6."""
+    parts = str(relpath).replace(os.sep, "/").strip("/").split("/")
+    if len(parts) < 3:
+        raise ValueError(f"relpath must contain <scene>/<scene_id>/<file>: {relpath!r}")
+    return f"{parts[-3]}/{parts[-2]}"
+
+
+def render_position_id(xyz):
+    """One candidate position in ``sample_context_ids``' rendering.
+
+    Same rule, deliberately: float32 (what the loader's ``context_poses`` carry),
+    ``CONTEXT_ID_PRECISION`` decimals, ``-0.0`` normalized. The candidate's
+    camera-frame position is bit-identical to the loader's projection of the same
+    source, so equal positions render to equal strings.
+    """
+    values = []
+    for value in np.asarray(xyz, dtype=np.float32).reshape(-1):
+        value = float(value)
+        if value == 0.0:
+            value = 0.0
+        values.append(f"{value:.{CONTEXT_ID_PRECISION}f}")
+    return ",".join(values)
+
+
+def context_membership_mask(cand_cam_xyz, context_ids):
+    """Which candidates the conditioning already reveals (plan §2.2, C1)."""
+    wanted = set(context_ids)
+    return [render_position_id(xyz) in wanted for xyz in np.asarray(cand_cam_xyz)]
+
+
+def gt_reciprocal_rank(scores, gt_index):
+    """Reciprocal rank of the GT candidate, ties broken by lowest index."""
+    scores = torch.as_tensor(scores).reshape(-1)
+    gt_index = int(gt_index)
+    gt_score = scores[gt_index]
+    better = int((scores > gt_score).sum())
+    tied_before = int((scores[:gt_index] == gt_score).sum())
+    return 1.0 / (better + tied_before + 1)

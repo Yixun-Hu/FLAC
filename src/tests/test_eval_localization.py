@@ -342,3 +342,68 @@ def test_run_query_returns_candidate_camera_positions():
     out = el.run_query(engine, _base_md(cand), cand, el.build_noise_bank(1, "q", 2, (2, 8)), _OBS)
     expected = np.stack([project_to_camera(cand.rec_loc, xyz) for xyz in cand.xyz_world])
     np.testing.assert_array_equal(out["cand_cam_xyz"], expected)
+
+
+# --------------------------------------------------------------------------- #
+# row helpers  (unit d, part 1): exact sims serialization, room key, context
+# membership by the eval_FLAC fingerprint rendering, GT reciprocal rank.
+# --------------------------------------------------------------------------- #
+from eval_FLAC import sample_context_ids                              # noqa: E402
+
+
+def test_encode_decode_sims_round_trips_bitwise():
+    """float.hex() is exact for a float32 value widened to float64, so an offline
+    re-aggregation reproduces the online scores exactly (O18)."""
+    g = torch.Generator().manual_seed(3)
+    sims = (torch.rand(4, 8, generator=g) * 2 - 1).float()
+    payload = el.encode_sims(sims)
+    assert isinstance(payload, list) and isinstance(payload[0][0], str)
+    assert torch.equal(el.decode_sims(payload), sims)
+
+
+def test_encode_sims_survives_a_json_round_trip():
+    import json
+    sims = torch.tensor([[0.1, -0.7], [1.0, -1.0]], dtype=torch.float32)
+    restored = el.decode_sims(json.loads(json.dumps(el.encode_sims(sims))))
+    assert torch.equal(restored, sims)
+    assert restored.dtype == torch.float32
+
+
+def test_encode_sims_captures_awkward_values_exactly():
+    sims = torch.tensor([[float(np.float32(1 / 3)), -0.0, 1.0]], dtype=torch.float32)
+    assert torch.equal(el.decode_sims(el.encode_sims(sims)), sims)
+
+
+def test_room_id_from_relpath():
+    assert el.room_id_from_relpath(
+        "single_channel_ir_1/Cafe/Cafe_idx_1/S000_R003_hybrid_IR.wav") == "Cafe/Cafe_idx_1"
+    with pytest.raises(ValueError):
+        el.room_id_from_relpath("S000_R003_hybrid_IR.wav")
+
+
+def test_context_membership_mask_matches_the_eval_flac_fingerprint():
+    """The context sources are candidates too; membership is decided by rendering
+    each candidate's camera-frame position with the SAME 6-decimal rule
+    eval_FLAC.sample_context_ids applies to context_poses."""
+    cams = np.array([[0.5, -1.25, 2.0], [-3.0, 0.0, 1.0], [7.125, 2.5, -0.5]])
+    poses = torch.as_tensor(cams[[0, 2]], dtype=torch.float32)
+    context_ids = sample_context_ids({"context_poses": poses})
+    mask = el.context_membership_mask(cams, context_ids)
+    assert list(mask) == [True, False, True]
+    assert el.context_membership_mask(cams, []) == [False, False, False]
+
+
+def test_context_membership_mask_normalizes_negative_zero():
+    cams = np.array([[-0.0, 0.0, 1.0]])
+    poses = torch.as_tensor(np.array([[0.0, -0.0, 1.0]]), dtype=torch.float32)
+    assert el.context_membership_mask(cams, sample_context_ids({"context_poses": poses})) == [True]
+
+
+def test_gt_reciprocal_rank_uses_lowest_index_tie_break():
+    scores = torch.tensor([0.9, 0.5, 0.7])
+    assert el.gt_reciprocal_rank(scores, 0) == pytest.approx(1.0)
+    assert el.gt_reciprocal_rank(scores, 2) == pytest.approx(0.5)
+    assert el.gt_reciprocal_rank(scores, 1) == pytest.approx(1 / 3)
+    tied = torch.tensor([0.9, 0.9, 0.9])
+    assert el.gt_reciprocal_rank(tied, 0) == pytest.approx(1.0)     # lowest index wins ties
+    assert el.gt_reciprocal_rank(tied, 2) == pytest.approx(1 / 3)
