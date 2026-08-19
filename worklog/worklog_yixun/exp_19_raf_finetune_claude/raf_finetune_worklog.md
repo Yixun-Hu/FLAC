@@ -54,3 +54,12 @@ Branch `localization-exp` (shared with exp_18; this experiment is driven by the 
   3. **FurnishedRoom extraction COMPLETE** (Yixun's process finished 18:29): 39,132 captures, ids 000000–039131, same schema + same all_rx trailing-line off-by-one as EmptyRoom.
   4. **Group-invariant pre-check:** FurnishedRoom = 1,086 unique tx poses — **1,085 groups of exactly 36 + ONE group of 72** (one source pose captured twice, presumably at two array placements). Handling rule (within plan §2's recorded-deviation clause): **v1 selection eligibility = exactly-36 groups only**; the 72-group goes to the explicit reserve list with its anomaly recorded in `raf_splits_record.json`. To be echoed in the prep run's output and the results caveats.
 - **Next** — Coder report → consolidated Codex code review → fix round; then formal readback rung (both rooms) → prep run → depth renders → smoke; R-cal HAA finetune queued behind the chain's completion.
+
+## 2026-08-19T19:34:04-0400 — Cycle 13 landed; D1 verified on the real corpus; consolidated Codex code review fired
+
+- **Result** —
+  1. Cycle 13 (`1d1af86` + ledger `980bcd7`): rx trailing-sentinel rule per Amendment 1, conjunctive conditions, fail-closed everywhere else; suite 190 → **204 passed**.
+  2. **Read-only real-corpus check:** `load_room_index` now accepts both rooms — EmptyRoom 47,484 / FurnishedRoom 39,132 captures, sentinel dropped+flagged in both. D1 CLOSED.
+  3. R-cal Leg A restart running (per-seed names, Amendment 2); Leg B training ~step-mid.
+  4. Consolidated Codex code review of r1 (cycles 1–13, commits `8ac6fad..980bcd7`) launched at xhigh with the no-install clause; output → `raf_finetune_codex_code_review.md`. Round r1 does NOT close before its verdict + fix round.
+- **Next** — Fold review findings (fix round via the Coder if REQUEST-CHANGES); assemble Leg-A 5-seed table vs the paper HAA numbers when the rerun lands.
