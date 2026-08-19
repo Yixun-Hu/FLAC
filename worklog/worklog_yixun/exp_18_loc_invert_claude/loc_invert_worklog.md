@@ -109,3 +109,11 @@
 - **Command / Validation** — Planner-independent re-verification: `pytest test_loc_candidates.py test_loc_scoring.py -q` → **174 passed**; spot-checks: NaN raises in cosine_sims/aggregate/uniform_baseline, F5 mask restricts prediction (raw 0 → masked 1), `method="linear"` present at scoring.py:429. Coder deviations reviewed and accepted (F1 scope extension to predict_index/power_statistic — good; F2 single authoritative site per instruction with scoring `_gt_index` backstop; F4 strengthened draws; F5 restriction-not-expectation semantics — the driver passes the non-context mask for the control).
 - **Result** — passed; round 1 CLOSED. Blocking findings: 0 open. Nits: none deferred.
 - **Next** — Round 2: `src/localization/agree_embed.py` + tests (deterministic VAE-mean readout, preprocessing parity, RNG isolation). Integration tests can run for real now (AGREE_AR.pt + VAE.ckpt + HF cache all present).
+
+## 2026-08-19T19:05:00-0400 — Round 2 delivered; Planner verification PASSED; measured scorer noise
+
+- **Version Control** — r2 commits `56d321a a664041 e16ac40 836f16a 4a4ff7e ec496f3` (preprocess / mean-readout / loader+sha / integration / O18 edge / ledger).
+- **Command / Validation** — exp_18 suite **212 passed** (38 new, 34 unit + 4 integration on the REAL AGREE_AR.pt). Planner-independent check on the real model: mean readout bitwise deterministic, global RNG state untouched, [2,512] unit-norm f32, ckpt sha `b664d5c09f74685f…`.
+- **Result** — passed. **Science note (validates the O2 fix):** stock sampled embedding differs by up to 0.011 between identical calls; cos(mean, sample) ≈ 0.999 — the registered mean readout sits on the stock embedding minus its sampling noise. Structure check confirmed the readout maps exactly onto `OobleckEncoder.layers→chunk→project` (reshape for the non-contiguous mean half; identical layout).
+- **Analysis** — Coder deviations 1–6 reviewed and accepted (CWD guard on the resolved config value, train-mode refusal, inference-clone, stock-path-equivalent sample readout, lazy imports, silent-skip caveat noted). Round 2 OPEN pending Codex r2 review.
+- **Next** — Codex r2 review; round 3 (driver) starts only after r2 closes.
