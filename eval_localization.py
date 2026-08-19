@@ -19,6 +19,7 @@ import argparse
 import contextlib
 import copy
 import hashlib
+import itertools
 import json
 import os
 from dataclasses import dataclass
@@ -30,7 +31,7 @@ import torchaudio
 
 from eval_FLAC import (CONTEXT_ID_PRECISION, check_load_integrity, orbit_provenance,
                        resolve_are_from_checkpoint, resolve_cond_autocast,
-                       resolve_weights_source, sample_target_id, source_sha)
+                       resolve_weights_source, sample_context_ids, sample_target_id, source_sha)
 from src.data.yaw_rotation import DEFAULT_FRAME_ANGLES
 from src.inference.sampling import sample_discrete_euler
 from src.models.factory import create_model_from_config
@@ -638,7 +639,7 @@ def parse_args(argv=None):
         description="exp_18 loc_invert: source localization by analysis-by-synthesis inversion")
     parser.add_argument("--model-config", required=True)
     parser.add_argument("--dataset-config", required=True)
-    parser.add_argument("--ckpt-path", required=True)
+    parser.add_argument("--ckpt-path", default=None)
     parser.add_argument("--agree-ckpt", required=True)
     parser.add_argument("--num-samples", type=int, required=True, help="K samples per candidate")
     parser.add_argument("--tau", type=float, default=0.02)
@@ -682,6 +683,9 @@ def validate_args(args):
         _refuse(f"--num-samples (K) must be >= 1, got {args.num_samples}")
     if int(args.batch_size) < 1:
         _refuse(f"--batch-size must be >= 1, got {args.batch_size}")
+    if args.score_source == "flac" and not args.ckpt_path:
+        _refuse("--ckpt-path is required to score generated RIRs; only --score-source gt_rir "
+                "(the measured-RIR oracle) runs without a checkpoint")
     return args
 
 
@@ -894,3 +898,84 @@ def context_evidence(engine, md, obs_wav):
     sims = cosine_sims(obs_embedding, embeddings.unsqueeze(1)).reshape(1, -1)
     return {"context_xyz_cam": [[float(v) for v in row] for row in poses],
             "context_sims_hex": encode_sims(sims)[0]}
+
+
+def _iter_items(loader):
+    """Yield ``(reals_i, md_i)`` one query at a time from a batched loader.
+
+    The loader keeps the PINNED ``batch_size``/``num_workers`` -- the per-item
+    context draw depends on both (O8), so changing them would change the
+    conditioning -- while the driver walks the batch item by item, because the
+    M x K candidate expansion is what fills a GPU batch inside :func:`run_query`.
+    """
+    for reals, metadata in loader:
+        for index, md in enumerate(metadata):
+            yield (None if reals is None else reals[index:index + 1]), md
+
+
+def process_query(args, engine, context, md, obs_wav):
+    """One query end to end: candidate set -> generation/oracle -> scored row."""
+    query_id = sample_target_id(md)
+    cand_set = query_candidate_set(md)
+    room_id = room_id_from_relpath(md["relpath"])
+    _src_node, receiver_node = parse_ir_filename(md["path"])
+    # BEFORE anything can touch the poses: the context fingerprint identifies the draw.
+    context_ids = sample_context_ids(md)
+
+    if args.score_source == "gt_rir":
+        outcome = run_query_gt_rir(engine, cand_set, os.path.dirname(md["path"]),
+                                   receiver_node, obs_wav)
+        noise_keys, available = [], outcome["available"]
+        identity_index = outcome["identity_index"]
+    else:
+        noise = build_noise_bank(args.seed, query_id, args.num_samples, context["latent_shape"])
+        noise_keys = [noise_key(args.seed, query_id, k) for k in range(int(args.num_samples))]
+        outcome = run_query(engine, md, cand_set, noise, obs_wav, batch_size=args.batch_size,
+                            control=args.control)
+        available, identity_index = None, None
+
+    evidence = context_evidence(engine, md, obs_wav) or {}
+    return build_row(
+        query_id=query_id, room_id=room_id, relpath=md["relpath"], receiver_node=receiver_node,
+        cand_set=cand_set, cam_xyz=outcome["cand_cam_xyz"], sims=outcome["sims"],
+        context_mask=context_membership_mask(outcome["cand_cam_xyz"], context_ids),
+        noise_keys=noise_keys, tau=args.tau, agg=args.agg, control=args.control,
+        score_source=args.score_source, smoke=bool(args.smoke), available=available,
+        identity_index=identity_index, substituted=False,
+        context_xyz_cam=evidence.get("context_xyz_cam"),
+        context_sims_hex=evidence.get("context_sims_hex"))
+
+
+def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256):
+    """Audit the split, then score every query, then summarize (plan §2.1/§2.6).
+
+    The audit runs FIRST and over the same enumeration the run will use -- under
+    ``--smoke --max-queries N`` that is the truncated one -- so a substituted item
+    aborts before a single row is written and no headline artifact can exist for
+    an unverified split.
+    """
+    expected = expected_split_identities(loader.dataset)
+    if args.smoke and args.max_queries is not None:
+        expected = expected[: int(args.max_queries)]
+    split = audit_split_identities(
+        (md for _reals, md in itertools.islice(_iter_items(loader), len(expected))), expected)
+    print(f"identity audit passed: {len(expected)} queries, split_hash={split[:12]}...")
+
+    rows_path, summary_path = output_paths(args.out_dir, args.eval_name, args.num_samples,
+                                           args.seed, args.smoke)
+    rows, seen_rooms = [], set()
+    with open(rows_path, "w") as handle:
+        for obs_wav, md in itertools.islice(_iter_items(loader), len(expected)):
+            row = process_query(args, engine, context, md, obs_wav)
+            write_row(handle, row)
+            rows.append(row)
+            if row["room_id"] not in seen_rooms:
+                seen_rooms.add(row["room_id"])
+                print(f"[{len(rows)}/{len(expected)}] room {row['room_id']}")
+
+    summary = summarize_run(rows)
+    provenance = build_provenance(args, ckpt_sha256, agree_sha256, split,
+                                  context["weights_source"], len(rows))
+    write_summary(summary_path, summary, provenance)
+    return {"rows_path": rows_path, "summary_path": summary_path, "rows": rows,
+            "summary": summary, "provenance": provenance}

@@ -1067,8 +1067,10 @@ def _query_md(root, wav_room, src=3, receiver=11, rec_loc=(1.0, 2.0, 0.5),
                              dtype=torch.float32)
     return {"idx": 0, "path": path, "relpath": os.path.relpath(path, str(root)),
             "scene": "Cafe", "source": source, "source_vit": source.unsqueeze(0),
-            "context_poses": torch.zeros(2, 3, dtype=torch.float32),
-            "context_audio": torch.zeros(2, 1, 9600),
+            "context_poses": torch.tensor([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0]],
+                                          dtype=torch.float32),
+            "context_audio": torch.stack([torch.full((1, 9600), 0.4),
+                                          torch.full((1, 9600), -0.15)]),
             "depth": torch.zeros(3, 4, 8)}
 
 
@@ -1119,3 +1121,128 @@ def test_build_row_carries_optional_context_evidence():
     assert row["context_xyz_cam"] == [[0.0, 0.0, 0.0]]
     assert el.decode_scores(row["context_sims_hex"])[0] == pytest.approx(0.5)
     assert "context_xyz_cam" not in el.build_row(**_row_kwargs())
+
+
+# --------------------------------------------------------------------------- #
+# run_evaluation / main  (unit h, part 4) -- end to end on a miniature dataset
+# with a stub engine: audit -> per-query rows -> summary, plus the smoke rules.
+# --------------------------------------------------------------------------- #
+class _FakeLoader:
+    def __init__(self, batches, dataset):
+        self.batches, self.dataset = batches, dataset
+
+    def __iter__(self):
+        return iter(self.batches)
+
+
+def _fake_run(tmp_path, nodes=(3, 0), batch_size=2):
+    """Two queries in one room, delivered as the eval loader would deliver them."""
+    root, wav_room = _dataset_tree(tmp_path)
+    srcs = {0: (0.0, 0.0, 1.0), 3: (2.0, -1.0, 1.5), 7: (-3.0, 4.0, 0.75)}
+    metadata, filenames = [], []
+    for node in nodes:
+        md = _query_md(root, wav_room, src=node, src_loc=srcs[node])
+        md["idx"] = len(metadata)
+        metadata.append(md)
+        filenames.append(md["path"])
+    dataset = _FakeDataset(filenames, [str(root)])
+    reals = torch.stack([torch.full((1, 9600), 0.2 + 0.1 * i) for i in range(len(metadata))])
+    batches = [(reals[i:i + batch_size], metadata[i:i + batch_size])
+               for i in range(0, len(metadata), batch_size)]
+    return _FakeLoader(batches, dataset), root
+
+
+def _run_args(tmp_path, **over):
+    argv = ["--model-config", "m.json", "--dataset-config", "d.json",
+            "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt", "--num-samples", "2",
+            "--out-dir", str(tmp_path / "out"), "--eval-name", "unit", "--device", "cpu"]
+    for flag, value in over.items():
+        argv += [flag] if value is True else [flag, str(value)]
+    return el.validate_args(el.parse_args(argv))
+
+
+def _stub_context():
+    return {"weights_source": "ema", "latent_shape": (2, 8), "device": "cpu"}
+
+
+def test_run_evaluation_end_to_end_writes_rows_and_summary(tmp_path):
+    loader, _root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    args = _run_args(tmp_path)
+    result = el.run_evaluation(args, loader, engine, _stub_context(), "ck" * 32, "ag" * 32)
+
+    rows = el.read_rows(result["rows_path"])
+    assert len(rows) == 2 and os.path.exists(result["summary_path"])
+    assert {r["room_id"] for r in rows} == {"Cafe/Cafe_idx_1"}
+    assert rows[0]["gt_node"] == 3 and rows[1]["gt_node"] == 0
+    assert rows[0]["candidate_nodes"] == [0, 3, 7] and rows[0]["n_samples"] == 2
+    assert rows[0]["noise_keys"] == [noise_key(args.seed, rows[0]["query_id"], k) for k in range(2)]
+    assert "context_xyz_cam" in rows[0]                       # O10 evidence recorded
+    assert result["summary"] == el.summarize_run(rows)
+    assert result["provenance"]["split_hash"] == el.split_hash(
+        el.expected_split_identities(loader.dataset))
+    assert result["provenance"]["n_queries"] == 2
+    assert result["summary"]["controls"]["nearest_context_raw"] is not None
+
+
+def test_run_evaluation_row_is_reproducible_across_runs(tmp_path):
+    loader, _root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    first = el.run_evaluation(_run_args(tmp_path / "a"), loader, engine, _stub_context(), "c", "a")
+    loader2, _root2 = _fake_run(tmp_path)
+    _rec2, engine2 = _engine()
+    second = el.run_evaluation(_run_args(tmp_path / "b"), loader2, engine2, _stub_context(), "c", "a")
+    assert [r["sims_hex"] for r in first["rows"]] == [r["sims_hex"] for r in second["rows"]]
+
+
+def test_run_evaluation_smoke_truncates_after_auditing_the_truncated_enumeration(tmp_path):
+    loader, _root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    args = _run_args(tmp_path, **{"--smoke": True, "--max-queries": 1})
+    result = el.run_evaluation(args, loader, engine, _stub_context(), "c", "a")
+    rows = el.read_rows(result["rows_path"])
+    assert len(rows) == 1 and rows[0]["smoke"] is True
+    assert "_smoke_" in os.path.basename(result["rows_path"])
+    assert result["provenance"]["smoke"] is True and result["provenance"]["n_queries"] == 1
+    assert result["provenance"]["split_hash"] == el.split_hash(
+        el.expected_split_identities(loader.dataset)[:1])
+
+
+def test_run_evaluation_aborts_before_writing_when_the_audit_fails(tmp_path):
+    loader, _root = _fake_run(tmp_path)
+    loader.batches[0][1][1]["idx"] = 99                        # silent substitution
+    _rec, engine = _engine()
+    args = _run_args(tmp_path)
+    with pytest.raises(SystemExit):
+        el.run_evaluation(args, loader, engine, _stub_context(), "c", "a")
+    rows_path, _summary = el.output_paths(args.out_dir, args.eval_name, args.num_samples,
+                                          args.seed, args.smoke)
+    assert not os.path.exists(rows_path)                       # nothing was written
+
+
+def test_run_evaluation_constant_source_control_is_recorded(tmp_path):
+    loader, _root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    args = _run_args(tmp_path, **{"--control": "constant_source"})
+    result = el.run_evaluation(args, loader, engine, _stub_context(), "c", "a")
+    assert all(row["control"] == "constant_source" for row in result["rows"])
+    assert result["provenance"]["control"] == "constant_source"
+
+
+def test_run_evaluation_gt_rir_mode_scores_measured_files(tmp_path):
+    loader, _root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    args = _run_args(tmp_path, **{"--score-source": "gt_rir", "--agg": "max"})
+    result = el.run_evaluation(args, loader, engine, _stub_context(), "c", "a")
+    rows = result["rows"]
+    assert all(row["score_source"] == "gt_rir" and row["n_samples"] == 1 for row in rows)
+    assert all(row["noise_keys"] == [] for row in rows)
+    assert rows[0]["identity_index"] == rows[0]["gt_index"]
+
+
+def test_main_refuses_a_missing_checkpoint_only_for_the_generative_mode():
+    argv = ["--model-config", "m.json", "--dataset-config", "d.json",
+            "--agree-ckpt", "a.pt", "--num-samples", "2"]
+    with pytest.raises(SystemExit):
+        el.validate_args(el.parse_args(argv))                  # flac mode needs a ckpt
+    el.validate_args(el.parse_args(argv + ["--score-source", "gt_rir"]))
