@@ -22,6 +22,7 @@ import hashlib
 import itertools
 import json
 import math
+import subprocess
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -651,14 +652,22 @@ def context_stream_digest(rows):
     return canonical_stream_hash(stream)
 
 
+def is_registered_run(args, dataset_config):
+    """A registered unseen generative run -- the only kind that produces a headline."""
+    return (bool((dataset_config or {}).get("unseeneval", False))
+            and args.score_source == "flac" and not args.smoke)
+
+
 def assert_registration_sha(args, dataset_config):
-    """O17: a registered unseen generative run must name its pre-registration commit."""
-    registered = (bool((dataset_config or {}).get("unseeneval", False))
-                  and args.score_source == "flac" and not args.smoke)
-    if registered and not args.registration_sha:
-        _refuse(
-            "--registration-sha is required for a registered unseen run (O17): the parameter "
-            "file must be committed BEFORE the run and its SHA recorded in the manifest")
+    """O17: a registered unseen run must name BOTH its committed protocol manifest
+    and the commit that carries it."""
+    if is_registered_run(args, dataset_config):
+        if not args.registration_sha:
+            _refuse("--registration-sha is required for a registered unseen run (O17): the "
+                    "parameter file must be committed BEFORE the run")
+        if not args.registration_manifest:
+            _refuse("--registration-manifest is required for a registered unseen run (O17): "
+                    "the locked protocol must be machine-checkable, not a bare SHA")
     return args
 
 
@@ -1386,17 +1395,30 @@ def main(argv=None):
     model_config, ckpt = load_and_validate_artifacts(args)
     dataset_config = load_dataset_config(args)
     assert_registration_sha(args, dataset_config)        # O17, before any model load
-    torch.set_float32_matmul_precision("medium")
 
+    # Freeze the candidate manifest and resolve every locked quantity while this is
+    # still pure disk work, so a registration mismatch costs no model load (F4/F7).
+    candidate_manifest = None if args.parity_check else manifest_for_dataset_config(dataset_config)
+    manifest_hash = manifest_sha256(candidate_manifest) if candidate_manifest else "n/a"
+    ckpt_sha256 = sha256_file(args.ckpt_path) if args.score_source == "flac" else "n/a"
+    agree_sha256 = sha256_file(args.agree_ckpt)
+    verify_registration(args, dataset_config, {
+        "model_config_sha256": _file_sha256(args.model_config),
+        "dataset_config_sha256": _file_sha256(args.dataset_config),
+        "ckpt_sha256": ckpt_sha256, "agree_sha256": agree_sha256,
+        "num_samples": effective_num_samples(args), "tau": args.tau, "agg": args.agg,
+        "cond_method": args.cond_method, "cond_autocast": args.cond_autocast,
+        "steps": args.steps, "cfg_scale": args.cfg_scale, "seed": args.seed,
+        "readout": "mean", "candidate_manifest_sha256": manifest_hash})
+
+    torch.set_float32_matmul_precision("medium")
     agree = load_agree_audio(args.agree_ckpt, args.device)
     if args.score_source == "gt_rir":
         engine = scoring_only_engine(agree, args.device)
         context = {"weights_source": "n/a", "latent_shape": None, "device": args.device}
-        ckpt_sha256 = "n/a"
     else:
         engine, context = build_engine(args, agree=agree, device=args.device,
                                        model_config=model_config, ckpt=ckpt)
-        ckpt_sha256 = sha256_file(args.ckpt_path)
 
     # Seeded exactly where evaluate_model seeds it -- after the model build and
     # before the loader, because the per-item context draw happens in the workers.
@@ -1414,11 +1436,11 @@ def main(argv=None):
 
     expected = expected_split_identities_from_config(dataset_config)
     print(f"registered split: {len(expected)} queries")
-    context["manifest"] = manifest_for_dataset_config(dataset_config)
+    context["manifest"] = candidate_manifest
     context["context_k"] = resolve_context_k(dataset_config)
-    print(f"candidate manifest frozen: {len(context['manifest']['rooms'])} rooms, "
-          f"sha256={manifest_sha256(context['manifest'])[:12]}...")
-    result = run_evaluation(args, loader, engine, context, ckpt_sha256, agree.ckpt_sha256,
+    print(f"candidate manifest frozen: {len(candidate_manifest['rooms'])} rooms, "
+          f"sha256={manifest_hash[:12]}...")
+    result = run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256,
                             expected=expected, dataset_config=dataset_config)
     summary = result["summary"]
     print(f"rows:    {result['rows_path']}")
@@ -1637,4 +1659,86 @@ def assert_context_evidence_complete(rows, context_k):
             raise SystemExit(
                 f"context gate ABORT: query {row.get('query_id')!r} carries {len(evidence)} "
                 f"context sources, the dataset config registers K_ctx={context_k}")
+    return True
+
+
+#: fields a registered run's committed manifest must lock (plan Rev 3.1 §4).
+REGISTRATION_LOCKED_FIELDS = (
+    "model_config_sha256", "dataset_config_sha256", "ckpt_sha256", "agree_sha256",
+    "num_samples", "tau", "agg", "cond_method", "cond_autocast", "steps", "cfg_scale",
+    "readout", "candidate_manifest_sha256",
+)
+
+
+def _repo_root():
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def verify_registration_commit(manifest_path, registration_sha, repo_root=None):
+    """Return the manifest, having proved it IS the committed one.
+
+    A registration SHA that is merely a non-empty string proves nothing. This
+    resolves it as a real commit and byte-compares the committed blob against the
+    local file, so a manifest edited after registration cannot be used.
+    """
+    repo_root = repo_root or _repo_root()
+    manifest_path = os.path.abspath(str(manifest_path))
+    if not os.path.isfile(manifest_path):
+        _refuse(f"--registration-manifest not found: {manifest_path}")
+    relpath = os.path.relpath(manifest_path, repo_root)
+
+    resolved = subprocess.run(["git", "cat-file", "-e", f"{registration_sha}^{{commit}}"],
+                              cwd=repo_root, capture_output=True)
+    if resolved.returncode != 0:
+        _refuse(f"--registration-sha {registration_sha!r} does not resolve to a commit in "
+                f"{repo_root}")
+    show = subprocess.run(["git", "show", f"{registration_sha}:{relpath}"],
+                          cwd=repo_root, capture_output=True)
+    if show.returncode != 0:
+        _refuse(f"commit {registration_sha} does not contain {relpath!r}; the registration "
+                "manifest was not committed before the run (O17)")
+    with open(manifest_path, "rb") as handle:
+        local = handle.read()
+    if show.stdout != local:
+        _refuse(f"{relpath!r} differs from the version committed at {registration_sha}; the "
+                "registered protocol was edited after registration")
+    return json.loads(local.decode("utf-8"))
+
+
+def check_registration_fields(manifest, resolved, registered):
+    """Every locked field must match the resolved run state; refuse otherwise."""
+    for field in REGISTRATION_LOCKED_FIELDS:
+        if field not in manifest:
+            _refuse(f"registration manifest does not lock {field!r}")
+        locked, actual = manifest[field], resolved.get(field)
+        if field == "candidate_manifest_sha256" and locked == "tbd":
+            if registered:
+                _refuse("registration manifest still has candidate_manifest_sha256='tbd'; a "
+                        "registered run must lock the frozen candidate manifest")
+            continue
+        if isinstance(locked, (int, float)) and isinstance(actual, (int, float)):
+            match = float(locked) == float(actual)
+        else:
+            match = locked == actual
+        if not match:
+            _refuse(f"registered {field} is {locked!r} but this run resolves {actual!r}")
+
+    seeds = manifest.get("seeds")
+    if not isinstance(seeds, (list, tuple)) or not seeds:
+        _refuse("registration manifest does not lock a non-empty 'seeds' list")
+    if int(resolved["seed"]) not in [int(s) for s in seeds]:
+        _refuse(f"--seed {resolved['seed']} is not one of the registered seeds {list(seeds)}")
+    return True
+
+
+def verify_registration(args, dataset_config, resolved, repo_root=None):
+    """Machine-checked registration gate (full-review F4), before any model load."""
+    registered = is_registered_run(args, dataset_config)
+    if not args.registration_manifest:
+        if registered:
+            _refuse("--registration-manifest is required for a registered unseen run")
+        return False
+    manifest = verify_registration_commit(args.registration_manifest, args.registration_sha,
+                                          repo_root=repo_root)
+    check_registration_fields(manifest, resolved, registered)
     return True

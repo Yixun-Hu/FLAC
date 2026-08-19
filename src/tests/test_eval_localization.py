@@ -1768,7 +1768,13 @@ def test_assert_registration_sha_is_required_for_a_registered_unseen_run():
     args = _split_args(_UNSEEN_CONFIG)
     with pytest.raises(SystemExit):
         el.assert_registration_sha(args, unseen)
-    el.assert_registration_sha(_split_args(_UNSEEN_CONFIG, "--registration-sha", "abc123"), unseen)
+    # a bare SHA is no longer enough: the locked protocol must be machine-checkable
+    with pytest.raises(SystemExit):
+        el.assert_registration_sha(_split_args(_UNSEEN_CONFIG, "--registration-sha", "abc123"),
+                                   unseen)
+    el.assert_registration_sha(
+        _split_args(_UNSEEN_CONFIG, "--registration-sha", "abc123",
+                    "--registration-manifest", "reg.json"), unseen)
 
 
 def test_assert_registration_sha_is_not_required_for_smoke_seen_or_oracle_runs():
@@ -2424,3 +2430,132 @@ def test_run_evaluation_publishes_a_full_length_context_digest(tmp_path):
     assert result["provenance"]["context_stream_digest"] != "n/a"
     assert all(len(row["context_xyz_cam"]) == 2 for row in result["rows"])
     assert result["summary"]["controls"]["nearest_context_masked"] is not None
+
+
+# --------------------------------------------------------------------------- #
+# r4 item 4 (full-review F4): a registered unseen run must be locked to a
+# COMMITTED manifest. The old check accepted any non-empty string, so K, tau,
+# agg, the checkpoint or the scorer could all be overridden while the artifact
+# still looked headline-shaped.
+# --------------------------------------------------------------------------- #
+def _locked(**over):
+    locked = {"model_config_sha256": "m" * 64, "dataset_config_sha256": "d" * 64,
+              "ckpt_sha256": "c" * 64, "agree_sha256": "a" * 64, "num_samples": 8,
+              "tau": 0.02, "agg": "lme", "cond_method": "vanilla", "cond_autocast": "default",
+              "steps": 1, "cfg_scale": 1.0, "seeds": [42, 43, 44], "readout": "mean",
+              "candidate_manifest_sha256": "f" * 64}
+    locked.update(over)
+    return locked
+
+
+def _resolved(**over):
+    resolved = {"model_config_sha256": "m" * 64, "dataset_config_sha256": "d" * 64,
+                "ckpt_sha256": "c" * 64, "agree_sha256": "a" * 64, "num_samples": 8,
+                "tau": 0.02, "agg": "lme", "cond_method": "vanilla", "cond_autocast": "default",
+                "steps": 1, "cfg_scale": 1.0, "seed": 43, "readout": "mean",
+                "candidate_manifest_sha256": "f" * 64}
+    resolved.update(over)
+    return resolved
+
+
+def _git_repo_with_manifest(tmp_path, manifest, name="registration.json"):
+    import subprocess
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    path = tmp_path / name
+    path.write_text(_json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    subprocess.run(["git", "add", name], cwd=tmp_path, check=True)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q",
+                    "-m", "register"], cwd=tmp_path, check=True)
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path, check=True,
+                         capture_output=True, text=True).stdout.strip()
+    return str(path), sha
+
+
+def test_verify_registration_commit_accepts_a_committed_manifest(tmp_path):
+    path, sha = _git_repo_with_manifest(tmp_path, _locked())
+    assert el.verify_registration_commit(path, sha, repo_root=str(tmp_path)) == _locked()
+
+
+def test_verify_registration_commit_refuses_a_sha_that_is_not_a_commit(tmp_path):
+    path, _sha = _git_repo_with_manifest(tmp_path, _locked())
+    with pytest.raises(SystemExit):
+        el.verify_registration_commit(path, "0" * 40, repo_root=str(tmp_path))
+    with pytest.raises(SystemExit):
+        el.verify_registration_commit(path, "not-a-sha", repo_root=str(tmp_path))
+
+
+def test_verify_registration_commit_refuses_content_drift(tmp_path):
+    path, sha = _git_repo_with_manifest(tmp_path, _locked())
+    drifted = _locked(tau=0.5)
+    open(path, "w").write(_json.dumps(drifted, indent=2, sort_keys=True) + "\n")
+    with pytest.raises(SystemExit):
+        el.verify_registration_commit(path, sha, repo_root=str(tmp_path))
+
+
+def test_verify_registration_commit_refuses_an_uncommitted_manifest(tmp_path):
+    path, sha = _git_repo_with_manifest(tmp_path, _locked())
+    other = os.path.join(str(tmp_path), "other.json")
+    open(other, "w").write(_json.dumps(_locked()))
+    with pytest.raises(SystemExit):
+        el.verify_registration_commit(other, sha, repo_root=str(tmp_path))
+
+
+def test_check_registration_fields_passes_on_an_exact_match():
+    el.check_registration_fields(_locked(), _resolved(), registered=True)
+
+
+@pytest.mark.parametrize("drift", [
+    {"num_samples": 4}, {"tau": 0.05}, {"agg": "mean"}, {"cond_method": "fa_invariant"},
+    {"cond_autocast": "off"}, {"steps": 2}, {"cfg_scale": 2.0}, {"readout": "sample"},
+    {"ckpt_sha256": "x" * 64}, {"agree_sha256": "x" * 64}, {"model_config_sha256": "x" * 64},
+    {"dataset_config_sha256": "x" * 64}, {"candidate_manifest_sha256": "x" * 64},
+])
+def test_check_registration_fields_refuses_any_protocol_override(drift):
+    with pytest.raises(SystemExit):
+        el.check_registration_fields(_locked(), _resolved(**drift), registered=True)
+
+
+def test_check_registration_fields_refuses_a_seed_outside_the_registered_list():
+    with pytest.raises(SystemExit):
+        el.check_registration_fields(_locked(), _resolved(seed=99), registered=True)
+    el.check_registration_fields(_locked(seeds=[99]), _resolved(seed=99), registered=True)
+
+
+def test_check_registration_fields_refuses_a_missing_lock():
+    incomplete = _locked()
+    del incomplete["agg"]
+    with pytest.raises(SystemExit):
+        el.check_registration_fields(incomplete, _resolved(), registered=True)
+
+
+def test_check_registration_fields_allows_tbd_manifest_hash_only_outside_registered_mode():
+    el.check_registration_fields(_locked(candidate_manifest_sha256="tbd"), _resolved(),
+                                 registered=False)
+    with pytest.raises(SystemExit):
+        el.check_registration_fields(_locked(candidate_manifest_sha256="tbd"), _resolved(),
+                                     registered=True)
+
+
+def test_registered_unseen_run_requires_both_registration_flags():
+    unseen = _json.loads(open(_UNSEEN_CONFIG).read())
+    with pytest.raises(SystemExit):
+        el.assert_registration_sha(_split_args(_UNSEEN_CONFIG, "--registration-sha", "abc"),
+                                   unseen)                        # manifest missing
+    with pytest.raises(SystemExit):
+        el.assert_registration_sha(_split_args(_UNSEEN_CONFIG, "--registration-manifest", "r.json"),
+                                   unseen)                        # sha missing
+    el.assert_registration_sha(
+        _split_args(_UNSEEN_CONFIG, "--registration-sha", "abc",
+                    "--registration-manifest", "r.json"), unseen)
+
+
+def test_verify_registration_end_to_end_on_a_real_commit(tmp_path):
+    path, sha = _git_repo_with_manifest(tmp_path, _locked())
+    args = _split_args(_UNSEEN_CONFIG, "--registration-sha", sha,
+                       "--registration-manifest", path, "--seed", "43", "--num-samples", "8")
+    unseen = _json.loads(open(_UNSEEN_CONFIG).read())
+    assert el.verify_registration(args, unseen, _resolved(), repo_root=str(tmp_path)) is True
+    bad = _split_args(_UNSEEN_CONFIG, "--registration-sha", sha,
+                      "--registration-manifest", path, "--seed", "43", "--num-samples", "4")
+    with pytest.raises(SystemExit):
+        el.verify_registration(bad, unseen, _resolved(num_samples=4), repo_root=str(tmp_path))
