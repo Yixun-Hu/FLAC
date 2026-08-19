@@ -185,3 +185,8 @@
 
 - **Result** — Peer's review requires an additive branch in eval_FLAC.py's stream recorder (activates only on a RAF-only metadata key; AR pledged byte-identical; snapshot suites must stay green). exp_18 imports `sample_context_ids` + `canonical_stream_hash` from that file. Our position (sent): proceed NOW so the change predates all exp_18 launches; AR byte-identity is binding for our membership/digest machinery; ping the sha; if it slips past ~22:00 EDT, hold until R-1/R0 finish. On their sha landing: re-run the 455-test suite + bit-parity check on the merged tree before launching.
 - **Analysis** — No exp_18 code state is uncommitted; no run in flight. All registered exp_18 runs will thus launch from a single post-change code state — cleaner than the alternative orderings.
+
+## 2026-08-19T21:25:00-0400 — Codex r4 launch-gate review: REQUEST-CHANGES (2H/4M) → r5 batch
+
+- **Result** — F1/F3/F6 + both finiteness partials RESOLVED; F2/F4/F5/F7 PARTIAL. New: H1 GPU timings not wall-correct (`_sync` ignores device index — would have corrupted R0's GPU-1 numbers), H2 readback doesn't enforce the M=10/17-room + depth-shape invariants, M3 aux modes silently overwrite, M4 registration accepts committish (no ancestry), M5 ckpt torch.load precedes registration checks, M6 scorer-noise seen-hold bypassable + unseeded draws. Also confirmed: no r4 semantic change to the generation path (parity result stands); reaggregate math clean.
+- **Next** — Coder r5 batch (all 6) → focused re-review → launches. R-1/R0 ETD slips to ≈23:00 EDT.
