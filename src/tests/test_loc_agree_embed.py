@@ -371,8 +371,9 @@ def test_embed_rirs_refuses_a_scorer_with_any_training_submodule():
 # Skipped unless the checkpoints and the gated DINOv3 HF cache are present; the
 # weight paths are relative, so a run from outside the repo root also skips.
 # --------------------------------------------------------------------------- #
-_AGREE_CKPT = "weights/AGREE/AGREE_AR.pt"
-_VAE_CKPT = "weights/FLAC/VAE.ckpt"
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_AGREE_CKPT = os.path.join(_REPO_ROOT, "weights", "AGREE", "AGREE_AR.pt")
+_VAE_CKPT = os.path.join(_REPO_ROOT, "weights", "FLAC", "VAE.ckpt")
 
 
 def _dinov3_cache_present():
@@ -381,15 +382,45 @@ def _dinov3_cache_present():
     return os.path.isdir(os.path.join(hub, "models--facebook--dinov3-vits16-pretrain-lvd1689m"))
 
 
-_HAVE_ASSETS = (os.path.isfile(_AGREE_CKPT) and os.path.isfile(_VAE_CKPT)
-                and _dinov3_cache_present())
+def _assets_present():
+    """r2 fix F1: anchored at the repo root, never at the CWD -- otherwise a
+    checkout that HAS the assets reports skips when pytest runs from elsewhere."""
+    return (os.path.isfile(_AGREE_CKPT) and os.path.isfile(_VAE_CKPT)
+            and _dinov3_cache_present())
+
+
+_HAVE_ASSETS = _assets_present()
 integration = pytest.mark.skipif(
     not _HAVE_ASSETS,
-    reason="AGREE/VAE checkpoints or the gated DINOv3 HF cache absent (or CWD is not the repo root)")
+    reason="AGREE/VAE checkpoints or the gated DINOv3 HF cache are absent")
+
+
+def test_integration_asset_detection_is_repo_root_anchored(tmp_path, monkeypatch):
+    """Assets truly absent -> skip; assets present -> the integration tests RUN,
+    whatever the working directory is."""
+    monkeypatch.chdir(tmp_path)
+    assert _assets_present() is _HAVE_ASSETS
+    if (os.path.isfile(os.path.join(_REPO_ROOT, "weights", "AGREE", "AGREE_AR.pt"))
+            and os.path.isfile(os.path.join(_REPO_ROOT, "weights", "FLAC", "VAE.ckpt"))
+            and _dinov3_cache_present()):
+        assert _HAVE_ASSETS is True, "assets exist at the repo root: integration must not skip"
 
 
 @pytest.fixture(scope="module")
-def real_agree():
+def repo_root_cwd():
+    """The tower's ``pretrained`` weights path is resolved against the CWD (both
+    by load_agree_audio's guard and by torch.load inside construction), so the
+    integration tests run from the repo root no matter where pytest was invoked."""
+    previous = os.getcwd()
+    os.chdir(_REPO_ROOT)
+    try:
+        yield _REPO_ROOT
+    finally:
+        os.chdir(previous)
+
+
+@pytest.fixture(scope="module")
+def real_agree(repo_root_cwd):
     return load_agree_audio(_AGREE_CKPT, "cpu")
 
 
