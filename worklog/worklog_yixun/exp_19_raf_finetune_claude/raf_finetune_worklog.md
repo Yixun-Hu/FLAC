@@ -40,7 +40,7 @@ Branch `localization-exp` (shared with exp_18; this experiment is driven by the 
 - **Analysis** — The review reshaped the experiment: uniform 36-capture groups make literal HAA parity statistically empty (24 test/room), so v1 = 16-group arm + literal-parity diagnostic row, honestly framed as array-scale interpolation; the AR-style unseen-source mapping (placement-based, median 9 tx ⇒ K=8 feasible) is surfaced to Yixun as the stronger follow-up.
 - **Next** — Surface Rev 2 + 6 open decisions to Yixun (approval gate). No implementation before approval.
 
-## 2026-08-19T18:42:28-0400 — APPROVAL: plan Rev 2 approved by Yixun ("approve the plan", 2026-08-20)
+## 2026-08-19T18:42:28-0400 — APPROVAL: plan Rev 2 approved by Yixun ("approve the plan", 2026-08-19 ~18:40 EDT; the 08-20 date in the committed version of this line was a stamp error, corrected here)
 
 - **Decision record** — Blanket approval adopts the recommendation-first option of every §10 decision: (1) Mapping H is v1; Mapping A (unseen-source) becomes its own later experiment; (2) N_g=16 groups/room, 12/24 per group, 4 val groups, farthest-point selection; (3) **open3d install into the `flac` env AUTHORIZED**; (4) normalization rule: none unless readback shows off-scale, else one train-support-derived scalar; (5) **HAA Zenodo download for R-cal AUTHORIZED**; (6) 5 eval seeds 42–46 paired, T60-demotion rule as registered.
 - **Next** — Implementation contracts → Opus 5 max-effort Coder (TDD, commit-per-cycle) → consolidated Codex code review → fix round; open3d install + HAA acquisition started in parallel; readback rung fires when FurnishedRoom finishes unzipping.
