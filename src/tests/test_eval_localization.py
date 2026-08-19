@@ -407,3 +407,103 @@ def test_gt_reciprocal_rank_uses_lowest_index_tie_break():
     tied = torch.tensor([0.9, 0.9, 0.9])
     assert el.gt_reciprocal_rank(tied, 0) == pytest.approx(1.0)     # lowest index wins ties
     assert el.gt_reciprocal_rank(tied, 2) == pytest.approx(1 / 3)
+
+
+# --------------------------------------------------------------------------- #
+# build_row / write_row / read_rows  (unit d, part 2)
+# --------------------------------------------------------------------------- #
+def _row_kwargs(**over):
+    cand = _cand_set()
+    cams = el.candidate_camera_positions(cand)
+    kwargs = dict(
+        query_id="7|single_channel_ir_1/Cafe/Cafe_idx_1/S003_R011_hybrid_IR.wav",
+        room_id="Cafe/Cafe_idx_1",
+        relpath="single_channel_ir_1/Cafe/Cafe_idx_1/S003_R011_hybrid_IR.wav",
+        receiver_node=11,
+        cand_set=cand,
+        cam_xyz=cams,
+        sims=torch.tensor([[0.10, 0.20], [0.90, 0.80], [0.30, 0.30]], dtype=torch.float32),
+        context_mask=[True, False, False],
+        noise_keys=[111, 222],
+        tau=0.02, agg="lme", control="none", score_source="flac", smoke=False,
+    )
+    kwargs.update(over)
+    return kwargs
+
+
+def test_build_row_has_the_full_schema_and_correct_derived_fields():
+    row = el.build_row(**_row_kwargs())
+    assert row["query_id"].endswith("S003_R011_hybrid_IR.wav")
+    assert row["room_id"] == "Cafe/Cafe_idx_1" and row["receiver_node"] == 11
+    assert row["gt_node"] == 3 and row["gt_index"] == 1
+    assert row["candidate_nodes"] == [0, 3, 7] and row["n_candidates"] == 3
+    assert row["n_samples"] == 2 and row["noise_keys"] == [111, 222]
+    assert row["context_member"] == [True, False, False]
+    assert row["n_eligible"] == 2 and row["gt_only"] is False
+    assert row["pred_index"] == 1 and row["pred_node"] == 3       # candidate 3 scores highest
+    assert row["e_loc"] == pytest.approx(0.0) and row["top1"] == 1.0
+    assert row["rr"] == pytest.approx(1.0)
+    assert row["tau"] == 0.02 and row["agg"] == "lme"
+    assert row["control"] == "none" and row["score_source"] == "flac" and row["smoke"] is False
+    assert row["substituted"] is False and row["candidate_available"] == [True] * 3
+    assert len(row["candidate_xyz_world"]) == 3 and len(row["candidate_xyz_cam"][0]) == 3
+    assert row["gt_xyz_world"] == pytest.approx(list(_XYZ[1]))
+
+
+def test_build_row_scores_and_error_follow_the_registered_aggregation():
+    from src.localization.scoring import aggregate, localization_error
+    kwargs = _row_kwargs(sims=torch.tensor([[0.9, 0.9], [0.1, 0.1], [0.5, 0.5]],
+                                           dtype=torch.float32))
+    row = el.build_row(**kwargs)
+    expected = aggregate(kwargs["sims"], "lme", 0.02)
+    assert torch.equal(el.decode_scores(row["scores_hex"]), expected)
+    assert row["pred_index"] == 0 and row["pred_node"] == 0
+    assert row["e_loc"] == pytest.approx(localization_error(_XYZ[0], _XYZ[1]))
+    # GT (0.1) ranks behind candidate 0 (0.9) and candidate 2 (0.5) -> rank 3
+    assert row["top1"] == 0.0 and row["rr"] == pytest.approx(1 / 3)
+
+
+def test_build_row_gt_only_and_substitution_flags():
+    row = el.build_row(**_row_kwargs(context_mask=[True, False, True], substituted=True))
+    assert row["n_eligible"] == 1 and row["gt_only"] is True and row["substituted"] is True
+
+
+def test_build_row_restricts_the_prediction_to_available_candidates():
+    """gt_rir mode: a missing measured file shrinks the ORACLE's eligibility, never
+    the candidate set (plan §2.2)."""
+    kwargs = _row_kwargs(sims=torch.tensor([[0.99], [0.10], [0.50]], dtype=torch.float32),
+                         noise_keys=[], available=[False, True, True],
+                         score_source="gt_rir", identity_index=1)
+    row = el.build_row(**kwargs)
+    assert row["candidate_available"] == [False, True, True] and row["n_available"] == 2
+    assert row["n_candidates"] == 3                       # candidate set NOT shrunk
+    assert row["pred_index"] == 2                         # candidate 0 excluded from the argmax
+    assert row["identity_index"] == 1 and row["score_source"] == "gt_rir"
+
+
+def test_build_row_rejects_an_empty_available_set():
+    with pytest.raises(ValueError):
+        el.build_row(**_row_kwargs(available=[False, False, False]))
+
+
+def test_jsonl_round_trip_is_bitwise_exact(tmp_path):
+    rows = [el.build_row(**_row_kwargs()),
+            el.build_row(**_row_kwargs(query_id="8|other.wav", smoke=True))]
+    path = tmp_path / "rows.jsonl"
+    with open(path, "w") as handle:
+        for row in rows:
+            el.write_row(handle, row)
+    restored = el.read_rows(path)
+    assert restored == rows
+    for original, back in zip(rows, restored):
+        assert torch.equal(el.decode_sims(back["sims_hex"]), el.decode_sims(original["sims_hex"]))
+    assert torch.equal(el.decode_sims(restored[0]["sims_hex"]), _row_kwargs()["sims"])
+
+
+def test_write_row_appends_and_flushes_per_row(tmp_path):
+    path = tmp_path / "rows.jsonl"
+    with open(path, "a") as handle:
+        el.write_row(handle, el.build_row(**_row_kwargs()))
+        assert len(el.read_rows(path)) == 1        # readable before the file is closed
+        el.write_row(handle, el.build_row(**_row_kwargs(query_id="9|x.wav")))
+    assert len(el.read_rows(path)) == 2

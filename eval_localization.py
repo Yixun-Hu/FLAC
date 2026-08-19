@@ -16,6 +16,7 @@ duplicates none of it. The model build, EMA remap and sampling follow
 standing proof of that (C8).
 """
 import hashlib
+import json
 import os
 from dataclasses import dataclass
 
@@ -25,7 +26,8 @@ import torch
 from eval_FLAC import CONTEXT_ID_PRECISION, sample_target_id
 from src.localization.candidates import (assert_gt_matches_loader, candidate_metadata,
                                          project_to_camera)
-from src.localization.scoring import cosine_sims, noise_key
+from src.localization.scoring import (aggregate, cosine_sims, localization_error,
+                                      noise_key, predict_index)
 
 
 def expected_split_identities(dataset):
@@ -260,3 +262,91 @@ def gt_reciprocal_rank(scores, gt_index):
     better = int((scores > gt_score).sum())
     tied_before = int((scores[:gt_index] == gt_score).sum())
     return 1.0 / (better + tied_before + 1)
+
+
+def decode_scores(payload):
+    """Inverse of the row's ``scores_hex`` -> float32 ``[M]``."""
+    return decode_sims([payload])[0]
+
+
+def build_row(query_id, room_id, relpath, receiver_node, cand_set, cam_xyz, sims,
+              context_mask, noise_keys, tau, agg, control, score_source, smoke,
+              available=None, identity_index=None, substituted=False):
+    """One JSONL query record: raw evidence first, derived quantities alongside.
+
+    ``sims_hex``/``scores_hex`` are the exact float32 values (O18), so the
+    aggregation, prediction and error can all be re-derived offline. The
+    prediction is taken over the AVAILABLE candidates only -- a measured RIR that
+    does not exist shrinks the oracle's eligibility, never the candidate set --
+    and the eligible-set size counts the non-context candidates, the
+    information-matched comparison target (C1).
+    """
+    sims = sims.detach().cpu().float()
+    num_candidates = int(sims.shape[0])
+    available = [True] * num_candidates if available is None else [bool(a) for a in available]
+    if len(available) != num_candidates:
+        raise ValueError(f"available has {len(available)} entries for {num_candidates} candidates")
+    usable = [i for i, flag in enumerate(available) if flag]
+    if not usable:
+        raise ValueError("no candidate is available; nothing could be predicted")
+
+    scores = aggregate(sims, agg, tau if agg == "lme" else None)
+    usable_index = torch.tensor(usable, dtype=torch.long)
+    pred_index = usable[predict_index(scores.index_select(0, usable_index))]
+    gt_index = cand_set.gt_index
+    error = localization_error(cand_set.xyz_world[pred_index], cand_set.gt_xyz)
+    context_mask = [bool(m) for m in context_mask]
+
+    return {
+        "query_id": query_id,
+        "room_id": room_id,
+        "relpath": relpath,
+        "receiver_node": int(receiver_node),
+        "gt_node": int(cand_set.gt_node),
+        "gt_index": int(gt_index),
+        "gt_xyz_world": [float(v) for v in cand_set.gt_xyz],
+        "gt_xyz_cam": [float(v) for v in np.asarray(cam_xyz)[gt_index]],
+        "candidate_nodes": [int(n) for n in cand_set.nodes],
+        "candidate_xyz_world": [[float(v) for v in row] for row in cand_set.xyz_world],
+        "candidate_xyz_cam": [[float(v) for v in row] for row in np.asarray(cam_xyz)],
+        "context_member": context_mask,
+        "candidate_available": available,
+        "n_candidates": num_candidates,
+        "n_samples": int(sims.shape[1]),
+        "n_eligible": int(sum(1 for m in context_mask if not m)),
+        "n_available": len(usable),
+        "gt_only": int(sum(1 for m in context_mask if not m)) == 1,
+        "sims_hex": encode_sims(sims),
+        "scores_hex": encode_sims(scores.unsqueeze(0))[0],
+        "noise_keys": [int(k) for k in noise_keys],
+        "pred_index": int(pred_index),
+        "pred_node": int(cand_set.nodes[pred_index]),
+        "pred_xyz_world": [float(v) for v in cand_set.xyz_world[pred_index]],
+        "e_loc": float(error),
+        "top1": 1.0 if pred_index == gt_index else 0.0,
+        "rr": gt_reciprocal_rank(scores, gt_index),
+        "tau": float(tau) if tau is not None else None,
+        "agg": agg,
+        "control": control,
+        "score_source": score_source,
+        "identity_index": None if identity_index is None else int(identity_index),
+        "substituted": bool(substituted),
+        "smoke": bool(smoke),
+    }
+
+
+def write_row(handle, row):
+    """Append one JSONL row and flush it: a killed run keeps every finished query."""
+    handle.write(json.dumps(row, sort_keys=True) + "\n")
+    handle.flush()
+
+
+def read_rows(path):
+    """Read a JSONL row file back."""
+    rows = []
+    with open(str(path), "r") as handle:
+        for line in handle:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    return rows
