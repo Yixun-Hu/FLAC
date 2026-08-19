@@ -91,6 +91,43 @@ def test_preprocess_matches_the_real_metric_route_composition():
         assert torch.equal(preprocess_for_scoring(wav), route.float())
 
 
+def test_preprocess_equals_the_traversed_dependency_route():
+    """r2 fix F5: the composition test above copies the dependency expressions and
+    would stay green if they changed. This one EXECUTES them -- the real
+    AcousticMetricsCallback supplies max_len, and a recording fake AGREE is driven
+    through the real ``Retrieval.update`` -> ``compute_audio_features``, so the
+    tensor the scorer would actually receive is captured and compared.
+    """
+    from src.metrics.metric_callback import AcousticMetricsCallback
+    from src.metrics.modules.Retrieval import Retrieval
+
+    class _RecordingAgree(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.logit_scale = torch.zeros(())      # Retrieval.__init__ calls .exp() on this
+            self.seen = []
+
+        def encode_audio(self, audio, normalize=False):
+            self.seen.append(audio.clone())
+            return torch.zeros(audio.shape[0], 4)
+
+    callback = AcousticMetricsCallback(dataset_name="AcousticRooms", device="cpu")
+    assert callback.max_len == MAX_LEN              # our constant IS the callback's max_len
+    fake = _RecordingAgree()
+    retrieval = Retrieval(AGREE=fake)
+
+    g = torch.Generator().manual_seed(4)
+    for length in (4000, 9000, 12000):
+        wavs = torch.randn(3, 1, length, generator=g) * 1.5
+        clamped = wavs.clamp(-1.0, 1.0)             # eval_FLAC.py:1313 / diffusion.py:885
+        for index in range(wavs.shape[0]):
+            pred_id = clamped[index, ..., :callback.max_len].unsqueeze(0)   # metric_callback.py:287
+            before = len(fake.seen)
+            retrieval.update(pred_id, pred_id)      # real compute_audio_features -> encode_audio
+            assert len(fake.seen) == before + 2     # preds and reals both traversed
+            assert torch.equal(fake.seen[-1], preprocess_for_scoring(wavs[index:index + 1]))
+
+
 @pytest.mark.parametrize("length", [1, 100, 7999, 8000, 8001, 10239, 10240, 10241, 20000])
 def test_preprocess_output_length_is_invariant_and_pads_only(length):
     """O18: the release route pads but never crops (Retrieval.py:46-47 has no
