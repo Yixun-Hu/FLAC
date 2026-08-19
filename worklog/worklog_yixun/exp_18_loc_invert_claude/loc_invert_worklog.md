@@ -161,3 +161,10 @@
 - **Result** — Peer session launched exp_19 R-cal: GPU 0 = HAA finetune train.py (1–3 h, DO NOT TOUCH), GPU 1 = FLAC_HAA 5-seed eval (~1–2 h, peer offers pause if we need it urgently).
 - **Analysis — exp_18 sequencing impact:** r4 round + focused fix review are CPU-bound (its small CUDA tests co-tenant harmlessly). R-1 readback is CPU-only; R-1 oracle can co-tenant or wait. **R0's probe must run on an IDLE GPU** — its timing/peak-memory numbers feed the §9 budget decision and co-tenancy would contaminate them. Peer legs end ≈02:00–04:00 EDT; R0 ready ≈03:00 — minor contention, resolved by checking nvidia-smi before launch and waiting for a free GPU rather than pausing the peer's eval (not urgent). Shared-machine etiquette honored: no touching their train.py; `readlink /proc/<pid>/cwd` before assuming ownership of anything.
 - **Next** — r4 completion → focused fix review → R-1 readback (CPU, immediately) → R-1 oracle + R0 on a free GPU.
+
+## 2026-08-19T19:25:00-0400 — ERRATUM: timestamp drift + commit-scoping practice fix
+
+- **Result** — Two bookkeeping defects, both surfaced by the exp_19 peer session:
+  1. **Timestamp drift:** the five entries stamped `2026-08-19T23:50` through `2026-08-20T00:50` were actually written ≈18:40–19:15 EDT on 2026-08-19 (the Planner extrapolated timestamps instead of reading the clock; commit timestamps are authoritative). This notebook is append-only, so the originals stand with this erratum. Lesson: run `date` before stamping every entry.
+  2. **Whole-index commit swept a peer file:** commit `9627449` (`git add -u` + unscoped `git commit`) captured 189 lines of exp_19's staged-in-flight `src/tests/test_raf_md.py`. Content intact and green at HEAD; no history rewrite (peer concurs). **Practice fix, binding: every commit from this session is path-scoped (`git commit -- <paths>`)** — two sessions share this working tree and index.
+- **Next** — unchanged; r4 in flight (its scorer-noise commit `0693f59` already landed). GPU window per peer: GPU 1 free ≈19:45, GPU 0 ≈21:00–22:30 EDT.
