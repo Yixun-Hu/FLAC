@@ -1246,7 +1246,9 @@ def test_run_evaluation_end_to_end_writes_rows_and_summary(tmp_path):
     assert rows[0]["candidate_nodes"] == [0, 3, 7] and rows[0]["n_samples"] == 2
     assert rows[0]["noise_keys"] == [noise_key(args.seed, rows[0]["query_id"], k) for k in range(2)]
     assert "context_xyz_cam" in rows[0]                       # O10 evidence recorded
-    assert result["summary"] == el.summarize_run(rows)
+    summary_without_probe = {k: v for k, v in result["summary"].items() if k != "probe"}
+    assert summary_without_probe == el.summarize_run(rows)     # probe is added by the driver
+    assert result["summary"]["probe"]["n_queries"] == 2
     assert result["provenance"]["split_hash"] == el.split_hash(
         el.expected_split_identities(loader.dataset))
     assert result["provenance"]["n_queries"] == 2
