@@ -1588,9 +1588,6 @@ def validate_dataset_split(args, dataset_config=None):
             "(O16: the held-out split is not a debugging surface)")
     return config
 
-if __name__ == "__main__":
-    main()
-
 
 DEFAULT_IR_FOLDER = "single_channel_ir_1"
 
@@ -2062,3 +2059,6 @@ def run_reaggregate(args):
     print(f"registered selection: {chosen['method']} tau={chosen['tau']} K'={chosen['k_prime']} "
           f"(pooled mean e_loc {chosen['pooled_mean_e_loc']:.4f} m)")
     return report
+
+if __name__ == "__main__":
+    main()

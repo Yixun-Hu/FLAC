@@ -2816,3 +2816,16 @@ def test_reaggregate_mode_requires_rows():
     with pytest.raises(SystemExit):
         el.validate_args(el.parse_args(["--mode", "reaggregate", "--model-config", "m.json",
                                         "--dataset-config", "d.json"]))
+
+
+def test_the_main_guard_is_the_last_statement_in_the_module():
+    """Structural regression for a defect that has now bitten twice: appending a
+    function after `if __name__ == "__main__": main()` leaves it undefined when the
+    driver RUNS, while imports (and therefore this suite) stay green. Checked on
+    the AST so it cannot recur however the file is edited."""
+    import ast
+    module = ast.parse(open(os.path.join(_REPO_ROOT, "eval_localization.py")).read())
+    last = module.body[-1]
+    assert isinstance(last, ast.If), f"the module must end with the __main__ guard, got {last}"
+    assert ast.dump(last.test).count("__name__") == 1
+    assert isinstance(last.body[0], ast.Expr)
