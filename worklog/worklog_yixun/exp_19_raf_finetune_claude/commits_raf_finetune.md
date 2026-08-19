@@ -11,3 +11,4 @@
 | `250cf03` | r1 TDD cycle 2: `equirect_directions` (exact inverse of the pipeline pixel->ray map) + `stable_context_seed` (42 tests) |
 | `7802290` | r1 TDD cycle 3: `RAF_TO_PIPELINE` gauge constant + deterministic `farthest_point_selection` (58 tests) |
 | `c773bda` | r1 TDD cycle 4: `load_room_index` (positional, fail-closed count invariant) + seeded per-capture cross-check (13 tests) |
+| `40e0946` | r1 TDD cycle 5: `group_captures` (canonical 7-tuple key, exactly-36 invariant, `--allow-nonuniform`) + placement clustering (25 tests) |

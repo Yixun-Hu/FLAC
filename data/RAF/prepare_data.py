@@ -20,6 +20,7 @@ Usage:
 """
 import argparse
 import hashlib
+import json
 import logging
 import os
 import sys
@@ -32,6 +33,7 @@ if _HERE not in sys.path:  # raf_common.py is a sibling script, not an installed
 from raf_common import (  # noqa: E402
     RAF_TO_PIPELINE,
     canonicalize_quat,
+    farthest_point_selection,
     parse_rx_line,
     parse_tx_line,
 )
@@ -285,3 +287,208 @@ def group_captures(index, allow_nonuniform=False, expected_size=36):
         "placements": placements,
     }
     return groups, report
+
+
+def select_splits(groups, n_groups=16, n_val_groups=4, n_train=12):
+    """Preregistered, deterministic, group-atomic split (plan Rev 2 section 5).
+
+    One farthest-point sequence over the groups' tx positions selects the first
+    ``n_groups`` as train/test groups and *continues* into ``n_val_groups``
+    validation groups; everything else is reserve (listed, never evaluated).
+
+    Within every SELECTED group a farthest-point sequence over the 36 receiver
+    positions picks ``n_train`` support mics. For a train/test group those support
+    mics are the training items and the other 24 are the test items. A val group
+    contributes all 36 captures as val items and its support pool serves only as
+    their acoustic context — without it a val item would have no context at all.
+
+    Groups are atomic: no capture of a val or reserve group appears anywhere else.
+    """
+    for name, value in (("n_groups", n_groups), ("n_val_groups", n_val_groups),
+                        ("n_train", n_train)):
+        if not isinstance(value, (int, np.integer)) or isinstance(value, bool) or value < 1:
+            raise ValueError(f"{name} must be a positive int, got {value!r}")
+    n_needed = int(n_groups) + int(n_val_groups)
+    if n_needed > len(groups):
+        raise ValueError(
+            f"need {n_needed} groups ({n_groups} train/test + {n_val_groups} val) "
+            f"but the room has only {len(groups)}")
+
+    tx = np.vstack([g["tx_xyz_p"] for g in groups])
+    order = farthest_point_selection(tx, n_needed)
+    train_test = [groups[i]["group_key"] for i in order[:n_groups]]
+    val = [groups[i]["group_key"] for i in order[n_groups:]]
+    selected = set(train_test) | set(val)
+    reserve = [g["group_key"] for g in groups if g["group_key"] not in selected]
+
+    by_key = {g["group_key"]: g for g in groups}
+    support_ids, train_ids, test_ids, val_ids = {}, {}, {}, {}
+    for key in train_test + val:
+        g = by_key[key]
+        if n_train > g["size"]:
+            raise ValueError(
+                f"group {key} holds {g['size']} captures, cannot pick {n_train} support mics")
+        picks = farthest_point_selection(g["rx_xyz_p"], n_train)
+        # kept in FPS order: the record then shows the selection sequence itself.
+        # Consumers that need an order-independent draw (RAF_md's deterministic
+        # eval context) sort the pool themselves rather than trusting this one.
+        support = [g["capture_ids"][i] for i in picks]
+        support_ids[key] = support
+        if key in set(train_test):
+            train_ids[key] = list(support)
+            test_ids[key] = [c for c in g["capture_ids"] if c not in set(support)]
+        else:
+            val_ids[key] = list(g["capture_ids"])
+
+    _assert_disjoint(train_ids, test_ids, val_ids, by_key, val, reserve)
+
+    roles = {k: "train_test" for k in train_test}
+    roles.update({k: "val" for k in val})
+    roles.update({k: "reserve" for k in reserve})
+
+    return {
+        "train_test_groups": train_test,
+        "val_groups": val,
+        "reserve_groups": reserve,
+        "roles": roles,
+        "support_ids": support_ids,
+        "train_ids": train_ids,
+        "test_ids": test_ids,
+        "val_ids": val_ids,
+        "params": {"n_groups": int(n_groups), "n_val_groups": int(n_val_groups),
+                   "n_train": int(n_train)},
+    }
+
+
+def _assert_disjoint(train_ids, test_ids, val_ids, by_key, val_groups, reserve_groups):
+    """Fail-closed leakage check: the whole experiment rests on this."""
+    buckets = {"train": train_ids, "test": test_ids, "val": val_ids}
+    flat = {name: {i for v in ids.values() for i in v} for name, ids in buckets.items()}
+    for a in ("train", "test", "val"):
+        for b in ("train", "test", "val"):
+            if a < b and flat[a] & flat[b]:
+                raise ValueError(f"split leakage: {len(flat[a] & flat[b])} captures in both {a} and {b}")
+    protected = set()
+    for key in list(val_groups) + list(reserve_groups):
+        protected |= set(by_key[key]["capture_ids"])
+    leaked = protected & (flat["train"] | flat["test"])
+    if leaked:
+        raise ValueError(
+            f"split leakage: {len(leaked)} captures of val/reserve groups appear in train/test")
+
+
+def assemble_split_jsons(per_room):
+    """Build the three HAA-shaped split dicts ``{room: ["<id>.wav", ...]}``."""
+    jsons = {"train": {}, "val": {}, "test": {}}
+    for room, payload in per_room.items():
+        split = payload["split"]
+        for name, ids in (("train", split["train_ids"]),
+                          ("test", split["test_ids"]),
+                          ("val", split["val_ids"])):
+            files = sorted(f"{cid}.wav" for group_ids in ids.values() for cid in group_ids)
+            jsons[name][room] = files
+    return jsons
+
+
+def write_split_files(split_dir, jsons):
+    """Write ``{train,val,test}_base.json`` into ``split_dir``."""
+    os.makedirs(split_dir, exist_ok=True)
+    paths = {}
+    for name, payload in jsons.items():
+        path = os.path.join(split_dir, f"{name}_base.json")
+        _write_json(path, payload)
+        paths[name] = path
+    return paths
+
+
+def _write_json(path, payload):
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(payload, f, indent=4)
+    return path
+
+
+def _distance_stats(values):
+    arr = np.asarray(values, dtype=np.float64)
+    if arr.size == 0:
+        return {"count": 0, "min": None, "p25": None, "median": None, "p75": None,
+                "max": None, "mean": None}
+    return {
+        "count": int(arr.size),
+        "min": float(arr.min()),
+        "p25": float(np.percentile(arr, 25)),
+        "median": float(np.median(arr)),
+        "p75": float(np.percentile(arr, 75)),
+        "max": float(arr.max()),
+        "mean": float(arr.mean()),
+    }
+
+
+def _room_distances(groups, split):
+    """Test-to-nearest-support and support-support distance distributions."""
+    by_key = {g["group_key"]: g for g in groups}
+    nearest, pairwise = [], []
+    for key in split["train_test_groups"]:
+        g = by_key[key]
+        pos = {cid: g["rx_xyz_p"][i] for i, cid in enumerate(g["capture_ids"])}
+        support = np.vstack([pos[c] for c in split["train_ids"][key]])
+        for cid in split["test_ids"][key]:
+            nearest.append(float(np.linalg.norm(support - pos[cid], axis=1).min()))
+        d = np.linalg.norm(support[:, None, :] - support[None, :, :], axis=-1)
+        pairwise.extend(d[np.triu_indices(len(support), k=1)].tolist())
+    return {
+        "test_to_nearest_support": _distance_stats(nearest),
+        "support_pairwise": _distance_stats(pairwise),
+    }
+
+
+def _git_describe():
+    try:
+        import subprocess
+        out = subprocess.run(["git", "describe", "--always", "--dirty"],
+                             cwd=_HERE, capture_output=True, text=True, timeout=20)
+        return out.stdout.strip() if out.returncode == 0 else "unavailable"
+    except Exception:
+        return "unavailable"
+
+
+def build_splits_record(per_room, params):
+    """The canonical, committed description of how the split was cut."""
+    rooms = {}
+    for room, payload in per_room.items():
+        groups, split = payload["groups"], payload["split"]
+        rooms[room] = {
+            "counts": {
+                "train": sum(len(v) for v in split["train_ids"].values()),
+                "test": sum(len(v) for v in split["test_ids"].values()),
+                "val": sum(len(v) for v in split["val_ids"].values()),
+                "train_test_groups": len(split["train_test_groups"]),
+                "val_groups": len(split["val_groups"]),
+                "reserve_groups": len(split["reserve_groups"]),
+            },
+            "train_test_groups": list(split["train_test_groups"]),
+            "val_groups": list(split["val_groups"]),
+            "reserve_groups": list(split["reserve_groups"]),
+            "distances": _room_distances(groups, split),
+            "placements": {
+                "n_placements": payload["group_report"]["n_placements"],
+                "groups_per_placement": {k: len(v) for k, v
+                                         in payload["group_report"]["placements"].items()},
+            },
+            "group_report": {k: v for k, v in payload["group_report"].items()
+                             if k != "placements"},
+            "crosscheck": payload["crosscheck"],
+            "group_details": [
+                {
+                    "group_key": g["group_key"],
+                    "group_tuple": [float(v) for v in g["group_tuple"]],
+                    "tx_xyz_p": [float(v) for v in g["tx_xyz_p"]],
+                    "placement_key": g["placement_key"],
+                    "size": g["size"],
+                    "role": split["roles"][g["group_key"]],
+                    "support_ids": split["support_ids"].get(g["group_key"], []),
+                }
+                for g in groups
+            ],
+        }
+    return {"params": params, "git_describe": _git_describe(), "rooms": rooms}

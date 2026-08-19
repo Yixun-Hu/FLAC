@@ -37,11 +37,17 @@ N_MICS = 36
 
 
 def _mic_array():
-    """A rigid 36-point array: 3 x 3 x 4 lattice spanning 1.0 x 1.0 x 1.2 m (RAF axes)."""
+    """A rigid 36-point array: 3 x 3 x 4 lattice spanning 1.0 x 1.0 x 1.2 m (RAF axes).
+
+    The z spacing is deliberately asymmetric (0, 0.5, 0.9, 1.2 -> mean 0.65) so the
+    lattice point nearest the centroid is unique by a clear margin: an evenly
+    spaced axis puts two points at exactly the same distance and the hand-derived
+    FPS oracle would then turn on a 1-ULP difference rather than on geometry.
+    """
     pts = []
     for x in (0.0, 0.5, 1.0):
         for y in (0.0, 0.5, 1.0):
-            for z in (0.0, 0.4, 0.8, 1.2):
+            for z in (0.0, 0.5, 0.9, 1.2):
                 pts.append((x, y, z))
     assert len(pts) == N_MICS
     return np.array(pts, dtype=np.float64)
@@ -390,3 +396,176 @@ def test_group_rx_centroid_is_recorded_in_the_pipeline_frame():
     expected = raf_common.RAF_TO_PIPELINE @ raf_centroid  # -> (X, Z, Y)
     np.testing.assert_allclose(groups[0]["rx_centroid_p"], expected, atol=1e-9)
     np.testing.assert_allclose(groups[0]["tx_xyz_p"], [1.0, 2.0, 1.5], atol=1e-9)
+
+
+# --------------------------------------------------------------------------- #
+# select_splits (cycle 6)
+# --------------------------------------------------------------------------- #
+@pytest.fixture
+def mini_groups(mini_room):
+    index = raf_prepare.load_room_index(mini_room)
+    groups, report = raf_prepare.group_captures(index)
+    return groups, report
+
+
+def test_select_splits_group_order_is_hand_checked_fps_over_tx(mini_groups):
+    """tx (pipeline) = (0, 0, 1.5), (1, 0.5, 1.5), (2, 1.0, 1.5).
+
+    centroid = (1, 0.5, 1.5) -> group 1 is exactly on it            -> start 1
+    distances from group 1: [1.118, 0, 1.118] -> tie 0 vs 2 -> index 0
+    remaining                                                        -> 2
+    So with n_groups=2 / n_val_groups=1: train/test = {g1, g0}, val = {g2}.
+    """
+    groups, _ = mini_groups
+    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    assert split["train_test_groups"] == [groups[1]["group_key"], groups[0]["group_key"]]
+    assert split["val_groups"] == [groups[2]["group_key"]]
+    assert split["reserve_groups"] == []
+
+
+def test_select_splits_counts(mini_groups):
+    groups, _ = mini_groups
+    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    assert sum(len(v) for v in split["train_ids"].values()) == 2 * 12
+    assert sum(len(v) for v in split["test_ids"].values()) == 2 * 24
+    assert sum(len(v) for v in split["val_ids"].values()) == 36
+    # every selected group carries a 12-mic support pool, including the val group:
+    # a val item's acoustic context is drawn from its own group's support.
+    assert set(split["support_ids"]) == set(split["train_test_groups"] + split["val_groups"])
+    assert all(len(v) == 12 for v in split["support_ids"].values())
+
+
+def test_select_splits_first_support_mic_is_hand_checked_fps_over_rx(mini_groups):
+    """The 3x3x4 lattice's centroid is (0.5, 0.5, 0.65) in RAF axes.
+
+    Nearest lattice point: x = 0.5 and y = 0.5 are exact hits; on z the candidates
+    are 0.5 (0.15 away) and 0.9 (0.25 away), so (0.5, 0.5, 0.5) wins outright. With
+    index = 12*ix + 4*iy + iz that is 12*1 + 4*1 + 1 = 17, i.e. capture 000017 of
+    the first group (the next-nearest point is 0.10 further out, so the oracle does
+    not hinge on floating-point detail).
+    """
+    groups, _ = mini_groups
+    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    gk = groups[0]["group_key"]
+    assert split["train_ids"][gk][0] == "000017"
+
+
+def test_select_splits_is_group_atomic_and_disjoint(mini_groups):
+    groups, _ = mini_groups
+    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    train = [i for v in split["train_ids"].values() for i in v]
+    test = [i for v in split["test_ids"].values() for i in v]
+    val = [i for v in split["val_ids"].values() for i in v]
+    assert len(set(train) & set(test)) == 0
+    assert len(set(train) & set(val)) == 0
+    assert len(set(test) & set(val)) == 0
+    assert len(train) + len(test) + len(val) == len(set(train + test + val))
+    # no capture of a val group appears in train/test in any role
+    val_group_ids = set(groups[2]["capture_ids"])
+    assert not (set(train) | set(test)) & val_group_ids
+
+
+def test_select_splits_train_and_test_partition_their_group(mini_groups):
+    groups, _ = mini_groups
+    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    for gk in split["train_test_groups"]:
+        g = next(x for x in groups if x["group_key"] == gk)
+        assert sorted(split["train_ids"][gk] + split["test_ids"][gk]) == sorted(g["capture_ids"])
+
+
+def test_select_splits_is_deterministic(mini_groups):
+    groups, _ = mini_groups
+    a = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    b = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    assert a["train_ids"] == b["train_ids"] and a["val_ids"] == b["val_ids"]
+
+
+def test_select_splits_lists_reserve_groups(mini_groups):
+    groups, _ = mini_groups
+    split = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1, n_train=12)
+    assert len(split["reserve_groups"]) == 1
+    assert split["roles"][split["reserve_groups"][0]] == "reserve"
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"n_groups": 3, "n_val_groups": 1},   # 4 > 3 available groups
+    {"n_groups": 0, "n_val_groups": 1},
+    {"n_groups": 2, "n_val_groups": 0},
+    {"n_groups": 2, "n_val_groups": 1, "n_train": 37},
+    {"n_groups": 2, "n_val_groups": 1, "n_train": 0},
+])
+def test_select_splits_rejects_impossible_parameters(mini_groups, kwargs):
+    groups, _ = mini_groups
+    kwargs.setdefault("n_train", 12)
+    with pytest.raises(ValueError):
+        raf_prepare.select_splits(groups, **kwargs)
+
+
+# --------------------------------------------------------------------------- #
+# split JSON emission + splits record (cycle 6)
+# --------------------------------------------------------------------------- #
+def _one_room_payload(mini_room):
+    index = raf_prepare.load_room_index(mini_room)
+    groups, group_report = raf_prepare.group_captures(index)
+    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    return {"EmptyRoom": {"groups": groups, "split": split, "group_report": group_report,
+                          "crosscheck": {"mode": "full", "checked": len(index),
+                                         "mismatches": 0}}}
+
+
+def test_assemble_split_jsons_has_the_haa_shape(mini_room):
+    payload = _one_room_payload(mini_room)
+    jsons = raf_prepare.assemble_split_jsons(payload)
+    assert set(jsons) == {"train", "val", "test"}
+    assert list(jsons["train"]) == ["EmptyRoom"]
+    assert len(jsons["train"]["EmptyRoom"]) == 24
+    assert len(jsons["test"]["EmptyRoom"]) == 48
+    assert len(jsons["val"]["EmptyRoom"]) == 36
+    for name in jsons["train"]["EmptyRoom"]:
+        assert name.endswith(".wav") and len(name) == 10 and name[:6].isdigit()
+    assert jsons["train"]["EmptyRoom"] == sorted(jsons["train"]["EmptyRoom"])
+
+
+def test_write_split_files_round_trips(tmp_path, mini_room):
+    payload = _one_room_payload(mini_room)
+    jsons = raf_prepare.assemble_split_jsons(payload)
+    out = tmp_path / "splits"
+    paths = raf_prepare.write_split_files(str(out), jsons)
+    assert sorted(os.path.basename(p) for p in paths.values()) == [
+        "test_base.json", "train_base.json", "val_base.json"]
+    with open(paths["train"]) as f:
+        assert json.load(f) == jsons["train"]
+
+
+def test_splits_record_carries_the_preregistration_fields(mini_room):
+    payload = _one_room_payload(mini_room)
+    params = {"seed": 0, "n_groups": 2, "n_val_groups": 1, "n_train": 12,
+              "rooms": ["EmptyRoom"]}
+    record = raf_prepare.build_splits_record(payload, params)
+    assert record["params"] == params
+    room = record["rooms"]["EmptyRoom"]
+    assert room["counts"] == {"train": 24, "test": 48, "val": 36,
+                              "train_test_groups": 2, "val_groups": 1, "reserve_groups": 0}
+    assert len(room["train_test_groups"]) == 2
+    assert len(room["reserve_groups"]) == 0
+    assert room["placements"]["n_placements"] == 3
+    assert room["group_report"]["nonuniform"] == []
+    assert room["crosscheck"]["mismatches"] == 0
+    stats = room["distances"]["test_to_nearest_support"]
+    assert stats["count"] == 48
+    assert stats["min"] > 0.0
+    assert stats["max"] <= 2.0   # the synthetic array spans 1.0 x 1.0 x 1.2 m
+    assert set(stats) == {"count", "min", "p25", "median", "p75", "max", "mean"}
+    assert "support_pairwise" in room["distances"]
+    assert "git_describe" in record
+    json.dumps(record)  # must be JSON-serialisable as-is
+
+
+def test_splits_record_group_entries_carry_the_canonical_tuple(mini_room):
+    payload = _one_room_payload(mini_room)
+    record = raf_prepare.build_splits_record(payload, {"seed": 0})
+    entry = record["rooms"]["EmptyRoom"]["group_details"][0]
+    assert len(entry["group_tuple"]) == 7
+    assert entry["role"] in {"train_test", "val", "reserve"}
+    assert entry["placement_key"]
+    assert len(entry["tx_xyz_p"]) == 3
