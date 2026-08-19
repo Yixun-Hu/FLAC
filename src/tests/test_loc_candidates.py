@@ -14,10 +14,14 @@ import os
 
 import numpy as np
 import pytest
+import torch
 
 from src.localization.candidates import (
     CandidateSet,
+    assert_gt_matches_loader,
     build_candidate_set,
+    candidate_metadata,
+    crosscheck_sources_vs_files,
     enumerate_metadata_sources,
     find_pair_metadata,
     parse_ir_filename,
@@ -308,3 +312,131 @@ def test_candidate_set_rejects_unsorted_or_mismatched(tmp_path):
         CandidateSet(nodes=[7, 7], xyz_world=xyz, rec_loc=rec, gt_node=7, gt_xyz=xyz[1])
     with pytest.raises(ValueError):                          # len(nodes) != rows
         CandidateSet(nodes=[0], xyz_world=xyz, rec_loc=rec, gt_node=0, gt_xyz=xyz[0])
+
+
+# --------------------------------------------------------------------------- #
+# candidate_metadata -- shallow copy with key swap (O19)
+# --------------------------------------------------------------------------- #
+def _base_md():
+    return {
+        "scene": "Cafe",
+        "source": torch.tensor([1.0, 2.0, 3.0]),
+        "source_vit": torch.tensor([[1.0, 2.0, 3.0]]),
+        "context_poses": torch.randn(8, 3),
+        "context_poses_vit": torch.randn(8, 3),
+        "context_audio": torch.randn(8, 1, 16),
+        "depth": torch.randn(3, 8, 16),
+    }
+
+
+def test_candidate_metadata_swaps_only_source_keys():
+    base = _base_md()
+    out = candidate_metadata(base, np.array([-1.5, 0.25, 4.0]))
+
+    assert out is not base
+    assert set(out) == set(base)
+    for key in base:
+        if key in ("source", "source_vit"):
+            continue
+        assert out[key] is base[key], f"{key} must be shared, not copied"
+
+
+def test_candidate_metadata_dtypes_and_values():
+    out = candidate_metadata(_base_md(), np.array([-1.5, 0.25, 4.0]))
+    assert out["source"].dtype == torch.float32 and tuple(out["source"].shape) == (3,)
+    assert out["source_vit"].dtype == torch.float32 and tuple(out["source_vit"].shape) == (1, 3)
+    expected = torch.tensor([-1.5, 0.25, 4.0], dtype=torch.float32)
+    assert torch.equal(out["source"], expected)
+    assert torch.equal(out["source_vit"], expected.unsqueeze(0))
+
+
+def test_candidate_metadata_does_not_mutate_base():
+    base = _base_md()
+    original_source = base["source"]
+    original_values = base["source"].clone()
+    candidate_metadata(base, np.array([-1.5, 0.25, 4.0]))
+    assert base["source"] is original_source
+    assert torch.equal(base["source"], original_values)
+    assert torch.equal(base["source_vit"], original_values.unsqueeze(0))
+
+
+def test_candidate_metadata_accepts_torch_input_and_rejects_bad_shape():
+    out = candidate_metadata(_base_md(), torch.tensor([0.0, 1.0, 2.0], dtype=torch.float64))
+    assert out["source"].dtype == torch.float32
+    with pytest.raises(ValueError):
+        candidate_metadata(_base_md(), np.array([0.0, 1.0]))
+
+
+# --------------------------------------------------------------------------- #
+# assert_gt_matches_loader -- per-query geometry invariant (O6)
+# --------------------------------------------------------------------------- #
+def _loader_source(rec_loc, src_loc):
+    """The release loader's own route: project in float64, then Tensor().float()."""
+    ar_md = _load_ar_md()
+    return torch.Tensor(ar_md.get_3d_point_camera_coord(rec_loc, src_loc)).float()
+
+
+def test_assert_gt_matches_loader_exact_match_passes(tmp_path):
+    _build_room(tmp_path)
+    cs = build_candidate_set(_ir_path(tmp_path, 7, 3), tmp_path / "metadata")
+    md = {"source": _loader_source(list(_REC_LOCS[3]), list(_SRC_LOCS[7]))}
+    assert assert_gt_matches_loader(cs, md) is None
+
+
+def test_assert_gt_matches_loader_perturbation_aborts(tmp_path):
+    _build_room(tmp_path)
+    cs = build_candidate_set(_ir_path(tmp_path, 7, 3), tmp_path / "metadata")
+    perturbed = list(_SRC_LOCS[7])
+    perturbed[0] += 1e-6
+    md = {"source": _loader_source(list(_REC_LOCS[3]), perturbed)}
+    with pytest.raises(AssertionError):
+        assert_gt_matches_loader(cs, md)
+
+
+def test_assert_gt_matches_loader_missing_or_malformed_source_aborts(tmp_path):
+    _build_room(tmp_path)
+    cs = build_candidate_set(_ir_path(tmp_path, 7, 3), tmp_path / "metadata")
+    with pytest.raises(AssertionError):
+        assert_gt_matches_loader(cs, {})
+    with pytest.raises(AssertionError):
+        assert_gt_matches_loader(cs, {"source": torch.zeros(1, 3)})
+
+
+# --------------------------------------------------------------------------- #
+# crosscheck_sources_vs_files -- readback rung
+# --------------------------------------------------------------------------- #
+def test_crosscheck_sources_vs_files_match(tmp_path):
+    room = _build_room(tmp_path)
+    meta = enumerate_metadata_sources(room)
+    for node in meta:
+        _ir_path(tmp_path, node, 3)
+    report = crosscheck_sources_vs_files(meta, tmp_path / "single_channel_ir_1" / "Cafe" / "Cafe_idx_1")
+    assert report["ok"] is True
+    assert report["meta_nodes"] == [0, 7, 10] and report["file_nodes"] == [0, 7, 10]
+    assert report["missing_files"] == [] and report["extra_files"] == []
+
+
+def test_crosscheck_sources_vs_files_extra_file(tmp_path):
+    room = _build_room(tmp_path)
+    meta = enumerate_metadata_sources(room)
+    for node in list(meta) + [42]:
+        _ir_path(tmp_path, node, 3)
+    report = crosscheck_sources_vs_files(meta, tmp_path / "single_channel_ir_1" / "Cafe" / "Cafe_idx_1")
+    assert report["ok"] is False
+    assert report["extra_files"] == [42] and report["missing_files"] == []
+
+
+def test_crosscheck_sources_vs_files_missing_file(tmp_path):
+    room = _build_room(tmp_path)
+    meta = enumerate_metadata_sources(room)
+    for node in [0, 7]:
+        _ir_path(tmp_path, node, 3)
+    (tmp_path / "single_channel_ir_1" / "Cafe" / "Cafe_idx_1" / "notes.txt").write_text("x")
+    report = crosscheck_sources_vs_files(meta, tmp_path / "single_channel_ir_1" / "Cafe" / "Cafe_idx_1")
+    assert report["ok"] is False
+    assert report["missing_files"] == [10] and report["extra_files"] == []
+
+
+def test_crosscheck_sources_vs_files_missing_dir_raises(tmp_path):
+    with pytest.raises(ValueError):
+        crosscheck_sources_vs_files([0, 1], tmp_path / "nope")

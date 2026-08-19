@@ -11,6 +11,7 @@ import re
 from dataclasses import dataclass
 
 import numpy as np
+import torch
 
 _IR_NAME_RE = re.compile(r"^S(\d+)_R(\d+)_hybrid_IR\.wav$")
 _PAIR_NAME_RE = re.compile(r"^S(\d+)_R(\d+)\.json$")
@@ -191,3 +192,74 @@ def build_candidate_set(ir_path, metadata_path):
         gt_node=gt_node,
         gt_xyz=sources[gt_node],
     )
+
+
+def candidate_metadata(base_md, cand_cam_xyz):
+    """``base_md`` with only ``source``/``source_vit`` swapped for a candidate.
+
+    Shallow copy (O19): every untouched key -- ``depth``, ``context_*``, ... --
+    is the *same object* in the returned dict, so the M candidate variants of a
+    query share those tensors and ``base_md`` is never mutated.
+    ``cand_cam_xyz`` is the candidate position in the receiver camera frame.
+    """
+    if isinstance(cand_cam_xyz, torch.Tensor):
+        source = cand_cam_xyz.detach().to(torch.float32).reshape(-1).clone()
+        if source.numel() != 3:
+            raise ValueError(f"cand_cam_xyz must be 3 floats, got {tuple(cand_cam_xyz.shape)}")
+    else:
+        source = torch.as_tensor(_xyz(cand_cam_xyz, "cand_cam_xyz"), dtype=torch.float32)
+    md = dict(base_md)
+    md["source"] = source
+    md["source_vit"] = source.unsqueeze(0)
+    return md
+
+
+def assert_gt_matches_loader(cand_set, md, atol=0.0):
+    """Fail closed unless the GT candidate's projection *is* the loader's ``source``.
+
+    The per-query geometry invariant (O6): the candidate pipeline and the release
+    loader must agree bit-exactly on where the ground-truth source sits in the
+    receiver frame (``atol=0``), otherwise the whole candidate sweep is offset.
+    """
+    if "source" not in md:
+        raise AssertionError("metadata has no 'source' key; cannot verify the geometry invariant")
+    got = md["source"]
+    if not isinstance(got, torch.Tensor):
+        got = torch.as_tensor(got)
+    if tuple(got.shape) != (3,):
+        raise AssertionError(f"md['source'] must be shape [3], got {tuple(got.shape)}")
+    expected = torch.as_tensor(
+        project_to_camera(cand_set.rec_loc, cand_set.gt_xyz), dtype=torch.float32)
+    diff = (got.detach().to(torch.float32).double() - expected.double()).abs().max().item()
+    if not diff <= atol:
+        raise AssertionError(
+            f"GT candidate projection {expected.tolist()} != loader md['source'] "
+            f"{got.tolist()} (max |diff| = {diff:g} > atol {atol:g})")
+    return None
+
+
+def crosscheck_sources_vs_files(meta_nodes, room_dir):
+    """Readback rung: metadata-declared sources vs the room's IR file names.
+
+    Reports both directions without changing the candidate set -- ``metadata/``
+    stays the authority; missing files only shrink what a measured-RIR oracle can
+    report.
+    """
+    room = str(room_dir)
+    if not os.path.isdir(room):
+        raise ValueError(f"IR room directory not found: {room}")
+    file_nodes = set()
+    for fname in sorted(os.listdir(room)):
+        match = _IR_NAME_RE.match(fname)
+        if match is not None:
+            file_nodes.add(int(match.group(1)))
+    meta = {int(n) for n in meta_nodes}
+    missing = sorted(meta - file_nodes)
+    extra = sorted(file_nodes - meta)
+    return {
+        "meta_nodes": sorted(meta),
+        "file_nodes": sorted(file_nodes),
+        "missing_files": missing,
+        "extra_files": extra,
+        "ok": not missing and not extra,
+    }
