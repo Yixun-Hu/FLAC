@@ -271,3 +271,74 @@ def test_load_agree_audio_refuses_an_unknown_model_config(tmp_path):
     ckpt.write_bytes(b"not a real checkpoint")
     with pytest.raises(ValueError):
         load_agree_audio(ckpt, "cpu", config_name="no_such_config")
+
+
+# --------------------------------------------------------------------------- #
+# INTEGRATION -- the real AGREE scorer (CPU, small batches, ~6 s total).
+# Skipped unless the checkpoints and the gated DINOv3 HF cache are present; the
+# weight paths are relative, so a run from outside the repo root also skips.
+# --------------------------------------------------------------------------- #
+_AGREE_CKPT = "weights/AGREE/AGREE_AR.pt"
+_VAE_CKPT = "weights/FLAC/VAE.ckpt"
+
+
+def _dinov3_cache_present():
+    hub = os.environ.get("HF_HUB_CACHE") or os.path.join(
+        os.environ.get("HF_HOME") or os.path.expanduser("~/.cache/huggingface"), "hub")
+    return os.path.isdir(os.path.join(hub, "models--facebook--dinov3-vits16-pretrain-lvd1689m"))
+
+
+_HAVE_ASSETS = (os.path.isfile(_AGREE_CKPT) and os.path.isfile(_VAE_CKPT)
+                and _dinov3_cache_present())
+integration = pytest.mark.skipif(
+    not _HAVE_ASSETS,
+    reason="AGREE/VAE checkpoints or the gated DINOv3 HF cache absent (or CWD is not the repo root)")
+
+
+@pytest.fixture(scope="module")
+def real_agree():
+    return load_agree_audio(_AGREE_CKPT, "cpu")
+
+
+@pytest.fixture(scope="module")
+def real_wavs():
+    g = torch.Generator().manual_seed(2618)
+    return torch.randn(2, 1, 9000, generator=g) * 0.3
+
+
+@integration
+def test_integration_load_agree_audio_is_frozen_and_eval(real_agree):
+    assert real_agree.model.training is False
+    assert not any(p.requires_grad for p in real_agree.model.parameters())
+    assert real_agree.device == "cpu" and real_agree.ckpt_path == _AGREE_CKPT
+    assert len(real_agree.ckpt_sha256) == 64
+    assert real_agree.ckpt_sha256 == sha256_file(_AGREE_CKPT)
+
+
+@integration
+def test_integration_mean_readout_is_deterministic_and_unit_norm(real_agree, real_wavs):
+    first = embed_rirs(real_agree.model, real_wavs, "cpu")
+    second = embed_rirs(real_agree.model, real_wavs, "cpu")
+    assert tuple(first.shape) == (2, 512) and first.dtype == torch.float32
+    assert torch.allclose(first.norm(dim=-1), torch.ones(2), atol=1e-5)
+    assert torch.equal(first, second)
+
+
+@integration
+def test_integration_sampled_readout_is_stochastic(real_agree, real_wavs):
+    """Witnesses on the real model why the sampled path cannot be the scorer."""
+    first = embed_rirs(real_agree.model, real_wavs, "cpu", readout="sample")
+    second = embed_rirs(real_agree.model, real_wavs, "cpu", readout="sample")
+    assert not torch.equal(first, second)
+    assert (first - second).abs().max() > 1e-6
+
+
+@integration
+def test_integration_mean_readout_leaves_the_global_rng_untouched(real_agree, real_wavs):
+    before = torch.random.get_rng_state()
+    embed_rirs(real_agree.model, real_wavs, "cpu", readout="mean")
+    assert torch.equal(torch.random.get_rng_state(), before)
+
+    before = torch.random.get_rng_state()
+    embed_rirs(real_agree.model, real_wavs, "cpu", readout="sample")
+    assert not torch.equal(torch.random.get_rng_state(), before)
