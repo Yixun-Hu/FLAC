@@ -23,11 +23,13 @@ from datetime import datetime, timezone
 
 import numpy as np
 import torch
+import torchaudio
 
 from eval_FLAC import (CONTEXT_ID_PRECISION, orbit_provenance, sample_target_id,
                        source_sha)
+from src.localization.agree_embed import MAX_LEN
 from src.localization.candidates import (assert_gt_matches_loader, candidate_metadata,
-                                         project_to_camera)
+                                         parse_ir_filename, project_to_camera)
 from src.localization.scoring import (DEFAULT_RADII, aggregate, context_conditioned_baseline,
                                       cosine_sims, localization_error,
                                       nearest_context_baseline, noise_key, predict_index,
@@ -539,3 +541,76 @@ def write_summary(path, summary, provenance):
                   sort_keys=True, indent=2)
         handle.write("\n")
     return str(path)
+
+
+AR_SAMPLE_RATE = 22050
+
+
+def measured_rir_paths(room_wav_dir, cand_set, receiver_node):
+    """Per candidate, the measured ``S<cand>_R<rec>`` file, or ``None`` if absent.
+
+    Matched on parsed numeric identity over the directory listing, never on a
+    reconstructed name: the wav namespace pads node ids inconsistently.
+    """
+    room_wav_dir = str(room_wav_dir)
+    by_source = {}
+    if os.path.isdir(room_wav_dir):
+        for fname in sorted(os.listdir(room_wav_dir)):
+            try:
+                src, rec = parse_ir_filename(fname)
+            except ValueError:
+                continue
+            if rec == int(receiver_node):
+                by_source[src] = os.path.join(room_wav_dir, fname)
+    return [by_source.get(int(node)) for node in cand_set.nodes]
+
+
+def load_measured_rirs(room_wav_dir, cand_set, receiver_node):
+    """``(wavs [A, 1, MAX_LEN], available [M], paths [M])`` for the oracle mode.
+
+    Only the files that exist are loaded: a missing pair shrinks what the oracle
+    can report, never the candidate set (plan §2.2). Each file is clamped and
+    cropped/padded to ``MAX_LEN`` -- the metric route's own window -- before the
+    shared preprocessing runs.
+    """
+    paths = measured_rir_paths(room_wav_dir, cand_set, receiver_node)
+    available = [path is not None for path in paths]
+    wavs = []
+    for path in paths:
+        if path is None:
+            continue
+        wav, rate = torchaudio.load(path)
+        if rate != AR_SAMPLE_RATE:
+            raise ValueError(f"{path}: IR sampling rate must be {AR_SAMPLE_RATE}, got {rate}")
+        wav = wav[:1, :MAX_LEN].clamp(-1.0, 1.0)
+        if wav.shape[-1] < MAX_LEN:
+            wav = torch.nn.functional.pad(wav, (0, MAX_LEN - wav.shape[-1]))
+        wavs.append(wav.unsqueeze(0))
+    if not wavs:
+        raise ValueError(f"no measured RIR for receiver {receiver_node} in {room_wav_dir}")
+    return torch.cat(wavs, dim=0), available, paths
+
+
+def run_query_gt_rir(engine, cand_set, room_wav_dir, receiver_node, obs_wav):
+    """Measured-RIR oracle (plan §2.6): score the real RIRs, generate nothing.
+
+    Needs no FLAC checkpoint, so it runs the moment the dataset lands. Candidates
+    whose measured file is missing get a placeholder similarity and are marked
+    unavailable, so the row still carries the full candidate set while the
+    prediction is taken over the available ones only.
+    """
+    wavs, available, _paths = load_measured_rirs(room_wav_dir, cand_set, receiver_node)
+    embeddings = engine.embedder(wavs.to(engine.device))
+    obs_embedding = engine.embedder(obs_wav.to(engine.device))[0]
+    present = cosine_sims(obs_embedding, embeddings.unsqueeze(1))
+
+    sims = torch.zeros(len(cand_set.nodes), 1, dtype=torch.float32)
+    cursor = 0
+    for index, flag in enumerate(available):
+        if flag:
+            sims[index, 0] = present[cursor, 0]
+            cursor += 1
+    gt_index = cand_set.gt_index
+    return {"sims": sims, "available": available, "cand_cam_xyz": candidate_camera_positions(cand_set),
+            "identity_index": gt_index if available[gt_index] else None,
+            "num_candidates": len(cand_set.nodes), "num_samples": 1}

@@ -719,3 +719,79 @@ def test_write_summary_round_trips(tmp_path):
         summary["flac"]["pooled"]["success"][1.0])
     assert payload["summary"]["flac"]["primary_name"] == "pooled_median_e_loc"
     assert el.jsonable(summary)["flac"]["primary"] == summary["flac"]["primary"]
+
+
+# --------------------------------------------------------------------------- #
+# gt_rir mode  (unit f) -- the checkpoint-free oracle: score the MEASURED RIRs
+# --------------------------------------------------------------------------- #
+import torchaudio  # noqa: E402
+
+
+def _write_rir(room_dir, src, rec, value, length=9000, rate=22050, name=None):
+    os.makedirs(room_dir, exist_ok=True)
+    wav = torch.full((1, length), float(value))
+    wav[0, 0] = float(value) * 0.5                     # make rows distinguishable
+    path = os.path.join(room_dir, name or f"S00{src}_R00{rec}_hybrid_IR.wav")
+    torchaudio.save(path, wav, rate)
+    return path
+
+
+def test_measured_rir_paths_match_numerically_and_report_gaps(tmp_path):
+    room = str(tmp_path / "Cafe_idx_1")
+    _write_rir(room, 0, 11, 0.1)
+    _write_rir(room, 3, 11, 0.2, name="S003_R011_hybrid_IR.wav")     # zero-padded variant
+    paths = el.measured_rir_paths(room, _cand_set(), receiver_node=11)
+    assert [p is not None for p in paths] == [True, True, False]     # node 7 absent
+    assert os.path.basename(paths[1]) == "S003_R011_hybrid_IR.wav"
+
+
+def test_run_query_gt_rir_scores_measured_files_and_marks_the_identity(tmp_path):
+    room = str(tmp_path / "Cafe_idx_1")
+    _write_rir(room, 0, 11, 0.1)
+    _write_rir(room, 3, 11, 0.2)                                     # the GT candidate
+    _rec, engine = _engine()
+    cand = _cand_set()
+    obs = el.load_measured_rirs(room, cand, 11)[0][1:2]              # the GT file itself
+
+    out = el.run_query_gt_rir(engine, cand, room, receiver_node=11, obs_wav=obs)
+    assert tuple(out["sims"].shape) == (3, 1)
+    assert out["available"] == [True, True, False]
+    assert out["identity_index"] == cand.gt_index == 1
+    assert out["sims"][1, 0] == pytest.approx(1.0, abs=1e-6)         # identity scores 1
+    assert out["sims"][2, 0] == 0.0                                  # missing file placeholder
+    np.testing.assert_array_equal(out["cand_cam_xyz"], el.candidate_camera_positions(cand))
+
+
+def test_run_query_gt_rir_row_keeps_the_candidate_set_and_shrinks_only_eligibility(tmp_path):
+    room = str(tmp_path / "Cafe_idx_1")
+    _write_rir(room, 0, 11, 0.1)
+    _write_rir(room, 3, 11, 0.9)
+    _rec, engine = _engine()
+    cand = _cand_set()
+    obs = el.load_measured_rirs(room, cand, 11)[0][1:2]
+    out = el.run_query_gt_rir(engine, cand, room, 11, obs)
+    row = el.build_row(query_id="q", room_id="Cafe/Cafe_idx_1", relpath="a/Cafe/Cafe_idx_1/f.wav",
+                       receiver_node=11, cand_set=cand, cam_xyz=out["cand_cam_xyz"],
+                       sims=out["sims"], context_mask=[False] * 3, noise_keys=[],
+                       tau=None, agg="max", control="none", score_source="gt_rir", smoke=False,
+                       available=out["available"], identity_index=out["identity_index"])
+    assert row["n_candidates"] == 3 and row["n_available"] == 2
+    assert row["pred_index"] == 1 and row["identity_index"] == 1
+
+
+def test_load_measured_rirs_refuses_a_wrong_sample_rate(tmp_path):
+    room = str(tmp_path / "Cafe_idx_1")
+    _write_rir(room, 0, 11, 0.1, rate=16000)
+    _write_rir(room, 3, 11, 0.2)
+    with pytest.raises(ValueError):
+        el.load_measured_rirs(room, _cand_set(), 11)
+
+
+def test_load_measured_rirs_pads_and_truncates_to_max_len(tmp_path):
+    from src.localization.agree_embed import MAX_LEN
+    room = str(tmp_path / "Cafe_idx_1")
+    _write_rir(room, 0, 11, 0.1, length=100)
+    _write_rir(room, 3, 11, 0.2, length=20000)
+    wavs, available, _paths = el.load_measured_rirs(room, _cand_set(), 11)
+    assert tuple(wavs.shape) == (2, 1, MAX_LEN) and available == [True, True, False]
+    assert torch.all(wavs[0, 0, 100:] == 0.0)
