@@ -10,3 +10,4 @@
 | `8ac6fad` | r1 TDD cycle 1: `raf_common` fail-closed tx/rx parsers + `canonicalize_quat` (27 tests) |
 | `250cf03` | r1 TDD cycle 2: `equirect_directions` (exact inverse of the pipeline pixel->ray map) + `stable_context_seed` (42 tests) |
 | `7802290` | r1 TDD cycle 3: `RAF_TO_PIPELINE` gauge constant + deterministic `farthest_point_selection` (58 tests) |
+| `c773bda` | r1 TDD cycle 4: `load_room_index` (positional, fail-closed count invariant) + seeded per-capture cross-check (13 tests) |

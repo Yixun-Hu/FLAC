@@ -19,6 +19,7 @@ Usage:
         --output-dir /path/to/runtime/RAF --rooms EmptyRoom FurnishedRoom
 """
 import argparse
+import hashlib
 import logging
 import os
 import sys
@@ -29,6 +30,8 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:  # raf_common.py is a sibling script, not an installed package
     sys.path.insert(0, _HERE)
 from raf_common import (  # noqa: E402
+    RAF_TO_PIPELINE,
+    canonicalize_quat,
     parse_rx_line,
     parse_tx_line,
 )
@@ -165,3 +168,120 @@ def crosscheck_captures(room_dir, index, n_sample=DEFAULT_CROSSCHECK_SAMPLE, see
         "capture_ids": [index[i]["capture_id"] for i in chosen],
         "mismatches": 0,
     }
+
+
+def _canonical_group_repr(quat_canon, tx_xyz):
+    """Text form of the canonical 7-tuple used to derive the group key.
+
+    RAF's pose files carry exactly 6 decimals, so ``%.6f`` is lossless on parsed
+    values; it also makes the key robust to a re-emission that differs by <5e-7.
+    ``-0.0`` is normalised to ``0.0`` so a canonicalisation sign flip cannot
+    produce two spellings of one pose.
+    """
+    values = np.concatenate([np.asarray(quat_canon, dtype=np.float64),
+                             np.asarray(tx_xyz, dtype=np.float64)])
+    values = np.where(values == 0.0, 0.0, values)
+    return ",".join(f"{v:.6f}" for v in values)
+
+
+def _group_key(canonical_repr):
+    return hashlib.sha256(canonical_repr.encode("utf-8")).hexdigest()[:16]
+
+
+def _placement_key(centroid_p, ndigits=2):
+    """Array-placement bucket: the group's rx centroid rounded to 1 cm.
+
+    Informational in v1 (plan Rev 2 section 5) — it reports how often a physical
+    placement was re-occupied; it does not drive the split.
+    """
+    rounded = np.round(np.asarray(centroid_p, dtype=np.float64), ndigits)
+    rounded = np.where(rounded == 0.0, 0.0, rounded)
+    return "_".join(f"{v:.{ndigits}f}" for v in rounded)
+
+
+def group_captures(index, allow_nonuniform=False, expected_size=36):
+    """Group captures by the canonicalised full tx pose (quaternion + xyz).
+
+    One group == one (source pose, array placement) session, which is the atomic
+    unit of the split. Grouping is by the FULL pose line, never by position alone:
+    two orientations at one xyz are different sources.
+
+    Returns:
+        (groups, report). ``groups`` is ordered by first capture id; each entry
+        carries both the RAF-frame identity (``group_tuple``) and the pipeline-frame
+        positions (``tx_xyz_p``, ``rx_xyz_p``, ``rx_centroid_p``) that the runtime
+        metadata and the renderer consume.
+    """
+    if not index:
+        raise ValueError("empty capture index")
+
+    by_key = {}
+    order = []
+    for record in index:
+        quat_canon = canonicalize_quat(record["quat"])
+        repr_ = _canonical_group_repr(quat_canon, record["tx_xyz"])
+        key = _group_key(repr_)
+        if key not in by_key:
+            by_key[key] = {
+                "group_key": key,
+                "group_repr": repr_,
+                "quat_canon": quat_canon,
+                "tx_xyz": np.asarray(record["tx_xyz"], dtype=np.float64),
+                "capture_ids": [],
+                "rx_xyz": [],
+            }
+            order.append(key)
+        elif by_key[key]["group_repr"] != repr_:
+            raise ValueError(
+                f"group key collision: {by_key[key]['group_repr']} and {repr_} "
+                f"both map to {key}")
+        by_key[key]["capture_ids"].append(record["capture_id"])
+        by_key[key]["rx_xyz"].append(np.asarray(record["rx_xyz"], dtype=np.float64))
+
+    groups = []
+    nonuniform = []
+    for key in order:
+        g = by_key[key]
+        rx = np.vstack(g["rx_xyz"])
+        rx_p = rx @ RAF_TO_PIPELINE.T
+        centroid_p = rx_p.mean(axis=0)
+        g.update({
+            "size": len(g["capture_ids"]),
+            "group_tuple": np.concatenate([g["quat_canon"], g["tx_xyz"]]).tolist(),
+            "tx_xyz_p": RAF_TO_PIPELINE @ g["tx_xyz"],
+            "rx_xyz": rx,
+            "rx_xyz_p": rx_p,
+            "rx_centroid_p": centroid_p,
+            "placement_key": _placement_key(centroid_p),
+        })
+        if g["size"] != expected_size:
+            nonuniform.append({"group_key": key, "size": g["size"]})
+        groups.append(g)
+
+    if nonuniform:
+        detail = ", ".join(f"{d['group_key']}:{d['size']}" for d in nonuniform)
+        if not allow_nonuniform:
+            raise ValueError(
+                f"{len(nonuniform)} of {len(groups)} groups do not hold exactly "
+                f"{expected_size} captures ({detail}). Pass --allow-nonuniform to "
+                "record the deviation and continue.")
+        logger.warning("non-uniform groups recorded: %s", detail)
+
+    placements = {}
+    for g in groups:
+        placements.setdefault(g["placement_key"], []).append(g["group_key"])
+
+    sizes = {}
+    for g in groups:
+        sizes[g["size"]] = sizes.get(g["size"], 0) + 1
+
+    report = {
+        "n_groups": len(groups),
+        "n_captures": len(index),
+        "expected_size": expected_size,
+        "size_histogram": {str(k): v for k, v in sorted(sizes.items())},
+        "nonuniform": nonuniform,
+        "n_placements": len(placements),
+        "placements": placements,
+    }
+    return groups, report

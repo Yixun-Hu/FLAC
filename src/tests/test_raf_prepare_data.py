@@ -242,3 +242,151 @@ def test_crosscheck_sampling_is_seeded_and_reproducible(mini_room):
     assert a["capture_ids"] != c["capture_ids"]
     # a sample is a sample: a corruption outside it is (by construction) not seen
     assert set(a["capture_ids"]).issubset({r["capture_id"] for r in index})
+
+
+# --------------------------------------------------------------------------- #
+# group_captures (cycle 5)
+# --------------------------------------------------------------------------- #
+def _index_entry(i, quat, tx, rx):
+    return {
+        "index": i,
+        "capture_id": f"{i:06d}",
+        "quat": np.array(quat, dtype=np.float64),
+        "tx_xyz": np.array(tx, dtype=np.float64),
+        "rx_xyz": np.array(rx, dtype=np.float64),
+    }
+
+
+def _synthetic_index(specs, n_mics=N_MICS, array=None):
+    """specs: list of (quat, tx, centre); emits n_mics captures per spec."""
+    array = _mic_array() if array is None else array
+    index, i = [], 0
+    for quat, tx, centre in specs:
+        for m in range(n_mics):
+            index.append(_index_entry(i, quat, tx, array[m] + np.array(centre)))
+            i += 1
+    return index
+
+
+def test_group_captures_groups_by_the_full_seven_tuple(mini_room):
+    index = raf_prepare.load_room_index(mini_room)
+    groups, report = raf_prepare.group_captures(index)
+    assert len(groups) == 3
+    assert report["n_groups"] == 3
+    assert [len(g["capture_ids"]) for g in groups] == [N_MICS] * 3
+    assert groups[0]["capture_ids"][0] == "000000"
+    assert groups[1]["capture_ids"][0] == f"{N_MICS:06d}"
+    assert groups[0]["tx_xyz"].tolist() == [0.0, 1.5, 0.0]
+    assert report["nonuniform"] == []
+
+
+def test_group_captures_orders_groups_by_first_capture(mini_room):
+    index = raf_prepare.load_room_index(mini_room)
+    groups, _ = raf_prepare.group_captures(index)
+    firsts = [int(g["capture_ids"][0]) for g in groups]
+    assert firsts == sorted(firsts)
+
+
+def test_group_captures_merges_sign_flipped_quaternions():
+    """q and -q are the same rotation: they must land in ONE group."""
+    q = (0.1, 0.9, 0.0, 0.1)
+    minus_q = tuple(-v for v in q)
+    index = _synthetic_index([(q, (1.0, 1.5, 2.0), (0.0, 0.0, 0.0))], n_mics=18)
+    index += _synthetic_index([(minus_q, (1.0, 1.5, 2.0), (0.0, 0.0, 0.0))], n_mics=18)
+    for i, rec in enumerate(index):  # renumber after concatenation
+        rec["index"] = i
+        rec["capture_id"] = f"{i:06d}"
+    groups, report = raf_prepare.group_captures(index)
+    assert len(groups) == 1
+    assert len(groups[0]["capture_ids"]) == 36
+    assert groups[0]["quat_canon"][0] > 0
+
+
+def test_group_captures_separates_same_xyz_different_orientation():
+    """Grouping is by the FULL pose line, not by position (plan C2 audit)."""
+    index = _synthetic_index([
+        ((0.1, 0.9, 0.0, 0.1), (1.0, 1.5, 2.0), (0.0, 0.0, 0.0)),
+        ((0.9, 0.1, 0.0, 0.1), (1.0, 1.5, 2.0), (0.0, 0.0, 0.0)),
+    ])
+    for i, rec in enumerate(index):
+        rec["index"], rec["capture_id"] = i, f"{i:06d}"
+    groups, _ = raf_prepare.group_captures(index)
+    assert len(groups) == 2
+    assert groups[0]["group_key"] != groups[1]["group_key"]
+
+
+def test_group_key_is_filesystem_safe_and_stable():
+    index = _synthetic_index([((0.1, 0.9, 0.0, 0.1), (1.0, 1.5, 2.0), (0.0, 0.0, 0.0))])
+    key_a = raf_prepare.group_captures(index)[0][0]["group_key"]
+    key_b = raf_prepare.group_captures(index)[0][0]["group_key"]
+    assert key_a == key_b
+    assert len(key_a) == 16
+    assert all(c in "0123456789abcdef" for c in key_a)
+
+
+def test_group_captures_records_the_canonical_tuple():
+    index = _synthetic_index([((-0.1, -0.9, 0.0, -0.1), (1.0, 1.5, 2.0), (0.0, 0.0, 0.0))])
+    groups, _ = raf_prepare.group_captures(index)
+    assert groups[0]["group_tuple"] == [0.1, 0.9, -0.0, 0.1, 1.0, 1.5, 2.0]
+
+
+def test_group_captures_aborts_on_a_group_that_is_not_36():
+    index = _synthetic_index([((0.1, 0.9, 0.0, 0.1), (1.0, 1.5, 2.0), (0.0, 0.0, 0.0))],
+                             n_mics=35, array=_mic_array()[:35])
+    with pytest.raises(ValueError) as exc:
+        raf_prepare.group_captures(index)
+    assert "35" in str(exc.value)
+
+
+def test_group_captures_allow_nonuniform_downgrades_to_a_recorded_warning():
+    """FurnishedRoom has exactly one 72-capture group (measured 2026-08-19)."""
+    array = np.vstack([_mic_array(), _mic_array() + 0.01])
+    index = _synthetic_index([((0.1, 0.9, 0.0, 0.1), (1.0, 1.5, 2.0), (0.0, 0.0, 0.0))],
+                             n_mics=72, array=array)
+    groups, report = raf_prepare.group_captures(index, allow_nonuniform=True)
+    assert len(groups) == 1
+    assert report["nonuniform"] == [{"group_key": groups[0]["group_key"], "size": 72}]
+
+
+def test_group_captures_rejects_an_empty_index():
+    with pytest.raises(ValueError):
+        raf_prepare.group_captures([])
+
+
+# --------------------------------------------------------------------------- #
+# placement clustering (cycle 5)
+# --------------------------------------------------------------------------- #
+def test_placement_key_clusters_groups_re_occupying_a_placement():
+    """Two tx poses over the same array placement (centroids within 1 cm)."""
+    index = _synthetic_index([
+        ((0.1, 0.9, 0.0, 0.1), (1.0, 1.5, 2.0), (0.0, 0.0, 0.0)),
+        ((0.9, 0.1, 0.0, 0.1), (3.0, 1.5, 2.0), (0.004, 0.0, 0.0)),  # +4 mm
+    ])
+    for i, rec in enumerate(index):
+        rec["index"], rec["capture_id"] = i, f"{i:06d}"
+    groups, report = raf_prepare.group_captures(index)
+    assert groups[0]["placement_key"] == groups[1]["placement_key"]
+    assert report["n_placements"] == 1
+    assert len(report["placements"][groups[0]["placement_key"]]) == 2
+
+
+def test_placement_key_separates_distinct_placements():
+    index = _synthetic_index([
+        ((0.1, 0.9, 0.0, 0.1), (1.0, 1.5, 2.0), (0.0, 0.0, 0.0)),
+        ((0.9, 0.1, 0.0, 0.1), (3.0, 1.5, 2.0), (0.5, 0.0, 0.0)),
+    ])
+    for i, rec in enumerate(index):
+        rec["index"], rec["capture_id"] = i, f"{i:06d}"
+    groups, report = raf_prepare.group_captures(index)
+    assert groups[0]["placement_key"] != groups[1]["placement_key"]
+    assert report["n_placements"] == 2
+
+
+def test_group_rx_centroid_is_recorded_in_the_pipeline_frame():
+    """Positions handed on to the runtime metadata are already pipeline-frame."""
+    index = _synthetic_index([((0.1, 0.9, 0.0, 0.1), (1.0, 1.5, 2.0), (0.0, 0.0, 0.0))])
+    groups, _ = raf_prepare.group_captures(index)
+    raf_centroid = _mic_array().mean(axis=0)              # RAF (X, Y, Z)
+    expected = raf_common.RAF_TO_PIPELINE @ raf_centroid  # -> (X, Z, Y)
+    np.testing.assert_allclose(groups[0]["rx_centroid_p"], expected, atol=1e-9)
+    np.testing.assert_allclose(groups[0]["tx_xyz_p"], [1.0, 2.0, 1.5], atol=1e-9)
