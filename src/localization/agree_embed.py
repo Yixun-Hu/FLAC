@@ -15,6 +15,10 @@ first ``max_len`` = 8000 samples (``src/metrics/metric_callback.py:113-114``,
 ``:287``), then pad to the tower's 10,240
 (``src/metrics/modules/Retrieval.py:46-47``).
 """
+import hashlib
+import os
+from dataclasses import dataclass
+
 import torch
 
 #: AcousticRooms ``max_len`` used by the metric callback for retrieval inputs.
@@ -85,3 +89,67 @@ def embed_rirs(model, wavs, device, readout="mean"):
         embeddings = torch.nn.functional.normalize(features.float(), dim=-1).cpu()
     # leave inference mode behind: the driver stores, stacks and scores these.
     return embeddings.clone()
+
+
+#: AGREE model config used by the release metric route (``get_model_config``).
+AGREE_CONFIG_NAME = "dinoV3"
+
+
+@dataclass
+class LoadedAgree:
+    """A frozen AGREE scorer plus the provenance the driver logs."""
+    model: object
+    ckpt_path: str
+    ckpt_sha256: str
+    device: str
+
+
+def sha256_file(path, chunk_bytes=1 << 20):
+    """sha256 of a file, read in chunks (checkpoints are hundreds of MB)."""
+    digest = hashlib.sha256()
+    with open(str(path), "rb") as fin:
+        for block in iter(lambda: fin.read(chunk_bytes), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def load_agree_audio(ckpt_path, device, config_name=AGREE_CONFIG_NAME):
+    """Load the AGREE scorer through the release loader, frozen and in eval mode.
+
+    Reuses ``src.metrics.metric_callback.loading_AGREE_model`` -- the loading
+    logic is never duplicated here. Two things are checked before the (slow)
+    construction: the checkpoint exists, and the audio tower's ``pretrained``
+    weights are reachable, because that path is stored in the model config as a
+    CWD-RELATIVE string (``weights/FLAC/VAE.ckpt``) and is opened while the tower
+    is being built -- so running from anywhere but the repo root fails late and
+    obscurely. Every parameter is then frozen and both invariants are asserted.
+    """
+    ckpt_path = str(ckpt_path)
+    if not os.path.isfile(ckpt_path):
+        raise FileNotFoundError(f"AGREE checkpoint not found: {ckpt_path}")
+
+    from AGREE.AGREE.factory import get_model_config
+    config = get_model_config(config_name)
+    if config is None:
+        raise ValueError(f"unknown AGREE model config {config_name!r}")
+    pretrained = (config.get("audio_cfg") or {}).get("pretrained")
+    if pretrained and not os.path.isabs(pretrained) and not os.path.exists(pretrained):
+        raise FileNotFoundError(
+            f"AGREE audio tower needs {pretrained!r}, which is resolved against the working "
+            f"directory (now {os.getcwd()!r}); run from the repo root")
+
+    from src.metrics.metric_callback import loading_AGREE_model
+    model, _audio_tower = loading_AGREE_model(ckpt_path, device)
+    model = model.to(device)
+    model.eval()
+    for param in model.parameters():
+        param.requires_grad_(False)
+
+    if model.training:
+        raise RuntimeError("AGREE scorer failed to enter eval mode")
+    unfrozen = [name for name, param in model.named_parameters() if param.requires_grad]
+    if unfrozen:
+        raise RuntimeError(f"AGREE scorer parameters still require grad: {unfrozen[:5]}")
+
+    return LoadedAgree(model=model, ckpt_path=ckpt_path,
+                       ckpt_sha256=sha256_file(ckpt_path), device=str(device))

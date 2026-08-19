@@ -10,7 +10,14 @@ tower's 10,240 padding.
 import pytest
 import torch
 
-from src.localization.agree_embed import MAX_LEN, TOWER_LEN, embed_rirs, preprocess_for_scoring
+from src.localization.agree_embed import (
+    MAX_LEN,
+    TOWER_LEN,
+    embed_rirs,
+    load_agree_audio,
+    preprocess_for_scoring,
+    sha256_file,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -217,3 +224,50 @@ def test_embed_rirs_rejects_bad_readout_and_nonfinite_input():
         embed_rirs(model, bad, "cpu")
     with pytest.raises(ValueError):
         embed_rirs(model, torch.zeros(2, 100), "cpu")
+
+
+# --------------------------------------------------------------------------- #
+# load_agree_audio -- wrapper over metric_callback.loading_AGREE_model
+#
+# The audio tower loads ``audio_cfg['pretrained']`` = "weights/FLAC/VAE.ckpt"
+# through a CWD-RELATIVE torch.load at construction time (AGREE/AGREE/
+# audio_model.py:185-192, config AGREE/AGREE/model_configs/dinoV3.json), so a
+# wrong working directory must be refused up front, not diagnosed 30 s later.
+# --------------------------------------------------------------------------- #
+import hashlib   # noqa: E402
+import os        # noqa: E402
+
+
+def test_sha256_file_matches_hashlib_and_is_chunk_invariant(tmp_path):
+    payload = os.urandom(3 * 1024 * 1024 + 17)         # spans several read chunks
+    path = tmp_path / "ckpt.pt"
+    path.write_bytes(payload)
+    assert sha256_file(path) == hashlib.sha256(payload).hexdigest()
+
+
+def test_load_agree_audio_refuses_a_missing_checkpoint(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        load_agree_audio(tmp_path / "not_here.pt", "cpu")
+
+
+def test_load_agree_audio_refuses_a_wrong_working_directory(tmp_path, monkeypatch):
+    """The guard must fire BEFORE the model is constructed -- asserted with a spy
+    that fails if loading_AGREE_model is reached."""
+    import src.metrics.metric_callback as mc
+
+    def _never(*args, **kwargs):
+        raise AssertionError("loading_AGREE_model must not run when the CWD is wrong")
+
+    monkeypatch.setattr(mc, "loading_AGREE_model", _never)
+    ckpt = tmp_path / "AGREE_AR.pt"
+    ckpt.write_bytes(b"not a real checkpoint")
+    monkeypatch.chdir(tmp_path)                        # no weights/FLAC/VAE.ckpt here
+    with pytest.raises(FileNotFoundError, match="working directory"):
+        load_agree_audio(ckpt, "cpu")
+
+
+def test_load_agree_audio_refuses_an_unknown_model_config(tmp_path):
+    ckpt = tmp_path / "AGREE_AR.pt"
+    ckpt.write_bytes(b"not a real checkpoint")
+    with pytest.raises(ValueError):
+        load_agree_audio(ckpt, "cpu", config_name="no_such_config")
