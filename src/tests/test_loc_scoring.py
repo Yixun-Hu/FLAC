@@ -26,6 +26,7 @@ from src.localization.scoring import (
     predict_index,
     softmax_map,
     success_within,
+    summarize,
     uniform_baseline,
 )
 
@@ -430,3 +431,101 @@ def test_power_statistic_requires_two_candidates_and_two_samples():
         power_statistic(torch.tensor([[0.1], [0.2]]))        # K = 1
     with pytest.raises(ValueError):
         power_statistic(torch.tensor([0.1, 0.2]))            # not [M, K]
+
+
+# --------------------------------------------------------------------------- #
+# summarize -- pooled primary (C3) + labelled per-room secondaries
+# --------------------------------------------------------------------------- #
+_RECORDS = [
+    {"query_id": "q0", "room_id": "A/A_idx_0", "e_loc": 0.0, "top1": 1.0, "rr": 1.0},
+    {"query_id": "q1", "room_id": "A/A_idx_0", "e_loc": 2.0, "top1": 0.0, "rr": 0.5},
+    {"query_id": "q2", "room_id": "B/B_idx_1", "e_loc": 3.0, "top1": 0.0, "rr": 0.25},
+]
+
+
+def test_summarize_pooled_primary_and_secondaries():
+    out = summarize(_RECORDS, radii=(0.5, 1.0))
+    assert out["primary_name"] == "pooled_median_e_loc"
+    assert out["primary"] == pytest.approx(2.0)
+    assert out["n_queries"] == 3 and out["n_rooms"] == 2
+
+    pooled = out["pooled"]
+    assert pooled["median_e_loc"] == pytest.approx(2.0)
+    assert pooled["mean_e_loc"] == pytest.approx(5.0 / 3.0)
+    assert pooled["success"][0.5] == pytest.approx(1.0 / 3.0)
+    assert pooled["success"][1.0] == pytest.approx(1.0 / 3.0)
+    assert pooled["top1"] == pytest.approx(1.0 / 3.0)
+    assert pooled["mrr"] == pytest.approx(1.75 / 3.0)
+
+
+def test_summarize_per_room_and_macro():
+    out = summarize(_RECORDS, radii=(0.5, 1.0))
+    room_a = out["per_room"]["A/A_idx_0"]
+    assert room_a["n_queries"] == 2
+    assert room_a["median_e_loc"] == pytest.approx(1.0)       # median of [0, 2]
+    assert room_a["mean_e_loc"] == pytest.approx(1.0)
+    assert room_a["success"][1.0] == pytest.approx(0.5)
+    assert room_a["top1"] == pytest.approx(0.5)
+    assert room_a["mrr"] == pytest.approx(0.75)
+    assert out["per_room"]["B/B_idx_1"]["median_e_loc"] == pytest.approx(3.0)
+
+    macro = out["macro"]
+    assert macro["n_rooms"] == 2
+    assert macro["mean_of_room_medians"] == pytest.approx(2.0)
+    assert macro["mean_of_room_means"] == pytest.approx(2.0)
+    assert macro["success"][1.0] == pytest.approx(0.25)
+    assert macro["top1"] == pytest.approx(0.25)
+    assert macro["mrr"] == pytest.approx(0.5)
+
+
+def test_summarize_median_matches_numpy_for_even_counts():
+    import numpy as np
+    values = [1.0, 2.0, 3.0, 4.0]
+    recs = [{"room_id": "A/A_idx_0", "e_loc": v} for v in values]
+    assert summarize(recs)["primary"] == pytest.approx(float(np.median(values)))
+
+
+def test_summarize_weights_baseline_distance_lists_by_one_over_m():
+    """A baseline record carries the whole per-candidate distance list; each
+    candidate gets weight 1/M so the query still counts once (identical
+    weighting to a FLAC record, which is the degenerate M=1 case)."""
+    recs = [
+        {"query_id": "b0", "room_id": "A/A_idx_0", "distances": [0.0, 2.0, 4.0]},
+        {"query_id": "b1", "room_id": "A/A_idx_0", "e_loc": 1.0},
+    ]
+    out = summarize(recs, radii=(1.0,))
+    assert out["primary"] == pytest.approx(1.0)
+    assert out["pooled"]["mean_e_loc"] == pytest.approx(1.5)
+    assert out["pooled"]["success"][1.0] == pytest.approx(2.0 / 3.0)
+
+
+def test_summarize_singleton_distance_list_equals_scalar_record():
+    a = summarize([{"room_id": "A/A_idx_0", "distances": [2.5]}], radii=(1.0, 5.0))
+    b = summarize([{"room_id": "A/A_idx_0", "e_loc": 2.5}], radii=(1.0, 5.0))
+    assert a["pooled"] == b["pooled"] and a["primary"] == b["primary"]
+
+
+def test_summarize_optional_fields_absent_report_none():
+    recs = [{"room_id": "A/A_idx_0", "e_loc": 1.0}, {"room_id": "B/B_idx_1", "e_loc": 2.0}]
+    out = summarize(recs)
+    assert out["pooled"]["top1"] is None and out["pooled"]["mrr"] is None
+    assert out["macro"]["top1"] is None and out["per_room"]["A/A_idx_0"]["top1"] is None
+
+
+def test_summarize_rejects_partially_present_optional_fields():
+    recs = [{"room_id": "A/A_idx_0", "e_loc": 1.0, "top1": 1.0},
+            {"room_id": "A/A_idx_0", "e_loc": 2.0}]
+    with pytest.raises(ValueError):
+        summarize(recs)
+
+
+@pytest.mark.parametrize("bad", [
+    [],                                                             # no records
+    [{"room_id": "A/A_idx_0"}],                                     # neither e_loc nor distances
+    [{"room_id": "A/A_idx_0", "e_loc": 1.0, "distances": [1.0]}],   # ambiguous
+    [{"e_loc": 1.0}],                                               # no room key
+    [{"room_id": "A/A_idx_0", "distances": []}],                    # empty list
+])
+def test_summarize_rejects_malformed_records(bad):
+    with pytest.raises(ValueError):
+        summarize(bad)

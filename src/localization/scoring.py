@@ -8,6 +8,7 @@ import hashlib
 import json
 import math
 
+import numpy as np
 import torch
 
 #: tolerance on ``|‖v‖ - 1|`` for the cosine-similarity norm guard.
@@ -222,3 +223,130 @@ def power_statistic(sims):
     between = torch.var(s.mean(dim=-1))
     within = torch.var(s, dim=-1).mean()
     return float(between / within)
+
+
+#: name of the registered primary metric (plan §2.6).
+PRIMARY_NAME = "pooled_median_e_loc"
+DEFAULT_RADII = (0.5, 1.0)
+ROOM_KEY = "room_id"
+
+
+def _record_values(rec):
+    """``(values, weights)`` of one query record; every query weighs 1 in total.
+
+    A FLAC record carries one ``e_loc``; a baseline record carries the whole
+    per-candidate ``distances`` list, each candidate weighted 1/M -- so both are
+    summarized under identical conventions.
+    """
+    if not isinstance(rec, dict) or ROOM_KEY not in rec:
+        raise ValueError(f"record must be a dict with a {ROOM_KEY!r} key, got {rec!r}")
+    has_dist, has_e = "distances" in rec, "e_loc" in rec
+    if has_dist == has_e:
+        raise ValueError(f"record needs exactly one of 'e_loc' / 'distances': {rec!r}")
+    if has_dist:
+        values = np.asarray(rec["distances"], dtype=np.float64).reshape(-1)
+        if values.size == 0:
+            raise ValueError(f"record has an empty 'distances' list: {rec!r}")
+    else:
+        values = np.asarray([float(rec["e_loc"])], dtype=np.float64)
+    return values, np.full(values.shape, 1.0 / values.size, dtype=np.float64)
+
+
+def _weighted_median(values, weights):
+    """Weighted median; reduces exactly to ``np.median`` for equal weights."""
+    order = np.argsort(values, kind="stable")
+    v, w = values[order], weights[order]
+    cum = np.cumsum(w)
+    half = 0.5 * cum[-1]
+    i = int(np.searchsorted(cum, half, side="left"))
+    if i + 1 < v.size and abs(cum[i] - half) <= 1e-12 * cum[-1]:
+        return float(0.5 * (v[i] + v[i + 1]))
+    return float(v[i])
+
+
+def _weighted_mean(values, weights):
+    return float(np.sum(values * weights) / np.sum(weights))
+
+
+def _optional_column(records, key):
+    """Per-query column for an optional field: ``None`` if absent everywhere,
+    ``ValueError`` if only some records carry it (silent mixing would bias it)."""
+    present = [key in rec for rec in records]
+    if all(present):
+        return np.asarray([float(rec[key]) for rec in records], dtype=np.float64)
+    if any(present):
+        raise ValueError(f"field {key!r} is present in only {sum(present)}/{len(records)} records")
+    return None
+
+
+def _block(values, weights, radii, top1, rr, n_queries):
+    return {
+        "n_queries": n_queries,
+        "median_e_loc": _weighted_median(values, weights),
+        "mean_e_loc": _weighted_mean(values, weights),
+        "success": {float(r): _weighted_mean((values <= float(r)).astype(np.float64), weights)
+                    for r in radii},
+        "top1": None if top1 is None else float(np.mean(top1)),
+        "mrr": None if rr is None else float(np.mean(rr)),
+    }
+
+
+def summarize(records, radii=DEFAULT_RADII):
+    """Pooled primary + labelled secondaries over per-query records.
+
+    Primary (C3) is the pooled median ``e_loc`` over all query records; pooled
+    mean and success@r accompany it. Secondaries are labelled: per-room stats
+    (``room_id`` = ``scene/scene_id``), the equal-room macro averages including
+    the mean of per-room medians, top-1 accuracy and the MRR of the GT candidate.
+    Baseline records are summarized through this same function, so the weighting
+    and the boundary conventions are identical by construction.
+    """
+    records = list(records)
+    if not records:
+        raise ValueError("summarize needs at least one record")
+    for r in radii:
+        if float(r) < 0.0:
+            raise ValueError(f"radius must be >= 0, got {r}")
+
+    per_query = [_record_values(rec) for rec in records]
+    top1 = _optional_column(records, "top1")
+    rr = _optional_column(records, "rr")
+
+    values = np.concatenate([v for v, _ in per_query])
+    weights = np.concatenate([w for _, w in per_query])
+    pooled = _block(values, weights, radii, top1, rr, len(records))
+
+    rooms = {}
+    for idx, rec in enumerate(records):
+        rooms.setdefault(str(rec[ROOM_KEY]), []).append(idx)
+    per_room = {}
+    for room in sorted(rooms):
+        idxs = rooms[room]
+        per_room[room] = _block(
+            np.concatenate([per_query[i][0] for i in idxs]),
+            np.concatenate([per_query[i][1] for i in idxs]),
+            radii,
+            None if top1 is None else top1[idxs],
+            None if rr is None else rr[idxs],
+            len(idxs),
+        )
+
+    blocks = list(per_room.values())
+    macro = {
+        "n_rooms": len(per_room),
+        "mean_of_room_medians": float(np.mean([b["median_e_loc"] for b in blocks])),
+        "mean_of_room_means": float(np.mean([b["mean_e_loc"] for b in blocks])),
+        "success": {float(r): float(np.mean([b["success"][float(r)] for b in blocks]))
+                    for r in radii},
+        "top1": None if top1 is None else float(np.mean([b["top1"] for b in blocks])),
+        "mrr": None if rr is None else float(np.mean([b["mrr"] for b in blocks])),
+    }
+    return {
+        "primary_name": PRIMARY_NAME,
+        "primary": pooled["median_e_loc"],
+        "pooled": pooled,
+        "per_room": per_room,
+        "macro": macro,
+        "n_queries": len(records),
+        "n_rooms": len(per_room),
+    }
