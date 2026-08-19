@@ -16,3 +16,4 @@
 | `4665018` | r1 TDD cycle 7: `resample_and_write` + amplitude audit, runtime metadata emission, prepare CLI (56 tests) |
 | `59495a5` | r1 TDD cycle 8: `render_depth` (open3d raycast, abort-on-miss) + per-map QA + CLI; hand-derived six-wall oracle (18 tests) |
 | `e2fba7c` | r1 TDD cycle 9: `RAF_md` scene/poses/depth (no flipud) + bounded per-worker JSON + depth caches (15 tests) |
+| `b8ae279` | r1 TDD cycle 10: RAF_md context (train stochastic / eval deterministic), provenance tensors, collation contract (30 tests) |
