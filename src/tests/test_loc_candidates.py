@@ -16,6 +16,8 @@ import numpy as np
 import pytest
 
 from src.localization.candidates import (
+    CandidateSet,
+    build_candidate_set,
     enumerate_metadata_sources,
     find_pair_metadata,
     parse_ir_filename,
@@ -228,3 +230,81 @@ def test_project_to_camera_rejects_bad_shape():
         project_to_camera([0.0, 0.0], [1.0, 2.0, 3.0])
     with pytest.raises(ValueError):
         project_to_camera([0.0, 0.0, 0.0], [1.0, 2.0])
+
+
+# --------------------------------------------------------------------------- #
+# CandidateSet / build_candidate_set
+# --------------------------------------------------------------------------- #
+def _ir_path(tmp_path, src, rec, scene="Cafe", scene_id="Cafe_idx_1"):
+    d = tmp_path / "single_channel_ir_1" / scene / scene_id
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / f"S00{src}_R00{rec}_hybrid_IR.wav"
+    p.write_bytes(b"")
+    return str(p)
+
+
+def test_build_candidate_set_from_fixture_room(tmp_path):
+    _build_room(tmp_path)                                    # tmp/metadata/Cafe/Cafe_idx_1
+    cs = build_candidate_set(_ir_path(tmp_path, 7, 3), tmp_path / "metadata")
+
+    assert cs.nodes == [0, 7, 10]                            # sorted by node id
+    assert cs.xyz_world.shape == (3, 3) and cs.xyz_world.dtype == np.float64
+    for row, node in zip(cs.xyz_world, cs.nodes):
+        np.testing.assert_array_equal(row, np.asarray(_SRC_LOCS[node], dtype=np.float64))
+    np.testing.assert_array_equal(cs.rec_loc, np.asarray(_REC_LOCS[3], dtype=np.float64))
+    assert cs.gt_node == 7
+    np.testing.assert_array_equal(cs.gt_xyz, np.asarray(_SRC_LOCS[7], dtype=np.float64))
+
+
+def test_build_candidate_set_order_is_deterministic(tmp_path):
+    _build_room(tmp_path)
+    a = build_candidate_set(_ir_path(tmp_path, 7, 3), tmp_path / "metadata")
+    b = build_candidate_set(_ir_path(tmp_path, 0, 3), tmp_path / "metadata")
+    assert a.nodes == b.nodes
+    np.testing.assert_array_equal(a.xyz_world, b.xyz_world)
+
+
+def test_build_candidate_set_gt_missing_from_metadata_raises(tmp_path):
+    _build_room(tmp_path)
+    with pytest.raises(ValueError):
+        build_candidate_set(_ir_path(tmp_path, 99, 3), tmp_path / "metadata")
+
+
+def test_build_candidate_set_missing_gt_pair_json_raises(tmp_path):
+    """The GT pair JSON carries rec_loc; without it the query has no frame."""
+    room = _build_room(tmp_path)
+    os.remove(room / "S007_R003.json")
+    with pytest.raises(ValueError):
+        build_candidate_set(_ir_path(tmp_path, 7, 3), tmp_path / "metadata")
+
+
+def test_build_candidate_set_rejects_bad_ir_name(tmp_path):
+    _build_room(tmp_path)
+    bad = tmp_path / "single_channel_ir_1" / "Cafe" / "Cafe_idx_1" / "junk.wav"
+    bad.parent.mkdir(parents=True, exist_ok=True)
+    bad.write_bytes(b"")
+    with pytest.raises(ValueError):
+        build_candidate_set(str(bad), tmp_path / "metadata")
+
+
+def test_candidate_set_asserts_gt_membership():
+    nodes, xyz = [0, 7], np.array([[0.0, 0.0, 1.0], [1.5, -2.0, 1.25]])
+    rec = np.array([0.25, 0.5, 1.0])
+    CandidateSet(nodes=nodes, xyz_world=xyz, rec_loc=rec, gt_node=7, gt_xyz=xyz[1])
+    with pytest.raises(ValueError):                          # GT node not in C
+        CandidateSet(nodes=nodes, xyz_world=xyz, rec_loc=rec, gt_node=9, gt_xyz=xyz[1])
+    with pytest.raises(ValueError):                          # GT xyz != its row
+        CandidateSet(nodes=nodes, xyz_world=xyz, rec_loc=rec, gt_node=7,
+                     gt_xyz=np.array([1.5, -2.0, 9.0]))
+
+
+def test_candidate_set_rejects_unsorted_or_mismatched(tmp_path):
+    xyz = np.array([[0.0, 0.0, 1.0], [1.5, -2.0, 1.25]])
+    rec = np.array([0.25, 0.5, 1.0])
+    with pytest.raises(ValueError):                          # not sorted
+        CandidateSet(nodes=[7, 0], xyz_world=xyz[::-1].copy(), rec_loc=rec,
+                     gt_node=7, gt_xyz=xyz[1])
+    with pytest.raises(ValueError):                          # duplicate node
+        CandidateSet(nodes=[7, 7], xyz_world=xyz, rec_loc=rec, gt_node=7, gt_xyz=xyz[1])
+    with pytest.raises(ValueError):                          # len(nodes) != rows
+        CandidateSet(nodes=[0], xyz_world=xyz, rec_loc=rec, gt_node=0, gt_xyz=xyz[0])

@@ -8,6 +8,7 @@ listing and match numerically instead of reconstructing one fixed name format.
 import json
 import os
 import re
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -115,3 +116,78 @@ def project_to_camera(rec_loc, xyz):
     the candidate conditioning reproduces ``md['source']`` bit-exactly.
     """
     return _xyz(xyz, "xyz") - _xyz(rec_loc, "rec_loc")
+
+
+@dataclass
+class CandidateSet:
+    """The metadata-defined candidate set C of one query (GT included).
+
+    ``nodes`` is sorted ascending and ``xyz_world[i]`` is the world position of
+    ``nodes[i]``; the order is therefore deterministic across runs and machines.
+    """
+    nodes: list
+    xyz_world: np.ndarray
+    rec_loc: np.ndarray
+    gt_node: int
+    gt_xyz: np.ndarray
+
+    def __post_init__(self):
+        self.nodes = [int(n) for n in self.nodes]
+        self.xyz_world = np.asarray(self.xyz_world, dtype=np.float64)
+        self.rec_loc = _xyz(self.rec_loc, "rec_loc")
+        self.gt_node = int(self.gt_node)
+        self.gt_xyz = _xyz(self.gt_xyz, "gt_xyz")
+        if self.xyz_world.ndim != 2 or self.xyz_world.shape[1] != 3:
+            raise ValueError(f"xyz_world must be [M, 3], got shape {self.xyz_world.shape}")
+        if len(self.nodes) != self.xyz_world.shape[0]:
+            raise ValueError(
+                f"nodes ({len(self.nodes)}) and xyz_world ({self.xyz_world.shape[0]}) disagree")
+        if self.nodes != sorted(set(self.nodes)):
+            raise ValueError(f"nodes must be sorted and unique, got {self.nodes}")
+        if self.gt_node not in self.nodes:
+            raise ValueError(f"GT node {self.gt_node} is not in the candidate set {self.nodes}")
+        row = self.xyz_world[self.nodes.index(self.gt_node)]
+        if not np.array_equal(row, self.gt_xyz):
+            raise ValueError(
+                f"gt_xyz {self.gt_xyz.tolist()} != candidate row {row.tolist()} for node {self.gt_node}")
+
+    @property
+    def gt_index(self):
+        return self.nodes.index(self.gt_node)
+
+    def __len__(self):
+        return len(self.nodes)
+
+
+def build_candidate_set(ir_path, metadata_path):
+    """Candidate set for the query IR at ``ir_path``.
+
+    ``metadata_path`` is the dataset's ``metadata`` root; the room directory is
+    ``<metadata_path>/<scene>/<scene_id>/``, derived from ``ir_path`` exactly as
+    the release loader derives it.
+    """
+    ir_path = str(ir_path)
+    gt_node, rec_node = parse_ir_filename(ir_path)
+    parts = ir_path.replace(os.sep, "/").split("/")
+    if len(parts) < 3:
+        raise ValueError(f"ir_path must contain <scene>/<scene_id>/<file>: {ir_path}")
+    scene, scene_id = parts[-3], parts[-2]
+    room_dir = os.path.join(str(metadata_path), scene, scene_id)
+
+    sources = enumerate_metadata_sources(room_dir)
+    if gt_node not in sources:
+        raise ValueError(
+            f"GT source {gt_node} of {os.path.basename(ir_path)} is absent from {room_dir}")
+    pair_path = find_pair_metadata(room_dir, gt_node, rec_node)
+    if pair_path is None:
+        raise ValueError(f"no pair metadata for S{gt_node}_R{rec_node} in {room_dir}")
+    rec_loc = _loc_array(_load_pair(pair_path), "rec_loc", pair_path)
+
+    nodes = sorted(sources)
+    return CandidateSet(
+        nodes=nodes,
+        xyz_world=np.stack([sources[n] for n in nodes], axis=0),
+        rec_loc=rec_loc,
+        gt_node=gt_node,
+        gt_xyz=sources[gt_node],
+    )
