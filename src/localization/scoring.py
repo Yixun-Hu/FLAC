@@ -4,6 +4,8 @@ No I/O, no model, no global RNG: everything here is a deterministic function of
 its arguments, so the driver's numbers can be re-derived offline from the logged
 similarities.
 """
+import hashlib
+import json
 import math
 
 import torch
@@ -187,3 +189,36 @@ def nearest_context_baseline(cand_xyz, ctx_xyz, ctx_sims):
         raise ValueError(f"ctx_sims has {sims.numel()} entries for {ctx.shape[0]} context sources")
     best_ctx = predict_index(sims)
     return predict_index(-torch.linalg.norm(cand - ctx[best_ctx], dim=-1))
+
+
+def noise_key(seed, query_id, k):
+    """Deterministic ``torch.Generator`` seed for sample ``k`` of ``query_id``.
+
+    sha256 over a canonical JSON payload -- never Python's ``hash()``, which is
+    salted per interpreter -- so the noise bank is identical across processes,
+    machines and resumed runs, and the K draws are shared across candidates
+    (common random numbers, C10).
+    """
+    payload = json.dumps(
+        ["loc_invert_noise_key", int(seed), str(query_id), int(k)], separators=(",", ":"))
+    digest = hashlib.sha256(payload.encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big") & ((1 << 63) - 1)
+
+
+def power_statistic(sims):
+    """Between- over within-candidate variance of ``sims`` ``[M, K]`` (plan §2.8.2).
+
+    ``var_m(mean_k s_{m,k}) / mean_m(var_k s_{m,k})`` with unbiased variances:
+    with common random numbers this must exceed 1 for candidate identity -- not
+    sampling noise -- to be what moves the similarities.
+    """
+    if sims.ndim != 2:
+        raise ValueError(f"sims must be [M, K], got shape {tuple(sims.shape)}")
+    if sims.shape[0] < 2:
+        raise ValueError("power_statistic needs at least 2 candidates")
+    if sims.shape[1] < 2:
+        raise ValueError("power_statistic needs at least 2 samples per candidate")
+    s = sims.double()
+    between = torch.var(s.mean(dim=-1))
+    within = torch.var(s, dim=-1).mean()
+    return float(between / within)

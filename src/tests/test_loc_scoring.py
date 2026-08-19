@@ -8,9 +8,12 @@ room-clustered (paired) bootstrap statistics, the wiring power statistic and the
 cross-platform-stable noise key.
 """
 import math
+import os
 
 import pytest
 import torch
+
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.localization.scoring import (
     aggregate,
@@ -18,6 +21,8 @@ from src.localization.scoring import (
     cosine_sims,
     localization_error,
     nearest_context_baseline,
+    noise_key,
+    power_statistic,
     predict_index,
     softmax_map,
     success_within,
@@ -335,3 +340,93 @@ def test_nearest_context_baseline_rejects_bad_shapes():
         nearest_context_baseline(_CAND, _CTX, torch.tensor([0.5]))                # len mismatch
     with pytest.raises(ValueError):
         nearest_context_baseline(_CAND, torch.zeros(0, 3), torch.zeros(0))        # empty context
+
+
+# --------------------------------------------------------------------------- #
+# noise_key -- deterministic, cross-platform-stable generator seeds (C10)
+# --------------------------------------------------------------------------- #
+def test_noise_key_pinned_golden_values():
+    """Pinned by the canonical payload ``["loc_invert_noise_key", seed, query_id, k]``
+    hashed with sha256 (first 8 bytes, top bit cleared). These literals are the
+    cross-platform contract: any change to the derivation breaks resumability."""
+    assert noise_key(42, "Cafe/Cafe_idx_1/S008_R089", 0) == 4131827329579807174
+    assert noise_key(42, "Cafe/Cafe_idx_1/S008_R089", 7) == 1203058009045468154
+    assert noise_key(0, "a", 0) == 6625936037822441059
+
+
+def test_noise_key_is_stable_across_interpreter_hash_seeds():
+    """Not Python's ``hash()``: PYTHONHASHSEED must not change the key."""
+    import subprocess
+    import sys
+    code = (
+        "import sys; sys.path.insert(0, %r);"
+        "from src.localization.scoring import noise_key;"
+        "print(noise_key(42, 'Cafe/Cafe_idx_1/S008_R089', 3))" % _REPO_ROOT
+    )
+    outs = []
+    for hash_seed in ("0", "1", "12345"):
+        env = dict(os.environ, PYTHONHASHSEED=hash_seed)
+        outs.append(subprocess.run([sys.executable, "-c", code], env=env, check=True,
+                                   capture_output=True, text=True).stdout.strip())
+    assert len(set(outs)) == 1
+    assert int(outs[0]) == noise_key(42, "Cafe/Cafe_idx_1/S008_R089", 3)
+
+
+def test_noise_key_no_collisions_over_a_grid():
+    keys = [noise_key(seed, qid, k)
+            for seed in (0, 1, 42, 43, 44)
+            for qid in ("a", "b", "1", "12", "S008_R089", "Cafe/Cafe_idx_1/S008_R089")
+            for k in range(8)]
+    assert len(set(keys)) == len(keys)
+
+
+def test_noise_key_depends_on_k_and_query_id_independently():
+    assert noise_key(42, "q", 1) != noise_key(42, "q", 2)
+    assert noise_key(42, "q1", 1) != noise_key(42, "q2", 1)
+    assert noise_key(42, "q", 1) != noise_key(43, "q", 1)
+    # no field-boundary aliasing: ("1", 2) must not collide with ("1|2", 0) etc.
+    assert noise_key(42, "1", 2) != noise_key(42, "12", 0)
+    assert noise_key(42, "1", 2) != noise_key(42, "1|2", 0)
+
+
+def test_noise_key_is_usable_as_a_torch_generator_seed():
+    key = noise_key(42, "Cafe/Cafe_idx_1/S008_R089", 3)
+    assert isinstance(key, int) and 0 <= key < 2 ** 63
+    a = torch.randn(4, generator=torch.Generator().manual_seed(key))
+    b = torch.randn(4, generator=torch.Generator().manual_seed(key))
+    assert torch.equal(a, b)
+
+
+def test_noise_key_normalizes_argument_types():
+    assert noise_key(42, "q", 1) == noise_key(42, "q", True)      # bool -> int 1
+    assert noise_key(True, "q", 1) == noise_key(1, "q", 1)
+
+
+# --------------------------------------------------------------------------- #
+# power_statistic -- wiring control (plan §2.8.2)
+# --------------------------------------------------------------------------- #
+def test_power_statistic_hand_example():
+    """var_m(mean_k s) / mean_m(var_k s) with unbiased variances:
+    means [0.1, 1.2] -> var 0.605; per-candidate vars [0.02, 0.08] -> mean 0.05."""
+    sims = torch.tensor([[0.0, 0.2], [1.0, 1.4]])
+    assert power_statistic(sims) == pytest.approx(0.605 / 0.05, rel=1e-6)
+
+
+def test_power_statistic_is_large_when_candidate_identity_dominates():
+    identity_driven = torch.tensor([[0.90, 0.91], [0.10, 0.11]])
+    noise_driven = torch.tensor([[0.90, 0.10], [0.91, 0.11]])
+    assert power_statistic(identity_driven) > 100.0
+    assert power_statistic(noise_driven) < 1e-2
+
+
+def test_power_statistic_zero_within_variance_is_infinite():
+    assert math.isinf(power_statistic(torch.tensor([[0.5, 0.5], [0.9, 0.9]])))
+
+
+def test_power_statistic_requires_two_candidates_and_two_samples():
+    with pytest.raises(ValueError):
+        power_statistic(torch.tensor([[0.1, 0.2]]))          # M = 1
+    with pytest.raises(ValueError):
+        power_statistic(torch.tensor([[0.1], [0.2]]))        # K = 1
+    with pytest.raises(ValueError):
+        power_statistic(torch.tensor([0.1, 0.2]))            # not [M, K]
