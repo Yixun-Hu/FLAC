@@ -15,6 +15,7 @@ duplicates none of it. The model build, EMA remap and sampling follow
 ``eval_FLAC.evaluate_model``'s lines of record; ``parity_check_one_query`` is the
 standing proof of that (C8).
 """
+import argparse
 import hashlib
 import json
 import os
@@ -25,8 +26,8 @@ import numpy as np
 import torch
 import torchaudio
 
-from eval_FLAC import (CONTEXT_ID_PRECISION, orbit_provenance, sample_target_id,
-                       source_sha)
+from eval_FLAC import (CONTEXT_ID_PRECISION, orbit_provenance, resolve_are_from_checkpoint,
+                       sample_target_id, source_sha)
 from src.localization.agree_embed import MAX_LEN
 from src.localization.candidates import (assert_gt_matches_loader, candidate_metadata,
                                          parse_ir_filename, project_to_camera)
@@ -614,3 +615,80 @@ def run_query_gt_rir(engine, cand_set, room_wav_dir, receiver_node, obs_wav):
     return {"sims": sims, "available": available, "cand_cam_xyz": candidate_camera_positions(cand_set),
             "identity_index": gt_index if available[gt_index] else None,
             "num_candidates": len(cand_set.nodes), "num_samples": 1}
+
+
+def parse_args(argv=None):
+    """CLI for the exp_18 driver; the registered defaults are the plan's §2.3 pins."""
+    parser = argparse.ArgumentParser(
+        description="exp_18 loc_invert: source localization by analysis-by-synthesis inversion")
+    parser.add_argument("--model-config", required=True)
+    parser.add_argument("--dataset-config", required=True)
+    parser.add_argument("--ckpt-path", required=True)
+    parser.add_argument("--agree-ckpt", required=True)
+    parser.add_argument("--num-samples", type=int, required=True, help="K samples per candidate")
+    parser.add_argument("--tau", type=float, default=0.02)
+    parser.add_argument("--agg", choices=["lme", "mean", "max"], default="lme")
+    parser.add_argument("--steps", type=int, default=1)
+    parser.add_argument("--cfg-scale", type=float, default=1.0)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--cond-method", choices=["vanilla", "fa_invariant"], default="vanilla")
+    parser.add_argument("--frame-avg-angles", type=float, nargs="+", default=None)
+    parser.add_argument("--rotate-deg", type=float, default=0.0)
+    parser.add_argument("--cond-autocast", choices=["default", "bf16", "off"], default="default")
+    parser.add_argument("--score-source", choices=["flac", "gt_rir"], default="flac")
+    parser.add_argument("--control", choices=["none", "constant_source"], default="none")
+    parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument("--num-workers", type=int, default=6)
+    parser.add_argument("--out-dir", default="worklog/worklog_yixun/exp_18_loc_invert_claude")
+    parser.add_argument("--eval-name", default="exp18_loc_invert")
+    parser.add_argument("--smoke", action="store_true")
+    parser.add_argument("--max-queries", type=int, default=None)
+    parser.add_argument("--parity-check", action="store_true",
+                        help="run the one-query eval_FLAC parity harness and exit (C8)")
+    parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    return parser.parse_args(argv)
+
+
+def _refuse(message):
+    raise SystemExit(f"exp_18 loc_invert REFUSED: {message}")
+
+
+def validate_args(args):
+    """Every fail-closed rule that can be checked before touching a file or a GPU."""
+    if float(args.rotate_deg) != 0.0:
+        _refuse(f"--rotate-deg {args.rotate_deg} is not implemented in this driver; the "
+                "registered protocol is rotate_deg=0 (announcement 05)")
+    if args.max_queries is not None and not args.smoke:
+        _refuse("--max-queries truncates the split and is only allowed with --smoke, so a "
+                "truncated run can never be mistaken for a headline artifact")
+    if args.agg == "lme" and (args.tau is None or float(args.tau) <= 0.0):
+        _refuse(f"--tau must be > 0 for --agg lme, got {args.tau}")
+    if int(args.num_samples) < 1:
+        _refuse(f"--num-samples (K) must be >= 1, got {args.num_samples}")
+    if int(args.batch_size) < 1:
+        _refuse(f"--batch-size must be >= 1, got {args.batch_size}")
+    return args
+
+
+def assert_rectified_flow(model_config):
+    """The registered generator is rectified flow; anything else is another model."""
+    objective = ((model_config or {}).get("model") or {}).get("diffusion", {}) \
+        .get("diffusion_objective")
+    if objective != "rectified_flow":
+        _refuse(f"model config declares diffusion_objective={objective!r}; this driver "
+                "evaluates the registered rectified-flow generator only")
+
+
+def assert_no_are(embedded_model_config, file_model_config):
+    """Refuse ARE checkpoints: the sampler emits a residual there, so its samples
+    are not the quantity this protocol scores (C5/C8)."""
+    try:
+        are_lambda, source, _anchor = resolve_are_from_checkpoint(
+            embedded_model_config, file_model_config, None)
+    except ValueError as err:
+        # ARE is in play but unresolvable (e.g. no embedded config to bind to).
+        # Either way this driver will not run it; surface it as a startup refusal.
+        _refuse(f"ARE checkpoint check failed: {err}")
+    if are_lambda is not None:
+        _refuse(f"the checkpoint declares ARE (lambda={are_lambda}, source={source}); exp_18 "
+                "scores vanilla FLAC samples, not anchor residuals")

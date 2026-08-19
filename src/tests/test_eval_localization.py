@@ -795,3 +795,82 @@ def test_load_measured_rirs_pads_and_truncates_to_max_len(tmp_path):
     wavs, available, _paths = el.load_measured_rirs(room, _cand_set(), 11)
     assert tuple(wavs.shape) == (2, 1, MAX_LEN) and available == [True, True, False]
     assert torch.all(wavs[0, 0, 100:] == 0.0)
+
+
+# --------------------------------------------------------------------------- #
+# CLI + startup guards  (unit h, part 1) -- every fail-closed rule must fire
+# before any file/model/GPU work (announcement 05).
+# --------------------------------------------------------------------------- #
+_CLI = ["--model-config", "m.json", "--dataset-config", "d.json",
+        "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt", "--num-samples", "8"]
+
+
+def test_parse_args_defaults_match_the_registered_protocol():
+    args = el.parse_args(_CLI)
+    assert args.num_samples == 8 and args.agg == "lme"
+    assert args.steps == 1 and args.cfg_scale == 1.0 and args.seed == 42
+    assert args.cond_method == "vanilla" and args.rotate_deg == 0.0
+    assert args.cond_autocast == "default" and args.score_source == "flac"
+    assert args.control == "none" and args.smoke is False and args.max_queries is None
+    assert args.batch_size > 0 and args.num_workers >= 0
+
+
+def test_parse_args_requires_num_samples():
+    with pytest.raises(SystemExit):
+        el.parse_args(_CLI[:-2])
+
+
+@pytest.mark.parametrize("flag,value", [("--agg", "median"), ("--cond-method", "canon"),
+                                        ("--score-source", "measured"), ("--control", "shuffle"),
+                                        ("--cond-autocast", "fp8")])
+def test_parse_args_rejects_unknown_choices(flag, value):
+    with pytest.raises(SystemExit):
+        el.parse_args(_CLI + [flag, value])
+
+
+def test_validate_args_refuses_nonzero_rotation():
+    """Rotation is unimplemented here by design: silently ignoring it would put a
+    rotated-conditioning number under an unrotated protocol label."""
+    with pytest.raises(SystemExit):
+        el.validate_args(el.parse_args(_CLI + ["--rotate-deg", "90"]))
+
+
+def test_validate_args_refuses_max_queries_without_smoke():
+    with pytest.raises(SystemExit):
+        el.validate_args(el.parse_args(_CLI + ["--max-queries", "4"]))
+    el.validate_args(el.parse_args(_CLI + ["--max-queries", "4", "--smoke"]))
+
+
+@pytest.mark.parametrize("tau", ["0", "-0.02"])
+def test_validate_args_refuses_nonpositive_tau_for_lme(tau):
+    with pytest.raises(SystemExit):
+        el.validate_args(el.parse_args(_CLI + ["--tau", tau]))
+    el.validate_args(el.parse_args(_CLI + ["--tau", tau, "--agg", "max"]))   # tau unused
+
+
+def test_validate_args_accepts_the_registered_configuration():
+    args = el.parse_args(_CLI + ["--tau", "0.05", "--eval-name", "exp18_R2"])
+    assert el.validate_args(args) is args
+
+
+def test_assert_rectified_flow_guard():
+    el.assert_rectified_flow({"model": {"diffusion": {"diffusion_objective": "rectified_flow"}}})
+    for bad in ({"model": {"diffusion": {"diffusion_objective": "v"}}},
+                {"model": {"diffusion": {}}}, {}):
+        with pytest.raises(SystemExit):
+            el.assert_rectified_flow(bad)
+
+
+def test_assert_no_are_guard():
+    """An ARE checkpoint carries a residual objective; scoring it as if it were
+    vanilla FLAC would compare two different generative processes."""
+    plain = {"model": {"diffusion": {"diffusion_objective": "rectified_flow"}}, "training": {}}
+    el.assert_no_are(None, plain)
+    el.assert_no_are(plain, plain)
+    # ARE is declared under training.are_lambda / training.are_anchor (eval_FLAC:195)
+    are_config = {"model": {"diffusion": {"diffusion_objective": "rectified_flow"}},
+                  "training": {"are_lambda": 0.5, "are_anchor": {"early_frames": 4}}}
+    with pytest.raises(SystemExit):
+        el.assert_no_are(are_config, are_config)
+    with pytest.raises(SystemExit):           # declared in the file config alone
+        el.assert_no_are(None, are_config)
