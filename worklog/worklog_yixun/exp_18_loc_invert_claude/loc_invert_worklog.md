@@ -168,3 +168,8 @@
   1. **Timestamp drift:** the five entries stamped `2026-08-19T23:50` through `2026-08-20T00:50` were actually written ≈18:40–19:15 EDT on 2026-08-19 (the Planner extrapolated timestamps instead of reading the clock; commit timestamps are authoritative). This notebook is append-only, so the originals stand with this erratum. Lesson: run `date` before stamping every entry.
   2. **Whole-index commit swept a peer file:** commit `9627449` (`git add -u` + unscoped `git commit`) captured 189 lines of exp_19's staged-in-flight `src/tests/test_raf_md.py`. Content intact and green at HEAD; no history rewrite (peer concurs). **Practice fix, binding: every commit from this session is path-scoped (`git commit -- <paths>`)** — two sessions share this working tree and index.
 - **Next** — unchanged; r4 in flight (its scorer-noise commit `0693f59` already landed). GPU window per peer: GPU 1 free ≈19:45, GPU 0 ≈21:00–22:30 EDT.
+
+## 2026-08-19T19:58:00-0400 — Coordination update: GPU 1 frees ~20:15–20:20 (peer restarted Leg A)
+
+- **Result** — Peer's Leg A had a constant `--eval-name` overwriting its per-seed metric JSONs; killed + restarted with per-seed names (same defect class as our full-review F5, caught in their runner script). GPU 1 now frees ≈20:15–20:20 EDT and is then ours indefinitely; GPU 0 / Leg B unaffected (~21:00–22:30, its post-train eval stays on GPU 0).
+- **Analysis** — No exp_18 delay: the actual launch gate is the r4 focused review (~21:00 EDT), after which GPU 1 will already be free. Sequencing unchanged.
