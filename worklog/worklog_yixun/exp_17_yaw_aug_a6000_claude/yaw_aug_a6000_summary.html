@@ -1,0 +1,73 @@
+<!doctype html><meta charset="utf-8"><title>exp_17 — Yaw-Aug: C4 rotation robustness (AR, 40k budget)</title>
+<style>
+body{font:14px/1.5 system-ui;margin:2rem auto;max-width:72rem;padding:0 1rem;color:#1a1d21;background:#fff}
+h1{font-size:1.4rem} h2{font-size:1.05rem;margin-top:2rem}
+.tbl{overflow-x:auto} table{border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:.85rem}
+th,td{border:1px solid #d5d9df;padding:.3rem .55rem;text-align:right} th{background:#f2f4f7} td:first-child,th:first-child{text-align:left}
+p.meta{color:#5a6472;font-size:.85rem}
+</style>
+<h1>exp_17 — Yaw-Aug: C4 rotation robustness (AR, 40k budget)</h1>
+<p class="meta">Generated at closure from the committed results_*.md (themselves regenerable from raw metric JSONs). Analysis seat: Claude Fable 5; reviews: Codex gpt-5.6-sol.</p>
+<h2>Endpoint rows (unseen, 5 seeds)</h2><div class='tbl'><table><tr><th>Method</th><th>K</th><th>T60↓</th><th>C50↓</th><th>EDT↓</th><th>R@1↑</th><th>R@5↑</th><th>R@10↑</th><th>FD↓</th></tr>
+<tr><td>Vanilla FLAC (P1)</td><td>1</td><td>10.287 ± 0.026</td><td>1.0884 ± 0.0088</td><td>43.437 ± 0.397</td><td>4.990 ± 0.115</td><td>15.111 ± 0.129</td><td>22.509 ± 0.181</td><td>0.3186 ± 0.0005</td></tr>
+<tr><td>Per-angle FA (B-F)</td><td>1</td><td>9.543 ± 0.054</td><td>**1.0559 ± 0.0040**</td><td>**41.754 ± 0.347**</td><td>**5.166 ± 0.166**</td><td>**16.071 ± 0.241**</td><td>**23.721 ± 0.150**</td><td>0.3287 ± 0.0004</td></tr>
+<tr><td>**Yaw-Aug**</td><td>1</td><td>**9.397 ± 0.052**</td><td>1.0855 ± 0.0051</td><td>42.447 ± 0.379</td><td>5.031 ± 0.063</td><td>15.919 ± 0.256</td><td>23.166 ± 0.135</td><td>0.3223 ± 0.0004</td></tr>
+<tr><td>Vanilla FLAC (P1)</td><td>8</td><td>8.993 ± 0.011</td><td>1.0093 ± 0.0035</td><td>40.650 ± 0.101</td><td>5.173 ± 0.138</td><td>15.430 ± 0.197</td><td>23.409 ± 0.056</td><td>**0.3218 ± 0.0002**</td></tr>
+<tr><td>Per-angle FA (B-F)</td><td>8</td><td>8.202 ± 0.017</td><td>**0.9778 ± 0.0015**</td><td>**38.793 ± 0.074**</td><td>5.387 ± 0.075</td><td>16.456 ± 0.038</td><td>**24.198 ± 0.164**</td><td>0.3332 ± 0.0001</td></tr>
+<tr><td>**Yaw-Aug**</td><td>8</td><td>**7.965 ± 0.014**</td><td>1.0132 ± 0.0016</td><td>39.923 ± 0.057</td><td>**5.391 ± 0.097**</td><td>**16.563 ± 0.169**</td><td>23.961 ± 0.107</td><td>0.3247 ± 0.0003</td></tr>
+</table><table><tr><th>Method</th><th>K</th><th>T60↓</th><th>C50↓</th><th>EDT↓</th><th>R@1↑</th><th>R@5↑</th><th>R@10↑</th><th>FD↓</th></tr>
+<tr><td>Per-angle FA (B-F)</td><td>8</td><td>5.4848 ± 0.0194</td><td>**0.6272 ± 0.0011**</td><td>**26.6944 ± 0.0669**</td><td>**6.6656 ± 0.0629**</td><td>**18.6778 ± 0.1168**</td><td>**26.0125 ± 0.1638**</td><td>0.3217 ± 0.0001</td></tr>
+<tr><td>Vanilla FLAC (P1)</td><td>8</td><td>5.7340 ± 0.0084</td><td>0.6604 ± 0.0016</td><td>27.7053 ± 0.0376</td><td>6.0930 ± 0.1179</td><td>17.4586 ± 0.1358</td><td>24.6646 ± 0.1358</td><td>0.3195 ± 0.0003</td></tr>
+<tr><td>**Yaw-Aug**</td><td>8</td><td>**5.353 ± 0.015**</td><td>0.6555 ± 0.0012</td><td>27.207 ± 0.042</td><td>6.637 ± 0.091</td><td>18.610 ± 0.067</td><td>25.572 ± 0.133</td><td>**0.3131 ± 0.0003**</td></tr>
+<tr><td>Per-angle FA (B-F)</td><td>1</td><td>**6.5479 ± 0.0609**</td><td>**0.6861 ± 0.0055**</td><td>**29.4880 ± 0.1926**</td><td>**6.4340 ± 0.1452**</td><td>18.1084 ± 0.1574</td><td>**25.2501 ± 0.1673**</td><td>0.3190 ± 0.0001</td></tr>
+<tr><td>Vanilla FLAC (P1)</td><td>1</td><td>6.9327 ± 0.0725</td><td>0.7256 ± 0.0048</td><td>30.7589 ± 0.1845</td><td>5.9418 ± 0.1228</td><td>17.0275 ± 0.2387</td><td>24.0952 ± 0.2596</td><td>0.3164 ± 0.0005</td></tr>
+<tr><td>**Yaw-Aug**</td><td>1</td><td>6.605 ± 0.051</td><td>0.7158 ± 0.0035</td><td>30.176 ± 0.148</td><td>6.366 ± 0.135</td><td>**18.163 ± 0.177**</td><td>24.829 ± 0.172</td><td>**0.3111 ± 0.0002**</td></tr>
+</table><table><tr><th>K=8 @45°</th><th>T60</th><th>EDT</th><th>C50</th><th>R@1</th></tr>
+<tr><td>Yaw-Aug</td><td>7.996 (C4 band [7.940, 8.014])</td><td>40.523 (+0.27 above band)</td><td>1.020 (inside)</td><td>5.207 (inside)</td></tr>
+<tr><td>P1 (5-seed)</td><td>9.715</td><td>42.390</td><td>1.071</td><td>4.081</td></tr>
+</table><table></table></div>
+<h2>Per-angle 5-seed rows</h2><div class='tbl'><table><tr><th>Method</th><th>K</th><th>Yaw</th><th>T60 (%) ↓</th><th>C50 (dB) ↓</th><th>EDT (ms) ↓</th><th>R@1 (%) ↑</th><th>R@5 (%) ↑</th><th>R@10 (%) ↑</th><th>FD ↓</th></tr>
+<tr><td>Yaw-Aug FLAC (40k)</td><td>1</td><td>0°</td><td>9.397 ± 0.052</td><td>1.0855 ± 0.0051</td><td>42.447 ± 0.379</td><td>5.031 ± 0.063</td><td>15.919 ± 0.256</td><td>23.166 ± 0.135</td><td>0.3223 ± 0.0004</td></tr>
+<tr><td>Yaw-Aug FLAC (40k)</td><td>1</td><td>90°</td><td>9.391 ± 0.063</td><td>1.0946 ± 0.0066</td><td>42.803 ± 0.352</td><td>4.993 ± 0.033</td><td>15.632 ± 0.158</td><td>22.964 ± 0.079</td><td>0.3215 ± 0.0004</td></tr>
+<tr><td>Yaw-Aug FLAC (40k)</td><td>1</td><td>180°</td><td>9.407 ± 0.057</td><td>1.0980 ± 0.0063</td><td>42.706 ± 0.364</td><td>4.889 ± 0.169</td><td>15.749 ± 0.207</td><td>23.121 ± 0.189</td><td>0.3217 ± 0.0005</td></tr>
+<tr><td>Yaw-Aug FLAC (40k)</td><td>1</td><td>270°</td><td>9.444 ± 0.065</td><td>1.0957 ± 0.0054</td><td>42.765 ± 0.357</td><td>5.015 ± 0.147</td><td>15.777 ± 0.166</td><td>23.118 ± 0.286</td><td>0.3223 ± 0.0005</td></tr>
+<tr><td>Yaw-Aug FLAC (40k)</td><td>8</td><td>0°</td><td>7.965 ± 0.014</td><td>1.0132 ± 0.0016</td><td>39.923 ± 0.057</td><td>5.391 ± 0.097</td><td>16.563 ± 0.169</td><td>23.961 ± 0.107</td><td>0.3247 ± 0.0003</td></tr>
+<tr><td>Yaw-Aug FLAC (40k)</td><td>8</td><td>90°</td><td>7.955 ± 0.014</td><td>1.0224 ± 0.0021</td><td>40.276 ± 0.081</td><td>5.223 ± 0.151</td><td>16.282 ± 0.137</td><td>23.730 ± 0.117</td><td>0.3239 ± 0.0004</td></tr>
+<tr><td>Yaw-Aug FLAC (40k)</td><td>8</td><td>180°</td><td>7.975 ± 0.015</td><td>1.0272 ± 0.0012</td><td>40.181 ± 0.069</td><td>5.119 ± 0.111</td><td>16.355 ± 0.155</td><td>23.677 ± 0.200</td><td>0.3242 ± 0.0003</td></tr>
+<tr><td>Yaw-Aug FLAC (40k)</td><td>8</td><td>270°</td><td>8.026 ± 0.016</td><td>1.0229 ± 0.0017</td><td>40.198 ± 0.088</td><td>5.356 ± 0.073</td><td>16.437 ± 0.113</td><td>23.872 ± 0.204</td><td>0.3249 ± 0.0004</td></tr>
+</table></div>
+<h2>Spread trajectory vs P1 control</h2><div class='tbl'><table><tr><th>step</th><th>P1 ΔT60</th><th>Yaw ΔT60</th><th>P1 ΔEDT</th><th>Yaw ΔEDT</th><th>P1 ΔC50</th><th>Yaw ΔC50</th><th>P1 ΔR@1</th><th>Yaw ΔR@1</th></tr>
+<tr><td>2500</td><td>0.150</td><td>**0.036**</td><td>1.251</td><td>**1.553**</td><td>0.021</td><td>0.030</td><td>0.174</td><td>0.047</td></tr>
+<tr><td>5000</td><td>0.059</td><td>**0.024**</td><td>1.657</td><td>**0.656**</td><td>0.042</td><td>0.024</td><td>0.174</td><td>0.237</td></tr>
+<tr><td>7500</td><td>0.086</td><td>**0.061**</td><td>1.061</td><td>**0.841**</td><td>0.051</td><td>0.012</td><td>0.268</td><td>0.032</td></tr>
+<tr><td>10000</td><td>0.146</td><td>**0.056**</td><td>3.424</td><td>**0.451**</td><td>0.033</td><td>0.017</td><td>0.237</td><td>0.142</td></tr>
+<tr><td>12500</td><td>0.133</td><td>**0.055**</td><td>3.854</td><td>**0.469**</td><td>0.042</td><td>0.036</td><td>0.410</td><td>0.189</td></tr>
+<tr><td>15000</td><td>0.128</td><td>**0.118**</td><td>3.779</td><td>**1.255**</td><td>0.043</td><td>0.035</td><td>0.174</td><td>0.079</td></tr>
+<tr><td>17500</td><td>0.258</td><td>**0.177**</td><td>4.888</td><td>**0.672**</td><td>0.023</td><td>0.051</td><td>0.347</td><td>0.174</td></tr>
+<tr><td>20000</td><td>0.349</td><td>**0.019**</td><td>5.965</td><td>**1.220**</td><td>0.081</td><td>0.036</td><td>0.316</td><td>0.395</td></tr>
+<tr><td>22500</td><td>0.362</td><td>**0.143**</td><td>5.241</td><td>**0.552**</td><td>0.113</td><td>0.060</td><td>0.174</td><td>0.473</td></tr>
+<tr><td>25000</td><td>0.447</td><td>**0.057**</td><td>4.612</td><td>**0.692**</td><td>0.110</td><td>0.025</td><td>0.394</td><td>0.537</td></tr>
+<tr><td>27500</td><td>0.481</td><td>**0.054**</td><td>4.985</td><td>**0.961**</td><td>0.118</td><td>0.015</td><td>0.331</td><td>0.505</td></tr>
+<tr><td>30000</td><td>0.544</td><td>**0.030**</td><td>6.089</td><td>**0.575**</td><td>0.109</td><td>0.009</td><td>0.142</td><td>0.442</td></tr>
+<tr><td>32500</td><td>0.482</td><td>**0.034**</td><td>5.621</td><td>**0.138**</td><td>0.135</td><td>0.018</td><td>0.284</td><td>0.300</td></tr>
+<tr><td>35000</td><td>0.627</td><td>**0.160**</td><td>6.161</td><td>**0.881**</td><td>0.130</td><td>0.019</td><td>0.458</td><td>0.063</td></tr>
+<tr><td>37500</td><td>0.500</td><td>**0.090**</td><td>5.195</td><td>**1.162**</td><td>0.122</td><td>0.005</td><td>0.473</td><td>0.426</td></tr>
+<tr><td>40000</td><td>0.903</td><td>**0.075**</td><td>6.807</td><td>**0.349**</td><td>0.134</td><td>0.013</td><td>0.473</td><td>0.237</td></tr>
+</table><table><tr><th>step</th><th>P1 ΔT60</th><th>Yaw ΔT60</th><th>P1 ΔEDT</th><th>Yaw ΔEDT</th><th>P1 ΔC50</th><th>Yaw ΔC50</th><th>P1 ΔR@1</th><th>Yaw ΔR@1</th></tr>
+<tr><td>2500</td><td>0.101</td><td>**0.056**</td><td>1.267</td><td>**1.719**</td><td>0.025</td><td>0.026</td><td>0.174</td><td>0.221</td></tr>
+<tr><td>5000</td><td>0.028</td><td>**0.031**</td><td>1.635</td><td>**0.636**</td><td>0.043</td><td>0.024</td><td>0.205</td><td>0.237</td></tr>
+<tr><td>7500</td><td>0.074</td><td>**0.080**</td><td>0.922</td><td>**0.896**</td><td>0.053</td><td>0.012</td><td>0.158</td><td>0.174</td></tr>
+<tr><td>10000</td><td>0.161</td><td>**0.073**</td><td>3.282</td><td>**0.442**</td><td>0.038</td><td>0.020</td><td>0.284</td><td>0.079</td></tr>
+<tr><td>12500</td><td>0.107</td><td>**0.038**</td><td>3.754</td><td>**0.464**</td><td>0.041</td><td>0.037</td><td>0.221</td><td>0.142</td></tr>
+<tr><td>15000</td><td>0.162</td><td>**0.108**</td><td>3.727</td><td>**1.282**</td><td>0.040</td><td>0.040</td><td>0.316</td><td>0.095</td></tr>
+<tr><td>17500</td><td>0.281</td><td>**0.168**</td><td>4.773</td><td>**0.754**</td><td>0.020</td><td>0.050</td><td>0.253</td><td>0.284</td></tr>
+<tr><td>20000</td><td>0.382</td><td>**0.045**</td><td>5.938</td><td>**1.194**</td><td>0.076</td><td>0.039</td><td>0.316</td><td>0.110</td></tr>
+<tr><td>22500</td><td>0.367</td><td>**0.088**</td><td>5.300</td><td>**0.535**</td><td>0.112</td><td>0.062</td><td>0.316</td><td>0.616</td></tr>
+<tr><td>25000</td><td>0.415</td><td>**0.045**</td><td>4.602</td><td>**0.635**</td><td>0.105</td><td>0.024</td><td>0.316</td><td>0.394</td></tr>
+<tr><td>27500</td><td>0.484</td><td>**0.062**</td><td>4.876</td><td>**0.986**</td><td>0.117</td><td>0.014</td><td>0.252</td><td>0.584</td></tr>
+<tr><td>30000</td><td>0.551</td><td>**0.028**</td><td>6.152</td><td>**0.668**</td><td>0.106</td><td>0.008</td><td>0.316</td><td>0.189</td></tr>
+<tr><td>32500</td><td>0.550</td><td>**0.024**</td><td>5.475</td><td>**0.306**</td><td>0.138</td><td>0.015</td><td>0.221</td><td>0.426</td></tr>
+<tr><td>35000</td><td>0.659</td><td>**0.144**</td><td>6.324</td><td>**0.911**</td><td>0.138</td><td>0.021</td><td>0.253</td><td>0.237</td></tr>
+<tr><td>37500</td><td>0.546</td><td>**0.081**</td><td>5.050</td><td>**1.184**</td><td>0.122</td><td>0.012</td><td>0.379</td><td>0.205</td></tr>
+<tr><td>40000</td><td>0.922</td><td>**0.061**</td><td>6.497</td><td>**0.384**</td><td>0.133</td><td>0.011</td><td>0.584</td><td>0.047</td></tr>
+</table><table></table></div>

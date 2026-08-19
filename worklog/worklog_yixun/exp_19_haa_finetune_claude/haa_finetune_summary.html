@@ -1,0 +1,38 @@
+<!doctype html><meta charset="utf-8"><title>exp_19 — HAA finetune: four arms + dynamics</title>
+<style>
+body{font:14px/1.5 system-ui;margin:2rem auto;max-width:72rem;padding:0 1rem;color:#1a1d21;background:#fff}
+h1{font-size:1.4rem} h2{font-size:1.05rem;margin-top:2rem}
+.tbl{overflow-x:auto} table{border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:.85rem}
+th,td{border:1px solid #d5d9df;padding:.3rem .55rem;text-align:right} th{background:#f2f4f7} td:first-child,th:first-child{text-align:left}
+p.meta{color:#5a6472;font-size:.85rem}
+</style>
+<h1>exp_19 — HAA finetune: four arms + dynamics</h1>
+<p class="meta">Generated at closure from the committed results_*.md (themselves regenerable from raw metric JSONs). Analysis seat: Claude Fable 5; reviews: Codex gpt-5.6-sol.</p>
+<h2>Four-arm final (ckpt 1000, paper convention)</h2><div class='tbl'><table><tr><th>Method</th><th>T60↓</th><th>C50↓</th><th>EDT↓</th><th>R@1↑</th><th>R@5↑</th><th>R@10↑</th><th>FD↓</th></tr>
+<tr><td>Vanilla FLAC (P1→HAA)</td><td>3.4130 ± 0.0127</td><td>2.2016 ± 0.0123</td><td>84.994 ± 0.404</td><td>5.184 ± 0.334</td><td>19.167 ± 0.239</td><td>31.693 ± 0.399</td><td>0.5778 ± 0.0009</td></tr>
+<tr><td>Yaw-Aug init, aug OFF in FT</td><td>3.3910 ± 0.0325</td><td>2.0956 ± 0.0107</td><td>77.256 ± 0.285</td><td>4.761 ± 0.367</td><td>18.543 ± 0.392</td><td>30.024 ± 0.304</td><td>0.5728 ± 0.0010</td></tr>
+<tr><td>Yaw-Aug, aug ON in FT</td><td>4.0921 ± 0.0371</td><td>2.7772 ± 0.0155</td><td>91.755 ± 0.372</td><td>4.133 ± 0.176</td><td>16.100 ± 0.571</td><td>27.335 ± 0.191</td><td>0.5887 ± 0.0012</td></tr>
+<tr><td>Per-angle FA (B-F→HAA)</td><td>4.8924 ± 0.0219</td><td>3.2102 ± 0.0119</td><td>113.034 ± 0.396</td><td>3.959 ± 0.448</td><td>15.734 ± 0.381</td><td>26.811 ± 0.989</td><td>0.6032 ± 0.0011</td></tr>
+</table><table><tr><th>Method</th><th>T60↓</th><th>C50↓</th><th>EDT↓</th><th>R@1↑</th><th>R@5↑</th><th>R@10↑</th><th>FD↓</th></tr>
+<tr><td>Vanilla FLAC (P1→HAA)</td><td>3.6167 ± 0.0585</td><td>2.2541 ± 0.0161</td><td>87.950 ± 0.919</td><td>5.075 ± 0.421</td><td>19.068 ± 0.698</td><td>31.223 ± 0.209</td><td>0.5645 ± 0.0015</td></tr>
+<tr><td>Yaw-Aug init, aug OFF in FT</td><td>3.5361 ± 0.0297</td><td>2.0999 ± 0.0035</td><td>79.716 ± 0.689</td><td>4.611 ± 0.459</td><td>18.186 ± 0.360</td><td>30.553 ± 0.706</td><td>0.5629 ± 0.0012</td></tr>
+<tr><td>Yaw-Aug, aug ON in FT</td><td>4.2378 ± 0.0545</td><td>2.7752 ± 0.0247</td><td>93.889 ± 0.406</td><td>4.035 ± 0.426</td><td>16.269 ± 0.447</td><td>27.199 ± 0.512</td><td>0.5751 ± 0.0029</td></tr>
+<tr><td>Per-angle FA (B-F→HAA)</td><td>5.1197 ± 0.0603</td><td>3.2028 ± 0.0187</td><td>116.180 ± 1.419</td><td>3.568 ± 0.363</td><td>15.786 ± 0.699</td><td>27.115 ± 0.481</td><td>0.5834 ± 0.0022</td></tr>
+</table><table></table></div>
+<h2>Steps curve (K=8, seed 42)</h2><div class='tbl'><table><tr><th>steps</th><th>100</th><th>200</th><th>300</th><th>410</th><th>500</th><th>600</th><th>700</th><th>800</th><th>900</th><th>1000</th></tr>
+<tr><td>Vanilla</td><td>8.58</td><td>4.47</td><td>3.00</td><td>2.95</td><td>3.14</td><td>3.26</td><td>3.34</td><td>3.35</td><td>3.42</td><td>3.43</td></tr>
+<tr><td>FA(B-F)</td><td>9.10</td><td>6.85</td><td>5.60</td><td>4.77</td><td>4.69</td><td>4.81</td><td>4.81</td><td>4.83</td><td>4.92</td><td>4.90</td></tr>
+<tr><td>Yaw-Aug</td><td>9.75</td><td>8.03</td><td>6.80</td><td>5.94</td><td>4.93</td><td>4.56</td><td>4.27</td><td>4.21</td><td>4.10</td><td>4.15</td></tr>
+</table><table><tr><th>steps</th><th>100</th><th>200</th><th>300</th><th>410</th><th>500</th><th>600</th><th>700</th><th>800</th><th>900</th><th>1000</th></tr>
+<tr><td>Vanilla</td><td>4.25</td><td>3.26</td><td>2.30</td><td>2.09</td><td>2.13</td><td>2.15</td><td>2.22</td><td>2.16</td><td>2.26</td><td>2.20</td></tr>
+<tr><td>FA(B-F)</td><td>4.40</td><td>3.92</td><td>3.45</td><td>3.18</td><td>3.15</td><td>3.20</td><td>3.18</td><td>3.18</td><td>3.22</td><td>3.20</td></tr>
+<tr><td>Yaw-Aug</td><td>4.49</td><td>4.21</td><td>3.78</td><td>3.40</td><td>3.02</td><td>2.88</td><td>2.82</td><td>2.82</td><td>2.83</td><td>2.78</td></tr>
+</table><table><tr><th>steps</th><th>100</th><th>200</th><th>300</th><th>410</th><th>500</th><th>600</th><th>700</th><th>800</th><th>900</th><th>1000</th></tr>
+<tr><td>Vanilla</td><td>181.42</td><td>115.20</td><td>81.62</td><td>76.29</td><td>79.86</td><td>80.97</td><td>81.34</td><td>81.75</td><td>84.54</td><td>84.96</td></tr>
+<tr><td>FA(B-F)</td><td>198.39</td><td>147.63</td><td>127.88</td><td>113.37</td><td>111.18</td><td>112.66</td><td>110.18</td><td>110.61</td><td>112.73</td><td>112.96</td></tr>
+<tr><td>Yaw-Aug</td><td>202.62</td><td>156.95</td><td>133.88</td><td>118.85</td><td>105.44</td><td>99.94</td><td>96.42</td><td>94.89</td><td>93.60</td><td>91.98</td></tr>
+</table><table><tr><th>steps</th><th>100</th><th>200</th><th>300</th><th>410</th><th>500</th><th>600</th><th>700</th><th>800</th><th>900</th><th>1000</th></tr>
+<tr><td>Vanilla</td><td>2.83</td><td>3.68</td><td>4.45</td><td>5.17</td><td>4.77</td><td>4.61</td><td>4.59</td><td>4.66</td><td>5.06</td><td>4.94</td></tr>
+<tr><td>FA(B-F)</td><td>2.66</td><td>3.63</td><td>3.12</td><td>3.45</td><td>2.67</td><td>2.59</td><td>2.80</td><td>2.93</td><td>3.60</td><td>3.96</td></tr>
+<tr><td>Yaw-Aug</td><td>2.40</td><td>3.27</td><td>3.19</td><td>3.90</td><td>3.83</td><td>3.78</td><td>3.89</td><td>3.88</td><td>4.62</td><td>4.42</td></tr>
+</table><table></table></div>
