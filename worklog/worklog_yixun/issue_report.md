@@ -4,6 +4,8 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 
 ## Awaiting Yixun (decisions)
 
+-2. **STANDING REMINDER (Yixun 2026-08-19): the FA method still needs to BEAT vanilla FLAC on HAA.** exp_19's verdict was the opposite (FA worst of four arms on HAA; its C4-averaging tax is architectural and did not amortize over 1,000 finetune steps). Open avenues when this is picked up: longer FA finetuning (the curve plateaued — evidence against), finetuning with the orbit average relaxed/annealed, an FA-init-but-vanilla-finetune arm (mirroring YNA, which rescued Yaw-Aug), or revisiting the fa eval protocol on HAA. Raise this whenever HAA or FA work is being planned.
+
 -1. **exp_17 C4 table lands ~20:30 EDT today (2026-08-16)** — grid 33/128 at refresh, 0 failures. Then two calls: **(a)** how to publish — the grid is single-eval-seed (42) and `gen_model_comparison.py` structurally excludes single-seed rows, so either run 5-seed endpoint cells afterwards for the living table or keep the grid as exp_17's own artifact; **(b)** whether to run the **P1-control rotation grid** under the identical protocol (~7 h on both GPUs) — without it, "augmentation bought rotational flatness" has no same-protocol vanilla baseline (exp_07 A6 is supporting but different-vintage evidence).
 
 0. **ARE-V is HELD INDEFINITELY (Yixun 2026-08-14: "ARE-V先不做").** Code committed, reviewed and parked launch-ready; the Aug-16 22:00 deadline is formally dropped and no longer tracked. One instruction reactivates it (~1 h to launch, ~46 h training).
