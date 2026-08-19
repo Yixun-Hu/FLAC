@@ -209,6 +209,66 @@
           "final_ckpt_sha256": "cc99b07104d62897d4dd87ec21f15389adc05f7384bc7a0de66968b32927b527",
           "final_ckpt_path": "outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=11-step=52500.ckpt",
           "recorded_utc": "2026-08-17T08:52:31+00:00"
+        },
+        {
+          "job": "3715535",
+          "launch_uuid": "aad45f8e-c0fe-4630-9d83-418f50a1ed79",
+          "manifest_path": "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-18_07-43-42_C8_8x8_jid3715535_manifest.txt",
+          "manifest_sha256": "2c32ca53169009799c8b95bded90eb83d21585402dd44ac71f4be8bc5c357a9a",
+          "resume_step": 52500,
+          "resume_ckpt_sha256": "cc99b07104d62897d4dd87ec21f15389adc05f7384bc7a0de66968b32927b527",
+          "final_step": 55000,
+          "final_ckpt_sha256": "7896a4ff7520f51763a832bebd2399e1dbd00982c439d0fe53031d0d38706462",
+          "final_ckpt_path": "outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=12-step=55000.ckpt",
+          "recorded_utc": "2026-08-18T13:28:28+00:00"
+        },
+        {
+          "job": "3717929",
+          "launch_uuid": "35f25a7b-02a4-4eec-ac85-7b29572e53da",
+          "manifest_path": "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-18_18-25-12_C8_8x8_jid3717929_manifest.txt",
+          "manifest_sha256": "c70d3417eb16aadd7598431f17bf6f098393396d075cab6f40d4dddba9ace97d",
+          "resume_step": 55000,
+          "resume_ckpt_sha256": "7896a4ff7520f51763a832bebd2399e1dbd00982c439d0fe53031d0d38706462",
+          "final_step": 57500,
+          "final_ckpt_sha256": "0ca279fb6847f2f94d91926e146be82847707c6d1b8fbf5c0434e6ed66e28f51",
+          "final_ckpt_path": "outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=12-step=57500.ckpt",
+          "recorded_utc": "2026-08-19T00:14:28+00:00"
+        },
+        {
+          "job": "3722004",
+          "launch_uuid": "07bd4b51-cd13-4bef-9799-eed210f6919b",
+          "manifest_path": "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-19_03-14-43_C8_8x8_jid3722004_manifest.txt",
+          "manifest_sha256": "97265fbfca70e5741adb0e3a7b81879356a377ab860c67b87ada849cf252658c",
+          "resume_step": 57500,
+          "resume_ckpt_sha256": "0ca279fb6847f2f94d91926e146be82847707c6d1b8fbf5c0434e6ed66e28f51",
+          "final_step": 60000,
+          "final_ckpt_sha256": "230e0a7ac503265e0c5d61defa69b03e7f0bf37e8efc22aa27a4912c13bf2d7f",
+          "final_ckpt_path": "outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=13-step=60000.ckpt",
+          "recorded_utc": "2026-08-19T09:05:58+00:00"
+        },
+        {
+          "job": "3728225",
+          "launch_uuid": "dcaef721-a08d-4192-9963-b792a4fc7511",
+          "manifest_path": "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-19_08-33-02_C8_8x8_jid3728225_manifest.txt",
+          "manifest_sha256": "4f6fa61a4a9b0ac54f0f69830db032123ccfcb6fbc07f5ad73354f1aed08cdb4",
+          "resume_step": 60000,
+          "resume_ckpt_sha256": "230e0a7ac503265e0c5d61defa69b03e7f0bf37e8efc22aa27a4912c13bf2d7f",
+          "final_step": 62500,
+          "final_ckpt_sha256": "58877031297ce35a20ff299645996ec620004ab9fbd25d1dce8e9ea7f1494f65",
+          "final_ckpt_path": "outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=13-step=62500.ckpt",
+          "recorded_utc": "2026-08-19T14:25:55+00:00"
+        },
+        {
+          "job": "3729097",
+          "launch_uuid": "73edf814-2d75-4981-ba55-8ae734a4a8f2",
+          "manifest_path": "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-19_10-26-38_C8_8x8_jid3729097_manifest.txt",
+          "manifest_sha256": "1db63c32b694a37457a22be040534e2327ce90c7472cb59c53aec1cd420b0996",
+          "resume_step": 62500,
+          "resume_ckpt_sha256": "58877031297ce35a20ff299645996ec620004ab9fbd25d1dce8e9ea7f1494f65",
+          "final_step": 65000,
+          "final_ckpt_sha256": "4c17956fe5f21225e3de2133a34c0534db3f7705f240f66856fdfd59e373fac6",
+          "final_ckpt_path": "outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=14-step=65000.ckpt",
+          "recorded_utc": "2026-08-19T16:17:03+00:00"
         }
       ]
     },
@@ -420,6 +480,66 @@
           "final_ckpt_sha256": "52647f82ef2f27a169202e855f84c7c7475231cb38a6bd9d74d644f1dd21bca3",
           "final_ckpt_path": "outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=16-step=75000.ckpt",
           "recorded_utc": "2026-08-17T10:22:46+00:00"
+        },
+        {
+          "job": "3715536",
+          "launch_uuid": "3411b998-2407-455a-90c8-04d778a9f709",
+          "manifest_path": "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-18_08-54-02_VANL_8x8_jid3715536_manifest.txt",
+          "manifest_sha256": "9bd6fccaa976f15afa845d92e4b35aee86e4be96ecdd48414e7e04d9e8a55314",
+          "resume_step": 75000,
+          "resume_ckpt_sha256": "52647f82ef2f27a169202e855f84c7c7475231cb38a6bd9d74d644f1dd21bca3",
+          "final_step": 80000,
+          "final_ckpt_sha256": "cdb2e7ad739dc86bf1815e4318ab06396272a834745def25945cd193716e6ba6",
+          "final_ckpt_path": "outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=17-step=80000.ckpt",
+          "recorded_utc": "2026-08-18T14:23:39+00:00"
+        },
+        {
+          "job": "3718136",
+          "launch_uuid": "5fa38b3a-3ec6-4aa6-8a41-e42e4c5c1854",
+          "manifest_path": "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-18_12-31-35_VANL_8x8_jid3718136_manifest.txt",
+          "manifest_sha256": "fb3af2da8fa672c4dd78869687d46229aed514f8ea22761d7add71c5193c76e3",
+          "resume_step": 80000,
+          "resume_ckpt_sha256": "cdb2e7ad739dc86bf1815e4318ab06396272a834745def25945cd193716e6ba6",
+          "final_step": 85000,
+          "final_ckpt_sha256": "e914427d0bc3d2ee9ef366c955c1fc850a2474420c7fa938d229ae7dfaf50b32",
+          "final_ckpt_path": "outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=18-step=85000.ckpt",
+          "recorded_utc": "2026-08-18T18:13:51+00:00"
+        },
+        {
+          "job": "3719386",
+          "launch_uuid": "0ace2623-b016-40c2-a271-e8aa9e42a981",
+          "manifest_path": "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-18_22-57-52_VANL_8x8_jid3719386_manifest.txt",
+          "manifest_sha256": "120dc22dd3625bb6e0b20a8db1b60fa09d2cb37ed85ce0e7f65d97f0e2a2b60c",
+          "resume_step": 85000,
+          "resume_ckpt_sha256": "e914427d0bc3d2ee9ef366c955c1fc850a2474420c7fa938d229ae7dfaf50b32",
+          "final_step": 90000,
+          "final_ckpt_sha256": "2c0e36c343c7e257f8f9f1ad1c82ae77db13cafcc410806a6310da52eb5922c6",
+          "final_ckpt_path": "outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=19-step=90000.ckpt",
+          "recorded_utc": "2026-08-19T04:30:35+00:00"
+        },
+        {
+          "job": "3724787",
+          "launch_uuid": "7adc0d70-7272-4ada-8ddf-29eddf2b4854",
+          "manifest_path": "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-19_04-12-19_VANL_8x8_jid3724787_manifest.txt",
+          "manifest_sha256": "e215c1e6c4461cb91c5c5c2c6de8c95d6aad20a021577a9e8ef51d64dda14157",
+          "resume_step": 90000,
+          "resume_ckpt_sha256": "2c0e36c343c7e257f8f9f1ad1c82ae77db13cafcc410806a6310da52eb5922c6",
+          "final_step": 95000,
+          "final_ckpt_sha256": "bd05efe28b96cbd9fd7d09a568ea89bb4d086bc29d164a5bec65f56f28e2ef91",
+          "final_ckpt_path": "outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=20-step=95000.ckpt",
+          "recorded_utc": "2026-08-19T09:46:13+00:00"
+        },
+        {
+          "job": "3728349",
+          "launch_uuid": "2114c3b6-b025-4a2c-969a-719309c5a629",
+          "manifest_path": "/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-19_08-33-02_VANL_8x8_jid3728349_manifest.txt",
+          "manifest_sha256": "0859d77a86a224aaafb31f06af9971d8b9735db205b4ef08237b2a50a4235c11",
+          "resume_step": 95000,
+          "resume_ckpt_sha256": "bd05efe28b96cbd9fd7d09a568ea89bb4d086bc29d164a5bec65f56f28e2ef91",
+          "final_step": 100000,
+          "final_ckpt_sha256": "ba7bc52c835603d86891375e349be3702464bf9636dfa07c644bb7681245931a",
+          "final_ckpt_path": "outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=21-step=100000.ckpt",
+          "recorded_utc": "2026-08-19T14:10:03+00:00"
         }
       ]
     }

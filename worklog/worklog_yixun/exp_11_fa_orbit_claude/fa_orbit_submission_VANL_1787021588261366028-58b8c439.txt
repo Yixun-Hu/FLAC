@@ -1,0 +1,11 @@
+# exp_11 arm submission (intent published BEFORE sbatch)
+intent_id 1787021588261366028-58b8c439
+submitted_at 2026-08-17T22:53:08-04:00
+arm VANL rung 8x8 micro 8 ngpu 8
+jobname exp11-VANL-train time 02:30:00 smoke 0
+commit 07761229e5f6bd1159b986d697697e9e69701962
+pins rung=8x8 maxsteps=100000 ckpt_every=2500 min_free_mb=36500 p0_manifest_sha256=72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b
+resume outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=16-step=75000.ckpt expected_step 75000
+chunk_end 80000
+sbatch sbatch --job-name=exp11-VANL-train --gres=gpu:l40:8 --cpus-per-task=64 --mem=108G --time=02:30:00 --export=ALL,ARM=VANL,EXPECT_SHA=07761229e5f6bd1159b986d697697e9e69701962,OUTPUT_ROOT=outputs_FLAC,RESUME_CKPT=outputs_FLAC/exp11_VANL/FLAC_exp11_VANL/exp11_VANL/checkpoints/epoch=16-step=75000.ckpt,EXPECTED_STEP=75000,CHUNK_END=80000 worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_train.sbatch
+jobid 3715536

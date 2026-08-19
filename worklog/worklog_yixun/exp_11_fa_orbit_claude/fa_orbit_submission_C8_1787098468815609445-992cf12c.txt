@@ -1,0 +1,11 @@
+# exp_11 arm submission (intent published BEFORE sbatch)
+intent_id 1787098468815609445-992cf12c
+submitted_at 2026-08-18T20:14:28-04:00
+arm C8 rung 8x8 micro 8 ngpu 8
+jobname exp11-C8-train time 04:00:00 smoke 0
+commit 61700070ade5efe3b5ed0ef3f6ce13fbfc8921b0
+pins rung=8x8 maxsteps=100000 ckpt_every=2500 min_free_mb=36500 p0_manifest_sha256=72607b922177208d56055d604b292d697b643ef3b7ab48261ab2e23a0cc2b53b
+resume outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=12-step=57500.ckpt expected_step 57500
+chunk_end 60000
+sbatch sbatch --job-name=exp11-C8-train --gres=gpu:l40:8 --cpus-per-task=64 --mem=108G --time=04:00:00 --export=ALL,ARM=C8,EXPECT_SHA=61700070ade5efe3b5ed0ef3f6ce13fbfc8921b0,OUTPUT_ROOT=outputs_FLAC,RESUME_CKPT=outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=12-step=57500.ckpt,EXPECTED_STEP=57500,CHUNK_END=60000 worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_train.sbatch
+jobid 3722004

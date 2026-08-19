@@ -1,0 +1,6 @@
+=== exp_11 arm C8 @ rung 8x8 (MB 8 x 8 GPU, grad-ckpt ON) — 2026-08-17_22-49-55 — host neu309.neuronic.cs.princeton.edu ===
+training surfaces changed since EXPECT_SHA 1c7fe26fe5b6b2605ee5aae1704abbc6b1ae0f8f (HEAD 07761229e5f6bd1159b986d697697e9e69701962): src/data/are_anchor.py
+src/data/dataset.py
+src/data/utils.py
+src/training/diffusion.py
+src/training/factory.py - abort
