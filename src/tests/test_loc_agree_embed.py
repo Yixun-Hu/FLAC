@@ -466,3 +466,59 @@ def test_integration_mean_readout_leaves_the_global_rng_untouched(real_agree, re
     before = torch.random.get_rng_state()
     embed_rirs(real_agree.model, real_wavs, "cpu", readout="sample")
     assert not torch.equal(torch.random.get_rng_state(), before)
+
+
+# --------------------------------------------------------------------------- #
+# r2 fix F2 (review finding 2): the contracted real-model checks -- batch
+# invariance on the actual tower, and RNG isolation covering the CUDA generator
+# (the CPU snapshot alone says nothing about a cuda readout, where randn_like
+# would draw from the device generator).
+# --------------------------------------------------------------------------- #
+_HAVE_CUDA = torch.cuda.is_available()
+cuda_integration = pytest.mark.skipif(
+    not (_HAVE_ASSETS and _HAVE_CUDA),
+    reason="AGREE/VAE/DINOv3 assets or a CUDA device are absent")
+
+
+@pytest.fixture(scope="module")
+def real_wavs_8():
+    g = torch.Generator().manual_seed(915)
+    return torch.randn(8, 1, 9000, generator=g) * 0.3
+
+
+@pytest.fixture(scope="module")
+def real_agree_cuda(real_agree):
+    """A deep copy on the GPU: ``Module.to`` is in-place, so moving the shared
+    module would leave the CPU tests running on a cuda model."""
+    import copy
+    return copy.deepcopy(real_agree.model).to("cuda")
+
+
+@integration
+def test_integration_mean_readout_is_batch_size_invariant(real_agree, real_wavs_8):
+    batched = embed_rirs(real_agree.model, real_wavs_8, "cpu")
+    one_by_one = torch.cat(
+        [embed_rirs(real_agree.model, real_wavs_8[i:i + 1], "cpu") for i in range(8)])
+    assert torch.allclose(batched, one_by_one, atol=1e-6)
+
+
+@cuda_integration
+def test_integration_cuda_mean_readout_touches_neither_generator(real_agree_cuda, real_wavs):
+    cpu_before = torch.random.get_rng_state()
+    cuda_before = torch.cuda.get_rng_state_all()
+    out = embed_rirs(real_agree_cuda, real_wavs, "cuda", readout="mean")
+    assert out.device.type == "cpu" and tuple(out.shape) == (2, 512)
+    assert torch.equal(torch.random.get_rng_state(), cpu_before)
+    assert all(torch.equal(a, b) for a, b in zip(torch.cuda.get_rng_state_all(), cuda_before))
+
+
+@cuda_integration
+def test_integration_cuda_sampled_readout_advances_the_cuda_generator(real_agree_cuda, real_wavs):
+    """Gives the isolation test above teeth: on cuda the stock path's randn_like
+    draws from the DEVICE generator, which the CPU snapshot would never notice."""
+    cpu_before = torch.random.get_rng_state()
+    cuda_before = torch.cuda.get_rng_state_all()
+    embed_rirs(real_agree_cuda, real_wavs, "cuda", readout="sample")
+    assert torch.equal(torch.random.get_rng_state(), cpu_before)      # CPU stream untouched
+    assert any(not torch.equal(a, b)
+               for a, b in zip(torch.cuda.get_rng_state_all(), cuda_before))
