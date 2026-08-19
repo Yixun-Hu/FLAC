@@ -244,15 +244,28 @@ def test_uniform_baseline_hand_example():
 
 
 def test_uniform_baseline_matches_monte_carlo():
-    """Exact expectations must agree with a seeded uniform draw over C (1e-3)."""
+    """Every exact expectation agrees with a seeded uniform draw over C at 1e-3.
+
+    r1 fix F4 (review finding 4): the claim used to hold only for the success
+    probabilities -- the mean error was asserted at 1e-2 and actually missed 1e-3
+    by 1.36e-3, because the per-draw distance has sd ~= 1.58 m, so 4e6 draws give
+    sd(mean) ~= 7.9e-4. The draw is accumulated in chunks up to 6.4e7, where
+    sd(mean) ~= 2.0e-4 and 1e-3 is a ~5 sigma bound for all three metrics.
+    """
     import numpy as np
     out = uniform_baseline(_CAND, _GT, radii=(0.5, 1.0))
+    distances = np.asarray(out["distances"])
     rng = np.random.default_rng(18)
-    draws = rng.integers(0, 4, size=4000000)   # sd(p_hat) ~ 2e-4, so 1e-3 is ~5 sigma
-    dists = np.asarray(out["distances"])[draws]
-    assert dists.mean() == pytest.approx(out["mean_error"], abs=1e-2)
-    assert (dists <= 1.0).mean() == pytest.approx(out["success"][1.0], abs=1e-3)
-    assert (dists <= 0.5).mean() == pytest.approx(out["success"][0.5], abs=1e-3)
+    n_draws, chunk = 64000000, 4000000
+    total, hits = 0.0, {0.5: 0, 1.0: 0}
+    for _ in range(n_draws // chunk):
+        sample = distances[rng.integers(0, distances.size, size=chunk)]
+        total += float(sample.sum())
+        for r in hits:
+            hits[r] += int((sample <= r).sum())
+    assert total / n_draws == pytest.approx(out["mean_error"], abs=1e-3)
+    for r in (0.5, 1.0):
+        assert hits[r] / n_draws == pytest.approx(out["success"][r], abs=1e-3)
 
 
 def test_uniform_baseline_accepts_numpy_inputs():
