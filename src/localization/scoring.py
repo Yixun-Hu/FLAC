@@ -350,3 +350,125 @@ def summarize(records, radii=DEFAULT_RADII):
         "n_queries": len(records),
         "n_rooms": len(per_room),
     }
+
+
+def _cluster_bootstrap(payloads, statistic, n, seed):
+    """Resample whole clusters with replacement; return the ``n`` statistics."""
+    n = int(n)
+    if n < 1:
+        raise ValueError(f"n (bootstrap resamples) must be >= 1, got {n}")
+    rng = np.random.default_rng(seed)
+    k = len(payloads)
+    draws = rng.integers(0, k, size=(n, k))
+    return np.asarray([statistic([payloads[j] for j in row]) for row in draws], dtype=np.float64)
+
+
+def _percentile_ci(samples, alpha):
+    alpha = float(alpha)
+    if not 0.0 < alpha < 1.0:
+        raise ValueError(f"alpha must be in (0, 1), got {alpha}")
+    lo, hi = np.percentile(samples, [100.0 * alpha / 2.0, 100.0 * (1.0 - alpha / 2.0)])
+    return float(lo), float(hi)
+
+
+def clustered_bootstrap_ci(records, by=ROOM_KEY, n=10000, seed=0, alpha=0.05):
+    """Room-clustered percentile CI on the pooled-median primary (C3).
+
+    Queries within a room are not independent, so the resampling unit is the
+    room. With a single cluster the interval collapses onto the point estimate --
+    honest, since there is no between-room information to resample.
+    """
+    records = list(records)
+    if not records:
+        raise ValueError("clustered_bootstrap_ci needs at least one record")
+    clusters = {}
+    for rec in records:
+        if by not in rec:
+            raise ValueError(f"record has no cluster key {by!r}: {rec!r}")
+        clusters.setdefault(str(rec[by]), []).append(_record_values(rec))
+    payloads = [(np.concatenate([v for v, _ in items]), np.concatenate([w for _, w in items]))
+                for _key, items in sorted(clusters.items())]
+
+    def statistic(picked):
+        return _weighted_median(np.concatenate([v for v, _ in picked]),
+                                np.concatenate([w for _, w in picked]))
+
+    samples = _cluster_bootstrap(payloads, statistic, n, seed)
+    lo, hi = _percentile_ci(samples, alpha)
+    return {
+        "stat": PRIMARY_NAME,
+        "point": statistic(payloads),
+        "lo": lo,
+        "hi": hi,
+        "alpha": float(alpha),
+        "n_boot": int(n),
+        "n_clusters": len(payloads),
+        "n_queries": len(records),
+        "by": by,
+    }
+
+
+def _query_point_estimate(rec):
+    """One scalar per query: ``e_loc``, or a baseline record's expected error."""
+    values, weights = _record_values(rec)
+    return _weighted_mean(values, weights)
+
+
+def paired_room_clustered_test(records_a, records_b, by=ROOM_KEY, n=10000, seed=0, stat="median"):
+    """Room-clustered bootstrap on per-query paired differences ``a - b`` (O12).
+
+    Records are paired by ``query_id`` (1:1, same room on both sides); the
+    bootstrap resamples rooms, and ``p_value`` is the two-sided bootstrap
+    proportion crossing zero.
+    """
+    if stat not in ("median", "mean"):
+        raise ValueError(f"stat must be 'median' or 'mean', got {stat!r}")
+    records_a, records_b = list(records_a), list(records_b)
+    if len(records_a) != len(records_b):
+        raise ValueError(f"paired inputs differ in length: {len(records_a)} vs {len(records_b)}")
+
+    def indexed(records, side):
+        out = {}
+        for rec in records:
+            if "query_id" not in rec:
+                raise ValueError(f"record in {side} has no 'query_id': {rec!r}")
+            qid = str(rec["query_id"])
+            if qid in out:
+                raise ValueError(f"duplicate query_id {qid!r} in {side}")
+            out[qid] = rec
+        return out
+
+    left, right = indexed(records_a, "records_a"), indexed(records_b, "records_b")
+    if set(left) != set(right):
+        raise ValueError("records_a and records_b do not cover the same query ids")
+
+    clusters = {}
+    for qid in sorted(left):
+        rec_a, rec_b = left[qid], right[qid]
+        if by not in rec_a or by not in rec_b:
+            raise ValueError(f"record has no cluster key {by!r} for query {qid!r}")
+        if str(rec_a[by]) != str(rec_b[by]):
+            raise ValueError(
+                f"query {qid!r} is in {rec_a[by]!r} on one side and {rec_b[by]!r} on the other")
+        clusters.setdefault(str(rec_a[by]), []).append(
+            _query_point_estimate(rec_a) - _query_point_estimate(rec_b))
+    payloads = [np.asarray(diffs, dtype=np.float64) for _key, diffs in sorted(clusters.items())]
+    reduce = np.median if stat == "median" else np.mean
+
+    def statistic(picked):
+        return float(reduce(np.concatenate(picked)))
+
+    samples = _cluster_bootstrap(payloads, statistic, n, seed)
+    lo, hi = _percentile_ci(samples, 0.05)
+    p_value = 2.0 * min(float(np.mean(samples <= 0.0)), float(np.mean(samples >= 0.0)))
+    return {
+        "stat": f"{stat}_paired_difference",
+        "point": statistic(payloads),
+        "lo": lo,
+        "hi": hi,
+        "p_value": min(1.0, p_value),
+        "n_boot": int(n),
+        "n_clusters": len(payloads),
+        "n_queries": len(records_a),
+        "by": by,
+    }

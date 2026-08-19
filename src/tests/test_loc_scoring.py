@@ -17,11 +17,13 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__f
 
 from src.localization.scoring import (
     aggregate,
+    clustered_bootstrap_ci,
     context_conditioned_baseline,
     cosine_sims,
     localization_error,
     nearest_context_baseline,
     noise_key,
+    paired_room_clustered_test,
     power_statistic,
     predict_index,
     softmax_map,
@@ -529,3 +531,127 @@ def test_summarize_rejects_partially_present_optional_fields():
 def test_summarize_rejects_malformed_records(bad):
     with pytest.raises(ValueError):
         summarize(bad)
+
+
+# --------------------------------------------------------------------------- #
+# clustered_bootstrap_ci -- 17-room clustered CI on the primary (C3)
+# --------------------------------------------------------------------------- #
+def _room_records(n_rooms=4, per_room=5, offset=0.0):
+    return [{"query_id": f"r{r}q{i}", "room_id": f"S{r}/S{r}_idx_0",
+             "e_loc": offset + r + 0.1 * i}
+            for r in range(n_rooms) for i in range(per_room)]
+
+
+def test_clustered_bootstrap_ci_reports_the_primary_and_brackets_it():
+    recs = _room_records()
+    out = clustered_bootstrap_ci(recs, by="room_id", n=500, seed=42)
+    assert out["stat"] == "pooled_median_e_loc"
+    assert out["point"] == pytest.approx(summarize(recs)["primary"])
+    assert out["n_clusters"] == 4 and out["n_boot"] == 500 and out["by"] == "room_id"
+    assert out["lo"] <= out["point"] <= out["hi"]
+    assert out["lo"] < out["hi"]                       # rooms differ -> non-degenerate
+
+
+def test_clustered_bootstrap_ci_degenerate_single_room():
+    """One cluster: every resample is that same room, so the CI collapses onto
+    the point estimate rather than pretending to have between-room information."""
+    recs = _room_records(n_rooms=1, per_room=7)
+    out = clustered_bootstrap_ci(recs, n=200, seed=1)
+    assert out["n_clusters"] == 1
+    assert out["lo"] == pytest.approx(out["point"])
+    assert out["hi"] == pytest.approx(out["point"])
+
+
+def test_clustered_bootstrap_ci_is_reproducible_with_seed():
+    recs = _room_records()
+    a = clustered_bootstrap_ci(recs, n=300, seed=7)
+    b = clustered_bootstrap_ci(recs, n=300, seed=7)
+    assert a == b
+    # the seed must actually drive the resampling: with 20 clusters the
+    # percentile endpoints are no longer a coarse discrete grid.
+    many = _room_records(n_rooms=20, per_room=5)
+    d = clustered_bootstrap_ci(many, n=300, seed=7)
+    e = clustered_bootstrap_ci(many, n=300, seed=8)
+    assert d["point"] == pytest.approx(e["point"])
+    assert (d["lo"], d["hi"]) != (e["lo"], e["hi"])
+
+
+def test_clustered_bootstrap_ci_resamples_rooms_not_queries():
+    """Clustering must be by room: 300 queries in 2 rooms still give 2 clusters."""
+    recs = [{"query_id": f"q{i}", "room_id": "A/A_idx_0" if i < 150 else "B/B_idx_0",
+             "e_loc": 0.0 if i < 150 else 10.0} for i in range(300)]
+    out = clustered_bootstrap_ci(recs, n=400, seed=3)
+    assert out["n_clusters"] == 2
+    assert out["lo"] == pytest.approx(0.0) and out["hi"] == pytest.approx(10.0)
+
+
+def test_clustered_bootstrap_ci_rejects_bad_arguments():
+    recs = _room_records()
+    with pytest.raises(ValueError):
+        clustered_bootstrap_ci(recs, n=0, seed=1)
+    with pytest.raises(ValueError):
+        clustered_bootstrap_ci(recs, n=100, seed=1, alpha=0.0)
+    with pytest.raises(ValueError):
+        clustered_bootstrap_ci(recs, by="scene", n=100, seed=1)
+
+
+# --------------------------------------------------------------------------- #
+# paired_room_clustered_test -- pre-registered paired comparison (O12)
+# --------------------------------------------------------------------------- #
+def _paired(a_values, b_values):
+    a = [{"query_id": f"q{i}", "room_id": f"S{i % 3}/S{i % 3}_idx_0", "e_loc": v}
+         for i, v in enumerate(a_values)]
+    b = [{"query_id": f"q{i}", "room_id": f"S{i % 3}/S{i % 3}_idx_0", "e_loc": v}
+         for i, v in enumerate(b_values)]
+    return a, b
+
+
+def test_paired_room_clustered_test_constant_difference():
+    a, b = _paired([2.0] * 9, [1.0] * 9)
+    out = paired_room_clustered_test(a, b, n=200, seed=5)
+    assert out["stat"] == "median_paired_difference"
+    assert out["point"] == pytest.approx(1.0)            # a - b
+    assert out["lo"] == pytest.approx(1.0) and out["hi"] == pytest.approx(1.0)
+    assert out["p_value"] == pytest.approx(0.0)
+    assert out["n_queries"] == 9 and out["n_clusters"] == 3
+
+
+def test_paired_room_clustered_test_sign_convention_and_null():
+    a, b = _paired([2.0] * 9, [1.0] * 9)
+    assert paired_room_clustered_test(b, a, n=200, seed=5)["point"] == pytest.approx(-1.0)
+    same = paired_room_clustered_test(a, list(a), n=200, seed=5)
+    assert same["point"] == pytest.approx(0.0) and same["p_value"] == pytest.approx(1.0)
+
+
+def test_paired_room_clustered_test_is_reproducible_and_supports_mean():
+    a, b = _paired([3.0, 1.0, 2.0, 5.0, 0.5, 1.5, 2.5, 4.0, 0.0],
+                   [1.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+    first = paired_room_clustered_test(a, b, n=300, seed=11)
+    assert first == paired_room_clustered_test(a, b, n=300, seed=11)
+    assert 0.0 <= first["p_value"] <= 1.0 and first["lo"] < first["hi"]
+    mean_out = paired_room_clustered_test(a, b, n=300, seed=11, stat="mean")
+    assert mean_out["stat"] == "mean_paired_difference"
+    assert mean_out["point"] == pytest.approx(
+        sum(x["e_loc"] for x in a) / 9.0 - sum(x["e_loc"] for x in b) / 9.0)
+
+
+def test_paired_room_clustered_test_pairs_baseline_distance_lists_by_mean():
+    a = [{"query_id": "q0", "room_id": "A/A_idx_0", "e_loc": 1.0}]
+    b = [{"query_id": "q0", "room_id": "A/A_idx_0", "distances": [0.0, 2.0, 4.0]}]
+    out = paired_room_clustered_test(a, b, n=50, seed=0)
+    assert out["point"] == pytest.approx(1.0 - 2.0)     # baseline expectation = mean
+
+
+def test_paired_room_clustered_test_rejects_unpaired_inputs():
+    a, b = _paired([1.0] * 3, [1.0] * 3)
+    with pytest.raises(ValueError):
+        paired_room_clustered_test(a, b[:2], n=10, seed=0)
+    mismatched = [dict(rec, query_id="other") for rec in b[:1]] + b[1:]
+    with pytest.raises(ValueError):
+        paired_room_clustered_test(a, mismatched, n=10, seed=0)
+    moved = [dict(b[0], room_id="Z/Z_idx_0")] + b[1:]
+    with pytest.raises(ValueError):
+        paired_room_clustered_test(a, moved, n=10, seed=0)
+    with pytest.raises(ValueError):
+        paired_room_clustered_test([{"room_id": "A/A_idx_0", "e_loc": 1.0}],
+                                   [{"room_id": "A/A_idx_0", "e_loc": 1.0}], n=10, seed=0)
