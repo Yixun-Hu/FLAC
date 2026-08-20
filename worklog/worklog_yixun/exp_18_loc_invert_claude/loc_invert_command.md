@@ -23,3 +23,26 @@ python eval_localization.py --mode run --score-source gt_rir \
   --out-dir outputs_loc/exp18 --eval-name exp18_R1b_oracle \
   2>&1 | tee worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_2026-08-19_21:19:20_R1b_oracle.log
 ```
+
+## R0 smoke probe (2026-08-19_21:45:20 EDT)
+```bash
+python eval_localization.py --mode run --score-source flac --smoke --max-queries 4 \
+  --model-config src/configs/model_configs/FLAC/AR/FLAC_AR.json \
+  --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_seeneval.json \
+  --ckpt-path weights/FLAC/FLAC_EMA.ckpt --agree-ckpt weights/AGREE/AGREE_AR.pt \
+  --num-samples 8 --tau 0.1 --agg lme --seed 42 \
+  --cond-method vanilla --rotate-deg 0 --cond-autocast default \
+  --batch-size 4 --num-workers 4 --device cuda:1 \
+  --out-dir outputs_loc/exp18 --eval-name exp18_R0_probe \
+  2>&1 | tee worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_2026-08-19_21:45:20_R0_probe.log
+```
+
+## R0 scorer-noise (2026-08-19_21:45:20 EDT)
+```bash
+python eval_localization.py --mode scorer-noise \
+  --model-config src/configs/model_configs/FLAC/AR/FLAC_AR.json \
+  --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_seeneval.json \
+  --agree-ckpt weights/AGREE/AGREE_AR.pt --seed 42 --device cuda:1 \
+  --out-dir outputs_loc/exp18 --eval-name exp18_R0_scorernoise \
+  2>&1 | tee worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_2026-08-19_21:45:20_R0_scorernoise.log
+```
