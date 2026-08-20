@@ -491,3 +491,119 @@ def test_depth_validation_failure_is_distinctive_enough_to_survive_substitution(
 
     source = inspect.getsource(load_raf_md().validate_depth_map)
     assert "RAF depth map contract" in source
+
+
+# --------------------------------------------------------------------------- #
+# r2 R9: a real batched conditioner pass over the real collated batch
+# --------------------------------------------------------------------------- #
+def _raf_conditioning_config(cond_dim=256):
+    """The RAF model config's conditioning block with a LIGHTWEIGHT ViT injected.
+
+    Only the ViT backbone is substituted (permitted by contracts Amendment 2 R9):
+    the DINOv3 weights are a network download and 21M parameters, neither of which
+    a unit test may depend on. Everything else -- conditioner ids, types, cond_dim,
+    the dist_embedder frequencies, the RIR encoder's STFT settings -- is the real
+    config, so the shapes asserted below are the shapes the run will produce.
+    """
+    path = os.path.join(_REPO_ROOT, "src", "configs", "model_configs", "FLAC", "RAF",
+                        "FLAC_RAF_finetune.json")
+    with open(path) as f:
+        model_config = json.load(f)
+    conditioning = model_config["model"]["conditioning"]
+    assert conditioning["cond_dim"] == cond_dim
+    for entry in conditioning["configs"]:
+        if entry["type"] == "ViTCoordinates":
+            entry["config"]["ViT"] = {          # SimpleViT branch: built locally
+                "ch_dim": 3, "img_h": 256, "img_w": 512,
+                "patch_h": 64, "patch_w": 64,
+                "dim": 32, "depth": 1, "heads": 2, "mlp_dim": 32,
+            }
+    return model_config, conditioning
+
+
+def _raf_batch(runtime_root, tmp_path, n=2):
+    from src.data.dataset import LocalDatasetConfig, SampleDataset, collation_fn
+
+    split = {ROOM: [f"{i:06d}.wav" for i in range(n)]}
+    split_path = tmp_path / "batch.json"
+    with open(split_path, "w") as f:
+        json.dump(split, f)
+    config = LocalDatasetConfig(
+        id="RAF", path=str(runtime_root),
+        custom_metadata_fn=load_raf_md().get_custom_metadata,
+        json_file_path=str(split_path), folder_name="mono_rirs_22050Hz",
+        conditioning=_modalities(deterministic=True),
+    )
+    dataset = SampleDataset([config], sample_size=10240, sample_rate=22050,
+                            random_crop=False, force_channels="mono", augs=False)
+    return collation_fn([dataset[i] for i in range(n)])
+
+
+def test_real_multiconditioner_consumes_the_real_raf_batch(runtime_root, tmp_path):
+    """C10's consumer-level contract: the batch RAF_md emits must survive the
+    actual MultiConditioner built from the actual RAF conditioning config."""
+    from src.models.conditioners import create_multi_conditioner_from_conditioning_config
+
+    _, conditioning = _raf_conditioning_config()
+    conditioner = create_multi_conditioner_from_conditioning_config(conditioning)
+    _, metadata = _raf_batch(runtime_root, tmp_path, n=2)
+
+    with torch.no_grad():
+        out = conditioner(list(metadata), device="cpu")
+
+    assert set(out) == {"source", "source_vit", "context_poses_vit", "context_poses",
+                        "context_audio"}
+    for key, (tensor, mask) in out.items():
+        assert tensor.dtype == torch.float32, key
+        assert torch.isfinite(tensor).all(), key
+        assert tensor.shape[0] == 2, key
+        assert tensor.shape[-1] == 256, key          # cond_dim
+        # Upstream shape: every conditioner emits a per-ITEM mask [B, 1], not one
+        # entry per token. Shared with the AR/HAA path; recorded, not changed here.
+        assert mask.shape == (2, 1), key
+    # one token per reference for the context conditioners, one for the source
+    assert out["source"][0].shape == (2, 1, 256)
+    assert out["source_vit"][0].shape == (2, 1, 256)
+    assert out["context_poses"][0].shape == (2, 8, 256)
+    assert out["context_poses_vit"][0].shape == (2, 8, 256)
+    assert out["context_audio"][0].shape == (2, 8, 256)
+
+
+def test_conditioning_assembles_into_cross_attention_and_global_inputs(runtime_root,
+                                                                       tmp_path):
+    """Run the REAL get_conditioning_inputs over the REAL id lists: this is what
+    the DiT is handed, and it is where a wrong per-conditioner shape shows up."""
+    import types
+
+    from src.models.conditioners import create_multi_conditioner_from_conditioning_config
+    from src.models.diffusion import ConditionedDiffusionModelWrapper
+
+    model_config, conditioning = _raf_conditioning_config()
+    diffusion_config = model_config["model"]["diffusion"]
+    conditioner = create_multi_conditioner_from_conditioning_config(conditioning)
+    _, metadata = _raf_batch(runtime_root, tmp_path, n=2)
+
+    with torch.no_grad():
+        tensors = conditioner(list(metadata), device="cpu")
+
+    stub = types.SimpleNamespace(
+        cross_attn_cond_ids=diffusion_config["cross_attention_cond_ids"],
+        global_cond_ids=diffusion_config["global_cond_ids"],
+        input_concat_ids=[], prepend_cond_ids=[])
+    inputs = ConditionedDiffusionModelWrapper.get_conditioning_inputs(stub, tensors)
+
+    cross = inputs["cross_attn_cond"]
+    assert cross.dtype == torch.float32
+    assert cross.shape[0] == 2 and cross.shape[2] == 256
+    # context_poses_vit (8) + context_poses (8) + context_audio tokens
+    assert cross.shape[1] == (tensors["context_poses_vit"][0].shape[1]
+                              + tensors["context_poses"][0].shape[1]
+                              + tensors["context_audio"][0].shape[1])
+    assert cross.shape == (2, 24, 256)      # 8 + 8 + 8 reference tokens
+    # the mask concatenates the three per-item masks, one column per conditioner
+    assert inputs["cross_attn_mask"].shape == (2, 3)
+    # adaLN global conditioning: source + source_vit concatenated on the channel dim
+    assert inputs["global_cond"].shape == (2, 512)
+    assert inputs["global_cond"].dtype == torch.float32
+    assert torch.isfinite(inputs["global_cond"]).all()
+    assert diffusion_config["config"]["global_cond_dim"] == 512
