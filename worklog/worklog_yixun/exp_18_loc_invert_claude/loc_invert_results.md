@@ -42,3 +42,7 @@ Identity gate: 6,337/6,337 scored, 17 rooms, identity-stream hash 60c56165…; r
 - Power statistic mean ≈ 466–471 (candidate identity moves similarities ~2 orders above sampling noise) — conditioning is load-bearing; the weakness is discriminative sharpness, not wiring.
 - Seed stability excellent (all metrics within ±0.002).
 - **Preliminary reading (full analysis after seed 44 + R2b):** Vanilla FLAC carries genuine source-position information into unseen rooms (above information-matched chance; median 0), but its generated RIRs are less position-discriminative than simply matching measured context RIRs. R2b (K_ctx=1, elimination cue nearly absent, retrieval control weakened) is now the decisive cell.
+
+## R2 seed 44 (2026-08-20 15:50 EDT) — PASSED; three-seed table complete
+top-1 0.5000 | s@0.5 0.5328 | s@1.0 0.6659 | MRR 0.6334 | macro-mean 1.0751 m | ctx-member 0.3765 | p(vs matched baseline)=0.0116.
+**Three-seed summary: top-1 = 0.5007 ± 0.0008 (mean ± SD); every metric within ±0.004 across seeds.** All seeds pass all gates; identical split/manifest hashes.
