@@ -357,41 +357,127 @@ def group_captures(index, allow_nonuniform=False, expected_size=36):
     return groups, report
 
 
-def select_splits(groups, n_groups=16, n_val_groups=4, n_train=12):
+CANONICAL_GROUP_SIZE = 36
+
+
+def _render_xyz(xyz):
+    """6-decimal rendering of a position, matching the group-key convention."""
+    values = np.where(np.asarray(xyz, dtype=np.float64) == 0.0, 0.0, xyz)
+    return ",".join(f"{v:.6f}" for v in values)
+
+
+def count_duplicate_atoms(group):
+    """How many captures of ``group`` repeat an earlier ``(tx pose, rx)`` atom."""
+    seen, duplicates = set(), 0
+    for row in group["rx_xyz"]:
+        atom = _render_xyz(row)
+        if atom in seen:
+            duplicates += 1
+        seen.add(atom)
+    return duplicates
+
+
+def partition_eligibility(groups, expected_size=CANONICAL_GROUP_SIZE):
+    """Split groups into FPS-eligible ones and explicitly excluded ones (R1).
+
+    Eligibility is decided BEFORE any selection: a group that does not hold
+    exactly ``expected_size`` captures cannot yield the registered 12/24 manifest,
+    so letting it into the farthest-point sequence would either produce a
+    differently-sized split or silently displace an eligible group.
+    """
+    eligible, excluded = [], []
+    for g in groups:
+        if g["size"] != expected_size:
+            excluded.append({
+                "group_key": g["group_key"],
+                "size": g["size"],
+                "exclusion_reason": f"size!={expected_size}",
+            })
+        else:
+            eligible.append(g)
+    return eligible, excluded
+
+
+def assert_unique_atoms(groups):
+    """Every eligible capture must be a distinct ``(tx pose, rx)`` measurement.
+
+    A repeated atom is the same physical measurement twice, so it could land in
+    both a support pool and the test half of the same group — leakage that no
+    downstream check could see. Reserve groups are exempt by construction: they are
+    never split, and their anomalies are recorded instead (the real FurnishedRoom
+    72-capture group is 36 duplicated atoms).
+    """
+    seen, duplicates = {}, []
+    for g in groups:
+        for capture_id, row in zip(g["capture_ids"], g["rx_xyz"]):
+            atom = (g["group_key"], _render_xyz(row))
+            if atom in seen:
+                duplicates.append((atom[0], atom[1], seen[atom], capture_id))
+            else:
+                seen[atom] = capture_id
+    if duplicates:
+        detail = "; ".join(f"group {k} rx({rx}) captures {a}+{b}"
+                           for k, rx, a, b in duplicates[:5])
+        raise ValueError(
+            f"{len(duplicates)} duplicate (tx-pose, rx) atoms among eligible groups "
+            f"({detail}). The same measurement cannot be both support and test.")
+
+
+def select_splits(groups, n_groups=16, n_val_groups=4, n_train=12,
+                  n_diagnostic_groups=1, expected_size=CANONICAL_GROUP_SIZE):
     """Preregistered, deterministic, group-atomic split (plan Rev 2 section 5).
 
-    One farthest-point sequence over the groups' tx positions selects the first
-    ``n_groups`` as train/test groups and *continues* into ``n_val_groups``
-    validation groups; everything else is reserve (listed, never evaluated).
+    Only exactly-``expected_size`` groups are eligible (R1). One farthest-point
+    sequence over the eligible groups' tx positions selects ``n_groups`` train/test
+    groups, then *continues* into ``n_val_groups`` validation groups and
+    ``n_diagnostic_groups`` HAA-parity diagnostic groups; everything else — the
+    ineligible groups included, each with an ``exclusion_reason`` — is reserve
+    (listed, never evaluated).
 
-    Within every SELECTED group a farthest-point sequence over the 36 receiver
-    positions picks ``n_train`` support mics. For a train/test group those support
-    mics are the training items and the other 24 are the test items. A val group
-    contributes all 36 captures as val items and its support pool serves only as
-    their acoustic context — without it a val item would have no context at all.
+    Within every selected group a farthest-point sequence over the receiver
+    positions picks ``n_train`` support mics, and the remaining captures are that
+    group's targets:
 
-    Groups are atomic: no capture of a val or reserve group appears anywhere else.
+    * ``train_test`` — supports are the TRAINING items, the other 24 the test items;
+    * ``val``        — supports are CONTEXT ONLY, the other 24 are the val targets
+      (R14: HAA parity, so every val target draws from the same 12 candidates
+      rather than 12 of them drawing from 11);
+    * ``diagnostic`` — same 12-support/24-target manifest, evaluated as a separate
+      HAA-analogue row; its supports are context only and are never trained on.
     """
     for name, value in (("n_groups", n_groups), ("n_val_groups", n_val_groups),
                         ("n_train", n_train)):
         if not isinstance(value, (int, np.integer)) or isinstance(value, bool) or value < 1:
             raise ValueError(f"{name} must be a positive int, got {value!r}")
-    n_needed = int(n_groups) + int(n_val_groups)
-    if n_needed > len(groups):
+    if (not isinstance(n_diagnostic_groups, (int, np.integer))
+            or isinstance(n_diagnostic_groups, bool) or n_diagnostic_groups < 0):
         raise ValueError(
-            f"need {n_needed} groups ({n_groups} train/test + {n_val_groups} val) "
-            f"but the room has only {len(groups)}")
+            f"n_diagnostic_groups must be a non-negative int, got {n_diagnostic_groups!r}")
 
-    tx = np.vstack([g["tx_xyz_p"] for g in groups])
+    eligible, excluded = partition_eligibility(groups, expected_size)
+    assert_unique_atoms(eligible)
+
+    n_needed = int(n_groups) + int(n_val_groups) + int(n_diagnostic_groups)
+    if n_needed > len(eligible):
+        raise ValueError(
+            f"need {n_needed} groups ({n_groups} train/test + {n_val_groups} val + "
+            f"{n_diagnostic_groups} diagnostic) but only {len(eligible)} of "
+            f"{len(groups)} groups are eligible (exactly {expected_size} captures)")
+
+    tx = np.vstack([g["tx_xyz_p"] for g in eligible])
     order = farthest_point_selection(tx, n_needed)
-    train_test = [groups[i]["group_key"] for i in order[:n_groups]]
-    val = [groups[i]["group_key"] for i in order[n_groups:]]
-    selected = set(train_test) | set(val)
+    train_test = [eligible[i]["group_key"] for i in order[:n_groups]]
+    val = [eligible[i]["group_key"] for i in order[n_groups:n_groups + n_val_groups]]
+    diagnostic = [eligible[i]["group_key"] for i in order[n_groups + n_val_groups:]]
+    selected = set(train_test) | set(val) | set(diagnostic)
     reserve = [g["group_key"] for g in groups if g["group_key"] not in selected]
 
     by_key = {g["group_key"]: g for g in groups}
-    support_ids, train_ids, test_ids, val_ids = {}, {}, {}, {}
-    for key in train_test + val:
+    support_ids, train_ids, test_ids, val_ids, diagnostic_ids = {}, {}, {}, {}, {}
+    target_bucket = dict([(k, test_ids) for k in train_test]
+                         + [(k, val_ids) for k in val]
+                         + [(k, diagnostic_ids) for k in diagnostic])
+    for key in train_test + val + diagnostic:
         g = by_key[key]
         if n_train > g["size"]:
             raise ValueError(
@@ -402,57 +488,68 @@ def select_splits(groups, n_groups=16, n_val_groups=4, n_train=12):
         # eval context) sort the pool themselves rather than trusting this one.
         support = [g["capture_ids"][i] for i in picks]
         support_ids[key] = support
+        targets = [c for c in g["capture_ids"] if c not in set(support)]
+        target_bucket[key][key] = targets
         if key in set(train_test):
             train_ids[key] = list(support)
-            test_ids[key] = [c for c in g["capture_ids"] if c not in set(support)]
-        else:
-            val_ids[key] = list(g["capture_ids"])
 
-    _assert_disjoint(train_ids, test_ids, val_ids, by_key, val, reserve)
+    _assert_disjoint(train_ids, test_ids, val_ids, diagnostic_ids, by_key,
+                     val, diagnostic, reserve)
 
     roles = {k: "train_test" for k in train_test}
     roles.update({k: "val" for k in val})
+    roles.update({k: "diagnostic" for k in diagnostic})
     roles.update({k: "reserve" for k in reserve})
 
     return {
         "train_test_groups": train_test,
         "val_groups": val,
+        "diagnostic_groups": diagnostic,
         "reserve_groups": reserve,
+        "excluded_groups": excluded,
         "roles": roles,
         "support_ids": support_ids,
         "train_ids": train_ids,
         "test_ids": test_ids,
         "val_ids": val_ids,
+        "diagnostic_ids": diagnostic_ids,
         "params": {"n_groups": int(n_groups), "n_val_groups": int(n_val_groups),
-                   "n_train": int(n_train)},
+                   "n_train": int(n_train),
+                   "n_diagnostic_groups": int(n_diagnostic_groups),
+                   "expected_size": int(expected_size)},
     }
 
 
-def _assert_disjoint(train_ids, test_ids, val_ids, by_key, val_groups, reserve_groups):
+def _assert_disjoint(train_ids, test_ids, val_ids, diagnostic_ids, by_key,
+                     val_groups, diagnostic_groups, reserve_groups):
     """Fail-closed leakage check: the whole experiment rests on this."""
-    buckets = {"train": train_ids, "test": test_ids, "val": val_ids}
+    buckets = {"train": train_ids, "test": test_ids, "val": val_ids,
+               "diagnostic": diagnostic_ids}
+    names = sorted(buckets)
     flat = {name: {i for v in ids.values() for i in v} for name, ids in buckets.items()}
-    for a in ("train", "test", "val"):
-        for b in ("train", "test", "val"):
+    for a in names:
+        for b in names:
             if a < b and flat[a] & flat[b]:
                 raise ValueError(f"split leakage: {len(flat[a] & flat[b])} captures in both {a} and {b}")
     protected = set()
-    for key in list(val_groups) + list(reserve_groups):
+    for key in list(val_groups) + list(diagnostic_groups) + list(reserve_groups):
         protected |= set(by_key[key]["capture_ids"])
     leaked = protected & (flat["train"] | flat["test"])
     if leaked:
         raise ValueError(
-            f"split leakage: {len(leaked)} captures of val/reserve groups appear in train/test")
+            f"split leakage: {len(leaked)} captures of val/diagnostic/reserve groups "
+            "appear in train/test")
 
 
 def assemble_split_jsons(per_room):
     """Build the three HAA-shaped split dicts ``{room: ["<id>.wav", ...]}``."""
-    jsons = {"train": {}, "val": {}, "test": {}}
+    jsons = {"train": {}, "val": {}, "test": {}, "diagnostic": {}}
     for room, payload in per_room.items():
         split = payload["split"]
         for name, ids in (("train", split["train_ids"]),
                           ("test", split["test_ids"]),
-                          ("val", split["val_ids"])):
+                          ("val", split["val_ids"]),
+                          ("diagnostic", split["diagnostic_ids"])):
             files = sorted(f"{cid}.wav" for group_ids in ids.values() for cid in group_ids)
             jsons[name][room] = files
     return jsons
@@ -492,21 +589,39 @@ def _distance_stats(values):
     }
 
 
-def _room_distances(groups, split):
-    """Test-to-nearest-support and support-support distance distributions."""
+def _role_distances(groups, split, group_keys, target_ids):
+    """Target-to-nearest-support and support-support distances for one role."""
     by_key = {g["group_key"]: g for g in groups}
     nearest, pairwise = [], []
-    for key in split["train_test_groups"]:
+    for key in group_keys:
         g = by_key[key]
         pos = {cid: g["rx_xyz_p"][i] for i, cid in enumerate(g["capture_ids"])}
-        support = np.vstack([pos[c] for c in split["train_ids"][key]])
-        for cid in split["test_ids"][key]:
+        support = np.vstack([pos[c] for c in split["support_ids"][key]])
+        for cid in target_ids.get(key, []):
             nearest.append(float(np.linalg.norm(support - pos[cid], axis=1).min()))
         d = np.linalg.norm(support[:, None, :] - support[None, :, :], axis=-1)
         pairwise.extend(d[np.triu_indices(len(support), k=1)].tolist())
     return {
-        "test_to_nearest_support": _distance_stats(nearest),
+        "target_to_nearest_support": _distance_stats(nearest),
         "support_pairwise": _distance_stats(pairwise),
+    }
+
+
+def _room_distances(groups, split):
+    """Support/target distance distributions, overall and per role."""
+    by_role = {
+        "train_test": _role_distances(groups, split, split["train_test_groups"],
+                                      split["test_ids"]),
+        "val": _role_distances(groups, split, split["val_groups"], split["val_ids"]),
+        "diagnostic": _role_distances(groups, split, split["diagnostic_groups"],
+                                      split["diagnostic_ids"]),
+    }
+    return {
+        # kept under its r1 name: the headline "how far is a test mic from its
+        # support set" distribution, which is the train/test row
+        "test_to_nearest_support": by_role["train_test"]["target_to_nearest_support"],
+        "support_pairwise": by_role["train_test"]["support_pairwise"],
+        "by_role": by_role,
     }
 
 
@@ -530,13 +645,30 @@ def build_splits_record(per_room, params):
                 "train": sum(len(v) for v in split["train_ids"].values()),
                 "test": sum(len(v) for v in split["test_ids"].values()),
                 "val": sum(len(v) for v in split["val_ids"].values()),
+                "diagnostic": sum(len(v) for v in split["diagnostic_ids"].values()),
                 "train_test_groups": len(split["train_test_groups"]),
                 "val_groups": len(split["val_groups"]),
+                "diagnostic_groups": len(split["diagnostic_groups"]),
                 "reserve_groups": len(split["reserve_groups"]),
             },
             "train_test_groups": list(split["train_test_groups"]),
             "val_groups": list(split["val_groups"]),
+            "diagnostic_groups": list(split["diagnostic_groups"]),
             "reserve_groups": list(split["reserve_groups"]),
+            "excluded_groups": list(split["excluded_groups"]),
+            # Recorded, never asserted (R1): an ineligible group is already kept out
+            # of every split, so its anomalies are a fact about reserve rather than
+            # a reason to stop. The real FurnishedRoom 72-capture group shows up
+            # here as 36 duplicate atoms.
+            "reserve_anomalies": {
+                entry["group_key"]: {
+                    "size": entry["size"],
+                    "exclusion_reason": entry["exclusion_reason"],
+                    "duplicate_atoms": count_duplicate_atoms(
+                        next(g for g in groups if g["group_key"] == entry["group_key"])),
+                }
+                for entry in split["excluded_groups"]
+            },
             "distances": _room_distances(groups, split),
             "placements": {
                 "n_placements": payload["group_report"]["n_placements"],
@@ -654,15 +786,22 @@ def build_runtime_metadata(index, groups, split):
     so an entry here would also make the depth renderer render them).
     """
     role_of = {}
+    # Context-only supports first, so a support that is ALSO a training item (the
+    # train/test role) is overwritten by its stronger role below.
+    for gk, ids in split["support_ids"].items():
+        role_of.update({c: "support" for c in ids})
     for gk, ids in split["train_ids"].items():
         role_of.update({c: "train" for c in ids})
     for gk, ids in split["test_ids"].items():
         role_of.update({c: "test" for c in ids})
     for gk, ids in split["val_ids"].items():
         role_of.update({c: "val" for c in ids})
+    for gk, ids in split["diagnostic_ids"].items():
+        role_of.update({c: "diagnostic" for c in ids})
 
     by_id = {r["capture_id"]: r for r in index}
-    selected = list(split["train_test_groups"]) + list(split["val_groups"])
+    selected = (list(split["train_test_groups"]) + list(split["val_groups"])
+                + list(split["diagnostic_groups"]))
     by_key = {g["group_key"]: g for g in groups}
 
     poses, groups_meta = {}, {}
@@ -701,6 +840,9 @@ def build_parser():
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--n-groups', type=int, default=16)
     parser.add_argument('--n-val-groups', type=int, default=4)
+    parser.add_argument('--n-diagnostic-groups', type=int, default=1,
+                        help="HAA-parity diagnostic groups, taken next in the same "
+                             "FPS sequence (12 context-only supports / 24 targets)")
     parser.add_argument('--n-train', type=int, default=12)
     parser.add_argument('--crosscheck-sample', type=int, default=DEFAULT_CROSSCHECK_SAMPLE)
     parser.add_argument('--full-crosscheck', action='store_true',
@@ -726,10 +868,12 @@ def main(argv=None):
         logger.info("%s: %d captures in %d groups over %d placements", room,
                     len(index), group_report["n_groups"], group_report["n_placements"])
         split = select_splits(groups, n_groups=args.n_groups,
-                              n_val_groups=args.n_val_groups, n_train=args.n_train)
+                              n_val_groups=args.n_val_groups, n_train=args.n_train,
+                              n_diagnostic_groups=args.n_diagnostic_groups)
 
         out_room = os.path.join(args.output_dir, room)
-        selected_ids = [c for gk in split["train_test_groups"] + split["val_groups"]
+        selected_ids = [c for gk in (split["train_test_groups"] + split["val_groups"]
+                                     + split["diagnostic_groups"])
                         for c in next(g for g in groups if g["group_key"] == gk)["capture_ids"]]
         audits[room] = resample_and_write(room_dir, out_room, selected_ids)
         logger.info("%s: wrote %d resampled RIRs (%d below %g dBFS)", room,
@@ -747,6 +891,7 @@ def main(argv=None):
     paths = write_split_files(args.split_dir, assemble_split_jsons(per_room))
     params = {"seed": args.seed, "n_groups": args.n_groups,
               "n_val_groups": args.n_val_groups, "n_train": args.n_train,
+              "n_diagnostic_groups": args.n_diagnostic_groups,
               "rooms": list(args.rooms), "raf_root": args.raf_root,
               "output_dir": args.output_dir,
               "crosscheck": "full" if args.full_crosscheck else f"sample:{args.crosscheck_sample}",

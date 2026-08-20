@@ -90,6 +90,9 @@ _PAIRS = [
     ("train/raf_train.json", "train/haa_train.json", "data/RAF/train_base.json", False),
     ("eval/raf_val.json", "eval/haa_val.json", "data/RAF/val_base.json", True),
     ("eval/raf_test.json", "eval/haa_test.json", "data/RAF/test_base.json", True),
+    # the HAA-parity diagnostic row (r2 R2): its own manifest, same eval protocol
+    ("eval/raf_diagnostic.json", "eval/haa_test.json",
+     "data/RAF/diagnostic_base.json", True),
 ]
 
 _DATASET_WHITELIST = [
@@ -130,7 +133,8 @@ def test_dataset_config_values():
 def test_eval_configs_keep_the_haa_eval_flags():
     val = _load(os.path.join(_DATA_DIR, "RAF", "eval/raf_val.json"))
     test = _load(os.path.join(_DATA_DIR, "RAF", "eval/raf_test.json"))
-    for cfg in (val, test):
+    diagnostic = _load(os.path.join(_DATA_DIR, "RAF", "eval/raf_diagnostic.json"))
+    for cfg in (val, test, diagnostic):
         assert cfg["is_eval"] is True
         assert cfg["drop_last"] is False
     assert val["seeneval"] is True

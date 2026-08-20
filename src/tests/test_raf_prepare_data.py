@@ -502,7 +502,8 @@ def test_select_splits_group_order_is_hand_checked_fps_over_tx(mini_groups):
     So with n_groups=2 / n_val_groups=1: train/test = {g1, g0}, val = {g2}.
     """
     groups, _ = mini_groups
-    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12,
+                                      n_diagnostic_groups=0)
     assert split["train_test_groups"] == [groups[1]["group_key"], groups[0]["group_key"]]
     assert split["val_groups"] == [groups[2]["group_key"]]
     assert split["reserve_groups"] == []
@@ -510,10 +511,13 @@ def test_select_splits_group_order_is_hand_checked_fps_over_tx(mini_groups):
 
 def test_select_splits_counts(mini_groups):
     groups, _ = mini_groups
-    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12,
+                                      n_diagnostic_groups=0)
     assert sum(len(v) for v in split["train_ids"].values()) == 2 * 12
     assert sum(len(v) for v in split["test_ids"].values()) == 2 * 24
-    assert sum(len(v) for v in split["val_ids"].values()) == 36
+    # R14 (r2): the val group's 12 supports are context-only, so it contributes
+    # its other 24 captures as val targets.
+    assert sum(len(v) for v in split["val_ids"].values()) == 24
     # every selected group carries a 12-mic support pool, including the val group:
     # a val item's acoustic context is drawn from its own group's support.
     assert set(split["support_ids"]) == set(split["train_test_groups"] + split["val_groups"])
@@ -530,14 +534,16 @@ def test_select_splits_first_support_mic_is_hand_checked_fps_over_rx(mini_groups
     not hinge on floating-point detail).
     """
     groups, _ = mini_groups
-    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12,
+                                      n_diagnostic_groups=0)
     gk = groups[0]["group_key"]
     assert split["train_ids"][gk][0] == "000017"
 
 
 def test_select_splits_is_group_atomic_and_disjoint(mini_groups):
     groups, _ = mini_groups
-    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12,
+                                      n_diagnostic_groups=0)
     train = [i for v in split["train_ids"].values() for i in v]
     test = [i for v in split["test_ids"].values() for i in v]
     val = [i for v in split["val_ids"].values() for i in v]
@@ -548,11 +554,13 @@ def test_select_splits_is_group_atomic_and_disjoint(mini_groups):
     # no capture of a val group appears in train/test in any role
     val_group_ids = set(groups[2]["capture_ids"])
     assert not (set(train) | set(test)) & val_group_ids
+    assert len(val) == 24
 
 
 def test_select_splits_train_and_test_partition_their_group(mini_groups):
     groups, _ = mini_groups
-    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12,
+                                      n_diagnostic_groups=0)
     for gk in split["train_test_groups"]:
         g = next(x for x in groups if x["group_key"] == gk)
         assert sorted(split["train_ids"][gk] + split["test_ids"][gk]) == sorted(g["capture_ids"])
@@ -560,14 +568,17 @@ def test_select_splits_train_and_test_partition_their_group(mini_groups):
 
 def test_select_splits_is_deterministic(mini_groups):
     groups, _ = mini_groups
-    a = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
-    b = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    a = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12,
+                                  n_diagnostic_groups=0)
+    b = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12,
+                                  n_diagnostic_groups=0)
     assert a["train_ids"] == b["train_ids"] and a["val_ids"] == b["val_ids"]
 
 
 def test_select_splits_lists_reserve_groups(mini_groups):
     groups, _ = mini_groups
-    split = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1, n_train=12)
+    split = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1, n_train=12,
+                                      n_diagnostic_groups=0)
     assert len(split["reserve_groups"]) == 1
     assert split["roles"][split["reserve_groups"][0]] == "reserve"
 
@@ -582,6 +593,7 @@ def test_select_splits_lists_reserve_groups(mini_groups):
 def test_select_splits_rejects_impossible_parameters(mini_groups, kwargs):
     groups, _ = mini_groups
     kwargs.setdefault("n_train", 12)
+    kwargs.setdefault("n_diagnostic_groups", 0)
     with pytest.raises(ValueError):
         raf_prepare.select_splits(groups, **kwargs)
 
@@ -592,7 +604,8 @@ def test_select_splits_rejects_impossible_parameters(mini_groups, kwargs):
 def _one_room_payload(mini_room):
     index = raf_prepare.load_room_index(mini_room)
     groups, group_report = raf_prepare.group_captures(index)
-    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    split = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1, n_train=12,
+                                      n_diagnostic_groups=1)
     return {"EmptyRoom": {"groups": groups, "split": split, "group_report": group_report,
                           "crosscheck": {"mode": "full", "checked": len(index),
                                          "mismatches": 0},
@@ -603,11 +616,11 @@ def _one_room_payload(mini_room):
 def test_assemble_split_jsons_has_the_haa_shape(mini_room):
     payload = _one_room_payload(mini_room)
     jsons = raf_prepare.assemble_split_jsons(payload)
-    assert set(jsons) == {"train", "val", "test"}
+    assert set(jsons) == {"train", "val", "test", "diagnostic"}
     assert list(jsons["train"]) == ["EmptyRoom"]
-    assert len(jsons["train"]["EmptyRoom"]) == 24
-    assert len(jsons["test"]["EmptyRoom"]) == 48
-    assert len(jsons["val"]["EmptyRoom"]) == 36
+    assert len(jsons["train"]["EmptyRoom"]) == 12
+    assert len(jsons["test"]["EmptyRoom"]) == 24
+    assert len(jsons["val"]["EmptyRoom"]) == 24
     for name in jsons["train"]["EmptyRoom"]:
         assert name.endswith(".wav") and len(name) == 10 and name[:6].isdigit()
     assert jsons["train"]["EmptyRoom"] == sorted(jsons["train"]["EmptyRoom"])
@@ -619,7 +632,7 @@ def test_write_split_files_round_trips(tmp_path, mini_room):
     out = tmp_path / "splits"
     paths = raf_prepare.write_split_files(str(out), jsons)
     assert sorted(os.path.basename(p) for p in paths.values()) == [
-        "test_base.json", "train_base.json", "val_base.json"]
+        "diagnostic_base.json", "test_base.json", "train_base.json", "val_base.json"]
     with open(paths["train"]) as f:
         assert json.load(f) == jsons["train"]
 
@@ -631,15 +644,16 @@ def test_splits_record_carries_the_preregistration_fields(mini_room):
     record = raf_prepare.build_splits_record(payload, params)
     assert record["params"] == params
     room = record["rooms"]["EmptyRoom"]
-    assert room["counts"] == {"train": 24, "test": 48, "val": 36,
-                              "train_test_groups": 2, "val_groups": 1, "reserve_groups": 0}
-    assert len(room["train_test_groups"]) == 2
+    assert room["counts"] == {"train": 12, "test": 24, "val": 24, "diagnostic": 24,
+                              "train_test_groups": 1, "val_groups": 1,
+                              "diagnostic_groups": 1, "reserve_groups": 0}
+    assert len(room["train_test_groups"]) == 1
     assert len(room["reserve_groups"]) == 0
     assert room["placements"]["n_placements"] == 3
     assert room["group_report"]["nonuniform"] == []
     assert room["crosscheck"]["mismatches"] == 0
     stats = room["distances"]["test_to_nearest_support"]
-    assert stats["count"] == 48
+    assert stats["count"] == 24
     assert stats["min"] > 0.0
     assert stats["max"] <= 2.0   # the synthetic array spans 1.0 x 1.0 x 1.2 m
     assert set(stats) == {"count", "min", "p25", "median", "p75", "max", "mean"}
@@ -653,7 +667,7 @@ def test_splits_record_group_entries_carry_the_canonical_tuple(mini_room):
     record = raf_prepare.build_splits_record(payload, {"seed": 0})
     entry = record["rooms"]["EmptyRoom"]["group_details"][0]
     assert len(entry["group_tuple"]) == 7
-    assert entry["role"] in {"train_test", "val", "reserve"}
+    assert entry["role"] in {"train_test", "val", "diagnostic", "reserve"}
     assert entry["placement_key"]
     assert len(entry["tx_xyz_p"]) == 3
 
@@ -744,12 +758,14 @@ def test_resample_aborts_on_multichannel_input(tmp_path, mini_room):
 def test_runtime_metadata_shapes_and_roles(mini_room):
     index = raf_prepare.load_room_index(mini_room)
     groups, _ = raf_prepare.group_captures(index)
-    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    split = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1, n_train=12,
+                                      n_diagnostic_groups=1)
     poses, groups_meta = raf_prepare.build_runtime_metadata(index, groups, split)
 
     # only captures of SELECTED groups are runtime-visible
     assert len(poses) == 3 * N_MICS
-    assert set(groups_meta) == set(split["train_test_groups"] + split["val_groups"])
+    assert set(groups_meta) == set(split["train_test_groups"] + split["val_groups"]
+                                   + split["diagnostic_groups"])
 
     entry = poses["000000"]
     assert set(entry) == {"tx_xyz_p", "quat_raw", "rx_p", "group_key", "split_role"}
@@ -758,20 +774,23 @@ def test_runtime_metadata_shapes_and_roles(mini_room):
     assert entry["tx_xyz_p"] == [0.0, 0.0, 1.5]           # RAF (0, 1.5, 0) -> (X, Z, Y)
     assert entry["rx_p"] == [2.0, -1.0, 0.0]              # RAF (2, 0, -1)  -> (X, Z, Y)
     assert entry["group_key"] == groups[0]["group_key"]
-    assert entry["split_role"] in {"train", "test", "val"}
+    assert entry["split_role"] in {"train", "test", "val", "diagnostic", "support"}
     assert all(isinstance(k, str) and len(k) == 6 for k in poses)
 
-    gm = groups_meta[groups[0]["group_key"]]
+    train_test_key = split["train_test_groups"][0]
+    gm = groups_meta[train_test_key]
     assert set(gm) == {"tx_xyz_p", "depth_file", "train_ids", "role"}
-    assert gm["depth_file"] == f"{groups[0]['group_key']}_depth_image.npy"
+    assert gm["depth_file"] == f"{train_test_key}_depth_image.npy"
     assert len(gm["train_ids"]) == 12
     assert gm["role"] == "train_test"
+    assert groups_meta[split["diagnostic_groups"][0]]["role"] == "diagnostic"
 
 
 def test_runtime_metadata_roles_agree_with_the_split(mini_room):
     index = raf_prepare.load_room_index(mini_room)
     groups, _ = raf_prepare.group_captures(index)
-    split = raf_prepare.select_splits(groups, n_groups=2, n_val_groups=1, n_train=12)
+    split = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1, n_train=12,
+                                      n_diagnostic_groups=1)
     poses, _ = raf_prepare.build_runtime_metadata(index, groups, split)
     for gk, ids in split["train_ids"].items():
         assert all(poses[c]["split_role"] == "train" for c in ids)
@@ -779,12 +798,19 @@ def test_runtime_metadata_roles_agree_with_the_split(mini_room):
         assert all(poses[c]["split_role"] == "test" for c in ids)
     for gk, ids in split["val_ids"].items():
         assert all(poses[c]["split_role"] == "val" for c in ids)
+    for gk, ids in split["diagnostic_ids"].items():
+        assert all(poses[c]["split_role"] == "diagnostic" for c in ids)
+    # context-only supports are runtime-visible (RAF_md reads their rx_p) and are
+    # labelled as such, never as a target of any split
+    for gk in split["val_groups"] + split["diagnostic_groups"]:
+        assert all(poses[c]["split_role"] == "support" for c in split["support_ids"][gk])
 
 
 def test_runtime_metadata_is_json_serialisable(mini_room):
     index = raf_prepare.load_room_index(mini_room)
     groups, _ = raf_prepare.group_captures(index)
-    split = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1, n_train=12)
+    split = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1, n_train=12,
+                                      n_diagnostic_groups=1)
     poses, groups_meta = raf_prepare.build_runtime_metadata(index, groups, split)
     json.dumps({"poses": poses, "groups": groups_meta})
 
@@ -800,8 +826,8 @@ def _run_cli(tmp_path, extra=()):
     split_dir = tmp_path / "splits"
     argv = ["--raf-root", str(raf_root), "--output-dir", str(out),
             "--split-dir", str(split_dir), "--rooms", "EmptyRoom", "FurnishedRoom",
-            "--n-groups", "2", "--n-val-groups", "1", "--n-train", "12",
-            "--full-crosscheck"] + list(extra)
+            "--n-groups", "1", "--n-val-groups", "1", "--n-train", "12",
+            "--n-diagnostic-groups", "1", "--full-crosscheck"] + list(extra)
     raf_prepare.main(argv)
     return out, split_dir
 
@@ -827,8 +853,8 @@ def test_cli_split_files_cover_both_rooms_and_match_the_wavs(tmp_path):
     with open(split_dir / "val_base.json") as f:
         val = json.load(f)
     assert set(train) == set(test) == set(val) == {"EmptyRoom", "FurnishedRoom"}
-    assert len(train["EmptyRoom"]) == 24 and len(test["EmptyRoom"]) == 48
-    assert len(val["EmptyRoom"]) == 36
+    assert len(train["EmptyRoom"]) == 12 and len(test["EmptyRoom"]) == 24
+    assert len(val["EmptyRoom"]) == 24
     for room in ("EmptyRoom", "FurnishedRoom"):
         for name in train[room] + test[room] + val[room]:
             assert (out / room / "mono_rirs_22050Hz" / name).exists()
@@ -860,7 +886,7 @@ def test_cli_still_aborts_on_a_count_mismatch_the_sentinel_rule_does_not_cover(t
                           "--output-dir", str(tmp_path / "out"),
                           "--split-dir", str(tmp_path / "splits"),
                           "--rooms", "EmptyRoom",
-                          "--n-groups", "2", "--n-val-groups", "1"])
+                          "--n-groups", "1", "--n-val-groups", "1"])
 
 
 def test_cli_is_idempotent(tmp_path):
@@ -870,8 +896,9 @@ def test_cli_is_idempotent(tmp_path):
     raf_root = tmp_path / "raf"
     raf_prepare.main(["--raf-root", str(raf_root), "--output-dir", str(out),
                       "--split-dir", str(split_dir), "--rooms", "EmptyRoom",
-                      "FurnishedRoom", "--n-groups", "2", "--n-val-groups", "1",
-                      "--n-train", "12", "--full-crosscheck"])
+                      "FurnishedRoom", "--n-groups", "1", "--n-val-groups", "1",
+                      "--n-train", "12", "--n-diagnostic-groups", "1",
+                      "--full-crosscheck"])
     with open(split_dir / "train_base.json") as f:
         assert json.load(f) == first
 
@@ -905,11 +932,209 @@ def test_cli_records_the_sentinel_drop_per_room(tmp_path):
                       "--output-dir", str(tmp_path / "runtime" / "RAF"),
                       "--split-dir", str(split_dir),
                       "--rooms", "EmptyRoom", "FurnishedRoom",
-                      "--n-groups", "2", "--n-val-groups", "1", "--n-train", "12",
-                      "--full-crosscheck"])
+                      "--n-groups", "1", "--n-val-groups", "1", "--n-train", "12",
+                      "--n-diagnostic-groups", "1", "--full-crosscheck"])
     with open(split_dir / "raf_splits_record.json") as f:
         record = json.load(f)
     assert record["rooms"]["EmptyRoom"]["rx_trailing_sentinel_dropped"] is True
     assert record["rooms"]["FurnishedRoom"]["rx_trailing_sentinel_dropped"] is False
     # the sentinel room still has every capture: the dropped line was not data
     assert record["rooms"]["EmptyRoom"]["group_report"]["n_captures"] == 3 * N_MICS
+
+
+# --------------------------------------------------------------------------- #
+# r2 R1: FPS eligibility, forced reserve, atom uniqueness
+# --------------------------------------------------------------------------- #
+def _renumber(index):
+    for i, rec in enumerate(index):
+        rec["index"], rec["capture_id"] = i, f"{i:06d}"
+    return index
+
+
+def _groups_with_one_oversized(n_regular=3):
+    """n_regular exactly-36 groups plus one 72-capture group (the real anomaly:
+    FurnishedRoom has exactly one, made of 36 duplicated (tx, rx) atoms)."""
+    specs = [((0.1 * (g + 1), 0.9, 0.0, 0.1), (float(g), 1.5, 0.5 * g),
+              (2.0 + 0.7 * g, 0.0, -1.0 + 0.3 * g)) for g in range(n_regular)]
+    index = _synthetic_index(specs)
+    dup_array = np.vstack([_mic_array(), _mic_array()])   # 72 rows, 36 duplicate pairs
+    index += _synthetic_index([((0.7, 0.9, 0.0, 0.1), (9.0, 1.5, 9.0), (9.0, 0.0, 9.0))],
+                              n_mics=72, array=dup_array)
+    return raf_prepare.group_captures(_renumber(index), allow_nonuniform=True)
+
+
+def test_non_36_groups_are_ineligible_and_forced_to_reserve():
+    groups, _ = _groups_with_one_oversized()
+    oversized = next(g["group_key"] for g in groups if g["size"] == 72)
+    split = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1,
+                                      n_diagnostic_groups=1)
+    assert oversized in split["reserve_groups"]
+    assert split["roles"][oversized] == "reserve"
+    assert oversized not in split["support_ids"]
+    reasons = {e["group_key"]: e for e in split["excluded_groups"]}
+    assert reasons[oversized]["exclusion_reason"] == "size!=36"
+    assert reasons[oversized]["size"] == 72
+
+
+def test_eligibility_is_applied_before_the_fps_selection():
+    """The oversized group sits far from the others, so an unfiltered FPS would
+    pick it; filtering FIRST must hand the slot to an eligible group instead."""
+    groups, _ = _groups_with_one_oversized()
+    tx = np.vstack([g["tx_xyz_p"] for g in groups])
+    unfiltered = raf_common.farthest_point_selection(tx, 3)
+    oversized_pos = next(i for i, g in enumerate(groups) if g["size"] == 72)
+    assert oversized_pos in unfiltered          # it WOULD have been selected
+    split = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1,
+                                      n_diagnostic_groups=1)
+    chosen = (split["train_test_groups"] + split["val_groups"]
+              + split["diagnostic_groups"])
+    assert groups[oversized_pos]["group_key"] not in chosen
+    assert len(chosen) == 3
+
+
+def test_duplicate_tx_rx_atoms_in_an_eligible_group_abort():
+    """(tx pose, rx) must identify a capture: a duplicated atom would put the same
+    physical measurement in both the support and the test half."""
+    array = np.vstack([_mic_array()[:35], _mic_array()[:1]])   # 36 rows, one repeat
+    index = _renumber(_synthetic_index(
+        [((0.1, 0.9, 0.0, 0.1), (1.0, 1.5, 2.0), (0.0, 0.0, 0.0))], array=array))
+    groups, _ = raf_prepare.group_captures(index)
+    with pytest.raises(ValueError) as exc:
+        raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1,
+                                  n_diagnostic_groups=1)
+    assert "duplicate" in str(exc.value).lower()
+
+
+def test_reserve_anomalies_are_recorded_not_asserted(mini_room):
+    """The 72-group's 36 duplicate pairs are a recorded fact about reserve, never
+    an abort: excluding it already keeps it out of every split."""
+    groups, group_report = _groups_with_one_oversized()
+    split = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1,
+                                      n_diagnostic_groups=1)
+    record = raf_prepare.build_splits_record(
+        {"EmptyRoom": {"groups": groups, "split": split,
+                       "group_report": group_report,
+                       "crosscheck": {"mode": "full", "checked": 0, "mismatches": 0},
+                       "rx_trailing_sentinel_dropped": False}},
+        {"seed": 0})
+    anomalies = record["rooms"]["EmptyRoom"]["reserve_anomalies"]
+    oversized = next(g["group_key"] for g in groups if g["size"] == 72)
+    assert anomalies[oversized]["size"] == 72
+    assert anomalies[oversized]["duplicate_atoms"] == 36
+    assert anomalies[oversized]["exclusion_reason"] == "size!=36"
+
+
+def test_not_enough_eligible_groups_aborts():
+    groups, _ = _groups_with_one_oversized(n_regular=2)
+    with pytest.raises(ValueError) as exc:
+        raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1,
+                                  n_diagnostic_groups=1)
+    assert "eligible" in str(exc.value)
+
+
+# --------------------------------------------------------------------------- #
+# r2 R2: the diagnostic role
+# --------------------------------------------------------------------------- #
+def test_diagnostic_group_is_the_next_in_the_same_fps_sequence(mini_groups):
+    """FPS over the 3 mini groups is [1, 0, 2] (hand-derived above), so with
+    n_groups=1/n_val=1 the diagnostic group is the third entry, group 2."""
+    groups, _ = mini_groups
+    split = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1,
+                                      n_diagnostic_groups=1)
+    assert split["train_test_groups"] == [groups[1]["group_key"]]
+    assert split["val_groups"] == [groups[0]["group_key"]]
+    assert split["diagnostic_groups"] == [groups[2]["group_key"]]
+    assert split["roles"][groups[2]["group_key"]] == "diagnostic"
+
+
+def test_diagnostic_group_has_a_12_support_24_test_manifest(mini_groups):
+    groups, _ = mini_groups
+    split = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1,
+                                      n_diagnostic_groups=1)
+    gk = split["diagnostic_groups"][0]
+    assert len(split["support_ids"][gk]) == 12
+    assert len(split["diagnostic_ids"][gk]) == 24
+    assert not set(split["diagnostic_ids"][gk]) & set(split["support_ids"][gk])
+    # HAA-parity probe: its supports are context only, never training items
+    assert gk not in split["train_ids"]
+
+
+def test_diagnostic_captures_are_disjoint_from_every_other_split(mini_groups):
+    groups, _ = mini_groups
+    split = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1,
+                                      n_diagnostic_groups=1)
+    flat = {name: {i for v in split[f"{name}_ids"].values() for i in v}
+            for name in ("train", "test", "val", "diagnostic")}
+    assert not flat["diagnostic"] & (flat["train"] | flat["test"] | flat["val"])
+
+
+def test_canonical_constants_yield_21_groups_and_42_depth_maps():
+    """16 train/test + 4 val + 1 diagnostic per room; 2 rooms -> 42 renders."""
+    specs = [((0.1, 0.9, 0.0, 0.1), (float(g), 1.5, float(g % 5)),
+              (float(g), 0.0, 0.0)) for g in range(25)]
+    groups, _ = raf_prepare.group_captures(_renumber(_synthetic_index(specs)))
+    split = raf_prepare.select_splits(groups)      # production defaults
+    assert len(split["train_test_groups"]) == 16
+    assert len(split["val_groups"]) == 4
+    assert len(split["diagnostic_groups"]) == 1
+    assert len(split["reserve_groups"]) == 4
+    index = _renumber(_synthetic_index(specs))
+    _, groups_meta = raf_prepare.build_runtime_metadata(index, groups, split)
+    assert len(groups_meta) == 21          # x2 rooms = 42 depth maps
+
+
+# --------------------------------------------------------------------------- #
+# r2 R14: val supports are context-only
+# --------------------------------------------------------------------------- #
+def test_val_targets_exclude_the_support_mics(mini_groups):
+    """HAA parity: the 12 supports are context, the other 24 are the val targets,
+    so every val item draws from the same 12 candidates."""
+    groups, _ = mini_groups
+    split = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1,
+                                      n_diagnostic_groups=1)
+    gk = split["val_groups"][0]
+    assert len(split["val_ids"][gk]) == 24
+    assert len(split["support_ids"][gk]) == 12
+    assert not set(split["val_ids"][gk]) & set(split["support_ids"][gk])
+    assert sorted(split["val_ids"][gk] + split["support_ids"][gk]) == \
+        sorted(next(g for g in groups if g["group_key"] == gk)["capture_ids"])
+
+
+def test_split_counts_after_r14(mini_room):
+    payload = _one_room_payload(mini_room)
+    jsons = raf_prepare.assemble_split_jsons(payload)
+    assert len(jsons["train"]["EmptyRoom"]) == 12     # 1 train/test group x 12
+    assert len(jsons["test"]["EmptyRoom"]) == 24
+    assert len(jsons["val"]["EmptyRoom"]) == 24       # was 36 before R14
+    assert len(jsons["diagnostic"]["EmptyRoom"]) == 24
+
+
+def test_cli_emits_the_diagnostic_manifest_and_metadata(tmp_path):
+    raf_root = tmp_path / "raf"
+    write_room(str(raf_root), "EmptyRoom")
+    write_room(str(raf_root), "FurnishedRoom")
+    out = tmp_path / "runtime" / "RAF"
+    split_dir = tmp_path / "splits"
+    raf_prepare.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                      "--split-dir", str(split_dir), "--rooms", "EmptyRoom",
+                      "FurnishedRoom", "--n-groups", "1", "--n-val-groups", "1",
+                      "--n-diagnostic-groups", "1", "--n-train", "12",
+                      "--full-crosscheck"])
+    with open(split_dir / "diagnostic_base.json") as f:
+        diagnostic = json.load(f)
+    assert set(diagnostic) == {"EmptyRoom", "FurnishedRoom"}
+    assert len(diagnostic["EmptyRoom"]) == 24
+    with open(out / "EmptyRoom" / "metadata" / "groups_metadata.json") as f:
+        groups_meta = json.load(f)
+    roles = sorted(g["role"] for g in groups_meta.values())
+    assert roles == ["diagnostic", "train_test", "val"]
+    with open(out / "EmptyRoom" / "metadata" / "poses_metadata.json") as f:
+        poses = json.load(f)
+    for name in diagnostic["EmptyRoom"]:
+        cid = name[:-4]
+        assert poses[cid]["split_role"] == "diagnostic"
+        assert (out / "EmptyRoom" / "mono_rirs_22050Hz" / name).exists()
+    # every diagnostic target has a full 12-mic context pool
+    gk = poses[diagnostic["EmptyRoom"][0][:-4]]["group_key"]
+    assert len(groups_meta[gk]["train_ids"]) == 12
+    assert diagnostic["EmptyRoom"][0][:-4] not in groups_meta[gk]["train_ids"]
