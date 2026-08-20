@@ -284,3 +284,9 @@
 
 - **Result** — Peer FYI: `/media/diskstation/yixunhu/FLAC/exp19_ckpts/{BF,P1}` is Yixun's own in-progress rsync (since ~11:17) of the FA B-F and exp07_P1 anchor checkpoints — the first cross-arm localization inputs (exp_20+ scope). Not ours to move (named "exp19_ckpts" but Yixun's own transfer). Announcement 07 logged independently on both sessions; established style example: `checkpoints/exp12_cyl_dinov3_arms/`.
 - **Analysis** — When the cross-arm experiment scaffolds: verify these ckpts' sha256 against the training sessions' registries before any row is produced; FA B-F rows will need `--cond-method fa_invariant` per announcement 05.
+
+## 2026-08-20T15:47:34-0400 — r7 review GO; launch conditions satisfied; R2b LAUNCH (dumps on)
+
+- **Result** — r7: APPROVE-WITH-CHANGES, no result-corruption; conditions met: (1) deselected cuda-device timing test re-run on free GPU: 1 passed; (2) full --readback-decode-all over all 6,337 unseen wavs: exit 0, 0 failures, 1 expected LRH warning; (3) fresh per-seed dump dirs, no --overwrite. MEDIUM (NAS overwrite semantics) adopted as operational rule; LOW (replay preflight) queued to R4 driver round with the R4-composition guard (immutable snapshot; tail = deterministic replay, so labelled).
+- **Acceptance criteria (each R2b seed)** — R2b registration gate passes (manifest 8c2b4a3416fe31531c9b7c811bff51abca0cd376); split digests 3/3; identity gate 6,337/6,337; dumps complete (6,337 npz + manifest) in a fresh dir; final artifacts published; wall ≈2.5 h (dump I/O adds ~10-15%).
+- **Result** — launched seeds 42 (cuda:1) + 43 (cuda:0).
