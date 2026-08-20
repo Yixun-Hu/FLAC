@@ -86,3 +86,5 @@ nohup python eval_localization.py --mode run --score-source flac \
   --out-dir outputs_loc/exp18 --eval-name exp18_R2 \
   > worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_2026-08-20_11:29:49_R2_seed42.log 2>&1 &
 ```
+
+## R2 seed 44 (2026-08-20_13:34:52 EDT) — same command, --seed 44 --device cuda:1 (log: loc_invert_2026-08-20_13:34:52_R2_seed44.log)

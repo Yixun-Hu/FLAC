@@ -26,3 +26,19 @@ Identity gate: 6,337/6,337 scored, 17 rooms, identity-stream hash 60c56165…; r
 - R1-v2 (1,194-query seen prefix, K=8, seed 42): identity gate clean, published. **Dev-slice: FLAC pooled median e_loc = 0.0000 m** vs context-conditioned baseline 1.0198 m (seen rooms — the model trained in these; encouraging, not the headline).
 - **τ sweep (28 configs, offline re-aggregation): registered τ = 0.02** (rule: LME, K′=8, pooled mean, smallest-τ tie-break). Landscape FLAT: 1.0718 (τ=0.02) … 1.0852 m (τ=0.5); max 1.0712, mean 1.0852; pooled median 0.0 for every config ⇒ aggregation-insensitive.
 - **R2 registration manifest:** `loc_invert_R2_registration.json` — locks config/ckpt/scorer hashes, split digest 9a9d817a…, candidate-manifest da1a1410…, K=8, τ=0.02, LME, vanilla/rotate-0/autocast-default, readout mean, seeds {42,43,44}.
+
+## R2 registered unseen headline — seeds 42/43 (2026-08-20 13:32 EDT) — PASSED all gates
+| Metric (pooled/macro over 6,337 / 17 rooms) | seed 42 | seed 43 | Info-matched chance | Retrieval control |
+|---|---|---|---|---|
+| top-1 | 0.5015 | 0.5007 | 0.490 | **0.689** |
+| success@0.5 m | 0.5348 | 0.5336 | 0.500 | 0.690 |
+| success@1.0 m | 0.6663 | 0.6648 | 0.572 | 0.720 |
+| MRR | 0.6340 | 0.6333 | — | — |
+| pooled median e_loc | 0.000 m (CI 0.000–0.510) | 0.000 m | 0.707 m | ~0 (room medians) |
+| macro mean e_loc | 1.079 m | 1.082 m | 1.610 m | 1.119 m |
+- Paired vs info-matched baseline: −0.750 m median difference, room-clustered p ≈ 0.010/0.011 — **beats elimination-chance, significantly but modestly**.
+- Paired vs retrieval control: p = 1, medians tie — but **top-1 0.501 < 0.689: FLAC inversion UNDERPERFORMS the non-generative nearest-context control** at K_ctx=8.
+- **Failure-mode diagnostic:** context-member prediction rate ≈ 0.376 — 38% of predictions are candidates whose measured RIR was IN the conditioning context (always wrong by construction). The generator's outputs at context-covered positions resemble h_obs too strongly.
+- Power statistic mean ≈ 466–471 (candidate identity moves similarities ~2 orders above sampling noise) — conditioning is load-bearing; the weakness is discriminative sharpness, not wiring.
+- Seed stability excellent (all metrics within ±0.002).
+- **Preliminary reading (full analysis after seed 44 + R2b):** Vanilla FLAC carries genuine source-position information into unseen rooms (above information-matched chance; median 0), but its generated RIRs are less position-discriminative than simply matching measured context RIRs. R2b (K_ctx=1, elimination cue nearly absent, retrieval control weakened) is now the decisive cell.
