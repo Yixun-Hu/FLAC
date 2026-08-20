@@ -56,14 +56,17 @@ say "waiting on current arm B pid $B_PID"
 wait_pid "$B_PID"
 say "arm B pid $B_PID exited"
 eval_both_k exp12B_ssl_cond_ddp "$REC/FLAC_AR_exp12B.json" || exit 3
+bash $REC/archive_to_nas.sh exp12B_ssl_cond_ddp >> $LOG 2>&1 && say "arm B archived to NAS" || say "WARN: arm B NAS archive incomplete"
 
 # ---- stage 2: arm A re-run ----------------------------------------------------------------
 train_stage "$REC/FLAC_AR_exp12A.json" exp12A_c3c4_ddp || exit 4
 eval_both_k exp12A_c3c4_ddp "$REC/FLAC_AR_exp12A.json" || exit 3
+bash $REC/archive_to_nas.sh exp12A_c3c4_ddp >> $LOG 2>&1 && say "arm A archived to NAS" || say "WARN: arm A NAS archive incomplete"
 
 # ---- stage 3: arm B curve re-run ----------------------------------------------------------
 train_stage "$REC/FLAC_AR_exp12B.json" exp12B_curve_ddp || exit 4
 eval_both_k exp12B_curve_ddp "$REC/FLAC_AR_exp12B.json" || exit 3
+bash $REC/archive_to_nas.sh exp12B_curve_ddp >> $LOG 2>&1 && say "arm B curve run archived to NAS" || say "WARN: curve NAS archive incomplete"
 
 say "PIPELINE COMPLETE: current-B evaluated, arm A re-trained+evaluated, arm B curve run"
 say "complete with all 27 checkpoints. Curve per-checkpoint evals are a SEPARATE decision."
