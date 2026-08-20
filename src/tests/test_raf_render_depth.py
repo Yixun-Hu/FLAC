@@ -866,13 +866,35 @@ def test_rx_sightline_check_uses_the_farthest_receivers():
     assert report["per_receiver"][0]["distance_m"] > 5.0
 
 
-def test_reference_depth_stats_read_the_real_haa_maps():
-    stats = raf_render.reference_depth_stats(os.path.join(_REPO_ROOT, "HAA"))
+_SYNTHETIC_REFERENCE = os.path.join(_REPO_ROOT, "src", "tests", "fixtures",
+                                    "raf_depth_reference")
+_REAL_HAA = os.path.join(_REPO_ROOT, "HAA")
+# sha256 over "n_maps|min|max" of the four processed HAA base rooms, measured
+# 2026-08-20. Pins the reference the canonical run will actually use.
+_REAL_HAA_BAND_SHA256 = \
+    "1d59babdbc1b0b6075b32216c864588acf5516454a92a4a6af946bd832656eb3"
+
+
+def test_reference_depth_stats_read_the_committed_synthetic_corpus():
+    """T9: unit tests must be checkout-reproducible, so they read a committed
+    fixture rather than the unversioned HAA mount."""
+    stats = raf_render.reference_depth_stats(_SYNTHETIC_REFERENCE)
     assert stats["available"] is True
-    assert stats["n_maps"] == 4
-    assert 0.4 < stats["min"] < 0.6              # measured: classroomBase min 0.504
-    assert 11.0 < stats["max"] < 12.0            # measured: complexBase max 11.552
-    assert stats["source"].endswith("HAA")
+    assert stats["n_maps"] == 2
+    assert stats["min"] == pytest.approx(0.60, abs=1e-3)
+    assert stats["max"] == pytest.approx(11.40, abs=1e-3)
+
+
+@pytest.mark.skipif(not os.path.isdir(_REAL_HAA),
+                    reason="processed HAA corpus is not present in this checkout")
+def test_real_haa_reference_band_matches_its_pinned_hash():
+    """Integration check on the actual reference the canonical run will use."""
+    import hashlib
+
+    stats = raf_render.reference_depth_stats(_REAL_HAA)
+    assert stats["available"] is True and stats["n_maps"] == 4
+    fingerprint = f"{stats['n_maps']}|{stats['min']:.6f}|{stats['max']:.6f}"
+    assert hashlib.sha256(fingerprint.encode()).hexdigest() == _REAL_HAA_BAND_SHA256
 
 
 def test_reference_depth_stats_record_an_unreadable_root(tmp_path):
@@ -886,7 +908,7 @@ def test_scale_plausible_joins_passed_once_a_reference_is_present():
     mesh = _box_mesh_raf(**_BOX)
     tx = np.array([0.5, 0.5, 1.5])
     depth = raf_render.render_depth(mesh, tx, h=32, w=64)
-    references = {"HAA": raf_render.reference_depth_stats(os.path.join(_REPO_ROOT, "HAA")),
+    references = {"HAA": raf_render.reference_depth_stats(_SYNTHETIC_REFERENCE),
                   "AR": raf_render.reference_depth_stats("/nonexistent-ar-root")}
     qa = raf_render.real_mesh_qa(depth, tx, mesh, img_h=32, img_w=64,
                                  references=references)
@@ -943,7 +965,7 @@ def test_cli_persists_the_s5_evidence_and_gates_on_it(tmp_path):
         json.dump(poses, f)
     raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
                      "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path),
-                     "--haa-depth-root", os.path.join(_REPO_ROOT, "HAA"),
+                     "--haa-depth-root", _SYNTHETIC_REFERENCE,
                      "--non-canonical"])
     with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
         qa = json.load(f)
