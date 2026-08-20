@@ -109,3 +109,12 @@ All six findings are IN-boundary (operator error / crash states) and are impleme
 - **Raw RAF Y height persisted in runtime metadata** (bound to the pose digests) and fed to `real_mesh_qa` as the independent vertical reference; end-to-end candidate-gauge test THROUGH the CLI wiring (transforming mesh AND poses per candidate).
 - The `delta` shadowing bug fixed with distinct `bearing_delta_deg` / `vertical_delta_m`.
 Residuals 1–3 acknowledged as recorded (corpus-audio hashing; adversarial hardening; horizontal-permutation derivation) — they go to Yixun in the round-close package.
+
+## Amendment 8 (r6 dispositions for Codex r5 pass, 2026-08-20 ~04:05)
+All five findings in-boundary; adopted as specified, with these registrations:
+- **F1**: production mode requires `canonical is True`, pointer `output_dir` must resolve (same-file) to the loaded `dataset_folder`, combined verification always invoked with `canonical=True`; negative tests: non-canonical pointer, relocated pointer targeting another valid tree.
+- **F2**: a dedicated `RAFPublicationError` raised by the gate; `SampleDataset.__getitem__`'s handler explicitly RE-RAISES that type (minimal upstream diff, on this branch only; AR/HAA behavior untouched — new type is raised only by RAF_md); production-path test through `create_dataloader_from_config`/`SampleDataset` with an invalid pointer. Preflight-at-construction is NOT chosen (the loader hook is the only RAF-aware layer; construction preflight would need dataset-type awareness upstream).
+- **F3**: consumer verification compares each marker's COMPLETE parameter payload against its per-kind registered identity and requires the pinned digest in both markers and the pointer; producer booleans are never trusted; negative tests for missing/altered parameters/digests.
+- **F4**: canonical miss cap == DEFAULT_MAX_MISS_RATE exactly (the lower-is-fine deviation is REVOKED for canonical mode — identity means identity); `--rx-sightline-receivers` wired through `rx_sightline_check`, recorded, default-only in canonical mode.
+- **F5**: `depth_qa` requires a miss report with `mask_verified is True` for EVERY passing result including zero misses; authoritative values are mask-derived, conflicting declarations rejected; negative test for an entirely absent report.
+**Escalation registration:** if the r6 closing pass returns any NEW in-boundary finding, the loop pauses and the state goes to Yixun with the Planner's recommendation (the standing convergence rule extended per the Planner's judgment, 04:05).
