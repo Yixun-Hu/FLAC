@@ -65,3 +65,7 @@ All other deviations (D6–D13, D15, D17) are accepted as recorded in the Coder'
 - **R12**: mesh→tensor conversion + RaycastingScene built once per room, reused across cameras; per-run render benchmark recorded in the QA file.
 - **R13**: amplitude audit reads back every written WAV (round-trip max-abs-error), strict-JSON-safe values (no ±Infinity — store linear peaks and floored dB), role-separated (support/test/val/diagnostic) distributions, HAA/AR comparison slots; any fixed scalar derived from train supports only, decision recorded in the readback record.
 - **R14**: HAA-parity option chosen — val-group 12-mic supports are CONTEXT-ONLY; val targets = the remaining 24 captures per val group. Contracts B3/D updated accordingly.
+
+## Amendment 3 (r2 phase-2a dispositions, 2026-08-19 ~20:50)
+- **Diagnostic supports are TRAINED** (Coder note 1 resolved): plan §5's row is the literal HAA analogue, and HAA trains on the eval rooms' 12 supports. Train set = 384 + 2×12 = 408 items; diagnostic 24-target manifest stays eval-only. The untrained-unseen-source probe is explicitly deferred to the Mapping-A experiment.
+- Accepted as recorded: `raf_diagnostic.json` config (note 2); bearing-applicability rule for symmetric rooms (note 3); readback `wav_readback` living in the post-prep re-audit + R13 amplitude audit (note 4 — gate non-circularity); per-file `os.replace` + manifest-last attestation (note 5); `DBFS_FLOOR`/helpers moved to raf_common (note 6); R8/R10 feature-probe skip pattern (note 7).
