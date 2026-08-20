@@ -70,3 +70,19 @@ python eval_localization.py --mode reaggregate \
   --out-dir outputs_loc/exp18 --eval-name exp18_R1_tauselect \
   2>&1 | tee worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_2026-08-20_00:09:06_R1_tauselect.log
 ```
+
+## R2 registered unseen headline, seeds 42/43 (2026-08-20_11:29:49 EDT; seed 44 follows)
+```bash
+# seed 42 on cuda:1 (seed 43 identical except --seed 43 --device cuda:0)
+nohup python eval_localization.py --mode run --score-source flac \
+  --model-config src/configs/model_configs/FLAC/AR/FLAC_AR.json \
+  --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json \
+  --ckpt-path weights/FLAC/FLAC_EMA.ckpt --agree-ckpt weights/AGREE/AGREE_AR.pt \
+  --num-samples 8 --tau 0.02 --agg lme --seed 42 \
+  --cond-method vanilla --rotate-deg 0 --cond-autocast default \
+  --batch-size 4 --num-workers 4 --device cuda:1 \
+  --registration-manifest worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_R2_registration.json \
+  --registration-sha 2528baec22465d058f70e2cf2a103c4a554d900e \
+  --out-dir outputs_loc/exp18 --eval-name exp18_R2 \
+  > worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_2026-08-20_11:29:49_R2_seed42.log 2>&1 &
+```

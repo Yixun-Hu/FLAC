@@ -271,3 +271,11 @@
 
 - **Result** — R1-v2 published (identity gate 1,194/1,194, 24 rooms). τ sweep: registered LME τ=0.02 K′=8 by the pre-registered rule; landscape flat (details in _results.md). Registration manifest written; its commit sha becomes `--registration-sha` for every R2 seed.
 - **Next** — MORNING GATE (Yixun): ratify (1) Rev 3.2 position-merge, (2) the 1,194-query dev prefix, (3) registered τ=0.02 → launch R2 seeds 42/43 (both GPUs) + 44, then R2b. All ~2.3 h/seed.
+
+## 2026-08-20T11:29:49-0400 — Yixun APPROVED 1–3 (verbatim: "approve 1-3") → R2 LAUNCH
+
+- **Goal** — Registered unseen headline: Vanilla FLAC analysis-by-synthesis localization, 6,337 queries / 17 rooms, seeds 42/43/44.
+- **Version Control** — registration commit `2528bae` (manifest `loc_invert_R2_registration.json`; the driver verifies full-sha ancestry + byte-equality + every locked field before loading anything). Launch HEAD = registration commit's descendant (this commit).
+- **Acceptance criteria (each R2 seed)** — registration gate PASSES; split digests 3/3; identity gate 6,337/6,337 with zero substitutions (unseen proven clean); zero leakage aborts (no merged rooms in unseen); final artifacts published, no .partial residue; probe block present; context digest recorded (pairing with R-1b's same-seed rows verified at analysis); wall ≈2.3 h.
+- **Command / Validation** — commands in loc_invert_command.md; seeds 42 (cuda:1) + 43 (cuda:0) parallel, 44 after; nohup, logs in exp folder.
+- **Result** — launched.
