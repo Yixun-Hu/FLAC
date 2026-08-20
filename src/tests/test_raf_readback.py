@@ -1023,3 +1023,97 @@ def test_republication_keeps_split_content_byte_identical(tmp_path):
         assert (split_dir / name).read_bytes() == payload, name
     with open(split_dir / raf_publish.marker_name("prepare")) as f:
         assert json.load(f)["generation"] != first_generation
+
+
+# --------------------------------------------------------------------------- #
+# r7 Amendment 9.1: the clip-clamp term
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("limit,expected", [
+    (3.9977, 3.0), (5.0, 5.0), (0.999 / 0.24989, 3.0), (9.99, 9.0), (0.42, 0.4),
+    (1.0, 1.0), (23.0, 20.0),
+])
+def test_largest_one_significant_digit_at_most(limit, expected):
+    assert raf_prepare.largest_one_significant_digit_at_most(limit) == pytest.approx(
+        expected)
+    assert raf_prepare.largest_one_significant_digit_at_most(limit) <= limit
+
+
+def _room_with_peaks(tmp_path, support_peak, loud_peak=None, name="EmptyRoom"):
+    """A room whose trained supports peak at ``support_peak`` and whose test file
+    optionally peaks louder."""
+    import soundfile as sf_mod
+    from test_raf_prepare_data import _default_groups, _rir, write_room
+
+    write_room(str(tmp_path), name, groups=_default_groups(1), rir_peak=support_peak)
+    room_dir = os.path.join(str(tmp_path), "archived", name)
+    if loud_peak is not None:
+        loud = _rir(77) / 0.01 * loud_peak
+        sf_mod.write(os.path.join(room_dir, "data", "000020", "rir.wav"), loud, 48000,
+                     subtype="FLOAT")
+    return room_dir
+
+
+def test_the_clamp_binds_when_a_written_file_would_clip(tmp_path):
+    """The real-corpus shape: quiet supports set a large support term, and a loud
+    TEST file (not in the derivation set) would clip under it."""
+    room_dir = _room_with_peaks(tmp_path, support_peak=0.05, loud_peak=0.9)
+    trained = [f"{i:06d}" for i in range(4)]
+    decision = raf_prepare.derive_amplitude_scalar(
+        room_dir, trained, written_ids=trained + ["000020"])
+    assert decision["clamp_engaged"] is True
+    assert decision["binding_term"] == "clip_clamp"
+    assert decision["scalar"] == decision["clamp_term"] < decision["support_term"]
+    # the bound actually holds: nothing written can exceed the clip ceiling
+    assert decision["max_written_peak"] * decision["scalar"] <= raf_prepare.CLIP_CEILING
+
+
+def test_the_support_term_binds_when_nothing_would_clip(tmp_path):
+    room_dir = _room_with_peaks(tmp_path, support_peak=0.25)
+    trained = [f"{i:06d}" for i in range(4)]
+    decision = raf_prepare.derive_amplitude_scalar(
+        room_dir, trained, written_ids=[f"{i:06d}" for i in range(8)])
+    assert decision["clamp_engaged"] is False
+    assert decision["binding_term"] == "support_ceiling"
+    assert decision["scalar"] == decision["support_term"] <= decision["clamp_term"]
+
+
+def test_the_clamp_only_ever_lowers_the_scalar(tmp_path):
+    """Global information is a SAFETY bound, never a target statistic."""
+    room_dir = _room_with_peaks(tmp_path, support_peak=0.05, loud_peak=0.9)
+    trained = [f"{i:06d}" for i in range(4)]
+    unclamped = raf_prepare.derive_amplitude_scalar(room_dir, trained)
+    clamped = raf_prepare.derive_amplitude_scalar(
+        room_dir, trained, written_ids=trained + ["000020"])
+    assert clamped["scalar"] <= unclamped["scalar"]
+    assert clamped["support_term"] == unclamped["support_term"]
+
+
+def test_the_clamped_scalar_survives_the_post_scale_assertions(tmp_path):
+    """End to end: the r7 abort that this amendment answers must not recur."""
+    room_dir = _room_with_peaks(tmp_path, support_peak=0.05, loud_peak=0.9)
+    ids = [f"{i:06d}" for i in range(4)] + ["000020"]
+    roles = {cid: ("train" if i < 4 else "test") for i, cid in enumerate(ids)}
+    decision = raf_prepare.derive_amplitude_scalar(
+        room_dir, ids[:4], written_ids=ids)
+    audit = raf_prepare.resample_and_write(
+        room_dir, str(tmp_path / "runtime" / "EmptyRoom"), ids, roles=roles,
+        scale=decision["scalar"], scale_provenance=decision["derivation_id_sha256"])
+    assert max(e["peak"] for e in audit["files"].values()) <= raf_prepare.CLIP_CEILING
+    assert audit["n_silent"] == 0
+
+
+def test_the_cli_records_the_binding_term(tmp_path):
+    from test_raf_prepare_data import write_passing_readback_record, write_room
+
+    raf_root = tmp_path / "raf"
+    write_room(str(raf_root), "EmptyRoom", rir_peak=0.25)
+    argv = _prepare_argv(tmp_path, raf_root,
+                         readback=write_passing_readback_record(str(tmp_path / "rb.json")))
+    raf_prepare.main(argv)
+    with open(tmp_path / "splits" / "raf_amplitude_audit.json") as f:
+        decision = json.load(f)["rooms"]["EmptyRoom"]["scale_decision"]
+    assert decision["binding_term"] in ("support_ceiling", "clip_clamp")
+    assert decision["clamp_engaged"] in (True, False)
+    assert decision["max_written_peak"] >= decision["max_train_support_peak"]
+    assert decision["max_written_peak"] * decision["applied_scalar"] <= \
+        raf_prepare.CLIP_CEILING

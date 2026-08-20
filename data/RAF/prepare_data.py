@@ -767,45 +767,92 @@ def one_significant_digit(value):
     return float(round(value, -exponent))
 
 
-def derive_amplitude_scalar(room_dir, trained_ids, ceiling=AMPLITUDE_CEILING,
+def largest_one_significant_digit_at_most(limit):
+    """Largest one-significant-digit value <= ``limit`` (the clamp term's grid)."""
+    limit = float(limit)
+    if limit <= 0 or not np.isfinite(limit):
+        raise ValueError(f"clip limit must be positive and finite, got {limit!r}")
+    exponent = int(np.floor(np.log10(limit)))
+    mantissa = int(np.floor(limit / (10.0 ** exponent)))
+    return float(mantissa * (10.0 ** exponent))
+
+
+def _resampled_peak(room_dir, capture_id, orig_sr, target_sr):
+    src = os.path.join(room_dir, "data", capture_id, "rir.wav")
+    audio, sr = sf.read(src, dtype="float32", always_2d=True)
+    if sr != orig_sr:
+        raise ValueError(f"{src}: expected {orig_sr} Hz, got {sr} Hz")
+    resampled = librosa.resample(audio[:, 0], orig_sr=orig_sr, target_sr=target_sr)
+    return float(np.abs(np.asarray(resampled)).max())
+
+
+def derive_amplitude_scalar(room_dir, trained_ids, written_ids=None,
+                            ceiling=AMPLITUDE_CEILING, clip_ceiling=CLIP_CEILING,
                             orig_sr=SOURCE_SR, target_sr=TARGET_SR):
-    """The registered scalar (Amendment 9), DERIVED from the corpus.
+    """The registered scalar (Amendment 9 + 9.1), DERIVED from the corpus.
 
-    ``scalar = one significant digit of (ceiling / max trained-support peak)``,
-    measured on the RESAMPLED signal so it describes what will actually be written,
-    and over ``split_role == 'train'`` files only -- a loud test or val capture may
-    not shrink it. On the real corpus this evaluates to 0.75/0.24989 -> 3.0; the
-    value is never hardcoded, and its derivation set travels with it as a hash.
+    ``scalar = min(support_term, clamp_term)`` where
 
-    Basis: 30 FurnishedRoom files sit below the loader's -60 dB substitution
-    threshold, so they would be silently swapped for other items at train time.
+    * ``support_term`` = one significant digit of ``ceiling / max trained-support
+      peak`` -- the target statistic, computed over ``split_role == 'train'`` files
+      ONLY, so a loud test or val capture cannot shrink what the training set is
+      normalised to;
+    * ``clamp_term`` = the largest one-significant-digit value keeping
+      ``max peak over ALL written files x scalar <= clip_ceiling``.
+
+    The clamp is a fail-closed SAFETY bound, never a target: global information
+    enters only as "do not clip", which is why it can only lower the scalar. It
+    exists because the r7 formula gave x5.0 on the real corpus (support max 0.150)
+    while a test capture at 0.250 would have clipped at 1.249 -- caught by the
+    post-scale assertion, and now prevented by construction.
+
+    Peaks are measured on the RESAMPLED signal, i.e. on what will actually be
+    written. On the real corpus: min(5.0, 3.0) = 3.0.
     """
     trained_ids = sorted(trained_ids)
     if not trained_ids:
         raise ValueError(
             "cannot derive an amplitude scalar without trained supports "
             "(split_role == 'train')")
+    written_ids = sorted(set(written_ids) | set(trained_ids)) if written_ids else \
+        list(trained_ids)
+
     peak = 0.0
     for capture_id in trained_ids:
-        src = os.path.join(room_dir, "data", capture_id, "rir.wav")
-        audio, sr = sf.read(src, dtype="float32", always_2d=True)
-        if sr != orig_sr:
-            raise ValueError(f"{src}: expected {orig_sr} Hz, got {sr} Hz")
-        resampled = librosa.resample(audio[:, 0], orig_sr=orig_sr, target_sr=target_sr)
-        peak = max(peak, float(np.abs(np.asarray(resampled)).max()))
+        peak = max(peak, _resampled_peak(room_dir, capture_id, orig_sr, target_sr))
     if peak <= 0.0:
         raise ValueError(
             f"every trained support in {room_dir} is silent; no scalar can be derived")
-    scalar = one_significant_digit(ceiling / peak)
+
+    global_peak = 0.0
+    for capture_id in written_ids:
+        global_peak = max(global_peak,
+                          _resampled_peak(room_dir, capture_id, orig_sr, target_sr))
+    if global_peak <= 0.0:
+        raise ValueError(f"every written file in {room_dir} is silent")
+
+    support_term = one_significant_digit(ceiling / peak)
+    clamp_term = largest_one_significant_digit_at_most(clip_ceiling / global_peak)
+    scalar = min(support_term, clamp_term)
+    binding = "clip_clamp" if clamp_term < support_term else "support_ceiling"
     return {
-        "formula": ("one significant digit of (ceiling / max trained-support peak), "
-                    "measured on the resampled signal"),
+        "formula": ("min( one significant digit of (ceiling / max trained-support "
+                    "peak), largest one-significant-digit value with "
+                    "global-max-written-peak x scalar <= clip_ceiling ), measured "
+                    "on the resampled signal"),
         "ceiling": float(ceiling),
+        "clip_ceiling": float(clip_ceiling),
         "max_train_support_peak": peak,
+        "max_written_peak": global_peak,
+        "support_term": support_term,
+        "clamp_term": clamp_term,
+        "clamp_engaged": bool(clamp_term < support_term),
+        "binding_term": binding,
         "scalar": scalar,
         "derivation_ids": trained_ids,
         "derivation_id_sha256": derivation_id_hash(trained_ids),
         "n_train_supports": len(trained_ids),
+        "n_written": len(written_ids),
     }
 
 
@@ -1139,12 +1186,15 @@ def main(argv=None):
             # it to every written file. Context is read from those same files, so
             # targets and context are scaled identically by construction.
             trained_ids = sorted(c for c in selected_ids if role_of.get(c) == "train")
-            scale_decisions[room] = derive_amplitude_scalar(room_dir, trained_ids)
-            logger.info("%s: amplitude scalar x%g (ceiling %g / max train-support "
-                        "peak %.5f over %d supports)", room,
-                        scale_decisions[room]["scalar"], scale_decisions[room]["ceiling"],
-                        scale_decisions[room]["max_train_support_peak"],
-                        scale_decisions[room]["n_train_supports"])
+            scale_decisions[room] = derive_amplitude_scalar(
+                room_dir, trained_ids, written_ids=selected_ids)
+            decision = scale_decisions[room]
+            logger.info("%s: amplitude scalar x%g = min(support %g, clamp %g) "
+                        "[bound by %s]; train-support peak %.5f, max written peak "
+                        "%.5f over %d files", room, decision["scalar"],
+                        decision["support_term"], decision["clamp_term"],
+                        decision["binding_term"], decision["max_train_support_peak"],
+                        decision["max_written_peak"], decision["n_written"])
             audits[room] = resample_and_write(
                 room_dir, os.path.join(staged_runtime.staging_dir, room),
                 selected_ids, roles=role_of,
