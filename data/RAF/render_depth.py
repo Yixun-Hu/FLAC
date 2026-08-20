@@ -339,91 +339,94 @@ def resolve_miss_cap(requested, canonical=True):
 
 
 def audit_miss_report(miss_report, depth, canonical=True, miss_mask=None):
-    """Re-derive the miss verdict from the RAW hit evidence (T7).
+    """Re-derive the miss verdict FROM THE RAW HIT MASK (r5 finding 4).
 
-    QA never trusts ``within_cap``, and never accepts a report that carries no
-    evidence: the repaired coordinates must be present, unique, in bounds, and
-    consistent with both the declared count and the canonical hash -- which is
-    required even for the empty set, so ``{"miss_count": 0, "within_cap": true}``
-    no longer passes by having nothing to check. When the raw pre-inpaint mask is
-    available (it always is on the render path) the coordinates are checked against
-    it, which is what ties the report to THIS map rather than to a plausible story
-    about one.
+    The mask is mandatory. Count, coordinates, rate and hash are all computed from
+    it here; the report is then required to agree with every one of them. Making
+    the mask optional left ``mask_verified=None`` acceptable, so a stale or forged
+    zero-miss report -- empty coordinates, the public empty-set hash, the right ray
+    count -- passed QA with nothing tying it to this map.
     """
     warnings = []
     n_rays = int(np.asarray(depth).size)
-    coordinates = miss_report.get("filled_pixels")
-    recorded_hash = miss_report.get("filled_pixels_sha256")
-    if coordinates is None or recorded_hash is None:
-        warnings.append(
-            "miss report carries no repaired-pixel evidence (coordinates and hash "
-            "are mandatory, including for zero misses)")
-        coordinates, recorded_hash = [], None
+    shape = np.asarray(depth).shape[:2] if np.asarray(depth).ndim >= 2 else (0, 0)
 
-    count = int(miss_report.get("miss_count", len(coordinates)))
-    rate = count / n_rays if n_rays else 0.0
+    if miss_mask is None:
+        return ({k: v for k, v in miss_report.items()
+                 if k not in ("filled_pixels", "miss_mask")}
+                | {"n_rays_recomputed": n_rays, "mask_verified": False,
+                   "audit_ok": False},
+                ["no raw pre-inpaint hit mask: the miss report cannot be tied to "
+                 "this map, so it cannot be audited"])
+
+    mask = np.asarray(miss_mask, dtype=bool)
+    if mask.shape != shape or mask.size != n_rays:
+        return ({k: v for k, v in miss_report.items()
+                 if k not in ("filled_pixels", "miss_mask")}
+                | {"n_rays_recomputed": n_rays, "mask_verified": False,
+                   "audit_ok": False},
+                [f"raw hit mask is {mask.shape}, not the map's {shape}"])
+
+    # EVERYTHING below is derived from the mask, never from the report.
+    rows, cols = np.nonzero(mask)
+    true_coordinates = [[int(r), int(c)] for r, c in zip(rows, cols)]
+    true_count = len(true_coordinates)
+    true_rate = true_count / n_rays if n_rays else 0.0
+    true_hash = fill_hash(true_coordinates)
+
     declared_cap = float(miss_report.get("max_miss_rate", DEFAULT_MAX_MISS_RATE))
     cap = min(declared_cap, DEFAULT_MAX_MISS_RATE) if canonical else declared_cap
-    within = bool(rate <= cap)
+    within = bool(true_rate <= cap)
 
-    pairs = [tuple(int(v) for v in c) for c in coordinates]
-    unique_ok = len(set(pairs)) == len(pairs)
-    rows, cols = np.asarray(depth).shape[:2] if np.asarray(depth).ndim >= 2 else (0, 0)
-    bounds_ok = all(0 <= r < rows and 0 <= c < cols for r, c in pairs)
-    count_ok = len(pairs) == count
-    hash_ok = recorded_hash is not None and fill_hash(coordinates) == recorded_hash
-    rays_ok = int(miss_report.get("n_rays", n_rays)) == n_rays
+    reported = [[int(v) for v in c] for c in (miss_report.get("filled_pixels") or [])]
+    coordinates_match = reported == true_coordinates
+    count_ok = int(miss_report.get("miss_count", -1)) == true_count
+    hash_ok = miss_report.get("filled_pixels_sha256") == true_hash
+    rays_ok = int(miss_report.get("n_rays", -1)) == n_rays
+    cap_claim_ok = miss_report.get("within_cap") is within
 
-    mask_verified = None
-    if miss_mask is not None:
-        mask = np.asarray(miss_mask, dtype=bool)
-        mask_pairs = {(int(r), int(c)) for r, c in zip(*np.nonzero(mask))}
-        mask_verified = bool(mask_pairs == set(pairs) and mask.shape == (rows, cols))
-        if not mask_verified:
-            warnings.append(
-                "repaired coordinates do not match the raw pre-inpaint hit mask")
-
-    if not unique_ok:
-        warnings.append("repaired coordinates are not unique")
-    if not bounds_ok:
-        warnings.append("repaired coordinates fall outside the map bounds")
+    if not coordinates_match:
+        warnings.append(
+            "repaired coordinates do not match the raw pre-inpaint hit mask")
     if not count_ok:
         warnings.append(
-            f"miss report count {count} does not match its {len(pairs)} repaired "
-            "coordinates")
+            f"miss report count {miss_report.get('miss_count')} is not the mask's "
+            f"{true_count}")
     if not hash_ok:
-        warnings.append("repaired-pixel hash does not match the recorded coordinates")
+        warnings.append("repaired-pixel hash does not match the mask's coordinates")
     if not rays_ok:
         warnings.append(
             f"declared ray count {miss_report.get('n_rays')} is not the map's {n_rays}")
-    if not within:
-        warnings.append(
-            f"{count} rays missed ({rate:.4%}), above the {cap:.3%} cap applied here")
-    elif count:
-        warnings.append(
-            f"{count} rays missed and were repaired by nearest-valid-neighbour "
-            f"inpainting (hash {recorded_hash[:12]})")
-    if miss_report.get("within_cap") is not within:
+    if not cap_claim_ok:
         warnings.append(
             f"miss report claims within_cap={miss_report.get('within_cap')}, "
             f"recomputed {within}")
+    if not within:
+        warnings.append(
+            f"{true_count} rays missed ({true_rate:.4%}), above the {cap:.3%} cap "
+            "applied here")
+    elif true_count:
+        warnings.append(
+            f"{true_count} rays missed and were repaired by nearest-valid-neighbour "
+            f"inpainting (hash {true_hash[:12]})")
 
+    mask_verified = bool(coordinates_match and count_ok and hash_ok)
     audit = {k: v for k, v in miss_report.items()
              if k not in ("filled_pixels", "miss_mask")}
     audit.update({
         "n_rays_recomputed": n_rays,
-        "miss_rate_recomputed": rate,
+        "miss_count_from_mask": true_count,
+        "miss_rate_recomputed": true_rate,
+        "filled_pixels_sha256_from_mask": true_hash,
         "cap_applied": cap,
         "within_cap_recomputed": within,
         "count_matches_coordinates": bool(count_ok),
         "hash_matches_coordinates": bool(hash_ok),
-        "coordinates_unique": bool(unique_ok),
-        "coordinates_in_bounds": bool(bounds_ok),
+        "coordinates_match_mask": bool(coordinates_match),
         "ray_count_matches_map": bool(rays_ok),
         "mask_verified": mask_verified,
-        "audit_ok": bool(within and count_ok and hash_ok and unique_ok and bounds_ok
-                         and rays_ok and mask_verified is not False
-                         and miss_report.get("within_cap") is within),
+        # mask_verified must be TRUE: None is no longer tolerated.
+        "audit_ok": bool(mask_verified and within and rays_ok and cap_claim_ok),
     })
     return audit, warnings
 

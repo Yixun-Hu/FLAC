@@ -617,20 +617,6 @@ def test_render_depth_report_is_optional_and_backward_compatible():
     assert isinstance(depth, np.ndarray)
 
 
-def test_depth_qa_records_the_miss_report_and_requires_the_cap():
-    mesh = _box_with_pinhole(**_BOX)
-    position = np.array([0.5, 0.5, 1.5])
-    depth, report = raf_render.render_depth(mesh, position, return_report=True)
-    qa = raf_render.depth_qa(depth, position, miss_report=report)
-    assert qa["misses"]["miss_count"] == report["miss_count"]
-    assert qa["misses"]["filled_pixels_sha256"] == report["filled_pixels_sha256"]
-    assert qa["misses"]["within_cap"] is True
-    assert qa["passed"] is True
-
-    over_cap = dict(report, within_cap=False, miss_rate=0.05, miss_count=6554)
-    assert raf_render.depth_qa(depth, position, miss_report=over_cap)["passed"] is False
-
-
 def test_cli_records_the_miss_report_per_map(tmp_path):
     raf_root, out, groups = _write_fixture(tmp_path)
     raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
@@ -723,83 +709,6 @@ def test_canonical_mode_allows_a_stricter_miss_cap(tmp_path):
         assert json.load(f)["max_miss_rate"] == 0.0001
 
 
-def test_qa_enforces_the_registered_cap_itself_not_the_report_boolean():
-    """S2: a report claiming within_cap for a 5% miss rate must not pass QA."""
-    depth = np.full((256, 512), 2.0, dtype=np.float32)
-    lying = {
-        "miss_count": 6554, "miss_rate": 0.05, "max_miss_rate": 0.05,
-        "within_cap": True, "filled_pixels": [[0, i] for i in range(6554)],
-        "filled_pixels_sha256": "0" * 64, "n_rays": 256 * 512,
-    }
-    qa = raf_render.depth_qa(depth, np.array([0.0, 0.0, 1.0]), miss_report=lying)
-    assert qa["passed"] is False
-    assert qa["misses"]["within_cap_recomputed"] is False
-    assert any("cap" in w for w in qa["warnings"])
-
-
-def test_qa_recomputes_the_miss_rate_from_the_map_itself():
-    depth = np.full((256, 512), 2.0, dtype=np.float32)
-    report = {
-        "miss_count": 10, "miss_rate": 0.5,          # a wrong rate in the report
-        "max_miss_rate": raf_render.DEFAULT_MAX_MISS_RATE, "within_cap": True,
-        "filled_pixels": [[0, i] for i in range(10)],
-        "filled_pixels_sha256": raf_render.fill_hash([[0, i] for i in range(10)]),
-        "n_rays": 256 * 512,
-    }
-    qa = raf_render.depth_qa(depth, np.array([0.0, 0.0, 1.0]), miss_report=report)
-    assert qa["misses"]["miss_rate_recomputed"] == pytest.approx(10 / (256 * 512))
-    assert qa["misses"]["within_cap_recomputed"] is True
-    assert qa["passed"] is True
-
-
-def test_qa_detects_a_forged_filled_pixel_hash():
-    depth = np.full((256, 512), 2.0, dtype=np.float32)
-    report = {
-        "miss_count": 2, "miss_rate": 2 / (256 * 512),
-        "max_miss_rate": raf_render.DEFAULT_MAX_MISS_RATE, "within_cap": True,
-        "filled_pixels": [[0, 0], [1, 1]],
-        "filled_pixels_sha256": "deadbeef" * 8,      # does not match the coordinates
-        "n_rays": 256 * 512,
-    }
-    qa = raf_render.depth_qa(depth, np.array([0.0, 0.0, 1.0]), miss_report=report)
-    assert qa["passed"] is False
-    assert any("hash" in w for w in qa["warnings"])
-
-
-def test_qa_detects_a_miscounted_miss_report():
-    depth = np.full((256, 512), 2.0, dtype=np.float32)
-    coords = [[0, 0], [1, 1]]
-    report = {
-        "miss_count": 99, "miss_rate": 99 / (256 * 512),
-        "max_miss_rate": raf_render.DEFAULT_MAX_MISS_RATE, "within_cap": True,
-        "filled_pixels": coords, "filled_pixels_sha256": raf_render.fill_hash(coords),
-        "n_rays": 256 * 512,
-    }
-    qa = raf_render.depth_qa(depth, np.array([0.0, 0.0, 1.0]), miss_report=report)
-    assert qa["passed"] is False
-    assert any("count" in w for w in qa["warnings"])
-
-
-def test_qa_uses_the_declared_cap_only_in_non_canonical_mode():
-    depth = np.full((100, 100), 2.0, dtype=np.float32)
-    coords = [[0, i] for i in range(50)]             # 0.5%, above the registered cap
-    report = {
-        "miss_count": 50, "miss_rate": 0.005, "max_miss_rate": 0.01,
-        "within_cap": True, "filled_pixels": coords,
-        "filled_pixels_sha256": raf_render.fill_hash(coords), "n_rays": 10000,
-    }
-    strict = raf_render.depth_qa(depth, np.array([0.0, 0.0, 1.0]), miss_report=report,
-                                 img_h=100, img_w=100, canonical=False)
-    assert strict["misses"]["within_cap_recomputed"] is True   # declared cap applies
-    canonical = raf_render.depth_qa(depth, np.array([0.0, 0.0, 1.0]), miss_report=report,
-                                    img_h=100, img_w=100, canonical=True)
-    assert canonical["misses"]["within_cap_recomputed"] is False
-    assert canonical["misses"]["cap_applied"] == raf_render.DEFAULT_MAX_MISS_RATE
-
-
-# --------------------------------------------------------------------------- #
-# r3 S5: mesh-independent evidence (rx sightlines + real AR/HAA scale references)
-# --------------------------------------------------------------------------- #
 def test_direction_to_pixel_inverts_the_ray_grid():
     """Hand-checkable: the pixel a direction maps to must be the pixel whose own
     direction it is. Verified against equirect_directions itself, which is pinned
@@ -998,75 +907,122 @@ def test_miss_report_carries_the_raw_hit_mask_digest():
                                                    miss_mask=report["miss_mask"])
     assert audit["audit_ok"] is True
     assert audit["mask_verified"] is True
+    # every number in the verdict is derived from the mask, not from the report
+    assert audit["miss_count_from_mask"] == report["miss_count"]
+    assert audit["filled_pixels_sha256_from_mask"] == report["filled_pixels_sha256"]
 
 
-def test_audit_rejects_an_empty_report_with_no_evidence():
-    """T7's example: {'miss_count': 0, 'within_cap': True} used to pass because
-    'coordinates is None' made both consistency checks vacuously true."""
-    depth = np.full((256, 512), 2.0, dtype=np.float32)
-    forged = {"miss_count": 0, "within_cap": True}
-    audit, warnings = raf_render.audit_miss_report(forged, depth)
-    assert audit["audit_ok"] is False
-    assert any("evidence" in w or "hash" in w for w in warnings)
+def _mask_with(shape, coords):
+    mask = np.zeros(shape, dtype=bool)
+    for r, c in coords:
+        mask[r, c] = True
+    return mask
 
 
-def test_audit_requires_the_canonical_hash_even_for_zero_misses():
-    depth = np.full((256, 512), 2.0, dtype=np.float32)
-    report = {"miss_count": 0, "miss_rate": 0.0, "within_cap": True,
-              "max_miss_rate": raf_render.DEFAULT_MAX_MISS_RATE,
-              "filled_pixels": [], "filled_pixels_sha256": "0" * 64,
-              "n_rays": 256 * 512}
-    audit, warnings = raf_render.audit_miss_report(report, depth)
-    assert audit["audit_ok"] is False
-    report["filled_pixels_sha256"] = raf_render.EMPTY_FILL_HASH
-    audit, _ = raf_render.audit_miss_report(report, depth)
-    assert audit["audit_ok"] is True
-
-
-@pytest.mark.parametrize("coords,needle", [
-    ([[0, 0], [0, 0]], "unique"),                 # duplicated coordinate
-    ([[0, 0], [999, 0]], "bounds"),               # row out of range
-    ([[0, 0], [0, 9999]], "bounds"),              # column out of range
-    ([[0, -1]], "bounds"),                        # negative index
-])
-def test_audit_rejects_malformed_coordinates(coords, needle):
-    depth = np.full((256, 512), 2.0, dtype=np.float32)
-    report = {"miss_count": len(coords), "miss_rate": len(coords) / (256 * 512),
+def _report_for(coords, n_rays, **overrides):
+    report = {"miss_count": len(coords), "miss_rate": len(coords) / n_rays,
               "within_cap": True, "max_miss_rate": raf_render.DEFAULT_MAX_MISS_RATE,
-              "filled_pixels": coords,
-              "filled_pixels_sha256": raf_render.fill_hash(coords),
-              "n_rays": 256 * 512}
+              "filled_pixels": [list(c) for c in coords],
+              "filled_pixels_sha256": raf_render.fill_hash(coords), "n_rays": n_rays}
+    report.update(overrides)
+    return report
+
+
+def test_audit_requires_the_raw_mask():
+    """r5 finding 4: without the mask the report cannot be tied to this map, so
+    mask_verified=None is no longer an acceptable verdict."""
+    depth = np.full((256, 512), 2.0, dtype=np.float32)
+    report = _report_for([], 256 * 512,
+                         filled_pixels_sha256=raf_render.EMPTY_FILL_HASH)
     audit, warnings = raf_render.audit_miss_report(report, depth)
+    assert audit["mask_verified"] is False
     assert audit["audit_ok"] is False
-    assert any(needle in w for w in warnings)
+    assert any("raw" in w for w in warnings)
+
+
+def test_audit_rejects_a_zero_miss_report_when_the_mask_says_otherwise():
+    """The exact hostile probe: empty coordinates, the public empty-set hash, the
+    right ray count -- and a map that actually missed rays."""
+    depth = np.full((8, 16), 2.0, dtype=np.float32)
+    mask = _mask_with((8, 16), [(3, 4)])
+    forged = _report_for([], 128, filled_pixels_sha256=raf_render.EMPTY_FILL_HASH)
+    audit, warnings = raf_render.audit_miss_report(forged, depth, miss_mask=mask,
+                                                   canonical=False)
+    assert audit["mask_verified"] is False
+    assert audit["audit_ok"] is False
+    assert audit["miss_count_from_mask"] == 1
+
+
+def test_audit_accepts_a_report_that_agrees_with_the_mask():
+    depth = np.full((8, 16), 2.0, dtype=np.float32)
+    coords = [[3, 4]]
+    audit, _ = raf_render.audit_miss_report(
+        _report_for(coords, 128, max_miss_rate=0.05), depth,
+        miss_mask=_mask_with((8, 16), coords), canonical=False)
+    assert audit["mask_verified"] is True and audit["audit_ok"] is True
+
+
+@pytest.mark.parametrize("reported", [
+    [[3, 4], [3, 4]],          # duplicated coordinate
+    [[3, 4], [999, 0]],        # out of bounds
+    [[1, 1]],                  # a different pixel entirely
+    [],                        # none at all
+])
+def test_audit_rejects_coordinates_that_are_not_the_masks(reported):
+    depth = np.full((8, 16), 2.0, dtype=np.float32)
+    mask = _mask_with((8, 16), [(3, 4)])
+    report = _report_for(reported, 128, max_miss_rate=0.05)
+    audit, warnings = raf_render.audit_miss_report(report, depth, miss_mask=mask,
+                                                   canonical=False)
+    assert audit["audit_ok"] is False
+    assert any("mask" in w for w in warnings)
 
 
 def test_audit_rejects_a_declared_ray_count_that_is_not_the_maps():
-    depth = np.full((256, 512), 2.0, dtype=np.float32)
-    report = {"miss_count": 0, "miss_rate": 0.0, "within_cap": True,
-              "max_miss_rate": raf_render.DEFAULT_MAX_MISS_RATE,
-              "filled_pixels": [], "filled_pixels_sha256": raf_render.EMPTY_FILL_HASH,
-              "n_rays": 999}
-    audit, warnings = raf_render.audit_miss_report(report, depth)
+    depth = np.full((8, 16), 2.0, dtype=np.float32)
+    coords = [[3, 4]]
+    report = _report_for(coords, 999, max_miss_rate=0.05)
+    audit, warnings = raf_render.audit_miss_report(report, depth,
+                                                   miss_mask=_mask_with((8, 16), coords),
+                                                   canonical=False)
     assert audit["audit_ok"] is False
     assert any("ray count" in w for w in warnings)
 
 
-def test_audit_rejects_a_report_that_disagrees_with_the_raw_mask():
-    """A self-consistent report is still checked against the mask the renderer
-    actually produced, which is what ties it to THIS map."""
+def test_audit_rejects_a_mask_of_the_wrong_shape():
     depth = np.full((8, 16), 2.0, dtype=np.float32)
-    mask = np.zeros((8, 16), dtype=bool)
-    mask[3, 4] = True
-    coords = [[1, 1]]                              # self-consistent but wrong pixel
-    report = {"miss_count": 1, "miss_rate": 1 / 128, "within_cap": True,
-              "max_miss_rate": 0.01, "filled_pixels": coords,
-              "filled_pixels_sha256": raf_render.fill_hash(coords), "n_rays": 128}
-    audit, warnings = raf_render.audit_miss_report(report, depth, miss_mask=mask,
-                                                   canonical=False)
+    audit, warnings = raf_render.audit_miss_report(
+        _report_for([], 128, filled_pixels_sha256=raf_render.EMPTY_FILL_HASH), depth,
+        miss_mask=np.zeros((4, 4), dtype=bool))
     assert audit["audit_ok"] is False
-    assert audit["mask_verified"] is False
-    assert any("raw" in w for w in warnings)
+    assert any("mask is" in w for w in warnings)
+
+
+def test_qa_enforces_the_registered_cap_from_the_mask():
+    """The cap is applied to the rate DERIVED FROM THE MASK, so a report claiming
+    within_cap for a 5% miss rate cannot pass."""
+    depth = np.full((100, 100), 2.0, dtype=np.float32)
+    coords = [[r, c] for r in range(5) for c in range(100)]   # 500 of 10,000
+    report = _report_for(coords, 10000, max_miss_rate=0.05)
+    audit, _ = raf_render.audit_miss_report(report, depth,
+                                            miss_mask=_mask_with((100, 100), coords),
+                                            canonical=True)
+    assert audit["miss_rate_recomputed"] == pytest.approx(0.05)
+    assert audit["cap_applied"] == raf_render.DEFAULT_MAX_MISS_RATE
+    assert audit["within_cap_recomputed"] is False
+    assert audit["audit_ok"] is False
+
+
+def test_depth_qa_requires_a_mask_verified_report():
+    mesh = _box_with_pinhole(**_BOX)
+    position = np.array([0.5, 0.5, 1.5])
+    depth, report = raf_render.render_depth(mesh, position, return_report=True)
+    assert raf_render.depth_qa(depth, position, miss_report=report)["passed"] is True
+
+    stripped = {k: v for k, v in report.items() if k != "miss_mask"}
+    qa = raf_render.depth_qa(depth, position, miss_report=stripped)
+    assert qa["misses"]["mask_verified"] is False
+    assert qa["passed"] is False
 
 
 def test_cli_audits_every_map_against_its_raw_mask(tmp_path):
