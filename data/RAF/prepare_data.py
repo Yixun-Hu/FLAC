@@ -905,6 +905,10 @@ def build_parser():
                         help="cross-check every capture instead of a seeded sample")
     parser.add_argument('--allow-nonuniform', action='store_true',
                         help="record rather than abort on groups that do not hold 36 captures")
+    parser.add_argument('--non-canonical', action='store_true',
+                        help="synthetic/test mode: the readback record is NOT "
+                             "authenticated against the pinned canonical one, and "
+                             "every artifact this run publishes is tainted")
     parser.add_argument('--readback-record', required=True,
                         help="path to a PASSING, adjudicated raf_readback_record.json "
                              "(data/RAF/readback_audit.py); canonical artifacts are "
@@ -919,8 +923,13 @@ def main(argv=None):
     # truncation decision and the gauge/quaternion pinning must already exist and
     # have been adjudicated, or these artifacts would be canonical under
     # assumptions nobody checked.
-    readback = load_passing_record(args.readback_record)
-    readback_provenance = record_provenance(args.readback_record, readback)
+    canonical = not args.non_canonical
+    readback = load_passing_record(
+        args.readback_record, canonical=canonical,
+        expected_raf_root=args.raf_root if canonical else None)
+    readback_provenance = record_provenance(args.readback_record, readback,
+                                            canonical=canonical)
+    taint = list(readback_provenance["taint"])
     logger.info("readback record %s (gauge %s, quat %s, T60 %s)",
                 readback_provenance["sha256"][:12],
                 readback_provenance["gauge_pinned"],
@@ -978,13 +987,16 @@ def main(argv=None):
                   "rooms": list(args.rooms), "raf_root": args.raf_root,
                   "output_dir": args.output_dir,
                   "crosscheck": "full" if args.full_crosscheck else f"sample:{args.crosscheck_sample}",
-                  "allow_nonuniform": bool(args.allow_nonuniform)}
+                  "allow_nonuniform": bool(args.allow_nonuniform),
+                  "canonical": canonical}
         splits_record = build_splits_record(per_room, params)
         splits_record["readback_record"] = readback_provenance
+        splits_record["canonical"] = canonical
+        splits_record["taint"] = taint
         _write_json(staged_splits.path("raf_splits_record.json"), splits_record)
         _write_json(staged_splits.path("raf_amplitude_audit.json"),
                     {"params": params, "readback_record": readback_provenance,
-                     "rooms": audits})
+                     "canonical": canonical, "taint": taint, "rooms": audits})
 
         expected_runtime = [f"{room}/metadata/{name}"
                             for room in args.rooms

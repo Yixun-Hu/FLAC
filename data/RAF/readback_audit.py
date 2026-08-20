@@ -46,6 +46,18 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 RECORD_SCHEMA_VERSION = 1
+
+# The ONE record canonical RAF artifacts may be published under (Amendment 5, S1).
+# Binding publication to this digest is what stops a hand-written JSON carrying
+# `verdict.passed=true` from authorising a canonical publish: the review
+# demonstrated exactly that bypass with `rooms={}` and the superseded wxyz pin.
+CANONICAL_RECORD_SHA256 = "e879768f8b4a152fb79db670e31a211165bcbaff6746bed64ac1f8a6aec0f01e"
+CANONICAL_GAUGE = "RAF_TO_PIPELINE:(X,Z,Y)"
+CANONICAL_QUAT_ORDER = "xyzw"
+CANONICAL_ROOMS = ("EmptyRoom", "FurnishedRoom")
+# Every measurement block the adjudication rests on. Their presence is what makes
+# the pins evidence rather than assertion.
+REQUIRED_ROOM_BLOCKS = ("onset", "t30_validity", "amplitude", "quaternion", "crosscheck")
 SPEED_OF_SOUND = 343.0
 ONSET_THRESHOLD_DB = -20.0
 SLOPE_TOLERANCE = 0.20          # +-20% of 1/343 s/m
@@ -329,8 +341,59 @@ def build_record(rooms, params, pin_gauge=None, pin_quat=None):
     }
 
 
-def load_passing_record(path):
-    """Publish gate: return the record, or raise saying exactly what is missing."""
+def sha256_of(path):
+    import hashlib
+
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def assert_canonical_content(record, path):
+    """Every content rule canonical publication depends on (S1).
+
+    Checked separately from the digest so the rules are testable, and so a failure
+    says WHICH fact is missing rather than only that a hash differed.
+    """
+    adjudication = record.get("adjudication") or {}
+    gauge = adjudication.get("gauge_pinned")
+    quat = adjudication.get("quat_order_pinned")
+    if gauge != CANONICAL_GAUGE:
+        raise ValueError(
+            f"{path}: gauge_pinned is {gauge!r}, canonical publication requires "
+            f"{CANONICAL_GAUGE!r} (Amendment 4 pinned it from the readback evidence)")
+    if quat != CANONICAL_QUAT_ORDER:
+        raise ValueError(
+            f"{path}: quat_order_pinned is {quat!r}, canonical publication requires "
+            f"{CANONICAL_QUAT_ORDER!r} (the RAF release states real-part-last)")
+
+    rooms = record.get("rooms") or {}
+    if set(rooms) != set(CANONICAL_ROOMS):
+        raise ValueError(
+            f"{path}: audited rooms are {sorted(rooms)}, canonical publication "
+            f"requires exactly {sorted(CANONICAL_ROOMS)}")
+    for room, payload in sorted(rooms.items()):
+        missing = [block for block in REQUIRED_ROOM_BLOCKS if block not in payload]
+        if missing:
+            raise ValueError(
+                f"{path}: room {room} is missing measurement blocks {missing}; the "
+                "pins would be assertions rather than evidence")
+        if payload["onset"].get("passed") is not True:
+            raise ValueError(
+                f"{path}: room {room}'s onset-vs-distance fit did not pass "
+                f"({payload['onset'].get('reasons')})")
+    if not (record.get("decisions", {}).get("t60_headline", {}).get("resolution")):
+        raise ValueError(f"{path}: the T60 headline decision is unresolved")
+    return record
+
+
+def load_passing_record(path, canonical=True, expected_raf_root=None):
+    """Publish gate: return the record, or raise saying exactly what is missing.
+
+    ``canonical=True`` (the default, i.e. production) authenticates the record
+    against the pinned digest AND re-checks every content rule. ``canonical=False``
+    is the explicit synthetic/test mode: the structural checks still apply, but
+    the outputs it authorises are TAINTED in every artifact.
+    """
     if not os.path.isfile(path):
         raise FileNotFoundError(
             f"readback record not found: {path}. Canonical RAF artifacts may only be "
@@ -353,18 +416,37 @@ def load_passing_record(path):
             f"readback record {path} is unadjudicated: {missing} still null. The "
             "gauge and the quaternion column order must be PINNED from the audit "
             "before canonical artifacts are published.")
+
+    if canonical:
+        digest = sha256_of(path)
+        if digest != CANONICAL_RECORD_SHA256:
+            raise ValueError(
+                f"readback record {path} has sha256 {digest}, which is not the "
+                f"pinned canonical record ({CANONICAL_RECORD_SHA256}). Canonical "
+                "artifacts are published only under the committed record; pass "
+                "--non-canonical for synthetic runs (their outputs are tainted).")
+        assert_canonical_content(record, path)
+        if expected_raf_root is not None:
+            audited_root = record.get("params", {}).get("raf_root")
+            if os.path.abspath(str(audited_root)) != os.path.abspath(str(expected_raf_root)):
+                raise ValueError(
+                    f"readback record {path} audited raf_root {audited_root!r}, but "
+                    f"this run reads {expected_raf_root!r}: the audit does not "
+                    "describe this corpus")
     return record
 
 
-def record_provenance(path, record):
+def record_provenance(path, record, canonical=True):
     """Compact provenance block for the artifacts published under this record."""
-    import hashlib
-
-    with open(path, "rb") as f:
-        digest = hashlib.sha256(f.read()).hexdigest()
+    digest = sha256_of(path)
+    taint = [] if canonical else [
+        "non-canonical publication: the readback record was not authenticated "
+        f"against the pinned {CANONICAL_RECORD_SHA256[:12]} record"]
     return {
         "path": os.path.abspath(path),
         "sha256": digest,
+        "canonical": bool(canonical),
+        "taint": taint,
         "schema_version": record["schema_version"],
         "created_utc": record.get("created_utc"),
         "gauge_pinned": record["adjudication"]["gauge_pinned"],

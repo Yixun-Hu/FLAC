@@ -282,7 +282,8 @@ def test_load_mesh_pipeline_applies_the_gauge(tmp_path):
 def test_cli_renders_every_group_and_writes_qa(tmp_path):
     raf_root, out, groups = _write_fixture(tmp_path)
     raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
-                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path)])
+                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path),
+                     "--non-canonical"])
     depth_dir = out / "EmptyRoom" / "depth_images"
     for key, entry in groups.items():
         path = depth_dir / entry["depth_file"]
@@ -309,7 +310,8 @@ def test_cli_render_is_consistent_with_the_pipeline_pixel_to_ray_map(tmp_path):
     ``convert_equirect_to_camera_coord`` assumes, with no flipud in between."""
     raf_root, out, groups = _write_fixture(tmp_path)
     raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
-                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path)])
+                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path),
+                     "--non-canonical"])
     arr = np.load(out / "EmptyRoom" / "depth_images" / groups["aaaa000000000001"]["depth_file"])
     cloud = arr[..., None] * raf_common.equirect_directions()
     assert cloud[0, :, 2].min() > 1.9      # ceiling 2.0 m above the camera
@@ -321,7 +323,8 @@ def test_cli_aborts_when_the_mesh_is_missing(tmp_path):
     os.remove(raf_root / "3d_models" / "EmptyRoom" / "mesh.obj")
     with pytest.raises((FileNotFoundError, ValueError)):
         raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
-                         "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path)])
+                         "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path),
+                     "--non-canonical"])
 
 
 # --------------------------------------------------------------------------- #
@@ -349,7 +352,7 @@ def test_cli_refuses_non_canonical_dims_without_the_flag(tmp_path):
     with pytest.raises(ValueError) as exc:
         raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
                          "--rooms", "EmptyRoom", "--img-h", "128", "--img-w", "256",
-                         "--readback-record", _readback(tmp_path)])
+                         "--readback-record", _readback(tmp_path)])   # canonical
     assert "--non-canonical" in str(exc.value)
 
 
@@ -413,7 +416,8 @@ def test_real_mesh_qa_records_the_depth_scale_against_the_reference_range():
 def test_cli_persists_real_mesh_qa_and_a_render_benchmark(tmp_path):
     raf_root, out, groups = _write_fixture(tmp_path)
     raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
-                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path)])
+                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path),
+                     "--non-canonical"])
     with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
         qa = json.load(f)
     for entry in qa["maps"].values():
@@ -437,7 +441,8 @@ def test_cli_aborts_when_a_camera_is_outside_the_mesh(tmp_path):
         json.dump(payload, f)
     with pytest.raises((RuntimeError, ValueError)):
         raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
-                         "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path)])
+                         "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path),
+                     "--non-canonical"])
 
 
 # --------------------------------------------------------------------------- #
@@ -468,7 +473,8 @@ def test_cli_builds_the_scene_once_per_room(tmp_path, monkeypatch):
 
     monkeypatch.setattr(raf_render, "build_scene", counting_build)
     raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
-                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path)])
+                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path),
+                     "--non-canonical"])
     assert len(groups) == 2
     assert len(constructions) == 1          # not once per camera, nor once per QA call
 
@@ -622,7 +628,8 @@ def test_depth_qa_records_the_miss_report_and_requires_the_cap():
 def test_cli_records_the_miss_report_per_map(tmp_path):
     raf_root, out, groups = _write_fixture(tmp_path)
     raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
-                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path)])
+                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path),
+                     "--non-canonical"])
     with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
         qa = json.load(f)
     assert qa["max_miss_rate"] == raf_render.DEFAULT_MAX_MISS_RATE

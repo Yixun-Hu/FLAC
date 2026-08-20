@@ -153,7 +153,7 @@ def _prepare(tmp_path, rooms=("EmptyRoom",)):
     argv = ["--raf-root", str(raf_root), "--output-dir", str(out),
             "--split-dir", str(split_dir), "--rooms", *rooms,
             "--n-groups", "1", "--n-val-groups", "1", "--n-diagnostic-groups", "1",
-            "--n-train", "12", "--full-crosscheck", "--readback-record",
+            "--n-train", "12", "--full-crosscheck", "--non-canonical", "--readback-record",
             write_passing_readback_record(str(tmp_path / "readback.json"))]
     return argv, out, split_dir
 
@@ -222,7 +222,7 @@ def test_render_depth_publishes_atomically(tmp_path, monkeypatch):
     raf_root, out, groups = _write_fixture(tmp_path)
     record = write_passing_readback_record(str(tmp_path / "readback.json"))
     argv = ["--raf-root", str(raf_root), "--output-dir", str(out), "--rooms",
-            "EmptyRoom", "--readback-record", record]
+            "EmptyRoom", "--readback-record", record, "--non-canonical"]
     raf_render.main(argv)
     depth_dir = out / "EmptyRoom" / "depth_images"
     assert raf_publish.verify_manifest(str(depth_dir)) == {"missing": [], "mismatched": []}
@@ -251,7 +251,7 @@ def test_render_depth_publishes_nothing_when_a_map_fails_qa(tmp_path):
     meta.write_text(json.dumps(payload))
     with pytest.raises((RuntimeError, ValueError)):
         raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
-                         "--rooms", "EmptyRoom", "--readback-record",
+                         "--rooms", "EmptyRoom", "--non-canonical", "--readback-record",
                          write_passing_readback_record(str(tmp_path / "readback.json"))])
     depth_dir = out / "EmptyRoom" / "depth_images"
     assert not (depth_dir / "aaaa000000000001_depth_image.npy").exists()

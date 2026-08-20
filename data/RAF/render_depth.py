@@ -415,8 +415,9 @@ def build_parser():
                              "nearest-valid-neighbour inpainting; above it the render "
                              "aborts (Amendment 4)")
     parser.add_argument('--non-canonical', action='store_true',
-                        help="allow a grid other than 256x512; such maps CANNOT be "
-                             "loaded by RAF_md and their QA record is tainted")
+                        help="synthetic/test mode: allows a grid other than 256x512 "
+                             "(unloadable by RAF_md) AND an unauthenticated readback "
+                             "record; every artifact this run publishes is tainted")
     parser.add_argument('--readback-record', required=True,
                         help="path to a PASSING, adjudicated raf_readback_record.json; "
                              "canonical depth maps are rendered under a PINNED gauge, "
@@ -429,21 +430,25 @@ def main(argv=None):
 
     # R4 gate: the maps encode the RAF->pipeline gauge, so they may only be
     # rendered once that gauge has been pinned from the readback audit.
-    readback_provenance = record_provenance(args.readback_record,
-                                            load_passing_record(args.readback_record))
+    canonical = not args.non_canonical
+    readback = load_passing_record(
+        args.readback_record, canonical=canonical,
+        expected_raf_root=args.raf_root if canonical else None)
+    readback_provenance = record_provenance(args.readback_record, readback,
+                                            canonical=canonical)
     logger.info("readback record %s (gauge %s)", readback_provenance["sha256"][:12],
                 readback_provenance["gauge_pinned"])
 
-    canonical = (args.img_h, args.img_w) == CANONICAL_SHAPE
-    if not canonical and not args.non_canonical:
-        raise ValueError(
-            f"refusing to render a {args.img_h}x{args.img_w} grid: RAF_md consumes "
-            f"exactly {CANONICAL_SHAPE[0]}x{CANONICAL_SHAPE[1]}, so these maps would "
-            "pass QA and then fail inside metadata loading, where the dataloader "
-            "silently substitutes another item. Pass --non-canonical to render them "
-            "anyway (the QA record is tainted).")
-    taint = [] if canonical else [
-        f"non-canonical grid {args.img_h}x{args.img_w}: unusable by RAF_md"]
+    taint = list(readback_provenance["taint"])
+    if (args.img_h, args.img_w) != CANONICAL_SHAPE:
+        if canonical:
+            raise ValueError(
+                f"refusing to render a {args.img_h}x{args.img_w} grid: RAF_md consumes "
+                f"exactly {CANONICAL_SHAPE[0]}x{CANONICAL_SHAPE[1]}, so these maps would "
+                "pass QA and then fail inside metadata loading, where the dataloader "
+                "silently substitutes another item. Pass --non-canonical to render them "
+                "anyway (the QA record is tainted).")
+        taint.append(f"non-canonical grid {args.img_h}x{args.img_w}: unusable by RAF_md")
 
     for room in args.rooms:
         mesh = load_mesh_pipeline(os.path.join(args.raf_root, "3d_models", room, "mesh.obj"))

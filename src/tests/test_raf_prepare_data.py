@@ -860,7 +860,7 @@ def _run_cli(tmp_path, extra=()):
     argv = ["--raf-root", str(raf_root), "--output-dir", str(out),
             "--split-dir", str(split_dir), "--rooms", "EmptyRoom", "FurnishedRoom",
             "--n-groups", "1", "--n-val-groups", "1", "--n-train", "12",
-            "--n-diagnostic-groups", "1", "--full-crosscheck",
+            "--n-diagnostic-groups", "1", "--full-crosscheck", "--non-canonical",
             "--readback-record", str(tmp_path / "readback.json")] + list(extra)
     raf_prepare.main(argv)
     return out, split_dir
@@ -920,7 +920,7 @@ def test_cli_still_aborts_on_a_count_mismatch_the_sentinel_rule_does_not_cover(t
                           "--output-dir", str(tmp_path / "out"),
                           "--split-dir", str(tmp_path / "splits"),
                           "--rooms", "EmptyRoom",
-                          "--n-groups", "1", "--n-val-groups", "1",
+                          "--n-groups", "1", "--n-val-groups", "1", "--non-canonical",
                           "--readback-record",
                           write_passing_readback_record(str(tmp_path / "rb.json"))])
 
@@ -934,7 +934,7 @@ def test_cli_is_idempotent(tmp_path):
                       "--split-dir", str(split_dir), "--rooms", "EmptyRoom",
                       "FurnishedRoom", "--n-groups", "1", "--n-val-groups", "1",
                       "--n-train", "12", "--n-diagnostic-groups", "1",
-                      "--full-crosscheck", "--readback-record",
+                      "--full-crosscheck", "--non-canonical", "--readback-record",
                       write_passing_readback_record(str(tmp_path / "readback.json"))])
     with open(split_dir / "train_base.json") as f:
         assert json.load(f) == first
@@ -971,7 +971,7 @@ def test_cli_records_the_sentinel_drop_per_room(tmp_path):
                       "--rooms", "EmptyRoom", "FurnishedRoom",
                       "--n-groups", "1", "--n-val-groups", "1", "--n-train", "12",
                       "--n-diagnostic-groups", "1", "--full-crosscheck",
-                      "--readback-record",
+                      "--non-canonical", "--readback-record",
                       write_passing_readback_record(str(tmp_path / "readback.json"))])
     with open(split_dir / "raf_splits_record.json") as f:
         record = json.load(f)
@@ -1169,7 +1169,7 @@ def test_cli_emits_the_diagnostic_manifest_and_metadata(tmp_path):
                       "--split-dir", str(split_dir), "--rooms", "EmptyRoom",
                       "FurnishedRoom", "--n-groups", "1", "--n-val-groups", "1",
                       "--n-diagnostic-groups", "1", "--n-train", "12",
-                      "--full-crosscheck", "--readback-record",
+                      "--full-crosscheck", "--non-canonical", "--readback-record",
                       write_passing_readback_record(str(tmp_path / "readback.json"))])
     with open(split_dir / "diagnostic_base.json") as f:
         diagnostic = json.load(f)

@@ -234,13 +234,13 @@ def _pinned_record(tmp_path, audited_room, name="rec.json"):
 
 def test_gate_accepts_a_passing_pinned_record(audited_room, tmp_path):
     path = _pinned_record(tmp_path, audited_room)
-    record = raf_readback.load_passing_record(path)
+    record = raf_readback.load_passing_record(path, canonical=False)
     assert record["verdict"]["passed"] is True
 
 
 def test_gate_rejects_a_missing_record(tmp_path):
     with pytest.raises((FileNotFoundError, ValueError)):
-        raf_readback.load_passing_record(str(tmp_path / "nope.json"))
+        raf_readback.load_passing_record(str(tmp_path / "nope.json"), canonical=False)
 
 
 def test_gate_rejects_an_unpinned_record(audited_room, tmp_path):
@@ -249,7 +249,7 @@ def test_gate_rejects_an_unpinned_record(audited_room, tmp_path):
     raf_readback.main(["--raf-root", raf_root, "--rooms", "EmptyRoom", "--out", str(out),
                        "--n-onset-samples", "36"])
     with pytest.raises(ValueError) as exc:
-        raf_readback.load_passing_record(str(out))
+        raf_readback.load_passing_record(str(out), canonical=False)
     assert "gauge" in str(exc.value) or "quat" in str(exc.value)
 
 
@@ -261,7 +261,7 @@ def test_gate_rejects_a_failed_record(audited_room, tmp_path):
     with open(path, "w") as f:
         json.dump(record, f)
     with pytest.raises(ValueError):
-        raf_readback.load_passing_record(path)
+        raf_readback.load_passing_record(path, canonical=False)
 
 
 def test_gate_rejects_a_foreign_schema(audited_room, tmp_path):
@@ -272,17 +272,19 @@ def test_gate_rejects_a_foreign_schema(audited_room, tmp_path):
     with open(path, "w") as f:
         json.dump(record, f)
     with pytest.raises(ValueError):
-        raf_readback.load_passing_record(path)
+        raf_readback.load_passing_record(path, canonical=False)
 
 
 # --------------------------------------------------------------------------- #
 # publish gates
 # --------------------------------------------------------------------------- #
-def _prepare_argv(tmp_path, raf_root, readback=None):
+def _prepare_argv(tmp_path, raf_root, readback=None, non_canonical=True):
     argv = ["--raf-root", str(raf_root), "--output-dir", str(tmp_path / "runtime" / "RAF"),
             "--split-dir", str(tmp_path / "splits"), "--rooms", "EmptyRoom",
             "--n-groups", "1", "--n-val-groups", "1", "--n-diagnostic-groups", "1",
             "--n-train", "12", "--full-crosscheck"]
+    if non_canonical:
+        argv = argv + ["--non-canonical"]
     if readback is not None:
         argv += ["--readback-record", readback]
     return argv
@@ -337,7 +339,8 @@ def test_render_depth_runs_with_a_passing_record(tmp_path, audited_room):
     path = _pinned_record(tmp_path, audited_room)
     raf_root, out, groups = _write_fixture(tmp_path)
     raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
-                     "--rooms", "EmptyRoom", "--readback-record", path])
+                     "--rooms", "EmptyRoom", "--readback-record", path,
+                     "--non-canonical"])
     with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
         qa = json.load(f)
     assert qa["readback_record"]["gauge_pinned"] == "RAF_TO_PIPELINE"
@@ -409,3 +412,169 @@ def test_amplitude_audit_applies_a_scalar_uniformly_when_one_is_given(tmp_path):
     for cid in ("000000", "000001"):
         assert scaled["files"][cid]["peak"] == pytest.approx(
             2.0 * plain["files"][cid]["peak"], rel=1e-6)
+
+
+# --------------------------------------------------------------------------- #
+# r3 S1: canonical publication authenticates the pinned record
+# --------------------------------------------------------------------------- #
+_PINNED_RECORD = os.path.join(_REPO_ROOT, "data", "RAF", "raf_readback_record.json")
+_PINNED_SHA256 = "e879768f8b4a152fb79db670e31a211165bcbaff6746bed64ac1f8a6aec0f01e"
+
+
+def test_the_committed_record_is_the_pinned_one():
+    import hashlib
+
+    with open(_PINNED_RECORD, "rb") as f:
+        assert hashlib.sha256(f.read()).hexdigest() == _PINNED_SHA256
+    assert raf_readback.CANONICAL_RECORD_SHA256 == _PINNED_SHA256
+    assert raf_readback.CANONICAL_GAUGE == "RAF_TO_PIPELINE:(X,Z,Y)"
+    assert raf_readback.CANONICAL_QUAT_ORDER == "xyzw"
+
+
+def test_canonical_gate_accepts_the_pinned_record():
+    record = raf_readback.load_passing_record(_PINNED_RECORD, canonical=True)
+    assert record["adjudication"]["gauge_pinned"] == raf_readback.CANONICAL_GAUGE
+    assert record["adjudication"]["quat_order_pinned"] == raf_readback.CANONICAL_QUAT_ORDER
+    assert set(record["rooms"]) == set(raf_readback.CANONICAL_ROOMS)
+
+
+def test_canonical_gate_rejects_a_synthetic_record(tmp_path):
+    """The exact bypass the review demonstrated: rooms={}, no measurements."""
+    from test_raf_prepare_data import write_passing_readback_record
+
+    path = write_passing_readback_record(str(tmp_path / "synthetic.json"))
+    with pytest.raises(ValueError) as exc:
+        raf_readback.load_passing_record(path, canonical=True)
+    assert "sha256" in str(exc.value).lower()
+    # ... while the explicitly non-canonical path still accepts it, tainted
+    record = raf_readback.load_passing_record(path, canonical=False)
+    assert record["verdict"]["passed"] is True
+
+
+def _tampered(tmp_path, mutate, name="tampered.json"):
+    with open(_PINNED_RECORD) as f:
+        record = json.load(f)
+    mutate(record)
+    path = tmp_path / name
+    with open(path, "w") as f:
+        json.dump(record, f, indent=4)
+    return str(path)
+
+
+def _drop_room(record):
+    record["rooms"].pop("FurnishedRoom")
+
+
+def _superseded_quat(record):
+    record["adjudication"]["quat_order_pinned"] = "wxyz"
+
+
+def _unpin_gauge(record):
+    record["adjudication"]["gauge_pinned"] = "RAF_TO_PIPELINE"
+
+
+def _drop_onset(record):
+    record["rooms"]["EmptyRoom"].pop("onset")
+
+
+def _fail_onset(record):
+    record["rooms"]["EmptyRoom"]["onset"]["passed"] = False
+
+
+@pytest.mark.parametrize("mutate,needle", [
+    (_drop_room, "room"),
+    (_superseded_quat, "quat"),
+    (_unpin_gauge, "gauge"),
+    (_drop_onset, "onset"),
+    (_fail_onset, "onset"),
+])
+def test_canonical_gate_rejects_a_tampered_record(tmp_path, mutate, needle):
+    """Every one of these still has verdict.passed=true and two non-empty pins."""
+    path = _tampered(tmp_path, mutate)
+    with pytest.raises(ValueError) as exc:
+        raf_readback.load_passing_record(path, canonical=True)
+    message = str(exc.value).lower()
+    assert "sha256" in message or needle in message
+
+
+def test_canonical_gate_checks_the_content_not_only_the_hash(tmp_path):
+    """A record that hashes differently is rejected on the hash; one that somehow
+    matched must still satisfy every content rule, so the rules are exercised with
+    the hash check disabled."""
+    path = _tampered(tmp_path, _superseded_quat)
+    with pytest.raises(ValueError) as exc:
+        raf_readback.assert_canonical_content(json.load(open(path)), path)
+    assert "quat" in str(exc.value).lower()
+
+
+def test_canonical_gate_requires_a_matching_raf_root(tmp_path):
+    with pytest.raises(ValueError) as exc:
+        raf_readback.load_passing_record(_PINNED_RECORD, canonical=True,
+                                         expected_raf_root="/somewhere/else")
+    assert "raf_root" in str(exc.value)
+    raf_readback.load_passing_record(
+        _PINNED_RECORD, canonical=True,
+        expected_raf_root="/media/diskstation/yixunhu/raf_dataset")
+
+
+def test_provenance_records_canonicality_and_taint(tmp_path):
+    from test_raf_prepare_data import write_passing_readback_record
+
+    record = raf_readback.load_passing_record(_PINNED_RECORD, canonical=True)
+    provenance = raf_readback.record_provenance(_PINNED_RECORD, record, canonical=True)
+    assert provenance["canonical"] is True
+    assert provenance["taint"] == []
+    assert provenance["sha256"] == _PINNED_SHA256
+
+    path = write_passing_readback_record(str(tmp_path / "synthetic.json"))
+    synthetic = raf_readback.load_passing_record(path, canonical=False)
+    tainted = raf_readback.record_provenance(path, synthetic, canonical=False)
+    assert tainted["canonical"] is False
+    assert any("non-canonical" in t for t in tainted["taint"])
+
+
+def test_prepare_refuses_a_synthetic_record_without_the_non_canonical_flag(tmp_path):
+    from test_raf_prepare_data import write_passing_readback_record, write_room
+
+    raf_root = tmp_path / "raf"
+    write_room(str(raf_root), "EmptyRoom")
+    argv = _prepare_argv(tmp_path, raf_root, non_canonical=False,
+                         readback=write_passing_readback_record(str(tmp_path / "rb.json")))
+    with pytest.raises(ValueError) as exc:
+        raf_prepare.main(argv)          # no --non-canonical
+    assert "sha256" in str(exc.value).lower() or "non-canonical" in str(exc.value)
+
+
+def test_prepare_taints_every_artifact_in_non_canonical_mode(tmp_path):
+    from test_raf_prepare_data import write_passing_readback_record, write_room
+
+    raf_root = tmp_path / "raf"
+    write_room(str(raf_root), "EmptyRoom")
+    argv = _prepare_argv(tmp_path, raf_root,
+                         readback=write_passing_readback_record(str(tmp_path / "rb.json")))
+    raf_prepare.main(argv + ["--non-canonical"])
+    split_dir = tmp_path / "splits"
+    for name in ("raf_splits_record.json", "raf_amplitude_audit.json"):
+        with open(split_dir / name) as f:
+            payload = json.load(f)
+        assert payload["canonical"] is False
+        assert any("non-canonical" in t for t in payload["taint"])
+        assert payload["readback_record"]["canonical"] is False
+
+
+def test_render_depth_taints_the_qa_record_in_non_canonical_mode(tmp_path):
+    from test_raf_prepare_data import write_passing_readback_record
+    from test_raf_render_depth import _write_fixture
+
+    raf_root, out, _ = _write_fixture(tmp_path)
+    path = write_passing_readback_record(str(tmp_path / "rb.json"))
+    with pytest.raises(ValueError):
+        raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                         "--rooms", "EmptyRoom", "--readback-record", path])
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--readback-record", path,
+                     "--non-canonical"])
+    with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
+        qa = json.load(f)
+    assert qa["canonical"] is False
+    assert any("non-canonical" in t for t in qa["taint"])
