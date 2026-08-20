@@ -2625,10 +2625,11 @@ def test_readback_mode_records_a_metadata_only_source_as_a_warning(tmp_path):
 def test_readback_mode_fails_on_a_wav_without_metadata(tmp_path):
     root, wav_room = _dataset_tree(tmp_path)
     _write_rir(str(wav_room), 42, 11, 0.5)                       # no pair JSON for node 42
+    args = _readback_args(tmp_path, root, _write_split(tmp_path))
     with pytest.raises(SystemExit):
-        el.run_readback(_readback_args(tmp_path, root, _write_split(tmp_path)))
-    report = _json.loads(open(os.path.join(str(tmp_path / "out"),
-                                           "R_minus_1_readback.json")).read())
+        el.run_readback(args)
+    written = os.path.join(str(args.out_dir), el.aux_stem(args, "readback") + ".json")
+    report = _json.loads(open(written).read())
     assert report["ok"] is False
     assert any("42" in failure for failure in report["failures"])
 
@@ -3026,10 +3027,11 @@ def test_readback_fails_when_the_lrh_metadata_only_source_disappears(tmp_path):
     metadata nodes matching 9 wavs, which used to pass silently."""
     root, split_path = _registered_unseen_tree(tmp_path)
     os.remove(str(root / "metadata" / _LRH / _LRH_ROOM / "S0010_R007.json"))
+    args = _unseen_readback_args(tmp_path, root, split_path)
     with pytest.raises(SystemExit):
-        el.run_readback(_unseen_readback_args(tmp_path, root, split_path))
-    report = _json.loads(open(os.path.join(str(tmp_path / "out"),
-                                           "R_minus_1_readback.json")).read())
+        el.run_readback(args)
+    written = os.path.join(str(args.out_dir), el.aux_stem(args, "readback") + ".json")
+    report = _json.loads(open(written).read())            # the report is written before the exit
     assert report["ok"] is False
     assert any("is GONE" in f for f in report["failures"])
     assert any("9 metadata sources" in f for f in report["failures"])
@@ -3108,3 +3110,87 @@ def test_integration_readback_gate_passes_on_the_real_unseen_split(tmp_path):
         f"{_LRH}/{_LRH_ROOM}: metadata-only sources (no wavs): [10]"]
     assert sum(room["wav_checked"] for room in report["rooms"].values()) == 169
     assert all(room["depth_bad"] == [] for room in report["rooms"].values())
+
+
+# --------------------------------------------------------------------------- #
+# r5 item 3 (r4 review M3): the auxiliary modes opened a fixed {eval_name}_*.json
+# with "w" and ignored --overwrite, so a failed R-1 could erase passing evidence
+# and two different scorer-noise inputs collided.
+# --------------------------------------------------------------------------- #
+def test_write_json_atomic_refuses_an_existing_target(tmp_path):
+    path = str(tmp_path / "report.json")
+    el.write_json_atomic(path, {"ok": True}, overwrite=False)
+    assert _json.loads(open(path).read()) == {"ok": True}
+    assert not os.path.exists(path + ".partial")          # no debris on success
+    with pytest.raises(SystemExit):
+        el.write_json_atomic(path, {"ok": False}, overwrite=False)
+    el.write_json_atomic(path, {"ok": False}, overwrite=True)
+    assert _json.loads(open(path).read()) == {"ok": False}
+
+
+def test_write_json_atomic_refuses_a_stale_partial(tmp_path):
+    path = str(tmp_path / "report.json")
+    open(path + ".partial", "w").close()
+    with pytest.raises(SystemExit):
+        el.write_json_atomic(path, {"ok": True}, overwrite=False)
+
+
+def test_readback_refuses_to_overwrite_its_own_report(tmp_path):
+    root, _wav_room = _dataset_tree(tmp_path)
+    args = _readback_args(tmp_path, root, _write_split(tmp_path))
+    first = el.run_readback(args)["report_path"]
+    with pytest.raises(SystemExit):
+        el.run_readback(args)
+    assert os.path.exists(first)                          # the passing evidence survives
+    over = _readback_args(tmp_path, root, _write_split(tmp_path), **{"--overwrite": True})
+    assert el.run_readback(over)["report_path"] == first
+
+
+def test_auxiliary_stems_are_content_addressed(tmp_path):
+    root, _wav_room = _dataset_tree(tmp_path)
+    split_a = _write_split(tmp_path)
+    base = _readback_args(tmp_path, root, split_a)
+    other_root, _w = _dataset_tree(tmp_path / "other")
+    other = _readback_args(tmp_path / "other", other_root, _write_split(tmp_path / "other"))
+    assert el.aux_stem(base, "readback") != el.aux_stem(other, "readback")
+    assert el.aux_stem(base, "readback").startswith("R_minus_1_readback_ds-")
+
+    noise = _run_args(tmp_path, **{"--mode": "scorer-noise", "--noise-draws": "16"})
+    noise_other = _run_args(tmp_path, **{"--mode": "scorer-noise", "--noise-draws": "32"})
+    noise_seed = _run_args(tmp_path, **{"--mode": "scorer-noise", "--noise-draws": "16",
+                                        "--seed": "43"})
+    stems = {el.aux_stem(a, "scorer-noise") for a in (noise, noise_other, noise_seed)}
+    assert len(stems) == 3
+
+    rows_a, rows_b = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+    rows_a.write_text('{"query_id": "q0"}\n')
+    rows_b.write_text('{"query_id": "q1"}\n')
+    left = _run_args(tmp_path, **{"--mode": "reaggregate", "--rows": str(rows_a)})
+    right = _run_args(tmp_path, **{"--mode": "reaggregate", "--rows": str(rows_b)})
+    assert el.aux_stem(left, "reaggregate") != el.aux_stem(right, "reaggregate")
+    assert el.aux_stem(left, "reaggregate") == el.aux_stem(left, "reaggregate")
+
+
+def test_reaggregate_mode_refuses_to_clobber(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    run = el.run_evaluation(_run_args(tmp_path), loader, engine, _stub_context(root), "c", "a",
+                            expected=el.expected_split_identities(loader.dataset))
+    argv = ["--mode", "reaggregate", "--model-config", "m.json", "--dataset-config",
+            str(tmp_path / "d.json"), "--rows", run["rows_path"],
+            "--out-dir", str(tmp_path / "re"), "--eval-name", "R1"]
+    (tmp_path / "d.json").write_text(_json.dumps({"dataset_type": "audio_dir", "datasets": []}))
+    args = el.validate_args(el.parse_args(argv))
+    el.run_reaggregate(args)
+    with pytest.raises(SystemExit):
+        el.run_reaggregate(args)
+    el.run_reaggregate(el.validate_args(el.parse_args(argv + ["--overwrite"])))
+
+
+def test_run_evaluation_leaves_no_partial_files(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    result = el.run_evaluation(_run_args(tmp_path), loader, engine, _stub_context(root), "c", "a",
+                               expected=el.expected_split_identities(loader.dataset))
+    for key in ("rows_path", "summary_path", "manifest_path"):
+        assert os.path.exists(result[key]) and not os.path.exists(result[key] + ".partial")

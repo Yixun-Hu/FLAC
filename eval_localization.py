@@ -902,13 +902,15 @@ def jsonable(obj):
     return obj
 
 
-def write_summary(path, summary, provenance):
-    """Write the summary record (provenance first, then the aggregates)."""
-    with open(str(path), "w") as handle:
-        json.dump({"provenance": jsonable(provenance), "summary": jsonable(summary)}, handle,
-                  sort_keys=True, indent=2)
-        handle.write("\n")
-    return str(path)
+def write_summary(path, summary, provenance, overwrite=True):
+    """Write the summary record (provenance first, then the aggregates).
+
+    ``overwrite`` defaults to True because the run mode already refused a
+    colliding target in :func:`artifact_paths`; the atomic write is what matters
+    here.
+    """
+    return write_json_atomic(path, {"provenance": jsonable(provenance),
+                                    "summary": jsonable(summary)}, overwrite=overwrite)
 
 
 AR_SAMPLE_RATE = 22050
@@ -1439,7 +1441,7 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
 
     paths = artifact_paths(args)
     rows_path, summary_path = paths["rows"], paths["summary"]
-    partial_rows, partial_summary = rows_path + ".partial", summary_path + ".partial"
+    partial_rows = rows_path + ".partial"
     rows, scored, seen_rooms = [], [], set()
     reset_peak_memory(context.get("device", "cpu"))
 
@@ -1474,13 +1476,10 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
                                   context_digest=context_stream_digest(rows),
                                   candidate_manifest_sha256=(manifest_sha256(manifest)
                                                              if manifest else None))
-    write_summary(partial_summary, summary, provenance)
+    write_summary(summary_path, summary, provenance)
     if manifest is not None:
-        with open(paths["manifest"] + ".partial", "w") as handle:
-            json.dump(manifest, handle, sort_keys=True, separators=(",", ":"))
-        os.replace(paths["manifest"] + ".partial", paths["manifest"])
+        write_json_atomic(paths["manifest"], manifest, overwrite=True)
     os.replace(partial_rows, rows_path)          # publish only verified artifacts
-    os.replace(partial_summary, summary_path)
     return {"rows_path": rows_path, "summary_path": summary_path,
             "manifest_path": paths["manifest"], "rows": rows,
             "summary": summary, "provenance": provenance}
@@ -2033,14 +2032,60 @@ def run_readback(args):
     return report
 
 
-def write_report(args, report, kind):
-    """Write one auxiliary-mode JSON report (R5-3 makes this atomic/no-clobber)."""
-    os.makedirs(str(args.out_dir), exist_ok=True)
-    path = os.path.join(str(args.out_dir), f"{args.eval_name}_{kind}.json")
-    with open(path, "w") as handle:
-        json.dump(report, handle, sort_keys=True, indent=2)
+def write_json_atomic(path, payload, overwrite=False):
+    """The ONE report writer: tmp file + ``os.replace``, refusing to clobber.
+
+    Every mode goes through this (r4 review M3). A finished report is evidence:
+    a later failed run must not be able to erase it, and a leftover ``.partial``
+    means an earlier attempt died, which is also a refusal.
+    """
+    path = str(path)
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    if not overwrite:
+        for candidate in (path, path + ".partial"):
+            if os.path.exists(candidate):
+                _refuse(f"report target already exists: {candidate}; pass --overwrite to replace")
+    tmp = path + ".partial"
+    with open(tmp, "w") as handle:
+        json.dump(payload, handle, sort_keys=True, indent=2)
         handle.write("\n")
+    os.replace(tmp, path)
     return path
+
+
+def _short(value, size=10):
+    return str(value)[:size]
+
+
+def _rows_digest(paths):
+    """One digest over the CONTENT of the input row files."""
+    digest = hashlib.sha256()
+    for path in sorted(str(p) for p in paths or []):
+        digest.update(sha256_file(path).encode("utf-8"))
+    return digest.hexdigest()
+
+
+def aux_stem(args, kind):
+    """Content-addressed stem for an auxiliary mode's report.
+
+    Two runs of the same mode over different inputs must not collide, so the
+    stem carries short hashes of the dataset config, the scorer checkpoint and
+    the input rows (whichever the mode consumes) plus its protocol knobs.
+    """
+    parts = [str(args.eval_name), kind, f"ds-{_short(_file_sha256(args.dataset_config))}"]
+    if kind == "scorer-noise":
+        scorer = os.path.splitext(os.path.basename(str(args.agree_ckpt)))[0] or "none"
+        parts += [f"scorer-{scorer}", f"sha-{_short(_file_sha256(args.agree_ckpt))}",
+                  f"n{int(args.noise_draws)}", f"seed{int(args.seed)}"]
+    elif kind == "reaggregate":
+        parts.append(f"rows-{_short(_rows_digest(getattr(args, 'rows', None)))}")
+    return "_".join(parts)
+
+
+def write_report(args, report, kind):
+    """Write one auxiliary-mode JSON report, atomically and without clobbering."""
+    path = os.path.join(str(args.out_dir), f"{aux_stem(args, kind)}.json")
+    return write_json_atomic(path, report, overwrite=bool(getattr(args, "overwrite", False)))
 
 
 def _cos_stats(values):
@@ -2136,11 +2181,7 @@ def run_scorer_noise(args):
         "source_sha": source_sha(),
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     })
-    os.makedirs(str(args.out_dir), exist_ok=True)
-    report_path = os.path.join(str(args.out_dir), f"{args.eval_name}_scorer_noise.json")
-    with open(report_path, "w") as handle:
-        json.dump(report, handle, sort_keys=True, indent=2)
-        handle.write("\n")
+    report_path = write_report(args, report, "scorer-noise")
     report["report_path"] = report_path
     pairwise = report["aggregate"]["pairwise"]
     print(f"scorer noise over {report['n_draws']} sampled draws x {report['n_wavs']} RIRs: "
@@ -2154,11 +2195,7 @@ def run_reaggregate(args):
     report = reaggregate(args.rows)
     report.update({"mode": "reaggregate", "source_sha": source_sha(),
                    "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds")})
-    os.makedirs(str(args.out_dir), exist_ok=True)
-    report_path = os.path.join(str(args.out_dir), f"{args.eval_name}_reaggregate.json")
-    with open(report_path, "w") as handle:
-        json.dump(report, handle, sort_keys=True, indent=2)
-        handle.write("\n")
+    report_path = write_report(args, report, "reaggregate")
     report["report_path"] = report_path
     chosen = report["selected"]
     print(f"reaggregate: {report['n_rows']} rows, {len(report['sweep'])} configurations -> "
