@@ -239,3 +239,135 @@ def test_m5_never_touches_the_global_rng():
     rm.m1_distance(torch.randn(2, 256, generator=torch.Generator().manual_seed(13)), obs,
                    delta_max=8)
     assert torch.equal(torch.random.get_rng_state(), before)
+
+
+# --------------------------------------------------------------------------- #
+# M2 — multi-resolution STFT distance (repo scale set + spectral convergence)
+# --------------------------------------------------------------------------- #
+def test_m2_is_zero_for_an_identical_signal_and_positive_otherwise():
+    g = torch.Generator().manual_seed(20)
+    obs = torch.randn(rm.WINDOW_SAMPLES, generator=g)
+    same = rm.m2_distance(obs.unsqueeze(0), obs)
+    assert float(same[0]) == pytest.approx(0.0, abs=1e-6)
+    other = rm.m2_distance(torch.randn(1, rm.WINDOW_SAMPLES, generator=g), obs)
+    assert float(other[0]) > 0.0
+
+
+def test_m2_uses_raw_amplitudes_with_no_per_pair_gain():
+    """Amplitude policy is FIXED (plan §1): the gain question lives in M1, so a
+    scaled copy is NOT free under M2."""
+    g = torch.Generator().manual_seed(21)
+    obs = torch.randn(rm.WINDOW_SAMPLES, generator=g)
+    assert float(rm.m2_distance((3.0 * obs).unsqueeze(0), obs)[0]) > 0.1
+
+
+def test_m2_sums_the_repo_scale_set_and_adds_spectral_convergence():
+    g = torch.Generator().manual_seed(22)
+    obs = torch.randn(rm.WINDOW_SAMPLES, generator=g)
+    pred = torch.randn(rm.WINDOW_SAMPLES, generator=g)
+    parts = rm.m2_terms(pred.unsqueeze(0), obs)
+    assert sorted(parts) == sorted(rm.M2_FFT_SIZES)
+    total = sum(float(parts[n]["log_l1"][0]) + rm.M2_LAMBDA * float(parts[n]["convergence"][0])
+                for n in rm.M2_FFT_SIZES)
+    assert float(rm.m2_distance(pred.unsqueeze(0), obs)[0]) == pytest.approx(total, rel=1e-5)
+
+
+def test_m2_log_term_matches_the_repo_formula_on_cpu():
+    """Same amplitude/eps/safe_log convention as log_L1_STFT; the only deviation
+    is the window device (the repo's get_stft hardcodes .cuda())."""
+    from src.metrics.modules.l1_stft_multires import safe_log as repo_safe_log
+    g = torch.Generator().manual_seed(23)
+    obs = torch.randn(rm.WINDOW_SAMPLES, generator=g)
+    pred = torch.randn(rm.WINDOW_SAMPLES, generator=g)
+    n_fft = 256
+    window = torch.hann_window(n_fft)
+    est = torch.stft(pred, n_fft=n_fft, hop_length=None, window=window, return_complex=False)
+    ref = torch.stft(obs, n_fft=n_fft, hop_length=None, window=window, return_complex=False)
+    est_amp = torch.sqrt(est[..., 0] ** 2 + est[..., 1] ** 2 + rm.M2_STFT_EPS)
+    ref_amp = torch.sqrt(ref[..., 0] ** 2 + ref[..., 1] ** 2 + rm.M2_STFT_EPS)
+    expected = torch.mean(torch.abs(repo_safe_log(est_amp) - repo_safe_log(ref_amp)))
+    got = rm.m2_terms(pred.unsqueeze(0), obs)[n_fft]["log_l1"][0]
+    assert float(got) == pytest.approx(float(expected), rel=1e-5)
+
+
+def test_m2_is_batch_invariant():
+    g = torch.Generator().manual_seed(24)
+    obs = torch.randn(rm.WINDOW_SAMPLES, generator=g)
+    pred = torch.randn(5, rm.WINDOW_SAMPLES, generator=g)
+    whole = rm.m2_distance(pred, obs)
+    piecewise = torch.cat([rm.m2_distance(pred[i:i + 1], obs) for i in range(5)])
+    assert torch.allclose(whole, piecewise, atol=1e-5)
+
+
+# --------------------------------------------------------------------------- #
+# M3 — energy-decay distance
+# --------------------------------------------------------------------------- #
+def _exponential_rir(length, tau_samples, seed=0):
+    g = torch.Generator().manual_seed(seed)
+    noise = torch.randn(length, generator=g)
+    envelope = torch.exp(-torch.arange(length, dtype=torch.float32) / tau_samples)
+    return noise * envelope
+
+
+def test_m3_edc_of_an_exponential_decay_is_linear_in_db():
+    rir = _exponential_rir(8192, 1200, seed=30)
+    edc = rm.schroeder_edc(rir.unsqueeze(0))[0]
+    assert float(edc[0]) == pytest.approx(0.0, abs=1e-6)          # normalized to 0 dB
+    assert torch.all(edc[1:] <= edc[:-1] + 1e-6)                  # monotonically decaying
+    early = edc[:4000]
+    slope = (early[-1] - early[0]) / 4000.0
+    fitted = early[0] + slope * torch.arange(4000, dtype=torch.float32)
+    assert float(torch.abs(early - fitted).mean()) < 1.5          # near-linear in dB
+
+
+def test_m3_is_zero_for_the_same_decay_shape_and_amplitude_blind():
+    rir = _exponential_rir(8192, 1200, seed=31)
+    d_same = rm.m3_distance(rir.unsqueeze(0), rir)
+    assert float(d_same[0]) == pytest.approx(0.0, abs=1e-6)
+    # amplitude is M1's job: a globally scaled copy has the SAME decay shape
+    d_scaled = rm.m3_distance((7.0 * rir).unsqueeze(0), rir)
+    assert float(d_scaled[0]) == pytest.approx(0.0, abs=1e-5)
+
+
+def test_m3_separates_different_decay_rates():
+    obs = _exponential_rir(8192, 1200, seed=32)
+    near = _exponential_rir(8192, 1250, seed=33)
+    far = _exponential_rir(8192, 400, seed=34)
+    d_near = float(rm.m3_distance(near.unsqueeze(0), obs)[0])
+    d_far = float(rm.m3_distance(far.unsqueeze(0), obs)[0])
+    assert 0.0 < d_near < d_far
+
+
+def test_m3_region_is_defined_by_the_observation_only():
+    """All candidates of a query share the region, so a candidate cannot move it."""
+    obs = _exponential_rir(8192, 1200, seed=35)
+    mask = rm.m3_region_mask(obs)
+    assert mask.dtype == torch.bool and int(mask.sum()) > 100
+    edc = rm.schroeder_edc(obs.unsqueeze(0))[0]
+    inside = edc[mask]
+    assert float(inside.max()) <= rm.M3_REGION_DB[0] + 1e-6
+    assert float(inside.min()) >= rm.M3_REGION_DB[1] - 1e-6
+    # the same mask is used for every candidate
+    preds = torch.stack([_exponential_rir(8192, t, seed=36) for t in (300, 1200, 3000)])
+    d_batch = rm.m3_distance(preds, obs)
+    d_single = torch.cat([rm.m3_distance(preds[i:i + 1], obs) for i in range(3)])
+    assert torch.allclose(d_batch, d_single, atol=1e-6)
+
+
+def test_m3_secondaries_are_available_and_finite():
+    obs = _exponential_rir(8192, 1200, seed=37)
+    pred = _exponential_rir(8192, 900, seed=38).unsqueeze(0)
+    band = rm.m3_band_envelope_distance(pred, obs)
+    hilbert = rm.m3_hilbert_envelope_distance(pred, obs)
+    assert band.shape == (1,) and hilbert.shape == (1,)
+    assert torch.isfinite(band).all() and torch.isfinite(hilbert).all()
+    assert float(rm.m3_band_envelope_distance(obs.unsqueeze(0), obs)[0]) == pytest.approx(
+        0.0, abs=1e-6)
+    assert float(rm.m3_hilbert_envelope_distance(obs.unsqueeze(0), obs)[0]) == pytest.approx(
+        0.0, abs=1e-6)
+
+
+def test_m3_handles_a_silent_prediction_without_nan():
+    obs = _exponential_rir(4096, 800, seed=39)
+    d = rm.m3_distance(torch.zeros(1, 4096), obs)
+    assert torch.isfinite(d).all() and float(d[0]) > 0.0

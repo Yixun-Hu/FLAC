@@ -247,3 +247,138 @@ def gcc_phat_lag(pred, obs, delta_max, eps=EPS):
     lags = torch.arange(-delta_max, delta_max + 1, device=flat.device)
     windowed = phat.index_select(-1, lags % size)
     return lags[windowed.argmax(dim=-1)].reshape(pred.shape[:-1])
+
+
+# --------------------------------------------------------------------------- #
+# M2 — multi-resolution STFT distance
+# --------------------------------------------------------------------------- #
+def _stft_amplitude(x, n_fft, eps=M2_STFT_EPS):
+    """Amplitude spectrogram in the repo's convention.
+
+    Deviation, stated: ``l1_stft_multires.get_stft`` hardcodes
+    ``torch.hann_window(n_fft).cuda()``, so it cannot run on CPU. Everything else
+    -- window type, hop default, the ``sqrt(re^2 + im^2 + eps)`` amplitude and the
+    imported ``safe_log`` -- is the repo's, and the scale set is pinned by test.
+    """
+    window = torch.hann_window(n_fft, device=x.device, dtype=x.dtype)
+    spec = torch.stft(x, n_fft=n_fft, hop_length=None, window=window, return_complex=False)
+    return torch.sqrt(spec[..., 0] ** 2 + spec[..., 1] ** 2 + eps)
+
+
+def m2_terms(pred, obs, eps=M2_STFT_EPS, fft_sizes=M2_FFT_SIZES):
+    """Per-scale ``{log_l1, convergence}`` terms (both ``[B]``)."""
+    pred = torch.as_tensor(pred).float()
+    obs = torch.as_tensor(obs).float().reshape(-1)
+    flat = pred.reshape(-1, pred.shape[-1])
+    reference = obs.unsqueeze(0).expand_as(flat)
+
+    terms = {}
+    for n_fft in fft_sizes:
+        est_amp = _stft_amplitude(flat, n_fft, eps=eps)
+        ref_amp = _stft_amplitude(reference, n_fft, eps=eps)
+        log_l1 = torch.abs(safe_log(est_amp) - safe_log(ref_amp)).mean(dim=(-2, -1))
+        numerator = torch.linalg.norm((est_amp - ref_amp).reshape(flat.shape[0], -1), dim=-1)
+        denominator = torch.linalg.norm(ref_amp.reshape(flat.shape[0], -1), dim=-1)
+        terms[n_fft] = {"log_l1": log_l1, "convergence": numerator / (denominator + EPS)}
+    return terms
+
+
+def m2_distance(pred, obs, lam=M2_LAMBDA, eps=M2_STFT_EPS, fft_sizes=M2_FFT_SIZES):
+    """``sum_r [ mean|log|X_r| - log|Y_r|| + lam * ||X_r|-|Y_r||_F / (||Y_r||_F+eps) ]``.
+
+    Raw amplitudes, no per-pair gain: the amplitude question is M1's by design
+    (plan §1), so a scaled copy is deliberately NOT free here.
+    """
+    pred = torch.as_tensor(pred).float()
+    terms = m2_terms(pred, obs, eps=eps, fft_sizes=fft_sizes)
+    total = sum(terms[n]["log_l1"] + float(lam) * terms[n]["convergence"] for n in fft_sizes)
+    return total.reshape(pred.shape[:-1])
+
+
+# --------------------------------------------------------------------------- #
+# M3 — envelope / energy-decay distance
+# --------------------------------------------------------------------------- #
+def schroeder_edc(x, eps=1e-10):
+    """Normalized log Schroeder energy-decay curve, in dB.
+
+    The repo's integration (``RT60._measure_rt60_torch``): reversed cumulative
+    power, 10*log10, normalized to 0 dB at the window start. Amplitude-blind by
+    construction -- decay SHAPE is the semantics here, amplitude is M1's job.
+    """
+    x = torch.as_tensor(x).float()
+    power = x ** 2
+    energy = torch.flip(torch.cumsum(torch.flip(power, dims=[-1]), dim=-1), dims=[-1])
+    energy_db = 10.0 * torch.log10(energy + eps)
+    return energy_db - energy_db[..., :1]
+
+
+def m3_region_mask(obs, region_db=M3_REGION_DB):
+    """The ``[0 dB, -30 dB]`` region of the OBSERVED curve.
+
+    Fixed by the observation so every candidate of a query is scored over the
+    same samples; a candidate cannot move its own goalposts.
+    """
+    edc = schroeder_edc(torch.as_tensor(obs).float().reshape(1, -1))[0]
+    upper, lower = float(region_db[0]), float(region_db[1])
+    return (edc <= upper) & (edc >= lower)
+
+
+def m3_distance(pred, obs, region_db=M3_REGION_DB):
+    """L1 between normalized log Schroeder EDCs over the observation's region."""
+    pred = torch.as_tensor(pred).float()
+    obs = torch.as_tensor(obs).float().reshape(-1)
+    flat = pred.reshape(-1, pred.shape[-1])
+
+    mask = m3_region_mask(obs, region_db=region_db)
+    if int(mask.sum()) == 0:
+        return torch.full(pred.shape[:-1], float("nan"))
+    obs_edc = schroeder_edc(obs.unsqueeze(0))[0][mask]
+    pred_edc = schroeder_edc(flat)[:, mask]
+    return torch.abs(pred_edc - obs_edc).mean(dim=-1).reshape(pred.shape[:-1])
+
+
+def _octave_band(x, centre_hz, sample_rate=SAMPLE_RATE):
+    """One octave band via FFT masking (no filter-design dependency)."""
+    low, high = centre_hz / (2 ** 0.5), centre_hz * (2 ** 0.5)
+    spectrum = torch.fft.rfft(x, dim=-1)
+    freqs = torch.fft.rfftfreq(x.shape[-1], d=1.0 / sample_rate).to(x.device)
+    keep = ((freqs >= low) & (freqs < high)).to(spectrum.dtype)
+    return torch.fft.irfft(spectrum * keep, n=x.shape[-1], dim=-1)
+
+
+def _short_time_rms(x, frame=256):
+    length = (x.shape[-1] // frame) * frame
+    frames = x[..., :length].reshape(*x.shape[:-1], length // frame, frame)
+    return torch.sqrt((frames ** 2).mean(dim=-1) + EPS)
+
+
+def m3_band_envelope_distance(pred, obs, bands=M3_OCTAVE_BANDS_HZ, sample_rate=SAMPLE_RATE):
+    """Declared secondary: 4-band short-time-RMS envelope L1, per-band peak-normalized."""
+    pred = torch.as_tensor(pred).float()
+    obs = torch.as_tensor(obs).float().reshape(-1)
+    flat = pred.reshape(-1, pred.shape[-1])
+
+    total = torch.zeros(flat.shape[0], dtype=torch.float32, device=flat.device)
+    for centre in bands:
+        pred_env = _short_time_rms(_octave_band(flat, centre, sample_rate))
+        obs_env = _short_time_rms(_octave_band(obs.unsqueeze(0), centre, sample_rate))
+        pred_env = pred_env / (pred_env.max(dim=-1, keepdim=True).values + EPS)
+        obs_env = obs_env / (obs_env.max(dim=-1, keepdim=True).values + EPS)
+        total = total + torch.abs(pred_env - obs_env).mean(dim=-1)
+    return (total / len(bands)).reshape(pred.shape[:-1])
+
+
+def m3_hilbert_envelope_distance(pred, obs):
+    """Declared secondary: full-band Hilbert-envelope L1 in ``Env.env_loss``'s
+    convention (|hilbert| envelopes, absolute difference normalized by the
+    observation's peak, x100)."""
+    import numpy as np
+    from scipy.signal import hilbert
+
+    pred = torch.as_tensor(pred).float()
+    obs = torch.as_tensor(obs).float().reshape(-1)
+    flat = pred.reshape(-1, pred.shape[-1]).cpu().numpy()
+    obs_env = np.abs(hilbert(obs.cpu().numpy()))
+    pred_env = np.abs(hilbert(flat, axis=-1))
+    distance = np.mean(np.abs(obs_env[None, :] - pred_env), axis=-1) / (obs_env.max() + EPS)
+    return torch.from_numpy(distance * 100.0).float().reshape(pred.shape[:-1])
