@@ -3102,6 +3102,92 @@ def metric_config_from_manifest(manifest):
                         secondaries=bool(config["secondaries"]), delta_grid=())
 
 
+#: the source of the registered metric DEFINITIONS. The `registerable` block
+#: locks every constant, but not a formula, so the module itself is pinned: the
+#: blob at the manifest's own source_sha, the blob at the registration commit and
+#: the file this process imports must all be one file (r4m4 finding 1). Only the
+#: definitions are pinned -- the driver around them keeps being fixed between
+#: registration and the unseen passes, which is why it is not on this list.
+METRIC_SOURCE_FILES = ("src/localization/rir_metrics.py",)
+_SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _blob_at(repo_root, sha, relpath, label):
+    """The bytes of ``relpath`` at commit ``sha``, or a refusal."""
+    show = subprocess.run(["git", "show", f"{sha}:{relpath}"], cwd=repo_root,
+                          capture_output=True)
+    if show.returncode != 0:
+        _refuse(f"commit {sha} does not contain {relpath!r} ({label}); a digest can only be "
+                "verified against a path the commit actually carries")
+    return show.stdout
+
+
+def verify_registered_sources(manifest, resolved_sha, repo_root):
+    """Bind the manifest to the metric CODE it was calibrated with.
+
+    ``source_sha`` is what the calibration pass recorded as its HEAD. It must be
+    an immutable full object id, resolve to a commit, and carry byte-identical
+    metric sources to both the registration commit and the working tree that is
+    about to execute -- otherwise the frozen constants describe formulas that no
+    longer exist.
+    """
+    sha = manifest.get("source_sha")
+    if not isinstance(sha, str) or not _FULL_OBJECT_ID.match(sha):
+        _refuse(f"the metric manifest records source_sha={sha!r}; a registered manifest must "
+                "record the full 40- or 64-hex commit its calibration pass ran on")
+    if subprocess.run(["git", "cat-file", "-e", f"{sha}^{{commit}}"], cwd=repo_root,
+                      capture_output=True).returncode != 0:
+        _refuse(f"the metric manifest's source_sha {sha} does not resolve to a commit in "
+                f"{repo_root}")
+    digests = {}
+    for relpath in METRIC_SOURCE_FILES:
+        at_source = _blob_at(repo_root, sha, relpath, "metric source at source_sha")
+        at_registration = _blob_at(repo_root, resolved_sha, relpath,
+                                   "metric source at the registration commit")
+        if at_source != at_registration:
+            _refuse(f"{relpath} differs between the manifest's source_sha {sha[:12]}... and the "
+                    f"registration commit {resolved_sha[:12]}...; the registered constants were "
+                    "calibrated with different code than they were registered with")
+        local_path = os.path.join(repo_root, relpath)
+        if not os.path.isfile(local_path):
+            _refuse(f"{relpath} is missing from {repo_root}; the registered metric source is "
+                    "not the source this run would execute")
+        with open(local_path, "rb") as handle:
+            local = handle.read()
+        if local != at_registration:
+            _refuse(f"{relpath} in the worktree differs from the version committed at the "
+                    f"registration commit {resolved_sha[:12]}...; the metric definitions were "
+                    "edited after registration")
+        digests[relpath] = hashlib.sha256(local).hexdigest()
+    return {"source_sha": sha, "sources": digests}
+
+
+def verify_registered_r2_manifests(manifest, resolved_sha, repo_root, registered):
+    """Byte-check the R2/R2b candidate manifests the registration pins.
+
+    The digests are only evidence if they are checked against the manifests as
+    COMMITTED at the registration sha, so each key must be a repository-relative
+    path that commit contains. A registered run may not leave the block empty.
+    """
+    digests = manifest.get("r2_manifest_digests")
+    if digests in (None, {}) or not isinstance(digests, dict):
+        if registered:
+            _refuse("the metric manifest locks no r2_manifest_digests; a registered run must "
+                    "pin the R2/R2b candidate manifests it is scored against")
+        return {}
+    verified = {}
+    for relpath, digest in sorted(digests.items()):
+        if not isinstance(digest, str) or not _SHA256_HEX.match(digest):
+            _refuse(f"r2_manifest_digests[{relpath!r}] is {digest!r}, not a sha256")
+        actual = hashlib.sha256(
+            _blob_at(repo_root, resolved_sha, str(relpath), "R2 manifest")).hexdigest()
+        if actual != digest:
+            _refuse(f"r2_manifest_digests[{relpath!r}] is {digest[:16]}... but the copy "
+                    f"committed at {resolved_sha[:12]}... hashes to {actual[:16]}...")
+        verified[str(relpath)] = actual
+    return verified
+
+
 def verify_metric_registration(args, dataset_config, repo_root=None,
                                candidate_manifest_sha256=None, identity_digest=None):
     """Machine-check the metric manifest and RETURN the config it registers.
@@ -3131,6 +3217,12 @@ def verify_metric_registration(args, dataset_config, repo_root=None,
         _refuse(f"the metric manifest locks {key!r}, which rir_metrics no longer defines")
 
     config = metric_config_from_manifest(manifest)
+    # the manifest is only evidence about the code and the candidate sets it was
+    # produced from if those are checked too (r4m4 finding 1)
+    repo = os.path.realpath(str(repo_root or _repo_root()))
+    sources = verify_registered_sources(manifest, verified["resolved_sha"], repo)
+    r2_manifests = verify_registered_r2_manifests(manifest, verified["resolved_sha"], repo,
+                                                  registered)
 
     seeds = manifest.get("seeds")
     if registered:
@@ -3149,6 +3241,7 @@ def verify_metric_registration(args, dataset_config, repo_root=None,
                 _refuse(f"registered {label} is {locked_value!r} but this run resolves "
                         f"{actual!r}")
     args.metric_registration_sha_resolved = verified["resolved_sha"]
+    args.metric_registration_bindings = {"source": sources, "r2_manifests": r2_manifests}
     return config
 
 
@@ -3207,23 +3300,28 @@ def run_metrics_calibrate(args):
     if not rows:
         _refuse(f"--metrics-rows {args.metrics_rows!r} contains no rows")
 
-    # Authenticate the calibration stream itself (r4m review finding 1): unique,
-    # and -- when a committed identity list is supplied -- exactly it, in order.
+    # Authenticate the calibration stream itself -- FAIL-CLOSED (r4m4 finding 1):
+    # every registered constant below is chosen from these rows, so a pass that
+    # cannot name the queries it calibrated on may not produce a draft at all.
     identities = [row["query_id"] for row in rows]
     if len(set(identities)) != len(identities):
         _refuse(f"--metrics-rows {args.metrics_rows!r} contains duplicate query ids")
+    if not getattr(args, "calibration_identities", None):
+        _refuse("--calibration-identities is required by --mode metrics-calibrate: the "
+                "registered delta_max and the frozen m4 mu/sigma are chosen from these rows, "
+                "and an unauthenticated stream cannot say which queries they came from")
     identity_check = {"n_identities": len(identities), "authenticated": False,
-                      "source": getattr(args, "calibration_identities", None)}
-    if getattr(args, "calibration_identities", None):
-        expected_stream = _load_identity_stream(args.calibration_identities)
-        if len(expected_stream) != len(identities):
-            _refuse(f"the calibration rows cover {len(identities)} queries but the committed "
-                    f"stream declares {len(expected_stream)}")
-        for position, (found, wanted) in enumerate(zip(identities, expected_stream)):
-            if found != wanted:
-                _refuse(f"calibration identity mismatch at position {position}: expected "
-                        f"{wanted!r}, got {found!r}")
-        identity_check["authenticated"] = True
+                      "source": str(args.calibration_identities),
+                      "source_sha256": _file_sha256(args.calibration_identities)}
+    expected_stream = _load_identity_stream(args.calibration_identities)
+    if len(expected_stream) != len(identities):
+        _refuse(f"the calibration rows cover {len(identities)} queries but the committed "
+                f"stream declares {len(expected_stream)}")
+    for position, (found, wanted) in enumerate(zip(identities, expected_stream)):
+        if found != wanted:
+            _refuse(f"calibration identity mismatch at position {position}: expected "
+                    f"{wanted!r}, got {found!r}")
+    identity_check["authenticated"] = True
 
     grid = []
     base_delta = int((rows[0].get("metric_config") or {}).get("delta_max", M1_DELTA_GRID[0]))
@@ -3286,9 +3384,19 @@ def run_metrics_calibrate(args):
         })
 
     seeds = [int(s) for s in str(getattr(args, "register_seeds", None) or "42 43 44").split()]
+    # Repository-RELATIVE keys: the unseen pass verifies each digest against the
+    # copy committed at the registration sha, and a bare basename names nothing a
+    # commit can be asked for (r4m4 finding 1).
     r2_digests = {}
+    repo = os.path.realpath(_repo_root())
     for path in (getattr(args, "register_r2_manifest", None) or []):
-        r2_digests[os.path.basename(str(path))] = _file_sha256(path)
+        real = os.path.realpath(str(path))
+        if not os.path.isfile(real):
+            _refuse(f"--register-r2-manifest {path!r} does not exist")
+        if os.path.commonpath([real, repo]) != repo:
+            _refuse(f"--register-r2-manifest {path!r} is outside the repository {repo!r}; the "
+                    "registration can only pin a manifest that gets committed with it")
+        r2_digests[os.path.relpath(real, repo)] = _file_sha256(real)
     draft = {
         "registerable": registerable_payload(),
         "metric_config": {"delta_max": int(selected), "t30_backend": args.metric_t30_backend,

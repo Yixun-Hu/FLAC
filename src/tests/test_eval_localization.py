@@ -4292,7 +4292,7 @@ def test_metric_registration_is_required_for_unseen_metrics(tmp_path):
 
 
 def test_metric_registration_accepts_a_committed_matching_manifest(tmp_path):
-    path, sha = _git_repo_with_manifest(tmp_path, _metric_manifest(), name="metrics.json")
+    path, sha = _metric_repo(tmp_path, manifest=_metric_manifest())
     args = _metric_args(tmp_path, manifest_path=path, sha=sha)
     unseen = _json.loads(open(_UNSEEN_CONFIG).read())
     config = el.verify_metric_registration(args, unseen, repo_root=str(tmp_path),
@@ -4304,7 +4304,7 @@ def test_metric_registration_accepts_a_committed_matching_manifest(tmp_path):
 def test_metric_registration_refuses_a_constant_that_drifted(tmp_path):
     drifted = _metric_manifest()
     drifted["registerable"]["m2_lambda"] = 0.5
-    path, sha = _git_repo_with_manifest(tmp_path, drifted, name="metrics.json")
+    path, sha = _metric_repo(tmp_path, manifest=drifted)
     args = _metric_args(tmp_path, manifest_path=path, sha=sha)
     unseen = _json.loads(open(_UNSEEN_CONFIG).read())
     with pytest.raises(SystemExit, match="m2_lambda"):
@@ -4316,7 +4316,7 @@ def test_metric_registration_refuses_a_constant_that_drifted(tmp_path):
 def test_metric_registration_reuses_the_r2_commit_machinery(tmp_path):
     """Same immutability rules: full-hex sha, in-repo manifest, byte equality,
     ancestry of HEAD."""
-    path, sha = _git_repo_with_manifest(tmp_path, _metric_manifest(), name="metrics.json")
+    path, sha = _metric_repo(tmp_path, manifest=_metric_manifest())
     unseen = _json.loads(open(_UNSEEN_CONFIG).read())
     args = _metric_args(tmp_path, manifest_path=path, sha="HEAD")
     with pytest.raises(SystemExit):
@@ -4332,7 +4332,7 @@ def test_metric_registration_refuses_a_run_config_key_that_differs(tmp_path):
     simply ignored -- but a manifest missing a field is refused."""
     manifest = _metric_manifest()
     del manifest["metric_config"]["secondaries"]
-    path, sha = _git_repo_with_manifest(tmp_path, manifest, name="metrics.json")
+    path, sha = _metric_repo(tmp_path, manifest=manifest)
     args = _metric_args(tmp_path, manifest_path=path, sha=sha)
     unseen = _json.loads(open(_UNSEEN_CONFIG).read())
     with pytest.raises(SystemExit, match="secondaries"):
@@ -4356,9 +4356,23 @@ def test_seen_metrics_run_records_the_registerable_payload_without_a_manifest(tm
 # R4-r2 item 5: seen calibration. Delta_max is SELECTED here (dev top-1,
 # tie -> smallest) and mu/sigma frozen -- from a seen metrics-JSONL only.
 # --------------------------------------------------------------------------- #
-def _calibration_rows(tmp_path, winner_delta=32, n_queries=6):
+def _battery(kind, distances):
+    """A serialized sensitivity battery, as a metrics row carries one."""
+    from src.localization.rir_metrics import SENSITIVITY_VARIANTS
+    families = ["m1", "m2", "m3", "m4", "m5"]
+    block = {name: {family: el.encode_sims(distances) for family in families}
+             for name in SENSITIVITY_VARIANTS}
+    if kind == "missing_family":
+        del block[SENSITIVITY_VARIANTS[0]]["m4"]
+    elif kind == "missing_variant":
+        del block[SENSITIVITY_VARIANTS[-1]]
+    return block
+
+
+def _calibration_rows(tmp_path, winner_delta=32, n_queries=6, battery=None):
     """Seen metrics rows where one grid value is deliberately the best."""
     from src.localization.rir_metrics import M1_DELTA_GRID, M4_FEATURES
+    os.makedirs(str(tmp_path), exist_ok=True)
     path = tmp_path / "seen_metrics.jsonl"
     with open(path, "w") as handle:
         for q in range(n_queries):
@@ -4665,11 +4679,140 @@ def _full_metric_manifest(tmp_path, **over):
     return manifest
 
 
+_R2_RELPATH = "manifests/R2_seed42_candidates.json"
+
+
+def _metric_repo(tmp_path, manifest=None, name="metrics.json", source_ok=True,
+                 r2_ok=True, **over):
+    """A fake repo shaped like a REAL registration (r4m4 finding 1).
+
+    Two commits, in the order the protocol produces them: the metric SOURCE
+    module and the R2 candidate manifest first (that commit is what the draft
+    records as ``source_sha``), then the registration manifest, which pins the
+    blob it was calibrated with. ``source_ok=False`` makes the source commit hold
+    a different blob than the registration commit; ``r2_ok=False`` records a
+    digest that is not the committed manifest's.
+    """
+    import hashlib
+    import shutil
+    import subprocess
+    root = str(tmp_path)
+    repo_root = os.path.dirname(os.path.abspath(el.__file__))
+    os.makedirs(root, exist_ok=True)
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+
+    def _commit(message):
+        subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+        subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q",
+                        "-m", message], cwd=root, check=True)
+        return subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True,
+                              capture_output=True, text=True).stdout.strip()
+
+    for relpath in el.METRIC_SOURCE_FILES:
+        os.makedirs(os.path.join(root, os.path.dirname(relpath)), exist_ok=True)
+        shutil.copyfile(os.path.join(repo_root, relpath), os.path.join(root, relpath))
+        if not source_ok:
+            with open(os.path.join(root, relpath), "a") as handle:
+                handle.write("\n# a formula edited after the calibration pass\n")
+    os.makedirs(os.path.join(root, os.path.dirname(_R2_RELPATH)), exist_ok=True)
+    r2_bytes = (_json.dumps({"rooms": {"R0": {"nodes": [1, 2]}}}, sort_keys=True)
+                + "\n").encode("utf-8")
+    with open(os.path.join(root, _R2_RELPATH), "wb") as handle:
+        handle.write(r2_bytes)
+    source_sha = _commit("sources")
+    if not source_ok:                       # registration commit restores the real blob
+        for relpath in el.METRIC_SOURCE_FILES:
+            shutil.copyfile(os.path.join(repo_root, relpath), os.path.join(root, relpath))
+
+    payload = dict(_full_metric_manifest(tmp_path) if manifest is None else manifest)
+    payload["source_sha"] = source_sha
+    payload["r2_manifest_digests"] = {
+        _R2_RELPATH: hashlib.sha256(r2_bytes).hexdigest() if r2_ok else "f" * 64}
+    payload.update(over)
+    path = os.path.join(root, name)
+    with open(path, "w") as handle:
+        handle.write(_json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    return path, _commit("register")
+
+
+def _verify(tmp_path, path, sha, **over):
+    args = _metric_args(tmp_path, manifest_path=path, sha=sha)
+    unseen = _json.loads(open(_UNSEEN_CONFIG).read())
+    kwargs = {"candidate_manifest_sha256": "cm" * 32, "identity_digest": "id" * 32}
+    kwargs.update(over)
+    return el.verify_metric_registration(args, unseen, repo_root=str(tmp_path), **kwargs)
+
+
+def test_metric_registration_verifies_the_registered_source_blob(tmp_path):
+    """The manifest's own source_sha must carry the SAME metric module as the
+    registration commit and as the file this process is about to execute."""
+    path, sha = _metric_repo(tmp_path)
+    assert _verify(tmp_path, path, sha).delta_max == 8
+
+
+def test_metric_registration_refuses_a_source_blob_that_drifted_on_disk(tmp_path):
+    path, sha = _metric_repo(tmp_path)
+    with open(os.path.join(str(tmp_path), el.METRIC_SOURCE_FILES[0]), "a") as handle:
+        handle.write("\n# edited after registration\n")
+    with pytest.raises(SystemExit, match="rir_metrics"):
+        _verify(tmp_path, path, sha)
+
+
+def test_metric_registration_refuses_a_source_sha_whose_blob_differs(tmp_path):
+    path, sha = _metric_repo(tmp_path, source_ok=False)
+    with pytest.raises(SystemExit, match="source_sha"):
+        _verify(tmp_path, path, sha)
+
+
+@pytest.mark.parametrize("bad", [None, "HEAD", "abc1234", "0" * 40])
+def test_metric_registration_refuses_an_unusable_source_sha(tmp_path, bad):
+    manifest = _full_metric_manifest(tmp_path)
+    if bad is None:
+        manifest.pop("source_sha", None)
+    path, sha = _metric_repo(tmp_path, manifest=manifest,
+                             **({} if bad is None else {"source_sha": bad}))
+    if bad is None:                                   # _metric_repo re-adds the key
+        with open(path) as handle:
+            payload = _json.load(handle)
+        payload.pop("source_sha")
+        with open(path, "w") as handle:
+            handle.write(_json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        import subprocess
+        subprocess.run(["git", "add", "-A"], cwd=str(tmp_path), check=True)
+        subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q",
+                        "-m", "no source"], cwd=str(tmp_path), check=True)
+        sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(tmp_path), check=True,
+                             capture_output=True, text=True).stdout.strip()
+    with pytest.raises(SystemExit, match="source_sha"):
+        _verify(tmp_path, path, sha)
+
+
+def test_metric_registration_verifies_the_r2_manifest_digests(tmp_path):
+    path, sha = _metric_repo(tmp_path)
+    assert _verify(tmp_path, path, sha) is not None
+    bad_path, bad_sha = _metric_repo(tmp_path / "wrong", r2_ok=False)
+    with pytest.raises(SystemExit, match=_R2_RELPATH):
+        _verify(tmp_path / "wrong", bad_path, bad_sha)
+
+
+def test_metric_registration_refuses_r2_digests_that_are_not_committed_paths(tmp_path):
+    """A basename is not verifiable: the digest must name a path the registration
+    commit actually contains."""
+    path, sha = _metric_repo(tmp_path, r2_manifest_digests={"R2.json": "a" * 64})
+    with pytest.raises(SystemExit, match="R2.json"):
+        _verify(tmp_path, path, sha)
+
+
+def test_metric_registration_refuses_missing_r2_manifest_digests(tmp_path):
+    path, sha = _metric_repo(tmp_path, r2_manifest_digests={})
+    with pytest.raises(SystemExit, match="r2_manifest_digests"):
+        _verify(tmp_path, path, sha)
+
+
 def test_registered_metric_config_comes_from_the_manifest_not_the_cli(tmp_path):
     """The frozen mu/sigma have no CLI representation, so a registered run must
     LOAD its whole config from the verified manifest."""
-    path, sha = _git_repo_with_manifest(tmp_path, _full_metric_manifest(tmp_path),
-                                        name="metrics.json")
+    path, sha = _metric_repo(tmp_path)
     args = _metric_args(tmp_path, manifest_path=path, sha=sha)
     unseen = _json.loads(open(_UNSEEN_CONFIG).read())
     config = el.verify_metric_registration(args, unseen, repo_root=str(tmp_path),
@@ -4681,8 +4824,7 @@ def test_registered_metric_config_comes_from_the_manifest_not_the_cli(tmp_path):
 
 
 def test_registered_metric_config_refuses_a_mismatched_run_state(tmp_path):
-    path, sha = _git_repo_with_manifest(tmp_path, _full_metric_manifest(tmp_path),
-                                        name="metrics.json")
+    path, sha = _metric_repo(tmp_path)
     args = _metric_args(tmp_path, manifest_path=path, sha=sha)
     unseen = _json.loads(open(_UNSEEN_CONFIG).read())
     with pytest.raises(SystemExit, match="candidate manifest"):
@@ -4703,7 +4845,7 @@ def test_registered_metric_config_refuses_a_mismatched_run_state(tmp_path):
 def test_registered_manifest_must_lock_every_config_field(tmp_path):
     incomplete = _full_metric_manifest(tmp_path)
     del incomplete["metric_config"]["lam"]
-    path, sha = _git_repo_with_manifest(tmp_path, incomplete, name="metrics.json")
+    path, sha = _metric_repo(tmp_path, manifest=incomplete)
     args = _metric_args(tmp_path, manifest_path=path, sha=sha)
     unseen = _json.loads(open(_UNSEEN_CONFIG).read())
     with pytest.raises(SystemExit, match="lam"):
@@ -4722,6 +4864,18 @@ def test_metrics_retrieval_on_unseen_requires_the_metric_registration(tmp_path):
     seen_args = el.parse_args(["--mode", "metrics-retrieval", "--model-config", "m.json",
                                "--dataset-config", _SEEN_CONFIG, "--metric-delta-max", "8"])
     el.assert_metric_registration(seen_args, seen)
+
+
+def test_calibration_refuses_to_run_without_its_identity_stream(tmp_path):
+    """r4m4 finding 1: authentication of the calibration stream is FAIL-CLOSED.
+
+    The registered constants are chosen from these rows; an unauthenticated
+    stream means nobody can say which queries they were chosen on.
+    """
+    path = _calibration_rows(tmp_path, n_queries=6)
+    args = _calibrate_args(tmp_path, path, _no_identities=True)
+    with pytest.raises(SystemExit, match="calibration-identities"):
+        el.run_metrics_calibrate(args)
 
 
 def test_calibration_authenticates_its_identity_stream(tmp_path):
