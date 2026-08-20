@@ -702,3 +702,143 @@ def test_m4_negative_t30_is_never_reported_as_a_measurement():
     assert np.isnan(rm._sentinel_to_nan(-0.5))
     assert rm._sentinel_to_nan(0.35) == 0.35
     assert np.isnan(rm._sentinel_to_nan(float("nan")))
+
+
+# --------------------------------------------------------------------------- #
+# r4m3 finding 4: every DECLARED secondary must be computable and serializable,
+# for candidates AND contexts; Delta=0 is a mandated sensitivity row that must
+# not depend on the tuning grid; the three seen sensitivities must exist.
+# r4m3 finding 1: REGISTERABLE must lock every formula constant.
+# --------------------------------------------------------------------------- #
+def test_registerable_locks_every_formula_constant_the_review_listed():
+    reg = rm.REGISTERABLE
+    for key in ("m3_schroeder_eps", "m3_rms_frame", "m3_band_filter", "m4_c50_ms", "m4_c80_ms",
+                "m4_z_ddof", "sensitivity_stride", "sensitivity_variants",
+                "m2_secondary", "m3_secondaries"):
+        assert key in reg, f"REGISTERABLE is missing {key!r}"
+    assert reg["m3_rms_frame"] == rm.M3_RMS_FRAME
+    assert reg["m4_c50_ms"] == 50 and reg["m4_c80_ms"] == 80
+    assert reg["m4_z_ddof"] == 0
+    assert "fft_mask" in reg["m3_band_filter"]
+    assert reg["sensitivity_stride"] == 10
+
+
+def test_m2_complex_stft_secondary_exists_and_is_zero_for_a_copy():
+    g = torch.Generator().manual_seed(70)
+    obs = torch.randn(rm.WINDOW_SAMPLES, generator=g)
+    assert float(rm.m2_complex_distance(obs.unsqueeze(0), obs)[0]) == pytest.approx(0.0, abs=1e-6)
+    other = rm.m2_complex_distance(torch.randn(1, rm.WINDOW_SAMPLES, generator=g), obs)
+    assert float(other[0]) > 0.0
+    # a phase-shifted copy differs under the COMPLEX distance though its magnitude
+    # spectrum is identical -- that is why it is a declared family member
+    shifted = _naive_shift(obs, 7).unsqueeze(0)
+    assert float(rm.m2_complex_distance(shifted, obs)[0]) > 0.0
+
+
+def test_m5_gcc_phat_reports_peak_similarity_not_only_a_lag():
+    g = torch.Generator().manual_seed(71)
+    obs = torch.randn(1024, generator=g)
+    obs[:64] = 0.0
+    obs[-64:] = 0.0
+    pred = _naive_shift(obs, 7).unsqueeze(0)
+    similarity, lag = rm.gcc_phat_peak(pred, obs, delta_max=32)
+    assert int(lag[0]) == -7
+    assert float(similarity[0]) > float(rm.gcc_phat_peak(torch.randn(1, 1024, generator=g), obs,
+                                                         delta_max=32)[0][0])
+
+
+def test_compute_metrics_serializes_every_declared_secondary_for_both_directions():
+    pred, obs, ctx = _query_tensors()
+    out = rm.compute_metrics(pred, obs, ctx,
+                             config=rm.MetricConfig(delta_max=8, t30_backend="torch",
+                                                    secondaries=True))
+    for name in ("m2_complex", "m3_band", "m3_hilbert", "m5_gcc"):
+        assert out["candidates"][name].shape == (3, 2), name
+        assert out["context"][name].shape == (4,), name
+        assert torch.isfinite(out["candidates"][name]).all(), name
+    assert out["diagnostics"]["m5_gcc_lags"].shape == (3, 2)
+    assert out["diagnostics"]["m5_gcc_context_lags"].shape == (4,)
+
+
+def test_delta_zero_sensitivity_is_always_emitted_even_when_registered():
+    pred, obs, ctx = _query_tensors()
+    registered = rm.compute_metrics(pred, obs, ctx,
+                                    config=rm.MetricConfig(delta_max=32, t30_backend="torch"))
+    assert "m1_delta0" in registered["candidates"] and "m5_delta0" in registered["candidates"]
+    assert registered["context"]["m1_delta0"].shape == (4,)
+    # and it is not duplicated when the registered value already IS zero
+    at_zero = rm.compute_metrics(pred, obs, ctx,
+                                 config=rm.MetricConfig(delta_max=0, t30_backend="torch"))
+    assert "m1_delta0" not in at_zero["candidates"]
+
+
+def test_sensitivity_variants_apply_the_three_declared_transforms():
+    g = torch.Generator().manual_seed(72)
+    obs = torch.randn(rm.WINDOW_SAMPLES, generator=g) * 0.1
+    pred = torch.randn(2, 2, rm.WINDOW_SAMPLES, generator=g) * 0.1
+    config = rm.MetricConfig(delta_max=8, t30_backend="torch")
+    out = rm.sensitivity_variants(pred, obs, config)
+    assert set(out) == set(rm.SENSITIVITY_VARIANTS)
+    for name, block in out.items():
+        assert set(block) >= {"m1", "m5"}
+        assert block["m1"].shape == (2, 2), name
+
+    # M1 is scale-invariant, so gain x2 must not move it; M5 is gain-invariant too
+    base = rm.compute_metrics(pred, obs, torch.zeros(1, rm.WINDOW_SAMPLES), config)
+    assert torch.allclose(out["gain_x2"]["m1"], base["candidates"]["m1"], atol=1e-5)
+    # a +8 shift inside the bound is absorbed by the alignment search
+    assert torch.allclose(out["shift_plus8"]["m1"], base["candidates"]["m1"], atol=1e-3)
+
+
+def test_sensitivity_direct_crop_zeroes_the_first_2p5ms():
+    x = torch.ones(1, 1, rm.WINDOW_SAMPLES)
+    cropped = rm.apply_sensitivity(x, "direct_crop_2p5ms", rm.SAMPLE_RATE)
+    cut = int(round(rm.M4_DIRECT_HALF_WIDTH_MS * 1e-3 * rm.SAMPLE_RATE))
+    assert torch.all(cropped[..., :cut] == 0.0) and torch.all(cropped[..., cut:] == 1.0)
+    assert torch.equal(rm.apply_sensitivity(x, "gain_x2", rm.SAMPLE_RATE), x * 2.0)
+    with pytest.raises(ValueError):
+        rm.apply_sensitivity(x, "not_declared", rm.SAMPLE_RATE)
+
+
+# --------------------------------------------------------------------------- #
+# r4m3 finding 4: Holm-Bonferroni over the 10 primary tests
+# --------------------------------------------------------------------------- #
+def test_holm_bonferroni_controls_the_family_wise_error_rate():
+    labels = [f"t{i}" for i in range(4)]
+    result = rm.holm_bonferroni(dict(zip(labels, [0.001, 0.02, 0.03, 0.5])), alpha=0.05)
+    adjusted = {row["label"]: row for row in result["tests"]}
+    assert adjusted["t0"]["rejected"] is True                 # 0.001 * 4 = 0.004 <= 0.05
+    assert adjusted["t1"]["rejected"] is False                # 0.02 * 3 = 0.06 > 0.05
+    assert adjusted["t2"]["rejected"] is False                # step-down stops here
+    assert adjusted["t0"]["p_adjusted"] == pytest.approx(0.004)
+    assert adjusted["t1"]["p_adjusted"] == pytest.approx(0.06)
+    assert result["n_tests"] == 4 and result["alpha"] == 0.05
+
+
+def test_holm_bonferroni_is_monotone_and_stops_at_the_first_failure():
+    result = rm.holm_bonferroni({"a": 0.04, "b": 0.041, "c": 0.001}, alpha=0.05)
+    rows = {row["label"]: row for row in result["tests"]}
+    assert rows["c"]["rejected"] is True                      # 0.001 * 3 = 0.003
+    assert rows["a"]["rejected"] is False                     # 0.04 * 2 = 0.08 > 0.05
+    assert rows["b"]["rejected"] is False                     # step-down stops here
+    adjusted = [row["p_adjusted"] for row in result["tests"]]
+    assert adjusted == sorted(adjusted)                       # monotone non-decreasing
+
+
+def test_holm_bonferroni_handles_the_registered_ten_test_plan():
+    plan = {f"{family}_vs_{ref}": 0.001 * (i + 1)
+            for i, (family, ref) in enumerate(
+                [(f, r) for f in ("m1", "m2", "m3", "m4", "m5")
+                 for r in ("agree_retrieval", "metric_matched")])}
+    result = rm.holm_bonferroni(plan, alpha=0.05)
+    assert result["n_tests"] == 10
+    assert all(0.0 <= row["p_adjusted"] <= 1.0 for row in result["tests"])
+
+
+def test_holm_bonferroni_refuses_invalid_input():
+    with pytest.raises(ValueError):
+        rm.holm_bonferroni({}, alpha=0.05)
+    with pytest.raises(ValueError):
+        rm.holm_bonferroni({"a": 1.5}, alpha=0.05)
+    with pytest.raises(ValueError):
+        rm.holm_bonferroni({"a": 0.1}, alpha=0.0)

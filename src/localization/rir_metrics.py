@@ -44,6 +44,12 @@ M2_LAMBDA = 1.0
 #: M3: decay region (dB, defined on the OBSERVED curve) and secondary bands.
 M3_REGION_DB = (0.0, -30.0)
 M3_OCTAVE_BANDS_HZ = (500, 1000, 2000, 4000)
+#: floor inside the Schroeder log, the short-time RMS frame, and the band filter
+#: definition -- all formula constants, so all registered (r4m review finding 1).
+M3_SCHROEDER_EPS = 1e-10
+M3_RMS_FRAME = 256
+M3_BAND_FILTER = "fft_mask_half_octave_sqrt2_edges"
+M3_SECONDARIES = ("m3_band", "m3_hilbert")
 
 #: M4: the fixed feature vector and its estimator conventions.
 M4_FEATURES = ("arrival_time", "drr", "c50", "c80", "edt", "t30", "early_late_50ms",
@@ -53,9 +59,22 @@ M4_DIRECT_HALF_WIDTH_MS = 2.5
 M4_EARLY_LATE_MS = 50.0
 M4_T30_DECAY_DB = 30.0
 M4_EDT_DECAY_DB = 10.0
+M4_C50_MS = 50
+M4_C80_MS = 80
+#: population statistics (ddof = 0) for the frozen z-normalization.
+M4_Z_DDOF = 0
 
 #: M5 secondary.
 M5_SECONDARY = "gcc_phat"
+#: M2 secondary.
+M2_SECONDARY = "complex_stft"
+#: seen sensitivity battery (plan R4 §3) and the registered subset rule.
+SENSITIVITY_VARIANTS = ("gain_x2", "shift_plus8", "shift_minus8", "direct_crop_2p5ms")
+SENSITIVITY_SHIFT = 8
+SENSITIVITY_CROP_MS = 2.5
+#: computed on every Nth query of the SEEN calibration stream -- a declared,
+#: deterministic subset, not a sample.
+SENSITIVITY_STRIDE = 10
 
 #: K aggregation and prediction rule (plan §1).
 K_AGGREGATION_PRIMARY = "mean"
@@ -81,7 +100,19 @@ REGISTERABLE = {
     "m4_early_late_ms": M4_EARLY_LATE_MS,
     "m4_t30_decay_db": M4_T30_DECAY_DB,
     "m4_edt_decay_db": M4_EDT_DECAY_DB,
+    "m3_schroeder_eps": M3_SCHROEDER_EPS,
+    "m3_rms_frame": M3_RMS_FRAME,
+    "m3_band_filter": M3_BAND_FILTER,
+    "m3_secondaries": M3_SECONDARIES,
+    "m4_c50_ms": M4_C50_MS,
+    "m4_c80_ms": M4_C80_MS,
+    "m4_z_ddof": M4_Z_DDOF,
+    "m2_secondary": M2_SECONDARY,
     "m5_secondary": M5_SECONDARY,
+    "sensitivity_variants": SENSITIVITY_VARIANTS,
+    "sensitivity_shift": SENSITIVITY_SHIFT,
+    "sensitivity_crop_ms": SENSITIVITY_CROP_MS,
+    "sensitivity_stride": SENSITIVITY_STRIDE,
     "k_aggregation_primary": K_AGGREGATION_PRIMARY,
     "k_aggregation_secondaries": K_AGGREGATION_SECONDARIES,
     "lme_tau": LME_TAU,
@@ -310,7 +341,7 @@ def m2_distance(pred, obs, lam=M2_LAMBDA, eps=M2_STFT_EPS, fft_sizes=M2_FFT_SIZE
 # --------------------------------------------------------------------------- #
 # M3 — envelope / energy-decay distance
 # --------------------------------------------------------------------------- #
-def schroeder_edc(x, eps=1e-10):
+def schroeder_edc(x, eps=M3_SCHROEDER_EPS):
     """Normalized log Schroeder energy-decay curve, in dB.
 
     The repo's integration (``RT60._measure_rt60_torch``): reversed cumulative
@@ -358,7 +389,7 @@ def _octave_band(x, centre_hz, sample_rate=SAMPLE_RATE):
     return torch.fft.irfft(spectrum * keep, n=x.shape[-1], dim=-1)
 
 
-def _short_time_rms(x, frame=256):
+def _short_time_rms(x, frame=M3_RMS_FRAME):
     length = (x.shape[-1] // frame) * frame
     frames = x[..., :length].reshape(*x.shape[:-1], length // frame, frame)
     return torch.sqrt((frames ** 2).mean(dim=-1) + EPS)
@@ -469,8 +500,10 @@ def m4_features(x, sample_rate=SAMPLE_RATE, t30_backend="pyroomacoustics"):
         reverberant = float((x ** 2).sum()) - direct
         features["drr"] = 10.0 * np.log10((direct + EPS) / (reverberant + EPS))
 
-    features["c50"] = _safe(lambda: _measure_clarity(shaped, time=50, fs=sample_rate)[0, 0])
-    features["c80"] = _safe(lambda: _measure_clarity(shaped, time=80, fs=sample_rate)[0, 0])
+    features["c50"] = _safe(lambda: _measure_clarity(shaped, time=M4_C50_MS,
+                                                     fs=sample_rate)[0, 0])
+    features["c80"] = _safe(lambda: _measure_clarity(shaped, time=M4_C80_MS,
+                                                     fs=sample_rate)[0, 0])
     features["edt"] = _sentinel_to_nan(
         _safe(_edt, x.numpy(), fs=sample_rate, decay_db=M4_EDT_DECAY_DB))
 
@@ -689,19 +722,33 @@ def compute_metrics(pred, obs, ctx, config):
     if "m2" in config.families:
         candidates["m2"] = m2_distance(pred, obs, lam=config.lam)
         context["m2"] = m2_distance(ctx, obs, lam=config.lam)
+        if config.secondaries:
+            candidates["m2_complex"] = m2_complex_distance(pred, obs)
+            context["m2_complex"] = m2_complex_distance(ctx, obs)
     if "m3" in config.families:
         candidates["m3"] = m3_distance(pred, obs)
         context["m3"] = m3_distance(ctx, obs)
         if config.secondaries:
-            diagnostics["m3_band_candidates"] = m3_band_envelope_distance(pred, obs)
-            diagnostics["m3_hilbert_candidates"] = m3_hilbert_envelope_distance(pred, obs)
+            candidates["m3_band"] = m3_band_envelope_distance(pred, obs)
+            context["m3_band"] = m3_band_envelope_distance(ctx, obs)
+            candidates["m3_hilbert"] = m3_hilbert_envelope_distance(pred, obs)
+            context["m3_hilbert"] = m3_hilbert_envelope_distance(ctx, obs)
     if "m5" in config.families:
         candidates["m5"], diagnostics["m5_lags"] = m5_distance(pred, obs, config.delta_max)
         context["m5"], diagnostics["m5_context_lags"] = m5_distance(ctx, obs, config.delta_max)
         if config.secondaries:
-            diagnostics["m5_gcc_phat_lags"] = gcc_phat_lag(pred, obs, config.delta_max)
+            similarity, lags = gcc_phat_peak(pred, obs, config.delta_max)
+            candidates["m5_gcc"] = 1.0 - similarity
+            diagnostics["m5_gcc_lags"] = lags
+            ctx_similarity, ctx_lags = gcc_phat_peak(ctx, obs, config.delta_max)
+            context["m5_gcc"] = 1.0 - ctx_similarity
+            diagnostics["m5_gcc_context_lags"] = ctx_lags
 
-    for extra in config.delta_grid:
+    # Delta = 0 is the MANDATED no-alignment sensitivity row (plan R4 §1): it is
+    # emitted whatever the tuning grid says and whatever delta_max was registered
+    # (r4m review finding 4), alongside any calibration grid values.
+    extra_deltas = list(dict.fromkeys([0] + [int(d) for d in config.delta_grid]))
+    for extra in extra_deltas:
         if int(extra) == int(config.delta_max):
             continue
         if "m1" in config.families:
@@ -742,3 +789,133 @@ def compute_metrics(pred, obs, ctx, config):
 
     return {"candidates": candidates, "context": context, "diagnostics": diagnostics,
             "config": config.payload()}
+
+
+# --------------------------------------------------------------------------- #
+# declared secondaries (plan R4 §1) -- reportable for candidates AND contexts
+# --------------------------------------------------------------------------- #
+def m2_complex_distance(pred, obs, eps=M2_STFT_EPS, fft_sizes=M2_FFT_SIZES):
+    """Declared M2 secondary: complex-STFT distance (magnitude AND phase).
+
+    Same scales and window convention as the primary; the difference is taken on
+    the complex coefficients, so a phase-shifted copy is NOT free here even
+    though its magnitude spectrogram is identical.
+    """
+    pred = torch.as_tensor(pred).float()
+    obs = torch.as_tensor(obs).float().reshape(-1)
+    flat = pred.reshape(-1, pred.shape[-1])
+    reference = obs.unsqueeze(0).expand_as(flat)
+
+    total = torch.zeros(flat.shape[0], dtype=torch.float32, device=flat.device)
+    for n_fft in fft_sizes:
+        window = torch.hann_window(n_fft, device=flat.device, dtype=flat.dtype)
+        est = torch.stft(flat, n_fft=n_fft, hop_length=None, window=window,
+                         return_complex=True)
+        ref = torch.stft(reference, n_fft=n_fft, hop_length=None, window=window,
+                         return_complex=True)
+        numerator = torch.linalg.norm((est - ref).reshape(flat.shape[0], -1), dim=-1)
+        denominator = torch.linalg.norm(ref.reshape(flat.shape[0], -1), dim=-1)
+        total = total + numerator / (denominator + eps)
+    return total.reshape(pred.shape[:-1])
+
+
+def gcc_phat_peak(pred, obs, delta_max, eps=EPS):
+    """Declared M5 secondary: ``(peak similarity, peak lag)`` of GCC-PHAT.
+
+    The lag alone was recorded before; the plan declares the peak SIMILARITY as
+    the secondary family member, so both are returned (r4m review finding 4).
+    """
+    delta_max = int(delta_max)
+    pred = torch.as_tensor(pred)
+    obs = torch.as_tensor(obs).double().reshape(-1)
+    flat = pred.reshape(-1, pred.shape[-1]).double()
+    length = flat.shape[-1]
+
+    size = 1
+    while size < 2 * length:
+        size *= 2
+    cross = torch.fft.rfft(obs, n=size) * torch.conj(torch.fft.rfft(flat, n=size))
+    phat = torch.fft.irfft(cross / (cross.abs() + eps), n=size)
+    lags = torch.arange(-delta_max, delta_max + 1, device=flat.device)
+    windowed = phat.index_select(-1, lags % size)
+    best = windowed.max(dim=-1)
+    return (best.values.reshape(pred.shape[:-1]).float(),
+            lags[best.indices].reshape(pred.shape[:-1]))
+
+
+# --------------------------------------------------------------------------- #
+# seen sensitivity battery (plan R4 §3)
+# --------------------------------------------------------------------------- #
+def apply_sensitivity(x, variant, sample_rate=SAMPLE_RATE):
+    """One declared perturbation of the PREDICTION, applied deterministically."""
+    x = torch.as_tensor(x).float()
+    if variant == "gain_x2":
+        return x * 2.0
+    if variant == "shift_plus8":
+        return shift(x, SENSITIVITY_SHIFT)
+    if variant == "shift_minus8":
+        return shift(x, -SENSITIVITY_SHIFT)
+    if variant == "direct_crop_2p5ms":
+        out = x.clone()
+        cut = int(round(SENSITIVITY_CROP_MS * 1e-3 * sample_rate))
+        out[..., :cut] = 0.0
+        return out
+    raise ValueError(f"unknown sensitivity variant {variant!r}; declared: "
+                     f"{SENSITIVITY_VARIANTS}")
+
+
+def sensitivity_variants(pred, obs, config, variants=SENSITIVITY_VARIANTS):
+    """The seen sensitivity battery: each declared perturbation re-scored.
+
+    Only the waveform families are recomputed (M1/M2/M3/M5): M4's estimators are
+    the expensive part and the battery asks about waveform robustness -- gain,
+    a small shift, and losing the direct path.
+    """
+    obs = common_window(torch.as_tensor(obs).reshape(-1), config.window_samples)
+    pred = common_window(pred, config.window_samples)
+    out = {}
+    for variant in variants:
+        perturbed = apply_sensitivity(pred, variant, config.sample_rate)
+        block = {}
+        if "m1" in config.families:
+            block["m1"] = m1_distance(perturbed, obs, config.delta_max)
+        if "m2" in config.families:
+            block["m2"] = m2_distance(perturbed, obs, lam=config.lam)
+        if "m3" in config.families:
+            block["m3"] = m3_distance(perturbed, obs)
+        if "m5" in config.families:
+            block["m5"], _ = m5_distance(perturbed, obs, config.delta_max)
+        out[variant] = block
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# multiple-comparison correction for the registered 10-test plan (§4.3)
+# --------------------------------------------------------------------------- #
+def holm_bonferroni(p_values, alpha=0.05):
+    """Holm step-down correction over the registered primary tests.
+
+    Pure function: sorts ascending, scales the i-th smallest by (n - i), enforces
+    monotonicity, and stops rejecting at the first failure. Reporting only -- it
+    never selects a metric.
+    """
+    if not p_values:
+        raise ValueError("holm_bonferroni needs at least one test")
+    alpha = float(alpha)
+    if not 0.0 < alpha < 1.0:
+        raise ValueError(f"alpha must be in (0, 1), got {alpha}")
+    items = sorted(p_values.items(), key=lambda kv: (float(kv[1]), kv[0]))
+    for _label, value in items:
+        if not 0.0 <= float(value) <= 1.0:
+            raise ValueError(f"p-values must lie in [0, 1], got {value}")
+
+    n = len(items)
+    running, rejecting, tests = 0.0, True, []
+    for index, (label, value) in enumerate(items):
+        adjusted = min(1.0, float(value) * (n - index))
+        running = max(running, adjusted)              # monotone non-decreasing
+        if running > alpha:
+            rejecting = False
+        tests.append({"label": label, "p_raw": float(value), "p_adjusted": running,
+                      "rejected": bool(rejecting and running <= alpha)})
+    return {"alpha": alpha, "n_tests": n, "method": "holm_bonferroni", "tests": tests}
