@@ -1874,16 +1874,28 @@ def verify_registration(args, dataset_config, resolved, repo_root=None):
     return True
 
 
+#: the registered unseen-split shape (plan Rev 3.1 §1, established at rung 4).
+REGISTERED_UNSEEN_ROOMS = 17
+REGISTERED_UNSEEN_SOURCES = 10
+#: the ONE anomaly the protocol expects: metadata source 10 has no wavs.
+REGISTERED_METADATA_ONLY = {
+    "LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30": [10],
+}
+#: the depth panorama shape the loader's projection assumes.
+DEPTH_MAP_SHAPE = (256, 512)
+
+
 def run_readback(args):
     """R-1's dataset gate (plan §6 rung 4, Rev 3.1 §3): does the data hold up?
 
-    Freezes the candidate manifest, cross-checks metadata sources against the wav
-    files in both directions, compares the split's own source list against the
-    metadata authority, loads one real wav per room to confirm it decodes at the
-    AR sample rate, and checks a depth map exists for every receiver the split
-    uses. A metadata-declared source with no wavs is a WARNING (the registered
-    LivingRoomsWithHallway shape); a wav with no metadata, a missing split file, a
-    bad sample rate or a missing depth map is a FAILURE and exits nonzero.
+    Against the registered UNSEEN split this is an executable invariant, not a
+    report (r4 review H2): exactly ``REGISTERED_UNSEEN_ROOMS`` rooms with exactly
+    ``REGISTERED_UNSEEN_SOURCES`` metadata sources each, and the single expected
+    metadata-only anomaly (LivingRoomsWithHallway_idx_30's source 10) -- anything
+    else, INCLUDING that anomaly disappearing, is a FAILURE. Every depth map the
+    split's receivers reference is LOADED and checked for shape, dtype and
+    finiteness; one wav per (room, source) is decoded and checked for rate,
+    channels, length and finiteness. Nonzero exit on any failure.
     """
     dataset_config = load_dataset_config(args)
     entry = (dataset_config.get("datasets") or [None])[0]
@@ -1894,6 +1906,7 @@ def run_readback(args):
     manifest = build_room_manifest(entry["path"], split,
                                    folder_name=entry.get("folder_name", DEFAULT_IR_FOLDER))
     root, folder = manifest["dataset_root"], manifest["folder_name"]
+    registered = bool(dataset_config.get("unseeneval", False))
 
     rooms, failures, warnings = {}, [], []
     for room_id, room in sorted(manifest["rooms"].items()):
@@ -1903,66 +1916,110 @@ def run_readback(args):
         cross = crosscheck_sources_vs_files(room["nodes"], wav_dir)
 
         split_files = list(split[scene][scene_id])
-        split_sources, receivers, missing_files = set(), set(), []
+        split_sources, receivers, missing_files, one_per_source = set(), set(), [], {}
         for fname in split_files:
             src, rec = parse_ir_filename(fname)
             split_sources.add(src)
             receivers.add(rec)
-            if not os.path.isfile(os.path.join(wav_dir, fname)):
+            path = os.path.join(wav_dir, fname)
+            if not os.path.isfile(path):
                 missing_files.append(fname)
+            else:
+                one_per_source.setdefault(src, path)
 
-        depth_missing = [rec for rec in sorted(receivers)
-                         if not os.path.isfile(os.path.join(depth_dir, f"{rec}.npy"))]
-        sample_rate, readback_ok, readback_error = None, False, None
-        present = [f for f in split_files if os.path.isfile(os.path.join(wav_dir, f))]
-        if present:
+        depth_bad = []
+        for rec in sorted(receivers):
+            depth_path = os.path.join(depth_dir, f"{rec}.npy")
+            if not os.path.isfile(depth_path):
+                depth_bad.append(f"R{rec}: missing")
+                continue
             try:
-                wav, sample_rate = torchaudio.load(os.path.join(wav_dir, present[0]))
-                readback_ok = bool(wav.numel() > 0 and torch.isfinite(wav).all())
+                depth = np.load(depth_path)
             except Exception as err:                       # noqa: BLE001 - reported, not raised
-                readback_error = f"{type(err).__name__}: {err}"
+                depth_bad.append(f"R{rec}: unreadable ({type(err).__name__})")
+                continue
+            if tuple(depth.shape) != DEPTH_MAP_SHAPE:
+                depth_bad.append(f"R{rec}: shape {tuple(depth.shape)} != {DEPTH_MAP_SHAPE}")
+            elif not np.issubdtype(depth.dtype, np.floating):
+                depth_bad.append(f"R{rec}: dtype {depth.dtype} is not floating")
+            elif not bool(np.isfinite(depth).all()):
+                depth_bad.append(f"R{rec}: contains non-finite values")
+
+        wav_bad, sample_rates = [], set()
+        for src, path in sorted(one_per_source.items()):
+            try:
+                wav, rate = torchaudio.load(path)
+            except Exception as err:                       # noqa: BLE001 - reported, not raised
+                wav_bad.append(f"S{src}: unreadable ({type(err).__name__})")
+                continue
+            sample_rates.add(int(rate))
+            if int(rate) != AR_SAMPLE_RATE:
+                wav_bad.append(f"S{src}: sample rate {rate} != {AR_SAMPLE_RATE}")
+            elif wav.shape[0] != 1:
+                wav_bad.append(f"S{src}: {wav.shape[0]} channels, expected mono")
+            elif wav.shape[-1] < 1:
+                wav_bad.append(f"S{src}: empty waveform")
+            elif not bool(torch.isfinite(wav).all()):
+                wav_bad.append(f"S{src}: contains non-finite samples")
 
         rooms[room_id] = {
             "metadata_nodes": room["nodes"], "wav_nodes": room["wav_nodes"],
             "metadata_only_nodes": cross["missing_files"], "wav_only_nodes": cross["extra_files"],
             "split_files": len(split_files), "split_sources": sorted(split_sources),
             "split_receivers": len(receivers), "missing_split_files": missing_files,
-            "depth_present": len(receivers) - len(depth_missing), "depth_missing": depth_missing,
-            "sample_rate": sample_rate, "wav_readback_ok": readback_ok,
-            "wav_readback_error": readback_error,
+            "depth_checked": len(receivers), "depth_bad": depth_bad,
+            "wav_checked": len(one_per_source), "wav_bad": wav_bad,
+            "sample_rates": sorted(sample_rates),
         }
         if cross["extra_files"]:
             failures.append(f"{room_id}: wav sources without metadata: {cross['extra_files']}")
+        expected_only = REGISTERED_METADATA_ONLY.get(room_id, [])
         if cross["missing_files"]:
-            warnings.append(f"{room_id}: metadata-only sources (no wavs): {cross['missing_files']}")
+            if registered and cross["missing_files"] != expected_only:
+                failures.append(
+                    f"{room_id}: unregistered metadata-only sources {cross['missing_files']} "
+                    f"(registered: {expected_only or 'none'})")
+            else:
+                warnings.append(
+                    f"{room_id}: metadata-only sources (no wavs): {cross['missing_files']}")
+        elif registered and expected_only:
+            failures.append(
+                f"{room_id}: the registered metadata-only source {expected_only} is GONE; the "
+                "candidate count changed under the protocol (plan Rev 3.1 §1)")
+        if registered and len(room["nodes"]) != REGISTERED_UNSEEN_SOURCES:
+            failures.append(f"{room_id}: {len(room['nodes'])} metadata sources, the registered "
+                            f"unseen split has {REGISTERED_UNSEEN_SOURCES}")
         if not split_sources <= set(room["nodes"]):
             failures.append(f"{room_id}: split names sources absent from metadata: "
                             f"{sorted(split_sources - set(room['nodes']))}")
         if missing_files:
             failures.append(f"{room_id}: {len(missing_files)} split files are absent on disk "
                             f"(first: {missing_files[:3]})")
-        if depth_missing:
-            failures.append(f"{room_id}: no depth map for receivers {depth_missing[:5]}")
-        if not present:
+        if depth_bad:
+            failures.append(f"{room_id}: depth maps invalid: {depth_bad[:3]}")
+        if wav_bad:
+            failures.append(f"{room_id}: wav readback invalid: {wav_bad[:3]}")
+        if not one_per_source:
             failures.append(f"{room_id}: no split file present to read back")
-        elif not readback_ok:
-            failures.append(f"{room_id}: wav readback failed ({readback_error})")
-        elif sample_rate != AR_SAMPLE_RATE:
-            failures.append(f"{room_id}: sample rate {sample_rate} != {AR_SAMPLE_RATE}")
+
+    if registered and len(rooms) != REGISTERED_UNSEEN_ROOMS:
+        failures.append(f"{len(rooms)} rooms in the split, the registered unseen split has "
+                        f"{REGISTERED_UNSEEN_ROOMS}")
 
     report = {
         "mode": "readback", "dataset_config": args.dataset_config,
         "dataset_root": root, "n_rooms": len(rooms),
+        "registered_check": {
+            "enforced": registered, "n_rooms": len(rooms),
+            "expected_rooms": REGISTERED_UNSEEN_ROOMS if registered else None,
+            "expected_sources": REGISTERED_UNSEEN_SOURCES if registered else None,
+            "expected_metadata_only": REGISTERED_METADATA_ONLY if registered else {}},
         "manifest_sha256": manifest_sha256(manifest),
-        "source_sha": source_sha(), "created_utc": datetime.now(timezone.utc).isoformat(
-            timespec="seconds"),
+        "source_sha": source_sha(),
+        "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "rooms": rooms, "warnings": warnings, "failures": failures, "ok": not failures,
     }
-    os.makedirs(str(args.out_dir), exist_ok=True)
-    report_path = os.path.join(str(args.out_dir), f"{args.eval_name}_readback.json")
-    with open(report_path, "w") as handle:
-        json.dump(report, handle, sort_keys=True, indent=2)
-        handle.write("\n")
+    report_path = write_report(args, report, "readback")
     report["report_path"] = report_path
 
     print(f"readback: {len(rooms)} rooms, {len(warnings)} warnings, {len(failures)} failures "
@@ -1974,6 +2031,16 @@ def run_readback(args):
     if failures:
         raise SystemExit(f"readback gate FAILED with {len(failures)} failures; see {report_path}")
     return report
+
+
+def write_report(args, report, kind):
+    """Write one auxiliary-mode JSON report (R5-3 makes this atomic/no-clobber)."""
+    os.makedirs(str(args.out_dir), exist_ok=True)
+    path = os.path.join(str(args.out_dir), f"{args.eval_name}_{kind}.json")
+    with open(path, "w") as handle:
+        json.dump(report, handle, sort_keys=True, indent=2)
+        handle.write("\n")
+    return path
 
 
 def _cos_stats(values):

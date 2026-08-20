@@ -1100,7 +1100,8 @@ def _dataset_tree(tmp_path, sources=((0, (0.0, 0.0, 1.0)), (3, (2.0, -1.0, 1.5))
     if with_depth:
         depth_room = root / "depth_map" / "Cafe" / "Cafe_idx_1"
         depth_room.mkdir(parents=True, exist_ok=True)
-        np.save(str(depth_room / f"{receiver}.npy"), np.zeros((4, 8), dtype=np.float32))
+        np.save(str(depth_room / f"{receiver}.npy"),
+                np.ones((256, 512), dtype=np.float32))     # the registered panorama shape
     for node, xyz in sources:
         (meta_room / f"S00{node}_R00{receiver}.json").write_text(_json.dumps(
             {"src_loc": list(xyz), "rec_loc": list(rec_loc), "IR_norm": 1.0}))
@@ -2601,8 +2602,9 @@ def test_readback_mode_reports_a_clean_room(tmp_path):
     room = report["rooms"]["Cafe/Cafe_idx_1"]
     assert room["metadata_nodes"] == [0, 3, 7] and room["wav_nodes"] == [0, 3, 7]
     assert room["split_sources"] == [0, 3] and room["split_files"] == 2
-    assert room["sample_rate"] == 22050 and room["wav_readback_ok"] is True
-    assert room["depth_present"] == 1 and room["depth_missing"] == []
+    assert room["sample_rates"] == [22050] and room["wav_bad"] == []
+    assert room["wav_checked"] == 2                     # one wav per (room, source)
+    assert room["depth_checked"] == 1 and room["depth_bad"] == []
     assert len(report["manifest_sha256"]) == 64
     assert os.path.exists(report["report_path"])
     assert _json.loads(open(report["report_path"]).read())["ok"] is True
@@ -2949,3 +2951,160 @@ def test_timed_waits_for_the_requested_cuda_device_not_device_zero():
     assert wrong_device < measured * 0.2, (
         f"a cuda:0 synchronization waited {wrong_device:.4f}s against our {measured:.4f}s; "
         "the test cannot discriminate")
+
+
+# --------------------------------------------------------------------------- #
+# r5 item 2 (r4 review H2): --mode readback must ENFORCE the corrected R-1
+# invariants, not merely report them. Deleting LRH's metadata-only S10 used to
+# pass -- reintroducing the very M=9 error Rev 3.1 corrected.
+# --------------------------------------------------------------------------- #
+_LRH = "LivingRoomsWithHallway"
+_LRH_ROOM = f"{_LRH}_idx_30"
+
+
+def _registered_unseen_tree(tmp_path, n_rooms=17, nodes=10, receiver=7,
+                            lrh_metadata_only=True, depth_shape=(256, 512),
+                            depth_dtype=np.float32):
+    """A tree with the REGISTERED unseen shape: 17 rooms x 10 metadata sources,
+    with LivingRoomsWithHallway_idx_30's source 10 having metadata but no wav."""
+    root = tmp_path / "AcousticRooms"
+    split = {}
+    scenes = [(_LRH, _LRH_ROOM)] + [(f"Scene{i}", f"Scene{i}_idx_{i}") for i in range(n_rooms - 1)]
+    for scene, scene_id in scenes:
+        meta_dir = root / "metadata" / scene / scene_id
+        wav_dir = root / "single_channel_ir_1" / scene / scene_id
+        depth_dir = root / "depth_map" / scene / scene_id
+        for d in (meta_dir, wav_dir, depth_dir):
+            d.mkdir(parents=True, exist_ok=True)
+        np.save(str(depth_dir / f"{receiver}.npy"),
+                np.ones(depth_shape, dtype=depth_dtype))
+        files = []
+        for node in range(1, nodes + 1):
+            (meta_dir / f"S00{node}_R00{receiver}.json").write_text(_json.dumps(
+                {"src_loc": [float(node), 0.5 * node, 1.0], "rec_loc": [0.0, 0.0, 1.0],
+                 "IR_norm": 1.0}))
+            wav_absent = (lrh_metadata_only and scene_id == _LRH_ROOM and node == nodes)
+            if not wav_absent:
+                _write_rir(str(wav_dir), node, receiver, 0.05 * node, length=200)
+                files.append(f"S00{node}_R00{receiver}_hybrid_IR.wav")
+        split[scene] = {scene_id: files}
+    split_path = tmp_path / "unseen.json"
+    split_path.write_text(_json.dumps(split))
+    return root, split_path
+
+
+def _unseen_readback_args(tmp_path, root, split_path, **over):
+    config = tmp_path / "unseen_d.json"
+    config.write_text(_json.dumps({
+        "dataset_type": "audio_dir", "unseeneval": True,
+        "modalities": {"acoustic_context": {"load": True, "max_context": 8}},
+        "datasets": [{"id": "AcousticRooms", "path": str(root),
+                      "json_file_path": str(split_path),
+                      "folder_name": "single_channel_ir_1"}]}))
+    argv = ["--mode", "readback", "--model-config", "m.json", "--dataset-config", str(config),
+            "--out-dir", str(tmp_path / "out"), "--eval-name", "R_minus_1"]
+    for flag, value in over.items():
+        argv += [flag] if value is True else [flag, str(value)]
+    return el.validate_args(el.parse_args(argv))
+
+
+def test_readback_passes_the_registered_unseen_shape(tmp_path):
+    root, split_path = _registered_unseen_tree(tmp_path)
+    report = el.run_readback(_unseen_readback_args(tmp_path, root, split_path))
+    assert report["ok"] is True and report["failures"] == []
+    assert report["registered_check"]["enforced"] is True
+    assert report["registered_check"]["n_rooms"] == 17
+    assert any(_LRH_ROOM in w and "metadata-only" in w for w in report["warnings"])
+    lrh = report["rooms"][f"{_LRH}/{_LRH_ROOM}"]
+    assert lrh["metadata_nodes"] == list(range(1, 11)) and lrh["metadata_only_nodes"] == [10]
+    assert lrh["depth_checked"] == 1 and lrh["depth_bad"] == []
+    assert lrh["wav_checked"] == 9                      # one wav per (room, source) present
+
+
+def test_readback_fails_when_the_lrh_metadata_only_source_disappears(tmp_path):
+    """The exact regression the reviewer named: deleting S10's metadata leaves 9
+    metadata nodes matching 9 wavs, which used to pass silently."""
+    root, split_path = _registered_unseen_tree(tmp_path)
+    os.remove(str(root / "metadata" / _LRH / _LRH_ROOM / "S0010_R007.json"))
+    with pytest.raises(SystemExit):
+        el.run_readback(_unseen_readback_args(tmp_path, root, split_path))
+    report = _json.loads(open(os.path.join(str(tmp_path / "out"),
+                                           "R_minus_1_readback.json")).read())
+    assert report["ok"] is False
+    assert any("is GONE" in f for f in report["failures"])
+    assert any("9 metadata sources" in f for f in report["failures"])
+
+
+def test_readback_fails_on_an_unregistered_metadata_only_source(tmp_path):
+    root, split_path = _registered_unseen_tree(tmp_path)
+    os.remove(str(root / "single_channel_ir_1" / "Scene0" / "Scene0_idx_0"
+                   / "S001_R007_hybrid_IR.wav"))
+    split = _json.loads(open(split_path).read())
+    split["Scene0"]["Scene0_idx_0"] = [f for f in split["Scene0"]["Scene0_idx_0"]
+                                       if not f.startswith("S001_")]
+    open(split_path, "w").write(_json.dumps(split))
+    with pytest.raises(SystemExit):
+        el.run_readback(_unseen_readback_args(tmp_path, root, split_path))
+
+
+def test_readback_fails_on_a_wrong_room_count(tmp_path):
+    root, split_path = _registered_unseen_tree(tmp_path, n_rooms=16)
+    with pytest.raises(SystemExit):
+        el.run_readback(_unseen_readback_args(tmp_path, root, split_path))
+
+
+@pytest.mark.parametrize("mutate", ["shape", "dtype", "nonfinite", "missing"])
+def test_readback_loads_and_validates_every_depth_map(tmp_path, mutate):
+    root, split_path = _registered_unseen_tree(tmp_path)
+    depth = str(root / "depth_map" / "Scene0" / "Scene0_idx_0" / "7.npy")
+    if mutate == "shape":
+        np.save(depth, np.ones((128, 256), dtype=np.float32))
+    elif mutate == "dtype":
+        np.save(depth, np.ones((256, 512), dtype=np.int32))
+    elif mutate == "nonfinite":
+        bad = np.ones((256, 512), dtype=np.float32)
+        bad[0, 0] = np.nan
+        np.save(depth, bad)
+    else:
+        os.remove(depth)
+    with pytest.raises(SystemExit):
+        el.run_readback(_unseen_readback_args(tmp_path, root, split_path))
+
+
+@pytest.mark.parametrize("mutate", ["rate", "stereo", "empty"])
+def test_readback_decodes_one_wav_per_room_and_source(tmp_path, mutate):
+    root, split_path = _registered_unseen_tree(tmp_path)
+    path = str(root / "single_channel_ir_1" / "Scene0" / "Scene0_idx_0"
+               / "S002_R007_hybrid_IR.wav")
+    if mutate == "rate":
+        torchaudio.save(path, torch.full((1, 200), 0.1), 16000)
+    elif mutate == "stereo":
+        torchaudio.save(path, torch.full((2, 200), 0.1), 22050)
+    else:
+        torchaudio.save(path, torch.zeros(1, 1), 22050)
+        os.truncate(path, 44)                            # header only: no samples
+    with pytest.raises(SystemExit):
+        el.run_readback(_unseen_readback_args(tmp_path, root, split_path))
+
+
+@unseen_rooms
+def test_integration_readback_gate_passes_on_the_real_unseen_split(tmp_path):
+    """The actual R-1 gate on the real dataset: 17 rooms, M=10, every depth map
+    loadable at (256, 512), one wav decoded per (room, source)."""
+    config = tmp_path / "unseen.json"
+    config.write_text(_json.dumps({
+        "dataset_type": "audio_dir", "unseeneval": True,
+        "modalities": {"acoustic_context": {"load": True, "max_context": 8}},
+        "datasets": [{"id": "AcousticRooms", "path": _AR_ROOT,
+                      "json_file_path": _UNSEEN_SPLIT_JSON,
+                      "folder_name": "single_channel_ir_1"}]}))
+    args = el.validate_args(el.parse_args(
+        ["--mode", "readback", "--model-config", "m.json", "--dataset-config", str(config),
+         "--out-dir", str(tmp_path / "out"), "--eval-name", "R_minus_1_real"]))
+    report = el.run_readback(args)
+    assert report["ok"] is True, report["failures"]
+    assert report["registered_check"]["n_rooms"] == 17
+    assert report["warnings"] == [
+        f"{_LRH}/{_LRH_ROOM}: metadata-only sources (no wavs): [10]"]
+    assert sum(room["wav_checked"] for room in report["rooms"].values()) == 169
+    assert all(room["depth_bad"] == [] for room in report["rooms"].values())
