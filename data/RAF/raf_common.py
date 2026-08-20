@@ -209,3 +209,32 @@ def farthest_point_selection(points, k, start='centroid-nearest'):
         min_dist = np.minimum(min_dist, d)
         min_dist[selected] = -1.0
     return selected
+
+
+# dBFS floor for an all-zero signal. -inf is not valid JSON (json.dump emits the
+# non-standard -Infinity token), and every RAF audit artifact must be strictly
+# parseable, so silence is reported at this floor instead.
+DBFS_FLOOR = -200.0
+
+
+def dbfs(peak):
+    """Peak amplitude -> dBFS, floored at ``DBFS_FLOOR`` instead of -inf."""
+    peak = float(peak)
+    return float(20.0 * np.log10(peak)) if peak > 0.0 else DBFS_FLOOR
+
+
+def distance_stats(values):
+    """count/min/p25/median/p75/max/mean of a 1-D sample, JSON-safe."""
+    arr = np.asarray(values, dtype=np.float64)
+    if arr.size == 0:
+        return {"count": 0, "min": None, "p25": None, "median": None, "p75": None,
+                "max": None, "mean": None}
+    return {
+        "count": int(arr.size),
+        "min": float(arr.min()),
+        "p25": float(np.percentile(arr, 25)),
+        "median": float(np.median(arr)),
+        "p75": float(np.percentile(arr, 75)),
+        "max": float(arr.max()),
+        "mean": float(arr.mean()),
+    }

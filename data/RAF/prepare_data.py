@@ -33,9 +33,13 @@ import soundfile as sf
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:  # raf_common.py is a sibling script, not an installed package
     sys.path.insert(0, _HERE)
+from readback_audit import load_passing_record, record_provenance  # noqa: E402
 from raf_common import (  # noqa: E402
+    DBFS_FLOOR,
     RAF_TO_PIPELINE,
     canonicalize_quat,
+    dbfs as _dbfs,
+    distance_stats as _distance_stats,
     farthest_point_selection,
     parse_rx_line,
     parse_tx_line,
@@ -573,22 +577,6 @@ def _write_json(path, payload):
     return path
 
 
-def _distance_stats(values):
-    arr = np.asarray(values, dtype=np.float64)
-    if arr.size == 0:
-        return {"count": 0, "min": None, "p25": None, "median": None, "p75": None,
-                "max": None, "mean": None}
-    return {
-        "count": int(arr.size),
-        "min": float(arr.min()),
-        "p25": float(np.percentile(arr, 25)),
-        "median": float(np.median(arr)),
-        "p75": float(np.percentile(arr, 75)),
-        "max": float(arr.max()),
-        "mean": float(arr.mean()),
-    }
-
-
 def _role_distances(groups, split, group_keys, target_ids):
     """Target-to-nearest-support and support-support distances for one role."""
     by_key = {g["group_key"]: g for g in groups}
@@ -699,7 +687,8 @@ def build_splits_record(per_room, params):
 
 def resample_and_write(room_dir, out_room_dir, capture_ids, target_sr=TARGET_SR,
                        orig_sr=SOURCE_SR, sample_size=LOADER_SAMPLE_SIZE,
-                       silence_db=SILENCE_THRESHOLD_DB, folder_name=RIR_FOLDER):
+                       silence_db=SILENCE_THRESHOLD_DB, folder_name=RIR_FOLDER,
+                       roles=None, scale=None):
     """Resample the given captures to 22.05 kHz float32 WAVs + amplitude audit.
 
     ``subtype='FLOAT'`` is a declared divergence from HAA's PCM16 default: RAF RIRs
@@ -707,15 +696,28 @@ def resample_and_write(room_dir, out_room_dir, capture_ids, target_sr=TARGET_SR,
     quantisation floor.
 
     Fail-closed on a wrong source rate, a multi-channel file, non-finite samples,
-    or |x| > 1 after resampling. The per-file peak and the sub-``silence_db`` flag
-    are recorded but NOT fatal: the flag is what tells us how many items the
-    dataloader would silently substitute (``src/data/dataset.py::is_silence``),
-    which is a fact about the corpus rather than a preparation failure.
+    or |x| > 1 in either the source or the output. The per-file peak and the
+    sub-``silence_db`` flag are recorded but NOT fatal: the flag is what tells us
+    how many items the dataloader would silently substitute
+    (``src/data/dataset.py::is_silence``), which is a fact about the corpus rather
+    than a preparation failure.
+
+    R13: every written file is READ BACK and compared against what was meant to be
+    written (a publish that silently truncated or re-quantised would otherwise be
+    invisible), all dB values are JSON-safe, the distributions are separated by
+    split role, and ``scale`` -- if the readback audit ever calls for one -- is a
+    single scalar applied identically to every file, with the decision recorded
+    from TRAIN SUPPORTS ONLY.
     """
     dest = os.path.join(out_room_dir, folder_name)
     os.makedirs(dest, exist_ok=True)
+    if scale is not None:
+        scale = float(scale)
+        if not np.isfinite(scale) or scale <= 0:
+            raise ValueError(f"scale must be a positive finite scalar, got {scale}")
 
     files, peaks, n_silent = {}, [], 0
+    roundtrip_max = 0.0
     for capture_id in capture_ids:
         src = os.path.join(room_dir, "data", capture_id, "rir.wav")
         audio, sr = sf.read(src, dtype="float32", always_2d=True)
@@ -735,13 +737,28 @@ def resample_and_write(room_dir, out_room_dir, capture_ids, target_sr=TARGET_SR,
 
         out = librosa.resample(wave, orig_sr=orig_sr, target_sr=target_sr)
         out = np.asarray(out, dtype=np.float32)
+        if scale is not None:
+            out = np.asarray(out * scale, dtype=np.float32)
         if not np.isfinite(out).all():
             raise ValueError(f"{src}: resampling produced non-finite samples")
         peak = float(np.abs(out).max())
         if peak > 1.0:
             raise ValueError(f"{src}: resampled signal clips (peak {peak:.6f} > 1.0)")
 
-        sf.write(os.path.join(dest, f"{capture_id}.wav"), out, target_sr, subtype="FLOAT")
+        out_path = os.path.join(dest, f"{capture_id}.wav")
+        sf.write(out_path, out, target_sr, subtype="FLOAT")
+
+        # R13: read back what was actually published.
+        back, back_sr = sf.read(out_path, dtype="float32", always_2d=True)
+        if back_sr != target_sr or back.shape[1] != 1:
+            raise ValueError(
+                f"{out_path}: read back as {back_sr} Hz / {back.shape[1]} ch, "
+                f"expected {target_sr} Hz mono")
+        if back.shape[0] != out.shape[0]:
+            raise ValueError(
+                f"{out_path}: read back {back.shape[0]} samples, wrote {out.shape[0]}")
+        roundtrip = float(np.abs(back[:, 0] - out).max())
+        roundtrip_max = max(roundtrip_max, roundtrip)
 
         crop_peak = float(np.abs(out[:sample_size]).max())
         dbfs = _dbfs(peak)
@@ -758,7 +775,16 @@ def resample_and_write(room_dir, out_room_dir, capture_ids, target_sr=TARGET_SR,
             "dbfs_crop": dbfs_crop,
             "silent_at_threshold": silent,
             "n_samples": int(out.shape[0]),
+            "roundtrip_max_abs_error": roundtrip,
+            "roundtrip_samples": int(back.shape[0]),
+            "role": None if roles is None else roles.get(capture_id),
         }
+
+    by_role = {}
+    for capture_id, entry in files.items():
+        if entry["role"] is not None:
+            by_role.setdefault(entry["role"], []).append(entry["peak"])
+    support_peaks = [e["peak"] for e in files.values() if e["role"] in ("train", "support")]
 
     return {
         "n_files": len(files),
@@ -767,14 +793,32 @@ def resample_and_write(room_dir, out_room_dir, capture_ids, target_sr=TARGET_SR,
         "subtype": "FLOAT",
         "sample_size": int(sample_size),
         "silence_threshold_db": float(silence_db),
+        "dbfs_floor": DBFS_FLOOR,
         "n_silent": n_silent,
         "peak_stats": _distance_stats(peaks),
+        "roundtrip_max_abs_error": roundtrip_max,
+        "by_role": {role: _distance_stats(values) for role, values in sorted(by_role.items())},
+        # The approved decision rule (plan Rev 2 section 10.4): no rescaling unless
+        # RAF is off-scale against HAA/AR, and any scalar must come from the train
+        # supports alone -- never from statistics that saw a test item.
+        "scale_decision": {
+            "rule": ("none unless RAF is off-scale versus HAA/AR; if applied, ONE "
+                     "scalar applied identically to targets and context"),
+            "derived_from": "train supports only",
+            "n_train_supports": len(support_peaks),
+            "train_support_peak_median": (float(np.median(support_peaks))
+                                          if support_peaks else None),
+            "train_support_peak_stats": _distance_stats(support_peaks),
+            "applied_scalar": None if scale is None else float(scale),
+        },
+        "comparison": {
+            "HAA": None,
+            "AR": None,
+            "note": ("reference peak distributions are filled in from the processed "
+                     "HAA/AR corpora at the readback rung"),
+        },
         "files": files,
     }
-
-
-def _dbfs(peak):
-    return float(20.0 * np.log10(peak)) if peak > 0.0 else float("-inf")
 
 
 def build_runtime_metadata(index, groups, split):
@@ -849,11 +893,27 @@ def build_parser():
                         help="cross-check every capture instead of a seeded sample")
     parser.add_argument('--allow-nonuniform', action='store_true',
                         help="record rather than abort on groups that do not hold 36 captures")
+    parser.add_argument('--readback-record', required=True,
+                        help="path to a PASSING, adjudicated raf_readback_record.json "
+                             "(data/RAF/readback_audit.py); canonical artifacts are "
+                             "never published without one")
     return parser
 
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
+
+    # R4 publish gate, BEFORE anything is written: the onset/delay fit, the T30
+    # truncation decision and the gauge/quaternion pinning must already exist and
+    # have been adjudicated, or these artifacts would be canonical under
+    # assumptions nobody checked.
+    readback = load_passing_record(args.readback_record)
+    readback_provenance = record_provenance(args.readback_record, readback)
+    logger.info("readback record %s (gauge %s, quat %s, T60 %s)",
+                readback_provenance["sha256"][:12],
+                readback_provenance["gauge_pinned"],
+                readback_provenance["quat_order_pinned"],
+                readback_provenance["t60_headline"])
 
     per_room, audits = {}, {}
     for room in args.rooms:
@@ -875,7 +935,10 @@ def main(argv=None):
         selected_ids = [c for gk in (split["train_test_groups"] + split["val_groups"]
                                      + split["diagnostic_groups"])
                         for c in next(g for g in groups if g["group_key"] == gk)["capture_ids"]]
-        audits[room] = resample_and_write(room_dir, out_room, selected_ids)
+        role_of = {c: r["split_role"] for c, r in
+                   build_runtime_metadata(index, groups, split)[0].items()}
+        audits[room] = resample_and_write(room_dir, out_room, selected_ids,
+                                          roles=role_of)
         logger.info("%s: wrote %d resampled RIRs (%d below %g dBFS)", room,
                     audits[room]["n_files"], audits[room]["n_silent"],
                     audits[room]["silence_threshold_db"])
@@ -896,10 +959,12 @@ def main(argv=None):
               "output_dir": args.output_dir,
               "crosscheck": "full" if args.full_crosscheck else f"sample:{args.crosscheck_sample}",
               "allow_nonuniform": bool(args.allow_nonuniform)}
-    _write_json(os.path.join(args.split_dir, "raf_splits_record.json"),
-                build_splits_record(per_room, params))
+    splits_record = build_splits_record(per_room, params)
+    splits_record["readback_record"] = readback_provenance
+    _write_json(os.path.join(args.split_dir, "raf_splits_record.json"), splits_record)
     _write_json(os.path.join(args.split_dir, "raf_amplitude_audit.json"),
-                {"params": params, "rooms": audits})
+                {"params": params, "readback_record": readback_provenance,
+                 "rooms": audits})
     logger.info("split files written: %s", ", ".join(sorted(paths.values())))
     return 0
 

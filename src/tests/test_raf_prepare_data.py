@@ -113,6 +113,36 @@ def write_room(root, room, groups=None, n_mics=N_MICS, extra_rx_lines=(),
     return records
 
 
+def write_passing_readback_record(path):
+    """A minimal PASSING, adjudicated readback record (the publish gate's input).
+
+    Hand-built on purpose: this fixture exercises the GATE, while
+    test_raf_readback.py proves the audit CLI actually produces such a record.
+    """
+    import readback_audit as raf_readback
+
+    record = {
+        "schema_version": raf_readback.RECORD_SCHEMA_VERSION,
+        "created_utc": "2026-08-19T00:00:00Z",
+        "params": {"synthetic": True},
+        "rooms": {},
+        "decisions": {"t60_headline": {"resolution": "headline"},
+                      "amplitude_scalar": {"derived_from": "train supports only",
+                                           "applied_scalar": None}},
+        "adjudication": {"gauge_pinned": "RAF_TO_PIPELINE", "quat_order_pinned": "wxyz"},
+        "verdict": {"passed": True, "reasons": []},
+    }
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(record, f)
+    return str(path)
+
+
+@pytest.fixture
+def readback_record(tmp_path):
+    return write_passing_readback_record(str(tmp_path / "raf_readback_record.json"))
+
+
 @pytest.fixture
 def mini_room(tmp_path):
     """3 groups x 36 captures, one room."""
@@ -819,6 +849,7 @@ def test_runtime_metadata_is_json_serialisable(mini_room):
 # CLI (cycle 7)
 # --------------------------------------------------------------------------- #
 def _run_cli(tmp_path, extra=()):
+    write_passing_readback_record(str(tmp_path / "readback.json"))
     raf_root = tmp_path / "raf"
     write_room(str(raf_root), "EmptyRoom")
     write_room(str(raf_root), "FurnishedRoom")
@@ -827,7 +858,8 @@ def _run_cli(tmp_path, extra=()):
     argv = ["--raf-root", str(raf_root), "--output-dir", str(out),
             "--split-dir", str(split_dir), "--rooms", "EmptyRoom", "FurnishedRoom",
             "--n-groups", "1", "--n-val-groups", "1", "--n-train", "12",
-            "--n-diagnostic-groups", "1", "--full-crosscheck"] + list(extra)
+            "--n-diagnostic-groups", "1", "--full-crosscheck",
+            "--readback-record", str(tmp_path / "readback.json")] + list(extra)
     raf_prepare.main(argv)
     return out, split_dir
 
@@ -886,7 +918,9 @@ def test_cli_still_aborts_on_a_count_mismatch_the_sentinel_rule_does_not_cover(t
                           "--output-dir", str(tmp_path / "out"),
                           "--split-dir", str(tmp_path / "splits"),
                           "--rooms", "EmptyRoom",
-                          "--n-groups", "1", "--n-val-groups", "1"])
+                          "--n-groups", "1", "--n-val-groups", "1",
+                          "--readback-record",
+                          write_passing_readback_record(str(tmp_path / "rb.json"))])
 
 
 def test_cli_is_idempotent(tmp_path):
@@ -898,7 +932,8 @@ def test_cli_is_idempotent(tmp_path):
                       "--split-dir", str(split_dir), "--rooms", "EmptyRoom",
                       "FurnishedRoom", "--n-groups", "1", "--n-val-groups", "1",
                       "--n-train", "12", "--n-diagnostic-groups", "1",
-                      "--full-crosscheck"])
+                      "--full-crosscheck", "--readback-record",
+                      write_passing_readback_record(str(tmp_path / "readback.json"))])
     with open(split_dir / "train_base.json") as f:
         assert json.load(f) == first
 
@@ -933,7 +968,9 @@ def test_cli_records_the_sentinel_drop_per_room(tmp_path):
                       "--split-dir", str(split_dir),
                       "--rooms", "EmptyRoom", "FurnishedRoom",
                       "--n-groups", "1", "--n-val-groups", "1", "--n-train", "12",
-                      "--n-diagnostic-groups", "1", "--full-crosscheck"])
+                      "--n-diagnostic-groups", "1", "--full-crosscheck",
+                      "--readback-record",
+                      write_passing_readback_record(str(tmp_path / "readback.json"))])
     with open(split_dir / "raf_splits_record.json") as f:
         record = json.load(f)
     assert record["rooms"]["EmptyRoom"]["rx_trailing_sentinel_dropped"] is True
@@ -1119,7 +1156,8 @@ def test_cli_emits_the_diagnostic_manifest_and_metadata(tmp_path):
                       "--split-dir", str(split_dir), "--rooms", "EmptyRoom",
                       "FurnishedRoom", "--n-groups", "1", "--n-val-groups", "1",
                       "--n-diagnostic-groups", "1", "--n-train", "12",
-                      "--full-crosscheck"])
+                      "--full-crosscheck", "--readback-record",
+                      write_passing_readback_record(str(tmp_path / "readback.json"))])
     with open(split_dir / "diagnostic_base.json") as f:
         diagnostic = json.load(f)
     assert set(diagnostic) == {"EmptyRoom", "FurnishedRoom"}

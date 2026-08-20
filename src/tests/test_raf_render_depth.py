@@ -240,6 +240,13 @@ def test_depth_qa_fails_on_a_wrong_dtype():
 # --------------------------------------------------------------------------- #
 # mesh loading + CLI
 # --------------------------------------------------------------------------- #
+def _readback(tmp_path):
+    """The R4 publish gate's input; canonical renders require a pinned record."""
+    from test_raf_prepare_data import write_passing_readback_record
+
+    return write_passing_readback_record(str(tmp_path / "readback.json"))
+
+
 def _write_fixture(tmp_path, room="EmptyRoom", keys=("aaaa000000000001", "bbbb000000000002")):
     raf_root = tmp_path / "raf"
     out = tmp_path / "runtime" / "RAF"
@@ -275,7 +282,7 @@ def test_load_mesh_pipeline_applies_the_gauge(tmp_path):
 def test_cli_renders_every_group_and_writes_qa(tmp_path):
     raf_root, out, groups = _write_fixture(tmp_path)
     raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
-                     "--rooms", "EmptyRoom"])
+                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path)])
     depth_dir = out / "EmptyRoom" / "depth_images"
     for key, entry in groups.items():
         path = depth_dir / entry["depth_file"]
@@ -302,7 +309,7 @@ def test_cli_render_is_consistent_with_the_pipeline_pixel_to_ray_map(tmp_path):
     ``convert_equirect_to_camera_coord`` assumes, with no flipud in between."""
     raf_root, out, groups = _write_fixture(tmp_path)
     raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
-                     "--rooms", "EmptyRoom"])
+                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path)])
     arr = np.load(out / "EmptyRoom" / "depth_images" / groups["aaaa000000000001"]["depth_file"])
     cloud = arr[..., None] * raf_common.equirect_directions()
     assert cloud[0, :, 2].min() > 1.9      # ceiling 2.0 m above the camera
@@ -314,4 +321,4 @@ def test_cli_aborts_when_the_mesh_is_missing(tmp_path):
     os.remove(raf_root / "3d_models" / "EmptyRoom" / "mesh.obj")
     with pytest.raises((FileNotFoundError, ValueError)):
         raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
-                         "--rooms", "EmptyRoom"])
+                         "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path)])

@@ -23,6 +23,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:  # raf_common.py is a sibling script, not an installed package
     sys.path.insert(0, _HERE)
 from raf_common import RAF_TO_PIPELINE, equirect_directions  # noqa: E402
+from readback_audit import load_passing_record, record_provenance  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
@@ -159,11 +160,22 @@ def build_parser():
     parser.add_argument('--img-h', type=int, default=DEPTH_H)
     parser.add_argument('--img-w', type=int, default=DEPTH_W)
     parser.add_argument('--floor-tol', type=float, default=DEFAULT_FLOOR_TOL)
+    parser.add_argument('--readback-record', required=True,
+                        help="path to a PASSING, adjudicated raf_readback_record.json; "
+                             "canonical depth maps are rendered under a PINNED gauge, "
+                             "never a candidate one")
     return parser
 
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
+
+    # R4 gate: the maps encode the RAF->pipeline gauge, so they may only be
+    # rendered once that gauge has been pinned from the readback audit.
+    readback_provenance = record_provenance(args.readback_record,
+                                            load_passing_record(args.readback_record))
+    logger.info("readback record %s (gauge %s)", readback_provenance["sha256"][:12],
+                readback_provenance["gauge_pinned"])
 
     for room in args.rooms:
         mesh = load_mesh_pipeline(os.path.join(args.raf_root, "3d_models", room, "mesh.obj"))
@@ -198,6 +210,7 @@ def main(argv=None):
             "n_maps": len(maps),
             "n_failed": len(failed),
             "n_warned": len(warned),
+            "readback_record": readback_provenance,
             "maps": maps,
         }
         qa_path = os.path.join(depth_dir, "raf_depth_qa.json")
