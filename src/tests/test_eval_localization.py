@@ -3575,3 +3575,104 @@ def test_probe_wall_documents_what_it_excludes():
     source = inspect.getsource(el)
     assert "NOT the row construction" in source
     assert "NOT an interprocess lock" in source
+
+
+# --------------------------------------------------------------------------- #
+# r6 (plan Rev 3.2): duplicate-position sources MERGE into one candidate. Real
+# occurrences: Bathrooms_idx_11 (S9 == S10) and Bathrooms_idx_16 (S4 == S7) in
+# the SEEN split; the 17 unseen rooms are clean, so the headline path must stay
+# byte-identical.
+# --------------------------------------------------------------------------- #
+def _dirty_dataset_tree(tmp_path, receiver=11, rec_loc=(1.0, 2.0, 0.5)):
+    """A room shaped like Bathrooms_idx_11: nodes 3 and 7 share one position."""
+    root = tmp_path / "AcousticRooms"
+    meta_room = root / "metadata" / "Cafe" / "Cafe_idx_1"
+    wav_room = root / "single_channel_ir_1" / "Cafe" / "Cafe_idx_1"
+    depth_room = root / "depth_map" / "Cafe" / "Cafe_idx_1"
+    for d in (meta_room, wav_room, depth_room):
+        d.mkdir(parents=True, exist_ok=True)
+    np.save(str(depth_room / f"{receiver}.npy"), np.ones((256, 512), dtype=np.float32))
+    shared = (2.0, -1.0, 1.5)
+    positions = {0: (0.0, 0.0, 1.0), 3: shared, 7: shared}
+    for node, xyz in positions.items():
+        (meta_room / f"S00{node}_R00{receiver}.json").write_text(_json.dumps(
+            {"src_loc": list(xyz), "rec_loc": list(rec_loc), "IR_norm": 1.0}))
+        _write_rir(str(wav_room), node, receiver, 0.1 * (node + 1))
+    return root, wav_room, positions
+
+
+def test_build_room_manifest_merges_duplicate_positions(tmp_path):
+    root, _wav_room, _positions = _dirty_dataset_tree(tmp_path)
+    manifest = el.build_room_manifest(str(root), _split_dict())
+    room = manifest["rooms"]["Cafe/Cafe_idx_1"]
+    assert room["nodes"] == [0, 3]                       # 7 folded into 3
+    assert room["merge_map"] == {"3": [3, 7]}            # only non-trivial groups
+    assert room["member_nodes"] == [0, 3, 7]
+    assert len(room["xyz_world"]) == 2
+    assert room["xyz_world"][1] == [2.0, -1.0, 1.5]
+
+
+def test_clean_rooms_have_an_empty_merge_map_and_unchanged_candidates(tmp_path):
+    root, _wav_room = _dataset_tree(tmp_path)
+    manifest = el.build_room_manifest(str(root), _split_dict())
+    room = manifest["rooms"]["Cafe/Cafe_idx_1"]
+    assert room["merge_map"] == {}
+    assert room["nodes"] == [0, 3, 7] == room["member_nodes"]
+    cand = el.candidate_set_from_manifest(manifest, "Cafe/Cafe_idx_1", gt_node=3, rec_node=11)
+    from_disk = el.query_candidate_set(_query_md(root, _wav_room := root / "single_channel_ir_1"
+                                                 / "Cafe" / "Cafe_idx_1"))
+    assert cand.nodes == from_disk.nodes and cand.gt_node == from_disk.gt_node
+    np.testing.assert_array_equal(cand.xyz_world, from_disk.xyz_world)
+
+
+def test_candidate_set_resolves_a_gt_that_is_a_non_canonical_member(tmp_path):
+    root, _wav_room, positions = _dirty_dataset_tree(tmp_path)
+    manifest = el.build_room_manifest(str(root), _split_dict())
+    canonical = el.candidate_set_from_manifest(manifest, "Cafe/Cafe_idx_1", 3, 11)
+    member = el.candidate_set_from_manifest(manifest, "Cafe/Cafe_idx_1", 7, 11)
+    assert member.gt_node == 3 == canonical.gt_node       # the merged candidate's identity
+    assert member.nodes == [0, 3] and member.gt_index == 1
+    np.testing.assert_array_equal(member.gt_xyz, np.asarray(positions[7]))
+    from src.localization.scoring import localization_error
+    assert localization_error(member.gt_xyz, canonical.gt_xyz) == pytest.approx(0.0)
+
+
+def test_candidate_set_still_refuses_a_node_outside_every_group(tmp_path):
+    root, _wav_room, _positions = _dirty_dataset_tree(tmp_path)
+    manifest = el.build_room_manifest(str(root), _split_dict())
+    with pytest.raises(ValueError):
+        el.candidate_set_from_manifest(manifest, "Cafe/Cafe_idx_1", 99, 11)
+
+
+def test_merged_room_resolves_duplicate_context_poses_to_one_index(tmp_path):
+    """Two context refs that are different member nodes of one group resolve to
+    the SAME candidate -- correct, and no longer an F7 fingerprint collision."""
+    root, _wav_room, positions = _dirty_dataset_tree(tmp_path)
+    manifest = el.build_room_manifest(str(root), _split_dict())
+    cand = el.candidate_set_from_manifest(manifest, "Cafe/Cafe_idx_1", 0, 11)
+    cams = el.candidate_camera_positions(cand)
+    from src.localization.candidates import project_to_camera
+    merged_cam = project_to_camera(cand.rec_loc, np.asarray(positions[3]))
+    context_ids = [el.render_position_id(merged_cam), el.render_position_id(merged_cam)]
+    assert el.context_membership_mask(cams, context_ids, gt_index=cand.gt_index) == [False, True]
+
+
+def test_manifest_merge_summary_and_row_field(tmp_path):
+    root, _wav_room, _positions = _dirty_dataset_tree(tmp_path)
+    manifest = el.build_room_manifest(str(root), _split_dict())
+    assert el.merge_group_count(manifest) == 1
+    clean = el.build_room_manifest(str(_dataset_tree(tmp_path / "clean")[0]), _split_dict())
+    assert el.merge_group_count(clean) == 0
+
+    row = el.build_row(**_row_kwargs(merge_map={"3": [3, 7]}))
+    assert row["merge_map"] == {"3": [3, 7]}
+    assert el.build_row(**_row_kwargs())["merge_map"] == {}
+
+
+def test_run_evaluation_records_the_merge_groups(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    result = el.run_evaluation(_run_args(tmp_path), loader, engine, _stub_context(root), "c", "a",
+                               expected=el.expected_split_identities(loader.dataset))
+    assert result["provenance"]["candidate_merge_groups"] == 0     # the clean fixture
+    assert all(row["merge_map"] == {} for row in result["rows"])

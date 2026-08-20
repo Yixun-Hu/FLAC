@@ -51,7 +51,8 @@ from src.localization.candidates import (CandidateSet, assert_gt_matches_loader,
                                          build_candidate_set, candidate_metadata,
                                          crosscheck_sources_vs_files,
                                          enumerate_metadata_sources, find_pair_metadata,
-                                         parse_ir_filename, project_to_camera)
+                                         merge_position_duplicates, parse_ir_filename,
+                                         project_to_camera)
 from src.localization.scoring import (DEFAULT_RADII, aggregate, clustered_bootstrap_ci,
                                       context_conditioned_baseline, cosine_sims,
                                       localization_error, nearest_context_baseline, noise_key,
@@ -470,7 +471,7 @@ def gt_reciprocal_rank(scores, gt_index, available=None):
 def build_row(query_id, room_id, relpath, receiver_node, cand_set, cam_xyz, sims,
               context_mask, noise_keys, tau, agg, control, score_source, smoke,
               available=None, identity_index=None, substituted=False,
-              context_xyz_cam=None, context_sims_hex=None, timings=None):
+              context_xyz_cam=None, context_sims_hex=None, timings=None, merge_map=None):
     """One JSONL query record: raw evidence first, derived quantities alongside.
 
     ``sims_hex``/``scores_hex`` are the exact float32 values (O18), so the
@@ -533,6 +534,7 @@ def build_row(query_id, room_id, relpath, receiver_node, cand_set, cam_xyz, sims
         "identity_index": None if identity_index is None else int(identity_index),
         "substituted": bool(substituted),
         "smoke": bool(smoke),
+        "merge_map": dict(merge_map or {}),
         "timings_s": (None if timings is None
                       else {**{name: float(timings.get(name, 0.0)) for name in PROBE_COMPONENTS},
                             PROBE_WALL: float(timings.get(PROBE_WALL, 0.0))}),
@@ -777,7 +779,7 @@ def device_provenance(device):
 
 def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source, n_queries,
                      dataset_config=None, context_digest=None, candidate_manifest_sha256=None,
-                     split_file_sha256=None):
+                     split_file_sha256=None, merge_groups=None):
     """Everything needed to reproduce or falsify the run, in one record.
 
     Announcement 05: a row is only interpretable next to the protocol it was
@@ -831,6 +833,7 @@ def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source
         "loader_drop_last": bool((dataset_config or {}).get("drop_last", True)),
         "context_stream_digest": context_digest or "n/a",
         "candidate_manifest_sha256": candidate_manifest_sha256 or "n/a",
+        "candidate_merge_groups": merge_groups,
         "split_file_sha256": split_file_sha256 or "n/a",
         **device_provenance(getattr(args, "device", "cpu")),
         "float32_matmul_precision": torch.get_float32_matmul_precision(),
@@ -1382,6 +1385,7 @@ def process_query(args, engine, context, md, obs_wav):
             _refuse("no frozen candidate manifest in the run context; per-query disk enumeration "
                     "was removed so that M cannot change mid-run (plan Rev 3.1 §2)")
         cand_set = candidate_set_from_manifest(manifest, room_id, gt_node, receiver_node)
+        room_entry = manifest["rooms"][room_id]
         # BEFORE anything can touch the poses: the context fingerprint identifies the draw.
         context_ids = sample_context_ids(md)
 
@@ -1421,7 +1425,7 @@ def process_query(args, engine, context, md, obs_wav):
         identity_index=identity_index, substituted=False,
         context_xyz_cam=evidence.get("context_xyz_cam"),
         context_sims_hex=evidence.get("context_sims_hex"),
-        timings=timings)
+        timings=timings, merge_map=room_entry.get("merge_map"))
 
 
 def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, expected=None,
@@ -1485,7 +1489,9 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
                                   candidate_manifest_sha256=(manifest_sha256(manifest)
                                                              if manifest else None),
                                   split_file_sha256=(_file_sha256(split_path_of(dataset_config))
-                                                     if dataset_config else None))
+                                                     if dataset_config else None),
+                                  merge_groups=(merge_group_count(manifest)
+                                                if manifest else None))
     write_summary(summary_path, summary, provenance)
     if manifest is not None:
         write_json_atomic(paths["manifest"], manifest, overwrite=True)
@@ -1680,9 +1686,11 @@ def build_room_manifest(dataset_root, split_config, folder_name=DEFAULT_IR_FOLDE
                     f"candidate manifest ABORT: {room_id} is in the split but has no metadata "
                     f"directory at {meta_dir}; the candidate authority is incomplete")
             try:
-                sources = enumerate_metadata_sources(meta_dir)
+                sources = enumerate_metadata_sources(meta_dir, allow_duplicate_positions=True)
             except ValueError as err:
                 raise SystemExit(f"candidate manifest ABORT for {room_id}: {err}")
+            # Rev 3.2: two labels at one position are ONE candidate.
+            merged, merge_groups = merge_position_duplicates(sources)
 
             wav_nodes, receivers = set(), {}
             if os.path.isdir(wav_dir):
@@ -1701,7 +1709,7 @@ def build_room_manifest(dataset_root, split_config, folder_name=DEFAULT_IR_FOLDE
                 if str(rec) in receivers:
                     continue
                 pair_path = None
-                for node in sorted(sources):
+                for node in sorted(sources):               # any member proves the frame
                     pair_path = find_pair_metadata(meta_dir, node, rec)
                     if pair_path is not None:
                         break
@@ -1713,15 +1721,21 @@ def build_room_manifest(dataset_root, split_config, folder_name=DEFAULT_IR_FOLDE
                     rec_loc = json.load(handle)["rec_loc"]
                 receivers[str(rec)] = [float(v) for v in rec_loc]
 
-            nodes = sorted(sources)
+            nodes = sorted(merged)
             rooms[room_id] = {
                 "scene": scene,
                 "scene_id": scene_id,
                 "nodes": nodes,
-                "xyz_world": [[float(v) for v in sources[node]] for node in nodes],
+                # only NON-TRIVIAL groups, so a clean room's map is simply {}
+                "merge_map": {str(canonical): members
+                              for canonical, members in sorted(merge_groups.items())
+                              if len(members) > 1},
+                "member_nodes": sorted(sources),
+                "xyz_world": [[float(v) for v in merged[node]] for node in nodes],
                 "wav_nodes": sorted(wav_nodes),
                 "receivers": receivers,
                 "n_metadata_sources": len(nodes),
+                "n_member_sources": len(sources),
                 "n_wav_sources": len(wav_nodes),
             }
     return {"dataset_root": dataset_root, "folder_name": folder_name, "rooms": rooms}
@@ -1733,6 +1747,21 @@ def manifest_sha256(manifest):
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def canonical_node(room, node):
+    """The candidate a source node belongs to (Rev 3.2): itself, or its group's
+    canonical node when it was merged into one."""
+    node = int(node)
+    for canonical, members in (room.get("merge_map") or {}).items():
+        if node in [int(m) for m in members]:
+            return int(canonical)
+    return node
+
+
+def merge_group_count(manifest):
+    """How many non-trivial merge groups the frozen manifest holds."""
+    return sum(len(room.get("merge_map") or {}) for room in manifest["rooms"].values())
+
+
 def candidate_set_from_manifest(manifest, room_id, gt_node, rec_node):
     """The query's candidate set, from the frozen manifest -- no disk access."""
     room = manifest["rooms"].get(room_id)
@@ -1742,7 +1771,8 @@ def candidate_set_from_manifest(manifest, room_id, gt_node, rec_node):
     if rec_loc is None:
         raise ValueError(f"receiver {rec_node} of {room_id} is not in the frozen manifest")
     nodes = [int(n) for n in room["nodes"]]
-    if int(gt_node) not in nodes:
+    gt_node = canonical_node(room, gt_node)
+    if gt_node not in nodes:
         raise ValueError(f"GT source {gt_node} is not a candidate of {room_id}")
     xyz = np.asarray(room["xyz_world"], dtype=np.float64)
     return CandidateSet(nodes=nodes, xyz_world=xyz, rec_loc=np.asarray(rec_loc, dtype=np.float64),
@@ -2046,7 +2076,7 @@ def run_readback(args):
         scene, scene_id = room["scene"], room["scene_id"]
         wav_dir = os.path.join(root, folder, scene, scene_id)
         depth_dir = os.path.join(root, "depth_map", scene, scene_id)
-        cross = crosscheck_sources_vs_files(room["nodes"], wav_dir)
+        cross = crosscheck_sources_vs_files(room.get("member_nodes", room["nodes"]), wav_dir)
 
         split_files = list(split[scene][scene_id])
         split_sources, receivers, missing_files, one_per_source = set(), set(), [], {}
