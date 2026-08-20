@@ -36,11 +36,18 @@ N_PER_GROUP = N_SUPPORT + N_TEST
 GROUP_KEYS = ["g0" + "0" * 14, "g1" + "0" * 14, "g2" + "0" * 14]
 
 
-def load_raf_md():
-    """Load RAF_md.py the way ``create_dataloader_from_config`` does."""
+def load_raf_md(test_mode=True):
+    """Load RAF_md.py the way ``create_dataloader_from_config`` does.
+
+    ``test_mode`` sets the module's test-only opt-out so synthetic fixtures -- which
+    are not published trees -- can be read. It is a constant on a freshly exec'd
+    module object, reachable only from here: no config, flag or environment
+    variable can disable the production gate (r5 finding 1).
+    """
     spec = importlib.util.spec_from_file_location("raf_metadata_module", _RAF_MD_PATH)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
+    mod._RAF_MD_TEST_MODE = bool(test_mode)
     return mod
 
 
@@ -612,66 +619,149 @@ def test_conditioning_assembles_into_cross_attention_and_global_inputs(runtime_r
 # --------------------------------------------------------------------------- #
 # r4 T3: the loader verifies the publication once per process
 # --------------------------------------------------------------------------- #
-def _publish_runtime(runtime_root, canonical=False, kind="prepare", rooms=(ROOM,)):
-    """Attest the synthetic runtime tree the way prepare_data would."""
+def _publish_tree(tmp_path, runtime_root, rooms=(ROOM,), canonical=False,
+                  parameters_ok=True, digest=None, with_depth=True):
+    """Publish the synthetic tree the way prepare_data + render_depth do:
+    a prepare marker in the SPLIT directory and a depth marker per room."""
     import publish as raf_publish
+    import readback_audit as raf_readback
 
-    with raf_publish.PublishTransaction(str(runtime_root), kind=kind) as txn:
-        staged = txn.stage(str(runtime_root))
-        with open(staged.path(".attested"), "w") as f:
-            f.write("runtime")
-        return txn.commit(extra={"canonical": canonical, "taint": [],
-                                 "rooms": list(rooms),
-                                 "readback_record": {"sha256": "0" * 64}})
+    split_dir = tmp_path / "splits"
+    pointer = {
+        "split_dir": str(split_dir.resolve()),
+        "output_dir": str(runtime_root.resolve()),
+        "rooms": list(rooms),
+        "canonical": canonical,
+        "taint": [],
+        "parameters": {"n_groups": 16},
+        "canonical_parameters": parameters_ok,
+        "readback_record": {
+            "sha256": raf_readback.CANONICAL_RECORD_SHA256 if digest is None else digest},
+    }
+    with raf_publish.PublishTransaction(str(split_dir), kind="prepare") as txn:
+        runtime = txn.stage(str(runtime_root))
+        splits = txn.stage(str(split_dir))
+        with open(runtime.path("raf_publication.json"), "w") as f:
+            json.dump(pointer, f)
+        with open(splits.path("train_base.json"), "w") as f:
+            json.dump({ROOM: []}, f)
+        txn.commit()
+    if with_depth:
+        with raf_publish.PublishTransaction(str(runtime_root), kind="depth") as txn:
+            for room in rooms:
+                staged = txn.stage(str(runtime_root / room / "depth_images"))
+                with open(staged.path("attested.txt"), "w") as f:
+                    f.write("depth")
+            txn.commit()
+    return pointer
 
 
-def test_loader_accepts_an_attested_tree(raf_md, runtime_root):
-    _publish_runtime(runtime_root)
-    md = raf_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+@pytest.fixture
+def gated_md(runtime_root, tmp_path):
+    """RAF_md with the production gate ACTIVE (no test-mode opt-out)."""
+    return load_raf_md(test_mode=False)
+
+
+def test_the_gate_is_mandatory_and_has_no_environment_switch():
+    """r5 finding 1: an operator who forgets an env var would silently train on an
+    unpublished tree, so there is no env var to forget."""
+    import inspect
+
+    source = inspect.getsource(load_raf_md(test_mode=False))
+    assert "RAF_REQUIRE_PUBLICATION" not in source
+    assert "os.environ" not in source
+    assert load_raf_md(test_mode=False)._RAF_MD_TEST_MODE is False
+
+
+def test_gate_accepts_a_fully_published_tree(gated_md, runtime_root, tmp_path):
+    _publish_tree(tmp_path, runtime_root)
+    md = gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
     assert md["scene"] == ROOM
 
 
-def test_loader_refuses_an_unattested_tree(raf_md, runtime_root, monkeypatch):
-    monkeypatch.setattr(raf_md, "_REQUIRE_PUBLICATION", True)
+def test_gate_refuses_a_tree_that_was_never_published(gated_md, runtime_root):
     with pytest.raises(ValueError) as exc:
-        raf_md.get_custom_metadata(_info(runtime_root, "000000"), None)
-    assert "RAF publication" in str(exc.value)
+        gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+    assert "raf_publication.json" in str(exc.value)
 
 
-def test_loader_refuses_a_tree_whose_payload_changed_after_publication(
-        raf_md, runtime_root, monkeypatch):
-    monkeypatch.setattr(raf_md, "_REQUIRE_PUBLICATION", True)
-    _publish_runtime(runtime_root)
-    (runtime_root / ".attested").write_text("tampered after the fact")
+def test_gate_refuses_a_prepared_tree_whose_depth_was_never_published(
+        gated_md, runtime_root, tmp_path):
+    """The r4 gate checked only the prepare marker; depth maps published under a
+    different generation (or not at all) went unnoticed."""
+    _publish_tree(tmp_path, runtime_root, with_depth=False)
     with pytest.raises(ValueError) as exc:
-        raf_md.get_custom_metadata(_info(runtime_root, "000000"), None)
-    assert "RAF publication" in str(exc.value)
+        gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+    assert "depth" in str(exc.value)
 
 
-def test_publication_check_runs_once_per_process(raf_md, runtime_root, monkeypatch):
-    """T3 is bounded by cost: the check is per-process, not per item."""
-    monkeypatch.setattr(raf_md, "_REQUIRE_PUBLICATION", True)
-    _publish_runtime(runtime_root)
+def test_gate_refuses_a_tree_whose_payload_changed_after_publication(
+        gated_md, runtime_root, tmp_path):
+    _publish_tree(tmp_path, runtime_root)
+    (runtime_root / "raf_publication.json").write_text('{"tampered": true}')
+    with pytest.raises(ValueError):
+        gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+
+
+def test_gate_finds_the_prepare_marker_in_the_split_directory(
+        gated_md, runtime_root, tmp_path):
+    """r5 finding 1's core defect: production writes that marker under split_dir,
+    so a gate looking beside the data could never verify a real publication."""
+    import publish as raf_publish
+
+    _publish_tree(tmp_path, runtime_root)
+    assert (tmp_path / "splits" / raf_publish.marker_name("prepare")).exists()
+    assert not (runtime_root / raf_publish.marker_name("prepare")).exists()
+    gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+
+
+def test_canonical_tree_must_carry_the_registered_identity(
+        gated_md, runtime_root, tmp_path):
+    _publish_tree(tmp_path, runtime_root, rooms=("EmptyRoom", "FurnishedRoom"),
+                  canonical=True, digest="0" * 64)
+    with pytest.raises(ValueError) as exc:
+        gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+    assert "pinned" in str(exc.value)
+
+
+def test_canonical_tree_must_have_registered_parameters(
+        gated_md, runtime_root, tmp_path):
+    _publish_tree(tmp_path, runtime_root, rooms=("EmptyRoom", "FurnishedRoom"),
+                  canonical=True, parameters_ok=False)
+    with pytest.raises(ValueError) as exc:
+        gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+    assert "parameters" in str(exc.value)
+
+
+def test_canonical_tree_must_cover_both_registered_rooms(
+        gated_md, runtime_root, tmp_path):
+    _publish_tree(tmp_path, runtime_root, rooms=(ROOM,), canonical=True)
+    with pytest.raises(ValueError) as exc:
+        gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+    assert "EmptyRoom" in str(exc.value) or "rooms" in str(exc.value)
+
+
+def test_publication_check_runs_once_per_process(gated_md, runtime_root, tmp_path,
+                                                 monkeypatch):
+    """Bounded by cost: per-process, not per item."""
+    _publish_tree(tmp_path, runtime_root)
     calls = []
-    real_verify = raf_md._verify_publication
+    real_verify = gated_md._verify_publication
 
     def counting(root):
         calls.append(root)
         return real_verify(root)
 
-    monkeypatch.setattr(raf_md, "_verify_publication", counting)
+    monkeypatch.setattr(gated_md, "_verify_publication", counting)
     for cid in ("000000", "000001", "000002", "000003"):
-        raf_md.get_custom_metadata(_info(runtime_root, cid), None)
+        gated_md.get_custom_metadata(_info(runtime_root, cid), None)
     assert len(calls) == 1
-    assert raf_md._PUBLICATION_CHECKED
+    assert gated_md._PUBLICATION_CHECKED
 
 
-def test_a_second_worker_process_repeats_the_check(runtime_root, monkeypatch):
-    """Each worker re-executes the hook, so each gets its own first-load check."""
-    _publish_runtime(runtime_root)
-    first, second = load_raf_md(), load_raf_md()
-    first._REQUIRE_PUBLICATION = True
-    second._REQUIRE_PUBLICATION = True
+def test_a_second_worker_process_repeats_the_check(runtime_root, tmp_path):
+    _publish_tree(tmp_path, runtime_root)
+    first, second = load_raf_md(test_mode=False), load_raf_md(test_mode=False)
     assert first._PUBLICATION_CHECKED == {}
     first.get_custom_metadata(_info(runtime_root, "000000"), None)
     assert first._PUBLICATION_CHECKED != {}
@@ -679,8 +769,3 @@ def test_a_second_worker_process_repeats_the_check(runtime_root, monkeypatch):
     assert second._PUBLICATION_CHECKED == {}
 
 
-def test_the_gate_is_opt_in_for_synthetic_trees(raf_md, runtime_root):
-    """Unattested synthetic fixtures stay usable: the requirement is enabled for
-    canonical runtimes (RAF_REQUIRE_PUBLICATION=1) and by the publish flow."""
-    assert raf_md._REQUIRE_PUBLICATION is False
-    raf_md.get_custom_metadata(_info(runtime_root, "000000"), None)

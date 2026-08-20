@@ -555,7 +555,8 @@ def test_verify_combined_publication_requires_both_kinds(tmp_path):
     argv, out, split_dir = _prepare(tmp_path)
     raf_prepare.main(argv)
     report = raf_publish.verify_combined_publication(str(split_dir), str(out),
-                                                     rooms=["EmptyRoom"])
+                                                     rooms=["EmptyRoom"],
+                                                     canonical=False)
     assert report["published"] is False          # depth has not been rendered yet
     assert "depth" in report["reason"]
 
@@ -565,9 +566,15 @@ def test_verify_combined_publication_requires_both_kinds(tmp_path):
         open(txn.stage(str(depth_root)).path("map.npy"), "w").write("depth")
         txn.commit()
     complete = raf_publish.verify_combined_publication(str(split_dir), str(out),
-                                                       rooms=["EmptyRoom"])
+                                                       rooms=["EmptyRoom"],
+                                                       canonical=False)
     assert complete["published"] is True
     assert set(complete["kinds"]) == {"prepare", "depth"}
+    # ... but a one-room publication is NOT canonical completeness (r5 finding 3)
+    with pytest.raises(ValueError) as exc:
+        raf_publish.verify_combined_publication(str(split_dir), str(out),
+                                                rooms=["EmptyRoom"], canonical=True)
+    assert "canonical publication covers exactly" in str(exc.value)
 
 
 def test_duplicate_roots_in_one_transaction_are_rejected(tmp_path):

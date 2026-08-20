@@ -110,12 +110,19 @@ def get_3d_point_camera_coord(source_pose, point_3d):
 
 # Per-worker caches. Each dataloader worker gets its own copy of this module's
 # globals, so these are per-process and never shared/mutated across workers.
-# T3 (bounded): verify ONCE PER PROCESS that the runtime tree is an attested
-# publication -- marker present, payload matching its manifest. Per-item artifact
-# hashing is deliberately out of scope (cost, and the registered threat model is
-# operator error, not a local adversary). Enabled by RAF_REQUIRE_PUBLICATION=1,
-# which the canonical run scripts set; synthetic fixtures stay usable without it.
-_REQUIRE_PUBLICATION = os.environ.get("RAF_REQUIRE_PUBLICATION") == "1"
+# T3: verify ONCE PER PROCESS that the tree being read is an attested COMBINED
+# publication -- prepare marker (in the split directory named by the runtime
+# pointer) plus a depth marker per room, payloads matching their manifests, and,
+# when the tree declares itself canonical, the registered rooms/parameters and the
+# pinned readback digest.
+#
+# MANDATORY: there is deliberately no environment variable. An operator who
+# forgets to export something would silently train on an unpublished tree, which
+# is precisely the failure this gate exists to stop (r5 finding 1). The only
+# bypass is this module-level constant, which the test-suite sets on a
+# freshly-exec'd module object; no config, flag or env var can reach it.
+_RAF_MD_TEST_MODE = False
+_PUBLICATION_POINTER = "raf_publication.json"
 _PUBLICATION_CHECKED = {}
 
 _JSON_CACHE = {}
@@ -155,27 +162,79 @@ def load_depth_cached(path):
     return depth
 
 
-def _verify_publication(root):
-    """Load ``data/RAF/publish.py`` and verify the tree's prepare attestation."""
+def _raf_module(name):
+    """Load a sibling data/RAF module by path (this hook is exec'd, not imported)."""
     repo_root = os.path.abspath(__file__)
     for _ in range(5):
         repo_root = os.path.dirname(repo_root)
-    path = os.path.join(repo_root, "data", "RAF", "publish.py")
-    spec = importlib.util.spec_from_file_location("raf_publish_for_md", path)
+    path = os.path.join(repo_root, "data", "RAF", f"{name}.py")
+    spec = importlib.util.spec_from_file_location(f"raf_{name}_for_md", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.verify_publication(root, kind="prepare")
+    return module
+
+
+def _verify_publication(root):
+    """Verify the COMBINED publication the runtime pointer describes.
+
+    The prepare marker lives in the SPLIT directory, not the runtime root -- the
+    r4 gate looked for it beside the data and could therefore never verify a real
+    canonical publication. The pointer (published inside the runtime tree, and so
+    covered by its manifest) names that directory.
+    """
+    pointer_path = os.path.join(root, _PUBLICATION_POINTER)
+    if not os.path.isfile(pointer_path):
+        return {"published": False,
+                "reason": f"no {_PUBLICATION_POINTER} in {root}: the tree was never "
+                          "published by data/RAF/prepare_data.py"}
+    try:
+        with open(pointer_path) as f:
+            pointer = json.load(f)
+        split_dir, output_dir = pointer["split_dir"], pointer["output_dir"]
+        rooms = list(pointer["rooms"])
+    except (ValueError, KeyError, TypeError) as e:
+        # A malformed pointer must fail CLOSED with a readable reason: raising a
+        # KeyError here would be swallowed by SampleDataset's substitution handler.
+        return {"published": False,
+                "reason": f"{pointer_path} is not a valid publication pointer ({e})"}
+
+    publish = _raf_module("publish")
+    try:
+        report = publish.verify_combined_publication(
+            split_dir, output_dir, rooms=rooms,
+            canonical=bool(pointer.get("canonical")))
+    except (ValueError, OSError) as e:
+        return {"published": False, "reason": f"combined verification failed: {e}"}
+    report["pointer"] = pointer
+
+    if pointer.get("canonical"):
+        readback = _raf_module("readback_audit")
+        reasons = []
+        if pointer.get("canonical_parameters") is not True:
+            reasons.append("canonical tree published with non-registered parameters")
+        digest = (pointer.get("readback_record") or {}).get("sha256")
+        if digest != readback.CANONICAL_RECORD_SHA256:
+            reasons.append(
+                f"readback digest {digest} is not the pinned "
+                f"{readback.CANONICAL_RECORD_SHA256}")
+        if tuple(pointer.get("rooms") or ()) != tuple(readback.CANONICAL_ROOMS):
+            reasons.append(f"rooms {pointer.get('rooms')} are not the registered set")
+        if reasons:
+            report["published"] = False
+            report["reason"] = "; ".join([report.get("reason", "")] + reasons).strip("; ")
+    return report
 
 
 def assert_published_once(dataset_folder):
     """First-load publication gate (T3), cached per process.
 
-    A runtime tree that was never attested -- or whose files changed after the
-    attestation -- is a stale or half-published state, and reading it would train
-    on artifacts nobody published. The check costs one marker + manifest read per
-    worker process, not per item.
+    A tree that was never attested -- or whose files changed after the attestation,
+    or whose depth maps were never published alongside its splits -- is a stale or
+    half-published state, and reading it would train on artifacts nobody published.
+    The check costs one pointer + two markers + their manifests per worker process,
+    not per item.
     """
-    if not _REQUIRE_PUBLICATION:
+    if _RAF_MD_TEST_MODE:
         return None
     root = os.path.abspath(dataset_folder.rstrip(os.sep) or os.sep)
     if root in _PUBLICATION_CHECKED:
@@ -184,8 +243,9 @@ def assert_published_once(dataset_folder):
     if not report.get("published"):
         raise ValueError(
             f"RAF publication check failed for {root}: {report.get('reason')}. The "
-            "runtime tree is not an attested publication (no valid commit marker, "
-            "or its files changed after it was written).")
+            "tree is not an attested publication (missing/invalid prepare or depth "
+            "commit marker, files changed after attestation, or a canonical tree "
+            "whose identity does not match the registered one).")
     _PUBLICATION_CHECKED[root] = report
     return report
 

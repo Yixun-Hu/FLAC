@@ -322,14 +322,38 @@ def verify_publication(marker_root, kind="prepare", expected_roots=None):
     }
 
 
-def verify_combined_publication(split_dir, output_dir, rooms,
-                                depth_subdir="depth_images"):
+CANONICAL_ROOMS = ("EmptyRoom", "FurnishedRoom")
+
+
+def resolve_rooms(rooms, canonical=True):
+    """Completeness is defined HERE, not by the caller (r5 finding 3).
+
+    A canonical publication covers exactly the registered rooms; asking for a
+    subset cannot make a one-room publication complete. Non-canonical runs may name
+    their own rooms, but never an empty or duplicated list.
+    """
+    if canonical:
+        if rooms is not None and tuple(rooms) != CANONICAL_ROOMS:
+            raise ValueError(
+                f"canonical publication covers exactly {list(CANONICAL_ROOMS)}, "
+                f"not {list(rooms)}")
+        return list(CANONICAL_ROOMS)
+    if not rooms:
+        raise ValueError("a publication with no rooms is not a publication")
+    if len(set(rooms)) != len(rooms):
+        raise ValueError(f"duplicate rooms in {list(rooms)}")
+    return list(rooms)
+
+
+def verify_combined_publication(split_dir, output_dir, rooms=None,
+                                depth_subdir="depth_images", canonical=True):
     """A RAF publication is complete only when BOTH kinds attest their exact sets.
 
     Prepare covers the runtime tree and the split directory; depth covers one
     directory per room. Either alone is a partial state, and this is the check a
     consumer runs before treating the corpus as canonical (T4).
     """
+    rooms = resolve_rooms(rooms, canonical=canonical)
     prepare = verify_publication(
         split_dir, kind="prepare",
         expected_roots=[os.path.abspath(output_dir), os.path.abspath(split_dir)])

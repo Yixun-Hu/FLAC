@@ -54,6 +54,9 @@ DEFAULT_CROSSCHECK_SAMPLE = 200
 SOURCE_SR = 48000
 TARGET_SR = 22050
 RIR_FOLDER = "mono_rirs_22050Hz"
+# Written into the runtime root by every publish: names the split directory that
+# holds the prepare marker, the rooms, and the identity this tree was cut under.
+PUBLICATION_POINTER = "raf_publication.json"
 DEPTH_SUFFIX = "_depth_image.npy"
 # The FLAC loader crops to sample_size and drops anything below -60 dBFS
 # (src/data/dataset.py::is_silence) — both mirrored here so the audit measures
@@ -1094,7 +1097,22 @@ def main(argv=None):
                     {"params": params, "readback_record": readback_provenance,
                      "canonical": canonical, "taint": taint, "rooms": audits})
 
-        expected_runtime = [f"{room}/metadata/{name}"
+        # r5 finding 1: the loader has only the RUNTIME root, while the prepare
+        # marker lives in the split directory. This pointer -- itself covered by the
+        # runtime manifest, so it cannot be edited unnoticed -- is what lets
+        # RAF_md verify the COMBINED publication it is actually reading.
+        _write_json(staged_runtime.path(PUBLICATION_POINTER), {
+            "split_dir": os.path.abspath(args.split_dir),
+            "output_dir": os.path.abspath(args.output_dir),
+            "rooms": list(args.rooms),
+            "canonical": canonical,
+            "taint": taint,
+            "parameters": parameters,
+            "canonical_parameters": not deviations,
+            "readback_record": readback_provenance,
+        })
+
+        expected_runtime = [PUBLICATION_POINTER] + [f"{room}/metadata/{name}"
                             for room in args.rooms
                             for name in ("poses_metadata.json", "groups_metadata.json")]
         expected_splits = [f"{name}_base.json" for name in sorted(jsons)] + [
