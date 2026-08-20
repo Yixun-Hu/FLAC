@@ -648,7 +648,7 @@ def test_assemble_split_jsons_has_the_haa_shape(mini_room):
     jsons = raf_prepare.assemble_split_jsons(payload)
     assert set(jsons) == {"train", "val", "test", "diagnostic"}
     assert list(jsons["train"]) == ["EmptyRoom"]
-    assert len(jsons["train"]["EmptyRoom"]) == 12
+    assert len(jsons["train"]["EmptyRoom"]) == 24
     assert len(jsons["test"]["EmptyRoom"]) == 24
     assert len(jsons["val"]["EmptyRoom"]) == 24
     for name in jsons["train"]["EmptyRoom"]:
@@ -674,7 +674,7 @@ def test_splits_record_carries_the_preregistration_fields(mini_room):
     record = raf_prepare.build_splits_record(payload, params)
     assert record["params"] == params
     room = record["rooms"]["EmptyRoom"]
-    assert room["counts"] == {"train": 12, "test": 24, "val": 24, "diagnostic": 24,
+    assert room["counts"] == {"train": 24, "test": 24, "val": 24, "diagnostic": 24,
                               "train_test_groups": 1, "val_groups": 1,
                               "diagnostic_groups": 1, "reserve_groups": 0}
     assert len(room["train_test_groups"]) == 1
@@ -830,10 +830,12 @@ def test_runtime_metadata_roles_agree_with_the_split(mini_room):
         assert all(poses[c]["split_role"] == "val" for c in ids)
     for gk, ids in split["diagnostic_ids"].items():
         assert all(poses[c]["split_role"] == "diagnostic" for c in ids)
-    # context-only supports are runtime-visible (RAF_md reads their rx_p) and are
-    # labelled as such, never as a target of any split
-    for gk in split["val_groups"] + split["diagnostic_groups"]:
+    # a VAL group's supports are context-only and labelled as such; a DIAGNOSTIC
+    # group's supports are training items (Amendment 3) and are labelled 'train'
+    for gk in split["val_groups"]:
         assert all(poses[c]["split_role"] == "support" for c in split["support_ids"][gk])
+    for gk in split["diagnostic_groups"]:
+        assert all(poses[c]["split_role"] == "train" for c in split["support_ids"][gk])
 
 
 def test_runtime_metadata_is_json_serialisable(mini_room):
@@ -885,7 +887,7 @@ def test_cli_split_files_cover_both_rooms_and_match_the_wavs(tmp_path):
     with open(split_dir / "val_base.json") as f:
         val = json.load(f)
     assert set(train) == set(test) == set(val) == {"EmptyRoom", "FurnishedRoom"}
-    assert len(train["EmptyRoom"]) == 12 and len(test["EmptyRoom"]) == 24
+    assert len(train["EmptyRoom"]) == 24 and len(test["EmptyRoom"]) == 24
     assert len(val["EmptyRoom"]) == 24
     for room in ("EmptyRoom", "FurnishedRoom"):
         for name in train[room] + test[room] + val[room]:
@@ -1092,8 +1094,10 @@ def test_diagnostic_group_has_a_12_support_24_test_manifest(mini_groups):
     assert len(split["support_ids"][gk]) == 12
     assert len(split["diagnostic_ids"][gk]) == 24
     assert not set(split["diagnostic_ids"][gk]) & set(split["support_ids"][gk])
-    # HAA-parity probe: its supports are context only, never training items
-    assert gk not in split["train_ids"]
+    # Amendment 3: the literal HAA analogue trains on the eval room's supports, so
+    # the diagnostic group's 12 supports ARE training items; its 24 targets are not.
+    assert split["train_ids"][gk] == split["support_ids"][gk]
+    assert not set(split["train_ids"][gk]) & set(split["diagnostic_ids"][gk])
 
 
 def test_diagnostic_captures_are_disjoint_from_every_other_split(mini_groups):
@@ -1115,6 +1119,12 @@ def test_canonical_constants_yield_21_groups_and_42_depth_maps():
     assert len(split["val_groups"]) == 4
     assert len(split["diagnostic_groups"]) == 1
     assert len(split["reserve_groups"]) == 4
+    # canonical training set per room: 16 train/test groups x 12 + the diagnostic
+    # group's 12 = 204, i.e. 408 over the two rooms (Amendment 3)
+    assert sum(len(v) for v in split["train_ids"].values()) == 16 * 12 + 12
+    assert sum(len(v) for v in split["test_ids"].values()) == 16 * 24
+    assert sum(len(v) for v in split["val_ids"].values()) == 4 * 24
+    assert sum(len(v) for v in split["diagnostic_ids"].values()) == 24
     index = _renumber(_synthetic_index(specs))
     _, groups_meta = raf_prepare.build_runtime_metadata(index, groups, split)
     assert len(groups_meta) == 21          # x2 rooms = 42 depth maps
@@ -1140,10 +1150,13 @@ def test_val_targets_exclude_the_support_mics(mini_groups):
 def test_split_counts_after_r14(mini_room):
     payload = _one_room_payload(mini_room)
     jsons = raf_prepare.assemble_split_jsons(payload)
-    assert len(jsons["train"]["EmptyRoom"]) == 12     # 1 train/test group x 12
+    # 1 train/test group x 12 + the diagnostic group's 12 supports (Amendment 3)
+    assert len(jsons["train"]["EmptyRoom"]) == 24
     assert len(jsons["test"]["EmptyRoom"]) == 24
     assert len(jsons["val"]["EmptyRoom"]) == 24       # was 36 before R14
     assert len(jsons["diagnostic"]["EmptyRoom"]) == 24
+    # the diagnostic TARGETS are eval-only: none of them is a training item
+    assert not set(jsons["diagnostic"]["EmptyRoom"]) & set(jsons["train"]["EmptyRoom"])
 
 
 def test_cli_emits_the_diagnostic_manifest_and_metadata(tmp_path):

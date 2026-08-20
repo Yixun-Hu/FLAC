@@ -448,7 +448,10 @@ def select_splits(groups, n_groups=16, n_val_groups=4, n_train=12,
       (R14: HAA parity, so every val target draws from the same 12 candidates
       rather than 12 of them drawing from 11);
     * ``diagnostic`` — same 12-support/24-target manifest, evaluated as a separate
-      HAA-analogue row; its supports are context only and are never trained on.
+      HAA-analogue row. Per contracts Amendment 3 its 12 supports JOIN the training
+      set (the literal HAA analogue finetunes on the eval room's supports), so the
+      canonical training set is 16x12 + 12 = 204 items per room; its 24 targets stay
+      eval-only.
     """
     for name, value in (("n_groups", n_groups), ("n_val_groups", n_val_groups),
                         ("n_train", n_train)):
@@ -495,7 +498,10 @@ def select_splits(groups, n_groups=16, n_val_groups=4, n_train=12,
         support_ids[key] = support
         targets = [c for c in g["capture_ids"] if c not in set(support)]
         target_bucket[key][key] = targets
-        if key in set(train_test):
+        # Amendment 3: train/test AND diagnostic supports are training items; only
+        # a val group's supports stay context-only (they support the val loop,
+        # which must not see gradient).
+        if key in set(train_test) or key in set(diagnostic):
             train_ids[key] = list(support)
 
     _assert_disjoint(train_ids, test_ids, val_ids, diagnostic_ids, by_key,
@@ -536,14 +542,19 @@ def _assert_disjoint(train_ids, test_ids, val_ids, diagnostic_ids, by_key,
         for b in names:
             if a < b and flat[a] & flat[b]:
                 raise ValueError(f"split leakage: {len(flat[a] & flat[b])} captures in both {a} and {b}")
+    # A val or reserve group is protected whole. A diagnostic group is protected
+    # only in its TARGETS: Amendment 3 puts its supports in the training set on
+    # purpose (that is what makes the row the literal HAA analogue), so protecting
+    # the whole group would forbid the registered design rather than a leak.
     protected = set()
-    for key in list(val_groups) + list(diagnostic_groups) + list(reserve_groups):
+    for key in list(val_groups) + list(reserve_groups):
         protected |= set(by_key[key]["capture_ids"])
+    protected |= {c for v in diagnostic_ids.values() for c in v}
     leaked = protected & (flat["train"] | flat["test"])
     if leaked:
         raise ValueError(
-            f"split leakage: {len(leaked)} captures of val/diagnostic/reserve groups "
-            "appear in train/test")
+            f"split leakage: {len(leaked)} protected captures (val/reserve groups, or "
+            "diagnostic TARGETS) appear in train/test")
 
 
 def assemble_split_jsons(per_room):
