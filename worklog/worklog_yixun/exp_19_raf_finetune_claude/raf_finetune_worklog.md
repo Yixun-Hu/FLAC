@@ -89,3 +89,7 @@ Branch `localization-exp` (shared with exp_18; this experiment is driven by the 
 ## 2026-08-20T01:39:51-0400 — CODE ROUND CLOSED: Codex APPROVE at r6; package assembled
 
 Final pass APPROVE, no open in-boundary findings; 3 residuals recorded (`raf_finetune_round_close.md`). Round totals: 6 review passes, 6 fix rounds, Amendments 1–8, 511 tests. Awaiting Yixun: canonical-prep GO + residual acknowledgment + optional second R-cal seed.
+
+## 2026-08-20T11:42:56-0400 — Yixun directive: checkpoint storage convention
+
+All training checkpoints go under `/media/diskstation/yixunhu/FLAC/checkpoints/<proper-name>/` (established convention — exp12_cyl_dinov3_arms already present). Applied: R-cal artifacts moved `exp19_rcal_artifacts` → `checkpoints/exp19_rcal_haa_repro/` (21 files incl. step-1000 ckpt); `checkpoints/exp19_raf_finetune/` pre-created — the canonical finetune will `--save-dir` there directly (cadence-100 makes CIFS writes cheap; ~7 GB worst case, pruned to final after eval). Noted read-only: `FLAC/exp19_ckpts/{BF,P1}` appearing 11:17–11:30 = Yixun's own arm-checkpoint rsync (B-F, exp07_P1) — his, untouched. The rcal manifest's artifact pointer updated by this entry (former exp19_rcal_artifacts path superseded).
