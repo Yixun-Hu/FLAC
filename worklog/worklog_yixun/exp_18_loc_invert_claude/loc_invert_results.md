@@ -46,3 +46,12 @@ Identity gate: 6,337/6,337 scored, 17 rooms, identity-stream hash 60c56165…; r
 ## R2 seed 44 (2026-08-20 15:50 EDT) — PASSED; three-seed table complete
 top-1 0.5000 | s@0.5 0.5328 | s@1.0 0.6659 | MRR 0.6334 | macro-mean 1.0751 m | ctx-member 0.3765 | p(vs matched baseline)=0.0116.
 **Three-seed summary: top-1 = 0.5007 ± 0.0008 (mean ± SD); every metric within ±0.004 across seeds.** All seeds pass all gates; identical split/manifest hashes.
+
+## R2b (K_ctx=1) seed 43 (2026-08-20 ~18:05 EDT) — PASSED; THE DECISIVE CELL
+| | FLAC | Info-matched chance | Retrieval control (1 ctx ref) |
+|---|---|---|---|
+| top-1 | **0.5014** | 0.1111 | 0.1079 |
+| success@0.5/1.0 | 0.534 / 0.663 | — | — |
+| pooled median | 0.000 m | 2.434 m | — |
+Paired (room-clustered): vs chance −1.864 m p≈0; vs retrieval −1.581 m p≈0. Eligible set = 9 for all 6,337. ctx-member-pred 0.047 (< 1/9 chance — FLAC avoids the context position).
+**Reading (pending seeds 42/44):** FLAC's inversion performance is context-count-invariant (0.501 at both K_ctx); retrieval collapses to chance without dense context coverage (0.689 → 0.108). In the sparse-context regime the generator adds genuine localization information — 4.5× over both controls.
