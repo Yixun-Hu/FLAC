@@ -165,3 +165,14 @@
 | `b7ecca1` | item 2 | `--metric-registration` gate reusing `verify_registration_commit`; locks the whole REGISTERABLE set + applied metric_config; seen runs record the payload without a manifest | +150 |
 | `a90f9dc` | item 5 | `--mode metrics-calibrate`: seen-only Δmax selection (dev top-1, tie→smallest), M4 μ/σ freeze, draft manifest, per-feature between/within/top-1 diagnostics | +181 |
 | `529ee53` | item 3 | `--mode metrics-retrieval`: metric-matched control (raw + masked), measured oracle ceiling, context/non-context split, no generation; `__main__` guard restored | +233 |
+| `d2371f4` | — | ledger append for R4-r2 | +12 |
+
+## Round r4m3 (consolidated R4 review `loc_invert_codex_code_r4m_review.md`)
+
+| SHA | Finding | Description | changed lines |
+|---|---|---|---|
+| `d4f471a` | **F7 (first)** | literal r7 dump/provenance route when `--metrics` is off; byte-level golden parity against the r7 module loaded from `7d0d740` — **unblocked R2b seed 44** | +105 −13 |
+| `f360b3c` | F2 + F3 | M1 evaluates the literal registered residual per lag (not `1−ρ²`); pyroomacoustics' `-1` sentinel and any negative decay time become NaN, tested against the real wrapper | +129 −13 |
+| `408a093` | F4 + F1 (constants) | M2 complex-STFT, M3 band/Hilbert and M5 GCC peak similarity as first-class candidate+context families; Δ=0 always emitted; three seen sensitivities; Holm–Bonferroni; REGISTERABLE gains every missing formula constant | +286 −16 |
+| `81dda12` | F1 + F4 + F8 | manifest authoritative for the whole `MetricConfig`; registration required for every unseen metric mode; calibration authenticates its identity stream; draft gains seeds/digests; secondaries + sensitivities serialized; vestigial param removed | +268 −54 |
+| `a4102a5` | F5 + F6 | prediction-based context split, compact-index oracle mapping, fallback source nodes, seed in stem, paired context-digest check; all metric outputs stay `.partial` until every gate passes | +215 −34 |
