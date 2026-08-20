@@ -2592,9 +2592,6 @@ def run_reaggregate(args):
           f"(pooled mean e_loc {chosen['pooled_mean_e_loc']:.4f} m)")
     return report
 
-if __name__ == "__main__":
-    main()
-
 
 def load_published_rows(path):
     """``(by_query_id, sha256)`` for a completed run's rows file."""
@@ -2664,3 +2661,6 @@ def build_waveform_manifest(args, rows, dump_dir, rows_stem):
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "waveforms": waveforms,
     }
+
+if __name__ == "__main__":
+    main()
