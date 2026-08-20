@@ -394,7 +394,7 @@ def test_amplitude_audit_scale_decision_uses_train_supports_only(tmp_path):
         room_dir, str(tmp_path / "runtime" / "EmptyRoom"),
         [f"{i:06d}" for i in range(8)], roles=roles)
     decision = audit["scale_decision"]
-    assert decision["derived_from"] == "train supports only"
+    assert decision["derived_from"] == "trained supports only (split_role == 'train')"
     assert decision["applied_scalar"] is None
     assert decision["train_support_peak_median"] == pytest.approx(
         float(np.median([audit["files"][f"{i:06d}"]["peak"] for i in range(4)])))
@@ -404,10 +404,13 @@ def test_amplitude_audit_scale_decision_uses_train_supports_only(tmp_path):
 def test_amplitude_audit_applies_a_scalar_uniformly_when_one_is_given(tmp_path):
     write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1))
     room_dir = os.path.join(str(tmp_path), "archived", "EmptyRoom")
+    roles = {"000000": "train", "000001": "train"}
     plain = raf_prepare.resample_and_write(
-        room_dir, str(tmp_path / "a" / "EmptyRoom"), ["000000", "000001"])
+        room_dir, str(tmp_path / "a" / "EmptyRoom"), ["000000", "000001"], roles=roles)
     scaled = raf_prepare.resample_and_write(
-        room_dir, str(tmp_path / "b" / "EmptyRoom"), ["000000", "000001"], scale=2.0)
+        room_dir, str(tmp_path / "b" / "EmptyRoom"), ["000000", "000001"], roles=roles,
+        scale=2.0,
+        scale_provenance=raf_prepare.derivation_id_hash(["000000", "000001"]))
     assert scaled["scale_decision"]["applied_scalar"] == 2.0
     for cid in ("000000", "000001"):
         assert scaled["files"][cid]["peak"] == pytest.approx(
@@ -578,3 +581,73 @@ def test_render_depth_taints_the_qa_record_in_non_canonical_mode(tmp_path):
         qa = json.load(f)
     assert qa["canonical"] is False
     assert any("non-canonical" in t for t in qa["taint"])
+
+
+# --------------------------------------------------------------------------- #
+# r3 S6: an amplitude scalar derives from TRAINED supports only
+# --------------------------------------------------------------------------- #
+def _roles_fixture(tmp_path):
+    from test_raf_prepare_data import _default_groups, write_room
+
+    write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1))
+    room_dir = os.path.join(str(tmp_path), "archived", "EmptyRoom")
+    roles = {"000000": "train", "000001": "train", "000002": "support",
+             "000003": "test", "000004": "val", "000005": "diagnostic"}
+    return room_dir, roles
+
+
+def test_scale_decision_excludes_validation_supports(tmp_path):
+    """S6: role 'support' is a VALIDATION support in canonical metadata, so it may
+    not enter a statistic labelled 'train supports only'."""
+    room_dir, roles = _roles_fixture(tmp_path)
+    audit = raf_prepare.resample_and_write(
+        room_dir, str(tmp_path / "runtime" / "EmptyRoom"), sorted(roles), roles=roles)
+    decision = audit["scale_decision"]
+    assert decision["derived_from"] == "trained supports only (split_role == 'train')"
+    assert decision["n_train_supports"] == 2
+    assert decision["derivation_ids"] == ["000000", "000001"]
+    trained_peaks = [audit["files"][c]["peak"] for c in ("000000", "000001")]
+    assert decision["train_support_peak_median"] == pytest.approx(
+        float(np.median(trained_peaks)))
+    assert decision["applied_scalar"] is None
+
+
+def test_scale_derivation_provenance_is_a_hash_of_the_id_set(tmp_path):
+    import hashlib
+
+    room_dir, roles = _roles_fixture(tmp_path)
+    audit = raf_prepare.resample_and_write(
+        room_dir, str(tmp_path / "runtime" / "EmptyRoom"), sorted(roles), roles=roles)
+    expected = hashlib.sha256("000000;000001".encode("utf-8")).hexdigest()
+    assert audit["scale_decision"]["derivation_id_sha256"] == expected
+    assert raf_prepare.derivation_id_hash(["000001", "000000"]) == expected
+
+
+def test_applying_a_scalar_requires_matching_derivation_provenance(tmp_path):
+    room_dir, roles = _roles_fixture(tmp_path)
+    with pytest.raises(ValueError) as exc:
+        raf_prepare.resample_and_write(
+            room_dir, str(tmp_path / "a" / "EmptyRoom"), sorted(roles), roles=roles,
+            scale=2.0)
+    assert "provenance" in str(exc.value).lower()
+
+    with pytest.raises(ValueError):
+        raf_prepare.resample_and_write(
+            room_dir, str(tmp_path / "b" / "EmptyRoom"), sorted(roles), roles=roles,
+            scale=2.0, scale_provenance="0" * 64)
+
+    audit = raf_prepare.resample_and_write(
+        room_dir, str(tmp_path / "c" / "EmptyRoom"), sorted(roles), roles=roles,
+        scale=2.0, scale_provenance=raf_prepare.derivation_id_hash(["000000", "000001"]))
+    assert audit["scale_decision"]["applied_scalar"] == 2.0
+    assert audit["scale_decision"]["provenance_verified"] is True
+
+
+def test_scalar_cannot_be_applied_without_any_trained_support(tmp_path):
+    room_dir, roles = _roles_fixture(tmp_path)
+    only_val = {cid: "val" for cid in roles}
+    with pytest.raises(ValueError):
+        raf_prepare.resample_and_write(
+            room_dir, str(tmp_path / "d" / "EmptyRoom"), sorted(only_val),
+            roles=only_val, scale=2.0,
+            scale_provenance=raf_prepare.derivation_id_hash([]))

@@ -697,10 +697,20 @@ def build_splits_record(per_room, params):
     return {"params": params, "git_describe": _git_describe(), "rooms": rooms}
 
 
+def derivation_id_hash(capture_ids):
+    """sha256 over the sorted id set a statistic was derived from (S6).
+
+    Recorded next to any amplitude scalar, and required to match before one is
+    applied: otherwise "derived from train supports" is a label, not a fact.
+    """
+    payload = ";".join(sorted(str(c) for c in capture_ids))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def resample_and_write(room_dir, out_room_dir, capture_ids, target_sr=TARGET_SR,
                        orig_sr=SOURCE_SR, sample_size=LOADER_SAMPLE_SIZE,
                        silence_db=SILENCE_THRESHOLD_DB, folder_name=RIR_FOLDER,
-                       roles=None, scale=None):
+                       roles=None, scale=None, scale_provenance=None):
     """Resample the given captures to 22.05 kHz float32 WAVs + amplitude audit.
 
     ``subtype='FLOAT'`` is a declared divergence from HAA's PCM16 default: RAF RIRs
@@ -723,10 +733,26 @@ def resample_and_write(room_dir, out_room_dir, capture_ids, target_sr=TARGET_SR,
     """
     dest = os.path.join(out_room_dir, folder_name)
     os.makedirs(dest, exist_ok=True)
+    # S6: the derivation set is the TRAINED supports only. Role "support" marks a
+    # validation-group support in canonical metadata, so including it would derive
+    # a training-set statistic from validation data.
+    trained_ids = sorted(c for c in capture_ids
+                         if roles is not None and roles.get(c) == "train")
+    derivation_hash = derivation_id_hash(trained_ids)
     if scale is not None:
         scale = float(scale)
         if not np.isfinite(scale) or scale <= 0:
             raise ValueError(f"scale must be a positive finite scalar, got {scale}")
+        if not trained_ids:
+            raise ValueError(
+                "refusing to apply an amplitude scalar with no trained supports to "
+                "derive it from")
+        if scale_provenance != derivation_hash:
+            raise ValueError(
+                "refusing to apply an amplitude scalar without matching derivation "
+                f"provenance: scale_provenance={scale_provenance!r} but the trained "
+                f"support id set hashes to {derivation_hash}. A scalar must be shown "
+                "to come from the ids it claims.")
 
     files, peaks, n_silent = {}, [], 0
     roundtrip_max = 0.0
@@ -796,7 +822,7 @@ def resample_and_write(room_dir, out_room_dir, capture_ids, target_sr=TARGET_SR,
     for capture_id, entry in files.items():
         if entry["role"] is not None:
             by_role.setdefault(entry["role"], []).append(entry["peak"])
-    support_peaks = [e["peak"] for e in files.values() if e["role"] in ("train", "support")]
+    support_peaks = [files[c]["peak"] for c in trained_ids]
 
     return {
         "n_files": len(files),
@@ -816,7 +842,10 @@ def resample_and_write(room_dir, out_room_dir, capture_ids, target_sr=TARGET_SR,
         "scale_decision": {
             "rule": ("none unless RAF is off-scale versus HAA/AR; if applied, ONE "
                      "scalar applied identically to targets and context"),
-            "derived_from": "train supports only",
+            "derived_from": "trained supports only (split_role == 'train')",
+            "derivation_ids": trained_ids,
+            "derivation_id_sha256": derivation_hash,
+            "provenance_verified": scale is not None,
             "n_train_supports": len(support_peaks),
             "train_support_peak_median": (float(np.median(support_peaks))
                                           if support_peaks else None),
