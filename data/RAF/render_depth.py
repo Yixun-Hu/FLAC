@@ -280,8 +280,15 @@ def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL, img_h=DEPTH_H,
     if canonical and not canonical_grid:
         warnings.append(
             f"non-canonical grid {expected_shape}: this map cannot be loaded by RAF_md")
-    misses = None
-    if miss_report is not None:
+    # F5: a passing QA result REQUIRES a mask-verified miss report, including for
+    # zero misses. Leaving miss_report optional kept the contract fail-open: an
+    # absent report meant misses=None, and `misses is None or audit_ok` passed.
+    if miss_report is None:
+        misses = {"mask_verified": False, "audit_ok": False,
+                  "reason": "no miss report supplied: QA cannot attest a map whose "
+                            "ray-hit evidence it never saw"}
+        warnings.append(misses["reason"])
+    else:
         misses, miss_warnings = audit_miss_report(
             miss_report, arr, canonical=canonical,
             miss_mask=miss_report.get("miss_mask"))
@@ -316,7 +323,8 @@ def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL, img_h=DEPTH_H,
         "warnings": warnings,
         "passed": bool(finite and positive and shape_ok and dtype_ok
                        and (canonical_grid or not canonical)
-                       and (misses is None or misses["audit_ok"])),
+                       and misses.get("mask_verified") is True
+                       and misses.get("audit_ok") is True),
     }
 
 
@@ -448,6 +456,12 @@ def audit_miss_report(miss_report, depth, canonical=True, miss_mask=None):
     if not rays_ok:
         warnings.append(
             f"declared ray count {miss_report.get('n_rays')} is not the map's {n_rays}")
+    if miss_report.get("miss_rate") is not None and not np.isclose(
+            float(miss_report["miss_rate"]), true_rate, rtol=0, atol=1e-12):
+        warnings.append(
+            f"declared miss_rate {miss_report['miss_rate']} is not the mask's "
+            f"{true_rate}")
+        rays_ok = False
     if not cap_claim_ok:
         warnings.append(
             f"miss report claims within_cap={miss_report.get('within_cap')}, "
@@ -464,7 +478,16 @@ def audit_miss_report(miss_report, depth, canonical=True, miss_mask=None):
     mask_verified = bool(coordinates_match and count_ok and hash_ok)
     audit = {k: v for k, v in miss_report.items()
              if k not in ("filled_pixels", "miss_mask")}
+    # The AUTHORITATIVE values are the mask-derived ones; the declared miss_count /
+    # miss_rate / hash are kept only under *_declared so a reader can see what was
+    # claimed and what was measured (F5).
+    for key in ("miss_count", "miss_rate", "filled_pixels_sha256"):
+        if key in audit:
+            audit[f"{key}_declared"] = audit.pop(key)
     audit.update({
+        "miss_count": true_count,
+        "miss_rate": true_rate,
+        "filled_pixels_sha256": true_hash,
         "n_rays_recomputed": n_rays,
         "miss_count_from_mask": true_count,
         "miss_rate_recomputed": true_rate,

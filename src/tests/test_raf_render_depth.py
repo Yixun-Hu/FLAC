@@ -193,7 +193,7 @@ def test_depth_qa_on_a_good_map():
     mesh = _box_mesh_raf(x0=-10.0, x1=10.0, y0=0.0, y1=3.0, z0=-10.0, z1=10.0)
     position = np.array([0.0, 0.0, 1.0])
     depth = raf_render.render_depth(mesh, position)
-    qa = raf_render.depth_qa(depth, position)
+    qa = raf_render.depth_qa(depth, position, miss_report=_clean_report(depth))
     assert qa["passed"] is True
     assert qa["finite"] is True and qa["positive"] is True
     assert qa["hit_rate"] == 1.0
@@ -210,7 +210,8 @@ def test_depth_qa_flags_a_floor_mismatch_without_failing_the_map():
     floor mismatch is a recorded warning; only structural defects fail a map."""
     mesh = _box_mesh_raf(x0=-10.0, x1=10.0, y0=0.0, y1=3.0, z0=-10.0, z1=10.0)
     depth = raf_render.render_depth(mesh, np.array([0.0, 0.0, 1.0]))
-    qa = raf_render.depth_qa(depth, np.array([0.0, 0.0, 2.0]))  # wrong height on purpose
+    qa = raf_render.depth_qa(depth, np.array([0.0, 0.0, 2.0]),  # wrong height on purpose
+                             miss_report=_clean_report(depth))
     assert qa["floor_ok"] is False
     assert qa["passed"] is True
     assert any("floor" in w for w in qa["warnings"])
@@ -346,7 +347,7 @@ def test_depth_qa_requires_the_canonical_256x512_float32():
 def test_depth_qa_accepts_non_canonical_dims_only_when_declared():
     depth = np.full((4, 8), 2.0, dtype=np.float32)
     qa = raf_render.depth_qa(depth, np.array([0.0, 0.0, 1.0]), img_h=4, img_w=8,
-                             canonical=False)
+                             canonical=False, miss_report=_clean_report(depth))
     assert qa["canonical_shape"] is True     # matches the declared grid
     assert qa["canonical"] is False          # ... but the record is tainted
     assert qa["passed"] is True
@@ -668,10 +669,13 @@ def test_floor_tolerance_accepts_a_real_scan_deficit():
     mesh = _box_mesh_raf(x0=-10.0, x1=10.0, y0=0.0, y1=3.0, z0=-10.0, z1=10.0)
     position = np.array([0.0, 0.0, 1.0])
     depth = raf_render.render_depth(mesh, position)
-    qa = raf_render.depth_qa(depth, position + np.array([0.0, 0.0, 0.10]))
+    report = _clean_report(depth)
+    qa = raf_render.depth_qa(depth, position + np.array([0.0, 0.0, 0.10]),
+                             miss_report=report)
     assert qa["floor_ok"] is True
     assert qa["warnings"] == []
-    far = raf_render.depth_qa(depth, position + np.array([0.0, 0.0, 0.30]))
+    far = raf_render.depth_qa(depth, position + np.array([0.0, 0.0, 0.30]),
+                              miss_report=report)
     assert far["floor_ok"] is False
     assert far["passed"] is True                # still a warning, never an abort
 
@@ -910,6 +914,20 @@ def test_miss_report_carries_the_raw_hit_mask_digest():
     # every number in the verdict is derived from the mask, not from the report
     assert audit["miss_count_from_mask"] == report["miss_count"]
     assert audit["filled_pixels_sha256_from_mask"] == report["filled_pixels_sha256"]
+
+
+def _clean_report(depth):
+    """A zero-miss report WITH its raw mask -- what render_depth always produces.
+
+    QA now requires mask-verified evidence for every passing result (F5), so a
+    unit call must supply it exactly as production does.
+    """
+    arr = np.asarray(depth)
+    return {"miss_count": 0, "miss_rate": 0.0, "within_cap": True,
+            "max_miss_rate": raf_render.DEFAULT_MAX_MISS_RATE,
+            "filled_pixels": [], "filled_pixels_sha256": raf_render.EMPTY_FILL_HASH,
+            "hit_mask_sha256": raf_render.EMPTY_FILL_HASH,
+            "miss_mask": np.zeros(arr.shape[:2], dtype=bool), "n_rays": int(arr.size)}
 
 
 def _mask_with(shape, coords):
@@ -1286,3 +1304,44 @@ def test_bearing_and_vertical_deltas_do_not_shadow_each_other():
     assert with_height["bearing_delta_deg"] == plain["bearing_delta_deg"]
     assert with_height["vertical_axis"]["delta_m"] != with_height["bearing_delta_deg"]
     assert 0.0 <= with_height["bearing_delta_deg"] <= 180.0
+
+
+# --------------------------------------------------------------------------- #
+# r6 F5: mask-verified evidence is required for EVERY passing QA result
+# --------------------------------------------------------------------------- #
+def test_depth_qa_refuses_to_pass_without_a_miss_report():
+    """F5: an absent report left misses=None and `misses is None or audit_ok`
+    passed, so the mandatory contract was still fail-open."""
+    depth = np.full((256, 512), 2.0, dtype=np.float32)
+    qa = raf_render.depth_qa(depth, np.array([0.0, 0.0, 1.0]))
+    assert qa["passed"] is False
+    assert qa["misses"]["mask_verified"] is False
+    assert any("never saw" in w for w in qa["warnings"])
+
+
+def test_depth_qa_requires_mask_verification_for_a_zero_miss_map():
+    mesh = _box_mesh_raf(**_BOX)
+    position = np.array([0.3, 5.0, 1.5])
+    depth, report = raf_render.render_depth(mesh, position, return_report=True)
+    assert report["miss_count"] == 0
+    assert raf_render.depth_qa(depth, position, miss_report=report)["passed"] is True
+
+    without_mask = {k: v for k, v in report.items() if k != "miss_mask"}
+    qa = raf_render.depth_qa(depth, position, miss_report=without_mask)
+    assert qa["misses"]["mask_verified"] is False
+    assert qa["passed"] is False
+
+
+def test_the_audit_records_mask_derived_values_as_authoritative():
+    depth = np.full((8, 16), 2.0, dtype=np.float32)
+    coords = [[3, 4]]
+    report = _report_for(coords, 128, max_miss_rate=0.05, miss_rate=0.5,
+                         miss_count=1)
+    audit, warnings = raf_render.audit_miss_report(
+        report, depth, miss_mask=_mask_with((8, 16), coords), canonical=False)
+    assert audit["miss_rate"] == pytest.approx(1 / 128)     # mask-derived
+    assert audit["miss_rate_declared"] == 0.5               # what was claimed
+    assert audit["miss_count"] == 1
+    assert audit["filled_pixels_sha256"] == raf_render.fill_hash(coords)
+    assert audit["audit_ok"] is False                        # the two disagree
+    assert any("declared miss_rate" in w for w in warnings)
