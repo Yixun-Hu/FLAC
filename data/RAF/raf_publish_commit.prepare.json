@@ -1,0 +1,49 @@
+{
+    "generation": "67a91a652b144ad29082ffc0b4636263",
+    "kind": "prepare",
+    "committed_utc": "2026-08-20T16:25:57Z",
+    "marker_root": "/home/yixunhu/codespace/exp-19-raf-finetune/data/RAF",
+    "roots": {
+        "/media/diskstation/yixunhu/RAF_processed": {
+            "manifest": "raf_publish_manifest.json",
+            "manifest_sha256": "b351a4cb7bad330dcda004285c1c779ff11743344b2524633057f9578a308abf",
+            "n_files": 1517
+        },
+        "/home/yixunhu/codespace/exp-19-raf-finetune/data/RAF": {
+            "manifest": "raf_publish_manifest.json",
+            "manifest_sha256": "7d44fe6880f00099be6fe01962448ec22b145e16814938952dac11edc4db9da5",
+            "n_files": 6
+        }
+    },
+    "canonical": true,
+    "taint": [],
+    "parameters": {
+        "rooms": [
+            "EmptyRoom",
+            "FurnishedRoom"
+        ],
+        "n_groups": 16,
+        "n_val_groups": 4,
+        "n_train": 12,
+        "n_diagnostic_groups": 1,
+        "seed": 0,
+        "full_crosscheck": true,
+        "allow_nonuniform": true
+    },
+    "canonical_parameters": true,
+    "readback_record": {
+        "path": "/home/yixunhu/codespace/exp-19-raf-finetune/data/RAF/raf_readback_record.json",
+        "sha256": "9288181be62bf8b4669880522fadaab18527facb2749837f768572069f4876c3",
+        "canonical": true,
+        "taint": [],
+        "corpus_binding": [
+            "EmptyRoom: pose-file digests",
+            "FurnishedRoom: pose-file digests"
+        ],
+        "schema_version": 1,
+        "created_utc": "2026-08-20T04:22:23Z",
+        "gauge_pinned": "RAF_TO_PIPELINE:(X,Z,Y)",
+        "quat_order_pinned": "xyzw",
+        "t60_headline": "headline"
+    }
+}
