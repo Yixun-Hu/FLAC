@@ -1420,7 +1420,7 @@ def process_query(args, engine, context, md, obs_wav):
 
 
 def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, expected=None,
-                   dataset_config=None):
+                   dataset_config=None, paths=None):
     """Score every query under a fail-closed identity contract (plan §2.1, C2).
 
     The audit is IN the scoring loop, not a separate earlier pass (r3 review
@@ -1442,7 +1442,7 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
     if not expected:
         _refuse("the registered split enumerates no queries")
 
-    paths = artifact_paths(args)
+    paths = paths or artifact_paths(args)      # main claims them before any model load
     rows_path, summary_path = paths["rows"], paths["summary"]
     partial_rows = rows_path + ".partial"
     rows, scored, seen_rooms = [], [], set()
@@ -1526,13 +1526,15 @@ def main(argv=None):
     if args.mode == "reaggregate":
         return run_reaggregate(args)
 
-    validate_dataset_split(args)
-    model_config, ckpt = load_and_validate_artifacts(args)
+    # ---- everything cheap and refusable first (r4 review M5) -----------------
+    # configs read + hashed, registration verified, context resolved, output
+    # targets claimed -- all before a single byte of a checkpoint is deserialized.
     dataset_config = load_dataset_config(args)
-    assert_registration_sha(args, dataset_config)        # O17, before any model load
+    validate_dataset_split(args, dataset_config)
+    model_config = read_model_config(args)
+    context_k = resolve_context_k(dataset_config)
+    assert_registration_sha(args, dataset_config)
 
-    # Freeze the candidate manifest and resolve every locked quantity while this is
-    # still pure disk work, so a registration mismatch costs no model load (F4/F7).
     candidate_manifest = None if args.parity_check else manifest_for_dataset_config(dataset_config)
     manifest_hash = manifest_sha256(candidate_manifest) if candidate_manifest else "n/a"
     ckpt_sha256 = sha256_file(args.ckpt_path) if args.score_source == "flac" else "n/a"
@@ -1545,7 +1547,10 @@ def main(argv=None):
         "cond_method": args.cond_method, "cond_autocast": args.cond_autocast,
         "steps": args.steps, "cfg_scale": args.cfg_scale, "seed": args.seed,
         "readout": "mean", "candidate_manifest_sha256": manifest_hash})
+    paths = None if args.parity_check else artifact_paths(args)
 
+    # ---- only now: deserialize, construct, load data ------------------------
+    ckpt = load_checkpoint_and_validate(args, model_config)
     torch.set_float32_matmul_precision("medium")
     agree = load_agree_audio(args.agree_ckpt, args.device)
     if args.score_source == "gt_rir":
@@ -1555,8 +1560,6 @@ def main(argv=None):
         engine, context = build_engine(args, agree=agree, device=args.device,
                                        model_config=model_config, ckpt=ckpt)
 
-    # Seeded exactly where evaluate_model seeds it -- after the model build and
-    # before the loader, because the per-item context draw happens in the workers.
     pl.seed_everything(args.seed, workers=True)
     loader = build_dataloader(args, model_config, dataset_config)
 
@@ -1572,11 +1575,11 @@ def main(argv=None):
     expected = expected_split_identities_from_config(dataset_config)
     print(f"registered split: {len(expected)} queries")
     context["manifest"] = candidate_manifest
-    context["context_k"] = resolve_context_k(dataset_config)
+    context["context_k"] = context_k
     print(f"candidate manifest frozen: {len(candidate_manifest['rooms'])} rooms, "
           f"sha256={manifest_hash[:12]}...")
     result = run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256,
-                            expected=expected, dataset_config=dataset_config)
+                            expected=expected, dataset_config=dataset_config, paths=paths)
     summary = result["summary"]
     print(f"rows:    {result['rows_path']}")
     print(f"summary: {result['summary_path']}")
@@ -1588,6 +1591,23 @@ def main(argv=None):
 
 
 
+def read_model_config(args):
+    """Read the model config and refuse a foreign objective -- no deserialization."""
+    with open(args.model_config) as handle:
+        model_config = json.load(handle)
+    assert_rectified_flow(model_config)
+    return model_config
+
+
+def load_checkpoint_and_validate(args, model_config):
+    """Deserialize the checkpoint and refuse an ARE artifact (CPU, no model build)."""
+    if args.score_source != "flac":
+        return None
+    ckpt = torch.load(args.ckpt_path, map_location="cpu")
+    assert_no_are(ckpt.get("model_config"), copy.deepcopy(model_config))
+    return ckpt
+
+
 def load_and_validate_artifacts(args):
     """CPU-only artifact validation, BEFORE anything is built or moved to a device.
 
@@ -1596,14 +1616,8 @@ def load_and_validate_artifacts(args):
     those refusals lived in ``build_engine``, i.e. after the AGREE scorer had
     already been constructed on the target device (r3 review finding 9).
     """
-    with open(args.model_config) as handle:
-        model_config = json.load(handle)
-    assert_rectified_flow(model_config)
-    ckpt = None
-    if args.score_source == "flac":
-        ckpt = torch.load(args.ckpt_path, map_location="cpu")
-        assert_no_are(ckpt.get("model_config"), copy.deepcopy(model_config))
-    return model_config, ckpt
+    model_config = read_model_config(args)
+    return model_config, load_checkpoint_and_validate(args, model_config)
 
 
 def load_dataset_config(args):

@@ -649,8 +649,8 @@ def _args(**over):
                 cond_method="vanilla", frame_avg_angles=None, rotate_deg=0.0,
                 cond_autocast="default", score_source="flac", control="none",
                 batch_size=64, num_workers=6, out_dir="out", eval_name="exp18_R2",
-                smoke=False, max_queries=None, registration_sha=None, parity_check=False,
-                device="cpu")
+                smoke=False, max_queries=None, registration_sha=None,
+                registration_manifest=None, parity_check=False, device="cpu")
     base.update(over)
     return types.SimpleNamespace(**base)
 
@@ -1485,7 +1485,7 @@ def test_load_and_validate_artifacts_runs_before_the_scorer_is_built(tmp_path, m
     monkeypatch.setattr(el, "load_agree_audio", _never)
     monkeypatch.setattr(el, "build_engine", _never)
     with pytest.raises(SystemExit):
-        el.main(["--model-config", str(config), "--dataset-config", "d.json",
+        el.main(["--model-config", str(config), "--dataset-config", _SEEN_CONFIG,
                  "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt", "--num-samples", "2",
                  "--device", "cpu"])
 
@@ -2341,21 +2341,23 @@ def test_provenance_carries_the_resolved_device_block():
 
 
 def test_main_validates_registration_before_loading_any_model(tmp_path, monkeypatch):
-    """A registered unseen run without --registration-sha must be refused before
-    the checkpoint is read and before AGREE is constructed (F7)."""
+    """A registered unseen run without the registration flags must be refused
+    before the checkpoint is deserialized and before AGREE is constructed."""
+    model_config = tmp_path / "m.json"
+    model_config.write_text(_json.dumps(
+        {"model": {"diffusion": {"diffusion_objective": "rectified_flow"}},
+         "sample_size": 10240, "sample_rate": 22050}))
+
     def _never(*args, **kwargs):
         raise AssertionError("nothing may be loaded before registration validates")
 
     monkeypatch.setattr(el, "load_agree_audio", _never)
     monkeypatch.setattr(el, "build_engine", _never)
-    monkeypatch.setattr(el, "load_and_validate_artifacts",
-                        lambda args: ({"model": {"diffusion": {
-                            "diffusion_objective": "rectified_flow"}},
-                            "sample_size": 10240, "sample_rate": 22050}, None))
+    monkeypatch.setattr(el, "load_checkpoint_and_validate", _never)
     with pytest.raises(SystemExit):
-        el.main(["--model-config", "m.json", "--dataset-config", _UNSEEN_CONFIG,
+        el.main(["--model-config", str(model_config), "--dataset-config", _UNSEEN_CONFIG,
                  "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt", "--num-samples", "8",
-                 "--device", "cpu"])
+                 "--out-dir", str(tmp_path / "out"), "--device", "cpu"])
 
 
 # --------------------------------------------------------------------------- #
@@ -3253,3 +3255,68 @@ def test_verify_registration_records_the_resolved_sha(tmp_path):
     record = el.build_provenance(args, ckpt_sha256="a", agree_sha256="b", split_hash="c",
                                  weights_source="ema", n_queries=1)
     assert record["registration_sha_resolved"] == sha
+
+
+# --------------------------------------------------------------------------- #
+# r5 item 5 (r4 review M5): the "before model loads" ordering was incomplete --
+# the checkpoint was deserialized before the registration flags were checked, and
+# the context configuration and output-collision refusal happened only after both
+# models and the dataloader were built.
+# --------------------------------------------------------------------------- #
+def test_main_runs_every_cheap_validation_before_any_deserialization(tmp_path, monkeypatch):
+    """Order is recorded by spies, not asserted by inspection: configs are read and
+    hashed, registration verified, context resolved and output targets claimed
+    BEFORE torch.load of the checkpoint, AGREE, the generator and the dataloader."""
+    events = []
+    model_config = tmp_path / "m.json"
+    model_config.write_text(_json.dumps(
+        {"model": {"diffusion": {"diffusion_objective": "rectified_flow"}},
+         "sample_size": 10240, "sample_rate": 22050}))
+
+    def spy(name, result=None, raises=None):
+        def _call(*args, **kwargs):
+            events.append(name)
+            if raises is not None:
+                raise raises
+            return result
+        return _call
+
+    monkeypatch.setattr(el, "load_dataset_config", lambda args: (
+        events.append("read_dataset_config") or _json.loads(open(_SEEN_CONFIG).read())))
+    monkeypatch.setattr(el, "read_model_config", lambda args: (
+        events.append("read_model_config") or _json.loads(open(model_config).read())))
+    monkeypatch.setattr(el, "verify_registration", spy("registration", result=False))
+    monkeypatch.setattr(el, "resolve_context_k", spy("context_k", result=8))
+    monkeypatch.setattr(el, "manifest_for_dataset_config",
+                        spy("manifest", result={"rooms": {}, "dataset_root": "x"}))
+    monkeypatch.setattr(el, "artifact_paths", spy("artifact_paths", result={
+        "rows": str(tmp_path / "r.jsonl"), "summary": str(tmp_path / "s.json"),
+        "manifest": str(tmp_path / "m.json.out")}))
+    monkeypatch.setattr(el, "sha256_file", lambda path: "0" * 64)
+    monkeypatch.setattr(el, "load_checkpoint_and_validate", spy("torch_load", result={}))
+    monkeypatch.setattr(el, "load_agree_audio", spy("agree"))
+    monkeypatch.setattr(el, "build_engine", spy("engine", result=(None, {})))
+    monkeypatch.setattr(el, "build_dataloader",
+                        spy("dataloader", raises=SystemExit("stop after the ordering")))
+
+    with pytest.raises(SystemExit):
+        el.main(["--model-config", str(model_config), "--dataset-config", _SEEN_CONFIG,
+                 "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt", "--num-samples", "2",
+                 "--out-dir", str(tmp_path / "out"), "--device", "cpu"])
+
+    for early in ("read_dataset_config", "read_model_config", "registration", "context_k",
+                  "artifact_paths"):
+        for late in ("torch_load", "agree", "engine", "dataloader"):
+            assert events.index(early) < events.index(late), f"{early} must precede {late}"
+    assert events.index("torch_load") < events.index("agree") < events.index("engine")
+    assert events.index("engine") < events.index("dataloader")
+
+
+def test_read_model_config_and_checkpoint_validation_are_separable(tmp_path):
+    config = tmp_path / "m.json"
+    config.write_text(_json.dumps({"model": {"diffusion": {"diffusion_objective": "v"}},
+                                   "sample_size": 10240, "sample_rate": 22050}))
+    args = el.parse_args(["--model-config", str(config), "--dataset-config", "d.json",
+                          "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt", "--num-samples", "2"])
+    with pytest.raises(SystemExit):
+        el.read_model_config(args)                        # objective refused without torch.load
