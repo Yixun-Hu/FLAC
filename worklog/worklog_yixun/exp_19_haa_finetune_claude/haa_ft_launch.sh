@@ -127,8 +127,8 @@ PROBE_SCRIPT="${EXPDIR}/probe_haa_fa_invariance.py"
 
 # --- gate 1: ARM / GPU / MODE / DRY_RUN are matched EXACTLY, never inferred --- #
 case "$ARM" in
-  P1|BF|YAW|YNA) ;;
-  *) echo "ARM must be exactly P1, BF, YAW or YNA (got '${ARM}') - abort"; exit 2 ;;
+  P1|BF|YAW|YNA|BNA) ;;
+  *) echo "ARM must be exactly P1, BF, YAW, YNA or BNA (got '${ARM}') - abort"; exit 2 ;;
 esac
 case "$GPU" in
   0|1) ;;
@@ -179,10 +179,13 @@ fi
 case "$ARM" in
   P1)  ARM_CFG="$STOCK_CFG" ;;
   YNA) ARM_CFG="$STOCK_CFG" ;;  # ablation arm (Yixun 2026-08-19): YAW's INIT, stock finetune — separates "aug-during-FT burden" from "YAW representation transfers worse"
+  BNA) ARM_CFG="$STOCK_CFG" ;;  # ablation arm (Yixun 2026-08-20): B-F's INIT, stock (vanilla) finetune — can FA shed its architectural tax at adaptation, mirroring YNA? Risk disclosed: BF's DiT was trained on ORBIT-AVERAGED conditioning, so single-orientation conditioning is an interface shift YNA never faced
   BF)  ARM_CFG="${EXPDIR}/FLAC_HAA_finetune_BF.json" ;;
   YAW) ARM_CFG="${EXPDIR}/FLAC_HAA_finetune_YAW.json" ;;
 esac
-INIT_ARM="$ARM"; [ "$ARM" = "YNA" ] && INIT_ARM="YAW"   # YNA = YAW's init + stock finetune
+INIT_ARM="$ARM"
+[ "$ARM" = "YNA" ] && INIT_ARM="YAW"   # YNA = YAW's init + stock finetune
+[ "$ARM" = "BNA" ] && INIT_ARM="BF"    # BNA = B-F's init + stock finetune
 INIT="${INIT_DIR}/HAA_init_${INIT_ARM}.ckpt"
 
 case "$MODE" in
@@ -289,6 +292,7 @@ PIN_probe="24110322095e125f844b6793cad5eda4b2cf42128e380d551ff22653cb921de0  ${P
 case "$ARM" in
   P1)  PIN_armcfg="" ;;   # P1's config IS the stock file, already pinned above
   YNA) PIN_armcfg="" ;;   # same stock file
+  BNA) PIN_armcfg="" ;;   # same stock file
   BF)  PIN_armcfg="834e4933f2f5c8050f196043e11260e00023a7c31205a55961e0a77ca910c1dc  ${ARM_CFG}" ;;
   YAW) PIN_armcfg="a03d106cd72744df40187b5c493010ecc996275b2afa32a4811d7c962c77cb53  ${ARM_CFG}" ;;
 esac
@@ -380,7 +384,7 @@ t = arm["training"]
 if t.get("use_ema") is not True:
     sys.exit("use_ema must be true: the inits are EMA weights and the HAA rows will be EMA rows")
 
-if arm_id in ("P1", "YNA"):
+if arm_id in ("P1", "YNA", "BNA"):
     # P1 consumes the stock file itself; anything else is a copy that can drift.
     if arm_bytes != stock_bytes:
         sys.exit(f"{arm_id} must run the stock config bytes; {arm_p} differs from {stock_p}")
@@ -500,7 +504,7 @@ PY
 # HARD gate — a failure STOPS the arm and is reported to Yixun; the sign
 # convention is NOT silently "fixed" here. P1 rotates nothing, so it is skipped,
 # explicitly and by name.
-if [ "$ARM" = "P1" ] || [ "$ARM" = "YNA" ]; then
+if [ "$ARM" = "P1" ] || [ "$ARM" = "YNA" ] || [ "$ARM" = "BNA" ]; then
   echo "R1 probe: SKIPPED for the ${ARM} arm (vanilla conditioning rotates nothing)"
 else
   echo "R1 probe: required for the ${ARM} arm (it drives src/data/yaw_rotation.py)"

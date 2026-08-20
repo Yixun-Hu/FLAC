@@ -18,8 +18,8 @@ import argparse, json, glob, statistics as st
 KEYS = ("T60","C50","EDT","RIR_to_GT_RIR_R@1","RIR_to_GT_RIR_R@5","RIR_to_GT_RIR_R@10","FD")
 PREC = (4,4,3,3,3,3,4)
 NAMES = {"P1":"Vanilla FLAC (P1→HAA)","BF":"Per-angle FA (B-F→HAA)",
-         "YAW":"Yaw-Aug, aug ON in FT","YNA":"Yaw-Aug init, aug OFF in FT"}
-EXPECTED_CM = {"P1":"vanilla","YAW":"vanilla","YNA":"vanilla","BF":"fa_invariant"}
+         "YAW":"Yaw-Aug, aug ON in FT","YNA":"Yaw-Aug init, aug OFF in FT","BNA":"FA(B-F) init, vanilla FT"}
+EXPECTED_CM = {"P1":"vanilla","YAW":"vanilla","YNA":"vanilla","BNA":"vanilla","BF":"fa_invariant"}
 
 def records(arm, step, K, seeds):
     fs = sorted(f for f in glob.glob(
@@ -83,9 +83,9 @@ def print_curve(style):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--table", choices=["two","three","four","curve"], default="four")
+    ap.add_argument("--table", choices=["two","three","four","five","curve"], default="four")
     ap.add_argument("--style", choices=["paper","pooled"], default="paper")
     a = ap.parse_args()
-    arms = {"two":("P1","YAW"), "three":("P1","BF","YAW"), "four":("P1","YNA","YAW","BF")}.get(a.table)
+    arms = {"two":("P1","YAW"), "three":("P1","BF","YAW"), "four":("P1","YNA","YAW","BF"), "five":("P1","YNA","BNA","YAW","BF")}.get(a.table)
     if a.table == "curve": print_curve(a.style)
     else: print_endpoint(arms, a.style)
