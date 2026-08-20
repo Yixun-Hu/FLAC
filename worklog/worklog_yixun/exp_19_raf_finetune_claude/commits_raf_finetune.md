@@ -59,3 +59,4 @@ Rows above record development SHAs on `localization-exp` (history of record for 
 | `ae9d308` | r4 fix T5: vertical-axis nadir-vs-tracked-height gate joins publication; horizontal-permutation detectability boundary RECORDED; candidate-error tests transform mesh+poses together |
 | `cde1083` | r4 fix T9: committed synthetic depth-reference fixtures; real-HAA band as a skip-gated integration test pinned by hash |
 | `0e100f0` | r4 fix T10: stale text purged (wxyz usage example, 'release does not state', 'full hit rate') |
+| `36c92f3` | r4 re-pin: canonical record regenerated with `room_index` pose digests (sha256 `9288181b`); T1 corpus binding now full, counts fallback retained for legacy records |
