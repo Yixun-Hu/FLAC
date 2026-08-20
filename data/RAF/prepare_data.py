@@ -754,6 +754,61 @@ def build_splits_record(per_room, params):
     return {"params": params, "git_describe": _git_describe(), "rooms": rooms}
 
 
+AMPLITUDE_CEILING = 0.75
+CLIP_CEILING = 0.999
+
+
+def one_significant_digit(value):
+    """Round to one significant digit (the registered scalar's precision)."""
+    value = float(value)
+    if value == 0.0 or not np.isfinite(value):
+        raise ValueError(f"cannot round {value!r} to one significant digit")
+    exponent = int(np.floor(np.log10(abs(value))))
+    return float(round(value, -exponent))
+
+
+def derive_amplitude_scalar(room_dir, trained_ids, ceiling=AMPLITUDE_CEILING,
+                            orig_sr=SOURCE_SR, target_sr=TARGET_SR):
+    """The registered scalar (Amendment 9), DERIVED from the corpus.
+
+    ``scalar = one significant digit of (ceiling / max trained-support peak)``,
+    measured on the RESAMPLED signal so it describes what will actually be written,
+    and over ``split_role == 'train'`` files only -- a loud test or val capture may
+    not shrink it. On the real corpus this evaluates to 0.75/0.24989 -> 3.0; the
+    value is never hardcoded, and its derivation set travels with it as a hash.
+
+    Basis: 30 FurnishedRoom files sit below the loader's -60 dB substitution
+    threshold, so they would be silently swapped for other items at train time.
+    """
+    trained_ids = sorted(trained_ids)
+    if not trained_ids:
+        raise ValueError(
+            "cannot derive an amplitude scalar without trained supports "
+            "(split_role == 'train')")
+    peak = 0.0
+    for capture_id in trained_ids:
+        src = os.path.join(room_dir, "data", capture_id, "rir.wav")
+        audio, sr = sf.read(src, dtype="float32", always_2d=True)
+        if sr != orig_sr:
+            raise ValueError(f"{src}: expected {orig_sr} Hz, got {sr} Hz")
+        resampled = librosa.resample(audio[:, 0], orig_sr=orig_sr, target_sr=target_sr)
+        peak = max(peak, float(np.abs(np.asarray(resampled)).max()))
+    if peak <= 0.0:
+        raise ValueError(
+            f"every trained support in {room_dir} is silent; no scalar can be derived")
+    scalar = one_significant_digit(ceiling / peak)
+    return {
+        "formula": ("one significant digit of (ceiling / max trained-support peak), "
+                    "measured on the resampled signal"),
+        "ceiling": float(ceiling),
+        "max_train_support_peak": peak,
+        "scalar": scalar,
+        "derivation_ids": trained_ids,
+        "derivation_id_sha256": derivation_id_hash(trained_ids),
+        "n_train_supports": len(trained_ids),
+    }
+
+
 def derivation_id_hash(capture_ids):
     """sha256 over the sorted id set a statistic was derived from (S6).
 
@@ -837,8 +892,13 @@ def resample_and_write(room_dir, out_room_dir, capture_ids, target_sr=TARGET_SR,
         if not np.isfinite(out).all():
             raise ValueError(f"{src}: resampling produced non-finite samples")
         peak = float(np.abs(out).max())
-        if peak > 1.0:
-            raise ValueError(f"{src}: resampled signal clips (peak {peak:.6f} > 1.0)")
+        # With a scalar applied the ceiling is the loader's clamp margin, not 1.0:
+        # a scaled file that reaches 1.0 would be clipped at load (Amendment 9).
+        limit = CLIP_CEILING if scale is not None else 1.0
+        if peak > limit:
+            raise ValueError(
+                f"{src}: resampled signal clips (peak {peak:.6f} > {limit})"
+                + (f" after the x{scale} amplitude scalar" if scale is not None else ""))
 
         out_path = os.path.join(dest, f"{capture_id}.wav")
         sf.write(out_path, out, target_sr, subtype="FLOAT")
@@ -875,6 +935,13 @@ def resample_and_write(room_dir, out_room_dir, capture_ids, target_sr=TARGET_SR,
             "role": None if roles is None else roles.get(capture_id),
         }
 
+    if scale is not None and n_silent:
+        silent = sorted(c for c, e in files.items() if e["silent_at_threshold"])
+        raise ValueError(
+            f"{n_silent} files are still below {silence_db} dBFS after the x{scale} "
+            f"amplitude scalar ({silent[:5]}): the scalar exists to lift them above "
+            "the loader's substitution threshold, so this one is insufficient")
+
     by_role = {}
     for capture_id, entry in files.items():
         if entry["role"] is not None:
@@ -897,8 +964,9 @@ def resample_and_write(room_dir, out_room_dir, capture_ids, target_sr=TARGET_SR,
         # RAF is off-scale against HAA/AR, and any scalar must come from the train
         # supports alone -- never from statistics that saw a test item.
         "scale_decision": {
-            "rule": ("none unless RAF is off-scale versus HAA/AR; if applied, ONE "
-                     "scalar applied identically to targets and context"),
+            "rule": ("ONE scalar applied identically to every written file, so "
+                     "targets and their context are scaled alike by construction"),
+            "ceiling": AMPLITUDE_CEILING,
             "derived_from": "trained supports only (split_role == 'train')",
             "derivation_ids": trained_ids,
             "derivation_id_sha256": derivation_hash,
@@ -1045,7 +1113,7 @@ def main(argv=None):
     with PublishTransaction(args.split_dir, kind="prepare") as publish_txn:
         staged_runtime = publish_txn.stage(args.output_dir)
         staged_splits = publish_txn.stage(args.split_dir)
-        per_room, audits = {}, {}
+        per_room, audits, scale_decisions = {}, {}, {}
         for room in args.rooms:
             room_dir = os.path.join(args.raf_root, "archived", room)
             logger.info("reading %s", room_dir)
@@ -1067,9 +1135,22 @@ def main(argv=None):
                             for c in next(g for g in groups
                                           if g["group_key"] == gk)["capture_ids"]]
             role_of = {c: entry["split_role"] for c, entry in poses.items()}
+            # Amendment 9: derive the scalar from the trained supports, then apply
+            # it to every written file. Context is read from those same files, so
+            # targets and context are scaled identically by construction.
+            trained_ids = sorted(c for c in selected_ids if role_of.get(c) == "train")
+            scale_decisions[room] = derive_amplitude_scalar(room_dir, trained_ids)
+            logger.info("%s: amplitude scalar x%g (ceiling %g / max train-support "
+                        "peak %.5f over %d supports)", room,
+                        scale_decisions[room]["scalar"], scale_decisions[room]["ceiling"],
+                        scale_decisions[room]["max_train_support_peak"],
+                        scale_decisions[room]["n_train_supports"])
             audits[room] = resample_and_write(
                 room_dir, os.path.join(staged_runtime.staging_dir, room),
-                selected_ids, roles=role_of)
+                selected_ids, roles=role_of,
+                scale=scale_decisions[room]["scalar"],
+                scale_provenance=scale_decisions[room]["derivation_id_sha256"])
+            audits[room]["scale_decision"].update(scale_decisions[room])
             logger.info("%s: staged %d resampled RIRs (%d below %g dBFS)", room,
                         audits[room]["n_files"], audits[room]["n_silent"],
                         audits[room]["silence_threshold_db"])
@@ -1099,6 +1180,7 @@ def main(argv=None):
         splits_record["readback_record"] = readback_provenance
         splits_record["canonical"] = canonical
         splits_record["taint"] = taint
+        splits_record["amplitude_scalar"] = scale_decisions
         _write_json(staged_splits.path("raf_splits_record.json"), splits_record)
         _write_json(staged_splits.path("raf_amplitude_audit.json"),
                     {"params": params, "readback_record": readback_provenance,
@@ -1129,7 +1211,13 @@ def main(argv=None):
                           staged_splits.dest_root: expected_splits},
             validate_json=True,
             extra={"canonical": canonical, "taint": taint,
-                   "parameters": parameters,
+                   "parameters": dict(
+                       parameters,
+                       amplitude_ceiling=AMPLITUDE_CEILING,
+                       amplitude_scalar=(
+                           sorted({d["scalar"] for d in scale_decisions.values()})[0]
+                           if len({d["scalar"] for d in scale_decisions.values()}) == 1
+                           else sorted(d["scalar"] for d in scale_decisions.values()))),
                    "canonical_parameters": not deviations,
                    "readback_record": readback_provenance})
 

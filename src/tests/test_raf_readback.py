@@ -660,7 +660,7 @@ def test_canonical_parameters_are_the_registered_ones():
     assert raf_prepare.CANONICAL_PARAMS == {
         "rooms": ("EmptyRoom", "FurnishedRoom"), "n_groups": 16, "n_val_groups": 4,
         "n_train": 12, "n_diagnostic_groups": 1, "seed": 0, "full_crosscheck": True,
-        "allow_nonuniform": True,
+        "allow_nonuniform": True, "amplitude_ceiling": 0.75, "amplitude_scalar": 3.0,
     }
 
 
@@ -863,3 +863,163 @@ def test_the_pinned_record_matches_the_corpus_it_audited():
         _PINNED_RECORD, canonical=True,
         expected_raf_root="/media/diskstation/yixunhu/raf_dataset")
     assert record["params"]["raf_root"] == "/media/diskstation/yixunhu/raf_dataset"
+
+
+# --------------------------------------------------------------------------- #
+# r7 Amendment 9: the registered amplitude scalar, DERIVED not hardcoded
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("value,expected", [
+    (3.0013, 3.0), (2.4, 2.0), (0.75 / 0.24989, 3.0), (12.7, 10.0), (0.043, 0.04),
+])
+def test_one_significant_digit_rounding(value, expected):
+    assert raf_prepare.one_significant_digit(value) == pytest.approx(expected)
+
+
+def test_scalar_is_derived_from_the_train_support_peaks(tmp_path):
+    """scalar = 1 sig digit of (ceiling / max trained-support peak). The registered
+    corpus gives 0.75/0.24989 -> 3.0, but nothing here hardcodes 3."""
+    from test_raf_prepare_data import _default_groups, write_room
+
+    write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1), rir_peak=0.25)
+    room_dir = os.path.join(str(tmp_path), "archived", "EmptyRoom")
+    trained = [f"{i:06d}" for i in range(4)]
+    decision = raf_prepare.derive_amplitude_scalar(room_dir, trained)
+    assert decision["ceiling"] == 0.75
+    # the peak is measured on the RESAMPLED signal -- what actually gets written --
+    # and the scalar follows the formula from THAT, never from a constant
+    assert 0.15 < decision["max_train_support_peak"] < 0.25
+    assert decision["scalar"] == pytest.approx(
+        raf_prepare.one_significant_digit(0.75 / decision["max_train_support_peak"]))
+    assert decision["derivation_ids"] == trained
+    assert decision["derivation_id_sha256"] == raf_prepare.derivation_id_hash(trained)
+    assert "one significant digit" in decision["formula"]
+
+
+def test_scalar_derivation_ignores_non_trained_roles(tmp_path):
+    """A loud TEST file must not shrink the scalar: the derivation set is
+    split_role == 'train' only."""
+    from test_raf_prepare_data import _default_groups, write_room
+
+    write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1), rir_peak=0.25)
+    room_dir = os.path.join(str(tmp_path), "archived", "EmptyRoom")
+    import soundfile as sf_mod
+    from test_raf_prepare_data import _rir
+
+    loud = _rir(99) / 0.01 * 0.9
+    sf_mod.write(os.path.join(room_dir, "data", "000020", "rir.wav"), loud, 48000,
+                 subtype="FLOAT")
+    quiet_only = raf_prepare.derive_amplitude_scalar(room_dir, [f"{i:06d}" for i in range(4)])
+    with_loud = raf_prepare.derive_amplitude_scalar(
+        room_dir, [f"{i:06d}" for i in range(4)] + ["000020"])
+    assert with_loud["max_train_support_peak"] > quiet_only["max_train_support_peak"]
+    assert with_loud["scalar"] < quiet_only["scalar"]
+
+
+def test_scalar_derivation_requires_trained_supports(tmp_path):
+    from test_raf_prepare_data import _default_groups, write_room
+
+    write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1))
+    with pytest.raises(ValueError):
+        raf_prepare.derive_amplitude_scalar(
+            os.path.join(str(tmp_path), "archived", "EmptyRoom"), [])
+
+
+def test_applied_scalar_lifts_quiet_files_and_never_clips(tmp_path):
+    from test_raf_prepare_data import _default_groups, write_room
+
+    write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1), rir_peak=0.25)
+    room_dir = os.path.join(str(tmp_path), "archived", "EmptyRoom")
+    ids = [f"{i:06d}" for i in range(8)]
+    roles = {cid: ("train" if i < 4 else "test") for i, cid in enumerate(ids)}
+    decision = raf_prepare.derive_amplitude_scalar(room_dir, ids[:4])
+    audit = raf_prepare.resample_and_write(
+        room_dir, str(tmp_path / "runtime" / "EmptyRoom"), ids, roles=roles,
+        scale=decision["scalar"], scale_provenance=decision["derivation_id_sha256"])
+    assert audit["scale_decision"]["applied_scalar"] == pytest.approx(decision["scalar"])
+    for entry in audit["files"].values():
+        assert entry["peak"] <= 0.999
+        assert entry["roundtrip_max_abs_error"] == 0.0
+    assert audit["n_silent"] == 0
+
+
+def test_a_scalar_that_would_clip_is_refused(tmp_path):
+    from test_raf_prepare_data import _default_groups, write_room
+
+    write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1), rir_peak=0.25)
+    room_dir = os.path.join(str(tmp_path), "archived", "EmptyRoom")
+    ids = [f"{i:06d}" for i in range(4)]
+    roles = {cid: "train" for cid in ids}
+    with pytest.raises(ValueError) as exc:
+        raf_prepare.resample_and_write(
+            room_dir, str(tmp_path / "runtime" / "EmptyRoom"), ids, roles=roles,
+            scale=9.0, scale_provenance=raf_prepare.derivation_id_hash(ids))
+    assert "clip" in str(exc.value).lower()
+
+
+def test_a_scalar_that_leaves_silent_files_is_refused(tmp_path):
+    """Post-scale assertion: after applying a scalar, NO file may still sit below
+    the loader's -60 dBFS substitution threshold."""
+    from test_raf_prepare_data import _default_groups, write_room
+
+    write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1), rir_peak=1e-5)
+    room_dir = os.path.join(str(tmp_path), "archived", "EmptyRoom")
+    ids = [f"{i:06d}" for i in range(4)]
+    roles = {cid: "train" for cid in ids}
+    with pytest.raises(ValueError) as exc:
+        raf_prepare.resample_and_write(
+            room_dir, str(tmp_path / "runtime" / "EmptyRoom"), ids, roles=roles,
+            scale=2.0, scale_provenance=raf_prepare.derivation_id_hash(ids))
+    assert "-60" in str(exc.value) or "silent" in str(exc.value)
+
+
+def test_cli_derives_records_and_binds_the_scalar(tmp_path):
+    from test_raf_prepare_data import write_passing_readback_record, write_room
+    import publish as raf_publish
+
+    raf_root = tmp_path / "raf"
+    write_room(str(raf_root), "EmptyRoom", rir_peak=0.25)
+    argv = _prepare_argv(tmp_path, raf_root,
+                         readback=write_passing_readback_record(str(tmp_path / "rb.json")))
+    raf_prepare.main(argv)
+    split_dir = tmp_path / "splits"
+    with open(split_dir / "raf_amplitude_audit.json") as f:
+        audit = json.load(f)
+    decision = audit["rooms"]["EmptyRoom"]["scale_decision"]
+    derived = decision["applied_scalar"]
+    assert derived == pytest.approx(raf_prepare.one_significant_digit(
+        0.75 / decision["max_train_support_peak"]))
+    assert len(decision["derivation_id_sha256"]) == 64
+    assert decision["derivation_id_sha256"] == raf_prepare.derivation_id_hash(
+        decision["derivation_ids"])
+    with open(split_dir / "raf_splits_record.json") as f:
+        record = json.load(f)
+    assert record["amplitude_scalar"]["EmptyRoom"]["scalar"] == pytest.approx(derived)
+    with open(split_dir / raf_publish.marker_name("prepare")) as f:
+        marker = json.load(f)
+    assert marker["parameters"]["amplitude_scalar"] == pytest.approx(derived)
+    assert marker["parameters"]["amplitude_ceiling"] == 0.75
+
+
+def test_republication_keeps_split_content_byte_identical(tmp_path):
+    """Amendment 9 requires a NEW generation with IDENTICAL split content: the
+    seed and the FPS selection are untouched, only amplitudes change."""
+    from test_raf_prepare_data import write_passing_readback_record, write_room
+    import publish as raf_publish
+
+    raf_root = tmp_path / "raf"
+    write_room(str(raf_root), "EmptyRoom", rir_peak=0.25)
+    argv = _prepare_argv(tmp_path, raf_root,
+                         readback=write_passing_readback_record(str(tmp_path / "rb.json")))
+    split_dir = tmp_path / "splits"
+    raf_prepare.main(argv)
+    first = {name: (split_dir / name).read_bytes()
+             for name in ("train_base.json", "val_base.json", "test_base.json",
+                          "diagnostic_base.json")}
+    with open(split_dir / raf_publish.marker_name("prepare")) as f:
+        first_generation = json.load(f)["generation"]
+
+    raf_prepare.main(argv)                      # republish
+    for name, payload in first.items():
+        assert (split_dir / name).read_bytes() == payload, name
+    with open(split_dir / raf_publish.marker_name("prepare")) as f:
+        assert json.load(f)["generation"] != first_generation

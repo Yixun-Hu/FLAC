@@ -344,6 +344,11 @@ CANONICAL_PREPARE_PARAMS = {
     "seed": 0,
     "full_crosscheck": True,
     "allow_nonuniform": True,
+    # Amendment 9: the ceiling is the registered RULE input; the scalar is DERIVED
+    # from the corpus and equals 3.0 on it, which is what a canonical publication
+    # must reproduce.
+    "amplitude_ceiling": 0.75,
+    "amplitude_scalar": 3.0,
 }
 CANONICAL_RENDER_PARAMS = {
     "rooms": list(CANONICAL_ROOMS),
