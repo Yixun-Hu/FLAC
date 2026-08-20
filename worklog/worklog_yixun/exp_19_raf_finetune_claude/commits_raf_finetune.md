@@ -76,3 +76,4 @@ Rows above record development SHAs on `localization-exp` (history of record for 
 | `6a2ed4f` | r7 (9.2 F2/F3): ONE global scalar over both rooms (room-qualified derivation set); derivation hash/version/count in the marker identity; registered-scalar assertion before any write |
 | `ef6cef8` | r7 (9.2 F4): canonical render REQUIRES the HAA scale reference (fingerprint in the identity; `scale_checked` AND `scale_plausible`); hard-gates test gains bounds/scale negatives |
 | `e42b4be` | r7 (9.2 F5): committed split-file sha256 prefixes pinned as the republication baseline |
+| `d692ebc` | r7 (9.2 F3 close): canonical `amplitude_derivation_sha256` pinned to `8a740fee…` from generation `46a43f4ce82b`; shape check becomes an exact-value check |
