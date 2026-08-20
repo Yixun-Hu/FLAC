@@ -26,3 +26,12 @@
 - **Result** — `blocked`: the review invocation exited 1 with `Failed to authenticate: OAuth session expired and could not be refreshed`; `auth status` returned `{"loggedIn": false, "authMethod": "none", "apiProvider": "firstParty"}`. No reviewer model was reached and no review verdict exists. The failed attempt is recorded in `localization_grid_preflight_opus_plan_review.md` and must not be treated as approval.
 - **Analysis** — this is an authentication/infrastructure blocker, not a plan or implementation defect. SOP reviewer reciprocity forbids substituting Codex for Claude when the main Planner is Codex. Implementation remains unopened.
 - **Next** — Yixun reauthenticates Claude Code (the VS Code Claude extension or the native CLI), then rerun the same read-only Opus/max plan review, revise all findings, and surface the reviewed plan for explicit approval.
+
+## 2026-08-20T12:01:46-04:00 — planning state committed
+
+- **Goal** — preserve a clean, auditable planning boundary while the external review gate waits for authentication.
+- **Version Control** — branch `localization-exp`; `base_commit=ecb83523c4ae8c60d4cd5f0ae3e562f2a84f1fa9`; planning/scaffold commit `fe220ade27afeb5dad7331d19a56c660ac47ab57`; changed files are the five exp_09 query/plan/worklog/review-brief/review-attempt Markdown artifacts only; no source or test code exists yet.
+- **Command / Validation** — `git diff --check`; `git commit -m "exp_09: scaffold 3d localization grid plan"`.
+- **Result** — `passed`; commit created and the branch is one commit ahead of `origin/check-equivariance-necessity` before this bookkeeping commit.
+- **Analysis** — the source tree remains byte-identical to the base; stopping here obeys both the SOP user-approval gate and the cross-family review rule.
+- **Next** — authenticate and rerun the Opus review.
