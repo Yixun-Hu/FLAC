@@ -54,7 +54,8 @@ A_PID=$(bash $REC/launch_arm_ddp.sh "$REC/FLAC_AR_exp12A.json" exp12A_c3c4_ddp |
 if [ -z "$A_PID" ]; then say "STOP: arm A launch produced no pid"; exit 4; fi
 say "arm A DDP running pid $A_PID"
 setsid nohup bash $REC/disk_guard.sh "$A_PID" exp12A_c3c4_ddp 20 > /dev/null 2>&1 &
-say "disk guard armed on arm A"
+setsid nohup bash $REC/ckpt_reaper.sh "$A_PID" exp12A_c3c4_ddp 2 > /dev/null 2>&1 &
+say "disk guard + checkpoint reaper armed on arm A"
 wait_pid "$A_PID"
 say "arm A pid $A_PID exited"
 
