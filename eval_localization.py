@@ -840,6 +840,9 @@ def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source
         "candidate_manifest_sha256": candidate_manifest_sha256 or "n/a",
         "candidate_merge_groups": merge_groups,
         "metric_registerable": metric_registerable,
+        "metric_registration": getattr(args, "metric_registration", None) or "n/a",
+        "metric_registration_sha_resolved": getattr(
+            args, "metric_registration_sha_resolved", None) or "n/a",
         "split_file_sha256": split_file_sha256 or "n/a",
         **device_provenance(getattr(args, "device", "cpu")),
         "float32_matmul_precision": torch.get_float32_matmul_precision(),
@@ -1775,6 +1778,7 @@ def main(argv=None):
     context_k = resolve_context_k(dataset_config)
     split_check = assert_registered_split(args, dataset_config)
     assert_registration_sha(args, dataset_config)
+    assert_metric_registration(args, dataset_config)
 
     candidate_manifest = None if args.parity_check else manifest_for_dataset_config(dataset_config)
     manifest_hash = manifest_sha256(candidate_manifest) if candidate_manifest else "n/a"
@@ -1789,6 +1793,8 @@ def main(argv=None):
         "steps": args.steps, "cfg_scale": args.cfg_scale, "seed": args.seed,
         "readout": "mean", "candidate_manifest_sha256": manifest_hash,
         "split_file_sha256": split_check["file_sha256"]})
+    if getattr(args, "metric_registration", None):
+        verify_metric_registration(args, dataset_config)
     paths = None if args.parity_check else artifact_paths(args)
 
     # ---- only now: deserialize, construct, load data ------------------------
@@ -2922,3 +2928,64 @@ def score_query_metrics(args, row, position, snapshot, md, config, handle):
     metrics_row = build_metrics_row(row, position, None, metrics, config, ctx.shape[0])
     write_row(handle, metrics_row)
     return metrics_row
+
+
+def assert_metric_registration(args, dataset_config):
+    """Metrics on an UNSEEN split require a committed metric manifest.
+
+    Seen calibration runs deliberately have none -- that is where the constants
+    are chosen -- but they still record the full REGISTERABLE payload in
+    provenance, so what they used is auditable after the fact.
+    """
+    if not getattr(args, "metrics", False):
+        return False
+    if bool((dataset_config or {}).get("unseeneval", False)):
+        if not args.metric_registration:
+            _refuse("--metric-registration is required to run --metrics on the unseen split: "
+                    "no metric constant may be chosen, or changed, on held-out data")
+        if not args.registration_sha:
+            _refuse("--registration-sha is required with --metric-registration")
+        return True
+    return False
+
+
+def verify_metric_registration(args, dataset_config, repo_root=None):
+    """Machine-check the metric manifest, with the R2 gate's own machinery.
+
+    The commit rules are identical (full-hex object id, manifest inside the
+    worktree, byte-identical committed content, ancestor of HEAD) -- this only
+    changes WHAT is locked: rir_metrics' REGISTERABLE set plus the run's applied
+    metric configuration.
+    """
+    registered = assert_metric_registration(args, dataset_config)
+    if not args.metric_registration:
+        return False
+    verified = verify_registration_commit(args.metric_registration, args.registration_sha,
+                                          repo_root=repo_root)
+    manifest = verified["manifest"]
+
+    locked = manifest.get("registerable")
+    if not isinstance(locked, dict):
+        _refuse("the metric manifest does not lock a 'registerable' block")
+    current = metric_registerable_payload()
+    for key, value in sorted(current.items()):
+        if key not in locked:
+            _refuse(f"the metric manifest does not lock {key!r}")
+        if locked[key] != value:
+            _refuse(f"registered {key} is {locked[key]!r} but rir_metrics now defines {value!r}")
+    for key in sorted(set(locked) - set(current)):
+        _refuse(f"the metric manifest locks {key!r}, which rir_metrics no longer defines")
+
+    config = manifest.get("metric_config") or {}
+    applied = metric_config_from_args(args).payload()
+    for key in ("delta_max", "t30_backend", "m4_mu", "m4_sigma"):
+        if key not in config:
+            _refuse(f"the metric manifest does not lock metric_config.{key}")
+        if config[key] != applied.get(key):
+            _refuse(f"registered metric_config.{key} is {config[key]!r} but this run resolves "
+                    f"{applied.get(key)!r}")
+    if registered and applied.get("delta_grid"):
+        _refuse("a registered unseen metrics run must apply ONE delta_max, not the calibration "
+                "grid; pass --metric-delta-max exactly as registered")
+    args.metric_registration_sha_resolved = verified["resolved_sha"]
+    return True

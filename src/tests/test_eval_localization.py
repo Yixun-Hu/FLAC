@@ -4241,3 +4241,95 @@ def test_replay_preflight_checks_the_sibling_summary_provenance(tmp_path):
                                   "--dump-waveforms": str(tmp_path / "wf"), "--seed": "43"})
     with pytest.raises(SystemExit, match="seed"):
         el.preflight_verify_against(args, expected_queries=2)
+
+
+# --------------------------------------------------------------------------- #
+# R4-r2 item 2: metrics on an unseen split need a committed metric-registration
+# manifest, verified by the SAME machinery as the R2 protocol gate. Seen
+# calibration runs without one -- that is where the constants come from -- but
+# always records the full REGISTERABLE payload.
+# --------------------------------------------------------------------------- #
+def _metric_manifest(**over):
+    from src.localization.rir_metrics import registerable_payload
+    manifest = {"registerable": registerable_payload(),
+                "metric_config": {"delta_max": 8, "t30_backend": "torch",
+                                  "m4_mu": None, "m4_sigma": None},
+                "source_sha": "0" * 40}
+    manifest.update(over)
+    return manifest
+
+
+def _metric_args(tmp_path, manifest_path=None, sha=None, dataset=None, **over):
+    argv = ["--model-config", "m.json", "--dataset-config", dataset or _UNSEEN_CONFIG,
+            "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt", "--num-samples", "8",
+            "--metrics", "--dump-waveforms", str(tmp_path / "wf"),
+            "--metric-delta-max", "8", "--metric-t30-backend", "torch"]
+    if manifest_path:
+        argv += ["--metric-registration", str(manifest_path)]
+    if sha:
+        argv += ["--registration-sha", sha]
+    for flag, value in over.items():
+        argv += [flag] if value is True else [flag, str(value)]
+    return el.parse_args(argv)
+
+
+def test_metric_registration_is_required_for_unseen_metrics(tmp_path):
+    unseen = _json.loads(open(_UNSEEN_CONFIG).read())
+    with pytest.raises(SystemExit, match="metric-registration"):
+        el.assert_metric_registration(_metric_args(tmp_path), unseen)
+    seen = _json.loads(open(_SEEN_CONFIG).read())
+    el.assert_metric_registration(_metric_args(tmp_path, dataset=_SEEN_CONFIG), seen)
+
+
+def test_metric_registration_accepts_a_committed_matching_manifest(tmp_path):
+    path, sha = _git_repo_with_manifest(tmp_path, _metric_manifest(), name="metrics.json")
+    args = _metric_args(tmp_path, manifest_path=path, sha=sha)
+    unseen = _json.loads(open(_UNSEEN_CONFIG).read())
+    assert el.verify_metric_registration(args, unseen, repo_root=str(tmp_path)) is True
+
+
+def test_metric_registration_refuses_a_constant_that_drifted(tmp_path):
+    drifted = _metric_manifest()
+    drifted["registerable"]["m2_lambda"] = 0.5
+    path, sha = _git_repo_with_manifest(tmp_path, drifted, name="metrics.json")
+    args = _metric_args(tmp_path, manifest_path=path, sha=sha)
+    unseen = _json.loads(open(_UNSEEN_CONFIG).read())
+    with pytest.raises(SystemExit, match="m2_lambda"):
+        el.verify_metric_registration(args, unseen, repo_root=str(tmp_path))
+
+
+def test_metric_registration_refuses_a_run_config_that_differs(tmp_path):
+    path, sha = _git_repo_with_manifest(tmp_path, _metric_manifest(), name="metrics.json")
+    unseen = _json.loads(open(_UNSEEN_CONFIG).read())
+    for flag, value in (("--metric-delta-max", "32"), ("--metric-t30-backend",
+                                                       "pyroomacoustics")):
+        args = _metric_args(tmp_path, manifest_path=path, sha=sha)
+        setattr(args, flag.lstrip("-").replace("-", "_"),
+                int(value) if value.isdigit() else value)
+        with pytest.raises(SystemExit):
+            el.verify_metric_registration(args, unseen, repo_root=str(tmp_path))
+
+
+def test_metric_registration_reuses_the_r2_commit_machinery(tmp_path):
+    """Same immutability rules: full-hex sha, in-repo manifest, byte equality,
+    ancestry of HEAD."""
+    path, sha = _git_repo_with_manifest(tmp_path, _metric_manifest(), name="metrics.json")
+    unseen = _json.loads(open(_UNSEEN_CONFIG).read())
+    args = _metric_args(tmp_path, manifest_path=path, sha="HEAD")
+    with pytest.raises(SystemExit):
+        el.verify_metric_registration(args, unseen, repo_root=str(tmp_path))
+    open(path, "a").write(" ")                      # content drift after the commit
+    drifted = _metric_args(tmp_path, manifest_path=path, sha=sha)
+    with pytest.raises(SystemExit):
+        el.verify_metric_registration(drifted, unseen, repo_root=str(tmp_path))
+
+
+def test_seen_metrics_run_records_the_registerable_payload_without_a_manifest(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    result = el.run_evaluation(_metrics_args(tmp_path), loader, engine, _stub_context(root),
+                               "c", "a", expected=el.expected_split_identities(loader.dataset))
+    payload = result["provenance"]["metric_registerable"]
+    from src.localization.rir_metrics import registerable_payload
+    assert payload == registerable_payload()
+    assert result["provenance"]["metric_registration"] in (None, "n/a")
