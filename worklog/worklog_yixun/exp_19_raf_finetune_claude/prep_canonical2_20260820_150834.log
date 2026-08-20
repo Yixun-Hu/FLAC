@@ -1,0 +1,16 @@
+WARNING: /media/diskstation/yixunhu/raf_dataset/archived/EmptyRoom: dropping the trailing all-NaN sentinel line 47485 of all_rx_pos.txt ('nan,nan,nan') per contracts Amendment 1; 47484 data lines remain
+WARNING: /media/diskstation/yixunhu/raf_dataset/archived/FurnishedRoom: dropping the trailing all-NaN sentinel line 39133 of all_rx_pos.txt ('nan,nan,nan') per contracts Amendment 1; 39132 data lines remain
+INFO: readback record 9288181be62b (gauge RAF_TO_PIPELINE:(X,Z,Y), quat xyzw, T60 headline)
+INFO: reading /media/diskstation/yixunhu/raf_dataset/archived/EmptyRoom
+WARNING: /media/diskstation/yixunhu/raf_dataset/archived/EmptyRoom: dropping the trailing all-NaN sentinel line 47485 of all_rx_pos.txt ('nan,nan,nan') per contracts Amendment 1; 47484 data lines remain
+INFO: EmptyRoom: cross-checked 47484 captures (full)
+INFO: EmptyRoom: 47484 captures in 1319 groups over 139 placements
+INFO: EmptyRoom: amplitude scalar x5 (ceiling 0.75 / max train-support peak 0.15027 over 204 supports)
+Traceback (most recent call last):
+  File "/home/yixunhu/codespace/exp-19-raf-finetune/data/RAF/prepare_data.py", line 1230, in <module>
+    raise SystemExit(main())
+  File "/home/yixunhu/codespace/exp-19-raf-finetune/data/RAF/prepare_data.py", line 1148, in main
+    audits[room] = resample_and_write(
+  File "/home/yixunhu/codespace/exp-19-raf-finetune/data/RAF/prepare_data.py", line 899, in resample_and_write
+    raise ValueError(
+ValueError: /media/diskstation/yixunhu/raf_dataset/archived/EmptyRoom/data/025937/rir.wav: resampled signal clips (peak 1.249524 > 0.999) after the x5.0 amplitude scalar
