@@ -211,3 +211,114 @@ def test_callback_builds_from_the_raf_model_config():
     assert cb.max_len == 9600
     assert cb.eval_FD is False and cb.eval_retrieval is False
     assert cb.AGREE_model is None
+
+
+# --------------------------------------------------------------------------- #
+# r2 R8 + R10 (phase 2b: these land with the src/metrics change)
+# --------------------------------------------------------------------------- #
+# Pre-written during the peer session's src/metrics freeze. The guard lifts by
+# itself the moment the implementation exists, and is removed when R8+R10 land.
+_R8_READY = hasattr(RT60Error, "invalid_stats")
+_r8 = pytest.mark.skipif(not _R8_READY, reason="R8/R10 land on 'metrics clear'")
+
+
+def _two_room_batch():
+    """Room A gets 3 items, room B gets 1: unequal sizes make the two
+    aggregations differ, which is exactly what R8 is about."""
+    preds = torch.cat([_decaying_rir(i) for i in (1, 2, 3)] + [_decaying_rir(9)], dim=0)
+    refs = torch.cat([_decaying_rir(i + 100) for i in (1, 2, 3)]
+                     + [_decaying_rir(109)], dim=0)
+    scenes = ["EmptyRoom", "EmptyRoom", "EmptyRoom", "FurnishedRoom"]
+    return preds, refs, scenes
+
+
+@_r8
+def test_raf_top_level_metrics_are_the_equal_room_macro_mean():
+    cb = _callback("RAF")
+    preds, refs, scenes = _two_room_batch()
+    cb.update_metrics("test", preds, refs, scene=scenes)
+    metrics = cb.compute_metrics("test")
+    assert metrics["aggregation"] == "macro_room"
+    assert metrics["n_rooms"] == 2
+    for key in ("C50", "EDT", "Env", "L1_STFT"):
+        per_room = [metrics["by_scene"][s][key] for s in ("EmptyRoom", "FurnishedRoom")]
+        assert metrics[key] == pytest.approx(sum(per_room) / 2.0, rel=1e-6), key
+
+
+@_r8
+def test_raf_macro_mean_differs_from_the_per_item_mean():
+    """With 3 items in one room and 1 in the other, the per-item mean weights the
+    larger room 3:1; the paper's protocol weights rooms equally."""
+    cb = _callback("RAF")
+    preds, refs, scenes = _two_room_batch()
+    cb.update_metrics("test", preds, refs, scene=scenes)
+    macro = cb.compute_metrics("test")
+
+    flat = _callback("AcousticRooms")          # per-item aggregation, same inputs
+    flat.update_metrics("test", preds, refs, scene=scenes)
+    per_item = flat.compute_metrics("test")
+    assert macro["C50"] != pytest.approx(per_item["C50"], rel=1e-9)
+
+
+@_r8
+def test_raf_reports_invalid_t60_as_both_count_and_rate():
+    cb = _callback("RAF")
+    good, silent = _decaying_rir(1), torch.zeros(1, 1, 10240)
+    preds = torch.cat([good, silent, silent], dim=0)
+    refs = torch.cat([_decaying_rir(2), silent, silent], dim=0)
+    cb.update_metrics("test", preds, refs,
+                      scene=["EmptyRoom", "EmptyRoom", "FurnishedRoom"])
+    metrics = cb.compute_metrics("test")
+    assert metrics["Invalid T60 count"] == 2.0
+    assert metrics["T60 items"] == 3
+    assert metrics["Invalid T60 rate"] == pytest.approx(2.0 / 3.0)
+    assert metrics["Invalid T60"] == pytest.approx(metrics["Invalid T60 rate"])
+
+
+@_r8
+def test_rt60_invalid_stats_are_additive_to_the_existing_contract():
+    metric = RT60Error(dataset_name="RAF")
+    metric.update(torch.zeros(1, 1, 9600), torch.zeros(1, 1, 9600))
+    metric.update(_decaying_rir(1), _decaying_rir(2))
+    error, rate = metric.compute()          # unchanged 2-tuple
+    count, rate2, n = metric.invalid_stats()
+    assert n == 2 and count == 1.0
+    assert rate2 == pytest.approx(0.5) and rate == pytest.approx(rate2)
+    assert isinstance(error, float)
+
+
+@_r8
+def test_acousticrooms_and_haa_aggregation_is_untouched():
+    for name in ("AcousticRooms", "HAA"):
+        cb = _callback(name)
+        preds, refs, scenes = _two_room_batch()
+        cb.update_metrics("test", preds, refs, scene=scenes)
+        metrics = cb.compute_metrics("test")
+        assert "aggregation" not in metrics
+        assert "Invalid T60 count" not in metrics
+        assert "n_rooms" not in metrics
+
+
+@_r8
+def test_multires_l1_runs_on_cpu_for_the_enabled_raf_metric_set():
+    """R10: the Hann window follows the signal's device, so the exact metric set
+    the RAF config enables is exercisable on CPU (and on any GPU index)."""
+    cb = AcousticMetricsCallback(dataset_name="RAF", device="cpu", eval_T60=True,
+                                 eval_C50=True, eval_EDT=True, eval_env=True,
+                                 eval_l1_distance=True, eval_l1_distance_multires=True)
+    preds, refs, scenes = _two_room_batch()
+    cb.update_metrics("test", preds, refs, scene=scenes)
+    metrics = cb.compute_metrics("test")
+    assert np.isfinite(metrics["L1_STFT_MultiRes"])
+    assert metrics["L1_STFT_MultiRes"] == pytest.approx(
+        sum(metrics["by_scene"][s]["L1_STFT_MultiRes"]
+            for s in ("EmptyRoom", "FurnishedRoom")) / 2.0, rel=1e-6)
+
+
+@_r8
+def test_multires_l1_window_follows_the_input_dtype_and_device():
+    from src.metrics.modules.l1_stft_multires import get_stft
+
+    x = torch.randn(4096)
+    assert torch.isfinite(get_stft(x, n_fft=64)).all()
+    assert torch.isfinite(get_stft(x.double(), n_fft=64)).all()
