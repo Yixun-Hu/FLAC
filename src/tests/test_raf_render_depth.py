@@ -689,9 +689,11 @@ def test_canonical_mode_refuses_a_looser_miss_cap():
     assert "--non-canonical" in str(exc.value)
     assert str(raf_render.DEFAULT_MAX_MISS_RATE) in str(exc.value)
     # lowering is always allowed; a looser cap taints non-canonical output
-    assert raf_render.resolve_miss_cap(0.0001, canonical=True) == (0.0001, [])
+    assert raf_render.resolve_miss_cap(raf_render.DEFAULT_MAX_MISS_RATE,
+                                       canonical=True) == (
+        raf_render.DEFAULT_MAX_MISS_RATE, [])
     cap, taint = raf_render.resolve_miss_cap(0.05, canonical=False)
-    assert cap == 0.05 and any("above the registered" in t for t in taint)
+    assert cap == 0.05 and any("registered" in t for t in taint)
 
 
 def test_cli_taints_a_non_canonical_run_with_a_looser_cap(tmp_path):
@@ -701,16 +703,18 @@ def test_cli_taints_a_non_canonical_run_with_a_looser_cap(tmp_path):
                      "--readback-record", _readback(tmp_path), "--non-canonical"])
     with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
         qa = json.load(f)
-    assert any("above the registered" in t for t in qa["taint"])
+    assert any("registered" in t for t in qa["taint"])
 
 
-def test_canonical_mode_allows_a_stricter_miss_cap(tmp_path):
+def test_a_non_canonical_run_may_use_a_stricter_cap_and_is_tainted(tmp_path):
     raf_root, out, _ = _write_fixture(tmp_path)
     raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
                      "--rooms", "EmptyRoom", "--max-miss-rate", "0.0001",
                      "--readback-record", _readback(tmp_path), "--non-canonical"])
     with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
-        assert json.load(f)["max_miss_rate"] == 0.0001
+        qa = json.load(f)
+    assert qa["max_miss_rate"] == 0.0001
+    assert any("registered" in t for t in qa["taint"])
 
 
 def test_direction_to_pixel_inverts_the_ray_grid():
@@ -1259,6 +1263,8 @@ def test_canonical_render_identity_is_the_registered_one():
     ({"img_h": 128}, "img_h"),
     ({"img_w": 256}, "img_w"),
     ({"max_miss_rate": 0.05}, "max_miss_rate"),
+    ({"max_miss_rate": 0.0001}, "max_miss_rate"),
+    ({"rx_sightline_receivers": 3}, "rx_sightline_receivers"),
 ])
 def test_canonical_render_rejects_deviations(overrides, needle):
     """A Furnished-only render skipped EmptyRoom's unconditional sightline gate,
@@ -1269,9 +1275,16 @@ def test_canonical_render_rejects_deviations(overrides, needle):
     assert "--non-canonical" in str(exc.value)
 
 
-def test_a_stricter_miss_cap_is_still_canonical():
-    assert raf_render.canonical_render_deviations(
-        _render_args(max_miss_rate=0.0001)) == []
+def test_a_stricter_miss_cap_is_no_longer_canonical():
+    """F4 revokes the r5 'lower is fine' allowance: identity means identity."""
+    deviations = raf_render.canonical_render_deviations(
+        _render_args(max_miss_rate=0.0001))
+    assert any("max_miss_rate" in d for d in deviations)
+    with pytest.raises(ValueError) as exc:
+        raf_render.resolve_miss_cap(0.0001, canonical=True)
+    assert "exactly" in str(exc.value)
+    cap, taint = raf_render.resolve_miss_cap(0.0001, canonical=False)
+    assert cap == 0.0001 and taint
 
 
 def test_render_parameters_join_the_depth_marker(tmp_path):
@@ -1345,3 +1358,32 @@ def test_the_audit_records_mask_derived_values_as_authoritative():
     assert audit["filled_pixels_sha256"] == raf_render.fill_hash(coords)
     assert audit["audit_ok"] is False                        # the two disagree
     assert any("declared miss_rate" in w for w in warnings)
+
+
+def test_rx_sightline_receiver_count_is_wired_and_recorded(tmp_path):
+    """F4: the flag was parsed and then never used, recorded, or identity-checked."""
+    raf_root, out, groups = _write_fixture(tmp_path)
+    meta = out / "EmptyRoom" / "metadata"
+    poses = {f"{i:06d}": {"tx_xyz_p": [0.0, 0.0, 1.0], "quat_raw": [0, 0, 0, 1],
+                          "rx_p": [float(x), float(y), 1.0],
+                          "group_key": "aaaa000000000001", "split_role": "train"}
+             for i, (x, y) in enumerate([(8.0, 8.0), (-8.0, -8.0), (8.0, -8.0),
+                                         (-8.0, 8.0), (7.0, 0.0)])}
+    with open(meta / "poses_metadata.json", "w") as f:
+        json.dump(poses, f)
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--rx-sightline-receivers", "2",
+                     "--readback-record", _readback(tmp_path), "--non-canonical"])
+    with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
+        qa = json.load(f)
+    assert qa["rx_sightline_receivers"] == 2
+    for entry in qa["maps"].values():
+        evidence = entry["real_mesh"]["rx_sightline"]
+        assert evidence["n_receivers"] == 2          # honoured, not ignored
+        assert evidence["max_receivers"] == 2
+
+
+def test_render_identity_covers_the_receiver_count():
+    assert "rx_sightline_receivers" in raf_render.render_identity(_render_args())
+    assert raf_render.CANONICAL_RENDER_PARAMS["rx_sightline_receivers"] == \
+        raf_render.RX_SIGHTLINE_MAX_RECEIVERS

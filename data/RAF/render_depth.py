@@ -358,10 +358,12 @@ def canonical_render_deviations(args):
     for key in ("img_h", "img_w", "floor_tol", "rx_sightline_receivers"):
         if identity[key] != CANONICAL_RENDER_PARAMS[key]:
             deviations.append(f"{key} {identity[key]} != {CANONICAL_RENDER_PARAMS[key]}")
-    # the cap may be LOWERED canonically (resolve_miss_cap), never raised
-    if identity["max_miss_rate"] > CANONICAL_RENDER_PARAMS["max_miss_rate"]:
+    # F4: identity means identity. The r5 "lower is fine" allowance is REVOKED for
+    # canonical mode -- a canonical publication is the registered protocol, and a
+    # different cap is a different protocol however conservative it looks.
+    if identity["max_miss_rate"] != CANONICAL_RENDER_PARAMS["max_miss_rate"]:
         deviations.append(
-            f"max_miss_rate {identity['max_miss_rate']} > "
+            f"max_miss_rate {identity['max_miss_rate']} != "
             f"{CANONICAL_RENDER_PARAMS['max_miss_rate']}")
     return deviations
 
@@ -379,22 +381,23 @@ def assert_canonical_render(args):
 
 
 def resolve_miss_cap(requested, canonical=True):
-    """Miss-cap policy (S2): canonical runs may only LOWER the registered cap.
+    """Miss-cap policy (F4): a canonical run uses the registered cap EXACTLY.
 
-    Returns ``(cap, taint)``. A looser cap is not a knob a canonical run gets:
-    ``--max-miss-rate 0.05`` would otherwise publish 5% inpainted pixels with QA
-    reporting them as within cap.
+    Returns ``(cap, taint)``. Neither a looser nor a stricter cap is a knob a
+    canonical publication gets -- ``--max-miss-rate 0.05`` would publish 5%
+    inpainted pixels behind a passing QA, and ``0.0001`` would publish a different
+    protocol under the registered name.
     """
     requested = float(requested)
-    if requested <= DEFAULT_MAX_MISS_RATE:
+    if requested == DEFAULT_MAX_MISS_RATE:
         return requested, []
     if canonical:
         raise ValueError(
             f"refusing a canonical render with --max-miss-rate {requested}: the "
-            f"registered cap is {DEFAULT_MAX_MISS_RATE} and may only be LOWERED. "
-            "Pass --non-canonical to render with a looser cap (the outputs are "
+            f"registered cap is exactly {DEFAULT_MAX_MISS_RATE}. Pass "
+            "--non-canonical to render with a different cap (the outputs are "
             "tainted).")
-    return requested, [f"miss cap {requested} above the registered {DEFAULT_MAX_MISS_RATE}"]
+    return requested, [f"miss cap {requested} != the registered {DEFAULT_MAX_MISS_RATE}"]
 
 
 def audit_miss_report(miss_report, depth, canonical=True, miss_mask=None):
@@ -636,7 +639,8 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
                  scene=None, tie_distance_frac=BEARING_TIE_DISTANCE_FRAC,
                  tie_angle_deg=BEARING_TIE_ANGLE_DEG, rx_positions_p=None,
                  rx_sightline_required=True, references=None, tracked_height_m=None,
-                 vertical_tol_m=DEFAULT_FLOOR_TOL):
+                 vertical_tol_m=DEFAULT_FLOOR_TOL,
+                 rx_sightline_receivers=RX_SIGHTLINE_MAX_RECEIVERS):
     """Checks that only the REAL mesh can answer (plan Rev 2 section 4.ii, R6).
 
     * camera containment -- the source must be inside the closed room, or every
@@ -744,7 +748,8 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
 
     sightline = rx_sightline_check(
         arr, position, rx_positions_p if rx_positions_p is not None else np.zeros((0, 3)),
-        img_h=img_h, img_w=img_w, required=rx_sightline_required)
+        img_h=img_h, img_w=img_w, required=rx_sightline_required,
+        max_receivers=rx_sightline_receivers)
 
     warnings = []
     if not camera_inside:
@@ -950,6 +955,7 @@ def main(argv=None):
             qa["real_mesh"] = real_mesh_qa(
                 depth, position, mesh, img_h=args.img_h, img_w=args.img_w, scene=scene,
                 rx_positions_p=rx_positions, rx_sightline_required=sightline_required,
+                rx_sightline_receivers=args.rx_sightline_receivers,
                 references=references,
                 tracked_height_m=float(entry["tx_height_raf_m"]),
                 vertical_tol_m=args.floor_tol)
@@ -987,6 +993,7 @@ def main(argv=None):
             "readback_record": readback_provenance,
             "scale_reference": references,
             "detectability": DETECTABILITY_BOUNDARY,
+            "rx_sightline_receivers": args.rx_sightline_receivers,
             "rx_sightline_policy": {room: ("required" if room in RX_SIGHTLINE_REQUIRED_ROOMS
                                            else "recorded")
                                     for room in ("EmptyRoom", "FurnishedRoom")},
