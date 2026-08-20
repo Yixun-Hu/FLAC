@@ -809,7 +809,7 @@ def test_runtime_metadata_shapes_and_roles(mini_room):
 
     train_test_key = split["train_test_groups"][0]
     gm = groups_meta[train_test_key]
-    assert set(gm) == {"tx_xyz_p", "depth_file", "train_ids", "role"}
+    assert set(gm) == {"tx_xyz_p", "tx_height_raf_m", "depth_file", "train_ids", "role"}
     assert gm["depth_file"] == f"{train_test_key}_depth_image.npy"
     assert len(gm["train_ids"]) == 12
     assert gm["role"] == "train_test"
@@ -1189,3 +1189,19 @@ def test_cli_emits_the_diagnostic_manifest_and_metadata(tmp_path):
     gk = poses[diagnostic["EmptyRoom"][0][:-4]]["group_key"]
     assert len(groups_meta[gk]["train_ids"]) == 12
     assert diagnostic["EmptyRoom"][0][:-4] not in groups_meta[gk]["train_ids"]
+
+
+def test_runtime_metadata_publishes_the_raw_raf_height(mini_room):
+    """r5 finding 5: the render's vertical reference must be untransformed."""
+    index = raf_prepare.load_room_index(mini_room)
+    groups, _ = raf_prepare.group_captures(index)
+    split = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1, n_train=12,
+                                      n_diagnostic_groups=1)
+    _, groups_meta = raf_prepare.build_runtime_metadata(index, groups, split)
+    for gk, entry in groups_meta.items():
+        group = next(g for g in groups if g["group_key"] == gk)
+        assert entry["tx_height_raf_m"] == pytest.approx(float(group["tx_xyz"][1]))
+        # the pinned gauge puts RAF Y in the pipeline's third slot, so they agree
+        # HERE -- and would not under a different gauge, which is the whole point
+        assert entry["tx_height_raf_m"] == pytest.approx(entry["tx_xyz_p"][2])
+    assert raf_prepare.RAF_UP_AXIS == 1

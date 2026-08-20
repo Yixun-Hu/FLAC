@@ -856,11 +856,20 @@ def main(argv=None):
                           miss_report=miss_report)
             qa["depth_file"] = entry["depth_file"]
             # R6: the checks only the real mesh can answer, fail-closed.
+            # r5 finding 5: the tracked height comes from the PUBLISHED RAW RAF Y,
+            # never from position[HEIGHT_AXIS] -- that is the gauge-transformed
+            # vector this very map was rendered from, so it cannot witness a wrong
+            # vertical assignment.
+            if "tx_height_raf_m" not in entry:
+                raise ValueError(
+                    f"{room} group {group_key}: groups_metadata carries no "
+                    "tx_height_raf_m. The vertical gauge check needs the raw RAF "
+                    "height; re-run data/RAF/prepare_data.py to republish it.")
             qa["real_mesh"] = real_mesh_qa(
                 depth, position, mesh, img_h=args.img_h, img_w=args.img_w, scene=scene,
                 rx_positions_p=rx_positions, rx_sightline_required=sightline_required,
                 references=references,
-                tracked_height_m=float(position[HEIGHT_AXIS]),
+                tracked_height_m=float(entry["tx_height_raf_m"]),
                 vertical_tol_m=args.floor_tol)
             if canonical and not qa["real_mesh"]["rx_sightline"]["checked"]:
                 qa["warnings"].append(

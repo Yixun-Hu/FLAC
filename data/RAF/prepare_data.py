@@ -57,6 +57,9 @@ RIR_FOLDER = "mono_rirs_22050Hz"
 # Written into the runtime root by every publish: names the split directory that
 # holds the prepare marker, the rooms, and the identity this tree was cut under.
 PUBLICATION_POINTER = "raf_publication.json"
+# RAF world is X front, Y up, Z left: index 1 is the height above the y=0 ground
+# plane, in the RAW frame, before any candidate gauge is applied.
+RAF_UP_AXIS = 1
 DEPTH_SUFFIX = "_depth_image.npy"
 # The FLAC loader crops to sample_size and drops anything below -60 dBFS
 # (src/data/dataset.py::is_silence) — both mirrored here so the audit measures
@@ -962,6 +965,12 @@ def build_runtime_metadata(index, groups, split):
             }
         groups_meta[gk] = {
             "tx_xyz_p": tx_p,
+            # r5 finding 5: the RAW, UNTRANSFORMED RAF height (Y, measured from the
+            # y=0 ground plane). The render's vertical check needs a reference that
+            # the candidate gauge did NOT touch; position[HEIGHT_AXIS] is the
+            # transformed vector the map was rendered from, so comparing against it
+            # is circular. Bound to the corpus by the readback record's pose digests.
+            "tx_height_raf_m": float(g["tx_xyz"][RAF_UP_AXIS]),
             "depth_file": f"{gk}{DEPTH_SUFFIX}",
             "train_ids": list(split["support_ids"][gk]),
             "role": split["roles"][gk],

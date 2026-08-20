@@ -258,10 +258,15 @@ def _write_fixture(tmp_path, room="EmptyRoom", keys=("aaaa000000000001", "bbbb00
     o3d.io.write_triangle_mesh(str(mesh_dir / "mesh.obj"), mesh_raf)
     meta_dir = out / room / "metadata"
     meta_dir.mkdir(parents=True)
+    # tx_height_raf_m is the RAW RAF Y, exactly as prepare_data publishes it: the
+    # pipeline z of these cameras happens to equal it under the PINNED gauge, which
+    # is the point -- under a wrong gauge the two diverge (r5 finding 5).
     groups = {
-        keys[0]: {"tx_xyz_p": [0.0, 0.0, 1.0], "depth_file": f"{keys[0]}_depth_image.npy",
+        keys[0]: {"tx_xyz_p": [0.0, 0.0, 1.0], "tx_height_raf_m": 1.0,
+                  "depth_file": f"{keys[0]}_depth_image.npy",
                   "train_ids": ["000000"], "role": "train_test"},
-        keys[1]: {"tx_xyz_p": [1.0, 2.0, 1.5], "depth_file": f"{keys[1]}_depth_image.npy",
+        keys[1]: {"tx_xyz_p": [1.0, 2.0, 1.5], "tx_height_raf_m": 1.5,
+                  "depth_file": f"{keys[1]}_depth_image.npy",
                   "train_ids": ["000036"], "role": "val"},
     }
     with open(meta_dir / "groups_metadata.json", "w") as f:
@@ -1162,3 +1167,90 @@ def test_vertical_gate_uses_the_tracked_height_not_the_camera_vector():
     wrong = raf_render.real_mesh_qa(depth, tx, mesh, tracked_height_m=3.0)
     assert wrong["vertical_axis"]["ok"] is False
     assert wrong["vertical_axis"]["tracked_height_m"] == 3.0
+
+
+# --------------------------------------------------------------------------- #
+# r5 finding 5: the vertical reference is the RAW RAF height, end to end
+# --------------------------------------------------------------------------- #
+def _write_gauge_fixture(tmp_path, matrix, room="EmptyRoom"):
+    """A room + tx published under a CANDIDATE gauge, mesh and poses together.
+
+    The mesh is written in RAF world coordinates and the runtime metadata carries
+    the gauge-transformed tx (as prepare_data would under that gauge) plus the RAW
+    RAF height, which no gauge touches.
+    """
+    raf_root = tmp_path / "raf"
+    out = tmp_path / "runtime" / "RAF"
+    mesh_dir = raf_root / "3d_models" / room
+    mesh_dir.mkdir(parents=True)
+    raf_bounds = dict(x0=-6.0, x1=6.0, y0=0.0, y1=3.0, z0=-4.0, z1=4.0)
+    o3d.io.write_triangle_mesh(str(mesh_dir / "mesh.obj"),
+                               _box_mesh_raf(to_pipeline=False, **raf_bounds))
+    tx_raf = np.array([1.0, 1.2, 2.0])           # RAF: height is 1.2 m
+    tx_p = np.asarray(matrix) @ tx_raf
+    key = "cccc000000000003"
+    meta_dir = out / room / "metadata"
+    meta_dir.mkdir(parents=True)
+    with open(meta_dir / "groups_metadata.json", "w") as f:
+        json.dump({key: {"tx_xyz_p": [float(v) for v in tx_p],
+                         "tx_height_raf_m": float(tx_raf[1]),
+                         "depth_file": f"{key}_depth_image.npy",
+                         "train_ids": ["000000"], "role": "train_test"}}, f)
+    with open(meta_dir / "poses_metadata.json", "w") as f:
+        rx_raf = np.array([[5.0, 1.0, 3.0], [-5.0, 1.5, -3.0]])
+        json.dump({f"{i:06d}": {"tx_xyz_p": [float(v) for v in tx_p],
+                                "quat_raw": [0, 0, 0, 1],
+                                "rx_p": [float(v) for v in (np.asarray(matrix) @ r)],
+                                "group_key": key, "split_role": "train"}
+                   for i, r in enumerate(rx_raf)}, f)
+    return raf_root, out
+
+
+def _render_under_gauge(tmp_path, matrix, readback):
+    """Run the real CLI with the mesh transformed by the same candidate gauge."""
+    raf_root, out = _write_gauge_fixture(tmp_path, matrix)
+    import raf_common
+
+    original = raf_common.RAF_TO_PIPELINE.copy()
+    raf_render.RAF_TO_PIPELINE = np.asarray(matrix, dtype=np.float64)
+    try:
+        raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                         "--rooms", "EmptyRoom", "--readback-record", readback,
+                         "--non-canonical"])
+    finally:
+        raf_render.RAF_TO_PIPELINE = original
+    with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
+        return json.load(f)
+
+
+def test_cli_vertical_gate_passes_under_the_pinned_gauge(tmp_path):
+    qa = _render_under_gauge(tmp_path, _GAUGE_XZY, _readback(tmp_path))
+    entry = next(iter(qa["maps"].values()))
+    vertical = entry["real_mesh"]["vertical_axis"]
+    assert vertical["checked"] is True
+    assert vertical["tracked_height_m"] == 1.2         # the RAW RAF Y
+    assert vertical["ok"] is True
+    assert entry["real_mesh"]["passed"] is True
+
+
+def test_cli_vertical_gate_catches_a_candidate_gauge_through_production_wiring(tmp_path):
+    """r5 finding 5: mesh AND poses transformed by the same wrong gauge, run
+    through the actual CLI. The r4 test hand-fed a raw 1.5 and never exercised
+    this path; production fed back the transformed height, which cannot disagree."""
+    with pytest.raises(RuntimeError) as exc:
+        _render_under_gauge(tmp_path, _GAUGE_XYZ, _readback(tmp_path))
+    assert "failed QA" in str(exc.value)
+
+
+def test_cli_refuses_metadata_without_the_raw_height(tmp_path):
+    raf_root, out, _ = _write_fixture(tmp_path)
+    meta = out / "EmptyRoom" / "metadata" / "groups_metadata.json"
+    payload = json.loads(meta.read_text())
+    for entry in payload.values():
+        entry.pop("tx_height_raf_m")
+    meta.write_text(json.dumps(payload))
+    with pytest.raises(ValueError) as exc:
+        raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                         "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path),
+                         "--non-canonical"])
+    assert "tx_height_raf_m" in str(exc.value)
