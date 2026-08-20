@@ -11,6 +11,7 @@ Usage:
         --output-dir /path/to/runtime/RAF --rooms EmptyRoom FurnishedRoom
 """
 import argparse
+import hashlib
 import json
 import logging
 import os
@@ -19,6 +20,7 @@ import time
 
 import numpy as np
 import open3d as o3d
+from scipy import ndimage
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:  # raf_common.py is a sibling script, not an installed package
@@ -46,7 +48,25 @@ LANDMARK_BEARING_TOL_DEG = 15.0
 # height there), so the camera height above the RAF ground plane (y = 0) is
 # position_p[2].
 HEIGHT_AXIS = 2
-DEFAULT_FLOOR_TOL = 0.05
+# Real scans put content above the nominal y=0 ground (speaker stands, carpet), so
+# the nadir distance runs short of the camera height by up to ~0.10 m on measured
+# EmptyRoom positions. 0.15 m is the recorded threshold (Amendment 4); it stays a
+# WARNING, never an abort.
+DEFAULT_FLOOR_TOL = 0.15
+# Ray-miss policy (Amendment 4). Real scanned meshes have holes -- FurnishedRoom
+# missed 62 of 131,072 rays at a real tx -- so a miss rate at or below this cap is
+# repaired by nearest-valid-neighbour inpainting and RECORDED (count + a hash of
+# the repaired coordinates). Above the cap the render still aborts: that is a
+# broken mesh or a camera outside the room, not a scan hole.
+DEFAULT_MAX_MISS_RATE = 0.001
+# sha256 of the empty coordinate list, i.e. "nothing was repaired".
+EMPTY_FILL_HASH = hashlib.sha256(b"").hexdigest()
+# Bearing tie rule (Amendment 4): a second surface within this fraction of the
+# farthest distance but further than this angle away in bearing is a TIE, and the
+# landmark check declares itself inapplicable. Exactly this configuration produced
+# a 96-degree false alarm on the real EmptyRoom mesh.
+BEARING_TIE_DISTANCE_FRAC = 0.02
+BEARING_TIE_ANGLE_DEG = 20.0
 
 
 def load_mesh_pipeline(obj_path):
@@ -80,7 +100,59 @@ def build_scene(mesh):
     return scene
 
 
-def render_depth(mesh, position_p, h=DEPTH_H, w=DEPTH_W):
+def fill_missing(hits, max_miss_rate=DEFAULT_MAX_MISS_RATE):
+    """Repair a scan hole by nearest-valid-neighbour inpainting, or abort.
+
+    A filled pixel is a RECORDED REPAIR, not a fabricated wall: the count and a
+    hash of the repaired coordinates travel with the map, so a later reader can
+    tell exactly which pixels were never measured. Above ``max_miss_rate`` nothing
+    is repaired -- that is a broken mesh or a camera outside the room, and the
+    registered abort stands.
+
+    The nearest neighbour is Euclidean in PIXEL space and does not wrap around the
+    azimuth seam; for the isolated sub-0.1% holes this policy admits, the nearest
+    valid pixel is adjacent either way.
+    """
+    arr = np.asarray(hits)
+    missed = ~np.isfinite(arr)
+    count = int(missed.sum())
+    total = int(arr.size)
+    rate = count / total if total else 0.0
+    report = {
+        "miss_count": count,
+        "miss_rate": rate,
+        "max_miss_rate": float(max_miss_rate),
+        "within_cap": bool(rate <= max_miss_rate),
+        "filled_pixels": [],
+        "filled_pixels_sha256": EMPTY_FILL_HASH,
+        "n_rays": total,
+    }
+    if count == 0:
+        return arr, report
+    if rate > max_miss_rate:
+        raise RuntimeError(
+            f"depth render missed {count} of {total} rays ({rate:.4%}), above the "
+            f"registered cap of {max_miss_rate:.1%} ({DEFAULT_MAX_MISS_RATE}). A scan "
+            "hole is repaired and recorded; this is not one -- the mesh is broken or "
+            "the camera is outside the room.")
+    if count == total:
+        raise RuntimeError("depth render missed every ray: nothing to inpaint from")
+
+    rows, cols = np.nonzero(missed)
+    coordinates = [[int(r), int(c)] for r, c in zip(rows, cols)]
+    payload = ";".join(f"{r},{c}" for r, c in coordinates)
+    report["filled_pixels"] = coordinates
+    report["filled_pixels_sha256"] = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    # distance_transform_edt measures to the nearest ZERO, i.e. the nearest VALID
+    # pixel, and hands back that pixel's index for every position.
+    indices = ndimage.distance_transform_edt(missed, return_distances=False,
+                                             return_indices=True)
+    return arr[tuple(indices)].astype(arr.dtype, copy=False), report
+
+
+def render_depth(mesh, position_p, h=DEPTH_H, w=DEPTH_W,
+                 max_miss_rate=DEFAULT_MAX_MISS_RATE, return_report=False):
     """Euclidean distance to the mesh along every equirect ray from ``position_p``.
 
     ``mesh`` is a pipeline-frame mesh (see ``load_mesh_pipeline``) or a prebuilt
@@ -106,24 +178,20 @@ def render_depth(mesh, position_p, h=DEPTH_H, w=DEPTH_W):
     rays = np.concatenate([origins, dirs], axis=1).astype(np.float32)
     hits = scene.cast_rays(o3d.core.Tensor(rays))["t_hit"].numpy().reshape(h, w)
 
-    missed = ~np.isfinite(hits)
-    if missed.any():
-        rows, cols = np.nonzero(missed)
-        sample = ", ".join(f"({int(r)},{int(c)})" for r, c in
-                           zip(rows[:5], cols[:5]))
-        raise RuntimeError(
-            f"depth render at {position.tolist()} missed {int(missed.sum())} of "
-            f"{h * w} rays (first: {sample}). The registered policy is to abort: a "
-            "filled value would enter training as a fabricated wall.")
+    try:
+        hits, miss_report = fill_missing(hits, max_miss_rate=max_miss_rate)
+    except RuntimeError as e:
+        raise RuntimeError(f"depth render at {position.tolist()}: {e}")
     if (hits <= 0).any():
         raise RuntimeError(
             f"depth render at {position.tolist()} produced non-positive distances "
             f"(min {float(hits.min())})")
-    return hits.astype(np.float32)
+    depth = hits.astype(np.float32)
+    return (depth, miss_report) if return_report else depth
 
 
 def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL, img_h=DEPTH_H,
-             img_w=DEPTH_W, canonical=True):
+             img_w=DEPTH_W, canonical=True, miss_report=None):
     """Per-map quality report (plan Rev 2 section 8.3).
 
     ``passed`` covers the STRUCTURAL checks only — shape/dtype, finiteness,
@@ -158,6 +226,15 @@ def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL, img_h=DEPTH_H,
     if canonical and not canonical_grid:
         warnings.append(
             f"non-canonical grid {expected_shape}: this map cannot be loaded by RAF_md")
+    if miss_report is not None and not miss_report["within_cap"]:
+        warnings.append(
+            f"{miss_report['miss_count']} rays missed ({miss_report['miss_rate']:.4%}), "
+            f"above the {miss_report['max_miss_rate']:.1%} cap")
+    elif miss_report is not None and miss_report["miss_count"]:
+        warnings.append(
+            f"{miss_report['miss_count']} rays missed and were repaired by "
+            f"nearest-valid-neighbour inpainting (hash "
+            f"{miss_report['filled_pixels_sha256'][:12]})")
     if not floor_ok:
         warnings.append(
             f"floor distance at nadir ({nadir:.4f} m) differs from the camera height "
@@ -181,15 +258,22 @@ def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL, img_h=DEPTH_H,
         "floor_delta": float(floor_delta),
         "floor_tol": float(floor_tol),
         "floor_ok": floor_ok,
+        # Recorded per map: how many pixels were never measured, and exactly which
+        # ones (by hash). Without the coordinates a repaired map is indistinguishable
+        # from a measured one.
+        "misses": None if miss_report is None else {
+            k: v for k, v in miss_report.items() if k != "filled_pixels"},
         "warnings": warnings,
         "passed": bool(finite and positive and shape_ok and dtype_ok
-                       and (canonical_grid or not canonical)),
+                       and (canonical_grid or not canonical)
+                       and (miss_report is None or miss_report["within_cap"])),
     }
 
 
 def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
                  bearing_tol_deg=LANDMARK_BEARING_TOL_DEG, bounds_tol=0.05,
-                 scene=None):
+                 scene=None, tie_distance_frac=BEARING_TIE_DISTANCE_FRAC,
+                 tie_angle_deg=BEARING_TIE_ANGLE_DEG):
     """Checks that only the REAL mesh can answer (plan Rev 2 section 4.ii, R6).
 
     * camera containment -- the source must be inside the closed room, or every
@@ -242,15 +326,18 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
     map_bearing = float(np.degrees(np.arctan2(far_dir[1], far_dir[0])))
     mesh_bearing = float(np.degrees(np.arctan2(mesh_dir[1], mesh_dir[0])))
     delta = abs((map_bearing - mesh_bearing + 180.0) % 360.0 - 180.0)
-    # Applicable only when the farthest surface is unique in DIRECTION. A
-    # symmetric room has several equally distant corners, and then a bearing
-    # mismatch is a tie-break, not evidence about the gauge -- asserting on it
-    # would be a false alarm rather than a check.
-    contenders = vertices[vertex_dist >= 0.99 * float(vertex_dist.max())] - position
+    # Applicable only when the farthest surface is unique in DIRECTION (Amendment
+    # 4). A second surface within BEARING_TIE_DISTANCE_FRAC of the farthest
+    # distance but more than BEARING_TIE_ANGLE_DEG away in bearing is a TIE: which
+    # of them argmax picks is arbitrary, so a mismatch says nothing about the
+    # gauge. Exactly this configuration produced a 96-degree false alarm on the
+    # real EmptyRoom mesh.
+    contenders = vertices[vertex_dist >= (1.0 - tie_distance_frac)
+                          * float(vertex_dist.max())] - position
     azimuths = np.degrees(np.arctan2(contenders[:, 1], contenders[:, 0]))
-    spread = float(np.max(np.abs((azimuths[:, None] - azimuths[None, :] + 180.0)
-                                 % 360.0 - 180.0))) if azimuths.size else 0.0
-    bearing_applicable = bool(spread <= bearing_tol_deg)
+    spread = float(np.max(np.abs((azimuths - mesh_bearing + 180.0) % 360.0 - 180.0))) \
+        if azimuths.size else 0.0
+    bearing_applicable = bool(spread <= tie_angle_deg)
     bearing_ok = bool(delta <= bearing_tol_deg) if bearing_applicable else True
 
     finite = arr[np.isfinite(arr)]
@@ -275,8 +362,9 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
             "the gauge may be transposed or mis-scaled")
     if not bearing_applicable:
         warnings.append(
-            f"landmark bearing not applicable: the farthest surface spans {spread:.1f} deg "
-            "of azimuth (a symmetric room), so the direction is a tie-break")
+            f"landmark bearing not applicable: a surface within {tie_distance_frac:.0%} "
+            f"of the farthest distance lies {spread:.1f} deg away in bearing "
+            f"(> {tie_angle_deg} deg), so the farthest direction is a tie-break")
     elif not bearing_ok:
         warnings.append(
             f"landmark bearing disagrees with the mesh by {delta:.1f} deg "
@@ -297,6 +385,8 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
         "bearing_tol_deg": float(bearing_tol_deg),
         "bearing_applicable": bearing_applicable,
         "bearing_spread_deg": spread,
+        "bearing_tie_distance_frac": float(tie_distance_frac),
+        "bearing_tie_angle_deg": float(tie_angle_deg),
         "bearing_ok": bearing_ok,
         "sightline_slack_m": sightline_slack,
         "sightline_ok": sightline_ok,
@@ -320,6 +410,10 @@ def build_parser():
     parser.add_argument('--img-h', type=int, default=DEPTH_H)
     parser.add_argument('--img-w', type=int, default=DEPTH_W)
     parser.add_argument('--floor-tol', type=float, default=DEFAULT_FLOOR_TOL)
+    parser.add_argument('--max-miss-rate', type=float, default=DEFAULT_MAX_MISS_RATE,
+                        help="per-map ray-miss rate tolerated and repaired by "
+                             "nearest-valid-neighbour inpainting; above it the render "
+                             "aborts (Amendment 4)")
     parser.add_argument('--non-canonical', action='store_true',
                         help="allow a grid other than 256x512; such maps CANNOT be "
                              "loaded by RAF_md and their QA record is tainted")
@@ -373,12 +467,16 @@ def main(argv=None):
         for group_key, entry in groups_meta.items():
             position = np.asarray(entry["tx_xyz_p"], dtype=np.float64)
             t1 = time.perf_counter()
-            depth = render_depth(scene, position, h=args.img_h, w=args.img_w)
+            depth, miss_report = render_depth(scene, position, h=args.img_h,
+                                              w=args.img_w,
+                                              max_miss_rate=args.max_miss_rate,
+                                              return_report=True)
             render_s += time.perf_counter() - t1
             np.save(staged.path(entry["depth_file"]), depth)
 
             qa = depth_qa(depth, position, floor_tol=args.floor_tol,
-                          img_h=args.img_h, img_w=args.img_w, canonical=canonical)
+                          img_h=args.img_h, img_w=args.img_w, canonical=canonical,
+                          miss_report=miss_report)
             qa["depth_file"] = entry["depth_file"]
             # R6: the checks only the real mesh can answer, fail-closed.
             qa["real_mesh"] = real_mesh_qa(depth, position, mesh, img_h=args.img_h,
@@ -392,10 +490,12 @@ def main(argv=None):
             if qa["warnings"]:
                 warned.append(group_key)
             logger.info("%s %s: range [%.3f, %.3f] m, nadir %.3f m (height %.3f m), "
-                        "bearing %.1f deg (mesh %.1f deg)", room, group_key, qa["min"],
-                        qa["max"], qa["nadir_distance"], qa["camera_height"],
-                        qa["real_mesh"]["landmark_bearing_deg"],
-                        qa["real_mesh"]["mesh_landmark_bearing_deg"])
+                        "bearing %.1f deg (mesh %.1f deg%s), %d rays repaired",
+                        room, group_key, qa["min"], qa["max"], qa["nadir_distance"],
+                        qa["camera_height"], qa["real_mesh"]["landmark_bearing_deg"],
+                        qa["real_mesh"]["mesh_landmark_bearing_deg"],
+                        "" if qa["real_mesh"]["bearing_applicable"] else ", tie",
+                        miss_report["miss_count"])
 
         record = {
             "room": room,
@@ -404,6 +504,7 @@ def main(argv=None):
             "canonical": canonical,
             "taint": taint,
             "floor_tol": args.floor_tol,
+            "max_miss_rate": args.max_miss_rate,
             "n_maps": len(maps),
             "n_failed": len(failed),
             "n_warned": len(warned),

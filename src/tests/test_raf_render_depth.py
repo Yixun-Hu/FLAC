@@ -471,3 +471,207 @@ def test_cli_builds_the_scene_once_per_room(tmp_path, monkeypatch):
                      "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path)])
     assert len(groups) == 2
     assert len(constructions) == 1          # not once per camera, nor once per QA call
+
+
+# --------------------------------------------------------------------------- #
+# r2 Amendment 4: ray-miss policy on real scanned meshes
+# --------------------------------------------------------------------------- #
+def test_fill_missing_is_a_no_op_when_every_ray_hit():
+    hits = np.full((4, 8), 2.0, dtype=np.float32)
+    filled, report = raf_render.fill_missing(hits)
+    assert np.array_equal(filled, hits)
+    assert report["miss_count"] == 0
+    assert report["miss_rate"] == 0.0
+    assert report["within_cap"] is True
+    assert report["filled_pixels_sha256"] == raf_render.EMPTY_FILL_HASH
+
+
+def test_fill_missing_uses_the_nearest_valid_neighbour():
+    """Hand-checkable: the hole at (1, 3) has (0,3)=7.0 directly above it at
+    distance 1, while every other valid neighbour is further away."""
+    hits = np.full((4, 8), 2.0, dtype=np.float32)
+    hits[0, 3] = 7.0
+    hits[1, 3] = np.inf
+    hits[1, 2] = np.inf
+    hits[1, 4] = np.inf
+    hits[2, 3] = np.inf
+    filled, report = raf_render.fill_missing(hits, max_miss_rate=1.0)
+    assert filled[1, 3] == pytest.approx(7.0)
+    assert np.isfinite(filled).all()
+    assert report["miss_count"] == 4
+    assert report["miss_rate"] == pytest.approx(4 / 32)
+    assert report["filled_pixels"][:2] == [[1, 2], [1, 3]]
+
+
+def test_fill_missing_records_a_coordinate_hash_that_identifies_the_repair():
+    a = np.full((4, 8), 2.0, dtype=np.float32)
+    a[1, 3] = np.inf
+    b = np.full((4, 8), 2.0, dtype=np.float32)
+    b[2, 5] = np.inf
+    _, ra = raf_render.fill_missing(a, max_miss_rate=1.0)
+    _, rb = raf_render.fill_missing(b, max_miss_rate=1.0)
+    _, ra2 = raf_render.fill_missing(a.copy(), max_miss_rate=1.0)
+    assert ra["filled_pixels_sha256"] == ra2["filled_pixels_sha256"]
+    assert ra["filled_pixels_sha256"] != rb["filled_pixels_sha256"]
+    assert len(ra["filled_pixels_sha256"]) == 64
+
+
+def test_fill_missing_aborts_above_the_cap():
+    hits = np.full((10, 10), 2.0, dtype=np.float32)
+    hits[0, :2] = np.inf              # 2% >> 0.1%
+    with pytest.raises(RuntimeError) as exc:
+        raf_render.fill_missing(hits)
+    message = str(exc.value)
+    assert "miss" in message.lower()
+    assert "0.1" in message or str(raf_render.DEFAULT_MAX_MISS_RATE) in message
+
+
+def test_fill_missing_tolerates_exactly_the_cap():
+    hits = np.full((1000, 10), 2.0, dtype=np.float32)
+    hits[0, :10] = np.inf             # 10 / 10000 = 0.1%
+    filled, report = raf_render.fill_missing(hits)
+    assert report["miss_rate"] == pytest.approx(raf_render.DEFAULT_MAX_MISS_RATE)
+    assert report["within_cap"] is True
+    assert np.isfinite(filled).all()
+
+
+def test_fill_missing_refuses_an_all_missing_map():
+    with pytest.raises(RuntimeError):
+        raf_render.fill_missing(np.full((4, 8), np.inf, dtype=np.float32),
+                                max_miss_rate=1.0)
+
+
+def _box_with_pinhole(divisions=32, **bounds):
+    """The six-wall box with the ceiling subdivided and its centre quad removed.
+
+    Stands in for a real scanned mesh's hole: FurnishedRoom missed 62 of 131,072
+    rays at a real tx position, which is the regime this fixture reproduces.
+    """
+    mesh = _box_mesh_raf(drop_ceiling=True, **bounds)
+    verts = list(np.asarray(mesh.vertices))
+    faces = list(np.asarray(mesh.triangles))
+    x0, x1 = bounds["x0"], bounds["x1"]
+    z0, z1 = bounds["z0"], bounds["z1"]
+    y1 = bounds["y1"]
+    xs = np.linspace(x0, x1, divisions + 1)
+    zs = np.linspace(z0, z1, divisions + 1)
+    base = len(verts)
+    for zi in zs:                               # RAF (x, y1, z) -> pipeline (x, z, y1)
+        for xi in xs:
+            verts.append([xi, zi, y1])
+    skip = (divisions // 2, divisions // 2)
+    for r in range(divisions):
+        for c in range(divisions):
+            if (r, c) == skip:
+                continue
+            a = base + r * (divisions + 1) + c
+            b, d, e = a + 1, a + divisions + 1, a + divisions + 2
+            faces.append([a, b, e])
+            faces.append([a, e, d])
+    out = o3d.geometry.TriangleMesh()
+    out.vertices = o3d.utility.Vector3dVector(np.array(verts, dtype=np.float64))
+    out.triangles = o3d.utility.Vector3iVector(np.array(faces, dtype=np.int32))
+    return out
+
+
+def test_render_depth_repairs_a_scan_hole_within_the_cap():
+    mesh = _box_with_pinhole(**_BOX)
+    # off the zenith axis on purpose: directly under the hole it would sit at the
+    # pole, where the equirect rows converge and a tiny hole swallows many rays
+    position = np.array([0.5, 0.5, 1.5])
+    depth, report = raf_render.render_depth(mesh, position, return_report=True)
+    assert 0 < report["miss_count"] <= int(raf_render.DEFAULT_MAX_MISS_RATE * 256 * 512)
+    assert report["within_cap"] is True
+    assert np.isfinite(depth).all() and (depth > 0).all()
+    assert depth.dtype == np.float32
+    # the repaired pixels carry a real neighbouring distance, not a sentinel
+    rows, cols = zip(*report["filled_pixels"])
+    assert depth[rows, cols].min() > 2.0
+
+
+def test_render_depth_still_aborts_above_the_cap():
+    """A whole missing wall is not a scan hole; the registered abort stands."""
+    mesh = _box_mesh_raf(drop_ceiling=True, **_BOX)
+    with pytest.raises(RuntimeError) as exc:
+        raf_render.render_depth(mesh, np.array([0.3, 5.0, 1.5]), h=2, w=4)
+    message = str(exc.value)
+    assert "miss" in message.lower()
+    assert "cap" in message.lower() or "rate" in message.lower()
+
+
+def test_render_depth_report_is_optional_and_backward_compatible():
+    mesh = _box_mesh_raf(**_BOX)
+    depth = raf_render.render_depth(mesh, np.array([0.3, 5.0, 1.5]), h=2, w=4)
+    assert isinstance(depth, np.ndarray)
+
+
+def test_depth_qa_records_the_miss_report_and_requires_the_cap():
+    mesh = _box_with_pinhole(**_BOX)
+    position = np.array([0.5, 0.5, 1.5])
+    depth, report = raf_render.render_depth(mesh, position, return_report=True)
+    qa = raf_render.depth_qa(depth, position, miss_report=report)
+    assert qa["misses"]["miss_count"] == report["miss_count"]
+    assert qa["misses"]["filled_pixels_sha256"] == report["filled_pixels_sha256"]
+    assert qa["misses"]["within_cap"] is True
+    assert qa["passed"] is True
+
+    over_cap = dict(report, within_cap=False, miss_rate=0.05, miss_count=6554)
+    assert raf_render.depth_qa(depth, position, miss_report=over_cap)["passed"] is False
+
+
+def test_cli_records_the_miss_report_per_map(tmp_path):
+    raf_root, out, groups = _write_fixture(tmp_path)
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path)])
+    with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
+        qa = json.load(f)
+    assert qa["max_miss_rate"] == raf_render.DEFAULT_MAX_MISS_RATE
+    for entry in qa["maps"].values():
+        assert entry["misses"]["miss_count"] == 0          # the fixture box is closed
+        assert entry["misses"]["within_cap"] is True
+        assert entry["misses"]["filled_pixels_sha256"] == raf_render.EMPTY_FILL_HASH
+
+
+# --------------------------------------------------------------------------- #
+# r2 Amendment 4: bearing tie rule + floor tolerance
+# --------------------------------------------------------------------------- #
+def test_bearing_is_inapplicable_when_a_near_equal_surface_lies_far_in_bearing():
+    """The EmptyRoom sample-3 false alarm: a second surface within 2% of the
+    farthest distance but ~96 degrees away in bearing is a tie, not a gauge error."""
+    mesh = _box_mesh_raf(x0=-10.0, x1=10.0, y0=0.0, y1=3.0, z0=-10.0, z1=10.0)
+    position = np.array([0.0, 0.0, 1.0])        # centre: four equidistant corners
+    depth = raf_render.render_depth(mesh, position, h=64, w=128)
+    qa = raf_render.real_mesh_qa(depth, position, mesh, img_h=64, img_w=128)
+    assert qa["bearing_applicable"] is False
+    assert qa["bearing_ok"] is True             # inapplicable never fails the map
+    assert qa["passed"] is True
+    assert any("not applicable" in w for w in qa["warnings"])
+    assert qa["bearing_tie_distance_frac"] == 0.02
+    assert qa["bearing_tie_angle_deg"] == 20.0
+
+
+def test_bearing_stays_applicable_when_near_equal_surfaces_share_a_bearing():
+    """Two surfaces within 2% of each other but only degrees apart do NOT excuse
+    the check: that is the case the gauge test is meant to catch."""
+    mesh = _box_mesh_raf(**_BOX)
+    position = np.array([0.3, 5.0, 1.5])
+    depth = raf_render.render_depth(mesh, position, h=64, w=128)
+    qa = raf_render.real_mesh_qa(depth, position, mesh, img_h=64, img_w=128)
+    assert qa["bearing_applicable"] is True
+    assert qa["bearing_ok"] is True
+    assert qa["bearing_delta_deg"] < 15.0
+
+
+def test_floor_tolerance_accepts_a_real_scan_deficit():
+    """Real EmptyRoom nadir deficits reach 0.10 m (scan content above y=0), which
+    must not read as a defect; 0.15 m is the recorded threshold."""
+    assert raf_render.DEFAULT_FLOOR_TOL == 0.15
+    mesh = _box_mesh_raf(x0=-10.0, x1=10.0, y0=0.0, y1=3.0, z0=-10.0, z1=10.0)
+    position = np.array([0.0, 0.0, 1.0])
+    depth = raf_render.render_depth(mesh, position)
+    qa = raf_render.depth_qa(depth, position + np.array([0.0, 0.0, 0.10]))
+    assert qa["floor_ok"] is True
+    assert qa["warnings"] == []
+    far = raf_render.depth_qa(depth, position + np.array([0.0, 0.0, 0.30]))
+    assert far["floor_ok"] is False
+    assert far["passed"] is True                # still a warning, never an abort
