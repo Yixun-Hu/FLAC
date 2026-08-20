@@ -1119,6 +1119,9 @@ def parse_args(argv=None):
                              "SENSITIVITY_STRIDE-th query (calibration passes only)")
     parser.add_argument("--metric-secondaries", action="store_true",
                         help="also compute the declared M3/M5 secondaries")
+    parser.add_argument("--verify-context-digest", default=None, metavar="SHA256",
+                        help="--mode metrics-retrieval: refuse unless the pass's own context "
+                             "draw matches the paired replay's context-stream digest")
     parser.add_argument("--calibration-identities", default=None, metavar="PATH",
                         help="committed identity stream the calibration rows must match "
                              "exactly (a rows JSONL or a JSON list of query ids)")
@@ -3387,7 +3390,7 @@ def run_metrics_retrieval(args, loader, engine, context, expected=None, dataset_
             ctx_poses = torch.as_tensor(md["context_poses"]).float().numpy()
 
             # the measured candidate RIRs, where they exist: the oracle ceiling
-            oracle_wavs, available, _sources = load_measured_rirs(
+            oracle_wavs, available, oracle_source_nodes = load_measured_rirs(
                 os.path.dirname(md["path"]), cand_set, receiver_node,
                 merge_map=room_entry.get("merge_map"))
             oracle = rir_metrics_window(oracle_wavs.reshape(oracle_wavs.shape[0], -1))
@@ -3401,9 +3404,7 @@ def run_metrics_retrieval(args, loader, engine, context, expected=None, dataset_
                 masked = metric_matched_retrieval(candidate_cams, ctx_poses, ctx_distances,
                                                   eligible_mask=eligible)
                 oracle_distances = metrics["candidates"][family].reshape(-1)
-                usable = [i for i, flag in enumerate(available) if flag]
-                oracle_pred = usable[int(torch.argmin(
-                    oracle_distances.index_select(0, torch.tensor(usable, dtype=torch.long))))]
+                oracle_pred = oracle_prediction(oracle_distances, available)
                 row_families[family] = {
                     "context_hex": _encode_vector(ctx_distances),
                     "oracle_hex": _encode_vector(oracle_distances),
@@ -3420,14 +3421,26 @@ def run_metrics_retrieval(args, loader, engine, context, expected=None, dataset_
                    "gt_index": int(cand_set.gt_index), "gt_node": int(cand_set.gt_node),
                    "context_member": context_mask,
                    "candidate_available": [bool(a) for a in available],
+                   "oracle_source_nodes": [None if n is None else int(n)
+                                           for n in oracle_source_nodes],
+                   "context_fingerprints": sample_context_ids(md),
                    "families": row_families, "metric_config": config.payload()}
             write_row(handle, row)
             rows.append(row)
             meta.append({"context_member": context_mask})
             scored.append(identity)
-    os.replace(rows_path + ".partial", rows_path)
 
+    # Nothing is published until EVERY gate passes (r4m review finding 6).
     split_hash_value = assert_scored_stream(scored, expected)
+    # the ordered context draw of THIS pass, in eval_FLAC's canonical serialization
+    context_digest = canonical_stream_hash([tuple(row["context_fingerprints"])
+                                            for row in rows]) if rows else "n/a"
+    if getattr(args, "verify_context_digest", None):
+        if context_digest != args.verify_context_digest:
+            raise SystemExit(
+                f"context stream digest mismatch: this pass drew {context_digest[:16]}... but "
+                f"the paired replay recorded {str(args.verify_context_digest)[:16]}...; the "
+                "control would not be matched to the run it is compared against")
     summary_families = {}
     for family in families:
         correct = [row["families"][family]["retrieval_correct"] for row in rows]
@@ -3435,24 +3448,19 @@ def run_metrics_retrieval(args, loader, engine, context, expected=None, dataset_
         oracle = [row["families"][family]["oracle_correct"] for row in rows]
         context_hits = [row["context_member"][row["families"][family]["retrieval_pred_index"]]
                         for row in rows]
-        in_context = [row for row in rows if row["context_member"][row["gt_index"]]]
-        out_context = [row for row in rows if not row["context_member"][row["gt_index"]]]
         summary_families[family] = {
             "retrieval_top1": float(np.mean(correct)),
             "retrieval_masked_top1": float(np.mean(masked)),
             "oracle_top1": float(np.mean(oracle)),
             "context_member_rate": float(np.mean(context_hits)),
-            "split": {
-                "context": float(np.mean([r["families"][family]["retrieval_correct"]
-                                          for r in in_context])) if in_context else None,
-                "non_context": float(np.mean([r["families"][family]["retrieval_correct"]
-                                              for r in out_context])) if out_context else None,
-            },
+            "split": retrieval_split(rows, family),
         }
     summary = {"mode": "metrics-retrieval", "n_queries": len(rows),
                "n_rooms": len({row["room_id"] for row in rows}),
                "families": summary_families, "split_hash": split_hash_value,
-               "metric_config": config.payload()}
+               "context_stream_digest": context_digest,
+               "context_coverage": context_coverage(rows),
+               "seed": int(args.seed), "metric_config": config.payload()}
     provenance = {"mode": "metrics-retrieval", "source_sha": source_sha(),
                   "dataset_config": args.dataset_config,
                   "dataset_config_sha256": _file_sha256(args.dataset_config),
@@ -3463,6 +3471,7 @@ def run_metrics_retrieval(args, loader, engine, context, expected=None, dataset_
                   "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds")}
     write_json_atomic(summary_path, {"provenance": provenance, "summary": jsonable(summary)},
                       overwrite=True)
+    os.replace(rows_path + ".partial", rows_path)      # publish the set, gates first
     print(f"metrics-retrieval: {len(rows)} queries -> {rows_path}")
     return {"rows_path": rows_path, "summary_path": summary_path, "rows": rows,
             "rows_meta": meta, "summary": summary, "provenance": provenance}
@@ -3476,6 +3485,50 @@ def rm_window_samples():
 def rm_param_window_samples():
     from src.localization.rir_metrics import PARAM_WINDOW_SAMPLES
     return int(PARAM_WINDOW_SAMPLES)
+
+
+def oracle_prediction(compact_distances, available):
+    """Map an argmin over the COMPACT available-only array back to a candidate.
+
+    The oracle loads only the measured files that exist, so its distance vector is
+    shorter than the candidate set and indexed differently; indexing it with an
+    original candidate index mis-maps whenever an unavailable candidate is not the
+    trailing one (r4m review finding 5).
+    """
+    usable = [index for index, flag in enumerate(available) if flag]
+    compact_distances = torch.as_tensor(compact_distances).reshape(-1)
+    if compact_distances.numel() != len(usable):
+        raise ValueError(f"oracle distances cover {compact_distances.numel()} entries but "
+                         f"{len(usable)} candidates are available")
+    if not usable:
+        raise ValueError("no candidate has a measured RIR; the oracle is undefined")
+    return int(usable[int(torch.argmin(compact_distances))])
+
+
+def retrieval_split(rows, family):
+    """Split by whether the PREDICTED candidate is a context member.
+
+    Splitting on ``context_member[gt_index]`` produced an always-empty "context"
+    bucket, because a GT that appears in its own context aborts upstream. What the
+    control actually asks is whether the retrieval landed on a context source.
+    """
+    buckets = {"context": [], "non_context": []}
+    for row in rows:
+        block = row["families"][family]
+        predicted = int(block["retrieval_pred_index"])
+        key = "context" if row["context_member"][predicted] else "non_context"
+        buckets[key].append(bool(block["retrieval_correct"]))
+    return {name: {"n": len(values),
+                   "top1": (float(np.mean(values)) if values else None)}
+            for name, values in buckets.items()}
+
+
+def context_coverage(rows):
+    """How many candidates each query's context actually covers."""
+    counts = [int(sum(1 for member in row["context_member"] if member)) for row in rows]
+    return {"per_query": counts, "mean": float(np.mean(counts)) if counts else None,
+            "min": int(min(counts)) if counts else None,
+            "max": int(max(counts)) if counts else None}
 
 if __name__ == "__main__":
     main()

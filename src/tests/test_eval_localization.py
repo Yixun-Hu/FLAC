@@ -4812,3 +4812,136 @@ def test_metrics_rows_serialize_the_declared_secondaries_and_sensitivities(tmp_p
     assert el.decode_sims(first["sensitivities"]["gain_x2"]["m1"]).shape == (3, 2)
     if len(rows) > 1 and rows[1]["position"] % SENSITIVITY_STRIDE:
         assert rows[1]["sensitivities"] is None
+
+
+# --------------------------------------------------------------------------- #
+# r4m3 finding 5: retrieval/oracle reporting. The "context" split was defined by
+# context_member[gt_index], which the GT-in-context guard makes ALWAYS empty; the
+# oracle indexed a compact available-only array with original candidate indices;
+# fallback source nodes were discarded; the pass carried no seed.
+# --------------------------------------------------------------------------- #
+def test_oracle_prediction_maps_through_the_compact_available_array(tmp_path):
+    """A NON-TRAILING unavailable candidate is the case that mis-mapped."""
+    room = str(tmp_path / "room")
+    cand = _cand_set()                                    # nodes [0, 3, 7]
+    _write_rir(room, 3, 11, 0.2)
+    _write_rir(room, 7, 11, 0.9)                          # node 0 is missing: index 0 absent
+    _rec, engine = _engine()
+    obs = el.load_measured_rirs(room, cand, 11)[0][1:2]
+    out = el.run_query_gt_rir(engine, cand, room, 11, obs)
+    assert out["available"] == [False, True, True]
+    distances = torch.tensor([9.0, 0.1, 5.0])             # compact array holds only 2 entries
+    mapped = el.oracle_prediction(distances[[1, 2]], out["available"])
+    assert mapped == 1                                    # ORIGINAL candidate index, not 0
+    assert el.oracle_prediction(torch.tensor([5.0, 0.1]), [False, True, True]) == 2
+
+
+def test_oracle_prediction_refuses_a_length_mismatch():
+    with pytest.raises(ValueError):
+        el.oracle_prediction(torch.tensor([0.1, 0.2, 0.3]), [False, True, True])
+
+
+def test_context_split_is_defined_by_the_prediction_not_the_gt(tmp_path):
+    """GT-in-context is refused upstream, so a gt-based split is always empty."""
+    rows = [
+        {"context_member": [True, False, False], "families": {"m1": {"retrieval_pred_index": 0,
+                                                                    "retrieval_correct": False}}},
+        {"context_member": [True, False, False], "families": {"m1": {"retrieval_pred_index": 1,
+                                                                     "retrieval_correct": True}}},
+    ]
+    split = el.retrieval_split(rows, "m1")
+    assert split["context"]["n"] == 1 and split["non_context"]["n"] == 1
+    assert split["context"]["top1"] == pytest.approx(0.0)
+    assert split["non_context"]["top1"] == pytest.approx(1.0)
+
+
+def test_context_coverage_counts_are_reported_per_query():
+    rows = [{"context_member": [True, False, True]}, {"context_member": [False, False, False]}]
+    coverage = el.context_coverage(rows)
+    assert coverage["per_query"] == [2, 0]
+    assert coverage["mean"] == pytest.approx(1.0) and coverage["max"] == 2
+
+
+def test_metrics_retrieval_records_oracle_source_nodes_and_seed_in_the_stem(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    context = _stub_context(root)
+    context["context_k"] = 2
+    args = el.validate_args(el.parse_args(
+        ["--mode", "metrics-retrieval", "--model-config", "m.json",
+         "--dataset-config", _SEEN_CONFIG, "--metric-delta-max", "8",
+         "--metric-t30-backend", "torch", "--out-dir", str(tmp_path / "o"),
+         "--eval-name", "R4_ctl", "--seed", "43"]))
+    result = el.run_metrics_retrieval(args, loader, engine, context,
+                                      expected=el.expected_split_identities(loader.dataset))
+    assert "seed43" in os.path.basename(result["rows_path"])
+    row = el.read_rows(result["rows_path"])[0]
+    assert row["oracle_source_nodes"] == [0, 3, 7]
+    assert row["context_fingerprints"]                    # the per-query draw
+    assert result["summary"]["context_stream_digest"]     # the stream-level digest
+    summary = result["summary"]["families"]["m1"]
+    assert set(summary["split"]) == {"context", "non_context"}
+    assert summary["split"]["context"]["n"] + summary["split"]["non_context"]["n"] == 2
+    assert "context_coverage" in result["summary"]
+
+
+def test_metrics_retrieval_verifies_the_paired_context_stream_digest(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    context = _stub_context(root)
+    context["context_k"] = 2
+    base = ["--mode", "metrics-retrieval", "--model-config", "m.json",
+            "--dataset-config", _SEEN_CONFIG, "--metric-delta-max", "8",
+            "--metric-t30-backend", "torch", "--out-dir", str(tmp_path / "o"),
+            "--eval-name", "R4_ctl"]
+    first = el.run_metrics_retrieval(el.validate_args(el.parse_args(base)), loader, engine,
+                                     context,
+                                     expected=el.expected_split_identities(loader.dataset))
+    digest = first["summary"]["context_stream_digest"]
+
+    loader2, _root2 = _fake_run(tmp_path)
+    args = el.validate_args(el.parse_args(base + ["--verify-context-digest", digest,
+                                                  "--overwrite"]))
+    el.run_metrics_retrieval(args, loader2, engine, context,
+                             expected=el.expected_split_identities(loader2.dataset))
+    bad = el.validate_args(el.parse_args(base + ["--verify-context-digest", "0" * 64,
+                                                 "--overwrite"]))
+    with pytest.raises(SystemExit, match="context stream"):
+        el.run_metrics_retrieval(bad, loader2, engine, context,
+                                 expected=el.expected_split_identities(loader2.dataset))
+
+
+# --------------------------------------------------------------------------- #
+# r4m3 finding 6: nothing gets a final name until EVERY gate has passed.
+# --------------------------------------------------------------------------- #
+def test_metrics_jsonl_stays_partial_until_the_gates_pass(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    loader.batches[0][1][1]["idx"] = 99                   # substitution: the end gate fires
+    _rec, engine = _engine()
+    args = _metrics_args(tmp_path)
+    with pytest.raises(SystemExit):
+        el.run_evaluation(args, loader, engine, _stub_context(root), "c", "a",
+                          expected=el.expected_split_identities(loader.dataset))
+    paths = el.artifact_paths(args, overwrite=True)
+    metrics_path = os.path.join(os.path.dirname(paths["rows"]),
+                                f"{el.artifact_stem(args)}_metrics.jsonl")
+    assert not os.path.exists(metrics_path), "an aborted run published a metrics file"
+    assert not os.path.exists(paths["rows"]) and not os.path.exists(paths["summary"])
+
+
+def test_metrics_retrieval_rows_stay_partial_until_the_gates_pass(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    context = _stub_context(root)
+    context["context_k"] = 2
+    args = el.validate_args(el.parse_args(
+        ["--mode", "metrics-retrieval", "--model-config", "m.json",
+         "--dataset-config", _SEEN_CONFIG, "--metric-delta-max", "8",
+         "--metric-t30-backend", "torch", "--out-dir", str(tmp_path / "o"),
+         "--eval-name", "R4_ctl"]))
+    truncated = el.expected_split_identities(loader.dataset) + ["3|never/scored.wav"]
+    with pytest.raises(SystemExit):
+        el.run_metrics_retrieval(args, loader, engine, context, expected=truncated)
+    leftovers = [name for name in os.listdir(str(tmp_path / "o"))
+                 if name.endswith(".jsonl") or name.endswith(".json")]
+    assert leftovers == [], f"an aborted retrieval pass published {leftovers}"
