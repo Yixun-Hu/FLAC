@@ -421,3 +421,47 @@ def test_non_raf_datasets_still_accept_a_missing_scene():
     cb = _callback("AcousticRooms")
     cb.update_metrics("test", _decaying_rir(1), _decaying_rir(2))
     assert np.isfinite(cb.compute_metrics("test")["C50"])
+
+
+# --------------------------------------------------------------------------- #
+# r3 S7: the registered autocast behaviour of the multires-l1 window
+# --------------------------------------------------------------------------- #
+def test_multires_window_under_cpu_bf16_autocast():
+    """R10's contract is 'the window follows the signal'; evaluation runs under
+    bf16 autocast, so that is where it has to hold."""
+    from src.metrics.modules.l1_stft_multires import get_stft
+
+    x = torch.randn(4096)
+    with torch.autocast("cpu", dtype=torch.bfloat16):
+        out = get_stft(x, n_fft=64)
+    assert torch.isfinite(out).all()
+    assert out.device == x.device
+
+
+def test_multires_metric_update_under_cpu_bf16_autocast():
+    cb = _callback("RAF", eval_l1_distance_multires=True)
+    a, b = _unequal_rooms()
+    preds = torch.cat([p for p, _ in a + b], dim=0)
+    refs = torch.cat([r for _, r in a + b], dim=0)
+    with torch.autocast("cpu", dtype=torch.bfloat16):
+        cb.update_metrics("test", preds, refs,
+                          scene=["EmptyRoom"] * 3 + ["FurnishedRoom"])
+    metrics = cb.compute_metrics("test")
+    assert np.isfinite(metrics["L1_STFT_MultiRes"])
+    assert np.isfinite(metrics["L1_STFT"])
+
+
+@pytest.mark.skipif(
+    not torch.cuda.is_available() or os.environ.get("RAF_TEST_CUDA") != "1",
+    reason="CUDA case is opt-in (RAF_TEST_CUDA=1): this box's GPUs carry other "
+           "sessions' runs, so the suite must not allocate a CUDA context by default")
+def test_multires_window_on_a_non_default_cuda_device():
+    """--device cuda:1 with both GPUs visible was the second half of the R10 bug."""
+    from src.metrics.modules.l1_stft_multires import get_stft
+
+    device = f"cuda:{torch.cuda.device_count() - 1}"
+    x = torch.randn(4096, device=device)
+    with torch.autocast("cuda", dtype=torch.bfloat16):
+        out = get_stft(x, n_fft=64)
+    assert out.device.type == "cuda"
+    assert out.device.index == torch.device(device).index
