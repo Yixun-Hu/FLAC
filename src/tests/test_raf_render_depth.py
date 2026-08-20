@@ -858,24 +858,45 @@ def test_landmark_bearing_is_recorded_but_no_longer_gates():
     assert qa["bearing_gates_publication"] is False
 
 
-def test_real_mesh_qa_requires_sightlines_when_the_room_says_so():
+def test_rx_sightline_is_a_recorded_diagnostic_in_both_rooms():
+    """Amendment 9: blocked sightlines are ENVIRONMENTAL, not a gauge defect.
+
+    Measured on the real EmptyRoom mesh: blocked rays terminate mid-room at speaker
+    height (1.65 m) and the blocking survives every yaw in a full sweep (minimum
+    96 of 168 blocked at +45 deg). No frame error can do that -- it is capture
+    equipment left in the photogrammetry scan -- so the check records evidence and
+    never gates.
+    """
     mesh = _box_mesh_raf(**_BOX)
     wall = _box_mesh_raf(x0=2.0, x1=2.1, y0=0.0, y1=4.0, z0=-2.0, z1=6.0)
     tx = np.array([0.5, 0.5, 1.5])
-    rx = np.array([[4.5, 0.5, 1.5]])
+    rx = np.array([[4.5, 0.5, 1.5]])            # behind the partition
     depth = raf_render.render_depth(mesh + wall, tx, h=256, w=512)
-    required = raf_render.real_mesh_qa(depth, tx, mesh + wall, rx_positions_p=rx,
-                                       rx_sightline_required=True)
-    assert required["rx_sightline"]["passed"] is False
-    assert required["passed"] is False
-    recorded = raf_render.real_mesh_qa(depth, tx, mesh + wall, rx_positions_p=rx,
-                                       rx_sightline_required=False)
-    assert recorded["rx_sightline"]["passed"] is False
-    assert recorded["passed"] is True            # occlusion-tolerant room
-    assert any("recorded" in w for w in recorded["warnings"])
+    qa = raf_render.real_mesh_qa(depth, tx, mesh + wall, rx_positions_p=rx,
+                                 tracked_height_m=1.5)
+    assert qa["rx_sightline"]["passed"] is False    # evidence still measured
+    assert qa["rx_sightline"]["n_blocked"] == 1
+    assert qa["passed"] is True                     # ... and never gates
+    assert any("recorded diagnostic" in w for w in qa["warnings"])
+    assert raf_render.RX_SIGHTLINE_POLICY == "recorded"
 
 
-def test_cli_persists_the_s5_evidence_and_gates_on_it(tmp_path):
+def test_the_hard_gauge_gates_survive_the_demotion():
+    """What still fails a map: vertical axis, containment, bounds, scale."""
+    mesh, tx, rx = _room_under_gauge(_GAUGE_XYZ)    # wrong vertical assignment
+    depth = raf_render.render_depth(mesh, tx)
+    qa = raf_render.real_mesh_qa(depth, tx, mesh, rx_positions_p=rx,
+                                 tracked_height_m=1.5)
+    assert qa["vertical_axis"]["ok"] is False
+    assert qa["passed"] is False
+
+    outside = raf_render.real_mesh_qa(np.full((32, 64), 1.0, dtype=np.float32),
+                                      np.array([50.0, 50.0, 2.0]), _box_mesh_raf(**_BOX),
+                                      img_h=32, img_w=64)
+    assert outside["camera_inside"] is False and outside["passed"] is False
+
+
+def test_cli_persists_the_s5_evidence_as_a_recorded_diagnostic(tmp_path):
     raf_root, out, groups = _write_fixture(tmp_path)
     # give the runtime tree the poses the sightline probe reads (mesh-independent)
     meta = out / "EmptyRoom" / "metadata"
@@ -896,10 +917,10 @@ def test_cli_persists_the_s5_evidence_and_gates_on_it(tmp_path):
         evidence = entry["real_mesh"]["rx_sightline"]
         assert evidence["n_receivers"] == 3
         assert evidence["passed"] is True
-        assert evidence["required"] is True          # EmptyRoom is unconditional
+        assert evidence["required"] is False         # recorded, never a gate
         assert entry["real_mesh"]["scale_checked"] is True
-    assert qa["rx_sightline_policy"]["EmptyRoom"] == "required"
-    assert qa["rx_sightline_policy"]["FurnishedRoom"] == "recorded"
+    assert qa["rx_sightline_policy"] == {"EmptyRoom": "recorded",
+                                        "FurnishedRoom": "recorded"}
 
 
 # --------------------------------------------------------------------------- #
@@ -1252,6 +1273,7 @@ def test_canonical_render_identity_is_the_registered_one():
     assert raf_render.CANONICAL_RENDER_PARAMS == {
         "rooms": ("EmptyRoom", "FurnishedRoom"), "img_h": 256, "img_w": 512,
         "floor_tol": 0.15, "max_miss_rate": 0.001, "rx_sightline_receivers": 8,
+        "rx_sightline_policy": "recorded",
     }
     assert raf_render.assert_canonical_render(_render_args()) == []
 

@@ -352,6 +352,9 @@ CANONICAL_RENDER_PARAMS = {
     "floor_tol": 0.15,
     "max_miss_rate": 0.001,
     "rx_sightline_receivers": 8,
+    # Amendment 9: recorded diagnostic in BOTH rooms (environmental obstruction
+    # proven by a full yaw sweep), never a gate.
+    "rx_sightline_policy": "recorded",
 }
 CANONICAL_IDENTITIES = {"prepare": CANONICAL_PREPARE_PARAMS,
                         "depth": CANONICAL_RENDER_PARAMS}

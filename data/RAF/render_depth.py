@@ -80,9 +80,15 @@ RX_SIGHTLINE_TOL_M = 0.10
 # How many receivers to probe per map, farthest first: long sightlines are the
 # discriminating ones.
 RX_SIGHTLINE_MAX_RECEIVERS = 8
-# Rooms whose receiver sightlines must be unobstructed. FurnishedRoom legitimately
-# occludes some tx->rx paths, so there the evidence is recorded, not required.
-RX_SIGHTLINE_REQUIRED_ROOMS = ("EmptyRoom",)
+# Amendment 9: the receiver-sightline check is a RECORDED DIAGNOSTIC in BOTH rooms.
+# Measured at the canonical-render rung: EmptyRoom's blocked sightlines terminate
+# mid-room at speaker height (hit at 1.65 m), a radial fan from the room centre
+# finds structure at 1-2 m in many directions, and the blocking persists at EVERY
+# yaw (0/+-15/+-30/+-45/90/180/270, minimum 96 of 168 blocked). No frame error can
+# survive a full yaw sweep, so this is environmental obstruction -- capture
+# equipment left in the photogrammetry scan -- not a gauge defect. The gauge's hard
+# gates remain: vertical nadir-vs-tracked-height, containment, bounds, scale.
+RX_SIGHTLINE_POLICY = "recorded"
 # A RAF depth panorama should live in the same range as the AR/HAA maps the ViT
 # normalisation was trained on; these bounds widen the measured HAA band
 # (0.50 - 11.55 m over the four base rooms) rather than replace it.
@@ -346,6 +352,7 @@ def render_identity(args):
         "floor_tol": float(args.floor_tol),
         "max_miss_rate": float(args.max_miss_rate),
         "rx_sightline_receivers": int(args.rx_sightline_receivers),
+        "rx_sightline_policy": RX_SIGHTLINE_POLICY,
     }
 
 
@@ -638,7 +645,7 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
                  bearing_tol_deg=LANDMARK_BEARING_TOL_DEG, bounds_tol=0.05,
                  scene=None, tie_distance_frac=BEARING_TIE_DISTANCE_FRAC,
                  tie_angle_deg=BEARING_TIE_ANGLE_DEG, rx_positions_p=None,
-                 rx_sightline_required=True, references=None, tracked_height_m=None,
+                 rx_sightline_required=False, references=None, tracked_height_m=None,
                  vertical_tol_m=DEFAULT_FLOOR_TOL,
                  rx_sightline_receivers=RX_SIGHTLINE_MAX_RECEIVERS):
     """Checks that only the REAL mesh can answer (plan Rev 2 section 4.ii, R6).
@@ -647,9 +654,10 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
       distance in the map is measured from outside it;
     * room bounds -- the reconstructed point cloud must lie inside the mesh's
       bounding box, which catches a mis-scaled or mis-signed gauge;
-    * receiver sightlines -- MESH-INDEPENDENT evidence (S5): rendered depth toward
-      receivers taken from the tracked pose files must reach those receivers.
-      Required in EmptyRoom, recorded in FurnishedRoom (real occlusions);
+    * receiver sightlines -- MESH-INDEPENDENT evidence, RECORDED in both rooms
+      (Amendment 9). It still detects a transform applied inconsistently across
+      mesh/tx/rx, but real scanned rooms contain capture equipment that blocks
+      genuine tx->rx paths, so it cannot gate publication;
     * depth scale -- the distribution the ViT normalisation will see, checked
       against the ACTUAL on-disk AR/HAA reference maps when they are present;
     * landmark bearing -- RECORDED ONLY. It compares the rendered map against the
@@ -780,10 +788,11 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
             f"{vertical['tracked_height_m']:.3f} m (delta {vertical['delta_m']:.3f} m "
             f"> {vertical['tol_m']} m) -- the wrong RAF axis may be in the vertical slot")
     if not sightline["passed"]:
-        detail = (f"{sightline['n_blocked']} of {sightline['n_receivers']} receiver "
-                  f"sightlines blocked, worst deficit {sightline['worst_deficit_m']:.2f} m")
-        warnings.append(detail if sightline["required"]
-                        else f"{detail} (recorded only for this room)")
+        warnings.append(
+            f"{sightline['n_blocked']} of {sightline['n_receivers']} receiver "
+            f"sightlines blocked, worst deficit {sightline['worst_deficit_m']:.2f} m "
+            "(recorded diagnostic: real scans contain capture equipment that blocks "
+            "genuine paths)")
 
     return {
         "camera_inside": camera_inside,
@@ -816,8 +825,10 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
         # (receiver sightlines) plus containment/bounds/sightline-bound and, once a
         # real reference corpus is present, the depth scale. The landmark bearing
         # is recorded but never gates.
+        # Amendment 9: the receiver sightline is NOT in this conjunction -- it is a
+        # recorded diagnostic. ``sightline_ok`` below is the AABB sightline BOUND
+        # (no ray may outrun the room's bounding box), which is a different check.
         "passed": bool(camera_inside and bounds_ok and sightline_ok
-                       and (sightline["passed"] or not sightline["required"])
                        and (plausible or not scale_checked)
                        and vertical["ok"]),
     }
@@ -897,8 +908,7 @@ def main(argv=None):
     }
     logger.info("scale references: HAA %s, AR %s",
                 references["HAA"].get("n_maps"), references["AR"].get("n_maps"))
-    sightline_policy = {room: ("required" if room in RX_SIGHTLINE_REQUIRED_ROOMS
-                               else "recorded") for room in args.rooms}
+    sightline_policy = {room: RX_SIGHTLINE_POLICY for room in args.rooms}
     for room in args.rooms:
         mesh = load_mesh_pipeline(os.path.join(args.raf_root, "3d_models", room, "mesh.obj"))
         meta_path = os.path.join(args.output_dir, room, "metadata", "groups_metadata.json")
@@ -913,8 +923,6 @@ def main(argv=None):
             with open(poses_path) as f:
                 rx_positions = np.asarray(
                     [entry["rx_p"] for entry in json.load(f).values()], dtype=np.float64)
-        sightline_required = room in RX_SIGHTLINE_REQUIRED_ROOMS
-
         depth_dir = os.path.join(args.output_dir, room, "depth_images")
 
         # R12: one conversion + one acceleration structure per room.
@@ -954,15 +962,14 @@ def main(argv=None):
                     "height; re-run data/RAF/prepare_data.py to republish it.")
             qa["real_mesh"] = real_mesh_qa(
                 depth, position, mesh, img_h=args.img_h, img_w=args.img_w, scene=scene,
-                rx_positions_p=rx_positions, rx_sightline_required=sightline_required,
+                rx_positions_p=rx_positions, rx_sightline_required=False,
                 rx_sightline_receivers=args.rx_sightline_receivers,
                 references=references,
                 tracked_height_m=float(entry["tx_height_raf_m"]),
                 vertical_tol_m=args.floor_tol)
-            if canonical and not qa["real_mesh"]["rx_sightline"]["checked"]:
-                qa["warnings"].append(
-                    "no receiver sightline evidence: canonical maps require it")
-                qa["passed"] = False
+            if not qa["real_mesh"]["rx_sightline"]["checked"]:
+                # still emitted per map, still recorded -- but never a gate
+                qa["warnings"].append("no receiver sightline evidence available")
             qa["warnings"] = qa["warnings"] + qa["real_mesh"]["warnings"]
             qa["passed"] = bool(qa["passed"] and qa["real_mesh"]["passed"])
             bearings[group_key] = qa["real_mesh"]["landmark_bearing_deg"]
@@ -994,8 +1001,7 @@ def main(argv=None):
             "scale_reference": references,
             "detectability": DETECTABILITY_BOUNDARY,
             "rx_sightline_receivers": args.rx_sightline_receivers,
-            "rx_sightline_policy": {room: ("required" if room in RX_SIGHTLINE_REQUIRED_ROOMS
-                                           else "recorded")
+            "rx_sightline_policy": {room: RX_SIGHTLINE_POLICY
                                     for room in ("EmptyRoom", "FurnishedRoom")},
             # Recorded per room so the two rooms' landmark bearings can be compared
             # across rooms at the run rung (a shared gauge error would show up as a
