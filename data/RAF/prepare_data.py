@@ -380,6 +380,7 @@ CANONICAL_PARAMS = {
     "n_val_groups": 4,
     "n_train": 12,
     "n_diagnostic_groups": 1,
+    "seed": 0,
     "full_crosscheck": True,
     "allow_nonuniform": True,
 }
@@ -393,6 +394,10 @@ def parameter_identity(args):
         "n_val_groups": int(args.n_val_groups),
         "n_train": int(args.n_train),
         "n_diagnostic_groups": int(args.n_diagnostic_groups),
+        # r5 finding 2: the seed decides the FPS split and the cross-check sample,
+        # so a canonical publication that omitted it from its identity was not
+        # identified at all -- a seed=999 probe reported no deviations.
+        "seed": int(args.seed),
         "full_crosscheck": bool(args.full_crosscheck),
         "allow_nonuniform": bool(args.allow_nonuniform),
     }
@@ -406,7 +411,7 @@ def canonical_parameter_deviations(args):
         deviations.append(
             f"rooms {identity['rooms']} != {list(CANONICAL_PARAMS['rooms'])}")
     for key in ("n_groups", "n_val_groups", "n_train", "n_diagnostic_groups",
-                "full_crosscheck", "allow_nonuniform"):
+                "seed", "full_crosscheck", "allow_nonuniform"):
         if identity[key] != CANONICAL_PARAMS[key]:
             deviations.append(f"{key} {identity[key]} != {CANONICAL_PARAMS[key]}")
     return deviations

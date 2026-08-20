@@ -319,6 +319,59 @@ def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL, img_h=DEPTH_H,
     }
 
 
+# The registered canonical RENDER identity (Amendment 7). Validated before any
+# I/O and written into the depth marker, so a Furnished-only render, a loosened
+# floor tolerance that disables the vertical gate, or a non-canonical grid can no
+# longer publish "canonical": true.
+CANONICAL_RENDER_PARAMS = {
+    "rooms": ("EmptyRoom", "FurnishedRoom"),
+    "img_h": DEPTH_H,
+    "img_w": DEPTH_W,
+    "floor_tol": DEFAULT_FLOOR_TOL,
+    "max_miss_rate": DEFAULT_MAX_MISS_RATE,
+}
+
+
+def render_identity(args):
+    """The parameter set a depth publication's marker is bound to."""
+    return {
+        "rooms": list(args.rooms),
+        "img_h": int(args.img_h),
+        "img_w": int(args.img_w),
+        "floor_tol": float(args.floor_tol),
+        "max_miss_rate": float(args.max_miss_rate),
+    }
+
+
+def canonical_render_deviations(args):
+    identity = render_identity(args)
+    deviations = []
+    if tuple(identity["rooms"]) != CANONICAL_RENDER_PARAMS["rooms"]:
+        deviations.append(
+            f"rooms {identity['rooms']} != {list(CANONICAL_RENDER_PARAMS['rooms'])}")
+    for key in ("img_h", "img_w", "floor_tol"):
+        if identity[key] != CANONICAL_RENDER_PARAMS[key]:
+            deviations.append(f"{key} {identity[key]} != {CANONICAL_RENDER_PARAMS[key]}")
+    # the cap may be LOWERED canonically (resolve_miss_cap), never raised
+    if identity["max_miss_rate"] > CANONICAL_RENDER_PARAMS["max_miss_rate"]:
+        deviations.append(
+            f"max_miss_rate {identity['max_miss_rate']} > "
+            f"{CANONICAL_RENDER_PARAMS['max_miss_rate']}")
+    return deviations
+
+
+def assert_canonical_render(args):
+    """Fail-closed render-parameter gate, run BEFORE any I/O (r5 finding 2)."""
+    deviations = canonical_render_deviations(args)
+    if deviations:
+        raise ValueError(
+            "refusing a canonical render with non-registered parameters: "
+            + "; ".join(deviations)
+            + ". Pass --non-canonical to render an experiment (its artifacts are "
+              "tainted).")
+    return deviations
+
+
 def resolve_miss_cap(requested, canonical=True):
     """Miss-cap policy (S2): canonical runs may only LOWER the registered cap.
 
@@ -788,15 +841,15 @@ def main(argv=None):
                 readback_provenance["gauge_pinned"])
 
     taint = list(readback_provenance["taint"])
+    render_params = render_identity(args)
+    render_deviations = canonical_render_deviations(args)
+    if canonical:
+        assert_canonical_render(args)
+    elif render_deviations:
+        taint.append("non-registered render parameters: " + "; ".join(render_deviations))
     taint.extend(resolve_miss_cap(args.max_miss_rate, canonical)[1])
     if (args.img_h, args.img_w) != CANONICAL_SHAPE:
-        if canonical:
-            raise ValueError(
-                f"refusing to render a {args.img_h}x{args.img_w} grid: RAF_md consumes "
-                f"exactly {CANONICAL_SHAPE[0]}x{CANONICAL_SHAPE[1]}, so these maps would "
-                "pass QA and then fail inside metadata loading, where the dataloader "
-                "silently substitutes another item. Pass --non-canonical to render them "
-                "anyway (the QA record is tainted).")
+        # canonical mode already refused this in assert_canonical_render
         taint.append(f"non-canonical grid {args.img_h}x{args.img_w}: unusable by RAF_md")
 
     # S3: one transaction over every room's depth directory, so two rooms can
@@ -942,6 +995,8 @@ def main(argv=None):
 
     marker = publish_txn.commit(expectations=expectations, validate_json=True,
                                 extra={"canonical": canonical, "taint": taint,
+                                       "parameters": render_params,
+                                       "canonical_parameters": not render_deviations,
                                        "readback_record": readback_provenance})
     logger.info("published generation %s over %d depth directories",
                 marker["generation"][:12], len(marker["roots"]))

@@ -287,7 +287,13 @@ def verify_publication(marker_root, kind="prepare", expected_roots=None):
     if marker.get("kind", kind) != kind:
         reasons.append(f"marker kind {marker.get('kind')!r} != requested {kind!r}")
     if expected_roots is not None:
-        expected = {os.path.abspath(r) for r in expected_roots}
+        resolved = [os.path.abspath(r) for r in expected_roots]
+        if not resolved:
+            reasons.append("an empty expected-root list is not a publication")
+        if len(set(resolved)) != len(resolved):
+            # reducing to a set would hide the caller's own duplicate expectation
+            reasons.append(f"duplicate expected roots: {sorted(resolved)}")
+        expected = set(resolved)
         actual = {os.path.abspath(r) for r in declared}
         if expected != actual:
             reasons.append(
@@ -318,6 +324,7 @@ def verify_publication(marker_root, kind="prepare", expected_roots=None):
         "reason": "; ".join(reasons),
         "generation": marker["generation"],
         "kind": marker.get("kind"),
+        "marker": marker,
         "roots": roots,
     }
 
@@ -366,9 +373,20 @@ def verify_combined_publication(split_dir, output_dir, rooms=None,
         reasons.append(f"prepare: {prepare['reason']}")
     if not depth["published"]:
         reasons.append(f"depth: {depth['reason']}")
+    # r5 finding 3: validate the markers' own provenance, not only their manifests.
+    if canonical:
+        for kind, report in (("prepare", prepare), ("depth", depth)):
+            marker = report.get("marker") or {}
+            if marker.get("canonical") is not True:
+                reasons.append(f"{kind} marker does not declare canonical publication")
+            if marker.get("canonical_parameters") is not True:
+                reasons.append(f"{kind} marker records non-registered parameters")
+            if marker.get("taint"):
+                reasons.append(f"{kind} marker is tainted: {marker['taint']}")
     return {
         "published": not reasons,
         "reason": "; ".join(reasons),
+        "rooms": rooms,
         "kinds": {"prepare": prepare, "depth": depth},
     }
 

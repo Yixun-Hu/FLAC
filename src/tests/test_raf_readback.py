@@ -659,7 +659,7 @@ def test_scalar_cannot_be_applied_without_any_trained_support(tmp_path):
 def test_canonical_parameters_are_the_registered_ones():
     assert raf_prepare.CANONICAL_PARAMS == {
         "rooms": ("EmptyRoom", "FurnishedRoom"), "n_groups": 16, "n_val_groups": 4,
-        "n_train": 12, "n_diagnostic_groups": 1, "full_crosscheck": True,
+        "n_train": 12, "n_diagnostic_groups": 1, "seed": 0, "full_crosscheck": True,
         "allow_nonuniform": True,
     }
 
@@ -669,7 +669,7 @@ def _canonical_args(**overrides):
 
     values = {"rooms": ["EmptyRoom", "FurnishedRoom"], "n_groups": 16,
               "n_val_groups": 4, "n_train": 12, "n_diagnostic_groups": 1,
-              "full_crosscheck": True, "allow_nonuniform": True}
+              "seed": 0, "full_crosscheck": True, "allow_nonuniform": True}
     values.update(overrides)
     return argparse.Namespace(**values)
 
@@ -686,6 +686,7 @@ def test_canonical_parameter_gate_accepts_the_registered_set():
     ({"n_train": 6}, "n_train"),
     ({"n_diagnostic_groups": 0}, "n_diagnostic_groups"),
     ({"full_crosscheck": False}, "full_crosscheck"),
+    ({"seed": 999}, "seed"),
 ])
 def test_canonical_parameter_gate_rejects_deviations(overrides, needle):
     with pytest.raises(ValueError) as exc:

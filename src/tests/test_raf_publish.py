@@ -631,3 +631,71 @@ def test_a_crash_in_the_second_kind_leaves_the_first_attestation_intact(tmp_path
     after = json.loads((split_dir / raf_publish.marker_name("prepare")).read_text())
     assert after == before
     assert raf_publish.verify_publication(str(out), kind="depth")["published"] is False
+
+
+# --------------------------------------------------------------------------- #
+# r5 finding 3: completeness is internal, provenance is validated
+# --------------------------------------------------------------------------- #
+def test_canonical_combined_verification_ignores_a_narrower_caller_room_list(tmp_path):
+    """Passing ['EmptyRoom'] used to make a one-room depth marker 'complete'."""
+    with pytest.raises(ValueError) as exc:
+        raf_publish.verify_combined_publication(str(tmp_path / "s"), str(tmp_path / "o"),
+                                                rooms=["EmptyRoom"], canonical=True)
+    assert "canonical publication covers exactly" in str(exc.value)
+    assert raf_publish.resolve_rooms(None, canonical=True) == list(
+        raf_publish.CANONICAL_ROOMS)
+
+
+@pytest.mark.parametrize("rooms", [[], ["EmptyRoom", "EmptyRoom"]])
+def test_non_canonical_verification_rejects_empty_or_duplicate_rooms(tmp_path, rooms):
+    with pytest.raises(ValueError):
+        raf_publish.verify_combined_publication(str(tmp_path / "s"), str(tmp_path / "o"),
+                                                rooms=rooms, canonical=False)
+
+
+def test_duplicate_expected_roots_are_reported_not_collapsed(tmp_path):
+    a = tmp_path / "a"
+    with raf_publish.PublishTransaction(str(a), kind="prepare") as txn:
+        open(txn.stage(str(a)).path("one.txt"), "w").write("A")
+        txn.commit()
+    report = raf_publish.verify_publication(str(a), kind="prepare",
+                                            expected_roots=[str(a), str(a)])
+    assert report["published"] is False
+    assert "duplicate expected roots" in report["reason"]
+
+
+def test_canonical_combined_verification_validates_marker_provenance(tmp_path):
+    """A tainted or non-canonical marker cannot attest a canonical publication."""
+    split_dir, out = tmp_path / "splits", tmp_path / "runtime"
+    rooms = list(raf_publish.CANONICAL_ROOMS)
+    with raf_publish.PublishTransaction(str(split_dir), kind="prepare") as txn:
+        open(txn.stage(str(out)).path("x.txt"), "w").write("x")
+        open(txn.stage(str(split_dir)).path("y.txt"), "w").write("y")
+        txn.commit(extra={"canonical": True, "canonical_parameters": True, "taint": []})
+    with raf_publish.PublishTransaction(str(out), kind="depth") as txn:
+        for room in rooms:
+            open(txn.stage(str(out / room / "depth_images")).path("m.npy"), "w").write("d")
+        txn.commit(extra={"canonical": True, "canonical_parameters": False,
+                          "taint": ["non-registered render parameters"]})
+    report = raf_publish.verify_combined_publication(str(split_dir), str(out),
+                                                     canonical=True)
+    assert report["published"] is False
+    assert "non-registered parameters" in report["reason"]
+    assert "tainted" in report["reason"]
+
+
+def test_canonical_combined_verification_accepts_a_clean_pair(tmp_path):
+    split_dir, out = tmp_path / "splits", tmp_path / "runtime"
+    rooms = list(raf_publish.CANONICAL_ROOMS)
+    with raf_publish.PublishTransaction(str(split_dir), kind="prepare") as txn:
+        open(txn.stage(str(out)).path("x.txt"), "w").write("x")
+        open(txn.stage(str(split_dir)).path("y.txt"), "w").write("y")
+        txn.commit(extra={"canonical": True, "canonical_parameters": True, "taint": []})
+    with raf_publish.PublishTransaction(str(out), kind="depth") as txn:
+        for room in rooms:
+            open(txn.stage(str(out / room / "depth_images")).path("m.npy"), "w").write("d")
+        txn.commit(extra={"canonical": True, "canonical_parameters": True, "taint": []})
+    report = raf_publish.verify_combined_publication(str(split_dir), str(out),
+                                                     canonical=True)
+    assert report["published"] is True
+    assert report["rooms"] == rooms

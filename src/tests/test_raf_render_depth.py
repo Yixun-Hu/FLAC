@@ -1210,3 +1210,62 @@ def test_cli_refuses_metadata_without_the_raw_height(tmp_path):
                          "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path),
                          "--non-canonical"])
     assert "tx_height_raf_m" in str(exc.value)
+
+
+# --------------------------------------------------------------------------- #
+# r5 finding 2: the canonical RENDER identity
+# --------------------------------------------------------------------------- #
+def _render_args(**overrides):
+    import argparse
+
+    values = {"rooms": ["EmptyRoom", "FurnishedRoom"], "img_h": 256, "img_w": 512,
+              "floor_tol": raf_render.DEFAULT_FLOOR_TOL,
+              "max_miss_rate": raf_render.DEFAULT_MAX_MISS_RATE}
+    values.update(overrides)
+    return argparse.Namespace(**values)
+
+
+def test_canonical_render_identity_is_the_registered_one():
+    assert raf_render.CANONICAL_RENDER_PARAMS == {
+        "rooms": ("EmptyRoom", "FurnishedRoom"), "img_h": 256, "img_w": 512,
+        "floor_tol": 0.15, "max_miss_rate": 0.001,
+    }
+    assert raf_render.assert_canonical_render(_render_args()) == []
+
+
+@pytest.mark.parametrize("overrides,needle", [
+    ({"rooms": ["FurnishedRoom"]}, "rooms"),
+    ({"rooms": ["EmptyRoom"]}, "rooms"),
+    ({"floor_tol": 5.0}, "floor_tol"),
+    ({"img_h": 128}, "img_h"),
+    ({"img_w": 256}, "img_w"),
+    ({"max_miss_rate": 0.05}, "max_miss_rate"),
+])
+def test_canonical_render_rejects_deviations(overrides, needle):
+    """A Furnished-only render skipped EmptyRoom's unconditional sightline gate,
+    and a loose --floor-tol disabled the vertical gate entirely."""
+    with pytest.raises(ValueError) as exc:
+        raf_render.assert_canonical_render(_render_args(**overrides))
+    assert needle in str(exc.value)
+    assert "--non-canonical" in str(exc.value)
+
+
+def test_a_stricter_miss_cap_is_still_canonical():
+    assert raf_render.canonical_render_deviations(
+        _render_args(max_miss_rate=0.0001)) == []
+
+
+def test_render_parameters_join_the_depth_marker(tmp_path):
+    import publish as raf_publish
+
+    raf_root, out, _ = _write_fixture(tmp_path)
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path),
+                     "--non-canonical"])
+    with open(out / raf_publish.marker_name("depth")) as f:
+        marker = json.load(f)
+    assert marker["parameters"]["rooms"] == ["EmptyRoom"]
+    assert marker["parameters"]["floor_tol"] == raf_render.DEFAULT_FLOOR_TOL
+    assert marker["canonical"] is False
+    assert marker["canonical_parameters"] is False
+    assert marker["readback_record"]["sha256"]
