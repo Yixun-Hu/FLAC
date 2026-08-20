@@ -194,3 +194,7 @@
 ## 2026-08-19 (see date line in commit) — Coordination: GPU 1 free; peer's eval_FLAC sha incoming
 
 - **Result** — Peer confirms GPU 1 free (Leg A done, 5 seeds stream-audited); Leg B holds GPU 0 until ~21:00–22:30. Their eval_FLAC.py additive commit is being written; sha to follow; our binding AR-byte-identity constraint is being verified against the suites we named before it lands. exp_18 unaffected: r5 in flight, launches still gated on the focused re-review; merged-tree re-verification remains the pre-launch step once the sha arrives.
+
+## 2026-08-19T20:05:00-0400 — Peer's eval_FLAC change landed (6c0a16e); shared-file protocol extended
+
+- **Result** — `6c0a16e` spot-checked: RAF-only capture-id branch, AR schema=1 byte-identical, goldens recompute; peer's suite evidence includes our named snapshot suites + test_eval_localization read-only green. Merged-tree re-verification deferred to the r5 completion pass (one verification covers both). Scope correction sent to peer: metric_callback.py and src/metrics/* ARE shared (our AGREE loader) — sha-ping + launch-window hold protocol extended to them. r5 progress: first commit `a69f96a` (wall-correct GPU timing) already landed.
