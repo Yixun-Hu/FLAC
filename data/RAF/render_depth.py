@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import sys
+import time
 
 import numpy as np
 import open3d as o3d
@@ -30,6 +31,16 @@ logger = logging.getLogger(__name__)
 
 DEPTH_H = 256
 DEPTH_W = 512
+# The loader hard-codes this grid (RAF_md -> convert_equirect_to_camera_coord), so
+# a map rendered at any other size cannot be consumed: it would pass QA and then
+# fail inside metadata loading, where SampleDataset silently substitutes another
+# item. Canonical renders are therefore exactly this shape, and anything else has
+# to be asked for explicitly and taints the QA record.
+CANONICAL_SHAPE = (DEPTH_H, DEPTH_W)
+# Plausibility band for a room-scale depth panorama, used to sanity-check the RAF
+# maps against the AR/HAA distributions the ViT normalisation expects.
+EXPECTED_DEPTH_RANGE_M = (0.05, 50.0)
+LANDMARK_BEARING_TOL_DEG = 15.0
 # The pipeline's vertical axis is the THIRD component (AR/HAA poses carry the
 # height there), so the camera height above the RAF ground plane (y = 0) is
 # position_p[2].
@@ -53,12 +64,28 @@ def load_mesh_pipeline(obj_path):
     return mesh
 
 
+def build_scene(mesh):
+    """One ``RaycastingScene`` per room, reused for every camera (R12).
+
+    The real OBJs are ~215 MB; converting the mesh and rebuilding the acceleration
+    structure per camera cost that work ~21 times per room for no benefit.
+    """
+    if isinstance(mesh, o3d.t.geometry.RaycastingScene):
+        return mesh
+    tmesh = (mesh if isinstance(mesh, o3d.t.geometry.TriangleMesh)
+             else o3d.t.geometry.TriangleMesh.from_legacy(mesh))
+    scene = o3d.t.geometry.RaycastingScene()
+    scene.add_triangles(tmesh)
+    return scene
+
+
 def render_depth(mesh, position_p, h=DEPTH_H, w=DEPTH_W):
     """Euclidean distance to the mesh along every equirect ray from ``position_p``.
 
-    ``mesh`` must already be in the PIPELINE frame (see ``load_mesh_pipeline``) and
-    ``position_p`` is a pipeline-frame point. Rays are unit vectors, so open3d's
-    ``t_hit`` is the Euclidean distance directly.
+    ``mesh`` is a pipeline-frame mesh (see ``load_mesh_pipeline``) or a prebuilt
+    ``RaycastingScene`` from ``build_scene``; ``position_p`` is a pipeline-frame
+    point. Rays are unit vectors, so open3d's ``t_hit`` is the Euclidean distance
+    directly.
 
     Registered miss policy: ANY ray that fails to hit aborts the render with a
     report. There is no silent fill — an unhit ray means the camera is outside the
@@ -71,13 +98,7 @@ def render_depth(mesh, position_p, h=DEPTH_H, w=DEPTH_W):
     if not np.all(np.isfinite(position)):
         raise ValueError(f"position_p is not finite: {position.tolist()}")
 
-    if isinstance(mesh, o3d.t.geometry.TriangleMesh):
-        tmesh = mesh
-    else:
-        tmesh = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
-
-    scene = o3d.t.geometry.RaycastingScene()
-    scene.add_triangles(tmesh)
+    scene = build_scene(mesh)
 
     dirs = equirect_directions(h, w).reshape(-1, 3)
     origins = np.tile(position.astype(np.float32), (dirs.shape[0], 1))
@@ -100,7 +121,8 @@ def render_depth(mesh, position_p, h=DEPTH_H, w=DEPTH_W):
     return hits.astype(np.float32)
 
 
-def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL):
+def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL, img_h=DEPTH_H,
+             img_w=DEPTH_W, canonical=True):
     """Per-map quality report (plan Rev 2 section 8.3).
 
     ``passed`` covers the STRUCTURAL checks only — shape/dtype, finiteness,
@@ -114,8 +136,10 @@ def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL):
     finite_mask = np.isfinite(arr)
     finite = bool(finite_mask.all())
     positive = bool((arr[finite_mask] > 0).all()) if finite_mask.any() else False
-    shape_ok = arr.ndim == 2
+    expected_shape = (int(img_h), int(img_w))
+    shape_ok = arr.shape == expected_shape
     dtype_ok = arr.dtype == np.float32
+    canonical_grid = expected_shape == CANONICAL_SHAPE
 
     height = float(position[HEIGHT_AXIS])
     nadir = float(np.median(arr[-1][np.isfinite(arr[-1])])) if shape_ok and finite_mask[-1].any() else float("nan")
@@ -124,6 +148,15 @@ def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL):
 
     values = arr[finite_mask]
     warnings = []
+    if not shape_ok:
+        warnings.append(
+            f"depth map is {arr.shape}, expected {expected_shape} "
+            f"(the loader consumes exactly {CANONICAL_SHAPE[0]}x{CANONICAL_SHAPE[1]})")
+    if not dtype_ok:
+        warnings.append(f"depth map dtype is {arr.dtype}, expected float32")
+    if canonical and not canonical_grid:
+        warnings.append(
+            f"non-canonical grid {expected_shape}: this map cannot be loaded by RAF_md")
     if not floor_ok:
         warnings.append(
             f"floor distance at nadir ({nadir:.4f} m) differs from the camera height "
@@ -131,6 +164,9 @@ def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL):
 
     return {
         "shape": list(arr.shape),
+        "expected_shape": list(expected_shape),
+        "canonical_shape": bool(shape_ok),
+        "canonical": bool(canonical and canonical_grid),
         "dtype": str(arr.dtype),
         "finite": finite,
         "positive": positive,
@@ -145,7 +181,130 @@ def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL):
         "floor_tol": float(floor_tol),
         "floor_ok": floor_ok,
         "warnings": warnings,
-        "passed": bool(finite and positive and shape_ok and dtype_ok),
+        "passed": bool(finite and positive and shape_ok and dtype_ok
+                       and (canonical_grid or not canonical)),
+    }
+
+
+def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
+                 bearing_tol_deg=LANDMARK_BEARING_TOL_DEG, bounds_tol=0.05,
+                 scene=None):
+    """Checks that only the REAL mesh can answer (plan Rev 2 section 4.ii, R6).
+
+    * camera containment -- the source must be inside the closed room, or every
+      distance in the map is measured from outside it;
+    * room bounds -- the reconstructed point cloud must lie inside the mesh's
+      bounding box, which catches a mis-scaled or mis-signed gauge;
+    * landmark bearing -- the direction of the map's LONGEST sightline must agree
+      with the direction of the mesh's farthest surface point. This is the
+      non-circular gauge check: a transposed or flipped axis swings it by ~90/180
+      degrees while every synthetic-box test still passes;
+    * depth scale -- the distribution the ViT normalisation will see, recorded
+      against the AR/HAA reference band.
+    """
+    arr = np.asarray(depth, dtype=np.float64)
+    position = np.asarray(position_p, dtype=np.float64)
+    # ``scene`` is passed in by the CLI so the acceleration structure is built
+    # once per room (R12) rather than once per QA call.
+    scene = build_scene(mesh) if scene is None else scene
+    vertices = np.asarray(mesh.vertices if hasattr(mesh, "vertices")
+                          else mesh.vertex["positions"].numpy(), dtype=np.float64)
+    lo, hi = vertices.min(axis=0), vertices.max(axis=0)
+
+    occupancy = scene.compute_occupancy(
+        o3d.core.Tensor(position.astype(np.float32).reshape(1, 3)))
+    camera_inside = bool(int(occupancy.numpy().reshape(-1)[0]) == 1)
+
+    dirs = equirect_directions(int(img_h), int(img_w))
+    cloud = position.reshape(1, 1, 3) + arr[..., None] * dirs
+    points = cloud.reshape(-1, 3)
+    bounds_ok = bool(np.all(points >= lo - bounds_tol)
+                     and np.all(points <= hi + bounds_tol))
+
+    # Sightline bound: no ray may travel further than the room's bounding box
+    # allows in that direction. Derived from the mesh AABB by the slab method here
+    # (not from the renderer), so a transposed or mis-scaled gauge breaks it.
+    flat_dirs = dirs.reshape(-1, 3).astype(np.float64)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        t_lo = (lo - position) / flat_dirs
+        t_hi = (hi - position) / flat_dirs
+    t_exit = np.nanmin(np.where(flat_dirs > 0, t_hi, np.where(flat_dirs < 0, t_lo, np.inf)),
+                       axis=1)
+    sightline_slack = float(np.nanmax(arr.reshape(-1) - t_exit))
+    sightline_ok = bool(sightline_slack <= bounds_tol)
+
+    flat = int(np.argmax(arr))
+    far_dir = dirs.reshape(-1, 3)[flat]
+    vertex_dist = np.linalg.norm(vertices - position, axis=1)
+    mesh_far = vertices[int(np.argmax(vertex_dist))]
+    mesh_dir = mesh_far - position
+    map_bearing = float(np.degrees(np.arctan2(far_dir[1], far_dir[0])))
+    mesh_bearing = float(np.degrees(np.arctan2(mesh_dir[1], mesh_dir[0])))
+    delta = abs((map_bearing - mesh_bearing + 180.0) % 360.0 - 180.0)
+    # Applicable only when the farthest surface is unique in DIRECTION. A
+    # symmetric room has several equally distant corners, and then a bearing
+    # mismatch is a tie-break, not evidence about the gauge -- asserting on it
+    # would be a false alarm rather than a check.
+    contenders = vertices[vertex_dist >= 0.99 * float(vertex_dist.max())] - position
+    azimuths = np.degrees(np.arctan2(contenders[:, 1], contenders[:, 0]))
+    spread = float(np.max(np.abs((azimuths[:, None] - azimuths[None, :] + 180.0)
+                                 % 360.0 - 180.0))) if azimuths.size else 0.0
+    bearing_applicable = bool(spread <= bearing_tol_deg)
+    bearing_ok = bool(delta <= bearing_tol_deg) if bearing_applicable else True
+
+    finite = arr[np.isfinite(arr)]
+    scale = {
+        "min": float(finite.min()) if finite.size else None,
+        "max": float(finite.max()) if finite.size else None,
+        "mean": float(finite.mean()) if finite.size else None,
+        "p50": float(np.percentile(finite, 50)) if finite.size else None,
+        "p95": float(np.percentile(finite, 95)) if finite.size else None,
+    }
+    plausible = bool(finite.size and EXPECTED_DEPTH_RANGE_M[0] <= scale["min"]
+                     and scale["max"] <= EXPECTED_DEPTH_RANGE_M[1])
+
+    warnings = []
+    if not camera_inside:
+        warnings.append(f"camera {position.tolist()} is not inside the room mesh")
+    if not bounds_ok:
+        warnings.append("reconstructed point cloud leaves the mesh bounding box")
+    if not sightline_ok:
+        warnings.append(
+            f"a sightline overshoots the room bounding box by {sightline_slack:.3f} m: "
+            "the gauge may be transposed or mis-scaled")
+    if not bearing_applicable:
+        warnings.append(
+            f"landmark bearing not applicable: the farthest surface spans {spread:.1f} deg "
+            "of azimuth (a symmetric room), so the direction is a tie-break")
+    elif not bearing_ok:
+        warnings.append(
+            f"landmark bearing disagrees with the mesh by {delta:.1f} deg "
+            f"(> {bearing_tol_deg} deg): the gauge may be transposed")
+    if not plausible:
+        warnings.append(
+            f"depth range [{scale['min']}, {scale['max']}] m is outside the "
+            f"expected {EXPECTED_DEPTH_RANGE_M} m band")
+
+    return {
+        "camera_inside": camera_inside,
+        "mesh_bounds": {"min": [float(v) for v in lo], "max": [float(v) for v in hi]},
+        "bounds_ok": bounds_ok,
+        "bounds_tol": float(bounds_tol),
+        "landmark_bearing_deg": map_bearing,
+        "mesh_landmark_bearing_deg": mesh_bearing,
+        "bearing_delta_deg": float(delta),
+        "bearing_tol_deg": float(bearing_tol_deg),
+        "bearing_applicable": bearing_applicable,
+        "bearing_spread_deg": spread,
+        "bearing_ok": bearing_ok,
+        "sightline_slack_m": sightline_slack,
+        "sightline_ok": sightline_ok,
+        "depth_scale": scale,
+        "scale_reference": {"AR": None, "HAA": None,
+                            "expected_range_m": list(EXPECTED_DEPTH_RANGE_M)},
+        "scale_plausible": plausible,
+        "warnings": warnings,
+        "passed": bool(camera_inside and bounds_ok and bearing_ok and sightline_ok),
     }
 
 
@@ -160,6 +319,9 @@ def build_parser():
     parser.add_argument('--img-h', type=int, default=DEPTH_H)
     parser.add_argument('--img-w', type=int, default=DEPTH_W)
     parser.add_argument('--floor-tol', type=float, default=DEFAULT_FLOOR_TOL)
+    parser.add_argument('--non-canonical', action='store_true',
+                        help="allow a grid other than 256x512; such maps CANNOT be "
+                             "loaded by RAF_md and their QA record is tainted")
     parser.add_argument('--readback-record', required=True,
                         help="path to a PASSING, adjudicated raf_readback_record.json; "
                              "canonical depth maps are rendered under a PINNED gauge, "
@@ -177,6 +339,17 @@ def main(argv=None):
     logger.info("readback record %s (gauge %s)", readback_provenance["sha256"][:12],
                 readback_provenance["gauge_pinned"])
 
+    canonical = (args.img_h, args.img_w) == CANONICAL_SHAPE
+    if not canonical and not args.non_canonical:
+        raise ValueError(
+            f"refusing to render a {args.img_h}x{args.img_w} grid: RAF_md consumes "
+            f"exactly {CANONICAL_SHAPE[0]}x{CANONICAL_SHAPE[1]}, so these maps would "
+            "pass QA and then fail inside metadata loading, where the dataloader "
+            "silently substitutes another item. Pass --non-canonical to render them "
+            "anyway (the QA record is tainted).")
+    taint = [] if canonical else [
+        f"non-canonical grid {args.img_h}x{args.img_w}: unusable by RAF_md"]
+
     for room in args.rooms:
         mesh = load_mesh_pipeline(os.path.join(args.raf_root, "3d_models", room, "mesh.obj"))
         meta_path = os.path.join(args.output_dir, room, "metadata", "groups_metadata.json")
@@ -186,38 +359,70 @@ def main(argv=None):
         depth_dir = os.path.join(args.output_dir, room, "depth_images")
         os.makedirs(depth_dir, exist_ok=True)
 
-        maps, failed, warned = {}, [], []
+        # R12: one conversion + one acceleration structure per room.
+        t0 = time.perf_counter()
+        scene = build_scene(mesh)
+        scene_build_s = time.perf_counter() - t0
+
+        maps, failed, warned, bearings = {}, [], [], {}
+        render_s = 0.0
         for group_key, entry in groups_meta.items():
-            depth = render_depth(mesh, np.asarray(entry["tx_xyz_p"], dtype=np.float64),
-                                 h=args.img_h, w=args.img_w)
+            position = np.asarray(entry["tx_xyz_p"], dtype=np.float64)
+            t1 = time.perf_counter()
+            depth = render_depth(scene, position, h=args.img_h, w=args.img_w)
+            render_s += time.perf_counter() - t1
             np.save(os.path.join(depth_dir, entry["depth_file"]), depth)
-            qa = depth_qa(depth, entry["tx_xyz_p"], floor_tol=args.floor_tol)
+
+            qa = depth_qa(depth, position, floor_tol=args.floor_tol,
+                          img_h=args.img_h, img_w=args.img_w, canonical=canonical)
             qa["depth_file"] = entry["depth_file"]
+            # R6: the checks only the real mesh can answer, fail-closed.
+            qa["real_mesh"] = real_mesh_qa(depth, position, mesh, img_h=args.img_h,
+                                           img_w=args.img_w, scene=scene)
+            qa["warnings"] = qa["warnings"] + qa["real_mesh"]["warnings"]
+            qa["passed"] = bool(qa["passed"] and qa["real_mesh"]["passed"])
+            bearings[group_key] = qa["real_mesh"]["landmark_bearing_deg"]
             maps[group_key] = qa
             if not qa["passed"]:
                 failed.append(group_key)
             if qa["warnings"]:
                 warned.append(group_key)
-            logger.info("%s %s: range [%.3f, %.3f] m, nadir %.3f m (height %.3f m)",
-                        room, group_key, qa["min"], qa["max"], qa["nadir_distance"],
-                        qa["camera_height"])
+            logger.info("%s %s: range [%.3f, %.3f] m, nadir %.3f m (height %.3f m), "
+                        "bearing %.1f deg (mesh %.1f deg)", room, group_key, qa["min"],
+                        qa["max"], qa["nadir_distance"], qa["camera_height"],
+                        qa["real_mesh"]["landmark_bearing_deg"],
+                        qa["real_mesh"]["mesh_landmark_bearing_deg"])
 
         record = {
             "room": room,
             "img_h": args.img_h,
             "img_w": args.img_w,
+            "canonical": canonical,
+            "taint": taint,
             "floor_tol": args.floor_tol,
             "n_maps": len(maps),
             "n_failed": len(failed),
             "n_warned": len(warned),
             "readback_record": readback_provenance,
+            # Recorded per room so the two rooms' landmark bearings can be compared
+            # across rooms at the run rung (a shared gauge error would show up as a
+            # consistent offset in both).
+            "landmark_bearings": bearings,
+            "render_benchmark": {
+                "n_maps": len(maps),
+                "scene_build_s": scene_build_s,
+                "total_render_s": render_s,
+                "mean_render_s": render_s / len(maps) if maps else 0.0,
+                "maps_per_s": len(maps) / render_s if render_s > 0 else None,
+                "rays_per_map": int(args.img_h) * int(args.img_w),
+            },
             "maps": maps,
         }
         qa_path = os.path.join(depth_dir, "raf_depth_qa.json")
         with open(qa_path, "w") as f:
-            json.dump(record, f, indent=4)
-        logger.info("%s: %d depth maps, %d warnings, QA -> %s", room, len(maps),
-                    len(warned), qa_path)
+            json.dump(record, f, indent=4, allow_nan=False)
+        logger.info("%s: %d depth maps in %.2fs (scene build %.2fs), %d warnings, QA -> %s",
+                    room, len(maps), render_s, scene_build_s, len(warned), qa_path)
 
         if failed:
             raise RuntimeError(f"{room}: {len(failed)} depth maps failed QA: {failed}")

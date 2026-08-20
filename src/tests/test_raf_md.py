@@ -447,3 +447,47 @@ def test_provenance_identifies_the_item_after_collation(runtime_root, tmp_path):
     for md in metadata:
         target = int(md["sample_target_id"])
         assert target not in md["context_capture_ids"].tolist()
+
+
+# --------------------------------------------------------------------------- #
+# r2 R5: the loader validates the depth map it is handed
+# --------------------------------------------------------------------------- #
+def _corrupt_depth(runtime_root, transform):
+    path = runtime_root / ROOM / "depth_images" / f"{GROUP_KEYS[0]}_depth_image.npy"
+    np.save(str(path), transform(np.load(str(path))))
+
+
+def test_depth_load_rejects_a_wrong_shape(raf_md, runtime_root):
+    _corrupt_depth(runtime_root, lambda a: a[:128])
+    with pytest.raises(ValueError) as exc:
+        raf_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+    assert "RAF depth map contract" in str(exc.value)
+
+
+def test_depth_load_rejects_a_wrong_dtype(raf_md, runtime_root):
+    _corrupt_depth(runtime_root, lambda a: a.astype(np.float64))
+    with pytest.raises(ValueError) as exc:
+        raf_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+    assert "RAF depth map contract" in str(exc.value)
+
+
+@pytest.mark.parametrize("bad", [np.inf, np.nan, -1.0, 0.0])
+def test_depth_load_rejects_non_finite_or_non_positive_values(raf_md, runtime_root, bad):
+    def corrupt(a):
+        a = a.copy()
+        a[7, 9] = bad
+        return a
+
+    _corrupt_depth(runtime_root, corrupt)
+    with pytest.raises(ValueError) as exc:
+        raf_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+    assert "RAF depth map contract" in str(exc.value)
+
+
+def test_depth_validation_failure_is_distinctive_enough_to_survive_substitution():
+    """SampleDataset swallows loader exceptions and substitutes a random item, so
+    the message is the only trace left in the log: it must name the contract."""
+    import inspect
+
+    source = inspect.getsource(load_raf_md().validate_depth_map)
+    assert "RAF depth map contract" in source

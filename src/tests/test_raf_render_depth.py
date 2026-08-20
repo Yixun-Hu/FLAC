@@ -322,3 +322,152 @@ def test_cli_aborts_when_the_mesh_is_missing(tmp_path):
     with pytest.raises((FileNotFoundError, ValueError)):
         raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
                          "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path)])
+
+
+# --------------------------------------------------------------------------- #
+# r2 R5: canonical dimensions are enforced, non-canonical ones taint the record
+# --------------------------------------------------------------------------- #
+def test_depth_qa_requires_the_canonical_256x512_float32():
+    qa = raf_render.depth_qa(np.full((128, 256), 2.0, dtype=np.float32),
+                             np.array([0.0, 0.0, 1.0]))
+    assert qa["canonical_shape"] is False
+    assert qa["passed"] is False
+    assert any("256" in w for w in qa["warnings"])
+
+
+def test_depth_qa_accepts_non_canonical_dims_only_when_declared():
+    depth = np.full((4, 8), 2.0, dtype=np.float32)
+    qa = raf_render.depth_qa(depth, np.array([0.0, 0.0, 1.0]), img_h=4, img_w=8,
+                             canonical=False)
+    assert qa["canonical_shape"] is True     # matches the declared grid
+    assert qa["canonical"] is False          # ... but the record is tainted
+    assert qa["passed"] is True
+
+
+def test_cli_refuses_non_canonical_dims_without_the_flag(tmp_path):
+    raf_root, out, _ = _write_fixture(tmp_path)
+    with pytest.raises(ValueError) as exc:
+        raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                         "--rooms", "EmptyRoom", "--img-h", "128", "--img-w", "256",
+                         "--readback-record", _readback(tmp_path)])
+    assert "--non-canonical" in str(exc.value)
+
+
+def test_cli_taints_the_qa_record_under_non_canonical(tmp_path):
+    raf_root, out, _ = _write_fixture(tmp_path)
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--img-h", "64", "--img-w", "128",
+                     "--non-canonical", "--readback-record", _readback(tmp_path)])
+    with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
+        qa = json.load(f)
+    assert qa["canonical"] is False
+    assert "non-canonical" in " ".join(qa["taint"])
+
+
+# --------------------------------------------------------------------------- #
+# r2 R6: real-mesh QA
+# --------------------------------------------------------------------------- #
+def test_real_mesh_qa_confirms_camera_containment_and_bounds():
+    mesh = _box_mesh_raf(**_BOX)
+    position = np.array([0.3, 5.0, 1.5])
+    depth = raf_render.render_depth(mesh, position, h=32, w=64)
+    qa = raf_render.real_mesh_qa(depth, position, mesh, img_h=32, img_w=64)
+    assert qa["camera_inside"] is True
+    assert qa["bounds_ok"] is True
+    assert qa["passed"] is True
+    assert qa["mesh_bounds"]["min"] == pytest.approx([-0.2, -2.0, 0.0])
+    assert qa["mesh_bounds"]["max"] == pytest.approx([5.0, 6.0, 4.0])
+
+
+def test_real_mesh_qa_detects_a_camera_outside_the_room():
+    mesh = _box_mesh_raf(**_BOX)
+    outside = np.array([50.0, 50.0, 2.0])
+    qa = raf_render.real_mesh_qa(np.full((32, 64), 1.0, dtype=np.float32), outside,
+                                 mesh, img_h=32, img_w=64)
+    assert qa["camera_inside"] is False
+    assert qa["passed"] is False
+
+
+def test_real_mesh_qa_landmark_bearing_agrees_with_the_mesh():
+    """Non-circular gauge check: the map's farthest ray must point at the mesh's
+    farthest surface. A transposed axis would swing this by ~90 degrees."""
+    mesh = _box_mesh_raf(**_BOX)
+    position = np.array([0.3, 5.0, 1.5])
+    depth = raf_render.render_depth(mesh, position, h=64, w=128)
+    qa = raf_render.real_mesh_qa(depth, position, mesh, img_h=64, img_w=128)
+    assert qa["bearing_delta_deg"] < 15.0
+    assert qa["bearing_ok"] is True
+
+
+def test_real_mesh_qa_records_the_depth_scale_against_the_reference_range():
+    mesh = _box_mesh_raf(**_BOX)
+    position = np.array([0.3, 5.0, 1.5])
+    depth = raf_render.render_depth(mesh, position, h=32, w=64)
+    qa = raf_render.real_mesh_qa(depth, position, mesh, img_h=32, img_w=64)
+    scale = qa["depth_scale"]
+    assert set(scale) >= {"min", "max", "mean", "p50", "p95"}
+    assert qa["scale_plausible"] is True
+    assert set(qa["scale_reference"]) == {"AR", "HAA", "expected_range_m"}
+
+
+def test_cli_persists_real_mesh_qa_and_a_render_benchmark(tmp_path):
+    raf_root, out, groups = _write_fixture(tmp_path)
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path)])
+    with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
+        qa = json.load(f)
+    for entry in qa["maps"].values():
+        assert entry["real_mesh"]["camera_inside"] is True
+        assert entry["real_mesh"]["bounds_ok"] is True
+    bench = qa["render_benchmark"]
+    assert bench["n_maps"] == len(groups)
+    assert bench["scene_build_s"] >= 0.0
+    assert bench["mean_render_s"] > 0.0
+    assert qa["landmark_bearings"]["aaaa000000000001"] == pytest.approx(
+        qa["maps"]["aaaa000000000001"]["real_mesh"]["landmark_bearing_deg"])
+
+
+def test_cli_aborts_when_a_camera_is_outside_the_mesh(tmp_path):
+    raf_root, out, groups = _write_fixture(tmp_path)
+    meta = out / "EmptyRoom" / "metadata" / "groups_metadata.json"
+    with open(meta) as f:
+        payload = json.load(f)
+    payload["aaaa000000000001"]["tx_xyz_p"] = [99.0, 99.0, 1.0]
+    with open(meta, "w") as f:
+        json.dump(payload, f)
+    with pytest.raises((RuntimeError, ValueError)):
+        raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                         "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path)])
+
+
+# --------------------------------------------------------------------------- #
+# r2 R12: one scene per room, reused across cameras
+# --------------------------------------------------------------------------- #
+def test_build_scene_is_reusable_across_cameras():
+    mesh = _box_mesh_raf(**_BOX)
+    scene = raf_render.build_scene(mesh)
+    a = raf_render.render_depth(scene, np.array([0.3, 5.0, 1.5]), h=2, w=4)
+    b = raf_render.render_depth(scene, np.array([4.5, -1.4, 2.5]), h=2, w=4)
+    np.testing.assert_allclose(a, [[1.0, 3.53553391, 2.0, 1.0],
+                                   [1.0, 2.12132034, 2.0, 1.0]], atol=1e-4)
+    np.testing.assert_allclose(b, [[1.2, 1.0, 1.0, 2.12132034],
+                                   [1.2, 1.0, 1.0, 3.53553391]], atol=1e-4)
+
+
+def test_cli_builds_the_scene_once_per_room(tmp_path, monkeypatch):
+    raf_root, out, groups = _write_fixture(tmp_path)
+    constructions = []
+    real_build = raf_render.build_scene
+
+    def counting_build(mesh):
+        # a call that is handed an existing scene is a no-op passthrough; only a
+        # call handed a MESH pays for the conversion + acceleration structure
+        if not isinstance(mesh, o3d.t.geometry.RaycastingScene):
+            constructions.append(1)
+        return real_build(mesh)
+
+    monkeypatch.setattr(raf_render, "build_scene", counting_build)
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path)])
+    assert len(groups) == 2
+    assert len(constructions) == 1          # not once per camera, nor once per QA call

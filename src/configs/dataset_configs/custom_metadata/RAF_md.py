@@ -112,6 +112,11 @@ _JSON_CACHE = {}
 _DEPTH_CACHE = collections.OrderedDict()
 _DEPTH_CACHE_MAX = 64
 
+# The depth panorama the pipeline consumes is exactly this grid, float32, finite
+# and strictly positive. Everything downstream (convert_equirect_to_camera_coord,
+# the ViT conditioner) assumes it silently.
+DEPTH_SHAPE = (256, 512)
+
 
 def load_json_cached(path):
     """Load a metadata JSON once per worker (they are large and read every item)."""
@@ -133,10 +138,34 @@ def load_depth_cached(path):
         return _DEPTH_CACHE[path]
     if not os.path.isfile(path):
         raise FileNotFoundError(f"RAF depth map not found: {path}")
-    depth = np.load(path)
+    depth = validate_depth_map(np.load(path), path)
     _DEPTH_CACHE[path] = depth
     while len(_DEPTH_CACHE) > _DEPTH_CACHE_MAX:
         _DEPTH_CACHE.popitem(last=False)
+    return depth
+
+
+def validate_depth_map(depth, path):
+    """Fail-closed contract check on a loaded depth map (r2, Codex R5).
+
+    ``SampleDataset.__getitem__`` swallows any exception from this hook and
+    substitutes a RANDOM other item, so a malformed map would otherwise silently
+    shrink and reshuffle the evaluation set. The raise is what stops that, and the
+    message is the only trace left in the log -- hence the distinctive wording,
+    which the eval stream audit and the publish gate are matched against.
+    """
+    problems = []
+    if depth.shape != DEPTH_SHAPE:
+        problems.append(f"shape {tuple(depth.shape)} != {DEPTH_SHAPE}")
+    if depth.dtype != np.float32:
+        problems.append(f"dtype {depth.dtype} != float32")
+    if not np.isfinite(depth).all():
+        problems.append("holds non-finite values")
+    elif not (depth > 0).all():
+        problems.append(f"holds non-positive distances (min {float(depth.min())})")
+    if problems:
+        raise ValueError(
+            f"RAF depth map contract violated for {path}: " + "; ".join(problems))
     return depth
 
 
