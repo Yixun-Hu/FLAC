@@ -341,7 +341,22 @@ class AcousticMetricsCallback:
             if self.eval_EDT:
                 self.EDT[stage].update(pred_id, ref_id)
             if self.eval_l1_distance: # Mag STFT metric
-                self.l1_stft[stage].update(pred_stft_id, ref_stft_id)
+                # exp_19 T8. L1_STFT.update appends a per-item VECTOR, so the
+                # pre-S4 call -- the whole batch, once per item -- contributed B*B
+                # entries and weighted every item of a size-B batch B times against
+                # an item from a smaller batch. With drop_last=False the final
+                # batch is smaller, so the two arithmetics genuinely differ.
+                #
+                # AR and HAA numbers are a published record: their global metric
+                # keeps the legacy weighting bug-compatibly. RAF is a new metric
+                # with no record to preserve and gets the per-item weighting. The
+                # PER-SCENE accumulators below are per-item for every dataset --
+                # a room's value containing another room's items had no defensible
+                # legacy semantics.
+                if self.dataset_name == "RAF":
+                    self.l1_stft[stage].update(pred_stft_id, ref_stft_id)
+                else:
+                    self.l1_stft[stage].update(pred_stft_batch, ref_stft_batch)
             if self.eval_l1_distance_multires: # DiffRIR MAG metric 
                 self.l1_stft_multires[stage].update(pred_id, ref_id) # using waveforms
             if self.eval_FD:

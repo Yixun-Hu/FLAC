@@ -465,3 +465,126 @@ def test_multires_window_on_a_non_default_cuda_device():
         out = get_stft(x, n_fft=64)
     assert out.device.type == "cuda"
     assert out.device.index == torch.device(device).index
+
+
+# --------------------------------------------------------------------------- #
+# r4 T8: L1_STFT weighting — legacy for AR/HAA, corrected for RAF
+# --------------------------------------------------------------------------- #
+def _independent_log_mag_stft(wave):
+    """Re-implementation of metric_callback.stft from its documented constants.
+
+    Deliberately NOT the callback's own module: an oracle that imports the code
+    under test cannot witness a change in that code.
+    """
+    window = torch.hann_window(62)
+    spec = torch.stft(wave, 124, 31, 62, window, return_complex=False,
+                      pad_mode='constant')
+    mag = torch.sqrt(torch.clamp(spec[..., 0] ** 2 + spec[..., 1] ** 2, min=1e-7))
+    return torch.log(mag + 1e-8)
+
+
+def _independent_l1_items(preds, refs, max_len_magenv=9600):
+    """Per-item L1_STFT values, exactly as L1_STFT.update computes them."""
+    p = _independent_log_mag_stft(preds.squeeze(1)[..., :max_len_magenv])
+    r = _independent_log_mag_stft(refs.squeeze(1)[..., :max_len_magenv])
+    return torch.mean((p - r) ** 2, dim=(1, 2))
+
+
+def _unequal_update_batches():
+    """Two updates of size 3 and 1 — the shape of a drop_last=False eval epoch."""
+    first = ([_decaying_rir(i) for i in (1, 2, 3)],
+             [_decaying_rir(i + 100) for i in (1, 2, 3)])
+    second = ([_decaying_rir(9, tau=0.16)], [_decaying_rir(109, tau=0.16)])
+    return first, second
+
+
+def _legacy_global_l1(batches):
+    """Pre-S4 arithmetic: each item's update appended the WHOLE batch's vector, so
+    a batch of size B contributed B*B entries and every item in it was weighted B
+    times relative to an item from a size-1 batch."""
+    entries = []
+    for preds, refs in batches:
+        items = _independent_l1_items(torch.cat(preds, dim=0), torch.cat(refs, dim=0))
+        entries.extend(items.tolist() * len(preds))
+    return round(float(np.mean(entries)), 4)
+
+
+def _corrected_global_l1(batches):
+    """Per-item arithmetic: one entry per item, every item weighted once."""
+    entries = []
+    for preds, refs in batches:
+        items = _independent_l1_items(torch.cat(preds, dim=0), torch.cat(refs, dim=0))
+        entries.extend(items.tolist())
+    return round(float(np.mean(entries)), 4)
+
+
+def test_the_two_weightings_actually_differ_on_unequal_batches():
+    """If they agreed there would be nothing to preserve; with 3+1 they do not."""
+    batches = _unequal_update_batches()
+    assert _legacy_global_l1(batches) != _corrected_global_l1(batches)
+
+
+@pytest.mark.parametrize("dataset_name", ["AcousticRooms", "HAA"])
+def test_ar_and_haa_global_l1_keep_the_legacy_weighting(dataset_name):
+    """T8: AR/HAA numbers are a published record. The S4 attribution fix must not
+    silently re-weight them, so their global L1_STFT stays bug-compatible."""
+    batches = _unequal_update_batches()
+    cb = _callback(dataset_name)
+    for preds, refs in batches:
+        cb.update_metrics("test", torch.cat(preds, dim=0), torch.cat(refs, dim=0),
+                          scene=["A"] * len(preds))
+    assert cb.compute_metrics("test")["L1_STFT"] == _legacy_global_l1(batches)
+
+
+def test_raf_global_l1_uses_the_corrected_per_item_weighting():
+    """RAF is a new metric with no record to preserve, so it gets the right one."""
+    batches = _unequal_update_batches()
+    cb = _callback("RAF")
+    for preds, refs in batches:
+        cb.update_metrics("test", torch.cat(preds, dim=0), torch.cat(refs, dim=0),
+                          scene=["EmptyRoom"] * len(preds))
+    assert cb.compute_metrics("test")["L1_STFT"] == _corrected_global_l1(batches)
+
+
+def test_equal_batches_are_unaffected_by_the_weighting_choice():
+    """Why the r3 single-update regression could not see this."""
+    equal = (([_decaying_rir(1)], [_decaying_rir(101)]),
+             ([_decaying_rir(2)], [_decaying_rir(102)]))
+    assert _legacy_global_l1(equal) == _corrected_global_l1(equal)
+
+
+def test_macro_metrics_match_hand_derived_goldens_outside_the_callback():
+    """T8: the r3 oracle re-ran the same callback. These goldens are computed from
+    the raw signals only."""
+    a, b = _unequal_rooms()
+    cb = _callback("RAF")
+    preds = torch.cat([p for p, _ in a + b], dim=0)
+    refs = torch.cat([r for _, r in a + b], dim=0)
+    cb.update_metrics("test", preds, refs,
+                      scene=["EmptyRoom"] * 3 + ["FurnishedRoom"])
+    metrics = cb.compute_metrics("test")
+
+    items = _independent_l1_items(preds, refs)
+    room_a = float(items[:3].mean())
+    room_b = float(items[3:].mean())
+    assert metrics["by_scene"]["EmptyRoom"]["L1_STFT"] == pytest.approx(room_a, rel=1e-4)
+    assert metrics["by_scene"]["FurnishedRoom"]["L1_STFT"] == pytest.approx(room_b, rel=1e-4)
+    assert metrics["L1_STFT"] == pytest.approx((room_a + room_b) / 2.0, rel=1e-4)
+    # ... and that is NOT the per-item mean over the four items
+    assert metrics["L1_STFT"] != pytest.approx(float(items.mean()), rel=1e-9)
+
+
+def test_per_scene_l1_is_per_item_for_every_dataset():
+    """The S4 attribution fix stands for HAA too: a room's value may never contain
+    another room's items, whatever the global weighting does."""
+    a, b = _unequal_rooms()
+    cb = _callback("HAA")
+    preds = torch.cat([p for p, _ in a + b], dim=0)
+    refs = torch.cat([r for _, r in a + b], dim=0)
+    cb.update_metrics("test", preds, refs, scene=["roomA"] * 3 + ["roomB"])
+    metrics = cb.compute_metrics("test")
+    items = _independent_l1_items(preds, refs)
+    assert metrics["by_scene"]["roomA"]["L1_STFT"] == pytest.approx(
+        float(items[:3].mean()), rel=1e-4)
+    assert metrics["by_scene"]["roomB"]["L1_STFT"] == pytest.approx(
+        float(items[3:].mean()), rel=1e-4)
