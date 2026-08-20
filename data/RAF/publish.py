@@ -331,6 +331,10 @@ def verify_publication(marker_root, kind="prepare", expected_roots=None):
 
 CANONICAL_ROOMS = ("EmptyRoom", "FurnishedRoom")
 
+# Sentinel for an identity field whose exact value is only knowable after the
+# canonical run: the consumer requires the SHAPE (64 lowercase hex characters).
+SHA256_SHAPE = "<sha256>"
+
 # The registered per-kind parameter identities (Amendment 7). They live HERE, in
 # the verifier, so the consumer checks a marker against the same dictionary the
 # producer was validated against -- rather than against the producer's own claim
@@ -349,6 +353,14 @@ CANONICAL_PREPARE_PARAMS = {
     # must reproduce.
     "amplitude_ceiling": 0.75,
     "amplitude_scalar": 3.0,
+    # F3: the derivation provenance is part of the identity. The formula version and
+    # the id COUNT are registered exactly ((16 train/test + 1 diagnostic) x 12 x 2
+    # rooms = 408); the id-set hash cannot be registered before the canonical run
+    # exists, so it is checked STRUCTURALLY here (64 hex chars) and pinned to a
+    # literal by the Planner once the canonical generation is cut.
+    "amplitude_formula_version": "9.2",
+    "amplitude_derivation_ids": 408,
+    "amplitude_derivation_sha256": SHA256_SHAPE,
 }
 CANONICAL_RENDER_PARAMS = {
     "rooms": list(CANONICAL_ROOMS),
@@ -423,6 +435,12 @@ def marker_identity_problems(kind, marker):
             problems.append(f"{kind} marker parameters carry unregistered {extra}")
         for key in sorted(set(expected) & set(parameters)):
             actual, want = parameters[key], expected[key]
+            if want == SHA256_SHAPE:
+                if not (isinstance(actual, str) and len(actual) == 64
+                        and all(c in "0123456789abcdef" for c in actual)):
+                    problems.append(
+                        f"{kind} marker parameter {key}={actual!r} is not a sha256")
+                continue
             if isinstance(want, list):
                 actual, want = list(actual or []), list(want)
             if actual != want:

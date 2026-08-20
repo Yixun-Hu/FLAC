@@ -666,7 +666,8 @@ def test_duplicate_expected_roots_are_reported_not_collapsed(tmp_path):
 
 def _prepare_extra(**overrides):
     extra = {"canonical": True, "canonical_parameters": True, "taint": [],
-             "parameters": dict(raf_publish.CANONICAL_PREPARE_PARAMS),
+             "parameters": dict(raf_publish.CANONICAL_PREPARE_PARAMS,
+                                amplitude_derivation_sha256="a" * 64),
              "readback_record": {"sha256": raf_publish.canonical_record_digest()}}
     extra.update(overrides)
     return extra

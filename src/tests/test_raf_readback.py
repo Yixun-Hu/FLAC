@@ -661,6 +661,8 @@ def test_canonical_parameters_are_the_registered_ones():
         "rooms": ("EmptyRoom", "FurnishedRoom"), "n_groups": 16, "n_val_groups": 4,
         "n_train": 12, "n_diagnostic_groups": 1, "seed": 0, "full_crosscheck": True,
         "allow_nonuniform": True, "amplitude_ceiling": 0.75, "amplitude_scalar": 3.0,
+        "amplitude_formula_version": "9.2", "amplitude_derivation_ids": 408,
+        "amplitude_derivation_sha256": "<sha256>",
     }
 
 
@@ -725,6 +727,7 @@ def test_the_parameter_set_joins_the_marker_identity(tmp_path):
     assert marker["canonical"] is False
     assert marker["parameters"]["n_groups"] == 1
     assert marker["parameters"]["rooms"] == ["EmptyRoom"]
+    assert marker["parameters"]["amplitude_formula_version"] == "9.2"
     assert marker["readback_record"]["sha256"]
 
 
@@ -993,11 +996,15 @@ def test_cli_derives_records_and_binds_the_scalar(tmp_path):
         decision["derivation_ids"])
     with open(split_dir / "raf_splits_record.json") as f:
         record = json.load(f)
-    assert record["amplitude_scalar"]["EmptyRoom"]["scalar"] == pytest.approx(derived)
+    assert record["amplitude_scalar"]["scalar"] == pytest.approx(derived)
+    assert record["amplitude_scalar"]["formula_version"] == "9.2"
     with open(split_dir / raf_publish.marker_name("prepare")) as f:
         marker = json.load(f)
     assert marker["parameters"]["amplitude_scalar"] == pytest.approx(derived)
     assert marker["parameters"]["amplitude_ceiling"] == 0.75
+    assert marker["parameters"]["amplitude_formula_version"] == "9.2"
+    assert len(marker["parameters"]["amplitude_derivation_sha256"]) == 64
+    assert marker["parameters"]["amplitude_derivation_ids"] == decision["n_train_supports"]
 
 
 def test_republication_keeps_split_content_byte_identical(tmp_path):
@@ -1117,3 +1124,124 @@ def test_the_cli_records_the_binding_term(tmp_path):
     assert decision["max_written_peak"] >= decision["max_train_support_peak"]
     assert decision["max_written_peak"] * decision["applied_scalar"] <= \
         raf_prepare.CLIP_CEILING
+
+
+# --------------------------------------------------------------------------- #
+# r7 Amendment 9.2 F2/F3: ONE global scalar, provenance in the identity
+# --------------------------------------------------------------------------- #
+def test_the_scalar_is_derived_once_over_both_rooms(tmp_path):
+    """F2: per-room derivation would scale the two rooms differently, making
+    cross-room metrics incomparable. Here EmptyRoom's supports are louder, so the
+    GLOBAL support term must follow them, not FurnishedRoom's."""
+    loud = _room_with_peaks(tmp_path / "a", support_peak=0.25, name="EmptyRoom")
+    quiet = _room_with_peaks(tmp_path / "b", support_peak=0.05, name="FurnishedRoom")
+    trained = [f"{i:06d}" for i in range(4)]
+    decision = raf_prepare.derive_global_amplitude_scalar({
+        "EmptyRoom": (loud, trained, trained),
+        "FurnishedRoom": (quiet, trained, trained),
+    })
+    per_room_loud = raf_prepare.derive_amplitude_scalar(loud, trained, trained)
+    per_room_quiet = raf_prepare.derive_amplitude_scalar(quiet, trained, trained)
+    assert per_room_loud["scalar"] != per_room_quiet["scalar"]   # they WOULD differ
+    assert decision["scalar"] == per_room_loud["scalar"]         # global follows the max
+    assert decision["rooms"] == ["EmptyRoom", "FurnishedRoom"]
+    assert decision["max_train_support_peak"] == pytest.approx(
+        max(per_room_loud["max_train_support_peak"],
+            per_room_quiet["max_train_support_peak"]))
+
+
+def test_the_global_derivation_set_is_room_qualified(tmp_path):
+    loud = _room_with_peaks(tmp_path / "a", support_peak=0.25, name="EmptyRoom")
+    quiet = _room_with_peaks(tmp_path / "b", support_peak=0.05, name="FurnishedRoom")
+    trained = [f"{i:06d}" for i in range(4)]
+    decision = raf_prepare.derive_global_amplitude_scalar({
+        "EmptyRoom": (loud, trained, trained),
+        "FurnishedRoom": (quiet, trained, trained),
+    })
+    assert decision["derivation_ids"][0] == "EmptyRoom/000000"
+    assert "FurnishedRoom/000000" in decision["derivation_ids"]
+    assert decision["n_train_supports"] == 8
+    assert decision["derivation_id_sha256"] == raf_prepare.derivation_id_hash(
+        decision["derivation_ids"])
+    # bare ids would collide across rooms; qualified ones do not
+    assert decision["derivation_id_sha256"] != raf_prepare.derivation_id_hash(trained)
+
+
+def test_the_global_clamp_sees_a_loud_file_in_the_other_room(tmp_path):
+    quiet = _room_with_peaks(tmp_path / "a", support_peak=0.05, name="EmptyRoom")
+    loud = _room_with_peaks(tmp_path / "b", support_peak=0.05, loud_peak=0.9,
+                            name="FurnishedRoom")
+    trained = [f"{i:06d}" for i in range(4)]
+    decision = raf_prepare.derive_global_amplitude_scalar({
+        "EmptyRoom": (quiet, trained, trained),
+        "FurnishedRoom": (loud, trained, trained + ["000020"]),
+    })
+    assert decision["clamp_engaged"] is True
+    assert decision["binding_term"] == "clip_clamp"
+    assert decision["max_written_peak"] * decision["scalar"] <= raf_prepare.CLIP_CEILING
+
+
+def test_a_room_without_trained_supports_fails_closed(tmp_path):
+    room = _room_with_peaks(tmp_path, support_peak=0.25)
+    with pytest.raises(ValueError) as exc:
+        raf_prepare.derive_global_amplitude_scalar({
+            "EmptyRoom": (room, [f"{i:06d}" for i in range(4)], []),
+            "FurnishedRoom": (room, [], []),
+        })
+    assert "FurnishedRoom" in str(exc.value)
+
+
+def test_the_written_scalar_must_match_the_global_derivation_set(tmp_path):
+    """The r6 provenance rule still holds with a GLOBAL set: the writer verifies
+    the hash against the ids it was told the scalar came from."""
+    room = _room_with_peaks(tmp_path, support_peak=0.25)
+    ids = [f"{i:06d}" for i in range(4)]
+    roles = {cid: "train" for cid in ids}
+    qualified = [f"EmptyRoom/{cid}" for cid in ids]
+    with pytest.raises(ValueError):
+        raf_prepare.resample_and_write(
+            room, str(tmp_path / "x" / "EmptyRoom"), ids, roles=roles, scale=2.0,
+            scale_provenance=raf_prepare.derivation_id_hash(qualified))
+    audit = raf_prepare.resample_and_write(
+        room, str(tmp_path / "y" / "EmptyRoom"), ids, roles=roles, scale=2.0,
+        scale_provenance=raf_prepare.derivation_id_hash(qualified),
+        scale_provenance_ids=qualified)
+    assert audit["scale_decision"]["derivation_ids"] == qualified
+
+
+def test_canonical_mode_refuses_a_scalar_that_is_not_the_registered_one(tmp_path):
+    """Amendment 9.1: a corpus that yields a different scalar stops the run."""
+    room = _room_with_peaks(tmp_path, support_peak=0.25)
+    trained = [f"{i:06d}" for i in range(4)]
+    decision = raf_prepare.derive_global_amplitude_scalar(
+        {"EmptyRoom": (room, trained, trained)})
+    assert raf_prepare.assert_registered_scalar(decision, registered=decision["scalar"])
+    with pytest.raises(ValueError) as exc:
+        raf_prepare.assert_registered_scalar(decision, registered=3.0)
+    assert "Refusing to write any WAV" in str(exc.value)
+
+
+def test_the_registered_scalar_gate_precedes_every_write(tmp_path):
+    """The gate is reached with NOTHING written: an early canonical refusal leaves
+    no runtime tree at all."""
+    import inspect
+
+    source = inspect.getsource(raf_prepare.main)
+    gate = source.index("assert_registered_scalar")
+    first_write = source.index("resample_and_write(")
+    assert gate < first_write
+
+    from test_raf_prepare_data import write_room
+
+    raf_root = tmp_path / "raf"
+    write_room(str(raf_root), "EmptyRoom", rir_peak=0.25)
+    out = tmp_path / "runtime" / "RAF"
+    with pytest.raises(ValueError):
+        raf_prepare.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                          "--split-dir", str(tmp_path / "splits"), "--rooms",
+                          "EmptyRoom", "--n-groups", "1", "--n-val-groups", "1",
+                          "--n-diagnostic-groups", "1", "--n-train", "12",
+                          "--full-crosscheck", "--readback-record",
+                          os.path.join(_REPO_ROOT, "data", "RAF",
+                                       "raf_readback_record.json")])
+    assert not (out / "EmptyRoom" / "mono_rirs_22050Hz").exists()

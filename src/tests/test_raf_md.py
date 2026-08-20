@@ -647,6 +647,7 @@ def _publish_tree(tmp_path, runtime_root, rooms=None, canonical=True,
         "canonical_parameters": parameters_ok,
         "taint": [],
         "parameters": dict(raf_publish.CANONICAL_PREPARE_PARAMS, rooms=list(rooms),
+                           amplitude_derivation_sha256="a" * 64,
                            **(parameters or {})),
         "readback_record": {"sha256": marker_digest or pointer["readback_record"]["sha256"]},
     }

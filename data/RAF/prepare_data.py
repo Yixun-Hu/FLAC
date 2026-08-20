@@ -786,6 +786,99 @@ def _resampled_peak(room_dir, capture_id, orig_sr, target_sr):
     return float(np.abs(np.asarray(resampled)).max())
 
 
+AMPLITUDE_FORMULA_VERSION = "9.2"
+
+
+def assert_registered_scalar(decision, registered=None):
+    """Canonical publication must REPRODUCE the registered scalar (Amendment 9.1).
+
+    Called before a single WAV is written: the derivation is what proves the
+    registered identity, so a corpus that yields a different value stops the run
+    rather than publishing a different normalisation under the registered name.
+    """
+    registered = (CANONICAL_PARAMS["amplitude_scalar"] if registered is None
+                  else registered)
+    if decision["scalar"] != registered:
+        raise ValueError(
+            f"derived amplitude scalar {decision['scalar']} != the registered "
+            f"canonical {registered}. Refusing to write any WAV: a canonical "
+            "publication must reproduce the registered identity, and the derivation "
+            "is what proves it.")
+    return decision
+
+
+def derive_global_amplitude_scalar(rooms, ceiling=AMPLITUDE_CEILING,
+                                   clip_ceiling=CLIP_CEILING, orig_sr=SOURCE_SR,
+                                   target_sr=TARGET_SR):
+    """ONE scalar for the whole corpus, derived over BOTH rooms (F2).
+
+    ``rooms`` maps room name -> ``(room_dir, trained_ids, written_ids)``. Peaks are
+    taken over the union: the support term uses the global maximum trained-support
+    peak, the clamp term the global maximum written peak. Deriving per room would
+    scale the two rooms differently, which contradicts Amendment 9's ONE scalar and
+    would make cross-room metrics incomparable.
+
+    The derivation set is recorded ROOM-QUALIFIED (``<room>/<capture id>``), so its
+    hash identifies the union rather than an ambiguous set of bare ids.
+    """
+    if not rooms:
+        raise ValueError("cannot derive a global amplitude scalar with no rooms")
+
+    qualified, support_peak, written_peak, n_written = [], 0.0, 0.0, 0
+    per_room = {}
+    for room in sorted(rooms):
+        room_dir, trained_ids, written_ids = rooms[room]
+        trained_ids = sorted(trained_ids)
+        if not trained_ids:
+            raise ValueError(
+                f"{room}: no trained supports (split_role == 'train') to derive from")
+        written_ids = sorted(set(written_ids or []) | set(trained_ids))
+        room_support = max(_resampled_peak(room_dir, c, orig_sr, target_sr)
+                           for c in trained_ids)
+        room_written = max(_resampled_peak(room_dir, c, orig_sr, target_sr)
+                           for c in written_ids)
+        per_room[room] = {"max_train_support_peak": room_support,
+                          "max_written_peak": room_written,
+                          "n_train_supports": len(trained_ids),
+                          "n_written": len(written_ids)}
+        qualified.extend(f"{room}/{c}" for c in trained_ids)
+        support_peak = max(support_peak, room_support)
+        written_peak = max(written_peak, room_written)
+        n_written += len(written_ids)
+
+    if support_peak <= 0.0:
+        raise ValueError("every trained support is silent; no scalar can be derived")
+    if written_peak <= 0.0:
+        raise ValueError("every written file is silent")
+
+    support_term = one_significant_digit(ceiling / support_peak)
+    clamp_term = largest_one_significant_digit_at_most(clip_ceiling / written_peak)
+    scalar = min(support_term, clamp_term)
+    qualified = sorted(qualified)
+    return {
+        "formula": ("min( one significant digit of (ceiling / GLOBAL max "
+                    "trained-support peak), largest one-significant-digit value with "
+                    "GLOBAL max written peak x scalar <= clip_ceiling ), measured on "
+                    "the resampled signal over both rooms"),
+        "formula_version": AMPLITUDE_FORMULA_VERSION,
+        "ceiling": float(ceiling),
+        "clip_ceiling": float(clip_ceiling),
+        "max_train_support_peak": support_peak,
+        "max_written_peak": written_peak,
+        "support_term": support_term,
+        "clamp_term": clamp_term,
+        "clamp_engaged": bool(clamp_term < support_term),
+        "binding_term": "clip_clamp" if clamp_term < support_term else "support_ceiling",
+        "scalar": scalar,
+        "rooms": sorted(rooms),
+        "per_room": per_room,
+        "derivation_ids": qualified,
+        "derivation_id_sha256": derivation_id_hash(qualified),
+        "n_train_supports": len(qualified),
+        "n_written": n_written,
+    }
+
+
 def derive_amplitude_scalar(room_dir, trained_ids, written_ids=None,
                             ceiling=AMPLITUDE_CEILING, clip_ceiling=CLIP_CEILING,
                             orig_sr=SOURCE_SR, target_sr=TARGET_SR):
@@ -869,7 +962,8 @@ def derivation_id_hash(capture_ids):
 def resample_and_write(room_dir, out_room_dir, capture_ids, target_sr=TARGET_SR,
                        orig_sr=SOURCE_SR, sample_size=LOADER_SAMPLE_SIZE,
                        silence_db=SILENCE_THRESHOLD_DB, folder_name=RIR_FOLDER,
-                       roles=None, scale=None, scale_provenance=None):
+                       roles=None, scale=None, scale_provenance=None,
+                       scale_provenance_ids=None):
     """Resample the given captures to 22.05 kHz float32 WAVs + amplitude audit.
 
     ``subtype='FLOAT'`` is a declared divergence from HAA's PCM16 default: RAF RIRs
@@ -897,7 +991,12 @@ def resample_and_write(room_dir, out_room_dir, capture_ids, target_sr=TARGET_SR,
     # a training-set statistic from validation data.
     trained_ids = sorted(c for c in capture_ids
                          if roles is not None and roles.get(c) == "train")
-    derivation_hash = derivation_id_hash(trained_ids)
+    # The derivation set may be GLOBAL (room-qualified ids over both rooms, F2), in
+    # which case the caller passes it explicitly; otherwise it is this room's own
+    # trained supports.
+    derivation_ids = (sorted(scale_provenance_ids) if scale_provenance_ids is not None
+                      else trained_ids)
+    derivation_hash = derivation_id_hash(derivation_ids)
     if scale is not None:
         scale = float(scale)
         if not np.isfinite(scale) or scale <= 0:
@@ -1015,7 +1114,7 @@ def resample_and_write(room_dir, out_room_dir, capture_ids, target_sr=TARGET_SR,
                      "targets and their context are scaled alike by construction"),
             "ceiling": AMPLITUDE_CEILING,
             "derived_from": "trained supports only (split_role == 'train')",
-            "derivation_ids": trained_ids,
+            "derivation_ids": derivation_ids,
             "derivation_id_sha256": derivation_hash,
             "provenance_verified": scale is not None,
             "n_train_supports": len(support_peaks),
@@ -1160,7 +1259,11 @@ def main(argv=None):
     with PublishTransaction(args.split_dir, kind="prepare") as publish_txn:
         staged_runtime = publish_txn.stage(args.output_dir)
         staged_splits = publish_txn.stage(args.split_dir)
-        per_room, audits, scale_decisions = {}, {}, {}
+        per_room, audits = {}, {}
+        # Pass 1: read every room and cut its split. NOTHING is written yet -- the
+        # amplitude scalar is ONE global value (F2), so it cannot be derived until
+        # both rooms' trained supports are known.
+        staged_rooms = {}
         for room in args.rooms:
             room_dir = os.path.join(args.raf_root, "archived", room)
             logger.info("reading %s", room_dir)
@@ -1182,25 +1285,47 @@ def main(argv=None):
                             for c in next(g for g in groups
                                           if g["group_key"] == gk)["capture_ids"]]
             role_of = {c: entry["split_role"] for c, entry in poses.items()}
-            # Amendment 9: derive the scalar from the trained supports, then apply
-            # it to every written file. Context is read from those same files, so
-            # targets and context are scaled identically by construction.
-            trained_ids = sorted(c for c in selected_ids if role_of.get(c) == "train")
-            scale_decisions[room] = derive_amplitude_scalar(
-                room_dir, trained_ids, written_ids=selected_ids)
-            decision = scale_decisions[room]
-            logger.info("%s: amplitude scalar x%g = min(support %g, clamp %g) "
-                        "[bound by %s]; train-support peak %.5f, max written peak "
-                        "%.5f over %d files", room, decision["scalar"],
-                        decision["support_term"], decision["clamp_term"],
-                        decision["binding_term"], decision["max_train_support_peak"],
-                        decision["max_written_peak"], decision["n_written"])
+            staged_rooms[room] = {
+                "room_dir": room_dir, "index": index, "groups": groups,
+                "group_report": group_report, "split": split, "crosscheck": crosscheck,
+                "poses": poses, "groups_meta": groups_meta,
+                "selected_ids": selected_ids, "role_of": role_of,
+                "trained_ids": sorted(c for c in selected_ids
+                                      if role_of.get(c) == "train"),
+            }
+
+        # ONE scalar for the corpus, derived over both rooms (F2), and -- in
+        # canonical mode -- checked against the registered identity BEFORE a single
+        # WAV is written (Amendment 9.1).
+        scale_decision = derive_global_amplitude_scalar(
+            {room: (payload["room_dir"], payload["trained_ids"],
+                    payload["selected_ids"])
+             for room, payload in staged_rooms.items()})
+        logger.info("amplitude scalar x%g = min(support %g, clamp %g) [bound by %s]; "
+                    "global train-support peak %.5f, global max written peak %.5f "
+                    "over %d files in %s", scale_decision["scalar"],
+                    scale_decision["support_term"], scale_decision["clamp_term"],
+                    scale_decision["binding_term"],
+                    scale_decision["max_train_support_peak"],
+                    scale_decision["max_written_peak"], scale_decision["n_written"],
+                    scale_decision["rooms"])
+        if canonical:
+            assert_registered_scalar(scale_decision)
+
+        # Pass 2: write, now that the one scalar is known and (canonically) checked.
+        for room in args.rooms:
+            payload = staged_rooms[room]
+            room_dir, split = payload["room_dir"], payload["split"]
+            index, groups = payload["index"], payload["groups"]
+            group_report, crosscheck = payload["group_report"], payload["crosscheck"]
+            poses, groups_meta = payload["poses"], payload["groups_meta"]
             audits[room] = resample_and_write(
                 room_dir, os.path.join(staged_runtime.staging_dir, room),
-                selected_ids, roles=role_of,
-                scale=scale_decisions[room]["scalar"],
-                scale_provenance=scale_decisions[room]["derivation_id_sha256"])
-            audits[room]["scale_decision"].update(scale_decisions[room])
+                payload["selected_ids"], roles=payload["role_of"],
+                scale=scale_decision["scalar"],
+                scale_provenance=scale_decision["derivation_id_sha256"],
+                scale_provenance_ids=scale_decision["derivation_ids"])
+            audits[room]["scale_decision"].update(scale_decision)
             logger.info("%s: staged %d resampled RIRs (%d below %g dBFS)", room,
                         audits[room]["n_files"], audits[room]["n_silent"],
                         audits[room]["silence_threshold_db"])
@@ -1230,7 +1355,7 @@ def main(argv=None):
         splits_record["readback_record"] = readback_provenance
         splits_record["canonical"] = canonical
         splits_record["taint"] = taint
-        splits_record["amplitude_scalar"] = scale_decisions
+        splits_record["amplitude_scalar"] = scale_decision
         _write_json(staged_splits.path("raf_splits_record.json"), splits_record)
         _write_json(staged_splits.path("raf_amplitude_audit.json"),
                     {"params": params, "readback_record": readback_provenance,
@@ -1261,13 +1386,16 @@ def main(argv=None):
                           staged_splits.dest_root: expected_splits},
             validate_json=True,
             extra={"canonical": canonical, "taint": taint,
+                   # F3: the marker's identity carries the derivation provenance,
+                   # so a consumer can check WHICH id union produced the scalar --
+                   # not merely that the producer claimed one.
                    "parameters": dict(
                        parameters,
                        amplitude_ceiling=AMPLITUDE_CEILING,
-                       amplitude_scalar=(
-                           sorted({d["scalar"] for d in scale_decisions.values()})[0]
-                           if len({d["scalar"] for d in scale_decisions.values()}) == 1
-                           else sorted(d["scalar"] for d in scale_decisions.values()))),
+                       amplitude_scalar=scale_decision["scalar"],
+                       amplitude_formula_version=scale_decision["formula_version"],
+                       amplitude_derivation_sha256=scale_decision["derivation_id_sha256"],
+                       amplitude_derivation_ids=scale_decision["n_train_supports"]),
                    "canonical_parameters": not deviations,
                    "readback_record": readback_provenance})
 
