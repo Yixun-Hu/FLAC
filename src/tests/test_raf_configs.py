@@ -9,6 +9,8 @@ into a finetune whose whole claim is HAA-protocol parity.
 import json
 import os
 
+import pytest
+
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _MODEL_DIR = os.path.join(_REPO_ROOT, "src", "configs", "model_configs", "FLAC")
 _DATA_DIR = os.path.join(_REPO_ROOT, "src", "configs", "dataset_configs")
@@ -146,3 +148,102 @@ def test_referenced_metadata_module_exists():
         cfg = _load(os.path.join(_DATA_DIR, "RAF", raf_rel))
         module = cfg["datasets"][0]["custom_metadata_module"]
         assert os.path.isfile(os.path.join(_REPO_ROOT, module))
+
+
+# --------------------------------------------------------------------------- #
+# r2 R11: structural clone check (deep-copy the template, patch, compare exactly)
+# --------------------------------------------------------------------------- #
+import copy  # noqa: E402
+
+
+def assert_same_structure(a, b, path="$"):
+    """Recursive node-by-node comparison: type, container length, and leaf value.
+
+    Stronger than comparing flattened dotted paths, which R11 showed is
+    incomplete: a flatten emits nothing for an empty dict or list, so a stray
+    ``"extra": {}`` rides along invisibly, and a JSON key containing a dot or a
+    bracket can collide with a generated path. Walking the nodes also pins
+    container TYPES (``[] != {}``) and numeric types (``1`` is not ``1.0``, which
+    plain ``==`` accepts).
+    """
+    assert type(a) is type(b), f"{path}: type {type(a).__name__} != {type(b).__name__}"
+    if isinstance(a, dict):
+        assert set(a) == set(b), (
+            f"{path}: keys differ (only expected: {sorted(set(a) - set(b))}, "
+            f"only actual: {sorted(set(b) - set(a))})")
+        for key in a:
+            assert_same_structure(a[key], b[key], f"{path}.{key}")
+    elif isinstance(a, list):
+        assert len(a) == len(b), f"{path}: length {len(a)} != {len(b)}"
+        for i, (x, y) in enumerate(zip(a, b)):
+            assert_same_structure(x, y, f"{path}[{i}]")
+    else:
+        assert a == b, f"{path}: {a!r} != {b!r}"
+
+
+def _expected_model_config():
+    """The HAA finetune config plus EXACTLY the registered RAF deltas."""
+    cfg = copy.deepcopy(_load(_HAA_MODEL))
+    cfg["training"]["cond_method"] = "vanilla"            # added
+    cfg["training"]["metrics"]["dataset_name"] = "RAF"    # changed
+    cfg["training"]["metrics"]["eval_FD"] = False         # changed
+    cfg["training"]["metrics"]["eval_retrieval"] = False  # changed
+    cfg["training"]["metrics"]["AGREE_ckpt"] = None       # changed (no AGREE-RAF)
+    return cfg
+
+
+def _expected_dataset_config(haa_rel, json_file_path, deterministic):
+    cfg = copy.deepcopy(_load(os.path.join(_DATA_DIR, "HAA", haa_rel)))
+    entry = cfg["datasets"][0]
+    entry["id"] = "RAF"
+    entry["path"] = "RAF"
+    entry["json_file_path"] = json_file_path
+    entry["custom_metadata_module"] = \
+        "src/configs/dataset_configs/custom_metadata/RAF_md.py"
+    cfg["modalities"]["acoustic_context"]["deterministic"] = deterministic
+    return cfg
+
+
+def test_model_config_is_structurally_the_patched_haa_template():
+    assert_same_structure(_expected_model_config(), _load(_RAF_MODEL))
+
+
+def test_dataset_configs_are_structurally_the_patched_haa_templates():
+    for raf_rel, haa_rel, json_file_path, deterministic in _PAIRS:
+        assert_same_structure(
+            _expected_dataset_config(haa_rel, json_file_path, deterministic),
+            _load(os.path.join(_DATA_DIR, "RAF", raf_rel)),
+            path=f"${raf_rel}")
+
+
+def test_structural_comparison_catches_what_a_flatten_misses():
+    """The two holes R11 named, on the real template."""
+    with pytest.raises(AssertionError):     # an empty container rides in
+        smuggled = _expected_model_config()
+        smuggled["training"]["extra"] = {}
+        assert_same_structure(_expected_model_config(), smuggled)
+    with pytest.raises(AssertionError):     # a container type changes
+        retyped = _expected_model_config()
+        retyped["model"]["conditioning"]["configs"] = {}
+        assert_same_structure(_expected_model_config(), retyped)
+    with pytest.raises(AssertionError):     # a list gets longer
+        longer = _expected_model_config()
+        longer["model"]["diffusion"]["global_cond_ids"].append("smuggled")
+        assert_same_structure(_expected_model_config(), longer)
+    with pytest.raises(AssertionError):     # an int silently becomes a float
+        retyped_leaf = _expected_model_config()
+        retyped_leaf["sample_size"] = float(retyped_leaf["sample_size"])
+        assert_same_structure(_expected_model_config(), retyped_leaf)
+
+
+def test_referenced_split_files_are_declared_but_not_required_yet():
+    """Split manifests are generated at the run rung (after the readback gate), so
+    their absence before a prep run is legitimate; what must hold now is that every
+    config points into data/RAF and that the four paths are distinct."""
+    paths = []
+    for raf_rel, _, json_file_path, _ in _PAIRS:
+        cfg = _load(os.path.join(_DATA_DIR, "RAF", raf_rel))
+        assert cfg["datasets"][0]["json_file_path"] == json_file_path
+        assert json_file_path.startswith("data/RAF/")
+        paths.append(json_file_path)
+    assert len(set(paths)) == len(paths)
