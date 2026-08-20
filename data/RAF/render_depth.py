@@ -244,11 +244,14 @@ def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL, img_h=DEPTH_H,
              img_w=DEPTH_W, canonical=True, miss_report=None):
     """Per-map quality report (plan Rev 2 section 8.3).
 
-    ``passed`` covers the STRUCTURAL checks only — shape/dtype, finiteness,
-    positivity, full hit rate. The floor check (nadir distance vs the camera's
-    height above the RAF ground plane) is reported as ``floor_ok`` + a warning
-    instead: an occluder under the speaker is physically possible in
-    FurnishedRoom, so it is a fact to record, not a structural defect.
+    ``passed`` covers the STRUCTURAL checks — shape/dtype, finiteness, positivity,
+    the canonical grid, and the miss audit (a repaired map passes only while its
+    miss rate is within the registered cap and its repair evidence checks out).
+    The floor check (nadir distance vs the camera's height above the RAF ground
+    plane) is reported as ``floor_ok`` + a warning instead: an occluder under the
+    speaker is physically possible in FurnishedRoom, so it is a fact to record, not
+    a structural defect. The gauge-discriminating vertical check lives in
+    ``real_mesh_qa``, which has the tracked height to compare against.
     """
     arr = np.asarray(depth)
     position = np.asarray(position_p, dtype=np.float64)

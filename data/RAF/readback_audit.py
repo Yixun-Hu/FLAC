@@ -18,7 +18,7 @@ Planner's pinning.
 Usage:
     python data/RAF/readback_audit.py --raf-root /path/to/raf_dataset \\
         --rooms EmptyRoom FurnishedRoom --out data/RAF/raf_readback_record.json \\
-        [--pin-gauge RAF_TO_PIPELINE --pin-quat wxyz]
+        [--pin-gauge "RAF_TO_PIPELINE:(X,Z,Y)" --pin-quat xyzw]
 """
 import argparse
 import datetime
@@ -196,11 +196,11 @@ def _rotation_matrix(w, x, y, z):
 def quaternion_forward_diagnostics(quat, forward_raf=(1.0, 0.0, 0.0)):
     """Where the source points under BOTH readings of the raw 4-tuple.
 
-    The RAF release does not state whether the columns are wxyz or xyzw, and the
-    r1 code deliberately treated the tuple as opaque. This renders the consequence
-    of each reading -- the implied forward direction, in RAF and pipeline frames --
-    so the choice is pinned from evidence (e.g. whether speakers point into the
-    room) rather than guessed.
+    The order is PINNED as xyzw (real part last), stated verbatim by the RAF release
+    documentation and consistent with these diagnostics -- horizontal speakers under
+    xyzw, 90-degree tilted ones under wxyz. Both readings are still rendered on
+    every audit so the pin keeps showing its evidence rather than becoming folklore;
+    v1 never rotates with the quaternion in any case (grouping only).
     """
     q = [float(v) for v in np.asarray(quat, dtype=np.float64).ravel()]
     if len(q) != 4:
