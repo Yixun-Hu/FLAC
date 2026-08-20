@@ -18,10 +18,9 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__f
 _RAF_MODEL_CONFIG = os.path.join(_REPO_ROOT, "src", "configs", "model_configs", "FLAC",
                                  "RAF", "FLAC_RAF_finetune.json")
 
-# eval_l1_distance_multires is deliberately absent: L1_STFT_MultiRes.update calls
-# torch.hann_window(n_fft).cuda() (src/metrics/modules/l1_stft_multires.py:41), a
-# pre-existing CUDA-only path this contract does not touch. Its registration for
-# RAF is covered separately, without an update.
+# The default flag set omits eval_l1_distance_multires so most tests stay cheap;
+# R10 fixed its CUDA-only window, and the RAF-enabled set is exercised in full by
+# test_multires_l1_runs_on_cpu_for_the_enabled_raf_metric_set.
 _METRIC_FLAGS = dict(eval_T60=True, eval_C50=True, eval_EDT=True, eval_env=True,
                      eval_l1_distance=True)
 
@@ -76,7 +75,7 @@ def test_raf_update_compute_and_by_scene():
 
 
 def test_raf_registers_the_multires_metric():
-    """The RAF config asks for it; only its update path is CUDA-bound."""
+    """The RAF config asks for it, and since R10 its update path runs anywhere."""
     cb = _callback("RAF", eval_l1_distance_multires=True)
     assert "test" in cb.l1_stft_multires
     assert "EmptyRoom" not in cb.scene_metrics["test"]   # created lazily, per scene
@@ -216,12 +215,6 @@ def test_callback_builds_from_the_raf_model_config():
 # --------------------------------------------------------------------------- #
 # r2 R8 + R10 (phase 2b: these land with the src/metrics change)
 # --------------------------------------------------------------------------- #
-# Pre-written during the peer session's src/metrics freeze. The guard lifts by
-# itself the moment the implementation exists, and is removed when R8+R10 land.
-_R8_READY = hasattr(RT60Error, "invalid_stats")
-_r8 = pytest.mark.skipif(not _R8_READY, reason="R8/R10 land on 'metrics clear'")
-
-
 def _two_room_batch():
     """Room A gets 3 items, room B gets 1: unequal sizes make the two
     aggregations differ, which is exactly what R8 is about."""
@@ -232,7 +225,6 @@ def _two_room_batch():
     return preds, refs, scenes
 
 
-@_r8
 def test_raf_top_level_metrics_are_the_equal_room_macro_mean():
     cb = _callback("RAF")
     preds, refs, scenes = _two_room_batch()
@@ -245,7 +237,6 @@ def test_raf_top_level_metrics_are_the_equal_room_macro_mean():
         assert metrics[key] == pytest.approx(sum(per_room) / 2.0, rel=1e-6), key
 
 
-@_r8
 def test_raf_macro_mean_differs_from_the_per_item_mean():
     """With 3 items in one room and 1 in the other, the per-item mean weights the
     larger room 3:1; the paper's protocol weights rooms equally."""
@@ -260,7 +251,6 @@ def test_raf_macro_mean_differs_from_the_per_item_mean():
     assert macro["C50"] != pytest.approx(per_item["C50"], rel=1e-9)
 
 
-@_r8
 def test_raf_reports_invalid_t60_as_both_count_and_rate():
     cb = _callback("RAF")
     good, silent = _decaying_rir(1), torch.zeros(1, 1, 10240)
@@ -275,7 +265,6 @@ def test_raf_reports_invalid_t60_as_both_count_and_rate():
     assert metrics["Invalid T60"] == pytest.approx(metrics["Invalid T60 rate"])
 
 
-@_r8
 def test_rt60_invalid_stats_are_additive_to_the_existing_contract():
     metric = RT60Error(dataset_name="RAF")
     metric.update(torch.zeros(1, 1, 9600), torch.zeros(1, 1, 9600))
@@ -287,7 +276,6 @@ def test_rt60_invalid_stats_are_additive_to_the_existing_contract():
     assert isinstance(error, float)
 
 
-@_r8
 def test_acousticrooms_and_haa_aggregation_is_untouched():
     for name in ("AcousticRooms", "HAA"):
         cb = _callback(name)
@@ -299,7 +287,6 @@ def test_acousticrooms_and_haa_aggregation_is_untouched():
         assert "n_rooms" not in metrics
 
 
-@_r8
 def test_multires_l1_runs_on_cpu_for_the_enabled_raf_metric_set():
     """R10: the Hann window follows the signal's device, so the exact metric set
     the RAF config enables is exercisable on CPU (and on any GPU index)."""
@@ -315,7 +302,6 @@ def test_multires_l1_runs_on_cpu_for_the_enabled_raf_metric_set():
             for s in ("EmptyRoom", "FurnishedRoom")) / 2.0, rel=1e-6)
 
 
-@_r8
 def test_multires_l1_window_follows_the_input_dtype_and_device():
     from src.metrics.modules.l1_stft_multires import get_stft
 

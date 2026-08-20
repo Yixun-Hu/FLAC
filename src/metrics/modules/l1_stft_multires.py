@@ -38,7 +38,11 @@ def get_stft(x, n_fft, hop_length=None):
     return torch.stft(x,
                       n_fft=n_fft,
                       hop_length = hop_length,
-                      window=torch.hann_window(n_fft).cuda(),
+                      # exp_19 R10: build the window where the signal already is.
+                      # The hardcoded .cuda() made every CPU evaluation fail and
+                      # mismatched devices whenever a run was pinned to a GPU other
+                      # than cuda:0 (--device cuda:1 with both visible).
+                      window=torch.hann_window(n_fft, device=x.device, dtype=x.dtype),
                       return_complex=False)
 
 

@@ -39,6 +39,19 @@ class RT60Error(Metric):
         mean_invalids = torch.mean(torch.cat(self.total_invalids)) if isinstance(self.total_invalids, list) else torch.mean(self.total_invalids)
         mean_t60error = round(mean_t60error.item(), 4)
         return mean_t60error, mean_invalids.item()
+
+    def invalid_stats(self):
+        """(count, rate, n) of invalid T60s -- ADDITIVE; ``compute()`` is untouched.
+
+        ``compute()``'s second value is the MEAN of per-item 0/1 flags, i.e. a
+        RATE, although it is reported as "Invalid T60" (exp_19 R8). Callers that
+        need the count ask for it here, so the AR/HAA return contract does not move.
+        """
+        flags = (torch.cat(self.total_invalids) if isinstance(self.total_invalids, list)
+                 else self.total_invalids)
+        n = int(flags.numel())
+        count = float(flags.sum().item())
+        return count, (count / n if n else 0.0), n
     
     def reset(self):
         self.t60_error = []

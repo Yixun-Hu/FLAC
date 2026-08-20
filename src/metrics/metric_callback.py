@@ -348,10 +348,14 @@ class AcousticMetricsCallback:
     def compute_metrics(self, stage: str) -> Dict[str, Any]:
         metrics= {}
 
+        t60_invalid_stats = None
         if self.eval_T60:
             t60s, invalid = self.RT60[stage].compute()
             metrics["T60"] = t60s
             metrics["Invalid T60"] = invalid
+            # Read BEFORE the reset below: "Invalid T60" is a rate, and exp_19 R8
+            # also reports the count it came from.
+            t60_invalid_stats = self.RT60[stage].invalid_stats()
             self.RT60[stage].reset()
 
         if self.eval_C50:
@@ -438,7 +442,46 @@ class AcousticMetricsCallback:
 
             metrics["by_scene"] = scene_results
 
+        # exp_19 R8: RAF's headline numbers are the EQUAL-ROOM macro mean -- the
+        # paper's per-scene averaging -- not the per-item mean, which weights the
+        # larger room more. Applied only for RAF, so AR/HAA output is unchanged.
+        if self.dataset_name == "RAF" and metrics.get("by_scene"):
+            metrics.update(macro_room_metrics(metrics["by_scene"]))
+            metrics["aggregation"] = "macro_room"
+            metrics["n_rooms"] = len(metrics["by_scene"])
+            if t60_invalid_stats is not None:
+                count, rate, n_items = t60_invalid_stats
+                metrics["Invalid T60 count"] = count
+                metrics["Invalid T60 rate"] = rate
+                metrics["T60 items"] = n_items
+
         return metrics
+
+
+# "Invalid T60" is already a rate over ITEMS; averaging it over rooms would make a
+# third quantity that matches neither the count nor the reported rate.
+MACRO_EXCLUDED_KEYS = {"Invalid T60"}
+
+
+def macro_room_metrics(by_scene):
+    """Equal-room mean of every numeric metric present in EVERY room.
+
+    A metric that only some rooms produced is left alone: a "macro mean" over a
+    subset of rooms would silently be a different estimand from the one the row
+    claims.
+    """
+    rooms = list(by_scene.values())
+    if not rooms:
+        return {}
+    shared = set(rooms[0])
+    for room in rooms[1:]:
+        shared &= set(room)
+    macro = {}
+    for key in sorted(shared - MACRO_EXCLUDED_KEYS):
+        values = [room[key] for room in rooms]
+        if all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in values):
+            macro[key] = sum(values) / len(values)
+    return macro
 
 
 def loading_AGREE_model(ckpt, device):
