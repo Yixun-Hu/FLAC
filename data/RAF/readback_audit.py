@@ -335,7 +335,7 @@ def build_record(rooms, params, pin_gauge=None, pin_quat=None):
         },
         # The Planner pins these FROM this artifact; the publish gate refuses to
         # run while either is null, which is what stops canonical outputs being
-        # produced under a gauge the code itself still calls a candidate.
+        # produced under a gauge that has not been adjudicated from this audit.
         "adjudication": {"gauge_pinned": pin_gauge, "quat_order_pinned": pin_quat},
         "verdict": {"passed": not reasons, "reasons": reasons},
     }

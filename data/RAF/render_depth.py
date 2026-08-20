@@ -6,6 +6,12 @@ equation the pipeline inverts at load time (``raf_common.equirect_directions``,
 which is the exact inverse of ``convert_equirect_to_camera_coord``). Row 0 is the
 zenith; there is no flipud anywhere in the RAF path.
 
+Miss policy (Amendment 4): real scanned meshes have holes, so a per-map miss rate
+at or below ``DEFAULT_MAX_MISS_RATE`` is repaired by nearest-valid-neighbour
+inpainting and RECORDED (count + a hash of the repaired coordinates); only a rate
+above the cap aborts. The gauge is PINNED, and canonical renders are gated on the
+committed readback record plus mesh-independent receiver-sightline evidence.
+
 Usage:
     python data/RAF/render_depth.py --raf-root /path/to/raf_dataset \\
         --output-dir /path/to/runtime/RAF --rooms EmptyRoom FurnishedRoom
@@ -178,10 +184,16 @@ def render_depth(mesh, position_p, h=DEPTH_H, w=DEPTH_W,
     point. Rays are unit vectors, so open3d's ``t_hit`` is the Euclidean distance
     directly.
 
-    Registered miss policy: ANY ray that fails to hit aborts the render with a
-    report. There is no silent fill — an unhit ray means the camera is outside the
-    watertight room or the mesh is broken, and a filled value would propagate into
-    training as a plausible-looking wall.
+    Miss policy (Amendment 4): a per-map miss rate at or below ``max_miss_rate`` is
+    repaired by ``fill_missing`` (nearest-valid-neighbour inpainting) and RECORDED
+    -- count, rate, and a hash of the repaired coordinates -- while a rate above the
+    cap aborts. Real scanned meshes are not watertight (FurnishedRoom missed 62 of
+    131,072 rays at a real tx), so demanding a 100% hit rate would reject every
+    canonical render; an unrecorded fill, on the other hand, would put a fabricated
+    wall into training. Hence repair PLUS provenance.
+
+    Returns the ``[h, w]`` float32 map, or ``(map, miss_report)`` when
+    ``return_report`` is set.
     """
     position = np.asarray(position_p, dtype=np.float64)
     if position.shape != (3,):
@@ -666,7 +678,7 @@ def build_parser():
     parser.add_argument('--readback-record', required=True,
                         help="path to a PASSING, adjudicated raf_readback_record.json; "
                              "canonical depth maps are rendered under a PINNED gauge, "
-                             "never a candidate one")
+                             "the pinned one (Amendment 4)")
     return parser
 
 

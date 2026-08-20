@@ -25,10 +25,11 @@ def parse_tx_line(s):
 
     Format: ``q0,q1,q2,q3,x,y,z`` (7 comma-separated finite floats).
 
-    The quaternion COLUMN ORDER IS UNVERIFIED (wxyz vs xyzw is not stated by the
-    RAF release and has not been pinned at the readback rung). It is therefore
-    returned as an opaque 4-tuple, used only for grouping/identity — never to
-    rotate anything — until readback verifies the order.
+    The quaternion column order is PINNED as **xyzw** (real part last), stated
+    verbatim by the RAF release documentation and consistent with the readback
+    forward-vector diagnostics (contracts Amendment 4). v1 still never rotates with
+    it: the 4-tuple is used only for grouping/identity, so the pin is recorded
+    rather than relied upon.
 
     Returns:
         (quat [4] float64, xyz [3] float64)
@@ -149,16 +150,20 @@ def stable_context_seed(room, capture_id):
     return int.from_bytes(digest[:8], "big") & ((1 << 63) - 1)
 
 
-# Registered candidate gauge, RAF world (X front, Y up, Z left) -> pipeline frame:
+# Pinned gauge, RAF world (X front, Y up, Z left) -> pipeline frame:
 #     (x_p, y_p, z_p) = (X_RAF, Z_RAF, Y_RAF)
 # so the pipeline's third axis is UP, matching AR/HAA (whose poses carry the
 # camera/mic height in the third slot) and matching the vertical component of
 # convert_equirect_to_camera_coord. det = -1: RAF's (front, up, left) triad is
 # left-handed, the pipeline frame is right-handed.
 #
-# CANDIDATE, NOT FINAL: the mapping is pinned at the readback rung (plan Rev 2
-# section 4). Everything downstream imports this one constant, so re-pinning is a
-# one-line change here; nothing else in the RAF path transforms coordinates.
+# PINNED from evidence (contracts Amendment 4): EmptyRoom landmark bearings agree
+# to 0.41 deg / 0.93 deg at two independent tx positions, nadir ~= height at 5 of 6
+# probed positions across both rooms (deficits <= 0.10 m, scan content above y=0),
+# and containment/bounds/sightline/scale all pass. The canonical readback record
+# carries the pin as "RAF_TO_PIPELINE:(X,Z,Y)" and the publish gates refuse to run
+# under anything else. Everything downstream imports this one constant; nothing
+# else in the RAF path transforms coordinates.
 RAF_TO_PIPELINE = np.array([
     [1.0, 0.0, 0.0],
     [0.0, 0.0, 1.0],
