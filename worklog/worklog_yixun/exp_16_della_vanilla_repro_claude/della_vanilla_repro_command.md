@@ -138,3 +138,23 @@ sbatch --hold --parsable --job-name=exp16-chain --time=00:30:00 --dependency=aft
 sbatch --hold --parsable --job-name=exp16-chain --time=00:30:00 --dependency=afterany:12334383 --export=EXPECT_SHA=2363ae1ba7328e5f0a6cb13511b01add476d2deb,CHAIN_TOTAL=300,CHAIN_CHUNK=100,PROBE=1 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_chain.sbatch
 ```
 
+## 2026-08-13T12:49:16-04:00 — exp16-chain (chain) — 10 legs — jobs 12334800 12334801 12334802 12334803 12334804 12334805 12334806 12334807 12334808 12334809
+
+- EXPECT_SHA: `8ca91ac4bfc826f1992fa77fbb2749c3c9c0e80f`
+- chain: TOTAL=67500 CHUNK=7500 S0=0 PROBE=0
+- manifest: `/home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/chain_manifest_current.txt`
+- submitted by: `yh4742@della9.princeton.edu`
+
+```bash
+sbatch --hold --parsable --job-name=exp16-chain --time=04:30:00 --export=EXPECT_SHA=8ca91ac4bfc826f1992fa77fbb2749c3c9c0e80f,CHAIN_TOTAL=67500,CHAIN_CHUNK=7500 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_chain.sbatch
+sbatch --hold --parsable --job-name=exp16-chain --time=04:30:00 --dependency=afterany:12334800 --export=EXPECT_SHA=8ca91ac4bfc826f1992fa77fbb2749c3c9c0e80f,CHAIN_TOTAL=67500,CHAIN_CHUNK=7500 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_chain.sbatch
+sbatch --hold --parsable --job-name=exp16-chain --time=04:30:00 --dependency=afterany:12334801 --export=EXPECT_SHA=8ca91ac4bfc826f1992fa77fbb2749c3c9c0e80f,CHAIN_TOTAL=67500,CHAIN_CHUNK=7500 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_chain.sbatch
+sbatch --hold --parsable --job-name=exp16-chain --time=04:30:00 --dependency=afterany:12334802 --export=EXPECT_SHA=8ca91ac4bfc826f1992fa77fbb2749c3c9c0e80f,CHAIN_TOTAL=67500,CHAIN_CHUNK=7500 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_chain.sbatch
+sbatch --hold --parsable --job-name=exp16-chain --time=04:30:00 --dependency=afterany:12334803 --export=EXPECT_SHA=8ca91ac4bfc826f1992fa77fbb2749c3c9c0e80f,CHAIN_TOTAL=67500,CHAIN_CHUNK=7500 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_chain.sbatch
+sbatch --hold --parsable --job-name=exp16-chain --time=04:30:00 --dependency=afterany:12334804 --export=EXPECT_SHA=8ca91ac4bfc826f1992fa77fbb2749c3c9c0e80f,CHAIN_TOTAL=67500,CHAIN_CHUNK=7500 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_chain.sbatch
+sbatch --hold --parsable --job-name=exp16-chain --time=04:30:00 --dependency=afterany:12334805 --export=EXPECT_SHA=8ca91ac4bfc826f1992fa77fbb2749c3c9c0e80f,CHAIN_TOTAL=67500,CHAIN_CHUNK=7500 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_chain.sbatch
+sbatch --hold --parsable --job-name=exp16-chain --time=04:30:00 --dependency=afterany:12334806 --export=EXPECT_SHA=8ca91ac4bfc826f1992fa77fbb2749c3c9c0e80f,CHAIN_TOTAL=67500,CHAIN_CHUNK=7500 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_chain.sbatch
+sbatch --hold --parsable --job-name=exp16-chain --time=04:30:00 --dependency=afterany:12334807 --export=EXPECT_SHA=8ca91ac4bfc826f1992fa77fbb2749c3c9c0e80f,CHAIN_TOTAL=67500,CHAIN_CHUNK=7500 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_chain.sbatch
+sbatch --hold --parsable --job-name=exp16-chain --time=04:30:00 --dependency=afterany:12334808 --export=EXPECT_SHA=8ca91ac4bfc826f1992fa77fbb2749c3c9c0e80f,CHAIN_TOTAL=67500,CHAIN_CHUNK=7500 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_chain.sbatch
+```
+
