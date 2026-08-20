@@ -49,3 +49,13 @@ Rows above record development SHAs on `localization-exp` (history of record for 
 | `c7882e6` | r3 fix S6: amplitude scalar derives from trained supports only, with an id-set hash required before a scalar applies |
 | `cf439b5` | r3 fix S7: CPU bf16-autocast coverage for the multires-l1 window (+ opt-in non-default-CUDA case) |
 | `de2075a` | r3 fix S8: contract text updated to the pinned gauge/quaternion and the cap-plus-inpaint miss policy |
+| `ad631e9` | r4 fix T8: AR/HAA global L1_STFT restored bug-compatible (legacy B-squared weighting), corrected per-item weighting for RAF only; goldens hand-derived outside the callback |
+| `6bff9c7` | r4 fix T6: tuple scene labels normalised+indexed, RAF labels validated against the room set, macro requires exactly both rooms |
+| `4742954` | r4 fix T7: miss audit reads the RAW pre-inpaint hit mask; coordinates+hash mandatory (incl. empty set), unique/in-bounds/count/ray-count checked |
+| `6fdda0e` | r4 fix T4: markers namespaced per kind (prepare/depth), empty/unexpected root sets rejected, `verify_combined_publication`, composition + crash tests |
+| `c68d11b` | r4 fix T2: canonical split-parameter set enforced and bound into the marker identity |
+| `5f40ebc` | r4 fix T1: read-once digest carried to provenance, every sub-verdict validated, corpus binding via room-index digests (counts fallback for the pinned record) |
+| `d3381d9` | r4 fix T3: RAF_md first-load publication gate, cached per process (RAF_REQUIRE_PUBLICATION=1) |
+| `ae9d308` | r4 fix T5: vertical-axis nadir-vs-tracked-height gate joins publication; horizontal-permutation detectability boundary RECORDED; candidate-error tests transform mesh+poses together |
+| `cde1083` | r4 fix T9: committed synthetic depth-reference fixtures; real-HAA band as a skip-gated integration test pinned by hash |
+| `0e100f0` | r4 fix T10: stale text purged (wxyz usage example, 'release does not state', 'full hit rate') |
