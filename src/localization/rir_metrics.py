@@ -190,10 +190,11 @@ def _validate_delta_max(delta_max):
 def m1_distance(pred, obs, delta_max, eps=EPS):
     """``min_delta ||obs - alpha*(delta) shift(pred, delta)||^2 / (||obs||^2 + eps)``.
 
-    With the analytic optimal gain ``alpha* = <obs, pred_d> / (||pred_d||^2 + eps)``
-    this is exactly ``1 - max_delta rho^2(delta)``, so no search over gains is
-    needed. Scale-invariant by construction (that is the point: amplitude lives
-    here, and M2/M3 are explicitly amplitude-policy-fixed instead).
+    The gain is analytic -- ``alpha*(d) = <obs, pred_d> / (||pred_d||^2 + eps)`` --
+    so no search over gains is needed, but the residual itself is evaluated
+    literally at every lag and then minimized. It is deliberately NOT the
+    ``1 - max rho^2`` shortcut: with the contract's eps guard inside alpha the two
+    diverge exactly where a candidate's energy approaches eps.
     """
     delta_max = _validate_delta_max(delta_max)
     pred = torch.as_tensor(pred)
@@ -202,8 +203,17 @@ def m1_distance(pred, obs, delta_max, eps=EPS):
 
     dots, energies = lag_products(flat, obs, delta_max)
     obs_energy = (obs ** 2).sum()
-    rho2 = dots ** 2 / ((energies + eps) * (obs_energy + eps))
-    distance = 1.0 - rho2.max(dim=-1).values
+    # The LITERAL registered formula, per lag (r4m review finding 2):
+    #   alpha = <y, x_d> / (||x_d||^2 + eps)
+    #   residual = ||y - alpha x_d||^2 / (||y||^2 + eps)
+    #            = (||y||^2 - 2 alpha <y, x_d> + alpha^2 ||x_d||^2) / (||y||^2 + eps)
+    # This is NOT 1 - rho^2: the eps guard in alpha makes them differ wherever a
+    # candidate's energy is comparable to eps, and there the shortcut returned a
+    # degenerate 1.0.
+    alpha = dots / (energies + eps)
+    numerator = obs_energy - 2.0 * alpha * dots + (alpha ** 2) * energies
+    residual = numerator / (obs_energy + eps)
+    distance = residual.min(dim=-1).values
     return distance.clamp(min=0.0).reshape(pred.shape[:-1]).float()
 
 
@@ -399,6 +409,21 @@ def _arrival_index(x, threshold_db=M4_ARRIVAL_THRESHOLD_DB):
     return int(hits[0]) if hits.numel() else None
 
 
+def _sentinel_to_nan(value):
+    """A decay time is a duration: a negative value is the wrapper's failure
+    sentinel, not a measurement.
+
+    ``RT60._mesure_rt60_pyroomacoustics`` CATCHES the library's ValueError and
+    returns ``-1``, so an exception guard alone never sees it and the feature
+    would stay in the uniform validity mask (r4m review finding 3).
+    """
+    import numpy as np
+    value = float(value)
+    if not np.isfinite(value) or value < 0.0:
+        return float("nan")
+    return value
+
+
 def m4_features(x, sample_rate=SAMPLE_RATE, t30_backend="pyroomacoustics"):
     """The fixed acoustic feature set of one RIR, via the repo's own estimators.
 
@@ -446,15 +471,18 @@ def m4_features(x, sample_rate=SAMPLE_RATE, t30_backend="pyroomacoustics"):
 
     features["c50"] = _safe(lambda: _measure_clarity(shaped, time=50, fs=sample_rate)[0, 0])
     features["c80"] = _safe(lambda: _measure_clarity(shaped, time=80, fs=sample_rate)[0, 0])
-    features["edt"] = _safe(_edt, x.numpy(), fs=sample_rate, decay_db=M4_EDT_DECAY_DB)
+    features["edt"] = _sentinel_to_nan(
+        _safe(_edt, x.numpy(), fs=sample_rate, decay_db=M4_EDT_DECAY_DB))
 
     def _t30(signal):
         shaped_signal = signal.reshape(1, 1, -1)
         if t30_backend == "torch":
-            return _safe(lambda: _measure_rt60_torch(shaped_signal, fs=sample_rate,
-                                                     decay_db=M4_T30_DECAY_DB)[0, 0])
-        return _safe(lambda: _mesure_rt60_pyroomacoustics(shaped_signal, fs=sample_rate,
-                                                          decay_db=int(M4_T30_DECAY_DB))[0, 0])
+            value = _safe(lambda: _measure_rt60_torch(shaped_signal, fs=sample_rate,
+                                                      decay_db=M4_T30_DECAY_DB)[0, 0])
+        else:
+            value = _safe(lambda: _mesure_rt60_pyroomacoustics(
+                shaped_signal, fs=sample_rate, decay_db=int(M4_T30_DECAY_DB))[0, 0])
+        return _sentinel_to_nan(value)
 
     features["t30"] = _t30(x)
 

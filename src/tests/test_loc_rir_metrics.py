@@ -622,3 +622,83 @@ def test_compute_metrics_reports_the_dropped_feature_diagnostic():
     assert set(diag) >= {"n_dropped", "dropped", "causes", "n_features", "n_kept"}
     assert diag["n_features"] == len(rm.M4_FEATURES)
     assert diag["n_kept"] == int(out["diagnostics"]["m4_mask"].sum())
+
+
+# --------------------------------------------------------------------------- #
+# r4m3 finding 2: M1 must implement the LITERAL registered residual, not an
+# algebraic shortcut. The reviewer's probe: 1.0 from the shortcut vs 3.9e-05 from
+# the contract on a low-energy case.
+# --------------------------------------------------------------------------- #
+def _literal_m1(pred, obs, delta_max, eps=rm.EPS):
+    """Brute-force transcription of the registered formula."""
+    obs = obs.double().reshape(-1)
+    out = []
+    for row in pred.double().reshape(-1, pred.shape[-1]):
+        best = None
+        for delta in range(-delta_max, delta_max + 1):
+            shifted = _naive_shift(row, delta)
+            alpha = (obs * shifted).sum() / ((shifted ** 2).sum() + eps)
+            residual = ((obs - alpha * shifted) ** 2).sum() / ((obs ** 2).sum() + eps)
+            best = residual if best is None else min(best, residual)
+        out.append(float(best))
+    return torch.tensor(out, dtype=torch.float32)
+
+
+def test_m1_matches_the_literal_registered_formula_on_random_signals():
+    g = torch.Generator().manual_seed(60)
+    obs = torch.randn(512, generator=g)
+    pred = torch.randn(5, 512, generator=g)
+    assert torch.allclose(rm.m1_distance(pred, obs, delta_max=8),
+                          _literal_m1(pred, obs, 8), atol=1e-5)
+
+
+def test_m1_matches_the_literal_formula_in_the_low_energy_case():
+    """The case that exposed the shortcut: a candidate whose energy is comparable
+    to eps makes alpha's eps guard matter, and 1 - rho^2 is then simply wrong."""
+    g = torch.Generator().manual_seed(61)
+    obs = torch.randn(256, generator=g)
+    tiny = obs.unsqueeze(0) * 1e-6
+    got = rm.m1_distance(tiny, obs, delta_max=8)
+    expected = _literal_m1(tiny, obs, 8)
+    assert torch.allclose(got, expected, atol=1e-6)
+    assert float(got[0]) < 1.0                      # NOT the degenerate 1.0
+
+
+def test_m1_literal_formula_still_zero_for_a_clean_scaled_shifted_copy():
+    g = torch.Generator().manual_seed(62)
+    obs = torch.randn(2048, generator=g)
+    obs[:64] = 0.0
+    obs[-64:] = 0.0
+    pred = (_naive_shift(obs, 5) * 3.0).unsqueeze(0)
+    assert float(rm.m1_distance(pred, obs, delta_max=8)[0]) == pytest.approx(0.0, abs=1e-6)
+
+
+# --------------------------------------------------------------------------- #
+# r4m3 finding 3: the pyroomacoustics wrapper CATCHES ValueError and returns -1,
+# so the sentinel must be translated to NaN -- tested with the REAL wrapper.
+# --------------------------------------------------------------------------- #
+def test_m4_real_pyroomacoustics_sentinel_becomes_nan_on_silence():
+    from src.metrics.modules.RT60 import _mesure_rt60_pyroomacoustics
+    silence = torch.zeros(rm.PARAM_WINDOW_SAMPLES)
+    raw = float(_mesure_rt60_pyroomacoustics(silence.reshape(1, 1, -1), fs=rm.SAMPLE_RATE,
+                                             decay_db=30)[0, 0])
+    assert raw == -1.0                                    # the wrapper's own sentinel
+    features = rm.m4_features(silence, t30_backend="pyroomacoustics")
+    for name in ("t30", "t30_500", "t30_1k", "t30_2k"):
+        assert np.isnan(features[name]), f"{name} kept the -1 sentinel"
+
+
+def test_m4_silent_candidate_drops_the_t30_features_for_the_query():
+    silence = torch.zeros(rm.PARAM_WINDOW_SAMPLES)
+    vector, _names = rm.m4_feature_vector(silence, t30_backend="pyroomacoustics")
+    mask = rm.m4_validity_mask(vector.reshape(1, 1, -1), vector)
+    for name in ("t30", "t30_500", "t30_1k", "t30_2k"):
+        assert not mask[rm.M4_FEATURES.index(name)]
+
+
+def test_m4_negative_t30_is_never_reported_as_a_measurement():
+    """Any negative decay time is an invalid measurement, whatever produced it."""
+    assert np.isnan(rm._sentinel_to_nan(-1.0))
+    assert np.isnan(rm._sentinel_to_nan(-0.5))
+    assert rm._sentinel_to_nan(0.35) == 0.35
+    assert np.isnan(rm._sentinel_to_nan(float("nan")))
