@@ -59,3 +59,6 @@ nohup python eval_localization.py --mode run --score-source flac --smoke --max-q
   --out-dir outputs_loc/exp18 --eval-name exp18_R1_devtune \
   > worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_2026-08-19_22:40:24_R1_devtune.log 2>&1 &
 ```
+
+## R1-v2 dev-tune slice (2026-08-19_23:41:40 EDT) — prefix re-declared 1,194 (silent item at position 1194; worklog 23:45)
+Same command as R1 with `--max-queries 1194` and `--overwrite` (supersedes the aborted attempt; log kept with ABORTED suffix).
