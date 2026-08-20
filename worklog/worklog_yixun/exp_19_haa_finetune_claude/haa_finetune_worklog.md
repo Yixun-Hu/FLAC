@@ -26,3 +26,9 @@
 - **Probe extensions this cycle (coder seat):** num_workers=1 (repo loader hardcodes persistent_workers=True); --dtype float64 (widen AFTER strict load; fp-only metadata cast; fixed a .float() output cast that would have re-measured fp32 rounding and passed for the wrong reason). 40 probe tests green. PIN_probe bumped twice, L7 pairing verified working.
 - **In flight:** P1 FULL (GPU0, since 01:45, ~1000 epochs×3 micro-batches, ETA ~04:00); BF FULL (GPU1, launched 02:1x after the recalibrated gate); YAW auto-launcher armed behind P1's clean completion (EXPECT_SHA pinned). Round-3 eval driver (60 cells) dispatched to the coder seat.
 - Process notes: my first BF dispatch went out BEFORE the gate edit landed (edit assertion failed on a variable-based invocation; bash block kept going) — it self-refused at the fp32 gate exactly as designed; re-dispatched after the correct edit. Also the third pipeline-rc mismeasurement of the night is recorded (echo rc after a pipe measures tail's rc) — standing lesson: PIPESTATUS or capture-then-check, always.
+
+## 2026-08-20T12:15 — checkpoint archive COMPLETE (disk rescue step 1)
+
+- All 500 finetune ckpts (5 arms × 100) archived to `/media/diskstation/yixunhu/FLAC/checkpoints/exp19_haa_finetune/<ARM>/` per Yixun's 2026-08-20 NAS-storage mandate; per-arm verification (count + per-file bytes + 4 sampled sha256 incl. endpoints) passed before every local deletion. Local keeps {410,1000} per arm + all metric JSONs. Local free: 29 → 503 GiB.
+- AcousticRooms NAS copy verified earlier today (615,265 files, file-bytes identical, sampled shas OK); step 3 (symlink swap + local delete, 27 GiB) FROZEN until Yixun's explicit order after his Arm-B finishes (~08-21 03:00).
+- Observed under NAS `checkpoints/` (not ours, untouched): `exp12_cyl_dinov3_arms`, `exp19_raf_finetune`, `exp19_rcal_haa_repro` — another session appears to be working RAF; flagged to Yixun re exp_20 planning + numbering collision.
