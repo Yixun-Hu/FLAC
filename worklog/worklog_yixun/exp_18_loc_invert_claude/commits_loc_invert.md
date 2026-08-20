@@ -145,3 +145,12 @@
 | `1ec2365` | R7-2 | `--verify-against ROWS.jsonl`: full-pipeline replay comparing every per-sample sim on exact float hex, aborting at the first differing `(m,k)`; `verify_against` summary block; `_replay` stem so the original artifacts are never touched | +182 −4 |
 | `76f7072` | R7-3 + R7-4 | `--readback-decode-all` (whole-split decode + `is_silence` detection); clean-row golden schema test and "computation-identical" wording; survey reports `n_errors` and exits nonzero unless `--allow-errors` | +196 −22 |
 | `7d0d740` | — | `__main__` guard restored to the module end (caught by the r4 AST test) | +4 −4 |
+| `d6e531d` | — | ledger append for round 7 | +12 |
+
+## Round R4-r1 (plan_loc_invert_R4 §1–§3 — non-AGREE metric families, exploratory)
+
+| SHA | Item | Description | changed lines |
+|---|---|---|---|
+| `837ed46` | scaffold + M1/M5 | REGISTERABLE constant set (+ JSON payload), windows (9600 / 8000), shared zero-padded lag machinery via FFT correlation + prefix energies in float64, M1 = 1−max ρ², M5 = 1−max NCC with peak lag + GCC-PHAT secondary, off-grid `delta_max` refused | +490 |
+| `08e747b` | M2 + M3 | repo scale set pinned by test + spectral convergence (λ=1, raw amplitudes); Schroeder EDC L1 over the observation-defined [0,−30] dB region + band/Hilbert secondaries | +267 |
+| `f94ee27` | M4 + entry points | repo estimators only, per-query uniform validity mask, frozen z-norm L1; `compute_metrics` (candidates + context + diagnostics + config echo); `metric_matched_retrieval` delegating to `scoring.nearest_context_baseline` | +469 |
