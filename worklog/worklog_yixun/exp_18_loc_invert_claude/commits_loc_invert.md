@@ -135,3 +135,13 @@
 | `b46f777` | r6-2 | manifest merges positions (`merge_map` non-trivial only, `member_nodes` kept); GT resolves through its group; merged positions end the F7 collision case; rows + provenance record merges | +142 −11 |
 | `f2b912f` | r6-3 | `gt_rir` prefers the canonical node's measured file and falls back to any member, recording `oracle_source_nodes`; identity bound to the GT's group | +161 −18 |
 | `b504dea` | r6-4 | `survey_duplicate_sources.py` — the Planner's R0-abort probe as reviewed, tested tooling (2/131 seen rooms, 0/17 unseen) | +85 |
+| `31a37cd` | — | ledger append for round 6 | +11 |
+
+## Round 7 (announcement 08 — predicted waveforms are a required artifact)
+
+| SHA | Item | Description | changed lines |
+|---|---|---|---|
+| `29ff806` | R7-1 | `--dump-waveforms DIR`: per-query `.npz` with `pred [M,K,10240]` (exactly-as-scored) + `obs [10240]`; row `waveform_path`/`waveform_sha256`; atomic `*_waveforms.json` index carrying checksums **and** geometry; self-describing README; non-empty dir refused; oracle refuses the flag | +343 −13 |
+| `1ec2365` | R7-2 | `--verify-against ROWS.jsonl`: full-pipeline replay comparing every per-sample sim on exact float hex, aborting at the first differing `(m,k)`; `verify_against` summary block; `_replay` stem so the original artifacts are never touched | +182 −4 |
+| `76f7072` | R7-3 + R7-4 | `--readback-decode-all` (whole-split decode + `is_silence` detection); clean-row golden schema test and "computation-identical" wording; survey reports `n_errors` and exits nonzero unless `--allow-errors` | +196 −22 |
+| `7d0d740` | — | `__main__` guard restored to the module end (caught by the r4 AST test) | +4 −4 |
