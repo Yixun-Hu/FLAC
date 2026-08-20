@@ -29,3 +29,4 @@
 | `a08571f` | r2 fix R9: real MultiConditioner + `get_conditioning_inputs` pass over the real collated RAF batch |
 | `755aed6` | r2 fix R11: structural clone-whitelist (recursive node/type/length comparison against the patched HAA template) |
 | `07badce` | r2: pre-written R8/R10 tests, skipped behind a feature probe during the peer's `src/metrics` freeze |
+| `c7c3cab` | r2 fix R2 (Amendment 3): diagnostic supports join training (train 408 = 2x(16x12+12)); diagnostic targets stay eval-only |
