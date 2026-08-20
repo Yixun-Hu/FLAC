@@ -35,3 +35,13 @@
 - **Result** — `passed`; commit created and the branch is one commit ahead of `origin/check-equivariance-necessity` before this bookkeeping commit.
 - **Analysis** — the source tree remains byte-identical to the base; stopping here obeys both the SOP user-approval gate and the cross-family review rule.
 - **Next** — authenticate and rerun the Opus review.
+
+## 2026-08-20T12:08:02-04:00 — Yixun resolves the missing-mesh scope
+
+- **Goal** — resolve the known `ListeningRoom_idx_2` geometry gap without inventing an unapproved reconstruction backend.
+- **Trigger** — Yixun: “缺失mesh就先注明但不纳入测试”.
+- **Command / Validation** — parsed the existing `data/AR/unseen_eval.json` without writing a new eval config: full manifest = 6,337 queries / 17 rooms; `ListeningRoom_idx_2` = 1,000 queries; exact remaining mesh-available scope = 5,337 queries / 16 rooms.
+- **Change** — query, plan, and independent-review brief now exclude exactly `ListeningRoom_idx_2`; delete the proposed depth fallback from exp_09; require the runner/report to record the excluded room and 1,000-query count. No source code changed.
+- **Result** — `passed` as a scope decision. This is an explicit experiment-specific exception to the full-split standing directive, not permission for further subsampling.
+- **Analysis** — exp_09 can answer the preflight question on the mesh-available subset, but its results cannot be presented as the complete 6,337-query unseen-room protocol. A future full-protocol model comparison still requires the missing authoritative mesh or a separately approved common geometry rule.
+- **Next** — rerun the mandatory Opus plan review after Claude authentication is restored, then surface the revised plan for approval.

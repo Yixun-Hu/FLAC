@@ -19,20 +19,20 @@ Before judging, read these files completely:
 
 ## Current round and scope
 
-No coder round has begun. The Planner was tasked only to translate the approved high-level decision into a pre-implementation, per-file TDD plan. The requested experiment is frozen-Vanilla-FLAC analysis-by-synthesis localization on a global, mesh-valid, isotropic `0.5 m` three-dimensional grid, with no ground-truth insertion. The PDF controls only the AGREE cosine + log-mean-exp score; later explicit user decisions supersede the attachment's metadata-source candidate bank and ground-truth-inclusion rule.
+No coder round has begun. The Planner was tasked only to translate the approved high-level decision into a pre-implementation, per-file TDD plan. The requested experiment is frozen-Vanilla-FLAC analysis-by-synthesis localization on a global, mesh-valid, isotropic `0.5 m` three-dimensional grid, with no ground-truth insertion. The PDF controls only the AGREE cosine + log-mean-exp score; later explicit user decisions supersede the attachment's metadata-source candidate bank and ground-truth-inclusion rule. Yixun additionally directed on 2026-08-20: “缺失mesh就先注明但不纳入测试.” Therefore exp_09 excludes exactly `ListeningRoom_idx_2` (1,000 queries) and tests 5,337 queries in the 16 mesh-available rooms; no depth fallback is in scope. This is an explicit missing-asset exception, and all reports must disclose that the result is not the complete 6,337-query protocol.
 
 Explicitly out of scope for this round/experiment: implementation now; model training; reduced headline split; HAA; yaw/random-heading comparisons; the later FA-BF headline arm; cylindrical/SSP models; automatic grid/K/tau changes after seeing quality; exact likelihood; calibrated posterior claims.
 
 ## Review focus
 
-Review for scientific validity, leakage, hidden assumptions, missing controls/tests, reproducibility, full-split integrity, mesh occupancy/distance correctness, coordinate-frame correctness, context selection/exclusion, ground-truth independence, AGREE preprocessing parity, stochastic seed/batch invariance, score numerics, aggregation/bootstrap semantics, compute/storage feasibility, resume integrity, and SOP compliance.
+Review for scientific validity, leakage, hidden assumptions, missing controls/tests, reproducibility, exact subset/exclusion integrity, mesh occupancy/distance correctness, coordinate-frame correctness, context selection/exclusion, ground-truth independence, AGREE preprocessing parity, stochastic seed/batch invariance, score numerics, aggregation/bootstrap semantics, compute/storage feasibility, resume integrity, and SOP compliance.
 
 In particular, adjudicate these provisional decisions rather than accepting them silently:
 
 - `K=4`, `tau=0.1`, `steps=1`, `cfg_scale=1.0`;
 - excluding grid candidates within `1.0 m` of selected context sources;
 - treating metadata-anchor validation as the fail-closed mesh validity criterion;
-- the proposed all-panorama conservative depth fallback for the officially missing `ListeningRoom_idx_2.obj` versus blocking for an authoritative mesh;
+- whether the exact `ListeningRoom_idx_2` exclusion is implemented and labeled fail-closed, without accidental additional subsampling or any fallback;
 - whether a “one complete room smoke” conflicts with the announcement (it must remain debugging-only);
 - whether the sparse real-RIR AGREE retrieval control is well-defined and fairly labeled.
 
@@ -41,4 +41,3 @@ Output Markdown only. Start with an exact identity header of the form:
 `**Reviewer:** Anthropic Claude <exact model/version> (Claude Code 2.1.237, native CLI, read-only tools, --model opus --effort max) · **Date:** 2026-08-20`
 
 Then give `**Verdict:** APPROVE`, `APPROVE-WITH-CHANGES`, or `REQUEST-CHANGES`. List findings by severity, cite exact plan sections/files, explain why each matters, and give a precise required correction. Separate blocking findings from nonblocking recommendations. End with a short checklist of conditions for user approval. Do not write implementation code.
-

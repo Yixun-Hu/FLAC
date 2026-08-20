@@ -73,3 +73,16 @@ At `0.5 m` spacing, the ideal cubic quantization radius is `sqrt(3) * 0.5 / 2 = 
 
 Proceed under `NeuriPs_Workshop`, using the experiment SOP. The isolated implementation branch/worktree is `localization-exp`, based on `origin/check-equivariance-necessity` at `ecb83523c4ae8c60d4cd5f0ae3e562f2a84f1fa9`.
 
+## Query 5 — missing-mesh scope decision
+
+### Verbatim
+
+> 缺失mesh就先注明但不纳入测试
+
+### Summary
+
+Record `ListeningRoom_idx_2` as an upstream geometry-asset omission and exclude that room from this mesh-based preflight. Do not construct a depth fallback and do not substitute another mesh. The existing full split remains the source manifest, but the test runner filters exactly this one room in memory and records the exclusion explicitly.
+
+### Consequence
+
+`ListeningRoom_idx_2` accounts for 1,000 of the 6,337 unseen queries. The exp_09 test denominator is therefore exactly **5,337 queries in 16 rooms**. Results must be labeled “mesh-available preflight subset,” not the complete published unseen-room protocol; no other room/query may be removed.
