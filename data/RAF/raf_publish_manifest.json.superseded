@@ -1,7 +1,7 @@
 {
-    "committed_utc": "2026-08-20T19:39:07Z",
+    "committed_utc": "2026-08-20T16:25:57Z",
     "root": "/home/yixunhu/codespace/exp-19-raf-finetune/data/RAF",
-    "generation": "46a43f4ce82b4e4f8afc1bfbc676191f",
+    "generation": "67a91a652b144ad29082ffc0b4636263",
     "n_files": 6,
     "files": {
         "diagnostic_base.json": {
@@ -9,12 +9,12 @@
             "bytes": 1112
         },
         "raf_amplitude_audit.json": {
-            "sha256": "e41ea65dbe8878ace8726b67140756afa5c695ab7240476dabb950ffd3323814",
-            "bytes": 769027
+            "sha256": "e1e29f15dd50912c7a1ed376416e6b84d87d08a79f9283fab9cbaf4dd1b79523",
+            "bytes": 745283
         },
         "raf_splits_record.json": {
-            "sha256": "83931a55709c0947d54b1f8b832a37d33cdb3e76aa966d41db435386888225e2",
-            "bytes": 4456380
+            "sha256": "acfd130cf8be8381d25f89ac44ed92a54c01f094aaa3f3bdc276b65a44292dfc",
+            "bytes": 4441109
         },
         "test_base.json": {
             "sha256": "29a4dac8329f1ef8f5853ba77b1683e2dbc48895f717057dd0b0e0dde2d081f2",

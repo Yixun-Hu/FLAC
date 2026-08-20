@@ -1,17 +1,17 @@
 {
-    "generation": "46a43f4ce82b4e4f8afc1bfbc676191f",
+    "generation": "67a91a652b144ad29082ffc0b4636263",
     "kind": "prepare",
-    "committed_utc": "2026-08-20T19:39:07Z",
+    "committed_utc": "2026-08-20T16:25:57Z",
     "marker_root": "/home/yixunhu/codespace/exp-19-raf-finetune/data/RAF",
     "roots": {
         "/media/diskstation/yixunhu/RAF_processed": {
             "manifest": "raf_publish_manifest.json",
-            "manifest_sha256": "f04d8901a09cd30efac8f1538e6d5804e3377585482efdb2f76ff5cbd7a95cd8",
+            "manifest_sha256": "b351a4cb7bad330dcda004285c1c779ff11743344b2524633057f9578a308abf",
             "n_files": 1517
         },
         "/home/yixunhu/codespace/exp-19-raf-finetune/data/RAF": {
             "manifest": "raf_publish_manifest.json",
-            "manifest_sha256": "c977576cf088cd030a2213b9a9ebd875b92abf667389ce7714d01082a6f4c0df",
+            "manifest_sha256": "7d44fe6880f00099be6fe01962448ec22b145e16814938952dac11edc4db9da5",
             "n_files": 6
         }
     },
@@ -28,12 +28,7 @@
         "n_diagnostic_groups": 1,
         "seed": 0,
         "full_crosscheck": true,
-        "allow_nonuniform": true,
-        "amplitude_ceiling": 0.75,
-        "amplitude_scalar": 3.0,
-        "amplitude_formula_version": "9.2",
-        "amplitude_derivation_sha256": "8a740feef8f430dbc2e65d8f3d5eefa3d6b191c00c615ff758163c7428eef00d",
-        "amplitude_derivation_ids": 408
+        "allow_nonuniform": true
     },
     "canonical_parameters": true,
     "readback_record": {
