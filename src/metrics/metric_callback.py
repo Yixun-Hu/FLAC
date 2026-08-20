@@ -290,6 +290,12 @@ class AcousticMetricsCallback:
         # aggregation would silently report a DIFFERENT estimand under the same
         # name (and drop the invalid-T60 count with it), so this fails closed.
         if self.dataset_name == "RAF":
+            # T6: normalise here and index the NORMALISED sequence below. A tuple
+            # passed the length gate but attribution only indexed lists, so every
+            # item was filed under one tuple-valued key and the macro collapsed to
+            # a single pseudo-room.
+            if isinstance(scene, tuple):
+                scene = list(scene)
             if not isinstance(scene, (list, tuple)):
                 raise ValueError(
                     "RAF metrics require per-item scene attribution: update_metrics "
@@ -304,6 +310,12 @@ class AcousticMetricsCallback:
             if bad:
                 raise ValueError(
                     f"RAF scene attribution holds empty/non-string labels at {bad}.")
+            unknown = sorted({name for name in scene if name not in RAF_ROOMS})
+            if unknown:
+                raise ValueError(
+                    f"RAF scene labels {unknown} are outside the registered room set "
+                    f"{list(RAF_ROOMS)}: a stray label would create a phantom room in "
+                    "the equal-room macro mean.")
 
         if pred.shape != ref.shape:
             if pred.shape[-1] < ref.shape[-1]:
@@ -367,7 +379,8 @@ class AcousticMetricsCallback:
                 self.Env[stage].update(pred[index, ..., :self.max_len_magenv].unsqueeze(0), ref[index, ..., :self.max_len_magenv].unsqueeze(0))
 
             if self.eval_by_scene and scene is not None: # for HAA
-                current_scene = scene[index] if isinstance(scene, list) else scene
+                current_scene = (scene[index] if isinstance(scene, (list, tuple))
+                                 else scene)
                 scene_metrics = self.get_create_scene_metrics(stage, current_scene)
                 if self.eval_T60:
                     scene_metrics["RT60"].update(pred_id, ref_id)
@@ -486,7 +499,13 @@ class AcousticMetricsCallback:
         # exp_19 R8: RAF's headline numbers are the EQUAL-ROOM macro mean -- the
         # paper's per-scene averaging -- not the per-item mean, which weights the
         # larger room more. Applied only for RAF, so AR/HAA output is unchanged.
-        if self.dataset_name == "RAF" and metrics.get("by_scene"):
+        if self.dataset_name == "RAF":
+            observed = set(metrics.get("by_scene") or {})
+            if observed != set(RAF_ROOMS):
+                raise ValueError(
+                    f"RAF macro metrics need exactly {list(RAF_ROOMS)}, saw "
+                    f"{sorted(observed)}: an equal-room mean over a different room "
+                    "set is a different estimand.")
             metrics.update(macro_room_metrics(metrics["by_scene"]))
             metrics["aggregation"] = "macro_room"
             metrics["n_rooms"] = len(metrics["by_scene"])
@@ -502,6 +521,11 @@ class AcousticMetricsCallback:
 # "Invalid T60" is already a rate over ITEMS; averaging it over rooms would make a
 # third quantity that matches neither the count nor the reported rate.
 MACRO_EXCLUDED_KEYS = {"Invalid T60"}
+
+# The registered RAF room set. A label outside it is an operator error (a stray
+# HAA scene, a typo, a case mismatch), and a run that never saw both rooms cannot
+# report an equal-room macro mean over them.
+RAF_ROOMS = ("EmptyRoom", "FurnishedRoom")
 
 
 def macro_room_metrics(by_scene):

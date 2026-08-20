@@ -84,9 +84,11 @@ def test_raf_registers_the_multires_metric():
 def test_raf_compute_resets_the_accumulators():
     cb = _callback("RAF")
     pred, ref = _decaying_rir(1), _decaying_rir(2)
-    cb.update_metrics("test", pred, ref, scene=["EmptyRoom"])
+    preds = torch.cat([pred, pred], dim=0)
+    refs = torch.cat([ref, ref], dim=0)
+    cb.update_metrics("test", preds, refs, scene=["EmptyRoom", "FurnishedRoom"])
     first = cb.compute_metrics("test")
-    cb.update_metrics("test", pred, pred, scene=["EmptyRoom"])
+    cb.update_metrics("test", preds, preds, scene=["EmptyRoom", "FurnishedRoom"])
     second = cb.compute_metrics("test")
     assert second["C50"] != first["C50"]      # not contaminated by the first batch
     assert abs(float(second["C50"])) < 1e-6   # pred == ref
@@ -314,11 +316,15 @@ def test_multires_l1_window_follows_the_input_dtype_and_device():
 # r3 S4: per-item STFT attribution + fail-closed RAF scene attribution
 # --------------------------------------------------------------------------- #
 def _single_room_reference(dataset_name, items):
-    """Global (per-item) metrics for ONE room, computed by its own callback.
+    """Global metrics for ONE room, via a callback that has no RAF macro path.
 
-    Independent of ``by_scene``: it goes through the global accumulators only, so
-    a macro value compared against it cannot be tautological.
+    Deliberately runs under HAA (same 9600 window, same metric objects, no
+    equal-room macro and no RAF room-set constraint), so the value it returns is
+    produced by the global accumulators alone and cannot be the macro number the
+    caller is checking. With a single update the legacy and per-item L1 weightings
+    coincide, so this is also a valid per-item reference.
     """
+    dataset_name = "HAA" if dataset_name == "RAF" else dataset_name
     cb = _callback(dataset_name, eval_l1_distance_multires=True)
     preds = torch.cat([p for p, _ in items], dim=0)
     refs = torch.cat([r for _, r in items], dim=0)
@@ -536,14 +542,31 @@ def test_ar_and_haa_global_l1_keep_the_legacy_weighting(dataset_name):
     assert cb.compute_metrics("test")["L1_STFT"] == _legacy_global_l1(batches)
 
 
-def test_raf_global_l1_uses_the_corrected_per_item_weighting():
-    """RAF is a new metric with no record to preserve, so it gets the right one."""
+def test_raf_reports_the_macro_mean_over_per_item_room_values():
+    """RAF is a new metric with no record to preserve, so its accumulator uses the
+    corrected per-item weighting -- and what it REPORTS is the equal-room macro
+    mean over per-item room values, which the macro path supersedes the global
+    accumulator with. Golden derived outside the callback."""
     batches = _unequal_update_batches()
+    rooms = (["EmptyRoom"] * 3, ["FurnishedRoom"])   # both rooms, unequal batches
     cb = _callback("RAF")
-    for preds, refs in batches:
+    for (preds, refs), scene in zip(batches, rooms):
         cb.update_metrics("test", torch.cat(preds, dim=0), torch.cat(refs, dim=0),
-                          scene=["EmptyRoom"] * len(preds))
-    assert cb.compute_metrics("test")["L1_STFT"] == _corrected_global_l1(batches)
+                          scene=scene)
+    metrics = cb.compute_metrics("test")
+
+    room_values = []
+    for preds, refs in batches:
+        items = _independent_l1_items(torch.cat(preds, dim=0), torch.cat(refs, dim=0))
+        room_values.append(float(items.mean()))
+    assert metrics["by_scene"]["EmptyRoom"]["L1_STFT"] == pytest.approx(
+        room_values[0], rel=1e-4)
+    assert metrics["by_scene"]["FurnishedRoom"]["L1_STFT"] == pytest.approx(
+        room_values[1], rel=1e-4)
+    assert metrics["L1_STFT"] == pytest.approx(sum(room_values) / 2.0, rel=1e-4)
+    # neither the legacy nor the corrected GLOBAL number is what RAF reports
+    assert metrics["L1_STFT"] != pytest.approx(_legacy_global_l1(batches), rel=1e-9)
+    assert metrics["L1_STFT"] != pytest.approx(_corrected_global_l1(batches), rel=1e-9)
 
 
 def test_equal_batches_are_unaffected_by_the_weighting_choice():
@@ -588,3 +611,61 @@ def test_per_scene_l1_is_per_item_for_every_dataset():
         float(items[:3].mean()), rel=1e-4)
     assert metrics["by_scene"]["roomB"]["L1_STFT"] == pytest.approx(
         float(items[3:].mean()), rel=1e-4)
+
+
+# --------------------------------------------------------------------------- #
+# r4 T6: scene labels are normalised, validated and completeness-checked
+# --------------------------------------------------------------------------- #
+def test_tuple_scene_labels_do_not_collapse_into_one_pseudo_room():
+    """T6: a tuple passed the length gate but attribution only indexed lists, so
+    every item was filed under one tuple-valued key and the macro became a mean
+    over a single pseudo-room."""
+    a, b = _unequal_rooms()
+    cb = _callback("RAF")
+    preds = torch.cat([p for p, _ in a + b], dim=0)
+    refs = torch.cat([r for _, r in a + b], dim=0)
+    cb.update_metrics("test", preds, refs,
+                      scene=("EmptyRoom", "EmptyRoom", "EmptyRoom", "FurnishedRoom"))
+    metrics = cb.compute_metrics("test")
+    assert set(metrics["by_scene"]) == {"EmptyRoom", "FurnishedRoom"}
+    assert metrics["n_rooms"] == 2
+
+
+@pytest.mark.parametrize("labels", [
+    ["EmptyRoom", "Kitchen"],
+    ["EmptyRoom", "emptyroom"],
+    ["EmptyRoom", "classroomBase"],
+])
+def test_raf_rejects_labels_outside_the_registered_room_set(labels):
+    cb = _callback("RAF")
+    preds = torch.cat([_decaying_rir(1), _decaying_rir(2)], dim=0)
+    refs = torch.cat([_decaying_rir(3), _decaying_rir(4)], dim=0)
+    with pytest.raises(ValueError) as exc:
+        cb.update_metrics("test", preds, refs, scene=labels)
+    assert "EmptyRoom" in str(exc.value) and "FurnishedRoom" in str(exc.value)
+
+
+def test_raf_macro_requires_both_rooms():
+    """A run that only ever saw one room cannot report an equal-room macro mean."""
+    cb = _callback("RAF")
+    cb.update_metrics("test", _decaying_rir(1), _decaying_rir(2), scene=["EmptyRoom"])
+    with pytest.raises(ValueError) as exc:
+        cb.compute_metrics("test")
+    assert "FurnishedRoom" in str(exc.value)
+
+
+def test_raf_macro_over_both_rooms_still_computes():
+    cb = _callback("RAF")
+    preds = torch.cat([_decaying_rir(1), _decaying_rir(2)], dim=0)
+    refs = torch.cat([_decaying_rir(3), _decaying_rir(4)], dim=0)
+    cb.update_metrics("test", preds, refs, scene=["EmptyRoom", "FurnishedRoom"])
+    assert cb.compute_metrics("test")["n_rooms"] == 2
+
+
+def test_non_raf_datasets_accept_any_scene_label():
+    """HAA's four base rooms are not the RAF room set; that path must not move."""
+    cb = _callback("HAA")
+    preds = torch.cat([_decaying_rir(1), _decaying_rir(2)], dim=0)
+    refs = torch.cat([_decaying_rir(3), _decaying_rir(4)], dim=0)
+    cb.update_metrics("test", preds, refs, scene=("classroomBase", "hallwayBase"))
+    assert set(cb.compute_metrics("test")["by_scene"]) == {"classroomBase", "hallwayBase"}
