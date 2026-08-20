@@ -279,3 +279,8 @@
 - **Acceptance criteria (each R2 seed)** — registration gate PASSES; split digests 3/3; identity gate 6,337/6,337 with zero substitutions (unseen proven clean); zero leakage aborts (no merged rooms in unseen); final artifacts published, no .partial residue; probe block present; context digest recorded (pairing with R-1b's same-seed rows verified at analysis); wall ≈2.3 h.
 - **Command / Validation** — commands in loc_invert_command.md; seeds 42 (cuda:1) + 43 (cuda:0) parallel, 44 after; nohup, logs in exp folder.
 - **Result** — launched.
+
+## 2026-08-20T11:50:00-0400 — Cross-arm inputs arriving: Yixun rsyncing B-F + exp07_P1 checkpoints
+
+- **Result** — Peer FYI: `/media/diskstation/yixunhu/FLAC/exp19_ckpts/{BF,P1}` is Yixun's own in-progress rsync (since ~11:17) of the FA B-F and exp07_P1 anchor checkpoints — the first cross-arm localization inputs (exp_20+ scope). Not ours to move (named "exp19_ckpts" but Yixun's own transfer). Announcement 07 logged independently on both sessions; established style example: `checkpoints/exp12_cyl_dinov3_arms/`.
+- **Analysis** — When the cross-arm experiment scaffolds: verify these ckpts' sha256 against the training sessions' registries before any row is produced; FA B-F rows will need `--cond-method fa_invariant` per announcement 05.
