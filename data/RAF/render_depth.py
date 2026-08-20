@@ -67,6 +67,19 @@ EMPTY_FILL_HASH = hashlib.sha256(b"").hexdigest()
 # a 96-degree false alarm on the real EmptyRoom mesh.
 BEARING_TIE_DISTANCE_FRAC = 0.02
 BEARING_TIE_ANGLE_DEG = 20.0
+# Slack on a receiver sightline: one pixel of angular quantisation plus mesh
+# thickness. A blocked receiver is short by metres, not centimetres.
+RX_SIGHTLINE_TOL_M = 0.10
+# How many receivers to probe per map, farthest first: long sightlines are the
+# discriminating ones.
+RX_SIGHTLINE_MAX_RECEIVERS = 8
+# Rooms whose receiver sightlines must be unobstructed. FurnishedRoom legitimately
+# occludes some tx->rx paths, so there the evidence is recorded, not required.
+RX_SIGHTLINE_REQUIRED_ROOMS = ("EmptyRoom",)
+# A RAF depth panorama should live in the same range as the AR/HAA maps the ViT
+# normalisation was trained on; these bounds widen the measured HAA band
+# (0.50 - 11.55 m over the four base rooms) rather than replace it.
+SCALE_REFERENCE_TOLERANCE = 3.0
 
 
 def load_mesh_pipeline(obj_path):
@@ -341,22 +354,151 @@ def audit_miss_report(miss_report, depth, canonical=True):
     return audit, warnings
 
 
+def direction_to_pixel(direction, img_h=DEPTH_H, img_w=DEPTH_W):
+    """Inverse of ``equirect_directions``: which pixel looks along ``direction``.
+
+    theta = atan2(y, x) and phi = -asin(z) invert
+    ``dir = (cos(phi)cos(theta), cos(phi)sin(theta), -sin(phi))``; the pixel indices
+    then follow from the same half-pixel offsets the forward map uses.
+    """
+    d = np.asarray(direction, dtype=np.float64)
+    norm = float(np.linalg.norm(d))
+    if norm <= 0 or not np.isfinite(norm):
+        raise ValueError(f"direction must be a finite non-zero vector, got {d.tolist()}")
+    d = d / norm
+    theta = float(np.arctan2(d[1], d[0]))
+    phi = float(np.arcsin(np.clip(-d[2], -1.0, 1.0)))
+    col = int(np.floor((theta + np.pi) * img_w / (2.0 * np.pi)))
+    row = int(np.floor((phi + np.pi / 2.0) * img_h / np.pi))
+    return (min(max(row, 0), img_h - 1), col % img_w)
+
+
+def rx_sightline_check(depth, position_p, rx_positions_p, img_h=DEPTH_H,
+                       img_w=DEPTH_W, tol=RX_SIGHTLINE_TOL_M,
+                       max_receivers=RX_SIGHTLINE_MAX_RECEIVERS, required=True):
+    """MESH-INDEPENDENT gauge evidence (S5).
+
+    The receiver positions come from the tracked pose files, not from the mesh, so
+    this asks a question the renderer cannot answer by construction: looking from
+    the source toward a receiver that is known to be inside the room, does the
+    rendered map reach at least as far as that receiver? A consistently wrong
+    horizontal gauge points those bearings at a wall and fails, while the old
+    landmark check -- rendered map versus the same transformed mesh -- could not
+    see it.
+
+    Receivers are probed farthest-first: long sightlines discriminate, short ones
+    barely constrain anything.
+    """
+    arr = np.asarray(depth, dtype=np.float64)
+    tx = np.asarray(position_p, dtype=np.float64)
+    rx = np.asarray(rx_positions_p, dtype=np.float64).reshape(-1, 3)
+    if rx.size == 0:
+        # No receivers to probe: the evidence is ABSENT, which is recorded as
+        # ``checked: False`` rather than silently scored either way. The canonical
+        # CLI refuses to publish unchecked maps; a unit call simply has no evidence.
+        return {"n_receivers": 0, "n_blocked": 0, "passed": True, "checked": False,
+                "required": bool(required), "tol_m": float(tol),
+                "worst_deficit_m": 0.0, "per_receiver": [],
+                "reason": "no receiver positions available"}
+
+    distances = np.linalg.norm(rx - tx, axis=1)
+    order = np.argsort(-distances)[:max_receivers]
+    per_receiver, blocked, worst = [], 0, 0.0
+    for index in order:
+        distance = float(distances[index])
+        if distance <= tol:
+            continue
+        row, col = direction_to_pixel((rx[index] - tx) / distance, img_h, img_w)
+        # a 3x3 neighbourhood absorbs one pixel of angular quantisation; the
+        # question is "is there an unobstructed sightline in roughly this
+        # direction", not "exactly through this pixel centre"
+        rows = slice(max(row - 1, 0), min(row + 2, img_h))
+        cols = [(col + k) % img_w for k in (-1, 0, 1)]
+        seen = float(arr[rows][:, cols].max())
+        deficit = max(0.0, distance - tol - seen)
+        if deficit > 0:
+            blocked += 1
+            worst = max(worst, distance - seen)
+        per_receiver.append({
+            "distance_m": distance,
+            "depth_m": seen,
+            "pixel": [int(row), int(col)],
+            "clear": bool(deficit <= 0),
+        })
+    return {
+        "n_receivers": len(per_receiver),
+        "n_blocked": blocked,
+        "passed": bool(blocked == 0),
+        "checked": bool(per_receiver),
+        "required": bool(required),
+        "tol_m": float(tol),
+        "max_receivers": int(max_receivers),
+        "worst_deficit_m": float(worst),
+        "per_receiver": per_receiver,
+    }
+
+
+def reference_depth_stats(root, pattern="*/depth_images/*.npy"):
+    """Depth statistics of an ON-DISK reference corpus (AR or HAA), or its absence.
+
+    ``scale_plausible`` only becomes a gate once a real reference is present; a
+    missing corpus is RECORDED as missing rather than silently treated as a pass.
+    """
+    import glob
+
+    paths = sorted(glob.glob(os.path.join(str(root), pattern))) if root else []
+    if not paths:
+        return {"available": False, "n_maps": 0, "source": str(root),
+                "reason": f"no depth maps under {root!r} (not readable or absent)"}
+    lo, hi, means, count = np.inf, -np.inf, [], 0
+    for path in paths:
+        arr = np.load(path)
+        finite = arr[np.isfinite(arr)]
+        if finite.size == 0:
+            continue
+        lo = min(lo, float(finite.min()))
+        hi = max(hi, float(finite.max()))
+        means.append(float(finite.mean()))
+        count += 1
+    return {
+        "available": count > 0,
+        "n_maps": count,
+        "source": str(root),
+        "min": float(lo), "max": float(hi),
+        "mean_of_means": float(np.mean(means)) if means else None,
+        "paths": [os.path.basename(p) for p in paths],
+    }
+
+
+def scale_band(references, tolerance=SCALE_REFERENCE_TOLERANCE):
+    """Plausible depth band from whichever references are actually present."""
+    available = [r for r in references.values() if r.get("available")]
+    if not available:
+        return None
+    lo = min(r["min"] for r in available) / tolerance
+    hi = max(r["max"] for r in available) * tolerance
+    return (lo, hi)
+
+
 def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
                  bearing_tol_deg=LANDMARK_BEARING_TOL_DEG, bounds_tol=0.05,
                  scene=None, tie_distance_frac=BEARING_TIE_DISTANCE_FRAC,
-                 tie_angle_deg=BEARING_TIE_ANGLE_DEG):
+                 tie_angle_deg=BEARING_TIE_ANGLE_DEG, rx_positions_p=None,
+                 rx_sightline_required=True, references=None):
     """Checks that only the REAL mesh can answer (plan Rev 2 section 4.ii, R6).
 
     * camera containment -- the source must be inside the closed room, or every
       distance in the map is measured from outside it;
     * room bounds -- the reconstructed point cloud must lie inside the mesh's
       bounding box, which catches a mis-scaled or mis-signed gauge;
-    * landmark bearing -- the direction of the map's LONGEST sightline must agree
-      with the direction of the mesh's farthest surface point. This is the
-      non-circular gauge check: a transposed or flipped axis swings it by ~90/180
-      degrees while every synthetic-box test still passes;
-    * depth scale -- the distribution the ViT normalisation will see, recorded
-      against the AR/HAA reference band.
+    * receiver sightlines -- MESH-INDEPENDENT evidence (S5): rendered depth toward
+      receivers taken from the tracked pose files must reach those receivers.
+      Required in EmptyRoom, recorded in FurnishedRoom (real occlusions);
+    * depth scale -- the distribution the ViT normalisation will see, checked
+      against the ACTUAL on-disk AR/HAA reference maps when they are present;
+    * landmark bearing -- RECORDED ONLY. It compares the rendered map against the
+      same transformed mesh, so a consistently wrong gauge satisfies both sides;
+      it is diagnostics, never a gate (S5).
     """
     arr = np.asarray(depth, dtype=np.float64)
     position = np.asarray(position_p, dtype=np.float64)
@@ -419,8 +561,17 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
         "p50": float(np.percentile(finite, 50)) if finite.size else None,
         "p95": float(np.percentile(finite, 95)) if finite.size else None,
     }
-    plausible = bool(finite.size and EXPECTED_DEPTH_RANGE_M[0] <= scale["min"]
-                     and scale["max"] <= EXPECTED_DEPTH_RANGE_M[1])
+    references = {"AR": {"available": False, "n_maps": 0, "reason": "not provided"},
+                  "HAA": {"available": False, "n_maps": 0, "reason": "not provided"}} \
+        if references is None else dict(references)
+    band = scale_band(references)
+    scale_checked = band is not None
+    band = band if scale_checked else EXPECTED_DEPTH_RANGE_M
+    plausible = bool(finite.size and band[0] <= scale["min"] and scale["max"] <= band[1])
+
+    sightline = rx_sightline_check(
+        arr, position, rx_positions_p if rx_positions_p is not None else np.zeros((0, 3)),
+        img_h=img_h, img_w=img_w, required=rx_sightline_required)
 
     warnings = []
     if not camera_inside:
@@ -443,7 +594,13 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
     if not plausible:
         warnings.append(
             f"depth range [{scale['min']}, {scale['max']}] m is outside the "
-            f"expected {EXPECTED_DEPTH_RANGE_M} m band")
+            f"plausible {band} m band"
+            + (" (from the on-disk AR/HAA references)" if scale_checked else ""))
+    if not sightline["passed"]:
+        detail = (f"{sightline['n_blocked']} of {sightline['n_receivers']} receiver "
+                  f"sightlines blocked, worst deficit {sightline['worst_deficit_m']:.2f} m")
+        warnings.append(detail if sightline["required"]
+                        else f"{detail} (recorded only for this room)")
 
     return {
         "camera_inside": camera_inside,
@@ -461,12 +618,21 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
         "bearing_ok": bearing_ok,
         "sightline_slack_m": sightline_slack,
         "sightline_ok": sightline_ok,
+        "bearing_gates_publication": False,
         "depth_scale": scale,
-        "scale_reference": {"AR": None, "HAA": None,
-                            "expected_range_m": list(EXPECTED_DEPTH_RANGE_M)},
+        "scale_reference": references,
+        "scale_band_m": list(band),
+        "scale_checked": scale_checked,
         "scale_plausible": plausible,
+        "rx_sightline": sightline,
         "warnings": warnings,
-        "passed": bool(camera_inside and bounds_ok and bearing_ok and sightline_ok),
+        # S5: the gauge evidence that gates publication is mesh-INDEPENDENT
+        # (receiver sightlines) plus containment/bounds/sightline-bound and, once a
+        # real reference corpus is present, the depth scale. The landmark bearing
+        # is recorded but never gates.
+        "passed": bool(camera_inside and bounds_ok and sightline_ok
+                       and (sightline["passed"] or not sightline["required"])
+                       and (plausible or not scale_checked)),
     }
 
 
@@ -481,6 +647,14 @@ def build_parser():
     parser.add_argument('--img-h', type=int, default=DEPTH_H)
     parser.add_argument('--img-w', type=int, default=DEPTH_W)
     parser.add_argument('--floor-tol', type=float, default=DEFAULT_FLOOR_TOL)
+    parser.add_argument('--haa-depth-root', default='HAA',
+                        help="processed HAA root; its depth_images are the on-disk "
+                             "scale reference (S5)")
+    parser.add_argument('--ar-depth-root', default=None,
+                        help="AcousticRooms depth_map root, if readable; its absence "
+                             "is recorded and HAA alone activates the scale check")
+    parser.add_argument('--rx-sightline-receivers', type=int,
+                        default=RX_SIGHTLINE_MAX_RECEIVERS)
     parser.add_argument('--max-miss-rate', type=float, default=DEFAULT_MAX_MISS_RATE,
                         help="per-map ray-miss rate tolerated and repaired by "
                              "nearest-valid-neighbour inpainting; above it the render "
@@ -526,11 +700,33 @@ def main(argv=None):
     # never be published under different generations.
     publish_txn = PublishTransaction(args.output_dir)
     expectations, records = {}, {}
+    # S5: real on-disk reference statistics, read once per run.
+    references = {
+        "HAA": reference_depth_stats(args.haa_depth_root),
+        "AR": reference_depth_stats(args.ar_depth_root, pattern="**/*.npy")
+        if args.ar_depth_root else
+        {"available": False, "n_maps": 0, "source": None,
+         "reason": "AR depth_map root not provided (often unreadable from this mount)"},
+    }
+    logger.info("scale references: HAA %s, AR %s",
+                references["HAA"].get("n_maps"), references["AR"].get("n_maps"))
+    sightline_policy = {room: ("required" if room in RX_SIGHTLINE_REQUIRED_ROOMS
+                               else "recorded") for room in args.rooms}
     for room in args.rooms:
         mesh = load_mesh_pipeline(os.path.join(args.raf_root, "3d_models", room, "mesh.obj"))
         meta_path = os.path.join(args.output_dir, room, "metadata", "groups_metadata.json")
         with open(meta_path) as f:
             groups_meta = json.load(f)
+
+        # Receiver positions come from the TRACKED POSE FILES, never from the mesh:
+        # that independence is what makes the sightline check real evidence (S5).
+        poses_path = os.path.join(args.output_dir, room, "metadata", "poses_metadata.json")
+        rx_positions = np.zeros((0, 3))
+        if os.path.isfile(poses_path):
+            with open(poses_path) as f:
+                rx_positions = np.asarray(
+                    [entry["rx_p"] for entry in json.load(f).values()], dtype=np.float64)
+        sightline_required = room in RX_SIGHTLINE_REQUIRED_ROOMS
 
         depth_dir = os.path.join(args.output_dir, room, "depth_images")
 
@@ -560,8 +756,14 @@ def main(argv=None):
                           miss_report=miss_report)
             qa["depth_file"] = entry["depth_file"]
             # R6: the checks only the real mesh can answer, fail-closed.
-            qa["real_mesh"] = real_mesh_qa(depth, position, mesh, img_h=args.img_h,
-                                           img_w=args.img_w, scene=scene)
+            qa["real_mesh"] = real_mesh_qa(
+                depth, position, mesh, img_h=args.img_h, img_w=args.img_w, scene=scene,
+                rx_positions_p=rx_positions, rx_sightline_required=sightline_required,
+                references=references)
+            if canonical and not qa["real_mesh"]["rx_sightline"]["checked"]:
+                qa["warnings"].append(
+                    "no receiver sightline evidence: canonical maps require it")
+                qa["passed"] = False
             qa["warnings"] = qa["warnings"] + qa["real_mesh"]["warnings"]
             qa["passed"] = bool(qa["passed"] and qa["real_mesh"]["passed"])
             bearings[group_key] = qa["real_mesh"]["landmark_bearing_deg"]
@@ -590,6 +792,10 @@ def main(argv=None):
             "n_failed": len(failed),
             "n_warned": len(warned),
             "readback_record": readback_provenance,
+            "scale_reference": references,
+            "rx_sightline_policy": {room: ("required" if room in RX_SIGHTLINE_REQUIRED_ROOMS
+                                           else "recorded")
+                                    for room in ("EmptyRoom", "FurnishedRoom")},
             # Recorded per room so the two rooms' landmark bearings can be compared
             # across rooms at the run rung (a shared gauge error would show up as a
             # consistent offset in both).

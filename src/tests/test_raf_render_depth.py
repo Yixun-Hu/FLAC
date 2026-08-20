@@ -410,7 +410,8 @@ def test_real_mesh_qa_records_the_depth_scale_against_the_reference_range():
     scale = qa["depth_scale"]
     assert set(scale) >= {"min", "max", "mean", "p50", "p95"}
     assert qa["scale_plausible"] is True
-    assert set(qa["scale_reference"]) == {"AR", "HAA", "expected_range_m"}
+    assert set(qa["scale_reference"]) == {"AR", "HAA"}
+    assert qa["scale_checked"] is False        # no reference corpus was supplied
 
 
 def test_cli_persists_real_mesh_qa_and_a_render_benchmark(tmp_path):
@@ -789,3 +790,169 @@ def test_qa_uses_the_declared_cap_only_in_non_canonical_mode():
                                     img_h=100, img_w=100, canonical=True)
     assert canonical["misses"]["within_cap_recomputed"] is False
     assert canonical["misses"]["cap_applied"] == raf_render.DEFAULT_MAX_MISS_RATE
+
+
+# --------------------------------------------------------------------------- #
+# r3 S5: mesh-independent evidence (rx sightlines + real AR/HAA scale references)
+# --------------------------------------------------------------------------- #
+def test_direction_to_pixel_inverts_the_ray_grid():
+    """Hand-checkable: the pixel a direction maps to must be the pixel whose own
+    direction it is. Verified against equirect_directions itself, which is pinned
+    independently in test_raf_common."""
+    dirs = raf_common.equirect_directions(64, 128)
+    for i, j in [(0, 0), (7, 3), (31, 64), (63, 127), (32, 0)]:
+        assert raf_render.direction_to_pixel(dirs[i, j], 64, 128) == (i, j)
+
+
+def test_direction_to_pixel_wraps_the_azimuth_seam():
+    row, col = raf_render.direction_to_pixel(np.array([-1.0, -1e-9, 0.0]), 64, 128)
+    assert 0 <= col < 128 and 0 <= row < 64
+
+
+def test_rx_sightline_check_passes_when_receivers_are_visible():
+    """The receivers are inside the same empty box, so every tx->rx ray must reach
+    at least as far as the receiver before hitting a wall."""
+    mesh = _box_mesh_raf(**_BOX)
+    tx = np.array([0.5, 0.5, 1.5])
+    rx = np.array([[4.5, 5.0, 1.2], [0.0, -1.5, 2.0], [3.0, 0.0, 0.5]])
+    depth = raf_render.render_depth(mesh, tx)
+    report = raf_render.rx_sightline_check(depth, tx, rx)
+    assert report["n_receivers"] == 3
+    assert report["n_blocked"] == 0
+    assert report["passed"] is True
+    assert report["worst_deficit_m"] <= report["tol_m"]
+    assert len(report["per_receiver"]) == 3
+    for entry in report["per_receiver"]:
+        assert entry["depth_m"] >= entry["distance_m"] - report["tol_m"]
+
+
+def test_rx_sightline_check_detects_an_occluded_receiver():
+    """A receiver behind a partition: the ray stops at the partition, so the
+    rendered depth is far short of the receiver distance."""
+    mesh = _box_mesh_raf(**_BOX)
+    wall = _box_mesh_raf(x0=2.0, x1=2.1, y0=0.0, y1=4.0, z0=-2.0, z1=6.0)
+    combined = mesh + wall
+    tx = np.array([0.5, 0.5, 1.5])
+    rx = np.array([[4.5, 0.5, 1.5]])            # on the far side of the partition
+    depth = raf_render.render_depth(combined, tx)
+    report = raf_render.rx_sightline_check(depth, tx, rx)
+    assert report["n_blocked"] == 1
+    assert report["passed"] is False
+    assert report["worst_deficit_m"] > 1.0
+
+
+def test_rx_sightline_check_catches_a_transposed_gauge():
+    """S5's point: this evidence is mesh-INDEPENDENT, so a consistently wrong
+    horizontal gauge (rx transformed with y and z swapped) fails it, while the old
+    landmark comparison against the same transformed mesh could not."""
+    mesh = _box_mesh_raf(**_BOX)
+    tx = np.array([0.5, 0.5, 1.5])
+    rx = np.array([[4.5, 5.0, 1.2], [0.0, -1.5, 2.0], [3.0, 5.5, 0.5]])
+    depth = raf_render.render_depth(mesh, tx)
+    assert raf_render.rx_sightline_check(depth, tx, rx)["passed"] is True
+    mis_gauged = rx[:, [0, 2, 1]]               # y <-> z transposition
+    assert raf_render.rx_sightline_check(depth, tx, mis_gauged)["passed"] is False
+
+
+def test_rx_sightline_check_uses_the_farthest_receivers():
+    mesh = _box_mesh_raf(**_BOX)
+    tx = np.array([0.5, 0.5, 1.5])
+    rx = np.array([[0.6, 0.5, 1.5], [4.5, 5.0, 1.2], [0.0, -1.5, 2.0]])
+    report = raf_render.rx_sightline_check(depth=raf_render.render_depth(mesh, tx),
+                                           position_p=tx, rx_positions_p=rx,
+                                           max_receivers=1)
+    assert report["n_receivers"] == 1
+    # the single probed receiver is the farthest one, not the first listed
+    assert report["per_receiver"][0]["distance_m"] > 5.0
+
+
+def test_reference_depth_stats_read_the_real_haa_maps():
+    stats = raf_render.reference_depth_stats(os.path.join(_REPO_ROOT, "HAA"))
+    assert stats["available"] is True
+    assert stats["n_maps"] == 4
+    assert 0.4 < stats["min"] < 0.6              # measured: classroomBase min 0.504
+    assert 11.0 < stats["max"] < 12.0            # measured: complexBase max 11.552
+    assert stats["source"].endswith("HAA")
+
+
+def test_reference_depth_stats_record_an_unreadable_root(tmp_path):
+    stats = raf_render.reference_depth_stats(str(tmp_path / "nope"))
+    assert stats["available"] is False
+    assert stats["n_maps"] == 0
+    assert "not readable" in stats["reason"]
+
+
+def test_scale_plausible_joins_passed_once_a_reference_is_present():
+    mesh = _box_mesh_raf(**_BOX)
+    tx = np.array([0.5, 0.5, 1.5])
+    depth = raf_render.render_depth(mesh, tx, h=32, w=64)
+    references = {"HAA": raf_render.reference_depth_stats(os.path.join(_REPO_ROOT, "HAA")),
+                  "AR": raf_render.reference_depth_stats("/nonexistent-ar-root")}
+    qa = raf_render.real_mesh_qa(depth, tx, mesh, img_h=32, img_w=64,
+                                 references=references)
+    assert qa["scale_reference"]["HAA"]["available"] is True
+    assert qa["scale_reference"]["AR"]["available"] is False
+    assert qa["scale_plausible"] is True
+    assert qa["scale_checked"] is True
+    assert qa["passed"] is True
+
+    huge = depth * 40.0                          # 40x the HAA band
+    bad = raf_render.real_mesh_qa(huge, tx, mesh, img_h=32, img_w=64,
+                                  references=references)
+    assert bad["scale_plausible"] is False
+    assert bad["passed"] is False
+
+
+def test_landmark_bearing_is_recorded_but_no_longer_gates():
+    """S5: the landmark compares the render against the same transformed mesh, so
+    it is circular; it stays as recorded diagnostics only."""
+    mesh = _box_mesh_raf(**_BOX)
+    tx = np.array([0.3, 5.0, 1.5])
+    depth = raf_render.render_depth(mesh, tx, h=32, w=64)
+    qa = raf_render.real_mesh_qa(depth, tx, mesh, img_h=32, img_w=64)
+    assert "landmark_bearing_deg" in qa
+    assert qa["bearing_gates_publication"] is False
+
+
+def test_real_mesh_qa_requires_sightlines_when_the_room_says_so():
+    mesh = _box_mesh_raf(**_BOX)
+    wall = _box_mesh_raf(x0=2.0, x1=2.1, y0=0.0, y1=4.0, z0=-2.0, z1=6.0)
+    tx = np.array([0.5, 0.5, 1.5])
+    rx = np.array([[4.5, 0.5, 1.5]])
+    depth = raf_render.render_depth(mesh + wall, tx, h=256, w=512)
+    required = raf_render.real_mesh_qa(depth, tx, mesh + wall, rx_positions_p=rx,
+                                       rx_sightline_required=True)
+    assert required["rx_sightline"]["passed"] is False
+    assert required["passed"] is False
+    recorded = raf_render.real_mesh_qa(depth, tx, mesh + wall, rx_positions_p=rx,
+                                       rx_sightline_required=False)
+    assert recorded["rx_sightline"]["passed"] is False
+    assert recorded["passed"] is True            # occlusion-tolerant room
+    assert any("recorded" in w for w in recorded["warnings"])
+
+
+def test_cli_persists_the_s5_evidence_and_gates_on_it(tmp_path):
+    raf_root, out, groups = _write_fixture(tmp_path)
+    # give the runtime tree the poses the sightline probe reads (mesh-independent)
+    meta = out / "EmptyRoom" / "metadata"
+    poses = {f"{i:06d}": {"tx_xyz_p": [0.0, 0.0, 1.0], "quat_raw": [0, 0, 0, 1],
+                          "rx_p": [float(x), float(y), 1.0], "group_key": "aaaa000000000001",
+                          "split_role": "train"}
+             for i, (x, y) in enumerate([(8.0, 8.0), (-8.0, -8.0), (8.0, -8.0)])}
+    with open(meta / "poses_metadata.json", "w") as f:
+        json.dump(poses, f)
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path),
+                     "--haa-depth-root", os.path.join(_REPO_ROOT, "HAA"),
+                     "--non-canonical"])
+    with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
+        qa = json.load(f)
+    assert qa["scale_reference"]["HAA"]["available"] is True
+    for entry in qa["maps"].values():
+        evidence = entry["real_mesh"]["rx_sightline"]
+        assert evidence["n_receivers"] == 3
+        assert evidence["passed"] is True
+        assert evidence["required"] is True          # EmptyRoom is unconditional
+        assert entry["real_mesh"]["scale_checked"] is True
+    assert qa["rx_sightline_policy"]["EmptyRoom"] == "required"
+    assert qa["rx_sightline_policy"]["FurnishedRoom"] == "recorded"
