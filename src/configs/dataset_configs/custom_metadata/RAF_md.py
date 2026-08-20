@@ -1,5 +1,7 @@
 import collections
+import importlib
 import importlib.util
+import sys
 import os
 import numpy as np
 import json
@@ -162,6 +164,20 @@ def load_depth_cached(path):
     return depth
 
 
+def _publication_error_type():
+    """``src.data.dataset.RAFPublicationError`` -- the one exception the loader's
+    substitution handler re-raises instead of swallowing (F2).
+
+    Looked up rather than imported at module scope because this hook is exec'd by
+    file path; by the time it runs, ``src.data.dataset`` is always already imported
+    (it is what exec'd this file).
+    """
+    module = sys.modules.get("src.data.dataset")
+    if module is None:
+        module = importlib.import_module("src.data.dataset")
+    return module.RAFPublicationError
+
+
 def _raf_module(name):
     """Load a sibling data/RAF module by path (this hook is exec'd, not imported)."""
     repo_root = os.path.abspath(__file__)
@@ -241,7 +257,7 @@ def assert_published_once(dataset_folder):
         return _PUBLICATION_CHECKED[root]
     report = _verify_publication(root)
     if not report.get("published"):
-        raise ValueError(
+        raise _publication_error_type()(
             f"RAF publication check failed for {root}: {report.get('reason')}. The "
             "tree is not an attested publication (missing/invalid prepare or depth "
             "commit marker, files changed after attestation, or a canonical tree "

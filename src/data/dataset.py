@@ -17,6 +17,21 @@ from .utils import Stereo, PseudoStereo, Mono, PadCrop_Normalized_T, AddNoise, R
 AUDIO_KEYS = ("flac", "wav", "mp3", "m4a", "ogg", "opus")
 
 
+class RAFPublicationError(RuntimeError):
+    """The RAF runtime tree is not an attested publication.
+
+    exp_19 (branch-local). ``__getitem__`` below turns any exception into a random
+    substitution, which is right for a corrupt file and catastrophic for this: a
+    tree that was never published, or was published under the wrong identity, would
+    silently become an unbounded substitution loop (RAF-only config) or another
+    dataset's items (mixed config). The handler therefore re-raises THIS type and
+    nothing else.
+
+    Raised only by ``src/configs/dataset_configs/custom_metadata/RAF_md.py``, so
+    AR/HAA behaviour is untouched.
+    """
+
+
 def json_scandir( 
     dir: str,  # top-level directory at which to begin scanning
     json_file_path: str,  # json file to read
@@ -355,6 +370,10 @@ class SampleDataset(torch.utils.data.Dataset):
                     del info["__audio__"]
 
             return (audio, info)
+        except RAFPublicationError:
+            # exp_19 F2: not a per-item load failure -- the whole tree is unusable,
+            # and substituting would hide that behind other items.
+            raise
         except Exception as e:
             print(f'Couldn\'t load file {audio_filename}: {e}')
             return self[random.randrange(len(self))]

@@ -26,6 +26,8 @@ if _RAF_DIR not in sys.path:
 
 import raf_common  # noqa: E402
 
+from src.data.dataset import RAFPublicationError  # noqa: E402
+
 _RAF_MD_PATH = os.path.join(_REPO_ROOT, "src", "configs", "dataset_configs",
                             "custom_metadata", "RAF_md.py")
 
@@ -680,7 +682,7 @@ def test_gate_accepts_a_fully_published_tree(gated_md, runtime_root, tmp_path):
 
 
 def test_gate_refuses_a_tree_that_was_never_published(gated_md, runtime_root):
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(RAFPublicationError) as exc:
         gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
     assert "raf_publication.json" in str(exc.value)
 
@@ -690,7 +692,7 @@ def test_gate_refuses_a_prepared_tree_whose_depth_was_never_published(
     """The r4 gate checked only the prepare marker; depth maps published under a
     different generation (or not at all) went unnoticed."""
     _publish_tree(tmp_path, runtime_root, with_depth=False)
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(RAFPublicationError) as exc:
         gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
     assert "depth" in str(exc.value)
 
@@ -699,7 +701,7 @@ def test_gate_refuses_a_tree_whose_payload_changed_after_publication(
         gated_md, runtime_root, tmp_path):
     _publish_tree(tmp_path, runtime_root)
     (runtime_root / "raf_publication.json").write_text('{"tampered": true}')
-    with pytest.raises(ValueError):
+    with pytest.raises(RAFPublicationError):
         gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
 
 
@@ -719,7 +721,7 @@ def test_canonical_tree_must_carry_the_registered_identity(
         gated_md, runtime_root, tmp_path):
     _publish_tree(tmp_path, runtime_root, rooms=("EmptyRoom", "FurnishedRoom"),
                   canonical=True, digest="0" * 64)
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(RAFPublicationError) as exc:
         gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
     assert "pinned" in str(exc.value)
 
@@ -728,7 +730,7 @@ def test_canonical_tree_must_have_registered_parameters(
         gated_md, runtime_root, tmp_path):
     _publish_tree(tmp_path, runtime_root, rooms=("EmptyRoom", "FurnishedRoom"),
                   canonical=True, parameters_ok=False)
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(RAFPublicationError) as exc:
         gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
     assert "parameters" in str(exc.value)
 
@@ -736,7 +738,7 @@ def test_canonical_tree_must_have_registered_parameters(
 def test_canonical_tree_must_cover_both_registered_rooms(
         gated_md, runtime_root, tmp_path):
     _publish_tree(tmp_path, runtime_root, rooms=(ROOM,), canonical=True)
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(RAFPublicationError) as exc:
         gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
     assert "EmptyRoom" in str(exc.value) or "rooms" in str(exc.value)
 
@@ -769,3 +771,109 @@ def test_a_second_worker_process_repeats_the_check(runtime_root, tmp_path):
     assert second._PUBLICATION_CHECKED == {}
 
 
+
+
+# --------------------------------------------------------------------------- #
+# r6 F2: the failure reaches the caller through the REAL loader path
+# --------------------------------------------------------------------------- #
+def _raf_dataset_config(runtime_root, split_path):
+    return {
+        "dataset_type": "audio_dir",
+        "datasets": [{
+            "id": "RAF",
+            "path": str(runtime_root),
+            "json_file_path": str(split_path),
+            "custom_metadata_module": _RAF_MD_PATH,
+            "folder_name": "mono_rirs_22050Hz",
+        }],
+        "random_crop": False, "augs": False, "force_channels": "mono",
+        "is_eval": True, "drop_last": False,
+        "modalities": _modalities(deterministic=True),
+    }
+
+
+def _split_file(tmp_path, n=4):
+    path = tmp_path / "eval_base.json"
+    with open(path, "w") as f:
+        json.dump({ROOM: [f"{i:06d}.wav" for i in range(n)]}, f)
+    return path
+
+
+def test_publication_failure_propagates_through_sample_dataset(runtime_root, tmp_path):
+    """F2: the r5 gate raised inside __getitem__'s catch-all, so a RAF-only config
+    recursed into an unrelated RecursionError and a mixed config silently served
+    another dataset's items. The dedicated type is re-raised instead."""
+    from src.data.dataset import create_dataloader_from_config
+
+    config = _raf_dataset_config(runtime_root, _split_file(tmp_path))
+    loader = create_dataloader_from_config(config, batch_size=2, sample_size=10240,
+                                           sample_rate=22050, audio_channels=1,
+                                           num_workers=1, shuffle=False)
+    with pytest.raises(RAFPublicationError) as exc:
+        loader.dataset[0]
+    assert "raf_publication.json" in str(exc.value)
+
+
+def test_publication_failure_is_not_swallowed_by_the_substitution_handler(
+        runtime_root, tmp_path):
+    """An invalid POINTER (not a missing one) on the production path."""
+    from src.data.dataset import create_dataloader_from_config
+
+    (runtime_root / "raf_publication.json").write_text('{"not": "a pointer"}')
+    config = _raf_dataset_config(runtime_root, _split_file(tmp_path))
+    loader = create_dataloader_from_config(config, batch_size=2, sample_size=10240,
+                                           sample_rate=22050, audio_channels=1,
+                                           num_workers=1, shuffle=False)
+    # the dataset is what the training loop indexes; a worker would re-raise the
+    # same type, but this keeps the assertion in-process and deterministic
+    with pytest.raises(RAFPublicationError) as exc:
+        loader.dataset[0]
+    assert "not a valid publication pointer" in str(exc.value)
+
+
+def test_the_handler_still_substitutes_for_ordinary_load_failures(runtime_root,
+                                                                  tmp_path):
+    """The re-raise is narrow: everything else keeps the upstream behaviour, which
+    is what keeps AR/HAA untouched.
+
+    The corrupted capture is a TEST-role one (>= N_SUPPORT), so it is nobody's
+    acoustic context. Corrupting a support capture instead poisons every item that
+    draws it -- upstream behaviour, and how this test first found its own footgun.
+    """
+    from src.data.dataset import LocalDatasetConfig, SampleDataset
+
+    _publish_tree(tmp_path, runtime_root)
+    ids = [f"{i:06d}" for i in range(N_SUPPORT, N_SUPPORT + 4)]
+    split_path = tmp_path / "eval_base.json"
+    with open(split_path, "w") as f:
+        json.dump({ROOM: [f"{cid}.wav" for cid in ids]}, f)
+    config = LocalDatasetConfig(
+        id="RAF", path=str(runtime_root),
+        custom_metadata_fn=load_raf_md(test_mode=False).get_custom_metadata,
+        json_file_path=str(split_path), folder_name="mono_rirs_22050Hz",
+        conditioning=_modalities(deterministic=True))
+    dataset = SampleDataset([config], sample_size=10240, sample_rate=22050,
+                            random_crop=False, force_channels="mono", augs=False)
+    (runtime_root / ROOM / "mono_rirs_22050Hz" / f"{ids[0]}.wav").write_bytes(b"nope")
+    audio, info = dataset[0]                      # substituted, not raised
+    assert audio.shape == (1, 10240)
+    assert info["relpath"].endswith(".wav")
+    assert not info["relpath"].endswith(f"{ids[0]}.wav")
+
+
+def test_the_exception_type_is_raised_only_by_the_raf_hook():
+    """AR/HAA cannot reach it: nothing else in the tree raises it."""
+    import subprocess
+
+    hits = subprocess.run(
+        ["grep", "-rln", "RAFPublicationError", "--include=*.py",
+         os.path.join(_REPO_ROOT, "src"), os.path.join(_REPO_ROOT, "data")],
+        capture_output=True, text=True).stdout.split()
+    non_test = sorted(h for h in hits if "/tests/" not in h)
+    assert [os.path.basename(h) for h in non_test] == ["RAF_md.py", "dataset.py"]
+    # dataset.py DEFINES and re-raises it; RAF_md is the only producer
+    from src.data.dataset import RAFPublicationError as ExcType
+
+    assert issubclass(ExcType, Exception)
+    md = load_raf_md(test_mode=False)
+    assert md._publication_error_type() is ExcType
