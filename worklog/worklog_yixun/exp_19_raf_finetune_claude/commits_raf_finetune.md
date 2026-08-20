@@ -22,3 +22,10 @@
 | `92bb9d3` | r1 ledger catch-up row for cycle 12 |
 | `1d1af86` | r1 TDD cycle 13: `all_rx` trailing all-NaN sentinel rule (Amendment 1 D1) — accepted once, recorded in `RoomIndex` + splits record; every other mismatch/NaN still aborts (70 tests) |
 | `6c0a16e` | r2 fix R3: capture-id stream fingerprints in `eval_FLAC.py` (AR/HAA byte-identical; per-run fingerprint_schema 1/2) (29 tests) |
+| `f4d34ca` | r2 fix R1+R2+R14: FPS eligibility (exactly-36 only, forced reserve + atom uniqueness), `diagnostic` role (12 context-only supports / 24 targets, own manifest + config), val supports context-only |
+| `ad966e4` | r2 fix R4+R13: `readback_audit.py` (onset/delay fit, crop-vs-full T30, quaternion readings, gauge pinning) + publish gates in prepare/render; WAV read-back, JSON-safe dB, role-split amplitude distributions |
+| `6886d40` | r2 fix R5+R6+R12: canonical 256x512 float32 enforcement (+`--non-canonical` taint), loader-side depth contract, real-mesh QA (containment/bounds/sightline/bearing/scale), one scene per room + render benchmark |
+| `d20c6ab` | r2 fix R7: atomic staged publish with sha256 manifest written last + failure-injection tests |
+| `a08571f` | r2 fix R9: real MultiConditioner + `get_conditioning_inputs` pass over the real collated RAF batch |
+| `755aed6` | r2 fix R11: structural clone-whitelist (recursive node/type/length comparison against the patched HAA template) |
+| `07badce` | r2: pre-written R8/R10 tests, skipped behind a feature probe during the peer's `src/metrics` freeze |
