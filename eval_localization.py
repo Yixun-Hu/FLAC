@@ -277,7 +277,10 @@ def read_peak_memory(device):
 
 PROBE_COMPONENTS = ("conditioning", "sampling", "decode", "embed", "scoring",
                     "context")
-#: separately measured whole-query wall time (not a component sum).
+#: Separately measured whole-query wall time (not a component sum). It covers
+#: candidate resolution, membership, generation/oracle and the context control --
+#: i.e. everything process_query does -- but NOT the row construction or the JSONL
+#: write, which happen in run_evaluation after the timer closes.
 PROBE_WALL = "total_wall"
 
 
@@ -773,7 +776,8 @@ def device_provenance(device):
 
 
 def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source, n_queries,
-                     dataset_config=None, context_digest=None, candidate_manifest_sha256=None):
+                     dataset_config=None, context_digest=None, candidate_manifest_sha256=None,
+                     split_file_sha256=None):
     """Everything needed to reproduce or falsify the run, in one record.
 
     Announcement 05: a row is only interpretable next to the protocol it was
@@ -827,6 +831,7 @@ def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source
         "loader_drop_last": bool((dataset_config or {}).get("drop_last", True)),
         "context_stream_digest": context_digest or "n/a",
         "candidate_manifest_sha256": candidate_manifest_sha256 or "n/a",
+        "split_file_sha256": split_file_sha256 or "n/a",
         **device_provenance(getattr(args, "device", "cpu")),
         "float32_matmul_precision": torch.get_float32_matmul_precision(),
         "torch_version": torch.__version__,
@@ -1478,7 +1483,9 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
                                   dataset_config=dataset_config,
                                   context_digest=context_stream_digest(rows),
                                   candidate_manifest_sha256=(manifest_sha256(manifest)
-                                                             if manifest else None))
+                                                             if manifest else None),
+                                  split_file_sha256=(_file_sha256(split_path_of(dataset_config))
+                                                     if dataset_config else None))
     write_summary(summary_path, summary, provenance)
     if manifest is not None:
         write_json_atomic(paths["manifest"], manifest, overwrite=True)
@@ -1533,6 +1540,7 @@ def main(argv=None):
     validate_dataset_split(args, dataset_config)
     model_config = read_model_config(args)
     context_k = resolve_context_k(dataset_config)
+    split_check = assert_registered_split(args, dataset_config)
     assert_registration_sha(args, dataset_config)
 
     candidate_manifest = None if args.parity_check else manifest_for_dataset_config(dataset_config)
@@ -1546,7 +1554,8 @@ def main(argv=None):
         "num_samples": effective_num_samples(args), "tau": args.tau, "agg": args.agg,
         "cond_method": args.cond_method, "cond_autocast": args.cond_autocast,
         "steps": args.steps, "cfg_scale": args.cfg_scale, "seed": args.seed,
-        "readout": "mean", "candidate_manifest_sha256": manifest_hash})
+        "readout": "mean", "candidate_manifest_sha256": manifest_hash,
+        "split_file_sha256": split_check["file_sha256"]})
     paths = None if args.parity_check else artifact_paths(args)
 
     # ---- only now: deserialize, construct, load data ------------------------
@@ -1812,7 +1821,7 @@ def assert_context_evidence_complete(rows, context_k):
 REGISTRATION_LOCKED_FIELDS = (
     "model_config_sha256", "dataset_config_sha256", "ckpt_sha256", "agree_sha256",
     "num_samples", "tau", "agg", "cond_method", "cond_autocast", "steps", "cfg_scale",
-    "readout", "candidate_manifest_sha256",
+    "readout", "candidate_manifest_sha256", "split_file_sha256",
 )
 
 
@@ -1921,6 +1930,88 @@ REGISTERED_METADATA_ONLY = {
 }
 #: the depth panorama shape the loader's projection assumes.
 DEPTH_MAP_SHAPE = (256, 512)
+#: the CANONICAL unseen split, pinned by content (r5 review, H2 residual).
+#: The gate used to read its authority from the very file it was validating, so a
+#: truncated or same-shaped substituted split passed and the identity audit then
+#: agreed with the altered authority.
+UNSEEN_SPLIT_FILE_SHA256 = "9a9d817abc3e19f41351e07325ffa929c1f2846d0c77e80d538d9e4a21342ba8"
+UNSEEN_SPLIT_N_FILES = 6337
+UNSEEN_SPLIT_N_ROOMS = 17
+UNSEEN_ROOM_NODE_MAP_SHA256 = "38c07598fc070cff50684907ce6bcd5d5bee29a249693a441d41b78eafef33a0"
+#: shortest waveform every scoring path can consume unchanged. The target is
+#: pad_crop'd to sample_size = 10240, context RIRs to 9600 and the oracle to
+#: 8000, so a wav >= 10240 is score-identical however long it is, while a shorter
+#: one silently changes oracle, context and query scores.
+MIN_WAV_SAMPLES = 10240
+
+
+def room_node_map_digest(split):
+    """sha256 over ``{room_id: sorted source nodes}`` derived from the split's own
+    file names -- the identity of the split's room/source structure."""
+    node_map = {}
+    for scene in split:
+        for scene_id, files in split[scene].items():
+            node_map[f"{scene}/{scene_id}"] = sorted({parse_ir_filename(f)[0] for f in files})
+    payload = json.dumps(node_map, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def verify_registered_split(split_path, enforced=True):
+    """Check a split file against the pinned canonical unseen split."""
+    with open(str(split_path), "rb") as handle:
+        raw = handle.read()
+    split = json.loads(raw.decode("utf-8"))
+    checks = {
+        "enforced": bool(enforced),
+        "file_sha256": hashlib.sha256(raw).hexdigest(),
+        "n_files": sum(len(files) for rooms in split.values() for files in rooms.values()),
+        "n_rooms": sum(len(rooms) for rooms in split.values()),
+        "room_node_map_sha256": room_node_map_digest(split),
+        "expected": {"file_sha256": UNSEEN_SPLIT_FILE_SHA256, "n_files": UNSEEN_SPLIT_N_FILES,
+                     "n_rooms": UNSEEN_SPLIT_N_ROOMS,
+                     "room_node_map_sha256": UNSEEN_ROOM_NODE_MAP_SHA256},
+        "failures": [],
+    }
+    if not enforced:
+        return checks
+    if checks["file_sha256"] != UNSEEN_SPLIT_FILE_SHA256:
+        checks["failures"].append(
+            f"split byte digest {checks['file_sha256'][:16]}... != the registered "
+            f"{UNSEEN_SPLIT_FILE_SHA256[:16]}...")
+    if checks["n_files"] != UNSEEN_SPLIT_N_FILES:
+        checks["failures"].append(
+            f"split enumerates {checks['n_files']} identities, the registered unseen split has "
+            f"{UNSEEN_SPLIT_N_FILES}")
+    if checks["n_rooms"] != UNSEEN_SPLIT_N_ROOMS:
+        checks["failures"].append(
+            f"split enumerates {checks['n_rooms']} rooms, the registered unseen split has "
+            f"{UNSEEN_SPLIT_N_ROOMS}")
+    if checks["room_node_map_sha256"] != UNSEEN_ROOM_NODE_MAP_SHA256:
+        checks["failures"].append(
+            f"split room/node map digest {checks['room_node_map_sha256'][:16]}... != the "
+            f"registered {UNSEEN_ROOM_NODE_MAP_SHA256[:16]}...")
+    return checks
+
+
+def split_path_of(dataset_config):
+    """The split JSON the dataset config points at."""
+    entry = (dataset_config.get("datasets") or [None])[0]
+    if entry is None:
+        _refuse("the dataset config declares no datasets")
+    return entry["json_file_path"]
+
+
+def assert_registered_split(args, dataset_config):
+    """Run-mode startup gate: an unseen run must read the CANONICAL split."""
+    # skip_split_digest exists only for synthetic test fixtures with the registered
+    # SHAPE; no CLI flag sets it, so an operator cannot turn the gate off.
+    enforced = bool(dataset_config.get("unseeneval", False)) and not getattr(
+        args, "skip_split_digest", False)
+    checks = verify_registered_split(split_path_of(dataset_config), enforced=enforced)
+    if checks["failures"]:
+        _refuse("the dataset config does not point at the registered unseen split: "
+                + "; ".join(checks["failures"]))
+    return checks
 
 
 def run_readback(args):
@@ -1945,8 +2036,12 @@ def run_readback(args):
                                    folder_name=entry.get("folder_name", DEFAULT_IR_FOLDER))
     root, folder = manifest["dataset_root"], manifest["folder_name"]
     registered = bool(dataset_config.get("unseeneval", False))
+    split_check = verify_registered_split(
+        entry["json_file_path"],
+        enforced=registered and not getattr(args, "skip_split_digest", False))
 
-    rooms, failures, warnings = {}, [], []
+    rooms, failures, warnings = {}, [], list(split_check["failures"] and [])
+    failures.extend(split_check["failures"])
     for room_id, room in sorted(manifest["rooms"].items()):
         scene, scene_id = room["scene"], room["scene_id"]
         wav_dir = os.path.join(root, folder, scene, scene_id)
@@ -1983,7 +2078,7 @@ def run_readback(args):
             elif not bool(np.isfinite(depth).all()):
                 depth_bad.append(f"R{rec}: contains non-finite values")
 
-        wav_bad, sample_rates = [], set()
+        wav_bad, sample_rates, lengths = [], set(), []
         for src, path in sorted(one_per_source.items()):
             try:
                 wav, rate = torchaudio.load(path)
@@ -1991,12 +2086,17 @@ def run_readback(args):
                 wav_bad.append(f"S{src}: unreadable ({type(err).__name__})")
                 continue
             sample_rates.add(int(rate))
+            lengths.append(int(wav.shape[-1]))
             if int(rate) != AR_SAMPLE_RATE:
                 wav_bad.append(f"S{src}: sample rate {rate} != {AR_SAMPLE_RATE}")
             elif wav.shape[0] != 1:
                 wav_bad.append(f"S{src}: {wav.shape[0]} channels, expected mono")
-            elif wav.shape[-1] < 1:
-                wav_bad.append(f"S{src}: empty waveform")
+            elif wav.shape[-1] < MIN_WAV_SAMPLES:
+                # Score-relevant: the target is pad_crop'd to 10240, context RIRs to
+                # 9600 and the oracle window to 8000, so a shorter wav changes what
+                # every scoring path sees. Anything >= 10240 is score-identical.
+                wav_bad.append(f"S{src}: {wav.shape[-1]} samples is shorter than the scored "
+                               f"prefix ({MIN_WAV_SAMPLES})")
             elif not bool(torch.isfinite(wav).all()):
                 wav_bad.append(f"S{src}: contains non-finite samples")
 
@@ -2008,6 +2108,8 @@ def run_readback(args):
             "depth_checked": len(receivers), "depth_bad": depth_bad,
             "wav_checked": len(one_per_source), "wav_bad": wav_bad,
             "sample_rates": sorted(sample_rates),
+            "wav_lengths": ({"min": min(lengths), "max": max(lengths),
+                             "mean": float(np.mean(lengths))} if lengths else None),
         }
         if cross["extra_files"]:
             failures.append(f"{room_id}: wav sources without metadata: {cross['extra_files']}")
@@ -2044,9 +2146,18 @@ def run_readback(args):
         failures.append(f"{len(rooms)} rooms in the split, the registered unseen split has "
                         f"{REGISTERED_UNSEEN_ROOMS}")
 
+    all_lengths = [length for room in rooms.values() if room["wav_lengths"]
+                   for length in (room["wav_lengths"]["min"], room["wav_lengths"]["max"])]
     report = {
         "mode": "readback", "dataset_config": args.dataset_config,
         "dataset_root": root, "n_rooms": len(rooms),
+        "split_check": split_check,
+        "min_wav_samples": MIN_WAV_SAMPLES,
+        "wav_length_rationale": (
+            "every scoring path consumes a prefix (target pad_crop 10240, context 9600, oracle "
+            "8000), so >= 10240 samples is score-identical and < 10240 is a failure"),
+        "wav_lengths": ({"min": min(all_lengths), "max": max(all_lengths),
+                         "mean": float(np.mean(all_lengths))} if all_lengths else None),
         "registered_check": {
             "enforced": registered, "n_rooms": len(rooms),
             "expected_rooms": REGISTERED_UNSEEN_ROOMS if registered else None,
@@ -2060,6 +2171,11 @@ def run_readback(args):
     report_path = write_report(args, report, "readback")
     report["report_path"] = report_path
 
+    if split_check["enforced"]:
+        status = "PASS" if not split_check["failures"] else "FAIL"
+        print(f"split digest [{status}]: file {split_check['file_sha256'][:12]}..., "
+              f"{split_check['n_files']} identities, {split_check['n_rooms']} rooms, "
+              f"room/node map {split_check['room_node_map_sha256'][:12]}...")
     print(f"readback: {len(rooms)} rooms, {len(warnings)} warnings, {len(failures)} failures "
           f"-> {report_path}")
     for line in warnings:
@@ -2077,6 +2193,11 @@ def write_json_atomic(path, payload, overwrite=False):
     Every mode goes through this (r4 review M3). A finished report is evidence:
     a later failed run must not be able to erase it, and a leftover ``.partial``
     means an earlier attempt died, which is also a refusal.
+
+    NOT an interprocess lock: the existence check and the rename are separate
+    steps, so two runs started simultaneously against the same target can both
+    pass the check. It defends against the sequential mistake (rerunning a cell,
+    or a failed run erasing a passing one), not against concurrent writers.
     """
     path = str(path)
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
@@ -2104,7 +2225,7 @@ def _rows_digest(paths):
     return digest.hexdigest()
 
 
-def aux_stem(args, kind):
+def aux_stem(args, kind, wavs=None):
     """Content-addressed stem for an auxiliary mode's report.
 
     Two runs of the same mode over different inputs must not collide, so the
@@ -2115,15 +2236,22 @@ def aux_stem(args, kind):
     if kind == "scorer-noise":
         scorer = os.path.splitext(os.path.basename(str(args.agree_ckpt)))[0] or "none"
         parts += [f"scorer-{scorer}", f"sha-{_short(_file_sha256(args.agree_ckpt))}",
-                  f"n{int(args.noise_draws)}", f"seed{int(args.seed)}"]
+                  f"n{int(args.noise_draws)}", f"w{int(args.noise_wav_count)}",
+                  f"seed{int(args.seed)}"]
+        if wavs:
+            # the SELECTED wav set, so two measurements over different RIRs cannot
+            # share a report path even at identical knobs
+            digest = hashlib.sha256(
+                "\n".join(sorted(os.path.realpath(str(p)) for p in wavs)).encode("utf-8"))
+            parts.append(f"wavs-{_short(digest.hexdigest())}")
     elif kind == "reaggregate":
         parts.append(f"rows-{_short(_rows_digest(getattr(args, 'rows', None)))}")
     return "_".join(parts)
 
 
-def write_report(args, report, kind):
+def write_report(args, report, kind, wavs=None):
     """Write one auxiliary-mode JSON report, atomically and without clobbering."""
-    path = os.path.join(str(args.out_dir), f"{aux_stem(args, kind)}.json")
+    path = os.path.join(str(args.out_dir), f"{aux_stem(args, kind, wavs=wavs)}.json")
     return write_json_atomic(path, report, overwrite=bool(getattr(args, "overwrite", False)))
 
 
@@ -2240,7 +2368,7 @@ def run_scorer_noise(args):
         "source_sha": source_sha(),
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     })
-    report_path = write_report(args, report, "scorer-noise")
+    report_path = write_report(args, report, "scorer-noise", wavs=paths)
     report["report_path"] = report_path
     pairwise = report["aggregate"]["pairwise"]
     print(f"scorer noise over {report['n_draws']} sampled draws x {report['n_wavs']} RIRs: "

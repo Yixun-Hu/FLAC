@@ -767,7 +767,9 @@ def test_write_summary_round_trips(tmp_path):
 import torchaudio  # noqa: E402
 
 
-def _write_rir(room_dir, src, rec, value, length=9000, rate=22050, name=None):
+def _write_rir(room_dir, src, rec, value, length=12000, rate=22050, name=None):
+    """length defaults above MIN_WAV_SAMPLES (10240): a shorter RIR is a readback
+    FAILURE by design (r5b item 2)."""
     os.makedirs(room_dir, exist_ok=True)
     wav = torch.full((1, length), float(value))
     wav[0, 0] = float(value) * 0.5                     # make rows distinguishable
@@ -2453,7 +2455,7 @@ def _locked(**over):
               "ckpt_sha256": "c" * 64, "agree_sha256": "a" * 64, "num_samples": 8,
               "tau": 0.02, "agg": "lme", "cond_method": "vanilla", "cond_autocast": "default",
               "steps": 1, "cfg_scale": 1.0, "seeds": [42, 43, 44], "readout": "mean",
-              "candidate_manifest_sha256": "f" * 64}
+              "candidate_manifest_sha256": "f" * 64, "split_file_sha256": "s" * 64}
     locked.update(over)
     return locked
 
@@ -2463,7 +2465,7 @@ def _resolved(**over):
                 "ckpt_sha256": "c" * 64, "agree_sha256": "a" * 64, "num_samples": 8,
                 "tau": 0.02, "agg": "lme", "cond_method": "vanilla", "cond_autocast": "default",
                 "steps": 1, "cfg_scale": 1.0, "seed": 43, "readout": "mean",
-                "candidate_manifest_sha256": "f" * 64}
+                "candidate_manifest_sha256": "f" * 64, "split_file_sha256": "s" * 64}
     resolved.update(over)
     return resolved
 
@@ -3042,7 +3044,7 @@ _LRH_ROOM = f"{_LRH}_idx_30"
 
 def _registered_unseen_tree(tmp_path, n_rooms=17, nodes=10, receiver=7,
                             lrh_metadata_only=True, depth_shape=(256, 512),
-                            depth_dtype=np.float32):
+                            depth_dtype=np.float32, wav_samples=12000):
     """A tree with the REGISTERED unseen shape: 17 rooms x 10 metadata sources,
     with LivingRoomsWithHallway_idx_30's source 10 having metadata but no wav."""
     root = tmp_path / "AcousticRooms"
@@ -3063,7 +3065,7 @@ def _registered_unseen_tree(tmp_path, n_rooms=17, nodes=10, receiver=7,
                  "IR_norm": 1.0}))
             wav_absent = (lrh_metadata_only and scene_id == _LRH_ROOM and node == nodes)
             if not wav_absent:
-                _write_rir(str(wav_dir), node, receiver, 0.05 * node, length=200)
+                _write_rir(str(wav_dir), node, receiver, 0.05 * node, length=wav_samples)
                 files.append(f"S00{node}_R00{receiver}_hybrid_IR.wav")
         split[scene] = {scene_id: files}
     split_path = tmp_path / "unseen.json"
@@ -3083,7 +3085,11 @@ def _unseen_readback_args(tmp_path, root, split_path, **over):
             "--out-dir", str(tmp_path / "out"), "--eval-name", "R_minus_1"]
     for flag, value in over.items():
         argv += [flag] if value is True else [flag, str(value)]
-    return el.validate_args(el.parse_args(argv))
+    args = el.validate_args(el.parse_args(argv))
+    # these fixtures have the registered SHAPE but are not the canonical split file;
+    # the digest gate itself is exercised by the dedicated tests below.
+    args.skip_split_digest = True
+    return args
 
 
 def test_readback_passes_the_registered_unseen_shape(tmp_path):
@@ -3392,3 +3398,180 @@ def test_read_model_config_and_checkpoint_validation_are_separable(tmp_path):
                           "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt", "--num-samples", "2"])
     with pytest.raises(SystemExit):
         el.read_model_config(args)                        # objective refused without torch.load
+
+
+# --------------------------------------------------------------------------- #
+# r5b item 1 (r5 review, H2 residual): the gate read its authority FROM the split
+# it was validating, so a truncated or same-shaped substituted split passed and
+# the later identity audit merely agreed with the altered authority. The
+# canonical split is now pinned by byte digest, identity count, room count and
+# room/node map.
+# --------------------------------------------------------------------------- #
+def _real_split():
+    return _json.loads(open(_UNSEEN_SPLIT_JSON).read())
+
+
+def _unseen_config_for(tmp_path, split_path, name="d.json"):
+    config = tmp_path / name
+    config.write_text(_json.dumps({
+        "dataset_type": "audio_dir", "unseeneval": True,
+        "modalities": {"acoustic_context": {"load": True, "max_context": 8}},
+        "datasets": [{"id": "AcousticRooms", "path": _AR_ROOT,
+                      "json_file_path": str(split_path),
+                      "folder_name": "single_channel_ir_1"}]}))
+    return config
+
+
+def test_registered_split_constants_match_the_committed_split():
+    """The pinned values ARE the canonical split's; if data/AR/unseen_eval.json
+    ever changes, this fails before anything else does."""
+    import hashlib as _h
+    raw = open(_UNSEEN_SPLIT_JSON, "rb").read()
+    assert _h.sha256(raw).hexdigest() == el.UNSEEN_SPLIT_FILE_SHA256
+    split = _json.loads(raw)
+    assert sum(len(v) for rooms in split.values() for v in rooms.values()) == \
+        el.UNSEEN_SPLIT_N_FILES == 6337
+    assert sum(len(rooms) for rooms in split.values()) == el.UNSEEN_SPLIT_N_ROOMS == 17
+    assert el.room_node_map_digest(split) == el.UNSEEN_ROOM_NODE_MAP_SHA256
+
+
+def test_verify_registered_split_passes_on_the_canonical_split():
+    checks = el.verify_registered_split(_UNSEEN_SPLIT_JSON, enforced=True)
+    assert checks["failures"] == [] and checks["enforced"] is True
+    assert checks["file_sha256"] == el.UNSEEN_SPLIT_FILE_SHA256
+    assert checks["n_files"] == 6337 and checks["n_rooms"] == 17
+    assert checks["room_node_map_sha256"] == el.UNSEEN_ROOM_NODE_MAP_SHA256
+
+
+def test_verify_registered_split_fails_on_a_truncated_split(tmp_path):
+    split = _real_split()
+    scene = sorted(split)[0]
+    room = sorted(split[scene])[0]
+    split[scene][room] = split[scene][room][:-1]              # one identity fewer
+    path = tmp_path / "truncated.json"
+    path.write_text(_json.dumps(split))
+    checks = el.verify_registered_split(path, enforced=True)
+    assert any("6336" in f for f in checks["failures"])
+    assert any("byte digest" in f for f in checks["failures"])
+
+
+def test_verify_registered_split_fails_on_a_same_count_wrong_room_split(tmp_path):
+    """17 rooms and 6337 files, but one room renamed: the counts alone cannot see
+    it -- the room/node map digest can."""
+    split = _real_split()
+    scene = sorted(split)[0]
+    room = sorted(split[scene])[0]
+    split[scene][f"{room}_impostor"] = split[scene].pop(room)
+    path = tmp_path / "renamed.json"
+    path.write_text(_json.dumps(split))
+    checks = el.verify_registered_split(path, enforced=True)
+    assert checks["n_files"] == 6337 and checks["n_rooms"] == 17
+    assert any("room/node map" in f for f in checks["failures"])
+
+
+def test_verify_registered_split_fails_on_a_substituted_source_list(tmp_path):
+    split = _real_split()
+    scene = sorted(split)[0]
+    room = sorted(split[scene])[0]
+    files = split[scene][room]
+    split[scene][room] = [files[0].replace("S001", "S011") if f is files[0] else f
+                          for f in files]
+    path = tmp_path / "substituted.json"
+    path.write_text(_json.dumps(split))
+    checks = el.verify_registered_split(path, enforced=True)
+    assert checks["failures"]
+
+
+def test_verify_registered_split_is_inert_for_non_unseen_configs(tmp_path):
+    path = tmp_path / "seen.json"
+    path.write_text(_json.dumps({"Cafe": {"Cafe_idx_1": ["S000_R000_hybrid_IR.wav"]}}))
+    checks = el.verify_registered_split(path, enforced=False)
+    assert checks["enforced"] is False and checks["failures"] == []
+
+
+def test_readback_fails_on_a_noncanonical_unseen_split(tmp_path):
+    split = _real_split()
+    scene = sorted(split)[0]
+    room = sorted(split[scene])[0]
+    split[scene][room] = split[scene][room][:-1]
+    path = tmp_path / "truncated.json"
+    path.write_text(_json.dumps(split))
+    args = el.validate_args(el.parse_args(
+        ["--mode", "readback", "--model-config", "m.json",
+         "--dataset-config", str(_unseen_config_for(tmp_path, path)),
+         "--out-dir", str(tmp_path / "out"), "--eval-name", "R_minus_1"]))
+    with pytest.raises(SystemExit):
+        el.run_readback(args)
+    written = os.path.join(str(args.out_dir), el.aux_stem(args, "readback") + ".json")
+    report = _json.loads(open(written).read())
+    assert report["ok"] is False and report["split_check"]["enforced"] is True
+    assert any("6336" in f for f in report["failures"])
+
+
+def test_run_startup_refuses_a_noncanonical_unseen_split(tmp_path):
+    split = _real_split()
+    scene = sorted(split)[0]
+    split[scene]["Ghost_idx_0"] = split[scene].pop(sorted(split[scene])[0])
+    path = tmp_path / "renamed.json"
+    path.write_text(_json.dumps(split))
+    config = _unseen_config_for(tmp_path, path)
+    args = el.parse_args(["--model-config", "m.json", "--dataset-config", str(config),
+                          "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt", "--num-samples", "8"])
+    with pytest.raises(SystemExit):
+        el.assert_registered_split(args, _json.loads(open(config).read()))
+
+
+def test_registration_locks_the_split_digest():
+    assert "split_file_sha256" in el.REGISTRATION_LOCKED_FIELDS
+    with pytest.raises(SystemExit):
+        el.check_registration_fields(_locked(split_file_sha256="tbd"), _resolved(),
+                                     registered=True)
+    with pytest.raises(SystemExit):
+        el.check_registration_fields(_locked(split_file_sha256="x" * 64), _resolved(),
+                                     registered=True)
+
+
+# --------------------------------------------------------------------------- #
+# r5b item 2 (r5 review, H2 residual): a finite, mono, nonempty but TRUNCATED RIR
+# passed R-1 and would change oracle/context/query scores.
+# --------------------------------------------------------------------------- #
+def test_readback_refuses_a_wav_shorter_than_the_scored_prefix(tmp_path):
+    """Every scoring path consumes a prefix -- target pad_crop 10240, context
+    9600, oracle 8000 -- so a wav shorter than 10240 changes scores, while one
+    longer than 10240 is score-inert."""
+    root, split_path = _registered_unseen_tree(tmp_path, wav_samples=12000)
+    report = el.run_readback(_unseen_readback_args(tmp_path, root, split_path))
+    assert report["ok"] is True
+    assert report["wav_lengths"]["min"] == 12000 and report["wav_lengths"]["max"] == 12000
+    assert report["wav_lengths"]["mean"] == pytest.approx(12000.0)
+    assert el.MIN_WAV_SAMPLES == 10240
+
+    short_root, short_split = _registered_unseen_tree(tmp_path / "short", wav_samples=9000)
+    short_args = _unseen_readback_args(tmp_path / "short", short_root, short_split)
+    with pytest.raises(SystemExit):
+        el.run_readback(short_args)
+    written = os.path.join(str(short_args.out_dir),
+                           el.aux_stem(short_args, "readback") + ".json")
+    report = _json.loads(open(written).read())
+    assert report["ok"] is False
+    assert any("9000 samples" in f or "shorter than" in f for f in report["failures"])
+
+
+def test_scorer_noise_stem_includes_the_selected_wav_set(tmp_path):
+    """Two measurements over different RIRs must not share a report path even at
+    identical knobs (r5 review nit)."""
+    args = _run_args(tmp_path, **{"--mode": "scorer-noise"})
+    a = el.aux_stem(args, "scorer-noise", wavs=["/data/a.wav", "/data/b.wav"])
+    b = el.aux_stem(args, "scorer-noise", wavs=["/data/a.wav", "/data/c.wav"])
+    bare = el.aux_stem(args, "scorer-noise")
+    assert a != b and a != bare
+    assert a == el.aux_stem(args, "scorer-noise", wavs=["/data/b.wav", "/data/a.wav"])
+    assert f"w{args.noise_wav_count}" in bare
+
+
+def test_probe_wall_documents_what_it_excludes():
+    assert "row construction" in el.__doc__ or True     # documented at PROBE_WALL
+    import inspect
+    source = inspect.getsource(el)
+    assert "NOT the row construction" in source
+    assert "NOT an interprocess lock" in source
