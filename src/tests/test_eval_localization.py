@@ -3900,3 +3900,91 @@ def test_waveform_filename_is_position_prefixed_and_sanitized():
     assert name.startswith("0000007_") and name.endswith(".npz")
     assert "/" not in name and "|" not in name
     assert el.waveform_filename(7, "a b") != el.waveform_filename(8, "a b")
+
+
+# --------------------------------------------------------------------------- #
+# r7 item 2 (announcement 08): runs completed before the rule get a
+# regeneration-with-verification pass. The deterministic noise bank re-derives
+# the waveforms bit-exactly, so reproducing the published per-sample sims is both
+# the back-fill and an integrity audit.
+# --------------------------------------------------------------------------- #
+def _completed_run(tmp_path, name="orig"):
+    loader, root = _fake_run(tmp_path / name)
+    _rec, engine = _engine()
+    args = _run_args(tmp_path / name)
+    result = el.run_evaluation(args, loader, engine, _stub_context(root), "c", "a",
+                               expected=el.expected_split_identities(loader.dataset))
+    return result, root
+
+
+def test_verify_against_replays_and_matches_a_completed_run(tmp_path):
+    original, root = _completed_run(tmp_path)
+    loader, _root2 = _fake_run(tmp_path / "orig")          # the same fixture stream
+    _rec, engine = _engine()
+    args = _run_args(tmp_path, **{"--verify-against": original["rows_path"],
+                                  "--dump-waveforms": str(tmp_path / "wf")})
+    replay = el.run_evaluation(args, loader, engine, _stub_context(root), "c", "a",
+                               expected=el.expected_split_identities(loader.dataset))
+
+    block = replay["summary"]["verify_against"]
+    assert block["all_match"] is True and block["n_verified"] == 2
+    assert block["rows_sha256"] == el.sha256_file(original["rows_path"])
+    assert "_replay" in os.path.basename(replay["rows_path"])
+    assert replay["rows_path"] != original["rows_path"]
+
+
+def test_verify_against_aborts_on_a_perturbed_similarity(tmp_path):
+    original, root = _completed_run(tmp_path)
+    rows = el.read_rows(original["rows_path"])
+    sims = el.decode_sims(rows[1]["sims_hex"])
+    sims[1, 0] = float(sims[1, 0]) + 1e-4                  # one (m, k) moved
+    rows[1]["sims_hex"] = el.encode_sims(sims)
+    tampered = tmp_path / "tampered.jsonl"
+    with open(tampered, "w") as handle:
+        for row in rows:
+            el.write_row(handle, row)
+
+    loader, _root2 = _fake_run(tmp_path / "orig")
+    _rec, engine = _engine()
+    args = _run_args(tmp_path, **{"--verify-against": str(tampered),
+                                  "--dump-waveforms": str(tmp_path / "wf2")})
+    with pytest.raises(SystemExit, match="m=1"):
+        el.run_evaluation(args, loader, engine, _stub_context(root), "c", "a",
+                          expected=el.expected_split_identities(loader.dataset))
+
+
+def test_verify_against_never_touches_the_original_artifacts(tmp_path):
+    original, root = _completed_run(tmp_path)
+    before = {key: open(original[key], "rb").read()
+              for key in ("rows_path", "summary_path", "manifest_path")}
+    loader, _root2 = _fake_run(tmp_path / "orig")
+    _rec, engine = _engine()
+    args = _run_args(tmp_path, **{"--verify-against": original["rows_path"],
+                                  "--dump-waveforms": str(tmp_path / "wf3")})
+    el.run_evaluation(args, loader, engine, _stub_context(root), "c", "a",
+                      expected=el.expected_split_identities(loader.dataset))
+    for key, payload in before.items():
+        assert open(original[key], "rb").read() == payload
+
+
+def test_verify_against_requires_a_waveform_dump():
+    with pytest.raises(SystemExit):
+        el.validate_args(el.parse_args(_CLI + ["--verify-against", "rows.jsonl"]))
+    el.validate_args(el.parse_args(_CLI + ["--verify-against", "rows.jsonl",
+                                           "--dump-waveforms", "wf"]))
+
+
+def test_verify_against_aborts_on_a_missing_query(tmp_path):
+    original, root = _completed_run(tmp_path)
+    rows = el.read_rows(original["rows_path"])[:1]
+    partial = tmp_path / "partial.jsonl"
+    with open(partial, "w") as handle:
+        for row in rows:
+            el.write_row(handle, row)
+    loader, _root2 = _fake_run(tmp_path / "orig")
+    _rec, engine = _engine()
+    args = _run_args(tmp_path, **{"--verify-against": str(partial),
+                                  "--dump-waveforms": str(tmp_path / "wf4")})
+    with pytest.raises(SystemExit):
+        el.run_evaluation(args, loader, engine, _stub_context(root), "c", "a",
+                          expected=el.expected_split_identities(loader.dataset))

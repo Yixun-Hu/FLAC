@@ -875,6 +875,10 @@ def artifact_stem(args):
         parts.append(f"tau{float(args.tau):g}")
     parts += [f"K{effective_num_samples(args)}", f"seed{int(args.seed)}", f"scorer-{scorer}",
               marker]
+    if getattr(args, "verify_against", None):
+        # a verification replay publishes its OWN artifacts; the original run's are
+        # evidence and are never rewritten
+        parts.append("replay")
     return "_".join(parts)
 
 
@@ -1169,6 +1173,9 @@ def validate_args(args):
             if value:
                 _refuse(f"{flag} is meaningless under --score-source gt_rir (no generation "
                         "happens); refusing rather than recording a protocol that did not run")
+    if args.verify_against and not args.dump_waveforms:
+        _refuse("--verify-against is the announcement-08 back-fill: it must also "
+                "--dump-waveforms, otherwise the pass verifies but saves nothing")
     if args.score_source == "flac" and not args.ckpt_path:
         _refuse("--ckpt-path is required to score generated RIRs; only --score-source gt_rir "
                 "(the measured-RIR oracle) runs without a checkpoint")
@@ -1576,6 +1583,11 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
     rows_path, summary_path = paths["rows"], paths["summary"]
     partial_rows = rows_path + ".partial"
     dump_dir = prepare_dump_dir(args) if getattr(args, "dump_waveforms", None) else None
+    published, published_sha = ({}, None)
+    if getattr(args, "verify_against", None):
+        published, published_sha = load_published_rows(args.verify_against)
+        print(f"verifying against {args.verify_against} ({len(published)} published rows, "
+              f"sha256={published_sha[:12]}...)")
     rows, scored, seen_rooms = [], [], set()
     reset_peak_memory(context.get("device", "cpu"))
 
@@ -1591,6 +1603,8 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
             row = process_query(args, engine, context, md, obs_wav,
                                 dump=None if dump_dir is None
                                 else {"dir": dump_dir, "position": position})
+            if published_sha is not None:
+                verify_row_against_published(row, published)
             write_row(handle, row)
             rows.append(row)
             scored.append(identity)
@@ -1605,6 +1619,10 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
 
     summary = summarize_run(rows)
     summary["probe"] = probe_summary(rows, read_peak_memory(context.get("device", "cpu")))
+    if published_sha is not None:
+        summary["verify_against"] = {"rows_path": str(args.verify_against),
+                                     "rows_sha256": published_sha,
+                                     "n_verified": len(rows), "all_match": True}
     manifest = context.get("manifest")
     provenance = build_provenance(args, ckpt_sha256, agree_sha256, split,
                                   context["weights_source"], len(rows),
@@ -2554,6 +2572,43 @@ def run_reaggregate(args):
 
 if __name__ == "__main__":
     main()
+
+
+def load_published_rows(path):
+    """``(by_query_id, sha256)`` for a completed run's rows file."""
+    rows = read_rows(path)
+    by_query = {}
+    for row in rows:
+        by_query[row["query_id"]] = row
+    return by_query, sha256_file(path)
+
+
+def verify_row_against_published(row, published):
+    """Fail closed unless every logged per-sample similarity is reproduced EXACTLY.
+
+    The noise bank is keyed by (seed, query_id, k), so a replay of a completed run
+    must re-derive bit-identical waveforms and therefore bit-identical
+    similarities; the comparison is on the exact float32 hex, not a tolerance.
+    """
+    reference = published.get(row["query_id"])
+    if reference is None:
+        raise SystemExit(
+            f"verification ABORT: query {row['query_id']!r} is not in the published rows file; "
+            "the replay is not scoring the same split")
+    got, want = row["sims_hex"], reference["sims_hex"]
+    if len(got) != len(want) or any(len(a) != len(b) for a, b in zip(got, want)):
+        raise SystemExit(
+            f"verification ABORT at {row['query_id']!r}: sims shape "
+            f"{len(got)}x{len(got[0]) if got else 0} != published "
+            f"{len(want)}x{len(want[0]) if want else 0}")
+    for m, (row_got, row_want) in enumerate(zip(got, want)):
+        for k, (a, b) in enumerate(zip(row_got, row_want)):
+            if a != b:
+                raise SystemExit(
+                    f"verification ABORT at {row['query_id']!r}: similarity differs at "
+                    f"m={m}, k={k} (replay {float.fromhex(a)!r} vs published "
+                    f"{float.fromhex(b)!r})")
+    return True
 
 
 def build_waveform_manifest(args, rows, dump_dir, rows_stem):
