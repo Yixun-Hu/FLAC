@@ -12,6 +12,7 @@ committed.
 import json
 import os
 import sys
+from unittest import mock
 
 import pytest
 
@@ -256,3 +257,192 @@ def test_render_depth_publishes_nothing_when_a_map_fails_qa(tmp_path):
     depth_dir = out / "EmptyRoom" / "depth_images"
     assert not (depth_dir / "aaaa000000000001_depth_image.npy").exists()
     assert not (depth_dir / raf_publish.MANIFEST_NAME).exists()
+
+
+# --------------------------------------------------------------------------- #
+# r3 S3: one generation-bound commit marker over ALL roots
+# --------------------------------------------------------------------------- #
+def test_transaction_publishes_every_root_under_one_generation(tmp_path):
+    a, b = tmp_path / "a", tmp_path / "b"
+    with raf_publish.PublishTransaction(str(a)) as txn:
+        ra, rb = txn.stage(str(a)), txn.stage(str(b))
+        open(ra.path("one.txt"), "w").write("A")
+        open(rb.path("two.txt"), "w").write("B")
+        marker = txn.commit()
+    assert (a / "one.txt").read_text() == "A"
+    assert (b / "two.txt").read_text() == "B"
+    on_disk = json.loads((a / raf_publish.COMMIT_MARKER_NAME).read_text())
+    assert on_disk["generation"] == marker["generation"]
+    assert set(on_disk["roots"]) == {str(a.resolve()), str(b.resolve())}
+    for root in (a, b):
+        assert json.loads((root / raf_publish.MANIFEST_NAME).read_text())["generation"] \
+            == marker["generation"]
+    assert raf_publish.verify_publication(str(a))["published"] is True
+
+
+def test_a_tree_without_a_marker_reads_as_unpublished(tmp_path):
+    dest = tmp_path / "dest"
+    with raf_publish.StagedPublish(str(dest)) as staged:
+        open(staged.path("one.txt"), "w").write("A")
+        staged.commit()                       # manifest only, no transaction marker
+    report = raf_publish.verify_publication(str(dest))
+    assert report["published"] is False
+    assert "marker" in report["reason"]
+
+
+def test_previous_attestation_is_invalidated_before_any_replacement(tmp_path):
+    """S3: the old manifest may not stay visible while files are being swapped."""
+    a = tmp_path / "a"
+    with raf_publish.PublishTransaction(str(a)) as txn:
+        root = txn.stage(str(a))
+        open(root.path("one.txt"), "w").write("first")
+        txn.commit()
+    first = json.loads((a / raf_publish.COMMIT_MARKER_NAME).read_text())["generation"]
+
+    seen = {}
+    real_replace = os.replace
+
+    def watching_replace(src, dst):
+        if str(dst).endswith("one.txt"):
+            # at the moment a payload file is swapped, no attestation may claim the
+            # tree is published
+            seen["marker"] = (a / raf_publish.COMMIT_MARKER_NAME).exists()
+            seen["manifest"] = (a / raf_publish.MANIFEST_NAME).exists()
+        return real_replace(src, dst)
+
+    with mock.patch("os.replace", watching_replace):
+        with raf_publish.PublishTransaction(str(a)) as txn:
+            root = txn.stage(str(a))
+            open(root.path("one.txt"), "w").write("second")
+            txn.commit()
+    assert seen == {"marker": False, "manifest": False}
+    assert (a / "one.txt").read_text() == "second"
+    assert json.loads((a / raf_publish.COMMIT_MARKER_NAME).read_text())["generation"] \
+        != first
+
+
+def test_failure_during_os_replace_leaves_the_tree_unpublished(tmp_path):
+    a = tmp_path / "a"
+    with raf_publish.PublishTransaction(str(a)) as txn:
+        root = txn.stage(str(a))
+        open(root.path("one.txt"), "w").write("first")
+        open(root.path("two.txt"), "w").write("first")
+        txn.commit()
+
+    real_replace = os.replace
+    calls = {"n": 0}
+
+    def failing_replace(src, dst):
+        if str(dst).endswith(".txt"):
+            calls["n"] += 1
+            if calls["n"] == 2:               # die on the SECOND payload file
+                raise OSError("NAS went away mid-swap")
+        return real_replace(src, dst)
+
+    with mock.patch("os.replace", failing_replace):
+        with pytest.raises(OSError):
+            with raf_publish.PublishTransaction(str(a)) as txn:
+                root = txn.stage(str(a))
+                open(root.path("one.txt"), "w").write("second")
+                open(root.path("two.txt"), "w").write("second")
+                txn.commit()
+
+    report = raf_publish.verify_publication(str(a))
+    assert report["published"] is False       # mixed generations, no valid marker
+    assert not (a / raf_publish.COMMIT_MARKER_NAME).exists()
+
+
+def test_failure_between_roots_leaves_the_tree_unpublished(tmp_path):
+    a, b = tmp_path / "a", tmp_path / "b"
+    with raf_publish.PublishTransaction(str(a)) as txn:
+        ra, rb = txn.stage(str(a)), txn.stage(str(b))
+        open(ra.path("one.txt"), "w").write("first")
+        open(rb.path("two.txt"), "w").write("first")
+        txn.commit()
+
+    real_replace = os.replace
+
+    def failing_replace(src, dst):
+        if str(dst).endswith("two.txt"):      # the SECOND root's payload
+            raise OSError("disk full between roots")
+        return real_replace(src, dst)
+
+    with mock.patch("os.replace", failing_replace):
+        with pytest.raises(OSError):
+            with raf_publish.PublishTransaction(str(a)) as txn:
+                ra, rb = txn.stage(str(a)), txn.stage(str(b))
+                open(ra.path("one.txt"), "w").write("second")
+                open(rb.path("two.txt"), "w").write("second")
+                txn.commit()
+    assert raf_publish.verify_publication(str(a))["published"] is False
+    assert not (a / raf_publish.COMMIT_MARKER_NAME).exists()
+
+
+def test_verify_publication_rejects_a_generation_mismatch(tmp_path):
+    a, b = tmp_path / "a", tmp_path / "b"
+    with raf_publish.PublishTransaction(str(a)) as txn:
+        ra, rb = txn.stage(str(a)), txn.stage(str(b))
+        open(ra.path("one.txt"), "w").write("A")
+        open(rb.path("two.txt"), "w").write("B")
+        txn.commit()
+    manifest_path = b / raf_publish.MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text())
+    manifest["generation"] = "0" * 32
+    manifest_path.write_text(json.dumps(manifest))
+    report = raf_publish.verify_publication(str(a))
+    assert report["published"] is False
+    assert "generation" in report["reason"]
+
+
+def test_verify_publication_rejects_a_tampered_payload(tmp_path):
+    a = tmp_path / "a"
+    with raf_publish.PublishTransaction(str(a)) as txn:
+        root = txn.stage(str(a))
+        open(root.path("one.txt"), "w").write("A")
+        txn.commit()
+    (a / "one.txt").write_text("tampered")
+    report = raf_publish.verify_publication(str(a))
+    assert report["published"] is False
+    assert report["roots"][str(a.resolve())]["mismatched"] == ["one.txt"]
+
+
+def test_prepare_publishes_one_marker_covering_both_roots(tmp_path):
+    argv, out, split_dir = _prepare(tmp_path)
+    raf_prepare.main(argv)
+    report = raf_publish.verify_publication(str(split_dir))
+    assert report["published"] is True
+    assert set(report["roots"]) == {str(out.resolve()), str(split_dir.resolve())}
+    assert not (out / raf_publish.COMMIT_MARKER_NAME).exists()   # exactly one marker
+
+
+def test_prepare_failure_leaves_the_previous_generation_unattested(tmp_path, monkeypatch):
+    argv, out, split_dir = _prepare(tmp_path)
+    raf_prepare.main(argv)
+    first = json.loads((split_dir / raf_publish.COMMIT_MARKER_NAME).read_text())
+
+    real_replace = os.replace
+
+    def failing_replace(src, dst):
+        if str(dst).endswith("train_base.json"):
+            raise OSError("NAS went away")
+        return real_replace(src, dst)
+
+    with mock.patch("os.replace", failing_replace):
+        with pytest.raises(OSError):
+            raf_prepare.main(argv)
+    report = raf_publish.verify_publication(str(split_dir))
+    assert report["published"] is False
+    assert first["generation"]
+
+
+def test_render_depth_publishes_one_marker_covering_both_rooms(tmp_path):
+    from test_raf_render_depth import _write_fixture
+
+    raf_root, out, _ = _write_fixture(tmp_path)
+    record = write_passing_readback_record(str(tmp_path / "readback.json"))
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--readback-record", record,
+                     "--non-canonical"])
+    report = raf_publish.verify_publication(str(out))
+    assert report["published"] is True
+    assert str((out / "EmptyRoom" / "depth_images").resolve()) in report["roots"]

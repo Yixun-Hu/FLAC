@@ -21,6 +21,8 @@ import shutil
 import uuid
 
 MANIFEST_NAME = "raf_publish_manifest.json"
+COMMIT_MARKER_NAME = "raf_publish_commit.json"
+SUPERSEDED_SUFFIX = ".superseded"
 STAGING_PREFIX = ".{name}.staging-"
 
 
@@ -46,7 +48,8 @@ class StagedPublish:
     as it was.
     """
 
-    def __init__(self, dest_root):
+    def __init__(self, dest_root, generation=None):
+        self.generation = generation
         self.dest_root = os.path.abspath(dest_root)
         parent = os.path.dirname(self.dest_root)
         os.makedirs(parent, exist_ok=True)
@@ -79,12 +82,11 @@ class StagedPublish:
                 out.append(os.path.relpath(full, self.staging_dir).replace(os.sep, "/"))
         return sorted(out)
 
-    def commit(self, expected=None, validate_json=False):
-        """Validate the staged tree, swap it in, then write the hash manifest.
+    def validate(self, expected=None, validate_json=False):
+        """Everything checkable BEFORE the destination is touched.
 
-        ``expected`` names artifacts that MUST be present (a publish missing one of
-        its parts is not a publish); ``validate_json`` re-parses every staged
-        ``.json`` so a truncated write is caught before anything is visible.
+        Separated from the swap so a transaction can validate every root first and
+        only then start replacing files anywhere.
         """
         staged = self.staged_files()
         if expected:
@@ -101,7 +103,22 @@ class StagedPublish:
                         except ValueError as e:
                             raise ValueError(
                                 f"refusing to publish {name}: it is not valid JSON ({e})")
+        return staged
 
+    def invalidate(self):
+        """Rename any existing attestation aside BEFORE replacement begins (S3).
+
+        While files are being swapped the tree holds a mixture of generations, so
+        the previous manifest must not keep claiming it is published.
+        """
+        for name in (MANIFEST_NAME, COMMIT_MARKER_NAME):
+            path = os.path.join(self.dest_root, name)
+            if os.path.exists(path):
+                os.replace(path, path + SUPERSEDED_SUFFIX)
+
+    def swap_in(self, staged=None):
+        """Replace the destination files from the staged tree."""
+        staged = self.staged_files() if staged is None else staged
         files = {}
         for name in staged:
             source = os.path.join(self.staging_dir, name)
@@ -113,10 +130,13 @@ class StagedPublish:
             target = os.path.join(self.dest_root, name)
             os.makedirs(os.path.dirname(target), exist_ok=True)
             os.replace(source, target)   # atomic: same filesystem by construction
+        return files
 
+    def write_manifest(self, files):
         manifest = {
             "committed_utc": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
             "root": self.dest_root,
+            "generation": self.generation,
             "n_files": len(files),
             "files": files,
         }
@@ -126,13 +146,143 @@ class StagedPublish:
         with open(tmp_manifest, "w") as f:
             json.dump(manifest, f, indent=4, allow_nan=False)
         os.replace(tmp_manifest, os.path.join(self.dest_root, MANIFEST_NAME))
-
         self.committed = True
+        return manifest
+
+    def commit(self, expected=None, validate_json=False):
+        """Single-root publish: validate, invalidate, swap, attest.
+
+        Multi-root publishes go through ``PublishTransaction`` instead, which
+        interleaves those phases across roots so one commit marker covers them all.
+        """
+        staged = self.validate(expected=expected, validate_json=validate_json)
+        self.invalidate()
+        files = self.swap_in(staged)
+        manifest = self.write_manifest(files)
         self.cleanup()
         return manifest
 
     def cleanup(self):
         shutil.rmtree(self.staging_dir, ignore_errors=True)
+
+
+class PublishTransaction:
+    """One generation over many roots, attested by a single commit marker (S3).
+
+    Phases, in order: stage everything -> validate every root -> invalidate every
+    root's old attestation -> swap every root in -> write every root's manifest ->
+    write ONE commit marker, last. A failure anywhere after invalidation leaves no
+    valid marker, and a reader that finds no valid marker treats the tree as
+    UNPUBLISHED rather than as the previous generation.
+    """
+
+    def __init__(self, marker_root, generation=None):
+        self.marker_root = os.path.abspath(marker_root)
+        self.generation = generation or uuid.uuid4().hex
+        self.roots = []
+        self.committed = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.cleanup()
+        return False
+
+    def stage(self, dest_root):
+        staged = StagedPublish(dest_root, generation=self.generation)
+        self.roots.append(staged)
+        return staged
+
+    def commit(self, expectations=None, validate_json=True, extra=None):
+        expectations = expectations or {}
+        plans = []
+        for root in self.roots:
+            expected = expectations.get(root.dest_root)
+            plans.append((root, root.validate(expected=expected,
+                                              validate_json=validate_json)))
+
+        marker_path = os.path.join(self.marker_root, COMMIT_MARKER_NAME)
+        if os.path.exists(marker_path):
+            os.replace(marker_path, marker_path + SUPERSEDED_SUFFIX)
+        for root, _ in plans:
+            root.invalidate()
+
+        manifests = {}
+        for root, staged in plans:
+            manifests[root.dest_root] = root.write_manifest(root.swap_in(staged))
+
+        marker = {
+            "generation": self.generation,
+            "committed_utc": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+            "marker_root": self.marker_root,
+            "roots": {
+                dest: {
+                    "manifest": MANIFEST_NAME,
+                    "manifest_sha256": sha256_file(os.path.join(dest, MANIFEST_NAME)),
+                    "n_files": manifest["n_files"],
+                }
+                for dest, manifest in manifests.items()
+            },
+        }
+        if extra:
+            marker.update(extra)
+        os.makedirs(self.marker_root, exist_ok=True)
+        tmp = marker_path + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(marker, f, indent=4, allow_nan=False)
+        os.replace(tmp, marker_path)          # LAST: this is the attestation
+
+        self.committed = True
+        self.cleanup()
+        return marker
+
+    def cleanup(self):
+        for root in self.roots:
+            root.cleanup()
+
+
+def verify_publication(marker_root):
+    """Read a published tree the way a consumer must: marker first.
+
+    Returns ``{"published": bool, "reason": str, "generation": ..., "roots": {...}}``.
+    No valid marker means UNPUBLISHED -- not "the previous generation" -- because a
+    tree interrupted mid-swap holds a mixture of generations.
+    """
+    marker_path = os.path.join(os.path.abspath(marker_root), COMMIT_MARKER_NAME)
+    if not os.path.isfile(marker_path):
+        return {"published": False, "reason": f"no commit marker at {marker_path}",
+                "generation": None, "roots": {}}
+    with open(marker_path) as f:
+        marker = json.load(f)
+
+    roots, reasons = {}, []
+    for dest, entry in sorted(marker.get("roots", {}).items()):
+        manifest_path = os.path.join(dest, entry["manifest"])
+        if not os.path.isfile(manifest_path):
+            reasons.append(f"{dest}: manifest missing")
+            roots[dest] = {"missing": [entry["manifest"]], "mismatched": []}
+            continue
+        if sha256_file(manifest_path) != entry["manifest_sha256"]:
+            reasons.append(f"{dest}: manifest does not match the marker")
+        with open(manifest_path) as f:
+            manifest = json.load(f)
+        if manifest.get("generation") != marker["generation"]:
+            reasons.append(
+                f"{dest}: manifest generation {manifest.get('generation')} != marker "
+                f"generation {marker['generation']}")
+        result = verify_manifest(dest)
+        roots[dest] = result
+        if result["missing"] or result["mismatched"]:
+            reasons.append(f"{dest}: {len(result['missing'])} missing, "
+                           f"{len(result['mismatched'])} mismatched")
+
+    return {
+        "published": not reasons,
+        "reason": "; ".join(reasons),
+        "generation": marker["generation"],
+        "roots": roots,
+    }
 
 
 def verify_manifest(dest_root):

@@ -33,7 +33,7 @@ import soundfile as sf
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:  # raf_common.py is a sibling script, not an installed package
     sys.path.insert(0, _HERE)
-from publish import StagedPublish  # noqa: E402
+from publish import PublishTransaction  # noqa: E402
 from readback_audit import load_passing_record, record_provenance  # noqa: E402
 from raf_common import (  # noqa: E402
     DBFS_FLOOR,
@@ -939,8 +939,13 @@ def main(argv=None):
     # R7: the runtime tree and the split directory are each staged whole and
     # swapped in only once every room has been read, resampled and audited. Until
     # both commits happen, the previous publish is the only thing on disk.
-    with StagedPublish(args.output_dir) as staged_runtime, \
-            StagedPublish(args.split_dir) as staged_splits:
+    # S3: ONE transaction over both roots. The runtime tree and the split
+    # directory are attested together by a single generation-bound commit marker,
+    # written last, so a failure between them cannot leave a published runtime
+    # tree beside splits that never appeared.
+    with PublishTransaction(args.split_dir) as publish_txn:
+        staged_runtime = publish_txn.stage(args.output_dir)
+        staged_splits = publish_txn.stage(args.split_dir)
         per_room, audits = {}, {}
         for room in args.rooms:
             room_dir = os.path.join(args.raf_root, "archived", room)
@@ -1003,14 +1008,15 @@ def main(argv=None):
                             for name in ("poses_metadata.json", "groups_metadata.json")]
         expected_splits = [f"{name}_base.json" for name in sorted(jsons)] + [
             "raf_splits_record.json", "raf_amplitude_audit.json"]
-        runtime_manifest = staged_runtime.commit(expected=expected_runtime,
-                                                 validate_json=True)
-        splits_manifest = staged_splits.commit(expected=expected_splits,
-                                               validate_json=True)
+        marker = publish_txn.commit(
+            expectations={staged_runtime.dest_root: expected_runtime,
+                          staged_splits.dest_root: expected_splits},
+            validate_json=True,
+            extra={"canonical": canonical, "taint": taint,
+                   "readback_record": readback_provenance})
 
-    logger.info("published %d runtime artifacts to %s and %d split artifacts to %s",
-                runtime_manifest["n_files"], args.output_dir,
-                splits_manifest["n_files"], args.split_dir)
+    logger.info("published generation %s over %d roots (marker in %s)",
+                marker["generation"][:12], len(marker["roots"]), args.split_dir)
     return 0
 
 

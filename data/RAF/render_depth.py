@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:  # raf_common.py is a sibling script, not an installed package
     sys.path.insert(0, _HERE)
 from raf_common import RAF_TO_PIPELINE, equirect_directions  # noqa: E402
-from publish import StagedPublish  # noqa: E402
+from publish import PublishTransaction  # noqa: E402
 from readback_audit import load_passing_record, record_provenance  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -522,6 +522,10 @@ def main(argv=None):
                 "anyway (the QA record is tainted).")
         taint.append(f"non-canonical grid {args.img_h}x{args.img_w}: unusable by RAF_md")
 
+    # S3: one transaction over every room's depth directory, so two rooms can
+    # never be published under different generations.
+    publish_txn = PublishTransaction(args.output_dir)
+    expectations, records = {}, {}
     for room in args.rooms:
         mesh = load_mesh_pipeline(os.path.join(args.raf_root, "3d_models", room, "mesh.obj"))
         meta_path = os.path.join(args.output_dir, room, "metadata", "groups_metadata.json")
@@ -538,7 +542,7 @@ def main(argv=None):
         # R7: every map and the QA record are staged and swapped in together, so
         # a failure mid-room can never leave half a depth set beside a QA file
         # that describes the other half.
-        staged = StagedPublish(depth_dir)
+        staged = publish_txn.stage(depth_dir)
         maps, failed, warned, bearings = {}, [], [], {}
         render_s = 0.0
         for group_key, entry in groups_meta.items():
@@ -604,21 +608,22 @@ def main(argv=None):
             json.dump(record, f, indent=4, allow_nan=False)
 
         if failed:
-            # Nothing is published: the staging directory is discarded by cleanup.
-            staged.cleanup()
+            # Nothing is published: every staging directory is discarded.
+            publish_txn.cleanup()
             raise RuntimeError(f"{room}: {len(failed)} depth maps failed QA: {failed}")
 
-        manifest = staged.commit(
-            expected=[entry["depth_file"] for entry in groups_meta.values()]
-                     + ["raf_depth_qa.json"],
-            validate_json=True)
-        if manifest["n_files"] != len(maps) + 1:
-            raise RuntimeError(
-                f"{room}: published {manifest['n_files']} files for {len(maps)} maps "
-                "plus one QA record; the publish is not the set that was rendered")
-        logger.info("%s: published %d depth maps in %.2fs (scene build %.2fs), "
-                    "%d warnings, QA -> %s", room, len(maps), render_s, scene_build_s,
-                    len(warned), os.path.join(depth_dir, "raf_depth_qa.json"))
+        expectations[staged.dest_root] = (
+            [entry["depth_file"] for entry in groups_meta.values()]
+            + ["raf_depth_qa.json"])
+        records[room] = record
+        logger.info("%s: staged %d depth maps in %.2fs (scene build %.2fs), %d warnings",
+                    room, len(maps), render_s, scene_build_s, len(warned))
+
+    marker = publish_txn.commit(expectations=expectations, validate_json=True,
+                                extra={"canonical": canonical, "taint": taint,
+                                       "readback_record": readback_provenance})
+    logger.info("published generation %s over %d depth directories",
+                marker["generation"][:12], len(marker["roots"]))
     return 0
 
 
