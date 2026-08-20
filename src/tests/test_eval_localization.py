@@ -3791,3 +3791,112 @@ def test_integration_survey_finds_no_duplicates_in_the_unseen_split():
     survey = _load_survey()
     report = survey.survey_split(_UNSEEN_SPLIT_JSON, _AR_ROOT)
     assert report["n_rooms"] == 17 and report["n_rooms_with_duplicates"] == 0
+
+
+# --------------------------------------------------------------------------- #
+# r7 item 1 (announcement 08): the predicted RIR waveforms are a REQUIRED
+# artifact -- the exact decoded+clamped tensors that were scored, not a
+# re-render of them.
+# --------------------------------------------------------------------------- #
+def test_dump_waveforms_writes_pred_and_obs_arrays(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    dump = tmp_path / "waveforms"
+    args = _run_args(tmp_path, **{"--dump-waveforms": str(dump)})
+    result = el.run_evaluation(args, loader, engine, _stub_context(root), "c", "a",
+                               expected=el.expected_split_identities(loader.dataset))
+
+    for row in result["rows"]:
+        path = os.path.join(str(dump), row["waveform_path"])
+        assert os.path.isfile(path) and path.endswith(".npz")
+        with np.load(path) as payload:
+            assert sorted(payload.files) == ["obs", "pred"]
+            assert payload["pred"].dtype == np.float32 and payload["obs"].dtype == np.float32
+            assert payload["pred"].shape[:2] == (row["n_candidates"], row["n_samples"])
+            assert payload["obs"].ndim == 1
+        with open(path, "rb") as handle:
+            assert el.sha256_bytes(handle.read()) == row["waveform_sha256"]
+
+
+def test_dumped_arrays_are_bitwise_the_scored_tensors(tmp_path):
+    """The .npz holds exactly what was scored: pred after decode+clamp, obs in the
+    scored pad-crop window (the scorer's own 8000-truncation is internal)."""
+    root, wav_room = _dataset_tree(tmp_path)
+    md = _query_md(root, wav_room)
+    _rec, engine = _engine()
+    context = _stub_context(root)
+    context["context_k"] = 2
+    dump = tmp_path / "wf"
+    args = _run_args(tmp_path, **{"--dump-waveforms": str(dump)})
+    el.prepare_dump_dir(args)
+    obs = torch.full((1, 1, 9600), 0.2)
+    row = el.process_query(args, engine, context, md, obs,
+                           dump={"dir": str(dump), "position": 0})
+
+    cand = el.candidate_set_from_manifest(context["manifest"], "Cafe/Cafe_idx_1", 3, 11)
+    noise = el.build_noise_bank(args.seed, row["query_id"], args.num_samples, (2, 8))
+    _rec2, engine2 = _engine()
+    reference = el.run_query(engine2, md, cand, noise, obs, batch_size=args.batch_size,
+                             return_wavs=True)["wavs"]
+    expected = reference.reshape(len(cand.nodes), args.num_samples, -1).cpu().numpy()
+    with np.load(os.path.join(str(dump), row["waveform_path"])) as payload:
+        assert np.array_equal(payload["pred"], expected.astype(np.float32))
+        assert np.array_equal(payload["obs"], obs.reshape(-1).numpy().astype(np.float32))
+
+
+def test_dump_manifest_carries_the_geometry_for_external_analysis(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    dump = tmp_path / "waveforms"
+    args = _run_args(tmp_path, **{"--dump-waveforms": str(dump)})
+    result = el.run_evaluation(args, loader, engine, _stub_context(root), "c", "a",
+                               expected=el.expected_split_identities(loader.dataset))
+    payload = _json.loads(open(result["waveform_manifest_path"]).read())
+
+    assert payload["stem"] == el.artifact_stem(args) and payload["n_queries"] == 2
+    assert payload["rows_stem"] == os.path.basename(result["rows_path"])
+    assert payload["registration_sha"] == "n/a"
+    for row in result["rows"]:
+        entry = payload["waveforms"][row["query_id"]]
+        assert entry["path"] == row["waveform_path"] and entry["sha256"] == row["waveform_sha256"]
+        # geometry, so external analysis needs only the dump directory
+        assert entry["room_id"] == row["room_id"]
+        assert entry["gt_node"] == row["gt_node"] and entry["gt_xyz_world"] == row["gt_xyz_world"]
+        assert entry["candidate_nodes"] == row["candidate_nodes"]          # the pred M-axis order
+        assert entry["candidate_xyz_world"] == row["candidate_xyz_world"]
+        assert entry["pred_index"] == row["pred_index"]
+
+
+def test_dump_dir_gets_a_self_describing_readme(tmp_path):
+    args = _run_args(tmp_path, **{"--dump-waveforms": str(tmp_path / "wf")})
+    dump = el.prepare_dump_dir(args)
+    readme = open(os.path.join(dump, "README.md")).read()
+    for token in ("pred", "obs", "[M, K, 10240]", "22050", "8000", "np.load", "candidate order"):
+        assert token in readme, f"README does not mention {token!r}"
+
+
+def test_dump_waveforms_refuses_a_non_empty_directory_unless_overwrite(tmp_path):
+    dump = tmp_path / "wf"
+    os.makedirs(dump)
+    open(os.path.join(str(dump), "stale.npz"), "w").close()
+    args = _run_args(tmp_path, **{"--dump-waveforms": str(dump)})
+    with pytest.raises(SystemExit):
+        el.prepare_dump_dir(args)
+    over = _run_args(tmp_path, **{"--dump-waveforms": str(dump), "--overwrite": True})
+    assert el.prepare_dump_dir(over) == str(dump)
+    fresh = _run_args(tmp_path, **{"--dump-waveforms": str(tmp_path / "new")})
+    assert os.path.isdir(el.prepare_dump_dir(fresh))         # created on demand
+
+
+def test_dump_waveforms_is_refused_for_the_oracle(tmp_path):
+    with pytest.raises(SystemExit):
+        el.validate_args(el.parse_args(
+            ["--model-config", "m.json", "--dataset-config", "d.json", "--agree-ckpt", "a.pt",
+             "--score-source", "gt_rir", "--dump-waveforms", str(tmp_path / "wf")]))
+
+
+def test_waveform_filename_is_position_prefixed_and_sanitized():
+    name = el.waveform_filename(7, "1194|single_channel_ir_1/Cafe/Cafe_idx_1/S003_R011.wav")
+    assert name.startswith("0000007_") and name.endswith(".npz")
+    assert "/" not in name and "|" not in name
+    assert el.waveform_filename(7, "a b") != el.waveform_filename(8, "a b")

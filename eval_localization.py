@@ -1083,6 +1083,12 @@ def parse_args(argv=None):
                         help="explicit RIR files for --mode scorer-noise")
     parser.add_argument("--noise-wav-count", type=int, default=4,
                         help="how many split RIRs to measure when --noise-wavs is absent")
+    parser.add_argument("--dump-waveforms", default=None, metavar="DIR",
+                        help="save the exactly-as-scored predicted RIRs per query "
+                             "(announcement 08); generative runs only")
+    parser.add_argument("--verify-against", default=None, metavar="ROWS.jsonl",
+                        help="regenerate and verify every per-sample similarity against a "
+                             "published rows file (announcement 08 back-fill)")
     parser.add_argument("--overwrite", action="store_true",
                         help="replace an existing artifact for this exact cell")
     parser.add_argument("--registration-manifest", default=None,
@@ -1156,7 +1162,8 @@ def validate_args(args):
     if args.agg == "lme" and args.tau is not None and not math.isfinite(float(args.tau)):
         _refuse(f"--tau must be finite for --agg lme, got {args.tau}")
     if args.score_source == "gt_rir":
-        for flag, value in (("--ckpt-path", args.ckpt_path),
+        for flag, value in (("--dump-waveforms", args.dump_waveforms),
+                            ("--ckpt-path", args.ckpt_path),
                             ("--parity-check", args.parity_check),
                             ("--control constant_source", args.control == "constant_source")):
             if value:
@@ -1394,7 +1401,87 @@ def _iter_items(loader):
             yield (None if reals is None else reals[index:index + 1]), md
 
 
-def process_query(args, engine, context, md, obs_wav):
+DUMP_README = """# exp_18 predicted-RIR waveform dump
+
+One `.npz` per scored query, named `<position>_<sanitized query id>.npz`, where
+`position` is the query's index in the scored stream. Each file holds two float32
+arrays:
+
+- `pred` -- `[M, K, 10240]`: the generated RIRs EXACTLY as scored (rectified-flow
+  sample -> pretransform decode -> clamp to [-1, 1]). The M axis is the candidate
+  axis and its order is the candidate order recorded in `*_waveforms.json`
+  (`candidate_nodes` / `candidate_xyz_world`, canonical node order); the K axis is the sample axis in
+  generation order (noise draw k).
+- `obs` -- `[10240]`: the observed RIR h_obs in the same scored window.
+
+Window convention: 22050 Hz, the first 10240 samples (the loader's pad-crop),
+clamped to [-1, 1]. The AGREE scorer additionally consumes only the FIRST 8000
+samples of each waveform, so a waveform-level analysis that compares `pred`
+against `obs` should state which window it uses -- the full 10240 dumped here, or
+the 8000 the similarity numbers were computed on.
+
+`*_waveforms.json` carries, per query, the file path + sha256 and the geometry
+(room, GT node/xyz, candidate nodes/xyz in M-axis order, predicted index), so
+this directory is self-contained for external analysis. The rows JSONL remains
+the authority for the similarities themselves.
+
+```python
+import numpy as np
+with np.load("0000000_0_single_channel_ir_1_Cafe_Cafe_idx_1_S003_R011_hybrid_IR_wav.npz") as z:
+    pred, obs = z["pred"], z["obs"]      # [M, K, 10240], [10240]
+print(pred.shape, obs.shape, pred.dtype)
+```
+"""
+
+
+def sha256_bytes(payload):
+    """sha256 over raw bytes (the dumped .npz file)."""
+    return hashlib.sha256(payload).hexdigest()
+
+
+def waveform_filename(position, query_id):
+    """``<position>_<sanitized query id>.npz`` -- stream order first, so a
+    directory listing is the scored order."""
+    safe = re.sub(r"[^A-Za-z0-9]+", "_", str(query_id)).strip("_")
+    return f"{int(position):07d}_{safe}.npz"
+
+
+def prepare_dump_dir(args):
+    """Create (or validate) the waveform dump directory.
+
+    A dump that mixes two runs' waveforms would be unusable, so a non-empty
+    directory is refused unless --overwrite. The README is written at creation so
+    the directory explains itself to whoever analyses it later.
+    """
+    dump_dir = str(args.dump_waveforms)
+    if os.path.isdir(dump_dir):
+        existing = [name for name in os.listdir(dump_dir) if not name.startswith(".")]
+        if existing and not bool(getattr(args, "overwrite", False)):
+            _refuse(f"--dump-waveforms directory {dump_dir!r} is not empty "
+                    f"({len(existing)} entries); pass --overwrite to reuse it")
+    else:
+        os.makedirs(dump_dir, exist_ok=True)
+    with open(os.path.join(dump_dir, "README.md"), "w") as handle:
+        handle.write(DUMP_README)
+    return dump_dir
+
+
+def dump_query_waveforms(dump_dir, position, query_id, wavs, num_candidates, num_samples,
+                         obs_wav):
+    """Write one query's ``pred``/``obs`` arrays; return ``(relpath, sha256)``."""
+    pred = wavs.detach().cpu().float().reshape(num_candidates, num_samples, -1).numpy()
+    obs = obs_wav.detach().cpu().float().reshape(-1).numpy()
+    name = waveform_filename(position, query_id)
+    path = os.path.join(str(dump_dir), name)
+    tmp = path + ".partial"
+    with open(tmp, "wb") as handle:
+        np.savez(handle, pred=pred, obs=obs)
+    os.replace(tmp, path)
+    with open(path, "rb") as handle:
+        return name, sha256_bytes(handle.read())
+
+
+def process_query(args, engine, context, md, obs_wav, dump=None):
     """One query end to end: candidate set -> generation/oracle -> scored row.
 
     The whole body sits inside a separately synchronized wall-clock timer, and
@@ -1436,14 +1523,15 @@ def process_query(args, engine, context, md, obs_wav):
             noise_keys = [noise_key(args.seed, query_id, k)
                           for k in range(int(args.num_samples))]
             outcome = run_query(engine, md, cand_set, noise, obs_wav,
-                                batch_size=args.batch_size, control=args.control)
+                                batch_size=args.batch_size, control=args.control,
+                                return_wavs=dump is not None)
             available, identity_index = None, None
 
         timings.update(outcome.get("timings_s") or {})
         with _timed(timings, "context", engine.device):
             evidence = context_evidence(engine, md, obs_wav) or {}
 
-    return build_row(
+    row = build_row(
         query_id=query_id, room_id=room_id, relpath=md["relpath"], receiver_node=receiver_node,
         cand_set=cand_set, cam_xyz=outcome["cand_cam_xyz"], sims=outcome["sims"],
         context_mask=context_mask,
@@ -1454,6 +1542,11 @@ def process_query(args, engine, context, md, obs_wav):
         context_sims_hex=evidence.get("context_sims_hex"),
         timings=timings, merge_map=room_entry.get("merge_map"),
         oracle_source_nodes=outcome.get("oracle_source_nodes"))
+    if dump is not None and outcome.get("wavs") is not None:
+        row["waveform_path"], row["waveform_sha256"] = dump_query_waveforms(
+            dump["dir"], dump["position"], row["query_id"], outcome["wavs"],
+            outcome["num_candidates"], outcome["num_samples"], obs_wav)
+    return row
 
 
 def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, expected=None,
@@ -1482,6 +1575,7 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
     paths = paths or artifact_paths(args)      # main claims them before any model load
     rows_path, summary_path = paths["rows"], paths["summary"]
     partial_rows = rows_path + ".partial"
+    dump_dir = prepare_dump_dir(args) if getattr(args, "dump_waveforms", None) else None
     rows, scored, seen_rooms = [], [], set()
     reset_peak_memory(context.get("device", "cpu"))
 
@@ -1494,7 +1588,9 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
                     f"identity gate ABORT at position {position}: expected "
                     f"{expected[position]!r}, got {identity!r} (silent substitution?); "
                     "no query is scored under an unverified identity")
-            row = process_query(args, engine, context, md, obs_wav)
+            row = process_query(args, engine, context, md, obs_wav,
+                                dump=None if dump_dir is None
+                                else {"dir": dump_dir, "position": position})
             write_row(handle, row)
             rows.append(row)
             scored.append(identity)
@@ -1521,11 +1617,18 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
                                   merge_groups=(merge_group_count(manifest)
                                                 if manifest else None))
     write_summary(summary_path, summary, provenance)
+    waveform_manifest_path = None
+    if dump_dir is not None:
+        waveform_manifest_path = write_json_atomic(
+            os.path.join(os.path.dirname(rows_path), f"{artifact_stem(args)}_waveforms.json"),
+            build_waveform_manifest(args, rows, dump_dir, os.path.basename(rows_path)),
+            overwrite=True)
     if manifest is not None:
         write_json_atomic(paths["manifest"], manifest, overwrite=True)
     os.replace(partial_rows, rows_path)          # publish only verified artifacts
     return {"rows_path": rows_path, "summary_path": summary_path,
             "manifest_path": paths["manifest"], "rows": rows,
+            "waveform_manifest_path": waveform_manifest_path,
             "summary": summary, "provenance": provenance}
 
 
@@ -2451,3 +2554,36 @@ def run_reaggregate(args):
 
 if __name__ == "__main__":
     main()
+
+
+def build_waveform_manifest(args, rows, dump_dir, rows_stem):
+    """Index of the waveform dump, carrying the geometry alongside the checksums.
+
+    External waveform analyses (announcement 08's purpose) should need only this
+    directory: per query the file, its sha256, the room, the GT node/position and
+    the candidate nodes/positions in the SAME order as the dumped ``pred`` M axis.
+    The rows JSONL stays the authority for the similarities.
+    """
+    waveforms = {}
+    for row in rows:
+        if not row.get("waveform_path"):
+            continue
+        waveforms[row["query_id"]] = {
+            "path": row["waveform_path"], "sha256": row["waveform_sha256"],
+            "room_id": row["room_id"], "gt_node": row["gt_node"],
+            "gt_xyz_world": row["gt_xyz_world"],
+            "candidate_nodes": row["candidate_nodes"],
+            "candidate_xyz_world": row["candidate_xyz_world"],
+            "pred_index": row["pred_index"], "n_candidates": row["n_candidates"],
+            "n_samples": row["n_samples"],
+        }
+    return {
+        "stem": artifact_stem(args), "rows_stem": rows_stem, "dump_dir": str(dump_dir),
+        "n_queries": len(waveforms), "arrays": {"pred": "[M, K, samples] float32",
+                                                "obs": "[samples] float32"},
+        "registration_sha": getattr(args, "registration_sha_resolved", None)
+        or args.registration_sha or "n/a",
+        "source_sha": source_sha(),
+        "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "waveforms": waveforms,
+    }
