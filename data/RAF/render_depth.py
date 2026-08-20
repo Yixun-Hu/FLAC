@@ -24,6 +24,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:  # raf_common.py is a sibling script, not an installed package
     sys.path.insert(0, _HERE)
 from raf_common import RAF_TO_PIPELINE, equirect_directions  # noqa: E402
+from publish import StagedPublish  # noqa: E402
 from readback_audit import load_passing_record, record_provenance  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -357,13 +358,16 @@ def main(argv=None):
             groups_meta = json.load(f)
 
         depth_dir = os.path.join(args.output_dir, room, "depth_images")
-        os.makedirs(depth_dir, exist_ok=True)
 
         # R12: one conversion + one acceleration structure per room.
         t0 = time.perf_counter()
         scene = build_scene(mesh)
         scene_build_s = time.perf_counter() - t0
 
+        # R7: every map and the QA record are staged and swapped in together, so
+        # a failure mid-room can never leave half a depth set beside a QA file
+        # that describes the other half.
+        staged = StagedPublish(depth_dir)
         maps, failed, warned, bearings = {}, [], [], {}
         render_s = 0.0
         for group_key, entry in groups_meta.items():
@@ -371,7 +375,7 @@ def main(argv=None):
             t1 = time.perf_counter()
             depth = render_depth(scene, position, h=args.img_h, w=args.img_w)
             render_s += time.perf_counter() - t1
-            np.save(os.path.join(depth_dir, entry["depth_file"]), depth)
+            np.save(staged.path(entry["depth_file"]), depth)
 
             qa = depth_qa(depth, position, floor_tol=args.floor_tol,
                           img_h=args.img_h, img_w=args.img_w, canonical=canonical)
@@ -418,14 +422,25 @@ def main(argv=None):
             },
             "maps": maps,
         }
-        qa_path = os.path.join(depth_dir, "raf_depth_qa.json")
-        with open(qa_path, "w") as f:
+        with open(staged.path("raf_depth_qa.json"), "w") as f:
             json.dump(record, f, indent=4, allow_nan=False)
-        logger.info("%s: %d depth maps in %.2fs (scene build %.2fs), %d warnings, QA -> %s",
-                    room, len(maps), render_s, scene_build_s, len(warned), qa_path)
 
         if failed:
+            # Nothing is published: the staging directory is discarded by cleanup.
+            staged.cleanup()
             raise RuntimeError(f"{room}: {len(failed)} depth maps failed QA: {failed}")
+
+        manifest = staged.commit(
+            expected=[entry["depth_file"] for entry in groups_meta.values()]
+                     + ["raf_depth_qa.json"],
+            validate_json=True)
+        if manifest["n_files"] != len(maps) + 1:
+            raise RuntimeError(
+                f"{room}: published {manifest['n_files']} files for {len(maps)} maps "
+                "plus one QA record; the publish is not the set that was rendered")
+        logger.info("%s: published %d depth maps in %.2fs (scene build %.2fs), "
+                    "%d warnings, QA -> %s", room, len(maps), render_s, scene_build_s,
+                    len(warned), os.path.join(depth_dir, "raf_depth_qa.json"))
     return 0
 
 

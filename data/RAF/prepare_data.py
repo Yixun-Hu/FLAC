@@ -33,6 +33,7 @@ import soundfile as sf
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:  # raf_common.py is a sibling script, not an installed package
     sys.path.insert(0, _HERE)
+from publish import StagedPublish  # noqa: E402
 from readback_audit import load_passing_record, record_provenance  # noqa: E402
 from raf_common import (  # noqa: E402
     DBFS_FLOOR,
@@ -915,57 +916,78 @@ def main(argv=None):
                 readback_provenance["quat_order_pinned"],
                 readback_provenance["t60_headline"])
 
-    per_room, audits = {}, {}
-    for room in args.rooms:
-        room_dir = os.path.join(args.raf_root, "archived", room)
-        logger.info("reading %s", room_dir)
-        index = load_room_index(room_dir)
-        crosscheck = crosscheck_captures(room_dir, index, n_sample=args.crosscheck_sample,
-                                         seed=args.seed, full=args.full_crosscheck)
-        logger.info("%s: cross-checked %d captures (%s)", room, crosscheck["checked"],
-                    crosscheck["mode"])
-        groups, group_report = group_captures(index, allow_nonuniform=args.allow_nonuniform)
-        logger.info("%s: %d captures in %d groups over %d placements", room,
-                    len(index), group_report["n_groups"], group_report["n_placements"])
-        split = select_splits(groups, n_groups=args.n_groups,
-                              n_val_groups=args.n_val_groups, n_train=args.n_train,
-                              n_diagnostic_groups=args.n_diagnostic_groups)
+    # R7: the runtime tree and the split directory are each staged whole and
+    # swapped in only once every room has been read, resampled and audited. Until
+    # both commits happen, the previous publish is the only thing on disk.
+    with StagedPublish(args.output_dir) as staged_runtime, \
+            StagedPublish(args.split_dir) as staged_splits:
+        per_room, audits = {}, {}
+        for room in args.rooms:
+            room_dir = os.path.join(args.raf_root, "archived", room)
+            logger.info("reading %s", room_dir)
+            index = load_room_index(room_dir)
+            crosscheck = crosscheck_captures(room_dir, index, n_sample=args.crosscheck_sample,
+                                             seed=args.seed, full=args.full_crosscheck)
+            logger.info("%s: cross-checked %d captures (%s)", room, crosscheck["checked"],
+                        crosscheck["mode"])
+            groups, group_report = group_captures(index, allow_nonuniform=args.allow_nonuniform)
+            logger.info("%s: %d captures in %d groups over %d placements", room,
+                        len(index), group_report["n_groups"], group_report["n_placements"])
+            split = select_splits(groups, n_groups=args.n_groups,
+                                  n_val_groups=args.n_val_groups, n_train=args.n_train,
+                                  n_diagnostic_groups=args.n_diagnostic_groups)
 
-        out_room = os.path.join(args.output_dir, room)
-        selected_ids = [c for gk in (split["train_test_groups"] + split["val_groups"]
-                                     + split["diagnostic_groups"])
-                        for c in next(g for g in groups if g["group_key"] == gk)["capture_ids"]]
-        role_of = {c: r["split_role"] for c, r in
-                   build_runtime_metadata(index, groups, split)[0].items()}
-        audits[room] = resample_and_write(room_dir, out_room, selected_ids,
-                                          roles=role_of)
-        logger.info("%s: wrote %d resampled RIRs (%d below %g dBFS)", room,
-                    audits[room]["n_files"], audits[room]["n_silent"],
-                    audits[room]["silence_threshold_db"])
+            poses, groups_meta = build_runtime_metadata(index, groups, split)
+            selected_ids = [c for gk in (split["train_test_groups"] + split["val_groups"]
+                                         + split["diagnostic_groups"])
+                            for c in next(g for g in groups
+                                          if g["group_key"] == gk)["capture_ids"]]
+            role_of = {c: entry["split_role"] for c, entry in poses.items()}
+            audits[room] = resample_and_write(
+                room_dir, os.path.join(staged_runtime.staging_dir, room),
+                selected_ids, roles=role_of)
+            logger.info("%s: staged %d resampled RIRs (%d below %g dBFS)", room,
+                        audits[room]["n_files"], audits[room]["n_silent"],
+                        audits[room]["silence_threshold_db"])
 
-        poses, groups_meta = build_runtime_metadata(index, groups, split)
-        _write_json(os.path.join(out_room, "metadata", "poses_metadata.json"), poses)
-        _write_json(os.path.join(out_room, "metadata", "groups_metadata.json"), groups_meta)
+            _write_json(staged_runtime.path(room, "metadata", "poses_metadata.json"), poses)
+            _write_json(staged_runtime.path(room, "metadata", "groups_metadata.json"),
+                        groups_meta)
 
-        per_room[room] = {"groups": groups, "split": split,
-                          "group_report": group_report, "crosscheck": crosscheck,
-                          "rx_trailing_sentinel_dropped": sentinel_flag_of(index)}
+            per_room[room] = {"groups": groups, "split": split,
+                              "group_report": group_report, "crosscheck": crosscheck,
+                              "rx_trailing_sentinel_dropped": sentinel_flag_of(index)}
 
-    paths = write_split_files(args.split_dir, assemble_split_jsons(per_room))
-    params = {"seed": args.seed, "n_groups": args.n_groups,
-              "n_val_groups": args.n_val_groups, "n_train": args.n_train,
-              "n_diagnostic_groups": args.n_diagnostic_groups,
-              "rooms": list(args.rooms), "raf_root": args.raf_root,
-              "output_dir": args.output_dir,
-              "crosscheck": "full" if args.full_crosscheck else f"sample:{args.crosscheck_sample}",
-              "allow_nonuniform": bool(args.allow_nonuniform)}
-    splits_record = build_splits_record(per_room, params)
-    splits_record["readback_record"] = readback_provenance
-    _write_json(os.path.join(args.split_dir, "raf_splits_record.json"), splits_record)
-    _write_json(os.path.join(args.split_dir, "raf_amplitude_audit.json"),
-                {"params": params, "readback_record": readback_provenance,
-                 "rooms": audits})
-    logger.info("split files written: %s", ", ".join(sorted(paths.values())))
+        jsons = assemble_split_jsons(per_room)
+        for name, payload in jsons.items():
+            _write_json(staged_splits.path(f"{name}_base.json"), payload)
+        params = {"seed": args.seed, "n_groups": args.n_groups,
+                  "n_val_groups": args.n_val_groups, "n_train": args.n_train,
+                  "n_diagnostic_groups": args.n_diagnostic_groups,
+                  "rooms": list(args.rooms), "raf_root": args.raf_root,
+                  "output_dir": args.output_dir,
+                  "crosscheck": "full" if args.full_crosscheck else f"sample:{args.crosscheck_sample}",
+                  "allow_nonuniform": bool(args.allow_nonuniform)}
+        splits_record = build_splits_record(per_room, params)
+        splits_record["readback_record"] = readback_provenance
+        _write_json(staged_splits.path("raf_splits_record.json"), splits_record)
+        _write_json(staged_splits.path("raf_amplitude_audit.json"),
+                    {"params": params, "readback_record": readback_provenance,
+                     "rooms": audits})
+
+        expected_runtime = [f"{room}/metadata/{name}"
+                            for room in args.rooms
+                            for name in ("poses_metadata.json", "groups_metadata.json")]
+        expected_splits = [f"{name}_base.json" for name in sorted(jsons)] + [
+            "raf_splits_record.json", "raf_amplitude_audit.json"]
+        runtime_manifest = staged_runtime.commit(expected=expected_runtime,
+                                                 validate_json=True)
+        splits_manifest = staged_splits.commit(expected=expected_splits,
+                                               validate_json=True)
+
+    logger.info("published %d runtime artifacts to %s and %d split artifacts to %s",
+                runtime_manifest["n_files"], args.output_dir,
+                splits_manifest["n_files"], args.split_dir)
     return 0
 
 
