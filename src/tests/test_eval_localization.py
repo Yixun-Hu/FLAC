@@ -5041,6 +5041,8 @@ def test_metrics_rows_serialize_the_declared_secondaries_and_sensitivities(tmp_p
     assert first["position"] % SENSITIVITY_STRIDE == 0
     assert set(first["sensitivities"]) == set(SENSITIVITY_VARIANTS)
     assert el.decode_sims(first["sensitivities"]["gain_x2"]["m1"]).shape == (3, 2)
+    for name, block in first["sensitivities"].items():        # r4m4 F4: M4 included
+        assert set(block) == set(first["metric_config"]["families"]), name
     if len(rows) > 1 and rows[1]["position"] % SENSITIVITY_STRIDE:
         assert rows[1]["sensitivities"] is None
 
