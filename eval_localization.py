@@ -1147,6 +1147,18 @@ def validate_args(args):
     if args.mode != "run":
         # Auxiliary modes score nothing generative; only the run mode needs the
         # generative protocol flags to be complete.
+        if args.mode == "metrics-retrieval":
+            for flag, value in (("--ckpt-path", args.ckpt_path),
+                                ("--dump-waveforms", args.dump_waveforms),
+                                ("--verify-against", args.verify_against)):
+                if value:
+                    _refuse(f"{flag} is meaningless under --mode metrics-retrieval: it "
+                            "generates nothing")
+            if args.metric_delta_max is not None:
+                from src.localization.rir_metrics import M1_DELTA_GRID
+                if int(args.metric_delta_max) not in M1_DELTA_GRID:
+                    _refuse(f"--metric-delta-max {args.metric_delta_max} is not on the "
+                            f"registered grid {M1_DELTA_GRID}")
         if args.mode == "metrics-calibrate" and not args.metrics_rows:
             _refuse("--metrics-rows is required for --mode metrics-calibrate")
         if args.mode == "reaggregate" and not args.rows:
@@ -1775,6 +1787,20 @@ def main(argv=None):
         return run_reaggregate(args)
     if args.mode == "metrics-calibrate":
         return run_metrics_calibrate(args)
+    if args.mode == "metrics-retrieval":
+        dataset_config = load_dataset_config(args)
+        assert_registered_split(args, dataset_config)
+        assert_metric_registration(args, dataset_config)
+        if args.metric_registration:
+            verify_metric_registration(args, dataset_config)
+        model_config = read_model_config(args)
+        manifest = manifest_for_dataset_config(dataset_config)
+        pl.seed_everything(args.seed, workers=True)
+        loader = build_dataloader(args, model_config, dataset_config)
+        context = {"manifest": manifest, "context_k": resolve_context_k(dataset_config),
+                   "device": args.device, "weights_source": "n/a"}
+        return run_metrics_retrieval(args, loader, None, context,
+                                     dataset_config=dataset_config)
 
     # ---- everything cheap and refusable first (r4 review M5) -----------------
     # configs read + hashed, registration verified, context resolved, output
@@ -2749,9 +2775,6 @@ def build_waveform_manifest(args, rows, dump_dir, rows_stem):
         "waveforms": waveforms,
     }
 
-if __name__ == "__main__":
-    main()
-
 
 # --------------------------------------------------------------------------- #
 # R4 metric families on the replay pass (plan_loc_invert_R4 §1)
@@ -3136,3 +3159,141 @@ def run_metrics_calibrate(args):
         print(f"  delta_max={entry['delta_max']:>4}: dev top-1 {entry['top1']:.4f}{marker}")
     print(f"draft metric manifest -> {draft_path}")
     return report
+
+
+def run_metrics_retrieval(args, loader, engine, context, expected=None, dataset_config=None):
+    """--mode metrics-retrieval: the §3 controls that need no generation.
+
+    Per query, under EVERY metric family: the context RIRs scored against the
+    observation (the metric-matched retrieval control of §2, raw and
+    eligible-masked), the measured-candidate oracle ceiling where the files exist,
+    and the context / non-context split. Nothing is generated and no checkpoint is
+    loaded, so this runs whenever the dataset is present.
+    """
+    from src.localization.rir_metrics import metric_matched_retrieval
+
+    if expected is None:
+        expected = expected_split_identities_from_config(
+            dataset_config or load_dataset_config(args))
+    expected = list(expected)
+    if args.smoke and args.max_queries is not None:
+        expected = expected[: int(args.max_queries)]
+
+    config = metric_config_from_args(args)
+    stem = f"{args.eval_name}_metrics_retrieval_ds-{_short(_file_sha256(args.dataset_config))}"
+    out_dir = str(args.out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+    rows_path = os.path.join(out_dir, f"{stem}_rows.jsonl")
+    summary_path = os.path.join(out_dir, f"{stem}_summary.json")
+    overwrite = bool(getattr(args, "overwrite", False))
+    if not overwrite:
+        for candidate in (rows_path, rows_path + ".partial", summary_path):
+            if os.path.exists(candidate):
+                _refuse(f"metrics-retrieval target already exists: {candidate}; pass --overwrite")
+
+    manifest = context.get("manifest")
+    families = tuple(config.families)
+    rows, meta, scored = [], [], []
+    with open(rows_path + ".partial", "w") as handle:
+        for position, (obs_wav, md) in enumerate(itertools.islice(_iter_items(loader),
+                                                                  len(expected))):
+            identity = sample_target_id(md)
+            if identity != expected[position]:
+                raise SystemExit(f"identity gate ABORT at position {position}: expected "
+                                 f"{expected[position]!r}, got {identity!r}")
+            room_id = room_id_from_relpath(md["relpath"])
+            gt_node, receiver_node = parse_ir_filename(md["path"])
+            cand_set = candidate_set_from_manifest(manifest, room_id, gt_node, receiver_node)
+            room_entry = manifest["rooms"][room_id]
+            candidate_cams = candidate_camera_positions(cand_set)
+            context_mask = context_membership_mask(candidate_cams, sample_context_ids(md),
+                                                   gt_index=cand_set.gt_index)
+
+            obs = rir_metrics_window(torch.as_tensor(obs_wav).reshape(1, -1))[0]
+            ctx_audio = torch.as_tensor(md["context_audio"])
+            ctx = rir_metrics_window(ctx_audio.reshape(ctx_audio.shape[0], -1))
+            ctx_poses = torch.as_tensor(md["context_poses"]).float().numpy()
+
+            # the measured candidate RIRs, where they exist: the oracle ceiling
+            oracle_wavs, available, _sources = load_measured_rirs(
+                os.path.dirname(md["path"]), cand_set, receiver_node,
+                merge_map=room_entry.get("merge_map"))
+            oracle = rir_metrics_window(oracle_wavs.reshape(oracle_wavs.shape[0], -1))
+            metrics = rir_metrics_compute(oracle.unsqueeze(1), obs, ctx, config)
+
+            eligible = [not member for member in context_mask]
+            row_families = {}
+            for family in families:
+                ctx_distances = metrics["context"][family]
+                raw = metric_matched_retrieval(candidate_cams, ctx_poses, ctx_distances)
+                masked = metric_matched_retrieval(candidate_cams, ctx_poses, ctx_distances,
+                                                  eligible_mask=eligible)
+                oracle_distances = metrics["candidates"][family].reshape(-1)
+                usable = [i for i, flag in enumerate(available) if flag]
+                oracle_pred = usable[int(torch.argmin(
+                    oracle_distances.index_select(0, torch.tensor(usable, dtype=torch.long))))]
+                row_families[family] = {
+                    "context_hex": _encode_vector(ctx_distances),
+                    "oracle_hex": _encode_vector(oracle_distances),
+                    "retrieval_pred_index": int(raw),
+                    "retrieval_masked_pred_index": int(masked),
+                    "retrieval_correct": bool(raw == cand_set.gt_index),
+                    "retrieval_masked_correct": bool(masked == cand_set.gt_index),
+                    "oracle_pred_index": int(oracle_pred),
+                    "oracle_correct": bool(oracle_pred == cand_set.gt_index),
+                }
+            row = {"query_id": identity, "room_id": room_id, "position": position,
+                   "n_candidates": len(cand_set.nodes), "n_context": int(ctx.shape[0]),
+                   "candidate_nodes": [int(n) for n in cand_set.nodes],
+                   "gt_index": int(cand_set.gt_index), "gt_node": int(cand_set.gt_node),
+                   "context_member": context_mask,
+                   "candidate_available": [bool(a) for a in available],
+                   "families": row_families, "metric_config": config.payload()}
+            write_row(handle, row)
+            rows.append(row)
+            meta.append({"context_member": context_mask})
+            scored.append(identity)
+    os.replace(rows_path + ".partial", rows_path)
+
+    split_hash_value = assert_scored_stream(scored, expected)
+    summary_families = {}
+    for family in families:
+        correct = [row["families"][family]["retrieval_correct"] for row in rows]
+        masked = [row["families"][family]["retrieval_masked_correct"] for row in rows]
+        oracle = [row["families"][family]["oracle_correct"] for row in rows]
+        context_hits = [row["context_member"][row["families"][family]["retrieval_pred_index"]]
+                        for row in rows]
+        in_context = [row for row in rows if row["context_member"][row["gt_index"]]]
+        out_context = [row for row in rows if not row["context_member"][row["gt_index"]]]
+        summary_families[family] = {
+            "retrieval_top1": float(np.mean(correct)),
+            "retrieval_masked_top1": float(np.mean(masked)),
+            "oracle_top1": float(np.mean(oracle)),
+            "context_member_rate": float(np.mean(context_hits)),
+            "split": {
+                "context": float(np.mean([r["families"][family]["retrieval_correct"]
+                                          for r in in_context])) if in_context else None,
+                "non_context": float(np.mean([r["families"][family]["retrieval_correct"]
+                                              for r in out_context])) if out_context else None,
+            },
+        }
+    summary = {"mode": "metrics-retrieval", "n_queries": len(rows),
+               "n_rooms": len({row["room_id"] for row in rows}),
+               "families": summary_families, "split_hash": split_hash_value,
+               "metric_config": config.payload()}
+    provenance = {"mode": "metrics-retrieval", "source_sha": source_sha(),
+                  "dataset_config": args.dataset_config,
+                  "dataset_config_sha256": _file_sha256(args.dataset_config),
+                  "split_hash": split_hash_value,
+                  "candidate_manifest_sha256": manifest_sha256(manifest) if manifest else "n/a",
+                  "metric_registerable": metric_registerable_payload(),
+                  "metric_registration": getattr(args, "metric_registration", None) or "n/a",
+                  "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    write_json_atomic(summary_path, {"provenance": provenance, "summary": jsonable(summary)},
+                      overwrite=True)
+    print(f"metrics-retrieval: {len(rows)} queries -> {rows_path}")
+    return {"rows_path": rows_path, "summary_path": summary_path, "rows": rows,
+            "rows_meta": meta, "summary": summary, "provenance": provenance}
+
+if __name__ == "__main__":
+    main()

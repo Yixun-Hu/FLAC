@@ -4460,3 +4460,79 @@ def test_metrics_calibrate_requires_rows():
     with pytest.raises(SystemExit):
         el.validate_args(el.parse_args(["--mode", "metrics-calibrate", "--model-config", "m.json",
                                         "--dataset-config", _SEEN_CONFIG]))
+
+
+# --------------------------------------------------------------------------- #
+# R4-r2 item 3: --mode metrics-retrieval, the §3 controls that need NO generation
+# -- metric-matched retrieval (raw + eligible-masked), the measured-candidate
+# oracle ceiling, and the context/non-context split.
+# --------------------------------------------------------------------------- #
+def test_metrics_retrieval_mode_needs_no_checkpoint_and_refuses_generation_flags(tmp_path):
+    argv = ["--mode", "metrics-retrieval", "--model-config", "m.json",
+            "--dataset-config", _SEEN_CONFIG, "--metric-delta-max", "8",
+            "--metric-t30-backend", "torch", "--out-dir", str(tmp_path / "o"),
+            "--eval-name", "R4_ctl"]
+    args = el.validate_args(el.parse_args(argv))
+    assert args.ckpt_path is None and args.num_samples is None
+    with pytest.raises(SystemExit):
+        el.validate_args(el.parse_args(argv + ["--ckpt-path", "c.ckpt"]))
+    with pytest.raises(SystemExit):
+        el.validate_args(el.parse_args(argv + ["--dump-waveforms", str(tmp_path / "wf")]))
+
+
+def test_metrics_retrieval_scores_context_and_oracle_per_query(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    context = _stub_context(root)
+    context["context_k"] = 2
+    args = el.validate_args(el.parse_args(
+        ["--mode", "metrics-retrieval", "--model-config", "m.json",
+         "--dataset-config", _SEEN_CONFIG, "--metric-delta-max", "8",
+         "--metric-t30-backend", "torch", "--out-dir", str(tmp_path / "o"),
+         "--eval-name", "R4_ctl"]))
+    result = el.run_metrics_retrieval(args, loader, engine, context,
+                                      expected=el.expected_split_identities(loader.dataset))
+
+    rows = el.read_rows(result["rows_path"])
+    assert len(rows) == 2
+    row = rows[0]
+    for family in ("m1", "m2", "m3", "m4", "m5"):
+        block = row["families"][family]
+        assert len(block["context_hex"]) == row["n_context"]
+        assert 0 <= block["retrieval_pred_index"] < row["n_candidates"]
+        assert 0 <= block["retrieval_masked_pred_index"] < row["n_candidates"]
+        assert isinstance(block["retrieval_correct"], bool)
+        assert "oracle_hex" in block
+    assert row["context_member"] == result["rows_meta"][0]["context_member"]
+    summary = result["summary"]
+    assert summary["n_queries"] == 2
+    for family in ("m1", "m2", "m3", "m4", "m5"):
+        block = summary["families"][family]
+        assert 0.0 <= block["retrieval_top1"] <= 1.0
+        assert 0.0 <= block["retrieval_masked_top1"] <= 1.0
+        assert "oracle_top1" in block and "context_member_rate" in block
+        assert set(block["split"]) == {"context", "non_context"}
+    assert os.path.exists(result["summary_path"])
+
+
+def test_metrics_retrieval_publishes_atomically_and_records_provenance(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    context = _stub_context(root)
+    context["context_k"] = 2
+    args = el.validate_args(el.parse_args(
+        ["--mode", "metrics-retrieval", "--model-config", "m.json",
+         "--dataset-config", _SEEN_CONFIG, "--metric-delta-max", "8",
+         "--metric-t30-backend", "torch", "--out-dir", str(tmp_path / "o"),
+         "--eval-name", "R4_ctl"]))
+    result = el.run_metrics_retrieval(args, loader, engine, context,
+                                      expected=el.expected_split_identities(loader.dataset))
+    assert not os.path.exists(result["rows_path"] + ".partial")
+    payload = _json.loads(open(result["summary_path"]).read())
+    assert payload["provenance"]["metric_registerable"]["m2_lambda"] == 1.0
+    assert payload["provenance"]["mode"] == "metrics-retrieval"
+    assert payload["provenance"]["candidate_manifest_sha256"] == el.manifest_sha256(
+        context["manifest"])
+    with pytest.raises(SystemExit):                      # no clobber
+        el.run_metrics_retrieval(args, loader, engine, context,
+                                 expected=el.expected_split_identities(loader.dataset))
