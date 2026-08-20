@@ -1,0 +1,44 @@
+=== exp_19 HAA eval grid | arms='BNA' | 2026-08-20_00-36-38 | HEAD 39f8bb5656ae600acc3fa59f1427412b1783afed | dry_run=0 ===
+protocol: cfg=1.0 steps=1 autocast=bf16 seeds=42 43 44 45 46 endpoints=410 1000 | per-scene recorded
+lock: worklog/worklog_yixun/exp_19_haa_finetune_claude/.haa_eval.lock owned=1
+gate: no train.py from this worktree is running
+co-tenancy DISCLOSED: foreign train.py (other checkouts): 3224681(/home/yixunhu/codespace/exp-12-arms) 3225190(/home/yixunhu/codespace/exp-12-arms) 3225649(/home/yixunhu/codespace/exp-12-arms) 3225650(/home/yixunhu/codespace/exp-12-arms) 3225697(/home/yixunhu/codespace/exp-12-arms) 3225721(/home/yixunhu/codespace/exp-12-arms) 3225746(/home/yixunhu/codespace/exp-12-arms) 3225770(/home/yixunhu/codespace/exp-12-arms) 3225794(/home/yixunhu/codespace/exp-12-arms) 3225818(/home/yixunhu/codespace/exp-12-arms) 3225842(/home/yixunhu/codespace/exp-12-arms) 3225866(/home/yixunhu/codespace/exp-12-arms) 3225890(/home/yixunhu/codespace/exp-12-arms) 3225919(/home/yixunhu/codespace/exp-12-arms)
+source pins OK (7 files: evaluator, both K configs, the test split, all three arm configs)
+ckpt BNA step=410: outputs_FLAC/exp19_HAA_BNA/FLAC_exp19_HAA_BNA/exp19_HAA_BNA/checkpoints/epoch=409-step=410.ckpt
+ckpt BNA step=1000: outputs_FLAC/exp19_HAA_BNA/FLAC_exp19_HAA_BNA/exp19_HAA_BNA/checkpoints/epoch=999-step=1000.ckpt
+SKIP: exp19_HAA_BNA_S410_K8_s42 (existing record matches this protocol)
+SKIP: exp19_HAA_BNA_S410_K8_s43 (existing record matches this protocol)
+SKIP: exp19_HAA_BNA_S410_K8_s44 (existing record matches this protocol)
+SKIP: exp19_HAA_BNA_S410_K8_s45 (existing record matches this protocol)
+SKIP: exp19_HAA_BNA_S410_K8_s46 (existing record matches this protocol)
+SKIP: exp19_HAA_BNA_S410_K1_s42 (existing record matches this protocol)
+SKIP: exp19_HAA_BNA_S410_K1_s43 (existing record matches this protocol)
+SKIP: exp19_HAA_BNA_S410_K1_s44 (existing record matches this protocol)
+SKIP: exp19_HAA_BNA_S410_K1_s45 (existing record matches this protocol)
+SKIP: exp19_HAA_BNA_S410_K1_s46 (existing record matches this protocol)
+queue: 20 cells planned for arms 'BNA' (10 already recorded, 10 to run)
+CELL: python eval_FLAC.py --model-config src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json --dataset-config src/configs/dataset_configs/HAA/eval/haa_test.json --ckpt-path outputs_FLAC/exp19_HAA_BNA/FLAC_exp19_HAA_BNA/exp19_HAA_BNA/checkpoints/epoch=999-step=1000.ckpt --cfg-scale 1.0 --steps 1 --seed 42 --eval-name exp19_HAA_BNA_S1000_K8_s42 --cond-autocast bf16 --record-per-scene --cond-method vanilla
+CELL: python eval_FLAC.py --model-config src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json --dataset-config src/configs/dataset_configs/HAA/eval/haa_test.json --ckpt-path outputs_FLAC/exp19_HAA_BNA/FLAC_exp19_HAA_BNA/exp19_HAA_BNA/checkpoints/epoch=999-step=1000.ckpt --cfg-scale 1.0 --steps 1 --seed 43 --eval-name exp19_HAA_BNA_S1000_K8_s43 --cond-autocast bf16 --record-per-scene --cond-method vanilla
+CELL: python eval_FLAC.py --model-config src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json --dataset-config src/configs/dataset_configs/HAA/eval/haa_test.json --ckpt-path outputs_FLAC/exp19_HAA_BNA/FLAC_exp19_HAA_BNA/exp19_HAA_BNA/checkpoints/epoch=999-step=1000.ckpt --cfg-scale 1.0 --steps 1 --seed 44 --eval-name exp19_HAA_BNA_S1000_K8_s44 --cond-autocast bf16 --record-per-scene --cond-method vanilla
+CELL: python eval_FLAC.py --model-config src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json --dataset-config src/configs/dataset_configs/HAA/eval/haa_test.json --ckpt-path outputs_FLAC/exp19_HAA_BNA/FLAC_exp19_HAA_BNA/exp19_HAA_BNA/checkpoints/epoch=999-step=1000.ckpt --cfg-scale 1.0 --steps 1 --seed 45 --eval-name exp19_HAA_BNA_S1000_K8_s45 --cond-autocast bf16 --record-per-scene --cond-method vanilla
+CELL: python eval_FLAC.py --model-config src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json --dataset-config src/configs/dataset_configs/HAA/eval/haa_test.json --ckpt-path outputs_FLAC/exp19_HAA_BNA/FLAC_exp19_HAA_BNA/exp19_HAA_BNA/checkpoints/epoch=999-step=1000.ckpt --cfg-scale 1.0 --steps 1 --seed 46 --eval-name exp19_HAA_BNA_S1000_K8_s46 --cond-autocast bf16 --record-per-scene --cond-method vanilla
+CELL: python eval_FLAC.py --model-config src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json --dataset-config src/configs/dataset_configs/HAA/eval/haa_test_1.json --ckpt-path outputs_FLAC/exp19_HAA_BNA/FLAC_exp19_HAA_BNA/exp19_HAA_BNA/checkpoints/epoch=999-step=1000.ckpt --cfg-scale 1.0 --steps 1 --seed 42 --eval-name exp19_HAA_BNA_S1000_K1_s42 --cond-autocast bf16 --record-per-scene --cond-method vanilla
+CELL: python eval_FLAC.py --model-config src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json --dataset-config src/configs/dataset_configs/HAA/eval/haa_test_1.json --ckpt-path outputs_FLAC/exp19_HAA_BNA/FLAC_exp19_HAA_BNA/exp19_HAA_BNA/checkpoints/epoch=999-step=1000.ckpt --cfg-scale 1.0 --steps 1 --seed 43 --eval-name exp19_HAA_BNA_S1000_K1_s43 --cond-autocast bf16 --record-per-scene --cond-method vanilla
+CELL: python eval_FLAC.py --model-config src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json --dataset-config src/configs/dataset_configs/HAA/eval/haa_test_1.json --ckpt-path outputs_FLAC/exp19_HAA_BNA/FLAC_exp19_HAA_BNA/exp19_HAA_BNA/checkpoints/epoch=999-step=1000.ckpt --cfg-scale 1.0 --steps 1 --seed 44 --eval-name exp19_HAA_BNA_S1000_K1_s44 --cond-autocast bf16 --record-per-scene --cond-method vanilla
+CELL: python eval_FLAC.py --model-config src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json --dataset-config src/configs/dataset_configs/HAA/eval/haa_test_1.json --ckpt-path outputs_FLAC/exp19_HAA_BNA/FLAC_exp19_HAA_BNA/exp19_HAA_BNA/checkpoints/epoch=999-step=1000.ckpt --cfg-scale 1.0 --steps 1 --seed 45 --eval-name exp19_HAA_BNA_S1000_K1_s45 --cond-autocast bf16 --record-per-scene --cond-method vanilla
+CELL: python eval_FLAC.py --model-config src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json --dataset-config src/configs/dataset_configs/HAA/eval/haa_test_1.json --ckpt-path outputs_FLAC/exp19_HAA_BNA/FLAC_exp19_HAA_BNA/exp19_HAA_BNA/checkpoints/epoch=999-step=1000.ckpt --cfg-scale 1.0 --steps 1 --seed 46 --eval-name exp19_HAA_BNA_S1000_K1_s46 --cond-autocast bf16 --record-per-scene --cond-method vanilla
+both cards clear the 8000 MiB floor
+[1/10] gpu0 exp19_HAA_BNA_S1000_K8_s42
+[2/10] gpu1 exp19_HAA_BNA_S1000_K8_s43
+[3/10] gpu0 exp19_HAA_BNA_S1000_K8_s44
+[4/10] gpu1 exp19_HAA_BNA_S1000_K8_s45
+[5/10] gpu0 exp19_HAA_BNA_S1000_K8_s46
+[6/10] gpu1 exp19_HAA_BNA_S1000_K1_s42
+[7/10] gpu0 exp19_HAA_BNA_S1000_K1_s43
+[8/10] gpu1 exp19_HAA_BNA_S1000_K1_s44
+[9/10] gpu0 exp19_HAA_BNA_S1000_K1_s45
+[10/10] gpu1 exp19_HAA_BNA_S1000_K1_s46
+evaluator failures: 0
+=== exp_19 HAA eval: 20/20 cells complete (registered grid 60) ===
+all planned cells recorded under their arms' checkpoint directories
+BNA eval rc=0

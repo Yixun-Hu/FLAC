@@ -1,0 +1,16 @@
+=== BNA pre-eval on GPU1 — 2026-08-19_22-55-37 — 39f8bb5 ===
+[run] exp19_HAA_BNA_S410_K8_s42
+[run] exp19_HAA_BNA_S410_K1_s42
+[run] exp19_HAA_BNA_S410_K8_s43
+[run] exp19_HAA_BNA_S410_K1_s43
+[run] exp19_HAA_BNA_S410_K8_s44
+[run] exp19_HAA_BNA_S410_K1_s44
+[run] exp19_HAA_BNA_S410_K8_s45
+[run] exp19_HAA_BNA_S410_K1_s45
+[run] exp19_HAA_BNA_S410_K8_s46
+[run] exp19_HAA_BNA_S410_K1_s46
+[run] exp19_HAA_BNA_S100_K8_s42
+[run] exp19_HAA_BNA_S200_K8_s42
+[run] exp19_HAA_BNA_S300_K8_s42
+[run] exp19_HAA_BNA_S500_K8_s42
+pre-eval done, failures=0
