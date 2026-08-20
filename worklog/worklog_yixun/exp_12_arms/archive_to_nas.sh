@@ -27,8 +27,19 @@ say "archiving ${#files[@]} files -> $NAS/$RUN/"
 fail=0
 for f in "${files[@]}"; do
   base=$(basename "$f")
-  rsync -a --partial "$f" "$NAS/$RUN/$base"
   h_local=$(sha256sum "$f" | cut -d' ' -f1)
+  # cp, not rsync: this CIFS share refuses rsync's mkstemp temp files ("Operation not
+  # permitted"), silently leaving nothing behind. cp writes the destination directly.
+  # Skip-if-verified makes reruns cheap and safe.
+  if [ -f "$NAS/$RUN/$base" ]; then
+    h_nas=$(sha256sum "$NAS/$RUN/$base" | cut -d' ' -f1)
+    if [ "$h_local" = "$h_nas" ]; then
+      say "SKIP $base (already archived, hash verified)"
+      echo "$h_nas  $base" >> "$NAS/$RUN/MANIFEST.sha256"
+      continue
+    fi
+  fi
+  cp "$f" "$NAS/$RUN/$base.part" && mv "$NAS/$RUN/$base.part" "$NAS/$RUN/$base"
   h_nas=$(sha256sum "$NAS/$RUN/$base" | cut -d' ' -f1)
   if [ "$h_local" = "$h_nas" ]; then
     echo "$h_nas  $base" >> "$NAS/$RUN/MANIFEST.sha256"
