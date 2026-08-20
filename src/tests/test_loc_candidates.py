@@ -591,3 +591,24 @@ def test_allowing_duplicate_positions_still_refuses_cross_receiver_drift(tmp_pat
     _write_pair(room, 7, 3, (9.0, 9.0, 9.0), _REC_LOCS[3])         # same node, moved
     with pytest.raises(ValueError):
         enumerate_metadata_sources(room, allow_duplicate_positions=True)
+
+
+def test_survey_error_reporting_is_exposed(tmp_path):
+    """r7 item 3b: rooms the survey could not read are counted, printed and make
+    it exit nonzero unless --allow-errors."""
+    import importlib.util
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    path = os.path.join(root, "worklog", "worklog_yixun", "exp_18_loc_invert_claude",
+                        "survey_duplicate_sources.py")
+    spec = importlib.util.spec_from_file_location("survey_duplicate_sources", path)
+    survey = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(survey)
+
+    split = tmp_path / "split.json"
+    split.write_text(json.dumps({"Ghost": {"Ghost_idx_0": ["S000_R000_hybrid_IR.wav"]}}))
+    report = survey.survey_split(str(split), str(tmp_path))
+    assert report["n_errors"] == 1 and report["errors"]
+    with pytest.raises(SystemExit):
+        survey.main(["--split", str(split), "--dataset-root", str(tmp_path)])
+    assert survey.main(["--split", str(split), "--dataset-root", str(tmp_path),
+                        "--allow-errors"])["n_errors"] == 1

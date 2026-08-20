@@ -43,7 +43,8 @@ from src.inference.sampling import sample_discrete_euler
 from src.models.factory import create_model_from_config
 from src.training.diffusion import invariant_conditioning
 from src.training.factory import create_training_wrapper_from_config
-from src.data.dataset import create_dataloader_from_config, get_audio_filenames
+from src.data.dataset import (create_dataloader_from_config, get_audio_filenames,
+                              is_silence)
 from src.localization.agree_embed import MAX_LEN, embed_rirs, load_agree_audio, sha256_file
 from src.localization.reaggregate import (decode_scores, decode_sims, encode_sims,
                                           reaggregate)
@@ -1087,6 +1088,9 @@ def parse_args(argv=None):
                         help="explicit RIR files for --mode scorer-noise")
     parser.add_argument("--noise-wav-count", type=int, default=4,
                         help="how many split RIRs to measure when --noise-wavs is absent")
+    parser.add_argument("--readback-decode-all", action="store_true",
+                        help="--mode readback: decode EVERY wav of the split, not one per "
+                             "(room, source); finds silent/short/corrupt individual files")
     parser.add_argument("--dump-waveforms", default=None, metavar="DIR",
                         help="save the exactly-as-scored predicted RIRs per query "
                              "(announcement 08); generative runs only")
@@ -1875,7 +1879,11 @@ def build_room_manifest(dataset_root, split_config, folder_name=DEFAULT_IR_FOLDE
                 "scene": scene,
                 "scene_id": scene_id,
                 "nodes": nodes,
-                # only NON-TRIVIAL groups, so a clean room's map is simply {}
+                # Only NON-TRIVIAL groups, so a clean room's map is simply {}. A
+                # clean room's CANDIDATES and SCORES are unchanged by the merge;
+                # rows/provenance gained merge_map, oracle_source_nodes and
+                # candidate_merge_groups fields, and the manifest schema (hence its
+                # sha256) changed -- "computation-identical", not "byte-identical".
                 "merge_map": {str(canonical): members
                               for canonical, members in sorted(merge_groups.items())
                               if len(members) > 1},
@@ -2214,6 +2222,7 @@ def run_readback(args):
     manifest = build_room_manifest(entry["path"], split,
                                    folder_name=entry.get("folder_name", DEFAULT_IR_FOLDER))
     root, folder = manifest["dataset_root"], manifest["folder_name"]
+    decode_all = bool(getattr(args, "readback_decode_all", False))
     registered = bool(dataset_config.get("unseeneval", False))
     split_check = verify_registered_split(
         entry["json_file_path"],
@@ -2229,6 +2238,7 @@ def run_readback(args):
 
         split_files = list(split[scene][scene_id])
         split_sources, receivers, missing_files, one_per_source = set(), set(), [], {}
+        every_file = {}
         for fname in split_files:
             src, rec = parse_ir_filename(fname)
             split_sources.add(src)
@@ -2238,6 +2248,11 @@ def run_readback(args):
                 missing_files.append(fname)
             else:
                 one_per_source.setdefault(src, path)
+                every_file[fname] = path
+        # r7 item 4: one wav per (room, source) missed a SILENT file the dataset
+        # then substituted mid-run; --readback-decode-all decodes the whole split.
+        to_decode = ({fname: path for fname, path in every_file.items()} if decode_all
+                     else {os.path.basename(p): p for p in one_per_source.values()})
 
         depth_bad = []
         for rec in sorted(receivers):
@@ -2258,26 +2273,31 @@ def run_readback(args):
                 depth_bad.append(f"R{rec}: contains non-finite values")
 
         wav_bad, sample_rates, lengths = [], set(), []
-        for src, path in sorted(one_per_source.items()):
+        for label, path in sorted(to_decode.items()):
             try:
                 wav, rate = torchaudio.load(path)
             except Exception as err:                       # noqa: BLE001 - reported, not raised
-                wav_bad.append(f"S{src}: unreadable ({type(err).__name__})")
+                wav_bad.append(f"{label}: unreadable ({type(err).__name__})")
                 continue
             sample_rates.add(int(rate))
             lengths.append(int(wav.shape[-1]))
+            src = label
             if int(rate) != AR_SAMPLE_RATE:
-                wav_bad.append(f"S{src}: sample rate {rate} != {AR_SAMPLE_RATE}")
+                wav_bad.append(f"{src}: sample rate {rate} != {AR_SAMPLE_RATE}")
             elif wav.shape[0] != 1:
-                wav_bad.append(f"S{src}: {wav.shape[0]} channels, expected mono")
+                wav_bad.append(f"{src}: {wav.shape[0]} channels, expected mono")
+            elif decode_all and is_silence(wav):
+                # the dataset substitutes a random other item for a silent file,
+                # which corrupts the identity stream mid-run
+                wav_bad.append(f"{src}: silent (below the loader's -60 dB threshold)")
             elif wav.shape[-1] < MIN_WAV_SAMPLES:
                 # Score-relevant: the target is pad_crop'd to 10240, context RIRs to
                 # 9600 and the oracle window to 8000, so a shorter wav changes what
                 # every scoring path sees. Anything >= 10240 is score-identical.
-                wav_bad.append(f"S{src}: {wav.shape[-1]} samples is shorter than the scored "
+                wav_bad.append(f"{src}: {wav.shape[-1]} samples is shorter than the scored "
                                f"prefix ({MIN_WAV_SAMPLES})")
             elif not bool(torch.isfinite(wav).all()):
-                wav_bad.append(f"S{src}: contains non-finite samples")
+                wav_bad.append(f"{src}: contains non-finite samples")
 
         rooms[room_id] = {
             "metadata_nodes": room["nodes"], "wav_nodes": room["wav_nodes"],
@@ -2285,7 +2305,7 @@ def run_readback(args):
             "split_files": len(split_files), "split_sources": sorted(split_sources),
             "split_receivers": len(receivers), "missing_split_files": missing_files,
             "depth_checked": len(receivers), "depth_bad": depth_bad,
-            "wav_checked": len(one_per_source), "wav_bad": wav_bad,
+            "wav_checked": len(to_decode), "wav_bad": wav_bad,
             "sample_rates": sorted(sample_rates),
             "wav_lengths": ({"min": min(lengths), "max": max(lengths),
                              "mean": float(np.mean(lengths))} if lengths else None),
@@ -2331,6 +2351,8 @@ def run_readback(args):
         "mode": "readback", "dataset_config": args.dataset_config,
         "dataset_root": root, "n_rooms": len(rooms),
         "split_check": split_check,
+        "decode_all": decode_all,
+        "decoded_files": sum(room["wav_checked"] for room in rooms.values()),
         "min_wav_samples": MIN_WAV_SAMPLES,
         "wav_length_rationale": (
             "every scoring path consumes a prefix (target pad_crop 10240, context 9600, oracle "

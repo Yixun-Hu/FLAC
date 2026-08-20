@@ -3988,3 +3988,79 @@ def test_verify_against_aborts_on_a_missing_query(tmp_path):
     with pytest.raises(SystemExit):
         el.run_evaluation(args, loader, engine, _stub_context(root), "c", "a",
                           expected=el.expected_split_identities(loader.dataset))
+
+
+# --------------------------------------------------------------------------- #
+# r7 item 3a (queued r6 review LOW): the r6 "byte-identical" claim was too broad.
+# The COMPUTATION is identical on a clean room; the row/provenance SCHEMA gained
+# merge fields, so a golden row pins exactly what a clean run emits.
+# --------------------------------------------------------------------------- #
+_CLEAN_ROW_KEYS = {
+    "query_id", "room_id", "relpath", "receiver_node", "gt_node", "gt_index", "gt_xyz_world",
+    "gt_xyz_cam", "candidate_nodes", "candidate_xyz_world", "candidate_xyz_cam",
+    "context_member", "candidate_available", "n_candidates", "n_samples", "n_eligible",
+    "n_available", "gt_only", "sims_hex", "scores_hex", "noise_keys", "pred_index", "pred_node",
+    "pred_xyz_world", "e_loc", "top1", "rr", "power_statistic", "tau", "agg", "control",
+    "score_source", "identity_index", "substituted", "smoke", "merge_map",
+    "oracle_source_nodes", "timings_s", "context_xyz_cam", "context_sims_hex",
+}
+
+
+def test_clean_room_row_is_computation_identical_and_schema_explicit(tmp_path):
+    """r6 added merge_map / oracle_source_nodes to every row and
+    candidate_merge_groups to provenance. On a clean room the COMPUTED fields are
+    unchanged; the added fields are inert ({} / None / 0)."""
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    result = el.run_evaluation(_run_args(tmp_path), loader, engine, _stub_context(root), "c", "a",
+                               expected=el.expected_split_identities(loader.dataset))
+    row = result["rows"][0]
+    assert set(row) == _CLEAN_ROW_KEYS, set(row) ^ _CLEAN_ROW_KEYS
+    assert row["merge_map"] == {} and row["oracle_source_nodes"] is None
+    assert result["provenance"]["candidate_merge_groups"] == 0
+    # the computed quantities a clean run has always produced
+    assert row["candidate_nodes"] == [0, 3, 7] and row["n_candidates"] == 3
+    assert row["gt_node"] == 3 and row["pred_node"] in row["candidate_nodes"]
+    assert torch.equal(el.decode_sims(row["sims_hex"]),
+                       el.decode_sims(row["sims_hex"]))     # exact round trip
+
+
+# --------------------------------------------------------------------------- #
+# r7 item 4 (r6 lesson): one wav per (room, source) missed a SILENT item that the
+# dataset silently substituted mid-run. --readback-decode-all decodes the whole
+# split.
+# --------------------------------------------------------------------------- #
+def test_readback_decode_all_finds_a_silent_wav(tmp_path):
+    root, split_path = _registered_unseen_tree(tmp_path)
+    silent = str(root / "single_channel_ir_1" / "Scene0" / "Scene0_idx_0"
+                 / "S002_R007_hybrid_IR.wav")
+    torchaudio.save(silent, torch.zeros(1, 12000), 22050)
+
+    args = _unseen_readback_args(tmp_path, root, split_path)
+    report = el.run_readback(args)                          # sampled: one per (room, source)
+    assert report["ok"] is True                             # a silent file is not short/corrupt
+
+    os.makedirs(str(tmp_path / "deep"), exist_ok=True)
+    deep = _unseen_readback_args(tmp_path / "deep", root, split_path,
+                                 **{"--readback-decode-all": True})
+    with pytest.raises(SystemExit):
+        el.run_readback(deep)
+    written = os.path.join(str(deep.out_dir), el.aux_stem(deep, "readback") + ".json")
+    payload = _json.loads(open(written).read())
+    assert payload["decode_all"] is True
+    assert payload["decoded_files"] == sum(len(v) for r in
+                                           _json.loads(open(split_path).read()).values()
+                                           for v in r.values())
+    assert any("silent" in f for f in payload["failures"])
+    assert any("S002" in entry for room in payload["rooms"].values()
+               for entry in room["wav_bad"])
+
+
+def test_readback_decode_all_passes_on_a_healthy_split(tmp_path):
+    root, split_path = _registered_unseen_tree(tmp_path)
+    args = _unseen_readback_args(tmp_path, root, split_path,
+                                 **{"--readback-decode-all": True})
+    report = el.run_readback(args)
+    assert report["ok"] is True and report["decode_all"] is True
+    assert report["decoded_files"] > report["n_rooms"]
+    assert report["wav_lengths"]["min"] == 12000

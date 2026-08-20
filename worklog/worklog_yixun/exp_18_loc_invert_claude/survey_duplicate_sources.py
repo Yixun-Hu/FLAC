@@ -32,18 +32,21 @@ def survey_split(split_path, dataset_root):
     with open(split_path) as handle:
         split = json.load(handle)
 
-    rooms, dirty = {}, {}
+    rooms, dirty, errors = {}, {}, {}
     for scene in sorted(split):
         for scene_id in sorted(split[scene]):
             room_id = f"{scene}/{scene_id}"
             meta_dir = os.path.join(dataset_root, "metadata", scene, scene_id)
             if not os.path.isdir(meta_dir):
-                rooms[room_id] = {"error": f"no metadata directory at {meta_dir}"}
+                message = f"no metadata directory at {meta_dir}"
+                rooms[room_id] = {"error": message}
+                errors[room_id] = message
                 continue
             try:
                 sources = enumerate_metadata_sources(meta_dir, allow_duplicate_positions=True)
             except ValueError as err:                      # cross-receiver drift, not duplicates
                 rooms[room_id] = {"error": str(err)}
+                errors[room_id] = str(err)
                 continue
             merged, groups = merge_position_duplicates(sources)
             duplicates = {str(canonical): members for canonical, members in groups.items()
@@ -56,6 +59,7 @@ def survey_split(split_path, dataset_root):
                     for canonical, members in duplicates.items()}
     return {"split": str(split_path), "dataset_root": str(dataset_root),
             "n_rooms": len(rooms), "n_rooms_with_duplicates": len(dirty),
+            "n_errors": len(errors), "errors": errors,
             "rooms": rooms, "duplicates": dirty}
 
 
@@ -64,6 +68,8 @@ def main(argv=None):
     parser.add_argument("--split", required=True, help="split JSON, e.g. data/AR/seen_eval.json")
     parser.add_argument("--dataset-root", default="AcousticRooms")
     parser.add_argument("--out", default=None, help="write the full report as JSON")
+    parser.add_argument("--allow-errors", action="store_true",
+                        help="exit 0 even when some rooms could not be surveyed")
     args = parser.parse_args(argv)
 
     report = survey_split(args.split, args.dataset_root)
@@ -73,11 +79,19 @@ def main(argv=None):
         for canonical, (xyz, members) in sorted(groups.items()):
             print(f"  {room_id}: S{members[0]} == " + " == ".join(f"S{m}" for m in members[1:])
                   + f" at {xyz} (canonical S{canonical})")
+    if report["n_errors"]:
+        print(f"{report['n_errors']} room(s) could not be surveyed:")
+        for room_id, message in sorted(report["errors"].items()):
+            print(f"  ERROR {room_id}: {message}")
     if args.out:
         with open(args.out, "w") as handle:
             json.dump(report, handle, sort_keys=True, indent=2)
             handle.write("\n")
         print(f"report -> {args.out}")
+    if report["n_errors"] and not args.allow_errors:
+        # an unsurveyed room is not a clean room: fail closed unless told otherwise
+        raise SystemExit(f"{report['n_errors']} room(s) could not be surveyed; "
+                         "pass --allow-errors to accept a partial survey")
     return report
 
 
