@@ -125,3 +125,13 @@
 | SHA | Item | Description | changed lines |
 |---|---|---|---|
 | `03b7641` | R5b-1 + R5b-2 + 3 nits | canonical unseen split pinned by byte digest / 6337 identities / 17 rooms / room-node-map digest, enforced in readback **and** run startup and locked into the registration manifest (`split_file_sha256`); readback requires wavs ≥ `MIN_WAV_SAMPLES` (10240) and reports min/max/mean length; scorer-noise stem hashes the selected wav set; `PROBE_WALL` and `write_json_atomic` docstrings clarified | +331 −20 |
+| `30f26d1` | — | ledger append for round 5b | +8 |
+
+## Round 6 (plan Rev 3.2 — duplicate-position sources merge into one candidate)
+
+| SHA | Item | Description | changed lines |
+|---|---|---|---|
+| `12553e8` | r6-1 | `merge_position_duplicates` in the candidate authority (canonical = lowest id, every group recorded); `enumerate_metadata_sources(..., allow_duplicate_positions=True)` for the manifest only — cross-receiver drift still aborts | +87 −2 |
+| `b46f777` | r6-2 | manifest merges positions (`merge_map` non-trivial only, `member_nodes` kept); GT resolves through its group; merged positions end the F7 collision case; rows + provenance record merges | +142 −11 |
+| `f2b912f` | r6-3 | `gt_rir` prefers the canonical node's measured file and falls back to any member, recording `oracle_source_nodes`; identity bound to the GT's group | +161 −18 |
+| `b504dea` | r6-4 | `survey_duplicate_sources.py` — the Planner's R0-abort probe as reviewed, tested tooling (2/131 seen rooms, 0/17 unseen) | +85 |
