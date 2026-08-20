@@ -72,3 +72,8 @@ Branch `localization-exp` (shared with exp_18; this experiment is driven by the 
   3. Real-mesh discoveries → Amendment 4 render policy (≤0.1% miss cap + recorded inpainting; bearing-tie applicability; floor tol 0.15 m); Coder implementing.
   4. Pinned canonical record at `data/RAF/raf_readback_record.json` (verdict passed, adjudication carried) — the artifact the prepare/render publish gates require.
 - **Next** — Coder render-policy cycle → peer 'R-1/R0 done' → R8/R10 → Codex r2 re-review → Leg B eval → morning package to Yixun (canonical-prep go/no-go).
+
+## 2026-08-19T22:19:54-0400 — R-cal Leg B training COMPLETE; 5-seed repro eval launched
+- **Result** — Leg B reached global step 1000 exactly (final val/avg_loss 0.527, converged from ≥0.9; wandb offline run `m15pp1x7`); `epoch=999-step=1000.ckpt` saved and sha256-recorded (`1e153447…71fe25c`). The background wrapper's -1 exit is the harness reaping the tee, not a training failure — verified from the log's completed wandb summary. Wall time 18:44→~22:15 (~3.5 h; the recipe idles the GPU heavily: 3 micro-batches/epoch + val every 10 + 724 MB ckpt writes every 10).
+- **Change** — Leg B eval launched on GPU 0 (train slot, now free; GPU 1 left to the peer's R-1/R0): step-1000 ckpt × seeds 42–46, per-seed eval-names (`exp19_rcal_repro_seed<seed>`, Amendment 2 rule), stream-audited 1282, same rcal eval config (fullHAA scorer).
+- **Next** — Assemble Leg-B-vs-Leg-A reproduction table on completion (~22:40); R8/R10 land on the peer's 'R-1/R0 done'; then Codex r2 re-review.
