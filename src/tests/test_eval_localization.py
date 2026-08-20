@@ -4914,18 +4914,60 @@ def test_metrics_retrieval_verifies_the_paired_context_stream_digest(tmp_path):
 # --------------------------------------------------------------------------- #
 # r4m3 finding 6: nothing gets a final name until EVERY gate has passed.
 # --------------------------------------------------------------------------- #
-def test_metrics_jsonl_stays_partial_until_the_gates_pass(tmp_path):
+def _metrics_artifact_paths(args):
+    paths = el.artifact_paths(args, overwrite=True)
+    metrics_path = os.path.join(os.path.dirname(paths["rows"]),
+                                f"{el.artifact_stem(args)}_metrics.jsonl")
+    return paths, metrics_path
+
+
+def test_metrics_jsonl_stays_partial_when_the_run_aborts_inside_the_loop(tmp_path):
     loader, root = _fake_run(tmp_path)
-    loader.batches[0][1][1]["idx"] = 99                   # substitution: the end gate fires
+    loader.batches[0][1][1]["idx"] = 99                   # substitution: in-loop identity gate
     _rec, engine = _engine()
     args = _metrics_args(tmp_path)
     with pytest.raises(SystemExit):
         el.run_evaluation(args, loader, engine, _stub_context(root), "c", "a",
                           expected=el.expected_split_identities(loader.dataset))
-    paths = el.artifact_paths(args, overwrite=True)
-    metrics_path = os.path.join(os.path.dirname(paths["rows"]),
-                                f"{el.artifact_stem(args)}_metrics.jsonl")
+    paths, metrics_path = _metrics_artifact_paths(args)
     assert not os.path.exists(metrics_path), "an aborted run published a metrics file"
+    assert not os.path.exists(paths["rows"]) and not os.path.exists(paths["summary"])
+
+
+def test_metrics_jsonl_stays_partial_when_a_gate_after_the_loop_fires(tmp_path):
+    """r4m3 finding 6 (residual): the ordering defect lives BETWEEN the identity
+    loop and the end gates, so a test that aborts inside the loop cannot see it.
+
+    Both post-loop gates are exercised: the scored-stream gate (short stream) and
+    the context end-gate. In each case the metrics JSONL must still be `.partial`
+    -- a final-named metrics file is a published artifact whose run never passed
+    its own gates.
+    """
+    loader, root = _fake_run(tmp_path / "stream")
+    _rec, engine = _engine()
+    args = _metrics_args(tmp_path / "stream")
+    short = el.expected_split_identities(loader.dataset) + ["9|never/scored.wav"]
+    with pytest.raises(SystemExit):                 # fires in assert_scored_stream
+        el.run_evaluation(args, loader, engine, _stub_context(root), "c", "a", expected=short)
+    paths, metrics_path = _metrics_artifact_paths(args)
+    assert not os.path.exists(metrics_path), "an aborted run published a metrics file"
+    assert os.path.exists(metrics_path + ".partial"), "the metrics stream never ran"
+    assert not os.path.exists(paths["rows"]) and not os.path.exists(paths["summary"])
+
+
+def test_metrics_jsonl_stays_partial_when_the_context_end_gate_fires(tmp_path, monkeypatch):
+    loader, root = _fake_run(tmp_path / "ctx")
+    _rec, engine = _engine()
+    args = _metrics_args(tmp_path / "ctx")
+    context = _stub_context(root)
+    context["context_k"] = 99                    # the rows carry fewer context sources
+    monkeypatch.setattr(el, "assert_query_context", lambda md, context_k: context_k)
+    with pytest.raises(SystemExit, match="context gate ABORT"):
+        el.run_evaluation(args, loader, engine, context, "c", "a",
+                          expected=el.expected_split_identities(loader.dataset))
+    paths, metrics_path = _metrics_artifact_paths(args)
+    assert not os.path.exists(metrics_path), "an aborted run published a metrics file"
+    assert os.path.exists(metrics_path + ".partial"), "the metrics stream never ran"
     assert not os.path.exists(paths["rows"]) and not os.path.exists(paths["summary"])
 
 

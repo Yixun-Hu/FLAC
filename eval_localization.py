@@ -1752,8 +1752,7 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
                 print(f"[{len(rows)}/{len(expected)}] room {row['room_id']}")
 
     if metrics_handle is not None:
-        metrics_handle.close()
-        os.replace(metrics_path + ".partial", metrics_path)
+        metrics_handle.close()      # flushed -- but NOT named until every gate passes
     if context.get("context_k") is not None:
         assert_context_evidence_complete(rows, context["context_k"])
     split = assert_scored_stream(scored, expected)
@@ -1793,6 +1792,12 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
             overwrite=True)
     if manifest is not None:
         write_json_atomic(paths["manifest"], manifest, overwrite=True)
+    # Publish as ONE set, and only here: the identity loop, the context end-gate,
+    # the scored-stream gate and summary construction have all passed by now, so
+    # no final-named artifact can describe a run that failed its own gates
+    # (r4m3 finding 6 residual -- the rename used to sit above the end gates).
+    if metrics_handle is not None:
+        os.replace(metrics_path + ".partial", metrics_path)
     os.replace(partial_rows, rows_path)          # publish only verified artifacts
     return {"rows_path": rows_path, "summary_path": summary_path,
             "manifest_path": paths["manifest"], "rows": rows, "metrics_path": metrics_path,
