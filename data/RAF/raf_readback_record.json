@@ -1,6 +1,6 @@
 {
     "schema_version": 1,
-    "created_utc": "2026-08-20T01:29:53Z",
+    "created_utc": "2026-08-20T04:22:23Z",
     "params": {
         "raf_root": "/media/diskstation/yixunhu/raf_dataset",
         "rooms": [
@@ -14,6 +14,12 @@
     "rooms": {
         "EmptyRoom": {
             "n_captures": 47484,
+            "room_index": {
+                "n_captures": 47484,
+                "all_tx_pos_sha256": "7a26aa6d7f25a7a36a0496a24fac49e1c57eb83f6318ddefe05e616caaa7cd8a",
+                "all_rx_pos_sha256": "72bc165de6e3e497e63acfb55f0f29e0df38208b515d98b8a3ac1109570983a0",
+                "rx_trailing_sentinel_dropped": true
+            },
             "n_groups": 1319,
             "size_histogram": {
                 "36": 1319
@@ -793,6 +799,12 @@
         },
         "FurnishedRoom": {
             "n_captures": 39132,
+            "room_index": {
+                "n_captures": 39132,
+                "all_tx_pos_sha256": "f7aaed804a136b81b0eea766b58a67d4c8888e79c53991b144adf78bd3435af7",
+                "all_rx_pos_sha256": "923afed7ac28512df44f3dddecf78a4945fac4b51cfa1785736b857bcb730297",
+                "rx_trailing_sentinel_dropped": true
+            },
             "n_groups": 1086,
             "size_histogram": {
                 "36": 1085,

@@ -51,7 +51,7 @@ RECORD_SCHEMA_VERSION = 1
 # Binding publication to this digest is what stops a hand-written JSON carrying
 # `verdict.passed=true` from authorising a canonical publish: the review
 # demonstrated exactly that bypass with `rooms={}` and the superseded wxyz pin.
-CANONICAL_RECORD_SHA256 = "e879768f8b4a152fb79db670e31a211165bcbaff6746bed64ac1f8a6aec0f01e"
+CANONICAL_RECORD_SHA256 = "9288181be62bf8b4669880522fadaab18527facb2749837f768572069f4876c3"
 CANONICAL_GAUGE = "RAF_TO_PIPELINE:(X,Z,Y)"
 CANONICAL_QUAT_ORDER = "xyzw"
 CANONICAL_ROOMS = ("EmptyRoom", "FurnishedRoom")

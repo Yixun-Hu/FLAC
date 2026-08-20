@@ -421,7 +421,7 @@ def test_amplitude_audit_applies_a_scalar_uniformly_when_one_is_given(tmp_path):
 # r3 S1: canonical publication authenticates the pinned record
 # --------------------------------------------------------------------------- #
 _PINNED_RECORD = os.path.join(_REPO_ROOT, "data", "RAF", "raf_readback_record.json")
-_PINNED_SHA256 = "e879768f8b4a152fb79db670e31a211165bcbaff6746bed64ac1f8a6aec0f01e"
+_PINNED_SHA256 = "9288181be62bf8b4669880522fadaab18527facb2749837f768572069f4876c3"
 
 
 def test_the_committed_record_is_the_pinned_one():
@@ -811,8 +811,8 @@ def test_corpus_binding_uses_the_room_index_digests(tmp_path):
 
 
 def test_corpus_binding_falls_back_to_capture_counts_when_digests_are_absent(tmp_path):
-    """The pinned record predates the digest block; the counts it DOES carry still
-    catch the operator error of pointing at the wrong corpus."""
+    """Records written before the digest block existed still bind by capture count,
+    which catches the operator error of pointing at the wrong corpus."""
     from test_raf_prepare_data import _default_groups, write_room
 
     write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1))
@@ -836,10 +836,29 @@ def test_the_audit_records_room_index_digests_going_forward(audited_room, tmp_pa
     assert len(digests["all_rx_pos_sha256"]) == 64
 
 
-def test_the_pinned_record_predates_the_digest_block_and_that_is_recorded():
-    """Registered residual: re-pinning the canonical record to carry file digests
-    needs a real-corpus audit rerun and a new pinned hash (Planner's call)."""
+def test_the_pinned_record_binds_the_corpus_by_pose_digests():
+    """Re-pinned on the real corpus with the r4 audit code: the canonical record now
+    carries per-room pose-file digests, so the gate binds on them rather than on
+    capture counts alone."""
     record = raf_readback.load_passing_record(_PINNED_RECORD, canonical=True)
-    assert "room_index" not in record["rooms"]["EmptyRoom"]
+    for room in ("EmptyRoom", "FurnishedRoom"):
+        digests = record["rooms"][room]["room_index"]
+        assert len(digests["all_tx_pos_sha256"]) == 64
+        assert len(digests["all_rx_pos_sha256"]) == 64
+        assert digests["rx_trailing_sentinel_dropped"] is True
+    assert record["rooms"]["EmptyRoom"]["room_index"]["n_captures"] == 47484
+    assert record["rooms"]["FurnishedRoom"]["room_index"]["n_captures"] == 39132
     provenance = raf_readback.record_provenance(_PINNED_RECORD, record, canonical=True)
-    assert any("capture counts" in note for note in provenance["corpus_binding"])
+    assert provenance["corpus_binding"] == [
+        "EmptyRoom: pose-file digests", "FurnishedRoom: pose-file digests"]
+
+
+@pytest.mark.skipif(
+    not os.path.isdir("/media/diskstation/yixunhu/raf_dataset/archived"),
+    reason="the RAF corpus is not mounted in this checkout")
+def test_the_pinned_record_matches_the_corpus_it_audited():
+    """Integration: the recorded digests are the digests of the corpus on disk."""
+    record = raf_readback.load_passing_record(
+        _PINNED_RECORD, canonical=True,
+        expected_raf_root="/media/diskstation/yixunhu/raf_dataset")
+    assert record["params"]["raf_root"] == "/media/diskstation/yixunhu/raf_dataset"
