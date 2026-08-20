@@ -308,3 +308,116 @@ def test_multires_l1_window_follows_the_input_dtype_and_device():
     x = torch.randn(4096)
     assert torch.isfinite(get_stft(x, n_fft=64)).all()
     assert torch.isfinite(get_stft(x.double(), n_fft=64)).all()
+
+
+# --------------------------------------------------------------------------- #
+# r3 S4: per-item STFT attribution + fail-closed RAF scene attribution
+# --------------------------------------------------------------------------- #
+def _single_room_reference(dataset_name, items):
+    """Global (per-item) metrics for ONE room, computed by its own callback.
+
+    Independent of ``by_scene``: it goes through the global accumulators only, so
+    a macro value compared against it cannot be tautological.
+    """
+    cb = _callback(dataset_name, eval_l1_distance_multires=True)
+    preds = torch.cat([p for p, _ in items], dim=0)
+    refs = torch.cat([r for _, r in items], dim=0)
+    cb.update_metrics("test", preds, refs, scene=["OneRoom"] * len(items))
+    return cb.compute_metrics("test")
+
+
+_MACRO_KEYS = ("T60", "C50", "EDT", "Env", "L1_STFT", "L1_STFT_MultiRes")
+
+
+def _unequal_rooms():
+    """3 items in EmptyRoom, 1 in FurnishedRoom, with distinct signals."""
+    a = [(_decaying_rir(i), _decaying_rir(i + 100)) for i in (1, 2, 3)]
+    b = [(_decaying_rir(9, tau=0.16), _decaying_rir(109, tau=0.16))]
+    return a, b
+
+
+def test_per_scene_l1_stft_uses_only_that_scene_items():
+    """S4: the batch STFT was appended to every item's scene accumulator, so each
+    room's L1_STFT silently contained the other room's items."""
+    a, b = _unequal_rooms()
+    cb = _callback("RAF", eval_l1_distance_multires=True)
+    preds = torch.cat([p for p, _ in a + b], dim=0)
+    refs = torch.cat([r for _, r in a + b], dim=0)
+    cb.update_metrics("test", preds, refs,
+                      scene=["EmptyRoom"] * 3 + ["FurnishedRoom"])
+    metrics = cb.compute_metrics("test")
+
+    ref_a = _single_room_reference("RAF", a)
+    ref_b = _single_room_reference("RAF", b)
+    assert metrics["by_scene"]["EmptyRoom"]["L1_STFT"] == pytest.approx(
+        ref_a["L1_STFT"], rel=1e-5)
+    assert metrics["by_scene"]["FurnishedRoom"]["L1_STFT"] == pytest.approx(
+        ref_b["L1_STFT"], rel=1e-5)
+    # the two rooms really do differ, so the assertion above has teeth
+    assert ref_a["L1_STFT"] != pytest.approx(ref_b["L1_STFT"], rel=1e-3)
+
+
+def test_every_macro_metric_matches_an_independent_unequal_room_oracle():
+    """S4: each macro value is the mean of two SEPARATELY computed room values."""
+    a, b = _unequal_rooms()
+    cb = _callback("RAF", eval_l1_distance_multires=True)
+    preds = torch.cat([p for p, _ in a + b], dim=0)
+    refs = torch.cat([r for _, r in a + b], dim=0)
+    cb.update_metrics("test", preds, refs,
+                      scene=["EmptyRoom"] * 3 + ["FurnishedRoom"])
+    metrics = cb.compute_metrics("test")
+
+    ref_a = _single_room_reference("RAF", a)
+    ref_b = _single_room_reference("RAF", b)
+    for key in _MACRO_KEYS:
+        oracle = (ref_a[key] + ref_b[key]) / 2.0
+        assert metrics[key] == pytest.approx(oracle, rel=1e-5), key
+        # and the macro mean is NOT the per-item mean, since the rooms are unequal
+        per_item = (3 * ref_a[key] + ref_b[key]) / 4.0
+        if abs(ref_a[key] - ref_b[key]) > 1e-6:
+            assert metrics[key] != pytest.approx(per_item, rel=1e-9), key
+
+
+def test_global_l1_stft_is_the_per_item_mean():
+    a, b = _unequal_rooms()
+    cb = _callback("AcousticRooms", eval_l1_distance_multires=True)
+    preds = torch.cat([p for p, _ in a + b], dim=0)
+    refs = torch.cat([r for _, r in a + b], dim=0)
+    cb.update_metrics("test", preds, refs, scene=["A", "A", "A", "B"])
+    metrics = cb.compute_metrics("test")
+    ref_a = _single_room_reference("AcousticRooms", a)
+    ref_b = _single_room_reference("AcousticRooms", b)
+    assert metrics["L1_STFT"] == pytest.approx(
+        (3 * ref_a["L1_STFT"] + ref_b["L1_STFT"]) / 4.0, rel=1e-5)
+
+
+def test_raf_requires_scene_attribution():
+    """S4: a RAF call without scenes used to fall back to per-item metrics and
+    silently drop the invalid count -- i.e. report a different estimand."""
+    cb = _callback("RAF")
+    pred, ref = _decaying_rir(1), _decaying_rir(2)
+    with pytest.raises(ValueError) as exc:
+        cb.update_metrics("test", pred, ref)
+    assert "scene" in str(exc.value).lower()
+
+
+@pytest.mark.parametrize("scene", [
+    ["EmptyRoom"],                        # too short for a 2-item batch
+    ["EmptyRoom", "EmptyRoom", "x"],      # too long
+    ["EmptyRoom", None],                  # incomplete
+    ["EmptyRoom", ""],                    # empty label
+    "EmptyRoom",                          # a bare string is not per-item attribution
+])
+def test_raf_rejects_incomplete_scene_attribution(scene):
+    cb = _callback("RAF")
+    preds = torch.cat([_decaying_rir(1), _decaying_rir(2)], dim=0)
+    refs = torch.cat([_decaying_rir(3), _decaying_rir(4)], dim=0)
+    with pytest.raises(ValueError):
+        cb.update_metrics("test", preds, refs, scene=scene)
+
+
+def test_non_raf_datasets_still_accept_a_missing_scene():
+    """AR runs without per-scene attribution; that path must not move."""
+    cb = _callback("AcousticRooms")
+    cb.update_metrics("test", _decaying_rir(1), _decaying_rir(2))
+    assert np.isfinite(cb.compute_metrics("test")["C50"])

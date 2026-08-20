@@ -285,6 +285,26 @@ class AcousticMetricsCallback:
         pred = pred.float()
         ref = ref.float()
 
+        # exp_19 S4: RAF's headline is an equal-room macro mean, so an item whose
+        # room is unknown cannot be scored at all. Falling back to per-item
+        # aggregation would silently report a DIFFERENT estimand under the same
+        # name (and drop the invalid-T60 count with it), so this fails closed.
+        if self.dataset_name == "RAF":
+            if not isinstance(scene, (list, tuple)):
+                raise ValueError(
+                    "RAF metrics require per-item scene attribution: update_metrics "
+                    f"got scene={scene!r}. The RAF row is an equal-room macro mean, "
+                    "which is undefined without every item's room.")
+            if len(scene) != pred.shape[0]:
+                raise ValueError(
+                    f"RAF scene attribution is incomplete: {len(scene)} labels for "
+                    f"{pred.shape[0]} items.")
+            bad = [i for i, name in enumerate(scene)
+                   if not isinstance(name, str) or not name]
+            if bad:
+                raise ValueError(
+                    f"RAF scene attribution holds empty/non-string labels at {bad}.")
+
         if pred.shape != ref.shape:
             if pred.shape[-1] < ref.shape[-1]:
                 pred = torch.nn.functional.pad(pred, (0, ref.shape[-1] - pred.shape[-1]))
@@ -292,12 +312,18 @@ class AcousticMetricsCallback:
                 ref = torch.nn.functional.pad(ref, (0, pred.shape[-1] - ref.shape[-1]))
 
         if self.eval_l1_distance:
-            pred_stft_id = self.stft(pred.squeeze(1)[..., :self.max_len_magenv])
-            ref_stft_id = self.stft(ref.squeeze(1)[..., :self.max_len_magenv])
+            pred_stft_batch = self.stft(pred.squeeze(1)[..., :self.max_len_magenv])
+            ref_stft_batch = self.stft(ref.squeeze(1)[..., :self.max_len_magenv])
 
         for index in range(pred.shape[0]):
             pred_id = pred[index, ..., :self.max_len].unsqueeze(0)
             ref_id = ref[index, ..., :self.max_len].unsqueeze(0)
+            if self.eval_l1_distance:
+                # exp_19 S4: index the BATCH stft per item. The whole batch used to
+                # be appended to every item's accumulator, which put other rooms'
+                # items inside each room's per-scene L1_STFT.
+                pred_stft_id = pred_stft_batch[index].unsqueeze(0)
+                ref_stft_id = ref_stft_batch[index].unsqueeze(0)
 
             if self.dump_dir is not None:
                 assert filename is not None
