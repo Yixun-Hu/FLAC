@@ -154,3 +154,14 @@
 | `837ed46` | scaffold + M1/M5 | REGISTERABLE constant set (+ JSON payload), windows (9600 / 8000), shared zero-padded lag machinery via FFT correlation + prefix energies in float64, M1 = 1−max ρ², M5 = 1−max NCC with peak lag + GCC-PHAT secondary, off-grid `delta_max` refused | +490 |
 | `08e747b` | M2 + M3 | repo scale set pinned by test + spectral convergence (λ=1, raw amplitudes); Schroeder EDC L1 over the observation-defined [0,−30] dB region + band/Hilbert secondaries | +267 |
 | `f94ee27` | M4 + entry points | repo estimators only, per-query uniform validity mask, frozen z-norm L1; `compute_metrics` (candidates + context + diagnostics + config echo); `metric_matched_retrieval` delegating to `scoring.nearest_context_baseline` | +469 |
+| `f509abd` | — | ledger append for R4-r1 | +10 |
+
+## Round R4-r2 (driver integration of the R4 metric families)
+
+| SHA | Item | Description | changed lines |
+|---|---|---|---|
+| `b1373e7` | ruling | per-query M4 dropped-feature diagnostic (count + causing candidate/context/obs) alongside the kept uniform-drop rule | +79 |
+| `37054d5` | items 1 + 4 | `--metrics` on the replay path: one immutable snapshot feeds dump AND metrics with a digest guard; metrics-JSONL per query (all families, hex distances, aggregations, predictions, M4 block, lags, tail provenance); replay preflight cross-checking protocol + cardinality/uniqueness + sibling-summary provenance; M4 estimator exceptions → NaN | +485 −20 |
+| `b7ecca1` | item 2 | `--metric-registration` gate reusing `verify_registration_commit`; locks the whole REGISTERABLE set + applied metric_config; seen runs record the payload without a manifest | +150 |
+| `a90f9dc` | item 5 | `--mode metrics-calibrate`: seen-only Δmax selection (dev top-1, tie→smallest), M4 μ/σ freeze, draft manifest, per-feature between/within/top-1 diagnostics | +181 |
+| `529ee53` | item 3 | `--mode metrics-retrieval`: metric-matched control (raw + masked), measured oracle ceiling, context/non-context split, no generation; `__main__` guard restored | +233 |
