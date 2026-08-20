@@ -682,3 +682,110 @@ def test_floor_tolerance_accepts_a_real_scan_deficit():
     far = raf_render.depth_qa(depth, position + np.array([0.0, 0.0, 0.30]))
     assert far["floor_ok"] is False
     assert far["passed"] is True                # still a warning, never an abort
+
+
+# --------------------------------------------------------------------------- #
+# r3 S2: the canonical miss cap is the constant, and QA enforces it itself
+# --------------------------------------------------------------------------- #
+def test_canonical_mode_refuses_a_looser_miss_cap():
+    with pytest.raises(ValueError) as exc:
+        raf_render.resolve_miss_cap(0.05, canonical=True)
+    assert "--non-canonical" in str(exc.value)
+    assert str(raf_render.DEFAULT_MAX_MISS_RATE) in str(exc.value)
+    # lowering is always allowed; a looser cap taints non-canonical output
+    assert raf_render.resolve_miss_cap(0.0001, canonical=True) == (0.0001, [])
+    cap, taint = raf_render.resolve_miss_cap(0.05, canonical=False)
+    assert cap == 0.05 and any("above the registered" in t for t in taint)
+
+
+def test_cli_taints_a_non_canonical_run_with_a_looser_cap(tmp_path):
+    raf_root, out, _ = _write_fixture(tmp_path)
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--max-miss-rate", "0.05",
+                     "--readback-record", _readback(tmp_path), "--non-canonical"])
+    with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
+        qa = json.load(f)
+    assert any("above the registered" in t for t in qa["taint"])
+
+
+def test_canonical_mode_allows_a_stricter_miss_cap(tmp_path):
+    raf_root, out, _ = _write_fixture(tmp_path)
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--max-miss-rate", "0.0001",
+                     "--readback-record", _readback(tmp_path), "--non-canonical"])
+    with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
+        assert json.load(f)["max_miss_rate"] == 0.0001
+
+
+def test_qa_enforces_the_registered_cap_itself_not_the_report_boolean():
+    """S2: a report claiming within_cap for a 5% miss rate must not pass QA."""
+    depth = np.full((256, 512), 2.0, dtype=np.float32)
+    lying = {
+        "miss_count": 6554, "miss_rate": 0.05, "max_miss_rate": 0.05,
+        "within_cap": True, "filled_pixels": [[0, i] for i in range(6554)],
+        "filled_pixels_sha256": "0" * 64, "n_rays": 256 * 512,
+    }
+    qa = raf_render.depth_qa(depth, np.array([0.0, 0.0, 1.0]), miss_report=lying)
+    assert qa["passed"] is False
+    assert qa["misses"]["within_cap_recomputed"] is False
+    assert any("cap" in w for w in qa["warnings"])
+
+
+def test_qa_recomputes_the_miss_rate_from_the_map_itself():
+    depth = np.full((256, 512), 2.0, dtype=np.float32)
+    report = {
+        "miss_count": 10, "miss_rate": 0.5,          # a wrong rate in the report
+        "max_miss_rate": raf_render.DEFAULT_MAX_MISS_RATE, "within_cap": True,
+        "filled_pixels": [[0, i] for i in range(10)],
+        "filled_pixels_sha256": raf_render.fill_hash([[0, i] for i in range(10)]),
+        "n_rays": 256 * 512,
+    }
+    qa = raf_render.depth_qa(depth, np.array([0.0, 0.0, 1.0]), miss_report=report)
+    assert qa["misses"]["miss_rate_recomputed"] == pytest.approx(10 / (256 * 512))
+    assert qa["misses"]["within_cap_recomputed"] is True
+    assert qa["passed"] is True
+
+
+def test_qa_detects_a_forged_filled_pixel_hash():
+    depth = np.full((256, 512), 2.0, dtype=np.float32)
+    report = {
+        "miss_count": 2, "miss_rate": 2 / (256 * 512),
+        "max_miss_rate": raf_render.DEFAULT_MAX_MISS_RATE, "within_cap": True,
+        "filled_pixels": [[0, 0], [1, 1]],
+        "filled_pixels_sha256": "deadbeef" * 8,      # does not match the coordinates
+        "n_rays": 256 * 512,
+    }
+    qa = raf_render.depth_qa(depth, np.array([0.0, 0.0, 1.0]), miss_report=report)
+    assert qa["passed"] is False
+    assert any("hash" in w for w in qa["warnings"])
+
+
+def test_qa_detects_a_miscounted_miss_report():
+    depth = np.full((256, 512), 2.0, dtype=np.float32)
+    coords = [[0, 0], [1, 1]]
+    report = {
+        "miss_count": 99, "miss_rate": 99 / (256 * 512),
+        "max_miss_rate": raf_render.DEFAULT_MAX_MISS_RATE, "within_cap": True,
+        "filled_pixels": coords, "filled_pixels_sha256": raf_render.fill_hash(coords),
+        "n_rays": 256 * 512,
+    }
+    qa = raf_render.depth_qa(depth, np.array([0.0, 0.0, 1.0]), miss_report=report)
+    assert qa["passed"] is False
+    assert any("count" in w for w in qa["warnings"])
+
+
+def test_qa_uses_the_declared_cap_only_in_non_canonical_mode():
+    depth = np.full((100, 100), 2.0, dtype=np.float32)
+    coords = [[0, i] for i in range(50)]             # 0.5%, above the registered cap
+    report = {
+        "miss_count": 50, "miss_rate": 0.005, "max_miss_rate": 0.01,
+        "within_cap": True, "filled_pixels": coords,
+        "filled_pixels_sha256": raf_render.fill_hash(coords), "n_rays": 10000,
+    }
+    strict = raf_render.depth_qa(depth, np.array([0.0, 0.0, 1.0]), miss_report=report,
+                                 img_h=100, img_w=100, canonical=False)
+    assert strict["misses"]["within_cap_recomputed"] is True   # declared cap applies
+    canonical = raf_render.depth_qa(depth, np.array([0.0, 0.0, 1.0]), miss_report=report,
+                                    img_h=100, img_w=100, canonical=True)
+    assert canonical["misses"]["within_cap_recomputed"] is False
+    assert canonical["misses"]["cap_applied"] == raf_render.DEFAULT_MAX_MISS_RATE

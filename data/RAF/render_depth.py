@@ -100,6 +100,12 @@ def build_scene(mesh):
     return scene
 
 
+def fill_hash(coordinates):
+    """sha256 over the repaired pixel coordinates, in their canonical rendering."""
+    payload = ";".join(f"{int(r)},{int(c)}" for r, c in coordinates)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def fill_missing(hits, max_miss_rate=DEFAULT_MAX_MISS_RATE):
     """Repair a scan hole by nearest-valid-neighbour inpainting, or abort.
 
@@ -140,9 +146,8 @@ def fill_missing(hits, max_miss_rate=DEFAULT_MAX_MISS_RATE):
 
     rows, cols = np.nonzero(missed)
     coordinates = [[int(r), int(c)] for r, c in zip(rows, cols)]
-    payload = ";".join(f"{r},{c}" for r, c in coordinates)
     report["filled_pixels"] = coordinates
-    report["filled_pixels_sha256"] = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    report["filled_pixels_sha256"] = fill_hash(coordinates)
 
     # distance_transform_edt measures to the nearest ZERO, i.e. the nearest VALID
     # pixel, and hands back that pixel's index for every position.
@@ -226,15 +231,10 @@ def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL, img_h=DEPTH_H,
     if canonical and not canonical_grid:
         warnings.append(
             f"non-canonical grid {expected_shape}: this map cannot be loaded by RAF_md")
-    if miss_report is not None and not miss_report["within_cap"]:
-        warnings.append(
-            f"{miss_report['miss_count']} rays missed ({miss_report['miss_rate']:.4%}), "
-            f"above the {miss_report['max_miss_rate']:.1%} cap")
-    elif miss_report is not None and miss_report["miss_count"]:
-        warnings.append(
-            f"{miss_report['miss_count']} rays missed and were repaired by "
-            f"nearest-valid-neighbour inpainting (hash "
-            f"{miss_report['filled_pixels_sha256'][:12]})")
+    misses = None
+    if miss_report is not None:
+        misses, miss_warnings = audit_miss_report(miss_report, arr, canonical=canonical)
+        warnings.extend(miss_warnings)
     if not floor_ok:
         warnings.append(
             f"floor distance at nadir ({nadir:.4f} m) differs from the camera height "
@@ -261,13 +261,84 @@ def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL, img_h=DEPTH_H,
         # Recorded per map: how many pixels were never measured, and exactly which
         # ones (by hash). Without the coordinates a repaired map is indistinguishable
         # from a measured one.
-        "misses": None if miss_report is None else {
-            k: v for k, v in miss_report.items() if k != "filled_pixels"},
+        "misses": misses,
         "warnings": warnings,
         "passed": bool(finite and positive and shape_ok and dtype_ok
                        and (canonical_grid or not canonical)
-                       and (miss_report is None or miss_report["within_cap"])),
+                       and (misses is None or misses["audit_ok"])),
     }
+
+
+def resolve_miss_cap(requested, canonical=True):
+    """Miss-cap policy (S2): canonical runs may only LOWER the registered cap.
+
+    Returns ``(cap, taint)``. A looser cap is not a knob a canonical run gets:
+    ``--max-miss-rate 0.05`` would otherwise publish 5% inpainted pixels with QA
+    reporting them as within cap.
+    """
+    requested = float(requested)
+    if requested <= DEFAULT_MAX_MISS_RATE:
+        return requested, []
+    if canonical:
+        raise ValueError(
+            f"refusing a canonical render with --max-miss-rate {requested}: the "
+            f"registered cap is {DEFAULT_MAX_MISS_RATE} and may only be LOWERED. "
+            "Pass --non-canonical to render with a looser cap (the outputs are "
+            "tainted).")
+    return requested, [f"miss cap {requested} above the registered {DEFAULT_MAX_MISS_RATE}"]
+
+
+def audit_miss_report(miss_report, depth, canonical=True):
+    """Re-derive the miss verdict from the report's own preimages (S2).
+
+    QA never trusts ``within_cap``: it recomputes the rate from the map's ray count,
+    re-hashes the repaired coordinates, checks the count against them, and applies
+    the REGISTERED cap in canonical mode (a looser declared cap is only honoured in
+    explicitly non-canonical output). Otherwise a render invoked with
+    ``--max-miss-rate 0.05`` could publish 5% inpainted pixels behind a passing QA.
+    """
+    coordinates = miss_report.get("filled_pixels")
+    count = int(miss_report["miss_count"])
+    n_rays = int(np.asarray(depth).size)
+    rate = count / n_rays if n_rays else 0.0
+    declared_cap = float(miss_report.get("max_miss_rate", DEFAULT_MAX_MISS_RATE))
+    cap = min(declared_cap, DEFAULT_MAX_MISS_RATE) if canonical else declared_cap
+    within = bool(rate <= cap)
+
+    warnings = []
+    count_ok = coordinates is None or len(coordinates) == count
+    hash_ok = coordinates is None or fill_hash(coordinates) == miss_report["filled_pixels_sha256"]
+    if not count_ok:
+        warnings.append(
+            f"miss report count {count} does not match its {len(coordinates)} "
+            "repaired coordinates")
+    if not hash_ok:
+        warnings.append(
+            "repaired-pixel hash does not match the recorded coordinates")
+    if not within:
+        warnings.append(
+            f"{count} rays missed ({rate:.4%}), above the {cap:.3%} cap applied here")
+    elif count:
+        warnings.append(
+            f"{count} rays missed and were repaired by nearest-valid-neighbour "
+            f"inpainting (hash {miss_report['filled_pixels_sha256'][:12]})")
+    if miss_report.get("within_cap") is not within:
+        warnings.append(
+            f"miss report claims within_cap={miss_report.get('within_cap')}, "
+            f"recomputed {within}")
+
+    audit = {k: v for k, v in miss_report.items() if k != "filled_pixels"}
+    audit.update({
+        "n_rays_recomputed": n_rays,
+        "miss_rate_recomputed": rate,
+        "cap_applied": cap,
+        "within_cap_recomputed": within,
+        "count_matches_coordinates": bool(count_ok),
+        "hash_matches_coordinates": bool(hash_ok),
+        "audit_ok": bool(within and count_ok and hash_ok
+                         and miss_report.get("within_cap") is within),
+    })
+    return audit, warnings
 
 
 def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
@@ -440,6 +511,7 @@ def main(argv=None):
                 readback_provenance["gauge_pinned"])
 
     taint = list(readback_provenance["taint"])
+    taint.extend(resolve_miss_cap(args.max_miss_rate, canonical)[1])
     if (args.img_h, args.img_w) != CANONICAL_SHAPE:
         if canonical:
             raise ValueError(
