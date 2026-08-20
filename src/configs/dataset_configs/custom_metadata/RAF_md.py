@@ -190,6 +190,14 @@ def _raf_module(name):
     return module
 
 
+def _same_directory(a, b):
+    """Same directory by INODE, not by string: symlinks and bind mounts differ."""
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return os.path.abspath(a) == os.path.abspath(b)
+
+
 def _verify_publication(root):
     """Verify the COMBINED publication the runtime pointer describes.
 
@@ -214,30 +222,43 @@ def _verify_publication(root):
         return {"published": False,
                 "reason": f"{pointer_path} is not a valid publication pointer ({e})"}
 
+    # F1, loop closure. Two holes the pointer left open:
+    #   (a) the pointer's output_dir was never required to BE the tree being read,
+    #       so a stale or copied pointer at tree A could redirect verification to a
+    #       valid tree B while RAF_md went on loading A;
+    #   (b) canonical was taken from the pointer, so a registered RAF config would
+    #       happily consume a publication that declared itself non-canonical.
+    if not pointer.get("canonical"):
+        return {"published": False,
+                "reason": f"{pointer_path} declares a NON-CANONICAL publication; a "
+                          "registered RAF config may only consume a canonical one"}
+    if not _same_directory(output_dir, root):
+        return {"published": False,
+                "reason": f"{pointer_path} points at output_dir {output_dir!r}, which "
+                          f"is not the tree being loaded ({root!r}): a relocated or "
+                          "copied pointer cannot vouch for this tree"}
+
     publish = _raf_module("publish")
     try:
+        # ALWAYS canonical: the consumer decides what it requires, not the artifact.
         report = publish.verify_combined_publication(
-            split_dir, output_dir, rooms=rooms,
-            canonical=bool(pointer.get("canonical")))
+            split_dir, output_dir, rooms=rooms, canonical=True)
     except (ValueError, OSError) as e:
         return {"published": False, "reason": f"combined verification failed: {e}"}
     report["pointer"] = pointer
 
-    if pointer.get("canonical"):
-        readback = _raf_module("readback_audit")
-        reasons = []
-        if pointer.get("canonical_parameters") is not True:
-            reasons.append("canonical tree published with non-registered parameters")
-        digest = (pointer.get("readback_record") or {}).get("sha256")
-        if digest != readback.CANONICAL_RECORD_SHA256:
-            reasons.append(
-                f"readback digest {digest} is not the pinned "
-                f"{readback.CANONICAL_RECORD_SHA256}")
-        if tuple(pointer.get("rooms") or ()) != tuple(readback.CANONICAL_ROOMS):
-            reasons.append(f"rooms {pointer.get('rooms')} are not the registered set")
-        if reasons:
-            report["published"] = False
-            report["reason"] = "; ".join([report.get("reason", "")] + reasons).strip("; ")
+    readback = _raf_module("readback_audit")
+    reasons = []
+    digest = (pointer.get("readback_record") or {}).get("sha256")
+    if digest != readback.CANONICAL_RECORD_SHA256:
+        reasons.append(
+            f"pointer readback digest {digest} is not the pinned "
+            f"{readback.CANONICAL_RECORD_SHA256}")
+    if tuple(rooms) != tuple(readback.CANONICAL_ROOMS):
+        reasons.append(f"rooms {rooms} are not the registered set")
+    if reasons:
+        report["published"] = False
+        report["reason"] = "; ".join([report.get("reason", "")] + reasons).strip("; ")
     return report
 
 

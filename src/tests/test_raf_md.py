@@ -621,17 +621,19 @@ def test_conditioning_assembles_into_cross_attention_and_global_inputs(runtime_r
 # --------------------------------------------------------------------------- #
 # r4 T3: the loader verifies the publication once per process
 # --------------------------------------------------------------------------- #
-def _publish_tree(tmp_path, runtime_root, rooms=(ROOM,), canonical=False,
-                  parameters_ok=True, digest=None, with_depth=True):
+def _publish_tree(tmp_path, runtime_root, rooms=None, canonical=True,
+                  parameters_ok=True, digest=None, with_depth=True,
+                  output_dir=None):
     """Publish the synthetic tree the way prepare_data + render_depth do:
     a prepare marker in the SPLIT directory and a depth marker per room."""
     import publish as raf_publish
     import readback_audit as raf_readback
 
+    rooms = list(raf_publish.CANONICAL_ROOMS) if rooms is None else list(rooms)
     split_dir = tmp_path / "splits"
     pointer = {
         "split_dir": str(split_dir.resolve()),
-        "output_dir": str(runtime_root.resolve()),
+        "output_dir": str((output_dir or runtime_root).resolve()),
         "rooms": list(rooms),
         "canonical": canonical,
         "taint": [],
@@ -640,6 +642,20 @@ def _publish_tree(tmp_path, runtime_root, rooms=(ROOM,), canonical=False,
         "readback_record": {
             "sha256": raf_readback.CANONICAL_RECORD_SHA256 if digest is None else digest},
     }
+    prepare_extra = {
+        "canonical": canonical,
+        "canonical_parameters": parameters_ok,
+        "taint": [],
+        "parameters": dict(raf_publish.CANONICAL_PREPARE_PARAMS, rooms=list(rooms)),
+        "readback_record": dict(pointer["readback_record"]),
+    }
+    depth_extra = {
+        "canonical": canonical,
+        "canonical_parameters": parameters_ok,
+        "taint": [],
+        "parameters": dict(raf_publish.CANONICAL_RENDER_PARAMS, rooms=list(rooms)),
+        "readback_record": dict(pointer["readback_record"]),
+    }
     with raf_publish.PublishTransaction(str(split_dir), kind="prepare") as txn:
         runtime = txn.stage(str(runtime_root))
         splits = txn.stage(str(split_dir))
@@ -647,14 +663,14 @@ def _publish_tree(tmp_path, runtime_root, rooms=(ROOM,), canonical=False,
             json.dump(pointer, f)
         with open(splits.path("train_base.json"), "w") as f:
             json.dump({ROOM: []}, f)
-        txn.commit()
+        txn.commit(extra=prepare_extra)
     if with_depth:
         with raf_publish.PublishTransaction(str(runtime_root), kind="depth") as txn:
             for room in rooms:
                 staged = txn.stage(str(runtime_root / room / "depth_images"))
                 with open(staged.path("attested.txt"), "w") as f:
                     f.write("depth")
-            txn.commit()
+            txn.commit(extra=depth_extra)
     return pointer
 
 
@@ -719,8 +735,7 @@ def test_gate_finds_the_prepare_marker_in_the_split_directory(
 
 def test_canonical_tree_must_carry_the_registered_identity(
         gated_md, runtime_root, tmp_path):
-    _publish_tree(tmp_path, runtime_root, rooms=("EmptyRoom", "FurnishedRoom"),
-                  canonical=True, digest="0" * 64)
+    _publish_tree(tmp_path, runtime_root, digest="0" * 64)
     with pytest.raises(RAFPublicationError) as exc:
         gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
     assert "pinned" in str(exc.value)
@@ -728,8 +743,7 @@ def test_canonical_tree_must_carry_the_registered_identity(
 
 def test_canonical_tree_must_have_registered_parameters(
         gated_md, runtime_root, tmp_path):
-    _publish_tree(tmp_path, runtime_root, rooms=("EmptyRoom", "FurnishedRoom"),
-                  canonical=True, parameters_ok=False)
+    _publish_tree(tmp_path, runtime_root, parameters_ok=False)
     with pytest.raises(RAFPublicationError) as exc:
         gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
     assert "parameters" in str(exc.value)
@@ -737,7 +751,7 @@ def test_canonical_tree_must_have_registered_parameters(
 
 def test_canonical_tree_must_cover_both_registered_rooms(
         gated_md, runtime_root, tmp_path):
-    _publish_tree(tmp_path, runtime_root, rooms=(ROOM,), canonical=True)
+    _publish_tree(tmp_path, runtime_root, rooms=(ROOM,))
     with pytest.raises(RAFPublicationError) as exc:
         gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
     assert "EmptyRoom" in str(exc.value) or "rooms" in str(exc.value)
@@ -877,3 +891,49 @@ def test_the_exception_type_is_raised_only_by_the_raf_hook():
     assert issubclass(ExcType, Exception)
     md = load_raf_md(test_mode=False)
     assert md._publication_error_type() is ExcType
+
+
+# --------------------------------------------------------------------------- #
+# r6 F1: the pointer must vouch for THIS tree, and only for a canonical one
+# --------------------------------------------------------------------------- #
+def test_a_non_canonical_pointer_is_refused_in_production(gated_md, runtime_root,
+                                                          tmp_path):
+    """r5 finding 1: canonical was read FROM the pointer, so a registered RAF
+    config would consume a publication that declared itself non-canonical -- and
+    the r5 positive test exercised exactly that fail-open case."""
+    _publish_tree(tmp_path, runtime_root, canonical=False)
+    with pytest.raises(RAFPublicationError) as exc:
+        gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+    assert "NON-CANONICAL" in str(exc.value)
+
+
+def test_a_pointer_copied_from_another_valid_tree_is_refused(gated_md, runtime_root,
+                                                             tmp_path):
+    """The stale/copied-pointer redirect: tree B is genuinely published, and its
+    pointer is dropped into tree A. Verification must not authenticate B while the
+    loader goes on reading A."""
+    other = tmp_path / "other_runtime"
+    (other / ROOM / "metadata").mkdir(parents=True)
+    _publish_tree(tmp_path / "other", other)          # a genuinely published tree B
+
+    with open(other / "raf_publication.json") as f:
+        stolen = json.load(f)
+    _publish_tree(tmp_path, runtime_root)             # tree A, published properly
+    with open(runtime_root / "raf_publication.json", "w") as f:
+        json.dump(stolen, f)                          # ... now carrying B's pointer
+
+    with pytest.raises(RAFPublicationError) as exc:
+        gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+    message = str(exc.value)
+    assert "not the tree being loaded" in message or "manifest" in message
+
+
+def test_the_output_dir_check_is_by_inode_not_by_string(gated_md, runtime_root,
+                                                        tmp_path):
+    """A symlinked runtime root is the same directory; a different path is not."""
+    _publish_tree(tmp_path, runtime_root)
+    link = tmp_path / "linked_runtime"
+    link.symlink_to(runtime_root, target_is_directory=True)
+    info = _info(runtime_root, "000000")
+    info["path"] = info["path"].replace(str(runtime_root), str(link))
+    gated_md.get_custom_metadata(info, None)          # same inode -> accepted

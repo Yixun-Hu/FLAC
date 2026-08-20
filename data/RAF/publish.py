@@ -331,6 +331,31 @@ def verify_publication(marker_root, kind="prepare", expected_roots=None):
 
 CANONICAL_ROOMS = ("EmptyRoom", "FurnishedRoom")
 
+# The registered per-kind parameter identities (Amendment 7). They live HERE, in
+# the verifier, so the consumer checks a marker against the same dictionary the
+# producer was validated against -- rather than against the producer's own claim
+# that it was canonical (r5 finding 3).
+CANONICAL_PREPARE_PARAMS = {
+    "rooms": list(CANONICAL_ROOMS),
+    "n_groups": 16,
+    "n_val_groups": 4,
+    "n_train": 12,
+    "n_diagnostic_groups": 1,
+    "seed": 0,
+    "full_crosscheck": True,
+    "allow_nonuniform": True,
+}
+CANONICAL_RENDER_PARAMS = {
+    "rooms": list(CANONICAL_ROOMS),
+    "img_h": 256,
+    "img_w": 512,
+    "floor_tol": 0.15,
+    "max_miss_rate": 0.001,
+    "rx_sightline_receivers": 8,
+}
+CANONICAL_IDENTITIES = {"prepare": CANONICAL_PREPARE_PARAMS,
+                        "depth": CANONICAL_RENDER_PARAMS}
+
 
 def resolve_rooms(rooms, canonical=True):
     """Completeness is defined HERE, not by the caller (r5 finding 3).
