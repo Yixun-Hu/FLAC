@@ -54,13 +54,10 @@ A_PID=$(bash $REC/launch_arm_ddp.sh "$REC/FLAC_AR_exp12A.json" exp12A_c3c4_ddp |
 if [ -z "$A_PID" ]; then say "STOP: arm A launch produced no pid"; exit 4; fi
 say "arm A DDP running pid $A_PID"
 setsid nohup bash $REC/disk_guard.sh "$A_PID" exp12A_c3c4_ddp 20 > /dev/null 2>&1 &
-# Keep every checkpoint when there is room (a full 27-point checkpoint curve for arm A on
-# the DDP recipe is worth 19.5 GB); fall back to the newest 2 if space is tight.
-FREE_GB=$(df --output=avail -BG / | tail -1 | tr -dc "0-9")
-if [ "$FREE_GB" -gt 100 ]; then A_KEEP=999; else A_KEEP=2; fi
-say "arm A checkpoint retention: keep=$A_KEEP (free ${FREE_GB} GB)"
-setsid nohup bash $REC/ckpt_reaper.sh "$A_PID" exp12A_c3c4_ddp "$A_KEEP" > /dev/null 2>&1 &
-say "disk guard + checkpoint reaper armed on arm A"
+# STANDING RULE (Yixun, 2026-08-20): NO automation may delete checkpoints. Every
+# checkpoint of this run is kept; if disk runs short the disk guard STOPS the training
+# gracefully at a complete checkpoint and a human decides. ckpt_reaper.sh is retired.
+say "disk guard armed on arm A; ALL checkpoints retained (no-deletion rule)"
 wait_pid "$A_PID"
 say "arm A pid $A_PID exited"
 
