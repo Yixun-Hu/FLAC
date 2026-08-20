@@ -70,3 +70,5 @@ Rows above record development SHAs on `localization-exp` (history of record for 
 | `b0367b3` | r6 F3: consumer verifies each marker's COMPLETE parameter payload + pinned digest against the registered per-kind identity (producer booleans never trusted) |
 | `5f5c37c` | r6 F5: `depth_qa` passes only on a `mask_verified`-True report (incl. zero misses); mask-derived count/rate/hash authoritative, declarations kept as `*_declared` |
 | `0408941` | r6 F4: canonical miss cap EXACTLY `DEFAULT_MAX_MISS_RATE` (lower-is-fine revoked); `--rx-sightline-receivers` wired through, recorded, identity-checked |
+| `1f31951` | r7 (Amendment 9): rx-sightline demoted to a RECORDED diagnostic in both rooms (environmental obstruction proven by a full yaw sweep); hard gauge gates unchanged; policy in the render identity |
+| `bc8bc9d` | r7 (Amendment 9): amplitude scalar DERIVED (1 sig digit of 0.75 / max trained-support peak) and applied to every written WAV; clip/silence/round-trip assertions; provenance in audit, splits record and marker identity; republication split-content invariance test |
