@@ -2468,6 +2468,7 @@ def _resolved(**over):
 
 def _git_repo_with_manifest(tmp_path, manifest, name="registration.json"):
     import subprocess
+    os.makedirs(str(tmp_path), exist_ok=True)
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     path = tmp_path / name
     path.write_text(_json.dumps(manifest, indent=2, sort_keys=True) + "\n")
@@ -2481,7 +2482,9 @@ def _git_repo_with_manifest(tmp_path, manifest, name="registration.json"):
 
 def test_verify_registration_commit_accepts_a_committed_manifest(tmp_path):
     path, sha = _git_repo_with_manifest(tmp_path, _locked())
-    assert el.verify_registration_commit(path, sha, repo_root=str(tmp_path)) == _locked()
+    result = el.verify_registration_commit(path, sha, repo_root=str(tmp_path))
+    assert result["manifest"] == _locked()
+    assert result["resolved_sha"] == sha and len(result["resolved_sha"]) in (40, 64)
 
 
 def test_verify_registration_commit_refuses_a_sha_that_is_not_a_commit(tmp_path):
@@ -3194,3 +3197,59 @@ def test_run_evaluation_leaves_no_partial_files(tmp_path):
                                expected=el.expected_split_identities(loader.dataset))
     for key in ("rows_path", "summary_path", "manifest_path"):
         assert os.path.exists(result[key]) and not os.path.exists(result[key] + ".partial")
+
+
+# --------------------------------------------------------------------------- #
+# r5 item 4 (r4 review M4): the registration SHA must be an IMMUTABLE object id
+# that is an ancestor of the executing HEAD, and the manifest must live inside
+# the repository. HEAD, branches, tags, abbreviations and unrelated commits all
+# used to pass as long as the bytes matched.
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("committish", ["HEAD", "master", "main", "v1.0", "abc123"])
+def test_verify_registration_commit_refuses_symbolic_or_abbreviated_ids(tmp_path, committish):
+    path, sha = _git_repo_with_manifest(tmp_path, _locked())
+    with pytest.raises(SystemExit):
+        el.verify_registration_commit(path, committish, repo_root=str(tmp_path))
+    with pytest.raises(SystemExit):
+        el.verify_registration_commit(path, sha[:8], repo_root=str(tmp_path))
+    with pytest.raises(SystemExit):
+        el.verify_registration_commit(path, sha.upper(), repo_root=str(tmp_path))
+
+
+def test_verify_registration_commit_requires_an_ancestor_of_head(tmp_path):
+    """A commit on another branch can contain identical bytes; only an ancestor of
+    the executing HEAD proves the protocol was registered BEFORE this run."""
+    import subprocess
+    path, base_sha = _git_repo_with_manifest(tmp_path, _locked())
+    subprocess.run(["git", "checkout", "-q", "-b", "side"], cwd=tmp_path, check=True)
+    open(path, "a").write("")                              # same bytes, new commit
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q",
+                    "--allow-empty", "-m", "side"], cwd=tmp_path, check=True)
+    side_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path, check=True,
+                              capture_output=True, text=True).stdout.strip()
+    subprocess.run(["git", "checkout", "-q", base_sha], cwd=tmp_path, check=True)
+
+    assert el.verify_registration_commit(path, base_sha,
+                                         repo_root=str(tmp_path))["resolved_sha"] == base_sha
+    with pytest.raises(SystemExit):
+        el.verify_registration_commit(path, side_sha, repo_root=str(tmp_path))
+
+
+def test_verify_registration_commit_refuses_a_manifest_outside_the_repository(tmp_path):
+    path, sha = _git_repo_with_manifest(tmp_path / "repo", _locked())
+    outside = tmp_path / "outside.json"
+    outside.write_text(open(path).read())
+    with pytest.raises(SystemExit):
+        el.verify_registration_commit(str(outside), sha, repo_root=str(tmp_path / "repo"))
+
+
+def test_verify_registration_records_the_resolved_sha(tmp_path):
+    path, sha = _git_repo_with_manifest(tmp_path, _locked())
+    args = _split_args(_UNSEEN_CONFIG, "--registration-sha", sha,
+                       "--registration-manifest", path, "--seed", "43", "--num-samples", "8")
+    unseen = _json.loads(open(_UNSEEN_CONFIG).read())
+    assert el.verify_registration(args, unseen, _resolved(), repo_root=str(tmp_path)) is True
+    assert args.registration_sha_resolved == sha
+    record = el.build_provenance(args, ckpt_sha256="a", agree_sha256="b", split_hash="c",
+                                 weights_source="ema", n_queries=1)
+    assert record["registration_sha_resolved"] == sha

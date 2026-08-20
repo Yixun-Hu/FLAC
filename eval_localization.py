@@ -22,6 +22,7 @@ import hashlib
 import itertools
 import json
 import math
+import re
 import subprocess
 import time
 import os
@@ -816,6 +817,8 @@ def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source
         "max_queries": None if args.max_queries is None else int(args.max_queries),
         "eval_name": args.eval_name,
         "registration_sha": args.registration_sha or "n/a",
+        "registration_sha_resolved": getattr(args, "registration_sha_resolved", None) or "n/a",
+        "registration_manifest": args.registration_manifest or "n/a",
         "model_config_sha256": _file_sha256(args.model_config),
         "dataset_config_sha256": _file_sha256(args.dataset_config),
         "context_k": (((dataset_config or {}).get("modalities") or {})
@@ -1799,39 +1802,59 @@ REGISTRATION_LOCKED_FIELDS = (
 )
 
 
+#: an immutable git object id: 40-hex (sha1) or 64-hex (sha256 repositories).
+_FULL_OBJECT_ID = re.compile(r"^[0-9a-f]{40}$|^[0-9a-f]{64}$")
+
+
 def _repo_root():
     return os.path.dirname(os.path.abspath(__file__))
 
 
 def verify_registration_commit(manifest_path, registration_sha, repo_root=None):
-    """Return the manifest, having proved it IS the committed one.
+    """Prove the manifest IS the registered one; return it and the resolved id.
 
-    A registration SHA that is merely a non-empty string proves nothing. This
-    resolves it as a real commit and byte-compares the committed blob against the
-    local file, so a manifest edited after registration cannot be used.
+    Four separate requirements (r4 review M4): the value must be an immutable
+    full object id (``HEAD``, a branch, a tag or an abbreviation is refused by
+    FORMAT, since those can move or be ambiguous); it must resolve to a commit;
+    that commit must contain byte-identical manifest content; and it must be an
+    ANCESTOR of the executing HEAD, which is what makes "registered before the
+    run" checkable rather than asserted. The manifest must also live inside the
+    repository worktree, or "committed" would be meaningless.
     """
-    repo_root = repo_root or _repo_root()
-    manifest_path = os.path.abspath(str(manifest_path))
+    repo_root = os.path.realpath(str(repo_root or _repo_root()))
+    sha = str(registration_sha or "")
+    if not _FULL_OBJECT_ID.match(sha):
+        _refuse(f"--registration-sha must be a full 40- or 64-hex object id, got {sha!r}; "
+                "HEAD, branch/tag names and abbreviations can move and are refused")
+
+    manifest_path = os.path.realpath(str(manifest_path))
     if not os.path.isfile(manifest_path):
         _refuse(f"--registration-manifest not found: {manifest_path}")
+    if os.path.commonpath([manifest_path, repo_root]) != repo_root:
+        _refuse(f"--registration-manifest {manifest_path!r} is outside the repository "
+                f"{repo_root!r}; a file that is not in the repo cannot have been committed")
     relpath = os.path.relpath(manifest_path, repo_root)
 
-    resolved = subprocess.run(["git", "cat-file", "-e", f"{registration_sha}^{{commit}}"],
-                              cwd=repo_root, capture_output=True)
-    if resolved.returncode != 0:
-        _refuse(f"--registration-sha {registration_sha!r} does not resolve to a commit in "
-                f"{repo_root}")
-    show = subprocess.run(["git", "show", f"{registration_sha}:{relpath}"],
-                          cwd=repo_root, capture_output=True)
+    if subprocess.run(["git", "cat-file", "-e", f"{sha}^{{commit}}"],
+                      cwd=repo_root, capture_output=True).returncode != 0:
+        _refuse(f"--registration-sha {sha!r} does not resolve to a commit in {repo_root}")
+    show = subprocess.run(["git", "show", f"{sha}:{relpath}"], cwd=repo_root, capture_output=True)
     if show.returncode != 0:
-        _refuse(f"commit {registration_sha} does not contain {relpath!r}; the registration "
-                "manifest was not committed before the run (O17)")
+        _refuse(f"commit {sha} does not contain {relpath!r}; the registration manifest was not "
+                "committed before the run (O17)")
     with open(manifest_path, "rb") as handle:
         local = handle.read()
     if show.stdout != local:
-        _refuse(f"{relpath!r} differs from the version committed at {registration_sha}; the "
-                "registered protocol was edited after registration")
-    return json.loads(local.decode("utf-8"))
+        _refuse(f"{relpath!r} differs from the version committed at {sha}; the registered "
+                "protocol was edited after registration")
+    if subprocess.run(["git", "merge-base", "--is-ancestor", sha, "HEAD"],
+                      cwd=repo_root, capture_output=True).returncode != 0:
+        _refuse(f"registration commit {sha} is not an ancestor of the executing HEAD; the "
+                "protocol must be registered on the history this run is executing")
+    resolved = subprocess.run(["git", "rev-parse", f"{sha}^{{commit}}"], cwd=repo_root,
+                              capture_output=True, text=True)
+    return {"manifest": json.loads(local.decode("utf-8")),
+            "resolved_sha": resolved.stdout.strip() or sha}
 
 
 def check_registration_fields(manifest, resolved, registered):
@@ -1867,9 +1890,11 @@ def verify_registration(args, dataset_config, resolved, repo_root=None):
         if registered:
             _refuse("--registration-manifest is required for a registered unseen run")
         return False
-    manifest = verify_registration_commit(args.registration_manifest, args.registration_sha,
+    verified = verify_registration_commit(args.registration_manifest, args.registration_sha,
                                           repo_root=repo_root)
-    check_registration_fields(manifest, resolved, registered)
+    check_registration_fields(verified["manifest"], resolved, registered)
+    # the resolved immutable id is what provenance records, not the string typed
+    args.registration_sha_resolved = verified["resolved_sha"]
     return True
 
 
