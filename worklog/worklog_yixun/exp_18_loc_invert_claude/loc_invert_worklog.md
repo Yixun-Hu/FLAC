@@ -198,3 +198,7 @@
 ## 2026-08-19T20:05:00-0400 — Peer's eval_FLAC change landed (6c0a16e); shared-file protocol extended
 
 - **Result** — `6c0a16e` spot-checked: RAF-only capture-id branch, AR schema=1 byte-identical, goldens recompute; peer's suite evidence includes our named snapshot suites + test_eval_localization read-only green. Merged-tree re-verification deferred to the r5 completion pass (one verification covers both). Scope correction sent to peer: metric_callback.py and src/metrics/* ARE shared (our AGREE loader) — sha-ping + launch-window hold protocol extended to them. r5 progress: first commit `a69f96a` (wall-correct GPU timing) already landed.
+
+## 2026-08-19T20:10:00-0400 — Shared-tree protocol strengthened (peer-side)
+
+- **Result** — Peer will not even EDIT src/metrics/* in the working tree (import-time dirt would leak into our launched processes) until our "R-1/R0 done" signal; their two metric-stack commits (RAF-only branches + a device fix) land after it, shas pinged. Their Leg B holds GPU 0 until ~00:00 (revised) — irrelevant tonight (R-1/R0/R1 use GPU 1 only); both GPUs needed only for tomorrow's R2 seeds, after Leg B ends.
