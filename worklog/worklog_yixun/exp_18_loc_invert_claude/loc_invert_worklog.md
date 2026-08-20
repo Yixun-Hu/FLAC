@@ -209,3 +209,9 @@
 - **Command / Validation** — Planner-independent on the MERGED tree: **492 passed**; CLI seen-split parity match=True 0.0. Coder's two-GPU discrimination test rebuilt honestly (cuda:0-sync 1.3 ms did-not-wait vs cuda:1 545 ms waited). Real R-1 gate demonstrated green on the actual unseen split (~50 s; 17 rooms, 169 wavs, all depth maps (256,512); exactly the 1 registered LRH warning; S10-deletion fixture FAILS the gate).
 - **Analysis — deviations ruled:** (1) primary run stems keep r4 cell fields (hashes/steps/cfg live in provenance; targets refuse rather than overwrite) — ACCEPTED. (2) write_summary overwrite-after-claim — ACCEPTED. (3) realpath split-membership — ACCEPTED. (4) run_evaluation(paths=...) — ACCEPTED. 
 - **Next** — focused r5 re-review (launch gate v2) → on APPROVE: R-1/R0 launch bookkeeping (params, command, acceptance criteria) + launches.
+
+## 2026-08-19T20:48:00-0400 — Launch gate v2: single residual (H2) → r5b; reviewer pre-cleared the rest
+
+- **Result** — r5 re-review: H1/M3/M4/M5/M6 RESOLVED; H2 PARTIAL (readback accepts a noncanonical split + truncated wavs). Peer's `6c0a16e` confirmed behaviorally inert for all nine of our eval_FLAC imports. Reviewer's own clearance condition: "after the focused H2 fix and a green real readback, the other five findings require no further changes and the existing parity evidence remains applicable" — so r5b closes under Planner verification against the reviewer's pre-specified acceptance conditions (SOP allows re-review OR Planner verification of a fix).
+- **Change** — r5b dispatched with Planner-computed canonical constants: split file sha `9a9d817a…`, 6,337/17, room-node-map sha `38c07598…`; wav floor ≥ 10,240 samples with the score-inert-suffix rationale (all scoring paths consume prefixes ≤ 10,240; exact-length enforcement would be scientifically vacuous and brittle).
+- **Next** — r5b → Planner verification (fixtures + real readback green with digest checks) → LAUNCH R-1/R0.
