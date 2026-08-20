@@ -1,0 +1,13 @@
+INFO: auditing /media/diskstation/yixunhu/raf_dataset/archived/archived/EmptyRoom
+Traceback (most recent call last):
+  File "/home/yixunhu/codespace/FLAC/data/RAF/readback_audit.py", line 421, in <module>
+    raise SystemExit(main())
+  File "/home/yixunhu/codespace/FLAC/data/RAF/readback_audit.py", line 398, in main
+    rooms[room] = audit_room(room_dir, room, n_onset_samples=args.n_onset_samples,
+  File "/home/yixunhu/codespace/FLAC/data/RAF/readback_audit.py", line 227, in audit_room
+    index = load_room_index(room_dir)
+  File "/home/yixunhu/codespace/FLAC/data/RAF/prepare_data.py", line 159, in load_room_index
+    tx_lines = _read_pose_lines(tx_path)
+  File "/home/yixunhu/codespace/FLAC/data/RAF/prepare_data.py", line 72, in _read_pose_lines
+    raise FileNotFoundError(f"pose file not found: {path}")
+FileNotFoundError: pose file not found: /media/diskstation/yixunhu/raf_dataset/archived/archived/EmptyRoom/metadata/all_tx_pos.txt

@@ -63,3 +63,12 @@ Branch `localization-exp` (shared with exp_18; this experiment is driven by the 
   3. R-cal Leg A restart running (per-seed names, Amendment 2); Leg B training ~step-mid.
   4. Consolidated Codex code review of r1 (cycles 1–13, commits `8ac6fad..980bcd7`) launched at xhigh with the no-install clause; output → `raf_finetune_codex_code_review.md`. Round r1 does NOT close before its verdict + fix round.
 - **Next** — Fold review findings (fix round via the Coder if REQUEST-CHANGES); assemble Leg-A 5-seed table vs the paper HAA numbers when the rerun lands.
+
+## 2026-08-19T21:30:17-0400 — Readback rung COMPLETE: audit passed, gauge+quat PINNED, canonical record committed
+
+- **Result** —
+  1. Measurement pass (400 onset samples/room, 200-capture crosschecks, seed 0): onset-vs-distance PASS both rooms (EmptyRoom slope-ratio 1.19 R²=0.879; Furnished 1.18 R²=0.844; constant delays 1.64/2.07 ms recorded); **T30 crop-invalidation 0/400 both rooms ⇒ T60 stays headline**; amplitude in-scale (no scalar); sentinel + exactly-36 (+ the known 72-group) confirmed.
+  2. **Pins (Amendment 4):** gauge `RAF_TO_PIPELINE:(X,Z,Y)` from real-mesh evidence (sub-degree landmark bearings ×2 positions, nadir≈height ≤0.10 m across rooms, containment/bounds/sightline pass); quaternion **xyzw from the RAF release docs verbatim** ("real-part last format: xyzW") — v1 remains grouping-only.
+  3. Real-mesh discoveries → Amendment 4 render policy (≤0.1% miss cap + recorded inpainting; bearing-tie applicability; floor tol 0.15 m); Coder implementing.
+  4. Pinned canonical record at `data/RAF/raf_readback_record.json` (verdict passed, adjudication carried) — the artifact the prepare/render publish gates require.
+- **Next** — Coder render-policy cycle → peer 'R-1/R0 done' → R8/R10 → Codex r2 re-review → Leg B eval → morning package to Yixun (canonical-prep go/no-go).
