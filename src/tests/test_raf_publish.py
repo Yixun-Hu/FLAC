@@ -667,7 +667,8 @@ def test_duplicate_expected_roots_are_reported_not_collapsed(tmp_path):
 def _prepare_extra(**overrides):
     extra = {"canonical": True, "canonical_parameters": True, "taint": [],
              "parameters": dict(raf_publish.CANONICAL_PREPARE_PARAMS,
-                                amplitude_derivation_sha256="a" * 64),
+                                amplitude_derivation_sha256=raf_publish.CANONICAL_PREPARE_PARAMS[
+                                    "amplitude_derivation_sha256"]),
              "readback_record": {"sha256": raf_publish.canonical_record_digest()}}
     extra.update(overrides)
     return extra
@@ -785,3 +786,17 @@ def test_producers_and_verifier_share_one_registered_identity():
         raf_prepare_mod.CANONICAL_PARAMS["rooms"])) == raf_publish.CANONICAL_PREPARE_PARAMS
     assert dict(raf_render_mod.CANONICAL_RENDER_PARAMS, rooms=list(
         raf_render_mod.CANONICAL_RENDER_PARAMS["rooms"])) == raf_publish.CANONICAL_RENDER_PARAMS
+
+
+def test_the_canonical_derivation_hash_is_pinned_not_shaped():
+    """Amendment 9.2 F3, closed: the derivation hash of canonical generation
+    46a43f4ce82b is registered as a literal, so a marker carrying a DIFFERENT
+    trained-ID union is rejected on its value, not merely on its shape."""
+    pinned = raf_publish.CANONICAL_PREPARE_PARAMS["amplitude_derivation_sha256"]
+    assert pinned == (
+        "8a740feef8f430dbc2e65d8f3d5eefa3d6b191c00c615ff758163c7428eef00d")
+    assert raf_publish.marker_identity_problems("prepare", _prepare_extra()) == []
+    other = _prepare_extra(parameters=dict(
+        raf_publish.CANONICAL_PREPARE_PARAMS, amplitude_derivation_sha256="b" * 64))
+    problems = raf_publish.marker_identity_problems("prepare", other)
+    assert any("amplitude_derivation_sha256" in p for p in problems)

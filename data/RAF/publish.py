@@ -353,14 +353,14 @@ CANONICAL_PREPARE_PARAMS = {
     # must reproduce.
     "amplitude_ceiling": 0.75,
     "amplitude_scalar": 3.0,
-    # F3: the derivation provenance is part of the identity. The formula version and
-    # the id COUNT are registered exactly ((16 train/test + 1 diagnostic) x 12 x 2
-    # rooms = 408); the id-set hash cannot be registered before the canonical run
-    # exists, so it is checked STRUCTURALLY here (64 hex chars) and pinned to a
-    # literal by the Planner once the canonical generation is cut.
+    # F3: the derivation provenance is part of the identity -- formula version, id
+    # COUNT ((16 train/test + 1 diagnostic) x 12 x 2 rooms = 408), and the id-set
+    # hash, PINNED from the canonical generation 46a43f4ce82b (scalar x3 =
+    # min(support 5.0, clamp 3.0)). A consumer can now verify that the registered
+    # trained-ID union is what produced the scalar, not merely that some union did.
     "amplitude_formula_version": "9.2",
     "amplitude_derivation_ids": 408,
-    "amplitude_derivation_sha256": SHA256_SHAPE,
+    "amplitude_derivation_sha256": "8a740feef8f430dbc2e65d8f3d5eefa3d6b191c00c615ff758163c7428eef00d",
 }
 CANONICAL_RENDER_PARAMS = {
     "rooms": list(CANONICAL_ROOMS),

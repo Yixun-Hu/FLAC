@@ -662,7 +662,8 @@ def test_canonical_parameters_are_the_registered_ones():
         "n_train": 12, "n_diagnostic_groups": 1, "seed": 0, "full_crosscheck": True,
         "allow_nonuniform": True, "amplitude_ceiling": 0.75, "amplitude_scalar": 3.0,
         "amplitude_formula_version": "9.2", "amplitude_derivation_ids": 408,
-        "amplitude_derivation_sha256": "<sha256>",
+        "amplitude_derivation_sha256":
+            "8a740feef8f430dbc2e65d8f3d5eefa3d6b191c00c615ff758163c7428eef00d",
     }
 
 
