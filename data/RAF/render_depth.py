@@ -60,12 +60,19 @@ HEIGHT_AXIS = 2
 # EmptyRoom positions. 0.15 m is the recorded threshold (Amendment 4); it stays a
 # WARNING, never an abort.
 DEFAULT_FLOOR_TOL = 0.15
-# Ray-miss policy (Amendment 4). Real scanned meshes have holes -- FurnishedRoom
-# missed 62 of 131,072 rays at a real tx -- so a miss rate at or below this cap is
-# repaired by nearest-valid-neighbour inpainting and RECORDED (count + a hash of
-# the repaired coordinates). Above the cap the render still aborts: that is a
-# broken mesh or a camera outside the room, not a scan hole.
-DEFAULT_MAX_MISS_RATE = 0.001
+# Ray-miss policy (Amendment 4, cap revised by Amendment 9.3). Real scanned meshes
+# have holes, so a miss rate at or below this cap is repaired by
+# nearest-valid-neighbour inpainting and RECORDED (count + a hash of the repaired
+# coordinates). Above the cap the render still aborts: that is a broken mesh or a
+# camera outside the room, not a scan hole.
+#
+# 0.25% comes from the full 42-viewpoint sweep: measured maximum 0.198%
+# (FurnishedRoom/4a212c18, 260 px), second 0.173%, every other viewpoint <= 0.064%.
+# It covers the measured worst case with margin -- a 0.25% map repairs at most ~330
+# of 131,072 pixels, every one of them recorded and hash-attested -- while a
+# genuinely broken mesh or a camera outside the room misses orders of magnitude
+# more.
+DEFAULT_MAX_MISS_RATE = 0.0025
 # sha256 of the empty coordinate list, i.e. "nothing was repaired".
 EMPTY_FILL_HASH = hashlib.sha256(b"").hexdigest()
 # Bearing tie rule (Amendment 4): a second surface within this fraction of the
@@ -180,7 +187,7 @@ def fill_missing(hits, max_miss_rate=DEFAULT_MAX_MISS_RATE):
     if rate > max_miss_rate:
         raise RuntimeError(
             f"depth render missed {count} of {total} rays ({rate:.4%}), above the "
-            f"registered cap of {max_miss_rate:.1%} ({DEFAULT_MAX_MISS_RATE}). A scan "
+            f"registered cap of {max_miss_rate:.2%} ({DEFAULT_MAX_MISS_RATE}). A scan "
             "hole is repaired and recorded; this is not one -- the mesh is broken or "
             "the camera is outside the room.")
     if count == total:

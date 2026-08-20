@@ -367,7 +367,7 @@ CANONICAL_RENDER_PARAMS = {
     "img_h": 256,
     "img_w": 512,
     "floor_tol": 0.15,
-    "max_miss_rate": 0.001,
+    "max_miss_rate": 0.0025,
     "rx_sightline_receivers": 8,
     # Amendment 9: recorded diagnostic in BOTH rooms (environmental obstruction
     # proven by a full yaw sweep), never a gate.

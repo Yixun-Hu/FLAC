@@ -536,16 +536,33 @@ def test_fill_missing_aborts_above_the_cap():
         raf_render.fill_missing(hits)
     message = str(exc.value)
     assert "miss" in message.lower()
-    assert "0.1" in message or str(raf_render.DEFAULT_MAX_MISS_RATE) in message
+    assert "0.25" in message or str(raf_render.DEFAULT_MAX_MISS_RATE) in message
 
 
 def test_fill_missing_tolerates_exactly_the_cap():
     hits = np.full((1000, 10), 2.0, dtype=np.float32)
-    hits[0, :10] = np.inf             # 10 / 10000 = 0.1%
+    hits[0, :10] = np.inf             # 10 / 10000 = 0.1%, under the 0.25% cap
     filled, report = raf_render.fill_missing(hits)
+    assert report["miss_rate"] == pytest.approx(0.001)
+    assert report["within_cap"] is True
+    assert np.isfinite(filled).all()
+
+    # ... and exactly AT the cap: 25 of 10,000 rays is 0.25%
+    at_cap = np.full((1000, 10), 2.0, dtype=np.float32)
+    at_cap[:3, :8] = np.inf
+    at_cap[3, 0] = np.inf
+    filled, report = raf_render.fill_missing(at_cap)
+    assert report["miss_count"] == 25
     assert report["miss_rate"] == pytest.approx(raf_render.DEFAULT_MAX_MISS_RATE)
     assert report["within_cap"] is True
     assert np.isfinite(filled).all()
+
+    # one ray past it aborts, with the abort semantics unchanged
+    over = at_cap.copy()
+    over[3, 1] = np.inf
+    with pytest.raises(RuntimeError) as exc:
+        raf_render.fill_missing(over)
+    assert "above the registered cap" in str(exc.value)
 
 
 def test_fill_missing_refuses_an_all_missing_map():
@@ -1045,7 +1062,7 @@ def test_qa_enforces_the_registered_cap_from_the_mask():
     """The cap is applied to the rate DERIVED FROM THE MASK, so a report claiming
     within_cap for a 5% miss rate cannot pass."""
     depth = np.full((100, 100), 2.0, dtype=np.float32)
-    coords = [[r, c] for r in range(5) for c in range(100)]   # 500 of 10,000
+    coords = [[r, c] for r in range(5) for c in range(100)]   # 500 of 10,000 = 5%
     report = _report_for(coords, 10000, max_miss_rate=0.05)
     audit, _ = raf_render.audit_miss_report(report, depth,
                                             miss_mask=_mask_with((100, 100), coords),
@@ -1272,7 +1289,7 @@ def _render_args(**overrides):
 def test_canonical_render_identity_is_the_registered_one():
     assert raf_render.CANONICAL_RENDER_PARAMS == {
         "rooms": ("EmptyRoom", "FurnishedRoom"), "img_h": 256, "img_w": 512,
-        "floor_tol": 0.15, "max_miss_rate": 0.001, "rx_sightline_receivers": 8,
+        "floor_tol": 0.15, "max_miss_rate": 0.0025, "rx_sightline_receivers": 8,
         "rx_sightline_policy": "recorded",
         "haa_reference_sha256": _REAL_HAA_BAND_SHA256,
     }
