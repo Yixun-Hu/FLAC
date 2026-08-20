@@ -41,3 +41,11 @@ Rows above record development SHAs on `localization-exp` (history of record for 
 | `2f500d3` | port 1b: test suite (glob miss caught) |
 | `18c9aa9` | port 2/2: exp_19-authored shared-file deltas (eval_FLAC R3; metric-stack c12) |
 | `5da9c71` | r2 fix R8+R10: RAF equal-room macro aggregation + invalid T60 count/rate (additive `RT60Error.invalid_stats`) + `l1_stft_multires` window on `x.device`; the 7 held tests now run (28 metric tests) |
+| `dbae7f2` | r3 fix S4: per-item STFT attribution (per-scene L1_STFT no longer contains other rooms) + fail-closed RAF scene labels + independent unequal-room macro oracles |
+| `2897b2b` | r3 fix S1: canonical publication authenticates the pinned record (sha256 e879768f, exact (X,Z,Y)+xyzw pins, both rooms + measurement blocks + raf_root); synthetic flows declare `--non-canonical` and taint every artifact |
+| `3253c2f` | r3 fix S2: canonical miss cap may only be lowered; QA re-derives rate/count/hash and applies the registered cap itself |
+| `6288d8a` | r3 fix S3: `PublishTransaction` — invalidate-then-swap across all roots, one generation-bound commit marker written last; no marker = unpublished |
+| `0c96b72` | r3 fix S5: mesh-independent rx-sightline evidence (pose-file receivers) + real on-disk AR/HAA scale references; landmark bearing demoted to recorded-only |
+| `c7882e6` | r3 fix S6: amplitude scalar derives from trained supports only, with an id-set hash required before a scalar applies |
+| `cf439b5` | r3 fix S7: CPU bf16-autocast coverage for the multires-l1 window (+ opt-in non-default-CUDA case) |
+| `de2075a` | r3 fix S8: contract text updated to the pinned gauge/quaternion and the cap-plus-inpaint miss policy |
