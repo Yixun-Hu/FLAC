@@ -1114,8 +1114,22 @@ def parse_args(argv=None):
                         help="registered M1/M5 alignment bound; must be on rir_metrics' grid")
     parser.add_argument("--metric-t30-backend", choices=["pyroomacoustics", "torch"],
                         default="pyroomacoustics")
+    parser.add_argument("--metric-sensitivities", action="store_true",
+                        help="compute the declared seen sensitivity battery on every "
+                             "SENSITIVITY_STRIDE-th query (calibration passes only)")
     parser.add_argument("--metric-secondaries", action="store_true",
                         help="also compute the declared M3/M5 secondaries")
+    parser.add_argument("--calibration-identities", default=None, metavar="PATH",
+                        help="committed identity stream the calibration rows must match "
+                             "exactly (a rows JSONL or a JSON list of query ids)")
+    parser.add_argument("--register-seeds", default=None,
+                        help="seeds to lock into the draft metric manifest, e.g. '42 43 44'")
+    parser.add_argument("--register-candidate-manifest", default=None,
+                        help="candidate-manifest sha256 to lock into the draft")
+    parser.add_argument("--register-identity-digest", default=None,
+                        help="R2 identity-stream digest to lock into the draft")
+    parser.add_argument("--register-r2-manifest", nargs="+", default=None,
+                        help="R2/R2b registration manifests to digest into the draft")
     parser.add_argument("--metric-registration", default=None, metavar="MANIFEST.json",
                         help="committed metric-registration manifest (required for --metrics "
                              "on an unseeneval config)")
@@ -1693,7 +1707,12 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
               f"sha256={published_sha[:12]}..., provenance checked="
               f"{preflight['provenance_checked']}")
 
-    metrics_config = metric_config_from_args(args) if getattr(args, "metrics", False) else None
+    metrics_config = None
+    if getattr(args, "metrics", False):
+        # a registered run's config comes from the verified manifest, never from
+        # the CLI (r4m review finding 1)
+        metrics_config = (getattr(args, "registered_metric_config", None)
+                          or metric_config_from_args(args))
     metrics_rows, metrics_path, metrics_handle = [], None, None
     if metrics_config is not None:
         metrics_path = os.path.join(os.path.dirname(rows_path),
@@ -1822,10 +1841,13 @@ def main(argv=None):
         dataset_config = load_dataset_config(args)
         assert_registered_split(args, dataset_config)
         assert_metric_registration(args, dataset_config)
-        if args.metric_registration:
-            verify_metric_registration(args, dataset_config)
         model_config = read_model_config(args)
         manifest = manifest_for_dataset_config(dataset_config)
+        if args.metric_registration:
+            args.registered_metric_config = verify_metric_registration(
+                args, dataset_config, candidate_manifest_sha256=manifest_sha256(manifest),
+                identity_digest=split_hash(
+                    expected_split_identities_from_config(dataset_config)))
         pl.seed_everything(args.seed, workers=True)
         loader = build_dataloader(args, model_config, dataset_config)
         context = {"manifest": manifest, "context_k": resolve_context_k(dataset_config),
@@ -1857,8 +1879,13 @@ def main(argv=None):
         "steps": args.steps, "cfg_scale": args.cfg_scale, "seed": args.seed,
         "readout": "mean", "candidate_manifest_sha256": manifest_hash,
         "split_file_sha256": split_check["file_sha256"]})
+    registered_metric_config = None
     if getattr(args, "metric_registration", None):
-        verify_metric_registration(args, dataset_config)
+        registered_metric_config = verify_metric_registration(
+            args, dataset_config,
+            candidate_manifest_sha256=manifest_hash if manifest_hash != "n/a" else None,
+            identity_digest=split_hash(expected_split_identities_from_config(dataset_config)))
+    args.registered_metric_config = registered_metric_config
     paths = None if args.parity_check else artifact_paths(args)
 
     # ---- only now: deserialize, construct, load data ------------------------
@@ -2846,7 +2873,7 @@ def _encode_vector(values):
     return encode_sims(torch.as_tensor(values).reshape(1, -1))[0]
 
 
-def build_metrics_row(row, position, outcome, metrics, config, num_context):
+def build_metrics_row(row, position, metrics, config, num_context, sensitivities=None):
     """One metrics-JSONL record: every family's raw distances plus its readout."""
     from src.localization.rir_metrics import (aggregate_over_k, K_AGGREGATION_PRIMARY,
                                               K_AGGREGATION_SECONDARIES,
@@ -2891,6 +2918,11 @@ def build_metrics_row(row, position, outcome, metrics, config, num_context):
         "families": families,
         "m4": m4_block,
         "m5_lags": (diagnostics["m5_lags"].tolist() if "m5_lags" in diagnostics else None),
+        "m5_gcc_lags": (diagnostics["m5_gcc_lags"].tolist()
+                        if "m5_gcc_lags" in diagnostics else None),
+        "m5_gcc_context_lags": (diagnostics["m5_gcc_context_lags"].tolist()
+                                if "m5_gcc_context_lags" in diagnostics else None),
+        "sensitivities": sensitivities,
         "m5_context_lags": (diagnostics["m5_context_lags"].tolist()
                             if "m5_context_lags" in diagnostics else None),
         "metric_config": metrics["config"],
@@ -2982,23 +3014,41 @@ def score_query_metrics(args, row, position, snapshot, md, config, handle):
         torch.as_tensor(context_audio).shape[0], -1))
 
     metrics = rir_metrics_compute(pred, obs, ctx, config)
+    # The seen sensitivity battery on the declared deterministic subset: every
+    # SENSITIVITY_STRIDE-th query of the stream (plan R4 §3, registered rule).
+    sensitivities = None
+    if getattr(args, "metric_sensitivities", False):
+        from src.localization.rir_metrics import SENSITIVITY_STRIDE, sensitivity_variants
+        if int(position) % int(SENSITIVITY_STRIDE) == 0:
+            variants = sensitivity_variants(pred, obs, config)
+            sensitivities = {name: {family: encode_sims(values)
+                                    for family, values in block.items()}
+                             for name, block in variants.items()}
     if snapshot_digest(snapshot["pred"], snapshot["obs"]) != snapshot["sha256"]:
         _refuse(f"query {row['query_id']!r}: the waveform snapshot CHANGED while it was being "
                 "consumed; the dump and the metrics would describe different waveforms")
 
-    metrics_row = build_metrics_row(row, position, None, metrics, config, ctx.shape[0])
+    metrics_row = build_metrics_row(row, position, metrics, config, ctx.shape[0],
+                                    sensitivities=sensitivities)
     write_row(handle, metrics_row)
     return metrics_row
 
 
-def assert_metric_registration(args, dataset_config):
-    """Metrics on an UNSEEN split require a committed metric manifest.
+def _metric_mode(args):
+    """Does this invocation compute metrics at all (any mode)?"""
+    return bool(getattr(args, "metrics", False)) or getattr(args, "mode", "run") in (
+        "metrics-retrieval",)
 
-    Seen calibration runs deliberately have none -- that is where the constants
-    are chosen -- but they still record the full REGISTERABLE payload in
-    provenance, so what they used is auditable after the fact.
+
+def assert_metric_registration(args, dataset_config):
+    """Any UNSEEN metric work requires a committed metric manifest.
+
+    Every mode, not just --metrics: metrics-retrieval scores the same families on
+    the same held-out data (r4m review finding 1). Seen calibration runs
+    deliberately have no manifest -- that is where the constants are chosen -- but
+    they still record the full REGISTERABLE payload in provenance.
     """
-    if not getattr(args, "metrics", False):
+    if not _metric_mode(args):
         return False
     if bool((dataset_config or {}).get("unseeneval", False)):
         if not args.metric_registration:
@@ -3010,17 +3060,52 @@ def assert_metric_registration(args, dataset_config):
     return False
 
 
-def verify_metric_registration(args, dataset_config, repo_root=None):
-    """Machine-check the metric manifest, with the R2 gate's own machinery.
+def metric_config_from_manifest(manifest):
+    """Build the MetricConfig FROM the verified manifest -- no CLI reconstruction.
 
-    The commit rules are identical (full-hex object id, manifest inside the
-    worktree, byte-identical committed content, ancestor of HEAD) -- this only
-    changes WHAT is locked: rir_metrics' REGISTERABLE set plus the run's applied
-    metric configuration.
+    The frozen z-normalization has no CLI representation at all, so a registered
+    run that rebuilt its config from flags could never apply it (r4m review
+    finding 1). The manifest is the authority; the CLI only points at it.
+    """
+    from src.localization.rir_metrics import MetricConfig
+
+    config = manifest.get("metric_config")
+    if not isinstance(config, dict):
+        _refuse("the metric manifest does not carry a 'metric_config' block")
+    required = ("delta_max", "t30_backend", "m4_mu", "m4_sigma", "window_samples",
+                "param_window_samples", "lam", "sample_rate", "families", "secondaries",
+                "delta_grid")
+    for key in required:
+        if key not in config:
+            _refuse(f"the metric manifest does not lock metric_config.{key}")
+    if config["delta_grid"]:
+        _refuse("a registered metric manifest must fix ONE delta_max, not a calibration grid")
+    for key in ("m4_mu", "m4_sigma"):
+        if config[key] is None:
+            _refuse(f"the metric manifest leaves metric_config.{key} unset; a registered run "
+                    "must apply the frozen z-normalization")
+    return MetricConfig(delta_max=int(config["delta_max"]),
+                        window_samples=int(config["window_samples"]),
+                        param_window_samples=int(config["param_window_samples"]),
+                        lam=float(config["lam"]), t30_backend=config["t30_backend"],
+                        sample_rate=int(config["sample_rate"]),
+                        m4_mu=config["m4_mu"], m4_sigma=config["m4_sigma"],
+                        families=tuple(config["families"]),
+                        secondaries=bool(config["secondaries"]), delta_grid=())
+
+
+def verify_metric_registration(args, dataset_config, repo_root=None,
+                               candidate_manifest_sha256=None, identity_digest=None):
+    """Machine-check the metric manifest and RETURN the config it registers.
+
+    Commit rules are the R2 gate's own machinery (full-hex id, in-worktree,
+    byte-identical, ancestor of HEAD). What is locked: rir_metrics' whole
+    REGISTERABLE set, the entire MetricConfig, the registered seeds, the candidate
+    manifest and the R2 identity stream this run must be scoring.
     """
     registered = assert_metric_registration(args, dataset_config)
     if not args.metric_registration:
-        return False
+        return None
     verified = verify_registration_commit(args.metric_registration, args.registration_sha,
                                           repo_root=repo_root)
     manifest = verified["manifest"]
@@ -3037,25 +3122,46 @@ def verify_metric_registration(args, dataset_config, repo_root=None):
     for key in sorted(set(locked) - set(current)):
         _refuse(f"the metric manifest locks {key!r}, which rir_metrics no longer defines")
 
-    config = manifest.get("metric_config") or {}
-    applied = metric_config_from_args(args).payload()
-    for key in ("delta_max", "t30_backend", "m4_mu", "m4_sigma"):
-        if key not in config:
-            _refuse(f"the metric manifest does not lock metric_config.{key}")
-        if config[key] != applied.get(key):
-            _refuse(f"registered metric_config.{key} is {config[key]!r} but this run resolves "
-                    f"{applied.get(key)!r}")
-    if registered and applied.get("delta_grid"):
-        _refuse("a registered unseen metrics run must apply ONE delta_max, not the calibration "
-                "grid; pass --metric-delta-max exactly as registered")
+    config = metric_config_from_manifest(manifest)
+
+    seeds = manifest.get("seeds")
+    if registered:
+        if not isinstance(seeds, (list, tuple)) or not seeds:
+            _refuse("the metric manifest does not lock a non-empty 'seeds' list")
+        if int(args.seed) not in [int(s) for s in seeds]:
+            _refuse(f"--seed {args.seed} is not one of the registered metric seeds {list(seeds)}")
+        for field, actual, label in (("candidate_manifest_sha256", candidate_manifest_sha256,
+                                      "candidate manifest"),
+                                     ("r2_identity_digest", identity_digest, "identity stream")):
+            locked_value = manifest.get(field)
+            if locked_value in (None, "tbd"):
+                _refuse(f"the metric manifest leaves {field} unset; a registered run must lock "
+                        f"the {label}")
+            if actual is not None and locked_value != actual:
+                _refuse(f"registered {label} is {locked_value!r} but this run resolves "
+                        f"{actual!r}")
     args.metric_registration_sha_resolved = verified["resolved_sha"]
-    return True
+    return config
+
+
+def _load_identity_stream(path):
+    """A committed identity stream: a rows JSONL or a JSON list of query ids."""
+    path = str(path)
+    if path.endswith(".jsonl"):
+        return [row["query_id"] for row in read_rows(path)]
+    with open(path) as handle:
+        payload = json.load(handle)
+    if isinstance(payload, dict):
+        payload = payload.get("identities")
+    if not isinstance(payload, list):
+        _refuse(f"--calibration-identities {path!r} is neither a rows JSONL nor a JSON list")
+    return [str(item) for item in payload]
 
 
 def _top1_for_delta(rows, family_prefix, delta, base_delta):
     """Dev top-1 of one family at one grid value, over the seen metrics rows."""
-    from src.localization.rir_metrics import K_AGGREGATION_PRIMARY, aggregate_over_k, \
-        predict_from_distances
+    from src.localization.rir_metrics import (K_AGGREGATION_PRIMARY, aggregate_over_k,
+                                              predict_from_distances)
     name = family_prefix if int(delta) == int(base_delta) else f"{family_prefix}_delta{int(delta)}"
     hits, total = 0, 0
     for row in rows:
@@ -3092,6 +3198,24 @@ def run_metrics_calibrate(args):
     rows = read_rows(args.metrics_rows)
     if not rows:
         _refuse(f"--metrics-rows {args.metrics_rows!r} contains no rows")
+
+    # Authenticate the calibration stream itself (r4m review finding 1): unique,
+    # and -- when a committed identity list is supplied -- exactly it, in order.
+    identities = [row["query_id"] for row in rows]
+    if len(set(identities)) != len(identities):
+        _refuse(f"--metrics-rows {args.metrics_rows!r} contains duplicate query ids")
+    identity_check = {"n_identities": len(identities), "authenticated": False,
+                      "source": getattr(args, "calibration_identities", None)}
+    if getattr(args, "calibration_identities", None):
+        expected_stream = _load_identity_stream(args.calibration_identities)
+        if len(expected_stream) != len(identities):
+            _refuse(f"the calibration rows cover {len(identities)} queries but the committed "
+                    f"stream declares {len(expected_stream)}")
+        for position, (found, wanted) in enumerate(zip(identities, expected_stream)):
+            if found != wanted:
+                _refuse(f"calibration identity mismatch at position {position}: expected "
+                        f"{wanted!r}, got {found!r}")
+        identity_check["authenticated"] = True
 
     grid = []
     base_delta = int((rows[0].get("metric_config") or {}).get("delta_max", M1_DELTA_GRID[0]))
@@ -3153,11 +3277,27 @@ def run_metrics_calibrate(args):
             "n_queries": total,
         })
 
+    seeds = [int(s) for s in str(getattr(args, "register_seeds", None) or "42 43 44").split()]
+    r2_digests = {}
+    for path in (getattr(args, "register_r2_manifest", None) or []):
+        r2_digests[os.path.basename(str(path))] = _file_sha256(path)
     draft = {
         "registerable": registerable_payload(),
         "metric_config": {"delta_max": int(selected), "t30_backend": args.metric_t30_backend,
                           "m4_mu": [float(v) for v in mu],
-                          "m4_sigma": [float(v) for v in sigma]},
+                          "m4_sigma": [float(v) for v in sigma],
+                          "window_samples": rm_window_samples(),
+                          "param_window_samples": rm_param_window_samples(),
+                          "lam": float(registerable_payload()["m2_lambda"]),
+                          "sample_rate": int(registerable_payload()["sample_rate"]),
+                          "families": ["m1", "m2", "m3", "m4", "m5"],
+                          "secondaries": True, "delta_grid": []},
+        # the unseen passes must be pinned to these too (r4m review finding 1)
+        "seeds": seeds,
+        "candidate_manifest_sha256": getattr(args, "register_candidate_manifest", None) or "tbd",
+        "r2_identity_digest": getattr(args, "register_identity_digest", None) or "tbd",
+        "r2_manifest_digests": r2_digests,
+        "calibration_identities": getattr(args, "calibration_identities", None) or "n/a",
         "metrics_rows": str(args.metrics_rows),
         "metrics_rows_sha256": sha256_file(args.metrics_rows),
         "source_sha": source_sha(),
@@ -3171,6 +3311,7 @@ def run_metrics_calibrate(args):
         "m4": {"mu": [float(v) for v in mu], "sigma": [float(v) for v in sigma],
                "n_observations": int(stacked.shape[0]),
                "dropped_features_total": int(dropped_total)},
+        "identity_check": identity_check,
         "diagnostics": {"per_feature": per_feature},
         "sensitivity": {"declared": ["gain_x2", "shift_pm8", "direct_crop_2p5ms"],
                         "status": "computed on the seen calibration replay only"},
@@ -3210,8 +3351,8 @@ def run_metrics_retrieval(args, loader, engine, context, expected=None, dataset_
     if args.smoke and args.max_queries is not None:
         expected = expected[: int(args.max_queries)]
 
-    config = metric_config_from_args(args)
-    stem = f"{args.eval_name}_metrics_retrieval_ds-{_short(_file_sha256(args.dataset_config))}"
+    config = getattr(args, "registered_metric_config", None) or metric_config_from_args(args)
+    stem = f"{args.eval_name}_metrics_retrieval_seed{int(args.seed)}_ds-{_short(_file_sha256(args.dataset_config))}"
     out_dir = str(args.out_dir)
     os.makedirs(out_dir, exist_ok=True)
     rows_path = os.path.join(out_dir, f"{stem}_rows.jsonl")
@@ -3325,6 +3466,16 @@ def run_metrics_retrieval(args, loader, engine, context, expected=None, dataset_
     print(f"metrics-retrieval: {len(rows)} queries -> {rows_path}")
     return {"rows_path": rows_path, "summary_path": summary_path, "rows": rows,
             "rows_meta": meta, "summary": summary, "provenance": provenance}
+
+
+def rm_window_samples():
+    from src.localization.rir_metrics import WINDOW_SAMPLES
+    return int(WINDOW_SAMPLES)
+
+
+def rm_param_window_samples():
+    from src.localization.rir_metrics import PARAM_WINDOW_SAMPLES
+    return int(PARAM_WINDOW_SAMPLES)
 
 if __name__ == "__main__":
     main()

@@ -4250,10 +4250,20 @@ def test_replay_preflight_checks_the_sibling_summary_provenance(tmp_path):
 # always records the full REGISTERABLE payload.
 # --------------------------------------------------------------------------- #
 def _metric_manifest(**over):
-    from src.localization.rir_metrics import registerable_payload
+    """A COMPLETE metric manifest: after r4m3 finding 1 the manifest is
+    authoritative for the whole MetricConfig, so a partial one is refused."""
+    from src.localization.rir_metrics import M4_FEATURES, registerable_payload
     manifest = {"registerable": registerable_payload(),
                 "metric_config": {"delta_max": 8, "t30_backend": "torch",
-                                  "m4_mu": None, "m4_sigma": None},
+                                  "m4_mu": [0.0] * len(M4_FEATURES),
+                                  "m4_sigma": [1.0] * len(M4_FEATURES),
+                                  "window_samples": 9600, "param_window_samples": 8000,
+                                  "lam": 1.0, "sample_rate": 22050,
+                                  "families": ["m1", "m2", "m3", "m4", "m5"],
+                                  "secondaries": True, "delta_grid": []},
+                "seeds": [42, 43, 44],
+                "candidate_manifest_sha256": "cm" * 32,
+                "r2_identity_digest": "id" * 32,
                 "source_sha": "0" * 40}
     manifest.update(over)
     return manifest
@@ -4285,7 +4295,10 @@ def test_metric_registration_accepts_a_committed_matching_manifest(tmp_path):
     path, sha = _git_repo_with_manifest(tmp_path, _metric_manifest(), name="metrics.json")
     args = _metric_args(tmp_path, manifest_path=path, sha=sha)
     unseen = _json.loads(open(_UNSEEN_CONFIG).read())
-    assert el.verify_metric_registration(args, unseen, repo_root=str(tmp_path)) is True
+    config = el.verify_metric_registration(args, unseen, repo_root=str(tmp_path),
+                                           candidate_manifest_sha256="cm" * 32,
+                                           identity_digest="id" * 32)
+    assert config.delta_max == 8
 
 
 def test_metric_registration_refuses_a_constant_that_drifted(tmp_path):
@@ -4295,19 +4308,9 @@ def test_metric_registration_refuses_a_constant_that_drifted(tmp_path):
     args = _metric_args(tmp_path, manifest_path=path, sha=sha)
     unseen = _json.loads(open(_UNSEEN_CONFIG).read())
     with pytest.raises(SystemExit, match="m2_lambda"):
-        el.verify_metric_registration(args, unseen, repo_root=str(tmp_path))
-
-
-def test_metric_registration_refuses_a_run_config_that_differs(tmp_path):
-    path, sha = _git_repo_with_manifest(tmp_path, _metric_manifest(), name="metrics.json")
-    unseen = _json.loads(open(_UNSEEN_CONFIG).read())
-    for flag, value in (("--metric-delta-max", "32"), ("--metric-t30-backend",
-                                                       "pyroomacoustics")):
-        args = _metric_args(tmp_path, manifest_path=path, sha=sha)
-        setattr(args, flag.lstrip("-").replace("-", "_"),
-                int(value) if value.isdigit() else value)
-        with pytest.raises(SystemExit):
-            el.verify_metric_registration(args, unseen, repo_root=str(tmp_path))
+        el.verify_metric_registration(args, unseen, repo_root=str(tmp_path),
+                                      candidate_manifest_sha256="cm" * 32,
+                                      identity_digest="id" * 32)
 
 
 def test_metric_registration_reuses_the_r2_commit_machinery(tmp_path):
@@ -4322,6 +4325,20 @@ def test_metric_registration_reuses_the_r2_commit_machinery(tmp_path):
     drifted = _metric_args(tmp_path, manifest_path=path, sha=sha)
     with pytest.raises(SystemExit):
         el.verify_metric_registration(drifted, unseen, repo_root=str(tmp_path))
+
+
+def test_metric_registration_refuses_a_run_config_key_that_differs(tmp_path):
+    """The manifest is authoritative, so a CLI value that disagrees with it is
+    simply ignored -- but a manifest missing a field is refused."""
+    manifest = _metric_manifest()
+    del manifest["metric_config"]["secondaries"]
+    path, sha = _git_repo_with_manifest(tmp_path, manifest, name="metrics.json")
+    args = _metric_args(tmp_path, manifest_path=path, sha=sha)
+    unseen = _json.loads(open(_UNSEEN_CONFIG).read())
+    with pytest.raises(SystemExit, match="secondaries"):
+        el.verify_metric_registration(args, unseen, repo_root=str(tmp_path),
+                                      candidate_manifest_sha256="cm" * 32,
+                                      identity_digest="id" * 32)
 
 
 def test_seen_metrics_run_records_the_registerable_payload_without_a_manifest(tmp_path):
@@ -4619,3 +4636,179 @@ def test_metrics_on_adds_the_r4_provenance_fields(tmp_path):
                                "c", "a", expected=el.expected_split_identities(loader.dataset))
     assert result["provenance"]["metric_registerable"]["m2_lambda"] == 1.0
     assert "metric_registration" in result["provenance"]
+
+
+# --------------------------------------------------------------------------- #
+# r4m3 finding 1: the committed manifest is AUTHORITATIVE for the whole
+# MetricConfig (no CLI reconstruction), registration is required for every unseen
+# metric mode, calibration authenticates its input stream, and the draft carries
+# the seeds / identity / manifest digests. Finding 8: no vestigial parameter.
+# --------------------------------------------------------------------------- #
+def _full_metric_manifest(tmp_path, **over):
+    from src.localization.rir_metrics import M4_FEATURES, registerable_payload
+    manifest = {
+        "registerable": registerable_payload(),
+        "metric_config": {"delta_max": 8, "t30_backend": "torch",
+                          "m4_mu": [0.0] * len(M4_FEATURES),
+                          "m4_sigma": [1.0] * len(M4_FEATURES),
+                          "window_samples": 9600, "param_window_samples": 8000,
+                          "lam": 1.0, "sample_rate": 22050,
+                          "families": ["m1", "m2", "m3", "m4", "m5"],
+                          "secondaries": True, "delta_grid": []},
+        "seeds": [42, 43, 44],
+        "candidate_manifest_sha256": "cm" * 32,
+        "r2_identity_digest": "id" * 32,
+        "r2_manifest_digests": {"R2": "a" * 64, "R2b": "b" * 64},
+        "source_sha": "0" * 40,
+    }
+    manifest.update(over)
+    return manifest
+
+
+def test_registered_metric_config_comes_from_the_manifest_not_the_cli(tmp_path):
+    """The frozen mu/sigma have no CLI representation, so a registered run must
+    LOAD its whole config from the verified manifest."""
+    path, sha = _git_repo_with_manifest(tmp_path, _full_metric_manifest(tmp_path),
+                                        name="metrics.json")
+    args = _metric_args(tmp_path, manifest_path=path, sha=sha)
+    unseen = _json.loads(open(_UNSEEN_CONFIG).read())
+    config = el.verify_metric_registration(args, unseen, repo_root=str(tmp_path),
+                                           candidate_manifest_sha256="cm" * 32,
+                                           identity_digest="id" * 32)
+    assert config.delta_max == 8 and config.t30_backend == "torch"
+    assert config.secondaries is True
+    assert list(config.m4_mu) == [0.0] * 10 and list(config.m4_sigma) == [1.0] * 10
+
+
+def test_registered_metric_config_refuses_a_mismatched_run_state(tmp_path):
+    path, sha = _git_repo_with_manifest(tmp_path, _full_metric_manifest(tmp_path),
+                                        name="metrics.json")
+    args = _metric_args(tmp_path, manifest_path=path, sha=sha)
+    unseen = _json.loads(open(_UNSEEN_CONFIG).read())
+    with pytest.raises(SystemExit, match="candidate manifest"):
+        el.verify_metric_registration(args, unseen, repo_root=str(tmp_path),
+                                      candidate_manifest_sha256="zz" * 32,
+                                      identity_digest="id" * 32)
+    with pytest.raises(SystemExit, match="identity"):
+        el.verify_metric_registration(args, unseen, repo_root=str(tmp_path),
+                                      candidate_manifest_sha256="cm" * 32,
+                                      identity_digest="zz" * 32)
+    args.seed = 99
+    with pytest.raises(SystemExit, match="seed"):
+        el.verify_metric_registration(args, unseen, repo_root=str(tmp_path),
+                                      candidate_manifest_sha256="cm" * 32,
+                                      identity_digest="id" * 32)
+
+
+def test_registered_manifest_must_lock_every_config_field(tmp_path):
+    incomplete = _full_metric_manifest(tmp_path)
+    del incomplete["metric_config"]["lam"]
+    path, sha = _git_repo_with_manifest(tmp_path, incomplete, name="metrics.json")
+    args = _metric_args(tmp_path, manifest_path=path, sha=sha)
+    unseen = _json.loads(open(_UNSEEN_CONFIG).read())
+    with pytest.raises(SystemExit, match="lam"):
+        el.verify_metric_registration(args, unseen, repo_root=str(tmp_path),
+                                      candidate_manifest_sha256="cm" * 32,
+                                      identity_digest="id" * 32)
+
+
+def test_metrics_retrieval_on_unseen_requires_the_metric_registration(tmp_path):
+    unseen = _json.loads(open(_UNSEEN_CONFIG).read())
+    args = el.parse_args(["--mode", "metrics-retrieval", "--model-config", "m.json",
+                          "--dataset-config", _UNSEEN_CONFIG, "--metric-delta-max", "8"])
+    with pytest.raises(SystemExit, match="metric-registration"):
+        el.assert_metric_registration(args, unseen)
+    seen = _json.loads(open(_SEEN_CONFIG).read())
+    seen_args = el.parse_args(["--mode", "metrics-retrieval", "--model-config", "m.json",
+                               "--dataset-config", _SEEN_CONFIG, "--metric-delta-max", "8"])
+    el.assert_metric_registration(seen_args, seen)
+
+
+def test_calibration_authenticates_its_identity_stream(tmp_path):
+    path = _calibration_rows(tmp_path, n_queries=6)
+    identities = tmp_path / "ids.json"
+    identities.write_text(_json.dumps([f"q{i}" for i in range(6)]))
+    args = _calibrate_args(tmp_path, path, **{"--calibration-identities": str(identities)})
+    report = el.run_metrics_calibrate(args)
+    assert report["identity_check"]["n_identities"] == 6
+    assert report["identity_check"]["authenticated"] is True
+
+    wrong = tmp_path / "wrong.json"
+    wrong.write_text(_json.dumps([f"q{i}" for i in range(5)]))       # cardinality
+    with pytest.raises(SystemExit):
+        el.run_metrics_calibrate(_calibrate_args(
+            tmp_path / "b", path, **{"--calibration-identities": str(wrong)}))
+
+    reordered = tmp_path / "reordered.json"
+    reordered.write_text(_json.dumps([f"q{i}" for i in [1, 0, 2, 3, 4, 5]]))
+    with pytest.raises(SystemExit):
+        el.run_metrics_calibrate(_calibrate_args(
+            tmp_path / "c", path, **{"--calibration-identities": str(reordered)}))
+
+
+def test_calibration_refuses_duplicate_rows_and_a_missing_grid(tmp_path):
+    from src.localization.rir_metrics import M1_DELTA_GRID
+    rows = el.read_rows(_calibration_rows(tmp_path, n_queries=4))
+    duped = tmp_path / "duped.jsonl"
+    with open(duped, "w") as handle:
+        for row in [rows[0], rows[0], rows[1], rows[2]]:
+            el.write_row(handle, row)
+    with pytest.raises(SystemExit, match="duplicate"):
+        el.run_metrics_calibrate(_calibrate_args(tmp_path / "d", duped))
+
+    partial = tmp_path / "partial.jsonl"
+    with open(partial, "w") as handle:
+        for row in rows:
+            trimmed = dict(row)
+            trimmed["families"] = {k: v for k, v in row["families"].items()
+                                   if not k.endswith(str(M1_DELTA_GRID[-1]))}
+            el.write_row(handle, trimmed)
+    with pytest.raises(SystemExit):
+        el.run_metrics_calibrate(_calibrate_args(tmp_path / "e", partial))
+
+
+def test_calibration_draft_carries_seeds_and_the_registration_digests(tmp_path):
+    path = _calibration_rows(tmp_path)
+    args = _calibrate_args(tmp_path, path, **{"--register-seeds": "42 43 44",
+                                              "--register-candidate-manifest": "cm" * 32,
+                                              "--register-identity-digest": "id" * 32})
+    draft = el.run_metrics_calibrate(args)["draft_manifest"]
+    assert draft["seeds"] == [42, 43, 44]
+    assert draft["candidate_manifest_sha256"] == "cm" * 32
+    assert draft["r2_identity_digest"] == "id" * 32
+    assert "r2_manifest_digests" in draft and "metrics_rows_sha256" in draft
+
+    bare = el.run_metrics_calibrate(_calibrate_args(tmp_path / "f", path))["draft_manifest"]
+    assert bare["candidate_manifest_sha256"] == "tbd" and bare["r2_identity_digest"] == "tbd"
+
+
+def test_build_metrics_row_has_no_vestigial_parameter():
+    import inspect
+    assert "outcome" not in inspect.signature(el.build_metrics_row).parameters
+
+
+def test_metrics_rows_serialize_the_declared_secondaries_and_sensitivities(tmp_path):
+    """F4: secondaries reach the row for candidates AND contexts; the sensitivity
+    battery lands on the declared every-Nth-query subset."""
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    args = _metrics_args(tmp_path, **{"--metric-secondaries": True,
+                                      "--metric-sensitivities": True})
+    result = el.run_evaluation(args, loader, engine, _stub_context(root), "c", "a",
+                               expected=el.expected_split_identities(loader.dataset))
+    rows = el.read_rows(result["metrics_path"])
+    first = rows[0]
+    for name in ("m2_complex", "m3_band", "m3_hilbert", "m5_gcc"):
+        block = first["families"][name]
+        assert el.decode_sims(block["candidates_hex"]).shape == (3, 2)
+        assert len(block["context_hex"]) == first["n_context"]
+    assert first["m5_gcc_lags"] is not None
+    # Delta = 0 is always present, whatever the grid says
+    assert "m1_delta0" in first["families"] or first["metric_config"]["delta_max"] == 0
+
+    from src.localization.rir_metrics import SENSITIVITY_STRIDE, SENSITIVITY_VARIANTS
+    assert first["position"] % SENSITIVITY_STRIDE == 0
+    assert set(first["sensitivities"]) == set(SENSITIVITY_VARIANTS)
+    assert el.decode_sims(first["sensitivities"]["gain_x2"]["m1"]).shape == (3, 2)
+    if len(rows) > 1 and rows[1]["position"] % SENSITIVITY_STRIDE:
+        assert rows[1]["sensitivities"] is None
