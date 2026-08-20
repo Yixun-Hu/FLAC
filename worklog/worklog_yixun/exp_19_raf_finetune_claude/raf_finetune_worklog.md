@@ -97,3 +97,6 @@ All training checkpoints go under `/media/diskstation/yixunhu/FLAC/checkpoints/<
 ## 2026-08-20T11:54:51-0400 — GO: Yixun approved the canonical run ("go for the exp_19 canaical-run")
 
 Blanket GO adopts the package recommendations: residuals 1–3 ACCEPTED AS RECORDED; second R-cal seed SKIPPED. Sequence begins: prep dry-run → canonical prep (splits committed once; runtime → NAS RAF_processed) → 42 depth renders → smoke (GPU, announced to peer, co-tenant OK) → 1000-step finetune (--save-dir /media/diskstation/yixunhu/FLAC/checkpoints/exp19_raf_finetune per the storage directive) → 5-seed evals ×2 rows + diagnostic row.
+
+## 2026-08-20T17:52:36-0400 — CANONICAL RUN COMPLETE — results committed
+Zero-shot → finetuned on the 768-item test row: T60 11.25→5.64 (−50%), C50 3.02→0.85 (−72%), EDT 145→38.9 (−73%), all ≫ the R-cal band. Full record: `raf_finetune_results.md`. Run artifacts on NAS per the storage directive.

@@ -1,0 +1,54 @@
+WARNING: /media/diskstation/yixunhu/raf_dataset/archived/EmptyRoom: dropping the trailing all-NaN sentinel line 47485 of all_rx_pos.txt ('nan,nan,nan') per contracts Amendment 1; 47484 data lines remain
+WARNING: /media/diskstation/yixunhu/raf_dataset/archived/FurnishedRoom: dropping the trailing all-NaN sentinel line 39133 of all_rx_pos.txt ('nan,nan,nan') per contracts Amendment 1; 39132 data lines remain
+INFO: readback record 9288181be62b (gauge RAF_TO_PIPELINE:(X,Z,Y))
+INFO: scale references: HAA 4 (1d59babdbc1b), AR 0
+INFO: EmptyRoom 40e2ff54f26e6803: range [0.985, 5.602] m, nadir 1.338 m (height 1.366 m), bearing -50.3 deg (mesh 115.7 deg), 0 rays repaired
+INFO: EmptyRoom f3f540d79bda78c5: range [0.835, 5.849] m, nadir 1.094 m (height 1.145 m), bearing -103.0 deg (mesh -59.0 deg), 0 rays repaired
+INFO: EmptyRoom 174a6ef1e987fec6: range [1.082, 8.582] m, nadir 1.082 m (height 1.067 m), bearing 121.3 deg (mesh 118.4 deg), 0 rays repaired
+INFO: EmptyRoom f3e310d6f2243aec: range [0.745, 8.124] m, nadir 1.589 m (height 1.612 m), bearing 97.4 deg (mesh 97.6 deg, tie), 0 rays repaired
+INFO: EmptyRoom fe65c8c64fbad466: range [0.837, 7.764] m, nadir 1.591 m (height 1.644 m), bearing -48.2 deg (mesh -48.3 deg), 0 rays repaired
+INFO: EmptyRoom f185ab39cd7e10ac: range [0.742, 6.205] m, nadir 1.586 m (height 1.582 m), bearing -136.1 deg (mesh 129.6 deg), 0 rays repaired
+INFO: EmptyRoom dc564867b723874d: range [0.997, 6.685] m, nadir 1.088 m (height 1.140 m), bearing -38.3 deg (mesh -38.5 deg), 0 rays repaired
+INFO: EmptyRoom 12fca198bf3554fd: range [0.966, 6.863] m, nadir 1.087 m (height 1.116 m), bearing -58.0 deg (mesh -57.9 deg, tie), 0 rays repaired
+INFO: EmptyRoom 144ea4c387f759ca: range [1.085, 8.305] m, nadir 1.086 m (height 1.094 m), bearing 107.9 deg (mesh 107.6 deg), 0 rays repaired
+INFO: EmptyRoom 9692ab025662a3b3: range [0.952, 6.777] m, nadir 1.588 m (height 1.633 m), bearing 101.6 deg (mesh 101.0 deg, tie), 0 rays repaired
+INFO: EmptyRoom 7e31d665941bbf05: range [0.988, 7.081] m, nadir 1.332 m (height 1.337 m), bearing 128.3 deg (mesh 122.7 deg), 0 rays repaired
+INFO: EmptyRoom 8b454faded8dbe78: range [1.084, 7.001] m, nadir 1.084 m (height 1.114 m), bearing 111.4 deg (mesh 110.7 deg), 0 rays repaired
+INFO: EmptyRoom d561995707831c5b: range [0.848, 3.539] m, nadir 1.594 m (height 1.632 m), bearing -127.6 deg (mesh -62.2 deg), 0 rays repaired
+INFO: EmptyRoom b89a2cf48698079d: range [0.718, 8.091] m, nadir 1.583 m (height 1.573 m), bearing 126.2 deg (mesh 121.5 deg), 0 rays repaired
+INFO: EmptyRoom ef42ae0c819fe0ab: range [0.966, 6.504] m, nadir 1.589 m (height 1.635 m), bearing -40.4 deg (mesh -40.7 deg), 0 rays repaired
+INFO: EmptyRoom c04a51de97a2e4cf: range [0.635, 6.710] m, nadir 1.087 m (height 1.136 m), bearing 98.8 deg (mesh 66.3 deg, tie), 0 rays repaired
+INFO: EmptyRoom 1a1ad63e767fd60a: range [0.981, 6.698] m, nadir 1.590 m (height 1.618 m), bearing -56.6 deg (mesh -56.1 deg), 0 rays repaired
+INFO: EmptyRoom e0c20c6f799bf358: range [0.554, 6.324] m, nadir 1.083 m (height 1.082 m), bearing -133.9 deg (mesh 129.9 deg, tie), 0 rays repaired
+INFO: EmptyRoom c071b4188107298a: range [1.088, 7.458] m, nadir 1.089 m (height 1.140 m), bearing -48.2 deg (mesh -48.4 deg), 0 rays repaired
+INFO: EmptyRoom 925d9e68e7bdbd53: range [0.922, 7.017] m, nadir 1.585 m (height 1.615 m), bearing 112.9 deg (mesh 111.9 deg), 0 rays repaired
+INFO: EmptyRoom ec12b0519d037164: range [0.961, 8.069] m, nadir 1.089 m (height 1.110 m), bearing 98.8 deg (mesh 98.4 deg, tie), 0 rays repaired
+INFO: EmptyRoom: staged 21 depth maps in 1.02s (scene build 0.01s), 16 warnings
+INFO: FurnishedRoom a8da859a0a99ea6e: range [1.031, 5.479] m, nadir 1.278 m (height 1.359 m), bearing 119.9 deg (mesh 96.7 deg), 54 rays repaired
+INFO: FurnishedRoom f505d186037b469f: range [0.689, 8.407] m, nadir 1.081 m (height 1.148 m), bearing -73.5 deg (mesh -56.0 deg), 10 rays repaired
+INFO: FurnishedRoom 79cce1715789cedf: range [0.755, 9.165] m, nadir 0.964 m (height 1.061 m), bearing 121.3 deg (mesh 106.3 deg), 1 rays repaired
+INFO: FurnishedRoom 08a63c8e016d42ca: range [0.561, 8.108] m, nadir 1.522 m (height 1.606 m), bearing 96.0 deg (mesh 84.1 deg), 4 rays repaired
+INFO: FurnishedRoom 93afecfd31d224b1: range [0.864, 7.731] m, nadir 1.563 m (height 1.635 m), bearing -48.2 deg (mesh -47.8 deg), 7 rays repaired
+INFO: FurnishedRoom 0d6fed0858770a08: range [0.909, 7.024] m, nadir 1.490 m (height 1.588 m), bearing 130.4 deg (mesh 122.2 deg), 39 rays repaired
+INFO: FurnishedRoom fa780a916eaa1950: range [0.342, 6.371] m, nadir 1.038 m (height 1.124 m), bearing 96.7 deg (mesh 81.3 deg), 7 rays repaired
+INFO: FurnishedRoom cddde039688c96dd: range [0.882, 3.301] m, nadir 1.561 m (height 1.613 m), bearing -145.2 deg (mesh -64.3 deg), 76 rays repaired
+INFO: FurnishedRoom 841b92f4847b1752: range [1.048, 6.641] m, nadir 1.048 m (height 1.125 m), bearing -42.5 deg (mesh -42.9 deg), 3 rays repaired
+[1;33m[Open3D WARNING] Legacy mesh has more than 1 material which is not supported by Tensor-based mesh. Only material DefaultMaterial was converted.[0;m
+[1;33m[Open3D WARNING] Legacy mesh has more than 1 material which is not supported by Tensor-based mesh. Only material DefaultMaterial was converted.[0;m
+Traceback (most recent call last):
+  File "/home/yixunhu/codespace/exp-19-raf-finetune/data/RAF/render_depth.py", line 239, in render_depth
+    hits, miss_report = fill_missing(hits, max_miss_rate=max_miss_rate)
+  File "/home/yixunhu/codespace/exp-19-raf-finetune/data/RAF/render_depth.py", line 181, in fill_missing
+    raise RuntimeError(
+RuntimeError: depth render missed 260 of 131072 rays (0.1984%), above the registered cap of 0.1% (0.001). A scan hole is repaired and recorded; this is not one -- the mesh is broken or the camera is outside the room.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/yixunhu/codespace/exp-19-raf-finetune/data/RAF/render_depth.py", line 1083, in <module>
+    raise SystemExit(main())
+  File "/home/yixunhu/codespace/exp-19-raf-finetune/data/RAF/render_depth.py", line 977, in main
+    depth, miss_report = render_depth(scene, position, h=args.img_h,
+  File "/home/yixunhu/codespace/exp-19-raf-finetune/data/RAF/render_depth.py", line 241, in render_depth
+    raise RuntimeError(f"depth render at {position.tolist()}: {e}")
+RuntimeError: depth render at [0.747239, -0.690041, 1.081199]: depth render missed 260 of 131072 rays (0.1984%), above the registered cap of 0.1% (0.001). A scan hole is repaired and recorded; this is not one -- the mesh is broken or the camera is outside the room.

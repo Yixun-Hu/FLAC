@@ -1,0 +1,16 @@
+WARNING: /media/diskstation/yixunhu/raf_dataset/archived/EmptyRoom: dropping the trailing all-NaN sentinel line 47485 of all_rx_pos.txt ('nan,nan,nan') per contracts Amendment 1; 47484 data lines remain
+WARNING: /media/diskstation/yixunhu/raf_dataset/archived/FurnishedRoom: dropping the trailing all-NaN sentinel line 39133 of all_rx_pos.txt ('nan,nan,nan') per contracts Amendment 1; 39132 data lines remain
+INFO: readback record 9288181be62b (gauge RAF_TO_PIPELINE:(X,Z,Y), quat xyzw, T60 headline)
+INFO: reading /media/diskstation/yixunhu/raf_dataset/archived/EmptyRoom
+WARNING: /media/diskstation/yixunhu/raf_dataset/archived/EmptyRoom: dropping the trailing all-NaN sentinel line 47485 of all_rx_pos.txt ('nan,nan,nan') per contracts Amendment 1; 47484 data lines remain
+INFO: EmptyRoom: cross-checked 47484 captures (full)
+INFO: EmptyRoom: 47484 captures in 1319 groups over 139 placements
+INFO: reading /media/diskstation/yixunhu/raf_dataset/archived/FurnishedRoom
+WARNING: /media/diskstation/yixunhu/raf_dataset/archived/FurnishedRoom: dropping the trailing all-NaN sentinel line 39133 of all_rx_pos.txt ('nan,nan,nan') per contracts Amendment 1; 39132 data lines remain
+INFO: FurnishedRoom: cross-checked 39132 captures (full)
+WARNING: non-uniform groups recorded: 2d3514a210ef3296:72
+INFO: FurnishedRoom: 39132 captures in 1086 groups over 121 placements
+INFO: amplitude scalar x3 = min(support 5, clamp 3) [bound by clip_clamp]; global train-support peak 0.16574, global max written peak 0.24990 over 1512 files in ['EmptyRoom', 'FurnishedRoom']
+INFO: EmptyRoom: staged 756 resampled RIRs (0 below -60 dBFS)
+INFO: FurnishedRoom: staged 756 resampled RIRs (0 below -60 dBFS)
+INFO: published generation 46a43f4ce82b over 2 roots (marker in data/RAF)
