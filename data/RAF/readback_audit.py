@@ -276,6 +276,12 @@ def audit_room(room_dir, room, n_onset_samples=200, seed=0, crosscheck_sample=20
 
     return {
         "n_captures": len(index),
+        "room_index": {
+            "n_captures": len(index),
+            "all_tx_pos_sha256": sha256_of(os.path.join(room_dir, "metadata", "all_tx_pos.txt")),
+            "all_rx_pos_sha256": sha256_of(os.path.join(room_dir, "metadata", "all_rx_pos.txt")),
+            "rx_trailing_sentinel_dropped": bool(index.rx_trailing_sentinel_dropped),
+        },
         "n_groups": group_report["n_groups"],
         "size_histogram": group_report["size_histogram"],
         "nonuniform": group_report["nonuniform"],
@@ -348,6 +354,79 @@ def sha256_of(path):
         return hashlib.sha256(f.read()).hexdigest()
 
 
+def read_record_once(path):
+    """Read the record ONCE and return ``(payload, digest, parsed)`` (T1).
+
+    One open, one read: the digest describes exactly the bytes that were parsed.
+    Parsing and then reopening to hash left a window in which a swapped file could
+    supply forged content to the parser and the pinned bytes to the hasher.
+    """
+    import hashlib
+
+    with open(path, "rb") as f:
+        payload = f.read()
+    digest = hashlib.sha256(payload).hexdigest()
+    record = json.loads(payload.decode("utf-8"))
+    return payload, digest, record
+
+
+def room_index_digests(room_dir):
+    """Corpus fingerprint the audit can record and the gates can re-verify (T1).
+
+    The pose files ARE the index the whole preparation rests on, and they are small
+    -- so their digests bind a publication to the corpus it was audited against
+    without hashing 43 GB of audio (out of scope per the registered threat model).
+    """
+    from prepare_data import _capture_dirs, load_room_index
+
+    meta = os.path.join(room_dir, "metadata")
+    index = load_room_index(room_dir)
+    return {
+        "n_captures": len(index),
+        "all_tx_pos_sha256": sha256_of(os.path.join(meta, "all_tx_pos.txt")),
+        "all_rx_pos_sha256": sha256_of(os.path.join(meta, "all_rx_pos.txt")),
+        "rx_trailing_sentinel_dropped": bool(index.rx_trailing_sentinel_dropped),
+    }
+
+
+def verify_corpus_binding(record, raf_root, rooms):
+    """Re-verify the record's corpus fingerprint against the corpus being read.
+
+    Returns a list of problems (empty when consistent). Records that carry
+    ``room_index`` are checked on the file digests; the currently pinned record
+    predates that block, so it falls back to the capture counts it does carry --
+    enough to catch the operator error of pointing a canonical run at a different
+    corpus, which is the registered threat model.
+    """
+    problems = []
+    for room in rooms:
+        payload = (record.get("rooms") or {}).get(room)
+        if payload is None:
+            problems.append(f"{room}: not audited by this record")
+            continue
+        room_dir = os.path.join(raf_root, "archived", room)
+        recorded = payload.get("room_index")
+        try:
+            if recorded:
+                actual = room_index_digests(room_dir)
+                for key in sorted(recorded):
+                    if actual.get(key) != recorded[key]:
+                        problems.append(
+                            f"{room}: {key} is {actual.get(key)!r} on disk but the "
+                            f"record audited {recorded[key]!r}")
+            else:
+                from prepare_data import _capture_dirs
+
+                n_captures = len(_capture_dirs(room_dir))
+                if n_captures != payload.get("n_captures"):
+                    problems.append(
+                        f"{room}: capture count {n_captures} on disk but the record "
+                        f"audited {payload.get('n_captures')}")
+        except (OSError, ValueError) as e:
+            problems.append(f"{room}: corpus unreadable for binding ({e})")
+    return problems
+
+
 def assert_canonical_content(record, path):
     """Every content rule canonical publication depends on (S1).
 
@@ -383,6 +462,33 @@ def assert_canonical_content(record, path):
                 f"({payload['onset'].get('reasons')})")
     if not (record.get("decisions", {}).get("t60_headline", {}).get("resolution")):
         raise ValueError(f"{path}: the T60 headline decision is unresolved")
+
+    # T1: every sub-verdict, not only block presence and onset.passed.
+    for room, payload in sorted(rooms.items()):
+        t30 = payload["t30_validity"]
+        if not t30.get("n") or not t30.get("valid_full"):
+            raise ValueError(
+                f"{path}: room {room}'s t30 validity block measured nothing "
+                f"(n={t30.get('n')}, valid_full={t30.get('valid_full')})")
+        amplitude = payload["amplitude"]
+        if not (amplitude.get("peak_stats") or {}).get("count"):
+            raise ValueError(
+                f"{path}: room {room}'s amplitude block measured no files")
+        crosscheck = payload["crosscheck"]
+        if not crosscheck.get("checked") or crosscheck.get("mismatches"):
+            raise ValueError(
+                f"{path}: room {room}'s per-capture cross-check checked "
+                f"{crosscheck.get('checked')} captures with "
+                f"{crosscheck.get('mismatches')} mismatches")
+        quaternion = payload["quaternion"]
+        if not quaternion.get("identity_readings"):
+            raise ValueError(
+                f"{path}: room {room} carries no quaternion order diagnostics, so "
+                "the xyzw pin rests on nothing")
+        if payload.get("onset_failures"):
+            raise ValueError(
+                f"{path}: room {room} has {len(payload['onset_failures'])} onset "
+                "detection failures")
     return record
 
 
@@ -398,8 +504,10 @@ def load_passing_record(path, canonical=True, expected_raf_root=None):
         raise FileNotFoundError(
             f"readback record not found: {path}. Canonical RAF artifacts may only be "
             "published from a passing readback audit (data/RAF/readback_audit.py).")
-    with open(path) as f:
-        record = json.load(f)
+    _payload, digest, record = read_record_once(path)
+    # The digest of the bytes that were actually parsed travels with the record, so
+    # provenance can never describe a different file than the gate validated (T1).
+    record["__authenticated_sha256__"] = digest
     if record.get("schema_version") != RECORD_SCHEMA_VERSION:
         raise ValueError(
             f"readback record {path} has schema_version "
@@ -418,7 +526,6 @@ def load_passing_record(path, canonical=True, expected_raf_root=None):
             "before canonical artifacts are published.")
 
     if canonical:
-        digest = sha256_of(path)
         if digest != CANONICAL_RECORD_SHA256:
             raise ValueError(
                 f"readback record {path} has sha256 {digest}, which is not the "
@@ -433,12 +540,26 @@ def load_passing_record(path, canonical=True, expected_raf_root=None):
                     f"readback record {path} audited raf_root {audited_root!r}, but "
                     f"this run reads {expected_raf_root!r}: the audit does not "
                     "describe this corpus")
+            # A pathname authenticates nothing behind a moved mount, so the corpus
+            # itself is fingerprinted too (T1).
+            problems = verify_corpus_binding(record, expected_raf_root,
+                                             list(record.get("rooms") or {}))
+            if problems:
+                raise ValueError(
+                    f"readback record {path} does not describe the corpus at "
+                    f"{expected_raf_root}: " + "; ".join(problems))
     return record
 
 
 def record_provenance(path, record, canonical=True):
     """Compact provenance block for the artifacts published under this record."""
-    digest = sha256_of(path)
+    digest = record.get("__authenticated_sha256__") or sha256_of(path)
+    binding = []
+    for room, payload in sorted((record.get("rooms") or {}).items()):
+        binding.append(
+            f"{room}: pose-file digests"
+            if payload.get("room_index") else
+            f"{room}: capture counts only (record predates the room_index block)")
     taint = [] if canonical else [
         "non-canonical publication: the readback record was not authenticated "
         f"against the pinned {CANONICAL_RECORD_SHA256[:12]} record"]
@@ -447,6 +568,7 @@ def record_provenance(path, record, canonical=True):
         "sha256": digest,
         "canonical": bool(canonical),
         "taint": taint,
+        "corpus_binding": binding,
         "schema_version": record["schema_version"],
         "created_utc": record.get("created_utc"),
         "gauge_pinned": record["adjudication"]["gauge_pinned"],

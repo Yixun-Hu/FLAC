@@ -725,3 +725,121 @@ def test_the_parameter_set_joins_the_marker_identity(tmp_path):
     assert marker["parameters"]["n_groups"] == 1
     assert marker["parameters"]["rooms"] == ["EmptyRoom"]
     assert marker["readback_record"]["sha256"]
+
+
+# --------------------------------------------------------------------------- #
+# r4 T1: read-once digest, full sub-verdict validation, corpus binding
+# --------------------------------------------------------------------------- #
+def test_record_is_read_once_and_the_parsed_bytes_are_what_is_hashed():
+    payload, digest, record = raf_readback.read_record_once(_PINNED_RECORD)
+    import hashlib
+
+    assert hashlib.sha256(payload).hexdigest() == digest == _PINNED_SHA256
+    assert record == json.loads(payload)
+
+
+def test_a_file_swapped_after_parsing_cannot_supply_the_pinned_bytes(tmp_path):
+    """T1's TOCTOU: parse, then reopen to hash, and a swap in between let forged
+    content ride on the pinned digest. One descriptor, one read, one digest."""
+    path = tmp_path / "record.json"
+    forged = _tampered(tmp_path, _superseded_quat, name="forged.json")
+    with open(forged) as f:
+        path.write_text(f.read())
+    payload, digest, record = raf_readback.read_record_once(str(path))
+    with open(_PINNED_RECORD, "rb") as f:
+        path.write_bytes(f.read())          # swap AFTER the read
+    assert record["adjudication"]["quat_order_pinned"] == "wxyz"
+    assert digest != _PINNED_SHA256         # the digest describes what was parsed
+
+
+def test_provenance_carries_the_authenticated_digest(tmp_path):
+    record = raf_readback.load_passing_record(_PINNED_RECORD, canonical=True)
+    provenance = raf_readback.record_provenance(_PINNED_RECORD, record, canonical=True)
+    assert provenance["sha256"] == record["__authenticated_sha256__"] == _PINNED_SHA256
+
+
+def _fail_t30(record):
+    record["rooms"]["EmptyRoom"]["t30_validity"]["valid_full"] = 0
+
+
+def _empty_amplitude(record):
+    record["rooms"]["EmptyRoom"]["amplitude"]["peak_stats"]["count"] = 0
+
+
+def _crosscheck_mismatch(record):
+    record["rooms"]["EmptyRoom"]["crosscheck"]["mismatches"] = 3
+
+
+def _no_quaternion_readings(record):
+    record["rooms"]["EmptyRoom"]["quaternion"]["identity_readings"] = {}
+
+
+@pytest.mark.parametrize("mutate,needle", [
+    (_fail_t30, "t30"),
+    (_empty_amplitude, "amplitude"),
+    (_crosscheck_mismatch, "cross-check"),
+    (_no_quaternion_readings, "quaternion"),
+])
+def test_every_sub_verdict_is_validated(tmp_path, mutate, needle):
+    """T1: the content check only tested block presence, onset.passed and a
+    non-empty T60 resolution."""
+    path = _tampered(tmp_path, mutate)
+    with pytest.raises(ValueError) as exc:
+        raf_readback.assert_canonical_content(json.load(open(path)), path)
+    assert needle in str(exc.value).lower()
+
+
+def test_corpus_binding_uses_the_room_index_digests(tmp_path):
+    from test_raf_prepare_data import _default_groups, write_room
+
+    write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1))
+    digests = raf_readback.room_index_digests(
+        os.path.join(str(tmp_path), "archived", "EmptyRoom"))
+    assert set(digests) == {"n_captures", "all_tx_pos_sha256", "all_rx_pos_sha256",
+                            "rx_trailing_sentinel_dropped"}
+    assert digests["n_captures"] == 36
+    assert len(digests["all_tx_pos_sha256"]) == 64
+
+    record = {"rooms": {"EmptyRoom": {"room_index": digests}}}
+    assert raf_readback.verify_corpus_binding(record, str(tmp_path), ["EmptyRoom"]) == []
+
+    # a different corpus: same shape, different bytes
+    other = tmp_path / "other"
+    write_room(str(other), "EmptyRoom", groups=_default_groups(2))
+    problems = raf_readback.verify_corpus_binding(record, str(other), ["EmptyRoom"])
+    assert problems and "EmptyRoom" in problems[0]
+
+
+def test_corpus_binding_falls_back_to_capture_counts_when_digests_are_absent(tmp_path):
+    """The pinned record predates the digest block; the counts it DOES carry still
+    catch the operator error of pointing at the wrong corpus."""
+    from test_raf_prepare_data import _default_groups, write_room
+
+    write_room(str(tmp_path), "EmptyRoom", groups=_default_groups(1))
+    record = {"rooms": {"EmptyRoom": {"n_captures": 36}}}
+    problems = raf_readback.verify_corpus_binding(record, str(tmp_path), ["EmptyRoom"])
+    assert problems == []
+    wrong = {"rooms": {"EmptyRoom": {"n_captures": 47484}}}
+    problems = raf_readback.verify_corpus_binding(wrong, str(tmp_path), ["EmptyRoom"])
+    assert problems and "capture count" in problems[0]
+
+
+def test_the_audit_records_room_index_digests_going_forward(audited_room, tmp_path):
+    raf_root, _ = audited_room
+    out = tmp_path / "rec.json"
+    raf_readback.main(["--raf-root", raf_root, "--rooms", "EmptyRoom", "--out", str(out),
+                       "--n-onset-samples", "36"])
+    with open(out) as f:
+        record = json.load(f)
+    digests = record["rooms"]["EmptyRoom"]["room_index"]
+    assert digests["n_captures"] == 36
+    assert len(digests["all_rx_pos_sha256"]) == 64
+
+
+def test_the_pinned_record_predates_the_digest_block_and_that_is_recorded():
+    """Registered residual: re-pinning the canonical record to carry file digests
+    needs a real-corpus audit rerun and a new pinned hash (Planner's call)."""
+    record = raf_readback.load_passing_record(_PINNED_RECORD, canonical=True)
+    assert "room_index" not in record["rooms"]["EmptyRoom"]
+    provenance = raf_readback.record_provenance(_PINNED_RECORD, record, canonical=True)
+    assert any("capture counts" in note for note in provenance["corpus_binding"])
