@@ -72,3 +72,7 @@ Rows above record development SHAs on `localization-exp` (history of record for 
 | `0408941` | r6 F4: canonical miss cap EXACTLY `DEFAULT_MAX_MISS_RATE` (lower-is-fine revoked); `--rx-sightline-receivers` wired through, recorded, identity-checked |
 | `1f31951` | r7 (Amendment 9): rx-sightline demoted to a RECORDED diagnostic in both rooms (environmental obstruction proven by a full yaw sweep); hard gauge gates unchanged; policy in the render identity |
 | `bc8bc9d` | r7 (Amendment 9): amplitude scalar DERIVED (1 sig digit of 0.75 / max trained-support peak) and applied to every written WAV; clip/silence/round-trip assertions; provenance in audit, splits record and marker identity; republication split-content invariance test |
+| `825d765` | r7 (Amendment 9.1): scalar clamp term — `min(support ceiling, largest 1-sig-digit keeping max-written-peak x scalar <= 0.999)`; binding term recorded |
+| `6a2ed4f` | r7 (9.2 F2/F3): ONE global scalar over both rooms (room-qualified derivation set); derivation hash/version/count in the marker identity; registered-scalar assertion before any write |
+| `ef6cef8` | r7 (9.2 F4): canonical render REQUIRES the HAA scale reference (fingerprint in the identity; `scale_checked` AND `scale_plausible`); hard-gates test gains bounds/scale negatives |
+| `e42b4be` | r7 (9.2 F5): committed split-file sha256 prefixes pinned as the republication baseline |
