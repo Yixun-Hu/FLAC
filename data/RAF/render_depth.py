@@ -343,7 +343,7 @@ CANONICAL_RENDER_PARAMS = dict(_REGISTERED_RENDER,
                                rooms=tuple(_REGISTERED_RENDER["rooms"]))
 
 
-def render_identity(args):
+def render_identity(args, haa_fingerprint=None):
     """The parameter set a depth publication's marker is bound to."""
     return {
         "rooms": list(args.rooms),
@@ -353,16 +353,18 @@ def render_identity(args):
         "max_miss_rate": float(args.max_miss_rate),
         "rx_sightline_receivers": int(args.rx_sightline_receivers),
         "rx_sightline_policy": RX_SIGHTLINE_POLICY,
+        "haa_reference_sha256": haa_fingerprint,
     }
 
 
-def canonical_render_deviations(args):
-    identity = render_identity(args)
+def canonical_render_deviations(args, haa_fingerprint=None):
+    identity = render_identity(args, haa_fingerprint=haa_fingerprint)
     deviations = []
     if tuple(identity["rooms"]) != CANONICAL_RENDER_PARAMS["rooms"]:
         deviations.append(
             f"rooms {identity['rooms']} != {list(CANONICAL_RENDER_PARAMS['rooms'])}")
-    for key in ("img_h", "img_w", "floor_tol", "rx_sightline_receivers"):
+    for key in ("img_h", "img_w", "floor_tol", "rx_sightline_receivers",
+                "haa_reference_sha256"):
         if identity[key] != CANONICAL_RENDER_PARAMS[key]:
             deviations.append(f"{key} {identity[key]} != {CANONICAL_RENDER_PARAMS[key]}")
     # F4: identity means identity. The r5 "lower is fine" allowance is REVOKED for
@@ -375,9 +377,9 @@ def canonical_render_deviations(args):
     return deviations
 
 
-def assert_canonical_render(args):
+def assert_canonical_render(args, haa_fingerprint=None):
     """Fail-closed render-parameter gate, run BEFORE any I/O (r5 finding 2)."""
-    deviations = canonical_render_deviations(args)
+    deviations = canonical_render_deviations(args, haa_fingerprint=haa_fingerprint)
     if deviations:
         raise ValueError(
             "refusing a canonical render with non-registered parameters: "
@@ -631,6 +633,18 @@ def reference_depth_stats(root, pattern="*/depth_images/*.npy"):
     }
 
 
+def reference_fingerprint(stats):
+    """sha256 over "n_maps|min|max" of a reference corpus (F4).
+
+    Binds the render identity to the ACTUAL reference used, so an absent or
+    mistyped reference root cannot silently disable the scale gate.
+    """
+    if not stats or not stats.get("available"):
+        return None
+    payload = f"{stats['n_maps']}|{stats['min']:.6f}|{stats['max']:.6f}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def scale_band(references, tolerance=SCALE_REFERENCE_TOLERANCE):
     """Plausible depth band from whichever references are actually present."""
     available = [r for r in references.values() if r.get("available")]
@@ -647,7 +661,8 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
                  tie_angle_deg=BEARING_TIE_ANGLE_DEG, rx_positions_p=None,
                  rx_sightline_required=False, references=None, tracked_height_m=None,
                  vertical_tol_m=DEFAULT_FLOOR_TOL,
-                 rx_sightline_receivers=RX_SIGHTLINE_MAX_RECEIVERS):
+                 rx_sightline_receivers=RX_SIGHTLINE_MAX_RECEIVERS,
+                 require_scale_check=False):
     """Checks that only the REAL mesh can answer (plan Rev 2 section 4.ii, R6).
 
     * camera containment -- the source must be inside the closed room, or every
@@ -777,6 +792,9 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
         warnings.append(
             f"landmark bearing disagrees with the mesh by {bearing_delta_deg:.1f} deg "
             f"(> {bearing_tol_deg} deg): the gauge may be transposed")
+    if require_scale_check and not scale_checked:
+        warnings.append(
+            "no AR/HAA depth reference available: the scale gate cannot run")
     if not plausible:
         warnings.append(
             f"depth range [{scale['min']}, {scale['max']}] m is outside the "
@@ -829,7 +847,12 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
         # recorded diagnostic. ``sightline_ok`` below is the AABB sightline BOUND
         # (no ray may outrun the room's bounding box), which is a different check.
         "passed": bool(camera_inside and bounds_ok and sightline_ok
-                       and (plausible or not scale_checked)
+                       # F4: canonical maps need the scale check to have RUN and
+                       # PASSED; without a reference it cannot run, and "no
+                       # reference" must not read as "no problem".
+                       and (plausible if (scale_checked or require_scale_check)
+                            else True)
+                       and (scale_checked or not require_scale_check)
                        and vertical["ok"]),
     }
 
@@ -882,11 +905,33 @@ def main(argv=None):
     logger.info("readback record %s (gauge %s)", readback_provenance["sha256"][:12],
                 readback_provenance["gauge_pinned"])
 
+    # F4: the AR/HAA scale reference is read BEFORE the identity is resolved -- its
+    # fingerprint is part of that identity, so an absent or mistyped reference root
+    # can no longer silently disable one of the remaining hard gauge gates.
+    references = {
+        "HAA": reference_depth_stats(args.haa_depth_root),
+        "AR": reference_depth_stats(args.ar_depth_root, pattern="**/*.npy")
+        if args.ar_depth_root else
+        {"available": False, "n_maps": 0, "source": None,
+         "reason": "AR depth_map root not provided (often unreadable from this mount)"},
+    }
+    haa_fingerprint = reference_fingerprint(references["HAA"])
+    logger.info("scale references: HAA %s (%s), AR %s",
+                references["HAA"].get("n_maps"),
+                (haa_fingerprint or "unavailable")[:12],
+                references["AR"].get("n_maps"))
+    if canonical and haa_fingerprint is None:
+        raise ValueError(
+            f"refusing a canonical render without the HAA scale reference "
+            f"(--haa-depth-root {args.haa_depth_root!r} is absent or holds no depth "
+            "maps). The depth-scale check is one of the gauge's hard gates, and it "
+            "cannot run without it.")
+
     taint = list(readback_provenance["taint"])
-    render_params = render_identity(args)
-    render_deviations = canonical_render_deviations(args)
+    render_params = render_identity(args, haa_fingerprint=haa_fingerprint)
+    render_deviations = canonical_render_deviations(args, haa_fingerprint=haa_fingerprint)
     if canonical:
-        assert_canonical_render(args)
+        assert_canonical_render(args, haa_fingerprint=haa_fingerprint)
     elif render_deviations:
         taint.append("non-registered render parameters: " + "; ".join(render_deviations))
     taint.extend(resolve_miss_cap(args.max_miss_rate, canonical)[1])
@@ -898,16 +943,6 @@ def main(argv=None):
     # never be published under different generations.
     publish_txn = PublishTransaction(args.output_dir, kind="depth")
     expectations, records = {}, {}
-    # S5: real on-disk reference statistics, read once per run.
-    references = {
-        "HAA": reference_depth_stats(args.haa_depth_root),
-        "AR": reference_depth_stats(args.ar_depth_root, pattern="**/*.npy")
-        if args.ar_depth_root else
-        {"available": False, "n_maps": 0, "source": None,
-         "reason": "AR depth_map root not provided (often unreadable from this mount)"},
-    }
-    logger.info("scale references: HAA %s, AR %s",
-                references["HAA"].get("n_maps"), references["AR"].get("n_maps"))
     sightline_policy = {room: RX_SIGHTLINE_POLICY for room in args.rooms}
     for room in args.rooms:
         mesh = load_mesh_pipeline(os.path.join(args.raf_root, "3d_models", room, "mesh.obj"))
@@ -966,7 +1001,8 @@ def main(argv=None):
                 rx_sightline_receivers=args.rx_sightline_receivers,
                 references=references,
                 tracked_height_m=float(entry["tx_height_raf_m"]),
-                vertical_tol_m=args.floor_tol)
+                vertical_tol_m=args.floor_tol,
+                require_scale_check=canonical)
             if not qa["real_mesh"]["rx_sightline"]["checked"]:
                 # still emitted per map, still recorded -- but never a gate
                 qa["warnings"].append("no receiver sightline evidence available")
@@ -999,6 +1035,7 @@ def main(argv=None):
             "n_warned": len(warned),
             "readback_record": readback_provenance,
             "scale_reference": references,
+            "haa_reference_sha256": haa_fingerprint,
             "detectability": DETECTABILITY_BOUNDARY,
             "rx_sightline_receivers": args.rx_sightline_receivers,
             "rx_sightline_policy": {room: RX_SIGHTLINE_POLICY

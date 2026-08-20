@@ -1274,8 +1274,10 @@ def test_canonical_render_identity_is_the_registered_one():
         "rooms": ("EmptyRoom", "FurnishedRoom"), "img_h": 256, "img_w": 512,
         "floor_tol": 0.15, "max_miss_rate": 0.001, "rx_sightline_receivers": 8,
         "rx_sightline_policy": "recorded",
+        "haa_reference_sha256": _REAL_HAA_BAND_SHA256,
     }
-    assert raf_render.assert_canonical_render(_render_args()) == []
+    assert raf_render.assert_canonical_render(
+        _render_args(), haa_fingerprint=_REAL_HAA_BAND_SHA256) == []
 
 
 @pytest.mark.parametrize("overrides,needle", [
@@ -1289,10 +1291,11 @@ def test_canonical_render_identity_is_the_registered_one():
     ({"rx_sightline_receivers": 3}, "rx_sightline_receivers"),
 ])
 def test_canonical_render_rejects_deviations(overrides, needle):
-    """A Furnished-only render skipped EmptyRoom's unconditional sightline gate,
-    and a loose --floor-tol disabled the vertical gate entirely."""
+    """A loose --floor-tol would disable the vertical gate; a wrong grid cannot be
+    loaded; a Furnished-only render is not the registered room set."""
     with pytest.raises(ValueError) as exc:
-        raf_render.assert_canonical_render(_render_args(**overrides))
+        raf_render.assert_canonical_render(_render_args(**overrides),
+                                           haa_fingerprint=_REAL_HAA_BAND_SHA256)
     assert needle in str(exc.value)
     assert "--non-canonical" in str(exc.value)
 
@@ -1300,7 +1303,7 @@ def test_canonical_render_rejects_deviations(overrides, needle):
 def test_a_stricter_miss_cap_is_no_longer_canonical():
     """F4 revokes the r5 'lower is fine' allowance: identity means identity."""
     deviations = raf_render.canonical_render_deviations(
-        _render_args(max_miss_rate=0.0001))
+        _render_args(max_miss_rate=0.0001), haa_fingerprint=_REAL_HAA_BAND_SHA256)
     assert any("max_miss_rate" in d for d in deviations)
     with pytest.raises(ValueError) as exc:
         raf_render.resolve_miss_cap(0.0001, canonical=True)
@@ -1409,3 +1412,102 @@ def test_render_identity_covers_the_receiver_count():
     assert "rx_sightline_receivers" in raf_render.render_identity(_render_args())
     assert raf_render.CANONICAL_RENDER_PARAMS["rx_sightline_receivers"] == \
         raf_render.RX_SIGHTLINE_MAX_RECEIVERS
+
+
+# --------------------------------------------------------------------------- #
+# r7 Amendment 9.2 F4: the HAA scale reference is mandatory for a canonical render
+# --------------------------------------------------------------------------- #
+def test_reference_fingerprint_identifies_the_corpus():
+    real = raf_render.reference_depth_stats(_REAL_HAA) if os.path.isdir(_REAL_HAA) else None
+    synthetic = raf_render.reference_depth_stats(_SYNTHETIC_REFERENCE)
+    assert raf_render.reference_fingerprint(synthetic) != _REAL_HAA_BAND_SHA256
+    assert raf_render.reference_fingerprint({"available": False}) is None
+    if real:
+        assert raf_render.reference_fingerprint(real) == _REAL_HAA_BAND_SHA256
+
+
+def test_canonical_render_requires_the_haa_reference():
+    """F4: with no readable reference, scale_checked was false and
+    '(plausible or not scale_checked)' passed -- an operator path error disabled a
+    hard gauge gate while still publishing canonical:true."""
+    deviations = raf_render.canonical_render_deviations(_render_args(),
+                                                        haa_fingerprint=None)
+    assert any("haa_reference_sha256" in d for d in deviations)
+    with pytest.raises(ValueError):
+        raf_render.assert_canonical_render(_render_args(), haa_fingerprint=None)
+    with pytest.raises(ValueError):
+        raf_render.assert_canonical_render(_render_args(), haa_fingerprint="0" * 64)
+
+
+def test_qa_requires_the_scale_check_to_have_run_when_it_is_required():
+    mesh = _box_mesh_raf(**_BOX)
+    tx = np.array([0.5, 0.5, 1.5])
+    depth = raf_render.render_depth(mesh, tx, h=32, w=64)
+    absent = {"HAA": {"available": False}, "AR": {"available": False}}
+    lenient = raf_render.real_mesh_qa(depth, tx, mesh, img_h=32, img_w=64,
+                                      references=absent, tracked_height_m=1.5)
+    assert lenient["scale_checked"] is False and lenient["passed"] is True
+    strict = raf_render.real_mesh_qa(depth, tx, mesh, img_h=32, img_w=64,
+                                     references=absent, tracked_height_m=1.5,
+                                     require_scale_check=True)
+    assert strict["passed"] is False
+    assert any("scale gate cannot run" in w for w in strict["warnings"])
+
+
+def test_cli_refuses_a_canonical_render_without_a_readable_reference(tmp_path,
+                                                                     monkeypatch):
+    """A mistyped --haa-depth-root must stop a CANONICAL render. (The synthetic
+    fixture's record cannot be the pinned one, so the record gate is neutralised
+    here to reach the reference gate that this test is about.)"""
+    raf_root, out, _ = _write_fixture(tmp_path)
+    record = _readback(tmp_path)
+    monkeypatch.setattr(raf_render, "load_passing_record",
+                        lambda path, canonical=True, expected_raf_root=None:
+                        json.load(open(path)))
+    monkeypatch.setattr(raf_render, "record_provenance",
+                        lambda path, rec, canonical=True: {"sha256": "0" * 64,
+                                                           "taint": [],
+                                                           "gauge_pinned": "pinned"})
+    with pytest.raises(ValueError) as exc:
+        raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                         "--rooms", "EmptyRoom", "--haa-depth-root",
+                         str(tmp_path / "typo"), "--readback-record", record])
+    assert "HAA scale reference" in str(exc.value)
+
+
+def test_cli_records_the_reference_fingerprint(tmp_path):
+    raf_root, out, _ = _write_fixture(tmp_path)
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--haa-depth-root", _SYNTHETIC_REFERENCE,
+                     "--readback-record", _readback(tmp_path), "--non-canonical"])
+    with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
+        qa = json.load(f)
+    assert qa["haa_reference_sha256"] == raf_render.reference_fingerprint(
+        raf_render.reference_depth_stats(_SYNTHETIC_REFERENCE))
+    import publish as raf_publish
+
+    with open(out / raf_publish.marker_name("depth")) as f:
+        marker = json.load(f)
+    assert marker["parameters"]["haa_reference_sha256"] == qa["haa_reference_sha256"]
+
+
+def test_the_hard_gates_include_bounds_and_scale():
+    """F5: the r7 'hard gates' test asserted only vertical and containment."""
+    mesh = _box_mesh_raf(**_BOX)
+    tx = np.array([0.5, 0.5, 1.5])
+    depth = raf_render.render_depth(mesh, tx, h=32, w=64)
+    references = {"HAA": raf_render.reference_depth_stats(_SYNTHETIC_REFERENCE),
+                  "AR": {"available": False}}
+
+    # bounds: a cloud that leaves the mesh AABB
+    stretched = depth * 25.0
+    bounds = raf_render.real_mesh_qa(stretched, tx, mesh, img_h=32, img_w=64,
+                                     tracked_height_m=1.5)
+    assert bounds["bounds_ok"] is False and bounds["passed"] is False
+
+    # scale: a map far outside the reference band, with the reference present
+    huge = depth * 40.0
+    scale = raf_render.real_mesh_qa(huge, tx, mesh, img_h=32, img_w=64,
+                                    references=references, tracked_height_m=1.5)
+    assert scale["scale_checked"] is True
+    assert scale["scale_plausible"] is False and scale["passed"] is False

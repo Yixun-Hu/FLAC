@@ -372,6 +372,10 @@ CANONICAL_RENDER_PARAMS = {
     # Amendment 9: recorded diagnostic in BOTH rooms (environmental obstruction
     # proven by a full yaw sweep), never a gate.
     "rx_sightline_policy": "recorded",
+    # F4: the fingerprint of the on-disk HAA reference the scale gate ran against
+    # (4 processed base rooms, 0.5038-11.5523 m).
+    "haa_reference_sha256":
+        "1d59babdbc1b0b6075b32216c864588acf5516454a92a4a6af946bd832656eb3",
 }
 CANONICAL_IDENTITIES = {"prepare": CANONICAL_PREPARE_PARAMS,
                         "depth": CANONICAL_RENDER_PARAMS}
