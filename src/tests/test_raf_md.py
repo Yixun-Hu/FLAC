@@ -607,3 +607,80 @@ def test_conditioning_assembles_into_cross_attention_and_global_inputs(runtime_r
     assert inputs["global_cond"].dtype == torch.float32
     assert torch.isfinite(inputs["global_cond"]).all()
     assert diffusion_config["config"]["global_cond_dim"] == 512
+
+
+# --------------------------------------------------------------------------- #
+# r4 T3: the loader verifies the publication once per process
+# --------------------------------------------------------------------------- #
+def _publish_runtime(runtime_root, canonical=False, kind="prepare", rooms=(ROOM,)):
+    """Attest the synthetic runtime tree the way prepare_data would."""
+    import publish as raf_publish
+
+    with raf_publish.PublishTransaction(str(runtime_root), kind=kind) as txn:
+        staged = txn.stage(str(runtime_root))
+        with open(staged.path(".attested"), "w") as f:
+            f.write("runtime")
+        return txn.commit(extra={"canonical": canonical, "taint": [],
+                                 "rooms": list(rooms),
+                                 "readback_record": {"sha256": "0" * 64}})
+
+
+def test_loader_accepts_an_attested_tree(raf_md, runtime_root):
+    _publish_runtime(runtime_root)
+    md = raf_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+    assert md["scene"] == ROOM
+
+
+def test_loader_refuses_an_unattested_tree(raf_md, runtime_root, monkeypatch):
+    monkeypatch.setattr(raf_md, "_REQUIRE_PUBLICATION", True)
+    with pytest.raises(ValueError) as exc:
+        raf_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+    assert "RAF publication" in str(exc.value)
+
+
+def test_loader_refuses_a_tree_whose_payload_changed_after_publication(
+        raf_md, runtime_root, monkeypatch):
+    monkeypatch.setattr(raf_md, "_REQUIRE_PUBLICATION", True)
+    _publish_runtime(runtime_root)
+    (runtime_root / ".attested").write_text("tampered after the fact")
+    with pytest.raises(ValueError) as exc:
+        raf_md.get_custom_metadata(_info(runtime_root, "000000"), None)
+    assert "RAF publication" in str(exc.value)
+
+
+def test_publication_check_runs_once_per_process(raf_md, runtime_root, monkeypatch):
+    """T3 is bounded by cost: the check is per-process, not per item."""
+    monkeypatch.setattr(raf_md, "_REQUIRE_PUBLICATION", True)
+    _publish_runtime(runtime_root)
+    calls = []
+    real_verify = raf_md._verify_publication
+
+    def counting(root):
+        calls.append(root)
+        return real_verify(root)
+
+    monkeypatch.setattr(raf_md, "_verify_publication", counting)
+    for cid in ("000000", "000001", "000002", "000003"):
+        raf_md.get_custom_metadata(_info(runtime_root, cid), None)
+    assert len(calls) == 1
+    assert raf_md._PUBLICATION_CHECKED
+
+
+def test_a_second_worker_process_repeats_the_check(runtime_root, monkeypatch):
+    """Each worker re-executes the hook, so each gets its own first-load check."""
+    _publish_runtime(runtime_root)
+    first, second = load_raf_md(), load_raf_md()
+    first._REQUIRE_PUBLICATION = True
+    second._REQUIRE_PUBLICATION = True
+    assert first._PUBLICATION_CHECKED == {}
+    first.get_custom_metadata(_info(runtime_root, "000000"), None)
+    assert first._PUBLICATION_CHECKED != {}
+    # a freshly exec'd module -- i.e. another dataloader worker -- has its own cache
+    assert second._PUBLICATION_CHECKED == {}
+
+
+def test_the_gate_is_opt_in_for_synthetic_trees(raf_md, runtime_root):
+    """Unattested synthetic fixtures stay usable: the requirement is enabled for
+    canonical runtimes (RAF_REQUIRE_PUBLICATION=1) and by the publish flow."""
+    assert raf_md._REQUIRE_PUBLICATION is False
+    raf_md.get_custom_metadata(_info(runtime_root, "000000"), None)

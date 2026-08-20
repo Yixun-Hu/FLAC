@@ -28,6 +28,8 @@ def get_custom_metadata(info, audio):
     # single dataset-level metadata folder.
     metadata_path = os.path.join(dataset_folder, scene_name, 'metadata')
 
+    assert_published_once(dataset_folder)
+
     poses_metadata = load_json_cached(os.path.join(metadata_path, 'poses_metadata.json'))
     groups_metadata = load_json_cached(os.path.join(metadata_path, 'groups_metadata.json'))
     capture = poses_metadata[capture_id]
@@ -108,6 +110,14 @@ def get_3d_point_camera_coord(source_pose, point_3d):
 
 # Per-worker caches. Each dataloader worker gets its own copy of this module's
 # globals, so these are per-process and never shared/mutated across workers.
+# T3 (bounded): verify ONCE PER PROCESS that the runtime tree is an attested
+# publication -- marker present, payload matching its manifest. Per-item artifact
+# hashing is deliberately out of scope (cost, and the registered threat model is
+# operator error, not a local adversary). Enabled by RAF_REQUIRE_PUBLICATION=1,
+# which the canonical run scripts set; synthetic fixtures stay usable without it.
+_REQUIRE_PUBLICATION = os.environ.get("RAF_REQUIRE_PUBLICATION") == "1"
+_PUBLICATION_CHECKED = {}
+
 _JSON_CACHE = {}
 _DEPTH_CACHE = collections.OrderedDict()
 _DEPTH_CACHE_MAX = 64
@@ -143,6 +153,41 @@ def load_depth_cached(path):
     while len(_DEPTH_CACHE) > _DEPTH_CACHE_MAX:
         _DEPTH_CACHE.popitem(last=False)
     return depth
+
+
+def _verify_publication(root):
+    """Load ``data/RAF/publish.py`` and verify the tree's prepare attestation."""
+    repo_root = os.path.abspath(__file__)
+    for _ in range(5):
+        repo_root = os.path.dirname(repo_root)
+    path = os.path.join(repo_root, "data", "RAF", "publish.py")
+    spec = importlib.util.spec_from_file_location("raf_publish_for_md", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.verify_publication(root, kind="prepare")
+
+
+def assert_published_once(dataset_folder):
+    """First-load publication gate (T3), cached per process.
+
+    A runtime tree that was never attested -- or whose files changed after the
+    attestation -- is a stale or half-published state, and reading it would train
+    on artifacts nobody published. The check costs one marker + manifest read per
+    worker process, not per item.
+    """
+    if not _REQUIRE_PUBLICATION:
+        return None
+    root = os.path.abspath(dataset_folder.rstrip(os.sep) or os.sep)
+    if root in _PUBLICATION_CHECKED:
+        return _PUBLICATION_CHECKED[root]
+    report = _verify_publication(root)
+    if not report.get("published"):
+        raise ValueError(
+            f"RAF publication check failed for {root}: {report.get('reason')}. The "
+            "runtime tree is not an attested publication (no valid commit marker, "
+            "or its files changed after it was written).")
+    _PUBLICATION_CHECKED[root] = report
+    return report
 
 
 def validate_depth_map(depth, path):
