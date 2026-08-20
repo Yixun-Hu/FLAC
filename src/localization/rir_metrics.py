@@ -17,6 +17,8 @@ Integrity rules this module is written to satisfy:
 * Both directions -- generated-vs-obs and context-vs-obs -- run through the SAME
   function objects with the same window/alignment/amplitude policy.
 """
+from dataclasses import dataclass, field
+
 import torch
 
 from src.metrics.modules.l1_stft_multires import safe_log  # noqa: F401  (M2 reuses it)
@@ -382,3 +384,261 @@ def m3_hilbert_envelope_distance(pred, obs):
     pred_env = np.abs(hilbert(flat, axis=-1))
     distance = np.mean(np.abs(obs_env[None, :] - pred_env), axis=-1) / (obs_env.max() + EPS)
     return torch.from_numpy(distance * 100.0).float().reshape(pred.shape[:-1])
+
+
+# --------------------------------------------------------------------------- #
+# M4 — acoustic-parameter distance (repo estimators; CPU loop)
+# --------------------------------------------------------------------------- #
+def _arrival_index(x, threshold_db=M4_ARRIVAL_THRESHOLD_DB):
+    """First sample crossing ``threshold_db`` of the window peak (deterministic)."""
+    peak = float(torch.max(torch.abs(x)))
+    if peak <= 0.0:
+        return None
+    level = peak * (10.0 ** (threshold_db / 20.0))
+    hits = torch.nonzero(torch.abs(x) >= level, as_tuple=False)
+    return int(hits[0]) if hits.numel() else None
+
+
+def m4_features(x, sample_rate=SAMPLE_RATE, t30_backend="pyroomacoustics"):
+    """The fixed acoustic feature set of one RIR, via the repo's own estimators.
+
+    Windowed to ``PARAM_WINDOW_SAMPLES`` (the repo's AR convention). Every
+    estimator is imported, never re-implemented: ``C50._measure_clarity`` (C50 and
+    C80 by its ``time`` argument), ``EDT._edt``, and RT60's pyroomacoustics path
+    with the torch Schroeder implementation as the registered fallback -- the
+    choice is a config value, decided at seen calibration, never after.
+    """
+    import numpy as np
+    from src.metrics.modules.C50 import _measure_clarity
+    from src.metrics.modules.EDT import _edt
+    from src.metrics.modules.RT60 import _measure_rt60_torch, _mesure_rt60_pyroomacoustics
+
+    x = param_window(torch.as_tensor(x).float().reshape(-1))
+    shaped = x.reshape(1, 1, -1)
+    nan = float("nan")
+
+    arrival = _arrival_index(x)
+    features = {}
+    features["arrival_time"] = nan if arrival is None else arrival / float(sample_rate)
+
+    half = int(round(M4_DIRECT_HALF_WIDTH_MS * 1e-3 * sample_rate))
+    if arrival is None:
+        features["drr"] = nan
+    else:
+        low, high = max(0, arrival - half), min(x.shape[-1], arrival + half + 1)
+        direct = float((x[low:high] ** 2).sum())
+        reverberant = float((x ** 2).sum()) - direct
+        features["drr"] = 10.0 * np.log10((direct + EPS) / (reverberant + EPS))
+
+    features["c50"] = float(_measure_clarity(shaped, time=50, fs=sample_rate)[0, 0])
+    features["c80"] = float(_measure_clarity(shaped, time=80, fs=sample_rate)[0, 0])
+    features["edt"] = float(_edt(x.numpy(), fs=sample_rate, decay_db=M4_EDT_DECAY_DB))
+
+    def _t30(signal):
+        shaped_signal = signal.reshape(1, 1, -1)
+        if t30_backend == "torch":
+            return float(_measure_rt60_torch(shaped_signal, fs=sample_rate,
+                                             decay_db=M4_T30_DECAY_DB)[0, 0])
+        return float(_mesure_rt60_pyroomacoustics(shaped_signal, fs=sample_rate,
+                                                  decay_db=int(M4_T30_DECAY_DB))[0, 0])
+
+    features["t30"] = _t30(x)
+
+    cut = int(round(M4_EARLY_LATE_MS * 1e-3 * sample_rate))
+    early = float((x[:cut] ** 2).sum())
+    late = float((x[cut:] ** 2).sum())
+    features["early_late_50ms"] = 10.0 * np.log10((early + EPS) / (late + EPS))
+
+    for centre, name in zip((500, 1000, 2000), ("t30_500", "t30_1k", "t30_2k")):
+        features[name] = _t30(_octave_band(x.reshape(1, -1), centre, sample_rate)[0])
+    return features
+
+
+def m4_feature_vector(x, sample_rate=SAMPLE_RATE, t30_backend="pyroomacoustics"):
+    """``(vector [F], names)`` in the registered :data:`M4_FEATURES` order."""
+    import numpy as np
+    features = m4_features(x, sample_rate=sample_rate, t30_backend=t30_backend)
+    return np.asarray([features[name] for name in M4_FEATURES], dtype=np.float64), M4_FEATURES
+
+
+def m4_validity_mask(candidate_features, obs_features):
+    """Per-(query, feature) validity, UNIFORM across the query's candidates.
+
+    Plan §1: a feature is kept iff it is finite for the observation AND for every
+    candidate-sample of that query. Dropping per candidate would let candidates be
+    scored on different feature sets.
+    """
+    import numpy as np
+    candidate_features = np.asarray(candidate_features, dtype=np.float64)
+    obs_features = np.asarray(obs_features, dtype=np.float64).reshape(-1)
+    finite_candidates = np.isfinite(candidate_features).all(axis=tuple(
+        range(candidate_features.ndim - 1)))
+    return finite_candidates & np.isfinite(obs_features)
+
+
+def m4_distance(candidate_features, obs_features, mu, sigma, mask, eps=EPS):
+    """L1 over the valid features after the FROZEN z-normalization."""
+    import numpy as np
+    candidate_features = np.asarray(candidate_features, dtype=np.float64)
+    obs_features = np.asarray(obs_features, dtype=np.float64).reshape(-1)
+    mask = np.asarray(mask, dtype=bool)
+    if not mask.any():
+        return np.full(candidate_features.shape[:-1], np.nan)
+    scale = np.asarray(sigma, dtype=np.float64) + eps
+    mu = np.asarray(mu, dtype=np.float64)
+    z_candidates = (candidate_features - mu) / scale
+    z_obs = (obs_features - mu) / scale
+    return np.abs(z_candidates[..., mask] - z_obs[mask]).mean(axis=-1)
+
+
+# --------------------------------------------------------------------------- #
+# aggregation, prediction and the §2 metric-matched retrieval control
+# --------------------------------------------------------------------------- #
+def aggregate_over_k(distances, how=K_AGGREGATION_PRIMARY, tau=LME_TAU):
+    """Collapse ``[M, K]`` to ``[M]``: mean is primary, min/median/LME declared."""
+    distances = torch.as_tensor(distances).float()
+    if how == "mean":
+        return distances.mean(dim=-1)
+    if how == "min":
+        return distances.min(dim=-1).values
+    if how == "median":
+        # AMBIGUITY (plan §1 does not fix the even-K convention): use the
+        # np.median convention -- the mean of the two middle values -- because
+        # that is what exp_18's own scoring.summarize reduces to, so "median"
+        # means one thing across the experiment. torch.median would take the
+        # LOWER middle value instead, which at K=8 is a different statistic.
+        ordered = distances.sort(dim=-1).values
+        k = ordered.shape[-1]
+        if k % 2:
+            return ordered[..., k // 2]
+        return 0.5 * (ordered[..., k // 2 - 1] + ordered[..., k // 2])
+    if how == "lme":
+        # distances are "lower is better", so LME is applied to the negated score
+        return -float(tau) * (torch.logsumexp(-distances / float(tau), dim=-1)
+                              - torch.log(torch.tensor(float(distances.shape[-1]))))
+    raise ValueError(f"unknown K aggregation {how!r}; registered: "
+                     f"{K_AGGREGATION_PRIMARY} + {K_AGGREGATION_SECONDARIES}")
+
+
+def predict_from_distances(scores):
+    """argmin with the registered lowest-index tie-break."""
+    scores = torch.as_tensor(scores).reshape(-1)
+    winners = torch.nonzero(scores == scores.min(), as_tuple=False)
+    return int(winners[0].item())
+
+
+def metric_matched_retrieval(cand_xyz, ctx_xyz, ctx_distances, eligible_mask=None):
+    """Plan §2: closest context RIR UNDER THE METRIC, then the nearest candidate.
+
+    Identical geometry to the registered control -- it delegates to
+    ``scoring.nearest_context_baseline`` -- with the single difference the plan
+    specifies: the context is chosen by the metric's distance (lower is better)
+    instead of by AGREE similarity. Negating turns "closest" into the
+    "highest similarity" that helper expects, so the tie-break stays the
+    registered lowest-index one.
+    """
+    from src.localization.scoring import nearest_context_baseline
+
+    ctx_distances = torch.as_tensor(ctx_distances).float().reshape(-1)
+    return nearest_context_baseline(cand_xyz, ctx_xyz, -ctx_distances,
+                                    eligible_mask=eligible_mask)
+
+
+@dataclass
+class MetricConfig:
+    """Everything the metric pass is allowed to know.
+
+    ``delta_max`` is the ONE calibrated constant and is passed IN, chosen on the
+    R1 seen prefix from :data:`M1_DELTA_GRID`. ``m4_mu``/``m4_sigma`` are the
+    frozen z-normalization statistics -- also seen-only. Defaults here are inert
+    placeholders (zero mean, unit scale), never a tuned value.
+    """
+    delta_max: int = 0
+    window_samples: int = WINDOW_SAMPLES
+    param_window_samples: int = PARAM_WINDOW_SAMPLES
+    lam: float = M2_LAMBDA
+    t30_backend: str = "pyroomacoustics"
+    sample_rate: int = SAMPLE_RATE
+    m4_mu: object = None
+    m4_sigma: object = None
+    families: tuple = ("m1", "m2", "m3", "m4", "m5")
+    secondaries: bool = False
+
+    def payload(self):
+        """JSON-serializable record of what this pass actually applied."""
+        import numpy as np
+        return {"delta_max": int(self.delta_max), "window_samples": int(self.window_samples),
+                "param_window_samples": int(self.param_window_samples), "lam": float(self.lam),
+                "t30_backend": self.t30_backend, "sample_rate": int(self.sample_rate),
+                "families": list(self.families), "secondaries": bool(self.secondaries),
+                "m4_mu": None if self.m4_mu is None else np.asarray(self.m4_mu).tolist(),
+                "m4_sigma": None if self.m4_sigma is None else np.asarray(self.m4_sigma).tolist()}
+
+
+def compute_metrics(pred, obs, ctx, config):
+    """All five families for one query, candidates AND context, in one pass.
+
+    ``pred`` is ``[M, K, T]``, ``obs`` ``[T]``, ``ctx`` ``[N, T]`` -- the
+    exactly-as-scored tensors. Returns per-family ``[M, K]`` candidate distances,
+    ``[N]`` context distances (for the §2 metric-matched control) and the
+    diagnostics the plan asks to record (M4 features + validity mask, M5 lags).
+
+    Both directions go through the SAME function objects with the same window,
+    alignment and amplitude policy -- that equality is what makes the
+    metric-matched control comparable to the candidate scores.
+    """
+    import numpy as np
+
+    pred = common_window(pred, config.window_samples)
+    obs = common_window(torch.as_tensor(obs).reshape(-1), config.window_samples)
+    ctx = common_window(torch.as_tensor(ctx), config.window_samples)
+    num_candidates, num_samples = pred.shape[0], pred.shape[1]
+
+    candidates, context, diagnostics = {}, {}, {}
+    if "m1" in config.families:
+        candidates["m1"] = m1_distance(pred, obs, config.delta_max)
+        context["m1"] = m1_distance(ctx, obs, config.delta_max)
+    if "m2" in config.families:
+        candidates["m2"] = m2_distance(pred, obs, lam=config.lam)
+        context["m2"] = m2_distance(ctx, obs, lam=config.lam)
+    if "m3" in config.families:
+        candidates["m3"] = m3_distance(pred, obs)
+        context["m3"] = m3_distance(ctx, obs)
+        if config.secondaries:
+            diagnostics["m3_band_candidates"] = m3_band_envelope_distance(pred, obs)
+            diagnostics["m3_hilbert_candidates"] = m3_hilbert_envelope_distance(pred, obs)
+    if "m5" in config.families:
+        candidates["m5"], diagnostics["m5_lags"] = m5_distance(pred, obs, config.delta_max)
+        context["m5"], diagnostics["m5_context_lags"] = m5_distance(ctx, obs, config.delta_max)
+        if config.secondaries:
+            diagnostics["m5_gcc_phat_lags"] = gcc_phat_lag(pred, obs, config.delta_max)
+
+    if "m4" in config.families:
+        obs_features, _ = m4_feature_vector(obs, config.sample_rate, config.t30_backend)
+        candidate_features = np.stack([
+            np.stack([m4_feature_vector(pred[m, k], config.sample_rate,
+                                        config.t30_backend)[0]
+                      for k in range(num_samples)])
+            for m in range(num_candidates)])
+        context_features = np.stack([m4_feature_vector(ctx[n], config.sample_rate,
+                                                       config.t30_backend)[0]
+                                     for n in range(ctx.shape[0])])
+        # the validity mask is per QUERY: it must see the context rows too, so the
+        # candidate and control numbers are computed over the same feature set
+        stacked = np.concatenate([candidate_features.reshape(-1, len(M4_FEATURES)),
+                                  context_features], axis=0)
+        mask = m4_validity_mask(stacked, obs_features)
+        mu = np.zeros(len(M4_FEATURES)) if config.m4_mu is None else np.asarray(config.m4_mu)
+        sigma = np.ones(len(M4_FEATURES)) if config.m4_sigma is None else np.asarray(
+            config.m4_sigma)
+        candidates["m4"] = torch.from_numpy(
+            m4_distance(candidate_features, obs_features, mu, sigma, mask)).float()
+        context["m4"] = torch.from_numpy(
+            m4_distance(context_features, obs_features, mu, sigma, mask)).float()
+        diagnostics["m4_features"] = candidate_features
+        diagnostics["m4_context_features"] = context_features
+        diagnostics["m4_obs_features"] = obs_features
+        diagnostics["m4_mask"] = mask
+
+    return {"candidates": candidates, "context": context, "diagnostics": diagnostics,
+            "config": config.payload()}
