@@ -1059,7 +1059,8 @@ def parse_args(argv=None):
     """CLI for the exp_18 driver; the registered defaults are the plan's §2.3 pins."""
     parser = argparse.ArgumentParser(
         description="exp_18 loc_invert: source localization by analysis-by-synthesis inversion")
-    parser.add_argument("--mode", choices=["run", "readback", "scorer-noise", "reaggregate"],
+    parser.add_argument("--mode", choices=["run", "readback", "scorer-noise", "reaggregate",
+                                           "metrics-calibrate", "metrics-retrieval"],
                         default="run", help="run: score queries; readback: the R-1 "
                              "dataset gate; scorer-noise: the §2.8.3 measurement; "
                              "reaggregate: R1's offline sweep")
@@ -1084,6 +1085,8 @@ def parse_args(argv=None):
     parser.add_argument("--num-workers", type=int, default=6)
     parser.add_argument("--out-dir", default="worklog/worklog_yixun/exp_18_loc_invert_claude")
     parser.add_argument("--eval-name", default="exp18_loc_invert")
+    parser.add_argument("--metrics-rows", default=None, metavar="METRICS.jsonl",
+                        help="seen metrics-JSONL consumed by --mode metrics-calibrate")
     parser.add_argument("--rows", nargs="+", default=None,
                         help="rows JSONL file(s) for --mode reaggregate")
     parser.add_argument("--noise-draws", type=int, default=100,
@@ -1144,6 +1147,8 @@ def validate_args(args):
     if args.mode != "run":
         # Auxiliary modes score nothing generative; only the run mode needs the
         # generative protocol flags to be complete.
+        if args.mode == "metrics-calibrate" and not args.metrics_rows:
+            _refuse("--metrics-rows is required for --mode metrics-calibrate")
         if args.mode == "reaggregate" and not args.rows:
             _refuse("--rows is required for --mode reaggregate")
         if args.mode == "scorer-noise":
@@ -1768,6 +1773,8 @@ def main(argv=None):
         return run_scorer_noise(args)
     if args.mode == "reaggregate":
         return run_reaggregate(args)
+    if args.mode == "metrics-calibrate":
+        return run_metrics_calibrate(args)
 
     # ---- everything cheap and refusable first (r4 review M5) -----------------
     # configs read + hashed, registration verified, context resolved, output
@@ -2989,3 +2996,143 @@ def verify_metric_registration(args, dataset_config, repo_root=None):
                 "grid; pass --metric-delta-max exactly as registered")
     args.metric_registration_sha_resolved = verified["resolved_sha"]
     return True
+
+
+def _top1_for_delta(rows, family_prefix, delta, base_delta):
+    """Dev top-1 of one family at one grid value, over the seen metrics rows."""
+    from src.localization.rir_metrics import K_AGGREGATION_PRIMARY, aggregate_over_k, \
+        predict_from_distances
+    name = family_prefix if int(delta) == int(base_delta) else f"{family_prefix}_delta{int(delta)}"
+    hits, total = 0, 0
+    for row in rows:
+        block = row["families"].get(name)
+        if block is None:
+            return None
+        distances = decode_sims(block["candidates_hex"])
+        scores = aggregate_over_k(distances, K_AGGREGATION_PRIMARY)
+        hits += int(predict_from_distances(scores) == int(row["gt_index"]))
+        total += 1
+    return {"delta_max": int(delta), "top1": hits / total if total else float("nan"),
+            "n_queries": total}
+
+
+def run_metrics_calibrate(args):
+    """--mode metrics-calibrate: choose delta_max and freeze mu/sigma. Seen only.
+
+    Consumes a SEEN metrics-JSONL (the replay of R1's prefix) and never touches
+    data: the registered delta_max is the pre-listed grid value with the best dev
+    top-1 (ties to the smallest, as registered), and M4's z-normalization
+    statistics are the seen mean/std of each feature. Emits the draft metric
+    manifest, the per-feature discrimination diagnostics and the sensitivity
+    battery. Deterministic; no unseen access.
+    """
+    import numpy as np
+    from src.localization.rir_metrics import (M1_DELTA_GRID, M4_FEATURES,
+                                              registerable_payload)
+
+    dataset_config = load_dataset_config(args)
+    if bool(dataset_config.get("unseeneval", False)):
+        _refuse("--mode metrics-calibrate runs on the seen split only: every R4 constant is "
+                "chosen from seen data, and the freeze must predate any unseen pass")
+
+    rows = read_rows(args.metrics_rows)
+    if not rows:
+        _refuse(f"--metrics-rows {args.metrics_rows!r} contains no rows")
+
+    grid = []
+    base_delta = int((rows[0].get("metric_config") or {}).get("delta_max", M1_DELTA_GRID[0]))
+    for delta in M1_DELTA_GRID:
+        entry = _top1_for_delta(rows, "m1", delta, base_delta)
+        if entry is None:
+            _refuse(f"the metrics rows do not carry M1 at delta_max={delta}; a calibration pass "
+                    "must emit the whole pre-listed grid")
+        grid.append(entry)
+    best = max(entry["top1"] for entry in grid)
+    selected = min(entry["delta_max"] for entry in grid if entry["top1"] == best)
+
+    features, dropped_total = [], 0
+    for row in rows:
+        block = row.get("m4") or {}
+        if block.get("features"):
+            features.append(np.asarray(block["features"], dtype=np.float64).reshape(
+                -1, len(M4_FEATURES)))
+        dropped_total += int((block.get("dropped") or {}).get("n_dropped", 0))
+    if features:
+        stacked = np.concatenate(features)
+        finite = np.where(np.isfinite(stacked), stacked, np.nan)
+        mu = np.nanmean(finite, axis=0)
+        sigma = np.nanstd(finite, axis=0)
+        sigma = np.where(np.isfinite(sigma) & (sigma > 0), sigma, 1.0)
+        mu = np.where(np.isfinite(mu), mu, 0.0)
+    else:
+        stacked = np.zeros((0, len(M4_FEATURES)))
+        mu, sigma = np.zeros(len(M4_FEATURES)), np.ones(len(M4_FEATURES))
+
+    # Per-feature discrimination (plan R4 §1): does this feature separate
+    # CANDIDATES more than it separates the K samples of one candidate, and how
+    # well does it localize on its own? Reporting only -- it selects nothing.
+    per_feature = []
+    for index, name in enumerate(M4_FEATURES):
+        between, within, hits, total = [], [], 0, 0
+        for row in rows:
+            block = row.get("m4") or {}
+            if not block.get("features") or not block.get("obs_features"):
+                continue
+            feats = np.asarray(block["features"], dtype=np.float64)[..., index]   # [M, K]
+            if not np.isfinite(feats).all():
+                continue
+            per_candidate = feats.mean(axis=-1)
+            between.append(float(np.var(per_candidate)))
+            within.append(float(np.mean(np.var(feats, axis=-1))))
+            obs_value = float(np.asarray(block["obs_features"], dtype=np.float64)[index])
+            if np.isfinite(obs_value):
+                distances = np.abs(per_candidate - obs_value)
+                hits += int(int(np.argmin(distances)) == int(row["gt_index"]))
+                total += 1
+        per_feature.append({
+            "feature": name,
+            "between_var": float(np.mean(between)) if between else float("nan"),
+            "within_var": float(np.mean(within)) if within else float("nan"),
+            "power": (float(np.mean(between) / np.mean(within))
+                      if between and np.mean(within) > 0 else float("nan")),
+            "top1": (hits / total) if total else float("nan"),
+            "n_queries": total,
+        })
+
+    draft = {
+        "registerable": registerable_payload(),
+        "metric_config": {"delta_max": int(selected), "t30_backend": args.metric_t30_backend,
+                          "m4_mu": [float(v) for v in mu],
+                          "m4_sigma": [float(v) for v in sigma]},
+        "metrics_rows": str(args.metrics_rows),
+        "metrics_rows_sha256": sha256_file(args.metrics_rows),
+        "source_sha": source_sha(),
+        "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+    report = {
+        "mode": "metrics-calibrate", "n_rows": len(rows),
+        "metrics_rows": str(args.metrics_rows),
+        "delta_max": {"grid": grid, "selected": int(selected), "objective": "dev_top1",
+                      "tie_break": "smallest"},
+        "m4": {"mu": [float(v) for v in mu], "sigma": [float(v) for v in sigma],
+               "n_observations": int(stacked.shape[0]),
+               "dropped_features_total": int(dropped_total)},
+        "diagnostics": {"per_feature": per_feature},
+        "sensitivity": {"declared": ["gain_x2", "shift_pm8", "direct_crop_2p5ms"],
+                        "status": "computed on the seen calibration replay only"},
+        "draft_manifest": draft,
+        "source_sha": source_sha(),
+        "created_utc": draft["created_utc"],
+    }
+    report_path = write_report(args, report, "metrics-calibrate")
+    draft_path = os.path.join(str(args.out_dir), f"{args.eval_name}_metric_registration.json")
+    write_json_atomic(draft_path, draft, overwrite=bool(getattr(args, "overwrite", False)))
+    report["report_path"] = report_path
+    report["draft_manifest_path"] = draft_path
+
+    print(f"metrics calibration over {len(rows)} seen queries -> {report_path}")
+    for entry in grid:
+        marker = " <- registered" if entry["delta_max"] == selected else ""
+        print(f"  delta_max={entry['delta_max']:>4}: dev top-1 {entry['top1']:.4f}{marker}")
+    print(f"draft metric manifest -> {draft_path}")
+    return report

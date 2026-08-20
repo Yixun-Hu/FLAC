@@ -4333,3 +4333,130 @@ def test_seen_metrics_run_records_the_registerable_payload_without_a_manifest(tm
     from src.localization.rir_metrics import registerable_payload
     assert payload == registerable_payload()
     assert result["provenance"]["metric_registration"] in (None, "n/a")
+
+
+# --------------------------------------------------------------------------- #
+# R4-r2 item 5: seen calibration. Delta_max is SELECTED here (dev top-1,
+# tie -> smallest) and mu/sigma frozen -- from a seen metrics-JSONL only.
+# --------------------------------------------------------------------------- #
+def _calibration_rows(tmp_path, winner_delta=32, n_queries=6):
+    """Seen metrics rows where one grid value is deliberately the best."""
+    from src.localization.rir_metrics import M1_DELTA_GRID, M4_FEATURES
+    path = tmp_path / "seen_metrics.jsonl"
+    with open(path, "w") as handle:
+        for q in range(n_queries):
+            gt = q % 3
+            families = {}
+            for delta in M1_DELTA_GRID:
+                name = "m1" if delta == M1_DELTA_GRID[0] else f"m1_delta{delta}"
+                # the winning delta puts the GT first; the others put it second
+                distances = torch.full((3, 2), 0.9)
+                distances[gt] = 0.5 if delta == winner_delta else 0.8
+                if delta != winner_delta:
+                    distances[(gt + 1) % 3] = 0.2
+                families[name] = {"candidates_hex": el.encode_sims(distances)}
+                m5_name = "m5" if delta == M1_DELTA_GRID[0] else f"m5_delta{delta}"
+                families[m5_name] = {"candidates_hex": el.encode_sims(distances)}
+            features = np.tile(np.arange(len(M4_FEATURES), dtype=float) + q, (3, 2, 1))
+            el.write_row(handle, {
+                "query_id": f"q{q}", "room_id": f"R{q % 2}", "position": q,
+                "n_candidates": 3, "n_samples": 2, "n_context": 2,
+                "candidate_nodes": [0, 1, 2], "gt_index": gt, "gt_node": gt,
+                "families": families,
+                "m4": {"features": features.tolist(),
+                       "obs_features": (np.arange(len(M4_FEATURES), dtype=float) + q).tolist(),
+                       "mask": [True] * len(M4_FEATURES),
+                       "dropped": {"n_dropped": 0, "dropped": [], "causes": {},
+                                   "n_features": len(M4_FEATURES),
+                                   "n_kept": len(M4_FEATURES)}},
+                "metric_config": {"delta_max": M1_DELTA_GRID[0],
+                                  "delta_grid": list(M1_DELTA_GRID)}})
+    return path
+
+
+def _calibrate_args(tmp_path, metrics_path, **over):
+    argv = ["--mode", "metrics-calibrate", "--model-config", "m.json",
+            "--dataset-config", _SEEN_CONFIG, "--metrics-rows", str(metrics_path),
+            "--out-dir", str(tmp_path / "cal"), "--eval-name", "R1_cal"]
+    for flag, value in over.items():
+        argv += [flag] if value is True else [flag, str(value)]
+    return el.validate_args(el.parse_args(argv))
+
+
+def test_metrics_calibrate_selects_delta_max_by_dev_top1(tmp_path):
+    path = _calibration_rows(tmp_path, winner_delta=32)
+    report = el.run_metrics_calibrate(_calibrate_args(tmp_path, path))
+    assert report["delta_max"]["selected"] == 32
+    assert report["delta_max"]["objective"] == "dev_top1"
+    grid = {entry["delta_max"]: entry["top1"] for entry in report["delta_max"]["grid"]}
+    assert grid[32] == pytest.approx(1.0) and max(grid, key=grid.get) == 32
+
+
+def test_metrics_calibrate_breaks_ties_towards_the_smallest_delta(tmp_path):
+    from src.localization.rir_metrics import M1_DELTA_GRID
+    path = tmp_path / "tied.jsonl"
+    with open(path, "w") as handle:
+        for q in range(4):
+            families = {}
+            for delta in M1_DELTA_GRID:
+                name = "m1" if delta == M1_DELTA_GRID[0] else f"m1_delta{delta}"
+                distances = torch.full((2, 1), 0.9)
+                distances[0] = 0.1                     # GT always wins, every delta ties
+                families[name] = {"candidates_hex": el.encode_sims(distances)}
+            el.write_row(handle, {"query_id": f"q{q}", "room_id": "R", "position": q,
+                                  "n_candidates": 2, "n_samples": 1, "n_context": 0,
+                                  "candidate_nodes": [0, 1], "gt_index": 0, "gt_node": 0,
+                                  "families": families, "m4": {},
+                                  "metric_config": {"delta_grid": list(M1_DELTA_GRID)}})
+    report = el.run_metrics_calibrate(_calibrate_args(tmp_path, path))
+    assert report["delta_max"]["selected"] == min(M1_DELTA_GRID)
+
+
+def test_metrics_calibrate_freezes_m4_statistics(tmp_path):
+    from src.localization.rir_metrics import M4_FEATURES
+    path = _calibration_rows(tmp_path)
+    report = el.run_metrics_calibrate(_calibrate_args(tmp_path, path))
+    mu, sigma = report["m4"]["mu"], report["m4"]["sigma"]
+    assert len(mu) == len(sigma) == len(M4_FEATURES)
+    assert all(np.isfinite(mu)) and all(s > 0 for s in sigma)
+    assert report["m4"]["n_observations"] > 0
+    assert report["m4"]["dropped_features_total"] == 0
+
+
+def test_metrics_calibrate_emits_a_draft_manifest_and_diagnostics(tmp_path):
+    path = _calibration_rows(tmp_path)
+    report = el.run_metrics_calibrate(_calibrate_args(tmp_path, path))
+    draft = report["draft_manifest"]
+    from src.localization.rir_metrics import registerable_payload
+    assert draft["registerable"] == registerable_payload()
+    assert draft["metric_config"]["delta_max"] == report["delta_max"]["selected"]
+    assert draft["metric_config"]["m4_mu"] == report["m4"]["mu"]
+    assert draft["source_sha"] and draft["metrics_rows_sha256"]
+    assert "per_feature" in report["diagnostics"]
+    entry = report["diagnostics"]["per_feature"][0]
+    assert set(entry) >= {"feature", "between_var", "within_var", "power", "top1", "n_queries"}
+    assert entry["n_queries"] == report["n_rows"]
+    assert 0.0 <= entry["top1"] <= 1.0
+    assert os.path.exists(report["report_path"])
+    assert os.path.exists(report["draft_manifest_path"])
+
+
+def test_metrics_calibrate_is_deterministic_and_seen_only(tmp_path):
+    path = _calibration_rows(tmp_path)
+    first = el.run_metrics_calibrate(_calibrate_args(tmp_path, path))
+    second = el.run_metrics_calibrate(_calibrate_args(tmp_path / "b", path))
+    for key in ("delta_max", "m4", "diagnostics"):
+        # serialized comparison: NaN != NaN, but a NaN in the same place IS the
+        # same deterministic result
+        assert _json.dumps(first[key], sort_keys=True) == _json.dumps(second[key], sort_keys=True)
+    with pytest.raises(SystemExit, match="seen"):
+        el.run_metrics_calibrate(el.validate_args(el.parse_args(
+            ["--mode", "metrics-calibrate", "--model-config", "m.json",
+             "--dataset-config", _UNSEEN_CONFIG, "--metrics-rows", str(path),
+             "--out-dir", str(tmp_path / "c2"), "--eval-name", "bad"])))
+
+
+def test_metrics_calibrate_requires_rows():
+    with pytest.raises(SystemExit):
+        el.validate_args(el.parse_args(["--mode", "metrics-calibrate", "--model-config", "m.json",
+                                        "--dataset-config", _SEEN_CONFIG]))
