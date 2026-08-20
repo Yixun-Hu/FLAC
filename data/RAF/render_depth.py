@@ -86,6 +86,20 @@ RX_SIGHTLINE_REQUIRED_ROOMS = ("EmptyRoom",)
 # normalisation was trained on; these bounds widen the measured HAA band
 # (0.50 - 11.55 m over the four base rooms) rather than replace it.
 SCALE_REFERENCE_TOLERANCE = 3.0
+# What the render evidence can and cannot decide about the gauge (Amendment 6, T5).
+# Recorded in every QA file so no reader mistakes a passing render for a proof of
+# the horizontal assignment.
+DETECTABILITY_BOUNDARY = {
+    "vertical_axis": "gauge-discriminating (nadir vs tracked height)",
+    "horizontal_permutation": "undetectable by render",
+    "horizontal_basis": ("pinned by derivation: the documented RAF axis convention "
+                         "plus the Metashape export convention, covered by unit "
+                         "tests on RAF_TO_PIPELINE -- not by these render checks, "
+                         "which a consistently permuted horizontal pair satisfies "
+                         "identically"),
+    "inconsistency_detection": ("the receiver sightline check catches transforms "
+                                "applied inconsistently across mesh, tx and rx"),
+}
 
 
 def load_mesh_pipeline(obj_path):
@@ -541,7 +555,8 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
                  bearing_tol_deg=LANDMARK_BEARING_TOL_DEG, bounds_tol=0.05,
                  scene=None, tie_distance_frac=BEARING_TIE_DISTANCE_FRAC,
                  tie_angle_deg=BEARING_TIE_ANGLE_DEG, rx_positions_p=None,
-                 rx_sightline_required=True, references=None):
+                 rx_sightline_required=True, references=None, tracked_height_m=None,
+                 vertical_tol_m=DEFAULT_FLOOR_TOL):
     """Checks that only the REAL mesh can answer (plan Rev 2 section 4.ii, R6).
 
     * camera containment -- the source must be inside the closed room, or every
@@ -626,6 +641,22 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
     band = band if scale_checked else EXPECTED_DEPTH_RANGE_M
     plausible = bool(finite.size and band[0] <= scale["min"] and scale["max"] <= band[1])
 
+    # T5: the VERTICAL axis is gauge-discriminating and mesh-independent -- the
+    # nadir distance comes from the render, the height comes from the tracked pose
+    # file. A candidate gauge that puts the wrong RAF axis in the pipeline's
+    # vertical slot moves one and not the other, so this gates publication.
+    nadir = float(np.median(arr[-1])) if arr.ndim == 2 and arr.shape[0] else float("nan")
+    if tracked_height_m is None:
+        vertical = {"ok": True, "checked": False, "nadir_m": nadir,
+                    "tracked_height_m": None, "delta_m": None,
+                    "tol_m": float(vertical_tol_m),
+                    "reason": "no tracked height supplied"}
+    else:
+        delta = nadir - float(tracked_height_m)
+        vertical = {"ok": bool(abs(delta) <= vertical_tol_m), "checked": True,
+                    "nadir_m": nadir, "tracked_height_m": float(tracked_height_m),
+                    "delta_m": float(delta), "tol_m": float(vertical_tol_m)}
+
     sightline = rx_sightline_check(
         arr, position, rx_positions_p if rx_positions_p is not None else np.zeros((0, 3)),
         img_h=img_h, img_w=img_w, required=rx_sightline_required)
@@ -653,6 +684,11 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
             f"depth range [{scale['min']}, {scale['max']}] m is outside the "
             f"plausible {band} m band"
             + (" (from the on-disk AR/HAA references)" if scale_checked else ""))
+    if vertical["checked"] and not vertical["ok"]:
+        warnings.append(
+            f"vertical axis: nadir {vertical['nadir_m']:.3f} m vs tracked height "
+            f"{vertical['tracked_height_m']:.3f} m (delta {vertical['delta_m']:.3f} m "
+            f"> {vertical['tol_m']} m) -- the wrong RAF axis may be in the vertical slot")
     if not sightline["passed"]:
         detail = (f"{sightline['n_blocked']} of {sightline['n_receivers']} receiver "
                   f"sightlines blocked, worst deficit {sightline['worst_deficit_m']:.2f} m")
@@ -682,6 +718,9 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
         "scale_checked": scale_checked,
         "scale_plausible": plausible,
         "rx_sightline": sightline,
+        "vertical_axis": vertical,
+        # Recorded honestly (T5): what this evidence can and cannot decide.
+        "detectability": DETECTABILITY_BOUNDARY,
         "warnings": warnings,
         # S5: the gauge evidence that gates publication is mesh-INDEPENDENT
         # (receiver sightlines) plus containment/bounds/sightline-bound and, once a
@@ -689,7 +728,8 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
         # is recorded but never gates.
         "passed": bool(camera_inside and bounds_ok and sightline_ok
                        and (sightline["passed"] or not sightline["required"])
-                       and (plausible or not scale_checked)),
+                       and (plausible or not scale_checked)
+                       and vertical["ok"]),
     }
 
 
@@ -816,7 +856,9 @@ def main(argv=None):
             qa["real_mesh"] = real_mesh_qa(
                 depth, position, mesh, img_h=args.img_h, img_w=args.img_w, scene=scene,
                 rx_positions_p=rx_positions, rx_sightline_required=sightline_required,
-                references=references)
+                references=references,
+                tracked_height_m=float(position[HEIGHT_AXIS]),
+                vertical_tol_m=args.floor_tol)
             if canonical and not qa["real_mesh"]["rx_sightline"]["checked"]:
                 qa["warnings"].append(
                     "no receiver sightline evidence: canonical maps require it")
@@ -850,6 +892,7 @@ def main(argv=None):
             "n_warned": len(warned),
             "readback_record": readback_provenance,
             "scale_reference": references,
+            "detectability": DETECTABILITY_BOUNDARY,
             "rx_sightline_policy": {room: ("required" if room in RX_SIGHTLINE_REQUIRED_ROOMS
                                            else "recorded")
                                     for room in ("EmptyRoom", "FurnishedRoom")},

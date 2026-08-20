@@ -1053,3 +1053,90 @@ def test_cli_audits_every_map_against_its_raw_mask(tmp_path):
         assert entry["misses"]["mask_verified"] is True
         assert entry["misses"]["audit_ok"] is True
         assert "miss_mask" not in entry["misses"]      # the mask is not serialised
+
+
+# --------------------------------------------------------------------------- #
+# r4 T5: what the render CAN and CANNOT detect, and the vertical gate
+# --------------------------------------------------------------------------- #
+def _transform_all(points, matrix):
+    """Apply a candidate gauge to EVERYTHING -- mesh vertices and poses alike."""
+    return np.asarray(points, dtype=np.float64) @ np.asarray(matrix).T
+
+
+_GAUGE_XZY = np.array([[1.0, 0, 0], [0, 0, 1.0], [0, 1.0, 0]])       # the pinned one
+_GAUGE_XYZ = np.array([[1.0, 0, 0], [0, 1.0, 0], [0, 0, 1.0]])       # identity: y up
+_GAUGE_ZXY = np.array([[0, 0, 1.0], [1.0, 0, 0], [0, 1.0, 0]])       # horizontal swap
+
+
+def _room_under_gauge(matrix):
+    """A room + tx + rx, all mapped by the SAME candidate gauge (T5)."""
+    raf_bounds = dict(x0=-0.2, x1=5.0, y0=0.0, y1=4.0, z0=-2.0, z1=6.0)
+    mesh = _box_mesh_raf(to_pipeline=False, **raf_bounds)
+    verts = _transform_all(np.asarray(mesh.vertices), matrix)
+    out = o3d.geometry.TriangleMesh()
+    out.vertices = o3d.utility.Vector3dVector(verts)
+    out.triangles = mesh.triangles
+    tx_raf = np.array([2.0, 1.5, 2.0])
+    rx_raf = np.array([[4.5, 1.2, 5.0], [0.0, 2.0, -1.5], [3.0, 0.5, 0.0]])
+    return out, _transform_all(tx_raf[None], matrix)[0], _transform_all(rx_raf, matrix)
+
+
+def test_the_pinned_gauge_passes_every_render_check():
+    mesh, tx, rx = _room_under_gauge(_GAUGE_XZY)
+    depth = raf_render.render_depth(mesh, tx)
+    qa = raf_render.real_mesh_qa(depth, tx, mesh, rx_positions_p=rx,
+                                 tracked_height_m=1.5)
+    assert qa["passed"] is True
+    assert qa["vertical_axis"]["ok"] is True
+    assert qa["rx_sightline"]["passed"] is True
+
+
+def test_a_wrong_vertical_axis_is_detected_even_when_applied_consistently():
+    """T5: the vertical axis IS gauge-discriminating, because the tracked height
+    comes from the pose files and the nadir distance comes from the render."""
+    mesh, tx, rx = _room_under_gauge(_GAUGE_XYZ)   # RAF Y stays in slot 1, not 2
+    depth = raf_render.render_depth(mesh, tx)
+    qa = raf_render.real_mesh_qa(depth, tx, mesh, rx_positions_p=rx,
+                                 tracked_height_m=1.5)
+    assert qa["vertical_axis"]["ok"] is False
+    assert qa["passed"] is False
+    assert any("vertical" in w for w in qa["warnings"])
+
+
+def test_a_consistent_horizontal_permutation_is_render_undetectable():
+    """T5, recorded honestly: swapping the two HORIZONTAL axes everywhere preserves
+    distances, containment and visibility, so no render check can see it. The
+    horizontal assignment is pinned by derivation, not by this evidence."""
+    mesh, tx, rx = _room_under_gauge(_GAUGE_ZXY)
+    depth = raf_render.render_depth(mesh, tx)
+    qa = raf_render.real_mesh_qa(depth, tx, mesh, rx_positions_p=rx,
+                                 tracked_height_m=1.5)
+    assert qa["passed"] is True                     # it really does pass
+    assert qa["detectability"]["horizontal_permutation"] == "undetectable by render"
+    assert "derivation" in qa["detectability"]["horizontal_basis"]
+
+
+def test_the_detectability_boundary_is_recorded_in_the_qa_record(tmp_path):
+    raf_root, out, _ = _write_fixture(tmp_path)
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path),
+                     "--non-canonical"])
+    with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
+        qa = json.load(f)
+    boundary = qa["detectability"]
+    assert boundary["vertical_axis"] == "gauge-discriminating (nadir vs tracked height)"
+    assert boundary["horizontal_permutation"] == "undetectable by render"
+    for entry in qa["maps"].values():
+        assert entry["real_mesh"]["vertical_axis"]["ok"] is True
+
+
+def test_vertical_gate_uses_the_tracked_height_not_the_camera_vector():
+    """The height comes from the pose file; comparing the render against the same
+    vector it was rendered from would be circular."""
+    mesh, tx, rx = _room_under_gauge(_GAUGE_XZY)
+    depth = raf_render.render_depth(mesh, tx)
+    ok = raf_render.real_mesh_qa(depth, tx, mesh, tracked_height_m=1.5)
+    assert ok["vertical_axis"]["ok"] is True
+    wrong = raf_render.real_mesh_qa(depth, tx, mesh, tracked_height_m=3.0)
+    assert wrong["vertical_axis"]["ok"] is False
+    assert wrong["vertical_axis"]["tracked_height_m"] == 3.0
