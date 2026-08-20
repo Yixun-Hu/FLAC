@@ -93,3 +93,7 @@ Final pass APPROVE, no open in-boundary findings; 3 residuals recorded (`raf_fin
 ## 2026-08-20T11:42:56-0400 — Yixun directive: checkpoint storage convention
 
 All training checkpoints go under `/media/diskstation/yixunhu/FLAC/checkpoints/<proper-name>/` (established convention — exp12_cyl_dinov3_arms already present). Applied: R-cal artifacts moved `exp19_rcal_artifacts` → `checkpoints/exp19_rcal_haa_repro/` (21 files incl. step-1000 ckpt); `checkpoints/exp19_raf_finetune/` pre-created — the canonical finetune will `--save-dir` there directly (cadence-100 makes CIFS writes cheap; ~7 GB worst case, pruned to final after eval). Noted read-only: `FLAC/exp19_ckpts/{BF,P1}` appearing 11:17–11:30 = Yixun's own arm-checkpoint rsync (B-F, exp07_P1) — his, untouched. The rcal manifest's artifact pointer updated by this entry (former exp19_rcal_artifacts path superseded).
+
+## 2026-08-20T11:54:51-0400 — GO: Yixun approved the canonical run ("go for the exp_19 canaical-run")
+
+Blanket GO adopts the package recommendations: residuals 1–3 ACCEPTED AS RECORDED; second R-cal seed SKIPPED. Sequence begins: prep dry-run → canonical prep (splits committed once; runtime → NAS RAF_processed) → 42 depth renders → smoke (GPU, announced to peer, co-tenant OK) → 1000-step finetune (--save-dir /media/diskstation/yixunhu/FLAC/checkpoints/exp19_raf_finetune per the storage directive) → 5-seed evals ×2 rows + diagnostic row.
