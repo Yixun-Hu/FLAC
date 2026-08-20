@@ -17,7 +17,7 @@ from .modules.Env import Env
 from .modules.l1_stft_multires import L1_STFT_MultiRes
 
 # Constants
-SUPPORTED_DATASETS = {"AcousticRooms", "HAA"}
+SUPPORTED_DATASETS = {"AcousticRooms", "HAA", "RAF"}
 DEFAULT_SAMPLE_RATE = 22050
 DEFAULT_AUDIO_CHANNELS = 1
 STAGES = ["train", "val", "test"]
@@ -78,7 +78,7 @@ class AcousticMetricsCallback:
 
         self.dataset_name = dataset_name
 
-        if self.dataset_name == 'HAA' or eval_per_scene:
+        if self.dataset_name in ('HAA', 'RAF') or eval_per_scene:
             self.eval_by_scene = True
             self.scene_metrics = {}
             self.initialize_scene_metrics()
@@ -93,25 +93,37 @@ class AcousticMetricsCallback:
     def _validate_parameters(self, dataset_name: str, sample_rate: int, audio_channels: int, 
                            eval_retrieval: bool, eval_FD: bool, AGREE_ckpt: Any):
         """Validate parameters."""
-        supported_datasets = {"AcousticRooms", "HAA"}
+        supported_datasets = {"AcousticRooms", "HAA", "RAF"}
         if dataset_name not in supported_datasets:
             raise ValueError(f"Dataset {dataset_name} not supported. Supported datasets: {supported_datasets}")
         
-        if dataset_name in ["AcousticRooms", "HAA"]:
+        if dataset_name in ["AcousticRooms", "HAA", "RAF"]:
             if sample_rate != 22050:
                 raise ValueError(f"{dataset_name} dataset requires a sample rate of 22050 Hz, got {sample_rate}")
             if audio_channels != 1:
                 raise ValueError(f"{dataset_name} dataset requires 1 audio channel, got {audio_channels}")
-        
+
+        # exp_19: no AGREE model has ever been trained on RAF, so FD and retrieval
+        # are UNAVAILABLE there. Fail closed rather than let a run report an
+        # HAA/AR-trained AGREE's numbers (or a zero) as if they were RAF metrics.
+        # Checked before the AGREE_ckpt rule so supplying a checkpoint cannot get
+        # past it.
+        if dataset_name == "RAF" and (eval_FD or eval_retrieval):
+            raise ValueError(
+                "eval_FD/eval_retrieval are not available for the RAF dataset: no "
+                "AGREE checkpoint exists for it. Set both to false and report "
+                "FD/Recall as unavailable.")
+
         if (eval_retrieval or eval_FD) and AGREE_ckpt is None:
             raise ValueError("AGREE_ckpt must be provided when eval_retrieval or eval_FD is True")
 
     def _setup(self, AGREE_ckpt=None):
         """Setup dataset-specific configuration and constants."""
-        if self.dataset_name in ["AcousticRooms", "HAA"]:
+        if self.dataset_name in ["AcousticRooms", "HAA", "RAF"]:
             # max len from xRIR code
             self.max_len_magenv = 9600
-            self.max_len = 9600 if self.dataset_name == "HAA" else 8000
+            # RAF registers the HAA window (real measured RIRs), not AR's 8000.
+            self.max_len = 9600 if self.dataset_name in ("HAA", "RAF") else 8000
             self.stft = stft()
             print(f'Max audio length for metric computation: {self.max_len}')
         else:

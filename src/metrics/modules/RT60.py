@@ -21,7 +21,10 @@ class RT60Error(Metric):
         # Following xRIR code 
         if self.dataset == 'AcousticRooms':
             self.decay_db = 20
-        elif self.dataset == 'HAA': 
+        elif self.dataset in ('HAA', 'RAF'):
+            # RAF joins HAA's policy: real measured RIRs truncated to the metric
+            # window, so T30 with the invalid-sample masking below (AR's T20 path
+            # assumes clean simulated RIRs and records no invalids).
             self.decay_db = 30
         else:
             raise NotImplementedError(f"Dataset {self.dataset} not recognized for RT60 computation.")

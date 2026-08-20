@@ -395,6 +395,20 @@ CONTEXT_ID_PRECISION = 6
 # float16 changed 5,032 of them.
 CONTEXT_FINGERPRINT_SCHEMA = 1
 
+# Schema 2 (exp_19 R3): room-qualified, zero-padded CAPTURE IDs, used only when the
+# batch metadata actually carries them (``context_capture_ids``, int64). RAF's
+# receivers all sit inside one 1.46 m array and its placements are re-occupied to
+# sub-centimetre precision, so two different draws can render to the SAME
+# six-decimal position fingerprint -- the identity schema 1 relies on. Datasets
+# that expose no ids (AR, HAA) keep schema 1 BYTE-identically: the constant above
+# is deliberately NOT bumped, because a peer session pairs AR cells by these
+# digests and validates their sidecars against the literal 1.
+CONTEXT_ID_FINGERPRINT_SCHEMA = 2
+
+# Width the capture id is zero-padded to before it enters a fingerprint, so the
+# rendering of one id is fixed regardless of its magnitude.
+CONTEXT_CAPTURE_ID_WIDTH = 6
+
 
 class StreamRow(NamedTuple):
     """One position of the evaluation stream, as it was actually evaluated."""
@@ -404,6 +418,10 @@ class StreamRow(NamedTuple):
     img_w: int
     offset: Optional[int]
     dataset_idx: Optional[int] = None
+    # Which identity rule produced ``context_ids``. Defaulted so every existing
+    # construction stays valid, and deliberately ABSENT from input_tuples(): the
+    # hashes are the cross-machine contract and may not shift under an added field.
+    fingerprint_schema: int = CONTEXT_FINGERPRINT_SCHEMA
 
 
 def sample_target_id(md):
@@ -429,31 +447,79 @@ def sample_target_id(md):
     return f'{idx}|{rel}'
 
 
-def sample_context_ids(md):
-    """Ordered fingerprint of the reference sources this sample actually drew.
+def capture_id_fingerprints(md):
+    """Room-qualified capture-id fingerprints, or ``None`` when unavailable.
 
-    ``AR_md.get_custom_metadata`` picks the K context sources with
-    ``np.random.choice`` per sample and does NOT expose their paths, so the
-    strongest identity that reaches ``eval_FLAC`` is each source's 3D position
-    (``context_poses``, listener-relative, one row per reference in draw order).
-    Distinct sources sit metres apart, so a fixed 6-decimal rendering identifies
-    the draw exactly while being byte-stable across machines.
+    ``None`` is returned ONLY when the metadata carries no ``context_capture_ids``
+    at all -- i.e. for every dataset that predates this field (AR, HAA), whose
+    fingerprints are then rendered exactly as before. Once the key IS present the
+    function is fail-closed: a dataset that promises capture-level identity and
+    then hands over something unusable must stop the run, not fall back to the
+    weaker position rendering it was introduced to replace.
 
-    Read BEFORE any rotation: ``rotate_scene_metadata`` rewrites ``context_poses``,
-    and a fingerprint taken afterwards would encode the rotation instead of the
-    item (and could never match its unrotated pair).
-
-    The rendering is FAIL-CLOSED on its own assumptions (review N4). A six-decimal
-    string is only a stable identity while the tensor is exactly what the AR loader
-    produces --- ``torch.vstack`` of float32 ``[K, 3]`` positions --- and the
-    measured sensitivity is not academic: on the real unseen split, rendering the
-    same positions as float64 changes two strings and float16 changes 5,032. A
-    silently different dtype would therefore produce hashes that mismatch across
-    machines for no scientific reason, so it raises instead.
+    Rendered as ``'<room>|<zero-padded id>'``. The room qualifier matters because
+    RAF capture ids restart at 000000 in every room, so the bare id is not unique
+    across a two-room split.
     """
+    ids = md.get('context_capture_ids', None)
+    if ids is None:
+        return None
+    if not isinstance(ids, torch.Tensor):
+        raise ValueError(
+            f"context_capture_ids must be a torch.Tensor to be fingerprinted, got "
+            f"{type(ids).__name__}."
+        )
+    if ids.dtype != torch.int64:
+        raise ValueError(
+            f"context_capture_ids must be int64, got {ids.dtype}: a float id would "
+            "render through a lossy cast and could alias two captures."
+        )
+    if ids.dim() != 1 or ids.shape[0] < 1:
+        raise ValueError(
+            f"context_capture_ids must have shape [K] with K >= 1, got "
+            f"{tuple(ids.shape)}."
+        )
     poses = md.get('context_poses', None)
     if poses is None:
-        return []
+        raise ValueError(
+            "context_capture_ids was provided without context_poses: the id list "
+            "must be length-checked against the positions that were actually "
+            "conditioned on, or it could describe a different draw entirely."
+        )
+    _validate_context_poses(poses)
+    if poses.shape[0] != ids.shape[0]:
+        raise ValueError(
+            f"context_capture_ids has {ids.shape[0]} entries but context_poses has "
+            f"{poses.shape[0]} rows: the ids do not describe the conditioned draw."
+        )
+    values = [int(v) for v in ids]
+    if any(v < 0 for v in values):
+        raise ValueError(
+            f"context_capture_ids must be non-negative capture ids, got {values}."
+        )
+    if len(set(values)) != len(values):
+        raise ValueError(
+            f"context_capture_ids repeats a capture: {values}. K distinct references "
+            "were promised, so a collapsed draw is a defect, not an identity."
+        )
+    scene = md.get('scene', None)
+    if not isinstance(scene, str) or not scene or '|' in scene:
+        raise ValueError(
+            f"a capture-id fingerprint needs a non-empty '|'-free room name in "
+            f"metadata['scene'], got {scene!r}: capture ids restart per room, so an "
+            "unqualified id is not a unique identity."
+        )
+    return [f"{scene}|{v:0{CONTEXT_CAPTURE_ID_WIDTH}d}" for v in values]
+
+
+def context_fingerprint_schema(md):
+    """Which identity rule ``sample_context_ids`` applies to this metadata."""
+    return (CONTEXT_ID_FINGERPRINT_SCHEMA if md.get('context_capture_ids', None) is not None
+            else CONTEXT_FINGERPRINT_SCHEMA)
+
+
+def _validate_context_poses(poses):
+    """Fail-closed assumptions behind the six-decimal position rendering (N4)."""
     if not isinstance(poses, torch.Tensor):
         raise ValueError(
             f"context_poses must be a torch.Tensor to be fingerprinted, got "
@@ -475,6 +541,44 @@ def sample_context_ids(md):
             "context_poses must be finite to be fingerprinted: a NaN or Inf position "
             "renders to a string that cannot identify a reference source."
         )
+    return poses
+
+
+def sample_context_ids(md):
+    """Ordered fingerprint of the reference sources this sample actually drew.
+
+    ``AR_md.get_custom_metadata`` picks the K context sources with
+    ``np.random.choice`` per sample and does NOT expose their paths, so the
+    strongest identity that reaches ``eval_FLAC`` is each source's 3D position
+    (``context_poses``, listener-relative, one row per reference in draw order).
+    Distinct sources sit metres apart, so a fixed 6-decimal rendering identifies
+    the draw exactly while being byte-stable across machines.
+
+    Read BEFORE any rotation: ``rotate_scene_metadata`` rewrites ``context_poses``,
+    and a fingerprint taken afterwards would encode the rotation instead of the
+    item (and could never match its unrotated pair).
+
+    The rendering is FAIL-CLOSED on its own assumptions (review N4). A six-decimal
+    string is only a stable identity while the tensor is exactly what the AR loader
+    produces --- ``torch.vstack`` of float32 ``[K, 3]`` positions --- and the
+    measured sensitivity is not academic: on the real unseen split, rendering the
+    same positions as float64 changes two strings and float16 changes 5,032. A
+    silently different dtype would therefore produce hashes that mismatch across
+    machines for no scientific reason, so it raises instead.
+
+    exp_19 R3: when the loader DOES expose the reference captures' ids
+    (``context_capture_ids``, RAF), those are preferred -- see
+    ``capture_id_fingerprints``. Datasets without them are unaffected, byte for
+    byte, which is a hard requirement: other sessions pair evaluation cells by
+    these fingerprints' digests.
+    """
+    capture_ids = capture_id_fingerprints(md)
+    if capture_ids is not None:
+        return capture_ids
+    poses = md.get('context_poses', None)
+    if poses is None:
+        return []
+    _validate_context_poses(poses)
     out = []
     for row in poses:
         vals = []
@@ -538,9 +642,25 @@ class RotationStream:
             img_w=img_w,
             offset=None if offset is None else int(offset),
             dataset_idx=None if idx is None else int(idx),
+            fingerprint_schema=context_fingerprint_schema(md),
         )
         self.rows.append(row)
         return row
+
+    def fingerprint_schema(self):
+        """The one identity rule this stream used.
+
+        A stream that mixed rules would have an uninterpretable input_hash --- half
+        its tuples naming captures and half naming positions --- so mixing is a
+        hard error rather than a recorded caveat.
+        """
+        schemas = {r.fingerprint_schema for r in self.rows}
+        if len(schemas) > 1:
+            raise ValueError(
+                f"stream mixes context-fingerprint schemas {sorted(schemas)}: one run "
+                "must identify its context draws by one rule."
+            )
+        return schemas.pop() if schemas else CONTEXT_FINGERPRINT_SCHEMA
 
     @property
     def img_w(self):
@@ -600,7 +720,11 @@ def build_stream_record(plan, stream):
     """
     return {
         "schema_version": STREAM_SCHEMA_VERSION,
-        "fingerprint_schema": CONTEXT_FINGERPRINT_SCHEMA,
+        # The rule this run actually used: 1 (six-decimal context_poses) for AR/HAA,
+        # 2 (room-qualified capture ids) when the loader exposed them. Reported per
+        # run rather than as a global constant so an AR sidecar is byte-identical
+        # to the ones written before capture ids existed.
+        "fingerprint_schema": stream.fingerprint_schema(),
         "rotate_mode": plan.mode,
         "rotate_seed": plan.rotate_seed,
         "rotate_deg": plan.rotate_deg,
