@@ -321,3 +321,9 @@
 - **Coder self-correction on record:** an initial `git add -A` swept 49 untracked artifacts (incl. live .partial files); tip rewritten index-only pre-push to the intended 2 files; running jobs untouched. Same class as the 9627449 lesson — path-scoped commits now doubly institutional.
 - **Note for freeze:** metric manifest requires committed copies of everything it digests; the frozen unseen candidate-manifest JSON gets copied into the exp folder and committed in the freeze commit.
 - **Next** — seed 44 on GPU 0 (watcher); calibration replay on GPU 1 after R2b seed 42 (~18:55): R1-v2 prefix, --verify-against R1 rows, --dump-waveforms (fresh dir), --metrics, --metric-sensitivities, --calibration-identities <R1-v2 rows>, then --mode metrics-calibrate → freeze commit.
+
+## 2026-08-20T18:59:50-0400 — R4 FREEZE (d6dbf0073d9eb4c30f9df971f772872bab6a4122) + first unseen pass launched
+
+- **Result** — Calibration replay: verify_against all_match=true over 1,194 (bit-reproducibility proven on real data); calibrate: **Δmax=8 registered** (dev top-1 0.608; inverted-U 0.440/0.608/0.405/0.252 — TOF-cue preservation confirmed), M4 μ/σ (10 features) frozen, t30 backend pyroomacoustics. Manifest completed (seeds, R2 identity digest 60c56165…, candidate manifest da1a1410…, both protocol-manifest digests) and FROZEN at d6dbf0073d9eb4c30f9df971f772872bab6a4122. No unseen metric data inspected before the freeze.
+- **Acceptance criteria (each unseen R4 pass)** — both registration gates pass at d6dbf0073d9eb4c30f9df971f772872bab6a4122; verify_against all_match=true over 6,337; dumps complete; metrics-JSONL publishes only after all gates; original R2 artifacts untouched.
+- **Result** — seed 42 unseen replay+metrics launched (cuda:1); seeds 43/44 follow as GPUs free.

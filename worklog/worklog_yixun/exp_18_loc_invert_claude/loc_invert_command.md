@@ -105,3 +105,17 @@ nohup python eval_localization.py --mode run --score-source flac --smoke --max-q
   --dump-waveforms /media/diskstation/yixunhu/FLAC/exp18_pred_waveforms/R1_seen_calib_seed42 --metrics --metric-sensitivities \
   --out-dir outputs_loc/exp18 --eval-name exp18_R4_calib > worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_2026-08-20_18:18:34_R4_calib.log 2>&1 &
 ```
+
+## R4 unseen replay+metrics+dump, R2 seed 42 (2026-08-20_18:59:50 EDT; seeds 43/44 same pattern as GPUs free) — freeze d6dbf0073d9eb4c30f9df971f772872bab6a4122
+```bash
+nohup python eval_localization.py --mode run --score-source flac \
+  --model-config src/configs/model_configs/FLAC/AR/FLAC_AR.json \
+  --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json \
+  --ckpt-path weights/FLAC/FLAC_EMA.ckpt --agree-ckpt weights/AGREE/AGREE_AR.pt \
+  --num-samples 8 --tau 0.02 --agg lme --seed 42 \
+  --cond-method vanilla --rotate-deg 0 --cond-autocast default --batch-size 4 --num-workers 4 --device cuda:1 \
+  --registration-manifest worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_R2_registration.json --registration-sha d6dbf0073d9eb4c30f9df971f772872bab6a4122 \
+  --metric-registration worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_R4_metric_registration.json \
+  --verify-against outputs_loc/exp18/exp18_R2_flac_ctl-none_vanilla_ac-default_lme_tau0.02_K8_seed42_scorer-AGREE_AR_registered_rows.jsonl --dump-waveforms /media/diskstation/yixunhu/FLAC/exp18_pred_waveforms/R2_K8_seed42_replay --metrics \
+  --out-dir outputs_loc/exp18 --eval-name exp18_R4_unseen > worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_2026-08-20_18:59:50_R4_unseen_seed42.log 2>&1 &
+```
