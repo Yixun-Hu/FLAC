@@ -91,3 +91,4 @@ nohup python eval_localization.py --mode run --score-source flac \
 
 ## R2b registered K_ctx=1 sweeps, seeds 42/43 (2026-08-20_15:47:34 EDT; seed 44 follows) — dumps ON, fresh per-seed dirs
 Same as R2 commands except: dataset config acousticroom_unseeneval_1.json, --registration-manifest loc_invert_R2b_registration.json, --registration-sha 8c2b4a3416fe31531c9b7c811bff51abca0cd376, --dump-waveforms /media/diskstation/yixunhu/FLAC/exp18_pred_waveforms/R2b_K1_seed<NN> (fresh, no --overwrite). Launch conditions (r7 review) satisfied first: GPU-device timing test 1 passed; full --readback-decode-all on unseen: exit 0, 0 failures, 1 expected warning (log exp18_R2b_pre_decodeall).
+## R2b seed 44 (2026-08-20_17:58:46 EDT) — same command, --seed 44 --device cuda:0, dump dir R2b_K1_seed44
