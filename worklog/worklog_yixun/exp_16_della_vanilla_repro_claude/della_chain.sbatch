@@ -47,8 +47,9 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --no-requeue
-#SBATCH --gres=gpu:a100:1
-#SBATCH --constraint=gpu80
+#SBATCH --partition=ailab
+#SBATCH --qos=ailab
+#SBATCH --gres=gpu:h200:1
 #SBATCH --cpus-per-task=10
 #SBATCH --mem=64G
 #SBATCH --output=/home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/slurm_chain_%x_%j.out
