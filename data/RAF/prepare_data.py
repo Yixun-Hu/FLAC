@@ -972,7 +972,7 @@ def main(argv=None):
     # directory are attested together by a single generation-bound commit marker,
     # written last, so a failure between them cannot leave a published runtime
     # tree beside splits that never appeared.
-    with PublishTransaction(args.split_dir) as publish_txn:
+    with PublishTransaction(args.split_dir, kind="prepare") as publish_txn:
         staged_runtime = publish_txn.stage(args.output_dir)
         staged_splits = publish_txn.stage(args.split_dir)
         per_room, audits = {}, {}

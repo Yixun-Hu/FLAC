@@ -264,20 +264,20 @@ def test_render_depth_publishes_nothing_when_a_map_fails_qa(tmp_path):
 # --------------------------------------------------------------------------- #
 def test_transaction_publishes_every_root_under_one_generation(tmp_path):
     a, b = tmp_path / "a", tmp_path / "b"
-    with raf_publish.PublishTransaction(str(a)) as txn:
+    with raf_publish.PublishTransaction(str(a), kind="prepare") as txn:
         ra, rb = txn.stage(str(a)), txn.stage(str(b))
         open(ra.path("one.txt"), "w").write("A")
         open(rb.path("two.txt"), "w").write("B")
         marker = txn.commit()
     assert (a / "one.txt").read_text() == "A"
     assert (b / "two.txt").read_text() == "B"
-    on_disk = json.loads((a / raf_publish.COMMIT_MARKER_NAME).read_text())
+    on_disk = json.loads((a / raf_publish.marker_name("prepare")).read_text())
     assert on_disk["generation"] == marker["generation"]
     assert set(on_disk["roots"]) == {str(a.resolve()), str(b.resolve())}
     for root in (a, b):
         assert json.loads((root / raf_publish.MANIFEST_NAME).read_text())["generation"] \
             == marker["generation"]
-    assert raf_publish.verify_publication(str(a))["published"] is True
+    assert raf_publish.verify_publication(str(a), kind="prepare")["published"] is True
 
 
 def test_a_tree_without_a_marker_reads_as_unpublished(tmp_path):
@@ -285,7 +285,7 @@ def test_a_tree_without_a_marker_reads_as_unpublished(tmp_path):
     with raf_publish.StagedPublish(str(dest)) as staged:
         open(staged.path("one.txt"), "w").write("A")
         staged.commit()                       # manifest only, no transaction marker
-    report = raf_publish.verify_publication(str(dest))
+    report = raf_publish.verify_publication(str(dest), kind="prepare")
     assert report["published"] is False
     assert "marker" in report["reason"]
 
@@ -293,11 +293,11 @@ def test_a_tree_without_a_marker_reads_as_unpublished(tmp_path):
 def test_previous_attestation_is_invalidated_before_any_replacement(tmp_path):
     """S3: the old manifest may not stay visible while files are being swapped."""
     a = tmp_path / "a"
-    with raf_publish.PublishTransaction(str(a)) as txn:
+    with raf_publish.PublishTransaction(str(a), kind="prepare") as txn:
         root = txn.stage(str(a))
         open(root.path("one.txt"), "w").write("first")
         txn.commit()
-    first = json.loads((a / raf_publish.COMMIT_MARKER_NAME).read_text())["generation"]
+    first = json.loads((a / raf_publish.marker_name("prepare")).read_text())["generation"]
 
     seen = {}
     real_replace = os.replace
@@ -306,24 +306,24 @@ def test_previous_attestation_is_invalidated_before_any_replacement(tmp_path):
         if str(dst).endswith("one.txt"):
             # at the moment a payload file is swapped, no attestation may claim the
             # tree is published
-            seen["marker"] = (a / raf_publish.COMMIT_MARKER_NAME).exists()
+            seen["marker"] = (a / raf_publish.marker_name("prepare")).exists()
             seen["manifest"] = (a / raf_publish.MANIFEST_NAME).exists()
         return real_replace(src, dst)
 
     with mock.patch("os.replace", watching_replace):
-        with raf_publish.PublishTransaction(str(a)) as txn:
+        with raf_publish.PublishTransaction(str(a), kind="prepare") as txn:
             root = txn.stage(str(a))
             open(root.path("one.txt"), "w").write("second")
             txn.commit()
     assert seen == {"marker": False, "manifest": False}
     assert (a / "one.txt").read_text() == "second"
-    assert json.loads((a / raf_publish.COMMIT_MARKER_NAME).read_text())["generation"] \
+    assert json.loads((a / raf_publish.marker_name("prepare")).read_text())["generation"] \
         != first
 
 
 def test_failure_during_os_replace_leaves_the_tree_unpublished(tmp_path):
     a = tmp_path / "a"
-    with raf_publish.PublishTransaction(str(a)) as txn:
+    with raf_publish.PublishTransaction(str(a), kind="prepare") as txn:
         root = txn.stage(str(a))
         open(root.path("one.txt"), "w").write("first")
         open(root.path("two.txt"), "w").write("first")
@@ -341,20 +341,20 @@ def test_failure_during_os_replace_leaves_the_tree_unpublished(tmp_path):
 
     with mock.patch("os.replace", failing_replace):
         with pytest.raises(OSError):
-            with raf_publish.PublishTransaction(str(a)) as txn:
+            with raf_publish.PublishTransaction(str(a), kind="prepare") as txn:
                 root = txn.stage(str(a))
                 open(root.path("one.txt"), "w").write("second")
                 open(root.path("two.txt"), "w").write("second")
                 txn.commit()
 
-    report = raf_publish.verify_publication(str(a))
+    report = raf_publish.verify_publication(str(a), kind="prepare")
     assert report["published"] is False       # mixed generations, no valid marker
-    assert not (a / raf_publish.COMMIT_MARKER_NAME).exists()
+    assert not (a / raf_publish.marker_name("prepare")).exists()
 
 
 def test_failure_between_roots_leaves_the_tree_unpublished(tmp_path):
     a, b = tmp_path / "a", tmp_path / "b"
-    with raf_publish.PublishTransaction(str(a)) as txn:
+    with raf_publish.PublishTransaction(str(a), kind="prepare") as txn:
         ra, rb = txn.stage(str(a)), txn.stage(str(b))
         open(ra.path("one.txt"), "w").write("first")
         open(rb.path("two.txt"), "w").write("first")
@@ -369,18 +369,18 @@ def test_failure_between_roots_leaves_the_tree_unpublished(tmp_path):
 
     with mock.patch("os.replace", failing_replace):
         with pytest.raises(OSError):
-            with raf_publish.PublishTransaction(str(a)) as txn:
+            with raf_publish.PublishTransaction(str(a), kind="prepare") as txn:
                 ra, rb = txn.stage(str(a)), txn.stage(str(b))
                 open(ra.path("one.txt"), "w").write("second")
                 open(rb.path("two.txt"), "w").write("second")
                 txn.commit()
-    assert raf_publish.verify_publication(str(a))["published"] is False
-    assert not (a / raf_publish.COMMIT_MARKER_NAME).exists()
+    assert raf_publish.verify_publication(str(a), kind="prepare")["published"] is False
+    assert not (a / raf_publish.marker_name("prepare")).exists()
 
 
 def test_verify_publication_rejects_a_generation_mismatch(tmp_path):
     a, b = tmp_path / "a", tmp_path / "b"
-    with raf_publish.PublishTransaction(str(a)) as txn:
+    with raf_publish.PublishTransaction(str(a), kind="prepare") as txn:
         ra, rb = txn.stage(str(a)), txn.stage(str(b))
         open(ra.path("one.txt"), "w").write("A")
         open(rb.path("two.txt"), "w").write("B")
@@ -389,19 +389,19 @@ def test_verify_publication_rejects_a_generation_mismatch(tmp_path):
     manifest = json.loads(manifest_path.read_text())
     manifest["generation"] = "0" * 32
     manifest_path.write_text(json.dumps(manifest))
-    report = raf_publish.verify_publication(str(a))
+    report = raf_publish.verify_publication(str(a), kind="prepare")
     assert report["published"] is False
     assert "generation" in report["reason"]
 
 
 def test_verify_publication_rejects_a_tampered_payload(tmp_path):
     a = tmp_path / "a"
-    with raf_publish.PublishTransaction(str(a)) as txn:
+    with raf_publish.PublishTransaction(str(a), kind="prepare") as txn:
         root = txn.stage(str(a))
         open(root.path("one.txt"), "w").write("A")
         txn.commit()
     (a / "one.txt").write_text("tampered")
-    report = raf_publish.verify_publication(str(a))
+    report = raf_publish.verify_publication(str(a), kind="prepare")
     assert report["published"] is False
     assert report["roots"][str(a.resolve())]["mismatched"] == ["one.txt"]
 
@@ -409,16 +409,16 @@ def test_verify_publication_rejects_a_tampered_payload(tmp_path):
 def test_prepare_publishes_one_marker_covering_both_roots(tmp_path):
     argv, out, split_dir = _prepare(tmp_path)
     raf_prepare.main(argv)
-    report = raf_publish.verify_publication(str(split_dir))
+    report = raf_publish.verify_publication(str(split_dir), kind="prepare")
     assert report["published"] is True
     assert set(report["roots"]) == {str(out.resolve()), str(split_dir.resolve())}
-    assert not (out / raf_publish.COMMIT_MARKER_NAME).exists()   # exactly one marker
+    assert not (out / raf_publish.marker_name("prepare")).exists()   # exactly one marker
 
 
 def test_prepare_failure_leaves_the_previous_generation_unattested(tmp_path, monkeypatch):
     argv, out, split_dir = _prepare(tmp_path)
     raf_prepare.main(argv)
-    first = json.loads((split_dir / raf_publish.COMMIT_MARKER_NAME).read_text())
+    first = json.loads((split_dir / raf_publish.marker_name("prepare")).read_text())
 
     real_replace = os.replace
 
@@ -430,7 +430,7 @@ def test_prepare_failure_leaves_the_previous_generation_unattested(tmp_path, mon
     with mock.patch("os.replace", failing_replace):
         with pytest.raises(OSError):
             raf_prepare.main(argv)
-    report = raf_publish.verify_publication(str(split_dir))
+    report = raf_publish.verify_publication(str(split_dir), kind="prepare")
     assert report["published"] is False
     assert first["generation"]
 
@@ -443,6 +443,184 @@ def test_render_depth_publishes_one_marker_covering_both_rooms(tmp_path):
     raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
                      "--rooms", "EmptyRoom", "--readback-record", record,
                      "--non-canonical"])
-    report = raf_publish.verify_publication(str(out))
+    report = raf_publish.verify_publication(str(out), kind="depth")
     assert report["published"] is True
     assert str((out / "EmptyRoom" / "depth_images").resolve()) in report["roots"]
+
+
+# --------------------------------------------------------------------------- #
+# r4 T4: namespaced markers, validated root sets, composition
+# --------------------------------------------------------------------------- #
+def test_markers_are_namespaced_per_transaction_kind(tmp_path):
+    """Both markers live at the same marker root -- as they do in production, where
+    the depth marker sits at the runtime root that prepare also publishes -- and
+    neither disturbs the other. Their payload ROOTS are disjoint (prepare owns the
+    runtime tree and the split dir, depth owns each room's depth_images), which is
+    the invariant one manifest per directory rests on."""
+    marker_root = tmp_path / "runtime"
+    prepare_root = marker_root / "tree"
+    depth_root = marker_root / "EmptyRoom" / "depth_images"
+    with raf_publish.PublishTransaction(str(marker_root), kind="prepare") as txn:
+        open(txn.stage(str(prepare_root)).path("one.txt"), "w").write("A")
+        txn.commit()
+    with raf_publish.PublishTransaction(str(marker_root), kind="depth") as txn:
+        open(txn.stage(str(depth_root)).path("two.npy"), "w").write("B")
+        txn.commit()
+    assert (marker_root / raf_publish.marker_name("prepare")).exists()
+    assert (marker_root / raf_publish.marker_name("depth")).exists()
+    assert raf_publish.verify_publication(str(marker_root), kind="prepare")["published"]
+    assert raf_publish.verify_publication(str(marker_root), kind="depth")["published"]
+
+
+def test_two_kinds_sharing_one_payload_root_fail_safe(tmp_path):
+    """One manifest per directory: if a second kind ever published into the same
+    payload root, the first attestation must read as UNPUBLISHED rather than as
+    still-valid."""
+    marker_root = tmp_path / "runtime"
+    shared = marker_root / "shared"
+    with raf_publish.PublishTransaction(str(marker_root), kind="prepare") as txn:
+        open(txn.stage(str(shared)).path("one.txt"), "w").write("A")
+        txn.commit()
+    with raf_publish.PublishTransaction(str(marker_root), kind="depth") as txn:
+        open(txn.stage(str(shared)).path("two.npy"), "w").write("B")
+        txn.commit()
+    stale = raf_publish.verify_publication(str(marker_root), kind="prepare")
+    assert stale["published"] is False
+    assert "manifest" in stale["reason"]
+
+
+def test_a_prepare_rerun_does_not_orphan_the_depth_attestation(tmp_path):
+    """T4: prepare staged the runtime root and renamed the render marker aside,
+    although it never regenerates depth -- orphaning valid depth evidence."""
+    argv, out, split_dir = _prepare(tmp_path)
+    raf_prepare.main(argv)
+
+    from test_raf_render_depth import _write_fixture
+
+    depth_root = out / "EmptyRoom" / "depth_images"
+    depth_root.mkdir(parents=True, exist_ok=True)
+    with raf_publish.PublishTransaction(str(out), kind="depth") as txn:
+        open(txn.stage(str(depth_root)).path("map.npy"), "w").write("depth")
+        depth_marker = txn.commit()
+
+    raf_prepare.main(argv)          # prepare AGAIN
+    after = raf_publish.verify_publication(str(out), kind="depth")
+    assert after["published"] is True
+    assert after["generation"] == depth_marker["generation"]
+
+
+def test_verify_publication_rejects_an_empty_root_set(tmp_path):
+    a = tmp_path / "a"
+    a.mkdir()
+    marker = {"generation": "0" * 32, "kind": "prepare", "committed_utc": "now",
+              "marker_root": str(a), "roots": {}}
+    (a / raf_publish.marker_name("prepare")).write_text(json.dumps(marker))
+    report = raf_publish.verify_publication(str(a), kind="prepare")
+    assert report["published"] is False
+    assert "no roots" in report["reason"]
+
+
+def test_verify_publication_requires_the_expected_root_set(tmp_path):
+    a, b = tmp_path / "a", tmp_path / "b"
+    with raf_publish.PublishTransaction(str(a), kind="prepare") as txn:
+        open(txn.stage(str(a)).path("one.txt"), "w").write("A")
+        txn.commit()
+    ok = raf_publish.verify_publication(str(a), kind="prepare",
+                                        expected_roots=[str(a)])
+    assert ok["published"] is True
+    missing = raf_publish.verify_publication(str(a), kind="prepare",
+                                             expected_roots=[str(a), str(b)])
+    assert missing["published"] is False
+    assert "expected roots" in missing["reason"]
+
+
+def test_render_depth_marker_requires_every_canonical_room(tmp_path):
+    """A FurnishedRoom-only depth publish must not read as a complete one."""
+    from test_raf_render_depth import _write_fixture
+
+    raf_root, out, _ = _write_fixture(tmp_path)
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--readback-record",
+                     write_passing_readback_record(str(tmp_path / "rb.json")),
+                     "--non-canonical"])
+    partial = raf_publish.verify_publication(
+        str(out), kind="depth",
+        expected_roots=[str(out / room / "depth_images")
+                        for room in ("EmptyRoom", "FurnishedRoom")])
+    assert partial["published"] is False
+    assert "expected roots" in partial["reason"]
+
+
+def test_verify_combined_publication_requires_both_kinds(tmp_path):
+    argv, out, split_dir = _prepare(tmp_path)
+    raf_prepare.main(argv)
+    report = raf_publish.verify_combined_publication(str(split_dir), str(out),
+                                                     rooms=["EmptyRoom"])
+    assert report["published"] is False          # depth has not been rendered yet
+    assert "depth" in report["reason"]
+
+    depth_root = out / "EmptyRoom" / "depth_images"
+    depth_root.mkdir(parents=True, exist_ok=True)
+    with raf_publish.PublishTransaction(str(out), kind="depth") as txn:
+        open(txn.stage(str(depth_root)).path("map.npy"), "w").write("depth")
+        txn.commit()
+    complete = raf_publish.verify_combined_publication(str(split_dir), str(out),
+                                                       rooms=["EmptyRoom"])
+    assert complete["published"] is True
+    assert set(complete["kinds"]) == {"prepare", "depth"}
+
+
+def test_duplicate_roots_in_one_transaction_are_rejected(tmp_path):
+    a = tmp_path / "a"
+    with pytest.raises(ValueError) as exc:
+        with raf_publish.PublishTransaction(str(a), kind="prepare") as txn:
+            txn.stage(str(a))
+            txn.stage(str(a))
+    assert "duplicate" in str(exc.value)
+
+
+def test_a_transaction_with_no_roots_refuses_to_commit(tmp_path):
+    with pytest.raises(ValueError) as exc:
+        with raf_publish.PublishTransaction(str(tmp_path / "a"), kind="prepare") as txn:
+            txn.commit()
+    assert "no roots" in str(exc.value)
+
+
+def test_prepare_render_prepare_composition_keeps_both_attestations(tmp_path):
+    from test_raf_render_depth import _write_fixture
+
+    argv, out, split_dir = _prepare(tmp_path)
+    raf_prepare.main(argv)
+    raf_root, fixture_out, _ = _write_fixture(tmp_path / "fixture")
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(fixture_out),
+                     "--rooms", "EmptyRoom", "--readback-record",
+                     write_passing_readback_record(str(tmp_path / "rb2.json")),
+                     "--non-canonical"])
+    raf_prepare.main(argv)
+    assert raf_publish.verify_publication(str(split_dir), kind="prepare")["published"]
+    assert raf_publish.verify_publication(str(fixture_out), kind="depth")["published"]
+
+
+def test_a_crash_in_the_second_kind_leaves_the_first_attestation_intact(tmp_path):
+    argv, out, split_dir = _prepare(tmp_path)
+    raf_prepare.main(argv)
+    before = json.loads((split_dir / raf_publish.marker_name("prepare")).read_text())
+
+    depth_root = out / "EmptyRoom" / "depth_images"
+    depth_root.mkdir(parents=True, exist_ok=True)
+    real_replace = os.replace
+
+    def failing_replace(src, dst):
+        if str(dst).endswith("map.npy"):
+            raise OSError("crash during the depth transaction")
+        return real_replace(src, dst)
+
+    with mock.patch("os.replace", failing_replace):
+        with pytest.raises(OSError):
+            with raf_publish.PublishTransaction(str(out), kind="depth") as txn:
+                open(txn.stage(str(depth_root)).path("map.npy"), "w").write("depth")
+                txn.commit()
+
+    after = json.loads((split_dir / raf_publish.marker_name("prepare")).read_text())
+    assert after == before
+    assert raf_publish.verify_publication(str(out), kind="depth")["published"] is False

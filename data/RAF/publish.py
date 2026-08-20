@@ -22,8 +22,20 @@ import uuid
 
 MANIFEST_NAME = "raf_publish_manifest.json"
 COMMIT_MARKER_NAME = "raf_publish_commit.json"
+# Markers are NAMESPACED per transaction kind (T4). Rendering stores its marker at
+# the runtime root, which a later preparation transaction also publishes into; a
+# single shared name meant a prepare rerun renamed the depth attestation aside and
+# orphaned depth evidence it never regenerates.
+MARKER_KINDS = ("prepare", "depth")
 SUPERSEDED_SUFFIX = ".superseded"
 STAGING_PREFIX = ".{name}.staging-"
+
+
+def marker_name(kind):
+    """Commit-marker filename for one transaction kind."""
+    if kind not in MARKER_KINDS:
+        raise ValueError(f"unknown transaction kind {kind!r}, expected one of {MARKER_KINDS}")
+    return f"raf_publish_commit.{kind}.json"
 
 
 def sha256_file(path, chunk=1 << 20):
@@ -111,10 +123,12 @@ class StagedPublish:
         While files are being swapped the tree holds a mixture of generations, so
         the previous manifest must not keep claiming it is published.
         """
-        for name in (MANIFEST_NAME, COMMIT_MARKER_NAME):
-            path = os.path.join(self.dest_root, name)
-            if os.path.exists(path):
-                os.replace(path, path + SUPERSEDED_SUFFIX)
+        # Only THIS root's manifest is invalidated. Commit markers are namespaced
+        # per kind and are handled by the transaction that owns them, so a prepare
+        # rerun can no longer rename the depth attestation aside (T4).
+        path = os.path.join(self.dest_root, MANIFEST_NAME)
+        if os.path.exists(path):
+            os.replace(path, path + SUPERSEDED_SUFFIX)
 
     def swap_in(self, staged=None):
         """Replace the destination files from the staged tree."""
@@ -176,8 +190,10 @@ class PublishTransaction:
     UNPUBLISHED rather than as the previous generation.
     """
 
-    def __init__(self, marker_root, generation=None):
+    def __init__(self, marker_root, kind="prepare", generation=None):
         self.marker_root = os.path.abspath(marker_root)
+        self.kind = kind
+        self.marker_name = marker_name(kind)
         self.generation = generation or uuid.uuid4().hex
         self.roots = []
         self.committed = False
@@ -190,11 +206,16 @@ class PublishTransaction:
         return False
 
     def stage(self, dest_root):
-        staged = StagedPublish(dest_root, generation=self.generation)
+        dest = os.path.abspath(dest_root)
+        if any(root.dest_root == dest for root in self.roots):
+            raise ValueError(f"duplicate root in one transaction: {dest}")
+        staged = StagedPublish(dest, generation=self.generation)
         self.roots.append(staged)
         return staged
 
     def commit(self, expectations=None, validate_json=True, extra=None):
+        if not self.roots:
+            raise ValueError("refusing to commit a transaction with no roots")
         expectations = expectations or {}
         plans = []
         for root in self.roots:
@@ -202,7 +223,7 @@ class PublishTransaction:
             plans.append((root, root.validate(expected=expected,
                                               validate_json=validate_json)))
 
-        marker_path = os.path.join(self.marker_root, COMMIT_MARKER_NAME)
+        marker_path = os.path.join(self.marker_root, self.marker_name)
         if os.path.exists(marker_path):
             os.replace(marker_path, marker_path + SUPERSEDED_SUFFIX)
         for root, _ in plans:
@@ -214,6 +235,7 @@ class PublishTransaction:
 
         marker = {
             "generation": self.generation,
+            "kind": self.kind,
             "committed_utc": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
             "marker_root": self.marker_root,
             "roots": {
@@ -242,14 +264,16 @@ class PublishTransaction:
             root.cleanup()
 
 
-def verify_publication(marker_root):
+def verify_publication(marker_root, kind="prepare", expected_roots=None):
     """Read a published tree the way a consumer must: marker first.
 
     Returns ``{"published": bool, "reason": str, "generation": ..., "roots": {...}}``.
     No valid marker means UNPUBLISHED -- not "the previous generation" -- because a
-    tree interrupted mid-swap holds a mixture of generations.
+    tree interrupted mid-swap holds a mixture of generations. An EMPTY root set is
+    likewise not a publication, and ``expected_roots`` pins the exact set a complete
+    publication must cover (T4), so a Furnished-only depth run cannot read as one.
     """
-    marker_path = os.path.join(os.path.abspath(marker_root), COMMIT_MARKER_NAME)
+    marker_path = os.path.join(os.path.abspath(marker_root), marker_name(kind))
     if not os.path.isfile(marker_path):
         return {"published": False, "reason": f"no commit marker at {marker_path}",
                 "generation": None, "roots": {}}
@@ -257,7 +281,19 @@ def verify_publication(marker_root):
         marker = json.load(f)
 
     roots, reasons = {}, []
-    for dest, entry in sorted(marker.get("roots", {}).items()):
+    declared = marker.get("roots") or {}
+    if not declared:
+        reasons.append("marker declares no roots: an empty publication is not one")
+    if marker.get("kind", kind) != kind:
+        reasons.append(f"marker kind {marker.get('kind')!r} != requested {kind!r}")
+    if expected_roots is not None:
+        expected = {os.path.abspath(r) for r in expected_roots}
+        actual = {os.path.abspath(r) for r in declared}
+        if expected != actual:
+            reasons.append(
+                f"expected roots {sorted(expected)} but the marker covers "
+                f"{sorted(actual)}")
+    for dest, entry in sorted(declared.items()):
         manifest_path = os.path.join(dest, entry["manifest"])
         if not os.path.isfile(manifest_path):
             reasons.append(f"{dest}: manifest missing")
@@ -281,7 +317,35 @@ def verify_publication(marker_root):
         "published": not reasons,
         "reason": "; ".join(reasons),
         "generation": marker["generation"],
+        "kind": marker.get("kind"),
         "roots": roots,
+    }
+
+
+def verify_combined_publication(split_dir, output_dir, rooms,
+                                depth_subdir="depth_images"):
+    """A RAF publication is complete only when BOTH kinds attest their exact sets.
+
+    Prepare covers the runtime tree and the split directory; depth covers one
+    directory per room. Either alone is a partial state, and this is the check a
+    consumer runs before treating the corpus as canonical (T4).
+    """
+    prepare = verify_publication(
+        split_dir, kind="prepare",
+        expected_roots=[os.path.abspath(output_dir), os.path.abspath(split_dir)])
+    depth = verify_publication(
+        output_dir, kind="depth",
+        expected_roots=[os.path.join(os.path.abspath(output_dir), room, depth_subdir)
+                        for room in rooms])
+    reasons = []
+    if not prepare["published"]:
+        reasons.append(f"prepare: {prepare['reason']}")
+    if not depth["published"]:
+        reasons.append(f"depth: {depth['reason']}")
+    return {
+        "published": not reasons,
+        "reason": "; ".join(reasons),
+        "kinds": {"prepare": prepare, "depth": depth},
     }
 
 

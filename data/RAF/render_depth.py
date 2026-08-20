@@ -755,7 +755,7 @@ def main(argv=None):
 
     # S3: one transaction over every room's depth directory, so two rooms can
     # never be published under different generations.
-    publish_txn = PublishTransaction(args.output_dir)
+    publish_txn = PublishTransaction(args.output_dir, kind="depth")
     expectations, records = {}, {}
     # S5: real on-disk reference statistics, read once per run.
     references = {
