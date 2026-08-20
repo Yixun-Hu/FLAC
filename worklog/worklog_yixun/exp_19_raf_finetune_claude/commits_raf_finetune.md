@@ -40,3 +40,4 @@ Rows above record development SHAs on `localization-exp` (history of record for 
 | `5f3e4a7` | port 1/2: all exp_19-owned files @ localization-exp e23c45e |
 | `2f500d3` | port 1b: test suite (glob miss caught) |
 | `18c9aa9` | port 2/2: exp_19-authored shared-file deltas (eval_FLAC R3; metric-stack c12) |
+| `5da9c71` | r2 fix R8+R10: RAF equal-room macro aggregation + invalid T60 count/rate (additive `RT60Error.invalid_stats`) + `l1_stft_multires` window on `x.device`; the 7 held tests now run (28 metric tests) |
