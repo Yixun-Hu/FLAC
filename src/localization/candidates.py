@@ -91,7 +91,35 @@ def _loc_array(meta, key, path):
     return _require_finite(xyz, f"pair metadata {path}: {key!r}")
 
 
-def enumerate_metadata_sources(meta_room_dir):
+def merge_position_duplicates(sources, tol=SRC_LOC_TOL):
+    """Fold sources that occupy ONE position into a single candidate (Rev 3.2).
+
+    Candidate identity here is positional: two labels at the same point are one
+    localization hypothesis, not two, and scoring them as two would make the
+    "candidate equal to gt_xyz" lookup ambiguous. The canonical node is the
+    lowest id in the group. Measured on the real seen split, exactly two rooms
+    need this (``Bathrooms_idx_11`` S9 == S10, ``Bathrooms_idx_16`` S4 == S7);
+    the 17 unseen rooms are clean, so the registered headline is unaffected.
+
+    Returns ``(merged {canonical: xyz}, merge_map {canonical: [members]})`` with
+    a group for EVERY canonical node, singletons included.
+    """
+    merged, merge_map = {}, {}
+    for node in sorted(sources):
+        xyz = np.asarray(sources[node], dtype=np.float64)
+        canonical = None
+        for existing in merge_map:
+            if np.allclose(merged[existing], xyz, rtol=0.0, atol=tol):
+                canonical = existing
+                break
+        if canonical is None:
+            merged[node], merge_map[node] = xyz, [node]
+        else:
+            merge_map[canonical].append(node)
+    return merged, merge_map
+
+
+def enumerate_metadata_sources(meta_room_dir, allow_duplicate_positions=False):
     """``{src_node: xyz_world}`` for every source in the room's pair JSONs.
 
     This is the candidate authority (C7): the candidate set is what ``metadata/``
@@ -99,6 +127,11 @@ def enumerate_metadata_sources(meta_room_dir):
     enforced at this single authoritative place (plan §2.2): ``src_loc`` is
     consistent across the receivers that observe the same source, and no two
     DIFFERENT nodes share a position -- both within ``SRC_LOC_TOL``.
+
+    ``allow_duplicate_positions`` relaxes only the SECOND invariant, for the one
+    caller that handles duplicates properly: the run manifest, which merges them
+    into a single candidate (Rev 3.2, :func:`merge_position_duplicates`). The
+    cross-receiver consistency check is never relaxed.
     """
     pairs = _pair_files(meta_room_dir)
     if not pairs:
@@ -114,7 +147,7 @@ def enumerate_metadata_sources(meta_room_dir):
         else:
             sources[src], seen_in[src] = xyz, path
     nodes = sorted(sources)
-    for i, node_a in enumerate(nodes):
+    for i, node_a in enumerate(nodes if not allow_duplicate_positions else []):
         for node_b in nodes[i + 1:]:
             if np.allclose(sources[node_a], sources[node_b], rtol=0.0, atol=SRC_LOC_TOL):
                 raise ValueError(

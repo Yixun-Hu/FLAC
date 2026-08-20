@@ -24,6 +24,7 @@ from src.localization.candidates import (
     crosscheck_sources_vs_files,
     enumerate_metadata_sources,
     find_pair_metadata,
+    merge_position_duplicates,
     parse_ir_filename,
     project_to_camera,
 )
@@ -539,3 +540,54 @@ def test_build_candidate_set_inherits_the_uniqueness_invariant(tmp_path):
         _write_pair(room, 10, rec, _SRC_LOCS[7], rec_loc)
     with pytest.raises(ValueError):
         build_candidate_set(_ir_path(tmp_path, 7, 3), tmp_path / "metadata")
+
+
+# --------------------------------------------------------------------------- #
+# r6 (plan Rev 3.2): two source labels at ONE position are ONE localization
+# hypothesis, so they merge into a single candidate. Measured on the real seen
+# split: Bathrooms_idx_11 (S9 == S10) and Bathrooms_idx_16 (S4 == S7); the 17
+# unseen rooms are clean, so the registered headline protocol is untouched.
+# --------------------------------------------------------------------------- #
+def test_merge_position_duplicates_groups_by_position_with_lowest_id_canonical():
+    sources = {0: np.array([0.0, 0.0, 1.0]), 3: np.array([2.0, -1.0, 1.5]),
+               7: np.array([0.0, 0.0, 1.0])}
+    merged, merge_map = merge_position_duplicates(sources)
+    assert sorted(merged) == [0, 3]                       # 7 folded into 0
+    assert merge_map == {0: [0, 7], 3: [3]}
+    np.testing.assert_array_equal(merged[0], sources[0])
+
+
+def test_merge_position_duplicates_uses_the_existing_tolerance():
+    near = {1: np.array([1.0, 2.0, 3.0]), 2: np.array([1.0, 2.0, 3.0 + 5e-7])}
+    assert sorted(merge_position_duplicates(near)[0]) == [1]
+    apart = {1: np.array([1.0, 2.0, 3.0]), 2: np.array([1.0, 2.0, 3.0 + 1e-3])}
+    assert sorted(merge_position_duplicates(apart)[0]) == [1, 2]
+
+
+def test_merge_position_duplicates_is_identity_on_a_clean_room():
+    sources = {n: np.array([float(n), 0.0, 1.0]) for n in (1, 2, 3)}
+    merged, merge_map = merge_position_duplicates(sources)
+    assert merged.keys() == sources.keys()
+    assert merge_map == {1: [1], 2: [2], 3: [3]}
+
+
+def test_enumerate_metadata_sources_can_return_duplicate_positions(tmp_path):
+    """The authority still refuses duplicates by default; the manifest asks for
+    them explicitly so it can merge (Rev 3.2)."""
+    room = _build_room(tmp_path)
+    for rec, rec_loc in _REC_LOCS.items():
+        _write_pair(room, 10, rec, _SRC_LOCS[7], rec_loc)          # node 10 sits on node 7
+    with pytest.raises(ValueError):
+        enumerate_metadata_sources(room)
+    sources = enumerate_metadata_sources(room, allow_duplicate_positions=True)
+    assert sorted(sources) == [0, 7, 10]
+    np.testing.assert_array_equal(sources[10], sources[7])
+    merged, merge_map = merge_position_duplicates(sources)
+    assert sorted(merged) == [0, 7] and merge_map[7] == [7, 10]
+
+
+def test_allowing_duplicate_positions_still_refuses_cross_receiver_drift(tmp_path):
+    room = _build_room(tmp_path)
+    _write_pair(room, 7, 3, (9.0, 9.0, 9.0), _REC_LOCS[3])         # same node, moved
+    with pytest.raises(ValueError):
+        enumerate_metadata_sources(room, allow_duplicate_positions=True)
