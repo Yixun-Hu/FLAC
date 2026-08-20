@@ -215,3 +215,11 @@
 - **Result** — r5 re-review: H1/M3/M4/M5/M6 RESOLVED; H2 PARTIAL (readback accepts a noncanonical split + truncated wavs). Peer's `6c0a16e` confirmed behaviorally inert for all nine of our eval_FLAC imports. Reviewer's own clearance condition: "after the focused H2 fix and a green real readback, the other five findings require no further changes and the existing parity evidence remains applicable" — so r5b closes under Planner verification against the reviewer's pre-specified acceptance conditions (SOP allows re-review OR Planner verification of a fix).
 - **Change** — r5b dispatched with Planner-computed canonical constants: split file sha `9a9d817a…`, 6,337/17, room-node-map sha `38c07598…`; wav floor ≥ 10,240 samples with the score-inert-suffix rationale (all scoring paths consume prefixes ≤ 10,240; exact-length enforcement would be scientifically vacuous and brittle).
 - **Next** — r5b → Planner verification (fixtures + real readback green with digest checks) → LAUNCH R-1/R0.
+
+## 2026-08-19T21:19:20-0400 — LAUNCH R-1a + R-1b (acceptance criteria pre-registered)
+
+- **Goal** — First runs: the dataset gate and the checkpoint-free oracle/baselines (plan §5 R-1).
+- **Version Control** — launch HEAD `30f26d1` (clean tree for exp_18 paths); r5b closure verified by Planner (504 tests; readback green; reviewer's pre-specified conditions all met).
+- **Acceptance criteria (R-1a)** — exit 0; all 3 split-digest checks PASS; 17 rooms; 0 failures; EXACTLY 1 warning (LRH S10 metadata-only).
+- **Acceptance criteria (R-1b)** — in-loop identity audit clean over all 6,337 (any substitution aborts); final artifacts published (no lingering .partial); identity-oracle top-1 = 100% (mean readout ⇒ cos=1 for the identity candidate); eligible-set distribution ≈ all-2; uniform + context-conditioned baselines and nearest-context control present in summary; provenance carries split digests, manifest hash, scorer sha, flash_attn=absent; wall time logged (feeds nothing — oracle timing is not the R0 probe).
+- **Result** — launched (logs: loc_invert_2026-08-19_21:19:20_R1a_readback.log, loc_invert_2026-08-19_21:19:20_R1b_oracle.log).
