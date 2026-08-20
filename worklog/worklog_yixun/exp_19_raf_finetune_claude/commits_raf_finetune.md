@@ -65,3 +65,8 @@ Rows above record development SHAs on `localization-exp` (history of record for 
 | `c7b29f3` | r5 finding 4 (T7): miss audit derives count/coords/rate/hash from the raw mask; `mask_verified is True` required |
 | `d48d708` | r5 findings 2+3 (T2/T4): seed in the prepare identity, new canonical RENDER identity validated pre-I/O, internal combined completeness + marker provenance validation |
 | `a738fa1` | r5 finding 6: separate `bearing_delta_deg` / `vertical_delta_m` (the reused `delta` wrote vertical metres into the bearing field) |
+| `889e6e4` | r6 F2: `RAFPublicationError` + explicit re-raise in `SampleDataset.__getitem__`; production-path tests via `create_dataloader_from_config`; narrowness proven (ordinary load failures still substitute) |
+| `bf40e78` | r6 F1: pointer loop closure — `canonical is True` required, same-inode `output_dir == dataset_folder`, combined verification always `canonical=True`; non-canonical + relocated-pointer negatives |
+| `b0367b3` | r6 F3: consumer verifies each marker's COMPLETE parameter payload + pinned digest against the registered per-kind identity (producer booleans never trusted) |
+| `5f5c37c` | r6 F5: `depth_qa` passes only on a `mask_verified`-True report (incl. zero misses); mask-derived count/rate/hash authoritative, declarations kept as `*_declared` |
+| `0408941` | r6 F4: canonical miss cap EXACTLY `DEFAULT_MAX_MISS_RATE` (lower-is-fine revoked); `--rx-sightline-receivers` wired through, recorded, identity-checked |
