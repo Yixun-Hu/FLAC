@@ -118,3 +118,10 @@
 | `50f5396` | R5-4 (M4) | registration requires a full-hex immutable id, in-repo manifest, byte equality AND ancestry of HEAD; resolved id recorded | +106 −22 |
 | `36e77ec` | R5-5 (M5) | main(): configs → registration → K_ctx → output claim → **then** `torch.load` → AGREE → generator → dataloader; call-order spy test | +111 −30 |
 | `f84c197` | R5-6 (M6) | scorer-noise wavs must belong to the configured split; draws seeded from `--seed` and the seed recorded | +116 −24 |
+| `3302e2d` | — | ledger append for round 5 | +12 |
+
+### Round 5b (launch gate v2 `loc_invert_codex_code_r5_review.md` — H2 residual)
+
+| SHA | Item | Description | changed lines |
+|---|---|---|---|
+| `03b7641` | R5b-1 + R5b-2 + 3 nits | canonical unseen split pinned by byte digest / 6337 identities / 17 rooms / room-node-map digest, enforced in readback **and** run startup and locked into the registration manifest (`split_file_sha256`); readback requires wavs ≥ `MIN_WAV_SAMPLES` (10240) and reports min/max/mean length; scorer-noise stem hashes the selected wav set; `PROBE_WALL` and `write_json_atomic` docstrings clarified | +331 −20 |
