@@ -31,3 +31,12 @@
 | `07badce` | r2: pre-written R8/R10 tests, skipped behind a feature probe during the peer's `src/metrics` freeze |
 | `c7c3cab` | r2 fix R2 (Amendment 3): diagnostic supports join training (train 408 = 2x(16x12+12)); diagnostic targets stay eval-only |
 | `b4c0ac1` | r2 Amendment 4: ray-miss cap 0.1% + recorded nearest-valid inpainting, bearing tie rule (2%/20 deg), floor tol 0.15 m (44 render tests) |
+
+## Branch migration (2026-08-19 ~23:00)
+Rows above record development SHAs on `localization-exp` (history of record for r1/r2 + R-cal). exp_19 now lives on **`raf-finetune-exp`** (worktree `~/codespace/exp-19-raf-finetune`, base `6170007`): state-ported as `5f3e4a7` + `2f500d3` + `18c9aa9`, verified 326-passed. New rows below ledger THIS branch.
+
+| SHA | Description |
+|---|---|
+| `5f3e4a7` | port 1/2: all exp_19-owned files @ localization-exp e23c45e |
+| `2f500d3` | port 1b: test suite (glob miss caught) |
+| `18c9aa9` | port 2/2: exp_19-authored shared-file deltas (eval_FLAC R3; metric-stack c12) |
