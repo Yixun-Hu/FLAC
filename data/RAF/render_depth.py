@@ -669,7 +669,10 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
     mesh_dir = mesh_far - position
     map_bearing = float(np.degrees(np.arctan2(far_dir[1], far_dir[0])))
     mesh_bearing = float(np.degrees(np.arctan2(mesh_dir[1], mesh_dir[0])))
-    delta = abs((map_bearing - mesh_bearing + 180.0) % 360.0 - 180.0)
+    # r5 finding 6: distinct names. A single ``delta`` was reused for the vertical
+    # metres below, so canonical QA wrote the vertical delta into bearing_delta_deg
+    # and into any bearing warning.
+    bearing_delta_deg = abs((map_bearing - mesh_bearing + 180.0) % 360.0 - 180.0)
     # Applicable only when the farthest surface is unique in DIRECTION (Amendment
     # 4). A second surface within BEARING_TIE_DISTANCE_FRAC of the farthest
     # distance but more than BEARING_TIE_ANGLE_DEG away in bearing is a TIE: which
@@ -682,7 +685,7 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
     spread = float(np.max(np.abs((azimuths - mesh_bearing + 180.0) % 360.0 - 180.0))) \
         if azimuths.size else 0.0
     bearing_applicable = bool(spread <= tie_angle_deg)
-    bearing_ok = bool(delta <= bearing_tol_deg) if bearing_applicable else True
+    bearing_ok = bool(bearing_delta_deg <= bearing_tol_deg) if bearing_applicable else True
 
     finite = arr[np.isfinite(arr)]
     scale = {
@@ -711,10 +714,12 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
                     "tol_m": float(vertical_tol_m),
                     "reason": "no tracked height supplied"}
     else:
-        delta = nadir - float(tracked_height_m)
-        vertical = {"ok": bool(abs(delta) <= vertical_tol_m), "checked": True,
-                    "nadir_m": nadir, "tracked_height_m": float(tracked_height_m),
-                    "delta_m": float(delta), "tol_m": float(vertical_tol_m)}
+        vertical_delta_m = nadir - float(tracked_height_m)
+        vertical = {"ok": bool(abs(vertical_delta_m) <= vertical_tol_m),
+                    "checked": True, "nadir_m": nadir,
+                    "tracked_height_m": float(tracked_height_m),
+                    "delta_m": float(vertical_delta_m),
+                    "tol_m": float(vertical_tol_m)}
 
     sightline = rx_sightline_check(
         arr, position, rx_positions_p if rx_positions_p is not None else np.zeros((0, 3)),
@@ -736,7 +741,7 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
             f"(> {tie_angle_deg} deg), so the farthest direction is a tie-break")
     elif not bearing_ok:
         warnings.append(
-            f"landmark bearing disagrees with the mesh by {delta:.1f} deg "
+            f"landmark bearing disagrees with the mesh by {bearing_delta_deg:.1f} deg "
             f"(> {bearing_tol_deg} deg): the gauge may be transposed")
     if not plausible:
         warnings.append(
@@ -761,7 +766,7 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
         "bounds_tol": float(bounds_tol),
         "landmark_bearing_deg": map_bearing,
         "mesh_landmark_bearing_deg": mesh_bearing,
-        "bearing_delta_deg": float(delta),
+        "bearing_delta_deg": float(bearing_delta_deg),
         "bearing_tol_deg": float(bearing_tol_deg),
         "bearing_applicable": bearing_applicable,
         "bearing_spread_deg": spread,

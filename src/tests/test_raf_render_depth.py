@@ -1269,3 +1269,19 @@ def test_render_parameters_join_the_depth_marker(tmp_path):
     assert marker["canonical"] is False
     assert marker["canonical_parameters"] is False
     assert marker["readback_record"]["sha256"]
+
+
+def test_bearing_and_vertical_deltas_do_not_shadow_each_other():
+    """r5 finding 6: one reused ``delta`` wrote the vertical metres into
+    bearing_delta_deg (and into any bearing warning) whenever a tracked height was
+    supplied -- i.e. in every canonical render."""
+    mesh, tx, rx = _room_under_gauge(_GAUGE_XZY)
+    depth = raf_render.render_depth(mesh, tx, h=64, w=128)
+    plain = raf_render.real_mesh_qa(depth, tx, mesh, img_h=64, img_w=128)
+    with_height = raf_render.real_mesh_qa(depth, tx, mesh, img_h=64, img_w=128,
+                                          tracked_height_m=1.5)
+    # the bearing is a property of the map and the mesh; supplying a height must
+    # not change it
+    assert with_height["bearing_delta_deg"] == plain["bearing_delta_deg"]
+    assert with_height["vertical_axis"]["delta_m"] != with_height["bearing_delta_deg"]
+    assert 0.0 <= with_height["bearing_delta_deg"] <= 180.0
