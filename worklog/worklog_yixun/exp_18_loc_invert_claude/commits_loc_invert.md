@@ -106,3 +106,15 @@
 | `0693f59` | R4-2c (F2) | `--mode scorer-noise` — §2.8.3 sampled-readout measurement (pairwise cos + vs-mean stats), AGREE only | +192 −3 |
 | `f86de94` | R4-2d (F2) | `src/localization/reaggregate.py` + `--mode reaggregate` — R1's offline τ/agg/K′ sweep and registered selection; the sims codec moves there (single definition) | +413 −20 |
 | `1dd2e25` | — | `__main__` guard defect recurred; now asserted structurally on the module AST | +16 −3 |
+| `01b7cce` | — | ledger append for round 4 | +18 |
+
+## Round 5 (launch-gate review `loc_invert_codex_code_r4_review.md`)
+
+| SHA | Item | Description | changed lines |
+|---|---|---|---|
+| `a69f96a` | R5-1 (H1) | wall-correct GPU timing: `_sync` on the resolved index, `_timed` with leading+trailing sync (scoring's `.cpu()` inside its interval), `context` timed, separately synchronized whole-query wall time; two-GPU discrimination test | +243 −83 |
+| `fb41be1` | R5-2 (H2) | readback ENFORCES the registered R-1 invariants (17 rooms × M=10, LRH S10 the only allowed anomaly), loads every depth map (256,512)/float/finite, decodes one wav per (room, source) | +265 −39 |
+| `34fee8e` | R5-3 (M3) | one atomic no-clobber `write_json_atomic` for all five writers; content-addressed auxiliary stems | +158 −35 |
+| `50f5396` | R5-4 (M4) | registration requires a full-hex immutable id, in-repo manifest, byte equality AND ancestry of HEAD; resolved id recorded | +106 −22 |
+| `36e77ec` | R5-5 (M5) | main(): configs → registration → K_ctx → output claim → **then** `torch.load` → AGREE → generator → dataloader; call-order spy test | +111 −30 |
+| `f84c197` | R5-6 (M6) | scorer-noise wavs must belong to the configured split; draws seeded from `--seed` and the seed recorded | +116 −24 |
