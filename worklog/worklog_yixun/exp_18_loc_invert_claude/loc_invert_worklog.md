@@ -202,3 +202,10 @@
 ## 2026-08-19T20:10:00-0400 — Shared-tree protocol strengthened (peer-side)
 
 - **Result** — Peer will not even EDIT src/metrics/* in the working tree (import-time dirt would leak into our launched processes) until our "R-1/R0 done" signal; their two metric-stack commits (RAF-only branches + a device fix) land after it, shas pinged. Their Leg B holds GPU 0 until ~00:00 (revised) — irrelevant tonight (R-1/R0/R1 use GPU 1 only); both GPUs needed only for tomorrow's R2 seeds, after Leg B ends.
+
+## 2026-08-19T20:38:00-0400 — r5 delivered; merged-tree Planner verification PASSED
+
+- **Version Control** — r5 commits `a69f96a` (wall-correct device-indexed timing) `fb41be1` (readback executable invariants) `34fee8e` (atomic no-clobber writer everywhere) `50f5396` (full-hex + ancestry + worktree-contained registration) `36e77ec` (strict pre-load ordering) `f84c197` (scorer-noise split-membership + seeding) `3302e2d` (ledger). Tree includes peer's `6c0a16e` (eval_FLAC RAF branch).
+- **Command / Validation** — Planner-independent on the MERGED tree: **492 passed**; CLI seen-split parity match=True 0.0. Coder's two-GPU discrimination test rebuilt honestly (cuda:0-sync 1.3 ms did-not-wait vs cuda:1 545 ms waited). Real R-1 gate demonstrated green on the actual unseen split (~50 s; 17 rooms, 169 wavs, all depth maps (256,512); exactly the 1 registered LRH warning; S10-deletion fixture FAILS the gate).
+- **Analysis — deviations ruled:** (1) primary run stems keep r4 cell fields (hashes/steps/cfg live in provenance; targets refuse rather than overwrite) — ACCEPTED. (2) write_summary overwrite-after-claim — ACCEPTED. (3) realpath split-membership — ACCEPTED. (4) run_evaluation(paths=...) — ACCEPTED. 
+- **Next** — focused r5 re-review (launch gate v2) → on APPROVE: R-1/R0 launch bookkeeping (params, command, acceptance criteria) + launches.
