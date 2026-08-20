@@ -223,3 +223,9 @@
 - **Acceptance criteria (R-1a)** — exit 0; all 3 split-digest checks PASS; 17 rooms; 0 failures; EXACTLY 1 warning (LRH S10 metadata-only).
 - **Acceptance criteria (R-1b)** — in-loop identity audit clean over all 6,337 (any substitution aborts); final artifacts published (no lingering .partial); identity-oracle top-1 = 100% (mean readout ⇒ cos=1 for the identity candidate); eligible-set distribution ≈ all-2; uniform + context-conditioned baselines and nearest-context control present in summary; provenance carries split digests, manifest hash, scorer sha, flash_attn=absent; wall time logged (feeds nothing — oracle timing is not the R0 probe).
 - **Result** — launched (logs: loc_invert_2026-08-19_21:19:20_R1a_readback.log, loc_invert_2026-08-19_21:19:20_R1b_oracle.log).
+
+## 2026-08-19T21:25:00-0400 — R-1a PASSED; R-1b relaunched detached (infra amendment)
+
+- **Result (R-1a)** — **passed, all acceptance criteria met**: exit 0, 3/3 split-digest checks PASS, 17 rooms, 0 failures, exactly 1 warning (LRH S10). Log: `loc_invert_*_R1a_readback.log`; report `outputs_loc/exp18/exp18_R1a_readback_readback_ds-063c66c241.json`.
+- **Result (R-1b)** — first launch (tool-backgrounded) was killed by me ~30 s in: the harness tool imposes a 10-min cap that would have killed a 30–90 min run mid-flight — **infrastructure, not a bug**. Relaunched detached via `nohup` (PID 184923, GPU 1, same command + `--overwrite` to clear any path claim from the aborted attempt; no `.partial` was found). Watcher armed on process exit (watcher itself may time out at 10 min and re-arm — a watcher timeout is NOT a run failure).
+- **Lesson** — long runs launch via `nohup … &` from the start; tool-backgrounding is only for sub-10-min work.
