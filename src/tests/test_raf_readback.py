@@ -651,3 +651,77 @@ def test_scalar_cannot_be_applied_without_any_trained_support(tmp_path):
             room_dir, str(tmp_path / "d" / "EmptyRoom"), sorted(only_val),
             roles=only_val, scale=2.0,
             scale_provenance=raf_prepare.derivation_id_hash([]))
+
+
+# --------------------------------------------------------------------------- #
+# r4 T2: canonical mode enforces the registered parameter set
+# --------------------------------------------------------------------------- #
+def test_canonical_parameters_are_the_registered_ones():
+    assert raf_prepare.CANONICAL_PARAMS == {
+        "rooms": ("EmptyRoom", "FurnishedRoom"), "n_groups": 16, "n_val_groups": 4,
+        "n_train": 12, "n_diagnostic_groups": 1, "full_crosscheck": True,
+        "allow_nonuniform": True,
+    }
+
+
+def _canonical_args(**overrides):
+    import argparse
+
+    values = {"rooms": ["EmptyRoom", "FurnishedRoom"], "n_groups": 16,
+              "n_val_groups": 4, "n_train": 12, "n_diagnostic_groups": 1,
+              "full_crosscheck": True, "allow_nonuniform": True}
+    values.update(overrides)
+    return argparse.Namespace(**values)
+
+
+def test_canonical_parameter_gate_accepts_the_registered_set():
+    assert raf_prepare.assert_canonical_parameters(_canonical_args()) == []
+
+
+@pytest.mark.parametrize("overrides,needle", [
+    ({"rooms": ["EmptyRoom"]}, "rooms"),
+    ({"rooms": ["EmptyRoom", "FurnishedRoom", "Extra"]}, "rooms"),
+    ({"n_groups": 8}, "n_groups"),
+    ({"n_val_groups": 2}, "n_val_groups"),
+    ({"n_train": 6}, "n_train"),
+    ({"n_diagnostic_groups": 0}, "n_diagnostic_groups"),
+    ({"full_crosscheck": False}, "full_crosscheck"),
+])
+def test_canonical_parameter_gate_rejects_deviations(overrides, needle):
+    with pytest.raises(ValueError) as exc:
+        raf_prepare.assert_canonical_parameters(_canonical_args(**overrides))
+    assert needle in str(exc.value)
+    assert "--non-canonical" in str(exc.value)
+
+
+def test_non_canonical_mode_records_parameter_deviations(tmp_path):
+    """The synthetic CLI runs deviate from the canonical set by design; that is
+    recorded rather than silently allowed."""
+    from test_raf_prepare_data import write_passing_readback_record, write_room
+
+    raf_root = tmp_path / "raf"
+    write_room(str(raf_root), "EmptyRoom")
+    argv = _prepare_argv(tmp_path, raf_root,
+                         readback=write_passing_readback_record(str(tmp_path / "rb.json")))
+    raf_prepare.main(argv)
+    with open(tmp_path / "splits" / "raf_splits_record.json") as f:
+        record = json.load(f)
+    assert any("parameter" in t for t in record["taint"])
+    assert record["params"]["canonical_parameters"] is False
+
+
+def test_the_parameter_set_joins_the_marker_identity(tmp_path):
+    from test_raf_prepare_data import write_passing_readback_record, write_room
+    import publish as raf_publish
+
+    raf_root = tmp_path / "raf"
+    write_room(str(raf_root), "EmptyRoom")
+    argv = _prepare_argv(tmp_path, raf_root,
+                         readback=write_passing_readback_record(str(tmp_path / "rb.json")))
+    raf_prepare.main(argv)
+    with open(tmp_path / "splits" / raf_publish.marker_name("prepare")) as f:
+        marker = json.load(f)
+    assert marker["canonical"] is False
+    assert marker["parameters"]["n_groups"] == 1
+    assert marker["parameters"]["rooms"] == ["EmptyRoom"]
+    assert marker["readback_record"]["sha256"]

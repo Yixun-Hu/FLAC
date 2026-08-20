@@ -364,6 +364,59 @@ def group_captures(index, allow_nonuniform=False, expected_size=36):
 
 CANONICAL_GROUP_SIZE = 36
 
+# The registered canonical split parameters (plan Rev 2 section 5 + Amendment 3).
+# Canonical publication must use exactly these; anything else is an experiment and
+# has to say so with --non-canonical. allow_nonuniform is True because the corpus
+# HAS one recorded 72-capture group, which the eligibility filter then excludes.
+CANONICAL_PARAMS = {
+    "rooms": ("EmptyRoom", "FurnishedRoom"),
+    "n_groups": 16,
+    "n_val_groups": 4,
+    "n_train": 12,
+    "n_diagnostic_groups": 1,
+    "full_crosscheck": True,
+    "allow_nonuniform": True,
+}
+
+
+def parameter_identity(args):
+    """The parameter set that a publication's marker is bound to (T2)."""
+    return {
+        "rooms": list(args.rooms),
+        "n_groups": int(args.n_groups),
+        "n_val_groups": int(args.n_val_groups),
+        "n_train": int(args.n_train),
+        "n_diagnostic_groups": int(args.n_diagnostic_groups),
+        "full_crosscheck": bool(args.full_crosscheck),
+        "allow_nonuniform": bool(args.allow_nonuniform),
+    }
+
+
+def canonical_parameter_deviations(args):
+    """Which registered parameters this invocation departs from."""
+    identity = parameter_identity(args)
+    deviations = []
+    if tuple(identity["rooms"]) != CANONICAL_PARAMS["rooms"]:
+        deviations.append(
+            f"rooms {identity['rooms']} != {list(CANONICAL_PARAMS['rooms'])}")
+    for key in ("n_groups", "n_val_groups", "n_train", "n_diagnostic_groups",
+                "full_crosscheck", "allow_nonuniform"):
+        if identity[key] != CANONICAL_PARAMS[key]:
+            deviations.append(f"{key} {identity[key]} != {CANONICAL_PARAMS[key]}")
+    return deviations
+
+
+def assert_canonical_parameters(args):
+    """Fail-closed parameter gate for canonical publication (T2)."""
+    deviations = canonical_parameter_deviations(args)
+    if deviations:
+        raise ValueError(
+            "refusing a canonical publication with non-registered parameters: "
+            + "; ".join(deviations)
+            + ". Pass --non-canonical to publish an experiment (its artifacts are "
+              "tainted).")
+    return deviations
+
 
 def _render_xyz(xyz):
     """6-decimal rendering of a position, matching the group-key convention."""
@@ -959,6 +1012,13 @@ def main(argv=None):
     readback_provenance = record_provenance(args.readback_record, readback,
                                             canonical=canonical)
     taint = list(readback_provenance["taint"])
+    # T2: the registered split parameters are part of what "canonical" means.
+    parameters = parameter_identity(args)
+    deviations = canonical_parameter_deviations(args)
+    if canonical:
+        assert_canonical_parameters(args)
+    elif deviations:
+        taint.append("non-registered parameters: " + "; ".join(deviations))
     logger.info("readback record %s (gauge %s, quat %s, T60 %s)",
                 readback_provenance["sha256"][:12],
                 readback_provenance["gauge_pinned"],
@@ -1022,7 +1082,9 @@ def main(argv=None):
                   "output_dir": args.output_dir,
                   "crosscheck": "full" if args.full_crosscheck else f"sample:{args.crosscheck_sample}",
                   "allow_nonuniform": bool(args.allow_nonuniform),
-                  "canonical": canonical}
+                  "canonical": canonical,
+                  "canonical_parameters": not deviations,
+                  "parameter_deviations": deviations}
         splits_record = build_splits_record(per_room, params)
         splits_record["readback_record"] = readback_provenance
         splits_record["canonical"] = canonical
@@ -1042,6 +1104,8 @@ def main(argv=None):
                           staged_splits.dest_root: expected_splits},
             validate_json=True,
             extra={"canonical": canonical, "taint": taint,
+                   "parameters": parameters,
+                   "canonical_parameters": not deviations,
                    "readback_record": readback_provenance})
 
     logger.info("published generation %s over %d roots (marker in %s)",
