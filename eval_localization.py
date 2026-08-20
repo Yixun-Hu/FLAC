@@ -795,7 +795,7 @@ def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source
     orbit_execution, frame_avg_cap = orbit_provenance(args.cond_method)
     angles = "n/a" if args.cond_method != "fa_invariant" else (
         None if args.frame_avg_angles is None else [float(a) for a in args.frame_avg_angles])
-    return {
+    record = {
         "experiment": "exp_18_loc_invert",
         "source_sha": source_sha(),
         "model_config": args.model_config,
@@ -839,10 +839,7 @@ def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source
         "context_stream_digest": context_digest or "n/a",
         "candidate_manifest_sha256": candidate_manifest_sha256 or "n/a",
         "candidate_merge_groups": merge_groups,
-        "metric_registerable": metric_registerable,
-        "metric_registration": getattr(args, "metric_registration", None) or "n/a",
-        "metric_registration_sha_resolved": getattr(
-            args, "metric_registration_sha_resolved", None) or "n/a",
+
         "split_file_sha256": split_file_sha256 or "n/a",
         **device_provenance(getattr(args, "device", "cpu")),
         "float32_matmul_precision": torch.get_float32_matmul_precision(),
@@ -857,6 +854,15 @@ def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source
         "flash_attn_available": _flash_attn_available(),
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
+    # R4 fields appear ONLY when metrics actually ran: a --metrics-off run keeps
+    # the r7-era provenance schema byte-for-byte (r4m review finding 7, and the
+    # registered R2/R2b runs are exactly that shape).
+    if metric_registerable is not None or getattr(args, "metric_registration", None):
+        record["metric_registerable"] = metric_registerable
+        record["metric_registration"] = getattr(args, "metric_registration", None) or "n/a"
+        record["metric_registration_sha_resolved"] = getattr(
+            args, "metric_registration_sha_resolved", None) or "n/a"
+    return record
 
 
 def effective_num_samples(args):
@@ -1519,6 +1525,26 @@ def prepare_dump_dir(args):
     return dump_dir
 
 
+def dump_query_waveforms_legacy(dump_dir, position, query_id, wavs, num_candidates,
+                                num_samples, obs_wav):
+    """The r7-era dump route, preserved LITERALLY for runs with --metrics off.
+
+    The registered R2/R2b runs take this path: no snapshot object, no digest pass
+    over the array, exactly the r7 expression for both arrays (r4m review finding
+    7). A byte-level golden test compares it against the r7 module itself.
+    """
+    pred = wavs.detach().cpu().float().reshape(num_candidates, num_samples, -1).numpy()
+    obs = obs_wav.detach().cpu().float().reshape(-1).numpy()
+    name = waveform_filename(position, query_id)
+    path = os.path.join(str(dump_dir), name)
+    tmp = path + ".partial"
+    with open(tmp, "wb") as handle:
+        np.savez(handle, pred=pred, obs=obs)
+    os.replace(tmp, path)
+    with open(path, "rb") as handle:
+        return name, sha256_bytes(handle.read())
+
+
 def waveform_snapshot(wavs, num_candidates, num_samples, obs_wav):
     """The ONE immutable float32 snapshot of a query's scored waveforms.
 
@@ -1617,11 +1643,16 @@ def process_query(args, engine, context, md, obs_wav, dump=None, sink=None):
         timings=timings, merge_map=room_entry.get("merge_map"),
         oracle_source_nodes=outcome.get("oracle_source_nodes"))
     if dump is not None and outcome.get("wavs") is not None:
-        snapshot = waveform_snapshot(outcome["wavs"], outcome["num_candidates"],
-                                     outcome["num_samples"], obs_wav)
-        row["waveform_path"], row["waveform_sha256"] = dump_query_waveforms(
-            dump["dir"], dump["position"], row["query_id"], snapshot)
-        if sink is not None:
+        if sink is None:
+            # --metrics off: the r7 route, unchanged (finding 7 / R2b firewall)
+            row["waveform_path"], row["waveform_sha256"] = dump_query_waveforms_legacy(
+                dump["dir"], dump["position"], row["query_id"], outcome["wavs"],
+                outcome["num_candidates"], outcome["num_samples"], obs_wav)
+        else:
+            snapshot = waveform_snapshot(outcome["wavs"], outcome["num_candidates"],
+                                         outcome["num_samples"], obs_wav)
+            row["waveform_path"], row["waveform_sha256"] = dump_query_waveforms(
+                dump["dir"], dump["position"], row["query_id"], snapshot)
             sink["snapshot"] = snapshot
     return row
 
@@ -1681,7 +1712,7 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
                     f"identity gate ABORT at position {position}: expected "
                     f"{expected[position]!r}, got {identity!r} (silent substitution?); "
                     "no query is scored under an unverified identity")
-            sink = {}
+            sink = {} if metrics_config is not None else None
             row = process_query(args, engine, context, md, obs_wav,
                                 dump=None if dump_dir is None
                                 else {"dir": dump_dir, "position": position}, sink=sink)

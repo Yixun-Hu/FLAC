@@ -4536,3 +4536,86 @@ def test_metrics_retrieval_publishes_atomically_and_records_provenance(tmp_path)
     with pytest.raises(SystemExit):                      # no clobber
         el.run_metrics_retrieval(args, loader, engine, context,
                                  expected=el.expected_split_identities(loader.dataset))
+
+
+# --------------------------------------------------------------------------- #
+# r4m3 finding 7 (R2/R2b firewall): with --metrics OFF the run must take the
+# r7-era route LITERALLY -- same npz bytes, same provenance schema. R2b seed 44
+# is held on exactly this, so the parity is proven against the r7 module itself,
+# not against a re-derivation of it.
+# --------------------------------------------------------------------------- #
+_R7_BASELINE_SHA = "7d0d740"          # last eval_localization.py before the R4 work
+
+
+def _legacy_module(tmp_path):
+    """The r7-era eval_localization, loaded from git as its own module."""
+    import importlib.util
+    import subprocess
+    source = subprocess.run(["git", "show", f"{_R7_BASELINE_SHA}:eval_localization.py"],
+                            cwd=_REPO_ROOT, check=True, capture_output=True, text=True).stdout
+    os.makedirs(str(tmp_path), exist_ok=True)
+    path = tmp_path / "legacy_eval_localization.py"
+    path.write_text(source)
+    spec = importlib.util.spec_from_file_location("legacy_eval_localization", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_metrics_off_dump_is_byte_identical_to_the_r7_route(tmp_path):
+    legacy = _legacy_module(tmp_path / "legacy")
+    results = {}
+    for name, module in (("legacy", legacy), ("current", el)):
+        loader, root = _fake_run(tmp_path / name)
+        _rec, engine = _engine()
+        args = _run_args(tmp_path / name, **{"--dump-waveforms": str(tmp_path / name / "wf")})
+        results[name] = module.run_evaluation(
+            args, loader, engine, _stub_context(root), "ck" * 32, "ag" * 32,
+            expected=el.expected_split_identities(loader.dataset))
+
+    for legacy_row, current_row in zip(results["legacy"]["rows"], results["current"]["rows"]):
+        assert legacy_row["waveform_path"] == current_row["waveform_path"]
+        assert legacy_row["waveform_sha256"] == current_row["waveform_sha256"]
+        legacy_bytes = open(os.path.join(str(tmp_path / "legacy" / "wf"),
+                                         legacy_row["waveform_path"]), "rb").read()
+        current_bytes = open(os.path.join(str(tmp_path / "current" / "wf"),
+                                          current_row["waveform_path"]), "rb").read()
+        assert legacy_bytes == current_bytes, "the metrics-off dump changed bytes"
+
+
+def test_metrics_off_provenance_schema_is_unchanged_from_r7(tmp_path):
+    legacy = _legacy_module(tmp_path / "legacy")
+    keys = {}
+    for name, module in (("legacy", legacy), ("current", el)):
+        loader, root = _fake_run(tmp_path / name)
+        _rec, engine = _engine()
+        args = _run_args(tmp_path / name, **{"--dump-waveforms": str(tmp_path / name / "wf")})
+        result = module.run_evaluation(args, loader, engine, _stub_context(root), "c", "a",
+                                       expected=el.expected_split_identities(loader.dataset))
+        keys[name] = set(result["provenance"])
+    assert keys["current"] == keys["legacy"], (
+        f"metrics-off provenance gained {sorted(keys['current'] - keys['legacy'])} / lost "
+        f"{sorted(keys['legacy'] - keys['current'])}")
+
+
+def test_metrics_off_row_schema_is_unchanged_from_r7(tmp_path):
+    legacy = _legacy_module(tmp_path / "legacy")
+    schemas = {}
+    for name, module in (("legacy", legacy), ("current", el)):
+        loader, root = _fake_run(tmp_path / name)
+        _rec, engine = _engine()
+        args = _run_args(tmp_path / name, **{"--dump-waveforms": str(tmp_path / name / "wf")})
+        result = module.run_evaluation(args, loader, engine, _stub_context(root), "c", "a",
+                                       expected=el.expected_split_identities(loader.dataset))
+        schemas[name] = set(result["rows"][0])
+    assert schemas["current"] == schemas["legacy"]
+
+
+def test_metrics_on_adds_the_r4_provenance_fields(tmp_path):
+    """The R4 fields appear ONLY when metrics actually ran."""
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    result = el.run_evaluation(_metrics_args(tmp_path), loader, engine, _stub_context(root),
+                               "c", "a", expected=el.expected_split_identities(loader.dataset))
+    assert result["provenance"]["metric_registerable"]["m2_lambda"] == 1.0
+    assert "metric_registration" in result["provenance"]
