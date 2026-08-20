@@ -790,6 +790,51 @@ def test_sensitivity_variants_apply_the_three_declared_transforms():
     assert torch.allclose(out["shift_plus8"]["m1"], base["candidates"]["m1"], atol=1e-3)
 
 
+def _synthetic_rir(generator, arrival=40, decay=0.0015, n=None):
+    """A decaying impulse response: the M4 estimators need something that decays."""
+    n = n or rm.WINDOW_SAMPLES
+    t = torch.arange(n, dtype=torch.float32)
+    env = torch.exp(-decay * torch.clamp(t - arrival, min=0.0))
+    x = torch.randn(n, generator=generator) * env * 0.05
+    x[:arrival] = 0.0
+    x[arrival] = 1.0
+    return x
+
+
+def test_sensitivity_battery_covers_every_declared_family_including_m4():
+    """r4m4 finding 4: M4 is IN the battery.
+
+    Its answer is the reported result: the features are ratios and times, so a
+    gain change leaves them where they were, while a shift and a lost direct
+    path move arrival time, DRR and clarity.
+    """
+    g = torch.Generator().manual_seed(4404)
+    obs = _synthetic_rir(g)
+    pred = torch.stack([torch.stack([_synthetic_rir(g) for _ in range(2)]) for _ in range(2)])
+    config = rm.MetricConfig(delta_max=8, t30_backend="torch")
+
+    out = rm.sensitivity_variants(pred, obs, config)
+    for name, block in out.items():
+        assert set(block) == set(config.families), name
+        assert block["m4"].shape == (2, 2), name
+        assert torch.isfinite(block["m4"]).all(), name
+
+    base = rm.compute_metrics(pred, obs, obs.reshape(1, -1), config)["candidates"]["m4"]
+    assert torch.allclose(out["gain_x2"]["m4"], base, atol=1e-4)
+    for moved in ("shift_plus8", "shift_minus8", "direct_crop_2p5ms"):
+        assert not torch.allclose(out[moved]["m4"], base, atol=1e-3), moved
+
+
+def test_m4_features_are_gain_invariant_by_construction():
+    """Why gain_x2 is expected to leave M4 alone: every feature is a ratio in dB
+    or a time in seconds, so scaling the whole response cancels."""
+    g = torch.Generator().manual_seed(4405)
+    x = _synthetic_rir(g)
+    quiet, _ = rm.m4_feature_vector(x, rm.SAMPLE_RATE, "torch")
+    loud, _ = rm.m4_feature_vector(x * 2.0, rm.SAMPLE_RATE, "torch")
+    assert np.allclose(quiet, loud, atol=1e-4, equal_nan=True)
+
+
 def test_sensitivity_direct_crop_zeroes_the_first_2p5ms():
     x = torch.ones(1, 1, rm.WINDOW_SAMPLES)
     cropped = rm.apply_sensitivity(x, "direct_crop_2p5ms", rm.SAMPLE_RATE)

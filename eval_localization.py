@@ -1118,7 +1118,8 @@ def parse_args(argv=None):
                         help="compute the declared seen sensitivity battery on every "
                              "SENSITIVITY_STRIDE-th query (calibration passes only)")
     parser.add_argument("--metric-secondaries", action="store_true",
-                        help="also compute the declared M3/M5 secondaries")
+                        help="also compute the declared secondaries: M2 complex-STFT, "
+                             "M3 band/hilbert envelopes and M5 GCC-PHAT")
     parser.add_argument("--verify-context-digest", default=None, metavar="SHA256",
                         help="--mode metrics-retrieval: refuse unless the pass's own context "
                              "draw matches the paired replay's context-stream digest")
@@ -3277,6 +3278,49 @@ def _top1_for_delta(rows, family_prefix, delta, base_delta):
             "n_queries": total}
 
 
+def summarize_sensitivity(rows):
+    """What the sensitivity battery in THESE rows actually covers.
+
+    The report used to declare a battery it never inspected (r4m4 finding 4). It
+    now describes only what the supplied rows carry, under the registered variant
+    names -- and refuses a battery that is present but does not cover every
+    declared variant with every declared family, because a partial battery
+    reported as a battery is a false claim about what was tested.
+    """
+    from src.localization.rir_metrics import (SENSITIVITY_STRIDE, SENSITIVITY_VARIANTS)
+
+    declared_variants = list(SENSITIVITY_VARIANTS)
+    carriers = [row for row in rows if row.get("sensitivities")]
+    summary = {"declared_variants": declared_variants,
+               "declared_families": None, "stride": int(SENSITIVITY_STRIDE),
+               "n_rows": len(rows), "n_rows_with_battery": len(carriers),
+               "positions": [row.get("position") for row in carriers],
+               "per_variant": {},
+               "status": "not computed: the supplied metrics rows carry no battery"}
+    if not carriers:
+        return summary
+
+    families = sorted({family for row in carriers
+                       for block in row["sensitivities"].values() for family in block})
+    summary["declared_families"] = families
+    for row in carriers:
+        battery = row["sensitivities"]
+        missing = [name for name in declared_variants if name not in battery]
+        if missing:
+            _refuse(f"query {row.get('query_id')!r} carries a sensitivity battery without "
+                    f"{missing}; the registered battery is {declared_variants}")
+        for name in declared_variants:
+            absent = [family for family in families if family not in battery[name]]
+            if absent:
+                _refuse(f"query {row.get('query_id')!r}: sensitivity variant {name!r} covers "
+                        f"{sorted(battery[name])} but the battery reports {families}; a "
+                        "partial battery may not be reported as one")
+    summary["per_variant"] = {
+        name: {"n_queries": len(carriers), "families": families} for name in declared_variants}
+    summary["status"] = "computed"
+    return summary
+
+
 def run_metrics_calibrate(args):
     """--mode metrics-calibrate: choose delta_max and freeze mu/sigma. Seen only.
 
@@ -3429,8 +3473,7 @@ def run_metrics_calibrate(args):
                "dropped_features_total": int(dropped_total)},
         "identity_check": identity_check,
         "diagnostics": {"per_feature": per_feature},
-        "sensitivity": {"declared": ["gain_x2", "shift_pm8", "direct_crop_2p5ms"],
-                        "status": "computed on the seen calibration replay only"},
+        "sensitivity": summarize_sensitivity(rows),
         "draft_manifest": draft,
         "source_sha": source_sha(),
         "created_utc": draft["created_utc"],
@@ -3460,9 +3503,19 @@ def run_metrics_retrieval(args, loader, engine, context, expected=None, dataset_
     """
     from src.localization.rir_metrics import metric_matched_retrieval
 
+    dataset_config = dataset_config or load_dataset_config(args)
+    # On unseen data this control is only a control if it is bound to the replay
+    # it will be compared against (r4m4 finding 5): a differently-drawn context
+    # set makes the comparison meaningless, so the pairing digest is mandatory
+    # and is required BEFORE anything is computed or written.
+    unseen = bool(dataset_config.get("unseeneval", False))
+    paired_digest = getattr(args, "verify_context_digest", None)
+    if unseen and not paired_digest:
+        _refuse("--verify-context-digest is required for an unseen --mode metrics-retrieval "
+                "pass: the control must be pinned to the context stream of the replay it is "
+                "compared against, or an unbound artifact would be published as one")
     if expected is None:
-        expected = expected_split_identities_from_config(
-            dataset_config or load_dataset_config(args))
+        expected = expected_split_identities_from_config(dataset_config)
     expected = list(expected)
     if args.smoke and args.max_queries is not None:
         expected = expected[: int(args.max_queries)]
@@ -3548,12 +3601,20 @@ def run_metrics_retrieval(args, loader, engine, context, expected=None, dataset_
     # the ordered context draw of THIS pass, in eval_FLAC's canonical serialization
     context_digest = canonical_stream_hash([tuple(row["context_fingerprints"])
                                             for row in rows]) if rows else "n/a"
-    if getattr(args, "verify_context_digest", None):
-        if context_digest != args.verify_context_digest:
+    if paired_digest:
+        if context_digest != paired_digest:
             raise SystemExit(
                 f"context stream digest mismatch: this pass drew {context_digest[:16]}... but "
-                f"the paired replay recorded {str(args.verify_context_digest)[:16]}...; the "
+                f"the paired replay recorded {str(paired_digest)[:16]}...; the "
                 "control would not be matched to the run it is compared against")
+    # every artifact says whether it is bound, so an unbound seen pass can never
+    # be read later as if it had been paired (r4m4 finding 5)
+    context_binding = {
+        "required": bool(unseen), "verified": bool(paired_digest),
+        "expected": str(paired_digest) if paired_digest else None,
+        "digest": context_digest,
+        "status": ("bound to the paired replay" if paired_digest
+                   else "unbound: seen split, no paired replay digest was supplied")}
     summary_families = {}
     for family in families:
         correct = [row["families"][family]["retrieval_correct"] for row in rows]
@@ -3572,6 +3633,7 @@ def run_metrics_retrieval(args, loader, engine, context, expected=None, dataset_
                "n_rooms": len({row["room_id"] for row in rows}),
                "families": summary_families, "split_hash": split_hash_value,
                "context_stream_digest": context_digest,
+               "context_binding": context_binding,
                "context_coverage": context_coverage(rows),
                "seed": int(args.seed), "metric_config": config.payload()}
     provenance = {"mode": "metrics-retrieval", "source_sha": source_sha(),
@@ -3581,6 +3643,7 @@ def run_metrics_retrieval(args, loader, engine, context, expected=None, dataset_
                   "candidate_manifest_sha256": manifest_sha256(manifest) if manifest else "n/a",
                   "metric_registerable": metric_registerable_payload(),
                   "metric_registration": getattr(args, "metric_registration", None) or "n/a",
+                  "context_binding": context_binding,
                   "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds")}
     write_json_atomic(summary_path, {"provenance": provenance, "summary": jsonable(summary)},
                       overwrite=True)

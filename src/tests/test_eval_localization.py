@@ -4390,6 +4390,8 @@ def _calibration_rows(tmp_path, winner_delta=32, n_queries=6, battery=None):
                 families[m5_name] = {"candidates_hex": el.encode_sims(distances)}
             features = np.tile(np.arange(len(M4_FEATURES), dtype=float) + q, (3, 2, 1))
             el.write_row(handle, {
+                "sensitivities": (_battery(battery, torch.full((3, 2), 0.7))
+                                  if battery else None),
                 "query_id": f"q{q}", "room_id": f"R{q % 2}", "position": q,
                 "n_candidates": 3, "n_samples": 2, "n_context": 2,
                 "candidate_nodes": [0, 1, 2], "gt_index": gt, "gt_node": gt,
@@ -4405,10 +4407,17 @@ def _calibration_rows(tmp_path, winner_delta=32, n_queries=6, battery=None):
     return path
 
 
-def _calibrate_args(tmp_path, metrics_path, **over):
+def _calibrate_args(tmp_path, metrics_path, _no_identities=False, **over):
     argv = ["--mode", "metrics-calibrate", "--model-config", "m.json",
             "--dataset-config", _SEEN_CONFIG, "--metrics-rows", str(metrics_path),
             "--out-dir", str(tmp_path / "cal"), "--eval-name", "R1_cal"]
+    # calibration is fail-closed on its identity stream (r4m4 finding 1), so the
+    # default fixture supplies the stream the rows actually carry
+    if not _no_identities and "--calibration-identities" not in over:
+        ids = str(metrics_path) + ".ids.json"
+        with open(ids, "w") as handle:
+            handle.write(_json.dumps([row["query_id"] for row in el.read_rows(metrics_path)]))
+        argv += ["--calibration-identities", ids]
     for flag, value in over.items():
         argv += [flag] if value is True else [flag, str(value)]
     return el.validate_args(el.parse_args(argv))
@@ -4485,6 +4494,44 @@ def test_metrics_calibrate_is_deterministic_and_seen_only(tmp_path):
             ["--mode", "metrics-calibrate", "--model-config", "m.json",
              "--dataset-config", _UNSEEN_CONFIG, "--metrics-rows", str(path),
              "--out-dir", str(tmp_path / "c2"), "--eval-name", "bad"])))
+
+
+def test_calibration_reports_only_the_sensitivity_it_actually_has(tmp_path):
+    """r4m4 finding 4 residual: the report may not assert a battery it never saw,
+    and the variants it names are the REGISTERED ones (the nit: no `shift_pm8`)."""
+    from src.localization.rir_metrics import SENSITIVITY_STRIDE, SENSITIVITY_VARIANTS
+    bare = el.run_metrics_calibrate(_calibrate_args(
+        tmp_path / "bare", _calibration_rows(tmp_path / "bare")))["sensitivity"]
+    assert bare["declared_variants"] == list(SENSITIVITY_VARIANTS)
+    assert bare["stride"] == SENSITIVITY_STRIDE
+    assert bare["n_rows_with_battery"] == 0
+    assert "not" in bare["status"] and bare["per_variant"] == {}
+    assert "shift_pm8" not in _json.dumps(bare)
+
+    rows = _calibration_rows(tmp_path / "full", battery="complete")
+    full = el.run_metrics_calibrate(_calibrate_args(tmp_path / "full", rows))["sensitivity"]
+    assert full["n_rows_with_battery"] == 6 and full["status"] == "computed"
+    assert set(full["per_variant"]) == set(SENSITIVITY_VARIANTS)
+    for variant, block in full["per_variant"].items():
+        assert block["families"] == ["m1", "m2", "m3", "m4", "m5"], variant
+        assert block["n_queries"] == 6
+
+
+@pytest.mark.parametrize("broken", ["missing_family", "missing_variant"])
+def test_calibration_refuses_a_battery_that_does_not_cover_what_it_declares(tmp_path, broken):
+    rows = _calibration_rows(tmp_path, battery=broken)
+    with pytest.raises(SystemExit, match="sensitivity"):
+        el.run_metrics_calibrate(_calibrate_args(tmp_path, rows))
+
+
+def test_metric_secondaries_help_names_every_declared_secondary(capsys):
+    """r4m4 nit: the flag computes an M2 secondary too, so the help must say so."""
+    with pytest.raises(SystemExit):
+        el.parse_args(["--help"])
+    text = " ".join(capsys.readouterr().out.split())
+    fragment = text.rsplit("--metric-secondaries", 1)[1][:220]   # the help body, not the usage
+    for family in ("M2", "M3", "M5"):
+        assert family in fragment, fragment
 
 
 def test_metrics_calibrate_requires_rows():
@@ -4934,6 +4981,36 @@ def test_calibration_draft_carries_seeds_and_the_registration_digests(tmp_path):
 
     bare = el.run_metrics_calibrate(_calibrate_args(tmp_path / "f", path))["draft_manifest"]
     assert bare["candidate_manifest_sha256"] == "tbd" and bare["r2_identity_digest"] == "tbd"
+
+
+def test_unseen_metrics_retrieval_requires_the_paired_context_digest(tmp_path):
+    """r4m4 finding 5 residual: on unseen data the control is only a control if it
+    is bound to the replay it is compared against -- so the digest is MANDATORY,
+    and a seen pass that runs unbound says so in its own artifacts."""
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    context = _stub_context(root)
+    base = ["--mode", "metrics-retrieval", "--model-config", "m.json",
+            "--dataset-config", _SEEN_CONFIG, "--metric-delta-max", "8",
+            "--metric-t30-backend", "torch", "--out-dir", str(tmp_path / "u"),
+            "--eval-name", "R4_ctl"]
+    unseen = _json.loads(open(_UNSEEN_CONFIG).read())
+    args = el.validate_args(el.parse_args(base))
+    with pytest.raises(SystemExit, match="verify-context-digest"):
+        el.run_metrics_retrieval(args, loader, engine, context,
+                                 expected=el.expected_split_identities(loader.dataset),
+                                 dataset_config=unseen)
+    assert not os.path.exists(str(tmp_path / "u")) or os.listdir(str(tmp_path / "u")) == []
+
+    seen = el.validate_args(el.parse_args(base[:-4] + ["--out-dir", str(tmp_path / "s"),
+                                                       "--eval-name", "R4_ctl"]))
+    result = el.run_metrics_retrieval(seen, loader, engine, context,
+                                      expected=el.expected_split_identities(loader.dataset))
+    binding = result["summary"]["context_binding"]
+    assert binding["required"] is False and binding["verified"] is False
+    assert "unbound" in binding["status"]
+    assert result["provenance"]["context_binding"]["digest"] == \
+        result["summary"]["context_stream_digest"]
 
 
 def test_build_metrics_row_has_no_vestigial_parameter():

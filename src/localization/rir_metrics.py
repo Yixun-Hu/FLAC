@@ -867,25 +867,56 @@ def apply_sensitivity(x, variant, sample_rate=SAMPLE_RATE):
 def sensitivity_variants(pred, obs, config, variants=SENSITIVITY_VARIANTS):
     """The seen sensitivity battery: each declared perturbation re-scored.
 
-    Only the waveform families are recomputed (M1/M2/M3/M5): M4's estimators are
-    the expensive part and the battery asks about waveform robustness -- gain,
-    a small shift, and losing the direct path.
+    EVERY declared family is recomputed, M4 included (r4m4 finding 4). M4's
+    answer is itself the reported result: its features are ratios in dB and
+    times in seconds, so a gain change leaves them where they were, while a
+    shift and a lost direct path genuinely move arrival time, DRR and clarity.
+
+    M4's validity mask is UNIFORM over the whole battery -- the baseline and
+    every variant -- exactly as the per-query mask is uniform over a query's
+    candidates: every block is then computed on the same feature set, which is
+    what makes the variants comparable to each other and to the baseline.
     """
     obs = common_window(torch.as_tensor(obs).reshape(-1), config.window_samples)
     pred = common_window(pred, config.window_samples)
+    perturbed = {variant: apply_sensitivity(pred, variant, config.sample_rate)
+                 for variant in variants}
     out = {}
     for variant in variants:
-        perturbed = apply_sensitivity(pred, variant, config.sample_rate)
+        signal = perturbed[variant]
         block = {}
         if "m1" in config.families:
-            block["m1"] = m1_distance(perturbed, obs, config.delta_max)
+            block["m1"] = m1_distance(signal, obs, config.delta_max)
         if "m2" in config.families:
-            block["m2"] = m2_distance(perturbed, obs, lam=config.lam)
+            block["m2"] = m2_distance(signal, obs, lam=config.lam)
         if "m3" in config.families:
-            block["m3"] = m3_distance(perturbed, obs)
+            block["m3"] = m3_distance(signal, obs)
         if "m5" in config.families:
-            block["m5"], _ = m5_distance(perturbed, obs, config.delta_max)
+            block["m5"], _ = m5_distance(signal, obs, config.delta_max)
         out[variant] = block
+    if "m4" in config.families:
+        import numpy as np
+
+        def _features(signal):
+            flat = signal.reshape(-1, signal.shape[-1])
+            vectors = np.stack([m4_feature_vector(flat[i], config.sample_rate,
+                                                  config.t30_backend)[0]
+                                for i in range(flat.shape[0])])
+            return vectors.reshape(tuple(signal.shape[:-1]) + (len(M4_FEATURES),))
+
+        obs_features, _ = m4_feature_vector(obs, config.sample_rate, config.t30_backend)
+        blocks = {variant: _features(signal) for variant, signal in perturbed.items()}
+        baseline = _features(pred)
+        mask = m4_validity_mask(
+            np.concatenate([block.reshape(-1, len(M4_FEATURES))
+                            for block in list(blocks.values()) + [baseline]], axis=0),
+            obs_features)
+        mu = np.zeros(len(M4_FEATURES)) if config.m4_mu is None else np.asarray(config.m4_mu)
+        sigma = (np.ones(len(M4_FEATURES)) if config.m4_sigma is None
+                 else np.asarray(config.m4_sigma))
+        for variant in variants:
+            out[variant]["m4"] = torch.from_numpy(
+                m4_distance(blocks[variant], obs_features, mu, sigma, mask)).float()
     return out
 
 
