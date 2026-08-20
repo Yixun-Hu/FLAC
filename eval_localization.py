@@ -2178,10 +2178,8 @@ def _load_noise_wavs(paths):
     return torch.cat(wavs, dim=0)
 
 
-def resolve_noise_wavs(args):
-    """Explicit ``--noise-wavs``, else the first files of the (seen) split."""
-    if args.noise_wavs:
-        return [str(p) for p in args.noise_wavs]
+def _split_wav_paths(args):
+    """Every wav the configured split enumerates, as real paths."""
     dataset_config = load_dataset_config(args)
     entry = (dataset_config.get("datasets") or [None])[0]
     if entry is None:
@@ -2193,14 +2191,31 @@ def resolve_noise_wavs(args):
     for scene in sorted(split):
         for scene_id in sorted(split[scene]):
             for fname in sorted(split[scene][scene_id]):
-                candidate = os.path.join(entry["path"], folder, scene, scene_id, fname)
-                if os.path.isfile(candidate):
-                    paths.append(candidate)
-                if len(paths) >= int(args.noise_wav_count):
-                    return paths
-    if not paths:
-        _refuse("no wav from the split is present to measure scorer noise on")
+                paths.append(os.path.join(entry["path"], folder, scene, scene_id, fname))
     return paths
+
+
+def resolve_noise_wavs(args):
+    """Explicit ``--noise-wavs``, else the first files of the split.
+
+    Explicit paths must belong to the CONFIGURED split's own enumeration (r4
+    review M6): otherwise a seen dataset config plus an arbitrary path would have
+    measured unseen RIRs while the report claimed a seen run.
+    """
+    enumerated = _split_wav_paths(args)
+    if args.noise_wavs:
+        allowed = {os.path.realpath(p) for p in enumerated}
+        chosen = []
+        for path in args.noise_wavs:
+            if os.path.realpath(str(path)) not in allowed:
+                _refuse(f"--noise-wavs {path!r} is not part of the configured split "
+                        f"({args.dataset_config}); scorer noise is measured on that split only")
+            chosen.append(str(path))
+        return chosen
+    present = [path for path in enumerated if os.path.isfile(path)]
+    if not present:
+        _refuse("no wav from the split is present to measure scorer noise on")
+    return present[: int(args.noise_wav_count)]
 
 
 def run_scorer_noise(args):
@@ -2211,12 +2226,17 @@ def run_scorer_noise(args):
     wavs = _load_noise_wavs(paths)
 
     mean_embeddings = embed_rirs(agree.model, wavs, args.device, readout="mean")
+    # The stock readout samples from the GLOBAL stream, so seed it immediately
+    # before drawing and record the seed: a measurement nobody can reproduce is
+    # not a measurement (r4 review M6).
+    torch.manual_seed(int(args.seed))
     draws = torch.stack([embed_rirs(agree.model, wavs, args.device, readout="sample")
                          for _ in range(int(args.noise_draws))])
     report = measure_scorer_noise(mean_embeddings, draws)
     report.update({
         "mode": "scorer-noise", "agree_ckpt": args.agree_ckpt,
         "agree_sha256": agree.ckpt_sha256, "wavs": paths, "device": args.device,
+        "seed": int(args.seed),
         "source_sha": source_sha(),
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     })

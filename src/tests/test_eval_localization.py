@@ -2775,28 +2775,44 @@ agree_integration = pytest.mark.skipif(
     reason="the AGREE checkpoint or the gated DINOv3 HF cache is absent")
 
 
+def _seen_split_wavs(count=2):
+    """Real files from the seen split's own enumeration (r5 item 6)."""
+    split = _json.loads(open(_SEEN_SPLIT_JSON).read())
+    found = []
+    for scene in sorted(split):
+        for room in sorted(split[scene]):
+            for fname in sorted(split[scene][room]):
+                path = os.path.join(_AR_ROOT, "single_channel_ir_1", scene, room, fname)
+                if os.path.isfile(path):
+                    found.append(path)
+                if len(found) >= count:
+                    return found
+    return found
+
+
+def _scorer_noise_args(tmp_path, wavs, draws=6, seed=42, name="R0_noise"):
+    return el.validate_args(el.parse_args([
+        "--mode", "scorer-noise", "--model-config", _FLAC_CONFIG,
+        "--dataset-config", _SEEN_CONFIG, "--agree-ckpt", _AGREE_CKPT,
+        "--noise-draws", str(draws), "--seed", str(seed), "--noise-wavs", *wavs,
+        "--out-dir", str(tmp_path / "out"), "--eval-name", name, "--device", "cpu"]))
+
+
 @agree_integration
 def test_integration_scorer_noise_mode_measures_the_sampled_readout(tmp_path):
-    """The real AGREE, 2 fixture RIRs, 8 draws: the sampled readout must be
+    """The real AGREE on real seen-split RIRs: the sampled readout must be
     stochastic and its distance from the registered mean readout quantified."""
-    room = str(tmp_path / "Cafe_idx_1")
-    _write_rir(room, 0, 11, 0.10)
-    _write_rir(room, 3, 11, 0.25)
+    wavs = _seen_split_wavs(2)
+    if len(wavs) < 2:
+        pytest.skip("the seen split's wavs are not local")
     previous = os.getcwd()
     os.chdir(_REPO_ROOT)
     try:
-        args = el.validate_args(el.parse_args([
-            "--mode", "scorer-noise", "--model-config", _FLAC_CONFIG,
-            "--dataset-config", _SEEN_CONFIG, "--agree-ckpt", _AGREE_CKPT,
-            "--noise-draws", "8", "--noise-wavs",
-            os.path.join(room, "S000_R0011_hybrid_IR.wav"),
-            os.path.join(room, "S003_R0011_hybrid_IR.wav"),
-            "--out-dir", str(tmp_path / "out"), "--eval-name", "R0_noise", "--device", "cpu"]))
-        report = el.run_scorer_noise(args)
+        report = el.run_scorer_noise(_scorer_noise_args(tmp_path, wavs, draws=8))
     finally:
         os.chdir(previous)
 
-    assert report["n_draws"] == 8 and report["n_wavs"] == 2
+    assert report["n_draws"] == 8 and report["n_wavs"] == 2 and report["seed"] == 42
     assert len(report["agree_sha256"]) == 64
     for block in ("pairwise", "vs_mean"):
         stats = report["aggregate"][block]
@@ -2805,6 +2821,62 @@ def test_integration_scorer_noise_mode_measures_the_sampled_readout(tmp_path):
     assert report["aggregate"]["pairwise"]["mean"] < 1.0        # genuinely stochastic
     assert os.path.exists(report["report_path"])
     assert _json.loads(open(report["report_path"]).read())["n_draws"] == 8
+
+
+def test_scorer_noise_refuses_wavs_outside_the_configured_split(tmp_path):
+    """A seen config plus an arbitrary path would have measured unseen RIRs."""
+    room = str(tmp_path / "Cafe_idx_1")
+    _write_rir(room, 0, 11, 0.1)
+    args = el.validate_args(el.parse_args([
+        "--mode", "scorer-noise", "--model-config", _FLAC_CONFIG,
+        "--dataset-config", _SEEN_CONFIG, "--agree-ckpt", "a.pt",
+        "--noise-wavs", os.path.join(room, "S000_R0011_hybrid_IR.wav"),
+        "--out-dir", str(tmp_path / "out"), "--eval-name", "R0_noise"]))
+    previous = os.getcwd()
+    os.chdir(_REPO_ROOT)
+    try:
+        with pytest.raises(SystemExit):
+            el.resolve_noise_wavs(args)
+    finally:
+        os.chdir(previous)
+
+
+@unseen_rooms
+def test_scorer_noise_accepts_wavs_from_the_configured_split():
+    wavs = _seen_split_wavs(1)
+    if not wavs:
+        pytest.skip("the seen split's wavs are not local")
+    args = el.validate_args(el.parse_args([
+        "--mode", "scorer-noise", "--model-config", _FLAC_CONFIG,
+        "--dataset-config", _SEEN_CONFIG, "--agree-ckpt", "a.pt",
+        "--noise-wavs", *wavs, "--eval-name", "R0_noise"]))
+    previous = os.getcwd()
+    os.chdir(_REPO_ROOT)
+    try:
+        assert el.resolve_noise_wavs(args) == wavs
+    finally:
+        os.chdir(previous)
+
+
+@agree_integration
+def test_integration_scorer_noise_draws_are_seeded_and_reproducible(tmp_path):
+    wavs = _seen_split_wavs(1)
+    if not wavs:
+        pytest.skip("the seen split's wavs are not local")
+    previous = os.getcwd()
+    os.chdir(_REPO_ROOT)
+    try:
+        first = el.run_scorer_noise(_scorer_noise_args(tmp_path, wavs, draws=6, seed=42,
+                                                       name="A"))
+        second = el.run_scorer_noise(_scorer_noise_args(tmp_path, wavs, draws=6, seed=42,
+                                                        name="B"))
+        other = el.run_scorer_noise(_scorer_noise_args(tmp_path, wavs, draws=6, seed=43,
+                                                       name="C"))
+    finally:
+        os.chdir(previous)
+    assert first["aggregate"] == second["aggregate"]        # same seed -> same draws
+    assert first["seed"] == 42 and other["seed"] == 43
+    assert first["aggregate"]["pairwise"]["mean"] != other["aggregate"]["pairwise"]["mean"]
 
 
 # --------------------------------------------------------------------------- #
