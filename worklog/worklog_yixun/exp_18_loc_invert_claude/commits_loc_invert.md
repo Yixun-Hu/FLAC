@@ -176,3 +176,12 @@
 | `408a093` | F4 + F1 (constants) | M2 complex-STFT, M3 band/Hilbert and M5 GCC peak similarity as first-class candidate+context families; Δ=0 always emitted; three seen sensitivities; Holm–Bonferroni; REGISTERABLE gains every missing formula constant | +286 −16 |
 | `81dda12` | F1 + F4 + F8 | manifest authoritative for the whole `MetricConfig`; registration required for every unseen metric mode; calibration authenticates its identity stream; draft gains seeds/digests; secondaries + sensitivities serialized; vestigial param removed | +268 −54 |
 | `a4102a5` | F5 + F6 | prediction-based context split, compact-index oracle mapping, fallback source nodes, seed in stem, paired context-digest check; all metric outputs stay `.partial` until every gate passes | +215 −34 |
+| `0691d2d` | — | ledger append for r4m3 | +10 |
+
+## Round r4m4 (re-review residuals `loc_invert_codex_code_r4m3_review.md`)
+
+| SHA | Finding | Description | changed lines |
+|---|---|---|---|
+| `73d5e1d` | F6 | replay metrics JSONL keeps its `.partial` name until the context end-gate, the scored-stream gate AND summary construction have passed — it is renamed inside the publish-as-a-set block; the test now aborts AFTER the identity loop (both post-loop gates) | +54 −7 |
+| `956fb6c` | F1 | registration verification binds `source_sha` (full-hex, resolvable, `rir_metrics.py` byte-identical at source sha / registration commit / worktree) and byte-checks every `r2_manifest_digests` entry against the copy committed at the registration sha (repo-relative keys, non-empty for a registered run); `--calibration-identities` is now REQUIRED — calibration provenance is fail-closed | +286 −24 |
+| `9ba2caf` | F4 + F5 + nits | M4 joins the sensitivity battery under a battery-uniform validity mask (gain-invariance is the reported result; shift/direct-crop move arrival/DRR/C50); `summarize_sensitivity` reports only the battery the rows actually carry, under the registered variant names, and refuses a partial one; `--verify-context-digest` mandatory for unseen metrics-retrieval with a `context_binding` stamp on every pass; `--metric-secondaries` help names M2 | +233 −17 |
