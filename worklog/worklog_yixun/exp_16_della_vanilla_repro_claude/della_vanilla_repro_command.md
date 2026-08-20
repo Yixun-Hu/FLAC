@@ -158,3 +158,13 @@ sbatch --hold --parsable --job-name=exp16-chain --time=04:30:00 --dependency=aft
 sbatch --hold --parsable --job-name=exp16-chain --time=04:30:00 --dependency=afterany:12334808 --export=EXPECT_SHA=8ca91ac4bfc826f1992fa77fbb2749c3c9c0e80f,CHAIN_TOTAL=67500,CHAIN_CHUNK=7500 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_chain.sbatch
 ```
 
+## 2026-08-20T12:05:32-04:00 — exp16-eval-seen_s42 — job 12681303
+
+- EXPECT_SHA: `b2ef05a49d53cd48c90426dd87b14dacfce822a9`
+- job id: `12681303`
+- submitted by: `yh4742@della9.princeton.edu`
+
+```bash
+sbatch --hold --parsable --job-name=exp16-eval-seen_s42 --export=EXPECT_SHA=b2ef05a49d53cd48c90426dd87b14dacfce822a9,CELL=seen_s42 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_eval.sbatch
+```
+
