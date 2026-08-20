@@ -1,0 +1,24 @@
+{
+  "agg": "lme",
+  "agree_sha256": "b664d5c09f74685fc9121f4b1496642d601489a338769fe52161a0b7912c72f4",
+  "candidate_manifest_sha256": "da1a1410f34c18c9dc762d27b470dd53f3606b165f7b9e2aa0c4713182a79252",
+  "cfg_scale": 1.0,
+  "ckpt_sha256": "f3d47e9edd8dfc10050b8df9acfeeef49e1f386b434aefcd3a3ec175b4c0c4aa",
+  "cond_autocast": "default",
+  "cond_method": "vanilla",
+  "dataset_config_sha256": "063c66c2411cde4b1f07ec7c5331150b322517cf0067a0ef3def819368423b55",
+  "experiment": "exp_18 loc_invert R2 (registered unseen headline, Vanilla FLAC arm)",
+  "model_config_sha256": "f3eafef4456666e4705ddaf35540f6b9f1f746189814cec000bac794ba2a7ec9",
+  "num_samples": 8,
+  "readout": "mean",
+  "registered_at": "2026-08-20T00:20 EDT",
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "split_file_sha256": "9a9d817abc3e19f41351e07325ffa929c1f2846d0c77e80d538d9e4a21342ba8",
+  "steps": 1,
+  "tau": 0.02,
+  "tau_provenance": "R1 dev sweep exp18_R1_tauselect (1194-query seen prefix; LME K'=8; pooled mean 1.0718 m; landscape flat 1.0718-1.0852)"
+}

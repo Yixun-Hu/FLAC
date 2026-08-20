@@ -17,3 +17,12 @@ Identity gate: 6,337/6,337 scored, 17 rooms, identity-stream hash 60c56165…; r
 - context_member_prediction_rate = 0.0 (identity candidate always wins; GT never in context) — by construction, correct.
 - Paired stats machinery live: oracle-vs-context-conditioned median paired diff −1.25 m, 17-room clustered 95% CI [−3.24, −0.79], p≈0.
 - **Interpretation for the headline runs:** the information-matched chance is ~49% top-1 and the non-generative retrieval control is ~69% top-1 — FLAC's analysis-by-synthesis must be read against BOTH, not against the 10% uniform chance.
+
+## R0 probe + scorer-noise (2026-08-19 ~22:40 EDT) — PASSED
+1.32 s/query mean (cond 0.257 / sample 0.399 / decode 0.541 / embed 0.097 s); peak 1.57 GB ⇒ R2 ≈ 2.3 h/seed. Scorer noise (§2.8.3, 100 draws × 4 real RIRs): sampled-readout pairwise cos mean 0.999928 / min 0.999514 — mean readout removes ≈7e-5 cos noise. Smoke-slice (n=4, anecdotal): FLAC 4.47 m vs matched baseline 8.14 m.
+
+## R1 dev-tune + τ registration (2026-08-20 ~00:15 EDT) — PASSED
+- R1-v1 ABORTED correctly at position 1194: a real near-silent RIR (`Office_idx_15/S009_R092`, absmax 9.2e-4) that the release loader silently substitutes — the only such item in all 6,217 seen files (probe); unseen split has none. Prefix re-declared 1,194.
+- R1-v2 (1,194-query seen prefix, K=8, seed 42): identity gate clean, published. **Dev-slice: FLAC pooled median e_loc = 0.0000 m** vs context-conditioned baseline 1.0198 m (seen rooms — the model trained in these; encouraging, not the headline).
+- **τ sweep (28 configs, offline re-aggregation): registered τ = 0.02** (rule: LME, K′=8, pooled mean, smallest-τ tie-break). Landscape FLAT: 1.0718 (τ=0.02) … 1.0852 m (τ=0.5); max 1.0712, mean 1.0852; pooled median 0.0 for every config ⇒ aggregation-insensitive.
+- **R2 registration manifest:** `loc_invert_R2_registration.json` — locks config/ckpt/scorer hashes, split digest 9a9d817a…, candidate-manifest da1a1410…, K=8, τ=0.02, LME, vanilla/rotate-0/autocast-default, readout mean, seeds {42,43,44}.

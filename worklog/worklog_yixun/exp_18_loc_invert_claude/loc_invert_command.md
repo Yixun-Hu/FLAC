@@ -62,3 +62,11 @@ nohup python eval_localization.py --mode run --score-source flac --smoke --max-q
 
 ## R1-v2 dev-tune slice (2026-08-19_23:41:40 EDT) — prefix re-declared 1,194 (silent item at position 1194; worklog 23:45)
 Same command as R1 with `--max-queries 1194` and `--overwrite` (supersedes the aborted attempt; log kept with ABORTED suffix).
+
+## R1 τ sweep / registered selection (2026-08-20_00:09:06 EDT)
+```bash
+python eval_localization.py --mode reaggregate \
+  --rows outputs_loc/exp18/exp18_R1_devtune_flac_ctl-none_vanilla_ac-default_lme_tau0.1_K8_seed42_scorer-AGREE_AR_smoke_rows.jsonl \
+  --out-dir outputs_loc/exp18 --eval-name exp18_R1_tauselect \
+  2>&1 | tee worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_2026-08-20_00:09:06_R1_tauselect.log
+```
