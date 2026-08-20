@@ -3676,3 +3676,118 @@ def test_run_evaluation_records_the_merge_groups(tmp_path):
                                expected=el.expected_split_identities(loader.dataset))
     assert result["provenance"]["candidate_merge_groups"] == 0     # the clean fixture
     assert all(row["merge_map"] == {} for row in result["rows"])
+
+
+def _merged_cand_set():
+    """Candidates [0, 3] where 3 is the canonical of the merged group {3, 7}."""
+    xyz = np.array([[0.0, 0.0, 1.0], [2.0, -1.0, 1.5]])
+    return CandidateSet(nodes=[0, 3], xyz_world=xyz, rec_loc=_REC, gt_node=3, gt_xyz=xyz[1]), \
+        {"3": [3, 7]}
+
+
+def test_measured_rir_paths_prefer_the_canonical_node_then_fall_back(tmp_path):
+    room = str(tmp_path / "room")
+    cand, merge_map = _merged_cand_set()
+    _write_rir(room, 0, 11, 0.1)
+    _write_rir(room, 3, 11, 0.2)
+    _write_rir(room, 7, 11, 0.3)
+    paths = el.measured_rir_paths(room, cand, 11, merge_map=merge_map)
+    assert os.path.basename(paths[1]) == "S003_R0011_hybrid_IR.wav"      # canonical wins
+
+    os.remove(os.path.join(room, "S003_R0011_hybrid_IR.wav"))
+    fallback = el.measured_rir_paths(room, cand, 11, merge_map=merge_map)
+    assert os.path.basename(fallback[1]) == "S007_R0011_hybrid_IR.wav"   # member fallback
+    assert el.measured_rir_paths(room, cand, 11)[1] is None              # without the map
+
+
+def test_load_measured_rirs_records_which_member_supplied_each_file(tmp_path):
+    room = str(tmp_path / "room")
+    cand, merge_map = _merged_cand_set()
+    _write_rir(room, 0, 11, 0.1)
+    _write_rir(room, 7, 11, 0.3)                       # only the non-canonical member exists
+    wavs, available, sources = el.load_measured_rirs(room, cand, 11, merge_map=merge_map)
+    assert available == [True, True] and tuple(wavs.shape)[0] == 2
+    assert sources == [0, 7]                           # the file actually read
+
+
+def test_run_query_gt_rir_uses_the_merged_group_for_the_identity(tmp_path):
+    room = str(tmp_path / "room")
+    cand, merge_map = _merged_cand_set()
+    _write_rir(room, 0, 11, 0.1)
+    _write_rir(room, 7, 11, 0.3)
+    _rec, engine = _engine()
+    obs = el.load_measured_rirs(room, cand, 11, merge_map=merge_map)[0][1:2]
+    out = el.run_query_gt_rir(engine, cand, room, 11, obs, merge_map=merge_map)
+    assert out["identity_index"] == cand.gt_index == 1
+    assert out["oracle_source_nodes"] == [0, 7]
+    assert out["sims"][1, 0] == pytest.approx(1.0, abs=1e-6)
+
+
+def test_build_row_records_the_oracle_source_nodes():
+    kwargs = _row_kwargs(sims=torch.tensor([[0.5], [0.9], [0.1]], dtype=torch.float32),
+                         noise_keys=[], agg="max", tau=None, score_source="gt_rir",
+                         identity_index=1, oracle_source_nodes=[0, 7, None])
+    row = el.build_row(**kwargs)
+    assert row["oracle_source_nodes"] == [0, 7, None]
+    assert el.build_row(**_row_kwargs())["oracle_source_nodes"] is None
+
+
+# --------------------------------------------------------------------------- #
+# r6: the duplicate-source survey is reviewed tooling, not a shell one-liner.
+# --------------------------------------------------------------------------- #
+def _load_survey():
+    import importlib.util
+    path = os.path.join(_REPO_ROOT, "worklog", "worklog_yixun", "exp_18_loc_invert_claude",
+                        "survey_duplicate_sources.py")
+    spec = importlib.util.spec_from_file_location("survey_duplicate_sources", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_survey_reports_a_dirty_and_a_clean_room(tmp_path):
+    survey = _load_survey()
+    dirty_root, _wav, _positions = _dirty_dataset_tree(tmp_path)
+    split = tmp_path / "split.json"
+    split.write_text(_json.dumps({"Cafe": {"Cafe_idx_1": ["S003_R0011_hybrid_IR.wav"]}}))
+    report = survey.survey_split(str(split), str(dirty_root))
+    assert report["n_rooms"] == 1 and report["n_rooms_with_duplicates"] == 1
+    assert report["rooms"]["Cafe/Cafe_idx_1"]["n_sources"] == 3
+    assert report["rooms"]["Cafe/Cafe_idx_1"]["n_positions"] == 2
+    assert report["duplicates"]["Cafe/Cafe_idx_1"]["3"][1] == [3, 7]
+
+    clean_root, _w = _dataset_tree(tmp_path / "clean")
+    clean = survey.survey_split(str(split), str(clean_root))
+    assert clean["n_rooms_with_duplicates"] == 0 and clean["duplicates"] == {}
+
+
+def test_survey_cli_writes_a_report(tmp_path):
+    survey = _load_survey()
+    dirty_root, _wav, _positions = _dirty_dataset_tree(tmp_path)
+    split = tmp_path / "split.json"
+    split.write_text(_json.dumps({"Cafe": {"Cafe_idx_1": ["S003_R0011_hybrid_IR.wav"]}}))
+    out = tmp_path / "survey.json"
+    report = survey.main(["--split", str(split), "--dataset-root", str(dirty_root),
+                          "--out", str(out)])
+    assert report["n_rooms_with_duplicates"] == 1
+    assert _json.loads(open(out).read())["n_rooms_with_duplicates"] == 1
+
+
+@unseen_rooms
+def test_integration_survey_finds_exactly_the_two_known_seen_rooms():
+    """The measured fact behind plan Rev 3.2 (skips if the seen split is absent)."""
+    survey = _load_survey()
+    if not os.path.isfile(_SEEN_SPLIT_JSON):
+        pytest.skip("the seen split JSON is absent")
+    report = survey.survey_split(_SEEN_SPLIT_JSON, _AR_ROOT)
+    dirty = sorted(report["duplicates"])
+    assert dirty == ["Bathrooms/Bathrooms_idx_11", "Bathrooms/Bathrooms_idx_16"]
+    assert report["duplicates"]["Bathrooms/Bathrooms_idx_11"]["9"][1] == [9, 10]
+    assert report["duplicates"]["Bathrooms/Bathrooms_idx_16"]["4"][1] == [4, 7]
+
+
+@unseen_rooms
+def test_integration_survey_finds_no_duplicates_in_the_unseen_split():
+    survey = _load_survey()
+    report = survey.survey_split(_UNSEEN_SPLIT_JSON, _AR_ROOT)
+    assert report["n_rooms"] == 17 and report["n_rooms_with_duplicates"] == 0

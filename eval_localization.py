@@ -471,7 +471,8 @@ def gt_reciprocal_rank(scores, gt_index, available=None):
 def build_row(query_id, room_id, relpath, receiver_node, cand_set, cam_xyz, sims,
               context_mask, noise_keys, tau, agg, control, score_source, smoke,
               available=None, identity_index=None, substituted=False,
-              context_xyz_cam=None, context_sims_hex=None, timings=None, merge_map=None):
+              context_xyz_cam=None, context_sims_hex=None, timings=None, merge_map=None,
+              oracle_source_nodes=None):
     """One JSONL query record: raw evidence first, derived quantities alongside.
 
     ``sims_hex``/``scores_hex`` are the exact float32 values (O18), so the
@@ -535,6 +536,9 @@ def build_row(query_id, room_id, relpath, receiver_node, cand_set, cam_xyz, sims
         "substituted": bool(substituted),
         "smoke": bool(smoke),
         "merge_map": dict(merge_map or {}),
+        "oracle_source_nodes": (None if oracle_source_nodes is None
+                                else [None if n is None else int(n)
+                                      for n in oracle_source_nodes]),
         "timings_s": (None if timings is None
                       else {**{name: float(timings.get(name, 0.0)) for name in PROBE_COMPONENTS},
                             PROBE_WALL: float(timings.get(PROBE_WALL, 0.0))}),
@@ -927,11 +931,12 @@ def write_summary(path, summary, provenance, overwrite=True):
 AR_SAMPLE_RATE = 22050
 
 
-def measured_rir_paths(room_wav_dir, cand_set, receiver_node):
-    """Per candidate, the measured ``S<cand>_R<rec>`` file, or ``None`` if absent.
+def _measured_rir_lookup(room_wav_dir, cand_set, receiver_node, merge_map=None):
+    """``[(path|None, node|None)]`` per candidate, canonical file first.
 
-    Matched on parsed numeric identity over the directory listing, never on a
-    reconstructed name: the wav namespace pads node ids inconsistently.
+    Under Rev 3.2 a candidate can be a merged GROUP of nodes at one position. The
+    canonical node's measured file is preferred; if it is absent, any member's
+    file measures the same position, and WHICH node supplied it is recorded.
     """
     room_wav_dir = str(room_wav_dir)
     by_source = {}
@@ -949,21 +954,41 @@ def measured_rir_paths(room_wav_dir, cand_set, receiver_node):
                     f"{os.path.basename(by_source[src])} and {fname}; which RIR the oracle "
                     "scored would be unresolvable")
             by_source[src] = os.path.join(room_wav_dir, fname)
-    return [by_source.get(int(node)) for node in cand_set.nodes]
+
+    groups = {int(canonical): [int(m) for m in members]
+              for canonical, members in (merge_map or {}).items()}
+    lookup = []
+    for node in cand_set.nodes:
+        for candidate_node in [int(node)] + [m for m in groups.get(int(node), [])
+                                             if m != int(node)]:
+            if candidate_node in by_source:
+                lookup.append((by_source[candidate_node], candidate_node))
+                break
+        else:
+            lookup.append((None, None))
+    return lookup
 
 
-def load_measured_rirs(room_wav_dir, cand_set, receiver_node):
-    """``(wavs [A, 1, MAX_LEN], available [M], paths [M])`` for the oracle mode.
+def measured_rir_paths(room_wav_dir, cand_set, receiver_node, merge_map=None):
+    """Per candidate, the measured file to score (canonical first), or ``None``."""
+    return [path for path, _node in _measured_rir_lookup(room_wav_dir, cand_set, receiver_node,
+                                                         merge_map=merge_map)]
+
+
+def load_measured_rirs(room_wav_dir, cand_set, receiver_node, merge_map=None):
+    """``(wavs [A, 1, MAX_LEN], available [M], source_nodes [M])`` for the oracle.
 
     Only the files that exist are loaded: a missing pair shrinks what the oracle
     can report, never the candidate set (plan §2.2). Each file is clamped and
     cropped/padded to ``MAX_LEN`` -- the metric route's own window -- before the
-    shared preprocessing runs.
+    shared preprocessing runs. ``source_nodes`` names the node whose file was
+    actually read, which differs from the candidate under a Rev 3.2 merge.
     """
-    paths = measured_rir_paths(room_wav_dir, cand_set, receiver_node)
-    available = [path is not None for path in paths]
+    lookup = _measured_rir_lookup(room_wav_dir, cand_set, receiver_node, merge_map=merge_map)
+    available = [path is not None for path, _node in lookup]
+    source_nodes = [node for _path, node in lookup]
     wavs = []
-    for path in paths:
+    for path, _node in lookup:
         if path is None:
             continue
         wav, rate = torchaudio.load(path)
@@ -975,10 +1000,10 @@ def load_measured_rirs(room_wav_dir, cand_set, receiver_node):
         wavs.append(wav.unsqueeze(0))
     if not wavs:
         raise ValueError(f"no measured RIR for receiver {receiver_node} in {room_wav_dir}")
-    return torch.cat(wavs, dim=0), available, paths
+    return torch.cat(wavs, dim=0), available, source_nodes
 
 
-def run_query_gt_rir(engine, cand_set, room_wav_dir, receiver_node, obs_wav):
+def run_query_gt_rir(engine, cand_set, room_wav_dir, receiver_node, obs_wav, merge_map=None):
     """Measured-RIR oracle (plan §2.6): score the real RIRs, generate nothing.
 
     Needs no FLAC checkpoint, so it runs the moment the dataset lands. Candidates
@@ -988,7 +1013,8 @@ def run_query_gt_rir(engine, cand_set, room_wav_dir, receiver_node, obs_wav):
     """
     timings = {name: 0.0 for name in PROBE_COMPONENTS if name != "context"}
     with _timed(timings, "decode", engine.device):         # file load stands in for decode
-        wavs, available, _paths = load_measured_rirs(room_wav_dir, cand_set, receiver_node)
+        wavs, available, source_nodes = load_measured_rirs(room_wav_dir, cand_set, receiver_node,
+                                                           merge_map=merge_map)
     with _timed(timings, "embed", engine.device):
         embeddings = engine.embedder(wavs.to(engine.device))
         obs_embedding = engine.embedder(obs_wav.to(engine.device))[0]
@@ -1008,7 +1034,7 @@ def run_query_gt_rir(engine, cand_set, room_wav_dir, receiver_node, obs_wav):
             f"RIR in {room_wav_dir}; the oracle would be scoring a query whose own answer is "
             "not in the scored set")
     return {"sims": sims, "available": available, "cand_cam_xyz": candidate_camera_positions(cand_set),
-            "identity_index": gt_index,
+            "identity_index": gt_index, "oracle_source_nodes": source_nodes,
             "num_candidates": len(cand_set.nodes), "num_samples": 1, "timings_s": timings}
 
 
@@ -1400,7 +1426,8 @@ def process_query(args, engine, context, md, obs_wav):
 
         if args.score_source == "gt_rir":
             outcome = run_query_gt_rir(engine, cand_set, os.path.dirname(md["path"]),
-                                       receiver_node, obs_wav)
+                                       receiver_node, obs_wav,
+                                       merge_map=room_entry.get("merge_map"))
             noise_keys, available = [], outcome["available"]
             identity_index = outcome["identity_index"]
         else:
@@ -1425,7 +1452,8 @@ def process_query(args, engine, context, md, obs_wav):
         identity_index=identity_index, substituted=False,
         context_xyz_cam=evidence.get("context_xyz_cam"),
         context_sims_hex=evidence.get("context_sims_hex"),
-        timings=timings, merge_map=room_entry.get("merge_map"))
+        timings=timings, merge_map=room_entry.get("merge_map"),
+        oracle_source_nodes=outcome.get("oracle_source_nodes"))
 
 
 def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, expected=None,
