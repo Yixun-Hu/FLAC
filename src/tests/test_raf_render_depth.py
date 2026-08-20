@@ -1220,7 +1220,8 @@ def _render_args(**overrides):
 
     values = {"rooms": ["EmptyRoom", "FurnishedRoom"], "img_h": 256, "img_w": 512,
               "floor_tol": raf_render.DEFAULT_FLOOR_TOL,
-              "max_miss_rate": raf_render.DEFAULT_MAX_MISS_RATE}
+              "max_miss_rate": raf_render.DEFAULT_MAX_MISS_RATE,
+              "rx_sightline_receivers": raf_render.RX_SIGHTLINE_MAX_RECEIVERS}
     values.update(overrides)
     return argparse.Namespace(**values)
 
@@ -1228,7 +1229,7 @@ def _render_args(**overrides):
 def test_canonical_render_identity_is_the_registered_one():
     assert raf_render.CANONICAL_RENDER_PARAMS == {
         "rooms": ("EmptyRoom", "FurnishedRoom"), "img_h": 256, "img_w": 512,
-        "floor_tol": 0.15, "max_miss_rate": 0.001,
+        "floor_tol": 0.15, "max_miss_rate": 0.001, "rx_sightline_receivers": 8,
     }
     assert raf_render.assert_canonical_render(_render_args()) == []
 

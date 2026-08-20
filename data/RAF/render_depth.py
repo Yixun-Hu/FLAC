@@ -32,6 +32,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:  # raf_common.py is a sibling script, not an installed package
     sys.path.insert(0, _HERE)
 from raf_common import RAF_TO_PIPELINE, equirect_directions  # noqa: E402
+from publish import CANONICAL_RENDER_PARAMS as _REGISTERED_RENDER  # noqa: E402
 from publish import PublishTransaction  # noqa: E402
 from readback_audit import load_passing_record, record_provenance  # noqa: E402
 
@@ -323,13 +324,9 @@ def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL, img_h=DEPTH_H,
 # I/O and written into the depth marker, so a Furnished-only render, a loosened
 # floor tolerance that disables the vertical gate, or a non-canonical grid can no
 # longer publish "canonical": true.
-CANONICAL_RENDER_PARAMS = {
-    "rooms": ("EmptyRoom", "FurnishedRoom"),
-    "img_h": DEPTH_H,
-    "img_w": DEPTH_W,
-    "floor_tol": DEFAULT_FLOOR_TOL,
-    "max_miss_rate": DEFAULT_MAX_MISS_RATE,
-}
+# One registered copy, defined in the verifier (r6 finding 3).
+CANONICAL_RENDER_PARAMS = dict(_REGISTERED_RENDER,
+                               rooms=tuple(_REGISTERED_RENDER["rooms"]))
 
 
 def render_identity(args):
@@ -340,6 +337,7 @@ def render_identity(args):
         "img_w": int(args.img_w),
         "floor_tol": float(args.floor_tol),
         "max_miss_rate": float(args.max_miss_rate),
+        "rx_sightline_receivers": int(args.rx_sightline_receivers),
     }
 
 
@@ -349,7 +347,7 @@ def canonical_render_deviations(args):
     if tuple(identity["rooms"]) != CANONICAL_RENDER_PARAMS["rooms"]:
         deviations.append(
             f"rooms {identity['rooms']} != {list(CANONICAL_RENDER_PARAMS['rooms'])}")
-    for key in ("img_h", "img_w", "floor_tol"):
+    for key in ("img_h", "img_w", "floor_tol", "rx_sightline_receivers"):
         if identity[key] != CANONICAL_RENDER_PARAMS[key]:
             deviations.append(f"{key} {identity[key]} != {CANONICAL_RENDER_PARAMS[key]}")
     # the cap may be LOWERED canonically (resolve_miss_cap), never raised

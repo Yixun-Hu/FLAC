@@ -33,7 +33,7 @@ import soundfile as sf
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:  # raf_common.py is a sibling script, not an installed package
     sys.path.insert(0, _HERE)
-from publish import PublishTransaction  # noqa: E402
+from publish import CANONICAL_PREPARE_PARAMS, PublishTransaction  # noqa: E402
 from readback_audit import load_passing_record, record_provenance  # noqa: E402
 from raf_common import (  # noqa: E402
     DBFS_FLOOR,
@@ -374,16 +374,9 @@ CANONICAL_GROUP_SIZE = 36
 # Canonical publication must use exactly these; anything else is an experiment and
 # has to say so with --non-canonical. allow_nonuniform is True because the corpus
 # HAS one recorded 72-capture group, which the eligibility filter then excludes.
-CANONICAL_PARAMS = {
-    "rooms": ("EmptyRoom", "FurnishedRoom"),
-    "n_groups": 16,
-    "n_val_groups": 4,
-    "n_train": 12,
-    "n_diagnostic_groups": 1,
-    "seed": 0,
-    "full_crosscheck": True,
-    "allow_nonuniform": True,
-}
+# One registered copy, defined in the verifier (data/RAF/publish.py) so producer
+# and consumer are validated against the same dictionary (r6 finding 3).
+CANONICAL_PARAMS = dict(CANONICAL_PREPARE_PARAMS, rooms=tuple(CANONICAL_PREPARE_PARAMS["rooms"]))
 
 
 def parameter_identity(args):

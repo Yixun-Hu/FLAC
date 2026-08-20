@@ -377,6 +377,59 @@ def resolve_rooms(rooms, canonical=True):
     return list(rooms)
 
 
+def canonical_record_digest():
+    """The pinned readback digest, imported lazily to keep the module graph acyclic."""
+    import importlib.util
+
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "readback_audit.py")
+    spec = importlib.util.spec_from_file_location("raf_readback_for_publish", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.CANONICAL_RECORD_SHA256
+
+
+def marker_identity_problems(kind, marker):
+    """Does this marker actually attest the registered identity for its kind?
+
+    Checks the COMPLETE parameter payload -- exact key set and exact values -- plus
+    the pinned readback digest and the absence of taint. A marker that merely says
+    ``canonical_parameters: true`` proves nothing; the r5 oracle accepted markers
+    with no parameters or digest at all.
+    """
+    expected = CANONICAL_IDENTITIES[kind]
+    problems = []
+    if marker.get("canonical") is not True:
+        problems.append(f"{kind} marker does not declare canonical publication")
+    if marker.get("taint"):
+        problems.append(f"{kind} marker is tainted: {marker['taint']}")
+
+    parameters = marker.get("parameters")
+    if not isinstance(parameters, dict):
+        problems.append(f"{kind} marker carries no parameter payload")
+    else:
+        missing = sorted(set(expected) - set(parameters))
+        extra = sorted(set(parameters) - set(expected))
+        if missing:
+            problems.append(f"{kind} marker parameters are missing {missing}")
+        if extra:
+            problems.append(f"{kind} marker parameters carry unregistered {extra}")
+        for key in sorted(set(expected) & set(parameters)):
+            actual, want = parameters[key], expected[key]
+            if isinstance(want, list):
+                actual, want = list(actual or []), list(want)
+            if actual != want:
+                problems.append(
+                    f"{kind} marker parameter {key}={actual!r} != registered {want!r}")
+
+    digest = ((marker.get("readback_record") or {}).get("sha256")
+              if isinstance(marker.get("readback_record"), dict) else None)
+    if digest != canonical_record_digest():
+        problems.append(
+            f"{kind} marker readback digest {digest} is not the pinned "
+            f"{canonical_record_digest()}")
+    return problems
+
+
 def verify_combined_publication(split_dir, output_dir, rooms=None,
                                 depth_subdir="depth_images", canonical=True):
     """A RAF publication is complete only when BOTH kinds attest their exact sets.
@@ -398,16 +451,12 @@ def verify_combined_publication(split_dir, output_dir, rooms=None,
         reasons.append(f"prepare: {prepare['reason']}")
     if not depth["published"]:
         reasons.append(f"depth: {depth['reason']}")
-    # r5 finding 3: validate the markers' own provenance, not only their manifests.
+    # r6 finding 3: verify the markers' COMPLETE parameter payload against the
+    # registered identity for their kind, and the pinned digest -- never the
+    # producer's own `canonical_parameters` boolean, which is just a claim.
     if canonical:
         for kind, report in (("prepare", prepare), ("depth", depth)):
-            marker = report.get("marker") or {}
-            if marker.get("canonical") is not True:
-                reasons.append(f"{kind} marker does not declare canonical publication")
-            if marker.get("canonical_parameters") is not True:
-                reasons.append(f"{kind} marker records non-registered parameters")
-            if marker.get("taint"):
-                reasons.append(f"{kind} marker is tainted: {marker['taint']}")
+            reasons.extend(marker_identity_problems(kind, report.get("marker") or {}))
     return {
         "published": not reasons,
         "reason": "; ".join(reasons),

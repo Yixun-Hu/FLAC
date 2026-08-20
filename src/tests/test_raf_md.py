@@ -623,7 +623,7 @@ def test_conditioning_assembles_into_cross_attention_and_global_inputs(runtime_r
 # --------------------------------------------------------------------------- #
 def _publish_tree(tmp_path, runtime_root, rooms=None, canonical=True,
                   parameters_ok=True, digest=None, with_depth=True,
-                  output_dir=None):
+                  output_dir=None, parameters=None, marker_digest=None):
     """Publish the synthetic tree the way prepare_data + render_depth do:
     a prepare marker in the SPLIT directory and a depth marker per room."""
     import publish as raf_publish
@@ -646,15 +646,16 @@ def _publish_tree(tmp_path, runtime_root, rooms=None, canonical=True,
         "canonical": canonical,
         "canonical_parameters": parameters_ok,
         "taint": [],
-        "parameters": dict(raf_publish.CANONICAL_PREPARE_PARAMS, rooms=list(rooms)),
-        "readback_record": dict(pointer["readback_record"]),
+        "parameters": dict(raf_publish.CANONICAL_PREPARE_PARAMS, rooms=list(rooms),
+                           **(parameters or {})),
+        "readback_record": {"sha256": marker_digest or pointer["readback_record"]["sha256"]},
     }
     depth_extra = {
         "canonical": canonical,
         "canonical_parameters": parameters_ok,
         "taint": [],
         "parameters": dict(raf_publish.CANONICAL_RENDER_PARAMS, rooms=list(rooms)),
-        "readback_record": dict(pointer["readback_record"]),
+        "readback_record": {"sha256": marker_digest or pointer["readback_record"]["sha256"]},
     }
     with raf_publish.PublishTransaction(str(split_dir), kind="prepare") as txn:
         runtime = txn.stage(str(runtime_root))
@@ -743,10 +744,12 @@ def test_canonical_tree_must_carry_the_registered_identity(
 
 def test_canonical_tree_must_have_registered_parameters(
         gated_md, runtime_root, tmp_path):
-    _publish_tree(tmp_path, runtime_root, parameters_ok=False)
+    """The consumer checks the PAYLOAD, not the producer's boolean (F3): the
+    marker here claims canonical_parameters yet carries a wrong n_groups."""
+    _publish_tree(tmp_path, runtime_root, parameters={"n_groups": 4})
     with pytest.raises(RAFPublicationError) as exc:
         gated_md.get_custom_metadata(_info(runtime_root, "000000"), None)
-    assert "parameters" in str(exc.value)
+    assert "n_groups" in str(exc.value)
 
 
 def test_canonical_tree_must_cover_both_registered_rooms(

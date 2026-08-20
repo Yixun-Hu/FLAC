@@ -664,6 +664,22 @@ def test_duplicate_expected_roots_are_reported_not_collapsed(tmp_path):
     assert "duplicate expected roots" in report["reason"]
 
 
+def _prepare_extra(**overrides):
+    extra = {"canonical": True, "canonical_parameters": True, "taint": [],
+             "parameters": dict(raf_publish.CANONICAL_PREPARE_PARAMS),
+             "readback_record": {"sha256": raf_publish.canonical_record_digest()}}
+    extra.update(overrides)
+    return extra
+
+
+def _depth_extra(**overrides):
+    extra = {"canonical": True, "canonical_parameters": True, "taint": [],
+             "parameters": dict(raf_publish.CANONICAL_RENDER_PARAMS),
+             "readback_record": {"sha256": raf_publish.canonical_record_digest()}}
+    extra.update(overrides)
+    return extra
+
+
 def test_canonical_combined_verification_validates_marker_provenance(tmp_path):
     """A tainted or non-canonical marker cannot attest a canonical publication."""
     split_dir, out = tmp_path / "splits", tmp_path / "runtime"
@@ -671,16 +687,14 @@ def test_canonical_combined_verification_validates_marker_provenance(tmp_path):
     with raf_publish.PublishTransaction(str(split_dir), kind="prepare") as txn:
         open(txn.stage(str(out)).path("x.txt"), "w").write("x")
         open(txn.stage(str(split_dir)).path("y.txt"), "w").write("y")
-        txn.commit(extra={"canonical": True, "canonical_parameters": True, "taint": []})
+        txn.commit(extra=_prepare_extra())
     with raf_publish.PublishTransaction(str(out), kind="depth") as txn:
         for room in rooms:
             open(txn.stage(str(out / room / "depth_images")).path("m.npy"), "w").write("d")
-        txn.commit(extra={"canonical": True, "canonical_parameters": False,
-                          "taint": ["non-registered render parameters"]})
+        txn.commit(extra=dict(_depth_extra(), taint=["non-registered render parameters"]))
     report = raf_publish.verify_combined_publication(str(split_dir), str(out),
                                                      canonical=True)
     assert report["published"] is False
-    assert "non-registered parameters" in report["reason"]
     assert "tainted" in report["reason"]
 
 
@@ -690,12 +704,83 @@ def test_canonical_combined_verification_accepts_a_clean_pair(tmp_path):
     with raf_publish.PublishTransaction(str(split_dir), kind="prepare") as txn:
         open(txn.stage(str(out)).path("x.txt"), "w").write("x")
         open(txn.stage(str(split_dir)).path("y.txt"), "w").write("y")
-        txn.commit(extra={"canonical": True, "canonical_parameters": True, "taint": []})
+        txn.commit(extra=_prepare_extra())
     with raf_publish.PublishTransaction(str(out), kind="depth") as txn:
         for room in rooms:
             open(txn.stage(str(out / room / "depth_images")).path("m.npy"), "w").write("d")
-        txn.commit(extra={"canonical": True, "canonical_parameters": True, "taint": []})
+        txn.commit(extra=_depth_extra())
     report = raf_publish.verify_combined_publication(str(split_dir), str(out),
                                                      canonical=True)
     assert report["published"] is True
     assert report["rooms"] == rooms
+
+
+# --------------------------------------------------------------------------- #
+# r6 F3: the consumer verifies identities, never the producer's booleans
+# --------------------------------------------------------------------------- #
+def test_marker_identity_accepts_the_registered_payload():
+    assert raf_publish.marker_identity_problems("prepare", _prepare_extra()) == []
+    assert raf_publish.marker_identity_problems("depth", _depth_extra()) == []
+
+
+def test_marker_identity_rejects_a_bare_canonical_claim():
+    """The r5 oracle accepted canonical markers with no parameters and no digest."""
+    problems = raf_publish.marker_identity_problems(
+        "prepare", {"canonical": True, "canonical_parameters": True, "taint": []})
+    assert any("no parameter payload" in p for p in problems)
+    assert any("readback digest" in p for p in problems)
+
+
+@pytest.mark.parametrize("kind,mutate,needle", [
+    ("prepare", {"parameters": dict(raf_publish.CANONICAL_PREPARE_PARAMS, seed=999)},
+     "seed"),
+    ("prepare", {"parameters": dict(raf_publish.CANONICAL_PREPARE_PARAMS, n_train=6)},
+     "n_train"),
+    ("prepare", {"parameters": dict(raf_publish.CANONICAL_PREPARE_PARAMS,
+                                    rooms=["EmptyRoom"])}, "rooms"),
+    ("depth", {"parameters": dict(raf_publish.CANONICAL_RENDER_PARAMS, floor_tol=5.0)},
+     "floor_tol"),
+    ("depth", {"parameters": dict(raf_publish.CANONICAL_RENDER_PARAMS,
+                                  max_miss_rate=0.0001)}, "max_miss_rate"),
+])
+def test_marker_identity_rejects_altered_parameters(kind, mutate, needle):
+    extra = (_prepare_extra if kind == "prepare" else _depth_extra)(**mutate)
+    problems = raf_publish.marker_identity_problems(kind, extra)
+    assert any(needle in p for p in problems)
+
+
+def test_marker_identity_rejects_missing_and_extra_parameters():
+    missing = dict(raf_publish.CANONICAL_PREPARE_PARAMS)
+    missing.pop("seed")
+    problems = raf_publish.marker_identity_problems(
+        "prepare", _prepare_extra(parameters=missing))
+    assert any("missing ['seed']" in p for p in problems)
+
+    extra = dict(raf_publish.CANONICAL_PREPARE_PARAMS, smuggled=1)
+    problems = raf_publish.marker_identity_problems(
+        "prepare", _prepare_extra(parameters=extra))
+    assert any("unregistered ['smuggled']" in p for p in problems)
+
+
+def test_marker_identity_rejects_a_wrong_or_missing_digest():
+    problems = raf_publish.marker_identity_problems(
+        "depth", _depth_extra(readback_record={"sha256": "0" * 64}))
+    assert any("readback digest" in p for p in problems)
+    problems = raf_publish.marker_identity_problems("depth", _depth_extra(readback_record=None))
+    assert any("readback digest" in p for p in problems)
+
+
+def test_the_registered_digest_is_the_pinned_one():
+    import readback_audit as raf_readback
+
+    assert raf_publish.canonical_record_digest() == raf_readback.CANONICAL_RECORD_SHA256
+
+
+def test_producers_and_verifier_share_one_registered_identity():
+    import prepare_data as raf_prepare_mod
+    import render_depth as raf_render_mod
+
+    assert dict(raf_prepare_mod.CANONICAL_PARAMS, rooms=list(
+        raf_prepare_mod.CANONICAL_PARAMS["rooms"])) == raf_publish.CANONICAL_PREPARE_PARAMS
+    assert dict(raf_render_mod.CANONICAL_RENDER_PARAMS, rooms=list(
+        raf_render_mod.CANONICAL_RENDER_PARAMS["rooms"])) == raf_publish.CANONICAL_RENDER_PARAMS
