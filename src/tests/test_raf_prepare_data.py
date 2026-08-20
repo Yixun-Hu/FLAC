@@ -1205,3 +1205,53 @@ def test_runtime_metadata_publishes_the_raw_raf_height(mini_room):
         # HERE -- and would not under a different gauge, which is the whole point
         assert entry["tx_height_raf_m"] == pytest.approx(entry["tx_xyz_p"][2])
     assert raf_prepare.RAF_UP_AXIS == 1
+
+
+# --------------------------------------------------------------------------- #
+# r7 Amendment 9.2 F5: the committed split content is the republication baseline
+# --------------------------------------------------------------------------- #
+# sha256 prefixes of the four canonical split manifests as committed. Amendment 9
+# requires the amplitude republication to change amplitudes and generation
+# metadata ONLY -- the split cut (seed, FPS selection, roles) must be untouched.
+# Comparing two generations of the same patched code cannot see a deterministic
+# split change; these literals can.
+_COMMITTED_SPLIT_SHA256 = {
+    "train_base.json": "61b7a5394589ec8d",
+    "val_base.json": "0da64e8137594c33",
+    "test_base.json": "29a4dac8329f1ef8",
+    "diagnostic_base.json": "d87fb918a5362d99",
+}
+
+
+@pytest.mark.parametrize("name,prefix", sorted(_COMMITTED_SPLIT_SHA256.items()))
+def test_committed_split_files_match_the_republication_baseline(name, prefix):
+    import hashlib
+
+    path = os.path.join(_REPO_ROOT, "data", "RAF", name)
+    if not os.path.isfile(path):
+        pytest.skip(f"{name} has not been generated in this checkout")
+    with open(path, "rb") as f:
+        digest = hashlib.sha256(f.read()).hexdigest()
+    assert digest.startswith(prefix), (
+        f"{name} changed: the amplitude republication may alter amplitudes and "
+        "generation metadata only, never the split cut")
+
+
+def test_the_baseline_covers_every_emitted_split_manifest():
+    """If a fifth manifest is ever emitted, this baseline must grow with it."""
+    jsons = raf_prepare.assemble_split_jsons({})
+    assert {f"{name}_base.json" for name in jsons} == set(_COMMITTED_SPLIT_SHA256)
+
+
+def test_split_content_is_a_function_of_seed_and_params_only(mini_room):
+    """The republication invariant, at the level that decides it: the ids per role
+    depend on the seed and the registered parameters, not on when it was run."""
+    index = raf_prepare.load_room_index(mini_room)
+    groups, _ = raf_prepare.group_captures(index)
+    first = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1, n_train=12,
+                                      n_diagnostic_groups=1)
+    second = raf_prepare.select_splits(groups, n_groups=1, n_val_groups=1, n_train=12,
+                                       n_diagnostic_groups=1)
+    for key in ("train_ids", "test_ids", "val_ids", "diagnostic_ids", "support_ids",
+                "roles"):
+        assert first[key] == second[key], key
