@@ -580,3 +580,45 @@ def test_metric_matched_retrieval_refuses_bad_inputs():
     with pytest.raises(ValueError):
         rm.metric_matched_retrieval(cand_xyz, ctx_xyz, torch.tensor([0.1]),
                                     eligible_mask=[False, False])
+
+
+# --------------------------------------------------------------------------- #
+# R4-r2 (Planner ruling on flag 4): the uniform-drop rule STAYS, plus a per-query
+# diagnostic saying how many features it removed and who caused each drop --
+# reporting, so the analysis can quantify whether it ever mattered.
+# --------------------------------------------------------------------------- #
+def test_m4_dropped_diagnostic_names_the_causing_candidate():
+    obs = np.array([1.0, 2.0, 3.0])
+    feats = np.array([[[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]],
+                      [[1.0, np.nan, 3.0], [1.0, 2.0, 3.0]]])          # [M=2, K=2, F=3]
+    diag = rm.m4_dropped_diagnostic(feats, obs, names=("a", "b", "c"))
+    assert diag["n_dropped"] == 1 and diag["dropped"] == ["b"]
+    assert diag["causes"]["b"]["candidate"] == [1, 0]                   # (m, k)
+    assert diag["causes"]["b"]["obs_invalid"] is False
+    assert diag["n_features"] == 3 and diag["n_kept"] == 2
+
+
+def test_m4_dropped_diagnostic_reports_an_invalid_observation_and_context():
+    obs = np.array([1.0, np.inf, 3.0])
+    feats = np.ones((1, 1, 3))
+    ctx = np.array([[1.0, 2.0, np.nan]])
+    diag = rm.m4_dropped_diagnostic(feats, obs, context_features=ctx, names=("a", "b", "c"))
+    assert sorted(diag["dropped"]) == ["b", "c"]
+    assert diag["causes"]["b"]["obs_invalid"] is True
+    assert diag["causes"]["c"]["context"] == 0
+    assert diag["n_dropped"] == 2
+
+
+def test_m4_dropped_diagnostic_is_empty_on_a_healthy_query():
+    diag = rm.m4_dropped_diagnostic(np.ones((2, 2, 3)), np.ones(3), names=("a", "b", "c"))
+    assert diag["n_dropped"] == 0 and diag["dropped"] == [] and diag["causes"] == {}
+
+
+def test_compute_metrics_reports_the_dropped_feature_diagnostic():
+    pred, obs, ctx = _query_tensors()
+    out = rm.compute_metrics(pred, obs, ctx, config=rm.MetricConfig(delta_max=8,
+                                                                    t30_backend="torch"))
+    diag = out["diagnostics"]["m4_dropped"]
+    assert set(diag) >= {"n_dropped", "dropped", "causes", "n_features", "n_kept"}
+    assert diag["n_features"] == len(rm.M4_FEATURES)
+    assert diag["n_kept"] == int(out["diagnostics"]["m4_mask"].sum())

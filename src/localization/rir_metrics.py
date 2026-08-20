@@ -476,6 +476,46 @@ def m4_validity_mask(candidate_features, obs_features):
     return finite_candidates & np.isfinite(obs_features)
 
 
+def m4_dropped_diagnostic(candidate_features, obs_features, context_features=None,
+                          names=M4_FEATURES):
+    """Which features the uniform-drop rule removed for this query, and why.
+
+    The rule itself is registered and unchanged (a feature is kept only if finite
+    everywhere in the query). This is pure REPORTING, added so the analysis can
+    say whether a single bad candidate ever removed a feature from a whole query
+    -- it never changes what is computed.
+    """
+    import numpy as np
+    candidate_features = np.asarray(candidate_features, dtype=np.float64)
+    obs_features = np.asarray(obs_features, dtype=np.float64).reshape(-1)
+    context_features = (None if context_features is None
+                        else np.asarray(context_features, dtype=np.float64))
+
+    stacked = candidate_features.reshape(-1, candidate_features.shape[-1])
+    if context_features is not None:
+        stacked = np.concatenate([stacked, context_features.reshape(-1, stacked.shape[-1])])
+    mask = m4_validity_mask(stacked, obs_features)
+
+    causes = {}
+    for index, keep in enumerate(mask):
+        if keep:
+            continue
+        name = names[index]
+        entry = {"obs_invalid": not bool(np.isfinite(obs_features[index])),
+                 "candidate": None, "context": None}
+        bad = np.argwhere(~np.isfinite(candidate_features[..., index]))
+        if bad.size:
+            entry["candidate"] = [int(v) for v in bad[0]]
+        if context_features is not None:
+            bad_ctx = np.argwhere(~np.isfinite(context_features[..., index]))
+            if bad_ctx.size:
+                entry["context"] = int(bad_ctx[0][0])
+        causes[name] = entry
+    dropped = [names[i] for i, keep in enumerate(mask) if not keep]
+    return {"n_features": len(names), "n_kept": int(mask.sum()), "n_dropped": len(dropped),
+            "dropped": dropped, "causes": causes}
+
+
 def m4_distance(candidate_features, obs_features, mu, sigma, mask, eps=EPS):
     """L1 over the valid features after the FROZEN z-normalization."""
     import numpy as np
@@ -639,6 +679,8 @@ def compute_metrics(pred, obs, ctx, config):
         diagnostics["m4_context_features"] = context_features
         diagnostics["m4_obs_features"] = obs_features
         diagnostics["m4_mask"] = mask
+        diagnostics["m4_dropped"] = m4_dropped_diagnostic(
+            candidate_features, obs_features, context_features=context_features)
 
     return {"candidates": candidates, "context": context, "diagnostics": diagnostics,
             "config": config.payload()}
