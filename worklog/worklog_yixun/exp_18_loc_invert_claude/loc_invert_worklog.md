@@ -254,3 +254,9 @@
 - **Result (scorer-noise, §2.8.3)** — 100 draws × 4 real RIRs: sampled-readout pairwise cos mean 0.999928 / p5 0.999850 / min 0.999514 ⇒ sampling noise ≈7e-5 cos on real RIRs (the registered mean readout removes it entirely). Report content-addressed in outputs_loc/exp18/.
 - **Result (R1)** — LAUNCHED per r6 ruling: pre-declared 3,199-identity prefix, seen split, K=8, seed 42, nohup PID 229376, GPU 1; ETA ≈ 1.2 h (~00:15 EDT). Watcher armed on first-room line before the peer's metrics-stack unfreeze signal (lazy import safety).
 - **Next** — R1 completes → `--mode reaggregate` τ selection → registration manifest committed → morning: Yixun ratifies Rev 3.2 + τ; R2 seeds 42/43 (2 GPUs) + 44, then R2b.
+
+## 2026-08-19T23:05:00-0400 — Coordination: exp_19 moved to its own worktree; freeze protocol dissolved
+
+- **Result** — Per Yixun's instruction to the peer session, exp_19 now lives in ~/codespace/exp-19-raf-finetune (branch raf-finetune-exp, same base 6170007). Metrics freeze protocol dissolved; their future commits never land on localization-exp; GPU 0 free; their GPU use announced before launch.
+- **Analysis — Planner ruling on their existing deltas on our branch (eval_FLAC R3 stream-ids + metric_callback/RT60 RAF policy):** **KEEP.** R1 launched on that verified state (parity 0.0, full suite green); reverting mid-campaign would mix code states across the sweep (SOP violation) for zero benefit — the branches share base and the deltas are additive/AR-inert (review-verified). Revisit only after the campaign if Yixun wants a clean branch.
+- **Next** — R1 completion watcher armed; τ selection on completion; registration manifest prepared for morning sign-off.
