@@ -60,3 +60,8 @@ Rows above record development SHAs on `localization-exp` (history of record for 
 | `cde1083` | r4 fix T9: committed synthetic depth-reference fixtures; real-HAA band as a skip-gated integration test pinned by hash |
 | `0e100f0` | r4 fix T10: stale text purged (wxyz usage example, 'release does not state', 'full hit rate') |
 | `36c92f3` | r4 re-pin: canonical record regenerated with `room_index` pose digests (sha256 `9288181b`); T1 corpus binding now full, counts fallback retained for legacy records |
+| `9728e98` | r5 finding 1 (T3): mandatory combined publication gate in RAF_md — runtime pointer names the split dir, prepare+depth markers verified, canonical identity checked; env var removed, test-only `_RAF_MD_TEST_MODE` |
+| `9e64a73` | r5 finding 5 (T5): raw RAF Y published as `tx_height_raf_m` and fed to the vertical check; end-to-end candidate-gauge CLI test (mesh+poses) |
+| `c7b29f3` | r5 finding 4 (T7): miss audit derives count/coords/rate/hash from the raw mask; `mask_verified is True` required |
+| `d48d708` | r5 findings 2+3 (T2/T4): seed in the prepare identity, new canonical RENDER identity validated pre-I/O, internal combined completeness + marker provenance validation |
+| `a738fa1` | r5 finding 6: separate `bearing_delta_deg` / `vertical_delta_m` (the reused `delta` wrote vertical metres into the bearing field) |
