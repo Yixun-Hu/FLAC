@@ -417,6 +417,20 @@ def m4_features(x, sample_rate=SAMPLE_RATE, t30_backend="pyroomacoustics"):
     shaped = x.reshape(1, 1, -1)
     nan = float("nan")
 
+    def _safe(fn, *fn_args, **fn_kwargs):
+        """A feature the repo estimator cannot compute is NaN, not a crash.
+
+        ``EDT._edt`` and the pyroomacoustics T30 RAISE on a signal that never
+        decays far enough (a silent or constant candidate). NaN is the value the
+        registered uniform-drop rule and its diagnostic are built to handle, so
+        the failure is recorded rather than propagated.
+        """
+        try:
+            value = float(fn(*fn_args, **fn_kwargs))
+        except Exception:                                  # noqa: BLE001 - reported as NaN
+            return nan
+        return value if np.isfinite(value) else nan
+
     arrival = _arrival_index(x)
     features = {}
     features["arrival_time"] = nan if arrival is None else arrival / float(sample_rate)
@@ -430,17 +444,17 @@ def m4_features(x, sample_rate=SAMPLE_RATE, t30_backend="pyroomacoustics"):
         reverberant = float((x ** 2).sum()) - direct
         features["drr"] = 10.0 * np.log10((direct + EPS) / (reverberant + EPS))
 
-    features["c50"] = float(_measure_clarity(shaped, time=50, fs=sample_rate)[0, 0])
-    features["c80"] = float(_measure_clarity(shaped, time=80, fs=sample_rate)[0, 0])
-    features["edt"] = float(_edt(x.numpy(), fs=sample_rate, decay_db=M4_EDT_DECAY_DB))
+    features["c50"] = _safe(lambda: _measure_clarity(shaped, time=50, fs=sample_rate)[0, 0])
+    features["c80"] = _safe(lambda: _measure_clarity(shaped, time=80, fs=sample_rate)[0, 0])
+    features["edt"] = _safe(_edt, x.numpy(), fs=sample_rate, decay_db=M4_EDT_DECAY_DB)
 
     def _t30(signal):
         shaped_signal = signal.reshape(1, 1, -1)
         if t30_backend == "torch":
-            return float(_measure_rt60_torch(shaped_signal, fs=sample_rate,
-                                             decay_db=M4_T30_DECAY_DB)[0, 0])
-        return float(_mesure_rt60_pyroomacoustics(shaped_signal, fs=sample_rate,
-                                                  decay_db=int(M4_T30_DECAY_DB))[0, 0])
+            return _safe(lambda: _measure_rt60_torch(shaped_signal, fs=sample_rate,
+                                                     decay_db=M4_T30_DECAY_DB)[0, 0])
+        return _safe(lambda: _mesure_rt60_pyroomacoustics(shaped_signal, fs=sample_rate,
+                                                          decay_db=int(M4_T30_DECAY_DB))[0, 0])
 
     features["t30"] = _t30(x)
 
@@ -603,6 +617,11 @@ class MetricConfig:
     m4_sigma: object = None
     families: tuple = ("m1", "m2", "m3", "m4", "m5")
     secondaries: bool = False
+    #: extra M1/M5 alignment bounds to emit alongside delta_max. Used ONLY by the
+    #: seen calibration pass, which must see the whole pre-listed grid so the
+    #: registered delta_max can be selected afterwards -- never inside a scoring
+    #: pass, and never on unseen data.
+    delta_grid: tuple = ()
 
     def payload(self):
         """JSON-serializable record of what this pass actually applied."""
@@ -610,6 +629,7 @@ class MetricConfig:
         return {"delta_max": int(self.delta_max), "window_samples": int(self.window_samples),
                 "param_window_samples": int(self.param_window_samples), "lam": float(self.lam),
                 "t30_backend": self.t30_backend, "sample_rate": int(self.sample_rate),
+                "delta_grid": [int(d) for d in self.delta_grid],
                 "families": list(self.families), "secondaries": bool(self.secondaries),
                 "m4_mu": None if self.m4_mu is None else np.asarray(self.m4_mu).tolist(),
                 "m4_sigma": None if self.m4_sigma is None else np.asarray(self.m4_sigma).tolist()}
@@ -652,6 +672,16 @@ def compute_metrics(pred, obs, ctx, config):
         context["m5"], diagnostics["m5_context_lags"] = m5_distance(ctx, obs, config.delta_max)
         if config.secondaries:
             diagnostics["m5_gcc_phat_lags"] = gcc_phat_lag(pred, obs, config.delta_max)
+
+    for extra in config.delta_grid:
+        if int(extra) == int(config.delta_max):
+            continue
+        if "m1" in config.families:
+            candidates[f"m1_delta{int(extra)}"] = m1_distance(pred, obs, int(extra))
+            context[f"m1_delta{int(extra)}"] = m1_distance(ctx, obs, int(extra))
+        if "m5" in config.families:
+            candidates[f"m5_delta{int(extra)}"], _ = m5_distance(pred, obs, int(extra))
+            context[f"m5_delta{int(extra)}"], _ = m5_distance(ctx, obs, int(extra))
 
     if "m4" in config.families:
         obs_features, _ = m4_feature_vector(obs, config.sample_rate, config.t30_backend)

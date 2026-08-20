@@ -784,7 +784,7 @@ def device_provenance(device):
 
 def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source, n_queries,
                      dataset_config=None, context_digest=None, candidate_manifest_sha256=None,
-                     split_file_sha256=None, merge_groups=None):
+                     split_file_sha256=None, merge_groups=None, metric_registerable=None):
     """Everything needed to reproduce or falsify the run, in one record.
 
     Announcement 05: a row is only interpretable next to the protocol it was
@@ -839,6 +839,7 @@ def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source
         "context_stream_digest": context_digest or "n/a",
         "candidate_manifest_sha256": candidate_manifest_sha256 or "n/a",
         "candidate_merge_groups": merge_groups,
+        "metric_registerable": metric_registerable,
         "split_file_sha256": split_file_sha256 or "n/a",
         **device_provenance(getattr(args, "device", "cpu")),
         "float32_matmul_precision": torch.get_float32_matmul_precision(),
@@ -1094,6 +1095,18 @@ def parse_args(argv=None):
     parser.add_argument("--dump-waveforms", default=None, metavar="DIR",
                         help="save the exactly-as-scored predicted RIRs per query "
                              "(announcement 08); generative runs only")
+    parser.add_argument("--metrics", action="store_true",
+                        help="compute the R4 non-AGREE metric families on the replay pass "
+                             "(requires --dump-waveforms: one snapshot feeds both)")
+    parser.add_argument("--metric-delta-max", type=int, default=None,
+                        help="registered M1/M5 alignment bound; must be on rir_metrics' grid")
+    parser.add_argument("--metric-t30-backend", choices=["pyroomacoustics", "torch"],
+                        default="pyroomacoustics")
+    parser.add_argument("--metric-secondaries", action="store_true",
+                        help="also compute the declared M3/M5 secondaries")
+    parser.add_argument("--metric-registration", default=None, metavar="MANIFEST.json",
+                        help="committed metric-registration manifest (required for --metrics "
+                             "on an unseeneval config)")
     parser.add_argument("--verify-against", default=None, metavar="ROWS.jsonl",
                         help="regenerate and verify every per-sample similarity against a "
                              "published rows file (announcement 08 back-fill)")
@@ -1177,6 +1190,15 @@ def validate_args(args):
             if value:
                 _refuse(f"{flag} is meaningless under --score-source gt_rir (no generation "
                         "happens); refusing rather than recording a protocol that did not run")
+    if args.metrics:
+        if not args.dump_waveforms:
+            _refuse("--metrics requires --dump-waveforms: the metric families and the npz dump "
+                    "must consume ONE snapshot of the scored waveforms, never a re-decode")
+        if args.metric_delta_max is not None:
+            from src.localization.rir_metrics import M1_DELTA_GRID
+            if int(args.metric_delta_max) not in M1_DELTA_GRID:
+                _refuse(f"--metric-delta-max {args.metric_delta_max} is not on the registered "
+                        f"grid {M1_DELTA_GRID}")
     if args.verify_against and not args.dump_waveforms:
         _refuse("--verify-against is the announcement-08 back-fill: it must also "
                 "--dump-waveforms, otherwise the pass verifies but saves nothing")
@@ -1477,11 +1499,32 @@ def prepare_dump_dir(args):
     return dump_dir
 
 
-def dump_query_waveforms(dump_dir, position, query_id, wavs, num_candidates, num_samples,
-                         obs_wav):
+def waveform_snapshot(wavs, num_candidates, num_samples, obs_wav):
+    """The ONE immutable float32 snapshot of a query's scored waveforms.
+
+    R4-COMPOSITION GUARD (r7 review): the npz dump and the R4 metric families must
+    consume the same numbers -- no second decode, no in-place op -- so both are
+    served from this single detached CPU copy, and its digest is re-checked after
+    every consumer has run.
+    """
+    pred = wavs.detach().to(torch.float32).cpu().reshape(
+        num_candidates, num_samples, -1).contiguous()
+    obs = obs_wav.detach().to(torch.float32).cpu().reshape(-1).contiguous()
+    return {"pred": pred, "obs": obs, "sha256": snapshot_digest(pred, obs)}
+
+
+def snapshot_digest(pred, obs):
+    """Digest of the snapshot's bytes, used to prove no consumer mutated it."""
+    digest = hashlib.sha256()
+    digest.update(pred.numpy().tobytes())
+    digest.update(obs.numpy().tobytes())
+    return digest.hexdigest()
+
+
+def dump_query_waveforms(dump_dir, position, query_id, snapshot):
     """Write one query's ``pred``/``obs`` arrays; return ``(relpath, sha256)``."""
-    pred = wavs.detach().cpu().float().reshape(num_candidates, num_samples, -1).numpy()
-    obs = obs_wav.detach().cpu().float().reshape(-1).numpy()
+    pred = snapshot["pred"].numpy()
+    obs = snapshot["obs"].numpy()
     name = waveform_filename(position, query_id)
     path = os.path.join(str(dump_dir), name)
     tmp = path + ".partial"
@@ -1492,7 +1535,7 @@ def dump_query_waveforms(dump_dir, position, query_id, wavs, num_candidates, num
         return name, sha256_bytes(handle.read())
 
 
-def process_query(args, engine, context, md, obs_wav, dump=None):
+def process_query(args, engine, context, md, obs_wav, dump=None, sink=None):
     """One query end to end: candidate set -> generation/oracle -> scored row.
 
     The whole body sits inside a separately synchronized wall-clock timer, and
@@ -1554,9 +1597,12 @@ def process_query(args, engine, context, md, obs_wav, dump=None):
         timings=timings, merge_map=room_entry.get("merge_map"),
         oracle_source_nodes=outcome.get("oracle_source_nodes"))
     if dump is not None and outcome.get("wavs") is not None:
+        snapshot = waveform_snapshot(outcome["wavs"], outcome["num_candidates"],
+                                     outcome["num_samples"], obs_wav)
         row["waveform_path"], row["waveform_sha256"] = dump_query_waveforms(
-            dump["dir"], dump["position"], row["query_id"], outcome["wavs"],
-            outcome["num_candidates"], outcome["num_samples"], obs_wav)
+            dump["dir"], dump["position"], row["query_id"], snapshot)
+        if sink is not None:
+            sink["snapshot"] = snapshot
     return row
 
 
@@ -1589,9 +1635,20 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
     dump_dir = prepare_dump_dir(args) if getattr(args, "dump_waveforms", None) else None
     published, published_sha = ({}, None)
     if getattr(args, "verify_against", None):
+        # r7 review LOW: prove we are replaying the SAME protocol before generating
+        preflight = preflight_verify_against(args, expected_queries=len(expected))
         published, published_sha = load_published_rows(args.verify_against)
-        print(f"verifying against {args.verify_against} ({len(published)} published rows, "
-              f"sha256={published_sha[:12]}...)")
+        print(f"replay preflight passed: {preflight['n_rows']} published rows, "
+              f"sha256={published_sha[:12]}..., provenance checked="
+              f"{preflight['provenance_checked']}")
+
+    metrics_config = metric_config_from_args(args) if getattr(args, "metrics", False) else None
+    metrics_rows, metrics_path, metrics_handle = [], None, None
+    if metrics_config is not None:
+        metrics_path = os.path.join(os.path.dirname(rows_path),
+                                    f"{artifact_stem(args)}_metrics.jsonl")
+        metrics_handle = open(metrics_path + ".partial", "w")
+        print(f"R4 metrics enabled: {metrics_config.payload()}")
     rows, scored, seen_rooms = [], [], set()
     reset_peak_memory(context.get("device", "cpu"))
 
@@ -1604,9 +1661,14 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
                     f"identity gate ABORT at position {position}: expected "
                     f"{expected[position]!r}, got {identity!r} (silent substitution?); "
                     "no query is scored under an unverified identity")
+            sink = {}
             row = process_query(args, engine, context, md, obs_wav,
                                 dump=None if dump_dir is None
-                                else {"dir": dump_dir, "position": position})
+                                else {"dir": dump_dir, "position": position}, sink=sink)
+            if metrics_config is not None:
+                metrics_rows.append(score_query_metrics(
+                    args, row, position, sink.get("snapshot"), md, metrics_config,
+                    metrics_handle))
             if published_sha is not None:
                 verify_row_against_published(row, published)
             write_row(handle, row)
@@ -1616,6 +1678,9 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
                 seen_rooms.add(row["room_id"])
                 print(f"[{len(rows)}/{len(expected)}] room {row['room_id']}")
 
+    if metrics_handle is not None:
+        metrics_handle.close()
+        os.replace(metrics_path + ".partial", metrics_path)
     if context.get("context_k") is not None:
         assert_context_evidence_complete(rows, context["context_k"])
     split = assert_scored_stream(scored, expected)
@@ -1623,6 +1688,12 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
 
     summary = summarize_run(rows)
     summary["probe"] = probe_summary(rows, read_peak_memory(context.get("device", "cpu")))
+    if metrics_config is not None:
+        summary["metrics"] = {"n_queries": len(metrics_rows), "path": metrics_path,
+                              "families": sorted({family for row in metrics_rows
+                                                  for family in row["families"]
+                                                  if "_delta" not in family}),
+                              "config": metrics_config.payload()}
     if published_sha is not None:
         summary["verify_against"] = {"rows_path": str(args.verify_against),
                                      "rows_sha256": published_sha,
@@ -1637,7 +1708,9 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
                                   split_file_sha256=(_file_sha256(split_path_of(dataset_config))
                                                      if dataset_config else None),
                                   merge_groups=(merge_group_count(manifest)
-                                                if manifest else None))
+                                                if manifest else None),
+                                  metric_registerable=(metric_registerable_payload()
+                                                       if metrics_config is not None else None))
     write_summary(summary_path, summary, provenance)
     waveform_manifest_path = None
     if dump_dir is not None:
@@ -1649,7 +1722,8 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
         write_json_atomic(paths["manifest"], manifest, overwrite=True)
     os.replace(partial_rows, rows_path)          # publish only verified artifacts
     return {"rows_path": rows_path, "summary_path": summary_path,
-            "manifest_path": paths["manifest"], "rows": rows,
+            "manifest_path": paths["manifest"], "rows": rows, "metrics_path": metrics_path,
+            "metrics_rows": metrics_rows,
             "waveform_manifest_path": waveform_manifest_path,
             "summary": summary, "provenance": provenance}
 
@@ -2664,3 +2738,187 @@ def build_waveform_manifest(args, rows, dump_dir, rows_stem):
 
 if __name__ == "__main__":
     main()
+
+
+# --------------------------------------------------------------------------- #
+# R4 metric families on the replay pass (plan_loc_invert_R4 §1)
+# --------------------------------------------------------------------------- #
+def rir_metrics_compute(pred, obs, ctx, config):
+    """Indirection so tests can observe exactly what the metrics saw."""
+    from src.localization.rir_metrics import compute_metrics
+    return compute_metrics(pred, obs, ctx, config)
+
+
+def rir_metrics_window(x):
+    """The metric families' common analysis window (imported, never redefined)."""
+    from src.localization.rir_metrics import common_window
+    return common_window(x)
+
+
+def metric_config_from_args(args):
+    """The MetricConfig this run applies. Nothing is chosen here.
+
+    ``delta_max`` comes from the CLI/registration manifest; on a SEEN calibration
+    run (no registered value) the whole pre-listed grid is emitted so calibration
+    can select from it -- selection never happens inside a scoring pass.
+    """
+    from src.localization.rir_metrics import M1_DELTA_GRID, MetricConfig
+
+    registered = args.metric_delta_max is not None
+    delta_max = int(args.metric_delta_max) if registered else M1_DELTA_GRID[0]
+    grid = () if registered else tuple(M1_DELTA_GRID)
+    return MetricConfig(delta_max=delta_max, delta_grid=grid,
+                        t30_backend=args.metric_t30_backend,
+                        m4_mu=getattr(args, "metric_m4_mu", None),
+                        m4_sigma=getattr(args, "metric_m4_sigma", None),
+                        secondaries=bool(args.metric_secondaries))
+
+
+def _encode_vector(values):
+    """Exact float32 hex for a 1-D distance vector (the sims codec, reused)."""
+    return encode_sims(torch.as_tensor(values).reshape(1, -1))[0]
+
+
+def build_metrics_row(row, position, outcome, metrics, config, num_context):
+    """One metrics-JSONL record: every family's raw distances plus its readout."""
+    from src.localization.rir_metrics import (aggregate_over_k, K_AGGREGATION_PRIMARY,
+                                              K_AGGREGATION_SECONDARIES,
+                                              predict_from_distances)
+
+    families = {}
+    for name, distances in metrics["candidates"].items():
+        aggregations = {}
+        for how in (K_AGGREGATION_PRIMARY,) + tuple(K_AGGREGATION_SECONDARIES):
+            aggregations[how] = _encode_vector(aggregate_over_k(distances, how))
+        primary = aggregate_over_k(distances, K_AGGREGATION_PRIMARY)
+        pred_index = predict_from_distances(primary)
+        families[name] = {
+            "candidates_hex": encode_sims(distances),
+            "context_hex": _encode_vector(metrics["context"][name]),
+            "aggregations": aggregations,
+            "pred_index": int(pred_index),
+            "pred_node": int(row["candidate_nodes"][pred_index]),
+            "correct": bool(pred_index == row["gt_index"]),
+        }
+
+    diagnostics = metrics["diagnostics"]
+    m4_block = {}
+    if "m4_features" in diagnostics:
+        m4_block = {
+            "features": diagnostics["m4_features"].tolist(),
+            "obs_features": diagnostics["m4_obs_features"].tolist(),
+            "context_features": diagnostics["m4_context_features"].tolist(),
+            "mask": [bool(v) for v in diagnostics["m4_mask"]],
+            "dropped": diagnostics["m4_dropped"],
+        }
+    return {
+        "query_id": row["query_id"], "room_id": row["room_id"], "position": int(position),
+        "n_candidates": int(row["n_candidates"]), "n_samples": int(row["n_samples"]),
+        "n_context": int(num_context),
+        "candidate_nodes": row["candidate_nodes"], "gt_index": int(row["gt_index"]),
+        "gt_node": int(row["gt_node"]), "context_member": row["context_member"],
+        "candidate_xyz_world": row["candidate_xyz_world"],
+        "gt_xyz_world": row["gt_xyz_world"],
+        "agree_pred_index": int(row["pred_index"]), "agree_e_loc": float(row["e_loc"]),
+        "waveform_path": row.get("waveform_path"),
+        "families": families,
+        "m4": m4_block,
+        "m5_lags": (diagnostics["m5_lags"].tolist() if "m5_lags" in diagnostics else None),
+        "m5_context_lags": (diagnostics["m5_context_lags"].tolist()
+                            if "m5_context_lags" in diagnostics else None),
+        "metric_config": metrics["config"],
+        "waveform_source": "replay_snapshot",
+        "tail_provenance": (
+            "samples 8000-9600 are deterministic-replay data: they were regenerated by the "
+            "same keyed noise bank, NOT independently verified against the original run "
+            "(the published sims only constrain the first 8000 samples)"),
+    }
+
+
+def preflight_verify_against(args, expected_queries):
+    """Refuse a replay that is not replaying the SAME protocol (r7 review LOW).
+
+    Runs BEFORE any generation: the reference file must be complete and unique,
+    its per-row protocol fields must match this CLI, and -- when the sibling
+    summary is present -- so must the run-level provenance (seed, conditioning,
+    steps, cfg-scale, checkpoint).
+    """
+    path = str(args.verify_against)
+    rows = read_rows(path)
+    if not rows:
+        _refuse(f"--verify-against {path!r} contains no rows")
+    identities = [row["query_id"] for row in rows]
+    if len(set(identities)) != len(identities):
+        _refuse(f"--verify-against {path!r} has duplicate query ids; it is not a run's rows file")
+    if expected_queries is not None and len(rows) != int(expected_queries):
+        _refuse(f"--verify-against {path!r} has {len(rows)} rows but this run scores "
+                f"{expected_queries}; the replay would not cover the published run")
+
+    expected_row = {"tau": (float(args.tau) if args.tau is not None else None),
+                    "agg": args.agg, "n_samples": effective_num_samples(args),
+                    "control": args.control, "score_source": args.score_source}
+    for field, wanted in expected_row.items():
+        values = {row.get(field) for row in rows}
+        if len(values) != 1:
+            _refuse(f"--verify-against {path!r} mixes {field!r} values {sorted(values)}")
+        found = values.pop()
+        if field == "tau" and found is not None and wanted is not None:
+            match = float(found) == float(wanted)
+        else:
+            match = found == wanted
+        if not match:
+            _refuse(f"replay protocol mismatch: published {field}={found!r}, this run "
+                    f"{field}={wanted!r}")
+
+    summary_path = path.replace("_rows.jsonl", "_summary.json")
+    provenance = None
+    if summary_path != path and os.path.isfile(summary_path):
+        with open(summary_path) as handle:
+            provenance = json.load(handle).get("provenance")
+    if provenance:
+        for field, wanted in (("seed", int(args.seed)), ("cond_method", args.cond_method),
+                              ("cond_autocast", args.cond_autocast), ("steps", int(args.steps)),
+                              ("cfg_scale", float(args.cfg_scale)),
+                              ("rotate_deg", float(args.rotate_deg))):
+            found = provenance.get(field)
+            if found is not None and found != wanted:
+                _refuse(f"replay provenance mismatch on {field}: published {found!r}, this run "
+                        f"{wanted!r}")
+    return {"rows_path": path, "n_rows": len(rows), "rows_sha256": sha256_file(path),
+            "provenance_checked": provenance is not None}
+
+
+def metric_registerable_payload():
+    """The frozen REGISTERABLE set of rir_metrics, for provenance/registration."""
+    from src.localization.rir_metrics import registerable_payload
+    return registerable_payload()
+
+
+def score_query_metrics(args, row, position, snapshot, md, config, handle):
+    """Score one query's five metric families from the SNAPSHOT and stream the row.
+
+    The snapshot is the immutable copy the npz dump was written from, so the two
+    artifacts cannot describe different waveforms; its digest is re-checked after
+    the metrics have run, and a change aborts the run rather than publishing a
+    dump and a metrics file that disagree (R4-COMPOSITION GUARD).
+    """
+    if snapshot is None:
+        _refuse(f"query {row['query_id']!r} produced no waveform snapshot; --metrics cannot "
+                "run without --dump-waveforms")
+    pred = rir_metrics_window(snapshot["pred"])
+    obs = rir_metrics_window(snapshot["obs"].reshape(1, -1))[0]
+    context_audio = md.get("context_audio")
+    if context_audio is None:
+        _refuse(f"query {row['query_id']!r} carries no context_audio; the metric-matched "
+                "retrieval control (plan R4 §2) could not be computed")
+    ctx = rir_metrics_window(torch.as_tensor(context_audio).reshape(
+        torch.as_tensor(context_audio).shape[0], -1))
+
+    metrics = rir_metrics_compute(pred, obs, ctx, config)
+    if snapshot_digest(snapshot["pred"], snapshot["obs"]) != snapshot["sha256"]:
+        _refuse(f"query {row['query_id']!r}: the waveform snapshot CHANGED while it was being "
+                "consumed; the dump and the metrics would describe different waveforms")
+
+    metrics_row = build_metrics_row(row, position, None, metrics, config, ctx.shape[0])
+    write_row(handle, metrics_row)
+    return metrics_row

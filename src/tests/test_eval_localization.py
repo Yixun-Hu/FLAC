@@ -4064,3 +4064,180 @@ def test_readback_decode_all_passes_on_a_healthy_split(tmp_path):
     assert report["ok"] is True and report["decode_all"] is True
     assert report["decoded_files"] > report["n_rooms"]
     assert report["wav_lengths"]["min"] == 12000
+
+
+# --------------------------------------------------------------------------- #
+# R4-r2 item 1 (+ r7 review's R4-COMPOSITION GUARD): metrics ride the replay
+# pass. ONE immutable float32 snapshot of the scored waveforms feeds BOTH the npz
+# dump and rir_metrics -- no re-decode, no in-place op, so the two artifacts
+# cannot disagree about what was scored.
+# --------------------------------------------------------------------------- #
+def _metrics_args(tmp_path, **over):
+    base = {"--dump-waveforms": str(tmp_path / "wf"), "--metrics": True,
+            "--metric-delta-max": "8", "--metric-t30-backend": "torch"}
+    base.update(over)
+    return _run_args(tmp_path, **base)
+
+
+def test_metrics_require_the_waveform_snapshot():
+    with pytest.raises(SystemExit):
+        el.validate_args(el.parse_args(_CLI + ["--metrics"]))
+    el.validate_args(el.parse_args(_CLI + ["--metrics", "--dump-waveforms", "wf"]))
+
+
+def test_metric_delta_max_must_be_on_the_registered_grid():
+    for bad in ("7", "64"):
+        with pytest.raises(SystemExit):
+            el.validate_args(el.parse_args(_CLI + ["--metrics", "--dump-waveforms", "wf",
+                                                   "--metric-delta-max", bad]))
+    for good in ("0", "8", "32", "128"):
+        el.validate_args(el.parse_args(_CLI + ["--metrics", "--dump-waveforms", "wf",
+                                               "--metric-delta-max", good]))
+
+
+def test_run_evaluation_streams_a_metrics_row_per_query(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    args = _metrics_args(tmp_path)
+    result = el.run_evaluation(args, loader, engine, _stub_context(root), "c", "a",
+                               expected=el.expected_split_identities(loader.dataset))
+
+    rows = el.read_rows(result["metrics_path"])
+    assert len(rows) == 2
+    row = rows[0]
+    assert row["query_id"] == result["rows"][0]["query_id"]
+    assert row["room_id"] and row["candidate_nodes"] == result["rows"][0]["candidate_nodes"]
+    for family in ("m1", "m2", "m3", "m4", "m5"):
+        block = row["families"][family]
+        decoded = el.decode_sims(block["candidates_hex"])
+        assert decoded.shape == (row["n_candidates"], row["n_samples"])
+        assert torch.isfinite(decoded).all()
+        assert len(block["context_hex"]) == row["n_context"]
+        assert set(block["aggregations"]) >= {"mean", "min", "median", "lme"}
+        assert 0 <= block["pred_index"] < row["n_candidates"]
+        assert block["pred_node"] in row["candidate_nodes"]
+    assert len(row["m5_lags"]) == row["n_candidates"]
+    assert row["m4"]["dropped"]["n_features"] == 10
+    assert row["metric_config"]["delta_max"] == 8
+    assert "deterministic-replay" in row["tail_provenance"]
+
+
+def test_metrics_rows_round_trip_at_full_precision(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    result = el.run_evaluation(_metrics_args(tmp_path), loader, engine, _stub_context(root),
+                               "c", "a", expected=el.expected_split_identities(loader.dataset))
+    written = el.read_rows(result["metrics_path"])
+    reread = el.read_rows(result["metrics_path"])
+    assert written == reread
+    first = el.decode_sims(written[0]["families"]["m1"]["candidates_hex"])
+    assert torch.equal(first, el.decode_sims(reread[0]["families"]["m1"]["candidates_hex"]))
+
+
+def test_metrics_and_dump_consume_one_immutable_snapshot(tmp_path, monkeypatch):
+    """R4-COMPOSITION GUARD: what rir_metrics scored IS what the npz holds."""
+    seen = {}
+    original = el.rir_metrics_compute
+
+    def spy(pred, obs, ctx, config):
+        seen["pred"] = pred
+        seen["obs"] = obs
+        return original(pred, obs, ctx, config)
+
+    monkeypatch.setattr(el, "rir_metrics_compute", spy)
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    args = _metrics_args(tmp_path)
+    result = el.run_evaluation(args, loader, engine, _stub_context(root), "c", "a",
+                               expected=el.expected_split_identities(loader.dataset))
+
+    row = result["rows"][-1]
+    with np.load(os.path.join(str(args.dump_waveforms), row["waveform_path"])) as payload:
+        dumped = torch.from_numpy(payload["pred"])
+        obs = torch.from_numpy(payload["obs"])
+    # the metric input is the dumped array itself, windowed -- same numbers, no re-decode
+    assert torch.equal(seen["pred"], el.rir_metrics_window(dumped))
+    assert torch.equal(seen["obs"], el.rir_metrics_window(obs.reshape(1, -1))[0])
+
+
+def test_snapshot_mutation_is_refused_by_the_integrity_guard(tmp_path, monkeypatch):
+    """If a consumer ever mutated the shared snapshot, the run must abort rather
+    than publish a dump and metrics that describe different waveforms.
+
+    The windowing currently returns a fresh tensor, so a metric implementation
+    cannot reach the snapshot today; this pins the guard for the aliasing case a
+    future refactor could introduce, by making the window an identity view.
+    """
+    original = el.rir_metrics_compute
+    monkeypatch.setattr(el, "rir_metrics_window", lambda x: x)      # alias, not a copy
+
+    def saboteur(pred, obs, ctx, config):
+        pred.mul_(2.0)                       # an in-place op the guard must catch
+        return original(pred, obs, ctx, config)
+
+    monkeypatch.setattr(el, "rir_metrics_compute", saboteur)
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    with pytest.raises(SystemExit, match="snapshot"):
+        el.run_evaluation(_metrics_args(tmp_path), loader, engine, _stub_context(root), "c", "a",
+                          expected=el.expected_split_identities(loader.dataset))
+
+
+def test_metrics_publish_atomically_with_the_run(tmp_path):
+    loader, root = _fake_run(tmp_path)
+    _rec, engine = _engine()
+    result = el.run_evaluation(_metrics_args(tmp_path), loader, engine, _stub_context(root),
+                               "c", "a", expected=el.expected_split_identities(loader.dataset))
+    assert os.path.exists(result["metrics_path"])
+    assert not os.path.exists(result["metrics_path"] + ".partial")
+    assert "_metrics.jsonl" in os.path.basename(result["metrics_path"])
+    assert result["summary"]["metrics"]["n_queries"] == 2
+    assert result["summary"]["metrics"]["families"] == ["m1", "m2", "m3", "m4", "m5"]
+    assert result["provenance"]["metric_registerable"]["m2_lambda"] == 1.0
+
+
+# --------------------------------------------------------------------------- #
+# R4-r2 item 4 (r7 review LOW): the replay must prove it is replaying the SAME
+# protocol before it regenerates anything.
+# --------------------------------------------------------------------------- #
+def test_replay_preflight_accepts_a_matching_reference(tmp_path):
+    original, root = _completed_run(tmp_path)
+    args = _run_args(tmp_path, **{"--verify-against": original["rows_path"],
+                                  "--dump-waveforms": str(tmp_path / "wf")})
+    assert el.preflight_verify_against(args, expected_queries=2)["n_rows"] == 2
+
+
+@pytest.mark.parametrize("flag,value", [("--tau", "0.5"), ("--agg", "mean"),
+                                        ("--num-samples", "4"), ("--control", "constant_source")])
+def test_replay_preflight_refuses_a_protocol_that_differs(tmp_path, flag, value):
+    original, root = _completed_run(tmp_path)
+    args = _run_args(tmp_path, **{"--verify-against": original["rows_path"],
+                                  "--dump-waveforms": str(tmp_path / "wf"), flag: value})
+    with pytest.raises(SystemExit):
+        el.preflight_verify_against(args, expected_queries=2)
+
+
+def test_replay_preflight_refuses_wrong_cardinality_or_duplicates(tmp_path):
+    original, root = _completed_run(tmp_path)
+    args = _run_args(tmp_path, **{"--verify-against": original["rows_path"],
+                                  "--dump-waveforms": str(tmp_path / "wf")})
+    with pytest.raises(SystemExit):
+        el.preflight_verify_against(args, expected_queries=6337)
+
+    rows = el.read_rows(original["rows_path"])
+    duplicated = tmp_path / "dupe.jsonl"
+    with open(duplicated, "w") as handle:
+        for row in [rows[0], rows[0]]:
+            el.write_row(handle, row)
+    dupe_args = _run_args(tmp_path, **{"--verify-against": str(duplicated),
+                                       "--dump-waveforms": str(tmp_path / "wf2")})
+    with pytest.raises(SystemExit):
+        el.preflight_verify_against(dupe_args, expected_queries=2)
+
+
+def test_replay_preflight_checks_the_sibling_summary_provenance(tmp_path):
+    original, root = _completed_run(tmp_path)
+    args = _run_args(tmp_path, **{"--verify-against": original["rows_path"],
+                                  "--dump-waveforms": str(tmp_path / "wf"), "--seed": "43"})
+    with pytest.raises(SystemExit, match="seed"):
+        el.preflight_verify_against(args, expected_queries=2)
