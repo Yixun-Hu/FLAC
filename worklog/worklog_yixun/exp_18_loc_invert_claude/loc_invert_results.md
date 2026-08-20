@@ -55,3 +55,6 @@ top-1 0.5000 | s@0.5 0.5328 | s@1.0 0.6659 | MRR 0.6334 | macro-mean 1.0751 m | 
 | pooled median | 0.000 m | 2.434 m | — |
 Paired (room-clustered): vs chance −1.864 m p≈0; vs retrieval −1.581 m p≈0. Eligible set = 9 for all 6,337. ctx-member-pred 0.047 (< 1/9 chance — FLAC avoids the context position).
 **Reading (pending seeds 42/44):** FLAC's inversion performance is context-count-invariant (0.501 at both K_ctx); retrieval collapses to chance without dense context coverage (0.689 → 0.108). In the sparse-context regime the generator adds genuine localization information — 4.5× over both controls.
+
+## R2b seed 42 (2026-08-20 18:15 EDT) — CONFIRMS seed 43
+FLAC top-1 0.5007 | chance 0.1111 | retrieval 0.1062 | ctx-member 0.0513 | paired-vs-retrieval p≈0, −1.530 m.
