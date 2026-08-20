@@ -99,3 +99,13 @@ Threat model (registered): artifacts are produced and consumed by this project's
 - **T9**: S5 unit tests get committed synthetic fixtures; the real-HAA scale reference becomes an integration test gated on the data's presence (skip-with-reason otherwise) with the measured band pinned by hash.
 - **T10**: purge the remaining stale text (wxyz usage example, 'release does not state', 'full hit rate').
 **Convergence rule (registered):** after r4 + its re-review, findings outside the threat-model boundary are surfaced to Yixun with recommendations rather than driving further rounds.
+
+## Amendment 7 (r5 dispositions for Codex r4 pass, 2026-08-20 ~02:45)
+All six findings are IN-boundary (operator error / crash states) and are implemented as specified by the review; registered identities they bind to:
+- **Canonical parameter identity (prepare):** rooms == {EmptyRoom, FurnishedRoom}, n_groups 16, n_val_groups 4, n_train 12, seed 0, full crosscheck, the recorded 72-group nonuniform rule, pinned-record digest 9288181b…; **(render):** both rooms, DEFAULT_FLOOR_TOL, DEFAULT_MAX_MISS_RATE, canonical 256×512, same digest. Both identities live in the markers and are validated BEFORE I/O.
+- **RAF_md publication verification is MANDATORY for canonical RAF configs** — `verify_combined_publication` on the ACTUAL split/runtime roots (prepare marker in split_dir, depth markers per room), checking canonical:true, exact rooms/roots, parameters, digest. Test-only opt-out is an explicit constant the canonical configs cannot reach (`_RAF_MD_TEST_MODE`, settable only from tests), not an env var an operator can forget.
+- **Combined verification defines completeness internally** (both registered rooms and roots; duplicate/empty caller inputs rejected; marker provenance validated, not only manifests).
+- **QA requires `mask_verified is True`** — count/coordinates/rate/hash all derived from the raw pre-inpaint mask; a report without the mask cannot pass.
+- **Raw RAF Y height persisted in runtime metadata** (bound to the pose digests) and fed to `real_mesh_qa` as the independent vertical reference; end-to-end candidate-gauge test THROUGH the CLI wiring (transforming mesh AND poses per candidate).
+- The `delta` shadowing bug fixed with distinct `bearing_delta_deg` / `vertical_delta_m`.
+Residuals 1–3 acknowledged as recorded (corpus-audio hashing; adversarial hardening; horizontal-permutation derivation) — they go to Yixun in the round-close package.
