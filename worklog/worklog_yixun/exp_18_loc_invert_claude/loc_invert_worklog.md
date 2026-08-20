@@ -234,3 +234,10 @@
 
 - **Result** — passed: identity gate 6,337/6,337; identity-oracle top-1 1.0 / median 0.0 in all 17 rooms; no .partial residue; provenance complete. Numbers + interpretation in loc_invert_results.md. Notable: eligible-set mean 2.25 (not 2.0 — replacement draws at missing-pair receivers), nearest-context masked control = 0.689 top-1 (the substantive non-generative bar).
 - **Next** — R0 (smoke probe + scorer-noise, GPU 1). Acceptance criteria (R0 smoke): completes on the 4 first seen-split identities (echoed + appended to params); probe_summary present with nonzero conditioning/sampling components; per-query wall time → R1/R2 projection; sims finite in [-1,1]. Acceptance (scorer-noise): report published with seed + draws recorded; pairwise-cos distribution quantifies the sampled readout's noise; cos(mean, sample) stats consistent with r2's ≈0.999 measurement.
+
+## 2026-08-19T21:45:00-0400 — R0 ABORTED by design (duplicate-position sources in 2 seen rooms) → Rev 3.2 + r6
+
+- **Result** — R0 smoke aborted fail-closed at manifest build: `Bathrooms_idx_11` S9≡S10 at [4.87,2.36,1.87]. Survey (Planner probe over the reviewed `enumerate_metadata_sources`; script logged verbatim in the command log of this entry, to be batched into the next review round): **2/131 seen rooms dirty, unseen split clean** (R-1b's successful 17-room manifest is the proof). Classification: real data property; the gate worked exactly as reviewed.
+- **Analysis** — Ruling: merge (Rev 3.2 above) rather than exclude — positional identity is the scientific object; exclusion would subset the dev split. Headline (unseen) protocol untouched. **Flag for Yixun's morning review: this is a plan amendment made overnight under the reversible-step rule; veto re-runs only the dev-side artifacts (R0/R1), not the headline.**
+- **Command / Validation** — probe: iterate seen_eval rooms → enumerate_metadata_sources, count aborts (6-line script, uses only reviewed library code).
+- **Next** — Coder r6 (merge semantics + tests) → focused review → relaunch R0 → scorer-noise → R1 launch.
