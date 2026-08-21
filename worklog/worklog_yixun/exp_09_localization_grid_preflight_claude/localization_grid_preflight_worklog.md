@@ -141,3 +141,8 @@
 - **GPU analysis** — exp_01's five full K-context=8 Vanilla runs give a median 7.193 generated RIR/s. At 6,094,936 pairs this is 235.4/470.7/941.5 GPU-hours for score `K=1/2/4`; even an optimistic 10 RIR/s gives 169.3 hours at K=1. The cache-enabled K=1 engine must exceed 10.078 RIR/s to satisfy 168 GPU-hours, but its exact probe cannot open before the geometry protocol is resolved and I1 is authorized. Full arithmetic and storage bounds are in `gpu_cost_analysis.md`.
 - **Review cadence** — per Yixun's request, no additional reviewer-md cycle was inserted before producing these decision-critical counts.
 - **Result / Next** — G1 primitives are green, but the real-data geometry gate is red. Stop for Yixun's geometry-protocol decision; do not open I1 or large generation.
+
+## 2026-08-20 — G1 diagnostic commit
+
+- **Version Control** — committed geometry primitives, audit tool, exact JSON/Markdown audit, GPU-cost analysis, and notebook evidence as `30c3bd32f3c12891521dcfc0a2dff7d4134b92fb` (`exp_09 G1: audit geometry and GPU cost`).
+- **Boundary** — this is a diagnostic completion, not a passed real-geometry gate and not authorization for I1/generation.
