@@ -195,3 +195,11 @@
 | `315eddb` | §3 + §4 | paired comparisons (median e_loc + top-1 indicator, room-clustered), Holm over the registered primaries, power/context-split/M4 diagnostics/sensitivity summary/seen-vs-unseen, all accumulated in the single streaming pass | +476 |
 | `b13baaa` | report + CLI | seed reports, the ten primary tests, seed mean±SD table, the six conclusion answers with their decision rules, markdown block, and the thin generation-free `--mode metrics-report`; real-slice round trip pins the aggregation against the driver's recorded predictions | +499 |
 | `b9e88c7` | fixes | q1 compares in the reference's own convention (0.689 is an equal-room MACRO number; pooled counterpart 0.6317 reproduced to 4 decimals), q5 reads the battery from the SEEN pass, and the family table's lost column | +115 −40 |
+
+## Round r4m6 (promotion-gate fixes for `loc_invert_codex_code_r4m5_review.md`)
+
+| SHA | Finding | Description | changed lines |
+|---|---|---|---|
+| `4b23203` | F3 (lib) + F4 + F6 | per-query geometry binding, seed proved against the recorded noise keys, sibling-summary provenance binding, unique/exact identity counts, `family_scores` refuses an unrecorded aggregation; sample SD (ddof=1); masked control ranks inside its eligible set; `M4Accumulator` honours the recorded mask | +223 −41 |
+| `42b2566` | F1 + F2 + F5 + F3 (driver) | Δ=0 rows are default report families (`declared-sensitivity`); oracle ceiling ingested from the published metrics-retrieval rows (`--oracle-inputs`) and tabulated; `--report-registration` gate binding seeds/families/split size/10 primary tests; oracle stream bound to its seed + context draw; q6 verdict fixed to "complementary … not established" with the three non-established points; q3 over 17 physical rooms; seen-vs-unseen labelled on both sides | +332 −71 |
+| `900efd4` | F5 (nit) | the seen side is labelled with the seed its own provenance records | +14 −2 |
