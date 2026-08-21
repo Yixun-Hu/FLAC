@@ -1,0 +1,32 @@
+{
+    "metrics": {
+        "T60": 11.3243,
+        "Invalid T60": 0.0,
+        "C50": 1.0106,
+        "EDT": 42.9127,
+        "FD": 0.3201,
+        "RIR_to_GT_RIR_R@1": 5.4916,
+        "RIR_to_GT_RIR_R@5": 17.1374,
+        "RIR_to_GT_RIR_R@10": 24.4437,
+        "RIR_to_geom_R@1": 4.7183,
+        "RIR_to_geom_R@5": 14.9755,
+        "RIR_to_geom_R@10": 22.1083
+    },
+    "ckpt_path": "/scratch/gpfs/BLANCHETTE/yh4742/FLAC/checkpoints/exp16_vanilla_repro/FLAC_vanilla_repro/exp16_della_vanilla_repro/checkpoints/epoch=14-step=67500.ckpt",
+    "rotate_deg": 0.0,
+    "cond_method": "vanilla",
+    "frame_avg_angles": null,
+    "cond_autocast": "default",
+    "orbit_execution": "n/a",
+    "frame_avg_fwd_cap": null,
+    "source_sha": "780a27fed31ac100f33948ee66b7900c5cc02fd7",
+    "batch_size": 64,
+    "n_samples": 6337,
+    "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json",
+    "seed": 44,
+    "cfg_scale": 1.0,
+    "steps": 1,
+    "eval_name": "exp16_repro_unseen_K1_seed44",
+    "weights_source": "ema",
+    "device": "cuda"
+}
