@@ -121,3 +121,4 @@ nohup python eval_localization.py --mode run --score-source flac \
 ```
 
 ## R4 unseen replay seed 43 (2026-08-20_20:03:45 EDT) — same pattern, --seed 43 --device cuda:0, dump R2_K8_seed43_replay
+## R4 unseen replay seed 44 (2026-08-20_22:13:22 EDT) — same pattern, cuda:1, dump R2_K8_seed44_replay
