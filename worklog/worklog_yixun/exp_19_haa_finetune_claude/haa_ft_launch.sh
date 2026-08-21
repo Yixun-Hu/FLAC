@@ -645,7 +645,10 @@ echo "namespace OK: ${SAVEDIR} holds no checkpoints"
 
 if [ "$LOGGER" = "wandb" ] && [ "$DRY_RUN" = "0" ]; then
   eval "$(grep -E '^[[:space:]]*export[[:space:]]+WANDB_API_KEY=' ~/.bashrc 2>/dev/null | tail -1)"
-  python - "$WANDB_IDENTITY" <<'PY'
+  # -I (isolated) keeps the repo's ./wandb RUN-DATA directory (created by the first
+  # wandb-logged training) from shadowing the wandb PACKAGE via the cwd sys.path entry;
+  # the gate passed before 2026-08-21 10:31 only because ./wandb did not exist yet.
+  python -I - "$WANDB_IDENTITY" <<'PY'
 import sys
 want = sys.argv[1]
 try:
