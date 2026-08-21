@@ -52,7 +52,7 @@ The score is not a training loss: FLAC and AGREE remain frozen, and localization
 
 - Use an isotropic three-dimensional grid in the room's global coordinate frame: `dx = dy = dz = 0.5 m`.
 - Anchor the lattice independently of the query and ground truth by snapping the mesh AABB inward to global `0.5 m` multiples.
-- Retain only mesh-valid free-space candidates at least `0.5 m` from room surfaces and at least `0.5 m` from the known receiver.
+- **Superseded 2026-08-20 by Yixun after measured B7:** retain ray-parity-valid room-air candidates at least `0.20 m` from room surfaces and at least `0.5 m` from the known receiver. Surface clearance is separated from physical validity.
 - Do **not** insert the continuous ground truth into the grid.
 - Measure error to the continuous metadata ground truth and report the per-query grid-oracle floor `min_c ||c - x*||`.
 - Convert each global candidate to FLAC's receiver-relative coordinate only at conditioning time: `q = c - x_r`.

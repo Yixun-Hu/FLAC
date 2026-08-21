@@ -12,15 +12,20 @@ from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
+import open3d as o3d
 
 REPO_ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / ".git").exists())
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.localization.ar_queries import load_context_manifest
 from src.localization.geometry import (
+    DEFAULT_RAY_DIRECTIONS,
     EPSILON_METERS,
+    RAY_PARITY_DIRECTION_COUNT,
+    SURFACE_CLEARANCE_METERS,
     build_lattice,
     choose_z_band_branch,
+    classify_free_space,
     classify_mesh_candidates,
     filter_query_candidates,
     grid_oracle_error,
@@ -81,19 +86,28 @@ def audit(
         mesh_path = mesh_root / scene_name / f"{room_name}.obj"
         mesh = load_raycast_scene(mesh_path, compute_topology=compute_topology)
         raw_points = build_lattice(mesh.aabb_min, mesh.aabb_max, 0.5)
-        base_mask, distances = classify_mesh_candidates(mesh, raw_points, 0.5)
+        base_mask, distances = classify_mesh_candidates(
+            mesh, raw_points, SURFACE_CLEARANCE_METERS
+        )
         base_points = raw_points[base_mask]
         if len(base_points) == 0:
             raise RuntimeError(f"empty base grid: {room_name}")
 
         sources = np.unique(np.asarray([record["source_global"] for record in room_records]), axis=0)
         receivers = np.unique(np.asarray([record["receiver_global"] for record in room_records]), axis=0)
-        source_mask, source_distance = classify_mesh_candidates(mesh, sources, 0.5)
-        # Receivers must be finite and inside the free-space classification,
-        # but they are not candidate source anchors and need not themselves be
-        # 0.5 m from a surface. Candidate points receive a separate 0.5 m
-        # receiver-clearance mask below.
-        receiver_mask, receiver_distance = classify_mesh_candidates(mesh, receivers, 0.0)
+        source_free, source_votes = classify_free_space(mesh, sources)
+        receiver_mask, receiver_votes = classify_free_space(mesh, receivers)
+        source_distance = mesh.scene.compute_distance(
+            o3d.core.Tensor(sources.astype(np.float32))
+        ).numpy()
+        receiver_distance = mesh.scene.compute_distance(
+            o3d.core.Tensor(receivers.astype(np.float32))
+        ).numpy()
+        # Validity and the source-clearance prior are separate. Receivers must
+        # classify as room air but are not subject to the source prior.
+        source_mask = source_free & (
+            source_distance + EPSILON_METERS >= SURFACE_CLEARANCE_METERS
+        )
         if not np.all(source_mask):
             failed_points = sources[~source_mask]
             source_anchor_failures.append(
@@ -102,6 +116,7 @@ def audit(
                     "count": int(len(failed_points)),
                     "coordinates": failed_points.tolist(),
                     "distances_m": source_distance[~source_mask].astype(float).tolist(),
+                    "ray_parity_votes": source_votes[~source_mask].astype(int).tolist(),
                 }
             )
             if not continue_on_anchor_failure:
@@ -117,6 +132,7 @@ def audit(
                     "count": int(len(failed_points)),
                     "coordinates": failed_points.tolist(),
                     "distances_m": receiver_distance[~receiver_mask].astype(float).tolist(),
+                    "ray_parity_votes": receiver_votes[~receiver_mask].astype(int).tolist(),
                 }
             )
             if not continue_on_anchor_failure:
@@ -191,6 +207,8 @@ def audit(
             "base_distance_min_m": float(distances[base_mask].min()),
             "source_anchor_min_distance_m": float(source_distance.min()),
             "receiver_anchor_min_distance_m": float(receiver_distance.min()),
+            "source_anchor_min_ray_votes": int(source_votes.min()),
+            "receiver_anchor_min_ray_votes": int(receiver_votes.min()),
             "source_anchor_survival": int(source_mask.sum()),
             "receiver_anchor_survival": int(receiver_mask.sum()),
             "full_candidate_counts": _summary(room_full_counts),
@@ -214,7 +232,7 @@ def audit(
         record["chosen_count"] = record["z_count"] if chosen == "z_band" else record["full_count"]
 
     result = {
-        "schema_version": 1,
+        "schema_version": 2,
         "context_manifest": str(context_manifest),
         "context_manifest_sha256": manifest["sha256"],
         "mesh_root": str(mesh_root.resolve()),
@@ -223,7 +241,15 @@ def audit(
         "included_queries": 5337,
         "included_rooms": 16,
         "grid_spacing_m": [0.5, 0.5, 0.5],
-        "surface_clearance_m": 0.5,
+        "validity_backend": "31-direction odd-ray-parity majority",
+        "ray_parity_direction_count": RAY_PARITY_DIRECTION_COUNT,
+        "ray_parity_directions_sha256": hashlib.sha256(
+            (
+                DEFAULT_RAY_DIRECTIONS
+                / np.linalg.norm(DEFAULT_RAY_DIRECTIONS, axis=1)[:, None]
+            ).astype("<f4").tobytes()
+        ).hexdigest(),
+        "surface_clearance_m": SURFACE_CLEARANCE_METERS,
         "receiver_clearance_m": 0.5,
         "context_clearance_m": 0.25,
         "epsilon_m": EPSILON_METERS,
@@ -263,16 +289,19 @@ def _markdown(result: dict) -> str:
         f"Audit SHA-256: `{result['sha256']}`. Context manifest: `{result['context_manifest_sha256']}`.",
         "",
         f"Chosen geometry branch: **{result['z_branch']}**. Included: 5,337 queries / 16 rooms; excluded: 1,000 `ListeningRoom_idx_2` queries (missing official mesh).",
-        f"Geometry gate: **{result['geometry_gate']}**; failing unique source anchors: **{sum(item['count'] for item in result['source_anchor_failures'])}** across **{len(result['source_anchor_failures'])}** rooms. A failed gate forbids generation; counts below are diagnostic.",
+        f"Validity backend: **{result['validity_backend']}**; source surface-clearance prior: **{result['surface_clearance_m']:.2f} m**.",
+        f"Geometry gate: **{result['geometry_gate']}**; failing unique source anchors: **{sum(item['count'] for item in result['source_anchor_failures'])}** across **{len(result['source_anchor_failures'])}** rooms. A failed gate forbids generation.",
         f"Failing unique receiver inside anchors: **{sum(item['count'] for item in result['receiver_anchor_failures'])}** across **{len(result['receiver_anchor_failures'])}** rooms.",
         "",
-        "| Room | Queries | Raw grid | Base valid | Full pairs | Z pairs | Full oracle >0.5 m | Z oracle >0.5 m |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|",
+        "| Room | Queries | Raw grid | Base valid | Source min surface m | Anchor min votes | Full pairs | Z pairs | Full oracle >0.5 m | Z oracle >0.5 m |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for room, value in sorted(result["rooms"].items()):
         lines.append(
             f"| {room} | {value['query_count']} | {value['raw_lattice_count']} | "
-            f"{value['base_valid_count']} | {value['full_candidate_counts']['mean'] * value['query_count']:.0f} | "
+            f"{value['base_valid_count']} | {value['source_anchor_min_distance_m']:.3f} | "
+            f"{min(value['source_anchor_min_ray_votes'], value['receiver_anchor_min_ray_votes'])}/{result['ray_parity_direction_count']} | "
+            f"{value['full_candidate_counts']['mean'] * value['query_count']:.0f} | "
             f"{value['z_candidate_counts']['mean'] * value['query_count']:.0f} | "
             f"{value['full_oracle']['over_0_5m']} | {value['z_oracle']['over_0_5m']} |"
         )

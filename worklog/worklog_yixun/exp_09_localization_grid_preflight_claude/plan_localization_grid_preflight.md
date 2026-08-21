@@ -1,7 +1,7 @@
 # Plan — exp_09_localization_grid_preflight (3-D mesh-valid analysis-by-synthesis localization)
 
 **Author:** OpenAI Codex (Planner / Analyst) · **Coder:** strongest coding-tier subagent at max effort after approval · **Reviewer:** Anthropic Claude Opus 5 (`claude-opus-5`, Claude Code 2.1.237 interactive session) · **Date:** 2026-08-20
-**Status:** APPROVED by Yixun on 2026-08-20 through R0→D1→G1, with one protocol amendment: use the original exp_01 global-RNG context draw instead of query-local hashing. All B1–B6 and N1–N9 remain addressed below. Round R0 must close before G1, and a second user cost gate follows G1 before I1.
+**Status:** APPROVED by Yixun on 2026-08-20 through R0→D1→G1, with protocol amendments for the original exp_01 global-RNG context draw and, after measured B7, 31-direction ray-parity validity plus a 0.20 m source-surface prior. All B1–B7 and N1–N9 remain addressed below. A second user cost gate follows G1 before I1.
 
 ## 0. Decision being tested
 
@@ -29,7 +29,7 @@ Protocol precedence is explicit: the PDF's §4 sentence about a common valid **2
 
 - Spacing: `delta = (0.5, 0.5, 0.5) m`.
 - Lattice: for each axis, integer multiples of `0.5 m` between `ceil(aabb_min / 0.5) * 0.5` and `floor(aabb_max / 0.5) * 0.5`. The lattice is therefore room-global and independent of query and ground truth.
-- Base room-valid mask: inside the room free space and unsigned distance to the nearest mesh surface `>= 0.5 m`, evaluated as `distance + 1e-4 m >= 0.5 m`. The `1e-4 m` tolerance applies consistently to mesh, receiver, context, and z-band boundaries.
+- Base room-valid mask (Yixun-approved B7 revision, 2026-08-20): physical validity is determined by strict-majority odd ray parity over 31 frozen non-axis-aligned directions, which is robust to the official meshes being non-watertight/non-manifold. Separately apply a source-distribution surface-clearance prior `distance + 1e-4 m >= 0.20 m`. The `1e-4 m` tolerance applies consistently to surface, receiver, context, and z-band boundaries.
 - Query-valid mask: distance to the known receiver `>= 0.5 m` and a **0.25 m numerical-duplicate guard** around each selected context-source coordinate. The 0.25 m guard is half a lattice step, prevents an effectively coincident context coordinate, and caused 0.0% measured oracle@0.5 damage in the review audit; the rejected 1.0 m rule caused 21.4%.
 - Observation-derived z rule (pre-registered, no target access): from the selected global context coordinates retain lattice heights in `[min(z_ctx)-0.5 m, max(z_ctx)+0.5 m]`, intersected with the mesh-valid full-height lattice. G1 computes both full-height and z-band oracle distributions over all 5,337 queries. Use the z-band globally only if every query remains nonempty and it creates zero additional `e_oracle>0.5 m` queries versus full height; otherwise use full height globally. The chosen branch is decided from geometry/oracle coverage before any FLAC generation and recorded in every manifest.
 - Ground truth is never inserted or snapped into the candidates.
@@ -134,11 +134,11 @@ Create `src/localization/geometry.py`:
 - `snap_axis_to_lattice(bounds, spacing)` — exact global lattice endpoints;
 - `build_lattice(aabb_min, aabb_max, spacing)` — stable lexicographic `float32/float64` candidate order;
 - `load_raycast_scene(mesh_path)` — fail-closed OBJ load and identity metadata;
-- `classify_mesh_candidates(scene, points, surface_clearance)` — occupancy plus distance mask in bounded chunks;
+- `classify_free_space(scene, points)` — bounded, deterministic 31-direction odd-ray-parity majority validity; and `classify_mesh_candidates(scene, points, surface_clearance)` — validity plus the separate distance prior;
 - `filter_query_candidates(points, receiver, context_sources, ...)` — receiver/context/z-band clearances;
 - `grid_oracle_error(points, truth)`.
 
-Create `src/tests/test_localization_geometry.py` first. Tests: negative/non-finite spacing rejected; negative AABB coordinates snap correctly; exact expected cubic lattice/order; synthetic watertight box retains only known interior points with `1e-4 m` tolerance; outside/surface points rejected; 0.5 m receiver and 0.25 m context boundary behavior; context-derived z-band and its global full-height fallback rule; no ground-truth insertion; per-query nonempty/finite-oracle guard; deterministic chunking; empty/missing/malformed mesh fails closed; all real source anchors survive their own mesh predicate.
+Create `src/tests/test_localization_geometry.py` first. Tests: negative/non-finite spacing rejected; negative AABB coordinates snap correctly; exact expected cubic lattice/order; synthetic room shell plus enclosed obstacle distinguishes room air/solid/outside under ray parity; exact 0.20 m surface boundary with `1e-4 m` tolerance; 0.5 m receiver and 0.25 m context boundary behavior; context-derived z-band and its global full-height fallback rule; no ground-truth insertion; per-query nonempty/finite-oracle guard; deterministic chunking; empty/missing/malformed mesh fails closed; all real source and receiver anchors pass validity and all sources pass the 0.20 m prior.
 
 Create `tools/audit_localization_geometry.py` after its helper contracts are green. It verifies the documented missing room, audits all 16 included meshes, emits per-room source-anchor survival and full-height/z-band oracle distributions, and writes JSON/Markdown only under this experiment folder. The tool itself is included in the G1 code review.
 

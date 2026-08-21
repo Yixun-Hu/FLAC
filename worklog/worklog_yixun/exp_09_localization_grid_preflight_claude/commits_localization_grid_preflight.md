@@ -15,3 +15,4 @@ Base: `ecb83523c4ae8c60d4cd5f0ae3e562f2a84f1fa9`. Branch: `localization-exp`.
 | 9 | `506c98b80352a1b7fd300619635f5cf06db7a4e3` | Implement the original global/per-worker context materializer, freeze the full seed-42 manifest, and close D1 tests/census. |
 | 10 | `0f4bed6` | Add failing synthetic contracts for lattice, mesh clearance, query masks, z-band gating, oracle, and fail-closed mesh loading. |
 | 11 | `30c3bd32f3c12891521dcfc0a2dff7d4134b92fb` | Implement geometry primitives/audit, publish exact candidate and GPU-cost counts, and preserve the failed real-anchor gate without generation. |
+| 12 | _(this B7 geometry revision)_ | Adopt Yixun's 0.20 m prior, replace invalid occupancy with tested ray-parity validity, close the real-anchor/oracle gate, and recompute cost. |

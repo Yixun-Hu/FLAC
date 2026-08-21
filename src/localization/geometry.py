@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
@@ -11,6 +12,22 @@ import numpy as np
 import open3d as o3d
 
 EPSILON_METERS = 1e-4
+SURFACE_CLEARANCE_METERS = 0.20
+RAY_PARITY_DIRECTION_COUNT = 31
+
+
+def _fibonacci_directions(count: int) -> np.ndarray:
+    """Return deterministic, non-axis-aligned unit directions on the sphere."""
+    indices = np.arange(count, dtype=np.float64)
+    z = 1.0 - 2.0 * (indices + 0.5) / count
+    phi = indices * (math.pi * (3.0 - math.sqrt(5.0))) + 0.371
+    radius = np.sqrt(1.0 - z * z)
+    return np.stack((radius * np.cos(phi), radius * np.sin(phi), z), axis=1).astype(
+        np.float32
+    )
+
+
+DEFAULT_RAY_DIRECTIONS = _fibonacci_directions(RAY_PARITY_DIRECTION_COUNT)
 
 
 @dataclass
@@ -97,6 +114,54 @@ def _points(points) -> np.ndarray:
     return points
 
 
+def _ray_parity_votes(
+    mesh: MeshScene, points: np.ndarray, directions: np.ndarray
+) -> np.ndarray:
+    origins = np.broadcast_to(points[:, None, :], (len(points), len(directions), 3))
+    ray_directions = np.broadcast_to(directions, origins.shape)
+    rays = np.concatenate((origins, ray_directions), axis=2).astype(np.float32, copy=False)
+    intersections = mesh.scene.count_intersections(o3d.core.Tensor(rays)).numpy()
+    return np.count_nonzero(intersections % 2 == 1, axis=1).astype(np.int16)
+
+
+def classify_free_space(
+    mesh: MeshScene,
+    points,
+    *,
+    directions=DEFAULT_RAY_DIRECTIONS,
+    chunk_size: int = 65536,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Classify room air by majority odd ray parity.
+
+    AcousticRooms meshes are non-watertight room shells with embedded objects, so
+    Open3D's closed-solid occupancy predicate is not applicable.  A point in room
+    air has odd parity through the outer shell; a point inside a closed obstacle
+    has one additional exit and therefore even parity.  Majority voting over
+    deterministic directions tolerates holes and edge/vertex degeneracies.
+    """
+    points = _points(points)
+    directions = np.asarray(directions, dtype=np.float32)
+    if (
+        directions.ndim != 2
+        or directions.shape[1] != 3
+        or len(directions) < 3
+        or len(directions) % 2 != 1
+        or not np.all(np.isfinite(directions))
+    ):
+        raise ValueError("directions must be a finite odd-sized (N, 3) array, N >= 3")
+    norms = np.linalg.norm(directions, axis=1)
+    if np.any(norms <= 0):
+        raise ValueError("ray directions must be nonzero")
+    directions = directions / norms[:, None]
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+    votes = np.empty(len(points), dtype=np.int16)
+    for start in range(0, len(points), chunk_size):
+        stop = min(start + chunk_size, len(points))
+        votes[start:stop] = _ray_parity_votes(mesh, points[start:stop], directions)
+    return votes > len(directions) // 2, votes
+
+
 def classify_mesh_candidates(
     mesh: MeshScene,
     points,
@@ -110,13 +175,14 @@ def classify_mesh_candidates(
         raise ValueError("clearance/eps/chunk_size must be nonnegative, nonnegative, positive")
     mask = np.zeros(len(points), dtype=bool)
     distances = np.empty(len(points), dtype=np.float32)
+    directions = DEFAULT_RAY_DIRECTIONS
     for start in range(0, len(points), chunk_size):
         stop = min(start + chunk_size, len(points))
         tensor = o3d.core.Tensor(points[start:stop].astype(np.float32))
-        occupancy = mesh.scene.compute_occupancy(tensor).numpy()
+        votes = _ray_parity_votes(mesh, points[start:stop], directions)
         distance = mesh.scene.compute_distance(tensor).numpy()
         distances[start:stop] = distance
-        mask[start:stop] = (occupancy >= 0.5) & np.isfinite(distance) & (
+        mask[start:stop] = (votes > len(directions) // 2) & np.isfinite(distance) & (
             distance + eps >= surface_clearance
         )
     return mask, distances

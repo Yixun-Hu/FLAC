@@ -169,11 +169,38 @@ The plan says only "encode … through frozen `AGREE.encode_audio(..., normalize
 
 ### B6 — The base mesh-clearance mask has no numerical tolerance at a boundary that is exactly critical **[measured]**
 
+> **Absorbed into B7.** B6 was written against the AABB evidence and treats 0.5 m as correct-but-boundary-critical. B7 measures the same rule against the actual mesh and shows the threshold itself is wrong, so an eps tolerance alone does not fix it. B6 stands only as the eps-hygiene requirement; the threshold decision is B7's.
+
 *Plan §1.2. The eps tolerance is stated only for the query-valid mask, not the base room-valid mask.*
 
 Minimum distance from a real source to the room AABB faces, per room, is **exactly 0.50 m** in `Bathrooms_idx_14`, `Bathrooms_idx_18` and `LivingRoomsWithHallway_idx_30`, and 0.53–1.13 m elsewhere. The dataset's placement rule is evidently "≥ 0.50 m", so the plan's 0.5 m surface-clearance threshold sits exactly on the placement boundary. A strict `distance >= 0.5` against a raycast unsigned distance, in float32, will non-deterministically delete candidates in precisely the shell where sources live — and these are the smallest rooms, already the worst affected by B1.
 
 **Required correction.** Apply the same explicit `distance + eps >= threshold` tolerance to the base room-valid mask, state the eps, and make the G1 audit report, per room, how many *real* metadata source anchors would survive their own mask. Any room where a real source fails its own validity test is a fail-closed condition, not a warning.
+
+### B7 — The geometry backend the base mask depends on does not work on these meshes, and the 0.5 m clearance excludes source positions the dataset itself uses **[measured]**
+
+*(plan §1.2 "Base room-valid mask"; §1.3 primary backend; supersedes N6, which understated this as a tolerance issue)*
+
+Two measured facts about `§1.2`'s `occupancy AND distance >= 0.5 m` mask:
+
+**(a) Open3D occupancy is semantically inverted here, and the meshes violate its precondition.** All **16/16** included OBJs report `is_watertight() == False` **and** `is_edge_manifold() == False`. `RaycastingScene.compute_occupancy` classifies **~100 % of the real source and receiver metadata anchors as "inside a solid"**. This is not a defect in Open3D: occupancy tests containment inside a closed surface, and a room shell's air volume *is* inside its shell. So `occupancy == 0` — the plan's "inside the room free space" — actually selects the space **outside** the room. Nor can the sign simply be flipped: because the meshes are non-manifold, inverted occupancy still misclassifies 10 % of real anchors in `Apartments_idx_50` and 4-8 % in `Office_idx_10`, `LivingRoomsWithHallway_idx_30/_25` and `Restaurants_idx_24`. The plan's own fail-closed acceptance criterion #2 would catch this — and would then fail all 16 rooms, killing the experiment at G1 with no fallback.
+
+**(b) The 0.5 m clearance is justified against the wrong reference.** The claim "matching AcousticRooms' published source-placement clearance" holds only against the room **AABB** (measured minimum exactly 0.50 m). Against the **mesh surface** — which is what §1.2 actually specifies — the measured global minimum real source-to-surface distance is **0.232 m** (`Restaurants_idx_22`), and **7 of 16 rooms** contain a real source closer than 0.5 m to a surface. Receivers sit 0.10-0.19 m from surfaces. A 0.5 m clearance therefore excludes positions the dataset itself uses as sources. Measured cost, with the B1 correction (receiver 0.5 m, context 0.25 m) already applied and validity by distance only:
+
+| Surface clearance | queries with `e_oracle > 0.5 m` | candidates over the 5,337 subset |
+|---|---|---|
+| 0.20 m | **0.0 %** | 17.9 M |
+| 0.25 m | **0.0 %** | 17.1 M |
+| 0.30 m | 0.6 % | 15.1 M |
+| **0.50 m (planned)** | **3.3 %** | 12.0 M |
+
+The 30 % candidate saving costs 3.3 % of queries outright, concentrated in `LivingRoomsWithHallway_idx_30` (24.2 %), `MeetingRoom_idx_20` (13.3 %), `Bedrooms_idx_33` (12.5 %), `Office_idx_10` (11.7 %), `Office_idx_11` (10.0 %).
+
+**Why it matters.** The mask conflates two different jobs: *physical validity* (do not place a source inside a wall or a solid), which is genuinely required but whose correct test is occupancy/ray-parity rather than distance; and an *in-distribution prior* (FLAC never saw a source 5 cm from a wall), which is a modelling choice whose threshold must be measured, not asserted. With occupancy unusable, distance is forced to carry both jobs alone — which is exactly why the 0.5 m value became load-bearing, and it is the wrong value. Distance-only validity also over-includes: a point deep inside thick furniture or a wall cavity can be >0.2 m from every surface and still be invalid.
+
+**Required correction.** (1) Replace the occupancy backend with a method robust to non-watertight, non-manifold geometry — multi-direction ray-parity majority voting is the standard choice — and keep the plan's anchor test as its acceptance criterion: *every* real source and receiver anchor in all 16 rooms must classify as free space before G1 closes. (2) Separate the validity mask from the clearance prior in both the plan text and the code. (3) Re-derive the clearance from the measured distribution rather than asserting it: **0.20 m**, strictly below the observed 0.232 m minimum, with the per-room source-to-surface distance table published in `_params_set_up.md`. (4) Re-run the `e_oracle` gate from B1 under the corrected mask and confirm 0 queries exceed 0.5 m.
+
+**Revised compute figure for B3.2.** Under the corrected masks the real candidate volume is **~17.1 M candidates** over the 5,337-query subset (mean 3,212 per query), i.e. **~68.6 M generations at `K = 4`** — a firmer number than the ">= 25.3 M before masking" AABB bound quoted in B3, and it does *not* shrink the problem: `Cafe_idx_1` (7,372 candidates/query) and `Auditorium_idx_1` (9,853) still dominate, so the B3.2 post-G1 cost gate and the pre-registered reduction ladder remain mandatory.
 
 ---
 
@@ -189,7 +216,7 @@ Minimum distance from a real source to the room AABB faces, per room, is **exact
 
 **N5 — Add an off-grid ground-truth score probe as a diagnostic control.** Generate at the continuous `x*_s` (off-grid, not inserted into the candidate set) for a pre-registered handful of queries and check that its score exceeds every grid candidate's. This separates "the score is uninformative" from "the grid is too coarse" — the single most useful piece of information if the headline comes out negative — and it does not violate the no-GT-insertion rule because it never enters the argmax.
 
-**N6 — Elevate oracle-normalized success to co-primary.** Measured per-room median oracle error ranges from **0.000 m** (`Apartments_idx_50`/`_42`, where sources sit at exactly z = 1.50 m and the global 0.5 m lattice happens to contain the truth exactly) to 0.28 m (`Cafe_idx_1`). With that heterogeneity, a room-bootstrapped `success@0.5 m` is driven substantially by lattice-alignment luck. Report raw and oracle-normalized success side by side in `_results.md`, not the latter as a footnote.
+**N6 — Elevate oracle-normalized success to co-primary.** *(the eps-tolerance point formerly raised here is superseded by B7, which shows the threshold itself is wrong.)* Measured per-room median oracle error ranges from **0.000 m** (`Apartments_idx_50`/`_42`, where sources sit at exactly z = 1.50 m and the global 0.5 m lattice happens to contain the truth exactly) to 0.28 m (`Cafe_idx_1`). With that heterogeneity, a room-bootstrapped `success@0.5 m` is driven substantially by lattice-alignment luck. Report raw and oracle-normalized success side by side in `_results.md`, not the latter as a footnote.
 
 **N7 — Add a real-vs-generated embedding calibration diagnostic.** AGREE was trained on real RIRs; `ĥ` is VAE-decoded and clamped. Report the distribution of `cos(E_a(h_obs), E_a(h_real,other))` against `cos(E_a(h_obs), E_a(ĥ))` so the analysis can tell a domain gap from a localization failure.
 
@@ -221,9 +248,10 @@ Implementation may open once all of the following are true:
 2. **B2** — context policy pinned to one documented option, the 520 short-context queries handled deterministically without breaking the 5,337 denominator, and the D1 test list corrected (the "eight of nine" invariant removed, the measured histogram asserted instead).
 3. **B3** — query-invariant conditioning cache made an I1 contract with a bit-identity test; the cost projection moved to a post-G1 gate; the reduction ladder pre-registered in writing before any quality number is seen.
 4. **B4** — `src/tests/test_eval_paths.py` path fixed and the full 91-module suite green, recorded in `_worklog.md` as the rung-2 baseline.
-5. **B5** — AGREE preprocessing pinned (mono, 10 240 samples, clamped, dataloader crop) and bound to the existing `Retrieval.compute_audio_features` with an equality test.
-6. **B6** — eps tolerance applied to the base mesh-clearance mask; G1 audit reports real-anchor survival per room.
-7. **N1/N2/N3** folded into the plan text as pre-registered protocol statements (z-band rule, 3-D-vs-brief deviation, canonical-only scope), and **N4/N5/N6** added to the pre-registered reporting set — all before the first generation runs.
-8. Commits ledger and worklog SHA bookkeeping brought up to date; **N9** Open3D installed in the venv that runs `src/tests/` and pinned in `pyproject.toml`.
+5. **B5** — AGREE preprocessing pinned (mono, 10 240 samples, clamped, dataloader crop) and bound to `Retrieval.compute_audio_features` with an equality test.
+6. **B6** — explicit eps tolerance on the base mask (threshold value itself decided under item 7).
+7. **B7** — occupancy backend replaced with a non-watertight-robust method and validated against all real anchors in all 16 rooms; validity mask separated from the clearance prior; clearance re-derived to 0.20 m from the measured 0.232 m minimum; B1's `e_oracle` gate re-run under the corrected mask.
+8. **N1/N2/N3** folded into the plan text as pre-registered protocol statements (z-band rule, 3-D-vs-brief deviation, canonical-only scope), and **N4/N5/N6** added to the pre-registered reporting set — all before the first generation runs.
+9. Commits ledger and worklog SHA bookkeeping brought up to date; **N9** Open3D installed in the venv that runs `src/tests/` and pinned in `pyproject.toml`.
 
-Items 1–3 change what the experiment measures and must be settled with Yixun. Items 4–6 and 8 are mechanical. Nothing in this review requires a different method: the analysis-by-synthesis design, the frozen protocol, the score, and the TDD decomposition are all sound.
+Items 1–3 and 7 change what the experiment measures and must be settled with Yixun. Items 4–6 and 9 are mechanical. Nothing in this review requires a different *method* — the analysis-by-synthesis design, the frozen protocol, the score and the TDD decomposition are all sound — but B7 does require a different *geometry backend* than the one §1.3 names.
