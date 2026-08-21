@@ -1,18 +1,29 @@
 # HANDOFF.md — working-memory contract for the next session
 
-Assume the reader has NO memory beyond the repo + `master_experiment_tracker.md` + `issue_report.md` + this file. Updated at every handoff trigger (CLAUDE.md protocol): "handoff"/"new session"/"wrap up"/`/compact` **or a model change / model-limit swap**.
+Assume the reader has NO memory beyond the repo + `master_experiment_tracker.md` + `issue_report.md` + this file.
 
-**Last updated:** 2026-08-15 ~13:45 EDT — model change **Fable 5 → Opus 5 (1M)**, refreshed by the Fable 5 seat before handing over. **Current live state: exp_15 yaw_aug is TRAINING as a self-chaining 16-leg chunk chain — 7,500/40,000 steps, leg 3 running, rate gate PASSED (1.005 steps/s > VANL's 0.943 ⇒ the augmentation is throughput-free). Full detail in "In flight right now" below; that section is the one a fresh session must read first.** exp_14 CLOSED (campaign complete). exp_16 are_port scaffolded by the other session. Standing rules: status+ETD for ALL experiments every response; ask-before-choosing (CLAUDE.md 2026-08-11); **never move refs in this shared checkout** (see issue_report).
+**Last updated:** 2026-08-21 ~04:45 EDT (Fable 5 seat, exp_18 session on mae-cab-lab-server, branch `localization-exp`). **exp_18 loc_invert is COMPLETE — all registered cells + R4 exploratory promoted — awaiting only Yixun's closure sign-off + push decision.** Nothing is training or running. Read `worklog/worklog_yixun/exp_18_loc_invert_claude/` (results → analysis → HTML) before touching anything localization-related.
 
-_(Superseded 2026-08-13 header, kept for continuity: model change Opus 5 → Fable 5 (xhigh); exp_14 plan then Rev 3+fixes, APPROVE-ready, **awaiting Yixun's final go**_ (12-day sequential training, DS-PA → audit gate → DS-CS3); A6 rotation head-to-head COMPLETE and decisive (FA flat at 90°, both vanillas degrade, 45° control valid); A4 complete (FA 6/0 in the 40k budget); A5 v1 withdrawn / v2 pilot-only. Yixun's exp12A finished; exp12C ~45k/67.5k. Standing rules: status+ETD for ALL experiments every response; ask-before-choosing (CLAUDE.md 2026-08-11).
+## exp_18 state (this session's work, 2026-08-18 → 08-21)
+- Branch `localization-exp` (base `6170007`, LOCAL ONLY — not pushed; Yixun to decide). All artifacts committed; ledger `commits_loc_invert.md`.
+- Headline: two-regime result + R4 scorer finding — see the tracker row and `loc_invert_analysis.md` (registered + R4 addendum).
+- Registration pins: R2 `2528bae`, R2b `8c2b4a3`, R4 metric freeze `d6dbf00`. Waveform dumps: `/media/diskstation/yixunhu/FLAC/exp18_pred_waveforms/` (~145 GB, every generative cell, each replay sim-verified bitwise).
+- Code: `src/localization/` (candidates, scoring, agree_embed, reaggregate, rir_metrics, metrics_report), `eval_localization.py`, `src/tests/test_loc_*` + `test_eval_localization.py` — 2,684 tests green (1 pre-existing failure: exp_15's `test_committed_record_agrees_with_exp11_registry`, stale since exp_11's registry gained `final_ckpt_sha256` in `0776122`; NOT ours; Yixun to assign).
+- Env facts this box: conda `flac`; **setuptools pinned <81** (pkg_resources); **pytest + flash_attn: pytest installed, flash_attn ABSENT (fallback attention — recorded in every provenance)**; HF login done (gated DINOv3 cached); dataset symlink `AcousticRooms` → /media/diskstation/…; released weights in `weights/`.
+- Coordination: exp_19 moved to worktree `~/codespace/exp-19-raf-finetune` (their deltas on our branch KEPT — eval_FLAC RAF stream-ids + metric-stack RAF branches, review-verified AR-inert). Path-scoped commits are MANDATORY in shared trees (two sweep incidents).
 
-> ⚠️ **Two sessions, two states — read both headers.** The exp_15 line above (chain TRAINING) is this session's; the exp_14/16/17 'HELD/IDLE' line below is the other session's and does **not** cover exp_15, whose chain Yixun explicitly directed and authorized (query 3, 2026-08-13).
+## Awaiting Yixun
+1. exp_18 closure sign-off + whether to push `localization-exp`.
+2. exp_20 cross-arm kickoff (BF/P1/YAW ckpts on NAS under `exp19_ckpts/`; questions sharpened: sparse-context margin per arm, both scorers).
+3. Optional registrable follow-ups: scorer-fusion experiment; m2-scored R2b cell (computable from saved dumps, no GPU).
+4. The stale exp_15 registry test assignment.
+5. exp_16 ARE-V remains HELD (his 2026-08-14 order).
 
-**Last updated:** 2026-08-14 ~14:10 EDT — model change **Fable 5 → Opus 5 (1M)**. **EVERYTHING OF OURS IS HELD/IDLE per Yixun 2026-08-14:** exp_14 DS-PA stops at its 5,000 ckpt (watcher armed, currently ~2.5k→5k); exp_14 DS-CS3 frozen; **exp_16 ARE-V held indefinitely — do NOT launch (Yixun 2026-08-14: "ARE-V先不做"; the Aug-16 deadline is dropped)** (code committed `6956cbc`, r1 review REQUEST-CHANGES, fix round in flight). Reactivating ARE-V = probe+stamp+launch within ~1 h of his word; training needs ~46 h wall (40k @0.259 steps/s + 6.9% anchor cost). **exp_16 scope is ARE-V ONLY**; ARE-FA/ARE-CYL deferred — he asked to be REMINDED at ARE-V completion to discuss scheduling them together (cyl backbone choice still open: in-repo `cyl_vit` vs sibling cylindrical-dinov3 + which weights). Recent science: A6 rotation head-to-head DECISIVE (FA flat at 90°, vanillas degrade, anchor EDT +5.83); A4 fair 40k grid FA 6/0.
+## Standing rules refresher
+Announcements 01–08 (esp. 07 checkpoint storage, 08 pred-waveform saving). Status+ETD every response; ask-don't-assume; universal Codex review (`~/.local/bin/codex exec -s read-only -m gpt-5.6-sol -c model_reasoning_effort=xhigh …` — auth valid on this box since 2026-08-18); SOP per `worklog/experiment_SOP.md`.
 
-> ⚠️ **The main session ALTERNATES models mid-session** (established 2026-07-16; `issue_report.md` §8). The harness fails over between turns on its own, not only on `/model`, and **an incoming model has NO memory of the other model's turns in the same session.** Treat these four docs as the live intra-session channel: write state the moment it changes, and re-verify anything time-sensitive (`pgrep -af train.py`, `nvidia-smi`, newest ckpt mtime) before quoting an ETA. A stale in-flight entry WILL produce a wrong wait-time report.
-
-> ⚠️ **This branch has CONCURRENT WRITERS.** A second Claude session on the cluster works exp_11 in this same repo/branch and pushes frequently. **Always `git pull --rebase origin check-equivariance-necessity` before committing**, and never rewrite a file it owns (its exp_11 folder, its rows in `gen_model_comparison.py`). Two rebase conflicts have already occurred and were resolved by regenerating rather than choosing a side.
+---
+*(Superseded pre-exp_18 handoff below, kept for continuity.)*
 
 ## Role map (current)
 - **Main session model:** **Opus 5 (1M, max effort)** as of 2026-08-10; previously Fable 5 / Opus 4.8 alternating. Plans, analyzes, drives runs. Role-attribution rule stands: whenever a non-Fable model fills a Fable seat (esp. analysis), flag the model in the artifact by-line.
