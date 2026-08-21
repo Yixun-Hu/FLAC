@@ -29,3 +29,9 @@ branch point `e603947` (`della-flac-chequity`, cut from `check-equivariance-nece
 - `dc33112` — round E: Phase-3 repro-eval kit (14 cells).
 - `e93dd98` — round E review artifact + Phase-3 venue amendment.
 - `cb7772a` — round E fix loop: same-cell exclusion both ends, fail-closed squeue, full preflight.
+- `cb7772a` — round E fix loop (same-cell exclusion).
+- `afe8d96` — round E closed record.
+- `780a27f` — Phase-3 submission record.
+- `831f3b8` — Phase-3 unseen JSONs + SHA256SUMS.
+- `325d6dd` — gate FAIL record + endpoint screens + seen-item issue.
+- `9d23cfb` — round F: CONT mode (continuous A/B arm).
