@@ -17,3 +17,4 @@ Base: `ecb83523c4ae8c60d4cd5f0ae3e562f2a84f1fa9`. Branch: `localization-exp`.
 | 11 | `30c3bd32f3c12891521dcfc0a2dff7d4134b92fb` | Implement geometry primitives/audit, publish exact candidate and GPU-cost counts, and preserve the failed real-anchor gate without generation. |
 | 12 | `4867078b73f4fdd0bcdb1a27a6e1f4eaba65ea6f` | Adopt Yixun's 0.20 m prior, replace invalid occupancy with tested ray-parity validity, close the real-anchor/oracle gate, and recompute cost. |
 | 13 | `c35553db319914057055736c883c9cf7f0bfe0f8` | Implement real Vanilla/FA-BF branch caches and no-quality probes, strictly load both 40k arms, measure matched A6000 throughput, and freeze `K=4`. |
+| 14 | `8276478a50c16878a27431a164e1637957de1c6d` | Apply Yixun's `K∈{1,4,8}` override as nested prefixes, remove automatic K selection, and reproject the K=8 compute boundary without GPU generation. |
