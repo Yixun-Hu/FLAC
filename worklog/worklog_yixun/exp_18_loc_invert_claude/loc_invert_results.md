@@ -58,3 +58,8 @@ Paired (room-clustered): vs chance −1.864 m p≈0; vs retrieval −1.581 m p�
 
 ## R2b seed 42 (2026-08-20 18:15 EDT) — CONFIRMS seed 43
 FLAC top-1 0.5007 | chance 0.1111 | retrieval 0.1062 | ctx-member 0.0513 | paired-vs-retrieval p≈0, −1.530 m.
+
+## R2b seed 44 (2026-08-20 20:00 EDT) — CAMPAIGN COMPLETE
+FLAC top-1 0.5065 | chance 0.1111 | retrieval 0.1096 | ctx-member 0.0494 | vs-retrieval p≈0, −1.584 m.
+**R2b three-seed: FLAC 0.5029 ± 0.0032 vs retrieval 0.1079 ± 0.0017 — the sparse-context reversal is seed-stable.**
+**Registered campaign fully complete: R-1, R0, R1(+τ), R2×3, R2b×3, all gates green, all waveform dumps per rule (R2 seeds via overnight replay).**

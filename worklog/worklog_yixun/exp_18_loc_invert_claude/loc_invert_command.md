@@ -119,3 +119,5 @@ nohup python eval_localization.py --mode run --score-source flac \
   --verify-against outputs_loc/exp18/exp18_R2_flac_ctl-none_vanilla_ac-default_lme_tau0.02_K8_seed42_scorer-AGREE_AR_registered_rows.jsonl --dump-waveforms /media/diskstation/yixunhu/FLAC/exp18_pred_waveforms/R2_K8_seed42_replay --metrics \
   --out-dir outputs_loc/exp18 --eval-name exp18_R4_unseen > worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_2026-08-20_18:59:50_R4_unseen_seed42.log 2>&1 &
 ```
+
+## R4 unseen replay seed 43 (2026-08-20_20:03:45 EDT) — same pattern, --seed 43 --device cuda:0, dump R2_K8_seed43_replay
