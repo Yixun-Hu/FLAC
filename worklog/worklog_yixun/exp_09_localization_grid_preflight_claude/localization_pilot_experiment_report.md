@@ -1,8 +1,11 @@
 # Experimental Protocol Report: Mesh-Grid RIR-Based Source Localization
 
-**Experiment:** 64-query pilot on AcousticRooms unseen rooms  
-**Model arms:** Vanilla FLAC and FA-BF FLAC  
-**Status:** Pre-registered protocol; no localization-quality result has been read  
+**Experiment:** 64-query pilot on AcousticRooms unseen rooms
+
+**Model arms:** Vanilla FLAC and FA-BF FLAC
+
+**Status:** Pre-registered protocol; no localization-quality result has been read
+
 **Date:** 2026-08-21
 
 ## 1. Objective
