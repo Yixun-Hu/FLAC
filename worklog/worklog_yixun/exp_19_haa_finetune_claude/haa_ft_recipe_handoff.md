@@ -63,3 +63,13 @@ via `--pretrained-ckpt-path`. Full registered table: `plan_haa_finetune.md` §0.
 See `results_haa_ft_five_arm_final.md` (P1/YNA/BNA/YAW/BF) and
 `results_haa_ft_steps_curve.md`; CYL-noSSL rows land ~2026-08-21 evening under
 `results_haa_ft_six_arm_final.md` (same aggregator, `--table` extended).
+
+## Data-root note (verified 2026-08-21)
+
+`/media/diskstation/yixunhu/HAA_processed/` (another session's prep) is
+RUNTIME-EQUIVALENT to our root `/media/diskstation/yixunhu/FLAC/HAA/`: splits,
+all 1,890 wavs (sampled shas), poses_metadata and depth images identical; the
+only difference is scenes_metadata's provenance `path` field, which no runtime
+consumer reads (`HAA_md.py` uses `speaker_xyz` only). Use `FLAC/HAA` (the
+`HAA` symlink) as this repo's launcher expects; rows from either root are
+comparable.
