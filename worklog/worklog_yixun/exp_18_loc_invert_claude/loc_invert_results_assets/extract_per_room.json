@@ -1,0 +1,113 @@
+{
+  "arms": {
+    "agree_k1": "FLAC + AGREE, K_ctx = 1 (R2b seed 42)",
+    "agree_k8": "FLAC + AGREE, K_ctx = 8 (R2 seed 42)",
+    "m2_k8": "R4 m2, K_ctx = 8 (seed 42)"
+  },
+  "family": "m2",
+  "rooms": {
+    "Apartments/Apartments_idx_42": {
+      "agree_k1": 0.608,
+      "agree_k8": 0.604,
+      "m2_k8": 0.748,
+      "n_queries": 250
+    },
+    "Apartments/Apartments_idx_50": {
+      "agree_k1": 0.588,
+      "agree_k8": 0.588,
+      "m2_k8": 0.68,
+      "n_queries": 250
+    },
+    "Auditorium/Auditorium_idx_1": {
+      "agree_k1": 0.705,
+      "agree_k8": 0.705,
+      "m2_k8": 0.891,
+      "n_queries": 1000
+    },
+    "Bathrooms/Bathrooms_idx_14": {
+      "agree_k1": 0.12,
+      "agree_k8": 0.132,
+      "m2_k8": 0.388,
+      "n_queries": 250
+    },
+    "Bathrooms/Bathrooms_idx_18": {
+      "agree_k1": 0.156,
+      "agree_k8": 0.144,
+      "m2_k8": 0.408,
+      "n_queries": 250
+    },
+    "Bedrooms/Bedrooms_idx_18": {
+      "agree_k1": 0.364,
+      "agree_k8": 0.364,
+      "m2_k8": 0.604,
+      "n_queries": 250
+    },
+    "Bedrooms/Bedrooms_idx_33": {
+      "agree_k1": 0.16,
+      "agree_k8": 0.168,
+      "m2_k8": 0.596,
+      "n_queries": 250
+    },
+    "Cafe/Cafe_idx_1": {
+      "agree_k1": 0.6919739696312365,
+      "agree_k8": 0.6887201735357917,
+      "m2_k8": 0.745119305856833,
+      "n_queries": 922
+    },
+    "ListeningRoom/ListeningRoom_idx_2": {
+      "agree_k1": 0.658,
+      "agree_k8": 0.653,
+      "m2_k8": 0.798,
+      "n_queries": 1000
+    },
+    "LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25": {
+      "agree_k1": 0.564,
+      "agree_k8": 0.568,
+      "m2_k8": 0.76,
+      "n_queries": 250
+    },
+    "LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30": {
+      "agree_k1": 0.6133333333333333,
+      "agree_k8": 0.6088888888888889,
+      "m2_k8": 0.8088888888888889,
+      "n_queries": 225
+    },
+    "MeetingRoom/MeetingRoom_idx_20": {
+      "agree_k1": 0.628,
+      "agree_k8": 0.636,
+      "m2_k8": 0.86,
+      "n_queries": 250
+    },
+    "MeetingRoom/MeetingRoom_idx_32": {
+      "agree_k1": 0.372,
+      "agree_k8": 0.38,
+      "m2_k8": 0.7,
+      "n_queries": 250
+    },
+    "Office/Office_idx_10": {
+      "agree_k1": 0.436,
+      "agree_k8": 0.452,
+      "m2_k8": 0.492,
+      "n_queries": 250
+    },
+    "Office/Office_idx_11": {
+      "agree_k1": 0.596,
+      "agree_k8": 0.596,
+      "m2_k8": 0.52,
+      "n_queries": 250
+    },
+    "Restaurants/Restaurants_idx_22": {
+      "agree_k1": 0.631578947368421,
+      "agree_k8": 0.6263157894736842,
+      "m2_k8": 0.8210526315789474,
+      "n_queries": 190
+    },
+    "Restaurants/Restaurants_idx_24": {
+      "agree_k1": 0.62,
+      "agree_k8": 0.612,
+      "m2_k8": 0.78,
+      "n_queries": 250
+    }
+  },
+  "source": "R2 / R2b summaries and the promoted R4 report (seed 42)"
+}

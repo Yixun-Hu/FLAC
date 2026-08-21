@@ -1,0 +1,705 @@
+{
+  "questions": {
+    "q1_exceeds_agree_retrieval": {
+      "m1": {
+        "delta_vs_recomputed_macro": -0.09444186434071766,
+        "delta_vs_recomputed_pooled": 0.004365893430119394,
+        "delta_vs_reference": -0.09618313811551671,
+        "exceeds": false,
+        "exceeds_pooled": true,
+        "macro_per_seed": {
+          "42": 0.5924644477724873,
+          "43": 0.5925536587204049,
+          "44": 0.5934324791605573
+        },
+        "macro_top1_mean": 0.5928168618844832,
+        "macro_top1_sd": 0.000535002917055408,
+        "paired_e_loc_p_values": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "paired_top1_p_values": [
+          0.998,
+          0.9884,
+          0.965
+        ],
+        "pooled_per_seed": {
+          "42": 0.6345273788859082,
+          "43": 0.6342117721319236,
+          "44": 0.6353163957708695
+        },
+        "pooled_top1_mean": 0.6346851822629004,
+        "pooled_top1_sd": 0.0005689681671870187,
+        "recomputed_reference_macro_top1": 0.6872587262252009,
+        "recomputed_reference_pooled_top1": 0.630319288832781,
+        "reference": 0.689,
+        "reference_convention": "macro (equal-room mean of per-room top-1), as R-1b"
+      },
+      "m2": {
+        "delta_vs_recomputed_macro": -0.006651945176340157,
+        "delta_vs_recomputed_pooled": 0.09368260480774304,
+        "delta_vs_reference": -0.008393218951139203,
+        "exceeds": false,
+        "exceeds_pooled": true,
+        "macro_per_seed": {
+          "42": 0.6823565191955686,
+          "43": 0.6784332537140138,
+          "44": 0.6810305702369999
+        },
+        "macro_top1_mean": 0.6806067810488607,
+        "macro_top1_sd": 0.0019956705556473204,
+        "paired_e_loc_p_values": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "paired_top1_p_values": [
+          0.2774,
+          0.2818,
+          0.2704
+        ],
+        "pooled_per_seed": {
+          "42": 0.7255799274104466,
+          "43": 0.7221082531166167,
+          "44": 0.7243175003945085
+        },
+        "pooled_top1_mean": 0.724001893640524,
+        "pooled_top1_sd": 0.001757224037503555,
+        "recomputed_reference_macro_top1": 0.6872587262252009,
+        "recomputed_reference_pooled_top1": 0.630319288832781,
+        "reference": 0.689,
+        "reference_convention": "macro (equal-room mean of per-room top-1), as R-1b"
+      },
+      "m3": {
+        "delta_vs_recomputed_macro": -0.2908977169079247,
+        "delta_vs_recomputed_pooled": -0.24243858818578717,
+        "delta_vs_reference": -0.29263899068272375,
+        "exceeds": false,
+        "exceeds_pooled": false,
+        "macro_per_seed": {
+          "42": 0.3990155671813194,
+          "43": 0.39357268229055903,
+          "44": 0.39649477847995007
+        },
+        "macro_top1_mean": 0.3963610093172762,
+        "macro_top1_sd": 0.0027239070514940107,
+        "paired_e_loc_p_values": [
+          0.8054,
+          0.7012,
+          0.8324
+        ],
+        "paired_top1_p_values": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "pooled_per_seed": {
+          "42": 0.3899321445478933,
+          "43": 0.38630266687707115,
+          "44": 0.387407290516017
+        },
+        "pooled_top1_mean": 0.3878807006469938,
+        "pooled_top1_sd": 0.0018604743762903019,
+        "recomputed_reference_macro_top1": 0.6872587262252009,
+        "recomputed_reference_pooled_top1": 0.630319288832781,
+        "reference": 0.689,
+        "reference_convention": "macro (equal-room mean of per-room top-1), as R-1b"
+      },
+      "m4": {
+        "delta_vs_recomputed_macro": -0.18167470968547494,
+        "delta_vs_recomputed_pooled": -0.09936352637946455,
+        "delta_vs_reference": -0.183415983460274,
+        "exceeds": false,
+        "exceeds_pooled": false,
+        "macro_per_seed": {
+          "42": 0.5068227660512772,
+          "43": 0.5054151293123712,
+          "44": 0.5045141542555295
+        },
+        "macro_top1_mean": 0.505584016539726,
+        "macro_top1_sd": 0.0011635352498051118,
+        "paired_e_loc_p_values": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "paired_top1_p_values": [
+          0.086,
+          0.076,
+          0.0948
+        ],
+        "pooled_per_seed": {
+          "42": 0.5322707905949188,
+          "43": 0.5303771500710115,
+          "44": 0.5302193466940193
+        },
+        "pooled_top1_mean": 0.5309557624533164,
+        "pooled_top1_sd": 0.0011415777399511446,
+        "recomputed_reference_macro_top1": 0.6872587262252009,
+        "recomputed_reference_pooled_top1": 0.630319288832781,
+        "reference": 0.689,
+        "reference_convention": "macro (equal-room mean of per-room top-1), as R-1b"
+      },
+      "m5": {
+        "delta_vs_recomputed_macro": -0.15928096690338545,
+        "delta_vs_recomputed_pooled": -0.052075114407448275,
+        "delta_vs_reference": -0.1610222406781845,
+        "exceeds": false,
+        "exceeds_pooled": false,
+        "macro_per_seed": {
+          "42": 0.528376574011269,
+          "43": 0.5288148727695212,
+          "44": 0.5267418311846563
+        },
+        "macro_top1_mean": 0.5279777593218155,
+        "macro_top1_sd": 0.0010925498709613622,
+        "paired_e_loc_p_values": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "paired_top1_p_values": [
+          0.4228,
+          0.4202,
+          0.4198
+        ],
+        "pooled_per_seed": {
+          "42": 0.5792961969386144,
+          "43": 0.57898059018463,
+          "44": 0.5764557361527537
+        },
+        "pooled_top1_mean": 0.5782441744253327,
+        "pooled_top1_sd": 0.001556851147961557,
+        "recomputed_reference_macro_top1": 0.6872587262252009,
+        "recomputed_reference_pooled_top1": 0.630319288832781,
+        "reference": 0.689,
+        "reference_convention": "macro (equal-room mean of per-room top-1), as R-1b"
+      },
+      "rule": "exceeds := equal-room MACRO top-1 averaged over seeds > the fixed AGREE retrieval reference 0.689, which is itself a macro number (R-1b, K_ctx=8; its pooled value is 0.6317). The same control recomputed per query on these very rows is reported in both conventions, and exceeds_pooled answers the same question pooled."
+    },
+    "q2_beats_own_matched_control": {
+      "m1": {
+        "beats": false,
+        "e_loc_paired_median": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "holm_adjusted_p": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "holm_rejected": [
+          false,
+          false,
+          false
+        ],
+        "top1_delta_mean": 0.08163694703066644,
+        "top1_delta_per_seed": {
+          "42": 0.08142654252801007,
+          "43": 0.07937509862711056,
+          "44": 0.08410919993687871
+        },
+        "top1_p_values": [
+          0.2776,
+          0.2844,
+          0.2644
+        ]
+      },
+      "m2": {
+        "beats": false,
+        "e_loc_paired_median": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "holm_adjusted_p": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "holm_rejected": [
+          false,
+          false,
+          false
+        ],
+        "top1_delta_mean": 0.1129346168007996,
+        "top1_delta_per_seed": {
+          "42": 0.11298721792646371,
+          "43": 0.11251380779548692,
+          "44": 0.11330282468044817
+        },
+        "top1_p_values": [
+          0.174,
+          0.1766,
+          0.17
+        ]
+      },
+      "m3": {
+        "beats": false,
+        "e_loc_paired_median": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "holm_adjusted_p": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "holm_rejected": [
+          true,
+          true,
+          true
+        ],
+        "top1_delta_mean": -0.2080900531271369,
+        "top1_delta_per_seed": {
+          "42": -0.20672242385987055,
+          "43": -0.2097206880227237,
+          "44": -0.20782704749881648
+        },
+        "top1_p_values": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "m4": {
+        "beats": false,
+        "e_loc_paired_median": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "holm_adjusted_p": [
+          0.9338,
+          0.6986,
+          0.8484
+        ],
+        "holm_rejected": [
+          false,
+          false,
+          false
+        ],
+        "top1_delta_mean": -0.07400978380937351,
+        "top1_delta_per_seed": {
+          "42": -0.07101151964652042,
+          "43": -0.07732365472621117,
+          "44": -0.07369417705538894
+        },
+        "top1_p_values": [
+          0.1334,
+          0.0998,
+          0.1212
+        ]
+      },
+      "m5": {
+        "beats": false,
+        "e_loc_paired_median": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "holm_adjusted_p": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "holm_rejected": [
+          false,
+          false,
+          false
+        ],
+        "top1_delta_mean": 0.02198727052758927,
+        "top1_delta_per_seed": {
+          "42": 0.024775130187785988,
+          "43": 0.021619062647940668,
+          "44": 0.01956761874704116
+        },
+        "top1_p_values": [
+          0.7746,
+          0.8006,
+          0.8234
+        ]
+      },
+      "rule": "beats := mean paired top-1 difference over the family's own matched control is positive AND the Holm-corrected top-1 test rejects in every seed"
+    },
+    "q3_seed_and_room_consistent": {
+      "m1": {
+        "consistent": false,
+        "n_rooms": 17,
+        "n_seed_room_cells": 51,
+        "room_sign_agreement": 0.47058823529411764,
+        "room_win_rate_vs_matched": 0.47058823529411764,
+        "top1_per_seed": {
+          "42": 0.6345273788859082,
+          "43": 0.6342117721319236,
+          "44": 0.6353163957708695
+        },
+        "top1_sd_over_seeds": 0.0005689681671870187
+      },
+      "m2": {
+        "consistent": false,
+        "n_rooms": 17,
+        "n_seed_room_cells": 51,
+        "room_sign_agreement": 0.47058823529411764,
+        "room_win_rate_vs_matched": 0.47058823529411764,
+        "top1_per_seed": {
+          "42": 0.7255799274104466,
+          "43": 0.7221082531166167,
+          "44": 0.7243175003945085
+        },
+        "top1_sd_over_seeds": 0.001757224037503555
+      },
+      "m3": {
+        "consistent": true,
+        "n_rooms": 17,
+        "n_seed_room_cells": 51,
+        "room_sign_agreement": 0.8823529411764706,
+        "room_win_rate_vs_matched": 0.11764705882352941,
+        "top1_per_seed": {
+          "42": 0.3899321445478933,
+          "43": 0.38630266687707115,
+          "44": 0.387407290516017
+        },
+        "top1_sd_over_seeds": 0.0018604743762903019
+      },
+      "m4": {
+        "consistent": false,
+        "n_rooms": 17,
+        "n_seed_room_cells": 51,
+        "room_sign_agreement": 0.6470588235294118,
+        "room_win_rate_vs_matched": 0.35294117647058826,
+        "top1_per_seed": {
+          "42": 0.5322707905949188,
+          "43": 0.5303771500710115,
+          "44": 0.5302193466940193
+        },
+        "top1_sd_over_seeds": 0.0011415777399511446
+      },
+      "m5": {
+        "consistent": false,
+        "n_rooms": 17,
+        "n_seed_room_cells": 51,
+        "room_sign_agreement": 0.4117647058823529,
+        "room_win_rate_vs_matched": 0.4117647058823529,
+        "top1_per_seed": {
+          "42": 0.5792961969386144,
+          "43": 0.57898059018463,
+          "44": 0.5764557361527537
+        },
+        "top1_sd_over_seeds": 0.001556851147961557
+      },
+      "rule": "consistent := seed SD of pooled top-1 <= 0.01 AND at least 80% of rooms move in the same direction as the pooled difference against the family's matched control"
+    },
+    "q4_reduces_context_member_failure": {
+      "m1": {
+        "agree_rate_on_these_rows": 0.3766766608805428,
+        "agree_reference": 0.376,
+        "context_member_rate": 0.31744779338277834,
+        "delta_vs_reference": -0.05855220661722166,
+        "per_seed": {
+          "42": 0.3168691810004734,
+          "43": 0.3175003945084425,
+          "44": 0.31797380463941927
+        },
+        "reduces": true
+      },
+      "m2": {
+        "agree_rate_on_these_rows": 0.3766766608805428,
+        "agree_reference": 0.376,
+        "context_member_rate": 0.23917731839461365,
+        "delta_vs_reference": -0.13682268160538635,
+        "per_seed": {
+          "42": 0.23717847561937824,
+          "43": 0.2412813634211772,
+          "44": 0.23907211614328547
+        },
+        "reduces": true
+      },
+      "m3": {
+        "agree_rate_on_these_rows": 0.3766766608805428,
+        "agree_reference": 0.376,
+        "context_member_rate": 0.5211719530797959,
+        "delta_vs_reference": 0.1451719530797959,
+        "per_seed": {
+          "42": 0.5180684866656147,
+          "43": 0.5234338014833517,
+          "44": 0.5220135710904213
+        },
+        "reduces": false
+      },
+      "m4": {
+        "agree_rate_on_these_rows": 0.3766766608805428,
+        "agree_reference": 0.376,
+        "context_member_rate": 0.4009257798116879,
+        "delta_vs_reference": 0.02492577981168792,
+        "per_seed": {
+          "42": 0.40066277418336754,
+          "43": 0.3997159539214139,
+          "44": 0.4023986113302825
+        },
+        "reduces": false
+      },
+      "m5": {
+        "agree_rate_on_these_rows": 0.3766766608805428,
+        "agree_reference": 0.376,
+        "context_member_rate": 0.3651044132344432,
+        "delta_vs_reference": -0.010895586765556797,
+        "per_seed": {
+          "42": 0.3642101940981537,
+          "43": 0.36452580085213826,
+          "44": 0.3665772447530377
+        },
+        "reduces": true
+      },
+      "rule": "reduces := the family's context-member prediction rate is below AGREE's registered 0.376; the rate AGREE shows on these very rows is reported beside it"
+    },
+    "q5_robustness_caveats": {
+      "m1": {
+        "caveat": true,
+        "m4_query_drop_rate": 0.0,
+        "n_battery_rows": 120,
+        "seen_unseen_top1_gap": -0.1941491688625654,
+        "sensitivity": {
+          "direct_crop_2p5ms": {
+            "prediction_change_rate": 0.08333333333333333,
+            "top1_mean": 0.43333333333333335
+          },
+          "gain_x2": {
+            "prediction_change_rate": 0.0,
+            "top1_mean": 0.475
+          },
+          "shift_minus8": {
+            "prediction_change_rate": 0.8083333333333333,
+            "top1_mean": 0.2833333333333333
+          },
+          "shift_plus8": {
+            "prediction_change_rate": 0.8,
+            "top1_mean": 0.13333333333333333
+          }
+        },
+        "worst_prediction_change_rate": 0.8083333333333333,
+        "worst_variant": "shift_minus8"
+      },
+      "m2": {
+        "caveat": true,
+        "m4_query_drop_rate": 0.0,
+        "n_battery_rows": 120,
+        "seen_unseen_top1_gap": -0.026346952266989687,
+        "sensitivity": {
+          "direct_crop_2p5ms": {
+            "prediction_change_rate": 0.09166666666666666,
+            "top1_mean": 0.6583333333333333
+          },
+          "gain_x2": {
+            "prediction_change_rate": 0.725,
+            "top1_mean": 0.2
+          },
+          "shift_minus8": {
+            "prediction_change_rate": 0.2916666666666667,
+            "top1_mean": 0.5333333333333333
+          },
+          "shift_plus8": {
+            "prediction_change_rate": 0.09166666666666666,
+            "top1_mean": 0.7083333333333334
+          }
+        },
+        "worst_prediction_change_rate": 0.725,
+        "worst_variant": "gain_x2"
+      },
+      "m3": {
+        "caveat": true,
+        "m4_query_drop_rate": 0.0,
+        "n_battery_rows": 120,
+        "seen_unseen_top1_gap": 0.0761058990179978,
+        "sensitivity": {
+          "direct_crop_2p5ms": {
+            "prediction_change_rate": 0.11666666666666667,
+            "top1_mean": 0.4
+          },
+          "gain_x2": {
+            "prediction_change_rate": 0.0,
+            "top1_mean": 0.4583333333333333
+          },
+          "shift_minus8": {
+            "prediction_change_rate": 0.025,
+            "top1_mean": 0.475
+          },
+          "shift_plus8": {
+            "prediction_change_rate": 0.008333333333333333,
+            "top1_mean": 0.45
+          }
+        },
+        "worst_prediction_change_rate": 0.11666666666666667,
+        "worst_variant": "direct_crop_2p5ms"
+      },
+      "m4": {
+        "caveat": true,
+        "m4_query_drop_rate": 0.0,
+        "n_battery_rows": 120,
+        "seen_unseen_top1_gap": 0.013432847261926395,
+        "sensitivity": {
+          "direct_crop_2p5ms": {
+            "prediction_change_rate": 0.1,
+            "top1_mean": 0.55
+          },
+          "gain_x2": {
+            "prediction_change_rate": 0.0,
+            "top1_mean": 0.5916666666666667
+          },
+          "shift_minus8": {
+            "prediction_change_rate": 0.058333333333333334,
+            "top1_mean": 0.5916666666666667
+          },
+          "shift_plus8": {
+            "prediction_change_rate": 0.025,
+            "top1_mean": 0.6
+          }
+        },
+        "worst_prediction_change_rate": 0.1,
+        "worst_variant": "direct_crop_2p5ms"
+      },
+      "m5": {
+        "caveat": true,
+        "m4_query_drop_rate": 0.0,
+        "n_battery_rows": 120,
+        "seen_unseen_top1_gap": -0.28762440893119534,
+        "sensitivity": {
+          "direct_crop_2p5ms": {
+            "prediction_change_rate": 0.05,
+            "top1_mean": 0.275
+          },
+          "gain_x2": {
+            "prediction_change_rate": 0.0,
+            "top1_mean": 0.2833333333333333
+          },
+          "shift_minus8": {
+            "prediction_change_rate": 0.7833333333333333,
+            "top1_mean": 0.25833333333333336
+          },
+          "shift_plus8": {
+            "prediction_change_rate": 0.825,
+            "top1_mean": 0.13333333333333333
+          }
+        },
+        "worst_prediction_change_rate": 0.825,
+        "worst_variant": "shift_plus8"
+      },
+      "rule": "caveat := at least one declared seen-battery perturbation moves the prediction on some query; the per-variant rates, the M4 drop rate and the seen-unseen gap are the evidence"
+    },
+    "q6_adds_information_vs_different_scorer": {
+      "m1": {
+        "agree_top1": 0.561306611961496,
+        "agreement_rate": 0.5700909999473989,
+        "contingency": {
+          "both_right": 7282,
+          "both_wrong": 3556,
+          "family_right_agree_wrong": 4784,
+          "family_wrong_agree_right": 3389
+        },
+        "loss_rate": 0.31758972917252365,
+        "n_paired": 19011,
+        "not_established": [
+          "that a realizable fusion could choose the correct scorer per query -- the union is an oracle ceiling, not an achievable system",
+          "that information beyond the shared generated waveform exists: both scorers read the same generated RIRs, so the rescues may be re-readings of the same evidence",
+          "that the improvement exceeds what any sufficiently different scorer would rescue by decorrelated errors alone"
+        ],
+        "rescue_rate": 0.573621103117506,
+        "union_top1": 0.8129503971384988,
+        "verdict": "complementary scoring signal observed; added information not established"
+      },
+      "m2": {
+        "agree_top1": 0.561306611961496,
+        "agreement_rate": 0.5973383830413971,
+        "contingency": {
+          "both_right": 8390,
+          "both_wrong": 2966,
+          "family_right_agree_wrong": 5374,
+          "family_wrong_agree_right": 2281
+        },
+        "loss_rate": 0.21375691125480273,
+        "n_paired": 19011,
+        "not_established": [
+          "that a realizable fusion could choose the correct scorer per query -- the union is an oracle ceiling, not an achievable system",
+          "that information beyond the shared generated waveform exists: both scorers read the same generated RIRs, so the rescues may be re-readings of the same evidence",
+          "that the improvement exceeds what any sufficiently different scorer would rescue by decorrelated errors alone"
+        ],
+        "rescue_rate": 0.6443645083932854,
+        "union_top1": 0.8439850612803114,
+        "verdict": "complementary scoring signal observed; added information not established"
+      },
+      "m3": {
+        "agree_top1": 0.561306611961496,
+        "agreement_rate": 0.49939508705486296,
+        "contingency": {
+          "both_right": 4264,
+          "both_wrong": 5230,
+          "family_right_agree_wrong": 3110,
+          "family_wrong_agree_right": 6407
+        },
+        "loss_rate": 0.600412332489926,
+        "n_paired": 19011,
+        "not_established": [
+          "that a realizable fusion could choose the correct scorer per query -- the union is an oracle ceiling, not an achievable system",
+          "that information beyond the shared generated waveform exists: both scorers read the same generated RIRs, so the rescues may be re-readings of the same evidence",
+          "that the improvement exceeds what any sufficiently different scorer would rescue by decorrelated errors alone"
+        ],
+        "rescue_rate": 0.37290167865707435,
+        "union_top1": 0.7248961127768134,
+        "verdict": "complementary scoring signal observed; added information not established"
+      },
+      "m4": {
+        "agree_top1": 0.561306611961496,
+        "agreement_rate": 0.5658829098942717,
+        "contingency": {
+          "both_right": 6256,
+          "both_wrong": 4502,
+          "family_right_agree_wrong": 3838,
+          "family_wrong_agree_right": 4415
+        },
+        "loss_rate": 0.413738168868897,
+        "n_paired": 19011,
+        "not_established": [
+          "that a realizable fusion could choose the correct scorer per query -- the union is an oracle ceiling, not an achievable system",
+          "that information beyond the shared generated waveform exists: both scorers read the same generated RIRs, so the rescues may be re-readings of the same evidence",
+          "that the improvement exceeds what any sufficiently different scorer would rescue by decorrelated errors alone"
+        ],
+        "rescue_rate": 0.4601918465227818,
+        "union_top1": 0.7631897322602703,
+        "verdict": "complementary scoring signal observed; added information not established"
+      },
+      "m5": {
+        "agree_top1": 0.561306611961496,
+        "agreement_rate": 0.6271632212929357,
+        "contingency": {
+          "both_right": 7288,
+          "both_wrong": 4635,
+          "family_right_agree_wrong": 3705,
+          "family_wrong_agree_right": 3383
+        },
+        "loss_rate": 0.3170274575953519,
+        "n_paired": 19011,
+        "not_established": [
+          "that a realizable fusion could choose the correct scorer per query -- the union is an oracle ceiling, not an achievable system",
+          "that information beyond the shared generated waveform exists: both scorers read the same generated RIRs, so the rescues may be re-readings of the same evidence",
+          "that the improvement exceeds what any sufficiently different scorer would rescue by decorrelated errors alone"
+        ],
+        "rescue_rate": 0.4442446043165468,
+        "union_top1": 0.7561937825469465,
+        "verdict": "complementary scoring signal observed; added information not established"
+      },
+      "rule": "the 2x2 contingency, the rescue rate and the oracle-union accuracy are reported as computed; they establish COMPLEMENTARY ERRORS and an oracle-fusion ceiling only, so the verdict is fixed at 'complementary scoring signal observed; added information not established' for every family (r4m6 finding 2)"
+    }
+  },
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "source": "outputs_loc/exp18/exp18_R4_report_metrics_report.json",
+  "status": "PRELIMINARY -- pending review",
+  "verbatim": true
+}

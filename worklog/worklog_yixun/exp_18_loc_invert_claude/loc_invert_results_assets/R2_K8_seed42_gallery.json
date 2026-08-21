@@ -1,0 +1,150 @@
+{
+  "cases": {
+    "ambiguous": [
+      {
+        "correct": false,
+        "e_loc": 1.1575836902790226,
+        "gt_index": 6,
+        "margin": 0.00028678985981045457,
+        "n_candidates": 10,
+        "png": "R2_K8_seed42_ambiguous_1_Bedrooms-Bedrooms_idx_33.png",
+        "pred_index": 5,
+        "query_id": "2206|single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R016_hybrid_IR.wav",
+        "rank": 1,
+        "relpath": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R016_hybrid_IR.wav",
+        "room_id": "Bedrooms/Bedrooms_idx_33",
+        "temperature": 0.02
+      },
+      {
+        "correct": false,
+        "e_loc": 15.208221460775746,
+        "gt_index": 6,
+        "margin": 0.0005570464449743961,
+        "n_candidates": 10,
+        "png": "R2_K8_seed42_ambiguous_2_Auditorium-Auditorium_idx_1.png",
+        "pred_index": 2,
+        "query_id": "3897|single_channel_ir_1/Auditorium/Auditorium_idx_1/S007_R028_hybrid_IR.wav",
+        "rank": 2,
+        "relpath": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S007_R028_hybrid_IR.wav",
+        "room_id": "Auditorium/Auditorium_idx_1",
+        "temperature": 0.02
+      },
+      {
+        "correct": false,
+        "e_loc": 0.7071067811865476,
+        "gt_index": 3,
+        "margin": 0.0010147682305577388,
+        "n_candidates": 10,
+        "png": "R2_K8_seed42_ambiguous_3_ListeningRoom-ListeningRoom_idx_2.png",
+        "pred_index": 2,
+        "query_id": "2591|single_channel_ir_1/ListeningRoom/ListeningRoom_idx_2/S004_R020_hybrid_IR.wav",
+        "rank": 3,
+        "relpath": "single_channel_ir_1/ListeningRoom/ListeningRoom_idx_2/S004_R020_hybrid_IR.wav",
+        "room_id": "ListeningRoom/ListeningRoom_idx_2",
+        "temperature": 0.02
+      }
+    ],
+    "failure": [
+      {
+        "correct": false,
+        "e_loc": 20.435508312738396,
+        "gt_index": 8,
+        "margin": 0.5519499643831149,
+        "n_candidates": 10,
+        "png": "R2_K8_seed42_failure_1_Cafe-Cafe_idx_1.png",
+        "pred_index": 6,
+        "query_id": "443|single_channel_ir_1/Cafe/Cafe_idx_1/S009_R005_hybrid_IR.wav",
+        "rank": 1,
+        "relpath": "single_channel_ir_1/Cafe/Cafe_idx_1/S009_R005_hybrid_IR.wav",
+        "room_id": "Cafe/Cafe_idx_1",
+        "temperature": 0.02
+      },
+      {
+        "correct": false,
+        "e_loc": 18.310925700247928,
+        "gt_index": 2,
+        "margin": 0.6198548090312421,
+        "n_candidates": 10,
+        "png": "R2_K8_seed42_failure_2_Auditorium-Auditorium_idx_1.png",
+        "pred_index": 5,
+        "query_id": "3570|single_channel_ir_1/Auditorium/Auditorium_idx_1/S003_R042_hybrid_IR.wav",
+        "rank": 2,
+        "relpath": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S003_R042_hybrid_IR.wav",
+        "room_id": "Auditorium/Auditorium_idx_1",
+        "temperature": 0.02
+      },
+      {
+        "correct": false,
+        "e_loc": 7.814992002555088,
+        "gt_index": 9,
+        "margin": 0.23893588916152364,
+        "n_candidates": 10,
+        "png": "R2_K8_seed42_failure_3_Office-Office_idx_11.png",
+        "pred_index": 5,
+        "query_id": "1844|single_channel_ir_1/Office/Office_idx_11/S010_R001_hybrid_IR.wav",
+        "rank": 3,
+        "relpath": "single_channel_ir_1/Office/Office_idx_11/S010_R001_hybrid_IR.wav",
+        "room_id": "Office/Office_idx_11",
+        "temperature": 0.02
+      }
+    ],
+    "sharp_success": [
+      {
+        "correct": true,
+        "e_loc": 0.0,
+        "gt_index": 6,
+        "margin": 0.9999999999999997,
+        "n_candidates": 10,
+        "png": "R2_K8_seed42_sharp_success_1_Restaurants-Restaurants_idx_24.png",
+        "pred_index": 6,
+        "query_id": "6185|single_channel_ir_1/Restaurants/Restaurants_idx_24/S007_R018_hybrid_IR.wav",
+        "rank": 1,
+        "relpath": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S007_R018_hybrid_IR.wav",
+        "room_id": "Restaurants/Restaurants_idx_24",
+        "temperature": 0.02
+      },
+      {
+        "correct": true,
+        "e_loc": 0.0,
+        "gt_index": 4,
+        "margin": 0.9999999999999247,
+        "n_candidates": 10,
+        "png": "R2_K8_seed42_sharp_success_2_MeetingRoom-MeetingRoom_idx_20.png",
+        "pred_index": 4,
+        "query_id": "1393|single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S005_R022_hybrid_IR.wav",
+        "rank": 2,
+        "relpath": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S005_R022_hybrid_IR.wav",
+        "room_id": "MeetingRoom/MeetingRoom_idx_20",
+        "temperature": 0.02
+      },
+      {
+        "correct": true,
+        "e_loc": 0.0,
+        "gt_index": 3,
+        "margin": 0.9999999999999158,
+        "n_candidates": 10,
+        "png": "R2_K8_seed42_sharp_success_3_Restaurants-Restaurants_idx_22.png",
+        "pred_index": 3,
+        "query_id": "5971|single_channel_ir_1/Restaurants/Restaurants_idx_22/S004_R013_hybrid_IR.wav",
+        "rank": 3,
+        "relpath": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S004_R013_hybrid_IR.wav",
+        "room_id": "Restaurants/Restaurants_idx_22",
+        "temperature": 0.02
+      }
+    ]
+  },
+  "cases_per_kind": 3,
+  "created_utc": "2026-08-21T08:32:29+00:00",
+  "depth_silhouette": "not drawn: the dataset ships per-view depth tensors, not a floor plan; the maps label the candidate extent instead",
+  "display_temperature": "the run's registered tau (rows carry it per query)",
+  "kinds": [
+    "sharp_success",
+    "ambiguous",
+    "failure"
+  ],
+  "out_dir": "worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_results_assets",
+  "rows_path": "outputs_loc/exp18/exp18_R2_flac_ctl-none_vanilla_ac-default_lme_tau0.02_K8_seed42_scorer-AGREE_AR_registered_rows.jsonl",
+  "rows_sha256": "652ed18485fd3dcd676871ba3cab4de80b4bc8a2b448f6df159b4d436d32ffa3",
+  "run_label": "R2 K_ctx=8 seed 42",
+  "selection_rule": "sharp_success = correct top-1 with the largest top-2 margin of softmax(S/tau); ambiguous = smallest top-2 margin; failure = largest e_loc; three of each, ties by query_id ascending, distinct rooms preferred, no query reused across kinds"
+}

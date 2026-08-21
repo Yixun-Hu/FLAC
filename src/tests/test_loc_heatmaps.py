@@ -317,3 +317,15 @@ def test_write_extracts_emits_every_declared_file(tmp_path):
         with open(path) as handle:
             payload = json.load(handle)
         assert payload and "source" in payload
+
+
+def test_render_keeps_a_receiver_outside_the_candidate_extent_in_frame(tmp_path):
+    """The window is the candidates AND the receiver: a receiver beyond the
+    searched region must still be drawn, not silently clipped."""
+    row = _row("q2", "Cafe/Cafe_idx_1", [0.9, 0.5, 0.4], gt=0, pred=0,
+               receiver=(-40.0, -40.0, 1.5))
+    record = hm.case_record(row)
+    assert record["receiver_xyz_world"] == [-40.0, -40.0, 1.5]
+    path = hm.render_case(record, str(tmp_path / "far.png"), kind="sharp_success",
+                          run_label="R2 seed 42")
+    assert os.path.exists(path) and os.path.getsize(path) > 5_000

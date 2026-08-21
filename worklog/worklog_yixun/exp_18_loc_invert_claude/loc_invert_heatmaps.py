@@ -226,6 +226,11 @@ def render_case(record, out_path, kind=None, run_label="", dpi=150):
     # the region the protocol searched, labelled as such (never a room outline)
     low, high = world[:, :2].min(axis=0), world[:, :2].max(axis=0)
     pad = 0.08 * max(float((high - low).max()), 1.0)
+    # the drawn window must also contain the receiver, which often sits outside
+    # the candidate extent -- clipping it would silently drop the marker
+    window = np.vstack([world[:, :2]] + ([np.asarray(receiver[:2])[None, :]]
+                                         if receiver is not None else []))
+    window_low, window_high = window.min(axis=0), window.max(axis=0)
     axis.add_patch(plt.Rectangle(low - pad, *(high - low + 2 * pad), fill=False,
                                  linestyle=(0, (4, 3)), edgecolor="0.6", linewidth=1.0))
     axis.annotate("candidate extent", xy=(low[0] - pad, high[1] + pad), xytext=(0, 4),
@@ -246,11 +251,15 @@ def render_case(record, out_path, kind=None, run_label="", dpi=150):
         axis.scatter([receiver[0]], [receiver[1]], marker="^", s=150, color="#1f77b4",
                      edgecolors="0.15", linewidths=0.6, zorder=5)
 
-    axis.set_aspect("equal", adjustable="datalim")
+    # equal aspect with a fixed data window: the axes BOX shrinks instead of the
+    # data range growing, so the map is not padded with empty floor
+    axis.set_xlim(window_low[0] - 2 * pad, window_high[0] + 2 * pad)
+    axis.set_ylim(window_low[1] - 2 * pad, window_high[1] + 2 * pad)
+    axis.set_aspect("equal", adjustable="box")
     axis.set_xlabel("world x [m]")
     axis.set_ylabel("world y [m]")
     axis.set_title(f"{kind.replace('_', ' ')} -- {record['room_id']}\n"
-                   f"{run_label}   margin={record['margin']:.3f}   "
+                   f"{run_label}   margin={record['margin']:.4g}   "
                    f"e_loc={record['e_loc']:.2f} m", fontsize=10)
     bar = figure.colorbar(scatter, ax=axis, fraction=0.046, pad=0.04)
     bar.set_label(f"softmax(S / T), T = {record['temperature']:g} (display only)",
@@ -263,10 +272,13 @@ def render_case(record, out_path, kind=None, run_label="", dpi=150):
     if receiver is not None:
         handles.append(Line2D([], [], linestyle="", marker="^", color="#1f77b4",
                               markersize=10, label="receiver"))
-    axis.legend(handles=handles, loc="upper right", fontsize=8, framealpha=0.9)
+    # the legend lives OUTSIDE the axes: inside it covered the GT star and the
+    # receiver whenever they sat in the corner it picked
+    figure.legend(handles=handles, loc="lower center", ncol=len(handles), fontsize=8,
+                  frameon=False, bbox_to_anchor=(0.5, 0.0))
 
     os.makedirs(os.path.dirname(os.path.abspath(out_path)) or ".", exist_ok=True)
-    figure.tight_layout()
+    figure.tight_layout(rect=(0, 0.06, 1, 1))
     figure.savefig(out_path, dpi=dpi)
     plt.close(figure)
     return out_path

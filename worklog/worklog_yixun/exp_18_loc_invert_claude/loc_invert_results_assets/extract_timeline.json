@@ -1,0 +1,84 @@
+{
+  "gates": [
+    "identity gate: every query scored in the registered order, 6,337 per seed",
+    "split digest pinning: file, query count, room-node map",
+    "registration gate: full-hex sha, in-repo manifest, byte-identical, ancestor of HEAD",
+    "metric registration: constants, source blob and R2 manifest digests verified",
+    "publication: nothing gets a final name until every end gate passes",
+    "context binding: the unseen control refuses without its paired replay digest"
+  ],
+  "rounds": [
+    "r1",
+    "r2",
+    "r3",
+    "r4",
+    "r5",
+    "r6",
+    "r7",
+    "R4-r1",
+    "R4-r2",
+    "r4m3",
+    "r4m4",
+    "r4m5",
+    "r4m6",
+    "r8"
+  ],
+  "runs": [
+    {
+      "date": "2026-08-19",
+      "detail": "6,337 unseen queries / 17 rooms; split digests 3/3 PASS; 169 wavs decoded; 1 registered warning (LRH_idx_30 S10 metadata-only)",
+      "label": "R-1a readback gate"
+    },
+    {
+      "date": "2026-08-19",
+      "detail": "identity oracle 1.000; context-conditioned chance macro 0.490; masked nearest-context control macro 0.689 (pooled 0.6317)",
+      "label": "R-1b identity oracle + baselines"
+    },
+    {
+      "date": "2026-08-19",
+      "detail": "1.32 s/query; mean readout removes ~7e-5 cosine noise",
+      "label": "R0 probe + scorer noise"
+    },
+    {
+      "date": "2026-08-20",
+      "detail": "1,194-query seen prefix; tau = 0.02 registered from a flat 28-config sweep; R2 registration manifest committed",
+      "label": "R1 dev-tune + tau registration"
+    },
+    {
+      "date": "2026-08-20",
+      "detail": "macro top-1 0.5007 +- 0.0008 over 6,337 queries; pooled 0.5618; context-member prediction rate 0.376",
+      "label": "R2 registered unseen headline (seeds 42/43/44)"
+    },
+    {
+      "date": "2026-08-20",
+      "detail": "FLAC 0.5029 +- 0.0032 vs retrieval 0.1079 +- 0.0017 -- the sparse-context reversal",
+      "label": "R2b K_ctx = 1 (seeds 42/43/44)"
+    },
+    {
+      "date": "2026-08-21",
+      "detail": "conditioning proven load-bearing",
+      "label": "R3 constant-source wiring control"
+    },
+    {
+      "date": "2026-08-20",
+      "detail": "1,194-query replay; delta_max = 8 selected on the seen grid; m4 mu/sigma frozen; metric manifest committed before any unseen pass",
+      "label": "R4 seen calibration + registration"
+    },
+    {
+      "date": "2026-08-20",
+      "detail": "6,337 queries per seed, all five families plus the declared secondaries and the Delta = 0 rows",
+      "label": "R4 unseen replay + metrics (seeds 42/43/44)"
+    },
+    {
+      "date": "2026-08-21",
+      "detail": "measured-candidate ceiling, each pass bound to its paired replay's context-stream digest",
+      "label": "R4 oracle control (seeds 42/43/44)"
+    }
+  ],
+  "source": "committed record: loc_invert_results.md, loc_invert_command.md, commits_loc_invert.md (line citations in the function's docstring)",
+  "tests": {
+    "localization_files": 6,
+    "note": "full repository suite at the end of r4m6 (1 unrelated exp_11 registry failure, owned by exp_15)",
+    "suite_total": 2666
+  }
+}

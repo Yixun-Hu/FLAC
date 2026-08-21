@@ -1,0 +1,43 @@
+{
+  "collapse_note": "Delta = 0 is the mandated alignment-sensitivity row: the same family with the alignment search switched off, on unseen data",
+  "grid_note": "selected on the R1 SEEN prefix by dev top-1, ties to the smallest, and frozen before any unseen pass",
+  "registered_delta_max": 8,
+  "seen_grid": [
+    {
+      "delta_max": 0,
+      "seen_dev_top1": 0.440536013400335
+    },
+    {
+      "delta_max": 8,
+      "seen_dev_top1": 0.6080402010050251
+    },
+    {
+      "delta_max": 32,
+      "seen_dev_top1": 0.4045226130653266
+    },
+    {
+      "delta_max": 128,
+      "seen_dev_top1": 0.2520938023450586
+    }
+  ],
+  "source": {
+    "collapse": "outputs_loc/exp18/exp18_R4_report_metrics_report.json",
+    "seen_grid": "outputs_loc/exp18/exp18_R4_calibrate_metrics-calibrate_ds-fa45460604.json"
+  },
+  "unseen_collapse": {
+    "m1": {
+      "delta0_macro_top1": 0.4353857149359725,
+      "delta0_pooled_top1": 0.4611540686970701,
+      "macro_drop": 0.15743114694851074,
+      "registered_macro_top1": 0.5928168618844832,
+      "registered_pooled_top1": 0.6346851822629004
+    },
+    "m5": {
+      "delta0_macro_top1": 0.28444126862603325,
+      "delta0_pooled_top1": 0.29909000052601126,
+      "macro_drop": 0.2435364906957822,
+      "registered_macro_top1": 0.5279777593218155,
+      "registered_pooled_top1": 0.5782441744253327
+    }
+  }
+}

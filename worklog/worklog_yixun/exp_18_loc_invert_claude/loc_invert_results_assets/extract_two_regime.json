@@ -1,0 +1,117 @@
+{
+  "convention": "pooled = over all queries; macro = equal-room mean, the convention the campaign's headline top-1 and the 0.689 reference use",
+  "note": "top-1 confidence intervals are not published by the runs; the CI shown is the room-clustered interval on the campaign primary (pooled median e_loc)",
+  "regimes": {
+    "K1": {
+      "arms": {
+        "chance": {
+          "macro_top1": 0.11111111111111115,
+          "pooled_top1": 0.11111111111111115
+        },
+        "flac": {
+          "macro_mean_e_loc": 1.0782602910806443,
+          "macro_top1": 0.5006991911960582,
+          "pooled_median_e_loc": 0.0,
+          "pooled_top1": 0.5620956288464574
+        },
+        "retrieval": {
+          "macro_top1": 0.10623321968738784,
+          "pooled_top1": 0.1082531166166956
+        }
+      },
+      "clustered_ci_median_e_loc": {
+        "alpha": 0.05,
+        "by": "room_id",
+        "hi": 0.5099019513592785,
+        "lo": 0.0,
+        "n_boot": 10000,
+        "n_clusters": 17,
+        "n_queries": 6337,
+        "point": 0.0,
+        "stat": "pooled_median_e_loc"
+      },
+      "context_member_prediction_rate": 0.05128609752248698,
+      "n_queries": 6337,
+      "n_rooms": 17,
+      "paired_vs_chance": {
+        "by": "room_id",
+        "hi": -0.8167823192888797,
+        "lo": -3.168546152916932,
+        "n_boot": 10000,
+        "n_clusters": 17,
+        "n_queries": 6337,
+        "p_value": 0.0,
+        "point": -1.875961151821782,
+        "stat": "median_paired_difference"
+      },
+      "paired_vs_retrieval": {
+        "by": "room_id",
+        "hi": -0.6180339887498949,
+        "lo": -3.0215420015662326,
+        "n_boot": 10000,
+        "n_clusters": 17,
+        "n_queries": 6337,
+        "p_value": 0.0,
+        "point": -1.5297058540778354,
+        "stat": "median_paired_difference"
+      },
+      "source": "outputs_loc/exp18/exp18_R2b_flac_ctl-none_vanilla_ac-default_lme_tau0.02_K8_seed42_scorer-AGREE_AR_registered_summary.json"
+    },
+    "K8": {
+      "arms": {
+        "chance": {
+          "macro_top1": 0.49012536684955976,
+          "pooled_top1": 0.4755759823260218
+        },
+        "flac": {
+          "macro_mean_e_loc": 1.078553546745127,
+          "macro_top1": 0.5015249912881391,
+          "pooled_median_e_loc": 0.0,
+          "pooled_top1": 0.5617800220924728
+        },
+        "retrieval": {
+          "macro_top1": 0.688997189072379,
+          "pooled_top1": 0.6316869181000473
+        }
+      },
+      "clustered_ci_median_e_loc": {
+        "alpha": 0.05,
+        "by": "room_id",
+        "hi": 0.5099019513592785,
+        "lo": 0.0,
+        "n_boot": 10000,
+        "n_clusters": 17,
+        "n_queries": 6337,
+        "point": 0.0,
+        "stat": "pooled_median_e_loc"
+      },
+      "context_member_prediction_rate": 0.3758876439955815,
+      "n_queries": 6337,
+      "n_rooms": 17,
+      "paired_vs_chance": {
+        "by": "room_id",
+        "hi": -0.21314833820519496,
+        "lo": -1.4612706988541215,
+        "n_boot": 10000,
+        "n_clusters": 17,
+        "n_queries": 6337,
+        "p_value": 0.0104,
+        "point": -0.7500000000000002,
+        "stat": "median_paired_difference"
+      },
+      "paired_vs_retrieval": {
+        "by": "room_id",
+        "hi": 0.0,
+        "lo": 0.0,
+        "n_boot": 10000,
+        "n_clusters": 17,
+        "n_queries": 6337,
+        "p_value": 1.0,
+        "point": 0.0,
+        "stat": "median_paired_difference"
+      },
+      "source": "outputs_loc/exp18/exp18_R2_flac_ctl-none_vanilla_ac-default_lme_tau0.02_K8_seed42_scorer-AGREE_AR_registered_summary.json"
+    }
+  },
+  "source": "the registered R2 / R2b summary JSONs (seed 42)"
+}
