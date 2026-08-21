@@ -46,3 +46,7 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 - **Single-training-seed caveat** on every exp_11 arm (incl. VANL): all inference conditional on training seed 42; the fa-reversal finding is 5 EVAL seeds on 1 training run per arm.
 - **R2/R3 mechanism program** resubmitted (29 cells, jobs 3680738–66) after dying twice in ECC waves; if a third wave hits, resubmit from the same one-liner in the worklog (pin 89f24cd, campaign freeze must stay engaged).
 - **exp_11 traj >40k program** intentionally paused until leg records land + one pin bump (unbundle ruling); do not harvest >40k points into figures before `validate_cell(contract="traj")` passes them.
+
+## OPEN (2026-08-21, exp_16): deterministic seen-split item substitution — MeetingRoom_idx_19/S006_R020 (idx 840)
+
+Two independent eval jobs (12287677 Aug-17, 12726288 Aug-21, different nodes) hit the identical stream-audit refusal: SampleDataset substitutes a random item for seen-split dataset idx 840 at stream position 1194, while `soundfile` loads the file cleanly interactively (22206 samples @ 22050 Hz, max_abs 0.33). Deterministic under eval-dataloader conditions (num_workers=4, seen config) — suspicion: item-specific load/silence check in SampleDataset's eval path. Consequence: any pre-exp_14 seen-split evaluation silently included one substituted item. Non-gating for exp_16 (seen split is descriptive there). Needs a dedicated micro-investigation: reproduce in-process with the dataset class, identify the failing check, decide fix vs documented exclusion.
