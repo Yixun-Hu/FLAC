@@ -22,6 +22,16 @@
 #   CHAIN_CHUNK  (required) steps per leg, e.g. 7500
 #   PROBE=1      (optional) the 3-leg GPU rehearsal: separate save-dir,
 #                --checkpoint-every 100, validation off
+#   CONT=1       (optional) the CONTINUOUS single-run A/B arm: the same 67,500
+#                steps as ONE job, into a sibling save-dir, so the chunking
+#                variable can be isolated. Mutually exclusive with PROBE.
+#
+# CONT mode differs from a chain leg in exactly three ways, all fail-closed:
+# CHAIN_TOTAL must EQUAL CHAIN_CHUNK (one leg by construction), the save-dir must
+# hold NO checkpoint (a continuous A/B arm may never resume — a resume seam is the
+# very thing it exists to avoid), and there is NO chain manifest: it is a single
+# job with no successors, so the manifest gate and EVERY scancel path are skipped.
+# It emits CONTRESULT rather than CHAINRESULT so a grep cannot confuse the arms.
 #
 # Leg logic: S = step of the newest checkpoint (0 if none) -> LEG = S/CHUNK,
 # SEED = 42+LEG, TARGET = min(S+CHUNK, TOTAL), resume from that checkpoint when
@@ -39,7 +49,8 @@
 # scancel — cancellations are echoed instead).
 #
 # Exit codes: 2 parameters, 3 repo/dirs, 4 closure binding, 5 interpreter
-# provenance, 6 GPU, 7 ntasks, 8 log durability, 9 checkpoint discovery,
+# provenance, 6 GPU, 7 ntasks, 8 log durability,
+# 9 checkpoint discovery / a non-empty CONT save-dir,
 # 10 mutual exclusion, 11 CHAINHALT / stamp, 12 chain manifest,
 # 13 post-run target mismatch, 14 the squeue query itself failed;
 # otherwise train.py's own rc.
@@ -92,16 +103,20 @@ CLOSURE=(
 
 PROD_SAVEDIR=/scratch/gpfs/BLANCHETTE/yh4742/FLAC/checkpoints/exp16_vanilla_repro
 PROBE_SAVEDIR=/scratch/gpfs/BLANCHETTE/yh4742/FLAC/checkpoints/exp16_vanilla_repro_chainprobe
+# The continuous A/B arm writes its own sibling tree: it must never touch the
+# chunked run's checkpoints, and the chunked run must never resume from its.
+CONT_SAVEDIR=/scratch/gpfs/BLANCHETTE/yh4742/FLAC/checkpoints/exp16_vanilla_repro_cont
 RUN_NAME=FLAC_vanilla_repro
 EXPERIMENT_NAME=exp16_della_vanilla_repro
 MANIFEST="$EXPDIR/chain_manifest_current.txt"
 # Every job name that owns a GPU training run in this experiment. A chain leg
 # must never share a GPU-hour window with one of them (they write the SAME
 # save-dir), so a running one is a hard stop.
-EXCLUSIVE_NAMES=exp16-train,exp16-train-smoke,exp16-train-resume,exp16-chain
+EXCLUSIVE_NAMES=exp16-train,exp16-train-smoke,exp16-train-resume,exp16-chain,exp16-cont
 
 DRYRUN="${DRYRUN:-0}"
 PROBE="${PROBE:-0}"
+CONT="${CONT:-0}"
 TS="$(date +%Y-%m-%d_%H:%M:%S)"
 
 die() {   # <one-line GATEFAIL message> <distinct nonzero exit code>
@@ -206,7 +221,7 @@ cancel_later() {   # <reason>
 }
 
 main() {
-  echo "=== exp_16 chain leg (PROBE=${PROBE}) — ${TS} — host $(hostname) — job ${SLURM_JOB_ID:-<none>} ==="
+  echo "=== exp_16 chain leg (PROBE=${PROBE}, CONT=${CONT}) — ${TS} — host $(hostname) — job ${SLURM_JOB_ID:-<none>} ==="
 
   # --- A. parameters ----------------------------------------------------------
   [ -n "${EXPECT_SHA:-}" ] || die "EXPECT_SHA (full reviewed commit sha) must be exported" 2
@@ -217,13 +232,26 @@ main() {
   [ "$CHAIN_TOTAL" -gt 0 ] && [ "$CHAIN_CHUNK" -gt 0 ] || die "CHAIN_TOTAL/CHAIN_CHUNK must be positive" 2
   [ "$CHAIN_CHUNK" -le "$CHAIN_TOTAL" ] || die "CHAIN_CHUNK ${CHAIN_CHUNK} > CHAIN_TOTAL ${CHAIN_TOTAL}" 2
   case "$PROBE" in 0|1) ;; *) die "PROBE='${PROBE}' must be 0 or 1" 2 ;; esac
+  case "$CONT" in 0|1) ;; *) die "CONT='${CONT}' must be 0 or 1" 2 ;; esac
+  [ "$PROBE" != "1" ] || [ "$CONT" != "1" ] \
+    || die "PROBE=1 and CONT=1 are mutually exclusive: a probe rehearses the chunked chain, a continuous run is the arm that has no chunks" 2
+  # One leg BY CONSTRUCTION: if the chunk were smaller than the budget this would
+  # be a chain leg wearing the continuous arm's name, and the A/B would compare
+  # chunking against itself.
+  [ "$CONT" != "1" ] || [ "$CHAIN_TOTAL" = "$CHAIN_CHUNK" ] \
+    || die "CONT=1 requires CHAIN_TOTAL == CHAIN_CHUNK (got ${CHAIN_TOTAL} vs ${CHAIN_CHUNK}): the continuous arm is one leg by construction" 2
   # The recipe knobs are literals below; their presence in the environment is the
   # error (defence against a hand-rolled `sbatch --export=ALL`).
   for VAR in MAXSTEPS VAL_EVERY CHECKPOINT_EVERY SEED; do
     [ -z "${!VAR:-}" ] || die "${VAR} is computed by this script and must not be in the environment" 2
   done
 
-  if [ "$PROBE" = "1" ]; then
+  if [ "$CONT" = "1" ]; then
+    # Same recipe constants as a production leg — only the tree differs.
+    SAVEDIR="$CONT_SAVEDIR"
+    CHECKPOINT_EVERY=2500
+    VAL_EVERY=2500
+  elif [ "$PROBE" = "1" ]; then
     SAVEDIR="$PROBE_SAVEDIR"
     CHECKPOINT_EVERY=100
     # -1 is defaults.ini's sentinel: train.py:215 only builds val_args when
@@ -290,12 +318,24 @@ main() {
   # --- E. where the chain has got to ------------------------------------------
   discover_newest || die "checkpoint discovery FAILED under ${SAVEDIR}/${RUN_NAME}/*/checkpoints" 9
   S="$NEWEST_STEP"
-  read_manifest
-  case "$?" in
-    0) ;;
-    2) die "chain manifest ${MANIFEST} does not list this job (${SLURM_JOB_ID:-<none>}) - a leg must know its chain" 12 ;;
-    *) die "chain manifest ${MANIFEST} is missing - a leg must know its chain" 12 ;;
-  esac
+  if [ "$CONT" = "1" ]; then
+    # NO manifest in CONT mode: a single job has no successors to cancel, so the
+    # manifest gate and every scancel path below are skipped by construction
+    # (MANIFEST_LATER stays empty, and cancel_later reports it as such).
+    MANIFEST_LATER=()
+    echo "CONT mode: single job, no chain manifest (nothing to cancel, nothing to depend on)"
+    # FRESH ONLY. The continuous arm exists to measure training WITHOUT resume
+    # seams; resuming one would destroy the very contrast it is being run for.
+    [ "$S" -eq 0 ] \
+      || die "CONT=1 requires an EMPTY save-dir but ${SAVEDIR} already holds a checkpoint at step ${S} (${NEWEST}) - a continuous A/B run may never resume; move or remove the tree" 9
+  else
+    read_manifest
+    case "$?" in
+      0) ;;
+      2) die "chain manifest ${MANIFEST} does not list this job (${SLURM_JOB_ID:-<none>}) - a leg must know its chain" 12 ;;
+      *) die "chain manifest ${MANIFEST} is missing - a leg must know its chain" 12 ;;
+    esac
+  fi
   echo "chain state: S=${S} TOTAL=${CHAIN_TOTAL} CHUNK=${CHAIN_CHUNK} save-dir ${SAVEDIR}"
   [ -z "$NEWEST" ] || echo "newest checkpoint: ${NEWEST}"
   echo "later legs in the manifest: ${MANIFEST_LATER[*]:-<none>}"
@@ -403,12 +443,25 @@ main() {
   discover_newest || die "post-run checkpoint discovery FAILED under ${SAVEDIR}" 9
   S_NEW="$NEWEST_STEP"
   if [ "$TRAIN_RC" -ne 0 ]; then
-    echo "CHAINFAIL leg=${LEG} ${S} -> ${S_NEW} (target ${TARGET}) seed=${SEED} rc=${TRAIN_RC}"
+    if [ "$CONT" = "1" ]; then
+      echo "CONTFAIL 0 -> ${S_NEW} (target ${TARGET}) seed=${SEED} rc=${TRAIN_RC}"
+    else
+      echo "CHAINFAIL leg=${LEG} ${S} -> ${S_NEW} (target ${TARGET}) seed=${SEED} rc=${TRAIN_RC}"
+    fi
     return "$TRAIN_RC"
   fi
   if [ "$S_NEW" -ne "$TARGET" ]; then
-    echo "CHAINFAIL leg=${LEG} ${S} -> ${S_NEW} but TARGET was ${TARGET} (train.py exited 0)"
+    if [ "$CONT" = "1" ]; then
+      echo "CONTFAIL 0 -> ${S_NEW} but TARGET was ${TARGET} (train.py exited 0)"
+    else
+      echo "CHAINFAIL leg=${LEG} ${S} -> ${S_NEW} but TARGET was ${TARGET} (train.py exited 0)"
+    fi
     die "leg ${LEG} exited 0 without reaching TARGET ${TARGET} (newest step ${S_NEW})" 13
+  fi
+  if [ "$CONT" = "1" ]; then
+    # One unambiguous token for the A/B: no leg index, no CHAINDONE, no cancels.
+    echo "CONTRESULT 0 -> ${S_NEW} seed=${SEED} rc=0"
+    return 0
   fi
   echo "CHAINRESULT leg=${LEG} ${S} -> ${S_NEW} seed=${SEED} rc=0"
   if [ "$S_NEW" -ge "$CHAIN_TOTAL" ]; then
@@ -423,7 +476,10 @@ main() {
 # The leg index is not known until gate E, so the name carries the job id and the
 # timestamp; a dying tee SIGPIPEs the shell, which is the fail-closed behaviour.
 LOG_JID="${SLURM_JOB_ID:+_jid${SLURM_JOB_ID}}"
-LOG="${EXPDIR}/della_vanilla_repro_${TS}_chain${LOG_JID}.log"
+LOG_KIND=chain
+[ "$PROBE" != "1" ] || LOG_KIND=chainprobe
+[ "$CONT" != "1" ] || LOG_KIND=cont
+LOG="${EXPDIR}/della_vanilla_repro_${TS}_${LOG_KIND}${LOG_JID}.log"
 if [ "$DRYRUN" != "1" ]; then
   : > "$LOG" || { echo "GATEFAIL rc=8 could not open the run log ${LOG}"; exit 8; }
   exec > >(tee -- "$LOG") 2>&1

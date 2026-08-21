@@ -6,6 +6,13 @@
 # Usage:
 #   della_chain_submit.sh chain --time D-HH:MM:SS     # 67,500 in 7,500-step legs
 #   della_chain_submit.sh probe                       # the 3+1 leg GPU rehearsal
+#   della_chain_submit.sh cont --time D-HH:MM:SS      # the CONTINUOUS A/B arm:
+#                                                     # 67,500 steps as ONE job
+#
+# `cont` is the control for the chunking A/B: the same recipe and budget with no
+# resume seams, into a sibling save-dir, submitted as a single job with no
+# manifest and no dependencies. Everything else about it — gates, interlock,
+# transaction — is identical to a chain submission.
 #
 # Legs are linked with `--dependency=afterany:<prev>`: AFTERANY, not afterok, is
 # the watchdog. A leg that crashes still releases its successor, which discovers
@@ -25,9 +32,9 @@
 #
 # Exit codes: 2 usage, 3 closure dirty, 4 HEAD not pushed, 5 sbatch failed or
 # unparsable, 6 record/manifest write or verify failed, 7 release failed,
-# 8 Phase-1 verdict missing, 9 a racer/chain job already exists,
-# 10 the probe save-dir is not clean, 11 the squeue query itself failed,
-# 12 another submission holds the transaction lock.
+# 8 Phase-1 verdict missing, 9 a racer/chain/cont job already exists,
+# 10 the probe or continuous save-dir is not clean, 11 the squeue query itself
+# failed, 12 another submission holds the transaction lock.
 # ============================================================================
 set -euo pipefail
 
@@ -41,9 +48,10 @@ LEG_SBATCH="$EXPDIR/della_chain.sbatch"
 PHASE1_PASS_REL="worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/PHASE1_PASS.md"
 PROD_SAVEDIR=/scratch/gpfs/BLANCHETTE/yh4742/FLAC/checkpoints/exp16_vanilla_repro
 PROBE_SAVEDIR=/scratch/gpfs/BLANCHETTE/yh4742/FLAC/checkpoints/exp16_vanilla_repro_chainprobe
+CONT_SAVEDIR=/scratch/gpfs/BLANCHETTE/yh4742/FLAC/checkpoints/exp16_vanilla_repro_cont
 RUN_NAME=FLAC_vanilla_repro
 JOB_NAME=exp16-chain
-EXCLUSIVE_NAMES=exp16-train,exp16-train-smoke,exp16-train-resume,exp16-chain
+EXCLUSIVE_NAMES=exp16-train,exp16-train-smoke,exp16-train-resume,exp16-chain,exp16-cont
 DRYRUN="${DRYRUN:-0}"
 export PYTHONDONTWRITEBYTECODE=1
 
@@ -87,6 +95,7 @@ fi
 usage() {
   echo "usage: della_chain_submit.sh chain --time D-HH:MM:SS" >&2
   echo "       della_chain_submit.sh probe" >&2
+  echo "       della_chain_submit.sh cont --time D-HH:MM:SS" >&2
 }
 
 validate_time() {   # D-HH:MM:SS or HH:MM:SS, minutes/seconds <= 59
@@ -124,6 +133,7 @@ newest_step() {   # <save-dir> -> prints the step
 # --- A. arguments -------------------------------------------------------------
 KIND="${1:-}"; shift || true
 TIME_LIMIT=""
+CONT=0
 case "$KIND" in
   chain)
     while [ "$#" -gt 0 ]; do
@@ -140,6 +150,21 @@ case "$KIND" in
     [ "$#" -eq 0 ] || die "probe takes no options (its --time is fixed at 00:30:00)" 2
     TIME_LIMIT=00:30:00
     CHAIN_TOTAL=300; CHAIN_CHUNK=100; PROBE=1; SAVEDIR="$PROBE_SAVEDIR" ;;
+  cont)
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        --time)   TIME_LIMIT="${2:-}"; shift 2 || die "--time needs a value" 2 ;;
+        --time=*) TIME_LIMIT="${1#--time=}"; shift ;;
+        *) usage; die "unknown cont option '${1}'" 2 ;;
+      esac
+    done
+    # No default: a continuous 67,500-step run is ~20 h of wall clock and the
+    # budget is a measured quantity, not something to inherit from a constant.
+    [ -n "$TIME_LIMIT" ] || die "the continuous arm needs an explicit --time D-HH:MM:SS" 2
+    validate_time "$TIME_LIMIT" || die "--time '${TIME_LIMIT}' is not D-HH:MM:SS or HH:MM:SS with minutes/seconds <= 59" 2
+    # CHUNK == TOTAL is what makes it one leg; the driver refuses any other pair.
+    CHAIN_TOTAL=67500; CHAIN_CHUNK=67500; PROBE=0; CONT=1
+    JOB_NAME=exp16-cont; SAVEDIR="$CONT_SAVEDIR" ;;
   *) usage; die "first argument must be 'chain' or 'probe' (got '${KIND}')" 2 ;;
 esac
 
@@ -200,16 +225,20 @@ if [ -n "${EXISTING%;}" ]; then
   fi
 fi
 
-# --- E. a probe must start clean ---------------------------------------------
-# Never removed automatically: deleting checkpoints is an operator decision, and
-# a probe that silently resumed a previous probe would prove nothing about seams.
-if [ "$PROBE" = "1" ]; then
-  PROBE_S="$(newest_step "$PROBE_SAVEDIR")" || die "probe save-dir contains a malformed checkpoint name" 10
-  if [ "$PROBE_S" != "0" ]; then
+# --- E. a probe, and the continuous arm, must start clean --------------------
+# Never removed automatically: deleting checkpoints is an operator decision. A
+# probe that silently resumed would prove nothing about seams, and a CONTINUOUS
+# run that resumed would contain the very seam it exists to measure against.
+CLEAN_DIR=""; CLEAN_WHAT=""
+[ "$PROBE" != "1" ] || { CLEAN_DIR="$PROBE_SAVEDIR"; CLEAN_WHAT="probe"; }
+[ "$CONT" != "1" ]  || { CLEAN_DIR="$CONT_SAVEDIR";  CLEAN_WHAT="continuous"; }
+if [ -n "$CLEAN_DIR" ]; then
+  CLEAN_S="$(newest_step "$CLEAN_DIR")" || die "the ${CLEAN_WHAT} save-dir contains a malformed checkpoint name" 10
+  if [ "$CLEAN_S" != "0" ]; then
     if [ "$DRYRUN" = "1" ]; then
-      echo "DRY-RUN ADVISORY: the probe save-dir already holds checkpoints (newest step ${PROBE_S}); a real submit aborts here"
+      echo "DRY-RUN ADVISORY: the ${CLEAN_WHAT} save-dir already holds checkpoints (newest step ${CLEAN_S}); a real submit aborts here"
     else
-      die "the probe save-dir already holds checkpoints (newest step ${PROBE_S}) - remove ${PROBE_SAVEDIR} by hand and resubmit" 10
+      die "the ${CLEAN_WHAT} save-dir already holds checkpoints (newest step ${CLEAN_S}) - remove ${CLEAN_DIR} by hand and resubmit" 10
     fi
   fi
 fi
@@ -232,11 +261,19 @@ fi
 S0="$(newest_step "$SAVEDIR")" || die "the save-dir contains a malformed checkpoint name" 3
 REMAIN=$((CHAIN_TOTAL - S0))
 [ "$REMAIN" -gt 0 ] || die "training is already at step ${S0} >= CHAIN_TOTAL ${CHAIN_TOTAL} - nothing to submit" 2
-NLEGS=$(( (REMAIN + CHAIN_CHUNK - 1) / CHAIN_CHUNK + 1 ))   # ceil + one spare
-echo "chain plan: S0=${S0} TOTAL=${CHAIN_TOTAL} CHUNK=${CHAIN_CHUNK} -> ${NLEGS} legs (incl. 1 spare), --time ${TIME_LIMIT} each"
+if [ "$CONT" = "1" ]; then
+  # ONE job, no spare: a spare would be a second attempt at a run that must not
+  # resume, and afterany has nothing to chain to.
+  NLEGS=1
+  echo "continuous plan: 0 -> ${CHAIN_TOTAL} in ONE job, --time ${TIME_LIMIT}, save-dir ${SAVEDIR}"
+else
+  NLEGS=$(( (REMAIN + CHAIN_CHUNK - 1) / CHAIN_CHUNK + 1 ))   # ceil + one spare
+  echo "chain plan: S0=${S0} TOTAL=${CHAIN_TOTAL} CHUNK=${CHAIN_CHUNK} -> ${NLEGS} legs (incl. 1 spare), --time ${TIME_LIMIT} each"
+fi
 
 EXPORTS="EXPECT_SHA=${EXPECT_SHA},CHAIN_TOTAL=${CHAIN_TOTAL},CHAIN_CHUNK=${CHAIN_CHUNK}"
 [ "$PROBE" = "0" ] || EXPORTS="${EXPORTS},PROBE=1"
+[ "$CONT" = "0" ] || EXPORTS="${EXPORTS},CONT=1"
 
 if [ "$DRYRUN" = "1" ]; then
   PREV="<leg-1-id>"
@@ -304,8 +341,13 @@ done
 write_records() {
   {
     flock -w 30 200 || return 1
-    MANIFEST_WRITTEN=1        # from here on, cleanup owns this file
-    printf '%s\n' "${JOBIDS[@]}" > "$MANIFEST" || return 1
+    # NO manifest in CONT mode: one job with no successors has no chain to know
+    # about, and writing one would leave a stale file that a later chain leg
+    # would read as ITS chain.
+    if [ "$CONT" = "0" ]; then
+      MANIFEST_WRITTEN=1      # from here on, cleanup owns this file
+      printf '%s\n' "${JOBIDS[@]}" > "$MANIFEST" || return 1
+    fi
     if [ ! -s "$RECORD" ]; then
       {
         echo "# della_vanilla_repro — submission command record"
@@ -316,8 +358,13 @@ write_records() {
       echo "## $(date -Is) — ${JOB_NAME} (${KIND}) — ${NLEGS} legs — jobs ${JOBIDS[*]}"
       echo
       echo "- EXPECT_SHA: \`${EXPECT_SHA}\`"
-      echo "- chain: TOTAL=${CHAIN_TOTAL} CHUNK=${CHAIN_CHUNK} S0=${S0} PROBE=${PROBE}"
-      echo "- manifest: \`${MANIFEST}\`"
+      echo "- chain: TOTAL=${CHAIN_TOTAL} CHUNK=${CHAIN_CHUNK} S0=${S0} PROBE=${PROBE} CONT=${CONT}"
+      echo "- save-dir: \`${SAVEDIR}\`"
+      if [ "$CONT" = "0" ]; then
+        echo "- manifest: \`${MANIFEST}\`"
+      else
+        echo "- manifest: none (continuous single-job arm)"
+      fi
       echo "- submitted by: \`$(whoami)@$(hostname)\`"
       echo
       echo '```bash'
@@ -327,9 +374,11 @@ write_records() {
     } >&200 || return 1
   } 200>>"$RECORD"
   local id
-  for id in "${JOBIDS[@]}"; do
-    grep -q "^${id}\$" "$MANIFEST" || return 1
-  done
+  if [ "$CONT" = "0" ]; then
+    for id in "${JOBIDS[@]}"; do
+      grep -q "^${id}\$" "$MANIFEST" || return 1
+    done
+  fi
   grep -q "jobs ${JOBIDS[*]}" "$RECORD" || return 1
 }
 if ! write_records; then
@@ -338,7 +387,11 @@ if ! write_records; then
   restore_manifest
   die "no released chain may lack its manifest and record" 6
 fi
-echo "manifest ${MANIFEST} and record ${RECORD} written and verified"
+if [ "$CONT" = "0" ]; then
+  echo "manifest ${MANIFEST} and record ${RECORD} written and verified"
+else
+  echo "record ${RECORD} written and verified (no manifest: continuous single-job arm)"
+fi
 
 # --- J. release everything ----------------------------------------------------
 # Order is irrelevant: the afterany dependencies keep legs 2..N queued until their
