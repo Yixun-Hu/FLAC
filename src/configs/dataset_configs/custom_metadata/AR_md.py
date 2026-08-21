@@ -39,7 +39,19 @@ def get_custom_metadata(info, audio):
     # Load Acoustic Context
     if acoustic_context_config.get('load', False):
         max_len_cond = acoustic_context_config.get('max_len', 9600)
-        all_ref_irs, all_ref_src_pos = get_ir_and_location_for_other_sources(full_audio_path, num_ref_sources=acoustic_context_config.get('max_context', 8), metadata_path=metadata_path, max_len=max_len_cond)
+        record_context_paths = acoustic_context_config.get('record_paths', False)
+        context_result = get_ir_and_location_for_other_sources(
+            full_audio_path,
+            num_ref_sources=acoustic_context_config.get('max_context', 8),
+            metadata_path=metadata_path,
+            max_len=max_len_cond,
+            return_paths=record_context_paths,
+        )
+        if record_context_paths:
+            all_ref_irs, all_ref_src_pos, selected_paths = context_result
+            md['context_paths'] = [os.path.relpath(fp, dataset_folder) for fp in selected_paths]
+        else:
+            all_ref_irs, all_ref_src_pos = context_result
         md['context_poses'] = all_ref_src_pos # [N, 3]  
         md['context_poses_vit'] = all_ref_src_pos
         md['context_audio'] = all_ref_irs # [N, max_len_cond]
@@ -87,7 +99,9 @@ def get_receiver_source_location(ir_file_path, metadata_path):
     rec_loc = meta_info["rec_loc"]
     return src_loc, rec_loc
 
-def get_ir_and_location_for_other_sources(ir_file_path, num_ref_sources, metadata_path, max_len=9600):
+def select_other_source_ir_paths(ir_file_path, num_ref_sources):
+    """Run the released global-NumPy context path selection unchanged."""
+
     dir_name = os.path.dirname(ir_file_path)
     ir_file_name = ir_file_path.split("/")[-1]
     src_node, rec_node = int(ir_file_name.split("_")[0][1:]), int(ir_file_name.split("_")[1][1:])
@@ -104,6 +118,11 @@ def get_ir_and_location_for_other_sources(ir_file_path, num_ref_sources, metadat
         select_other_src_ir_paths = np.random.choice(valid_other_src_ir_paths, num_ref_sources, replace=False)
     except Exception as e:
         select_other_src_ir_paths = np.random.choice(valid_other_src_ir_paths, num_ref_sources, replace=True)
+    return [str(fp) for fp in select_other_src_ir_paths]
+
+
+def get_ir_and_location_for_other_sources(ir_file_path, num_ref_sources, metadata_path, max_len=9600, return_paths=False):
+    select_other_src_ir_paths = select_other_source_ir_paths(ir_file_path, num_ref_sources)
     all_ref_irs = []
     all_ref_src_pos = []
     
@@ -124,4 +143,6 @@ def get_ir_and_location_for_other_sources(ir_file_path, num_ref_sources, metadat
         all_ref_src_pos.append(torch.Tensor(proj_src_loc).float())
     all_ref_irs = torch.cat(all_ref_irs, dim=0)
     all_ref_src_pos = torch.vstack(all_ref_src_pos)
+    if return_paths:
+        return all_ref_irs, all_ref_src_pos, select_other_src_ir_paths
     return all_ref_irs, all_ref_src_pos

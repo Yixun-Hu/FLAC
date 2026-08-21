@@ -114,3 +114,13 @@
 - **Tests added** — released split order; S010 path quirk; full-before-filter manifest guard; protocol/hash round-trip; exact real-data eligible-count histograms; target-pose-only candidate cloning.
 - **Red evidence** — `python -m pytest src/tests/test_localization_ar_queries.py -q` fails collection with `ModuleNotFoundError: src.localization`, as expected before the new package exists.
 - **Next** — commit the red tests, then implement the smallest query/manifest layer that makes them green.
+
+## 2026-08-20 — D1 green: original exp_01 global-RNG context manifest
+
+- **Change** — added immutable split/query parsing and hashed manifest contracts; refactored the released `AR_md.py` selection block into `select_other_source_ir_paths` without changing its set iteration, S010 filename construction, broad exception fallback, or `np.random.choice` calls; added an opt-in `record_paths` output that is absent from ordinary configs. Added a full-loader materializer and CLI under `src/localization/` and `tools/`.
+- **Protocol executed** — existing K=8 unseen-eval config; complete 6,337-query order; seed 42; batch 64; four persistent workers; no shuffle; original audio/metadata/depth loader. The sandboxed attempt failed only because local multiprocessing sockets were forbidden; the identical approved command then completed from this worktree.
+- **Manifest** — `context_manifest_exp01_seed42.json`, 6,337 records, SHA-256 `b757da281dcde3ffc310aac67279a240dac5cb1ff1d9966bf918f69c4dde6f58`. A second independent full pass produced the same SHA.
+- **Census** — full eligible histogram `{6:91,7:429,8:5263,9:554}`; post-materialization mesh subset 5,337 records with `{6:91,7:429,8:4363,9:454}`; exactly 1,000 `ListeningRoom_idx_2` exclusions; all 520 short queries are in `Cafe_idx_1`, have width eight, and necessarily contain duplicate draws. Context paths, order, global coordinates, receiver coordinates, split hash, and protocol are frozen.
+- **Validation** — localization D1 tests `5 passed`; complete permanent suite `125 passed, 1 skipped, 11 warnings in 30.58s`; `py_compile` and `git diff --check` passed.
+- **Review cadence** — per Yixun's instruction to reduce reviewer-md time, no additional per-microcommit reviewer call is made. D1/G1 code, tests, audit, and cost evidence will be presented as one concentrated review unit.
+- **Next** — commit D1 green, then begin G1 geometry tests and mesh audit.

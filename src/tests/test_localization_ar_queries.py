@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 import torch
 
+from src.configs.dataset_configs.custom_metadata import AR_md
 from src.localization.ar_queries import (
     ContextProtocol,
     attach_context_selections,
@@ -101,3 +102,19 @@ def test_real_split_context_census_if_assets_available():
     kept = [q for q in queries if q.room != "ListeningRoom_idx_2"]
     assert len(kept) == 5337
     assert context_availability_histogram(kept) == {6: 91, 7: 429, 8: 4363, 9: 454}
+
+
+def test_released_selector_can_record_its_global_rng_draw(tmp_path):
+    root, split_path = _fake_dataset(tmp_path)
+    query = parse_split_queries(split_path, root)[0]
+    np.random.seed(123)
+    selected = AR_md.select_other_source_ir_paths(query.rir_path, 8)
+    assert len(selected) == 8
+    assert all(Path(path).name.split("_")[0] != "S010" for path in selected)
+
+    # A short released pool must use replacement and therefore contain repeats.
+    for path in list(Path(query.rir_path).parent.glob("S00[78]_R001_hybrid_IR.wav")):
+        path.unlink()
+    np.random.seed(123)
+    selected = AR_md.select_other_source_ir_paths(query.rir_path, 8)
+    assert len(set(selected)) < 8
