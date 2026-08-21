@@ -25,3 +25,7 @@ branch point `e603947` (`della-flac-chequity`, cut from `check-equivariance-nece
 - `90079a7` — round D: della_chain.sbatch + della_chain_submit.sh (self-locating legs, two-strike watchdog, chain manifest).
 - `428cb14` — round D review artifact (Codex REVISE).
 - `bd9f1c1` — round D fix loop: fail-closed squeue, checkpoint-indexed reseed, transaction lock, atomic stamp.
+- `539bc92` — Phase-2 completion record + chain logs.
+- `dc33112` — round E: Phase-3 repro-eval kit (14 cells).
+- `e93dd98` — round E review artifact + Phase-3 venue amendment.
+- `cb7772a` — round E fix loop: same-cell exclusion both ends, fail-closed squeue, full preflight.
