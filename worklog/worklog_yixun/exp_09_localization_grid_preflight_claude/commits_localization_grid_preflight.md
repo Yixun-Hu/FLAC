@@ -12,4 +12,5 @@ Base: `ecb83523c4ae8c60d4cd5f0ae3e562f2a84f1fa9`. Branch: `localization-exp`.
 | 6 | `a57a3c39662436edd50d6219d4c3146bad8e762a` | Record Yixun's approval and replace query-local context hashing with the original exp_01 global-RNG materialization protocol. |
 | 7 | `9ede32f2ecb21a402cae5c9f97bdcfb1003732d8` | Repair the permanent-suite import path, pin/install Open3D 0.19.0, and record the green baseline plus reviewer-service timeout. |
 | 8 | `1668c8441f7012ab64aa40138dfb52d7ec41e986` | Add failing contracts for release-order queries, S010 parity, context census, manifest integrity, and candidate cloning. |
-| 9 | _(this D1-green commit)_ | Implement the original global/per-worker context materializer, freeze the full seed-42 manifest, and close D1 tests/census. |
+| 9 | `506c98b80352a1b7fd300619635f5cf06db7a4e3` | Implement the original global/per-worker context materializer, freeze the full seed-42 manifest, and close D1 tests/census. |
+| 10 | _(this G1-red commit)_ | Add failing synthetic contracts for lattice, mesh clearance, query masks, z-band gating, oracle, and fail-closed mesh loading. |

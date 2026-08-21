@@ -124,3 +124,9 @@
 - **Validation** — localization D1 tests `5 passed`; complete permanent suite `125 passed, 1 skipped, 11 warnings in 30.58s`; `py_compile` and `git diff --check` passed.
 - **Review cadence** — per Yixun's instruction to reduce reviewer-md time, no additional per-microcommit reviewer call is made. D1/G1 code, tests, audit, and cost evidence will be presented as one concentrated review unit.
 - **Next** — commit D1 green, then begin G1 geometry tests and mesh audit.
+
+## 2026-08-20 — G1 red: geometry contracts
+
+- **Tests added** — invalid spacing; negative-coordinate lattice snapping; exact lexicographic 3-D lattice; synthetic watertight-box occupancy/surface clearance and chunk identity; inclusive receiver/context/z boundaries with `eps=1e-4`; finite nonempty oracle; global z-band fallback; missing/malformed mesh failure.
+- **Red evidence** — `python -m pytest src/tests/test_localization_geometry.py -q` fails collection with `ModuleNotFoundError: src.localization.geometry`, as expected.
+- **Next** — commit red, implement the bounded Open3D primitives, then run the synthetic suite before touching official meshes.
