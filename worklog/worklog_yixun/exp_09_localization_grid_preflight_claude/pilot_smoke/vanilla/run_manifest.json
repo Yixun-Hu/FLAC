@@ -1,0 +1,31 @@
+{
+  "identity": {
+    "agree_checkpoint_sha256": "3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787",
+    "candidate_batch_size": 64,
+    "checkpoint_sha256": "da12748586912c5fe9683a6d27b2507ff13c0a89c458abcbdc63aecd4f35c643",
+    "conditioning_method": "vanilla",
+    "context_manifest_sha256": "b757da281dcde3ffc310aac67279a240dac5cb1ff1d9966bf918f69c4dde6f58",
+    "frame_average_angles": null,
+    "geometry_audit_sha256": "ae09d9cf9416866d09dea498a1f8467e952866db8b1c914ed0bea6a75e06cf9a",
+    "model_config_sha256": "f3eafef4456666e4705ddaf35540f6b9f1f746189814cec000bac794ba2a7ec9",
+    "n_context": 8,
+    "pilot_manifest_sha256": "6eeeec401c3f63e47ab446b4b43efe2f1db260bad9decf74de423d0872b659a2",
+    "query_indices": [
+      5194
+    ],
+    "sample_seed": 42,
+    "sampler": {
+      "cfg_scale": 1.0,
+      "steps": 1,
+      "type": "rectified_flow_discrete_euler"
+    },
+    "score_sample_counts": [
+      1,
+      4,
+      8
+    ],
+    "tau": 0.1
+  },
+  "schema_version": 1,
+  "sha256": "0007814e135043e57959a7e0b2161e14095d13d015db02e9f97a3e41261b1a9e"
+}

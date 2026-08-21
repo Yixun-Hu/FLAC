@@ -346,8 +346,10 @@ def candidate_metadata(metadata: dict, candidates_global, receiver_global) -> li
     return output
 
 
-def reconstruct_query_candidates(record: dict, audit: dict) -> np.ndarray:
-    room = audit["rooms"][record["room"]]
+def reconstruct_room_base_candidates(room_name: str, audit: dict) -> np.ndarray:
+    """Rebuild and hash-check one room's mesh-valid global base lattice."""
+
+    room = audit["rooms"][room_name]
     mesh = load_raycast_scene(room["mesh_path"], compute_topology=False)
     raw = build_lattice(mesh.aabb_min, mesh.aabb_max, audit["grid_spacing_m"])
     base_mask, _distance = classify_mesh_candidates(
@@ -360,6 +362,12 @@ def reconstruct_query_candidates(record: dict, audit: dict) -> np.ndarray:
     expected_hash = hashlib.sha256(base.astype("<f8").tobytes()).hexdigest()
     if expected_hash != room["base_points_sha256"]:
         raise RuntimeError("reconstructed base candidate hash does not match geometry audit")
+    return base
+
+
+def filter_frozen_query_candidates(record: dict, audit: dict, base: np.ndarray) -> np.ndarray:
+    """Apply and verify the frozen query mask to a checked room base grid."""
+
     contexts = np.asarray(record["context_sources_global"], dtype=np.float64)
     z_band = (float(contexts[:, 2].min() - 0.5), float(contexts[:, 2].max() + 0.5))
     mask = filter_query_candidates(
@@ -371,7 +379,31 @@ def reconstruct_query_candidates(record: dict, audit: dict) -> np.ndarray:
         z_band=z_band if audit["z_branch"] == "z_band" else None,
         eps=audit["epsilon_m"],
     )
-    return base[mask]
+    query_rows = [
+        item
+        for item in audit["queries"]
+        if int(item["index"]) == int(record["index"])
+    ]
+    if len(query_rows) != 1 or query_rows[0]["query_id"] != record["query_id"]:
+        raise RuntimeError("query identity does not match geometry audit")
+    query = query_rows[0]
+    expected_indices_hash = query[
+        "z_indices_sha256" if audit["z_branch"] == "z_band" else "full_indices_sha256"
+    ]
+    actual_indices_hash = hashlib.sha256(
+        np.flatnonzero(mask).astype("<u4", copy=False).tobytes()
+    ).hexdigest()
+    if actual_indices_hash != expected_indices_hash:
+        raise RuntimeError("reconstructed query mask hash does not match geometry audit")
+    candidates = base[mask]
+    if len(candidates) != int(query["chosen_count"]):
+        raise RuntimeError("reconstructed query count does not match geometry audit")
+    return candidates
+
+
+def reconstruct_query_candidates(record: dict, audit: dict) -> np.ndarray:
+    base = reconstruct_room_base_candidates(record["room"], audit)
+    return filter_frozen_query_candidates(record, audit, base)
 
 
 @torch.inference_mode()
