@@ -1,13 +1,15 @@
 # Plan — exp_09_localization_grid_preflight (3-D mesh-valid analysis-by-synthesis localization)
 
-**Author:** OpenAI Codex (Planner / Analyst) · **Coder:** strongest coding-tier subagent at max effort after approval · **Reviewer:** Claude Opus 4.8, max effort, via Claude Code CLI · **Date:** 2026-08-20  
-**Status:** DRAFT — independent review attempted 2026-08-20 but blocked by expired Claude authentication; implementation remains blocked on a real Opus review, Planner revision, and Yixun approval.
+**Author:** OpenAI Codex (Planner / Analyst) · **Coder:** strongest coding-tier subagent at max effort after approval · **Reviewer:** Anthropic Claude Opus 5 (`claude-opus-5`, Claude Code 2.1.237 interactive session) · **Date:** 2026-08-20
+**Status:** REVISED after the Opus 5 `REQUEST-CHANGES` review — all B1–B6 and N1–N9 are addressed below; implementation remains blocked on Yixun's approval. Round R0 must close before G1, and a second user cost gate follows G1 before I1.
 
 ## 0. Decision being tested
 
 Can the frozen Vanilla FLAC 40k clean EMA checkpoint be inverted on the mesh-available AcousticRooms unseen rooms by evaluating a common, physically valid three-dimensional candidate grid and ranking generated RIRs with the frozen AGREE acoustic embedding?
 
-This is inference-only. There is no learned localization head and no optimization loss. The quantity called “score” below follows Eq. (3) of `acoustic_localization_brief.pdf`; all other choices follow the attached experiment text plus Yixun's later grid override.
+This is inference-only. There is no learned localization head and no optimization loss. The quantity called “score” below follows Eq. (3) of `acoustic_localization_brief.pdf`; all other choices follow the attached experiment text plus Yixun's later overrides.
+
+Protocol precedence is explicit: the PDF's §4 sentence about a common valid **2-D** grid at target source height is superseded by Yixun's approved isotropic **3-D** grid. The 2-D rule would leak the unknown target height. The manuscript protocol sentence and reserved Table 1 caption must be updated before exp_09 is reported. Exp_09 is also canonical-heading-only; it fills the diagnostic canonical column, not the brief's primary random-yaw column or random-yaw degradation result.
 
 ## 1. Frozen protocol
 
@@ -17,7 +19,8 @@ This is inference-only. There is no learned localization head and no optimizatio
 - Exp_09 test scope, explicitly directed by Yixun on 2026-08-20: exclude exactly the 1,000 queries from `ListeningRoom_idx_2` because its official OBJ is absent. The fixed preflight denominator is **5,337 queries in 16 mesh-available rooms**. Filter this room in memory, record the exclusion in every manifest/report, and fail if any additional query is lost.
 - This experiment-specific exception supersedes announcement 01 only for the missing-asset room in this mesh preflight. Results must say “mesh-available preflight subset”; they are not the complete published 6,337-query unseen-room protocol. Debugging may use further bounded records, but those numbers never enter `_results.md`.
 - One query is a target RIR `h_obs = h(x*_s, x_r)` with continuous global `x*_s` and known global receiver `x_r` read from metadata.
-- Context size is the existing FLAC `N_ctx=8`. At the same receiver, sort the nine non-target source IDs and choose eight with a deterministic RNG derived from `(protocol_seed, scene, room, receiver_id, target_source_id)`. The target RIR and target source are absent. The chosen context is materialized once and reused unchanged for every candidate and every stochastic draw of that query.
+- Context tensor width remains the released FLAC `N_ctx=8`, but uniqueness is not assumed. Reproduce the released eligible-path pool exactly, including `AR_md.py`'s `f"S00{node}"` filename quirk that makes source `S010` ineligible whenever it is not the target. Sort that eligible pool, seed a query-local `numpy.random.RandomState` from `(protocol_seed, scene, room, receiver_id, target_source_id)`, and draw eight paths without replacement when the pool has at least eight, otherwise with replacement exactly as the released loader does. This preserves the released pool and short-context behavior while making selection/order deterministic and batching-independent.
+- The full-manifest eligible-count histogram is pinned to `{6: 91, 7: 429, 8: 5263, 9: 554}`. After excluding `ListeningRoom_idx_2`, the in-scope histogram is `{6: 91, 7: 429, 8: 4363, 9: 454}`. The 520 short-context queries all remain in `Cafe_idx_1` and are deterministically duplicated to width eight; none is dropped. The target RIR and target source remain absent.
 - All candidates for a query share receiver, depth panorama, context RIRs, context poses, sample count, and seeds. Only the candidate source pose changes.
 - Global metadata coordinates are converted to receiver-relative FLAC coordinates exactly once at the model boundary: `candidate_relative = candidate_global - receiver_global`; context poses use the existing same transform.
 
@@ -25,11 +28,12 @@ This is inference-only. There is no learned localization head and no optimizatio
 
 - Spacing: `delta = (0.5, 0.5, 0.5) m`.
 - Lattice: for each axis, integer multiples of `0.5 m` between `ceil(aabb_min / 0.5) * 0.5` and `floor(aabb_max / 0.5) * 0.5`. The lattice is therefore room-global and independent of query and ground truth.
-- Base room-valid mask: inside the room free space and unsigned distance to the nearest mesh surface `>= 0.5 m`, matching AcousticRooms' published source-placement clearance.
-- Query-valid mask: distance to the known receiver `>= 0.5 m` and distance to every selected context-source location `>= 1.0 m`. The context exclusion prevents an exact context position/RIR from becoming a privileged candidate and matches the dataset's published inter-source separation. The threshold comparison is tolerant at numerical boundaries (`distance + eps >= threshold`).
+- Base room-valid mask: inside the room free space and unsigned distance to the nearest mesh surface `>= 0.5 m`, evaluated as `distance + 1e-4 m >= 0.5 m`. The `1e-4 m` tolerance applies consistently to mesh, receiver, context, and z-band boundaries.
+- Query-valid mask: distance to the known receiver `>= 0.5 m` and a **0.25 m numerical-duplicate guard** around each selected context-source coordinate. The 0.25 m guard is half a lattice step, prevents an effectively coincident context coordinate, and caused 0.0% measured oracle@0.5 damage in the review audit; the rejected 1.0 m rule caused 21.4%.
+- Observation-derived z rule (pre-registered, no target access): from the selected global context coordinates retain lattice heights in `[min(z_ctx)-0.5 m, max(z_ctx)+0.5 m]`, intersected with the mesh-valid full-height lattice. G1 computes both full-height and z-band oracle distributions over all 5,337 queries. Use the z-band globally only if every query remains nonempty and it creates zero additional `e_oracle>0.5 m` queries versus full height; otherwise use full height globally. The chosen branch is decided from geometry/oracle coverage before any FLAC generation and recorded in every manifest.
 - Ground truth is never inserted or snapped into the candidates.
 - Save the candidate manifest per room/query, including lattice origin, spacing, mesh identity, validity backend, base/query counts, exclusions, and SHA-256 so every arm receives byte-identical candidates.
-- Report the continuous-grid oracle `e_oracle = min_c ||c-x*_s||`. If `e_oracle > 0.5 m`, the query cannot count as a model success at 0.5 m; report both raw success and oracle-normalized diagnostic coverage, without redefining the headline metric.
+- Every query must have a nonempty candidate set and finite `e_oracle`; otherwise G1 fails before generation. Report the continuous-grid oracle `e_oracle = min_c ||c-x*_s||`, raw error `e_loc`, excess-over-oracle error `e_excess=max(0,e_loc-e_oracle)`, and raw/oracle-normalized success side by side as co-primary readouts.
 
 ### 1.3 Geometry validity and the upstream missing-mesh exclusion
 
@@ -38,10 +42,10 @@ Primary backend: Open3D 0.19.0 `RaycastingScene`, using the official OBJ triangl
 Fail-closed acceptance for a mesh-backed room:
 
 1. one unambiguous OBJ resolves to the split room;
-2. every metadata anchor is finite and inside/on the free-space classification after the documented tolerance;
-3. published placement checks are consistent up to mesh/metadata numerical tolerance;
-4. the generated base grid is nonempty and deterministic;
-5. two independently batched calls return byte-identical candidate arrays.
+2. every metadata anchor is finite and inside/on the free-space classification after the documented `1e-4 m` tolerance;
+3. every real metadata source anchor survives the same inside/surface-validity predicate used for candidates; any failure blocks the room rather than warning;
+4. every query-valid grid is nonempty with finite oracle error, and the per-room full-height/z-band oracle distributions are emitted before generation;
+5. the generated base grid is deterministic and two independently chunked calls return byte-identical candidate arrays.
 
 Known upstream gap: official AcousticRooms commit `3c87318a...` has no `ListeningRoom_idx_2.obj`, although that room contributes 1,000 queries to the full unseen split. Per Yixun's 2026-08-20 decision:
 
@@ -58,40 +62,68 @@ The authoritative mesh is still required before a future result can claim the co
 - Experiment-1 arm: `/home/zhixuanzhao/projects/Frame_Average/Checkpoint/P1_40k_clean_hybrid_EMA.ckpt`, SHA-256 `da12748586912c5fe9683a6d27b2507ff13c0a89c458abcbdc63aecd4f35c643`.
 - Frozen AGREE: `/home/zhixuanzhao/projects/rir2rir/FLAC/weights/AGREE/AGREE_fullAR.pt`, SHA-256 `3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787`.
 - Model config: existing `src/configs/model_configs/FLAC/AR/FLAC_AR_InContext.json`; dataset config: existing `src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json`. Do not author a reduced eval config.
-- Default sampler settings mirror the existing FLAC evaluation path: rectified-flow discrete Euler, `steps=1`, `cfg_scale=1.0`, checkpoint load integrity fail-closed, frozen/eval mode.
-- Provisional pre-registered stochastic protocol, subject to plan review and Yixun approval: `K=4` independent samples per candidate with counter-based deterministic seeds; `tau=0.1`. A bounded latency probe estimates the full cost but may not silently change `K`, `tau`, grid spacing, or sampler settings.
-- Encode the observed RIR once and each generated RIR through frozen `AGREE.encode_audio(..., normalize=True)`. Then
+- Default sampler settings mirror the existing FLAC evaluation path: rectified-flow discrete Euler, `steps=1`, `cfg_scale=1.0`, checkpoint load integrity fail-closed, frozen/eval mode. No CFG sweep is part of exp_09.
+- Nominal stochastic protocol: `K=4`, with the pre-registered runtime-only fallback in §1.5; `tau=0.1` stays fixed in every branch. Samples use counter-based deterministic seeds independent of batching.
+- AGREE input parity is pinned to the reviewed FLAC retrieval path: observed RIRs come from the existing dataloader crop, mono float32 `[B,1,10240]` at 22,050 Hz; generated RIRs are decoded to the same shape and clamped to `[-1,1]` exactly as `eval_FLAC.py`. Reuse `Retrieval.compute_audio_features` or extract one shared helper used by both metric and localization paths; do not create an independent preprocessing implementation. The observation is encoded once per query and generated RIRs use the same `encode_audio(..., normalize=True)` path. Then
 
   `s[x,k] = cosine(E_a(h_obs), E_a(h_hat[x,k]))`
 
   `S[x] = tau * (logsumexp_k(s[x,k] / tau) - log(K))`.
 
-  Use float32 accumulation and the stable `torch.logsumexp` form. Prediction is deterministic tie-breaking argmax by lexicographically sorted global candidate index.
+  Use float32 accumulation and the stable `torch.logsumexp` form. Prediction is deterministic tie-breaking argmax by lexicographically sorted global candidate index. Also save `S_mean[x]=mean_k s[x,k]` and its argmax as a zero-cost diagnostic; it never replaces the PDF-controlled headline score. A pre-registered debug slice records the empirical cosine spread relative to fixed `tau=0.1` but cannot tune tau.
 - The heatmap softmax temperature `T` is visualization-only and cannot affect the predicted candidate. Default `T=0.1`, labeled uncalibrated.
+
+### 1.5 Conditioning cache and pre-registered compute ladder
+
+- Query cache contract: compute `context_poses_vit`, `context_poses`, and `context_audio` once per query; recompute only the source branches for candidate changes. A bit-identity test must show the cached and uncached prepend-conditioning tokens are identical on the same inputs.
+- Receiver-candidate cache: within a receiver group, `source_vit` and `source` depend on receiver/depth/candidate but not which target source was held out. Compute them once for the union of that receiver's candidates and reuse them across its target queries, with an uncached-vs-cached equality test and bounded in-memory lifetime per receiver.
+- **Post-G1 gate before I1:** G1 reports exact valid candidate-query pairs for both full-height and admissible z-band branches, unique receiver-candidate pairs, estimated conditioner calls, and artifact bytes. Stop and present these geometry-only counts to Yixun; I1 cannot open until this second cost gate is accepted.
+- Runtime ladder, chosen globally from a cache-enabled no-quality throughput probe and frozen before reading any localization score: use `K=4` if projected full execution is `<=168 GPU-hours`; otherwise `K=2` if that projection is `<=168 GPU-hours`; otherwise use `K=1`. If cached `K=1` still projects above 168 GPU-hours, do not change spacing, candidates, or queries—request more compute/time and remain blocked. Every later model arm uses the same selected K and candidate manifests.
 
 ## 2. Evaluation and controls
 
-Primary preflight metrics on the fixed 5,337-query / 16-room mesh-available subset, aggregated first per room and bootstrapped by room:
+Primary canonical-heading preflight metrics on the fixed 5,337-query / 16-room mesh-available subset, aggregated first per room and bootstrapped by room:
 
-- median and mean continuous Euclidean localization error (m);
-- success within `0.5 m` and `1.0 m`;
+- median and mean continuous Euclidean localization error `e_loc` (m);
+- raw success `1[e_loc<=r]` and oracle-normalized success `1[e_excess<=r]` at `r in {0.5,1.0} m`, reported side by side as co-primary;
+- median/mean `e_oracle` and `e_excess`, plus per-room oracle distributions and the fraction with `e_oracle>0.5 m`;
 - 95% room-bootstrap confidence intervals;
-- grid-oracle median/mean/success coverage;
 - latency per query, candidate, and generated RIR.
 
 Controls under the identical candidate manifest:
 
 - deterministic uniform-random candidate baseline, repeated with pre-registered seeds;
 - AGREE oracle retrieval using real candidate-bank RIRs only where an exact dataset RIR exists, labeled sparse/metadata-bank and not confused with the dense-grid model oracle;
+- off-grid truth probe on exactly the lexicographically first query from each of the 16 included rooms: generate at continuous `x*_s`, record its score/rank against grid candidates, but never insert it into the argmax candidate set;
+- real-vs-generated AGREE calibration: for the same 16 fixed probe queries, compare `cos(E(h_obs),E(h_real,other))` with `cos(E(h_obs),E(h_generated))` and report both distributions to diagnose embedding domain gap;
+- save the mean-aggregated-score localization metrics beside the PDF log-mean-exp metrics and report score/candidate-count associations; these are diagnostics only;
 - score ablations (waveform / multiscale STFT) are deferred unless separately approved; they are not needed for the first Vanilla verdict.
 
 Visualizations are selected by pre-registered quantiles after all queries finish: lowest-error sharp case, median-error/ambiguous case, and highest-error failure case, with boundary/valid region, receiver, continuous truth, prediction, and uncalibrated normalized score. Selection cannot be hand-picked.
 
-Primary success criterion: Vanilla FLAC's median error and success rates beat the room-matched random baseline with non-overlapping or clearly shifted room-bootstrap intervals. Reliability gates (candidate coverage, exact 5,337-query subset coverage, load integrity, leakage guards) must pass before interpreting localization quality.
+Primary success criterion: Vanilla FLAC's raw and oracle-normalized median/error success readouts beat the room-matched random baseline with non-overlapping or clearly shifted room-bootstrap intervals. Reliability gates (candidate/oracle coverage, exact 5,337-query subset coverage, load integrity, leakage guards, AGREE parity) must pass before interpreting localization quality. These numbers are canonical-coordinate diagnostics only and cannot fill the brief's primary random-yaw result.
 
 ## 3. Planned files and TDD rounds
 
 Tests remain in `src/tests/` per announcement 02. Each round is test-first (red), minimal implementation (green), review/fix/reverification, and one small commit generally below 200 changed code lines.
+
+### R0 — restore the permanent-suite baseline and geometry runtime
+
+- Fix `src/tests/test_eval_paths.py` before extending it: resolve the repository root by walking parents to the `.git` marker, then load the comparator from `worklog/worklog_yixun/exp_02_yaw_noninvariance_claude`. This closes the announcement-03 migration regression that currently prevents test collection.
+- Add `open3d==0.19.0` to `pyproject.toml` and install it in the FLAC runtime interpreter used for `src/tests/`; record interpreter path and installed version. The fact that `/usr/bin/python3` has Open3D is not accepted as proof for the FLAC environment.
+- Run the complete existing `src/tests/` suite and record an all-green, no-collection-error baseline in the worklog. R0 receives its own Opus code review and must close before G1.
+
+### D1 — deterministic query/context construction
+
+Create `src/localization/ar_queries.py`:
+
+- parse existing split entries and metadata into immutable query records;
+- load/pad/crop the observed RIR exactly like `AR_md.py`;
+- reproduce the released eligible context pool (including the S010 path quirk) and deterministically draw width eight with replacement only for pools of size 6/7;
+- materialize one shared FLAC metadata/context object and clone it with one candidate-relative pose;
+- emit stable query/candidate/sample seeds independent of batching/worker count.
+
+Create `src/tests/test_localization_ar_queries.py` first. Tests: IR-versus-metadata filename conventions, including the released S010 quirk; full 17-room/6,337-record source-manifest parse invariant; exact exclusion of the 1,000 `ListeningRoom_idx_2` records yields 16 rooms/5,337 records; any additional omission fails; full/in-scope eligible-count histograms equal `{6:91,7:429,8:5263,9:554}` / `{6:91,7:429,8:4363,9:454}`; all 520 short queries produce deterministic width-eight contexts with duplicates and are not dropped; target source/RIR excluded; fixed seed reproducibility; candidate cloning changes only `source`/`source_vit`; global-to-relative transform; dataloader audio length/rate checks.
 
 ### G1 — geometry audit primitives
 
@@ -101,24 +133,12 @@ Create `src/localization/geometry.py`:
 - `build_lattice(aabb_min, aabb_max, spacing)` — stable lexicographic `float32/float64` candidate order;
 - `load_raycast_scene(mesh_path)` — fail-closed OBJ load and identity metadata;
 - `classify_mesh_candidates(scene, points, surface_clearance)` — occupancy plus distance mask in bounded chunks;
-- `filter_query_candidates(points, receiver, context_sources, ...)` — receiver/context clearances;
+- `filter_query_candidates(points, receiver, context_sources, ...)` — receiver/context/z-band clearances;
 - `grid_oracle_error(points, truth)`.
 
-Create `src/tests/test_localization_geometry.py` first. Tests: negative/non-finite spacing rejected; negative AABB coordinates snap correctly; exact expected cubic lattice/order; synthetic watertight box retains only known interior points with clearance; outside/surface points rejected; receiver/context boundary behavior; no ground-truth insertion; deterministic chunking; empty/missing/malformed mesh fails closed.
+Create `src/tests/test_localization_geometry.py` first. Tests: negative/non-finite spacing rejected; negative AABB coordinates snap correctly; exact expected cubic lattice/order; synthetic watertight box retains only known interior points with `1e-4 m` tolerance; outside/surface points rejected; 0.5 m receiver and 0.25 m context boundary behavior; context-derived z-band and its global full-height fallback rule; no ground-truth insertion; per-query nonempty/finite-oracle guard; deterministic chunking; empty/missing/malformed mesh fails closed; all real source anchors survive their own mesh predicate.
 
-Create `tools/audit_localization_geometry.py` after its helper contracts are green. It verifies the documented missing room, audits all 16 included meshes, and writes JSON/Markdown only under this experiment folder. The tool itself is included in the G1 code review.
-
-### D1 — deterministic query/context construction
-
-Create `src/localization/ar_queries.py`:
-
-- parse existing split entries and metadata into immutable query records;
-- load/pad/crop the observed RIR exactly like `AR_md.py`;
-- deterministically choose eight same-receiver non-target contexts without replacement;
-- materialize one shared FLAC metadata/context object and clone it with one candidate-relative pose;
-- emit stable query/candidate/sample seeds independent of batching/worker count.
-
-Create `src/tests/test_localization_ar_queries.py` first. Tests: filename/metadata mapping; full 17-room/6,337-record source-manifest parse invariant; exact exclusion of the 1,000 `ListeningRoom_idx_2` records yields 16 rooms/5,337 records; any additional omission fails; target source and target RIR excluded; exactly eight unique contexts from the other nine; fixed seed reproducibility; different target may change selection; candidate cloning changes only `source`/`source_vit`; global-to-relative transform; audio length/rate checks; missing context fails closed rather than replacement sampling.
+Create `tools/audit_localization_geometry.py` after its helper contracts are green. It verifies the documented missing room, audits all 16 included meshes, emits per-room source-anchor survival and full-height/z-band oracle distributions, and writes JSON/Markdown only under this experiment folder. The tool itself is included in the G1 code review.
 
 ### S1 — scoring and metric aggregation
 
@@ -128,9 +148,9 @@ Create `src/localization/scoring.py`:
 - stable log-mean-exp for arbitrary `tau>0`;
 - lexicographic stable argmax;
 - visualization-only softmax;
-- localization/random/oracle metrics and room bootstrap.
+- localization/random/oracle/excess metrics and room bootstrap.
 
-Create `src/tests/test_localization_scoring.py` first. Tests: `K=1`; equal scores return the same score; small-`tau` approaches max; numerical stability at extreme logits; invalid tau/shape/NaN rejection; tie rule; visualization temperature cannot change prediction; exact synthetic errors/success rates; room bootstrap resamples rooms, not RIR rows.
+Create `src/tests/test_localization_scoring.py` first. Tests: `K=1`; equal scores return the same score; small-`tau` approaches max; numerical stability at extreme logits; fixed-tau and mean-score outputs; invalid tau/shape/NaN rejection; tie rule; visualization temperature cannot change prediction; exact `e_loc/e_oracle/e_excess` and raw/oracle-normalized success; room bootstrap resamples rooms, not RIR rows.
 
 ### I1 — frozen FLAC/AGREE localization engine
 
@@ -138,29 +158,32 @@ Create `src/localization/engine.py` and `localize_FLAC.py`:
 
 - reuse/refactor the already-reviewed checkpoint-integrity and Vanilla/FA conditioner dispatch from `eval_FLAC.py` without changing legacy evaluation behavior;
 - freeze/load FLAC and AGREE once;
-- encode observation once;
+- encode observation once through the shared Retrieval preprocessing helper;
+- cache context branches once per query and source branches once per receiver-candidate union, while bounding memory to one receiver group;
 - batch candidates and `K` samples with batch-invariant seeds;
 - generate/decode RIRs, encode AGREE audio, score, resume from atomic per-query artifacts, and write a schema-versioned manifest/result;
 - expose `vanilla` now and `fa_invariant` for the later matched arm, with no arm-specific candidate logic.
 
-Create `src/tests/test_localization_engine.py` and extend `src/tests/test_eval_paths.py` first. Tests: clean/dirty checkpoint load; all params frozen/eval; observation encoded once; candidate batch shape/metadata; exact K seeds and batch-size invariance; fake sampler recovers the known synthetic winning candidate; Vanilla and FA dispatch; interrupted resume skips only complete verified queries; config/split/checkpoint/candidate hash mismatch refuses resume; output stays inside the requested `NeuriPs_Workshop` directory.
+Create `src/tests/test_localization_engine.py` and extend the now-green `src/tests/test_eval_paths.py` first. Tests: clean/dirty checkpoint load; all params frozen/eval; localization and `Retrieval.compute_audio_features` return identical embeddings for the same mono float32 `[B,1,10240]` waveform; generated clamp parity; observation encoded once; cached and uncached context tokens bit-identical; receiver-candidate source-cache and uncached tokens bit-identical; candidate batch shape/metadata; exact K seeds and batch-size invariance; fake sampler recovers the known synthetic winner; Vanilla/FA dispatch; interrupted resume skips only complete verified queries; config/split/checkpoint/candidate/K/cache hash mismatch refuses resume; output stays inside `NeuriPs_Workshop`.
 
 ### R1 — reporting
 
-Create `tools/aggregate_localization_results.py` and `tools/render_localization_results.py`, with tests in `src/tests/test_localization_reporting.py`. Tests: exact 5,337-query/16-room coverage plus an explicit 1,000-query `ListeningRoom_idx_2` exclusion record; no other duplicate/missing query IDs; per-room then room-bootstrap aggregation; random baseline seed accounting; oracle coverage; “mesh-available preflight subset” labeling; quantile-based case selection; Markdown/HTML values agree with aggregate JSON. Both scripts enter review before use.
+Create `tools/aggregate_localization_results.py` and `tools/render_localization_results.py`, with tests in `src/tests/test_localization_reporting.py`. Tests: exact 5,337-query/16-room coverage plus explicit 1,000-query `ListeningRoom_idx_2` exclusion; no other duplicate/missing IDs; per-room then room-bootstrap aggregation; random seed accounting; raw/oracle/excess and mean-score diagnostics; fixed 16-query off-grid/calibration probe coverage; candidate-count association; canonical-only and “mesh-available preflight subset” labels; quantile case selection; Markdown/HTML values agree with aggregate JSON. Both scripts enter review before use.
 
 ## 4. Validation ladder and launch gates
 
-1. Static: `py_compile`, config JSON parse, `git diff --check`.
-2. Permanent tests: new localization tests plus all existing `src/tests/`.
-3. Tiny synthetic box/mesh forward with fake FLAC/AGREE.
-4. Real-data readback: several records, then the complete metadata/split integrity scan; verify 22.05 kHz, lengths, coordinate transforms, context leakage guards.
-5. Geometry audit: verify the documented absence of `ListeningRoom_idx_2`, then audit all 16 included room assets, anchors, candidate counts, and oracle coverage; stop on any other missing/invalid room.
-6. One real query with a bounded candidate slice for shape/memory only; no scientific result.
-7. One complete room smoke, no headline interpretation; verify resume, artifact size, and measured candidate/s throughput.
-8. Full-cost projection and storage guardrail. If projected compute/storage is unacceptable, stop and ask; do not tune the protocol after seeing localization quality.
-9. Independent full-diff review, parity audit against `eval_FLAC.py`/AGREE, params + exact command + acceptance criteria recorded at launch.
-10. Fixed 5,337-query / 16-room mesh-available preflight run and controls, followed by explicitly subset-labeled results, reliability analysis, offline HTML, and commits log.
+0. **R0 precondition:** pin/install Open3D in the actual FLAC interpreter, repair `test_eval_paths.py`, and record the complete pre-exp_09 suite green with no collection errors.
+1. Static per round: `py_compile`, config JSON parse, `git diff --check`.
+2. Permanent tests per round: new localization tests plus all existing `src/tests/`; no round advances on red.
+3. D1 full census: parse all 6,337 manifest queries, prove the exact 5,337 exclusion and both context histograms, and verify deterministic duplicate padding/leakage guards.
+4. G1 synthetic then real geometry: box mesh first; then verify missing `ListeningRoom_idx_2`, audit all 16 included meshes, real-anchor survival, per-query nonempty sets, full-height/z-band candidate counts and oracle distributions.
+5. **Post-G1 user cost gate before I1:** publish exact geometry-only counts/call/storage estimates and the pre-registered z-band branch. Stop until Yixun accepts the cost evidence.
+6. I1 tiny synthetic forward with fake FLAC/AGREE, including cached-vs-uncached token identity and resume/hash guards.
+7. Real-data readback: several records; record 22.05 kHz, `[B,1,10240]`, dtype/range/min/max/std, context transforms, generated clamp, and exact localization-vs-Retrieval embedding equality.
+8. Cache-enabled, no-quality throughput probe chooses one global `K` by §1.5's `4 -> 2 -> 1`/168-GPU-hour rule; record the selected branch before reading scores.
+9. One real query bounded-candidate smoke, then one complete-room debugging smoke: verify resume, artifacts, memory, and measured throughput. These are debugging-only and never enter `_results.md`.
+10. Independent full-diff Opus review, parity audit against `eval_FLAC.py`/AGREE, params + exact commands + acceptance criteria recorded at launch.
+11. Fixed 5,337-query / 16-room mesh-available preflight run and controls, followed by explicitly subset-labeled results, reliability analysis, offline HTML, and commits log.
 
 ## 5. Explicitly out of scope for exp_09
 
@@ -175,7 +198,22 @@ Create `tools/aggregate_localization_results.py` and `tools/render_localization_
 ## 6. Risks requiring review/approval
 
 1. **Subset claim boundary:** Yixun resolved the missing mesh by excluding `ListeningRoom_idx_2`. Every result must expose the 5,337/16 denominator and cannot be described as the complete unseen split.
-2. **Compute scale:** dense 3-D candidates × 5,337 queries × `K=4` may be expensive even at one flow step. The full-cost projection is a hard gate; no protocol reduction is automatic.
+2. **Compute scale:** the review measured 25,312,262 raw candidate-query pairs before mesh/z masking. Query/receiver caching, the geometry-only post-G1 gate, and the pre-registered global `K=4 -> 2 -> 1` runtime ladder prevent post-quality protocol tuning; no spacing/query reduction is automatic.
 3. **Mesh topology:** architectural OBJs may be non-watertight or self-intersecting. Metadata-anchor validation is the empirical fail-closed criterion; topology warnings cannot be ignored merely because a grid is nonempty.
-4. **AGREE input parity:** scoring must use exactly the audio normalization/length convention on which AGREE was trained. Real-RIR and generated-RIR preprocessing must be byte/number audited.
-5. **Context proximity bias:** the proposed `1.0 m` context-source exclusion is scientifically motivated but was not explicit in the PDF; it is frozen here for review and user approval before any result is observed.
+4. **AGREE input parity:** mono float32 `[B,1,10240]`, dataloader crop, generated clamp, and the shared Retrieval embedding helper are mandatory and byte/number audited.
+5. **Context parity:** exp_09 intentionally preserves the released S010 eligibility quirk and deterministic duplicate padding for 520 Cafe queries. This favors comparison with exp_01/02 over silently fixing the baseline loader.
+
+## 7. Review-response ledger and approval decisions
+
+- **B1 accepted:** replace 1.0 m context exclusion with the reviewer-recommended 0.25 m duplicate guard; add per-query nonempty/finite-oracle gates.
+- **B2 option (a) accepted:** preserve the released eligible context pool including the S010 quirk; use deterministic replacement sampling for the 520 short Cafe queries; never drop them.
+- **B3 accepted:** cache query- and receiver-candidate-invariant conditioning, move exact counts/cost approval after G1 and before I1, adopt context-derived z-band only under its no-new-unwinnable gate, and pre-register the global `K=4 -> 2 -> 1` runtime ladder.
+- **B4 accepted:** R0 repairs the stale worklog path and must establish the green permanent-suite baseline before localization code.
+- **B5 accepted:** bind localization to mono float32 10,240-sample Retrieval preprocessing and generated clamping, with an embedding-equality test/audit.
+- **B6 accepted:** use `eps=1e-4 m` for every clearance boundary and fail if a real source anchor does not survive.
+- **N1–N3 accepted:** pre-register conditional context z-band, document 3-D's explicit precedence over the PDF's 2-D sentence, and label exp_09 canonical-only.
+- **N4–N7 accepted:** save mean score, fixed 16-room off-grid truth probes, raw/oracle/excess co-primary readouts, and real-vs-generated AGREE calibration.
+- **N8 accepted:** keep `cfg_scale=1.0`; no CFG sweep.
+- **N9 accepted:** pin/install Open3D 0.19.0 in the interpreter that runs this repository before G1.
+
+Yixun's approval of this revised plan authorizes only R0 and the subsequent small reviewed TDD rounds through G1. The workflow stops again after G1 for the exact geometry/cost gate before I1, so no expensive generation is implied by initial approval.
