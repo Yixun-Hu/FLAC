@@ -188,3 +188,27 @@ sbatch --hold --parsable --job-name=exp16-chain --time=04:30:00 --dependency=aft
 sbatch --hold --parsable --job-name=exp16-chain --time=04:30:00 --dependency=afterany:12681494 --export=EXPECT_SHA=7b407d90db62662729e80faa178857c8e412e7c9,CHAIN_TOTAL=67500,CHAIN_CHUNK=7500 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_chain.sbatch
 ```
 
+## 2026-08-21T11:51:44-04:00 — exp16-reval (Phase 3) — 14 cells — jobs 12726247 12726248 12726249 12726250 12726251 12726252 12726253 12726254 12726255 12726256 12726258 12726259 12726288 12726290
+
+- EXPECT_SHA: `afe8d967e16a72a0f90796fd009a7346f4660c91`
+- checkpoint: `/scratch/gpfs/BLANCHETTE/yh4742/FLAC/checkpoints/exp16_vanilla_repro/FLAC_vanilla_repro/exp16_della_vanilla_repro/checkpoints/epoch=14-step=67500.ckpt` (+ the 62500/65000 endpoint screens where requested)
+- cells: `u8_s42=12726247 u8_s43=12726248 u8_s44=12726249 u8_s45=12726250 u8_s46=12726251 u1_s42=12726252 u1_s43=12726253 u1_s44=12726254 u1_s45=12726255 u1_s46=12726256 u8_s42_step62500=12726258 u8_s42_step65000=12726259 seen_s42=12726288 u8_s42_a100=12726290`
+- submitted by: `yh4742@della9.princeton.edu`
+
+```bash
+sbatch --hold --parsable --job-name=exp16-reval-u8_s42 --export=EXPECT_SHA=afe8d967e16a72a0f90796fd009a7346f4660c91,CELL=u8_s42 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-u8_s43 --export=EXPECT_SHA=afe8d967e16a72a0f90796fd009a7346f4660c91,CELL=u8_s43 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-u8_s44 --export=EXPECT_SHA=afe8d967e16a72a0f90796fd009a7346f4660c91,CELL=u8_s44 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-u8_s45 --export=EXPECT_SHA=afe8d967e16a72a0f90796fd009a7346f4660c91,CELL=u8_s45 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-u8_s46 --export=EXPECT_SHA=afe8d967e16a72a0f90796fd009a7346f4660c91,CELL=u8_s46 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-u1_s42 --export=EXPECT_SHA=afe8d967e16a72a0f90796fd009a7346f4660c91,CELL=u1_s42 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-u1_s43 --export=EXPECT_SHA=afe8d967e16a72a0f90796fd009a7346f4660c91,CELL=u1_s43 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-u1_s44 --export=EXPECT_SHA=afe8d967e16a72a0f90796fd009a7346f4660c91,CELL=u1_s44 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-u1_s45 --export=EXPECT_SHA=afe8d967e16a72a0f90796fd009a7346f4660c91,CELL=u1_s45 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-u1_s46 --export=EXPECT_SHA=afe8d967e16a72a0f90796fd009a7346f4660c91,CELL=u1_s46 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-u8_s42_step62500 --export=EXPECT_SHA=afe8d967e16a72a0f90796fd009a7346f4660c91,CELL=u8_s42_step62500 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-u8_s42_step65000 --export=EXPECT_SHA=afe8d967e16a72a0f90796fd009a7346f4660c91,CELL=u8_s42_step65000 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-seen_s42 --export=EXPECT_SHA=afe8d967e16a72a0f90796fd009a7346f4660c91,CELL=seen_s42 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-u8_s42_a100 --partition= --qos= --gres=gpu:a100:1 --export=EXPECT_SHA=afe8d967e16a72a0f90796fd009a7346f4660c91,CELL=u8_s42_a100 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+```
+
