@@ -406,35 +406,49 @@ def test_scan_seed_accumulates_power_m4_and_the_battery(tmp_path):
     assert scan["sensitivity"]["n_rows_with_battery"] == 3
 
 
-def test_seen_vs_unseen_puts_the_two_splits_side_by_side():
-    seen = {"m1": {"pooled": {"top1": 0.8, "median_e_loc": 0.0, "mean_e_loc": 0.4}}}
-    unseen = {"m1": {"pooled": {"top1": 0.5, "median_e_loc": 0.5, "mean_e_loc": 1.0}},
-              "m2_complex": {"pooled": {"top1": 0.4, "median_e_loc": 1.0, "mean_e_loc": 2.0}}}
-    table = mr.seen_vs_unseen(seen, unseen)
-    assert table["m1"]["seen_top1"] == pytest.approx(0.8)
-    assert table["m1"]["unseen_top1"] == pytest.approx(0.5)
-    assert table["m1"]["top1_gap"] == pytest.approx(0.3)
-    assert table["m2_complex"]["seen_top1"] is None      # no seen counterpart
-    assert table["m2_complex"]["status"].startswith("no seen")
-
-
 # --------------------------------------------------------------------------- #
 # report assembly, the six conclusion questions, and the markdown block
 # --------------------------------------------------------------------------- #
 def _seed_fixture(tmp_path, seed, family_distances, ctx_distances, agree_pred=1,
-                  n_queries=6, ctx_sims=(0.9, 0.1)):
+                  n_queries=6, ctx_sims=(0.9, 0.1), families=("m1",), rooms=3,
+                  oracle_pred=None):
     metrics_path = os.path.join(str(tmp_path), f"m{seed}.jsonl")
     rows_path = os.path.join(str(tmp_path), f"r{seed}.jsonl")
+    oracle_path = os.path.join(str(tmp_path), f"o{seed}.jsonl")
     os.makedirs(str(tmp_path), exist_ok=True)
-    with open(metrics_path, "w") as mh, open(rows_path, "w") as rh:
+    with open(metrics_path, "w") as mh, open(rows_path, "w") as rh, open(oracle_path, "w") as oh:
         for q in range(n_queries):
-            qid, room = f"q{q}", f"Room/R{q % 3}"
+            qid, room = f"q{q}", f"Room/R{q % rooms}"
             row = _metrics_row(qid, room, q,
-                               {"m1": (family_distances, ctx_distances)},
+                               {name: (family_distances, ctx_distances) for name in families},
                                agree_pred=agree_pred)
             mh.write(json.dumps(row) + "\n")
-            rh.write(json.dumps(_replay_row(qid, room, ctx_sims=ctx_sims)) + "\n")
-    return metrics_path, rows_path
+            rh.write(json.dumps(_replay_row(qid, room, ctx_sims=ctx_sims, seed=seed)) + "\n")
+            oh.write(json.dumps(_oracle_row(qid, room, families,
+                                            pred=GT_INDEX if oracle_pred is None
+                                            else oracle_pred)) + "\n")
+    with open(oracle_path.replace(".jsonl", "_summary.json"), "w") as handle:
+        json.dump({"summary": {"seed": seed, "n_queries": n_queries},
+                   "provenance": {"mode": "metrics-retrieval",
+                                  "context_binding": {"digest": f"ctx{seed}"}}}, handle)
+    return metrics_path, rows_path, oracle_path
+
+
+def _oracle_row(query_id, room_id, families, pred=GT_INDEX, available=(True, True, True)):
+    """A --mode metrics-retrieval row: the measured-candidate oracle ceiling."""
+    usable = [i for i, flag in enumerate(available) if flag]
+    distances = [0.1 if i == pred else 0.8 for i in usable]
+    return {"query_id": query_id, "room_id": room_id, "gt_index": GT_INDEX, "gt_node": 0,
+            "candidate_nodes": [0, 1, 2], "context_member": list(CONTEXT_MEMBER),
+            "candidate_available": list(available), "n_candidates": 3, "n_context": 2,
+            "families": {name: {"oracle_hex": _hex_vector(distances),
+                                "oracle_pred_index": int(pred),
+                                "oracle_correct": bool(pred == GT_INDEX),
+                                "context_hex": _hex_vector([0.1, 0.5]),
+                                "retrieval_pred_index": 1, "retrieval_correct": False,
+                                "retrieval_masked_pred_index": 0,
+                                "retrieval_masked_correct": True}
+                         for name in families}}
 
 
 #: distances whose mean over K puts the GT (candidate 0) first
@@ -443,7 +457,7 @@ DIST_MEAN_PICKS_GT = [[0.10, 0.10], [0.40, 0.40], [0.90, 0.90]]
 
 def test_build_seed_report_covers_the_families_and_the_primary_tests(tmp_path):
     paths = _seed_fixture(tmp_path, 42, DIST_MEAN_PICKS_GT, CTX_PREFERS_SECOND)
-    scan = mr.scan_seed(*paths, families=("m1",))
+    scan = mr.scan_seed(paths[0], paths[1], families=("m1",))
     report = mr.build_seed_report(scan, seed=42, n_boot=100)
 
     assert report["seed"] == 42 and report["n_queries"] == 6 and report["n_rooms"] == 3
@@ -461,7 +475,7 @@ def test_build_seed_report_covers_the_families_and_the_primary_tests(tmp_path):
 
 def test_conclusions_answer_all_six_questions_from_computed_values(tmp_path):
     paths = _seed_fixture(tmp_path, 42, DIST_MEAN_PICKS_GT, CTX_PREFERS_SECOND)
-    scan = mr.scan_seed(*paths, families=("m1",))
+    scan = mr.scan_seed(paths[0], paths[1], families=("m1",))
     seed_reports = [mr.build_seed_report(scan, seed=42, n_boot=100)]
     answers = mr.conclusions(seed_reports, families=("m1",))
 
@@ -494,7 +508,7 @@ def test_conclusions_read_the_battery_from_the_seen_pass(tmp_path):
     """q5's evidence lives in the SEEN calibration rows: the unseen passes carry
     no battery, so a report that looked only at them answered n/a for everything."""
     paths = _seed_fixture(tmp_path, 42, DIST_MEAN_PICKS_GT, CTX_PREFERS_SECOND)
-    scan = mr.scan_seed(*paths, families=("m1",))
+    scan = mr.scan_seed(paths[0], paths[1], families=("m1",))
     seed_reports = [mr.build_seed_report(scan, seed=42, n_boot=100)]
     battery = {"status": "computed", "n_rows_with_battery": 12,
                "variants": {"gain_x2": {"m1": {"top1": 0.5, "prediction_change_rate": 0.0,
@@ -517,7 +531,7 @@ def test_seed_table_reports_mean_and_sd(tmp_path):
     reports = []
     for seed, distances in ((42, DIST_MEAN_PICKS_GT), (43, DIST_MEAN_PICKS_1)):
         paths = _seed_fixture(tmp_path / str(seed), seed, distances, CTX_PREFERS_SECOND)
-        scan = mr.scan_seed(*paths, families=("m1",))
+        scan = mr.scan_seed(paths[0], paths[1], seed=seed, families=("m1",))
         reports.append(mr.build_seed_report(scan, seed=seed, n_boot=100))
     table = mr.seed_table(reports, families=("m1",))
     assert table["m1"]["top1"]["per_seed"] == {"42": 1.0, "43": 0.0}
@@ -529,7 +543,7 @@ def test_seed_table_reports_mean_and_sd(tmp_path):
 
 def test_render_markdown_has_the_required_tables(tmp_path):
     paths = _seed_fixture(tmp_path, 42, DIST_MEAN_PICKS_GT, CTX_PREFERS_SECOND)
-    scan = mr.scan_seed(*paths, families=("m1",))
+    scan = mr.scan_seed(paths[0], paths[1], families=("m1",))
     report = mr.build_report([mr.build_seed_report(scan, seed=42, n_boot=100)],
                              families=("m1",))
     text = mr.render_markdown(report)
@@ -547,7 +561,7 @@ def test_render_markdown_has_the_required_tables(tmp_path):
 
 def test_build_report_is_deterministic(tmp_path):
     paths = _seed_fixture(tmp_path, 42, DIST_MEAN_PICKS_GT, CTX_PREFERS_SECOND)
-    scan = mr.scan_seed(*paths, families=("m1",))
+    scan = mr.scan_seed(paths[0], paths[1], families=("m1",))
     first = mr.build_report([mr.build_seed_report(scan, seed=42, n_boot=100)],
                             families=("m1",))
     second = mr.build_report([mr.build_seed_report(scan, seed=42, n_boot=100)],
@@ -598,25 +612,90 @@ def test_real_slice_agrees_with_what_the_driver_recorded(tmp_path):
 # --------------------------------------------------------------------------- #
 # the driver's thin --mode metrics-report
 # --------------------------------------------------------------------------- #
+#: the REAL frozen R4 metric manifest and the commit that registered it.
+_R4_MANIFEST = ("worklog/worklog_yixun/exp_18_loc_invert_claude/"
+                "loc_invert_R4_metric_registration.json")
+_R4_REGISTRATION_SHA = "d6dbf0073d9eb4c30f9df971f772872bab6a4122"
+
+
+def _report_argv(tmp_path, inputs, oracle=None, extra=None, families=None):
+    argv = ["--mode", "metrics-report", "--model-config", "m.json",
+            "--dataset-config", "d.json", "--out-dir", str(tmp_path / "out"),
+            "--eval-name", "R4_report", "--report-bootstrap", "50",
+            "--report-registration", _R4_MANIFEST,
+            "--registration-sha", _R4_REGISTRATION_SHA,
+            "--report-expect-queries", "6", "--report-input"] + list(inputs)
+    if oracle:
+        argv += ["--oracle-inputs"] + list(oracle)
+    if families:
+        argv += ["--report-families"] + list(families)
+    return argv + list(extra or [])
+
+
+def _three_seed_inputs(tmp_path, families=("m1", "m2", "m3", "m4", "m5")):
+    inputs, oracle = [], []
+    for seed in (42, 43, 44):
+        metrics_path, rows_path, oracle_path = _seed_fixture(
+            tmp_path / str(seed), seed, DIST_MEAN_PICKS_GT, CTX_PREFERS_SECOND,
+            families=families)
+        inputs.append(f"{seed}:{metrics_path}:{rows_path}")
+        oracle.append(f"{seed}:{oracle_path}")
+    return inputs, oracle
+
+
 def test_driver_metrics_report_mode_writes_the_report_and_the_markdown(tmp_path):
     import eval_localization as el
 
-    metrics_path, rows_path = _seed_fixture(tmp_path, 42, DIST_MEAN_PICKS_GT,
-                                            CTX_PREFERS_SECOND)
-    out_dir = str(tmp_path / "out")
-    args = el.validate_args(el.parse_args(
-        ["--mode", "metrics-report", "--model-config", "m.json",
-         "--dataset-config", "d.json", "--out-dir", out_dir, "--eval-name", "R4_report",
-         "--report-input", f"42:{metrics_path}:{rows_path}",
-         "--report-bootstrap", "50", "--report-families", "m1"]))
+    inputs, oracle = _three_seed_inputs(tmp_path)
+    args = el.validate_args(el.parse_args(_report_argv(tmp_path, inputs, oracle=oracle)))
     result = el.run_metrics_report(args)
 
     assert os.path.exists(result["report_path"]) and os.path.exists(result["markdown_path"])
     with open(result["report_path"]) as handle:
         payload = json.load(handle)
-    assert payload["provenance"]["seeds"] == [42]
+    assert payload["provenance"]["seeds"] == [42, 43, 44]
+    assert payload["provenance"]["registration"]["seeds"] == [42, 43, 44]
     assert payload["seed_table"]["m1"]["top1"]["mean"] == pytest.approx(1.0)
+    assert payload["seed_table"]["m1"]["oracle_top1"]["mean"] == pytest.approx(1.0)
     assert "PRELIMINARY" in open(result["markdown_path"]).read()
+
+
+def test_driver_metrics_report_enforces_the_frozen_manifest(tmp_path):
+    """The gate must enforce what the review confirmed by hand: exactly the
+    registered seeds, the five primaries, the whole split, ten primary tests."""
+    import eval_localization as el
+
+    inputs, oracle = _three_seed_inputs(tmp_path)
+    with pytest.raises(SystemExit, match="report-registration"):
+        el.validate_args(el.parse_args(
+            [a for a in _report_argv(tmp_path, inputs)
+             if a not in ("--report-registration", _R4_MANIFEST)]))
+
+    with pytest.raises(SystemExit, match="seeds"):        # seed 44 withheld
+        el.run_metrics_report(el.validate_args(el.parse_args(
+            _report_argv(tmp_path, inputs[:2]))))
+
+    thin_inputs, _ = _three_seed_inputs(tmp_path / "thin", families=("m1", "m2"))
+    with pytest.raises(SystemExit, match="m3"):           # a registered family missing
+        el.run_metrics_report(el.validate_args(el.parse_args(
+            _report_argv(tmp_path, thin_inputs))))
+
+    with pytest.raises(SystemExit, match="9"):            # wrong declared split size
+        el.run_metrics_report(el.validate_args(el.parse_args(
+            _report_argv(tmp_path, inputs, extra=["--report-expect-queries", "9"]))))
+
+
+def test_driver_metrics_report_refuses_oracle_inputs_for_another_seed(tmp_path):
+    import eval_localization as el
+
+    inputs, oracle = _three_seed_inputs(tmp_path)
+    paths = [spec.split(":", 1)[1] for spec in oracle]
+    # seed 42's slot points at seed 43's oracle file and vice versa: the rows are
+    # identical in geometry, so only the published provenance can tell
+    swapped = [f"42:{paths[1]}", f"43:{paths[0]}", oracle[2]]
+    with pytest.raises(SystemExit, match="oracle"):
+        el.run_metrics_report(el.validate_args(el.parse_args(
+            _report_argv(tmp_path, inputs, oracle=swapped))))
 
 
 def test_driver_metrics_report_refuses_a_malformed_input_spec(tmp_path):
@@ -780,3 +859,101 @@ def test_m4_accumulator_honours_the_recorded_mask():
     assert per_feature["f0"]["n_queries"] == 1
     assert per_feature["f1"]["n_queries"] == 0        # masked out, not scored
     assert math.isnan(per_feature["f1"]["top1"])
+
+
+# --------------------------------------------------------------------------- #
+# r4m6 F1: the mandated Delta = 0 rows and the measured-candidate oracle ceiling
+# --------------------------------------------------------------------------- #
+def test_alignment_sensitivity_rows_are_reported_by_default():
+    """Plan §3 mandates the Delta = 0 rows; they were recorded but never shown."""
+    assert set(mr.ALIGNMENT_SENSITIVITY_FAMILIES) <= set(mr.REPORT_FAMILIES)
+    assert mr.family_kind("m1") == "primary"
+    assert mr.family_kind("m2_complex") == "declared-secondary"
+    assert mr.family_kind("m1_delta0") == "declared-sensitivity"
+    assert mr.family_kind("m5_delta0") == "declared-sensitivity"
+
+
+def test_oracle_ceiling_is_scanned_and_tabulated(tmp_path):
+    metrics_path, rows_path, oracle_path = _seed_fixture(
+        tmp_path, 42, DIST_MEAN_PICKS_1, CTX_PREFERS_SECOND)
+    scan = mr.scan_seed(metrics_path, rows_path, seed=42, families=("m1",),
+                        oracle_path=oracle_path)
+    assert len(scan["oracle"]["m1"]) == 6
+    assert scan["oracle"]["m1"][0]["top1"] == 1.0          # the oracle picks the GT
+    assert scan["oracle"]["m1"][0]["rr"] == pytest.approx(1.0)
+
+    report = mr.build_seed_report(scan, seed=42, n_boot=100)
+    assert report["families"]["m1"]["oracle"]["pooled"]["top1"] == pytest.approx(1.0)
+    table = mr.seed_table([report], families=("m1",))
+    assert table["m1"]["oracle_top1"]["mean"] == pytest.approx(1.0)
+    text = mr.render_markdown(mr.build_report([report], families=("m1",)))
+    assert "oracle" in text
+
+
+def test_oracle_row_that_contradicts_itself_is_refused(tmp_path):
+    row = _metrics_row("q", "Room/R0", 0, {"m1": (DIST_MEAN_PICKS_1, CTX_PREFERS_FIRST)})
+    oracle = _oracle_row("q", "Room/R0", ("m1",), pred=1)
+    oracle["families"]["m1"]["oracle_correct"] = True          # pred 1 != GT 0
+    with pytest.raises(ValueError, match="oracle"):
+        mr.oracle_record(row, oracle, "m1")
+
+
+def test_oracle_stream_must_cover_the_whole_pass(tmp_path):
+    metrics_path, rows_path, oracle_path = _seed_fixture(
+        tmp_path, 42, DIST_MEAN_PICKS_1, CTX_PREFERS_SECOND)
+    short = os.path.join(str(tmp_path), "short_oracle.jsonl")
+    with open(oracle_path) as handle:
+        lines = handle.readlines()
+    with open(short, "w") as handle:
+        handle.writelines(lines[:-2])
+    with pytest.raises(ValueError, match="oracle"):
+        mr.scan_seed(metrics_path, rows_path, seed=42, families=("m1",), oracle_path=short)
+
+
+# --------------------------------------------------------------------------- #
+# r4m6 F2 / F5: q6's verdict, and q3 over PHYSICAL rooms
+# --------------------------------------------------------------------------- #
+def test_q6_states_complementarity_and_refuses_to_claim_added_information(tmp_path):
+    paths = _seed_fixture(tmp_path, 42, DIST_MEAN_PICKS_GT, CTX_PREFERS_SECOND)
+    scan = mr.scan_seed(paths[0], paths[1], seed=42, families=("m1",))
+    answers = mr.conclusions([mr.build_seed_report(scan, seed=42, n_boot=100)],
+                             families=("m1",))
+    q6 = answers["q6_adds_information_vs_different_scorer"]["m1"]
+    assert q6["verdict"] == ("complementary scoring signal observed; added information not "
+                            "established")
+    assert "adds_information" not in q6
+    assert q6["contingency"]["family_right_agree_wrong"] == 6
+    assert q6["rescue_rate"] == pytest.approx(1.0) and q6["union_top1"] == pytest.approx(1.0)
+    assert len(q6["not_established"]) == 3
+    joined = " ".join(q6["not_established"]).lower()
+    for expected in ("fusion", "waveform", "scorer"):
+        assert expected in joined
+
+
+def test_q3_counts_physical_rooms_not_seed_room_cells(tmp_path):
+    reports = []
+    for seed in (42, 43, 44):
+        paths = _seed_fixture(tmp_path / str(seed), seed, DIST_MEAN_PICKS_GT,
+                              CTX_PREFERS_SECOND, rooms=3)
+        scan = mr.scan_seed(paths[0], paths[1], seed=seed, families=("m1",))
+        reports.append(mr.build_seed_report(scan, seed=seed, n_boot=100))
+    q3 = mr.conclusions(reports, families=("m1",))["q3_seed_and_room_consistent"]["m1"]
+    assert q3["n_rooms"] == 3, "seed-room cells were counted as rooms"
+    assert q3["n_seed_room_cells"] == 9
+    assert q3["room_sign_agreement"] == pytest.approx(1.0)
+
+
+def test_seen_vs_unseen_labels_both_sides(tmp_path):
+    seen = {"m1": {"pooled": {"top1": 0.8, "median_e_loc": 0.0, "mean_e_loc": 0.4},
+                   "macro": {"top1": 0.75}}}
+    unseen = {"m1": {"top1": {"mean": 0.5, "per_seed": {"42": 0.5, "43": 0.5, "44": 0.5}},
+                     "macro_top1": {"mean": 0.45},
+                     "median_e_loc": {"mean": 0.5}, "mean_e_loc": {"mean": 1.0}}}
+    table = mr.seen_vs_unseen(seen, unseen, seen_label="seed 42 calibration replay",
+                              unseen_label="mean over seeds [42, 43, 44]")
+    assert table["m1"]["seen_top1"] == pytest.approx(0.8)
+    assert table["m1"]["unseen_top1"] == pytest.approx(0.5)
+    assert table["m1"]["top1_gap"] == pytest.approx(0.3)
+    assert table["m1"]["seen_label"] == "seed 42 calibration replay"
+    assert table["m1"]["unseen_label"] == "mean over seeds [42, 43, 44]"
+    assert table["m1"]["unseen_per_seed"] == {"42": 0.5, "43": 0.5, "44": 0.5}

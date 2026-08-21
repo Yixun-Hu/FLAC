@@ -29,9 +29,21 @@ from src.localization.scoring import nearest_context_baseline, summarize
 #: secondary and is labelled as one wherever it is reported.
 PRIMARY_FAMILIES = ("m1", "m2", "m3", "m4", "m5")
 SECONDARY_FAMILIES = ("m2_complex", "m3_band", "m3_hilbert", "m5_gcc")
-REPORT_FAMILIES = PRIMARY_FAMILIES + SECONDARY_FAMILIES
-#: the mandated Delta = 0 alignment-sensitivity rows (reported, never promoted).
+REPORT_FAMILIES = PRIMARY_FAMILIES + SECONDARY_FAMILIES + ("m1_delta0", "m5_delta0")
+#: (the Delta = 0 names are spelled out here because the constant below reads
+#: them back for labelling; both must stay in step, and a test pins that.)
+#: the mandated Delta = 0 alignment-sensitivity rows (plan §1/§3): reported
+#: alongside their family, never promoted into the corrected primary tests.
 ALIGNMENT_SENSITIVITY_FAMILIES = ("m1_delta0", "m5_delta0")
+
+
+def family_kind(family):
+    """How a family must be labelled wherever it is reported."""
+    if family in PRIMARY_FAMILIES:
+        return "primary"
+    if family in ALIGNMENT_SENSITIVITY_FAMILIES:
+        return "declared-sensitivity"
+    return "declared-secondary"
 
 #: K aggregation: mean is primary (plan §1), the rest are declared secondaries.
 PRIMARY_AGGREGATION = "mean"
@@ -41,6 +53,18 @@ AGGREGATIONS = (PRIMARY_AGGREGATION,) + SECONDARY_AGGREGATIONS
 #: fixed campaign references (R-1b / R2, K_ctx = 8), quoted not recomputed.
 AGREE_RETRIEVAL_REFERENCE = 0.689
 AGREE_CONTEXT_MEMBER_RATE = 0.376
+
+#: q6 may report complementarity and an oracle-fusion ceiling, and nothing more:
+#: a rescue count cannot separate "more information" from "a different scorer".
+Q6_VERDICT = "complementary scoring signal observed; added information not established"
+Q6_NOT_ESTABLISHED = (
+    "that a realizable fusion could choose the correct scorer per query -- the union is an "
+    "oracle ceiling, not an achievable system",
+    "that information beyond the shared generated waveform exists: both scorers read the same "
+    "generated RIRs, so the rescues may be re-readings of the same evidence",
+    "that the improvement exceeds what any sufficiently different scorer would rescue by "
+    "decorrelated errors alone",
+)
 
 #: the campaign's registered resampling settings (scoring.clustered_bootstrap_ci).
 BOOTSTRAP_N = 10000
@@ -433,17 +457,25 @@ def sensitivity_summary(rows, aggregation=PRIMARY_AGGREGATION):
     return summary
 
 
-def seen_vs_unseen(seen_summaries, unseen_summaries):
-    """The seen-only-scorer detector: the same family on both splits."""
+def seen_vs_unseen(seen_summaries, unseen_columns, seen_label="seen calibration pass",
+                   unseen_label="unseen passes"):
+    """The seen-only-scorer detector, with BOTH sides labelled (r4m6 finding 5).
+
+    The unseen side is the multi-seed table entry (its per-seed values travel
+    with it), so the comparison never depends silently on CLI input order.
+    """
     table = {}
-    for family, unseen in sorted(unseen_summaries.items()):
+    for family, unseen in sorted(unseen_columns.items()):
         seen = seen_summaries.get(family)
         entry = {
-            "unseen_top1": float(unseen["pooled"]["top1"]),
-            "unseen_median_e_loc": float(unseen["pooled"]["median_e_loc"]),
-            "unseen_mean_e_loc": float(unseen["pooled"]["mean_e_loc"]),
-            "seen_top1": None, "seen_median_e_loc": None, "seen_mean_e_loc": None,
-            "top1_gap": None,
+            "unseen_label": unseen_label, "seen_label": seen_label,
+            "unseen_top1": unseen["top1"]["mean"],
+            "unseen_per_seed": dict(unseen["top1"].get("per_seed") or {}),
+            "unseen_macro_top1": (unseen.get("macro_top1") or {}).get("mean"),
+            "unseen_median_e_loc": (unseen.get("median_e_loc") or {}).get("mean"),
+            "unseen_mean_e_loc": (unseen.get("mean_e_loc") or {}).get("mean"),
+            "seen_top1": None, "seen_macro_top1": None, "seen_median_e_loc": None,
+            "seen_mean_e_loc": None, "top1_gap": None,
             "status": "seen and unseen",
         }
         if seen is None:
@@ -452,9 +484,11 @@ def seen_vs_unseen(seen_summaries, unseen_summaries):
         else:
             entry.update({
                 "seen_top1": float(seen["pooled"]["top1"]),
+                "seen_macro_top1": float(seen["macro"]["top1"]),
                 "seen_median_e_loc": float(seen["pooled"]["median_e_loc"]),
                 "seen_mean_e_loc": float(seen["pooled"]["mean_e_loc"]),
-                "top1_gap": float(seen["pooled"]["top1"]) - float(unseen["pooled"]["top1"]),
+                "top1_gap": (None if entry["unseen_top1"] is None else
+                             float(seen["pooled"]["top1"]) - float(entry["unseen_top1"])),
             })
         table[family] = entry
     return table
@@ -514,15 +548,53 @@ def _bind_seed(replay_row, seed, position):
 
 
 def _sibling_summary(path):
-    """The summary JSON a published stream is a sibling of, or ``None``."""
+    """The provenance of the summary JSON a published stream is a sibling of.
+
+    Both blocks are read: the run modes put the seed and the context-stream
+    digest in different places (``provenance`` for the replay passes, ``summary``
+    plus a ``context_binding`` block for --mode metrics-retrieval), and the
+    report needs the same three facts from either shape.
+    """
     for suffix in ("_metrics.jsonl", "_rows.jsonl", ".jsonl"):
         if str(path).endswith(suffix):
             candidate = str(path)[: -len(suffix)] + "_summary.json"
-            if os.path.isfile(candidate):
-                with open(candidate) as handle:
-                    return json.load(handle).get("provenance") or {}
-            return None
+            if not os.path.isfile(candidate):
+                return None
+            with open(candidate) as handle:
+                payload = json.load(handle)
+            merged = dict(payload.get("summary") or {})
+            merged.update(payload.get("provenance") or {})
+            binding = merged.get("context_binding") or {}
+            if "context_stream_digest" not in merged and binding.get("digest"):
+                merged["context_stream_digest"] = binding["digest"]
+            return merged
     return None
+
+
+def bind_oracle(oracle_path, seed, context_digest, require=False):
+    """Bind the oracle control to the seed and context draw it must belong to.
+
+    The control is a separate pass over the same split, so nothing in its rows
+    identifies the seed -- its published provenance does, which is exactly what
+    the mandatory ``--verify-context-digest`` binding was added for.
+    """
+    provenance = _sibling_summary(oracle_path)
+    if not provenance:
+        if require:
+            raise ValueError(f"the oracle stream {oracle_path!r} has no sibling summary; its "
+                             "seed and context draw cannot be bound to the pass")
+        return {}
+    if seed is not None and provenance.get("seed") is not None \
+            and int(provenance["seed"]) != int(seed):
+        raise ValueError(
+            f"the oracle stream {oracle_path!r} was produced with seed {provenance['seed']} "
+            f"but is being read as seed {seed}")
+    found = provenance.get("context_stream_digest")
+    if context_digest and found and str(found) != str(context_digest):
+        raise ValueError(
+            f"the oracle stream {oracle_path!r} drew context {str(found)[:16]}... but the pass "
+            f"it is compared against drew {str(context_digest)[:16]}...")
+    return provenance
 
 
 #: provenance the two streams of one pass must agree on, and the report records.
@@ -622,6 +694,10 @@ def scan_seed(metrics_path, rows_path, families=REPORT_FAMILIES,
     battery_rows = []
     provenance = bind_provenance(metrics_path, rows_path, seed=seed,
                                  require=require_provenance)
+    oracle_provenance = (bind_oracle(oracle_path, seed,
+                                     provenance.get("context_stream_digest"),
+                                     require=require_provenance)
+                         if oracle_path else {})
 
     for metrics_row, replay_row, oracle_row in iter_joined(metrics_path, rows_path, seed=seed,
                                                            oracle_path=oracle_path):
@@ -664,6 +740,7 @@ def scan_seed(metrics_path, rows_path, families=REPORT_FAMILIES,
     return {"records": {f: b for f, b in records.items() if b[PRIMARY_AGGREGATION]},
             "oracle": {f: v for f, v in oracle.items() if v},
             "provenance": provenance, "seed": None if seed is None else int(seed),
+            "oracle_provenance": oracle_provenance,
             "retrieval": {f: b for f, b in retrieval.items() if b["raw"]},
             "power": {f: v for f, v in power.items() if v},
             "m4": m4.result(),
@@ -702,13 +779,14 @@ def build_seed_report(scan, seed, n_boot=BOOTSTRAP_N, boot_seed=BOOTSTRAP_SEED,
         power_values = [v for v in scan["power"].get(family, []) if v is not None]
         blocks[family] = {
             "is_primary": family in primary_families,
-            "label": "primary" if family in primary_families else "declared-secondary",
+            "label": family_kind(family),
             "primary": summarize_records(primary),
             "aggregations": {agg: summarize_records(records)
                              for agg, records in family_records.items()},
             "retrieval": {mode: _summary_or_none(records)
                           for mode, records in scan["retrieval"][family].items()},
             "context_split": context_split(primary),
+            "oracle": _summary_or_none(scan.get("oracle", {}).get(family)),
             "power": {"n_queries": len(power_values),
                       "n_skipped": len(scan["power"].get(family, [])) - len(power_values),
                       "mean": float(np.mean(power_values)) if power_values else None,
@@ -775,6 +853,8 @@ SEED_TABLE_COLUMNS = (
     ("retrieval_masked_macro_top1", ("retrieval", "masked", "macro", "top1")),
     ("context_member_rate", ("context_split", "context_member_rate")),
     ("power_mean", ("power", "mean")),
+    ("oracle_top1", ("oracle", "pooled", "top1")),
+    ("oracle_macro_top1", ("oracle", "macro", "top1")),
 )
 
 
@@ -890,7 +970,9 @@ def conclusions(seed_reports, families=PRIMARY_FAMILIES,
     q3 = {}
     for family, columns in table.items():
         top1 = columns["top1"]
-        per_room = []
+        # each PHYSICAL room is one unit: its per-seed differences are averaged
+        # first, so the 17 rooms stay 17 and not 51 seed-room cells (r4m6 F5)
+        by_room, n_cells = {}, 0
         for report in seed_reports:
             block = report["families"].get(family)
             if block is None or not block["retrieval"]["masked"]:
@@ -898,7 +980,10 @@ def conclusions(seed_reports, families=PRIMARY_FAMILIES,
             control_rooms = block["retrieval"]["masked"]["per_room"]
             for room, stats in block["primary"]["per_room"].items():
                 if room in control_rooms:
-                    per_room.append(float(stats["top1"]) - float(control_rooms[room]["top1"]))
+                    by_room.setdefault(room, []).append(
+                        float(stats["top1"]) - float(control_rooms[room]["top1"]))
+                    n_cells += 1
+        per_room = [float(np.mean(values)) for _room, values in sorted(by_room.items())]
         wins = float(np.mean([d > 0 for d in per_room])) if per_room else None
         pooled_sign = (None if top1["mean"] is None else
                        float(np.sign((top1["mean"] or 0.0)
@@ -907,7 +992,7 @@ def conclusions(seed_reports, families=PRIMARY_FAMILIES,
                     float(np.mean([float(np.sign(d)) == pooled_sign for d in per_room])))
         q3[family] = {
             "top1_sd_over_seeds": top1["sd"], "top1_per_seed": top1["per_seed"],
-            "n_rooms": len(per_room),
+            "n_rooms": len(per_room), "n_seed_room_cells": n_cells,
             "room_win_rate_vs_matched": wins,
             "room_sign_agreement": agreeing,
             "consistent": (None if top1["sd"] is None or agreeing is None else
@@ -1010,14 +1095,14 @@ def conclusions(seed_reports, families=PRIMARY_FAMILIES,
                           contingency["family_wrong_agree_right"] / agree_right),
             "union_top1": None if not total else union / total,
             "agree_top1": (None if not total else agree_right / total),
-            "adds_information": (None if not total else
-                                 bool(contingency["family_right_agree_wrong"] > 0
-                                      and union / total > agree_right / total)),
+            "verdict": Q6_VERDICT,
+            "not_established": list(Q6_NOT_ESTABLISHED),
         }
     answers["q6_adds_information_vs_different_scorer"] = dict(
-        q6, rule=("adds_information := the family is right on queries where the registered "
-                  "AGREE readout is wrong, so their union beats AGREE alone; the full 2x2 "
-                  "contingency and the agreement rate are reported, not just the verdict"))
+        q6, rule=("the 2x2 contingency, the rescue rate and the oracle-union accuracy are "
+                  "reported as computed; they establish COMPLEMENTARY ERRORS and an "
+                  "oracle-fusion ceiling only, so the verdict is fixed at "
+                  f"{Q6_VERDICT!r} for every family (r4m6 finding 2)"))
     return answers
 
 
@@ -1050,13 +1135,13 @@ def build_report(seed_reports, families=REPORT_FAMILIES, seen_scan=None,
             "inputs": {"metrics_path": seen_scan["metrics_path"],
                        "rows_path": seen_scan["rows_path"]},
         }
-    unseen_summaries = {}
-    for family in families:
-        blocks = [r["families"][family]["primary"] for r in seed_reports
-                  if family in r["families"]]
-        if blocks:
-            unseen_summaries[family] = blocks[0]
-    split_table = seen_vs_unseen(seen_summaries, unseen_summaries) if seen_scan else {}
+    table = seed_table(seed_reports, families=families)
+    seeds = [r["seed"] for r in seed_reports]
+    split_table = (seen_vs_unseen(
+        seen_summaries, table,
+        seen_label=(f"seen calibration replay, seed {seen_scan.get('seed')}"
+                    if seen_scan.get("seed") is not None else "seen calibration replay"),
+        unseen_label=f"unseen mean over seeds {seeds}") if seen_scan else {})
 
     answers = conclusions(
         seed_reports,
@@ -1090,8 +1175,9 @@ def build_report(seed_reports, families=REPORT_FAMILIES, seen_scan=None,
     return {
         "mode": "metrics-report",
         "families": {"primary": list(PRIMARY_FAMILIES),
-                     "declared_secondary": list(SECONDARY_FAMILIES)},
-        "seed_table": seed_table(seed_reports, families=families),
+                     "declared_secondary": list(SECONDARY_FAMILIES),
+                     "declared_sensitivity": list(ALIGNMENT_SENSITIVITY_FAMILIES)},
+        "seed_table": table,
         "seeds": [{k: v for k, v in report.items() if k != "_pairs"}
                   for report in seed_reports],
         "seen": seen_block,
@@ -1125,10 +1211,11 @@ def render_markdown(report):
 
     lines.append("| family | kind | pooled top-1 (mean +- SD) | macro top-1 | median e_loc | "
                  "mean e_loc | s@0.5 | s@1.0 | MRR | matched control (pooled) | "
-                 "matched control (macro) | ctx-member rate |")
-    lines.append("|" + "---|" * 12)
+                 "matched control (macro) | oracle ceiling | ctx-member rate |")
+    lines.append("|" + "---|" * 13)
     for family, columns in report["seed_table"].items():
-        lines.append("| {} | {} | {} +- {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
+        lines.append("| {} | {} | {} +- {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |"
+                     .format(
             family, columns["label"],
             _fmt(columns["top1"]["mean"]), _fmt(columns["top1"]["sd"]),
             _fmt(columns["macro_top1"]["mean"]),
@@ -1137,6 +1224,7 @@ def render_markdown(report):
             _fmt(columns["mrr"]["mean"]),
             _fmt(columns["retrieval_masked_top1"]["mean"]),
             _fmt(columns["retrieval_masked_macro_top1"]["mean"]),
+            _fmt(columns["oracle_top1"]["mean"]),
             _fmt(columns["context_member_rate"]["mean"])))
     lines.append("")
 
@@ -1163,7 +1251,7 @@ def render_markdown(report):
                 ("q3_seed_and_room_consistent", "consistent", "room_sign_agreement"),
                 ("q4_reduces_context_member_failure", "reduces", "context_member_rate"),
                 ("q5_robustness_caveats", "caveat", "worst_prediction_change_rate"),
-                ("q6_adds_information_vs_different_scorer", "adds_information", "union_top1"))
+                ("q6_adds_information_vs_different_scorer", "verdict", "union_top1"))
     for key, verdict_key, evidence_key in verdicts:
         block = report["conclusions"].get(key, {})
         for family, entry in sorted(block.items()):

@@ -1125,6 +1125,16 @@ def parse_args(argv=None):
                         metavar="SEED:METRICS_JSONL:ROWS_JSONL",
                         help="--mode metrics-report: one published unseen pass per seed, as "
                              "seed:metrics-jsonl:replay-rows-jsonl (repeatable)")
+    parser.add_argument("--oracle-inputs", nargs="+", default=None,
+                        metavar="SEED:ORACLE_ROWS_JSONL",
+                        help="--mode metrics-report: the published --mode metrics-retrieval "
+                             "rows of each seed, for the measured-candidate oracle ceiling")
+    parser.add_argument("--report-registration", default=None, metavar="PATH",
+                        help="--mode metrics-report: the FROZEN metric registration manifest "
+                             "(required); the report must cover exactly its seeds and families")
+    parser.add_argument("--report-expect-queries", type=int, default=None,
+                        help="--mode metrics-report: queries each seed must cover (default: "
+                             "the registered split size resolved from --dataset-config)")
     parser.add_argument("--report-seen", default=None, metavar="METRICS_JSONL:ROWS_JSONL",
                         help="--mode metrics-report: the SEEN calibration pass, for the "
                              "seen-vs-unseen control and the sensitivity battery")
@@ -1206,6 +1216,15 @@ def validate_args(args):
             for spec in args.report_input:
                 if len(str(spec).split(":")) != 3:
                     _refuse(f"--report-input {spec!r} is not seed:metrics-jsonl:rows-jsonl")
+            for spec in (args.oracle_inputs or []):
+                if len(str(spec).split(":")) != 2:
+                    _refuse(f"--oracle-inputs {spec!r} is not seed:oracle-rows-jsonl")
+            if not args.report_registration:
+                _refuse("--report-registration is required for --mode metrics-report: the "
+                        "report is bound to the frozen metric manifest, not to whichever "
+                        "files an operator happened to pass")
+            if not args.registration_sha:
+                _refuse("--registration-sha is required with --report-registration")
             if args.report_seen and len(str(args.report_seen).split(":")) != 2:
                 _refuse(f"--report-seen {args.report_seen!r} is not metrics-jsonl:rows-jsonl")
         if args.mode == "metrics-calibrate" and not args.metrics_rows:
@@ -3531,6 +3550,23 @@ def run_metrics_report(args):
     families = tuple(args.report_families) if args.report_families else mreport.REPORT_FAMILIES
     n_boot = int(args.report_bootstrap or mreport.BOOTSTRAP_N)
 
+    # ---- the frozen experiment, not the operator's file list (r4m6 F3) ------
+    verified = verify_registration_commit(args.report_registration, args.registration_sha)
+    manifest = verified["manifest"]
+    registered_seeds = sorted(int(s) for s in (manifest.get("seeds") or []))
+    registered_families = tuple((manifest.get("metric_config") or {}).get("families") or ())
+    if not registered_seeds or not registered_families:
+        _refuse(f"{args.report_registration!r} registers no seeds/families to bind the report to")
+    expect_queries = args.report_expect_queries
+    if expect_queries is None:
+        expect_queries = len(expected_split_identities_from_config(load_dataset_config(args)))
+    oracle_by_seed = {}
+    for spec in (args.oracle_inputs or []):
+        seed, oracle_path = str(spec).split(":")
+        if not os.path.isfile(oracle_path):
+            _refuse(f"--oracle-inputs names a file that does not exist: {oracle_path}")
+        oracle_by_seed[int(seed)] = oracle_path
+
     seed_reports = []
     for spec in args.report_input:
         seed, metrics_path, rows_path = str(spec).split(":")
@@ -3538,20 +3574,52 @@ def run_metrics_report(args):
             if not os.path.isfile(path):
                 _refuse(f"--report-input names a file that does not exist: {path}")
         print(f"[metrics-report] scanning seed {seed}: {os.path.basename(metrics_path)}")
-        scan = mreport.scan_seed(metrics_path, rows_path, families=families)
+        try:
+            scan = mreport.scan_seed(metrics_path, rows_path, families=families,
+                                     seed=int(seed),
+                                     oracle_path=oracle_by_seed.get(int(seed)),
+                                     expect_queries=int(expect_queries))
+        except ValueError as error:                # library refusals are run refusals
+            _refuse(f"seed {seed}: {error}")
+        missing = [f for f in registered_families if f not in scan["families_present"]]
+        if missing:
+            _refuse(f"seed {seed} is missing the registered families {missing}; the report "
+                    "covers every registered primary or refuses")
+        if oracle_by_seed and int(seed) not in oracle_by_seed:
+            _refuse(f"--oracle-inputs covers {sorted(oracle_by_seed)} but not seed {seed}")
         seed_reports.append(mreport.build_seed_report(scan, seed=int(seed), n_boot=n_boot))
         print(f"[metrics-report] seed {seed}: {scan['n_queries']} queries, "
               f"{scan['n_rooms']} rooms, families {scan['families_present']}")
 
+    seeds = sorted(r["seed"] for r in seed_reports)
+    if seeds != registered_seeds:
+        _refuse(f"the report covers seeds {seeds} but {args.report_registration!r} registers "
+                f"{registered_seeds}; the R4 answer is the registered seeds or nothing")
+    if sorted(oracle_by_seed) not in ([], registered_seeds):
+        _refuse(f"--oracle-inputs covers seeds {sorted(oracle_by_seed)}, not the registered "
+                f"{registered_seeds}")
+    expected_tests = 2 * len(registered_families)
+    for report_block in seed_reports:
+        found = len(report_block["primary_comparisons"])
+        if found != expected_tests:
+            _refuse(f"seed {report_block['seed']} produced {found} primary comparisons; the "
+                    f"registered plan has {expected_tests} (5 families x 2 references)")
+
     seen_scan = None
     if args.report_seen:
         seen_metrics, seen_rows = str(args.report_seen).split(":")
-        print(f"[metrics-report] scanning the seen calibration pass")
+        print("[metrics-report] scanning the seen calibration pass")
         seen_scan = mreport.scan_seed(seen_metrics, seen_rows, families=families)
 
     report = mreport.build_report(seed_reports, families=families, seen_scan=seen_scan,
                                   n_boot=n_boot,
-                                  hash_inputs=bool(args.report_hash_inputs))
+                                  hash_inputs=bool(args.report_hash_inputs),
+                                  extra_provenance={"registration": {
+                                      "manifest": str(args.report_registration),
+                                      "sha": verified["resolved_sha"],
+                                      "seeds": registered_seeds,
+                                      "families": list(registered_families),
+                                      "queries_per_seed": int(expect_queries)}})
     out_dir = str(args.out_dir)
     os.makedirs(out_dir, exist_ok=True)
     report_path = os.path.join(out_dir, f"{args.eval_name}_metrics_report.json")
