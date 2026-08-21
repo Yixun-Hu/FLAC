@@ -66,3 +66,78 @@ FLAC top-1 0.5065 | chance 0.1111 | retrieval 0.1096 | ctx-member 0.0494 | vs-re
 
 ## R3 constant-source wiring control (2026-08-21 01:30 EDT) — PASSED
 Pre-registered 200-query seen slice, all candidates conditioned at the candidate centroid: pooled median e_loc 7.00 m vs matched baseline 5.70 m (normal pipeline on these rooms: 0.0 m) — complete collapse to/below chance. **The conditioning coordinate is the load-bearing input; §2.8.1 control closed. All registered runs and controls of exp_18 are now complete.**
+
+## R4 exploratory — FINAL (promoted 2026-08-21 ~04:30 EDT after r4m5/r4m6 review cycle; full precision: outputs_loc/exp18/exp18_R4_report_metrics_report.json)
+
+### exp_18 R4 -- non-AGREE metric families (PRELIMINARY, pending review)
+
+Seeds [42, 43, 44]; K aggregation mean (primary); 10000 room-clustered bootstrap resamples; fixed AGREE retrieval reference 0.689.
+
+| family | kind | pooled top-1 (mean +- SD) | macro top-1 | median e_loc | mean e_loc | s@0.5 | s@1.0 | MRR | matched control (pooled) | matched control (macro) | oracle ceiling | ctx-member rate |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| m1 | primary | 0.6347 +- 0.0006 | 0.5928 | 0.0000 | 1.3131 | 0.6601 | 0.7256 | 0.7738 | 0.5530 | 0.6031 | 1.0000 | 0.3174 |
+| m2 | primary | 0.7240 +- 0.0018 | 0.6806 | 0.0000 | 0.8222 | 0.7492 | 0.8094 | 0.8385 | 0.6111 | 0.6648 | 1.0000 | 0.2392 |
+| m3 | primary | 0.3879 +- 0.0019 | 0.3964 | 0.9583 | 2.4420 | 0.4266 | 0.5099 | 0.5982 | 0.5960 | 0.6321 | 0.8334 | 0.5212 |
+| m4 | primary | 0.5310 +- 0.0011 | 0.5056 | 0.0000 | 1.5080 | 0.5647 | 0.6513 | 0.7082 | 0.6050 | 0.6437 | 1.0000 | 0.4009 |
+| m5 | primary | 0.5782 +- 0.0016 | 0.5280 | 0.0000 | 1.5593 | 0.6039 | 0.6880 | 0.7241 | 0.5563 | 0.6128 | 1.0000 | 0.3651 |
+| m2_complex | declared-secondary | 0.1221 +- 0.0000 | 0.1214 | 2.9388 | 4.9817 | 0.1368 | 0.2051 | 0.3148 | 0.4875 | 0.5498 | n/a | 0.7915 |
+| m3_band | declared-secondary | 0.5024 +- 0.0007 | 0.4788 | 0.0000 | 1.6150 | 0.5358 | 0.6336 | 0.6842 | 0.6122 | 0.6570 | n/a | 0.4266 |
+| m3_hilbert | declared-secondary | 0.4203 +- 0.0005 | 0.3901 | 1.0050 | 2.4556 | 0.4325 | 0.4948 | 0.6156 | 0.6014 | 0.6474 | n/a | 0.5124 |
+| m5_gcc | declared-secondary | 0.5705 +- 0.0026 | 0.5231 | 0.0000 | 1.5685 | 0.5957 | 0.6716 | 0.7232 | 0.5319 | 0.5856 | n/a | 0.3689 |
+| m1_delta0 | declared-sensitivity | 0.4612 +- 0.0001 | 0.4354 | 0.6491 | 2.2797 | 0.4799 | 0.5566 | 0.6166 | 0.4992 | 0.5423 | n/a | 0.4662 |
+| m5_delta0 | declared-sensitivity | 0.2991 +- 0.0006 | 0.2844 | 1.4457 | 3.2953 | 0.3202 | 0.4165 | 0.4410 | 0.5261 | 0.5843 | n/a | 0.6041 |
+
+| test (primary, Holm over the 10) | top-1 delta | median e_loc delta | p (top-1) | p_adj (top-1) | rejected |
+|---|---|---|---|---|---|
+| m1_vs_agree_retrieval | 0.0028 | 0.0000 | 0.9980 | 1.0000 | no |
+| m1_vs_matched_retrieval | 0.0814 | 0.0000 | 0.2776 | 1.0000 | no |
+| m2_vs_agree_retrieval | 0.0939 | 0.0000 | 0.2774 | 1.0000 | no |
+| m2_vs_matched_retrieval | 0.1130 | 0.0000 | 0.1740 | 1.0000 | no |
+| m3_vs_agree_retrieval | -0.2418 | 0.1464 | 0.0000 | 0.0000 | yes |
+| m3_vs_matched_retrieval | -0.2067 | 0.0000 | 0.0000 | 0.0000 | yes |
+| m4_vs_agree_retrieval | -0.0994 | 0.0000 | 0.0860 | 0.6880 | no |
+| m4_vs_matched_retrieval | -0.0710 | 0.0000 | 0.1334 | 0.9338 | no |
+| m5_vs_agree_retrieval | -0.0524 | 0.0000 | 0.4228 | 1.0000 | no |
+| m5_vs_matched_retrieval | 0.0248 | 0.0000 | 0.7746 | 1.0000 | no |
+
+(seed 42 shown; every seed is in the report JSON)
+
+| question | family | answer | evidence |
+|---|---|---|---|
+| q1 | m1 | no | delta_vs_reference = -0.0962 |
+| q1 | m2 | no | delta_vs_reference = -0.0084 |
+| q1 | m3 | no | delta_vs_reference = -0.2926 |
+| q1 | m4 | no | delta_vs_reference = -0.1834 |
+| q1 | m5 | no | delta_vs_reference = -0.1610 |
+| q2 | m1 | no | top1_delta_mean = 0.0816 |
+| q2 | m2 | no | top1_delta_mean = 0.1129 |
+| q2 | m3 | no | top1_delta_mean = -0.2081 |
+| q2 | m4 | no | top1_delta_mean = -0.0740 |
+| q2 | m5 | no | top1_delta_mean = 0.0220 |
+| q3 | m1 | no | room_sign_agreement = 0.4706 |
+| q3 | m2 | no | room_sign_agreement = 0.4706 |
+| q3 | m3 | yes | room_sign_agreement = 0.8824 |
+| q3 | m4 | no | room_sign_agreement = 0.6471 |
+| q3 | m5 | no | room_sign_agreement = 0.4118 |
+| q4 | m1 | yes | context_member_rate = 0.3174 |
+| q4 | m2 | yes | context_member_rate = 0.2392 |
+| q4 | m3 | no | context_member_rate = 0.5212 |
+| q4 | m4 | no | context_member_rate = 0.4009 |
+| q4 | m5 | yes | context_member_rate = 0.3651 |
+| q5 | m1 | yes | worst_prediction_change_rate = 0.8083 |
+| q5 | m2 | yes | worst_prediction_change_rate = 0.7250 |
+| q5 | m3 | yes | worst_prediction_change_rate = 0.1167 |
+| q5 | m4 | yes | worst_prediction_change_rate = 0.1000 |
+| q5 | m5 | yes | worst_prediction_change_rate = 0.8250 |
+| q6 | m1 | complementary scoring signal observed; added information not established | union_top1 = 0.8130 |
+| q6 | m2 | complementary scoring signal observed; added information not established | union_top1 = 0.8440 |
+| q6 | m3 | complementary scoring signal observed; added information not established | union_top1 = 0.7249 |
+| q6 | m4 | complementary scoring signal observed; added information not established | union_top1 = 0.7632 |
+| q6 | m5 | complementary scoring signal observed; added information not established | union_top1 = 0.7562 |
+
+- **q1 rule** -- exceeds := equal-room MACRO top-1 averaged over seeds > the fixed AGREE retrieval reference 0.689, which is itself a macro number (R-1b, K_ctx=8; its pooled value is 0.6317). The same control recomputed per query on these very rows is reported in both conventions, and exceeds_pooled answers the same question pooled.
+- **q2 rule** -- beats := mean paired top-1 difference over the family's own matched control is positive AND the Holm-corrected top-1 test rejects in every seed
+- **q3 rule** -- consistent := seed SD of pooled top-1 <= 0.01 AND at least 80% of rooms move in the same direction as the pooled difference against the family's matched control
+- **q4 rule** -- reduces := the family's context-member prediction rate is below AGREE's registered 0.376; the rate AGREE shows on these very rows is reported beside it
+- **q5 rule** -- caveat := at least one declared seen-battery perturbation moves the prediction on some query; the per-variant rates, the M4 drop rate and the seen-unseen gap are the evidence
+- **q6 rule** -- the 2x2 contingency, the rescue rate and the oracle-union accuracy are reported as computed; they establish COMPLEMENTARY ERRORS and an oracle-fusion ceiling only, so the verdict is fixed at 'complementary scoring signal observed; added information not established' for every family (r4m6 finding 2)

@@ -23,3 +23,24 @@ Released FLAC_EMA only (one architecture, one training run) — cross-arm genera
 1. **R4** (in flight, frozen): if a waveform metric (M1@Δ8 dev top-1 0.608 is the candidate) beats AGREE inversion AND its own metric-matched retrieval on unseen, the dense-regime deficit reattributes to the scorer, strengthening the world-model claim.
 2. **exp_20 cross-arm**: same protocol over B-F/P1/YAW (+cyl) — does equivariance/augmentation widen the sparse-context margin? Inputs already on the NAS.
 3. R3 constant-source control + heatmap gallery + integrated HTML: tomorrow, with R4 folded in.
+
+---
+
+# R4 addendum — non-AGREE scorers (Planner, 2026-08-21; promoted after two Codex review cycles; all reviewer-computed expectations reproduced exactly)
+
+## The six registered answers
+1. **No fixed metric exceeds the 0.689 dense-retrieval bar macro-to-macro** — m2 (multi-res STFT) comes within 0.008 (0.6806); pooled-to-pooled m2 exceeds it (0.7240 vs 0.6303). Convention disclosed both ways.
+2. **No metric Holm-significantly beats its own metric-matched retrieval control** — m2's +0.113 pooled delta is the largest but rooms split 0.47 (p≈0.17). m3 is the one decisive loser (worse than everything, p_adj=0.000).
+3. Seed-stability is universal (SD ≤ 0.002); room-consistency exists only for m3 — consistently *worse*.
+4. **The context-member failure mode shrinks under waveform scorers**: 0.376 (AGREE) → 0.239 (m2) — the mechanism behind AGREE's dense-regime deficit is partially scorer-specific.
+5. Robustness caveats are real and mapped: m2 gain-sensitive, m1/m5 shift-sensitive (and their Δ=0 collapse — 0.593→0.435, 0.528→0.284 — proves the ±0.36 ms alignment window carries the TOF cue); no seen-only-scorer signature anywhere (unseen ≥ seen for 3/5 families).
+6. **Verdict (reviewer-corrected wording): complementary scoring signal observed; added information not established.** Rescue rates 0.37–0.64 and union top-1 up to 0.844 prove the scorers err on different queries; whether a realizable per-query fusion can harvest that is a separately registrable experiment.
+
+## What the oracle ceilings settle
+m1/m2/m4/m5 reach 1.0000 from measured candidate RIRs — those metric spaces can perfectly identify sources; their sub-ceiling inversion scores measure the GENERATOR. **m3's ceiling is 0.8334 — decay shape lacks source information even in real RIRs**, exonerating the generator for m3's failure. Per-feature: arrival_time alone (0.615) outperforms M4's full vector (0.531) — room-level reverberation features dilute the positional signal; TOF is, throughout exp_18, the load-bearing cue.
+
+## Synthesis with the registered campaign
+AGREE-scored inversion (0.501) understated the generator: the frozen m2 scorer reads 0.724 pooled from the SAME generated waveforms — a statistical tie with dense-context retrieval, achieved without any measured RIR at the candidate positions. Combined with the registered sparse-context reversal (0.503 vs 0.108), the evidence for "FLAC functions as an invertible acoustic world model" is substantially stronger than the AGREE-only headline suggested — while the honest limit stands: no single fixed scorer surpasses dense-context retrieval, and complementarity ≠ established added information.
+
+## Recommended registrable follow-ups (Yixun's call)
+(a) scorer-fusion experiment (pre-registered per-query fusion rule, e.g. seen-calibrated stacking); (b) m2-scored R2b cell (computable from the saved K_ctx=1 dumps, no regeneration — would test whether the sparse-regime margin widens under the better scorer); (c) exp_20 cross-arm under BOTH scorers (AGREE + frozen m2).
