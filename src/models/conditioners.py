@@ -431,6 +431,7 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
     pre_encoded_keys = config.get("pre_encoded_keys", [])
 
     vit_model = None
+    _cyl_first_vit_block = None   # exp_19 CYL port: shared-backbone equality guard
     dist_embedder_proj = None
 
     for conditioner_info in config["configs"]:
@@ -446,8 +447,78 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
             if vit_model is None: 
                 vit_config = conditioner_config.pop("ViT", {})
 
+                # exp_19 CYL/CYLSSL port (2026-08-21, from the exp-12-arms branch):
+                # an explicit `implementation` field routes into the cylindrical
+                # DINOv3 backbone. An ABSENT field takes the byte-identical legacy
+                # path below; any OTHER value fails closed rather than silently
+                # falling through to AutoModel -- the exact defect that invalidated
+                # the first CYL run (config said cylindrical, runtime built vanilla).
+                implementation = vit_config.get("implementation", None)
+                if implementation == "cylindrical_dinov3":
+                    from cylindrical_dinov3 import CylindricalDINOv3ViTModel
+
+                    model_name_or_path = vit_config.get('hf_model_name_or_path', None)
+                    if model_name_or_path is None:
+                        raise ValueError(
+                            "implementation='cylindrical_dinov3' requires "
+                            "'hf_model_name_or_path' (the official DINOv3 weights).")
+                    if vit_config.get('from_scratch', False):
+                        raise ValueError(
+                            "implementation='cylindrical_dinov3' does not support "
+                            "from_scratch=True.")
+                    assert vit_config.get('ch_dim', 3) == 3, "Only 3 channels are supported"
+
+                    gauge = vit_config.get('gauge', 'cylindrical_xyz')
+                    azimuth_mode = vit_config.get('azimuth_mode', 'full')
+                    prefix_mode = vit_config.get('prefix_mode', 'strip')
+                    print(f"Loading cylindrical_dinov3 ViT from {model_name_or_path} "
+                          f"(gauge={gauge}, azimuth_mode={azimuth_mode}, "
+                          f"prefix_mode={prefix_mode}, attn=eager)...")
+                    vit_model = CylindricalDINOv3ViTModel.from_pretrained(
+                        model_name_or_path, gauge=gauge,
+                        azimuth_mode=azimuth_mode, prefix_mode=prefix_mode,
+                        attn_implementation="eager",
+                    )
+
+                    # SSL-adapted backbone (exp-12 arm B lineage). Fails closed on a
+                    # knob mismatch; absent key leaves the official weights.
+                    ssl_ckpt = vit_config.get('ssl_ckpt', None)
+                    if ssl_ckpt is not None:
+                        blob = torch.load(ssl_ckpt, map_location="cpu")
+                        for key, want in (("azimuth_mode", azimuth_mode),
+                                          ("prefix_mode", prefix_mode)):
+                            got = blob.get(key)
+                            if got is not None and got != want:
+                                raise ValueError(
+                                    f"ssl_ckpt {ssl_ckpt} was pretrained with "
+                                    f"{key}={got!r} but this config requests {key}={want!r}.")
+                        vit_model.load_state_dict(blob["backbone"], strict=True)
+                        print(f"Loaded SSL backbone from {ssl_ckpt} "
+                              f"(SSL step {blob.get('step')})")
+
+                    if vit_config.get('freeze', False):
+                        print('Freezing ViT model parameters...')
+                        for param in vit_model.parameters():
+                            param.requires_grad = False
+
+                    hidden_size = vit_model.config.hidden_size
+                    n_trainable_params = sum(p.numel() for p in vit_model.parameters() if p.requires_grad)
+                    n_total_params = sum(p.numel() for p in vit_model.parameters())
+                    print(f"{n_trainable_params / 1e6:.2f}M/{n_total_params / 1e6:.2f}M parameters are trainable")
+
+                    lin_proj = nn.Linear(hidden_size, cond_dim) if cond_dim != hidden_size else nn.Identity()
+                    vit_proj = nn.Identity()
+                    model_type = 'dino'
+                    _cyl_first_vit_block = dict(vit_config)
+
+                elif implementation is not None:
+                    raise ValueError(
+                        f"unknown ViT implementation {implementation!r} -- refusing to "
+                        "fall through to AutoModel (that silent fallback is how a "
+                        "'cylindrical' arm once ran a vanilla architecture).")
+
                 # DINO Encoder
-                if vit_config.get('hf_model_name_or_path', None) is not None:
+                elif vit_config.get('hf_model_name_or_path', None) is not None:
                     model_name_or_path = vit_config.get('hf_model_name_or_path', None)
 
                     if vit_config.get('from_scratch', False):
@@ -511,7 +582,13 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                     lin_proj = nn.Linear(num_tokens, 1)
                     model_type = 'vit'
             else:
-                conditioner_config.pop("ViT", None)
+                _second_block = conditioner_config.pop("ViT", None)
+                if _cyl_first_vit_block is not None and _second_block is not None \
+                        and dict(_second_block) != _cyl_first_vit_block:
+                    raise ValueError(
+                        "cylindrical_dinov3: a second ViTCoordinates conditioner's ViT "
+                        "block differs from the one that built the shared backbone -- "
+                        "make them equal or remove the second one.")
             conditioners[id] = GeometryConditioner(**conditioner_config, vit_model=vit_model, vit_proj=vit_proj, lin_proj=lin_proj, model_type=model_type)
 
         elif conditioner_type == "dist_embedder":

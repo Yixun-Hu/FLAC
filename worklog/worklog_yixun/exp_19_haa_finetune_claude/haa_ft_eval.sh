@@ -87,8 +87,8 @@ case "$DRY_RUN" in
 esac
 for A in $ARMS; do
   case "$A" in
-    P1|BF|YAW|YNA|BNA|CYL) ;;
-    *) echo "ARMS must be a subset of 'P1 BF YAW' plus the opt-in addenda 'YNA BNA CYL' (got token '${A}') - abort"; exit 2 ;;
+    P1|BF|YAW|YNA|BNA|CYL|CYLSSL) ;;
+    *) echo "ARMS must be a subset of 'P1 BF YAW' plus the opt-in addenda 'YNA BNA CYL CYLSSL' (got token '${A}') - abort"; exit 2 ;;
   esac
 done
 
@@ -176,6 +176,7 @@ PIN_p1cfg="3639a9face84d13bcbb8f4472e78970c8e045952337f11b4f77d8798f786ba80  ${S
 PIN_bfcfg="834e4933f2f5c8050f196043e11260e00023a7c31205a55961e0a77ca910c1dc  ${EXPDIR}/FLAC_HAA_finetune_BF.json"
 PIN_yawcfg="a03d106cd72744df40187b5c493010ecc996275b2afa32a4811d7c962c77cb53  ${EXPDIR}/FLAC_HAA_finetune_YAW.json"
 PIN_cylcfg="84fe5767d92a900610c9fe489f60f8d6e68a1b3e21953439164ceb1d1f241b8c  ${EXPDIR}/FLAC_HAA_finetune_CYL.json"
+PIN_cylsslcfg="d3b19d13e732a17dc93bf46ba038e89b43d040d1c02ad45596817448bb28a8ca  ${EXPDIR}/FLAC_HAA_finetune_CYLSSL.json"
 NPINS=0
 for P in "$PIN_eval" "$PIN_k8" "$PIN_k1" "$PIN_testsplit" "$PIN_p1cfg" "$PIN_bfcfg" "$PIN_yawcfg" "$PIN_cylcfg"; do
   echo "$P" | sha256sum -c --status - || {
@@ -193,13 +194,14 @@ arm_config() {
     BF)  printf '%s' "${EXPDIR}/FLAC_HAA_finetune_BF.json" ;;
     YAW) printf '%s' "${EXPDIR}/FLAC_HAA_finetune_YAW.json" ;;
     CYL) printf '%s' "${EXPDIR}/FLAC_HAA_finetune_CYL.json" ;;
+    CYLSSL) printf '%s' "${EXPDIR}/FLAC_HAA_finetune_CYLSSL.json" ;;
   esac
 }
 # The orbit each fa arm was TRAINED on, as eval_FLAC's comma-separated string.
 # BF averages over C4; CYL runs the identity alone. Evaluating either under the
 # other's orbit is the announcement-05 mismatch in its purest form.
-arm_orbit() { case "$1" in BF) printf '%s' "$FA_ANGLES" ;; CYL) printf '%s' "$CYL_ANGLES" ;; esac; }
-arm_is_fa() { case "$1" in BF|CYL) return 0 ;; *) return 1 ;; esac; }
+arm_orbit() { case "$1" in BF) printf '%s' "$FA_ANGLES" ;; CYL|CYLSSL) printf '%s' "$CYL_ANGLES" ;; esac; }
+arm_is_fa() { case "$1" in BF|CYL|CYLSSL) return 0 ;; *) return 1 ;; esac; }
 # The eval-name suffix eval_FLAC appends for a non-vanilla method: it derives
 # `_<method>_a<n_angles>` itself, so the resume path must predict the SAME name
 # rather than inventing one.
@@ -208,7 +210,7 @@ arm_is_fa() { case "$1" in BF|CYL) return 0 ;; *) return 1 ;; esac; }
 arm_suffix() {
   case "$1" in
     BF)  printf '%s' "_fa_invariant_a4" ;;
-    CYL) printf '%s' "_fa_invariant_a1" ;;
+    CYL|CYLSSL) printf '%s' "_fa_invariant_a1" ;;
     *)   printf '%s' "" ;;
   esac
 }
@@ -336,7 +338,11 @@ for ENTRY in "${QUEUE[@]}"; do
   CELLLOG="${EXPDIR}/eval_${NAME}.log"
   echo "[$((i+1))/${#QUEUE[@]}] gpu${GPU} ${NAME}"
   # shellcheck disable=SC2086
-  HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES="$GPU" python eval_FLAC.py $CELLARGS > "$CELLLOG" 2>&1 &
+  # cylindrical arms need the package on PYTHONPATH (same convention as the launcher);
+  # for the others PYPATH stays empty and the env is unchanged.
+  PYPATH=""
+  case "$ARM" in CYL|CYLSSL) PYPATH=/home/yixunhu/codespace/cylindrical-dinov3/src ;; esac
+  HF_HUB_OFFLINE=1 PYTHONPATH="$PYPATH" CUDA_VISIBLE_DEVICES="$GPU" python eval_FLAC.py $CELLARGS > "$CELLLOG" 2>&1 &
   PIDS+=("$!"); LABELS+=("$NAME")
   i=$((i+1))
   [ $((i % 2)) -eq 0 ] && drain

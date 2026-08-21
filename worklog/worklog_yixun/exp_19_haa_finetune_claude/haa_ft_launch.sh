@@ -133,8 +133,8 @@ PROBE_SCRIPT="${EXPDIR}/probe_haa_fa_invariance.py"
 
 # --- gate 1: ARM / GPU / MODE / DRY_RUN are matched EXACTLY, never inferred --- #
 case "$ARM" in
-  P1|BF|YAW|YNA|BNA|CYL) ;;
-  *) echo "ARM must be exactly P1, BF, YAW, YNA, BNA or CYL (got '${ARM}') - abort"; exit 2 ;;
+  P1|BF|YAW|YNA|BNA|CYL|CYLSSL) ;;
+  *) echo "ARM must be exactly P1, BF, YAW, YNA, BNA, CYL or CYLSSL (got '${ARM}') - abort"; exit 2 ;;
 esac
 case "$GPU" in
   0|1) ;;
@@ -189,6 +189,7 @@ case "$ARM" in
   BF)  ARM_CFG="${EXPDIR}/FLAC_HAA_finetune_BF.json" ;;
   YAW) ARM_CFG="${EXPDIR}/FLAC_HAA_finetune_YAW.json" ;;
   CYL) ARM_CFG="${EXPDIR}/FLAC_HAA_finetune_CYL.json" ;;
+  CYLSSL) ARM_CFG="${EXPDIR}/FLAC_HAA_finetune_CYLSSL.json" ;;
 esac
 INIT_ARM="$ARM"
 [ "$ARM" = "YNA" ] && INIT_ARM="YAW"   # YNA = YAW's init + stock finetune
@@ -303,6 +304,7 @@ case "$ARM" in
   BF)  PIN_armcfg="834e4933f2f5c8050f196043e11260e00023a7c31205a55961e0a77ca910c1dc  ${ARM_CFG}" ;;
   YAW) PIN_armcfg="a03d106cd72744df40187b5c493010ecc996275b2afa32a4811d7c962c77cb53  ${ARM_CFG}" ;;
   CYL) PIN_armcfg="84fe5767d92a900610c9fe489f60f8d6e68a1b3e21953439164ceb1d1f241b8c  ${ARM_CFG}" ;;
+  CYLSSL) PIN_armcfg="d3b19d13e732a17dc93bf46ba038e89b43d040d1c02ad45596817448bb28a8ca  ${ARM_CFG}" ;;
 esac
 [ -z "$ARM_CFG_SHA" ] || PIN_armcfg="${ARM_CFG_SHA}  ${ARM_CFG}"
 
@@ -466,6 +468,49 @@ elif arm_id == "CYL":
         sys.exit(f"CYL config is NOT the stock plus exactly its eight registered deltas - {d}")
     delta = "cylindrical_dinov3/cylindrical_xyz x2 + grad-ckpt x2 + fa_invariant on the trivial orbit [0.0]"
 
+elif arm_id == "CYLSSL":
+    # CYL's eight deltas PLUS the two SSL-arm architecture knobs (lowband azimuth
+    # harmonics + m0-masked registers), mirroring the exp-12 arm-B AR config this
+    # arm's init descends from. ssl_ckpt must be ABSENT: the SSL weights arrive
+    # via --pretrained-ckpt-path (the EMA-extracted AR checkpoint), and a stray
+    # ssl_ckpt key would point outside this repo and load weights that the init
+    # immediately overwrites.
+    if "yaw_aug" in t:
+        sys.exit("the CYLSSL arm must NOT carry yaw_aug: one treatment per arm")
+    if t.get("cond_method") != "fa_invariant":
+        sys.exit(f"cond_method must be 'fa_invariant', got {t.get('cond_method')!r}")
+    angles = t.get("frame_avg_angles")
+    if angles != [0.0] or not all(type(a) is float for a in angles or []):
+        sys.exit(f"frame_avg_angles must be the TRIVIAL orbit [0.0], got {angles!r}")
+    vits = [c for c in arm["model"]["conditioning"]["configs"] if c["type"] == "ViTCoordinates"]
+    if len(vits) != 2:
+        sys.exit(f"expected 2 ViT conditioners, found {len(vits)}")
+    for c in vits:
+        v = c["config"]["ViT"]
+        if v.get("implementation") != "cylindrical_dinov3":
+            sys.exit(f"{c['id']}: ViT.implementation must be 'cylindrical_dinov3', got {v.get('implementation')!r}")
+        if v.get("gauge") != "cylindrical_xyz":
+            sys.exit(f"{c['id']}: ViT.gauge must be 'cylindrical_xyz', got {v.get('gauge')!r}")
+        if v.get("azimuth_mode") != "lowband":
+            sys.exit(f"{c['id']}: ViT.azimuth_mode must be 'lowband' (the exp-12 arm-B knob), got {v.get('azimuth_mode')!r}")
+        if v.get("prefix_mode") != "m0_registers":
+            sys.exit(f"{c['id']}: ViT.prefix_mode must be 'm0_registers' (the exp-12 arm-B knob), got {v.get('prefix_mode')!r}")
+        if "ssl_ckpt" in v:
+            sys.exit(f"{c['id']}: ssl_ckpt must be ABSENT (init carries the SSL weights)")
+        if c["config"].get("gradient_checkpointing") is not True:
+            sys.exit(f"{c['id']}: gradient_checkpointing must be true (the AR arm's recipe)")
+    stripped = json.loads(json.dumps(arm))
+    stripped["training"].pop("cond_method"); stripped["training"].pop("frame_avg_angles")
+    for c in stripped["model"]["conditioning"]["configs"]:
+        if c["type"] == "ViTCoordinates":
+            c["config"]["ViT"].pop("implementation"); c["config"]["ViT"].pop("gauge")
+            c["config"]["ViT"].pop("azimuth_mode"); c["config"]["ViT"].pop("prefix_mode")
+            c["config"].pop("gradient_checkpointing")
+    d = strict(stripped, stock)
+    if d:
+        sys.exit(f"CYLSSL config is NOT the stock plus exactly its twelve registered deltas - {d}")
+    delta = "cylindrical_dinov3/cylindrical_xyz x2 + lowband/m0_registers x2 + grad-ckpt x2 + fa_invariant on the trivial orbit [0.0]"
+
 else:  # YAW
     if "cond_method" in t:
         sys.exit("the YAW arm must NOT carry cond_method: one treatment per arm")
@@ -552,11 +597,11 @@ PY
 # explicitly and by name.
 if [ "$ARM" = "P1" ] || [ "$ARM" = "YNA" ] || [ "$ARM" = "BNA" ]; then
   echo "R1 probe: SKIPPED for the ${ARM} arm (vanilla conditioning rotates nothing)"
-elif [ "$ARM" = "CYL" ]; then
+elif [ "$ARM" = "CYL" ] || [ "$ARM" = "CYLSSL" ]; then
   # Skipped for a REASON, stated in the log rather than left as an absence: this
   # arm DOES take the fa code path, so a reader who saw no probe line would be
   # right to wonder whether the gate had simply been forgotten.
-  echo "R1 probe: SKIPPED for the CYL arm"
+  echo "R1 probe: SKIPPED for the ${ARM} arm"
   echo "R1 probe SKIP REASON: trivial orbit [0.0]: the fa path performs no rotation, so the rotate-machinery gate has nothing to certify; backbone equivariance is an architecture property measured elsewhere"
 else
   echo "R1 probe: required for the ${ARM} arm (it drives src/data/yaw_rotation.py)"
@@ -688,6 +733,12 @@ if [ "$DRY_RUN" = "2" ]; then
   RUNNER=(bash -c "$TRAIN_CMD")
 else
   RUNNER=(env HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES="$GPU" "${ARGV[@]}")
+  if [ "$ARM" = "CYL" ] || [ "$ARM" = "CYLSSL" ]; then
+    # cylindrical package via PYTHONPATH (never installed); SHA recorded for provenance
+    CYL_PKG=/home/yixunhu/codespace/cylindrical-dinov3/src
+    RUNNER=(env HF_HUB_OFFLINE=1 PYTHONPATH="${CYL_PKG}" CUDA_VISIBLE_DEVICES="$GPU" "${ARGV[@]}")
+    echo "cylindrical package: ${CYL_PKG} @ $(git -C /home/yixunhu/codespace/cylindrical-dinov3 rev-parse HEAD)"
+  fi
 fi
 
 START_EPOCH="$(date +%s)"
