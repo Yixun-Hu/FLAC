@@ -166,3 +166,7 @@
 - **Strict real audit** — `geometry_gate=PASS`; final audit SHA `ae09d9cf9416866d09dea498a1f8467e952866db8b1c914ed0bea6a75e06cf9a`. All metadata source and receiver anchors pass in all 16 rooms; minimum source surface distance is 0.231947 m. All 5,337 query grids are nonempty/finite; chosen z-band oracle mean/median/max is 0.2116/0.2408/0.4123 m and `e_oracle>0.5 m` is 0/5,337. Full suite: `136 passed, 1 skipped, 11 warnings in 31.26s`.
 - **Exact cost** — chosen z-band work is 8,891,826 query-candidate pairs, up from 6,094,936 under the rejected 0.50 m/occupancy mask; cache keys are 966,728 receiver-candidate branches plus 42,696 context ViT forwards. Historical uncached K-context=8 rate projects score K=1 at 343.4 GPU-h; the cache-oriented K-context=1 proxy spans 157.5–281.0 GPU-h with median 226.8. Meeting 168 GPU-h requires at least 14.702 end-to-end RIR/s, so K=1 is plausible but must be measured; K=2/4 are not currently plausible.
 - **Boundary** — geometry is now green. I1/generation stays closed until Yixun accepts the revised cost and authorizes the cache-enabled no-quality probe.
+
+## 2026-08-20 — 0.20 m geometry revision committed
+
+- **Version Control** — committed implementation, tests, reviewer B7 amendment, frozen parameters, regenerated audit, and revised cost evidence as `4867078b73f4fdd0bcdb1a27a6e1f4eaba65ea6f` (`exp_09 G1: adopt 0.20m ray-parity geometry`).
