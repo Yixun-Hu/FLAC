@@ -1,0 +1,6 @@
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+split digest [PASS]: file 9a9d817abc3e..., 6337 identities, 17 rooms, room/node map 38c07598fc07...
+readback: 17 rooms, 1 warnings, 0 failures -> outputs_loc/exp18/exp18_R1a_readback_readback_ds-063c66c241.json
+  WARNING LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30: metadata-only sources (no wavs): [10]

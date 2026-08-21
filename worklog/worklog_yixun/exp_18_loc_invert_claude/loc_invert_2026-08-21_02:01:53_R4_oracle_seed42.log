@@ -1,0 +1,14 @@
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+Seed set to 42
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Running json scandir...
+Found 6337 files in 17 subfolders
+Running json scandir...
+Found 6337 files in 17 subfolders
+Running json scandir...
+Found 6337 files in 17 subfolders
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/functional.py:730: UserWarning: stft with return_complex=False is deprecated. In a future pytorch release, stft will return complex tensors for all inputs, and return_complex=False will raise an error.
+Note: you can still call torch.view_as_real on the complex output to recover the old return format. (Triggered internally at /pytorch/aten/src/ATen/native/SpectralOps.cpp:875.)
+  return _VF.stft(  # type: ignore[attr-defined]
+metrics-retrieval: 6337 queries -> outputs_loc/exp18/exp18_R4_oracle_metrics_retrieval_seed42_ds-063c66c241_rows.jsonl

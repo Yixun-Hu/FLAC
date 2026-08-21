@@ -1,0 +1,12 @@
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+[metrics-report] scanning seed 42: exp18_R4_unseen_flac_ctl-none_vanilla_ac-default_lme_tau0.02_K8_seed42_scorer-AGREE_AR_registered_replay_metrics.jsonl
+[metrics-report] seed 42: 6337 queries, 17 rooms, families ['m1', 'm2', 'm3', 'm4', 'm5', 'm2_complex', 'm3_band', 'm3_hilbert', 'm5_gcc']
+[metrics-report] scanning seed 43: exp18_R4_unseen_flac_ctl-none_vanilla_ac-default_lme_tau0.02_K8_seed43_scorer-AGREE_AR_registered_replay_metrics.jsonl
+[metrics-report] seed 43: 6337 queries, 17 rooms, families ['m1', 'm2', 'm3', 'm4', 'm5', 'm2_complex', 'm3_band', 'm3_hilbert', 'm5_gcc']
+[metrics-report] scanning seed 44: exp18_R4_unseen_flac_ctl-none_vanilla_ac-default_lme_tau0.02_K8_seed44_scorer-AGREE_AR_registered_replay_metrics.jsonl
+[metrics-report] seed 44: 6337 queries, 17 rooms, families ['m1', 'm2', 'm3', 'm4', 'm5', 'm2_complex', 'm3_band', 'm3_hilbert', 'm5_gcc']
+[metrics-report] scanning the seen calibration pass
+metrics-report -> outputs_loc/exp18/exp18_R4_report_metrics_report.json
+markdown block -> outputs_loc/exp18/exp18_R4_report_metrics_report.md

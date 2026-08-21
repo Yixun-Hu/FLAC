@@ -1,0 +1,5 @@
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+reaggregate: 1194 rows, 28 configurations -> outputs_loc/exp18/exp18_R1_tauselect_reaggregate_ds-fa45460604_rows-c48fb15915.json
+registered selection: lme tau=0.02 K'=8 (pooled mean e_loc 1.0718 m)

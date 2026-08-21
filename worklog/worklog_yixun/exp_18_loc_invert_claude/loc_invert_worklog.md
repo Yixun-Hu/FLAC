@@ -338,3 +338,9 @@
 
 - **Result** — r4m6 verified (52 report tests green; regeneration deterministic modulo created_utc; all reviewer-computed expectations reproduced; six-decimal offline↔oracle cross-check). R4 results + analysis addendum committed. Oracle ceilings: m1/m2/m4/m5 = 1.0000, m3 = 0.8334 (informational failure, generator exonerated); arrival_time alone 0.615 > full M4 0.531.
 - **Next** — r8 (heatmaps + extracts) → consolidated review → Planner-authored HTML → handoff-docs refresh → closure package to Yixun (decisions: closure, push, exp_20, fusion/R2b-m2 follow-ups).
+
+## 2026-08-21T05:40:00-0400 — r8b VERIFIED; visual assets certified; exp_18 deliverables COMPLETE
+
+- **Version Control** — r8 `3e1095d f6545fa baa44b4`; r8-review findings → r8b `79ea34b 1935052 5784050`. Planner verification: 22 heatmap tests green incl. the two artifact-level certification tests (published manifests ↔ rows sha ↔ recomputed rule ↔ PNG existence); every reviewer-enumerated literal case id matched; per-seed Holm triple matched. HTML gallery updated to the literal cases + per-run saturation counts (K8 1,150 / K1 1,161).
+- **Result** — passed. Deviation note for the record: the diversity policy was a PLANNER dispatch error (not registered §2.7); the reviewer's literal reading was enforced. New observation surfaced by the literal rule: the K8 worst-error trio is a single pathological source (Cafe S009, 20.44 m, both regimes).
+- **exp_18 status: ALL deliverables complete** — results, analysis (+R4 addendum), HTML+assets (certified), params, commands, logs, review artifacts (13), commit ledger, handoff docs. Awaiting Yixun: closure sign-off, push decision, exp_20, optional follow-ups, stale-test assignment.

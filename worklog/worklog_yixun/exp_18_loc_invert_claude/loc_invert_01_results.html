@@ -114,17 +114,16 @@ g.innerHTML+=`<line x1="${X(.6873)}" y1="10" x2="${X(.6873)}" y2="300" stroke="v
 <div class="q"><b>q6</b> — <b>Complementary scoring signal observed; added information not established.</b> Rescue 0.37–0.64, union top-1 up to 0.844 — realizable fusion is a separately registrable experiment.</div>
 
 <h2>5 · Case gallery (rule-selected, no hand-picking)</h2>
-<p class="sub">Sharp successes / ambiguous / failures per regime — selected by the pre-registered margin rule. The three largest-error queries are identical in both regimes (query-intrinsic, not context-driven).</p>
+<p class="sub">Literal per-category extrema under the registered §2.7 rule (r8b-certified). Saturation caveat: at T=0.02 the sharp-success softmax saturates (K8: 1,150 and K1: 1,161 queries above 0.9999) — the picks represent that large class; their ordering reflects ~1e-16 differences. Notably, the K8 worst-error trio is one pathological source: Cafe S009, all at 20.44 m, in both regimes.</p>
 <div class="gal">
-<figure><img src="loc_invert_results_assets/R2_K8_seed42_sharp_success_1_Restaurants-Restaurants_idx_24.png" alt=""><figcaption>K8 sharp success — Restaurants_idx_24, e=0.00 m</figcaption></figure>
-<figure><img src="loc_invert_results_assets/R2_K8_seed42_ambiguous_2_Auditorium-Auditorium_idx_1.png" alt=""><figcaption>K8 ambiguous — Auditorium, margin 5.6e-4, e=15.2 m</figcaption></figure>
-<figure><img src="loc_invert_results_assets/R2_K8_seed42_failure_1_Cafe-Cafe_idx_1.png" alt=""><figcaption>K8 failure — Cafe, e=20.4 m (also fails at K1)</figcaption></figure>
-<figure><img src="loc_invert_results_assets/R2b_K1_seed42_sharp_success_1_Restaurants-Restaurants_idx_24.png" alt=""><figcaption>K1 sharp success — same query as K8's</figcaption></figure>
-<figure><img src="loc_invert_results_assets/R2b_K1_seed42_ambiguous_2_Bathrooms-Bathrooms_idx_18.png" alt=""><figcaption>K1 ambiguous — a 1.3e-3-margin coin flip, landed correct</figcaption></figure>
-<figure><img src="loc_invert_results_assets/R2b_K1_seed42_failure_1_Cafe-Cafe_idx_1.png" alt=""><figcaption>K1 failure — same Cafe query</figcaption></figure>
+<figure><img src="loc_invert_results_assets/R2_K8_seed42_sharp_success_1_Restaurants-Restaurants_idx_24.png" alt=""><figcaption>K8 sharp success — Restaurants_idx_24 (S007_R018), e=0.00 m, margin 1−3.3e-16 (saturated class)</figcaption></figure>
+<figure><img src="loc_invert_results_assets/R2_K8_seed42_ambiguous_2_Auditorium-Auditorium_idx_1.png" alt=""><figcaption>K8 ambiguous — Auditorium (S007_R028), margin 5.6e-4, e=15.2 m</figcaption></figure>
+<figure><img src="loc_invert_results_assets/R2_K8_seed42_failure_1_Cafe-Cafe_idx_1.png" alt=""><figcaption>K8 failure — Cafe S009_R005, e=20.4 m (the whole failure trio is Cafe S009)</figcaption></figure>
+<figure><img src="loc_invert_results_assets/R2b_K1_seed42_sharp_success_1_Restaurants-Restaurants_idx_24.png" alt=""><figcaption>K1 sharp success — same query as K8's top pick</figcaption></figure>
+<figure><img src="loc_invert_results_assets/R2b_K1_seed42_ambiguous_3_Bathrooms-Bathrooms_idx_18.png" alt=""><figcaption>K1 ambiguous — Bathrooms (S002_R015), a 1.3e-3-margin coin flip that landed correct</figcaption></figure>
+<figure><img src="loc_invert_results_assets/R2b_K1_seed42_failure_1_Cafe-Cafe_idx_1.png" alt=""><figcaption>K1 failure — the same Cafe S009 query</figcaption></figure>
 </div>
-<p class="src">Full 18-map gallery + manifests in loc_invert_results_assets/.</p>
-
+<p class="src">Full 18-map gallery + certified manifests in loc_invert_results_assets/ (rule + saturation fields machine-readable).</p>
 <h2>6 · Why these numbers are trustworthy</h2>
 <ul>
 <li>Machine-verified registration on every headline run (full-hex sha, ancestry, byte-identical manifests, locked fields); τ and all metric constants frozen from seen data before any unseen inspection.</li>

@@ -1,0 +1,9 @@
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+metrics calibration over 1194 seen queries -> outputs_loc/exp18/exp18_R4_calibrate_metrics-calibrate_ds-fa45460604.json
+  delta_max=   0: dev top-1 0.4405
+  delta_max=   8: dev top-1 0.6080 <- registered
+  delta_max=  32: dev top-1 0.4045
+  delta_max= 128: dev top-1 0.2521
+draft metric manifest -> outputs_loc/exp18/exp18_R4_calibrate_metric_registration.json
