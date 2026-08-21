@@ -344,3 +344,7 @@
 - **Version Control** — r8 `3e1095d f6545fa baa44b4`; r8-review findings → r8b `79ea34b 1935052 5784050`. Planner verification: 22 heatmap tests green incl. the two artifact-level certification tests (published manifests ↔ rows sha ↔ recomputed rule ↔ PNG existence); every reviewer-enumerated literal case id matched; per-seed Holm triple matched. HTML gallery updated to the literal cases + per-run saturation counts (K8 1,150 / K1 1,161).
 - **Result** — passed. Deviation note for the record: the diversity policy was a PLANNER dispatch error (not registered §2.7); the reviewer's literal reading was enforced. New observation surfaced by the literal rule: the K8 worst-error trio is a single pathological source (Cafe S009, 20.44 m, both regimes).
 - **exp_18 status: ALL deliverables complete** — results, analysis (+R4 addendum), HTML+assets (certified), params, commands, logs, review artifacts (13), commit ledger, handoff docs. Awaiting Yixun: closure sign-off, push decision, exp_20, optional follow-ups, stale-test assignment.
+
+## 2026-08-21 (see commit) — exp_18 CLOSED by Yixun; branch pushed
+
+- **Result** — Yixun (verbatim): "yeah, you can complete the exp_18, push to the remote: yes". Tracker flipped to CLOSED. exp_20 directed: BF + Yaw-augment arms under the same analysis-by-synthesis protocol; checkpoint availability being verified on the NAS.
