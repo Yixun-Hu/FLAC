@@ -4,9 +4,11 @@
 # checkpoint produced by the 9-leg chain (epoch=14-step=67500.ckpt, the artifact
 # that mirrors the release).
 #
-# Unlike the Phase-1 kit this driver has NO mutual-exclusion gate and NO chain
-# manifest: an eval cell only READS the checkpoint, so the cells are meant to run
-# concurrently — that is the whole point of submitting 14 of them at once.
+# Unlike the Phase-1 kit this driver has no chain manifest, and DIFFERENT cells are
+# meant to run concurrently — that is the whole point of submitting 14 at once. The
+# exclusion that remains is narrow and exact: no second job running THIS cell (they
+# would race to write one metrics JSON) and no training job (it writes the
+# checkpoint directory this cell reads).
 #
 # Registered cells (an unregistered CELL is refused; all use the same protocol
 # literals, only the split / seed / checkpoint change):
@@ -38,7 +40,9 @@
 #
 # Exit codes: 2 parameters, 3 repo/dirs, 4 closure binding, 5 interpreter
 # provenance, 6 GPU, 7 ntasks, 8 log durability, 9 missing artifact,
-# 10 checkpoint missing/empty; otherwise eval_FLAC's own rc.
+# 10 checkpoint missing/empty, 11 the squeue query itself failed,
+# 12 a duplicate of this cell (or a training job) is running;
+# otherwise eval_FLAC's own rc.
 # ============================================================================
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -59,6 +63,9 @@ PYEXE=/scratch/gpfs/BLANCHETTE/yh4742/conda_envs/flac/bin/python
 EXPDIR="$REPO/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude"
 CKD=/scratch/gpfs/BLANCHETTE/yh4742/FLAC/checkpoints/exp16_vanilla_repro/FLAC_vanilla_repro/exp16_della_vanilla_repro/checkpoints
 REPO_OUT="$REPO/outputs_FLAC/exp16_vanilla_repro"
+# Job names that own a GPU TRAINING run in this experiment: any of them running
+# means the checkpoint directory is being written while this cell reads it.
+TRAINING_NAMES=exp16-train,exp16-train-smoke,exp16-train-resume,exp16-chain
 
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 export HOME="${HOME:-$(getent passwd "$(id -un)" | cut -d: -f6)}"
@@ -175,6 +182,39 @@ main() {
   # --- D. one task -------------------------------------------------------------
   [ "${SLURM_NTASKS:-1}" -le 1 ] || die "SLURM_NTASKS=${SLURM_NTASKS} > 1: this kit is single-task only" 7
   echo "ntasks OK: ${SLURM_NTASKS:-1}"
+
+  # --- D2. no DUPLICATE of this cell, and no training job, running -------------
+  # Cells are concurrent by design — but only DIFFERENT cells. Two jobs running the
+  # SAME cell would race to write one metrics JSON and one stream sidecar, and the
+  # loser's partial file could be the one that survives. The wrapper refuses a
+  # duplicate at submit time; this is the second half of that guarantee, for a
+  # duplicate that slipped through a race between two submitters (or a hand-rolled
+  # sbatch). A training job is refused too: it writes the checkpoint directory this
+  # cell is reading from.
+  #
+  # The QUERY is checked before its OUTPUT is: a controller outage makes squeue
+  # print nothing and exit nonzero, and an empty result then reads exactly like
+  # "no duplicate exists". Fatal even under DRYRUN — dry runs happen on the login
+  # node, where squeue works.
+  MY_NAME="exp16-reval-${CELL}"
+  DUP_RAW="$(squeue -h -u "$(id -un)" -n "$MY_NAME" -t R -o '%i')"
+  SQ_RC=$?
+  [ "$SQ_RC" -eq 0 ] \
+    || die "squeue -h -u $(id -un) -n ${MY_NAME} -t R FAILED (rc=${SQ_RC}) - refusing to read a scheduler error as 'no duplicate is running'" 11
+  # grep exits 1 when self was the only row; legitimate here because the query
+  # itself already proved successful.
+  DUP="$(printf '%s\n' "$DUP_RAW" | grep -v "^${SLURM_JOB_ID:-__none__}\$" | tr '\n' ' ')" || true
+  DUP="$(echo "$DUP" | tr -s ' ' | sed 's/^ //;s/ $//')"
+  [ -z "$DUP" ] \
+    || die "another job named ${MY_NAME} is RUNNING (${DUP}): two runs of one cell would race to write the same metrics JSON" 12
+  TRAIN_RAW="$(squeue -h -u "$(id -un)" -n "$TRAINING_NAMES" -t R -o '%i')"
+  SQ_RC=$?
+  [ "$SQ_RC" -eq 0 ] \
+    || die "squeue -h -u $(id -un) -n ${TRAINING_NAMES} -t R FAILED (rc=${SQ_RC}) - refusing to read a scheduler error as 'no training job is running'" 11
+  TRAIN="$(printf '%s\n' "$TRAIN_RAW" | tr '\n' ' ' | tr -s ' ' | sed 's/^ //;s/ $//')"
+  [ -z "$TRAIN" ] \
+    || die "an exp16 training job is RUNNING (${TRAIN}): it writes the checkpoint directory this cell reads - wait for it to finish" 12
+  echo "exclusion OK: no other ${MY_NAME} and no ${TRAINING_NAMES} job is running"
 
   # --- E. the argv --------------------------------------------------------------
   EVAL_ARGV=(

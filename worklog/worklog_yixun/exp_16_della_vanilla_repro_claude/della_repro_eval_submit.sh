@@ -8,8 +8,10 @@
 #   della_repro_eval_submit.sh all67500      # only the headline-checkpoint cells (12)
 #   della_repro_eval_submit.sh u8_s42 u1_s43 # any explicit subset
 #
-# Cells are INDEPENDENT: no --dependency, no mutual exclusion. They only read the
-# checkpoint, so running them concurrently is the point.
+# DIFFERENT cells are INDEPENDENT: no --dependency, and running them concurrently
+# is the point — they only read the checkpoint. The one exclusion is same-cell: two
+# jobs running ONE cell would race to write one metrics JSON, so a duplicate is
+# refused here at submit time and again by the leg at start time.
 #
 # VENUE: cells run on ailab/H200 (the header's own directives). The single
 # arch-spot-check cell u8_s42_a100 is submitted with
@@ -21,8 +23,12 @@
 # and keeping ailab with an A100 GRES fails as an impossible configuration — so
 # the empty-value route is the only working one, and it needs no second script.
 #
-# GATES: closure clean, HEAD pushed (ls-remote, fatal), the headline checkpoint
-# present and non-empty. There is deliberately NO PHASE1_PASS interlock here —
+# GATES: closure clean, HEAD pushed (ls-remote, fatal), EVERY selected cell's
+# checkpoint present and non-empty, no exp16 training job queued or running, and
+# no job already in flight for any selected cell (a duplicate of ONE cell would
+# race to write one metrics JSON — different cells are fine and are the point).
+# A cell listed twice in one invocation is refused for the same reason.
+# There is deliberately NO PHASE1_PASS interlock here —
 # that gate exists to stop unjustified TRAINING compute, and Phase 3 is the
 # read-only measurement of a finished run.
 #
@@ -30,9 +36,11 @@
 # id is appended to the command record under flock and read back, and only then is
 # every id released. Any failure cancels every id created.
 #
-# Exit codes: 2 usage, 3 closure dirty, 4 HEAD not pushed, 5 sbatch failed or
-# unparsable, 6 record write/verify failed, 7 release failed, 10 checkpoint
-# missing/empty, 12 another submission holds the lock.
+# Exit codes: 2 usage (incl. a duplicated cell), 3 closure dirty, 4 HEAD not
+# pushed, 5 sbatch failed or unparsable, 6 record write/verify failed, 7 release
+# failed, 9 a cell (or a training job) is already in flight, 10 checkpoint
+# missing/empty, 11 the squeue query itself failed, 12 another submission holds
+# the lock.
 # ============================================================================
 set -euo pipefail
 
@@ -46,6 +54,8 @@ SUBMIT_LOCK="$EXPDIR/.repro_eval_submit.lock"
 CKD=/scratch/gpfs/BLANCHETTE/yh4742/FLAC/checkpoints/exp16_vanilla_repro/FLAC_vanilla_repro/exp16_della_vanilla_repro/checkpoints
 CKPT_67500="$CKD/epoch=14-step=67500.ckpt"
 JOB_PREFIX=exp16-reval
+# Job names that own a GPU TRAINING run in this experiment (review N1).
+TRAINING_NAMES=exp16-train,exp16-train-smoke,exp16-train-resume,exp16-chain
 DRYRUN="${DRYRUN:-0}"
 export PYTHONDONTWRITEBYTECODE=1
 
@@ -82,6 +92,40 @@ usage() {
   echo "       cells: ${ALL_CELLS[*]}" >&2
 }
 
+# The checkpoint each cell reads. The sbatch driver's own table is authoritative;
+# this mirror exists so every selected cell can be preflighted BEFORE the first
+# sbatch (review N2) rather than one cell discovering the problem on a node.
+cell_ckpt() {   # <cell> -> prints the checkpoint path
+  case "$1" in
+    u8_s42_step62500) printf '%s\n' "$CKD/epoch=13-step=62500.ckpt" ;;
+    u8_s42_step65000) printf '%s\n' "$CKD/epoch=14-step=65000.ckpt" ;;
+    *)                printf '%s\n' "$CKPT_67500" ;;
+  esac
+}
+
+# squeue, fail-closed (review B1 / round-D pattern). A controller outage or a bad
+# argument makes squeue print nothing and exit nonzero, and an empty result then
+# reads exactly like "no such job exists" — the misreading these gates exist to
+# prevent. `|| SQ_RC=$?`, never a bare assignment: under `set -e` a failing command
+# substitution inside an assignment aborts the shell before $? can be inspected,
+# and the gate would die silently instead of saying why.
+squeue_names() {   # <comma-separated names> [state] -> prints "<id> <name> <state>" rows
+  local names="$1" state="${2:-}" out rc=0
+  if [ -n "$state" ]; then
+    out="$(squeue -h -u "$(id -un)" -n "$names" -t "$state" -o '%i %j %T')" || rc=$?
+  else
+    out="$(squeue -h -u "$(id -un)" -n "$names" -o '%i %j %T')" || rc=$?
+  fi
+  if [ "$rc" -ne 0 ]; then
+    if [ "$DRYRUN" = "1" ]; then
+      echo "DRY-RUN ADVISORY: squeue -h -u $(id -un) -n ${names}${state:+ -t $state} FAILED (rc=${rc}); a real submit aborts here" >&2
+      return 0
+    fi
+    die "squeue -h -u $(id -un) -n ${names}${state:+ -t $state} FAILED (rc=${rc}) - refusing to read a scheduler error as 'no such job exists'" 11
+  fi
+  printf '%s' "$out"
+}
+
 # --- ONE LOCK OVER THE WHOLE TRANSACTION -------------------------------------
 # Two concurrent invocations would each submit the same cells, and duplicate cells
 # would race to write one metrics JSON. A DRYRUN takes no lock (and so creates no
@@ -105,6 +149,13 @@ case "$1" in
       ok=0
       for k in "${ALL_CELLS[@]}"; do [ "$c" != "$k" ] || ok=1; done
       [ "$ok" = "1" ] || { usage; die "cell '${c}' is not registered" 2; }
+      # A cell named twice would submit two jobs racing to write one metrics JSON
+      # (review B1a). Refuse rather than silently de-duplicate: the operator's
+      # intent is unknowable, and "I asked for it twice" is not a reason to run it
+      # twice.
+      for k in "${CELLS[@]:-}"; do
+        [ "$c" != "$k" ] || die "cell '${c}' is listed more than once - two jobs would race to write one metrics JSON" 2
+      done
       CELLS+=("$c")
     done ;;
 esac
@@ -123,15 +174,24 @@ if [ -n "$CLOSURE_DIRT" ]; then
   fi
 fi
 
-# --- C. the headline checkpoint must exist ------------------------------------
-if [ ! -s "$CKPT_67500" ]; then
+# --- C. EVERY selected cell's checkpoint must exist and be non-empty ----------
+# Preflighted here, before the first sbatch (review N2): a missing endpoint-screen
+# checkpoint should cost one second at the terminal, not a queue slot per cell.
+CKPT_BAD=""
+for c in "${CELLS[@]}"; do
+  ck="$(cell_ckpt "$c")"
+  if [ ! -s "$ck" ]; then
+    CKPT_BAD="${CKPT_BAD}${CKPT_BAD:+; }${c} -> ${ck}"
+  fi
+done
+if [ -n "$CKPT_BAD" ]; then
   if [ "$DRYRUN" = "1" ]; then
-    echo "DRY-RUN ADVISORY: ${CKPT_67500} is missing or empty (a real submit aborts here)"
+    echo "DRY-RUN ADVISORY: checkpoint missing or empty for: ${CKPT_BAD} (a real submit aborts here)"
   else
-    die "the reproduction checkpoint ${CKPT_67500} is missing or empty" 10
+    die "checkpoint missing or empty for: ${CKPT_BAD}" 10
   fi
 else
-  echo "checkpoint OK: ${CKPT_67500} ($(stat -c '%s' "$CKPT_67500") bytes)"
+  echo "checkpoint preflight OK for all ${#CELLS[@]} cells (headline $(stat -c '%s' "$CKPT_67500") bytes)"
 fi
 
 # --- D. HEAD must be PUSHED ---------------------------------------------------
@@ -146,6 +206,42 @@ if [ "$EXPECT_SHA" != "$REMOTE_SHA" ]; then
   else
     die "HEAD ${EXPECT_SHA} is not pushed to ${REMOTE}/${BRANCH} (${REMOTE_SHA:-<none>})" 4
   fi
+fi
+
+# --- D2. no training job may be queued or running (review N1) -----------------
+# Forward-looking: this kit will be reused on later checkpoints, and a training
+# job — even a PENDING one that starts hours from now — writes the very directory
+# these cells read. PENDING counts because nobody will be watching when it starts.
+TRAINING_EXISTING="$(squeue_names "$TRAINING_NAMES")"
+if [ -n "$TRAINING_EXISTING" ]; then
+  MSG="$(printf '%s' "$TRAINING_EXISTING" | tr '\n' ';')"
+  if [ "$DRYRUN" = "1" ]; then
+    echo "DRY-RUN ADVISORY: exp16 training jobs exist (${MSG%;}); a real submit aborts here"
+  else
+    die "exp16 training jobs exist (${MSG%;}) - they write the checkpoint directory these cells read; wait or cancel them" 9
+  fi
+else
+  echo "no exp16 training job queued or running"
+fi
+
+# --- D3. no cell may already be in flight, in ANY state (review B1b) ----------
+# The whole selection is checked BEFORE the first sbatch, so the transaction stays
+# all-or-nothing: a collision cancels the submission rather than leaving half of it
+# queued. ANY state, not just RUNNING — a PENDING duplicate becomes a racing
+# duplicate the moment it starts.
+CELL_BUSY=""
+for c in "${CELLS[@]}"; do
+  EXIST="$(squeue_names "${JOB_PREFIX}-${c}")"
+  [ -z "$EXIST" ] || CELL_BUSY="${CELL_BUSY}${CELL_BUSY:+; }${c}: $(printf '%s' "$EXIST" | tr '\n' ',')"
+done
+if [ -n "$CELL_BUSY" ]; then
+  if [ "$DRYRUN" = "1" ]; then
+    echo "DRY-RUN ADVISORY: these cells already have jobs (${CELL_BUSY}); a real submit aborts here"
+  else
+    die "these cells already have jobs and would race to write one metrics JSON each (${CELL_BUSY}) - cancel them or drop those cells" 9
+  fi
+else
+  echo "no cell of this selection is already queued or running"
 fi
 
 # --- E. build every leg's sbatch argv -----------------------------------------
