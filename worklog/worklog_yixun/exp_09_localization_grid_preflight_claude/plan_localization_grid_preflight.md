@@ -1,7 +1,7 @@
 # Plan — exp_09_localization_grid_preflight (3-D mesh-valid analysis-by-synthesis localization)
 
 **Author:** OpenAI Codex (Planner / Analyst) · **Coder:** strongest coding-tier subagent at max effort after approval · **Reviewer:** Anthropic Claude Opus 5 (`claude-opus-5`, Claude Code 2.1.237 interactive session) · **Date:** 2026-08-20
-**Status:** REVISED after the Opus 5 `REQUEST-CHANGES` review — all B1–B6 and N1–N9 are addressed below; implementation remains blocked on Yixun's approval. Round R0 must close before G1, and a second user cost gate follows G1 before I1.
+**Status:** APPROVED by Yixun on 2026-08-20 through R0→D1→G1, with one protocol amendment: use the original exp_01 global-RNG context draw instead of query-local hashing. All B1–B6 and N1–N9 remain addressed below. Round R0 must close before G1, and a second user cost gate follows G1 before I1.
 
 ## 0. Decision being tested
 
@@ -19,8 +19,9 @@ Protocol precedence is explicit: the PDF's §4 sentence about a common valid **2
 - Exp_09 test scope, explicitly directed by Yixun on 2026-08-20: exclude exactly the 1,000 queries from `ListeningRoom_idx_2` because its official OBJ is absent. The fixed preflight denominator is **5,337 queries in 16 mesh-available rooms**. Filter this room in memory, record the exclusion in every manifest/report, and fail if any additional query is lost.
 - This experiment-specific exception supersedes announcement 01 only for the missing-asset room in this mesh preflight. Results must say “mesh-available preflight subset”; they are not the complete published 6,337-query unseen-room protocol. Debugging may use further bounded records, but those numbers never enter `_results.md`.
 - One query is a target RIR `h_obs = h(x*_s, x_r)` with continuous global `x*_s` and known global receiver `x_r` read from metadata.
-- Context tensor width remains the released FLAC `N_ctx=8`, but uniqueness is not assumed. Reproduce the released eligible-path pool exactly, including `AR_md.py`'s `f"S00{node}"` filename quirk that makes source `S010` ineligible whenever it is not the target. Sort that eligible pool, seed a query-local `numpy.random.RandomState` from `(protocol_seed, scene, room, receiver_id, target_source_id)`, and draw eight paths without replacement when the pool has at least eight, otherwise with replacement exactly as the released loader does. This preserves the released pool and short-context behavior while making selection/order deterministic and batching-independent.
-- The full-manifest eligible-count histogram is pinned to `{6: 91, 7: 429, 8: 5263, 9: 554}`. After excluding `ListeningRoom_idx_2`, the in-scope histogram is `{6: 91, 7: 429, 8: 4363, 9: 454}`. The 520 short-context queries all remain in `Cafe_idx_1` and are deterministically duplicated to width eight; none is dropped. The target RIR and target source remain absent.
+- Context tensor width remains the released FLAC `N_ctx=8`, but uniqueness is not assumed. Materialize contexts through the unmodified released `AR_md.py` selection path under the exact exp_01 K=8 loader protocol: `seed=42`, `batch_size=64`, `num_workers=4`, `shuffle=False`, full `data/AR/unseen_eval.json` order, and `pl.seed_everything(42, workers=True)`. This preserves the released eligible-path pool, its `f"S00{node}"` S010 quirk, its global/per-worker NumPy RNG streams, and its `replace=False`→exception→`replace=True` short-pool behavior.
+- Contexts must be materialized for all 6,337 records before filtering. Only after the complete original loader pass may the 1,000 `ListeningRoom_idx_2` records be excluded; filtering first would alter worker assignment/RNG consumption for the retained queries. Save the selected context identities and order in a content-hashed manifest, then reuse that frozen manifest for every candidate, stochastic generation, Vanilla arm, and later FA-FLAC arm. No model arm redraws contexts.
+- The full-manifest eligible-count histogram is pinned to `{6: 91, 7: 429, 8: 5263, 9: 554}`. After excluding `ListeningRoom_idx_2`, the in-scope histogram is `{6: 91, 7: 429, 8: 4363, 9: 454}`. The 520 short-context queries all remain in `Cafe_idx_1` and receive the released loader's global-RNG replacement draws to width eight; none is dropped. The target RIR and target source remain absent.
 - All candidates for a query share receiver, depth panorama, context RIRs, context poses, sample count, and seeds. Only the candidate source pose changes.
 - Global metadata coordinates are converted to receiver-relative FLAC coordinates exactly once at the model boundary: `candidate_relative = candidate_global - receiver_global`; context poses use the existing same transform.
 
@@ -113,17 +114,18 @@ Tests remain in `src/tests/` per announcement 02. Each round is test-first (red)
 - Add `open3d==0.19.0` to `pyproject.toml` and install it in the FLAC runtime interpreter used for `src/tests/`; record interpreter path and installed version. The fact that `/usr/bin/python3` has Open3D is not accepted as proof for the FLAC environment.
 - Run the complete existing `src/tests/` suite and record an all-green, no-collection-error baseline in the worklog. R0 receives its own Opus code review and must close before G1.
 
-### D1 — deterministic query/context construction
+### D1 — release-parity global-RNG query/context construction
 
 Create `src/localization/ar_queries.py`:
 
 - parse existing split entries and metadata into immutable query records;
 - load/pad/crop the observed RIR exactly like `AR_md.py`;
-- reproduce the released eligible context pool (including the S010 path quirk) and deterministically draw width eight with replacement only for pools of size 6/7;
+- invoke the original K=8 evaluation loader over the complete 6,337-record split with exp_01's seed-42/batch-64/four-worker/no-shuffle settings, preserving its global/per-worker NumPy draw order, S010 quirk, and replacement fallback;
+- record the selected context identities/order, protocol settings, full split hash, and manifest hash before excluding `ListeningRoom_idx_2`; reloads use the frozen manifest and never redraw contexts;
 - materialize one shared FLAC metadata/context object and clone it with one candidate-relative pose;
-- emit stable query/candidate/sample seeds independent of batching/worker count.
+- emit stable candidate/sample seeds independent of batching while treating the frozen context manifest—not a query-local RNG—as the context source of truth.
 
-Create `src/tests/test_localization_ar_queries.py` first. Tests: IR-versus-metadata filename conventions, including the released S010 quirk; full 17-room/6,337-record source-manifest parse invariant; exact exclusion of the 1,000 `ListeningRoom_idx_2` records yields 16 rooms/5,337 records; any additional omission fails; full/in-scope eligible-count histograms equal `{6:91,7:429,8:5263,9:554}` / `{6:91,7:429,8:4363,9:454}`; all 520 short queries produce deterministic width-eight contexts with duplicates and are not dropped; target source/RIR excluded; fixed seed reproducibility; candidate cloning changes only `source`/`source_vit`; global-to-relative transform; dataloader audio length/rate checks.
+Create `src/tests/test_localization_ar_queries.py` first. Tests: IR-versus-metadata filename conventions, including the released S010 quirk; full 17-room/6,337-record source-manifest parse invariant; exact exclusion of the 1,000 `ListeningRoom_idx_2` records yields 16 rooms/5,337 records; any additional omission fails; full/in-scope eligible-count histograms equal `{6:91,7:429,8:5263,9:554}` / `{6:91,7:429,8:4363,9:454}`; all 520 short queries receive width-eight replacement draws and are not dropped; target source/RIR excluded; a reference harness proves the materializer matches the original loader for fixed exp_01 settings; changing/filtering the split before materialization is rejected; manifest reload is byte-stable and arm-shared; candidate cloning changes only `source`/`source_vit`; global-to-relative transform; dataloader audio length/rate checks.
 
 ### G1 — geometry audit primitives
 
@@ -175,7 +177,7 @@ Create `tools/aggregate_localization_results.py` and `tools/render_localization_
 0. **R0 precondition:** pin/install Open3D in the actual FLAC interpreter, repair `test_eval_paths.py`, and record the complete pre-exp_09 suite green with no collection errors.
 1. Static per round: `py_compile`, config JSON parse, `git diff --check`.
 2. Permanent tests per round: new localization tests plus all existing `src/tests/`; no round advances on red.
-3. D1 full census: parse all 6,337 manifest queries, prove the exact 5,337 exclusion and both context histograms, and verify deterministic duplicate padding/leakage guards.
+3. D1 full census: run the exp_01-compatible global-RNG materializer on all 6,337 queries, prove its protocol and manifest hash, then prove the exact 5,337 post-materialization exclusion, both context histograms, replacement behavior, and leakage guards.
 4. G1 synthetic then real geometry: box mesh first; then verify missing `ListeningRoom_idx_2`, audit all 16 included meshes, real-anchor survival, per-query nonempty sets, full-height/z-band candidate counts and oracle distributions.
 5. **Post-G1 user cost gate before I1:** publish exact geometry-only counts/call/storage estimates and the pre-registered z-band branch. Stop until Yixun accepts the cost evidence.
 6. I1 tiny synthetic forward with fake FLAC/AGREE, including cached-vs-uncached token identity and resume/hash guards.
@@ -201,12 +203,12 @@ Create `tools/aggregate_localization_results.py` and `tools/render_localization_
 2. **Compute scale:** the review measured 25,312,262 raw candidate-query pairs before mesh/z masking. Query/receiver caching, the geometry-only post-G1 gate, and the pre-registered global `K=4 -> 2 -> 1` runtime ladder prevent post-quality protocol tuning; no spacing/query reduction is automatic.
 3. **Mesh topology:** architectural OBJs may be non-watertight or self-intersecting. Metadata-anchor validation is the empirical fail-closed criterion; topology warnings cannot be ignored merely because a grid is nonempty.
 4. **AGREE input parity:** mono float32 `[B,1,10240]`, dataloader crop, generated clamp, and the shared Retrieval embedding helper are mandatory and byte/number audited.
-5. **Context parity:** exp_09 intentionally preserves the released S010 eligibility quirk and deterministic duplicate padding for 520 Cafe queries. This favors comparison with exp_01/02 over silently fixing the baseline loader.
+5. **Context parity:** exp_09 intentionally preserves the released exp_01 seed-42 global/per-worker RNG path, S010 eligibility quirk, and replacement draws for 520 Cafe queries. The full 6,337-query context manifest is frozen before the mesh-missing room is filtered, then shared by every arm.
 
 ## 7. Review-response ledger and approval decisions
 
 - **B1 accepted:** replace 1.0 m context exclusion with the reviewer-recommended 0.25 m duplicate guard; add per-query nonempty/finite-oracle gates.
-- **B2 option (a) accepted:** preserve the released eligible context pool including the S010 quirk; use deterministic replacement sampling for the 520 short Cafe queries; never drop them.
+- **B2 option (a), amended by Yixun:** preserve the released eligible context pool including the S010 quirk and use the exact exp_01 seed-42 global/per-worker RNG replacement path for the 520 short Cafe queries; materialize all 6,337 first, freeze the manifest, then filter the missing-mesh room; never drop a short-context query.
 - **B3 accepted:** cache query- and receiver-candidate-invariant conditioning, move exact counts/cost approval after G1 and before I1, adopt context-derived z-band only under its no-new-unwinnable gate, and pre-register the global `K=4 -> 2 -> 1` runtime ladder.
 - **B4 accepted:** R0 repairs the stale worklog path and must establish the green permanent-suite baseline before localization code.
 - **B5 accepted:** bind localization to mono float32 10,240-sample Retrieval preprocessing and generated clamping, with an embedding-equality test/audit.
@@ -216,4 +218,4 @@ Create `tools/aggregate_localization_results.py` and `tools/render_localization_
 - **N8 accepted:** keep `cfg_scale=1.0`; no CFG sweep.
 - **N9 accepted:** pin/install Open3D 0.19.0 in the interpreter that runs this repository before G1.
 
-Yixun's approval of this revised plan authorizes only R0 and the subsequent small reviewed TDD rounds through G1. The workflow stops again after G1 for the exact geometry/cost gate before I1, so no expensive generation is implied by initial approval.
+Yixun's 2026-08-20 approval, including the global-RNG amendment above, authorizes only R0 and the subsequent small reviewed TDD rounds through G1 plus the geometry/cost analysis. The workflow stops again after G1 for the exact cost gate before I1, so no expensive generation is implied by this approval.

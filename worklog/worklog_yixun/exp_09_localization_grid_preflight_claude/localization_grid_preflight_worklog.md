@@ -89,3 +89,11 @@
 - **Result** — `passed`; branch `localization-exp` reached a clean four-commit-ahead approval boundary before the final bookkeeping commit.
 - **Analysis** — the `REQUEST-CHANGES` review is preserved verbatim and the plan contains an explicit response for every B1–B6/N1–N9 item.
 - **Next** — Yixun approves or amends the bounded R0→D1→G1 phase; only then may implementation begin.
+
+## 2026-08-20 — Yixun approves R0→D1→G1 with original global-RNG context amendment
+
+- **Goal** — resolve the remaining context-selection choice and open the bounded geometry/cost phase.
+- **Decision** — replace query-local hashed context selection with the original exp_01 K=8 loader protocol: seed 42, batch 64, four workers, no shuffle, full 6,337-query split, and the released `AR_md.py` global/per-worker NumPy choice path. Materialize and hash the context manifest before excluding the 1,000-query missing-mesh room; all candidates and model arms reuse it.
+- **Rationale** — this preserves the actual FLAC/FA-FLAC input path, including the S010 quirk and with-replacement fallback, while a frozen manifest still guarantees candidate/arm pairing. Filtering before materialization is prohibited because it would change worker RNG consumption.
+- **Authorization** — Yixun directed: “改用原版全局随机抽样，其他按照md文档进行修改，修改以后分析GPU成本.” This opens R0→D1→G1 and the post-G1 cost analysis only. Large-scale generation remains blocked on the resulting cost gate.
+- **Next** — commit the protocol amendment, then begin R0 test-first.
