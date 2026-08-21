@@ -15,6 +15,7 @@ control delegates to :func:`scoring.nearest_context_baseline` through
 against the driver's own function by test.
 """
 import json
+import os
 
 import numpy as np
 import torch
@@ -57,15 +58,27 @@ def decode_vector(payload):
     return decode_sims([list(payload)]).numpy()[0]
 
 
-def reciprocal_rank(distances, gt_index):
+def reciprocal_rank(distances, gt_index, eligible=None):
     """Reciprocal rank of the GT candidate under DISTANCES (lower is better).
 
     The registered convention (``eval_localization.gt_reciprocal_rank``) ranks
     similarities and breaks ties by lowest index; this is the same rule read for
     distances, and a test pins the two against each other.
+
+    ``eligible`` restricts the ranking to the candidates the prediction was
+    restricted to (r4m6 finding 6): a masked control that cannot predict an
+    ineligible candidate must not be charged for it out-ranking the GT either.
     """
     distances = np.asarray(distances, dtype=np.float64).reshape(-1)
     gt_index = int(gt_index)
+    if eligible is not None:
+        keep = [index for index, flag in enumerate(eligible) if flag]
+        if gt_index not in keep:
+            raise ValueError(
+                f"the GT candidate {gt_index} is not in the eligible set; its rank under the "
+                "masked control is undefined (a GT inside its own context aborts upstream)")
+        distances = distances[keep]
+        gt_index = keep.index(gt_index)
     gt_value = distances[gt_index]
     better = int((distances < gt_value).sum())
     tied_before = int((distances[:gt_index] == gt_value).sum())
@@ -73,14 +86,19 @@ def reciprocal_rank(distances, gt_index):
 
 
 def family_scores(row, family, aggregation=PRIMARY_AGGREGATION):
-    """The recorded per-candidate score ``[M]`` of one family and aggregation."""
+    """The recorded per-candidate score ``[M]`` of one family and aggregation.
+
+    RECORDED, never re-derived (r4m6 finding 3): computing an aggregation the
+    registered pass did not write would report a number that run never produced.
+    """
     block = row["families"][family]
     aggregations = block.get("aggregations") or {}
-    if aggregation in aggregations:
-        return decode_vector(aggregations[aggregation])
-    # a row that predates the aggregation block still carries the raw [M, K]
-    return aggregate_over_k(torch.from_numpy(decode_matrix(block["candidates_hex"])),
-                            aggregation).numpy()
+    if aggregation not in aggregations:
+        raise ValueError(
+            f"query {row.get('query_id')!r}: family {family!r} records no {aggregation!r} "
+            f"aggregation (it has {sorted(aggregations)}); the report reads what the "
+            "registered pass wrote and never re-derives it")
+    return decode_vector(aggregations[aggregation])
 
 
 def _geometry(row):
@@ -89,7 +107,7 @@ def _geometry(row):
     return world, gt
 
 
-def _record(row, pred_index, scores=None):
+def _record(row, pred_index, scores=None, eligible=None):
     """One query record in the campaign's own shape (``scoring.summarize``)."""
     world, gt = _geometry(row)
     pred_index = int(pred_index)
@@ -102,7 +120,8 @@ def _record(row, pred_index, scores=None):
         "context_member_pred": bool(row["context_member"][pred_index]),
     }
     record["rr"] = (1.0 if scores is None and pred_index == gt_index else
-                    (reciprocal_rank(scores, gt_index) if scores is not None else 0.0))
+                    (reciprocal_rank(scores, gt_index, eligible=eligible)
+                     if scores is not None else 0.0))
     return record
 
 
@@ -131,7 +150,8 @@ def retrieval_record(row, replay_row, family, masked=False):
                                     replay_row["context_xyz_cam"], ctx_distances,
                                     eligible_mask=eligible)
     best_ctx = int(np.argmin(ctx_distances))
-    record = _record(row, pred, scores=_distance_to_chosen_context(replay_row, best_ctx))
+    record = _record(row, pred, scores=_distance_to_chosen_context(replay_row, best_ctx),
+                     eligible=eligible)
     record["best_context"] = best_ctx
     return record
 
@@ -150,8 +170,39 @@ def agree_retrieval_record(replay_row, masked=False, row=None):
                                     replay_row["context_xyz_cam"], torch.from_numpy(sims),
                                     eligible_mask=eligible)
     best_ctx = int(np.argmax(sims))
-    record = _record(row, pred, scores=_distance_to_chosen_context(replay_row, best_ctx))
+    record = _record(row, pred, scores=_distance_to_chosen_context(replay_row, best_ctx),
+                     eligible=eligible)
     record["best_context"] = best_ctx
+    return record
+
+
+def oracle_record(row, oracle_row, family):
+    """Plan §3's measured-candidate oracle ceiling for one family and query.
+
+    The published control stores the compact distances of the candidates whose
+    measured RIR exists, and the prediction already mapped back to the original
+    candidate order; the GT is ranked among those AVAILABLE candidates, which is
+    the set the oracle could choose from.
+    """
+    block = oracle_row["families"][family]
+    available = [bool(flag) for flag in oracle_row["candidate_available"]]
+    usable = [index for index, flag in enumerate(available) if flag]
+    gt_index = int(row["gt_index"])
+    distances = decode_vector(block["oracle_hex"])
+    if len(usable) != distances.size:
+        raise ValueError(
+            f"query {row['query_id']!r}: the oracle stores {distances.size} distances for "
+            f"{len(usable)} available candidates")
+    record = _record(row, int(block["oracle_pred_index"]))
+    record["rr"] = (reciprocal_rank(distances, usable.index(gt_index))
+                    if gt_index in usable else 0.0)
+    record["gt_available"] = gt_index in usable
+    record["n_available"] = len(usable)
+    if bool(block.get("oracle_correct")) != bool(record["top1"]):
+        raise ValueError(
+            f"query {row['query_id']!r}: the oracle control records "
+            f"correct={block['oracle_correct']} but its prediction "
+            f"{block['oracle_pred_index']} against GT {gt_index} says otherwise")
     return record
 
 
@@ -282,7 +333,12 @@ class M4Accumulator:
             for name, cause in (dropped.get("causes") or {}).items():
                 self.causes.setdefault(name, {"n": 0, "example": cause})["n"] += 1
 
+        mask = block.get("mask")
         for index in range(min(features.shape[-1], len(self.names))):
+            # a feature the registered validity rule dropped for this query did
+            # not take part in the distance and may not be scored (r4m6 F6)
+            if mask is not None and not bool(mask[index]):
+                continue
             column = features[..., index]                       # [M, K]
             if not np.isfinite(column).all():
                 continue
@@ -413,36 +469,140 @@ def iter_rows(path):
                 yield json.loads(line)
 
 
-def iter_joined(metrics_path, rows_path):
-    """Stream ``(metrics_row, replay_row)`` pairs, refusing any misalignment.
+#: fields that describe the QUERY itself and must therefore agree between the
+#: metrics row and the replay row of the same pass (r4m6 finding 3).
+BOUND_QUERY_FIELDS = ("room_id", "gt_index", "gt_node", "candidate_nodes",
+                      "gt_xyz_world", "candidate_xyz_world", "context_member")
 
-    The two files are written by the same loop, so a difference in order or
-    length means one of them is not the sibling of the other -- every downstream
-    number would silently pair the wrong query.
+
+def _bind_query(metrics_row, replay_row, position):
+    """Refuse a pair that does not describe the same query and geometry."""
+    if str(metrics_row["query_id"]) != str(replay_row["query_id"]):
+        raise ValueError(
+            f"stream mismatch at position {position}: metrics row is "
+            f"{metrics_row['query_id']!r} but the replay row is {replay_row['query_id']!r}")
+    for field in BOUND_QUERY_FIELDS:
+        if field not in metrics_row or field not in replay_row:
+            continue
+        if metrics_row[field] != replay_row[field]:
+            raise ValueError(
+                f"query {metrics_row['query_id']!r} at position {position}: {field} differs "
+                f"between the metrics stream ({metrics_row[field]!r}) and the replay stream "
+                f"({replay_row[field]!r}); the two are not describing the same query")
+
+
+def _bind_seed(replay_row, seed, position):
+    """Prove the replay row was drawn with the DECLARED seed.
+
+    Every seed scores the same identities, so a query id cannot detect that seed
+    42's metrics were paired with seed 43's rows -- but the recorded noise keys
+    are a function of (seed, query_id, k) and can (r4m6 finding 3).
+    """
+    from src.localization.scoring import noise_key
+
+    recorded = replay_row.get("noise_keys")
+    if not recorded:
+        raise ValueError(
+            f"query {replay_row['query_id']!r} at position {position} records no noise_keys; "
+            f"the declared seed {seed} cannot be verified against the stream")
+    expected = [noise_key(int(seed), str(replay_row["query_id"]), k)
+                for k in range(len(recorded))]
+    if [int(v) for v in recorded] != expected:
+        raise ValueError(
+            f"query {replay_row['query_id']!r} at position {position} was NOT drawn with the "
+            f"declared seed {seed}: its noise keys belong to another seed's pass")
+
+
+def _sibling_summary(path):
+    """The summary JSON a published stream is a sibling of, or ``None``."""
+    for suffix in ("_metrics.jsonl", "_rows.jsonl", ".jsonl"):
+        if str(path).endswith(suffix):
+            candidate = str(path)[: -len(suffix)] + "_summary.json"
+            if os.path.isfile(candidate):
+                with open(candidate) as handle:
+                    return json.load(handle).get("provenance") or {}
+            return None
+    return None
+
+
+#: provenance the two streams of one pass must agree on, and the report records.
+BOUND_PROVENANCE_FIELDS = ("seed", "context_stream_digest", "registration_sha",
+                           "metric_registration_sha_resolved", "split_hash",
+                           "candidate_manifest_sha256")
+
+
+def bind_provenance(metrics_path, rows_path, seed=None, require=False):
+    """Bind the pass's own provenance: seed, context draw and registration."""
+    provenances = {"metrics": _sibling_summary(metrics_path),
+                   "rows": _sibling_summary(rows_path)}
+    present = {name: p for name, p in provenances.items() if p}
+    if not present:
+        if require:
+            raise ValueError(
+                f"no sibling summary was found beside {metrics_path!r} or {rows_path!r}; a "
+                "published pass carries one, and the report binds seed, context-stream digest "
+                "and registration sha to it")
+        return {}
+    bound = {}
+    for field in BOUND_PROVENANCE_FIELDS:
+        values = {name: p.get(field) for name, p in present.items() if p.get(field) is not None}
+        if len(set(map(str, values.values()))) > 1:
+            raise ValueError(
+                f"the two streams disagree on {field}: {values}; they are not the metrics and "
+                "rows of one pass")
+        if values:
+            bound[field] = list(values.values())[0]
+    if seed is not None and "seed" in bound and int(bound["seed"]) != int(seed):
+        raise ValueError(f"the pass declares seed {seed} but its summary records "
+                         f"seed {bound['seed']}")
+    return bound
+
+
+def iter_joined(metrics_path, rows_path, seed=None, oracle_path=None):
+    """Stream ``(metrics_row, replay_row, oracle_row)`` triples, fail-closed.
+
+    The streams are written by the same loop over the same registered split, so
+    a difference in order, length, identity, geometry or seed means they are not
+    siblings -- and every downstream number would silently pair the wrong query.
     """
     metrics_stream, rows_stream = iter_rows(metrics_path), iter_rows(rows_path)
+    oracle_stream = iter_rows(oracle_path) if oracle_path else None
     position = 0
     while True:
         metrics_row = next(metrics_stream, None)
         replay_row = next(rows_stream, None)
         if metrics_row is None and replay_row is None:
+            if oracle_stream is not None and next(oracle_stream, None) is not None:
+                raise ValueError(f"{oracle_path!r} is longer than the pass it belongs to")
             return
         if metrics_row is None or replay_row is None:
             raise ValueError(
                 f"{metrics_path!r} and {rows_path!r} differ in length at position {position}; "
                 "the metrics stream and the rows stream must be siblings of one pass")
-        if str(metrics_row["query_id"]) != str(replay_row["query_id"]):
-            raise ValueError(
-                f"stream mismatch at position {position}: metrics row is "
-                f"{metrics_row['query_id']!r} but the replay row is "
-                f"{replay_row['query_id']!r}")
-        yield metrics_row, replay_row
+        _bind_query(metrics_row, replay_row, position)
+        if seed is not None:
+            _bind_seed(replay_row, seed, position)
+        oracle_row = None
+        if oracle_stream is not None:
+            oracle_row = next(oracle_stream, None)
+            if oracle_row is None:
+                raise ValueError(
+                    f"{oracle_path!r} ends at position {position} but the pass has more "
+                    "queries; the oracle control must cover the whole registered split")
+            _bind_query(metrics_row, oracle_row, position)
+        yield metrics_row, replay_row, oracle_row
         position += 1
 
 
 def scan_seed(metrics_path, rows_path, families=REPORT_FAMILIES,
-              aggregations=AGGREGATIONS, secondary_aggregation_families=PRIMARY_FAMILIES):
+              aggregations=AGGREGATIONS, secondary_aggregation_families=PRIMARY_FAMILIES,
+              seed=None, oracle_path=None, expect_queries=None, require_provenance=False):
     """One streaming pass over a seed: every per-query record the report needs.
+
+    Fail-closed (r4m6 finding 3): identities must be unique and, when a count is
+    declared, exactly that many; the streams are bound query by query; the
+    declared seed is proved against the recorded noise keys; and the sibling
+    summaries must agree on seed, context-stream digest and registration sha.
 
     Returns compact per-query records only -- the [M, K] payloads are decoded,
     used and dropped, so peak memory stays independent of the file size.
@@ -455,11 +615,21 @@ def scan_seed(metrics_path, rows_path, families=REPORT_FAMILIES,
     retrieval = {family: {"raw": [], "masked": []} for family in families}
     power = {family: [] for family in families}
     agree, agree_retrieval = [], {"raw": [], "masked": []}
-    rooms, n_queries = set(), 0
+    oracle = {family: [] for family in families}
+    rooms, identities = set(), set()
+    n_queries = 0
     m4 = M4Accumulator()
     battery_rows = []
+    provenance = bind_provenance(metrics_path, rows_path, seed=seed,
+                                 require=require_provenance)
 
-    for metrics_row, replay_row in iter_joined(metrics_path, rows_path):
+    for metrics_row, replay_row, oracle_row in iter_joined(metrics_path, rows_path, seed=seed,
+                                                           oracle_path=oracle_path):
+        identity = str(metrics_row["query_id"])
+        if identity in identities:
+            raise ValueError(f"duplicate query id {identity!r} in {metrics_path!r}; the "
+                             "registered split scores every identity exactly once")
+        identities.add(identity)
         present = [family for family in families if family in metrics_row["families"]]
         for family in present:
             for aggregation in records[family]:
@@ -470,6 +640,8 @@ def scan_seed(metrics_path, rows_path, families=REPORT_FAMILIES,
             retrieval[family]["masked"].append(
                 retrieval_record(metrics_row, replay_row, family, masked=True))
             power[family].append(power_by_family(metrics_row, family))
+            if oracle_row is not None and family in oracle_row.get("families", {}):
+                oracle[family].append(oracle_record(metrics_row, oracle_row, family))
         m4.add(metrics_row)
         if metrics_row.get("sensitivities"):
             # the battery lands on every Nth query only, so keeping those rows
@@ -485,7 +657,13 @@ def scan_seed(metrics_path, rows_path, families=REPORT_FAMILIES,
 
     if not n_queries:
         raise ValueError(f"{metrics_path!r} contains no rows")
+    if expect_queries is not None and n_queries != int(expect_queries):
+        raise ValueError(
+            f"{metrics_path!r} carries {n_queries} queries but the registered split declares "
+            f"{int(expect_queries)}; the report covers the whole split or refuses")
     return {"records": {f: b for f, b in records.items() if b[PRIMARY_AGGREGATION]},
+            "oracle": {f: v for f, v in oracle.items() if v},
+            "provenance": provenance, "seed": None if seed is None else int(seed),
             "retrieval": {f: b for f, b in retrieval.items() if b["raw"]},
             "power": {f: v for f, v in power.items() if v},
             "m4": m4.result(),
@@ -572,10 +750,17 @@ def build_seed_report(scan, seed, n_boot=BOOTSTRAP_N, boot_seed=BOOTSTRAP_SEED,
 
 
 def _mean_sd(values):
+    """Mean and SAMPLE SD (ddof = 1), exp_18's published three-seed convention.
+
+    One value has no sample SD, and saying so is more honest than reporting the
+    zero a population SD would print (r4m6 finding 4).
+    """
     values = [float(v) for v in values if v is not None]
     if not values:
         return {"mean": None, "sd": None, "n": 0}
-    return {"mean": float(np.mean(values)), "sd": float(np.std(values)), "n": len(values)}
+    return {"mean": float(np.mean(values)),
+            "sd": float(np.std(values, ddof=1)) if len(values) > 1 else None,
+            "n": len(values)}
 
 
 #: the seed table's columns: where each number lives inside a seed report.

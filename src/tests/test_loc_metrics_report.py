@@ -61,11 +61,14 @@ def _metrics_row(query_id, room_id, position, families, agree_pred=0,
     }
 
 
-def _replay_row(query_id, room_id, ctx_sims=(0.9, 0.1)):
+def _replay_row(query_id, room_id, ctx_sims=(0.9, 0.1), seed=42, n_samples=2):
+    from src.localization.scoring import noise_key
     return {"query_id": query_id, "room_id": room_id,
             "candidate_xyz_cam": CAND_CAM, "candidate_xyz_world": CAND_WORLD,
             "context_xyz_cam": CTX_CAM, "context_sims_hex": _hex_vector(ctx_sims),
-            "gt_index": GT_INDEX, "gt_xyz_world": CAND_WORLD[GT_INDEX],
+            "gt_index": GT_INDEX, "gt_node": 0, "candidate_nodes": [0, 1, 2],
+            "gt_xyz_world": CAND_WORLD[GT_INDEX], "n_samples": n_samples,
+            "noise_keys": [noise_key(seed, query_id, k) for k in range(n_samples)],
             "context_member": list(CONTEXT_MEMBER)}
 
 
@@ -519,7 +522,8 @@ def test_seed_table_reports_mean_and_sd(tmp_path):
     table = mr.seed_table(reports, families=("m1",))
     assert table["m1"]["top1"]["per_seed"] == {"42": 1.0, "43": 0.0}
     assert table["m1"]["top1"]["mean"] == pytest.approx(0.5)
-    assert table["m1"]["top1"]["sd"] == pytest.approx(0.5)     # population SD, n = 2
+    # sample SD (ddof = 1), exp_18's published convention: |1 - 0| / sqrt(2)
+    assert table["m1"]["top1"]["sd"] == pytest.approx(float(np.std([1.0, 0.0], ddof=1)))
     assert table["m1"]["median_e_loc"]["per_seed"]["43"] == pytest.approx(1.0)
 
 
@@ -628,3 +632,151 @@ def test_driver_metrics_report_refuses_a_malformed_input_spec(tmp_path):
             ["--mode", "metrics-report", "--model-config", "m.json",
              "--dataset-config", "d.json", "--out-dir", str(tmp_path),
              "--eval-name", "bad"]))
+
+
+# --------------------------------------------------------------------------- #
+# r4m6 F3: the assembly is fail-closed against the frozen experiment
+# --------------------------------------------------------------------------- #
+def test_family_scores_refuses_a_missing_recorded_aggregation():
+    """Re-deriving an aggregation the pass never recorded would report a number
+    the registered run did not produce."""
+    row = _metrics_row("q", "Room/R0", 0, {"m1": (DIST_MEAN_PICKS_1, CTX_PREFERS_FIRST)})
+    assert mr.family_scores(row, "m1", "mean") is not None
+    del row["families"]["m1"]["aggregations"]["min"]
+    with pytest.raises(ValueError, match="min"):
+        mr.family_scores(row, "m1", "min")
+    row["families"]["m1"]["aggregations"] = {}
+    with pytest.raises(ValueError):
+        mr.family_scores(row, "m1", "mean")
+
+
+def test_scan_seed_refuses_a_cross_seed_pairing(tmp_path):
+    """All seeds share query ids, so identity alone cannot detect that seed 42's
+    metrics were paired with seed 43's replay rows. The recorded noise keys can."""
+    metrics_path = os.path.join(str(tmp_path), "m42.jsonl")
+    rows42 = os.path.join(str(tmp_path), "r42.jsonl")
+    rows43 = os.path.join(str(tmp_path), "r43.jsonl")
+    with open(metrics_path, "w") as mh, open(rows42, "w") as r42, open(rows43, "w") as r43:
+        for q in range(3):
+            qid, room = f"q{q}", f"Room/R{q % 2}"
+            mh.write(json.dumps(_metrics_row(qid, room, q,
+                                             {"m1": (DIST_MEAN_PICKS_1, CTX_PREFERS_FIRST)}))
+                     + "\n")
+            r42.write(json.dumps(_replay_row(qid, room, seed=42)) + "\n")
+            r43.write(json.dumps(_replay_row(qid, room, seed=43)) + "\n")
+
+    assert mr.scan_seed(metrics_path, rows42, seed=42, families=("m1",))["n_queries"] == 3
+    with pytest.raises(ValueError, match="seed"):
+        mr.scan_seed(metrics_path, rows43, seed=42, families=("m1",))
+
+
+def test_scan_seed_binds_the_per_query_geometry(tmp_path):
+    metrics_path, rows_path = _fixture(tmp_path)
+    for field, value in (("room_id", "Room/ELSEWHERE"), ("gt_index", 2),
+                         ("candidate_nodes", [7, 8, 9]),
+                         ("candidate_xyz_world", [[9.0, 9.0, 9.0]] * 3),
+                         ("context_member", [True, True, True])):
+        broken = os.path.join(str(tmp_path), "broken_rows.jsonl")
+        with open(rows_path) as handle:
+            lines = handle.readlines()
+        payload = json.loads(lines[1])
+        payload[field] = value
+        lines[1] = json.dumps(payload) + "\n"
+        with open(broken, "w") as handle:
+            handle.writelines(lines)
+        with pytest.raises(ValueError, match=field.split("_")[0]):
+            mr.scan_seed(metrics_path, broken, families=("m1",))
+
+
+def test_scan_seed_refuses_duplicate_identities_and_a_wrong_count(tmp_path):
+    metrics_path, rows_path = _fixture(tmp_path)
+    with pytest.raises(ValueError, match="6"):
+        mr.scan_seed(metrics_path, rows_path, families=("m1",), expect_queries=6)
+
+    duped_metrics = os.path.join(str(tmp_path), "dup_m.jsonl")
+    duped_rows = os.path.join(str(tmp_path), "dup_r.jsonl")
+    for source, target in ((metrics_path, duped_metrics), (rows_path, duped_rows)):
+        with open(source) as handle:
+            lines = handle.readlines()
+        lines[3] = lines[0]
+        with open(target, "w") as handle:
+            handle.writelines(lines)
+    with pytest.raises(ValueError, match="duplicate"):
+        mr.scan_seed(duped_metrics, duped_rows, families=("m1",))
+
+
+def _summary(path, seed=42, digest="d" * 64, registration="a" * 40):
+    with open(path, "w") as handle:
+        json.dump({"provenance": {"seed": seed, "context_stream_digest": digest,
+                                  "registration_sha": registration,
+                                  "metric_registration_sha_resolved": registration}},
+                  handle)
+
+
+def test_scan_seed_binds_the_sibling_summaries(tmp_path):
+    """seed, context-stream digest and registration sha are provenance, and the
+    two streams of one pass must agree on all three."""
+    metrics_path, rows_path = _fixture(tmp_path)
+    metrics_summary = metrics_path.replace(".jsonl", "_summary.json")
+    rows_summary = rows_path.replace(".jsonl", "_summary.json")
+    _summary(metrics_summary)
+    _summary(rows_summary)
+    scan = mr.scan_seed(metrics_path, rows_path, seed=42, families=("m1",))
+    assert scan["provenance"]["context_stream_digest"] == "d" * 64
+    assert scan["provenance"]["seed"] == 42
+
+    _summary(rows_summary, digest="e" * 64)
+    with pytest.raises(ValueError, match="context_stream_digest"):
+        mr.scan_seed(metrics_path, rows_path, seed=42, families=("m1",))
+    _summary(rows_summary)
+    _summary(metrics_summary, seed=43)
+    with pytest.raises(ValueError, match="seed"):
+        mr.scan_seed(metrics_path, rows_path, seed=42, families=("m1",))
+
+
+def test_scan_seed_requires_provenance_when_asked(tmp_path):
+    metrics_path, rows_path = _fixture(tmp_path)
+    with pytest.raises(ValueError, match="summary"):
+        mr.scan_seed(metrics_path, rows_path, seed=42, families=("m1",),
+                     require_provenance=True)
+
+
+# --------------------------------------------------------------------------- #
+# r4m6 F4 / F6: SD convention and the two secondary diagnostics
+# --------------------------------------------------------------------------- #
+def test_seed_sd_is_the_sample_convention():
+    """exp_18's published three-seed SDs are sample SDs (ddof = 1)."""
+    values = [0.5000, 0.5015, 0.5007]
+    block = mr._mean_sd(values)
+    assert block["sd"] == pytest.approx(float(np.std(values, ddof=1)))
+    assert block["sd"] != pytest.approx(float(np.std(values)))
+    assert mr._mean_sd([0.5])["sd"] is None      # one seed has no sample SD
+
+
+def test_masked_retrieval_ranks_within_the_eligible_set():
+    """Prediction is restricted to eligible candidates, so the rank that goes
+    with it must be too."""
+    row = _metrics_row("q", "Room/R0", 0, {"m1": (DIST_MEAN_PICKS_1, CTX_PREFERS_FIRST)})
+    replay = _replay_row("q", "Room/R0")
+    masked = mr.retrieval_record(row, replay, "m1", masked=True)
+    raw = mr.retrieval_record(row, replay, "m1", masked=False)
+    # eligible = candidates 0 and 2; the chosen context sits at 11.2, so the
+    # eligible ordering is [0 (1.2 m), 2 (1.8 m)] and the GT ranks first
+    assert masked["pred_index"] == 0 and masked["rr"] == pytest.approx(1.0)
+    # unmasked, candidate 1 (0.2 m) outranks the GT
+    assert raw["pred_index"] == 1 and raw["rr"] == pytest.approx(0.5)
+
+
+def test_m4_accumulator_honours_the_recorded_mask():
+    features = [[[0.0, 3.0], [0.0, 3.0]], [[5.0, 2.0], [5.0, 2.0]], [[9.0, 1.0], [11.0, 1.0]]]
+    masked_out = _m4_block(features, [0.1, 1.0], mask=[True, False],
+                           dropped={"n_features": 2, "n_kept": 1, "n_dropped": 1,
+                                    "dropped": ["f1"], "causes": {}})
+    row = _metrics_row("q0", "Room/R0", 0, {"m1": (DIST_MEAN_PICKS_1, CTX_PREFERS_FIRST)},
+                       m4=masked_out)
+    accumulator = mr.M4Accumulator(names=("f0", "f1"))
+    accumulator.add(row)
+    per_feature = {e["feature"]: e for e in accumulator.result()["per_feature"]}
+    assert per_feature["f0"]["n_queries"] == 1
+    assert per_feature["f1"]["n_queries"] == 0        # masked out, not scored
+    assert math.isnan(per_feature["f1"]["top1"])
