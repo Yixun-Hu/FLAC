@@ -212,3 +212,12 @@
 |---|---|---|---|
 | `3e1095d` | script + tests | `loc_invert_heatmaps.py`: the pre-registered case rule (sharp = correct top-1 with the largest softmax(S/τ) top-2 margin, ambiguous = smallest margin, failure = largest e_loc; 3 each, ties by query id, distinct rooms preferred, no query reused), Agg top-down maps (display-only colour map, GT star, prediction ring, receiver, z annotations, "candidate extent"), gallery manifest, and the six HTML data extracts as pure functions over published artifacts; `test_loc_heatmaps.py` pins order-independence, margin math, PNG smoke and extract schemas | +661 |
 | `f6545fa` | assets | both galleries rendered (R2 K_ctx=8 seed 42, R2b K_ctx=1 seed 42 — 18 PNGs) + the six extracts; legend moved out of the axes and the window widened to contain a receiver outside the candidate extent | +32 −7, 24 assets |
+
+## Round r8b (r8 review — literal §2.7 extrema, seed labelling, saturation, sourcing)
+
+| SHA | Finding | Description | changed lines |
+|---|---|---|---|
+| `79ea34b` | F1 + F2 + F3 + F4 | the gallery rule is the LITERAL per-category extrema (the distinct-rooms preference and the cross-category exclusion were never registered and are removed); `extract_families.json` labels its `primary_tests`/`holm` blocks `seed: 42` and adds `holm_per_seed` + `adjusted_p_per_seed` for 42/43/44; manifests, captions and saturated PNGs carry the saturation caveat verbatim plus a per-run saturated count; the timeline's suite total cites this line | +180 −95 |
+| `1935052` | F1 + F3 | both galleries regenerated under the literal rule (18 PNGs, 2 manifests) and the six extracts rewritten | 26 assets |
+
+**r8b full-suite count (the occurrence `extract_timeline.json` cites):** 2688 passed, 10 skipped, 1 pre-existing unrelated failure (exp_11 registry drift, owned by exp_15), 2 subtests passed.
