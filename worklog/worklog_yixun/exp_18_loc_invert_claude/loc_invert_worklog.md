@@ -333,3 +333,8 @@
 - **Result** — Seeds 42/43/44 replay+metrics+dump passes all published; verify_against all_match on every pass (the three registered R2 runs are now each bit-reproduced end-to-end); ~60 GB of pred waveforms on the NAS per announcement 08.
 - **Acceptance criteria (R3, pre-registered here before launch)** — constant-source control on the FIRST 200 identities of the seen enumeration (smoke): with all candidates conditioned at the candidate centroid, localization must collapse to ≈ the information-matched baseline (top-1 within noise of chance; the geometry/membership blocks must equal the normal run's — r6-review F3 fix). PASS = collapse observed; conditioning proven load-bearing.
 - **Result** — R3 launched (seen, 200 queries, seed 42, cuda:0).
+
+## 2026-08-21T04:25:00-0400 — R4 PROMOTED; r8 visualization round dispatched
+
+- **Result** — r4m6 verified (52 report tests green; regeneration deterministic modulo created_utc; all reviewer-computed expectations reproduced; six-decimal offline↔oracle cross-check). R4 results + analysis addendum committed. Oracle ceilings: m1/m2/m4/m5 = 1.0000, m3 = 0.8334 (informational failure, generator exonerated); arrival_time alone 0.615 > full M4 0.531.
+- **Next** — r8 (heatmaps + extracts) → consolidated review → Planner-authored HTML → handoff-docs refresh → closure package to Yixun (decisions: closure, push, exp_20, fusion/R2b-m2 follow-ups).
