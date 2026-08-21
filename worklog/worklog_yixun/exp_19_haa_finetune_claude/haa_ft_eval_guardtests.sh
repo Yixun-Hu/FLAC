@@ -42,7 +42,7 @@ trap cleanup EXIT
 # --- fixture: one checkpoint per (arm, endpoint), PL-named ------------------- #
 mk_ckpts() {
   local root="$1"; shift
-  for arm in P1 BF YAW; do
+  for arm in P1 BF YAW CYL; do
     local d="${root}/exp19_HAA_${arm}/FLAC_exp19_HAA_${arm}/exp19_HAA_${arm}/checkpoints"
     mkdir -p "$d" || exit 2
     printf 'x' > "${d}/epoch=409-step=410.ckpt"
@@ -52,6 +52,8 @@ mk_ckpts() {
 mk_ckpts "$CK"
 CKDIR_P1="${CK}/exp19_HAA_P1/FLAC_exp19_HAA_P1/exp19_HAA_P1/checkpoints"
 CKDIR_BF="${CK}/exp19_HAA_BF/FLAC_exp19_HAA_BF/exp19_HAA_BF/checkpoints"
+CKDIR_CYL="${CK}/exp19_HAA_CYL/FLAC_exp19_HAA_CYL/exp19_HAA_CYL/checkpoints"
+CYL_CFG="${EXPDIR}/FLAC_HAA_finetune_CYL.json"
 
 # A record for one cell, with the fields the resume check parses.
 write_record() {   # <dir> <stem> <name> <suffix> <method> <seed> <dscfg> [angles-json] [cap]
@@ -238,9 +240,38 @@ expect "G9 exactly the MATCHING record is counted as done (1 of 5 present)" \
   "$(grep -qF "queue: 20 cells planned for arms 'P1' (1 already recorded, 19 to run)" \
       <<<"$(env "${OKENV[@]}" ARMS=P1 bash "$EVALSH" 2>&1)" && echo 1)"
 
+echo "--- CYL. the addendum arm's own protocol (trivial orbit) ---"
+CYLQ="$(queue_of CYL)"
+CYL_CELL="$(cell_line exp19_HAA_CYL_S410_K8_s42 "$CYLQ")"
+expect "CYL1 the addendum arm is opt-in, 20 cells of its own" \
+  "$(eq "$(grep -c '^CELL: ' <<<"$CYLQ")" 20)"
+expect "CYL2 it runs the fa path"        "$(eq "$(argval "$CYL_CELL" --cond-method)" fa_invariant)"
+expect "CYL3 on the TRIVIAL orbit, not B-F's C4" \
+  "$(a="$(argval "$CYL_CELL" --frame-avg-angles)"; [ "$a" = 0 ] && echo 1)"
+expect "CYL4 which is NOT the orbit BF is evaluated on (announcement 05)" \
+  "$(b="$(argval "$(cell_line exp19_HAA_BF_S410_K8_s42 "$(queue_of BF)")" --frame-avg-angles)"; \
+     [ "$b" = 0,90,180,270 ] && echo 1)"
+expect "CYL5 it declares the chunk plan too (announcement 06)" \
+  "$(eq "$(argval "$CYL_CELL" --frame-avg-max-fwd-samples)" 64)"
+expect "CYL6 it uses the CYL config, not the stock one" \
+  "$(eq "$(argval "$CYL_CELL" --model-config)" "$CYL_CFG")"
+expect "CYL7 eval_FLAC parses the trivial orbit to a single 0.0 angle" \
+  "$(python -c "print(tuple(float(a) for a in '0'.split(',')))" | grep -qF '(0.0,)' && echo 1)"
+# The derived eval-name suffix is _a1, not _a4 — the resume path must predict it
+# or every CYL cell would look un-run forever.
+write_record "$CKDIR_CYL" "epoch=409-step=410" "exp19_HAA_CYL_S410_K8_s42" "_fa_invariant_a1" \
+             fa_invariant 42 "$K8_CFG" '[0.0]' 64
+case_run "CYL8 a matching CYL record (with the _a1 suffix) is skipped" 0 \
+         "SKIP: exp19_HAA_CYL_S410_K8_s42" "${OKENV[@]}" ARMS=CYL
+# A record carrying B-F's C4 orbit is a different treatment wearing this name.
+write_record "$CKDIR_CYL" "epoch=409-step=410" "exp19_HAA_CYL_S410_K8_s43" "_fa_invariant_a1" \
+             fa_invariant 43 "$K8_CFG" '[0.0,90.0,180.0,270.0]' 64
+case_run "CYL9 a CYL record produced on the C4 orbit is re-run" 0 \
+         "RERUN: exp19_HAA_CYL_S410_K8_s43" "${OKENV[@]}" ARMS=CYL
+
 echo "--- H. accept path and reporting ---"
 case_run "H1 the DRY accept path reaches the boundary" 0 "DRY_RUN: all gates passed" "${OKENV[@]}"
-case_run "H2 source pins are reported"  0 "source pins OK (7 files"  "${OKENV[@]}"
+case_run "H2 source pins are reported"  0 "source pins OK (8 files"  "${OKENV[@]}"
 case_run "H3 a single-arm queue is 20 cells" 0 "queue: 20 cells planned for arms 'YAW'" "${OKENV[@]}" ARMS=YAW
 expect "H4 the registered grid size is not env-overridable" \
   "$(! grep -qE 'EXPECTED_CELLS:-|SEEDS:-|STEPS_GRID:-' "$EVALSH" && echo 1)"

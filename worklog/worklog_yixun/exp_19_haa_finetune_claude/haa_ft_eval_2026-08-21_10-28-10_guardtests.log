@@ -1,0 +1,73 @@
+=== exp_19 haa_ft_eval.sh guardtests — 2026-08-21_10-28-10 — HEAD 6ac7b8a ===
+fixtures: /tmp/tmp.8BPNiuqjam/ckpts (private; no production namespace is read or written)
+--- A. inputs and the production overrides ---
+  PASS  A1 a bad ARMS token is refused  (rc=2)
+  PASS  A2 a bad DRY_RUN is refused  (rc=2)
+  PASS  A3 EVAL_CMD refused in production  (rc=2)
+  PASS  A4 CKPT_ROOT refused in production  (rc=2)
+  PASS  A5 TRAIN_PGREP refused in production  (rc=2)
+  PASS  A6 caller-held lock refused in production  (rc=2)
+  PASS  A7 THE POISON ITSELF: production without EXPECT_SHA is refused  (rc=2)
+  PASS  A8 a wrong EXPECT_SHA is refused  (rc=2)
+--- B. the queue lock ---
+  PASS  B1 a second queue is refused while the lock is held  (rc=2)
+  PASS  B2 the caller-held path proceeds  (rc=0)
+--- C. a training run of OURS blocks the queue ---
+  PASS  C1 our own train.py blocks the queue  (rc=2)
+  PASS  C2 and the queue proceeds once it is gone  (rc=0)
+  PASS  C3 a FOREIGN train.py is classified and disclosed, never fatal (CLAUDE.md: sibling checkouts)
+  PASS  C4 the foreign branch is a disclosure, never a refusal
+--- D. the checkpoint glob must match EXACTLY one ---
+  PASS  D1 zero matches is refused  (rc=2)
+  PASS  D2 two matches is refused  (rc=2)
+  PASS  D3 the resolved checkpoint is reported  (rc=0)
+--- E. the grid is the registered one ---
+  PASS  E1 exactly 60 cells
+  PASS  E2 every cell name is unique
+  PASS  E3 both endpoints appear 30x each
+  PASS  E4 five seeds x 12 cells each
+  PASS  E5 K is carried by the dataset config, 30 cells each
+  PASS  E6 K8 cells pair the K8 config with the K8 label (and never the K1 one)
+  PASS  E7 K1 cells pair the K1 config with the K1 label
+--- F. per-arm protocol (announcement 05), asserted on the real argv ---
+  PASS  F1 P1 is vanilla
+  PASS  F2 YAW is vanilla
+  PASS  F3 BF is fa_invariant
+  PASS  F4 BF carries B-F's C4 orbit
+  PASS  F5 BF declares the orbit chunk plan (announcement 06)
+  PASS  F6 a vanilla cell carries NO orbit flags at all
+  PASS  F7 every arm uses its OWN model config
+  PASS  F8 the shared protocol is on every cell
+  PASS  F9 cfg-scale and steps are pinned on every cell
+  PASS  F10 the seed flag matches the cell's name
+  PASS  F11 each cell reads its own endpoint checkpoint
+--- G. resume is decided by PARSING the record, not by the filename ---
+  PASS  G1 a matching record is skipped  (rc=0)
+  PASS  G2 ...and that cell is not queued  (rc=0)
+  PASS  G3 a record with the WRONG cond_method is re-run  (rc=0)
+  PASS  G4 a record with the WRONG seed is re-run  (rc=0)
+  PASS  G5 a record from the WRONG K split is re-run  (rc=0)
+  PASS  G6 an EMPTY record is not mistaken for a result  (rc=0)
+  PASS  G7 a matching BF record (with the _a4 suffix) is skipped  (rc=0)
+  PASS  G8 a BF record with the WRONG orbit cap is re-run (announcement 06)  (rc=0)
+  PASS  G9 exactly the MATCHING record is counted as done (1 of 5 present)
+--- CYL. the addendum arm's own protocol (trivial orbit) ---
+  PASS  CYL1 the addendum arm is opt-in, 20 cells of its own
+  PASS  CYL2 it runs the fa path
+  PASS  CYL3 on the TRIVIAL orbit, not B-F's C4
+  PASS  CYL4 which is NOT the orbit BF is evaluated on (announcement 05)
+  PASS  CYL5 it declares the chunk plan too (announcement 06)
+  PASS  CYL6 it uses the CYL config, not the stock one
+  PASS  CYL7 eval_FLAC parses the trivial orbit to a single 0.0 angle
+  PASS  CYL8 a matching CYL record (with the _a1 suffix) is skipped  (rc=0)
+  PASS  CYL9 a CYL record produced on the C4 orbit is re-run  (rc=0)
+--- H. accept path and reporting ---
+  PASS  H1 the DRY accept path reaches the boundary  (rc=0)
+  PASS  H2 source pins are reported  (rc=0)
+  PASS  H3 a single-arm queue is 20 cells  (rc=0)
+  PASS  H4 the registered grid size is not env-overridable
+  PASS  H5 the completeness report recounts from the ARTIFACTS, not the loop
+  PASS  H6 an incomplete grid exits 1
+
+=== 59 passed, 0 failed ===
+log: worklog/worklog_yixun/exp_19_haa_finetune_claude/haa_ft_eval_2026-08-21_10-28-10_guardtests.log

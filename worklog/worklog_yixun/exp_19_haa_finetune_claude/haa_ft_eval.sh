@@ -8,7 +8,8 @@
 #
 # The grid is 3 arms x 2 endpoints x 2 K x 5 seeds = 60 cells:
 #
-#   arms      P1, BF, YAW
+#   arms      P1, BF, YAW (the registered 60-cell grid) plus the opt-in
+#             addenda YNA, BNA and CYL, each run explicitly via ARMS=
 #   endpoints step-410 and step-1000 (plan B1 keeps BOTH readings)
 #   K         8 -> haa_test.json, 1 -> haa_test_1.json   (K is a property of the
 #             DATASET CONFIG, never a flag — pairing a K label with the wrong
@@ -24,6 +25,10 @@
 #   BF        --cond-method fa_invariant --frame-avg-angles 0,90,180,270
 #             --frame-avg-max-fwd-samples 64 (announcement 06: the chunk plan is
 #             declared, not inherited; 64 is what every row in the record used)
+#   CYL       --cond-method fa_invariant --frame-avg-angles 0 (the TRIVIAL orbit
+#             its AR arm trained and evaluated under; eval_FLAC parses "0" to
+#             (0.0,), invariant_conditioning short-circuits at one angle, and the
+#             derived eval-name suffix is _fa_invariant_a1, not _a4)
 #
 # All 60 cells: --cond-autocast bf16 --cfg-scale 1.0 --steps 1, and
 # --record-per-scene so the PER-SCENE mean — this repo's headline convention and
@@ -72,6 +77,7 @@ CFG_SCALE="1.0"
 DIFF_STEPS=1
 AUTOCAST="bf16"
 FA_ANGLES="0,90,180,270"
+CYL_ANGLES="0"                    # the trivial orbit; eval_FLAC parses it to (0.0,)
 FA_CAP=64
 EXPECTED_CELLS=60
 
@@ -81,8 +87,8 @@ case "$DRY_RUN" in
 esac
 for A in $ARMS; do
   case "$A" in
-    P1|BF|YAW|YNA|BNA) ;;
-    *) echo "ARMS must be a subset of 'P1 BF YAW' (got token '${A}') - abort"; exit 2 ;;
+    P1|BF|YAW|YNA|BNA|CYL) ;;
+    *) echo "ARMS must be a subset of 'P1 BF YAW' plus the opt-in addenda 'YNA BNA CYL' (got token '${A}') - abort"; exit 2 ;;
   esac
 done
 
@@ -169,13 +175,14 @@ PIN_testsplit="d4e3e29fddeeab6d9343a7efa811f5c02e23c3e99bd44894898a45d2a33248a1 
 PIN_p1cfg="3639a9face84d13bcbb8f4472e78970c8e045952337f11b4f77d8798f786ba80  ${STOCK_CFG}"
 PIN_bfcfg="834e4933f2f5c8050f196043e11260e00023a7c31205a55961e0a77ca910c1dc  ${EXPDIR}/FLAC_HAA_finetune_BF.json"
 PIN_yawcfg="a03d106cd72744df40187b5c493010ecc996275b2afa32a4811d7c962c77cb53  ${EXPDIR}/FLAC_HAA_finetune_YAW.json"
+PIN_cylcfg="84fe5767d92a900610c9fe489f60f8d6e68a1b3e21953439164ceb1d1f241b8c  ${EXPDIR}/FLAC_HAA_finetune_CYL.json"
 NPINS=0
-for P in "$PIN_eval" "$PIN_k8" "$PIN_k1" "$PIN_testsplit" "$PIN_p1cfg" "$PIN_bfcfg" "$PIN_yawcfg"; do
+for P in "$PIN_eval" "$PIN_k8" "$PIN_k1" "$PIN_testsplit" "$PIN_p1cfg" "$PIN_bfcfg" "$PIN_yawcfg" "$PIN_cylcfg"; do
   echo "$P" | sha256sum -c --status - || {
     echo "SOURCE PIN FAILED for '${P##*  }' - the evaluator, a split or an arm config moved - abort"; exit 2; }
   NPINS=$((NPINS+1))
 done
-echo "source pins OK (${NPINS} files: evaluator, both K configs, the test split, all three arm configs)"
+echo "source pins OK (${NPINS} files: evaluator, both K configs, the test split, all four arm configs)"
 
 # --- per-arm protocol --------------------------------------------------------- #
 arm_config() {
@@ -185,12 +192,26 @@ arm_config() {
     BNA) printf '%s' "$STOCK_CFG" ;;
     BF)  printf '%s' "${EXPDIR}/FLAC_HAA_finetune_BF.json" ;;
     YAW) printf '%s' "${EXPDIR}/FLAC_HAA_finetune_YAW.json" ;;
+    CYL) printf '%s' "${EXPDIR}/FLAC_HAA_finetune_CYL.json" ;;
   esac
 }
+# The orbit each fa arm was TRAINED on, as eval_FLAC's comma-separated string.
+# BF averages over C4; CYL runs the identity alone. Evaluating either under the
+# other's orbit is the announcement-05 mismatch in its purest form.
+arm_orbit() { case "$1" in BF) printf '%s' "$FA_ANGLES" ;; CYL) printf '%s' "$CYL_ANGLES" ;; esac; }
+arm_is_fa() { case "$1" in BF|CYL) return 0 ;; *) return 1 ;; esac; }
 # The eval-name suffix eval_FLAC appends for a non-vanilla method: it derives
 # `_<method>_a<n_angles>` itself, so the resume path must predict the SAME name
 # rather than inventing one.
-arm_suffix() { [ "$1" = "BF" ] && printf '%s' "_fa_invariant_a4" || printf '%s' ""; }
+# eval_FLAC derives `_<method>_a<n_angles>` itself, so the resume path must
+# predict the SAME name: _a4 for BF's four angles, _a1 for CYL's single one.
+arm_suffix() {
+  case "$1" in
+    BF)  printf '%s' "_fa_invariant_a4" ;;
+    CYL) printf '%s' "_fa_invariant_a1" ;;
+    *)   printf '%s' "" ;;
+  esac
+}
 
 # --- gate 6: exactly one checkpoint per (arm, endpoint) ----------------------- #
 # PL names them epoch=<N>-step=<M>.ckpt and the epoch prefix varies (the HAA
@@ -214,8 +235,8 @@ done
 # --- build the queue ---------------------------------------------------------- #
 # A cell is SKIPPED only when an existing record proves it was produced under
 # this exact protocol. Parsed, never inferred from the filename.
-record_matches() {   # <json> <cond_method> <seed> <dataset_cfg>
-  python - "$1" "$2" "$3" "$4" "$AUTOCAST" "$FA_CAP" "$FA_ANGLES" <<'PY' >/dev/null 2>&1
+record_matches() {   # <json> <cond_method> <seed> <dataset_cfg> <orbit-or-empty>
+  python - "$1" "$2" "$3" "$4" "$AUTOCAST" "$FA_CAP" "${5:-}" <<'PY' >/dev/null 2>&1
 import json, sys
 path, method, seed, dscfg, autocast, cap, angles = sys.argv[1:8]
 r = json.load(open(path))
@@ -227,6 +248,8 @@ checks = [r.get("cond_method") == method,
           r.get("dataset_config") == dscfg,
           r.get("rotate_deg") in (0, 0.0)]
 if method == "fa_invariant":
+    # The arm's OWN orbit: a BF row and a CYL row are both fa_invariant, so the
+    # method alone cannot tell them apart — the angles can.
     want = [float(a) for a in angles.split(",")]
     checks += [r.get("frame_avg_angles") == want, r.get("frame_avg_fwd_cap") == int(cap)]
 else:
@@ -248,7 +271,8 @@ for ARM in $ARMS; do
         NAME="exp19_HAA_${ARM}_S${STEP}_K${K}_s${SEED}"
         JSON="$(dirname "$CK")/${STEM}_metrics_${DIFF_STEPS}_${CFG_SCALE}_${NAME}${SUFFIX}.json"
         if [ -s "$JSON" ] && record_matches "$JSON" \
-             "$([ "$ARM" = "BF" ] && echo fa_invariant || echo vanilla)" "$SEED" "$DCFG"; then
+             "$(arm_is_fa "$ARM" && echo fa_invariant || echo vanilla)" "$SEED" "$DCFG" \
+             "$(arm_orbit "$ARM")"; then
           echo "SKIP: ${NAME} (existing record matches this protocol)"
           SKIPPED=$((SKIPPED+1)); continue
         fi
@@ -256,10 +280,11 @@ for ARM in $ARMS; do
         ARGVLINE="--model-config ${ACFG} --dataset-config ${DCFG} --ckpt-path ${CK}"
         ARGVLINE="${ARGVLINE} --cfg-scale ${CFG_SCALE} --steps ${DIFF_STEPS} --seed ${SEED}"
         ARGVLINE="${ARGVLINE} --eval-name ${NAME} --cond-autocast ${AUTOCAST} --record-per-scene"
-        if [ "$ARM" = "BF" ]; then
+        if arm_is_fa "$ARM"; then
           # announcement 05: the arm was TRAINED frame-averaged, so it is
-          # evaluated frame-averaged; announcement 06: the chunk plan is declared.
-          ARGVLINE="${ARGVLINE} --cond-method fa_invariant --frame-avg-angles ${FA_ANGLES} --frame-avg-max-fwd-samples ${FA_CAP}"
+          # evaluated frame-averaged, ON ITS OWN ORBIT; announcement 06: the
+          # chunk plan is declared even where (CYL) it can never bind.
+          ARGVLINE="${ARGVLINE} --cond-method fa_invariant --frame-avg-angles $(arm_orbit "$ARM") --frame-avg-max-fwd-samples ${FA_CAP}"
         else
           # A vanilla cell is given NO orbit flags at all: a vanilla row that
           # carried them would look protocol-compatible with a frame-averaged one.
@@ -323,7 +348,8 @@ echo "evaluator failures: ${FAILED}"
 DONE=0; MISSING=()
 for ARM in $ARMS; do
   SUFFIX="$(arm_suffix "$ARM")"
-  METHOD="$([ "$ARM" = "BF" ] && echo fa_invariant || echo vanilla)"
+  METHOD="$(arm_is_fa "$ARM" && echo fa_invariant || echo vanilla)"
+  ORBIT="$(arm_orbit "$ARM")"
   for STEP in "${STEPS_GRID[@]}"; do
     CK="${CKPT["${ARM}_${STEP}"]}"; STEM="$(basename "$CK" .ckpt)"
     for K in 8 1; do
@@ -331,7 +357,7 @@ for ARM in $ARMS; do
       for SEED in "${SEEDS[@]}"; do
         NAME="exp19_HAA_${ARM}_S${STEP}_K${K}_s${SEED}"
         JSON="$(dirname "$CK")/${STEM}_metrics_${DIFF_STEPS}_${CFG_SCALE}_${NAME}${SUFFIX}.json"
-        if [ -s "$JSON" ] && record_matches "$JSON" "$METHOD" "$SEED" "$DCFG"; then
+        if [ -s "$JSON" ] && record_matches "$JSON" "$METHOD" "$SEED" "$DCFG" "$ORBIT"; then
           DONE=$((DONE+1))
         else
           MISSING+=("$NAME")

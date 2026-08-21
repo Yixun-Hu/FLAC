@@ -1,0 +1,37 @@
+=== exp_19 checkpoint archive to NAS — Thu Aug 20 11:05:17 AM EDT 2026 ===
+--- P1: rsync 100 ckpts ---
+P1: count 100->100 sizes=OK
+  sha OK epoch=109-step=110.ckpt
+  sha OK epoch=409-step=410.ckpt
+  sha OK epoch=999-step=1000.ckpt
+  sha OK epoch=9-step=10.ckpt
+P1: deleted 98 local ckpts, kept 2 (410/1000) + all metric JSONs
+--- BF: rsync 100 ckpts ---
+BF: count 100->100 sizes=OK
+  sha OK epoch=109-step=110.ckpt
+  sha OK epoch=409-step=410.ckpt
+  sha OK epoch=999-step=1000.ckpt
+  sha OK epoch=9-step=10.ckpt
+BF: deleted 98 local ckpts, kept 2 (410/1000) + all metric JSONs
+--- YAW: rsync 100 ckpts ---
+YAW: count 100->100 sizes=OK
+  sha OK epoch=109-step=110.ckpt
+  sha OK epoch=409-step=410.ckpt
+  sha OK epoch=999-step=1000.ckpt
+  sha OK epoch=9-step=10.ckpt
+YAW: deleted 98 local ckpts, kept 2 (410/1000) + all metric JSONs
+--- YNA: rsync 100 ckpts ---
+YNA: count 100->100 sizes=OK
+  sha OK epoch=109-step=110.ckpt
+  sha OK epoch=409-step=410.ckpt
+  sha OK epoch=999-step=1000.ckpt
+  sha OK epoch=9-step=10.ckpt
+YNA: deleted 98 local ckpts, kept 2 (410/1000) + all metric JSONs
+--- BNA: rsync 100 ckpts ---
+BNA: count 100->100 sizes=OK
+  sha OK epoch=109-step=110.ckpt
+  sha OK epoch=409-step=410.ckpt
+  sha OK epoch=999-step=1000.ckpt
+  sha OK epoch=9-step=10.ckpt
+BNA: deleted 98 local ckpts, kept 2 (410/1000) + all metric JSONs
+local free MiB now: 515323

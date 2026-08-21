@@ -1,0 +1,78 @@
+=== exp_19 haa_ft_eval.sh guardtests — 2026-08-21_10-26-43 — HEAD 6ac7b8a ===
+fixtures: /tmp/tmp.yMH5mqh6tE/ckpts (private; no production namespace is read or written)
+--- A. inputs and the production overrides ---
+  PASS  A1 a bad ARMS token is refused  (rc=2)
+  PASS  A2 a bad DRY_RUN is refused  (rc=2)
+  FAIL  A3 EVAL_CMD refused in production: want rc=2 and text 'EVAL_CMD is a DRY_RUN-only test override'; got rc=2
+        last line: ARMS must be a subset of 'P1 BF YAW' (got token 'CYL') - abort
+  FAIL  A4 CKPT_ROOT refused in production: want rc=2 and text 'CKPT_ROOT is a DRY_RUN-only test override'; got rc=2
+        last line: ARMS must be a subset of 'P1 BF YAW' (got token 'CYL') - abort
+  FAIL  A5 TRAIN_PGREP refused in production: want rc=2 and text 'TRAIN_PGREP is a DRY_RUN-only test override'; got rc=2
+        last line: ARMS must be a subset of 'P1 BF YAW' (got token 'CYL') - abort
+  FAIL  A6 caller-held lock refused in production: want rc=2 and text 'GATE_LOCK_HELD_BY_CALLER is a DRY_RUN-only test override'; got rc=2
+        last line: ARMS must be a subset of 'P1 BF YAW' (got token 'CYL') - abort
+  FAIL  A7 THE POISON ITSELF: production without EXPECT_SHA is refused: want rc=2 and text 'EXPECT_SHA is REQUIRED for a production eval queue'; got rc=2
+        last line: ARMS must be a subset of 'P1 BF YAW' (got token 'CYL') - abort
+  FAIL  A8 a wrong EXPECT_SHA is refused: want rc=2 and text 'is not the revision you reviewed'; got rc=2
+        last line: ARMS must be a subset of 'P1 BF YAW' (got token 'CYL') - abort
+--- B. the queue lock ---
+  FAIL  B1 a second queue is refused while the lock is held: want rc=2 and text 'another exp_19 eval queue holds'; got rc=2
+        last line: ARMS must be a subset of 'P1 BF YAW' (got token 'CYL') - abort
+  FAIL  B2 the caller-held path proceeds: want rc=0 and text 'DRY_RUN: all gates passed'; got rc=2
+        last line: ARMS must be a subset of 'P1 BF YAW' (got token 'CYL') - abort
+--- C. a training run of OURS blocks the queue ---
+  FAIL  C1 our own train.py blocks the queue: want rc=2 and text 'train.py from THIS worktree is still running'; got rc=2
+        last line: ARMS must be a subset of 'P1 BF YAW' (got token 'CYL') - abort
+  FAIL  C2 and the queue proceeds once it is gone: want rc=0 and text 'no train.py from this worktree is running'; got rc=2
+        last line: ARMS must be a subset of 'P1 BF YAW' (got token 'CYL') - abort
+  FAIL  C3 a FOREIGN train.py is classified and disclosed, never fatal (CLAUDE.md: sibling checkouts)
+  PASS  C4 the foreign branch is a disclosure, never a refusal
+--- D. the checkpoint glob must match EXACTLY one ---
+  FAIL  D1 zero matches is refused: want rc=2 and text 'CHECKPOINT GLOB FAILED for BF step=1000: 0 match'; got rc=2
+        last line: ARMS must be a subset of 'P1 BF YAW' (got token 'CYL') - abort
+  FAIL  D2 two matches is refused: want rc=2 and text 'CHECKPOINT GLOB FAILED for BF step=1000: 2 match'; got rc=2
+        last line: ARMS must be a subset of 'P1 BF YAW' (got token 'CYL') - abort
+  FAIL  D3 the resolved checkpoint is reported: want rc=0 and text 'ckpt P1 step=410: /tmp/tmp.yMH5mqh6tE/ckpts/exp19_HAA_P1/FLAC_exp19_HAA_P1/exp19_HAA_P1/checkpoints/epoch=409-step=410.ckpt'; got rc=2
+        last line: ARMS must be a subset of 'P1 BF YAW' (got token 'CYL') - abort
+--- E. the grid is the registered one ---
+  PASS  E1 exactly 60 cells
+  PASS  E2 every cell name is unique
+  PASS  E3 both endpoints appear 30x each
+  PASS  E4 five seeds x 12 cells each
+  PASS  E5 K is carried by the dataset config, 30 cells each
+  PASS  E6 K8 cells pair the K8 config with the K8 label (and never the K1 one)
+  PASS  E7 K1 cells pair the K1 config with the K1 label
+--- F. per-arm protocol (announcement 05), asserted on the real argv ---
+  PASS  F1 P1 is vanilla
+  PASS  F2 YAW is vanilla
+  PASS  F3 BF is fa_invariant
+  PASS  F4 BF carries B-F's C4 orbit
+  PASS  F5 BF declares the orbit chunk plan (announcement 06)
+  PASS  F6 a vanilla cell carries NO orbit flags at all
+  PASS  F7 every arm uses its OWN model config
+  PASS  F8 the shared protocol is on every cell
+  PASS  F9 cfg-scale and steps are pinned on every cell
+  PASS  F10 the seed flag matches the cell's name
+  PASS  F11 each cell reads its own endpoint checkpoint
+--- G. resume is decided by PARSING the record, not by the filename ---
+  PASS  G1 a matching record is skipped  (rc=0)
+  PASS  G2 ...and that cell is not queued  (rc=0)
+  PASS  G3 a record with the WRONG cond_method is re-run  (rc=0)
+  PASS  G4 a record with the WRONG seed is re-run  (rc=0)
+  PASS  G5 a record from the WRONG K split is re-run  (rc=0)
+  PASS  G6 an EMPTY record is not mistaken for a result  (rc=0)
+  PASS  G7 a matching BF record (with the _a4 suffix) is skipped  (rc=0)
+  PASS  G8 a BF record with the WRONG orbit cap is re-run (announcement 06)  (rc=0)
+  PASS  G9 exactly the MATCHING record is counted as done (1 of 5 present)
+--- H. accept path and reporting ---
+  FAIL  H1 the DRY accept path reaches the boundary: want rc=0 and text 'DRY_RUN: all gates passed'; got rc=2
+        last line: ARMS must be a subset of 'P1 BF YAW' (got token 'CYL') - abort
+  FAIL  H2 source pins are reported: want rc=0 and text 'source pins OK (7 files'; got rc=2
+        last line: ARMS must be a subset of 'P1 BF YAW' (got token 'CYL') - abort
+  PASS  H3 a single-arm queue is 20 cells  (rc=0)
+  PASS  H4 the registered grid size is not env-overridable
+  PASS  H5 the completeness report recounts from the ARTIFACTS, not the loop
+  PASS  H6 an incomplete grid exits 1
+
+=== 34 passed, 16 failed ===
+log: worklog/worklog_yixun/exp_19_haa_finetune_claude/haa_ft_eval_2026-08-21_10-26-43_guardtests.log

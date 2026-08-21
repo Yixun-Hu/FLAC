@@ -14,6 +14,12 @@
 #   P1  vanilla        stock config, used DIRECTLY (no copy can drift from it)
 #   BF  fa_invariant   stock + exactly B-F's two AR deltas
 #   YAW yaw_aug        stock + exactly exp_17's treatment block
+#   CYL cylindrical     stock + exactly the 8 deltas of the exp-09 cyl-DINOv3
+#                       no-SSL AR arm: implementation/gauge in BOTH ViT dicts,
+#                       grad-ckpt on both conditioners, and cond_method +
+#                       frame_avg_angles=[0.0] (a TRIVIAL orbit — the fa code
+#                       path with the identity alone; the equivariance is in the
+#                       BACKBONE, so nothing is ever rotated). Yixun 2026-08-21.
 #
 # MODE=SMOKE — 20 steps in its OWN namespace, cadence >> endpoint so it can never
 #              write a checkpoint (asserted afterwards).
@@ -127,8 +133,8 @@ PROBE_SCRIPT="${EXPDIR}/probe_haa_fa_invariance.py"
 
 # --- gate 1: ARM / GPU / MODE / DRY_RUN are matched EXACTLY, never inferred --- #
 case "$ARM" in
-  P1|BF|YAW|YNA|BNA) ;;
-  *) echo "ARM must be exactly P1, BF, YAW, YNA or BNA (got '${ARM}') - abort"; exit 2 ;;
+  P1|BF|YAW|YNA|BNA|CYL) ;;
+  *) echo "ARM must be exactly P1, BF, YAW, YNA, BNA or CYL (got '${ARM}') - abort"; exit 2 ;;
 esac
 case "$GPU" in
   0|1) ;;
@@ -182,6 +188,7 @@ case "$ARM" in
   BNA) ARM_CFG="$STOCK_CFG" ;;  # ablation arm (Yixun 2026-08-20): B-F's INIT, stock (vanilla) finetune — can FA shed its architectural tax at adaptation, mirroring YNA? Risk disclosed: BF's DiT was trained on ORBIT-AVERAGED conditioning, so single-orientation conditioning is an interface shift YNA never faced
   BF)  ARM_CFG="${EXPDIR}/FLAC_HAA_finetune_BF.json" ;;
   YAW) ARM_CFG="${EXPDIR}/FLAC_HAA_finetune_YAW.json" ;;
+  CYL) ARM_CFG="${EXPDIR}/FLAC_HAA_finetune_CYL.json" ;;
 esac
 INIT_ARM="$ARM"
 [ "$ARM" = "YNA" ] && INIT_ARM="YAW"   # YNA = YAW's init + stock finetune
@@ -295,6 +302,7 @@ case "$ARM" in
   BNA) PIN_armcfg="" ;;   # same stock file
   BF)  PIN_armcfg="834e4933f2f5c8050f196043e11260e00023a7c31205a55961e0a77ca910c1dc  ${ARM_CFG}" ;;
   YAW) PIN_armcfg="a03d106cd72744df40187b5c493010ecc996275b2afa32a4811d7c962c77cb53  ${ARM_CFG}" ;;
+  CYL) PIN_armcfg="84fe5767d92a900610c9fe489f60f8d6e68a1b3e21953439164ceb1d1f241b8c  ${ARM_CFG}" ;;
 esac
 [ -z "$ARM_CFG_SHA" ] || PIN_armcfg="${ARM_CFG_SHA}  ${ARM_CFG}"
 
@@ -420,6 +428,44 @@ elif arm_id == "BF":
         sys.exit(f"BF config is NOT the stock plus exactly its two registered deltas - {d}")
     delta = f"cond_method=fa_invariant + frame_avg_angles={angles} + grad-ckpt x2"
 
+elif arm_id == "CYL":
+    # The addendum arm: eight deltas, every one of them inherited from the AR
+    # arm whose 40k checkpoint this initialises. The orbit is pinned by VALUE —
+    # [0.0] runs the fa path with the identity alone, and a C4 orbit here would
+    # frame-average a backbone that is meant to be equivariant by construction,
+    # i.e. a different experiment under the same arm name.
+    if "yaw_aug" in t:
+        sys.exit("the CYL arm must NOT carry yaw_aug: one treatment per arm")
+    if t.get("cond_method") != "fa_invariant":
+        sys.exit(f"cond_method must be 'fa_invariant', got {t.get('cond_method')!r}")
+    angles = t.get("frame_avg_angles")
+    if angles != [0.0] or not all(type(a) is float for a in angles or []):
+        sys.exit(f"frame_avg_angles must be the TRIVIAL orbit [0.0], got {angles!r} "
+                 "(a C4 orbit here is a different treatment)")
+    vits = [c for c in arm["model"]["conditioning"]["configs"] if c["type"] == "ViTCoordinates"]
+    if len(vits) != 2:
+        sys.exit(f"expected 2 ViT conditioners, found {len(vits)}")
+    for c in vits:
+        v = c["config"]["ViT"]
+        if v.get("implementation") != "cylindrical_dinov3":
+            sys.exit(f"{c['id']}: ViT.implementation must be 'cylindrical_dinov3', "
+                     f"got {v.get('implementation')!r} - FLAC shares one ViT between "
+                     "both conditioners, so half a cylindrical model is a real state")
+        if v.get("gauge") != "cylindrical_xyz":
+            sys.exit(f"{c['id']}: ViT.gauge must be 'cylindrical_xyz', got {v.get('gauge')!r}")
+        if c["config"].get("gradient_checkpointing") is not True:
+            sys.exit(f"{c['id']}: gradient_checkpointing must be true (the AR arm's recipe)")
+    stripped = json.loads(json.dumps(arm))
+    stripped["training"].pop("cond_method"); stripped["training"].pop("frame_avg_angles")
+    for c in stripped["model"]["conditioning"]["configs"]:
+        if c["type"] == "ViTCoordinates":
+            c["config"]["ViT"].pop("implementation"); c["config"]["ViT"].pop("gauge")
+            c["config"].pop("gradient_checkpointing")
+    d = strict(stripped, stock)
+    if d:
+        sys.exit(f"CYL config is NOT the stock plus exactly its eight registered deltas - {d}")
+    delta = "cylindrical_dinov3/cylindrical_xyz x2 + grad-ckpt x2 + fa_invariant on the trivial orbit [0.0]"
+
 else:  # YAW
     if "cond_method" in t:
         sys.exit("the YAW arm must NOT carry cond_method: one treatment per arm")
@@ -506,6 +552,12 @@ PY
 # explicitly and by name.
 if [ "$ARM" = "P1" ] || [ "$ARM" = "YNA" ] || [ "$ARM" = "BNA" ]; then
   echo "R1 probe: SKIPPED for the ${ARM} arm (vanilla conditioning rotates nothing)"
+elif [ "$ARM" = "CYL" ]; then
+  # Skipped for a REASON, stated in the log rather than left as an absence: this
+  # arm DOES take the fa code path, so a reader who saw no probe line would be
+  # right to wonder whether the gate had simply been forgotten.
+  echo "R1 probe: SKIPPED for the CYL arm"
+  echo "R1 probe SKIP REASON: trivial orbit [0.0]: the fa path performs no rotation, so the rotate-machinery gate has nothing to certify; backbone equivariance is an architecture property measured elsewhere"
 else
   echo "R1 probe: required for the ${ARM} arm (it drives src/data/yaw_rotation.py)"
   # The probe loads THIS ARM'S INIT through train.py's own consumer path (Codex

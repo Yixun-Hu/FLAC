@@ -11,6 +11,18 @@ treatment:
   * **HAA-BF**  — frame-averaged. Stock + exactly FOUR deltas: B-F's two AR
     training keys, plus ViT gradient checkpointing restored on both conditioners.
   * **HAA-YAW** — yaw-augmented. Stock + exactly exp_17's ``training.yaw_aug``.
+  * **HAA-CYL** — the addendum arm (Yixun, 2026-08-21): the cylindrical-DINOv3
+    no-SSL backbone, HAA-finetuned under the same recipe. Stock + exactly EIGHT
+    deltas, all of them inherited from the AR arm this checkpoint came from
+    (``exp-09-cyl-dinov3-no-ssl/.../FLAC_AR_exp09.json``): ``implementation`` and
+    ``gauge`` inside BOTH ViT dicts, ``gradient_checkpointing`` on both
+    conditioners, and ``cond_method`` + ``frame_avg_angles`` in ``training``.
+
+    ⚠️ CYL's orbit is **[0.0] — trivial, and that is the treatment**. It runs the
+    ``fa_invariant`` code path with the identity alone, so no rotation is ever
+    applied; the equivariance lives in the BACKBONE, not in a frame average. A C4
+    orbit here would be a different experiment, which is why the value is pinned
+    exactly rather than "starts with 0.0".
 
 Everything here is byte-level and forward-constructed: the expected arm file is
 built from the stock file's own bytes plus the registered insertion, then compared
@@ -63,6 +75,11 @@ STOCK_CONFIG = _REPO / "src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.jso
 EXP19 = _REPO / "worklog/worklog_yixun/exp_19_haa_finetune_claude"
 BF_CONFIG = EXP19 / "FLAC_HAA_finetune_BF.json"
 YAW_CONFIG = EXP19 / "FLAC_HAA_finetune_YAW.json"
+CYL_CONFIG = EXP19 / "FLAC_HAA_finetune_CYL.json"
+# The AR arm CYL inherits from. Read live (never copied) so a drift there is
+# reported as "the parent moved", not as an opaque byte mismatch.
+AR_CYL = Path("/home/yixunhu/codespace/exp-09-cyl-dinov3-no-ssl/worklog/"
+              "worklog_yixun/exp_09_cyl_no_ssl/FLAC_AR_exp09.json")
 
 # exp_07's pair: the AR configs P1 and B-F were trained with. The BF-minus-BVp1
 # delta is recomputed from these at test time (see the module docstring).
@@ -102,6 +119,27 @@ BF_GRADCKPT_INSERTED = (
     b'                        "gradient_checkpointing": true\n'
     b'                    }'
 )
+
+# CYL's eight deltas. The two ViT-dict keys go last inside each ``ViT`` block and
+# the grad-ckpt key last in each conditioner ``config`` — the key order
+# FLAC_AR_exp09.json uses, asserted against that live file below.
+CYL_VIT_ANCHOR = b'"img_w": 512\n                        }'
+CYL_VIT_INSERTED = (
+    b'"img_w": 512,\n'
+    b'                            "implementation": "cylindrical_dinov3",\n'
+    b'                            "gauge": "cylindrical_xyz"\n'
+    b'                        }'
+)
+CYL_TRAIN_INSERTED = (
+    b',\n'
+    b'        "cond_method": "fa_invariant",\n'
+    b'        "frame_avg_angles": [\n'
+    b'            0.0\n'
+    b'        ]'
+)
+# The trivial orbit, pinned as a VALUE. "the first angle is 0.0" would also admit
+# the C4 orbit, which is a different treatment entirely.
+CYL_TRIVIAL_ORBIT = [0.0]
 
 # exp_17's treatment block, byte for byte — IMPORTED from exp_17's own contract
 # test rather than retyped (Codex exp_19 r1, non-blocking finding). A copied
@@ -150,6 +188,16 @@ def bf(bf_bytes):
 @pytest.fixture(scope="module")
 def yaw(yaw_bytes):
     return json.loads(yaw_bytes.decode())
+
+
+@pytest.fixture(scope="module")
+def cyl_bytes():
+    return _bytes(CYL_CONFIG)
+
+
+@pytest.fixture(scope="module")
+def cyl(cyl_bytes):
+    return json.loads(cyl_bytes.decode())
 
 
 def strict_diff(a, b, path="root"):
@@ -274,6 +322,87 @@ def test_yaw_arm_is_the_stock_plus_exactly_the_yaw_aug_block(yaw_bytes, stock_by
     )
 
 
+def test_cyl_arm_is_the_stock_plus_exactly_its_eight_registered_deltas(cyl_bytes, stock_bytes):
+    """Forward construction: stock + 2 ViT keys x 2 blocks + 2 grad-ckpt + 2 training.
+
+    Built in the same order the file was: the training block is appended before
+    the two whole-file replacements, so a reordering anywhere fails here.
+    """
+    assert stock_bytes.count(CYL_VIT_ANCHOR) == 2, (
+        "the stock config no longer has exactly two ViT dicts ending in 'img_w': "
+        "the backbone insertion point is no longer unambiguous"
+    )
+    assert stock_bytes.count(BF_GRADCKPT_ANCHOR) == 2
+    prefix = stock_bytes[: -len(TRAILER_BYTES)]
+    expected = prefix + CYL_TRAIN_INSERTED + TRAILER_BYTES        # deltas 7-8
+    expected = expected.replace(CYL_VIT_ANCHOR, CYL_VIT_INSERTED)  # deltas 1-4
+    expected = expected.replace(BF_GRADCKPT_ANCHOR, BF_GRADCKPT_INSERTED)  # 5-6
+    assert cyl_bytes == expected, (
+        "FLAC_HAA_finetune_CYL.json is not the stock HAA config plus exactly the "
+        "eight registered deltas — the addendum arm is no longer the AR arm's recipe"
+    )
+
+
+def test_the_cyl_deltas_mirror_its_own_AR_parent():
+    """CYL inherits, it does not invent: every delta is read off the parent file.
+
+    Asserted against the LIVE exp-09 config rather than a remembered literal — if
+    that arm's backbone keys, key order or trivial orbit moved, "the same recipe"
+    would stop being true and this must say so. Skipped, not failed, where the
+    foreign checkout is absent: it is another worktree and may not exist here.
+    """
+    if not AR_CYL.is_file():
+        pytest.skip(f"foreign checkout not present: {AR_CYL}")
+    ar = json.loads(AR_CYL.read_text())
+    vits = [c for c in ar["model"]["conditioning"]["configs"]
+            if c["type"] == "ViTCoordinates"]
+    assert len(vits) == 2
+    for c in vits:
+        assert list(c["config"]) == ["ViT", "max_value", "gradient_checkpointing"]
+        assert list(c["config"]["ViT"])[-2:] == ["implementation", "gauge"], (
+            "the parent's ViT key order moved; CYL's byte insertion no longer mirrors it"
+        )
+        assert c["config"]["ViT"]["implementation"] == "cylindrical_dinov3"
+        assert c["config"]["ViT"]["gauge"] == "cylindrical_xyz"
+        assert c["config"]["gradient_checkpointing"] is True
+    assert ar["training"]["cond_method"] == "fa_invariant"
+    assert ar["training"]["frame_avg_angles"] == CYL_TRIVIAL_ORBIT, (
+        f"the parent arm's orbit is {ar['training']['frame_avg_angles']}, not the "
+        f"trivial {CYL_TRIVIAL_ORBIT} this arm was registered with"
+    )
+
+
+def test_the_cyl_backbone_is_cylindrical_on_BOTH_conditioners(cyl):
+    """FLAC shares one ViT between ``source_vit`` and ``context_poses_vit``.
+
+    Setting the implementation on one and not the other would be a config the
+    loader may well accept — and the arm would then be half a cylindrical model.
+    """
+    vits = [c for c in cyl["model"]["conditioning"]["configs"]
+            if c["type"] == "ViTCoordinates"]
+    assert len(vits) == 2
+    for c in vits:
+        assert c["config"]["ViT"]["implementation"] == "cylindrical_dinov3", c["id"]
+        assert c["config"]["ViT"]["gauge"] == "cylindrical_xyz", c["id"]
+        assert c["config"]["gradient_checkpointing"] is True, c["id"]
+
+
+def test_the_cyl_orbit_is_the_TRIVIAL_one_and_pinned_by_value(cyl):
+    """[0.0] is the treatment, not a degenerate default.
+
+    ``invariant_conditioning`` short-circuits at ``len(angles) == 1``: the ViT
+    path is never re-run, so no rotation is applied and the equivariance claim
+    rests entirely on the backbone. A C4 orbit here would frame-average a model
+    that is supposed to be equivariant by construction — a different experiment
+    wearing the same arm name.
+    """
+    angles = cyl["training"]["frame_avg_angles"]
+    assert angles == CYL_TRIVIAL_ORBIT
+    assert len(angles) == 1 and angles[0] == 0.0
+    assert all(type(a) is float for a in angles), "an int 0 is not what the parent has"
+    assert cyl["training"]["cond_method"] == "fa_invariant"
+
+
 def test_byte_comparison_would_catch_newline_drift(stock_bytes):
     """Non-vacuity guard for the two tests above: prove the comparison is strict.
 
@@ -325,11 +454,13 @@ def test_the_grad_ckpt_flags_are_literal_booleans_on_both_conditioners(bf):
         assert isinstance(flag, bool)
 
 
-def test_only_the_BF_arm_carries_gradient_checkpointing(stock, yaw):
-    """The OOM was BF's alone: the vanilla arms never built the 4-angle peak.
+def test_the_vanilla_arms_never_acquire_gradient_checkpointing(stock, yaw):
+    """P1 and YAW never built a frame-averaged peak, so they never needed it.
 
-    Adding it to P1 or YAW would change their memory recipe for no reason and,
-    worse, would make each of them differ from the config they were TRAINED with.
+    BF carries it because it OOM'd and because its AR parent has it; CYL carries
+    it because its AR parent has it. Adding it to P1 or YAW would change their
+    memory recipe for no reason and, worse, would make each of them differ from
+    the config it was TRAINED with.
     """
     for name, cfg in (("stock/P1", stock), ("YAW", yaw)):
         for c in cfg["model"]["conditioning"]["configs"]:
@@ -337,6 +468,26 @@ def test_only_the_BF_arm_carries_gradient_checkpointing(stock, yaw):
                 assert "gradient_checkpointing" not in c["config"], (
                     f"{name} acquired gradient_checkpointing; only BF OOM'd"
                 )
+
+
+def test_removing_all_eight_cyl_deltas_leaves_a_type_strict_copy_of_the_stock(cyl, stock):
+    """Semantic mirror of CYL's byte test, with int/bool strictness.
+
+    Exactly eight keys may be reverted; anything else that drifted has nowhere
+    to hide.
+    """
+    stripped = json.loads(json.dumps(cyl))
+    stripped["training"].pop("cond_method")
+    stripped["training"].pop("frame_avg_angles")
+    reverted = 0
+    for c in stripped["model"]["conditioning"]["configs"]:
+        if c["type"] == "ViTCoordinates":
+            assert c["config"]["ViT"].pop("implementation") == "cylindrical_dinov3"
+            assert c["config"]["ViT"].pop("gauge") == "cylindrical_xyz"
+            assert c["config"].pop("gradient_checkpointing") is True
+            reverted += 3
+    assert reverted == 6, f"expected 2 ViT conditioners x 3 keys, reverted {reverted}"
+    assert strict_diff(stripped, stock) is None
 
 
 def test_removing_yaw_aug_leaves_a_type_strict_copy_of_the_stock(yaw, stock):
@@ -428,7 +579,7 @@ def test_the_factory_enables_the_treatment_for_the_yaw_arm(yaw):
     assert kwargs.get("yaw_aug_seed") == 42
 
 
-@pytest.mark.parametrize("name", ["stock", "bf"])
+@pytest.mark.parametrize("name", ["stock", "bf", "cyl"])
 def test_the_factory_enables_no_augmentation_for_the_other_arms(request, name):
     cfg = request.getfixturevalue(name)
     assert _parse_yaw_aug_config(cfg["training"]) == {}
@@ -439,7 +590,7 @@ def test_the_bf_cond_method_is_one_the_wrapper_accepts(bf):
     assert bf["training"]["cond_method"] in ("vanilla", "fa_invariant")
 
 
-@pytest.mark.parametrize("name", ["stock", "bf", "yaw"])
+@pytest.mark.parametrize("name", ["stock", "bf", "yaw", "cyl"])
 def test_every_arm_keeps_ema_on(request, name):
     """The exp_19 inits are EMA weights and the HAA rows will be EMA rows too.
 
@@ -525,8 +676,39 @@ def test_a_config_carrying_both_treatments_is_refused(yaw):
         _parse_yaw_aug_config(training)
 
 
-def test_neither_arm_file_carries_the_other_arm_key(bf, yaw):
-    """One treatment per arm, asserted on the files as written."""
+def test_neither_arm_file_carries_the_other_arm_key(bf, yaw, cyl):
+    """One treatment per arm, asserted on the files as written.
+
+    CYL and BF share the ``fa_invariant`` KEY but not the treatment: BF averages
+    over C4, CYL over the identity alone. What must never cross is ``yaw_aug``,
+    whose parser refuses to coexist with ``fa_invariant`` at all.
+    """
     assert "yaw_aug" not in bf["training"]
+    assert "yaw_aug" not in cyl["training"]
     assert "cond_method" not in yaw["training"]
     assert "frame_avg_angles" not in yaw["training"]
+    assert bf["training"]["frame_avg_angles"] != cyl["training"]["frame_avg_angles"], (
+        "BF and CYL would be the same treatment; their orbits must differ"
+    )
+
+
+def test_a_cyl_config_that_also_carried_yaw_aug_is_refused_by_the_parser(cyl):
+    """The combination is untested and the factory fails closed on it."""
+    training = json.loads(json.dumps(cyl))["training"]
+    training["yaw_aug"] = {"enabled": True, "img_w": 512, "seed": 42}
+    with pytest.raises(ValueError, match="fa_invariant"):
+        _parse_yaw_aug_config(training)
+
+
+def test_the_cyl_backbone_package_is_importable_in_this_env(cyl):
+    """A config naming a backbone the env cannot build is a launch-time crash.
+
+    Import only — nothing is constructed, no weights are fetched. Skipped where
+    the sibling package is absent, since it is pip-installed separately.
+    """
+    impl = {c["config"]["ViT"]["implementation"]
+            for c in cyl["model"]["conditioning"]["configs"]
+            if c["type"] == "ViTCoordinates"}
+    assert impl == {"cylindrical_dinov3"}
+    pytest.importorskip("cylindrical_dinov3",
+                        reason="the cylindrical backbone package is not installed here")
