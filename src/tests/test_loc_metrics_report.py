@@ -988,3 +988,18 @@ def test_seen_side_is_labelled_with_the_seed_its_provenance_records(tmp_path):
                              families=("m1",), seen_scan=seen_scan)
     assert report["seen_vs_unseen"]["m1"]["seen_label"] == "seen calibration replay, seed 42"
     assert report["seen_vs_unseen"]["m1"]["unseen_label"] == "unseen mean over seeds [42]"
+
+
+def test_report_provenance_covers_the_oracle_inputs(tmp_path):
+    """The oracle stream is an input of record: it must be hashable and its own
+    context binding must travel into the report."""
+    metrics_path, rows_path, oracle_path = _seed_fixture(
+        tmp_path, 42, DIST_MEAN_PICKS_GT, CTX_PREFERS_SECOND)
+    scan = mr.scan_seed(metrics_path, rows_path, seed=42, families=("m1",),
+                        oracle_path=oracle_path)
+    seed_report = mr.build_seed_report(scan, seed=42, n_boot=50)
+    assert seed_report["inputs"]["oracle_path"] == oracle_path
+    assert seed_report["inputs"]["oracle_provenance"]["context_stream_digest"] == "ctx42"
+
+    report = mr.build_report([seed_report], families=("m1",), hash_inputs=True)
+    assert oracle_path in report["provenance"]["input_sha256"]

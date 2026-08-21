@@ -741,6 +741,7 @@ def scan_seed(metrics_path, rows_path, families=REPORT_FAMILIES,
             "oracle": {f: v for f, v in oracle.items() if v},
             "provenance": provenance, "seed": None if seed is None else int(seed),
             "oracle_provenance": oracle_provenance,
+            "oracle_path": None if oracle_path is None else str(oracle_path),
             "retrieval": {f: b for f, b in retrieval.items() if b["raw"]},
             "power": {f: v for f, v in power.items() if v},
             "m4": m4.result(),
@@ -823,7 +824,11 @@ def build_seed_report(scan, seed, n_boot=BOOTSTRAP_N, boot_seed=BOOTSTRAP_SEED,
         "holm": {quantity: holm_over(primary_comparisons, quantity=quantity)
                  for quantity in ("e_loc", "top1")},
         "m4": scan["m4"], "sensitivity": scan["sensitivity"],
-        "inputs": {"metrics_path": scan["metrics_path"], "rows_path": scan["rows_path"]},
+        "inputs": {"metrics_path": scan["metrics_path"], "rows_path": scan["rows_path"],
+                   **({"oracle_path": scan["oracle_path"],
+                       "oracle_provenance": scan.get("oracle_provenance") or {}}
+                      if scan.get("oracle_path") else {})},
+        "provenance": scan.get("provenance") or {},
     }
 
 
@@ -1173,7 +1178,8 @@ def build_report(seed_reports, families=REPORT_FAMILIES, seen_scan=None,
     if seen_scan is not None:
         provenance["seen_inputs"] = seen_block["inputs"]
     if hash_inputs:
-        paths = [p for entry in provenance["inputs"] for p in entry.values()]
+        paths = [value for entry in provenance["inputs"] for key, value in entry.items()
+                 if key.endswith("_path") and isinstance(value, str)]
         if seen_scan is not None:
             paths += list(provenance["seen_inputs"].values())
         provenance["input_sha256"] = {path: file_sha256(path) for path in sorted(set(paths))}
