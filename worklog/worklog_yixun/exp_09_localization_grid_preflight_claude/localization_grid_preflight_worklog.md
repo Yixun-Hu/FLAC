@@ -184,3 +184,7 @@
 - **Evidence** — final canonical timing SHAs: Vanilla `e60f8ead63b0fcf8c8522d7adafc84484852324d832c86a7c68a47bbcc979ca4`; FA-BF `f59434cd31abe62fb3b055bd68841da1d7f9cd6322283077fc48d7fd993c2532`. Detailed file hashes and conservative arithmetic are in `throughput_probe_analysis.md`.
 - **Validation** — localization engine tests `7 passed`; complete permanent suite `143 passed, 1 skipped, 11 warnings in 31.21s`; `py_compile` and `git diff --check` pass.
 - **Remaining gate** — this closes the no-quality cost decision only. A bounded one-query then one-room smoke must still validate streamed aggregation, tail batches, output/resume hashes, and observed wall-clock overhead before a full quality run.
+
+## 2026-08-21 — real throughput gate committed
+
+- **Version Control** — committed the real cache engine, offline strict-load architecture, tests, five no-quality repeat/final timing JSONs, measured cost analysis, frozen `K=4` plan amendment, and notebook evidence as `c35553db319914057055736c883c9cf7f0bfe0f8` (`exp_09: measure real cached localization throughput`).
