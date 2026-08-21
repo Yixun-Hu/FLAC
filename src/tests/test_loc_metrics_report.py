@@ -957,3 +957,18 @@ def test_seen_vs_unseen_labels_both_sides(tmp_path):
     assert table["m1"]["seen_label"] == "seed 42 calibration replay"
     assert table["m1"]["unseen_label"] == "mean over seeds [42, 43, 44]"
     assert table["m1"]["unseen_per_seed"] == {"42": 0.5, "43": 0.5, "44": 0.5}
+
+
+def test_seen_side_is_labelled_with_the_seed_its_provenance_records(tmp_path):
+    """F5 asks for an explicit label; 'seen calibration replay' without the seed
+    is not one when the pass itself records which seed it was."""
+    unseen = _seed_fixture(tmp_path / "u", 42, DIST_MEAN_PICKS_GT, CTX_PREFERS_SECOND)
+    seen = _seed_fixture(tmp_path / "s", 42, DIST_MEAN_PICKS_1, CTX_PREFERS_SECOND)
+    _summary(seen[0].replace(".jsonl", "_summary.json"), seed=42)
+    _summary(seen[1].replace(".jsonl", "_summary.json"), seed=42)
+    unseen_scan = mr.scan_seed(unseen[0], unseen[1], seed=42, families=("m1",))
+    seen_scan = mr.scan_seed(seen[0], seen[1], families=("m1",))
+    report = mr.build_report([mr.build_seed_report(unseen_scan, seed=42, n_boot=50)],
+                             families=("m1",), seen_scan=seen_scan)
+    assert report["seen_vs_unseen"]["m1"]["seen_label"] == "seen calibration replay, seed 42"
+    assert report["seen_vs_unseen"]["m1"]["unseen_label"] == "unseen mean over seeds [42]"

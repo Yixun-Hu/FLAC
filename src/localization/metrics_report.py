@@ -1117,6 +1117,15 @@ def file_sha256(path, chunk=1 << 20):
     return digest.hexdigest()
 
 
+def _seen_label(seen_scan):
+    """Name the seen side by the seed its own provenance records (r4m6 F5)."""
+    seed = seen_scan.get("seed")
+    if seed is None:
+        seed = (seen_scan.get("provenance") or {}).get("seed")
+    return ("seen calibration replay" if seed is None
+            else f"seen calibration replay, seed {int(seed)}")
+
+
 def build_report(seed_reports, families=REPORT_FAMILIES, seen_scan=None,
                  n_boot=BOOTSTRAP_N, hash_inputs=False, extra_provenance=None):
     """The whole R4 answer: seed tables, controls, comparisons and conclusions."""
@@ -1139,8 +1148,7 @@ def build_report(seed_reports, families=REPORT_FAMILIES, seen_scan=None,
     seeds = [r["seed"] for r in seed_reports]
     split_table = (seen_vs_unseen(
         seen_summaries, table,
-        seen_label=(f"seen calibration replay, seed {seen_scan.get('seed')}"
-                    if seen_scan.get("seed") is not None else "seen calibration replay"),
+        seen_label=_seen_label(seen_scan),
         unseen_label=f"unseen mean over seeds {seeds}") if seen_scan else {})
 
     answers = conclusions(
