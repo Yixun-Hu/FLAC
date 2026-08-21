@@ -466,9 +466,15 @@ def test_conclusions_answer_all_six_questions_from_computed_values(tmp_path):
                             "q3_seed_and_room_consistent", "q4_reduces_context_member_failure",
                             "q5_robustness_caveats", "q6_adds_information_vs_different_scorer"}
     q1 = answers["q1_exceeds_agree_retrieval"]["m1"]
-    assert q1["top1_mean"] == pytest.approx(1.0)
+    # 0.689 is an EQUAL-ROOM MACRO top-1 (R-1b), so the verdict is macro-to-macro
+    # and the pooled numbers are reported beside it, never silently swapped in
+    assert q1["macro_top1_mean"] == pytest.approx(1.0)
+    assert q1["pooled_top1_mean"] == pytest.approx(1.0)
     assert q1["reference"] == pytest.approx(mr.AGREE_RETRIEVAL_REFERENCE)
+    assert q1["reference_convention"].startswith("macro")
     assert q1["exceeds"] is True and q1["delta_vs_reference"] == pytest.approx(0.311)
+    assert q1["recomputed_reference_macro_top1"] is not None
+    assert q1["recomputed_reference_pooled_top1"] is not None
     q4 = answers["q4_reduces_context_member_failure"]["m1"]
     assert q4["context_member_rate"] == pytest.approx(0.0)
     assert q4["agree_reference"] == pytest.approx(mr.AGREE_CONTEXT_MEMBER_RATE)
@@ -479,6 +485,29 @@ def test_conclusions_answer_all_six_questions_from_computed_values(tmp_path):
     assert q6["rescue_rate"] == pytest.approx(1.0)
     for key, block in answers.items():
         assert "rule" in block, f"{key} states no decision rule"
+
+
+def test_conclusions_read_the_battery_from_the_seen_pass(tmp_path):
+    """q5's evidence lives in the SEEN calibration rows: the unseen passes carry
+    no battery, so a report that looked only at them answered n/a for everything."""
+    paths = _seed_fixture(tmp_path, 42, DIST_MEAN_PICKS_GT, CTX_PREFERS_SECOND)
+    scan = mr.scan_seed(*paths, families=("m1",))
+    seed_reports = [mr.build_seed_report(scan, seed=42, n_boot=100)]
+    battery = {"status": "computed", "n_rows_with_battery": 12,
+               "variants": {"gain_x2": {"m1": {"top1": 0.5, "prediction_change_rate": 0.0,
+                                               "mean_abs_score_change": 0.0}},
+                            "direct_crop_2p5ms": {"m1": {"top1": 0.1,
+                                                         "prediction_change_rate": 0.75,
+                                                         "mean_abs_score_change": 0.2}}}}
+    q5 = mr.conclusions(seed_reports, families=("m1",), sensitivity=battery)[
+        "q5_robustness_caveats"]["m1"]
+    assert q5["worst_variant"] == "direct_crop_2p5ms"
+    assert q5["worst_prediction_change_rate"] == pytest.approx(0.75)
+    assert q5["sensitivity"]["gain_x2"]["prediction_change_rate"] == pytest.approx(0.0)
+    assert q5["caveat"] is True
+
+    without = mr.conclusions(seed_reports, families=("m1",))["q5_robustness_caveats"]["m1"]
+    assert without["worst_variant"] is None and without["caveat"] is None
 
 
 def test_seed_table_reports_mean_and_sd(tmp_path):
@@ -501,6 +530,10 @@ def test_render_markdown_has_the_required_tables(tmp_path):
                              families=("m1",))
     text = mr.render_markdown(report)
     assert "| family |" in text and "m1" in text
+    header = [line for line in text.splitlines() if line.startswith("| family |")][0]
+    body = [line for line in text.splitlines() if line.startswith("| m1 |")][0]
+    assert body.count("|") == header.count("|"), "the family table lost a column"
+    assert "macro" in header and "ctx-member" in header
     assert "0.689" in text                        # the fixed reference is named
     assert "declared-secondary" in text or "primary" in text
     assert "PRELIMINARY" in text

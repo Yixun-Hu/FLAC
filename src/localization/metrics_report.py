@@ -587,6 +587,7 @@ SEED_TABLE_COLUMNS = (
     ("macro_mean_e_loc", ("primary", "macro", "mean_of_room_means")),
     ("macro_top1", ("primary", "macro", "top1")),
     ("retrieval_masked_top1", ("retrieval", "masked", "pooled", "top1")),
+    ("retrieval_masked_macro_top1", ("retrieval", "masked", "macro", "top1")),
     ("context_member_rate", ("context_split", "context_member_rate")),
     ("power_mean", ("power", "mean")),
 )
@@ -629,7 +630,7 @@ def _comparison(seed_reports, label):
 def conclusions(seed_reports, families=PRIMARY_FAMILIES,
                 reference=AGREE_RETRIEVAL_REFERENCE,
                 context_reference=AGREE_CONTEXT_MEMBER_RATE,
-                seed_tolerance=0.01, room_agreement=0.8, seen_gaps=None):
+                seed_tolerance=0.01, room_agreement=0.8, seen_gaps=None, sensitivity=None):
     """The six questions of the R4 directive, computed rather than narrated.
 
     Every verdict states the rule it applied; the numbers behind it are in the
@@ -640,25 +641,44 @@ def conclusions(seed_reports, families=PRIMARY_FAMILIES,
     answers = {}
 
     q1 = {}
+    macro_reference = _mean_sd([_dig(report, ("agree_retrieval", "masked", "macro", "top1"))
+                                for report in seed_reports])
+    pooled_reference = _mean_sd([_dig(report, ("agree_retrieval", "masked", "pooled", "top1"))
+                                 for report in seed_reports])
     for family, columns in table.items():
-        top1 = columns["top1"]
-        recomputed = _mean_sd([_dig(report, ("agree_retrieval", "masked", "pooled", "top1"))
-                               for report in seed_reports])
+        pooled, macro = columns["top1"], columns["macro_top1"]
         paired = _comparison(seed_reports, f"{family}_vs_agree_retrieval")
         q1[family] = {
-            "top1_mean": top1["mean"], "top1_sd": top1["sd"], "per_seed": top1["per_seed"],
+            # 0.689 is the EQUAL-ROOM MACRO top-1 of the R-1b masked control, so
+            # the verdict is macro-to-macro; pooled is reported, never swapped in
+            "reference_convention": "macro (equal-room mean of per-room top-1), as R-1b",
+            "macro_top1_mean": macro["mean"], "macro_top1_sd": macro["sd"],
+            "macro_per_seed": macro["per_seed"],
+            "pooled_top1_mean": pooled["mean"], "pooled_top1_sd": pooled["sd"],
+            "pooled_per_seed": pooled["per_seed"],
             "reference": float(reference),
-            "recomputed_reference_top1": recomputed["mean"],
-            "delta_vs_reference": (None if top1["mean"] is None
-                                   else top1["mean"] - float(reference)),
+            "recomputed_reference_macro_top1": macro_reference["mean"],
+            "recomputed_reference_pooled_top1": pooled_reference["mean"],
+            "delta_vs_reference": (None if macro["mean"] is None
+                                   else macro["mean"] - float(reference)),
+            "delta_vs_recomputed_macro": (None if macro["mean"] is None
+                                          or macro_reference["mean"] is None
+                                          else macro["mean"] - macro_reference["mean"]),
+            "delta_vs_recomputed_pooled": (None if pooled["mean"] is None
+                                           or pooled_reference["mean"] is None
+                                           else pooled["mean"] - pooled_reference["mean"]),
             "paired_top1_p_values": [c["top1"]["p_value"] for c in paired],
             "paired_e_loc_p_values": [c["e_loc"]["p_value"] for c in paired],
-            "exceeds": None if top1["mean"] is None else bool(top1["mean"] > float(reference)),
+            "exceeds": None if macro["mean"] is None else bool(macro["mean"] > float(reference)),
+            "exceeds_pooled": (None if pooled["mean"] is None or pooled_reference["mean"] is None
+                               else bool(pooled["mean"] > pooled_reference["mean"])),
         }
     answers["q1_exceeds_agree_retrieval"] = dict(
-        q1, rule=(f"exceeds := pooled top-1 averaged over seeds > the fixed AGREE retrieval "
-                  f"reference {reference} (K_ctx=8); the same control recomputed per query on "
-                  "these rows is reported beside it"))
+        q1, rule=(f"exceeds := equal-room MACRO top-1 averaged over seeds > the fixed AGREE "
+                  f"retrieval reference {reference}, which is itself a macro number (R-1b, "
+                  "K_ctx=8; its pooled value is 0.6317). The same control recomputed per query "
+                  "on these very rows is reported in both conventions, and exceeds_pooled "
+                  "answers the same question pooled."))
 
     q2 = {}
     for family in table:
@@ -732,10 +752,14 @@ def conclusions(seed_reports, families=PRIMARY_FAMILIES,
                   "reported beside it"))
 
     q5 = {}
+    # the declared battery is computed on the SEEN calibration pass only, so its
+    # summary is passed in; the unseen seed reports carry none by construction
+    batteries = ([sensitivity] if sensitivity is not None
+                 else [report["sensitivity"] for report in seed_reports])
     for family in table:
         variants, worst = {}, None
-        for report in seed_reports:
-            for variant, block in (report["sensitivity"].get("variants") or {}).items():
+        for battery in batteries:
+            for variant, block in ((battery or {}).get("variants") or {}).items():
                 if family in block:
                     entry = variants.setdefault(variant, {"top1": [], "change": []})
                     entry["top1"].append(block[family]["top1"])
@@ -755,6 +779,8 @@ def conclusions(seed_reports, families=PRIMARY_FAMILIES,
                             for variant, entry in sorted(variants.items())},
             "worst_variant": None if worst is None else worst[0],
             "worst_prediction_change_rate": None if worst is None else worst[1],
+            "n_battery_rows": ((sensitivity or {}).get("n_rows_with_battery")
+                               if sensitivity is not None else None),
             "m4_query_drop_rate": float(np.mean(m4_drop)) if m4_drop else None,
             "seen_unseen_top1_gap": _mean_sd([g for g in seen_gap if g is not None])["mean"],
             "caveat": (None if worst is None else
@@ -851,7 +877,8 @@ def build_report(seed_reports, families=REPORT_FAMILIES, seen_scan=None,
         seed_reports,
         families=tuple(f for f in PRIMARY_FAMILIES
                        if any(f in r["families"] for r in seed_reports)),
-        seen_gaps={f: entry.get("top1_gap") for f, entry in split_table.items()})
+        seen_gaps={f: entry.get("top1_gap") for f, entry in split_table.items()},
+        sensitivity=(seen_block or {}).get("sensitivity"))
 
     provenance = {
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -911,17 +938,20 @@ def render_markdown(report):
                  f"{provenance['references']['agree_retrieval_top1']}.")
     lines.append("")
 
-    lines.append("| family | kind | top-1 (mean +- SD) | median e_loc | mean e_loc | "
-                 "s@0.5 | s@1.0 | MRR | matched-control top-1 | ctx-member rate |")
-    lines.append("|---|---|---|---|---|---|---|---|---|---|")
+    lines.append("| family | kind | pooled top-1 (mean +- SD) | macro top-1 | median e_loc | "
+                 "mean e_loc | s@0.5 | s@1.0 | MRR | matched control (pooled) | "
+                 "matched control (macro) | ctx-member rate |")
+    lines.append("|" + "---|" * 12)
     for family, columns in report["seed_table"].items():
-        lines.append("| {} | {} | {} +- {} | {} | {} | {} | {} | {} | {} |".format(
+        lines.append("| {} | {} | {} +- {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
             family, columns["label"],
             _fmt(columns["top1"]["mean"]), _fmt(columns["top1"]["sd"]),
+            _fmt(columns["macro_top1"]["mean"]),
             _fmt(columns["median_e_loc"]["mean"]), _fmt(columns["mean_e_loc"]["mean"]),
             _fmt(columns["success_0.5"]["mean"]), _fmt(columns["success_1.0"]["mean"]),
             _fmt(columns["mrr"]["mean"]),
             _fmt(columns["retrieval_masked_top1"]["mean"]),
+            _fmt(columns["retrieval_masked_macro_top1"]["mean"]),
             _fmt(columns["context_member_rate"]["mean"])))
     lines.append("")
 
