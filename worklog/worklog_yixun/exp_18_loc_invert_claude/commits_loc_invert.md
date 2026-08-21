@@ -205,3 +205,10 @@
 | `900efd4` | F5 (nit) | the seen side is labelled with the seed its own provenance records | +14 −2 |
 | `5454c65` | F1 (test) | the real-slice round trip ingests the published oracle stream and checks each record against the control's own `oracle_correct` | +16 |
 | `2db225e` | F1/F3 (prov) | the oracle stream is an input of record: hashed with the rest and its context binding carried into the seed report | +12 −3 |
+
+## Round r8 (visualization assets — plan §2.7 + SOP artifact #13 prep)
+
+| SHA | Item | Description | changed lines |
+|---|---|---|---|
+| `3e1095d` | script + tests | `loc_invert_heatmaps.py`: the pre-registered case rule (sharp = correct top-1 with the largest softmax(S/τ) top-2 margin, ambiguous = smallest margin, failure = largest e_loc; 3 each, ties by query id, distinct rooms preferred, no query reused), Agg top-down maps (display-only colour map, GT star, prediction ring, receiver, z annotations, "candidate extent"), gallery manifest, and the six HTML data extracts as pure functions over published artifacts; `test_loc_heatmaps.py` pins order-independence, margin math, PNG smoke and extract schemas | +661 |
+| `f6545fa` | assets | both galleries rendered (R2 K_ctx=8 seed 42, R2b K_ctx=1 seed 42 — 18 PNGs) + the six extracts; legend moved out of the axes and the window widened to contain a receiver outside the candidate extent | +32 −7, 24 assets |
