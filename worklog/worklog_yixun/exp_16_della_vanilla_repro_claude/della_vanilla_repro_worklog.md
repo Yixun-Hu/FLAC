@@ -164,3 +164,8 @@
 
 - **Change** — `della_chain.sbatch` lines 50-51: `gres=gpu:a100:1`+`constraint=gpu80` → `partition=ailab`+`qos=ailab`+`gres=gpu:h200:1`. Stalled chain 12334800-09 scancel'd FIRST (0 steps trained, zero GPU spent; age credit forfeited knowingly). Eval job 12681303 unaffected (chain files are outside the eval closure). Kit edit batched for the next Codex round per SOP small-scripts clause; Planner-verified (bash -n; DRYRUN refused on its own dirty closure — gate working — then green post-commit).
 - **Next** — resubmit chain via wrapper; re-arm monitor; report leg-1 H200 throughput on first CHAINRESULT.
+
+## 2026-08-21T10:15:00-04:00 — PHASE 2 COMPLETE: 67,500 steps on ailab H200
+
+- **Result** — `passed`. Chain 12681486-94: 9/9 legs COMPLETED (each ~1:58, seeds 42/45/48/51/54/57/60/63/66 per checkpoint-indexed rule, every CHAINRESULT rc=0, every seam `Restored all states` + continuous LR); leg 9 declared CHAINDONE at 67,500 and scancel'd the spare 12681495. **Final artifact: `epoch=14-step=67500.ckpt`** — identical filename shape to the release's own final snapshot. Wall-clock 2026-08-20T12:10 → 2026-08-21T07:22 = **19h12m total** (~17.7h compute + gaps ≤ 51 min); the A100 attempt had 0 legs start in 7 days. Watchdog never fired; two-strike stamp never advanced past count 1. 27 checkpoints on scratch (2500 cadence) incl. the 62500/65000 endpoint-screen inputs. All training logs tee'd into the exp folder (9 leg logs + slurm outs).
+- **Next** — Phase 3: eval kit (new files; della_eval.sbatch untouched — pending calibration retry 12681303 pins it), 13 cells: unseen K8×5 seeds + K1×5 seeds @67500, endpoint screens K8 s42 @62500/@65000, seen K8 s42 @67500. Venue question to Yixun (H200 vs A100 evals).
