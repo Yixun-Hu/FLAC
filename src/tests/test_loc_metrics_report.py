@@ -413,3 +413,185 @@ def test_seen_vs_unseen_puts_the_two_splits_side_by_side():
     assert table["m1"]["top1_gap"] == pytest.approx(0.3)
     assert table["m2_complex"]["seen_top1"] is None      # no seen counterpart
     assert table["m2_complex"]["status"].startswith("no seen")
+
+
+# --------------------------------------------------------------------------- #
+# report assembly, the six conclusion questions, and the markdown block
+# --------------------------------------------------------------------------- #
+def _seed_fixture(tmp_path, seed, family_distances, ctx_distances, agree_pred=1,
+                  n_queries=6, ctx_sims=(0.9, 0.1)):
+    metrics_path = os.path.join(str(tmp_path), f"m{seed}.jsonl")
+    rows_path = os.path.join(str(tmp_path), f"r{seed}.jsonl")
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(metrics_path, "w") as mh, open(rows_path, "w") as rh:
+        for q in range(n_queries):
+            qid, room = f"q{q}", f"Room/R{q % 3}"
+            row = _metrics_row(qid, room, q,
+                               {"m1": (family_distances, ctx_distances)},
+                               agree_pred=agree_pred)
+            mh.write(json.dumps(row) + "\n")
+            rh.write(json.dumps(_replay_row(qid, room, ctx_sims=ctx_sims)) + "\n")
+    return metrics_path, rows_path
+
+
+#: distances whose mean over K puts the GT (candidate 0) first
+DIST_MEAN_PICKS_GT = [[0.10, 0.10], [0.40, 0.40], [0.90, 0.90]]
+
+
+def test_build_seed_report_covers_the_families_and_the_primary_tests(tmp_path):
+    paths = _seed_fixture(tmp_path, 42, DIST_MEAN_PICKS_GT, CTX_PREFERS_SECOND)
+    scan = mr.scan_seed(*paths, families=("m1",))
+    report = mr.build_seed_report(scan, seed=42, n_boot=100)
+
+    assert report["seed"] == 42 and report["n_queries"] == 6 and report["n_rooms"] == 3
+    block = report["families"]["m1"]
+    assert block["primary"]["pooled"]["top1"] == pytest.approx(1.0)
+    assert block["aggregations"]["min"]["pooled"]["top1"] == pytest.approx(1.0)
+    assert block["retrieval"]["masked"]["pooled"]["top1"] is not None
+    assert block["context_split"]["context_member_rate"] == pytest.approx(0.0)
+    assert block["power"]["n_queries"] == 6
+    labels = [c["label"] for c in report["comparisons"]]
+    assert "m1_vs_agree_retrieval" in labels and "m1_vs_matched_retrieval" in labels
+    assert report["holm"]["e_loc"]["n_tests"] == len(report["primary_comparisons"])
+    assert report["agree"]["pooled"]["top1"] == pytest.approx(0.0)   # agree_pred = 1
+
+
+def test_conclusions_answer_all_six_questions_from_computed_values(tmp_path):
+    paths = _seed_fixture(tmp_path, 42, DIST_MEAN_PICKS_GT, CTX_PREFERS_SECOND)
+    scan = mr.scan_seed(*paths, families=("m1",))
+    seed_reports = [mr.build_seed_report(scan, seed=42, n_boot=100)]
+    answers = mr.conclusions(seed_reports, families=("m1",))
+
+    assert set(answers) == {"q1_exceeds_agree_retrieval", "q2_beats_own_matched_control",
+                            "q3_seed_and_room_consistent", "q4_reduces_context_member_failure",
+                            "q5_robustness_caveats", "q6_adds_information_vs_different_scorer"}
+    q1 = answers["q1_exceeds_agree_retrieval"]["m1"]
+    assert q1["top1_mean"] == pytest.approx(1.0)
+    assert q1["reference"] == pytest.approx(mr.AGREE_RETRIEVAL_REFERENCE)
+    assert q1["exceeds"] is True and q1["delta_vs_reference"] == pytest.approx(0.311)
+    q4 = answers["q4_reduces_context_member_failure"]["m1"]
+    assert q4["context_member_rate"] == pytest.approx(0.0)
+    assert q4["agree_reference"] == pytest.approx(mr.AGREE_CONTEXT_MEMBER_RATE)
+    assert q4["reduces"] is True
+    q6 = answers["q6_adds_information_vs_different_scorer"]["m1"]
+    assert q6["contingency"]["family_right_agree_wrong"] == 6
+    assert q6["union_top1"] == pytest.approx(1.0)
+    assert q6["rescue_rate"] == pytest.approx(1.0)
+    for key, block in answers.items():
+        assert "rule" in block, f"{key} states no decision rule"
+
+
+def test_seed_table_reports_mean_and_sd(tmp_path):
+    reports = []
+    for seed, distances in ((42, DIST_MEAN_PICKS_GT), (43, DIST_MEAN_PICKS_1)):
+        paths = _seed_fixture(tmp_path / str(seed), seed, distances, CTX_PREFERS_SECOND)
+        scan = mr.scan_seed(*paths, families=("m1",))
+        reports.append(mr.build_seed_report(scan, seed=seed, n_boot=100))
+    table = mr.seed_table(reports, families=("m1",))
+    assert table["m1"]["top1"]["per_seed"] == {"42": 1.0, "43": 0.0}
+    assert table["m1"]["top1"]["mean"] == pytest.approx(0.5)
+    assert table["m1"]["top1"]["sd"] == pytest.approx(0.5)     # population SD, n = 2
+    assert table["m1"]["median_e_loc"]["per_seed"]["43"] == pytest.approx(1.0)
+
+
+def test_render_markdown_has_the_required_tables(tmp_path):
+    paths = _seed_fixture(tmp_path, 42, DIST_MEAN_PICKS_GT, CTX_PREFERS_SECOND)
+    scan = mr.scan_seed(*paths, families=("m1",))
+    report = mr.build_report([mr.build_seed_report(scan, seed=42, n_boot=100)],
+                             families=("m1",))
+    text = mr.render_markdown(report)
+    assert "| family |" in text and "m1" in text
+    assert "0.689" in text                        # the fixed reference is named
+    assert "declared-secondary" in text or "primary" in text
+    assert "PRELIMINARY" in text
+    for question in ("q1", "q2", "q3", "q4", "q5", "q6"):
+        assert question in text
+
+
+def test_build_report_is_deterministic(tmp_path):
+    paths = _seed_fixture(tmp_path, 42, DIST_MEAN_PICKS_GT, CTX_PREFERS_SECOND)
+    scan = mr.scan_seed(*paths, families=("m1",))
+    first = mr.build_report([mr.build_seed_report(scan, seed=42, n_boot=100)],
+                            families=("m1",))
+    second = mr.build_report([mr.build_seed_report(scan, seed=42, n_boot=100)],
+                             families=("m1",))
+    assert json.dumps(first, sort_keys=True, default=str) == \
+        json.dumps(second, sort_keys=True, default=str)
+
+
+# --------------------------------------------------------------------------- #
+# round trip on a slice of the REAL published stream
+# --------------------------------------------------------------------------- #
+_REAL_METRICS = ("outputs_loc/exp18/exp18_R4_unseen_flac_ctl-none_vanilla_ac-default_"
+                 "lme_tau0.02_K8_seed42_scorer-AGREE_AR_registered_replay_metrics.jsonl")
+_REAL_ROWS = ("outputs_loc/exp18/exp18_R4_unseen_flac_ctl-none_vanilla_ac-default_"
+              "lme_tau0.02_K8_seed42_scorer-AGREE_AR_registered_replay_rows.jsonl")
+
+
+@pytest.mark.skipif(not os.path.exists(_REAL_METRICS), reason="R4 unseen pass not present")
+def test_real_slice_agrees_with_what_the_driver_recorded(tmp_path):
+    """The offline aggregation must reproduce the predictions the online pass
+    wrote into every row -- that equality is what makes it a re-reading rather
+    than a second, differently-behaved scorer."""
+    slice_metrics = os.path.join(str(tmp_path), "slice_metrics.jsonl")
+    slice_rows = os.path.join(str(tmp_path), "slice_rows.jsonl")
+    with open(_REAL_METRICS) as src, open(slice_metrics, "w") as dst:
+        for line, _ in zip(src, range(12)):
+            dst.write(line)
+    with open(_REAL_ROWS) as src, open(slice_rows, "w") as dst:
+        for line, _ in zip(src, range(12)):
+            dst.write(line)
+
+    seen_families = set()
+    for row in mr.iter_rows(slice_metrics):
+        for family, block in row["families"].items():
+            record = mr.family_record(row, family)
+            assert record["pred_index"] == int(block["pred_index"]), family
+            assert bool(record["top1"]) == bool(block["correct"]), family
+            seen_families.add(family)
+    assert set(mr.PRIMARY_FAMILIES) <= seen_families
+    assert set(mr.SECONDARY_FAMILIES) <= seen_families
+
+    scan = mr.scan_seed(slice_metrics, slice_rows)
+    assert scan["n_queries"] == 12
+    report = mr.build_seed_report(scan, seed=42, n_boot=50)
+    assert report["families"]["m1"]["primary"]["n_queries"] == 12
+
+
+# --------------------------------------------------------------------------- #
+# the driver's thin --mode metrics-report
+# --------------------------------------------------------------------------- #
+def test_driver_metrics_report_mode_writes_the_report_and_the_markdown(tmp_path):
+    import eval_localization as el
+
+    metrics_path, rows_path = _seed_fixture(tmp_path, 42, DIST_MEAN_PICKS_GT,
+                                            CTX_PREFERS_SECOND)
+    out_dir = str(tmp_path / "out")
+    args = el.validate_args(el.parse_args(
+        ["--mode", "metrics-report", "--model-config", "m.json",
+         "--dataset-config", "d.json", "--out-dir", out_dir, "--eval-name", "R4_report",
+         "--report-input", f"42:{metrics_path}:{rows_path}",
+         "--report-bootstrap", "50", "--report-families", "m1"]))
+    result = el.run_metrics_report(args)
+
+    assert os.path.exists(result["report_path"]) and os.path.exists(result["markdown_path"])
+    with open(result["report_path"]) as handle:
+        payload = json.load(handle)
+    assert payload["provenance"]["seeds"] == [42]
+    assert payload["seed_table"]["m1"]["top1"]["mean"] == pytest.approx(1.0)
+    assert "PRELIMINARY" in open(result["markdown_path"]).read()
+
+
+def test_driver_metrics_report_refuses_a_malformed_input_spec(tmp_path):
+    import eval_localization as el
+
+    with pytest.raises(SystemExit, match="--report-input"):
+        el.validate_args(el.parse_args(
+            ["--mode", "metrics-report", "--model-config", "m.json",
+             "--dataset-config", "d.json", "--out-dir", str(tmp_path),
+             "--eval-name", "bad", "--report-input", "42:only-one-path"]))
+    with pytest.raises(SystemExit, match="--report-input"):
+        el.validate_args(el.parse_args(
+            ["--mode", "metrics-report", "--model-config", "m.json",
+             "--dataset-config", "d.json", "--out-dir", str(tmp_path),
+             "--eval-name", "bad"]))

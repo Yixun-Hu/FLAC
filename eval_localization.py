@@ -1066,7 +1066,8 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser(
         description="exp_18 loc_invert: source localization by analysis-by-synthesis inversion")
     parser.add_argument("--mode", choices=["run", "readback", "scorer-noise", "reaggregate",
-                                           "metrics-calibrate", "metrics-retrieval"],
+                                           "metrics-calibrate", "metrics-retrieval",
+                                           "metrics-report"],
                         default="run", help="run: score queries; readback: the R-1 "
                              "dataset gate; scorer-noise: the §2.8.3 measurement; "
                              "reaggregate: R1's offline sweep")
@@ -1120,6 +1121,21 @@ def parse_args(argv=None):
     parser.add_argument("--metric-secondaries", action="store_true",
                         help="also compute the declared secondaries: M2 complex-STFT, "
                              "M3 band/hilbert envelopes and M5 GCC-PHAT")
+    parser.add_argument("--report-input", nargs="+", default=None,
+                        metavar="SEED:METRICS_JSONL:ROWS_JSONL",
+                        help="--mode metrics-report: one published unseen pass per seed, as "
+                             "seed:metrics-jsonl:replay-rows-jsonl (repeatable)")
+    parser.add_argument("--report-seen", default=None, metavar="METRICS_JSONL:ROWS_JSONL",
+                        help="--mode metrics-report: the SEEN calibration pass, for the "
+                             "seen-vs-unseen control and the sensitivity battery")
+    parser.add_argument("--report-families", nargs="+", default=None,
+                        help="--mode metrics-report: restrict the reported families "
+                             "(default: the five primaries plus the declared secondaries)")
+    parser.add_argument("--report-bootstrap", type=int, default=None,
+                        help="--mode metrics-report: room-clustered bootstrap resamples "
+                             "(default: the registered 10000)")
+    parser.add_argument("--report-hash-inputs", action="store_true",
+                        help="--mode metrics-report: record a sha256 of every input stream")
     parser.add_argument("--verify-context-digest", default=None, metavar="SHA256",
                         help="--mode metrics-retrieval: refuse unless the pass's own context "
                              "draw matches the paired replay's context-stream digest")
@@ -1183,6 +1199,15 @@ def validate_args(args):
                 if int(args.metric_delta_max) not in M1_DELTA_GRID:
                     _refuse(f"--metric-delta-max {args.metric_delta_max} is not on the "
                             f"registered grid {M1_DELTA_GRID}")
+        if args.mode == "metrics-report":
+            if not args.report_input:
+                _refuse("--report-input is required for --mode metrics-report: one "
+                        "seed:metrics-jsonl:rows-jsonl triple per published seed")
+            for spec in args.report_input:
+                if len(str(spec).split(":")) != 3:
+                    _refuse(f"--report-input {spec!r} is not seed:metrics-jsonl:rows-jsonl")
+            if args.report_seen and len(str(args.report_seen).split(":")) != 2:
+                _refuse(f"--report-seen {args.report_seen!r} is not metrics-jsonl:rows-jsonl")
         if args.mode == "metrics-calibrate" and not args.metrics_rows:
             _refuse("--metrics-rows is required for --mode metrics-calibrate")
         if args.mode == "reaggregate" and not args.rows:
@@ -1846,6 +1871,8 @@ def main(argv=None):
         return run_reaggregate(args)
     if args.mode == "metrics-calibrate":
         return run_metrics_calibrate(args)
+    if args.mode == "metrics-report":
+        return run_metrics_report(args)
     if args.mode == "metrics-retrieval":
         dataset_config = load_dataset_config(args)
         assert_registered_split(args, dataset_config)
@@ -3490,6 +3517,52 @@ def run_metrics_calibrate(args):
         print(f"  delta_max={entry['delta_max']:>4}: dev top-1 {entry['top1']:.4f}{marker}")
     print(f"draft metric manifest -> {draft_path}")
     return report
+
+
+def run_metrics_report(args):
+    """--mode metrics-report: the reviewed offline aggregation of R4's streams.
+
+    Pure re-reading of published artifacts -- no dataset, no checkpoint, no GPU
+    and no re-scoring: every distance was computed by the registered passes and
+    is decoded bit-exactly. The module does the work; this is the CLI around it.
+    """
+    from src.localization import metrics_report as mreport
+
+    families = tuple(args.report_families) if args.report_families else mreport.REPORT_FAMILIES
+    n_boot = int(args.report_bootstrap or mreport.BOOTSTRAP_N)
+
+    seed_reports = []
+    for spec in args.report_input:
+        seed, metrics_path, rows_path = str(spec).split(":")
+        for path in (metrics_path, rows_path):
+            if not os.path.isfile(path):
+                _refuse(f"--report-input names a file that does not exist: {path}")
+        print(f"[metrics-report] scanning seed {seed}: {os.path.basename(metrics_path)}")
+        scan = mreport.scan_seed(metrics_path, rows_path, families=families)
+        seed_reports.append(mreport.build_seed_report(scan, seed=int(seed), n_boot=n_boot))
+        print(f"[metrics-report] seed {seed}: {scan['n_queries']} queries, "
+              f"{scan['n_rooms']} rooms, families {scan['families_present']}")
+
+    seen_scan = None
+    if args.report_seen:
+        seen_metrics, seen_rows = str(args.report_seen).split(":")
+        print(f"[metrics-report] scanning the seen calibration pass")
+        seen_scan = mreport.scan_seed(seen_metrics, seen_rows, families=families)
+
+    report = mreport.build_report(seed_reports, families=families, seen_scan=seen_scan,
+                                  n_boot=n_boot,
+                                  hash_inputs=bool(args.report_hash_inputs))
+    out_dir = str(args.out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+    report_path = os.path.join(out_dir, f"{args.eval_name}_metrics_report.json")
+    markdown_path = os.path.join(out_dir, f"{args.eval_name}_metrics_report.md")
+    write_json_atomic(report_path, jsonable(report), overwrite=True)
+    with open(markdown_path + ".partial", "w") as handle:
+        handle.write(mreport.render_markdown(report))
+    os.replace(markdown_path + ".partial", markdown_path)
+    print(f"metrics-report -> {report_path}")
+    print(f"markdown block -> {markdown_path}")
+    return {"report_path": report_path, "markdown_path": markdown_path, "report": report}
 
 
 def run_metrics_retrieval(args, loader, engine, context, expected=None, dataset_config=None):

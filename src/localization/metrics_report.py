@@ -494,3 +494,472 @@ def scan_seed(metrics_path, rows_path, families=REPORT_FAMILIES,
             "n_queries": n_queries, "n_rooms": len(rooms),
             "families_present": [f for f in families if records[f][PRIMARY_AGGREGATION]],
             "metrics_path": str(metrics_path), "rows_path": str(rows_path)}
+
+
+# --------------------------------------------------------------------------- #
+# report assembly
+# --------------------------------------------------------------------------- #
+def _summary_or_none(records):
+    return summarize_records(records) if records else None
+
+
+def build_seed_report(scan, seed, n_boot=BOOTSTRAP_N, boot_seed=BOOTSTRAP_SEED,
+                      primary_families=PRIMARY_FAMILIES):
+    """Everything one seed answers: §1 blocks, §2 controls, §3 and the §4 tests.
+
+    The Holm correction covers exactly the registered primary tests -- the five
+    families times {vs the AGREE retrieval reference, vs the family's own matched
+    control} -- and the declared secondaries are reported beside them, never
+    inside the correction.
+    """
+    families = list(scan["families_present"])
+    agree_records = scan["agree"]
+    agree_retrieval = {mode: _summary_or_none(records)
+                       for mode, records in scan["agree_retrieval"].items()}
+
+    blocks, comparisons, primary_labels = {}, [], []
+    for family in families:
+        family_records = scan["records"][family]
+        primary = family_records[PRIMARY_AGGREGATION]
+        power_values = [v for v in scan["power"].get(family, []) if v is not None]
+        blocks[family] = {
+            "is_primary": family in primary_families,
+            "label": "primary" if family in primary_families else "declared-secondary",
+            "primary": summarize_records(primary),
+            "aggregations": {agg: summarize_records(records)
+                             for agg, records in family_records.items()},
+            "retrieval": {mode: _summary_or_none(records)
+                          for mode, records in scan["retrieval"][family].items()},
+            "context_split": context_split(primary),
+            "power": {"n_queries": len(power_values),
+                      "n_skipped": len(scan["power"].get(family, [])) - len(power_values),
+                      "mean": float(np.mean(power_values)) if power_values else None,
+                      "median": float(np.median(power_values)) if power_values else None},
+        }
+        against = (("agree_retrieval", scan["agree_retrieval"]["masked"]),
+                   ("matched_retrieval", scan["retrieval"][family]["masked"]))
+        for name, reference in against:
+            label = f"{family}_vs_{name}"
+            comparisons.append(compare_records(primary, reference, label,
+                                               n_boot=n_boot, seed=boot_seed))
+            if family in primary_families:
+                primary_labels.append(label)
+
+    primary_comparisons = [c for c in comparisons if c["label"] in primary_labels]
+    # q6 asks whether a family is right where the registered AGREE readout is
+    # wrong, so the two correctness columns are kept paired per query
+    pairs = {}
+    for family in families:
+        primary = scan["records"][family][PRIMARY_AGGREGATION]
+        pairs[family] = [(float(a["top1"]), float(b["top1"]))
+                         for a, b in zip(primary, agree_records)
+                         if a["query_id"] == b["query_id"]]
+    return {
+        "seed": int(seed),
+        "_pairs": pairs,
+        "n_queries": scan["n_queries"], "n_rooms": scan["n_rooms"],
+        "families": blocks,
+        "agree": summarize_records(agree_records),
+        "agree_context_member_rate": context_split(agree_records)["context_member_rate"],
+        "agree_retrieval": agree_retrieval,
+        "comparisons": comparisons,
+        "primary_comparisons": primary_comparisons,
+        "holm": {quantity: holm_over(primary_comparisons, quantity=quantity)
+                 for quantity in ("e_loc", "top1")},
+        "m4": scan["m4"], "sensitivity": scan["sensitivity"],
+        "inputs": {"metrics_path": scan["metrics_path"], "rows_path": scan["rows_path"]},
+    }
+
+
+def _mean_sd(values):
+    values = [float(v) for v in values if v is not None]
+    if not values:
+        return {"mean": None, "sd": None, "n": 0}
+    return {"mean": float(np.mean(values)), "sd": float(np.std(values)), "n": len(values)}
+
+
+#: the seed table's columns: where each number lives inside a seed report.
+SEED_TABLE_COLUMNS = (
+    ("top1", ("primary", "pooled", "top1")),
+    ("median_e_loc", ("primary", "pooled", "median_e_loc")),
+    ("mean_e_loc", ("primary", "pooled", "mean_e_loc")),
+    ("mrr", ("primary", "pooled", "mrr")),
+    ("macro_mean_e_loc", ("primary", "macro", "mean_of_room_means")),
+    ("macro_top1", ("primary", "macro", "top1")),
+    ("retrieval_masked_top1", ("retrieval", "masked", "pooled", "top1")),
+    ("context_member_rate", ("context_split", "context_member_rate")),
+    ("power_mean", ("power", "mean")),
+)
+
+
+def _dig(block, path):
+    for key in path:
+        if block is None:
+            return None
+        block = block.get(key)
+    return block
+
+
+def seed_table(seed_reports, families=REPORT_FAMILIES):
+    """Per family: every reported number as per-seed values plus mean +- SD."""
+    table = {}
+    for family in families:
+        entries = [(report["seed"], report["families"][family])
+                   for report in seed_reports if family in report["families"]]
+        if not entries:
+            continue
+        columns = {}
+        for name, path in SEED_TABLE_COLUMNS:
+            per_seed = {str(seed): _dig(block, path) for seed, block in entries}
+            columns[name] = dict(_mean_sd(per_seed.values()), per_seed=per_seed)
+        columns["label"] = entries[0][1]["label"]
+        for column in ("success_0.5", "success_1.0"):
+            radius = float(column.split("_")[1])
+            per_seed = {str(seed): _dig(block, ("primary", "pooled", "success")).get(radius)
+                        for seed, block in entries}
+            columns[column] = dict(_mean_sd(per_seed.values()), per_seed=per_seed)
+        table[family] = columns
+    return table
+
+
+def _comparison(seed_reports, label):
+    return [c for report in seed_reports for c in report["comparisons"] if c["label"] == label]
+
+
+def conclusions(seed_reports, families=PRIMARY_FAMILIES,
+                reference=AGREE_RETRIEVAL_REFERENCE,
+                context_reference=AGREE_CONTEXT_MEMBER_RATE,
+                seed_tolerance=0.01, room_agreement=0.8, seen_gaps=None):
+    """The six questions of the R4 directive, computed rather than narrated.
+
+    Every verdict states the rule it applied; the numbers behind it are in the
+    same block, so a reader can disagree with a threshold without having to
+    recompute anything.
+    """
+    table = seed_table(seed_reports, families=families)
+    answers = {}
+
+    q1 = {}
+    for family, columns in table.items():
+        top1 = columns["top1"]
+        recomputed = _mean_sd([_dig(report, ("agree_retrieval", "masked", "pooled", "top1"))
+                               for report in seed_reports])
+        paired = _comparison(seed_reports, f"{family}_vs_agree_retrieval")
+        q1[family] = {
+            "top1_mean": top1["mean"], "top1_sd": top1["sd"], "per_seed": top1["per_seed"],
+            "reference": float(reference),
+            "recomputed_reference_top1": recomputed["mean"],
+            "delta_vs_reference": (None if top1["mean"] is None
+                                   else top1["mean"] - float(reference)),
+            "paired_top1_p_values": [c["top1"]["p_value"] for c in paired],
+            "paired_e_loc_p_values": [c["e_loc"]["p_value"] for c in paired],
+            "exceeds": None if top1["mean"] is None else bool(top1["mean"] > float(reference)),
+        }
+    answers["q1_exceeds_agree_retrieval"] = dict(
+        q1, rule=(f"exceeds := pooled top-1 averaged over seeds > the fixed AGREE retrieval "
+                  f"reference {reference} (K_ctx=8); the same control recomputed per query on "
+                  "these rows is reported beside it"))
+
+    q2 = {}
+    for family in table:
+        paired = _comparison(seed_reports, f"{family}_vs_matched_retrieval")
+        deltas = [c["top1_delta"] for c in paired]
+        holm = [next((t for t in report["holm"]["top1"]["tests"]
+                      if t["label"] == f"{family}_vs_matched_retrieval"), None)
+                for report in seed_reports]
+        q2[family] = {
+            "top1_delta_mean": float(np.mean(deltas)) if deltas else None,
+            "top1_delta_per_seed": {str(r["seed"]): c["top1_delta"]
+                                    for r, c in zip(seed_reports, paired)},
+            "e_loc_paired_median": [c["e_loc"]["point"] for c in paired],
+            "top1_p_values": [c["top1"]["p_value"] for c in paired],
+            "holm_adjusted_p": [None if t is None else t["p_adjusted"] for t in holm],
+            "holm_rejected": [None if t is None else t["rejected"] for t in holm],
+            "beats": (bool(deltas and float(np.mean(deltas)) > 0.0
+                           and all(bool(t and t["rejected"]) for t in holm))),
+        }
+    answers["q2_beats_own_matched_control"] = dict(
+        q2, rule=("beats := mean paired top-1 difference over the family's own matched control "
+                  "is positive AND the Holm-corrected top-1 test rejects in every seed"))
+
+    q3 = {}
+    for family, columns in table.items():
+        top1 = columns["top1"]
+        per_room = []
+        for report in seed_reports:
+            block = report["families"].get(family)
+            if block is None or not block["retrieval"]["masked"]:
+                continue
+            control_rooms = block["retrieval"]["masked"]["per_room"]
+            for room, stats in block["primary"]["per_room"].items():
+                if room in control_rooms:
+                    per_room.append(float(stats["top1"]) - float(control_rooms[room]["top1"]))
+        wins = float(np.mean([d > 0 for d in per_room])) if per_room else None
+        pooled_sign = (None if top1["mean"] is None else
+                       float(np.sign((top1["mean"] or 0.0)
+                                     - (columns["retrieval_masked_top1"]["mean"] or 0.0))))
+        agreeing = (None if not per_room or pooled_sign is None else
+                    float(np.mean([float(np.sign(d)) == pooled_sign for d in per_room])))
+        q3[family] = {
+            "top1_sd_over_seeds": top1["sd"], "top1_per_seed": top1["per_seed"],
+            "n_rooms": len(per_room),
+            "room_win_rate_vs_matched": wins,
+            "room_sign_agreement": agreeing,
+            "consistent": (None if top1["sd"] is None or agreeing is None else
+                           bool(top1["sd"] <= seed_tolerance and agreeing >= room_agreement)),
+        }
+    answers["q3_seed_and_room_consistent"] = dict(
+        q3, rule=(f"consistent := seed SD of pooled top-1 <= {seed_tolerance} AND at least "
+                  f"{room_agreement:.0%} of rooms move in the same direction as the pooled "
+                  "difference against the family's matched control"))
+
+    q4 = {}
+    for family, columns in table.items():
+        rate = columns["context_member_rate"]
+        observed = _mean_sd([report["agree_context_member_rate"] for report in seed_reports])
+        q4[family] = {
+            "context_member_rate": rate["mean"], "per_seed": rate["per_seed"],
+            "agree_reference": float(context_reference),
+            "agree_rate_on_these_rows": observed["mean"],
+            "delta_vs_reference": (None if rate["mean"] is None
+                                   else rate["mean"] - float(context_reference)),
+            "reduces": (None if rate["mean"] is None
+                        else bool(rate["mean"] < float(context_reference))),
+        }
+    answers["q4_reduces_context_member_failure"] = dict(
+        q4, rule=(f"reduces := the family's context-member prediction rate is below AGREE's "
+                  f"registered {context_reference}; the rate AGREE shows on these very rows is "
+                  "reported beside it"))
+
+    q5 = {}
+    for family in table:
+        variants, worst = {}, None
+        for report in seed_reports:
+            for variant, block in (report["sensitivity"].get("variants") or {}).items():
+                if family in block:
+                    entry = variants.setdefault(variant, {"top1": [], "change": []})
+                    entry["top1"].append(block[family]["top1"])
+                    entry["change"].append(block[family]["prediction_change_rate"])
+        for variant, entry in variants.items():
+            change = float(np.mean(entry["change"]))
+            if worst is None or change > worst[1]:
+                worst = (variant, change)
+        seen_gap = [(seen_gaps or {}).get(family)]
+        m4_drop = [report["m4"]["dropped"]["n_queries_with_a_drop"] / max(1, report["m4"]
+                                                                         ["n_queries"])
+                   for report in seed_reports if report["m4"]["n_queries"]]
+        q5[family] = {
+            "sensitivity": {variant: {"top1_mean": float(np.mean(entry["top1"])),
+                                      "prediction_change_rate":
+                                          float(np.mean(entry["change"]))}
+                            for variant, entry in sorted(variants.items())},
+            "worst_variant": None if worst is None else worst[0],
+            "worst_prediction_change_rate": None if worst is None else worst[1],
+            "m4_query_drop_rate": float(np.mean(m4_drop)) if m4_drop else None,
+            "seen_unseen_top1_gap": _mean_sd([g for g in seen_gap if g is not None])["mean"],
+            "caveat": (None if worst is None else
+                       bool(worst[1] > 0.0)),
+        }
+    answers["q5_robustness_caveats"] = dict(
+        q5, rule=("caveat := at least one declared seen-battery perturbation moves the "
+                  "prediction on some query; the per-variant rates, the M4 drop rate and the "
+                  "seen-unseen gap are the evidence"))
+
+    q6 = {}
+    for family in table:
+        contingency = {"both_right": 0, "family_right_agree_wrong": 0,
+                       "family_wrong_agree_right": 0, "both_wrong": 0}
+        union = 0
+        total = 0
+        for report in seed_reports:
+            pairs = report.get("_pairs", {}).get(family)
+            if not pairs:
+                continue
+            for family_hit, agree_hit in pairs:
+                total += 1
+                union += int(bool(family_hit) or bool(agree_hit))
+                if family_hit and agree_hit:
+                    contingency["both_right"] += 1
+                elif family_hit:
+                    contingency["family_right_agree_wrong"] += 1
+                elif agree_hit:
+                    contingency["family_wrong_agree_right"] += 1
+                else:
+                    contingency["both_wrong"] += 1
+        agree_wrong = (contingency["family_right_agree_wrong"] + contingency["both_wrong"])
+        agree_right = (contingency["family_wrong_agree_right"] + contingency["both_right"])
+        q6[family] = {
+            "n_paired": total,
+            "contingency": contingency,
+            "agreement_rate": (None if not total else
+                               (contingency["both_right"] + contingency["both_wrong"]) / total),
+            "rescue_rate": (None if not agree_wrong else
+                            contingency["family_right_agree_wrong"] / agree_wrong),
+            "loss_rate": (None if not agree_right else
+                          contingency["family_wrong_agree_right"] / agree_right),
+            "union_top1": None if not total else union / total,
+            "agree_top1": (None if not total else agree_right / total),
+            "adds_information": (None if not total else
+                                 bool(contingency["family_right_agree_wrong"] > 0
+                                      and union / total > agree_right / total)),
+        }
+    answers["q6_adds_information_vs_different_scorer"] = dict(
+        q6, rule=("adds_information := the family is right on queries where the registered "
+                  "AGREE readout is wrong, so their union beats AGREE alone; the full 2x2 "
+                  "contingency and the agreement rate are reported, not just the verdict"))
+    return answers
+
+
+def file_sha256(path, chunk=1 << 20):
+    """sha256 of a published artifact, streamed (these files are ~350 MB)."""
+    import hashlib
+
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(chunk), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def build_report(seed_reports, families=REPORT_FAMILIES, seen_scan=None,
+                 n_boot=BOOTSTRAP_N, hash_inputs=False, extra_provenance=None):
+    """The whole R4 answer: seed tables, controls, comparisons and conclusions."""
+    from datetime import datetime, timezone
+
+    families = tuple(families)
+    seen_summaries = {}
+    seen_block = None
+    if seen_scan is not None:
+        seen_summaries = {family: summarize_records(block[PRIMARY_AGGREGATION])
+                          for family, block in seen_scan["records"].items()}
+        seen_block = {
+            "n_queries": seen_scan["n_queries"], "n_rooms": seen_scan["n_rooms"],
+            "families": {f: s for f, s in sorted(seen_summaries.items())},
+            "m4": seen_scan["m4"], "sensitivity": seen_scan["sensitivity"],
+            "inputs": {"metrics_path": seen_scan["metrics_path"],
+                       "rows_path": seen_scan["rows_path"]},
+        }
+    unseen_summaries = {}
+    for family in families:
+        blocks = [r["families"][family]["primary"] for r in seed_reports
+                  if family in r["families"]]
+        if blocks:
+            unseen_summaries[family] = blocks[0]
+    split_table = seen_vs_unseen(seen_summaries, unseen_summaries) if seen_scan else {}
+
+    answers = conclusions(
+        seed_reports,
+        families=tuple(f for f in PRIMARY_FAMILIES
+                       if any(f in r["families"] for r in seed_reports)),
+        seen_gaps={f: entry.get("top1_gap") for f, entry in split_table.items()})
+
+    provenance = {
+        "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "bootstrap": {"n": int(n_boot), "seed": int(BOOTSTRAP_SEED), "alpha": ALPHA,
+                      "clustered_by": "room_id"},
+        "aggregation": {"primary": PRIMARY_AGGREGATION,
+                        "declared_secondaries": list(SECONDARY_AGGREGATIONS)},
+        "references": {"agree_retrieval_top1": AGREE_RETRIEVAL_REFERENCE,
+                       "agree_context_member_rate": AGREE_CONTEXT_MEMBER_RATE},
+        "seeds": [r["seed"] for r in seed_reports],
+        "inputs": [r["inputs"] for r in seed_reports],
+        "status": "PRELIMINARY -- pending review",
+    }
+    if seen_scan is not None:
+        provenance["seen_inputs"] = seen_block["inputs"]
+    if hash_inputs:
+        paths = [p for entry in provenance["inputs"] for p in entry.values()]
+        if seen_scan is not None:
+            paths += list(provenance["seen_inputs"].values())
+        provenance["input_sha256"] = {path: file_sha256(path) for path in sorted(set(paths))}
+    if extra_provenance:
+        provenance.update(dict(extra_provenance))
+
+    return {
+        "mode": "metrics-report",
+        "families": {"primary": list(PRIMARY_FAMILIES),
+                     "declared_secondary": list(SECONDARY_FAMILIES)},
+        "seed_table": seed_table(seed_reports, families=families),
+        "seeds": [{k: v for k, v in report.items() if k != "_pairs"}
+                  for report in seed_reports],
+        "seen": seen_block,
+        "seen_vs_unseen": split_table,
+        "conclusions": answers,
+        "provenance": provenance,
+    }
+
+
+def _fmt(value, digits=4):
+    if value is None:
+        return "n/a"
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    try:
+        return f"{float(value):.{digits}f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def render_markdown(report):
+    """The compact `_results.md` block: the tables a reader needs, nothing else."""
+    lines = ["### exp_18 R4 -- non-AGREE metric families (PRELIMINARY, pending review)", ""]
+    provenance = report["provenance"]
+    lines.append(f"Seeds {provenance['seeds']}; K aggregation "
+                 f"{provenance['aggregation']['primary']} (primary); "
+                 f"{provenance['bootstrap']['n']} room-clustered bootstrap resamples; "
+                 f"fixed AGREE retrieval reference "
+                 f"{provenance['references']['agree_retrieval_top1']}.")
+    lines.append("")
+
+    lines.append("| family | kind | top-1 (mean +- SD) | median e_loc | mean e_loc | "
+                 "s@0.5 | s@1.0 | MRR | matched-control top-1 | ctx-member rate |")
+    lines.append("|---|---|---|---|---|---|---|---|---|---|")
+    for family, columns in report["seed_table"].items():
+        lines.append("| {} | {} | {} +- {} | {} | {} | {} | {} | {} | {} |".format(
+            family, columns["label"],
+            _fmt(columns["top1"]["mean"]), _fmt(columns["top1"]["sd"]),
+            _fmt(columns["median_e_loc"]["mean"]), _fmt(columns["mean_e_loc"]["mean"]),
+            _fmt(columns["success_0.5"]["mean"]), _fmt(columns["success_1.0"]["mean"]),
+            _fmt(columns["mrr"]["mean"]),
+            _fmt(columns["retrieval_masked_top1"]["mean"]),
+            _fmt(columns["context_member_rate"]["mean"])))
+    lines.append("")
+
+    lines.append("| test (primary, Holm over the 10) | top-1 delta | median e_loc delta | "
+                 "p (top-1) | p_adj (top-1) | rejected |")
+    lines.append("|---|---|---|---|---|---|")
+    first = report["seeds"][0] if report["seeds"] else None
+    if first:
+        adjusted = {t["label"]: t for t in first["holm"]["top1"]["tests"]}
+        for comparison in first["primary_comparisons"]:
+            test = adjusted.get(comparison["label"], {})
+            lines.append("| {} | {} | {} | {} | {} | {} |".format(
+                comparison["label"], _fmt(comparison["top1_delta"]),
+                _fmt(comparison["e_loc"]["point"]), _fmt(comparison["top1"]["p_value"]),
+                _fmt(test.get("p_adjusted")), _fmt(test.get("rejected"))))
+        lines.append("")
+        lines.append(f"(seed {first['seed']} shown; every seed is in the report JSON)")
+    lines.append("")
+
+    lines.append("| question | family | answer | evidence |")
+    lines.append("|---|---|---|---|")
+    verdicts = (("q1_exceeds_agree_retrieval", "exceeds", "delta_vs_reference"),
+                ("q2_beats_own_matched_control", "beats", "top1_delta_mean"),
+                ("q3_seed_and_room_consistent", "consistent", "room_sign_agreement"),
+                ("q4_reduces_context_member_failure", "reduces", "context_member_rate"),
+                ("q5_robustness_caveats", "caveat", "worst_prediction_change_rate"),
+                ("q6_adds_information_vs_different_scorer", "adds_information", "union_top1"))
+    for key, verdict_key, evidence_key in verdicts:
+        block = report["conclusions"].get(key, {})
+        for family, entry in sorted(block.items()):
+            if family == "rule":
+                continue
+            lines.append("| {} | {} | {} | {} = {} |".format(
+                key.split("_")[0], family, _fmt(entry.get(verdict_key)), evidence_key,
+                _fmt(entry.get(evidence_key))))
+    lines.append("")
+    for key in [k for k, _v, _e in verdicts]:
+        rule = report["conclusions"].get(key, {}).get("rule")
+        if rule:
+            lines.append(f"- **{key.split('_')[0]} rule** -- {rule}")
+    return "\n".join(lines) + "\n"
