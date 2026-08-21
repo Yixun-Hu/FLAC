@@ -100,3 +100,6 @@ Blanket GO adopts the package recommendations: residuals 1–3 ACCEPTED AS RECOR
 
 ## 2026-08-20T17:52:36-0400 — CANONICAL RUN COMPLETE — results committed
 Zero-shot → finetuned on the 768-item test row: T60 11.25→5.64 (−50%), C50 3.02→0.85 (−72%), EDT 145→38.9 (−73%), all ≫ the R-cal band. Full record: `raf_finetune_results.md`. Run artifacts on NAS per the storage directive.
+
+## 2026-08-21T19:53:26-0400 — exp_19 CLOSED by Yixun ("close exp_19")
+Reliability analysis committed; ledger finalized; results stand as committed (6f546c7). Follow-ups live outside this experiment: Mapping-A unseen-source experiment (future exp_20, Yixun to green-light), residuals 1–3, AGREE-RAF option.

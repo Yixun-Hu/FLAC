@@ -28,3 +28,6 @@ Living index — one row per experiment; updated at every session handoff/compac
 **Sibling work (merged 2026-07-15, PR #1):** zhixuan's `Yaw-equi-ViT` — `CylindricalViT` equivariant geometry encoder (`src/models/cyl_vit.py`) + matched ablations under `worklog/worklog_zhixuan/` (namespace convention adopted). Additive-gated (`arch: cyl_vit`); our arms verified bit-identical post-merge (init hash unchanged).
 
 **In flight right now (2026-08-14 ~14:10, Opus 5 seat):** nothing of ours training. exp_14 DS-PA running to its 5,000 pause point (Yixun-ordered), then held; DS-CS3 held; exp_16 ARE-V HELD (fix round on the r1 review, no launch). Yixun's exp12C ~50k/67.5k (~8/15 early).
+
+## exp_19 raf_finetune — CLOSED 2026-08-21 (branch raf-finetune-exp, worktree ~/codespace/exp-19-raf-finetune)
+RAF (Real Acoustic Fields) adapted into FLAC (canonical splits data/RAF/, RAF_md, depth-from-mesh, 557-test suite, 6 Codex rounds). Released FLAC_EMA finetuned 1000 HAA-recipe steps on 408 real RIRs: test-row T60 11.25→5.64%, C50 3.02→0.85 dB, EDT 145→38.9 ms (5 seeds, stream-audited; R-cal band 10–16% ⇒ effect unambiguous). Records: exp_19 folder; ckpts /media/diskstation/yixunhu/FLAC/checkpoints/exp19_raf_finetune/. Follow-up: Mapping-A unseen-source protocol (not started).
