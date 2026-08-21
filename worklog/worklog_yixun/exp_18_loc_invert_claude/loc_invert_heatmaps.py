@@ -10,9 +10,12 @@ over the published rows, evaluated the same way for every run:
   ambiguous     -- SMALLEST top-2 margin, whatever the outcome
   failure       -- LARGEST localization error e_loc
 
-three of each, ties broken by query id, distinct rooms preferred, and a query
-already shown by an earlier kind never shown again. The rule is a pure function
-of the rows: rerunning it on the same file reproduces the same nine cases.
+three of each: the LITERAL extrema of each category, ties broken by query id.
+No diversity policy is applied -- an earlier version preferred distinct rooms and
+excluded queries already shown, which changed which cases were displayed and was
+never registered (r8 review finding 1). A query that is extremal in two
+categories is legitimately shown in both. The rule is a pure function of the
+rows: rerunning it on the same file reproduces the same nine cases.
 
 The displayed map is the plan's own visualization transform -- softmax(S / T)
 over the candidate scores with T = the run's registered tau -- and it is used
@@ -51,9 +54,17 @@ DISPLAY_TEMPERATURE_SOURCE = "the run's registered tau (rows carry it per query)
 
 SELECTION_RULE = (
     "sharp_success = correct top-1 with the largest top-2 margin of softmax(S/tau); "
-    "ambiguous = smallest top-2 margin; failure = largest e_loc; three of each, ties by "
-    "query_id ascending, distinct rooms preferred, no query reused across kinds"
+    "ambiguous = smallest top-2 margin; failure = largest e_loc; three of each, the literal "
+    "category extrema, ties by query_id ascending; no diversity or exclusion policy"
 )
+
+#: verbatim disclosure the HTML must carry beside any sharp-success map.
+SATURATION_CAVEAT = (
+    "at T=0.02 sharp-success margins saturate within 1e-16-1e-13 of 1; ordering among them "
+    "reflects tiny numerical differences; they represent a large class (1,150 queries > 0.9999)"
+)
+#: a margin above this is reported as saturated rather than as a ranking.
+SATURATION_THRESHOLD = 0.9999
 
 #: the data extracts the HTML consumes (no plotting, no new statistics).
 EXTRACT_FILES = (
@@ -87,6 +98,32 @@ def top2_margin(probabilities):
     if ordered.size == 1:
         return float(ordered[0])
     return float(ordered[0] - ordered[1])
+
+
+def is_saturated(margin):
+    """Whether the displayed margin is in the saturated band (r8 review F3)."""
+    return float(margin) > SATURATION_THRESHOLD
+
+
+def format_margin(margin):
+    """Print a saturated margin as its distance from 1, never as "1"."""
+    margin = float(margin)
+    if is_saturated(margin):
+        gap = 1.0 - margin
+        return "1" if gap <= 0.0 else f"1 - {gap:.1e}"
+    return f"{margin:.4g}"
+
+
+def case_caption(record, run_label=""):
+    """The caption the HTML shows under a map -- with the caveat where it applies."""
+    kind = str(record.get("kind") or "").replace("_", " ")
+    outcome = "correct" if record["correct"] else "wrong"
+    caption = (f"{kind} -- {record['room_id']}, {run_label}: top-2 margin "
+               f"{format_margin(record['margin'])}, e_loc {record['e_loc']:.2f} m "
+               f"({outcome} top-1)").strip()
+    if is_saturated(record["margin"]):
+        caption += f". Caveat: {SATURATION_CAVEAT}"
+    return caption
 
 
 def _receiver_world(row):
@@ -148,44 +185,25 @@ _ORDERINGS = {
 }
 
 
-def _pick(ordered, taken, per_kind):
-    """Greedy pick preferring unused rooms, then filling in rule order."""
-    chosen, rooms = [], set()
-    for record in ordered:
-        if len(chosen) == per_kind:
-            break
-        if record["query_id"] in taken or record["room_id"] in rooms:
-            continue
-        chosen.append(record)
-        rooms.add(record["room_id"])
-    for record in ordered:                     # fall back: fewer rooms than cases
-        if len(chosen) == per_kind:
-            break
-        if record["query_id"] in taken or any(c["query_id"] == record["query_id"]
-                                              for c in chosen):
-            continue
-        chosen.append(record)
-    return chosen
-
-
 def select_cases(records, per_kind=CASES_PER_KIND):
-    """The nine pre-registered cases, as ``{kind: [record, ...]}``."""
+    """The nine registered cases: the LITERAL extrema of each category.
+
+    Each category is sorted by its registered key and the first ``per_kind``
+    records are taken -- nothing else. The categories are independent, so a query
+    that is both the narrowest margin and the worst error appears in both.
+    """
     records = list(records)
-    cases, taken = {}, set()
+    cases = {}
     for kind in CASE_KINDS:
         keep, key = _ORDERINGS[kind]
         ordered = sorted((r for r in records if keep(r)), key=key)
-        chosen = _pick(ordered, taken, per_kind)
+        chosen = ordered[:per_kind]
         if len(chosen) < per_kind:
             raise ValueError(
                 f"only {len(chosen)} {kind!r} cases are available; the rule needs {per_kind} "
                 f"(the run has {len(records)} queries)")
-        for rank, record in enumerate(chosen, start=1):
-            record = dict(record)
-            record["kind"], record["rank"] = kind, rank
-            chosen[rank - 1] = record
-            taken.add(record["query_id"])
-        cases[kind] = chosen
+        cases[kind] = [dict(record, kind=kind, rank=rank)
+                       for rank, record in enumerate(chosen, start=1)]
     return cases
 
 
@@ -259,7 +277,7 @@ def render_case(record, out_path, kind=None, run_label="", dpi=150):
     axis.set_xlabel("world x [m]")
     axis.set_ylabel("world y [m]")
     axis.set_title(f"{kind.replace('_', ' ')} -- {record['room_id']}\n"
-                   f"{run_label}   margin={record['margin']:.4g}   "
+                   f"{run_label}   margin={format_margin(record['margin'])}   "
                    f"e_loc={record['e_loc']:.2f} m", fontsize=10)
     bar = figure.colorbar(scatter, ax=axis, fraction=0.046, pad=0.04)
     bar.set_label(f"softmax(S / T), T = {record['temperature']:g} (display only)",
@@ -274,11 +292,17 @@ def render_case(record, out_path, kind=None, run_label="", dpi=150):
                               markersize=10, label="receiver"))
     # the legend lives OUTSIDE the axes: inside it covered the GT star and the
     # receiver whenever they sat in the corner it picked
+    saturated = is_saturated(record["margin"])
     figure.legend(handles=handles, loc="lower center", ncol=len(handles), fontsize=8,
-                  frameon=False, bbox_to_anchor=(0.5, 0.0))
+                  frameon=False, bbox_to_anchor=(0.5, 0.075 if saturated else 0.0))
+
+    if saturated:
+        import textwrap
+        figure.text(0.5, 0.012, "\n".join(textwrap.wrap(SATURATION_CAVEAT, 96)),
+                    ha="center", va="bottom", fontsize=6, color="0.35")
 
     os.makedirs(os.path.dirname(os.path.abspath(out_path)) or ".", exist_ok=True)
-    figure.tight_layout(rect=(0, 0.06, 1, 1))
+    figure.tight_layout(rect=(0, 0.16 if saturated else 0.06, 1, 1))
     figure.savefig(out_path, dpi=dpi)
     plt.close(figure)
     return out_path
@@ -292,8 +316,9 @@ def _file_sha256(path, chunk=1 << 20):
     return digest.hexdigest()
 
 
-def gallery_manifest(cases, run_label, rows_path, out_dir, rows_sha256=None, pngs=None):
-    """What was drawn, from which rows, under which rule."""
+def gallery_manifest(cases, run_label, rows_path, out_dir, rows_sha256=None, pngs=None,
+                     records=None):
+    """What was drawn, from which rows, under which rule -- and with what caveat."""
     from datetime import datetime, timezone
 
     pngs = pngs or {}
@@ -302,16 +327,25 @@ def gallery_manifest(cases, run_label, rows_path, out_dir, rows_sha256=None, png
         entries[kind] = [{
             "rank": record.get("rank"), "query_id": record["query_id"],
             "room_id": record["room_id"], "relpath": record.get("relpath"),
-            "margin": record["margin"], "e_loc": record["e_loc"],
+            "margin": record["margin"], "margin_display": format_margin(record["margin"]),
+            "saturated": is_saturated(record["margin"]),
+            "e_loc": record["e_loc"],
             "correct": record["correct"], "n_candidates": record["n_candidates"],
             "pred_index": record["pred_index"], "gt_index": record["gt_index"],
             "temperature": record["temperature"],
+            "caption": case_caption(record, run_label),
             "png": pngs.get(record["query_id"], _png_name(kind, record)),
         } for record in chosen]
+    saturated = (sum(1 for r in records if is_saturated(r["margin"]))
+                 if records is not None else None)
     return {
         "run_label": run_label, "rows_path": str(rows_path),
         "rows_sha256": rows_sha256,
         "selection_rule": SELECTION_RULE,
+        "saturation_caveat": SATURATION_CAVEAT,
+        "saturation_threshold": SATURATION_THRESHOLD,
+        "n_queries_above_saturation_threshold": saturated,
+        "n_queries": None if records is None else len(records),
         "display_temperature": DISPLAY_TEMPERATURE_SOURCE,
         "depth_silhouette": ("not drawn: the dataset ships per-view depth tensors, not a "
                              "floor plan; the maps label the candidate extent instead"),
@@ -427,15 +461,33 @@ def extract_families(report, report_source=""):
             "context_member_rate": columns["context_member_rate"]["mean"],
             "power_mean": columns["power_mean"]["mean"],
         }
-    first = (report.get("seeds") or [{}])[0]
+    # The paired tests are PER SEED. Naming the seed the shown block came from is
+    # not optional -- the adjusted p-values differ across seeds (r8 review F2) --
+    # so the inference seed is labelled and every seed's block travels with it.
+    seed_blocks = report.get("seeds") or [{}]
+    first = seed_blocks[0]
+    per_seed_holm, adjusted = {}, {}
+    for block in seed_blocks:
+        seed = str(block.get("seed"))
+        holm = (block.get("holm") or {}).get("top1")
+        if holm is None:
+            continue
+        per_seed_holm[seed] = holm
+        for test in holm.get("tests", []):
+            adjusted.setdefault(test["label"], {})[seed] = test["p_adjusted"]
     return {
         "families": families,
         "groups": report.get("families", {}),
-        "primary_tests": [{"label": c["label"], "top1_delta": c["top1_delta"],
-                           "p_top1": c["top1"]["p_value"],
-                           "median_e_loc_delta": c["e_loc"]["point"]}
-                          for c in first.get("primary_comparisons", [])],
-        "holm": first.get("holm", {}).get("top1"),
+        "primary_tests": {
+            "seed": first.get("seed"),
+            "note": "one seed's paired tests; every seed's Holm block is in holm_per_seed",
+            "tests": [{"label": c["label"], "top1_delta": c["top1_delta"],
+                       "p_top1": c["top1"]["p_value"],
+                       "median_e_loc_delta": c["e_loc"]["point"]}
+                      for c in first.get("primary_comparisons", [])]},
+        "holm": dict((first.get("holm") or {}).get("top1") or {}, seed=first.get("seed")),
+        "holm_per_seed": per_seed_holm,
+        "adjusted_p_per_seed": adjusted,
         "seeds": report["provenance"]["seeds"],
         "references": report["provenance"]["references"],
         "status": report["provenance"]["status"],
@@ -535,11 +587,19 @@ def campaign_timeline():
             "publication: nothing gets a final name until every end gate passes",
             "context binding: the unseen control refuses without its paired replay digest",
         ],
-        "tests": {"suite_total": 2666, "localization_files": 6,
-                  "note": "full repository suite at the end of r4m6 (1 unrelated exp_11 "
-                          "registry failure, owned by exp_15)"},
+        # r8 review finding 4: a hardcoded count is only sourced if the record it
+        # cites actually contains it. This one is quoted from the committed
+        # ledger line written in the same round, and a test greps for it.
+        "tests": {
+            "suite_total": 2688, "suite_skipped": 10, "localization_files": 7,
+            "source_file": ("worklog/worklog_yixun/exp_18_loc_invert_claude/"
+                            "commits_loc_invert.md"),
+            "source_quote": "2688 passed, 10 skipped, 1 pre-existing unrelated failure",
+            "note": ("full repository suite at the end of r8b; the one failure is exp_11 "
+                     "registry drift owned by exp_15, not exp_18"),
+        },
         "rounds": ["r1", "r2", "r3", "r4", "r5", "r6", "r7", "R4-r1", "R4-r2",
-                   "r4m3", "r4m4", "r4m5", "r4m6", "r8"],
+                   "r4m3", "r4m4", "r4m5", "r4m6", "r8", "r8b"],
         "source": "committed record: loc_invert_results.md, loc_invert_command.md, "
                   "commits_loc_invert.md (line citations in the function's docstring)",
     }
@@ -591,7 +651,8 @@ def render_run(rows_path, run_label, out_dir, slug, dpi=150):
                         dpi=dpi)
             pngs[record["query_id"]] = name
     manifest = gallery_manifest(cases, run_label, rows_path, out_dir,
-                                rows_sha256=_file_sha256(rows_path), pngs=pngs)
+                                rows_sha256=_file_sha256(rows_path), pngs=pngs,
+                                records=records)
     manifest_path = os.path.join(out_dir, f"{slug}_gallery.json")
     with open(manifest_path, "w") as handle:
         json.dump(manifest, handle, indent=2, sort_keys=True)
@@ -600,7 +661,7 @@ def render_run(rows_path, run_label, out_dir, slug, dpi=150):
     for kind in CASE_KINDS:
         for entry in manifest["cases"][kind]:
             print(f"    {kind:14s} #{entry['rank']} {entry['query_id']}  "
-                  f"margin={entry['margin']:.4f}  e_loc={entry['e_loc']:.3f}  "
+                  f"margin={entry['margin_display']}  e_loc={entry['e_loc']:.3f}  "
                   f"correct={entry['correct']}")
     return manifest
 

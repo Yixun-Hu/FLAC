@@ -15,6 +15,7 @@ import pytest
 _EXPDIR = pathlib.Path(__file__).resolve().parents[2] / "worklog" / "worklog_yixun" / \
     "exp_18_loc_invert_claude"
 _SCRIPT = _EXPDIR / "loc_invert_heatmaps.py"
+_ASSETS = str(_EXPDIR / "loc_invert_results_assets")
 
 
 def _module():
@@ -125,35 +126,36 @@ def test_selection_is_order_independent_and_reproducible():
                                                                               sort_keys=True)
 
 
-#: six wrong, low-margin queries: they can never be sharp-success cases, so they
-#: leave the sharp ordering alone while giving the other two kinds enough rows.
-_FILLER = [(f"z{i}", f"F{i}", 0.05 + i * 0.02, False, 10.0 + i) for i in range(6)]
+def test_selection_takes_the_literal_category_extrema():
+    """r8 review finding 1: the registered rule is extrema-only. No diversity
+    policy, no cross-category exclusion -- three same-room cases in a row are the
+    correct answer when they are the three extrema."""
+    records = _records([("a", "R1", 0.90, True, 1.0), ("b", "R1", 0.80, True, 2.0),
+                        ("c", "R1", 0.70, True, 3.0), ("d", "R2", 0.60, True, 9.0),
+                        ("e", "R3", 0.50, False, 8.0), ("f", "R4", 0.40, False, 7.0)])
+    cases = hm.select_cases(records)
+    assert [c["query_id"] for c in cases["sharp_success"]] == ["a", "b", "c"]
+    assert [c["query_id"] for c in cases["ambiguous"]] == ["f", "e", "d"]
+    assert [c["query_id"] for c in cases["failure"]] == ["d", "e", "f"]
 
 
-def test_selection_prefers_distinct_rooms_but_still_returns_three():
-    same_room = _records([("a", "R1", 0.9, True, 0.0), ("b", "R1", 0.8, True, 0.0),
-                          ("c", "R1", 0.7, True, 0.0), ("d", "R2", 0.6, True, 0.0)]
-                         + _FILLER)
-    cases = hm.select_cases(same_room)
-    # R2 is preferred over the second and third R1 rows, then the rule falls back
-    assert [c["query_id"] for c in cases["sharp_success"]] == ["a", "d", "b"]
-
-    single_room = _records([("a", "R1", 0.9, True, 0.0), ("b", "R1", 0.8, True, 0.0),
-                            ("c", "R1", 0.7, True, 0.0)] + _FILLER)
-    assert [c["query_id"] for c in hm.select_cases(single_room)["sharp_success"]] == \
-        ["a", "b", "c"]
-
-
-def test_a_query_is_never_shown_twice():
+def test_a_query_extremal_in_two_categories_appears_in_both():
+    """The categories are independent: excluding a query because an earlier kind
+    already showed it is exactly the unregistered policy that was removed."""
     records = _records([("a", "R1", 0.90, True, 0.0), ("b", "R2", 0.80, True, 0.0),
                         ("c", "R3", 0.70, True, 0.0),
-                        ("d", "R4", 0.01, False, 9.0),   # both narrowest AND worst
-                        ("e", "R5", 0.02, False, 8.0),
-                        ("f", "R6", 0.03, False, 7.0),
-                        ("g", "R7", 0.40, False, 6.0)] + _FILLER)
+                        ("worst", "R4", 0.01, False, 99.0),   # narrowest AND worst
+                        ("d", "R5", 0.02, False, 50.0), ("e", "R6", 0.03, False, 40.0)])
     cases = hm.select_cases(records)
-    picked = [c["query_id"] for kind in hm.CASE_KINDS for c in cases[kind]]
-    assert len(picked) == len(set(picked)) == 9
+    assert cases["ambiguous"][0]["query_id"] == "worst"
+    assert cases["failure"][0]["query_id"] == "worst"
+
+
+def test_selection_breaks_exact_ties_by_query_id():
+    records = _records([("b", "R1", 0.5, True, 1.0), ("a", "R1", 0.5, True, 1.0),
+                        ("c", "R2", 0.5, True, 1.0), ("d", "R3", 0.1, False, 2.0),
+                        ("e", "R4", 0.2, False, 3.0), ("f", "R5", 0.3, False, 4.0)])
+    assert [c["query_id"] for c in hm.select_cases(records)["sharp_success"]] == ["a", "b", "c"]
 
 
 def test_selection_refuses_a_run_it_cannot_fill():
@@ -195,6 +197,10 @@ def test_gallery_manifest_records_the_rule_and_every_case(tmp_path):
     for key in ("query_id", "room_id", "margin", "e_loc", "correct", "png", "rank"):
         assert key in entry, key
     assert "selection_rule" in manifest and "display_temperature" in manifest
+    assert "distinct rooms" not in manifest["selection_rule"]
+    assert manifest["saturation_caveat"] == hm.SATURATION_CAVEAT
+    assert "n_queries_above_saturation_threshold" in manifest
+    assert "caption" in entry and entry["caption"]
 
 
 # --------------------------------------------------------------------------- #
@@ -267,6 +273,20 @@ def test_family_and_conclusion_extracts_follow_the_report(tmp_path):
         assert key in entry, key
     assert families["families"]["m1_delta0"]["kind"] == "declared-sensitivity"
 
+    # r8 review finding 2: the inference seed must be named, and every seed's
+    # adjusted p-values must be available (they differ: m4_vs_agree_retrieval is
+    # 0.688 / 0.608 / 0.7584 across seeds 42 / 43 / 44)
+    assert families["primary_tests"]["seed"] == 42
+    assert families["holm"]["seed"] == 42
+    assert set(families["holm_per_seed"]) == {"42", "43", "44"}
+    assert set(families["adjusted_p_per_seed"]["m4_vs_agree_retrieval"]) == {"42", "43", "44"}
+    for seed, block in families["holm_per_seed"].items():
+        assert block["n_tests"] == 10, seed
+        labels = {t["label"] for t in block["tests"]}
+        assert "m4_vs_agree_retrieval" in labels
+    assert families["adjusted_p_per_seed"]["m4_vs_agree_retrieval"]["42"] == pytest.approx(
+        0.688, abs=5e-3)
+
     answers = hm.extract_conclusions(report)
     assert set(answers["questions"]) == {
         "q1_exceeds_agree_retrieval", "q2_beats_own_matched_control",
@@ -295,8 +315,49 @@ def test_campaign_timeline_is_hardcoded_from_the_committed_record():
         assert {"label", "date", "detail"} <= set(run)
     assert any("6,337" in str(run["detail"]) or "6337" in str(run["detail"])
                for run in timeline["runs"])
-    assert timeline["tests"]["suite_total"] > 2000
     assert "source" in timeline
+
+
+def test_timeline_suite_total_occurs_in_the_file_it_cites():
+    """r8 review finding 4: a hardcoded count whose cited record does not contain
+    it is not sourced. The citation is checked against the committed file."""
+    tests = hm.campaign_timeline()["tests"]
+    cited = pathlib.Path(__file__).resolve().parents[2] / tests["source_file"]
+    assert cited.is_file(), cited
+    text = cited.read_text()
+    assert tests["source_quote"] in text, (
+        f"{tests['source_quote']!r} does not occur in {tests['source_file']}")
+    assert str(tests["suite_total"]) in tests["source_quote"]
+
+
+@pytest.mark.skipif(not os.path.exists(_ASSETS), reason="published assets not present")
+@pytest.mark.parametrize("slug,rows", [
+    ("R2_K8_seed42", "outputs_loc/exp18/exp18_R2_flac_ctl-none_vanilla_ac-default_lme_"
+                     "tau0.02_K8_seed42_scorer-AGREE_AR_registered_rows.jsonl"),
+    ("R2b_K1_seed42", "outputs_loc/exp18/exp18_R2b_flac_ctl-none_vanilla_ac-default_lme_"
+                      "tau0.02_K8_seed42_scorer-AGREE_AR_registered_rows.jsonl")])
+def test_published_gallery_is_the_literal_rule_on_the_published_rows(slug, rows):
+    """Artifact-level certification: recompute the rule from the rows the manifest
+    names and require the PUBLISHED manifest to be exactly that."""
+    manifest_path = os.path.join(_ASSETS, f"{slug}_gallery.json")
+    if not (os.path.exists(manifest_path) and os.path.exists(rows)):
+        pytest.skip("gallery or rows not present")
+    with open(manifest_path) as handle:
+        manifest = json.load(handle)
+    assert manifest["rows_sha256"] == hm._file_sha256(rows)
+
+    records = [hm.case_record(json.loads(line)) for line in open(rows) if line.strip()]
+    cases = hm.select_cases(records)
+    for kind in hm.CASE_KINDS:
+        assert [c["query_id"] for c in cases[kind]] == \
+            [e["query_id"] for e in manifest["cases"][kind]], kind
+        for entry in manifest["cases"][kind]:
+            assert os.path.exists(os.path.join(_ASSETS, entry["png"])), entry["png"]
+    assert manifest["saturation_caveat"] == hm.SATURATION_CAVEAT
+    assert manifest["n_queries_above_saturation_threshold"] == sum(
+        1 for r in records if hm.is_saturated(r["margin"]))
+    assert manifest["n_queries"] == len(records)
+
 
 
 _R4_REPORT = "outputs_loc/exp18/exp18_R4_report_metrics_report.json"
