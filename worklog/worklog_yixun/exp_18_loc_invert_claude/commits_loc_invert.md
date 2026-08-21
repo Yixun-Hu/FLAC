@@ -186,3 +186,12 @@
 | `956fb6c` | F1 | registration verification binds `source_sha` (full-hex, resolvable, `rir_metrics.py` byte-identical at source sha / registration commit / worktree) and byte-checks every `r2_manifest_digests` entry against the copy committed at the registration sha (repo-relative keys, non-empty for a registered run); `--calibration-identities` is now REQUIRED — calibration provenance is fail-closed | +286 −24 |
 | `9ba2caf` | F4 + F5 + nits | M4 joins the sensitivity battery under a battery-uniform validity mask (gain-invariance is the reported result; shift/direct-crop move arrival/DRR/C50); `summarize_sensitivity` reports only the battery the rows actually carry, under the registered variant names, and refuses a partial one; `--verify-context-digest` mandatory for unseen metrics-retrieval with a `context_binding` stamp on every pass; `--metric-secondaries` help names M2 | +233 −17 |
 | `7434558` | F4 (driver) | the serialized battery's family coverage pinned end-to-end in the metrics row, not only in the library | +2 |
+
+## Round r4m5 (offline R4 aggregation — `src/localization/metrics_report.py`)
+
+| SHA | Item | Description | changed lines |
+|---|---|---|---|
+| `fa9ef82` | core | per-query records from the published streams: bit-exact hex decoding, recorded K-aggregations (mean primary), §2 metric-matched control delegating to `scoring.nearest_context_baseline`, the registered AGREE nearest-context control per query, fail-closed stream joining | +438 |
+| `315eddb` | §3 + §4 | paired comparisons (median e_loc + top-1 indicator, room-clustered), Holm over the registered primaries, power/context-split/M4 diagnostics/sensitivity summary/seen-vs-unseen, all accumulated in the single streaming pass | +476 |
+| `b13baaa` | report + CLI | seed reports, the ten primary tests, seed mean±SD table, the six conclusion answers with their decision rules, markdown block, and the thin generation-free `--mode metrics-report`; real-slice round trip pins the aggregation against the driver's recorded predictions | +499 |
+| `b9e88c7` | fixes | q1 compares in the reference's own convention (0.689 is an equal-room MACRO number; pooled counterpart 0.6317 reproduced to 4 decimals), q5 reads the battery from the SEEN pass, and the family table's lost column | +115 −40 |
