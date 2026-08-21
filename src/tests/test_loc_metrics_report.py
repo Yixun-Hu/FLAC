@@ -230,3 +230,186 @@ def test_scan_seed_refuses_streams_of_different_length(tmp_path):
         handle.writelines(lines[:-1])
     with pytest.raises(ValueError, match="length"):
         mr.scan_seed(metrics_path, short, families=("m1",))
+
+
+# --------------------------------------------------------------------------- #
+# §4 comparisons: paired per-query differences, clustered CIs, Holm correction
+# --------------------------------------------------------------------------- #
+def _records(e_locs, top1s, rooms=("R0", "R0", "R1", "R1")):
+    return [{"query_id": f"q{i}", "room_id": rooms[i], "e_loc": float(e),
+             "top1": float(t), "rr": 1.0, "pred_index": 0, "context_member_pred": False}
+            for i, (e, t) in enumerate(zip(e_locs, top1s))]
+
+
+def test_compare_records_reports_the_paired_primary_and_the_top1_difference():
+    better = _records([0.0, 0.0, 1.0, 1.0], [1.0, 1.0, 0.0, 0.0])
+    worse = _records([1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 0.0])
+    comparison = mr.compare_records(better, worse, "m1_vs_matched", n_boot=200, seed=0)
+
+    assert comparison["label"] == "m1_vs_matched"
+    assert comparison["e_loc"]["point"] == pytest.approx(-0.5)   # median of [-1,-1,0,0]
+    assert comparison["e_loc"]["stat"] == "median_paired_difference"
+    assert comparison["top1"]["point"] == pytest.approx(0.5)     # mean of [1,1,0,0]
+    assert comparison["top1_a"] == pytest.approx(0.5)
+    assert comparison["top1_b"] == pytest.approx(0.0)
+    assert comparison["top1_delta"] == pytest.approx(0.5)
+    assert comparison["quantity"] == {"e_loc": "e_loc_metres", "top1": "top1_indicator"}
+    for block in (comparison["e_loc"], comparison["top1"]):
+        assert 0.0 <= block["p_value"] <= 1.0 and block["n_clusters"] == 2
+
+
+def test_compare_records_refuses_inputs_that_are_not_the_same_queries():
+    left = _records([0.0, 0.0, 1.0, 1.0], [1.0, 1.0, 0.0, 0.0])
+    right = _records([1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 0.0])
+    right[2]["query_id"] = "somewhere-else"
+    with pytest.raises(ValueError):
+        mr.compare_records(left, right, "bad", n_boot=50)
+
+
+def test_holm_over_delegates_to_the_registered_helper():
+    comparisons = [
+        {"label": "a", "e_loc": {"p_value": 0.001}, "top1": {"p_value": 0.20}},
+        {"label": "b", "e_loc": {"p_value": 0.04}, "top1": {"p_value": 0.30}},
+        {"label": "c", "e_loc": {"p_value": 0.60}, "top1": {"p_value": 0.90}},
+    ]
+    holm = mr.holm_over(comparisons, quantity="e_loc")
+    assert holm == rm.holm_bonferroni({"a": 0.001, "b": 0.04, "c": 0.60})
+    # 0.04 x 2 = 0.08 > alpha, so only the smallest p survives the step-down
+    assert [t["rejected"] for t in holm["tests"]] == [True, False, False]
+    assert mr.holm_over(comparisons, quantity="top1")["n_tests"] == 3
+
+
+# --------------------------------------------------------------------------- #
+# §3 controls
+# --------------------------------------------------------------------------- #
+def test_power_by_family_is_the_registered_power_statistic():
+    from src.localization.scoring import power_statistic
+    row = _metrics_row("q", "Room/R0", 0, {"m1": (DIST_MEAN_PICKS_1, CTX_PREFERS_FIRST)})
+    assert mr.power_by_family(row, "m1") == pytest.approx(
+        power_statistic(torch.tensor(DIST_MEAN_PICKS_1)))
+
+
+def test_power_by_family_returns_none_for_a_degenerate_family():
+    """M4 empties its own validity mask on some queries, and the whole [M, K]
+    block is then NaN: that query is a skip, never a zero."""
+    row = _metrics_row("q", "Room/R0", 0, {"m1": (DIST_MEAN_PICKS_1, CTX_PREFERS_FIRST)})
+    nan_matrix = torch.full((3, 2), float("nan"))
+    row["families"]["m4"] = {"candidates_hex": encode_sims(nan_matrix),
+                             "context_hex": _hex_vector([float("nan")] * 2),
+                             "aggregations": {}, "pred_index": 0, "correct": False}
+    assert mr.power_by_family(row, "m4") is None
+    single = torch.tensor([[0.5], [0.7], [0.9]])
+    row["families"]["m4"]["candidates_hex"] = encode_sims(single)
+    assert mr.power_by_family(row, "m4") is None
+
+
+def test_context_split_reports_both_buckets():
+    records = _records([0.0, 1.0, 0.0, 2.0], [1.0, 0.0, 1.0, 0.0])
+    records[0]["context_member_pred"] = True
+    records[1]["context_member_pred"] = True
+    split = mr.context_split(records)
+    assert split["context"]["n_queries"] == 2 and split["non_context"]["n_queries"] == 2
+    assert split["context"]["top1"] == pytest.approx(0.5)
+    assert split["non_context"]["top1"] == pytest.approx(0.5)
+    assert split["context_member_rate"] == pytest.approx(0.5)
+    assert split["context"]["median_e_loc"] == pytest.approx(0.5)
+
+
+def _m4_block(features, obs, mask=None, dropped=None):
+    features = np.asarray(features, dtype=float)
+    n_features = features.shape[-1]
+    mask = [True] * n_features if mask is None else list(mask)
+    return {"features": features.tolist(), "obs_features": list(obs), "mask": mask,
+            "context_features": np.zeros((2, n_features)).tolist(),
+            "dropped": dropped or {"n_features": n_features, "n_kept": int(sum(mask)),
+                                   "n_dropped": int(n_features - sum(mask)),
+                                   "dropped": [], "causes": {}}}
+
+
+def test_m4_diagnostics_score_each_feature_and_count_the_drops():
+    # feature 0 puts the GT (candidate 0) closest to the observation; feature 1
+    # points at candidate 2 instead, so their single-feature top-1 differs.
+    features = [[[0.0, 3.0], [0.0, 3.0]], [[5.0, 2.0], [5.0, 2.0]], [[9.0, 1.0], [11.0, 1.0]]]
+    rows = [_metrics_row("q0", "Room/R0", 0, {"m1": (DIST_MEAN_PICKS_1, CTX_PREFERS_FIRST)},
+                         m4=_m4_block(features, [0.1, 1.0]))]
+    rows.append(_metrics_row("q1", "Room/R0", 1,
+                             {"m1": (DIST_MEAN_PICKS_1, CTX_PREFERS_FIRST)},
+                             m4=_m4_block(features, [0.1, 1.0], mask=[True, False],
+                                          dropped={"n_features": 2, "n_kept": 1,
+                                                   "n_dropped": 1, "dropped": ["f1"],
+                                                   "causes": {"f1": {"obs_invalid": True}}})))
+    accumulator = mr.M4Accumulator(names=("f0", "f1"))
+    for row in rows:
+        accumulator.add(row)
+    diagnostics = accumulator.result()
+
+    assert diagnostics["n_queries"] == 2
+    assert diagnostics["dropped"]["n_queries_with_a_drop"] == 1
+    assert diagnostics["dropped"]["total_dropped"] == 1
+    assert diagnostics["dropped"]["per_feature"]["f1"] == 1
+    per_feature = {entry["feature"]: entry for entry in diagnostics["per_feature"]}
+    assert per_feature["f0"]["top1"] == pytest.approx(1.0)
+    assert per_feature["f1"]["top1"] == pytest.approx(0.0)
+    # population variance (ddof = 0), the convention the calibration diagnostics use
+    assert per_feature["f0"]["within_var"] == pytest.approx(np.mean([0.0, 0.0, 1.0]))
+    assert per_feature["f1"]["within_var"] == pytest.approx(0.0)
+    assert per_feature["f1"]["power"] == float("inf") or math.isinf(per_feature["f1"]["power"])
+
+
+def _battery(distances_by_variant):
+    return {variant: {"m1": encode_sims(torch.tensor(dist, dtype=torch.float32))}
+            for variant, dist in distances_by_variant.items()}
+
+
+def test_sensitivity_summary_compares_every_variant_with_its_baseline():
+    unchanged = DIST_MEAN_PICKS_1                       # same prediction as baseline
+    moved = [[0.10, 0.10], [0.80, 0.80], [0.90, 0.90]]  # now predicts the GT
+    rows = [_metrics_row("q0", "Room/R0", 0, {"m1": (DIST_MEAN_PICKS_1, CTX_PREFERS_FIRST)},
+                         sensitivities=_battery({"gain_x2": unchanged,
+                                                 "direct_crop_2p5ms": moved}))]
+    summary = mr.sensitivity_summary(rows)
+    assert summary["n_rows_with_battery"] == 1
+    assert summary["baseline_top1"]["m1"] == pytest.approx(0.0)
+    assert summary["variants"]["gain_x2"]["m1"]["top1"] == pytest.approx(0.0)
+    assert summary["variants"]["gain_x2"]["m1"]["prediction_change_rate"] == pytest.approx(0.0)
+    assert summary["variants"]["direct_crop_2p5ms"]["m1"]["top1"] == pytest.approx(1.0)
+    assert summary["variants"]["direct_crop_2p5ms"]["m1"][
+        "prediction_change_rate"] == pytest.approx(1.0)
+    assert summary["variants"]["gain_x2"]["m1"]["mean_abs_score_change"] == pytest.approx(0.0)
+
+
+def test_sensitivity_summary_is_explicit_when_no_row_carries_a_battery():
+    rows = [_metrics_row("q0", "Room/R0", 0, {"m1": (DIST_MEAN_PICKS_1, CTX_PREFERS_FIRST)})]
+    summary = mr.sensitivity_summary(rows)
+    assert summary["n_rows_with_battery"] == 0 and summary["variants"] == {}
+    assert "not" in summary["status"]
+
+
+def test_scan_seed_accumulates_power_m4_and_the_battery(tmp_path):
+    features = [[[0.0, 3.0], [0.0, 3.0]], [[5.0, 2.0], [5.0, 2.0]], [[9.0, 1.0], [11.0, 1.0]]]
+    metrics_path = os.path.join(str(tmp_path), "m.jsonl")
+    rows_path = os.path.join(str(tmp_path), "r.jsonl")
+    with open(metrics_path, "w") as mh, open(rows_path, "w") as rh:
+        for q in range(3):
+            row = _metrics_row(f"q{q}", f"Room/R{q % 2}", q,
+                               {"m1": (DIST_MEAN_PICKS_1, CTX_PREFERS_FIRST)},
+                               m4=_m4_block(features, [0.1, 1.0]),
+                               sensitivities=_battery({"gain_x2": DIST_MEAN_PICKS_1}))
+            mh.write(json.dumps(row) + "\n")
+            rh.write(json.dumps(_replay_row(f"q{q}", f"Room/R{q % 2}")) + "\n")
+    scan = mr.scan_seed(metrics_path, rows_path, families=("m1",))
+    assert len(scan["power"]["m1"]) == 3
+    assert scan["m4"]["n_queries"] == 3
+    assert scan["sensitivity"]["n_rows_with_battery"] == 3
+
+
+def test_seen_vs_unseen_puts_the_two_splits_side_by_side():
+    seen = {"m1": {"pooled": {"top1": 0.8, "median_e_loc": 0.0, "mean_e_loc": 0.4}}}
+    unseen = {"m1": {"pooled": {"top1": 0.5, "median_e_loc": 0.5, "mean_e_loc": 1.0}},
+              "m2_complex": {"pooled": {"top1": 0.4, "median_e_loc": 1.0, "mean_e_loc": 2.0}}}
+    table = mr.seen_vs_unseen(seen, unseen)
+    assert table["m1"]["seen_top1"] == pytest.approx(0.8)
+    assert table["m1"]["unseen_top1"] == pytest.approx(0.5)
+    assert table["m1"]["top1_gap"] == pytest.approx(0.3)
+    assert table["m2_complex"]["seen_top1"] is None      # no seen counterpart
+    assert table["m2_complex"]["status"].startswith("no seen")
