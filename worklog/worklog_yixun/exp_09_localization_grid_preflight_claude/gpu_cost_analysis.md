@@ -14,25 +14,31 @@ This analysis applies to the approved mesh-available scope: 5,337 queries in 16 
 
 ## Measured throughput anchor
 
-The closest completed measurement is exp_01's full 6,337-query Vanilla evaluation with eight contexts, single-step sampling, VAE decoding, and AGREE/physical metrics. The five runs took 843, 875, 886, 889, and 881 seconds; the median is 881 seconds, or **7.193 generated RIR/s**. Here exp_01's `K=8` means eight contexts, not the localization score's stochastic sample count.
+Yixun authorized a no-quality probe after G1. It ran the actual frozen checkpoints, one-step rectified-flow sampler, VAE decoder, exact generated-audio clamp, shared `Retrieval.compute_audio_features` AGREE path, deterministic per-candidate noise, and the real branch caches on one NVIDIA RTX A6000. No localization score or winner was saved.
 
-This is an **uncached historical whole-pipeline anchor**, not a cache-enabled localization benchmark. The planned cache should remove repeated context and receiver-candidate conditioner work, so these hours must not be presented as an exact runtime for code that has not yet been implemented.
+The final matched probes each used 512 real candidates from the highest-count audited query, source-cache batches of 64, generation batches 128/256/512, one warm-up per size, and eight timed batches per size (7,168 timed generated RIR scores per arm). Both FLAC checkpoints and AGREE loaded with zero missing/unexpected keys. The main evidence files are `throughput_probe_vanilla_cached_final.json` and `throughput_probe_fa_bf_cached_run2.json`.
 
-The geometry counts make the cache impact concrete: an uncached eight-context path would execute about **80,026,434 geometry ViT forwards**, whereas the frozen context/source caches require **1,009,424**, a 79.28x reduction in that component. Diffusion, VAE decode and AGREE scoring still run once per query-candidate/sample, so total runtime does not receive a 79x speedup.
+FA-BF uses the released dependency split rather than pretending every context token is query-only: `source/source_vit` are receiver-candidate cached; `context_poses_vit/context_audio` are query cached; candidate-relative cylindrical `context_poses.dphi` is recomputed inside every timed generation batch. The resulting cached tokens are bit-identical to a shape-matched uncached reference. The full vectorized mixed-precision diagnostic is also retained and reports the expected batch-shape rounding drift (maximum `0.00390625`), rather than silently calling it bit-identical.
 
-| Score samples (`K_score`) | Vanilla historical 7.193 RIR/s, one arm | Optimistic 10 RIR/s, one arm | 168 GPU-hour gate |
+| Component / final batch-512 result | Vanilla 40k | FA-BF 40k |
+|---|---:|---:|
+| Generated RIR + VAE + AGREE rate | 141.732/s | 139.099/s |
+| Receiver-candidate source-cache rate | 713.546/s | 145.935/s |
+| Query-context cache time, measured mean | 0.14369 s | 0.40700 s |
+| Batch-512 peak allocated memory | 7.186 GB | 7.188 GB |
+| Batch-512 within-run CV | 0.31% | 0.17% |
+
+The projections below include query audio/depth I/O, query-context cache, observed-RIR AGREE encoding, receiver-candidate cache, generated scoring, and one model startup. They use the exact G1 counts above.
+
+| Score samples (`K_score`) | Vanilla | FA-BF | Serial two-arm total |
 |---:|---:|---:|---:|
-| 1 | 343.4 GPU-h | 247.0 GPU-h | FAIL at both anchors |
-| 2 | 686.8 GPU-h | 494.0 GPU-h | FAIL |
-| 4 | 1,373.5 GPU-h | 988.0 GPU-h | FAIL |
+| 1 | 18.06 GPU-h | 20.25 GPU-h | 38.31 GPU-h |
+| 2 | 35.49 GPU-h | 38.00 GPU-h | 73.49 GPU-h |
+| **4** | **70.34 GPU-h** | **73.52 GPU-h** | **143.86 GPU-h (5.99 days)** |
 
-To fit 168 GPU-hours, the cache-enabled engine must sustain at least **14.702 RIR/s** for `K_score=1`, 29.404 RIR/s for `K_score=2`, or 58.808 RIR/s for `K_score=4`, end to end. Multiple GPUs can reduce wall-clock time but not total GPU-hours.
+As a measured lower-throughput bound, replacing each arm's winning rate by its slowest individual timed batch across all probe sizes gives 76.48 GPU-hours for Vanilla and 80.84 GPU-hours for FA-BF at `K=4`, or **157.32 GPU-hours (6.56 days)** serial. A separate 10% operational reserve yields **173.05 GPU-hours (7.21 days)**; this reserve covers orchestration, tail batches, filesystem contention, and resume overhead and is not used to change the pre-registered K ladder.
 
-Exp_01's one-context runs provide a rough cache-oriented bracket, because they remove seven of the eight repeated context ViT passes but still do not reuse the source branch. Their median is 10.888 RIR/s (226.8 hours here), while their two fastest runs are 15.686 and 15.381 RIR/s (157.5 and 160.6 hours). Therefore `K_score=1` is **plausible but not certified** under 168 hours; the required 14.702 RIR/s lies inside the observed machine-load range. `K_score>=2` is not plausible without a much larger end-to-end speedup.
-
-FA-BF must receive a separate matched cache-enabled probe after Vanilla: its C4 frame-averaged conditioner executes four angle branches, and prior evidence shows it is materially slower without effective caching. Applying the Vanilla rate to FA-BF would therefore be unjustified.
-
-The table is therefore **Vanilla-only**. Running Vanilla plus FA-BF doubles the generation count before accounting for FA-BF's additional conditioning cost; it cannot be represented by simply doubling the Vanilla GPU-hour estimate until the FA-BF cache probe exists.
+With two equivalent free A6000s, the nominal wall time is governed by FA-BF at about **73.52 hours (3.06 days)**; the measured conservative bound is **80.84 hours (3.37 days)**. GPU-hours remain additive.
 
 ## Artifact size
 
@@ -41,4 +47,6 @@ The table is therefore **Vanilla-only**. Running Vanilla plus FA-BF doubles the 
 
 ## Gate conclusion
 
-The geometry gate now passes, but the current evidence does not certify any score-sample rung under 168 GPU-hours. `K_score=1` is the only plausible rung and needs a cache-enabled no-quality throughput probe to demonstrate at least 14.702 RIR/s. Candidate spacing, queries, and masks must not be changed in response to runtime without a separately documented protocol decision.
+The cache-enabled no-quality gate certifies `K_score=4`: nominal serial two-arm compute is 143.86 GPU-hours and the slowest-measured-batch projection is 157.32 GPU-hours, both below the pre-registered 168-hour ceiling. `K=4` is therefore frozen globally before any localization quality value is read. Candidate spacing, queries, masks, `tau`, and K remain unchanged.
+
+This is a component-complete GPU projection, not yet a full-room wall-clock smoke. The later bounded one-room smoke must still validate job orchestration, candidate iteration, streamed aggregation, and resume behavior. The 10% reserve is the appropriate scheduling number until that smoke completes.

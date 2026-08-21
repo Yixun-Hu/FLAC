@@ -1,0 +1,252 @@
+{
+  "agree_checkpoint": "/home/zhixuanzhao/projects/rir2rir/FLAC/weights/AGREE/AGREE_fullAR.pt",
+  "agree_checkpoint_sha256": "3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787",
+  "benchmark_query": {
+    "candidate_count": 5298,
+    "index": 43,
+    "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S002_R068_hybrid_IR.wav",
+    "room": "Cafe_idx_1",
+    "source_probe_candidates": 512
+  },
+  "budget_gpu_hours": 168.0,
+  "checkpoint": "/home/zhixuanzhao/projects/Frame_Average/Checkpoint/BF_40k_clean_hybrid_EMA.ckpt",
+  "checkpoint_sha256": "0f61277f45367fb0e75d7ee70c0627b8948a23eb62be58f13fce91662551557a",
+  "conditioning_method": "fa_invariant",
+  "conditioning_parity": {
+    "context_audio": {
+      "full_vectorized_masks_bit_equal": true,
+      "full_vectorized_max_abs_difference": 0.00390625,
+      "full_vectorized_tokens_bit_equal": false,
+      "shape_matched_masks_bit_equal": true,
+      "shape_matched_max_abs_difference": 0.0,
+      "shape_matched_tokens_bit_equal": true
+    },
+    "context_poses": {
+      "full_vectorized_masks_bit_equal": true,
+      "full_vectorized_max_abs_difference": 0.0,
+      "full_vectorized_tokens_bit_equal": true,
+      "shape_matched_masks_bit_equal": true,
+      "shape_matched_max_abs_difference": 0.0,
+      "shape_matched_tokens_bit_equal": true
+    },
+    "context_poses_vit": {
+      "full_vectorized_masks_bit_equal": true,
+      "full_vectorized_max_abs_difference": 0.0009765625,
+      "full_vectorized_tokens_bit_equal": false,
+      "shape_matched_masks_bit_equal": true,
+      "shape_matched_max_abs_difference": 0.0,
+      "shape_matched_tokens_bit_equal": true
+    },
+    "source": {
+      "full_vectorized_masks_bit_equal": true,
+      "full_vectorized_max_abs_difference": 0.0,
+      "full_vectorized_tokens_bit_equal": true,
+      "shape_matched_masks_bit_equal": true,
+      "shape_matched_max_abs_difference": 0.0,
+      "shape_matched_tokens_bit_equal": true
+    },
+    "source_vit": {
+      "full_vectorized_masks_bit_equal": true,
+      "full_vectorized_max_abs_difference": 0.0,
+      "full_vectorized_tokens_bit_equal": true,
+      "shape_matched_masks_bit_equal": true,
+      "shape_matched_max_abs_difference": 0.0,
+      "shape_matched_tokens_bit_equal": true
+    }
+  },
+  "context_cache_seconds": [
+    0.7084230470936745,
+    0.36711137485690415,
+    0.3639640328474343,
+    0.3617476369254291,
+    0.3627460850402713,
+    0.36335467104800045,
+    0.3645289281848818,
+    0.3634605989791453
+  ],
+  "context_manifest_sha256": "b757da281dcde3ffc310aac67279a240dac5cb1ff1d9966bf918f69c4dde6f58",
+  "data_load_seconds": [
+    0.007488996954634786,
+    0.006515446817502379,
+    0.006532120984047651,
+    0.007142985938116908,
+    0.005802530096843839,
+    0.008074681973084807,
+    0.005289743188768625,
+    0.005785734159871936
+  ],
+  "device": "cuda",
+  "frame_average_angles": [
+    0.0,
+    90.0,
+    180.0,
+    270.0
+  ],
+  "generation_batch_results": [
+    {
+      "aggregate_scores_per_second": 126.56921515766429,
+      "batch_seconds": [
+        0.2536020767875016,
+        0.25094212987460196,
+        0.252973027061671,
+        0.25378713314421475
+      ],
+      "batch_size": 32,
+      "generated_scores": 128,
+      "median_batch_scores_per_second": 126.33862089490945,
+      "peak_memory_bytes": 1102031872,
+      "status": "PASS"
+    },
+    {
+      "aggregate_scores_per_second": 132.40720374348237,
+      "batch_seconds": [
+        0.48468045610934496,
+        0.48322408413514495,
+        0.48314894712530077,
+        0.48237605998292565
+      ],
+      "batch_size": 64,
+      "generated_scores": 256,
+      "median_batch_scores_per_second": 132.45402744015826,
+      "peak_memory_bytes": 1289357824,
+      "status": "PASS"
+    },
+    {
+      "aggregate_scores_per_second": 137.35177767222922,
+      "batch_seconds": [
+        0.930911579169333,
+        0.9316843010019511,
+        0.9326625319663435,
+        0.9323962908238173
+      ],
+      "batch_size": 128,
+      "generated_scores": 512,
+      "median_batch_scores_per_second": 137.3331180650626,
+      "peak_memory_bytes": 2132364288,
+      "status": "PASS"
+    }
+  ],
+  "geometry_audit_sha256": "ae09d9cf9416866d09dea498a1f8467e952866db8b1c914ed0bea6a75e06cf9a",
+  "geometry_totals": {
+    "base_candidate_query_pairs": 15773315,
+    "chosen_candidate_query_pairs": 8891826,
+    "chosen_oracle": {
+      "count": 5337,
+      "finite_count": 5337,
+      "max": 0.41231056256176596,
+      "mean": 0.21162535784684477,
+      "median": 0.2408318915758458,
+      "over_0_5m": 0
+    },
+    "chosen_receiver_candidate_pairs": 966728,
+    "context_branch_queries": 5337,
+    "context_vit_forwards": 42696,
+    "full_candidate_query_pairs": 15731665,
+    "full_receiver_candidate_pairs": 1625827,
+    "raw_candidate_query_pairs": 25312262,
+    "z_candidate_query_pairs": 8891826,
+    "z_receiver_candidate_pairs": 966728
+  },
+  "gpu_name": "NVIDIA RTX A6000",
+  "measurements": {
+    "context_seconds_per_query": 0.4069170468719676,
+    "generated_scores_per_second": 137.35177767222922,
+    "observation_seconds_per_query": 0.022144715389003977,
+    "query_io_seconds_per_query": 0.0065790300141088665,
+    "source_candidates_per_second": 141.97843715081862
+  },
+  "model_config": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/src/configs/model_configs/FLAC/AR/FLAC_AR.json",
+  "model_config_sha256": "f3eafef4456666e4705ddaf35540f6b9f1f746189814cec000bac794ba2a7ec9",
+  "model_load_seconds": 15.129635494900867,
+  "no_quality_values_saved": true,
+  "observation_encode_seconds": [
+    0.12647041212767363,
+    0.007197467144578695,
+    0.007085910066962242,
+    0.006985693005844951,
+    0.007170558907091618,
+    0.0074141789227724075,
+    0.007497784914448857,
+    0.007335718022659421
+  ],
+  "projections": {
+    "1": {
+      "context_cache_seconds": 2171.716279155691,
+      "generation_score_seconds": 64737.61134143526,
+      "observation_seconds": 118.18634603111423,
+      "query_io_seconds": 35.11228318529902,
+      "source_cache_seconds": 6808.977612375599,
+      "total_gpu_days": 0.8549954150715621,
+      "total_gpu_hours": 20.51988996171749,
+      "total_seconds": 73871.60386218296
+    },
+    "2": {
+      "context_cache_seconds": 2171.716279155691,
+      "generation_score_seconds": 129475.22268287052,
+      "observation_seconds": 118.18634603111423,
+      "query_io_seconds": 35.11228318529902,
+      "source_cache_seconds": 6808.977612375599,
+      "total_gpu_days": 1.6042733241159517,
+      "total_gpu_hours": 38.50255977878284,
+      "total_seconds": 138609.21520361822
+    },
+    "4": {
+      "context_cache_seconds": 2171.716279155691,
+      "generation_score_seconds": 258950.44536574103,
+      "observation_seconds": 118.18634603111423,
+      "query_io_seconds": 35.11228318529902,
+      "source_cache_seconds": 6808.977612375599,
+      "total_gpu_days": 3.102829142204731,
+      "total_gpu_hours": 74.46789941291354,
+      "total_seconds": 268084.43788648874
+    }
+  },
+  "schema_version": 1,
+  "selected_score_samples": 4,
+  "sha256": "6a47b87a9afc929220cd1af588d97e3ab6b9ab14c907baff57863c5dee4432d4",
+  "source_cache_batches": [
+    {
+      "count": 64,
+      "seconds": 0.504149217158556
+    },
+    {
+      "count": 64,
+      "seconds": 0.4529100039508194
+    },
+    {
+      "count": 64,
+      "seconds": 0.4382464250084013
+    },
+    {
+      "count": 64,
+      "seconds": 0.44347860594280064
+    },
+    {
+      "count": 64,
+      "seconds": 0.45431890501640737
+    },
+    {
+      "count": 64,
+      "seconds": 0.4389985769521445
+    },
+    {
+      "count": 64,
+      "seconds": 0.43726866808719933
+    },
+    {
+      "count": 64,
+      "seconds": 0.43681100313551724
+    }
+  ],
+  "summary_statistics": {
+    "context_seconds_median": 0.3637123159132898,
+    "context_seconds_p10": 0.36244655060581865,
+    "context_seconds_p90": 0.4695048765279352,
+    "generation_rate": 137.35177767222922,
+    "observation_seconds_median": 0.007266592583619058,
+    "peak_memory_bytes": 2132364288,
+    "source_cache_rate": 141.97843715081862
+  },
+  "torch_version": "2.7.0+cu126",
+  "winning_generation_batch_size": 128
+}

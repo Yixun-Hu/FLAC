@@ -9,6 +9,9 @@
 | Context duplicate guard | `0.25 m` |
 | Height branch | context z range padded by `0.50 m` at both ends |
 | Ground-truth insertion | prohibited |
+| Score samples | `K=4`, selected by the pre-registered no-quality runtime ladder |
+| Sampler / guidance | rectified-flow discrete Euler, one step, CFG `1.0` |
+| Score temperature | `tau=0.1` |
 
 The surface clearance is a source-distribution prior, not the physical-validity test. Ray parity supplies physical validity; the 0.20 m prior is strictly below the measured minimum metadata source-to-mesh distance of 0.231947 m.
 
@@ -32,3 +35,7 @@ The surface clearance is a source-distribution prior, not the physical-validity 
 | Restaurants_idx_24 | 0.519931 | 29/31 | 27/31 |
 
 All source and receiver anchor votes exceed the 15/31 rejection boundary.
+
+## Measured execution budget
+
+On one RTX A6000, final same-engine probes project 70.34 GPU-hours for Vanilla and 73.52 GPU-hours for FA-BF, including one model startup per arm. Serial total is 143.86 GPU-hours; the slowest individual measured batch gives 157.32 GPU-hours. Both are below the frozen 168-hour gate, so `K=4` is selected before reading any localization score. See `throughput_probe_analysis.md` for the exact cache split and evidence hashes.

@@ -1,7 +1,7 @@
 # Plan — exp_09_localization_grid_preflight (3-D mesh-valid analysis-by-synthesis localization)
 
 **Author:** OpenAI Codex (Planner / Analyst) · **Coder:** strongest coding-tier subagent at max effort after approval · **Reviewer:** Anthropic Claude Opus 5 (`claude-opus-5`, Claude Code 2.1.237 interactive session) · **Date:** 2026-08-20
-**Status:** APPROVED by Yixun on 2026-08-20 through R0→D1→G1, with protocol amendments for the original exp_01 global-RNG context draw and, after measured B7, 31-direction ray-parity validity plus a 0.20 m source-surface prior. All B1–B7 and N1–N9 remain addressed below. A second user cost gate follows G1 before I1.
+**Status:** APPROVED by Yixun on 2026-08-20 through R0→D1→G1, with protocol amendments for the original exp_01 global-RNG context draw and, after measured B7, 31-direction ray-parity validity plus a 0.20 m source-surface prior. Yixun subsequently authorized the cache-enabled no-quality throughput probe; the measured gate selected and froze `K=4` on 2026-08-21. No localization quality score has been read.
 
 ## 0. Decision being tested
 
@@ -61,8 +61,8 @@ The authoritative mesh is still required before a future result can claim the co
 ### 1.4 Frozen model and score
 
 - Experiment-1 arm: `/home/zhixuanzhao/projects/Frame_Average/Checkpoint/P1_40k_clean_hybrid_EMA.ckpt`, SHA-256 `da12748586912c5fe9683a6d27b2507ff13c0a89c458abcbdc63aecd4f35c643`.
-- Frozen AGREE: `/home/zhixuanzhao/projects/rir2rir/FLAC/weights/AGREE/AGREE_fullAR.pt`, SHA-256 `3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787`.
-- Model config: existing `src/configs/model_configs/FLAC/AR/FLAC_AR_InContext.json`; dataset config: existing `src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json`. Do not author a reduced eval config.
+- Frozen AGREE used by the probe: `/home/zhixuanzhao/projects/Frame_Average/FLAC-C4-FA-reproduction/weights/AGREE/AGREE_fullAR.pt`, SHA-256 `3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787`.
+- Model config: existing `src/configs/model_configs/FLAC/AR/FLAC_AR.json`, SHA-256 `f3eafef4456666e4705ddaf35540f6b9f1f746189814cec000bac794ba2a7ec9`; dataset config: existing `src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json`. `FLAC_AR.json` is the architecture that strictly loads the frozen checkpoint with zero missing/unexpected keys; the previously named `FLAC_AR_InContext.json` has a 256-vs-512 global-embedding mismatch and is rejected. Do not author a reduced eval config.
 - Default sampler settings mirror the existing FLAC evaluation path: rectified-flow discrete Euler, `steps=1`, `cfg_scale=1.0`, checkpoint load integrity fail-closed, frozen/eval mode. No CFG sweep is part of exp_09.
 - Nominal stochastic protocol: `K=4`, with the pre-registered runtime-only fallback in §1.5; `tau=0.1` stays fixed in every branch. Samples use counter-based deterministic seeds independent of batching.
 - AGREE input parity is pinned to the reviewed FLAC retrieval path: observed RIRs come from the existing dataloader crop, mono float32 `[B,1,10240]` at 22,050 Hz; generated RIRs are decoded to the same shape and clamped to `[-1,1]` exactly as `eval_FLAC.py`. Reuse `Retrieval.compute_audio_features` or extract one shared helper used by both metric and localization paths; do not create an independent preprocessing implementation. The observation is encoded once per query and generated RIRs use the same `encode_audio(..., normalize=True)` path. Then
@@ -76,10 +76,11 @@ The authoritative mesh is still required before a future result can claim the co
 
 ### 1.5 Conditioning cache and pre-registered compute ladder
 
-- Query cache contract: compute `context_poses_vit`, `context_poses`, and `context_audio` once per query; recompute only the source branches for candidate changes. A bit-identity test must show the cached and uncached prepend-conditioning tokens are identical on the same inputs.
+- Vanilla query cache contract: compute `context_poses_vit`, `context_poses`, and `context_audio` once per query; recompute only the source branches for candidate changes. A bit-identity test must show the cached and uncached prepend-conditioning tokens are identical on the same inputs. For the later FA-BF cost probe, the released cylindrical transform makes `context_poses.dphi` candidate-dependent; therefore cache only `context_poses_vit` and `context_audio` per query and recompute the cheap `context_poses` branch inside each scored batch. This dependency split is mandatory and tested against the released full C4 path.
 - Receiver-candidate cache: within a receiver group, `source_vit` and `source` depend on receiver/depth/candidate but not which target source was held out. Compute them once for the union of that receiver's candidates and reuse them across its target queries, with an uncached-vs-cached equality test and bounded in-memory lifetime per receiver.
 - **Post-G1 gate before I1:** G1 reports exact valid candidate-query pairs for both full-height and admissible z-band branches, unique receiver-candidate pairs, estimated conditioner calls, and artifact bytes. Stop and present these geometry-only counts to Yixun; I1 cannot open until this second cost gate is accepted.
 - Runtime ladder, chosen globally from a cache-enabled no-quality throughput probe and frozen before reading any localization score: use `K=4` if projected full execution is `<=168 GPU-hours`; otherwise `K=2` if that projection is `<=168 GPU-hours`; otherwise use `K=1`. If cached `K=1` still projects above 168 GPU-hours, do not change spacing, candidates, or queries—request more compute/time and remain blocked. Every later model arm uses the same selected K and candidate manifests.
+- **Measured decision (2026-08-21):** final same-engine A6000 projections including one model startup are 70.34 GPU-hours for Vanilla and 73.52 GPU-hours for FA-BF at `K=4`, 143.86 GPU-hours serial total. Recomputing with the slowest individual measured batch gives 157.32 GPU-hours total. Both satisfy the 168-hour ladder, so `K=4` is selected globally. The optional 10% operations reserve is scheduling guidance, not a different ladder input.
 
 ## 2. Evaluation and controls
 
