@@ -107,3 +107,10 @@
 - **Independent-review attempt** — authenticated Claude Code 2.1.238 native CLI, model alias `opus`, read-only/plan permission. Two max-effort requests (full and narrowed R0 diff) and one low-effort minimal retry each ended with `Request timed out` without a verdict or file mutation. This is preserved as reviewer infrastructure failure, not represented as review approval.
 - **Result** — implementation/tests are green; independent R0 review remains pending because the reviewer service returned no result. Continue bounded TDD work without launching generation, and retry/consolidate Opus review before interpreting or launching I1.
 - **Next** — commit R0, then begin D1 test-first global-RNG manifest construction.
+
+## 2026-08-20 — D1 red: query/context manifest contracts
+
+- **Goal** — freeze the observable contracts before implementing global-RNG context materialization.
+- **Tests added** — released split order; S010 path quirk; full-before-filter manifest guard; protocol/hash round-trip; exact real-data eligible-count histograms; target-pose-only candidate cloning.
+- **Red evidence** — `python -m pytest src/tests/test_localization_ar_queries.py -q` fails collection with `ModuleNotFoundError: src.localization`, as expected before the new package exists.
+- **Next** — commit the red tests, then implement the smallest query/manifest layer that makes them green.

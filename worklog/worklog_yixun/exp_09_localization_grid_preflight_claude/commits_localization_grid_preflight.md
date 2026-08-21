@@ -10,4 +10,5 @@ Base: `ecb83523c4ae8c60d4cd5f0ae3e562f2a84f1fa9`. Branch: `localization-exp`.
 | 4 | `c5b7b5a9a28c23550bf8f63b9325f3965ce1a456` | Preserve the Opus 5 REQUEST-CHANGES review and revise the plan to close B1–B6/N1–N9 before user approval. |
 | 5 | `43a5b262f131d5bd3ee22f1ba16b2edabe8f7ac3` | Record the reviewed-plan commit SHA and clean approval boundary. |
 | 6 | `a57a3c39662436edd50d6219d4c3146bad8e762a` | Record Yixun's approval and replace query-local context hashing with the original exp_01 global-RNG materialization protocol. |
-| 7 | _(this R0 commit)_ | Repair the permanent-suite import path, pin/install Open3D 0.19.0, and record the green baseline plus reviewer-service timeout. |
+| 7 | `9ede32f2ecb21a402cae5c9f97bdcfb1003732d8` | Repair the permanent-suite import path, pin/install Open3D 0.19.0, and record the green baseline plus reviewer-service timeout. |
+| 8 | _(this D1-red commit)_ | Add failing contracts for release-order queries, S010 parity, context census, manifest integrity, and candidate cloning. |
