@@ -97,3 +97,13 @@
 - **Rationale** — this preserves the actual FLAC/FA-FLAC input path, including the S010 quirk and with-replacement fallback, while a frozen manifest still guarantees candidate/arm pairing. Filtering before materialization is prohibited because it would change worker RNG consumption.
 - **Authorization** — Yixun directed: “改用原版全局随机抽样，其他按照md文档进行修改，修改以后分析GPU成本.” This opens R0→D1→G1 and the post-G1 cost analysis only. Large-scale generation remains blocked on the resulting cost gate.
 - **Next** — commit the protocol amendment, then begin R0 test-first.
+
+## 2026-08-20T22:52:14-04:00 — R0 permanent-suite/runtime baseline
+
+- **Goal** — restore the permanent test suite before localization code and put Open3D in the interpreter that actually runs FLAC tests.
+- **Red evidence** — `/home/zhixuanzhao/projects/Frame_Average/FLAC-vanilla/.venv/bin/python -m pytest src/tests -q` failed collection at `src/tests/test_eval_paths.py` with `ModuleNotFoundError: compare_predictions`. The same interpreter reported Open3D missing while holding torch 2.7.0+cu126, torchaudio 2.7.0+cu126, PyTorch Lightning 2.1.0, NumPy 1.23.5, and pytest 9.1.1.
+- **Change** — `test_eval_paths.py` now walks to a `.git` file-or-directory marker and resolves `worklog/worklog_yixun/exp_02_yaw_noninvariance_claude`; `pyproject.toml` pins `open3d==0.19.0`. Installed that exact version into the recorded FLAC venv while every command remained launched from the NeuriPs_Workshop worktree.
+- **Green evidence** — complete permanent suite: `120 passed, 1 skipped, 11 warnings in 30.04s`; explicit runtime readback: interpreter `/home/zhixuanzhao/projects/Frame_Average/FLAC-vanilla/.venv/bin/python`, Open3D `0.19.0`; `git diff --check` passed.
+- **Independent-review attempt** — authenticated Claude Code 2.1.238 native CLI, model alias `opus`, read-only/plan permission. Two max-effort requests (full and narrowed R0 diff) and one low-effort minimal retry each ended with `Request timed out` without a verdict or file mutation. This is preserved as reviewer infrastructure failure, not represented as review approval.
+- **Result** — implementation/tests are green; independent R0 review remains pending because the reviewer service returned no result. Continue bounded TDD work without launching generation, and retry/consolidate Opus review before interpreting or launching I1.
+- **Next** — commit R0, then begin D1 test-first global-RNG manifest construction.

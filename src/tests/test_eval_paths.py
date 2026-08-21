@@ -31,9 +31,19 @@ import torch
 
 import eval_FLAC  # noqa: E402  (heavy but side-effect-free at import; argparse is under main())
 
-# The exp_02 comparator lives in a worklog dir that is not a package; add it to
-# sys.path so ``import compare_predictions`` resolves to the real file.
-_EXP02_DIR = Path(__file__).resolve().parents[2] / "worklog" / "exp_02_yaw_noninvariance_claude"
+# The exp_02 comparator lives in a worklog dir that is not a package. Resolve
+# the repository by its .git marker so this survives both worktrees (.git is a
+# file) and ordinary clones (.git is a directory), then use the post-migration
+# worklog_yixun namespace.
+def _find_repo_root(start: Path) -> Path:
+    for candidate in (start, *start.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    raise RuntimeError("repository root (.git marker) not found")
+
+
+_REPO_ROOT = _find_repo_root(Path(__file__).resolve().parent)
+_EXP02_DIR = _REPO_ROOT / "worklog" / "worklog_yixun" / "exp_02_yaw_noninvariance_claude"
 if str(_EXP02_DIR) not in sys.path:
     sys.path.insert(0, str(_EXP02_DIR))
 import compare_predictions  # noqa: E402
