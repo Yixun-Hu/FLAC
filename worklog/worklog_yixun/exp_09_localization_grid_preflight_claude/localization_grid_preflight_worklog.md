@@ -80,3 +80,12 @@
 - **Result** — `fix_ready`; all B1–B6 and N1–N9 map to explicit plan text and tests. The revised approval authorizes only R0→D1→G1; the workflow stops again for the exact post-G1 geometry/cost gate before I1.
 - **Analysis** — the recommended choices preserve baseline context parity and the agreed 0.5 m 3-D lattice while removing measured oracle damage and denominator loss. Expensive generation is still not authorized. The 168-GPU-hour threshold is a pre-quality resource ceiling; if even cached K=1 exceeds it, the experiment blocks for resources instead of silently changing candidates.
 - **Next** — commit the review/revised plan bookkeeping and ask Yixun to approve the bounded R0→D1→G1 phase.
+
+## 2026-08-20T22:19:40-04:00 — reviewed-plan approval boundary committed
+
+- **Goal** — freeze the exact plan presented for Yixun's approval.
+- **Version Control** — review/revision commit `c5b7b5a9a28c23550bf8f63b9325f3965ce1a456`; changed only the Opus review artifact, revised plan, append-only worklog, and commits ledger. No implementation code, tests, config, dependency, or environment changed.
+- **Command / Validation** — `git diff --check`; `git commit -m "exp_09: revise plan after Opus review"`.
+- **Result** — `passed`; branch `localization-exp` reached a clean four-commit-ahead approval boundary before the final bookkeeping commit.
+- **Analysis** — the `REQUEST-CHANGES` review is preserved verbatim and the plan contains an explicit response for every B1–B6/N1–N9 item.
+- **Next** — Yixun approves or amends the bounded R0→D1→G1 phase; only then may implementation begin.
