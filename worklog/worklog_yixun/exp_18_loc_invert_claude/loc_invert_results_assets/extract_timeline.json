@@ -21,7 +21,8 @@
     "r4m4",
     "r4m5",
     "r4m6",
-    "r8"
+    "r8",
+    "r8b"
   ],
   "runs": [
     {
@@ -77,8 +78,11 @@
   ],
   "source": "committed record: loc_invert_results.md, loc_invert_command.md, commits_loc_invert.md (line citations in the function's docstring)",
   "tests": {
-    "localization_files": 6,
-    "note": "full repository suite at the end of r4m6 (1 unrelated exp_11 registry failure, owned by exp_15)",
-    "suite_total": 2666
+    "localization_files": 7,
+    "note": "full repository suite at the end of r8b; the one failure is exp_11 registry drift owned by exp_15, not exp_18",
+    "source_file": "worklog/worklog_yixun/exp_18_loc_invert_claude/commits_loc_invert.md",
+    "source_quote": "2688 passed, 10 skipped, 1 pre-existing unrelated failure",
+    "suite_skipped": 10,
+    "suite_total": 2688
   }
 }
