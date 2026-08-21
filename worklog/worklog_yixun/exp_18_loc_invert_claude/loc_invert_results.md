@@ -63,3 +63,6 @@ FLAC top-1 0.5007 | chance 0.1111 | retrieval 0.1062 | ctx-member 0.0513 | paire
 FLAC top-1 0.5065 | chance 0.1111 | retrieval 0.1096 | ctx-member 0.0494 | vs-retrieval p≈0, −1.584 m.
 **R2b three-seed: FLAC 0.5029 ± 0.0032 vs retrieval 0.1079 ± 0.0017 — the sparse-context reversal is seed-stable.**
 **Registered campaign fully complete: R-1, R0, R1(+τ), R2×3, R2b×3, all gates green, all waveform dumps per rule (R2 seeds via overnight replay).**
+
+## R3 constant-source wiring control (2026-08-21 01:30 EDT) — PASSED
+Pre-registered 200-query seen slice, all candidates conditioned at the candidate centroid: pooled median e_loc 7.00 m vs matched baseline 5.70 m (normal pipeline on these rooms: 0.0 m) — complete collapse to/below chance. **The conditioning coordinate is the load-bearing input; §2.8.1 control closed. All registered runs and controls of exp_18 are now complete.**
