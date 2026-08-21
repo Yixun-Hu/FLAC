@@ -212,3 +212,15 @@ sbatch --hold --parsable --job-name=exp16-reval-seen_s42 --export=EXPECT_SHA=afe
 sbatch --hold --parsable --job-name=exp16-reval-u8_s42_a100 --partition= --qos= --gres=gpu:a100:1 --export=EXPECT_SHA=afe8d967e16a72a0f90796fd009a7346f4660c91,CELL=u8_s42_a100 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
 ```
 
+## 2026-08-21T13:35:32-04:00 — exp16-cont (cont) — 1 legs — jobs 12730265
+
+- EXPECT_SHA: `b86b2fa2f1cf60e2ecf670a0deca8f2a3b7d2d30`
+- chain: TOTAL=67500 CHUNK=67500 S0=0 PROBE=0 CONT=1
+- save-dir: `/scratch/gpfs/BLANCHETTE/yh4742/FLAC/checkpoints/exp16_vanilla_repro_cont`
+- manifest: none (continuous single-job arm)
+- submitted by: `yh4742@della9.princeton.edu`
+
+```bash
+sbatch --hold --parsable --job-name=exp16-cont --time=1-00:00:00 --export=EXPECT_SHA=b86b2fa2f1cf60e2ecf670a0deca8f2a3b7d2d30,CHAIN_TOTAL=67500,CHAIN_CHUNK=67500,CONT=1 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_chain.sbatch
+```
+
