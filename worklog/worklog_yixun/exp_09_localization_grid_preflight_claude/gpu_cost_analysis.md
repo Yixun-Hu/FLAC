@@ -33,20 +33,22 @@ The projections below include query audio/depth I/O, query-context cache, observ
 | Score samples (`K_score`) | Vanilla | FA-BF | Serial two-arm total |
 |---:|---:|---:|---:|
 | 1 | 18.06 GPU-h | 20.25 GPU-h | 38.31 GPU-h |
-| 2 | 35.49 GPU-h | 38.00 GPU-h | 73.49 GPU-h |
-| **4** | **70.34 GPU-h** | **73.52 GPU-h** | **143.86 GPU-h (5.99 days)** |
+| 4 | 70.34 GPU-h | 73.52 GPU-h | 143.86 GPU-h (5.99 days) |
+| **8** | **140.05 GPU-h** | **144.54 GPU-h** | **284.59 GPU-h (11.86 days)** |
 
-As a measured lower-throughput bound, replacing each arm's winning rate by its slowest individual timed batch across all probe sizes gives 76.48 GPU-hours for Vanilla and 80.84 GPU-hours for FA-BF at `K=4`, or **157.32 GPU-hours (6.56 days)** serial. A separate 10% operational reserve yields **173.05 GPU-hours (7.21 days)**; this reserve covers orchestration, tail batches, filesystem contention, and resume overhead and is not used to change the pre-registered K ladder.
+Yixun's latest decision fixes `K∈{1,4,8}`. These are nested prefix readouts: generate eight counter-seeded samples once, then aggregate samples 0, 0–3, and 0–7. Therefore reporting all three costs the K=8 row, not the sum of the three rows.
 
-With two equivalent free A6000s, the nominal wall time is governed by FA-BF at about **73.52 hours (3.06 days)**; the measured conservative bound is **80.84 hours (3.37 days)**. GPU-hours remain additive.
+As a measured lower-throughput bound, replacing each arm's winning rate by its slowest individual timed batch across all probe sizes gives 152.32 GPU-hours for Vanilla and 159.20 GPU-hours for FA-BF at `K=8`, or **311.52 GPU-hours (12.98 days)** serial. A separate 10% operational reserve yields **342.67 GPU-hours (14.28 days)**; this reserve covers orchestration, tail batches, filesystem contention, and resume overhead.
+
+With two equivalent free A6000s, nominal K=8 wall time is governed by FA-BF at about **144.54 hours (6.02 days)**; the measured conservative bound is **159.20 hours (6.63 days)**. GPU-hours remain additive.
 
 ## Artifact size
 
-- Float32 scores only: 33.92 MiB (`K_score=1`), 67.84 MiB (`K_score=2`), 135.68 MiB (`K_score=4`), before metadata.
-- Saving every 10,240-sample float32 generated waveform would require 339.20 GiB, 678.39 GiB, or 1,356.78 GiB respectively. The later engine must stream scores/features and must not persist the complete waveform cartesian product.
+- Float32 per-sample scores only: 33.92 MiB (`K_score=1`), 135.68 MiB (`K_score=4`), or 271.35 MiB (`K_score=8`), before metadata. A single nested K=8 score tensor supplies all three readouts.
+- Saving every 10,240-sample float32 generated waveform would require 339.20 GiB, 1,356.78 GiB, or 2,713.56 GiB respectively. The later engine must stream scores/features and must not persist the complete waveform cartesian product.
 
 ## Gate conclusion
 
-The cache-enabled no-quality gate certifies `K_score=4`: nominal serial two-arm compute is 143.86 GPU-hours and the slowest-measured-batch projection is 157.32 GPU-hours, both below the pre-registered 168-hour ceiling. `K=4` is therefore frozen globally before any localization quality value is read. Candidate spacing, queries, masks, `tau`, and K remain unchanged.
+The earlier no-quality gate had selected K=4 under the provisional ladder. Yixun has now explicitly superseded that ladder with the three fixed nested readouts `K∈{1,4,8}`. Full execution is consequently governed by K=8: nominal serial two-arm compute is 284.59 GPU-hours and the slowest-measured-batch projection is 311.52 GPU-hours. Both exceed the earlier 168-hour launch ceiling. Candidate spacing, queries, masks, and `tau` remain unchanged, but a new compute authorization is required before full generation.
 
 This is a component-complete GPU projection, not yet a full-room wall-clock smoke. The later bounded one-room smoke must still validate job orchestration, candidate iteration, streamed aggregation, and resume behavior. The 10% reserve is the appropriate scheduling number until that smoke completes.

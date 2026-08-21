@@ -5,6 +5,7 @@ from src.localization.engine import (
     CONTEXT_CONDITIONING_IDS,
     FA_CONTEXT_CONDITIONING_IDS,
     FA_DYNAMIC_CONDITIONING_IDS,
+    SCORE_SAMPLE_COUNTS,
     SOURCE_CONDITIONING_IDS,
     cache_conditioning_branch,
     cache_invariant_conditioning_branch,
@@ -164,6 +165,7 @@ def test_candidate_seeds_and_noise_are_batch_partition_invariant():
 
 
 def test_runtime_projection_adds_cache_and_generation_components():
+    assert SCORE_SAMPLE_COUNTS == (1, 4, 8)
     projected = project_runtime_seconds(
         query_count=10,
         receiver_candidate_count=100,

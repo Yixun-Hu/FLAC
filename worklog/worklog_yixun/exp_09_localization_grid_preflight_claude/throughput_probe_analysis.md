@@ -19,15 +19,17 @@ Date: 2026-08-21. Device: NVIDIA RTX A6000. This probe read no localization qual
 
 Each final arm measured 512 real candidates, source batch 64, generation batches 128/256/512, one warm-up per size, and eight timed batches per size.
 
-| Arm | Winning batch | Generation + decode + AGREE | Source cache | Peak memory | `K=4`, startup included |
+| Arm | Winning batch | Generation + decode + AGREE | Source cache | Peak memory | `K=8`, startup included |
 |---|---:|---:|---:|---:|---:|
-| Vanilla | 512 | 141.732/s | 713.546/s | 7.186 GB | 70.34 GPU-h |
-| FA-BF C4 | 512 | 139.099/s | 145.935/s | 7.188 GB | 73.52 GPU-h |
-| **Serial total** |  |  |  |  | **143.86 GPU-h / 5.99 days** |
+| Vanilla | 512 | 141.732/s | 713.546/s | 7.186 GB | 140.05 GPU-h |
+| FA-BF C4 | 512 | 139.099/s | 145.935/s | 7.188 GB | 144.54 GPU-h |
+| **Serial total** |  |  |  |  | **284.59 GPU-h / 11.86 days** |
 
-The slowest individual timed batch from all probe sizes produces a conservative total of 157.32 GPU-hours / 6.56 days. Adding an operational 10% reserve gives 173.05 GPU-hours / 7.21 days. With two equivalent free A6000s, nominal wall time is 73.52 hours / 3.06 days.
+Yixun's 2026-08-21 override fixes three reported settings: `K∈{1,4,8}`. They use one nested sequence of eight deterministic samples, so K=1 is prefix 0, K=4 is prefix 0–3, and K=8 is prefix 0–7. Reporting all three therefore costs one K=8 execution.
 
-The pre-registered `4 -> 2 -> 1` rule therefore selects **`K=4`**. Even the slowest-measured-batch projection is below 168 GPU-hours; no grid, query, mask, or score parameter changed.
+Standalone two-arm projections for K=1/4/8 are 38.31/143.86/284.59 GPU-hours. The slowest individual timed batch produces a K=8 conservative total of 311.52 GPU-hours / 12.98 days. Adding an operational 10% reserve gives 342.67 GPU-hours / 14.28 days. With two equivalent free A6000s, nominal K=8 wall time is 144.54 hours / 6.02 days.
+
+The earlier `4 -> 2 -> 1` ladder is superseded. K=8 exceeds the former 168-hour full-execution ceiling, so the setting change is frozen before quality but the full run still needs explicit compute approval.
 
 ## Cache integrity
 
@@ -41,6 +43,7 @@ The pre-registered `4 -> 2 -> 1` rule therefore selects **`K=4`**. Even the slow
 
 - `throughput_probe_vanilla_cached_final.json`: internal canonical SHA `e60f8ead63b0fcf8c8522d7adafc84484852324d832c86a7c68a47bbcc979ca4`; file SHA-256 `e15dc30dfc3aca4609b05fa26831192b8df707ab4cd2b26fae39741bf2f93db7`.
 - `throughput_probe_fa_bf_cached_run2.json`: internal canonical SHA `f59434cd31abe62fb3b055bd68841da1d7f9cd6322283077fc48d7fd993c2532`; file SHA-256 `ed5611c97a9338970d6f6eade4d54e2056c859ca658a25273c77adc07c495828`.
+- `throughput_projection_k1_k4_k8.json`: deterministic CPU-only reprojection of the two final timing files under the later `K∈{1,4,8}` decision; file SHA-256 `5a0d2b08e1be28b7a49cbf478ed18b0c8d6205452dbfa3a487ab79060c29864a`.
 - Earlier batch-32/64/128 and independent Vanilla repeats remain as no-quality repeatability evidence. The final same-engine files above control the estimate.
 
 The remaining uncertainty is orchestration rather than GPU kernel throughput: a bounded one-room smoke must still validate candidate iteration, streamed aggregation, tail batches, output/resume hashes, and wall-clock overhead before the full quality run.

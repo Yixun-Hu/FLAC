@@ -42,6 +42,7 @@ CONTEXT_CONDITIONING_IDS = (
 FA_CONTEXT_CONDITIONING_IDS = ("context_poses_vit", "context_audio")
 FA_DYNAMIC_CONDITIONING_IDS = ("context_poses",)
 ALL_CONDITIONING_IDS = (*SOURCE_CONDITIONING_IDS, *CONTEXT_CONDITIONING_IDS)
+SCORE_SAMPLE_COUNTS = (1, 4, 8)
 
 
 def _offline_dinov3_config_path() -> Path:

@@ -23,6 +23,7 @@ from src.localization.engine import (
     CONTEXT_CONDITIONING_IDS,
     FA_CONTEXT_CONDITIONING_IDS,
     FA_DYNAMIC_CONDITIONING_IDS,
+    SCORE_SAMPLE_COUNTS,
     SOURCE_CONDITIONING_IDS,
     cache_conditioning_branch,
     cache_invariant_conditioning_branch,
@@ -461,17 +462,13 @@ def main() -> None:
         "generated_scores_per_second": winner["aggregate_scores_per_second"],
     }
     projections = {}
-    for score_samples in (1, 2, 4):
+    for score_samples in SCORE_SAMPLE_COUNTS:
         projection = _project_all(audit["totals"], measurements, score_samples)
         projection["total_gpu_hours"] = projection["total_seconds"] / 3600.0
         projection["total_gpu_days"] = projection["total_seconds"] / 86400.0
         projections[str(score_samples)] = projection
 
     budget_hours = 168.0
-    selected_k = next(
-        (k for k in (4, 2, 1) if projections[str(k)]["total_gpu_hours"] <= budget_hours),
-        None,
-    )
     result = {
         "schema_version": 1,
         "no_quality_values_saved": True,
@@ -509,7 +506,8 @@ def main() -> None:
         "conditioning_parity": parity,
         "projections": projections,
         "budget_gpu_hours": budget_hours,
-        "selected_score_samples": selected_k,
+        "requested_score_samples": list(SCORE_SAMPLE_COUNTS),
+        "maximum_score_samples": max(SCORE_SAMPLE_COUNTS),
         "summary_statistics": {
             "context_seconds_median": statistics.median(context_times),
             "context_seconds_p10": _percentile(context_times, 10),
@@ -531,7 +529,7 @@ def main() -> None:
         "winning_generation_batch_size": result["winning_generation_batch_size"],
         "measurements": result["measurements"],
         "projections": result["projections"],
-        "selected_score_samples": result["selected_score_samples"],
+        "requested_score_samples": result["requested_score_samples"],
     }, indent=2))
 
 

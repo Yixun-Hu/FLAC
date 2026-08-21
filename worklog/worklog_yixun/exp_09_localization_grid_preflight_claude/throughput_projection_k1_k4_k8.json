@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "decision_date": "2026-08-21",
+  "no_quality_values_read": true,
+  "requested_score_samples": [
+    1,
+    4,
+    8
+  ],
+  "nested_prefix_samples": true,
+  "maximum_generated_samples_per_candidate": 8,
+  "candidate_query_pairs_per_sample": 8891826,
+  "budget_gpu_hours": 168.0,
+  "source_timing_evidence": {
+    "vanilla_file": "throughput_probe_vanilla_cached_final.json",
+    "vanilla_internal_sha256": "e60f8ead63b0fcf8c8522d7adafc84484852324d832c86a7c68a47bbcc979ca4",
+    "fa_bf_file": "throughput_probe_fa_bf_cached_run2.json",
+    "fa_bf_internal_sha256": "f59434cd31abe62fb3b055bd68841da1d7f9cd6322283077fc48d7fd993c2532"
+  },
+  "arms": {
+    "vanilla": {
+      "generated_scores_per_second": 141.73217365421536,
+      "slowest_measured_batch_scores_per_second": 130.27112705814736,
+      "fixed_overhead_seconds_including_startup": 2289.8306594102687,
+      "nominal_gpu_hours": {
+        "1": 18.06295877765023,
+        "4": 70.3436428944257,
+        "8": 140.051221716793
+      },
+      "slowest_measured_batch_gpu_hours": {
+        "1": 19.596149260883006,
+        "4": 76.47640482735679,
+        "8": 152.31674558265516
+      }
+    },
+    "fa_bf": {
+      "generated_scores_per_second": 139.09923568312794,
+      "slowest_measured_batch_scores_per_second": 126.08992269838981,
+      "fixed_overhead_seconds_including_startup": 8960.173682488748,
+      "nominal_gpu_hours": {
+        "1": 20.245696576566,
+        "4": 73.51597490419005,
+        "8": 144.54301267435545
+      },
+      "slowest_measured_batch_gpu_hours": {
+        "1": 22.07774814927804,
+        "4": 80.8441811950382,
+        "8": 159.19942525605177
+      }
+    }
+  },
+  "serial_two_arm_totals": {
+    "nominal_gpu_hours": {
+      "1": 38.30865535421623,
+      "4": 143.85961779861574,
+      "8": 284.59423439114846
+    },
+    "slowest_measured_batch_gpu_hours": {
+      "1": 41.67389741016105,
+      "4": 157.320586022395,
+      "8": 311.5161708387069
+    },
+    "k8_nominal_gpu_days": 11.858093099631185,
+    "k8_slowest_measured_batch_gpu_days": 12.979840451612787,
+    "k8_slowest_measured_plus_10pct_gpu_hours": 342.6677879225776,
+    "k8_slowest_measured_plus_10pct_gpu_days": 14.277824496774066
+  },
+  "former_budget_gate_passes_at_k8": false,
+  "full_generation_authorized": false
+}

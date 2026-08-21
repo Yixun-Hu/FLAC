@@ -9,7 +9,7 @@
 | Context duplicate guard | `0.25 m` |
 | Height branch | context z range padded by `0.50 m` at both ends |
 | Ground-truth insertion | prohibited |
-| Score samples | `K=4`, selected by the pre-registered no-quality runtime ladder |
+| Score samples | fixed nested readouts `K∈{1,4,8}`; generate through K=8 once |
 | Sampler / guidance | rectified-flow discrete Euler, one step, CFG `1.0` |
 | Score temperature | `tau=0.1` |
 
@@ -38,4 +38,4 @@ All source and receiver anchor votes exceed the 15/31 rejection boundary.
 
 ## Measured execution budget
 
-On one RTX A6000, final same-engine probes project 70.34 GPU-hours for Vanilla and 73.52 GPU-hours for FA-BF, including one model startup per arm. Serial total is 143.86 GPU-hours; the slowest individual measured batch gives 157.32 GPU-hours. Both are below the frozen 168-hour gate, so `K=4` is selected before reading any localization score. See `throughput_probe_analysis.md` for the exact cache split and evidence hashes.
+On one RTX A6000, K=8 final same-engine projections are 140.05 GPU-hours for Vanilla and 144.54 GPU-hours for FA-BF, including one model startup per arm. Because K=1/4 are nested prefixes of the same K=8 samples, all three readouts cost 284.59 GPU-hours / 11.86 serial days total; the slowest individual measured batch gives 311.52 GPU-hours / 12.98 days. This exceeds the earlier 168-hour launch ceiling, so the protocol change is recorded before quality but full generation awaits renewed compute approval. See `throughput_probe_analysis.md` for the exact cache split and evidence hashes.

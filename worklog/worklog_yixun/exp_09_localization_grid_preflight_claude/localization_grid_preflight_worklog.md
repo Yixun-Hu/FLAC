@@ -188,3 +188,11 @@
 ## 2026-08-21 — real throughput gate committed
 
 - **Version Control** — committed the real cache engine, offline strict-load architecture, tests, five no-quality repeat/final timing JSONs, measured cost analysis, frozen `K=4` plan amendment, and notebook evidence as `c35553db319914057055736c883c9cf7f0bfe0f8` (`exp_09: measure real cached localization throughput`).
+
+## 2026-08-21 — Yixun replaces the three K settings with 1/4/8
+
+- **Decision** — Yixun directed: “三个变成K=1，4，8”. This explicitly supersedes the provisional single-K selection and the `4 -> 2 -> 1` runtime fallback. The reported stochastic settings are now fixed at `K∈{1,4,8}`.
+- **Nested execution** — generate one counter-seeded sequence of eight RIRs per query/candidate. K=1 aggregates sample 0, K=4 aggregates samples 0–3, and K=8 aggregates samples 0–7. This supplies all three paired readouts for the cost of K=8 and prevents different K values from receiving unrelated randomness.
+- **CPU-only reprojection** — no new GPU generation and no quality read. Applying the final measured rates to the exact 8,891,826 pairs gives two-arm totals 38.31/143.86/284.59 GPU-hours for K=1/4/8. The requested nested run is governed by K=8: 140.05 hours Vanilla + 144.54 hours FA-BF = **284.59 GPU-hours / 11.86 serial days**. Slowest-measured-batch bound: **311.52 hours / 12.98 days**; plus 10% operations reserve: 342.67 hours / 14.28 days.
+- **Budget boundary** — K=8 exceeds the earlier 168-hour full-execution ceiling. This entry freezes the requested K values but does not infer authorization for the larger full generation. A renewed compute decision is required after presenting the updated cost.
+- **Change** — `SCORE_SAMPLE_COUNTS=(1,4,8)` is the code contract; the probe reports all three projections and no longer chooses one K. Plan, parameters, cost analysis, and `throughput_projection_k1_k4_k8.json` now reflect the override.
