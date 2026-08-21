@@ -603,10 +603,26 @@ def test_real_slice_agrees_with_what_the_driver_recorded(tmp_path):
     assert set(mr.PRIMARY_FAMILIES) <= seen_families
     assert set(mr.SECONDARY_FAMILIES) <= seen_families
 
-    scan = mr.scan_seed(slice_metrics, slice_rows)
+    scan = mr.scan_seed(slice_metrics, slice_rows, seed=42)
     assert scan["n_queries"] == 12
     report = mr.build_seed_report(scan, seed=42, n_boot=50)
     assert report["families"]["m1"]["primary"]["n_queries"] == 12
+
+    if os.path.exists(_REAL_ORACLE):
+        slice_oracle = os.path.join(str(tmp_path), "slice_oracle.jsonl")
+        with open(_REAL_ORACLE) as src, open(slice_oracle, "w") as dst:
+            for line, _ in zip(src, range(12)):
+                dst.write(line)
+        with_oracle = mr.scan_seed(slice_metrics, slice_rows, seed=42,
+                                   oracle_path=slice_oracle)
+        assert len(with_oracle["oracle"]["m1"]) == 12
+        # the published control's own verdict and the recomputed record agree
+        for record, row in zip(with_oracle["oracle"]["m1"], mr.iter_rows(slice_oracle)):
+            assert bool(record["top1"]) == bool(row["families"]["m1"]["oracle_correct"])
+
+
+_REAL_ORACLE = ("outputs_loc/exp18/exp18_R4_oracle_metrics_retrieval_seed42_"
+                "ds-063c66c241_rows.jsonl")
 
 
 # --------------------------------------------------------------------------- #
