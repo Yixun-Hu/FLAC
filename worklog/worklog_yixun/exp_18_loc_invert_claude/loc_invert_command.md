@@ -122,3 +122,6 @@ nohup python eval_localization.py --mode run --score-source flac \
 
 ## R4 unseen replay seed 43 (2026-08-20_20:03:45 EDT) — same pattern, --seed 43 --device cuda:0, dump R2_K8_seed43_replay
 ## R4 unseen replay seed 44 (2026-08-20_22:13:22 EDT) — same pattern, cuda:1, dump R2_K8_seed44_replay
+
+## R3 constant-source wiring control (2026-08-21_01:21:22 EDT)
+Same as R0-style seen smoke: --smoke --max-queries 200 --control constant_source --seed 42 --tau 0.02 --num-samples 8 (log loc_invert_2026-08-21_01:21:22_R3_control.log)

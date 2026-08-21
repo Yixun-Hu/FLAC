@@ -327,3 +327,9 @@
 - **Result** — Calibration replay: verify_against all_match=true over 1,194 (bit-reproducibility proven on real data); calibrate: **Δmax=8 registered** (dev top-1 0.608; inverted-U 0.440/0.608/0.405/0.252 — TOF-cue preservation confirmed), M4 μ/σ (10 features) frozen, t30 backend pyroomacoustics. Manifest completed (seeds, R2 identity digest 60c56165…, candidate manifest da1a1410…, both protocol-manifest digests) and FROZEN at d6dbf0073d9eb4c30f9df971f772872bab6a4122. No unseen metric data inspected before the freeze.
 - **Acceptance criteria (each unseen R4 pass)** — both registration gates pass at d6dbf0073d9eb4c30f9df971f772872bab6a4122; verify_against all_match=true over 6,337; dumps complete; metrics-JSONL publishes only after all gates; original R2 artifacts untouched.
 - **Result** — seed 42 unseen replay+metrics launched (cuda:1); seeds 43/44 follow as GPUs free.
+
+## 2026-08-21T01:25:00-0400 — R4 unseen passes ALL COMPLETE; R3 control launched; aggregation round dispatched
+
+- **Result** — Seeds 42/43/44 replay+metrics+dump passes all published; verify_against all_match on every pass (the three registered R2 runs are now each bit-reproduced end-to-end); ~60 GB of pred waveforms on the NAS per announcement 08.
+- **Acceptance criteria (R3, pre-registered here before launch)** — constant-source control on the FIRST 200 identities of the seen enumeration (smoke): with all candidates conditioned at the candidate centroid, localization must collapse to ≈ the information-matched baseline (top-1 within noise of chance; the geometry/membership blocks must equal the normal run's — r6-review F3 fix). PASS = collapse observed; conditioning proven load-bearing.
+- **Result** — R3 launched (seen, 200 queries, seed 42, cuda:0).
