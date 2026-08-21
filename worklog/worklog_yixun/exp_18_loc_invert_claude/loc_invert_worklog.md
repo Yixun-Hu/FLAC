@@ -348,3 +348,6 @@
 ## 2026-08-21 (see commit) — exp_18 CLOSED by Yixun; branch pushed
 
 - **Result** — Yixun (verbatim): "yeah, you can complete the exp_18, push to the remote: yes". Tracker flipped to CLOSED. exp_20 directed: BF + Yaw-augment arms under the same analysis-by-synthesis protocol; checkpoint availability being verified on the NAS.
+
+## 2026-08-21 (see commit) — Branch PUSHED to origin
+- `localization-exp` → github.com:Yixun-Hu/FLAC (new branch, tracking set; push-url switched to SSH after Yixun added the key; fetch remains HTTPS). exp_18 record is fully remote.
