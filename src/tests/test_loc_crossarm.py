@@ -264,3 +264,260 @@ def test_load_integrity_uses_the_registered_whitelist(monkeypatch, arm_files):
     record = ca.admit_checkpoint(ckpt, config, arm="P1", check_load_integrity=True)
     assert record["admitted"] is True, record["reasons"]
     assert record["load_integrity"]["n_whitelisted"] == 3
+
+
+# --------------------------------------------------------------------------- #
+# B1 -- FA protocol binding: the chunk plan is DECLARED, not inherited
+# --------------------------------------------------------------------------- #
+def _fa_metadata(n=3, img_w=16, height=8):
+    """Minimal metadata the frame-average path accepts: a depth panorama and the
+    pose fields the ViT conditioners read."""
+    out = []
+    generator = torch.Generator().manual_seed(11)
+    for i in range(n):
+        depth = torch.randn(3, height, img_w, generator=generator)
+        out.append({
+            "depth": depth,
+            "source": torch.tensor([1.0 + i, 2.0, 0.5]),
+            "source_vit": torch.tensor([1.0 + i, 2.0, 0.5]),
+            "context_poses": torch.tensor([[0.5, 1.5, 0.4], [2.0, 0.5, 0.6]]),
+            "context_poses_vit": torch.tensor([[0.5, 1.5, 0.4], [2.0, 0.5, 0.6]]),
+            "scene": f"room{i}",
+        })
+    return out
+
+
+class _RecordingConditioner:
+    """A deterministic stand-in that records the batch size of every forward."""
+
+    def __init__(self, ids=("source_vit", "context_poses_vit", "context_audio")):
+        self.ids, self.calls = ids, []
+
+    def __call__(self, metadata, device, only_ids=None):
+        ids = only_ids or self.ids
+        self.calls.append({"batch": len(metadata), "ids": tuple(ids)})
+        out = {}
+        for name in ids:
+            rows = []
+            for md in metadata:
+                pose = md.get("source_vit" if "source" in name else "context_poses_vit")
+                value = torch.as_tensor(pose).reshape(-1)[:3].sum() + float(md["depth"].sum())
+                rows.append(torch.stack([value, value * 2.0]))
+            out[name] = [torch.stack(rows), torch.ones(len(metadata), 1)]
+        return out
+
+
+def test_per_angle_cap_gives_one_forward_per_angle():
+    """cap = candidate micro-batch => angles_per_chunk == 1 (plan B1)."""
+    from src.data.yaw_rotation import invariant_conditioning
+
+    metadata = _fa_metadata(n=3)
+    per_angle = _RecordingConditioner()
+    invariant_conditioning(per_angle, metadata, "cpu", ca.FA_ANGLES,
+                           max_fwd_samples=ca.fa_max_fwd_samples(metadata))
+    orbit_calls = [c for c in per_angle.calls if c["batch"] != 3 or c["ids"] != per_angle.ids]
+    assert [c["batch"] for c in orbit_calls] == [3, 3, 3], per_angle.calls
+
+    batched = _RecordingConditioner()
+    invariant_conditioning(batched, metadata, "cpu", ca.FA_ANGLES)      # module default 64
+    orbit_calls = [c for c in batched.calls if c["ids"] != batched.ids]
+    assert [c["batch"] for c in orbit_calls] == [9], batched.calls
+
+
+def test_fa_conditioning_helper_matches_the_reference_orbit():
+    """The driver's FA call must equal the per-angle reference accumulation."""
+    from src.data.yaw_rotation import invariant_conditioning
+
+    metadata = _fa_metadata(n=2)
+    driver = ca.fa_conditioning(_RecordingConditioner(), metadata, "cpu", ca.FA_ANGLES)
+    reference = invariant_conditioning(_RecordingConditioner(), metadata, "cpu", ca.FA_ANGLES,
+                                       max_fwd_samples=len(metadata))
+    for key in ("source_vit", "context_poses_vit"):
+        assert torch.equal(driver[key][0], reference[key][0])
+
+
+def test_fa_run_state_declares_every_locked_field():
+    state = ca.fa_run_state(cond_method="fa_invariant", frame_avg_angles=[0, 90, 180, 270],
+                            rotate_deg=0.0, cond_autocast="default")
+    assert state["frame_avg_angles"] == [0.0, 90.0, 180.0, 270.0]
+    assert state["frame_avg_chunk_plan"] == ca.FA_CHUNK_PLAN == "per_angle"
+    assert state["orbit_execution"] == "per_angle"
+    assert set(ca.FA_LOCKED_FIELDS) <= set(state)
+
+
+def test_fa_registration_lock_detects_every_mutation():
+    state = ca.fa_run_state(cond_method="fa_invariant", frame_avg_angles=ca.FA_ANGLES,
+                            rotate_deg=0.0, cond_autocast="default")
+    manifest = dict(state)
+    assert ca.fa_reasons(manifest, state) == []
+    for field, mutated in (("frame_avg_angles", [0.0, 120.0, 240.0]),
+                           ("rotate_deg", 90.0),
+                           ("cond_autocast", "off"),
+                           ("frame_avg_chunk_plan", "batched"),
+                           ("cond_method", "vanilla")):
+        broken = dict(manifest, **{field: mutated})
+        reasons = ca.fa_reasons(broken, state)
+        assert any(field in reason for reason in reasons), (field, reasons)
+    missing = {k: v for k, v in manifest.items() if k != "frame_avg_angles"}
+    assert any("frame_avg_angles" in r for r in ca.fa_reasons(missing, state))
+
+
+# --------------------------------------------------------------------------- #
+# B1(c) -- the refusal matrix, and what it can honestly bind to
+# --------------------------------------------------------------------------- #
+def test_cond_method_binds_to_the_checkpoint_when_the_checkpoint_says(tmp_path):
+    fa_ckpt = torch.load(_write_ckpt(tmp_path / "bf.ckpt", config=_fa_config()),
+                         map_location="cpu", weights_only=True)
+    vanilla_ckpt = torch.load(_write_ckpt(tmp_path / "p1.ckpt"), map_location="cpu",
+                              weights_only=True)
+
+    ok = ca.cond_method_binding(fa_ckpt, "fa_invariant")
+    assert ok["binding"] == "checkpoint" and ok["reasons"] == []
+    bad = ca.cond_method_binding(fa_ckpt, "vanilla")
+    assert bad["reasons"] and "fa_invariant" in bad["reasons"][0]
+    bad = ca.cond_method_binding(vanilla_ckpt, "fa_invariant")
+    assert bad["reasons"] and "vanilla" in bad["reasons"][0]
+    assert ca.cond_method_binding(vanilla_ckpt, "vanilla")["reasons"] == []
+
+
+def test_cond_method_binding_is_honest_about_a_stripped_release():
+    """The released EMA checkpoint carries no model_config at all, so the method
+    is NOT detectable from the file and the binding rests on the manifest."""
+    verdict = ca.cond_method_binding({"state_dict": {}}, "vanilla")
+    assert verdict["binding"] == "manifest" and verdict["reasons"] == []
+    assert "not detectable" in verdict["note"]
+    # ... and an fa run on such a file is allowed only by the manifest, labelled
+    assert ca.cond_method_binding({"state_dict": {}}, "fa_invariant")["binding"] == "manifest"
+
+
+# --------------------------------------------------------------------------- #
+# B1(b) -- the fa parity gate
+# --------------------------------------------------------------------------- #
+def test_fa_parity_gate_passes_on_matched_paths():
+    metadata = _fa_metadata(n=2)
+    verdict = ca.fa_parity_gate(lambda: _RecordingConditioner(), metadata, device="cpu",
+                                angles=ca.FA_ANGLES, autocast=False)
+    assert verdict["match"] is True and verdict["max_abs_diff"] == 0.0
+    assert verdict["bitwise"] is True and verdict["autocast"] is False
+    assert set(verdict["ids"]) >= {"source_vit", "context_poses_vit"}
+
+
+def test_fa_parity_gate_detects_a_divergent_replay():
+    """A replay that averages a different orbit is exactly what the gate exists
+    to catch."""
+    metadata = _fa_metadata(n=2)
+    verdict = ca.fa_parity_gate(lambda: _RecordingConditioner(), metadata, device="cpu",
+                                angles=ca.FA_ANGLES, replay_angles=(0.0, 90.0),
+                                autocast=False)
+    assert verdict["match"] is False and verdict["max_abs_diff"] > 0.0
+
+
+def test_fa_parity_gate_records_a_tolerance_under_autocast():
+    metadata = _fa_metadata(n=2)
+    verdict = ca.fa_parity_gate(lambda: _RecordingConditioner(), metadata, device="cpu",
+                                angles=ca.FA_ANGLES, autocast=True, tolerance=1e-3)
+    assert verdict["autocast"] is True and verdict["tolerance"] == 1e-3
+    assert verdict["match"] is True and verdict["max_abs_diff"] <= 1e-3
+
+
+# --------------------------------------------------------------------------- #
+# the driver side of B1
+# --------------------------------------------------------------------------- #
+def test_driver_conditioning_call_routes_fa_through_the_declared_plan():
+    import eval_localization as el
+
+    metadata = _fa_metadata(n=3)
+    recorder = _RecordingConditioner()
+    out = el.conditioning_call("fa_invariant", recorder, metadata, "cpu", ca.FA_ANGLES)
+    orbit = [c for c in recorder.calls if c["ids"] != recorder.ids]
+    assert [c["batch"] for c in orbit] == [3, 3, 3]          # per angle, not one chunk
+    assert "source_vit" in out
+
+    plain = _RecordingConditioner()
+    el.conditioning_call("vanilla", plain, metadata, "cpu", ca.FA_ANGLES)
+    assert [c["batch"] for c in plain.calls] == [3]          # one ordinary forward
+
+
+def test_driver_refuses_a_checkpoint_conditioned_the_way_it_was_not_trained(tmp_path):
+    import eval_localization as el
+
+    fa_ckpt = _write_ckpt(tmp_path / "bf.ckpt", config=_fa_config())
+    args = el.parse_args(["--model-config", _write_config(tmp_path / "bf.json", _fa_config()),
+                          "--dataset-config", "d.json", "--ckpt-path", fa_ckpt,
+                          "--agree-ckpt", "a.pt", "--cond-method", "vanilla"])
+    with pytest.raises(SystemExit, match="fa_invariant"):
+        el.load_checkpoint_and_validate(args, _fa_config())
+
+    ok = el.parse_args(["--model-config", "m.json", "--dataset-config", "d.json",
+                        "--ckpt-path", fa_ckpt, "--agree-ckpt", "a.pt",
+                        "--cond-method", "fa_invariant"])
+    assert el.load_checkpoint_and_validate(ok, _fa_config()) is not None
+    assert ok.cond_method_binding["binding"] == "checkpoint"
+
+
+def test_driver_refuses_a_vanilla_checkpoint_asked_to_frame_average(tmp_path):
+    import eval_localization as el
+
+    vanilla = _write_ckpt(tmp_path / "p1.ckpt")
+    args = el.parse_args(["--model-config", "m.json", "--dataset-config", "d.json",
+                          "--ckpt-path", vanilla, "--agree-ckpt", "a.pt",
+                          "--cond-method", "fa_invariant"])
+    with pytest.raises(SystemExit, match="vanilla"):
+        el.load_checkpoint_and_validate(args, _CONFIG)
+
+
+def test_driver_fa_registration_gate_refuses_every_mutation(tmp_path):
+    import eval_localization as el
+
+    args = el.parse_args(["--model-config", "m.json", "--dataset-config", "d.json",
+                          "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
+                          "--cond-method", "fa_invariant", "--cond-autocast", "default",
+                          "--rotate-deg", "0"])
+    state = el.fa_protocol_state(args)
+    assert state["frame_avg_chunk_plan"] == "per_angle"
+    el.assert_fa_registration(dict(state), args)                     # matched manifest passes
+
+    for field, mutated in (("frame_avg_angles", [0.0, 180.0]), ("rotate_deg", 15.0),
+                           ("cond_autocast", "off"), ("frame_avg_chunk_plan", "batched")):
+        with pytest.raises(SystemExit, match=field):
+            el.assert_fa_registration(dict(state, **{field: mutated}), args)
+    with pytest.raises(SystemExit, match="frame_avg_angles"):
+        el.assert_fa_registration({k: v for k, v in state.items()
+                                   if k != "frame_avg_angles"}, args)
+
+
+def test_vanilla_runs_are_untouched_by_the_fa_gate():
+    """exp_18's committed manifests lock cond_method='vanilla' and carry no FA
+    block; the new gate must be inert for them."""
+    import eval_localization as el
+
+    args = el.parse_args(["--model-config", "m.json", "--dataset-config", "d.json",
+                          "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt"])
+    assert args.cond_method == "vanilla"
+    assert el.fa_protocol_state(args) is None
+    el.assert_fa_registration({"cond_method": "vanilla"}, args)       # no FA fields needed
+
+
+def test_provenance_records_the_declared_plan_and_the_binding(tmp_path):
+    """A vanilla row keeps exp_18's exact orbit fields; an FA row states the plan."""
+    import eval_localization as el
+
+    vanilla = el.parse_args(["--model-config", "m.json", "--dataset-config", "d.json",
+                             "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
+                             "--num-samples", "8"])
+    record = el.build_provenance(vanilla, "ck", "ag", "split", "ema", 1)
+    assert record["orbit_execution"] == "n/a" and record["frame_avg_fwd_cap"] is None
+    # the FA keys must be ABSENT, not None: exp_18's published metrics-off
+    # provenance schema is pinned key-for-key by its own r7 test
+    assert "frame_avg_chunk_plan" not in record and "cond_method_binding" not in record
+
+    fa = el.parse_args(["--model-config", "m.json", "--dataset-config", "d.json",
+                        "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
+                        "--num-samples", "8", "--cond-method", "fa_invariant"])
+    fa.cond_method_binding = {"binding": "checkpoint", "checkpoint_cond_method": "fa_invariant"}
+    record = el.build_provenance(fa, "ck", "ag", "split", "ema", 1)
+    assert record["orbit_execution"] == "per_angle"
+    assert record["frame_avg_fwd_cap"] == "candidate_micro_batch"
+    assert record["frame_avg_chunk_plan"] == "per_angle"
+    assert record["cond_method_binding"]["binding"] == "checkpoint"
+    assert record["frame_avg_angles"] == [0.0, 90.0, 180.0, 270.0]

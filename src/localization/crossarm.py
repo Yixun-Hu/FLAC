@@ -358,3 +358,159 @@ def admit_checkpoint(ckpt_path, arm_config_path, arm, expect_step=REGISTERED_STE
     record["reasons"] = reasons
     record["admitted"] = not reasons
     return record
+
+
+# --------------------------------------------------------------------------- #
+# B1 -- frame-average protocol binding
+# --------------------------------------------------------------------------- #
+#: the registered C4 orbit; angles[0] must be the identity pass.
+FA_ANGLES = (0.0, 90.0, 180.0, 270.0)
+
+#: The chunk plan exp_20 DECLARES for evaluation (announcement 06 §3): one
+#: conditioner forward per angle. ``invariant_conditioning`` partitions the orbit
+#: into chunks of ``max_fwd_samples`` rows and a chunk is whole angles, so
+#: ``angles_per_chunk = max(1, cap // batch)``: setting the cap to the candidate
+#: micro-batch is exactly what makes it one. The module default (64) would put
+#: all four angles of a 10-candidate query in a single forward instead -- a
+#: different partition, and under train-mode DINOv3 a different RoPE draw.
+FA_CHUNK_PLAN = "per_angle"
+
+#: what a BF registration manifest must lock, and the run must resolve.
+FA_LOCKED_FIELDS = ("cond_method", "frame_avg_angles", "rotate_deg", "cond_autocast",
+                    "frame_avg_chunk_plan")
+
+
+def fa_max_fwd_samples(metadata):
+    """The per-angle cap for THIS conditioning call: the candidate micro-batch."""
+    count = len(metadata)
+    if count < 1:
+        raise ValueError("frame-average conditioning needs at least one metadata item")
+    return int(count)
+
+
+def fa_conditioning(conditioner, metadata, device, angles=FA_ANGLES):
+    """The driver's frame-average conditioning call, with the plan made explicit.
+
+    Identical to ``eval_FLAC``'s call except that the cap is stated here rather
+    than inherited: the localization driver conditions all candidates of one
+    query in a single call, so the cap IS that call's batch.
+    """
+    from src.data.yaw_rotation import invariant_conditioning
+
+    return invariant_conditioning(conditioner, metadata, device, tuple(angles),
+                                  max_fwd_samples=fa_max_fwd_samples(metadata))
+
+
+def fa_run_state(cond_method, frame_avg_angles=FA_ANGLES, rotate_deg=0.0,
+                 cond_autocast="default", chunk_plan=FA_CHUNK_PLAN):
+    """The FA protocol state a run resolves, in the manifest's own vocabulary."""
+    return {
+        "cond_method": cond_method,
+        "frame_avg_angles": [float(a) for a in frame_avg_angles],
+        "rotate_deg": float(rotate_deg),
+        "cond_autocast": cond_autocast,
+        "frame_avg_chunk_plan": chunk_plan,
+        "orbit_execution": chunk_plan,
+    }
+
+
+def fa_reasons(manifest, state, fields=FA_LOCKED_FIELDS):
+    """Named mismatches between a registration manifest and the resolved FA state."""
+    reasons = []
+    for field in fields:
+        if field not in manifest:
+            reasons.append(f"registration manifest does not lock {field!r}; a frame-average "
+                           "run must declare its whole conditioning protocol")
+            continue
+        locked, actual = manifest[field], state.get(field)
+        if field == "frame_avg_angles":
+            locked = None if locked is None else [float(a) for a in locked]
+            actual = None if actual is None else [float(a) for a in actual]
+        elif field == "rotate_deg":
+            locked = None if locked is None else float(locked)
+            actual = None if actual is None else float(actual)
+        if locked != actual:
+            reasons.append(f"registered {field} is {locked!r} but this run resolves {actual!r}")
+    return reasons
+
+
+def cond_method_binding(checkpoint, cond_method):
+    """What the CHECKPOINT says about its conditioning method, if anything.
+
+    exp_20's three arms embed their training config, so ``training.cond_method``
+    binds the CLI flag to the file itself -- a BF checkpoint run with
+    ``--cond-method vanilla`` is refused without consulting any manifest. The
+    released EMA checkpoint carries no ``model_config`` at all, so for that file
+    the method is NOT detectable and the binding honestly falls back to the
+    registration manifest; the run records which of the two applied.
+    """
+    embedded = (checkpoint or {}).get("model_config")
+    if not isinstance(embedded, dict):
+        return {"binding": "manifest", "checkpoint_cond_method": None, "reasons": [],
+                "note": "the checkpoint embeds no model_config, so its conditioning method "
+                        "is not detectable from the file; the binding rests on the "
+                        "registration manifest"}
+    training = embedded.get("training")
+    if not isinstance(training, dict):
+        return {"binding": "manifest", "checkpoint_cond_method": None, "reasons": [],
+                "note": "the embedded model_config carries no training block, so the "
+                        "conditioning method is not detectable from the file"}
+    found = training.get("cond_method", "vanilla")
+    reasons = []
+    if str(found) != str(cond_method):
+        reasons.append(f"the checkpoint was trained with cond_method={found!r} but the run "
+                       f"asks for {cond_method!r}; conditioning a model the way it was not "
+                       "trained is catastrophic, not a variant")
+    return {"binding": "checkpoint", "checkpoint_cond_method": found, "reasons": reasons,
+            "note": "the checkpoint embeds its training config, so the flag is bound to the "
+                    "file itself"}
+
+
+def fa_parity_gate(conditioner_factory, metadata, device="cpu", angles=FA_ANGLES,
+                   replay_angles=None, autocast=False, tolerance=0.0, dtype=None):
+    """B1(b): the driver's FA conditioning vs an ``eval_FLAC``-faithful replay.
+
+    Both sides build a FRESH conditioner from the factory, so a stateful
+    conditioner cannot make the second pass agree by accident. Under autocast the
+    verdict is tolerance-bound and the measured difference is recorded; with
+    autocast off the contract is bitwise.
+    """
+    from src.data.yaw_rotation import invariant_conditioning
+
+    angles = tuple(float(a) for a in angles)
+    replay = tuple(float(a) for a in (replay_angles if replay_angles is not None else angles))
+
+    def _run(fn):
+        if not autocast:
+            return fn()
+        context = (torch.amp.autocast(device) if dtype is None
+                   else torch.amp.autocast(device, dtype=dtype))
+        with context:
+            return fn()
+
+    driver = _run(lambda: fa_conditioning(conditioner_factory(), metadata, device, angles))
+    # eval_FLAC's call: the same function, its own cap, its own angle tuple
+    reference = _run(lambda: invariant_conditioning(
+        conditioner_factory(), metadata, device, replay,
+        max_fwd_samples=fa_max_fwd_samples(metadata)))
+
+    ids = sorted(set(driver) & set(reference))
+    worst, per_id, bitwise = 0.0, {}, True
+    for name in ids:
+        a = torch.as_tensor(driver[name][0]).float()
+        b = torch.as_tensor(reference[name][0]).float()
+        if a.shape != b.shape:
+            per_id[name] = {"shape_mismatch": [list(a.shape), list(b.shape)]}
+            worst, bitwise = float("inf"), False
+            continue
+        diff = float((a - b).abs().max())
+        per_id[name] = {"max_abs_diff": diff, "bitwise": bool(torch.equal(a, b))}
+        worst = max(worst, diff)
+        bitwise = bitwise and bool(torch.equal(a, b))
+    return {
+        "match": bool(worst <= float(tolerance)) if autocast else bool(bitwise),
+        "bitwise": bitwise, "max_abs_diff": worst, "tolerance": float(tolerance),
+        "autocast": bool(autocast), "ids": ids, "per_id": per_id,
+        "angles": list(angles), "replay_angles": list(replay),
+        "chunk_plan": FA_CHUNK_PLAN, "n_metadata": len(metadata),
+    }

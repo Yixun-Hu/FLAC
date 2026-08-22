@@ -792,9 +792,18 @@ def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source
     dataloader parallelism, which the per-item context draw depends on (O8), the
     resolved weights source (O9) and the scorer readout (§2.4).
     """
+    # the DECLARED plan, not the module default: exp_20 conditions one angle per
+    # forward, so provenance must say so rather than inherit "batched"/64
+    fa_state = fa_protocol_state(args)
     orbit_execution, frame_avg_cap = orbit_provenance(args.cond_method)
+    if fa_state is not None:
+        orbit_execution = fa_state["orbit_execution"]
+        frame_avg_cap = "candidate_micro_batch"
+    # a frame-average row must state the orbit it actually ran, and the default
+    # orbit is still an orbit -- recording None there left the row silent (r1)
     angles = "n/a" if args.cond_method != "fa_invariant" else (
-        None if args.frame_avg_angles is None else [float(a) for a in args.frame_avg_angles])
+        fa_state["frame_avg_angles"] if fa_state is not None else
+        (None if args.frame_avg_angles is None else [float(a) for a in args.frame_avg_angles]))
     record = {
         "experiment": "exp_18_loc_invert",
         "source_sha": source_sha(),
@@ -862,6 +871,11 @@ def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source
         record["metric_registration"] = getattr(args, "metric_registration", None) or "n/a"
         record["metric_registration_sha_resolved"] = getattr(
             args, "metric_registration_sha_resolved", None) or "n/a"
+    if fa_state is not None:
+        # exp_20 B1: only a frame-average row carries these, so every vanilla row
+        # -- including every exp_18 rerun -- keeps the r7 schema exactly
+        record["frame_avg_chunk_plan"] = fa_state["frame_avg_chunk_plan"]
+        record["cond_method_binding"] = getattr(args, "cond_method_binding", None)
     return record
 
 
@@ -1401,10 +1415,8 @@ def build_engine(args, agree=None, device=None, model_config=None, ckpt=None):
 
     def conditioner(metadata, _device):
         with cond_autocast_ctx():
-            if args.cond_method == "fa_invariant":
-                return invariant_conditioning(module.diffusion.conditioner, metadata,
-                                              module.device, frame_avg_angles)
-            return module.diffusion.conditioner(metadata, module.device)
+            return conditioning_call(args.cond_method, module.diffusion.conditioner,
+                                     metadata, module.device, frame_avg_angles)
 
     def sampler(noise, cond_inputs):
         with torch.no_grad():
@@ -1993,12 +2005,69 @@ def read_model_config(args):
     return model_config
 
 
+def conditioning_call(cond_method, conditioner, metadata, device, frame_avg_angles):
+    """One conditioning forward, with the frame-average CHUNK PLAN made explicit.
+
+    ``invariant_conditioning`` partitions the orbit into forwards of at most
+    ``max_fwd_samples`` rows; left unset it inherits the module constant (64),
+    which for a 10-candidate query puts all four angles in ONE forward. exp_20
+    declares the plan instead (announcement 06 §3): the cap is this call's
+    candidate micro-batch, so the orbit runs one forward per angle.
+    """
+    if cond_method == "fa_invariant":
+        from src.localization.crossarm import fa_conditioning
+
+        return fa_conditioning(conditioner, metadata, device, frame_avg_angles)
+    return conditioner(metadata, device)
+
+
+def fa_protocol_state(args):
+    """The frame-average protocol this run resolves, or ``None`` for vanilla."""
+    from src.localization.crossarm import FA_ANGLES, fa_run_state
+
+    if getattr(args, "cond_method", "vanilla") != "fa_invariant":
+        return None
+    angles = args.frame_avg_angles if getattr(args, "frame_avg_angles", None) else FA_ANGLES
+    return fa_run_state(args.cond_method, frame_avg_angles=angles,
+                        rotate_deg=getattr(args, "rotate_deg", 0.0) or 0.0,
+                        cond_autocast=getattr(args, "cond_autocast", "default"))
+
+
+def assert_fa_registration(manifest, args):
+    """A frame-average run must have its WHOLE conditioning protocol registered.
+
+    Inert for vanilla runs, so every manifest exp_18 committed stays valid.
+    """
+    from src.localization.crossarm import fa_reasons
+
+    state = fa_protocol_state(args)
+    if state is None:
+        return None
+    for reason in fa_reasons(manifest, state):
+        _refuse(reason)
+    return state
+
+
 def load_checkpoint_and_validate(args, model_config):
-    """Deserialize the checkpoint and refuse an ARE artifact (CPU, no model build)."""
+    """Deserialize the checkpoint and refuse an ARE artifact (CPU, no model build).
+
+    Also binds ``--cond-method`` to the checkpoint itself where the file can
+    answer: exp_20's arms embed their training config, so conditioning a
+    frame-averaged model as vanilla (or the reverse) is refused here, before any
+    GPU work. The released EMA checkpoint embeds no config at all -- for that
+    file the method is not detectable and the binding rests on the registration
+    manifest, which the run records rather than hides.
+    """
     if args.score_source != "flac":
         return None
+    from src.localization.crossarm import cond_method_binding
+
     ckpt = torch.load(args.ckpt_path, map_location="cpu")
     assert_no_are(ckpt.get("model_config"), copy.deepcopy(model_config))
+    binding = cond_method_binding(ckpt, getattr(args, "cond_method", "vanilla"))
+    args.cond_method_binding = binding
+    for reason in binding["reasons"]:
+        _refuse(reason)
     return ckpt
 
 
@@ -2329,6 +2398,7 @@ def verify_registration(args, dataset_config, resolved, repo_root=None):
     verified = verify_registration_commit(args.registration_manifest, args.registration_sha,
                                           repo_root=repo_root)
     check_registration_fields(verified["manifest"], resolved, registered)
+    assert_fa_registration(verified["manifest"], args)       # inert unless fa_invariant
     # the resolved immutable id is what provenance records, not the string typed
     args.registration_sha_resolved = verified["resolved_sha"]
     return True
