@@ -2078,12 +2078,28 @@ def assert_fa_execution_matches(rows, locked):
     rather than asserting it once at startup (r2 F4).
     """
     checked = 0
+    micro_batch = locked.get("candidate_micro_batch")
+    orbit_size = locked.get("orbit_size")
+    expected_partition = (None if micro_batch is None or orbit_size is None else
+                          [int(micro_batch)] * max(0, int(orbit_size) - 1))
     for row in rows:
         observed = row.get("fa_execution")
         if not observed:
             raise SystemExit(f"fa gate ABORT: query {row.get('query_id')!r} carries no "
                              "fa_execution; a frame-average run must publish the partition "
                              "it executed for every query")
+        # the RAW list, not only the summary ints it was reduced to: a partition
+        # of [10, 10, 20] can carry a perfectly consistent summary (r3 F4a)
+        if expected_partition is not None:
+            found = observed.get("partition")
+            if found is None:
+                raise SystemExit(f"fa gate ABORT: query {row.get('query_id')!r} publishes no "
+                                 "raw partition list")
+            if [int(chunk) for chunk in found] != expected_partition:
+                raise SystemExit(
+                    f"fa gate ABORT: query {row.get('query_id')!r} executed the partition "
+                    f"{list(found)!r} but the registration locks {expected_partition!r} "
+                    f"({micro_batch} candidates x {int(orbit_size) - 1} rotated angles)")
         for field in FA_EXECUTION_FIELDS:
             if field not in locked:
                 continue
@@ -2132,16 +2148,26 @@ def assert_fa_registration(manifest, args):
     args.fa_locked_plan = {field: manifest[field] for field in FA_EXECUTION_FIELDS
                            if field in manifest} or {
         field: state[field] for field in FA_EXECUTION_FIELDS if field in state}
-    pinned = manifest.get("fa_source_shas")
-    if pinned:
-        from src.localization.crossarm import fa_source_shas
+    from src.localization.crossarm import FA_SOURCE_FILES, fa_source_shas
 
-        current = fa_source_shas()
-        for relpath in sorted(pinned):
-            if pinned[relpath] != current.get(relpath):
-                _refuse(f"registered fa source {relpath} is {str(pinned[relpath])[:12]}... "
-                        f"but this run executes {str(current.get(relpath))[:12]}...; the "
-                        "frame-average code changed after registration")
+    pinned = manifest.get("fa_source_shas")
+    if not isinstance(pinned, dict) or not pinned:
+        _refuse("a frame-average registration must lock fa_source_shas for every executable "
+                f"FA source {list(FA_SOURCE_FILES)}; without it the code may move after the "
+                "registration commit, which need only be an ancestor")
+    current = fa_source_shas()
+    missing = [relpath for relpath in FA_SOURCE_FILES if relpath not in pinned]
+    if missing:
+        _refuse(f"the registration's fa_source_shas does not pin {missing}; the whole set is "
+                "required")
+    for relpath in sorted(set(pinned) - set(FA_SOURCE_FILES)):
+        _refuse(f"the registration's fa_source_shas pins {relpath!r}, which is not an "
+                f"executable FA source {list(FA_SOURCE_FILES)}")
+    for relpath in FA_SOURCE_FILES:
+        if pinned[relpath] != current.get(relpath):
+            _refuse(f"registered fa source {relpath} is {str(pinned[relpath])[:12]}... "
+                    f"but this run executes {str(current.get(relpath))[:12]}...; the "
+                    "frame-average code changed after registration")
     return state
 
 

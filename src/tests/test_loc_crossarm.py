@@ -572,7 +572,7 @@ def test_driver_fa_registration_gate_refuses_every_mutation(tmp_path):
                           "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
                           "--cond-method", "fa_invariant", "--cond-autocast", "default",
                           "--rotate-deg", "0"])
-    state = el.fa_protocol_state(args)
+    state = dict(el.fa_protocol_state(args), fa_source_shas=ca.fa_source_shas())
     assert state["frame_avg_chunk_plan"] == "per_angle"
     el.assert_fa_registration(dict(state), args)                     # matched manifest passes
 
@@ -1692,7 +1692,7 @@ def test_fa_locked_plan_reaches_the_end_gate_context():
                           "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
                           "--num-samples", "8", "--cond-method", "fa_invariant"])
     state = el.fa_protocol_state(args)
-    manifest = dict(state, angles_per_chunk=1)
+    manifest = dict(state, angles_per_chunk=1, fa_source_shas=ca.fa_source_shas())
     el.assert_fa_registration(manifest, args)
     assert args.fa_locked_plan["angles_per_chunk"] == 1
     assert set(args.fa_locked_plan) <= set(el.FA_EXECUTION_FIELDS)
@@ -1702,3 +1702,114 @@ def test_fa_locked_plan_reaches_the_end_gate_context():
                              "--num-samples", "8"])
     assert el.assert_fa_registration({"cond_method": "vanilla"}, vanilla) is None
     assert getattr(vanilla, "fa_locked_plan", None) is None
+
+
+# --------------------------------------------------------------------------- #
+# r4 F3 -- dtype equality is checked on the ORIGINAL tensors, before any cast
+# --------------------------------------------------------------------------- #
+class _DtypeConditioner(_RecordingConditioner):
+    """INTEGRAL values, so both dtypes sum exactly and only the storage type
+    differs -- the case a .float() cast before comparison hides."""
+
+    def __init__(self, tensor_dtype=torch.float32, mask_dtype=torch.float32, **kwargs):
+        super().__init__(**kwargs)
+        self.tensor_dtype, self.mask_dtype = tensor_dtype, mask_dtype
+
+    def __call__(self, metadata, device, only_ids=None):
+        self.calls.append({"batch": len(metadata),
+                           "ids": tuple(only_ids) if only_ids else self.ids})
+        out = {}
+        for name in (only_ids or self.ids):
+            rows = [torch.tensor([float(i + 1), float(i + 2)], dtype=self.tensor_dtype)
+                    for i in range(len(metadata))]
+            out[name] = [torch.stack(rows),
+                         torch.ones(len(metadata), 1, dtype=self.mask_dtype)]
+        return out
+
+
+def test_parity_fails_on_a_tensor_dtype_difference_with_equal_values():
+    sides = iter([_DtypeConditioner(tensor_dtype=torch.float64), _DtypeConditioner()])
+    verdict = ca.fa_parity_gate(lambda: next(sides), _fa_metadata(n=2), device="cpu",
+                                angles=ca.FA_ANGLES, autocast=False)
+    assert verdict["max_abs_diff"] == 0.0, "the values are equal; only the dtype differs"
+    assert verdict["match"] is False
+    assert any("dtype" in reason for reason in verdict["reasons"]), verdict["reasons"]
+    assert verdict["per_side"]["driver"]["source_vit"]["tensor_dtype"] == "torch.float64"
+    assert verdict["per_side"]["replay"]["source_vit"]["tensor_dtype"] == "torch.float32"
+
+
+def test_parity_fails_on_a_mask_dtype_difference():
+    sides = iter([_DtypeConditioner(mask_dtype=torch.bool), _DtypeConditioner()])
+    verdict = ca.fa_parity_gate(lambda: next(sides), _fa_metadata(n=2), device="cpu",
+                                angles=ca.FA_ANGLES, autocast=False)
+    assert verdict["match"] is False
+    assert any("mask" in reason and "dtype" in reason for reason in verdict["reasons"])
+
+
+# --------------------------------------------------------------------------- #
+# r4 F4a -- the RAW partition list is validated, not only the summary ints
+# --------------------------------------------------------------------------- #
+def test_end_gate_validates_the_raw_partition_list():
+    import eval_localization as el
+
+    locked = ca.fa_run_state("fa_invariant", candidate_micro_batch=10)
+    intact = {"partition": [10, 10, 10], "angles_per_chunk": 1, "orbit_size": 4,
+              "n_orbit_forwards": 3, "shared_angle_count": 1, "candidate_micro_batch": 10,
+              "frame_avg_fwd_cap": 10, "cap_policy": "candidate_micro_batch"}
+    assert el.assert_fa_execution_matches([{"query_id": "q0", "fa_execution": intact}],
+                                          locked) == 1
+
+    # every summary int intact, only the raw list wrong
+    for mutated in ([10, 10, 20], [30], [10, 10], [10, 10, 10, 10], []):
+        row = {"query_id": "q0", "fa_execution": dict(intact, partition=mutated)}
+        with pytest.raises(SystemExit, match="partition"):
+            el.assert_fa_execution_matches([row], locked)
+
+    missing = dict(intact)
+    missing.pop("partition")
+    with pytest.raises(SystemExit, match="partition"):
+        el.assert_fa_execution_matches([{"query_id": "q0", "fa_execution": missing}], locked)
+
+
+# --------------------------------------------------------------------------- #
+# r4 F4b -- fa_source_shas is mandatory and exact for an FA manifest
+# --------------------------------------------------------------------------- #
+def _fa_args():
+    import eval_localization as el
+
+    return el.parse_args(["--model-config", "m.json", "--dataset-config", "d.json",
+                          "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
+                          "--num-samples", "8", "--cond-method", "fa_invariant"])
+
+
+def test_fa_manifest_must_pin_every_source_blob_exactly():
+    import eval_localization as el
+
+    args = _fa_args()
+    current = ca.fa_source_shas()
+    manifest = dict(el.fa_protocol_state(args), fa_source_shas=current)
+    el.assert_fa_registration(manifest, args)                       # exact match passes
+
+    for broken, fragment in (
+            ({k: v for k, v in manifest.items() if k != "fa_source_shas"}, "fa_source_shas"),
+            (dict(manifest, fa_source_shas={}), "fa_source_shas"),
+            (dict(manifest, fa_source_shas={k: v for k, v in list(current.items())[:1]}),
+             "fa_source_shas"),
+            (dict(manifest, fa_source_shas=dict(current, **{"src/other.py": "0" * 64})),
+             "src/other.py"),
+            (dict(manifest, fa_source_shas=dict(current,
+                                                **{"src/data/yaw_rotation.py": "0" * 64})),
+             "yaw_rotation"),
+            (dict(manifest, fa_source_shas="not-a-mapping"), "fa_source_shas"),
+    ):
+        with pytest.raises(SystemExit, match=fragment):
+            el.assert_fa_registration(broken, args)
+
+
+def test_generated_bf_manifest_satisfies_the_mandatory_source_pin():
+    import eval_localization as el
+
+    generated = _generator().protocol_manifest("BF", "R2", ckpt_sha256="a" * 64,
+                                               model_config_sha256="b" * 64)
+    assert set(generated["fa_source_shas"]) == set(ca.FA_SOURCE_FILES)
+    el.assert_fa_registration(generated, _fa_args())

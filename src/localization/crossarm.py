@@ -759,6 +759,16 @@ def fa_parity_gate(conditioner_factory, metadata, device="cpu", angles=FA_ANGLES
         reasons.append(f"orbit differs: driver {list(angles)} vs replay {list(replay)}")
 
     for name in sorted(set(driver) & set(reference)):
+        # dtype equality is decided on the ORIGINAL tensors: the value comparison
+        # casts to float32, which hides a float64/float32 pair with equal values
+        # and a mask stored as bool (r3 re-review F3).
+        for kind in ("tensor", "mask"):
+            got = per_side["driver"][name][f"{kind}_dtype"]
+            want = per_side["replay"][name][f"{kind}_dtype"]
+            if got != want:
+                reasons.append(f"{name}: {kind} dtype differs (driver {got} vs replay "
+                               f"{want}); equal values in different storage types are not "
+                               "parity")
         a_t, a_m = torch.as_tensor(driver[name][0]).float(), torch.as_tensor(driver[name][1])
         b_t, b_m = (torch.as_tensor(reference[name][0]).float(),
                     torch.as_tensor(reference[name][1]))
@@ -781,9 +791,6 @@ def fa_parity_gate(conditioner_factory, metadata, device="cpu", angles=FA_ANGLES
                            and per_side["driver"][name]["mask_finite"]
                            and per_side["replay"][name]["tensor_finite"]
                            and per_side["replay"][name]["mask_finite"])
-        if entry["dtype"] != per_side["replay"][name]["tensor_dtype"]:
-            reasons.append(f"{name}: tensor dtype differs ({entry['dtype']} vs "
-                           f"{per_side['replay'][name]['tensor_dtype']})")
         if mask_diff > bar:
             reasons.append(f"{name}: mask differs by {mask_diff}")
         worst, worst_mask = max(worst, diff), max(worst_mask, mask_diff)
