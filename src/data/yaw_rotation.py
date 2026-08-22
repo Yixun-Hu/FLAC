@@ -491,6 +491,166 @@ def invariant_conditioning(
     return base
 
 
+def fa_cartesian_conditioning(
+    conditioner,
+    metadata: "list",
+    device,
+    angles: Tuple[float, ...] = DEFAULT_FRAME_ANGLES,
+    max_fwd_samples: "int | None" = None,
+) -> Dict[str, object]:
+    """
+    Full-C4 **Cartesian** frame averaging of every pose/geometry conditioner (exp_21).
+
+    :func:`invariant_conditioning` symmetrizes its two sub-paths by different
+    mechanisms — intrinsically yaw-invariant cylindrical features ``(r, z, dphi)``
+    for the pose path, a frame average for the ViT path. This method applies ONE
+    mechanism to both. The poses stay raw Cartesian ``(x, y, z)``, i.e. inside the
+    dist-embedder's training domain, and the whole orbit is averaged::
+
+        out[id] = (1/|G|) sum_g f_id(g . x)      for id in POSE_KEYS
+
+    over the panorama-aligned yaw subgroup ``G`` given by ``angles``. Every frame
+    rotates the depth panorama and ALL FOUR pose keys jointly (one
+    :func:`rotate_scene_metadata` call with ``pose_keys=POSE_KEYS``), so a frame
+    is a rigid rotation of the whole scene rather than of one branch of it.
+
+    The invariance class is therefore exact on ``G`` and on nothing else: an
+    off-subgroup angle is a genuine NEGATIVE CONTROL here, where the cylindrical
+    pose path was invariant at any angle. No scene-intrinsic reference azimuth is
+    computed, so the ``+-pi`` discontinuity and the meters/radians mixing of the
+    cylindrical triplets are both out of the picture.
+
+    ``context_audio`` — and any other id the conditioner produces — comes from
+    the single base pass. It is yaw-invariant already and may carry BatchNorm
+    running statistics, so re-running it per frame would step those statistics
+    ``|G|`` times per training step. The ViT branch is structurally the one
+    :func:`invariant_conditioning` runs (``GeometryConditioner`` reads only its
+    own ``*_vit`` pose and ``depth``, neither of which the cylindrical step
+    touched, and the extra dist-embedder orbit calls consume no RNG), which is
+    pinned numerically by ``src/tests/test_fa_cartesian.py``.
+
+    Two contracts are FAIL-CLOSED, and both are deliberately STRICTER than
+    :func:`invariant_conditioning`, which short-circuits to the base pass when the
+    orbit ids or ``depth`` are absent:
+
+    * every id in :data:`POSE_KEYS` must be present in the conditioner's output.
+      Averaging whichever subset happened to exist would ship an arm whose
+      treatment differs from the declared one, invisibly.
+    * every sample must carry ``depth``, and all samples must agree on the
+      panorama width. The orbit rotates depth and poses together, so a missing
+      panorama would average four differently-posed views of ONE unrotated map —
+      a silently degraded orbit, not a skipped one. This is checked BEFORE the
+      base pass so that a mixed-width batch is reported by this contract rather
+      than by whatever the conditioner's own batching happens to do with it first.
+
+    Execution and arithmetic are the audited orbit machinery, unchanged:
+    :func:`_orbit_average_batched` with ``present = POSE_KEYS`` (angle-0 base
+    first, ascending angle order, chunks of whole angles capped by
+    ``max_fwd_samples`` — announcement 06's declared chunk plan). Masks come from
+    the base pass for every id, and the caller's ``metadata`` is never mutated: it
+    is handed to the conditioner as-is and stays raw for the downstream metric
+    callback.
+
+    Parameters
+    ----------
+    conditioner : MultiConditioner
+        The FLAC conditioner. Must accept ``conditioner(batch, device)`` and the
+        optional ``only_ids=`` keyword (to re-run a subset of conditioners).
+    metadata : list of dict
+        Per-sample metadata dicts. ``depth`` (shape ``[3, H, W]``), the pose keys
+        and any conditioner inputs are read but not modified.
+    device : torch.device or str
+        Device passed through to ``conditioner``.
+    angles : Tuple[float, ...], optional
+        Frame-average angles in **degrees**; ``angles[0]`` must be ``0.0`` (the
+        identity / base pass). Defaults to :data:`DEFAULT_FRAME_ANGLES`.
+    max_fwd_samples : int or None, optional
+        Largest number of samples in ONE frame-averaging forward, i.e. the thing
+        that decides how many angles share a chunk (and therefore share a
+        train-mode RoPE draw — announcement 06). ``None`` means
+        :data:`FRAME_AVG_MAX_FWD_SAMPLES`. The arm passes its
+        ``training.frame_avg_max_fwd_samples`` here.
+
+    Returns
+    -------
+    Dict[str, object]
+        The conditioner output dict ``{id: [tensor, mask]}``; the
+        :data:`POSE_KEYS` tensors are replaced by their frame average, all masks
+        come from the base (angle-0) pass, and every other entry is the single
+        base-pass output.
+
+    Raises
+    ------
+    ValueError
+        If ``angles`` is empty, ``angles[0] != 0.0``, ``max_fwd_samples`` is not a
+        positive integer, ``metadata`` is empty, a sample has no ``depth``, the
+        samples disagree on the panorama width, or the conditioner output is
+        missing any of :data:`POSE_KEYS`.
+    """
+    if len(angles) == 0:
+        raise ValueError("angles must be non-empty")
+    if angles[0] != 0.0:
+        raise ValueError(f"angles[0] must be 0.0 (the identity pass), got {angles[0]}")
+    # Validated HERE, before the short-circuit return below: an invalid cap must
+    # abort even on an orbit that happens to need no chunking, or a typo'd arm
+    # could train for days without the treatment ever being read.
+    cap = resolve_frame_avg_cap(max_fwd_samples)
+
+    # 1. depth contract (fail-closed) + the single column-shift rule of the orbit.
+    if len(metadata) == 0:
+        raise ValueError("fa_cartesian_conditioning: metadata is empty")
+    img_w = None
+    for k, md in enumerate(metadata):
+        if "depth" not in md:
+            raise ValueError(
+                f"fa_cartesian_conditioning requires 'depth' in EVERY sample's "
+                f"metadata; sample {k} has {sorted(md)}. The orbit rotates the "
+                "panorama and the poses together, so a missing panorama would "
+                "average four differently-posed views of one unrotated map -- a "
+                "silently degraded orbit, not a no-op"
+            )
+        depth = md["depth"]
+        assert isinstance(depth, torch.Tensor)
+        width = int(depth.shape[-1])
+        if img_w is None:
+            img_w = width
+        elif width != img_w:
+            raise ValueError(
+                f"fa_cartesian_conditioning: sample {k} has panorama width "
+                f"{width} but sample 0 has {img_w}. One orbit is ONE column-shift "
+                "rule, so a mixed-width batch would rotate different samples by "
+                "different effective angles"
+            )
+
+    # 2. single full pass on the RAW Cartesian metadata -> all conditioning
+    #    entries (context_audio and any other id run exactly once, here).
+    base = conditioner(metadata, device)
+
+    present = list(POSE_KEYS)
+    missing = [i for i in present if i not in base]
+    if missing:
+        raise ValueError(
+            f"fa_cartesian_conditioning: the conditioner produced {sorted(base)}, "
+            f"missing {missing} of POSE_KEYS {list(POSE_KEYS)}. This method's "
+            "contract is that ALL FOUR pose/geometry conditioners are frame-"
+            "averaged; averaging whichever subset happened to be present would "
+            "ship an arm whose treatment nobody declared"
+        )
+
+    if len(angles) == 1:
+        return base
+
+    # 3. frame-average every pose/geometry conditioner over the rotation subgroup.
+    accum = _orbit_average_batched(conditioner, metadata, base, present, angles, img_w,
+                                   device, cap=cap,
+                                   cap_is_explicit=max_fwd_samples is not None)
+
+    for i in present:
+        base[i][0] = accum[i] / float(len(angles))
+
+    return base
+
+
 def _rotated_variants(md_inv, deg, img_w, present):
     """The rotated metadata for one orbit angle (depth and the ``*_vit`` poses
     move together; every other field passes through)."""
