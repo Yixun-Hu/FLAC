@@ -18,7 +18,9 @@ import hashlib
 
 import numpy as np
 import torch
+from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.optimize import linear_sum_assignment
+from scipy.spatial.distance import pdist
 
 # Registered tolerances (plan Rev 2 section 2). Sub-centimetre matching keeps the
 # same-microphone claim inside the acoustic scale that waveform metrics care about.
@@ -122,23 +124,21 @@ def _complete_linkage(centroids, cap):
 
     Complete linkage on purpose: single linkage would chain A-B-C into one
     "placement" whenever consecutive re-occupations are close, even though A and C
-    are far apart. Deterministic: the closest admissible pair merges first, ties
-    broken by the lowest index pair.
+    are far apart -- every pair in a placement must be within the cap.
+
+    scipy does the merging (exact complete linkage, O(n^2 log n)); a hand-rolled
+    greedy loop is O(n^3) in the number of tx-groups and the real corpus has ~1,300
+    per room. The flat cut is ``<= cap`` by distance, which is the registered rule.
     """
-    clusters = [[i] for i in range(len(centroids))]
-    distances = np.linalg.norm(centroids[:, None, :] - centroids[None, :, :], axis=-1)
-    while True:
-        best, best_pair = None, None
-        for a in range(len(clusters)):
-            for b in range(a + 1, len(clusters)):
-                linkage = max(distances[i, j] for i in clusters[a] for j in clusters[b])
-                if linkage <= cap and (best is None or linkage < best - 1e-12):
-                    best, best_pair = linkage, (a, b)
-        if best_pair is None:
-            return clusters
-        a, b = best_pair
-        clusters[a] = sorted(clusters[a] + clusters[b])
-        clusters.pop(b)
+    n = len(centroids)
+    if n == 1:
+        return [[0]]
+    labels = fcluster(linkage(pdist(centroids), method="complete"), t=cap,
+                      criterion="distance")
+    clusters = {}
+    for index, label in enumerate(labels):
+        clusters.setdefault(int(label), []).append(index)
+    return [sorted(members) for _label, members in sorted(clusters.items())]
 
 
 def cluster_placements(groups, cap=PLACEMENT_CAP_M, expected_n=CANONICAL_ARRAY_SIZE):
