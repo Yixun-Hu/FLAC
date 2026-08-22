@@ -15,3 +15,6 @@ Base: `raf-finetune-exp` @ `263ef27` (full exp_19 pipeline + 557-test suite inhe
 | `f38fd21` | r1: inherited exception-provenance test learns the second RAF hook |
 | `7c0626e` | r1 cycle 10: `raf_mappingA.json` eval config + `mappingA_stats.py` (placement clustering unit, equal-room macro, room-stratified bootstrap, exact paired randomization) — 14 tests |
 | `a14662d` | r1 cycle 11: end-to-end integration (chain composes; amplitude-gate and failed-correspondence negative paths) — 128 mappingA tests |
+| `93e14c6` | r1: complete linkage via scipy (corpus-scale; cycle-1 semantics unchanged) |
+| `f13263f` | r1 readback rung: correspondence record over both rooms — 74/91 placements, 73/86 eligible, 1,152-item identity ACHIEVABLE |
+| `bdad9f5` | r1 cycle 12: `prepare_mappingA` CLI main() — survey→items→union→audit→staged publish, registered identity + 3 digests (30 prepare tests) |
