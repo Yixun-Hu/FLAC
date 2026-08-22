@@ -156,6 +156,24 @@ ROWS = [
   ["outputs_FLAC/exp15_YAWAUG/**/*exp15_YAWAUG_tbl_S40000_s4[2-6]_K1.json"], "exp15"),
  ("yaw-aug vanilla YAWAUG @40k (exp_15)", "vanilla eval, theta=0 (scene-routed)", 8,
   ["outputs_FLAC/exp15_YAWAUG/**/*exp15_YAWAUG_tbl_S40000_s4[2-6]_K8.json"], "exp15"),
+] + [
+ # --- exp_21 BFC (plan §3g): the fa_cartesian arm's Table row ------------------
+ # ADDITIVE, appended as its OWN list: no existing spec, comprehension or
+ # validator is touched (this file has concurrent writers on other machines).
+ # The arm is B-F with ONE mechanism changed - the pose branch's symmetrization -
+ # so its row sits beside the B-F and P1 rows and is read as a paired delta
+ # against them; that is exactly why contract="exp21" routes it through an
+ # admission validator instead of averaging whatever the glob finds.
+ # The eval-name suffix is pinned EXACTLY (`_fa_cartesian_a4.json`): a trailing
+ # "*.json" would also match the `.stream.json` sidecar the §5 invariance grid
+ # writes and hand the validator ten files for a five-seed cell.
+ # Registered in advance; renders *pending* until the five cells per K land.
+ ("BFC C4-Cartesian FA @40k (exp_21)", "fa_cartesian eval", 1,
+  ["outputs_FLAC/exp21_BFC/**/*step=40000_metrics_1_1.0_"
+   "exp21_BFC_S40000_K1_s4[2-6]_fa_cartesian_a4.json"], "exp21"),
+ ("BFC C4-Cartesian FA @40k (exp_21)", "fa_cartesian eval", 8,
+  ["outputs_FLAC/exp21_BFC/**/*step=40000_metrics_1_1.0_"
+   "exp21_BFC_S40000_K8_s4[2-6]_fa_cartesian_a4.json"], "exp21"),
 ]
 
 EXP11_VALIDATOR = os.path.join(REPO, "worklog", "worklog_yixun", "exp_11_fa_orbit_claude",
@@ -196,13 +214,27 @@ def is_exp11_row(patterns):
     return any("exp11_" in p for p in patterns) and not is_exp14_row(patterns)
 
 
+def is_exp21_row(patterns):
+    """Does this row's evidence come from exp_21's fa_cartesian arm?
+
+    Its own namespace (``outputs_FLAC/exp21_BFC/``) and its own method suffix, so
+    no other experiment's heuristic can claim it and it claims nothing else.
+    """
+    return any("exp21_BFC" in p for p in patterns)
+
+
 def is_batched_orbit_row(patterns):
     """Was this row produced by the BATCHED orbit implementation?
 
-    True for exp_11 and for exp_14, which evaluates through the same code path.
-    The legacy-loop label migration must not claim either of them.
+    True for exp_11 and for exp_14, which evaluates through the same code path,
+    and for exp_21, whose ``fa_cartesian`` conditioning runs the SAME batched
+    executor (``_orbit_average_batched``) and records ``orbit_execution:
+    "batched"``. The legacy-loop label migration must not claim any of them: it
+    appends "(legacy-loop)" to every `fa` row it does not recognise as batched,
+    which would put a false execution label on an exp_21 row without anyone
+    touching it.
     """
-    return is_exp11_row(patterns) or is_exp14_row(patterns)
+    return is_exp11_row(patterns) or is_exp14_row(patterns) or is_exp21_row(patterns)
 
 
 def _load_validator(validator_path=None):
@@ -503,6 +535,159 @@ def check_exp15_round(rendered):
     return problems
 
 
+# --- the exp_21 BFC contract (plan §3g) --------------------------------------
+# ADDITIVE and exp_21-only: no existing row reaches any of this. The shape is
+# exp_15's - a per-experiment validator module imported by path, a thin cell
+# gate here, and a round gate that makes the two K rows one transaction - because
+# the eval driver that will produce these cells has to agree with the table about
+# what a registered cell is, and one imported file is how the other campaigns
+# guarantee that.
+EXP21_VALIDATOR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "exp_21_bf_fa_cartesian_claude",
+    "exp21_validate_cell.py")
+
+
+def _load_exp21_validator(path=None):
+    """exp_21's own validator, imported by path (same shape as exp_11/14/15)."""
+    import importlib.util
+    target = os.path.abspath(path or EXP21_VALIDATOR)
+    spec = importlib.util.spec_from_file_location("exp21_validate_cell", target)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load the exp_21 validator from {target}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _exp21_metric_reasons(record):
+    """The payload this TABLE will print: present, numeric, finite.
+
+    Checked HERE, beside KEYS, and BEFORE ``agg_files`` runs: a cell can satisfy
+    every provenance rule and still carry a NaN, and ``agg_files`` answers that
+    with a raise, which would abort the whole regeneration instead of rendering
+    one row BLOCKED (mirrors ``_exp14_cell_reasons``' tail).
+    """
+    metrics = record.get("metrics") if isinstance(record, dict) else None
+    if not isinstance(metrics, dict):
+        return ["metrics block is missing or is not an object"]
+    reasons = []
+    for _label, key in KEYS:
+        if key not in metrics:
+            reasons.append(f"metrics does not report {key}, which this table prints")
+        elif not _finite_number(metrics[key]):
+            reasons.append(f"metrics[{key!r}] = {metrics[key]!r} is not a finite number")
+    return reasons
+
+
+def validate_exp21_cell(files, repo_root=None, expected_k=None):
+    """``(ok, problems)`` for one exp_21 row: five registered seeds, one pin.
+
+    ``expected_k`` comes from the ROW CONTRACT and binding it is the point (the
+    exp_14 round-3 review B2 lesson): a homogeneous five-seed K=1 payload
+    renamed to match the K=8 glob would otherwise validate under the K=8 label,
+    and the table would publish one context size's numbers beside another's name.
+
+    Empty is not a failure - the generator already renders an empty cell as
+    pending, and both BFC rows are registered in advance.
+    """
+    if not files:
+        return True, []
+    try:
+        V = _load_exp21_validator()
+    except Exception as exc:                       # the gate must not fail open
+        return False, [f"cannot load the exp_21 validator ({exc})"]
+    records, problems = {}, []
+    for path in sorted(set(files)):
+        try:
+            with open(path) as fh:
+                records[path] = json.load(fh)
+        except (ValueError, OSError) as exc:
+            problems.append(f"{os.path.basename(path)}: unreadable ({exc})")
+    if problems:
+        return False, problems
+    seeds, ks, pins = [], set(), set()
+    for path, record in sorted(records.items()):
+        base = os.path.basename(path)
+        try:
+            cell = V.parse_eval_name(str((record or {}).get("eval_name") or ""))
+        except ValueError as exc:
+            problems.append(f"{base}: {exc}")
+            continue
+        seeds.append(int(cell.seed))
+        ks.add(int(cell.k))
+        pins.add(str((record or {}).get("source_sha")))
+        problems += [f"{base}: {r}" for r in V.validate_metrics_record(record, cell)]
+        problems += [f"{base}: {r}" for r in _exp21_metric_reasons(record)]
+    # the evidence must be the DECLARED row's, not merely self-consistent
+    if expected_k is not None and ks and ks != {int(expected_k)}:
+        problems.append(f"the row declares K={int(expected_k)} but its evidence is "
+                        f"K {sorted(ks)}: a renamed payload is not a re-measurement")
+    # exactly one record per registered seed: "no seed missing" also holds for six
+    # files with a duplicate, which agg_files would then average as six
+    if sorted(seeds) != list(V.SEEDS):
+        counts = {s: seeds.count(s) for s in sorted(set(seeds))}
+        dupes = sorted(s for s, n in counts.items() if n > 1)
+        problems.append(f"the cell must be exactly {len(V.SEEDS)} records, one per seed "
+                        f"{list(V.SEEDS)}; got {len(seeds)} with seeds {sorted(seeds)}"
+                        + (f" (duplicated: {dupes})" if dupes else ""))
+    if len(pins) > 1:
+        problems.append(f"the cell spans MORE THAN ONE evaluator pin {sorted(pins)}: five "
+                        "cells measured at different commits are not a row, they are five "
+                        "measurements wearing one label")
+    return (not problems), problems
+
+
+def check_exp21_round(exp21_cells, exp21_status):
+    """``[problem, ...]`` - the exp_21 BFC pair publishes whole, at one pin, or not
+    at all.
+
+    ``exp21_status`` maps ``(label, K) -> bool`` and carries the validation that
+    was ALREADY computed while rendering: readiness derived from file counts
+    alone once published a numeric K=1 row beside a BLOCKED K=8 one (exp_14
+    round-3 closure A4/B2).
+
+    No evidence at all is NOT a failed transaction - it is a registered row that
+    has not landed yet, which the generator renders as pending. Same carve-out as
+    ``check_q9_round`` and ``check_exp14_round``, and it is what keeps another
+    machine's regeneration silent until exp_21 actually measures something.
+    """
+    present = {key: files for key, files in exp21_cells.items() if files}
+    if not present:
+        return []
+    problems, shas = [], {}
+    for label in sorted({lbl for lbl, _k in exp21_cells}):
+        for k in (1, 8):
+            files = exp21_cells.get((label, k))
+            if not files:
+                problems.append(f"{label}: K={k} has no evidence - the exp_21 row publishes "
+                                "only as a complete K=1 + K=8 pair")
+            elif len(files) < MIN_SEEDS:
+                problems.append(f"{label}: K={k} has {len(files)}/{MIN_SEEDS} seeds")
+            elif not exp21_status.get((label, k), False):
+                problems.append(f"{label}: K={k} did not validate - both K must be VALID, "
+                                "not merely present, or the pair publishes a number beside "
+                                "a refusal")
+    # ...and ONE evaluator pin across both K: per-cell validation proves each K
+    # internally, but cannot see that the two blocks were measured at different
+    # commits, which is precisely what the paired K=1/K=8 reading would inherit.
+    for (label, k), files in sorted(present.items()):
+        for path in files:
+            try:
+                with open(path) as fh:
+                    sha = json.load(fh).get("source_sha")
+            except Exception as exc:               # noqa: BLE001
+                problems.append(f"{os.path.basename(path)}: unreadable while checking the "
+                                f"exp_21 pin ({exc})")
+                continue
+            shas.setdefault(str(sha), []).append(f"{label} K={k}")
+    if len(shas) > 1:
+        detail = "; ".join(f"{sha[:12]}: {sorted(set(cells))}"
+                           for sha, cells in sorted(shas.items()))
+        problems.append("the exp_21 K=1 and K=8 rows span MORE THAN ONE evaluator pin, so "
+                        f"the paired reading is not a within-pin comparison - {detail}")
+    return problems
+
+
 def exp14_arm_of(label):
     """The arm a registered exp_14 row label names (its first token)."""
     return str(label).split(" ", 1)[0]
@@ -728,6 +913,16 @@ def render_row(label, proto, K, files, repo_root=None, validator_path=None, cont
                     f"**BLOCKED — row validation failed:** {detail} | | | | | |"), True
         r, n = agg_files_exp15(files)
     else:
+        # exp_21 publishes the FLAT split-level metrics every comparator row uses
+        # (plan §5), so it takes the ordinary aggregation - but only after its own
+        # admission gate, which also proves the payload is finite before agg_files
+        # would raise on it.
+        if contract == "exp21":
+            ok, problems = validate_exp21_cell(files, repo_root=repo_root, expected_k=K)
+            if not ok:
+                detail = problems[0] if problems else "unspecified"
+                return (f"| {label} | {proto} | {K} | {len(files)} | "
+                        f"**BLOCKED — row validation failed:** {detail} | | | | | |"), True
         r, n = agg_files(files)
     if r is None or n < MIN_SEEDS:
         return (f"| {label} | {proto} | {K} | {n} | "
@@ -943,6 +1138,7 @@ def main(argv=None):
 
     rendered, blocked_rows, exp11_status, q9_cells = [], [], {}, {}
     exp14_cells, exp14_status = {}, {}
+    exp21_cells, exp21_status = {}, {}
     for spec in ROWS:
         label, proto, K, pats = spec[:4]
         contract = spec[4] if len(spec) > 4 else "table"
@@ -961,6 +1157,11 @@ def main(argv=None):
             # transaction gate consumes it rather than re-deriving readiness from
             # how many files happen to exist (round-3 closure A4/B2)
             exp14_status[(label, K)] = bool(files) and not blocked
+        if contract == "exp21":
+            exp21_cells[(label, K)] = files
+            # same discipline as exp_14's: the transaction gate consumes the
+            # validation computed while rendering, never a file count
+            exp21_status[(label, K)] = bool(files) and not blocked
         if blocked:
             blocked_rows.append(f"{label} (K={K})")
         if is_exp11_row(pats) and files:
@@ -1014,6 +1215,21 @@ def main(argv=None):
                                          "the exp_15 YAWAUG row publishes only as a "
                                          "complete K=1 + K=8 pair")
         lines_tail += ["", "**exp_15 YAWAUG rows WITHHELD:** " + "; ".join(exp15_problems)]
+    # The exp_21 BFC pair is the same kind of transaction, one experiment later -
+    # with the carve-out that a pair which has landed NOTHING is pending, not
+    # withheld, so registering the rows in advance costs no other regeneration
+    # anything.
+    exp21_problems = check_exp21_round(exp21_cells, exp21_status)
+    if exp21_problems:
+        print("exp_21 BFC rows not publishable as one transaction:", file=sys.stderr)
+        for problem in exp21_problems:
+            print("  -", problem, file=sys.stderr)
+        for r in rendered:
+            if (r["label"], r["K"]) in exp21_cells:
+                r["line"] = withheld_row(r["label"], r["proto"], r["K"], r["n"],
+                                         "the exp_21 BFC row publishes only as a complete "
+                                         "K=1 + K=8 pair at ONE evaluator pin")
+        lines_tail += ["", "**exp_21 BFC rows WITHHELD:** " + "; ".join(exp21_problems)]
     two_k = check_two_k_coverage(exp11_status)
     if two_k:
         bad_labels = {p.split(":")[0] for p in two_k}

@@ -514,5 +514,5 @@ class TestValidatorModule:
     def test_the_record_seed_must_match_its_own_eval_name(self, V):
         """The seed is in two places; disagreeing means the file was renamed."""
         cell = V.parse_eval_name("exp21_BFC_S40000_K8_s42")
-        reasons = V.validate_metrics_record(record(8, 42, seed=43), cell)
+        reasons = V.validate_metrics_record(dict(record(8, 42), seed=43), cell)
         assert any("seed" in r for r in reasons), reasons
