@@ -239,3 +239,28 @@ def test_admission_refuses_a_checkpoint_that_moved_while_it_was_read(tmp_path, m
     record = ca.admit_checkpoint(ckpt, config, arm="P1", check_load_integrity=False)
     assert record["admitted"] is False
     assert any("changed" in r or "replaced" in r for r in record["reasons"]), record["reasons"]
+
+
+def test_load_integrity_uses_the_registered_whitelist(monkeypatch, arm_files):
+    """The registered contract (eval_FLAC.LOAD_WHITELIST_PREFIXES) is 0 missing /
+    0 STRAY unexpected: every real checkpoint carries diffusion_ema bookkeeping
+    and the training loss module, and refusing those would refuse every arm."""
+    from eval_FLAC import LOAD_WHITELIST_PREFIXES
+
+    assert LOAD_WHITELIST_PREFIXES == ("diffusion_ema.", "losses.")
+    benign = ["diffusion_ema.initted", "diffusion_ema.step", "losses.losses.0.weight"]
+    verdict = ca.classify_load_integrity(missing=[], unexpected=benign)
+    assert verdict["n_missing"] == 0 and verdict["n_stray"] == 0
+    assert verdict["n_whitelisted"] == 3 and verdict["clean"] is True
+
+    stray = ca.classify_load_integrity(missing=[], unexpected=benign + ["model.blocks.9.w"])
+    assert stray["n_stray"] == 1 and stray["clean"] is False
+    assert ca.classify_load_integrity(missing=["model.x"], unexpected=[])["clean"] is False
+
+    ckpt, config = arm_files
+    monkeypatch.setattr(ca, "load_integrity",
+                        lambda model_config, state_dict: {"checked": True, "missing": [],
+                                                          "unexpected": benign})
+    record = ca.admit_checkpoint(ckpt, config, arm="P1", check_load_integrity=True)
+    assert record["admitted"] is True, record["reasons"]
+    assert record["load_integrity"]["n_whitelisted"] == 3

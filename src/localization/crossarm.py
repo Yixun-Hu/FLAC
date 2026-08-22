@@ -228,13 +228,33 @@ def _identity_reasons(arm, embedded):
 
 
 def load_integrity(model_config, state_dict):
-    """Build the model and count missing/unexpected keys (0/0 is the contract)."""
+    """Build the model and report ``load_state_dict(strict=False)``."""
     from src.models import create_model_from_config
 
     model = create_model_from_config(model_config)
     missing, unexpected = model.load_state_dict(state_dict, strict=False)
-    return {"checked": True, "missing": sorted(missing), "unexpected": sorted(unexpected),
-            "n_missing": len(missing), "n_unexpected": len(unexpected)}
+    return {"checked": True, "missing": sorted(missing), "unexpected": sorted(unexpected)}
+
+
+def classify_load_integrity(missing, unexpected):
+    """The REGISTERED integrity contract: 0 missing / 0 STRAY unexpected.
+
+    ``eval_FLAC.check_load_integrity`` tolerates exactly two unexpected prefixes
+    -- ``diffusion_ema.`` (the EMA bookkeeping buffers) and ``losses.`` (the
+    training loss module) -- because every wrapped PL checkpoint carries them.
+    Demanding zero RAW unexpected keys would refuse all three exp_20 arms for a
+    benign reason and would be stricter than the driver that actually runs them.
+    """
+    from eval_FLAC import LOAD_WHITELIST_PREFIXES
+
+    missing = sorted(missing)
+    unexpected = sorted(unexpected)
+    stray = [key for key in unexpected if not key.startswith(LOAD_WHITELIST_PREFIXES)]
+    return {"checked": True, "missing": missing, "unexpected": unexpected, "stray": stray,
+            "n_missing": len(missing), "n_unexpected": len(unexpected), "n_stray": len(stray),
+            "n_whitelisted": len(unexpected) - len(stray),
+            "whitelist": list(LOAD_WHITELIST_PREFIXES),
+            "clean": not (missing or stray)}
 
 
 def admit_checkpoint(ckpt_path, arm_config_path, arm, expect_step=REGISTERED_STEP,
@@ -322,12 +342,15 @@ def admit_checkpoint(ckpt_path, arm_config_path, arm, expect_step=REGISTERED_STE
 
             prepared, _source = prepare_state_dict(
                 {"state_dict": dict(state_dict)}, (embedded or {}).get("training"))
-            record["load_integrity"] = load_integrity(json.loads(json.dumps(config_obj)),
-                                                      prepared)
-            if record["load_integrity"]["n_missing"] or record["load_integrity"]["n_unexpected"]:
+            raw = load_integrity(json.loads(json.dumps(config_obj)), prepared)
+            record["load_integrity"] = classify_load_integrity(raw["missing"],
+                                                               raw["unexpected"])
+            if not record["load_integrity"]["clean"]:
                 reasons.append(
                     f"load integrity: {record['load_integrity']['n_missing']} missing / "
-                    f"{record['load_integrity']['n_unexpected']} unexpected keys, expected 0/0")
+                    f"{record['load_integrity']['n_stray']} stray unexpected keys "
+                    f"(first stray: {record['load_integrity']['stray'][:3]}), expected 0/0 "
+                    f"under the registered whitelist {record['load_integrity']['whitelist']}")
         except Exception as error:                   # noqa: BLE001 -- reported as a refusal
             record["load_integrity"] = {"checked": False, "error": str(error)}
             reasons.append(f"load integrity could not be established: {error}")
