@@ -1,0 +1,12 @@
+# loc_crossarm_command — exp_20 commands (at launch)
+
+## BF fa-parity gate execution (2026-08-22_01:22:02 EDT; first attempt was a Planner shell hang — stdin-blocked cat, no run occurred)
+```bash
+nohup python eval_localization.py --fa-parity-check --cond-method fa_invariant \
+  --ckpt-path weights/exp20/BF_40k.ckpt \
+  --model-config worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json \
+  --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_seeneval.json \
+  --agree-ckpt weights/AGREE/AGREE_AR.pt --num-samples 1 --tau 0.02 --agg lme --seed 42 \
+  --rotate-deg 0 --cond-autocast default --batch-size 4 --num-workers 4 --device cuda:0 \
+  --out-dir outputs_loc/exp20 --eval-name exp20_bf_parity > worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-22_01:22:02_bf_parity.log 2>&1 &
+```
