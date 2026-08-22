@@ -1,0 +1,51 @@
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+exp_21 rung 4 -- cap parity + real-data readback
+device: cuda (41.0 of 47.4 GiB free on cuda:0) | torch 2.7.0+cu126 | HF_HUB_OFFLINE=1
+arm config ASSERTED: cond_method='fa_cartesian' angles=[0.0, 90.0, 180.0, 270.0] TRAIN cap=32 (vs eval cap 64)
+chunk plans at batch 32: cap 32 -> 1 angle/chunk, cap 64 -> 2 angles/chunk
+[1/4] loading one real training batch
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+[2/4] readback
+  readback OK: 32 samples, all 6 conditioner fields present, shape+dtype+finite asserted
+  dtypes: source=float32, source_vit=float32, context_poses=float32, context_poses_vit=float32, context_audio=float32, depth=float64
+  scenes spanned (9 >= 6): ['Apartments', 'Auditorium', 'Bathrooms', 'Bedrooms', 'ListeningRoom', 'LivingRoomsWithHallway', 'MeetingRoom', 'Office', 'Restaurants']
+  depth[0]   (3, 256, 512) min -3.3832 max +5.4131 std 1.1241
+  ctx_pos[0] (8, 3) min -0.7403 max +4.6435 std 1.3448
+[3/4] building the real conditioner stack (shared DINOv3, pinned cache)
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+[4/4] cap 32 vs 64 and the 90-degree C4 check, at BOTH precisions
+  --- conditioning precision: bf16 (autocast bf16) ---
+    [bf16] cap32-vs-cap64  context_audio        max|d| 0.000e+00
+    [bf16] cap32-vs-cap64  context_poses        max|d| 0.000e+00
+    [bf16] cap32-vs-cap64  context_poses_vit    max|d| 0.000e+00
+    [bf16] cap32-vs-cap64  source               max|d| 0.000e+00
+    [bf16] cap32-vs-cap64  source_vit           max|d| 0.000e+00
+    [bf16] c4-90deg        context_audio        max|d| 0.000e+00
+    [bf16] c4-90deg        context_poses        max|d| 7.812e-03
+    [bf16] c4-90deg        context_poses_vit    max|d| 7.812e-03
+    [bf16] c4-90deg        source               max|d| 7.812e-03
+    [bf16] c4-90deg        source_vit           max|d| 7.812e-03
+  [bf16] cap-parity 0.000e+00 -> OK | C4 7.812e-03 -> VIOLATED | tolerance 1e-05
+  --- conditioning precision: off (no autocast, fp32) ---
+    [off] cap32-vs-cap64   context_audio        max|d| 0.000e+00
+    [off] cap32-vs-cap64   context_poses        max|d| 0.000e+00
+    [off] cap32-vs-cap64   context_poses_vit    max|d| 0.000e+00
+    [off] cap32-vs-cap64   source               max|d| 0.000e+00
+    [off] cap32-vs-cap64   source_vit           max|d| 0.000e+00
+    [off] c4-90deg         context_audio        max|d| 0.000e+00
+    [off] c4-90deg         context_poses        max|d| 1.192e-07
+    [off] c4-90deg         context_poses_vit    max|d| 1.192e-07
+    [off] c4-90deg         source               max|d| 1.192e-07
+    [off] c4-90deg         source_vit           max|d| 1.192e-07
+  [off] cap-parity 0.000e+00 -> OK | C4 1.192e-07 -> OK | tolerance 1e-05
+  REGISTERED     (bf16): cap-parity 0.000e+00 OK | C4 7.812e-03 VIOLATED
+  fp32 reference (off ): cap-parity 0.000e+00 OK | C4 1.192e-07 OK
+RUNG-4 VERDICT: FAIL (batch 32, device cuda, tolerance 1e-05, angles [0.0, 90.0, 180.0, 270.0], caps 32/64)
+  TOLERANCE NOT RELAXED IN-SCRIPT. For the Planner to judge, per precision: bf16: cap 0.000e+00 / C4 7.812e-03; off: cap 0.000e+00 / C4 1.192e-07
