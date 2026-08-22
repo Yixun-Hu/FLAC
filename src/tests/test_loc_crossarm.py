@@ -1617,3 +1617,88 @@ def test_parity_record_carries_per_side_key_sets_and_original_dtypes():
                     "mask_dtype", "mask_shape", "mask_finite"):
             assert key in entry, (side, key)
         assert entry["tensor_finite"] is True
+
+
+# --------------------------------------------------------------------------- #
+# r3 F4 -- the observed partition is published and validated; sources compared
+# --------------------------------------------------------------------------- #
+def test_row_publishes_the_observed_partition_on_fa_runs():
+    import eval_localization as el
+
+    facts = {}
+    el.conditioning_call("fa_invariant", _RecordingConditioner(), _fa_metadata(n=3), "cpu",
+                         ca.FA_ANGLES, record=facts)
+    row = {"query_id": "q0"}
+    el.attach_fa_execution(row, facts)
+    assert row["fa_execution"]["partition"] == [3, 3, 3]
+    assert row["fa_execution"]["angles_per_chunk"] == 1
+    assert row["fa_execution"]["orbit_size"] == 4
+
+    vanilla = {"query_id": "q1"}
+    el.attach_fa_execution(vanilla, {"cond_method": "vanilla", "n_orbit_forwards": 0})
+    assert "fa_execution" not in vanilla          # a vanilla row keeps the r7 schema
+
+
+def test_end_gate_compares_every_query_against_the_locked_plan():
+    import eval_localization as el
+
+    locked = ca.fa_run_state("fa_invariant", candidate_micro_batch=3)
+    good = [{"query_id": f"q{i}", "fa_execution": {
+        "partition": [3, 3, 3], "angles_per_chunk": 1, "orbit_size": 4,
+        "n_orbit_forwards": 3, "shared_angle_count": 1, "candidate_micro_batch": 3,
+        "frame_avg_fwd_cap": 3, "cap_policy": "candidate_micro_batch"}} for i in range(3)]
+    assert el.assert_fa_execution_matches(good, locked) == 3
+
+    for field, mutated in (("angles_per_chunk", 3), ("orbit_size", 2),
+                           ("n_orbit_forwards", 1), ("shared_angle_count", 3),
+                           ("candidate_micro_batch", 8)):
+        broken = [dict(row, fa_execution=dict(row["fa_execution"], **{field: mutated}))
+                  for row in good[:1]] + good[1:]
+        with pytest.raises(SystemExit, match=field):
+            el.assert_fa_execution_matches(broken, locked)
+
+    missing = [dict(good[0]), *good[1:]]
+    missing[0].pop("fa_execution")
+    with pytest.raises(SystemExit, match="fa_execution"):
+        el.assert_fa_execution_matches(missing, locked)
+
+
+def test_registered_manifest_pins_the_fa_source_blobs():
+    import eval_localization as el
+
+    args = el.parse_args(["--model-config", "m.json", "--dataset-config", "d.json",
+                          "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
+                          "--num-samples", "8", "--cond-method", "fa_invariant"])
+    manifest = dict(el.fa_protocol_state(args))
+    manifest["fa_source_shas"] = ca.fa_source_shas()
+    el.assert_fa_registration(manifest, args)                 # matching sources pass
+
+    drifted = dict(manifest, fa_source_shas=dict(manifest["fa_source_shas"],
+                                                 **{"src/data/yaw_rotation.py": "0" * 64}))
+    with pytest.raises(SystemExit, match="yaw_rotation"):
+        el.assert_fa_registration(drifted, args)
+
+    generated = _generator().protocol_manifest("BF", "R2", ckpt_sha256="a" * 64,
+                                               model_config_sha256="b" * 64)
+    assert generated["fa_source_shas"] == ca.fa_source_shas()
+
+
+def test_fa_locked_plan_reaches_the_end_gate_context():
+    """The plan the gate enforces comes from the verified manifest when there is
+    one, and from the run's declared state otherwise."""
+    import eval_localization as el
+
+    args = el.parse_args(["--model-config", "m.json", "--dataset-config", "d.json",
+                          "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
+                          "--num-samples", "8", "--cond-method", "fa_invariant"])
+    state = el.fa_protocol_state(args)
+    manifest = dict(state, angles_per_chunk=1)
+    el.assert_fa_registration(manifest, args)
+    assert args.fa_locked_plan["angles_per_chunk"] == 1
+    assert set(args.fa_locked_plan) <= set(el.FA_EXECUTION_FIELDS)
+
+    vanilla = el.parse_args(["--model-config", "m.json", "--dataset-config", "d.json",
+                             "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
+                             "--num-samples", "8"])
+    assert el.assert_fa_registration({"cond_method": "vanilla"}, vanilla) is None
+    assert getattr(vanilla, "fa_locked_plan", None) is None

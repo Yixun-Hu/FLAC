@@ -34,7 +34,8 @@ if _REPO_ROOT not in sys.path:
 
 from src.localization.crossarm import (ARMS, FA_ANGLES, FA_CHUNK_PLAN,  # noqa: E402
                                        REGISTERED_CANDIDATE_MICRO_BATCH, REGISTERED_STEP,
-                                       canonical_sha256, fa_run_state)
+                                       canonical_sha256, fa_run_state,
+                                       fa_source_shas)
 
 STEP = REGISTERED_STEP
 
@@ -92,6 +93,7 @@ def protocol_manifest(arm, regime, ckpt_sha256, model_config_sha256, template=No
     if spec["cond_method"] == "fa_invariant":
         # announcement 06: the whole conditioning protocol is locked, chunk plan
         # included, so a run that partitions the orbit differently is refused.
+        payload["fa_source_shas"] = fa_source_shas()
         payload.update(fa_run_state(spec["cond_method"], frame_avg_angles=FA_ANGLES,
                                     rotate_deg=0.0,
                                     cond_autocast=payload.get("cond_autocast", "default"),

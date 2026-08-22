@@ -1731,6 +1731,7 @@ def process_query(args, engine, context, md, obs_wav, dump=None, sink=None):
         context_sims_hex=evidence.get("context_sims_hex"),
         timings=timings, merge_map=room_entry.get("merge_map"),
         oracle_source_nodes=outcome.get("oracle_source_nodes"))
+    attach_fa_execution(row, (context or {}).get("fa_execution"))
     if dump is not None and outcome.get("wavs") is not None:
         if sink is None:
             # --metrics off: the r7 route, unchanged (finding 7 / R2b firewall)
@@ -1827,6 +1828,10 @@ def run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256, exp
         metrics_handle.close()      # flushed -- but NOT named until every gate passes
     if context.get("context_k") is not None:
         assert_context_evidence_complete(rows, context["context_k"])
+    fa_locked = context.get("fa_locked_plan")
+    if fa_locked:
+        print(f"fa partition gate passed: {assert_fa_execution_matches(rows, fa_locked)} "
+              "queries executed the registered plan")
     split = assert_scored_stream(scored, expected)
     print(f"identity gate passed: {len(scored)} queries, split_hash={split[:12]}...")
 
@@ -2000,6 +2005,10 @@ def main(argv=None):
     print(f"registered split: {len(expected)} queries")
     context["manifest"] = candidate_manifest
     context["context_k"] = context_k
+    # exp_20 F4: every FA query is held to the registered partition at the end gate
+    context["fa_locked_plan"] = getattr(args, "fa_locked_plan", None) or (
+        {field: value for field, value in (fa_protocol_state(args) or {}).items()
+         if field in FA_EXECUTION_FIELDS} or None)
     print(f"candidate manifest frozen: {len(candidate_manifest['rooms'])} rooms, "
           f"sha256={manifest_hash[:12]}...")
     result = run_evaluation(args, loader, engine, context, ckpt_sha256, agree_sha256,
@@ -2043,6 +2052,55 @@ def conditioning_call(cond_method, conditioner, metadata, device, frame_avg_angl
     return conditioner(metadata, device)
 
 
+#: the executed-partition fields a row publishes and the end gate compares.
+FA_EXECUTION_FIELDS = ("cap_policy", "frame_avg_fwd_cap", "candidate_micro_batch",
+                       "orbit_size", "angles_per_chunk", "n_orbit_forwards",
+                       "shared_angle_count")
+
+
+def attach_fa_execution(row, observed):
+    """Publish the partition a query actually executed (FA rows only).
+
+    Vanilla rows are untouched, so exp_18's row schema is unchanged; an FA row
+    carries cheap ints the end gate then checks against the manifest.
+    """
+    if not observed or observed.get("cond_method") != "fa_invariant":
+        return row
+    row["fa_execution"] = {key: observed[key] for key in
+                           ("partition",) + FA_EXECUTION_FIELDS if key in observed}
+    return row
+
+
+def assert_fa_execution_matches(rows, locked):
+    """End gate: EVERY query's executed partition equals the registered plan.
+
+    The manifest locks numbers; this proves the run produced them query by query
+    rather than asserting it once at startup (r2 F4).
+    """
+    checked = 0
+    for row in rows:
+        observed = row.get("fa_execution")
+        if not observed:
+            raise SystemExit(f"fa gate ABORT: query {row.get('query_id')!r} carries no "
+                             "fa_execution; a frame-average run must publish the partition "
+                             "it executed for every query")
+        for field in FA_EXECUTION_FIELDS:
+            if field not in locked:
+                continue
+            want, got = locked[field], observed.get(field)
+            if isinstance(want, str) or isinstance(got, str):
+                same = str(want) == str(got)
+            else:
+                same = want is not None and got is not None and int(want) == int(got)
+            if not same:
+                raise SystemExit(
+                    f"fa gate ABORT: query {row.get('query_id')!r} executed {field}={got!r} "
+                    f"but the registration locks {want!r}; the orbit was partitioned "
+                    "differently from the registered plan")
+        checked += 1
+    return checked
+
+
 def fa_protocol_state(args):
     """The frame-average protocol this run resolves, or ``None`` for vanilla."""
     from src.localization.crossarm import FA_ANGLES, fa_run_state
@@ -2067,6 +2125,23 @@ def assert_fa_registration(manifest, args):
         return None
     for reason in fa_reasons(manifest, state):
         _refuse(reason)
+    # a registration commit need only be an ANCESTOR, so the executable FA source
+    # can move afterwards: the manifest pins the blobs and the run compares them
+    # the numbers the gate will hold every query to: the manifest's when a
+    # manifest was verified, else the run's own declared plan
+    args.fa_locked_plan = {field: manifest[field] for field in FA_EXECUTION_FIELDS
+                           if field in manifest} or {
+        field: state[field] for field in FA_EXECUTION_FIELDS if field in state}
+    pinned = manifest.get("fa_source_shas")
+    if pinned:
+        from src.localization.crossarm import fa_source_shas
+
+        current = fa_source_shas()
+        for relpath in sorted(pinned):
+            if pinned[relpath] != current.get(relpath):
+                _refuse(f"registered fa source {relpath} is {str(pinned[relpath])[:12]}... "
+                        f"but this run executes {str(current.get(relpath))[:12]}...; the "
+                        "frame-average code changed after registration")
     return state
 
 
