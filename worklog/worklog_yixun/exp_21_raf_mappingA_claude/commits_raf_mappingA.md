@@ -28,3 +28,7 @@ Base: `raf-finetune-exp` @ `263ef27` (full exp_19 pipeline + 557-test suite inhe
 | `1326cdf` | r2 N7: `eval_FLAC --record-per-item` sidecar (RAF-gated, additive) + `mappingA_stats` paired ingestion (exact item×seed pairing, registered design, paired placement bootstrap) |
 | `f1b1808` | r2 N8: tracked height read from the RAW RAF row (`RAF_UP_AXIS`), not from a pipeline coordinate that holds it only under the current gauge |
 | `044585e` | r2 N9: rigid residual (recorded), per-slot evidence digest, duplicate-receiver and zero/zero-margin refusals; algorithm → `mappingA-correspondence-2`; readback re-run + record re-pinned (`d4d79b49…`) |
+| `1b8e8d7` | r3 P1: Mapping-A runtime root DERIVED as `<mappingH-dir>/mappingA`; equal/ancestor/outside/room-inside roots refused before any survey or write; both real CLIs composed at true defaults |
+| `e56bb55` | r3 P2: `rx_row == assignment[group_key][mic_slot]` attested from the authoritative per-slot correspondence (published in the splits record, fail-closed by default); MATCH_SCHEMA gains the N9 digest + residual, all distances finite; reviewer's slot-0/row-23 probe committed as a negative test |
+| `fd68f9d` | r3 P3: arm identity derived from sidecar provenance (ckpt sha, config digests, publication generation, stream hash); non-seed fields constant within an arm; registered mode = exactly seeds 42-46; cross-arm shared-identity + self-comparison checks |
+| `b138a9b` | r3: N1 e2e test upgraded to a CANONICAL render whose marker is consumed untouched (bytes asserted unchanged); wrong-map-count refusal added |
