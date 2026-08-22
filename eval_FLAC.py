@@ -1128,6 +1128,27 @@ def evaluate_model(
             f"--frame-avg-max-fwd-samples (frame_avg_max_fwd_samples): {err}"
         ) from err
 
+    # ...and the same plan's OTHER half: the batch must fit inside one chunk.
+    # The orbit executor already refuses batch > cap, but at the first chunk and
+    # -- whenever a cap was supplied, which every registered evaluation does --
+    # under the name `training.frame_avg_max_fwd_samples`: a TRAINING-config key
+    # this entry point never reads, so the message sends the operator to a knob
+    # that cannot fix the run (r3 review nit 3). Checked here it costs no file,
+    # model, dataloader or GPU work, and it names the two CLI flags that decide
+    # the outcome. Method-gated: vanilla runs no orbit, so its cap is inert and
+    # must not be able to refuse a run.
+    if (cond_method in FRAME_AVERAGED_COND_METHODS
+            and batch_size is not None and batch_size > frame_avg_max_fwd_samples):
+        raise ValueError(
+            f"--batch-size {batch_size} exceeds --frame-avg-max-fwd-samples "
+            f"{frame_avg_max_fwd_samples} under --cond-method {cond_method}: a "
+            "frame-average chunk is whole angles, so it cannot be split below one "
+            f"angle. Lower --batch-size to at most {frame_avg_max_fwd_samples}, or "
+            "raise --frame-avg-max-fwd-samples deliberately and record the new chunk "
+            "plan (announcement 06). NOTE this is the EVALUATION cap, separate from "
+            "the arm's training cap."
+        )
+
     # Resolve (and validate) the rotation protocol before any file/model work:
     # a misconfigured rotation must never reach a GPU (see resolve_rotation_plan).
     rotation_plan = resolve_rotation_plan(rotate_mode, rotate_deg, rotate_seed, seed)

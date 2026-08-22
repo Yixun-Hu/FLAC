@@ -8,8 +8,9 @@ from src.data.dataset import create_dataloader_from_config
 from src.models import create_model_from_config
 from src.training import create_training_wrapper_from_config
 
-# Conditioning methods this entry point must REFUSE to evaluate (exp_21 round-2
-# code review, nit 3).
+# Conditioning methods this entry point may evaluate — an ALLOWLIST, so it fails
+# closed (exp_21 round-2 code review nit 3; widened from a denylist to an
+# allowlist by round-3 nit 2).
 #
 # eval_pl drives PL's test loop and writes `{metrics, ckpt_path}` -- and nothing
 # else. None of the provenance `eval_FLAC.build_metrics_record` attaches exists
@@ -24,10 +25,14 @@ from src.training import create_training_wrapper_from_config
 # would run the arm and emit an unprovenanced number. Failing closed is cheaper
 # than a worklog rule: exp_21 headline rows come from eval_FLAC.py.
 #
-# The registered methods are deliberately NOT listed: vanilla and fa_invariant
-# rows predate this entry point's provenance gap, and adding them would change
-# behaviour for runs already in the record.
-UNREGISTERED_COND_METHODS = ("fa_cartesian",)
+# WHY AN ALLOWLIST (r3 nit 2). A denylist naming only the arms that exist today
+# is one omission away from the same hole: the NEXT wrapper method inherits this
+# dispatch for free too, and its author has no reason to come here. The members
+# below are exactly the configurations whose rows PREDATE this provenance gap --
+# vanilla, fa_invariant, and legacy configs that declare no cond_method at all --
+# so nothing already in the record changes behaviour, while every future method
+# must be added deliberately.
+PERMITTED_COND_METHODS = (None, "vanilla", "fa_invariant")
 
 
 def reject_unregistered_cond_method(model_config):
@@ -38,16 +43,20 @@ def reject_unregistered_cond_method(model_config):
     it could already hold a half-written record.
     """
     cond_method = ((model_config or {}).get("training") or {}).get("cond_method")
-    if cond_method in UNREGISTERED_COND_METHODS:
-        raise ValueError(
-            f"eval_pl.py refuses to evaluate cond_method={cond_method!r}: this entry "
-            "point writes only {metrics, ckpt_path}, so it records no cond_method, "
-            "no frame_avg_angles, no orbit execution or cap, and no source SHA -- it "
-            "has NO registered-eval provenance, and its output is indistinguishable "
-            "from a vanilla row after the fact. exp_21 headline rows must come from "
-            "eval_FLAC.py --cond-method fa_cartesian (which records all of the above "
-            "and is what the model-comparison admission validator reads)."
-        )
+    if cond_method in PERMITTED_COND_METHODS:
+        return
+    raise ValueError(
+        f"eval_pl.py refuses to evaluate cond_method={cond_method!r}: this entry "
+        "point writes only {metrics, ckpt_path}, so it records no cond_method, "
+        "no frame_avg_angles, no orbit execution or cap, and no source SHA -- it "
+        "has NO registered-eval provenance, and its output is indistinguishable "
+        "from a vanilla row after the fact. Only "
+        + ", ".join(repr(m) for m in PERMITTED_COND_METHODS)
+        + " are permitted here (their rows predate this gap). Registered rows for "
+        "any other method -- exp_21's fa_cartesian included -- must come from "
+        "eval_FLAC.py --cond-method <method> (which records all of the above and "
+        "is what the model-comparison admission validator reads)."
+    )
 
 
 class ExceptionCallback(pl.Callback):
