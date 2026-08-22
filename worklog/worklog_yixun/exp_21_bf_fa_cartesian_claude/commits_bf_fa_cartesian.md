@@ -28,3 +28,4 @@
 | `5a256b1` | exp_21: r5 nits — guardtest-only floor bypass, docstring fixes, commits-log dedupe |
 | `cc13656` | exp_21: r5 evidence logs |
 | `41f11b0` | exp_21: r5 re-review BLOCKING 1-4 — cross-arm gate made transactional (all six arm×K rows, five seeds each), per-(K,seed) input identity recomputed from sidecar preimages, reviewed comparator digests pinned + enforced across both K, preflight fails closed on digest mismatch, `.fullmatch()` for both 64-hex checks (gen +125/−23, protocol +50/−13, validator +42/−2, eval_FLAC +6/−2; tests +218/−30) |
+| `a4d8cd8` | exp_21: ladder rung 4 — `bfc_cap_parity_probe.py` (+210): real-data readback + cap-32-vs-cap-64 parity + 90° C4 spot-check on real AR data through the real DINOv3. VERDICT PASS at the strict 1e-5 tolerance (worst cap diff 1.058e-06, worst C4 diff 1.319e-06; 32 samples spanning 9 of 10 room families) |
