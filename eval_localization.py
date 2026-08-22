@@ -871,11 +871,12 @@ def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source
         record["metric_registration"] = getattr(args, "metric_registration", None) or "n/a"
         record["metric_registration_sha_resolved"] = getattr(
             args, "metric_registration_sha_resolved", None) or "n/a"
+    # r2 F6: EVERY row states where its conditioning method was bound -- a
+    # checkpoint-bound vanilla arm and an unbound stripped release are different
+    # facts, and only recording it for FA rows hid both.
+    record["cond_method_binding"] = getattr(args, "cond_method_binding", None)
     if fa_state is not None:
-        # exp_20 B1: only a frame-average row carries these, so every vanilla row
-        # -- including every exp_18 rerun -- keeps the r7 schema exactly
         record["frame_avg_chunk_plan"] = fa_state["frame_avg_chunk_plan"]
-        record["cond_method_binding"] = getattr(args, "cond_method_binding", None)
     return record
 
 
@@ -2064,7 +2065,11 @@ def load_checkpoint_and_validate(args, model_config):
 
     ckpt = torch.load(args.ckpt_path, map_location="cpu")
     assert_no_are(ckpt.get("model_config"), copy.deepcopy(model_config))
-    binding = cond_method_binding(ckpt, getattr(args, "cond_method", "vanilla"))
+    binding = cond_method_binding(
+        ckpt, getattr(args, "cond_method", "vanilla"),
+        manifest=getattr(args, "verified_registration_manifest", None),
+        manifest_verified=bool(getattr(args, "verified_registration_manifest", None)),
+        registered=bool(getattr(args, "registration_manifest", None)))
     args.cond_method_binding = binding
     for reason in binding["reasons"]:
         _refuse(reason)

@@ -474,13 +474,16 @@ def test_cond_method_binds_to_the_checkpoint_when_the_checkpoint_says(tmp_path):
 
 
 def test_cond_method_binding_is_honest_about_a_stripped_release():
-    """The released EMA checkpoint carries no model_config at all, so the method
-    is NOT detectable from the file and the binding rests on the manifest."""
+    """The released EMA checkpoint carries no model_config, so the method is not
+    detectable from the file. Without a VERIFIED manifest that is `unbound`, not
+    a manifest binding (r1 review F6)."""
     verdict = ca.cond_method_binding({"state_dict": {}}, "vanilla")
-    assert verdict["binding"] == "manifest" and verdict["reasons"] == []
-    assert "not detectable" in verdict["note"]
-    # ... and an fa run on such a file is allowed only by the manifest, labelled
-    assert ca.cond_method_binding({"state_dict": {}}, "fa_invariant")["binding"] == "manifest"
+    assert verdict["binding"] == "unbound" and verdict["reasons"] == []
+    assert verdict["stamped"] is True and "no model_config" in verdict["note"]
+    with_manifest = ca.cond_method_binding({"state_dict": {}}, "vanilla",
+                                           manifest={"cond_method": "vanilla"},
+                                           manifest_verified=True)
+    assert with_manifest["binding"] == "manifest"
 
 
 # --------------------------------------------------------------------------- #
@@ -600,9 +603,9 @@ def test_provenance_records_the_declared_plan_and_the_binding(tmp_path):
                              "--num-samples", "8"])
     record = el.build_provenance(vanilla, "ck", "ag", "split", "ema", 1)
     assert record["orbit_execution"] == "n/a" and record["frame_avg_fwd_cap"] is None
-    # the FA keys must be ABSENT, not None: exp_18's published metrics-off
-    # provenance schema is pinned key-for-key by its own r7 test
-    assert "frame_avg_chunk_plan" not in record and "cond_method_binding" not in record
+    # the FA-only key stays absent on a vanilla row; the binding is on every row
+    assert "frame_avg_chunk_plan" not in record
+    assert "cond_method_binding" in record
 
     fa = el.parse_args(["--model-config", "m.json", "--dataset-config", "d.json",
                         "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
@@ -858,3 +861,130 @@ def test_committed_admission_records_are_admitted_and_bind_the_staged_checkpoint
     shas = {arm: json.loads((folder / f"loc_crossarm_admission_{arm}.json").read_text())["sha256"]
             for arm in expected_cond}
     assert len(set(shas.values())) == 3, "two arms hash to the same checkpoint"
+
+
+# --------------------------------------------------------------------------- #
+# r2 F6 -- the binding is never assumed: checkpoint, manifest, or UNBOUND
+# --------------------------------------------------------------------------- #
+def test_binding_states_cover_the_whole_matrix(tmp_path):
+    fa = torch.load(_write_ckpt(tmp_path / "bf.ckpt", config=_fa_config()),
+                    map_location="cpu", weights_only=True)
+    vanilla = torch.load(_write_ckpt(tmp_path / "p1.ckpt"), map_location="cpu",
+                         weights_only=True)
+    configless = {"state_dict": {}}
+
+    # 1. the checkpoint answers -> bound to the file, agreement required
+    assert ca.cond_method_binding(fa, "fa_invariant")["binding"] == "checkpoint"
+    assert ca.cond_method_binding(vanilla, "vanilla")["binding"] == "checkpoint"
+    assert ca.cond_method_binding(fa, "vanilla")["reasons"]
+    assert ca.cond_method_binding(vanilla, "fa_invariant")["reasons"]
+
+    # 2. configless + a verified manifest that agrees -> bound to the manifest
+    bound = ca.cond_method_binding(configless, "vanilla",
+                                   manifest={"cond_method": "vanilla"}, manifest_verified=True)
+    assert bound["binding"] == "manifest" and bound["reasons"] == []
+
+    # 3. configless + a manifest that disagrees -> refusal
+    clash = ca.cond_method_binding(configless, "fa_invariant",
+                                   manifest={"cond_method": "vanilla"}, manifest_verified=True)
+    assert clash["reasons"] and "manifest" in clash["reasons"][0]
+
+    # 4. configless + an UNverified manifest is not a binding
+    unverified = ca.cond_method_binding(configless, "vanilla",
+                                        manifest={"cond_method": "vanilla"},
+                                        manifest_verified=False)
+    assert unverified["binding"] == "unbound"
+
+    # 5. configless + nothing at all -> unbound, and that is a REFUSAL when the
+    #    run is registered, a stamped state when it is a smoke/dev run
+    unbound = ca.cond_method_binding(configless, "vanilla")
+    assert unbound["binding"] == "unbound" and unbound["reasons"] == []
+    assert unbound["stamped"] is True
+    registered = ca.cond_method_binding(configless, "vanilla", registered=True)
+    assert registered["binding"] == "unbound" and registered["reasons"]
+    assert "registered" in registered["reasons"][0]
+
+
+def test_driver_records_the_binding_for_every_row(tmp_path):
+    """r1 review F6: P1/YAW checkpoint-bound decisions were absent from
+    provenance because the key was FA-conditional."""
+    import eval_localization as el
+
+    vanilla_ckpt = _write_ckpt(tmp_path / "p1.ckpt")
+    args = el.parse_args(["--model-config", "m.json", "--dataset-config", "d.json",
+                          "--ckpt-path", vanilla_ckpt, "--agree-ckpt", "a.pt",
+                          "--num-samples", "8"])
+    el.load_checkpoint_and_validate(args, _CONFIG)
+    record = el.build_provenance(args, "ck", "ag", "split", "ema", 1)
+    assert record["cond_method_binding"]["binding"] == "checkpoint"
+    assert record["cond_method_binding"]["checkpoint_cond_method"] == "vanilla"
+
+
+# --------------------------------------------------------------------------- #
+# r2 F2 -- pairing and aggregation are fail-closed
+# --------------------------------------------------------------------------- #
+def test_pairing_refuses_evidence_that_is_missing_or_empty():
+    """The reviewer's probe: two runs carrying only arm/regime/seed returned
+    paired=True with n_queries=0."""
+    bare = [{"arm": "P1", "regime": "K8", "seed": 42},
+            {"arm": "BF", "regime": "K8", "seed": 42}]
+    verdict = ca.validate_pairing(bare)
+    assert verdict["paired"] is False
+    fields = {m["field"] for m in verdict["mismatches"]}
+    assert {"query_ids", "context_stream_digest", "noise_keys"} <= fields
+
+    for field in ("query_ids", "noise_keys"):
+        empty = [_facts("P1", **{field: type(_facts()[field])()}),
+                 _facts("BF", **{field: type(_facts()[field])()})]
+        verdict = ca.validate_pairing(empty)
+        assert verdict["paired"] is False
+        assert any(m["field"] == field for m in verdict["mismatches"]), field
+
+
+def test_pairing_refuses_duplicate_ids_and_unkeyed_noise_and_repeated_arms():
+    duped = _facts("P1", query_ids=["q0", "q0", "q1"])
+    verdict = ca.validate_pairing([duped, _facts("BF", query_ids=["q0", "q0", "q1"])])
+    assert verdict["paired"] is False
+    assert any("duplicate" in m["detail"] for m in verdict["mismatches"])
+
+    unkeyed = _facts("P1", noise_keys={"q0": [1, 2]})
+    verdict = ca.validate_pairing([unkeyed, _facts("BF", noise_keys={"q0": [1, 2]})])
+    assert any("noise" in m["field"] for m in verdict["mismatches"])
+
+    verdict = ca.validate_pairing([_facts("P1"), _facts("P1")])
+    assert verdict["paired"] is False
+    assert any(m["field"] == "arms" for m in verdict["mismatches"])
+
+
+def test_pairing_facts_refuse_rows_without_noise_keys(tmp_path):
+    rows = tmp_path / "rows.jsonl"
+    with open(rows, "w") as handle:
+        handle.write(json.dumps({"query_id": "q0", "room_id": "R0"}) + "\n")
+    summary = tmp_path / "summary.json"
+    with open(summary, "w") as handle:
+        json.dump({"provenance": {"seed": 42}}, handle)
+    with pytest.raises(ValueError, match="noise"):
+        ca.pairing_facts(str(rows), str(summary), arm="P1", regime="K8")
+
+
+def test_seed_aggregation_requires_exactly_the_registered_seeds():
+    """A one-seed cell aggregated happily before (r1 review F2)."""
+    def cell(seeds):
+        return {seed: [{"query_id": "q0", "room_id": "R0", "top1": 1.0, "e_loc": 0.0}]
+                for seed in seeds}
+
+    assert len(ca.aggregate_seeds_per_query(cell([42, 43, 44]),
+                                            registered_seeds=(42, 43, 44))) == 1
+    for seeds in ([42], [42, 43], [42, 43, 44, 45], [42, 43, 45]):
+        with pytest.raises(ValueError, match="seed"):
+            ca.aggregate_seeds_per_query(cell(seeds), registered_seeds=(42, 43, 44))
+
+
+def test_registered_seeds_come_from_the_manifest_not_a_constant(tmp_path):
+    manifest = {"seeds": [42, 43, 44]}
+    assert ca.registered_seeds(manifest) == (42, 43, 44)
+    with pytest.raises(ValueError, match="seeds"):
+        ca.registered_seeds({})
+    with pytest.raises(ValueError, match="seeds"):
+        ca.registered_seeds({"seeds": []})
+    assert ca.registered_seeds({"seeds": [7, 8]}) == (7, 8)

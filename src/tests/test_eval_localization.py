@@ -4671,9 +4671,15 @@ def test_metrics_off_provenance_schema_is_unchanged_from_r7(tmp_path):
         result = module.run_evaluation(args, loader, engine, _stub_context(root), "c", "a",
                                        expected=el.expected_split_identities(loader.dataset))
         keys[name] = set(result["provenance"])
-    assert keys["current"] == keys["legacy"], (
-        f"metrics-off provenance gained {sorted(keys['current'] - keys['legacy'])} / lost "
-        f"{sorted(keys['legacy'] - keys['current'])}")
+    # exp_20 r2 F6 adds exactly ONE key to every row: where the conditioning
+    # method was bound. The firewall keeps its teeth -- nothing may be lost, and
+    # any OTHER addition still fails.
+    allowed = {"cond_method_binding"}
+    assert keys["legacy"] - keys["current"] == set(), (
+        f"metrics-off provenance lost {sorted(keys['legacy'] - keys['current'])}")
+    assert keys["current"] - keys["legacy"] == allowed, (
+        f"metrics-off provenance gained {sorted(keys['current'] - keys['legacy'] - allowed)} "
+        "beyond the documented exp_20 addition")
 
 
 def test_metrics_off_row_schema_is_unchanged_from_r7(tmp_path):

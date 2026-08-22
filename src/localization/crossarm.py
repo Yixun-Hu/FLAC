@@ -454,36 +454,58 @@ def fa_reasons(manifest, state, fields=FA_LOCKED_FIELDS):
     return reasons
 
 
-def cond_method_binding(checkpoint, cond_method):
-    """What the CHECKPOINT says about its conditioning method, if anything.
+def cond_method_binding(checkpoint, cond_method, manifest=None, manifest_verified=False,
+                        registered=False):
+    """Where the conditioning method is bound: the CHECKPOINT, a verified
+    MANIFEST, or nowhere at all.
 
     exp_20's three arms embed their training config, so ``training.cond_method``
-    binds the CLI flag to the file itself -- a BF checkpoint run with
-    ``--cond-method vanilla`` is refused without consulting any manifest. The
-    released EMA checkpoint carries no ``model_config`` at all, so for that file
-    the method is NOT detectable and the binding honestly falls back to the
-    registration manifest; the run records which of the two applied.
+    binds the CLI flag to the file itself. The released EMA checkpoint embeds no
+    ``model_config``: there the method is not detectable, and claiming a manifest
+    binding when no verified manifest exists would be a fiction. That case is
+    ``unbound`` -- refused for a registered run, stamped for a smoke/dev one
+    (r1 review F6).
     """
     embedded = (checkpoint or {}).get("model_config")
-    if not isinstance(embedded, dict):
-        return {"binding": "manifest", "checkpoint_cond_method": None, "reasons": [],
-                "note": "the checkpoint embeds no model_config, so its conditioning method "
-                        "is not detectable from the file; the binding rests on the "
-                        "registration manifest"}
-    training = embedded.get("training")
-    if not isinstance(training, dict):
-        return {"binding": "manifest", "checkpoint_cond_method": None, "reasons": [],
-                "note": "the embedded model_config carries no training block, so the "
-                        "conditioning method is not detectable from the file"}
-    found = training.get("cond_method", "vanilla")
+    training = embedded.get("training") if isinstance(embedded, dict) else None
+    if isinstance(training, dict):
+        found = training.get("cond_method", "vanilla")
+        reasons = []
+        if str(found) != str(cond_method):
+            reasons.append(f"the checkpoint was trained with cond_method={found!r} but the run "
+                           f"asks for {cond_method!r}; conditioning a model the way it was not "
+                           "trained is catastrophic, not a variant")
+        return {"binding": "checkpoint", "checkpoint_cond_method": found, "reasons": reasons,
+                "stamped": False, "manifest_verified": bool(manifest_verified),
+                "note": "the checkpoint embeds its training config, so the flag is bound to "
+                        "the file itself"}
+
+    detail = ("the checkpoint embeds no model_config" if not isinstance(embedded, dict)
+              else "the embedded model_config carries no training block")
+    if manifest is not None and manifest_verified:
+        locked = (manifest or {}).get("cond_method")
+        reasons = []
+        if locked is None:
+            reasons.append(f"{detail} and the verified manifest locks no cond_method; nothing "
+                           "binds the conditioning method")
+        elif str(locked) != str(cond_method):
+            reasons.append(f"the verified manifest locks cond_method={locked!r} but the run "
+                           f"asks for {cond_method!r}")
+        return {"binding": "manifest" if not reasons else "unbound",
+                "checkpoint_cond_method": None, "manifest_cond_method": locked,
+                "reasons": reasons, "stamped": False, "manifest_verified": True,
+                "note": f"{detail}; the binding rests on the verified registration manifest"}
+
     reasons = []
-    if str(found) != str(cond_method):
-        reasons.append(f"the checkpoint was trained with cond_method={found!r} but the run "
-                       f"asks for {cond_method!r}; conditioning a model the way it was not "
-                       "trained is catastrophic, not a variant")
-    return {"binding": "checkpoint", "checkpoint_cond_method": found, "reasons": reasons,
-            "note": "the checkpoint embeds its training config, so the flag is bound to the "
-                    "file itself"}
+    if registered:
+        reasons.append(f"{detail} and no verified registration manifest binds it; a registered "
+                       "run may not leave the conditioning method unbound")
+    return {"binding": "unbound", "checkpoint_cond_method": None,
+            "manifest_cond_method": (manifest or {}).get("cond_method") if manifest else None,
+            "reasons": reasons, "stamped": True,
+            "manifest_verified": bool(manifest_verified),
+            "note": f"{detail} and no verified manifest was supplied: the conditioning method "
+                    "is UNBOUND and the row is stamped as such"}
 
 
 def fa_parity_gate(conditioner_factory, metadata, device="cpu", angles=FA_ANGLES,
@@ -544,6 +566,19 @@ PAIRING_FIELDS = ("query_ids", "context_stream_digest", "split_hash", "split_fil
                   "candidate_manifest_sha256", "loader", "noise_keys")
 
 
+#: every pairing field must be present AND non-empty before arms may be paired.
+REQUIRED_PAIRING_FIELDS = PAIRING_FIELDS
+
+
+def registered_seeds(manifest):
+    """The registered seed set, read from the manifest -- never hardcoded."""
+    seeds = (manifest or {}).get("seeds")
+    if not isinstance(seeds, (list, tuple)) or not seeds:
+        raise ValueError("the manifest locks no non-empty 'seeds' list; the registered seed "
+                         "set cannot be assumed")
+    return tuple(int(seed) for seed in seeds)
+
+
 def pairing_facts(rows_path, summary_path, arm, regime):
     """Read the pairing facts of ONE published cell from its own artifacts."""
     query_ids, noise_keys = [], {}
@@ -555,8 +590,10 @@ def pairing_facts(rows_path, summary_path, arm, regime):
             row = json.loads(line)
             identity = str(row["query_id"])
             query_ids.append(identity)
-            if row.get("noise_keys") is not None:
-                noise_keys[identity] = [int(k) for k in row["noise_keys"]]
+            if row.get("noise_keys") is None:
+                raise ValueError(f"{rows_path}: query {identity!r} records no noise_keys; the "
+                                 "pairing gate cannot prove the arms drew the same noise")
+            noise_keys[identity] = [int(k) for k in row["noise_keys"]]
     with open(summary_path) as handle:
         provenance = json.load(handle).get("provenance") or {}
     return {
@@ -598,6 +635,35 @@ def validate_pairing(runs, fields=PAIRING_FIELDS):
     reference = sorted(runs, key=lambda r: str(r["arm"]))[0]
     mismatches = []
 
+    # Fail-closed FIRST: absent or empty evidence is not agreement (r1 review F2).
+    arms = [str(run.get("arm")) for run in runs]
+    if len(set(arms)) != len(arms):
+        mismatches.append({"field": "arms", "arms": sorted(arms),
+                           "detail": f"the same arm appears twice: {sorted(arms)}"})
+    for run in runs:
+        arm = str(run.get("arm"))
+        for field in REQUIRED_PAIRING_FIELDS:
+            value = run.get(field)
+            if value is None or (hasattr(value, "__len__") and len(value) == 0):
+                mismatches.append({"field": field, "arms": [arm],
+                                   "detail": f"{arm} carries no {field}; missing evidence is "
+                                             "not agreement"})
+        ids = run.get("query_ids") or []
+        if len(set(ids)) != len(ids):
+            mismatches.append({"field": "query_ids", "arms": [arm],
+                               "detail": f"{arm} has duplicate query ids in its stream"})
+        keys = run.get("noise_keys") or {}
+        missing_keys = [identity for identity in ids if identity not in keys]
+        if ids and missing_keys:
+            mismatches.append({"field": "noise_keys", "arms": [arm],
+                               "detail": f"{arm} has no noise array for {len(missing_keys)} "
+                                         f"queries (first {missing_keys[:3]})"})
+        loader = run.get("loader") or {}
+        unset = sorted(k for k, v in loader.items() if v is None)
+        if unset:
+            mismatches.append({"field": "loader", "arms": [arm],
+                               "detail": f"{arm} leaves loader settings unset: {unset}"})
+
     for run in runs:
         if (run.get("regime"), run.get("seed")) != (reference.get("regime"),
                                                     reference.get("seed")):
@@ -628,7 +694,7 @@ def validate_pairing(runs, fields=PAIRING_FIELDS):
     }
 
 
-def aggregate_seeds_per_query(per_seed, fields=("top1", "e_loc")):
+def aggregate_seeds_per_query(per_seed, fields=("top1", "e_loc"), registered_seeds=None):
     """Seeds are REPLICATES: average each query across seeds, then cluster.
 
     Treating three seeds as three independent queries would triple the apparent
@@ -639,6 +705,12 @@ def aggregate_seeds_per_query(per_seed, fields=("top1", "e_loc")):
     seeds = sorted(per_seed)
     if not seeds:
         raise ValueError("aggregate_seeds_per_query needs at least one seed")
+    if registered_seeds is not None:
+        wanted = tuple(int(seed) for seed in registered_seeds)
+        if tuple(int(seed) for seed in seeds) != tuple(sorted(wanted)):
+            raise ValueError(f"the cell carries seeds {seeds} but the registered seed set is "
+                             f"{list(sorted(wanted))}; an incomplete or extended set of "
+                             "replicates may not be aggregated")
     by_seed = {}
     for seed in seeds:
         indexed = {}
