@@ -8,6 +8,48 @@ from src.data.dataset import create_dataloader_from_config
 from src.models import create_model_from_config
 from src.training import create_training_wrapper_from_config
 
+# Conditioning methods this entry point must REFUSE to evaluate (exp_21 round-2
+# code review, nit 3).
+#
+# eval_pl drives PL's test loop and writes `{metrics, ckpt_path}` -- and nothing
+# else. None of the provenance `eval_FLAC.build_metrics_record` attaches exists
+# here: no cond_method, no frame_avg_angles, no orbit_execution or
+# frame_avg_fwd_cap, no source_sha, no batch size, seed, dataset config or
+# weights source. A row produced here is therefore indistinguishable after the
+# fact from a vanilla one, which is the failure announcement 05 exists to
+# prevent, and the exp_21 admission validator (plan §3g) has nothing to check.
+#
+# The guard is needed because the training-wrapper factory ACCEPTS fa_cartesian
+# -- it must, training uses it -- so eval_pl inherits the dispatch for free and
+# would run the arm and emit an unprovenanced number. Failing closed is cheaper
+# than a worklog rule: exp_21 headline rows come from eval_FLAC.py.
+#
+# The registered methods are deliberately NOT listed: vanilla and fa_invariant
+# rows predate this entry point's provenance gap, and adding them would change
+# behaviour for runs already in the record.
+UNREGISTERED_COND_METHODS = ("fa_cartesian",)
+
+
+def reject_unregistered_cond_method(model_config):
+    """Fail closed BEFORE any model or wrapper is built, or any GPU is touched.
+
+    Position matters as much as the check: raising later would still produce the
+    error, but only after a multi-hour test loop had run, and a caller who caught
+    it could already hold a half-written record.
+    """
+    cond_method = ((model_config or {}).get("training") or {}).get("cond_method")
+    if cond_method in UNREGISTERED_COND_METHODS:
+        raise ValueError(
+            f"eval_pl.py refuses to evaluate cond_method={cond_method!r}: this entry "
+            "point writes only {metrics, ckpt_path}, so it records no cond_method, "
+            "no frame_avg_angles, no orbit execution or cap, and no source SHA -- it "
+            "has NO registered-eval provenance, and its output is indistinguishable "
+            "from a vanilla row after the fact. exp_21 headline rows must come from "
+            "eval_FLAC.py --cond-method fa_cartesian (which records all of the above "
+            "and is what the model-comparison admission validator reads)."
+        )
+
+
 class ExceptionCallback(pl.Callback):
     def on_exception(self, trainer, module, err):
         print(f'{type(err).__name__}: {err}')
@@ -34,6 +76,7 @@ def main():
     # Get model  
     with open(args.model_config) as f:
         model_config = json.load(f)
+    reject_unregistered_cond_method(model_config)
     model = create_model_from_config(model_config)
 
     # Get dataset 
