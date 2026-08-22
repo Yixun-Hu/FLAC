@@ -19,6 +19,11 @@ Two things follow, and both are registered (Codex M1):
 import os
 import sys
 
+import argparse
+import hashlib
+import json
+import logging
+
 import librosa
 import numpy as np
 import soundfile as sf
@@ -32,9 +37,21 @@ from prepare_data import (  # noqa: E402
     SOURCE_SR,
     TARGET_SR,
 )
-from publish import sha256_file  # noqa: E402
+from publish import (  # noqa: E402
+    CANONICAL_MAPPINGA_PREPARE_PARAMS,
+    PublishTransaction,
+    sha256_file,
+)
+from prepare_data import _write_json, load_room_index, group_captures  # noqa: E402
+from raf_common import farthest_point_selection  # noqa: E402
+from readback_audit import load_passing_record, record_provenance  # noqa: E402
 from mappingA_common import (  # noqa: E402
+    CANONICAL_ARRAY_SIZE as ARRAY_SIZE,
+    MATCH_ALGORITHM_VERSION,
     MATCH_AMBIGUITY_MARGIN,
+    PLACEMENT_CAP_M,
+    cluster_placements,
+    match_mics,
     MATCH_MAX_M,
     MATCH_P95_M,
     select_target,
@@ -42,6 +59,10 @@ from mappingA_common import (  # noqa: E402
     stable_item_context,
 )
 from raf_common import dbfs  # noqa: E402
+
+
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logger = logging.getLogger(__name__)
 
 
 class AmplitudePolicyError(RuntimeError):
@@ -462,3 +483,317 @@ def validate_manifest(manifest, expected_items=CANONICAL_N_ITEMS, k=CANONICAL_K,
             f"Mapping-A manifest violates {len(violations)} registered invariants "
             f"({kinds}); first: {violations[0]['detail']}", report)
     return report
+
+
+# --------------------------------------------------------------------------- #
+# CLI: chain the tested components into one publication
+# --------------------------------------------------------------------------- #
+MIN_ELIGIBLE_GROUPS = 9          # per placement (plan section 2)
+PUBLICATION_POINTER = "raf_publication.json"
+METADATA_NAME = "mappingA_metadata.json"
+MANIFEST_NAME = "mappingA_eval.json"
+
+
+def canonical_digest(payload):
+    """sha256 over a canonical JSON rendering (stable across machines)."""
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def survey_room(room_dir, room):
+    """Placements, correspondence and eligibility for one room.
+
+    Exactly the readback rung's computation, so the publication is cut from the
+    same evidence the rung reported rather than from a second implementation.
+    """
+    index = load_room_index(room_dir)
+    groups, group_report = group_captures(index, allow_nonuniform=True)
+    sized = [g for g in groups if g["size"] == ARRAY_SIZE]
+    excluded = [{"group_key": g["group_key"], "size": g["size"]}
+                for g in groups if g["size"] != ARRAY_SIZE]
+
+    clusters = cluster_placements(sized)
+    by_key = {g["group_key"]: g for g in sized}
+    placements, n_pass, n_fail, p95s = [], 0, 0, []
+    for cluster in clusters:
+        passing, assignment, match = [], {}, {}
+        for key in cluster["member_keys"]:
+            report = match_mics(cluster["template_rx"], by_key[key]["rx_xyz_p"])
+            p95s.append(report["p95_m"])
+            if report["passed"]:
+                n_pass += 1
+                passing.append(by_key[key])
+                assignment[key] = report["assignment"]
+                match[key] = {"p95_m": report["p95_m"], "max_m": report["max_m"],
+                              "min_ambiguity_margin": report["min_ambiguity_margin"]}
+            else:
+                n_fail += 1
+        distinct = {source_xyz_key(g["tx_xyz"]) for g in passing}
+        placements.append({
+            "placement_id": cluster["placement_id"],
+            "centroid_p": [float(v) for v in cluster["centroid_p"]],
+            "n_groups": len(cluster["member_keys"]),
+            "n_passing": len(passing),
+            "n_passing_source_distinct": len(distinct),
+            "eligible": len(distinct) >= MIN_ELIGIBLE_GROUPS,
+            "passing": passing,
+            "assignment": assignment,
+            "match": match,
+        })
+
+    return {
+        "room": room,
+        "n_captures": len(index),
+        "n_groups": len(groups),
+        "excluded_wrong_size": excluded,
+        "n_placements": len(clusters),
+        "n_groups_passing": n_pass,
+        "n_groups_failing": n_fail,
+        "placement_p95_m": p95s,
+        "placements": placements,
+        "size_histogram": group_report["size_histogram"],
+    }
+
+
+def select_placements(survey, n_placements):
+    """Farthest-point selection over ELIGIBLE placement centroids.
+
+    FPS here and only here: placement COVERAGE is a spatial question (the plan
+    wants the room sampled, not one corner of it), while the target pose within a
+    placement is hash-uniform because that estimand is general unseen-source
+    performance, not spatial stress (M8).
+    """
+    eligible = [p for p in survey["placements"] if p["eligible"]]
+    if len(eligible) < n_placements:
+        raise ValueError(
+            f"{survey['room']}: only {len(eligible)} eligible placements "
+            f"(>= {MIN_ELIGIBLE_GROUPS} passing source-distinct groups), need "
+            f"{n_placements}. Correspondence excluded {survey['n_groups_failing']} of "
+            f"{survey['n_groups']} groups before eligibility.")
+    centroids = np.vstack([p["centroid_p"] for p in eligible])
+    picks = farthest_point_selection(centroids, n_placements)
+    return [eligible[i] for i in picks]
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(
+        description="Prepare the RAF Mapping-A (unseen-source) evaluation set")
+    parser.add_argument('--raf-root', required=True)
+    parser.add_argument('--output-dir', required=True)
+    parser.add_argument('--split-dir', default='data/RAF')
+    parser.add_argument('--rooms', nargs='+', default=['EmptyRoom', 'FurnishedRoom'])
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--n-placements', type=int, default=CANONICAL_N_PLACEMENTS)
+    parser.add_argument('--k', type=int, default=CANONICAL_K)
+    parser.add_argument('--scalar', type=float,
+                        default=CANONICAL_MAPPINGA_PREPARE_PARAMS["amplitude_scalar"])
+    parser.add_argument('--readback-record', required=True)
+    parser.add_argument('--non-canonical', action='store_true',
+                        help="synthetic/test mode: the readback record is not "
+                             "authenticated and every artifact is tainted")
+    return parser
+
+
+def parameter_identity(args, n_items, digests):
+    return {
+        "rooms": list(args.rooms),
+        "n_placements": int(args.n_placements),
+        "k": int(args.k),
+        "n_items": int(n_items),
+        "match_algorithm_version": MATCH_ALGORITHM_VERSION,
+        "match_p95_m": MATCH_P95_M,
+        "match_max_m": MATCH_MAX_M,
+        "match_ambiguity_margin": MATCH_AMBIGUITY_MARGIN,
+        "placement_cap_m": PLACEMENT_CAP_M,
+        "amplitude_scalar": float(args.scalar),
+        "amplitude_ceiling": CANONICAL_MAPPINGA_PREPARE_PARAMS["amplitude_ceiling"],
+        "correspondence_sha256": digests["correspondence"],
+        "audio_union_sha256": digests["audio_union"],
+        "readback_record_sha256": digests["readback"],
+    }
+
+
+def canonical_parameter_deviations(args):
+    registered = CANONICAL_MAPPINGA_PREPARE_PARAMS
+    deviations = []
+    if list(args.rooms) != list(registered["rooms"]):
+        deviations.append(f"rooms {list(args.rooms)} != {registered['rooms']}")
+    if int(args.n_placements) != registered["n_placements"]:
+        deviations.append(
+            f"n_placements {args.n_placements} != {registered['n_placements']}")
+    if int(args.k) != registered["k"]:
+        deviations.append(f"k {args.k} != {registered['k']}")
+    if float(args.scalar) != registered["amplitude_scalar"]:
+        deviations.append(
+            f"amplitude_scalar {args.scalar} != {registered['amplitude_scalar']}")
+    if int(args.seed) != 0:
+        deviations.append(f"seed {args.seed} != 0")
+    return deviations
+
+
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+    canonical = not args.non_canonical
+
+    # Publish gate first: nothing is read or written under an unadjudicated record.
+    readback = load_passing_record(args.readback_record, canonical=canonical,
+                                   expected_raf_root=args.raf_root if canonical else None)
+    readback_provenance = record_provenance(args.readback_record, readback,
+                                            canonical=canonical)
+    taint = list(readback_provenance["taint"])
+    deviations = canonical_parameter_deviations(args)
+    if canonical and deviations:
+        raise ValueError(
+            "refusing a canonical Mapping-A publication with non-registered "
+            "parameters: " + "; ".join(deviations) + ". Pass --non-canonical for an "
+            "experiment (its artifacts are tainted).")
+    if deviations:
+        taint.append("non-registered parameters: " + "; ".join(deviations))
+
+    # Pass 1: survey, select placements, build items. NOTHING is written yet -- the
+    # amplitude audit over the resulting union has to pass first (M1).
+    surveys, items_by_room = {}, {}
+    for room in args.rooms:
+        room_dir = os.path.join(args.raf_root, "archived", room)
+        logger.info("surveying %s", room_dir)
+        survey = survey_room(room_dir, room)
+        selected = select_placements(survey, args.n_placements)
+        logger.info("%s: %d placements, %d eligible, %d selected", room,
+                    survey["n_placements"],
+                    sum(1 for p in survey["placements"] if p["eligible"]),
+                    len(selected))
+        items = []
+        for placement in selected:
+            items.extend(build_items(room, placement["placement_id"],
+                                     placement["passing"], placement["assignment"],
+                                     placement["match"], k=args.k, seed=args.seed))
+        survey["selected_placements"] = [p["placement_id"] for p in selected]
+        surveys[room] = survey
+        items_by_room[room] = items
+
+    all_items = [item for room in args.rooms for item in items_by_room[room]]
+    n_items = len(all_items)
+    validate_manifest({"items": all_items, "k": args.k}, expected_items=n_items,
+                      k=args.k)
+
+    union = enumerate_audio_union(all_items)
+    counts = union_report(union, all_items)
+    logger.info("audio union: %d captures for %d items", counts["n_captures"],
+                counts["n_items"])
+    audits = {}
+    for room in args.rooms:
+        room_dir = os.path.join(args.raf_root, "archived", room)
+        audits[room] = audit_amplitude_union(room_dir, union[room], scalar=args.scalar)
+        logger.info("%s: amplitude audit clean (max scaled peak %.4f)", room,
+                    audits[room]["max_scaled_peak"])
+
+    digests = {
+        "correspondence": canonical_digest({
+            room: {"n_placements": s["n_placements"],
+                   "selected": s["selected_placements"],
+                   "n_groups_passing": s["n_groups_passing"],
+                   "n_groups_failing": s["n_groups_failing"]}
+            for room, s in surveys.items()}),
+        "audio_union": canonical_digest(union),
+        "readback": readback_provenance["sha256"],
+    }
+    parameters = parameter_identity(args, n_items, digests)
+
+    # Pass 2: stage the whole publication, then commit both roots together.
+    with PublishTransaction(args.split_dir, kind="mappingA_prepare") as txn:
+        staged_runtime = txn.stage(args.output_dir)
+        staged_splits = txn.stage(args.split_dir)
+
+        write_reports = {}
+        for room in args.rooms:
+            write_reports[room] = write_union(
+                os.path.join(args.raf_root, "archived", room),
+                os.path.join(staged_runtime.staging_dir, room), union[room],
+                scalar=args.scalar)
+            _write_json(staged_runtime.path(room, "metadata", METADATA_NAME),
+                        {item["target_capture_id"]: item
+                         for item in items_by_room[room]})
+
+        _write_json(staged_runtime.path(PUBLICATION_POINTER), {
+            "split_dir": os.path.abspath(args.split_dir),
+            "output_dir": os.path.abspath(args.output_dir),
+            "rooms": list(args.rooms),
+            "flavor": "mappingA",
+            "canonical": canonical,
+            "taint": taint,
+            "parameters": parameters,
+            "readback_record": readback_provenance,
+        })
+
+        manifest = {room: sorted(f"{item['target_capture_id']}.wav"
+                                 for item in items_by_room[room])
+                    for room in args.rooms}
+        _write_json(staged_splits.path(MANIFEST_NAME), manifest)
+        _write_json(staged_splits.path("mappingA_splits_record.json"),
+                    build_splits_record(surveys, items_by_room, counts, parameters,
+                                        canonical, taint, readback_provenance))
+        _write_json(staged_splits.path("mappingA_amplitude_audit.json"),
+                    {"parameters": parameters, "canonical": canonical, "taint": taint,
+                     "rooms": audits, "written": write_reports})
+
+        marker = txn.commit(
+            expectations={
+                staged_runtime.dest_root: [PUBLICATION_POINTER] + [
+                    f"{room}/metadata/{METADATA_NAME}" for room in args.rooms],
+                staged_splits.dest_root: [MANIFEST_NAME, "mappingA_splits_record.json",
+                                          "mappingA_amplitude_audit.json"]},
+            validate_json=True,
+            extra={"canonical": canonical, "taint": taint, "parameters": parameters,
+                   "canonical_parameters": not deviations,
+                   "readback_record": readback_provenance})
+
+    logger.info("published Mapping-A generation %s: %d items, %d captures",
+                marker["generation"][:12], n_items, counts["n_captures"])
+    return 0
+
+
+def build_splits_record(surveys, items_by_room, counts, parameters, canonical, taint,
+                        readback_provenance):
+    """The committed description of how the Mapping-A set was cut."""
+    rooms = {}
+    for room, survey in surveys.items():
+        items = items_by_room[room]
+        displacements = [c["rx_displacement_m"] for item in items
+                         for c in item["context"]]
+        distances = [float(np.linalg.norm(np.asarray(c["tx_p"]) -
+                                          np.asarray(item["tx_p"])))
+                     for item in items for c in item["context"]]
+        rooms[room] = {
+            "n_captures": survey["n_captures"],
+            "n_groups": survey["n_groups"],
+            "n_placements": survey["n_placements"],
+            "n_eligible_placements": sum(1 for p in survey["placements"]
+                                         if p["eligible"]),
+            "selected_placements": survey["selected_placements"],
+            "n_groups_passing": survey["n_groups_passing"],
+            "n_groups_failing": survey["n_groups_failing"],
+            "excluded_wrong_size": survey["excluded_wrong_size"],
+            "n_items": len(items),
+            "displacements": {
+                "p95_m": _distribution(survey["placement_p95_m"]),
+                "context_to_target_m": _distribution(displacements),
+            },
+            "target_context_distance_m": _distribution(distances),
+        }
+    return {"parameters": parameters, "canonical": canonical, "taint": taint,
+            "readback_record": readback_provenance, "union": counts, "rooms": rooms}
+
+
+def _distribution(values):
+    arr = np.asarray(list(values), dtype=np.float64)
+    if arr.size == 0:
+        return {"n": 0}
+    return {"n": int(arr.size), "min": float(arr.min()),
+            "p50": float(np.percentile(arr, 50)),
+            "p95": float(np.percentile(arr, 95)),
+            "max": float(arr.max()), "mean": float(arr.mean())}
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -304,3 +304,188 @@ def test_the_write_report_is_json_safe(union_room, tmp_path):
     report = prep_a.write_union(union_room, str(tmp_path / "out" / "EmptyRoom"),
                                 [f"{i:06d}" for i in range(3)], scalar=3.0)
     json.dumps(report, allow_nan=False)
+
+
+# --------------------------------------------------------------------------- #
+# cycle 12: the CLI that chains the tested components
+# --------------------------------------------------------------------------- #
+def _multi_placement_room(tmp_path, room, n_placements=2, n_groups=10):
+    """A room with several array placements, each carrying source-distinct poses."""
+    groups = []
+    for p in range(n_placements):
+        for g in range(n_groups):
+            groups.append((
+                (round(0.1 * (g + 1), 6), 0.9, 0.0, 0.1),
+                (round(1.0 + g + 10 * p, 6), 1.5, round(0.5 * g, 6)),
+                (round(2.0 + 3.0 * p, 6), 0.6, round(-1.0 + 0.0005 * g, 6)),
+            ))
+    write_room(str(tmp_path), room, groups=groups, rir_peak=0.2)
+    return os.path.join(str(tmp_path), "archived", room)
+
+
+def _readback_for(tmp_path, raf_root):
+    """A passing, adjudicated readback record (the publish gate's input)."""
+    from test_raf_prepare_data import write_passing_readback_record
+
+    return write_passing_readback_record(str(tmp_path / "readback.json"))
+
+
+def _cli_argv(tmp_path, raf_root, readback, extra=()):
+    return ["--raf-root", str(raf_root),
+            "--output-dir", str(tmp_path / "runtime" / "mappingA"),
+            "--split-dir", str(tmp_path / "splits_mappingA"),
+            "--rooms", "EmptyRoom", "FurnishedRoom",
+            "--n-placements", "2", "--k", "8", "--non-canonical",
+            "--readback-record", readback] + list(extra)
+
+
+@pytest.fixture
+def cli_corpus(tmp_path):
+    raf_root = tmp_path / "raf"
+    for room in ("EmptyRoom", "FurnishedRoom"):
+        _multi_placement_room(raf_root, room)
+    return raf_root
+
+
+def test_the_cli_publishes_the_whole_mappingA_surface(cli_corpus, tmp_path):
+    import publish as raf_publish
+
+    readback = _readback_for(tmp_path, cli_corpus)
+    prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))
+
+    runtime = tmp_path / "runtime" / "mappingA"
+    split_dir = tmp_path / "splits_mappingA"
+    assert (split_dir / "mappingA_eval.json").exists()
+    assert (split_dir / "mappingA_splits_record.json").exists()
+    assert (split_dir / "mappingA_amplitude_audit.json").exists()
+    assert (runtime / "raf_publication.json").exists()
+    for room in ("EmptyRoom", "FurnishedRoom"):
+        assert (runtime / room / "metadata" / "mappingA_metadata.json").exists()
+        assert (runtime / room / "mono_rirs_22050Hz").is_dir()
+
+    with open(split_dir / "mappingA_eval.json") as f:
+        manifest = json.load(f)
+    # 2 placements x 36 mic slots x 2 rooms
+    assert sum(len(v) for v in manifest.values()) == 2 * 36 * 2
+    assert set(manifest) == {"EmptyRoom", "FurnishedRoom"}
+
+    report = raf_publish.verify_publication(
+        str(split_dir), kind="mappingA_prepare",
+        expected_roots=[str(runtime.resolve()), str(split_dir.resolve())])
+    assert report["published"] is True
+
+
+def test_the_published_items_pass_the_static_validator(cli_corpus, tmp_path):
+    readback = _readback_for(tmp_path, cli_corpus)
+    prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))
+    items = []
+    for room in ("EmptyRoom", "FurnishedRoom"):
+        with open(tmp_path / "runtime" / "mappingA" / room / "metadata" /
+                  "mappingA_metadata.json") as f:
+            items.extend(json.load(f).values())
+    report = prep_a.validate_manifest({"items": items, "k": 8},
+                                      expected_items=2 * 36 * 2, k=8)
+    assert report["passed"] is True
+
+
+def test_the_pointer_declares_the_mappingA_flavor(cli_corpus, tmp_path):
+    readback = _readback_for(tmp_path, cli_corpus)
+    prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))
+    with open(tmp_path / "runtime" / "mappingA" / "raf_publication.json") as f:
+        pointer = json.load(f)
+    assert pointer["flavor"] == "mappingA"
+    assert pointer["canonical"] is False           # --non-canonical run
+    assert pointer["rooms"] == ["EmptyRoom", "FurnishedRoom"]
+    assert any("non-canonical" in t for t in pointer["taint"])
+
+
+def test_the_marker_carries_the_registered_identity_and_digests(cli_corpus, tmp_path):
+    import publish as raf_publish
+
+    readback = _readback_for(tmp_path, cli_corpus)
+    prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))
+    with open(tmp_path / "splits_mappingA" /
+              raf_publish.marker_name("mappingA_prepare")) as f:
+        marker = json.load(f)
+    parameters = marker["parameters"]
+    assert parameters["k"] == 8
+    assert parameters["n_placements"] == 2          # the run's own value
+    assert parameters["n_items"] == 2 * 36 * 2
+    assert parameters["match_algorithm_version"] == \
+        prep_a.MATCH_ALGORITHM_VERSION if hasattr(prep_a, "MATCH_ALGORITHM_VERSION") \
+        else parameters["match_algorithm_version"]
+    for key in ("correspondence_sha256", "audio_union_sha256",
+                "readback_record_sha256"):
+        assert len(parameters[key]) == 64
+
+
+def test_the_splits_record_carries_the_correspondence_evidence(cli_corpus, tmp_path):
+    readback = _readback_for(tmp_path, cli_corpus)
+    prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))
+    with open(tmp_path / "splits_mappingA" / "mappingA_splits_record.json") as f:
+        record = json.load(f)
+    for room in ("EmptyRoom", "FurnishedRoom"):
+        payload = record["rooms"][room]
+        assert payload["n_placements"] >= 2
+        assert payload["n_eligible_placements"] >= 2
+        assert len(payload["selected_placements"]) == 2
+        assert payload["displacements"]["p95_m"]["max"] <= 0.01
+        assert payload["n_groups_failing"] >= 0
+        assert payload["target_context_distance_m"]["n"] > 0
+    assert record["canonical"] is False
+
+
+def test_the_cli_stops_at_the_amplitude_gate_before_writing(cli_corpus, tmp_path):
+    """M1's stop-and-ask: a violation aborts with the measured report and nothing
+    is published."""
+    loud = os.path.join(str(cli_corpus), "archived", "EmptyRoom", "data", "000005",
+                        "rir.wav")
+    sf.write(loud, _rir(5, peak=0.9), 48000, subtype="FLOAT")
+    readback = _readback_for(tmp_path, cli_corpus)
+    with pytest.raises(prep_a.AmplitudePolicyError) as exc:
+        prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))
+    assert exc.value.report["decision_required"] is True
+    assert not (tmp_path / "splits_mappingA" / "mappingA_eval.json").exists()
+    assert not (tmp_path / "runtime" / "mappingA" / "EmptyRoom" /
+                "mono_rirs_22050Hz").exists()
+
+
+def test_the_cli_refuses_too_few_eligible_placements(cli_corpus, tmp_path):
+    readback = _readback_for(tmp_path, cli_corpus)
+    with pytest.raises(ValueError) as exc:
+        prep_a.main(_cli_argv(tmp_path, cli_corpus, readback,
+                              extra=["--n-placements", "99"]))
+    assert "eligible" in str(exc.value)
+    assert not (tmp_path / "splits_mappingA" / "mappingA_eval.json").exists()
+
+
+def test_the_cli_refuses_non_registered_parameters_in_canonical_mode(cli_corpus,
+                                                                     tmp_path):
+    readback = _readback_for(tmp_path, cli_corpus)
+    argv = [a for a in _cli_argv(tmp_path, cli_corpus, readback)
+            if a != "--non-canonical"]
+    with pytest.raises(ValueError) as exc:
+        prep_a.main(argv)
+    # the readback gate or the parameter gate fires first; either way nothing runs
+    assert "sha256" in str(exc.value).lower() or "non-registered" in str(exc.value)
+    assert not (tmp_path / "runtime" / "mappingA").exists()
+
+
+def test_the_cli_is_idempotent_on_the_item_set(cli_corpus, tmp_path):
+    """Re-cutting with the same seed and parameters yields the same items; only the
+    generation moves."""
+    import publish as raf_publish
+
+    readback = _readback_for(tmp_path, cli_corpus)
+    argv = _cli_argv(tmp_path, cli_corpus, readback)
+    prep_a.main(argv)
+    split_dir = tmp_path / "splits_mappingA"
+    first = (split_dir / "mappingA_eval.json").read_bytes()
+    first_generation = json.loads(
+        (split_dir / raf_publish.marker_name("mappingA_prepare")).read_text())["generation"]
+
+    prep_a.main(argv)
+    assert (split_dir / "mappingA_eval.json").read_bytes() == first
+    assert json.loads(
+        (split_dir / raf_publish.marker_name("mappingA_prepare")).read_text()
+    )["generation"] != first_generation
