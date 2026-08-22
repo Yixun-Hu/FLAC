@@ -1,0 +1,1398 @@
+FF.FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF.F.FFFFFFEEEEEEEEEEE              [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of TestValidatorModule.test_the_registered_protocol_is_stated_once _
+
+    @pytest.fixture(scope="module")
+    def V():
+>       return _load(VAL_PATH, "exp21_validate_cell")
+
+src/tests/test_exp21_table_gate.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp21_table_gate.py:48: in _load
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:879: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1016: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x79d363a683a0>
+path = '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+<frozen importlib._bootstrap_external>:1073: FileNotFoundError
+_______ ERROR at setup of TestValidatorModule.test_eval_name_round_trips _______
+
+    @pytest.fixture(scope="module")
+    def V():
+>       return _load(VAL_PATH, "exp21_validate_cell")
+
+src/tests/test_exp21_table_gate.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp21_table_gate.py:48: in _load
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:879: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1016: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x79d363a683a0>
+path = '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+<frozen importlib._bootstrap_external>:1073: FileNotFoundError
+_ ERROR at setup of TestValidatorModule.test_the_eval_name_matches_the_plan_template _
+
+    @pytest.fixture(scope="module")
+    def V():
+>       return _load(VAL_PATH, "exp21_validate_cell")
+
+src/tests/test_exp21_table_gate.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp21_table_gate.py:48: in _load
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:879: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1016: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x79d363a683a0>
+path = '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+<frozen importlib._bootstrap_external>:1073: FileNotFoundError
+_ ERROR at setup of TestValidatorModule.test_a_foreign_eval_name_is_refused[exp21_BFC_S40000_K8_s42_rot45] _
+
+    @pytest.fixture(scope="module")
+    def V():
+>       return _load(VAL_PATH, "exp21_validate_cell")
+
+src/tests/test_exp21_table_gate.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp21_table_gate.py:48: in _load
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:879: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1016: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x79d363a683a0>
+path = '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+<frozen importlib._bootstrap_external>:1073: FileNotFoundError
+_ ERROR at setup of TestValidatorModule.test_a_foreign_eval_name_is_refused[exp21_BFC_S37500_K8_s42] _
+
+    @pytest.fixture(scope="module")
+    def V():
+>       return _load(VAL_PATH, "exp21_validate_cell")
+
+src/tests/test_exp21_table_gate.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp21_table_gate.py:48: in _load
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:879: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1016: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x79d363a683a0>
+path = '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+<frozen importlib._bootstrap_external>:1073: FileNotFoundError
+_ ERROR at setup of TestValidatorModule.test_a_foreign_eval_name_is_refused[exp21_BFC_K8_s42] _
+
+    @pytest.fixture(scope="module")
+    def V():
+>       return _load(VAL_PATH, "exp21_validate_cell")
+
+src/tests/test_exp21_table_gate.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp21_table_gate.py:48: in _load
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:879: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1016: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x79d363a683a0>
+path = '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+<frozen importlib._bootstrap_external>:1073: FileNotFoundError
+_ ERROR at setup of TestValidatorModule.test_a_foreign_eval_name_is_refused[exp11_C4L_q9_S40000_s42_K8] _
+
+    @pytest.fixture(scope="module")
+    def V():
+>       return _load(VAL_PATH, "exp21_validate_cell")
+
+src/tests/test_exp21_table_gate.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp21_table_gate.py:48: in _load
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:879: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1016: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x79d363a683a0>
+path = '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+<frozen importlib._bootstrap_external>:1073: FileNotFoundError
+_ ERROR at setup of TestValidatorModule.test_a_foreign_eval_name_is_refused[] __
+
+    @pytest.fixture(scope="module")
+    def V():
+>       return _load(VAL_PATH, "exp21_validate_cell")
+
+src/tests/test_exp21_table_gate.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp21_table_gate.py:48: in _load
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:879: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1016: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x79d363a683a0>
+path = '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+<frozen importlib._bootstrap_external>:1073: FileNotFoundError
+_ ERROR at setup of TestValidatorModule.test_validate_metrics_record_accepts_the_registered_record _
+
+    @pytest.fixture(scope="module")
+    def V():
+>       return _load(VAL_PATH, "exp21_validate_cell")
+
+src/tests/test_exp21_table_gate.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp21_table_gate.py:48: in _load
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:879: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1016: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x79d363a683a0>
+path = '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+<frozen importlib._bootstrap_external>:1073: FileNotFoundError
+_ ERROR at setup of TestValidatorModule.test_validate_metrics_record_names_the_field_it_refuses _
+
+    @pytest.fixture(scope="module")
+    def V():
+>       return _load(VAL_PATH, "exp21_validate_cell")
+
+src/tests/test_exp21_table_gate.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp21_table_gate.py:48: in _load
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:879: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1016: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x79d363a683a0>
+path = '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+<frozen importlib._bootstrap_external>:1073: FileNotFoundError
+_ ERROR at setup of TestValidatorModule.test_the_record_seed_must_match_its_own_eval_name _
+
+    @pytest.fixture(scope="module")
+    def V():
+>       return _load(VAL_PATH, "exp21_validate_cell")
+
+src/tests/test_exp21_table_gate.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp21_table_gate.py:48: in _load
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:879: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1016: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x79d363a683a0>
+path = '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'
+
+<frozen importlib._bootstrap_external>:1073: FileNotFoundError
+=================================== FAILURES ===================================
+____ TestRowSpecs.test_both_K_rows_are_registered_under_the_exp21_contract _____
+
+self = <test_exp21_table_gate.TestRowSpecs object at 0x79d4bda89330>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+
+    def test_both_K_rows_are_registered_under_the_exp21_contract(self, gen):
+        specs = self._exp21_specs(gen)
+>       assert len(specs) == 2
+E       assert 0 == 2
+E        +  where 0 = len([])
+
+src/tests/test_exp21_table_gate.py:130: AssertionError
+________________ TestRowSpecs.test_the_registration_is_additive ________________
+
+self = <test_exp21_table_gate.TestRowSpecs object at 0x79d4bda895d0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+
+    def test_the_registration_is_additive(self, gen):
+        """Every earlier experiment's specs are still there, unmoved: this file
+        has concurrent writers on other machines, so an edit that reorders or
+        drops a spec is a merge hazard as much as a correctness one."""
+        labels = [r[0] for r in gen.ROWS]
+        for expected in ("exp_11 baseline", "exp_14 Z", "exp_15", "exp_17",
+                         "released FLAC_EMA (exp_01 repro)"):
+            assert any(expected in l for l in labels), expected
+        # ...and the exp_21 rows are at the END, appended, not interleaved
+>       assert [len(s) > 4 and s[4] == CONTRACT for s in gen.ROWS][-2:] == [True, True]
+E       assert [False, False] == [True, True]
+E         
+E         At index 0 diff: False != True
+E         Use -v to get more diff
+
+src/tests/test_exp21_table_gate.py:144: AssertionError
+_________ TestRowSpecs.test_the_glob_does_not_catch_the_stream_sidecar _________
+
+self = <test_exp21_table_gate.TestRowSpecs object at 0x79d4bda89c60>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_the_glob_does_not_catch_t0')
+
+    def test_the_glob_does_not_catch_the_stream_sidecar(self, gen, tmp_path):
+        """``--record-stream`` (the §5 invariance grid) writes a
+        ``<stem>.stream.json`` beside the metrics file. A glob that also matched
+        it would hand the validator ten files for a five-seed cell — the exact
+        bug the exp_11 comment warns about."""
+        import glob as globmod
+        ckpts = (tmp_path / "outputs_FLAC" / "exp21_BFC" / "run" / "checkpoints")
+        for seed in (42, 43, 44, 45, 46):
+            path = write_cell(str(ckpts), k=8, seed=seed)
+            Path(path[: -len(".json")] + ".stream.json").write_text("{}")
+            Path(path + ".screenmeta.json").write_text("{}")
+>       spec = next(s for s in self._exp21_specs(gen) if s[2] == 8)
+E       StopIteration
+
+src/tests/test_exp21_table_gate.py:175: StopIteration
+_______ TestRowSpecs.test_the_row_is_labelled_batched_never_legacy_loop ________
+
+self = <test_exp21_table_gate.TestRowSpecs object at 0x79d4bda89f60>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+
+    def test_the_row_is_labelled_batched_never_legacy_loop(self, gen):
+        """The orbit-execution label. BFC runs the BATCHED executor, and the
+        generator appends ``(legacy-loop)`` to any ``fa`` row it does not
+        recognise as batched once the exp_10 evidence returns — which would put a
+        false execution label on this row without touching it."""
+>       spec = next(s for s in self._exp21_specs(gen) if s[2] == 8)
+E       StopIteration
+
+src/tests/test_exp21_table_gate.py:186: StopIteration
+___________ TestAdmission.test_a_registered_five_seed_cell_validates ___________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda89810>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_registered_five_seed_ce0')
+
+    def test_a_registered_five_seed_cell_validates(self, gen, tmp_path):
+        for k in (1, 8):
+>           ok, problems = gen.validate_exp21_cell(full_cell(tmp_path, k=k), expected_k=k)
+E           AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:203: AttributeError
+__________ TestAdmission.test_an_empty_cell_is_pending_not_a_failure ___________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda89450>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+
+    def test_an_empty_cell_is_pending_not_a_failure(self, gen):
+        """A registered-but-unlanded row renders *pending*; the generator has
+        always treated an absent cell that way and this row is registered in
+        advance."""
+>       ok, problems = gen.validate_exp21_cell([], expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:210: AttributeError
+__ TestAdmission.test_a_protocol_deviation_blocks_the_row[over0-cond_method] ___
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8a1d0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_protocol_deviation_bloc0')
+over = {'cond_method': 'fa_invariant'}, fragment = 'cond_method'
+
+    @pytest.mark.parametrize("over,fragment", [
+        ({"cond_method": "fa_invariant"}, "cond_method"),
+        ({"cond_method": "vanilla"}, "cond_method"),
+        ({"frame_avg_angles": [0.0, 180.0]}, "frame_avg_angles"),
+        ({"frame_avg_angles": None}, "frame_avg_angles"),
+        ({"frame_avg_fwd_cap": 32}, "frame_avg_fwd_cap"),
+        ({"frame_avg_fwd_cap": None}, "frame_avg_fwd_cap"),
+        ({"orbit_execution": "loop"}, "orbit_execution"),
+        ({"cond_autocast": "default"}, "cond_autocast"),
+        ({"batch_size": 32}, "batch_size"),
+        ({"n_samples": 6336}, "n_samples"),
+        ({"cfg_scale": 3.0}, "cfg_scale"),
+        ({"steps": 4}, "steps"),
+        ({"rotate_deg": 45.0}, "rotate_deg"),
+        ({"weights_source": "online"}, "weights_source"),
+        ({"dataset_config": "src/configs/dataset_configs/AR/eval/"
+                            "acousticroom_seeneval.json"}, "dataset_config"),
+        ({"ckpt_path": "outputs_FLAC/exp21_BFC/x/epoch=18-step=37500.ckpt"}, "step=40000"),
+    ])
+    def test_a_protocol_deviation_blocks_the_row(self, gen, tmp_path, over, fragment):
+        """Each of these is a run that would produce plausible numbers under a
+        different protocol — the announcement-05 failure mode. The row must
+        refuse rather than publish them beside B-F's and P1's."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec.update(over)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:243: AttributeError
+__ TestAdmission.test_a_protocol_deviation_blocks_the_row[over1-cond_method] ___
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8abc0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_protocol_deviation_bloc1')
+over = {'cond_method': 'vanilla'}, fragment = 'cond_method'
+
+    @pytest.mark.parametrize("over,fragment", [
+        ({"cond_method": "fa_invariant"}, "cond_method"),
+        ({"cond_method": "vanilla"}, "cond_method"),
+        ({"frame_avg_angles": [0.0, 180.0]}, "frame_avg_angles"),
+        ({"frame_avg_angles": None}, "frame_avg_angles"),
+        ({"frame_avg_fwd_cap": 32}, "frame_avg_fwd_cap"),
+        ({"frame_avg_fwd_cap": None}, "frame_avg_fwd_cap"),
+        ({"orbit_execution": "loop"}, "orbit_execution"),
+        ({"cond_autocast": "default"}, "cond_autocast"),
+        ({"batch_size": 32}, "batch_size"),
+        ({"n_samples": 6336}, "n_samples"),
+        ({"cfg_scale": 3.0}, "cfg_scale"),
+        ({"steps": 4}, "steps"),
+        ({"rotate_deg": 45.0}, "rotate_deg"),
+        ({"weights_source": "online"}, "weights_source"),
+        ({"dataset_config": "src/configs/dataset_configs/AR/eval/"
+                            "acousticroom_seeneval.json"}, "dataset_config"),
+        ({"ckpt_path": "outputs_FLAC/exp21_BFC/x/epoch=18-step=37500.ckpt"}, "step=40000"),
+    ])
+    def test_a_protocol_deviation_blocks_the_row(self, gen, tmp_path, over, fragment):
+        """Each of these is a run that would produce plausible numbers under a
+        different protocol — the announcement-05 failure mode. The row must
+        refuse rather than publish them beside B-F's and P1's."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec.update(over)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:243: AttributeError
+_ TestAdmission.test_a_protocol_deviation_blocks_the_row[over2-frame_avg_angles] _
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8ac80>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_protocol_deviation_bloc2')
+over = {'frame_avg_angles': [0.0, 180.0]}, fragment = 'frame_avg_angles'
+
+    @pytest.mark.parametrize("over,fragment", [
+        ({"cond_method": "fa_invariant"}, "cond_method"),
+        ({"cond_method": "vanilla"}, "cond_method"),
+        ({"frame_avg_angles": [0.0, 180.0]}, "frame_avg_angles"),
+        ({"frame_avg_angles": None}, "frame_avg_angles"),
+        ({"frame_avg_fwd_cap": 32}, "frame_avg_fwd_cap"),
+        ({"frame_avg_fwd_cap": None}, "frame_avg_fwd_cap"),
+        ({"orbit_execution": "loop"}, "orbit_execution"),
+        ({"cond_autocast": "default"}, "cond_autocast"),
+        ({"batch_size": 32}, "batch_size"),
+        ({"n_samples": 6336}, "n_samples"),
+        ({"cfg_scale": 3.0}, "cfg_scale"),
+        ({"steps": 4}, "steps"),
+        ({"rotate_deg": 45.0}, "rotate_deg"),
+        ({"weights_source": "online"}, "weights_source"),
+        ({"dataset_config": "src/configs/dataset_configs/AR/eval/"
+                            "acousticroom_seeneval.json"}, "dataset_config"),
+        ({"ckpt_path": "outputs_FLAC/exp21_BFC/x/epoch=18-step=37500.ckpt"}, "step=40000"),
+    ])
+    def test_a_protocol_deviation_blocks_the_row(self, gen, tmp_path, over, fragment):
+        """Each of these is a run that would produce plausible numbers under a
+        different protocol — the announcement-05 failure mode. The row must
+        refuse rather than publish them beside B-F's and P1's."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec.update(over)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:243: AttributeError
+_ TestAdmission.test_a_protocol_deviation_blocks_the_row[over3-frame_avg_angles] _
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8ad40>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_protocol_deviation_bloc3')
+over = {'frame_avg_angles': None}, fragment = 'frame_avg_angles'
+
+    @pytest.mark.parametrize("over,fragment", [
+        ({"cond_method": "fa_invariant"}, "cond_method"),
+        ({"cond_method": "vanilla"}, "cond_method"),
+        ({"frame_avg_angles": [0.0, 180.0]}, "frame_avg_angles"),
+        ({"frame_avg_angles": None}, "frame_avg_angles"),
+        ({"frame_avg_fwd_cap": 32}, "frame_avg_fwd_cap"),
+        ({"frame_avg_fwd_cap": None}, "frame_avg_fwd_cap"),
+        ({"orbit_execution": "loop"}, "orbit_execution"),
+        ({"cond_autocast": "default"}, "cond_autocast"),
+        ({"batch_size": 32}, "batch_size"),
+        ({"n_samples": 6336}, "n_samples"),
+        ({"cfg_scale": 3.0}, "cfg_scale"),
+        ({"steps": 4}, "steps"),
+        ({"rotate_deg": 45.0}, "rotate_deg"),
+        ({"weights_source": "online"}, "weights_source"),
+        ({"dataset_config": "src/configs/dataset_configs/AR/eval/"
+                            "acousticroom_seeneval.json"}, "dataset_config"),
+        ({"ckpt_path": "outputs_FLAC/exp21_BFC/x/epoch=18-step=37500.ckpt"}, "step=40000"),
+    ])
+    def test_a_protocol_deviation_blocks_the_row(self, gen, tmp_path, over, fragment):
+        """Each of these is a run that would produce plausible numbers under a
+        different protocol — the announcement-05 failure mode. The row must
+        refuse rather than publish them beside B-F's and P1's."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec.update(over)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:243: AttributeError
+_ TestAdmission.test_a_protocol_deviation_blocks_the_row[over4-frame_avg_fwd_cap] _
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8ae00>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_protocol_deviation_bloc4')
+over = {'frame_avg_fwd_cap': 32}, fragment = 'frame_avg_fwd_cap'
+
+    @pytest.mark.parametrize("over,fragment", [
+        ({"cond_method": "fa_invariant"}, "cond_method"),
+        ({"cond_method": "vanilla"}, "cond_method"),
+        ({"frame_avg_angles": [0.0, 180.0]}, "frame_avg_angles"),
+        ({"frame_avg_angles": None}, "frame_avg_angles"),
+        ({"frame_avg_fwd_cap": 32}, "frame_avg_fwd_cap"),
+        ({"frame_avg_fwd_cap": None}, "frame_avg_fwd_cap"),
+        ({"orbit_execution": "loop"}, "orbit_execution"),
+        ({"cond_autocast": "default"}, "cond_autocast"),
+        ({"batch_size": 32}, "batch_size"),
+        ({"n_samples": 6336}, "n_samples"),
+        ({"cfg_scale": 3.0}, "cfg_scale"),
+        ({"steps": 4}, "steps"),
+        ({"rotate_deg": 45.0}, "rotate_deg"),
+        ({"weights_source": "online"}, "weights_source"),
+        ({"dataset_config": "src/configs/dataset_configs/AR/eval/"
+                            "acousticroom_seeneval.json"}, "dataset_config"),
+        ({"ckpt_path": "outputs_FLAC/exp21_BFC/x/epoch=18-step=37500.ckpt"}, "step=40000"),
+    ])
+    def test_a_protocol_deviation_blocks_the_row(self, gen, tmp_path, over, fragment):
+        """Each of these is a run that would produce plausible numbers under a
+        different protocol — the announcement-05 failure mode. The row must
+        refuse rather than publish them beside B-F's and P1's."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec.update(over)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:243: AttributeError
+_ TestAdmission.test_a_protocol_deviation_blocks_the_row[over5-frame_avg_fwd_cap] _
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8aec0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_protocol_deviation_bloc5')
+over = {'frame_avg_fwd_cap': None}, fragment = 'frame_avg_fwd_cap'
+
+    @pytest.mark.parametrize("over,fragment", [
+        ({"cond_method": "fa_invariant"}, "cond_method"),
+        ({"cond_method": "vanilla"}, "cond_method"),
+        ({"frame_avg_angles": [0.0, 180.0]}, "frame_avg_angles"),
+        ({"frame_avg_angles": None}, "frame_avg_angles"),
+        ({"frame_avg_fwd_cap": 32}, "frame_avg_fwd_cap"),
+        ({"frame_avg_fwd_cap": None}, "frame_avg_fwd_cap"),
+        ({"orbit_execution": "loop"}, "orbit_execution"),
+        ({"cond_autocast": "default"}, "cond_autocast"),
+        ({"batch_size": 32}, "batch_size"),
+        ({"n_samples": 6336}, "n_samples"),
+        ({"cfg_scale": 3.0}, "cfg_scale"),
+        ({"steps": 4}, "steps"),
+        ({"rotate_deg": 45.0}, "rotate_deg"),
+        ({"weights_source": "online"}, "weights_source"),
+        ({"dataset_config": "src/configs/dataset_configs/AR/eval/"
+                            "acousticroom_seeneval.json"}, "dataset_config"),
+        ({"ckpt_path": "outputs_FLAC/exp21_BFC/x/epoch=18-step=37500.ckpt"}, "step=40000"),
+    ])
+    def test_a_protocol_deviation_blocks_the_row(self, gen, tmp_path, over, fragment):
+        """Each of these is a run that would produce plausible numbers under a
+        different protocol — the announcement-05 failure mode. The row must
+        refuse rather than publish them beside B-F's and P1's."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec.update(over)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:243: AttributeError
+_ TestAdmission.test_a_protocol_deviation_blocks_the_row[over6-orbit_execution] _
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8af80>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_protocol_deviation_bloc6')
+over = {'orbit_execution': 'loop'}, fragment = 'orbit_execution'
+
+    @pytest.mark.parametrize("over,fragment", [
+        ({"cond_method": "fa_invariant"}, "cond_method"),
+        ({"cond_method": "vanilla"}, "cond_method"),
+        ({"frame_avg_angles": [0.0, 180.0]}, "frame_avg_angles"),
+        ({"frame_avg_angles": None}, "frame_avg_angles"),
+        ({"frame_avg_fwd_cap": 32}, "frame_avg_fwd_cap"),
+        ({"frame_avg_fwd_cap": None}, "frame_avg_fwd_cap"),
+        ({"orbit_execution": "loop"}, "orbit_execution"),
+        ({"cond_autocast": "default"}, "cond_autocast"),
+        ({"batch_size": 32}, "batch_size"),
+        ({"n_samples": 6336}, "n_samples"),
+        ({"cfg_scale": 3.0}, "cfg_scale"),
+        ({"steps": 4}, "steps"),
+        ({"rotate_deg": 45.0}, "rotate_deg"),
+        ({"weights_source": "online"}, "weights_source"),
+        ({"dataset_config": "src/configs/dataset_configs/AR/eval/"
+                            "acousticroom_seeneval.json"}, "dataset_config"),
+        ({"ckpt_path": "outputs_FLAC/exp21_BFC/x/epoch=18-step=37500.ckpt"}, "step=40000"),
+    ])
+    def test_a_protocol_deviation_blocks_the_row(self, gen, tmp_path, over, fragment):
+        """Each of these is a run that would produce plausible numbers under a
+        different protocol — the announcement-05 failure mode. The row must
+        refuse rather than publish them beside B-F's and P1's."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec.update(over)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:243: AttributeError
+_ TestAdmission.test_a_protocol_deviation_blocks_the_row[over7-cond_autocast] __
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8b040>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_protocol_deviation_bloc7')
+over = {'cond_autocast': 'default'}, fragment = 'cond_autocast'
+
+    @pytest.mark.parametrize("over,fragment", [
+        ({"cond_method": "fa_invariant"}, "cond_method"),
+        ({"cond_method": "vanilla"}, "cond_method"),
+        ({"frame_avg_angles": [0.0, 180.0]}, "frame_avg_angles"),
+        ({"frame_avg_angles": None}, "frame_avg_angles"),
+        ({"frame_avg_fwd_cap": 32}, "frame_avg_fwd_cap"),
+        ({"frame_avg_fwd_cap": None}, "frame_avg_fwd_cap"),
+        ({"orbit_execution": "loop"}, "orbit_execution"),
+        ({"cond_autocast": "default"}, "cond_autocast"),
+        ({"batch_size": 32}, "batch_size"),
+        ({"n_samples": 6336}, "n_samples"),
+        ({"cfg_scale": 3.0}, "cfg_scale"),
+        ({"steps": 4}, "steps"),
+        ({"rotate_deg": 45.0}, "rotate_deg"),
+        ({"weights_source": "online"}, "weights_source"),
+        ({"dataset_config": "src/configs/dataset_configs/AR/eval/"
+                            "acousticroom_seeneval.json"}, "dataset_config"),
+        ({"ckpt_path": "outputs_FLAC/exp21_BFC/x/epoch=18-step=37500.ckpt"}, "step=40000"),
+    ])
+    def test_a_protocol_deviation_blocks_the_row(self, gen, tmp_path, over, fragment):
+        """Each of these is a run that would produce plausible numbers under a
+        different protocol — the announcement-05 failure mode. The row must
+        refuse rather than publish them beside B-F's and P1's."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec.update(over)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:243: AttributeError
+___ TestAdmission.test_a_protocol_deviation_blocks_the_row[over8-batch_size] ___
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8b100>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_protocol_deviation_bloc8')
+over = {'batch_size': 32}, fragment = 'batch_size'
+
+    @pytest.mark.parametrize("over,fragment", [
+        ({"cond_method": "fa_invariant"}, "cond_method"),
+        ({"cond_method": "vanilla"}, "cond_method"),
+        ({"frame_avg_angles": [0.0, 180.0]}, "frame_avg_angles"),
+        ({"frame_avg_angles": None}, "frame_avg_angles"),
+        ({"frame_avg_fwd_cap": 32}, "frame_avg_fwd_cap"),
+        ({"frame_avg_fwd_cap": None}, "frame_avg_fwd_cap"),
+        ({"orbit_execution": "loop"}, "orbit_execution"),
+        ({"cond_autocast": "default"}, "cond_autocast"),
+        ({"batch_size": 32}, "batch_size"),
+        ({"n_samples": 6336}, "n_samples"),
+        ({"cfg_scale": 3.0}, "cfg_scale"),
+        ({"steps": 4}, "steps"),
+        ({"rotate_deg": 45.0}, "rotate_deg"),
+        ({"weights_source": "online"}, "weights_source"),
+        ({"dataset_config": "src/configs/dataset_configs/AR/eval/"
+                            "acousticroom_seeneval.json"}, "dataset_config"),
+        ({"ckpt_path": "outputs_FLAC/exp21_BFC/x/epoch=18-step=37500.ckpt"}, "step=40000"),
+    ])
+    def test_a_protocol_deviation_blocks_the_row(self, gen, tmp_path, over, fragment):
+        """Each of these is a run that would produce plausible numbers under a
+        different protocol — the announcement-05 failure mode. The row must
+        refuse rather than publish them beside B-F's and P1's."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec.update(over)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:243: AttributeError
+___ TestAdmission.test_a_protocol_deviation_blocks_the_row[over9-n_samples] ____
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8b1c0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_protocol_deviation_bloc9')
+over = {'n_samples': 6336}, fragment = 'n_samples'
+
+    @pytest.mark.parametrize("over,fragment", [
+        ({"cond_method": "fa_invariant"}, "cond_method"),
+        ({"cond_method": "vanilla"}, "cond_method"),
+        ({"frame_avg_angles": [0.0, 180.0]}, "frame_avg_angles"),
+        ({"frame_avg_angles": None}, "frame_avg_angles"),
+        ({"frame_avg_fwd_cap": 32}, "frame_avg_fwd_cap"),
+        ({"frame_avg_fwd_cap": None}, "frame_avg_fwd_cap"),
+        ({"orbit_execution": "loop"}, "orbit_execution"),
+        ({"cond_autocast": "default"}, "cond_autocast"),
+        ({"batch_size": 32}, "batch_size"),
+        ({"n_samples": 6336}, "n_samples"),
+        ({"cfg_scale": 3.0}, "cfg_scale"),
+        ({"steps": 4}, "steps"),
+        ({"rotate_deg": 45.0}, "rotate_deg"),
+        ({"weights_source": "online"}, "weights_source"),
+        ({"dataset_config": "src/configs/dataset_configs/AR/eval/"
+                            "acousticroom_seeneval.json"}, "dataset_config"),
+        ({"ckpt_path": "outputs_FLAC/exp21_BFC/x/epoch=18-step=37500.ckpt"}, "step=40000"),
+    ])
+    def test_a_protocol_deviation_blocks_the_row(self, gen, tmp_path, over, fragment):
+        """Each of these is a run that would produce plausible numbers under a
+        different protocol — the announcement-05 failure mode. The row must
+        refuse rather than publish them beside B-F's and P1's."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec.update(over)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:243: AttributeError
+___ TestAdmission.test_a_protocol_deviation_blocks_the_row[over10-cfg_scale] ___
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8b280>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_protocol_deviation_bloc10')
+over = {'cfg_scale': 3.0}, fragment = 'cfg_scale'
+
+    @pytest.mark.parametrize("over,fragment", [
+        ({"cond_method": "fa_invariant"}, "cond_method"),
+        ({"cond_method": "vanilla"}, "cond_method"),
+        ({"frame_avg_angles": [0.0, 180.0]}, "frame_avg_angles"),
+        ({"frame_avg_angles": None}, "frame_avg_angles"),
+        ({"frame_avg_fwd_cap": 32}, "frame_avg_fwd_cap"),
+        ({"frame_avg_fwd_cap": None}, "frame_avg_fwd_cap"),
+        ({"orbit_execution": "loop"}, "orbit_execution"),
+        ({"cond_autocast": "default"}, "cond_autocast"),
+        ({"batch_size": 32}, "batch_size"),
+        ({"n_samples": 6336}, "n_samples"),
+        ({"cfg_scale": 3.0}, "cfg_scale"),
+        ({"steps": 4}, "steps"),
+        ({"rotate_deg": 45.0}, "rotate_deg"),
+        ({"weights_source": "online"}, "weights_source"),
+        ({"dataset_config": "src/configs/dataset_configs/AR/eval/"
+                            "acousticroom_seeneval.json"}, "dataset_config"),
+        ({"ckpt_path": "outputs_FLAC/exp21_BFC/x/epoch=18-step=37500.ckpt"}, "step=40000"),
+    ])
+    def test_a_protocol_deviation_blocks_the_row(self, gen, tmp_path, over, fragment):
+        """Each of these is a run that would produce plausible numbers under a
+        different protocol — the announcement-05 failure mode. The row must
+        refuse rather than publish them beside B-F's and P1's."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec.update(over)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:243: AttributeError
+_____ TestAdmission.test_a_protocol_deviation_blocks_the_row[over11-steps] _____
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8b340>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_protocol_deviation_bloc11')
+over = {'steps': 4}, fragment = 'steps'
+
+    @pytest.mark.parametrize("over,fragment", [
+        ({"cond_method": "fa_invariant"}, "cond_method"),
+        ({"cond_method": "vanilla"}, "cond_method"),
+        ({"frame_avg_angles": [0.0, 180.0]}, "frame_avg_angles"),
+        ({"frame_avg_angles": None}, "frame_avg_angles"),
+        ({"frame_avg_fwd_cap": 32}, "frame_avg_fwd_cap"),
+        ({"frame_avg_fwd_cap": None}, "frame_avg_fwd_cap"),
+        ({"orbit_execution": "loop"}, "orbit_execution"),
+        ({"cond_autocast": "default"}, "cond_autocast"),
+        ({"batch_size": 32}, "batch_size"),
+        ({"n_samples": 6336}, "n_samples"),
+        ({"cfg_scale": 3.0}, "cfg_scale"),
+        ({"steps": 4}, "steps"),
+        ({"rotate_deg": 45.0}, "rotate_deg"),
+        ({"weights_source": "online"}, "weights_source"),
+        ({"dataset_config": "src/configs/dataset_configs/AR/eval/"
+                            "acousticroom_seeneval.json"}, "dataset_config"),
+        ({"ckpt_path": "outputs_FLAC/exp21_BFC/x/epoch=18-step=37500.ckpt"}, "step=40000"),
+    ])
+    def test_a_protocol_deviation_blocks_the_row(self, gen, tmp_path, over, fragment):
+        """Each of these is a run that would produce plausible numbers under a
+        different protocol — the announcement-05 failure mode. The row must
+        refuse rather than publish them beside B-F's and P1's."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec.update(over)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:243: AttributeError
+__ TestAdmission.test_a_protocol_deviation_blocks_the_row[over12-rotate_deg] ___
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8b400>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_protocol_deviation_bloc12')
+over = {'rotate_deg': 45.0}, fragment = 'rotate_deg'
+
+    @pytest.mark.parametrize("over,fragment", [
+        ({"cond_method": "fa_invariant"}, "cond_method"),
+        ({"cond_method": "vanilla"}, "cond_method"),
+        ({"frame_avg_angles": [0.0, 180.0]}, "frame_avg_angles"),
+        ({"frame_avg_angles": None}, "frame_avg_angles"),
+        ({"frame_avg_fwd_cap": 32}, "frame_avg_fwd_cap"),
+        ({"frame_avg_fwd_cap": None}, "frame_avg_fwd_cap"),
+        ({"orbit_execution": "loop"}, "orbit_execution"),
+        ({"cond_autocast": "default"}, "cond_autocast"),
+        ({"batch_size": 32}, "batch_size"),
+        ({"n_samples": 6336}, "n_samples"),
+        ({"cfg_scale": 3.0}, "cfg_scale"),
+        ({"steps": 4}, "steps"),
+        ({"rotate_deg": 45.0}, "rotate_deg"),
+        ({"weights_source": "online"}, "weights_source"),
+        ({"dataset_config": "src/configs/dataset_configs/AR/eval/"
+                            "acousticroom_seeneval.json"}, "dataset_config"),
+        ({"ckpt_path": "outputs_FLAC/exp21_BFC/x/epoch=18-step=37500.ckpt"}, "step=40000"),
+    ])
+    def test_a_protocol_deviation_blocks_the_row(self, gen, tmp_path, over, fragment):
+        """Each of these is a run that would produce plausible numbers under a
+        different protocol — the announcement-05 failure mode. The row must
+        refuse rather than publish them beside B-F's and P1's."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec.update(over)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:243: AttributeError
+_ TestAdmission.test_a_protocol_deviation_blocks_the_row[over13-weights_source] _
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8b4c0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_protocol_deviation_bloc13')
+over = {'weights_source': 'online'}, fragment = 'weights_source'
+
+    @pytest.mark.parametrize("over,fragment", [
+        ({"cond_method": "fa_invariant"}, "cond_method"),
+        ({"cond_method": "vanilla"}, "cond_method"),
+        ({"frame_avg_angles": [0.0, 180.0]}, "frame_avg_angles"),
+        ({"frame_avg_angles": None}, "frame_avg_angles"),
+        ({"frame_avg_fwd_cap": 32}, "frame_avg_fwd_cap"),
+        ({"frame_avg_fwd_cap": None}, "frame_avg_fwd_cap"),
+        ({"orbit_execution": "loop"}, "orbit_execution"),
+        ({"cond_autocast": "default"}, "cond_autocast"),
+        ({"batch_size": 32}, "batch_size"),
+        ({"n_samples": 6336}, "n_samples"),
+        ({"cfg_scale": 3.0}, "cfg_scale"),
+        ({"steps": 4}, "steps"),
+        ({"rotate_deg": 45.0}, "rotate_deg"),
+        ({"weights_source": "online"}, "weights_source"),
+        ({"dataset_config": "src/configs/dataset_configs/AR/eval/"
+                            "acousticroom_seeneval.json"}, "dataset_config"),
+        ({"ckpt_path": "outputs_FLAC/exp21_BFC/x/epoch=18-step=37500.ckpt"}, "step=40000"),
+    ])
+    def test_a_protocol_deviation_blocks_the_row(self, gen, tmp_path, over, fragment):
+        """Each of these is a run that would produce plausible numbers under a
+        different protocol — the announcement-05 failure mode. The row must
+        refuse rather than publish them beside B-F's and P1's."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec.update(over)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:243: AttributeError
+_ TestAdmission.test_a_protocol_deviation_blocks_the_row[over14-dataset_config] _
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8b580>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_protocol_deviation_bloc14')
+over = {'dataset_config': 'src/configs/dataset_configs/AR/eval/acousticroom_seeneval.json'}
+fragment = 'dataset_config'
+
+    @pytest.mark.parametrize("over,fragment", [
+        ({"cond_method": "fa_invariant"}, "cond_method"),
+        ({"cond_method": "vanilla"}, "cond_method"),
+        ({"frame_avg_angles": [0.0, 180.0]}, "frame_avg_angles"),
+        ({"frame_avg_angles": None}, "frame_avg_angles"),
+        ({"frame_avg_fwd_cap": 32}, "frame_avg_fwd_cap"),
+        ({"frame_avg_fwd_cap": None}, "frame_avg_fwd_cap"),
+        ({"orbit_execution": "loop"}, "orbit_execution"),
+        ({"cond_autocast": "default"}, "cond_autocast"),
+        ({"batch_size": 32}, "batch_size"),
+        ({"n_samples": 6336}, "n_samples"),
+        ({"cfg_scale": 3.0}, "cfg_scale"),
+        ({"steps": 4}, "steps"),
+        ({"rotate_deg": 45.0}, "rotate_deg"),
+        ({"weights_source": "online"}, "weights_source"),
+        ({"dataset_config": "src/configs/dataset_configs/AR/eval/"
+                            "acousticroom_seeneval.json"}, "dataset_config"),
+        ({"ckpt_path": "outputs_FLAC/exp21_BFC/x/epoch=18-step=37500.ckpt"}, "step=40000"),
+    ])
+    def test_a_protocol_deviation_blocks_the_row(self, gen, tmp_path, over, fragment):
+        """Each of these is a run that would produce plausible numbers under a
+        different protocol — the announcement-05 failure mode. The row must
+        refuse rather than publish them beside B-F's and P1's."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec.update(over)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:243: AttributeError
+__ TestAdmission.test_a_protocol_deviation_blocks_the_row[over15-step=40000] ___
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8b640>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_protocol_deviation_bloc15')
+over = {'ckpt_path': 'outputs_FLAC/exp21_BFC/x/epoch=18-step=37500.ckpt'}
+fragment = 'step=40000'
+
+    @pytest.mark.parametrize("over,fragment", [
+        ({"cond_method": "fa_invariant"}, "cond_method"),
+        ({"cond_method": "vanilla"}, "cond_method"),
+        ({"frame_avg_angles": [0.0, 180.0]}, "frame_avg_angles"),
+        ({"frame_avg_angles": None}, "frame_avg_angles"),
+        ({"frame_avg_fwd_cap": 32}, "frame_avg_fwd_cap"),
+        ({"frame_avg_fwd_cap": None}, "frame_avg_fwd_cap"),
+        ({"orbit_execution": "loop"}, "orbit_execution"),
+        ({"cond_autocast": "default"}, "cond_autocast"),
+        ({"batch_size": 32}, "batch_size"),
+        ({"n_samples": 6336}, "n_samples"),
+        ({"cfg_scale": 3.0}, "cfg_scale"),
+        ({"steps": 4}, "steps"),
+        ({"rotate_deg": 45.0}, "rotate_deg"),
+        ({"weights_source": "online"}, "weights_source"),
+        ({"dataset_config": "src/configs/dataset_configs/AR/eval/"
+                            "acousticroom_seeneval.json"}, "dataset_config"),
+        ({"ckpt_path": "outputs_FLAC/exp21_BFC/x/epoch=18-step=37500.ckpt"}, "step=40000"),
+    ])
+    def test_a_protocol_deviation_blocks_the_row(self, gen, tmp_path, over, fragment):
+        """Each of these is a run that would produce plausible numbers under a
+        different protocol — the announcement-05 failure mode. The row must
+        refuse rather than publish them beside B-F's and P1's."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec.update(over)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:243: AttributeError
+____________ TestAdmission.test_a_randomly_rotated_cell_is_refused _____________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8b940>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_randomly_rotated_cell_i0')
+
+    def test_a_randomly_rotated_cell_is_refused(self, gen, tmp_path):
+        """exp_14-style random rotation nulls ``rotate_deg`` and adds
+        ``rotate_mode``. The registered row is the FIXED, unrotated cell, and a
+        null angle must not read as 'not 45 degrees, therefore fine'."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec.update({"rotate_deg": None, "rotate_mode": "random", "rotate_seed": 42})
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:255: AttributeError
+___ TestAdmission.test_the_K_in_the_evidence_must_be_the_K_the_row_declares ____
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8b7c0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_the_K_in_the_evidence_mus0')
+
+    def test_the_K_in_the_evidence_must_be_the_K_the_row_declares(self, gen, tmp_path):
+        """A renamed payload is not a re-measurement (exp_14 round-3 review B2):
+        K=1 evidence under the K=8 row would publish one context size's numbers
+        under another's label."""
+>       ok, problems = gen.validate_exp21_cell(full_cell(tmp_path, k=1), expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:263: AttributeError
+_ TestAdmission.test_the_dataset_config_must_be_the_one_registered_for_that_K __
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda89510>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_the_dataset_config_must_b0')
+
+    def test_the_dataset_config_must_be_the_one_registered_for_that_K(self, gen, tmp_path):
+        """K is carried by the eval NAME; the split that actually ran is carried
+        by the dataset config. Both must agree, or a K=8 row can be produced from
+        the K=1 split."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["dataset_config"] = DATASET[1]
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:275: AttributeError
+__ TestAdmission.test_an_absolute_dataset_path_into_this_checkout_is_accepted __
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda89a50>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_an_absolute_dataset_path_0')
+
+    def test_an_absolute_dataset_path_into_this_checkout_is_accepted(self, gen, tmp_path):
+        """Operators paste absolute paths. The registered split is an identity,
+        not a spelling, so a path that ends in the registered relative path is
+        the same split."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["dataset_config"] = str(REPO / DATASET[8])
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:287: AttributeError
+_________________ TestAdmission.test_four_seeds_are_not_a_row __________________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bda8bdf0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_four_seeds_are_not_a_row0')
+
+    def test_four_seeds_are_not_a_row(self, gen, tmp_path):
+        files = full_cell(tmp_path, k=8)[:4]
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:292: AttributeError
+____________ TestAdmission.test_a_duplicated_seed_is_not_five_seeds ____________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bdac8160>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_duplicated_seed_is_not_0')
+
+    def test_a_duplicated_seed_is_not_five_seeds(self, gen, tmp_path):
+        """Five files with a duplicate would otherwise be averaged as five
+        independent draws (exp_14's counting bug)."""
+        files = full_cell(tmp_path, k=8)
+        files = files[:4] + [files[0]]
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:301: AttributeError
+_________________ TestAdmission.test_a_foreign_seed_is_refused _________________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bdac8490>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_foreign_seed_is_refused0')
+
+    def test_a_foreign_seed_is_refused(self, gen, tmp_path):
+        files = full_cell(tmp_path, k=8)[:4]
+        files.append(write_cell(str(tmp_path / "K8"), k=8, seed=47))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:308: AttributeError
+___________ TestAdmission.test_the_cell_must_share_one_evaluator_pin ___________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bdac87c0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_the_cell_must_share_one_e0')
+
+    def test_the_cell_must_share_one_evaluator_pin(self, gen, tmp_path):
+        """Five cells measured at different commits are not a row; they are five
+        measurements wearing one label."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["source_sha"] = "d" * 40
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:319: AttributeError
+____________ TestAdmission.test_an_unknown_evaluator_pin_is_refused ____________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bdac8af0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_an_unknown_evaluator_pin_0')
+
+    def test_an_unknown_evaluator_pin_is_refused(self, gen, tmp_path):
+        """``source_sha`` falls back to the string 'unknown' when git is
+        unavailable. A row whose provenance is literally unknown cannot be
+        published as a measured one."""
+        files = full_cell(tmp_path, k=8, source_sha="unknown")
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:328: AttributeError
+____ TestAdmission.test_a_non_finite_metric_blocks_the_row[payload0-finite] ____
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bdac8ee0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_non_finite_metric_block0')
+payload = {'T60': nan}, fragment = 'finite'
+
+    @pytest.mark.parametrize("payload,fragment", [
+        ({"T60": float("nan")}, "finite"),
+        ({"T60": float("inf")}, "finite"),
+        ({"T60": None}, "finite"),
+    ])
+    def test_a_non_finite_metric_blocks_the_row(self, gen, tmp_path, payload, fragment):
+        """A cell can satisfy every provenance rule and still carry a NaN, which
+        would propagate into a published mean. It is checked HERE rather than in
+        agg_files so the row renders BLOCKED instead of raising mid-regeneration
+        and taking every other experiment's row down with it."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["metrics"].update(payload)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:346: AttributeError
+____ TestAdmission.test_a_non_finite_metric_blocks_the_row[payload1-finite] ____
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bdac9180>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_non_finite_metric_block1')
+payload = {'T60': inf}, fragment = 'finite'
+
+    @pytest.mark.parametrize("payload,fragment", [
+        ({"T60": float("nan")}, "finite"),
+        ({"T60": float("inf")}, "finite"),
+        ({"T60": None}, "finite"),
+    ])
+    def test_a_non_finite_metric_blocks_the_row(self, gen, tmp_path, payload, fragment):
+        """A cell can satisfy every provenance rule and still carry a NaN, which
+        would propagate into a published mean. It is checked HERE rather than in
+        agg_files so the row renders BLOCKED instead of raising mid-regeneration
+        and taking every other experiment's row down with it."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["metrics"].update(payload)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:346: AttributeError
+____ TestAdmission.test_a_non_finite_metric_blocks_the_row[payload2-finite] ____
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bdac9240>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_non_finite_metric_block2')
+payload = {'T60': None}, fragment = 'finite'
+
+    @pytest.mark.parametrize("payload,fragment", [
+        ({"T60": float("nan")}, "finite"),
+        ({"T60": float("inf")}, "finite"),
+        ({"T60": None}, "finite"),
+    ])
+    def test_a_non_finite_metric_blocks_the_row(self, gen, tmp_path, payload, fragment):
+        """A cell can satisfy every provenance rule and still carry a NaN, which
+        would propagate into a published mean. It is checked HERE rather than in
+        agg_files so the row renders BLOCKED instead of raising mid-regeneration
+        and taking every other experiment's row down with it."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["metrics"].update(payload)
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:346: AttributeError
+______________ TestAdmission.test_a_missing_metric_blocks_the_row ______________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bdac9540>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_missing_metric_blocks_t0')
+
+    def test_a_missing_metric_blocks_the_row(self, gen, tmp_path):
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["metrics"].pop("RIR_to_GT_RIR_R@10")
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:355: AttributeError
+______________ TestAdmission.test_an_unreadable_cell_fails_closed ______________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bdac9870>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_an_unreadable_cell_fails_0')
+
+    def test_an_unreadable_cell_fails_closed(self, gen, tmp_path):
+        files = full_cell(tmp_path, k=8)
+        Path(files[0]).write_text("{not json")
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:362: AttributeError
+___________ TestAdmission.test_an_unparseable_eval_name_fails_closed ___________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bdac9ba0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_an_unparseable_eval_name_0')
+
+    def test_an_unparseable_eval_name_fails_closed(self, gen, tmp_path):
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["eval_name"] = "exp21_BFC_whatever"
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:371: AttributeError
+__ TestAdmission.test_a_rotation_grid_cell_cannot_stand_in_for_the_table_cell __
+
+self = <test_exp21_table_gate.TestAdmission object at 0x79d4bdac9ed0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_rotation_grid_cell_cann0')
+
+    def test_a_rotation_grid_cell_cannot_stand_in_for_the_table_cell(self, gen, tmp_path):
+        """§5's invariance grid writes ``..._s42_rot45`` cells of the SAME
+        checkpoint. They are a negative control, never a model row."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["eval_name"] = "exp21_BFC_S40000_K8_s42_rot45"
+        rec["rotate_deg"] = 45.0
+        json.dump(rec, open(files[0], "w"))
+>       ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'validate_exp21_cell'. Did you mean: 'validate_exp11_cell'?
+
+src/tests/test_exp21_table_gate.py:383: AttributeError
+_______ TestRendering.test_an_invalid_cell_renders_BLOCKED_never_numbers _______
+
+self = <test_exp21_table_gate.TestRendering object at 0x79d4bda89780>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_an_invalid_cell_renders_B0')
+
+    def test_an_invalid_cell_renders_BLOCKED_never_numbers(self, gen, tmp_path):
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["cond_autocast"] = "default"
+        json.dump(rec, open(files[0], "w"))
+        line, blocked = gen.render_row(LABEL, PROTO, 8, files, contract=CONTRACT)
+>       assert blocked is True
+E       assert False is True
+
+src/tests/test_exp21_table_gate.py:403: AssertionError
+_____ TestRendering.test_no_evidence_at_all_is_not_a_withheld_transaction ______
+
+self = <test_exp21_table_gate.TestRendering object at 0x79d4bdac98a0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+
+    def test_no_evidence_at_all_is_not_a_withheld_transaction(self, gen):
+        """Both rows registered in advance and nothing landed yet: that is
+        *pending*, not a failed transaction. The gate must stay silent until the
+        first cell exists, exactly like the Q9 and exp_14 gates."""
+>       assert gen.check_exp21_round({(LABEL, 1): [], (LABEL, 8): []},
+                                     {(LABEL, 1): False, (LABEL, 8): False}) == []
+E       AttributeError: module 'gen_model_comparison' has no attribute 'check_exp21_round'. Did you mean: 'check_exp14_round'?
+
+src/tests/test_exp21_table_gate.py:422: AttributeError
+__________________ TestRendering.test_one_K_alone_is_withheld __________________
+
+self = <test_exp21_table_gate.TestRendering object at 0x79d4bdac93f0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_one_K_alone_is_withheld0')
+
+    def test_one_K_alone_is_withheld(self, gen, tmp_path):
+        """A lone K=8 row invites a K=8-only comparison against rows that carry
+        both."""
+        cells = {(LABEL, 8): full_cell(tmp_path, k=8), (LABEL, 1): []}
+        status = {(LABEL, 8): True, (LABEL, 1): False}
+>       problems = gen.check_exp21_round(cells, status)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'check_exp21_round'. Did you mean: 'check_exp14_round'?
+
+src/tests/test_exp21_table_gate.py:430: AttributeError
+_____ TestRendering.test_a_present_but_invalid_partner_withholds_the_pair ______
+
+self = <test_exp21_table_gate.TestRendering object at 0x79d4bdac8d30>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_a_present_but_invalid_par0')
+
+    def test_a_present_but_invalid_partner_withholds_the_pair(self, gen, tmp_path):
+        """Counting files is not validating them (exp_14 round-3 closure A4/B2):
+        a five-file K=1 block that did not validate must not let K=8 publish
+        beside its refusal."""
+        cells = {(LABEL, 8): full_cell(tmp_path, k=8),
+                 (LABEL, 1): full_cell(tmp_path, k=1)}
+        status = {(LABEL, 8): True, (LABEL, 1): False}
+>       problems = gen.check_exp21_round(cells, status)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'check_exp21_round'. Did you mean: 'check_exp14_round'?
+
+src/tests/test_exp21_table_gate.py:441: AttributeError
+________ TestRendering.test_the_two_K_rows_must_share_one_evaluator_pin ________
+
+self = <test_exp21_table_gate.TestRendering object at 0x79d4bdac85e0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_the_two_K_rows_must_share0')
+
+    def test_the_two_K_rows_must_share_one_evaluator_pin(self, gen, tmp_path):
+        """Per-cell validation proves each K internally; it cannot see that the
+        two blocks were measured at different commits. The paired K=1/K=8 reading
+        would then carry whatever moved between those pins."""
+        cells = {(LABEL, 8): full_cell(tmp_path, k=8),
+                 (LABEL, 1): full_cell(tmp_path, k=1, source_sha="e" * 40)}
+        status = {(LABEL, 8): True, (LABEL, 1): True}
+>       problems = gen.check_exp21_round(cells, status)
+E       AttributeError: module 'gen_model_comparison' has no attribute 'check_exp21_round'. Did you mean: 'check_exp14_round'?
+
+src/tests/test_exp21_table_gate.py:452: AttributeError
+__________________ TestRendering.test_both_K_valid_publishes ___________________
+
+self = <test_exp21_table_gate.TestRendering object at 0x79d4bdac8070>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1318/test_both_K_valid_publishes0')
+
+    def test_both_K_valid_publishes(self, gen, tmp_path):
+        cells = {(LABEL, 8): full_cell(tmp_path, k=8),
+                 (LABEL, 1): full_cell(tmp_path, k=1)}
+        status = {(LABEL, 8): True, (LABEL, 1): True}
+>       assert gen.check_exp21_round(cells, status) == []
+E       AttributeError: module 'gen_model_comparison' has no attribute 'check_exp21_round'. Did you mean: 'check_exp14_round'?
+
+src/tests/test_exp21_table_gate.py:459: AttributeError
+_____________ TestRendering.test_other_experiments_are_unaffected ______________
+
+self = <test_exp21_table_gate.TestRendering object at 0x79d4bdaca410>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+
+    def test_other_experiments_are_unaffected(self, gen):
+        """This gate is exp_21-scoped: another machine regenerating the table
+        must not be blocked by a contract that says nothing about its rows."""
+>       assert gen.check_exp21_round({}, {}) == []
+E       AttributeError: module 'gen_model_comparison' has no attribute 'check_exp21_round'. Did you mean: 'check_exp14_round'?
+
+src/tests/test_exp21_table_gate.py:464: AttributeError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp21_table_gate.py::TestRowSpecs::test_both_K_rows_are_registered_under_the_exp21_contract
+FAILED src/tests/test_exp21_table_gate.py::TestRowSpecs::test_the_registration_is_additive
+FAILED src/tests/test_exp21_table_gate.py::TestRowSpecs::test_the_glob_does_not_catch_the_stream_sidecar
+FAILED src/tests/test_exp21_table_gate.py::TestRowSpecs::test_the_row_is_labelled_batched_never_legacy_loop
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_registered_five_seed_cell_validates
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_an_empty_cell_is_pending_not_a_failure
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_protocol_deviation_blocks_the_row[over0-cond_method]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_protocol_deviation_blocks_the_row[over1-cond_method]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_protocol_deviation_blocks_the_row[over2-frame_avg_angles]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_protocol_deviation_blocks_the_row[over3-frame_avg_angles]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_protocol_deviation_blocks_the_row[over4-frame_avg_fwd_cap]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_protocol_deviation_blocks_the_row[over5-frame_avg_fwd_cap]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_protocol_deviation_blocks_the_row[over6-orbit_execution]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_protocol_deviation_blocks_the_row[over7-cond_autocast]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_protocol_deviation_blocks_the_row[over8-batch_size]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_protocol_deviation_blocks_the_row[over9-n_samples]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_protocol_deviation_blocks_the_row[over10-cfg_scale]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_protocol_deviation_blocks_the_row[over11-steps]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_protocol_deviation_blocks_the_row[over12-rotate_deg]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_protocol_deviation_blocks_the_row[over13-weights_source]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_protocol_deviation_blocks_the_row[over14-dataset_config]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_protocol_deviation_blocks_the_row[over15-step=40000]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_randomly_rotated_cell_is_refused
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_the_K_in_the_evidence_must_be_the_K_the_row_declares
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_the_dataset_config_must_be_the_one_registered_for_that_K
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_an_absolute_dataset_path_into_this_checkout_is_accepted
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_four_seeds_are_not_a_row
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_duplicated_seed_is_not_five_seeds
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_foreign_seed_is_refused
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_the_cell_must_share_one_evaluator_pin
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_an_unknown_evaluator_pin_is_refused
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_non_finite_metric_blocks_the_row[payload0-finite]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_non_finite_metric_blocks_the_row[payload1-finite]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_non_finite_metric_blocks_the_row[payload2-finite]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_missing_metric_blocks_the_row
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_an_unreadable_cell_fails_closed
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_an_unparseable_eval_name_fails_closed
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_rotation_grid_cell_cannot_stand_in_for_the_table_cell
+FAILED src/tests/test_exp21_table_gate.py::TestRendering::test_an_invalid_cell_renders_BLOCKED_never_numbers
+FAILED src/tests/test_exp21_table_gate.py::TestRendering::test_no_evidence_at_all_is_not_a_withheld_transaction
+FAILED src/tests/test_exp21_table_gate.py::TestRendering::test_one_K_alone_is_withheld
+FAILED src/tests/test_exp21_table_gate.py::TestRendering::test_a_present_but_invalid_partner_withholds_the_pair
+FAILED src/tests/test_exp21_table_gate.py::TestRendering::test_the_two_K_rows_must_share_one_evaluator_pin
+FAILED src/tests/test_exp21_table_gate.py::TestRendering::test_both_K_valid_publishes
+FAILED src/tests/test_exp21_table_gate.py::TestRendering::test_other_experiments_are_unaffected
+ERROR src/tests/test_exp21_table_gate.py::TestValidatorModule::test_the_registered_protocol_is_stated_once
+ERROR src/tests/test_exp21_table_gate.py::TestValidatorModule::test_eval_name_round_trips
+ERROR src/tests/test_exp21_table_gate.py::TestValidatorModule::test_the_eval_name_matches_the_plan_template
+ERROR src/tests/test_exp21_table_gate.py::TestValidatorModule::test_a_foreign_eval_name_is_refused[exp21_BFC_S40000_K8_s42_rot45]
+ERROR src/tests/test_exp21_table_gate.py::TestValidatorModule::test_a_foreign_eval_name_is_refused[exp21_BFC_S37500_K8_s42]
+ERROR src/tests/test_exp21_table_gate.py::TestValidatorModule::test_a_foreign_eval_name_is_refused[exp21_BFC_K8_s42]
+ERROR src/tests/test_exp21_table_gate.py::TestValidatorModule::test_a_foreign_eval_name_is_refused[exp11_C4L_q9_S40000_s42_K8]
+ERROR src/tests/test_exp21_table_gate.py::TestValidatorModule::test_a_foreign_eval_name_is_refused[]
+ERROR src/tests/test_exp21_table_gate.py::TestValidatorModule::test_validate_metrics_record_accepts_the_registered_record
+ERROR src/tests/test_exp21_table_gate.py::TestValidatorModule::test_validate_metrics_record_names_the_field_it_refuses
+ERROR src/tests/test_exp21_table_gate.py::TestValidatorModule::test_the_record_seed_must_match_its_own_eval_name
+45 failed, 3 passed, 11 errors in 3.73s
