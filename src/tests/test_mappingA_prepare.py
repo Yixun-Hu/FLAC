@@ -1054,6 +1054,62 @@ def test_a_root_inside_a_mappingH_room_is_refused(tmp_path):
     assert "EmptyRoom root" in str(exc.value)
 
 
+def test_the_protected_rooms_are_the_publications_not_this_runs(tmp_path):
+    """r4 Q1, the reviewer's probe: an EmptyRoom-only Mapping-A run pointed at
+    <H>/FurnishedRoom. The room it would replace is one this run never mentions, so
+    a check over --rooms could not see it -- and the transaction would then have
+    replaced a Mapping-H room tree."""
+    h = str(tmp_path / "runtime" / "RAF")
+    target = os.path.join(h, "FurnishedRoom")
+    with pytest.raises(ValueError) as exc:
+        prep_a.resolve_output_dir(target, h, ["EmptyRoom", "FurnishedRoom"])
+    assert "FurnishedRoom root" in str(exc.value)
+    # ... and a descendant of it, likewise
+    with pytest.raises(ValueError):
+        prep_a.resolve_output_dir(os.path.join(target, "mono_rirs_22050Hz"), h,
+                                  ["EmptyRoom", "FurnishedRoom"])
+    # the old behaviour, for the record: the run's own subset protects nothing
+    assert prep_a.resolve_output_dir(target, h, ["EmptyRoom"]) == target
+
+
+def test_an_empty_protected_room_list_is_refused(tmp_path):
+    h = str(tmp_path / "runtime" / "RAF")
+    with pytest.raises(ValueError) as exc:
+        prep_a.resolve_output_dir(os.path.join(h, "mappingA"), h, [])
+    assert "protect nothing" in str(exc.value)
+
+
+def test_the_cli_protects_a_room_the_run_never_mentions(cli_corpus, tmp_path):
+    """End to end: Mapping H publishes both rooms, the Mapping-A run prepares only
+    EmptyRoom, and --output-dir names H's FurnishedRoom tree."""
+    import publish as raf_publish
+
+    readback = _readback_for(tmp_path, cli_corpus)
+    runtime = _publish_mappingH(tmp_path, cli_corpus, readback,
+                                rooms=("EmptyRoom", "FurnishedRoom"))
+    scalar = prep_a.locate_mappingH(str(runtime), [])["amplitude_scalar"]
+    found = prep_a.locate_mappingH(str(runtime), [])
+    assert found["pointer_rooms"] == ["EmptyRoom", "FurnishedRoom"]
+
+    argv = ["--raf-root", str(cli_corpus),
+            "--output-dir", str(runtime / "FurnishedRoom"),
+            "--split-dir", str(tmp_path / prep_a.MAPPINGA_SPLIT_ROOT),
+            "--rooms", "EmptyRoom", "--n-placements", "2", "--k", "8",
+            "--non-canonical", "--scalar", str(scalar),
+            "--mappingH-dir", str(runtime),
+            "--correspondence-record",
+            _correspondence_for(tmp_path, cli_corpus, room_names=("EmptyRoom",)),
+            "--readback-record", readback]
+    with pytest.raises(ValueError) as exc:
+        prep_a.main(argv)
+    assert "FurnishedRoom root" in str(exc.value)
+    # Mapping H is untouched: pointer, manifest and attestation all intact
+    assert raf_publish.verify_manifest(str(runtime)) == {"missing": [],
+                                                         "mismatched": []}
+    assert raf_publish.verify_publication(str(tmp_path / "data" / "RAF"),
+                                          kind="prepare")["published"]
+
+
 def test_without_a_mappingH_tree_the_output_root_must_be_given():
     with pytest.raises(ValueError) as exc:
         prep_a.resolve_output_dir(None, None, ["EmptyRoom"])

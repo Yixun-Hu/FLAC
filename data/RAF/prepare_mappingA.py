@@ -459,6 +459,9 @@ def locate_mappingH(runtime_dir, rooms, require_canonical=False):
     return {
         "runtime_dir": os.path.abspath(runtime_dir),
         "split_dir": os.path.abspath(split_dir),
+        # Q1: every room THIS publication holds, whatever subset the caller asked
+        # about -- these are the trees a Mapping-A output root must stay out of.
+        "pointer_rooms": [str(room) for room in (pointer.get("rooms") or [])],
         "generation": generation,
         "amplitude_scalar": float(parameters["amplitude_scalar"]),
         "canonical": bool(marker.get("canonical")),
@@ -480,7 +483,7 @@ def _is_within(child, parent):
     return child == parent or child.startswith(parent + os.sep)
 
 
-def resolve_output_dir(output_dir, mappingH_dir, rooms):
+def resolve_output_dir(output_dir, mappingH_dir, protected_rooms):
     """Where Mapping A publishes its runtime tree, and where it may NOT (P1).
 
     Mapping A writes its own ``raf_publication.json`` and its own root manifest,
@@ -494,6 +497,12 @@ def resolve_output_dir(output_dir, mappingH_dir, rooms):
     With a Mapping-H tree in hand the default is ``<H>/mappingA``: a proper child,
     disjoint from every root H attests, and self-evidently the same corpus. An
     explicit ``--output-dir`` must satisfy the same relation.
+
+    Q1: ``protected_rooms`` is EVERY room the Mapping-H publication holds, taken
+    from its pointer -- not the rooms this run happens to prepare. An
+    EmptyRoom-only Mapping-A run pointed at ``<H>/FurnishedRoom`` was accepted
+    before, and the transaction would then have replaced a Mapping-H room tree the
+    run never mentions.
     """
     if not mappingH_dir:
         if not output_dir:
@@ -521,12 +530,19 @@ def resolve_output_dir(output_dir, mappingH_dir, rooms):
             f"refusing to publish Mapping A at {out}: it is outside the Mapping-H "
             f"runtime tree {h_root}. The two corpora share audio by provenance, so "
             "the Mapping-A tree is a child of the publication it cites.")
-    for room in rooms:
+    if not protected_rooms:
+        raise ValueError(
+            "refusing to resolve a Mapping-A runtime root without the Mapping-H "
+            "publication's room list: the rooms it protects come from ITS pointer, "
+            "and an empty list would protect nothing.")
+    for room in protected_rooms:
         room_root = os.path.join(h_root, room)
         if _is_within(out, room_root):
             raise ValueError(
                 f"refusing to publish Mapping A at {out}: it is inside Mapping H's "
-                f"{room} root, whose audio and depth_images directories H attests.")
+                f"{room} root, whose audio and depth_images directories H attests. "
+                "The protected rooms are the publication's own "
+                f"({sorted(protected_rooms)}), not this run's subset.")
     return out
 
 
@@ -1301,8 +1317,9 @@ def main(argv=None):
 
     # P1: resolved (and refused) BEFORE the survey, so a wrong-flag run costs
     # nothing and can never touch the Mapping-H publication.
-    args.output_dir = resolve_output_dir(args.output_dir, args.mappingH_dir,
-                                         args.rooms)
+    args.output_dir = resolve_output_dir(
+        args.output_dir, args.mappingH_dir,
+        mappingH["pointer_rooms"] if mappingH else args.rooms)
     logger.info("Mapping-A runtime tree: %s", args.output_dir)
 
     # Pass 1: survey, select placements, build items. NOTHING is written yet -- the
