@@ -508,19 +508,53 @@ def cond_method_binding(checkpoint, cond_method, manifest=None, manifest_verifie
                     "is UNBOUND and the row is stamped as such"}
 
 
+#: PREREGISTERED parity tolerances. The caller does not get to choose: a gate
+#: whose bar is an argument is a gate that can be argued down (r1 review F3).
+PARITY_TOLERANCES = {"autocast_off": 0.0, "registered_autocast": 2e-2}
+
+
+class _PartitionRecorder:
+    """Wrap a conditioner and record the batch size of every ORBIT forward."""
+
+    def __init__(self, inner):
+        self.inner, self.partition, self.calls = inner, [], []
+
+    def __call__(self, metadata, device, only_ids=None):
+        self.calls.append({"batch": len(metadata), "only_ids": None if only_ids is None
+                           else tuple(only_ids)})
+        if only_ids is not None:                   # the rotated-angle forwards
+            self.partition.append(len(metadata))
+        return self.inner(metadata, device, only_ids=only_ids) if only_ids is not None \
+            else self.inner(metadata, device)
+
+
+def _tensor_facts(value):
+    tensor = torch.as_tensor(value)
+    return {"shape": list(tensor.shape), "dtype": str(tensor.dtype),
+            "finite": bool(torch.isfinite(tensor.float()).all())}
+
+
 def fa_parity_gate(conditioner_factory, metadata, device="cpu", angles=FA_ANGLES,
-                   replay_angles=None, autocast=False, tolerance=0.0, dtype=None):
+                   replay_angles=None, replay_cap=None, autocast=False, tolerance=None,
+                   dtype=None):
     """B1(b): the driver's FA conditioning vs an ``eval_FLAC``-faithful replay.
 
-    Both sides build a FRESH conditioner from the factory, so a stateful
-    conditioner cannot make the second pass agree by accident. Under autocast the
-    verdict is tolerance-bound and the measured difference is recorded; with
-    autocast off the contract is bitwise.
+    Fail-closed on every channel the r1 review found open: the two output key
+    sets must be EQUAL (a missing or extra id is a failure, not an ignored one),
+    masks are compared as well as tensors, any non-finite value anywhere fails,
+    the executed partitions must match, and the tolerance is preregistered --
+    bitwise with autocast off, a fixed bound under the registered autocast.
     """
     from src.data.yaw_rotation import invariant_conditioning
 
+    bar = PARITY_TOLERANCES["registered_autocast" if autocast else "autocast_off"]
+    if tolerance is not None and float(tolerance) != bar:
+        raise ValueError(f"the parity tolerance is preregistered ({bar}); a caller-chosen "
+                         f"{tolerance} would let the gate be argued down")
     angles = tuple(float(a) for a in angles)
     replay = tuple(float(a) for a in (replay_angles if replay_angles is not None else angles))
+    driver_cap = fa_max_fwd_samples(metadata)
+    reference_cap = int(replay_cap) if replay_cap is not None else driver_cap
 
     def _run(fn):
         if not autocast:
@@ -530,31 +564,222 @@ def fa_parity_gate(conditioner_factory, metadata, device="cpu", angles=FA_ANGLES
         with context:
             return fn()
 
-    driver = _run(lambda: fa_conditioning(conditioner_factory(), metadata, device, angles))
-    # eval_FLAC's call: the same function, its own cap, its own angle tuple
-    reference = _run(lambda: invariant_conditioning(
-        conditioner_factory(), metadata, device, replay,
-        max_fwd_samples=fa_max_fwd_samples(metadata)))
+    driver_recorder = _PartitionRecorder(conditioner_factory())
+    replay_recorder = _PartitionRecorder(conditioner_factory())
+    driver = _run(lambda: invariant_conditioning(driver_recorder, metadata, device, angles,
+                                                 max_fwd_samples=driver_cap))
+    reference = _run(lambda: invariant_conditioning(replay_recorder, metadata, device, replay,
+                                                    max_fwd_samples=reference_cap))
 
-    ids = sorted(set(driver) & set(reference))
-    worst, per_id, bitwise = 0.0, {}, True
-    for name in ids:
-        a = torch.as_tensor(driver[name][0]).float()
-        b = torch.as_tensor(reference[name][0]).float()
-        if a.shape != b.shape:
-            per_id[name] = {"shape_mismatch": [list(a.shape), list(b.shape)]}
-            worst, bitwise = float("inf"), False
+    reasons, per_id, worst, worst_mask = [], {}, 0.0, 0.0
+    bitwise, finite = True, True
+    if set(driver) != set(reference):
+        missing = sorted(set(reference) - set(driver))
+        extra = sorted(set(driver) - set(reference))
+        reasons.append(f"output key set differs: missing {missing}, extra {extra}")
+        bitwise = False
+    if driver_recorder.partition != replay_recorder.partition:
+        reasons.append(f"executed partition differs: driver {driver_recorder.partition} vs "
+                       f"replay {replay_recorder.partition}")
+        bitwise = False
+    if list(angles) != list(replay):
+        reasons.append(f"orbit differs: driver {list(angles)} vs replay {list(replay)}")
+
+    for name in sorted(set(driver) & set(reference)):
+        a_t, a_m = torch.as_tensor(driver[name][0]).float(), torch.as_tensor(driver[name][1])
+        b_t, b_m = (torch.as_tensor(reference[name][0]).float(),
+                    torch.as_tensor(reference[name][1]))
+        entry = _tensor_facts(a_t)
+        entry["mask_shape"] = list(torch.as_tensor(a_m).shape)
+        if a_t.shape != b_t.shape or torch.as_tensor(a_m).shape != torch.as_tensor(b_m).shape:
+            reasons.append(f"{name}: shape differs (tensor {list(a_t.shape)} vs "
+                           f"{list(b_t.shape)}, mask {list(torch.as_tensor(a_m).shape)} vs "
+                           f"{list(torch.as_tensor(b_m).shape)})")
+            entry.update({"max_abs_diff": float("inf"), "bitwise": False,
+                          "mask_max_abs_diff": float("inf")})
+            per_id[name], bitwise = entry, False
             continue
-        diff = float((a - b).abs().max())
-        per_id[name] = {"max_abs_diff": diff, "bitwise": bool(torch.equal(a, b))}
-        worst = max(worst, diff)
-        bitwise = bitwise and bool(torch.equal(a, b))
+        diff = float((a_t - b_t).abs().max())
+        mask_diff = float((torch.as_tensor(a_m).float()
+                           - torch.as_tensor(b_m).float()).abs().max())
+        entry.update({"max_abs_diff": diff, "mask_max_abs_diff": mask_diff,
+                      "bitwise": bool(torch.equal(a_t, b_t))})
+        side_finite = (entry["finite"] and _tensor_facts(b_t)["finite"]
+                       and bool(torch.isfinite(torch.as_tensor(a_m).float()).all()))
+        entry["finite"] = side_finite
+        if not side_finite:
+            reasons.append(f"{name}: a non-finite value is present; a parity verdict over "
+                           "NaN/Inf is meaningless")
+            finite = False
+        if mask_diff > bar:
+            reasons.append(f"{name}: mask differs by {mask_diff}")
+        worst, worst_mask = max(worst, diff), max(worst_mask, mask_diff)
+        bitwise = bitwise and entry["bitwise"]
+        per_id[name] = entry
+
+    within = worst <= bar and worst_mask <= bar
     return {
-        "match": bool(worst <= float(tolerance)) if autocast else bool(bitwise),
-        "bitwise": bitwise, "max_abs_diff": worst, "tolerance": float(tolerance),
-        "autocast": bool(autocast), "ids": ids, "per_id": per_id,
+        "match": bool(finite and not reasons and (within if autocast else bitwise)),
+        "bitwise": bitwise, "finite": finite, "reasons": reasons,
+        "max_abs_diff": worst, "mask_max_abs_diff": worst_mask,
+        "tolerance": bar, "autocast": bool(autocast),
+        "ids": sorted(set(driver) | set(reference)), "per_id": per_id,
         "angles": list(angles), "replay_angles": list(replay),
-        "chunk_plan": FA_CHUNK_PLAN, "n_metadata": len(metadata),
+        "driver_cap": driver_cap, "replay_cap": reference_cap,
+        "driver_partition": list(driver_recorder.partition),
+        "replay_partition": list(replay_recorder.partition),
+        "chunk_plan": FA_CHUNK_PLAN, "n_metadata": len(metadata), "device": str(device),
+    }
+
+
+#: the source files whose bytes decide what an FA forward actually does.
+FA_SOURCE_FILES = ("src/data/yaw_rotation.py", "src/localization/crossarm.py",
+                   "eval_localization.py")
+
+
+def fa_source_shas(repo_root=None):
+    """sha256 of the executable FA sources, recorded at RUN time.
+
+    A registration commit need only be an ancestor of HEAD, so the code that
+    executes an orbit can change after the manifest says ``per_angle``. Hashing
+    the blobs at run time makes that drift detectable afterwards (r1 review F4).
+    """
+    root = repo_root or os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                                     "..", ".."))
+    out = {}
+    for relpath in FA_SOURCE_FILES:
+        path = os.path.join(root, relpath)
+        out[relpath] = sha256_file(path) if os.path.isfile(path) else None
+    return out
+
+
+def _build_conditioner_factory(ckpt_path, model_config_path, device):
+    """A factory that builds a FRESH conditioner from the real checkpoint."""
+    import copy as _copy
+
+    from src.models import create_model_from_config
+    from src.training import create_training_wrapper_from_config
+
+    with open(model_config_path) as handle:
+        model_config = json.load(handle)
+    checkpoint = torch.load(ckpt_path, map_location="cpu")
+    training_config = _copy.deepcopy(model_config.get("training", None))
+
+    def factory():
+        from eval_localization import prepare_state_dict
+
+        local_config = _copy.deepcopy(model_config)
+        local_training = _copy.deepcopy(training_config)
+        state_dict, weights_source = prepare_state_dict(
+            {"state_dict": dict(checkpoint["state_dict"])}, local_training)
+        model = create_model_from_config(local_config)
+        model.load_state_dict(state_dict, strict=False)
+        local_config["training"] = local_training
+        module = create_training_wrapper_from_config(local_config, model)
+        module.eval().requires_grad_(False)
+        module.to(device)
+        factory.weights_source = weights_source
+        return module.diffusion.conditioner
+
+    factory.weights_source = None
+    return factory, {"device": str(device), "weights_source": None}
+
+
+def _load_one_query(args, device, position=0):
+    """ONE real query's candidate metadata, through the driver's own loader.
+
+    Exactly the objects a scoring pass conditions on: the loader at the pinned
+    parallelism, the frozen candidate manifest, and the same
+    ``candidate_metadata`` swap the query path applies -- so the parity gate
+    measures the conditioning of a real query, not of a fixture.
+    """
+    import itertools
+
+    from eval_localization import (build_dataloader, candidate_camera_positions,
+                                   candidate_set_from_manifest, load_dataset_config,
+                                   manifest_for_dataset_config, parse_ir_filename,
+                                   read_model_config, room_id_from_relpath, sample_target_id,
+                                   _iter_items)
+    from src.localization.candidates import candidate_metadata
+
+    dataset_config = load_dataset_config(args)
+    model_config = read_model_config(args)
+    manifest = manifest_for_dataset_config(dataset_config)
+    loader = build_dataloader(args, model_config, dataset_config)
+    item = next(itertools.islice(_iter_items(loader), int(position), None), None)
+    if item is None:
+        raise ValueError(f"the dataset has no query at position {position}")
+    _obs_wav, md = item
+
+    room_id = room_id_from_relpath(md["relpath"])
+    gt_node, receiver_node = parse_ir_filename(md["path"])
+    cand_set = candidate_set_from_manifest(manifest, room_id, gt_node, receiver_node)
+    positions = candidate_camera_positions(cand_set)
+    metadata = [candidate_metadata(md, positions[m]) for m in range(positions.shape[0])]
+    query = {"query_id": sample_target_id(md), "room_id": room_id,
+             "relpath": md["relpath"], "position": int(position),
+             "n_candidates": len(metadata), "gt_node": int(gt_node),
+             "receiver_node": int(receiver_node),
+             "candidate_nodes": [int(n) for n in cand_set.nodes],
+             "gt_index": int(cand_set.gt_index)}
+    return metadata, query
+
+
+def run_fa_parity(ckpt_path, model_config_path, dataset_config=None, device="cpu",
+                  autocast_modes=("off", "registered"), position=0, angles=FA_ANGLES,
+                  rotate_deg=0.0, repo_root=None, args=None):
+    """The REAL fa-parity gate: one query, one checkpoint, the full evidence.
+
+    Produces the record the review enumerates -- artifact digests, the query's
+    identity and candidate count, requested and resolved autocast, the orbit and
+    rotation, both caps and both EXECUTED partitions, exact key sets, per-key
+    shapes/dtypes/finiteness/differences, the preregistered tolerances, and the
+    runtime it all happened on.
+    """
+    import platform
+
+    import argparse as _argparse
+
+    factory, build_facts = _build_conditioner_factory(ckpt_path, model_config_path, device)
+    if args is None:
+        args = _argparse.Namespace(model_config=model_config_path,
+                                   dataset_config=dataset_config, ckpt_path=ckpt_path,
+                                   device=device, batch_size=4, num_workers=4, seed=42)
+    metadata, query = _load_one_query(args, device, position=position)
+
+    results = {}
+    for mode in autocast_modes:
+        autocast = mode != "off"
+        requested = "off" if not autocast else "default"
+        resolved = None
+        if autocast:
+            from eval_localization import resolve_cond_autocast
+
+            _enabled, resolved_dtype = resolve_cond_autocast("default")
+            resolved = str(resolved_dtype) if resolved_dtype is not None else "device default"
+        verdict = fa_parity_gate(factory, metadata, device=device, angles=angles,
+                                 autocast=autocast)
+        verdict["requested_autocast"] = requested
+        verdict["resolved_autocast_dtype"] = resolved if autocast else "n/a"
+        results[mode] = verdict
+
+    with open(model_config_path, "rb") as handle:
+        model_config_sha = hashlib.sha256(handle.read()).hexdigest()
+    return {
+        "mode": "fa-parity", "ckpt_path": str(ckpt_path),
+        "ckpt_sha256": sha256_file(ckpt_path),
+        "model_config_path": str(model_config_path), "model_config_sha256": model_config_sha,
+        "dataset_config": dataset_config,
+        "query": query, "angles": [float(a) for a in angles], "rotate_deg": float(rotate_deg),
+        "chunk_plan": FA_CHUNK_PLAN, "results": results,
+        "tolerances": dict(PARITY_TOLERANCES),
+        "source_shas": fa_source_shas(repo_root),
+        "weights_source": build_facts.get("weights_source") or factory.weights_source,
+        "runtime": {"device": str(device), "torch": torch.__version__,
+                    "python": platform.python_version(), "platform": platform.platform(),
+                    "cuda": torch.version.cuda},
+        "passed": all(result["match"] for result in results.values()),
+        "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
 
 

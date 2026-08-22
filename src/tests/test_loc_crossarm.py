@@ -509,11 +509,14 @@ def test_fa_parity_gate_detects_a_divergent_replay():
 
 
 def test_fa_parity_gate_records_a_tolerance_under_autocast():
+    """The bound is the PREREGISTERED one and the measured difference is recorded
+    against it (r1 review F3: a caller-chosen tolerance is not a gate)."""
     metadata = _fa_metadata(n=2)
     verdict = ca.fa_parity_gate(lambda: _RecordingConditioner(), metadata, device="cpu",
-                                angles=ca.FA_ANGLES, autocast=True, tolerance=1e-3)
-    assert verdict["autocast"] is True and verdict["tolerance"] == 1e-3
-    assert verdict["match"] is True and verdict["max_abs_diff"] <= 1e-3
+                                angles=ca.FA_ANGLES, autocast=True)
+    assert verdict["autocast"] is True
+    assert verdict["tolerance"] == ca.PARITY_TOLERANCES["registered_autocast"]
+    assert verdict["match"] is True and verdict["max_abs_diff"] <= verdict["tolerance"]
 
 
 # --------------------------------------------------------------------------- #
@@ -988,3 +991,184 @@ def test_registered_seeds_come_from_the_manifest_not_a_constant(tmp_path):
     with pytest.raises(ValueError, match="seeds"):
         ca.registered_seeds({"seeds": []})
     assert ca.registered_seeds({"seeds": [7, 8]}) == (7, 8)
+
+
+# --------------------------------------------------------------------------- #
+# r2 F3 -- the parity gate cannot return a false green
+# --------------------------------------------------------------------------- #
+class _BrokenConditioner(_RecordingConditioner):
+    """A conditioner that can drop an id, add one, or poison a tensor."""
+
+    def __init__(self, drop=None, extra=None, nan=False, mask_shift=False, **kwargs):
+        super().__init__(**kwargs)
+        self.drop, self.extra, self.nan, self.mask_shift = drop, extra, nan, mask_shift
+
+    def __call__(self, metadata, device, only_ids=None):
+        out = super().__call__(metadata, device, only_ids=only_ids)
+        if self.drop and self.drop in out:
+            del out[self.drop]
+        if self.extra:
+            out[self.extra] = [torch.zeros(len(metadata), 2), torch.ones(len(metadata), 1)]
+        if self.nan:
+            for key in out:
+                out[key][0] = out[key][0] * float("nan")
+        if self.mask_shift:
+            for key in out:
+                out[key][1] = out[key][1] * 0.5
+        return out
+
+
+def test_parity_gate_fails_on_a_non_finite_tensor():
+    """The reviewer's NaN probe returned match=True, max_abs_diff=0.0."""
+    metadata = _fa_metadata(n=2)
+    verdict = ca.fa_parity_gate(lambda: _BrokenConditioner(nan=True), metadata, device="cpu",
+                                angles=ca.FA_ANGLES, autocast=False)
+    assert verdict["match"] is False
+    assert verdict["finite"] is False
+    assert any("finite" in reason for reason in verdict["reasons"]), verdict["reasons"]
+
+
+def test_parity_gate_requires_exact_key_set_equality():
+    metadata = _fa_metadata(n=2)
+    sides = iter([_RecordingConditioner(), _BrokenConditioner(drop="context_poses_vit")])
+    verdict = ca.fa_parity_gate(lambda: next(sides), metadata, device="cpu",
+                                angles=ca.FA_ANGLES, autocast=False)
+    assert verdict["match"] is False
+    assert any("key set" in reason or "missing" in reason for reason in verdict["reasons"])
+
+    sides = iter([_RecordingConditioner(), _BrokenConditioner(extra="stray_id")])
+    verdict = ca.fa_parity_gate(lambda: next(sides), metadata, device="cpu",
+                                angles=ca.FA_ANGLES, autocast=False)
+    assert verdict["match"] is False
+
+
+def test_parity_gate_compares_masks_too():
+    metadata = _fa_metadata(n=2)
+    sides = iter([_RecordingConditioner(), _BrokenConditioner(mask_shift=True)])
+    verdict = ca.fa_parity_gate(lambda: next(sides), metadata, device="cpu",
+                                angles=ca.FA_ANGLES, autocast=False)
+    assert verdict["match"] is False
+    assert any("mask" in reason for reason in verdict["reasons"]), verdict["reasons"]
+
+
+def test_parity_gate_tolerance_is_preregistered_not_caller_chosen():
+    metadata = _fa_metadata(n=2)
+    assert ca.PARITY_TOLERANCES["autocast_off"] == 0.0
+    assert ca.PARITY_TOLERANCES["registered_autocast"] > 0.0
+    off = ca.fa_parity_gate(lambda: _RecordingConditioner(), metadata, device="cpu",
+                            angles=ca.FA_ANGLES, autocast=False)
+    assert off["tolerance"] == 0.0 and off["bitwise"] is True
+    on = ca.fa_parity_gate(lambda: _RecordingConditioner(), metadata, device="cpu",
+                           angles=ca.FA_ANGLES, autocast=True)
+    assert on["tolerance"] == ca.PARITY_TOLERANCES["registered_autocast"]
+    with pytest.raises(ValueError, match="preregistered"):
+        ca.fa_parity_gate(lambda: _RecordingConditioner(), metadata, device="cpu",
+                          angles=ca.FA_ANGLES, autocast=False, tolerance=1.0)
+
+
+def test_parity_gate_detects_a_perturbed_cap_on_one_side():
+    """Non-tautological: the two sides must differ in EXECUTION, not only in
+    which function object they call."""
+    metadata = _fa_metadata(n=2)
+    verdict = ca.fa_parity_gate(lambda: _RecordingConditioner(), metadata, device="cpu",
+                                angles=ca.FA_ANGLES, replay_cap=64, autocast=False)
+    assert verdict["driver_partition"] != verdict["replay_partition"]
+    assert verdict["driver_partition"] == [2, 2, 2] and verdict["replay_partition"] == [6]
+    assert verdict["match"] is False
+    assert any("partition" in reason for reason in verdict["reasons"]), verdict["reasons"]
+
+
+def test_parity_gate_records_the_full_evidence_record():
+    metadata = _fa_metadata(n=2)
+    verdict = ca.fa_parity_gate(lambda: _RecordingConditioner(), metadata, device="cpu",
+                                angles=ca.FA_ANGLES, autocast=False)
+    for key in ("match", "bitwise", "finite", "reasons", "ids", "per_id", "angles",
+                "driver_partition", "replay_partition", "driver_cap", "replay_cap",
+                "n_metadata", "chunk_plan", "tolerance", "device"):
+        assert key in verdict, key
+    entry = verdict["per_id"]["source_vit"]
+    for key in ("max_abs_diff", "bitwise", "shape", "dtype", "mask_max_abs_diff", "finite"):
+        assert key in entry, key
+
+
+def test_real_runner_produces_the_evidence_record(tmp_path, monkeypatch):
+    """run_fa_parity binds the artifacts; the heavy build is stubbed here and the
+    real BF execution is the ladder's gate step."""
+    ckpt = _write_ckpt(tmp_path / "bf.ckpt", config=_fa_config())
+    config = _write_config(tmp_path / "bf.json", _fa_config())
+    metadata = _fa_metadata(n=2)
+
+    monkeypatch.setattr(ca, "_build_conditioner_factory",
+                        lambda *a, **k: (lambda: _RecordingConditioner(), {"device": "cpu",
+                                                                          "weights_source": "ema"}))
+    monkeypatch.setattr(ca, "_load_one_query", lambda *a, **k: (metadata, {
+        "query_id": "42|room/x.wav", "n_candidates": len(metadata), "room_id": "room"}))
+    # the real loader path is exercised by the driver gate; here it is stubbed so
+    # the record's SHAPE is pinned without a dataset
+
+    record = ca.run_fa_parity(ckpt, config, dataset_config="d.json", device="cpu",
+                              autocast_modes=("off", "registered"))
+    assert record["ckpt_sha256"] and record["model_config_sha256"]
+    assert record["query"]["query_id"] == "42|room/x.wav"
+    assert record["query"]["n_candidates"] == 2
+    assert set(record["results"]) == {"off", "registered"}
+    assert record["results"]["off"]["tolerance"] == 0.0
+    assert record["results"]["registered"]["requested_autocast"] == "default"
+    assert record["results"]["registered"]["resolved_autocast_dtype"] is not None
+    assert record["source_shas"]["src/data/yaw_rotation.py"]
+    assert record["runtime"]["torch"] and "device" in record["runtime"]
+    assert record["passed"] is True
+    assert record["angles"] == [0.0, 90.0, 180.0, 270.0] and record["rotate_deg"] == 0.0
+
+
+def test_driver_exposes_the_fa_parity_gate_as_a_cli_mode(tmp_path, monkeypatch):
+    """The gate step must be invocable with the BF run's own arguments."""
+    import eval_localization as el
+
+    args = el.parse_args(["--model-config", "m.json", "--dataset-config", "d.json",
+                          "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
+                          "--num-samples", "8", "--cond-method", "fa_invariant",
+                          "--fa-parity-check", "--out-dir", str(tmp_path),
+                          "--eval-name", "exp20_fa_parity"])
+    assert args.fa_parity_check is True
+
+    captured = {}
+
+    def fake_run(ckpt_path, model_config_path, **kwargs):
+        captured.update(kwargs)
+        captured["ckpt_path"] = ckpt_path
+        return {"passed": True, "results": {"off": {"match": True}}, "mode": "fa-parity"}
+
+    monkeypatch.setattr(ca, "run_fa_parity", fake_run)
+    result = el.run_fa_parity_check(args)
+    assert captured["ckpt_path"] == "c.ckpt"
+    assert captured["args"] is args and captured["device"] == args.device
+    assert os.path.exists(result["record_path"])
+    with open(result["record_path"]) as handle:
+        assert json.load(handle)["passed"] is True
+
+
+def test_driver_fa_parity_refuses_a_vanilla_invocation(tmp_path):
+    import eval_localization as el
+
+    args = el.parse_args(["--model-config", "m.json", "--dataset-config", "d.json",
+                          "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
+                          "--num-samples", "8", "--fa-parity-check",
+                          "--out-dir", str(tmp_path), "--eval-name", "bad"])
+    with pytest.raises(SystemExit, match="fa_invariant"):
+        el.run_fa_parity_check(args)
+
+
+def test_driver_fa_parity_exits_nonzero_when_the_gate_fails(tmp_path, monkeypatch):
+    import eval_localization as el
+
+    args = el.parse_args(["--model-config", "m.json", "--dataset-config", "d.json",
+                          "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
+                          "--num-samples", "8", "--cond-method", "fa_invariant",
+                          "--fa-parity-check", "--out-dir", str(tmp_path),
+                          "--eval-name", "exp20_fa_parity"])
+    monkeypatch.setattr(ca, "run_fa_parity", lambda *a, **k: {
+        "passed": False, "mode": "fa-parity",
+        "results": {"off": {"match": False, "reasons": ["partition differs"]}}})
+    with pytest.raises(SystemExit, match="fa-parity"):
+        el.run_fa_parity_check(args)

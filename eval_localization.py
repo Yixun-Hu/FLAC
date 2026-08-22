@@ -1140,6 +1140,10 @@ def parse_args(argv=None):
                         metavar="SEED:METRICS_JSONL:ROWS_JSONL",
                         help="--mode metrics-report: one published unseen pass per seed, as "
                              "seed:metrics-jsonl:replay-rows-jsonl (repeatable)")
+    parser.add_argument("--fa-parity-check", action="store_true",
+                        help="run the exp_20 frame-average parity gate on ONE real query "
+                             "(driver conditioning vs an eval_FLAC-faithful replay) and write "
+                             "its evidence record; requires --cond-method fa_invariant")
     parser.add_argument("--oracle-inputs", nargs="+", default=None,
                         metavar="SEED:ORACLE_ROWS_JSONL",
                         help="--mode metrics-report: the published --mode metrics-retrieval "
@@ -1905,6 +1909,8 @@ def main(argv=None):
         return run_metrics_calibrate(args)
     if args.mode == "metrics-report":
         return run_metrics_report(args)
+    if getattr(args, "fa_parity_check", False):
+        return run_fa_parity_check(args)
     if args.mode == "metrics-retrieval":
         dataset_config = load_dataset_config(args)
         assert_registered_split(args, dataset_config)
@@ -3611,6 +3617,35 @@ def run_metrics_calibrate(args):
         print(f"  delta_max={entry['delta_max']:>4}: dev top-1 {entry['top1']:.4f}{marker}")
     print(f"draft metric manifest -> {draft_path}")
     return report
+
+
+def run_fa_parity_check(args):
+    """--fa-parity-check: the exp_20 FA gate, with the run's own arguments.
+
+    The record is written before the verdict is acted on, so a failure leaves
+    the evidence behind rather than only a non-zero exit.
+    """
+    from src.localization import crossarm
+
+    if getattr(args, "cond_method", "vanilla") != "fa_invariant":
+        _refuse("--fa-parity-check needs --cond-method fa_invariant: there is no orbit to "
+                "compare on a vanilla run")
+    record = crossarm.run_fa_parity(args.ckpt_path, args.model_config,
+                                    dataset_config=args.dataset_config, device=args.device,
+                                    args=args)
+    out_dir = str(args.out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+    record_path = os.path.join(out_dir, f"{args.eval_name}_fa_parity.json")
+    write_json_atomic(record_path, jsonable(record), overwrite=True)
+    print(f"fa-parity record -> {record_path}")
+    if not record.get("passed"):
+        failed = {mode: result.get("reasons") for mode, result in record["results"].items()
+                  if not result.get("match")}
+        _refuse(f"fa-parity gate FAILED: {failed}; the record is at {record_path}")
+    print("fa-parity gate PASSED "
+          + ", ".join(f"{mode}: max_abs_diff={result.get('max_abs_diff')}"
+                      for mode, result in record["results"].items()))
+    return {"record_path": record_path, "record": record}
 
 
 def run_metrics_report(args):
