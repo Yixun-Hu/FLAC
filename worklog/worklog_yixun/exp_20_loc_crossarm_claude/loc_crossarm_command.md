@@ -17,3 +17,4 @@ First pair: P1 R2 seed42 (cuda:1) + BF R2 seed42 (cuda:0).
 ## Pair 3: P1/BF R2 seed44 (2026-08-22_09:24:57 EDT)
 ## Pair 4: YAW-R2-42 + P1-R2b-42 (2026-08-22_13:22:21 EDT)
 ## Pair 5: YAW-R2-43 + BF-R2b-42 (2026-08-22_16:40:36 EDT)
+## Pair 6: YAW-R2-44 + YAW-R2b-42 (2026-08-22_19:56:19 EDT)
