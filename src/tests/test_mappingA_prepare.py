@@ -537,6 +537,9 @@ def test_the_cli_publishes_the_whole_mappingA_surface(cli_corpus, tmp_path):
 
 
 def test_the_published_items_pass_the_static_validator(cli_corpus, tmp_path):
+    """Re-attested OFFLINE from the publication itself: the items come from the
+    runtime metadata and the authoritative per-slot assignment from the published
+    splits record, so nothing is re-surveyed and nothing is taken on trust (P2)."""
     readback = _readback_for(tmp_path, cli_corpus)
     prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))
     items = []
@@ -544,9 +547,14 @@ def test_the_published_items_pass_the_static_validator(cli_corpus, tmp_path):
         with open(tmp_path / "runtime" / "mappingA" / room / "metadata" /
                   "mappingA_metadata.json") as f:
             items.extend(json.load(f).values())
+    with open(tmp_path / prep_a.MAPPINGA_SPLIT_ROOT
+              / "mappingA_splits_record.json") as f:
+        assignments = json.load(f)["assignments"]
+    assert sorted(assignments) == ["EmptyRoom", "FurnishedRoom"]
     report = prep_a.validate_manifest({"items": items, "k": 8},
-                                      expected_items=2 * 36 * 2, k=8)
-    assert report["passed"] is True
+                                      expected_items=2 * 36 * 2, k=8,
+                                      assignments=assignments)
+    assert report["passed"] is True and report["assignments_attested"] is True
 
 
 def test_the_pointer_declares_the_mappingA_flavor(cli_corpus, tmp_path):

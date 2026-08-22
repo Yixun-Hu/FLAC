@@ -23,6 +23,7 @@ import argparse
 import hashlib
 import json
 import logging
+import math
 
 import librosa
 import numpy as np
@@ -788,6 +789,25 @@ def _is_number(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def _is_finite_number(value):
+    """P2: a distance is finite. NaN in particular compares False against every
+    threshold, so an unmeasured match would pass every gate it was tested against."""
+    return _is_number(value) and math.isfinite(float(value))
+
+
+def _is_margin(value):
+    """The ambiguity margin is a RATIO, and +inf is its meaningful extreme: an
+    exact hit whose next-nearest mic is strictly further away (every placement
+    medoid against itself). NaN is still refused -- that is an absent measurement,
+    not a decisive one."""
+    return _is_number(value) and not math.isnan(float(value)) and float(value) >= 0.0
+
+
+def _is_sha256(value):
+    return (isinstance(value, str) and len(value) == 64
+            and all(c in "0123456789abcdef" for c in value))
+
+
 def _is_index(value):
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
@@ -818,11 +838,41 @@ CONTEXT_SCHEMA = {
     "tx_p": _is_xyz,
     "rx_p": _is_xyz,
     "rx_row": _is_index,
-    "rx_displacement_m": _is_number,
+    "rx_displacement_m": _is_finite_number,
     "match": lambda v: isinstance(v, dict),
 }
-MATCH_SCHEMA = {"p95_m": _is_number, "max_m": _is_number,
-                "min_ambiguity_margin": _is_number}
+# P2: the FULL correspondence evidence, all of it finite. p95/max/margin summarise
+# 36 slots into three numbers; the digest names the assignment those numbers came
+# from and the residual says whether one rigid motion explains it.
+MATCH_SCHEMA = {"p95_m": _is_finite_number, "max_m": _is_finite_number,
+                "min_ambiguity_margin": _is_margin,
+                "evidence_sha256": _is_sha256,
+                "rigid_residual_rms_m": _is_finite_number}
+
+
+def _attest_row(add, item, room_rows, group_key, slot, recorded_row, who):
+    """The recorded row must BE the row the correspondence assigned that slot.
+
+    ``rx_row`` inside 0..35 says nothing: the reviewer's probe put slot 0 on row 23
+    and every gate passed. "The same microphone" is the assignment's claim, so it
+    is checked against the assignment.
+    """
+    if not room_rows or group_key not in room_rows:
+        add("unattested_assignment", item,
+            f"{who}: no authoritative assignment for group {group_key} in room "
+            f"{item['room']}")
+        return
+    rows = room_rows[group_key]
+    if slot >= len(rows):
+        add("unattested_assignment", item,
+            f"{who}: the assignment for group {group_key} covers {len(rows)} slots, "
+            f"not slot {slot}")
+        return
+    if int(rows[slot]) != int(recorded_row):
+        add("wrong_row", item,
+            f"{who} records row {recorded_row} for mic slot {slot}, but the "
+            f"correspondence assigned row {rows[slot]} -- the item is conditioned on "
+            "a different microphone than it claims")
 
 
 def _schema_problems(payload, schema, where):
@@ -850,7 +900,8 @@ def _match_problems(match, where):
 
 
 def validate_manifest(manifest, expected_items=CANONICAL_N_ITEMS, k=CANONICAL_K,
-                      max_displacement_m=MATCH_MAX_M, array_size=CANONICAL_ARRAY_SIZE):
+                      max_displacement_m=MATCH_MAX_M, array_size=CANONICAL_ARRAY_SIZE,
+                      assignments=None, allow_unattested=False):
     """Static validator over the whole manifest (M5), run before publication.
 
     Every condition here is a way the row could stop measuring what it claims:
@@ -859,6 +910,17 @@ def validate_manifest(manifest, expected_items=CANONICAL_N_ITEMS, k=CANONICAL_K,
     position" claim), or a context recorded at a different microphone (the
     "same listener" claim). All violations are collected before raising.
     """
+    # P2: the AUTHORITATIVE per-slot correspondence, {room: {group_key: [row per
+    # slot]}}. Without it the validator can only check that a row is inside the
+    # array -- which is why an item for slot 0 naming row 23 passed. A caller with
+    # no assignment must say so, rather than getting the weaker check silently.
+    if assignments is None and not allow_unattested:
+        raise ValueError(
+            "validate_manifest needs the authoritative assignments to attest that "
+            "each recorded row IS the row the Hungarian match gave that group's mic "
+            "slot; pass assignments={room: {group_key: [row per slot]}}, or "
+            "allow_unattested=True to check everything else and say so.")
+
     items = manifest["items"]
     violations = []
 
@@ -897,6 +959,11 @@ def validate_manifest(manifest, expected_items=CANONICAL_N_ITEMS, k=CANONICAL_K,
         if item["rx_target_row"] >= array_size:
             add("mic_slot", item,
                 f"target row {item['rx_target_row']} is outside the array")
+
+        room_rows = (assignments or {}).get(item["room"])
+        if assignments is not None:
+            _attest_row(add, item, room_rows, item["target_group_key"], slot,
+                        item["rx_target_row"], "target")
 
         for problem in _match_problems(item["match"], "target correspondence"):
             kind = "ambiguous_match" if "margin" in problem else "failed_match"
@@ -956,6 +1023,9 @@ def validate_manifest(manifest, expected_items=CANONICAL_N_ITEMS, k=CANONICAL_K,
                 add("mic_slot", item,
                     f"context {entry['capture_id']} row {entry['rx_row']} is outside "
                     f"the {array_size}-mic array")
+            if assignments is not None:
+                _attest_row(add, item, room_rows, entry["group_key"], slot,
+                            entry["rx_row"], f"context {entry['capture_id']}")
             for problem in _match_problems(entry["match"],
                                            f"context {entry['capture_id']}"):
                 kind = "ambiguous_match" if "margin" in problem else "failed_match"
@@ -965,6 +1035,7 @@ def validate_manifest(manifest, expected_items=CANONICAL_N_ITEMS, k=CANONICAL_K,
     report = {
         "n_items": len(items),
         "expected_items": int(expected_items),
+        "assignments_attested": assignments is not None,
         "k": int(k),
         "n_unique_targets": len(seen_targets),
         "n_unique_item_ids": len(seen_items),
@@ -1236,7 +1307,7 @@ def main(argv=None):
 
     # Pass 1: survey, select placements, build items. NOTHING is written yet -- the
     # amplitude audit over the resulting union has to pass first (M1).
-    surveys, items_by_room = {}, {}
+    surveys, items_by_room, assignments = {}, {}, {}
     for room in args.rooms:
         room_dir = os.path.join(args.raf_root, "archived", room)
         logger.info("surveying %s", room_dir)
@@ -1251,6 +1322,12 @@ def main(argv=None):
             items.extend(build_items(room, placement["placement_id"],
                                      placement["passing"], placement["assignment"],
                                      placement["match"], k=args.k, seed=args.seed))
+            # P2: the authoritative per-slot correspondence for the groups these
+            # items were cut from, kept for the validator and published with the
+            # splits record so the attestation can be re-run offline.
+            assignments.setdefault(room, {}).update(
+                {key: [int(row) for row in rows]
+                 for key, rows in placement["assignment"].items()})
         cross_check_correspondence(correspondence, room, survey)
         survey["selected_placements"] = [p["placement_id"] for p in selected]
         surveys[room] = survey
@@ -1263,7 +1340,8 @@ def main(argv=None):
     expected_items = (CANONICAL_N_ITEMS if canonical else
                       args.n_placements * ARRAY_SIZE * len(args.rooms))
     validate_manifest({"items": all_items, "k": args.k},
-                      expected_items=expected_items, k=args.k)
+                      expected_items=expected_items, k=args.k,
+                      assignments=assignments)
 
     union = enumerate_audio_union(all_items)
     counts = union_report(union, all_items)
@@ -1335,7 +1413,8 @@ def main(argv=None):
         _write_json(staged_splits.path("mappingA_splits_record.json"),
                     build_splits_record(surveys, items_by_room, counts, parameters,
                                         canonical, taint, readback_provenance,
-                                        correspondence_provenance, digests["survey"]))
+                                        correspondence_provenance, digests["survey"],
+                                        assignments))
         _write_json(staged_splits.path("mappingA_amplitude_audit.json"),
                     {"parameters": parameters, "canonical": canonical, "taint": taint,
                      "rooms": audits, "written": write_reports})
@@ -1358,7 +1437,7 @@ def main(argv=None):
 
 def build_splits_record(surveys, items_by_room, counts, parameters, canonical, taint,
                         readback_provenance, correspondence_provenance=None,
-                        survey_sha256=None):
+                        survey_sha256=None, assignments=None):
     """The committed description of how the Mapping-A set was cut."""
     rooms = {}
     for room, survey in surveys.items():
@@ -1391,6 +1470,9 @@ def build_splits_record(surveys, items_by_room, counts, parameters, canonical, t
             # run measured about its own survey (identical claims, different sources)
             "correspondence_record": correspondence_provenance,
             "survey_sha256": survey_sha256,
+            # P2: the authoritative per-slot correspondence the items rest on, so
+            # validate_manifest can attest a published manifest without re-surveying
+            "assignments": assignments,
             "union": counts, "rooms": rooms}
 
 

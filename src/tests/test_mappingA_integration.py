@@ -81,15 +81,21 @@ def test_the_whole_chain_composes(corpus, tmp_path):
         match[group["group_key"]] = {"p95_m": report["p95_m"],
                                      "max_m": report["max_m"],
                                      "min_ambiguity_margin":
-                                         report["min_ambiguity_margin"]}
+                                         report["min_ambiguity_margin"],
+                                     # r3 P2: the full evidence travels with it
+                                     "evidence_sha256": report["evidence_sha256"],
+                                     "rigid_residual_rms_m":
+                                         report["rigid_residual_rms_m"]}
 
     # 2. items ------------------------------------------------------------------
     poses = [dict(g, tx_xyz=g["tx_xyz"], tx_xyz_p=g["tx_xyz_p"]) for g in groups]
     items = prep_a.build_items(ROOM, placement["placement_id"], poses, assignment,
                                match, k=K)
     assert len(items) == 36
-    report = prep_a.validate_manifest({"items": items, "k": K}, expected_items=36, k=K)
+    report = prep_a.validate_manifest({"items": items, "k": K}, expected_items=36,
+                                      k=K, assignments={ROOM: assignment})
     assert report["passed"] is True
+    assert report["assignments_attested"] is True
 
     # 3. audio union + amplitude policy ----------------------------------------
     union = prep_a.enumerate_audio_union(items)

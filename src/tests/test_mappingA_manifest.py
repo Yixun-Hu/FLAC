@@ -22,6 +22,20 @@ import mappingA_common as mac  # noqa: E402
 import prepare_mappingA as prep_a  # noqa: E402
 
 
+def validate(manifest, **kwargs):
+    """The schema-level checks, with the assignment attestation explicitly waived
+    (r3 P2 makes it fail-closed); the attestation has its own tests below."""
+    kwargs.setdefault("allow_unattested", True)
+    return prep_a.validate_manifest(manifest, **kwargs)
+
+
+def _match(p95=0.003, max_m=0.006, margin=30.0, digest=None, residual=1e-7):
+    """A complete correspondence record: summary, evidence digest and residual."""
+    return {"p95_m": p95, "max_m": max_m, "min_ambiguity_margin": margin,
+            "evidence_sha256": digest or ("ab" * 32),
+            "rigid_residual_rms_m": residual}
+
+
 def _context(i, xyz=None):
     # r2 N6: the record is now RECOMPUTED, so the fixture has to be self-consistent
     # -- rx_p is 2 mm from the target mic and rx_displacement_m says so.
@@ -29,7 +43,7 @@ def _context(i, xyz=None):
             "xyz_key": mac.source_xyz_key(xyz or (float(i), 1.5, 0.0)),
             "tx_p": [float(i), 0.0, 1.5], "rx_p": [0.1, 0.202, 1.0],
             "rx_row": i, "rx_displacement_m": 0.002,
-            "match": {"p95_m": 0.003, "max_m": 0.006, "min_ambiguity_margin": 30.0}}
+            "match": _match(digest=f"{i:064x}")}
 
 
 def _valid_item(room="EmptyRoom", placement="p000", slot=0, target="000001", k=8):
@@ -42,7 +56,7 @@ def _valid_item(room="EmptyRoom", placement="p000", slot=0, target="000001", k=8
         "rx_target_row": slot, "rx_target_height_raf_m": 1.0,
         "depth_file": f"{room}_{placement}_slot{slot:02d}_depth_image.npy",
         "context": [_context(i) for i in range(k)],
-        "match": {"p95_m": 0.004, "max_m": 0.008, "min_ambiguity_margin": 40.0},
+        "match": _match(p95=0.004, max_m=0.008, margin=40.0, digest="cd" * 32),
     }
 
 
@@ -57,7 +71,7 @@ def _manifest(n_items=4, k=8):
 # the validator's accept case
 # --------------------------------------------------------------------------- #
 def test_a_well_formed_manifest_validates():
-    report = prep_a.validate_manifest(_manifest(), expected_items=4, k=8)
+    report = validate(_manifest(), expected_items=4, k=8)
     assert report["passed"] is True
     assert report["n_items"] == 4
     assert report["n_unique_targets"] == 4
@@ -67,7 +81,7 @@ def test_a_well_formed_manifest_validates():
 
 def test_the_expected_item_count_is_enforced():
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(_manifest(n_items=3), expected_items=4, k=8)
+        validate(_manifest(n_items=3), expected_items=4, k=8)
     assert "3" in str(exc.value) and "4" in str(exc.value)
 
 
@@ -85,7 +99,7 @@ def test_a_repeated_target_capture_is_refused():
     manifest = _manifest()
     manifest["items"][1]["target_capture_id"] = manifest["items"][0]["target_capture_id"]
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     assert "duplicate_target" in str(exc.value)
 
 
@@ -94,7 +108,7 @@ def test_a_repeated_item_slot_is_refused():
     manifest["items"][1]["mic_slot"] = manifest["items"][0]["mic_slot"]
     manifest["items"][1]["item_id"] = manifest["items"][0]["item_id"]
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     assert "duplicate_item" in str(exc.value)
 
 
@@ -102,7 +116,7 @@ def test_the_wrong_number_of_contexts_is_refused():
     manifest = _manifest(k=8)
     manifest["items"][2]["context"] = manifest["items"][2]["context"][:6]
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     assert "6" in str(exc.value)
 
 
@@ -111,7 +125,7 @@ def test_a_repeated_context_capture_within_an_item_is_refused():
     manifest = _manifest()
     manifest["items"][0]["context"][3] = dict(manifest["items"][0]["context"][2])
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     assert "distinct" in str(exc.value)
 
 
@@ -120,7 +134,7 @@ def test_the_target_capture_inside_its_own_context_is_refused():
     manifest["items"][0]["context"][0]["capture_id"] = \
         manifest["items"][0]["target_capture_id"]
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     assert "own context" in str(exc.value)
 
 
@@ -131,7 +145,7 @@ def test_a_context_source_at_the_target_position_is_refused():
     manifest["items"][0]["context"][4]["xyz_key"] = \
         manifest["items"][0]["target_xyz_key"]
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     assert "source position" in str(exc.value)
 
 
@@ -143,7 +157,7 @@ def test_a_context_recorded_at_a_different_microphone_is_refused():
     manifest["items"][1]["context"][2]["rx_p"] = [0.1, 0.25, 1.0]
     manifest["items"][1]["context"][2]["rx_displacement_m"] = 0.05
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     assert "displacement" in str(exc.value)
 
 
@@ -151,7 +165,7 @@ def test_a_group_whose_correspondence_failed_is_refused():
     manifest = _manifest()
     manifest["items"][3]["match"]["p95_m"] = 0.02
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     assert "p95" in str(exc.value)
 
 
@@ -159,7 +173,7 @@ def test_an_ambiguous_correspondence_is_refused():
     manifest = _manifest()
     manifest["items"][3]["match"]["min_ambiguity_margin"] = 1.5
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     assert "ambiguous_match" in str(exc.value)
     assert "margin 1.50 < 3.0" in str(exc.value)
 
@@ -173,7 +187,7 @@ def test_every_violation_is_reported_not_just_the_first():
     manifest["items"][1]["context"][2]["rx_displacement_m"] = 0.05
     manifest["items"][3]["match"]["min_ambiguity_margin"] = 1.5
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     kinds = {v["kind"] for v in exc.value.report["violations"]}
     assert kinds == {"target_in_context", "mic_displacement", "ambiguous_match"}
 
@@ -182,7 +196,7 @@ def test_the_validator_is_importable_and_reports_json_safely():
     manifest = _manifest()
     manifest["items"][0]["context"][0]["capture_id"] = "000001"
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     json.dumps(exc.value.report, allow_nan=False)
 
 
@@ -215,8 +229,8 @@ def test_build_items_produces_one_item_per_mic_slot():
     items = prep_a.build_items("EmptyRoom", "p000", poses,
                                assignment={p["group_key"]: list(range(36))
                                            for p in poses},
-                               match={p["group_key"]: {"p95_m": 0.004, "max_m": 0.008,
-                                                       "min_ambiguity_margin": 40.0}
+                               match={p["group_key"]: _match(p95=0.004, max_m=0.008,
+                                                             margin=40.0)
                                       for p in poses}, k=8)
     assert len(items) == 36
     assert {i["mic_slot"] for i in items} == set(range(36))
@@ -232,8 +246,8 @@ def test_build_items_uses_one_hash_chosen_target_pose_for_the_placement():
     items = prep_a.build_items("EmptyRoom", "p000", poses,
                                assignment={p["group_key"]: list(range(36))
                                            for p in poses},
-                               match={p["group_key"]: {"p95_m": 0.004, "max_m": 0.008,
-                                                       "min_ambiguity_margin": 40.0}
+                               match={p["group_key"]: _match(p95=0.004, max_m=0.008,
+                                                             margin=40.0)
                                       for p in poses}, k=8)
     assert len({i["target_group_key"] for i in items}) == 1
     assert items[0]["target_group_key"] == mac.select_target(
@@ -245,10 +259,10 @@ def test_build_items_validates_against_the_manifest_rules():
     items = prep_a.build_items("EmptyRoom", "p000", poses,
                                assignment={p["group_key"]: list(range(36))
                                            for p in poses},
-                               match={p["group_key"]: {"p95_m": 0.004, "max_m": 0.008,
-                                                       "min_ambiguity_margin": 40.0}
+                               match={p["group_key"]: _match(p95=0.004, max_m=0.008,
+                                                             margin=40.0)
                                       for p in poses}, k=8)
-    report = prep_a.validate_manifest({"items": items, "k": 8}, expected_items=36, k=8)
+    report = validate({"items": items, "k": 8}, expected_items=36, k=8)
     assert report["passed"] is True
 
 
@@ -318,7 +332,7 @@ def test_a_recorded_displacement_that_the_poses_contradict_is_refused():
     manifest = _manifest()
     manifest["items"][0]["context"][0]["rx_displacement_m"] = 0.001   # poses: 0.002
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     kinds = {v["kind"] for v in exc.value.report["violations"]}
     assert kinds == {"displacement_mismatch"}
     assert "0.002" in exc.value.report["violations"][0]["detail"]
@@ -330,7 +344,7 @@ def test_a_context_at_the_target_coordinates_is_refused_whatever_its_key_says():
     item["context"][3]["tx_p"] = list(item["tx_p"])          # same source position
     item["context"][3]["xyz_key"] = "not.the.target.key"     # but a different key
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     detail = exc.value.report["violations"][0]["detail"]
     assert "context_source_position" == exc.value.report["violations"][0]["kind"]
     assert "coordinates" in detail
@@ -343,7 +357,7 @@ def test_an_item_missing_any_registered_field_is_refused(missing):
     manifest = _manifest()
     del manifest["items"][2][missing]
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     kinds = {v["kind"] for v in exc.value.report["violations"]}
     assert kinds == {"schema"}
     assert any(missing in v["detail"] for v in exc.value.report["violations"])
@@ -354,7 +368,7 @@ def test_a_context_missing_any_registered_field_is_refused(missing):
     manifest = _manifest()
     del manifest["items"][1]["context"][4][missing]
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     assert any(missing in v["detail"] for v in exc.value.report["violations"])
 
 
@@ -363,10 +377,9 @@ def test_a_context_group_whose_own_correspondence_failed_is_refused():
     target's: a context drawn from a group that failed the match is not the same
     microphone, however well the target matched."""
     manifest = _manifest()
-    manifest["items"][0]["context"][1]["match"] = {
-        "p95_m": 0.05, "max_m": 0.09, "min_ambiguity_margin": 30.0}
+    manifest["items"][0]["context"][1]["match"] = _match(p95=0.05, max_m=0.09)
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     kinds = {v["kind"] for v in exc.value.report["violations"]}
     assert kinds == {"failed_match"}
     assert "000901" in exc.value.report["violations"][0]["detail"]
@@ -377,7 +390,7 @@ def test_a_context_from_the_targets_own_group_is_refused():
     manifest["items"][0]["context"][0]["group_key"] = \
         manifest["items"][0]["target_group_key"]
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     assert "target_in_context" in {v["kind"] for v in exc.value.report["violations"]}
 
 
@@ -390,7 +403,7 @@ def test_a_slot_outside_the_array_is_refused(field, value):
         item["item_id"] = f"EmptyRoom/p000/slot{value:02d}"
         item["depth_file"] = f"EmptyRoom_p000_slot{value:02d}_depth_image.npy"
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     assert "mic_slot" in {v["kind"] for v in exc.value.report["violations"]}
 
 
@@ -398,7 +411,7 @@ def test_the_slot_the_id_and_the_depth_file_must_name_one_slot():
     manifest = _manifest()
     manifest["items"][0]["depth_file"] = "EmptyRoom_p000_slot07_depth_image.npy"
     with pytest.raises(prep_a.ManifestError) as exc:
-        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+        validate(manifest, expected_items=4, k=8)
     assert "mic_slot" in {v["kind"] for v in exc.value.report["violations"]}
 
 
@@ -463,8 +476,8 @@ def _built_items(poses, k=8):
     return prep_a.build_items(
         "EmptyRoom", "p000", poses,
         assignment={p["group_key"]: list(range(36)) for p in poses},
-        match={p["group_key"]: {"p95_m": 0.004, "max_m": 0.008,
-                                "min_ambiguity_margin": 40.0} for p in poses}, k=k)
+        match={p["group_key"]: _match(p95=0.004, max_m=0.008, margin=40.0)
+               for p in poses}, k=k)
 
 
 def test_the_tracked_height_is_the_raw_raf_up_axis():
@@ -494,3 +507,129 @@ def _placement_poses_with_raw(raw, n_poses=12):
     return [_pose(f"g{i}", [f"{i * 36 + s:06d}" for s in range(36)],
                   (float(i), 1.5, 2.0), rx_raw=raw)
             for i in range(n_poses)]
+
+
+# --------------------------------------------------------------------------- #
+# r3 P2: the recorded row must BE the row the correspondence assigned
+# --------------------------------------------------------------------------- #
+def _attested_manifest(n_items=4, k=8):
+    """A manifest plus the authoritative assignment it was cut from.
+
+    The target group is matched slot-for-slot; context group ``gC{i}`` resolves
+    every slot to its own row ``i`` -- exactly what the fixture records, so an
+    attested run of the validator passes and any tampering with a row does not.
+    """
+    manifest = _manifest(n_items=n_items, k=k)
+    groups = {"gT": list(range(36))}
+    groups.update({f"gC{i}": [i] * 36 for i in range(k)})
+    return manifest, {"EmptyRoom": groups}
+
+
+def test_an_attested_manifest_validates():
+    manifest, assignments = _attested_manifest()
+    report = prep_a.validate_manifest(manifest, expected_items=4, k=8,
+                                      assignments=assignments)
+    assert report["passed"] is True
+    assert report["assignments_attested"] is True
+
+
+def test_the_validator_refuses_to_run_unattested_by_default():
+    """The weaker check must be asked for, not fallen into: without the assignment
+    the validator can only see that a row is inside the array."""
+    manifest, _ = _attested_manifest()
+    with pytest.raises(ValueError) as exc:
+        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+    assert "authoritative assignments" in str(exc.value)
+    assert prep_a.validate_manifest(manifest, expected_items=4, k=8,
+                                    allow_unattested=True)["assignments_attested"] \
+        is False
+
+
+def test_the_reviewers_probe_is_refused_slot_0_cannot_be_row_23():
+    """The r2 review's read-only probe: an item for mic slot 0 whose target row is
+    23 and whose contexts sit on rows 17-24. Every row is inside 0..35, every
+    displacement is small, and before P2 the manifest validated -- while every item
+    was conditioned on a different microphone than it claimed."""
+    manifest, assignments = _attested_manifest()
+    item = manifest["items"][0]
+    assert item["mic_slot"] == 0
+    item["rx_target_row"] = 23
+    for offset, entry in enumerate(item["context"]):
+        entry["rx_row"] = 17 + offset                     # rows 17..24
+    with pytest.raises(prep_a.ManifestError) as exc:
+        prep_a.validate_manifest(manifest, expected_items=4, k=8,
+                                 assignments=assignments)
+    violations = exc.value.report["violations"]
+    assert {v["kind"] for v in violations} == {"wrong_row"}
+    assert len(violations) == 9                            # the target and 8 contexts
+    assert "row 23 for mic slot 0" in violations[0]["detail"]
+    assert "different microphone than it claims" in violations[0]["detail"]
+
+
+def test_a_group_with_no_authoritative_assignment_is_refused():
+    manifest, assignments = _attested_manifest()
+    del assignments["EmptyRoom"]["gC3"]
+    with pytest.raises(prep_a.ManifestError) as exc:
+        prep_a.validate_manifest(manifest, expected_items=4, k=8,
+                                 assignments=assignments)
+    kinds = {v["kind"] for v in exc.value.report["violations"]}
+    assert kinds == {"unattested_assignment"}
+    assert "gC3" in exc.value.report["violations"][0]["detail"]
+
+
+def test_a_short_assignment_cannot_attest_a_high_slot():
+    manifest, assignments = _attested_manifest()
+    assignments["EmptyRoom"]["gT"] = list(range(2))
+    with pytest.raises(prep_a.ManifestError) as exc:
+        prep_a.validate_manifest(manifest, expected_items=4, k=8,
+                                 assignments=assignments)
+    details = [v["detail"] for v in exc.value.report["violations"]]
+    assert any("covers 2 slots" in d for d in details)
+
+
+@pytest.mark.parametrize("field", ["evidence_sha256", "rigid_residual_rms_m"])
+def test_correspondence_evidence_without_the_n9_fields_is_refused(field):
+    manifest, assignments = _attested_manifest()
+    del manifest["items"][1]["match"][field]
+    with pytest.raises(prep_a.ManifestError) as exc:
+        prep_a.validate_manifest(manifest, expected_items=4, k=8,
+                                 assignments=assignments)
+    assert any(field in v["detail"] for v in exc.value.report["violations"])
+
+
+@pytest.mark.parametrize("field,value", [
+    ("min_ambiguity_margin", float("nan")),
+    ("p95_m", float("nan")),
+    ("p95_m", float("inf")),
+    ("rigid_residual_rms_m", float("nan")),
+])
+def test_a_non_finite_match_statistic_is_refused(field, value):
+    """NaN compares False against every threshold, so an unmeasured match would
+    otherwise pass every gate it was tested against; a distance cannot be inf."""
+    manifest, assignments = _attested_manifest()
+    manifest["items"][0]["context"][0]["match"][field] = value
+    with pytest.raises(prep_a.ManifestError) as exc:
+        prep_a.validate_manifest(manifest, expected_items=4, k=8,
+                                 assignments=assignments)
+    kinds = {v["kind"] for v in exc.value.report["violations"]}
+    assert kinds == {"schema"}
+
+
+def test_an_infinite_ambiguity_margin_is_a_measurement_not_a_gap():
+    """A group matched exactly onto the template -- every placement medoid against
+    itself -- has an infinite margin: the most decisive verdict there is."""
+    manifest, assignments = _attested_manifest()
+    manifest["items"][0]["match"]["min_ambiguity_margin"] = float("inf")
+    report = prep_a.validate_manifest(manifest, expected_items=4, k=8,
+                                      assignments=assignments)
+    assert report["passed"] is True
+
+
+def test_a_bogus_evidence_digest_is_refused():
+    manifest, assignments = _attested_manifest()
+    manifest["items"][0]["match"]["evidence_sha256"] = "not-a-digest"
+    with pytest.raises(prep_a.ManifestError) as exc:
+        prep_a.validate_manifest(manifest, expected_items=4, k=8,
+                                 assignments=assignments)
+    assert any("evidence_sha256" in v["detail"]
+               for v in exc.value.report["violations"])
