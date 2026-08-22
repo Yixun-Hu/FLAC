@@ -150,6 +150,25 @@ def _sha256_fd(fd, chunk_bytes=CHUNK_BYTES):
         offset += len(chunk)
 
 
+def load_checkpoint_from_fd(fd):
+    """Deserialize from the HELD descriptor -- never a second path lookup.
+
+    ``torch.load`` cannot mmap a file object, so this trades lazy storages for a
+    binding that survives an ABA swap: replace the name, load, restore it, and a
+    path reopen deserializes the impostor while every identity check compares the
+    restored path and passes. Admission already builds the model for load
+    integrity, so the resident cost is one it was paying anyway.
+    """
+    duplicate = os.dup(fd)
+    try:
+        with os.fdopen(duplicate, "rb") as handle:
+            handle.seek(0)
+            return torch.load(handle, map_location="cpu", weights_only=True)
+    except Exception as error:                       # noqa: BLE001 -- a refusal
+        raise ValueError(f"the safe loader (held descriptor, weights_only=True) failed: "
+                         f"{error}") from error
+
+
 def _identity(stat):
     return {"device": stat.st_dev, "inode": stat.st_ino, "bytes": stat.st_size,
             "mtime_ns": stat.st_mtime_ns}
@@ -166,7 +185,7 @@ def snapshot_checkpoint(path):
     try:
         before = os.fstat(fd)
         digest = _sha256_fd(fd)
-        checkpoint = safe_load_checkpoint(path)
+        checkpoint = load_checkpoint_from_fd(fd)
         after_fd, after_path = os.fstat(fd), os.stat(path)
         if _identity(after_fd) != _identity(before):
             raise ValueError(f"{path}: the checkpoint changed while it was being read "
@@ -970,7 +989,7 @@ def _describe(field, value):
     return repr(value)
 
 
-def validate_pairing(runs, fields=PAIRING_FIELDS):
+def validate_pairing(runs, fields=None, strict_fields=False):
     """B3: prove two or more arms scored the SAME queries the same way.
 
     Paired per-query inference is only meaningful if the arms saw one stream:
@@ -979,6 +998,16 @@ def validate_pairing(runs, fields=PAIRING_FIELDS):
     configured loader. Any difference blocks paired reporting -- the fallback is
     an unpaired comparison, labelled as one, never a silent pairing.
     """
+    # The mandatory set is a FLOOR, not a default: a caller may add fields but
+    # never narrow them, and fields=() must not turn the gate off (r2 F2).
+    requested = tuple(fields or ())
+    if strict_fields:
+        unknown = [field for field in requested if field not in PAIRING_FIELDS]
+        if unknown:
+            raise ValueError(f"{unknown} are not pairing fields; the mandatory set is "
+                             f"{list(PAIRING_FIELDS)}")
+    fields = tuple(PAIRING_FIELDS) + tuple(f for f in requested if f not in PAIRING_FIELDS)
+
     runs = list(runs)
     if len(runs) < 2:
         raise ValueError("validate_pairing needs at least two arms to pair")
@@ -1044,7 +1073,7 @@ def validate_pairing(runs, fields=PAIRING_FIELDS):
     }
 
 
-def aggregate_seeds_per_query(per_seed, fields=("top1", "e_loc"), registered_seeds=None):
+def aggregate_seeds_per_query(per_seed, registered_seeds, fields=("top1", "e_loc")):
     """Seeds are REPLICATES: average each query across seeds, then cluster.
 
     Treating three seeds as three independent queries would triple the apparent
@@ -1055,12 +1084,15 @@ def aggregate_seeds_per_query(per_seed, fields=("top1", "e_loc"), registered_see
     seeds = sorted(per_seed)
     if not seeds:
         raise ValueError("aggregate_seeds_per_query needs at least one seed")
-    if registered_seeds is not None:
-        wanted = tuple(int(seed) for seed in registered_seeds)
-        if tuple(int(seed) for seed in seeds) != tuple(sorted(wanted)):
-            raise ValueError(f"the cell carries seeds {seeds} but the registered seed set is "
-                             f"{list(sorted(wanted))}; an incomplete or extended set of "
-                             "replicates may not be aggregated")
+    if not registered_seeds:
+        raise ValueError("aggregate_seeds_per_query needs the registered seed set (read it "
+                         "from the manifest with registered_seeds()); replicates cannot be "
+                         "aggregated against an assumed set")
+    wanted = tuple(int(seed) for seed in registered_seeds)
+    if tuple(int(seed) for seed in seeds) != tuple(sorted(wanted)):
+        raise ValueError(f"the cell carries seeds {seeds} but the registered seed set is "
+                         f"{list(sorted(wanted))}; an incomplete or extended set of "
+                         "replicates may not be aggregated")
     by_seed = {}
     for seed in seeds:
         indexed = {}

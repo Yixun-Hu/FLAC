@@ -321,14 +321,14 @@ def test_admission_primitives_agree_with_the_exp15_kit(arm_files):
 def test_admission_refuses_a_checkpoint_that_moved_while_it_was_read(tmp_path, monkeypatch):
     ckpt = _write_ckpt(tmp_path / "moving.ckpt")
     config = _write_config(tmp_path / "moving.json")
-    original = ca.safe_load_checkpoint
+    original = ca.load_checkpoint_from_fd
 
-    def replace_then_load(path):
-        payload = original(path)
+    def rewrite_then_load(fd):
+        payload = original(fd)
         _write_ckpt(tmp_path / "moving.ckpt", step=1)      # the file changes mid-read
         return payload
 
-    monkeypatch.setattr(ca, "safe_load_checkpoint", replace_then_load)
+    monkeypatch.setattr(ca, "load_checkpoint_from_fd", rewrite_then_load)
     record = ca.admit_checkpoint(ckpt, config, arm="P1", check_load_integrity=False)
     assert record["admitted"] is False
     assert any("changed" in r or "replaced" in r for r in record["reasons"]), record["reasons"]
@@ -706,7 +706,7 @@ def test_seed_aggregation_is_per_query_then_clustered():
         44: [{"query_id": "q0", "room_id": "R0", "top1": 0.0, "e_loc": 3.0},
              {"query_id": "q1", "room_id": "R1", "top1": 1.0, "e_loc": 1.0}],
     }
-    records = ca.aggregate_seeds_per_query(per_seed)
+    records = ca.aggregate_seeds_per_query(per_seed, registered_seeds=(42, 43, 44))
     assert [r["query_id"] for r in records] == ["q0", "q1"]
     assert records[0]["top1"] == pytest.approx(2 / 3) and records[0]["n_seeds"] == 3
     assert records[0]["e_loc"] == pytest.approx(1.0)
@@ -719,11 +719,11 @@ def test_seed_aggregation_refuses_an_incomplete_cell():
                      {"query_id": "q1", "room_id": "R0", "top1": 1.0, "e_loc": 0.0}],
                 43: [{"query_id": "q0", "room_id": "R0", "top1": 1.0, "e_loc": 0.0}]}
     with pytest.raises(ValueError, match="q1"):
-        ca.aggregate_seeds_per_query(per_seed)
+        ca.aggregate_seeds_per_query(per_seed, registered_seeds=(42, 43))
     mixed = {42: [{"query_id": "q0", "room_id": "R0", "top1": 1.0, "e_loc": 0.0}],
              43: [{"query_id": "q0", "room_id": "ELSEWHERE", "top1": 1.0, "e_loc": 0.0}]}
     with pytest.raises(ValueError, match="room"):
-        ca.aggregate_seeds_per_query(mixed)
+        ca.aggregate_seeds_per_query(mixed, registered_seeds=(42, 43))
 
 
 def test_holm_family_is_exactly_the_four_registered_contrasts():
@@ -1477,3 +1477,78 @@ def test_committed_yaw_record_has_the_m6_block():
     assert binding["recipe"]["seed"] == 42
     assert record["load_integrity"]["clean"] is True
     assert "unexpected" in record["load_integrity"]        # current recorder schema
+
+
+# --------------------------------------------------------------------------- #
+# r3 F5 -- the LOAD is bound to the held descriptor too (ABA)
+# --------------------------------------------------------------------------- #
+def test_load_reads_the_held_inode_across_an_aba_swap(tmp_path, monkeypatch):
+    """replace -> load -> restore: every identity check compares the restored
+    path and passes, so only a descriptor-bound LOAD can tell the difference."""
+    real = _write_ckpt(tmp_path / "real.ckpt", step=40000)
+    decoy = _write_ckpt(tmp_path / "decoy.ckpt", step=1)
+    keep = str(tmp_path / "keep.ckpt")
+    os.replace(decoy, keep)                      # park the decoy out of the way
+    real_sha = ca.sha256_file(real)
+
+    original = ca.load_checkpoint_from_fd
+    swapped = {}
+
+    def aba_load(fd):
+        os.replace(str(real), str(tmp_path / "parked.ckpt"))   # A -> B
+        os.replace(keep, str(real))
+        payload = original(fd)                                 # the load happens here
+        os.replace(str(real), keep)                            # B -> A (restored)
+        os.replace(str(tmp_path / "parked.ckpt"), str(real))
+        swapped["done"] = True
+        return payload
+
+    monkeypatch.setattr(ca, "load_checkpoint_from_fd", aba_load)
+    checkpoint, digest, _identity = ca.snapshot_checkpoint(str(real))
+    assert swapped.get("done") is True
+    assert digest == real_sha
+    # the held descriptor still points at the ORIGINAL inode, so that is what
+    # must have been deserialized -- a path reopen would have read the decoy
+    assert checkpoint["global_step"] == 40000
+
+
+def test_snapshot_never_reopens_the_path_to_load(tmp_path, monkeypatch):
+    path = _write_ckpt(tmp_path / "held.ckpt")
+
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("snapshot_checkpoint loaded by path")
+
+    monkeypatch.setattr(ca, "safe_load_checkpoint", refuse)
+    checkpoint, _digest, _identity = ca.snapshot_checkpoint(path)
+    assert checkpoint["global_step"] == 40000
+
+
+# --------------------------------------------------------------------------- #
+# r3 F2 -- the field set is not reducible, and the seed set is not optional
+# --------------------------------------------------------------------------- #
+def test_pairing_fields_cannot_be_narrowed_away():
+    """r2 re-review: validate_pairing(..., fields=()) still returned paired=True."""
+    runs = [_facts("P1"), _facts("BF", context_stream_digest="d" * 64)]
+    assert ca.validate_pairing(runs)["paired"] is False
+    for narrowed in ((), ("query_ids",), ["loader"]):
+        verdict = ca.validate_pairing(runs, fields=narrowed)
+        assert verdict["paired"] is False, narrowed
+        assert set(verdict["fields_checked"]) >= set(ca.PAIRING_FIELDS)
+    with pytest.raises(ValueError, match="mandatory"):
+        ca.validate_pairing(runs, fields=("not_a_pairing_field",), strict_fields=True)
+
+
+def test_seed_aggregation_requires_the_registered_set_explicitly():
+    cell = {42: [{"query_id": "q0", "room_id": "R0", "top1": 1.0, "e_loc": 0.0}]}
+    with pytest.raises(TypeError):
+        ca.aggregate_seeds_per_query(cell)                     # no silent default
+    with pytest.raises(ValueError, match="registered seed set"):
+        ca.aggregate_seeds_per_query(cell, registered_seeds=None)
+    with pytest.raises(ValueError, match="seed"):
+        ca.aggregate_seeds_per_query(cell, registered_seeds=(42, 43, 44))
+    full = {seed: [{"query_id": "q0", "room_id": "R0", "top1": 1.0, "e_loc": 0.0}]
+            for seed in (42, 43, 44)}
+    assert len(ca.aggregate_seeds_per_query(full, registered_seeds=(42, 43, 44))) == 1
+    manifest = {"seeds": [42, 43, 44]}
+    assert len(ca.aggregate_seeds_per_query(
+        full, registered_seeds=ca.registered_seeds(manifest))) == 1
