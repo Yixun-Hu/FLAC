@@ -7,7 +7,7 @@
   "config_canonical_sha256": "2023ccc63257ae4902caf30a7905d1b8719e1e0e2ec5964dde951481cd352a27",
   "config_path": "worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_VANCKPT.json",
   "config_sha256": "733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8",
-  "created_utc": "2026-08-22T03:18:41+00:00",
+  "created_utc": "2026-08-22T04:13:32+00:00",
   "ema_inventory_sha256": "68dc5ef53d4144cea4fd8210cae6c6769fd7370fd62499dc9f6fb449bb991fc2",
   "ema_key_count": 210,
   "ema_prefix": "diffusion_ema.ema_model.",
@@ -16,15 +16,46 @@
   "frame_avg_angles": null,
   "global_step": 40000,
   "lineage": "exp_07 P1 vanilla; config shared with exp_11's VANL arm",
+  "lineage_binding": {
+    "arm": "P1",
+    "branch": "check-equivariance-necessity",
+    "caveat": "This arm is a single historical training run. Cross-arm differences are conditional on these particular runs; with no replicated training per arm, no causal claim about the training policy itself is licensed.",
+    "completion_commits": [
+      "2e2ac021e2e926163c68c57ba1e25c1b4340d9f5",
+      "f19f377f145e80d8d706c7dd5887e5c7a50d49de"
+    ],
+    "experiment": "exp_07",
+    "nas_provenance": {
+      "available": true,
+      "path": "/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/PROVENANCE.md",
+      "sha256": "e9e131702f5e15d2940f03fee92d2c48fc11b67e7c9b3933419f81ec0860b419"
+    },
+    "recipe": {
+      "accum_batches": 1,
+      "batch_size": 32,
+      "max_steps": 40000,
+      "num_workers": 6,
+      "precision": "bf16-mixed",
+      "seed": 42
+    },
+    "topology": {
+      "device": "NVIDIA RTX A6000",
+      "gpus": 2,
+      "nodes": 1,
+      "strategy": "ddp_find_unused_parameters_true",
+      "sync_batchnorm": true
+    }
+  },
   "load_integrity": {
     "checked": true,
     "clean": true,
+    "missing": [],
     "n_missing": 0,
     "n_stray": 0,
     "n_unexpected": 3,
     "n_whitelisted": 3,
     "stray": [],
-    "unexpected_whitelisted": [
+    "unexpected": [
       "diffusion_ema.initted",
       "diffusion_ema.step",
       "losses.losses.0.weight"

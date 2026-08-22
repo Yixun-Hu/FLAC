@@ -7,7 +7,7 @@
   "config_canonical_sha256": "0761a677e0f31b8ee32a27b3f8c8280689fb450e962509381388217b7b0e8667",
   "config_path": "worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json",
   "config_sha256": "b14caae27afec2c53c38bea6e2574a48aa94bc86848ab17afae94cadf694b004",
-  "created_utc": "2026-08-22T03:18:50+00:00",
+  "created_utc": "2026-08-22T04:13:41+00:00",
   "ema_inventory_sha256": "68dc5ef53d4144cea4fd8210cae6c6769fd7370fd62499dc9f6fb449bb991fc2",
   "ema_key_count": 210,
   "ema_prefix": "diffusion_ema.ema_model.",
@@ -16,15 +16,48 @@
   "frame_avg_angles": null,
   "global_step": 40000,
   "lineage": "exp_17 A6000 yaw-aug (recipe-matched to P1/BF; NOT exp_15's cluster arm)",
+  "lineage_binding": {
+    "arm": "YAW",
+    "branch": "exp-17-yawaug-a6000 (A6000 sibling checkout)",
+    "caveat": "This arm is a single historical training run. Cross-arm differences are conditional on these particular runs; with no replicated training per arm, no causal claim about the training policy itself is licensed.",
+    "completion_commits": [
+      "42cbddaf3dbd4015e5e343edc13eb411fa6c18d5",
+      "f378775fd5034e81df3334024343f22cd5835f88"
+    ],
+    "experiment": "exp_17",
+    "nas_provenance": {
+      "available": true,
+      "path": "/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/PROVENANCE.md",
+      "sha256": "e9e131702f5e15d2940f03fee92d2c48fc11b67e7c9b3933419f81ec0860b419"
+    },
+    "note": "recipe-matched to P1/BF; deliberately NOT exp_15's cluster arm 16b964ec",
+    "recipe": {
+      "accum_batches": 1,
+      "batch_size": 32,
+      "checkpoint_cadence": 2500,
+      "max_steps": 40000,
+      "num_workers": 6,
+      "precision": "bf16-mixed",
+      "seed": 42
+    },
+    "topology": {
+      "device": "NVIDIA RTX A6000",
+      "gpus": 2,
+      "nodes": 1,
+      "strategy": "ddp_find_unused_parameters_true",
+      "sync_batchnorm": true
+    }
+  },
   "load_integrity": {
     "checked": true,
     "clean": true,
+    "missing": [],
     "n_missing": 0,
     "n_stray": 0,
     "n_unexpected": 3,
     "n_whitelisted": 3,
     "stray": [],
-    "unexpected_whitelisted": [
+    "unexpected": [
       "diffusion_ema.initted",
       "diffusion_ema.step",
       "losses.losses.0.weight"

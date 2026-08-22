@@ -19,6 +19,7 @@ The admission semantics are PORTED from exp_15's reviewed kit
 canonical bytes, the EMA mirror contract, the read-stability snapshot -- and a
 test runs both implementations over the same fixture so the port cannot drift.
 """
+import copy
 import hashlib
 import json
 import math
@@ -217,6 +218,75 @@ def summarize_ema(state_dict):
 
 
 # --------------------------------------------------------------------------- #
+# M6 -- lineage, as machine fields
+# --------------------------------------------------------------------------- #
+#: The NAS archive the three checkpoints were verified against.
+NAS_PROVENANCE = ("/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/"
+                  "PROVENANCE.md")
+
+#: Every cross-arm conclusion rests on ONE training run per arm.
+LINEAGE_CAVEAT = (
+    "This arm is a single historical training run. Cross-arm differences are conditional on "
+    "these particular runs; with no replicated training per arm, no causal claim about the "
+    "training policy itself is licensed."
+)
+
+#: Immutable citations, machine-readable (r1 review F7 / plan M6).
+LINEAGE = {
+    "P1": {
+        "experiment": "exp_07",
+        "completion_commits": ["2e2ac021e2e926163c68c57ba1e25c1b4340d9f5",
+                               "f19f377f145e80d8d706c7dd5887e5c7a50d49de"],
+        "topology": {"gpus": 2, "device": "NVIDIA RTX A6000", "nodes": 1,
+                     "strategy": "ddp_find_unused_parameters_true", "sync_batchnorm": True},
+        "recipe": {"seed": 42, "batch_size": 32, "accum_batches": 1, "num_workers": 6,
+                   "max_steps": 40000, "precision": "bf16-mixed"},
+        "branch": "check-equivariance-necessity",
+    },
+    "BF": {
+        "experiment": "exp_07",
+        "completion_commits": ["2e2ac021e2e926163c68c57ba1e25c1b4340d9f5",
+                               "f19f377f145e80d8d706c7dd5887e5c7a50d49de"],
+        "topology": {"gpus": 2, "device": "NVIDIA RTX A6000", "nodes": 1,
+                     "strategy": "ddp_find_unused_parameters_true", "sync_batchnorm": True},
+        "recipe": {"seed": 42, "batch_size": 32, "accum_batches": 1, "num_workers": 6,
+                   "max_steps": 40000, "precision": "bf16-mixed"},
+        "branch": "check-equivariance-necessity",
+    },
+    "YAW": {
+        "experiment": "exp_17",
+        # exp_17's own completion commits: training COMPLETE + audit PASSED, and
+        # the per-angle rot-seed rows that closed it (plan M6)
+        "completion_commits": ["42cbddaf3dbd4015e5e343edc13eb411fa6c18d5",
+                               "f378775fd5034e81df3334024343f22cd5835f88"],
+        "topology": {"gpus": 2, "device": "NVIDIA RTX A6000", "nodes": 1,
+                     "strategy": "ddp_find_unused_parameters_true", "sync_batchnorm": True},
+        "recipe": {"seed": 42, "batch_size": 32, "accum_batches": 1, "num_workers": 6,
+                   "max_steps": 40000, "precision": "bf16-mixed",
+                   "checkpoint_cadence": 2500},
+        "branch": "exp-17-yawaug-a6000 (A6000 sibling checkout)",
+        "note": "recipe-matched to P1/BF; deliberately NOT exp_15's cluster arm 16b964ec",
+    },
+}
+
+
+def lineage_binding(arm, nas_provenance=NAS_PROVENANCE):
+    """The arm's M6 binding block: immutable citations and the recipe, as fields."""
+    spec = LINEAGE.get(arm)
+    if spec is None:
+        raise ValueError(f"no lineage binding registered for arm {arm!r}")
+    binding = copy.deepcopy(spec)
+    binding["arm"] = arm
+    binding["nas_provenance"] = {
+        "path": str(nas_provenance),
+        "sha256": (sha256_file(nas_provenance) if os.path.isfile(nas_provenance) else None),
+        "available": os.path.isfile(nas_provenance),
+    }
+    binding["caveat"] = LINEAGE_CAVEAT
+    return binding
+
+
+# --------------------------------------------------------------------------- #
 # B2 -- admission
 # --------------------------------------------------------------------------- #
 def _identity_reasons(arm, embedded):
@@ -300,6 +370,7 @@ def admit_checkpoint(ckpt_path, arm_config_path, arm, expect_step=REGISTERED_STE
         "cond_method": None, "frame_avg_angles": None,
         "load_integrity": {"checked": False},
         "lineage": (ARMS.get(arm) or {}).get("lineage"),
+        "lineage_binding": lineage_binding(arm) if arm in LINEAGE else None,
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
 

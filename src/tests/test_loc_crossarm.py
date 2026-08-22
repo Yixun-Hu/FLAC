@@ -1419,3 +1419,61 @@ def test_generate_binds_the_admission_record_digest(tmp_path):
     protocol = [p for p in written if "BF_R2_registration.json" in p][0]
     assert json.load(open(protocol))["admission_record_sha256"] == \
         ca.canonical_sha256(admissions["BF"])
+
+
+# --------------------------------------------------------------------------- #
+# r2 F7 -- the YAW lineage is machine fields, not a sentence
+# --------------------------------------------------------------------------- #
+def test_lineage_binding_is_structured_for_yaw():
+    binding = ca.lineage_binding("YAW")
+    assert binding["experiment"] == "exp_17"
+    assert binding["completion_commits"] == ["42cbddaf3dbd4015e5e343edc13eb411fa6c18d5",
+                                             "f378775fd5034e81df3334024343f22cd5835f88"]
+    assert binding["nas_provenance"]["path"].endswith("PROVENANCE.md")
+    assert len(binding["nas_provenance"]["sha256"]) == 64
+    assert binding["topology"] == {"gpus": 2, "device": "NVIDIA RTX A6000", "nodes": 1,
+                                   "strategy": "ddp_find_unused_parameters_true",
+                                   "sync_batchnorm": True}
+    assert binding["recipe"]["seed"] == 42 and binding["recipe"]["batch_size"] == 32
+    assert binding["recipe"]["max_steps"] == 40000
+    assert binding["recipe"]["accum_batches"] == 1 and binding["recipe"]["num_workers"] == 6
+    assert binding["recipe"]["precision"] == "bf16-mixed"
+    assert "single historical training run" in binding["caveat"]
+    for arm in ("P1", "BF"):
+        assert ca.lineage_binding(arm)["experiment"] == "exp_07"
+        assert "single historical training run" in ca.lineage_binding(arm)["caveat"]
+
+
+def test_completion_commits_resolve_in_this_repository():
+    """An immutable citation that does not resolve is not a citation."""
+    import subprocess
+
+    for arm in ("P1", "BF", "YAW"):
+        for sha in ca.lineage_binding(arm)["completion_commits"]:
+            done = subprocess.run(["git", "cat-file", "-e", f"{sha}^{{commit}}"],
+                                  capture_output=True)
+            assert done.returncode == 0, f"{arm}: {sha} does not resolve"
+
+
+def test_admission_record_carries_the_lineage_binding(arm_files):
+    ckpt, config = arm_files
+    record = ca.admit_checkpoint(ckpt, config, arm="P1", check_load_integrity=False)
+    assert record["lineage_binding"]["experiment"] == "exp_07"
+    assert record["lineage_binding"]["completion_commits"]
+
+
+def test_committed_yaw_record_has_the_m6_block():
+    import pathlib
+
+    path = (pathlib.Path(__file__).resolve().parents[2] / "worklog" / "worklog_yixun" /
+            "exp_20_loc_crossarm_claude" / "loc_crossarm_admission_YAW.json")
+    if not path.is_file():
+        pytest.skip("record not present")
+    record = json.loads(path.read_text())
+    binding = record["lineage_binding"]
+    assert binding["experiment"] == "exp_17"
+    assert len(binding["completion_commits"]) == 2
+    assert binding["topology"]["gpus"] == 2
+    assert binding["recipe"]["seed"] == 42
+    assert record["load_integrity"]["clean"] is True
+    assert "unexpected" in record["load_integrity"]        # current recorder schema
