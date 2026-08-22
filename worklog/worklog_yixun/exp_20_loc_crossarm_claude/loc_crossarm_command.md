@@ -14,3 +14,4 @@ nohup python eval_localization.py --fa-parity-check --cond-method fa_invariant \
 ## Campaign cells (2026-08-22_01:30:27 EDT, FREEZE a92ff5d7ee7fbed28566d3dca534755f49ee0cae) — launch_cell ARM REG SEED DEV template (recorded verbatim in scratchpad/exp20_launch_cell.sh; chained pairwise by watcher)
 First pair: P1 R2 seed42 (cuda:1) + BF R2 seed42 (cuda:0).
 ## Pair 2: P1/BF R2 seed43 (2026-08-22_05:33:03 EDT)
+## Pair 3: P1/BF R2 seed44 (2026-08-22_09:24:57 EDT)
