@@ -26,7 +26,12 @@ COMMIT_MARKER_NAME = "raf_publish_commit.json"
 # the runtime root, which a later preparation transaction also publishes into; a
 # single shared name meant a prepare rerun renamed the depth attestation aside and
 # orphaned depth evidence it never regenerates.
-MARKER_KINDS = ("prepare", "depth")
+# Flavor-scoped kinds: one corpus tree can carry a Mapping-H publication and a
+# Mapping-A one simultaneously, and neither may disturb the other (exp_19 r4-T4:
+# a shared marker name let a prepare rerun orphan the depth attestation).
+MARKER_KINDS = ("prepare", "depth", "mappingA_prepare", "mappingA_depth")
+FLAVOR_KINDS = {"mappingH": ("prepare", "depth"),
+                "mappingA": ("mappingA_prepare", "mappingA_depth")}
 SUPERSEDED_SUFFIX = ".superseded"
 STAGING_PREFIX = ".{name}.staging-"
 
@@ -377,8 +382,44 @@ CANONICAL_RENDER_PARAMS = {
     "haa_reference_sha256":
         "1d59babdbc1b0b6075b32216c864588acf5516454a92a4a6af946bd832656eb3",
 }
+# --------------------------------------------------------------------------- #
+# Mapping-A registered identities (exp_21 plan section 4)
+# --------------------------------------------------------------------------- #
+CANONICAL_MAPPINGA_PREPARE_PARAMS = {
+    "rooms": list(CANONICAL_ROOMS),
+    "n_placements": 16,
+    "k": 8,
+    "n_items": 1152,
+    # the correspondence algorithm IS the scientific claim, so its version and
+    # every tolerance are part of what a consumer verifies
+    "match_algorithm_version": "mappingA-correspondence-1",
+    "match_p95_m": 0.01,
+    "match_max_m": 0.02,
+    "match_ambiguity_margin": 3.0,
+    "placement_cap_m": 0.05,
+    "amplitude_scalar": 3.0,
+    "amplitude_ceiling": 0.75,
+    # knowable only once the canonical generation exists; pinned by the Planner
+    # from the run, checked structurally until then
+    "correspondence_sha256": SHA256_SHAPE,
+    "audio_union_sha256": SHA256_SHAPE,
+    "readback_record_sha256": SHA256_SHAPE,
+}
+CANONICAL_MAPPINGA_DEPTH_PARAMS = {
+    "rooms": list(CANONICAL_ROOMS),
+    "positions_from": "mappingA",
+    "img_h": 256,
+    "img_w": 512,
+    "floor_tol": 0.15,
+    "max_miss_rate": 0.0025,
+    "n_maps": 1152,
+    "readback_record_sha256": SHA256_SHAPE,
+}
+
 CANONICAL_IDENTITIES = {"prepare": CANONICAL_PREPARE_PARAMS,
-                        "depth": CANONICAL_RENDER_PARAMS}
+                        "depth": CANONICAL_RENDER_PARAMS,
+                        "mappingA_prepare": CANONICAL_MAPPINGA_PREPARE_PARAMS,
+                        "mappingA_depth": CANONICAL_MAPPINGA_DEPTH_PARAMS}
 
 
 def resolve_rooms(rooms, canonical=True):
@@ -461,37 +502,46 @@ def marker_identity_problems(kind, marker):
 
 
 def verify_combined_publication(split_dir, output_dir, rooms=None,
-                                depth_subdir="depth_images", canonical=True):
-    """A RAF publication is complete only when BOTH kinds attest their exact sets.
+                                depth_subdir="depth_images", canonical=True,
+                                flavor="mappingH"):
+    """A publication is complete only when BOTH of its kinds attest their sets.
 
     Prepare covers the runtime tree and the split directory; depth covers one
     directory per room. Either alone is a partial state, and this is the check a
-    consumer runs before treating the corpus as canonical (T4).
+    consumer runs before treating the corpus as canonical (T4). ``flavor`` selects
+    the kind pair, so Mapping H and Mapping A are verified independently of one
+    another on the same tree.
     """
+    if flavor not in FLAVOR_KINDS:
+        raise ValueError(
+            f"unknown publication flavor {flavor!r}, expected one of "
+            f"{sorted(FLAVOR_KINDS)}")
+    prepare_kind, depth_kind = FLAVOR_KINDS[flavor]
     rooms = resolve_rooms(rooms, canonical=canonical)
     prepare = verify_publication(
-        split_dir, kind="prepare",
+        split_dir, kind=prepare_kind,
         expected_roots=[os.path.abspath(output_dir), os.path.abspath(split_dir)])
     depth = verify_publication(
-        output_dir, kind="depth",
+        output_dir, kind=depth_kind,
         expected_roots=[os.path.join(os.path.abspath(output_dir), room, depth_subdir)
                         for room in rooms])
     reasons = []
     if not prepare["published"]:
-        reasons.append(f"prepare: {prepare['reason']}")
+        reasons.append(f"{prepare_kind}: {prepare['reason']}")
     if not depth["published"]:
-        reasons.append(f"depth: {depth['reason']}")
+        reasons.append(f"{depth_kind}: {depth['reason']}")
     # r6 finding 3: verify the markers' COMPLETE parameter payload against the
     # registered identity for their kind, and the pinned digest -- never the
     # producer's own `canonical_parameters` boolean, which is just a claim.
     if canonical:
-        for kind, report in (("prepare", prepare), ("depth", depth)):
+        for kind, report in ((prepare_kind, prepare), (depth_kind, depth)):
             reasons.extend(marker_identity_problems(kind, report.get("marker") or {}))
     return {
         "published": not reasons,
         "reason": "; ".join(reasons),
         "rooms": rooms,
-        "kinds": {"prepare": prepare, "depth": depth},
+        "flavor": flavor,
+        "kinds": {prepare_kind: prepare, depth_kind: depth},
     }
 
 
