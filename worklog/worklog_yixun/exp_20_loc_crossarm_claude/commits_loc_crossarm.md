@@ -80,6 +80,6 @@ already builds the model for load integrity, so this adds no new peak.
 
 | SHA | Residual | Description | changed lines |
 |---|---|---|---|
-| `PENDING` | F4a | the raw-partition comparison no longer coerces: each element must be a plain `int` (`bool` excluded) and the list is compared as-is, so `[10.5, 10.5, 10.5]`, `["10","10","10"]`, `[10.0,...]`, `[True,...]` and `[10, 10, None]` all abort | +18 −1 |
+| `7f770df` | F4a | the raw-partition comparison no longer coerces: each element must be a plain `int` (`bool` excluded) and the list is compared as-is, so `[10.5, 10.5, 10.5]`, `["10","10","10"]`, `[10.0,...]`, `[True,...]` and `[10, 10, None]` all abort | +18 −1 |
 
 **Suite after exp20-r5:** 2803 passed, 10 skipped, 1 pre-existing unrelated failure (exp_11 registry drift, owned by exp_15), 2 subtests passed.
