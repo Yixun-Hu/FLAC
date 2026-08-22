@@ -142,12 +142,17 @@ def _provenance(seed, ckpt="a" * 64, **overrides):
     corpus by its publication generation, the item stream by its hash."""
     provenance = {"seed": seed, "ckpt_path": "arm.ckpt", "ckpt_sha256": ckpt,
                   "ckpt_bytes": 1024, "cond_method": "vanilla",
+                  "frame_avg_angles": None, "frame_avg_fwd_cap": None,
+                  "orbit_execution": "n/a",
                   "model_config_sha256": "b" * 64,
                   "dataset_config_sha256": "c" * 64,
-                  "publication_generation": "46a43f4ce82b",
+                  "publication_prepare_generation": "46a43f4ce82b",
+                  "publication_depth_generation": "a44a723fce4c",
                   "expected_items": stats.REGISTERED_N_ITEMS,
                   "stream_input_hash": "d" * 64,
                   "stream_assignment_hash": "e" * 64,
+                  "cond_autocast": "default", "batch_size": 64,
+                  "source_sha": "0123456789ab",
                   "steps": 1, "cfg_scale": 1.0, "are_lambda": None,
                   "rotate_mode": "fixed", "rotate_deg": 0.0, "rotate_seed": None}
     provenance.update(overrides)
@@ -470,7 +475,11 @@ def test_sidecars_from_two_checkpoints_cannot_be_pooled_as_one_arm(tmp_path):
 
 @pytest.mark.parametrize("field,value", [
     ("cond_method", "fa_invariant"),
-    ("publication_generation", "deadbeefdead"),
+    ("frame_avg_angles", [0.0, 90.0, 180.0, 270.0]),
+    ("cond_autocast", "bf16"),
+    ("batch_size", 32),
+    ("publication_prepare_generation", "deadbeefdead"),
+    ("publication_depth_generation", "deadbeefdead"),
     ("dataset_config_sha256", "9" * 64),
     ("steps", 8),
     ("are_lambda", 0.5),
@@ -520,10 +529,55 @@ def test_an_exploratory_arm_cannot_receive_the_registered_report(tmp_path):
 
 def test_arms_that_scored_different_corpora_are_not_comparable(tmp_path):
     arm_a = _arm(tmp_path, "armA", 0.0)
-    arm_b = _arm(tmp_path, "armB", -0.25, publication_generation="deadbeefdead")
+    arm_b = _arm(tmp_path, "armB", -0.25,
+                 publication_prepare_generation="deadbeefdead")
     with pytest.raises(ValueError) as exc:
         stats.assert_paired(arm_a, arm_b)
-    assert "publication_generation differs" in str(exc.value)
+    assert "publication_prepare_generation differs" in str(exc.value)
+
+
+def test_a_depth_republish_between_arms_is_caught(tmp_path):
+    """The depth maps are published under their own generation and can move
+    without the prepare generation changing -- so the corpus can differ while the
+    old single-generation record said it had not (r4 Q2)."""
+    arm_a = _arm(tmp_path, "armA", 0.0)
+    arm_b = _arm(tmp_path, "armB", -0.25,
+                 publication_depth_generation="feedfacefeed")
+    with pytest.raises(ValueError) as exc:
+        stats.assert_paired(arm_a, arm_b)
+    assert "publication_depth_generation differs" in str(exc.value)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("steps", 8),
+    ("cfg_scale", 3.0),
+    ("are_lambda", 0.25),
+    ("cond_autocast", "bf16"),
+    ("batch_size", 16),
+    ("rotate_deg", 45.0),
+    ("rotate_mode", "random"),
+    ("source_sha", "ffffffffffff"),
+])
+def test_arms_that_held_a_control_at_different_values_are_not_comparable(
+        tmp_path, field, value):
+    """The reviewer's probe was 1-step vs 8-step: otherwise matched arms whose
+    sampler budget differed compared as if only the checkpoint had changed."""
+    arm_a = _arm(tmp_path, "armA", 0.0)
+    arm_b = _arm(tmp_path, "armB", -0.25, **{field: value})
+    with pytest.raises(ValueError) as exc:
+        stats.assert_paired(arm_a, arm_b)
+    assert f"{field} differs" in str(exc.value)
+
+
+def test_arms_may_differ_in_what_the_experiment_varies(tmp_path):
+    """A vanilla arm and a frame-averaged arm ARE the contrast: the conditioning
+    protocol each checkpoint was trained for is what differs by design."""
+    arm_a = _arm(tmp_path, "armA", 0.0)
+    arm_b = _arm(tmp_path, "armB", -0.25, cond_method="fa_invariant",
+                 frame_avg_angles=[0.0, 90.0, 180.0, 270.0],
+                 frame_avg_fwd_cap=64, orbit_execution="batched",
+                 model_config_sha256="9" * 64)
+    assert stats.assert_paired(arm_a, arm_b)["n_items"] == stats.REGISTERED_N_ITEMS
 
 
 def test_arms_that_evaluated_different_item_streams_are_not_comparable(tmp_path):
@@ -557,6 +611,26 @@ def test_the_registered_contrast_names_both_arm_identities(tmp_path):
             != report["arm_identities"]["armB"])
     assert abs(report["difference"]["macro"] - 0.25) < 1e-12
     json.dumps(report)
+
+
+def test_both_publication_generations_must_be_attested_by_the_loader():
+    eval_FLAC = _eval_flac()
+    metadata = [dict(_md(slot=i), publication_prepare_generation="aaaa",
+                     publication_depth_generation="bbbb") for i in range(3)]
+    assert eval_FLAC.resolve_publication_generations(metadata) == {
+        "publication_prepare_generation": "aaaa",
+        "publication_depth_generation": "bbbb"}
+
+    metadata[1]["publication_depth_generation"] = "cccc"
+    with pytest.raises(ValueError) as exc:
+        eval_FLAC.resolve_publication_generations(metadata)
+    assert "publication_depth_generation" in str(exc.value)
+
+    for md in metadata:
+        md.pop("publication_depth_generation")
+    with pytest.raises(ValueError) as exc:
+        eval_FLAC.resolve_publication_generations(metadata)
+    assert "attested no publication_depth_generation" in str(exc.value)
 
 
 def test_the_producer_and_the_reader_share_the_identity_field_set():

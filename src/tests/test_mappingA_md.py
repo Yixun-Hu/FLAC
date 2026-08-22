@@ -275,6 +275,23 @@ def test_the_gate_accepts_a_published_mappingA_tree(tmp_path, runtime_root):
     assert gated.get_custom_metadata(_info(runtime_root, "000000"), None)["scene"] == ROOM
 
 
+def test_the_metadata_carries_both_publication_generations(tmp_path, runtime_root):
+    """r4 Q2: prepare and depth are published under separate generations and can
+    move independently, so a per-item sidecar must name both -- a depth republish
+    between two arms changes the corpus without touching the prepare generation."""
+    import publish as raf_publish
+
+    _publish_mappingA(tmp_path, runtime_root)
+    gated = load_md(test_mode=False)
+    md = gated.get_custom_metadata(_info(runtime_root, "000000"), None)
+    prepare = raf_publish.verify_publication(str(tmp_path / "splits_mappingA"),
+                                             kind="mappingA_prepare")
+    depth = raf_publish.verify_publication(str(runtime_root), kind="mappingA_depth")
+    assert md["publication_prepare_generation"] == prepare["generation"]
+    assert md["publication_depth_generation"] == depth["generation"]
+    assert prepare["generation"] != depth["generation"]
+
+
 def test_the_gate_refuses_a_mapping_h_tree(tmp_path, runtime_root):
     """A Mapping-A config may not consume the Mapping-H publication: the items,
     the conditioning and the depth convention are all different."""

@@ -35,12 +35,27 @@ PER_ITEM_SCHEMA_VERSION = 1
 # within an arm; the shared subset must match ACROSS arms, because that is what
 # makes the two arms comparable at all.
 ARM_IDENTITY_FIELDS = (
-    "ckpt_sha256", "cond_method", "model_config_sha256", "steps", "cfg_scale",
-    "are_lambda", "rotate_mode", "rotate_deg", "rotate_seed",
-    "dataset_config_sha256", "publication_generation", "stream_input_hash",
+    # what the experiment VARIES: constant within an arm, expected to differ
+    # across arms (the checkpoint and the conditioning protocol it was trained for)
+    "ckpt_sha256", "cond_method", "frame_avg_angles", "frame_avg_fwd_cap",
+    "orbit_execution", "model_config_sha256",
+    # what it HOLDS FIXED -- see SHARED_IDENTITY_FIELDS
+    "steps", "cfg_scale", "are_lambda", "cond_autocast", "batch_size",
+    "rotate_mode", "rotate_deg", "rotate_seed", "source_sha",
+    "dataset_config_sha256", "publication_prepare_generation",
+    "publication_depth_generation", "stream_input_hash",
 )
-SHARED_IDENTITY_FIELDS = ("dataset_config_sha256", "publication_generation",
-                          "stream_input_hash")
+# r4 Q2: everything the comparison holds fixed must MATCH across arms. Sampler
+# budget (steps/cfg_scale/are_lambda), numerical protocol (cond_autocast,
+# batch_size -- the noise draw is [B, ...], so batching changes the sample),
+# rotation protocol, the corpus (BOTH publication generations), the config it was
+# read under, the evaluated item stream, and the code that produced them.
+SHARED_IDENTITY_FIELDS = (
+    "steps", "cfg_scale", "are_lambda", "cond_autocast", "batch_size",
+    "rotate_mode", "rotate_deg", "rotate_seed", "source_sha",
+    "dataset_config_sha256", "publication_prepare_generation",
+    "publication_depth_generation", "stream_input_hash",
+)
 # The registered Monte-Carlo draws (plan section 6): five seeds, exactly these.
 REGISTERED_SEEDS = (42, 43, 44, 45, 46)
 

@@ -707,9 +707,14 @@ PER_ITEM_EXCLUDED_METRICS = ("eval_FD", "eval_retrieval")
 # the seed must be constant within an arm, and the last three must MATCH across
 # arms -- that is what makes the comparison paired rather than merely aligned.
 PER_ITEM_IDENTITY_FIELDS = (
-    "ckpt_sha256", "cond_method", "model_config_sha256", "steps", "cfg_scale",
-    "are_lambda", "rotate_mode", "rotate_deg", "rotate_seed",
-    "dataset_config_sha256", "publication_generation", "stream_input_hash",
+    # what the experiment VARIES (constant within an arm, may differ across arms)
+    "ckpt_sha256", "cond_method", "frame_avg_angles", "frame_avg_fwd_cap",
+    "orbit_execution", "model_config_sha256",
+    # what it HOLDS FIXED (r4 Q2: must also match across arms)
+    "steps", "cfg_scale", "are_lambda", "cond_autocast", "batch_size",
+    "rotate_mode", "rotate_deg", "rotate_seed", "source_sha",
+    "dataset_config_sha256", "publication_prepare_generation",
+    "publication_depth_generation", "stream_input_hash",
 )
 
 
@@ -722,28 +727,38 @@ def file_digest(path, chunk_bytes=1 << 20):
     return digest.hexdigest()
 
 
-def resolve_publication_generation(metadata):
-    """The publication generation the loader attested, from the batch metadata.
+PUBLICATION_GENERATION_KEYS = ("publication_prepare_generation",
+                               "publication_depth_generation")
+
+
+def resolve_publication_generations(metadata):
+    """BOTH publication generations the loader attested, from the batch metadata.
 
     A per-item sidecar is only comparable to another if both describe the same
     corpus, and "same corpus" is the publication's generation -- not the config
-    path, which can point at a tree that was republished in between. RAF_A_md
-    carries it on every sample after its gate passes; a batch that disagrees with
-    itself, or that carries none, stops the run.
+    path, which can point at a tree that was republished in between. The prepare
+    and depth kinds are published separately and can move independently, so a
+    depth republish between two arms would otherwise leave their recorded corpus
+    identity unchanged (r4 Q2). RAF_A_md carries both on every sample after its
+    gate passes; a batch that disagrees with itself, or that carries neither,
+    stops the run.
     """
-    generations = {md.get("publication_generation") for md in metadata}
-    if len(generations) != 1:
-        raise ValueError(
-            f"the batch carries {len(generations)} publication generations "
-            f"({sorted(str(g) for g in generations)}): items from two publications "
-            "cannot be recorded as one cell.")
-    generation = generations.pop()
-    if not generation:
-        raise ValueError(
-            "the loader attested no publication generation, so this sidecar could "
-            "not be tied to the corpus it scored. --record-per-item requires the "
-            "Mapping-A metadata hook with its publication gate active.")
-    return str(generation)
+    resolved = {}
+    for key in PUBLICATION_GENERATION_KEYS:
+        generations = {md.get(key) for md in metadata}
+        if len(generations) != 1:
+            raise ValueError(
+                f"the batch carries {len(generations)} values for {key} "
+                f"({sorted(str(g) for g in generations)}): items from two "
+                "publications cannot be recorded as one cell.")
+        generation = generations.pop()
+        if not generation:
+            raise ValueError(
+                f"the loader attested no {key}, so this sidecar could not be tied "
+                "to the corpus it scored. --record-per-item requires the Mapping-A "
+                "metadata hook with its publication gate active.")
+        resolved[key] = str(generation)
+    return resolved
 
 
 def per_item_sidecar_path(metrics_path):
@@ -1550,7 +1565,7 @@ def evaluate_model(
     # closed on a single room), and the distribution-level metrics are off.
     per_item_callback = None
     per_item_rows = []
-    per_item_generation = None
+    per_item_generations = None
     if record_per_item:
         per_item_callback = create_metric_callback_from_config(
             per_item_metric_config(model_config), dataset_id=None, per_scene=False)
@@ -1646,13 +1661,13 @@ def evaluate_model(
             depthMinusSource_list = [(d[:3, :, :] - source_pose[:, None, None]).unsqueeze(0).float().to(device) for d, source_pose in zip(depth_list, query_list)]
             metric_callback.update_metrics("test", fakes, reals, scene_list, depth=depthMinusSource_list)
             if per_item_callback is not None:
-                batch_generation = resolve_publication_generation(metadata)
-                if per_item_generation is None:
-                    per_item_generation = batch_generation
-                elif batch_generation != per_item_generation:
+                batch_generations = resolve_publication_generations(metadata)
+                if per_item_generations is None:
+                    per_item_generations = batch_generations
+                elif batch_generations != per_item_generations:
                     raise ValueError(
-                        f"publication generation changed mid-run: "
-                        f"{per_item_generation} then {batch_generation}")
+                        f"publication generations changed mid-run: "
+                        f"{per_item_generations} then {batch_generations}")
                 per_item_rows.extend(record_per_item_metrics(
                     per_item_callback, fakes, reals, metadata))
             c += reals.shape[0]
@@ -1731,6 +1746,8 @@ def evaluate_model(
     # the stream sidecar is: the headline record's shape is frozen.
     if record_per_item:
         path2save_items = per_item_sidecar_path(path2save)
+        orbit_execution, orbit_fwd_cap = orbit_provenance(
+            cond_method, frame_avg_max_fwd_samples)
         # P3: the cell's IDENTITY, not just its command line. The weights are named
         # by content (a path can be overwritten), both configs by digest, the corpus
         # by the generation the loader attested, and the evaluated item stream by
@@ -1743,7 +1760,6 @@ def evaluate_model(
             "dataset_config": dataset_config_path,
             "dataset_config_sha256": file_digest(dataset_config_path),
             "model_config_sha256": file_digest(model_config_path),
-            "publication_generation": per_item_generation,
             "expected_items": expected_stream_count,
             "stream_input_hash": (rot_stream.input_hash() if rot_stream is not None
                                   else None),
@@ -1754,12 +1770,23 @@ def evaluate_model(
             "steps": steps,
             "cfg_scale": cfg_scale,
             "cond_method": cond_method,
+            # r4 Q2: every registered protocol control the metrics record carries.
+            # BF seeds run under different C4 angles, a different forward cap, a
+            # different autocast or a different batch size are different cells, and
+            # were pooling into one arm.
+            "frame_avg_angles": frame_angles_record,
+            "frame_avg_fwd_cap": orbit_fwd_cap,
+            "orbit_execution": orbit_execution,
+            "cond_autocast": cond_autocast,
+            "batch_size": batch_size,
+            "source_sha": source_sha(),
             "rotate_mode": rotation_plan.mode,
             "rotate_deg": rotation_plan.rotate_deg,
             "rotate_seed": rotation_plan.rotate_seed,
             "are_lambda": are_lambda,
             "weights_source": weights_source,
         }
+        per_item_provenance.update(per_item_generations or {})
         missing = [field for field in PER_ITEM_IDENTITY_FIELDS
                    if field not in per_item_provenance]
         if missing:
