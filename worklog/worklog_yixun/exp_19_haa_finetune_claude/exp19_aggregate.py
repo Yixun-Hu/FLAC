@@ -18,8 +18,10 @@ import argparse, json, glob, statistics as st
 KEYS = ("T60","C50","EDT","RIR_to_GT_RIR_R@1","RIR_to_GT_RIR_R@5","RIR_to_GT_RIR_R@10","FD")
 PREC = (4,4,3,3,3,3,4)
 NAMES = {"P1":"Vanilla FLAC (P1→HAA)","BF":"Per-angle FA (B-F→HAA)",
-         "YAW":"Yaw-Aug, aug ON in FT","YNA":"Yaw-Aug init, aug OFF in FT","BNA":"FA(B-F) init, vanilla FT"}
-EXPECTED_CM = {"P1":"vanilla","YAW":"vanilla","YNA":"vanilla","BNA":"vanilla","BF":"fa_invariant"}
+         "YAW":"Yaw-Aug, aug ON in FT","YNA":"Yaw-Aug init, aug OFF in FT","BNA":"FA(B-F) init, vanilla FT",
+         "CYL":"Cyl-DINOv3 no-SSL (AR-40k→HAA)","CYLSSL":"Cyl-DINOv3 SSL (AR-42.5k→HAA)"}
+EXPECTED_CM = {"P1":"vanilla","YAW":"vanilla","YNA":"vanilla","BNA":"vanilla","BF":"fa_invariant",
+               "CYL":"fa_invariant","CYLSSL":"fa_invariant"}
 
 def records(arm, step, K, seeds):
     fs = sorted(f for f in glob.glob(
