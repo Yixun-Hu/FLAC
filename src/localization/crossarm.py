@@ -25,6 +25,7 @@ import math
 import os
 from datetime import datetime, timezone
 
+import numpy as np
 import torch
 
 #: EMA weights are stored under this prefix and mirror the online DiT family.
@@ -514,3 +515,181 @@ def fa_parity_gate(conditioner_factory, metadata, device="cpu", angles=FA_ANGLES
         "angles": list(angles), "replay_angles": list(replay),
         "chunk_plan": FA_CHUNK_PLAN, "n_metadata": len(metadata),
     }
+
+
+# --------------------------------------------------------------------------- #
+# B3 -- the paired-inference gate
+# --------------------------------------------------------------------------- #
+#: what two arms must share EXACTLY before their queries may be paired.
+PAIRING_FIELDS = ("query_ids", "context_stream_digest", "split_hash", "split_file_sha256",
+                  "candidate_manifest_sha256", "loader", "noise_keys")
+
+
+def pairing_facts(rows_path, summary_path, arm, regime):
+    """Read the pairing facts of ONE published cell from its own artifacts."""
+    query_ids, noise_keys = [], {}
+    with open(rows_path) as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            row = json.loads(line)
+            identity = str(row["query_id"])
+            query_ids.append(identity)
+            if row.get("noise_keys") is not None:
+                noise_keys[identity] = [int(k) for k in row["noise_keys"]]
+    with open(summary_path) as handle:
+        provenance = json.load(handle).get("provenance") or {}
+    return {
+        "arm": arm, "regime": regime, "seed": provenance.get("seed"),
+        "query_ids": query_ids,
+        "context_stream_digest": provenance.get("context_stream_digest"),
+        "split_hash": provenance.get("split_hash"),
+        "split_file_sha256": provenance.get("split_file_sha256"),
+        "candidate_manifest_sha256": provenance.get("candidate_manifest_sha256"),
+        "loader": {"batch_size": provenance.get("batch_size"),
+                   "num_workers": provenance.get("num_workers"),
+                   "shuffle": provenance.get("loader_shuffle"),
+                   "drop_last": provenance.get("loader_drop_last")},
+        "noise_keys": noise_keys,
+        "rows_path": str(rows_path), "summary_path": str(summary_path),
+    }
+
+
+def _describe(field, value):
+    if field == "query_ids":
+        return f"{len(value)} ids, first {value[:2]}, last {value[-2:]}"
+    if field == "noise_keys":
+        return f"{len(value)} queries keyed"
+    return repr(value)
+
+
+def validate_pairing(runs, fields=PAIRING_FIELDS):
+    """B3: prove two or more arms scored the SAME queries the same way.
+
+    Paired per-query inference is only meaningful if the arms saw one stream:
+    the same identities in the same ORDER, drawn with the same contexts and the
+    same noise, over the same split and candidate sets, through an identically
+    configured loader. Any difference blocks paired reporting -- the fallback is
+    an unpaired comparison, labelled as one, never a silent pairing.
+    """
+    runs = list(runs)
+    if len(runs) < 2:
+        raise ValueError("validate_pairing needs at least two arms to pair")
+    reference = sorted(runs, key=lambda r: str(r["arm"]))[0]
+    mismatches = []
+
+    for run in runs:
+        if (run.get("regime"), run.get("seed")) != (reference.get("regime"),
+                                                    reference.get("seed")):
+            mismatches.append({
+                "field": "cell", "arms": [reference["arm"], run["arm"]],
+                "detail": f"{reference['arm']} is {reference.get('regime')}/seed "
+                          f"{reference.get('seed')} but {run['arm']} is {run.get('regime')}/"
+                          f"seed {run.get('seed')}"})
+    for field in fields:
+        for run in runs:
+            if run is reference:
+                continue
+            if run.get(field) != reference.get(field):
+                mismatches.append({
+                    "field": field, "arms": [reference["arm"], run["arm"]],
+                    "detail": f"{reference['arm']}: {_describe(field, reference.get(field))} "
+                              f"!= {run['arm']}: {_describe(field, run.get(field))}"})
+    return {
+        "paired": not mismatches,
+        "n_arms": len(runs), "arms": sorted(str(r["arm"]) for r in runs),
+        "reference_arm": str(reference["arm"]),
+        "regime": reference.get("regime"), "seed": reference.get("seed"),
+        "n_queries": len(reference.get("query_ids") or []),
+        "fields_checked": list(fields), "mismatches": mismatches,
+        "fallback": ("n/a -- the cells are paired" if not mismatches else
+                     "paired reporting is BLOCKED; only an unpaired comparison may be "
+                     "reported, labelled as unpaired"),
+    }
+
+
+def aggregate_seeds_per_query(per_seed, fields=("top1", "e_loc")):
+    """Seeds are REPLICATES: average each query across seeds, then cluster.
+
+    Treating three seeds as three independent queries would triple the apparent
+    sample size of a room-clustered test. The aggregate is one record per query
+    carrying the mean of each field over the seeds, and a query that any seed is
+    missing makes the cell incomplete rather than shorter.
+    """
+    seeds = sorted(per_seed)
+    if not seeds:
+        raise ValueError("aggregate_seeds_per_query needs at least one seed")
+    by_seed = {}
+    for seed in seeds:
+        indexed = {}
+        for record in per_seed[seed]:
+            identity = str(record["query_id"])
+            if identity in indexed:
+                raise ValueError(f"seed {seed} scores query {identity!r} twice")
+            indexed[identity] = record
+        by_seed[seed] = indexed
+
+    reference = by_seed[seeds[0]]
+    out = []
+    for identity in reference:
+        rooms = set()
+        values = {field: [] for field in fields}
+        for seed in seeds:
+            record = by_seed[seed].get(identity)
+            if record is None:
+                raise ValueError(f"query {identity!r} is missing from seed {seed}; the cell is "
+                                 "incomplete and may not be aggregated")
+            rooms.add(str(record["room_id"]))
+            for field in fields:
+                values[field].append(float(record[field]))
+        if len(rooms) != 1:
+            raise ValueError(f"query {identity!r} is in different rooms across seeds: "
+                             f"{sorted(rooms)}")
+        entry = {"query_id": identity, "room_id": rooms.pop(), "n_seeds": len(seeds),
+                 "seeds": list(seeds)}
+        entry.update({field: float(np.mean(values[field])) for field in fields})
+        out.append(entry)
+    for seed in seeds[1:]:
+        extra = sorted(set(by_seed[seed]) - set(reference))
+        if extra:
+            raise ValueError(f"seed {seed} scores queries no other seed does: {extra[:5]}")
+    return out
+
+
+#: The confirmatory family, fixed before any number is seen: top-1 only, the two
+#: treatment-vs-control contrasts, in both context regimes (plan B3).
+CONFIRMATORY_CONTRASTS = (("BF", "P1", "K8"), ("BF", "P1", "K1"),
+                          ("YAW", "P1", "K8"), ("YAW", "P1", "K1"))
+CONFIRMATORY_ENDPOINT = "top1"
+
+
+def contrast_label(treatment, control, regime):
+    return f"{treatment}_vs_{control}_{regime}"
+
+
+def build_holm_family(p_values, alpha=0.05):
+    """Holm over EXACTLY the four registered contrasts -- no more, no fewer.
+
+    A family that can grow or shrink after the numbers are seen is not a
+    correction, so an unexpected label and a missing one are both refusals.
+    """
+    from src.localization.rir_metrics import holm_bonferroni
+
+    registered = {contrast_label(*contrast) for contrast in CONFIRMATORY_CONTRASTS}
+    supplied = set(p_values)
+    unexpected = sorted(supplied - registered)
+    if unexpected:
+        raise ValueError(f"{unexpected} is not a registered contrast; the confirmatory family "
+                         f"is exactly {sorted(registered)}")
+    if supplied != registered:
+        raise ValueError(f"the confirmatory family must carry exactly {len(registered)} "
+                         f"contrasts, got {len(supplied)} (missing "
+                         f"{sorted(registered - supplied)})")
+    family = holm_bonferroni({label: float(value) for label, value in p_values.items()},
+                             alpha=alpha)
+    family["endpoint"] = CONFIRMATORY_ENDPOINT
+    family["contrasts"] = [contrast_label(*c) for c in CONFIRMATORY_CONTRASTS]
+    family["note"] = ("top-1 is the sole confirmatory endpoint; e_loc and every other metric "
+                      "are supportive and are never added to this family")
+    return family

@@ -521,3 +521,124 @@ def test_provenance_records_the_declared_plan_and_the_binding(tmp_path):
     assert record["frame_avg_chunk_plan"] == "per_angle"
     assert record["cond_method_binding"]["binding"] == "checkpoint"
     assert record["frame_avg_angles"] == [0.0, 90.0, 180.0, 270.0]
+
+
+# --------------------------------------------------------------------------- #
+# B3 -- the paired-inference gate
+# --------------------------------------------------------------------------- #
+def _facts(arm="P1", **over):
+    facts = {
+        "arm": arm, "regime": "K8", "seed": 42,
+        "query_ids": ["q0", "q1", "q2"],
+        "context_stream_digest": "c" * 64,
+        "split_hash": "s" * 64,
+        "split_file_sha256": "f" * 64,
+        "candidate_manifest_sha256": "m" * 64,
+        "loader": {"batch_size": 4, "num_workers": 4, "shuffle": False, "drop_last": False},
+        "noise_keys": {"q0": [1, 2], "q1": [3, 4], "q2": [5, 6]},
+    }
+    facts.update(over)
+    return facts
+
+
+def test_pairing_accepts_arms_that_scored_the_same_queries():
+    verdict = ca.validate_pairing([_facts("P1"), _facts("BF"), _facts("YAW")])
+    assert verdict["paired"] is True and verdict["mismatches"] == []
+    assert verdict["n_arms"] == 3 and verdict["reference_arm"] == "BF"
+    assert set(verdict["fields_checked"]) == set(ca.PAIRING_FIELDS)
+    assert verdict["n_queries"] == 3
+
+
+@pytest.mark.parametrize("field,mutation", [
+    ("query_ids", ["q0", "q2", "q1"]),                       # same set, different ORDER
+    ("context_stream_digest", "d" * 64),
+    ("split_hash", "x" * 64),
+    ("split_file_sha256", "y" * 64),
+    ("candidate_manifest_sha256", "z" * 64),
+    ("loader", {"batch_size": 8, "num_workers": 4, "shuffle": False, "drop_last": False}),
+    ("noise_keys", {"q0": [1, 2], "q1": [3, 4], "q2": [7, 6]}),
+])
+def test_pairing_detects_every_field(field, mutation):
+    verdict = ca.validate_pairing([_facts("P1"), _facts("BF", **{field: mutation})])
+    assert verdict["paired"] is False
+    assert any(m["field"] == field for m in verdict["mismatches"]), verdict["mismatches"]
+    assert "unpaired" in verdict["fallback"]
+
+
+def test_pairing_refuses_fewer_than_two_arms_and_mixed_cells():
+    with pytest.raises(ValueError, match="two arms"):
+        ca.validate_pairing([_facts("P1")])
+    verdict = ca.validate_pairing([_facts("P1"), _facts("BF", seed=43)])
+    assert verdict["paired"] is False
+    assert any(m["field"] == "cell" for m in verdict["mismatches"])
+
+
+def test_pairing_facts_are_read_from_published_artifacts(tmp_path):
+    rows = tmp_path / "rows.jsonl"
+    with open(rows, "w") as handle:
+        for i in range(3):
+            handle.write(json.dumps({"query_id": f"q{i}", "room_id": "R0",
+                                     "noise_keys": [i, i + 1]}) + "\n")
+    summary = tmp_path / "summary.json"
+    with open(summary, "w") as handle:
+        json.dump({"provenance": {"seed": 42, "context_stream_digest": "c" * 64,
+                                  "split_hash": "s" * 64, "split_file_sha256": "f" * 64,
+                                  "candidate_manifest_sha256": "m" * 64,
+                                  "batch_size": 4, "num_workers": 4,
+                                  "loader_shuffle": False, "loader_drop_last": False}},
+                  handle)
+    facts = ca.pairing_facts(str(rows), str(summary), arm="P1", regime="K8")
+    assert facts["query_ids"] == ["q0", "q1", "q2"] and facts["seed"] == 42
+    assert facts["loader"] == {"batch_size": 4, "num_workers": 4, "shuffle": False,
+                               "drop_last": False}
+    assert facts["noise_keys"]["q1"] == [1, 2]
+    assert ca.validate_pairing([facts, dict(facts, arm="BF")])["paired"] is True
+
+
+# --------------------------------------------------------------------------- #
+# B3 -- seeds are replicates, and the confirmatory family is exactly four tests
+# --------------------------------------------------------------------------- #
+def test_seed_aggregation_is_per_query_then_clustered():
+    per_seed = {
+        42: [{"query_id": "q0", "room_id": "R0", "top1": 1.0, "e_loc": 0.0},
+             {"query_id": "q1", "room_id": "R1", "top1": 0.0, "e_loc": 2.0}],
+        43: [{"query_id": "q0", "room_id": "R0", "top1": 1.0, "e_loc": 0.0},
+             {"query_id": "q1", "room_id": "R1", "top1": 1.0, "e_loc": 1.0}],
+        44: [{"query_id": "q0", "room_id": "R0", "top1": 0.0, "e_loc": 3.0},
+             {"query_id": "q1", "room_id": "R1", "top1": 1.0, "e_loc": 1.0}],
+    }
+    records = ca.aggregate_seeds_per_query(per_seed)
+    assert [r["query_id"] for r in records] == ["q0", "q1"]
+    assert records[0]["top1"] == pytest.approx(2 / 3) and records[0]["n_seeds"] == 3
+    assert records[0]["e_loc"] == pytest.approx(1.0)
+    assert records[1]["top1"] == pytest.approx(2 / 3)
+    assert records[1]["room_id"] == "R1"
+
+
+def test_seed_aggregation_refuses_an_incomplete_cell():
+    per_seed = {42: [{"query_id": "q0", "room_id": "R0", "top1": 1.0, "e_loc": 0.0},
+                     {"query_id": "q1", "room_id": "R0", "top1": 1.0, "e_loc": 0.0}],
+                43: [{"query_id": "q0", "room_id": "R0", "top1": 1.0, "e_loc": 0.0}]}
+    with pytest.raises(ValueError, match="q1"):
+        ca.aggregate_seeds_per_query(per_seed)
+    mixed = {42: [{"query_id": "q0", "room_id": "R0", "top1": 1.0, "e_loc": 0.0}],
+             43: [{"query_id": "q0", "room_id": "ELSEWHERE", "top1": 1.0, "e_loc": 0.0}]}
+    with pytest.raises(ValueError, match="room"):
+        ca.aggregate_seeds_per_query(mixed)
+
+
+def test_holm_family_is_exactly_the_four_registered_contrasts():
+    assert len(ca.CONFIRMATORY_CONTRASTS) == 4
+    assert set(ca.CONFIRMATORY_CONTRASTS) == {("BF", "P1", "K8"), ("BF", "P1", "K1"),
+                                              ("YAW", "P1", "K8"), ("YAW", "P1", "K1")}
+    p_values = {"BF_vs_P1_K8": 0.001, "BF_vs_P1_K1": 0.30,
+                "YAW_vs_P1_K8": 0.02, "YAW_vs_P1_K1": 0.60}
+    family = ca.build_holm_family(p_values)
+    assert family["n_tests"] == 4 and family["endpoint"] == "top1"
+    assert [t["label"] for t in family["tests"]][0] == "BF_vs_P1_K8"
+    assert family["tests"][0]["rejected"] is True
+
+    with pytest.raises(ValueError, match="exactly"):
+        ca.build_holm_family({k: v for k, v in list(p_values.items())[:3]})
+    with pytest.raises(ValueError, match="not a registered contrast"):
+        ca.build_holm_family(dict(p_values, BF_vs_YAW_K8=0.01))
