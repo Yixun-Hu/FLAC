@@ -1,0 +1,101 @@
+{
+  "arrays_file": "queries/query_01896.npz",
+  "arrays_sha256": "148f9f454748bd9cd227df6002beb5261da9f2465b80ab1ce190a2278029416c",
+  "candidate_count": 404,
+  "candidate_indices_sha256": "74f5438a2a12ed6b0ba901d47767671307f1a60d2479547cb4d0b0c6f97eb6f0",
+  "elapsed_seconds": 25.800098731182516,
+  "metrics": {
+    "1": {
+      "excess_error_m": 1.077304915127637,
+      "localization_error_m": 1.19306328415554,
+      "mean_candidate_score": 0.26350781321525574,
+      "oracle_error_m": 0.11575836902790293,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        15.0,
+        9.0,
+        2.0
+      ],
+      "prediction_index": 240,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.7944043278694153
+    },
+    "4": {
+      "excess_error_m": 1.077304915127637,
+      "localization_error_m": 1.19306328415554,
+      "mean_candidate_score": 0.2646641135215759,
+      "oracle_error_m": 0.11575836902790293,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        15.0,
+        9.0,
+        2.0
+      ],
+      "prediction_index": 240,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.7919952273368835
+    },
+    "8": {
+      "excess_error_m": 1.077304915127637,
+      "localization_error_m": 1.19306328415554,
+      "mean_candidate_score": 0.26490679383277893,
+      "oracle_error_m": 0.11575836902790293,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        15.0,
+        9.0,
+        2.0
+      ],
+      "prediction_index": 240,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.7945140600204468
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 7188040192,
+  "query_id": "single_channel_ir_1/Office/Office_idx_11/S008_R001_hybrid_IR.wav",
+  "query_index": 1896,
+  "random_candidate_metrics": {
+    "excess_error_m": 0.2884692896002519,
+    "localization_error_m": 0.40422765862815485,
+    "oracle_error_m": 0.11575836902790293,
+    "oracle_normalized_success_0_5m": 1,
+    "oracle_normalized_success_1_0m": 1,
+    "prediction_global": [
+      16.0,
+      9.0,
+      1.0
+    ],
+    "prediction_index": 327,
+    "success_0_5m": 1,
+    "success_1_0m": 1
+  },
+  "receiver_global": [
+    15.12,
+    10.33,
+    1.6
+  ],
+  "receiver_id": "R001",
+  "room": "Office_idx_11",
+  "run_manifest_sha256": "e8d293dcf043a1b9f26e051fd007d79ec90b8e4150d4fd5a5d70f26c8f8e0fda",
+  "scene": "Office",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1,
+    4,
+    8
+  ],
+  "sha256": "f7d15dc0a57e5c5a102102d36e3a56cf8e1adf0a856b2c2ea2cb239951be3806",
+  "source_global": [
+    16.03,
+    8.95,
+    1.4
+  ],
+  "tau": 0.1
+}

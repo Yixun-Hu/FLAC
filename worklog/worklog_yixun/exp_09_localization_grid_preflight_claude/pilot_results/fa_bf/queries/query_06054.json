@@ -1,0 +1,101 @@
+{
+  "arrays_file": "queries/query_06054.npz",
+  "arrays_sha256": "3fa3c9c315f8c0828b97c6101481b83bb3571dd7e0bf59ad7530c1e48569834b",
+  "candidate_count": 292,
+  "candidate_indices_sha256": "3a44b51f7121d2d690e6b81aeda8f111617959f09834d985c5aa4ad07cb73cad",
+  "elapsed_seconds": 18.672134237829596,
+  "metrics": {
+    "1": {
+      "excess_error_m": 0.2999999999999998,
+      "localization_error_m": 0.3999999999999999,
+      "mean_candidate_score": 0.20088796317577362,
+      "oracle_error_m": 0.10000000000000009,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        -3.0,
+        1.5,
+        1.0
+      ],
+      "prediction_index": 38,
+      "success_0_5m": 1,
+      "success_1_0m": 1,
+      "winning_score": 0.7478236556053162
+    },
+    "4": {
+      "excess_error_m": 0.2999999999999998,
+      "localization_error_m": 0.3999999999999999,
+      "mean_candidate_score": 0.20261092483997345,
+      "oracle_error_m": 0.10000000000000009,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        -3.0,
+        1.5,
+        1.0
+      ],
+      "prediction_index": 38,
+      "success_0_5m": 1,
+      "success_1_0m": 1,
+      "winning_score": 0.7457825541496277
+    },
+    "8": {
+      "excess_error_m": 0.2999999999999998,
+      "localization_error_m": 0.3999999999999999,
+      "mean_candidate_score": 0.20233860611915588,
+      "oracle_error_m": 0.10000000000000009,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        -3.0,
+        1.5,
+        1.0
+      ],
+      "prediction_index": 38,
+      "success_0_5m": 1,
+      "success_1_0m": 1,
+      "winning_score": 0.7419714331626892
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 7187253760,
+  "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S005_R002_hybrid_IR.wav",
+  "query_index": 6054,
+  "random_candidate_metrics": {
+    "excess_error_m": 3.5069377593742868,
+    "localization_error_m": 3.606937759374287,
+    "oracle_error_m": 0.10000000000000009,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      -1.0,
+      -1.5,
+      1.5
+    ],
+    "prediction_index": 99,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    -2.0,
+    0.5,
+    1.4
+  ],
+  "receiver_id": "R002",
+  "room": "Restaurants_idx_22",
+  "run_manifest_sha256": "e8d293dcf043a1b9f26e051fd007d79ec90b8e4150d4fd5a5d70f26c8f8e0fda",
+  "scene": "Restaurants",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1,
+    4,
+    8
+  ],
+  "sha256": "41288943b6f5ffaedd45c83b1a7bffed7f3b001922632f321fa678f1587c9b1e",
+  "source_global": [
+    -3.0,
+    1.5,
+    1.4
+  ],
+  "tau": 0.1
+}

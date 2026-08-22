@@ -1,0 +1,101 @@
+{
+  "arrays_file": "queries/query_00715.npz",
+  "arrays_sha256": "f1fe9be14d128ad81ab9e9762323f05d0abc3e938778e259b302fcb95594738e",
+  "candidate_count": 5296,
+  "candidate_indices_sha256": "bcf112a9c78877e8494725fabdafdf20eb5181f452ae8a1f61e1705661afb0f1",
+  "elapsed_seconds": 304.54945004801266,
+  "metrics": {
+    "1": {
+      "excess_error_m": 3.756420275118954,
+      "localization_error_m": 4.033187325180916,
+      "mean_candidate_score": 0.10880392789840698,
+      "oracle_error_m": 0.27676705006196184,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        7.0,
+        12.0,
+        1.0
+      ],
+      "prediction_index": 1400,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.47584375739097595
+    },
+    "4": {
+      "excess_error_m": 3.756420275118954,
+      "localization_error_m": 4.033187325180916,
+      "mean_candidate_score": 0.10957172513008118,
+      "oracle_error_m": 0.27676705006196184,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        7.0,
+        12.0,
+        1.0
+      ],
+      "prediction_index": 1400,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.46239587664604187
+    },
+    "8": {
+      "excess_error_m": 4.5270439370606566,
+      "localization_error_m": 4.803810987122619,
+      "mean_candidate_score": 0.10966556519269943,
+      "oracle_error_m": 0.27676705006196184,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        4.5,
+        10.0,
+        1.5
+      ],
+      "prediction_index": 774,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.452362060546875
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 7185158656,
+  "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S009_R040_hybrid_IR.wav",
+  "query_index": 715,
+  "random_candidate_metrics": {
+    "excess_error_m": 17.857360996248946,
+    "localization_error_m": 18.13412804631091,
+    "oracle_error_m": 0.27676705006196184,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      20.0,
+      6.0,
+      1.0
+    ],
+    "prediction_index": 3944,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    2.65,
+    15.29,
+    1.5
+  ],
+  "receiver_id": "R040",
+  "room": "Cafe_idx_1",
+  "run_manifest_sha256": "9990eace04bc24969a7dfa31fffca22306845bbd45311c6609a7d0808298ba51",
+  "scene": "Cafe",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1,
+    4,
+    8
+  ],
+  "sha256": "c34b6302e29e90aa30a76cc75a87fb70d57a9a7151acfb00bd3cc4d8fe950f1a",
+  "source_global": [
+    4.15,
+    14.79,
+    1.6
+  ],
+  "tau": 0.1
+}

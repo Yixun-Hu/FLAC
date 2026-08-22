@@ -1,0 +1,101 @@
+{
+  "arrays_file": "queries/query_03550.npz",
+  "arrays_sha256": "e69d08eed510f3570f71c04aaf44e32c7704926c8241c4c2d244bfd6891aacc9",
+  "candidate_count": 3723,
+  "candidate_indices_sha256": "286ba84ec07b6c968c2393971b19585519eb5874c19a6f4bb8293c0277b67ee9",
+  "elapsed_seconds": 233.18512100703083,
+  "metrics": {
+    "1": {
+      "excess_error_m": 10.092512194440065,
+      "localization_error_m": 10.333344086015911,
+      "mean_candidate_score": 0.3183790445327759,
+      "oracle_error_m": 0.2408318915758458,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        18.0,
+        24.0,
+        1.0
+      ],
+      "prediction_index": 3521,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.6361657381057739
+    },
+    "4": {
+      "excess_error_m": 3.0965323378722975,
+      "localization_error_m": 3.337364229448143,
+      "mean_candidate_score": 0.31874969601631165,
+      "oracle_error_m": 0.2408318915758458,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        15.0,
+        12.0,
+        1.0
+      ],
+      "prediction_index": 2752,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.6248993277549744
+    },
+    "8": {
+      "excess_error_m": 9.61401463183587,
+      "localization_error_m": 9.854846523411716,
+      "mean_candidate_score": 0.3188305199146271,
+      "oracle_error_m": 0.2408318915758458,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        18.5,
+        23.5,
+        1.0
+      ],
+      "prediction_index": 3651,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.627518892288208
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 7187909120,
+  "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S007_R038_hybrid_IR.wav",
+  "query_index": 3550,
+  "random_candidate_metrics": {
+    "excess_error_m": 4.451502282372126,
+    "localization_error_m": 4.692334173947972,
+    "oracle_error_m": 0.2408318915758458,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      17.5,
+      9.0,
+      1.5
+    ],
+    "prediction_index": 3312,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    10.54,
+    20.0,
+    1.55
+  ],
+  "receiver_id": "R038",
+  "room": "Auditorium_idx_1",
+  "run_manifest_sha256": "e8d293dcf043a1b9f26e051fd007d79ec90b8e4150d4fd5a5d70f26c8f8e0fda",
+  "scene": "Auditorium",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1,
+    4,
+    8
+  ],
+  "sha256": "87c0fc56885e663a996d0769ba27efe5b2fedfb4e9e414c0c4497e910269671a",
+  "source_global": [
+    17.84,
+    13.68,
+    1.5
+  ],
+  "tau": 0.1
+}

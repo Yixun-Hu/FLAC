@@ -1,0 +1,101 @@
+{
+  "arrays_file": "queries/query_01446.npz",
+  "arrays_sha256": "8029bdfa36013acb5ea0c0b240187f611cd769d6869b923fc05c7b752dffab98",
+  "candidate_count": 254,
+  "candidate_indices_sha256": "d493a43ad158427f31a27a1a023f6171249b260acf0931b735e63e487bff995b",
+  "elapsed_seconds": 16.29343419894576,
+  "metrics": {
+    "1": {
+      "excess_error_m": 0.8991227213446853,
+      "localization_error_m": 1.1780492349643124,
+      "mean_candidate_score": 0.31876295804977417,
+      "oracle_error_m": 0.278926513619627,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        9.5,
+        9.5,
+        2.0
+      ],
+      "prediction_index": 165,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.631710410118103
+    },
+    "4": {
+      "excess_error_m": 0.8991227213446853,
+      "localization_error_m": 1.1780492349643124,
+      "mean_candidate_score": 0.3196135461330414,
+      "oracle_error_m": 0.278926513619627,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        9.5,
+        9.5,
+        2.0
+      ],
+      "prediction_index": 165,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.6341103315353394
+    },
+    "8": {
+      "excess_error_m": 0.8991227213446853,
+      "localization_error_m": 1.1780492349643124,
+      "mean_candidate_score": 0.3201349377632141,
+      "oracle_error_m": 0.278926513619627,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        9.5,
+        9.5,
+        2.0
+      ],
+      "prediction_index": 165,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.6368498206138611
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 7187679744,
+  "query_id": "single_channel_ir_1/Office/Office_idx_10/S001_R018_hybrid_IR.wav",
+  "query_index": 1446,
+  "random_candidate_metrics": {
+    "excess_error_m": 4.061326935201076,
+    "localization_error_m": 4.340253448820703,
+    "oracle_error_m": 0.278926513619627,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      7.5,
+      12.5,
+      1.5
+    ],
+    "prediction_index": 68,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    9.01,
+    9.79,
+    1.58
+  ],
+  "receiver_id": "R018",
+  "room": "Office_idx_10",
+  "run_manifest_sha256": "e8d293dcf043a1b9f26e051fd007d79ec90b8e4150d4fd5a5d70f26c8f8e0fda",
+  "scene": "Office",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1,
+    4,
+    8
+  ],
+  "sha256": "9687f5dfab90adb5f7b9ed9f031be66ffb17085f90402ee857bf35c1d9ffff3b",
+  "source_global": [
+    9.25,
+    8.53,
+    1.38
+  ],
+  "tau": 0.1
+}
