@@ -338,6 +338,11 @@ def test_the_written_peak_is_the_scaled_peak(union_room, tmp_path):
         3.0 * plain["files"]["000000"]["peak"], rel=1e-6)
 
 
+def _h_files(capture_ids):
+    """What a Mapping-H generation's manifest covers, room-relative (N4)."""
+    return {f"{prep_a.RIR_FOLDER}/{c}.wav" for c in capture_ids}
+
+
 def test_a_capture_shared_with_mapping_h_records_verified_provenance(union_room,
                                                                      tmp_path):
     """Mapping A publishes to disjoint roots, so 'shared' is a PROVENANCE claim:
@@ -350,12 +355,15 @@ def test_a_capture_shared_with_mapping_h_records_verified_provenance(union_room,
     out = tmp_path / "runtime" / "mappingA" / "EmptyRoom"
     report = prep_a.write_union(union_room, str(out), ids, scalar=3.0,
                                 mappingH_room_dir=str(mapping_h),
-                                mappingH_generation="46a43f4ce82b")
+                                mappingH_generation="46a43f4ce82b",
+                                mappingH_files=_h_files(ids))
     for capture_id in ids:
         shared = report["files"][capture_id]["shared_with_mappingH"]
         assert shared["verified_identical"] is True
         assert shared["generation"] == "46a43f4ce82b"
-        assert shared["sha256"] == report["files"][capture_id]["sha256"]
+        # content identity, not file identity: a float WAV carries a PEAK-chunk
+        # timestamp, so two publications of the same audio differ in bytes
+        assert shared["audio_sha256"] == report["files"][capture_id]["audio_sha256"]
     assert report["n_shared_with_mappingH"] == 2
 
 
@@ -368,9 +376,10 @@ def test_a_capture_that_differs_from_mapping_h_aborts(union_room, tmp_path):
     with pytest.raises(ValueError) as exc:
         prep_a.write_union(union_room, str(tmp_path / "out" / "EmptyRoom"), ids,
                            scalar=3.0, mappingH_room_dir=str(mapping_h),
-                           mappingH_generation="46a43f4ce82b")
+                           mappingH_generation="46a43f4ce82b",
+                           mappingH_files=_h_files(ids))
     assert "000000" in str(exc.value)
-    assert "byte-identical" in str(exc.value)
+    assert "same audio" in str(exc.value)
 
 
 def test_a_capture_absent_from_mapping_h_is_recorded_as_new(union_room, tmp_path):
@@ -380,7 +389,8 @@ def test_a_capture_absent_from_mapping_h_is_recorded_as_new(union_room, tmp_path
     report = prep_a.write_union(union_room, str(tmp_path / "out" / "EmptyRoom"),
                                 ["000000", "000001"], scalar=3.0,
                                 mappingH_room_dir=str(mapping_h),
-                                mappingH_generation="46a43f4ce82b")
+                                mappingH_generation="46a43f4ce82b",
+                                mappingH_files=_h_files(["000000"]))
     assert report["files"]["000000"]["shared_with_mappingH"]["verified_identical"] is True
     assert report["files"]["000001"]["shared_with_mappingH"] is None
     assert report["n_shared_with_mappingH"] == 1
@@ -613,3 +623,170 @@ def test_the_two_flavors_survive_each_other_at_the_real_cli_defaults(cli_corpus,
                                           kind="mappingA_prepare")["published"]
     # ... and Mapping H is still attested afterwards
     assert raf_publish.verify_publication(str(h_split), kind="prepare")["published"]
+
+
+# --------------------------------------------------------------------------- #
+# r2 N4: the Mapping-H generation is located, required and verified in the CLI
+# --------------------------------------------------------------------------- #
+def _publish_mappingH(tmp_path, raf_root, readback, rooms=("EmptyRoom",),
+                      runtime=None):
+    import prepare_data as raf_prepare
+
+    runtime = runtime or (tmp_path / "runtime" / "RAF")
+    raf_prepare.main(["--raf-root", str(raf_root), "--output-dir", str(runtime),
+                      "--split-dir", str(tmp_path / "data" / "RAF"),
+                      "--rooms", *rooms,
+                      "--n-groups", "2", "--n-val-groups", "1",
+                      "--n-diagnostic-groups", "1", "--n-train", "12",
+                      "--full-crosscheck", "--non-canonical",
+                      "--readback-record", readback])
+    return runtime
+
+
+def test_a_canonical_run_must_name_the_mappingH_publication():
+    with pytest.raises(prep_a.MappingHProvenanceError) as exc:
+        prep_a.resolve_mappingH(None, ["EmptyRoom"], canonical=True)
+    assert "--mappingH-dir" in str(exc.value)
+
+
+def test_a_non_canonical_run_may_decline_but_says_so_in_its_taint():
+    publication, taint = prep_a.resolve_mappingH(None, ["EmptyRoom"], canonical=False)
+    assert publication is None
+    assert taint and "unverified" in taint[0]
+
+
+def test_an_unpublished_tree_is_not_a_mappingH_publication(tmp_path):
+    (tmp_path / "empty").mkdir()
+    with pytest.raises(prep_a.MappingHProvenanceError) as exc:
+        prep_a.locate_mappingH(str(tmp_path / "empty"), ["EmptyRoom"])
+    assert "not a published" in str(exc.value)
+
+
+def test_a_mappingA_tree_cannot_supply_mappingH_provenance(cli_corpus, tmp_path):
+    readback = _readback_for(tmp_path, cli_corpus)
+    prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))
+    with pytest.raises(prep_a.MappingHProvenanceError) as exc:
+        prep_a.locate_mappingH(str(tmp_path / "runtime" / "mappingA"),
+                               ["EmptyRoom", "FurnishedRoom"])
+    assert "mappingA" in str(exc.value)
+
+
+def test_the_located_publication_carries_the_generation_and_its_file_set(cli_corpus,
+                                                                        tmp_path):
+    import publish as raf_publish
+
+    readback = _readback_for(tmp_path, cli_corpus)
+    runtime = _publish_mappingH(tmp_path, cli_corpus, readback)
+    found = prep_a.locate_mappingH(str(runtime), ["EmptyRoom"])
+    marker = raf_publish.verify_publication(str(tmp_path / "data" / "RAF"),
+                                            kind="prepare")
+    assert found["generation"] == marker["generation"]
+    assert found["rooms"]["EmptyRoom"]["files"]
+    assert all(name.startswith(prep_a.RIR_FOLDER + "/")
+               or not name.endswith(".wav")
+               for name in found["rooms"]["EmptyRoom"]["files"])
+
+
+def test_a_stale_generation_in_the_manifest_is_refused(cli_corpus, tmp_path):
+    import publish as raf_publish
+
+    readback = _readback_for(tmp_path, cli_corpus)
+    runtime = _publish_mappingH(tmp_path, cli_corpus, readback)
+    manifest_path = runtime / raf_publish.MANIFEST_NAME
+    with open(manifest_path) as f:
+        manifest = json.load(f)
+    manifest["generation"] = "deadbeefdead"
+    manifest_path.write_text(json.dumps(manifest))
+    with pytest.raises(Exception) as exc:      # the marker check fires first
+        prep_a.locate_mappingH(str(runtime), ["EmptyRoom"])
+    assert "generation" in str(exc.value)
+
+
+def test_the_cli_records_the_mappingH_generation_on_every_room(cli_corpus, tmp_path):
+    readback = _readback_for(tmp_path, cli_corpus)
+    runtime = _publish_mappingH(tmp_path, cli_corpus, readback,
+                                rooms=("EmptyRoom", "FurnishedRoom"))
+    scalar = prep_a.locate_mappingH(str(runtime), [])["amplitude_scalar"]
+    prep_a.main(_cli_argv(tmp_path, cli_corpus, readback,
+                          extra=["--mappingH-dir", str(runtime),
+                                 "--scalar", str(scalar)]))
+    with open(tmp_path / prep_a.MAPPINGA_SPLIT_ROOT
+              / "mappingA_amplitude_audit.json") as f:
+        audit = json.load(f)
+    found = prep_a.locate_mappingH(str(runtime), ["EmptyRoom", "FurnishedRoom"])
+    for room in ("EmptyRoom", "FurnishedRoom"):
+        written = audit["written"][room]
+        assert written["mappingH_generation"] == found["generation"]
+        # every claim is a real overlap with that generation's manifest
+        expected = sum(1 for name in written["files"]
+                       if f"{prep_a.RIR_FOLDER}/{name}.wav"
+                       in found["rooms"][room]["files"])
+        assert written["n_shared_with_mappingH"] == expected
+        for capture_id, entry in written["files"].items():
+            shared = entry["shared_with_mappingH"]
+            if shared is not None:
+                assert shared["verified_identical"] is True
+                assert shared["generation"] == found["generation"]
+    assert "no Mapping-H provenance" not in json.dumps(audit["taint"])
+
+
+def test_a_file_outside_the_mappingH_generation_aborts_the_run(cli_corpus, tmp_path):
+    """A wav sitting in the Mapping-H tree that its manifest does not cover is a
+    leftover or a stale publish; claiming shared provenance with it would attest
+    audio no publication stands behind."""
+    import shutil
+
+    readback = _readback_for(tmp_path, cli_corpus)
+    runtime = _publish_mappingH(tmp_path, cli_corpus, readback)
+    prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))       # first, unshared
+    a_room = tmp_path / "runtime" / "mappingA" / "EmptyRoom" / prep_a.RIR_FOLDER
+    found = prep_a.locate_mappingH(str(runtime), ["EmptyRoom"])
+    smuggled = next(p for p in sorted(a_room.glob("*.wav"))
+                    if f"{prep_a.RIR_FOLDER}/{p.name}"
+                    not in found["rooms"]["EmptyRoom"]["files"])
+    shutil.copy(smuggled, runtime / "EmptyRoom" / prep_a.RIR_FOLDER / smuggled.name)
+
+    with pytest.raises(ValueError) as exc:
+        prep_a.main(_cli_argv(tmp_path, cli_corpus, readback,
+                              extra=["--mappingH-dir", str(runtime),
+                                     "--scalar", str(found["amplitude_scalar"])]))
+    assert "NOT covered" in str(exc.value) and found["generation"] in str(exc.value)
+
+
+def test_a_mappingH_publication_at_another_scalar_is_refused(cli_corpus, tmp_path):
+    """Byte-identity is impossible across scalars, and two differently normalised
+    corpora must not be read beside each other -- said once, up front, instead of
+    as a hash mismatch halfway through the write."""
+    readback = _readback_for(tmp_path, cli_corpus)
+    runtime = _publish_mappingH(tmp_path, cli_corpus, readback)
+    found = prep_a.locate_mappingH(str(runtime), ["EmptyRoom"])
+    with pytest.raises(prep_a.MappingHProvenanceError) as exc:
+        prep_a.resolve_mappingH(str(runtime), ["EmptyRoom"], canonical=False,
+                                scalar=found["amplitude_scalar"] + 1.0)
+    assert "byte-identical" in str(exc.value)  # the scalar gate's own wording
+
+
+def test_a_shared_claim_without_the_covered_set_is_refused(union_room, tmp_path):
+    with pytest.raises(ValueError) as exc:
+        prep_a.write_union(union_room, str(tmp_path / "out"), ["000000"], scalar=3.0,
+                           mappingH_room_dir=str(tmp_path / "h"),
+                           mappingH_generation="46a43f4ce82b")
+    assert "generation" in str(exc.value) and "manifest covers" in str(exc.value)
+
+
+def test_float_wav_bytes_are_not_reproducible_but_audio_is(tmp_path):
+    """Why the shared claim is a CONTENT claim: libsndfile stamps a UNIX timestamp
+    into the PEAK chunk of every float WAV (measured at byte offset 60), so two
+    publications holding bit-identical audio have different file digests unless
+    they were written in the same second. A byte-identity gate would have failed
+    the real corpus, where Mapping A is prepared long after Mapping H."""
+    import time
+
+    wave = np.linspace(-0.5, 0.5, 1000).astype(np.float32)
+    first, second = tmp_path / "a.wav", tmp_path / "b.wav"
+    sf.write(str(first), wave, 22050, subtype="FLOAT")
+    time.sleep(1.1)
+    sf.write(str(second), wave, 22050, subtype="FLOAT")
+    assert first.read_bytes() != second.read_bytes()
+    assert (prep_a.audio_fingerprint(str(first))
+            == prep_a.audio_fingerprint(str(second)))

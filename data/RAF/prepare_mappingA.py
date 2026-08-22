@@ -41,8 +41,10 @@ from prepare_data import (  # noqa: E402
 )
 from publish import (  # noqa: E402
     CANONICAL_MAPPINGA_PREPARE_PARAMS,
+    MANIFEST_NAME as PUBLISH_MANIFEST_NAME,
     PublishTransaction,
     sha256_file,
+    verify_publication,
 )
 from prepare_data import _write_json, load_room_index, group_captures  # noqa: E402
 from raf_common import farthest_point_selection  # noqa: E402
@@ -262,9 +264,145 @@ def audit_amplitude_union(room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
 RIR_FOLDER = "mono_rirs_22050Hz"
 
 
+def audio_fingerprint(path):
+    """Content identity for a published WAV: rate, length and exact samples.
+
+    NOT the file digest. libsndfile stamps a UNIX timestamp into the ``PEAK`` chunk
+    of every float WAV, so two publications holding bit-identical audio have
+    different file bytes unless they were written in the same second -- measured,
+    at offset 60. The claim worth making about shared audio is that the samples are
+    the same, and that is what this hashes.
+    """
+    audio, sr = sf.read(path, dtype="float32", always_2d=True)
+    if audio.shape[1] != 1:
+        raise ValueError(f"{path}: expected mono, got {audio.shape[1]} channels")
+    wave = np.ascontiguousarray(audio[:, 0], dtype=np.float32)
+    digest = hashlib.sha256(wave.tobytes()).hexdigest()
+    return {"audio_sha256": digest, "sample_rate": int(sr), "n_samples": int(wave.size)}
+
+
+class MappingHProvenanceError(RuntimeError):
+    """The Mapping-H publication a shared-audio claim would be made against."""
+
+
+def locate_mappingH(runtime_dir, rooms, require_canonical=False):
+    """Find, require and VERIFY the Mapping-H publication (N4).
+
+    "Shared with Mapping H" is a provenance claim, and a claim needs a generation
+    to be a claim about anything: the file on disk could be a leftover from an
+    interrupted publish, a stale generation, or a tree nobody attested. This
+    resolves the publication the claim will name -- pointer, prepare marker,
+    generation, and the manifest file set that generation actually covers -- and
+    refuses everything else. The r1 CLI never called this at all: ``write_union``
+    took the parameters and no caller passed them, so every production run silently
+    recorded ``shared_with_mappingH: null`` for files it did share.
+    """
+    if not runtime_dir:
+        raise MappingHProvenanceError("no Mapping-H runtime directory was given")
+    pointer_path = os.path.join(runtime_dir, PUBLICATION_POINTER)
+    if not os.path.isfile(pointer_path):
+        raise MappingHProvenanceError(
+            f"{pointer_path} does not exist: {runtime_dir} is not a published "
+            "Mapping-H runtime tree")
+    with open(pointer_path) as f:
+        pointer = json.load(f)
+    flavor = pointer.get("flavor", "mappingH")
+    if flavor != "mappingH":
+        raise MappingHProvenanceError(
+            f"{pointer_path} declares flavor {flavor!r}: Mapping-A audio cannot take "
+            "its provenance from a Mapping-A publication")
+    split_dir = pointer.get("split_dir")
+    if not split_dir:
+        raise MappingHProvenanceError(f"{pointer_path} names no split_dir")
+
+    report = verify_publication(
+        split_dir, kind="prepare",
+        expected_roots=[os.path.abspath(runtime_dir), os.path.abspath(split_dir)])
+    if not report["published"]:
+        raise MappingHProvenanceError(
+            f"the Mapping-H publication at {split_dir} is not valid: "
+            f"{report['reason']}")
+    generation = report["generation"]
+    if not generation:
+        raise MappingHProvenanceError(
+            f"the Mapping-H prepare marker at {split_dir} carries no generation, so "
+            "a shared-audio claim could not name the publication it came from")
+    # The amplitude identity lives in the MARKER (exp_19 writes the derived scalar
+    # there, not in the pointer), which is also what verify_publication authenticated.
+    marker = report.get("marker") or {}
+    if require_canonical and (marker.get("canonical") is not True
+                              or marker.get("taint")):
+        raise MappingHProvenanceError(
+            f"the Mapping-H publication at {split_dir} is not canonical "
+            f"(canonical={marker.get('canonical')!r}, taint={marker.get('taint')!r}): "
+            "a canonical Mapping-A publication cannot claim shared audio with a "
+            "tainted one")
+
+    manifest_path = os.path.join(runtime_dir, PUBLISH_MANIFEST_NAME)
+    with open(manifest_path) as f:
+        manifest = json.load(f)
+    if manifest.get("generation") != generation:
+        raise MappingHProvenanceError(
+            f"{manifest_path} attests generation {manifest.get('generation')}, but "
+            f"the marker attests {generation}")
+
+    parameters = marker.get("parameters") or {}
+    if "amplitude_scalar" not in parameters:
+        raise MappingHProvenanceError(
+            f"the Mapping-H marker at {split_dir} records no amplitude_scalar, so it "
+            "cannot be known whether its audio was normalised like Mapping A's")
+
+    covered = {}
+    for name in manifest["files"]:
+        room, _, relative = name.partition("/")
+        if relative:
+            covered.setdefault(room, set()).add(relative)
+    return {
+        "runtime_dir": os.path.abspath(runtime_dir),
+        "split_dir": os.path.abspath(split_dir),
+        "generation": generation,
+        "amplitude_scalar": float(parameters["amplitude_scalar"]),
+        "canonical": bool(marker.get("canonical")),
+        "taint": list(marker.get("taint") or []),
+        "rooms": {room: {"dir": os.path.join(os.path.abspath(runtime_dir), room),
+                         "files": covered.get(room, set())}
+                  for room in rooms},
+        "n_files": manifest["n_files"],
+    }
+
+
+def resolve_mappingH(mappingH_dir, rooms, canonical, scalar=None):
+    """The CLI's Mapping-H requirement, as one testable decision (N4).
+
+    Canonical runs MUST name the publication they share audio with; a
+    non-canonical run may decline, and then says so in its taint rather than
+    quietly publishing every shared capture as new.
+    """
+    if mappingH_dir:
+        publication = locate_mappingH(mappingH_dir, rooms,
+                                      require_canonical=canonical)
+        if scalar is not None and float(scalar) != publication["amplitude_scalar"]:
+            raise MappingHProvenanceError(
+                f"this run scales by x{float(scalar)} but the Mapping-H publication "
+                f"at {publication['split_dir']} was written at "
+                f"x{publication['amplitude_scalar']}: no capture could then be "
+                "byte-identical, and two differently normalised corpora must not be "
+                "read beside each other")
+        return publication, []
+    if canonical:
+        raise MappingHProvenanceError(
+            "a canonical Mapping-A publication must name the Mapping-H publication "
+            "it shares audio with: pass --mappingH-dir <exp_19 runtime tree>. "
+            "Without it every shared capture is published as new and unverified, and "
+            "the two corpora could silently diverge on the same file.")
+    return None, ["no Mapping-H provenance: --mappingH-dir was not given, so shared "
+                  "audio is recorded as new and unverified"]
+
+
 def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
                 target_sr=TARGET_SR, clip_ceiling=CLIP_CEILING,
                 mappingH_room_dir=None, mappingH_generation=None,
+                mappingH_files=None,
                 sample_size=LOADER_SAMPLE_SIZE, silence_db=SILENCE_THRESHOLD_DB):
     """Resample, scale and publish the Mapping-A union, with H provenance.
 
@@ -282,6 +420,12 @@ def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
     point with a different file, scalar or sample rate must still not be able to
     publish a clipped or loader-silent target.
     """
+    if mappingH_room_dir and (mappingH_generation is None or mappingH_files is None):
+        raise ValueError(
+            "a shared-with-Mapping-H claim needs the generation and the file set "
+            "that generation's manifest covers; comparing against whatever happens "
+            "to sit in the tree would attest a leftover or a stale publish (N4)")
+
     dest = os.path.join(out_room_dir, RIR_FOLDER)
     os.makedirs(dest, exist_ok=True)
     files, n_shared, roundtrip_max = {}, 0, 0.0
@@ -328,25 +472,40 @@ def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
         roundtrip = float(np.abs(back[:, 0] - out).max())
         roundtrip_max = max(roundtrip_max, roundtrip)
         digest = sha256_file(out_path)
+        # content identity, independent of the PEAK-chunk timestamp in the header
+        audio_digest = audio_fingerprint(out_path)["audio_sha256"]
 
         shared = None
         if mappingH_room_dir:
+            h_relative = f"{RIR_FOLDER}/{capture_id}.wav"
             h_path = os.path.join(mappingH_room_dir, RIR_FOLDER, f"{capture_id}.wav")
             if os.path.isfile(h_path):
-                h_digest = sha256_file(h_path)
-                if h_digest != digest:
+                if h_relative not in mappingH_files:
                     raise ValueError(
-                        f"capture {capture_id} is NOT byte-identical to the "
-                        f"Mapping-H publication ({h_digest[:12]} vs {digest[:12]}): "
-                        "the two publications disagree about the same audio, so a "
-                        "different scalar, source file or generation is in play")
-                shared = {"path": os.path.abspath(h_path), "sha256": h_digest,
+                        f"{h_path} exists but is NOT covered by Mapping-H generation "
+                        f"{mappingH_generation}'s manifest: it is a leftover or a "
+                        "stale file, and claiming shared provenance with it would "
+                        "attest audio no publication stands behind")
+                h_audio = audio_fingerprint(h_path)
+                if (h_audio["audio_sha256"] != audio_digest
+                        or h_audio["sample_rate"] != target_sr):
+                    raise ValueError(
+                        f"capture {capture_id} does not hold the same audio as the "
+                        f"Mapping-H publication ({h_audio['audio_sha256'][:12]} at "
+                        f"{h_audio['sample_rate']} Hz vs {audio_digest[:12]} at "
+                        f"{target_sr} Hz): the two publications disagree about the "
+                        "same capture, so a different scalar, source file or "
+                        "generation is in play")
+                shared = {"path": os.path.abspath(h_path),
+                          "sha256": sha256_file(h_path),
+                          "audio_sha256": h_audio["audio_sha256"],
                           "generation": mappingH_generation,
                           "verified_identical": True}
                 n_shared += 1
 
         files[capture_id] = {
             "sha256": digest,
+            "audio_sha256": audio_digest,
             "peak": peak,
             "peak_crop": crop_peak,
             "dbfs": dbfs(peak),
@@ -642,6 +801,10 @@ def build_parser():
     parser.add_argument('--k', type=int, default=CANONICAL_K)
     parser.add_argument('--scalar', type=float,
                         default=CANONICAL_MAPPINGA_PREPARE_PARAMS["amplitude_scalar"])
+    # N4: the publication a "shared with Mapping H" claim names. Required for a
+    # canonical run; without it a non-canonical run is tainted and claims nothing.
+    parser.add_argument('--mappingH-dir', default=None,
+                        help="published Mapping-H runtime tree (exp_19 --output-dir)")
     parser.add_argument('--readback-record', required=True)
     parser.add_argument('--non-canonical', action='store_true',
                         help="synthetic/test mode: the readback record is not "
@@ -709,6 +872,14 @@ def main(argv=None):
     if deviations:
         taint.append("non-registered parameters: " + "; ".join(deviations))
 
+    mappingH, h_taint = resolve_mappingH(args.mappingH_dir, args.rooms, canonical,
+                                         scalar=args.scalar)
+    taint.extend(h_taint)
+    if mappingH:
+        logger.info("Mapping-H publication %s (generation %s, %d files)",
+                    mappingH["split_dir"], mappingH["generation"],
+                    mappingH["n_files"])
+
     # Pass 1: survey, select placements, build items. NOTHING is written yet -- the
     # amplitude audit over the resulting union has to pass first (M1).
     surveys, items_by_room = {}, {}
@@ -765,10 +936,15 @@ def main(argv=None):
 
         write_reports = {}
         for room in args.rooms:
+            h_room = (mappingH["rooms"][room] if mappingH else
+                      {"dir": None, "files": None})
             write_reports[room] = write_union(
                 os.path.join(args.raf_root, "archived", room),
                 os.path.join(staged_runtime.staging_dir, room), union[room],
-                scalar=args.scalar)
+                scalar=args.scalar,
+                mappingH_room_dir=h_room["dir"],
+                mappingH_generation=mappingH["generation"] if mappingH else None,
+                mappingH_files=h_room["files"])
             _write_json(staged_runtime.path(room, "metadata", METADATA_NAME),
                         {item["target_capture_id"]: item
                          for item in items_by_room[room]})
