@@ -1,0 +1,17 @@
+WARNING: /media/diskstation/yixunhu/raf_dataset/archived/EmptyRoom: dropping the trailing all-NaN sentinel line 47485 of all_rx_pos.txt ('nan,nan,nan') per contracts Amendment 1; 47484 data lines remain
+WARNING: /media/diskstation/yixunhu/raf_dataset/archived/FurnishedRoom: dropping the trailing all-NaN sentinel line 39133 of all_rx_pos.txt ('nan,nan,nan') per contracts Amendment 1; 39132 data lines remain
+INFO: Mapping-H publication /home/yixunhu/codespace/exp-19-raf-finetune/data/RAF (generation 46a43f4ce82b4e4f8afc1bfbc676191f, 1517 files)
+INFO: Mapping-A runtime tree: /media/diskstation/yixunhu/RAF_processed/mappingA
+INFO: surveying /media/diskstation/yixunhu/raf_dataset/archived/EmptyRoom
+WARNING: /media/diskstation/yixunhu/raf_dataset/archived/EmptyRoom: dropping the trailing all-NaN sentinel line 47485 of all_rx_pos.txt ('nan,nan,nan') per contracts Amendment 1; 47484 data lines remain
+INFO: EmptyRoom: 74 placements, 73 eligible, 16 selected
+INFO: surveying /media/diskstation/yixunhu/raf_dataset/archived/FurnishedRoom
+WARNING: /media/diskstation/yixunhu/raf_dataset/archived/FurnishedRoom: dropping the trailing all-NaN sentinel line 39133 of all_rx_pos.txt ('nan,nan,nan') per contracts Amendment 1; 39132 data lines remain
+WARNING: non-uniform groups recorded: 2d3514a210ef3296:72
+INFO: FurnishedRoom: 91 placements, 86 eligible, 16 selected
+INFO: audio union: 10368 captures for 1152 items
+INFO: Mapping-A amplitude scalar x2 = min(support 2, clamp 2) [bound by support_ceiling]; max context peak 0.48967, max union peak 0.48967 over 10368 captures
+INFO: EmptyRoom: amplitude audit clean (max scaled peak 0.9793); 0 near-silent context references recorded
+INFO: FurnishedRoom: amplitude audit clean (max scaled peak 0.9438); 21 near-silent context references recorded
+INFO: near-silent references: 21 captures affecting 19 of 1152 items in placements ['FurnishedRoom/p008'] -- recorded, not fatal (Amendment 4.1)
+INFO: published Mapping-A generation 0de97c5a1c12: 1152 items, 10368 captures

@@ -1,0 +1,20 @@
+{
+    "committed_utc": "2026-08-22T16:54:03Z",
+    "root": "/home/yixunhu/codespace/exp-21-raf-mapping-a/data/RAF_mappingA",
+    "generation": "0de97c5a1c124d10835db731fa4207a8",
+    "n_files": 3,
+    "files": {
+        "mappingA_amplitude_audit.json": {
+            "sha256": "2cddeb7fd2b2c01122c290d98a61860a870d52f5ade4960e261d2741424dbaf6",
+            "bytes": 6577951
+        },
+        "mappingA_eval.json": {
+            "sha256": "66c119722f35dcac11e3412c6031de4222c7ce42cd177d769f6ffcc83c87b418",
+            "bytes": 25400
+        },
+        "mappingA_splits_record.json": {
+            "sha256": "0892a1c6ce20a36cf0cb5f7e066c032ae7ce4317b8c054ce48007cc0feda46b0",
+            "bytes": 730937
+        }
+    }
+}
