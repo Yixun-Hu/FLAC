@@ -760,13 +760,12 @@ def _generator():
 
 _R4_METRIC_MANIFEST = ("worklog/worklog_yixun/exp_18_loc_invert_claude/"
                        "loc_invert_R4_metric_registration.json")
+_UNSEEN_CONFIG = "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json"
 
 
 def test_generator_emits_six_protocol_and_three_metric_manifests(tmp_path):
     gen = _generator()
-    admissions = {arm: {"sha256": f"{arm.lower()}" * 8 + "0" * (64 - 8 * len(arm)),
-                        "config_sha256": "c" * 64, "global_step": 40000, "arm": arm}
-                  for arm in ("P1", "BF", "YAW")}
+    admissions = {arm: _admission_stub(arm) for arm in ("P1", "BF", "YAW")}
     written = gen.generate(str(tmp_path), admissions=admissions,
                            metric_source=_R4_METRIC_MANIFEST)
     protocol = [p for p in written if "_registration.json" in p and "metric" not in p]
@@ -1271,3 +1270,152 @@ def test_fa_provenance_carries_the_protocol_numbers_and_source_shas():
                              "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
                              "--num-samples", "8"])
     assert "fa_protocol" not in el.build_provenance(vanilla, "ck", "ag", "s", "ema", 1)
+
+
+# --------------------------------------------------------------------------- #
+# r2 F1 -- generated manifests must pass the REAL frozen verifiers
+# --------------------------------------------------------------------------- #
+def _tmp_repo_with(tmp_path, files):
+    """A git repo containing the given {relpath: text} files, one commit."""
+    import subprocess
+
+    root = tmp_path / "repo"
+    root.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    for relpath, text in files.items():
+        target = root / relpath
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text)
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q",
+                    "-m", "register"], cwd=root, check=True)
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True,
+                         capture_output=True, text=True).stdout.strip()
+    return str(root), sha
+
+
+def test_generated_metric_manifest_passes_the_frozen_verifier(tmp_path):
+    """r1 review F1: the generated manifests nested source_sha and renamed the
+    digest block, so every metrics-inline unseen cell would have refused. The
+    REAL validator is run here, not a mirror of it."""
+    import eval_localization as el
+    import shutil
+
+    gen = _generator()
+    admission = {"sha256": "a" * 64, "config_sha256": "b" * 64, "global_step": 40000,
+                 "arm": "BF", "admitted": True,
+                 "config_path": ca.ARMS["BF"]["config_rel"],
+                 "ema_key_count": 210, "online_model_key_count": 210,
+                 "load_integrity": {"clean": True, "n_missing": 0, "n_stray": 0}}
+    payload = gen.metric_manifest("BF", ckpt_sha256=admission["sha256"],
+                                  protocol_digests={"R2": "d" * 64})
+
+    # the manifest must name committed repo paths, so build a repo that has them
+    files = {}
+    for relpath in payload["r2_manifest_digests"]:
+        files[relpath] = open(os.path.join(".", relpath)).read()
+    files["src/localization/rir_metrics.py"] = open("src/localization/rir_metrics.py").read()
+    files["metrics.json"] = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    root, sha = _tmp_repo_with(tmp_path, files)
+    # source_sha must resolve in THAT repo and carry the same metric source
+    payload["source_sha"] = sha
+    (pathlib_path := __import__("pathlib").Path(root) / "metrics.json").write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    import subprocess
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q",
+                    "-m", "resign"], cwd=root, check=True)
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True,
+                         capture_output=True, text=True).stdout.strip()
+    payload["source_sha"] = sha
+    pathlib_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q",
+                    "-m", "final"], cwd=root, check=True)
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True,
+                         capture_output=True, text=True).stdout.strip()
+
+    args = el.parse_args(["--model-config", "m.json", "--dataset-config", _UNSEEN_CONFIG,
+                          "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
+                          "--num-samples", "8", "--metrics",
+                          "--dump-waveforms", str(tmp_path / "wf"),
+                          "--metric-registration", str(pathlib_path),
+                          "--registration-sha", sha])
+    unseen = json.loads(open(_UNSEEN_CONFIG).read())
+    config = el.verify_metric_registration(
+        args, unseen, repo_root=root,
+        candidate_manifest_sha256=payload["candidate_manifest_sha256"],
+        identity_digest=payload["r2_identity_digest"])
+    assert config.delta_max == 8 and config.secondaries is True
+
+
+def test_generated_metric_manifest_has_the_verifier_shape():
+    gen = _generator()
+    payload = gen.metric_manifest("BF", ckpt_sha256="a" * 64,
+                                  protocol_digests={"R2": "d" * 64})
+    source = json.load(open(_R4_METRIC_MANIFEST))
+    assert isinstance(payload.get("source_sha"), str) and len(payload["source_sha"]) in (40, 64)
+    assert payload["r2_manifest_digests"] == source["r2_manifest_digests"]
+    for relpath in payload["r2_manifest_digests"]:
+        assert os.path.isfile(relpath), relpath
+    assert payload["seeds"] == [42, 43, 44]
+    assert payload["r2_identity_digest"] == source["r2_identity_digest"]
+
+
+def test_production_generate_refuses_a_mutated_scorer_subdocument(tmp_path):
+    """The deep-equality gate must fire on the PRODUCTION path, not only when a
+    caller opts in (r1 review F1)."""
+    gen = _generator()
+    source = json.load(open(_R4_METRIC_MANIFEST))
+    mutated = copy.deepcopy(source)
+    mutated["metric_config"]["delta_max"] = 32
+    path = tmp_path / "mutated.json"
+    with open(path, "w") as handle:
+        json.dump(mutated, handle)
+    admissions = {arm: _admission_stub(arm) for arm in ("P1", "BF", "YAW")}
+    with pytest.raises(ValueError, match="delta_max|deep-equal"):
+        gen.generate(str(tmp_path / "out"), admissions=admissions,
+                     metric_source=str(path))
+
+
+def _admission_stub(arm, **over):
+    record = {"arm": arm, "admitted": True,
+              "sha256": (arm.lower() * 32)[:64].ljust(64, "a"),
+              "config_sha256": "b" * 64, "config_path": ca.ARMS[arm]["config_rel"],
+              "global_step": 40000, "ema_key_count": 210, "online_model_key_count": 210,
+              "ema_inventory_sha256": "e" * 64,
+              "load_integrity": {"clean": True, "n_missing": 0, "n_stray": 0},
+              "cond_method": ca.ARMS[arm]["cond_method"], "reasons": []}
+    record.update(over)
+    return record
+
+
+@pytest.mark.parametrize("mutation,fragment", [
+    ({"admitted": False}, "admitted"),
+    ({"arm": "OTHER"}, "arm"),
+    ({"config_path": "src/configs/model_configs/FLAC/AR/FLAC_AR.json"}, "config"),
+    ({"global_step": 39000}, "step"),
+    ({"ema_key_count": 0}, "EMA"),
+    ({"load_integrity": {"clean": False, "n_missing": 2, "n_stray": 0}}, "load integrity"),
+    ({"cond_method": "vanilla"}, "cond_method"),
+])
+def test_generate_verifies_the_admission_record_facts(tmp_path, mutation, fragment):
+    gen = _generator()
+    admissions = {arm: _admission_stub(arm) for arm in ("P1", "BF", "YAW")}
+    stub = _admission_stub("BF")
+    stub.update(mutation)                       # `arm` itself may be the mutation
+    admissions["BF"] = stub
+    with pytest.raises(ValueError, match=fragment):
+        gen.generate(str(tmp_path / "out"), admissions=admissions)
+
+
+def test_generate_binds_the_admission_record_digest(tmp_path):
+    gen = _generator()
+    admissions = {arm: _admission_stub(arm) for arm in ("P1", "BF", "YAW")}
+    written = gen.generate(str(tmp_path / "out"), admissions=admissions)
+    metric = [p for p in written if "BF_metric_registration.json" in p][0]
+    payload = json.load(open(metric))
+    assert payload["admission_record_sha256"] == ca.canonical_sha256(admissions["BF"])
+    protocol = [p for p in written if "BF_R2_registration.json" in p][0]
+    assert json.load(open(protocol))["admission_record_sha256"] == \
+        ca.canonical_sha256(admissions["BF"])

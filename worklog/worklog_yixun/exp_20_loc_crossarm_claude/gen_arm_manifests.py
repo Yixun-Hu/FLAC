@@ -33,7 +33,10 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from src.localization.crossarm import (ARMS, FA_ANGLES, FA_CHUNK_PLAN,  # noqa: E402
+                                       REGISTERED_CANDIDATE_MICRO_BATCH, REGISTERED_STEP,
                                        canonical_sha256, fa_run_state)
+
+STEP = REGISTERED_STEP
 
 #: exp_18's registered templates: every non-arm field is copied from these.
 EXP18 = os.path.join("worklog", "worklog_yixun", "exp_18_loc_invert_claude")
@@ -62,7 +65,8 @@ def _load(path):
 
 
 def protocol_manifest(arm, regime, ckpt_sha256, model_config_sha256, template=None,
-                      registered_at=None):
+                      registered_at=None, admission_record_sha256=None,
+                      batch_size=4, num_workers=4):
     """One arm x regime protocol manifest, exp_18's template with the arm rebound."""
     if arm not in ARMS:
         raise ValueError(f"unknown arm {arm!r}; registered arms are {sorted(ARMS)}")
@@ -78,6 +82,9 @@ def protocol_manifest(arm, regime, ckpt_sha256, model_config_sha256, template=No
                              f"({'K_ctx=8' if regime == 'R2' else 'K_ctx=1'}, "
                              f"matched 40k; {spec['lineage']})")
     payload["arm"] = arm
+    payload["batch_size"] = int(batch_size)
+    payload["num_workers"] = int(num_workers)
+    payload["admission_record_sha256"] = admission_record_sha256
     payload["arm_config_rel"] = spec["config_rel"]
     payload["arm_lineage"] = spec["lineage"]
     payload["registered_at"] = registered_at or datetime.now(timezone.utc).isoformat(
@@ -88,42 +95,101 @@ def protocol_manifest(arm, regime, ckpt_sha256, model_config_sha256, template=No
         payload.update(fa_run_state(spec["cond_method"], frame_avg_angles=FA_ANGLES,
                                     rotate_deg=0.0,
                                     cond_autocast=payload.get("cond_autocast", "default"),
-                                    chunk_plan=FA_CHUNK_PLAN))
+                                    chunk_plan=FA_CHUNK_PLAN,
+                                    candidate_micro_batch=REGISTERED_CANDIDATE_MICRO_BATCH))
     return payload
 
 
-def metric_manifest(arm, metric_source=METRIC_SOURCE, ckpt_sha256=None,
-                    protocol_digests=None, expect_metric_config=None, registered_at=None):
-    """One arm's metric manifest: the scorer subdocument INHERITED, never re-tuned."""
+#: The FROZEN scorer subdocument. Deep equality against it is not an option a
+#: caller may skip: the production path checks it every time (r1 review F1).
+def frozen_scorer(metric_source=METRIC_SOURCE):
     source = _load(metric_source)
     metric_config = source.get("metric_config")
     if not isinstance(metric_config, dict) or not metric_config:
         raise ValueError(f"{metric_source} carries no metric_config to inherit")
-    if expect_metric_config is not None and metric_config != expect_metric_config:
-        differing = sorted(k for k in set(metric_config) | set(expect_metric_config)
-                           if metric_config.get(k) != expect_metric_config.get(k))
+    return source, metric_config
+
+
+def assert_scorer_is_frozen(metric_config, reference=None):
+    """Refuse any drift from exp_18's frozen constants -- always, not on request."""
+    if reference is None:
+        _reference_source, reference = frozen_scorer(METRIC_SOURCE)
+    if metric_config != reference:
+        differing = sorted(key for key in set(metric_config) | set(reference)
+                           if metric_config.get(key) != reference.get(key))
         raise ValueError(f"the scorer subdocument is not deep-equal to the frozen one; "
                          f"{differing} differ -- exp_20 inherits it and may not recalibrate")
+    return metric_config
+
+
+def metric_manifest(arm, metric_source=METRIC_SOURCE, ckpt_sha256=None,
+                    protocol_digests=None, expect_metric_config=None, registered_at=None,
+                    admission_record_sha256=None):
+    """One arm's metric manifest: the scorer subdocument INHERITED, never re-tuned.
+
+    The emitted document has the shape the FROZEN verifier requires -- top-level
+    ``source_sha`` and ``r2_manifest_digests`` keyed by committed repository
+    paths -- because a manifest that cannot pass ``verify_metric_registration``
+    would refuse every metrics-inline unseen cell (r1 review F1).
+    """
+    source, metric_config = frozen_scorer(metric_source)
+    assert_scorer_is_frozen(metric_config, expect_metric_config)
     return {
         "arm": arm,
         "experiment": f"exp_20 loc_crossarm {arm} metric registration (inherited scorer)",
         "registerable": copy.deepcopy(source.get("registerable")),
         "metric_config": copy.deepcopy(metric_config),
+        # the verifier reads these at the TOP level
+        "source_sha": source.get("source_sha"),
+        "r2_manifest_digests": copy.deepcopy(source.get("r2_manifest_digests") or {}),
+        "r2_identity_digest": source.get("r2_identity_digest"),
+        "candidate_manifest_sha256": source.get("candidate_manifest_sha256"),
+        "seeds": list(SEEDS),
         "inherited_from": {
             "path": str(metric_source),
             "metric_config_canonical_sha256": canonical_sha256(metric_config),
             "registerable_canonical_sha256": canonical_sha256(source.get("registerable")),
             "source_sha": source.get("source_sha"),
         },
-        "seeds": list(SEEDS),
         "ckpt_sha256": ckpt_sha256,
         "protocol_manifest_digests": dict(protocol_digests or {}),
-        "r2_identity_digest": source.get("r2_identity_digest"),
-        "candidate_manifest_sha256": source.get("candidate_manifest_sha256"),
+        "admission_record_sha256": admission_record_sha256,
         "transport_caveat": TRANSPORT_CAVEAT,
         "registered_at": registered_at or datetime.now(timezone.utc).isoformat(
             timespec="seconds"),
     }
+
+
+#: what an admission record must SAY before a manifest may be written from it.
+def verify_admission_record(arm, record):
+    """Re-check the record's facts; ``admitted: true`` is a claim, not evidence."""
+    reasons = []
+    spec = ARMS[arm]
+    if not record.get("admitted"):
+        reasons.append(f"arm {arm} is not admitted: {record.get('reasons')}")
+    if str(record.get("arm")) != arm:
+        reasons.append(f"the record names arm {record.get('arm')!r}, not {arm!r}")
+    if str(record.get("config_path")) != spec["config_rel"]:
+        reasons.append(f"the record's config path {record.get('config_path')!r} is not the "
+                       f"registered {spec['config_rel']!r}")
+    if record.get("global_step") != STEP:
+        reasons.append(f"the record's global_step is {record.get('global_step')!r}, not the "
+                       f"registered endpoint {STEP}")
+    ema, online = record.get("ema_key_count"), record.get("online_model_key_count")
+    if not ema or ema != online:
+        reasons.append(f"the record's EMA inventory is {ema!r}/{online!r}; a complete mirror "
+                       "is required")
+    integrity = record.get("load_integrity") or {}
+    if not integrity.get("clean") or integrity.get("n_missing") or integrity.get("n_stray"):
+        reasons.append(f"the record's load integrity is {integrity!r}, not 0 missing / 0 stray")
+    if str(record.get("cond_method")) != spec["cond_method"]:
+        reasons.append(f"the record's cond_method {record.get('cond_method')!r} is not arm "
+                       f"{arm}'s registered {spec['cond_method']!r}")
+    if not isinstance(record.get("sha256"), str) or len(record["sha256"]) != 64:
+        reasons.append("the record carries no sha256 for the checkpoint")
+    if reasons:
+        raise ValueError(f"admission record for {arm} is not usable: " + "; ".join(reasons))
+    return canonical_sha256(record)
 
 
 def _sha256_json(payload):
@@ -135,15 +201,18 @@ def generate(out_dir, admissions, metric_source=METRIC_SOURCE, write=True):
     """Emit all nine manifests; returns the paths (written or planned)."""
     os.makedirs(out_dir, exist_ok=True)
     written, digests = [], {}
+    record_digests = {}
     for arm in sorted(ARMS):
         record = admissions.get(arm)
         if record is None:
             raise ValueError(f"no admission record for arm {arm!r}; a manifest may not be "
                              "written before its checkpoint is admitted")
+        record_digests[arm] = verify_admission_record(arm, record)
         digests[arm] = {}
         for regime in REGIMES:
             payload = protocol_manifest(arm, regime, ckpt_sha256=record["sha256"],
-                                        model_config_sha256=record["config_sha256"])
+                                        model_config_sha256=record["config_sha256"],
+                                        admission_record_sha256=record_digests[arm])
             path = os.path.join(out_dir, f"loc_crossarm_{arm}_{regime}_registration.json")
             digests[arm][regime] = _sha256_json(payload)
             if write:
@@ -152,7 +221,8 @@ def generate(out_dir, admissions, metric_source=METRIC_SOURCE, write=True):
     for arm in sorted(ARMS):
         payload = metric_manifest(arm, metric_source=metric_source,
                                   ckpt_sha256=admissions[arm]["sha256"],
-                                  protocol_digests=digests[arm])
+                                  protocol_digests=digests[arm],
+                                  admission_record_sha256=record_digests[arm])
         path = os.path.join(out_dir, f"loc_crossarm_{arm}_metric_registration.json")
         if write:
             _write_json(path, payload)
