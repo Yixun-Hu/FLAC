@@ -495,7 +495,10 @@ FA_LOCKED_FIELDS = ("cond_method", "frame_avg_angles", "rotate_deg", "cond_autoc
                     "candidate_micro_batch", "orbit_size", "angles_per_chunk",
                     "n_orbit_forwards", "shared_angle_count")
 
-#: the registered candidate micro-batch: one query's whole candidate set.
+#: The registered FA micro-batch: one query's whole candidate set (M = 10). The
+#: driver conditions all candidates of a query in ONE call, so this -- not the
+#: dataloader's --batch-size, which chunks the sampling rows -- is the batch the
+#: orbit partition divides (r2 re-review nit).
 REGISTERED_CANDIDATE_MICRO_BATCH = 10
 CAP_POLICY = "candidate_micro_batch"
 

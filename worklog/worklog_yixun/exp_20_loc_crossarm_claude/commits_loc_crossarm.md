@@ -41,7 +41,7 @@ exp_20 deltas. Every commit is path-scoped and TDD (red → green → commit).
 | `6290a72` | F6 + F2 | `cond_method_binding` gains an explicit **unbound** state (refused for a registered run, stamped for smoke/dev; a "manifest" binding now requires a VERIFIED manifest) and is recorded in provenance for **every** row; `validate_pairing` refuses missing/empty evidence, duplicate ids, unkeyed noise, unset loader fields and a repeated arm before comparing anything; `pairing_facts` refuses a row without noise keys; `aggregate_seeds_per_query` requires exactly the registered seed set, read from the manifest via `registered_seeds()` | +181 −33 |
 | `38a6ab4` | F3 | parity gate fail-closed on key-set equality, masks, non-finite values and executed-partition equality, with **preregistered** tolerances (bitwise off-autocast, fixed bound under it; caller-chosen tolerances refused); non-tautological cap-perturbation test; `run_fa_parity` real runner producing the full evidence record; `--fa-parity-check` CLI writing the record before acting on the verdict | +286 −52 |
 | `9186586` | F4 | `FA_LOCKED_FIELDS` extended to the numeric execution state (cap policy/value, micro-batch, orbit size, angles-per-chunk, orbit forwards, shared-angle count); `fa_conditioning` records the partition it EXECUTED per query; FA provenance carries run-time source blob shas; `batch_size`/`num_workers` join the registration lock non-retroactively (checked when locked, required of arm-bound manifests) | +171 −24 |
-| `7d6ca1c` | F1 | generated metric manifests carry top-level `source_sha` and `r2_manifest_digests` keyed by committed repo paths and are proven against the REAL `verify_metric_registration` in a tmp git repo; deep-equality is mandatory on the production path; `generate()` re-verifies each admission record (arm, config path, step, EMA, load integrity, cond_method, sha) and binds its canonical digest into every manifest | +215 −38 |
+| `7d6ca1c` | F1 | generated metric manifests carry top-level `source_sha` and `r2_manifest_digests` keyed by committed repo paths, and a GENERATED metric manifest is proven against the REAL `verify_metric_registration` in a tmp git repo (the protocol manifests are covered by field-level tests, not by that call); deep-equality is mandatory on the production path; `generate()` re-verifies each admission record (arm, config path, step, EMA, load integrity, cond_method, sha) and binds its canonical digest into every manifest | +215 −38 |
 | `5aa0dbb` | F7 + F5 (b) | `lineage_binding()` — experiment, immutable completion commits (all proven to resolve), NAS PROVENANCE path + sha256, 2×A6000 topology, seed/batch recipe, single-run caveat — carried in every admission record; the three records regenerated at this runtime with the current schema | +155 −12 |
 
 **Suite after exp20-r2:** 2785 passed, 10 skipped, 1 pre-existing unrelated failure (exp_11 registry drift, owned by exp_15), 2 subtests passed.
@@ -50,3 +50,20 @@ exp_20 deltas. Every commit is path-scoped and TDD (red → green → commit).
 
 - **The r7 provenance firewall now allows exactly one key.** F6 requires the binding on every row, which adds `cond_method_binding` to the metrics-off schema. The firewall test was tightened rather than relaxed: nothing may be lost, and any addition **other than** that one key still fails.
 - **`batch_size`/`num_workers` are locked in two tiers.** Adding them to the frozen `REGISTRATION_LOCKED_FIELDS` refused exp_18's committed manifests (five tests went red). They are now checked whenever a manifest locks them and required of any manifest naming an `arm` — every exp_20 manifest does.
+
+## Round exp20-r3 (r2 re-review — the four narrow PARTIALs)
+
+| SHA | Residual | Description | changed lines |
+|---|---|---|---|
+| `d1a54fa` | F5 + F2 | deserialization moved onto the HELD descriptor (`os.dup` + `os.fdopen`; an ABA replace→load→restore test proves the original inode is what gets loaded); `PAIRING_FIELDS` became a floor a caller can extend but not narrow (`fields=()` no longer disables the gate); `aggregate_seeds_per_query` takes the registered seed set as a REQUIRED argument | +96 −24 |
+| `50a46ad` | F3 | the parity gate's driver side routes through `eval_localization.conditioning_call` — the production path, proven by a spy — while only the replay side stays the independent reimplementation; finiteness is established per side before comparison over every id and both tensors and masks (the replay-only NaN mask and the one-sided NaN both fail now); the record gains `driver_ids`, `replay_ids` and a `per_side` block of original dtypes/shapes/finiteness | +73 −16 |
+| `fe6bbe4` | F4 | the observed `fa_execution` is published on FA rows and every query is held to the registered numbers at the end gate (`assert_fa_execution_matches`; a row without it is refused); registered manifests pin the FA source blobs and the registration gate compares them at startup | +118 −6 |
+| `(this)` | nit | corrected the coverage claim (the real verifier call covers the metric manifest) and the comments that conflated the dataloader `--batch-size` with the FA micro-batch (M = 10, the query's candidate count) | +14 −11 |
+
+**Suite after exp20-r3:** 2797 passed, 10 skipped, 1 pre-existing unrelated failure (exp_11 registry drift, owned by exp_15), 2 subtests passed.
+
+### Note for the re-review
+
+`torch.load` cannot mmap a file object, so descriptor-bound loading trades lazy
+storages for the binding: the checkpoint is resident during admission. Admission
+already builds the model for load integrity, so this adds no new peak.

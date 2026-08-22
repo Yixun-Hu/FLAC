@@ -2407,10 +2407,12 @@ REGISTRATION_LOCKED_FIELDS = (
     "readout", "candidate_manifest_sha256", "split_file_sha256",
 )
 
-#: The loader parallelism decides the candidate micro-batch, which decides the
-#: frame-average partition -- protocol, not operator convenience (r1 review F4).
-#: exp_18's registrations are frozen and do not lock these, so they are checked
-#: WHEN LOCKED and REQUIRED of any manifest that names an arm (exp_20's do).
+#: The loader parallelism is part of the pinned evaluation protocol (O8): it
+#: fixes iteration and worker determinism across arms. It is NOT the
+#: frame-average micro-batch -- that is the query's candidate count (M = 10),
+#: since the conditioner is called once per query with the whole candidate set
+#: (r2 re-review nit). exp_18's registrations are frozen and do not lock these,
+#: so they are checked WHEN LOCKED and REQUIRED of any manifest naming an arm.
 REGISTRATION_MATCHED_IF_PRESENT = ("batch_size", "num_workers")
 
 
