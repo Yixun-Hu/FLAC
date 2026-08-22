@@ -27,3 +27,15 @@ AR_md semantics with the plan §3 EXACT formulas (per-context own-rx); `md` cont
 
 ## F. Cycle plan (guide, adapt sensibly)
 1 clustering+matching; 2 target/context selection; 3 union enumeration + amplitude audit; 4 resample/write + provenance; 5 manifest+validator+records; 6 publish.py flavor kinds + composition tests; 7 listener render mode; 8 RAF_A_md core; 9 RAF_A_md gate + conditioner/C4 tests; 10 config + stats aggregator; 11 integration on synthetic fixture end-to-end.
+
+## Amendment 1 (r2 dispositions for Codex N1-N9, 2026-08-22 ~01:50)
+All in-boundary; adopt as specified, with these registrations:
+- **N1**: listener mode selects `mappingA_depth` + its complete identity (n_maps derived, positions_from, readback digest); canonical-equivalent end-to-end test where the RENDERER-produced marker passes RAF_A_md.
+- **N2**: Mapping-A split root REGISTERED as `data/RAF_mappingA/` (disjoint; `raf_mappingA.json` updated); composition tests re-run over the ACTUAL CLI default topology.
+- **N3**: amplitude audit records BOTH full-waveform and first-10,240-sample peaks; crop silence fails; recheck at write; marker distinguishes `amplitude_derivation_target: 0.75` from `clip_ceiling: 0.999`; delayed-impulse negative test.
+- **N4**: CLI locates the Mapping-H publication, requires its generation, passes both into every room's write_union; claimed shared files must be covered by that generation's manifest.
+- **N5**: `correspondence_sha256` = digest of the FULL committed record — **pinned NOW: f2da911b5de82e7914a0cf234c0f0713051880784a4a71c163fa92b377288da4** (the record exists and was independently recomputed by the reviewer); the exp_19 readback digest pinned exactly (9288181b…); canonical publication REFUSES while the audio-union digest is still a placeholder (pin-after-run, as established); pointer/prepare/depth identities cross-checked.
+- **N6**: validator recomputes xyz identity + receiver displacement from poses; full schema without defaults; context group/slot attested against correspondence evidence; canonical expected_items from the REGISTERED constant (16×36×2), not self-count; config expected_items wired into the runtime stream gate.
+- **N7**: eval per-item ingestion surface — `eval_FLAC.py` (this branch only) gains an additive RAF-gated `--record-per-item` sidecar (item id, per-metric values); `mappingA_stats.py` ingests it, requires exact item×seed equality, enforces 2 rooms × 16 placements, bootstraps paired placement differences within room, emits the registered contrast interval + separately-labelled seed SD. AR-path byte-identity + snapshot suites green (the exp_19 R3 discipline).
+- **N8**: `rx_target_height_raf_m` persisted from raw `rx_xyz[RAF_UP_AXIS]` (exp_19 pattern); wrong-gauge test with untouched raw height.
+- **N9**: rigid-array residual computed + recorded; per-slot correspondence evidence digested; duplicate receiver coordinates rejected; matched==second==0 treated as ambiguous. (Readback record regeneration required ⇒ the N5 pin updates to the regenerated record's digest in the same commit that regenerates it — one authority, no stale pin.)
