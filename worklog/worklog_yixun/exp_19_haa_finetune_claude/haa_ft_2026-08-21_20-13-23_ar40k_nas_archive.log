@@ -1,0 +1,35 @@
+=== AR 40k endpoint checkpoints -> NAS checkpoints/ar_40k_endpoints/ | 2026-08-21_20-13-23 | Yixun order: --inplace rsync + byte/sha verify, local copies KEPT ===
+--- local sha256 (pre-transfer) ---
+c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c  outputs_FLAC/exp07_P1/FLAC_exp07_P1/exp07_P1/checkpoints/epoch=8-step=40000.ckpt
+5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328  outputs_FLAC/exp07_BF/FLAC_exp07_BF/exp07_BF/checkpoints/epoch=8-step=40000.ckpt
+ac1f26034e4f341fe0c2cb4638e2eb473959d66ddd2fd95d184dc2fd4f264de7  /home/yixunhu/codespace/exp-17-yawaug-a6000/outputs_FLAC/exp17_YAWAUG/FLAC_exp17_YAWAUG_A6000/exp17_YAWAUG_A6000/checkpoints/epoch=8-step=40000.ckpt
+ace9f73507070dd331aa0b43a3a00d9a3c69b8059105c11db87d9ddc96187863  outputs_FLAC/exp07_BV/epoch=8-step=40000.ckpt
+--- transfer + NAS-side verification (full output) ---
+rsync: [receiver] chgrp "/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/P1/epoch=8-step=40000.ckpt" failed: Operation not permitted (1)
+rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1356) [sender=3.2.7]
+P1 rsync rc=23
+rsync: [receiver] chgrp "/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000.ckpt" failed: Operation not permitted (1)
+rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1356) [sender=3.2.7]
+BF rsync rc=23
+rsync: [receiver] chgrp "/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/YAW/epoch=8-step=40000.ckpt" failed: Operation not permitted (1)
+rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1356) [sender=3.2.7]
+YAW rsync rc=23
+rsync: [receiver] chgrp "/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BV/epoch=8-step=40000.ckpt" failed: Operation not permitted (1)
+rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1356) [sender=3.2.7]
+BV rsync rc=23
+=== NAS sizes ===
+723927531 /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/P1/epoch=8-step=40000.ckpt
+723922667 /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000.ckpt
+723922667 /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/YAW/epoch=8-step=40000.ckpt
+723922411 /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BV/epoch=8-step=40000.ckpt
+=== NAS sha256 (full read-back) ===
+c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c  /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/P1/epoch=8-step=40000.ckpt
+5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328  /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000.ckpt
+ac1f26034e4f341fe0c2cb4638e2eb473959d66ddd2fd95d184dc2fd4f264de7  /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/YAW/epoch=8-step=40000.ckpt
+ace9f73507070dd331aa0b43a3a00d9a3c69b8059105c11db87d9ddc96187863  /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BV/epoch=8-step=40000.ckpt
+--- sha256sum -c MANIFEST.sha256 (NAS-side re-verify) ---
+P1/epoch=8-step=40000.ckpt: OK
+BF/epoch=8-step=40000.ckpt: OK
+YAW/epoch=8-step=40000.ckpt: OK
+BV/epoch=8-step=40000.ckpt: OK
+VERDICT: 4/4 sha256 identical local vs NAS; rsync rc=23 is CIFS chgrp-only (attribute), integrity established by content read-back. Local copies retained.
