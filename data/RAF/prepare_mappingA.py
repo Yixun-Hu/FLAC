@@ -629,7 +629,11 @@ def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
 CANONICAL_N_PLACEMENTS = 16
 CANONICAL_K = 8
 CANONICAL_ARRAY_SIZE = 36
-CANONICAL_N_ITEMS = CANONICAL_N_PLACEMENTS * CANONICAL_ARRAY_SIZE * 2  # both rooms
+# N6: the REGISTERED count, cross-checked against how it is composed. A canonical
+# run validates against this, never against the number of items it happened to
+# build -- that comparison passes by construction.
+CANONICAL_N_ITEMS = CANONICAL_MAPPINGA_PREPARE_PARAMS["n_items"]
+assert CANONICAL_N_ITEMS == CANONICAL_N_PLACEMENTS * CANONICAL_ARRAY_SIZE * 2
 
 
 class ManifestError(ValueError):
@@ -673,6 +677,11 @@ def build_items(room, placement_id, poses, assignment, match, k=CANONICAL_K, see
                 "xyz_key": source_xyz_key(pose["tx_xyz"]),
                 "tx_p": [float(v) for v in pose["tx_xyz_p"]],
                 "rx_p": [float(v) for v in rx],
+                # N6: which physical row this group's slot resolved to, and the
+                # correspondence evidence for the group it came from -- the
+                # manifest must carry what its "same microphone" claim rests on
+                "rx_row": int(row),
+                "match": dict(match[key]),
                 # every context's own receiver is recorded, and its displacement
                 # from the target's receiver bounds the same-listener claim (M3)
                 "rx_displacement_m": float(np.linalg.norm(rx - rx_target)),
@@ -687,6 +696,7 @@ def build_items(room, placement_id, poses, assignment, match, k=CANONICAL_K, see
             "target_xyz_key": source_xyz_key(target["tx_xyz"]),
             "tx_p": [float(v) for v in target["tx_xyz_p"]],
             "rx_target_p": [float(v) for v in rx_target],
+            "rx_target_row": int(target_row),
             "rx_target_height_raf_m": float(rx_target[2]),
             "depth_file": f"{room}_{placement_id}_slot{slot:02d}_depth_image.npy",
             "context": context,
@@ -697,8 +707,79 @@ def build_items(room, placement_id, poses, assignment, match, k=CANONICAL_K, see
     return items
 
 
+def _is_xyz(value):
+    return (isinstance(value, (list, tuple)) and len(value) == 3
+            and all(isinstance(v, (int, float)) and not isinstance(v, bool)
+                    for v in value))
+
+
+def _is_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _is_index(value):
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+# N6: the FULL schema, checked without defaults. ``match.get("p95_m", 0.0)`` used
+# to pass an item that carried no correspondence evidence at all -- the absent
+# field read as a perfect score.
+ITEM_SCHEMA = {
+    "item_id": lambda v: isinstance(v, str) and v,
+    "room": lambda v: isinstance(v, str) and v,
+    "placement_id": lambda v: isinstance(v, str) and v,
+    "mic_slot": _is_index,
+    "target_capture_id": lambda v: isinstance(v, str) and v,
+    "target_group_key": lambda v: isinstance(v, str) and v,
+    "target_xyz_key": lambda v: isinstance(v, str) and v,
+    "tx_p": _is_xyz,
+    "rx_target_p": _is_xyz,
+    "rx_target_row": _is_index,
+    "rx_target_height_raf_m": _is_number,
+    "depth_file": lambda v: isinstance(v, str) and v.endswith(".npy"),
+    "context": lambda v: isinstance(v, list),
+    "match": lambda v: isinstance(v, dict),
+}
+CONTEXT_SCHEMA = {
+    "capture_id": lambda v: isinstance(v, str) and v,
+    "group_key": lambda v: isinstance(v, str) and v,
+    "xyz_key": lambda v: isinstance(v, str) and v,
+    "tx_p": _is_xyz,
+    "rx_p": _is_xyz,
+    "rx_row": _is_index,
+    "rx_displacement_m": _is_number,
+    "match": lambda v: isinstance(v, dict),
+}
+MATCH_SCHEMA = {"p95_m": _is_number, "max_m": _is_number,
+                "min_ambiguity_margin": _is_number}
+
+
+def _schema_problems(payload, schema, where):
+    problems = []
+    for key, ok in sorted(schema.items()):
+        if key not in payload:
+            problems.append(f"{where} is missing {key}")
+        elif not ok(payload[key]):
+            problems.append(f"{where}.{key}={payload[key]!r} has the wrong shape")
+    return problems
+
+
+def _match_problems(match, where):
+    problems = _schema_problems(match, MATCH_SCHEMA, where)
+    if problems:
+        return problems
+    if match["p95_m"] > MATCH_P95_M:
+        problems.append(f"{where} p95 {match['p95_m']:.4f} m > {MATCH_P95_M} m")
+    if match["max_m"] > MATCH_MAX_M:
+        problems.append(f"{where} max {match['max_m']:.4f} m > {MATCH_MAX_M} m")
+    if match["min_ambiguity_margin"] < MATCH_AMBIGUITY_MARGIN:
+        problems.append(f"{where} margin {match['min_ambiguity_margin']:.2f} < "
+                        f"{MATCH_AMBIGUITY_MARGIN}")
+    return problems
+
+
 def validate_manifest(manifest, expected_items=CANONICAL_N_ITEMS, k=CANONICAL_K,
-                      max_displacement_m=MATCH_MAX_M):
+                      max_displacement_m=MATCH_MAX_M, array_size=CANONICAL_ARRAY_SIZE):
     """Static validator over the whole manifest (M5), run before publication.
 
     Every condition here is a way the row could stop measuring what it claims:
@@ -715,7 +796,12 @@ def validate_manifest(manifest, expected_items=CANONICAL_N_ITEMS, k=CANONICAL_K,
                            "detail": detail})
 
     seen_items, seen_targets = {}, {}
-    for item in items:
+    for position, item in enumerate(items):
+        schema = _schema_problems(item, ITEM_SCHEMA, f"item[{position}]")
+        if schema:
+            for problem in schema:
+                add("schema", item, problem)
+            continue
         item_id = item["item_id"]
         if item_id in seen_items:
             add("duplicate_item", item, f"item id {item_id} appears twice")
@@ -727,7 +813,28 @@ def validate_manifest(manifest, expected_items=CANONICAL_N_ITEMS, k=CANONICAL_K,
                 f"target capture {target} is also item {seen_targets[target]}")
         seen_targets[target] = item_id
 
+        # N6: the id, the slot and the depth file must name the same slot -- the
+        # metadata hook resolves the panorama by that name.
+        slot = item["mic_slot"]
+        if slot >= array_size:
+            add("mic_slot", item, f"slot {slot} is outside the {array_size}-mic array")
+        if not item_id.endswith(f"slot{slot:02d}"):
+            add("mic_slot", item, f"item id {item_id} does not name slot {slot}")
+        if f"slot{slot:02d}_depth_image.npy" not in item["depth_file"]:
+            add("mic_slot", item,
+                f"depth file {item['depth_file']} does not name slot {slot}")
+        if item["rx_target_row"] >= array_size:
+            add("mic_slot", item,
+                f"target row {item['rx_target_row']} is outside the array")
+
+        for problem in _match_problems(item["match"], "target correspondence"):
+            kind = "ambiguous_match" if "margin" in problem else "failed_match"
+            add("schema" if "missing" in problem or "shape" in problem else kind,
+                item, problem)
+
         context = item["context"]
+        rx_target = np.asarray(item["rx_target_p"], dtype=np.float64)
+        tx_target = np.asarray(item["tx_p"], dtype=np.float64)
         capture_ids = [c["capture_id"] for c in context]
         if len(context) != k:
             add("context_size", item, f"{len(context)} context captures, expected {k}")
@@ -737,28 +844,52 @@ def validate_manifest(manifest, expected_items=CANONICAL_N_ITEMS, k=CANONICAL_K,
         if target in capture_ids:
             add("target_in_context", item,
                 f"target capture {target} appears in its own context")
-        for entry in context:
+        group_keys = [c.get("group_key") for c in context]
+        if len(set(group_keys)) != len(group_keys):
+            add("context_not_distinct", item,
+                f"context groups are not distinct: {sorted(str(g) for g in group_keys)}")
+        for position, entry in enumerate(context):
+            where = f"context[{position}]"
+            schema = _schema_problems(entry, CONTEXT_SCHEMA, where)
+            if schema:
+                for problem in schema:
+                    add("schema", item, problem)
+                continue
+            if entry["group_key"] == item["target_group_key"]:
+                add("target_in_context", item,
+                    f"context {entry['capture_id']} is the target's own group")
             if entry["xyz_key"] == item["target_xyz_key"]:
                 add("context_source_position", item,
                     f"context {entry['capture_id']} stands at the target source "
                     f"position {entry['xyz_key']}")
-            if entry["rx_displacement_m"] > max_displacement_m:
+            # N6: RECOMPUTED from the recorded coordinates, so a doctored or stale
+            # key cannot certify a source position or a displacement it is not.
+            if np.allclose(np.asarray(entry["tx_p"], dtype=np.float64), tx_target,
+                           rtol=0.0, atol=1e-9):
+                add("context_source_position", item,
+                    f"context {entry['capture_id']} stands at the target source "
+                    f"coordinates {list(tx_target)} despite key {entry['xyz_key']}")
+            recomputed = float(np.linalg.norm(
+                np.asarray(entry["rx_p"], dtype=np.float64) - rx_target))
+            if abs(recomputed - float(entry["rx_displacement_m"])) > 1e-9:
+                add("displacement_mismatch", item,
+                    f"context {entry['capture_id']} records "
+                    f"{entry['rx_displacement_m']:.6f} m but its poses give "
+                    f"{recomputed:.6f} m")
+            if recomputed > max_displacement_m:
                 add("mic_displacement", item,
                     f"context {entry['capture_id']} was recorded "
-                    f"{entry['rx_displacement_m']:.4f} m from the target microphone "
+                    f"{recomputed:.4f} m from the target microphone "
                     f"(> {max_displacement_m} m)")
-
-        match = item.get("match") or {}
-        if match.get("p95_m", 0.0) > MATCH_P95_M:
-            add("failed_match", item,
-                f"correspondence p95 {match['p95_m']:.4f} m > {MATCH_P95_M} m")
-        if match.get("max_m", 0.0) > MATCH_MAX_M:
-            add("failed_match", item,
-                f"correspondence max {match['max_m']:.4f} m > {MATCH_MAX_M} m")
-        if match.get("min_ambiguity_margin", float("inf")) < MATCH_AMBIGUITY_MARGIN:
-            add("ambiguous_match", item,
-                f"correspondence margin {match['min_ambiguity_margin']:.2f} < "
-                f"{MATCH_AMBIGUITY_MARGIN}")
+            if entry["rx_row"] >= array_size:
+                add("mic_slot", item,
+                    f"context {entry['capture_id']} row {entry['rx_row']} is outside "
+                    f"the {array_size}-mic array")
+            for problem in _match_problems(entry["match"],
+                                           f"context {entry['capture_id']}"):
+                kind = "ambiguous_match" if "margin" in problem else "failed_match"
+                add("schema" if "missing" in problem or "shape" in problem else kind,
+                    item, problem)
 
     report = {
         "n_items": len(items),
@@ -1042,8 +1173,12 @@ def main(argv=None):
 
     all_items = [item for room in args.rooms for item in items_by_room[room]]
     n_items = len(all_items)
-    validate_manifest({"items": all_items, "k": args.k}, expected_items=n_items,
-                      k=args.k)
+    # N6: canonically the REGISTERED count, otherwise the count the requested
+    # parameters imply. Validating against len(all_items) passed by construction.
+    expected_items = (CANONICAL_N_ITEMS if canonical else
+                      args.n_placements * ARRAY_SIZE * len(args.rooms))
+    validate_manifest({"items": all_items, "k": args.k},
+                      expected_items=expected_items, k=args.k)
 
     union = enumerate_audio_union(all_items)
     counts = union_report(union, all_items)

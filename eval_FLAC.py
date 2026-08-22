@@ -766,6 +766,32 @@ def verify_stream_positions(stream):
             )
 
 
+def resolve_expected_stream_count(dataset_config, expected_stream_count=None):
+    """The pre-registered item count, taken from the CONFIG when it declares one.
+
+    exp_21 N6: `expected_items` sat in the Mapping-A dataset config and nothing
+    read it, so the substitution guard still depended on an operator remembering
+    --expected-stream-count. A count that travels with the split cannot be
+    forgotten; a flag that contradicts it is a mistake, not an override, so the
+    disagreement is fatal rather than silently resolved either way.
+    """
+    declared = (dataset_config or {}).get("expected_items")
+    if declared is None:
+        return expected_stream_count
+    declared = int(declared)
+    if declared <= 0:
+        raise ValueError(
+            f"the dataset config declares expected_items={declared}; an item count "
+            "must be positive.")
+    if expected_stream_count is not None and int(expected_stream_count) != declared:
+        raise ValueError(
+            f"--expected-stream-count {int(expected_stream_count)} contradicts the "
+            f"dataset config's expected_items {declared}: one of them describes a "
+            "different split, and guessing which would be the whole failure the "
+            "check exists to prevent.")
+    return declared
+
+
 def verify_stream_count(stream, dataset_count, expected=None):
     """Substitution guard: one stream position per split item, and the right split.
 
@@ -1338,6 +1364,16 @@ def evaluate_model(
     # Dataloader Eval
     with open(dataset_config_path) as f:
         dataset_config = json.load(f)
+
+    # N6: a config-declared item count is the pre-registered expectation.
+    expected_stream_count = resolve_expected_stream_count(dataset_config,
+                                                          expected_stream_count)
+    if expected_stream_count is not None and not accumulate_stream:
+        raise ValueError(
+            f"the dataset config declares expected_items={expected_stream_count}, but "
+            "this run accumulates no assignment stream to check it against: pass "
+            "--record-stream (or --rotate-mode random) so the count is verified "
+            "rather than recorded unverified.")
 
     eval_dl = create_dataloader_from_config(
         dataset_config,

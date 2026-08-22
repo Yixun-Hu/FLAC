@@ -23,10 +23,13 @@ import prepare_mappingA as prep_a  # noqa: E402
 
 
 def _context(i, xyz=None):
+    # r2 N6: the record is now RECOMPUTED, so the fixture has to be self-consistent
+    # -- rx_p is 2 mm from the target mic and rx_displacement_m says so.
     return {"capture_id": f"{900 + i:06d}", "group_key": f"gC{i}",
             "xyz_key": mac.source_xyz_key(xyz or (float(i), 1.5, 0.0)),
-            "tx_p": [float(i), 0.0, 1.5], "rx_p": [0.1, 0.2, 1.0],
-            "rx_displacement_m": 0.002}
+            "tx_p": [float(i), 0.0, 1.5], "rx_p": [0.1, 0.202, 1.0],
+            "rx_row": i, "rx_displacement_m": 0.002,
+            "match": {"p95_m": 0.003, "max_m": 0.006, "min_ambiguity_margin": 30.0}}
 
 
 def _valid_item(room="EmptyRoom", placement="p000", slot=0, target="000001", k=8):
@@ -36,7 +39,7 @@ def _valid_item(room="EmptyRoom", placement="p000", slot=0, target="000001", k=8
         "target_capture_id": target, "target_group_key": "gT",
         "target_xyz_key": mac.source_xyz_key((99.0, 1.5, 99.0)),
         "tx_p": [99.0, 99.0, 1.5], "rx_target_p": [0.1, 0.2, 1.0],
-        "rx_target_height_raf_m": 1.0,
+        "rx_target_row": slot, "rx_target_height_raf_m": 1.0,
         "depth_file": f"{room}_{placement}_slot{slot:02d}_depth_image.npy",
         "context": [_context(i) for i in range(k)],
         "match": {"p95_m": 0.004, "max_m": 0.008, "min_ambiguity_margin": 40.0},
@@ -136,6 +139,8 @@ def test_a_context_recorded_at_a_different_microphone_is_refused():
     """The item claims one microphone heard everything; a 5 cm displacement means
     it did not."""
     manifest = _manifest()
+    # a genuinely distant microphone: the poses AND the record say 0.05 m
+    manifest["items"][1]["context"][2]["rx_p"] = [0.1, 0.25, 1.0]
     manifest["items"][1]["context"][2]["rx_displacement_m"] = 0.05
     with pytest.raises(prep_a.ManifestError) as exc:
         prep_a.validate_manifest(manifest, expected_items=4, k=8)
@@ -163,6 +168,8 @@ def test_every_violation_is_reported_not_just_the_first():
     manifest = _manifest()
     manifest["items"][0]["context"][0]["capture_id"] = \
         manifest["items"][0]["target_capture_id"]
+    # a genuinely distant microphone: the poses AND the record say 0.05 m
+    manifest["items"][1]["context"][2]["rx_p"] = [0.1, 0.25, 1.0]
     manifest["items"][1]["context"][2]["rx_displacement_m"] = 0.05
     manifest["items"][3]["match"]["min_ambiguity_margin"] = 1.5
     with pytest.raises(prep_a.ManifestError) as exc:
@@ -294,3 +301,150 @@ def test_the_referenced_metadata_module_exists():
     assert os.path.isfile(os.path.join(
         _REPO_ROOT, "src", "configs", "dataset_configs", "custom_metadata",
         "RAF_A_md.py"))
+
+
+# --------------------------------------------------------------------------- #
+# r2 N6: the validator RECOMPUTES rather than reading the row's own claims
+# --------------------------------------------------------------------------- #
+def test_a_recorded_displacement_that_the_poses_contradict_is_refused():
+    """The row's own number is not evidence of itself: a stale or doctored
+    displacement would certify a "same microphone" the poses deny."""
+    manifest = _manifest()
+    manifest["items"][0]["context"][0]["rx_displacement_m"] = 0.001   # poses: 0.002
+    with pytest.raises(prep_a.ManifestError) as exc:
+        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+    kinds = {v["kind"] for v in exc.value.report["violations"]}
+    assert kinds == {"displacement_mismatch"}
+    assert "0.002" in exc.value.report["violations"][0]["detail"]
+
+
+def test_a_context_at_the_target_coordinates_is_refused_whatever_its_key_says():
+    manifest = _manifest()
+    item = manifest["items"][0]
+    item["context"][3]["tx_p"] = list(item["tx_p"])          # same source position
+    item["context"][3]["xyz_key"] = "not.the.target.key"     # but a different key
+    with pytest.raises(prep_a.ManifestError) as exc:
+        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+    detail = exc.value.report["violations"][0]["detail"]
+    assert "context_source_position" == exc.value.report["violations"][0]["kind"]
+    assert "coordinates" in detail
+
+
+@pytest.mark.parametrize("missing", ["match", "rx_target_row", "mic_slot", "tx_p"])
+def test_an_item_missing_any_registered_field_is_refused(missing):
+    """No defaults: match.get("p95_m", 0.0) read an ABSENT correspondence record as
+    a perfect score, so an item carrying no evidence validated."""
+    manifest = _manifest()
+    del manifest["items"][2][missing]
+    with pytest.raises(prep_a.ManifestError) as exc:
+        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+    kinds = {v["kind"] for v in exc.value.report["violations"]}
+    assert kinds == {"schema"}
+    assert any(missing in v["detail"] for v in exc.value.report["violations"])
+
+
+@pytest.mark.parametrize("missing", ["match", "rx_row", "rx_p", "group_key"])
+def test_a_context_missing_any_registered_field_is_refused(missing):
+    manifest = _manifest()
+    del manifest["items"][1]["context"][4][missing]
+    with pytest.raises(prep_a.ManifestError) as exc:
+        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+    assert any(missing in v["detail"] for v in exc.value.report["violations"])
+
+
+def test_a_context_group_whose_own_correspondence_failed_is_refused():
+    """Each context is attested by ITS group's correspondence evidence, not by the
+    target's: a context drawn from a group that failed the match is not the same
+    microphone, however well the target matched."""
+    manifest = _manifest()
+    manifest["items"][0]["context"][1]["match"] = {
+        "p95_m": 0.05, "max_m": 0.09, "min_ambiguity_margin": 30.0}
+    with pytest.raises(prep_a.ManifestError) as exc:
+        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+    kinds = {v["kind"] for v in exc.value.report["violations"]}
+    assert kinds == {"failed_match"}
+    assert "000901" in exc.value.report["violations"][0]["detail"]
+
+
+def test_a_context_from_the_targets_own_group_is_refused():
+    manifest = _manifest()
+    manifest["items"][0]["context"][0]["group_key"] = \
+        manifest["items"][0]["target_group_key"]
+    with pytest.raises(prep_a.ManifestError) as exc:
+        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+    assert "target_in_context" in {v["kind"] for v in exc.value.report["violations"]}
+
+
+@pytest.mark.parametrize("field,value", [("mic_slot", 40), ("rx_target_row", 99)])
+def test_a_slot_outside_the_array_is_refused(field, value):
+    manifest = _manifest()
+    item = manifest["items"][0]
+    item[field] = value
+    if field == "mic_slot":
+        item["item_id"] = f"EmptyRoom/p000/slot{value:02d}"
+        item["depth_file"] = f"EmptyRoom_p000_slot{value:02d}_depth_image.npy"
+    with pytest.raises(prep_a.ManifestError) as exc:
+        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+    assert "mic_slot" in {v["kind"] for v in exc.value.report["violations"]}
+
+
+def test_the_slot_the_id_and_the_depth_file_must_name_one_slot():
+    manifest = _manifest()
+    manifest["items"][0]["depth_file"] = "EmptyRoom_p000_slot07_depth_image.npy"
+    with pytest.raises(prep_a.ManifestError) as exc:
+        prep_a.validate_manifest(manifest, expected_items=4, k=8)
+    assert "mic_slot" in {v["kind"] for v in exc.value.report["violations"]}
+
+
+def test_the_registered_item_count_is_composed_of_registered_constants():
+    import publish as raf_publish
+
+    assert prep_a.CANONICAL_N_ITEMS == raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS[
+        "n_items"]
+    assert prep_a.CANONICAL_N_ITEMS == (prep_a.CANONICAL_N_PLACEMENTS
+                                        * prep_a.ARRAY_SIZE * 2) == 1152
+
+
+# --------------------------------------------------------------------------- #
+# r2 N6: the config's expected_items reaches the runtime stream gate
+# --------------------------------------------------------------------------- #
+def _eval_flac():
+    import importlib
+
+    if _REPO_ROOT not in sys.path:
+        sys.path.insert(0, _REPO_ROOT)
+    return importlib.import_module("eval_FLAC")
+
+
+def test_the_config_item_count_becomes_the_expected_stream_count():
+    eval_FLAC = _eval_flac()
+    path = os.path.join(_REPO_ROOT, "src", "configs", "dataset_configs", "RAF",
+                        "eval", "raf_mappingA.json")
+    with open(path) as f:
+        config = json.load(f)
+    assert config["expected_items"] == prep_a.CANONICAL_N_ITEMS
+    assert eval_FLAC.resolve_expected_stream_count(config) == 1152
+    # an agreeing flag is fine; a contradicting one is a mistake, not an override
+    assert eval_FLAC.resolve_expected_stream_count(config, 1152) == 1152
+    with pytest.raises(ValueError) as exc:
+        eval_FLAC.resolve_expected_stream_count(config, 6337)
+    assert "6337" in str(exc.value) and "1152" in str(exc.value)
+
+
+def test_a_config_without_an_item_count_leaves_the_flag_alone():
+    """AR/HAA configs declare nothing, so their behaviour is byte-identical."""
+    eval_FLAC = _eval_flac()
+    assert eval_FLAC.resolve_expected_stream_count({}) is None
+    assert eval_FLAC.resolve_expected_stream_count({}, 6337) == 6337
+    ar = os.path.join(_REPO_ROOT, "src", "configs", "dataset_configs", "AR", "eval",
+                      "acousticroom_unseeneval.json")
+    with open(ar) as f:
+        config = json.load(f)
+    assert "expected_items" not in config
+    assert eval_FLAC.resolve_expected_stream_count(config, 6337) == 6337
+
+
+def test_a_non_positive_declared_count_is_refused():
+    eval_FLAC = _eval_flac()
+    with pytest.raises(ValueError):
+        eval_FLAC.resolve_expected_stream_count({"expected_items": 0})
