@@ -1,0 +1,45 @@
+{
+  "admitted": true,
+  "arm": "BF",
+  "bytes": 723922667,
+  "ckpt_path": "weights/exp20/BF_40k.ckpt",
+  "cond_method": "fa_invariant",
+  "config_canonical_sha256": "049ae1dc4a4f989c14509a869ceecb4c0580b95f4c1431a70dbf8f84369ef889",
+  "config_path": "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json",
+  "config_sha256": "3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328",
+  "created_utc": "2026-08-22T03:18:48+00:00",
+  "ema_inventory_sha256": "68dc5ef53d4144cea4fd8210cae6c6769fd7370fd62499dc9f6fb449bb991fc2",
+  "ema_key_count": 210,
+  "ema_prefix": "diffusion_ema.ema_model.",
+  "embedded_config_canonical_sha256": "049ae1dc4a4f989c14509a869ceecb4c0580b95f4c1431a70dbf8f84369ef889",
+  "expect_step": 40000,
+  "frame_avg_angles": [
+    0.0,
+    90.0,
+    180.0,
+    270.0
+  ],
+  "global_step": 40000,
+  "lineage": "exp_07 B-F fa_invariant (C4 frame average); byte-equal to exp_11's FLAC_AR_BF_C4L.json",
+  "load_integrity": {
+    "checked": true,
+    "clean": true,
+    "n_missing": 0,
+    "n_stray": 0,
+    "n_unexpected": 3,
+    "n_whitelisted": 3,
+    "stray": [],
+    "unexpected_whitelisted": [
+      "diffusion_ema.initted",
+      "diffusion_ema.step",
+      "losses.losses.0.weight"
+    ],
+    "whitelist": [
+      "diffusion_ema.",
+      "losses."
+    ]
+  },
+  "online_model_key_count": 210,
+  "reasons": [],
+  "sha256": "5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328"
+}

@@ -642,3 +642,126 @@ def test_holm_family_is_exactly_the_four_registered_contrasts():
         ca.build_holm_family({k: v for k, v in list(p_values.items())[:3]})
     with pytest.raises(ValueError, match="not a registered contrast"):
         ca.build_holm_family(dict(p_values, BF_vs_YAW_K8=0.01))
+
+
+# --------------------------------------------------------------------------- #
+# M5 / registration tooling: the per-arm manifest generator
+# --------------------------------------------------------------------------- #
+def _generator():
+    import importlib.util
+    import pathlib
+
+    path = (pathlib.Path(__file__).resolve().parents[2] / "worklog" / "worklog_yixun" /
+            "exp_20_loc_crossarm_claude" / "gen_arm_manifests.py")
+    spec = importlib.util.spec_from_file_location("gen_arm_manifests", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_R4_METRIC_MANIFEST = ("worklog/worklog_yixun/exp_18_loc_invert_claude/"
+                       "loc_invert_R4_metric_registration.json")
+
+
+def test_generator_emits_six_protocol_and_three_metric_manifests(tmp_path):
+    gen = _generator()
+    admissions = {arm: {"sha256": f"{arm.lower()}" * 8 + "0" * (64 - 8 * len(arm)),
+                        "config_sha256": "c" * 64, "global_step": 40000, "arm": arm}
+                  for arm in ("P1", "BF", "YAW")}
+    written = gen.generate(str(tmp_path), admissions=admissions,
+                           metric_source=_R4_METRIC_MANIFEST)
+    protocol = [p for p in written if "_registration.json" in p and "metric" not in p]
+    metric = [p for p in written if "metric_registration.json" in p]
+    assert len(protocol) == 6 and len(metric) == 3
+    for arm in ("P1", "BF", "YAW"):
+        for regime in ("R2", "R2b"):
+            assert any(f"{arm}_{regime}_registration.json" in p for p in protocol)
+
+
+def test_generated_protocol_manifest_locks_every_exp18_field(tmp_path):
+    gen = _generator()
+    payload = gen.protocol_manifest("P1", "R2", ckpt_sha256="a" * 64,
+                                    model_config_sha256="b" * 64)
+    exp18 = json.load(open("worklog/worklog_yixun/exp_18_loc_invert_claude/"
+                           "loc_invert_R2_registration.json"))
+    assert set(exp18) <= set(payload), sorted(set(exp18) - set(payload))
+    assert payload["seeds"] == [42, 43, 44] and payload["cond_method"] == "vanilla"
+    assert payload["ckpt_sha256"] == "a" * 64
+    assert payload["split_file_sha256"] == exp18["split_file_sha256"]
+    assert payload["tau"] == exp18["tau"] and payload["agg"] == exp18["agg"]
+
+
+def test_generated_bf_manifest_carries_the_fa_block_and_others_do_not(tmp_path):
+    gen = _generator()
+    bf = gen.protocol_manifest("BF", "R2", ckpt_sha256="a" * 64, model_config_sha256="b" * 64)
+    assert bf["cond_method"] == "fa_invariant"
+    for field in ca.FA_LOCKED_FIELDS:
+        assert field in bf, field
+    assert bf["frame_avg_angles"] == [0.0, 90.0, 180.0, 270.0]
+    assert bf["frame_avg_chunk_plan"] == "per_angle" and bf["rotate_deg"] == 0.0
+
+    for arm in ("P1", "YAW"):
+        payload = gen.protocol_manifest(arm, "R2", ckpt_sha256="a" * 64,
+                                        model_config_sha256="b" * 64)
+        assert payload["cond_method"] == "vanilla"
+        assert "frame_avg_angles" not in payload and "frame_avg_chunk_plan" not in payload
+
+
+def test_metric_manifest_inherits_the_scorer_subdocument_by_deep_equality(tmp_path):
+    gen = _generator()
+    source = json.load(open(_R4_METRIC_MANIFEST))
+    payload = gen.metric_manifest("BF", metric_source=_R4_METRIC_MANIFEST,
+                                  ckpt_sha256="a" * 64, protocol_digests={"R2": "d" * 64})
+    assert payload["metric_config"] == source["metric_config"], "scorer subdoc drifted"
+    assert payload["registerable"] == source["registerable"]
+    assert payload["inherited_from"]["path"] == _R4_METRIC_MANIFEST
+    assert payload["inherited_from"]["metric_config_canonical_sha256"] == \
+        ca.canonical_sha256(source["metric_config"])
+    assert payload["seeds"] == [42, 43, 44]
+    assert payload["ckpt_sha256"] == "a" * 64
+    assert payload["protocol_manifest_digests"] == {"R2": "d" * 64}
+    assert "recalibration" in payload["transport_caveat"].lower() or \
+        "calibrated" in payload["transport_caveat"].lower()
+
+
+def test_metric_manifest_refuses_a_mutated_scorer_subdocument(tmp_path):
+    gen = _generator()
+    source = json.load(open(_R4_METRIC_MANIFEST))
+    mutated = copy.deepcopy(source)
+    mutated["metric_config"]["delta_max"] = 32
+    path = tmp_path / "mutated.json"
+    with open(path, "w") as handle:
+        json.dump(mutated, handle)
+    with pytest.raises(ValueError, match="delta_max|deep"):
+        gen.metric_manifest("BF", metric_source=str(path), ckpt_sha256="a" * 64,
+                            protocol_digests={"R2": "d" * 64},
+                            expect_metric_config=source["metric_config"])
+
+
+def test_committed_admission_records_are_admitted_and_bind_the_staged_checkpoints():
+    """The three records this round produced are evidence for the ladder; they
+    must say admitted, at the registered step, with the arm identity read from
+    the file itself."""
+    import pathlib
+
+    folder = (pathlib.Path(__file__).resolve().parents[2] / "worklog" / "worklog_yixun" /
+              "exp_20_loc_crossarm_claude")
+    expected_cond = {"P1": "vanilla", "BF": "fa_invariant", "YAW": "vanilla"}
+    for arm, cond in expected_cond.items():
+        path = folder / f"loc_crossarm_admission_{arm}.json"
+        if not path.is_file():
+            pytest.skip(f"{path.name} not present")
+        record = json.loads(path.read_text())
+        assert record["admitted"] is True and record["reasons"] == []
+        assert record["global_step"] == ca.REGISTERED_STEP
+        assert record["cond_method"] == cond
+        assert record["config_path"] == ca.ARMS[arm]["config_rel"]
+        assert record["embedded_config_canonical_sha256"] == record["config_canonical_sha256"]
+        assert record["ema_key_count"] == record["online_model_key_count"] == 210
+        assert record["load_integrity"]["clean"] is True
+        assert record["load_integrity"]["n_missing"] == 0
+        assert record["load_integrity"]["n_stray"] == 0
+        assert len(record["sha256"]) == 64
+    shas = {arm: json.loads((folder / f"loc_crossarm_admission_{arm}.json").read_text())["sha256"]
+            for arm in expected_cond}
+    assert len(set(shas.values())) == 3, "two arms hash to the same checkpoint"

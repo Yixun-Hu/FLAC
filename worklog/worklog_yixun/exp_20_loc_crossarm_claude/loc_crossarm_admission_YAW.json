@@ -1,0 +1,40 @@
+{
+  "admitted": true,
+  "arm": "YAW",
+  "bytes": 723922667,
+  "ckpt_path": "weights/exp20/YAW_40k.ckpt",
+  "cond_method": "vanilla",
+  "config_canonical_sha256": "0761a677e0f31b8ee32a27b3f8c8280689fb450e962509381388217b7b0e8667",
+  "config_path": "worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json",
+  "config_sha256": "b14caae27afec2c53c38bea6e2574a48aa94bc86848ab17afae94cadf694b004",
+  "created_utc": "2026-08-22T03:18:50+00:00",
+  "ema_inventory_sha256": "68dc5ef53d4144cea4fd8210cae6c6769fd7370fd62499dc9f6fb449bb991fc2",
+  "ema_key_count": 210,
+  "ema_prefix": "diffusion_ema.ema_model.",
+  "embedded_config_canonical_sha256": "0761a677e0f31b8ee32a27b3f8c8280689fb450e962509381388217b7b0e8667",
+  "expect_step": 40000,
+  "frame_avg_angles": null,
+  "global_step": 40000,
+  "lineage": "exp_17 A6000 yaw-aug (recipe-matched to P1/BF; NOT exp_15's cluster arm)",
+  "load_integrity": {
+    "checked": true,
+    "clean": true,
+    "n_missing": 0,
+    "n_stray": 0,
+    "n_unexpected": 3,
+    "n_whitelisted": 3,
+    "stray": [],
+    "unexpected_whitelisted": [
+      "diffusion_ema.initted",
+      "diffusion_ema.step",
+      "losses.losses.0.weight"
+    ],
+    "whitelist": [
+      "diffusion_ema.",
+      "losses."
+    ]
+  },
+  "online_model_key_count": 210,
+  "reasons": [],
+  "sha256": "ac1f26034e4f341fe0c2cb4638e2eb473959d66ddd2fd95d184dc2fd4f264de7"
+}

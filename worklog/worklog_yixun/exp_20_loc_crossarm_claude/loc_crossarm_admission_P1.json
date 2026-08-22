@@ -1,0 +1,40 @@
+{
+  "admitted": true,
+  "arm": "P1",
+  "bytes": 723927531,
+  "ckpt_path": "weights/exp20/P1_40k.ckpt",
+  "cond_method": "vanilla",
+  "config_canonical_sha256": "2023ccc63257ae4902caf30a7905d1b8719e1e0e2ec5964dde951481cd352a27",
+  "config_path": "worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_VANCKPT.json",
+  "config_sha256": "733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8",
+  "created_utc": "2026-08-22T03:18:41+00:00",
+  "ema_inventory_sha256": "68dc5ef53d4144cea4fd8210cae6c6769fd7370fd62499dc9f6fb449bb991fc2",
+  "ema_key_count": 210,
+  "ema_prefix": "diffusion_ema.ema_model.",
+  "embedded_config_canonical_sha256": "2023ccc63257ae4902caf30a7905d1b8719e1e0e2ec5964dde951481cd352a27",
+  "expect_step": 40000,
+  "frame_avg_angles": null,
+  "global_step": 40000,
+  "lineage": "exp_07 P1 vanilla; config shared with exp_11's VANL arm",
+  "load_integrity": {
+    "checked": true,
+    "clean": true,
+    "n_missing": 0,
+    "n_stray": 0,
+    "n_unexpected": 3,
+    "n_whitelisted": 3,
+    "stray": [],
+    "unexpected_whitelisted": [
+      "diffusion_ema.initted",
+      "diffusion_ema.step",
+      "losses.losses.0.weight"
+    ],
+    "whitelist": [
+      "diffusion_ema.",
+      "losses."
+    ]
+  },
+  "online_model_key_count": 210,
+  "reasons": [],
+  "sha256": "c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c"
+}
