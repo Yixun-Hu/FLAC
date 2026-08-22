@@ -12,3 +12,9 @@
 - **Findings of record:** (1) BF's embedded training config carries `cond_method: fa_invariant` + angles ⇒ cond-method refusal is CHECKPOINT-BOUND for exp_20 arms (released EMA remains manifest-bound, honestly recorded). (2) Driver FA cap bug caught by TDD: default cap 64 ⇒ all 4 angles one forward; now cap = candidate micro-batch ⇒ per-angle, plan-flip proven by test. (3) Per-arm --model-config = the arm's committed config file (P1: exp_11 VANCKPT.json; BF: exp_07 FLAC_AR_BF.json; YAW: exp_15 FLAC_AR_YAWAUG.json).
 - **Planner confirmations:** metric manifests inherit exp_18's r2_identity_digest + candidate_manifest_sha256 — CORRECT (same split, same candidates). Pilots = existing `--smoke --max-queries 100` (documented, no new flag).
 - **Next** — Codex exp20-r1 review → fa-parity real execution + pilots → registration freezes → campaign.
+
+## 2026-08-22T01:15:00-0400 — exp20-r2 delivered (all 7 closed); rulings; re-review launched
+
+- **Version Control** — `0bc70af 6290a72 38a6ab4 9186586 7d6ca1c 5aa0dbb 7eda137`; suite 2,785 green; 97 crossarm tests; all three admission records regenerated + re-ADMITTED at this runtime; all nine manifests generated end-to-end and passing the REAL frozen verifier in test.
+- **Planner rulings on the two deviations:** (1) r7 firewall +1 key (`cond_method_binding`) with everything-else-still-fails — ACCEPTED (a tightening). (2) two-tier batch/workers locking (required for arm-manifests; checked-when-present otherwise) — ACCEPTED (retroactive invalidation of exp_18's published registrations would be wrong).
+- **Next** — focused re-review (mandatory per r1 reviewer) → BF fa-parity real execution → pilots → freezes → campaign.
