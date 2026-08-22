@@ -67,6 +67,7 @@ the resulting ``.stream.json`` sidecar -- whose per-position payload lets this
 gate RE-RUN eval_FLAC's positional check on durable evidence rather than trust
 that it ran (BLOCKING 3).
 """
+import hashlib
 import json
 import math
 import os
@@ -114,7 +115,10 @@ CKPT_STEP_RE = re.compile(r"step=(\d+)")
 # now blocks. Named here, once, so the driver and the table cannot disagree
 # about the spelling (it is `eval_FLAC.build_metrics_record`'s key).
 CKPT_SHA_FIELD = "ckpt_sha256"
-CKPT_SHA_RE = re.compile(r"^[0-9a-f]{64}$")
+# Matched with .fullmatch(), never .match() (r5 re-review, BLOCKING 4): Python's
+# `$` matches BEFORE a terminal newline, so the old pattern admitted a digest
+# with a trailing "\n" -- what a shell capture of `sha256sum` yields verbatim.
+CKPT_SHA_RE = re.compile(r"[0-9a-f]{64}")
 TRAINED_FIELD = "trained_cond_method"
 
 # --- the full-split proof (r5 review BLOCKING 3) ------------------------------
@@ -299,7 +303,7 @@ def ckpt_reasons(record, prof=None):
             "NAMED, only a digest proves which bytes were LOADED, and the record "
             "without one is exactly where a substituted or re-trained checkpoint "
             "would hide (eval_FLAC records it for every run)")
-    elif not (isinstance(sha, str) and CKPT_SHA_RE.match(sha)):
+    elif not (isinstance(sha, str) and CKPT_SHA_RE.fullmatch(sha)):
         reasons.append(f"{CKPT_SHA_FIELD} {sha!r} is not a lowercase 64-hex digest")
 
     trained = record.get(TRAINED_FIELD, None)
@@ -368,6 +372,42 @@ def _positional_reasons(tuples):
                 "still counts toward n_samples")
             break
     return reasons
+
+
+def read_stream_payload(metrics_path):
+    """The sidecar payload beside one metrics JSON, or ``None`` if unusable."""
+    path = stream_sidecar_path(metrics_path)
+    try:
+        with open(path) as handle:
+            payload = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def canonical_input_hash(payload):
+    """Recompute the cell's INPUT identity from its durable ``input_tuples``.
+
+    ``eval_FLAC.canonical_stream_hash``'s serialization, restated (and pinned
+    equal to it by test): one JSON array per tuple, ``sort_keys=True``,
+    ``separators=(",", ":")``, LF-joined, UTF-8.
+
+    Recomputed rather than read out of ``input_hash`` on purpose. The digest in
+    the payload is a claim by the writer; the tuples are the preimages, so
+    hashing them here is what makes "these two arms saw the same items and the
+    same reference draws" checkable by anyone holding the artifacts.
+
+    The input identity is rotation-INDEPENDENT by construction (it carries the
+    item and its context sources, never the offset), which is exactly why it is
+    the right key for pairing arms.
+    """
+    tuples = (payload or {}).get("input_tuples")
+    if not isinstance(tuples, list):
+        return None
+    return hashlib.sha256(
+        "\n".join(json.dumps(list(t), sort_keys=True, separators=(",", ":"))
+                  for t in tuples).encode("utf-8")
+    ).hexdigest()
 
 
 def stream_sidecar_reasons(metrics_path):

@@ -891,12 +891,24 @@ def check_exp21_cross_arm(cells, status):
     ``cells`` maps ``(label, K) -> files`` across BFC *and* both comparators;
     ``status`` carries each cell's already-computed validation.
 
-    A paired delta is only a delta if both sides were measured the same way. The
-    per-row gates prove each arm internally and CANNOT see that BFC was measured
-    at one evaluator commit and its comparator at another — which is precisely
-    the reading D6 exists to make safe. So: one ``source_sha`` across every
-    landed exp_21 row, or every one of them is withheld rather than published
-    beside numbers it must not be subtracted from.
+    A paired delta is only a delta if both sides were measured the same way, on
+    the same inputs, from the reviewed weights. The per-row gates prove each arm
+    INTERNALLY and can see none of that. So this is a TRANSACTION, and once any
+    exp_21 evidence lands it requires, or withholds every present exp_21 row:
+
+    1. all SIX arm x K rows (BFC, BFre, P1re at K=1 and K=8), each independently
+       valid with its five registered seeds;
+    2. ONE ``source_sha`` across all of them;
+    3. ONE checkpoint digest per arm across both its K rows, equal to the
+       REVIEWED artifact where one is pinned (the two comparators; BFC has not
+       trained yet, so only uniformity applies);
+    4. ONE input identity per ``(K, seed)`` across the three arms, recomputed
+       from each cell's durable sidecar preimages.
+
+    Rules 1, 3 and 4 are the r5 re-review's BLOCKING 1-3: without them a BFC-only
+    block could publish under a note claiming both comparators had been measured,
+    a comparator's two K rows could be different checkpoints, and arms that drew
+    different context sources could be subtracted from each other.
 
     Nothing landed yet is not a failed transaction — it is a set of rows
     registered in advance, which the generator renders as pending.
@@ -910,33 +922,123 @@ def check_exp21_cross_arm(cells, status):
     present = {key: files for key, files in cells.items() if files}
     if not present:
         return set(), [], []
-    problems, notes, pins = [], [], {}
-    for (label, k), files in sorted(present.items()):
-        if not status.get((label, k), False):
-            continue                       # its own row gate already blocked it
-        for path in files:
+    try:
+        V = _load_exp21_validator()
+        P = _load_exp21_protocol()
+    except Exception as exc:                       # the gate must not fail open
+        return set(present), [f"cannot load the exp_21 protocol/validator ({exc})"], []
+
+    problems = []
+    expected = [(arm, P.ARMS[arm]["row_label"], k)
+                for arm in P.ARM_ORDER for k in P.KS]
+
+    # --- 1. COMPLETENESS: all six arm x K rows, each independently valid ------
+    # Once ANY exp_21 evidence lands, the paired block is all-or-nothing. Without
+    # this a BFC-only block, a one-K comparator, or a block with an invalid
+    # partner rendered as paired-comparable -- under a note stating that both
+    # comparators had been measured (r5 re-review, BLOCKING 1).
+    for arm, label, k in expected:
+        key = (label, k)
+        if not cells.get(key):
+            problems.append(
+                f"{arm} K={k} has no evidence: the exp_21 paired block publishes only "
+                "as all SIX arm x K rows (BFC, BFre, P1re at K=1 and K=8) -- a delta "
+                "against a row that is not there is not a delta")
+        elif not status.get(key, False):
+            problems.append(
+                f"{arm} K={k} did not validate: a partner its own row gate refused is "
+                "not evidence, and BFC minus a refusal is not a paired reading")
+    if problems:
+        return set(present), problems, []
+
+    # --- read every cell once -------------------------------------------------
+    pins, digests, inputs = {}, {}, {}
+    for arm, label, k in expected:
+        for path in sorted(cells[(label, k)]):
+            base = os.path.basename(path)
             try:
                 with open(path) as fh:
                     record = json.load(fh)
             except Exception as exc:               # noqa: BLE001
-                problems.append(f"{os.path.basename(path)}: unreadable while checking "
-                                f"the exp_21 cross-arm pin ({exc})")
+                problems.append(f"{base}: unreadable while checking the exp_21 "
+                                f"cross-arm transaction ({exc})")
                 continue
-            pins.setdefault(str(record.get("source_sha")), set()).add(f"{label} K={k}")
+            pins.setdefault(str(record.get("source_sha")), set()).add(f"{arm} K={k}")
+            digests.setdefault(arm, {}).setdefault(
+                str(record.get(V.CKPT_SHA_FIELD, "<absent>")), set()).add(f"K={k}")
+            # the INPUT identity, recomputed from the sidecar's durable preimages
+            payload = V.read_stream_payload(path)
+            identity = V.canonical_input_hash(payload)
+            if identity is None:
+                problems.append(
+                    f"{base}: no readable assignment sidecar, so this cell's input "
+                    "identity cannot be recomputed and it cannot be shown to be paired "
+                    "with the other arms'")
+                continue
+            seed = record.get("seed")
+            inputs.setdefault((k, seed), {}).setdefault(identity, set()).add(arm)
+        # five seeds per row, independently (the row gates check this too; here it
+        # is what makes the per-(K, seed) pairing below exhaustive rather than
+        # whichever seeds happen to be on both sides)
+        if len(cells[(label, k)]) != len(P.SEEDS):
+            problems.append(
+                f"{arm} K={k} carries {len(cells[(label, k)])} cells, not one per "
+                f"registered seed {list(P.SEEDS)}")
+    if problems:
+        return set(present), problems, []
+
+    # --- 2. ONE evaluator pin across all three arms ---------------------------
     if len(pins) > 1:
         detail = "; ".join(f"{sha[:12]}: {sorted(cellset)}"
                            for sha, cellset in sorted(pins.items()))
         problems.append("the exp_21 arms span MORE THAN ONE evaluator pin, so BFC minus "
                         f"its comparator is not a within-pin delta - {detail}")
-        return set(present), problems, notes
-    if pins:
-        notes.append(
-            "**exp_21 paired block (D6):** the BFC row and the two `(repin)` "
-            f"comparator rows were all measured at evaluator pin `{sorted(pins)[0][:12]}`, "
-            "so BFC-minus-comparator is a within-pin paired delta. The historical "
-            "`fa scratch B-F @40k` and `P1 vanilla @40k` rows are CONTEXTUAL ONLY for "
-            "exp_21: different evaluator pin and legacy orbit execution, so no "
-            "paired-delta claim may be made against them.")
+
+    # --- 3. THE REVIEWED COMPARATOR BYTES, and one checkpoint per arm ---------
+    for arm in P.ARM_ORDER:
+        seen = digests.get(arm, {})
+        if len(seen) > 1:
+            detail = "; ".join(f"{d[:12]}: {sorted(ks)}" for d, ks in sorted(seen.items()))
+            problems.append(
+                f"{arm}'s K=1 and K=8 rows were produced from DIFFERENT checkpoint bytes "
+                f"- {detail}. One digest within a five-seed row was already required; "
+                "the two K rows evaluate the same weights and differ only in context "
+                "size, so a mismatch here is a comparison of two models")
+        want = P.ARMS[arm].get("ckpt_sha256")
+        if want is not None:
+            wrong = sorted(d for d in seen if d != want)
+            if wrong:
+                problems.append(
+                    f"{arm} evaluated checkpoint bytes {[d[:12] for d in wrong]}, but the "
+                    f"REVIEWED comparator artifact is {want[:12]}...: a comparator "
+                    "produced from other bytes is not the one this campaign approved")
+
+    # --- 4. ONE INPUT IDENTITY per (K, seed), across all three arms -----------
+    # The paired-delta precondition. Every arm evaluates the same split at the
+    # same seed, so each (K, seed) must have drawn the same target items AND the
+    # same context sources in the same order -- and every per-row rule passes
+    # when they did not, because each row is internally perfect (BLOCKING 2).
+    for (k, seed), by_identity in sorted(inputs.items(), key=lambda kv: (kv[0][0], str(kv[0][1]))):
+        if len(by_identity) > 1:
+            detail = "; ".join(f"{ident[:12]}: {sorted(arms)}"
+                               for ident, arms in sorted(by_identity.items()))
+            problems.append(
+                f"K={k} seed={seed}: the arms did not evaluate the same inputs - {detail}. "
+                "The per-position target items and their context-source draws differ, so "
+                "BFC minus a comparator at this seed is a difference between two "
+                "different questions, not a mechanism")
+    if problems:
+        return set(present), problems, []
+
+    notes = [
+        "**exp_21 paired block (D6):** all six rows - BFC, B-F `(repin)` and P1 "
+        f"`(repin)` at K=1 and K=8 - are present, five-seed valid, measured at "
+        f"evaluator pin `{sorted(pins)[0][:12]}`, over per-seed inputs proven "
+        "identical across the three arms, and against the reviewed comparator "
+        "checkpoints. BFC-minus-comparator is therefore a within-pin paired delta. "
+        "The historical `fa scratch B-F @40k` and `P1 vanilla @40k` rows are "
+        "CONTEXTUAL ONLY for exp_21: different evaluator pin and legacy orbit "
+        "execution, so no paired-delta claim may be made against them."]
     return set(), problems, notes
 
 

@@ -442,53 +442,231 @@ def test_no_historical_row_absorbs_a_comparator_cell(gen, P):
                 assert not fnmatch.fnmatch(rel, pat), (rel, spec[0], pat)
 
 
+# The reviewed comparator artifacts, digested on disk during round 5. Pinned in
+# the protocol module; restated here so a test cannot be satisfied by whatever
+# the module happens to say (the point of a pin is that two places agree).
+BFRE_SHA = "5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328"
+P1RE_SHA = "c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c"
+BFC_LABEL = "BFC C4-Cartesian FA @40k (exp_21)"
+ARM_LABEL = {"BFC": BFC_LABEL, **COMPARATOR_LABELS}
+ARM_PREFIX = {"BFC": "exp21_BFC", "BFre": "exp21_BFre", "P1re": "exp21_P1re"}
+DEFAULT_SHA = {"BFC": "d" * 64, "BFre": BFRE_SHA, "P1re": P1RE_SHA}
+SEEDS = (42, 43, 44, 45, 46)
+
+
 class TestCrossArmTransaction:
-    def _cells(self, tmp_path, pins):
-        """One landed cell per arm, each at the pin ``pins[arm]``."""
+    """The D6 paired block: all six arm x K rows, one pin, one input identity per
+    (K, seed), and the reviewed comparator bytes -- or none of it renders as
+    paired-comparable.
+
+    r5 re-review BLOCKING 1-3. The previous gate checked the source_sha of
+    whichever valid rows happened to exist, so a BFC-only block, a one-K
+    comparator, or a block with an invalid partner could publish -- and then
+    print a note stating that both comparators had been measured.
+    """
+
+    def _write(self, tmp_path, arm, k, seed, pin, sha, tuples):
+        d = tmp_path / arm / f"K{k}"
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / f"{ARM_PREFIX[arm]}_S40000_K{k}_s{seed}.json"
+        path.write_text(json.dumps({
+            "eval_name": f"{ARM_PREFIX[arm]}_S40000_K{k}_s{seed}",
+            "seed": seed, "source_sha": pin, "ckpt_sha256": sha,
+            "metrics": {"T60": 1.0},
+        }))
+        sidecar = Path(str(path)[: -len(".json")] + ".stream.json")
+        sidecar.write_text(json.dumps({
+            "schema_version": 1, "fingerprint_schema": 1, "rotate_mode": "fixed",
+            "rotate_seed": None, "rotate_deg": 0.0, "img_w": 512,
+            "stream_count": len(tuples), "input_tuples": tuples,
+            "offsets": [None] * len(tuples),
+            "assignment_tuples": [[t[0], t[1], None] for t in tuples],
+            "input_hash": "e" * 64, "assignment_hash": "f" * 64,
+        }))
+        return str(path)
+
+    def _block(self, tmp_path, arms=("BFC", "BFre", "P1re"), ks=(1, 8),
+               seeds=SEEDS, pins=None, shas=None, tuples_of=None):
+        """A complete D6 block unless a test asks for less."""
         cells, status = {}, {}
-        labels = {"BFC": "BFC C4-Cartesian FA @40k (exp_21)", **COMPARATOR_LABELS}
-        for arm, pin in pins.items():
-            path = tmp_path / f"{arm}.json"
-            path.write_text(json.dumps({"source_sha": pin}))
-            cells[(labels[arm], 8)] = [str(path)]
-            status[(labels[arm], 8)] = True
+        for arm in arms:
+            for k in ks:
+                files = []
+                for seed in seeds:
+                    tuples = (tuples_of(arm, k, seed) if tuples_of
+                              else [[i, f"{i}|r/{k}_{seed}_{i}.wav", [], 512]
+                                    for i in range(4)])
+                    files.append(self._write(
+                        tmp_path, arm, k, seed,
+                        (pins or {}).get(arm, "a" * 40),
+                        (shas or DEFAULT_SHA)[arm], tuples))
+                cells[(ARM_LABEL[arm], k)] = files
+                status[(ARM_LABEL[arm], k)] = True
         return cells, status
 
+    # --- the carve-out ------------------------------------------------------
     def test_nothing_landed_is_pending_not_a_failed_transaction(self, gen):
         withheld, problems, notes = gen.check_exp21_cross_arm({}, {})
         assert (withheld, problems, notes) == (set(), [], [])
 
-    def test_one_pin_across_the_three_arms_publishes_and_says_so(self, gen, tmp_path):
-        cells, status = self._cells(tmp_path, {"BFC": "a" * 40, "BFre": "a" * 40,
-                                               "P1re": "a" * 40})
+    # --- the complete transaction -------------------------------------------
+    def test_the_complete_block_publishes_and_says_so(self, gen, tmp_path):
+        cells, status = self._block(tmp_path)
         withheld, problems, notes = gen.check_exp21_cross_arm(cells, status)
-        assert withheld == set() and problems == []
+        assert problems == [] and withheld == set()
         assert len(notes) == 1
         note = notes[0]
         assert "paired" in note and ("a" * 12) in note
-        # ...and the note is where the historical rows are declared contextual,
-        # since their specs are NOT edited by this round
+        # the note is where the historical rows are declared contextual, since
+        # their specs are NOT edited by this round
         assert "CONTEXTUAL ONLY" in note
         assert "fa scratch B-F @40k" in note and "P1 vanilla @40k" in note
 
-    def test_a_comparator_at_another_pin_withholds_every_arm(self, gen, tmp_path):
-        """This is the reading D6 exists to make safe: a cross-pin subtraction
-        would fold the evaluator shift into the arm's effect."""
-        cells, status = self._cells(tmp_path, {"BFC": "a" * 40, "BFre": "b" * 40,
-                                               "P1re": "a" * 40})
+    # --- BLOCKING 1: completeness -------------------------------------------
+    def test_a_BFC_only_block_is_withheld(self, gen, tmp_path):
+        """The exact false publication the re-review names: BFC alone rendered
+        as paired-comparable, under a note claiming both comparators were
+        measured."""
+        cells, status = self._block(tmp_path, arms=("BFC",))
         withheld, problems, notes = gen.check_exp21_cross_arm(cells, status)
-        assert problems and "MORE THAN ONE evaluator pin" in problems[0]
-        assert withheld == set(cells)
         assert notes == []
+        assert withheld == set(cells)
+        assert any("BFre" in p and "P1re" in p for p in problems), problems
 
-    def test_a_blocked_cell_does_not_contribute_a_pin(self, gen, tmp_path):
-        """A cell its own row gate already refused is not evidence of anything,
-        so it must not be able to fail the pin check a second time (or, worse,
-        to satisfy it)."""
-        cells, status = self._cells(tmp_path, {"BFC": "a" * 40, "BFre": "b" * 40})
-        status[(COMPARATOR_LABELS["BFre"], 8)] = False
+    def test_a_one_K_comparator_is_withheld(self, gen, tmp_path):
+        cells, status = self._block(tmp_path)
+        for key in [k for k in cells if k[0] == COMPARATOR_LABELS["BFre"] and k[1] == 1]:
+            del cells[key], status[key]
         withheld, problems, notes = gen.check_exp21_cross_arm(cells, status)
-        assert problems == [] and withheld == set()
+        assert notes == [] and withheld == set(cells)
+        assert any("K=1" in p for p in problems), problems
+
+    def test_an_invalid_partner_withholds_every_arm(self, gen, tmp_path):
+        """A partner its own row gate refused is not evidence, and a paired
+        delta against a refusal is not a delta."""
+        cells, status = self._block(tmp_path)
+        status[(COMPARATOR_LABELS["P1re"], 8)] = False
+        withheld, problems, notes = gen.check_exp21_cross_arm(cells, status)
+        assert notes == [] and withheld == set(cells)
+        assert any("did not validate" in p for p in problems), problems
+
+    def test_a_short_row_is_withheld(self, gen, tmp_path):
+        """Five seeds per row, independently -- four is not a row."""
+        cells, status = self._block(tmp_path, seeds=(42, 43, 44, 45))
+        withheld, problems, notes = gen.check_exp21_cross_arm(cells, status)
+        assert notes == [] and withheld == set(cells)
+        assert any("seed" in p for p in problems), problems
+
+    # --- one evaluator pin ---------------------------------------------------
+    def test_a_comparator_at_another_pin_withholds_every_arm(self, gen, tmp_path):
+        """A cross-pin subtraction would fold the evaluator shift into the arm's
+        effect -- the reading D6 exists to make safe."""
+        cells, status = self._block(tmp_path, pins={"BFC": "a" * 40,
+                                                    "BFre": "b" * 40,
+                                                    "P1re": "a" * 40})
+        withheld, problems, notes = gen.check_exp21_cross_arm(cells, status)
+        assert notes == [] and withheld == set(cells)
+        assert any("evaluator pin" in p for p in problems), problems
+
+    # --- BLOCKING 2: per-(K, seed) input identity ----------------------------
+    def test_differing_input_draws_for_one_cell_withhold_the_block(self, gen,
+                                                                   tmp_path):
+        """THE paired-delta precondition. Every arm evaluates the same split at
+        the same seed, so each (K, seed) must have drawn the same target items
+        AND the same context sources in the same order. If P1re's K=8/seed=43
+        saw different reference draws, BFC-minus-P1re at that seed is a
+        difference between two different questions -- and every per-row rule
+        passes, because each row is internally perfect."""
+        def tuples_of(arm, k, seed):
+            tag = "X" if (arm == "P1re" and k == 8 and seed == 43) else "r"
+            return [[i, f"{i}|{tag}/{k}_{seed}_{i}.wav", [], 512] for i in range(4)]
+        cells, status = self._block(tmp_path, tuples_of=tuples_of)
+        withheld, problems, notes = gen.check_exp21_cross_arm(cells, status)
+        assert notes == [] and withheld == set(cells)
+        assert any("K=8" in p and "43" in p for p in problems), problems
+
+    def test_identical_draws_across_arms_pass(self, gen, tmp_path):
+        cells, status = self._block(tmp_path)
+        _w, problems, notes = gen.check_exp21_cross_arm(cells, status)
+        assert problems == [] and len(notes) == 1
+
+    def test_a_missing_sidecar_withholds_the_block(self, gen, tmp_path):
+        """The input identity is recomputed FROM the sidecar, so a row whose
+        sidecar vanished cannot be shown to be paired with anything."""
+        cells, status = self._block(tmp_path)
+        Path(cells[(BFC_LABEL, 8)][0][: -len(".json")] + ".stream.json").unlink()
+        withheld, problems, notes = gen.check_exp21_cross_arm(cells, status)
+        assert notes == [] and withheld == set(cells)
+        assert any("sidecar" in p for p in problems), problems
+
+    # --- BLOCKING 3: the reviewed comparator bytes ---------------------------
+    def test_a_comparator_evaluating_other_bytes_is_withheld(self, gen, tmp_path):
+        """The comparator checkpoints are REVIEWED artifacts: their digests were
+        read off disk and pinned. A B-F row produced from any other bytes is not
+        the comparator this campaign approved."""
+        shas = dict(DEFAULT_SHA, BFre="0" * 64)
+        cells, status = self._block(tmp_path, shas=shas)
+        withheld, problems, notes = gen.check_exp21_cross_arm(cells, status)
+        assert notes == [] and withheld == set(cells)
+        assert any(BFRE_SHA[:12] in p for p in problems), problems
+
+    def test_a_comparator_whose_two_K_rows_used_different_bytes_is_withheld(
+            self, gen, tmp_path):
+        """One digest within a five-seed row was already enforced; nothing
+        required K=1 and K=8 of the SAME comparator to be the same file."""
+        cells, status = self._block(tmp_path)
+        # rewrite P1re K=1 to other (well-formed, but wrong) bytes
+        for path in cells[(COMPARATOR_LABELS["P1re"], 1)]:
+            rec = json.loads(Path(path).read_text())
+            rec["ckpt_sha256"] = "1" * 64
+            Path(path).write_text(json.dumps(rec))
+        withheld, problems, notes = gen.check_exp21_cross_arm(cells, status)
+        assert notes == [] and withheld == set(cells)
+        assert any("P1re" in p or P1RE_SHA[:12] in p for p in problems), problems
+
+    def test_BFC_bytes_are_not_pinned_but_must_be_uniform(self, gen, tmp_path):
+        """BFC has not trained yet, so there is no reviewed digest to pin -- but
+        its two K rows must still be one checkpoint."""
+        cells, status = self._block(tmp_path)
+        for path in cells[(BFC_LABEL, 1)]:
+            rec = json.loads(Path(path).read_text())
+            rec["ckpt_sha256"] = "9" * 64
+            Path(path).write_text(json.dumps(rec))
+        withheld, problems, notes = gen.check_exp21_cross_arm(cells, status)
+        assert notes == [] and withheld == set(cells)
+        assert any("BFC" in p for p in problems), problems
+
+
+def test_the_protocol_module_pins_the_reviewed_comparator_digests(P):
+    """r5 re-review BLOCKING 3: the digests are campaign constants, not whatever
+    a preflight happens to encounter."""
+    assert P.ARMS["BFre"]["ckpt_sha256"] == BFRE_SHA
+    assert P.ARMS["P1re"]["ckpt_sha256"] == P1RE_SHA
+    # BFC has not trained yet: there is nothing to pin, and inventing a value
+    # would be worse than declaring the absence.
+    assert P.ARMS["BFC"]["ckpt_sha256"] is None
+
+
+def test_preflight_refuses_a_digest_that_is_not_the_reviewed_artifact(P,
+                                                                      monkeypatch):
+    """It used to print whatever it found and continue."""
+    monkeypatch.setattr(P, "resolve_ckpt", lambda arm, root=None: "/nonexistent")
+    monkeypatch.setattr(P, "_load_embedded_config", lambda path: {
+        "training": {"cond_method": "fa_invariant",
+                     "frame_avg_angles": [0.0, 90.0, 180.0, 270.0]}})
+    monkeypatch.setattr(P, "_file_sha256", lambda path: "0" * 64)
+    with pytest.raises(SystemExit) as e:
+        P.preflight("BFre")
+    assert BFRE_SHA[:12] in str(e.value)
+
+
+def test_preflight_accepts_the_reviewed_artifact(P, monkeypatch):
+    monkeypatch.setattr(P, "resolve_ckpt", lambda arm, root=None: "/nonexistent")
+    monkeypatch.setattr(P, "_load_embedded_config", lambda path: {
+        "training": {"cond_method": "fa_invariant",
+                     "frame_avg_angles": [0.0, 90.0, 180.0, 270.0]}})
+    monkeypatch.setattr(P, "_file_sha256", lambda path: BFRE_SHA)
+    assert P.preflight("BFre") == BFRE_SHA
 
 
 def test_the_repin_rows_are_labelled_batched_never_legacy_loop(gen):

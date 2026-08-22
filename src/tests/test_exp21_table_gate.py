@@ -809,7 +809,11 @@ class TestCheckpointDigest:
         assert not ok
         assert any(V.CKPT_SHA_FIELD in p for p in problems), problems
 
-    @pytest.mark.parametrize("bad", ["", "zz", "D" * 64, "d" * 63, 42])
+    @pytest.mark.parametrize("bad", ["", "zz", "D" * 64, "d" * 63, 42,
+                                     # r5 re-review BLOCKING 4: `$` matches before a
+                                     # terminal newline, so the old `^...$` + .match()
+                                     # admitted a shell-captured digest verbatim.
+                                     "d" * 64 + "\n", " " + "d" * 64])
     def test_a_malformed_digest_blocks(self, gen, V, tmp_path, bad):
         files = [write_cell(str(tmp_path / "K8"), k=8, seed=s,
                             **{V.CKPT_SHA_FIELD: bad}) for s in (42, 43, 44, 45, 46)]

@@ -345,7 +345,11 @@ FA_CARTESIAN_TRAINED_COND_METHOD = "fa_cartesian"
 FA_CARTESIAN_TRAINED_ANGLES = (0.0, 90.0, 180.0, 270.0)
 FA_CARTESIAN_TRAINED_FWD_CAP = 32          # TRAINING cap (D5); eval runs at 64
 
-CKPT_SHA_RE = re.compile(r"^[0-9a-f]{64}$")
+# Matched with .fullmatch(), never .match() (r5 re-review, BLOCKING 4). Python's
+# `$` matches BEFORE a terminal newline, so `^[0-9a-f]{64}$` + .match() admitted
+# "a"*64 + "\n" -- which is exactly what capturing `sha256sum` output in a shell
+# produces, and it would then be recorded and compared as a different digest.
+CKPT_SHA_RE = re.compile(r"[0-9a-f]{64}")
 _SHA_READ_CHUNK = 1 << 20
 
 
@@ -364,7 +368,7 @@ def file_sha256(path, chunk=_SHA_READ_CHUNK):
 
 def validate_ckpt_sha256(value, who="ckpt_sha256"):
     """A digest is evidence; a malformed one would be published as proven identity."""
-    if not (isinstance(value, str) and CKPT_SHA_RE.match(value)):
+    if not (isinstance(value, str) and CKPT_SHA_RE.fullmatch(value)):
         raise ValueError(
             f"{who} must be a lowercase 64-hex sha256 digest, got {value!r}: a gate "
             "that only checks presence would publish this as a proven checkpoint "

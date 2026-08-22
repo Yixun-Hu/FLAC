@@ -102,6 +102,10 @@ ARMS = {
         "expected_training": {"cond_method": "fa_cartesian",
                               "frame_avg_angles": list(V.FRAME_AVG_ANGLES),
                               "frame_avg_max_fwd_samples": 32},
+        # BFC has not trained yet, so there is no reviewed artifact to pin.
+        # ``None`` states that absence; the gate still requires ONE digest across
+        # all ten of its cells and both its K rows.
+        "ckpt_sha256": None,
         "row_label": "BFC C4-Cartesian FA @40k (exp_21)",
     },
     "BFre": {
@@ -112,6 +116,10 @@ ARMS = {
         "expected_training": {"cond_method": "fa_invariant",
                               "frame_avg_angles": list(V.FRAME_AVG_ANGLES),
                               "frame_avg_max_fwd_samples": ABSENT},
+        # The REVIEWED artifact, digested on disk in round 5 (exp_07 B-F @40k).
+        # A comparator produced from any other bytes is not the comparator
+        # this campaign approved, however well-formed its digest is.
+        "ckpt_sha256": "5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328",
         "row_label": "B-F @40k re-eval at the exp_21 pin (D6 paired comparator)",
     },
     "P1re": {
@@ -122,6 +130,10 @@ ARMS = {
         "expected_training": {"cond_method": "vanilla",
                               "frame_avg_angles": ABSENT,
                               "frame_avg_max_fwd_samples": ABSENT},
+        # The REVIEWED artifact, digested on disk in round 5 (exp_07 P1 @40k).
+        # A comparator produced from any other bytes is not the comparator
+        # this campaign approved, however well-formed its digest is.
+        "ckpt_sha256": "c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c",
         "row_label": "P1 @40k re-eval at the exp_21 pin (D6 paired comparator)",
     },
 }
@@ -345,27 +357,52 @@ def check_embedded_training(embedded_model_config, arm):
     return reasons
 
 
-def preflight(arm, root=None):
-    """Hold ``arm``'s checkpoint to its training contract. Returns its sha256.
-
-    Imports torch lazily and reads on CPU: this is a cheap, GPU-free gate the
-    driver runs ONCE per arm, before that arm's cells, so a wrong-arm campaign
-    costs one checkpoint read rather than ten evaluations.
-    """
+def _load_embedded_config(path):
+    """The ``model_config`` train.py embedded in a checkpoint. CPU, torch lazily."""
     import torch                                  # noqa: PLC0415 - lazy on purpose
+    return torch.load(path, map_location="cpu", weights_only=False).get("model_config")
+
+
+def _file_sha256(path, chunk=1 << 20):
+    """Streamed sha256 -- eval_FLAC.file_sha256's rule, without importing torch."""
+    import hashlib                                # noqa: PLC0415
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(chunk), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def preflight(arm, root=None):
+    """Hold ``arm``'s checkpoint to its contract -- BOTH halves. Returns its sha256.
+
+    A cheap, GPU-free gate the driver runs ONCE per arm, before that arm's cells,
+    so a wrong-arm campaign costs one checkpoint read rather than ten evaluations.
+
+    Two independent things are checked, and a failure of either ABORTS (r5
+    re-review, BLOCKING 3 -- it used to print whatever digest it encountered and
+    continue, which made it a label rather than a gate):
+
+    * the embedded training config IS this arm's (what the weights were trained as);
+    * the file's bytes ARE the reviewed artifact's, where one is pinned. BFC pins
+      nothing because it has not trained yet; its uniformity is enforced across
+      its own cells by the table gate instead.
+    """
     root = root or repo_root()
     path = resolve_ckpt(arm, root=root)
-    ckpt = torch.load(path, map_location="cpu", weights_only=False)
-    reasons = check_embedded_training(ckpt.get("model_config"), arm)
+    reasons = check_embedded_training(_load_embedded_config(path), arm)
     if reasons:
         raise SystemExit("TRAINED-AS PREFLIGHT FAILED for " + arm + ":\n  - "
                          + "\n  - ".join(reasons))
-    import hashlib
-    digest = hashlib.sha256()
-    with open(path, "rb") as handle:
-        for block in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
+    digest = _file_sha256(path)
+    want = ARMS[arm].get("ckpt_sha256")
+    if want is not None and digest != want:
+        raise SystemExit(
+            f"CHECKPOINT DIGEST PREFLIGHT FAILED for {arm}: {path} hashes to\n"
+            f"  {digest}\nbut the reviewed comparator artifact is\n  {want}\n"
+            "These are not the same bytes, so this is not the comparator the "
+            "campaign approved -- refusing to evaluate it under that row's name.")
+    return digest
 
 
 def main(argv=None):

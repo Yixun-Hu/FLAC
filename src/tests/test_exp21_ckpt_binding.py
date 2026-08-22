@@ -200,7 +200,13 @@ def test_the_record_carries_the_binding_receipt():
     assert keys[keys.index("cond_method") + 1] == "trained_cond_method"
 
 
-@pytest.mark.parametrize("bad", ["", "zz", "A" * 64, "a" * 63, "a" * 65, 42, b"a" * 64])
+@pytest.mark.parametrize("bad", ["", "zz", "A" * 64, "a" * 63, "a" * 65, 42, b"a" * 64,
+                                 # r5 re-review BLOCKING 4: in Python `$` matches
+                                 # BEFORE a terminal newline, so `^...$` + .match()
+                                 # admitted a digest with a trailing newline -- exactly
+                                 # what a shell capture of `sha256sum` produces.
+                                 "a" * 64 + "\n", "a" * 64 + "\r\n", " " + "a" * 64,
+                                 "a" * 64 + " "])
 def test_a_malformed_digest_is_refused_rather_than_recorded(bad):
     """A record is evidence. A digest that is not a digest would be published as
     a proven identity by a gate that only checks presence."""
