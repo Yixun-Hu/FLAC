@@ -392,7 +392,7 @@ CANONICAL_MAPPINGA_PREPARE_PARAMS = {
     "n_items": 1152,
     # the correspondence algorithm IS the scientific claim, so its version and
     # every tolerance are part of what a consumer verifies
-    "match_algorithm_version": "mappingA-correspondence-1",
+    "match_algorithm_version": "mappingA-correspondence-2",
     "match_p95_m": 0.01,
     "match_max_m": 0.02,
     "match_ambiguity_margin": 3.0,
@@ -408,7 +408,7 @@ CANONICAL_MAPPINGA_PREPARE_PARAMS = {
     # one thing knowable only from the canonical generation itself; while it is a
     # placeholder no canonical publication may be made (the prepare CLI refuses).
     "correspondence_sha256":
-        "f2da911b5de82e7914a0cf234c0f0713051880784a4a71c163fa92b377288da4",
+        "d4d79b49677b7bc7541bf0e7dfe7f32f532912f6a268fca1d421b280c799663e",
     "audio_union_sha256": SHA256_SHAPE,
     "readback_record_sha256":
         "9288181be62bf8b4669880522fadaab18527facb2749837f768572069f4876c3",

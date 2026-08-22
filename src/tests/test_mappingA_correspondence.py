@@ -413,3 +413,112 @@ def test_source_xyz_key_is_the_six_decimal_rendering():
     assert mac.source_xyz_key([1.0, -0.0, 2.5]) == "1.000000,0.000000,2.500000"
     assert mac.source_xyz_key([1.0, 0.0, 2.5]) == mac.source_xyz_key([1.0, -0.0, 2.5])
     assert mac.source_xyz_key([1.0, 0.0, 2.5]) != mac.source_xyz_key([1.000001, 0.0, 2.5])
+
+
+# --------------------------------------------------------------------------- #
+# r2 N9: rigid residual, per-slot evidence, duplicates, degenerate margins
+# --------------------------------------------------------------------------- #
+def _rotation_z(degrees):
+    angle = np.radians(degrees)
+    c, s = np.cos(angle), np.sin(angle)
+    return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+
+
+def test_a_rigid_motion_has_no_residual():
+    """One rotation and one translation explain the whole array -- the definition
+    of the re-occupied rig the same-microphone claim assumes."""
+    template = rigid_array()
+    rotation = _rotation_z(7.0)
+    moved = (rotation @ template.T).T + np.array([1.0, -2.0, 0.5])
+    residual = mac.rigid_residual(template, moved)
+    assert residual["rms_m"] < 1e-12 and residual["max_m"] < 1e-12
+    assert abs(residual["rotation_deg"] - 7.0) < 1e-9
+    assert abs(residual["translation_m"] - np.linalg.norm([1.0, -2.0, 0.5])) < 1e-9
+
+
+def test_a_deformed_array_has_a_residual_the_per_mic_gates_cannot_see():
+    """Every displacement is inside tolerance, yet no rigid motion maps the set
+    onto the template: that is exactly what the residual is for."""
+    template = rigid_array()
+    group = template.copy()
+    group[5] += np.array([0.0, 0.0, 0.006])       # 6 mm on one mic only
+    report = mac.match_mics(template, group)
+    assert report["max_m"] <= mac.MATCH_MAX_M     # per-mic gates are clean
+    assert report["p95_m"] <= mac.MATCH_P95_M
+    assert report["rigid_residual_rms_m"] > 1e-4
+    assert report["rigid_residual_max_m"] > 5e-3
+    assert report["passed"] is True               # RECORDED, not gated
+
+
+def test_a_mirror_image_is_not_reported_as_a_rigid_fit():
+    template = rigid_array()
+    mirrored = template * np.array([1.0, 1.0, -1.0])
+    residual = mac.rigid_residual(template, mirrored)
+    assert residual["rms_m"] > 0.1
+
+
+def test_duplicate_receiver_positions_are_refused():
+    template = rigid_array()
+    group = template.copy()
+    group[7] = group[3]                            # two mics at one point
+    report = mac.match_mics(template, group)
+    assert report["passed"] is False
+    assert any("duplicate" in reason for reason in report["reasons"])
+    assert report["duplicate_positions"]["group"][0]["i"] == 3
+    assert report["duplicate_positions"]["group"][0]["j"] == 7
+    assert report["duplicate_positions"]["template"] == []
+
+
+def test_a_duplicated_template_mic_is_refused_too():
+    template = rigid_array()
+    template[2] = template[1]
+    report = mac.match_mics(template, rigid_array())
+    assert report["passed"] is False
+    assert any("template holds" in reason for reason in report["reasons"])
+
+
+def test_two_mics_on_one_slot_is_the_most_ambiguous_case_not_the_least():
+    """matched == second == 0 used to read as an infinite margin -- the most
+    decisive verdict available -- for the one configuration that is a coin flip."""
+    template = rigid_array()
+    group = template.copy()
+    group[9] = group[8]                            # both sit on template slot 8
+    report = mac.match_mics(template, group)
+    assert report["min_ambiguity_margin"] == 0.0
+    assert report["passed"] is False
+    reasons = " ".join(report["reasons"])
+    assert "duplicate" in reasons and "ambiguity margin" in reasons
+
+
+def test_an_exact_hit_with_a_distant_neighbour_is_still_unambiguous():
+    report = mac.match_mics(rigid_array(), rigid_array())
+    assert report["min_ambiguity_margin"] == float("inf")
+    assert report["passed"] is True
+
+
+def test_the_evidence_digest_names_the_assignment_not_its_summary():
+    """Two matches can share p95, max and margin exactly and still be different
+    correspondences; the digest is over the per-slot assignment itself."""
+    template = rigid_array()
+    identity = mac.match_mics(template, template)
+
+    permutation = list(range(36))
+    permutation[0], permutation[1] = permutation[1], permutation[0]
+    relabelled = mac.match_mics(template, permuted(template, permutation))
+    assert relabelled["p95_m"] == identity["p95_m"]
+    assert relabelled["max_m"] == identity["max_m"]
+    assert relabelled["min_ambiguity_margin"] == identity["min_ambiguity_margin"]
+    assert relabelled["assignment"] != identity["assignment"]
+    assert relabelled["evidence_sha256"] != identity["evidence_sha256"]
+    # ... and it is stable: the same inputs digest to the same value
+    assert mac.match_mics(template, template)["evidence_sha256"] == \
+        identity["evidence_sha256"]
+    assert len(identity["evidence_sha256"]) == 64
+    assert len(identity["per_slot_evidence"]) == 36
+
+
+def test_the_algorithm_version_moved_with_the_algorithm():
+    """A record produced under -1 describes a different computation: no rigid
+    residual, no evidence digest, duplicates matched and zero/zero margins read as
+    infinite."""
+    assert mac.MATCH_ALGORITHM_VERSION == "mappingA-correspondence-2"

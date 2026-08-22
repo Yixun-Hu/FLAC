@@ -61,6 +61,10 @@ def audit_room(raf_root, room):
     by_key = {g["group_key"]: g for g in sized}
     placements, eligible = [], []
     all_p50, all_p95, all_max, all_margin = [], [], [], []
+    # r2 N9: the rigid residual is recorded (never gated), and duplicated receiver
+    # positions are counted -- a group holding them cannot be matched at all.
+    all_rigid_rms, all_rigid_max = [], []
+    n_duplicate_groups = 0
     n_pass = n_fail = 0
 
     for cluster in clusters:
@@ -79,8 +83,18 @@ def audit_room(raf_root, room):
                 "min_ambiguity_margin": (None
                                          if not np.isfinite(report["min_ambiguity_margin"])
                                          else report["min_ambiguity_margin"]),
+                "rigid_residual_rms_m": report["rigid_residual_rms_m"],
+                "rigid_residual_max_m": report["rigid_residual_max_m"],
+                "rigid_rotation_deg": report["rigid_rotation_deg"],
+                "rigid_translation_m": report["rigid_translation_m"],
+                "n_duplicate_positions": len(report["duplicate_positions"]["group"]),
+                "evidence_sha256": report["evidence_sha256"],
                 "source_xyz_key": mac.source_xyz_key(group["tx_xyz"]),
             })
+            all_rigid_rms.append(report["rigid_residual_rms_m"])
+            all_rigid_max.append(report["rigid_residual_max_m"])
+            if report["duplicate_positions"]["group"]:
+                n_duplicate_groups += 1
             all_p50.append(report["p50_m"])
             all_p95.append(report["p95_m"])
             all_max.append(report["max_m"])
@@ -130,6 +144,9 @@ def audit_room(raf_root, room):
         "eligible_placement_ids": eligible,
         "n_groups_passing": n_pass,
         "n_groups_failing": n_fail,
+        "n_groups_with_duplicate_positions": n_duplicate_groups,
+        "rigid_residual_rms_m": stats(all_rigid_rms),
+        "rigid_residual_max_m": stats(all_rigid_max),
         "displacement_p50_m": stats(all_p50),
         "displacement_p95_m": stats(all_p95),
         "displacement_max_m": stats(all_max),
@@ -160,6 +177,7 @@ def main(argv=None):
             "match_p95_m": mac.MATCH_P95_M,
             "match_max_m": mac.MATCH_MAX_M,
             "match_ambiguity_margin": mac.MATCH_AMBIGUITY_MARGIN,
+            "duplicate_tolerance_m": mac.DUPLICATE_TOLERANCE_M,
             "min_eligible_groups_per_placement": MIN_ELIGIBLE_GROUPS,
             "required_eligible_placements_per_room": REQUIRED_PLACEMENTS,
         },

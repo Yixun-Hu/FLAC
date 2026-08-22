@@ -307,9 +307,13 @@ def load_correspondence_record(path, rooms, canonical, raf_root=None):
             f"{path} audits algorithm {record.get('algorithm_version')!r}, this run "
             f"uses {MATCH_ALGORITHM_VERSION!r}")
     tolerances = record.get("tolerances") or {}
-    expected_tolerances = {"placement_cap_m": PLACEMENT_CAP_M, "p95_m": MATCH_P95_M,
-                           "max_m": MATCH_MAX_M,
-                           "ambiguity_margin": MATCH_AMBIGUITY_MARGIN}
+    # the readback driver's own key names -- checked against the committed record
+    # in the tests, because a tolerance this code cannot find is a tolerance it
+    # cannot verify
+    expected_tolerances = {"placement_cap_m": PLACEMENT_CAP_M,
+                           "match_p95_m": MATCH_P95_M,
+                           "match_max_m": MATCH_MAX_M,
+                           "match_ambiguity_margin": MATCH_AMBIGUITY_MARGIN}
     wrong = {k: (tolerances.get(k), v) for k, v in expected_tolerances.items()
              if tolerances.get(k) != v}
     if wrong:
@@ -966,7 +970,12 @@ def survey_room(room_dir, room):
                 passing.append(by_key[key])
                 assignment[key] = report["assignment"]
                 match[key] = {"p95_m": report["p95_m"], "max_m": report["max_m"],
-                              "min_ambiguity_margin": report["min_ambiguity_margin"]}
+                              "min_ambiguity_margin": report["min_ambiguity_margin"],
+                              # N9: the per-slot assignment this group's items rest
+                              # on, named by its own digest rather than by three
+                              # summary statistics several assignments could share
+                              "evidence_sha256": report["evidence_sha256"],
+                              "rigid_residual_rms_m": report["rigid_residual_rms_m"]}
             else:
                 n_fail += 1
         distinct = {source_xyz_key(g["tx_xyz"]) for g in passing}

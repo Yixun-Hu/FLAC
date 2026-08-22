@@ -470,8 +470,9 @@ def _correspondence_for(tmp_path, raf_root, room_names=("EmptyRoom", "FurnishedR
         "raf_root": str(raf_root),
         "algorithm_version": prep_a.MATCH_ALGORITHM_VERSION,
         "tolerances": {"placement_cap_m": prep_a.PLACEMENT_CAP_M,
-                       "p95_m": prep_a.MATCH_P95_M, "max_m": prep_a.MATCH_MAX_M,
-                       "ambiguity_margin": prep_a.MATCH_AMBIGUITY_MARGIN},
+                       "match_p95_m": prep_a.MATCH_P95_M,
+                       "match_max_m": prep_a.MATCH_MAX_M,
+                       "match_ambiguity_margin": prep_a.MATCH_AMBIGUITY_MARGIN},
         "rooms": _correspondence_summary(raf_root, room_names),
         "verdict": {"eligible": True},
     }
@@ -925,12 +926,12 @@ def test_a_record_from_another_algorithm_or_tolerance_is_refused(cli_corpus,
 
     loose = _correspondence_for(
         tmp_path, cli_corpus, name="t.json",
-        tolerances={"placement_cap_m": prep_a.PLACEMENT_CAP_M, "p95_m": 0.05,
-                    "max_m": prep_a.MATCH_MAX_M,
-                    "ambiguity_margin": prep_a.MATCH_AMBIGUITY_MARGIN})
+        tolerances={"placement_cap_m": prep_a.PLACEMENT_CAP_M, "match_p95_m": 0.05,
+                    "match_max_m": prep_a.MATCH_MAX_M,
+                    "match_ambiguity_margin": prep_a.MATCH_AMBIGUITY_MARGIN})
     with pytest.raises(prep_a.CorrespondenceRecordError) as exc:
         prep_a.main(_cli_argv(tmp_path, cli_corpus, readback, correspondence=loose))
-    assert "tolerances" in str(exc.value) and "p95_m" in str(exc.value)
+    assert "tolerances" in str(exc.value) and "match_p95_m" in str(exc.value)
 
 
 def test_a_record_that_does_not_describe_this_corpus_is_refused(cli_corpus, tmp_path):
@@ -977,3 +978,19 @@ def test_the_record_is_hashed_from_the_bytes_that_were_parsed(cli_corpus, tmp_pa
         raw = f.read()
     assert provenance["sha256"] == hashlib.sha256(raw).hexdigest()
     assert parsed == json.loads(raw.decode())
+
+
+def test_the_committed_record_is_readable_by_the_loader_that_pins_it(tmp_path):
+    """The loader and the readback driver have to agree on the record's SHAPE, not
+    only on its digest: a tolerance the loader cannot find is a tolerance it never
+    verified. (r2 N9 regenerated this record under correspondence-2.)"""
+    record = os.path.join(_REPO_ROOT, "worklog", "worklog_yixun",
+                          "exp_21_raf_mappingA_claude",
+                          "mappingA_correspondence_record.json")
+    parsed, provenance = prep_a.load_correspondence_record(
+        record, ["EmptyRoom", "FurnishedRoom"], canonical=False)
+    assert provenance["taint"] == []          # it IS the registered record
+    assert parsed["algorithm_version"] == prep_a.MATCH_ALGORITHM_VERSION
+    assert set(parsed["rooms"]) == {"EmptyRoom", "FurnishedRoom"}
+    for room in parsed["rooms"].values():
+        assert len(room["eligible_placement_ids"]) >= 16
