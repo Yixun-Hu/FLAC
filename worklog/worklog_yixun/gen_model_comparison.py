@@ -174,6 +174,37 @@ ROWS = [
  ("BFC C4-Cartesian FA @40k (exp_21)", "fa_cartesian eval", 8,
   ["outputs_FLAC/exp21_BFC/**/*step=40000_metrics_1_1.0_"
    "exp21_BFC_S40000_K8_s4[2-6]_fa_cartesian_a4.json"], "exp21"),
+] + [
+ # --- exp_21 D6: BOTH comparators re-evaluated at THIS evaluator pin ----------
+ # Approved by Yixun (plan §5, D6-a). The historical "fa scratch B-F @40k" and
+ # "P1 vanilla @40k" rows above were measured at a different pin, under the
+ # legacy per-angle orbit executor, before --cond-autocast bf16 and before the
+ # per-scene and stream provenance existed; `model_comparison.md` already marks
+ # legacy-loop and batched rows non-interchangeable. Reading BFC as a paired
+ # delta against them would fold the whole evaluator shift into the arm's effect.
+ #
+ # These four rows are the SAME two checkpoints, re-evaluated cell-for-cell with
+ # BFC's flags (only --cond-method differs, by arm), so BFC-minus-comparator is
+ # the mechanism and nothing else. The historical rows are NOT edited -- other
+ # sessions own that history; the paired-vs-contextual distinction is emitted by
+ # `check_exp21_cross_arm` as a note on THESE rows (see there).
+ #
+ # They land in exp_07's checkpoint directories, because eval_FLAC writes beside
+ # the checkpoint it reads. Verified before registering: neither directory holds
+ # any file matching *exp21* (144 and 215 files), and no historical row's glob
+ # matches these stems, so nothing is clobbered or silently absorbed.
+ ("B-F @40k re-eval at the exp_21 pin (D6 paired comparator)", "fa eval (repin)", 1,
+  ["outputs_FLAC/exp07_BF/**/*step=40000_metrics_1_1.0_"
+   "exp21_BFre_S40000_K1_s4[2-6]_fa_invariant_a4.json"], "exp21c"),
+ ("B-F @40k re-eval at the exp_21 pin (D6 paired comparator)", "fa eval (repin)", 8,
+  ["outputs_FLAC/exp07_BF/**/*step=40000_metrics_1_1.0_"
+   "exp21_BFre_S40000_K8_s4[2-6]_fa_invariant_a4.json"], "exp21c"),
+ ("P1 @40k re-eval at the exp_21 pin (D6 paired comparator)", "vanilla eval (repin)", 1,
+  ["outputs_FLAC/exp07_P1/**/*step=40000_metrics_1_1.0_"
+   "exp21_P1re_S40000_K1_s4[2-6].json"], "exp21c"),
+ ("P1 @40k re-eval at the exp_21 pin (D6 paired comparator)", "vanilla eval (repin)", 8,
+  ["outputs_FLAC/exp07_P1/**/*step=40000_metrics_1_1.0_"
+   "exp21_P1re_S40000_K8_s4[2-6].json"], "exp21c"),
 ]
 
 EXP11_VALIDATOR = os.path.join(REPO, "worklog", "worklog_yixun", "exp_11_fa_orbit_claude",
@@ -215,12 +246,20 @@ def is_exp11_row(patterns):
 
 
 def is_exp21_row(patterns):
-    """Does this row's evidence come from exp_21's fa_cartesian arm?
+    """Does this row's evidence come from the exp_21 CAMPAIGN?
 
-    Its own namespace (``outputs_FLAC/exp21_BFC/``) and its own method suffix, so
-    no other experiment's heuristic can claim it and it claims nothing else.
+    Its own eval-name namespace (``exp21_BFC`` / ``exp21_BFre`` / ``exp21_P1re``),
+    so no other experiment's heuristic can claim it and it claims nothing else.
+
+    The D6 comparator rows must be in here too: their cells live under
+    ``outputs_FLAC/exp07_*/`` (eval_FLAC writes beside the checkpoint it reads),
+    so a namespace test keyed on the BFC output DIRECTORY would miss them, and
+    ``protocol_label`` would then append "(legacy-loop)" to a `fa eval (repin)`
+    row that in fact ran the batched executor -- a false execution label on a row
+    nobody touched, which is the exact failure the exp_11 disclosure exists to
+    prevent.
     """
-    return any("exp21_BFC" in p for p in patterns)
+    return any("exp21_" in p for p in patterns)
 
 
 def is_batched_orbit_row(patterns):
@@ -625,6 +664,11 @@ def validate_exp21_cell(files, repo_root=None, expected_k=None):
             shas.add(str(sha))
         problems += [f"{base}: {r}" for r in V.validate_metrics_record(record, cell)]
         problems += [f"{base}: {r}" for r in _exp21_metric_reasons(record)]
+        # FULL-SPLIT PROOF (r5 review BLOCKING 3). n_samples counts what the loop
+        # saw, and the loop counts silently substituted items too; the registered
+        # command therefore records the assignment stream, and the sidecar is
+        # REQUIRED evidence rather than an optional extra.
+        problems += [f"{base}: {r}" for r in V.stream_sidecar_reasons(path)]
     # CHECKPOINT IDENTITY (r4 review BLOCKING 3). Every per-record rule can pass
     # while the five seeds sample five DIFFERENT 40k checkpoints -- two runs of
     # the same arm, or a re-run after a crash -- which is not one measurement
@@ -632,14 +676,16 @@ def validate_exp21_cell(files, repo_root=None, expected_k=None):
     if len(ckpts) > 1:
         problems.append(f"the cell spans MORE THAN ONE checkpoint {sorted(ckpts)}: the five "
                         "seeds of a row are five samplings of ONE checkpoint")
-    # ...and the digest, once the eval driver records one. Path identity is the
-    # floor: a path proves which file was NAMED, a digest proves which bytes were
-    # LOADED. Partial presence is refused outright -- the record without a digest
-    # is exactly where a substituted checkpoint would hide.
-    if shas and without_sha:
+    # ...and the digest, which the eval driver now always records (r5 review
+    # BLOCKING 2). Path identity is only the floor: a path proves which file was
+    # NAMED, a digest proves which bytes were LOADED. Absence BLOCKS -- the record
+    # without a digest is exactly where a substituted or re-trained checkpoint
+    # would hide, and the per-record gate names it too, so this is the cross-record
+    # half only.
+    if without_sha:
         problems.append(f"{len(without_sha)} of {len(records)} records carry no "
-                        f"{V.CKPT_SHA_FIELD} while the others do ({sorted(without_sha)}): a "
-                        "partially proven checkpoint identity is not a proven one")
+                        f"{V.CKPT_SHA_FIELD} ({sorted(without_sha)}): an unproven "
+                        "checkpoint identity is not a proven one")
     if len(shas) > 1:
         problems.append(f"the cell spans MORE THAN ONE {V.CKPT_SHA_FIELD} {sorted(shas)}: "
                         "the same path can name different bytes")
@@ -695,7 +741,12 @@ def check_exp21_round(exp21_cells, exp21_status):
     # ...and ONE evaluator pin across both K: per-cell validation proves each K
     # internally, but cannot see that the two blocks were measured at different
     # commits, which is precisely what the paired K=1/K=8 reading would inherit.
-    ckpts = {}
+    ckpts, digests = {}, {}
+    try:
+        sha_field = _load_exp21_validator().CKPT_SHA_FIELD
+    except Exception:                              # the gate must not fail open
+        return problems + ["cannot load the exp_21 validator to check checkpoint "
+                           "digests across the two K rows"]
     for (label, k), files in sorted(present.items()):
         for path in files:
             try:
@@ -708,6 +759,8 @@ def check_exp21_round(exp21_cells, exp21_status):
             shas.setdefault(str(record.get("source_sha")), []).append(f"{label} K={k}")
             ckpts.setdefault(os.path.normpath(str(record.get("ckpt_path"))),
                              []).append(f"{label} K={k}")
+            digests.setdefault(str(record.get(sha_field, "<absent>")),
+                               []).append(f"{label} K={k}")
     # ONE checkpoint across BOTH K (r4 review BLOCKING 3). K=1 and K=8 evaluate
     # the same weights and differ only in context size; per-cell validation
     # proves each block internally and cannot see that they came from different
@@ -717,12 +770,174 @@ def check_exp21_round(exp21_cells, exp21_status):
                            for c, cells in sorted(ckpts.items()))
         problems.append("the exp_21 K=1 and K=8 rows were produced from MORE THAN ONE "
                         f"checkpoint - {detail}")
+    # ...and the BYTES, not just the path (r5 review BLOCKING 2). One path across
+    # both K is satisfied by K=1 consistently loading bytes A while K=8 loads
+    # bytes B -- a re-trained arm written to the same filename, which is exactly
+    # what a digest exists to make visible.
+    if len(digests) > 1 or "<absent>" in digests:
+        detail = "; ".join(f"{d[:12]}: {sorted(set(cells))}"
+                           for d, cells in sorted(digests.items()))
+        problems.append(f"the exp_21 K=1 and K=8 rows do not share ONE proven "
+                        f"{sha_field} - {detail}")
     if len(shas) > 1:
         detail = "; ".join(f"{sha[:12]}: {sorted(set(cells))}"
                            for sha, cells in sorted(shas.items()))
         problems.append("the exp_21 K=1 and K=8 rows span MORE THAN ONE evaluator pin, so "
                         f"the paired reading is not a within-pin comparison - {detail}")
     return problems
+
+
+# --- the exp_21 D6 comparator contract (plan §5, r5 review BLOCKING 4) --------
+EXP21_PROTOCOL = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "exp_21_bf_fa_cartesian_claude",
+    "exp21_protocol.py")
+
+#: Which campaign arm each registered comparator row publishes. The labels are
+#: literal here (as every row spec's are) and pinned equal to the protocol
+#: module's own ``row_label`` by test -- the anti-drift rule this file uses
+#: everywhere: state it once, check the copy.
+EXP21C_ARM_OF_LABEL = {
+    "B-F @40k re-eval at the exp_21 pin (D6 paired comparator)": "BFre",
+    "P1 @40k re-eval at the exp_21 pin (D6 paired comparator)": "P1re",
+}
+
+
+def _load_exp21_protocol(path=None):
+    """exp_21's campaign definition (arms, flags, per-arm training contracts)."""
+    import importlib.util
+    target = os.path.abspath(path or EXP21_PROTOCOL)
+    spec = importlib.util.spec_from_file_location("exp21_protocol", target)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load the exp_21 protocol from {target}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def validate_exp21c_cell(files, repo_root=None, expected_k=None, expected_arm=None):
+    """``(ok, problems)`` for one D6 comparator row.
+
+    The SAME machinery as ``validate_exp21_cell`` -- deliberately, since the whole
+    point of D6 is that these cells and BFC's are one campaign. What differs is
+    the arm PROFILE (its cond_method, whether it runs an orbit, and what its
+    checkpoint must have been TRAINED as), which the protocol module owns.
+    """
+    if not files:
+        return True, []
+    try:
+        V = _load_exp21_validator()
+        P = _load_exp21_protocol()
+    except Exception as exc:                       # the gate must not fail open
+        return False, [f"cannot load the exp_21 protocol/validator ({exc})"]
+    if expected_arm not in P.ARMS:
+        return False, [f"row is not registered to a campaign arm ({expected_arm!r})"]
+    prof = P.arm_profile(expected_arm)
+
+    records, problems = {}, []
+    for path in sorted(set(files)):
+        try:
+            with open(path) as fh:
+                records[path] = json.load(fh)
+        except (ValueError, OSError) as exc:
+            problems.append(f"{os.path.basename(path)}: unreadable ({exc})")
+    if problems:
+        return False, problems
+
+    seeds, ks, pins, ckpts, shas, without_sha = [], set(), set(), set(), set(), []
+    for path, record in sorted(records.items()):
+        base = os.path.basename(path)
+        try:
+            cell = V.parse_arm_eval_name(str((record or {}).get("eval_name") or ""),
+                                         prof["eval_prefix"])
+        except ValueError as exc:
+            problems.append(f"{base}: {exc}")
+            continue
+        seeds.append(int(cell.seed))
+        ks.add(int(cell.k))
+        pins.add(str((record or {}).get("source_sha")))
+        ckpts.add(os.path.normpath(str((record or {}).get("ckpt_path"))))
+        sha = (record or {}).get(V.CKPT_SHA_FIELD)
+        (without_sha.append(base) if sha is None else shas.add(str(sha)))
+        problems += [f"{base}: {r}" for r in V.validate_metrics_record(record, cell, prof)]
+        problems += [f"{base}: {r}" for r in _exp21_metric_reasons(record)]
+        problems += [f"{base}: {r}" for r in V.stream_sidecar_reasons(path)]
+    if len(ckpts) > 1:
+        problems.append(f"the cell spans MORE THAN ONE checkpoint {sorted(ckpts)}: the five "
+                        "seeds of a row are five samplings of ONE checkpoint")
+    if without_sha:
+        problems.append(f"{len(without_sha)} of {len(records)} records carry no "
+                        f"{V.CKPT_SHA_FIELD} ({sorted(without_sha)}): an unproven "
+                        "checkpoint identity is not a proven one")
+    if len(shas) > 1:
+        problems.append(f"the cell spans MORE THAN ONE {V.CKPT_SHA_FIELD} {sorted(shas)}: "
+                        "the same path can name different bytes")
+    if expected_k is not None and ks and ks != {int(expected_k)}:
+        problems.append(f"the row declares K={int(expected_k)} but its evidence is "
+                        f"K {sorted(ks)}: a renamed payload is not a re-measurement")
+    if sorted(seeds) != list(V.SEEDS):
+        counts = {s: seeds.count(s) for s in sorted(set(seeds))}
+        dupes = sorted(s for s, n in counts.items() if n > 1)
+        problems.append(f"the cell must be exactly {len(V.SEEDS)} records, one per seed "
+                        f"{list(V.SEEDS)}; got {len(seeds)} with seeds {sorted(seeds)}"
+                        + (f" (duplicated: {dupes})" if dupes else ""))
+    if len(pins) > 1:
+        problems.append(f"the cell spans MORE THAN ONE evaluator pin {sorted(pins)}")
+    return (not problems), problems
+
+
+def check_exp21_cross_arm(cells, status):
+    """``(withheld_keys, problems, notes)`` — the D6 paired reading, or none of it.
+
+    ``cells`` maps ``(label, K) -> files`` across BFC *and* both comparators;
+    ``status`` carries each cell's already-computed validation.
+
+    A paired delta is only a delta if both sides were measured the same way. The
+    per-row gates prove each arm internally and CANNOT see that BFC was measured
+    at one evaluator commit and its comparator at another — which is precisely
+    the reading D6 exists to make safe. So: one ``source_sha`` across every
+    landed exp_21 row, or every one of them is withheld rather than published
+    beside numbers it must not be subtracted from.
+
+    Nothing landed yet is not a failed transaction — it is a set of rows
+    registered in advance, which the generator renders as pending.
+
+    THE NOTE is the other half of finding 4, and it is why this returns notes at
+    all. The historical B-F and P1 rows stay exactly as they are (other sessions
+    own that history, and this file has concurrent writers), so the
+    paired-vs-contextual distinction is stated HERE, about these rows, naming the
+    historical ones as contextual-only.
+    """
+    present = {key: files for key, files in cells.items() if files}
+    if not present:
+        return set(), [], []
+    problems, notes, pins = [], [], {}
+    for (label, k), files in sorted(present.items()):
+        if not status.get((label, k), False):
+            continue                       # its own row gate already blocked it
+        for path in files:
+            try:
+                with open(path) as fh:
+                    record = json.load(fh)
+            except Exception as exc:               # noqa: BLE001
+                problems.append(f"{os.path.basename(path)}: unreadable while checking "
+                                f"the exp_21 cross-arm pin ({exc})")
+                continue
+            pins.setdefault(str(record.get("source_sha")), set()).add(f"{label} K={k}")
+    if len(pins) > 1:
+        detail = "; ".join(f"{sha[:12]}: {sorted(cellset)}"
+                           for sha, cellset in sorted(pins.items()))
+        problems.append("the exp_21 arms span MORE THAN ONE evaluator pin, so BFC minus "
+                        f"its comparator is not a within-pin delta - {detail}")
+        return set(present), problems, notes
+    if pins:
+        notes.append(
+            "**exp_21 paired block (D6):** the BFC row and the two `(repin)` "
+            f"comparator rows were all measured at evaluator pin `{sorted(pins)[0][:12]}`, "
+            "so BFC-minus-comparator is a within-pin paired delta. The historical "
+            "`fa scratch B-F @40k` and `P1 vanilla @40k` rows are CONTEXTUAL ONLY for "
+            "exp_21: different evaluator pin and legacy orbit execution, so no "
+            "paired-delta claim may be made against them.")
+    return set(), problems, notes
 
 
 def exp14_arm_of(label):
@@ -960,6 +1175,14 @@ def render_row(label, proto, K, files, repo_root=None, validator_path=None, cont
                 detail = problems[0] if problems else "unspecified"
                 return (f"| {label} | {proto} | {K} | {len(files)} | "
                         f"**BLOCKED — row validation failed:** {detail} | | | | | |"), True
+        if contract == "exp21c":
+            ok, problems = validate_exp21c_cell(
+                files, repo_root=repo_root, expected_k=K,
+                expected_arm=EXP21C_ARM_OF_LABEL.get(label))
+            if not ok:
+                detail = problems[0] if problems else "unspecified"
+                return (f"| {label} | {proto} | {K} | {len(files)} | "
+                        f"**BLOCKED — row validation failed:** {detail} | | | | | |"), True
         r, n = agg_files(files)
     if r is None or n < MIN_SEEDS:
         return (f"| {label} | {proto} | {K} | {n} | "
@@ -1176,6 +1399,7 @@ def main(argv=None):
     rendered, blocked_rows, exp11_status, q9_cells = [], [], {}, {}
     exp14_cells, exp14_status = {}, {}
     exp21_cells, exp21_status = {}, {}
+    exp21_arm_cells, exp21_arm_status = {}, {}
     for spec in ROWS:
         label, proto, K, pats = spec[:4]
         contract = spec[4] if len(spec) > 4 else "table"
@@ -1199,6 +1423,10 @@ def main(argv=None):
             # same discipline as exp_14's: the transaction gate consumes the
             # validation computed while rendering, never a file count
             exp21_status[(label, K)] = bool(files) and not blocked
+        if contract in ("exp21", "exp21c"):
+            # the CROSS-ARM transaction spans BFC and both D6 comparators
+            exp21_arm_cells[(label, K)] = files
+            exp21_arm_status[(label, K)] = bool(files) and not blocked
         if blocked:
             blocked_rows.append(f"{label} (K={K})")
         if is_exp11_row(pats) and files:
@@ -1267,6 +1495,24 @@ def main(argv=None):
                                          "the exp_21 BFC row publishes only as a complete "
                                          "K=1 + K=8 pair at ONE evaluator pin")
         lines_tail += ["", "**exp_21 BFC rows WITHHELD:** " + "; ".join(exp21_problems)]
+    # ...and the D6 cross-arm transaction on top: BFC and its two re-evaluated
+    # comparators publish as a paired block at ONE evaluator pin, or none of them
+    # renders as paired-comparable. This is the reading D6 was approved to make
+    # safe, so it is gated rather than annotated.
+    x_withheld, x_problems, x_notes = check_exp21_cross_arm(exp21_arm_cells,
+                                                            exp21_arm_status)
+    if x_problems:
+        print("exp_21 paired block not publishable:", file=sys.stderr)
+        for problem in x_problems:
+            print("  -", problem, file=sys.stderr)
+        for r in rendered:
+            if (r["label"], r["K"]) in x_withheld:
+                r["line"] = withheld_row(r["label"], r["proto"], r["K"], r["n"],
+                                         "the exp_21 arms publish as a paired block "
+                                         "measured at ONE evaluator pin")
+        lines_tail += ["", "**exp_21 paired block WITHHELD:** " + "; ".join(x_problems)]
+    if x_notes:
+        lines_tail += [""] + x_notes
     two_k = check_two_k_coverage(exp11_status)
     if two_k:
         bad_labels = {p.split(":")[0] for p in two_k}

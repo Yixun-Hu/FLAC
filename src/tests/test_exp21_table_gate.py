@@ -85,6 +85,35 @@ DATASET = {8: "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json"
 CKPT = ("outputs_FLAC/exp21_BFC/FLAC_exp21_BFC/exp21_BFC/checkpoints/"
         "epoch=19-step=40000.ckpt")
 PIN = "c" * 40
+CKPT_SHA = "d" * 64
+
+
+def stream_payload(count=6337, **over):
+    """The ``.stream.json`` sidecar ``--record-stream`` writes beside a cell.
+
+    Built to eval_FLAC.build_stream_record's shape. The per-position input tuple
+    is ``[position, "<dataset idx>|<relpath>", [context ids], img_w]`` — and it is
+    the dataset idx inside that target id that makes a silent substitution
+    visible, since ``SampleDataset`` serves a RANDOM OTHER item on a load or
+    silence failure and that item carries its own idx.
+    """
+    payload = {
+        "schema_version": 1,
+        "fingerprint_schema": 1,
+        "rotate_mode": "fixed",
+        "rotate_seed": None,
+        "rotate_deg": 0.0,
+        "img_w": 512,
+        "stream_count": count,
+        "input_tuples": [[i, f"{i}|r/{i}.wav", ["0.000000,0.000000,0.000000"], 512]
+                         for i in range(count)],
+        "offsets": [None] * count,
+        "assignment_tuples": [[i, f"{i}|r/{i}.wav", None] for i in range(count)],
+        "input_hash": "e" * 64,
+        "assignment_hash": "f" * 64,
+    }
+    payload.update(over)
+    return payload
 
 
 def record(k=8, seed=42, **over):
@@ -111,6 +140,13 @@ def record(k=8, seed=42, **over):
         "eval_name": f"exp21_BFC_S40000_K{k}_s{seed}",
         "weights_source": "ema",
         "device": "cuda",
+        # ROUND 5: the two identity fields eval_FLAC now records for every run.
+        # ckpt_sha256 says which BYTES were loaded (a path only says which file
+        # was named); trained_cond_method is the trained-as binding's receipt —
+        # without it, "cond_method: fa_cartesian" is a claim about the EVALUATION
+        # that a vanilla or B-F checkpoint would have produced identically.
+        "ckpt_sha256": CKPT_SHA,
+        "trained_cond_method": "fa_cartesian",
         # --record-per-scene is part of the registered command (plan §5), so the
         # per-scene payload is part of the registered record.
         "by_scene": by_scene(),
@@ -121,8 +157,13 @@ def record(k=8, seed=42, **over):
     return rec
 
 
-def write_cell(dirpath, k=8, seed=42, **over):
-    """One per-seed JSON at the path the row glob expects."""
+def write_cell(dirpath, k=8, seed=42, stream=True, stream_over=None, **over):
+    """One per-seed JSON at the path the row glob expects, plus its sidecar.
+
+    ``stream`` writes the ``.stream.json`` the registered command produces;
+    admission REQUIRES it (r5 review BLOCKING 3), so a test that wants the
+    missing-sidecar failure passes ``stream=False``.
+    """
     os.makedirs(dirpath, exist_ok=True)
     rec = record(k, seed, **over)
     name = (f"epoch=19-step=40000_metrics_1_1.0_"
@@ -130,6 +171,9 @@ def write_cell(dirpath, k=8, seed=42, **over):
     path = os.path.join(dirpath, name)
     with open(path, "w") as fh:
         json.dump(rec, fh)
+    if stream:
+        with open(path[: -len(".json")] + ".stream.json", "w") as fh:
+            json.dump(stream_payload(**(stream_over or {})), fh)
     return path
 
 
@@ -160,8 +204,10 @@ class TestRowSpecs:
         for expected in ("exp_11 baseline", "exp_14 Z", "exp_15", "exp_17",
                          "released FLAC_EMA (exp_01 repro)"):
             assert any(expected in l for l in labels), expected
-        # ...and the exp_21 rows are at the END, appended, not interleaved
-        assert [len(s) > 4 and s[4] == CONTRACT for s in gen.ROWS][-2:] == [True, True]
+        # ...and the exp_21 rows are at the END, appended, not interleaved: the
+        # two BFC rows, then round 5's four D6 comparator rows.
+        contracts = [s[4] if len(s) > 4 else "table" for s in gen.ROWS]
+        assert contracts[-6:] == [CONTRACT, CONTRACT] + ["exp21c"] * 4
 
     def test_the_globs_find_the_registered_filenames(self, gen, tmp_path):
         """The spec's glob and the name eval_FLAC actually writes must agree —
@@ -739,3 +785,173 @@ class TestValidatorModule:
         cell = V.parse_eval_name("exp21_BFC_S40000_K8_s42")
         reasons = V.validate_metrics_record(dict(record(8, 42), seed=43), cell)
         assert any("seed" in r for r in reasons), reasons
+
+
+# --------------------------------------------------------------------------- #
+# 4. ROUND 5 — the three things a record must PROVE, not claim
+#
+# Integrative full review, findings 2/3/4. Each of these was admissible before
+# this round: a cell could omit the checkpoint digest entirely, could have
+# evaluated a silently-substituted split, and could be read as a paired delta
+# against a comparator measured at another evaluator pin.
+# --------------------------------------------------------------------------- #
+class TestCheckpointDigest:
+    def test_a_record_without_a_digest_blocks(self, gen, V, tmp_path):
+        """Absence must BLOCK. Previously the check slept: `ckpt_sha256` was
+        accepted when absent, so all ten rows could omit it and pass."""
+        files = [write_cell(str(tmp_path / "K8"), k=8, seed=s,
+                            **{V.CKPT_SHA_FIELD: None}) for s in (42, 43, 44, 45, 46)]
+        for path in files:                       # None is written as JSON null
+            rec = json.loads(Path(path).read_text())
+            rec.pop(V.CKPT_SHA_FIELD)
+            Path(path).write_text(json.dumps(rec))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert not ok
+        assert any(V.CKPT_SHA_FIELD in p for p in problems), problems
+
+    @pytest.mark.parametrize("bad", ["", "zz", "D" * 64, "d" * 63, 42])
+    def test_a_malformed_digest_blocks(self, gen, V, tmp_path, bad):
+        files = [write_cell(str(tmp_path / "K8"), k=8, seed=s,
+                            **{V.CKPT_SHA_FIELD: bad}) for s in (42, 43, 44, 45, 46)]
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert not ok
+        assert any(V.CKPT_SHA_FIELD in p for p in problems), problems
+
+    def test_two_digests_within_one_cell_block(self, gen, V, tmp_path):
+        files = [write_cell(str(tmp_path / "K8"), k=8, seed=s,
+                            **{V.CKPT_SHA_FIELD: ("d" * 64 if s < 45 else "a" * 64)})
+                 for s in (42, 43, 44, 45, 46)]
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert not ok
+        assert any("MORE THAN ONE" in p for p in problems), problems
+
+    def test_K1_digest_A_beside_K8_digest_B_blocks_the_pair(self, gen, V, tmp_path):
+        """The same PATH can name different BYTES: an arm re-trained over its own
+        checkpoint file would give K=1 bytes A and K=8 bytes B, and every
+        per-cell rule would still pass. This is the r4 requirement of ONE digest
+        across all ten cells, which only the round gate can see."""
+        cells, status = {}, {}
+        for k, sha in ((1, "d" * 64), (8, "a" * 64)):
+            files = [write_cell(str(tmp_path / f"K{k}"), k=k, seed=s,
+                                **{V.CKPT_SHA_FIELD: sha}) for s in (42, 43, 44, 45, 46)]
+            cells[(LABEL, k)] = files
+            status[(LABEL, k)] = True
+        problems = gen.check_exp21_round(cells, status)
+        assert any(V.CKPT_SHA_FIELD in p for p in problems), problems
+
+    def test_one_digest_across_both_K_passes(self, gen, tmp_path):
+        cells, status = {}, {}
+        for k in (1, 8):
+            cells[(LABEL, k)] = full_cell(tmp_path, k=k)
+            status[(LABEL, k)] = True
+        assert gen.check_exp21_round(cells, status) == []
+
+    def test_the_trained_as_receipt_is_required_and_checked(self, gen, V, tmp_path):
+        """`cond_method` says how the EVALUATION conditioned — which a vanilla or
+        B-F checkpoint under `--cond-method fa_cartesian` would report
+        identically. Only the receipt says what the WEIGHTS are."""
+        missing = [write_cell(str(tmp_path / "a"), k=8, seed=s) for s in
+                   (42, 43, 44, 45, 46)]
+        for path in missing:
+            rec = json.loads(Path(path).read_text())
+            rec.pop(V.TRAINED_FIELD)
+            Path(path).write_text(json.dumps(rec))
+        ok, problems = gen.validate_exp21_cell(missing, expected_k=8)
+        assert not ok and any(V.TRAINED_FIELD in p for p in problems), problems
+
+        wrong = [write_cell(str(tmp_path / "b"), k=8, seed=s,
+                            **{V.TRAINED_FIELD: "fa_invariant"})
+                 for s in (42, 43, 44, 45, 46)]
+        ok, problems = gen.validate_exp21_cell(wrong, expected_k=8)
+        assert not ok and any(V.TRAINED_FIELD in p for p in problems), problems
+
+
+class TestFullSplitProof:
+    def test_the_registered_command_carries_the_stream_flags(self, V):
+        """The flags must be in the module every driver reads, not only in prose:
+        without them eval_FLAC accumulates no stream and its positional
+        substitution guard never runs."""
+        assert "--record-stream" in V.__doc__
+        assert f"--expected-stream-count {V.EXPECTED_COUNT}" in V.__doc__
+
+    def test_a_missing_sidecar_blocks(self, gen, tmp_path):
+        files = [write_cell(str(tmp_path / "K8"), k=8, seed=s, stream=False)
+                 for s in (42, 43, 44, 45, 46)]
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert not ok
+        assert any("sidecar" in p for p in problems), problems
+
+    def test_an_unreadable_sidecar_blocks(self, gen, tmp_path):
+        files = [write_cell(str(tmp_path / "K8"), k=8, seed=s)
+                 for s in (42, 43, 44, 45, 46)]
+        Path(files[0][: -len(".json")] + ".stream.json").write_text("{not json")
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert not ok and any("unreadable" in p for p in problems), problems
+
+    @pytest.mark.parametrize("count", [6336, 6338, 0, 100])
+    def test_a_stream_that_does_not_cover_the_split_blocks(self, gen, tmp_path, count):
+        """A subsampled or dropped-item run is perfectly self-consistent; only
+        the pre-registered count catches it (announcement 01)."""
+        files = [write_cell(str(tmp_path / "K8"), k=8, seed=s,
+                            stream_over={"count": count}) for s in (42, 43, 44, 45, 46)]
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert not ok
+        assert any("registered split" in p for p in problems), problems
+
+    def test_a_stream_count_that_lies_about_its_own_payload_blocks(self, gen, tmp_path):
+        files = [write_cell(str(tmp_path / "K8"), k=8, seed=s,
+                            stream_over={"count": 6337, "stream_count": 12})
+                 for s in (42, 43, 44, 45, 46)]
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert not ok and any("stream_count" in p for p in problems), problems
+
+    def test_a_substituted_item_blocks_even_though_the_count_is_right(
+            self, gen, tmp_path):
+        """THE failure this exists for. `SampleDataset` serves a random OTHER
+        item on a load/silence failure (dataset.py:342/358); the substitute still
+        increments n_samples and usually keeps the ten family keys, so every
+        other rule passes. Position 4000 holding item 17 is the only trace."""
+        payload = stream_payload()
+        payload["input_tuples"][4000] = [4000, "17|r/17.wav",
+                                         ["0.000000,0.000000,0.000000"], 512]
+        files = [write_cell(str(tmp_path / "K8"), k=8, seed=s, stream_over=payload)
+                 for s in (42, 43, 44, 45, 46)]
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert not ok
+        assert any("4000" in p and "17" in p for p in problems), problems
+
+    def test_an_out_of_order_stream_blocks(self, gen, tmp_path):
+        payload = stream_payload()
+        payload["input_tuples"][3] = [9, "9|r/9.wav", [], 512]
+        files = [write_cell(str(tmp_path / "K8"), k=8, seed=s, stream_over=payload)
+                 for s in (42, 43, 44, 45, 46)]
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert not ok and any("position" in p for p in problems), problems
+
+    @pytest.mark.parametrize("over,fragment", [
+        ({"schema_version": 2}, "schema_version"),
+        ({"fingerprint_schema": 2}, "fingerprint_schema"),
+        ({"rotate_mode": "random"}, "rotate_mode"),
+        ({"rotate_deg": 45.0}, "rotate_deg"),
+    ])
+    def test_a_sidecar_from_another_protocol_blocks(self, gen, tmp_path, over,
+                                                    fragment):
+        files = [write_cell(str(tmp_path / "K8"), k=8, seed=s, stream_over=over)
+                 for s in (42, 43, 44, 45, 46)]
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert not ok and any(fragment in p for p in problems), problems
+
+    def test_a_good_sidecar_passes(self, gen, tmp_path):
+        ok, problems = gen.validate_exp21_cell(full_cell(tmp_path, k=8), expected_k=8)
+        assert ok, problems
+
+    def test_the_sidecar_path_rule_is_eval_FLACs_own(self, V):
+        """The rule is restated in the validator (which must import cleanly from a
+        worklog-only worktree), so it is pinned equal to the source here."""
+        import sys
+        sys.path.insert(0, str(REPO))
+        import eval_FLAC
+        for name in ("a_metrics_1_1.0_x.json", "b.json", "no_extension"):
+            assert V.stream_sidecar_path(name) == eval_FLAC.stream_sidecar_path(name)
+        assert V.STREAM_SCHEMA_VERSION == eval_FLAC.STREAM_SCHEMA_VERSION
+        assert V.FINGERPRINT_SCHEMA == eval_FLAC.CONTEXT_FINGERPRINT_SCHEMA
