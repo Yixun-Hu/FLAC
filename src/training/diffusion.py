@@ -238,17 +238,21 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             raise ValueError(f"yaw_aug_img_w must be > 0, got {yaw_aug_img_w}")
         if isinstance(yaw_aug_seed, bool) or not isinstance(yaw_aug_seed, int):
             raise ValueError(f"yaw_aug_seed must be an int, got {yaw_aug_seed!r}")
-        # exp_21 widens this to every frame-averaged method. The rationale is the
-        # method's, not the arm's: the C4 orbit already symmetrises over exactly
-        # the yaw subgroup the augmentation would sample from, so composing them
-        # is neither a no-op nor the declared treatment of either experiment. It
-        # stays a rejection rather than a silent compose.
+        # exp_21 widens this to every frame-averaged method. The two groups are
+        # NOT the same one (r2 review, nit 1): draw_yaw_offsets samples uniformly
+        # over ALL img_w column rotations — C512 at the registered img_w=512 —
+        # while the frame average symmetrises over the C4 subgroup alone. So this
+        # is not "the augmentation is already covered"; it is that a C512
+        # augmentation composed with a C4 orbit is a THIRD treatment, distinct
+        # from either arm, that no experiment has approved or measured. It fails
+        # closed rather than composing silently.
         if yaw_aug_enabled and cond_method in ("fa_invariant", "fa_cartesian"):
             raise ValueError(
                 f"yaw_aug_enabled=True with cond_method={cond_method!r} is an "
                 "untested combination and out of scope for exp_15 (fa_invariant) "
-                "and exp_21 (fa_cartesian): the frame average already symmetrises "
-                "over the yaw subgroup the augmentation would draw from."
+                "and exp_21 (fa_cartesian): yaw_aug draws uniformly over all "
+                "img_w column rotations, so composing it with the C4 frame "
+                "average is a distinct, unapproved treatment — not a no-op."
             )
 
         self.yaw_aug_enabled = yaw_aug_enabled

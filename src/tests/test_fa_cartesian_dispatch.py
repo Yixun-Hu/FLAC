@@ -3,9 +3,17 @@
 RED first. ``DiffusionCondTrainingWrapper``'s cond_method whitelist admits only
 ``vanilla`` / ``fa_invariant``; ``_compute_conditioning`` has no ``fa_cartesian``
 branch; ``_parse_yaw_aug_config`` rejects only ``fa_invariant``; and
-``FLAC_AR_BFC.json`` does not exist yet. Every test here fails until the round-2
-implementation commit, and each one pins a contract the plan states (§3b, §3c,
-§3e, §3h item 9).
+``FLAC_AR_BFC.json`` does not exist yet. Each test pins a contract the plan
+states (§3b, §3c, §3e, §3h item 9).
+
+The recorded red phase was **22 failed / 22 passed**, not a clean sweep (r2
+review, nit 2). The 22 pre-implementation passes are deliberate no-change pins:
+the factory's ``frame_avg_angles`` forwarding and ``_parse_frame_avg_cap_config``
+are not cond_method-gated, so they already plumbed correctly to an
+``fa_cartesian`` wrapper and there was nothing to make green — they are asserted
+so a gate added LATER fails here rather than in a multi-day run. Those tests
+reach the factory through a stubbed wrapper, which is what lets them run at all
+while the real whitelist still rejected the method.
 
 **Why a new file rather than more cases in ``test_cond_dispatch.py``.** That file
 is exp_03's audited record of the vanilla/fa_invariant contract and is part of
@@ -345,6 +353,34 @@ def stub_wrapper(monkeypatch):
     return captured
 
 
+@pytest.fixture()
+def wrapper_must_not_be_constructed(monkeypatch):
+    """Replace the wrapper with a stub that FAILS if it is ever built.
+
+    r2 review, BLOCKING finding. A factory-guard test that constructs the real
+    wrapper does not test the factory guard: the wrapper carries its own
+    yaw_aug × frame-average rejection whose message also contains ``yaw_aug`` and
+    the method name, so deleting ``"fa_cartesian"`` from
+    ``_parse_yaw_aug_config``'s membership tuple would leave such a test green.
+    (That is also why its red-phase failure proved nothing about the factory: the
+    pre-implementation wrapper rejected ``fa_cartesian`` merely as an unknown
+    method.)
+
+    ``AssertionError`` is deliberately not a ``ValueError``, so it cannot be
+    absorbed by the ``pytest.raises(ValueError)`` under test: reaching
+    construction fails the test loudly instead of quietly satisfying it.
+    """
+    class _Forbidden:
+        def __init__(self, model, **kwargs):
+            raise AssertionError(
+                "the factory went on to CONSTRUCT the wrapper: "
+                "_parse_yaw_aug_config did not reject this combination, so any "
+                "ValueError this test could see would be the wrapper's guard "
+                "standing in for the factory's")
+
+    monkeypatch.setattr(tdiff, "DiffusionCondTrainingWrapper", _Forbidden)
+
+
 YAW_AUG_BLOCK = {"enabled": True, "img_w": 512, "seed": 42}
 
 
@@ -362,7 +398,12 @@ def test_wrapper_ctor_rejects_yaw_aug_with_a_frame_averaged_method(method):
 
 
 @pytest.mark.parametrize("method", ["fa_invariant", BFC_COND_METHOD])
-def test_factory_rejects_yaw_aug_with_a_frame_averaged_method(method):
+def test_factory_rejects_yaw_aug_with_a_frame_averaged_method(
+        method, wrapper_must_not_be_constructed):
+    """Isolated to the FACTORY site (r2 review, BLOCKING): with construction
+    forbidden, ``_parse_yaw_aug_config`` is the only thing that can raise a
+    ValueError here, so the test fails if its membership tuple loses the method.
+    The wrapper site keeps its own independent pin above."""
     with pytest.raises(ValueError) as e:
         create_training_wrapper_from_config(
             _factory_config(cond_method=method, yaw_aug=dict(YAW_AUG_BLOCK)), object())

@@ -47,17 +47,20 @@ def _parse_yaw_aug_config(training_config):
         return {}
 
     # exp_21 widens this to every frame-averaged method (the wrapper's own guard
-    # is widened in step). The reason is the method's, not the arm's: the orbit
-    # already symmetrises over exactly the subgroup the augmentation would draw
-    # from, so composing them is neither a no-op nor anything either experiment
-    # declared.
+    # is widened in step, and is pinned independently of this one). The two groups
+    # do NOT coincide (r2 review, nit 1): draw_yaw_offsets samples uniformly over
+    # ALL img_w column rotations — C512 at the registered img_w=512 — while the
+    # frame average symmetrises over the C4 subgroup alone. The rejection stands
+    # because their composition is a THIRD treatment neither experiment declared,
+    # not because the orbit already covers the augmentation.
     cond_method = training_config.get("cond_method", "vanilla")
     if cond_method in ("fa_invariant", "fa_cartesian"):
         raise ValueError(
             f"training.yaw_aug.enabled=true with cond_method={cond_method!r} is an "
             "untested combination and out of scope for exp_15 (fa_invariant) and "
-            "exp_21 (fa_cartesian): frame averaging already symmetrises over the "
-            "yaw subgroup."
+            "exp_21 (fa_cartesian): yaw_aug draws uniformly over all img_w column "
+            "rotations, so composing it with the C4 frame average is a distinct, "
+            "unapproved treatment -- not a no-op."
         )
 
     for key in ("img_w", "seed"):
