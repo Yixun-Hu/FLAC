@@ -65,6 +65,21 @@ def V():
 METRICS = {"T60": 8.5, "C50": 0.97, "EDT": 37.0,
            "RIR_to_GT_RIR_R@1": 5.4, "RIR_to_GT_RIR_R@5": 16.1,
            "RIR_to_GT_RIR_R@10": 23.3}
+# The ten AR room families, read from the SPLIT the row is registered against —
+# never hand-typed here either (the test would then only prove the validator
+# agrees with my typing). `data/AR/unseen_eval.json` is a dict keyed by family,
+# and `AR_md.py:23` sets md['scene'] to exactly that key, which is what the
+# metric callback groups on.
+SPLIT_FAMILIES = tuple(sorted(json.loads(
+    (REPO / "data" / "AR" / "unseen_eval.json").read_text())))
+SCENE_PAYLOAD = {"T60": 7.9, "C50": 0.93, "EDT": 35.5, "Invalid T60": 0.0}
+
+
+def by_scene(**over):
+    """A per-scene block covering all ten families, as --record-per-scene writes."""
+    block = {fam: dict(SCENE_PAYLOAD) for fam in SPLIT_FAMILIES}
+    block.update(over)
+    return block
 DATASET = {8: "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
            1: "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json"}
 CKPT = ("outputs_FLAC/exp21_BFC/FLAC_exp21_BFC/exp21_BFC/checkpoints/"
@@ -96,6 +111,11 @@ def record(k=8, seed=42, **over):
         "eval_name": f"exp21_BFC_S40000_K{k}_s{seed}",
         "weights_source": "ema",
         "device": "cuda",
+        # --record-per-scene is part of the registered command (plan §5), so the
+        # per-scene payload is part of the registered record.
+        "by_scene": by_scene(),
+        "per_scene_schema": 1,
+        "scene_count": 10,
     }
     rec.update(over)
     return rec
@@ -372,6 +392,160 @@ class TestAdmission:
         assert ok is False
         assert any("eval_name" in p for p in problems), problems
 
+    # --- r4 review BLOCKING 2: the per-scene evidence ---------------------- #
+    # Plan §3g requires the ten room-family keys, which is what proves
+    # --record-per-scene actually ran. The flat metrics stay the table estimand;
+    # this block is the registered AUXILIARY estimand (the paper-style per-scene
+    # mean), and a row published without it silently drops a deliverable the
+    # command was written to produce.
+    def test_a_record_without_a_per_scene_block_is_refused(self, gen, tmp_path):
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        for key in ("by_scene", "per_scene_schema", "scene_count"):
+            rec.pop(key)
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert ok is False
+        assert any("by_scene" in p for p in problems), problems
+
+    @pytest.mark.parametrize("mutate,fragment", [
+        (lambda r: r.__setitem__("per_scene_schema", 2), "per_scene_schema"),
+        (lambda r: r.pop("per_scene_schema"), "per_scene_schema"),
+        (lambda r: r.__setitem__("scene_count", 9), "scene_count"),
+        (lambda r: r.pop("scene_count"), "scene_count"),
+    ])
+    def test_a_malformed_per_scene_schema_is_refused(self, gen, tmp_path, mutate, fragment):
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        mutate(rec)
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert ok is False
+        assert any(fragment in p for p in problems), problems
+
+    def test_a_wrong_family_key_is_refused(self, gen, tmp_path):
+        """The key SET is pinned, not its size: two different ten-family
+        groupings are the same number of scenes and a different estimand."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["by_scene"]["Kitchen"] = rec["by_scene"].pop(SPLIT_FAMILIES[0])
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert ok is False
+        assert any("Kitchen" in p or SPLIT_FAMILIES[0] in p for p in problems), problems
+
+    def test_an_extra_family_is_refused(self, gen, tmp_path):
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["by_scene"]["Hallway"] = dict(SCENE_PAYLOAD)
+        rec["scene_count"] = 11
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert ok is False
+        assert any("Hallway" in p or "11" in p for p in problems), problems
+
+    def test_a_missing_family_is_refused(self, gen, tmp_path):
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["by_scene"].pop(SPLIT_FAMILIES[-1])
+        rec["scene_count"] = 9
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert ok is False
+        assert any(SPLIT_FAMILIES[-1] in p or "scene_count" in p for p in problems), problems
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), None, "3.0", True])
+    def test_a_non_finite_per_family_value_is_refused(self, gen, tmp_path, bad):
+        """The per-scene mean is the mean OVER these ten values: one NaN does not
+        degrade the estimate, it destroys it."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["by_scene"][SPLIT_FAMILIES[3]]["EDT"] = bad
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert ok is False
+        assert any(SPLIT_FAMILIES[3] in p for p in problems), problems
+
+    def test_a_missing_per_family_metric_is_refused(self, gen, tmp_path):
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["by_scene"][SPLIT_FAMILIES[2]].pop("C50")
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert ok is False
+        assert any("C50" in p for p in problems), problems
+
+    # --- r4 review BLOCKING 3: checkpoint identity -------------------------- #
+    @pytest.mark.parametrize("ckpt,ok_expected", [
+        ("outputs_FLAC/exp21_BFC/x/checkpoints/epoch=99-step=400000.ckpt", False),
+        ("outputs_FLAC/exp21_BFC/x/checkpoints/epoch=1-step=4000.ckpt", False),
+        ("outputs_FLAC/exp21_BFC/x/checkpoints/epoch=19-step=40000.ckpt", True),
+    ])
+    def test_the_step_is_parsed_not_substring_matched(self, gen, tmp_path, ckpt, ok_expected):
+        """``step=400000`` CONTAINS ``step=40000``. A substring check publishes a
+        400k checkpoint under the 40k row's name."""
+        files = full_cell(tmp_path, k=8, ckpt_path=ckpt)
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert ok is ok_expected, problems
+        if not ok_expected:
+            assert any("step" in p for p in problems), problems
+
+    def test_a_cell_spanning_two_checkpoints_is_refused(self, gen, tmp_path):
+        """Five seeds are five samplings of ONE checkpoint. Two 40k checkpoints
+        from different runs would satisfy every per-record rule and still not be
+        a row."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["ckpt_path"] = ("outputs_FLAC/exp21_BFC/OTHER_RUN/exp21_BFC/checkpoints/"
+                            "epoch=19-step=40000.ckpt")
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert ok is False
+        assert any("checkpoint" in p for p in problems), problems
+
+    def test_the_two_K_rows_must_share_one_checkpoint(self, gen, tmp_path):
+        """K=1 and K=8 evaluate the SAME weights; only the context size differs.
+        Per-cell validation cannot see that they came from different runs."""
+        other = ("outputs_FLAC/exp21_BFC/OTHER_RUN/exp21_BFC/checkpoints/"
+                 "epoch=19-step=40000.ckpt")
+        cells = {(LABEL, 8): full_cell(tmp_path, k=8),
+                 (LABEL, 1): full_cell(tmp_path, k=1, ckpt_path=other)}
+        status = {(LABEL, 8): True, (LABEL, 1): True}
+        problems = gen.check_exp21_round(cells, status)
+        assert any("checkpoint" in p for p in problems), problems
+
+    def test_a_checkpoint_digest_is_enforced_once_the_field_exists(self, gen, tmp_path):
+        """FORWARD CONTRACT. ``build_metrics_record`` records no checkpoint sha
+        today, so path identity is the floor. When the eval driver adds one, the
+        stronger check must engage on its own — a digest that disagrees across
+        the cell is a different checkpoint wearing the same path."""
+        files = full_cell(tmp_path, k=8, ckpt_sha256="a" * 64)
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert ok, problems                                   # uniform: fine
+        rec = json.load(open(files[0]))
+        rec["ckpt_sha256"] = "b" * 64
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert ok is False
+        assert any("ckpt_sha256" in p for p in problems), problems
+
+    def test_a_partially_present_digest_is_refused(self, gen, tmp_path):
+        """Four cells carrying a digest and one not is not 'mostly proven': the
+        unproven one is exactly where a substituted checkpoint would hide."""
+        files = full_cell(tmp_path, k=8, ckpt_sha256="a" * 64)
+        rec = json.load(open(files[0]))
+        rec.pop("ckpt_sha256")
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert ok is False
+        assert any("ckpt_sha256" in p for p in problems), problems
+
+    def test_a_malformed_digest_is_refused(self, gen, tmp_path):
+        files = full_cell(tmp_path, k=8, ckpt_sha256="not-a-digest")
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert ok is False
+        assert any("ckpt_sha256" in p for p in problems), problems
+
     def test_a_rotation_grid_cell_cannot_stand_in_for_the_table_cell(self, gen, tmp_path):
         """§5's invariance grid writes ``..._s42_rot45`` cells of the SAME
         checkpoint. They are a negative control, never a model row."""
@@ -409,8 +583,9 @@ class TestRendering:
         and P1 rows are flat, so BFC must be too. A ``by_scene`` block may ride
         along (the §5 template passes --record-per-scene) without changing what
         this row prints."""
-        files = full_cell(tmp_path, k=8,
-                          by_scene={"Office": {"T60": 99.0}}, per_scene_schema=1)
+        files = full_cell(tmp_path, k=8, by_scene={
+            fam: {"T60": 99.0, "C50": 9.9, "EDT": 99.0, "Invalid T60": 0.0}
+            for fam in SPLIT_FAMILIES})
         values, n = gen.agg_files(files)
         assert n == 5
         assert values["T60"][0] == pytest.approx(METRICS["T60"])
@@ -479,6 +654,54 @@ class TestValidatorModule:
         assert V.COND_AUTOCAST == "bf16"
         assert V.WEIGHTS_SOURCE == "ema"
         assert V.DATASET_CONFIG == DATASET
+
+    def test_the_ten_families_are_DERIVED_from_the_registered_split(self, V):
+        """Not a hand-typed list. ``data/AR/unseen_eval.json`` is keyed by room
+        family and ``AR_md.py:23`` sets ``md['scene']`` to exactly that key,
+        which is what the metric callback groups on — so the split file IS the
+        canonical grouping, and it travels with the repo."""
+        assert V.EXPECTED_SCENE_KEYS == SPLIT_FAMILIES
+        assert len(V.EXPECTED_SCENE_KEYS) == 10
+
+    def test_the_derived_families_agree_with_exp15s_verified_list(self, V):
+        """INDEPENDENT CROSS-CHECK. exp_15's list was read back from a real
+        committed exp_14 artifact's by_scene block; this one is derived from the
+        split file. Two different derivations agreeing is what makes either
+        trustworthy — and this is the same list gen_model_comparison's
+        scene-routed aggregation consumes."""
+        exp15 = _load(REPO / "worklog" / "worklog_yixun" / "exp_15_yaw_aug_claude"
+                      / "exp15_validate_cell.py", "exp15_validate_cell")
+        assert tuple(sorted(exp15.EXPECTED_SCENE_KEYS)) == V.EXPECTED_SCENE_KEYS
+        assert exp15.EXPECTED_SCENES == len(V.EXPECTED_SCENE_KEYS)
+
+    def test_the_per_family_metrics_are_the_acoustic_estimand(self, V):
+        assert V.REQUIRED_SCENE_METRICS == ("T60", "C50", "EDT")
+        assert V.PER_SCENE_SCHEMA == 1
+
+    @pytest.mark.parametrize("path,step", [
+        ("a/epoch=19-step=40000.ckpt", 40000),
+        ("a/epoch=99-step=400000.ckpt", 400000),
+        ("a/epoch=1-step=4000.ckpt", 4000),
+    ])
+    def test_the_checkpoint_step_is_parsed(self, V, path, step):
+        assert V.parse_ckpt_step(path) == step
+
+    @pytest.mark.parametrize("path", [
+        "a/epoch=19.ckpt",                       # no step at all
+        "a/epoch=19-step=40000.pt",              # not a checkpoint
+        "a/step=40000-step=40000.ckpt",          # ambiguous: two steps
+        "",
+        None,
+    ])
+    def test_an_unparseable_checkpoint_path_raises(self, V, path):
+        with pytest.raises(ValueError):
+            V.parse_ckpt_step(path)
+
+    def test_the_digest_field_is_named_once(self, V):
+        """The forward contract with the eval driver: when it starts recording a
+        checkpoint digest, it must use THIS key or the stronger check stays
+        asleep."""
+        assert V.CKPT_SHA_FIELD == "ckpt_sha256"
 
     def test_eval_name_round_trips(self, V):
         for k in (1, 8):

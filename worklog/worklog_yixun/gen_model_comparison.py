@@ -606,6 +606,7 @@ def validate_exp21_cell(files, repo_root=None, expected_k=None):
     if problems:
         return False, problems
     seeds, ks, pins = [], set(), set()
+    ckpts, shas, without_sha = set(), set(), []
     for path, record in sorted(records.items()):
         base = os.path.basename(path)
         try:
@@ -616,8 +617,32 @@ def validate_exp21_cell(files, repo_root=None, expected_k=None):
         seeds.append(int(cell.seed))
         ks.add(int(cell.k))
         pins.add(str((record or {}).get("source_sha")))
+        ckpts.add(os.path.normpath(str((record or {}).get("ckpt_path"))))
+        sha = (record or {}).get(V.CKPT_SHA_FIELD)
+        if sha is None:
+            without_sha.append(base)
+        else:
+            shas.add(str(sha))
         problems += [f"{base}: {r}" for r in V.validate_metrics_record(record, cell)]
         problems += [f"{base}: {r}" for r in _exp21_metric_reasons(record)]
+    # CHECKPOINT IDENTITY (r4 review BLOCKING 3). Every per-record rule can pass
+    # while the five seeds sample five DIFFERENT 40k checkpoints -- two runs of
+    # the same arm, or a re-run after a crash -- which is not one measurement
+    # with five samplings, it is five measurements wearing one label.
+    if len(ckpts) > 1:
+        problems.append(f"the cell spans MORE THAN ONE checkpoint {sorted(ckpts)}: the five "
+                        "seeds of a row are five samplings of ONE checkpoint")
+    # ...and the digest, once the eval driver records one. Path identity is the
+    # floor: a path proves which file was NAMED, a digest proves which bytes were
+    # LOADED. Partial presence is refused outright -- the record without a digest
+    # is exactly where a substituted checkpoint would hide.
+    if shas and without_sha:
+        problems.append(f"{len(without_sha)} of {len(records)} records carry no "
+                        f"{V.CKPT_SHA_FIELD} while the others do ({sorted(without_sha)}): a "
+                        "partially proven checkpoint identity is not a proven one")
+    if len(shas) > 1:
+        problems.append(f"the cell spans MORE THAN ONE {V.CKPT_SHA_FIELD} {sorted(shas)}: "
+                        "the same path can name different bytes")
     # the evidence must be the DECLARED row's, not merely self-consistent
     if expected_k is not None and ks and ks != {int(expected_k)}:
         problems.append(f"the row declares K={int(expected_k)} but its evidence is "
@@ -670,16 +695,28 @@ def check_exp21_round(exp21_cells, exp21_status):
     # ...and ONE evaluator pin across both K: per-cell validation proves each K
     # internally, but cannot see that the two blocks were measured at different
     # commits, which is precisely what the paired K=1/K=8 reading would inherit.
+    ckpts = {}
     for (label, k), files in sorted(present.items()):
         for path in files:
             try:
                 with open(path) as fh:
-                    sha = json.load(fh).get("source_sha")
+                    record = json.load(fh)
             except Exception as exc:               # noqa: BLE001
                 problems.append(f"{os.path.basename(path)}: unreadable while checking the "
                                 f"exp_21 pin ({exc})")
                 continue
-            shas.setdefault(str(sha), []).append(f"{label} K={k}")
+            shas.setdefault(str(record.get("source_sha")), []).append(f"{label} K={k}")
+            ckpts.setdefault(os.path.normpath(str(record.get("ckpt_path"))),
+                             []).append(f"{label} K={k}")
+    # ONE checkpoint across BOTH K (r4 review BLOCKING 3). K=1 and K=8 evaluate
+    # the same weights and differ only in context size; per-cell validation
+    # proves each block internally and cannot see that they came from different
+    # runs, which would make the paired K reading a comparison of two models.
+    if len(ckpts) > 1:
+        detail = "; ".join(f"{os.path.basename(c)}: {sorted(set(cells))}"
+                           for c, cells in sorted(ckpts.items()))
+        problems.append("the exp_21 K=1 and K=8 rows were produced from MORE THAN ONE "
+                        f"checkpoint - {detail}")
     if len(shas) > 1:
         detail = "; ".join(f"{sha[:12]}: {sorted(set(cells))}"
                            for sha, cells in sorted(shas.items()))

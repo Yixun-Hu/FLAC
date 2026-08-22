@@ -1,0 +1,632 @@
+......................................FFFFFFFFFFFFFFF..FFFFF...........F [ 77%]
+FFFFFFFFFFF..........                                                    [100%]
+=================================== FAILURES ===================================
+_______ TestAdmission.test_a_record_without_a_per_scene_block_is_refused _______
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d30ee0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_a_record_without_a_per_sc0')
+
+    def test_a_record_without_a_per_scene_block_is_refused(self, gen, tmp_path):
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        for key in ("by_scene", "per_scene_schema", "scene_count"):
+            rec.pop(key)
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:408: AssertionError
+_ TestAdmission.test_a_malformed_per_scene_schema_is_refused[<lambda>-per_scene_schema0] _
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d301f0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_a_malformed_per_scene_sch0')
+mutate = <function TestAdmission.<lambda> at 0x7b0a448796c0>
+fragment = 'per_scene_schema'
+
+    @pytest.mark.parametrize("mutate,fragment", [
+        (lambda r: r.__setitem__("per_scene_schema", 2), "per_scene_schema"),
+        (lambda r: r.pop("per_scene_schema"), "per_scene_schema"),
+        (lambda r: r.__setitem__("scene_count", 9), "scene_count"),
+        (lambda r: r.pop("scene_count"), "scene_count"),
+    ])
+    def test_a_malformed_per_scene_schema_is_refused(self, gen, tmp_path, mutate, fragment):
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        mutate(rec)
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:423: AssertionError
+_ TestAdmission.test_a_malformed_per_scene_schema_is_refused[<lambda>-per_scene_schema1] _
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d309d0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_a_malformed_per_scene_sch1')
+mutate = <function TestAdmission.<lambda> at 0x7b0a44879630>
+fragment = 'per_scene_schema'
+
+    @pytest.mark.parametrize("mutate,fragment", [
+        (lambda r: r.__setitem__("per_scene_schema", 2), "per_scene_schema"),
+        (lambda r: r.pop("per_scene_schema"), "per_scene_schema"),
+        (lambda r: r.__setitem__("scene_count", 9), "scene_count"),
+        (lambda r: r.pop("scene_count"), "scene_count"),
+    ])
+    def test_a_malformed_per_scene_schema_is_refused(self, gen, tmp_path, mutate, fragment):
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        mutate(rec)
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:423: AssertionError
+_ TestAdmission.test_a_malformed_per_scene_schema_is_refused[<lambda>-scene_count0] _
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d30910>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_a_malformed_per_scene_sch2')
+mutate = <function TestAdmission.<lambda> at 0x7b0a448795a0>
+fragment = 'scene_count'
+
+    @pytest.mark.parametrize("mutate,fragment", [
+        (lambda r: r.__setitem__("per_scene_schema", 2), "per_scene_schema"),
+        (lambda r: r.pop("per_scene_schema"), "per_scene_schema"),
+        (lambda r: r.__setitem__("scene_count", 9), "scene_count"),
+        (lambda r: r.pop("scene_count"), "scene_count"),
+    ])
+    def test_a_malformed_per_scene_schema_is_refused(self, gen, tmp_path, mutate, fragment):
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        mutate(rec)
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:423: AssertionError
+_ TestAdmission.test_a_malformed_per_scene_schema_is_refused[<lambda>-scene_count1] _
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d306d0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_a_malformed_per_scene_sch3')
+mutate = <function TestAdmission.<lambda> at 0x7b0a44879510>
+fragment = 'scene_count'
+
+    @pytest.mark.parametrize("mutate,fragment", [
+        (lambda r: r.__setitem__("per_scene_schema", 2), "per_scene_schema"),
+        (lambda r: r.pop("per_scene_schema"), "per_scene_schema"),
+        (lambda r: r.__setitem__("scene_count", 9), "scene_count"),
+        (lambda r: r.pop("scene_count"), "scene_count"),
+    ])
+    def test_a_malformed_per_scene_schema_is_refused(self, gen, tmp_path, mutate, fragment):
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        mutate(rec)
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:423: AssertionError
+_______________ TestAdmission.test_a_wrong_family_key_is_refused _______________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d30dc0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_a_wrong_family_key_is_ref0')
+
+    def test_a_wrong_family_key_is_refused(self, gen, tmp_path):
+        """The key SET is pinned, not its size: two different ten-family
+        groupings are the same number of scenes and a different estimand."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["by_scene"]["Kitchen"] = rec["by_scene"].pop(SPLIT_FAMILIES[0])
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:434: AssertionError
+________________ TestAdmission.test_an_extra_family_is_refused _________________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d30be0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_an_extra_family_is_refuse0')
+
+    def test_an_extra_family_is_refused(self, gen, tmp_path):
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["by_scene"]["Hallway"] = dict(SCENE_PAYLOAD)
+        rec["scene_count"] = 11
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:444: AssertionError
+________________ TestAdmission.test_a_missing_family_is_refused ________________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d30b20>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_a_missing_family_is_refus0')
+
+    def test_a_missing_family_is_refused(self, gen, tmp_path):
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["by_scene"].pop(SPLIT_FAMILIES[-1])
+        rec["scene_count"] = 9
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:454: AssertionError
+_______ TestAdmission.test_a_non_finite_per_family_value_is_refused[nan] _______
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d31180>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_a_non_finite_per_family_v0')
+bad = nan
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), None, "3.0", True])
+    def test_a_non_finite_per_family_value_is_refused(self, gen, tmp_path, bad):
+        """The per-scene mean is the mean OVER these ten values: one NaN does not
+        degrade the estimate, it destroys it."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["by_scene"][SPLIT_FAMILIES[3]]["EDT"] = bad
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:466: AssertionError
+_______ TestAdmission.test_a_non_finite_per_family_value_is_refused[inf] _______
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d302b0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_a_non_finite_per_family_v1')
+bad = inf
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), None, "3.0", True])
+    def test_a_non_finite_per_family_value_is_refused(self, gen, tmp_path, bad):
+        """The per-scene mean is the mean OVER these ten values: one NaN does not
+        degrade the estimate, it destroys it."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["by_scene"][SPLIT_FAMILIES[3]]["EDT"] = bad
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:466: AssertionError
+______ TestAdmission.test_a_non_finite_per_family_value_is_refused[None] _______
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d338e0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_a_non_finite_per_family_v2')
+bad = None
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), None, "3.0", True])
+    def test_a_non_finite_per_family_value_is_refused(self, gen, tmp_path, bad):
+        """The per-scene mean is the mean OVER these ten values: one NaN does not
+        degrade the estimate, it destroys it."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["by_scene"][SPLIT_FAMILIES[3]]["EDT"] = bad
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:466: AssertionError
+_______ TestAdmission.test_a_non_finite_per_family_value_is_refused[3.0] _______
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d33790>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_a_non_finite_per_family_v3')
+bad = '3.0'
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), None, "3.0", True])
+    def test_a_non_finite_per_family_value_is_refused(self, gen, tmp_path, bad):
+        """The per-scene mean is the mean OVER these ten values: one NaN does not
+        degrade the estimate, it destroys it."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["by_scene"][SPLIT_FAMILIES[3]]["EDT"] = bad
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:466: AssertionError
+______ TestAdmission.test_a_non_finite_per_family_value_is_refused[True] _______
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d33820>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_a_non_finite_per_family_v4')
+bad = True
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), None, "3.0", True])
+    def test_a_non_finite_per_family_value_is_refused(self, gen, tmp_path, bad):
+        """The per-scene mean is the mean OVER these ten values: one NaN does not
+        degrade the estimate, it destroys it."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["by_scene"][SPLIT_FAMILIES[3]]["EDT"] = bad
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:466: AssertionError
+__________ TestAdmission.test_a_missing_per_family_metric_is_refused ___________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d32110>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_a_missing_per_family_metr0')
+
+    def test_a_missing_per_family_metric_is_refused(self, gen, tmp_path):
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["by_scene"][SPLIT_FAMILIES[2]].pop("C50")
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:475: AssertionError
+_ TestAdmission.test_the_step_is_parsed_not_substring_matched[outputs_FLAC/exp21_BFC/x/checkpoints/epoch=99-step=400000.ckpt-False] _
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d32c50>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_the_step_is_parsed_not_su0')
+ckpt = 'outputs_FLAC/exp21_BFC/x/checkpoints/epoch=99-step=400000.ckpt'
+ok_expected = False
+
+    @pytest.mark.parametrize("ckpt,ok_expected", [
+        ("outputs_FLAC/exp21_BFC/x/checkpoints/epoch=99-step=400000.ckpt", False),
+        ("outputs_FLAC/exp21_BFC/x/checkpoints/epoch=1-step=4000.ckpt", False),
+        ("outputs_FLAC/exp21_BFC/x/checkpoints/epoch=19-step=40000.ckpt", True),
+    ])
+    def test_the_step_is_parsed_not_substring_matched(self, gen, tmp_path, ckpt, ok_expected):
+        """``step=400000`` CONTAINS ``step=40000``. A substring check publishes a
+        400k checkpoint under the 40k row's name."""
+        files = full_cell(tmp_path, k=8, ckpt_path=ckpt)
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is ok_expected, problems
+E       AssertionError: []
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:489: AssertionError
+________ TestAdmission.test_a_cell_spanning_two_checkpoints_is_refused _________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d313c0>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_a_cell_spanning_two_check0')
+
+    def test_a_cell_spanning_two_checkpoints_is_refused(self, gen, tmp_path):
+        """Five seeds are five samplings of ONE checkpoint. Two 40k checkpoints
+        from different runs would satisfy every per-record rule and still not be
+        a row."""
+        files = full_cell(tmp_path, k=8)
+        rec = json.load(open(files[0]))
+        rec["ckpt_path"] = ("outputs_FLAC/exp21_BFC/OTHER_RUN/exp21_BFC/checkpoints/"
+                            "epoch=19-step=40000.ckpt")
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:503: AssertionError
+_________ TestAdmission.test_the_two_K_rows_must_share_one_checkpoint __________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d31870>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_the_two_K_rows_must_share0')
+
+    def test_the_two_K_rows_must_share_one_checkpoint(self, gen, tmp_path):
+        """K=1 and K=8 evaluate the SAME weights; only the context size differs.
+        Per-cell validation cannot see that they came from different runs."""
+        other = ("outputs_FLAC/exp21_BFC/OTHER_RUN/exp21_BFC/checkpoints/"
+                 "epoch=19-step=40000.ckpt")
+        cells = {(LABEL, 8): full_cell(tmp_path, k=8),
+                 (LABEL, 1): full_cell(tmp_path, k=1, ckpt_path=other)}
+        status = {(LABEL, 8): True, (LABEL, 1): True}
+        problems = gen.check_exp21_round(cells, status)
+>       assert any("checkpoint" in p for p in problems), problems
+E       AssertionError: []
+E       assert False
+E        +  where False = any(<generator object TestAdmission.test_the_two_K_rows_must_share_one_checkpoint.<locals>.<genexpr> at 0x7b08e9680040>)
+
+src/tests/test_exp21_table_gate.py:515: AssertionError
+___ TestAdmission.test_a_checkpoint_digest_is_enforced_once_the_field_exists ___
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d31b10>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_a_checkpoint_digest_is_en0')
+
+    def test_a_checkpoint_digest_is_enforced_once_the_field_exists(self, gen, tmp_path):
+        """FORWARD CONTRACT. ``build_metrics_record`` records no checkpoint sha
+        today, so path identity is the floor. When the eval driver adds one, the
+        stronger check must engage on its own — a digest that disagrees across
+        the cell is a different checkpoint wearing the same path."""
+        files = full_cell(tmp_path, k=8, ckpt_sha256="a" * 64)
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+        assert ok, problems                                   # uniform: fine
+        rec = json.load(open(files[0]))
+        rec["ckpt_sha256"] = "b" * 64
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:529: AssertionError
+___________ TestAdmission.test_a_partially_present_digest_is_refused ___________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d2f010>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_a_partially_present_diges0')
+
+    def test_a_partially_present_digest_is_refused(self, gen, tmp_path):
+        """Four cells carrying a digest and one not is not 'mostly proven': the
+        unproven one is exactly where a substituted checkpoint would hide."""
+        files = full_cell(tmp_path, k=8, ckpt_sha256="a" * 64)
+        rec = json.load(open(files[0]))
+        rec.pop("ckpt_sha256")
+        json.dump(rec, open(files[0], "w"))
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:540: AssertionError
+_______________ TestAdmission.test_a_malformed_digest_is_refused _______________
+
+self = <test_exp21_table_gate.TestAdmission object at 0x7b0a43d2f940>
+gen = <module 'gen_model_comparison' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/gen_model_comparison.py'>
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1323/test_a_malformed_digest_is_ref0')
+
+    def test_a_malformed_digest_is_refused(self, gen, tmp_path):
+        files = full_cell(tmp_path, k=8, ckpt_sha256="not-a-digest")
+        ok, problems = gen.validate_exp21_cell(files, expected_k=8)
+>       assert ok is False
+E       assert True is False
+
+src/tests/test_exp21_table_gate.py:546: AssertionError
+_ TestValidatorModule.test_the_ten_families_are_DERIVED_from_the_registered_split _
+
+self = <test_exp21_table_gate.TestValidatorModule object at 0x7b0a43d2fe20>
+V = <module 'exp21_validate_cell' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'>
+
+    def test_the_ten_families_are_DERIVED_from_the_registered_split(self, V):
+        """Not a hand-typed list. ``data/AR/unseen_eval.json`` is keyed by room
+        family and ``AR_md.py:23`` sets ``md['scene']`` to exactly that key,
+        which is what the metric callback groups on — so the split file IS the
+        canonical grouping, and it travels with the repo."""
+>       assert V.EXPECTED_SCENE_KEYS == SPLIT_FAMILIES
+E       AttributeError: module 'exp21_validate_cell' has no attribute 'EXPECTED_SCENE_KEYS'
+
+src/tests/test_exp21_table_gate.py:663: AttributeError
+_ TestValidatorModule.test_the_derived_families_agree_with_exp15s_verified_list _
+
+self = <test_exp21_table_gate.TestValidatorModule object at 0x7b0a43d2d390>
+V = <module 'exp21_validate_cell' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'>
+
+    def test_the_derived_families_agree_with_exp15s_verified_list(self, V):
+        """INDEPENDENT CROSS-CHECK. exp_15's list was read back from a real
+        committed exp_14 artifact's by_scene block; this one is derived from the
+        split file. Two different derivations agreeing is what makes either
+        trustworthy — and this is the same list gen_model_comparison's
+        scene-routed aggregation consumes."""
+        exp15 = _load(REPO / "worklog" / "worklog_yixun" / "exp_15_yaw_aug_claude"
+                      / "exp15_validate_cell.py", "exp15_validate_cell")
+>       assert tuple(sorted(exp15.EXPECTED_SCENE_KEYS)) == V.EXPECTED_SCENE_KEYS
+E       AttributeError: module 'exp21_validate_cell' has no attribute 'EXPECTED_SCENE_KEYS'
+
+src/tests/test_exp21_table_gate.py:674: AttributeError
+__ TestValidatorModule.test_the_per_family_metrics_are_the_acoustic_estimand ___
+
+self = <test_exp21_table_gate.TestValidatorModule object at 0x7b0a43d2e5c0>
+V = <module 'exp21_validate_cell' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'>
+
+    def test_the_per_family_metrics_are_the_acoustic_estimand(self, V):
+>       assert V.REQUIRED_SCENE_METRICS == ("T60", "C50", "EDT")
+E       AttributeError: module 'exp21_validate_cell' has no attribute 'REQUIRED_SCENE_METRICS'
+
+src/tests/test_exp21_table_gate.py:678: AttributeError
+_ TestValidatorModule.test_the_checkpoint_step_is_parsed[a/epoch=19-step=40000.ckpt-40000] _
+
+self = <test_exp21_table_gate.TestValidatorModule object at 0x7b0a43d2d0c0>
+V = <module 'exp21_validate_cell' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'>
+path = 'a/epoch=19-step=40000.ckpt', step = 40000
+
+    @pytest.mark.parametrize("path,step", [
+        ("a/epoch=19-step=40000.ckpt", 40000),
+        ("a/epoch=99-step=400000.ckpt", 400000),
+        ("a/epoch=1-step=4000.ckpt", 4000),
+    ])
+    def test_the_checkpoint_step_is_parsed(self, V, path, step):
+>       assert V.parse_ckpt_step(path) == step
+E       AttributeError: module 'exp21_validate_cell' has no attribute 'parse_ckpt_step'
+
+src/tests/test_exp21_table_gate.py:687: AttributeError
+_ TestValidatorModule.test_the_checkpoint_step_is_parsed[a/epoch=99-step=400000.ckpt-400000] _
+
+self = <test_exp21_table_gate.TestValidatorModule object at 0x7b0a43d2d870>
+V = <module 'exp21_validate_cell' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'>
+path = 'a/epoch=99-step=400000.ckpt', step = 400000
+
+    @pytest.mark.parametrize("path,step", [
+        ("a/epoch=19-step=40000.ckpt", 40000),
+        ("a/epoch=99-step=400000.ckpt", 400000),
+        ("a/epoch=1-step=4000.ckpt", 4000),
+    ])
+    def test_the_checkpoint_step_is_parsed(self, V, path, step):
+>       assert V.parse_ckpt_step(path) == step
+E       AttributeError: module 'exp21_validate_cell' has no attribute 'parse_ckpt_step'
+
+src/tests/test_exp21_table_gate.py:687: AttributeError
+_ TestValidatorModule.test_the_checkpoint_step_is_parsed[a/epoch=1-step=4000.ckpt-4000] _
+
+self = <test_exp21_table_gate.TestValidatorModule object at 0x7b0a43d2d630>
+V = <module 'exp21_validate_cell' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'>
+path = 'a/epoch=1-step=4000.ckpt', step = 4000
+
+    @pytest.mark.parametrize("path,step", [
+        ("a/epoch=19-step=40000.ckpt", 40000),
+        ("a/epoch=99-step=400000.ckpt", 400000),
+        ("a/epoch=1-step=4000.ckpt", 4000),
+    ])
+    def test_the_checkpoint_step_is_parsed(self, V, path, step):
+>       assert V.parse_ckpt_step(path) == step
+E       AttributeError: module 'exp21_validate_cell' has no attribute 'parse_ckpt_step'
+
+src/tests/test_exp21_table_gate.py:687: AttributeError
+_ TestValidatorModule.test_an_unparseable_checkpoint_path_raises[a/epoch=19.ckpt] _
+
+self = <test_exp21_table_gate.TestValidatorModule object at 0x7b0a43d2e0b0>
+V = <module 'exp21_validate_cell' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'>
+path = 'a/epoch=19.ckpt'
+
+    @pytest.mark.parametrize("path", [
+        "a/epoch=19.ckpt",                       # no step at all
+        "a/epoch=19-step=40000.pt",              # not a checkpoint
+        "a/step=40000-step=40000.ckpt",          # ambiguous: two steps
+        "",
+        None,
+    ])
+    def test_an_unparseable_checkpoint_path_raises(self, V, path):
+        with pytest.raises(ValueError):
+>           V.parse_ckpt_step(path)
+E           AttributeError: module 'exp21_validate_cell' has no attribute 'parse_ckpt_step'
+
+src/tests/test_exp21_table_gate.py:698: AttributeError
+_ TestValidatorModule.test_an_unparseable_checkpoint_path_raises[a/epoch=19-step=40000.pt] _
+
+self = <test_exp21_table_gate.TestValidatorModule object at 0x7b0a43d2df00>
+V = <module 'exp21_validate_cell' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'>
+path = 'a/epoch=19-step=40000.pt'
+
+    @pytest.mark.parametrize("path", [
+        "a/epoch=19.ckpt",                       # no step at all
+        "a/epoch=19-step=40000.pt",              # not a checkpoint
+        "a/step=40000-step=40000.ckpt",          # ambiguous: two steps
+        "",
+        None,
+    ])
+    def test_an_unparseable_checkpoint_path_raises(self, V, path):
+        with pytest.raises(ValueError):
+>           V.parse_ckpt_step(path)
+E           AttributeError: module 'exp21_validate_cell' has no attribute 'parse_ckpt_step'
+
+src/tests/test_exp21_table_gate.py:698: AttributeError
+_ TestValidatorModule.test_an_unparseable_checkpoint_path_raises[a/step=40000-step=40000.ckpt] _
+
+self = <test_exp21_table_gate.TestValidatorModule object at 0x7b0a43d2df60>
+V = <module 'exp21_validate_cell' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'>
+path = 'a/step=40000-step=40000.ckpt'
+
+    @pytest.mark.parametrize("path", [
+        "a/epoch=19.ckpt",                       # no step at all
+        "a/epoch=19-step=40000.pt",              # not a checkpoint
+        "a/step=40000-step=40000.ckpt",          # ambiguous: two steps
+        "",
+        None,
+    ])
+    def test_an_unparseable_checkpoint_path_raises(self, V, path):
+        with pytest.raises(ValueError):
+>           V.parse_ckpt_step(path)
+E           AttributeError: module 'exp21_validate_cell' has no attribute 'parse_ckpt_step'
+
+src/tests/test_exp21_table_gate.py:698: AttributeError
+_______ TestValidatorModule.test_an_unparseable_checkpoint_path_raises[] _______
+
+self = <test_exp21_table_gate.TestValidatorModule object at 0x7b0a43d2e4d0>
+V = <module 'exp21_validate_cell' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'>
+path = ''
+
+    @pytest.mark.parametrize("path", [
+        "a/epoch=19.ckpt",                       # no step at all
+        "a/epoch=19-step=40000.pt",              # not a checkpoint
+        "a/step=40000-step=40000.ckpt",          # ambiguous: two steps
+        "",
+        None,
+    ])
+    def test_an_unparseable_checkpoint_path_raises(self, V, path):
+        with pytest.raises(ValueError):
+>           V.parse_ckpt_step(path)
+E           AttributeError: module 'exp21_validate_cell' has no attribute 'parse_ckpt_step'
+
+src/tests/test_exp21_table_gate.py:698: AttributeError
+_____ TestValidatorModule.test_an_unparseable_checkpoint_path_raises[None] _____
+
+self = <test_exp21_table_gate.TestValidatorModule object at 0x7b0a43d2e200>
+V = <module 'exp21_validate_cell' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'>
+path = None
+
+    @pytest.mark.parametrize("path", [
+        "a/epoch=19.ckpt",                       # no step at all
+        "a/epoch=19-step=40000.pt",              # not a checkpoint
+        "a/step=40000-step=40000.ckpt",          # ambiguous: two steps
+        "",
+        None,
+    ])
+    def test_an_unparseable_checkpoint_path_raises(self, V, path):
+        with pytest.raises(ValueError):
+>           V.parse_ckpt_step(path)
+E           AttributeError: module 'exp21_validate_cell' has no attribute 'parse_ckpt_step'
+
+src/tests/test_exp21_table_gate.py:698: AttributeError
+___________ TestValidatorModule.test_the_digest_field_is_named_once ____________
+
+self = <test_exp21_table_gate.TestValidatorModule object at 0x7b0a43d33610>
+V = <module 'exp21_validate_cell' from '/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/exp21_validate_cell.py'>
+
+    def test_the_digest_field_is_named_once(self, V):
+        """The forward contract with the eval driver: when it starts recording a
+        checkpoint digest, it must use THIS key or the stronger check stays
+        asleep."""
+>       assert V.CKPT_SHA_FIELD == "ckpt_sha256"
+E       AttributeError: module 'exp21_validate_cell' has no attribute 'CKPT_SHA_FIELD'
+
+src/tests/test_exp21_table_gate.py:704: AttributeError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_record_without_a_per_scene_block_is_refused
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_malformed_per_scene_schema_is_refused[<lambda>-per_scene_schema0]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_malformed_per_scene_schema_is_refused[<lambda>-per_scene_schema1]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_malformed_per_scene_schema_is_refused[<lambda>-scene_count0]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_malformed_per_scene_schema_is_refused[<lambda>-scene_count1]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_wrong_family_key_is_refused
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_an_extra_family_is_refused
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_missing_family_is_refused
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_non_finite_per_family_value_is_refused[nan]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_non_finite_per_family_value_is_refused[inf]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_non_finite_per_family_value_is_refused[None]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_non_finite_per_family_value_is_refused[3.0]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_non_finite_per_family_value_is_refused[True]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_missing_per_family_metric_is_refused
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_the_step_is_parsed_not_substring_matched[outputs_FLAC/exp21_BFC/x/checkpoints/epoch=99-step=400000.ckpt-False]
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_cell_spanning_two_checkpoints_is_refused
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_the_two_K_rows_must_share_one_checkpoint
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_checkpoint_digest_is_enforced_once_the_field_exists
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_partially_present_digest_is_refused
+FAILED src/tests/test_exp21_table_gate.py::TestAdmission::test_a_malformed_digest_is_refused
+FAILED src/tests/test_exp21_table_gate.py::TestValidatorModule::test_the_ten_families_are_DERIVED_from_the_registered_split
+FAILED src/tests/test_exp21_table_gate.py::TestValidatorModule::test_the_derived_families_agree_with_exp15s_verified_list
+FAILED src/tests/test_exp21_table_gate.py::TestValidatorModule::test_the_per_family_metrics_are_the_acoustic_estimand
+FAILED src/tests/test_exp21_table_gate.py::TestValidatorModule::test_the_checkpoint_step_is_parsed[a/epoch=19-step=40000.ckpt-40000]
+FAILED src/tests/test_exp21_table_gate.py::TestValidatorModule::test_the_checkpoint_step_is_parsed[a/epoch=99-step=400000.ckpt-400000]
+FAILED src/tests/test_exp21_table_gate.py::TestValidatorModule::test_the_checkpoint_step_is_parsed[a/epoch=1-step=4000.ckpt-4000]
+FAILED src/tests/test_exp21_table_gate.py::TestValidatorModule::test_an_unparseable_checkpoint_path_raises[a/epoch=19.ckpt]
+FAILED src/tests/test_exp21_table_gate.py::TestValidatorModule::test_an_unparseable_checkpoint_path_raises[a/epoch=19-step=40000.pt]
+FAILED src/tests/test_exp21_table_gate.py::TestValidatorModule::test_an_unparseable_checkpoint_path_raises[a/step=40000-step=40000.ckpt]
+FAILED src/tests/test_exp21_table_gate.py::TestValidatorModule::test_an_unparseable_checkpoint_path_raises[]
+FAILED src/tests/test_exp21_table_gate.py::TestValidatorModule::test_an_unparseable_checkpoint_path_raises[None]
+FAILED src/tests/test_exp21_table_gate.py::TestValidatorModule::test_the_digest_field_is_named_once
+32 failed, 61 passed in 3.83s
