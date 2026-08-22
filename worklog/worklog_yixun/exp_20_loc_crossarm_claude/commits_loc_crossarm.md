@@ -67,3 +67,11 @@ exp_20 deltas. Every commit is path-scoped and TDD (red → green → commit).
 `torch.load` cannot mmap a file object, so descriptor-bound loading trades lazy
 storages for the binding: the checkpoint is resident during admission. Admission
 already builds the model for load integrity, so this adds no new peak.
+
+## Micro-round exp20-r4 (r3 re-review — the two hairline channels)
+
+| SHA | Residual | Description | changed lines |
+|---|---|---|---|
+| `5d4bab0` | F3 + F4a + F4b | dtype equality decided on the ORIGINAL tensors and masks before the float32 comparison cast (a float64/float32 pair with equal values and a bool mask both fail now); the end gate validates the RAW per-query partition list against `[M] × (orbit_size − 1)`, not only the summary ints; `fa_source_shas` is MANDATORY for a frame-average registration and must have exactly `FA_SOURCE_FILES` as keys with startup-equal digests (omitted / `{}` / partial / extra-key / wrong-digest each refuse) | +96 −24 |
+
+**Suite after exp20-r4:** 2802 passed, 10 skipped, 1 pre-existing unrelated failure (exp_11 registry drift, owned by exp_15), 2 subtests passed.
