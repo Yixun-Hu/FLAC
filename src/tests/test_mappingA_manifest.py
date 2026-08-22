@@ -247,3 +247,45 @@ def test_build_items_needs_enough_source_distinct_poses():
                            match={p["group_key"]: {"p95_m": 0.004, "max_m": 0.008,
                                                    "min_ambiguity_margin": 40.0}
                                   for p in poses}, k=8)
+
+
+# --------------------------------------------------------------------------- #
+# cycle 10: the eval config
+# --------------------------------------------------------------------------- #
+def test_the_mappingA_eval_config_points_at_the_mappingA_surface():
+    path = os.path.join(_REPO_ROOT, "src", "configs", "dataset_configs", "RAF",
+                        "eval", "raf_mappingA.json")
+    with open(path) as f:
+        config = json.load(f)
+    entry = config["datasets"][0]
+    assert entry["id"] == "RAF"
+    assert entry["path"] == "RAF/mappingA"
+    assert entry["json_file_path"] == "data/RAF/mappingA_eval.json"
+    assert entry["custom_metadata_module"] == \
+        "src/configs/dataset_configs/custom_metadata/RAF_A_md.py"
+    assert entry["folder_name"] == "mono_rirs_22050Hz"
+    assert config["modalities"]["acoustic_context"]["deterministic"] is True
+    assert config["modalities"]["acoustic_context"]["max_context"] == prep_a.CANONICAL_K
+    assert config["expected_items"] == prep_a.CANONICAL_N_ITEMS
+    assert config["is_eval"] is True and config["drop_last"] is False
+
+
+def test_the_mappingA_config_differs_from_the_mappingH_one_only_where_it_must():
+    base = os.path.join(_REPO_ROOT, "src", "configs", "dataset_configs", "RAF", "eval")
+    with open(os.path.join(base, "raf_test.json")) as f:
+        mapping_h = json.load(f)
+    with open(os.path.join(base, "raf_mappingA.json")) as f:
+        mapping_a = json.load(f)
+    changed = {k for k in set(mapping_h) | set(mapping_a)
+               if mapping_h.get(k) != mapping_a.get(k)}
+    assert changed == {"datasets", "expected_items"}
+    h_entry, a_entry = mapping_h["datasets"][0], mapping_a["datasets"][0]
+    assert {k for k in h_entry if h_entry[k] != a_entry.get(k)} == {
+        "path", "json_file_path", "custom_metadata_module"}
+    assert mapping_h["modalities"] == mapping_a["modalities"]
+
+
+def test_the_referenced_metadata_module_exists():
+    assert os.path.isfile(os.path.join(
+        _REPO_ROOT, "src", "configs", "dataset_configs", "custom_metadata",
+        "RAF_A_md.py"))
