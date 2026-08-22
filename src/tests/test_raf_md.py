@@ -889,8 +889,12 @@ def test_the_exception_type_is_raised_only_by_the_raf_hook():
          os.path.join(_REPO_ROOT, "src"), os.path.join(_REPO_ROOT, "data")],
         capture_output=True, text=True).stdout.split()
     non_test = sorted(h for h in hits if "/tests/" not in h)
-    assert [os.path.basename(h) for h in non_test] == ["RAF_md.py", "dataset.py"]
-    # dataset.py DEFINES and re-raises it; RAF_md is the only producer
+    # exp_21: the Mapping-A hook raises the same type for the same reason (an
+    # unattested tree is unusable, not a per-item load failure). The invariant is
+    # that ONLY the RAF metadata hooks produce it -- no other dataset can reach it.
+    assert [os.path.basename(h) for h in non_test] == ["RAF_A_md.py", "RAF_md.py",
+                                                       "dataset.py"]
+    # dataset.py DEFINES and re-raises it; the RAF hooks are the only producers
     from src.data.dataset import RAFPublicationError as ExcType
 
     assert issubclass(ExcType, Exception)
