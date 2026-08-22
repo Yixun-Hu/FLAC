@@ -40,3 +40,6 @@ Notes for the record:
   107 of them passing and source-distinct; many placements hold 36 or fewer). FPS
   over validated placement centroids will therefore have ample choice, but the
   16 selected placements should be reported with their group counts.
+
+## 2026-08-22T06:50:00-0400 — CODE ROUND CLOSED (R1 verified by Planner probes); canonical chain begins
+r1→r4 + closing passes: N1-N9, P1-P3, Q1-Q3, R1 all closed; 849 mappingA+raf tests + 487 consumer tests green; correspondence record independently recomputed twice by the reviewer. Residuals: audio-union pin outstanding (dry-run→pin→canonical, next), content-not-byte shared-audio identity, rigid residual recorded. Chain: full-parameter --non-canonical dry run (measures union digest) → pin → canonical prep → 1,152 listener renders → smoke → single-commit 5-arm sweep.
