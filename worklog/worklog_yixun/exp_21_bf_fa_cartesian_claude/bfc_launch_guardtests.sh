@@ -3,15 +3,27 @@
 # bfc_launch_guardtests.sh - guard-branch exercise for bfc_launch.sh
 # (same shell-pragmatic form as exp_13's dtail_launch_guardtests.sh).
 #
-# Drives the REAL launcher through every fail-closed branch AND through a
-# complete valid launch, without ever training. Two mechanisms:
+# Drives the REAL launcher through every fail-closed branch AND through both of
+# its valid modes, without ever training. Three mechanisms:
 #   * DRY_RUN=1 - the launcher's own rehearsal mode: every gate executes, the
-#     assembled command is printed as a `LAUNCH-CMD:` line, train.py is not
-#     executed. This is what the flag pins below read.
+#     assembled argv is printed (as a human `LAUNCH-CMD:` line AND as a
+#     one-token-per-line LAUNCH-ARGV block), train.py is not executed. The
+#     manifest comparison below reads the token block, not the line: a substring
+#     check cannot see a token that was split, duplicated, reordered or appended.
+#   * SMOKE=1 - the launcher's sanctioned short mode, checked to be a DIFFERENT
+#     manifest in a DIFFERENT namespace, never a loosened registered one.
 #   * dry-fail stops for the branches that must abort BEFORE the expensive
 #     gates: MIN_FREE_DISK_MB=99999999 (the df floor, which sits before the VRAM
 #     gate, the wandb gate and the init-identity audit) and MIN_FREE_MB=99000000
 #     (the VRAM gate, one step later).
+#
+# ⚠ THE RULE THIS FILE LEARNED THE HARD WAY (round-5 red phase): a case that
+# expects a REJECTION must be unable to train even when the rejection is absent.
+# Section D2's first run, against the unfixed launcher, reached a real training
+# start and created a wandb run before it was killed - the very bypass it exists
+# to forbid. Every rejection case therefore also carries a dry-fail stop, so a
+# missing guard fails the case on a missing message instead of launching a run.
+#
 # No training is launched and no GPU work is done; the init-identity audit runs
 # on CPU with CUDA_VISIBLE_DEVICES="" inside the launcher.
 #
@@ -25,7 +37,9 @@
 #     no mkdir at all, and the exercise asserts the arm's save-dir is not
 #     conjured into existence;
 #   * launcher logs created by this exercise are removed at the end (the
-#     launcher tees a timestamped *_train.log per invocation).
+#     launcher tees one timestamped log per invocation: *_train.log for a real
+#     launch, *_smoke.log for a smoke run, *_dryrun.log for a rehearsal - and
+#     section G6 asserts a rehearsal produces only the last of those).
 #
 # Usage (env flac must be active):
 #   bash worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/bfc_launch_guardtests.sh
@@ -39,6 +53,7 @@ LAUNCHER="${EXPDIR21}/bfc_launch.sh"
 BFC_CONFIG="${EXPDIR21}/FLAC_AR_BFC.json"
 BF_CONFIG="worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json"
 SAVEDIR="outputs_FLAC/exp21_BFC"
+SMOKE_SAVEDIR="outputs_FLAC/exp21_BFC_smoke"
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 LOG="${EXPDIR21}/bf_fa_cartesian_${TS}_guardtests.log"
 DRYFAIL_MIN_FREE=99000000          # forces the per-GPU VRAM gate to abort
@@ -53,6 +68,7 @@ echo "launcher: ${LAUNCHER}"
 [ -f "$BF_CONFIG" ]  || { echo "B-F reference config not found: ${BF_CONFIG} - abort"; exit 3; }
 
 SAVEDIR_EXISTED=0; [ -e "$SAVEDIR" ] && SAVEDIR_EXISTED=1
+SMOKE_SAVEDIR_EXISTED=0; [ -e "$SMOKE_SAVEDIR" ] && SMOKE_SAVEDIR_EXISTED=1
 
 TMP="$(mktemp -d)"
 CFG_BACKUP="${TMP}/FLAC_AR_BFC.json.orig"
@@ -61,9 +77,10 @@ CFG_ORIG_SHA="$(sha256sum "$BFC_CONFIG" | awk '{print $1}')"
 echo "arm config sha256 (manual recovery if hard-killed): ${CFG_ORIG_SHA}"
 
 # the launcher's own per-invocation logs (*_train.log for a real launch,
-# *_dryrun.log for a rehearsal). This exercise's own *_guardtests.log is
-# deliberately NOT in the pattern: it is the evidence this run leaves behind.
-LOG_PAT='_(train|dryrun)\.log$'
+# *_smoke.log for the sanctioned short run, *_dryrun.log for a rehearsal). This
+# exercise's own *_guardtests.log is deliberately NOT in the pattern: it is the
+# evidence this run leaves behind.
+LOG_PAT='_(train|smoke|dryrun)\.log$'
 LOGS_BEFORE="$(ls "${EXPDIR21}" | grep -E "$LOG_PAT" | sort || true)"
 
 restore_cfg() {
@@ -192,8 +209,41 @@ echo "--- D. per-GPU free-VRAM floor (a co-tenancy FLOOR, not exclusivity) ---"
 case_run "D1 an unsatisfiable VRAM floor refuses to launch" 2 \
   "GPU 0 free|||< required 99000000 MiB|||refusing to launch" -- MIN_FREE_MB="$DRYFAIL_MIN_FREE"
 
-echo "--- E. the FULL dry run: every gate, no training (LOGGER=none) ---"
-DRY_OUT="$(env DRY_RUN=1 LOGGER=none bash "$LAUNCHER" 2>&1)"; DRY_RC=$?
+echo "--- D2. the REGISTERED MANIFEST is not overridable (r4 review BLOCKING 1) ---"
+# Every one of these used to pass every gate and train an unapproved recipe.
+#
+# ⚠ EVERY case here carries the df dry-fail stop, and that is a SAFETY property,
+# not tidiness. A rejection case whose rejection is missing must still abort
+# before train.py: the first red run of this section (against the unfixed
+# launcher) reached a REAL training start and created a wandb run before it was
+# killed. With MIN_FREE_DISK_MB pinned impossibly high, a missing manifest pin
+# now fails the case on the absent substring instead of launching the recipe the
+# case exists to forbid. The cases that set DRY_RUN=1 are safe by that alone,
+# but they carry the stop too, so no case in this section depends on which guard
+# happens to fire.
+DF_STOP="MIN_FREE_DISK_MB=${DRYFAIL_MIN_DISK}"
+case_run "D2a MAXSTEPS=50000 rejected" 2 \
+  "MAXSTEPS|||40000|||SMOKE=1" -- MAXSTEPS=50000 "$DF_STOP"
+case_run "D2b MAXSTEPS=39999 rejected (shorter is also a different recipe)" 2 \
+  "MAXSTEPS|||40000|||SMOKE=1" -- MAXSTEPS=39999 "$DF_STOP"
+case_run "D2c CHECKPOINT_EVERY=1 rejected" 2 \
+  "CHECKPOINT_EVERY|||2500|||SMOKE=1" -- CHECKPOINT_EVERY=1 "$DF_STOP"
+case_run "D2d CHECKPOINT_EVERY=1250 rejected" 2 \
+  "CHECKPOINT_EVERY|||2500|||SMOKE=1" -- CHECKPOINT_EVERY=1250 "$DF_STOP"
+case_run "D2e LOGGER=none rejected in the registered mode (B-F ran on wandb)" 2 \
+  "LOGGER|||wandb|||SMOKE=1" -- LOGGER=none "$DF_STOP"
+case_run "D2f LOGGER=comet rejected" 2 "LOGGER|||wandb|||SMOKE=1" -- LOGGER=comet "$DF_STOP"
+case_run "D2g DRY_RUN=2 rejected (fail closed, not 'not 1, therefore train')" 2 \
+  "DRY_RUN must be 0 or 1" -- DRY_RUN=2 "$DF_STOP"
+case_run "D2h DRY_RUN=yes rejected" 2 "DRY_RUN must be 0 or 1" -- DRY_RUN=yes "$DF_STOP"
+case_run "D2i SMOKE=2 rejected" 2 "SMOKE must be 0 or 1" -- SMOKE=2 "$DF_STOP"
+case_run "D2j SMOKE=1 with an over-cap MAXSTEPS rejected" 2 \
+  "smoke|||50" -- SMOKE=1 MAXSTEPS=5000 DRY_RUN=1 "$DF_STOP"
+case_run "D2k SMOKE=1 LOGGER=wandb rejected (a smoke run never touches the project)" 2 \
+  "LOGGER" -- SMOKE=1 LOGGER=wandb DRY_RUN=1 "$DF_STOP"
+
+echo "--- E. the FULL dry run: every gate, the REGISTERED manifest ---"
+DRY_OUT="$(env DRY_RUN=1 bash "$LAUNCHER" 2>&1)"; DRY_RC=$?
 check "E1 full dry run exits 0 (rc=${DRY_RC})" "$([ "$DRY_RC" = "0" ] && echo 0 || echo 1)"
 if [ "$DRY_RC" != "0" ]; then
   echo "$DRY_OUT" | sed 's/^/      | /' | tail -25
@@ -211,42 +261,69 @@ for want in \
   "init identity: state_dict sha256 match under seed 42" \
   "pip-freeze sha256:" \
   "LAUNCH-CMD:" \
-  "DRY RUN: every gate above ran"; do
+  "DRY RUN (REGISTERED): every gate above ran"; do
   case "$DRY_OUT" in *"$want"*) check "E2 dry run reports: ${want}" 0;; *) check "E2 dry run reports: ${want}" 1;; esac
 done
-# ...and it must NOT have trained, nor consulted wandb under LOGGER=none
+# ...and it must NOT have trained, while the REGISTERED logger's identity gate must run
 case "$DRY_OUT" in *"BFC training exited rc="*) check "E3 train.py was NOT executed" 1;; *) check "E3 train.py was NOT executed" 0;; esac
-case "$DRY_OUT" in *"wandb identity"*) check "E4 LOGGER=none skips the wandb gate" 1;; *) check "E4 LOGGER=none skips the wandb gate" 0;; esac
+case "$DRY_OUT" in *"wandb identity: yh4742@princeton.edu"*) check "E4 the wandb identity gate ran and matched" 0;;
+  *) check "E4 the wandb identity gate ran and matched" 1; echo "$DRY_OUT" | grep -i wandb | sed 's/^/      | /' | tail -5;; esac
 
-echo "--- F. the assembled command, flag by flag (the LAUNCH-CMD line) ---"
-CMDLINE="$(printf '%s\n' "$DRY_OUT" | grep -m1 '^LAUNCH-CMD: ')"
-check "F0 a LAUNCH-CMD line was printed" "$([ -n "$CMDLINE" ] && echo 0 || echo 1)"
-echo "  ${CMDLINE}"
-for want in \
-  "python train.py" \
-  "HF_HUB_OFFLINE=1" \
-  "CUDA_VISIBLE_DEVICES=0,1" \
-  "--model-config worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/FLAC_AR_BFC.json" \
-  "--dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json" \
-  "--pretransform-ckpt-path weights/FLAC/VAE.safetensors" \
-  "--max-steps 40000" \
-  "--batch-size 32" \
-  "--accum-batches 1" \
-  "--num-workers 6" \
-  "--seed 42" \
-  "--num-gpus 2" \
-  "--strategy ddp_find_unused_parameters_true" \
-  "--sync-batchnorm true" \
-  "--precision bf16-mixed" \
-  "--checkpoint-every 2500" \
-  "--name FLAC_exp21_BFC" \
-  "--experiment-name exp21_BFC" \
-  "--save-dir outputs_FLAC/exp21_BFC"; do
-  case "$CMDLINE" in *"$want"*) check "F1 command carries: ${want}" 0;; *) check "F1 command carries: ${want}" 1;; esac
-done
+echo "--- F. the assembled argv, TOKEN BY TOKEN (r4 nit: exact vector, not substrings) ---"
+# A substring check cannot see a token that was split, duplicated, reordered or
+# appended after the ones it looked for. The launcher emits its argv one token
+# per line between markers; this compares that vector element-for-element with
+# the approved manifest, and fails on the FIRST difference.
+argv_of() { printf '%s\n' "$1" | awk '/^LAUNCH-ARGV-BEGIN$/{f=1;next} /^LAUNCH-ARGV-END$/{f=0} f'; }
+
+REG_ARGV=(env HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=0,1 python train.py
+  --model-config worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/FLAC_AR_BFC.json
+  --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json
+  --pretransform-ckpt-path weights/FLAC/VAE.safetensors
+  --max-steps 40000 --batch-size 32 --accum-batches 1
+  --num-workers 6 --seed 42
+  --num-gpus 2 --strategy ddp_find_unused_parameters_true --sync-batchnorm true
+  --precision bf16-mixed
+  --logger wandb --checkpoint-every 2500
+  --name FLAC_exp21_BFC --experiment-name exp21_BFC
+  --save-dir outputs_FLAC/exp21_BFC)
+
+compare_argv() { # $1=label $2=output ; then the expected vector as "$@"
+  local label="$1" out="$2"; shift 2
+  local -a want=("$@") got=()
+  local line
+  while IFS= read -r line; do got+=("$line"); done < <(argv_of "$out")
+  if [ "${#got[@]}" -eq 0 ]; then
+    FAIL=$((FAIL+1)); echo "FAIL  ${label}: no LAUNCH-ARGV block was emitted"; return
+  fi
+  if [ "${#got[@]}" -ne "${#want[@]}" ]; then
+    FAIL=$((FAIL+1))
+    echo "FAIL  ${label}: argv has ${#got[@]} tokens, the approved manifest has ${#want[@]}"
+    printf '      | got:  %s\n' "${got[*]}"
+    printf '      | want: %s\n' "${want[*]}"
+    return
+  fi
+  local i
+  for i in "${!want[@]}"; do
+    if [ "${got[$i]}" != "${want[$i]}" ]; then
+      FAIL=$((FAIL+1))
+      echo "FAIL  ${label}: argv token ${i} is '${got[$i]}', the approved manifest says '${want[$i]}'"
+      return
+    fi
+  done
+  PASS=$((PASS+1)); echo "PASS  ${label} (${#got[@]} tokens, exact)"
+}
+
+compare_argv "F1 registered argv matches the approved manifest token for token" \
+  "$DRY_OUT" "${REG_ARGV[@]}"
 # The absences are the point of half this file. --val-dataset-config would break
 # single-delta parity (B-F ran without a validation loader; a validation pass
-# draws RNG noise). A resume flag would make this not a from-scratch run.
+# draws RNG noise). A resume flag would make this not a from-scratch run. The
+# exact-vector check above already proves they are absent; these name them, so a
+# future manifest edit that adds one fails with a message that says which.
+CMDLINE="$(printf '%s\n' "$DRY_OUT" | grep -m1 '^LAUNCH-CMD: ')"
+check "F0 a LAUNCH-CMD line was printed for humans" "$([ -n "$CMDLINE" ] && echo 0 || echo 1)"
+echo "  ${CMDLINE}"
 for bad in "--val-dataset-config" " --ckpt-path " "--pretrained-ckpt-path" "--recover"; do
   case "$CMDLINE" in *"$bad"*) check "F2 command does NOT carry: ${bad}" 1;; *) check "F2 command does NOT carry: ${bad}" 0;; esac
 done
@@ -254,19 +331,50 @@ done
 case "$DRY_OUT" in *"acousticroom_seeneval"*|*"unseeneval"*) check "F3 no eval dataset config anywhere in the run" 1;;
   *) check "F3 no eval dataset config anywhere in the run" 0;; esac
 
-echo "--- G. the wandb identity gate runs under the registered logger ---"
-WB_OUT="$(env DRY_RUN=1 LOGGER=wandb bash "$LAUNCHER" 2>&1)"; WB_RC=$?
-check "G1 full dry run under LOGGER=wandb exits 0 (rc=${WB_RC})" "$([ "$WB_RC" = "0" ] && echo 0 || echo 1)"
-case "$WB_OUT" in *"wandb identity: yh4742@princeton.edu"*) check "G2 the wandb identity gate ran and matched" 0;;
-  *) check "G2 the wandb identity gate ran and matched" 1; echo "$WB_OUT" | grep -i wandb | sed 's/^/      | /' | tail -5;; esac
-case "$WB_OUT" in *"--logger wandb"*) check "G3 the assembled command carries --logger wandb" 0;;
-  *) check "G3 the assembled command carries --logger wandb" 1;; esac
+echo "--- G. SMOKE mode: the ONLY sanctioned short run, in its own namespace ---"
+SMOKE_OUT="$(env DRY_RUN=1 SMOKE=1 bash "$LAUNCHER" 2>&1)"; SMOKE_RC=$?
+check "G1 smoke dry run exits 0 (rc=${SMOKE_RC})" "$([ "$SMOKE_RC" = "0" ] && echo 0 || echo 1)"
+if [ "$SMOKE_RC" != "0" ]; then echo "$SMOKE_OUT" | sed 's/^/      | /' | tail -20; fi
+SMOKE_ARGV=(env HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=0,1 python train.py
+  --model-config worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/FLAC_AR_BFC.json
+  --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json
+  --pretransform-ckpt-path weights/FLAC/VAE.safetensors
+  --max-steps 25 --batch-size 32 --accum-batches 1
+  --num-workers 6 --seed 42
+  --num-gpus 2 --strategy ddp_find_unused_parameters_true --sync-batchnorm true
+  --precision bf16-mixed
+  --logger none --checkpoint-every 1000025
+  --name FLAC_exp21_BFC_smoke --experiment-name exp21_BFC_smoke
+  --save-dir outputs_FLAC/exp21_BFC_smoke)
+compare_argv "G2 smoke argv is the smoke manifest, token for token" \
+  "$SMOKE_OUT" "${SMOKE_ARGV[@]}"
+case "$SMOKE_OUT" in *"wandb identity"*) check "G3 a smoke run never consults wandb" 1;; *) check "G3 a smoke run never consults wandb" 0;; esac
+case "$SMOKE_OUT" in *"SMOKE"*) check "G4 the smoke banner says so" 0;; *) check "G4 the smoke banner says so" 1;; esac
+# the registered namespace must be unreachable from a smoke run
+case "$SMOKE_OUT" in *"--save-dir outputs_FLAC/exp21_BFC "*|*"--save-dir outputs_FLAC/exp21_BFC") check "G5 smoke cannot write into the registered save-dir" 1;;
+  *) check "G5 smoke cannot write into the registered save-dir" 0;; esac
+
+echo "--- G6. a dry run leaves a _dryrun.log and NOTHING that reads like a training log ---"
+BEFORE_LOGS="$(ls "${EXPDIR21}" | grep -E "$LOG_PAT" | sort || true)"
+env DRY_RUN=1 bash "$LAUNCHER" > /dev/null 2>&1
+AFTER_LOGS="$(ls "${EXPDIR21}" | grep -E "$LOG_PAT" | sort || true)"
+NEW_LOGS="$(comm -13 <(echo "$BEFORE_LOGS") <(echo "$AFTER_LOGS") | grep -v '^$' || true)"
+NEW_DRY="$(printf '%s\n' "$NEW_LOGS" | grep -c '_dryrun\.log$' || true)"
+NEW_TRAIN="$(printf '%s\n' "$NEW_LOGS" | grep -cE '_(train|smoke)\.log$' || true)"
+echo "  new logs: $(printf '%s ' $NEW_LOGS)"
+check "G6a the dry run created exactly one _dryrun.log" "$([ "$NEW_DRY" = "1" ] && echo 0 || echo 1)"
+check "G6b the dry run created NO _train.log or _smoke.log" "$([ "$NEW_TRAIN" = "0" ] && echo 0 || echo 1)"
 
 echo "--- H. the exercise created nothing under outputs_FLAC/ ---"
 if [ "$SAVEDIR_EXISTED" = "1" ]; then
   echo "SKIP  ${SAVEDIR} already existed before this exercise - not asserting its absence"
 else
   check "H1 ${SAVEDIR} was not created by any gate" "$([ -e "$SAVEDIR" ] && echo 1 || echo 0)"
+fi
+if [ "$SMOKE_SAVEDIR_EXISTED" = "1" ]; then
+  echo "SKIP  ${SMOKE_SAVEDIR} already existed before this exercise"
+else
+  check "H2 ${SMOKE_SAVEDIR} was not created by the smoke dry run" "$([ -e "$SMOKE_SAVEDIR" ] && echo 1 || echo 0)"
 fi
 
 echo "--- arm-config integrity re-check ---"

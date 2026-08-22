@@ -68,15 +68,35 @@
 # --pretrained-ckpt-path; a crashed run is relaunched by decision, not by this
 # script guessing.
 #
-# Knobs (env): DRY_RUN LOGGER MB ACC MAXSTEPS CHECKPOINT_EVERY MIN_FREE_MB
-#              MIN_FREE_DISK_MB
+# TWO MODES, AND THE MANIFEST IS NOT A DEFAULT (r4 review BLOCKING 1).
+#   REGISTERED (the default): MAXSTEPS=40000, CHECKPOINT_EVERY=2500,
+#     LOGGER=wandb and the MB=32/ACC=1 rung are PINNED. Passing any other value
+#     aborts - it does not override. Before this, each of them merely defaulted,
+#     so `MAXSTEPS=50000 CHECKPOINT_EVERY=1 LOGGER=none bash bfc_launch.sh`
+#     passed every gate and trained an unapproved recipe under the approved run's
+#     name and save-dir. (Confirmed live in the round-5 red phase: that command
+#     reached a real training start before it was killed.)
+#   SMOKE=1: the ONE sanctioned short run (ladder rung 5). Steps default to 25
+#     and may not exceed 50, the logger is forced off, checkpointing is pushed
+#     past the budget, and the run gets its OWN identity and save-dir
+#     (outputs_FLAC/exp21_BFC_smoke). A smoke run therefore cannot write into,
+#     log to, or be mistaken for the registered run - which is what makes it safe
+#     to have a short mode at all.
 #
-# Usage (the registered launch):
+# Knobs (env): DRY_RUN{0,1} SMOKE{0,1} MB ACC MIN_FREE_MB MIN_FREE_DISK_MB, plus
+#              MAXSTEPS/CHECKPOINT_EVERY/LOGGER, which are ACCEPTED ONLY where
+#              the mode above says so. DRY_RUN and SMOKE fail closed on anything
+#              but 0/1 - "not 1, therefore train" is how a typo becomes a run.
+#
+# Usage (the registered launch - no knobs, on purpose):
 #   conda activate flac
 #   bash worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/bfc_launch.sh
 #
 # Usage (gate rehearsal - every gate runs, train.py does not):
 #   DRY_RUN=1 bash worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/bfc_launch.sh
+#
+# Usage (ladder rung 5, ~25 steps, own namespace):
+#   SMOKE=1 bash worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/bfc_launch.sh
 # ============================================================================
 set -uo pipefail
 cd "$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-toplevel)" || exit 3
@@ -92,13 +112,41 @@ NUM_GPUS=2; STRATEGY="ddp_find_unused_parameters_true"; PRECISION="bf16-mixed"
 NUM_WORKERS=6; SEED=42
 WANT_TRAIN_CAP=32            # the DECLARED training chunk cap (plan §2, D5)
 WANT_ANGLES_PER_CHUNK=1      # ...and the partition it must produce at this rung
-LOGGER="${LOGGER:-wandb}"
+
+# --- THE REGISTERED MANIFEST (plan §5). These are not defaults, they are the
+# --- approved recipe: in the registered mode the launcher trains exactly this or
+# --- it trains nothing (r4 review BLOCKING 1). MB/ACC were already pinned; these
+# --- three were merely defaulted, so `MAXSTEPS=50000 CHECKPOINT_EVERY=1
+# --- LOGGER=none bash bfc_launch.sh` passed every gate and trained an unapproved
+# --- recipe under the approved run's name. Verified live during the round-5 red
+# --- phase: that command reached a real training start.
+REG_LOGGER="wandb"; REG_MAXSTEPS=40000; REG_CHECKPOINT_EVERY=2500
+# --- SMOKE mode is the ONE sanctioned short run (ladder rung 5). It is a
+# --- different mode, not a loosened manifest: its own save-dir and run identity,
+# --- no logger, no checkpoint cadence inside the window, its own *_smoke.log.
+SMOKE_MAXSTEPS_DEFAULT=25; SMOKE_MAXSTEPS_CAP=50
+SMOKE_NAME="FLAC_exp21_BFC_smoke"; SMOKE_EXPNAME="exp21_BFC_smoke"
+SMOKE_SAVEDIR="outputs_FLAC/exp21_BFC_smoke"
+
+# did the CALLER set these, as opposed to inheriting the manifest? Captured
+# BEFORE defaulting, because "equals the approved value" and "was never asked
+# for" must stay distinguishable in smoke mode.
+LOGGER_SET=0;           [ -n "${LOGGER+x}" ]           && LOGGER_SET=1
+MAXSTEPS_SET=0;         [ -n "${MAXSTEPS+x}" ]         && MAXSTEPS_SET=1
+CHECKPOINT_EVERY_SET=0; [ -n "${CHECKPOINT_EVERY+x}" ] && CHECKPOINT_EVERY_SET=1
+LOGGER="${LOGGER:-$REG_LOGGER}"
 MB="${MB:-32}"; ACC="${ACC:-1}"
 DRY_RUN="${DRY_RUN:-0}"
+SMOKE="${SMOKE:-0}"
 
 _posint() { # $1=name $2=value -> must be a positive integer
   case "$2" in ''|*[!0-9]*) echo "$1 must be a positive integer (got '$2') - abort"; return 1;; esac
   [ "$2" -gt 0 ] || { echo "$1 must be > 0 (got '$2') - abort"; return 1; }
+}
+
+_bool01() { # $1=name $2=value -> must be exactly 0 or 1 (never "not 1 => live run")
+  case "$2" in 0|1) return 0;; esac
+  echo "$1 must be 0 or 1 (got '$2') - abort"; return 1
 }
 
 # --- environment gate (VERBATIM from dtail_launch.sh: plain `python` must not
@@ -111,9 +159,52 @@ print(f"env gate: python {sys.version.split()[0]} | pytorch_lightning {pl.__vers
 sys.exit(0 if pl.__version__ == "2.1.0" else 2)
 PY
 
-# --- knob validation ---
-CHECKPOINT_EVERY="${CHECKPOINT_EVERY:-2500}"; _posint CHECKPOINT_EVERY "$CHECKPOINT_EVERY" || exit 2
-MAXSTEPS="${MAXSTEPS:-40000}";                _posint MAXSTEPS "$MAXSTEPS" || exit 2
+# --- mode + knob validation (BEFORE every expensive gate, so a recipe this
+# --- launcher may not train aborts in under a second) ---
+_bool01 DRY_RUN "$DRY_RUN" || exit 2
+_bool01 SMOKE "$SMOKE" || exit 2
+
+CHECKPOINT_EVERY="${CHECKPOINT_EVERY:-$REG_CHECKPOINT_EVERY}"; _posint CHECKPOINT_EVERY "$CHECKPOINT_EVERY" || exit 2
+MAXSTEPS="${MAXSTEPS:-$REG_MAXSTEPS}";                         _posint MAXSTEPS "$MAXSTEPS" || exit 2
+
+if [ "$SMOKE" = "1" ]; then
+  # --- SMOKE: short, logger-less, in its own namespace. ---------------------
+  MODE="SMOKE"
+  [ "$MAXSTEPS_SET" = "1" ] || MAXSTEPS="$SMOKE_MAXSTEPS_DEFAULT"
+  if [ "$CHECKPOINT_EVERY_SET" = "1" ]; then
+    echo "SMOKE=1 disables checkpointing (got CHECKPOINT_EVERY='${CHECKPOINT_EVERY}'): a rehearsal"
+    echo "  must not leave checkpoints anywhere. Drop CHECKPOINT_EVERY. abort"; exit 2
+  fi
+  [ "$MAXSTEPS" -le "$SMOKE_MAXSTEPS_CAP" ] || {
+    echo "SMOKE=1 caps MAXSTEPS at ${SMOKE_MAXSTEPS_CAP} (got ${MAXSTEPS}): a smoke run is a"
+    echo "  ladder rung, not a short training run. For the approved training run use the"
+    echo "  registered manifest (no MAXSTEPS at all). abort"; exit 2; }
+  if [ "$LOGGER_SET" = "1" ] && [ "$LOGGER" != "none" ]; then
+    echo "SMOKE=1 runs without a logger (got LOGGER='${LOGGER}'): a rehearsal must not create a"
+    echo "  run in the project the registered training run publishes to. Drop LOGGER, or pass"
+    echo "  LOGGER=none explicitly. abort"; exit 2
+  fi
+  LOGGER="none"
+  # checkpointing OFF inside the window: the cadence is pushed past the budget,
+  # AND the run writes to its own save-dir, so nothing a smoke run produces can
+  # ever be mistaken for - or land beside - a registered checkpoint.
+  CHECKPOINT_EVERY=$((MAXSTEPS + 1000000))
+  NAME="$SMOKE_NAME"; EXPNAME="$SMOKE_EXPNAME"; SAVEDIR="$SMOKE_SAVEDIR"
+else
+  # --- REGISTERED: the approved manifest, or nothing. -----------------------
+  MODE="REGISTERED"
+  _pinned() { # $1=knob $2=value $3=approved
+    [ "$2" = "$3" ] && return 0
+    echo "${1}='${2}' is not the registered BFC manifest (${1}=${3}) - refusing to train an"
+    echo "  unapproved recipe under the approved run's identity. The manifest is fixed by"
+    echo "  plan §5 and the r4 review; for a short rehearsal use SMOKE=1, which runs in its"
+    echo "  own save-dir with its own run name. abort"
+    return 1
+  }
+  _pinned MAXSTEPS "$MAXSTEPS" "$REG_MAXSTEPS" || exit 2
+  _pinned CHECKPOINT_EVERY "$CHECKPOINT_EVERY" "$REG_CHECKPOINT_EVERY" || exit 2
+  _pinned LOGGER "$LOGGER" "$REG_LOGGER" || exit 2
+fi
 
 # The BN-64 mandate leaves exactly ONE legal rung, and accumulation never feeds
 # BN statistics, so it is pinned by STRING equality - arithmetic like MB*2*ACC==64
@@ -130,12 +221,15 @@ TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 # forged one). Same folder, same timestamp convention, different noun.
 if [ "$DRY_RUN" = "1" ]; then
   LOG="${EXPDIR21}/bf_fa_cartesian_${TS}_dryrun.log"
+elif [ "$MODE" = "SMOKE" ]; then
+  LOG="${EXPDIR21}/bf_fa_cartesian_${TS}_smoke.log"
 else
   LOG="${EXPDIR21}/bf_fa_cartesian_${TS}_train.log"
 fi
 
 exec > >(tee -a "$LOG") 2>&1
-echo "=== exp_21 BFC from-scratch DDP+SyncBN - ${TS} - $(git rev-parse --short HEAD 2>/dev/null) ==="
+echo "=== exp_21 BFC from-scratch DDP+SyncBN (${MODE}) - ${TS} - $(git rev-parse --short HEAD 2>/dev/null) ==="
+echo "mode: ${MODE} $([ "$MODE" = "SMOKE" ] && echo "(ladder rung: short, logger-less, own save-dir - NEVER the registered run)" || echo "(the approved manifest; MAXSTEPS/CHECKPOINT_EVERY/LOGGER are pinned, not defaulted)")"
 echo "identity: --name ${NAME} --experiment-name ${EXPNAME} --save-dir ${SAVEDIR}"
 echo "recipe: ${MB}x${NUM_GPUS}x${ACC} eff64 seed${SEED} -> ${MAXSTEPS} | ckpt-every ${CHECKPOINT_EVERY} | logger=${LOGGER} | precision=${PRECISION}"
 echo "arm: fa_cartesian (single-delta vs exp_07 B-F) | validation loader: NONE (parity: B-F trained without one)"
@@ -367,13 +461,19 @@ CMD=(env HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=0,1 python train.py
   --name "$NAME" --experiment-name "$EXPNAME"
   --save-dir "$SAVEDIR")
 echo "LAUNCH-CMD: ${CMD[*]}"
+# ...and the same argv one token per line, which is what the guardtests compare
+# against the approved manifest. A space-joined line cannot distinguish a token
+# that was split, merged or quoted differently; this can.
+echo "LAUNCH-ARGV-BEGIN"
+printf '%s\n' "${CMD[@]}"
+echo "LAUNCH-ARGV-END"
 
 if [ "$DRY_RUN" = "1" ]; then
-  echo "DRY RUN: every gate above ran; train.py was NOT executed and no checkpoint directory was created."
+  echo "DRY RUN (${MODE}): every gate above ran; train.py was NOT executed and no checkpoint directory was created."
   exit 0
 fi
 
 "${CMD[@]}"
 rc=$?
-echo "=== exp_21 BFC training exited rc=${rc} at $(date '+%Y-%m-%d %H:%M:%S') ==="
+echo "=== exp_21 BFC (${MODE}) training exited rc=${rc} at $(date '+%Y-%m-%d %H:%M:%S') ==="
 exit $rc
