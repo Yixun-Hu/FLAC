@@ -14,3 +14,4 @@ Base: `raf-finetune-exp` @ `263ef27` (full exp_19 pipeline + 557-test suite inhe
 | `3bd6dae` | r1 cycle 7: listener-positioned render mode (`--positions-from mappingA`, raw rx height nadir gate, transmitter sightline probe, dedup) — 9 tests |
 | `f38fd21` | r1: inherited exception-provenance test learns the second RAF hook |
 | `7c0626e` | r1 cycle 10: `raf_mappingA.json` eval config + `mappingA_stats.py` (placement clustering unit, equal-room macro, room-stratified bootstrap, exact paired randomization) — 14 tests |
+| `a14662d` | r1 cycle 11: end-to-end integration (chain composes; amplitude-gate and failed-correspondence negative paths) — 128 mappingA tests |
