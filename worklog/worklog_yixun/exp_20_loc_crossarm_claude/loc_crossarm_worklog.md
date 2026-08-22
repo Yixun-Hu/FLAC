@@ -18,3 +18,7 @@
 - **Version Control** — `0bc70af 6290a72 38a6ab4 9186586 7d6ca1c 5aa0dbb 7eda137`; suite 2,785 green; 97 crossarm tests; all three admission records regenerated + re-ADMITTED at this runtime; all nine manifests generated end-to-end and passing the REAL frozen verifier in test.
 - **Planner rulings on the two deviations:** (1) r7 firewall +1 key (`cond_method_binding`) with everything-else-still-fails — ACCEPTED (a tightening). (2) two-tier batch/workers locking (required for arm-manifests; checked-when-present otherwise) — ACCEPTED (retroactive invalidation of exp_18's published registrations would be wrong).
 - **Next** — focused re-review (mandatory per r1 reviewer) → BF fa-parity real execution → pilots → freezes → campaign.
+
+## 2026-08-22T03:00:00-0400 — exp20-r3 delivered (four residuals closed); final gate re-review launched
+
+- **Version Control** — `d1a54fa 50a46ad fe6bbe4 c42c232`; suite 2,797 green; 109 crossarm tests. Descriptor-bound deserialization tradeoff (no lazy mmap during admission — no new peak) accepted and recorded.
