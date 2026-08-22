@@ -20,5 +20,6 @@
 | `746a157` | exp_21: table staging green — exp21_validate_cell.py (+193), gen_model_comparison.py BFC rows + admission gate + two-K transaction (+222/−4, additive) |
 | `23888ad` | exp_21: round-4 commit log + full-suite evidence (1999 passed; the one failure is exp_11/exp_15's pre-existing registry drift) |
 | `21d423b` | exp_21: r4 BLOCKING 1 — the registered manifest is pinned, not defaulted; SMOKE=1 is the one sanctioned short mode; DRY_RUN/SMOKE fail closed outside {0,1}; guardtests gain 11 rejection cases + exact 39-token argv comparison (65/0) |
-| `21d423b` | exp_21: r4 BLOCKING 1 — registered manifest no longer overridable; SMOKE mode; guardtest hardening |
 | `a8c2a5b` | exp_21: r4 BLOCKING 2+3 — split-derived per-scene evidence + exact-step/one-ckpt identity in the table gate |
+| `58c99bb` | exp_21: r5 BLOCKING 1+2 — trained-as binding (embedded model_config, type-strict, before model/GPU construction) + streamed ckpt_sha256; both recorded beside what they prove (eval_FLAC +211/−9; test_exp21_ckpt_binding.py +380) |
+| `08e3e08` | exp_21: r5 BLOCKING 3+4 — required stream sidecar w/ re-run positional check, required+uniform digest, exp21_protocol.py campaign definition (+404), bfc_eval_driver.sh (+162), D6 comparator rows + cross-arm one-pin transaction (gen +272/−12); fixes is_exp21_row mislabelling the repin rows legacy-loop |

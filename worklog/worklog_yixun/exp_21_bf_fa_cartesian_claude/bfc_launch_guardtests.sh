@@ -56,6 +56,11 @@ SAVEDIR="outputs_FLAC/exp21_BFC"
 SMOKE_SAVEDIR="outputs_FLAC/exp21_BFC_smoke"
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 LOG="${EXPDIR21}/bf_fa_cartesian_${TS}_guardtests.log"
+# The launcher PINS its two resource floors in the registered run (r5 review
+# nit): an override there aborts. This exercise exists to drive those gates to
+# their failure branches, so it declares itself -- and the cases below prove the
+# pin still holds for anyone who has not.
+export GUARDTEST=1
 DRYFAIL_MIN_FREE=99000000          # forces the per-GPU VRAM gate to abort
 DRYFAIL_MIN_DISK=99999999          # forces the df floor to abort (earlier stop)
 
@@ -208,6 +213,26 @@ case_run "C2 df bypass reaches the per-GPU VRAM gate" 2 \
 echo "--- D. per-GPU free-VRAM floor (a co-tenancy FLOOR, not exclusivity) ---"
 case_run "D1 an unsatisfiable VRAM floor refuses to launch" 2 \
   "GPU 0 free|||< required 99000000 MiB|||refusing to launch" -- MIN_FREE_MB="$DRYFAIL_MIN_FREE"
+
+echo "--- D3. the two resource FLOORS are pinned in the registered run (r5 nit) ---"
+# The floors were env-overridable in every mode, so a registered launch could be
+# lowered onto a GPU or volume that cannot hold it -- the r4 MAXSTEPS/LOGGER
+# defect, one gate over. Outside a rehearsal the override now ABORTS; these cases
+# run WITHOUT this exercise's GUARDTEST declaration, which is what the rest of the
+# file relies on, so they prove the pin holds for anyone who has not declared it.
+case_run "D3a MIN_FREE_MB override refused in the registered run" 2 \
+  "may not be overridden in the REGISTERED run|||resource" -- -u GUARDTEST MIN_FREE_MB=1
+case_run "D3b MIN_FREE_DISK_MB override refused in the registered run" 2 \
+  "may not be overridden in the REGISTERED run" -- -u GUARDTEST MIN_FREE_DISK_MB=1
+case_run "D3c a rehearsal may still lower the floors (DRY_RUN)" 0 \
+  "DRY RUN" -- -u GUARDTEST DRY_RUN=1 MIN_FREE_MB=1 MIN_FREE_DISK_MB=1
+case_run "D3d SMOKE may still lower the floors" 0 \
+  "DRY RUN (SMOKE)" -- -u GUARDTEST DRY_RUN=1 SMOKE=1 MIN_FREE_MB=1 MIN_FREE_DISK_MB=1
+# NOTE deliberately absent: a "registered run with NO override" case. Without an
+# override there is nothing to dry-fail on, so if the box happened to satisfy both
+# real floors the case would run to a REAL train.py start -- the round-4 incident
+# exactly. The no-override path is covered by the full DRY_RUN rehearsal below,
+# which stops itself.
 
 echo "--- D2. the REGISTERED MANIFEST is not overridable (r4 review BLOCKING 1) ---"
 # Every one of these used to pass every gate and train an unapproved recipe.

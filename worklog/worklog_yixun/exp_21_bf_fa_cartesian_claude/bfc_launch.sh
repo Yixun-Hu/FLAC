@@ -293,6 +293,33 @@ print(f"  chunk plan: cap {cap} / micro-batch {mb} / C4 -> angles_per_chunk {apc
       f"(per-angle RoPE draws, matching B-F's training-era schedule)")
 PY
 
+# --- the two resource floors are PINNED in the registered run (r5 review nit) --
+# The 20 GiB per-GPU floor is this launch's co-tenancy policy, and the disk floor
+# sizes 16 boundary checkpoints. Both were env-overridable in every mode, which
+# is exactly how a registered launch quietly proceeds onto a GPU or a volume that
+# cannot hold it -- the same defect r4 fixed for MAXSTEPS/CHECKPOINT_EVERY/LOGGER,
+# and it gets the same treatment: in REGISTERED live mode an override ABORTS
+# rather than being silently accepted or silently ignored.
+#
+# The bypass survives only where it is needed and harmless: a rehearsal
+# (DRY_RUN=1 / SMOKE=1) and GUARDTEST=1, which is what bfc_launch_guardtests.sh
+# exports to drive these gates to their failure branches on purpose.
+_floor_guard() { # $1=knob name ; refuse an override outside a rehearsal
+  local name="$1" isset
+  eval "isset=\${${name}+set}"
+  [ "${isset:-}" = "set" ] || return 0
+  [ "$DRY_RUN" = "1" ] || [ "$MODE" = "SMOKE" ] || [ "${GUARDTEST:-0}" = "1" ] || {
+    eval "local val=\$${name}"
+    echo "${name}='${val}' may not be overridden in the ${MODE} run: it is a resource"
+    echo "  FLOOR, and lowering it is how a launch proceeds onto a GPU or volume that"
+    echo "  cannot hold it. Rehearse with DRY_RUN=1 or SMOKE=1, or exercise the gate"
+    echo "  itself with GUARDTEST=1. abort"
+    return 1; }
+  return 0
+}
+_floor_guard MIN_FREE_DISK_MB || exit 2
+_floor_guard MIN_FREE_MB      || exit 2
+
 # --- disk floor on the outputs volume ----------------------------------------
 # 40,000 steps at one checkpoint per 2,500 = 16 boundary checkpoints of ~690 MB
 # each (~11 GB) plus the final. Bypass for guard-testing only: MIN_FREE_DISK_MB=1.

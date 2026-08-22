@@ -652,8 +652,20 @@ def fa_cartesian_conditioning(
 
 
 def _rotated_variants(md_inv, deg, img_w, present):
-    """The rotated metadata for one orbit angle (depth and the ``*_vit`` poses
-    move together; every other field passes through)."""
+    """The rotated metadata for one orbit angle.
+
+    The depth panorama and EVERY pose key in ``present`` rotate together by the
+    same angle; every other field passes through untouched.
+
+    DOC-ONLY correction (exp_21 r5 review nit). ``present`` used to be exactly the
+    ``*_vit`` poses, because ``invariant_conditioning`` was the only caller and it
+    symmetrises the ViT branch alone -- the cylindrical pose invariants need no
+    orbit. ``fa_cartesian_conditioning`` (exp_21) calls the same helper with all
+    four pose keys (``source``, ``source_vit``, ``context_poses``,
+    ``context_poses_vit``), which is the arm's whole method, so the id set is a
+    parameter and naming one caller's set here read as a restriction the code
+    does not impose. No behaviour changes: ``pose_keys=tuple(present)`` already
+    passed the caller's set straight through."""
     return [
         rotate_scene_metadata(m, math.radians(deg), img_w, pose_keys=tuple(present))
         for m in md_inv

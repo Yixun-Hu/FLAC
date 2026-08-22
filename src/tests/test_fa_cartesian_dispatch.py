@@ -386,10 +386,17 @@ YAW_AUG_BLOCK = {"enabled": True, "img_w": 512, "seed": 42}
 
 @pytest.mark.parametrize("method", ["fa_invariant", BFC_COND_METHOD])
 def test_wrapper_ctor_rejects_yaw_aug_with_a_frame_averaged_method(method):
-    """The C4 orbit already symmetrises over exactly the subgroup the
-    augmentation would sample from, so composing them silently would train an arm
-    neither experiment declared. ``fa_invariant`` is included as the regression:
-    exp_15's guard must not be weakened while it is being widened."""
+    """Composing them silently would train an arm neither experiment declared.
+
+    NOT because the orbit covers the augmentation: ``yaw_aug`` draws uniformly
+    over all ``img_w`` (512) column rotations, so C4 is a four-element SUBGROUP of
+    what it samples, not the same set (the production guards at
+    ``training/factory.py`` and ``training/diffusion.py`` say this correctly; this
+    docstring did not). The composition is an unapproved, untested distinct
+    treatment, which is why it is refused rather than reasoned about.
+
+    ``fa_invariant`` is included as the regression: exp_15's guard must not be
+    weakened while it is being widened."""
     with pytest.raises(ValueError) as e:
         _construct_directly(yaw_aug_enabled=True, yaw_aug_img_w=512, yaw_aug_seed=42,
                             cond_method=method)
