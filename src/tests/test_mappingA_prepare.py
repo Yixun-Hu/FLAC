@@ -210,3 +210,97 @@ def test_the_audit_is_read_only(union_room):
     for capture_id, mtime in before.items():
         assert os.path.getmtime(
             os.path.join(union_room, "data", capture_id, "rir.wav")) == mtime
+
+
+# --------------------------------------------------------------------------- #
+# cycle 4: writing the union, with Mapping-H byte-identity provenance
+# --------------------------------------------------------------------------- #
+def test_the_union_is_written_scaled_and_read_back(union_room, tmp_path):
+    ids = [f"{i:06d}" for i in range(4)]
+    out = tmp_path / "runtime" / "mappingA" / "EmptyRoom"
+    report = prep_a.write_union(union_room, str(out), ids, scalar=3.0)
+    assert report["n_files"] == 4
+    assert report["scalar"] == 3.0
+    for capture_id in ids:
+        path = out / "mono_rirs_22050Hz" / f"{capture_id}.wav"
+        assert path.exists()
+        info = sf.info(str(path))
+        assert info.samplerate == 22050 and info.channels == 1
+        assert info.subtype == "FLOAT"
+        entry = report["files"][capture_id]
+        assert entry["roundtrip_max_abs_error"] == 0.0
+        assert len(entry["sha256"]) == 64
+        assert entry["peak"] <= prep_a.CLIP_CEILING
+
+
+def test_the_written_peak_is_the_scaled_peak(union_room, tmp_path):
+    ids = ["000000"]
+    plain = prep_a.write_union(union_room, str(tmp_path / "a" / "EmptyRoom"), ids,
+                               scalar=1.0)
+    scaled = prep_a.write_union(union_room, str(tmp_path / "b" / "EmptyRoom"), ids,
+                                scalar=3.0)
+    assert scaled["files"]["000000"]["peak"] == pytest.approx(
+        3.0 * plain["files"]["000000"]["peak"], rel=1e-6)
+
+
+def test_a_capture_shared_with_mapping_h_records_verified_provenance(union_room,
+                                                                     tmp_path):
+    """Mapping A publishes to disjoint roots, so 'shared' is a PROVENANCE claim:
+    the bytes are identical to what the Mapping-H publication holds, verified by
+    hash, with the exp_19 generation recorded."""
+    ids = ["000000", "000001"]
+    mapping_h = tmp_path / "runtime" / "RAF" / "EmptyRoom"
+    prep_a.write_union(union_room, str(mapping_h), ids, scalar=3.0)
+
+    out = tmp_path / "runtime" / "mappingA" / "EmptyRoom"
+    report = prep_a.write_union(union_room, str(out), ids, scalar=3.0,
+                                mappingH_room_dir=str(mapping_h),
+                                mappingH_generation="46a43f4ce82b")
+    for capture_id in ids:
+        shared = report["files"][capture_id]["shared_with_mappingH"]
+        assert shared["verified_identical"] is True
+        assert shared["generation"] == "46a43f4ce82b"
+        assert shared["sha256"] == report["files"][capture_id]["sha256"]
+    assert report["n_shared_with_mappingH"] == 2
+
+
+def test_a_capture_that_differs_from_mapping_h_aborts(union_room, tmp_path):
+    """Two publications disagreeing about the same capture is a real defect -- a
+    different scalar, a different source file, or a stale generation."""
+    ids = ["000000"]
+    mapping_h = tmp_path / "runtime" / "RAF" / "EmptyRoom"
+    prep_a.write_union(union_room, str(mapping_h), ids, scalar=2.0)   # WRONG scalar
+    with pytest.raises(ValueError) as exc:
+        prep_a.write_union(union_room, str(tmp_path / "out" / "EmptyRoom"), ids,
+                           scalar=3.0, mappingH_room_dir=str(mapping_h),
+                           mappingH_generation="46a43f4ce82b")
+    assert "000000" in str(exc.value)
+    assert "byte-identical" in str(exc.value)
+
+
+def test_a_capture_absent_from_mapping_h_is_recorded_as_new(union_room, tmp_path):
+    """Most of the union is new: exp_19 published only its 21 selected groups."""
+    mapping_h = tmp_path / "runtime" / "RAF" / "EmptyRoom"
+    prep_a.write_union(union_room, str(mapping_h), ["000000"], scalar=3.0)
+    report = prep_a.write_union(union_room, str(tmp_path / "out" / "EmptyRoom"),
+                                ["000000", "000001"], scalar=3.0,
+                                mappingH_room_dir=str(mapping_h),
+                                mappingH_generation="46a43f4ce82b")
+    assert report["files"]["000000"]["shared_with_mappingH"]["verified_identical"] is True
+    assert report["files"]["000001"]["shared_with_mappingH"] is None
+    assert report["n_shared_with_mappingH"] == 1
+    assert report["n_new"] == 1
+
+
+def test_writing_refuses_a_clipping_scalar(union_room, tmp_path):
+    _overwrite(union_room, "000000", _rir(0, peak=0.9))
+    with pytest.raises(ValueError) as exc:
+        prep_a.write_union(union_room, str(tmp_path / "out" / "EmptyRoom"),
+                           ["000000"], scalar=3.0)
+    assert "clip" in str(exc.value).lower()
+
+
+def test_the_write_report_is_json_safe(union_room, tmp_path):
+    report = prep_a.write_union(union_room, str(tmp_path / "out" / "EmptyRoom"),
+                                [f"{i:06d}" for i in range(3)], scalar=3.0)
+    json.dumps(report, allow_nan=False)

@@ -32,6 +32,7 @@ from prepare_data import (  # noqa: E402
     SOURCE_SR,
     TARGET_SR,
 )
+from publish import sha256_file  # noqa: E402
 from raf_common import dbfs  # noqa: E402
 
 
@@ -192,3 +193,102 @@ def audit_amplitude_union(room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
             "evidence, not applied).",
             report)
     return report
+
+
+# --------------------------------------------------------------------------- #
+# Writing the union
+# --------------------------------------------------------------------------- #
+RIR_FOLDER = "mono_rirs_22050Hz"
+
+
+def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
+                target_sr=TARGET_SR, clip_ceiling=CLIP_CEILING,
+                mappingH_room_dir=None, mappingH_generation=None):
+    """Resample, scale and publish the Mapping-A union, with H provenance.
+
+    Mapping A publishes into DISJOINT roots, so "shared with Mapping H" is a
+    provenance claim rather than a storage trick: for every capture that the
+    Mapping-H publication also holds, the bytes are compared and recorded as
+    verified-identical together with the exp_19 generation. A disagreement aborts --
+    two publications differing on the same capture means a different scalar, a
+    different source, or a stale generation, and reading Mapping-A results beside
+    Mapping-H ones would then be comparing different audio.
+
+    Every written file is read back and compared, as in exp_19.
+    """
+    dest = os.path.join(out_room_dir, RIR_FOLDER)
+    os.makedirs(dest, exist_ok=True)
+    files, n_shared, roundtrip_max = {}, 0, 0.0
+
+    for capture_id in capture_ids:
+        src = os.path.join(room_dir, "data", capture_id, "rir.wav")
+        audio, sr = sf.read(src, dtype="float32", always_2d=True)
+        if sr != orig_sr:
+            raise ValueError(f"{src}: expected {orig_sr} Hz, got {sr} Hz")
+        if audio.shape[1] != 1:
+            raise ValueError(f"{src}: expected mono, got {audio.shape[1]} channels")
+        wave = audio[:, 0]
+        if not np.isfinite(wave).all():
+            raise ValueError(f"{src}: source holds non-finite samples")
+
+        out = np.asarray(librosa.resample(wave, orig_sr=orig_sr, target_sr=target_sr),
+                         dtype=np.float32)
+        out = np.asarray(out * float(scalar), dtype=np.float32)
+        if not np.isfinite(out).all():
+            raise ValueError(f"{src}: resampling produced non-finite samples")
+        peak = float(np.abs(out).max())
+        if peak > clip_ceiling:
+            raise ValueError(
+                f"{src}: scaled signal clips (peak {peak:.6f} > {clip_ceiling}) at "
+                f"x{scalar}. The union audit exists to catch this before any write; "
+                "publishing a clipped target would distort the waveform the metric "
+                "scores.")
+
+        out_path = os.path.join(dest, f"{capture_id}.wav")
+        sf.write(out_path, out, target_sr, subtype="FLOAT")
+        back, back_sr = sf.read(out_path, dtype="float32", always_2d=True)
+        if back_sr != target_sr or back.shape[1] != 1 or back.shape[0] != out.shape[0]:
+            raise ValueError(
+                f"{out_path}: read back as {back_sr} Hz / {back.shape} , expected "
+                f"{target_sr} Hz mono / {out.shape}")
+        roundtrip = float(np.abs(back[:, 0] - out).max())
+        roundtrip_max = max(roundtrip_max, roundtrip)
+        digest = sha256_file(out_path)
+
+        shared = None
+        if mappingH_room_dir:
+            h_path = os.path.join(mappingH_room_dir, RIR_FOLDER, f"{capture_id}.wav")
+            if os.path.isfile(h_path):
+                h_digest = sha256_file(h_path)
+                if h_digest != digest:
+                    raise ValueError(
+                        f"capture {capture_id} is NOT byte-identical to the "
+                        f"Mapping-H publication ({h_digest[:12]} vs {digest[:12]}): "
+                        "the two publications disagree about the same audio, so a "
+                        "different scalar, source file or generation is in play")
+                shared = {"path": os.path.abspath(h_path), "sha256": h_digest,
+                          "generation": mappingH_generation,
+                          "verified_identical": True}
+                n_shared += 1
+
+        files[capture_id] = {
+            "sha256": digest,
+            "peak": peak,
+            "dbfs": dbfs(peak),
+            "n_samples": int(out.shape[0]),
+            "roundtrip_max_abs_error": roundtrip,
+            "shared_with_mappingH": shared,
+        }
+
+    return {
+        "n_files": len(files),
+        "n_shared_with_mappingH": n_shared,
+        "n_new": len(files) - n_shared,
+        "scalar": float(scalar),
+        "source_sample_rate": int(orig_sr),
+        "sample_rate": int(target_sr),
+        "subtype": "FLOAT",
+        "mappingH_generation": mappingH_generation,
+        "roundtrip_max_abs_error": roundtrip_max,
+        "files": files,
+    }
