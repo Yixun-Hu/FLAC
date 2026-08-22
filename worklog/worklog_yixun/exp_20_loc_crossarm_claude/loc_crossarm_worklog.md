@@ -28,3 +28,8 @@
 
 ## 2026-08-22T04:50:00-0400 — r4 re-review: F3/F4b closed; F4a one-liner → r5; PARITY EXECUTION GO (launched)
 - **Acceptance criteria (fa-parity gate, pre-launch):** autocast-off bitwise match=True; registered-autocast within the preregistered 2e-2 tolerance, match=True; evidence record complete (both partitions [10,10,10], per-side dtypes/finiteness, shas); exit 0.
+
+## 2026-08-22T05:25:00-0400 — FA-PARITY GATE PASSED (bitwise both modes); pilots launched; r5 re-review launched
+
+- **Result (parity)** — PASSED all pre-registered criteria and exceeded them: autocast-off max_abs_diff=0.0 AND registered-autocast max_abs_diff=0.0 (bitwise both), record outputs_loc/exp20/exp20_bf_parity_fa_parity.json. First attempt was a Planner shell hang (stdin-blocked cat; disclosed in command.md) — infra, no run occurred.
+- **Acceptance criteria (pilots, pre-launch)** — 100-query seen smokes, dumps ON (to *_pilot NAS dirs): complete cleanly; probe components present; per-query means become the campaign schedule basis; BF pilot additionally exercises the executed-partition end gate ([10]x3 per query).
