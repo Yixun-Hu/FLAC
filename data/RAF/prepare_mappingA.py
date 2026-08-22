@@ -469,6 +469,66 @@ def locate_mappingH(runtime_dir, rooms, require_canonical=False):
     }
 
 
+MAPPINGA_RUNTIME_SUBDIR = "mappingA"
+
+
+def _is_within(child, parent):
+    """True when ``child`` is ``parent`` or sits underneath it (no symlink games)."""
+    child = os.path.realpath(child)
+    parent = os.path.realpath(parent)
+    return child == parent or child.startswith(parent + os.sep)
+
+
+def resolve_output_dir(output_dir, mappingH_dir, rooms):
+    """Where Mapping A publishes its runtime tree, and where it may NOT (P1).
+
+    Mapping A writes its own ``raf_publication.json`` and its own root manifest,
+    and StagedPublish renames the destination root's existing manifest aside before
+    swapping. Pointed at Mapping H's runtime root, it therefore overwrites H's
+    pointer and invalidates H's prepare attestation -- and the listener render then
+    collides with H's per-room depth roots. That is a wrong-flag operator error, so
+    it is refused HERE, before a single file is read or written, rather than
+    discovered afterwards in a broken publication.
+
+    With a Mapping-H tree in hand the default is ``<H>/mappingA``: a proper child,
+    disjoint from every root H attests, and self-evidently the same corpus. An
+    explicit ``--output-dir`` must satisfy the same relation.
+    """
+    if not mappingH_dir:
+        if not output_dir:
+            raise ValueError(
+                "--output-dir is required when no --mappingH-dir is given: without "
+                "the Mapping-H tree there is nothing to derive the Mapping-A runtime "
+                "root from.")
+        return os.path.abspath(output_dir)
+
+    h_root = os.path.abspath(mappingH_dir)
+    if not output_dir:
+        return os.path.join(h_root, MAPPINGA_RUNTIME_SUBDIR)
+
+    out = os.path.abspath(output_dir)
+    if _is_within(h_root, out):
+        # covers equality and any ancestor of the Mapping-H tree
+        raise ValueError(
+            f"refusing to publish Mapping A at {out}: it is the Mapping-H runtime "
+            f"tree {h_root} or contains it. Mapping A writes its own "
+            f"{PUBLICATION_POINTER} and root manifest there, which would overwrite "
+            "Mapping H's pointer and invalidate its publication. Omit --output-dir "
+            f"to use {os.path.join(h_root, MAPPINGA_RUNTIME_SUBDIR)}.")
+    if not _is_within(out, h_root):
+        raise ValueError(
+            f"refusing to publish Mapping A at {out}: it is outside the Mapping-H "
+            f"runtime tree {h_root}. The two corpora share audio by provenance, so "
+            "the Mapping-A tree is a child of the publication it cites.")
+    for room in rooms:
+        room_root = os.path.join(h_root, room)
+        if _is_within(out, room_root):
+            raise ValueError(
+                f"refusing to publish Mapping A at {out}: it is inside Mapping H's "
+                f"{room} root, whose audio and depth_images directories H attests.")
+    return out
+
+
 def resolve_mappingH(mappingH_dir, rooms, canonical, scalar=None):
     """The CLI's Mapping-H requirement, as one testable decision (N4).
 
@@ -1029,7 +1089,10 @@ def build_parser():
     parser = argparse.ArgumentParser(
         description="Prepare the RAF Mapping-A (unseen-source) evaluation set")
     parser.add_argument('--raf-root', required=True)
-    parser.add_argument('--output-dir', required=True)
+    # P1: DERIVED from the Mapping-H runtime tree when omitted (<H>/mappingA). An
+    # explicit value must still be a proper disjoint child of it -- see
+    # resolve_output_dir for why equal and ancestor roots are refused.
+    parser.add_argument('--output-dir', default=None)
     # N2: DISJOINT from Mapping H's data/RAF. Manifests are per-directory, so a
     # shared split root means both flavors overwrite one raf_publish_manifest.json
     # and each publish invalidates the other flavor's marker-to-manifest digest --
@@ -1164,6 +1227,12 @@ def main(argv=None):
         logger.info("Mapping-H publication %s (generation %s, %d files)",
                     mappingH["split_dir"], mappingH["generation"],
                     mappingH["n_files"])
+
+    # P1: resolved (and refused) BEFORE the survey, so a wrong-flag run costs
+    # nothing and can never touch the Mapping-H publication.
+    args.output_dir = resolve_output_dir(args.output_dir, args.mappingH_dir,
+                                         args.rooms)
+    logger.info("Mapping-A runtime tree: %s", args.output_dir)
 
     # Pass 1: survey, select placements, build items. NOTHING is written yet -- the
     # amplitude audit over the resulting union has to pass first (M1).

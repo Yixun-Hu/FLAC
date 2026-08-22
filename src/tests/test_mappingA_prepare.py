@@ -482,6 +482,13 @@ def _correspondence_for(tmp_path, raf_root, room_names=("EmptyRoom", "FurnishedR
     return str(path)
 
 
+def _derived_argv(argv):
+    """The same invocation with --output-dir dropped, so the runtime root is the
+    DERIVED <mappingH-dir>/mappingA (r3 P1)."""
+    index = argv.index("--output-dir")
+    return argv[:index] + argv[index + 2:]
+
+
 def _cli_argv(tmp_path, raf_root, readback, extra=(), correspondence=None):
     return ["--raf-root", str(raf_root),
             "--output-dir", str(tmp_path / "runtime" / "mappingA"),
@@ -756,9 +763,9 @@ def test_the_cli_records_the_mappingH_generation_on_every_room(cli_corpus, tmp_p
     runtime = _publish_mappingH(tmp_path, cli_corpus, readback,
                                 rooms=("EmptyRoom", "FurnishedRoom"))
     scalar = prep_a.locate_mappingH(str(runtime), [])["amplitude_scalar"]
-    prep_a.main(_cli_argv(tmp_path, cli_corpus, readback,
-                          extra=["--mappingH-dir", str(runtime),
-                                 "--scalar", str(scalar)]))
+    prep_a.main(_derived_argv(_cli_argv(tmp_path, cli_corpus, readback,
+                                        extra=["--mappingH-dir", str(runtime),
+                                               "--scalar", str(scalar)])))
     with open(tmp_path / prep_a.MAPPINGA_SPLIT_ROOT
               / "mappingA_amplitude_audit.json") as f:
         audit = json.load(f)
@@ -796,9 +803,10 @@ def test_a_file_outside_the_mappingH_generation_aborts_the_run(cli_corpus, tmp_p
     shutil.copy(smuggled, runtime / "EmptyRoom" / prep_a.RIR_FOLDER / smuggled.name)
 
     with pytest.raises(ValueError) as exc:
-        prep_a.main(_cli_argv(tmp_path, cli_corpus, readback,
-                              extra=["--mappingH-dir", str(runtime),
-                                     "--scalar", str(found["amplitude_scalar"])]))
+        prep_a.main(_derived_argv(_cli_argv(
+            tmp_path, cli_corpus, readback,
+            extra=["--mappingH-dir", str(runtime),
+                   "--scalar", str(found["amplitude_scalar"])])))
     assert "NOT covered" in str(exc.value) and found["generation"] in str(exc.value)
 
 
@@ -994,3 +1002,113 @@ def test_the_committed_record_is_readable_by_the_loader_that_pins_it(tmp_path):
     assert set(parsed["rooms"]) == {"EmptyRoom", "FurnishedRoom"}
     for room in parsed["rooms"].values():
         assert len(room["eligible_placement_ids"]) >= 16
+
+
+# --------------------------------------------------------------------------- #
+# r3 P1: the Mapping-A runtime root is derived, and unsafe roots are refused
+# --------------------------------------------------------------------------- #
+def test_the_runtime_root_is_derived_from_the_mappingH_tree(tmp_path):
+    h = str(tmp_path / "runtime" / "RAF")
+    assert prep_a.resolve_output_dir(None, h, ["EmptyRoom"]) == os.path.join(
+        h, prep_a.MAPPINGA_RUNTIME_SUBDIR)
+
+
+def test_publishing_onto_the_mappingH_tree_is_refused(tmp_path):
+    """Mapping A writes its own pointer and root manifest, and StagedPublish renames
+    the destination's manifest aside first: pointed at H's root it would overwrite
+    H's pointer and invalidate H's publication."""
+    h = str(tmp_path / "runtime" / "RAF")
+    with pytest.raises(ValueError) as exc:
+        prep_a.resolve_output_dir(h, h, ["EmptyRoom"])
+    assert "overwrite" in str(exc.value)
+    assert prep_a.MAPPINGA_RUNTIME_SUBDIR in str(exc.value)
+
+
+def test_an_ancestor_of_the_mappingH_tree_is_refused(tmp_path):
+    h = str(tmp_path / "runtime" / "RAF")
+    with pytest.raises(ValueError) as exc:
+        prep_a.resolve_output_dir(str(tmp_path / "runtime"), h, ["EmptyRoom"])
+    assert "contains it" in str(exc.value)
+
+
+def test_a_root_outside_the_mappingH_tree_is_refused(tmp_path):
+    h = str(tmp_path / "runtime" / "RAF")
+    with pytest.raises(ValueError) as exc:
+        prep_a.resolve_output_dir(str(tmp_path / "elsewhere"), h, ["EmptyRoom"])
+    assert "outside" in str(exc.value)
+
+
+def test_a_root_inside_a_mappingH_room_is_refused(tmp_path):
+    h = str(tmp_path / "runtime" / "RAF")
+    with pytest.raises(ValueError) as exc:
+        prep_a.resolve_output_dir(os.path.join(h, "EmptyRoom", "mappingA"), h,
+                                  ["EmptyRoom", "FurnishedRoom"])
+    assert "EmptyRoom root" in str(exc.value)
+
+
+def test_without_a_mappingH_tree_the_output_root_must_be_given():
+    with pytest.raises(ValueError) as exc:
+        prep_a.resolve_output_dir(None, None, ["EmptyRoom"])
+    assert "--output-dir is required" in str(exc.value)
+
+
+def test_the_cli_refuses_the_mappingH_root_before_reading_the_corpus(cli_corpus,
+                                                                    tmp_path):
+    readback = _readback_for(tmp_path, cli_corpus)
+    runtime = _publish_mappingH(tmp_path, cli_corpus, readback)
+    scalar = prep_a.locate_mappingH(str(runtime), [])["amplitude_scalar"]
+    argv = [a for a in _cli_argv(tmp_path, cli_corpus, readback,
+                                 extra=["--mappingH-dir", str(runtime),
+                                        "--scalar", str(scalar)])]
+    argv[argv.index("--output-dir") + 1] = str(runtime)
+    with pytest.raises(ValueError) as exc:
+        prep_a.main(argv)
+    assert "overwrite" in str(exc.value)
+    # nothing was surveyed, staged or published
+    assert not (tmp_path / prep_a.MAPPINGA_SPLIT_ROOT / prep_a.MANIFEST_NAME).exists()
+    assert not list(runtime.parent.glob(".*staging*"))
+    import publish as raf_publish
+
+    assert raf_publish.verify_publication(str(tmp_path / "data" / "RAF"),
+                                          kind="prepare")["published"]
+
+
+def test_both_real_clis_compose_at_their_true_defaults(cli_corpus, tmp_path,
+                                                      monkeypatch):
+    """No --output-dir and no --split-dir on either side: Mapping H at its default
+    split root, Mapping A at ITS default split root and the derived runtime child.
+    Both publications verify afterwards -- the topology is produced by the CLIs,
+    not invented by the test."""
+    import prepare_data as raf_prepare
+    import publish as raf_publish
+
+    monkeypatch.chdir(tmp_path)
+    readback = _readback_for(tmp_path, cli_corpus)
+    h_runtime = tmp_path / "runtime" / "RAF"
+    raf_prepare.main(["--raf-root", str(cli_corpus), "--output-dir", str(h_runtime),
+                      "--rooms", "EmptyRoom", "FurnishedRoom",
+                      "--n-groups", "2", "--n-val-groups", "1",
+                      "--n-diagnostic-groups", "1", "--n-train", "12",
+                      "--full-crosscheck", "--non-canonical",
+                      "--readback-record", readback])
+    h_split = tmp_path / raf_prepare.build_parser().get_default("split_dir")
+    assert raf_publish.verify_publication(str(h_split), kind="prepare")["published"]
+    scalar = prep_a.locate_mappingH(str(h_runtime), [])["amplitude_scalar"]
+
+    prep_a.main(["--raf-root", str(cli_corpus), "--mappingH-dir", str(h_runtime),
+                 "--rooms", "EmptyRoom", "FurnishedRoom",
+                 "--n-placements", "2", "--k", "8", "--non-canonical",
+                 "--scalar", str(scalar),
+                 "--correspondence-record", _correspondence_for(tmp_path, cli_corpus),
+                 "--readback-record", readback])
+
+    a_runtime = h_runtime / prep_a.MAPPINGA_RUNTIME_SUBDIR
+    a_split = tmp_path / prep_a.MAPPINGA_SPLIT_ROOT
+    assert (a_runtime / "raf_publication.json").is_file()
+    assert (a_split / prep_a.MANIFEST_NAME).is_file()
+    assert raf_publish.verify_publication(str(a_split),
+                                          kind="mappingA_prepare")["published"]
+    # ... and Mapping H is still exactly as attested, pointer and manifest intact
+    assert raf_publish.verify_publication(str(h_split), kind="prepare")["published"]
+    assert raf_publish.verify_manifest(str(h_runtime)) == {"missing": [],
+                                                           "mismatched": []}
