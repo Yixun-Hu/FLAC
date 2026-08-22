@@ -85,3 +85,9 @@ These flags are part of the experiment, never defaults — `--cond-autocast bf16
 ⚠ The full-eval rung is **1** angle/chunk, not 2 (corrected in the r5 prelaunch fix; 2 arises only at batch 32 with cap 64, which is the rung-4 probe's configuration). Eval mode draws no RoPE, so the partition is numerically inert — measured bit-exact at both precisions in rung 4 — but the declared plan must still be the true one.
 
 Train tail: 291,210 records at effective batch 64 leaves 10 globally / 5 per rank; `drop_last=True` discards them.
+
+## REGISTERED 40k training — LAUNCHED 2026-08-22 05:50 EDT from HEAD `a98543f11f23eee5e2bbe3cf4863ec7e32f05f9b`
+```bash
+bash worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/bfc_launch.sh
+```
+REGISTERED mode: all recipe values pinned in-script (config FLAC_AR_BFC.json, 40k steps, ckpt 2500, wandb, DDP 32×2 SyncBN bf16-mixed seed 42, no val loader, no resume). Rate-gate baseline 13.94 s/step co-tenant (steps 100–300, ±25% same-tenancy).

@@ -245,3 +245,17 @@ Written BEFORE launch per SOP. The registered run is accepted as healthy iff ALL
 4. Checkpoints every 2500 steps in `outputs_FLAC/exp21_BFC/...`; boundary files ~724 MB (family-typical); final `epoch=8-step=40000.ckpt` (same epoch/step naming as B-F's — 291,210/64 ≈ 4,550 steps/epoch).
 5. No `--val-dataset-config` in the assembled argv (single-delta parity); no resume flags.
 Failure triage per SOP: infra (node/VRAM/co-tenant contention/wandb) → retry/resume decision with Yixun; real bug → fix loop reopens with review.
+
+## 2026-08-22T05:50:00-04:00 — RATE_PROBE PASS (13.94 s/step co-tenant); REGISTERED 40k LAUNCH
+
+- **Goal** — Complete rung 6 and launch the registered run under the pre-registered criteria (entry 05:00).
+- **Result** — `passed`. RATE_PROBE rc=0, 320/320, zero ckpts, loss 2.36→0.99, lr on the post-warmup 4.8e-5 plateau. **Window steps 100→300: 46:27 for 200 steps = 13.94 s/step (0.0718 steps/s) co-tenant with exp12A** — the rate-gate baseline (±25%, same tenancy). Log `bf_fa_cartesian_2026-08-22_04-28-09_rateprobe.log`.
+- **Scheduling arithmetic (recorded for the report):** launch now → ~17k steps co-tenant by Sun ~24:00, remaining ~23k exclusive at ~6 s/step (B-F's historical exclusive pace) → **40k ≈ Tue 08-25 afternoon**; queuing behind exp12A → Wed 08-27 evening. Launch-now finishes ~1.2 d earlier; cost = exp12A stretch (Yixun accepted in D3). D3 standing authorization consumed.
+- **Command / Validation** — LAUNCH at HEAD `a98543f11f23eee5e2bbe3cf4863ec7e32f05f9b` (pushed): `bash bfc_launch.sh` (REGISTERED, no overrides), detached, teed `*_train.log` in this folder. Acceptance = entry 05:00 criteria; rate gate evaluated at step 300.
+- **Next** — Monitor: gates → step 300 rate gate → ckpt cadence. Launch report + push notification to Yixun.
+
+## 2026-08-22T07:00:00-04:00 — RATE GATE PASS at step 302; run accepted as healthy
+
+- **Goal** — Evaluate acceptance criterion 3.
+- **Result** — `passed`. Window steps 100→302: 47:06 / 202 steps = **13.99 s/step** vs baseline 13.94 (±25% gate) — PASS. Loss 1.22 @256 mirroring the probe trajectory; gates all passed at launch; no failure signatures. Criteria 1–3 satisfied; 4 (ckpt cadence) verifies at step 2500 (~16:45 EDT... correction: ~9.7 h from 05:50 launch ≈ 15:30 EDT at current pace); 5 verified in the assembled argv at launch.
+- **Next** — Persistent watch (ckpt boundaries + failure signatures + exit). Next human-relevant events: first ckpt ~15:30 EDT; exp12A completion (~Sun night) → expected BFC speedup; 40k ~Tue afternoon → eval block.
