@@ -12,7 +12,11 @@ REPO_ROOT = next(parent for parent in Path(__file__).resolve().parents if (paren
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.localization.ar_queries import load_context_manifest
-from src.localization.pilot import build_pilot_manifest, save_pilot_manifest
+from src.localization.pilot import (
+    build_pilot_manifest,
+    load_pilot_manifest,
+    save_pilot_manifest,
+)
 
 
 def main() -> None:
@@ -22,14 +26,21 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--queries-per-room", type=int, default=4)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--exclude-pilot-manifest", type=Path)
     args = parser.parse_args()
     context = load_context_manifest(args.context_manifest)
     audit = json.loads(args.geometry_audit.read_text())
+    excluded = (
+        load_pilot_manifest(args.exclude_pilot_manifest)
+        if args.exclude_pilot_manifest is not None
+        else None
+    )
     manifest = build_pilot_manifest(
         context,
         audit,
         queries_per_room=args.queries_per_room,
         seed=args.seed,
+        excluded_pilot_manifest=excluded,
     )
     save_pilot_manifest(manifest, args.output)
     print(

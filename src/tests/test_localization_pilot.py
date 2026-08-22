@@ -58,6 +58,25 @@ def test_room_stratified_pilot_is_deterministic_and_roundtrips(tmp_path):
     assert len(resolve_pilot_records(first, context, audit)) == 4
 
 
+def test_second_pilot_excludes_every_first_pilot_query():
+    context, audit = _inputs()
+    first = build_pilot_manifest(context, audit, queries_per_room=2, seed=42)
+    second = build_pilot_manifest(
+        context,
+        audit,
+        queries_per_room=2,
+        seed=43,
+        excluded_pilot_manifest=first,
+    )
+    first_indices = {item["index"] for item in first["records"]}
+    second_indices = {item["index"] for item in second["records"]}
+    assert first_indices.isdisjoint(second_indices)
+    assert second["selection"]["excluded_pilot_sha256"] == first["sha256"]
+    assert second["selection"]["excluded_query_count"] == 4
+    assert sum(item["room"] == "room_a" for item in second["records"]) == 2
+    assert sum(item["room"] == "room_b" for item in second["records"]) == 2
+
+
 def test_pilot_hash_and_source_mismatches_fail_closed(tmp_path):
     context, audit = _inputs()
     manifest = build_pilot_manifest(context, audit, queries_per_room=2)

@@ -22,6 +22,7 @@ def build_pilot_manifest(
     *,
     queries_per_room: int = 4,
     seed: int = 42,
+    excluded_pilot_manifest: dict | None = None,
 ) -> dict:
     """Select a fixed number of target queries from every audited room."""
 
@@ -31,6 +32,23 @@ def build_pilot_manifest(
         raise ValueError("pilot selection requires a passed geometry audit")
     if geometry_audit.get("context_manifest_sha256") != context_manifest.get("sha256"):
         raise ValueError("context manifest and geometry audit do not match")
+
+    excluded_indices: set[int] = set()
+    excluded_pilot_sha256 = None
+    if excluded_pilot_manifest is not None:
+        if (
+            excluded_pilot_manifest.get("context_manifest_sha256")
+            != context_manifest.get("sha256")
+            or excluded_pilot_manifest.get("geometry_audit_sha256")
+            != geometry_audit.get("sha256")
+        ):
+            raise ValueError("excluded pilot does not use the same frozen inputs")
+        excluded_indices = {
+            int(item["index"]) for item in excluded_pilot_manifest["records"]
+        }
+        if len(excluded_indices) != int(excluded_pilot_manifest["query_count"]):
+            raise ValueError("excluded pilot contains duplicate query indices")
+        excluded_pilot_sha256 = excluded_pilot_manifest["sha256"]
 
     context_by_index = {int(item["index"]): item for item in context_manifest["records"]}
     grouped: dict[str, list[dict]] = defaultdict(list)
@@ -48,7 +66,14 @@ def build_pilot_manifest(
     rng = np.random.default_rng(seed)
     selected: list[dict] = []
     for room in sorted(grouped):
-        pool = sorted(grouped[room], key=lambda item: int(item["index"]))
+        pool = sorted(
+            (
+                item
+                for item in grouped[room]
+                if int(item["index"]) not in excluded_indices
+            ),
+            key=lambda item: int(item["index"]),
+        )
         if len(pool) < queries_per_room:
             raise ValueError(f"room {room} has fewer than {queries_per_room} queries")
         positions = np.sort(rng.choice(len(pool), size=queries_per_room, replace=False))
@@ -82,6 +107,8 @@ def build_pilot_manifest(
             "seed": int(seed),
             "queries_per_room": int(queries_per_room),
             "rng": "numpy.default_rng.PCG64",
+            "excluded_pilot_sha256": excluded_pilot_sha256,
+            "excluded_query_count": len(excluded_indices),
         },
         "context_manifest_sha256": context_manifest["sha256"],
         "geometry_audit_sha256": geometry_audit["sha256"],
@@ -91,6 +118,8 @@ def build_pilot_manifest(
         "candidate_query_pairs": int(sum(item["candidate_count"] for item in selected)),
         "records": selected,
     }
+    if excluded_indices.intersection(item["index"] for item in selected):
+        raise RuntimeError("pilot selection overlaps the excluded query set")
     payload["sha256"] = canonical_sha256(payload)
     return payload
 
