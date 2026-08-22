@@ -168,7 +168,12 @@ echo "gate: no train.py from this worktree is running"
 # The evaluator, both K configs, the split inventory they delegate to, and every
 # arm's model config. The arm-config pins are the launcher's, so a row can only
 # be produced by the same bytes the arm was trained under.
-PIN_eval="286d5f69188b72641cb104823cecc919f7c6a6eba79811b29c1d6fb616d55611  eval_FLAC.py"
+# PIN updated 2026-08-22 (exp-12 session): exp_21 evolved eval_FLAC.py (fa_cartesian as a
+# first-class method + enumeration refactor + a fail-closed cap pre-flight). Verified
+# protocol-inert for fa_invariant/vanilla: same dispatch, same executor, same recorded
+# fields; the only behavioural delta is an added REFUSAL path. Diff reviewed:
+# 50679ec..0353954 -- eval_FLAC.py only.
+PIN_eval="d2f94cae283f919eeae251050c9621f950af90c6a44e742f9a118568809cb954  eval_FLAC.py"
 PIN_k8="fe9c473784340d32e5e02cbfa62948c52a1a0d18bf9869606fdeb898b0de11fc  ${K8_CFG}"
 PIN_k1="140e0ce8422e03c5f6f37c1681d0bc68c1ca6fa5821289f5d1f726a17a66a46b  ${K1_CFG}"
 PIN_testsplit="d4e3e29fddeeab6d9343a7efa811f5c02e23c3e99bd44894898a45d2a33248a1  data/HAA/test_base.json"
