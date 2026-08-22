@@ -42,3 +42,7 @@
 - **Launch order:** 9 GPU-pairs chained by watcher — (P1-K8, BF-K8) seeds 42/43/44, then (YAW-K8 ×3 + P1-K1 ×3) interleaved, then (BF-K1, YAW-K1) ×3.
 
 ## 2026-08-22T05:35:00-0400 — Pair 1 PASSED (P1 0.4946 / BF 0.5085 K8 top-1, paired); pair 2 launched
+
+## 2026-08-22T13:45:00-0400 — K8 P1-vs-BF complete (3 seeds): BF +0.0182 paired top-1, p=0.0002
+
+- P1 0.4948±0.0002, BF 0.5087±0.0007 macro; paired (per-query seed-means, 17-room clustered, stat=mean): top-1 +0.0182 CI [+0.0086,+0.0260] p=0.0002 (12/17 rooms), e_loc −0.090 m p=0.017. Pairing gate PROVEN per seed. Interim label: Holm-4 verdict pending YAW+K1. Pair 4 (YAW-K8-42 + P1-K1-42) running.
