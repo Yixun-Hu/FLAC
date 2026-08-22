@@ -10,3 +10,6 @@ nohup python eval_localization.py --fa-parity-check --cond-method fa_invariant \
   --rotate-deg 0 --cond-autocast default --batch-size 4 --num-workers 4 --device cuda:0 \
   --out-dir outputs_loc/exp20 --eval-name exp20_bf_parity > worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-22_01:22:02_bf_parity.log 2>&1 &
 ```
+
+## Campaign cells (2026-08-22_01:30:27 EDT, FREEZE a92ff5d7ee7fbed28566d3dca534755f49ee0cae) — launch_cell ARM REG SEED DEV template (recorded verbatim in scratchpad/exp20_launch_cell.sh; chained pairwise by watcher)
+First pair: P1 R2 seed42 (cuda:1) + BF R2 seed42 (cuda:0).
