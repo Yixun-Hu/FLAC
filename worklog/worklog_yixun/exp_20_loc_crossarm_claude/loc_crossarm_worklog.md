@@ -25,3 +25,6 @@
 
 ## 2026-08-22T04:15:00-0400 — r4 micro-round delivered; narrow re-review launched
 - `5d4bab0` `1a332bf`; suite 2,802 green; 114 crossarm tests. Ratchet 7→4→2→0-claimed.
+
+## 2026-08-22T04:50:00-0400 — r4 re-review: F3/F4b closed; F4a one-liner → r5; PARITY EXECUTION GO (launched)
+- **Acceptance criteria (fa-parity gate, pre-launch):** autocast-off bitwise match=True; registered-autocast within the preregistered 2e-2 tolerance, match=True; evidence record complete (both partitions [10,10,10], per-side dtypes/finiteness, shas); exit 0.
