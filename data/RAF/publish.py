@@ -402,11 +402,16 @@ CANONICAL_MAPPINGA_PREPARE_PARAMS = {
     # ceiling every written file is CHECKED against (N3)
     "amplitude_derivation_target": 0.75,
     "clip_ceiling": 0.999,
-    # knowable only once the canonical generation exists; pinned by the Planner
-    # from the run, checked structurally until then
-    "correspondence_sha256": SHA256_SHAPE,
+    # N5: PINNED, not shaped. The correspondence record is a committed input, so
+    # its digest is knowable now -- and a canonical publication that could name any
+    # 64-hex string was not identified by it at all. The audio-union digest is the
+    # one thing knowable only from the canonical generation itself; while it is a
+    # placeholder no canonical publication may be made (the prepare CLI refuses).
+    "correspondence_sha256":
+        "f2da911b5de82e7914a0cf234c0f0713051880784a4a71c163fa92b377288da4",
     "audio_union_sha256": SHA256_SHAPE,
-    "readback_record_sha256": SHA256_SHAPE,
+    "readback_record_sha256":
+        "9288181be62bf8b4669880522fadaab18527facb2749837f768572069f4876c3",
 }
 CANONICAL_MAPPINGA_DEPTH_PARAMS = {
     "rooms": list(CANONICAL_ROOMS),
@@ -416,13 +421,26 @@ CANONICAL_MAPPINGA_DEPTH_PARAMS = {
     "floor_tol": 0.15,
     "max_miss_rate": 0.0025,
     "n_maps": 1152,
-    "readback_record_sha256": SHA256_SHAPE,
+    "readback_record_sha256":
+        "9288181be62bf8b4669880522fadaab18527facb2749837f768572069f4876c3",
 }
 
 CANONICAL_IDENTITIES = {"prepare": CANONICAL_PREPARE_PARAMS,
                         "depth": CANONICAL_RENDER_PARAMS,
                         "mappingA_prepare": CANONICAL_MAPPINGA_PREPARE_PARAMS,
                         "mappingA_depth": CANONICAL_MAPPINGA_DEPTH_PARAMS}
+
+
+def unpinned_identity_keys(kind):
+    """Registered digests that are still placeholders for this kind (N5).
+
+    ``SHA256_SHAPE`` accepts any well-formed digest, which is right while a value
+    is genuinely unknowable and wrong the moment it is knowable: a publication
+    identified by "some sha256" is not identified. Producers ask this before
+    claiming a canonical publication.
+    """
+    return sorted(key for key, value in CANONICAL_IDENTITIES[kind].items()
+                  if value == SHA256_SHAPE)
 
 
 def resolve_rooms(rooms, canonical=True):
@@ -504,6 +522,66 @@ def marker_identity_problems(kind, marker):
     return problems
 
 
+# The runtime tree's pointer at the Mapping-H/Mapping-A split directory. Written
+# by both prepare CLIs and covered by the runtime manifest.
+PUBLICATION_POINTER = "raf_publication.json"
+
+
+def pointer_identity_problems(output_dir, rooms, flavor, prepare_marker,
+                              depth_marker):
+    """The pointer a consumer reads must agree with the markers it points at (N5).
+
+    A reader reaches the publication through the pointer: it names the split
+    directory, the rooms and the parameters. Verifying the markers alone left the
+    pointer free to disagree with them -- a stale pointer beside a fresh generation
+    would send RAF_md/RAF_A_md at the right tree with the wrong identity.
+    """
+    path = os.path.join(output_dir, PUBLICATION_POINTER)
+    if not os.path.isfile(path):
+        return [f"{path} does not exist: the runtime tree names no publication"]
+    try:
+        with open(path) as f:
+            pointer = json.load(f)
+    except ValueError as e:
+        return [f"{path} is not valid JSON ({e})"]
+
+    problems = []
+    if pointer.get("flavor", "mappingH") != flavor:
+        problems.append(f"pointer declares flavor {pointer.get('flavor')!r}, not "
+                        f"{flavor!r}")
+    if list(pointer.get("rooms") or []) != list(rooms):
+        problems.append(f"pointer names rooms {pointer.get('rooms')!r}, not "
+                        f"{list(rooms)!r}")
+    if pointer.get("canonical") is not True:
+        problems.append("pointer does not declare a canonical publication")
+    if pointer.get("taint"):
+        problems.append(f"pointer is tainted: {pointer['taint']}")
+
+    marker_params = (prepare_marker.get("parameters") or {})
+    for key, value in sorted((pointer.get("parameters") or {}).items()):
+        if key not in marker_params:
+            problems.append(f"pointer parameter {key} is not in the prepare marker")
+        elif marker_params[key] != value:
+            problems.append(f"pointer parameter {key}={value!r} != marker "
+                            f"{marker_params[key]!r}")
+
+    digests = {
+        "pointer": ((pointer.get("readback_record") or {}).get("sha256")
+                    if isinstance(pointer.get("readback_record"), dict) else None),
+        "prepare marker": ((prepare_marker.get("readback_record") or {}).get("sha256")
+                           if isinstance(prepare_marker.get("readback_record"), dict)
+                           else None),
+        "depth marker": ((depth_marker.get("readback_record") or {}).get("sha256")
+                         if isinstance(depth_marker.get("readback_record"), dict)
+                         else None),
+    }
+    if len(set(digests.values())) != 1:
+        problems.append("readback digests disagree across the publication: "
+                        + ", ".join(f"{where}={digest}"
+                                    for where, digest in sorted(digests.items())))
+    return problems
+
+
 def verify_combined_publication(split_dir, output_dir, rooms=None,
                                 depth_subdir="depth_images", canonical=True,
                                 flavor="mappingH"):
@@ -539,6 +617,9 @@ def verify_combined_publication(split_dir, output_dir, rooms=None,
     if canonical:
         for kind, report in ((prepare_kind, prepare), (depth_kind, depth)):
             reasons.extend(marker_identity_problems(kind, report.get("marker") or {}))
+        reasons.extend(pointer_identity_problems(
+            output_dir, rooms, flavor, prepare.get("marker") or {},
+            depth.get("marker") or {}))
     return {
         "published": not reasons,
         "reason": "; ".join(reasons),

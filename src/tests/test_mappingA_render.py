@@ -229,10 +229,11 @@ def test_the_renderer_marker_satisfies_RAF_A_md_end_to_end(tmp_path, monkeypatch
     # a prepare-side publication for the same tree, so the COMBINED check has both
     split_dir = tmp_path / "data" / "RAF_mappingA"
     prepare_params = dict(raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS,
-                          correspondence_sha256="a" * 64, audio_union_sha256="b" * 64,
-                          readback_record_sha256="c" * 64)
+                          audio_union_sha256="b" * 64)
     pointer = {"split_dir": str(split_dir.resolve()), "output_dir": str(out.resolve()),
-               "rooms": rooms, "flavor": "mappingA", "canonical": True, "taint": []}
+               "rooms": rooms, "flavor": "mappingA", "canonical": True, "taint": [],
+               "parameters": prepare_params,
+               "readback_record": {"sha256": raf_publish.canonical_record_digest()}}
     with raf_publish.PublishTransaction(str(split_dir), kind="mappingA_prepare") as txn:
         runtime = txn.stage(str(out))
         splits = txn.stage(str(split_dir))
@@ -261,7 +262,11 @@ def test_the_renderer_marker_satisfies_RAF_A_md_end_to_end(tmp_path, monkeypatch
     depth_marker["canonical"] = True
     depth_marker["taint"] = []
     depth_marker["canonical_parameters"] = True
+    # the fixture's readback record is synthetic, so its digest stands in for the
+    # pinned one in BOTH places the identity names it
     depth_marker["readback_record"] = {"sha256": raf_publish.canonical_record_digest()}
+    depth_marker["parameters"]["readback_record_sha256"] = (
+        raf_publish.canonical_record_digest())
     depth_marker_path.write_text(json.dumps(depth_marker))
 
     report = raf_publish.verify_combined_publication(

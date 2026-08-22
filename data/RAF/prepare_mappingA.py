@@ -41,6 +41,8 @@ from prepare_data import (  # noqa: E402
 )
 from publish import (  # noqa: E402
     CANONICAL_MAPPINGA_PREPARE_PARAMS,
+    SHA256_SHAPE,
+    unpinned_identity_keys,
     MANIFEST_NAME as PUBLISH_MANIFEST_NAME,
     PublishTransaction,
     sha256_file,
@@ -262,6 +264,97 @@ def audit_amplitude_union(room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
 # Writing the union
 # --------------------------------------------------------------------------- #
 RIR_FOLDER = "mono_rirs_22050Hz"
+
+
+class CorrespondenceRecordError(RuntimeError):
+    """The committed correspondence audit that authorises a Mapping-A selection."""
+
+
+def load_correspondence_record(path, rooms, canonical, raf_root=None):
+    """Read the committed correspondence record ONCE and digest what was read (N5).
+
+    The record is the evidence that these placements can be matched at all, so the
+    publication's ``correspondence_sha256`` must be the digest of the FULL committed
+    file -- not, as before, a hash of a summary the run computed about itself, which
+    attested nothing a reader could check against the repository. Reading and
+    hashing the same bytes closes the window where the file changes between the two.
+
+    The record must also describe THIS corpus and THIS algorithm: version,
+    tolerances, rooms, and -- canonically -- the RAF root it audited.
+    """
+    with open(path, "rb") as f:
+        raw = f.read()
+    digest = hashlib.sha256(raw).hexdigest()
+    try:
+        record = json.loads(raw.decode("utf-8"))
+    except ValueError as e:
+        raise CorrespondenceRecordError(f"{path}: not valid JSON ({e})")
+
+    registered = CANONICAL_MAPPINGA_PREPARE_PARAMS["correspondence_sha256"]
+    taint = []
+    if canonical and digest != registered:
+        raise CorrespondenceRecordError(
+            f"{path} hashes to {digest}, not the registered correspondence record "
+            f"{registered}. A canonical publication is authorised by the committed "
+            "audit, not by whatever record a run was pointed at.")
+    if digest != registered:
+        taint.append(f"correspondence record {digest} is not the registered "
+                     f"{registered}")
+
+    if record.get("algorithm_version") != MATCH_ALGORITHM_VERSION:
+        raise CorrespondenceRecordError(
+            f"{path} audits algorithm {record.get('algorithm_version')!r}, this run "
+            f"uses {MATCH_ALGORITHM_VERSION!r}")
+    tolerances = record.get("tolerances") or {}
+    expected_tolerances = {"placement_cap_m": PLACEMENT_CAP_M, "p95_m": MATCH_P95_M,
+                           "max_m": MATCH_MAX_M,
+                           "ambiguity_margin": MATCH_AMBIGUITY_MARGIN}
+    wrong = {k: (tolerances.get(k), v) for k, v in expected_tolerances.items()
+             if tolerances.get(k) != v}
+    if wrong:
+        raise CorrespondenceRecordError(
+            f"{path} was audited under different tolerances: "
+            + "; ".join(f"{k}={got!r} != {want!r}" for k, (got, want) in
+                        sorted(wrong.items())))
+    missing = [room for room in rooms if room not in (record.get("rooms") or {})]
+    if missing:
+        raise CorrespondenceRecordError(f"{path} audits no {missing}")
+    if canonical and raf_root and (os.path.realpath(record.get("raf_root") or "")
+                                   != os.path.realpath(raf_root)):
+        raise CorrespondenceRecordError(
+            f"{path} audited {record.get('raf_root')!r}, this run reads {raf_root!r}")
+
+    return record, {"path": os.path.abspath(path), "sha256": digest,
+                    "canonical": canonical and not taint, "taint": taint,
+                    "algorithm_version": record.get("algorithm_version"),
+                    "created_utc": record.get("created_utc")}
+
+
+def cross_check_correspondence(record, room, survey):
+    """The audited room and the surveyed room must be the same room (N5).
+
+    A digest proves which file was read; this proves the file describes what the
+    run just measured. A corpus that changed under the audit shows up here as a
+    different eligible-placement set or a different pass/fail count.
+    """
+    audited = (record.get("rooms") or {})[room]
+    surveyed_eligible = sorted(p["placement_id"] for p in survey["placements"]
+                               if p["eligible"])
+    problems = []
+    if sorted(audited.get("eligible_placement_ids") or []) != surveyed_eligible:
+        problems.append(
+            f"eligible placements {sorted(audited.get('eligible_placement_ids') or [])}"
+            f" != surveyed {surveyed_eligible}")
+    for key in ("n_groups_passing", "n_groups_failing", "n_placements"):
+        if key in audited and audited[key] != survey[key]:
+            problems.append(f"{key} {audited[key]} != surveyed {survey[key]}")
+    if problems:
+        raise CorrespondenceRecordError(
+            f"{room}: the correspondence record does not describe the corpus this "
+            "run surveyed -- " + "; ".join(problems))
+    return {"eligible_placement_ids": surveyed_eligible,
+            "n_groups_passing": survey["n_groups_passing"],
+            "n_groups_failing": survey["n_groups_failing"]}
 
 
 def audio_fingerprint(path):
@@ -806,10 +899,44 @@ def build_parser():
     parser.add_argument('--mappingH-dir', default=None,
                         help="published Mapping-H runtime tree (exp_19 --output-dir)")
     parser.add_argument('--readback-record', required=True)
+    # N5: the committed correspondence audit. Its FULL digest is the publication's
+    # correspondence_sha256, and canonically it must be the registered record.
+    parser.add_argument('--correspondence-record', required=True)
     parser.add_argument('--non-canonical', action='store_true',
                         help="synthetic/test mode: the readback record is not "
                              "authenticated and every artifact is tainted")
     return parser
+
+
+def canonical_identity_blockers(audio_union_digest=None, n_captures=None):
+    """What still stands between this run and a canonical publication (N5).
+
+    ``SHA256_SHAPE`` lets a marker name ANY well-formed digest, which is only
+    acceptable while a value is genuinely unknowable. The audio-union digest is
+    knowable exactly once -- from the canonical generation itself -- so a canonical
+    run measures it, reports it for pinning, and refuses; every other registered
+    digest is a committed input and must already be pinned.
+
+    ``audio_union_digest=None`` means "not measured yet", so the same check can run
+    before the survey and again after it.
+    """
+    blockers = []
+    for key in unpinned_identity_keys("mappingA_prepare"):
+        if key == "audio_union_sha256":
+            continue
+        blockers.append(f"registered {key} is still a placeholder")
+    registered = CANONICAL_MAPPINGA_PREPARE_PARAMS["audio_union_sha256"]
+    if audio_union_digest is not None:
+        if registered is SHA256_SHAPE:
+            blockers.append(
+                f"registered audio_union_sha256 is still a placeholder -- this run "
+                f"measures {audio_union_digest} over {n_captures} captures; pin that "
+                "value (from a --non-canonical dry run) and re-run, or a canonical "
+                "marker could name any union")
+        elif audio_union_digest != registered:
+            blockers.append(f"audio union {audio_union_digest} != registered "
+                            f"{registered}")
+    return blockers
 
 
 def parameter_identity(args, n_items, digests):
@@ -872,6 +999,17 @@ def main(argv=None):
     if deviations:
         taint.append("non-registered parameters: " + "; ".join(deviations))
 
+    correspondence, correspondence_provenance = load_correspondence_record(
+        args.correspondence_record, args.rooms, canonical, raf_root=args.raf_root)
+    taint.extend(correspondence_provenance["taint"])
+
+    if canonical:
+        # cheap gate first: refuse before the survey if the identity cannot be met
+        blockers = canonical_identity_blockers()
+        if blockers:
+            raise ValueError("refusing a canonical Mapping-A publication: "
+                             + "; ".join(blockers))
+
     mappingH, h_taint = resolve_mappingH(args.mappingH_dir, args.rooms, canonical,
                                          scalar=args.scalar)
     taint.extend(h_taint)
@@ -897,6 +1035,7 @@ def main(argv=None):
             items.extend(build_items(room, placement["placement_id"],
                                      placement["passing"], placement["assignment"],
                                      placement["match"], k=args.k, seed=args.seed))
+        cross_check_correspondence(correspondence, room, survey)
         survey["selected_placements"] = [p["placement_id"] for p in selected]
         surveys[room] = survey
         items_by_room[room] = items
@@ -918,16 +1057,25 @@ def main(argv=None):
                     audits[room]["max_scaled_peak"])
 
     digests = {
-        "correspondence": canonical_digest({
+        # the COMMITTED record, digested as read -- not a summary of this run (N5)
+        "correspondence": correspondence_provenance["sha256"],
+        "audio_union": canonical_digest(union),
+        "readback": readback_provenance["sha256"],
+        # kept for the record: what this run measured about its own survey
+        "survey": canonical_digest({
             room: {"n_placements": s["n_placements"],
                    "selected": s["selected_placements"],
                    "n_groups_passing": s["n_groups_passing"],
                    "n_groups_failing": s["n_groups_failing"]}
             for room, s in surveys.items()}),
-        "audio_union": canonical_digest(union),
-        "readback": readback_provenance["sha256"],
     }
     parameters = parameter_identity(args, n_items, digests)
+    if canonical:
+        blockers = canonical_identity_blockers(digests["audio_union"],
+                                               counts["n_captures"])
+        if blockers:
+            raise ValueError("refusing a canonical Mapping-A publication: "
+                             + "; ".join(blockers))
 
     # Pass 2: stage the whole publication, then commit both roots together.
     with PublishTransaction(args.split_dir, kind="mappingA_prepare") as txn:
@@ -966,7 +1114,8 @@ def main(argv=None):
         _write_json(staged_splits.path(MANIFEST_NAME), manifest)
         _write_json(staged_splits.path("mappingA_splits_record.json"),
                     build_splits_record(surveys, items_by_room, counts, parameters,
-                                        canonical, taint, readback_provenance))
+                                        canonical, taint, readback_provenance,
+                                        correspondence_provenance, digests["survey"]))
         _write_json(staged_splits.path("mappingA_amplitude_audit.json"),
                     {"parameters": parameters, "canonical": canonical, "taint": taint,
                      "rooms": audits, "written": write_reports})
@@ -988,7 +1137,8 @@ def main(argv=None):
 
 
 def build_splits_record(surveys, items_by_room, counts, parameters, canonical, taint,
-                        readback_provenance):
+                        readback_provenance, correspondence_provenance=None,
+                        survey_sha256=None):
     """The committed description of how the Mapping-A set was cut."""
     rooms = {}
     for room, survey in surveys.items():
@@ -1016,7 +1166,12 @@ def build_splits_record(surveys, items_by_room, counts, parameters, canonical, t
             "target_context_distance_m": _distribution(distances),
         }
     return {"parameters": parameters, "canonical": canonical, "taint": taint,
-            "readback_record": readback_provenance, "union": counts, "rooms": rooms}
+            "readback_record": readback_provenance,
+            # N5: the audit that authorised the selection, and separately what this
+            # run measured about its own survey (identical claims, different sources)
+            "correspondence_record": correspondence_provenance,
+            "survey_sha256": survey_sha256,
+            "union": counts, "rooms": rooms}
 
 
 def _distribution(values):

@@ -223,18 +223,21 @@ def _publish_mappingA(tmp_path, runtime_root, flavor="mappingA", canonical=True)
     import publish as raf_publish
 
     split_dir = tmp_path / "splits_mappingA"
+    # r2 N5: every registered digest except the audio union is PINNED, and the
+    # pointer must agree with the markers it points at.
+    parameters = dict(raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS,
+                      audio_union_sha256="b" * 64)
     pointer = {"split_dir": str(split_dir.resolve()),
                "output_dir": str(runtime_root.resolve()),
                "rooms": list(raf_publish.CANONICAL_ROOMS),
-               "flavor": flavor, "canonical": canonical, "taint": []}
+               "flavor": flavor, "canonical": canonical, "taint": [],
+               "parameters": parameters,
+               "readback_record": {"sha256": raf_publish.canonical_record_digest()}}
     extra = {"canonical": canonical, "taint": [], "canonical_parameters": True,
-             "parameters": dict(raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS,
-                                correspondence_sha256="a" * 64,
-                                audio_union_sha256="b" * 64,
-                                readback_record_sha256="c" * 64),
+             "parameters": parameters,
              "readback_record": {"sha256": raf_publish.canonical_record_digest()}}
-    depth_extra = dict(extra, parameters=dict(
-        raf_publish.CANONICAL_MAPPINGA_DEPTH_PARAMS, readback_record_sha256="c" * 64))
+    depth_extra = dict(extra,
+                       parameters=dict(raf_publish.CANONICAL_MAPPINGA_DEPTH_PARAMS))
     with raf_publish.PublishTransaction(str(split_dir), kind="mappingA_prepare") as txn:
         runtime = txn.stage(str(runtime_root))
         splits = txn.stage(str(split_dir))

@@ -52,10 +52,12 @@ def test_the_mappingA_identities_pin_the_planned_fields():
     assert prepare["match_ambiguity_margin"] == 3.0
     assert prepare["placement_cap_m"] == 0.05
     assert prepare["amplitude_scalar"] == 3.0
-    # digests are only knowable once the canonical generation exists
-    assert prepare["correspondence_sha256"] == raf_publish.SHA256_SHAPE
+    # r2 N5: committed inputs are pinned exactly; only the audio union -- knowable
+    # solely from the canonical generation -- is still shaped
+    assert len(prepare["correspondence_sha256"]) == 64
+    assert prepare["correspondence_sha256"] != raf_publish.SHA256_SHAPE
+    assert prepare["readback_record_sha256"] == raf_publish.canonical_record_digest()
     assert prepare["audio_union_sha256"] == raf_publish.SHA256_SHAPE
-    assert prepare["readback_record_sha256"] == raf_publish.SHA256_SHAPE
 
     depth = raf_publish.CANONICAL_IDENTITIES["mappingA_depth"]
     assert depth["positions_from"] == "mappingA"

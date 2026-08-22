@@ -9,6 +9,7 @@ for Yixun. Never drop items, never auto-adjust the scalar.
 
 Synthetic fixtures only; the real corpus is read-only.
 """
+import hashlib
 import json
 import os
 import sys
@@ -435,12 +436,59 @@ def _readback_for(tmp_path, raf_root):
     return write_passing_readback_record(str(tmp_path / "readback.json"))
 
 
-def _cli_argv(tmp_path, raf_root, readback, extra=()):
+# The synthetic corpora are generated deterministically by _multi_placement_room,
+# so their geometry -- and therefore their correspondence audit -- is the same in
+# every test; surveying once keeps the CLI tests from paying for it twice each.
+_CORRESPONDENCE_CACHE = {}
+
+
+def _correspondence_summary(raf_root, rooms):
+    key = tuple(rooms)
+    if key not in _CORRESPONDENCE_CACHE:
+        summary = {}
+        for room in rooms:
+            survey = prep_a.survey_room(os.path.join(str(raf_root), "archived", room),
+                                        room)
+            summary[room] = {
+                "eligible_placement_ids": sorted(p["placement_id"]
+                                                 for p in survey["placements"]
+                                                 if p["eligible"]),
+                "n_placements": survey["n_placements"],
+                "n_groups_passing": survey["n_groups_passing"],
+                "n_groups_failing": survey["n_groups_failing"],
+            }
+        _CORRESPONDENCE_CACHE[key] = summary
+    return _CORRESPONDENCE_CACHE[key]
+
+
+def _correspondence_for(tmp_path, raf_root, room_names=("EmptyRoom", "FurnishedRoom"),
+                        name="correspondence.json", **overrides):
+    """A correspondence record describing THIS corpus (the CLI's N5 input)."""
+    record = {
+        "schema_version": 1,
+        "created_utc": "2026-08-22T00:00:00Z",
+        "raf_root": str(raf_root),
+        "algorithm_version": prep_a.MATCH_ALGORITHM_VERSION,
+        "tolerances": {"placement_cap_m": prep_a.PLACEMENT_CAP_M,
+                       "p95_m": prep_a.MATCH_P95_M, "max_m": prep_a.MATCH_MAX_M,
+                       "ambiguity_margin": prep_a.MATCH_AMBIGUITY_MARGIN},
+        "rooms": _correspondence_summary(raf_root, room_names),
+        "verdict": {"eligible": True},
+    }
+    record.update(overrides)
+    path = tmp_path / name
+    path.write_text(json.dumps(record, indent=1))
+    return str(path)
+
+
+def _cli_argv(tmp_path, raf_root, readback, extra=(), correspondence=None):
     return ["--raf-root", str(raf_root),
             "--output-dir", str(tmp_path / "runtime" / "mappingA"),
             "--split-dir", str(tmp_path / prep_a.MAPPINGA_SPLIT_ROOT),
             "--rooms", "EmptyRoom", "FurnishedRoom",
             "--n-placements", "2", "--k", "8", "--non-canonical",
+            "--correspondence-record",
+            correspondence or _correspondence_for(tmp_path, raf_root),
             "--readback-record", readback] + list(extra)
 
 
@@ -790,3 +838,142 @@ def test_float_wav_bytes_are_not_reproducible_but_audio_is(tmp_path):
     assert first.read_bytes() != second.read_bytes()
     assert (prep_a.audio_fingerprint(str(first))
             == prep_a.audio_fingerprint(str(second)))
+
+
+# --------------------------------------------------------------------------- #
+# r2 N5: the identity names committed inputs, digest for digest
+# --------------------------------------------------------------------------- #
+def test_the_registered_correspondence_digest_is_the_committed_record():
+    """The pin, checked against the file it pins. N9 regenerates the record and
+    re-pins this value in the same commit."""
+    import publish as raf_publish
+
+    record = os.path.join(_REPO_ROOT, "worklog", "worklog_yixun",
+                          "exp_21_raf_mappingA_claude",
+                          "mappingA_correspondence_record.json")
+    with open(record, "rb") as f:
+        digest = hashlib.sha256(f.read()).hexdigest()
+    assert (raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS["correspondence_sha256"]
+            == digest)
+
+
+def test_the_registered_readback_digest_is_exp_19s_pinned_record():
+    import publish as raf_publish
+
+    pinned = raf_publish.canonical_record_digest()
+    assert (raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS["readback_record_sha256"]
+            == pinned)
+    assert (raf_publish.CANONICAL_MAPPINGA_DEPTH_PARAMS["readback_record_sha256"]
+            == pinned)
+
+
+def test_only_the_audio_union_digest_is_left_unpinned():
+    import publish as raf_publish
+
+    assert raf_publish.unpinned_identity_keys("mappingA_prepare") == [
+        "audio_union_sha256"]
+    assert raf_publish.unpinned_identity_keys("mappingA_depth") == []
+
+
+def test_a_canonical_publication_is_refused_while_the_union_is_a_placeholder(
+        monkeypatch):
+    blockers = prep_a.canonical_identity_blockers("f" * 64, 10368)
+    assert len(blockers) == 1
+    assert "placeholder" in blockers[0] and "f" * 64 in blockers[0]
+    # before the union is measured the same check passes: nothing else is unpinned
+    assert prep_a.canonical_identity_blockers() == []
+
+    # ... and once the value is pinned, only the matching union publishes
+    monkeypatch.setitem(prep_a.CANONICAL_MAPPINGA_PREPARE_PARAMS,
+                        "audio_union_sha256", "f" * 64)
+    assert prep_a.canonical_identity_blockers("f" * 64, 10368) == []
+    assert prep_a.canonical_identity_blockers("e" * 64, 10368) == [
+        f"audio union {'e' * 64} != registered {'f' * 64}"]
+
+
+def test_the_marker_names_the_correspondence_record_by_its_full_digest(cli_corpus,
+                                                                      tmp_path):
+    import publish as raf_publish
+
+    readback = _readback_for(tmp_path, cli_corpus)
+    record = _correspondence_for(tmp_path, cli_corpus)
+    prep_a.main(_cli_argv(tmp_path, cli_corpus, readback, correspondence=record))
+    with open(record, "rb") as f:
+        digest = hashlib.sha256(f.read()).hexdigest()
+    marker_path = (tmp_path / prep_a.MAPPINGA_SPLIT_ROOT
+                   / raf_publish.marker_name("mappingA_prepare"))
+    with open(marker_path) as f:
+        marker = json.load(f)
+    assert marker["parameters"]["correspondence_sha256"] == digest
+    with open(tmp_path / prep_a.MAPPINGA_SPLIT_ROOT
+              / "mappingA_splits_record.json") as f:
+        splits = json.load(f)
+    assert splits["correspondence_record"]["sha256"] == digest
+    # the run's own survey summary is recorded SEPARATELY, never as the audit
+    assert splits["survey_sha256"] and splits["survey_sha256"] != digest
+
+
+def test_a_record_from_another_algorithm_or_tolerance_is_refused(cli_corpus,
+                                                                 tmp_path):
+    readback = _readback_for(tmp_path, cli_corpus)
+    wrong_version = _correspondence_for(tmp_path, cli_corpus, name="v.json",
+                                        algorithm_version="mappingA-correspondence-0")
+    with pytest.raises(prep_a.CorrespondenceRecordError) as exc:
+        prep_a.main(_cli_argv(tmp_path, cli_corpus, readback,
+                              correspondence=wrong_version))
+    assert "algorithm" in str(exc.value)
+
+    loose = _correspondence_for(
+        tmp_path, cli_corpus, name="t.json",
+        tolerances={"placement_cap_m": prep_a.PLACEMENT_CAP_M, "p95_m": 0.05,
+                    "max_m": prep_a.MATCH_MAX_M,
+                    "ambiguity_margin": prep_a.MATCH_AMBIGUITY_MARGIN})
+    with pytest.raises(prep_a.CorrespondenceRecordError) as exc:
+        prep_a.main(_cli_argv(tmp_path, cli_corpus, readback, correspondence=loose))
+    assert "tolerances" in str(exc.value) and "p95_m" in str(exc.value)
+
+
+def test_a_record_that_does_not_describe_this_corpus_is_refused(cli_corpus, tmp_path):
+    """A digest says WHICH file was read; this says the file describes what the run
+    measured -- the corpus changing under the audit is the failure it catches."""
+    readback = _readback_for(tmp_path, cli_corpus)
+    rooms = dict(_correspondence_summary(cli_corpus, ("EmptyRoom", "FurnishedRoom")))
+    rooms["EmptyRoom"] = dict(rooms["EmptyRoom"],
+                              eligible_placement_ids=["p000", "p001", "p077"])
+    stale = _correspondence_for(tmp_path, cli_corpus, name="stale.json", rooms=rooms)
+    with pytest.raises(prep_a.CorrespondenceRecordError) as exc:
+        prep_a.main(_cli_argv(tmp_path, cli_corpus, readback, correspondence=stale))
+    assert "p077" in str(exc.value) and "EmptyRoom" in str(exc.value)
+    assert not (tmp_path / prep_a.MAPPINGA_SPLIT_ROOT / prep_a.MANIFEST_NAME).exists()
+
+
+def test_a_non_registered_record_taints_a_non_canonical_run(cli_corpus, tmp_path):
+    readback = _readback_for(tmp_path, cli_corpus)
+    prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))
+    with open(tmp_path / prep_a.MAPPINGA_SPLIT_ROOT
+              / "mappingA_splits_record.json") as f:
+        splits = json.load(f)
+    assert any("correspondence record" in note for note in splits["taint"])
+
+
+def test_a_canonical_run_demands_the_registered_record(cli_corpus, tmp_path):
+    import publish as raf_publish
+
+    record = _correspondence_for(tmp_path, cli_corpus)
+    with pytest.raises(prep_a.CorrespondenceRecordError) as exc:
+        prep_a.load_correspondence_record(record, ["EmptyRoom"], canonical=True)
+    registered = raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS[
+        "correspondence_sha256"]
+    assert registered in str(exc.value)
+
+
+def test_the_record_is_hashed_from_the_bytes_that_were_parsed(cli_corpus, tmp_path):
+    """Read once: hashing a second read would attest a file that may have changed
+    between the two."""
+    record = _correspondence_for(tmp_path, cli_corpus)
+    parsed, provenance = prep_a.load_correspondence_record(
+        record, ["EmptyRoom"], canonical=False)
+    with open(record, "rb") as f:
+        raw = f.read()
+    assert provenance["sha256"] == hashlib.sha256(raw).hexdigest()
+    assert parsed == json.loads(raw.decode())

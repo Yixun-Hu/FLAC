@@ -700,7 +700,62 @@ def test_canonical_combined_verification_validates_marker_provenance(tmp_path):
     assert "tainted" in report["reason"]
 
 
+def _pointer(rooms, flavor="mappingH", **overrides):
+    """The runtime pointer a canonical publication must also agree with (r2 N5)."""
+    pointer = {"rooms": list(rooms), "canonical": True, "taint": [],
+               "parameters": {"rooms": list(rooms)},
+               "readback_record": {"sha256": raf_publish.canonical_record_digest()}}
+    if flavor != "mappingH":
+        pointer["flavor"] = flavor
+    pointer.update(overrides)
+    return pointer
+
+
 def test_canonical_combined_verification_accepts_a_clean_pair(tmp_path):
+    split_dir, out = tmp_path / "splits", tmp_path / "runtime"
+    rooms = list(raf_publish.CANONICAL_ROOMS)
+    with raf_publish.PublishTransaction(str(split_dir), kind="prepare") as txn:
+        staged = txn.stage(str(out))
+        with open(staged.path(raf_publish.PUBLICATION_POINTER), "w") as f:
+            json.dump(_pointer(rooms), f)
+        open(staged.path("x.txt"), "w").write("x")
+        open(txn.stage(str(split_dir)).path("y.txt"), "w").write("y")
+        txn.commit(extra=_prepare_extra())
+    with raf_publish.PublishTransaction(str(out), kind="depth") as txn:
+        for room in rooms:
+            open(txn.stage(str(out / room / "depth_images")).path("m.npy"), "w").write("d")
+        txn.commit(extra=_depth_extra())
+    report = raf_publish.verify_combined_publication(str(split_dir), str(out),
+                                                     canonical=True)
+    assert report["published"] is True, report["reason"]
+    assert report["rooms"] == rooms
+
+
+def test_a_pointer_that_disagrees_with_the_markers_fails_verification(tmp_path):
+    """r2 N5: a reader reaches the publication THROUGH the pointer, so a stale one
+    beside a fresh generation would hand out the wrong identity."""
+    split_dir, out = tmp_path / "splits", tmp_path / "runtime"
+    rooms = list(raf_publish.CANONICAL_ROOMS)
+    with raf_publish.PublishTransaction(str(split_dir), kind="prepare") as txn:
+        staged = txn.stage(str(out))
+        with open(staged.path(raf_publish.PUBLICATION_POINTER), "w") as f:
+            json.dump(_pointer(rooms, parameters={"n_groups": 99},
+                               readback_record={"sha256": "d" * 64}), f)
+        open(staged.path("x.txt"), "w").write("x")
+        open(txn.stage(str(split_dir)).path("y.txt"), "w").write("y")
+        txn.commit(extra=_prepare_extra())
+    with raf_publish.PublishTransaction(str(out), kind="depth") as txn:
+        for room in rooms:
+            open(txn.stage(str(out / room / "depth_images")).path("m.npy"), "w").write("d")
+        txn.commit(extra=_depth_extra())
+    report = raf_publish.verify_combined_publication(str(split_dir), str(out),
+                                                     canonical=True)
+    assert report["published"] is False
+    assert "pointer parameter n_groups=99" in report["reason"]
+    assert "readback digests disagree" in report["reason"]
+
+
+def test_a_missing_pointer_fails_a_canonical_verification(tmp_path):
     split_dir, out = tmp_path / "splits", tmp_path / "runtime"
     rooms = list(raf_publish.CANONICAL_ROOMS)
     with raf_publish.PublishTransaction(str(split_dir), kind="prepare") as txn:
@@ -713,8 +768,8 @@ def test_canonical_combined_verification_accepts_a_clean_pair(tmp_path):
         txn.commit(extra=_depth_extra())
     report = raf_publish.verify_combined_publication(str(split_dir), str(out),
                                                      canonical=True)
-    assert report["published"] is True
-    assert report["rooms"] == rooms
+    assert report["published"] is False
+    assert "names no publication" in report["reason"]
 
 
 # --------------------------------------------------------------------------- #
