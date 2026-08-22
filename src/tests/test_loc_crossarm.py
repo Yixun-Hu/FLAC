@@ -1172,3 +1172,102 @@ def test_driver_fa_parity_exits_nonzero_when_the_gate_fails(tmp_path, monkeypatc
         "results": {"off": {"match": False, "reasons": ["partition differs"]}}})
     with pytest.raises(SystemExit, match="fa-parity"):
         el.run_fa_parity_check(args)
+
+
+# --------------------------------------------------------------------------- #
+# r2 F4 -- announcement 06 is locked as NUMBERS, and the execution is recorded
+# --------------------------------------------------------------------------- #
+def test_fa_locked_fields_cover_the_numeric_execution_state():
+    for field in ("cap_policy", "frame_avg_fwd_cap", "candidate_micro_batch", "orbit_size",
+                  "angles_per_chunk", "n_orbit_forwards", "shared_angle_count"):
+        assert field in ca.FA_LOCKED_FIELDS, field
+    state = ca.fa_run_state("fa_invariant", frame_avg_angles=ca.FA_ANGLES, rotate_deg=0.0,
+                            cond_autocast="default", candidate_micro_batch=10)
+    assert state["orbit_size"] == 4 and state["angles_per_chunk"] == 1
+    assert state["n_orbit_forwards"] == 3 and state["shared_angle_count"] == 1
+    assert state["candidate_micro_batch"] == 10 and state["frame_avg_fwd_cap"] == 10
+    assert state["cap_policy"] == "candidate_micro_batch"
+
+
+def test_fa_lock_refuses_a_mutated_numeric_field():
+    state = ca.fa_run_state("fa_invariant", candidate_micro_batch=10)
+    manifest = dict(state)
+    assert ca.fa_reasons(manifest, state) == []
+    for field, mutated in (("angles_per_chunk", 2), ("orbit_size", 3),
+                           ("shared_angle_count", 4), ("cap_policy", "module_constant"),
+                           ("n_orbit_forwards", 1)):
+        reasons = ca.fa_reasons(dict(manifest, **{field: mutated}), state)
+        assert any(field in reason for reason in reasons), (field, reasons)
+
+
+def test_fa_conditioning_reports_the_partition_it_executed():
+    recorder = _RecordingConditioner()
+    metadata = _fa_metadata(n=3)
+    observed = {}
+    ca.fa_conditioning(recorder, metadata, "cpu", ca.FA_ANGLES, record=observed)
+    assert observed["partition"] == [3, 3, 3]
+    assert observed["angles_per_chunk"] == 1 and observed["n_orbit_forwards"] == 3
+    assert observed["candidate_micro_batch"] == 3 and observed["orbit_size"] == 4
+    assert observed["shared_angle_count"] == 1
+
+
+def test_driver_row_records_the_executed_partition(tmp_path):
+    """Cheap ints per query, so a partition that drifts is detectable post-hoc."""
+    import eval_localization as el
+
+    metadata = _fa_metadata(n=3)
+    recorder = _RecordingConditioner()
+    facts = {}
+    el.conditioning_call("fa_invariant", recorder, metadata, "cpu", ca.FA_ANGLES,
+                         record=facts)
+    assert facts["partition"] == [3, 3, 3] and facts["angles_per_chunk"] == 1
+    assert el.conditioning_call("vanilla", _RecordingConditioner(), metadata, "cpu",
+                                ca.FA_ANGLES, record=facts) is not None
+    assert facts.get("cond_method") == "vanilla"
+
+
+def test_registration_locks_the_loader_settings():
+    """batch_size and num_workers decide the candidate micro-batch, so they are
+    part of the protocol, not of the operator's convenience (r1 review F4)."""
+    import eval_localization as el
+
+    # exp_18's registrations are frozen and cannot gain fields retroactively, so
+    # these are checked WHEN LOCKED and REQUIRED of any arm-bound (exp_20) manifest
+    assert el.REGISTRATION_MATCHED_IF_PRESENT == ("batch_size", "num_workers")
+    resolved = {"batch_size": 4, "num_workers": 4, "seed": 42}
+    exp18 = {"seeds": [42], "batch_size": 4, "num_workers": 4}
+    for field in el.REGISTRATION_LOCKED_FIELDS:
+        exp18[field] = None
+        resolved[field] = None
+    el.check_registration_fields(dict(exp18), resolved, False)
+    with pytest.raises(SystemExit, match="batch_size"):
+        el.check_registration_fields(dict(exp18, batch_size=8), resolved, False)
+    frozen = {k: v for k, v in exp18.items() if k not in ("batch_size", "num_workers")}
+    el.check_registration_fields(dict(frozen), resolved, False)          # exp_18 still passes
+    with pytest.raises(SystemExit, match="batch_size"):
+        el.check_registration_fields(dict(frozen, arm="BF"), resolved, False)
+
+
+def test_fa_provenance_records_the_source_blob_shas():
+    shas = ca.fa_source_shas()
+    assert set(shas) == set(ca.FA_SOURCE_FILES)
+    for relpath, digest in shas.items():
+        assert digest and len(digest) == 64, relpath
+    assert shas["src/data/yaw_rotation.py"] == ca.sha256_file("src/data/yaw_rotation.py")
+
+
+def test_fa_provenance_carries_the_protocol_numbers_and_source_shas():
+    import eval_localization as el
+
+    fa = el.parse_args(["--model-config", "m.json", "--dataset-config", "d.json",
+                        "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
+                        "--num-samples", "8", "--cond-method", "fa_invariant"])
+    record = el.build_provenance(fa, "ck", "ag", "split", "ema", 1)
+    assert record["fa_protocol"]["angles_per_chunk"] == 1
+    assert record["fa_protocol"]["orbit_size"] == 4
+    assert record["fa_protocol"]["cap_policy"] == "candidate_micro_batch"
+    assert set(record["fa_source_shas"]) == set(ca.FA_SOURCE_FILES)
+    vanilla = el.parse_args(["--model-config", "m.json", "--dataset-config", "d.json",
+                             "--ckpt-path", "c.ckpt", "--agree-ckpt", "a.pt",
+                             "--num-samples", "8"])
+    assert "fa_protocol" not in el.build_provenance(vanilla, "ck", "ag", "s", "ema", 1)

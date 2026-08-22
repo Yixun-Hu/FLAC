@@ -877,6 +877,12 @@ def build_provenance(args, ckpt_sha256, agree_sha256, split_hash, weights_source
     record["cond_method_binding"] = getattr(args, "cond_method_binding", None)
     if fa_state is not None:
         record["frame_avg_chunk_plan"] = fa_state["frame_avg_chunk_plan"]
+        record["fa_protocol"] = {field: fa_state[field] for field in sorted(fa_state)}
+        # a registration commit need only be an ANCESTOR, so the executable FA
+        # source can move after the manifest says per_angle: hash it at run time
+        from src.localization.crossarm import fa_source_shas
+
+        record["fa_source_shas"] = fa_source_shas()
     return record
 
 
@@ -1418,10 +1424,13 @@ def build_engine(args, agree=None, device=None, model_config=None, ckpt=None):
             return torch.amp.autocast(device)
         return torch.amp.autocast(device, dtype=ac_dtype)
 
+    fa_execution = {}
+
     def conditioner(metadata, _device):
         with cond_autocast_ctx():
             return conditioning_call(args.cond_method, module.diffusion.conditioner,
-                                     metadata, module.device, frame_avg_angles)
+                                     metadata, module.device, frame_avg_angles,
+                                     record=fa_execution)
 
     def sampler(noise, cond_inputs):
         with torch.no_grad():
@@ -1447,6 +1456,7 @@ def build_engine(args, agree=None, device=None, model_config=None, ckpt=None):
                     sampler=sampler, decoder=decoder, embedder=embedder)
     context = {"module": module, "model": model, "model_config": model_config,
                "weights_source": weights_source, "device": device,
+               "fa_execution": fa_execution,
                "latent_shape": (module.diffusion.io_channels, latent_samples)}
     return engine, context
 
@@ -1952,7 +1962,8 @@ def main(argv=None):
         "cond_method": args.cond_method, "cond_autocast": args.cond_autocast,
         "steps": args.steps, "cfg_scale": args.cfg_scale, "seed": args.seed,
         "readout": "mean", "candidate_manifest_sha256": manifest_hash,
-        "split_file_sha256": split_check["file_sha256"]})
+        "split_file_sha256": split_check["file_sha256"],
+        "batch_size": args.batch_size, "num_workers": args.num_workers})
     registered_metric_config = None
     if getattr(args, "metric_registration", None):
         registered_metric_config = verify_metric_registration(
@@ -2012,7 +2023,8 @@ def read_model_config(args):
     return model_config
 
 
-def conditioning_call(cond_method, conditioner, metadata, device, frame_avg_angles):
+def conditioning_call(cond_method, conditioner, metadata, device, frame_avg_angles,
+                      record=None):
     """One conditioning forward, with the frame-average CHUNK PLAN made explicit.
 
     ``invariant_conditioning`` partitions the orbit into forwards of at most
@@ -2024,7 +2036,10 @@ def conditioning_call(cond_method, conditioner, metadata, device, frame_avg_angl
     if cond_method == "fa_invariant":
         from src.localization.crossarm import fa_conditioning
 
-        return fa_conditioning(conditioner, metadata, device, frame_avg_angles)
+        return fa_conditioning(conditioner, metadata, device, frame_avg_angles, record=record)
+    if record is not None:
+        record.clear()
+        record.update({"cond_method": "vanilla", "n_orbit_forwards": 0})
     return conditioner(metadata, device)
 
 
@@ -2317,6 +2332,12 @@ REGISTRATION_LOCKED_FIELDS = (
     "readout", "candidate_manifest_sha256", "split_file_sha256",
 )
 
+#: The loader parallelism decides the candidate micro-batch, which decides the
+#: frame-average partition -- protocol, not operator convenience (r1 review F4).
+#: exp_18's registrations are frozen and do not lock these, so they are checked
+#: WHEN LOCKED and REQUIRED of any manifest that names an arm (exp_20's do).
+REGISTRATION_MATCHED_IF_PRESENT = ("batch_size", "num_workers")
+
 
 #: an immutable git object id: 40-hex (sha1) or 64-hex (sha256 repositories).
 _FULL_OBJECT_ID = re.compile(r"^[0-9a-f]{40}$|^[0-9a-f]{64}$")
@@ -2389,6 +2410,18 @@ def check_registration_fields(manifest, resolved, registered):
         else:
             match = locked == actual
         if not match:
+            _refuse(f"registered {field} is {locked!r} but this run resolves {actual!r}")
+
+    arm_bound = manifest.get("arm") is not None
+    for field in REGISTRATION_MATCHED_IF_PRESENT:
+        if field not in manifest:
+            if arm_bound:
+                _refuse(f"registration manifest names arm {manifest['arm']!r} but does not "
+                        f"lock {field!r}; the loader parallelism decides the candidate "
+                        "micro-batch and is part of an exp_20 protocol")
+            continue
+        locked, actual = manifest[field], resolved.get(field)
+        if locked != actual:
             _refuse(f"registered {field} is {locked!r} but this run resolves {actual!r}")
 
     seeds = manifest.get("seeds")

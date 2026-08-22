@@ -395,9 +395,19 @@ FA_ANGLES = (0.0, 90.0, 180.0, 270.0)
 #: different partition, and under train-mode DINOv3 a different RoPE draw.
 FA_CHUNK_PLAN = "per_angle"
 
-#: what a BF registration manifest must lock, and the run must resolve.
+#: What a BF registration manifest must lock, and the run must resolve. The
+#: plan-string alone was paperwork: "per_angle" is a claim, while the cap policy,
+#: the cap, the micro-batch, the orbit size, the angles per chunk, the number of
+#: orbit forwards and the shared-angle count are the NUMBERS that decide what the
+#: forward actually does (r1 review F4).
 FA_LOCKED_FIELDS = ("cond_method", "frame_avg_angles", "rotate_deg", "cond_autocast",
-                    "frame_avg_chunk_plan")
+                    "frame_avg_chunk_plan", "cap_policy", "frame_avg_fwd_cap",
+                    "candidate_micro_batch", "orbit_size", "angles_per_chunk",
+                    "n_orbit_forwards", "shared_angle_count")
+
+#: the registered candidate micro-batch: one query's whole candidate set.
+REGISTERED_CANDIDATE_MICRO_BATCH = 10
+CAP_POLICY = "candidate_micro_batch"
 
 
 def fa_max_fwd_samples(metadata):
@@ -408,29 +418,67 @@ def fa_max_fwd_samples(metadata):
     return int(count)
 
 
-def fa_conditioning(conditioner, metadata, device, angles=FA_ANGLES):
+def fa_conditioning(conditioner, metadata, device, angles=FA_ANGLES, record=None):
     """The driver's frame-average conditioning call, with the plan made explicit.
 
     Identical to ``eval_FLAC``'s call except that the cap is stated here rather
     than inherited: the localization driver conditions all candidates of one
-    query in a single call, so the cap IS that call's batch.
+    query in a single call, so the cap IS that call's batch. When ``record`` is
+    given it receives the partition this call actually EXECUTED -- cheap ints the
+    row carries, so a plan that drifts from its manifest is detectable
+    afterwards rather than assumed (r1 review F4).
     """
     from src.data.yaw_rotation import invariant_conditioning
 
-    return invariant_conditioning(conditioner, metadata, device, tuple(angles),
-                                  max_fwd_samples=fa_max_fwd_samples(metadata))
+    cap = fa_max_fwd_samples(metadata)
+    recorder = _PartitionRecorder(conditioner)
+    out = invariant_conditioning(recorder, metadata, device, tuple(angles),
+                                 max_fwd_samples=cap)
+    if record is not None:
+        record.update(observed_partition(recorder.partition, len(metadata), angles, cap))
+    return out
+
+
+def observed_partition(partition, batch, angles, cap):
+    """The executed chunk plan as numbers, from what the conditioner was called with."""
+    partition = [int(p) for p in partition]
+    per_chunk = sorted({p // max(1, batch) for p in partition}) or [0]
+    return {
+        "cond_method": "fa_invariant", "cap_policy": CAP_POLICY,
+        "frame_avg_fwd_cap": int(cap), "candidate_micro_batch": int(batch),
+        "orbit_size": len(tuple(angles)), "partition": partition,
+        "n_orbit_forwards": len(partition),
+        "angles_per_chunk": max(per_chunk), "shared_angle_count": max(per_chunk),
+    }
 
 
 def fa_run_state(cond_method, frame_avg_angles=FA_ANGLES, rotate_deg=0.0,
-                 cond_autocast="default", chunk_plan=FA_CHUNK_PLAN):
-    """The FA protocol state a run resolves, in the manifest's own vocabulary."""
+                 cond_autocast="default", chunk_plan=FA_CHUNK_PLAN,
+                 candidate_micro_batch=REGISTERED_CANDIDATE_MICRO_BATCH):
+    """The FA protocol state a run resolves, in the manifest's own vocabulary.
+
+    The numeric execution state is derived from the SAME rule the code applies
+    (``angles_per_chunk = max(1, cap // batch)`` with ``cap = batch``), so the
+    manifest locks the partition rather than a word describing it.
+    """
+    angles = [float(a) for a in frame_avg_angles]
+    batch = int(candidate_micro_batch)
+    cap = batch
+    per_chunk = max(1, cap // batch)
     return {
         "cond_method": cond_method,
-        "frame_avg_angles": [float(a) for a in frame_avg_angles],
+        "frame_avg_angles": angles,
         "rotate_deg": float(rotate_deg),
         "cond_autocast": cond_autocast,
         "frame_avg_chunk_plan": chunk_plan,
         "orbit_execution": chunk_plan,
+        "cap_policy": CAP_POLICY,
+        "frame_avg_fwd_cap": cap,
+        "candidate_micro_batch": batch,
+        "orbit_size": len(angles),
+        "angles_per_chunk": per_chunk,
+        "n_orbit_forwards": max(0, len(angles) - 1),
+        "shared_angle_count": per_chunk,
     }
 
 
@@ -443,6 +491,12 @@ def fa_reasons(manifest, state, fields=FA_LOCKED_FIELDS):
                            "run must declare its whole conditioning protocol")
             continue
         locked, actual = manifest[field], state.get(field)
+        if field in ("cap_policy", "frame_avg_fwd_cap", "candidate_micro_batch", "orbit_size",
+                     "angles_per_chunk", "n_orbit_forwards", "shared_angle_count"):
+            locked = locked if isinstance(locked, str) else (
+                None if locked is None else int(locked))
+            actual = actual if isinstance(actual, str) else (
+                None if actual is None else int(actual))
         if field == "frame_avg_angles":
             locked = None if locked is None else [float(a) for a in locked]
             actual = None if actual is None else [float(a) for a in actual]
