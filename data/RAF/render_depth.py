@@ -864,6 +864,52 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
     }
 
 
+def mappingA_render_plan(metadata_path):
+    """Listener-positioned render plan from the Mapping-A item manifest (exp_21).
+
+    AR renders the panorama at the RECEIVER, and Mapping A follows: one map per
+    target microphone. Two things differ from the Mapping-H (source-positioned)
+    plan and both matter:
+
+    * the nadir gate compares against the item's RAW RAF receiver height, which no
+      candidate gauge has touched -- the same independence exp_19 r5 established
+      for tx heights;
+    * the recorded sightline diagnostic probes TRANSMITTER endpoints, because here
+      the camera sits at the receiver and the sources are what it should be able
+      to see.
+
+    Identical positions are rendered once and shared, so a placement that reuses a
+    microphone does not pay for it twice.
+    """
+    with open(metadata_path) as f:
+        items = json.load(f)
+
+    plan, by_position = [], {}
+    for capture_id, item in sorted(items.items()):
+        position = tuple(round(float(v), 6) for v in item["rx_target_p"])
+        endpoints = [entry["tx_p"] for entry in item.get("context", [])] + [item["tx_p"]]
+        if position in by_position:
+            existing = by_position[position]
+            if existing["depth_file"] != item["depth_file"]:
+                existing["shared_depth_files"].append(item["depth_file"])
+            existing["item_ids"].append(item["item_id"])
+            continue
+        entry = {
+            "item_id": item["item_id"],
+            "item_ids": [item["item_id"]],
+            "capture_id": capture_id,
+            "position_p": [float(v) for v in item["rx_target_p"]],
+            "tracked_height_m": float(item["rx_target_height_raf_m"]),
+            "depth_file": item["depth_file"],
+            "shared_depth_files": [],
+            "sightline_endpoints": [[float(v) for v in e] for e in endpoints],
+            "positioned_at": "listener",
+        }
+        by_position[position] = entry
+        plan.append(entry)
+    return plan
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         description="Render RAF equirect depth panoramas at each group's tx position")
@@ -875,6 +921,11 @@ def build_parser():
     parser.add_argument('--img-h', type=int, default=DEPTH_H)
     parser.add_argument('--img-w', type=int, default=DEPTH_W)
     parser.add_argument('--floor-tol', type=float, default=DEFAULT_FLOOR_TOL)
+    parser.add_argument('--positions-from', choices=['groups', 'mappingA'],
+                        default='groups',
+                        help="'groups' renders at each tx-group's SOURCE position "
+                             "(Mapping H); 'mappingA' renders at each item's target "
+                             "RECEIVER (Mapping A / AR convention)")
     parser.add_argument('--haa-depth-root', default='HAA',
                         help="processed HAA root; its depth_images are the on-disk "
                              "scale reference (S5)")
@@ -953,9 +1004,33 @@ def main(argv=None):
     sightline_policy = {room: RX_SIGHTLINE_POLICY for room in args.rooms}
     for room in args.rooms:
         mesh = load_mesh_pipeline(os.path.join(args.raf_root, "3d_models", room, "mesh.obj"))
-        meta_path = os.path.join(args.output_dir, room, "metadata", "groups_metadata.json")
-        with open(meta_path) as f:
-            groups_meta = json.load(f)
+        if args.positions_from == "mappingA":
+            meta_path = os.path.join(args.output_dir, room, "metadata",
+                                     "mappingA_metadata.json")
+            render_plan = mappingA_render_plan(meta_path)
+        else:
+            meta_path = os.path.join(args.output_dir, room, "metadata",
+                                     "groups_metadata.json")
+            with open(meta_path) as f:
+                groups_meta = json.load(f)
+            render_plan = [{
+                "item_id": group_key,
+                "item_ids": [group_key],
+                "capture_id": None,
+                "position_p": entry["tx_xyz_p"],
+                "tracked_height_m": float(entry["tx_height_raf_m"])
+                if "tx_height_raf_m" in entry else None,
+                "depth_file": entry["depth_file"],
+                "shared_depth_files": [],
+                "sightline_endpoints": None,
+                "positioned_at": "source",
+            } for group_key, entry in groups_meta.items()]
+            for plan_entry in render_plan:
+                if plan_entry["tracked_height_m"] is None:
+                    raise ValueError(
+                        f"{room} group {plan_entry['item_id']}: groups_metadata "
+                        "carries no tx_height_raf_m. The vertical gauge check needs "
+                        "the raw RAF height; re-run data/RAF/prepare_data.py.")
 
         # Receiver positions come from the TRACKED POSE FILES, never from the mesh:
         # that independence is what makes the sightline check real evidence (S5).
@@ -978,8 +1053,9 @@ def main(argv=None):
         staged = publish_txn.stage(depth_dir)
         maps, failed, warned, bearings = {}, [], [], {}
         render_s = 0.0
-        for group_key, entry in groups_meta.items():
-            position = np.asarray(entry["tx_xyz_p"], dtype=np.float64)
+        for entry in render_plan:
+            group_key = entry["item_id"]
+            position = np.asarray(entry["position_p"], dtype=np.float64)
             t1 = time.perf_counter()
             depth, miss_report = render_depth(scene, position, h=args.img_h,
                                               w=args.img_w,
@@ -987,32 +1063,30 @@ def main(argv=None):
                                               return_report=True)
             render_s += time.perf_counter() - t1
             np.save(staged.path(entry["depth_file"]), depth)
+            for shared in entry["shared_depth_files"]:
+                np.save(staged.path(shared), depth)
 
             qa = depth_qa(depth, position, floor_tol=args.floor_tol,
                           img_h=args.img_h, img_w=args.img_w, canonical=canonical,
                           miss_report=miss_report)
             qa["depth_file"] = entry["depth_file"]
-            # R6: the checks only the real mesh can answer, fail-closed.
-            # r5 finding 5: the tracked height comes from the PUBLISHED RAW RAF Y,
-            # never from position[HEIGHT_AXIS] -- that is the gauge-transformed
-            # vector this very map was rendered from, so it cannot witness a wrong
-            # vertical assignment.
-            if "tx_height_raf_m" not in entry:
-                raise ValueError(
-                    f"{room} group {group_key}: groups_metadata carries no "
-                    "tx_height_raf_m. The vertical gauge check needs the raw RAF "
-                    "height; re-run data/RAF/prepare_data.py to republish it.")
+            qa["positioned_at"] = entry["positioned_at"]
+            qa["item_ids"] = entry["item_ids"]
+            # The sightline diagnostic probes whatever the camera should be able to
+            # see: receivers from a source-positioned map, transmitters from a
+            # listener-positioned one.
+            probe = (np.asarray(entry["sightline_endpoints"], dtype=np.float64)
+                     if entry["sightline_endpoints"] else rx_positions)
             qa["real_mesh"] = real_mesh_qa(
                 depth, position, mesh, img_h=args.img_h, img_w=args.img_w, scene=scene,
-                rx_positions_p=rx_positions, rx_sightline_required=False,
+                rx_positions_p=probe, rx_sightline_required=False,
                 rx_sightline_receivers=args.rx_sightline_receivers,
                 references=references,
-                tracked_height_m=float(entry["tx_height_raf_m"]),
+                tracked_height_m=float(entry["tracked_height_m"]),
                 vertical_tol_m=args.floor_tol,
                 require_scale_check=canonical)
             if not qa["real_mesh"]["rx_sightline"]["checked"]:
-                # still emitted per map, still recorded -- but never a gate
-                qa["warnings"].append("no receiver sightline evidence available")
+                qa["warnings"].append("no sightline evidence available")
             qa["warnings"] = qa["warnings"] + qa["real_mesh"]["warnings"]
             qa["passed"] = bool(qa["passed"] and qa["real_mesh"]["passed"])
             bearings[group_key] = qa["real_mesh"]["landmark_bearing_deg"]
@@ -1021,13 +1095,6 @@ def main(argv=None):
                 failed.append(group_key)
             if qa["warnings"]:
                 warned.append(group_key)
-            logger.info("%s %s: range [%.3f, %.3f] m, nadir %.3f m (height %.3f m), "
-                        "bearing %.1f deg (mesh %.1f deg%s), %d rays repaired",
-                        room, group_key, qa["min"], qa["max"], qa["nadir_distance"],
-                        qa["camera_height"], qa["real_mesh"]["landmark_bearing_deg"],
-                        qa["real_mesh"]["mesh_landmark_bearing_deg"],
-                        "" if qa["real_mesh"]["bearing_applicable"] else ", tie",
-                        miss_report["miss_count"])
 
         record = {
             "room": room,
@@ -1035,6 +1102,7 @@ def main(argv=None):
             "img_w": args.img_w,
             "canonical": canonical,
             "taint": taint,
+            "positions_from": args.positions_from,
             "floor_tol": args.floor_tol,
             "max_miss_rate": args.max_miss_rate,
             "n_maps": len(maps),
@@ -1069,9 +1137,10 @@ def main(argv=None):
             publish_txn.cleanup()
             raise RuntimeError(f"{room}: {len(failed)} depth maps failed QA: {failed}")
 
-        expectations[staged.dest_root] = (
-            [entry["depth_file"] for entry in groups_meta.values()]
-            + ["raf_depth_qa.json"])
+        expectations[staged.dest_root] = sorted(
+            {entry["depth_file"] for entry in render_plan}
+            | {f for entry in render_plan for f in entry["shared_depth_files"]}
+            | {"raf_depth_qa.json"})
         records[room] = record
         logger.info("%s: staged %d depth maps in %.2fs (scene build %.2fs), %d warnings",
                     room, len(maps), render_s, scene_build_s, len(warned))

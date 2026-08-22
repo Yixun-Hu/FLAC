@@ -10,3 +10,4 @@ Base: `raf-finetune-exp` @ `263ef27` (full exp_19 pipeline + 557-test suite inhe
 | `ef7166d` | r1 cycle 4: `write_union` + Mapping-H byte-identity provenance (abort on disagreement) — 21 prepare tests |
 | `a1fef7b` | r1 cycle 6: publication FLAVORS (`mappingA_prepare`/`mappingA_depth` kinds + registered identities); H→A, A→H, republish, injected-crash composition tests — 11 tests |
 | `dce9610` | r1 cycle 5: `build_items` + M5 static manifest validator (18 tests) |
+| `34cfcd3` | r1 cycles 8-9: `RAF_A_md` (AR_md semantics, per-context own-rx, listener depth) + mappingA publication gate + conditioner/C4 tests — 20 tests |
