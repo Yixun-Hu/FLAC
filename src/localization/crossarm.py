@@ -708,15 +708,41 @@ def fa_parity_gate(conditioner_factory, metadata, device="cpu", angles=FA_ANGLES
         with context:
             return fn()
 
+    # The DRIVER side must be the production path -- the same function the
+    # campaign executes -- or the gate proves nothing about the campaign. Only
+    # the REPLAY side is the independent reimplementation (r2 F3).
+    import eval_localization as driver_module
+
     driver_recorder = _PartitionRecorder(conditioner_factory())
     replay_recorder = _PartitionRecorder(conditioner_factory())
-    driver = _run(lambda: invariant_conditioning(driver_recorder, metadata, device, angles,
-                                                 max_fwd_samples=driver_cap))
+    driver = _run(lambda: driver_module.conditioning_call(
+        "fa_invariant", driver_recorder, metadata, device, angles))
     reference = _run(lambda: invariant_conditioning(replay_recorder, metadata, device, replay,
                                                     max_fwd_samples=reference_cap))
 
     reasons, per_id, worst, worst_mask = [], {}, 0.0, 0.0
     bitwise, finite = True, True
+
+    # Per-side facts BEFORE any comparison: a non-finite value anywhere on either
+    # side -- tensor or mask, shared key or not -- makes the verdict meaningless.
+    per_side = {}
+    for label, block in (("driver", driver), ("replay", reference)):
+        facts = {}
+        for name, pair in block.items():
+            tensor, mask = torch.as_tensor(pair[0]), torch.as_tensor(pair[1])
+            tensor_finite = bool(torch.isfinite(tensor.float()).all())
+            mask_finite = bool(torch.isfinite(mask.float()).all())
+            facts[name] = {"tensor_dtype": str(tensor.dtype),
+                           "tensor_shape": list(tensor.shape),
+                           "tensor_finite": tensor_finite,
+                           "mask_dtype": str(mask.dtype), "mask_shape": list(mask.shape),
+                           "mask_finite": mask_finite}
+            if not (tensor_finite and mask_finite):
+                finite = False
+                reasons.append(f"{label}.{name}: a non-finite value is present "
+                               f"(tensor finite={tensor_finite}, mask finite={mask_finite}); "
+                               "a parity verdict over NaN/Inf is meaningless")
+        per_side[label] = facts
     if set(driver) != set(reference):
         missing = sorted(set(reference) - set(driver))
         extra = sorted(set(driver) - set(reference))
@@ -748,13 +774,13 @@ def fa_parity_gate(conditioner_factory, metadata, device="cpu", angles=FA_ANGLES
                            - torch.as_tensor(b_m).float()).abs().max())
         entry.update({"max_abs_diff": diff, "mask_max_abs_diff": mask_diff,
                       "bitwise": bool(torch.equal(a_t, b_t))})
-        side_finite = (entry["finite"] and _tensor_facts(b_t)["finite"]
-                       and bool(torch.isfinite(torch.as_tensor(a_m).float()).all()))
-        entry["finite"] = side_finite
-        if not side_finite:
-            reasons.append(f"{name}: a non-finite value is present; a parity verdict over "
-                           "NaN/Inf is meaningless")
-            finite = False
+        entry["finite"] = (per_side["driver"][name]["tensor_finite"]
+                           and per_side["driver"][name]["mask_finite"]
+                           and per_side["replay"][name]["tensor_finite"]
+                           and per_side["replay"][name]["mask_finite"])
+        if entry["dtype"] != per_side["replay"][name]["tensor_dtype"]:
+            reasons.append(f"{name}: tensor dtype differs ({entry['dtype']} vs "
+                           f"{per_side['replay'][name]['tensor_dtype']})")
         if mask_diff > bar:
             reasons.append(f"{name}: mask differs by {mask_diff}")
         worst, worst_mask = max(worst, diff), max(worst_mask, mask_diff)
@@ -768,6 +794,9 @@ def fa_parity_gate(conditioner_factory, metadata, device="cpu", angles=FA_ANGLES
         "max_abs_diff": worst, "mask_max_abs_diff": worst_mask,
         "tolerance": bar, "autocast": bool(autocast),
         "ids": sorted(set(driver) | set(reference)), "per_id": per_id,
+        "driver_ids": sorted(driver), "replay_ids": sorted(reference), "per_side": per_side,
+        "driver_path": "eval_localization.conditioning_call",
+        "replay_path": "src.data.yaw_rotation.invariant_conditioning",
         "angles": list(angles), "replay_angles": list(replay),
         "driver_cap": driver_cap, "replay_cap": reference_cap,
         "driver_partition": list(driver_recorder.partition),

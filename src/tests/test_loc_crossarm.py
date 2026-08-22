@@ -998,22 +998,30 @@ def test_registered_seeds_come_from_the_manifest_not_a_constant(tmp_path):
 class _BrokenConditioner(_RecordingConditioner):
     """A conditioner that can drop an id, add one, or poison a tensor."""
 
-    def __init__(self, drop=None, extra=None, nan=False, mask_shift=False, **kwargs):
+    def __init__(self, drop=None, extra=None, nan=False, mask_shift=False, mask_nan=False,
+                 extra_nan=False, **kwargs):
         super().__init__(**kwargs)
         self.drop, self.extra, self.nan, self.mask_shift = drop, extra, nan, mask_shift
+        self.mask_nan, self.extra_nan = mask_nan, extra_nan
 
     def __call__(self, metadata, device, only_ids=None):
         out = super().__call__(metadata, device, only_ids=only_ids)
         if self.drop and self.drop in out:
             del out[self.drop]
         if self.extra:
-            out[self.extra] = [torch.zeros(len(metadata), 2), torch.ones(len(metadata), 1)]
+            tensor = torch.zeros(len(metadata), 2)
+            if self.extra_nan:
+                tensor = tensor * float("nan")
+            out[self.extra] = [tensor, torch.ones(len(metadata), 1)]
         if self.nan:
             for key in out:
                 out[key][0] = out[key][0] * float("nan")
         if self.mask_shift:
             for key in out:
                 out[key][1] = out[key][1] * 0.5
+        if self.mask_nan:
+            for key in out:
+                out[key][1] = out[key][1] * float("nan")
         return out
 
 
@@ -1552,3 +1560,60 @@ def test_seed_aggregation_requires_the_registered_set_explicitly():
     manifest = {"seeds": [42, 43, 44]}
     assert len(ca.aggregate_seeds_per_query(
         full, registered_seeds=ca.registered_seeds(manifest))) == 1
+
+
+# --------------------------------------------------------------------------- #
+# r3 F3 -- the driver side IS the production path; non-finites fail everywhere
+# --------------------------------------------------------------------------- #
+def test_parity_driver_side_routes_through_the_production_conditioning_call(monkeypatch):
+    """r2 re-review: both sides invoked invariant_conditioning directly, so the
+    gate never exercised the code the campaign runs."""
+    import eval_localization as el
+
+    seen = {}
+    original = el.conditioning_call
+
+    def spy(cond_method, conditioner, metadata, device, angles, record=None):
+        seen["cond_method"] = cond_method
+        seen["n"] = len(metadata)
+        return original(cond_method, conditioner, metadata, device, angles, record=record)
+
+    monkeypatch.setattr(el, "conditioning_call", spy)
+    verdict = ca.fa_parity_gate(lambda: _RecordingConditioner(), _fa_metadata(n=2),
+                                device="cpu", angles=ca.FA_ANGLES, autocast=False)
+    assert seen["cond_method"] == "fa_invariant" and seen["n"] == 2
+    assert verdict["driver_path"] == "eval_localization.conditioning_call"
+    assert verdict["replay_path"] == "src.data.yaw_rotation.invariant_conditioning"
+    assert verdict["match"] is True
+
+
+def test_parity_fails_on_a_non_finite_replay_mask():
+    """r2 re-review: a replay-only NaN mask returned match=True, finite=True."""
+    sides = iter([_RecordingConditioner(), _BrokenConditioner(mask_nan=True)])
+    verdict = ca.fa_parity_gate(lambda: next(sides), _fa_metadata(n=2), device="cpu",
+                                angles=ca.FA_ANGLES, autocast=False)
+    assert verdict["finite"] is False and verdict["match"] is False
+    assert any("finite" in reason for reason in verdict["reasons"]), verdict["reasons"]
+
+
+def test_parity_fails_on_a_non_finite_id_only_one_side_has():
+    """A poisoned tensor under a key the other side lacks must still fail."""
+    sides = iter([_RecordingConditioner(),
+                  _BrokenConditioner(extra="stray_id", extra_nan=True)])
+    verdict = ca.fa_parity_gate(lambda: next(sides), _fa_metadata(n=2), device="cpu",
+                                angles=ca.FA_ANGLES, autocast=False)
+    assert verdict["finite"] is False and verdict["match"] is False
+
+
+def test_parity_record_carries_per_side_key_sets_and_original_dtypes():
+    verdict = ca.fa_parity_gate(lambda: _RecordingConditioner(), _fa_metadata(n=2),
+                                device="cpu", angles=ca.FA_ANGLES, autocast=False)
+    assert set(verdict["driver_ids"]) == set(verdict["replay_ids"])
+    for side in ("driver", "replay"):
+        facts = verdict["per_side"][side]
+        assert set(facts) == set(verdict[f"{side}_ids"])
+        entry = facts["source_vit"]
+        for key in ("tensor_dtype", "tensor_shape", "tensor_finite",
+                    "mask_dtype", "mask_shape", "mask_finite"):
+            assert key in entry, (side, key)
+        assert entry["tensor_finite"] is True
