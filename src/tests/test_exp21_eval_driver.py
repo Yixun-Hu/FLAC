@@ -395,6 +395,11 @@ def test_the_row_labels_agree_with_the_protocol_module(gen, P):
     for arm, label in COMPARATOR_LABELS.items():
         assert P.ARMS[arm]["row_label"] == label
         assert gen.EXP21C_ARM_OF_LABEL[label] == arm
+    # ...and BFC's, which the cross-arm transaction looks the row up by: a drifted
+    # label would make the gate report "no evidence" for a row that is right there
+    assert P.ARMS["BFC"]["row_label"] == BFC_LABEL
+    registered = {s[0] for s in gen.ROWS if len(s) > 4 and s[4] in ("exp21", "exp21c")}
+    assert registered == {P.ARMS[a]["row_label"] for a in P.ARM_ORDER}
 
 
 def test_the_comparator_globs_match_the_filenames_the_driver_produces(gen, P):

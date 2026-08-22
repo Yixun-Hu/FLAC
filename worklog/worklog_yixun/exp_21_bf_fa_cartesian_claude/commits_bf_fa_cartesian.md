@@ -23,3 +23,8 @@
 | `a8c2a5b` | exp_21: r4 BLOCKING 2+3 — split-derived per-scene evidence + exact-step/one-ckpt identity in the table gate |
 | `58c99bb` | exp_21: r5 BLOCKING 1+2 — trained-as binding (embedded model_config, type-strict, before model/GPU construction) + streamed ckpt_sha256; both recorded beside what they prove (eval_FLAC +211/−9; test_exp21_ckpt_binding.py +380) |
 | `08e3e08` | exp_21: r5 BLOCKING 3+4 — required stream sidecar w/ re-run positional check, required+uniform digest, exp21_protocol.py campaign definition (+404), bfc_eval_driver.sh (+162), D6 comparator rows + cross-arm one-pin transaction (gen +272/−12); fixes is_exp21_row mislabelling the repin rows legacy-loop |
+| `58c99bb` | exp_21: F1+F2 — trained-as binding before construction + streamed ckpt_sha256 in all records |
+| `08e3e08` | exp_21: F3+F4 — durable full-split proof + D6 protocol module/driver/repin rows/cross-arm pin transaction |
+| `5a256b1` | exp_21: r5 nits — guardtest-only floor bypass, docstring fixes, commits-log dedupe |
+| `cc13656` | exp_21: r5 evidence logs |
+| `41f11b0` | exp_21: r5 re-review BLOCKING 1-4 — cross-arm gate made transactional (all six arm×K rows, five seeds each), per-(K,seed) input identity recomputed from sidecar preimages, reviewed comparator digests pinned + enforced across both K, preflight fails closed on digest mismatch, `.fullmatch()` for both 64-hex checks (gen +125/−23, protocol +50/−13, validator +42/−2, eval_FLAC +6/−2; tests +218/−30) |

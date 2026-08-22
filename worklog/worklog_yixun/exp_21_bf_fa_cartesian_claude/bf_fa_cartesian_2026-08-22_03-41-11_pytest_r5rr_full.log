@@ -1,0 +1,90 @@
+........................................................................ [  3%]
+........................................................................ [  6%]
+........................................................................ [  9%]
+...................................................................... [ 13%]
+........................................................................ [ 16%]
+........................................................................ [ 19%]
+........................................................................ [ 23%]
+........................................................................ [ 26%]
+........................................................................ [ 29%]
+........................................................................ [ 33%]
+..............ss........................................................ [ 36%]
+........................................................................ [ 39%]
+........................................................................ [ 42%]
+........................................................................ [ 46%]
+........................................................................ [ 49%]
+........................................................................ [ 52%]
+........................................................................ [ 56%]
+........................................................................ [ 59%]
+........................................................................ [ 62%]
+........................................................................ [ 66%]
+........................................................................ [ 69%]
+........................................................................ [ 72%]
+........................................................................ [ 76%]
+........................................................................ [ 79%]
+....................................s................................... [ 82%]
+...............................F........................................ [ 85%]
+........................................................................ [ 89%]
+........................................................................ [ 92%]
+........................................................................ [ 95%]
+........................................................................ [ 99%]
+.................                                                        [100%]
+=================================== FAILURES ===================================
+_______________ test_committed_record_agrees_with_exp11_registry _______________
+
+committed_record = {'_meta': {'expect_step': 40000, 'experiment': 'exp_15', 'purpose': 'immutable admission record for the VANL control c...orbit_claude/FLAC_AR_VANCKPT.json', 'sha256': '733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8'}, ...}
+
+    def test_committed_record_agrees_with_exp11_registry(committed_record):
+        """Cross-references are checked against exp_11's registry as it is on disk,
+        not against constants copied out of our own implementation."""
+        vanl = json.loads(EXP11_REGISTRY.read_text())["arms"]["VANL"]
+        xref = committed_record["exp_11_cross_references"]
+        for field in ("manifest_sha256", "commit", "rung", "vae_sha256", "job", "training_seed"):
+            assert xref[field] == vanl[field], f"{field} disagrees with exp_11's registry"
+        assert committed_record["config"]["sha256"] == vanl["config_sha256"]
+        # the gap this record exists to fill
+>       assert "final_ckpt_sha256" not in vanl
+E       AssertionError: assert 'final_ckpt_sha256' not in {'manifest_path': 'outputs_FLAC/exp11_VANL/launch_manifest.txt', 'manifest_sha256': '113d06a284c6198cf9487e99a2efb7ccde94ae13e656a403fe2af0281d3de8b1', 'job': '3661520', 'mode': 'INITIAL', ...}
+
+src/tests/test_yaw_aug_record_control.py:537: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_are_anchor.py::test_real_vae_anchor_is_bias_free_deterministic_and_early
+src/tests/test_extract_ema_weights.py::test_the_extracted_init_strict_loads_into_the_real_model
+src/tests/test_extract_ema_weights.py::test_the_real_target_would_reject_a_short_init
+src/tests/test_extract_ema_weights.py::test_an_EMA_only_file_would_fail_the_strict_load
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_bn_drift_probe.py: 1 warning
+src/tests/test_exp19_cyl_runtime_routing.py: 4 warnings
+src/tests/test_extract_ema_weights.py: 3 warnings
+src/tests/test_vit_gradient_checkpointing.py: 2 warnings
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_bn_drift_probe.py: 1 warning
+src/tests/test_exp19_cyl_runtime_routing.py: 4 warnings
+src/tests/test_extract_ema_weights.py: 3 warnings
+src/tests/test_vit_gradient_checkpointing.py: 2 warnings
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_yaw_aug_record_control.py::test_committed_record_agrees_with_exp11_registry
+1 failed, 2171 passed, 3 skipped, 28 warnings, 2 subtests passed in 241.24s (0:04:01)
