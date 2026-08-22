@@ -7,6 +7,7 @@ no candidate gauge has touched), and the recorded sightline diagnostic probes
 TRANSMITTER endpoints, because a camera at the receiver should be able to see the
 sources.
 """
+import hashlib
 import json
 import os
 import sys
@@ -211,29 +212,88 @@ def test_a_canonical_listener_render_enforces_the_registered_map_count(tmp_path)
     assert "sha256" in message.lower() or "n_maps" in message or "rooms" in message
 
 
+def _canonical_readback(tmp_path, raf_root, room="EmptyRoom", n_captures=3):
+    """A canonical-SHAPED readback record for the fixture corpus (r3).
+
+    Every content rule assert_canonical_content enforces, measured over the
+    synthetic corpus rather than asserted: the capture count is re-derived from the
+    fixture's own capture directories by the corpus-binding check.
+    """
+    import readback_audit as raf_readback
+
+    record = {
+        "schema_version": raf_readback.RECORD_SCHEMA_VERSION,
+        "created_utc": "2026-08-22T00:00:00Z",
+        "params": {"raf_root": str(raf_root), "synthetic": True},
+        "rooms": {room: {
+            "n_captures": n_captures,
+            "onset": {"passed": True, "reasons": [], "slope_s_per_m": 1 / 343.0,
+                      "r2": 0.99, "n": n_captures},
+            "t30_validity": {"n": n_captures, "valid_full": n_captures,
+                             "valid_crop": n_captures},
+            "amplitude": {"peak_stats": {"count": n_captures, "max": 0.2,
+                                         "min": 0.1}},
+            "quaternion": {"identity_readings": [{"capture_id": "000000",
+                                                  "quat": [0.0, 0.0, 0.0, 1.0],
+                                                  "order": "xyzw"}]},
+            "crosscheck": {"checked": n_captures, "mismatches": 0},
+        }},
+        "decisions": {"t60_headline": {"resolution": "headline"},
+                      "amplitude_scalar": {"derived_from": "train supports only",
+                                           "applied_scalar": None}},
+        "adjudication": {"gauge_pinned": raf_readback.CANONICAL_GAUGE,
+                         "quat_order_pinned": raf_readback.CANONICAL_QUAT_ORDER},
+        "verdict": {"passed": True, "reasons": []},
+    }
+    path = tmp_path / "canonical_readback.json"
+    path.write_text(json.dumps(record))
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    for i in range(n_captures):                     # what the binding check counts
+        (raf_root / "archived" / room / "data" / f"{i:06d}").mkdir(parents=True,
+                                                                   exist_ok=True)
+    return str(path), digest
+
+
 def test_the_renderer_marker_satisfies_RAF_A_md_end_to_end(tmp_path, monkeypatch):
-    """N1's acceptance test: the marker the RENDERER produces -- not a hand-built
-    one -- must let RAF_A_md's canonical gate pass. The registered constants are
-    stubbed to this fixture's scale so the CANONICAL path itself is exercised."""
+    """N1's acceptance test: the marker the RENDERER produces -- untouched, from a
+    CANONICAL render -- must satisfy the canonical verification RAF_A_md's gate
+    performs (verify_combined_publication with flavor="mappingA").
+
+    Only the REGISTRY is redirected to this fixture's scale: the room set, the map
+    count and the pinned readback digest. Nothing the renderer wrote is edited,
+    which is what the r2 review asked for -- the previous version ran
+    --non-canonical and then patched canonical=True and the digest into the marker
+    by hand, so the canonical path was never exercised end to end.
+    """
     import publish as raf_publish
-    from test_mappingA_md import load_md
+    import readback_audit as raf_readback
 
     raf_root, out = _fixture(tmp_path)
     rooms = ["EmptyRoom"]
+    readback, digest = _canonical_readback(tmp_path, raf_root)
+
+    # the three pins that name the real world, redirected to the fixture
+    monkeypatch.setattr(raf_readback, "CANONICAL_RECORD_SHA256", digest)
+    monkeypatch.setattr(raf_readback, "CANONICAL_ROOMS", tuple(rooms))
+    monkeypatch.setattr(raf_publish, "canonical_record_digest", lambda: digest)
     monkeypatch.setattr(raf_publish, "CANONICAL_ROOMS", tuple(rooms))
     monkeypatch.setitem(raf_publish.CANONICAL_MAPPINGA_DEPTH_PARAMS, "rooms", rooms)
     monkeypatch.setitem(raf_publish.CANONICAL_MAPPINGA_DEPTH_PARAMS, "n_maps", 3)
+    monkeypatch.setitem(raf_publish.CANONICAL_MAPPINGA_DEPTH_PARAMS,
+                        "readback_record_sha256", digest)
     monkeypatch.setitem(raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS, "rooms", rooms)
+    monkeypatch.setitem(raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS,
+                        "readback_record_sha256", digest)
 
-    readback = _readback(tmp_path)
     # a prepare-side publication for the same tree, so the COMBINED check has both
     split_dir = tmp_path / "data" / "RAF_mappingA"
     prepare_params = dict(raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS,
-                          audio_union_sha256="b" * 64)
+                          audio_union_sha256="b" * 64,
+                          readback_record_sha256=digest)
     pointer = {"split_dir": str(split_dir.resolve()), "output_dir": str(out.resolve()),
                "rooms": rooms, "flavor": "mappingA", "canonical": True, "taint": [],
                "parameters": prepare_params,
-               "readback_record": {"sha256": raf_publish.canonical_record_digest()}}
+               "readback_record": {"sha256": digest}}
     with raf_publish.PublishTransaction(str(split_dir), kind="mappingA_prepare") as txn:
         runtime = txn.stage(str(out))
         splits = txn.stage(str(split_dir))
@@ -243,32 +303,52 @@ def test_the_renderer_marker_satisfies_RAF_A_md_end_to_end(tmp_path, monkeypatch
             json.dump({"EmptyRoom": []}, f)
         txn.commit(extra={"canonical": True, "taint": [], "canonical_parameters": True,
                           "parameters": prepare_params,
-                          "readback_record": {
-                              "sha256": raf_publish.canonical_record_digest()}})
+                          "readback_record": {"sha256": digest}})
 
-    # the RENDERER writes the depth attestation
+    # the RENDERER writes the depth attestation -- canonically, and it is not touched
     raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
                      "--rooms", "EmptyRoom", "--positions-from", "mappingA",
                      "--haa-depth-root",
                      os.path.join(_REPO_ROOT, "src", "tests", "fixtures",
                                   "raf_depth_reference"),
-                     "--readback-record", readback, "--non-canonical"])
-    with open(out / raf_publish.marker_name("mappingA_depth")) as f:
-        depth_marker = json.load(f)
-    # the run was non-canonical only because the synthetic record is not the pinned
-    # one; its PARAMETERS are the registered ones, which is what the gate reads
+                     "--readback-record", readback])
+    marker_path = out / raf_publish.marker_name("mappingA_depth")
+    before = marker_path.read_bytes()
+    depth_marker = json.loads(before)
+    assert depth_marker["canonical"] is True and depth_marker["taint"] == []
     assert depth_marker["parameters"]["n_maps"] == 3
-    depth_marker_path = out / raf_publish.marker_name("mappingA_depth")
-    depth_marker["canonical"] = True
-    depth_marker["taint"] = []
-    depth_marker["canonical_parameters"] = True
-    # the fixture's readback record is synthetic, so its digest stands in for the
-    # pinned one in BOTH places the identity names it
-    depth_marker["readback_record"] = {"sha256": raf_publish.canonical_record_digest()}
-    depth_marker["parameters"]["readback_record_sha256"] = (
-        raf_publish.canonical_record_digest())
-    depth_marker_path.write_text(json.dumps(depth_marker))
+    assert depth_marker["parameters"]["readback_record_sha256"] == digest
+    assert depth_marker["readback_record"]["sha256"] == digest
 
     report = raf_publish.verify_combined_publication(
         str(split_dir), str(out), rooms=rooms, canonical=True, flavor="mappingA")
     assert report["published"] is True, report["reason"]
+    assert marker_path.read_bytes() == before          # nothing was edited into it
+
+
+def test_a_canonical_listener_render_refuses_the_wrong_map_count(tmp_path,
+                                                                 monkeypatch):
+    """The same canonical path, one deviation: the registry expects a different
+    number of maps than the plan produces."""
+    import publish as raf_publish
+    import readback_audit as raf_readback
+
+    raf_root, out = _fixture(tmp_path)
+    readback, digest = _canonical_readback(tmp_path, raf_root)
+    monkeypatch.setattr(raf_readback, "CANONICAL_RECORD_SHA256", digest)
+    monkeypatch.setattr(raf_readback, "CANONICAL_ROOMS", ("EmptyRoom",))
+    monkeypatch.setattr(raf_publish, "canonical_record_digest", lambda: digest)
+    monkeypatch.setitem(raf_publish.CANONICAL_MAPPINGA_DEPTH_PARAMS, "rooms",
+                        ["EmptyRoom"])
+    monkeypatch.setitem(raf_publish.CANONICAL_MAPPINGA_DEPTH_PARAMS, "n_maps", 1152)
+    monkeypatch.setitem(raf_publish.CANONICAL_MAPPINGA_DEPTH_PARAMS,
+                        "readback_record_sha256", digest)
+    with pytest.raises(ValueError) as exc:
+        raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                         "--rooms", "EmptyRoom", "--positions-from", "mappingA",
+                         "--haa-depth-root",
+                         os.path.join(_REPO_ROOT, "src", "tests", "fixtures",
+                                      "raf_depth_reference"),
+                         "--readback-record", readback])
+    assert "n_maps" in str(exc.value)
+    assert not (out / raf_publish.marker_name("mappingA_depth")).exists()
