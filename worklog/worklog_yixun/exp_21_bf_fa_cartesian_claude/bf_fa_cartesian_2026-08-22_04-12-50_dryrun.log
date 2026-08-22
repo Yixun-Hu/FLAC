@@ -1,0 +1,89 @@
+=== exp_21 BFC from-scratch DDP+SyncBN (RATE_PROBE) - 2026-08-22_04-12-50 - 23a17ff ===
+mode: RATE_PROBE (the approved manifest; MAXSTEPS/CHECKPOINT_EVERY/LOGGER are pinned, not defaulted)
+identity: --name FLAC_exp21_BFC_rateprobe --experiment-name exp21_BFC_rateprobe --save-dir outputs_FLAC/exp21_BFC_rateprobe
+recipe: 32x2x1 eff64 seed42 -> 320 | ckpt-every 1000320 | logger=none | precision=bf16-mixed
+arm: fa_cartesian (single-delta vs exp_07 B-F) | validation loader: NONE (parity: B-F trained without one)
+resume: NONE (from scratch; this launcher has no resume path) | dry_run=1
+config contract OK: BFC == BF + cond_method 'fa_cartesian' + training cap 32
+  ViT gradient_checkpointing: True on both ViT conditioners (config, as in the B-F recipe)
+  chunk plan: cap 32 / micro-batch 32 / C4 -> angles_per_chunk 1 (per-angle RoPE draws, matching B-F's training-era schedule)
+disk: 268360 MiB free on the volume holding outputs_FLAC (floor 1 MiB)
+--- co-tenancy disclosure: compute apps at launch ---
+GPU-9c72ac69-836a-c2ee-89b7-4b51b68317a8, 19809, python, 6228 MiB
+GPU-684b9600-ff40-5a6c-8ac6-66b9657330b3, 20231, /home/yixunhu/miniconda3/envs/flac/bin/python, 6404 MiB
+0, 6247 MiB, 42295 MiB
+1, 6439 MiB, 42101 MiB
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+ViT pin OK: single snapshot 114c13799502..., sha256 4610ad75edef... (launched with HF_HUB_OFFLINE=1)
+building BFC (fa_cartesian) from worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/FLAC_AR_BFC.json ...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+building BF  (fa_invariant) from worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json ...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+wiring: BFC cond_method='fa_cartesian' angles=(0.0, 90.0, 180.0, 270.0) cap=32 | BF cond_method='fa_invariant' cap=None (B-F declared no cap: its training-era schedule was the legacy per-angle loop)
+architecture: identical param names (753 tensors) and count (64.50M) in both arms
+init identity: state_dict sha256 match under seed 42: 44a2f6aadd7d2180...
+  (covers every module create_model_from_config builds, the VAE pretransform module included - randomly initialised here; the TRAINED VAE weights arrive at train time via --pretransform-ckpt-path, from the same file for both arms)
+--- env manifest ---
+torch 2.7.0+cu126 cuda 12.6
+0, 49140 MiB, 6247 MiB
+1, 49140 MiB, 6439 MiB
+pip-freeze sha256: 395a723238fd4724a4fe4dee1d1dea5c4894a54f827aca592cd93c56de6d91d5
+sync_batchnorm: true (fail-closed in train.py below num_gpus 2) | strategy: ddp_find_unused_parameters_true | rung: 32x2x1 | grad-ckpt: config
+LAUNCH-CMD: env HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=0,1 python train.py --model-config worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/FLAC_AR_BFC.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 320 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --logger none --checkpoint-every 1000320 --name FLAC_exp21_BFC_rateprobe --experiment-name exp21_BFC_rateprobe --save-dir outputs_FLAC/exp21_BFC_rateprobe
+LAUNCH-ARGV-BEGIN
+env
+HF_HUB_OFFLINE=1
+CUDA_VISIBLE_DEVICES=0,1
+python
+train.py
+--model-config
+worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/FLAC_AR_BFC.json
+--dataset-config
+src/configs/dataset_configs/AR/train/acousticroom_train.json
+--pretransform-ckpt-path
+weights/FLAC/VAE.safetensors
+--max-steps
+320
+--batch-size
+32
+--accum-batches
+1
+--num-workers
+6
+--seed
+42
+--num-gpus
+2
+--strategy
+ddp_find_unused_parameters_true
+--sync-batchnorm
+true
+--precision
+bf16-mixed
+--logger
+none
+--checkpoint-every
+1000320
+--name
+FLAC_exp21_BFC_rateprobe
+--experiment-name
+exp21_BFC_rateprobe
+--save-dir
+outputs_FLAC/exp21_BFC_rateprobe
+LAUNCH-ARGV-END
+DRY RUN (RATE_PROBE): every gate above ran; train.py was NOT executed and no checkpoint directory was created.
