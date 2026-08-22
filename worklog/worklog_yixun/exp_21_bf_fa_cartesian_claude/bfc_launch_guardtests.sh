@@ -85,7 +85,7 @@ echo "arm config sha256 (manual recovery if hard-killed): ${CFG_ORIG_SHA}"
 # *_smoke.log for the sanctioned short run, *_dryrun.log for a rehearsal). This
 # exercise's own *_guardtests.log is deliberately NOT in the pattern: it is the
 # evidence this run leaves behind.
-LOG_PAT='_(train|smoke|dryrun)\.log$'
+LOG_PAT='_(train|smoke|rateprobe|dryrun)\.log$'
 LOGS_BEFORE="$(ls "${EXPDIR21}" | grep -E "$LOG_PAT" | sort || true)"
 
 restore_cfg() {
@@ -385,10 +385,51 @@ env DRY_RUN=1 bash "$LAUNCHER" > /dev/null 2>&1
 AFTER_LOGS="$(ls "${EXPDIR21}" | grep -E "$LOG_PAT" | sort || true)"
 NEW_LOGS="$(comm -13 <(echo "$BEFORE_LOGS") <(echo "$AFTER_LOGS") | grep -v '^$' || true)"
 NEW_DRY="$(printf '%s\n' "$NEW_LOGS" | grep -c '_dryrun\.log$' || true)"
-NEW_TRAIN="$(printf '%s\n' "$NEW_LOGS" | grep -cE '_(train|smoke)\.log$' || true)"
+NEW_TRAIN="$(printf '%s\n' "$NEW_LOGS" | grep -cE '_(train|smoke|rateprobe)\.log$' || true)"
 echo "  new logs: $(printf '%s ' $NEW_LOGS)"
 check "G6a the dry run created exactly one _dryrun.log" "$([ "$NEW_DRY" = "1" ] && echo 0 || echo 1)"
-check "G6b the dry run created NO _train.log or _smoke.log" "$([ "$NEW_TRAIN" = "0" ] && echo 0 || echo 1)"
+check "G6b the dry run created NO _train.log, _smoke.log or _rateprobe.log" "$([ "$NEW_TRAIN" = "0" ] && echo 0 || echo 1)"
+
+echo "--- I. RATE_PROBE: ladder rung 6, isolated exactly like SMOKE (r5 prelaunch BLOCKING 2) ---"
+# The >=200-step co-tenant steady-rate window. Its budget is FIXED, not defaulted
+# and not capped: the window IS the measurement, so a caller-supplied MAXSTEPS is
+# refused rather than honoured. Every rejection case carries the df dry-fail stop,
+# for the same safety reason section D2 documents.
+case_run "I1 SMOKE=1 RATE_PROBE=1 rejected (two short modes, two identities)" 2 \
+  "mutually exclusive" -- SMOKE=1 RATE_PROBE=1 "$DF_STOP"
+case_run "I2 RATE_PROBE=2 rejected (fail closed, not 'not 1, therefore train')" 2 \
+  "RATE_PROBE must be 0 or 1" -- RATE_PROBE=2 "$DF_STOP"
+case_run "I3 RATE_PROBE=yes rejected" 2 \
+  "RATE_PROBE must be 0 or 1" -- RATE_PROBE=yes "$DF_STOP"
+case_run "I4 RATE_PROBE=1 refuses a caller-supplied MAXSTEPS" 2 \
+  "fixes MAXSTEPS at 320" -- RATE_PROBE=1 MAXSTEPS=500 "$DF_STOP"
+case_run "I5 RATE_PROBE=1 refuses CHECKPOINT_EVERY" 2 \
+  "disables checkpointing" -- RATE_PROBE=1 CHECKPOINT_EVERY=100 "$DF_STOP"
+case_run "I6 RATE_PROBE=1 refuses a logger" 2 \
+  "runs without a logger" -- RATE_PROBE=1 LOGGER=wandb "$DF_STOP"
+
+RATE_OUT="$(env DRY_RUN=1 RATE_PROBE=1 bash "$LAUNCHER" 2>&1)"; RATE_RC=$?
+check "I7 rate-probe dry run exits 0 (rc=${RATE_RC})" "$([ "$RATE_RC" = "0" ] && echo 0 || echo 1)"
+if [ "$RATE_RC" != "0" ]; then echo "$RATE_OUT" | sed 's/^/      | /' | tail -20; fi
+RATE_ARGV=(env HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=0,1 python train.py
+  --model-config worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/FLAC_AR_BFC.json
+  --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json
+  --pretransform-ckpt-path weights/FLAC/VAE.safetensors
+  --max-steps 320 --batch-size 32 --accum-batches 1
+  --num-workers 6 --seed 42
+  --num-gpus 2 --strategy ddp_find_unused_parameters_true --sync-batchnorm true
+  --precision bf16-mixed
+  --logger none --checkpoint-every 1000320
+  --name FLAC_exp21_BFC_rateprobe --experiment-name exp21_BFC_rateprobe
+  --save-dir outputs_FLAC/exp21_BFC_rateprobe)
+compare_argv "I8 rate-probe argv is the rung-6 manifest, token for token" \
+  "$RATE_OUT" "${RATE_ARGV[@]}"
+case "$RATE_OUT" in *"wandb identity"*) check "I9 a rate probe never consults wandb" 1;; *) check "I9 a rate probe never consults wandb" 0;; esac
+case "$RATE_OUT" in *"RATE_PROBE"*) check "I10 the rate-probe banner says so" 0;; *) check "I10 the rate-probe banner says so" 1;; esac
+case "$RATE_OUT" in *"--save-dir outputs_FLAC/exp21_BFC "*|*"--save-dir outputs_FLAC/exp21_BFC") check "I11 rate probe cannot write into the registered save-dir" 1;;
+  *) check "I11 rate probe cannot write into the registered save-dir" 0;; esac
+RATE_SAVEDIR="outputs_FLAC/exp21_BFC_rateprobe"
+check "I12 ${RATE_SAVEDIR} was not created by the rate-probe dry run" "$([ -e "$RATE_SAVEDIR" ] && echo 1 || echo 0)"
 
 echo "--- H. the exercise created nothing under outputs_FLAC/ ---"
 if [ "$SAVEDIR_EXISTED" = "1" ]; then

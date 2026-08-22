@@ -68,7 +68,7 @@
 # --pretrained-ckpt-path; a crashed run is relaunched by decision, not by this
 # script guessing.
 #
-# TWO MODES, AND THE MANIFEST IS NOT A DEFAULT (r4 review BLOCKING 1).
+# THREE MODES, AND THE MANIFEST IS NOT A DEFAULT (r4 review BLOCKING 1).
 #   REGISTERED (the default): MAXSTEPS=40000, CHECKPOINT_EVERY=2500,
 #     LOGGER=wandb and the MB=32/ACC=1 rung are PINNED. Passing any other value
 #     aborts - it does not override. Before this, each of them merely defaulted,
@@ -82,11 +82,20 @@
 #     (outputs_FLAC/exp21_BFC_smoke). A smoke run therefore cannot write into,
 #     log to, or be mistaken for the registered run - which is what makes it safe
 #     to have a short mode at all.
+#   RATE_PROBE=1: ladder rung 6, the >=200-step co-tenant steady-rate measurement
+#     plan §4.6 requires (the 25-step smoke is dominated by warmup and is NOT
+#     steady-state evidence). Steps are FIXED at 320 - not defaulted, not capped:
+#     passing MAXSTEPS at all aborts, because the window IS the measurement, and a
+#     steps-100..300 window then yields the required 200 steady steps. Otherwise
+#     SMOKE's isolation exactly: own identity, own save-dir
+#     (outputs_FLAC/exp21_BFC_rateprobe), logger forced off, no checkpoint inside
+#     the window, its own *_rateprobe.log. SMOKE=1 and RATE_PROBE=1 together abort.
 #
-# Knobs (env): DRY_RUN{0,1} SMOKE{0,1} MB ACC MIN_FREE_MB MIN_FREE_DISK_MB, plus
-#              MAXSTEPS/CHECKPOINT_EVERY/LOGGER, which are ACCEPTED ONLY where
-#              the mode above says so. DRY_RUN and SMOKE fail closed on anything
-#              but 0/1 - "not 1, therefore train" is how a typo becomes a run.
+# Knobs (env): DRY_RUN{0,1} SMOKE{0,1} RATE_PROBE{0,1} MB ACC MIN_FREE_MB
+#              MIN_FREE_DISK_MB, plus MAXSTEPS/CHECKPOINT_EVERY/LOGGER, which are
+#              ACCEPTED ONLY where the mode above says so. All three mode flags
+#              fail closed on anything but 0/1 - "not 1, therefore train" is how a
+#              typo becomes a run.
 #
 # Usage (the registered launch - no knobs, on purpose):
 #   conda activate flac
@@ -97,6 +106,9 @@
 #
 # Usage (ladder rung 5, ~25 steps, own namespace):
 #   SMOKE=1 bash worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/bfc_launch.sh
+#
+# Usage (ladder rung 6, 320 steps, own namespace - the >=200-step rate window):
+#   RATE_PROBE=1 bash worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/bfc_launch.sh
 # ============================================================================
 set -uo pipefail
 cd "$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-toplevel)" || exit 3
@@ -127,6 +139,18 @@ REG_LOGGER="wandb"; REG_MAXSTEPS=40000; REG_CHECKPOINT_EVERY=2500
 SMOKE_MAXSTEPS_DEFAULT=25; SMOKE_MAXSTEPS_CAP=50
 SMOKE_NAME="FLAC_exp21_BFC_smoke"; SMOKE_EXPNAME="exp21_BFC_smoke"
 SMOKE_SAVEDIR="outputs_FLAC/exp21_BFC_smoke"
+# --- RATE_PROBE mode is ladder rung 6: the >=200-step co-tenant steady-rate
+# --- measurement plan §4.6 requires and the integrative review repeats. The
+# --- 25-step smoke cannot serve -- it is dominated by warmup, compile and cache
+# --- effects, which is why the worklog itself calls it "NOT steady-state
+# --- evidence". 320 steps is FIXED, never overridable: a steps-100..300 window
+# --- gives the required 200 steady steps with 100 discarded to warmup and 20 of
+# --- tail slack. Otherwise it is SMOKE's isolation exactly -- own identity, own
+# --- save-dir, logger forced off, no checkpoint inside the window, own log noun
+# --- -- so nothing it produces can be mistaken for the registered run.
+RATE_PROBE_MAXSTEPS=320
+RATE_PROBE_NAME="FLAC_exp21_BFC_rateprobe"; RATE_PROBE_EXPNAME="exp21_BFC_rateprobe"
+RATE_PROBE_SAVEDIR="outputs_FLAC/exp21_BFC_rateprobe"
 
 # did the CALLER set these, as opposed to inheriting the manifest? Captured
 # BEFORE defaulting, because "equals the approved value" and "was never asked
@@ -138,6 +162,7 @@ LOGGER="${LOGGER:-$REG_LOGGER}"
 MB="${MB:-32}"; ACC="${ACC:-1}"
 DRY_RUN="${DRY_RUN:-0}"
 SMOKE="${SMOKE:-0}"
+RATE_PROBE="${RATE_PROBE:-0}"
 
 _posint() { # $1=name $2=value -> must be a positive integer
   case "$2" in ''|*[!0-9]*) echo "$1 must be a positive integer (got '$2') - abort"; return 1;; esac
@@ -163,11 +188,37 @@ PY
 # --- launcher may not train aborts in under a second) ---
 _bool01 DRY_RUN "$DRY_RUN" || exit 2
 _bool01 SMOKE "$SMOKE" || exit 2
+_bool01 RATE_PROBE "$RATE_PROBE" || exit 2
+# Two short modes with different identities cannot both be in force: the run
+# would train one budget under the other's name.
+[ "$SMOKE" = "1" ] && [ "$RATE_PROBE" = "1" ] && {
+  echo "SMOKE=1 and RATE_PROBE=1 are mutually exclusive: they are different"
+  echo "  ladder rungs with different budgets and different run identities."
+  echo "  Pick one. abort"; exit 2; }
 
 CHECKPOINT_EVERY="${CHECKPOINT_EVERY:-$REG_CHECKPOINT_EVERY}"; _posint CHECKPOINT_EVERY "$CHECKPOINT_EVERY" || exit 2
 MAXSTEPS="${MAXSTEPS:-$REG_MAXSTEPS}";                         _posint MAXSTEPS "$MAXSTEPS" || exit 2
 
-if [ "$SMOKE" = "1" ]; then
+if [ "$RATE_PROBE" = "1" ]; then
+  # --- RATE_PROBE: ladder rung 6, isolated exactly like SMOKE. ---------------
+  MODE="RATE_PROBE"
+  [ "$MAXSTEPS_SET" = "1" ] && {
+    echo "RATE_PROBE=1 fixes MAXSTEPS at ${RATE_PROBE_MAXSTEPS} (got MAXSTEPS='${MAXSTEPS}'):"
+    echo "  the window is the measurement. A shorter run cannot supply 200 steady steps"
+    echo "  and a longer one is training under a probe's name. Drop MAXSTEPS. abort"; exit 2; }
+  MAXSTEPS="$RATE_PROBE_MAXSTEPS"
+  [ "$CHECKPOINT_EVERY_SET" = "1" ] && {
+    echo "RATE_PROBE=1 disables checkpointing (got CHECKPOINT_EVERY='${CHECKPOINT_EVERY}'): a rate"
+    echo "  probe must not leave checkpoints anywhere. Drop CHECKPOINT_EVERY. abort"; exit 2; }
+  if [ "$LOGGER_SET" = "1" ] && [ "$LOGGER" != "none" ]; then
+    echo "RATE_PROBE=1 runs without a logger (got LOGGER='${LOGGER}'): a probe must not create a"
+    echo "  run in the project the registered training run publishes to. Drop LOGGER, or pass"
+    echo "  LOGGER=none explicitly. abort"; exit 2
+  fi
+  LOGGER="none"
+  CHECKPOINT_EVERY=$((MAXSTEPS + 1000000))
+  NAME="$RATE_PROBE_NAME"; EXPNAME="$RATE_PROBE_EXPNAME"; SAVEDIR="$RATE_PROBE_SAVEDIR"
+elif [ "$SMOKE" = "1" ]; then
   # --- SMOKE: short, logger-less, in its own namespace. ---------------------
   MODE="SMOKE"
   [ "$MAXSTEPS_SET" = "1" ] || MAXSTEPS="$SMOKE_MAXSTEPS_DEFAULT"
@@ -223,13 +274,20 @@ if [ "$DRY_RUN" = "1" ]; then
   LOG="${EXPDIR21}/bf_fa_cartesian_${TS}_dryrun.log"
 elif [ "$MODE" = "SMOKE" ]; then
   LOG="${EXPDIR21}/bf_fa_cartesian_${TS}_smoke.log"
+elif [ "$MODE" = "RATE_PROBE" ]; then
+  LOG="${EXPDIR21}/bf_fa_cartesian_${TS}_rateprobe.log"
 else
   LOG="${EXPDIR21}/bf_fa_cartesian_${TS}_train.log"
 fi
 
 exec > >(tee -a "$LOG") 2>&1
 echo "=== exp_21 BFC from-scratch DDP+SyncBN (${MODE}) - ${TS} - $(git rev-parse --short HEAD 2>/dev/null) ==="
-echo "mode: ${MODE} $([ "$MODE" = "SMOKE" ] && echo "(ladder rung: short, logger-less, own save-dir - NEVER the registered run)" || echo "(the approved manifest; MAXSTEPS/CHECKPOINT_EVERY/LOGGER are pinned, not defaulted)")"
+case "$MODE" in
+  SMOKE)      MODE_BLURB="(ladder rung: short, logger-less, own save-dir - NEVER the registered run)";;
+  RATE_PROBE) MODE_BLURB="(ladder rung 6: ${RATE_PROBE_MAXSTEPS} steps FIXED, logger-less, own save-dir - NEVER the registered run; measure the steps-100..300 window)";;
+  *)          MODE_BLURB="(the approved manifest; MAXSTEPS/CHECKPOINT_EVERY/LOGGER are pinned, not defaulted)";;
+esac
+echo "mode: ${MODE} ${MODE_BLURB}"
 echo "identity: --name ${NAME} --experiment-name ${EXPNAME} --save-dir ${SAVEDIR}"
 echo "recipe: ${MB}x${NUM_GPUS}x${ACC} eff64 seed${SEED} -> ${MAXSTEPS} | ckpt-every ${CHECKPOINT_EVERY} | logger=${LOGGER} | precision=${PRECISION}"
 echo "arm: fa_cartesian (single-delta vs exp_07 B-F) | validation loader: NONE (parity: B-F trained without one)"
