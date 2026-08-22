@@ -364,13 +364,18 @@ def test_evaluate_model_resolves_non_default_angles_for_fa_cartesian(
         tmp_path, monkeypatch):
     """The angle list is READ, not assumed: a two-angle orbit must reach both the
     filename (``_a2``) and the record. Pins that the resolution is shared with
-    fa_invariant rather than hardcoded to C4 for the new method."""
+    fa_invariant rather than hardcoded to C4 for the new method.
+
+    ``batch_size`` is declared alongside the cap because round 4's pre-flight
+    (r3 nit 3) refuses batch > cap up front: this cell now states a batch its
+    32-sample cap can actually serve, which is what the real run would have
+    needed at the first orbit chunk anyway."""
     model_cfg, dataset_cfg, ckpt = _stub_eval_deps(monkeypatch, tmp_path)
 
     eval_FLAC.evaluate_model(
         model_cfg, dataset_cfg, ckpt, steps=1, cfg_scale=1.0, device="cpu",
         eval_name="two", cond_method="fa_cartesian", frame_avg_angles=(0.0, 180.0),
-        frame_avg_max_fwd_samples=32,
+        frame_avg_max_fwd_samples=32, batch_size=32,
     )
 
     out = tmp_path / "toy_metrics_1_1.0_two_fa_cartesian_a2.json"
@@ -410,6 +415,76 @@ def test_evaluate_model_shares_the_cap_validator_with_fa_invariant(tmp_path, mon
             str(tmp_path / "missing.ckpt"), steps=1, cfg_scale=1.0, device="cpu",
             cond_method="fa_cartesian", frame_avg_max_fwd_samples=0,
         )
+
+
+# --------------------------------------------------------------------------- #
+# 2b. the batch-vs-cap PRE-FLIGHT (r3 review nit 3)
+# --------------------------------------------------------------------------- #
+# The orbit executor already refuses batch > cap, but it does so at the FIRST
+# chunk and — whenever a cap was supplied, which every registered evaluation does
+# — its message names ``training.frame_avg_max_fwd_samples``: a training-config
+# key this entry point never reads. An operator following it edits the arm's JSON
+# and the eval fails again. Round 4 moves the check to argument validation, where
+# it names the two CLI flags that actually decide the outcome, and where it costs
+# no model, dataloader or GPU work. The refusal is METHOD-GATED on
+# FRAME_AVERAGED_COND_METHODS, so vanilla — which never chunks anything — is
+# untouched, and it applies to fa_invariant as well as fa_cartesian (the review
+# sanctioned exactly that widening: fa_invariant carries the same wrong knob name
+# today).
+@pytest.mark.parametrize("cond_method", ["fa_cartesian", "fa_invariant"])
+def test_an_over_cap_batch_is_refused_before_any_work(tmp_path, monkeypatch, cond_method):
+    """batch 64 with cap 32 is unsatisfiable — a chunk is whole angles — so it
+    must abort in argument validation, naming BOTH operator knobs. Every path
+    argument points at a nonexistent file and model construction trips a loud
+    sentinel, so a late failure would surface as FileNotFoundError or the
+    sentinel instead."""
+    monkeypatch.setattr(
+        eval_FLAC, "create_model_from_config",
+        lambda *a, **k: pytest.fail("evaluate_model reached model construction"),
+    )
+    with pytest.raises(ValueError) as excinfo:
+        eval_FLAC.evaluate_model(
+            str(tmp_path / "missing_model.json"), str(tmp_path / "missing_ds.json"),
+            str(tmp_path / "missing.ckpt"), steps=1, cfg_scale=1.0, device="cpu",
+            cond_method=cond_method, frame_avg_max_fwd_samples=32, batch_size=64,
+        )
+    msg = str(excinfo.value)
+    assert "--frame-avg-max-fwd-samples" in msg     # the knob this entry point reads
+    assert "--batch-size" in msg                    # ...and the other half of the pair
+    assert "training.frame_avg_max_fwd_samples" not in msg   # NOT the training key
+    assert "64" in msg and "32" in msg              # the two numbers, not just a rule
+
+
+@pytest.mark.parametrize("cond_method", ["fa_cartesian", "fa_invariant"])
+def test_batch_equal_to_the_cap_passes_the_preflight(tmp_path, monkeypatch, cond_method):
+    """The REGISTERED cell (§5: --batch-size 64 --frame-avg-max-fwd-samples 64)
+    must survive: the refusal is batch > cap, not batch >= cap. Equality is the
+    one-angle-per-chunk plan the templates run under."""
+    model_cfg, dataset_cfg, ckpt = _stub_eval_deps(monkeypatch, tmp_path)
+    eval_FLAC.evaluate_model(
+        model_cfg, dataset_cfg, ckpt, steps=1, cfg_scale=1.0, device="cpu",
+        eval_name="atcap", cond_method=cond_method, cond_autocast="bf16",
+        frame_avg_max_fwd_samples=EVAL_CAP, batch_size=EVAL_CAP,
+    )
+    saved = json.loads(
+        (tmp_path / f"toy_metrics_1_1.0_atcap_{cond_method}_a4.json").read_text())
+    assert saved["frame_avg_fwd_cap"] == EVAL_CAP
+    assert saved["batch_size"] == EVAL_CAP
+
+
+def test_vanilla_ignores_the_batch_versus_cap_preflight(tmp_path, monkeypatch):
+    """SELECTIVITY. Vanilla runs no orbit, so a cap it never uses must not be
+    able to refuse a run — the cap is inert there and is recorded as null."""
+    model_cfg, dataset_cfg, ckpt = _stub_eval_deps(monkeypatch, tmp_path)
+    eval_FLAC.evaluate_model(
+        model_cfg, dataset_cfg, ckpt, steps=1, cfg_scale=1.0, device="cpu",
+        eval_name="van", cond_method="vanilla",
+        frame_avg_max_fwd_samples=32, batch_size=64,
+    )
+    saved = json.loads((tmp_path / "toy_metrics_1_1.0_van.json").read_text())
+    assert saved["cond_method"] == "vanilla"
+    assert saved["frame_avg_fwd_cap"] is None
+    assert saved["orbit_execution"] == "n/a"
 
 
 def test_evaluate_model_still_rejects_an_unknown_method(tmp_path, monkeypatch):
@@ -494,6 +569,7 @@ def test_the_eval_loop_calls_fa_cartesian_conditioning_for_fa_cartesian(
 
     assert [c["fn"] for c in calls] == ["fa_cartesian"], calls
     args, kwargs = calls[0]["args"], calls[0]["kwargs"]
+    assert len(args) == 4                              # nothing else positional
     assert args[0] is module.diffusion.conditioner
     assert len(args[1]) == 2 and all("depth" in md for md in args[1])  # batch metadata
     assert args[2] == "cpu"
@@ -507,11 +583,22 @@ def test_the_eval_loop_calls_fa_cartesian_conditioning_for_fa_cartesian(
 def test_the_eval_loop_still_calls_invariant_conditioning_for_fa_invariant(
         tmp_path, monkeypatch):
     """NO-CHANGE PIN (regression). Adding a branch must not steal the existing
-    one: B-F still routes to invariant_conditioning, with the same call shape."""
+    one: B-F still routes to invariant_conditioning, with the same call shape.
+
+    r3 review nit 1: the shape is pinned in FULL here, exactly as it is for
+    fa_cartesian above — arity, conditioner identity, batch metadata and device,
+    not just angles 3 and the cap. Pinning only the tail left arguments 0-2 free
+    to mutate under a green suite on the arm every published `fa eval` row was
+    produced by."""
     module, calls = _run_one_batch(tmp_path, monkeypatch, "fa_invariant")
     assert [c["fn"] for c in calls] == ["fa_invariant"], calls
-    assert calls[0]["args"][3] == tuple(ANGLES)
-    assert calls[0]["kwargs"] == {"max_fwd_samples": EVAL_CAP}
+    args, kwargs = calls[0]["args"], calls[0]["kwargs"]
+    assert len(args) == 4                              # nothing else positional
+    assert args[0] is module.diffusion.conditioner
+    assert len(args[1]) == 2 and all("depth" in md for md in args[1])  # batch metadata
+    assert args[2] == "cpu"
+    assert args[3] == tuple(ANGLES)
+    assert kwargs == {"max_fwd_samples": EVAL_CAP}
     assert module.conditioner.calls == []
 
 
@@ -674,6 +761,38 @@ def test_eval_pl_rejects_fa_cartesian_before_any_construction(tmp_path, monkeypa
     msg = str(excinfo.value)
     assert "fa_cartesian" in msg
     assert "eval_FLAC.py" in msg          # names the entry point that IS registered
+
+
+@pytest.mark.parametrize("cond_method", ["fa_target_frame", "cyl_pe", "canon", ""])
+def test_eval_pl_rejects_any_unregistered_method(tmp_path, monkeypatch, cond_method):
+    """r3 review nit 2: the guard is an ALLOWLIST, so it fails closed for arms
+    that do not exist yet. A denylist naming only ``fa_cartesian`` would let the
+    NEXT wrapper method recreate exactly this provenance hole, silently, because
+    its author has no reason to look in eval_pl.py. Nothing here is a registered
+    method, so nothing here may reach model or wrapper construction."""
+    cfg = _write_pl_config(tmp_path, cond_method)
+    monkeypatch.setattr(eval_pl, "get_all_args", lambda: _pl_args(cfg))
+    monkeypatch.setattr(
+        eval_pl, "create_model_from_config",
+        lambda *a, **k: pytest.fail("eval_pl reached model construction"))
+    monkeypatch.setattr(
+        eval_pl, "create_training_wrapper_from_config",
+        lambda *a, **k: pytest.fail("eval_pl reached wrapper construction"))
+
+    with pytest.raises(ValueError) as excinfo:
+        eval_pl.main()
+    msg = str(excinfo.value)
+    assert repr(cond_method) in msg or cond_method in msg
+    assert "eval_FLAC.py" in msg          # names the entry point that IS registered
+
+
+def test_eval_pl_permits_exactly_the_registered_legacy_methods():
+    """The allowlist is the contract and it is SMALL: two named methods plus the
+    legacy configs that declare none. Widening it is a deliberate act — a row from
+    this entry point carries no cond_method, angles, orbit execution, cap or
+    source SHA, so every added member is an arm whose rows cannot be told apart
+    from a vanilla one after the fact."""
+    assert set(eval_pl.PERMITTED_COND_METHODS) == {None, "vanilla", "fa_invariant"}
 
 
 @pytest.mark.parametrize("cond_method", ["vanilla", "fa_invariant", None])

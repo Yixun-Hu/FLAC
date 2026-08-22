@@ -1,0 +1,446 @@
+............FF.............FFFFF...                                      [100%]
+=================================== FAILURES ===================================
+_______ test_an_over_cap_batch_is_refused_before_any_work[fa_cartesian] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1314/test_an_over_cap_batch_is_refu0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f7e97c41330>
+cond_method = 'fa_cartesian'
+
+    @pytest.mark.parametrize("cond_method", ["fa_cartesian", "fa_invariant"])
+    def test_an_over_cap_batch_is_refused_before_any_work(tmp_path, monkeypatch, cond_method):
+        """batch 64 with cap 32 is unsatisfiable — a chunk is whole angles — so it
+        must abort in argument validation, naming BOTH operator knobs. Every path
+        argument points at a nonexistent file and model construction trips a loud
+        sentinel, so a late failure would surface as FileNotFoundError or the
+        sentinel instead."""
+        monkeypatch.setattr(
+            eval_FLAC, "create_model_from_config",
+            lambda *a, **k: pytest.fail("evaluate_model reached model construction"),
+        )
+        with pytest.raises(ValueError) as excinfo:
+>           eval_FLAC.evaluate_model(
+                str(tmp_path / "missing_model.json"), str(tmp_path / "missing_ds.json"),
+                str(tmp_path / "missing.ckpt"), steps=1, cfg_scale=1.0, device="cpu",
+                cond_method=cond_method, frame_avg_max_fwd_samples=32, batch_size=64,
+            )
+
+src/tests/test_fa_cartesian_eval.py:446: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config_path = '/tmp/pytest-of-yixunhu/pytest-1314/test_an_over_cap_batch_is_refu0/missing_model.json'
+dataset_config_path = '/tmp/pytest-of-yixunhu/pytest-1314/test_an_over_cap_batch_is_refu0/missing_ds.json'
+ckpt_path = '/tmp/pytest-of-yixunhu/pytest-1314/test_an_over_cap_batch_is_refu0/missing.ckpt'
+steps = 1, cfg_scale = 1.0, batch_size = 64, num_workers = 6
+eval_name = 'FLAC_eval', device = 'cpu', seed = 42, store_predictions = False
+rotate_deg = 0.0, cond_method = 'fa_cartesian'
+frame_avg_angles = (0.0, 90.0, 180.0, 270.0), frame_avg_max_fwd_samples = 32
+cond_autocast = 'default', allow_partial_load = False, rotate_mode = 'fixed'
+rotate_seed = None, expected_stream_count = None, record_stream = False
+record_per_scene = False, are_lambda = None
+
+    def evaluate_model(
+        model_config_path,
+        dataset_config_path,
+        ckpt_path,
+        steps,
+        cfg_scale,
+        batch_size=64,
+        num_workers=6,
+        eval_name='FLAC_eval',
+        device='cuda' if torch.cuda.is_available() else 'cpu',
+        seed=42,
+        store_predictions=False,
+        rotate_deg=0.0,
+        cond_method='vanilla',
+        frame_avg_angles=None,
+        frame_avg_max_fwd_samples=None,
+        cond_autocast='default',
+        allow_partial_load=False,
+        rotate_mode='fixed',
+        rotate_seed=None,
+        expected_stream_count=None,
+        record_stream=False,
+        record_per_scene=False,
+        are_lambda=None,
+    ):
+        # Fail fast on an unknown cond_method (the CLI is guarded by argparse
+        # choices, but programmatic callers would otherwise silently run vanilla
+        # while filenames/meta record the unknown method).
+        if cond_method not in COND_METHODS:
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}; valid options: "
+                + ", ".join(repr(m) for m in COND_METHODS) + "."
+            )
+    
+        # The EVALUATION chunk plan, validated before any file/model work for the same
+        # reason as the rotation protocol below: a misconfigured cap must never reach a
+        # GPU. It is a separate, explicitly pinned quantity from the cap a checkpoint
+        # was TRAINED under (exp_14 plan §3.1) -- both arms are evaluated at one common
+        # cap, and the value is recorded in the metrics row.
+        try:
+            frame_avg_max_fwd_samples = resolve_frame_avg_cap(frame_avg_max_fwd_samples)
+        except ValueError as err:                      # name the operator-facing knob
+            raise ValueError(
+                f"--frame-avg-max-fwd-samples (frame_avg_max_fwd_samples): {err}"
+            ) from err
+    
+        # Resolve (and validate) the rotation protocol before any file/model work:
+        # a misconfigured rotation must never reach a GPU (see resolve_rotation_plan).
+        rotation_plan = resolve_rotation_plan(rotate_mode, rotate_deg, rotate_seed, seed)
+    
+        # An expectation that cannot be checked must not be quietly accepted: a plain
+        # fixed-mode run accumulates no stream, so there is nothing to count.
+        accumulate_stream = rotation_plan.is_random or bool(record_stream)
+        if expected_stream_count is not None and not accumulate_stream:
+            raise ValueError(
+                "expected_stream_count (--expected-stream-count) is only checkable when an "
+                "assignment stream is accumulated, i.e. under --rotate-mode random or "
+                "--record-stream. Passing it otherwise would record an expectation that "
+                "was never verified."
+            )
+    
+        # Fail fast on an unknown cond_autocast too (full-review condition C1).
+        ac_enabled, ac_dtype = resolve_cond_autocast(cond_autocast)
+    
+        def cond_autocast_ctx():
+            """Fresh autocast context for one conditioning call (same semantics per batch)."""
+            if not ac_enabled:
+                return contextlib.nullcontext()
+            if ac_dtype is None:
+                return torch.amp.autocast(device)  # per-device default: exp_01/02 protocol
+            return torch.amp.autocast(device, dtype=ac_dtype)
+    
+        torch.set_float32_matmul_precision('medium')
+    
+        # Resolve the C4 frame-average angles (only used by the frame-averaged
+        # methods, FRAME_AVERAGED_COND_METHODS; ignored under vanilla).
+        if frame_avg_angles is None:
+            frame_avg_angles = DEFAULT_FRAME_ANGLES
+        frame_avg_angles = tuple(float(a) for a in frame_avg_angles)
+    
+        # Load configurations
+>       with open(model_config_path) as f:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-1314/test_an_over_cap_batch_is_refu0/missing_model.json'
+
+eval_FLAC.py:1166: FileNotFoundError
+_______ test_an_over_cap_batch_is_refused_before_any_work[fa_invariant] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1314/test_an_over_cap_batch_is_refu1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f7cc57f0ee0>
+cond_method = 'fa_invariant'
+
+    @pytest.mark.parametrize("cond_method", ["fa_cartesian", "fa_invariant"])
+    def test_an_over_cap_batch_is_refused_before_any_work(tmp_path, monkeypatch, cond_method):
+        """batch 64 with cap 32 is unsatisfiable — a chunk is whole angles — so it
+        must abort in argument validation, naming BOTH operator knobs. Every path
+        argument points at a nonexistent file and model construction trips a loud
+        sentinel, so a late failure would surface as FileNotFoundError or the
+        sentinel instead."""
+        monkeypatch.setattr(
+            eval_FLAC, "create_model_from_config",
+            lambda *a, **k: pytest.fail("evaluate_model reached model construction"),
+        )
+        with pytest.raises(ValueError) as excinfo:
+>           eval_FLAC.evaluate_model(
+                str(tmp_path / "missing_model.json"), str(tmp_path / "missing_ds.json"),
+                str(tmp_path / "missing.ckpt"), steps=1, cfg_scale=1.0, device="cpu",
+                cond_method=cond_method, frame_avg_max_fwd_samples=32, batch_size=64,
+            )
+
+src/tests/test_fa_cartesian_eval.py:446: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config_path = '/tmp/pytest-of-yixunhu/pytest-1314/test_an_over_cap_batch_is_refu1/missing_model.json'
+dataset_config_path = '/tmp/pytest-of-yixunhu/pytest-1314/test_an_over_cap_batch_is_refu1/missing_ds.json'
+ckpt_path = '/tmp/pytest-of-yixunhu/pytest-1314/test_an_over_cap_batch_is_refu1/missing.ckpt'
+steps = 1, cfg_scale = 1.0, batch_size = 64, num_workers = 6
+eval_name = 'FLAC_eval', device = 'cpu', seed = 42, store_predictions = False
+rotate_deg = 0.0, cond_method = 'fa_invariant'
+frame_avg_angles = (0.0, 90.0, 180.0, 270.0), frame_avg_max_fwd_samples = 32
+cond_autocast = 'default', allow_partial_load = False, rotate_mode = 'fixed'
+rotate_seed = None, expected_stream_count = None, record_stream = False
+record_per_scene = False, are_lambda = None
+
+    def evaluate_model(
+        model_config_path,
+        dataset_config_path,
+        ckpt_path,
+        steps,
+        cfg_scale,
+        batch_size=64,
+        num_workers=6,
+        eval_name='FLAC_eval',
+        device='cuda' if torch.cuda.is_available() else 'cpu',
+        seed=42,
+        store_predictions=False,
+        rotate_deg=0.0,
+        cond_method='vanilla',
+        frame_avg_angles=None,
+        frame_avg_max_fwd_samples=None,
+        cond_autocast='default',
+        allow_partial_load=False,
+        rotate_mode='fixed',
+        rotate_seed=None,
+        expected_stream_count=None,
+        record_stream=False,
+        record_per_scene=False,
+        are_lambda=None,
+    ):
+        # Fail fast on an unknown cond_method (the CLI is guarded by argparse
+        # choices, but programmatic callers would otherwise silently run vanilla
+        # while filenames/meta record the unknown method).
+        if cond_method not in COND_METHODS:
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}; valid options: "
+                + ", ".join(repr(m) for m in COND_METHODS) + "."
+            )
+    
+        # The EVALUATION chunk plan, validated before any file/model work for the same
+        # reason as the rotation protocol below: a misconfigured cap must never reach a
+        # GPU. It is a separate, explicitly pinned quantity from the cap a checkpoint
+        # was TRAINED under (exp_14 plan §3.1) -- both arms are evaluated at one common
+        # cap, and the value is recorded in the metrics row.
+        try:
+            frame_avg_max_fwd_samples = resolve_frame_avg_cap(frame_avg_max_fwd_samples)
+        except ValueError as err:                      # name the operator-facing knob
+            raise ValueError(
+                f"--frame-avg-max-fwd-samples (frame_avg_max_fwd_samples): {err}"
+            ) from err
+    
+        # Resolve (and validate) the rotation protocol before any file/model work:
+        # a misconfigured rotation must never reach a GPU (see resolve_rotation_plan).
+        rotation_plan = resolve_rotation_plan(rotate_mode, rotate_deg, rotate_seed, seed)
+    
+        # An expectation that cannot be checked must not be quietly accepted: a plain
+        # fixed-mode run accumulates no stream, so there is nothing to count.
+        accumulate_stream = rotation_plan.is_random or bool(record_stream)
+        if expected_stream_count is not None and not accumulate_stream:
+            raise ValueError(
+                "expected_stream_count (--expected-stream-count) is only checkable when an "
+                "assignment stream is accumulated, i.e. under --rotate-mode random or "
+                "--record-stream. Passing it otherwise would record an expectation that "
+                "was never verified."
+            )
+    
+        # Fail fast on an unknown cond_autocast too (full-review condition C1).
+        ac_enabled, ac_dtype = resolve_cond_autocast(cond_autocast)
+    
+        def cond_autocast_ctx():
+            """Fresh autocast context for one conditioning call (same semantics per batch)."""
+            if not ac_enabled:
+                return contextlib.nullcontext()
+            if ac_dtype is None:
+                return torch.amp.autocast(device)  # per-device default: exp_01/02 protocol
+            return torch.amp.autocast(device, dtype=ac_dtype)
+    
+        torch.set_float32_matmul_precision('medium')
+    
+        # Resolve the C4 frame-average angles (only used by the frame-averaged
+        # methods, FRAME_AVERAGED_COND_METHODS; ignored under vanilla).
+        if frame_avg_angles is None:
+            frame_avg_angles = DEFAULT_FRAME_ANGLES
+        frame_avg_angles = tuple(float(a) for a in frame_avg_angles)
+    
+        # Load configurations
+>       with open(model_config_path) as f:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-1314/test_an_over_cap_batch_is_refu1/missing_model.json'
+
+eval_FLAC.py:1166: FileNotFoundError
+________ test_eval_pl_rejects_any_unregistered_method[fa_target_frame] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1314/test_eval_pl_rejects_any_unreg0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f7c3b9e0c70>
+cond_method = 'fa_target_frame'
+
+    @pytest.mark.parametrize("cond_method", ["fa_target_frame", "cyl_pe", "canon", ""])
+    def test_eval_pl_rejects_any_unregistered_method(tmp_path, monkeypatch, cond_method):
+        """r3 review nit 2: the guard is an ALLOWLIST, so it fails closed for arms
+        that do not exist yet. A denylist naming only ``fa_cartesian`` would let the
+        NEXT wrapper method recreate exactly this provenance hole, silently, because
+        its author has no reason to look in eval_pl.py. Nothing here is a registered
+        method, so nothing here may reach model or wrapper construction."""
+        cfg = _write_pl_config(tmp_path, cond_method)
+        monkeypatch.setattr(eval_pl, "get_all_args", lambda: _pl_args(cfg))
+        monkeypatch.setattr(
+            eval_pl, "create_model_from_config",
+            lambda *a, **k: pytest.fail("eval_pl reached model construction"))
+        monkeypatch.setattr(
+            eval_pl, "create_training_wrapper_from_config",
+            lambda *a, **k: pytest.fail("eval_pl reached wrapper construction"))
+    
+        with pytest.raises(ValueError) as excinfo:
+>           eval_pl.main()
+
+src/tests/test_fa_cartesian_eval.py:783: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+eval_pl.py:80: in main
+    model = create_model_from_config(model_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = ({'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...},)
+k = {}
+
+>   lambda *a, **k: pytest.fail("eval_pl reached model construction"))
+E   Failed: eval_pl reached model construction
+
+src/tests/test_fa_cartesian_eval.py:777: Failed
+------------------------------ Captured log call -------------------------------
+INFO     lightning_fabric.utilities.seed:seed.py:54 Seed set to 42
+_____________ test_eval_pl_rejects_any_unregistered_method[cyl_pe] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1314/test_eval_pl_rejects_any_unreg1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f7c32f801f0>
+cond_method = 'cyl_pe'
+
+    @pytest.mark.parametrize("cond_method", ["fa_target_frame", "cyl_pe", "canon", ""])
+    def test_eval_pl_rejects_any_unregistered_method(tmp_path, monkeypatch, cond_method):
+        """r3 review nit 2: the guard is an ALLOWLIST, so it fails closed for arms
+        that do not exist yet. A denylist naming only ``fa_cartesian`` would let the
+        NEXT wrapper method recreate exactly this provenance hole, silently, because
+        its author has no reason to look in eval_pl.py. Nothing here is a registered
+        method, so nothing here may reach model or wrapper construction."""
+        cfg = _write_pl_config(tmp_path, cond_method)
+        monkeypatch.setattr(eval_pl, "get_all_args", lambda: _pl_args(cfg))
+        monkeypatch.setattr(
+            eval_pl, "create_model_from_config",
+            lambda *a, **k: pytest.fail("eval_pl reached model construction"))
+        monkeypatch.setattr(
+            eval_pl, "create_training_wrapper_from_config",
+            lambda *a, **k: pytest.fail("eval_pl reached wrapper construction"))
+    
+        with pytest.raises(ValueError) as excinfo:
+>           eval_pl.main()
+
+src/tests/test_fa_cartesian_eval.py:783: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+eval_pl.py:80: in main
+    model = create_model_from_config(model_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = ({'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...},)
+k = {}
+
+>   lambda *a, **k: pytest.fail("eval_pl reached model construction"))
+E   Failed: eval_pl reached model construction
+
+src/tests/test_fa_cartesian_eval.py:777: Failed
+------------------------------ Captured log call -------------------------------
+INFO     lightning_fabric.utilities.seed:seed.py:54 Seed set to 42
+_____________ test_eval_pl_rejects_any_unregistered_method[canon] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1314/test_eval_pl_rejects_any_unreg2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f7c32f90a00>
+cond_method = 'canon'
+
+    @pytest.mark.parametrize("cond_method", ["fa_target_frame", "cyl_pe", "canon", ""])
+    def test_eval_pl_rejects_any_unregistered_method(tmp_path, monkeypatch, cond_method):
+        """r3 review nit 2: the guard is an ALLOWLIST, so it fails closed for arms
+        that do not exist yet. A denylist naming only ``fa_cartesian`` would let the
+        NEXT wrapper method recreate exactly this provenance hole, silently, because
+        its author has no reason to look in eval_pl.py. Nothing here is a registered
+        method, so nothing here may reach model or wrapper construction."""
+        cfg = _write_pl_config(tmp_path, cond_method)
+        monkeypatch.setattr(eval_pl, "get_all_args", lambda: _pl_args(cfg))
+        monkeypatch.setattr(
+            eval_pl, "create_model_from_config",
+            lambda *a, **k: pytest.fail("eval_pl reached model construction"))
+        monkeypatch.setattr(
+            eval_pl, "create_training_wrapper_from_config",
+            lambda *a, **k: pytest.fail("eval_pl reached wrapper construction"))
+    
+        with pytest.raises(ValueError) as excinfo:
+>           eval_pl.main()
+
+src/tests/test_fa_cartesian_eval.py:783: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+eval_pl.py:80: in main
+    model = create_model_from_config(model_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = ({'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...},)
+k = {}
+
+>   lambda *a, **k: pytest.fail("eval_pl reached model construction"))
+E   Failed: eval_pl reached model construction
+
+src/tests/test_fa_cartesian_eval.py:777: Failed
+------------------------------ Captured log call -------------------------------
+INFO     lightning_fabric.utilities.seed:seed.py:54 Seed set to 42
+________________ test_eval_pl_rejects_any_unregistered_method[] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1314/test_eval_pl_rejects_any_unreg3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f7c32f5aa40>
+cond_method = ''
+
+    @pytest.mark.parametrize("cond_method", ["fa_target_frame", "cyl_pe", "canon", ""])
+    def test_eval_pl_rejects_any_unregistered_method(tmp_path, monkeypatch, cond_method):
+        """r3 review nit 2: the guard is an ALLOWLIST, so it fails closed for arms
+        that do not exist yet. A denylist naming only ``fa_cartesian`` would let the
+        NEXT wrapper method recreate exactly this provenance hole, silently, because
+        its author has no reason to look in eval_pl.py. Nothing here is a registered
+        method, so nothing here may reach model or wrapper construction."""
+        cfg = _write_pl_config(tmp_path, cond_method)
+        monkeypatch.setattr(eval_pl, "get_all_args", lambda: _pl_args(cfg))
+        monkeypatch.setattr(
+            eval_pl, "create_model_from_config",
+            lambda *a, **k: pytest.fail("eval_pl reached model construction"))
+        monkeypatch.setattr(
+            eval_pl, "create_training_wrapper_from_config",
+            lambda *a, **k: pytest.fail("eval_pl reached wrapper construction"))
+    
+        with pytest.raises(ValueError) as excinfo:
+>           eval_pl.main()
+
+src/tests/test_fa_cartesian_eval.py:783: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+eval_pl.py:80: in main
+    model = create_model_from_config(model_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = ({'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...},)
+k = {}
+
+>   lambda *a, **k: pytest.fail("eval_pl reached model construction"))
+E   Failed: eval_pl reached model construction
+
+src/tests/test_fa_cartesian_eval.py:777: Failed
+------------------------------ Captured log call -------------------------------
+INFO     lightning_fabric.utilities.seed:seed.py:54 Seed set to 42
+__________ test_eval_pl_permits_exactly_the_registered_legacy_methods __________
+
+    def test_eval_pl_permits_exactly_the_registered_legacy_methods():
+        """The allowlist is the contract and it is SMALL: two named methods plus the
+        legacy configs that declare none. Widening it is a deliberate act — a row from
+        this entry point carries no cond_method, angles, orbit execution, cap or
+        source SHA, so every added member is an arm whose rows cannot be told apart
+        from a vanilla one after the fact."""
+>       assert set(eval_pl.PERMITTED_COND_METHODS) == {None, "vanilla", "fa_invariant"}
+E       AttributeError: module 'eval_pl' has no attribute 'PERMITTED_COND_METHODS'. Did you mean: 'UNREGISTERED_COND_METHODS'?
+
+src/tests/test_fa_cartesian_eval.py:795: AttributeError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_fa_cartesian_eval.py::test_the_eval_loop_calls_fa_cartesian_conditioning_for_fa_cartesian
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_fa_cartesian_eval.py::test_an_over_cap_batch_is_refused_before_any_work[fa_cartesian]
+FAILED src/tests/test_fa_cartesian_eval.py::test_an_over_cap_batch_is_refused_before_any_work[fa_invariant]
+FAILED src/tests/test_fa_cartesian_eval.py::test_eval_pl_rejects_any_unregistered_method[fa_target_frame]
+FAILED src/tests/test_fa_cartesian_eval.py::test_eval_pl_rejects_any_unregistered_method[cyl_pe]
+FAILED src/tests/test_fa_cartesian_eval.py::test_eval_pl_rejects_any_unregistered_method[canon]
+FAILED src/tests/test_fa_cartesian_eval.py::test_eval_pl_rejects_any_unregistered_method[]
+FAILED src/tests/test_fa_cartesian_eval.py::test_eval_pl_permits_exactly_the_registered_legacy_methods
+7 failed, 28 passed, 4 warnings in 28.47s
