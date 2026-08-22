@@ -248,12 +248,30 @@ def test_vanilla_still_records_no_orbit_and_no_angles():
 # --------------------------------------------------------------------------- #
 # 3. evaluate_model — acceptance, flag resolution, and what lands in the record
 # --------------------------------------------------------------------------- #
+class _RecordingConditioner:
+    """The raw ``MultiConditioner`` slot: records every direct call so a test can
+    prove the VANILLA path ran (or, for the frame-averaged methods, that it
+    did not)."""
+
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, metadata, device, **kwargs):
+        self.calls.append({"metadata": metadata, "device": device, "kwargs": kwargs})
+        return {"stub": [torch.zeros(len(metadata), 1), None]}
+
+
 class _FakeEvalModule:
     """Minimal stand-in for the PL wrapper ``evaluate_model`` drives: chainable
     ``eval()``/``requires_grad_()``/``to()``, a ``.diffusion`` with no
     pretransform, and a ``.device``. With an EMPTY dataloader the eval loop body
     never runs, so no conditioner, sampler or GPU is touched — the run exercises
     exactly the validation, resolution and record-writing stages under test.
+
+    It also carries the handful of attributes the loop BODY reads
+    (``io_channels``, ``dist_shift``, ``get_conditioning_inputs``, a model with a
+    ``diffusion_objective``), so the dispatch tests below can drive one real
+    batch through it with the sampler stubbed.
 
     Kept local rather than imported from ``test_eval_paths``: importing that
     module inserts the exp_02 worklog directory into ``sys.path`` and imports its
@@ -262,8 +280,14 @@ class _FakeEvalModule:
     documents)."""
 
     def __init__(self):
+        self.conditioner = _RecordingConditioner()
         self.diffusion = types.SimpleNamespace(
-            model=object(), pretransform=None, conditioner=None
+            model=types.SimpleNamespace(diffusion_objective="rectified_flow"),
+            pretransform=None,
+            conditioner=self.conditioner,
+            io_channels=1,
+            dist_shift=1.0,
+            get_conditioning_inputs=lambda conditioning: {},
         )
         self.device = "cpu"
 
@@ -403,6 +427,101 @@ def test_evaluate_model_still_rejects_an_unknown_method(tmp_path, monkeypatch):
                 str(tmp_path / "c.ckpt"), steps=1, cfg_scale=1.0, device="cpu",
                 cond_method=bad,
             )
+
+
+# --------------------------------------------------------------------------- #
+# 3b. the CONDITIONING DISPATCH itself — which function the eval loop calls
+# --------------------------------------------------------------------------- #
+# The tests above drive evaluate_model with an EMPTY dataloader, so they never
+# execute the loop body: deleting the fa_cartesian dispatch branch would leave
+# every one of them green while the arm silently evaluated as VANILLA — a
+# single-pass conditioning reported under a record that claims a C4 orbit, which
+# is the announcement-05 failure in its worst form (plausible numbers, wrong
+# arm). That is the exact coverage defect the r2 review caught on the training
+# side, so the branch gets its own pin: one real batch through the loop, with
+# only the sampler stubbed.
+def _one_batch_loader(n=2):
+    """A dataloader of exactly one batch: (reals, metadata) with real depth
+    panoramas and poses, since the loop's metric stage reads md['depth'],
+    md['source'] and md['scene']."""
+    return [(torch.zeros(n, 1, 64), _batch(n))]
+
+
+def _spy_conditioning(monkeypatch):
+    """Replace both frame-average entry points with recording spies (at the
+    eval_FLAC namespace, which is where the dispatch resolves them)."""
+    calls = []
+
+    def make(name):
+        def spy(*args, **kwargs):
+            calls.append({"fn": name, "args": args, "kwargs": kwargs})
+            return {"stub": [torch.zeros(len(args[1]), 1), None]}
+        return spy
+
+    monkeypatch.setattr(eval_FLAC, "fa_cartesian_conditioning", make("fa_cartesian"))
+    monkeypatch.setattr(eval_FLAC, "invariant_conditioning", make("fa_invariant"))
+    monkeypatch.setattr(
+        "src.inference.sampling.sample_discrete_euler",
+        lambda model, noise, steps, **kw: torch.zeros_like(noise),
+    )
+    return calls
+
+
+def _run_one_batch(tmp_path, monkeypatch, cond_method, **kwargs):
+    model_cfg, dataset_cfg, ckpt = _stub_eval_deps(monkeypatch, tmp_path)
+    module = _FakeEvalModule()
+    monkeypatch.setattr(
+        eval_FLAC, "create_training_wrapper_from_config", lambda cfg, model: module)
+    monkeypatch.setattr(
+        eval_FLAC, "create_dataloader_from_config", lambda *a, **k: _one_batch_loader())
+    calls = _spy_conditioning(monkeypatch)
+    eval_FLAC.evaluate_model(
+        model_cfg, dataset_cfg, ckpt, steps=1, cfg_scale=1.0, device="cpu",
+        eval_name="disp", cond_method=cond_method, cond_autocast="bf16",
+        frame_avg_max_fwd_samples=EVAL_CAP, **kwargs)
+    return module, calls
+
+
+def test_the_eval_loop_calls_fa_cartesian_conditioning_for_fa_cartesian(
+        tmp_path, monkeypatch):
+    """The dispatch branch, executed. Delete it and this fails: the call list
+    would show the raw conditioner instead. The call SHAPE is pinned too —
+    conditioner, metadata and device positionally, then the angle tuple
+    positionally, then ``max_fwd_samples`` as a keyword — the same form the
+    fa_invariant branch issues, so the arms differ in the function and in nothing
+    about how it is invoked (round-2 call-shape discipline, extended to eval)."""
+    module, calls = _run_one_batch(tmp_path, monkeypatch, "fa_cartesian")
+
+    assert [c["fn"] for c in calls] == ["fa_cartesian"], calls
+    args, kwargs = calls[0]["args"], calls[0]["kwargs"]
+    assert args[0] is module.diffusion.conditioner
+    assert len(args[1]) == 2 and all("depth" in md for md in args[1])  # batch metadata
+    assert args[2] == "cpu"
+    assert args[3] == tuple(ANGLES)                    # angles POSITIONAL, as for fa_invariant
+    assert kwargs == {"max_fwd_samples": EVAL_CAP}     # cap by KEYWORD, nothing else
+    # ...and the raw single-pass conditioner was never used: a frame-averaged arm
+    # that quietly ran vanilla would still write a record claiming a C4 orbit.
+    assert module.conditioner.calls == []
+
+
+def test_the_eval_loop_still_calls_invariant_conditioning_for_fa_invariant(
+        tmp_path, monkeypatch):
+    """NO-CHANGE PIN (regression). Adding a branch must not steal the existing
+    one: B-F still routes to invariant_conditioning, with the same call shape."""
+    module, calls = _run_one_batch(tmp_path, monkeypatch, "fa_invariant")
+    assert [c["fn"] for c in calls] == ["fa_invariant"], calls
+    assert calls[0]["args"][3] == tuple(ANGLES)
+    assert calls[0]["kwargs"] == {"max_fwd_samples": EVAL_CAP}
+    assert module.conditioner.calls == []
+
+
+def test_the_eval_loop_still_runs_a_single_pass_for_vanilla(tmp_path, monkeypatch):
+    """NO-CHANGE PIN (regression). Vanilla takes neither branch: exactly one
+    direct conditioner call per batch, and no orbit."""
+    module, calls = _run_one_batch(tmp_path, monkeypatch, "vanilla")
+    assert calls == []
+    assert len(module.conditioner.calls) == 1
+    assert module.conditioner.calls[0]["kwargs"] == {}
 
 
 # --------------------------------------------------------------------------- #
