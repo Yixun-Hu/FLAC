@@ -40,3 +40,5 @@
 - **r5 narrow re-review: APPROVE/GO** (coercion channel closed; ledger nit batched). FREEZE = the commit adding registrations/ (9 manifests, post-r5 fa_source_shas).
 - **Acceptance criteria (every campaign cell):** both registration gates pass at the freeze sha; identity gate 6,337/6,337; BF cells: fa executed-partition gate green per query; dumps complete to the cell's NAS dir; metrics-JSONL publishes after all gates; weights_source resolves "ema".
 - **Launch order:** 9 GPU-pairs chained by watcher — (P1-K8, BF-K8) seeds 42/43/44, then (YAW-K8 ×3 + P1-K1 ×3) interleaved, then (BF-K1, YAW-K1) ×3.
+
+## 2026-08-22T05:35:00-0400 — Pair 1 PASSED (P1 0.4946 / BF 0.5085 K8 top-1, paired); pair 2 launched
