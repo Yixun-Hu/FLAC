@@ -59,6 +59,20 @@ SHARED_IDENTITY_FIELDS = (
 # The registered Monte-Carlo draws (plan section 6): five seeds, exactly these.
 REGISTERED_SEEDS = (42, 43, 44, 45, 46)
 
+# Amendment 4: the Mapping-A corpus is published at x2.0 over its COMPLETE union
+# (its clip clamp binds at 2.0401), while Mapping H stays at x3.0. Every results
+# artifact carries the disclosure, because the difference licenses some
+# comparisons and not others.
+MAPPINGA_AMPLITUDE_SCALAR = 2.0
+MAPPINGH_AMPLITUDE_SCALAR = 3.0
+CROSS_MAPPING_SCALE_DISCLOSURE = (
+    f"Mapping-A audio is written at x{MAPPINGA_AMPLITUDE_SCALAR} over its complete "
+    f"union; Mapping H is at x{MAPPINGH_AMPLITUDE_SCALAR}. No audio file is shared "
+    "between the two publications. Cross-mapping ABSOLUTE level-dependent "
+    "comparisons (multi-resolution L1, Env) are therefore unlicensed; the contrasts "
+    "reported here are WITHIN Mapping A and unaffected, and T60/C50/EDT are "
+    "level-independent.")
+
 # r4 Q3: the arm NAMES this campaign uses are claims about which weights were
 # evaluated, so they are pinned to the checkpoints themselves. The four AR 40k
 # endpoints come from ar_40k_endpoints/MANIFEST.sha256 (archived 2026-08-21,
@@ -430,6 +444,7 @@ def contrast_report(arm_a, arm_b, n_resamples=10000, alpha=0.05,
         "difference": macro,
         "interval": interval,
         "randomization": randomization,
+        "scale_disclosure": CROSS_MAPPING_SCALE_DISCLOSURE,
         "note": ("paired at the item level, clustered at the placement level, "
                  "equal-room macro; seed variability is reported separately and is "
                  "not part of the interval"),

@@ -397,9 +397,14 @@ CANONICAL_MAPPINGA_PREPARE_PARAMS = {
     "match_max_m": 0.02,
     "match_ambiguity_margin": 3.0,
     "placement_cap_m": 0.05,
-    "amplitude_scalar": 3.0,
-    # the target the exp_19 scalar was DERIVED against, kept distinct from the
-    # ceiling every written file is CHECKED against (N3)
+    # Amendment 4: Mapping A publishes its COMPLETE union at x2.0 -- the registered
+    # formula re-derived over ITS union, whose clip clamp binds at 2.0401 because
+    # two EmptyRoom union captures clip at x3. Mapping H stays at x3.0; the two
+    # corpora are therefore at DIFFERENT levels, which is disclosed rather than
+    # reconciled (see CROSS_MAPPING_SCALE_DISCLOSURE).
+    "amplitude_scalar": 2.0,
+    # the target the scalar is DERIVED against, kept distinct from the ceiling
+    # every written file is CHECKED against (N3)
     "amplitude_derivation_target": 0.75,
     "clip_ceiling": 0.999,
     # N5: PINNED, not shaped. The correspondence record is a committed input, so

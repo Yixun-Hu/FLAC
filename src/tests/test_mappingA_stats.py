@@ -708,3 +708,22 @@ def test_the_report_keeps_each_arms_identity_positionally(tmp_path):
     assert (identities[1]["ckpt_sha256"]
             == stats.REGISTERED_ARM_CHECKPOINTS["finetuned"])
     json.dumps(report)
+
+
+def test_the_results_artifact_carries_the_cross_mapping_scale_disclosure(tmp_path):
+    """Amendment 4: every results artifact says the two corpora sit at different
+    levels, because that licenses some comparisons and not others."""
+    import publish as raf_publish
+
+    assert (stats.MAPPINGA_AMPLITUDE_SCALAR
+            == raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS["amplitude_scalar"]
+            == 2.0)
+    assert (stats.MAPPINGH_AMPLITUDE_SCALAR
+            == raf_publish.CANONICAL_PREPARE_PARAMS["amplitude_scalar"] == 3.0)
+
+    arm_a = _arm(tmp_path, "armA", 0.0)
+    arm_b = _arm(tmp_path, "armB", -0.25)
+    report = stats.contrast_report(arm_a, arm_b, n_resamples=50)
+    disclosure = report["scale_disclosure"]
+    assert "x2.0" in disclosure and "x3.0" in disclosure
+    assert "unlicensed" in disclosure and "WITHIN Mapping A" in disclosure

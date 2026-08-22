@@ -51,7 +51,10 @@ def test_the_mappingA_identities_pin_the_planned_fields():
     assert prepare["match_max_m"] == 0.02
     assert prepare["match_ambiguity_margin"] == 3.0
     assert prepare["placement_cap_m"] == 0.05
-    assert prepare["amplitude_scalar"] == 3.0
+    # Amendment 4: Mapping A publishes its COMPLETE union at x2.0 (its clip clamp
+    # binds at 2.0401); Mapping H stays at x3.0 and the difference is disclosed.
+    assert prepare["amplitude_scalar"] == 2.0
+    assert raf_publish.CANONICAL_PREPARE_PARAMS["amplitude_scalar"] == 3.0
     # r2 N5: committed inputs are pinned exactly; only the audio union -- knowable
     # solely from the canonical generation -- is still shaped
     assert len(prepare["correspondence_sha256"]) == 64

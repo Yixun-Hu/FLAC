@@ -34,7 +34,11 @@ if _HERE not in sys.path:  # sibling scripts, not an installed package
     sys.path.insert(0, _HERE)
 from prepare_data import (  # noqa: E402
     AMPLITUDE_CEILING as AMPLITUDE_DERIVATION_TARGET,
+    AMPLITUDE_FORMULA_VERSION,
     RAF_UP_AXIS,
+    derivation_id_hash,
+    largest_one_significant_digit_at_most,
+    one_significant_digit,
     CLIP_CEILING,
     LOADER_SAMPLE_SIZE,
     SILENCE_THRESHOLD_DB,
@@ -163,10 +167,135 @@ def largest_admissible_scalar(max_peak, clip_ceiling=CLIP_CEILING):
     return float(clip_ceiling / max_peak)
 
 
+def measure_union(room_dir, capture_ids, orig_sr=SOURCE_SR, target_sr=TARGET_SR,
+                  sample_size=LOADER_SAMPLE_SIZE):
+    """Resample every union capture ONCE and record what the policy needs.
+
+    Amendment 4 derives the scalar from the union's own peaks and then audits the
+    union at that scalar; both read these measurements, so the corpus is resampled
+    once rather than twice (~10k files per run).
+    """
+    measurements = {}
+    for capture_id in capture_ids:
+        path = os.path.join(room_dir, "data", capture_id, "rir.wav")
+        if measurements is not None and capture_id in measurements:
+            measured = measurements[capture_id]
+            peak, crop_peak = measured["peak"], measured["crop_peak"]
+            finite, n_samples = measured["finite"], measured["n_samples"]
+        else:
+            peak, crop_peak, finite, n_samples = _resampled_peaks_and_finite(
+                path, orig_sr, target_sr, sample_size)
+        measurements[capture_id] = {"peak": peak, "crop_peak": crop_peak,
+                                    "finite": bool(finite),
+                                    "n_samples": int(n_samples)}
+    return measurements
+
+
+def enumerate_support_captures(items):
+    """{room: (support ids, target ids)} -- the union split by ROLE.
+
+    Mapping A has no train/test split, so the derivation's "support" set is the
+    conditioning population: every capture that is drawn as a CONTEXT. That is the
+    Mapping-A analogue of exp_19's trained supports -- the references the model is
+    given -- while the targets are the waveforms being scored. Both sets are
+    recorded, and the clamp term below covers ALL written files regardless of role.
+    """
+    supports, targets = {}, {}
+    for item in items:
+        room = item["room"]
+        targets.setdefault(room, set()).add(item["target_capture_id"])
+        for entry in item["context"]:
+            supports.setdefault(room, set()).add(entry["capture_id"])
+    rooms = sorted(set(supports) | set(targets))
+    return {room: (sorted(supports.get(room, ())), sorted(targets.get(room, ())))
+            for room in rooms}
+
+
+def derive_union_scalar(measurements_by_room, supports_by_room,
+                        ceiling=AMPLITUDE_DERIVATION_TARGET,
+                        clip_ceiling=CLIP_CEILING):
+    """ONE scalar for the Mapping-A corpus, derived over ITS union (Amendment 4).
+
+    The registered formula, unchanged from exp_19 and evaluated on Mapping A's own
+    population::
+
+        scalar = min( one-significant-digit(ceiling / max SUPPORT peak),
+                      largest one-significant-digit value keeping
+                      max WRITTEN peak x scalar <= clip_ceiling )
+
+    Mapping H's x3 was derived over a different population (its 21 selected groups)
+    and says nothing about this union: two EmptyRoom union captures clip at x3,
+    which is what the pre-authorised amplitude stop reported. The support term is
+    the target statistic; the clamp is a fail-closed safety bound that can only
+    LOWER the scalar, never raise it.
+
+    Peaks come from ``measure_union``, so nothing is read twice.
+    """
+    if not measurements_by_room:
+        raise ValueError("cannot derive a Mapping-A scalar with no rooms")
+
+    qualified, support_peak, written_peak, n_written = [], 0.0, 0.0, 0
+    per_room = {}
+    for room in sorted(measurements_by_room):
+        measurements = measurements_by_room[room]
+        support_ids = sorted(supports_by_room.get(room) or ())
+        if not support_ids:
+            raise ValueError(f"{room}: no context captures to derive from")
+        missing = [c for c in support_ids if c not in measurements]
+        if missing:
+            raise ValueError(
+                f"{room}: {len(missing)} support captures were never measured "
+                f"(e.g. {missing[:3]}); the derivation set must be inside the union")
+        room_support = max(measurements[c]["peak"] for c in support_ids)
+        room_written = max(m["peak"] for m in measurements.values())
+        per_room[room] = {"max_support_peak": room_support,
+                          "max_written_peak": room_written,
+                          "n_supports": len(support_ids),
+                          "n_written": len(measurements)}
+        qualified.extend(f"{room}/{c}" for c in support_ids)
+        support_peak = max(support_peak, room_support)
+        written_peak = max(written_peak, room_written)
+        n_written += len(measurements)
+
+    if support_peak <= 0.0:
+        raise ValueError("every context capture is silent; no scalar can be derived")
+    if written_peak <= 0.0:
+        raise ValueError("every union capture is silent")
+
+    support_term = one_significant_digit(ceiling / support_peak)
+    clamp_term = largest_one_significant_digit_at_most(clip_ceiling / written_peak)
+    scalar = min(support_term, clamp_term)
+    qualified = sorted(qualified)
+    return {
+        "formula": ("min( one significant digit of (ceiling / max CONTEXT peak), "
+                    "largest one-significant-digit value with max UNION peak x "
+                    "scalar <= clip_ceiling ), measured on the resampled signal "
+                    "over the whole Mapping-A union"),
+        "formula_version": AMPLITUDE_FORMULA_VERSION,
+        "population": "mappingA_union",
+        "ceiling": float(ceiling),
+        "clip_ceiling": float(clip_ceiling),
+        "max_support_peak": support_peak,
+        "max_written_peak": written_peak,
+        "support_term": support_term,
+        "clamp_term": clamp_term,
+        "clamp_engaged": bool(clamp_term < support_term),
+        "binding_term": "clip_clamp" if clamp_term < support_term else "support_ceiling",
+        "scalar": scalar,
+        "max_admissible_scalar": largest_admissible_scalar(written_peak, clip_ceiling),
+        "rooms": sorted(measurements_by_room),
+        "per_room": per_room,
+        "derivation_ids": qualified,
+        "derivation_id_sha256": derivation_id_hash(qualified),
+        "n_supports": len(qualified),
+        "n_written": n_written,
+    }
+
+
 def audit_amplitude_union(room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
                           target_sr=TARGET_SR, clip_ceiling=CLIP_CEILING,
                           silence_db=SILENCE_THRESHOLD_DB,
-                          sample_size=LOADER_SAMPLE_SIZE):
+                          sample_size=LOADER_SAMPLE_SIZE, measurements=None):
     """Amplitude audit over the exact Mapping-A union, BEFORE anything is written.
 
     Three registered conditions, measured on the RESAMPLED signal (what would
@@ -190,8 +319,13 @@ def audit_amplitude_union(room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
     peaks, crop_peaks, violations = [], [], []
     for capture_id in capture_ids:
         path = os.path.join(room_dir, "data", capture_id, "rir.wav")
-        peak, crop_peak, finite, n_samples = _resampled_peaks_and_finite(
-            path, orig_sr, target_sr, sample_size)
+        if measurements is not None and capture_id in measurements:
+            measured = measurements[capture_id]
+            peak, crop_peak = measured["peak"], measured["crop_peak"]
+            finite, n_samples = measured["finite"], measured["n_samples"]
+        else:
+            peak, crop_peak, finite, n_samples = _resampled_peaks_and_finite(
+                path, orig_sr, target_sr, sample_size)
         scaled, scaled_crop = peak * scalar, crop_peak * scalar
         record = {
             "capture_id": capture_id,
@@ -381,7 +515,31 @@ def audio_fingerprint(path):
 
 
 class MappingHProvenanceError(RuntimeError):
-    """The Mapping-H publication a shared-audio claim would be made against."""
+    """The Mapping-H publication whose topology and overlap Mapping A records."""
+
+
+def scale_disclosure(mappingA_scalar, mappingH_scalar=None):
+    """The registered cross-mapping scale disclosure (Amendment 4).
+
+    Mapping A publishes its complete union at its own derived scalar; Mapping H is
+    at x3.0. Rather than reconcile the two -- which would mean either clipping two
+    EmptyRoom captures or dropping them, and items are never dropped -- the
+    difference is DISCLOSED wherever the corpus or its results are described.
+    """
+    return {
+        "mappingA_amplitude_scalar": float(mappingA_scalar),
+        "mappingH_amplitude_scalar": (None if mappingH_scalar is None
+                                      else float(mappingH_scalar)),
+        "audio_is_shared": False,
+        "note": (
+            f"Mapping-A audio is written at x{float(mappingA_scalar)} over its "
+            "COMPLETE union; the Mapping-H publication it overlaps is at "
+            f"x{mappingH_scalar if mappingH_scalar is not None else 3.0}. The two "
+            "corpora hold the same captures at different levels, so no file is "
+            "shared and cross-mapping ABSOLUTE level-dependent comparisons "
+            "(multi-resolution L1, Env) are unlicensed. Within-Mapping-A contrasts "
+            "are unaffected, and T60/C50/EDT are level-independent."),
+    }
 
 
 def locate_mappingH(runtime_dir, rooms, require_canonical=False):
@@ -559,7 +717,7 @@ def resolve_output_dir(output_dir, mappingH_dir, protected_rooms):
     return out
 
 
-def resolve_mappingH(mappingH_dir, rooms, canonical, scalar=None):
+def resolve_mappingH(mappingH_dir, rooms, canonical):
     """The CLI's Mapping-H requirement, as one testable decision (N4).
 
     Canonical runs MUST name the publication they share audio with; a
@@ -569,13 +727,9 @@ def resolve_mappingH(mappingH_dir, rooms, canonical, scalar=None):
     if mappingH_dir:
         publication = locate_mappingH(mappingH_dir, rooms,
                                       require_canonical=canonical)
-        if scalar is not None and float(scalar) != publication["amplitude_scalar"]:
-            raise MappingHProvenanceError(
-                f"this run scales by x{float(scalar)} but the Mapping-H publication "
-                f"at {publication['split_dir']} was written at "
-                f"x{publication['amplitude_scalar']}: no capture could then be "
-                "byte-identical, and two differently normalised corpora must not be "
-                "read beside each other")
+        # Amendment 4: agreement is no longer required. Mapping A derives its own
+        # scalar over its own union (Mapping H's x3 clips two of these captures),
+        # so a difference is expected and is DISCLOSED rather than refused.
         return publication, []
     if canonical:
         raise MappingHProvenanceError(
@@ -590,17 +744,17 @@ def resolve_mappingH(mappingH_dir, rooms, canonical, scalar=None):
 def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
                 target_sr=TARGET_SR, clip_ceiling=CLIP_CEILING,
                 mappingH_room_dir=None, mappingH_generation=None,
-                mappingH_files=None,
+                mappingH_files=None, mappingH_scalar=None,
                 sample_size=LOADER_SAMPLE_SIZE, silence_db=SILENCE_THRESHOLD_DB):
-    """Resample, scale and publish the Mapping-A union, with H provenance.
+    """Resample, scale and publish the Mapping-A union at ITS OWN scalar.
 
-    Mapping A publishes into DISJOINT roots, so "shared with Mapping H" is a
-    provenance claim rather than a storage trick: for every capture that the
-    Mapping-H publication also holds, the bytes are compared and recorded as
-    verified-identical together with the exp_19 generation. A disagreement aborts --
-    two publications differing on the same capture means a different scalar, a
-    different source, or a stale generation, and reading Mapping-A results beside
-    Mapping-H ones would then be comparing different audio.
+    Amendment 4: nothing is reused from Mapping H. Every union member is written
+    fresh at the Mapping-A scalar, because the two publications are at different
+    levels by decision -- Mapping H's x3 clips two EmptyRoom union captures, and
+    items are never dropped. What is recorded instead is the OVERLAP: which
+    captures the Mapping-H publication also holds, under which generation, and
+    both scalars, so a reader can see exactly what the two corpora share (the
+    captures) and what they do not (the levels).
 
     Every written file is read back and compared, as in exp_19, and both amplitude
     conditions are RE-CHECKED here on the bytes about to be published (N3): the
@@ -610,9 +764,9 @@ def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
     """
     if mappingH_room_dir and (mappingH_generation is None or mappingH_files is None):
         raise ValueError(
-            "a shared-with-Mapping-H claim needs the generation and the file set "
-            "that generation's manifest covers; comparing against whatever happens "
-            "to sit in the tree would attest a leftover or a stale publish (N4)")
+            "recording the Mapping-H overlap needs the generation and the file set "
+            "that generation's manifest covers; counting whatever happens to sit in "
+            "the tree would attest leftovers or a stale publish (N4)")
 
     dest = os.path.join(out_room_dir, RIR_FOLDER)
     os.makedirs(dest, exist_ok=True)
@@ -663,6 +817,9 @@ def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
         # content identity, independent of the PEAK-chunk timestamp in the header
         audio_digest = audio_fingerprint(out_path)["audio_sha256"]
 
+        # Amendment 4: OVERLAP, not reuse. The capture exists in both corpora at
+        # different levels, so its bytes are neither copied nor compared -- only
+        # the fact of the overlap is recorded, against the generation that covers it.
         shared = None
         if mappingH_room_dir:
             h_relative = f"{RIR_FOLDER}/{capture_id}.wav"
@@ -672,23 +829,17 @@ def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
                     raise ValueError(
                         f"{h_path} exists but is NOT covered by Mapping-H generation "
                         f"{mappingH_generation}'s manifest: it is a leftover or a "
-                        "stale file, and claiming shared provenance with it would "
-                        "attest audio no publication stands behind")
-                h_audio = audio_fingerprint(h_path)
-                if (h_audio["audio_sha256"] != audio_digest
-                        or h_audio["sample_rate"] != target_sr):
-                    raise ValueError(
-                        f"capture {capture_id} does not hold the same audio as the "
-                        f"Mapping-H publication ({h_audio['audio_sha256'][:12]} at "
-                        f"{h_audio['sample_rate']} Hz vs {audio_digest[:12]} at "
-                        f"{target_sr} Hz): the two publications disagree about the "
-                        "same capture, so a different scalar, source file or "
-                        "generation is in play")
+                        "stale file, and recording an overlap with it would attest "
+                        "audio no publication stands behind")
                 shared = {"path": os.path.abspath(h_path),
-                          "sha256": sha256_file(h_path),
-                          "audio_sha256": h_audio["audio_sha256"],
                           "generation": mappingH_generation,
-                          "verified_identical": True}
+                          "mappingH_amplitude_scalar": (
+                              None if mappingH_scalar is None else float(mappingH_scalar)),
+                          "mappingA_amplitude_scalar": float(scalar),
+                          "same_capture": True,
+                          "same_audio": False,
+                          "reason": "written at different amplitude scalars "
+                                    "(Amendment 4); no file is shared"}
                 n_shared += 1
 
         files[capture_id] = {
@@ -700,13 +851,14 @@ def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
             "dbfs_crop": dbfs(crop_peak),
             "n_samples": int(out.shape[0]),
             "roundtrip_max_abs_error": roundtrip,
-            "shared_with_mappingH": shared,
+            "overlaps_mappingH": shared,
         }
 
     return {
         "n_files": len(files),
-        "n_shared_with_mappingH": n_shared,
-        "n_new": len(files) - n_shared,
+        "n_overlapping_mappingH": n_shared,
+        "n_outside_mappingH": len(files) - n_shared,
+        "scale_disclosure": scale_disclosure(scalar, mappingH_scalar),
         "scalar": float(scalar),
         "loader_sample_size": int(sample_size),
         "source_sample_rate": int(orig_sr),
@@ -1202,8 +1354,11 @@ def build_parser():
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--n-placements', type=int, default=CANONICAL_N_PLACEMENTS)
     parser.add_argument('--k', type=int, default=CANONICAL_K)
-    parser.add_argument('--scalar', type=float,
-                        default=CANONICAL_MAPPINGA_PREPARE_PARAMS["amplitude_scalar"])
+    # Amendment 4: the scalar is DERIVED over the Mapping-A union. The flag is an
+    # assertion -- a value that disagrees with the derivation stops the run rather
+    # than overriding it.
+    parser.add_argument('--scalar', type=float, default=None,
+                        help="assert the derived amplitude scalar (optional)")
     # N4: the publication a "shared with Mapping H" claim names. Required for a
     # canonical run; without it a non-canonical run is tainted and claims nothing.
     parser.add_argument('--mappingH-dir', default=None,
@@ -1249,7 +1404,7 @@ def canonical_identity_blockers(audio_union_digest=None, n_captures=None):
     return blockers
 
 
-def parameter_identity(args, n_items, digests):
+def parameter_identity(args, n_items, digests, scalar):
     return {
         "rooms": list(args.rooms),
         "n_placements": int(args.n_placements),
@@ -1260,7 +1415,7 @@ def parameter_identity(args, n_items, digests):
         "match_max_m": MATCH_MAX_M,
         "match_ambiguity_margin": MATCH_AMBIGUITY_MARGIN,
         "placement_cap_m": PLACEMENT_CAP_M,
-        "amplitude_scalar": float(args.scalar),
+        "amplitude_scalar": float(scalar),
         # N3: 0.75 is the TARGET the exp_19 scalar was derived against (headroom
         # over the trained supports); 0.999 is the ceiling this run ENFORCES on
         # every written file. Naming both "ceiling" hid which number was checked.
@@ -1282,7 +1437,7 @@ def canonical_parameter_deviations(args):
             f"n_placements {args.n_placements} != {registered['n_placements']}")
     if int(args.k) != registered["k"]:
         deviations.append(f"k {args.k} != {registered['k']}")
-    if float(args.scalar) != registered["amplitude_scalar"]:
+    if args.scalar is not None and float(args.scalar) != registered["amplitude_scalar"]:
         deviations.append(
             f"amplitude_scalar {args.scalar} != {registered['amplitude_scalar']}")
     if int(args.seed) != 0:
@@ -1320,8 +1475,7 @@ def main(argv=None):
             raise ValueError("refusing a canonical Mapping-A publication: "
                              + "; ".join(blockers))
 
-    mappingH, h_taint = resolve_mappingH(args.mappingH_dir, args.rooms, canonical,
-                                         scalar=args.scalar)
+    mappingH, h_taint = resolve_mappingH(args.mappingH_dir, args.rooms, canonical)
     taint.extend(h_taint)
     if mappingH:
         logger.info("Mapping-H publication %s (generation %s, %d files)",
@@ -1377,10 +1531,42 @@ def main(argv=None):
     counts = union_report(union, all_items)
     logger.info("audio union: %d captures for %d items", counts["n_captures"],
                 counts["n_items"])
+    # Amendment 4: ONE resample pass over the union, then the registered formula
+    # over THIS union, then the audit at the scalar that formula gave.
+    measurements = {room: measure_union(os.path.join(args.raf_root, "archived", room),
+                                        union[room])
+                    for room in args.rooms}
+    roles = enumerate_support_captures(all_items)
+    scale_decision = derive_union_scalar(
+        measurements, {room: roles[room][0] for room in args.rooms})
+    scalar = scale_decision["scalar"]
+    logger.info("Mapping-A amplitude scalar x%g = min(support %g, clamp %g) "
+                "[bound by %s]; max context peak %.5f, max union peak %.5f over "
+                "%d captures", scalar, scale_decision["support_term"],
+                scale_decision["clamp_term"], scale_decision["binding_term"],
+                scale_decision["max_support_peak"],
+                scale_decision["max_written_peak"], scale_decision["n_written"])
+
+    registered_scalar = CANONICAL_MAPPINGA_PREPARE_PARAMS["amplitude_scalar"]
+    if canonical and scalar != registered_scalar:
+        raise AmplitudePolicyError(
+            f"the Mapping-A union derives x{scalar}, not the registered "
+            f"x{registered_scalar}: a canonical publication must reproduce the "
+            "registered identity, and the derivation is what proves it.",
+            scale_decision)
+    if args.scalar is not None and float(args.scalar) != scalar:
+        raise AmplitudePolicyError(
+            f"--scalar {args.scalar} does not match the scalar this union derives "
+            f"(x{scalar}). The scalar is derived, never supplied: the flag asserts "
+            "the derivation, it does not override it.", scale_decision)
+    if scalar != registered_scalar:
+        taint.append(f"amplitude scalar x{scalar} != registered x{registered_scalar}")
+
     audits = {}
     for room in args.rooms:
         room_dir = os.path.join(args.raf_root, "archived", room)
-        audits[room] = audit_amplitude_union(room_dir, union[room], scalar=args.scalar)
+        audits[room] = audit_amplitude_union(room_dir, union[room], scalar=scalar,
+                                             measurements=measurements[room])
         logger.info("%s: amplitude audit clean (max scaled peak %.4f)", room,
                     audits[room]["max_scaled_peak"])
 
@@ -1397,7 +1583,9 @@ def main(argv=None):
                    "n_groups_failing": s["n_groups_failing"]}
             for room, s in surveys.items()}),
     }
-    parameters = parameter_identity(args, n_items, digests)
+    parameters = parameter_identity(args, n_items, digests, scalar)
+    disclosure = scale_disclosure(
+        scalar, mappingH["amplitude_scalar"] if mappingH else None)
     if canonical:
         blockers = canonical_identity_blockers(digests["audio_union"],
                                                counts["n_captures"])
@@ -1417,10 +1605,11 @@ def main(argv=None):
             write_reports[room] = write_union(
                 os.path.join(args.raf_root, "archived", room),
                 os.path.join(staged_runtime.staging_dir, room), union[room],
-                scalar=args.scalar,
+                scalar=scalar,
                 mappingH_room_dir=h_room["dir"],
                 mappingH_generation=mappingH["generation"] if mappingH else None,
-                mappingH_files=h_room["files"])
+                mappingH_files=h_room["files"],
+                mappingH_scalar=mappingH["amplitude_scalar"] if mappingH else None)
             _write_json(staged_runtime.path(room, "metadata", METADATA_NAME),
                         {item["target_capture_id"]: item
                          for item in items_by_room[room]})
@@ -1433,6 +1622,7 @@ def main(argv=None):
             "canonical": canonical,
             "taint": taint,
             "parameters": parameters,
+            "scale_disclosure": disclosure,
             "readback_record": readback_provenance,
         })
 
@@ -1444,9 +1634,11 @@ def main(argv=None):
                     build_splits_record(surveys, items_by_room, counts, parameters,
                                         canonical, taint, readback_provenance,
                                         correspondence_provenance, digests["survey"],
-                                        assignments))
+                                        assignments, scale_decision, disclosure))
         _write_json(staged_splits.path("mappingA_amplitude_audit.json"),
                     {"parameters": parameters, "canonical": canonical, "taint": taint,
+                     "amplitude_scalar": scale_decision,
+                     "scale_disclosure": disclosure,
                      "rooms": audits, "written": write_reports})
 
         marker = txn.commit(
@@ -1458,6 +1650,10 @@ def main(argv=None):
             validate_json=True,
             extra={"canonical": canonical, "taint": taint, "parameters": parameters,
                    "canonical_parameters": not deviations,
+                   # Amendment 4: the levels differ from Mapping H's by decision,
+                   # and the marker is where a consumer learns it
+                   "scale_disclosure": disclosure,
+                   "amplitude_derivation": scale_decision,
                    "readback_record": readback_provenance})
 
     logger.info("published Mapping-A generation %s: %d items, %d captures",
@@ -1467,7 +1663,8 @@ def main(argv=None):
 
 def build_splits_record(surveys, items_by_room, counts, parameters, canonical, taint,
                         readback_provenance, correspondence_provenance=None,
-                        survey_sha256=None, assignments=None):
+                        survey_sha256=None, assignments=None, scale_decision=None,
+                        disclosure=None):
     """The committed description of how the Mapping-A set was cut."""
     rooms = {}
     for room, survey in surveys.items():
@@ -1503,6 +1700,10 @@ def build_splits_record(surveys, items_by_room, counts, parameters, canonical, t
             # P2: the authoritative per-slot correspondence the items rest on, so
             # validate_manifest can attest a published manifest without re-surveying
             "assignments": assignments,
+            # Amendment 4: how the scalar was derived, and that the two corpora sit
+            # at different levels
+            "amplitude_scalar": scale_decision,
+            "scale_disclosure": disclosure,
             "union": counts, "rooms": rooms}
 
 

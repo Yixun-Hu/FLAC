@@ -344,58 +344,63 @@ def _h_files(capture_ids):
     return {f"{prep_a.RIR_FOLDER}/{c}.wav" for c in capture_ids}
 
 
-def test_a_capture_shared_with_mapping_h_records_verified_provenance(union_room,
-                                                                     tmp_path):
-    """Mapping A publishes to disjoint roots, so 'shared' is a PROVENANCE claim:
-    the bytes are identical to what the Mapping-H publication holds, verified by
-    hash, with the exp_19 generation recorded."""
+def test_a_capture_in_both_corpora_records_the_overlap_not_a_reuse(union_room,
+                                                                   tmp_path):
+    """Amendment 4: no file is shared. A capture the Mapping-H publication also
+    holds is written FRESH at Mapping A's scalar, and what is recorded is the
+    overlap -- the generation that covers it and BOTH scalars."""
     ids = ["000000", "000001"]
     mapping_h = tmp_path / "runtime" / "RAF" / "EmptyRoom"
     prep_a.write_union(union_room, str(mapping_h), ids, scalar=3.0)
 
     out = tmp_path / "runtime" / "mappingA" / "EmptyRoom"
-    report = prep_a.write_union(union_room, str(out), ids, scalar=3.0,
+    report = prep_a.write_union(union_room, str(out), ids, scalar=2.0,
                                 mappingH_room_dir=str(mapping_h),
                                 mappingH_generation="46a43f4ce82b",
-                                mappingH_files=_h_files(ids))
+                                mappingH_files=_h_files(ids), mappingH_scalar=3.0)
     for capture_id in ids:
-        shared = report["files"][capture_id]["shared_with_mappingH"]
-        assert shared["verified_identical"] is True
-        assert shared["generation"] == "46a43f4ce82b"
-        # content identity, not file identity: a float WAV carries a PEAK-chunk
-        # timestamp, so two publications of the same audio differ in bytes
-        assert shared["audio_sha256"] == report["files"][capture_id]["audio_sha256"]
-    assert report["n_shared_with_mappingH"] == 2
+        overlap = report["files"][capture_id]["overlaps_mappingH"]
+        assert overlap["same_capture"] is True and overlap["same_audio"] is False
+        assert overlap["generation"] == "46a43f4ce82b"
+        assert overlap["mappingA_amplitude_scalar"] == 2.0
+        assert overlap["mappingH_amplitude_scalar"] == 3.0
+        # written at MAPPING A's level, whatever Mapping H holds
+        written = sf.read(str(out / prep_a.RIR_FOLDER / f"{capture_id}.wav"),
+                          dtype="float32")[0]
+        theirs = sf.read(str(mapping_h / prep_a.RIR_FOLDER / f"{capture_id}.wav"),
+                         dtype="float32")[0]
+        assert np.abs(written).max() == pytest.approx(np.abs(theirs).max() * 2 / 3,
+                                                      rel=1e-6)
+    assert report["n_overlapping_mappingH"] == 2
+    assert report["scale_disclosure"]["audio_is_shared"] is False
 
 
-def test_a_capture_that_differs_from_mapping_h_aborts(union_room, tmp_path):
-    """Two publications disagreeing about the same capture is a real defect -- a
-    different scalar, a different source file, or a stale generation."""
-    ids = ["000000"]
-    mapping_h = tmp_path / "runtime" / "RAF" / "EmptyRoom"
-    prep_a.write_union(union_room, str(mapping_h), ids, scalar=2.0)   # WRONG scalar
-    with pytest.raises(ValueError) as exc:
-        prep_a.write_union(union_room, str(tmp_path / "out" / "EmptyRoom"), ids,
-                           scalar=3.0, mappingH_room_dir=str(mapping_h),
-                           mappingH_generation="46a43f4ce82b",
-                           mappingH_files=_h_files(ids))
-    assert "000000" in str(exc.value)
-    assert "same audio" in str(exc.value)
+def test_the_write_report_discloses_both_scalars(union_room, tmp_path):
+    report = prep_a.write_union(union_room, str(tmp_path / "out"), ["000000"],
+                                scalar=2.0, mappingH_scalar=3.0)
+    disclosure = report["scale_disclosure"]
+    assert disclosure["mappingA_amplitude_scalar"] == 2.0
+    assert disclosure["mappingH_amplitude_scalar"] == 3.0
+    assert "unlicensed" in disclosure["note"]
+    assert "T60/C50/EDT are level-independent" in disclosure["note"]
 
 
-def test_a_capture_absent_from_mapping_h_is_recorded_as_new(union_room, tmp_path):
-    """Most of the union is new: exp_19 published only its 21 selected groups."""
+def test_a_capture_outside_the_mappingH_publication_is_recorded_as_such(union_room,
+                                                                        tmp_path):
+    """Most of the union is outside Mapping H: exp_19 published only its 21
+    selected groups."""
     mapping_h = tmp_path / "runtime" / "RAF" / "EmptyRoom"
     prep_a.write_union(union_room, str(mapping_h), ["000000"], scalar=3.0)
     report = prep_a.write_union(union_room, str(tmp_path / "out" / "EmptyRoom"),
-                                ["000000", "000001"], scalar=3.0,
+                                ["000000", "000001"], scalar=2.0,
                                 mappingH_room_dir=str(mapping_h),
                                 mappingH_generation="46a43f4ce82b",
-                                mappingH_files=_h_files(["000000"]))
-    assert report["files"]["000000"]["shared_with_mappingH"]["verified_identical"] is True
-    assert report["files"]["000001"]["shared_with_mappingH"] is None
-    assert report["n_shared_with_mappingH"] == 1
-    assert report["n_new"] == 1
+                                mappingH_files=_h_files(["000000"]),
+                                mappingH_scalar=3.0)
+    assert report["files"]["000000"]["overlaps_mappingH"]["same_capture"] is True
+    assert report["files"]["000001"]["overlaps_mappingH"] is None
+    assert report["n_overlapping_mappingH"] == 1
+    assert report["n_outside_mappingH"] == 1
 
 
 def test_writing_refuses_a_clipping_scalar(union_room, tmp_path):
@@ -607,10 +612,15 @@ def test_the_splits_record_carries_the_correspondence_evidence(cli_corpus, tmp_p
 
 def test_the_cli_stops_at_the_amplitude_gate_before_writing(cli_corpus, tmp_path):
     """M1's stop-and-ask: a violation aborts with the measured report and nothing
-    is published."""
-    loud = os.path.join(str(cli_corpus), "archived", "EmptyRoom", "data", "000005",
-                        "rir.wav")
-    sf.write(loud, _rir(5, peak=0.9), 48000, subtype="FLOAT")
+    is published.
+
+    Amendment 4 note: loudness alone no longer stops the run -- the clamp term
+    lowers the derived scalar until the union fits. What the derivation cannot
+    absorb is a capture that is SILENT after the loader's crop, since no scalar
+    makes it audible, so that is what this drives."""
+    silent = os.path.join(str(cli_corpus), "archived", "EmptyRoom", "data", "000005",
+                          "rir.wav")
+    sf.write(silent, _rir(5, peak=1e-6), 48000, subtype="FLOAT")
     readback = _readback_for(tmp_path, cli_corpus)
     with pytest.raises(prep_a.AmplitudePolicyError) as exc:
         prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))
@@ -770,10 +780,8 @@ def test_the_cli_records_the_mappingH_generation_on_every_room(cli_corpus, tmp_p
     readback = _readback_for(tmp_path, cli_corpus)
     runtime = _publish_mappingH(tmp_path, cli_corpus, readback,
                                 rooms=("EmptyRoom", "FurnishedRoom"))
-    scalar = prep_a.locate_mappingH(str(runtime), [])["amplitude_scalar"]
     prep_a.main(_derived_argv(_cli_argv(tmp_path, cli_corpus, readback,
-                                        extra=["--mappingH-dir", str(runtime),
-                                               "--scalar", str(scalar)])))
+                                        extra=["--mappingH-dir", str(runtime)])))
     with open(tmp_path / prep_a.MAPPINGA_SPLIT_ROOT
               / "mappingA_amplitude_audit.json") as f:
         audit = json.load(f)
@@ -781,17 +789,22 @@ def test_the_cli_records_the_mappingH_generation_on_every_room(cli_corpus, tmp_p
     for room in ("EmptyRoom", "FurnishedRoom"):
         written = audit["written"][room]
         assert written["mappingH_generation"] == found["generation"]
-        # every claim is a real overlap with that generation's manifest
+        # every recorded overlap is a real one, against that generation's manifest
         expected = sum(1 for name in written["files"]
                        if f"{prep_a.RIR_FOLDER}/{name}.wav"
                        in found["rooms"][room]["files"])
-        assert written["n_shared_with_mappingH"] == expected
+        assert written["n_overlapping_mappingH"] == expected
         for capture_id, entry in written["files"].items():
-            shared = entry["shared_with_mappingH"]
-            if shared is not None:
-                assert shared["verified_identical"] is True
-                assert shared["generation"] == found["generation"]
+            overlap = entry["overlaps_mappingH"]
+            if overlap is not None:
+                assert overlap["same_capture"] is True
+                assert overlap["same_audio"] is False
+                assert overlap["generation"] == found["generation"]
+                assert (overlap["mappingH_amplitude_scalar"]
+                        == found["amplitude_scalar"])
     assert "no Mapping-H provenance" not in json.dumps(audit["taint"])
+    # the disclosure travels with the artifact
+    assert audit["scale_disclosure"]["audio_is_shared"] is False
 
 
 def test_a_file_outside_the_mappingH_generation_aborts_the_run(cli_corpus, tmp_path):
@@ -818,17 +831,20 @@ def test_a_file_outside_the_mappingH_generation_aborts_the_run(cli_corpus, tmp_p
     assert "NOT covered" in str(exc.value) and found["generation"] in str(exc.value)
 
 
-def test_a_mappingH_publication_at_another_scalar_is_refused(cli_corpus, tmp_path):
-    """Byte-identity is impossible across scalars, and two differently normalised
-    corpora must not be read beside each other -- said once, up front, instead of
-    as a hash mismatch halfway through the write."""
+def test_a_mappingH_publication_at_another_scalar_is_accepted_and_disclosed(
+        cli_corpus, tmp_path):
+    """Amendment 4: the scalars are EXPECTED to differ -- Mapping H's x3 clips two
+    Mapping-A union captures -- so the difference is disclosed, not refused. The
+    topology checks (location, generation, manifest coverage) all stay."""
     readback = _readback_for(tmp_path, cli_corpus)
     runtime = _publish_mappingH(tmp_path, cli_corpus, readback)
-    found = prep_a.locate_mappingH(str(runtime), ["EmptyRoom"])
-    with pytest.raises(prep_a.MappingHProvenanceError) as exc:
-        prep_a.resolve_mappingH(str(runtime), ["EmptyRoom"], canonical=False,
-                                scalar=found["amplitude_scalar"] + 1.0)
-    assert "byte-identical" in str(exc.value)  # the scalar gate's own wording
+    publication, taint = prep_a.resolve_mappingH(str(runtime), ["EmptyRoom"],
+                                                 canonical=False)
+    assert taint == []
+    assert publication["generation"] and publication["rooms"]["EmptyRoom"]["files"]
+    disclosure = prep_a.scale_disclosure(2.0, publication["amplitude_scalar"])
+    assert disclosure["mappingA_amplitude_scalar"] == 2.0
+    assert disclosure["audio_is_shared"] is False
 
 
 def test_a_shared_claim_without_the_covered_set_is_refused(union_room, tmp_path):
@@ -1208,3 +1224,166 @@ def test_the_derived_default_still_resolves_for_the_registered_rooms(tmp_path):
     h = str(tmp_path / "runtime" / "RAF")
     assert prep_a.resolve_output_dir(
         None, h, ["EmptyRoom", "FurnishedRoom"]) == os.path.join(h, "mappingA")
+
+
+# --------------------------------------------------------------------------- #
+# r5 Amendment 4: Mapping A derives its OWN scalar over its OWN union
+# --------------------------------------------------------------------------- #
+def _measured(peaks):
+    """{capture_id: measurement} from a peak table, as measure_union returns."""
+    return {capture_id: {"peak": peak, "crop_peak": peak, "finite": True,
+                         "n_samples": 2205}
+            for capture_id, peak in peaks.items()}
+
+
+def test_the_union_derives_the_registered_two_point_zero():
+    """The real corpus, reproduced as a fixture: the loudest union capture peaks at
+    0.48968, so the clip clamp admits at most 0.999/0.48968 = 2.0401 and the
+    largest one-significant-digit value under it is 2.0 -- exactly the registered
+    Mapping-A scalar (Amendment 4)."""
+    import publish as raf_publish
+
+    peaks = {f"{i:06d}": 0.05 + 0.001 * i for i in range(20)}
+    peaks["000099"] = 0.48968                       # the clamp-setting capture
+    supports = [f"{i:06d}" for i in range(20)]      # contexts: none of them loudest
+    decision = prep_a.derive_union_scalar({"EmptyRoom": _measured(peaks)},
+                                          {"EmptyRoom": supports})
+    assert decision["max_written_peak"] == 0.48968
+    assert decision["max_admissible_scalar"] == pytest.approx(2.0401, abs=1e-4)
+    assert decision["clamp_term"] == 2.0
+    assert decision["support_term"] == 10.0        # one sig digit of 0.75/0.069
+    assert decision["binding_term"] == "clip_clamp"
+    assert decision["scalar"] == 2.0
+    assert (decision["scalar"]
+            == raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS["amplitude_scalar"])
+
+
+def test_the_derivation_matches_the_registered_formula_on_the_same_population():
+    """The Mapping-A derivation is exp_19's formula on a different population, so
+    it must agree with exp_19's own implementation given the same peaks."""
+    import prepare_data as raf_prepare
+
+    peaks = {"000000": 0.12, "000001": 0.30, "000002": 0.48968}
+    decision = prep_a.derive_union_scalar({"EmptyRoom": _measured(peaks)},
+                                          {"EmptyRoom": ["000000", "000001"]})
+    support_term = raf_prepare.one_significant_digit(0.75 / 0.30)
+    clamp_term = raf_prepare.largest_one_significant_digit_at_most(0.999 / 0.48968)
+    assert decision["support_term"] == support_term
+    assert decision["clamp_term"] == clamp_term
+    assert decision["scalar"] == min(support_term, clamp_term)
+    assert decision["formula_version"] == raf_prepare.AMPLITUDE_FORMULA_VERSION
+
+
+def test_a_capture_that_clips_at_x3_is_clean_at_the_derived_scalar(union_room,
+                                                                   tmp_path):
+    """The stop that fired on the real union: two EmptyRoom captures clip at
+    Mapping H's x3. At the scalar Mapping A derives for its own union they are
+    published intact -- items are never dropped."""
+    _overwrite(union_room, "000003", _rir(3, peak=0.7))     # ~0.49 after resampling
+    ids = [f"{i:06d}" for i in range(6)]
+    with pytest.raises(prep_a.AmplitudePolicyError):
+        prep_a.audit_amplitude_union(union_room, ids, scalar=3.0)
+
+    measurements = prep_a.measure_union(union_room, ids)
+    decision = prep_a.derive_union_scalar({"EmptyRoom": measurements},
+                                          {"EmptyRoom": ids})
+    assert decision["scalar"] <= decision["max_admissible_scalar"]
+    report = prep_a.audit_amplitude_union(union_room, ids,
+                                          scalar=decision["scalar"],
+                                          measurements=measurements)
+    assert report["passed"] is True
+    assert report["n_captures"] == len(ids)          # the complete union, intact
+    written = prep_a.write_union(union_room, str(tmp_path / "out"), ids,
+                                 scalar=decision["scalar"])
+    assert written["n_files"] == len(ids)
+    assert max(f["peak"] for f in written["files"].values()) <= 0.999
+
+
+def test_the_derivation_reads_the_union_once(union_room):
+    """Both halves of the policy read the same measurements: the corpus is ~10k
+    captures and resampling it twice per run is not free."""
+    ids = [f"{i:06d}" for i in range(6)]
+    measurements = prep_a.measure_union(union_room, ids)
+    assert sorted(measurements) == ids
+    calls = []
+    real = prep_a._resampled_peaks_and_finite
+    try:
+        prep_a._resampled_peaks_and_finite = lambda *a, **k: calls.append(a) or real(*a, **k)
+        prep_a.audit_amplitude_union(union_room, ids, scalar=2.0,
+                                     measurements=measurements)
+    finally:
+        prep_a._resampled_peaks_and_finite = real
+    assert calls == []
+
+
+def test_the_supports_are_the_context_captures():
+    items = [{"room": "EmptyRoom", "target_capture_id": "000000",
+              "context": [{"capture_id": "000001"}, {"capture_id": "000002"}]},
+             {"room": "EmptyRoom", "target_capture_id": "000001",
+              "context": [{"capture_id": "000003"}]}]
+    roles = prep_a.enumerate_support_captures(items)
+    assert roles["EmptyRoom"][0] == ["000001", "000002", "000003"]
+    assert roles["EmptyRoom"][1] == ["000000", "000001"]
+
+
+def test_a_derivation_without_context_captures_is_refused():
+    with pytest.raises(ValueError) as exc:
+        prep_a.derive_union_scalar({"EmptyRoom": _measured({"000000": 0.1})},
+                                   {"EmptyRoom": []})
+    assert "no context captures" in str(exc.value)
+
+
+def test_a_canonical_run_must_derive_the_registered_scalar(cli_corpus, tmp_path,
+                                                           monkeypatch):
+    """The identity discipline exp_19 uses: the derivation is what PROVES the
+    registered scalar, so a union that derives something else stops before writing.
+    """
+    import publish as raf_publish
+
+    monkeypatch.setitem(raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS,
+                        "amplitude_scalar", 7.0)
+    readback = _readback_for(tmp_path, cli_corpus)
+    argv = [a for a in _cli_argv(tmp_path, cli_corpus, readback)
+            if a != "--non-canonical"]
+    with pytest.raises(Exception) as exc:
+        prep_a.main(argv)
+    # the readback/identity gates may fire first; whichever does, nothing is written
+    assert not (tmp_path / prep_a.MAPPINGA_SPLIT_ROOT / prep_a.MANIFEST_NAME).exists()
+    del exc
+
+
+def test_the_scalar_flag_asserts_the_derivation_it_cannot_override_it(cli_corpus,
+                                                                      tmp_path):
+    readback = _readback_for(tmp_path, cli_corpus)
+    with pytest.raises(prep_a.AmplitudePolicyError) as exc:
+        prep_a.main(_cli_argv(tmp_path, cli_corpus, readback,
+                              extra=["--scalar", "9.0"]))
+    assert "does not override it" in str(exc.value)
+    assert exc.value.report["scalar"] != 9.0
+
+
+def test_the_published_artifacts_all_carry_the_scale_disclosure(cli_corpus,
+                                                                tmp_path):
+    readback = _readback_for(tmp_path, cli_corpus)
+    runtime = _publish_mappingH(tmp_path, cli_corpus, readback,
+                                rooms=("EmptyRoom", "FurnishedRoom"))
+    prep_a.main(_derived_argv(_cli_argv(tmp_path, cli_corpus, readback,
+                                        extra=["--mappingH-dir", str(runtime)])))
+    import publish as raf_publish
+
+    split_dir = tmp_path / prep_a.MAPPINGA_SPLIT_ROOT
+    with open(split_dir / raf_publish.marker_name("mappingA_prepare")) as f:
+        marker = json.load(f)
+    with open(split_dir / "mappingA_splits_record.json") as f:
+        splits = json.load(f)
+    with open(runtime / prep_a.MAPPINGA_RUNTIME_SUBDIR / "raf_publication.json") as f:
+        pointer = json.load(f)
+    for payload in (marker, splits, pointer):
+        assert payload["scale_disclosure"]["audio_is_shared"] is False
+        assert "unlicensed" in payload["scale_disclosure"]["note"]
+    # the marker also carries HOW the scalar was derived
+    assert marker["amplitude_derivation"]["binding_term"] in ("clip_clamp",
+                                                              "support_ceiling")
+    assert (marker["parameters"]["amplitude_scalar"]
+            == marker["amplitude_derivation"]["scalar"])
+    assert splits["amplitude_scalar"]["derivation_id_sha256"]
