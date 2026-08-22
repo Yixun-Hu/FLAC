@@ -458,6 +458,31 @@ def test_missing_depth_is_rejected(bad_index):
     assert "depth" in str(e.value)
 
 
+@pytest.mark.parametrize("bad_index", (0, 1))
+def test_missing_depth_is_rejected_even_for_a_single_angle_orbit(bad_index):
+    """r1 review nit 2. The depth contract is UNCONDITIONAL, deliberately: a
+    one-angle orbit averages nothing, so a reader could reasonably "simplify" the
+    check to the multi-angle path. That would make the arm's declared treatment
+    depend on ``len(angles)``, and the fail-closed reading of a sample that
+    cannot be rotated is the point. Pinned here so the divergence from
+    ``invariant_conditioning`` (which short-circuits) survives a refactor."""
+    md = _batch(2)
+    md[bad_index] = {k: v for k, v in md[bad_index].items() if k != "depth"}
+    with pytest.raises(ValueError, match="fa_cartesian") as e:
+        yr.fa_cartesian_conditioning(_build_cond(), md, DEV, (0.0,))
+    assert "depth" in str(e.value)
+
+
+@pytest.mark.parametrize("angles", (C4, (0.0,)))
+def test_empty_metadata_is_rejected(angles):
+    """r1 review nit 2. An empty batch has no panorama to read the orbit's single
+    column-shift rule from, so it is rejected rather than silently returning an
+    empty (and structurally invalid) conditioning dict — at any orbit size."""
+    with pytest.raises(ValueError, match="fa_cartesian") as e:
+        yr.fa_cartesian_conditioning(_build_cond(), [], DEV, angles)
+    assert "empty" in str(e.value)
+
+
 def test_mixed_panorama_widths_are_rejected():
     """One orbit is one column-shift rule: a mixed-width batch would rotate
     different samples by different effective angles."""
@@ -540,3 +565,111 @@ def test_caller_metadata_is_not_mutated():
                 assert id(m[key]) == ids[k][key], f"sample {k}: {key} was replaced"
             else:
                 assert m[key] == val
+
+
+# --------------------------------------------------------------------------- #
+# 13. autograd through the Cartesian orbit (r1 review nit 1)
+# --------------------------------------------------------------------------- #
+class SharedProjDist(nn.Module):
+    """dist_embedder stand-in whose projection is a LEARNABLE parameter, and the
+    SAME parameter object for both pose ids.
+
+    :class:`FakeDist` keeps its weights in buffers, so no test above can observe
+    the backward pass at all — yet the orbit is a training-path construct, and
+    what the arm actually changes is the gradient the dist branch delivers. One
+    shared parameter makes a single ``.grad`` accumulate every orbit term of BOTH
+    ``source`` and ``context_poses``, so a detached frame, a dropped frame, a
+    double-counted frame or a wrong divisor each show up as one mismatch against
+    the hand-computed loop. Same non-odd nonlinearity as :class:`FakeDist`, for
+    the same reason (an odd feature's C4 average is identically zero)."""
+
+    def __init__(self, w: nn.Parameter, b: nn.Parameter,
+                 name: str = "DistEmbedderConditioner"):
+        super().__init__()
+        self.name = name
+        self.w = w
+        self.b = b
+
+    def forward(self, x_list, device=DEV):
+        x = torch.stack(x_list, dim=0).to(device)
+        if x.dim() == 2:
+            x = x.unsqueeze(1)
+        B, N, _ = x.shape
+        h = x @ self.w + self.b
+        out = torch.tanh(h) * torch.sigmoid(h - 0.5) + 0.25 * torch.cos(h)
+        return [out.contiguous(), torch.ones(B, N, device=device)]
+
+
+def _grad_cond(out_dim: int = 6, seed: int = 11):
+    """The production id set with a differentiable, weight-tied dist branch."""
+    g = torch.Generator().manual_seed(seed)
+    w = nn.Parameter(torch.randn(3, out_dim, generator=g))
+    b = nn.Parameter(torch.randn(out_dim, generator=g))
+    cond = MultiConditioner({
+        "source": SharedProjDist(w, b),
+        "context_poses": SharedProjDist(w, b),
+        "source_vit": FakeGeometry(seed=3),
+        "context_poses_vit": FakeGeometry(seed=4),
+        "context_audio": FakeRIR(),
+    }).eval()
+    return cond, w, b
+
+
+def _scalarise(t: torch.Tensor) -> torch.Tensor:
+    """A deterministic NON-uniform weighting of every output element.
+
+    A plain ``.sum()`` would give every element, sample and orbit term the same
+    upstream gradient, which is exactly the regime in which a permuted or
+    misaligned accumulation is invisible."""
+    ramp = torch.linspace(0.5, 1.5, t.numel(), dtype=t.dtype).view_as(t)
+    return (t * ramp).sum()
+
+
+def _dist_loss(out) -> torch.Tensor:
+    return sum(_scalarise(out[key][0]) for key in DIST_IDS)
+
+
+def test_orbit_gradients_equal_the_hand_computed_four_term_reference():
+    """Backward through the frame average must equal backward through the
+    explicit ``(1/|G|) sum_g f(g.x)`` loop — the derivative of the same
+    expression, computed two ways."""
+    md = _batch(2)
+
+    cond, w, b = _grad_cond()
+    _dist_loss(yr.fa_cartesian_conditioning(cond, md, DEV, C4)).backward()
+
+    ref_cond, ref_w, ref_b = _grad_cond()
+    total = None
+    for k, deg in enumerate(C4):
+        o = ref_cond(md if k == 0 else _rot(md, deg), DEV)
+        term = _dist_loss(o)
+        total = term if total is None else total + term
+    (total / float(len(C4))).backward()
+
+    assert w.grad is not None and b.grad is not None, "no gradient reached the orbit"
+    assert float(w.grad.abs().max()) > 1e-4, (
+        "the reference gradient is ~0 — this fixture cannot support the claim")
+    assert torch.allclose(w.grad, ref_w.grad, atol=1e-6, rtol=1e-5), (
+        f"weight grad max {float((w.grad - ref_w.grad).abs().max()):.3e}")
+    assert torch.allclose(b.grad, ref_b.grad, atol=1e-6, rtol=1e-5), (
+        f"bias grad max {float((b.grad - ref_b.grad).abs().max()):.3e}")
+
+
+def test_the_nonzero_angle_frames_contribute_to_the_gradient():
+    """Guard for the test above: if the three rotated frames were detached (or
+    never run), the orbit gradient would be exactly the angle-0 gradient divided
+    by ``|G|`` — numerically plausible, and wrong."""
+    md = _batch(2)
+
+    full, w_full, _ = _grad_cond()
+    _dist_loss(yr.fa_cartesian_conditioning(full, md, DEV, C4)).backward()
+
+    base_only, w_base, _ = _grad_cond()
+    _dist_loss(yr.fa_cartesian_conditioning(base_only, md, DEV, (0.0,))).backward()
+
+    scaled = w_base.grad / float(len(C4))
+    delta = float((w_full.grad - scaled).abs().max())
+    assert not torch.allclose(w_full.grad, scaled, atol=1e-5), (
+        "the orbit gradient is the angle-0 term alone: the nonzero-angle frames "
+        "contribute nothing")
+    assert delta > 1e-3, f"nonzero-angle frames moved the gradient by only {delta:.3e}"
