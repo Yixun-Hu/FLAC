@@ -33,3 +33,10 @@
 
 - **Result (parity)** — PASSED all pre-registered criteria and exceeded them: autocast-off max_abs_diff=0.0 AND registered-autocast max_abs_diff=0.0 (bitwise both), record outputs_loc/exp20/exp20_bf_parity_fa_parity.json. First attempt was a Planner shell hang (stdin-blocked cat; disclosed in command.md) — infra, no run occurred.
 - **Acceptance criteria (pilots, pre-launch)** — 100-query seen smokes, dumps ON (to *_pilot NAS dirs): complete cleanly; probe components present; per-query means become the campaign schedule basis; BF pilot additionally exercises the executed-partition end gate ([10]x3 per query).
+
+## 2026-08-22T05:55:00-0400 — Pilots + r5 GO; MANIFEST FREEZE; campaign launch
+
+- **Pilots:** P1 1.19 s/q (cell ≈2.1 h), BF per-angle 1.52 s/q (cell ≈2.7 h), peak 1.5 GB. Schedule basis: with inline metrics+dump (measured in exp_18's R4 passes at ≈+1.0 s/q), cells ≈2.2 h (vanilla) / 2.8 h (BF) ⇒ campaign ≈43 h GPU ≈ **22 h wall on 2 GPUs**. BF pilot exercised the executed-partition end gate ([10]×3 per query) clean.
+- **r5 narrow re-review: APPROVE/GO** (coercion channel closed; ledger nit batched). FREEZE = the commit adding registrations/ (9 manifests, post-r5 fa_source_shas).
+- **Acceptance criteria (every campaign cell):** both registration gates pass at the freeze sha; identity gate 6,337/6,337; BF cells: fa executed-partition gate green per query; dumps complete to the cell's NAS dir; metrics-JSONL publishes after all gates; weights_source resolves "ema".
+- **Launch order:** 9 GPU-pairs chained by watcher — (P1-K8, BF-K8) seeds 42/43/44, then (YAW-K8 ×3 + P1-K1 ×3) interleaved, then (BF-K1, YAW-K1) ×3.

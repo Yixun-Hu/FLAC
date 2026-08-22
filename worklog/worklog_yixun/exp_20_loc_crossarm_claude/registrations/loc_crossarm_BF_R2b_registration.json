@@ -1,0 +1,51 @@
+{
+  "admission_record_sha256": "e8ac03e8f6c29955e623fda93dd7abe0a610bb2901a9fda002437b62aa970a1c",
+  "agg": "lme",
+  "agree_sha256": "b664d5c09f74685fc9121f4b1496642d601489a338769fe52161a0b7912c72f4",
+  "angles_per_chunk": 1,
+  "arm": "BF",
+  "arm_config_rel": "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json",
+  "arm_lineage": "exp_07 B-F fa_invariant (C4 frame average); byte-equal to exp_11's FLAC_AR_BF_C4L.json",
+  "batch_size": 4,
+  "candidate_manifest_sha256": "da1a1410f34c18c9dc762d27b470dd53f3606b165f7b9e2aa0c4713182a79252",
+  "candidate_micro_batch": 10,
+  "cap_policy": "candidate_micro_batch",
+  "cfg_scale": 1.0,
+  "ckpt_sha256": "5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328",
+  "cond_autocast": "default",
+  "cond_method": "fa_invariant",
+  "dataset_config_sha256": "4875374040cad2272e1df2b99809743c7bcf3fd0718df40c6ebfaf9c84c8b4e3",
+  "experiment": "exp_20 loc_crossarm BF R2b (K_ctx=1, matched 40k; exp_07 B-F fa_invariant (C4 frame average); byte-equal to exp_11's FLAC_AR_BF_C4L.json)",
+  "fa_source_shas": {
+    "eval_localization.py": "d31c037569b745c7b38fc56638e8da8ba8dcf8642ed0d92346c9b40d2d18ffd4",
+    "src/data/yaw_rotation.py": "bf8dd38f62dbd88461e9e215c9f639a57c6fefe673d1a9a4185df32ab5f848a1",
+    "src/localization/crossarm.py": "3b0586659b479ec8b5eec3693b9433c640638a09eb6d49a5a4638ce8d46b695e"
+  },
+  "frame_avg_angles": [
+    0.0,
+    90.0,
+    180.0,
+    270.0
+  ],
+  "frame_avg_chunk_plan": "per_angle",
+  "frame_avg_fwd_cap": 10,
+  "model_config_sha256": "3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328",
+  "n_orbit_forwards": 3,
+  "num_samples": 8,
+  "num_workers": 4,
+  "orbit_execution": "per_angle",
+  "orbit_size": 4,
+  "readout": "mean",
+  "registered_at": "2026-08-22T05:29:58+00:00",
+  "rotate_deg": 0.0,
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "shared_angle_count": 1,
+  "split_file_sha256": "9a9d817abc3e19f41351e07325ffa929c1f2846d0c77e80d538d9e4a21342ba8",
+  "steps": 1,
+  "tau": 0.02,
+  "tau_provenance": "tau=0.02 carried from the R1 dev selection at K_ctx=8 (registered pre-R2b; dev landscape flat 1.0718-1.0852 m, so transfer risk is nil); all other locked fields identical to loc_invert_R2_registration.json"
+}

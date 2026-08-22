@@ -1,0 +1,30 @@
+{
+  "admission_record_sha256": "0eba6715f3db2a0fc09995acad19e93ace82d6ec0f426bef3499f14bad1cdf58",
+  "agg": "lme",
+  "agree_sha256": "b664d5c09f74685fc9121f4b1496642d601489a338769fe52161a0b7912c72f4",
+  "arm": "YAW",
+  "arm_config_rel": "worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json",
+  "arm_lineage": "exp_17 A6000 yaw-aug (recipe-matched to P1/BF; NOT exp_15's cluster arm)",
+  "batch_size": 4,
+  "candidate_manifest_sha256": "da1a1410f34c18c9dc762d27b470dd53f3606b165f7b9e2aa0c4713182a79252",
+  "cfg_scale": 1.0,
+  "ckpt_sha256": "ac1f26034e4f341fe0c2cb4638e2eb473959d66ddd2fd95d184dc2fd4f264de7",
+  "cond_autocast": "default",
+  "cond_method": "vanilla",
+  "dataset_config_sha256": "4875374040cad2272e1df2b99809743c7bcf3fd0718df40c6ebfaf9c84c8b4e3",
+  "experiment": "exp_20 loc_crossarm YAW R2b (K_ctx=1, matched 40k; exp_17 A6000 yaw-aug (recipe-matched to P1/BF; NOT exp_15's cluster arm))",
+  "model_config_sha256": "b14caae27afec2c53c38bea6e2574a48aa94bc86848ab17afae94cadf694b004",
+  "num_samples": 8,
+  "num_workers": 4,
+  "readout": "mean",
+  "registered_at": "2026-08-22T05:29:58+00:00",
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "split_file_sha256": "9a9d817abc3e19f41351e07325ffa929c1f2846d0c77e80d538d9e4a21342ba8",
+  "steps": 1,
+  "tau": 0.02,
+  "tau_provenance": "tau=0.02 carried from the R1 dev selection at K_ctx=8 (registered pre-R2b; dev landscape flat 1.0718-1.0852 m, so transfer risk is nil); all other locked fields identical to loc_invert_R2_registration.json"
+}

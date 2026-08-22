@@ -1,0 +1,222 @@
+{
+  "BF": {
+    "admitted": true,
+    "arm": "BF",
+    "bytes": 723922667,
+    "ckpt_path": "weights/exp20/BF_40k.ckpt",
+    "cond_method": "fa_invariant",
+    "config_canonical_sha256": "049ae1dc4a4f989c14509a869ceecb4c0580b95f4c1431a70dbf8f84369ef889",
+    "config_path": "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json",
+    "config_sha256": "3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328",
+    "created_utc": "2026-08-22T04:13:39+00:00",
+    "ema_inventory_sha256": "68dc5ef53d4144cea4fd8210cae6c6769fd7370fd62499dc9f6fb449bb991fc2",
+    "ema_key_count": 210,
+    "ema_prefix": "diffusion_ema.ema_model.",
+    "embedded_config_canonical_sha256": "049ae1dc4a4f989c14509a869ceecb4c0580b95f4c1431a70dbf8f84369ef889",
+    "expect_step": 40000,
+    "frame_avg_angles": [
+      0.0,
+      90.0,
+      180.0,
+      270.0
+    ],
+    "global_step": 40000,
+    "lineage": "exp_07 B-F fa_invariant (C4 frame average); byte-equal to exp_11's FLAC_AR_BF_C4L.json",
+    "lineage_binding": {
+      "arm": "BF",
+      "branch": "check-equivariance-necessity",
+      "caveat": "This arm is a single historical training run. Cross-arm differences are conditional on these particular runs; with no replicated training per arm, no causal claim about the training policy itself is licensed.",
+      "completion_commits": [
+        "2e2ac021e2e926163c68c57ba1e25c1b4340d9f5",
+        "f19f377f145e80d8d706c7dd5887e5c7a50d49de"
+      ],
+      "experiment": "exp_07",
+      "nas_provenance": {
+        "available": true,
+        "path": "/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/PROVENANCE.md",
+        "sha256": "e9e131702f5e15d2940f03fee92d2c48fc11b67e7c9b3933419f81ec0860b419"
+      },
+      "recipe": {
+        "accum_batches": 1,
+        "batch_size": 32,
+        "max_steps": 40000,
+        "num_workers": 6,
+        "precision": "bf16-mixed",
+        "seed": 42
+      },
+      "topology": {
+        "device": "NVIDIA RTX A6000",
+        "gpus": 2,
+        "nodes": 1,
+        "strategy": "ddp_find_unused_parameters_true",
+        "sync_batchnorm": true
+      }
+    },
+    "load_integrity": {
+      "checked": true,
+      "clean": true,
+      "missing": [],
+      "n_missing": 0,
+      "n_stray": 0,
+      "n_unexpected": 3,
+      "n_whitelisted": 3,
+      "stray": [],
+      "unexpected": [
+        "diffusion_ema.initted",
+        "diffusion_ema.step",
+        "losses.losses.0.weight"
+      ],
+      "whitelist": [
+        "diffusion_ema.",
+        "losses."
+      ]
+    },
+    "online_model_key_count": 210,
+    "reasons": [],
+    "sha256": "5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328"
+  },
+  "P1": {
+    "admitted": true,
+    "arm": "P1",
+    "bytes": 723927531,
+    "ckpt_path": "weights/exp20/P1_40k.ckpt",
+    "cond_method": "vanilla",
+    "config_canonical_sha256": "2023ccc63257ae4902caf30a7905d1b8719e1e0e2ec5964dde951481cd352a27",
+    "config_path": "worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_VANCKPT.json",
+    "config_sha256": "733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8",
+    "created_utc": "2026-08-22T04:13:32+00:00",
+    "ema_inventory_sha256": "68dc5ef53d4144cea4fd8210cae6c6769fd7370fd62499dc9f6fb449bb991fc2",
+    "ema_key_count": 210,
+    "ema_prefix": "diffusion_ema.ema_model.",
+    "embedded_config_canonical_sha256": "2023ccc63257ae4902caf30a7905d1b8719e1e0e2ec5964dde951481cd352a27",
+    "expect_step": 40000,
+    "frame_avg_angles": null,
+    "global_step": 40000,
+    "lineage": "exp_07 P1 vanilla; config shared with exp_11's VANL arm",
+    "lineage_binding": {
+      "arm": "P1",
+      "branch": "check-equivariance-necessity",
+      "caveat": "This arm is a single historical training run. Cross-arm differences are conditional on these particular runs; with no replicated training per arm, no causal claim about the training policy itself is licensed.",
+      "completion_commits": [
+        "2e2ac021e2e926163c68c57ba1e25c1b4340d9f5",
+        "f19f377f145e80d8d706c7dd5887e5c7a50d49de"
+      ],
+      "experiment": "exp_07",
+      "nas_provenance": {
+        "available": true,
+        "path": "/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/PROVENANCE.md",
+        "sha256": "e9e131702f5e15d2940f03fee92d2c48fc11b67e7c9b3933419f81ec0860b419"
+      },
+      "recipe": {
+        "accum_batches": 1,
+        "batch_size": 32,
+        "max_steps": 40000,
+        "num_workers": 6,
+        "precision": "bf16-mixed",
+        "seed": 42
+      },
+      "topology": {
+        "device": "NVIDIA RTX A6000",
+        "gpus": 2,
+        "nodes": 1,
+        "strategy": "ddp_find_unused_parameters_true",
+        "sync_batchnorm": true
+      }
+    },
+    "load_integrity": {
+      "checked": true,
+      "clean": true,
+      "missing": [],
+      "n_missing": 0,
+      "n_stray": 0,
+      "n_unexpected": 3,
+      "n_whitelisted": 3,
+      "stray": [],
+      "unexpected": [
+        "diffusion_ema.initted",
+        "diffusion_ema.step",
+        "losses.losses.0.weight"
+      ],
+      "whitelist": [
+        "diffusion_ema.",
+        "losses."
+      ]
+    },
+    "online_model_key_count": 210,
+    "reasons": [],
+    "sha256": "c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c"
+  },
+  "YAW": {
+    "admitted": true,
+    "arm": "YAW",
+    "bytes": 723922667,
+    "ckpt_path": "weights/exp20/YAW_40k.ckpt",
+    "cond_method": "vanilla",
+    "config_canonical_sha256": "0761a677e0f31b8ee32a27b3f8c8280689fb450e962509381388217b7b0e8667",
+    "config_path": "worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json",
+    "config_sha256": "b14caae27afec2c53c38bea6e2574a48aa94bc86848ab17afae94cadf694b004",
+    "created_utc": "2026-08-22T04:13:41+00:00",
+    "ema_inventory_sha256": "68dc5ef53d4144cea4fd8210cae6c6769fd7370fd62499dc9f6fb449bb991fc2",
+    "ema_key_count": 210,
+    "ema_prefix": "diffusion_ema.ema_model.",
+    "embedded_config_canonical_sha256": "0761a677e0f31b8ee32a27b3f8c8280689fb450e962509381388217b7b0e8667",
+    "expect_step": 40000,
+    "frame_avg_angles": null,
+    "global_step": 40000,
+    "lineage": "exp_17 A6000 yaw-aug (recipe-matched to P1/BF; NOT exp_15's cluster arm)",
+    "lineage_binding": {
+      "arm": "YAW",
+      "branch": "exp-17-yawaug-a6000 (A6000 sibling checkout)",
+      "caveat": "This arm is a single historical training run. Cross-arm differences are conditional on these particular runs; with no replicated training per arm, no causal claim about the training policy itself is licensed.",
+      "completion_commits": [
+        "42cbddaf3dbd4015e5e343edc13eb411fa6c18d5",
+        "f378775fd5034e81df3334024343f22cd5835f88"
+      ],
+      "experiment": "exp_17",
+      "nas_provenance": {
+        "available": true,
+        "path": "/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/PROVENANCE.md",
+        "sha256": "e9e131702f5e15d2940f03fee92d2c48fc11b67e7c9b3933419f81ec0860b419"
+      },
+      "note": "recipe-matched to P1/BF; deliberately NOT exp_15's cluster arm 16b964ec",
+      "recipe": {
+        "accum_batches": 1,
+        "batch_size": 32,
+        "checkpoint_cadence": 2500,
+        "max_steps": 40000,
+        "num_workers": 6,
+        "precision": "bf16-mixed",
+        "seed": 42
+      },
+      "topology": {
+        "device": "NVIDIA RTX A6000",
+        "gpus": 2,
+        "nodes": 1,
+        "strategy": "ddp_find_unused_parameters_true",
+        "sync_batchnorm": true
+      }
+    },
+    "load_integrity": {
+      "checked": true,
+      "clean": true,
+      "missing": [],
+      "n_missing": 0,
+      "n_stray": 0,
+      "n_unexpected": 3,
+      "n_whitelisted": 3,
+      "stray": [],
+      "unexpected": [
+        "diffusion_ema.initted",
+        "diffusion_ema.step",
+        "losses.losses.0.weight"
+      ],
+      "whitelist": [
+        "diffusion_ema.",
+        "losses."
+      ]
+    },
+    "online_model_key_count": 210,
+    "reasons": [],
+    "sha256": "ac1f26034e4f341fe0c2cb4638e2eb473959d66ddd2fd95d184dc2fd4f264de7"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "admission_record_sha256": "c19587210d587b730d064a74ec08001f140ccdbb716a924e4bee6e65a8dafdb9",
+  "agg": "lme",
+  "agree_sha256": "b664d5c09f74685fc9121f4b1496642d601489a338769fe52161a0b7912c72f4",
+  "arm": "P1",
+  "arm_config_rel": "worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_VANCKPT.json",
+  "arm_lineage": "exp_07 P1 vanilla; config shared with exp_11's VANL arm",
+  "batch_size": 4,
+  "candidate_manifest_sha256": "da1a1410f34c18c9dc762d27b470dd53f3606b165f7b9e2aa0c4713182a79252",
+  "cfg_scale": 1.0,
+  "ckpt_sha256": "c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c",
+  "cond_autocast": "default",
+  "cond_method": "vanilla",
+  "dataset_config_sha256": "4875374040cad2272e1df2b99809743c7bcf3fd0718df40c6ebfaf9c84c8b4e3",
+  "experiment": "exp_20 loc_crossarm P1 R2b (K_ctx=1, matched 40k; exp_07 P1 vanilla; config shared with exp_11's VANL arm)",
+  "model_config_sha256": "733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8",
+  "num_samples": 8,
+  "num_workers": 4,
+  "readout": "mean",
+  "registered_at": "2026-08-22T05:29:58+00:00",
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "split_file_sha256": "9a9d817abc3e19f41351e07325ffa929c1f2846d0c77e80d538d9e4a21342ba8",
+  "steps": 1,
+  "tau": 0.02,
+  "tau_provenance": "tau=0.02 carried from the R1 dev selection at K_ctx=8 (registered pre-R2b; dev landscape flat 1.0718-1.0852 m, so transfer risk is nil); all other locked fields identical to loc_invert_R2_registration.json"
+}

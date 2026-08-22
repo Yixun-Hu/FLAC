@@ -1,0 +1,151 @@
+{
+  "admission_record_sha256": "e8ac03e8f6c29955e623fda93dd7abe0a610bb2901a9fda002437b62aa970a1c",
+  "arm": "BF",
+  "candidate_manifest_sha256": "da1a1410f34c18c9dc762d27b470dd53f3606b165f7b9e2aa0c4713182a79252",
+  "ckpt_sha256": "5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328",
+  "experiment": "exp_20 loc_crossarm BF metric registration (inherited scorer)",
+  "inherited_from": {
+    "metric_config_canonical_sha256": "102d718d9579465f680a8b123042ed33370c16742739f493956ab8c98e12022f",
+    "path": "worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_R4_metric_registration.json",
+    "registerable_canonical_sha256": "6c4830015b23fd1e09c9ad2638d4ec043d39256b0011f8433fc1db174866b239",
+    "source_sha": "f704e2662a388258c549ac01bb4d9a2b24346c3d"
+  },
+  "metric_config": {
+    "delta_grid": null,
+    "delta_max": 8,
+    "families": [
+      "m1",
+      "m2",
+      "m3",
+      "m4",
+      "m5"
+    ],
+    "lam": 1.0,
+    "m4_mu": [
+      0.01124801587301626,
+      -5.772158613422076,
+      5.88553395068911,
+      11.630217159401662,
+      0.4435742089130325,
+      0.509357577760312,
+      5.882399695408765,
+      0.6434936052816111,
+      0.6451255421558603,
+      0.6349068066560033
+    ],
+    "m4_sigma": [
+      0.013365715792858897,
+      6.268552133419822,
+      9.427209257069421,
+      6.714292977419934,
+      0.2943680158593424,
+      0.10701833132359136,
+      9.426609372627148,
+      0.08625411283470712,
+      0.07159291183415209,
+      0.07423634384268225
+    ],
+    "param_window_samples": 8000,
+    "sample_rate": 22050,
+    "secondaries": true,
+    "t30_backend": "pyroomacoustics",
+    "window_samples": 9600
+  },
+  "protocol_manifest_digests": {
+    "R2": "2bfa0bc11cccae43f97f2e8ddc398fb859db4b14acad15b5f2067cca2722ae46",
+    "R2b": "e143da2c0d835e532ca989ed8780fe76f83613e646cf9b1694c1affc4e9bf702"
+  },
+  "r2_identity_digest": "60c5616594000e039bb00725f76f8b7a0ed9408079353eb9b2615ffe50e38f53",
+  "r2_manifest_digests": {
+    "worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_R2_registration.json": "ef5f0ed8a1eca48b060bd3d497664fbcc2f18806bc665971574b4819c848be64",
+    "worklog/worklog_yixun/exp_18_loc_invert_claude/loc_invert_R2b_registration.json": "deb5844e7618a249b8f2b6a0d64ba27f7d1ad907ccde4419bc0a7c0fbc4055d0"
+  },
+  "registerable": {
+    "eps": 1e-08,
+    "k_aggregation_primary": "mean",
+    "k_aggregation_secondaries": [
+      "min",
+      "median",
+      "lme"
+    ],
+    "lme_tau": 0.02,
+    "m1_delta_grid": [
+      0,
+      8,
+      32,
+      128
+    ],
+    "m2_fft_sizes": [
+      64,
+      128,
+      256,
+      512,
+      1024,
+      2048,
+      4096
+    ],
+    "m2_lambda": 1.0,
+    "m2_safe_log_eps": 1e-07,
+    "m2_secondary": "complex_stft",
+    "m2_stft_eps": 1e-06,
+    "m3_band_filter": "fft_mask_half_octave_sqrt2_edges",
+    "m3_octave_bands_hz": [
+      500,
+      1000,
+      2000,
+      4000
+    ],
+    "m3_region_db": [
+      0.0,
+      -30.0
+    ],
+    "m3_rms_frame": 256,
+    "m3_schroeder_eps": 1e-10,
+    "m3_secondaries": [
+      "m3_band",
+      "m3_hilbert"
+    ],
+    "m4_arrival_threshold_db": -20.0,
+    "m4_c50_ms": 50,
+    "m4_c80_ms": 80,
+    "m4_direct_half_width_ms": 2.5,
+    "m4_early_late_ms": 50.0,
+    "m4_edt_decay_db": 10.0,
+    "m4_features": [
+      "arrival_time",
+      "drr",
+      "c50",
+      "c80",
+      "edt",
+      "t30",
+      "early_late_50ms",
+      "t30_500",
+      "t30_1k",
+      "t30_2k"
+    ],
+    "m4_t30_decay_db": 30.0,
+    "m4_z_ddof": 0,
+    "m5_secondary": "gcc_phat",
+    "param_window_samples": 8000,
+    "prediction_tie_break": "lowest_index",
+    "sample_rate": 22050,
+    "sensitivity_crop_ms": 2.5,
+    "sensitivity_shift": 8,
+    "sensitivity_stride": 10,
+    "sensitivity_variants": [
+      "gain_x2",
+      "shift_plus8",
+      "shift_minus8",
+      "direct_crop_2p5ms"
+    ],
+    "window_samples": 9600
+  },
+  "registered_at": "2026-08-22T05:29:58+00:00",
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "source_sha": "f704e2662a388258c549ac01bb4d9a2b24346c3d",
+  "transport_caveat": "The R4 metric constants (delta_max, the M4 mu/sigma, the T30 backend) were calibrated on the RELEASED checkpoint's seen generations. They are inherited here unchanged and used as FIXED EXTERNAL SCORERS across arms; their validity outside that calibration domain is not claimed, and no constant may be recalibrated per arm. The AGREE primary endpoint is unaffected by this caveat."
+}
