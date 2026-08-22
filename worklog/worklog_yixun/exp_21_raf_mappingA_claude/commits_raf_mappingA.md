@@ -18,3 +18,13 @@ Base: `raf-finetune-exp` @ `263ef27` (full exp_19 pipeline + 557-test suite inhe
 | `93e14c6` | r1: complete linkage via scipy (corpus-scale; cycle-1 semantics unchanged) |
 | `f13263f` | r1 readback rung: correspondence record over both rooms — 74/91 placements, 73/86 eligible, 1,152-item identity ACHIEVABLE |
 | `bdad9f5` | r1 cycle 12: `prepare_mappingA` CLI main() — survey→items→union→audit→staged publish, registered identity + 3 digests (30 prepare tests) |
+| `1743de9` | r2 N2: disjoint Mapping-A split root (`data/RAF_mappingA`) — composition tests over the ACTUAL CLI defaults (the r4-T4 failure mode re-entering through a default value) |
+| `96c267a` | r2: the eval-config assertion follows `MAPPINGA_SPLIT_ROOT` instead of a hardcoded copy |
+| `9b9e696` | r2 N1: listener render publishes the `mappingA_depth` marker with its own derived identity; the RENDERER-produced marker passes `RAF_A_md` end to end |
+| `b8c5a89` | r2 N3: audit the loader's 10,240-sample CROP for silence (full waveform for clipping), re-check at write, and split `amplitude_derivation_target` (0.75) from `clip_ceiling` (0.999) |
+| `f158307` | r2 N4: `--mappingH-dir` located/required/verified in the CLI (generation, manifest coverage, scalar agreement); "byte-identical" replaced by CONTENT identity — float WAVs carry a PEAK-chunk timestamp |
+| `a7414b5` | r2 N5: `correspondence_sha256` = digest of the committed record (read once), digests pinned exactly, canonical refused while the audio union is a placeholder, pointer↔marker cross-check |
+| `bc5e70c` | r2 N6: validator recomputes displacement/source identity, full schema without defaults, per-context evidence + slot checks, REGISTERED item count, config `expected_items` → runtime stream gate |
+| `1326cdf` | r2 N7: `eval_FLAC --record-per-item` sidecar (RAF-gated, additive) + `mappingA_stats` paired ingestion (exact item×seed pairing, registered design, paired placement bootstrap) |
+| `f1b1808` | r2 N8: tracked height read from the RAW RAF row (`RAF_UP_AXIS`), not from a pipeline coordinate that holds it only under the current gauge |
+| `044585e` | r2 N9: rigid residual (recorded), per-slot evidence digest, duplicate-receiver and zero/zero-margin refusals; algorithm → `mappingA-correspondence-2`; readback re-run + record re-pinned (`d4d79b49…`) |
