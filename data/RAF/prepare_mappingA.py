@@ -503,6 +503,13 @@ def resolve_output_dir(output_dir, mappingH_dir, protected_rooms):
     EmptyRoom-only Mapping-A run pointed at ``<H>/FurnishedRoom`` was accepted
     before, and the transaction would then have replaced a Mapping-H room tree the
     run never mentions.
+
+    R1: the DERIVED path is checked exactly like an explicit one. It used to
+    return before the gates on the grounds that it is safe by construction -- but
+    it is safe only relative to a room list, and a publication holding a room
+    literally named ``mappingA`` puts the derived root on top of a protected tree.
+    "Safe by construction" that is never checked is an assumption, and this
+    function exists to refuse assumptions.
     """
     if not mappingH_dir:
         if not output_dir:
@@ -513,10 +520,17 @@ def resolve_output_dir(output_dir, mappingH_dir, protected_rooms):
         return os.path.abspath(output_dir)
 
     h_root = os.path.abspath(mappingH_dir)
-    if not output_dir:
-        return os.path.join(h_root, MAPPINGA_RUNTIME_SUBDIR)
+    # BEFORE any root is resolved: with no protected rooms there is nothing to
+    # check a root against, derived or not.
+    if not protected_rooms:
+        raise ValueError(
+            "refusing to resolve a Mapping-A runtime root without the Mapping-H "
+            "publication's room list: the rooms it protects come from ITS pointer, "
+            "and an empty list would protect nothing.")
 
-    out = os.path.abspath(output_dir)
+    derived = not output_dir
+    out = (os.path.join(h_root, MAPPINGA_RUNTIME_SUBDIR) if derived
+           else os.path.abspath(output_dir))
     if _is_within(h_root, out):
         # covers equality and any ancestor of the Mapping-H tree
         raise ValueError(
@@ -530,19 +544,18 @@ def resolve_output_dir(output_dir, mappingH_dir, protected_rooms):
             f"refusing to publish Mapping A at {out}: it is outside the Mapping-H "
             f"runtime tree {h_root}. The two corpora share audio by provenance, so "
             "the Mapping-A tree is a child of the publication it cites.")
-    if not protected_rooms:
-        raise ValueError(
-            "refusing to resolve a Mapping-A runtime root without the Mapping-H "
-            "publication's room list: the rooms it protects come from ITS pointer, "
-            "and an empty list would protect nothing.")
     for room in protected_rooms:
         room_root = os.path.join(h_root, room)
         if _is_within(out, room_root):
             raise ValueError(
-                f"refusing to publish Mapping A at {out}: it is inside Mapping H's "
-                f"{room} root, whose audio and depth_images directories H attests. "
-                "The protected rooms are the publication's own "
-                f"({sorted(protected_rooms)}), not this run's subset.")
+                f"refusing to publish Mapping A at "
+                f"{out}{' (the DERIVED default)' if derived else ''}: it is inside "
+                f"Mapping H's {room} root, whose audio and depth_images directories "
+                "H attests. The protected rooms are the publication's own "
+                f"({sorted(protected_rooms)}), not this run's subset."
+                + (f" Pass --output-dir explicitly: this publication holds a room "
+                   f"named {MAPPINGA_RUNTIME_SUBDIR!r}, so the derived default "
+                   "lands on top of it." if derived else ""))
     return out
 
 

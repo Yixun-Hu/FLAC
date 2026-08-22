@@ -1176,3 +1176,35 @@ def test_both_real_clis_compose_at_their_true_defaults(cli_corpus, tmp_path,
     assert raf_publish.verify_publication(str(h_split), kind="prepare")["published"]
     assert raf_publish.verify_manifest(str(h_runtime)) == {"missing": [],
                                                            "mismatched": []}
+
+
+# --------------------------------------------------------------------------- #
+# r4 R1: the DERIVED default goes through the same gates as an explicit path
+# --------------------------------------------------------------------------- #
+def test_the_derived_default_is_refused_without_a_protected_room_list(tmp_path):
+    """The empty-list refusal used to sit after the derived path returned, so the
+    default was resolved against nothing at all."""
+    h = str(tmp_path / "runtime" / "RAF")
+    with pytest.raises(ValueError) as exc:
+        prep_a.resolve_output_dir(None, h, [])
+    assert "protect nothing" in str(exc.value)
+
+
+def test_the_derived_default_is_refused_when_it_lands_on_a_protected_room(tmp_path):
+    """A publication holding a room literally named 'mappingA' puts <H>/mappingA on
+    top of a tree H attests -- the derived path is only safe RELATIVE to the room
+    list, so it is checked against it like any other."""
+    h = str(tmp_path / "runtime" / "RAF")
+    with pytest.raises(ValueError) as exc:
+        prep_a.resolve_output_dir(None, h, ["mappingA"])
+    assert "DERIVED default" in str(exc.value)
+    assert "mappingA root" in str(exc.value)
+    # the same room set with an explicit, disjoint root is still fine
+    assert prep_a.resolve_output_dir(os.path.join(h, "mappingA_eval"), h,
+                                     ["mappingA"]) == os.path.join(h, "mappingA_eval")
+
+
+def test_the_derived_default_still_resolves_for_the_registered_rooms(tmp_path):
+    h = str(tmp_path / "runtime" / "RAF")
+    assert prep_a.resolve_output_dir(
+        None, h, ["EmptyRoom", "FurnishedRoom"]) == os.path.join(h, "mappingA")
