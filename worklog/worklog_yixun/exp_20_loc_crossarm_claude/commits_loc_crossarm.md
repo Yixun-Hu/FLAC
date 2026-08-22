@@ -72,6 +72,14 @@ already builds the model for load integrity, so this adds no new peak.
 
 | SHA | Residual | Description | changed lines |
 |---|---|---|---|
-| `5d4bab0` | F3 + F4a + F4b | dtype equality decided on the ORIGINAL tensors and masks before the float32 comparison cast (a float64/float32 pair with equal values and a bool mask both fail now); the end gate validates the RAW per-query partition list against `[M] × (orbit_size − 1)`, not only the summary ints; `fa_source_shas` is MANDATORY for a frame-average registration and must have exactly `FA_SOURCE_FILES` as keys with startup-equal digests (omitted / `{}` / partial / extra-key / wrong-digest each refuse) | +96 −24 |
+| `5d4bab0` | F3 + F4a + F4b | dtype equality decided on the ORIGINAL tensors and masks before the float32 comparison cast (a float64/float32 pair with equal values and a bool mask both fail now); the end gate validates the RAW per-query partition list against `[M] × (orbit_size − 1)`, not only the summary ints; `fa_source_shas` is MANDATORY for a frame-average registration and must have exactly `FA_SOURCE_FILES` as keys with startup-equal digests (omitted / `{}` / partial / extra-key / wrong-digest each refuse) | +158 −14 |
 
 **Suite after exp20-r4:** 2802 passed, 10 skipped, 1 pre-existing unrelated failure (exp_11 registry drift, owned by exp_15), 2 subtests passed.
+
+## Micro-round exp20-r5 (r4 re-review — the last F4a channel)
+
+| SHA | Residual | Description | changed lines |
+|---|---|---|---|
+| `PENDING` | F4a | the raw-partition comparison no longer coerces: each element must be a plain `int` (`bool` excluded) and the list is compared as-is, so `[10.5, 10.5, 10.5]`, `["10","10","10"]`, `[10.0,...]`, `[True,...]` and `[10, 10, None]` all abort | +18 −1 |
+
+**Suite after exp20-r5:** 2803 passed, 10 skipped, 1 pre-existing unrelated failure (exp_11 registry drift, owned by exp_15), 2 subtests passed.

@@ -2095,7 +2095,10 @@ def assert_fa_execution_matches(rows, locked):
             if found is None:
                 raise SystemExit(f"fa gate ABORT: query {row.get('query_id')!r} publishes no "
                                  "raw partition list")
-            if [int(chunk) for chunk in found] != expected_partition:
+            plain_ints = (isinstance(found, list)
+                          and all(isinstance(chunk, int) and not isinstance(chunk, bool)
+                                  for chunk in found))
+            if not plain_ints or found != expected_partition:
                 raise SystemExit(
                     f"fa gate ABORT: query {row.get('query_id')!r} executed the partition "
                     f"{list(found)!r} but the registration locks {expected_partition!r} "

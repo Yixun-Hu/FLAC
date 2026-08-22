@@ -1813,3 +1813,20 @@ def test_generated_bf_manifest_satisfies_the_mandatory_source_pin():
                                                model_config_sha256="b" * 64)
     assert set(generated["fa_source_shas"]) == set(ca.FA_SOURCE_FILES)
     el.assert_fa_registration(generated, _fa_args())
+
+
+def test_end_gate_refuses_a_partition_that_is_not_plain_ints():
+    """r4 re-review F4a: int() coercion let 10.5 and "10" through."""
+    import eval_localization as el
+
+    locked = ca.fa_run_state("fa_invariant", candidate_micro_batch=10)
+    intact = {"partition": [10, 10, 10], "angles_per_chunk": 1, "orbit_size": 4,
+              "n_orbit_forwards": 3, "shared_angle_count": 1, "candidate_micro_batch": 10,
+              "frame_avg_fwd_cap": 10, "cap_policy": "candidate_micro_batch"}
+    assert el.assert_fa_execution_matches([{"query_id": "q0", "fa_execution": intact}],
+                                          locked) == 1
+    for mutated in ([10.5, 10.5, 10.5], ["10", "10", "10"], [10.0, 10.0, 10.0],
+                    [True, True, True], [10, 10, None]):
+        row = {"query_id": "q0", "fa_execution": dict(intact, partition=mutated)}
+        with pytest.raises(SystemExit, match="partition"):
+            el.assert_fa_execution_matches([row], locked)
