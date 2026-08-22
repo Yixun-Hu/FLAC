@@ -1,0 +1,371 @@
+=== BF seed 42 test 23:11:39 ===
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Seed set to 42
+Using EMA model
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+Running json scandir...
+Found 768 files in 2 subfolders
+Max audio length for metric computation: 9600
+Evaluating:   0%|          | 0/12 [00:00<?, ?it/s]/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/functional.py:730: UserWarning: stft with return_complex=False is deprecated. In a future pytorch release, stft will return complex tensors for all inputs, and return_complex=False will raise an error.
+Note: you can still call torch.view_as_real on the complex output to recover the old return format. (Triggered internally at /pytorch/aten/src/ATen/native/SpectralOps.cpp:875.)
+  return _VF.stft(  # type: ignore[attr-defined]
+Evaluating:   8%|▊         | 1/12 [00:18<03:18, 18.02s/it]Evaluating:  17%|█▋        | 2/12 [00:21<01:37,  9.74s/it]Evaluating:  25%|██▌       | 3/12 [00:25<01:03,  7.10s/it]Evaluating:  33%|███▎      | 4/12 [00:29<00:46,  5.85s/it]Evaluating:  42%|████▏     | 5/12 [00:33<00:36,  5.17s/it]Evaluating:  50%|█████     | 6/12 [00:37<00:28,  4.80s/it]Evaluating:  58%|█████▊    | 7/12 [00:41<00:22,  4.53s/it]Evaluating:  67%|██████▋   | 8/12 [00:45<00:17,  4.38s/it]Evaluating:  75%|███████▌  | 9/12 [00:50<00:12,  4.29s/it]Evaluating:  83%|████████▎ | 10/12 [00:54<00:08,  4.21s/it]Evaluating:  92%|█████████▏| 11/12 [00:58<00:04,  4.16s/it]Evaluating: 100%|██████████| 12/12 [01:02<00:00,  4.12s/it]Evaluating: 100%|██████████| 12/12 [01:02<00:00,  5.18s/it]
+Per-scene metrics recorded for 2 scene(s)
+Test/T60 (%) 9.65395
+Test/Invalid T60 0.0
+Test/C50 (dB) 3.00345
+Test/EDT (ms) 146.8247
+Test/L1_STFT_MultiRes 3.3468999999999998
+Test/Env 0.7249
+Test/aggregation macro_room
+Test/n_rooms 2
+Test/Invalid T60 count 0.0
+Test/Invalid T60 rate 0.0
+Test/T60 items 768
+Metrics saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_test_seed42_fa_invariant_a4.json
+Assignment stream saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_test_seed42_fa_invariant_a4.stream.json
+Evaluation complete!
+=== BF seed 42 diag 23:12:59 ===
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Seed set to 42
+Using EMA model
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+Running json scandir...
+Found 48 files in 2 subfolders
+Max audio length for metric computation: 9600
+Evaluating:   0%|          | 0/1 [00:00<?, ?it/s]/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/functional.py:730: UserWarning: stft with return_complex=False is deprecated. In a future pytorch release, stft will return complex tensors for all inputs, and return_complex=False will raise an error.
+Note: you can still call torch.view_as_real on the complex output to recover the old return format. (Triggered internally at /pytorch/aten/src/ATen/native/SpectralOps.cpp:875.)
+  return _VF.stft(  # type: ignore[attr-defined]
+Evaluating: 100%|██████████| 1/1 [00:13<00:00, 13.29s/it]Evaluating: 100%|██████████| 1/1 [00:13<00:00, 13.29s/it]
+Per-scene metrics recorded for 2 scene(s)
+Test/T60 (%) 21.0138
+Test/Invalid T60 0.0
+Test/C50 (dB) 2.77745
+Test/EDT (ms) 61.434250000000006
+Test/L1_STFT_MultiRes 3.0205
+Test/Env 0.6008
+Test/aggregation macro_room
+Test/n_rooms 2
+Test/Invalid T60 count 0.0
+Test/Invalid T60 rate 0.0
+Test/T60 items 48
+Metrics saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_diag_seed42_fa_invariant_a4.json
+Assignment stream saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_diag_seed42_fa_invariant_a4.stream.json
+Evaluation complete!
+=== BF seed 43 test 23:13:30 ===
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Seed set to 43
+Using EMA model
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+Running json scandir...
+Found 768 files in 2 subfolders
+Max audio length for metric computation: 9600
+Evaluating:   0%|          | 0/12 [00:00<?, ?it/s]/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/functional.py:730: UserWarning: stft with return_complex=False is deprecated. In a future pytorch release, stft will return complex tensors for all inputs, and return_complex=False will raise an error.
+Note: you can still call torch.view_as_real on the complex output to recover the old return format. (Triggered internally at /pytorch/aten/src/ATen/native/SpectralOps.cpp:875.)
+  return _VF.stft(  # type: ignore[attr-defined]
+Evaluating:   8%|▊         | 1/12 [00:18<03:19, 18.14s/it]Evaluating:  17%|█▋        | 2/12 [00:22<01:38,  9.84s/it]Evaluating:  25%|██▌       | 3/12 [00:26<01:04,  7.16s/it]Evaluating:  33%|███▎      | 4/12 [00:30<00:47,  5.90s/it]Evaluating:  42%|████▏     | 5/12 [00:34<00:36,  5.19s/it]Evaluating:  50%|█████     | 6/12 [00:38<00:28,  4.77s/it]Evaluating:  58%|█████▊    | 7/12 [00:41<00:22,  4.51s/it]Evaluating:  67%|██████▋   | 8/12 [00:46<00:17,  4.36s/it]Evaluating:  75%|███████▌  | 9/12 [00:50<00:12,  4.27s/it]Evaluating:  83%|████████▎ | 10/12 [00:54<00:08,  4.19s/it]Evaluating:  92%|█████████▏| 11/12 [00:58<00:04,  4.14s/it]Evaluating: 100%|██████████| 12/12 [01:02<00:00,  4.10s/it]Evaluating: 100%|██████████| 12/12 [01:02<00:00,  5.18s/it]
+Per-scene metrics recorded for 2 scene(s)
+Test/T60 (%) 9.610499999999998
+Test/Invalid T60 0.0
+Test/C50 (dB) 3.00275
+Test/EDT (ms) 146.925
+Test/L1_STFT_MultiRes 3.3459
+Test/Env 0.72465
+Test/aggregation macro_room
+Test/n_rooms 2
+Test/Invalid T60 count 0.0
+Test/Invalid T60 rate 0.0
+Test/T60 items 768
+Metrics saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_test_seed43_fa_invariant_a4.json
+Assignment stream saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_test_seed43_fa_invariant_a4.stream.json
+Evaluation complete!
+=== BF seed 43 diag 23:14:49 ===
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Seed set to 43
+Using EMA model
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+Running json scandir...
+Found 48 files in 2 subfolders
+Max audio length for metric computation: 9600
+Evaluating:   0%|          | 0/1 [00:00<?, ?it/s]/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/functional.py:730: UserWarning: stft with return_complex=False is deprecated. In a future pytorch release, stft will return complex tensors for all inputs, and return_complex=False will raise an error.
+Note: you can still call torch.view_as_real on the complex output to recover the old return format. (Triggered internally at /pytorch/aten/src/ATen/native/SpectralOps.cpp:875.)
+  return _VF.stft(  # type: ignore[attr-defined]
+Evaluating: 100%|██████████| 1/1 [00:15<00:00, 15.74s/it]Evaluating: 100%|██████████| 1/1 [00:15<00:00, 15.75s/it]
+Per-scene metrics recorded for 2 scene(s)
+Test/T60 (%) 21.049
+Test/Invalid T60 0.0
+Test/C50 (dB) 2.81325
+Test/EDT (ms) 62.2789
+Test/L1_STFT_MultiRes 3.01695
+Test/Env 0.59955
+Test/aggregation macro_room
+Test/n_rooms 2
+Test/Invalid T60 count 0.0
+Test/Invalid T60 rate 0.0
+Test/T60 items 48
+Metrics saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_diag_seed43_fa_invariant_a4.json
+Assignment stream saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_diag_seed43_fa_invariant_a4.stream.json
+Evaluation complete!
+=== BF seed 44 test 23:15:21 ===
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Seed set to 44
+Using EMA model
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+Running json scandir...
+Found 768 files in 2 subfolders
+Max audio length for metric computation: 9600
+Evaluating:   0%|          | 0/12 [00:00<?, ?it/s]/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/functional.py:730: UserWarning: stft with return_complex=False is deprecated. In a future pytorch release, stft will return complex tensors for all inputs, and return_complex=False will raise an error.
+Note: you can still call torch.view_as_real on the complex output to recover the old return format. (Triggered internally at /pytorch/aten/src/ATen/native/SpectralOps.cpp:875.)
+  return _VF.stft(  # type: ignore[attr-defined]
+Evaluating:   8%|▊         | 1/12 [00:21<03:52, 21.11s/it]Evaluating:  17%|█▋        | 2/12 [00:25<01:50, 11.04s/it]Evaluating:  25%|██▌       | 3/12 [00:29<01:10,  7.83s/it]Evaluating:  33%|███▎      | 4/12 [00:33<00:50,  6.30s/it]Evaluating:  42%|████▏     | 5/12 [00:37<00:38,  5.47s/it]Evaluating:  50%|█████     | 6/12 [00:41<00:29,  4.96s/it]Evaluating:  58%|█████▊    | 7/12 [00:45<00:23,  4.65s/it]Evaluating:  67%|██████▋   | 8/12 [00:49<00:17,  4.44s/it]Evaluating:  75%|███████▌  | 9/12 [00:53<00:12,  4.31s/it]Evaluating:  83%|████████▎ | 10/12 [00:57<00:08,  4.21s/it]Evaluating:  92%|█████████▏| 11/12 [01:01<00:04,  4.16s/it]Evaluating: 100%|██████████| 12/12 [01:05<00:00,  4.12s/it]Evaluating: 100%|██████████| 12/12 [01:05<00:00,  5.43s/it]
+Per-scene metrics recorded for 2 scene(s)
+Test/T60 (%) 9.639800000000001
+Test/Invalid T60 0.0
+Test/C50 (dB) 3.0039499999999997
+Test/EDT (ms) 146.5933
+Test/L1_STFT_MultiRes 3.34875
+Test/Env 0.7254
+Test/aggregation macro_room
+Test/n_rooms 2
+Test/Invalid T60 count 0.0
+Test/Invalid T60 rate 0.0
+Test/T60 items 768
+Metrics saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_test_seed44_fa_invariant_a4.json
+Assignment stream saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_test_seed44_fa_invariant_a4.stream.json
+Evaluation complete!
+=== BF seed 44 diag 23:16:42 ===
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Seed set to 44
+Using EMA model
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+Running json scandir...
+Found 48 files in 2 subfolders
+Max audio length for metric computation: 9600
+Evaluating:   0%|          | 0/1 [00:00<?, ?it/s]/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/functional.py:730: UserWarning: stft with return_complex=False is deprecated. In a future pytorch release, stft will return complex tensors for all inputs, and return_complex=False will raise an error.
+Note: you can still call torch.view_as_real on the complex output to recover the old return format. (Triggered internally at /pytorch/aten/src/ATen/native/SpectralOps.cpp:875.)
+  return _VF.stft(  # type: ignore[attr-defined]
+Evaluating: 100%|██████████| 1/1 [00:12<00:00, 12.74s/it]Evaluating: 100%|██████████| 1/1 [00:12<00:00, 12.74s/it]
+Per-scene metrics recorded for 2 scene(s)
+Test/T60 (%) 20.948150000000002
+Test/Invalid T60 0.0
+Test/C50 (dB) 2.77905
+Test/EDT (ms) 61.921800000000005
+Test/L1_STFT_MultiRes 3.02175
+Test/Env 0.6004499999999999
+Test/aggregation macro_room
+Test/n_rooms 2
+Test/Invalid T60 count 0.0
+Test/Invalid T60 rate 0.0
+Test/T60 items 48
+Metrics saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_diag_seed44_fa_invariant_a4.json
+Assignment stream saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_diag_seed44_fa_invariant_a4.stream.json
+Evaluation complete!
+=== BF seed 45 test 23:17:15 ===
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Seed set to 45
+Using EMA model
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+Running json scandir...
+Found 768 files in 2 subfolders
+Max audio length for metric computation: 9600
+Evaluating:   0%|          | 0/12 [00:00<?, ?it/s]/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/functional.py:730: UserWarning: stft with return_complex=False is deprecated. In a future pytorch release, stft will return complex tensors for all inputs, and return_complex=False will raise an error.
+Note: you can still call torch.view_as_real on the complex output to recover the old return format. (Triggered internally at /pytorch/aten/src/ATen/native/SpectralOps.cpp:875.)
+  return _VF.stft(  # type: ignore[attr-defined]
+Evaluating:   8%|▊         | 1/12 [00:13<02:28, 13.46s/it]Evaluating:  17%|█▋        | 2/12 [00:17<01:19,  7.94s/it]Evaluating:  25%|██▌       | 3/12 [00:21<00:55,  6.15s/it]Evaluating:  33%|███▎      | 4/12 [00:25<00:43,  5.42s/it]Evaluating:  42%|████▏     | 5/12 [00:29<00:34,  4.88s/it]Evaluating:  50%|█████     | 6/12 [00:33<00:27,  4.57s/it]Evaluating:  58%|█████▊    | 7/12 [00:37<00:21,  4.36s/it]Evaluating:  67%|██████▋   | 8/12 [00:41<00:16,  4.24s/it]Evaluating:  75%|███████▌  | 9/12 [00:45<00:12,  4.15s/it]Evaluating:  83%|████████▎ | 10/12 [00:49<00:08,  4.11s/it]Evaluating:  92%|█████████▏| 11/12 [00:53<00:04,  4.08s/it]Evaluating: 100%|██████████| 12/12 [00:57<00:00,  4.08s/it]Evaluating: 100%|██████████| 12/12 [00:57<00:00,  4.81s/it]
+Per-scene metrics recorded for 2 scene(s)
+Test/T60 (%) 9.655999999999999
+Test/Invalid T60 0.0
+Test/C50 (dB) 3.0092
+Test/EDT (ms) 147.0238
+Test/L1_STFT_MultiRes 3.3472999999999997
+Test/Env 0.7248
+Test/aggregation macro_room
+Test/n_rooms 2
+Test/Invalid T60 count 0.0
+Test/Invalid T60 rate 0.0
+Test/T60 items 768
+Metrics saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_test_seed45_fa_invariant_a4.json
+Assignment stream saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_test_seed45_fa_invariant_a4.stream.json
+Evaluation complete!
+=== BF seed 45 diag 23:18:29 ===
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Seed set to 45
+Using EMA model
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+Running json scandir...
+Found 48 files in 2 subfolders
+Max audio length for metric computation: 9600
+Evaluating:   0%|          | 0/1 [00:00<?, ?it/s]/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/functional.py:730: UserWarning: stft with return_complex=False is deprecated. In a future pytorch release, stft will return complex tensors for all inputs, and return_complex=False will raise an error.
+Note: you can still call torch.view_as_real on the complex output to recover the old return format. (Triggered internally at /pytorch/aten/src/ATen/native/SpectralOps.cpp:875.)
+  return _VF.stft(  # type: ignore[attr-defined]
+Evaluating: 100%|██████████| 1/1 [00:09<00:00,  9.58s/it]Evaluating: 100%|██████████| 1/1 [00:09<00:00,  9.58s/it]
+Per-scene metrics recorded for 2 scene(s)
+Test/T60 (%) 20.9418
+Test/Invalid T60 0.0
+Test/C50 (dB) 2.8453
+Test/EDT (ms) 63.917249999999996
+Test/L1_STFT_MultiRes 3.0266
+Test/Env 0.6027499999999999
+Test/aggregation macro_room
+Test/n_rooms 2
+Test/Invalid T60 count 0.0
+Test/Invalid T60 rate 0.0
+Test/T60 items 48
+Metrics saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_diag_seed45_fa_invariant_a4.json
+Assignment stream saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_diag_seed45_fa_invariant_a4.stream.json
+Evaluation complete!
+=== BF seed 46 test 23:18:55 ===
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Seed set to 46
+Using EMA model
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+Running json scandir...
+Found 768 files in 2 subfolders
+Max audio length for metric computation: 9600
+Evaluating:   0%|          | 0/12 [00:00<?, ?it/s]/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/functional.py:730: UserWarning: stft with return_complex=False is deprecated. In a future pytorch release, stft will return complex tensors for all inputs, and return_complex=False will raise an error.
+Note: you can still call torch.view_as_real on the complex output to recover the old return format. (Triggered internally at /pytorch/aten/src/ATen/native/SpectralOps.cpp:875.)
+  return _VF.stft(  # type: ignore[attr-defined]
+Evaluating:   8%|▊         | 1/12 [00:16<02:58, 16.21s/it]Evaluating:  17%|█▋        | 2/12 [00:20<01:30,  9.05s/it]Evaluating:  25%|██▌       | 3/12 [00:24<01:00,  6.77s/it]Evaluating:  33%|███▎      | 4/12 [00:28<00:45,  5.67s/it]Evaluating:  42%|████▏     | 5/12 [00:32<00:35,  5.08s/it]Evaluating:  50%|█████     | 6/12 [00:36<00:28,  4.78s/it]Evaluating:  58%|█████▊    | 7/12 [00:40<00:23,  4.62s/it]Evaluating:  67%|██████▋   | 8/12 [00:44<00:17,  4.42s/it]Evaluating:  75%|███████▌  | 9/12 [00:48<00:12,  4.28s/it]Evaluating:  83%|████████▎ | 10/12 [00:52<00:08,  4.19s/it]Evaluating:  92%|█████████▏| 11/12 [00:56<00:04,  4.13s/it]Evaluating: 100%|██████████| 12/12 [01:00<00:00,  4.11s/it]Evaluating: 100%|██████████| 12/12 [01:00<00:00,  5.07s/it]
+Per-scene metrics recorded for 2 scene(s)
+Test/T60 (%) 9.660599999999999
+Test/Invalid T60 0.0
+Test/C50 (dB) 3.00365
+Test/EDT (ms) 147.0238
+Test/L1_STFT_MultiRes 3.34825
+Test/Env 0.7244999999999999
+Test/aggregation macro_room
+Test/n_rooms 2
+Test/Invalid T60 count 0.0
+Test/Invalid T60 rate 0.0
+Test/T60 items 768
+Metrics saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_test_seed46_fa_invariant_a4.json
+Assignment stream saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_test_seed46_fa_invariant_a4.stream.json
+Evaluation complete!
+=== BF seed 46 diag 23:20:16 ===
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Seed set to 46
+Using EMA model
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+Running json scandir...
+Found 48 files in 2 subfolders
+Max audio length for metric computation: 9600
+Evaluating:   0%|          | 0/1 [00:00<?, ?it/s]/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/functional.py:730: UserWarning: stft with return_complex=False is deprecated. In a future pytorch release, stft will return complex tensors for all inputs, and return_complex=False will raise an error.
+Note: you can still call torch.view_as_real on the complex output to recover the old return format. (Triggered internally at /pytorch/aten/src/ATen/native/SpectralOps.cpp:875.)
+  return _VF.stft(  # type: ignore[attr-defined]
+Evaluating: 100%|██████████| 1/1 [00:14<00:00, 14.20s/it]Evaluating: 100%|██████████| 1/1 [00:14<00:00, 14.20s/it]
+Per-scene metrics recorded for 2 scene(s)
+Test/T60 (%) 20.97705
+Test/Invalid T60 0.0
+Test/C50 (dB) 2.8121
+Test/EDT (ms) 63.29935
+Test/L1_STFT_MultiRes 3.0269
+Test/Env 0.6028
+Test/aggregation macro_room
+Test/n_rooms 2
+Test/Invalid T60 count 0.0
+Test/Invalid T60 rate 0.0
+Test/T60 items 48
+Metrics saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_diag_seed46_fa_invariant_a4.json
+Assignment stream saved to /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000_metrics_1_1.0_exp20_raf_BF_diag_seed46_fa_invariant_a4.stream.json
+Evaluation complete!
+BF ALL DONE 23:20:47
