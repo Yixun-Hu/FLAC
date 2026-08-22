@@ -20,3 +20,5 @@
 | `746a157` | exp_21: table staging green — exp21_validate_cell.py (+193), gen_model_comparison.py BFC rows + admission gate + two-K transaction (+222/−4, additive) |
 | `23888ad` | exp_21: round-4 commit log + full-suite evidence (1999 passed; the one failure is exp_11/exp_15's pre-existing registry drift) |
 | `21d423b` | exp_21: r4 BLOCKING 1 — the registered manifest is pinned, not defaulted; SMOKE=1 is the one sanctioned short mode; DRY_RUN/SMOKE fail closed outside {0,1}; guardtests gain 11 rejection cases + exact 39-token argv comparison (65/0) |
+| `21d423b` | exp_21: r4 BLOCKING 1 — registered manifest no longer overridable; SMOKE mode; guardtest hardening |
+| `a8c2a5b` | exp_21: r4 BLOCKING 2+3 — split-derived per-scene evidence + exact-step/one-ckpt identity in the table gate |

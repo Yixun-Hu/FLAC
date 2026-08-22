@@ -1,0 +1,524 @@
+=== ROUND 3 RED PHASE (2026-08-22T00:08:08-04:00) — src/tests/test_fa_cartesian_eval.py against HEAD c0ada57 ===
+...FFF..FFFF.FFF..F...                                                   [100%]
+=================================== FAILURES ===================================
+_________ test_orbit_provenance_treats_fa_cartesian_like_fa_invariant __________
+
+    def test_orbit_provenance_treats_fa_cartesian_like_fa_invariant():
+        """``fa_cartesian`` executes the SAME batched orbit executor, so its rows must
+        say so. ``("n/a", None)`` would be false provenance in the other direction
+        from the vanilla case: it would make a frame-averaged row look like a
+        single-pass one, and the admission validator (§3g) reads these two fields."""
+>       assert eval_FLAC.orbit_provenance("fa_cartesian", EVAL_CAP) == (yr.ORBIT_EXECUTION, 64)
+E       AssertionError: assert ('n/a', None) == ('batched', 64)
+E         
+E         At index 0 diff: 'n/a' != 'batched'
+E         Use -v to get more diff
+
+src/tests/test_fa_cartesian_eval.py:128: AssertionError
+______ test_metrics_record_carries_the_real_orbit_fields_for_fa_cartesian ______
+
+    def test_metrics_record_carries_the_real_orbit_fields_for_fa_cartesian():
+        """The plan's records schema (§3d): cond_method, the REAL angle list, the
+        batched execution and the REAL cap. Nulls here are the specific failure the
+        round-3 brief names — the admission validator would reject the row, after the
+        GPU hours that produced it."""
+        rec = eval_FLAC.build_metrics_record(
+            {"T60": 1.0}, CKPT, rotate_deg=0.0, cond_method="fa_cartesian",
+            frame_avg_angles=list(ANGLES), cond_autocast="bf16", batch_size=64,
+            n_samples=6337, frame_avg_max_fwd_samples=EVAL_CAP,
+        )
+        assert rec["cond_method"] == "fa_cartesian"
+        assert rec["frame_avg_angles"] == ANGLES
+>       assert rec["orbit_execution"] == yr.ORBIT_EXECUTION == "batched"
+E       AssertionError: assert 'n/a' == 'batched'
+E         
+E         - batched
+E         + n/a
+
+src/tests/test_fa_cartesian_eval.py:148: AssertionError
+_____ test_predictions_meta_carries_the_real_orbit_fields_for_fa_cartesian _____
+
+    def test_predictions_meta_carries_the_real_orbit_fields_for_fa_cartesian():
+        """Same schema on the predictions sidecar: the exp_02 comparator guard reads
+        it, and a stored prediction set must name the execution that produced it."""
+        meta = eval_FLAC.build_predictions_meta(
+            "ds.json", seed=42, n_samples=7, cond_method="fa_cartesian",
+            frame_avg_angles=list(ANGLES), rotate_deg=0.0, batch_size=64,
+            cond_autocast="bf16", frame_avg_max_fwd_samples=EVAL_CAP,
+        )
+        assert meta["cond_method"] == "fa_cartesian"
+        assert meta["frame_avg_angles"] == ANGLES
+>       assert meta["orbit_execution"] == yr.ORBIT_EXECUTION
+E       AssertionError: assert 'n/a' == 'batched'
+E         
+E         - batched
+E         + n/a
+
+src/tests/test_fa_cartesian_eval.py:164: AssertionError
+____ test_evaluate_model_accepts_fa_cartesian_and_records_the_real_protocol ____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1298/test_evaluate_model_accepts_fa0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7854d922ff40>
+
+    def test_evaluate_model_accepts_fa_cartesian_and_records_the_real_protocol(
+            tmp_path, monkeypatch):
+        """End-to-end through the real resolution and record-writing stages: the
+        method is accepted, the frame angles and the cap resolve exactly as they do
+        for fa_invariant, the artifact lands at the ``_fa_cartesian_a4`` path, and the
+        record carries POPULATED orbit fields rather than the nulls a non-frame-averaged
+        method would write."""
+        model_cfg, dataset_cfg, ckpt = _stub_eval_deps(monkeypatch, tmp_path)
+    
+>       eval_FLAC.evaluate_model(
+            model_cfg, dataset_cfg, ckpt, steps=1, cfg_scale=1.0, device="cpu",
+            eval_name="exp21_BFC_S40000_K8_s42", cond_method="fa_cartesian",
+            frame_avg_angles=(0.0, 90.0, 180.0, 270.0),
+            frame_avg_max_fwd_samples=EVAL_CAP, cond_autocast="bf16", batch_size=64,
+        )
+
+src/tests/test_fa_cartesian_eval.py:321: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config_path = '/tmp/pytest-of-yixunhu/pytest-1298/test_evaluate_model_accepts_fa0/model.json'
+dataset_config_path = '/tmp/pytest-of-yixunhu/pytest-1298/test_evaluate_model_accepts_fa0/dataset.json'
+ckpt_path = '/tmp/pytest-of-yixunhu/pytest-1298/test_evaluate_model_accepts_fa0/toy.ckpt'
+steps = 1, cfg_scale = 1.0, batch_size = 64, num_workers = 6
+eval_name = 'exp21_BFC_S40000_K8_s42', device = 'cpu', seed = 42
+store_predictions = False, rotate_deg = 0.0, cond_method = 'fa_cartesian'
+frame_avg_angles = (0.0, 90.0, 180.0, 270.0), frame_avg_max_fwd_samples = 64
+cond_autocast = 'bf16', allow_partial_load = False, rotate_mode = 'fixed'
+rotate_seed = None, expected_stream_count = None, record_stream = False
+record_per_scene = False, are_lambda = None
+
+    def evaluate_model(
+        model_config_path,
+        dataset_config_path,
+        ckpt_path,
+        steps,
+        cfg_scale,
+        batch_size=64,
+        num_workers=6,
+        eval_name='FLAC_eval',
+        device='cuda' if torch.cuda.is_available() else 'cpu',
+        seed=42,
+        store_predictions=False,
+        rotate_deg=0.0,
+        cond_method='vanilla',
+        frame_avg_angles=None,
+        frame_avg_max_fwd_samples=None,
+        cond_autocast='default',
+        allow_partial_load=False,
+        rotate_mode='fixed',
+        rotate_seed=None,
+        expected_stream_count=None,
+        record_stream=False,
+        record_per_scene=False,
+        are_lambda=None,
+    ):
+        # Fail fast on an unknown cond_method (the CLI is guarded by argparse
+        # choices, but programmatic callers would otherwise silently run vanilla
+        # while filenames/meta record the unknown method).
+        if cond_method not in ('vanilla', 'fa_invariant'):
+>           raise ValueError(
+                f"Unknown cond_method: {cond_method!r}; valid options: 'vanilla', 'fa_invariant'."
+            )
+E           ValueError: Unknown cond_method: 'fa_cartesian'; valid options: 'vanilla', 'fa_invariant'.
+
+eval_FLAC.py:1088: ValueError
+_______ test_evaluate_model_resolves_non_default_angles_for_fa_cartesian _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1298/test_evaluate_model_resolves_n0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7854d9243fa0>
+
+    def test_evaluate_model_resolves_non_default_angles_for_fa_cartesian(
+            tmp_path, monkeypatch):
+        """The angle list is READ, not assumed: a two-angle orbit must reach both the
+        filename (``_a2``) and the record. Pins that the resolution is shared with
+        fa_invariant rather than hardcoded to C4 for the new method."""
+        model_cfg, dataset_cfg, ckpt = _stub_eval_deps(monkeypatch, tmp_path)
+    
+>       eval_FLAC.evaluate_model(
+            model_cfg, dataset_cfg, ckpt, steps=1, cfg_scale=1.0, device="cpu",
+            eval_name="two", cond_method="fa_cartesian", frame_avg_angles=(0.0, 180.0),
+            frame_avg_max_fwd_samples=32,
+        )
+
+src/tests/test_fa_cartesian_eval.py:346: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config_path = '/tmp/pytest-of-yixunhu/pytest-1298/test_evaluate_model_resolves_n0/model.json'
+dataset_config_path = '/tmp/pytest-of-yixunhu/pytest-1298/test_evaluate_model_resolves_n0/dataset.json'
+ckpt_path = '/tmp/pytest-of-yixunhu/pytest-1298/test_evaluate_model_resolves_n0/toy.ckpt'
+steps = 1, cfg_scale = 1.0, batch_size = 64, num_workers = 6, eval_name = 'two'
+device = 'cpu', seed = 42, store_predictions = False, rotate_deg = 0.0
+cond_method = 'fa_cartesian', frame_avg_angles = (0.0, 180.0)
+frame_avg_max_fwd_samples = 32, cond_autocast = 'default'
+allow_partial_load = False, rotate_mode = 'fixed', rotate_seed = None
+expected_stream_count = None, record_stream = False, record_per_scene = False
+are_lambda = None
+
+    def evaluate_model(
+        model_config_path,
+        dataset_config_path,
+        ckpt_path,
+        steps,
+        cfg_scale,
+        batch_size=64,
+        num_workers=6,
+        eval_name='FLAC_eval',
+        device='cuda' if torch.cuda.is_available() else 'cpu',
+        seed=42,
+        store_predictions=False,
+        rotate_deg=0.0,
+        cond_method='vanilla',
+        frame_avg_angles=None,
+        frame_avg_max_fwd_samples=None,
+        cond_autocast='default',
+        allow_partial_load=False,
+        rotate_mode='fixed',
+        rotate_seed=None,
+        expected_stream_count=None,
+        record_stream=False,
+        record_per_scene=False,
+        are_lambda=None,
+    ):
+        # Fail fast on an unknown cond_method (the CLI is guarded by argparse
+        # choices, but programmatic callers would otherwise silently run vanilla
+        # while filenames/meta record the unknown method).
+        if cond_method not in ('vanilla', 'fa_invariant'):
+>           raise ValueError(
+                f"Unknown cond_method: {cond_method!r}; valid options: 'vanilla', 'fa_invariant'."
+            )
+E           ValueError: Unknown cond_method: 'fa_cartesian'; valid options: 'vanilla', 'fa_invariant'.
+
+eval_FLAC.py:1088: ValueError
+____________ test_evaluate_model_defaults_the_cap_for_fa_cartesian _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1298/test_evaluate_model_defaults_t0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x785457030b80>
+
+    def test_evaluate_model_defaults_the_cap_for_fa_cartesian(tmp_path, monkeypatch):
+        """An omitted cap resolves to the module default and is RECORDED as the
+        number, never as null: the row must state the cap the run applied."""
+        model_cfg, dataset_cfg, ckpt = _stub_eval_deps(monkeypatch, tmp_path)
+    
+>       eval_FLAC.evaluate_model(
+            model_cfg, dataset_cfg, ckpt, steps=1, cfg_scale=1.0, device="cpu",
+            eval_name="dflt", cond_method="fa_cartesian",
+        )
+
+src/tests/test_fa_cartesian_eval.py:364: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config_path = '/tmp/pytest-of-yixunhu/pytest-1298/test_evaluate_model_defaults_t0/model.json'
+dataset_config_path = '/tmp/pytest-of-yixunhu/pytest-1298/test_evaluate_model_defaults_t0/dataset.json'
+ckpt_path = '/tmp/pytest-of-yixunhu/pytest-1298/test_evaluate_model_defaults_t0/toy.ckpt'
+steps = 1, cfg_scale = 1.0, batch_size = 64, num_workers = 6, eval_name = 'dflt'
+device = 'cpu', seed = 42, store_predictions = False, rotate_deg = 0.0
+cond_method = 'fa_cartesian', frame_avg_angles = None
+frame_avg_max_fwd_samples = None, cond_autocast = 'default'
+allow_partial_load = False, rotate_mode = 'fixed', rotate_seed = None
+expected_stream_count = None, record_stream = False, record_per_scene = False
+are_lambda = None
+
+    def evaluate_model(
+        model_config_path,
+        dataset_config_path,
+        ckpt_path,
+        steps,
+        cfg_scale,
+        batch_size=64,
+        num_workers=6,
+        eval_name='FLAC_eval',
+        device='cuda' if torch.cuda.is_available() else 'cpu',
+        seed=42,
+        store_predictions=False,
+        rotate_deg=0.0,
+        cond_method='vanilla',
+        frame_avg_angles=None,
+        frame_avg_max_fwd_samples=None,
+        cond_autocast='default',
+        allow_partial_load=False,
+        rotate_mode='fixed',
+        rotate_seed=None,
+        expected_stream_count=None,
+        record_stream=False,
+        record_per_scene=False,
+        are_lambda=None,
+    ):
+        # Fail fast on an unknown cond_method (the CLI is guarded by argparse
+        # choices, but programmatic callers would otherwise silently run vanilla
+        # while filenames/meta record the unknown method).
+        if cond_method not in ('vanilla', 'fa_invariant'):
+>           raise ValueError(
+                f"Unknown cond_method: {cond_method!r}; valid options: 'vanilla', 'fa_invariant'."
+            )
+E           ValueError: Unknown cond_method: 'fa_cartesian'; valid options: 'vanilla', 'fa_invariant'.
+
+eval_FLAC.py:1088: ValueError
+________ test_evaluate_model_shares_the_cap_validator_with_fa_invariant ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1298/test_evaluate_model_shares_the0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7853071f4040>
+
+    def test_evaluate_model_shares_the_cap_validator_with_fa_invariant(tmp_path, monkeypatch):
+        """A misconfigured cap must abort BEFORE any file or model work, naming the
+        operator-facing flag — the same fail-fast fa_invariant gets. Every path
+        argument points at a nonexistent file, so late validation would surface
+        FileNotFoundError instead, and model construction trips a loud sentinel."""
+        monkeypatch.setattr(
+            eval_FLAC, "create_model_from_config",
+            lambda *a, **k: pytest.fail("evaluate_model reached model construction"),
+        )
+>       with pytest.raises(ValueError, match="frame-avg-max-fwd-samples"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'frame-avg-max-fwd-samples'
+E         Actual message: "Unknown cond_method: 'fa_cartesian'; valid options: 'vanilla', 'fa_invariant'."
+
+src/tests/test_fa_cartesian_eval.py:383: AssertionError
+___________ test_parser_accepts_fa_cartesian_and_still_rejects_junk ____________
+
+    def test_parser_accepts_fa_cartesian_and_still_rejects_junk():
+        """argparse must admit the new choice (and only it): a bad value exits 2 with
+        'invalid choice', a good one gets past choices to the required-args error."""
+        bad = subprocess.run(
+            [sys.executable, "eval_FLAC.py", "--cond-method", "fa_cartesian_typo"],
+            capture_output=True, cwd=REPO_ROOT,
+        )
+        assert bad.returncode == 2
+        assert b"invalid choice" in bad.stderr
+    
+        good = subprocess.run(
+            [sys.executable, "eval_FLAC.py", "--cond-method", "fa_cartesian"],
+            capture_output=True, cwd=REPO_ROOT,
+        )
+        assert good.returncode == 2                     # still missing required args...
+>       assert b"invalid choice" not in good.stderr     # ...but not on choices
+E       assert b'invalid choice' not in b"/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is de...neval_FLAC.py: error: argument --cond-method: invalid choice: 'fa_cartesian' (choose from 'vanilla', 'fa_invariant')\n"
+E        +  where b"/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is de...neval_FLAC.py: error: argument --cond-method: invalid choice: 'fa_cartesian' (choose from 'vanilla', 'fa_invariant')\n" = CompletedProcess(args=['/home/yixunhu/miniconda3/envs/flac/bin/python', 'eval_FLAC.py', '--cond-method', 'fa_cartesian...eval_FLAC.py: error: argument --cond-method: invalid choice: 'fa_cartesian' (choose from 'vanilla', 'fa_invariant')\n").stderr
+
+src/tests/test_fa_cartesian_eval.py:426: AssertionError
+_ test_registered_template_parses_and_passes_every_fail_fast[extra0-exp21_BFC_S40000_K8_s42] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1298/test_registered_template_parse0')
+extra = ['--rotate-deg', '0'], name = 'exp21_BFC_S40000_K8_s42'
+
+    @pytest.mark.parametrize("extra,name", [
+        (["--rotate-deg", "0"], "exp21_BFC_S40000_K8_s42"),
+        (["--rotate-deg", "45", "--record-stream", "--expected-stream-count", "6337"],
+         "exp21_BFC_S40000_K8_s42_rot45"),
+    ])
+    def test_registered_template_parses_and_passes_every_fail_fast(tmp_path, extra, name):
+        """The §5 templates must be executable as written. This is a DRY check: the
+        process dies at the first file open, which proves argparse accepted every
+        flag and that the cond_method / cap / rotation / autocast validators all
+        passed — the four gates that would otherwise fail a real cell after it had
+        already been queued behind 40k training steps."""
+        argv = [sys.executable, "eval_FLAC.py",
+                "--model-config", str(tmp_path / "no_such_model_config.json"),
+                "--ckpt-path", str(tmp_path / "no_such.ckpt"),
+                "--eval-name", name] + _TEMPLATE_TAIL + extra
+        proc = subprocess.run(argv, capture_output=True, cwd=REPO_ROOT)
+        err = proc.stderr.decode()
+        assert proc.returncode != 0
+>       assert "FileNotFoundError" in err, err[-3000:]
+E       AssertionError: /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+E         usage: eval_FLAC.py [-h] --model-config MODEL_CONFIG --dataset-config
+E                             DATASET_CONFIG --ckpt-path CKPT_PATH
+E                             [--cfg-scale CFG_SCALE] [--steps STEPS]
+E                             [--batch-size BATCH_SIZE] [--num-workers NUM_WORKERS]
+E                             [--device DEVICE] [--eval-name EVAL_NAME] [--seed SEED]
+E                             [--store_predictions] [--rotate-deg ROTATE_DEG]
+E                             [--rotate-mode {fixed,random}] [--rotate-seed ROTATE_SEED]
+E                             [--record-stream] [--record-per-scene]
+E                             [--expected-stream-count EXPECTED_STREAM_COUNT]
+E                             [--cond-method {vanilla,fa_invariant}]
+E                             [--frame-avg-angles FRAME_AVG_ANGLES]
+E                             [--frame-avg-max-fwd-samples FRAME_AVG_MAX_FWD_SAMPLES]
+E                             [--cond-autocast {default,bf16,off}]
+E                             [--allow-partial-load] [--are-lambda ARE_LAMBDA]
+E         eval_FLAC.py: error: argument --cond-method: invalid choice: 'fa_cartesian' (choose from 'vanilla', 'fa_invariant')
+E         
+E       assert 'FileNotFoundError' in "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is dep...neval_FLAC.py: error: argument --cond-method: invalid choice: 'fa_cartesian' (choose from 'vanilla', 'fa_invariant')\n"
+
+src/tests/test_fa_cartesian_eval.py:463: AssertionError
+_ test_registered_template_parses_and_passes_every_fail_fast[extra1-exp21_BFC_S40000_K8_s42_rot45] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1298/test_registered_template_parse1')
+extra = ['--rotate-deg', '45', '--record-stream', '--expected-stream-count', '6337']
+name = 'exp21_BFC_S40000_K8_s42_rot45'
+
+    @pytest.mark.parametrize("extra,name", [
+        (["--rotate-deg", "0"], "exp21_BFC_S40000_K8_s42"),
+        (["--rotate-deg", "45", "--record-stream", "--expected-stream-count", "6337"],
+         "exp21_BFC_S40000_K8_s42_rot45"),
+    ])
+    def test_registered_template_parses_and_passes_every_fail_fast(tmp_path, extra, name):
+        """The §5 templates must be executable as written. This is a DRY check: the
+        process dies at the first file open, which proves argparse accepted every
+        flag and that the cond_method / cap / rotation / autocast validators all
+        passed — the four gates that would otherwise fail a real cell after it had
+        already been queued behind 40k training steps."""
+        argv = [sys.executable, "eval_FLAC.py",
+                "--model-config", str(tmp_path / "no_such_model_config.json"),
+                "--ckpt-path", str(tmp_path / "no_such.ckpt"),
+                "--eval-name", name] + _TEMPLATE_TAIL + extra
+        proc = subprocess.run(argv, capture_output=True, cwd=REPO_ROOT)
+        err = proc.stderr.decode()
+        assert proc.returncode != 0
+>       assert "FileNotFoundError" in err, err[-3000:]
+E       AssertionError: /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+E         usage: eval_FLAC.py [-h] --model-config MODEL_CONFIG --dataset-config
+E                             DATASET_CONFIG --ckpt-path CKPT_PATH
+E                             [--cfg-scale CFG_SCALE] [--steps STEPS]
+E                             [--batch-size BATCH_SIZE] [--num-workers NUM_WORKERS]
+E                             [--device DEVICE] [--eval-name EVAL_NAME] [--seed SEED]
+E                             [--store_predictions] [--rotate-deg ROTATE_DEG]
+E                             [--rotate-mode {fixed,random}] [--rotate-seed ROTATE_SEED]
+E                             [--record-stream] [--record-per-scene]
+E                             [--expected-stream-count EXPECTED_STREAM_COUNT]
+E                             [--cond-method {vanilla,fa_invariant}]
+E                             [--frame-avg-angles FRAME_AVG_ANGLES]
+E                             [--frame-avg-max-fwd-samples FRAME_AVG_MAX_FWD_SAMPLES]
+E                             [--cond-autocast {default,bf16,off}]
+E                             [--allow-partial-load] [--are-lambda ARE_LAMBDA]
+E         eval_FLAC.py: error: argument --cond-method: invalid choice: 'fa_cartesian' (choose from 'vanilla', 'fa_invariant')
+E         
+E       assert 'FileNotFoundError' in "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is dep...neval_FLAC.py: error: argument --cond-method: invalid choice: 'fa_cartesian' (choose from 'vanilla', 'fa_invariant')\n"
+
+src/tests/test_fa_cartesian_eval.py:463: AssertionError
+__________ test_eval_pl_rejects_fa_cartesian_before_any_construction ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1298/test_eval_pl_rejects_fa_cartes0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7853071f5690>
+
+    def test_eval_pl_rejects_fa_cartesian_before_any_construction(tmp_path, monkeypatch):
+        """eval_pl writes ``{metrics, ckpt_path}`` and nothing else — no cond_method,
+        no angles, no orbit execution or cap, no source SHA. It inherits the widened
+        wrapper dispatch, so without a guard it would happily RUN the arm and emit a
+        row indistinguishable from a vanilla one. It must abort before the model or
+        the wrapper is built (both trip a loud sentinel here)."""
+        cfg = _write_pl_config(tmp_path, "fa_cartesian")
+        monkeypatch.setattr(eval_pl, "get_all_args", lambda: _pl_args(cfg))
+        monkeypatch.setattr(
+            eval_pl, "create_model_from_config",
+            lambda *a, **k: pytest.fail("eval_pl reached model construction"))
+        monkeypatch.setattr(
+            eval_pl, "create_training_wrapper_from_config",
+            lambda *a, **k: pytest.fail("eval_pl reached wrapper construction"))
+    
+        with pytest.raises(ValueError) as excinfo:
+>           eval_pl.main()
+
+src/tests/test_fa_cartesian_eval.py:554: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+eval_pl.py:37: in main
+    model = create_model_from_config(model_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = ({'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate': 22050, 'audio_channels': 1, ...},)
+k = {}
+
+>   lambda *a, **k: pytest.fail("eval_pl reached model construction"))
+E   Failed: eval_pl reached model construction
+
+src/tests/test_fa_cartesian_eval.py:548: Failed
+------------------------------ Captured log call -------------------------------
+INFO     lightning_fabric.utilities.seed:seed.py:54 Seed set to 42
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_fa_cartesian_eval.py::test_orbit_provenance_treats_fa_cartesian_like_fa_invariant
+FAILED src/tests/test_fa_cartesian_eval.py::test_metrics_record_carries_the_real_orbit_fields_for_fa_cartesian
+FAILED src/tests/test_fa_cartesian_eval.py::test_predictions_meta_carries_the_real_orbit_fields_for_fa_cartesian
+FAILED src/tests/test_fa_cartesian_eval.py::test_evaluate_model_accepts_fa_cartesian_and_records_the_real_protocol
+FAILED src/tests/test_fa_cartesian_eval.py::test_evaluate_model_resolves_non_default_angles_for_fa_cartesian
+FAILED src/tests/test_fa_cartesian_eval.py::test_evaluate_model_defaults_the_cap_for_fa_cartesian
+FAILED src/tests/test_fa_cartesian_eval.py::test_evaluate_model_shares_the_cap_validator_with_fa_invariant
+FAILED src/tests/test_fa_cartesian_eval.py::test_parser_accepts_fa_cartesian_and_still_rejects_junk
+FAILED src/tests/test_fa_cartesian_eval.py::test_registered_template_parses_and_passes_every_fail_fast[extra0-exp21_BFC_S40000_K8_s42]
+FAILED src/tests/test_fa_cartesian_eval.py::test_registered_template_parses_and_passes_every_fail_fast[extra1-exp21_BFC_S40000_K8_s42_rot45]
+FAILED src/tests/test_fa_cartesian_eval.py::test_eval_pl_rejects_fa_cartesian_before_any_construction
+11 failed, 11 passed, 3 warnings in 28.59s
+
+=== ROUND 3 GREEN PHASE (2026-08-22T00:19:07-04:00) — HEAD 645d8d4 ===
+........................................................................ [ 21%]
+........................................................................ [ 42%]
+........................................................................ [ 63%]
+........................................................................ [ 84%]
+.....................................................                    [100%]
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+341 passed, 4 warnings in 73.35s (0:01:13)
+
+=== ROUND 3 WIDER REGRESSION (2026-08-22T00:20:30-04:00) — suites that touch eval_FLAC / cond_method ===
+........................................................................ [ 11%]
+........................................................................ [ 22%]
+........................................................................ [ 34%]
+........................................................................ [ 45%]
+........................................................................ [ 57%]
+.........................ss............................................. [ 68%]
+........................................................................ [ 80%]
+........................................................................ [ 91%]
+....................................................                     [100%]
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+626 passed, 2 skipped, 4 warnings in 38.23s
+
+=== ROUND 3 ARGPARSE DRY-CHECK of plan §5 templates (2026-08-22T00:21:32-04:00) ===
+--- K=8 template (model-config deliberately nonexistent: parse + fail-fast only, no ckpt read, no model, no GPU)
+  File "/home/yixunhu/codespace/FLAC/eval_FLAC.py", line 1166, in evaluate_model
+    with open(model_config_path) as f:
+FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/FLAC_AR_BFC.json'
+--- K=1 template (model-config deliberately nonexistent: parse + fail-fast only, no ckpt read, no model, no GPU)
+  File "/home/yixunhu/codespace/FLAC/eval_FLAC.py", line 1166, in evaluate_model
+    with open(model_config_path) as f:
+FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/FLAC_AR_BFC.json'
+--- invariance-grid variant (rot45 + stream audit)
+  File "/home/yixunhu/codespace/FLAC/eval_FLAC.py", line 1166, in evaluate_model
+    with open(model_config_path) as f:
+FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/FLAC_AR_BFC.json'
+--- NEGATIVE control: cap 32 at batch 64 must NOT be silently accepted at the CLI (it is accepted at parse time and refused on the first batch by the executor -- documented in the report)
+                    [--allow-partial-load] [--are-lambda ARE_LAMBDA]
+eval_FLAC.py: error: argument --cond-method: invalid choice: 'fa_cartesian_typo' (choose from 'vanilla', 'fa_invariant', 'fa_cartesian')
