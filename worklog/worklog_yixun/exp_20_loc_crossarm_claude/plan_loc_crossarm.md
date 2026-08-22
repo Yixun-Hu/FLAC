@@ -38,3 +38,21 @@ Per arm × regime: 6 new protocol manifests (exp_18 template, new ckpt sha) + pe
 2. **BV@40k**: hold (recommended; add later as one command if wanted) vs include as 4th arm (+11 h).
 3. **Metrics inline everywhere** (recommended; gives m2-K1 per arm at zero extra passes) — confirm.
 4. Seeds 42/43/44 — confirm.
+
+---
+
+## Rev 2 (2026-08-21, Planner; folds all 7 findings of `loc_crossarm_codex_plan_review.md`)
+
+**B1 — FA protocol binding & parity.** The BF registration locks, machine-checked: `cond_method=fa_invariant`, `frame_avg_angles=[0,90,180,270]`, `rotate_deg=0`, `cond_autocast=default` (the registered path), `FRAME_AVG_MAX_FWD_SAMPLES = candidate micro-batch` ⇒ **per-angle execution** (matching exp_07 BF's training-era per-angle behavior; announcement 06 §3 — the chunk plan is declared, not derived), plus batch/workers/orbit provenance. The fa-parity gate runs under the **registered autocast** (bit- or tolerance-bound as measured, with autocast-off as the exactness diagnostic), on a real query, BF ckpt, vs an `eval_FLAC`-faithful fa replay. Refusal tests: BF→vanilla, P1/YAW→fa_invariant, any mutated FA field vs the manifest.
+
+**B2 — Checkpoint admission (exp_15 contract, ported).** Per arm, CPU, before its manifests are committed: `global_step==40000`; embedded model config canonically equals the arm's config file; EMA↔online suffix sets/shapes/dtypes one-to-one and complete (partial-EMA ⇒ refusal); full load-integrity (0 missing/unexpected); sha256 + resolved identity written to an admission record committed with the manifests. Tests: partial-EMA fixture, step mismatch, config mismatch.
+
+**B3 — Paired-inference gate + statistics.** Paired contrasts are computed only after a validator proves, per (regime, seed), exact equality across arms of: query id/order stream, context-stream digest (or full fingerprints), split + candidate-manifest digests, loader settings, and noise-key arrays; any mismatch blocks paired reporting (unpaired fallback labelled). **Seed aggregation: per-query mean across the three seeds, then room-clustered inference** (seeds are replicates, never independent queries). **Multiplicity: top-1 is the sole confirmatory endpoint — Holm over exactly 4 contrasts** (BF vs P1, YAW vs P1 × two regimes); e_loc and every other metric supportive/descriptive.
+
+**M4 — Planned code & per-function tests (announcement 02).** New reviewed units: `fa_parity_gate` (+registered-autocast tolerance record), `admit_checkpoint` (B2), `validate_pairing` (B3), `aggregate_seeds_per_query`, `build_holm_family`, per-arm manifest generator; red→green tests for partial EMA, step/config mismatch, cond-method refusal matrix, mutated orbit fields, context/noise mismatch, incomplete cells, seed aggregation, Holm construction.
+
+**M5 — Metric inheritance.** One canonical scorer subdocument inherited from `d6dbf00` by deep-equality gate; only binding fields may differ per arm; per-arm recalibration prohibited; framed as **fixed external scorers** with the transport caveat stated (Δmax/M4-norms calibrated on released-ckpt seen generations; validity beyond that domain not claimed; AGREE primary unaffected).
+
+**M6 — YAW binding.** The admission record (B2) binds `ac1f2603…` to step 40,000 + canonical exp_17 config; lineage cited to immutable exp_17 completion commits (`42cbdda`, `f378775`) + NAS PROVENANCE. All cross-arm conclusions framed as conditional on single historical training runs per arm (no replicated-training causal claim).
+
+**M7 — Compute/storage.** Timed **100-query pilots** (vanilla and BF per-angle) before the schedule is finalized; the 32 h estimate is provisional until then (BF per-angle conditioning is ~4× the vanilla ViT work — plan for 40–55 h wall). Storage registered: ~374 GB dumps + margin, **500 GiB free-space floor** checked at launch, unique per-cell dirs, manifest completion checks, partial-run recovery via the existing atomic-publish machinery.
