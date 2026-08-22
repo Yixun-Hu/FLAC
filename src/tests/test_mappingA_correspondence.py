@@ -294,3 +294,122 @@ def test_a_placement_of_permuted_re_occupations_matches_end_to_end():
         assert report["passed"] is True, group["group_key"]
         assert sorted(report["assignment"]) == list(range(36))
         assert report["max_m"] < mac.MATCH_MAX_M
+
+
+# --------------------------------------------------------------------------- #
+# cycle 2: target selection (hash-uniform) and per-item context
+# --------------------------------------------------------------------------- #
+import hashlib  # noqa: E402
+
+
+def _pose(key, xyz, quat=(0.0, 0.9, 0.0, 0.1)):
+    return {"group_key": key, "tx_xyz": np.array(xyz, dtype=np.float64),
+            "quat_canon": np.array(quat, dtype=np.float64)}
+
+
+def test_target_digest_matches_an_independent_sha256_golden():
+    """Golden from GNU coreutils, outside this codebase:
+
+        $ printf 'mappingA-target|0|EmptyRoom|p003|g7f2a1' | sha256sum
+        5e6b2e8ad7d21d30...
+    """
+    assert mac.target_digest("EmptyRoom", "p003", "g7f2a1").startswith(
+        "5e6b2e8ad7d21d30")
+
+
+def test_select_target_is_hash_uniform_and_stable():
+    poses = [_pose(f"g{i:04d}", (i * 1.0, 1.5, 0.0)) for i in range(20)]
+    chosen = mac.select_target("EmptyRoom", "p003", poses)
+    assert chosen in poses
+    # the winner is the smallest digest -- recomputed here from the rule, not from
+    # the implementation's own bookkeeping
+    expected = min(poses, key=lambda p: hashlib.sha256(
+        f"mappingA-target|0|EmptyRoom|p003|{p['group_key']}".encode()).hexdigest())
+    assert chosen["group_key"] == expected["group_key"]
+    assert mac.select_target("EmptyRoom", "p003", list(reversed(poses)))[
+        "group_key"] == chosen["group_key"]
+
+
+def test_select_target_is_not_a_positional_or_spatial_rule():
+    """M8: the estimand is general unseen-source performance, so the target must
+    not be the first, the last, or the most extreme pose."""
+    poses = [_pose(f"g{i:04d}", (i * 1.0, 1.5, 0.0)) for i in range(20)]
+    chosen = {mac.select_target("EmptyRoom", f"p{i:03d}", poses)["group_key"]
+              for i in range(30)}
+    assert len(chosen) > 5                       # varies across placements
+    assert chosen != {"g0000"} and chosen != {"g0019"}
+
+
+def test_select_target_varies_with_room_placement_and_seed():
+    poses = [_pose(f"g{i:04d}", (i * 1.0, 1.5, 0.0)) for i in range(40)]
+    base = mac.select_target("EmptyRoom", "p003", poses)["group_key"]
+    assert mac.select_target("FurnishedRoom", "p003", poses)["group_key"] != base
+    assert mac.select_target("EmptyRoom", "p004", poses)["group_key"] != base
+    assert mac.select_target("EmptyRoom", "p003", poses, seed=1)["group_key"] != base
+
+
+def test_select_target_needs_a_pose():
+    with pytest.raises(ValueError):
+        mac.select_target("EmptyRoom", "p003", [])
+
+
+def test_context_excludes_every_group_sharing_the_target_source_xyz():
+    """M5: unseen SOURCE POSITION, not merely unseen pose -- a quaternion-only
+    duplicate is the same loudspeaker in the same place."""
+    target = _pose("gT", (1.0, 1.5, 2.0), quat=(0.1, 0.9, 0.0, 0.1))
+    twin = _pose("gTWIN", (1.0, 1.5, 2.0), quat=(0.9, 0.1, 0.0, 0.1))  # same xyz
+    others = [_pose(f"g{i}", (float(i), 1.5, 0.0)) for i in range(12)]
+    context = mac.stable_item_context("EmptyRoom", "p003", 17, target,
+                                      [target, twin] + others, k=8)
+    keys = [c["group_key"] for c in context["context"]]
+    assert "gT" not in keys
+    assert "gTWIN" not in keys
+    assert len(keys) == 8 and len(set(keys)) == 8
+    assert context["n_excluded_same_xyz"] == 2
+
+
+def test_context_is_deterministic_per_item_and_ignores_ambient_rng():
+    target = _pose("gT", (1.0, 1.5, 2.0))
+    others = [_pose(f"g{i}", (float(i), 1.5, 0.0)) for i in range(12)]
+    pool = [target] + others
+    np.random.seed(0)
+    first = mac.stable_item_context("EmptyRoom", "p003", 17, target, pool, k=8)
+    np.random.seed(99)
+    second = mac.stable_item_context("EmptyRoom", "p003", 17, target,
+                                     list(reversed(pool)), k=8)
+    assert [c["group_key"] for c in first["context"]] == \
+        [c["group_key"] for c in second["context"]]
+
+
+def test_context_differs_per_mic_slot_and_per_target():
+    target = _pose("gT", (1.0, 1.5, 2.0))
+    others = [_pose(f"g{i}", (float(i), 1.5, 0.0)) for i in range(20)]
+    pool = [target] + others
+    a = mac.stable_item_context("EmptyRoom", "p003", 17, target, pool, k=8)
+    b = mac.stable_item_context("EmptyRoom", "p003", 18, target, pool, k=8)
+    c = mac.stable_item_context("EmptyRoom", "p003", 17, others[0],
+                                pool, k=8)
+    assert [x["group_key"] for x in a["context"]] != [x["group_key"] for x in b["context"]]
+    assert [x["group_key"] for x in a["context"]] != [x["group_key"] for x in c["context"]]
+
+
+def test_context_seed_matches_an_independent_sha256_golden():
+    """    $ printf 'mappingA-context|0|EmptyRoom|p003|17|gTARGET' | sha256sum
+        f8500499fa60973d...
+    """
+    assert mac.context_digest("EmptyRoom", "p003", 17, "gTARGET").startswith(
+        "f8500499fa60973d")
+
+
+def test_context_pool_too_small_fails_closed():
+    target = _pose("gT", (1.0, 1.5, 2.0))
+    others = [_pose(f"g{i}", (float(i), 1.5, 0.0)) for i in range(5)]
+    with pytest.raises(ValueError) as exc:
+        mac.stable_item_context("EmptyRoom", "p003", 17, target, [target] + others, k=8)
+    assert "5" in str(exc.value)
+
+
+def test_source_xyz_key_is_the_six_decimal_rendering():
+    assert mac.source_xyz_key([1.0, -0.0, 2.5]) == "1.000000,0.000000,2.500000"
+    assert mac.source_xyz_key([1.0, 0.0, 2.5]) == mac.source_xyz_key([1.0, -0.0, 2.5])
+    assert mac.source_xyz_key([1.0, 0.0, 2.5]) != mac.source_xyz_key([1.000001, 0.0, 2.5])

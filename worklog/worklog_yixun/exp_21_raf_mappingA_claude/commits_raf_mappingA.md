@@ -4,3 +4,4 @@ Base: `raf-finetune-exp` @ `263ef27` (full exp_19 pipeline + 557-test suite inhe
 
 | SHA | Description |
 |---|---|
+| `6f1c0f6` | r1 cycle 1: `cluster_placements` (complete linkage, 5 cm cap, medoid template) + `match_mics` (Hungarian, p95/max/ambiguity gates) — 21 tests |

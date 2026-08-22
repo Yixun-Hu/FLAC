@@ -14,7 +14,10 @@ template by a Hungarian assignment whose displacement statistics and ambiguity
 margins are recorded and gated. A group that fails is excluded BEFORE eligibility;
 nothing downstream silently shrinks.
 """
+import hashlib
+
 import numpy as np
+import torch
 from scipy.optimize import linear_sum_assignment
 
 # Registered tolerances (plan Rev 2 section 2). Sub-centimetre matching keeps the
@@ -186,3 +189,102 @@ def cluster_placements(groups, cap=PLACEMENT_CAP_M, expected_n=CANONICAL_ARRAY_S
             "algorithm_version": MATCH_ALGORITHM_VERSION,
         })
     return clusters
+
+
+# --------------------------------------------------------------------------- #
+# Target and context selection
+# --------------------------------------------------------------------------- #
+DEFAULT_K = 8
+
+
+def source_xyz_key(xyz):
+    """Canonical identity of a SOURCE POSITION: the 6-decimal rendering.
+
+    RAF's pose text carries exactly six decimals, so this is lossless on parsed
+    values, and ``-0.0`` is normalised so a sign flip cannot spell one position two
+    ways. Two tx-groups with this key equal are the same loudspeaker position --
+    including quaternion-only duplicates, which is exactly what "unseen source
+    POSITION" has to exclude (M5).
+    """
+    values = np.asarray(xyz, dtype=np.float64)
+    if values.shape != (3,):
+        raise ValueError(f"source xyz must have shape (3,), got {values.shape}")
+    values = np.where(values == 0.0, 0.0, values)
+    return ",".join(f"{v:.6f}" for v in values)
+
+
+def target_digest(room, placement_id, pose_key, seed=0):
+    """sha256 of the registered target-selection payload (stable across machines)."""
+    payload = f"mappingA-target|{seed}|{room}|{placement_id}|{pose_key}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def select_target(room, placement_id, poses, seed=0):
+    """Hash-uniform target pose for one placement (M8).
+
+    The estimand is GENERAL unseen-source performance, so the target is drawn
+    uniformly by a stable hash rather than by a spatial rule: farthest-point
+    selection would systematically pick the most extreme source in each placement
+    and silently turn the row into a spatial-stress test. FPS is retained only for
+    placement coverage, one level up.
+    """
+    if not poses:
+        raise ValueError(
+            f"{room}/{placement_id}: no eligible poses to select a target from")
+    ranked = sorted(poses, key=lambda p: (target_digest(room, placement_id,
+                                                        str(p["group_key"]), seed),
+                                          str(p["group_key"])))
+    return ranked[0]
+
+
+def context_digest(room, placement_id, mic_slot, target_key, seed=0):
+    """sha256 of the registered per-item context payload."""
+    payload = (f"mappingA-context|{seed}|{room}|{placement_id}|{int(mic_slot)}|"
+               f"{target_key}")
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def stable_item_context(room, placement_id, mic_slot, target, candidates,
+                        k=DEFAULT_K, seed=0):
+    """Deterministic K-context for one Mapping-A item.
+
+    The draw is a function of (room, placement, mic slot, target) alone -- never of
+    worker topology, ambient RNG, checkpoint or eval seed -- so every arm and seed
+    conditions on exactly the same references and an arm contrast is a paired
+    comparison rather than a comparison of different problems.
+
+    Excluded from the pool: the target itself and EVERY group sharing its source
+    xyz (quaternion-only duplicates included). A same-position source in the
+    context would make the "unseen source position" claim false.
+    """
+    target_key = str(target["group_key"])
+    excluded_key = source_xyz_key(target["tx_xyz"])
+    pool, n_excluded = [], 0
+    for candidate in candidates:
+        if source_xyz_key(candidate["tx_xyz"]) == excluded_key:
+            n_excluded += 1
+            continue
+        pool.append(candidate)
+    pool.sort(key=lambda c: str(c["group_key"]))
+
+    if len(pool) < k:
+        raise ValueError(
+            f"{room}/{placement_id} slot {mic_slot}: context pool holds "
+            f"{len(pool)} source-distinct groups, need {k}")
+
+    generator = torch.Generator()
+    generator.manual_seed(
+        int(context_digest(room, placement_id, mic_slot, target_key, seed)[:16], 16)
+        & ((1 << 63) - 1))
+    picks = torch.randperm(len(pool), generator=generator)[:k]
+    context = [pool[int(i)] for i in picks]
+    return {
+        "context": context,
+        "context_keys": [str(c["group_key"]) for c in context],
+        "pool_size": len(pool),
+        "n_excluded_same_xyz": n_excluded,
+        "target_key": target_key,
+        "target_xyz_key": excluded_key,
+        "seed": seed,
+        "digest": context_digest(room, placement_id, mic_slot, target_key, seed),
+    }
