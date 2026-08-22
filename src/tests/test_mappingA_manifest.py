@@ -260,7 +260,12 @@ def test_the_mappingA_eval_config_points_at_the_mappingA_surface():
     entry = config["datasets"][0]
     assert entry["id"] == "RAF"
     assert entry["path"] == "RAF/mappingA"
-    assert entry["json_file_path"] == "data/RAF/mappingA_eval.json"
+    # derived, not spelled out: the config must follow the CLI's split root, which
+    # is what actually decides where the manifest is written (N2)
+    import prepare_mappingA as prep_a
+
+    assert entry["json_file_path"] == (
+        f"{prep_a.MAPPINGA_SPLIT_ROOT}/{prep_a.MANIFEST_NAME}")
     assert entry["custom_metadata_module"] == \
         "src/configs/dataset_configs/custom_metadata/RAF_A_md.py"
     assert entry["folder_name"] == "mono_rirs_22050Hz"
