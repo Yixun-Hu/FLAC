@@ -55,6 +55,13 @@ def get_custom_metadata(info, audio):
     item = items[capture_id]
     rx_target = item["rx_target_p"]
 
+    # exp_21 r2 N7: the item's identity travels with the sample so a per-item
+    # metric row can be PAIRED across arms and seeds by id rather than by
+    # position -- position pairing is exactly what item substitution breaks.
+    md['item_id'] = item["item_id"]
+    md['placement_id'] = item["placement_id"]
+    md['mic_slot'] = int(item["mic_slot"])
+
     # Poses -- AR_md's formulas verbatim.
     if pose_config.get('load', False):
         proj_source_pos = get_3d_point_camera_coord(rx_target, item["tx_p"])

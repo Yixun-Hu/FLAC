@@ -13,11 +13,263 @@ No item-i.i.d. intervals, and no generalization claims beyond these two rooms.
 """
 import hashlib
 import itertools
+import json
 import math
 
 import numpy as np
 
 EXACT_RANDOMIZATION_LIMIT = 20   # 2**20 sign assignments is still cheap and EXACT
+
+# The registered design (r2 N7). A run that does not have this shape is not the
+# experiment these statistics describe, so the shape is checked rather than
+# inferred from whatever arrived.
+REGISTERED_ROOMS = ("EmptyRoom", "FurnishedRoom")
+REGISTERED_PLACEMENTS_PER_ROOM = 16
+REGISTERED_SLOTS_PER_PLACEMENT = 36
+REGISTERED_N_ITEMS = (len(REGISTERED_ROOMS) * REGISTERED_PLACEMENTS_PER_ROOM
+                      * REGISTERED_SLOTS_PER_PLACEMENT)
+PER_ITEM_SCHEMA_VERSION = 1
+
+
+def load_per_item_sidecar(path):
+    """Read one ``<metrics>.per_item.json`` written by eval_FLAC --record-per-item.
+
+    Fail-closed on the schema: these rows are the input to a paired comparison, and
+    a row that cannot be identified would be paired by position -- the exact
+    failure item substitution produces.
+    """
+    with open(path) as f:
+        payload = json.load(f)
+    version = payload.get("schema_version")
+    if version != PER_ITEM_SCHEMA_VERSION:
+        raise ValueError(f"{path}: per-item schema version {version!r}, expected "
+                         f"{PER_ITEM_SCHEMA_VERSION}")
+    rows = payload.get("items")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError(f"{path}: carries no per-item rows")
+    seen = set()
+    for row in rows:
+        for key in ("item_id", "room", "placement_id", "mic_slot", "metrics"):
+            if key not in row:
+                raise ValueError(f"{path}: a row is missing {key}")
+        if not isinstance(row["metrics"], dict) or not row["metrics"]:
+            raise ValueError(f"{path}: row {row['item_id']} carries no metrics")
+        if row["item_id"] in seen:
+            raise ValueError(f"{path}: item {row['item_id']} appears twice")
+        seen.add(row["item_id"])
+    declared = int(payload.get("n_items", len(rows)))
+    if declared != len(rows):
+        raise ValueError(f"{path}: declares {declared} items, holds {len(rows)}")
+    return {"path": path, "provenance": payload.get("provenance") or {},
+            "metrics": payload.get("metrics") or [], "rows": rows}
+
+
+def assert_registered_design(rows, rooms=REGISTERED_ROOMS,
+                            placements_per_room=REGISTERED_PLACEMENTS_PER_ROOM,
+                            slots=REGISTERED_SLOTS_PER_PLACEMENT):
+    """The rows must be the registered 2 rooms x 16 placements x 36 slots.
+
+    Every interval below is a statement about that design: the clustering unit is
+    the placement and the macro is equal-room. A short or lopsided run would still
+    produce numbers, and they would silently answer a different question.
+    """
+    by_placement = {}
+    for row in rows:
+        by_placement.setdefault((row["room"], row["placement_id"]), []).append(row)
+    observed_rooms = sorted({room for room, _ in by_placement})
+    problems = []
+    if observed_rooms != sorted(rooms):
+        problems.append(f"rooms {observed_rooms} != registered {sorted(rooms)}")
+    for room in sorted(rooms):
+        n = sum(1 for r, _ in by_placement if r == room)
+        if n != placements_per_room:
+            problems.append(f"{room} holds {n} placements, expected "
+                            f"{placements_per_room}")
+    for key in sorted(by_placement):
+        members = by_placement[key]
+        if len(members) != slots:
+            problems.append(f"{key[0]}/{key[1]} holds {len(members)} items, expected "
+                            f"{slots}")
+        elif sorted(r["mic_slot"] for r in members) != list(range(slots)):
+            problems.append(f"{key[0]}/{key[1]} does not cover slots 0..{slots - 1}")
+    if len(rows) != len(rooms) * placements_per_room * slots:
+        problems.append(f"{len(rows)} items, expected "
+                        f"{len(rooms) * placements_per_room * slots}")
+    if problems:
+        raise ValueError("the per-item rows are not the registered Mapping-A "
+                         "design: " + "; ".join(problems))
+    return {"n_items": len(rows), "rooms": observed_rooms,
+            "n_placements": len(by_placement), "slots_per_placement": slots}
+
+
+def arm_from_sidecars(paths, metric, label, enforce_design=True):
+    """One arm: its per-seed sidecars, indexed by item id.
+
+    Seeds are read from each sidecar's provenance, never from the filename, and a
+    repeated seed is an error -- two runs of the same cell are not two seeds.
+    """
+    seeds, rows_by_seed, item_ids = {}, {}, None
+    for path in paths:
+        sidecar = load_per_item_sidecar(path)
+        if enforce_design:
+            assert_registered_design(sidecar["rows"])
+        seed = sidecar["provenance"].get("seed")
+        if seed is None:
+            raise ValueError(f"{path}: the sidecar records no seed, so its rows "
+                             "cannot be attributed to a Monte-Carlo draw")
+        seed = int(seed)
+        if seed in seeds:
+            raise ValueError(f"seed {seed} appears in both {seeds[seed]} and {path}")
+        seeds[seed] = path
+        values = {}
+        for row in sidecar["rows"]:
+            if metric not in row["metrics"]:
+                raise ValueError(f"{path}: item {row['item_id']} carries no {metric}")
+            values[row["item_id"]] = {
+                "value": row["metrics"][metric], "room": row["room"],
+                "placement_id": row["placement_id"], "mic_slot": row["mic_slot"]}
+        if item_ids is None:
+            item_ids = set(values)
+        elif set(values) != item_ids:
+            raise ValueError(
+                f"{path}: its item set differs from the arm's other seeds "
+                f"({sorted(set(values) ^ item_ids)[:4]} ...): the seeds of one arm "
+                "must have evaluated identical items")
+        rows_by_seed[seed] = values
+    if not rows_by_seed:
+        raise ValueError(f"arm {label}: no sidecars")
+    return {"label": label, "metric": metric, "seeds": sorted(rows_by_seed),
+            "by_seed": rows_by_seed, "item_ids": sorted(item_ids),
+            "paths": {int(seed): path for seed, path in seeds.items()}}
+
+
+def assert_paired(arm_a, arm_b):
+    """Exact item x seed pairing, or no paired statistic at all.
+
+    The pairing is the design's strength: the arms saw identical items under
+    identical conditioning, so their difference is measured item by item. Comparing
+    arms that evaluated different items -- or different numbers of seeds -- would be
+    an unpaired comparison wearing a paired test's name.
+    """
+    problems = []
+    if arm_a["metric"] != arm_b["metric"]:
+        problems.append(f"metrics differ: {arm_a['metric']} vs {arm_b['metric']}")
+    missing = sorted(set(arm_a["item_ids"]) ^ set(arm_b["item_ids"]))
+    if missing:
+        problems.append(f"{len(missing)} items are not in both arms "
+                        f"(e.g. {missing[:4]})")
+    if arm_a["seeds"] != arm_b["seeds"]:
+        problems.append(f"seeds differ: {arm_a['seeds']} vs {arm_b['seeds']}")
+    if problems:
+        raise ValueError(f"arms {arm_a['label']} and {arm_b['label']} are not paired: "
+                         + "; ".join(problems))
+    return {"n_items": len(arm_a["item_ids"]), "seeds": list(arm_a["seeds"])}
+
+
+def _records_for_seed(arm, seed):
+    return [{"room": entry["room"], "placement_id": entry["placement_id"],
+             "item_id": item_id, "metrics": {arm["metric"]: entry["value"]}}
+            for item_id, entry in sorted(arm["by_seed"][seed].items())]
+
+
+def arm_placement_means(arm):
+    """{seed: {(room, placement): mean over that placement's items}}."""
+    return {seed: aggregate_within_placement(_records_for_seed(arm, seed),
+                                             arm["metric"])[0]
+            for seed in arm["seeds"]}
+
+
+def arm_macros(arm):
+    """{seed: equal-room macro}, plus the seed-variability summary."""
+    per_seed = {seed: macro_two_room(means)["macro"]
+                for seed, means in arm_placement_means(arm).items()}
+    return {"by_seed": per_seed, "seed_variability": seed_variability(per_seed)}
+
+
+def paired_placement_differences(arm_a, arm_b):
+    """{(room, placement): mean over items and seeds of (a - b)}.
+
+    The difference is taken ITEM BY ITEM and SEED BY SEED before any averaging, so
+    the paired structure survives into the placement-level statistic; differencing
+    two independently averaged arms would discard it.
+    """
+    assert_paired(arm_a, arm_b)
+    sums, counts = {}, {}
+    for seed in arm_a["seeds"]:
+        a_rows, b_rows = arm_a["by_seed"][seed], arm_b["by_seed"][seed]
+        for item_id in arm_a["item_ids"]:
+            a, b = a_rows[item_id], b_rows[item_id]
+            if (a["room"], a["placement_id"]) != (b["room"], b["placement_id"]):
+                raise ValueError(
+                    f"item {item_id} is filed under {a['room']}/{a['placement_id']} in "
+                    f"{arm_a['label']} and {b['room']}/{b['placement_id']} in "
+                    f"{arm_b['label']}")
+            for value, who in ((a["value"], arm_a["label"]), (b["value"], arm_b["label"])):
+                if value is None or not np.isfinite(value):
+                    raise ValueError(
+                        f"{who} item {item_id}: metric is {value!r}; a difference over "
+                        "silently dropped items is a different estimand")
+            key = (a["room"], a["placement_id"])
+            sums[key] = sums.get(key, 0.0) + (float(a["value"]) - float(b["value"]))
+            counts[key] = counts.get(key, 0) + 1
+    return {key: sums[key] / counts[key] for key in sorted(sums)}, counts
+
+
+def paired_cluster_bootstrap(differences, n_resamples=10000, alpha=0.05,
+                             label="mappingA-contrast"):
+    """Room-stratified cluster bootstrap over the PAIRED placement differences.
+
+    The registered interval for a contrast: it resamples placements (the clustering
+    unit) within room and reports the equal-room macro difference, so it inherits
+    both the pairing and the dependence structure. An interval built from two
+    independent per-arm bootstraps would be neither.
+    """
+    return cluster_bootstrap(differences, n_resamples=n_resamples, alpha=alpha,
+                             label=label)
+
+
+def contrast_report(arm_a, arm_b, n_resamples=10000, alpha=0.05,
+                    enforce_design=True):
+    """The registered cross-arm report for one metric.
+
+    Everything it claims is paired at the item level, aggregated at the placement
+    level, and macro-averaged over the two rooms; seed variability is reported
+    BESIDE the interval, never inside it, because it is a fact about the sampler
+    and not about the estimand.
+    """
+    pairing = assert_paired(arm_a, arm_b)
+    differences, counts = paired_placement_differences(arm_a, arm_b)
+    if enforce_design:
+        expected = len(REGISTERED_ROOMS) * REGISTERED_PLACEMENTS_PER_ROOM
+        if len(differences) != expected:
+            raise ValueError(
+                f"the contrast covers {len(differences)} placements, expected "
+                f"{expected} ({len(REGISTERED_ROOMS)} rooms x "
+                f"{REGISTERED_PLACEMENTS_PER_ROOM})")
+    macro = macro_two_room(differences)
+    interval = paired_cluster_bootstrap(differences, n_resamples=n_resamples,
+                                        alpha=alpha,
+                                        label=f"{arm_a['label']}-vs-{arm_b['label']}")
+    keys = sorted(differences)
+    randomization = sign_flip_test(
+        [differences[k] for k in keys], keys, n_resamples=n_resamples,
+        label=f"{arm_a['label']}-vs-{arm_b['label']}")
+    return {
+        "metric": arm_a["metric"],
+        "arms": [arm_a["label"], arm_b["label"]],
+        "pairing": pairing,
+        "unit": "placement",
+        "n_items_per_placement": {f"{room}/{placement}": n
+                                  for (room, placement), n in sorted(counts.items())},
+        "difference": macro,
+        "interval": interval,
+        "randomization": randomization,
+        "seed_variability": {arm_a["label"]: arm_macros(arm_a)["seed_variability"],
+                             arm_b["label"]: arm_macros(arm_b)["seed_variability"]},
+        "note": ("paired at the item level, clustered at the placement level, "
+                 "equal-room macro; seed variability is reported separately and is "
+                 "not part of the interval"),
+    }
 
 
 def aggregate_within_placement(records, metric):
@@ -112,6 +364,16 @@ def paired_randomization(arm_a, arm_b, n_resamples=10000, label="mappingA"):
         raise ValueError("no placements to compare")
 
     diffs = np.array([arm_a[k] - arm_b[k] for k in keys], dtype=np.float64)
+    return sign_flip_test(diffs, keys, n_resamples=n_resamples, label=label)
+
+
+def sign_flip_test(diffs, keys, n_resamples=10000, label="mappingA"):
+    """The randomization core, over ALREADY PAIRED differences.
+
+    Exposed so a contrast built from item-level differences can use the same test
+    without inventing a second arm of zeros to subtract.
+    """
+    diffs = np.asarray(diffs, dtype=np.float64)
     observed = float(np.mean(diffs))
     n = len(diffs)
 
@@ -135,7 +397,7 @@ def paired_randomization(arm_a, arm_b, n_resamples=10000, label="mappingA"):
         "n_assignments": int(n_used),
         "n_placements": n,
         "unit": "placement",
-        "placements": keys,
+        "placements": list(keys),
     }
 
 

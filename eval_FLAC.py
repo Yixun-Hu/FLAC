@@ -693,6 +693,105 @@ class RotationStream:
 STREAM_SCHEMA_VERSION = 1
 
 
+# --------------------------------------------------------------------------- #
+# exp_21 N7: per-item metric sidecar (RAF only)
+# --------------------------------------------------------------------------- #
+PER_ITEM_SCHEMA_VERSION = 1
+# Distribution-level metrics: a Frechet distance or a retrieval recall over ONE
+# item is not that item's score, it is an artefact of the sample size. They are
+# disabled for the per-item pass rather than recorded as meaningless numbers.
+PER_ITEM_EXCLUDED_METRICS = ("eval_FD", "eval_retrieval")
+
+
+def per_item_sidecar_path(metrics_path):
+    """``<...>_metrics_<stem>.json`` -> ``<...>_metrics_<stem>.per_item.json``."""
+    base = metrics_path[:-len('.json')] if metrics_path.endswith('.json') else metrics_path
+    return base + '.per_item.json'
+
+
+def per_item_metric_config(model_config):
+    """A COPY of the model config with the distribution-level metrics disabled."""
+    config = copy.deepcopy(model_config)
+    metrics = config.setdefault("training", {}).setdefault("metrics", {})
+    for key in PER_ITEM_EXCLUDED_METRICS:
+        metrics[key] = False
+    return config
+
+
+def per_item_identity(md):
+    """Mapping-A item identity for one sample, fail-closed.
+
+    The sidecar exists to be PAIRED across arms and seeds, so an item that cannot
+    be named is worse than no sidecar at all: it would silently pair by position,
+    which is the substitution failure the stream guard exists to catch.
+    """
+    item_id = md.get("item_id")
+    room = md.get("scene")
+    placement = md.get("placement_id")
+    slot = md.get("mic_slot")
+    missing = [name for name, value in (("item_id", item_id), ("scene", room),
+                                        ("placement_id", placement),
+                                        ("mic_slot", slot)) if value is None]
+    if missing:
+        raise ValueError(
+            f"cannot record a per-item metric row: metadata is missing {missing}. "
+            "--record-per-item requires the Mapping-A metadata hook (RAF_A_md).")
+    slot = int(slot)
+    expected = f"{room}/{placement}/slot{slot:02d}"
+    if str(item_id) != expected:
+        raise ValueError(
+            f"per-item identity is inconsistent: item_id {item_id!r} does not match "
+            f"room/placement/slot {expected!r}.")
+    return {"item_id": str(item_id), "room": str(room),
+            "placement_id": str(placement), "mic_slot": slot}
+
+
+def _json_metric_value(value):
+    if isinstance(value, torch.Tensor):
+        value = value.item()
+    if isinstance(value, (int, bool)):
+        return value
+    value = float(value)
+    return value if math.isfinite(value) else None
+
+
+def record_per_item_metrics(callback, fakes, reals, metadata):
+    """One metric row per item, computed on that item alone.
+
+    The callback is a SECOND, per-item instance built with dataset_name=None: the
+    RAF callback's compute_metrics is an equal-room macro and fails closed unless
+    both rooms are present, which no single item can satisfy. Every accumulator is
+    reset by compute_metrics, so each row sees exactly one item.
+    """
+    rows = []
+    for index in range(fakes.shape[0]):
+        identity = per_item_identity(metadata[index])
+        callback.update_metrics("test", fakes[index:index + 1],
+                                reals[index:index + 1])
+        computed = callback.compute_metrics("test")
+        metrics = {name: _json_metric_value(value)
+                   for name, value in sorted(computed.items())
+                   if name != "by_scene"}
+        rows.append(dict(identity, metrics=metrics))
+    return rows
+
+
+def build_per_item_record(rows, provenance):
+    """The ``.per_item.json`` payload: rows plus what identifies the cell."""
+    metric_names = sorted({name for row in rows for name in row["metrics"]})
+    return {
+        "schema_version": PER_ITEM_SCHEMA_VERSION,
+        "n_items": len(rows),
+        "metrics": metric_names,
+        "excluded_metrics": list(PER_ITEM_EXCLUDED_METRICS),
+        "excluded_reason": ("FD and retrieval recall are distribution-level "
+                            "quantities; over a single item they measure sample "
+                            "size, not the item"),
+        "provenance": provenance,
+        "items": rows,
+    }
+
+
 def stream_sidecar_path(metrics_path):
     """``<...>_metrics_<stem>.json`` -> ``<...>_metrics_<stem>.stream.json``.
 
@@ -1229,6 +1328,7 @@ def evaluate_model(
     expected_stream_count=None,
     record_stream=False,
     record_per_scene=False,
+    record_per_item=False,
     are_lambda=None,
 ):
     # Fail fast on an unknown cond_method (the CLI is guarded by argparse
@@ -1365,6 +1465,15 @@ def evaluate_model(
     with open(dataset_config_path) as f:
         dataset_config = json.load(f)
 
+    # N7: the per-item sidecar is a RAF (Mapping-A) instrument. On AR/HAA the
+    # metadata carries no item identity, so rows could only be paired by position.
+    dataset_id = dataset_config['datasets'][0].get('id')
+    if record_per_item and dataset_id != 'RAF':
+        raise ValueError(
+            f"--record-per-item is RAF-only, but this dataset config declares id "
+            f"{dataset_id!r}. Per-item rows exist to be paired across arms by item "
+            "id, which only the Mapping-A metadata hook provides.")
+
     # N6: a config-declared item count is the pre-registered expectation.
     expected_stream_count = resolve_expected_stream_count(dataset_config,
                                                           expected_stream_count)
@@ -1392,6 +1501,15 @@ def evaluate_model(
     metric_callback = create_metric_callback_from_config(
         model_config, dataset_id=dataset_config['datasets'][0]['id'],
         per_scene=record_per_scene)
+
+    # A SECOND callback, only when asked: dataset_id=None so its compute_metrics
+    # is the plain per-item one (the RAF path is an equal-room macro that fails
+    # closed on a single room), and the distribution-level metrics are off.
+    per_item_callback = None
+    per_item_rows = []
+    if record_per_item:
+        per_item_callback = create_metric_callback_from_config(
+            per_item_metric_config(model_config), dataset_id=None, per_scene=False)
 
     # Yaw-rotation state. The random draw lives on its OWN cpu generator so it
     # cannot advance the global RNG that seeds the diffusion noise -- otherwise a
@@ -1483,6 +1601,9 @@ def evaluate_model(
             query_list = [md["source"] if 'source' in md else None for md in metadata]
             depthMinusSource_list = [(d[:3, :, :] - source_pose[:, None, None]).unsqueeze(0).float().to(device) for d, source_pose in zip(depth_list, query_list)]
             metric_callback.update_metrics("test", fakes, reals, scene_list, depth=depthMinusSource_list)
+            if per_item_callback is not None:
+                per_item_rows.extend(record_per_item_metrics(
+                    per_item_callback, fakes, reals, metadata))
             c += reals.shape[0]
     
 
@@ -1555,6 +1676,30 @@ def evaluate_model(
             json.dump(build_stream_record(rotation_plan, rot_stream), f, indent=2)
         print(f"Assignment stream saved to {path2save_stream}")
 
+    # Per-item sidecar (opt-in, RAF only). Written beside the metrics record, as
+    # the stream sidecar is: the headline record's shape is frozen.
+    if record_per_item:
+        path2save_items = per_item_sidecar_path(path2save)
+        per_item_provenance = {
+            "ckpt_path": ckpt_path,
+            "dataset_config": dataset_config_path,
+            "eval_name": eval_name,
+            "seed": seed,
+            "steps": steps,
+            "cfg_scale": cfg_scale,
+            "cond_method": cond_method,
+            "rotate_mode": rotation_plan.mode,
+            "rotate_deg": rotation_plan.rotate_deg,
+            "rotate_seed": rotation_plan.rotate_seed,
+            "are_lambda": are_lambda,
+            "weights_source": weights_source,
+        }
+        with open(path2save_items, 'w') as f:
+            json.dump(build_per_item_record(per_item_rows, per_item_provenance), f,
+                      indent=2)
+        print(f"Per-item metrics saved to {path2save_items} "
+              f"({len(per_item_rows)} rows)")
+
     if store_predictions:
         decoded_samples_all = torch.cat(decoded_samples, dim=0)
         path2save_preds = output_paths['predictions']
@@ -1590,6 +1735,7 @@ if __name__ == "__main__":
     parser.add_argument("--rotate-seed", type=int, default=None, help="Seed for the per-sample random yaw draw; defaults to --seed. Only valid with --rotate-mode random (passing it in fixed mode is an error, never a silent no-op).")
     parser.add_argument("--record-stream", action='store_true', help="Write a <metrics-stem>.stream.json sidecar carrying the full per-position assignment audit (canonical input tuples, offsets, both hashes). Works in fixed mode too, which is how an unrotated Z cell gets an input_hash to be paired against. The metrics record and its path are unaffected.")
     parser.add_argument("--record-per-scene", action='store_true', help="Record a `by_scene` block in the metrics JSON: per-scene, per-metric values plus the scene ids (exp_14). This is what makes the PER-SCENE mean -- the plan's estimand and this repo's headline convention -- computable from the artifact. Off by default; without it the record is byte-identical to every row already committed.")
+    parser.add_argument("--record-per-item", action="store_true", help="RAF/Mapping-A only: write a <metrics>.per_item.json sidecar with one metric row per item (item id, room, placement, mic slot). Distribution-level metrics (FD, retrieval) are excluded because they are undefined for a single item.")
     parser.add_argument("--expected-stream-count", type=int, default=None, help="Pre-registered number of items in the evaluated split (e.g. 6337 for the AR unseen split). When given, the run fails unless the dataset AND the accumulated assignment stream both hold exactly this many items; without it, the stream can only be checked against the dataset it came from.")
     parser.add_argument("--cond-method", type=str, default="vanilla", choices=["vanilla", "fa_invariant"], help="Conditioning method: 'vanilla' (single conditioner pass) or 'fa_invariant' (cylindrical pose invariants + C4 ViT frame average). Composes with --rotate-deg (rotation applied first).")
     parser.add_argument("--frame-avg-angles", type=str, default=",".join(str(int(a)) for a in DEFAULT_FRAME_ANGLES), help="Comma-separated yaw angles in degrees for fa_invariant frame averaging; the first must be 0. Ignored when --cond-method vanilla.")
@@ -1625,6 +1771,7 @@ if __name__ == "__main__":
         rotate_mode=args.rotate_mode,
         rotate_seed=args.rotate_seed,
         expected_stream_count=args.expected_stream_count,
+        record_per_item=args.record_per_item,
         record_stream=args.record_stream,
         record_per_scene=args.record_per_scene,
         are_lambda=args.are_lambda,
