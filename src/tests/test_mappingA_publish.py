@@ -55,12 +55,14 @@ def test_the_mappingA_identities_pin_the_planned_fields():
     # binds at 2.0401); Mapping H stays at x3.0 and the difference is disclosed.
     assert prepare["amplitude_scalar"] == 2.0
     assert raf_publish.CANONICAL_PREPARE_PARAMS["amplitude_scalar"] == 3.0
-    # r2 N5: committed inputs are pinned exactly; only the audio union -- knowable
-    # solely from the canonical generation -- is still shaped
+    # r2 N5 + r5 pin: every digest in this identity is now an exact value. The
+    # audio union comes from the clean dry run (generation 5fc096147bec).
     assert len(prepare["correspondence_sha256"]) == 64
     assert prepare["correspondence_sha256"] != raf_publish.SHA256_SHAPE
     assert prepare["readback_record_sha256"] == raf_publish.canonical_record_digest()
-    assert prepare["audio_union_sha256"] == raf_publish.SHA256_SHAPE
+    assert prepare["audio_union_sha256"] == (
+        "b19eff06c7a13e0aaeafcdf95ad58f7f4f24bb3def794889102440437a220a21")
+    assert raf_publish.SHA256_SHAPE not in prepare.values()
 
     depth = raf_publish.CANONICAL_IDENTITIES["mappingA_depth"]
     assert depth["positions_from"] == "mappingA"

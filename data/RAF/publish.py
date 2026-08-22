@@ -407,14 +407,16 @@ CANONICAL_MAPPINGA_PREPARE_PARAMS = {
     # every written file is CHECKED against (N3)
     "amplitude_derivation_target": 0.75,
     "clip_ceiling": 0.999,
-    # N5: PINNED, not shaped. The correspondence record is a committed input, so
-    # its digest is knowable now -- and a canonical publication that could name any
-    # 64-hex string was not identified by it at all. The audio-union digest is the
-    # one thing knowable only from the canonical generation itself; while it is a
-    # placeholder no canonical publication may be made (the prepare CLI refuses).
+    # N5: PINNED, not shaped. A canonical publication that could name any 64-hex
+    # string was not identified by it at all. The audio-union digest was the one
+    # value knowable only from the generation itself; it is now pinned from the
+    # clean dry run of 2026-08-22 (generation 5fc096147bec, scalar x2 support-bound,
+    # peaks 0.979/0.944, 21 near-silent context references over 19 p008 items), so
+    # NOTHING in this identity is a placeholder any more.
     "correspondence_sha256":
         "d4d79b49677b7bc7541bf0e7dfe7f32f532912f6a268fca1d421b280c799663e",
-    "audio_union_sha256": SHA256_SHAPE,
+    "audio_union_sha256":
+        "b19eff06c7a13e0aaeafcdf95ad58f7f4f24bb3def794889102440437a220a21",
     "readback_record_sha256":
         "9288181be62bf8b4669880522fadaab18527facb2749837f768572069f4876c3",
 }

@@ -914,28 +914,37 @@ def test_the_registered_readback_digest_is_exp_19s_pinned_record():
             == pinned)
 
 
-def test_only_the_audio_union_digest_is_left_unpinned():
+def test_nothing_in_the_registered_identity_is_a_placeholder_any_more():
+    """r5: the audio union was the last unpinned value and came from the clean dry
+    run; a canonical publication is now identified by every digit of its identity."""
     import publish as raf_publish
 
-    assert raf_publish.unpinned_identity_keys("mappingA_prepare") == [
-        "audio_union_sha256"]
+    assert raf_publish.unpinned_identity_keys("mappingA_prepare") == []
     assert raf_publish.unpinned_identity_keys("mappingA_depth") == []
+    assert (raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS["audio_union_sha256"]
+            == "b19eff06c7a13e0aaeafcdf95ad58f7f4f24bb3def794889102440437a220a21")
 
 
-def test_a_canonical_publication_is_refused_while_the_union_is_a_placeholder(
-        monkeypatch):
+def test_only_the_pinned_audio_union_may_publish_canonically():
+    """The pin is the point: this union and no other. A run that measures anything
+    else is a different corpus and is refused by name."""
+    pinned = "b19eff06c7a13e0aaeafcdf95ad58f7f4f24bb3def794889102440437a220a21"
+    assert prep_a.canonical_identity_blockers() == []
+    assert prep_a.canonical_identity_blockers(pinned, 10368) == []
+    assert prep_a.canonical_identity_blockers("e" * 64, 10368) == [
+        f"audio union {'e' * 64} != registered {pinned}"]
+
+
+def test_a_placeholder_registry_still_refuses_a_canonical_publication(monkeypatch):
+    """The mechanism that carried us to the pin, kept honest: while a registered
+    digest is SHA256_SHAPE the run measures it, reports it and stops."""
+    import publish as raf_publish
+
+    monkeypatch.setitem(prep_a.CANONICAL_MAPPINGA_PREPARE_PARAMS,
+                        "audio_union_sha256", raf_publish.SHA256_SHAPE)
     blockers = prep_a.canonical_identity_blockers("f" * 64, 10368)
     assert len(blockers) == 1
     assert "placeholder" in blockers[0] and "f" * 64 in blockers[0]
-    # before the union is measured the same check passes: nothing else is unpinned
-    assert prep_a.canonical_identity_blockers() == []
-
-    # ... and once the value is pinned, only the matching union publishes
-    monkeypatch.setitem(prep_a.CANONICAL_MAPPINGA_PREPARE_PARAMS,
-                        "audio_union_sha256", "f" * 64)
-    assert prep_a.canonical_identity_blockers("f" * 64, 10368) == []
-    assert prep_a.canonical_identity_blockers("e" * 64, 10368) == [
-        f"audio union {'e' * 64} != registered {'f' * 64}"]
 
 
 def test_the_marker_names_the_correspondence_record_by_its_full_digest(cli_corpus,

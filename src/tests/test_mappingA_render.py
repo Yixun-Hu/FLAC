@@ -288,7 +288,6 @@ def test_the_renderer_marker_satisfies_RAF_A_md_end_to_end(tmp_path, monkeypatch
     # a prepare-side publication for the same tree, so the COMBINED check has both
     split_dir = tmp_path / "data" / "RAF_mappingA"
     prepare_params = dict(raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS,
-                          audio_union_sha256="b" * 64,
                           readback_record_sha256=digest)
     pointer = {"split_dir": str(split_dir.resolve()), "output_dir": str(out.resolve()),
                "rooms": rooms, "flavor": "mappingA", "canonical": True, "taint": [],
