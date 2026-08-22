@@ -30,3 +30,9 @@ Living index — one row per experiment; updated at every session handoff/compac
 **Sibling work (merged 2026-07-15, PR #1):** zhixuan's `Yaw-equi-ViT` — `CylindricalViT` equivariant geometry encoder (`src/models/cyl_vit.py`) + matched ablations under `worklog/worklog_zhixuan/` (namespace convention adopted). Additive-gated (`arch: cyl_vit`); our arms verified bit-identical post-merge (init hash unchanged).
 
 **In flight right now (2026-08-19 ~17:00 EDT, Fable 5 seat):** NOTHING running. exp_17 + exp_19 closed (exp_17 items (c)/(d) with Yixun). Standing: FA must still beat FLAC on HAA (Yixun 2026-08-19); RAF open question (candidate exp_20). Held: exp_14 DS-PA (paused@5,000), DS-CS3 (frozen), exp_16 ARE-V (indefinite; remind re ARE-FA/ARE-CYL at completion).
+
+## exp_21 — bf_fa_cartesian (Cartesian frame-averaged B-F) — TRAINING (2026-08-22)
+- **Query:** Yixun 08-21 (Query 2 redirect): keep C4 FA, drop cylindrical_pose_features, rotate depth+all four pose keys per frame, Cartesian xyz into the unchanged DistEmbedders, average ALL FOUR pose/geometry conditioner outputs; context_audio single-pass. Single-mechanism fix of B-F's pose-representation defect (meters/radians mixing, ±π wrap).
+- **Status:** registered 40k run TRAINING since 08-22 05:50 EDT (seed 42, BF-parity recipe, no val loader, cap 32 = verified legacy draw-schedule parity); rate gate PASS 13.99 s/step co-tenant; ETA ~Tue 08-25 pm. Then: 34-cell eval (10 BFC 5-seed both-K + 5-angle grid incl. 45° negative control + D6 re-eval of B-F@40k and P1@40k at the current pin). Admission: trained-as binding, ckpt sha, full-split stream proof, six-row cross-arm transaction.
+- **Key commits:** ebb8166..a98543f (19 exp_21 code commits + records); reviews: 2 plan + 4 code rounds + integrative + r5 re-review + pre-launch (all in folder).
+- **Numbering:** exp_20 = the other session's RAF; RAF-as-exp_20 stands, this work renumbered exp_21 (Yixun 08-21 ~23:25).
