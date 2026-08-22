@@ -149,8 +149,103 @@ def test_a_still_silent_capture_aborts_with_a_measured_report(union_room):
     report = exc.value.report
     assert report["n_below_threshold"] == 1
     offender = next(v for v in report["violations"] if v["capture_id"] == "000004")
-    assert offender["kind"] == "below_threshold"
+    assert offender["kind"] == "below_threshold_crop"
     assert offender["scaled_dbfs"] < -60.0
+    assert offender["scaled_dbfs_crop"] < -60.0
+
+
+# --------------------------------------------------------------------------- #
+# r2 N3: the loader's silence test reads the CROP, so the audit must too
+# --------------------------------------------------------------------------- #
+def _delayed(seed, peak=0.2, n=48000, onset=30000, sr=48000):
+    """Loud, but with every sample of energy after the loader's crop.
+
+    10240 samples at 22050 Hz is 0.464 s; an onset at 0.625 s is past it, so the
+    runtime crops this capture down to (near) silence and substitutes the item.
+    """
+    rng = np.random.default_rng(seed)
+    sig = np.zeros(n, dtype=np.float64)
+    tail = np.arange(n - onset) / sr
+    sig[onset:] = rng.normal(size=n - onset) * np.exp(-tail * 20.0)
+    sig = sig / np.abs(sig).max() * peak
+    return sig.astype(np.float32)
+
+
+def test_a_loud_capture_that_is_silent_after_the_crop_aborts(union_room):
+    """N3's headline: auditing the full waveform passed this file, and the loader
+    then substituted it -- so the manifest named an item nobody evaluated."""
+    _overwrite(union_room, "000002", _delayed(2, peak=0.2))
+    ids = [f"{i:06d}" for i in range(6)]
+    with pytest.raises(prep_a.AmplitudePolicyError) as exc:
+        prep_a.audit_amplitude_union(union_room, ids, scalar=3.0)
+    report = exc.value.report
+    offender = next(v for v in report["violations"] if v["capture_id"] == "000002")
+    assert offender["kind"] in ("below_threshold_crop", "silent_crop")
+    assert offender["scaled_dbfs"] > -60.0          # loud by the OLD measurement
+    assert offender["scaled_dbfs_crop"] < -60.0     # silent by the loader's
+    assert report["n_below_threshold"] == 1
+    assert report["loader_sample_size"] == prep_a.LOADER_SAMPLE_SIZE
+    json.dumps(report)
+
+
+def test_the_audit_reports_both_the_full_and_crop_statistics(union_room):
+    ids = [f"{i:06d}" for i in range(6)]
+    report = prep_a.audit_amplitude_union(union_room, ids, scalar=3.0)
+    assert report["min_scaled_dbfs_crop"] >= -60.0
+    assert report["min_raw_peak_crop"] > 0.0
+    assert report["min_raw_peak_crop"] <= report["max_raw_peak"]
+    for violation_free in report["violations"]:
+        assert "scaled_peak_crop" in violation_free
+
+
+def test_the_clipping_test_still_reads_the_full_waveform(union_room):
+    """A spike after the crop is written clipped even though the crop is clean, so
+    the ceiling test must not move to the crop with the silence test."""
+    signal = _rir(2, peak=0.2)
+    signal[-50] = 0.9
+    _overwrite(union_room, "000002", signal)
+    ids = [f"{i:06d}" for i in range(6)]
+    with pytest.raises(prep_a.AmplitudePolicyError) as exc:
+        prep_a.audit_amplitude_union(union_room, ids, scalar=3.0)
+    offender = next(v for v in exc.value.report["violations"]
+                    if v["capture_id"] == "000002")
+    assert offender["kind"] == "clipping"
+
+
+def test_writing_refuses_a_capture_that_is_silent_after_the_crop(union_room, tmp_path):
+    """The write path re-checks: the audit runs over a union derived from the
+    manifest, so a write must not be able to publish a loader-silent target even
+    when it was never audited."""
+    _overwrite(union_room, "000002", _delayed(2, peak=0.2))
+    with pytest.raises(ValueError) as exc:
+        prep_a.write_union(union_room, str(tmp_path / "out"),
+                           [f"{i:06d}" for i in range(6)], scalar=3.0)
+    message = str(exc.value)
+    assert "10240" in message and "-60" in message
+    assert "substitute" in message
+
+
+def test_the_written_report_records_the_crop_peak(union_room, tmp_path):
+    report = prep_a.write_union(union_room, str(tmp_path / "out"),
+                                [f"{i:06d}" for i in range(3)], scalar=3.0)
+    assert report["loader_sample_size"] == prep_a.LOADER_SAMPLE_SIZE
+    for entry in report["files"].values():
+        assert 0.0 < entry["peak_crop"] <= entry["peak"]
+        assert entry["dbfs_crop"] >= -60.0
+
+
+def test_the_identity_separates_the_derivation_target_from_the_clip_ceiling():
+    """0.75 is what the exp_19 scalar was DERIVED against; 0.999 is what every
+    written file is CHECKED against. One key called "ceiling" hid which was which."""
+    import publish as raf_publish
+
+    registered = raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS
+    assert registered["amplitude_derivation_target"] == 0.75
+    assert registered["clip_ceiling"] == 0.999
+    assert "amplitude_ceiling" not in registered
+    assert prep_a.CLIP_CEILING == registered["clip_ceiling"]
+    assert prep_a.AMPLITUDE_DERIVATION_TARGET == registered[
+        "amplitude_derivation_target"]
 
 
 def test_a_nonfinite_or_empty_capture_aborts(union_room):

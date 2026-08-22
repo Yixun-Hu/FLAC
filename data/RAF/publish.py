@@ -398,7 +398,10 @@ CANONICAL_MAPPINGA_PREPARE_PARAMS = {
     "match_ambiguity_margin": 3.0,
     "placement_cap_m": 0.05,
     "amplitude_scalar": 3.0,
-    "amplitude_ceiling": 0.75,
+    # the target the exp_19 scalar was DERIVED against, kept distinct from the
+    # ceiling every written file is CHECKED against (N3)
+    "amplitude_derivation_target": 0.75,
+    "clip_ceiling": 0.999,
     # knowable only once the canonical generation exists; pinned by the Planner
     # from the run, checked structurally until then
     "correspondence_sha256": SHA256_SHAPE,

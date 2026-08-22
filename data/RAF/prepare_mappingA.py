@@ -32,7 +32,9 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:  # sibling scripts, not an installed package
     sys.path.insert(0, _HERE)
 from prepare_data import (  # noqa: E402
+    AMPLITUDE_CEILING as AMPLITUDE_DERIVATION_TARGET,
     CLIP_CEILING,
+    LOADER_SAMPLE_SIZE,
     SILENCE_THRESHOLD_DB,
     SOURCE_SR,
     TARGET_SR,
@@ -121,7 +123,15 @@ def union_report(union, items):
     }
 
 
-def _resampled_peak_and_finite(path, orig_sr, target_sr):
+def _resampled_peaks_and_finite(path, orig_sr, target_sr,
+                                sample_size=LOADER_SAMPLE_SIZE):
+    """Peak of the whole resampled signal AND of the crop the loader will keep.
+
+    N3: the loader crops to ``sample_size`` BEFORE its silence test, so the crop
+    peak -- not the full-waveform peak -- decides whether an item is substituted.
+    A late-arriving RIR whose direct sound lands after the crop reads loud here and
+    silent there, and the manifest would describe an item nobody evaluated.
+    """
     audio, sr = sf.read(path, dtype="float32", always_2d=True)
     if sr != orig_sr:
         raise ValueError(f"{path}: expected {orig_sr} Hz, got {sr} Hz")
@@ -130,12 +140,14 @@ def _resampled_peak_and_finite(path, orig_sr, target_sr):
     wave = audio[:, 0]
     finite = bool(np.isfinite(wave).all())
     if not finite or wave.size == 0:
-        return 0.0, finite, wave.size
+        return 0.0, 0.0, finite, wave.size
     out = np.asarray(librosa.resample(wave, orig_sr=orig_sr, target_sr=target_sr),
                      dtype=np.float32)
     if not np.isfinite(out).all():
-        return 0.0, False, int(out.size)
-    return float(np.abs(out).max()), True, int(out.size)
+        return 0.0, 0.0, False, int(out.size)
+    crop = out[:sample_size]
+    crop_peak = float(np.abs(crop).max()) if crop.size else 0.0
+    return float(np.abs(out).max()), crop_peak, True, int(out.size)
 
 
 def largest_admissible_scalar(max_peak, clip_ceiling=CLIP_CEILING):
@@ -147,16 +159,21 @@ def largest_admissible_scalar(max_peak, clip_ceiling=CLIP_CEILING):
 
 def audit_amplitude_union(room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
                           target_sr=TARGET_SR, clip_ceiling=CLIP_CEILING,
-                          silence_db=SILENCE_THRESHOLD_DB):
+                          silence_db=SILENCE_THRESHOLD_DB,
+                          sample_size=LOADER_SAMPLE_SIZE):
     """Amplitude audit over the exact Mapping-A union, BEFORE anything is written.
 
     Three registered conditions, measured on the RESAMPLED signal (what would
     actually be published):
 
-    * ``peak * scalar <= clip_ceiling`` -- the loader clamps to [-1, 1], so a
-      clipped file is a distorted target scored against an undistorted reference;
-    * ``dBFS(peak * scalar) >= silence_db`` -- below the loader's gate the item is
-      silently substituted, so the manifest would describe an item nobody evaluated;
+    * ``full peak * scalar <= clip_ceiling`` -- the loader clamps to [-1, 1], so a
+      clipped file is a distorted target scored against an undistorted reference.
+      Measured on the FULL signal: a sample clipped anywhere is written clipped;
+    * ``dBFS(crop peak * scalar) >= silence_db`` -- measured on the first
+      ``sample_size`` samples, because that is what the loader tests. Below its gate
+      the item is silently substituted, so the manifest would describe an item
+      nobody evaluated (N3: auditing the full peak here passed late-arriving RIRs
+      that the runtime would then drop);
     * finite and non-empty.
 
     Returns the measured report when clean. Otherwise raises
@@ -164,28 +181,36 @@ def audit_amplitude_union(room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
     first, plus the largest scalar this union would admit -- offered as evidence for
     the decision, never applied.
     """
-    peaks, violations = [], []
+    peaks, crop_peaks, violations = [], [], []
     for capture_id in capture_ids:
         path = os.path.join(room_dir, "data", capture_id, "rir.wav")
-        peak, finite, n_samples = _resampled_peak_and_finite(path, orig_sr, target_sr)
-        scaled = peak * scalar
+        peak, crop_peak, finite, n_samples = _resampled_peaks_and_finite(
+            path, orig_sr, target_sr, sample_size)
+        scaled, scaled_crop = peak * scalar, crop_peak * scalar
         record = {
             "capture_id": capture_id,
             "raw_peak": peak,
+            "raw_peak_crop": crop_peak,
             "scaled_peak": scaled,
+            "scaled_peak_crop": scaled_crop,
             "scaled_dbfs": dbfs(scaled),
+            "scaled_dbfs_crop": dbfs(scaled_crop),
             "n_samples": n_samples,
         }
         if not finite or n_samples == 0:
             violations.append(dict(record, kind="non_finite"))
             continue
         peaks.append(peak)
+        crop_peaks.append(crop_peak)
         if peak <= 0.0:
             violations.append(dict(record, kind="silent_source"))
         elif scaled > clip_ceiling:
             violations.append(dict(record, kind="clipping"))
-        elif dbfs(scaled) < silence_db:
-            violations.append(dict(record, kind="below_threshold"))
+        elif crop_peak <= 0.0:
+            violations.append(dict(record, kind="silent_crop"))
+        elif dbfs(scaled_crop) < silence_db:
+            # the LOADER's test: the first sample_size samples, after scaling
+            violations.append(dict(record, kind="below_threshold_crop"))
 
     max_peak = max(peaks) if peaks else 0.0
     violations.sort(key=lambda v: (-v["scaled_peak"], v["capture_id"]))
@@ -195,14 +220,20 @@ def audit_amplitude_union(room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
         "silence_threshold_db": float(silence_db),
         "source_sample_rate": int(orig_sr),
         "sample_rate": int(target_sr),
+        "loader_sample_size": int(sample_size),
         "n_captures": len(capture_ids),
         "max_raw_peak": max_peak,
         "max_scaled_peak": max_peak * scalar,
         "min_raw_peak": min(peaks) if peaks else 0.0,
         "min_scaled_dbfs": dbfs(min(peaks) * scalar) if peaks else dbfs(0.0),
+        # the crop statistics the loader's silence gate actually reads
+        "min_raw_peak_crop": min(crop_peaks) if crop_peaks else 0.0,
+        "min_scaled_dbfs_crop": (dbfs(min(crop_peaks) * scalar) if crop_peaks
+                                 else dbfs(0.0)),
         "n_clipping": sum(1 for v in violations if v["kind"] == "clipping"),
         "n_below_threshold": sum(1 for v in violations
-                                 if v["kind"] == "below_threshold"),
+                                 if v["kind"] in ("below_threshold_crop",
+                                                  "silent_crop")),
         "n_non_finite": sum(1 for v in violations if v["kind"] == "non_finite"),
         # Measured OPTION, never applied: the run stops for a human decision.
         "max_admissible_scalar": largest_admissible_scalar(max_peak, clip_ceiling),
@@ -214,7 +245,8 @@ def audit_amplitude_union(room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
         raise AmplitudePolicyError(
             f"{room_dir}: the Mapping-A audio union violates the registered "
             f"amplitude policy at scalar x{scalar} -- {report['n_clipping']} "
-            f"clipping, {report['n_below_threshold']} below {silence_db} dBFS, "
+            f"clipping, {report['n_below_threshold']} below {silence_db} dBFS "
+            f"over the loader's {sample_size}-sample crop, "
             f"{report['n_non_finite']} non-finite of {len(capture_ids)} captures. "
             "STOPPING for a registered amplitude-policy decision: items are never "
             "dropped and the scalar is never auto-adjusted (the largest scalar this "
@@ -232,7 +264,8 @@ RIR_FOLDER = "mono_rirs_22050Hz"
 
 def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
                 target_sr=TARGET_SR, clip_ceiling=CLIP_CEILING,
-                mappingH_room_dir=None, mappingH_generation=None):
+                mappingH_room_dir=None, mappingH_generation=None,
+                sample_size=LOADER_SAMPLE_SIZE, silence_db=SILENCE_THRESHOLD_DB):
     """Resample, scale and publish the Mapping-A union, with H provenance.
 
     Mapping A publishes into DISJOINT roots, so "shared with Mapping H" is a
@@ -243,7 +276,11 @@ def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
     different source, or a stale generation, and reading Mapping-A results beside
     Mapping-H ones would then be comparing different audio.
 
-    Every written file is read back and compared, as in exp_19.
+    Every written file is read back and compared, as in exp_19, and both amplitude
+    conditions are RE-CHECKED here on the bytes about to be published (N3): the
+    audit runs over a union computed from the manifest, so a write that reached this
+    point with a different file, scalar or sample rate must still not be able to
+    publish a clipped or loader-silent target.
     """
     dest = os.path.join(out_room_dir, RIR_FOLDER)
     os.makedirs(dest, exist_ok=True)
@@ -272,6 +309,14 @@ def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
                 f"x{scalar}. The union audit exists to catch this before any write; "
                 "publishing a clipped target would distort the waveform the metric "
                 "scores.")
+
+        crop_peak = float(np.abs(out[:sample_size]).max()) if out.size else 0.0
+        if dbfs(crop_peak) < silence_db:
+            raise ValueError(
+                f"{src}: the first {sample_size} samples peak at {crop_peak:.6g} "
+                f"({dbfs(crop_peak):.1f} dBFS) after x{scalar}, below the loader's "
+                f"{silence_db} dBFS gate. The runtime would substitute this item, so "
+                "the manifest would name an item that was never evaluated.")
 
         out_path = os.path.join(dest, f"{capture_id}.wav")
         sf.write(out_path, out, target_sr, subtype="FLOAT")
@@ -303,7 +348,9 @@ def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
         files[capture_id] = {
             "sha256": digest,
             "peak": peak,
+            "peak_crop": crop_peak,
             "dbfs": dbfs(peak),
+            "dbfs_crop": dbfs(crop_peak),
             "n_samples": int(out.shape[0]),
             "roundtrip_max_abs_error": roundtrip,
             "shared_with_mappingH": shared,
@@ -314,6 +361,7 @@ def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
         "n_shared_with_mappingH": n_shared,
         "n_new": len(files) - n_shared,
         "scalar": float(scalar),
+        "loader_sample_size": int(sample_size),
         "source_sample_rate": int(orig_sr),
         "sample_rate": int(target_sr),
         "subtype": "FLOAT",
@@ -613,7 +661,11 @@ def parameter_identity(args, n_items, digests):
         "match_ambiguity_margin": MATCH_AMBIGUITY_MARGIN,
         "placement_cap_m": PLACEMENT_CAP_M,
         "amplitude_scalar": float(args.scalar),
-        "amplitude_ceiling": CANONICAL_MAPPINGA_PREPARE_PARAMS["amplitude_ceiling"],
+        # N3: 0.75 is the TARGET the exp_19 scalar was derived against (headroom
+        # over the trained supports); 0.999 is the ceiling this run ENFORCES on
+        # every written file. Naming both "ceiling" hid which number was checked.
+        "amplitude_derivation_target": float(AMPLITUDE_DERIVATION_TARGET),
+        "clip_ceiling": float(CLIP_CEILING),
         "correspondence_sha256": digests["correspondence"],
         "audio_union_sha256": digests["audio_union"],
         "readback_record_sha256": digests["readback"],
