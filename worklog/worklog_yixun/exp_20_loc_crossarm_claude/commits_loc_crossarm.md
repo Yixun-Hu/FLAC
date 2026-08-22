@@ -32,3 +32,21 @@ exp_20 deltas. Every commit is path-scoped and TDD (red → green → commit).
   checkpoint embeds no `model_config` at all; for that file the method is not
   detectable and the binding falls back to the manifest, recorded as
   `cond_method_binding.binding = "manifest"` rather than assumed.
+
+## Round exp20-r2 (r1 code review — all 7 findings; NO-GO → re-review)
+
+| SHA | Finding | Description | changed lines |
+|---|---|---|---|
+| `0bc70af` | F5 (a) | `snapshot_checkpoint` hashes the HELD descriptor with `os.pread` (exp_15's exact semantics) instead of reopening the path; `_identity` adopts exp_15's field names; the dual-implementation test now runs BOTH implementations over partial / extra / wrong-shape / wrong-dtype / missing-family pathologies and over the snapshot itself | +118 −44 |
+| `6290a72` | F6 + F2 | `cond_method_binding` gains an explicit **unbound** state (refused for a registered run, stamped for smoke/dev; a "manifest" binding now requires a VERIFIED manifest) and is recorded in provenance for **every** row; `validate_pairing` refuses missing/empty evidence, duplicate ids, unkeyed noise, unset loader fields and a repeated arm before comparing anything; `pairing_facts` refuses a row without noise keys; `aggregate_seeds_per_query` requires exactly the registered seed set, read from the manifest via `registered_seeds()` | +181 −33 |
+| `38a6ab4` | F3 | parity gate fail-closed on key-set equality, masks, non-finite values and executed-partition equality, with **preregistered** tolerances (bitwise off-autocast, fixed bound under it; caller-chosen tolerances refused); non-tautological cap-perturbation test; `run_fa_parity` real runner producing the full evidence record; `--fa-parity-check` CLI writing the record before acting on the verdict | +286 −52 |
+| `9186586` | F4 | `FA_LOCKED_FIELDS` extended to the numeric execution state (cap policy/value, micro-batch, orbit size, angles-per-chunk, orbit forwards, shared-angle count); `fa_conditioning` records the partition it EXECUTED per query; FA provenance carries run-time source blob shas; `batch_size`/`num_workers` join the registration lock non-retroactively (checked when locked, required of arm-bound manifests) | +171 −24 |
+| `7d6ca1c` | F1 | generated metric manifests carry top-level `source_sha` and `r2_manifest_digests` keyed by committed repo paths and are proven against the REAL `verify_metric_registration` in a tmp git repo; deep-equality is mandatory on the production path; `generate()` re-verifies each admission record (arm, config path, step, EMA, load integrity, cond_method, sha) and binds its canonical digest into every manifest | +215 −38 |
+| `5aa0dbb` | F7 + F5 (b) | `lineage_binding()` — experiment, immutable completion commits (all proven to resolve), NAS PROVENANCE path + sha256, 2×A6000 topology, seed/batch recipe, single-run caveat — carried in every admission record; the three records regenerated at this runtime with the current schema | +155 −12 |
+
+**Suite after exp20-r2:** 2785 passed, 10 skipped, 1 pre-existing unrelated failure (exp_11 registry drift, owned by exp_15), 2 subtests passed.
+
+### Deliberate deviations, for the re-review
+
+- **The r7 provenance firewall now allows exactly one key.** F6 requires the binding on every row, which adds `cond_method_binding` to the metrics-off schema. The firewall test was tightened rather than relaxed: nothing may be lost, and any addition **other than** that one key still fails.
+- **`batch_size`/`num_workers` are locked in two tiers.** Adding them to the frozen `REGISTRATION_LOCKED_FIELDS` refused exp_18's committed manifests (five tests went red). They are now checked whenever a manifest locks them and required of any manifest naming an `arm` — every exp_20 manifest does.
