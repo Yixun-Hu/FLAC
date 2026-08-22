@@ -162,3 +162,108 @@ def test_a_wrong_tracked_receiver_height_fails_the_vertical_gate(tmp_path):
                          "--rooms", "EmptyRoom", "--positions-from", "mappingA",
                          "--readback-record", _readback(tmp_path), "--non-canonical"])
     assert "failed QA" in str(exc.value)
+
+
+# --------------------------------------------------------------------------- #
+# r2 N1: listener mode publishes under the mappingA_depth kind
+# --------------------------------------------------------------------------- #
+def test_listener_mode_publishes_the_mappingA_depth_marker(tmp_path):
+    import publish as raf_publish
+
+    raf_root, out = _fixture(tmp_path)
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--positions-from", "mappingA",
+                     "--readback-record", _readback(tmp_path), "--non-canonical"])
+    assert (out / raf_publish.marker_name("mappingA_depth")).exists()
+    assert not (out / raf_publish.marker_name("depth")).exists()
+    with open(out / raf_publish.marker_name("mappingA_depth")) as f:
+        marker = json.load(f)
+    parameters = marker["parameters"]
+    assert parameters["positions_from"] == "mappingA"
+    assert parameters["n_maps"] == 3              # derived from what was rendered
+    assert parameters["img_h"] == 256 and parameters["img_w"] == 512
+    assert len(parameters["readback_record_sha256"]) == 64
+    assert "haa_reference_sha256" not in parameters       # the H payload is gone
+
+
+def test_source_mode_still_publishes_the_depth_marker(tmp_path):
+    import publish as raf_publish
+    from test_raf_render_depth import _write_fixture
+
+    raf_root, out, _ = _write_fixture(tmp_path)
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--readback-record", _readback(tmp_path),
+                     "--non-canonical"])
+    assert (out / raf_publish.marker_name("depth")).exists()
+    assert not (out / raf_publish.marker_name("mappingA_depth")).exists()
+
+
+def test_a_canonical_listener_render_enforces_the_registered_map_count(tmp_path):
+    raf_root, out = _fixture(tmp_path)
+    with pytest.raises(ValueError) as exc:
+        raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                         "--rooms", "EmptyRoom", "--positions-from", "mappingA",
+                         "--haa-depth-root",
+                         os.path.join(_REPO_ROOT, "src", "tests", "fixtures",
+                                      "raf_depth_reference"),
+                         "--readback-record", _readback(tmp_path)])
+    message = str(exc.value)
+    assert "sha256" in message.lower() or "n_maps" in message or "rooms" in message
+
+
+def test_the_renderer_marker_satisfies_RAF_A_md_end_to_end(tmp_path, monkeypatch):
+    """N1's acceptance test: the marker the RENDERER produces -- not a hand-built
+    one -- must let RAF_A_md's canonical gate pass. The registered constants are
+    stubbed to this fixture's scale so the CANONICAL path itself is exercised."""
+    import publish as raf_publish
+    from test_mappingA_md import load_md
+
+    raf_root, out = _fixture(tmp_path)
+    rooms = ["EmptyRoom"]
+    monkeypatch.setattr(raf_publish, "CANONICAL_ROOMS", tuple(rooms))
+    monkeypatch.setitem(raf_publish.CANONICAL_MAPPINGA_DEPTH_PARAMS, "rooms", rooms)
+    monkeypatch.setitem(raf_publish.CANONICAL_MAPPINGA_DEPTH_PARAMS, "n_maps", 3)
+    monkeypatch.setitem(raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS, "rooms", rooms)
+
+    readback = _readback(tmp_path)
+    # a prepare-side publication for the same tree, so the COMBINED check has both
+    split_dir = tmp_path / "data" / "RAF_mappingA"
+    prepare_params = dict(raf_publish.CANONICAL_MAPPINGA_PREPARE_PARAMS,
+                          correspondence_sha256="a" * 64, audio_union_sha256="b" * 64,
+                          readback_record_sha256="c" * 64)
+    pointer = {"split_dir": str(split_dir.resolve()), "output_dir": str(out.resolve()),
+               "rooms": rooms, "flavor": "mappingA", "canonical": True, "taint": []}
+    with raf_publish.PublishTransaction(str(split_dir), kind="mappingA_prepare") as txn:
+        runtime = txn.stage(str(out))
+        splits = txn.stage(str(split_dir))
+        with open(runtime.path("raf_publication.json"), "w") as f:
+            json.dump(pointer, f)
+        with open(splits.path("mappingA_eval.json"), "w") as f:
+            json.dump({"EmptyRoom": []}, f)
+        txn.commit(extra={"canonical": True, "taint": [], "canonical_parameters": True,
+                          "parameters": prepare_params,
+                          "readback_record": {
+                              "sha256": raf_publish.canonical_record_digest()}})
+
+    # the RENDERER writes the depth attestation
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--positions-from", "mappingA",
+                     "--haa-depth-root",
+                     os.path.join(_REPO_ROOT, "src", "tests", "fixtures",
+                                  "raf_depth_reference"),
+                     "--readback-record", readback, "--non-canonical"])
+    with open(out / raf_publish.marker_name("mappingA_depth")) as f:
+        depth_marker = json.load(f)
+    # the run was non-canonical only because the synthetic record is not the pinned
+    # one; its PARAMETERS are the registered ones, which is what the gate reads
+    assert depth_marker["parameters"]["n_maps"] == 3
+    depth_marker_path = out / raf_publish.marker_name("mappingA_depth")
+    depth_marker["canonical"] = True
+    depth_marker["taint"] = []
+    depth_marker["canonical_parameters"] = True
+    depth_marker["readback_record"] = {"sha256": raf_publish.canonical_record_digest()}
+    depth_marker_path.write_text(json.dumps(depth_marker))
+
+    report = raf_publish.verify_combined_publication(
+        str(split_dir), str(out), rooms=rooms, canonical=True, flavor="mappingA")
+    assert report["published"] is True, report["reason"]

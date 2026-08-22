@@ -32,6 +32,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:  # raf_common.py is a sibling script, not an installed package
     sys.path.insert(0, _HERE)
 from raf_common import RAF_TO_PIPELINE, equirect_directions  # noqa: E402
+from publish import CANONICAL_MAPPINGA_DEPTH_PARAMS  # noqa: E402
 from publish import CANONICAL_RENDER_PARAMS as _REGISTERED_RENDER  # noqa: E402
 from publish import PublishTransaction  # noqa: E402
 from readback_audit import load_passing_record, record_provenance  # noqa: E402
@@ -348,6 +349,42 @@ def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL, img_h=DEPTH_H,
 # One registered copy, defined in the verifier (r6 finding 3).
 CANONICAL_RENDER_PARAMS = dict(_REGISTERED_RENDER,
                                rooms=tuple(_REGISTERED_RENDER["rooms"]))
+
+
+def mappingA_render_identity(args, n_maps, readback_sha256):
+    """The Mapping-A depth identity (N1).
+
+    Listener mode publishes a DIFFERENT artifact under a different marker kind, so
+    it carries its own registered payload: the map count is DERIVED from what was
+    actually rendered, and the readback digest binds the run to the audit it was
+    authorised by. Emitting the Mapping-H payload here made a canonical listener
+    render report success while never being able to satisfy RAF_A_md.
+    """
+    return {
+        "rooms": list(args.rooms),
+        "positions_from": "mappingA",
+        "img_h": int(args.img_h),
+        "img_w": int(args.img_w),
+        "floor_tol": float(args.floor_tol),
+        "max_miss_rate": float(args.max_miss_rate),
+        "n_maps": int(n_maps),
+        "readback_record_sha256": readback_sha256,
+    }
+
+
+def canonical_mappingA_render_deviations(args, n_maps, readback_sha256):
+    identity = mappingA_render_identity(args, n_maps, readback_sha256)
+    registered = CANONICAL_MAPPINGA_DEPTH_PARAMS
+    deviations = []
+    for key in ("rooms", "positions_from", "img_h", "img_w", "floor_tol",
+                "max_miss_rate", "n_maps"):
+        want = registered[key]
+        actual = identity[key]
+        if isinstance(want, list):
+            actual, want = list(actual), list(want)
+        if actual != want:
+            deviations.append(f"{key} {actual!r} != registered {want!r}")
+    return deviations
 
 
 def render_identity(args, haa_fingerprint=None):
@@ -986,12 +1023,19 @@ def main(argv=None):
             "cannot run without it.")
 
     taint = list(readback_provenance["taint"])
-    render_params = render_identity(args, haa_fingerprint=haa_fingerprint)
-    render_deviations = canonical_render_deviations(args, haa_fingerprint=haa_fingerprint)
-    if canonical:
-        assert_canonical_render(args, haa_fingerprint=haa_fingerprint)
-    elif render_deviations:
-        taint.append("non-registered render parameters: " + "; ".join(render_deviations))
+    # The Mapping-A identity needs the map count, which is only known after the
+    # per-room plans are built, so listener mode defers its identity to the commit.
+    if args.positions_from == "mappingA":
+        render_params, render_deviations = None, []
+    else:
+        render_params = render_identity(args, haa_fingerprint=haa_fingerprint)
+        render_deviations = canonical_render_deviations(
+            args, haa_fingerprint=haa_fingerprint)
+        if canonical:
+            assert_canonical_render(args, haa_fingerprint=haa_fingerprint)
+        elif render_deviations:
+            taint.append("non-registered render parameters: "
+                         + "; ".join(render_deviations))
     taint.extend(resolve_miss_cap(args.max_miss_rate, canonical)[1])
     if (args.img_h, args.img_w) != CANONICAL_SHAPE:
         # canonical mode already refused this in assert_canonical_render
@@ -999,7 +1043,9 @@ def main(argv=None):
 
     # S3: one transaction over every room's depth directory, so two rooms can
     # never be published under different generations.
-    publish_txn = PublishTransaction(args.output_dir, kind="depth")
+    listener_mode = args.positions_from == "mappingA"
+    marker_kind = "mappingA_depth" if listener_mode else "depth"
+    publish_txn = PublishTransaction(args.output_dir, kind=marker_kind)
     expectations, records = {}, {}
     sightline_policy = {room: RX_SIGHTLINE_POLICY for room in args.rooms}
     for room in args.rooms:
@@ -1103,6 +1149,7 @@ def main(argv=None):
             "canonical": canonical,
             "taint": taint,
             "positions_from": args.positions_from,
+            "marker_kind": marker_kind,
             "floor_tol": args.floor_tol,
             "max_miss_rate": args.max_miss_rate,
             "n_maps": len(maps),
@@ -1144,6 +1191,22 @@ def main(argv=None):
         records[room] = record
         logger.info("%s: staged %d depth maps in %.2fs (scene build %.2fs), %d warnings",
                     room, len(maps), render_s, scene_build_s, len(warned))
+
+    if listener_mode:
+        n_maps = sum(len(paths) for paths in expectations.values()) - len(expectations)
+        render_params = mappingA_render_identity(args, n_maps,
+                                                 readback_provenance["sha256"])
+        render_deviations = canonical_mappingA_render_deviations(
+            args, n_maps, readback_provenance["sha256"])
+        if canonical and render_deviations:
+            raise ValueError(
+                "refusing a canonical Mapping-A render with non-registered "
+                "parameters: " + "; ".join(render_deviations)
+                + ". Pass --non-canonical for an experiment (its artifacts are "
+                  "tainted).")
+        if render_deviations:
+            taint.append("non-registered render parameters: "
+                         + "; ".join(render_deviations))
 
     marker = publish_txn.commit(expectations=expectations, validate_json=True,
                                 extra={"canonical": canonical, "taint": taint,
