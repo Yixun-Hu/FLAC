@@ -33,6 +33,14 @@ from prepare_data import (  # noqa: E402
     TARGET_SR,
 )
 from publish import sha256_file  # noqa: E402
+from mappingA_common import (  # noqa: E402
+    MATCH_AMBIGUITY_MARGIN,
+    MATCH_MAX_M,
+    MATCH_P95_M,
+    select_target,
+    source_xyz_key,
+    stable_item_context,
+)
 from raf_common import dbfs  # noqa: E402
 
 
@@ -292,3 +300,165 @@ def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
         "roundtrip_max_abs_error": roundtrip_max,
         "files": files,
     }
+
+
+# --------------------------------------------------------------------------- #
+# Items and the static manifest validator (plan section 3, M5)
+# --------------------------------------------------------------------------- #
+CANONICAL_N_PLACEMENTS = 16
+CANONICAL_K = 8
+CANONICAL_ARRAY_SIZE = 36
+CANONICAL_N_ITEMS = CANONICAL_N_PLACEMENTS * CANONICAL_ARRAY_SIZE * 2  # both rooms
+
+
+class ManifestError(ValueError):
+    """The Mapping-A manifest violates a registered invariant.
+
+    Carries the full ``report`` -- every violation, not the first -- because the
+    manifest is what every arm and seed conditions on, and a partial diagnosis
+    would send the run round again.
+    """
+
+    def __init__(self, message, report):
+        super().__init__(message)
+        self.report = report
+
+
+def build_items(room, placement_id, poses, assignment, match, k=CANONICAL_K, seed=0):
+    """One item per microphone slot for a placement.
+
+    The target POSE is chosen once per placement (hash-uniform, M8) and then held
+    out at every mic slot, so the 36 items of a placement differ only in which
+    microphone is listening -- which is exactly the quantity Mapping A varies. The
+    context is drawn per item, so two slots do not share a conditioning set by
+    construction.
+    """
+    target = select_target(room, placement_id, poses, seed=seed)
+    target_key = str(target["group_key"])
+    items = []
+    for slot in range(CANONICAL_ARRAY_SIZE):
+        drawn = stable_item_context(room, placement_id, slot, target, poses, k=k,
+                                    seed=seed)
+        target_row = assignment[target_key][slot]
+        rx_target = np.asarray(target["rx_xyz_p"], dtype=np.float64)[target_row]
+        context = []
+        for pose in drawn["context"]:
+            key = str(pose["group_key"])
+            row = assignment[key][slot]
+            rx = np.asarray(pose["rx_xyz_p"], dtype=np.float64)[row]
+            context.append({
+                "capture_id": pose["capture_ids"][row],
+                "group_key": key,
+                "xyz_key": source_xyz_key(pose["tx_xyz"]),
+                "tx_p": [float(v) for v in pose["tx_xyz_p"]],
+                "rx_p": [float(v) for v in rx],
+                # every context's own receiver is recorded, and its displacement
+                # from the target's receiver bounds the same-listener claim (M3)
+                "rx_displacement_m": float(np.linalg.norm(rx - rx_target)),
+            })
+        items.append({
+            "item_id": f"{room}/{placement_id}/slot{slot:02d}",
+            "room": room,
+            "placement_id": placement_id,
+            "mic_slot": slot,
+            "target_capture_id": target["capture_ids"][target_row],
+            "target_group_key": target_key,
+            "target_xyz_key": source_xyz_key(target["tx_xyz"]),
+            "tx_p": [float(v) for v in target["tx_xyz_p"]],
+            "rx_target_p": [float(v) for v in rx_target],
+            "rx_target_height_raf_m": float(rx_target[2]),
+            "depth_file": f"{room}_{placement_id}_slot{slot:02d}_depth_image.npy",
+            "context": context,
+            "match": dict(match[target_key]),
+            "context_digest": drawn["digest"],
+            "context_pool_size": drawn["pool_size"],
+        })
+    return items
+
+
+def validate_manifest(manifest, expected_items=CANONICAL_N_ITEMS, k=CANONICAL_K,
+                      max_displacement_m=MATCH_MAX_M):
+    """Static validator over the whole manifest (M5), run before publication.
+
+    Every condition here is a way the row could stop measuring what it claims:
+    a repeated target (the same problem scored twice), a context holding the
+    answer, a context source standing where the target stands (the "unseen source
+    position" claim), or a context recorded at a different microphone (the
+    "same listener" claim). All violations are collected before raising.
+    """
+    items = manifest["items"]
+    violations = []
+
+    def add(kind, item, detail):
+        violations.append({"kind": kind, "item_id": item.get("item_id"),
+                           "detail": detail})
+
+    seen_items, seen_targets = {}, {}
+    for item in items:
+        item_id = item["item_id"]
+        if item_id in seen_items:
+            add("duplicate_item", item, f"item id {item_id} appears twice")
+        seen_items[item_id] = True
+
+        target = item["target_capture_id"]
+        if target in seen_targets:
+            add("duplicate_target", item,
+                f"target capture {target} is also item {seen_targets[target]}")
+        seen_targets[target] = item_id
+
+        context = item["context"]
+        capture_ids = [c["capture_id"] for c in context]
+        if len(context) != k:
+            add("context_size", item, f"{len(context)} context captures, expected {k}")
+        if len(set(capture_ids)) != len(capture_ids):
+            add("context_not_distinct", item,
+                f"context captures are not distinct: {sorted(capture_ids)}")
+        if target in capture_ids:
+            add("target_in_context", item,
+                f"target capture {target} appears in its own context")
+        for entry in context:
+            if entry["xyz_key"] == item["target_xyz_key"]:
+                add("context_source_position", item,
+                    f"context {entry['capture_id']} stands at the target source "
+                    f"position {entry['xyz_key']}")
+            if entry["rx_displacement_m"] > max_displacement_m:
+                add("mic_displacement", item,
+                    f"context {entry['capture_id']} was recorded "
+                    f"{entry['rx_displacement_m']:.4f} m from the target microphone "
+                    f"(> {max_displacement_m} m)")
+
+        match = item.get("match") or {}
+        if match.get("p95_m", 0.0) > MATCH_P95_M:
+            add("failed_match", item,
+                f"correspondence p95 {match['p95_m']:.4f} m > {MATCH_P95_M} m")
+        if match.get("max_m", 0.0) > MATCH_MAX_M:
+            add("failed_match", item,
+                f"correspondence max {match['max_m']:.4f} m > {MATCH_MAX_M} m")
+        if match.get("min_ambiguity_margin", float("inf")) < MATCH_AMBIGUITY_MARGIN:
+            add("ambiguous_match", item,
+                f"correspondence margin {match['min_ambiguity_margin']:.2f} < "
+                f"{MATCH_AMBIGUITY_MARGIN}")
+
+    report = {
+        "n_items": len(items),
+        "expected_items": int(expected_items),
+        "k": int(k),
+        "n_unique_targets": len(seen_targets),
+        "n_unique_item_ids": len(seen_items),
+        "max_displacement_m": float(max_displacement_m),
+        "violations": violations,
+        "passed": not violations and len(items) == expected_items,
+    }
+    if len(items) != expected_items:
+        report["violations"] = violations + [{
+            "kind": "item_count", "item_id": None,
+            "detail": f"{len(items)} items, expected {expected_items}"}]
+        raise ManifestError(
+            f"Mapping-A manifest holds {len(items)} items, expected {expected_items}",
+            report)
+    if violations:
+        kinds = sorted({v["kind"] for v in violations})
+        raise ManifestError(
+            f"Mapping-A manifest violates {len(violations)} registered invariants "
+            f"({kinds}); first: {violations[0]['detail']}", report)
+    return report
