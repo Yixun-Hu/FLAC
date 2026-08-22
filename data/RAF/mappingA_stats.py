@@ -59,6 +59,49 @@ SHARED_IDENTITY_FIELDS = (
 # The registered Monte-Carlo draws (plan section 6): five seeds, exactly these.
 REGISTERED_SEEDS = (42, 43, 44, 45, 46)
 
+# r4 Q3: the arm NAMES this campaign uses are claims about which weights were
+# evaluated, so they are pinned to the checkpoints themselves. The four AR 40k
+# endpoints come from ar_40k_endpoints/MANIFEST.sha256 (archived 2026-08-21,
+# sha-verified against the NAS copy); "finetuned" is exp_19's RAF finetune at
+# step 1000 (rcal_weights_sha256.txt). A run labelled P1 that did not evaluate
+# P1's weights is a mislabelled result, and mislabelled results are how a
+# comparison silently swaps its arms.
+REGISTERED_ARM_CHECKPOINTS = {
+    "P1": "c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c",
+    "BF": "5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328",
+    "YAW": "ac1f26034e4f341fe0c2cb4638e2eb473959d66ddd2fd95d184dc2fd4f264de7",
+    "BV": "ace9f73507070dd331aa0b43a3a00d9a3c69b8059105c11db87d9ddc96187863",
+    "finetuned": "6dfc2b2ebdc7deff4903229afa8722120cfcb4178af367415978028c79f4f055",
+}
+
+
+def registered_label_for(ckpt_sha256):
+    """The registered arm name for a checkpoint, or None if it is not one."""
+    for label, digest in sorted(REGISTERED_ARM_CHECKPOINTS.items()):
+        if digest == ckpt_sha256:
+            return label
+    return None
+
+
+def assert_registered_label(label, ckpt_sha256):
+    """A registered arm NAME must be the weights it names (r4 Q3).
+
+    Unregistered names are free -- an exploratory arm may be called anything --
+    but "P1" is an assertion, and this refuses it when the checkpoint says
+    otherwise. The checkpoint's own registered name is returned either way, so a
+    report can show what was really evaluated.
+    """
+    known = registered_label_for(ckpt_sha256)
+    expected = REGISTERED_ARM_CHECKPOINTS.get(label)
+    if expected is not None and ckpt_sha256 != expected:
+        raise ValueError(
+            f"arm labelled {label!r} evaluated checkpoint {ckpt_sha256}, but the "
+            f"registered {label} checkpoint is {expected}"
+            + (f" (these weights are the registered {known})" if known else
+               " (these weights are not a registered arm checkpoint)")
+            + ". A label is a claim about which weights were run.")
+    return known
+
 
 def load_per_item_sidecar(path):
     """Read one ``<metrics>.per_item.json`` written by eval_FLAC --record-per-item.
@@ -183,6 +226,8 @@ def arm_from_sidecars(paths, metric, label=None, enforce_design=True,
         seeds[seed] = path
 
         this_identity = arm_identity(sidecar["provenance"], path)
+        if label:
+            assert_registered_label(label, this_identity["ckpt_sha256"])
         if identity is None:
             identity, identity_path = this_identity, path
         else:
@@ -221,6 +266,7 @@ def arm_from_sidecars(paths, metric, label=None, enforce_design=True,
             "seeds": sorted(rows_by_seed), "by_seed": rows_by_seed,
             "item_ids": sorted(item_ids),
             "identity": identity, "identity_sha256": identity_digest(identity),
+            "registered_label": registered_label_for(identity["ckpt_sha256"]),
             "registered": bool(registered),
             "paths": {int(seed): path for seed, path in seeds.items()}}
 
@@ -236,6 +282,13 @@ def assert_paired(arm_a, arm_b):
     problems = []
     if arm_a["metric"] != arm_b["metric"]:
         problems.append(f"metrics differ: {arm_a['metric']} vs {arm_b['metric']}")
+    # r4 Q3: two arms under one label collapse into one another wherever a report
+    # keys anything by name.
+    if arm_a["label"] == arm_b["label"]:
+        problems.append(
+            f"both arms are labelled {arm_a['label']!r}: a contrast between two "
+            "arms of the same name cannot be read, and every per-label entry would "
+            "overwrite the other's")
     # P3: the arms must differ in what the experiment varies and agree on
     # everything the comparison holds fixed -- the corpus generation, the config
     # they were read under, and the very stream of items that was evaluated.
@@ -359,8 +412,15 @@ def contrast_report(arm_a, arm_b, n_resamples=10000, alpha=0.05,
     return {
         "metric": arm_a["metric"],
         "arms": [arm_a["label"], arm_b["label"]],
-        "arm_identities": {arm_a["label"]: arm_a.get("identity_sha256"),
-                           arm_b["label"]: arm_b.get("identity_sha256")},
+        # POSITIONAL (r4 Q3): keyed by label, one arm's entry would overwrite the
+        # other's the moment two arms shared a name.
+        "arm_identities": [
+            {"label": arm["label"], "identity_sha256": arm.get("identity_sha256"),
+             "registered_label": arm.get("registered_label"),
+             "ckpt_sha256": (arm.get("identity") or {}).get("ckpt_sha256"),
+             "registered": bool(arm.get("registered")),
+             "seed_variability": arm_macros(arm)["seed_variability"]}
+            for arm in (arm_a, arm_b)],
         "registered": bool(arm_a.get("registered") and arm_b.get("registered")),
         "seeds": list(arm_a["seeds"]),
         "pairing": pairing,
@@ -370,8 +430,6 @@ def contrast_report(arm_a, arm_b, n_resamples=10000, alpha=0.05,
         "difference": macro,
         "interval": interval,
         "randomization": randomization,
-        "seed_variability": {arm_a["label"]: arm_macros(arm_a)["seed_variability"],
-                             arm_b["label"]: arm_macros(arm_b)["seed_variability"]},
         "note": ("paired at the item level, clustered at the placement level, "
                  "equal-room macro; seed variability is reported separately and is "
                  "not part of the interval"),

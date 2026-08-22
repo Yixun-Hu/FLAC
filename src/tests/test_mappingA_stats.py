@@ -283,8 +283,9 @@ def test_the_contrast_report_is_paired_clustered_and_equal_room(tmp_path):
     # 32 placements is past the exact limit, so the p-value is sampled and says so
     assert report["randomization"]["exact"] is False
     assert report["randomization"]["p_value"] < 0.01
-    # seed variability is BESIDE the interval, never inside it
-    assert set(report["seed_variability"]) == {"armA", "armB"}
+    # seed variability is BESIDE the interval, never inside it -- and positional
+    assert [a["label"] for a in report["arm_identities"]] == ["armA", "armB"]
+    assert all("seed_variability" in a for a in report["arm_identities"])
     assert "not part of the interval" in report["note"]
     json.dumps(report)
 
@@ -606,9 +607,9 @@ def test_the_registered_contrast_names_both_arm_identities(tmp_path):
     report = stats.contrast_report(arm_a, arm_b, n_resamples=100)
     assert report["registered"] is True
     assert report["seeds"] == list(stats.REGISTERED_SEEDS)
-    assert set(report["arm_identities"]) == {"armA", "armB"}
-    assert (report["arm_identities"]["armA"]
-            != report["arm_identities"]["armB"])
+    assert [a["label"] for a in report["arm_identities"]] == ["armA", "armB"]
+    assert (report["arm_identities"][0]["identity_sha256"]
+            != report["arm_identities"][1]["identity_sha256"])
     assert abs(report["difference"]["macro"] - 0.25) < 1e-12
     json.dumps(report)
 
@@ -637,3 +638,73 @@ def test_the_producer_and_the_reader_share_the_identity_field_set():
     assert (_eval_flac().PER_ITEM_IDENTITY_FIELDS
             == stats.ARM_IDENTITY_FIELDS)
     assert set(stats.SHARED_IDENTITY_FIELDS) <= set(stats.ARM_IDENTITY_FIELDS)
+
+
+# --------------------------------------------------------------------------- #
+# r4 Q3: labels are claims, and two arms may not share one
+# --------------------------------------------------------------------------- #
+def test_the_registered_checkpoints_are_the_archived_ones():
+    """Pinned from ar_40k_endpoints/MANIFEST.sha256 (P1/BF/YAW/BV, archived
+    2026-08-21) and exp_19's rcal_weights_sha256.txt (the RAF finetune at step
+    1000). Read-only inputs; the values live here so a mislabelled arm is caught
+    without the archive being mounted."""
+    assert set(stats.REGISTERED_ARM_CHECKPOINTS) == {"P1", "BF", "YAW", "BV",
+                                                     "finetuned"}
+    assert all(len(digest) == 64 and set(digest) <= set("0123456789abcdef")
+               for digest in stats.REGISTERED_ARM_CHECKPOINTS.values())
+    assert len(set(stats.REGISTERED_ARM_CHECKPOINTS.values())) == 5
+    assert stats.REGISTERED_ARM_CHECKPOINTS["P1"].startswith("c4c67882")
+    assert stats.REGISTERED_ARM_CHECKPOINTS["BF"].startswith("5319feb4")
+    assert stats.REGISTERED_ARM_CHECKPOINTS["YAW"].startswith("ac1f2603")
+    assert stats.REGISTERED_ARM_CHECKPOINTS["BV"].startswith("ace9f735")
+    assert stats.REGISTERED_ARM_CHECKPOINTS["finetuned"].startswith("6dfc2b2e")
+
+
+def test_a_registered_label_must_be_the_weights_it_names(tmp_path):
+    with pytest.raises(ValueError) as exc:
+        _arm(tmp_path, "P1", 0.0, ckpt="a" * 64)
+    assert "registered P1 checkpoint" in str(exc.value)
+    assert "claim about which weights were run" in str(exc.value)
+
+
+def test_a_registered_label_on_another_registered_arms_weights_is_refused(tmp_path):
+    with pytest.raises(ValueError) as exc:
+        _arm(tmp_path, "P1", 0.0, ckpt=stats.REGISTERED_ARM_CHECKPOINTS["BF"])
+    assert "registered BF" in str(exc.value)
+
+
+def test_a_registered_label_with_its_own_weights_passes(tmp_path):
+    arm = _arm(tmp_path, "BF", 0.0, ckpt=stats.REGISTERED_ARM_CHECKPOINTS["BF"])
+    assert arm["registered_label"] == "BF"
+
+
+def test_an_unregistered_label_is_free_but_the_weights_are_still_named(tmp_path):
+    """An exploratory arm may be called anything; the report still says which
+    registered checkpoint it actually ran."""
+    arm = _arm(tmp_path, "probe", 0.0,
+               ckpt=stats.REGISTERED_ARM_CHECKPOINTS["YAW"])
+    assert arm["registered_label"] == "YAW"
+    assert stats.registered_label_for("f" * 64) is None
+
+
+def test_two_arms_may_not_share_a_label(tmp_path):
+    arm_a = _arm(tmp_path, "armA", 0.0, ckpt="1" * 64)
+    arm_b = _arm(tmp_path, "armA", -0.25, ckpt="2" * 64)
+    with pytest.raises(ValueError) as exc:
+        stats.assert_paired(arm_a, arm_b)
+    assert "both arms are labelled" in str(exc.value)
+
+
+def test_the_report_keeps_each_arms_identity_positionally(tmp_path):
+    arm_a = _arm(tmp_path, "P1", 0.0, ckpt=stats.REGISTERED_ARM_CHECKPOINTS["P1"])
+    arm_b = _arm(tmp_path, "finetuned", -0.25,
+                 ckpt=stats.REGISTERED_ARM_CHECKPOINTS["finetuned"])
+    report = stats.contrast_report(arm_a, arm_b, n_resamples=100)
+    identities = report["arm_identities"]
+    assert [entry["label"] for entry in identities] == ["P1", "finetuned"]
+    assert [entry["registered_label"] for entry in identities] == ["P1", "finetuned"]
+    assert (identities[0]["ckpt_sha256"]
+            == stats.REGISTERED_ARM_CHECKPOINTS["P1"])
+    assert (identities[1]["ckpt_sha256"]
+            == stats.REGISTERED_ARM_CHECKPOINTS["finetuned"])
+    json.dumps(report)
