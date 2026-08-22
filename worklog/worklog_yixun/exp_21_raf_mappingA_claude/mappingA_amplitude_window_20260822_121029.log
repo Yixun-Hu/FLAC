@@ -1,0 +1,71 @@
+[EmptyRoom] surveying /media/diskstation/yixunhu/raf_dataset/archived/EmptyRoom
+WARNING: /media/diskstation/yixunhu/raf_dataset/archived/EmptyRoom: dropping the trailing all-NaN sentinel line 47485 of all_rx_pos.txt ('nan,nan,nan') per contracts Amendment 1; 47484 data lines remain
+[EmptyRoom] 16 placements -> 576 items
+[FurnishedRoom] surveying /media/diskstation/yixunhu/raf_dataset/archived/FurnishedRoom
+WARNING: /media/diskstation/yixunhu/raf_dataset/archived/FurnishedRoom: dropping the trailing all-NaN sentinel line 39133 of all_rx_pos.txt ('nan,nan,nan') per contracts Amendment 1; 39132 data lines remain
+WARNING: non-uniform groups recorded: 2d3514a210ef3296:72
+[FurnishedRoom] 16 placements -> 576 items
+[EmptyRoom] union 5184 captures: 576 targets, 4608 contexts
+[FurnishedRoom] union 5184 captures: 576 targets, 4608 contexts
+[EmptyRoom] measured 500/5184
+[EmptyRoom] measured 1000/5184
+[EmptyRoom] measured 1500/5184
+[EmptyRoom] measured 2000/5184
+[EmptyRoom] measured 2500/5184
+[EmptyRoom] measured 3000/5184
+[EmptyRoom] measured 3500/5184
+[EmptyRoom] measured 4000/5184
+[EmptyRoom] measured 4500/5184
+[EmptyRoom] measured 5000/5184
+[EmptyRoom] measured 5184/5184
+[FurnishedRoom] measured 500/5184
+[FurnishedRoom] measured 1000/5184
+[FurnishedRoom] measured 1500/5184
+[FurnishedRoom] measured 2000/5184
+[FurnishedRoom] measured 2500/5184
+[FurnishedRoom] measured 3000/5184
+[FurnishedRoom] measured 3500/5184
+[FurnishedRoom] measured 4000/5184
+[FurnishedRoom] measured 4500/5184
+[FurnishedRoom] measured 5000/5184
+[FurnishedRoom] measured 5184/5184
+{
+  "union": {
+    "EmptyRoom": {
+      "n_captures": 5184,
+      "n_targets": 576,
+      "n_contexts": 4608,
+      "n_items": 576
+    },
+    "FurnishedRoom": {
+      "n_captures": 5184,
+      "n_targets": 576,
+      "n_contexts": 4608,
+      "n_items": 576
+    }
+  },
+  "windows": {
+    "all_captures": {
+      "population": "every union capture",
+      "n_considered_for_silence": 10368,
+      "min_scalar": 8.741394550019551,
+      "min_scalar_set_by": "FurnishedRoom/000503",
+      "max_scalar": 2.0401495775138554,
+      "max_scalar_set_by": "EmptyRoom/039393",
+      "window_exists": false,
+      "width": -6.701244972505696
+    },
+    "targets_only": {
+      "population": "target captures only",
+      "n_considered_for_silence": 1152,
+      "min_scalar": 0.5451297296154991,
+      "min_scalar_set_by": "EmptyRoom/046883",
+      "max_scalar": 2.0401495775138554,
+      "max_scalar_set_by": "EmptyRoom/039393",
+      "window_exists": true,
+      "width": 1.4950198478983563
+    }
+  }
+}
+sub-threshold at x2: 21  clipping at x3: 6  clipping at x2: 0
+record -> /home/yixunhu/codespace/exp-21-raf-mapping-a/worklog/worklog_yixun/exp_21_raf_mappingA_claude/mappingA_amplitude_window.json

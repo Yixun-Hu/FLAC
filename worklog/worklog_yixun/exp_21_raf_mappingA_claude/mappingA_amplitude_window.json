@@ -1,0 +1,378 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-08-22T16:10:30Z",
+  "finished_utc": "2026-08-22T16:12:05Z",
+  "raf_root": "/media/diskstation/yixunhu/raf_dataset",
+  "params": {
+    "rooms": [
+      "EmptyRoom",
+      "FurnishedRoom"
+    ],
+    "n_placements": 16,
+    "k": 8,
+    "seed": 0,
+    "target_crop_samples": 10240,
+    "context_crop_samples": 9600,
+    "silence_threshold_dbfs": -60.0,
+    "silence_threshold_amplitude": 0.001,
+    "clip_ceiling": 0.999,
+    "match_algorithm_version": "mappingA-correspondence-2"
+  },
+  "union": {
+    "EmptyRoom": {
+      "n_captures": 5184,
+      "n_targets": 576,
+      "n_contexts": 4608,
+      "n_items": 576
+    },
+    "FurnishedRoom": {
+      "n_captures": 5184,
+      "n_targets": 576,
+      "n_contexts": 4608,
+      "n_items": 576
+    }
+  },
+  "sub_threshold_at_x2": {
+    "n": 21,
+    "by_role": {
+      "target": 0,
+      "context": 21,
+      "target+context": 0
+    },
+    "captures": [
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "000477",
+        "role": "context",
+        "peak": 0.00015890771464910358,
+        "crop_peak": 0.00013412600674200803,
+        "context_crop_peak": 0.00013412600674200803,
+        "crop_dbfs_at_x2": -71.42914019121295,
+        "min_scalar_to_clear_gate": 7.45567563137479,
+        "max_scalar_before_clip": 6286.6677190970195
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "000483",
+        "role": "context",
+        "peak": 0.00015423475997522473,
+        "crop_peak": 0.00013450754340738058,
+        "context_crop_peak": 0.00013450754340738058,
+        "crop_dbfs_at_x2": -71.40446726711393,
+        "min_scalar_to_clear_gate": 7.434527273844545,
+        "max_scalar_before_clip": 6477.139136213346
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "000488",
+        "role": "context",
+        "peak": 0.00013841984036844224,
+        "crop_peak": 0.00011914028436876833,
+        "context_crop_peak": 0.00011914028436876833,
+        "crop_dbfs_at_x2": -72.45822743961233,
+        "min_scalar_to_clear_gate": 8.393466620448507,
+        "max_scalar_before_clip": 7217.173472682012
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "000491",
+        "role": "context",
+        "peak": 0.0001475677127018571,
+        "crop_peak": 0.0001278060080949217,
+        "context_crop_peak": 0.0001278060080949217,
+        "crop_dbfs_at_x2": -71.84837468145588,
+        "min_scalar_to_clear_gate": 7.824358298220993,
+        "max_scalar_before_clip": 6769.773561635126
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "000493",
+        "role": "context",
+        "peak": 0.00017428536375518888,
+        "crop_peak": 0.00014426861889660358,
+        "context_crop_peak": 0.00014426861889660358,
+        "crop_dbfs_at_x2": -70.79596260167305,
+        "min_scalar_to_clear_gate": 6.931514335190896,
+        "max_scalar_before_clip": 5731.978741503803
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "000494",
+        "role": "context",
+        "peak": 0.00012971177056897432,
+        "crop_peak": 0.00011469061428215355,
+        "context_crop_peak": 0.00011469061428215355,
+        "crop_dbfs_at_x2": -72.78884251025589,
+        "min_scalar_to_clear_gate": 8.71910928596016,
+        "max_scalar_before_clip": 7701.691185140219
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "000497",
+        "role": "context",
+        "peak": 0.00014608903438784182,
+        "crop_peak": 0.00012240292562637478,
+        "context_crop_peak": 0.00012240292562637478,
+        "crop_dbfs_at_x2": -72.22356412134553,
+        "min_scalar_to_clear_gate": 8.169739365972514,
+        "max_scalar_before_clip": 6838.2955927261655
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "000503",
+        "role": "context",
+        "peak": 0.0001382620830554515,
+        "crop_peak": 0.00011439822264946997,
+        "context_crop_peak": 0.00011439822264946997,
+        "crop_dbfs_at_x2": -72.81101454504947,
+        "min_scalar_to_clear_gate": 8.741394550019551,
+        "max_scalar_before_clip": 7225.408282033044
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "006666",
+        "role": "context",
+        "peak": 0.00015693121531512588,
+        "crop_peak": 0.0001246558385901153,
+        "context_crop_peak": 0.00012412526120897382,
+        "crop_dbfs_at_x2": -72.06514759348877,
+        "min_scalar_to_clear_gate": 8.022087142569637,
+        "max_scalar_before_clip": 6365.846323142003
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "006678",
+        "role": "context",
+        "peak": 0.00015699402138125151,
+        "crop_peak": 0.00012164313375251368,
+        "context_crop_peak": 0.00011647965584415942,
+        "crop_dbfs_at_x2": -72.27764808978529,
+        "min_scalar_to_clear_gate": 8.22076815313331,
+        "max_scalar_before_clip": 6363.299641672229
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "006680",
+        "role": "context",
+        "peak": 0.00015109458763618022,
+        "crop_peak": 0.00012375644291751087,
+        "context_crop_peak": 0.00011361414362909272,
+        "crop_dbfs_at_x2": -72.12804372439668,
+        "min_scalar_to_clear_gate": 8.080387383681867,
+        "max_scalar_before_clip": 6611.752383913885
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "006685",
+        "role": "context",
+        "peak": 0.00019607962167356163,
+        "crop_peak": 0.00015432739746756852,
+        "context_crop_peak": 0.00014443699910771102,
+        "crop_dbfs_at_x2": -70.21053943807507,
+        "min_scalar_to_clear_gate": 6.479730860556677,
+        "max_scalar_before_clip": 5094.869071418144
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "006690",
+        "role": "context",
+        "peak": 0.00017784046940505505,
+        "crop_peak": 0.00014252474647946656,
+        "context_crop_peak": 0.00012972505646757782,
+        "crop_dbfs_at_x2": -70.90159454349225,
+        "min_scalar_to_clear_gate": 7.016325408051642,
+        "max_scalar_before_clip": 5617.394079885418
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "006694",
+        "role": "context",
+        "peak": 0.00016411521937698126,
+        "crop_peak": 0.0001306890626437962,
+        "context_crop_peak": 0.00011899018136318773,
+        "crop_dbfs_at_x2": -71.65461522603609,
+        "min_scalar_to_clear_gate": 7.651749731540904,
+        "max_scalar_before_clip": 6087.186817849261
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "028009",
+        "role": "context",
+        "peak": 0.0001722016604617238,
+        "crop_peak": 0.0001722016604617238,
+        "context_crop_peak": 0.0001722016604617238,
+        "crop_dbfs_at_x2": -69.2586533899092,
+        "min_scalar_to_clear_gate": 5.807144932973951,
+        "max_scalar_before_clip": 5801.337788040976
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "028010",
+        "role": "context",
+        "peak": 0.00017294871213380247,
+        "crop_peak": 0.00017294871213380247,
+        "context_crop_peak": 0.00017294871213380247,
+        "crop_dbfs_at_x2": -69.22105343913059,
+        "min_scalar_to_clear_gate": 5.782060980172815,
+        "max_scalar_before_clip": 5776.278919192642
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "028012",
+        "role": "context",
+        "peak": 0.00016224608407355845,
+        "crop_peak": 0.00016224608407355845,
+        "context_crop_peak": 0.00016224608407355845,
+        "crop_dbfs_at_x2": -69.77591561496325,
+        "min_scalar_to_clear_gate": 6.163476953604774,
+        "max_scalar_before_clip": 6157.3134766511685
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "028019",
+        "role": "context",
+        "peak": 0.00014856945199426264,
+        "crop_peak": 0.00014856945199426264,
+        "context_crop_peak": 0.00014856945199426264,
+        "crop_dbfs_at_x2": -70.54080965787347,
+        "min_scalar_to_clear_gate": 6.730858777338812,
+        "max_scalar_before_clip": 6724.127918561474
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "028022",
+        "role": "context",
+        "peak": 0.00018497656856197864,
+        "crop_peak": 0.00018399860709905624,
+        "context_crop_peak": 0.00018399860709905624,
+        "crop_dbfs_at_x2": -68.68310937995176,
+        "min_scalar_to_clear_gate": 5.4348237509300645,
+        "max_scalar_before_clip": 5400.684031314339
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "028027",
+        "role": "context",
+        "peak": 0.00019101626821793616,
+        "crop_peak": 0.00019101626821793616,
+        "context_crop_peak": 0.00019101626821793616,
+        "crop_dbfs_at_x2": -68.35799296203683,
+        "min_scalar_to_clear_gate": 5.23515619548734,
+        "max_scalar_before_clip": 5229.921039291853
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "028030",
+        "role": "context",
+        "peak": 0.00019972724840044975,
+        "crop_peak": 0.00019972724840044975,
+        "context_crop_peak": 0.00019972724840044975,
+        "crop_dbfs_at_x2": -67.97065370941789,
+        "min_scalar_to_clear_gate": 5.0068281018672876,
+        "max_scalar_before_clip": 5001.82127376542
+      }
+    ]
+  },
+  "clipping_at_x3": {
+    "n": 6,
+    "by_role": {
+      "target": 1,
+      "context": 5,
+      "target+context": 0
+    },
+    "captures": [
+      {
+        "room": "EmptyRoom",
+        "capture_id": "016065",
+        "role": "context",
+        "peak": 0.42049235105514526,
+        "crop_peak": 0.42049235105514526,
+        "context_crop_peak": 0.42049235105514526,
+        "crop_dbfs_at_x2": -1.50423808284109,
+        "min_scalar_to_clear_gate": 0.0023781645432804925,
+        "max_scalar_before_clip": 2.375786378737212
+      },
+      {
+        "room": "EmptyRoom",
+        "capture_id": "039393",
+        "role": "context",
+        "peak": 0.4896699786186218,
+        "crop_peak": 0.4896699786186218,
+        "context_crop_peak": 0.4896699786186218,
+        "crop_dbfs_at_x2": -0.18133051687034007,
+        "min_scalar_to_clear_gate": 0.0020421917692831386,
+        "max_scalar_before_clip": 2.0401495775138554
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "010445",
+        "role": "target",
+        "peak": 0.3436007499694824,
+        "crop_peak": 0.3436007499694824,
+        "context_crop_peak": 0.3436007499694824,
+        "crop_dbfs_at_x2": -3.2583180250233394,
+        "min_scalar_to_clear_gate": 0.0029103545323717044,
+        "max_scalar_before_clip": 2.907444177839333
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "017044",
+        "role": "context",
+        "peak": 0.36540234088897705,
+        "crop_peak": 0.36540234088897705,
+        "context_crop_peak": 0.36540234088897705,
+        "crop_dbfs_at_x2": -2.7239735815126553,
+        "min_scalar_to_clear_gate": 0.0027367093422749514,
+        "max_scalar_before_clip": 2.7339726329326766
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "025468",
+        "role": "context",
+        "peak": 0.4718860983848572,
+        "crop_peak": 0.4718860983848572,
+        "context_crop_peak": 0.4718860983848572,
+        "crop_dbfs_at_x2": -0.5026564196526625,
+        "min_scalar_to_clear_gate": 0.002119155455994018,
+        "max_scalar_before_clip": 2.117036300538024
+      },
+      {
+        "room": "FurnishedRoom",
+        "capture_id": "026797",
+        "role": "context",
+        "peak": 0.37912675738334656,
+        "crop_peak": 0.37912675738334656,
+        "context_crop_peak": 0.37912675738334656,
+        "crop_dbfs_at_x2": -2.403711358156932,
+        "min_scalar_to_clear_gate": 0.0026376402628550686,
+        "max_scalar_before_clip": 2.6350026225922134
+      }
+    ]
+  },
+  "clipping_at_x2": {
+    "n": 0,
+    "captures": []
+  },
+  "windows": {
+    "all_captures": {
+      "population": "every union capture",
+      "n_considered_for_silence": 10368,
+      "min_scalar": 8.741394550019551,
+      "min_scalar_set_by": "FurnishedRoom/000503",
+      "max_scalar": 2.0401495775138554,
+      "max_scalar_set_by": "EmptyRoom/039393",
+      "window_exists": false,
+      "width": -6.701244972505696
+    },
+    "targets_only": {
+      "population": "target captures only",
+      "n_considered_for_silence": 1152,
+      "min_scalar": 0.5451297296154991,
+      "min_scalar_set_by": "EmptyRoom/046883",
+      "max_scalar": 2.0401495775138554,
+      "max_scalar_set_by": "EmptyRoom/039393",
+      "window_exists": true,
+      "width": 1.4950198478983563
+    }
+  }
+}
