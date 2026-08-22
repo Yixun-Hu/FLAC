@@ -1,0 +1,104 @@
+=== bfc_launch guard exercise - 2026-08-22_00-48-45 - 0353954 ===
+launcher: worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/bfc_launch.sh
+arm config sha256 (manual recovery if hard-killed): 52bdf7a772da473da0be838f4bb4c9165f06ce98d69438dbbb853897b60da15b
+--- 0. static syntax ---
+PASS  bash -n worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/bfc_launch.sh
+PASS  bash -n bfc_launch_guardtests.sh
+--- A. environment / knob validation ---
+PASS  rc=2   wrong conda env rejected
+PASS  rc=2   CHECKPOINT_EVERY=0 rejected
+PASS  rc=2   CHECKPOINT_EVERY=abc rejected
+PASS  rc=2   MAXSTEPS=abc rejected
+PASS  rc=2   MAXSTEPS=0 rejected
+PASS  rc=2   MAXSTEPS=40000.5 (non-integer) rejected
+PASS  rc=2   MB=8 ACC=8 rung rejected (BN never sees accumulation)
+PASS  rc=2   MB=64 ACC=1 rung rejected (BN=128, not the paper's 64)
+PASS  rc=2   MIN_FREE_DISK_MB=abc rejected
+PASS  rc=2   MIN_FREE_MB=abc rejected
+--- B. config contract (arm config temporarily swapped; restored after each case) ---
+PASS  rc=2   B1 cond_method reverted to fa_invariant rejected
+  arm config restored OK (sha256 52bdf7a772da473da0be838f4bb4c9165f06ce98d69438dbbb853897b60da15b)
+PASS  rc=2   B2 training cap 64 (not the declared 32) rejected
+  arm config restored OK (sha256 52bdf7a772da473da0be838f4bb4c9165f06ce98d69438dbbb853897b60da15b)
+PASS  rc=2   B3 non-declared drift from B-F rejected
+  arm config restored OK (sha256 52bdf7a772da473da0be838f4bb4c9165f06ce98d69438dbbb853897b60da15b)
+PASS  rc=2   B4 ViT gradient_checkpointing dropped on one ViT rejected
+  arm config restored OK (sha256 52bdf7a772da473da0be838f4bb4c9165f06ce98d69438dbbb853897b60da15b)
+PASS  rc=2   B5 yaw_aug beside a frame-averaged method rejected
+  arm config restored OK (sha256 52bdf7a772da473da0be838f4bb4c9165f06ce98d69438dbbb853897b60da15b)
+PASS  rc=2   B6 non-C4 frame_avg_angles rejected
+  arm config restored OK (sha256 52bdf7a772da473da0be838f4bb4c9165f06ce98d69438dbbb853897b60da15b)
+--- C. df floor on the outputs volume (bypass for guard-testing: MIN_FREE_DISK_MB=1) ---
+PASS  rc=2   C1 df floor rejects an impossible free-space requirement
+PASS  rc=2   C2 df bypass reaches the per-GPU VRAM gate
+--- D. per-GPU free-VRAM floor (a co-tenancy FLOOR, not exclusivity) ---
+PASS  rc=2   D1 an unsatisfiable VRAM floor refuses to launch
+--- E. the FULL dry run: every gate, no training (LOGGER=none) ---
+PASS  E1 full dry run exits 0 (rc=0)
+PASS  E2 dry run reports: env gate: python
+PASS  E2 dry run reports: config contract OK: BFC == BF + cond_method 'fa_cartesian' + training cap 32
+PASS  E2 dry run reports: chunk plan: cap 32 / micro-batch 32 / C4 -> angles_per_chunk 1
+PASS  E2 dry run reports: ViT gradient_checkpointing: True on both ViT conditioners
+PASS  E2 dry run reports: MiB free on the volume
+PASS  E2 dry run reports: co-tenancy disclosure
+PASS  E2 dry run reports: ViT pin OK
+PASS  E2 dry run reports: wiring: BFC cond_method='fa_cartesian'
+PASS  E2 dry run reports: architecture: identical param names
+PASS  E2 dry run reports: init identity: state_dict sha256 match under seed 42
+PASS  E2 dry run reports: pip-freeze sha256:
+PASS  E2 dry run reports: LAUNCH-CMD:
+PASS  E2 dry run reports: DRY RUN: every gate above ran
+PASS  E3 train.py was NOT executed
+PASS  E4 LOGGER=none skips the wandb gate
+--- F. the assembled command, flag by flag (the LAUNCH-CMD line) ---
+PASS  F0 a LAUNCH-CMD line was printed
+  LAUNCH-CMD: env HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=0,1 python train.py --model-config worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/FLAC_AR_BFC.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 40000 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --logger none --checkpoint-every 2500 --name FLAC_exp21_BFC --experiment-name exp21_BFC --save-dir outputs_FLAC/exp21_BFC
+PASS  F1 command carries: python train.py
+PASS  F1 command carries: HF_HUB_OFFLINE=1
+PASS  F1 command carries: CUDA_VISIBLE_DEVICES=0,1
+PASS  F1 command carries: --model-config worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/FLAC_AR_BFC.json
+PASS  F1 command carries: --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json
+PASS  F1 command carries: --pretransform-ckpt-path weights/FLAC/VAE.safetensors
+PASS  F1 command carries: --max-steps 40000
+PASS  F1 command carries: --batch-size 32
+PASS  F1 command carries: --accum-batches 1
+PASS  F1 command carries: --num-workers 6
+PASS  F1 command carries: --seed 42
+PASS  F1 command carries: --num-gpus 2
+PASS  F1 command carries: --strategy ddp_find_unused_parameters_true
+PASS  F1 command carries: --sync-batchnorm true
+PASS  F1 command carries: --precision bf16-mixed
+PASS  F1 command carries: --checkpoint-every 2500
+PASS  F1 command carries: --name FLAC_exp21_BFC
+PASS  F1 command carries: --experiment-name exp21_BFC
+PASS  F1 command carries: --save-dir outputs_FLAC/exp21_BFC
+PASS  F2 command does NOT carry: --val-dataset-config
+PASS  F2 command does NOT carry:  --ckpt-path 
+PASS  F2 command does NOT carry: --pretrained-ckpt-path
+PASS  F2 command does NOT carry: --recover
+PASS  F3 no eval dataset config anywhere in the run
+--- G. the wandb identity gate runs under the registered logger ---
+PASS  G1 full dry run under LOGGER=wandb exits 0 (rc=0)
+PASS  G2 the wandb identity gate ran and matched
+PASS  G3 the assembled command carries --logger wandb
+--- H. the exercise created nothing under outputs_FLAC/ ---
+PASS  H1 outputs_FLAC/exp21_BFC was not created by any gate
+--- arm-config integrity re-check ---
+PASS  arm config restored (52bdf7a772da473da0be838f4bb4c9165f06ce98d69438dbbb853897b60da15b)
+
+=== guard exercise: 67 passed, 0 failed ===
+  arm config restored OK (sha256 52bdf7a772da473da0be838f4bb4c9165f06ce98d69438dbbb853897b60da15b)
+--- removing launcher logs created by this exercise ---
+  rm bf_fa_cartesian_2026-08-22_00-49-27_train.log
+  rm bf_fa_cartesian_2026-08-22_00-49-32_train.log
+  rm bf_fa_cartesian_2026-08-22_00-49-38_train.log
+  rm bf_fa_cartesian_2026-08-22_00-49-44_train.log
+  rm bf_fa_cartesian_2026-08-22_00-49-49_train.log
+  rm bf_fa_cartesian_2026-08-22_00-49-55_train.log
+  rm bf_fa_cartesian_2026-08-22_00-50-00_train.log
+  rm bf_fa_cartesian_2026-08-22_00-50-05_train.log
+  rm bf_fa_cartesian_2026-08-22_00-50-11_train.log
+  rm bf_fa_cartesian_2026-08-22_00-50-16_train.log
+  rm bf_fa_cartesian_2026-08-22_00-50-22_train.log
+  rm bf_fa_cartesian_2026-08-22_00-50-27_dryrun.log
+  rm bf_fa_cartesian_2026-08-22_00-50-47_dryrun.log
