@@ -130,8 +130,27 @@ def safe_load_checkpoint(path):
                          f"{error}") from error
 
 
+def _sha256_fd(fd, chunk_bytes=CHUNK_BYTES):
+    """Hash the inode behind an ALREADY OPEN descriptor, from offset 0.
+
+    Hashing by path and loading by path are two lookups: between them the name
+    can be re-pointed at another inode and then restored, and the record would
+    bind a checkpoint that was never inspected while every later identity check
+    still passes. Hashing through the held descriptor pins the object measured
+    (exp_15's semantics, ported exactly -- r1 review F5).
+    """
+    digest = hashlib.sha256()
+    offset = 0
+    while True:
+        chunk = os.pread(fd, chunk_bytes, offset)
+        if not chunk:
+            return digest.hexdigest()
+        digest.update(chunk)
+        offset += len(chunk)
+
+
 def _identity(stat):
-    return {"dev": stat.st_dev, "inode": stat.st_ino, "bytes": stat.st_size,
+    return {"device": stat.st_dev, "inode": stat.st_ino, "bytes": stat.st_size,
             "mtime_ns": stat.st_mtime_ns}
 
 
@@ -145,7 +164,7 @@ def snapshot_checkpoint(path):
     fd = os.open(path, os.O_RDONLY)
     try:
         before = os.fstat(fd)
-        digest = sha256_file(path)
+        digest = _sha256_fd(fd)
         checkpoint = safe_load_checkpoint(path)
         after_fd, after_path = os.fstat(fd), os.stat(path)
         if _identity(after_fd) != _identity(before):

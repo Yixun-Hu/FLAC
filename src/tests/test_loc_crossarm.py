@@ -200,6 +200,99 @@ def test_admission_record_is_json_serialisable_and_names_its_inputs(arm_files):
     assert record["created_utc"].endswith("+00:00")
 
 
+def _exp15_kit():
+    import importlib.util
+    import pathlib
+
+    kit = (pathlib.Path(__file__).resolve().parents[2] / "worklog" / "worklog_yixun" /
+           "exp_15_yaw_aug_claude" / "yaw_aug_record_control.py")
+    if not kit.is_file():
+        pytest.skip("exp_15 kit not present")
+    spec = importlib.util.spec_from_file_location("yaw_aug_record_control", kit)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_hashing_reads_the_held_inode_not_whatever_the_name_now_points_at(tmp_path):
+    """r1 review F5: hashing by PATH and holding a descriptor are two different
+    lookups. If the name is re-pointed after the open, path-hashing measures the
+    new file while the load (and every later identity check) sees the old one."""
+    real = _write_ckpt(tmp_path / "real.ckpt")
+    decoy = _write_ckpt(tmp_path / "decoy.ckpt", step=1)
+    real_sha, decoy_sha = ca.sha256_file(real), ca.sha256_file(decoy)
+    assert real_sha != decoy_sha
+
+    fd = os.open(real, os.O_RDONLY)
+    try:
+        os.replace(decoy, real)              # the NAME moves; the descriptor does not
+        assert ca._sha256_fd(fd) == real_sha, "the held inode was not what was hashed"
+        assert ca.sha256_file(real) == decoy_sha, "path hashing would have measured the decoy"
+    finally:
+        os.close(fd)
+
+
+def test_snapshot_hashes_through_the_descriptor(tmp_path, monkeypatch):
+    """The snapshot must not fall back to path hashing."""
+    path = _write_ckpt(tmp_path / "held.ckpt")
+    expected = ca.sha256_file(path)
+
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("snapshot_checkpoint hashed by path")
+
+    monkeypatch.setattr(ca, "sha256_file", refuse)
+    _checkpoint, digest, identity = ca.snapshot_checkpoint(path)
+    assert digest == expected and identity["inode"] > 0
+
+
+@pytest.mark.parametrize("kwargs,fragment", [
+    ({"partial_ema": True}, "mirror"),
+    ({"wrong_shape": True}, "shape"),
+    ({"wrong_dtype": True}, "dtype"),
+])
+def test_both_implementations_refuse_the_same_ema_pathologies(kwargs, fragment):
+    """The port must share exp_15's REFUSALS, not only its happy path."""
+    reference = _exp15_kit()
+    state = _state_dict(**kwargs)
+    with pytest.raises(ValueError) as ours:
+        ca.summarize_ema(state)
+    with pytest.raises(ValueError) as theirs:
+        reference.summarize_ema(state)
+    assert fragment in str(ours.value) and fragment in str(theirs.value)
+
+
+def test_both_implementations_refuse_an_extra_ema_key():
+    reference = _exp15_kit()
+    state = _state_dict()
+    state["diffusion_ema.ema_model.stray.weight"] = torch.zeros(2, 3)
+    with pytest.raises(ValueError, match="mirror"):
+        ca.summarize_ema(state)
+    with pytest.raises(ValueError, match="mirror"):
+        reference.summarize_ema(state)
+
+
+def test_both_implementations_refuse_a_missing_family():
+    reference = _exp15_kit()
+    online_only = {k: v for k, v in _state_dict().items()
+                   if not k.startswith(ca.EMA_WEIGHT_PREFIX)}
+    for module in (ca, reference):
+        with pytest.raises(ValueError, match="EMA"):
+            module.summarize_ema(online_only)
+    ema_only = {k: v for k, v in _state_dict().items()
+                if not k.startswith(ca.ONLINE_MODEL_PREFIX)}
+    for module in (ca, reference):
+        with pytest.raises(ValueError, match="online"):
+            module.summarize_ema(ema_only)
+
+
+def test_both_implementations_snapshot_the_same_facts(tmp_path):
+    reference = _exp15_kit()
+    path = _write_ckpt(tmp_path / "snap.ckpt")
+    _ours, our_sha, our_identity = ca.snapshot_checkpoint(path)
+    _theirs, their_sha, their_identity = reference.snapshot_checkpoint(path)
+    assert our_sha == their_sha and our_identity == their_identity
+
+
 def test_admission_primitives_agree_with_the_exp15_kit(arm_files):
     """The ported semantics must BE the exp_15 semantics, not merely resemble
     them: both implementations are run over the same fixture."""
