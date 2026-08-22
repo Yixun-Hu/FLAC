@@ -85,9 +85,10 @@ def print_curve(style):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--table", choices=["two","three","four","five","curve"], default="four")
+    ap.add_argument("--table", choices=["two","three","four","five","seven","curve"], default="four")
     ap.add_argument("--style", choices=["paper","pooled"], default="paper")
     a = ap.parse_args()
-    arms = {"two":("P1","YAW"), "three":("P1","BF","YAW"), "four":("P1","YNA","YAW","BF"), "five":("P1","YNA","BNA","YAW","BF")}.get(a.table)
+    arms = {"two":("P1","YAW"), "three":("P1","BF","YAW"), "four":("P1","YNA","YAW","BF"), "five":("P1","YNA","BNA","YAW","BF"),
+            "seven":("P1","YNA","BNA","YAW","BF","CYL","CYLSSL")}.get(a.table)
     if a.table == "curve": print_curve(a.style)
     else: print_endpoint(arms, a.style)
