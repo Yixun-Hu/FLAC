@@ -5,6 +5,7 @@ import copy
 import hashlib
 import json
 import math
+import re
 import subprocess
 from typing import List, NamedTuple, Optional
 from tqdm import tqdm
@@ -335,6 +336,144 @@ def resolve_are_from_checkpoint(embedded_model_config, file_model_config,
         # declares neither key; resolve_are_lambda has already raised for that.
         return None, None, None
     return lam, source, dict(embedded_training[ARE_ANCHOR_KEY])
+
+
+# --- exp_21 (BFC): the TRAINED-AS binding (full review, BLOCKING 1) -----------
+# The arm's training contract, as declared in FLAC_AR_BFC.json. These are not a
+# second opinion about the config -- a test reads the file and pins them equal.
+FA_CARTESIAN_TRAINED_COND_METHOD = "fa_cartesian"
+FA_CARTESIAN_TRAINED_ANGLES = (0.0, 90.0, 180.0, 270.0)
+FA_CARTESIAN_TRAINED_FWD_CAP = 32          # TRAINING cap (D5); eval runs at 64
+
+CKPT_SHA_RE = re.compile(r"^[0-9a-f]{64}$")
+_SHA_READ_CHUNK = 1 << 20
+
+
+def file_sha256(path, chunk=_SHA_READ_CHUNK):
+    """Streamed sha256 of a file: which BYTES were loaded, not which path was named.
+
+    Streamed because a FLAC checkpoint is ~700 MB and an evaluation should not
+    need a second copy of it in memory to state its identity.
+    """
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(chunk), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def validate_ckpt_sha256(value, who="ckpt_sha256"):
+    """A digest is evidence; a malformed one would be published as proven identity."""
+    if not (isinstance(value, str) and CKPT_SHA_RE.match(value)):
+        raise ValueError(
+            f"{who} must be a lowercase 64-hex sha256 digest, got {value!r}: a gate "
+            "that only checks presence would publish this as a proven checkpoint "
+            "identity.")
+    return value
+
+
+def embedded_trained_cond_method(embedded_model_config):
+    """The ``cond_method`` a checkpoint was TRAINED with, or ``None`` if unknowable.
+
+    ``None`` means the checkpoint carries no embedded ``model_config`` at all
+    (pre-``ModelConfigEmbedderCallback`` artifacts, or a hand-assembled file), and
+    is deliberately distinguishable from ``'vanilla'`` -- which is what an embedded
+    config with NO ``cond_method`` key means, because that is the factory's
+    default and therefore what those weights actually trained under. The exp_07 P1
+    checkpoint's embedded config is exactly that shape.
+    """
+    if not isinstance(embedded_model_config, dict):
+        return None
+    training = embedded_model_config.get("training")
+    if not isinstance(training, dict):
+        return None
+    return str(training.get("cond_method", "vanilla"))
+
+
+def bind_fa_cartesian_checkpoint(embedded_model_config):
+    """Bind an ``fa_cartesian`` evaluation to the ARTIFACT. Returns the trained method.
+
+    Full review, BLOCKING 1. ``--cond-method`` selects a conditioning function at
+    evaluation time and nothing tied it to how the weights were trained. A Vanilla
+    or B-F checkpoint has the IDENTICAL architecture, so it loads cleanly, runs
+    through the C4 Cartesian orbit, and writes a record whose ``cond_method`` says
+    ``fa_cartesian``; the admission gate then verifies that claim rather than the
+    artifact. Announcement 05 exists for this exact failure -- the same B-F
+    checkpoint reads 8.202 on T60 under fa eval and 10.652 under vanilla eval, and
+    neither is recoverable after the fact.
+
+    ``train.py`` embeds the model config in every checkpoint it writes
+    (``ModelConfigEmbedderCallback``), so the artifact can simply be asked. It is
+    asked here, from ``evaluate_model``, BEFORE any model or GPU work.
+
+    TYPE-STRICT, on the three fields that define the arm (``1`` is not ``1.0``,
+    the distinction the factory itself enforces):
+
+    * ``training.cond_method == 'fa_cartesian'``
+    * ``training.frame_avg_angles == [0.0, 90.0, 180.0, 270.0]`` -- in order, as
+      floats. The orbit is an ordered accumulation, and a C8-trained checkpoint is
+      a different arm, not a rounding difference.
+    * ``training.frame_avg_max_fwd_samples == 32`` -- the arm's TRAINING chunk
+      plan (D5: one angle per chunk, reproducing B-F's per-angle RoPE draw
+      schedule). ABSENT is refused rather than defaulted: B-F's own 40k checkpoint
+      has no such key, so "absent" is a real, different, historical shape.
+
+    Scoped to ``fa_cartesian`` on purpose (round-5 brief): Vanilla and
+    fa_invariant runs are byte-unchanged, so every committed row's production path
+    is untouched. What those methods DO gain is the receipt --- see
+    :func:`embedded_trained_cond_method` --- which is recorded, never enforced.
+    """
+    who = "--cond-method fa_cartesian"
+    if not isinstance(embedded_model_config, dict) or not embedded_model_config:
+        raise ValueError(
+            f"{who} requires the checkpoint's embedded 'model_config', and this "
+            f"checkpoint carries {type(embedded_model_config).__name__}. Without it "
+            "there is no proof these weights were TRAINED with the C4 Cartesian frame "
+            "average: a Vanilla or B-F checkpoint of the same architecture loads "
+            "cleanly and would produce a record claiming cond_method 'fa_cartesian' "
+            "(announcement 05). Evaluate a checkpoint written by train.py.")
+    training = embedded_model_config.get("training")
+    if not isinstance(training, dict):
+        raise ValueError(
+            f"{who}: the checkpoint's embedded model_config has no 'training' block "
+            f"(found {training!r}), so the arm it was trained as cannot be proven.")
+
+    trained = training.get("cond_method", "vanilla")
+    if trained != FA_CARTESIAN_TRAINED_COND_METHOD:
+        raise ValueError(
+            f"{who}: the checkpoint's embedded training.cond_method is {trained!r}, "
+            f"required {FA_CARTESIAN_TRAINED_COND_METHOD!r}. These weights were "
+            "trained under a DIFFERENT conditioning; evaluating them through the C4 "
+            "Cartesian orbit would produce plausible-looking, catastrophically wrong "
+            "numbers in both directions (announcement 05)."
+            + (" (no 'cond_method' key: the factory's default is 'vanilla', so that "
+               "is what these weights trained under)"
+               if "cond_method" not in training else ""))
+
+    angles = training.get("frame_avg_angles", None)
+    want = list(FA_CARTESIAN_TRAINED_ANGLES)
+    if (not isinstance(angles, list) or len(angles) != len(want)
+            or any(type(a) is not float or a != w for a, w in zip(angles, want))):
+        raise ValueError(
+            f"{who}: the checkpoint's embedded training.frame_avg_angles is "
+            f"{angles!r} (types "
+            f"{[type(a).__name__ for a in angles] if isinstance(angles, list) else type(angles).__name__}"
+            f"), required exactly {want} as floats, in this order. A different orbit "
+            "-- or the same angles in another order, which is a different ordered "
+            "accumulation -- is a different arm.")
+
+    cap = training.get("frame_avg_max_fwd_samples", None)
+    if type(cap) is not int or isinstance(cap, bool) or cap != FA_CARTESIAN_TRAINED_FWD_CAP:
+        raise ValueError(
+            f"{who}: the checkpoint's embedded training.frame_avg_max_fwd_samples is "
+            f"{cap!r} ({type(cap).__name__}), required the int "
+            f"{FA_CARTESIAN_TRAINED_FWD_CAP}. That cap IS the arm's training chunk "
+            "plan (one angle per chunk, hence one RoPE rescale draw per angle -- "
+            "announcement 06); a checkpoint trained under another cap saw a "
+            "different augmentation schedule. An ABSENT key is refused rather than "
+            "defaulted: B-F's own 40k checkpoint has none, so absent is a real and "
+            "different historical shape.")
+    return trained
 
 
 def are_suffix(are_lambda=None):
@@ -945,7 +1084,8 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
                          rotate_mode='fixed', rotate_seed=None, input_hash=None,
                          assignment_hash=None, stream_count=None, img_w=None,
                          by_scene=None, frame_avg_max_fwd_samples=None,
-                         are_lambda=None, are_lambda_source=None, are_anchor=None):
+                         are_lambda=None, are_lambda_source=None, are_anchor=None,
+                         ckpt_sha256=None, trained_cond_method=None):
     """Assemble the dict written to the metrics JSON.
 
     Extends the legacy ``{metrics, ckpt_path, rotate_deg}`` record with
@@ -965,13 +1105,35 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
     ``frame_avg_max_fwd_samples`` is the cap this evaluation applied; ``None``
     records the module default, i.e. the value every row already in the record
     was produced under (exp_14 pins it to 64 explicitly on both arms).
+
+    ROUND-5 SCHEMA GROWTH (full review, BLOCKING 1 + 2). Two identity fields are
+    written NEXT TO the thing they prove, for every ``cond_method``:
+
+    * ``ckpt_sha256`` beside ``ckpt_path`` -- the path names which file was asked
+      for, the digest names which bytes were loaded.
+    * ``trained_cond_method`` beside ``cond_method`` -- what the CHECKPOINT was
+      trained as, read from its embedded ``model_config``, versus what this
+      evaluation ran. Equality is the announcement-05 property; recording both is
+      what lets a gate check it after the fact instead of trusting the claim.
+
+    Both are written only when the CALLER supplies them, which keeps the promise
+    ``exp14_fixed_mode_golden.json`` freezes: a caller that supplies neither gets
+    the byte-identical legacy record, so no historical row is re-keyed.
+    ``evaluate_model`` always supplies the digest, and supplies the receipt for
+    every checkpoint that embeds a config -- so every REAL run carries them, and
+    the exp_21 admission gate REQUIRES them.
     """
     execution, cap = orbit_provenance(cond_method, frame_avg_max_fwd_samples)
+    if ckpt_sha256 is not None:
+        validate_ckpt_sha256(ckpt_sha256)
     record = {
         "metrics": metrics_dict,
         "ckpt_path": ckpt_path,
+        **({} if ckpt_sha256 is None else {"ckpt_sha256": ckpt_sha256}),
         "rotate_deg": rotate_deg,
         "cond_method": cond_method,
+        **({} if trained_cond_method is None
+           else {"trained_cond_method": trained_cond_method}),
         "frame_avg_angles": frame_avg_angles,
         "cond_autocast": cond_autocast,
         "orbit_execution": execution,
@@ -1018,7 +1180,8 @@ def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
                            frame_avg_angles, rotate_deg, batch_size, cond_autocast,
                            rotate_mode='fixed', rotate_seed=None, input_hash=None,
                            assignment_hash=None, stream_count=None, img_w=None,
-                           frame_avg_max_fwd_samples=None):
+                           frame_avg_max_fwd_samples=None, ckpt_sha256=None,
+                           trained_cond_method=None):
     """Sidecar meta saved by ``--store_predictions`` (read by the exp_02 comparator
     guard). Carries the same orbit-execution provenance as the metrics record:
     at the default evaluation batch the batched path degenerates to one angle per
@@ -1029,13 +1192,23 @@ def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
     rotation assignment that produced it, so the random-mode provenance is added
     here on exactly the same conditional terms as in the metrics record (review
     B5): nothing changes unless ``--store_predictions`` AND random mode are both
-    in play."""
+    in play.
+
+    Round 5 adds the same two identity fields as the metrics record, on the same
+    supply-them-or-nothing-changes terms (see :func:`build_metrics_record`): a
+    stored prediction set must name the BYTES it came from and the arm those
+    bytes were trained as, or it cannot be re-used as evidence either."""
     execution, cap = orbit_provenance(cond_method, frame_avg_max_fwd_samples)
+    if ckpt_sha256 is not None:
+        validate_ckpt_sha256(ckpt_sha256)
     meta = {
         "dataset_config": dataset_config_path,
         "seed": seed,
         "n_samples": n_samples,
+        **({} if ckpt_sha256 is None else {"ckpt_sha256": ckpt_sha256}),
         "cond_method": cond_method,
+        **({} if trained_cond_method is None
+           else {"trained_cond_method": trained_cond_method}),
         "frame_avg_angles": frame_avg_angles,
         "rotate_deg": rotate_deg,
         "batch_size": batch_size,
@@ -1219,6 +1392,31 @@ def evaluate_model(
     # refused for free.
     are_lambda, are_lambda_source, are_anchor_cfg = resolve_are_from_checkpoint(
         ckpt.get('model_config'), file_model_config, are_lambda)
+
+    # exp_21 (BFC), full review BLOCKING 1: bind the CONDITIONING to the artifact,
+    # here, for the same reason and at the same place as ARE's anchor -- this is
+    # the last point at which a wrong-arm evaluation can be refused for free.
+    # Recorded for every method (the receipt), enforced for fa_cartesian (the
+    # binding), so the two legacy methods' runs are byte-unchanged.
+    trained_cond_method = embedded_trained_cond_method(ckpt.get('model_config'))
+    if cond_method == 'fa_cartesian':
+        trained_cond_method = bind_fa_cartesian_checkpoint(ckpt.get('model_config'))
+        print(f"Trained-as binding OK: the checkpoint's embedded model_config declares "
+              f"cond_method {trained_cond_method!r}, angles "
+              f"{list(FA_CARTESIAN_TRAINED_ANGLES)}, training cap "
+              f"{FA_CARTESIAN_TRAINED_FWD_CAP}")
+    elif trained_cond_method is not None and trained_cond_method != cond_method:
+        # NOT an error: the 2x2 off-diagonal cells (a B-F checkpoint under vanilla
+        # eval, exp_10) are a deliberate, published measurement. It is recorded and
+        # announced so it can never be an accident nobody saw.
+        print(f"NOTE: evaluating with --cond-method {cond_method!r} a checkpoint "
+              f"TRAINED as {trained_cond_method!r} (off-diagonal cell); both are "
+              "recorded in the metrics row.")
+
+    # exp_21, full review BLOCKING 2: which BYTES were loaded, computed once from
+    # the same file torch.load just read.
+    ckpt_sha256 = file_sha256(ckpt_path)
+    print(f"Checkpoint sha256: {ckpt_sha256}")
 
     # Build model; assert the checkpoint actually loaded (full-review condition C2).
     model = create_model_from_config(model_config)
@@ -1440,7 +1638,8 @@ def evaluate_model(
         device=str(device), by_scene=by_scene,
         frame_avg_max_fwd_samples=frame_avg_max_fwd_samples,
         are_lambda=are_lambda, are_lambda_source=are_lambda_source,
-        are_anchor=are_anchor_cfg, **rotation_provenance,
+        are_anchor=are_anchor_cfg, ckpt_sha256=ckpt_sha256,
+        trained_cond_method=trained_cond_method, **rotation_provenance,
     )
     path2save = output_paths['metrics']
     with open(path2save, 'w') as f:
@@ -1464,7 +1663,9 @@ def evaluate_model(
             "meta": build_predictions_meta(
                 dataset_config_path, seed, int(decoded_samples_all.shape[0]),
                 cond_method, frame_angles_record, rotate_deg, batch_size, cond_autocast,
-                frame_avg_max_fwd_samples=frame_avg_max_fwd_samples, **rotation_provenance,
+                frame_avg_max_fwd_samples=frame_avg_max_fwd_samples,
+                ckpt_sha256=ckpt_sha256, trained_cond_method=trained_cond_method,
+                **rotation_provenance,
             ),
         }
         torch.save(preds_bundle, path2save_preds)

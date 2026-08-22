@@ -206,10 +206,56 @@ _GOLDEN_FA_INVARIANT_META = {
 }
 
 
+# ROUND-5 SCHEMA DISCLOSURE (full review BLOCKING 1 + 2). The golden above is the
+# record a caller gets when it supplies NEITHER identity field, and it is still
+# byte-identical to the pre-round-5 artifact — that is what keeps
+# `exp14_fixed_mode_golden.json` and every committed row valid.
+#
+# What a REAL run now writes is the golden below. It differs from the golden above
+# by exactly TWO inserted keys and NOTHING else — not a value, not an order:
+#
+#   + "ckpt_sha256"        after "ckpt_path"   — every run (evaluate_model always
+#                                                computes it)
+#   + "trained_cond_method" after "cond_method" — every run whose checkpoint
+#                                                embeds a model_config
+#
+# The round-5 brief sanctioned ONE new field (the digest). The receipt is the
+# second, deliberately: the D6 comparator rows (B-F fa_invariant, P1 vanilla) are
+# admitted by the same machinery as BFC, and finding 4 requires each arm bound to
+# its own embedded training config. A receipt only BFC carries would leave the
+# comparators proving nothing — the same hole, one arm over. The abort remains
+# fa_cartesian-scoped, so no legacy RUN behaves differently.
+
+
+def test_the_round5_identity_fields_are_the_only_change_to_the_golden():
+    """The disclosure above, asserted rather than asserted-in-prose."""
+    rec = eval_FLAC.build_metrics_record(
+        {"T60": 1.0}, CKPT, rotate_deg=0.0, cond_method="fa_invariant",
+        frame_avg_angles=list(ANGLES), cond_autocast="bf16", batch_size=64,
+        n_samples=6337, dataset_config="ds.json", seed=42, cfg_scale=1.0,
+        steps=1, eval_name="e", weights_source="ema", device="cpu",
+        frame_avg_max_fwd_samples=64,
+        ckpt_sha256="b" * 64, trained_cond_method="fa_invariant",
+    )
+    rec["source_sha"] = "<sha>"
+    assert set(rec) - set(_GOLDEN_FA_INVARIANT_RECORD) == {"ckpt_sha256",
+                                                           "trained_cond_method"}
+    assert not set(_GOLDEN_FA_INVARIANT_RECORD) - set(rec)     # nothing dropped
+    stripped = {k: v for k, v in rec.items()
+                if k not in ("ckpt_sha256", "trained_cond_method")}
+    assert stripped == _GOLDEN_FA_INVARIANT_RECORD             # no value moved
+    assert list(stripped) == list(_GOLDEN_FA_INVARIANT_RECORD)  # no key reordered
+    assert rec["ckpt_sha256"] == "b" * 64
+    assert rec["trained_cond_method"] == "fa_invariant"
+
+
 def test_fa_invariant_record_is_byte_identical_to_the_pre_change_golden():
     """NO-CHANGE PIN (regression). Captured from the implementation BEFORE this
     round, key order included: the B-F rows in ``model_comparison.md`` and the
-    D6-a re-evaluation must remain the same artifact."""
+    D6-a re-evaluation must remain the same artifact.
+
+    Round 5 leaves this exactly as it was: the two identity fields appear only
+    when a caller supplies them (see the disclosure above)."""
     rec = eval_FLAC.build_metrics_record(
         {"T60": 1.0}, CKPT, rotate_deg=0.0, cond_method="fa_invariant",
         frame_avg_angles=list(ANGLES), cond_autocast="bf16", batch_size=64,
@@ -303,16 +349,28 @@ class _FakeEvalModule:
 
 def _stub_eval_deps(monkeypatch, tmp_path):
     """Write a toy model/dataset/ckpt triple and stub the four factories
-    ``evaluate_model`` calls, at the ``eval_FLAC`` namespace."""
+    ``evaluate_model`` calls, at the ``eval_FLAC`` namespace.
+
+    ROUND 5: the checkpoint now EMBEDS a conforming BFC training block, because
+    ``--cond-method fa_cartesian`` is bound to the artifact before any model is
+    built (full review BLOCKING 1). Without it these tests would all abort at the
+    binding, which is the point of the binding -- the abort cases themselves live
+    in ``test_exp21_ckpt_binding.py``, which builds its own checkpoints.
+    """
+    training = {"use_ema": False, "cond_method": "fa_cartesian",
+                "frame_avg_angles": [0.0, 90.0, 180.0, 270.0],
+                "frame_avg_max_fwd_samples": 32}
     model_cfg = tmp_path / "model.json"
     model_cfg.write_text(json.dumps({
         "model_type": "diffusion_cond", "sample_size": 64, "sample_rate": 22050,
-        "audio_channels": 1, "training": {"use_ema": False, "cond_method": "fa_cartesian"},
+        "audio_channels": 1, "training": training,
     }))
     dataset_cfg = tmp_path / "dataset.json"
     dataset_cfg.write_text(json.dumps({"datasets": [{"id": "toy"}]}))
     ckpt = tmp_path / "toy.ckpt"
-    torch.save({"state_dict": {}}, str(ckpt))
+    torch.save({"state_dict": {},
+                "model_config": {"model_type": "diffusion_cond", "training": training}},
+               str(ckpt))
 
     monkeypatch.setattr(
         eval_FLAC, "create_model_from_config",
