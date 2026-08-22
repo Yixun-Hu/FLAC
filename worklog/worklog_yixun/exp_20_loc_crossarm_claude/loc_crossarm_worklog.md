@@ -22,3 +22,6 @@
 ## 2026-08-22T03:00:00-0400 — exp20-r3 delivered (four residuals closed); final gate re-review launched
 
 - **Version Control** — `d1a54fa 50a46ad fe6bbe4 c42c232`; suite 2,797 green; 109 crossarm tests. Descriptor-bound deserialization tradeoff (no lazy mmap during admission — no new peak) accepted and recorded.
+
+## 2026-08-22T04:15:00-0400 — r4 micro-round delivered; narrow re-review launched
+- `5d4bab0` `1a332bf`; suite 2,802 green; 114 crossarm tests. Ratchet 7→4→2→0-claimed.
