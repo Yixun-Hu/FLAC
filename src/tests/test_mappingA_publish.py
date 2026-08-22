@@ -87,17 +87,53 @@ def _publish(marker_root, kind, roots, payload="x"):
 
 
 def _tree(tmp_path):
-    """One corpus directory carrying both flavors' roots."""
+    """The ACTUAL default topology of the two CLIs (N2).
+
+    Mapping H: split root data/RAF, runtime RAF/. Mapping A: split root
+    data/RAF_mappingA (registered as disjoint), runtime RAF/mappingA/. The r1
+    composition tests invented a separate A split root and so could not see that
+    the shipped default pointed both flavors at data/RAF.
+    """
+    import prepare_data as raf_prepare_mod
+    import prepare_mappingA as prep_a_mod
+
+    assert os.path.basename(raf_prepare_mod.build_parser().get_default("split_dir")) \
+        != os.path.basename(prep_a_mod.build_parser().get_default("split_dir"))
     return {
-        "split_h": tmp_path / "data_RAF",
+        "split_h": tmp_path / raf_prepare_mod.build_parser().get_default("split_dir"),
         "runtime": tmp_path / "runtime" / "RAF",
         "depth_h": [tmp_path / "runtime" / "RAF" / room / "depth_images"
                     for room in raf_publish.CANONICAL_ROOMS],
-        "split_a": tmp_path / "data_RAF_mappingA",
+        "split_a": tmp_path / prep_a_mod.build_parser().get_default("split_dir"),
         "runtime_a": tmp_path / "runtime" / "RAF" / "mappingA",
         "depth_a": [tmp_path / "runtime" / "RAF" / "mappingA" / room / "depth_images"
                     for room in raf_publish.CANONICAL_ROOMS],
     }
+
+
+def test_the_two_cli_default_split_roots_are_disjoint():
+    """N2's root cause in one assertion: the shipped defaults, not a test topology."""
+    import prepare_data as raf_prepare_mod
+    import prepare_mappingA as prep_a_mod
+
+    h_root = raf_prepare_mod.build_parser().get_default("split_dir")
+    a_root = prep_a_mod.build_parser().get_default("split_dir")
+    assert h_root == "data/RAF"
+    assert a_root == "data/RAF_mappingA" == prep_a_mod.MAPPINGA_SPLIT_ROOT
+    assert os.path.abspath(h_root) != os.path.abspath(a_root)
+    assert not os.path.abspath(a_root).startswith(os.path.abspath(h_root) + os.sep)
+
+
+def test_a_shared_split_root_would_break_both_flavors(tmp_path):
+    """Why the disjointness matters: one manifest per directory, so publishing the
+    second flavor into the same root invalidates the first flavor's attestation."""
+    shared = tmp_path / "data_RAF"
+    _publish(shared, "prepare", [tmp_path / "runtime", shared])
+    before = raf_publish.verify_publication(str(shared), kind="prepare")["published"]
+    assert before is True
+    _publish(shared, "mappingA_prepare", [tmp_path / "runtime_a", shared])
+    assert raf_publish.verify_publication(str(shared), kind="prepare")["published"] \
+        is False
 
 
 def _publish_h(t):

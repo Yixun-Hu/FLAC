@@ -4,7 +4,7 @@
         {
             "id": "RAF",
             "path": "RAF/mappingA",
-            "json_file_path": "data/RAF/mappingA_eval.json",
+            "json_file_path": "data/RAF_mappingA/mappingA_eval.json",
             "custom_metadata_module": "src/configs/dataset_configs/custom_metadata/RAF_A_md.py",
             "folder_name": "mono_rirs_22050Hz"
         }

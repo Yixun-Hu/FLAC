@@ -492,6 +492,8 @@ MIN_ELIGIBLE_GROUPS = 9          # per placement (plan section 2)
 PUBLICATION_POINTER = "raf_publication.json"
 METADATA_NAME = "mappingA_metadata.json"
 MANIFEST_NAME = "mappingA_eval.json"
+# Registered Mapping-A split root (Amendment 1, N2).
+MAPPINGA_SPLIT_ROOT = "data/RAF_mappingA"
 
 
 def canonical_digest(payload):
@@ -581,7 +583,11 @@ def build_parser():
         description="Prepare the RAF Mapping-A (unseen-source) evaluation set")
     parser.add_argument('--raf-root', required=True)
     parser.add_argument('--output-dir', required=True)
-    parser.add_argument('--split-dir', default='data/RAF')
+    # N2: DISJOINT from Mapping H's data/RAF. Manifests are per-directory, so a
+    # shared split root means both flavors overwrite one raf_publish_manifest.json
+    # and each publish invalidates the other flavor's marker-to-manifest digest --
+    # exactly the exp_19 r4-T4 failure, re-entering through the default value.
+    parser.add_argument('--split-dir', default=MAPPINGA_SPLIT_ROOT)
     parser.add_argument('--rooms', nargs='+', default=['EmptyRoom', 'FurnishedRoom'])
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--n-placements', type=int, default=CANONICAL_N_PLACEMENTS)

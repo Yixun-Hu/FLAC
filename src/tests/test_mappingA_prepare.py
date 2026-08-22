@@ -333,7 +333,7 @@ def _readback_for(tmp_path, raf_root):
 def _cli_argv(tmp_path, raf_root, readback, extra=()):
     return ["--raf-root", str(raf_root),
             "--output-dir", str(tmp_path / "runtime" / "mappingA"),
-            "--split-dir", str(tmp_path / "splits_mappingA"),
+            "--split-dir", str(tmp_path / prep_a.MAPPINGA_SPLIT_ROOT),
             "--rooms", "EmptyRoom", "FurnishedRoom",
             "--n-placements", "2", "--k", "8", "--non-canonical",
             "--readback-record", readback] + list(extra)
@@ -354,7 +354,7 @@ def test_the_cli_publishes_the_whole_mappingA_surface(cli_corpus, tmp_path):
     prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))
 
     runtime = tmp_path / "runtime" / "mappingA"
-    split_dir = tmp_path / "splits_mappingA"
+    split_dir = tmp_path / prep_a.MAPPINGA_SPLIT_ROOT
     assert (split_dir / "mappingA_eval.json").exists()
     assert (split_dir / "mappingA_splits_record.json").exists()
     assert (split_dir / "mappingA_amplitude_audit.json").exists()
@@ -404,7 +404,7 @@ def test_the_marker_carries_the_registered_identity_and_digests(cli_corpus, tmp_
 
     readback = _readback_for(tmp_path, cli_corpus)
     prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))
-    with open(tmp_path / "splits_mappingA" /
+    with open(tmp_path / prep_a.MAPPINGA_SPLIT_ROOT /
               raf_publish.marker_name("mappingA_prepare")) as f:
         marker = json.load(f)
     parameters = marker["parameters"]
@@ -422,7 +422,8 @@ def test_the_marker_carries_the_registered_identity_and_digests(cli_corpus, tmp_
 def test_the_splits_record_carries_the_correspondence_evidence(cli_corpus, tmp_path):
     readback = _readback_for(tmp_path, cli_corpus)
     prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))
-    with open(tmp_path / "splits_mappingA" / "mappingA_splits_record.json") as f:
+    with open(tmp_path / prep_a.MAPPINGA_SPLIT_ROOT /
+              "mappingA_splits_record.json") as f:
         record = json.load(f)
     for room in ("EmptyRoom", "FurnishedRoom"):
         payload = record["rooms"][room]
@@ -445,7 +446,7 @@ def test_the_cli_stops_at_the_amplitude_gate_before_writing(cli_corpus, tmp_path
     with pytest.raises(prep_a.AmplitudePolicyError) as exc:
         prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))
     assert exc.value.report["decision_required"] is True
-    assert not (tmp_path / "splits_mappingA" / "mappingA_eval.json").exists()
+    assert not (tmp_path / prep_a.MAPPINGA_SPLIT_ROOT / "mappingA_eval.json").exists()
     assert not (tmp_path / "runtime" / "mappingA" / "EmptyRoom" /
                 "mono_rirs_22050Hz").exists()
 
@@ -456,7 +457,7 @@ def test_the_cli_refuses_too_few_eligible_placements(cli_corpus, tmp_path):
         prep_a.main(_cli_argv(tmp_path, cli_corpus, readback,
                               extra=["--n-placements", "99"]))
     assert "eligible" in str(exc.value)
-    assert not (tmp_path / "splits_mappingA" / "mappingA_eval.json").exists()
+    assert not (tmp_path / prep_a.MAPPINGA_SPLIT_ROOT / "mappingA_eval.json").exists()
 
 
 def test_the_cli_refuses_non_registered_parameters_in_canonical_mode(cli_corpus,
@@ -479,7 +480,7 @@ def test_the_cli_is_idempotent_on_the_item_set(cli_corpus, tmp_path):
     readback = _readback_for(tmp_path, cli_corpus)
     argv = _cli_argv(tmp_path, cli_corpus, readback)
     prep_a.main(argv)
-    split_dir = tmp_path / "splits_mappingA"
+    split_dir = tmp_path / prep_a.MAPPINGA_SPLIT_ROOT
     first = (split_dir / "mappingA_eval.json").read_bytes()
     first_generation = json.loads(
         (split_dir / raf_publish.marker_name("mappingA_prepare")).read_text())["generation"]
@@ -489,3 +490,31 @@ def test_the_cli_is_idempotent_on_the_item_set(cli_corpus, tmp_path):
     assert json.loads(
         (split_dir / raf_publish.marker_name("mappingA_prepare")).read_text()
     )["generation"] != first_generation
+
+
+def test_the_two_flavors_survive_each_other_at_the_real_cli_defaults(cli_corpus,
+                                                                     tmp_path):
+    """N2 end to end: publish Mapping H with ITS default split root, then Mapping A
+    with its own, and both remain verifiable -- the case the r1 composition tests
+    could not see because they invented a separate A root."""
+    import prepare_data as raf_prepare
+    import publish as raf_publish
+    from test_raf_prepare_data import write_passing_readback_record
+
+    readback = write_passing_readback_record(str(tmp_path / "readback.json"))
+    h_split = tmp_path / raf_prepare.build_parser().get_default("split_dir")
+    h_runtime = tmp_path / "runtime" / "RAF"
+    raf_prepare.main(["--raf-root", str(cli_corpus), "--output-dir", str(h_runtime),
+                      "--split-dir", str(h_split), "--rooms", "EmptyRoom",
+                      "--n-groups", "1", "--n-val-groups", "1",
+                      "--n-diagnostic-groups", "1", "--n-train", "12",
+                      "--full-crosscheck", "--non-canonical",
+                      "--readback-record", readback])
+    assert raf_publish.verify_publication(str(h_split), kind="prepare")["published"]
+
+    prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))
+    a_split = tmp_path / prep_a.MAPPINGA_SPLIT_ROOT
+    assert raf_publish.verify_publication(str(a_split),
+                                          kind="mappingA_prepare")["published"]
+    # ... and Mapping H is still attested afterwards
+    assert raf_publish.verify_publication(str(h_split), kind="prepare")["published"]
