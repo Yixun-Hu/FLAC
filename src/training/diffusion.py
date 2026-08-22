@@ -20,6 +20,7 @@ from ..data.are_anchor import (
 )
 from ..data.yaw_rotation import (
     invariant_conditioning,
+    fa_cartesian_conditioning,
     DEFAULT_FRAME_ANGLES,
     POSE_KEYS,
     draw_yaw_offsets,
@@ -192,10 +193,10 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         # Conditioning symmetrization method (exp_03 Route 1). Validated at
         # construction so an unknown value fails fast rather than at first step;
         # _compute_conditioning keeps the same raise as a backstop.
-        if cond_method not in ("vanilla", "fa_invariant"):
+        if cond_method not in ("vanilla", "fa_invariant", "fa_cartesian"):
             raise ValueError(
                 f"Unknown cond_method: {cond_method!r}. "
-                "Valid options: 'vanilla', 'fa_invariant'."
+                "Valid options: 'vanilla', 'fa_invariant', 'fa_cartesian'."
             )
         self.cond_method = cond_method
         self.frame_avg_angles = (
@@ -237,10 +238,17 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             raise ValueError(f"yaw_aug_img_w must be > 0, got {yaw_aug_img_w}")
         if isinstance(yaw_aug_seed, bool) or not isinstance(yaw_aug_seed, int):
             raise ValueError(f"yaw_aug_seed must be an int, got {yaw_aug_seed!r}")
-        if yaw_aug_enabled and cond_method == "fa_invariant":
+        # exp_21 widens this to every frame-averaged method. The rationale is the
+        # method's, not the arm's: the C4 orbit already symmetrises over exactly
+        # the yaw subgroup the augmentation would sample from, so composing them
+        # is neither a no-op nor the declared treatment of either experiment. It
+        # stays a rejection rather than a silent compose.
+        if yaw_aug_enabled and cond_method in ("fa_invariant", "fa_cartesian"):
             raise ValueError(
-                "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
-                "untested combination and out of scope for exp_15."
+                f"yaw_aug_enabled=True with cond_method={cond_method!r} is an "
+                "untested combination and out of scope for exp_15 (fa_invariant) "
+                "and exp_21 (fa_cartesian): the frame average already symmetrises "
+                "over the yaw subgroup the augmentation would draw from."
             )
 
         self.yaw_aug_enabled = yaw_aug_enabled
@@ -512,14 +520,23 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
 
         ``fa_invariant`` routes through the Route-1 yaw-symmetrized path
         (cylindrical pose features + C4 frame average of the ViT conditioners);
-        ``vanilla`` is the unchanged single conditioner pass. Called from
-        training_step, validation_step AND test_step so all inference/training
-        sites share one dispatch point (the repo's flow_source precedent). The
-        raise is a backstop; the constructor already rejects unknown values.
+        ``fa_cartesian`` (exp_21) applies ONE mechanism to both sub-paths instead,
+        frame-averaging all four pose/geometry conditioners over the same orbit
+        with the poses left as raw Cartesian xyz; ``vanilla`` is the unchanged
+        single conditioner pass. Called from training_step, validation_step AND
+        test_step so all inference/training sites share one dispatch point (the
+        repo's flow_source precedent). The raise is a backstop; the constructor
+        already rejects unknown values.
 
-        ``max_fwd_samples`` is passed as a KEYWORD: the parameter after ``angles``
-        is ``vit_ids``, so a positional slip would disable the frame average
-        instead of changing the chunk plan.
+        ``max_fwd_samples`` is passed as a KEYWORD. In the ``fa_invariant`` branch
+        that is a slip guard — the parameter after ``angles`` is ``vit_ids``, so a
+        positional fifth argument would disable the frame average instead of
+        changing the chunk plan. In the ``fa_cartesian`` branch it is PARITY:
+        ``fa_cartesian_conditioning`` has no ``vit_ids`` parameter, its fifth
+        positional IS ``max_fwd_samples``, so the keyword buys API discipline
+        rather than safety. The two branches are kept in the same shape
+        deliberately — the arms differ in which function is called and in nothing
+        about how it is called.
 
         The no-cap case takes a SEPARATE branch that issues the original
         four-argument call verbatim (r1 review finding 1). ``max_fwd_samples=None``
@@ -535,6 +552,15 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
                     self.diffusion.conditioner, metadata, self.device, self.frame_avg_angles
                 )
             return invariant_conditioning(
+                self.diffusion.conditioner, metadata, self.device, self.frame_avg_angles,
+                max_fwd_samples=self.frame_avg_max_fwd_samples,
+            )
+        if self.cond_method == "fa_cartesian":
+            if self.frame_avg_max_fwd_samples is None:
+                return fa_cartesian_conditioning(
+                    self.diffusion.conditioner, metadata, self.device, self.frame_avg_angles
+                )
+            return fa_cartesian_conditioning(
                 self.diffusion.conditioner, metadata, self.device, self.frame_avg_angles,
                 max_fwd_samples=self.frame_avg_max_fwd_samples,
             )

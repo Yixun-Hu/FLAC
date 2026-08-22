@@ -46,11 +46,18 @@ def _parse_yaw_aug_config(training_config):
     if not enabled:
         return {}
 
-    if training_config.get("cond_method", "vanilla") == "fa_invariant":
+    # exp_21 widens this to every frame-averaged method (the wrapper's own guard
+    # is widened in step). The reason is the method's, not the arm's: the orbit
+    # already symmetrises over exactly the subgroup the augmentation would draw
+    # from, so composing them is neither a no-op nor anything either experiment
+    # declared.
+    cond_method = training_config.get("cond_method", "vanilla")
+    if cond_method in ("fa_invariant", "fa_cartesian"):
         raise ValueError(
-            "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
-            "untested combination and out of scope for exp_15: frame averaging "
-            "already symmetrises over the yaw subgroup."
+            f"training.yaw_aug.enabled=true with cond_method={cond_method!r} is an "
+            "untested combination and out of scope for exp_15 (fa_invariant) and "
+            "exp_21 (fa_cartesian): frame averaging already symmetrises over the "
+            "yaw subgroup."
         )
 
     for key in ("img_w", "seed"):

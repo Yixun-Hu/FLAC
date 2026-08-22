@@ -681,3 +681,25 @@ def test_bfc_declares_the_intended_training_chunk_plan():
         sizes = cond.conditioners[key].batch_sizes[1:]        # after the base pass
         assert len(sizes) == math.ceil((len(BFC_ANGLES) - 1) / 1)
         assert max(sizes) == BFC_MICRO_BATCH, f"{key} executed {sizes}"
+
+
+# --------------------------------------------------------------------------- #
+# 7. the HAA finetune path must keep REJECTING fa_cartesian (plan §1)
+# --------------------------------------------------------------------------- #
+def test_the_haa_finetune_path_still_rejects_fa_cartesian():
+    """``finetune_cond.py`` carries its OWN whitelist, deliberately not extended
+    this round: HAA finetuning of this arm is a separate, unapproved experiment,
+    and the AR-trained orbit's behaviour on HAA's source-position panoramas has
+    not been examined. Nothing in ``test_finetune_cond.py`` would notice the
+    method being admitted there — its 'bad' cases predate this arm — so the
+    out-of-scope boundary is pinned here, where the widening happened.
+
+    Imported inside the test to keep this module's import surface to the training
+    package it is about."""
+    import finetune_cond
+
+    assert BFC_COND_METHOD not in finetune_cond.VALID_COND_METHODS, (
+        "finetune_cond was widened to fa_cartesian without an approved HAA round")
+    cfg = json.loads((_REPO / "src/configs/model_configs/FLAC/AR/FLAC_AR.json").read_text())
+    with pytest.raises(ValueError, match="cond_method"):
+        finetune_cond.build_finetune_training_config(cfg, BFC_COND_METHOD, 5e-6, [0.0])
