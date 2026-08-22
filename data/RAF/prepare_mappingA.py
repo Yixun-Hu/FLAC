@@ -191,6 +191,21 @@ def measure_union(room_dir, capture_ids, orig_sr=SOURCE_SR, target_sr=TARGET_SR,
     return measurements
 
 
+def context_item_index(items):
+    """{room: {context capture id: [item ids that draw it]}} (Amendment 4.1).
+
+    A near-silent REFERENCE is a fact about the items that condition on it, so the
+    disclosure names them rather than the capture alone.
+    """
+    index = {}
+    for item in items:
+        room = index.setdefault(item["room"], {})
+        for entry in item["context"]:
+            room.setdefault(entry["capture_id"], []).append(item["item_id"])
+    return {room: {capture: sorted(set(ids)) for capture, ids in sorted(captures.items())}
+            for room, captures in sorted(index.items())}
+
+
 def enumerate_support_captures(items):
     """{room: (support ids, target ids)} -- the union split by ROLE.
 
@@ -295,7 +310,8 @@ def derive_union_scalar(measurements_by_room, supports_by_room,
 def audit_amplitude_union(room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
                           target_sr=TARGET_SR, clip_ceiling=CLIP_CEILING,
                           silence_db=SILENCE_THRESHOLD_DB,
-                          sample_size=LOADER_SAMPLE_SIZE, measurements=None):
+                          sample_size=LOADER_SAMPLE_SIZE, measurements=None,
+                          target_ids=None, context_items=None):
     """Amplitude audit over the exact Mapping-A union, BEFORE anything is written.
 
     Three registered conditions, measured on the RESAMPLED signal (what would
@@ -311,13 +327,32 @@ def audit_amplitude_union(room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
       that the runtime would then drop);
     * finite and non-empty.
 
+    Amendment 4.1 -- the silence gate is ROLE-AWARE. ``SampleDataset.__getitem__``
+    tests ``is_silence`` on the cropped TARGET and substitutes the item; RAF_A_md
+    loads context audio with no amplitude test at all, so a quiet reference is
+    conditioning the model saw, not an item nobody evaluated. Measured basis
+    (mappingA_amplitude_window.json): no scalar satisfies both ends over the whole
+    union -- lifting every sub-threshold capture needs x8.74 while the clip cap is
+    x2.0401 -- and all 21 sub-threshold captures are context-only. So the gate is
+    fatal for captures that appear in any item's TARGET role and RECORDS the rest,
+    naming the items that draw them. The clip gate is unchanged over ALL files: a
+    clipped context is a distorted input regardless of who reads it.
+
+    ``target_ids=None`` means "roles unknown", and then EVERY capture is treated as
+    a target -- the strict pre-Amendment behaviour, so an uninformed caller cannot
+    silently get the weaker gate.
+
     Returns the measured report when clean. Otherwise raises
     ``AmplitudePolicyError`` carrying the same report: every violation, worst
     first, plus the largest scalar this union would admit -- offered as evidence for
     the decision, never applied.
     """
     peaks, crop_peaks, violations = [], [], []
+    near_silent = []
+    context_items = context_items or {}
     for capture_id in capture_ids:
+        # unknown roles => strict: everything is audited as a target
+        is_target = target_ids is None or capture_id in target_ids
         path = os.path.join(room_dir, "data", capture_id, "rir.wav")
         if measurements is not None and capture_id in measurements:
             measured = measurements[capture_id]
@@ -337,20 +372,33 @@ def audit_amplitude_union(room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
             "scaled_dbfs_crop": dbfs(scaled_crop),
             "n_samples": n_samples,
         }
+        record["role"] = "target" if is_target else "context"
         if not finite or n_samples == 0:
+            # unreadable is not a level fact: fatal whatever the role
             violations.append(dict(record, kind="non_finite"))
             continue
         peaks.append(peak)
         crop_peaks.append(crop_peak)
+        silence_kind = None
         if peak <= 0.0:
-            violations.append(dict(record, kind="silent_source"))
+            silence_kind = "silent_source"
         elif scaled > clip_ceiling:
+            # the clip gate is role-independent: a clipped context is a distorted
+            # input regardless of who reads it
             violations.append(dict(record, kind="clipping"))
         elif crop_peak <= 0.0:
-            violations.append(dict(record, kind="silent_crop"))
+            silence_kind = "silent_crop"
         elif dbfs(scaled_crop) < silence_db:
             # the LOADER's test: the first sample_size samples, after scaling
-            violations.append(dict(record, kind="below_threshold_crop"))
+            silence_kind = "below_threshold_crop"
+
+        if silence_kind is not None:
+            if is_target:
+                violations.append(dict(record, kind=silence_kind))
+            else:
+                near_silent.append(dict(
+                    record, kind=silence_kind,
+                    item_ids=list(context_items.get(capture_id, ()))))
 
     max_peak = max(peaks) if peaks else 0.0
     violations.sort(key=lambda v: (-v["scaled_peak"], v["capture_id"]))
@@ -373,7 +421,18 @@ def audit_amplitude_union(room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
         "n_clipping": sum(1 for v in violations if v["kind"] == "clipping"),
         "n_below_threshold": sum(1 for v in violations
                                  if v["kind"] in ("below_threshold_crop",
-                                                  "silent_crop")),
+                                                  "silent_crop",
+                                                  "silent_source")),
+        # Amendment 4.1: context-only sub-threshold captures, RECORDED with the
+        # items that draw them. Not violations -- the loader never substitutes on
+        # them -- but a disclosed property of the published corpus.
+        "role_aware_silence_gate": target_ids is not None,
+        "n_target_role_captures": (len(capture_ids) if target_ids is None
+                                   else sum(1 for c in capture_ids if c in target_ids)),
+        "n_near_silent_references": len(near_silent),
+        "near_silent_references": sorted(near_silent,
+                                         key=lambda r: (r["scaled_dbfs_crop"],
+                                                        r["capture_id"])),
         "n_non_finite": sum(1 for v in violations if v["kind"] == "non_finite"),
         # Measured OPTION, never applied: the run stops for a human decision.
         "max_admissible_scalar": largest_admissible_scalar(max_peak, clip_ceiling),
@@ -385,8 +444,8 @@ def audit_amplitude_union(room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
         raise AmplitudePolicyError(
             f"{room_dir}: the Mapping-A audio union violates the registered "
             f"amplitude policy at scalar x{scalar} -- {report['n_clipping']} "
-            f"clipping, {report['n_below_threshold']} below {silence_db} dBFS "
-            f"over the loader's {sample_size}-sample crop, "
+            f"clipping, {report['n_below_threshold']} TARGET-role captures below "
+            f"{silence_db} dBFS over the loader's {sample_size}-sample crop, "
             f"{report['n_non_finite']} non-finite of {len(capture_ids)} captures. "
             "STOPPING for a registered amplitude-policy decision: items are never "
             "dropped and the scalar is never auto-adjusted (the largest scalar this "
@@ -745,7 +804,8 @@ def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
                 target_sr=TARGET_SR, clip_ceiling=CLIP_CEILING,
                 mappingH_room_dir=None, mappingH_generation=None,
                 mappingH_files=None, mappingH_scalar=None,
-                sample_size=LOADER_SAMPLE_SIZE, silence_db=SILENCE_THRESHOLD_DB):
+                sample_size=LOADER_SAMPLE_SIZE, silence_db=SILENCE_THRESHOLD_DB,
+                target_ids=None):
     """Resample, scale and publish the Mapping-A union at ITS OWN scalar.
 
     Amendment 4: nothing is reused from Mapping H. Every union member is written
@@ -761,6 +821,10 @@ def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
     audit runs over a union computed from the manifest, so a write that reached this
     point with a different file, scalar or sample rate must still not be able to
     publish a clipped or loader-silent target.
+
+    Amendment 4.1: the silence recheck is role-aware for the same reason the audit
+    is -- only a TARGET can be substituted by the loader. ``target_ids=None`` keeps
+    the strict behaviour, so an uninformed caller cannot get the weaker check.
     """
     if mappingH_room_dir and (mappingH_generation is None or mappingH_files is None):
         raise ValueError(
@@ -797,12 +861,14 @@ def write_union(room_dir, out_room_dir, capture_ids, scalar, orig_sr=SOURCE_SR,
                 "scores.")
 
         crop_peak = float(np.abs(out[:sample_size]).max()) if out.size else 0.0
-        if dbfs(crop_peak) < silence_db:
+        is_target = target_ids is None or capture_id in target_ids
+        if is_target and dbfs(crop_peak) < silence_db:
             raise ValueError(
                 f"{src}: the first {sample_size} samples peak at {crop_peak:.6g} "
                 f"({dbfs(crop_peak):.1f} dBFS) after x{scalar}, below the loader's "
-                f"{silence_db} dBFS gate. The runtime would substitute this item, so "
-                "the manifest would name an item that was never evaluated.")
+                f"{silence_db} dBFS gate. It is drawn as a TARGET, so the runtime "
+                "would substitute the item and the manifest would name an item that "
+                "was never evaluated.")
 
         out_path = os.path.join(dest, f"{capture_id}.wav")
         sf.write(out_path, out, target_sr, subtype="FLOAT")
@@ -1373,6 +1439,59 @@ def build_parser():
     return parser
 
 
+def near_silent_disclosure(audits, items_by_room):
+    """The per-item near-silent-reference disclosure (Amendment 4.1).
+
+    A context below the loader's gate is never substituted -- RAF_A_md has no
+    amplitude test -- so it is not a violation. It IS a property of the items that
+    condition on it: they carry a reference with effectively no energy, and that
+    has to be visible in the record, per item, wherever those items are read.
+    """
+    by_item, captures, placements = {}, [], set()
+    item_placement = {item["item_id"]: (item["room"], item["placement_id"])
+                      for items in items_by_room.values() for item in items}
+    for room in sorted(audits):
+        for record in audits[room].get("near_silent_references", ()):
+            entry = {"room": room, "capture_id": record["capture_id"],
+                     "kind": record["kind"], "crop_peak": record["raw_peak_crop"],
+                     "scaled_crop_peak": record["scaled_peak_crop"],
+                     "scaled_dbfs": record["scaled_dbfs_crop"],
+                     "item_ids": list(record.get("item_ids") or ())}
+            captures.append(entry)
+            for item_id in entry["item_ids"]:
+                by_item.setdefault(item_id, []).append(
+                    {"capture_id": entry["capture_id"],
+                     "crop_peak": entry["crop_peak"],
+                     "scaled_dbfs": entry["scaled_dbfs"]})
+                if item_id in item_placement:
+                    placements.add("/".join(item_placement[item_id]))
+    return {
+        "n_captures": len(captures),
+        "n_items": len(by_item),
+        "placements": sorted(placements),
+        "captures": captures,
+        "by_item": {item_id: sorted(refs, key=lambda r: r["capture_id"])
+                    for item_id, refs in sorted(by_item.items())},
+        "note": ("these captures sit below the loader's silence threshold at the "
+                 "published scalar in a CONTEXT role only. SampleDataset tests "
+                 "is_silence on the cropped TARGET and substitutes there; RAF_A_md "
+                 "loads context audio with no amplitude test, so no item is "
+                 "substituted and every item is evaluated as the manifest says. "
+                 "The affected items condition on a reference with effectively no "
+                 "energy, which is a measurement condition, not a defect -- it is "
+                 "identical across arms and carries a labelled sensitivity row."),
+    }
+
+
+def annotate_near_silent_references(items_by_room, disclosure):
+    """Attach each item's near-silent references to the item itself (in place)."""
+    by_item = disclosure.get("by_item") or {}
+    for items in items_by_room.values():
+        for item in items:
+            item["near_silent_references"] = list(by_item.get(item["item_id"], ()))
+    return items_by_room
+
+
 def canonical_identity_blockers(audio_union_digest=None, n_captures=None):
     """What still stands between this run and a canonical publication (N5).
 
@@ -1562,13 +1681,27 @@ def main(argv=None):
     if scalar != registered_scalar:
         taint.append(f"amplitude scalar x{scalar} != registered x{registered_scalar}")
 
+    # Amendment 4.1: the audit is told which captures are TARGETS (the only role
+    # the loader's silence check can fire on) and which items draw each context.
+    context_index = context_item_index(all_items)
     audits = {}
     for room in args.rooms:
         room_dir = os.path.join(args.raf_root, "archived", room)
-        audits[room] = audit_amplitude_union(room_dir, union[room], scalar=scalar,
-                                             measurements=measurements[room])
-        logger.info("%s: amplitude audit clean (max scaled peak %.4f)", room,
-                    audits[room]["max_scaled_peak"])
+        audits[room] = audit_amplitude_union(
+            room_dir, union[room], scalar=scalar, measurements=measurements[room],
+            target_ids=set(roles[room][1]),
+            context_items=context_index.get(room, {}))
+        logger.info("%s: amplitude audit clean (max scaled peak %.4f); "
+                    "%d near-silent context references recorded", room,
+                    audits[room]["max_scaled_peak"],
+                    audits[room]["n_near_silent_references"])
+
+    near_silent = near_silent_disclosure(audits, items_by_room)
+    if near_silent["n_captures"]:
+        logger.info("near-silent references: %d captures affecting %d of %d items "
+                    "in placements %s -- recorded, not fatal (Amendment 4.1)",
+                    near_silent["n_captures"], near_silent["n_items"], n_items,
+                    near_silent["placements"])
 
     digests = {
         # the COMMITTED record, digested as read -- not a summary of this run (N5)
@@ -1593,6 +1726,12 @@ def main(argv=None):
             raise ValueError("refusing a canonical Mapping-A publication: "
                              + "; ".join(blockers))
 
+    # Amendment 4.1: the disclosure travels ON the items, so every reader of the
+    # per-item manifest sees it. (The loader's eval JSON is a scene->filenames map
+    # by contract -- src/data/dataset.py iterates its keys as scenes -- so the
+    # per-item disclosure belongs in the per-item manifest, not there.)
+    annotate_near_silent_references(items_by_room, near_silent)
+
     # Pass 2: stage the whole publication, then commit both roots together.
     with PublishTransaction(args.split_dir, kind="mappingA_prepare") as txn:
         staged_runtime = txn.stage(args.output_dir)
@@ -1609,7 +1748,8 @@ def main(argv=None):
                 mappingH_room_dir=h_room["dir"],
                 mappingH_generation=mappingH["generation"] if mappingH else None,
                 mappingH_files=h_room["files"],
-                mappingH_scalar=mappingH["amplitude_scalar"] if mappingH else None)
+                mappingH_scalar=mappingH["amplitude_scalar"] if mappingH else None,
+                target_ids=set(roles[room][1]))
             _write_json(staged_runtime.path(room, "metadata", METADATA_NAME),
                         {item["target_capture_id"]: item
                          for item in items_by_room[room]})
@@ -1634,11 +1774,13 @@ def main(argv=None):
                     build_splits_record(surveys, items_by_room, counts, parameters,
                                         canonical, taint, readback_provenance,
                                         correspondence_provenance, digests["survey"],
-                                        assignments, scale_decision, disclosure))
+                                        assignments, scale_decision, disclosure,
+                                        near_silent))
         _write_json(staged_splits.path("mappingA_amplitude_audit.json"),
                     {"parameters": parameters, "canonical": canonical, "taint": taint,
                      "amplitude_scalar": scale_decision,
                      "scale_disclosure": disclosure,
+                     "near_silent_references": near_silent,
                      "rooms": audits, "written": write_reports})
 
         marker = txn.commit(
@@ -1654,6 +1796,10 @@ def main(argv=None):
                    # and the marker is where a consumer learns it
                    "scale_disclosure": disclosure,
                    "amplitude_derivation": scale_decision,
+                   "near_silent_references": {
+                       "n_captures": near_silent["n_captures"],
+                       "n_items": near_silent["n_items"],
+                       "placements": near_silent["placements"]},
                    "readback_record": readback_provenance})
 
     logger.info("published Mapping-A generation %s: %d items, %d captures",
@@ -1664,7 +1810,7 @@ def main(argv=None):
 def build_splits_record(surveys, items_by_room, counts, parameters, canonical, taint,
                         readback_provenance, correspondence_provenance=None,
                         survey_sha256=None, assignments=None, scale_decision=None,
-                        disclosure=None):
+                        disclosure=None, near_silent=None):
     """The committed description of how the Mapping-A set was cut."""
     rooms = {}
     for room, survey in surveys.items():
@@ -1704,6 +1850,8 @@ def build_splits_record(surveys, items_by_room, counts, parameters, canonical, t
             # at different levels
             "amplitude_scalar": scale_decision,
             "scale_disclosure": disclosure,
+            # Amendment 4.1: which items carry a near-silent reference, and which
+            "near_silent_references": near_silent,
             "union": counts, "rooms": rooms}
 
 

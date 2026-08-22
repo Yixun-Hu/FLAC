@@ -727,3 +727,85 @@ def test_the_results_artifact_carries_the_cross_mapping_scale_disclosure(tmp_pat
     disclosure = report["scale_disclosure"]
     assert "x2.0" in disclosure and "x3.0" in disclosure
     assert "unlicensed" in disclosure and "WITHIN Mapping A" in disclosure
+
+
+# --------------------------------------------------------------------------- #
+# r5 Amendment 4.1: the near-silent-reference sensitivity row
+# --------------------------------------------------------------------------- #
+def _arm_with_p008_offset(tmp_path, label, base, p008_extra, seeds=(42,)):
+    """Every placement sits at ``base``; FurnishedRoom p008 sits ``p008_extra``
+    higher, so the with/without arithmetic is hand-checkable."""
+    def value_of(room, p, slot, base=base, p008_extra=p008_extra):
+        return base + (p008_extra if (room == "FurnishedRoom" and p == 8) else 0.0)
+
+    paths = [_sidecar(tmp_path, label, seed, value_of,
+                      provenance=_provenance(seed, ckpt=label[-1] * 64))
+             for seed in seeds]
+    return stats.arm_from_sidecars(paths, "C50", label, registered=False)
+
+
+def test_the_registered_sensitivity_placement_is_the_measured_one():
+    assert stats.NEAR_SILENT_REFERENCE_PLACEMENTS == (("FurnishedRoom", "p008"),)
+
+
+def test_filtering_removes_exactly_that_placements_items(tmp_path):
+    arm = _arm_with_p008_offset(tmp_path, "armA", 1.0, 0.0)
+    filtered = stats.filter_arm(arm)
+    assert filtered["n_items_excluded"] == 36              # one placement, 36 slots
+    assert len(filtered["item_ids"]) == stats.REGISTERED_N_ITEMS - 36
+    assert not any(entry["placement_id"] == "p008" and entry["room"] == "FurnishedRoom"
+                   for entry in filtered["by_seed"][42].values())
+    # ... and it is still the SAME cell, read over fewer items
+    assert filtered["identity_sha256"] == arm["identity_sha256"]
+    assert filtered["seeds"] == arm["seeds"]
+    assert filtered["label"] == "armA-minus-FurnishedRoom.p008"
+
+
+def test_the_sensitivity_row_is_the_same_contrast_over_fewer_placements(tmp_path):
+    """Hand oracle. Arm A is flat at 1.0 except FurnishedRoom p008 at 1.0+1.6; arm
+    B is flat at 1.0. Every placement difference is 0 except p008's, which is 1.6.
+
+    primary macro     = mean(EmptyRoom mean 0, FurnishedRoom mean 1.6/16=0.1) = 0.05
+    sensitivity macro = mean(0, 0 over the remaining 15 placements)           = 0.0
+    """
+    arm_a = _arm_with_p008_offset(tmp_path, "armA", 1.0, 1.6)
+    arm_b = _arm_with_p008_offset(tmp_path, "armB", 1.0, 0.0)
+    both = stats.contrast_with_sensitivity(arm_a, arm_b, n_resamples=100,
+                                           require_registered=False)
+    assert both["primary"]["difference"]["macro"] == pytest.approx(0.05)
+    assert both["primary"]["difference"]["n_placements"] == {"EmptyRoom": 16,
+                                                             "FurnishedRoom": 16}
+    assert both["sensitivity"]["difference"]["macro"] == pytest.approx(0.0)
+    assert both["sensitivity"]["difference"]["n_placements"] == {"EmptyRoom": 16,
+                                                                 "FurnishedRoom": 15}
+    assert both["excluded_placements"] == [["FurnishedRoom", "p008"]]
+    assert both["n_items_excluded"] == 36
+    assert "primary row is the result" in both["reading"]
+    # the two readings can never be confused for one another
+    assert both["primary"]["arms"] == ["armA", "armB"]
+    assert both["sensitivity"]["arms"] == ["armA-minus-FurnishedRoom.p008",
+                                           "armB-minus-FurnishedRoom.p008"]
+    json.dumps(both)
+
+
+def test_the_primary_row_keeps_the_near_silent_items(tmp_path):
+    """They are the conditions the corpus was measured under and are identical for
+    both arms; dropping them from the primary would answer a different question."""
+    arm_a = _arm_with_p008_offset(tmp_path, "armA", 1.0, 1.6)
+    arm_b = _arm_with_p008_offset(tmp_path, "armB", 1.0, 0.0)
+    both = stats.contrast_with_sensitivity(arm_a, arm_b, n_resamples=50,
+                                           require_registered=False)
+    assert both["primary"]["pairing"]["n_items"] == stats.REGISTERED_N_ITEMS
+    assert (both["sensitivity"]["pairing"]["n_items"]
+            == stats.REGISTERED_N_ITEMS - 36)
+
+
+def test_excluding_everything_is_refused(tmp_path):
+    arm = _arm_with_p008_offset(tmp_path, "armA", 1.0, 0.0)
+    everything = tuple((room, f"p{p:03d}") for room in stats.REGISTERED_ROOMS
+                       for p in range(stats.REGISTERED_PLACEMENTS_PER_ROOM))
+    with pytest.raises(ValueError) as exc:
+        stats.filter_arm(arm, everything)
+    assert "no items at all" in str(exc.value)
+    with pytest.raises(ValueError):
+        stats.filter_arm(arm, ())

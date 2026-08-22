@@ -610,17 +610,31 @@ def test_the_splits_record_carries_the_correspondence_evidence(cli_corpus, tmp_p
     assert record["canonical"] is False
 
 
+def _a_target_capture(raf_root, room, n_placements=2, k=8, seed=0):
+    """A capture the canonical item set draws as a TARGET, from the real builder."""
+    survey = prep_a.survey_room(os.path.join(str(raf_root), "archived", room), room)
+    for placement in prep_a.select_placements(survey, n_placements):
+        items = prep_a.build_items(room, placement["placement_id"],
+                                   placement["passing"], placement["assignment"],
+                                   placement["match"], k=k, seed=seed)
+        if items:
+            return items[0]["target_capture_id"]
+    raise AssertionError(f"no items built for {room}")
+
+
 def test_the_cli_stops_at_the_amplitude_gate_before_writing(cli_corpus, tmp_path):
     """M1's stop-and-ask: a violation aborts with the measured report and nothing
     is published.
 
     Amendment 4 note: loudness alone no longer stops the run -- the clamp term
-    lowers the derived scalar until the union fits. What the derivation cannot
-    absorb is a capture that is SILENT after the loader's crop, since no scalar
-    makes it audible, so that is what this drives."""
-    silent = os.path.join(str(cli_corpus), "archived", "EmptyRoom", "data", "000005",
-                          "rir.wav")
-    sf.write(silent, _rir(5, peak=1e-6), 48000, subtype="FLOAT")
+    lowers the derived scalar until the union fits. Amendment 4.1 narrows it
+    further: a sub-threshold CONTEXT is recorded, not fatal. What still stops the
+    run is a sub-threshold capture drawn as a TARGET, which the loader would
+    substitute, so that is what this drives."""
+    target = _a_target_capture(cli_corpus, "EmptyRoom")
+    sf.write(os.path.join(str(cli_corpus), "archived", "EmptyRoom", "data", target,
+                          "rir.wav"),
+             _rir(5, peak=1e-6), 48000, subtype="FLOAT")
     readback = _readback_for(tmp_path, cli_corpus)
     with pytest.raises(prep_a.AmplitudePolicyError) as exc:
         prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))
@@ -1387,3 +1401,166 @@ def test_the_published_artifacts_all_carry_the_scale_disclosure(cli_corpus,
     assert (marker["parameters"]["amplitude_scalar"]
             == marker["amplitude_derivation"]["scalar"])
     assert splits["amplitude_scalar"]["derivation_id_sha256"]
+
+
+# --------------------------------------------------------------------------- #
+# r5 Amendment 4.1: the silence gate is role-aware; contexts are DISCLOSED
+# --------------------------------------------------------------------------- #
+def _near_silent_fixture(union_room, capture_id="000004"):
+    """The measured shape: a capture whose crop sits at ~1.2e-4, i.e. about
+    -72 dBFS at x2 -- the FurnishedRoom p008 references from
+    mappingA_amplitude_window.json."""
+    _overwrite(union_room, capture_id, _rir(4, peak=1.2e-4))
+    return [f"{i:06d}" for i in range(6)]
+
+
+def test_a_sub_threshold_context_is_recorded_not_fatal(union_room):
+    """The loader tests is_silence on the cropped TARGET only, so a quiet context
+    is conditioning the model actually saw -- a disclosed property, not an item
+    nobody evaluated."""
+    ids = _near_silent_fixture(union_room)
+    targets = {c for c in ids if c != "000004"}
+    report = prep_a.audit_amplitude_union(
+        union_room, ids, scalar=2.0, target_ids=targets,
+        context_items={"000004": ["EmptyRoom/p008/slot03", "EmptyRoom/p008/slot11"]})
+    assert report["passed"] is True and report["violations"] == []
+    assert report["role_aware_silence_gate"] is True
+    assert report["n_near_silent_references"] == 1
+    recorded = report["near_silent_references"][0]
+    assert recorded["capture_id"] == "000004"
+    assert recorded["role"] == "context"
+    assert recorded["kind"] == "below_threshold_crop"
+    assert recorded["scaled_dbfs_crop"] < -60.0
+    assert recorded["item_ids"] == ["EmptyRoom/p008/slot03",
+                                    "EmptyRoom/p008/slot11"]
+    json.dumps(report)
+
+
+def test_the_same_capture_as_a_target_is_still_fatal(union_room):
+    ids = _near_silent_fixture(union_room)
+    with pytest.raises(prep_a.AmplitudePolicyError) as exc:
+        prep_a.audit_amplitude_union(union_room, ids, scalar=2.0,
+                                     target_ids={"000004"})
+    report = exc.value.report
+    assert report["n_below_threshold"] == 1
+    offender = next(v for v in report["violations"] if v["capture_id"] == "000004")
+    assert offender["kind"] == "below_threshold_crop" and offender["role"] == "target"
+    assert report["n_near_silent_references"] == 0
+    assert "TARGET-role" in str(exc.value)
+
+
+def test_unknown_roles_keep_the_strict_gate(union_room):
+    """Fail-closed: a caller that does not say which captures are targets audits
+    every capture as one."""
+    ids = _near_silent_fixture(union_room)
+    with pytest.raises(prep_a.AmplitudePolicyError) as exc:
+        prep_a.audit_amplitude_union(union_room, ids, scalar=2.0)
+    assert exc.value.report["role_aware_silence_gate"] is False
+
+
+def test_a_clipping_context_is_still_fatal(union_room):
+    """The clip gate is role-independent: a clipped context is a distorted input
+    whoever reads it."""
+    _overwrite(union_room, "000002", _rir(2, peak=0.9))
+    ids = [f"{i:06d}" for i in range(6)]
+    with pytest.raises(prep_a.AmplitudePolicyError) as exc:
+        prep_a.audit_amplitude_union(union_room, ids, scalar=3.0,
+                                     target_ids={"000000"})
+    offender = next(v for v in exc.value.report["violations"]
+                    if v["capture_id"] == "000002")
+    assert offender["kind"] == "clipping" and offender["role"] == "context"
+
+
+def test_the_write_recheck_is_role_aware_too(union_room, tmp_path):
+    ids = _near_silent_fixture(union_room)
+    targets = {c for c in ids if c != "000004"}
+    report = prep_a.write_union(union_room, str(tmp_path / "out"), ids, scalar=2.0,
+                                target_ids=targets)
+    assert report["n_files"] == len(ids)          # the complete union, intact
+    with pytest.raises(ValueError) as exc:
+        prep_a.write_union(union_room, str(tmp_path / "strict"), ids, scalar=2.0,
+                           target_ids={"000004"})
+    assert "drawn as a TARGET" in str(exc.value)
+
+
+def test_the_disclosure_names_the_items_and_their_placements():
+    audits = {"FurnishedRoom": {"near_silent_references": [
+        {"capture_id": "000503", "kind": "below_threshold_crop",
+         "raw_peak_crop": 1.144e-4, "scaled_peak_crop": 2.288e-4,
+         "scaled_dbfs_crop": -72.8,
+         "item_ids": ["FurnishedRoom/p008/slot04"]},
+        {"capture_id": "028030", "kind": "below_threshold_crop",
+         "raw_peak_crop": 1.997e-4, "scaled_peak_crop": 3.994e-4,
+         "scaled_dbfs_crop": -68.0,
+         "item_ids": ["FurnishedRoom/p008/slot04", "FurnishedRoom/p008/slot17"]}]}}
+    items_by_room = {"FurnishedRoom": [
+        {"item_id": f"FurnishedRoom/p008/slot{slot:02d}", "room": "FurnishedRoom",
+         "placement_id": "p008"} for slot in (4, 17)]}
+    disclosure = prep_a.near_silent_disclosure(audits, items_by_room)
+    assert disclosure["n_captures"] == 2
+    assert disclosure["n_items"] == 2
+    assert disclosure["placements"] == ["FurnishedRoom/p008"]
+    assert [r["capture_id"] for r in disclosure["by_item"]["FurnishedRoom/p008/slot04"]] \
+        == ["000503", "028030"]
+    assert [r["capture_id"] for r in disclosure["by_item"]["FurnishedRoom/p008/slot17"]] \
+        == ["028030"]
+    assert "no item is substituted" in disclosure["note"]
+
+    prep_a.annotate_near_silent_references(items_by_room, disclosure)
+    assert len(items_by_room["FurnishedRoom"][0]["near_silent_references"]) == 2
+    assert len(items_by_room["FurnishedRoom"][1]["near_silent_references"]) == 1
+
+
+def test_an_item_with_no_near_silent_reference_says_so_explicitly():
+    items_by_room = {"EmptyRoom": [{"item_id": "EmptyRoom/p000/slot00",
+                                    "room": "EmptyRoom", "placement_id": "p000"}]}
+    prep_a.annotate_near_silent_references(
+        items_by_room, prep_a.near_silent_disclosure({}, items_by_room))
+    assert items_by_room["EmptyRoom"][0]["near_silent_references"] == []
+
+
+def test_the_published_items_carry_their_near_silent_references(cli_corpus, tmp_path):
+    """End to end: the disclosure rides on the per-item manifest, which is where
+    RAF_A_md and every offline reader find the items."""
+    readback = _readback_for(tmp_path, cli_corpus)
+    contexts = _context_only_captures(cli_corpus, "EmptyRoom")
+    victim = sorted(contexts)[0]
+    sf.write(os.path.join(str(cli_corpus), "archived", "EmptyRoom", "data", victim,
+                          "rir.wav"), _rir(7, peak=1.2e-4), 48000, subtype="FLOAT")
+    prep_a.main(_cli_argv(tmp_path, cli_corpus, readback))
+
+    with open(tmp_path / "runtime" / "mappingA" / "EmptyRoom" / "metadata"
+              / "mappingA_metadata.json") as f:
+        items = json.load(f)
+    affected = {item["item_id"]: item["near_silent_references"]
+                for item in items.values() if item["near_silent_references"]}
+    assert affected, "the corrupted context should appear on the items that draw it"
+    for refs in affected.values():
+        assert refs[0]["capture_id"] == victim
+        assert refs[0]["scaled_dbfs"] < -60.0
+
+    with open(tmp_path / prep_a.MAPPINGA_SPLIT_ROOT
+              / "mappingA_splits_record.json") as f:
+        splits = json.load(f)
+    disclosure = splits["near_silent_references"]
+    assert disclosure["n_captures"] == 1
+    assert disclosure["n_items"] == len(affected)
+    assert sorted(disclosure["by_item"]) == sorted(affected)
+    with open(tmp_path / prep_a.MAPPINGA_SPLIT_ROOT
+              / "mappingA_amplitude_audit.json") as f:
+        audit = json.load(f)
+    assert audit["near_silent_references"]["n_captures"] == 1
+    assert audit["rooms"]["EmptyRoom"]["n_near_silent_references"] == 1
+    assert audit["rooms"]["EmptyRoom"]["passed"] is True
+
+
+def _context_only_captures(raf_root, room, n_placements=2, k=8, seed=0):
+    """Captures the canonical item set draws ONLY as contexts."""
+    survey = prep_a.survey_room(os.path.join(str(raf_root), "archived", room), room)
+    items = []
+    for placement in prep_a.select_placements(survey, n_placements):
+        items.extend(prep_a.build_items(room, placement["placement_id"],
+                                        placement["passing"], placement["assignment"],
+                                        placement["match"], k=k, seed=seed))
+    supports, targets = prep_a.enumerate_support_captures(items)[room]
+    return set(supports) - set(targets)
