@@ -11,3 +11,8 @@ The program's yaw-equivariance/augmentation question, transported to localizatio
 
 ## Why
 exp_18 established the protocol and the vanilla reference rows; the cross-arm comparison is the program's payoff question for the localization capability.
+
+## Query 2 (2026-08-21, verbatim)
+> Now you are using the released checkpoint, this is just for sanity check for the relocation pipeline. I need you to run the P1 vanilla 40k, YawAug 40k and BF FA method 40k checkpoint using the same relocation pipeline. And their checkpoints are: 结果: P1 / BF / YAW / BV 四个 40k 检查点(各 691 MB,共 2.8 GB)已用 --inplace rsync 存到 /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/{P1,BF,YAW,BV}/epoch=8-step=40000.ckpt,NAS 端全量回读 sha256 与本地完全相同,sha256sum -c MANIFEST.sha256 四项 OK。本地副本按你的要求全部保留,未删任何文件。
+
+Clarifies: exp_18's released-EMA rows = pipeline sanity anchor; the exp_20 scientific comparison = P1@40k (vanilla) vs YAW@40k (yaw-augment) vs BF@40k (FA method), matched step. BV@40k also delivered (not named in the run list).
