@@ -9,3 +9,4 @@ Base: `raf-finetune-exp` @ `263ef27` (full exp_19 pipeline + 557-test suite inhe
 | `13c8f77` | r1 cycle 3: audio-union enumeration + M1 amplitude audit (abort-with-measured-report, never drop/auto-adjust) — 46 tests |
 | `ef7166d` | r1 cycle 4: `write_union` + Mapping-H byte-identity provenance (abort on disagreement) — 21 prepare tests |
 | `a1fef7b` | r1 cycle 6: publication FLAVORS (`mappingA_prepare`/`mappingA_depth` kinds + registered identities); H→A, A→H, republish, injected-crash composition tests — 11 tests |
+| `dce9610` | r1 cycle 5: `build_items` + M5 static manifest validator (18 tests) |
