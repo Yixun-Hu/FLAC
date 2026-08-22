@@ -33,6 +33,7 @@ if _HERE not in sys.path:  # sibling scripts, not an installed package
     sys.path.insert(0, _HERE)
 from prepare_data import (  # noqa: E402
     AMPLITUDE_CEILING as AMPLITUDE_DERIVATION_TARGET,
+    RAF_UP_AXIS,
     CLIP_CEILING,
     LOADER_SAMPLE_SIZE,
     SILENCE_THRESHOLD_DB,
@@ -666,6 +667,12 @@ def build_items(room, placement_id, poses, assignment, match, k=CANONICAL_K, see
                                     seed=seed)
         target_row = assignment[target_key][slot]
         rx_target = np.asarray(target["rx_xyz_p"], dtype=np.float64)[target_row]
+        # N8: the tracked height is a RAW RAF quantity (metres above the y=0 ground
+        # plane), so it is read from the RAW row, not from a pipeline coordinate
+        # that happens to hold it under the current gauge. Reading rx_target[2] was
+        # correct only because RAF_TO_PIPELINE maps RAF y to pipeline z; a gauge
+        # change would have silently turned it into a different axis.
+        rx_target_raw = np.asarray(target["rx_xyz"], dtype=np.float64)[target_row]
         context = []
         for pose in drawn["context"]:
             key = str(pose["group_key"])
@@ -697,7 +704,7 @@ def build_items(room, placement_id, poses, assignment, match, k=CANONICAL_K, see
             "tx_p": [float(v) for v in target["tx_xyz_p"]],
             "rx_target_p": [float(v) for v in rx_target],
             "rx_target_row": int(target_row),
-            "rx_target_height_raf_m": float(rx_target[2]),
+            "rx_target_height_raf_m": float(rx_target_raw[RAF_UP_AXIS]),
             "depth_file": f"{room}_{placement_id}_slot{slot:02d}_depth_image.npy",
             "context": context,
             "match": dict(match[target_key]),

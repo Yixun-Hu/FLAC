@@ -189,11 +189,17 @@ def test_the_validator_is_importable_and_reports_json_safely():
 # --------------------------------------------------------------------------- #
 # item construction
 # --------------------------------------------------------------------------- #
-def _pose(key, capture_by_slot, xyz):
+def _pose(key, capture_by_slot, xyz, rx_raw=None):
+    # RAF is X front, Y up, Z left; RAF_TO_PIPELINE = (X, Z, Y). The RAW rows are
+    # carried alongside the pipeline ones because the tracked height is a raw
+    # quantity (r2 N8).
+    raw = (rx_raw if rx_raw is not None
+           else np.array([[0.1 * s, 1.0, 0.2] for s in range(36)]))
     return {"group_key": key, "tx_xyz": np.array(xyz, dtype=np.float64),
             "tx_xyz_p": np.array([xyz[0], xyz[2], xyz[1]], dtype=np.float64),
             "capture_ids": capture_by_slot,
-            "rx_xyz_p": np.array([[0.1 * s, 0.2, 1.0] for s in range(36)])}
+            "rx_xyz": raw,
+            "rx_xyz_p": np.array([[row[0], row[2], row[1]] for row in raw])}
 
 
 def _placement_poses(n_poses=12, base=0):
@@ -448,3 +454,43 @@ def test_a_non_positive_declared_count_is_refused():
     eval_FLAC = _eval_flac()
     with pytest.raises(ValueError):
         eval_FLAC.resolve_expected_stream_count({"expected_items": 0})
+
+
+# --------------------------------------------------------------------------- #
+# r2 N8: the tracked height is read from the RAW RAF row
+# --------------------------------------------------------------------------- #
+def _built_items(poses, k=8):
+    return prep_a.build_items(
+        "EmptyRoom", "p000", poses,
+        assignment={p["group_key"]: list(range(36)) for p in poses},
+        match={p["group_key"]: {"p95_m": 0.004, "max_m": 0.008,
+                                "min_ambiguity_margin": 40.0} for p in poses}, k=k)
+
+
+def test_the_tracked_height_is_the_raw_raf_up_axis():
+    raw = np.array([[0.1 * s, 1.7, 0.2] for s in range(36)])
+    items = _built_items(_placement_poses_with_raw(raw))
+    assert prep_a.RAF_UP_AXIS == 1
+    for item in items:
+        assert item["rx_target_height_raf_m"] == 1.7
+
+
+def test_a_wrong_gauge_cannot_change_the_tracked_height():
+    """The height comes from the RAW row, so a pipeline coordinate that no longer
+    holds it -- a mis-specified gauge -- cannot rewrite the number the depth
+    renderer tracks. Reading rx_target_p[2] was right only by coincidence of the
+    registered gauge."""
+    raw = np.array([[0.1 * s, 1.7, 0.2] for s in range(36)])
+    poses = _placement_poses_with_raw(raw)
+    for pose in poses:                       # a deliberately wrong pipeline mapping
+        pose["rx_xyz_p"] = np.array([[row[0], row[1], row[2]] for row in raw])
+    items = _built_items(poses)
+    for item in items:
+        assert item["rx_target_height_raf_m"] == 1.7        # untouched raw height
+        assert item["rx_target_p"][2] == 0.2                # the wrong gauge's z
+
+
+def _placement_poses_with_raw(raw, n_poses=12):
+    return [_pose(f"g{i}", [f"{i * 36 + s:06d}" for s in range(36)],
+                  (float(i), 1.5, 2.0), rx_raw=raw)
+            for i in range(n_poses)]
