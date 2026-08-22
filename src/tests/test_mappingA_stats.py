@@ -137,9 +137,27 @@ def test_the_full_pipeline_runs_from_item_records():
 import json  # noqa: E402
 
 
+def _provenance(seed, ckpt="a" * 64, **overrides):
+    """A complete cell identity (r3 P3): weights by content, configs by digest, the
+    corpus by its publication generation, the item stream by its hash."""
+    provenance = {"seed": seed, "ckpt_path": "arm.ckpt", "ckpt_sha256": ckpt,
+                  "ckpt_bytes": 1024, "cond_method": "vanilla",
+                  "model_config_sha256": "b" * 64,
+                  "dataset_config_sha256": "c" * 64,
+                  "publication_generation": "46a43f4ce82b",
+                  "expected_items": stats.REGISTERED_N_ITEMS,
+                  "stream_input_hash": "d" * 64,
+                  "stream_assignment_hash": "e" * 64,
+                  "steps": 1, "cfg_scale": 1.0, "are_lambda": None,
+                  "rotate_mode": "fixed", "rotate_deg": 0.0, "rotate_seed": None}
+    provenance.update(overrides)
+    return provenance
+
+
 def _sidecar(tmp_path, name, seed, value_of, rooms=stats.REGISTERED_ROOMS,
              placements=stats.REGISTERED_PLACEMENTS_PER_ROOM,
-             slots=stats.REGISTERED_SLOTS_PER_PLACEMENT, metric="C50", **overrides):
+             slots=stats.REGISTERED_SLOTS_PER_PLACEMENT, metric="C50",
+             provenance=None, **overrides):
     """A registered-shape sidecar whose values come from value_of(room, p, slot)."""
     rows = []
     for room in rooms:
@@ -152,7 +170,7 @@ def _sidecar(tmp_path, name, seed, value_of, rooms=stats.REGISTERED_ROOMS,
                     "metrics": {metric: value_of(room, p, slot)}})
     payload = {"schema_version": stats.PER_ITEM_SCHEMA_VERSION, "n_items": len(rows),
                "metrics": [metric], "excluded_metrics": ["eval_FD", "eval_retrieval"],
-               "provenance": {"seed": seed, "ckpt_path": f"{name}.ckpt"},
+               "provenance": provenance or _provenance(seed),
                "items": rows}
     payload.update(overrides)
     path = tmp_path / f"{name}_seed{seed}.per_item.json"
@@ -160,13 +178,16 @@ def _sidecar(tmp_path, name, seed, value_of, rooms=stats.REGISTERED_ROOMS,
     return str(path)
 
 
-def _arm(tmp_path, label, offset, seeds=(0, 1)):
+def _arm(tmp_path, label, offset, seeds=stats.REGISTERED_SEEDS, ckpt=None,
+         registered=True, **provenance):
     paths = [_sidecar(tmp_path, label, seed,
                       lambda room, p, slot, offset=offset, seed=seed:
                       offset + p + 0.01 * slot + 0.001 * seed
-                      + (100.0 if room == "FurnishedRoom" else 0.0))
+                      + (100.0 if room == "FurnishedRoom" else 0.0),
+                      provenance=_provenance(seed, ckpt=ckpt or (label[-1] * 64),
+                                             **provenance))
              for seed in seeds]
-    return stats.arm_from_sidecars(paths, "C50", label)
+    return stats.arm_from_sidecars(paths, "C50", label, registered=registered)
 
 
 def test_a_sidecar_of_the_wrong_schema_is_refused(tmp_path):
@@ -200,7 +221,7 @@ def test_an_arm_refuses_a_repeated_seed(tmp_path):
     a = _sidecar(tmp_path, "armA", 0, lambda *a: 1.0)
     b = _sidecar(tmp_path, "armB", 0, lambda *a: 2.0)
     with pytest.raises(ValueError) as exc:
-        stats.arm_from_sidecars([a, b], "C50", "arm")
+        stats.arm_from_sidecars([a, b], "C50", "arm", registered=False)
     assert "seed 0 appears" in str(exc.value)
 
 
@@ -211,7 +232,7 @@ def test_an_arm_refuses_seeds_that_evaluated_different_items(tmp_path):
     payload["items"][5]["item_id"] = "EmptyRoom/p999/slot05"
     open(b, "w").write(json.dumps(payload))
     with pytest.raises(ValueError) as exc:
-        stats.arm_from_sidecars([a, b], "C50", "arm")
+        stats.arm_from_sidecars([a, b], "C50", "arm", registered=False)
     assert "identical items" in str(exc.value)
 
 
@@ -225,8 +246,8 @@ def test_two_arms_over_different_items_are_not_paired(tmp_path):
 
 
 def test_two_arms_with_different_seed_sets_are_not_paired(tmp_path):
-    arm_a = _arm(tmp_path, "armA", 0.0, seeds=(0, 1))
-    arm_b = _arm(tmp_path, "armB", 1.0, seeds=(0, 2))
+    arm_a = _arm(tmp_path, "armA", 0.0, seeds=(0, 1), registered=False)
+    arm_b = _arm(tmp_path, "armB", 1.0, seeds=(0, 2), registered=False)
     with pytest.raises(ValueError) as exc:
         stats.assert_paired(arm_a, arm_b)
     assert "seeds differ" in str(exc.value)
@@ -240,7 +261,7 @@ def test_the_paired_difference_is_taken_item_by_item(tmp_path):
     differences, counts = stats.paired_placement_differences(arm_a, arm_b)
     assert len(differences) == 32
     assert all(abs(value - 0.25) < 1e-12 for value in differences.values())
-    assert set(counts.values()) == {36 * 2}          # 36 slots x 2 seeds
+    assert set(counts.values()) == {36 * len(stats.REGISTERED_SEEDS)}
 
 
 def test_the_contrast_report_is_paired_clustered_and_equal_room(tmp_path):
@@ -266,12 +287,15 @@ def test_the_contrast_report_is_paired_clustered_and_equal_room(tmp_path):
 def test_a_contrast_over_the_wrong_number_of_placements_is_refused(tmp_path):
     def half(name, seed):
         return _sidecar(tmp_path, name, seed, lambda room, p, slot: float(p),
-                        placements=8)
+                        placements=8,
+                        provenance=_provenance(seed, ckpt=name * 64))
 
-    arm_a = stats.arm_from_sidecars([half("a", 0)], "C50", "a", enforce_design=False)
-    arm_b = stats.arm_from_sidecars([half("b", 0)], "C50", "b", enforce_design=False)
+    arm_a = stats.arm_from_sidecars([half("a", 0)], "C50", "a", enforce_design=False,
+                                    registered=False)
+    arm_b = stats.arm_from_sidecars([half("b", 0)], "C50", "b", enforce_design=False,
+                                    registered=False)
     with pytest.raises(ValueError) as exc:
-        stats.contrast_report(arm_a, arm_b)
+        stats.contrast_report(arm_a, arm_b, require_registered=False)
     assert "expected 32" in str(exc.value)
 
 
@@ -279,7 +303,7 @@ def test_a_non_finite_item_stops_the_contrast(tmp_path):
     arm_a = _arm(tmp_path, "armA", 0.0)
     arm_b = _arm(tmp_path, "armB", -0.25)
     first = arm_a["item_ids"][0]
-    arm_a["by_seed"][0][first]["value"] = None
+    arm_a["by_seed"][arm_a["seeds"][0]][first]["value"] = None
     with pytest.raises(ValueError) as exc:
         stats.paired_placement_differences(arm_a, arm_b)
     assert "different estimand" in str(exc.value)
@@ -417,12 +441,125 @@ def test_a_produced_sidecar_reads_back_through_the_stats_loader(tmp_path):
                 md = _md(slot=slot, room=room, placement=f"p{p:03d}")
                 rows.append(dict(eval_FLAC.per_item_identity(md),
                                  metrics={"C50": float(p) + 0.01 * slot}))
-    record = eval_FLAC.build_per_item_record(rows, {"seed": 3, "ckpt_path": "x.ckpt"})
+    record = eval_FLAC.build_per_item_record(rows, _provenance(3))
     path = tmp_path / "run_metrics_a.per_item.json"
     path.write_text(json.dumps(record))
 
-    arm = stats.arm_from_sidecars([str(path)], "C50", "armA")
+    arm = stats.arm_from_sidecars([str(path)], "C50", "armA", registered=False)
     assert arm["seeds"] == [3]
     assert len(arm["item_ids"]) == stats.REGISTERED_N_ITEMS
     means = stats.arm_placement_means(arm)[3]
     assert abs(means[("EmptyRoom", "p000")] - 0.175) < 1e-12
+
+
+# --------------------------------------------------------------------------- #
+# r3 P3: an arm is a cell, identified by its provenance
+# --------------------------------------------------------------------------- #
+def test_sidecars_from_two_checkpoints_cannot_be_pooled_as_one_arm(tmp_path):
+    """The operator's file list used to be the only thing claiming these runs were
+    one arm, so two checkpoints could be averaged together under one label."""
+    a = _sidecar(tmp_path, "x", 42, lambda *a: 1.0,
+                 provenance=_provenance(42, ckpt="a" * 64))
+    b = _sidecar(tmp_path, "x", 43, lambda *a: 1.0,
+                 provenance=_provenance(43, ckpt="f" * 64))
+    with pytest.raises(ValueError) as exc:
+        stats.arm_from_sidecars([a, b], "C50", "arm", registered=False)
+    assert "not the same cell" in str(exc.value)
+    assert "ckpt_sha256" in str(exc.value)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("cond_method", "fa_invariant"),
+    ("publication_generation", "deadbeefdead"),
+    ("dataset_config_sha256", "9" * 64),
+    ("steps", 8),
+    ("are_lambda", 0.5),
+])
+def test_any_non_seed_protocol_field_must_be_constant_within_an_arm(tmp_path, field,
+                                                                    value):
+    a = _sidecar(tmp_path, "x", 42, lambda *a: 1.0, provenance=_provenance(42))
+    b = _sidecar(tmp_path, "x", 43, lambda *a: 1.0,
+                 provenance=_provenance(43, **{field: value}))
+    with pytest.raises(ValueError) as exc:
+        stats.arm_from_sidecars([a, b], "C50", "arm", registered=False)
+    assert field in str(exc.value) and "Only the seed may vary" in str(exc.value)
+
+
+def test_a_sidecar_without_the_identity_fields_is_refused(tmp_path):
+    provenance = _provenance(42)
+    del provenance["ckpt_sha256"]
+    path = _sidecar(tmp_path, "x", 42, lambda *a: 1.0, provenance=provenance)
+    with pytest.raises(ValueError) as exc:
+        stats.arm_from_sidecars([path], "C50", "arm", registered=False)
+    assert "ckpt_sha256" in str(exc.value)
+
+
+def test_the_registered_report_requires_exactly_the_registered_seeds(tmp_path):
+    with pytest.raises(ValueError) as exc:
+        _arm(tmp_path, "armA", 0.0, seeds=(42,))
+    assert "[42, 43, 44, 45, 46]" in str(exc.value)
+    with pytest.raises(ValueError) as exc:
+        _arm(tmp_path, "armA", 0.0, seeds=(1, 2, 3, 4, 5))
+    assert "different experiment" in str(exc.value)
+    # the registered set passes, and the arm says so
+    arm = _arm(tmp_path, "armA", 0.0)
+    assert arm["seeds"] == list(stats.REGISTERED_SEEDS)
+    assert arm["registered"] is True
+
+
+def test_an_exploratory_arm_cannot_receive_the_registered_report(tmp_path):
+    arm_a = _arm(tmp_path, "armA", 0.0, seeds=(0, 1), registered=False)
+    arm_b = _arm(tmp_path, "armB", -0.25, seeds=(0, 1), registered=False)
+    with pytest.raises(ValueError) as exc:
+        stats.contrast_report(arm_a, arm_b)
+    assert "registered arms" in str(exc.value)
+    report = stats.contrast_report(arm_a, arm_b, n_resamples=50,
+                                   require_registered=False)
+    assert report["registered"] is False
+
+
+def test_arms_that_scored_different_corpora_are_not_comparable(tmp_path):
+    arm_a = _arm(tmp_path, "armA", 0.0)
+    arm_b = _arm(tmp_path, "armB", -0.25, publication_generation="deadbeefdead")
+    with pytest.raises(ValueError) as exc:
+        stats.assert_paired(arm_a, arm_b)
+    assert "publication_generation differs" in str(exc.value)
+
+
+def test_arms_that_evaluated_different_item_streams_are_not_comparable(tmp_path):
+    """The stream hash is over the items and their conditioning, so it is identical
+    across arms by construction -- unless they did not evaluate the same run of the
+    same split."""
+    arm_a = _arm(tmp_path, "armA", 0.0)
+    arm_b = _arm(tmp_path, "armB", -0.25, stream_input_hash="0" * 64)
+    with pytest.raises(ValueError) as exc:
+        stats.assert_paired(arm_a, arm_b)
+    assert "stream_input_hash differs" in str(exc.value)
+
+
+def test_one_cell_compared_with_itself_is_not_a_contrast(tmp_path):
+    arm_a = _arm(tmp_path, "armA", 0.0, ckpt="a" * 64)
+    arm_b = _arm(tmp_path, "armB", 0.0, ckpt="a" * 64)
+    assert arm_a["identity_sha256"] == arm_b["identity_sha256"]
+    with pytest.raises(ValueError) as exc:
+        stats.assert_paired(arm_a, arm_b)
+    assert "one cell compared with itself" in str(exc.value)
+
+
+def test_the_registered_contrast_names_both_arm_identities(tmp_path):
+    arm_a = _arm(tmp_path, "armA", 0.0)
+    arm_b = _arm(tmp_path, "armB", -0.25)
+    report = stats.contrast_report(arm_a, arm_b, n_resamples=100)
+    assert report["registered"] is True
+    assert report["seeds"] == list(stats.REGISTERED_SEEDS)
+    assert set(report["arm_identities"]) == {"armA", "armB"}
+    assert (report["arm_identities"]["armA"]
+            != report["arm_identities"]["armB"])
+    assert abs(report["difference"]["macro"] - 0.25) < 1e-12
+    json.dumps(report)
+
+
+def test_the_producer_and_the_reader_share_the_identity_field_set():
+    assert (_eval_flac().PER_ITEM_IDENTITY_FIELDS
+            == stats.ARM_IDENTITY_FIELDS)
+    assert set(stats.SHARED_IDENTITY_FIELDS) <= set(stats.ARM_IDENTITY_FIELDS)

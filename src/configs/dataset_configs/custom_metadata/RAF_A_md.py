@@ -49,7 +49,13 @@ def get_custom_metadata(info, audio):
     capture_id = rel_path.split("/")[-1].split(".")[0]
     metadata_path = os.path.join(dataset_folder, scene_name, 'metadata')
 
-    assert_published_once(dataset_folder)
+    publication = assert_published_once(dataset_folder)
+    if publication is not None:
+        # exp_21 r3 P3: the generation the gate just attested travels with the
+        # sample, so a per-item metric row can name the corpus it scored -- a
+        # config path can be republished under the same name, a generation cannot.
+        md['publication_generation'] = (
+            publication["kinds"]["mappingA_prepare"]["generation"])
 
     items = load_json_cached(os.path.join(metadata_path, METADATA_NAME))
     item = items[capture_id]

@@ -30,6 +30,20 @@ REGISTERED_N_ITEMS = (len(REGISTERED_ROOMS) * REGISTERED_PLACEMENTS_PER_ROOM
                       * REGISTERED_SLOTS_PER_PLACEMENT)
 PER_ITEM_SCHEMA_VERSION = 1
 
+# P3: an arm is a CELL, and a cell is identified by its provenance -- not by which
+# files an operator happened to group together. Everything here must be constant
+# within an arm; the shared subset must match ACROSS arms, because that is what
+# makes the two arms comparable at all.
+ARM_IDENTITY_FIELDS = (
+    "ckpt_sha256", "cond_method", "model_config_sha256", "steps", "cfg_scale",
+    "are_lambda", "rotate_mode", "rotate_deg", "rotate_seed",
+    "dataset_config_sha256", "publication_generation", "stream_input_hash",
+)
+SHARED_IDENTITY_FIELDS = ("dataset_config_sha256", "publication_generation",
+                          "stream_input_hash")
+# The registered Monte-Carlo draws (plan section 6): five seeds, exactly these.
+REGISTERED_SEEDS = (42, 43, 44, 45, 46)
+
 
 def load_per_item_sidecar(path):
     """Read one ``<metrics>.per_item.json`` written by eval_FLAC --record-per-item.
@@ -102,13 +116,44 @@ def assert_registered_design(rows, rooms=REGISTERED_ROOMS,
             "n_placements": len(by_placement), "slots_per_placement": slots}
 
 
-def arm_from_sidecars(paths, metric, label, enforce_design=True):
+def arm_identity(provenance, path=""):
+    """The identity fields of one sidecar, all of them required (P3).
+
+    A missing field is not a default: it means the producer did not record what
+    cell this was, and an arm assembled from such files is an assumption.
+    """
+    missing = [field for field in ARM_IDENTITY_FIELDS if field not in provenance]
+    if missing:
+        raise ValueError(
+            f"{path}: the sidecar provenance is missing {missing}, so the cell it "
+            "came from cannot be identified. Re-run eval_FLAC --record-per-item "
+            "with the current producer.")
+    return {field: provenance[field] for field in ARM_IDENTITY_FIELDS}
+
+
+def identity_digest(identity):
+    return hashlib.sha256(
+        json.dumps(identity, sort_keys=True, separators=(",", ":"),
+                   default=str).encode("utf-8")).hexdigest()
+
+
+def arm_from_sidecars(paths, metric, label=None, enforce_design=True,
+                      registered=True):
     """One arm: its per-seed sidecars, indexed by item id.
 
     Seeds are read from each sidecar's provenance, never from the filename, and a
     repeated seed is an error -- two runs of the same cell are not two seeds.
+
+    P3: the arm's identity is DERIVED from that provenance and must be constant
+    across its sidecars. Before this, an operator's file list was the only thing
+    saying these runs were one arm, so two checkpoints or two conditioning methods
+    could be pooled into a single "arm" and averaged. ``label`` is a display name
+    now, not the identity. In ``registered`` mode the seed set must be exactly the
+    registered draws -- a one-seed or wrong-seed experiment is not the registered
+    experiment and must not receive its report.
     """
     seeds, rows_by_seed, item_ids = {}, {}, None
+    identity, identity_path = None, None
     for path in paths:
         sidecar = load_per_item_sidecar(path)
         if enforce_design:
@@ -121,6 +166,19 @@ def arm_from_sidecars(paths, metric, label, enforce_design=True):
         if seed in seeds:
             raise ValueError(f"seed {seed} appears in both {seeds[seed]} and {path}")
         seeds[seed] = path
+
+        this_identity = arm_identity(sidecar["provenance"], path)
+        if identity is None:
+            identity, identity_path = this_identity, path
+        else:
+            differing = sorted(field for field in ARM_IDENTITY_FIELDS
+                               if this_identity[field] != identity[field])
+            if differing:
+                raise ValueError(
+                    f"{path} is not the same cell as {identity_path}: "
+                    + "; ".join(f"{field} {this_identity[field]!r} != "
+                                f"{identity[field]!r}" for field in differing)
+                    + ". Only the seed may vary within an arm.")
         values = {}
         for row in sidecar["rows"]:
             if metric not in row["metrics"]:
@@ -138,8 +196,17 @@ def arm_from_sidecars(paths, metric, label, enforce_design=True):
         rows_by_seed[seed] = values
     if not rows_by_seed:
         raise ValueError(f"arm {label}: no sidecars")
-    return {"label": label, "metric": metric, "seeds": sorted(rows_by_seed),
-            "by_seed": rows_by_seed, "item_ids": sorted(item_ids),
+    if registered and tuple(sorted(rows_by_seed)) != REGISTERED_SEEDS:
+        raise ValueError(
+            f"arm {label or ''} holds seeds {sorted(rows_by_seed)}, but the "
+            f"registered experiment is exactly {list(REGISTERED_SEEDS)}: a run over "
+            "other draws is a different experiment and does not get the registered "
+            "report. Pass registered=False for an exploratory arm.")
+    return {"label": label or identity_digest(identity)[:12], "metric": metric,
+            "seeds": sorted(rows_by_seed), "by_seed": rows_by_seed,
+            "item_ids": sorted(item_ids),
+            "identity": identity, "identity_sha256": identity_digest(identity),
+            "registered": bool(registered),
             "paths": {int(seed): path for seed, path in seeds.items()}}
 
 
@@ -154,6 +221,20 @@ def assert_paired(arm_a, arm_b):
     problems = []
     if arm_a["metric"] != arm_b["metric"]:
         problems.append(f"metrics differ: {arm_a['metric']} vs {arm_b['metric']}")
+    # P3: the arms must differ in what the experiment varies and agree on
+    # everything the comparison holds fixed -- the corpus generation, the config
+    # they were read under, and the very stream of items that was evaluated.
+    for field in SHARED_IDENTITY_FIELDS:
+        a_value = (arm_a.get("identity") or {}).get(field)
+        b_value = (arm_b.get("identity") or {}).get(field)
+        if a_value != b_value:
+            problems.append(f"{field} differs: {a_value!r} vs {b_value!r}")
+    if (arm_a.get("identity_sha256") is not None
+            and arm_a.get("identity_sha256") == arm_b.get("identity_sha256")):
+        problems.append(
+            "both arms have identity "
+            f"{arm_a['identity_sha256'][:12]}: this is one cell compared with "
+            "itself, not two arms")
     missing = sorted(set(arm_a["item_ids"]) ^ set(arm_b["item_ids"]))
     if missing:
         problems.append(f"{len(missing)} items are not in both arms "
@@ -229,7 +310,7 @@ def paired_cluster_bootstrap(differences, n_resamples=10000, alpha=0.05,
 
 
 def contrast_report(arm_a, arm_b, n_resamples=10000, alpha=0.05,
-                    enforce_design=True):
+                    enforce_design=True, require_registered=True):
     """The registered cross-arm report for one metric.
 
     Everything it claims is paired at the item level, aggregated at the placement
@@ -237,6 +318,12 @@ def contrast_report(arm_a, arm_b, n_resamples=10000, alpha=0.05,
     BESIDE the interval, never inside it, because it is a fact about the sampler
     and not about the estimand.
     """
+    if require_registered and not (arm_a.get("registered")
+                                   and arm_b.get("registered")):
+        raise ValueError(
+            "the registered contrast report is for registered arms (exactly seeds "
+            f"{list(REGISTERED_SEEDS)}); pass require_registered=False to report an "
+            "exploratory contrast, which must then be labelled as one.")
     pairing = assert_paired(arm_a, arm_b)
     differences, counts = paired_placement_differences(arm_a, arm_b)
     if enforce_design:
@@ -257,6 +344,10 @@ def contrast_report(arm_a, arm_b, n_resamples=10000, alpha=0.05,
     return {
         "metric": arm_a["metric"],
         "arms": [arm_a["label"], arm_b["label"]],
+        "arm_identities": {arm_a["label"]: arm_a.get("identity_sha256"),
+                           arm_b["label"]: arm_b.get("identity_sha256")},
+        "registered": bool(arm_a.get("registered") and arm_b.get("registered")),
+        "seeds": list(arm_a["seeds"]),
         "pairing": pairing,
         "unit": "placement",
         "n_items_per_placement": {f"{room}/{placement}": n

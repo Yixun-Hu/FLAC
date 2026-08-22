@@ -703,6 +703,49 @@ PER_ITEM_SCHEMA_VERSION = 1
 PER_ITEM_EXCLUDED_METRICS = ("eval_FD", "eval_retrieval")
 
 
+# P3: what identifies the CELL a per-item sidecar came from. Everything except
+# the seed must be constant within an arm, and the last three must MATCH across
+# arms -- that is what makes the comparison paired rather than merely aligned.
+PER_ITEM_IDENTITY_FIELDS = (
+    "ckpt_sha256", "cond_method", "model_config_sha256", "steps", "cfg_scale",
+    "are_lambda", "rotate_mode", "rotate_deg", "rotate_seed",
+    "dataset_config_sha256", "publication_generation", "stream_input_hash",
+)
+
+
+def file_digest(path, chunk_bytes=1 << 20):
+    """Streaming sha256 of a file (checkpoints are gigabytes; do not slurp)."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(chunk_bytes), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def resolve_publication_generation(metadata):
+    """The publication generation the loader attested, from the batch metadata.
+
+    A per-item sidecar is only comparable to another if both describe the same
+    corpus, and "same corpus" is the publication's generation -- not the config
+    path, which can point at a tree that was republished in between. RAF_A_md
+    carries it on every sample after its gate passes; a batch that disagrees with
+    itself, or that carries none, stops the run.
+    """
+    generations = {md.get("publication_generation") for md in metadata}
+    if len(generations) != 1:
+        raise ValueError(
+            f"the batch carries {len(generations)} publication generations "
+            f"({sorted(str(g) for g in generations)}): items from two publications "
+            "cannot be recorded as one cell.")
+    generation = generations.pop()
+    if not generation:
+        raise ValueError(
+            "the loader attested no publication generation, so this sidecar could "
+            "not be tied to the corpus it scored. --record-per-item requires the "
+            "Mapping-A metadata hook with its publication gate active.")
+    return str(generation)
+
+
 def per_item_sidecar_path(metrics_path):
     """``<...>_metrics_<stem>.json`` -> ``<...>_metrics_<stem>.per_item.json``."""
     base = metrics_path[:-len('.json')] if metrics_path.endswith('.json') else metrics_path
@@ -1507,6 +1550,7 @@ def evaluate_model(
     # closed on a single room), and the distribution-level metrics are off.
     per_item_callback = None
     per_item_rows = []
+    per_item_generation = None
     if record_per_item:
         per_item_callback = create_metric_callback_from_config(
             per_item_metric_config(model_config), dataset_id=None, per_scene=False)
@@ -1602,6 +1646,13 @@ def evaluate_model(
             depthMinusSource_list = [(d[:3, :, :] - source_pose[:, None, None]).unsqueeze(0).float().to(device) for d, source_pose in zip(depth_list, query_list)]
             metric_callback.update_metrics("test", fakes, reals, scene_list, depth=depthMinusSource_list)
             if per_item_callback is not None:
+                batch_generation = resolve_publication_generation(metadata)
+                if per_item_generation is None:
+                    per_item_generation = batch_generation
+                elif batch_generation != per_item_generation:
+                    raise ValueError(
+                        f"publication generation changed mid-run: "
+                        f"{per_item_generation} then {batch_generation}")
                 per_item_rows.extend(record_per_item_metrics(
                     per_item_callback, fakes, reals, metadata))
             c += reals.shape[0]
@@ -1680,9 +1731,24 @@ def evaluate_model(
     # the stream sidecar is: the headline record's shape is frozen.
     if record_per_item:
         path2save_items = per_item_sidecar_path(path2save)
+        # P3: the cell's IDENTITY, not just its command line. The weights are named
+        # by content (a path can be overwritten), both configs by digest, the corpus
+        # by the generation the loader attested, and the evaluated item stream by
+        # its own hash -- so two sidecars can be shown to be the same arm, or shown
+        # to be comparable across arms, without trusting how they were filed.
         per_item_provenance = {
             "ckpt_path": ckpt_path,
+            "ckpt_sha256": file_digest(ckpt_path),
+            "ckpt_bytes": os.path.getsize(ckpt_path),
             "dataset_config": dataset_config_path,
+            "dataset_config_sha256": file_digest(dataset_config_path),
+            "model_config_sha256": file_digest(model_config_path),
+            "publication_generation": per_item_generation,
+            "expected_items": expected_stream_count,
+            "stream_input_hash": (rot_stream.input_hash() if rot_stream is not None
+                                  else None),
+            "stream_assignment_hash": (rot_stream.assignment_hash()
+                                       if rot_stream is not None else None),
             "eval_name": eval_name,
             "seed": seed,
             "steps": steps,
@@ -1694,6 +1760,10 @@ def evaluate_model(
             "are_lambda": are_lambda,
             "weights_source": weights_source,
         }
+        missing = [field for field in PER_ITEM_IDENTITY_FIELDS
+                   if field not in per_item_provenance]
+        if missing:
+            raise ValueError(f"per-item provenance is missing {missing}")
         with open(path2save_items, 'w') as f:
             json.dump(build_per_item_record(per_item_rows, per_item_provenance), f,
                       indent=2)
