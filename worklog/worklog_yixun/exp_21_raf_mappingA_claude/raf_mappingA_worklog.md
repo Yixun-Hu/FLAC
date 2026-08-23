@@ -46,3 +46,6 @@ r1→r4 + closing passes: N1-N9, P1-P3, Q1-Q3, R1 all closed; 849 mappingA+raf t
 
 ## 2026-08-22T21:25:00-0400 — GPU HOLD (Yixun: senior needs the GPUs)
 exp_21's GPU phase (smoke + 5-arm sweep) is HELD before launch — zero GPU footprint from this experiment at hold time. CPU chain (Amendment-4.2 cycle, re-render) continues. Peer session relayed the priority for its two eval_localization cells. Resume condition: Yixun releases the GPUs; then smoke (~10 min) + sweep (~4–6 h) are all that remain.
+
+## 2026-08-23T14:39:40-0400 — SWEEP COMPLETE + results committed; exp_21 ready to close on Yixun's read
+25/25 cells (13:34–14:30), registered contrasts committed (9f161bf); results + reliability this commit. GPUs returned to the peer campaign at 14:30.
