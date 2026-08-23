@@ -1,0 +1,131 @@
+{
+  "arms": {
+    "fa_bf": {
+      "run_manifest_sha256": "fbc1b89468d5a1413cf8b9c5aac5f6227c9fce7c4407138df70af5ee967ba7f5",
+      "summary": {
+        "1": {
+          "mean_excess_error_m": 1.9630954786385162,
+          "mean_localization_error_m": 2.1474499570063945,
+          "mean_oracle_error_m": 0.18435447836787838,
+          "median_excess_error_m": 0.7071067811865476,
+          "median_localization_error_m": 0.8581597352818455,
+          "median_oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0.3125,
+          "oracle_normalized_success_1_0m": 0.59375,
+          "query_count": 64,
+          "room_count": 16,
+          "room_macro_mean_localization_error_m": 2.147449957006394,
+          "success_0_5m": 0.078125,
+          "success_1_0m": 0.53125
+        },
+        "4": {
+          "mean_excess_error_m": 1.8741917788959386,
+          "mean_localization_error_m": 2.058546257263817,
+          "mean_oracle_error_m": 0.18435447836787838,
+          "median_excess_error_m": 0.8975780913431771,
+          "median_localization_error_m": 1.0579481672089628,
+          "median_oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0.28125,
+          "oracle_normalized_success_1_0m": 0.578125,
+          "query_count": 64,
+          "room_count": 16,
+          "room_macro_mean_localization_error_m": 2.058546257263817,
+          "success_0_5m": 0.078125,
+          "success_1_0m": 0.484375
+        },
+        "8": {
+          "mean_excess_error_m": 1.8109403035472702,
+          "mean_localization_error_m": 1.9952947819151488,
+          "mean_oracle_error_m": 0.18435447836787838,
+          "median_excess_error_m": 0.9009035364722466,
+          "median_localization_error_m": 1.0579481672089628,
+          "median_oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0.296875,
+          "oracle_normalized_success_1_0m": 0.5625,
+          "query_count": 64,
+          "room_count": 16,
+          "room_macro_mean_localization_error_m": 1.9952947819151485,
+          "success_0_5m": 0.09375,
+          "success_1_0m": 0.484375
+        }
+      }
+    },
+    "vanilla": {
+      "run_manifest_sha256": "0b9b540e8efdaaf2ee190297643cebdb3d26889895830948df985ebc7c48761f",
+      "summary": {
+        "1": {
+          "mean_excess_error_m": 1.5217821642874543,
+          "mean_localization_error_m": 1.7061366426553328,
+          "mean_oracle_error_m": 0.18435447836787838,
+          "median_excess_error_m": 0.5890409039457802,
+          "median_localization_error_m": 0.8105224807342667,
+          "median_oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0.40625,
+          "oracle_normalized_success_1_0m": 0.640625,
+          "query_count": 64,
+          "room_count": 16,
+          "room_macro_mean_localization_error_m": 1.7061366426553328,
+          "success_0_5m": 0.203125,
+          "success_1_0m": 0.5625
+        },
+        "4": {
+          "mean_excess_error_m": 1.797056659916017,
+          "mean_localization_error_m": 1.9814111382838955,
+          "mean_oracle_error_m": 0.18435447836787838,
+          "median_excess_error_m": 0.6140775795298912,
+          "median_localization_error_m": 0.825224302700292,
+          "median_oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0.390625,
+          "oracle_normalized_success_1_0m": 0.609375,
+          "query_count": 64,
+          "room_count": 16,
+          "room_macro_mean_localization_error_m": 1.9814111382838955,
+          "success_0_5m": 0.203125,
+          "success_1_0m": 0.546875
+        },
+        "8": {
+          "mean_excess_error_m": 1.8914042136206906,
+          "mean_localization_error_m": 2.075758691988569,
+          "mean_oracle_error_m": 0.18435447836787838,
+          "median_excess_error_m": 0.6765431061752095,
+          "median_localization_error_m": 0.8507446733763278,
+          "median_oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0.375,
+          "oracle_normalized_success_1_0m": 0.578125,
+          "query_count": 64,
+          "room_count": 16,
+          "room_macro_mean_localization_error_m": 2.075758691988569,
+          "success_0_5m": 0.203125,
+          "success_1_0m": 0.53125
+        }
+      }
+    }
+  },
+  "n_context": 8,
+  "pilot_manifest_sha256": "805093b3d404a357420c92e390ed4fbac570df9cbd43e6d2bc57ea8034ab35ad",
+  "query_count": 64,
+  "random_candidate_baseline": {
+    "mean_excess_error_m": 2.646758545551692,
+    "mean_localization_error_m": 2.8311130239195696,
+    "mean_oracle_error_m": 0.18435447836787838,
+    "median_excess_error_m": 1.7348842618743836,
+    "median_localization_error_m": 1.9223297207913186,
+    "median_oracle_error_m": 0.19999999999999996,
+    "oracle_normalized_success_0_5m": 0.09375,
+    "oracle_normalized_success_1_0m": 0.28125,
+    "query_count": 64,
+    "room_count": 16,
+    "room_macro_mean_localization_error_m": 2.83111302391957,
+    "success_0_5m": 0.015625,
+    "success_1_0m": 0.203125
+  },
+  "room_count": 16,
+  "schema_version": 1,
+  "score_sample_counts": [
+    1,
+    4,
+    8
+  ],
+  "sha256": "481e2dae98730cf3669dc1f65c151419cb0d09d8013b0f86fe550ad171cbc75d",
+  "tau": 0.1
+}

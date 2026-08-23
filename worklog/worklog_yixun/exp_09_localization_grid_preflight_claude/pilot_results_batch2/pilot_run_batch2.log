@@ -1,0 +1,175 @@
+/home/zhixuanzhao/projects/Frame_Average/FLAC-vanilla/.venv/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/home/zhixuanzhao/projects/Frame_Average/FLAC-vanilla/.venv/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/zhixuanzhao/projects/Frame_Average/FLAC-vanilla/.venv/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/zhixuanzhao/projects/Frame_Average/FLAC-vanilla/.venv/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/home/zhixuanzhao/projects/Frame_Average/FLAC-vanilla/.venv/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from scratch: /home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/AGREE/AGREE/model_configs/dinov3_vits16_local...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 0 whitelisted wrapper-leftover keys.
+Image model /home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/AGREE/AGREE/model_configs/dinov3_vits16_local loaded, trainable params: 21.00M
+[1/64] complete single_channel_ir_1/Apartments/Apartments_idx_42/S007_R006_hybrid_IR.wav candidates=176 seconds=10.5
+[2/64] complete single_channel_ir_1/Apartments/Apartments_idx_42/S007_R007_hybrid_IR.wav candidates=176 seconds=10.0
+[3/64] complete single_channel_ir_1/Apartments/Apartments_idx_42/S005_R010_hybrid_IR.wav candidates=176 seconds=10.0
+[4/64] complete single_channel_ir_1/Apartments/Apartments_idx_42/S003_R008_hybrid_IR.wav candidates=176 seconds=10.0
+[5/64] complete single_channel_ir_1/Apartments/Apartments_idx_50/S003_R010_hybrid_IR.wav candidates=220 seconds=12.5
+[6/64] complete single_channel_ir_1/Apartments/Apartments_idx_50/S007_R014_hybrid_IR.wav candidates=220 seconds=12.6
+[7/64] complete single_channel_ir_1/Apartments/Apartments_idx_50/S002_R025_hybrid_IR.wav candidates=220 seconds=12.4
+[8/64] complete single_channel_ir_1/Apartments/Apartments_idx_50/S007_R013_hybrid_IR.wav candidates=220 seconds=12.4
+[9/64] complete single_channel_ir_1/Auditorium/Auditorium_idx_1/S009_R030_hybrid_IR.wav candidates=3722 seconds=208.2
+[10/64] complete single_channel_ir_1/Auditorium/Auditorium_idx_1/S002_R023_hybrid_IR.wav candidates=3724 seconds=208.3
+[11/64] complete single_channel_ir_1/Auditorium/Auditorium_idx_1/S008_R042_hybrid_IR.wav candidates=3723 seconds=208.4
+[12/64] complete single_channel_ir_1/Auditorium/Auditorium_idx_1/S003_R041_hybrid_IR.wav candidates=3723 seconds=208.5
+[13/64] complete single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S003_R020_hybrid_IR.wav candidates=28 seconds=1.7
+[14/64] complete single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S009_R023_hybrid_IR.wav candidates=28 seconds=1.7
+[15/64] complete single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S005_R022_hybrid_IR.wav candidates=28 seconds=1.7
+[16/64] complete single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S003_R005_hybrid_IR.wav candidates=28 seconds=1.7
+[17/64] complete single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S007_R019_hybrid_IR.wav candidates=51 seconds=3.0
+[18/64] complete single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S006_R022_hybrid_IR.wav candidates=54 seconds=3.1
+[19/64] complete single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S002_R010_hybrid_IR.wav candidates=52 seconds=3.0
+[20/64] complete single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S005_R022_hybrid_IR.wav candidates=54 seconds=3.1
+[21/64] complete single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S009_R015_hybrid_IR.wav candidates=57 seconds=3.3
+[22/64] complete single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S002_R001_hybrid_IR.wav candidates=56 seconds=3.3
+[23/64] complete single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S006_R003_hybrid_IR.wav candidates=57 seconds=3.3
+[24/64] complete single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S003_R015_hybrid_IR.wav candidates=56 seconds=3.2
+[25/64] complete single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S009_R019_hybrid_IR.wav candidates=55 seconds=3.2
+[26/64] complete single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R012_hybrid_IR.wav candidates=55 seconds=3.2
+[27/64] complete single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R002_hybrid_IR.wav candidates=56 seconds=3.2
+[28/64] complete single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S005_R016_hybrid_IR.wav candidates=57 seconds=3.3
+[29/64] complete single_channel_ir_1/Cafe/Cafe_idx_1/S008_R047_hybrid_IR.wav candidates=5296 seconds=296.8
+[30/64] complete single_channel_ir_1/Cafe/Cafe_idx_1/S008_R051_hybrid_IR.wav candidates=5296 seconds=297.1
+[31/64] complete single_channel_ir_1/Cafe/Cafe_idx_1/S004_R052_hybrid_IR.wav candidates=5296 seconds=296.8
+[32/64] complete single_channel_ir_1/Cafe/Cafe_idx_1/S004_R099_hybrid_IR.wav candidates=5295 seconds=297.2
+[33/64] complete single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S008_R008_hybrid_IR.wav candidates=139 seconds=7.9
+[34/64] complete single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R005_hybrid_IR.wav candidates=139 seconds=7.9
+[35/64] complete single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S001_R025_hybrid_IR.wav candidates=139 seconds=7.9
+[36/64] complete single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S004_R024_hybrid_IR.wav candidates=140 seconds=8.0
+[37/64] complete single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S005_R014_hybrid_IR.wav candidates=279 seconds=15.8
+[38/64] complete single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S004_R008_hybrid_IR.wav candidates=280 seconds=15.8
+[39/64] complete single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S009_R003_hybrid_IR.wav candidates=279 seconds=15.8
+[40/64] complete single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S002_R011_hybrid_IR.wav candidates=280 seconds=15.8
+[41/64] complete single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S005_R013_hybrid_IR.wav candidates=231 seconds=13.1
+[42/64] complete single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S001_R025_hybrid_IR.wav candidates=230 seconds=13.0
+[43/64] complete single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S002_R022_hybrid_IR.wav candidates=230 seconds=13.0
+[44/64] complete single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S009_R014_hybrid_IR.wav candidates=232 seconds=13.1
+[45/64] complete single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S004_R017_hybrid_IR.wav candidates=104 seconds=5.9
+[46/64] complete single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S010_R025_hybrid_IR.wav candidates=106 seconds=6.1
+[47/64] complete single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S006_R022_hybrid_IR.wav candidates=104 seconds=5.9
+[48/64] complete single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S008_R023_hybrid_IR.wav candidates=104 seconds=5.9
+[49/64] complete single_channel_ir_1/Office/Office_idx_10/S005_R004_hybrid_IR.wav candidates=255 seconds=14.4
+[50/64] complete single_channel_ir_1/Office/Office_idx_10/S002_R019_hybrid_IR.wav candidates=255 seconds=14.4
+[51/64] complete single_channel_ir_1/Office/Office_idx_10/S005_R024_hybrid_IR.wav candidates=254 seconds=14.3
+[52/64] complete single_channel_ir_1/Office/Office_idx_10/S010_R001_hybrid_IR.wav candidates=255 seconds=14.4
+[53/64] complete single_channel_ir_1/Office/Office_idx_11/S002_R021_hybrid_IR.wav candidates=406 seconds=22.9
+[54/64] complete single_channel_ir_1/Office/Office_idx_11/S001_R004_hybrid_IR.wav candidates=404 seconds=22.8
+[55/64] complete single_channel_ir_1/Office/Office_idx_11/S005_R015_hybrid_IR.wav candidates=407 seconds=22.9
+[56/64] complete single_channel_ir_1/Office/Office_idx_11/S001_R019_hybrid_IR.wav candidates=404 seconds=22.8
+[57/64] complete single_channel_ir_1/Restaurants/Restaurants_idx_22/S005_R004_hybrid_IR.wav candidates=293 seconds=16.6
+[58/64] complete single_channel_ir_1/Restaurants/Restaurants_idx_22/S005_R019_hybrid_IR.wav candidates=292 seconds=16.5
+[59/64] complete single_channel_ir_1/Restaurants/Restaurants_idx_22/S004_R001_hybrid_IR.wav candidates=292 seconds=16.5
+[60/64] complete single_channel_ir_1/Restaurants/Restaurants_idx_22/S002_R014_hybrid_IR.wav candidates=293 seconds=16.5
+[61/64] complete single_channel_ir_1/Restaurants/Restaurants_idx_24/S001_R024_hybrid_IR.wav candidates=263 seconds=14.9
+[62/64] complete single_channel_ir_1/Restaurants/Restaurants_idx_24/S001_R023_hybrid_IR.wav candidates=263 seconds=14.8
+[63/64] complete single_channel_ir_1/Restaurants/Restaurants_idx_24/S005_R023_hybrid_IR.wav candidates=263 seconds=14.9
+[64/64] complete single_channel_ir_1/Restaurants/Restaurants_idx_24/S004_R019_hybrid_IR.wav candidates=261 seconds=14.7
+{
+  "run_manifest_sha256": "0b9b540e8efdaaf2ee190297643cebdb3d26889895830948df985ebc7c48761f",
+  "completed_queries": 64,
+  "requested_queries": 64,
+  "output_dir": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/pilot_results_batch2/vanilla"
+}
+/home/zhixuanzhao/projects/Frame_Average/FLAC-vanilla/.venv/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/home/zhixuanzhao/projects/Frame_Average/FLAC-vanilla/.venv/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/zhixuanzhao/projects/Frame_Average/FLAC-vanilla/.venv/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/zhixuanzhao/projects/Frame_Average/FLAC-vanilla/.venv/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/home/zhixuanzhao/projects/Frame_Average/FLAC-vanilla/.venv/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from scratch: /home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/AGREE/AGREE/model_configs/dinov3_vits16_local...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 0 whitelisted wrapper-leftover keys.
+Image model /home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/AGREE/AGREE/model_configs/dinov3_vits16_local loaded, trainable params: 21.00M
+[1/64] complete single_channel_ir_1/Apartments/Apartments_idx_42/S007_R006_hybrid_IR.wav candidates=176 seconds=11.6
+[2/64] complete single_channel_ir_1/Apartments/Apartments_idx_42/S007_R007_hybrid_IR.wav candidates=176 seconds=11.1
+[3/64] complete single_channel_ir_1/Apartments/Apartments_idx_42/S005_R010_hybrid_IR.wav candidates=176 seconds=11.1
+[4/64] complete single_channel_ir_1/Apartments/Apartments_idx_42/S003_R008_hybrid_IR.wav candidates=176 seconds=11.1
+[5/64] complete single_channel_ir_1/Apartments/Apartments_idx_50/S003_R010_hybrid_IR.wav candidates=220 seconds=13.7
+[6/64] complete single_channel_ir_1/Apartments/Apartments_idx_50/S007_R014_hybrid_IR.wav candidates=220 seconds=13.8
+[7/64] complete single_channel_ir_1/Apartments/Apartments_idx_50/S002_R025_hybrid_IR.wav candidates=220 seconds=13.8
+[8/64] complete single_channel_ir_1/Apartments/Apartments_idx_50/S007_R013_hybrid_IR.wav candidates=220 seconds=13.8
+[9/64] complete single_channel_ir_1/Auditorium/Auditorium_idx_1/S009_R030_hybrid_IR.wav candidates=3722 seconds=227.2
+[10/64] complete single_channel_ir_1/Auditorium/Auditorium_idx_1/S002_R023_hybrid_IR.wav candidates=3724 seconds=227.6
+[11/64] complete single_channel_ir_1/Auditorium/Auditorium_idx_1/S008_R042_hybrid_IR.wav candidates=3723 seconds=227.5
+[12/64] complete single_channel_ir_1/Auditorium/Auditorium_idx_1/S003_R041_hybrid_IR.wav candidates=3723 seconds=227.7
+[13/64] complete single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S003_R020_hybrid_IR.wav candidates=28 seconds=2.1
+[14/64] complete single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S009_R023_hybrid_IR.wav candidates=28 seconds=2.1
+[15/64] complete single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S005_R022_hybrid_IR.wav candidates=28 seconds=2.1
+[16/64] complete single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S003_R005_hybrid_IR.wav candidates=28 seconds=2.1
+[17/64] complete single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S007_R019_hybrid_IR.wav candidates=51 seconds=3.5
+[18/64] complete single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S006_R022_hybrid_IR.wav candidates=54 seconds=3.6
+[19/64] complete single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S002_R010_hybrid_IR.wav candidates=52 seconds=3.5
+[20/64] complete single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S005_R022_hybrid_IR.wav candidates=54 seconds=3.6
+[21/64] complete single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S009_R015_hybrid_IR.wav candidates=57 seconds=3.8
+[22/64] complete single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S002_R001_hybrid_IR.wav candidates=56 seconds=3.8
+[23/64] complete single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S006_R003_hybrid_IR.wav candidates=57 seconds=3.8
+[24/64] complete single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S003_R015_hybrid_IR.wav candidates=56 seconds=3.8
+[25/64] complete single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S009_R019_hybrid_IR.wav candidates=55 seconds=3.7
+[26/64] complete single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R012_hybrid_IR.wav candidates=55 seconds=3.7
+[27/64] complete single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R002_hybrid_IR.wav candidates=56 seconds=3.8
+[28/64] complete single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S005_R016_hybrid_IR.wav candidates=57 seconds=3.8
+[29/64] complete single_channel_ir_1/Cafe/Cafe_idx_1/S008_R047_hybrid_IR.wav candidates=5296 seconds=323.6
+[30/64] complete single_channel_ir_1/Cafe/Cafe_idx_1/S008_R051_hybrid_IR.wav candidates=5296 seconds=323.5
+[31/64] complete single_channel_ir_1/Cafe/Cafe_idx_1/S004_R052_hybrid_IR.wav candidates=5296 seconds=323.8
+[32/64] complete single_channel_ir_1/Cafe/Cafe_idx_1/S004_R099_hybrid_IR.wav candidates=5295 seconds=323.7
+[33/64] complete single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S008_R008_hybrid_IR.wav candidates=139 seconds=8.9
+[34/64] complete single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R005_hybrid_IR.wav candidates=139 seconds=8.8
+[35/64] complete single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S001_R025_hybrid_IR.wav candidates=139 seconds=8.9
+[36/64] complete single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S004_R024_hybrid_IR.wav candidates=140 seconds=8.9
+[37/64] complete single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S005_R014_hybrid_IR.wav candidates=279 seconds=17.4
+[38/64] complete single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S004_R008_hybrid_IR.wav candidates=280 seconds=17.5
+[39/64] complete single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S009_R003_hybrid_IR.wav candidates=279 seconds=17.4
+[40/64] complete single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S002_R011_hybrid_IR.wav candidates=280 seconds=17.5
+[41/64] complete single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S005_R013_hybrid_IR.wav candidates=231 seconds=14.5
+[42/64] complete single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S001_R025_hybrid_IR.wav candidates=230 seconds=14.4
+[43/64] complete single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S002_R022_hybrid_IR.wav candidates=230 seconds=14.4
+[44/64] complete single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S009_R014_hybrid_IR.wav candidates=232 seconds=14.5
+[45/64] complete single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S004_R017_hybrid_IR.wav candidates=104 seconds=6.7
+[46/64] complete single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S010_R025_hybrid_IR.wav candidates=106 seconds=6.8
+[47/64] complete single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S006_R022_hybrid_IR.wav candidates=104 seconds=6.7
+[48/64] complete single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S008_R023_hybrid_IR.wav candidates=104 seconds=6.7
+[49/64] complete single_channel_ir_1/Office/Office_idx_10/S005_R004_hybrid_IR.wav candidates=255 seconds=15.9
+[50/64] complete single_channel_ir_1/Office/Office_idx_10/S002_R019_hybrid_IR.wav candidates=255 seconds=15.9
+[51/64] complete single_channel_ir_1/Office/Office_idx_10/S005_R024_hybrid_IR.wav candidates=254 seconds=15.8
+[52/64] complete single_channel_ir_1/Office/Office_idx_10/S010_R001_hybrid_IR.wav candidates=255 seconds=15.9
+[53/64] complete single_channel_ir_1/Office/Office_idx_11/S002_R021_hybrid_IR.wav candidates=406 seconds=25.2
+[54/64] complete single_channel_ir_1/Office/Office_idx_11/S001_R004_hybrid_IR.wav candidates=404 seconds=25.0
+[55/64] complete single_channel_ir_1/Office/Office_idx_11/S005_R015_hybrid_IR.wav candidates=407 seconds=25.2
+[56/64] complete single_channel_ir_1/Office/Office_idx_11/S001_R019_hybrid_IR.wav candidates=404 seconds=25.0
+[57/64] complete single_channel_ir_1/Restaurants/Restaurants_idx_22/S005_R004_hybrid_IR.wav candidates=293 seconds=18.2
+[58/64] complete single_channel_ir_1/Restaurants/Restaurants_idx_22/S005_R019_hybrid_IR.wav candidates=292 seconds=18.2
+[59/64] complete single_channel_ir_1/Restaurants/Restaurants_idx_22/S004_R001_hybrid_IR.wav candidates=292 seconds=18.1
+[60/64] complete single_channel_ir_1/Restaurants/Restaurants_idx_22/S002_R014_hybrid_IR.wav candidates=293 seconds=18.2
+[61/64] complete single_channel_ir_1/Restaurants/Restaurants_idx_24/S001_R024_hybrid_IR.wav candidates=263 seconds=16.4
+[62/64] complete single_channel_ir_1/Restaurants/Restaurants_idx_24/S001_R023_hybrid_IR.wav candidates=263 seconds=16.5
+[63/64] complete single_channel_ir_1/Restaurants/Restaurants_idx_24/S005_R023_hybrid_IR.wav candidates=263 seconds=16.4
+[64/64] complete single_channel_ir_1/Restaurants/Restaurants_idx_24/S004_R019_hybrid_IR.wav candidates=261 seconds=16.3
+{
+  "run_manifest_sha256": "fbc1b89468d5a1413cf8b9c5aac5f6227c9fce7c4407138df70af5ee967ba7f5",
+  "completed_queries": 64,
+  "requested_queries": 64,
+  "output_dir": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/pilot_results_batch2/fa_bf"
+}
+/home/zhixuanzhao/projects/Frame_Average/FLAC-vanilla/.venv/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+{
+  "sha256": "481e2dae98730cf3669dc1f65c151419cb0d09d8013b0f86fe550ad171cbc75d",
+  "queries": 64
+}

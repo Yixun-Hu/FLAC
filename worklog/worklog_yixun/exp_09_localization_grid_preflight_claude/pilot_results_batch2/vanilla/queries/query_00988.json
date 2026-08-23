@@ -1,0 +1,101 @@
+{
+  "arrays_file": "queries/query_00988.npz",
+  "arrays_sha256": "2c7d6e63c73904c9e56218f8bbd7eb5784d500fb60ea5196d52e62af9aeacbcc",
+  "candidate_count": 104,
+  "candidate_indices_sha256": "c82b09ed36febbab405261d7c0cb3eea99a4c65f8e813d641f58a052ba9551ca",
+  "elapsed_seconds": 5.946269401814789,
+  "metrics": {
+    "1": {
+      "excess_error_m": 0.43780187165481316,
+      "localization_error_m": 0.6985699678629191,
+      "mean_candidate_score": 0.20545783638954163,
+      "oracle_error_m": 0.260768096208106,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        1.0,
+        1.5,
+        2.0
+      ],
+      "prediction_index": 22,
+      "success_0_5m": 0,
+      "success_1_0m": 1,
+      "winning_score": 0.782410204410553
+    },
+    "4": {
+      "excess_error_m": 0.43780187165481316,
+      "localization_error_m": 0.6985699678629191,
+      "mean_candidate_score": 0.20673654973506927,
+      "oracle_error_m": 0.260768096208106,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        1.0,
+        1.5,
+        2.0
+      ],
+      "prediction_index": 22,
+      "success_0_5m": 0,
+      "success_1_0m": 1,
+      "winning_score": 0.7866089940071106
+    },
+    "8": {
+      "excess_error_m": 0.43780187165481316,
+      "localization_error_m": 0.6985699678629191,
+      "mean_candidate_score": 0.20656926929950714,
+      "oracle_error_m": 0.260768096208106,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        1.0,
+        1.5,
+        2.0
+      ],
+      "prediction_index": 22,
+      "success_0_5m": 0,
+      "success_1_0m": 1,
+      "winning_score": 0.7862145900726318
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 7185158656,
+  "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S004_R017_hybrid_IR.wav",
+  "query_index": 988,
+  "random_candidate_metrics": {
+    "excess_error_m": 0.9508424022607709,
+    "localization_error_m": 1.211610498468877,
+    "oracle_error_m": 0.260768096208106,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 1,
+    "prediction_global": [
+      0.5,
+      2.0,
+      1.0
+    ],
+    "prediction_index": 8,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    3.26,
+    0.48,
+    1.6
+  ],
+  "receiver_id": "R017",
+  "room": "MeetingRoom_idx_32",
+  "run_manifest_sha256": "0b9b540e8efdaaf2ee190297643cebdb3d26889895830948df985ebc7c48761f",
+  "scene": "MeetingRoom",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1,
+    4,
+    8
+  ],
+  "sha256": "fc612b627a9ff90cda74491de19d38e47f694fd095a5217916a86b0a2b20021d",
+  "source_global": [
+    0.76,
+    0.98,
+    1.6
+  ],
+  "tau": 0.1
+}

@@ -1,0 +1,101 @@
+{
+  "arrays_file": "queries/query_04658.npz",
+  "arrays_sha256": "ae3695c5d49aea4cff13570bf6a5e814f01861538a804f5c1682c0b0d07a00b8",
+  "candidate_count": 28,
+  "candidate_indices_sha256": "3c29785423c14f0e46b8b94645ff2db566c9546a3025bbaa172fec2ded0793cf",
+  "elapsed_seconds": 2.06792280706577,
+  "metrics": {
+    "1": {
+      "excess_error_m": 0.3720153254455275,
+      "localization_error_m": 0.5220153254455274,
+      "mean_candidate_score": 0.27875086665153503,
+      "oracle_error_m": 0.1499999999999999,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        2.0,
+        0.0,
+        2.0
+      ],
+      "prediction_index": 11,
+      "success_0_5m": 0,
+      "success_1_0m": 1,
+      "winning_score": 0.5677711963653564
+    },
+    "4": {
+      "excess_error_m": 0.3720153254455275,
+      "localization_error_m": 0.5220153254455274,
+      "mean_candidate_score": 0.27867797017097473,
+      "oracle_error_m": 0.1499999999999999,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        2.0,
+        0.0,
+        2.0
+      ],
+      "prediction_index": 11,
+      "success_0_5m": 0,
+      "success_1_0m": 1,
+      "winning_score": 0.5666026473045349
+    },
+    "8": {
+      "excess_error_m": 0.3720153254455275,
+      "localization_error_m": 0.5220153254455274,
+      "mean_candidate_score": 0.27993538975715637,
+      "oracle_error_m": 0.1499999999999999,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        2.0,
+        0.0,
+        2.0
+      ],
+      "prediction_index": 11,
+      "success_0_5m": 0,
+      "success_1_0m": 1,
+      "winning_score": 0.5666119456291199
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 3395240448,
+  "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S003_R005_hybrid_IR.wav",
+  "query_index": 4658,
+  "random_candidate_metrics": {
+    "excess_error_m": 0.3720153254455275,
+    "localization_error_m": 0.5220153254455274,
+    "oracle_error_m": 0.1499999999999999,
+    "oracle_normalized_success_0_5m": 1,
+    "oracle_normalized_success_1_0m": 1,
+    "prediction_global": [
+      2.0,
+      0.0,
+      1.0
+    ],
+    "prediction_index": 9,
+    "success_0_5m": 0,
+    "success_1_0m": 1
+  },
+  "receiver_global": [
+    2.95,
+    0.42,
+    0.95
+  ],
+  "receiver_id": "R005",
+  "room": "Bathrooms_idx_14",
+  "run_manifest_sha256": "fbc1b89468d5a1413cf8b9c5aac5f6227c9fce7c4407138df70af5ee967ba7f5",
+  "scene": "Bathrooms",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1,
+    4,
+    8
+  ],
+  "sha256": "1661dc58f47e930d291d3efdc3f354a77093decb23776dbe2031b1900ec7ec6b",
+  "source_global": [
+    1.85,
+    0.0,
+    1.5
+  ],
+  "tau": 0.1
+}

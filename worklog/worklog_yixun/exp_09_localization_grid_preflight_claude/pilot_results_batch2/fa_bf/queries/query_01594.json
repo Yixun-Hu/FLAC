@@ -1,0 +1,101 @@
+{
+  "arrays_file": "queries/query_01594.npz",
+  "arrays_sha256": "4ce8f8ac193c0394b479668c3f61ee31994f3c6ea8c89a6251ae935daab178f7",
+  "candidate_count": 255,
+  "candidate_indices_sha256": "fd5c67b6bb29721ebbcdef3d8b1204b74fb0bcb0af483e4c63b4c532b955c26a",
+  "elapsed_seconds": 15.878919166978449,
+  "metrics": {
+    "1": {
+      "excess_error_m": 0.48680714362203364,
+      "localization_error_m": 0.7774959806970063,
+      "mean_candidate_score": 0.35552728176116943,
+      "oracle_error_m": 0.2906888370749727,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        9.5,
+        12.5,
+        1.5
+      ],
+      "prediction_index": 181,
+      "success_0_5m": 0,
+      "success_1_0m": 1,
+      "winning_score": 0.6576589941978455
+    },
+    "4": {
+      "excess_error_m": 0.0,
+      "localization_error_m": 0.2906888370749727,
+      "mean_candidate_score": 0.3563322126865387,
+      "oracle_error_m": 0.2906888370749727,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        10.5,
+        12.5,
+        1.5
+      ],
+      "prediction_index": 250,
+      "success_0_5m": 1,
+      "success_1_0m": 1,
+      "winning_score": 0.6504939198493958
+    },
+    "8": {
+      "excess_error_m": 0.0,
+      "localization_error_m": 0.2906888370749727,
+      "mean_candidate_score": 0.35665544867515564,
+      "oracle_error_m": 0.2906888370749727,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        10.5,
+        12.5,
+        1.5
+      ],
+      "prediction_index": 250,
+      "success_0_5m": 1,
+      "success_1_0m": 1,
+      "winning_score": 0.6497334241867065
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 7186729472,
+  "query_id": "single_channel_ir_1/Office/Office_idx_10/S010_R001_hybrid_IR.wav",
+  "query_index": 1594,
+  "random_candidate_metrics": {
+    "excess_error_m": 6.627005865642111,
+    "localization_error_m": 6.917694702717084,
+    "oracle_error_m": 0.2906888370749727,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      7.0,
+      6.5,
+      1.5
+    ],
+    "prediction_index": 4,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    8.72,
+    10.33,
+    1.5
+  ],
+  "receiver_id": "R001",
+  "room": "Office_idx_10",
+  "run_manifest_sha256": "fbc1b89468d5a1413cf8b9c5aac5f6227c9fce7c4407138df70af5ee967ba7f5",
+  "scene": "Office",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1,
+    4,
+    8
+  ],
+  "sha256": "631c2e7fb4d5b99d682502837f8a9682e19698c9f315276834f7c2fbf66bd2f5",
+  "source_global": [
+    10.26,
+    12.6,
+    1.37
+  ],
+  "tau": 0.1
+}

@@ -1,0 +1,483 @@
+{
+  "cases": [
+    {
+      "batch": "batch1",
+      "candidate_count": 139,
+      "category": "both_good",
+      "category_label": "Both models accurate",
+      "fa_bf_error_m": 0.0,
+      "fa_bf_prediction_global_m": [
+        0.5,
+        -1.0,
+        1.5
+      ],
+      "fa_bf_result_sha256": "1d7ebf941283ead82d07075af30db8f1e6cb9710bb40cec18e6177109a948b4c",
+      "ground_truth_global_m": [
+        0.5,
+        -1.0,
+        1.5
+      ],
+      "k_gen": 1,
+      "mesh_path": "/home/zhixuanzhao/projects/rir2rir/third_party/AcousticRooms/room_mesh_obj_format/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25.obj",
+      "mesh_sha256": "6da405f5bd203520f7e108a61a3424e2ef28484d2ea66197e69cd9103814b5bb",
+      "oracle_error_m": 0.0,
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S004_R008_hybrid_IR.wav",
+      "query_index": 5782,
+      "receiver_global_m": [
+        2.0,
+        -1.0,
+        1.7
+      ],
+      "room": "LivingRoomsWithHallway_idx_25",
+      "scene": "LivingRoomsWithHallway",
+      "vanilla_error_m": 0.0,
+      "vanilla_prediction_global_m": [
+        0.5,
+        -1.0,
+        1.5
+      ],
+      "vanilla_result_sha256": "b7723cbae25f9f9a097c38fef33685bd0516467311030047af4604a89e4413b5"
+    },
+    {
+      "batch": "batch1",
+      "candidate_count": 55,
+      "category": "typical",
+      "category_label": "Typical combined error",
+      "fa_bf_error_m": 0.9354143466934853,
+      "fa_bf_prediction_global_m": [
+        -1.5,
+        0.0,
+        1.0
+      ],
+      "fa_bf_result_sha256": "eeabfbff83c69704b864dedecd912d6c6e366146db117458cfae4d4ec6d3cf7c",
+      "ground_truth_global_m": [
+        -2.25,
+        -0.25,
+        1.5
+      ],
+      "k_gen": 1,
+      "mesh_path": "/home/zhixuanzhao/projects/rir2rir/third_party/AcousticRooms/room_mesh_obj_format/Bathrooms/Bathrooms_idx_18.obj",
+      "mesh_sha256": "a4d5ca924962c9669b2e3fcc942bab885fe8021fd9df75a2401d38a64db4e0ff",
+      "oracle_error_m": 0.3535533905932738,
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S005_R012_hybrid_IR.wav",
+      "query_index": 4784,
+      "receiver_global_m": [
+        -2.25,
+        -1.25,
+        0.7
+      ],
+      "room": "Bathrooms_idx_18",
+      "scene": "Bathrooms",
+      "vanilla_error_m": 0.9354143466934853,
+      "vanilla_prediction_global_m": [
+        -1.5,
+        0.0,
+        1.0
+      ],
+      "vanilla_result_sha256": "c3a5955fddacfd7c40c3bb69ccc6be0ee0d47815f8f730a7445ff130acb5a6d8"
+    },
+    {
+      "batch": "batch1",
+      "candidate_count": 5296,
+      "category": "vanilla_advantage",
+      "category_label": "Largest Vanilla advantage",
+      "fa_bf_error_m": 15.27339516937868,
+      "fa_bf_prediction_global_m": [
+        16.0,
+        18.0,
+        2.0
+      ],
+      "fa_bf_result_sha256": "160ae32ddab6565d8831efcf443a0761ef726afa9ab54a702cf5688fca63b317",
+      "ground_truth_global_m": [
+        5.65,
+        6.79,
+        1.3
+      ],
+      "k_gen": 1,
+      "mesh_path": "/home/zhixuanzhao/projects/rir2rir/third_party/AcousticRooms/room_mesh_obj_format/Cafe/Cafe_idx_1.obj",
+      "mesh_sha256": "e7a0b7b97db3a31f1194726eb35d8033d712d46e17b637493cbff76c058d8b67",
+      "oracle_error_m": 0.32649655434629027,
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R063_hybrid_IR.wav",
+      "query_index": 335,
+      "receiver_global_m": [
+        12.15,
+        11.29,
+        1.5
+      ],
+      "room": "Cafe_idx_1",
+      "scene": "Cafe",
+      "vanilla_error_m": 2.880381919121143,
+      "vanilla_prediction_global_m": [
+        8.5,
+        6.5,
+        1.0
+      ],
+      "vanilla_result_sha256": "a38fdd0876f1e81077c97d3bc83d69646ee918f60e2a30695f9a6c172dc8aefb"
+    },
+    {
+      "batch": "batch1",
+      "candidate_count": 3722,
+      "category": "fa_bf_advantage",
+      "category_label": "Largest FA-BF advantage",
+      "fa_bf_error_m": 2.130258200312817,
+      "fa_bf_prediction_global_m": [
+        6.0,
+        22.0,
+        1.5
+      ],
+      "fa_bf_result_sha256": "601db122d8cfafa7c59e84ecb13b876f9d33bf0c3629d0ecb0837c4c4aaaafd6",
+      "ground_truth_global_m": [
+        4.34,
+        20.68,
+        1.3
+      ],
+      "k_gen": 1,
+      "mesh_path": "/home/zhixuanzhao/projects/rir2rir/third_party/AcousticRooms/room_mesh_obj_format/Auditorium/Auditorium_idx_1.obj",
+      "mesh_sha256": "fc0bebef01d1370cf3f7ae3aaee9f1f0474d1de72965bf4ed20c2d1b2084d51f",
+      "oracle_error_m": 0.31304951684997046,
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S003_R049_hybrid_IR.wav",
+      "query_index": 4206,
+      "receiver_global_m": [
+        9.04,
+        8.0,
+        1.85
+      ],
+      "room": "Auditorium_idx_1",
+      "scene": "Auditorium",
+      "vanilla_error_m": 19.69538016896348,
+      "vanilla_prediction_global_m": [
+        4.0,
+        1.0,
+        2.0
+      ],
+      "vanilla_result_sha256": "4749d610591764f18f0f7fe70ef07fb2831d87433c85b01643a4eb2e262fd657"
+    },
+    {
+      "batch": "batch1",
+      "candidate_count": 404,
+      "category": "both_good",
+      "category_label": "Both models accurate",
+      "fa_bf_error_m": 0.16552945357246862,
+      "fa_bf_prediction_global_m": [
+        16.0,
+        12.5,
+        1.5
+      ],
+      "fa_bf_result_sha256": "0c768620f69426514ec27043981ec9e23ee387e30e8b4827d45075c7b731bbf0",
+      "ground_truth_global_m": [
+        15.93,
+        12.41,
+        1.62
+      ],
+      "k_gen": 4,
+      "mesh_path": "/home/zhixuanzhao/projects/rir2rir/third_party/AcousticRooms/room_mesh_obj_format/Office/Office_idx_11.obj",
+      "mesh_sha256": "dc070a8fc1999f950e5ba8bc3f3da9878e003907bb3d3d2cdb20b4e595ff64b2",
+      "oracle_error_m": 0.16552945357246862,
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S009_R023_hybrid_IR.wav",
+      "query_index": 1768,
+      "receiver_global_m": [
+        12.2,
+        11.4,
+        1.57
+      ],
+      "room": "Office_idx_11",
+      "scene": "Office",
+      "vanilla_error_m": 0.16552945357246862,
+      "vanilla_prediction_global_m": [
+        16.0,
+        12.5,
+        1.5
+      ],
+      "vanilla_result_sha256": "e2da9f356a7b3c008957338fb24c4253757475fe69e86a6eb212b2869e3c6ff4"
+    },
+    {
+      "batch": "batch1",
+      "candidate_count": 260,
+      "category": "typical",
+      "category_label": "Typical combined error",
+      "fa_bf_error_m": 0.8093207028119322,
+      "fa_bf_prediction_global_m": [
+        0.0,
+        0.5,
+        1.0
+      ],
+      "fa_bf_result_sha256": "5c51733c2b0ad378df2a34129160aec499e14923926dd79f139b027e6a8d85dd",
+      "ground_truth_global_m": [
+        0.45,
+        0.95,
+        1.5
+      ],
+      "k_gen": 4,
+      "mesh_path": "/home/zhixuanzhao/projects/rir2rir/third_party/AcousticRooms/room_mesh_obj_format/Restaurants/Restaurants_idx_24.obj",
+      "mesh_sha256": "afddcad24ada306c0197c238b764952cb5a3c3d2942431d45a38b0f905565daa",
+      "oracle_error_m": 0.07071067811865477,
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S005_R009_hybrid_IR.wav",
+      "query_index": 6252,
+      "receiver_global_m": [
+        1.45,
+        0.45,
+        1.3
+      ],
+      "room": "Restaurants_idx_24",
+      "scene": "Restaurants",
+      "vanilla_error_m": 1.1640446726822815,
+      "vanilla_prediction_global_m": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "vanilla_result_sha256": "e6a3b9553163cd10e302e95670b21087c5669466872ff589f6243ed6bfcbc270"
+    },
+    {
+      "batch": "batch1",
+      "candidate_count": 3723,
+      "category": "vanilla_advantage",
+      "category_label": "Largest Vanilla advantage",
+      "fa_bf_error_m": 12.950212353471274,
+      "fa_bf_prediction_global_m": [
+        17.5,
+        11.0,
+        1.0
+      ],
+      "fa_bf_result_sha256": "d7ef954fb08a9e68391089931ad8bb2e572f2557bf4e0ef59c36d593c7be65d6",
+      "ground_truth_global_m": [
+        4.84,
+        13.68,
+        1.5
+      ],
+      "k_gen": 4,
+      "mesh_path": "/home/zhixuanzhao/projects/rir2rir/third_party/AcousticRooms/room_mesh_obj_format/Auditorium/Auditorium_idx_1.obj",
+      "mesh_sha256": "fc0bebef01d1370cf3f7ae3aaee9f1f0474d1de72965bf4ed20c2d1b2084d51f",
+      "oracle_error_m": 0.2408318915758458,
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S009_R060_hybrid_IR.wav",
+      "query_index": 3934,
+      "receiver_global_m": [
+        13.04,
+        22.5,
+        1.65
+      ],
+      "room": "Auditorium_idx_1",
+      "scene": "Auditorium",
+      "vanilla_error_m": 1.3776792079435618,
+      "vanilla_prediction_global_m": [
+        3.5,
+        14.0,
+        1.5
+      ],
+      "vanilla_result_sha256": "b9c8bfe0ec278e787888f5185fa1f7306cee9e0405cc8b9a51fe9face54b4336"
+    },
+    {
+      "batch": "batch1",
+      "candidate_count": 3723,
+      "category": "fa_bf_advantage",
+      "category_label": "Largest FA-BF advantage",
+      "fa_bf_error_m": 3.337364229448143,
+      "fa_bf_prediction_global_m": [
+        15.0,
+        12.0,
+        1.0
+      ],
+      "fa_bf_result_sha256": "87c0fc56885e663a996d0769ba27efe5b2fedfb4e9e414c0c4497e910269671a",
+      "ground_truth_global_m": [
+        17.84,
+        13.68,
+        1.5
+      ],
+      "k_gen": 4,
+      "mesh_path": "/home/zhixuanzhao/projects/rir2rir/third_party/AcousticRooms/room_mesh_obj_format/Auditorium/Auditorium_idx_1.obj",
+      "mesh_sha256": "fc0bebef01d1370cf3f7ae3aaee9f1f0474d1de72965bf4ed20c2d1b2084d51f",
+      "oracle_error_m": 0.2408318915758458,
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S007_R038_hybrid_IR.wav",
+      "query_index": 3550,
+      "receiver_global_m": [
+        10.54,
+        20.0,
+        1.55
+      ],
+      "room": "Auditorium_idx_1",
+      "scene": "Auditorium",
+      "vanilla_error_m": 14.372125799616423,
+      "vanilla_prediction_global_m": [
+        3.5,
+        14.5,
+        1.0
+      ],
+      "vanilla_result_sha256": "51a9d6aaef40e259611319e42d7d08b7b4ce280a1e7a67cfa7d09d03ac112e20"
+    },
+    {
+      "batch": "batch1",
+      "candidate_count": 292,
+      "category": "both_good",
+      "category_label": "Both models accurate",
+      "fa_bf_error_m": 0.19999999999999996,
+      "fa_bf_prediction_global_m": [
+        -2.5,
+        0.0,
+        1.5
+      ],
+      "fa_bf_result_sha256": "9eda1fadde815ff3b9b17b09d18eb1c3501fb8bfd6a312df150acefc85f1fd1e",
+      "ground_truth_global_m": [
+        -2.5,
+        0.0,
+        1.7
+      ],
+      "k_gen": 8,
+      "mesh_path": "/home/zhixuanzhao/projects/rir2rir/third_party/AcousticRooms/room_mesh_obj_format/Restaurants/Restaurants_idx_22.obj",
+      "mesh_sha256": "a8e86fc229016fc1ef3d6c2f39668ba50e356d2c4ded290a794873175c4ae00c",
+      "oracle_error_m": 0.19999999999999996,
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S004_R006_hybrid_IR.wav",
+      "query_index": 6016,
+      "receiver_global_m": [
+        -1.0,
+        1.5,
+        1.2
+      ],
+      "room": "Restaurants_idx_22",
+      "scene": "Restaurants",
+      "vanilla_error_m": 0.19999999999999996,
+      "vanilla_prediction_global_m": [
+        -2.5,
+        0.0,
+        1.5
+      ],
+      "vanilla_result_sha256": "6b7f8e6b148deb50344965e7770bed78aadc95cf9301e89f248e659418252ea8"
+    },
+    {
+      "batch": "batch2",
+      "candidate_count": 55,
+      "category": "typical",
+      "category_label": "Typical combined error",
+      "fa_bf_error_m": 0.7212489168102785,
+      "fa_bf_prediction_global_m": [
+        -2.0,
+        2.5,
+        1.5
+      ],
+      "fa_bf_result_sha256": "9c1f8d59453bfd7467793ee69aaa49eb95d9ccc3119dd22ea44e07213b3f6506",
+      "ground_truth_global_m": [
+        -1.37,
+        2.83,
+        1.38
+      ],
+      "k_gen": 8,
+      "mesh_path": "/home/zhixuanzhao/projects/rir2rir/third_party/AcousticRooms/room_mesh_obj_format/Bedrooms/Bedrooms_idx_33.obj",
+      "mesh_sha256": "f745e455a7acc2da5126a1c5875a3abccd05fbccd87fe867e17b42064ebadb8a",
+      "oracle_error_m": 0.24535688292770588,
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S009_R019_hybrid_IR.wav",
+      "query_index": 2319,
+      "receiver_global_m": [
+        -0.51,
+        0.7,
+        1.21
+      ],
+      "room": "Bedrooms_idx_33",
+      "scene": "Bedrooms",
+      "vanilla_error_m": 1.2125180411028942,
+      "vanilla_prediction_global_m": [
+        -2.0,
+        2.0,
+        2.0
+      ],
+      "vanilla_result_sha256": "c3b61576d857ae7a916fb545222bce0e29db9cfc0a4b8bb71928554c6b98a503"
+    },
+    {
+      "batch": "batch2",
+      "candidate_count": 3723,
+      "category": "vanilla_advantage",
+      "category_label": "Largest Vanilla advantage",
+      "fa_bf_error_m": 10.25806999391211,
+      "fa_bf_prediction_global_m": [
+        12.5,
+        11.0,
+        2.0
+      ],
+      "fa_bf_result_sha256": "c750e7a65145084d2edcdf08055b84743170c0283e477cd6f52232126bef12f2",
+      "ground_truth_global_m": [
+        11.34,
+        21.18,
+        1.5
+      ],
+      "k_gen": 8,
+      "mesh_path": "/home/zhixuanzhao/projects/rir2rir/third_party/AcousticRooms/room_mesh_obj_format/Auditorium/Auditorium_idx_1.obj",
+      "mesh_sha256": "fc0bebef01d1370cf3f7ae3aaee9f1f0474d1de72965bf4ed20c2d1b2084d51f",
+      "oracle_error_m": 0.2408318915758458,
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S008_R042_hybrid_IR.wav",
+      "query_index": 3800,
+      "receiver_global_m": [
+        15.54,
+        16.5,
+        1.55
+      ],
+      "room": "Auditorium_idx_1",
+      "scene": "Auditorium",
+      "vanilla_error_m": 2.3638950907347813,
+      "vanilla_prediction_global_m": [
+        13.5,
+        22.0,
+        1.0
+      ],
+      "vanilla_result_sha256": "bfc8f869fdf77b3d3e821d975c1c06467faa1ec9d3fe8e897c7285d961bd1286"
+    },
+    {
+      "batch": "batch2",
+      "candidate_count": 5296,
+      "category": "fa_bf_advantage",
+      "category_label": "Largest FA-BF advantage",
+      "fa_bf_error_m": 7.44557586758741,
+      "fa_bf_prediction_global_m": [
+        2.5,
+        13.5,
+        2.0
+      ],
+      "fa_bf_result_sha256": "bf5604ddb4545d516802ddb65d2aa86e17ee9e3e635e0811a2eaa16d825ca769",
+      "ground_truth_global_m": [
+        5.65,
+        6.79,
+        1.3
+      ],
+      "k_gen": 8,
+      "mesh_path": "/home/zhixuanzhao/projects/rir2rir/third_party/AcousticRooms/room_mesh_obj_format/Cafe/Cafe_idx_1.obj",
+      "mesh_sha256": "e7a0b7b97db3a31f1194726eb35d8033d712d46e17b637493cbff76c058d8b67",
+      "oracle_error_m": 0.32649655434629027,
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R047_hybrid_IR.wav",
+      "query_index": 30,
+      "receiver_global_m": [
+        11.65,
+        12.79,
+        1.5
+      ],
+      "room": "Cafe_idx_1",
+      "scene": "Cafe",
+      "vanilla_error_m": 17.728412224449205,
+      "vanilla_prediction_global_m": [
+        18.5,
+        19.0,
+        1.0
+      ],
+      "vanilla_result_sha256": "da3f753054052aaf0f4ea88332de42a1ad49c295d3a7c8827740c735d3aa79de"
+    }
+  ],
+  "combined_target_count": 128,
+  "mesh_visualization": {
+    "decimation_affects_coordinates_or_metrics": false,
+    "decimation_target_triangles": 6000,
+    "source": "audited official AcousticRooms OBJ"
+  },
+  "schema_version": 1,
+  "selection_policy": {
+    "categories": [
+      "both_good",
+      "typical",
+      "vanilla_advantage",
+      "fa_bf_advantage"
+    ],
+    "manual_selection": false,
+    "unique_targets_across_all_panels": true
+  },
+  "sha256": "e924a542372aec7231cd57a100ebb586d45ed6f8d5ff9cacfa3291af8f19b5c6",
+  "source_pilot_sha256": [
+    "6eeeec401c3f63e47ab446b4b43efe2f1db260bad9decf74de423d0872b659a2",
+    "805093b3d404a357420c92e390ed4fbac570df9cbd43e6d2bc57ea8034ab35ad"
+  ],
+  "target_overlap_between_batches": 0
+}

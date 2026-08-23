@@ -1,0 +1,101 @@
+{
+  "arrays_file": "queries/query_05556.npz",
+  "arrays_sha256": "ae7ed598598990a6c25d345844297336b1aea35a78615fabddb31a97b7f332c6",
+  "candidate_count": 279,
+  "candidate_indices_sha256": "7e45db385fb9e15482d17e82f7e4d84f2f219f28d4635286ff1751b81f39de5a",
+  "elapsed_seconds": 17.408659832086414,
+  "metrics": {
+    "1": {
+      "excess_error_m": 1.217812260075938,
+      "localization_error_m": 1.5532224567009065,
+      "mean_candidate_score": 0.42958584427833557,
+      "oracle_error_m": 0.3354101966249685,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        -0.5,
+        0.5,
+        2.0
+      ],
+      "prediction_index": 75,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.6888284683227539
+    },
+    "4": {
+      "excess_error_m": 1.217812260075938,
+      "localization_error_m": 1.5532224567009065,
+      "mean_candidate_score": 0.42996108531951904,
+      "oracle_error_m": 0.3354101966249685,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        -0.5,
+        0.5,
+        2.0
+      ],
+      "prediction_index": 75,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.6839260458946228
+    },
+    "8": {
+      "excess_error_m": 1.217812260075938,
+      "localization_error_m": 1.5532224567009065,
+      "mean_candidate_score": 0.4297383725643158,
+      "oracle_error_m": 0.3354101966249685,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        -0.5,
+        0.5,
+        2.0
+      ],
+      "prediction_index": 75,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.6819334626197815
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 7187253760,
+  "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S009_R003_hybrid_IR.wav",
+  "query_index": 5556,
+  "random_candidate_metrics": {
+    "excess_error_m": 3.659899553569627,
+    "localization_error_m": 3.995309750194595,
+    "oracle_error_m": 0.3354101966249685,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      0.5,
+      -3.5,
+      1.5
+    ],
+    "prediction_index": 135,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    0.1,
+    -2.9,
+    1.5
+  ],
+  "receiver_id": "R003",
+  "room": "LivingRoomsWithHallway_idx_30",
+  "run_manifest_sha256": "fbc1b89468d5a1413cf8b9c5aac5f6227c9fce7c4407138df70af5ee967ba7f5",
+  "scene": "LivingRoomsWithHallway",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1,
+    4,
+    8
+  ],
+  "sha256": "345c1e22ae70f31914cd06fefa1a2dd0a49e94fd6dd1e03170e0a99ae996b0e1",
+  "source_global": [
+    -1.75,
+    -0.2,
+    1.4
+  ],
+  "tau": 0.1
+}
