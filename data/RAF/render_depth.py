@@ -706,7 +706,7 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
                  rx_sightline_required=False, references=None, tracked_height_m=None,
                  vertical_tol_m=DEFAULT_FLOOR_TOL,
                  rx_sightline_receivers=RX_SIGHTLINE_MAX_RECEIVERS,
-                 require_scale_check=False):
+                 require_scale_check=False, min_side_gates=True):
     """Checks that only the REAL mesh can answer (plan Rev 2 section 4.ii, R6).
 
     * camera containment -- the source must be inside the closed room, or every
@@ -793,7 +793,27 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
     band = scale_band(references)
     scale_checked = band is not None
     band = band if scale_checked else EXPECTED_DEPTH_RANGE_M
-    plausible = bool(finite.size and band[0] <= scale["min"] and scale["max"] <= band[1])
+    # Amendment 4.2: the two sides of the band answer different questions. Too
+    # LARGE means the units or the gauge are wrong -- nothing in a room can be
+    # farther than the room -- and stays fatal. Too SMALL is a near-field
+    # observation: a LISTENER map is rendered from a microphone position, and the
+    # capture rig itself is in the photogrammetry, so scanned structure a few
+    # centimetres away is geometrically correct. Measured: 4 of 1,152 listener maps
+    # (EmptyRoom p052 slots 17/22/26/27) see structure at 0.029-0.125 m. For those
+    # maps the minimum is RECORDED and attributed instead of refusing the render.
+    min_ok = bool(finite.size and band[0] <= scale["min"])
+    max_ok = bool(finite.size and scale["max"] <= band[1])
+    plausible = bool(min_ok and max_ok)
+    near_field = {
+        "flagged": bool(finite.size and not min_ok),
+        "min_m": scale["min"],
+        "band_min_m": float(band[0]),
+        "gates_publication": bool(min_side_gates),
+        "note": ("the scale minimum is a recorded diagnostic for listener maps "
+                 "(Amendment 4.2): the capture rig is part of the scanned scene, so "
+                 "near-field structure is geometry, not a gauge error"),
+    }
+    scale_ok = bool(max_ok and (min_ok or not min_side_gates))
 
     # T5: the VERTICAL axis is gauge-discriminating and mesh-independent -- the
     # nadir distance comes from the render, the height comes from the tracked pose
@@ -839,11 +859,17 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
     if require_scale_check and not scale_checked:
         warnings.append(
             "no AR/HAA depth reference available: the scale gate cannot run")
-    if not plausible:
+    if not max_ok:
         warnings.append(
-            f"depth range [{scale['min']}, {scale['max']}] m is outside the "
-            f"plausible {band} m band"
-            + (" (from the on-disk AR/HAA references)" if scale_checked else ""))
+            f"depth maximum {scale['max']} m exceeds the plausible band {band} m"
+            + (" (from the on-disk AR/HAA references)" if scale_checked else "")
+            + ": the units or the gauge are wrong")
+    if not min_ok:
+        warnings.append(
+            f"depth minimum {scale['min']} m is below the plausible band {band} m"
+            + ("" if min_side_gates else
+               " (recorded diagnostic: a listener map sees the capture rig, which "
+               "is part of the scanned scene)"))
     if vertical["checked"] and not vertical["ok"]:
         warnings.append(
             f"vertical axis: nadir {vertical['nadir_m']:.3f} m vs tracked height "
@@ -878,6 +904,10 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
         "scale_band_m": list(band),
         "scale_checked": scale_checked,
         "scale_plausible": plausible,
+        "scale_min_ok": min_ok,
+        "scale_max_ok": max_ok,
+        "scale_min_gates_publication": bool(min_side_gates),
+        "near_field": near_field,
         "rx_sightline": sightline,
         "vertical_axis": vertical,
         # Recorded honestly (T5): what this evidence can and cannot decide.
@@ -894,7 +924,7 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
                        # F4: canonical maps need the scale check to have RUN and
                        # PASSED; without a reference it cannot run, and "no
                        # reference" must not read as "no problem".
-                       and (plausible if (scale_checked or require_scale_check)
+                       and (scale_ok if (scale_checked or require_scale_check)
                             else True)
                        and (scale_checked or not require_scale_check)
                        and vertical["ok"]),
@@ -1098,6 +1128,7 @@ def main(argv=None):
         # that describes the other half.
         staged = publish_txn.stage(depth_dir)
         maps, failed, warned, bearings = {}, [], [], {}
+        near_field_maps = []
         render_s = 0.0
         for entry in render_plan:
             group_key = entry["item_id"]
@@ -1130,11 +1161,23 @@ def main(argv=None):
                 references=references,
                 tracked_height_m=float(entry["tracked_height_m"]),
                 vertical_tol_m=args.floor_tol,
-                require_scale_check=canonical)
+                require_scale_check=canonical,
+                # Amendment 4.2: for LISTENER maps the near-field minimum is a
+                # recorded diagnostic; the oversized side stays fatal in both modes.
+                min_side_gates=not listener_mode)
             if not qa["real_mesh"]["rx_sightline"]["checked"]:
                 qa["warnings"].append("no sightline evidence available")
             qa["warnings"] = qa["warnings"] + qa["real_mesh"]["warnings"]
             qa["passed"] = bool(qa["passed"] and qa["real_mesh"]["passed"])
+            if qa["real_mesh"]["near_field"]["flagged"]:
+                near_field_maps.append({
+                    "depth_file": entry["depth_file"],
+                    "positioned_at": entry["positioned_at"],
+                    "item_ids": list(entry["item_ids"]),
+                    "min_m": qa["real_mesh"]["near_field"]["min_m"],
+                    "band_min_m": qa["real_mesh"]["near_field"]["band_min_m"],
+                    "gates_publication":
+                        qa["real_mesh"]["near_field"]["gates_publication"]})
             bearings[group_key] = qa["real_mesh"]["landmark_bearing_deg"]
             maps[group_key] = qa
             if not qa["passed"]:
@@ -1155,6 +1198,22 @@ def main(argv=None):
             "n_maps": len(maps),
             "n_failed": len(failed),
             "n_warned": len(warned),
+            # Amendment 4.2: which maps see near-field structure, and which ITEMS
+            # they belong to -- disclosed per item, exactly like the near-silent
+            # references, rather than refusing a geometrically correct render.
+            "near_field": {
+                "n_maps": len(near_field_maps),
+                "n_items": len({item for m in near_field_maps
+                                for item in m["item_ids"]}),
+                "item_ids": sorted({item for m in near_field_maps
+                                    for item in m["item_ids"]}),
+                "min_side_gates_publication": not listener_mode,
+                "maps": near_field_maps,
+                "note": ("a listener map is rendered from a microphone position and "
+                         "the capture rig is part of the photogrammetry, so "
+                         "near-field structure is geometry. RECORDED for listener "
+                         "maps (Amendment 4.2); the oversized side stays fatal in "
+                         "both modes.")},
             "readback_record": readback_provenance,
             "scale_reference": references,
             "haa_reference_sha256": haa_fingerprint,
@@ -1208,10 +1267,31 @@ def main(argv=None):
             taint.append("non-registered render parameters: "
                          + "; ".join(render_deviations))
 
+    # Amendment 4.2: the near-field disclosure is part of what the marker attests,
+    # so a consumer learns which items carry a flagged map without reading every
+    # per-room QA record.
+    near_field_items = sorted({item for record in records.values()
+                               for item in (record.get("near_field") or {}
+                                            ).get("item_ids", ())})
+    near_field_marker = {
+        "n_maps": sum((record.get("near_field") or {}).get("n_maps", 0)
+                      for record in records.values()),
+        "n_items": len(near_field_items),
+        "item_ids": near_field_items,
+        "min_side_gates_publication": not listener_mode,
+    }
+    if near_field_marker["n_maps"]:
+        logger.info("near-field maps: %d over %d items (%s) -- recorded, %s",
+                    near_field_marker["n_maps"], near_field_marker["n_items"],
+                    ", ".join(near_field_items[:4]),
+                    "fatal" if listener_mode is False else "not fatal "
+                    "(Amendment 4.2)")
+
     marker = publish_txn.commit(expectations=expectations, validate_json=True,
                                 extra={"canonical": canonical, "taint": taint,
                                        "parameters": render_params,
                                        "canonical_parameters": not render_deviations,
+                                       "near_field": near_field_marker,
                                        "readback_record": readback_provenance})
     logger.info("published generation %s over %d depth directories",
                 marker["generation"][:12], len(marker["roots"]))

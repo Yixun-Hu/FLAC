@@ -351,3 +351,69 @@ def test_a_canonical_listener_render_refuses_the_wrong_map_count(tmp_path,
                          "--readback-record", readback])
     assert "n_maps" in str(exc.value)
     assert not (out / raf_publish.marker_name("mappingA_depth")).exists()
+
+
+# --------------------------------------------------------------------------- #
+# r5 Amendment 4.2: the near-field disclosure reaches the QA record and marker
+# --------------------------------------------------------------------------- #
+def test_the_listener_render_records_the_near_field_disclosure(tmp_path, monkeypatch):
+    """A listener map that sees the capture rig is published with the flag ON the
+    record -- per map, naming the ITEMS it belongs to -- instead of failing."""
+    import publish as raf_publish
+
+    raf_root, out = _fixture(tmp_path)
+    flagged = {"EmptyRoom_p000_slot01_depth_image.npy"}
+    real_qa = raf_render.real_mesh_qa
+
+    def near_field_qa(depth, position, mesh, **kwargs):
+        report = real_qa(depth, position, mesh, **kwargs)
+        # the second map sees structure 3 cm away; everything else is untouched
+        if near_field_qa.calls in (1,):
+            report = dict(report)
+            report["scale_min_ok"] = False
+            report["scale_plausible"] = False
+            report["near_field"] = dict(report["near_field"], flagged=True,
+                                        min_m=0.03)
+        near_field_qa.calls += 1
+        return report
+
+    near_field_qa.calls = 0
+    monkeypatch.setattr(raf_render, "real_mesh_qa", near_field_qa)
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--positions-from", "mappingA",
+                     "--haa-depth-root",
+                     os.path.join(_REPO_ROOT, "src", "tests", "fixtures",
+                                  "raf_depth_reference"),
+                     "--readback-record", _readback(tmp_path), "--non-canonical"])
+
+    with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
+        qa = json.load(f)
+    near = qa["near_field"]
+    assert near["n_maps"] == 1
+    assert near["min_side_gates_publication"] is False
+    assert near["item_ids"] == ["EmptyRoom/p000/slot01"]
+    assert near["maps"][0]["depth_file"] in flagged
+    assert near["maps"][0]["min_m"] == pytest.approx(0.03)
+    assert "capture rig" in near["note"]
+    assert qa["n_failed"] == 0                      # recorded, not fatal
+
+    with open(out / raf_publish.marker_name("mappingA_depth")) as f:
+        marker = json.load(f)
+    assert marker["near_field"]["n_maps"] == 1
+    assert marker["near_field"]["item_ids"] == ["EmptyRoom/p000/slot01"]
+    assert marker["near_field"]["min_side_gates_publication"] is False
+
+
+def test_a_clean_listener_render_declares_no_near_field_maps(tmp_path):
+    raf_root, out = _fixture(tmp_path)
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--positions-from", "mappingA",
+                     "--haa-depth-root",
+                     os.path.join(_REPO_ROOT, "src", "tests", "fixtures",
+                                  "raf_depth_reference"),
+                     "--readback-record", _readback(tmp_path), "--non-canonical"])
+    with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
+        qa = json.load(f)
+    assert qa["near_field"]["n_maps"] == 0
+    assert qa["near_field"]["item_ids"] == []
+    assert qa["near_field"]["min_side_gates_publication"] is False

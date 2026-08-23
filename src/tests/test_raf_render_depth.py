@@ -1528,3 +1528,80 @@ def test_the_hard_gates_include_bounds_and_scale():
                                     references=references, tracked_height_m=1.5)
     assert scale["scale_checked"] is True
     assert scale["scale_plausible"] is False and scale["passed"] is False
+
+
+# --------------------------------------------------------------------------- #
+# r5 Amendment 4.2: the near-field MINIMUM is recorded for listener maps
+# --------------------------------------------------------------------------- #
+def _near_field_depth(depth, metres=0.03):
+    """A map with one near-field pixel, as a listener map sees the capture rig."""
+    near = depth.copy()
+    near[0, 0] = metres
+    return near
+
+
+def test_a_near_field_minimum_is_recorded_not_fatal_for_listener_maps():
+    """Measured (Amendment 4.2): 4 of 1,152 listener maps see scanned structure at
+    0.029-0.125 m -- the capture rig is in the photogrammetry, so the render is
+    geometrically correct."""
+    mesh = _box_mesh_raf(**_BOX)
+    position = np.array([0.5, 0.5, 1.5])
+    depth = raf_render.render_depth(mesh, position, h=32, w=64)
+    references = {"HAA": raf_render.reference_depth_stats(_SYNTHETIC_REFERENCE),
+                  "AR": raf_render.reference_depth_stats("/nonexistent-ar-root")}
+    near = _near_field_depth(depth)
+
+    listener = raf_render.real_mesh_qa(near, position, mesh, img_h=32, img_w=64,
+                                       references=references, min_side_gates=False)
+    assert listener["scale_min_ok"] is False        # measured, and recorded
+    assert listener["scale_max_ok"] is True
+    assert listener["scale_plausible"] is False
+    assert listener["near_field"]["flagged"] is True
+    assert listener["near_field"]["min_m"] == pytest.approx(0.03)
+    assert listener["near_field"]["gates_publication"] is False
+    assert listener["passed"] is True               # NOT fatal
+    assert any("recorded diagnostic" in w for w in listener["warnings"])
+
+
+def test_the_same_map_still_fails_in_source_mode():
+    """Source-positioned maps (Mapping H) keep the strict band: nothing should be
+    a few centimetres from a loudspeaker position."""
+    mesh = _box_mesh_raf(**_BOX)
+    position = np.array([0.5, 0.5, 1.5])
+    depth = raf_render.render_depth(mesh, position, h=32, w=64)
+    references = {"HAA": raf_render.reference_depth_stats(_SYNTHETIC_REFERENCE),
+                  "AR": raf_render.reference_depth_stats("/nonexistent-ar-root")}
+    strict = raf_render.real_mesh_qa(_near_field_depth(depth), position, mesh,
+                                     img_h=32, img_w=64, references=references)
+    assert strict["near_field"]["flagged"] is True
+    assert strict["near_field"]["gates_publication"] is True
+    assert strict["passed"] is False
+    assert any("below the plausible band" in w for w in strict["warnings"])
+
+
+def test_the_oversized_side_stays_fatal_in_listener_mode():
+    """An oversized map means the units or the gauge are wrong -- nothing in a room
+    can be farther away than the room."""
+    mesh = _box_mesh_raf(**_BOX)
+    position = np.array([0.5, 0.5, 1.5])
+    depth = raf_render.render_depth(mesh, position, h=32, w=64)
+    references = {"HAA": raf_render.reference_depth_stats(_SYNTHETIC_REFERENCE),
+                  "AR": raf_render.reference_depth_stats("/nonexistent-ar-root")}
+    huge = raf_render.real_mesh_qa(depth * 40.0, position, mesh, img_h=32, img_w=64,
+                                   references=references, min_side_gates=False)
+    assert huge["scale_max_ok"] is False
+    assert huge["passed"] is False
+    assert any("units or the gauge are wrong" in w for w in huge["warnings"])
+
+
+def test_a_clean_listener_map_is_not_flagged():
+    mesh = _box_mesh_raf(**_BOX)
+    position = np.array([0.5, 0.5, 1.5])
+    depth = raf_render.render_depth(mesh, position, h=32, w=64)
+    references = {"HAA": raf_render.reference_depth_stats(_SYNTHETIC_REFERENCE),
+                  "AR": raf_render.reference_depth_stats("/nonexistent-ar-root")}
+    qa = raf_render.real_mesh_qa(depth, position, mesh, img_h=32, img_w=64,
+                                 references=references, min_side_gates=False)
+    assert qa["near_field"]["flagged"] is False
+    assert qa["scale_min_ok"] is True and qa["scale_max_ok"] is True
+    assert qa["passed"] is True

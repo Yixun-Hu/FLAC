@@ -63,11 +63,22 @@ REGISTERED_SEEDS = (42, 43, 44, 45, 46)
 # (its clip clamp binds at 2.0401), while Mapping H stays at x3.0. Every results
 # artifact carries the disclosure, because the difference licenses some
 # comparisons and not others.
-# Amendment 4.1: the placements whose items carry a near-silent CONTEXT reference
-# at the published scalar (measured: 21 context-only captures, 19 items, all in
-# FurnishedRoom p008). They are real measurement conditions, identical across
-# arms, so the PRIMARY row keeps them and a labelled sensitivity row drops them.
+# Amendment 4.1: the items that carry a near-silent CONTEXT reference at the
+# published scalar -- measured, 21 context-only captures over these 19 items, all
+# in FurnishedRoom p008.
 NEAR_SILENT_REFERENCE_PLACEMENTS = (("FurnishedRoom", "p008"),)
+NEAR_SILENT_REFERENCE_ITEMS = tuple(
+    f"FurnishedRoom/p008/slot{slot:02d}" for slot in
+    (1, 2, 4, 6, 9, 11, 14, 15, 18, 19, 20, 22, 23, 25, 26, 29, 30, 34, 35))
+# Amendment 4.2: the items whose LISTENER map sees near-field scanned structure
+# (0.029-0.125 m) -- the capture rig in the photogrammetry. Geometrically correct
+# renders, recorded rather than refused.
+NEAR_FIELD_ITEMS = tuple(f"EmptyRoom/p052/slot{slot:02d}"
+                         for slot in (17, 22, 26, 27))
+# Both flagged sets: 19 + 4 = 23 of the 1,152 items. They are real measurement
+# conditions and identical across arms, so the PRIMARY row keeps them and one
+# labelled "minus-flagged" sensitivity row drops both.
+FLAGGED_ITEMS = tuple(sorted(set(NEAR_SILENT_REFERENCE_ITEMS) | set(NEAR_FIELD_ITEMS)))
 
 MAPPINGA_AMPLITUDE_SCALAR = 2.0
 MAPPINGH_AMPLITUDE_SCALAR = 3.0
@@ -397,54 +408,62 @@ def paired_cluster_bootstrap(differences, n_resamples=10000, alpha=0.05,
                              label=label)
 
 
-def filter_arm(arm, exclude_placements=NEAR_SILENT_REFERENCE_PLACEMENTS,
-               label_suffix=None):
-    """A copy of ``arm`` with the named (room, placement) items removed.
+def filter_arm(arm, exclude_placements=(), exclude_items=FLAGGED_ITEMS,
+               label_suffix="-minus-flagged"):
+    """A copy of ``arm`` with the flagged items (and/or placements) removed.
 
     The identity, the seeds and the metric are untouched -- this is the SAME cell,
     read over a subset of its items -- so a sensitivity contrast is still a paired
     comparison of the same two arms. The label is suffixed so the two readings can
     never be confused for one another in a report.
+
+    Amendment 4.2: exclusion is by ITEM, because that is the grain the flags have
+    -- 19 of FurnishedRoom p008's 36 items carry a near-silent reference and 4 of
+    EmptyRoom p052's carry a near-field map. Dropping whole placements would remove
+    41 unflagged items along with them and answer a different question.
     """
     excluded = {(str(room), str(placement)) for room, placement in exclude_placements}
-    if not excluded:
-        raise ValueError("filter_arm needs at least one placement to exclude")
+    excluded_items = {str(item) for item in exclude_items}
+    if not excluded and not excluded_items:
+        raise ValueError("filter_arm needs something to exclude")
     suffix = label_suffix or ("-minus-" + "-".join(
         f"{room}.{placement}" for room, placement in sorted(excluded)))
 
     by_seed, kept_ids = {}, None
     for seed, values in arm["by_seed"].items():
         kept = {item_id: entry for item_id, entry in values.items()
-                if (entry["room"], entry["placement_id"]) not in excluded}
+                if (entry["room"], entry["placement_id"]) not in excluded
+                and item_id not in excluded_items}
         if not kept:
             raise ValueError(
-                f"excluding {sorted(excluded)} leaves arm {arm['label']} with no "
-                "items at all")
+                f"excluding {sorted(excluded) or sorted(excluded_items)[:4]} leaves "
+                f"arm {arm['label']} with no items at all")
         by_seed[seed] = kept
         kept_ids = set(kept) if kept_ids is None else kept_ids
     filtered = dict(arm)
     filtered.update({"label": f"{arm['label']}{suffix}", "by_seed": by_seed,
                      "item_ids": sorted(kept_ids),
                      "excluded_placements": sorted(excluded),
+                     "excluded_items": sorted(excluded_items & set(arm["item_ids"])),
                      "n_items_excluded": len(arm["item_ids"]) - len(kept_ids)})
     return filtered
 
 
-def contrast_with_sensitivity(arm_a, arm_b,
-                              exclude_placements=NEAR_SILENT_REFERENCE_PLACEMENTS,
-                              **kwargs):
-    """The registered contrast, plus its near-silent-reference sensitivity row.
+def contrast_with_sensitivity(arm_a, arm_b, exclude_items=FLAGGED_ITEMS,
+                              exclude_placements=(), **kwargs):
+    """The registered contrast, plus its "minus-flagged" sensitivity row.
 
-    Amendment 4.1: the PRIMARY row keeps every item -- the near-silent references
-    are the conditions the corpus was measured under, and they are identical for
-    both arms, so dropping them would answer a different question. The sensitivity
-    row repeats the SAME machinery over the same arms with those placements removed,
-    so a reader can see whether the conclusion depends on them. Both are labelled;
-    neither replaces the other.
+    Amendment 4.1/4.2: the PRIMARY row keeps every item -- the near-silent
+    references and the near-field maps are the conditions the corpus was measured
+    under, and they are identical for both arms, so dropping them would answer a
+    different question. The sensitivity row repeats the SAME machinery over the
+    same arms with both flagged sets removed (19 + 4 = 23 items), so a reader can
+    see whether the conclusion depends on them. Both are labelled; neither replaces
+    the other.
     """
     primary = contrast_report(arm_a, arm_b, **kwargs)
-    filtered_a = filter_arm(arm_a, exclude_placements)
-    filtered_b = filter_arm(arm_b, exclude_placements)
+    filtered_a = filter_arm(arm_a, exclude_placements, exclude_items)
+    filtered_b = filter_arm(arm_b, exclude_placements, exclude_items)
     # the design check is a statement about the FULL registered set, so the
     # deliberately reduced reading is not measured against it
     sensitivity_kwargs = dict(kwargs, enforce_design=False)
@@ -454,11 +473,17 @@ def contrast_with_sensitivity(arm_a, arm_b,
         "sensitivity": sensitivity,
         "excluded_placements": [list(p) for p in sorted(
             {(str(room), str(placement)) for room, placement in exclude_placements})],
+        "excluded_items": filtered_a["excluded_items"],
+        "excluded_item_flags": {
+            "near_silent_reference": sorted(set(exclude_items)
+                                            & set(NEAR_SILENT_REFERENCE_ITEMS)),
+            "near_field_map": sorted(set(exclude_items) & set(NEAR_FIELD_ITEMS))},
         "n_items_excluded": filtered_a["n_items_excluded"],
         "reading": ("primary = every item, as measured; sensitivity = the same "
-                    "contrast with the near-silent-reference placements removed. "
-                    "The primary row is the result; the sensitivity row says "
-                    "whether it depends on those placements."),
+                    "contrast with the FLAGGED items removed (near-silent "
+                    "references, Amendment 4.1; near-field listener maps, "
+                    "Amendment 4.2). The primary row is the result; the "
+                    "sensitivity row says whether it depends on those items."),
     }
 
 
