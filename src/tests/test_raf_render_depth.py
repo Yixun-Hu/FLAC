@@ -1693,3 +1693,95 @@ def test_the_cap_defaults_to_the_mode_and_an_explicit_value_is_compared_to_it():
     cap, taint = raf_render.resolve_miss_cap(0.02, canonical=False,
                                              listener_mode=True)
     assert cap == 0.02 and "listener-map 0.007" in taint[0]
+
+
+# --------------------------------------------------------------------------- #
+# r5 Amendment 4.3 wiring fix: the canonical audit clamp follows the MODE
+# --------------------------------------------------------------------------- #
+def _miss_report_for(hits, cap, mode):
+    """The miss report the renderer would produce for this mask at this cap."""
+    filled, report = raf_render.fill_missing(hits.copy(), max_miss_rate=cap,
+                                             mode=mode)
+    return filled, report
+
+
+def test_a_listener_map_between_the_two_caps_audits_clean():
+    """The measured failure: 17 FurnishedRoom maps rendered under the registered
+    0.7% listener cap and were audited under the 0.25% source cap, so each one
+    failed QA with a forgery warning it had not earned."""
+    hits = _hits_with_misses(500)                       # 0.5%: over 0.25%, under 0.7%
+    depth, report = _miss_report_for(hits, raf_render.LISTENER_MAX_MISS_RATE, "listener")
+    audit, warnings = raf_render.audit_miss_report(
+        report, depth, canonical=True, miss_mask=report["miss_mask"],
+        listener_mode=True)
+    assert audit["cap_applied"] == raf_render.LISTENER_MAX_MISS_RATE
+    assert audit["cap_registered"] == raf_render.LISTENER_MAX_MISS_RATE
+    assert audit["cap_mode"] == "listener"
+    assert audit["within_cap_recomputed"] is True
+    assert audit["audit_ok"] is True
+    assert not any("cap applied here" in w for w in warnings)
+
+
+def test_a_listener_map_over_the_listener_cap_still_fails_the_audit():
+    """The clamp is not a bypass: 0.8% is over the registered listener cap, and a
+    report claiming otherwise is exactly what the audit exists to catch."""
+    hits = _hits_with_misses(800)
+    depth, report = _miss_report_for(hits, 0.01, "listener")   # rendered under a looser cap
+    audit, warnings = raf_render.audit_miss_report(
+        report, depth, canonical=True, miss_mask=report["miss_mask"],
+        listener_mode=True)
+    assert audit["cap_applied"] == raf_render.LISTENER_MAX_MISS_RATE
+    assert audit["within_cap_recomputed"] is False
+    assert audit["audit_ok"] is False
+    assert any("above the 0.700% listener-map cap" in w for w in warnings)
+    assert any("claims within_cap=True, recomputed False" in w for w in warnings)
+
+
+def test_a_source_map_at_the_same_rate_still_fails_the_audit():
+    """Source maps keep the 0.25% cap: the fix follows the mode, it does not
+    loosen the protocol."""
+    hits = _hits_with_misses(500)
+    depth, report = _miss_report_for(hits, 0.01, "source")
+    audit, warnings = raf_render.audit_miss_report(
+        report, depth, canonical=True, miss_mask=report["miss_mask"],
+        listener_mode=False)
+    assert audit["cap_applied"] == raf_render.DEFAULT_MAX_MISS_RATE
+    assert audit["cap_mode"] == "source"
+    assert audit["within_cap_recomputed"] is False
+    assert audit["audit_ok"] is False
+    assert any("above the 0.250% source-map cap" in w for w in warnings)
+
+
+def test_the_audit_still_refuses_a_report_that_claims_a_looser_cap():
+    """The anti-forgery property survives the fix: the clamp is min(declared,
+    registered-for-this-mode), so a report cannot buy headroom by declaring one."""
+    hits = _hits_with_misses(800)
+    depth, report = _miss_report_for(hits, 0.01, "listener")
+    report = dict(report, max_miss_rate=0.05)            # a forged, looser cap
+    audit, _ = raf_render.audit_miss_report(
+        report, depth, canonical=True, miss_mask=report["miss_mask"],
+        listener_mode=True)
+    assert audit["cap_applied"] == raf_render.LISTENER_MAX_MISS_RATE
+    assert audit["within_cap_recomputed"] is False
+    # ... and a non-canonical run may audit against its own declared cap
+    loose, _ = raf_render.audit_miss_report(
+        report, depth, canonical=False, miss_mask=report["miss_mask"],
+        listener_mode=True)
+    assert loose["cap_applied"] == 0.05
+    assert loose["within_cap_recomputed"] is True
+
+
+def test_depth_qa_passes_the_mode_through_to_the_audit():
+    hits = _hits_with_misses(500, shape=(256, 512))
+    depth, report = _miss_report_for(hits, raf_render.LISTENER_MAX_MISS_RATE, "listener")
+    position = np.array([0.3, 5.0, 1.5])
+    listener = raf_render.depth_qa(depth.astype(np.float32) * 0 + 1.0, position,
+                                   canonical=True, miss_report=report,
+                                   listener_mode=True)
+    strict = raf_render.depth_qa(depth.astype(np.float32) * 0 + 1.0, position,
+                                 canonical=True, miss_report=report)
+    assert listener["misses"]["cap_applied"] == raf_render.LISTENER_MAX_MISS_RATE
+    assert listener["misses"]["audit_ok"] is True
+    # the default is still the source cap: an uninformed caller stays strict
+    assert strict["misses"]["cap_applied"] == raf_render.DEFAULT_MAX_MISS_RATE
+    assert strict["misses"]["audit_ok"] is False

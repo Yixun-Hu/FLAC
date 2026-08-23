@@ -279,7 +279,8 @@ def render_depth(mesh, position_p, h=DEPTH_H, w=DEPTH_W,
 
 
 def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL, img_h=DEPTH_H,
-             img_w=DEPTH_W, canonical=True, miss_report=None):
+             img_w=DEPTH_W, canonical=True, miss_report=None,
+             listener_mode=False):
     """Per-map quality report (plan Rev 2 section 8.3).
 
     ``passed`` covers the STRUCTURAL checks — shape/dtype, finiteness, positivity,
@@ -328,7 +329,8 @@ def depth_qa(depth, position_p, floor_tol=DEFAULT_FLOOR_TOL, img_h=DEPTH_H,
     else:
         misses, miss_warnings = audit_miss_report(
             miss_report, arr, canonical=canonical,
-            miss_mask=miss_report.get("miss_mask"))
+            miss_mask=miss_report.get("miss_mask"),
+            listener_mode=listener_mode)
         warnings.extend(miss_warnings)
     if not floor_ok:
         warnings.append(
@@ -485,7 +487,8 @@ def resolve_miss_cap(requested, canonical=True, listener_mode=False):
                        f"{registered}"]
 
 
-def audit_miss_report(miss_report, depth, canonical=True, miss_mask=None):
+def audit_miss_report(miss_report, depth, canonical=True, miss_mask=None,
+                      listener_mode=False):
     """Re-derive the miss verdict FROM THE RAW HIT MASK (r5 finding 4).
 
     The mask is mandatory. Count, coordinates, rate and hash are all computed from
@@ -493,6 +496,16 @@ def audit_miss_report(miss_report, depth, canonical=True, miss_mask=None):
     the mask optional left ``mask_verified=None`` acceptable, so a stale or forged
     zero-miss report -- empty coordinates, the public empty-set hash, the right ray
     count -- passed QA with nothing tying it to this map.
+
+    The canonical clamp below refuses a report that audits itself against a LOOSER
+    cap than the registered one. Amendment 4.3 made that cap mode-specific, so the
+    clamp follows the MODE (0.7% listener, 0.25% source) -- taken from the caller,
+    never from the report, which is the thing being audited. Before this a
+    canonical listener render rendered under 0.7% and audited under 0.25%, and
+    every map between the two failed QA with a forgery warning it had not earned
+    (17 FurnishedRoom maps, measured in mappingA_furnished_qa_failures.json).
+    ``listener_mode=False`` keeps the source cap, so an uninformed caller stays
+    strict.
     """
     warnings = []
     n_rays = int(np.asarray(depth).size)
@@ -521,8 +534,9 @@ def audit_miss_report(miss_report, depth, canonical=True, miss_mask=None):
     true_rate = true_count / n_rays if n_rays else 0.0
     true_hash = fill_hash(true_coordinates)
 
-    declared_cap = float(miss_report.get("max_miss_rate", DEFAULT_MAX_MISS_RATE))
-    cap = min(declared_cap, DEFAULT_MAX_MISS_RATE) if canonical else declared_cap
+    registered_cap = registered_miss_cap(listener_mode)
+    declared_cap = float(miss_report.get("max_miss_rate", registered_cap))
+    cap = min(declared_cap, registered_cap) if canonical else declared_cap
     within = bool(true_rate <= cap)
 
     reported = [[int(v) for v in c] for c in (miss_report.get("filled_pixels") or [])]
@@ -556,8 +570,8 @@ def audit_miss_report(miss_report, depth, canonical=True, miss_mask=None):
             f"recomputed {within}")
     if not within:
         warnings.append(
-            f"{true_count} rays missed ({true_rate:.4%}), above the {cap:.3%} cap "
-            "applied here")
+            f"{true_count} rays missed ({true_rate:.4%}), above the {cap:.3%} "
+            f"{miss_cap_mode(listener_mode)}-map cap applied here")
     elif true_count:
         warnings.append(
             f"{true_count} rays missed and were repaired by nearest-valid-neighbour "
@@ -581,6 +595,8 @@ def audit_miss_report(miss_report, depth, canonical=True, miss_mask=None):
         "miss_rate_recomputed": true_rate,
         "filled_pixels_sha256_from_mask": true_hash,
         "cap_applied": cap,
+        "cap_registered": registered_cap,
+        "cap_mode": miss_cap_mode(listener_mode),
         "within_cap_recomputed": within,
         "count_matches_coordinates": bool(count_ok),
         "hash_matches_coordinates": bool(hash_ok),
@@ -1186,7 +1202,7 @@ def main(argv=None):
 
             qa = depth_qa(depth, position, floor_tol=args.floor_tol,
                           img_h=args.img_h, img_w=args.img_w, canonical=canonical,
-                          miss_report=miss_report)
+                          miss_report=miss_report, listener_mode=listener_mode)
             qa["depth_file"] = entry["depth_file"]
             qa["positioned_at"] = entry["positioned_at"]
             qa["item_ids"] = entry["item_ids"]
