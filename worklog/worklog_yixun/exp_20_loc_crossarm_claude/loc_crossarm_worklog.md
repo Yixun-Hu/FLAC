@@ -60,3 +60,6 @@
 - **Dense-regime (K8) table now COMPLETE, 3 seeds each: BF 0.5087 ± 0.0007 > YAW 0.4997 ± 0.0015 > P1 0.4948 ± 0.0002.** Equivariance > augmentation > vanilla — mirroring the program's training-side ordering; confirmatory verdict still Holm-gated on the full campaign.
 
 ## 2026-08-23 (see commit) — GPUs RELEASED by Yixun ("my senior finish"); campaign RESUMED — pair 7 launched
+
+## 2026-08-23T13:30:00-0400 — Co-tenancy agreed (exp_21 Mapping-A alongside); numbering reconciled
+- Peer runs its sweep (~2-4 GB/cell, no timing claims) across both cards alongside pair 7+; our cells are co-tenancy-immune; wall-time may stretch mildly. Namespaces: exp_20_loc_crossarm (ours) / exp_20_raf_crossarm (theirs).
