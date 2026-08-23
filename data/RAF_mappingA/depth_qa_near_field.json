@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-08-23T02:44:31Z",
+  "generation": "21a8ec5fc9bd44b4953549b0d129b26d",
+  "note": "Distilled from the published Mapping-A depth QA records (Amendment 4.2 near-field disclosure). The full per-room raf_depth_qa.json is ~7.4 MB each and lives in the runtime tree; this extract carries the near-field block verbatim plus the sha256 of the record it came from, so the registered flagged-item set can be checked against the publication without the runtime tree being mounted.",
+  "rooms": {
+    "EmptyRoom": {
+      "source": "<runtime>/EmptyRoom/depth_images/raf_depth_qa.json",
+      "source_sha256": "fd77955ac8ae7e7035089c8e19f4a209e34f1857446d8d46efea64d7cc0b9817",
+      "n_maps_rendered": 576,
+      "n_failed": 0,
+      "canonical": true,
+      "taint": [],
+      "marker_kind": "mappingA_depth",
+      "positions_from": "mappingA",
+      "max_miss_rate": 0.007,
+      "near_field": {
+        "n_maps": 4,
+        "n_items": 4,
+        "item_ids": [
+          "EmptyRoom/p052/slot17",
+          "EmptyRoom/p052/slot22",
+          "EmptyRoom/p052/slot26",
+          "EmptyRoom/p052/slot27"
+        ],
+        "min_side_gates_publication": false,
+        "maps": [
+          {
+            "depth_file": "EmptyRoom_p052_slot17_depth_image.npy",
+            "positioned_at": "listener",
+            "item_ids": [
+              "EmptyRoom/p052/slot17"
+            ],
+            "min_m": 0.1247604489326477,
+            "band_min_m": 0.16792907317479452,
+            "gates_publication": false
+          },
+          {
+            "depth_file": "EmptyRoom_p052_slot22_depth_image.npy",
+            "positioned_at": "listener",
+            "item_ids": [
+              "EmptyRoom/p052/slot22"
+            ],
+            "min_m": 0.0286922175437212,
+            "band_min_m": 0.16792907317479452,
+            "gates_publication": false
+          },
+          {
+            "depth_file": "EmptyRoom_p052_slot26_depth_image.npy",
+            "positioned_at": "listener",
+            "item_ids": [
+              "EmptyRoom/p052/slot26"
+            ],
+            "min_m": 0.13735729455947876,
+            "band_min_m": 0.16792907317479452,
+            "gates_publication": false
+          },
+          {
+            "depth_file": "EmptyRoom_p052_slot27_depth_image.npy",
+            "positioned_at": "listener",
+            "item_ids": [
+              "EmptyRoom/p052/slot27"
+            ],
+            "min_m": 0.13198798894882202,
+            "band_min_m": 0.16792907317479452,
+            "gates_publication": false
+          }
+        ],
+        "note": "a listener map is rendered from a microphone position and the capture rig is part of the photogrammetry, so near-field structure is geometry. RECORDED for listener maps (Amendment 4.2); the oversized side stays fatal in both modes."
+      }
+    },
+    "FurnishedRoom": {
+      "source": "<runtime>/FurnishedRoom/depth_images/raf_depth_qa.json",
+      "source_sha256": "f41332101f8e70905ed6f9e557d53e005658ee6be3a33f73001ed2480d5fa8b3",
+      "n_maps_rendered": 576,
+      "n_failed": 0,
+      "canonical": true,
+      "taint": [],
+      "marker_kind": "mappingA_depth",
+      "positions_from": "mappingA",
+      "max_miss_rate": 0.007,
+      "near_field": {
+        "n_maps": 3,
+        "n_items": 3,
+        "item_ids": [
+          "FurnishedRoom/p000/slot22",
+          "FurnishedRoom/p000/slot26",
+          "FurnishedRoom/p025/slot22"
+        ],
+        "min_side_gates_publication": false,
+        "maps": [
+          {
+            "depth_file": "FurnishedRoom_p000_slot22_depth_image.npy",
+            "positioned_at": "listener",
+            "item_ids": [
+              "FurnishedRoom/p000/slot22"
+            ],
+            "min_m": 0.1398639678955078,
+            "band_min_m": 0.16792907317479452,
+            "gates_publication": false
+          },
+          {
+            "depth_file": "FurnishedRoom_p000_slot26_depth_image.npy",
+            "positioned_at": "listener",
+            "item_ids": [
+              "FurnishedRoom/p000/slot26"
+            ],
+            "min_m": 0.1230304166674614,
+            "band_min_m": 0.16792907317479452,
+            "gates_publication": false
+          },
+          {
+            "depth_file": "FurnishedRoom_p025_slot22_depth_image.npy",
+            "positioned_at": "listener",
+            "item_ids": [
+              "FurnishedRoom/p025/slot22"
+            ],
+            "min_m": 0.16511499881744385,
+            "band_min_m": 0.16792907317479452,
+            "gates_publication": false
+          }
+        ],
+        "note": "a listener map is rendered from a microphone position and the capture rig is part of the photogrammetry, so near-field structure is geometry. RECORDED for listener maps (Amendment 4.2); the oversized side stays fatal in both modes."
+      }
+    }
+  },
+  "near_field_item_ids": [
+    "EmptyRoom/p052/slot17",
+    "EmptyRoom/p052/slot22",
+    "EmptyRoom/p052/slot26",
+    "EmptyRoom/p052/slot27",
+    "FurnishedRoom/p000/slot22",
+    "FurnishedRoom/p000/slot26",
+    "FurnishedRoom/p025/slot22"
+  ]
+}

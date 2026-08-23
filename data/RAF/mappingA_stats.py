@@ -70,12 +70,20 @@ NEAR_SILENT_REFERENCE_PLACEMENTS = (("FurnishedRoom", "p008"),)
 NEAR_SILENT_REFERENCE_ITEMS = tuple(
     f"FurnishedRoom/p008/slot{slot:02d}" for slot in
     (1, 2, 4, 6, 9, 11, 14, 15, 18, 19, 20, 22, 23, 25, 26, 29, 30, 34, 35))
-# Amendment 4.2: the items whose LISTENER map sees near-field scanned structure
-# (0.029-0.125 m) -- the capture rig in the photogrammetry. Geometrically correct
-# renders, recorded rather than refused.
-NEAR_FIELD_ITEMS = tuple(f"EmptyRoom/p052/slot{slot:02d}"
-                         for slot in (17, 22, 26, 27))
-# Both flagged sets: 19 + 4 = 23 of the 1,152 items. They are real measurement
+# Amendment 4.2: the items whose LISTENER map sees near-field scanned structure --
+# the capture rig in the photogrammetry. Geometrically correct renders, recorded
+# rather than refused. Taken from the PUBLISHED depth QA (generation 21a8ec5fc9bd):
+# the set grew from 4 to 7 once the 4.3 audit-clamp bug and the 4.4 normal-sign
+# containment stopped failing those maps before the near-field check could record
+# them. data/RAF_mappingA/depth_qa_near_field.json is the publication's own
+# evidence, and a test holds this tuple to it.
+NEAR_FIELD_ITEMS = (
+    "EmptyRoom/p052/slot17", "EmptyRoom/p052/slot22",
+    "EmptyRoom/p052/slot26", "EmptyRoom/p052/slot27",
+    "FurnishedRoom/p000/slot22", "FurnishedRoom/p000/slot26",
+    "FurnishedRoom/p025/slot22",
+)
+# Both flagged sets: 19 + 7 = 26 of the 1,152 items. They are real measurement
 # conditions and identical across arms, so the PRIMARY row keeps them and one
 # labelled "minus-flagged" sensitivity row drops both.
 FLAGGED_ITEMS = tuple(sorted(set(NEAR_SILENT_REFERENCE_ITEMS) | set(NEAR_FIELD_ITEMS)))

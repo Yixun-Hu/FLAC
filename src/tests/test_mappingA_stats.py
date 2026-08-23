@@ -738,10 +738,11 @@ def test_the_results_artifact_carries_the_cross_mapping_scale_disclosure(tmp_pat
 # --------------------------------------------------------------------------- #
 # r5 Amendment 4.1: the near-silent-reference sensitivity row
 # --------------------------------------------------------------------------- #
-# the real corpus' flagged placements: EmptyRoom p052 and FurnishedRoom p008
+# the real corpus' flagged placements: EmptyRoom p052 (4 near-field items) and
+# FurnishedRoom p008 (19 near-silent), p000 (2 near-field), p025 (1 near-field)
 _FLAGGED_PLACEMENT_IDS = {
     "EmptyRoom": [f"p{p:03d}" for p in range(15)] + ["p052"],
-    "FurnishedRoom": [f"p{p:03d}" for p in range(16)],
+    "FurnishedRoom": [f"p{p:03d}" for p in range(15)] + ["p025"],
 }
 
 
@@ -764,13 +765,21 @@ def test_the_registered_flagged_sets_are_the_measured_ones():
     assert len(stats.NEAR_SILENT_REFERENCE_ITEMS) == 19
     assert all(i.startswith("FurnishedRoom/p008/slot")
                for i in stats.NEAR_SILENT_REFERENCE_ITEMS)
+    # 7 near-field items in the published render (generation 21a8ec5fc9bd): the 4
+    # EmptyRoom p052 slots plus 3 FurnishedRoom ones that earlier gates had been
+    # failing before the near-field check could record them.
     assert stats.NEAR_FIELD_ITEMS == ("EmptyRoom/p052/slot17",
                                       "EmptyRoom/p052/slot22",
                                       "EmptyRoom/p052/slot26",
-                                      "EmptyRoom/p052/slot27")
-    assert len(stats.FLAGGED_ITEMS) == 23
+                                      "EmptyRoom/p052/slot27",
+                                      "FurnishedRoom/p000/slot22",
+                                      "FurnishedRoom/p000/slot26",
+                                      "FurnishedRoom/p025/slot22")
+    assert len(stats.FLAGGED_ITEMS) == 26 == 19 + 7
     assert set(stats.FLAGGED_ITEMS) == (set(stats.NEAR_SILENT_REFERENCE_ITEMS)
                                         | set(stats.NEAR_FIELD_ITEMS))
+    assert not (set(stats.NEAR_SILENT_REFERENCE_ITEMS)
+                & set(stats.NEAR_FIELD_ITEMS))
 
 
 def test_filtering_removes_exactly_the_flagged_items(tmp_path):
@@ -778,8 +787,8 @@ def test_filtering_removes_exactly_the_flagged_items(tmp_path):
     41 unflagged items with them."""
     arm = _arm_with_flagged_offset(tmp_path, "armA", 1.0, 0.0)
     filtered = stats.filter_arm(arm)
-    assert filtered["n_items_excluded"] == 23
-    assert len(filtered["item_ids"]) == stats.REGISTERED_N_ITEMS - 23
+    assert filtered["n_items_excluded"] == 26
+    assert len(filtered["item_ids"]) == stats.REGISTERED_N_ITEMS - 26
     assert not (set(filtered["item_ids"]) & set(stats.FLAGGED_ITEMS))
     # the unflagged items of the same placements SURVIVE
     assert "FurnishedRoom/p008/slot00" in filtered["item_ids"]
@@ -791,27 +800,29 @@ def test_filtering_removes_exactly_the_flagged_items(tmp_path):
 
 
 def test_the_sensitivity_row_is_the_same_contrast_minus_the_flagged_items(tmp_path):
-    """Hand oracle. Arm A is flat at 1.0 except the 23 flagged items at 1.0+1.152;
-    arm B is flat at 1.0. Every item difference is 0 except those 23, which are
+    """Hand oracle. Arm A is flat at 1.0 except the 26 flagged items at 1.0+1.152;
+    arm B is flat at 1.0. Every item difference is 0 except those 26, which are
     1.152.
 
-    EmptyRoom p052 holds 4 of them   -> placement mean 4*1.152/36
-    FurnishedRoom p008 holds 19      -> placement mean 19*1.152/36
-    primary macro = ((4 + 19) * 1.152 / 36) / (16 placements * 2 rooms) = 0.023
+    EmptyRoom  p052 holds 4 near-field       -> placement mean  4*1.152/36
+    Furnished  p008 holds 19 near-silent     -> placement mean 19*1.152/36
+    Furnished  p000 holds 2 near-field       -> placement mean  2*1.152/36
+    Furnished  p025 holds 1 near-field       -> placement mean  1*1.152/36
+    primary macro = ((4 + 22) * 1.152 / 36) / (16 placements * 2 rooms) = 0.026
     sensitivity macro = 0 (every remaining difference is 0)
     """
     arm_a = _arm_with_flagged_offset(tmp_path, "armA", 1.0, 1.152)
     arm_b = _arm_with_flagged_offset(tmp_path, "armB", 1.0, 0.0)
     both = stats.contrast_with_sensitivity(arm_a, arm_b, n_resamples=100,
                                            require_registered=False)
-    assert both["primary"]["difference"]["macro"] == pytest.approx(0.023)
+    assert both["primary"]["difference"]["macro"] == pytest.approx(0.026)
     assert both["primary"]["difference"]["n_placements"] == {"EmptyRoom": 16,
                                                              "FurnishedRoom": 16}
     assert both["sensitivity"]["difference"]["macro"] == pytest.approx(0.0)
     # no placement disappears: only 23 of their items do
     assert both["sensitivity"]["difference"]["n_placements"] == {"EmptyRoom": 16,
                                                                  "FurnishedRoom": 16}
-    assert both["n_items_excluded"] == 23
+    assert both["n_items_excluded"] == 26
     assert both["excluded_item_flags"]["near_silent_reference"] == sorted(
         stats.NEAR_SILENT_REFERENCE_ITEMS)
     assert both["excluded_item_flags"]["near_field_map"] == sorted(
@@ -833,7 +844,7 @@ def test_the_primary_row_keeps_the_flagged_items(tmp_path):
                                            require_registered=False)
     assert both["primary"]["pairing"]["n_items"] == stats.REGISTERED_N_ITEMS
     assert (both["sensitivity"]["pairing"]["n_items"]
-            == stats.REGISTERED_N_ITEMS - 23)
+            == stats.REGISTERED_N_ITEMS - 26)
 
 
 def test_excluding_everything_is_refused(tmp_path):
@@ -845,3 +856,71 @@ def test_excluding_everything_is_refused(tmp_path):
     assert "no items at all" in str(exc.value)
     with pytest.raises(ValueError):
         stats.filter_arm(arm, (), ())
+
+
+# --------------------------------------------------------------------------- #
+# r5: the registry must follow the PUBLISHED depth QA, not the other way round
+# --------------------------------------------------------------------------- #
+_PUBLISHED_DEPTH_QA = os.path.join(_REPO_ROOT, "data", "RAF_mappingA",
+                                   "depth_qa_near_field.json")
+
+
+def _published_near_field():
+    """The publication's own near-field evidence, or None when it is not present.
+
+    Distilled from the two per-room raf_depth_qa.json records (~7.4 MB each, which
+    is why the runtime tree holds them and this repo holds the extract) with the
+    sha256 of each source record, so the extract is traceable to the publication it
+    came from.
+    """
+    if not os.path.isfile(_PUBLISHED_DEPTH_QA):
+        return None
+    with open(_PUBLISHED_DEPTH_QA) as f:
+        return json.load(f)
+
+
+def test_the_registered_near_field_items_are_the_published_ones():
+    """The flagged registry is a copy of a measurement, and a copy can drift. The
+    4->7 growth after the 4.3/4.4 fixes is exactly how: earlier gates were failing
+    three maps before the near-field check could record them. This holds the
+    constants to the publication's own QA records so a future re-render cannot
+    silently diverge from the registry again."""
+    published = _published_near_field()
+    if published is None:
+        pytest.skip(f"no published depth QA extract at {_PUBLISHED_DEPTH_QA}: the "
+                    "registry cannot be checked against a publication that is not "
+                    "in the repo")
+    assert sorted(stats.NEAR_FIELD_ITEMS) == published["near_field_item_ids"]
+    assert len(stats.FLAGGED_ITEMS) == (len(stats.NEAR_SILENT_REFERENCE_ITEMS)
+                                        + len(published["near_field_item_ids"]))
+
+
+def test_the_published_extract_agrees_with_itself_room_by_room():
+    published = _published_near_field()
+    if published is None:
+        pytest.skip(f"no published depth QA extract at {_PUBLISHED_DEPTH_QA}")
+    union = []
+    for room, record in sorted(published["rooms"].items()):
+        near = record["near_field"]
+        assert near["n_items"] == len(near["item_ids"])
+        assert near["n_maps"] == len(near["maps"])
+        assert near["min_side_gates_publication"] is False      # listener maps
+        assert record["n_failed"] == 0 and record["canonical"] is True
+        assert record["marker_kind"] == "mappingA_depth"
+        assert record["max_miss_rate"] == 0.007                 # Amendment 4.3
+        assert len(record["source_sha256"]) == 64
+        for entry in near["maps"]:
+            assert entry["min_m"] < entry["band_min_m"]         # why it was flagged
+            assert all(item.startswith(room + "/") for item in entry["item_ids"])
+        union.extend(near["item_ids"])
+    assert sorted(union) == published["near_field_item_ids"]
+    assert published["generation"].startswith("21a8ec5fc9bd")
+
+
+def test_every_flagged_item_is_a_real_mapping_a_item_id():
+    """A typo in the registry would silently exclude nothing at all."""
+    for item in stats.FLAGGED_ITEMS:
+        room, placement, slot = item.split("/")
+        assert room in stats.REGISTERED_ROOMS
+        assert placement.startswith("p") and placement[1:].isdigit()
+        assert slot.startswith("slot") and 0 <= int(slot[4:]) < 36
