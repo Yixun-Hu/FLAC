@@ -58,3 +58,5 @@
 
 - YAW-K8-44: 0.5013 (K8 YAW block complete: 0.4984/0.4994/0.5013 → 0.4997±0.0015); YAW-K1-42: 0.4978. Both published clean, no .partial residue; GPUs verified free (11/27 MiB, 0%) and handed to Yixun's senior via the peer relay. Campaign PAUSED at 12/18; remaining: {P1,BF,YAW}-K1 × seeds {43,44} (3 pairs ≈ 10 h) on GPU release.
 - **Dense-regime (K8) table now COMPLETE, 3 seeds each: BF 0.5087 ± 0.0007 > YAW 0.4997 ± 0.0015 > P1 0.4948 ± 0.0002.** Equivariance > augmentation > vanilla — mirroring the program's training-side ordering; confirmatory verdict still Holm-gated on the full campaign.
+
+## 2026-08-23 (see commit) — GPUs RELEASED by Yixun ("my senior finish"); campaign RESUMED — pair 7 launched
