@@ -11,3 +11,6 @@ GPU hold lifted by Yixun ("my senior finish"). SINGLE-COMMIT RULE: every cell be
 | BF | ar_40k_endpoints/BF/… | `--cond-method fa_invariant` (default C₄ angles, fwd-cap 64) | 1 |
 
 Vanilla-smoke rung = P1 seed 42 (verified before the rest launches); FA rung = BF seed 42 (first BF cell). Stats: `mappingA_stats` paired ingestion, primary + minus-flagged(26) rows, placement-clustered.
+
+## Re-stamp (2026-08-23): sweep base moves to the per-item-callback fix
+Smoke fail-closed pre-artifact (dataset_name=None; would otherwise have scored per-item rows on the AR 8,000-sample window — a wrong-number bug caught as a wrong-string). Fix `ab6b1bc`/ledger `3f2d88f`. SWEEP BASE = the commit AFTER this line; co-tenancy with the peer campaign per agreement; cell list/flags unchanged.
