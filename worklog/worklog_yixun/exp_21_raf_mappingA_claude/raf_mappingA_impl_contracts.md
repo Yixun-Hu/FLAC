@@ -68,3 +68,6 @@ Measured basis: 4/1,152 listener maps (EmptyRoom p052 slots 17/22/26/27) see sca
 
 ## Amendment 4.3 (listener-mode miss cap, Yixun-approved 2026-08-22 ~22:05)
 Measured basis: full 1,152-listener-position sweep — worst 0.656% (860 px), 17 over the source-calibrated 0.25%, all FurnishedRoom furniture-adjacent. REGISTERED: mode-specific caps — LISTENER maps 0.7% (LISTENER_MAX_MISS_RATE=0.007), SOURCE maps unchanged 0.25%. Same repair/recording/hash machinery; the measurement table is the basis (committed with this amendment via the worklog log).
+
+## Amendment 4.4 (containment test fix, Yixun-approved 2026-08-22 ~23:55)
+Measured basis committed in mappingA_furnished_qa_failures.json (8672ac7). Two resolutions: (Class A) the 4.3 wiring bug — the anti-forgery audit clamp now follows registered_miss_cap(listener_mode) — was authorized as a fix, not a registration change. (Class B, REGISTERED) the containment TEST is corrected: majority-of-6-axis ray-crossing parity replaces normal-sign occupancy (robust to two-sided scan surfaces and winding inversion; tolerant of sub-cap scan holes by majority vote). Containment stays FATAL in BOTH modes with the corrected semantics. The 3 affected maps pass as genuinely inside (0.3–0.8 m clearance, all-odd crossings); no new disclosure.
