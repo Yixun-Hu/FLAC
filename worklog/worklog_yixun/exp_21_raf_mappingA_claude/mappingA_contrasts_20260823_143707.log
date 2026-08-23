@@ -1,0 +1,57 @@
+[T60] ingesting five arms
+   P1_vs_YAW              AR-arm    d=+0.7095 [-0.1088,+1.5173] p=0.1057 holds=False | minus-flagged holds=False sign_flip=False
+   P1_vs_BV               AR-arm    d=-2.7136 [-3.5795,-1.9131] p=0.0000 holds=True | minus-flagged holds=True sign_flip=False
+   P1_vs_BF               AR-arm    d=+0.3634 [-0.5516,+1.2609] p=0.4485 holds=False | minus-flagged holds=False sign_flip=False
+   YAW_vs_BV              AR-arm    d=-3.4231 [-4.5584,-2.2956] p=0.0000 holds=True | minus-flagged holds=True sign_flip=False
+   YAW_vs_BF              AR-arm    d=-0.3461 [-1.2038,+0.5574] p=0.4537 holds=False | minus-flagged holds=False sign_flip=False
+   BV_vs_BF               AR-arm    d=+3.0770 [+2.1486,+4.0163] p=0.0000 holds=True | minus-flagged holds=True sign_flip=False
+   P1_vs_finetuned        transfer  d=+0.5837 [-1.6409,+2.7605] p=0.5997 holds=False | minus-flagged holds=False sign_flip=False
+   YAW_vs_finetuned       transfer  d=-0.1258 [-2.5970,+2.0551] p=0.9190 holds=False | minus-flagged holds=False sign_flip=False
+   BV_vs_finetuned        transfer  d=+3.2973 [+0.9126,+5.7700] p=0.0154 holds=True | minus-flagged holds=True sign_flip=False
+   BF_vs_finetuned        transfer  d=+0.2203 [-2.0953,+2.4726] p=0.8567 holds=False | minus-flagged holds=False sign_flip=False
+[C50] ingesting five arms
+   P1_vs_YAW              AR-arm    d=-0.1430 [-0.4049,+0.0979] p=0.2931 holds=False | minus-flagged holds=False sign_flip=False
+   P1_vs_BV               AR-arm    d=-0.1072 [-0.4625,+0.2174] p=0.5614 holds=False | minus-flagged holds=False sign_flip=False
+   P1_vs_BF               AR-arm    d=+0.2014 [-0.0263,+0.4099] p=0.0843 holds=False | minus-flagged holds=False sign_flip=False
+   YAW_vs_BV              AR-arm    d=+0.0359 [-0.1937,+0.2635] p=0.7576 holds=False | minus-flagged holds=False sign_flip=False
+   YAW_vs_BF              AR-arm    d=+0.3445 [+0.1787,+0.5270] p=0.0001 holds=True | minus-flagged holds=True sign_flip=False
+   BV_vs_BF               AR-arm    d=+0.3086 [+0.0832,+0.5324] p=0.0111 holds=True | minus-flagged holds=True sign_flip=False
+   P1_vs_finetuned        transfer  d=+0.9132 [+0.2490,+1.5766] p=0.0154 holds=True | minus-flagged holds=True sign_flip=False
+   YAW_vs_finetuned       transfer  d=+1.0563 [+0.3345,+1.7552] p=0.0080 holds=True | minus-flagged holds=True sign_flip=False
+   BV_vs_finetuned        transfer  d=+1.0204 [+0.3312,+1.7174] p=0.0088 holds=True | minus-flagged holds=True sign_flip=False
+   BF_vs_finetuned        transfer  d=+0.7118 [+0.0974,+1.3111] p=0.0319 holds=True | minus-flagged holds=True sign_flip=False
+[EDT] ingesting five arms
+   P1_vs_YAW              AR-arm    d=-9.2945 [-19.2592,-0.6353] p=0.0692 holds=False | minus-flagged holds=False sign_flip=False
+   P1_vs_BV               AR-arm    d=-6.9555 [-19.2717,+3.3044] p=0.2676 holds=False | minus-flagged holds=False sign_flip=False
+   P1_vs_BF               AR-arm    d=-0.7042 [-9.3372,+6.8358] p=0.8670 holds=False | minus-flagged holds=False sign_flip=False
+   YAW_vs_BV              AR-arm    d=+2.3391 [-4.6629,+9.3614] p=0.5215 holds=False | minus-flagged holds=False sign_flip=False
+   YAW_vs_BF              AR-arm    d=+8.5904 [+4.4681,+13.2023] p=0.0001 holds=True | minus-flagged holds=True sign_flip=False
+   BV_vs_BF               AR-arm    d=+6.2513 [-0.4516,+13.1096] p=0.0871 holds=False | minus-flagged holds=False sign_flip=False
+   P1_vs_finetuned        transfer  d=+21.7114 [-0.8907,+43.4594] p=0.0775 holds=False | minus-flagged holds=False sign_flip=False
+   YAW_vs_finetuned       transfer  d=+31.0060 [+7.2614,+54.7033] p=0.0202 holds=True | minus-flagged holds=True sign_flip=False
+   BV_vs_finetuned        transfer  d=+28.6669 [+3.7754,+53.1940] p=0.0367 holds=True | minus-flagged holds=True sign_flip=False
+   BF_vs_finetuned        transfer  d=+22.4156 [+0.2458,+44.5359] p=0.0618 holds=False | minus-flagged holds=False sign_flip=False
+[L1_STFT_MultiRes] ingesting five arms
+   P1_vs_YAW              AR-arm    d=+0.0290 [-0.0130,+0.0671] p=0.2117 holds=False | minus-flagged holds=False sign_flip=False
+   P1_vs_BV               AR-arm    d=-0.0438 [-0.0803,-0.0074] p=0.0304 holds=True | minus-flagged holds=True sign_flip=False
+   P1_vs_BF               AR-arm    d=-0.0361 [-0.0618,-0.0106] p=0.0166 holds=True | minus-flagged holds=True sign_flip=False
+   YAW_vs_BV              AR-arm    d=-0.0727 [-0.1208,-0.0262] p=0.0052 holds=True | minus-flagged holds=True sign_flip=False
+   YAW_vs_BF              AR-arm    d=-0.0651 [-0.0970,-0.0276] p=0.0009 holds=True | minus-flagged holds=True sign_flip=False
+   BV_vs_BF               AR-arm    d=+0.0076 [-0.0244,+0.0419] p=0.6750 holds=False | minus-flagged holds=False sign_flip=False
+   P1_vs_finetuned        transfer  d=+0.0373 [-0.0443,+0.1194] p=0.3924 holds=False | minus-flagged holds=False sign_flip=False
+   YAW_vs_finetuned       transfer  d=+0.0084 [-0.0690,+0.0834] p=0.8348 holds=False | minus-flagged holds=False sign_flip=False
+   BV_vs_finetuned        transfer  d=+0.0811 [-0.0012,+0.1600] p=0.0641 holds=False | minus-flagged holds=False sign_flip=False
+   BF_vs_finetuned        transfer  d=+0.0735 [+0.0018,+0.1430] p=0.0559 holds=False | minus-flagged holds=False sign_flip=False
+[Env] ingesting five arms
+   P1_vs_YAW              AR-arm    d=-0.0176 [-0.0286,-0.0072] p=0.0098 holds=True | minus-flagged holds=True sign_flip=False
+   P1_vs_BV               AR-arm    d=-0.0127 [-0.0266,+0.0021] p=0.1342 holds=False | minus-flagged holds=False sign_flip=False
+   P1_vs_BF               AR-arm    d=-0.0667 [-0.0778,-0.0553] p=0.0000 holds=True | minus-flagged holds=True sign_flip=False
+   YAW_vs_BV              AR-arm    d=+0.0050 [-0.0111,+0.0213] p=0.5625 holds=False | minus-flagged holds=False sign_flip=False
+   YAW_vs_BF              AR-arm    d=-0.0491 [-0.0640,-0.0325] p=0.0000 holds=True | minus-flagged holds=True sign_flip=False
+   BV_vs_BF               AR-arm    d=-0.0541 [-0.0677,-0.0403] p=0.0000 holds=True | minus-flagged holds=True sign_flip=False
+   P1_vs_finetuned        transfer  d=+0.0457 [-0.0051,+0.0953] p=0.0912 holds=False | minus-flagged holds=False sign_flip=False
+   YAW_vs_finetuned       transfer  d=+0.0633 [+0.0155,+0.1113] p=0.0163 holds=True | minus-flagged holds=True sign_flip=False
+   BV_vs_finetuned        transfer  d=+0.0583 [+0.0134,+0.1007] p=0.0205 holds=True | minus-flagged holds=True sign_flip=False
+   BF_vs_finetuned        transfer  d=+0.1124 [+0.0587,+0.1640] p=0.0004 holds=True | minus-flagged holds=True sign_flip=False
+report -> /home/yixunhu/codespace/exp-21-raf-mapping-a/worklog/worklog_yixun/exp_21_raf_mappingA_claude/mappingA_contrast_report.json
+summary -> /home/yixunhu/codespace/exp-21-raf-mapping-a/worklog/worklog_yixun/exp_21_raf_mappingA_claude/mappingA_stats_summary.md
