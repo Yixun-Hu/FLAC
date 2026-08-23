@@ -53,3 +53,8 @@
 
 ## 2026-08-22T21:45:00-0400 — Standing commitment: notify the paper session at Holm-final only
 - The NeurIPS-workshop paper session (socket cc-socks/1490348) revises around exp_18 now, integrates exp_20 later; commitment recorded: notify it when 18/18 + the Holm-4 analysis are FINAL, with paths; never send interim numbers for manuscript use.
+
+## 2026-08-22T23:16:00-0400 — Pair 6 PASSED; GPUs HANDED OVER (campaign paused at 12/18)
+
+- YAW-K8-44: 0.5013 (K8 YAW block complete: 0.4984/0.4994/0.5013 → 0.4997±0.0015); YAW-K1-42: 0.4978. Both published clean, no .partial residue; GPUs verified free (11/27 MiB, 0%) and handed to Yixun's senior via the peer relay. Campaign PAUSED at 12/18; remaining: {P1,BF,YAW}-K1 × seeds {43,44} (3 pairs ≈ 10 h) on GPU release.
+- **Dense-regime (K8) table now COMPLETE, 3 seeds each: BF 0.5087 ± 0.0007 > YAW 0.4997 ± 0.0015 > P1 0.4948 ± 0.0002.** Equivariance > augmentation > vanilla — mirroring the program's training-side ordering; confirmatory verdict still Holm-gated on the full campaign.
