@@ -1,0 +1,11 @@
+WARNING: /media/diskstation/yixunhu/raf_dataset/archived/EmptyRoom: dropping the trailing all-NaN sentinel line 47485 of all_rx_pos.txt ('nan,nan,nan') per contracts Amendment 1; 47484 data lines remain
+WARNING: /media/diskstation/yixunhu/raf_dataset/archived/FurnishedRoom: dropping the trailing all-NaN sentinel line 39133 of all_rx_pos.txt ('nan,nan,nan') per contracts Amendment 1; 39132 data lines remain
+INFO: readback record 9288181be62b (gauge RAF_TO_PIPELINE:(X,Z,Y))
+INFO: scale references: HAA 4 (1d59babdbc1b), AR 0
+[1;33m[Open3D WARNING] Legacy mesh has more than 1 material which is not supported by Tensor-based mesh. Only material DefaultMaterial was converted.[0;m
+Traceback (most recent call last):
+  File "/home/yixunhu/codespace/exp-21-raf-mapping-a/data/RAF/render_depth.py", line 1222, in <module>
+    raise SystemExit(main())
+  File "/home/yixunhu/codespace/exp-21-raf-mapping-a/data/RAF/render_depth.py", line 1185, in main
+    raise RuntimeError(f"{room}: {len(failed)} depth maps failed QA: {failed}")
+RuntimeError: EmptyRoom: 4 depth maps failed QA: ['EmptyRoom/p052/slot17', 'EmptyRoom/p052/slot22', 'EmptyRoom/p052/slot26', 'EmptyRoom/p052/slot27']
