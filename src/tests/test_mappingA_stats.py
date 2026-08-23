@@ -924,3 +924,157 @@ def test_every_flagged_item_is_a_real_mapping_a_item_id():
         assert room in stats.REGISTERED_ROOMS
         assert placement.startswith("p") and placement[1:].isdigit()
         assert slot.startswith("slot") and 0 <= int(slot[4:]) < 36
+
+
+# --------------------------------------------------------------------------- #
+# r5 sweep-smoke fix: the per-item callback is built from the resolved config
+# --------------------------------------------------------------------------- #
+def _raf_configs():
+    model = os.path.join(_REPO_ROOT, "src", "configs", "model_configs", "FLAC",
+                         "RAF", "FLAC_RAF_finetune.json")
+    dataset = os.path.join(_REPO_ROOT, "src", "configs", "dataset_configs", "RAF",
+                           "eval", "raf_mappingA.json")
+    with open(model) as f:
+        model_config = json.load(f)
+    with open(dataset) as f:
+        dataset_config = json.load(f)
+    return model_config, dataset_config
+
+
+@pytest.fixture
+def no_device_move(monkeypatch):
+    """The device move is not what is under test, and the GPU is on hold."""
+    from src.metrics.metric_callback import AcousticMetricsCallback
+
+    monkeypatch.setattr(AcousticMetricsCallback, "_move_to_device",
+                        lambda self, device: None)
+
+
+def test_the_per_item_callback_builds_through_the_real_config_path(no_device_move):
+    """The sweep smoke's failure: built with dataset_id=None, the callback refused
+    to construct at all ("Dataset None not supported") -- and had it constructed, it
+    would have scored on AR's 8,000-sample window instead of RAF's 9,600."""
+    eval_FLAC = _eval_flac()
+    model_config, dataset_config = _raf_configs()
+    dataset_id = dataset_config["datasets"][0]["id"]
+    assert dataset_id == "RAF"
+
+    callback = eval_FLAC.build_per_item_callback(model_config, dataset_id)
+    # constructed under the REAL name: same window and same RT60 policy as the run
+    assert callback.max_len == 9600
+    assert callback.sample_rate == model_config["sample_rate"] == 22050
+    assert callback.audio_channels == model_config.get("audio_channels", 1) == 1
+    assert callback.RT60["test"].dataset == "RAF"        # RT60Error's own policy
+    assert callback.RT60["test"].decay_db == 30           # the HAA/RAF window
+    # ... and the flags the config actually asks for
+    metrics = model_config["training"]["metrics"]
+    assert callback.eval_T60 is metrics["eval_T60"] is True
+    assert callback.eval_C50 is metrics["eval_C50"] is True
+    assert callback.eval_EDT is metrics["eval_EDT"] is True
+    assert callback.eval_env is metrics["eval_env"] is True
+    assert callback.eval_l1_distance_multires is metrics["eval_l1_distance_multires"]
+    # the RAF config does not ask for the single-resolution L1, and the per-item
+    # callback must not invent it
+    assert callback.eval_l1_distance is metrics.get("eval_l1_distance", False)
+    # only the CORPUS-level aggregation is switched off
+    assert callback.dataset_name is None
+    assert callback.eval_by_scene is False
+
+
+def test_the_headline_and_per_item_callbacks_agree_on_the_metric_window(
+        no_device_move):
+    """The two callbacks must score the same waveform region; a different window
+    would make the per-item rows a different measurement from the headline."""
+    from src.training import create_metric_callback_from_config
+
+    eval_FLAC = _eval_flac()
+    model_config, dataset_config = _raf_configs()
+    dataset_id = dataset_config["datasets"][0]["id"]
+    headline = create_metric_callback_from_config(model_config, dataset_id=dataset_id,
+                                                  per_scene=False)
+    per_item = eval_FLAC.build_per_item_callback(model_config, dataset_id)
+    for attribute in ("max_len", "max_len_magenv", "sample_rate", "sample_size",
+                      "audio_channels"):
+        assert getattr(per_item, attribute) == getattr(headline, attribute)
+    assert headline.dataset_name == "RAF" and headline.eval_by_scene is True
+
+
+def test_the_distribution_level_metrics_stay_off_and_raf_refuses_them(
+        no_device_move):
+    """per_item_metric_config disables FD/retrieval because they are undefined for
+    one item; the metric layer refuses them for RAF outright, for its own reason
+    (no AGREE checkpoint exists). The two rules must not contradict each other."""
+    from src.training import create_metric_callback_from_config
+
+    eval_FLAC = _eval_flac()
+    model_config, _ = _raf_configs()
+    per_item = eval_FLAC.build_per_item_callback(model_config, "RAF")
+    assert per_item.eval_FD is False and per_item.eval_retrieval is False
+
+    with_fd = json.loads(json.dumps(model_config))
+    with_fd["training"]["metrics"]["eval_FD"] = True
+    with pytest.raises(ValueError) as exc:
+        create_metric_callback_from_config(with_fd, dataset_id="RAF")
+    assert "not available for the RAF dataset" in str(exc.value)
+    # ... and the per-item builder strips it before that rule can ever fire
+    assert eval_FLAC.build_per_item_callback(with_fd, "RAF").eval_FD is False
+
+
+def test_a_single_item_update_is_weighted_identically_either_way(no_device_move):
+    """The one remaining name-dependent path: RAF's per-item L1_STFT versus the
+    legacy whole-batch call. For a batch of exactly one -- which is all this
+    callback ever sees -- they are the same tensor, so switching the name off
+    cannot change the number."""
+    import torch
+    from src.training import create_metric_callback_from_config
+
+    eval_FLAC = _eval_flac()
+    model_config, _ = _raf_configs()
+    named = create_metric_callback_from_config(model_config, dataset_id="RAF")
+    per_item = eval_FLAC.build_per_item_callback(model_config, "RAF")
+
+    torch.manual_seed(0)
+    pred = torch.randn(1, 1, 9600) * 0.1
+    ref = torch.randn(1, 1, 9600) * 0.1
+    named.update_metrics("test", pred, ref, ["EmptyRoom"])
+    per_item.update_metrics("test", pred, ref)
+    def _value(metric):
+        computed = metric.compute()
+        return float(computed.item() if hasattr(computed, "item") else computed)
+
+    # the RAF config evaluates the multi-resolution L1, which is per-item in both
+    # paths, plus the level-independent metrics
+    for name in ("l1_stft_multires", "C50", "EDT", "Env"):
+        left, right = getattr(named, name, None), getattr(per_item, name, None)
+        if left is None or right is None:
+            continue
+        assert _value(left["test"]) == pytest.approx(_value(right["test"])), name
+
+
+def test_the_per_item_rows_still_carry_what_the_arm_identity_pairs_on(
+        no_device_move, tmp_path):
+    """End of the contract: rows out of the real callback, through the sidecar, into
+    the reader -- with the identity fields the pairing needs."""
+    import torch
+
+    eval_FLAC = _eval_flac()
+    model_config, _ = _raf_configs()
+    callback = eval_FLAC.build_per_item_callback(model_config, "RAF")
+    torch.manual_seed(0)
+    fakes = torch.randn(2, 1, 9600) * 0.1
+    reals = torch.randn(2, 1, 9600) * 0.1
+    metadata = [_md(slot=i) for i in range(2)]
+    rows = eval_FLAC.record_per_item_metrics(callback, fakes, reals, metadata)
+    assert [row["item_id"] for row in rows] == ["EmptyRoom/p000/slot00",
+                                                "EmptyRoom/p000/slot01"]
+    assert all("by_scene" not in row["metrics"] for row in rows)
+    assert all(row["metrics"].get("C50") is not None for row in rows)
+    assert rows[0]["metrics"]["C50"] != rows[1]["metrics"]["C50"]   # per ITEM
+
+    record = eval_FLAC.build_per_item_record(rows, _provenance(42))
+    assert stats.arm_identity(record["provenance"], "in-memory")
+    assert set(stats.ARM_IDENTITY_FIELDS) <= set(record["provenance"])
+    path = tmp_path / "run_metrics_a.per_item.json"
+    path.write_text(json.dumps(record))
+    sidecar = stats.load_per_item_sidecar(str(path))
+    assert sidecar["rows"] == rows

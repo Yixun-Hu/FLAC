@@ -776,6 +776,40 @@ def per_item_metric_config(model_config):
     return config
 
 
+def build_per_item_callback(model_config, dataset_id):
+    """The per-item metric callback, built from the run's OWN resolved config.
+
+    It was built with ``dataset_id=None`` to keep compute_metrics off the RAF
+    equal-room macro path -- and that construction cannot succeed: the callback
+    validates the dataset name against {AcousticRooms, HAA, RAF}, and the name also
+    selects the metric window (9,600 samples for RAF/HAA, 8,000 for AR) and
+    parameterises RT60Error. A nameless callback would therefore have been either
+    refused (as the sweep smoke found) or, worse, silently scored on AR's window.
+
+    So it is constructed under the SAME dataset name and the same metrics config as
+    the headline callback -- same window, same RT60 policy, same flags, and the same
+    fail-closed rules (RAF refuses FD/retrieval outright, which is exactly the
+    exclusion per_item_metric_config makes explicit). Only afterwards are the two
+    CORPUS-level behaviours switched off, because they are undefined for one item
+    and are the whole reason this second callback exists:
+
+    * ``dataset_name`` -> None, so compute_metrics does not try to form the
+      equal-room macro (it fails closed unless BOTH rooms are present);
+    * ``eval_by_scene`` -> False, so no per-scene accumulator is fed by a single
+      item.
+
+    The metric objects keep the dataset semantics they were constructed with, since
+    RT60Error captured the name at construction. The one remaining name-dependent
+    path, L1_STFT's batch-vs-item weighting, is identical here: this callback is
+    only ever updated with a batch of exactly one item.
+    """
+    callback = create_metric_callback_from_config(
+        per_item_metric_config(model_config), dataset_id=dataset_id, per_scene=False)
+    callback.dataset_name = None
+    callback.eval_by_scene = False
+    return callback
+
+
 def per_item_identity(md):
     """Mapping-A item identity for one sample, fail-closed.
 
@@ -1560,15 +1594,15 @@ def evaluate_model(
         model_config, dataset_id=dataset_config['datasets'][0]['id'],
         per_scene=record_per_scene)
 
-    # A SECOND callback, only when asked: dataset_id=None so its compute_metrics
-    # is the plain per-item one (the RAF path is an equal-room macro that fails
-    # closed on a single room), and the distribution-level metrics are off.
+    # A SECOND callback, only when asked: the same resolved metrics config as the
+    # headline one, with the corpus-level aggregation switched off afterwards --
+    # see build_per_item_callback.
     per_item_callback = None
     per_item_rows = []
     per_item_generations = None
     if record_per_item:
-        per_item_callback = create_metric_callback_from_config(
-            per_item_metric_config(model_config), dataset_id=None, per_scene=False)
+        per_item_callback = build_per_item_callback(
+            model_config, dataset_config['datasets'][0]['id'])
 
     # Yaw-rotation state. The random draw lives on its OWN cpu generator so it
     # cannot advance the global RNG that seeds the diffusion noise -- otherwise a

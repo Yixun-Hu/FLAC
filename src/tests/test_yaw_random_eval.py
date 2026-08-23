@@ -1406,5 +1406,10 @@ def test_record_per_scene_is_a_cli_flag_that_reaches_the_callback():
     src = inspect.getsource(eval_FLAC)
     assert "--record-per-scene" in src
     assert "record_per_scene" in inspect.signature(eval_FLAC.evaluate_model).parameters
-    factory_call = src.split("create_metric_callback_from_config(")[1].split(")")[0]
-    assert "per_scene" in factory_call, factory_call
+    # exp_21: the module now has a SECOND factory call (the per-item callback, whose
+    # per_scene is always False), so this looks for the headline call among them all
+    # rather than assuming the first one is it.
+    calls = [chunk.split(")")[0] for chunk in
+             src.split("create_metric_callback_from_config(")[1:]]
+    assert calls, "no metric-callback construction at all"
+    assert any("per_scene=record_per_scene" in call for call in calls), calls
