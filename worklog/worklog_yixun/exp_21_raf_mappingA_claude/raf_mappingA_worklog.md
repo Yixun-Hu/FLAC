@@ -43,3 +43,6 @@ Notes for the record:
 
 ## 2026-08-22T06:50:00-0400 — CODE ROUND CLOSED (R1 verified by Planner probes); canonical chain begins
 r1→r4 + closing passes: N1-N9, P1-P3, Q1-Q3, R1 all closed; 849 mappingA+raf tests + 487 consumer tests green; correspondence record independently recomputed twice by the reviewer. Residuals: audio-union pin outstanding (dry-run→pin→canonical, next), content-not-byte shared-audio identity, rigid residual recorded. Chain: full-parameter --non-canonical dry run (measures union digest) → pin → canonical prep → 1,152 listener renders → smoke → single-commit 5-arm sweep.
+
+## 2026-08-22T21:25:00-0400 — GPU HOLD (Yixun: senior needs the GPUs)
+exp_21's GPU phase (smoke + 5-arm sweep) is HELD before launch — zero GPU footprint from this experiment at hold time. CPU chain (Amendment-4.2 cycle, re-render) continues. Peer session relayed the priority for its two eval_localization cells. Resume condition: Yixun releases the GPUs; then smoke (~10 min) + sweep (~4–6 h) are all that remain.
