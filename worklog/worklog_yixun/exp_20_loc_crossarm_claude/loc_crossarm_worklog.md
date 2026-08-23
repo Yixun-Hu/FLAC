@@ -46,3 +46,7 @@
 ## 2026-08-22T13:45:00-0400 — K8 P1-vs-BF complete (3 seeds): BF +0.0182 paired top-1, p=0.0002
 
 - P1 0.4948±0.0002, BF 0.5087±0.0007 macro; paired (per-query seed-means, 17-room clustered, stat=mean): top-1 +0.0182 CI [+0.0086,+0.0260] p=0.0002 (12/17 rooms), e_loc −0.090 m p=0.017. Pairing gate PROVEN per seed. Interim label: Holm-4 verdict pending YAW+K1. Pair 4 (YAW-K8-42 + P1-K1-42) running.
+
+## 2026-08-22T21:30:00-0400 — GPU HANDOVER: campaign PAUSED after pair 6 (Yixun's senior needs the GPUs)
+
+- **Decision** — Clean stop: the two running cells (YAW-K8-44, YAW-K1-42) run to completion (~22:40 EDT); **pair 7 is NOT launched**. Zero compute lost; campaign paused at 12/18 cells. Peer session confirms zero GPU footprint on their side (exp_21 held). Resume = pairs 7–9 (P1/BF/YAW K1 seeds 43/44; ~10 h pair-time) on Yixun's release; all registrations remain valid (freeze a92ff5d; the pause has no protocol effect — cells are independent).
