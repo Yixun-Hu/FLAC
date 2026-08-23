@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot 16 paired FA-BF/Vanilla predictions per K across four rooms."""
+"""Plot 32 FA-BF and 32 Vanilla predictions per K across four rooms."""
 
 from __future__ import annotations
 
@@ -27,21 +27,26 @@ from visualize_localization_examples import (  # noqa: E402
 
 
 def select_cross_scale_rooms(rows: list[dict]) -> list[dict]:
-    """Select fixed batch-1 targets from four candidate-count ranks."""
+    """Select four candidate-count ranks and all eight queries per room."""
 
-    batch1 = [row for row in rows if row["batch"] == "batch1"]
     grouped: dict[str, list[dict]] = {}
-    for row in batch1:
+    for row in rows:
         grouped.setdefault(row["vanilla"]["room"], []).append(row)
     if len(grouped) != 16:
-        raise RuntimeError(f"expected 16 batch-1 rooms, got {len(grouped)}")
+        raise RuntimeError(f"expected 16 combined-pilot rooms, got {len(grouped)}")
     ranked = sorted(
         (
             statistics.median(
                 int(row["vanilla"]["candidate_count"]) for row in room_rows
             ),
             room,
-            sorted(room_rows, key=lambda row: int(row["vanilla"]["query_index"])),
+            sorted(
+                room_rows,
+                key=lambda row: (
+                    row["batch"],
+                    int(row["vanilla"]["query_index"]),
+                ),
+            ),
         )
         for room, room_rows in grouped.items()
     )
@@ -49,8 +54,8 @@ def select_cross_scale_rooms(rows: list[dict]) -> list[dict]:
     selected = []
     for rank in ranks:
         median_candidates, room, room_rows = ranked[rank]
-        if len(room_rows) != 4:
-            raise RuntimeError(f"expected four frozen batch-1 targets in {room}")
+        if len(room_rows) != 8:
+            raise RuntimeError(f"expected eight non-overlapping pilot queries in {room}")
         selected.append(
             {
                 "candidate_count_rank": int(rank),
@@ -110,11 +115,9 @@ def draw_room_distribution(
 
     vanilla_errors = []
     fa_errors = []
-    for target_number, row in enumerate(room_selection["rows"], start=1):
+    for query_number, row in enumerate(room_selection["rows"], start=1):
         validate_prediction_coordinates(row, k_gen, mesh_entry)
         vanilla = row["vanilla"]
-        gt = np.asarray(vanilla["source_global"], dtype=np.float64)
-        receiver = np.asarray(vanilla["receiver_global"], dtype=np.float64)
         vanilla_metric = vanilla["metrics"][k_gen]
         fa_metric = row["fa_bf"]["metrics"][k_gen]
         vanilla_prediction = np.asarray(
@@ -124,75 +127,40 @@ def draw_room_distribution(
         vanilla_errors.append(float(vanilla_metric["localization_error_m"]))
         fa_errors.append(float(fa_metric["localization_error_m"]))
 
-        ax.plot(
-            *np.stack([gt, vanilla_prediction]).T,
-            color="#e68613",
-            lw=1.25,
-            ls="--",
-            alpha=0.78,
-        )
-        ax.plot(
-            *np.stack([gt, fa_prediction]).T,
-            color="#1478b8",
-            lw=1.25,
-            ls=":",
-            alpha=0.82,
-        )
-        ax.scatter(
-            *receiver,
-            marker="^",
-            s=25,
-            c="#777777",
-            edgecolors="white",
-            linewidths=0.4,
-            depthshade=False,
-            label="Receiver" if target_number == 1 else "_nolegend_",
-        )
         ax.scatter(
             *vanilla_prediction,
             marker="o",
-            s=72,
+            s=64,
             facecolors="none",
             edgecolors="#e68613",
-            linewidths=1.9,
+            linewidths=1.8,
             depthshade=False,
-            label="Vanilla prediction" if target_number == 1 else "_nolegend_",
+            label="Vanilla prediction" if query_number == 1 else "_nolegend_",
         )
         ax.scatter(
             *fa_prediction,
             marker="x",
-            s=70,
+            s=62,
             c="#1478b8",
-            linewidths=1.9,
+            linewidths=1.8,
             depthshade=False,
-            label="FA-BF prediction" if target_number == 1 else "_nolegend_",
+            label="FA-BF prediction" if query_number == 1 else "_nolegend_",
         )
-        ax.scatter(
-            *gt,
-            marker="*",
-            s=125,
-            c="#3bb44a",
-            edgecolors="#17231a",
-            linewidths=0.65,
-            depthshade=False,
-            label="Ground truth" if target_number == 1 else "_nolegend_",
-        )
-        ax.text(*gt, f" {target_number}", color="#126b25", fontsize=7, weight="bold")
         ax.text(
             *vanilla_prediction,
-            f" V{target_number}",
+            f" V{query_number}",
             color="#a95b00",
-            fontsize=6.5,
+            fontsize=6.1,
         )
         ax.text(
             *fa_prediction,
-            f" F{target_number}",
+            f" F{query_number}",
             color="#075b91",
-            fontsize=6.5,
+            fontsize=6.1,
         )
 
     ax.set_title(
-        f"{room_selection['room']} · 4 targets\n"
+        f"{room_selection['room']} · 8 queries\n"
         f"median candidates {room_selection['median_candidate_count']:.0f} | "
         f"mean error: Vanilla {np.mean(vanilla_errors):.2f} m, "
         f"FA-BF {np.mean(fa_errors):.2f} m",
@@ -203,33 +171,32 @@ def draw_room_distribution(
 
 
 def build_manifest(
-    selected_rooms: list[dict], geometry_audit: dict, pilot_sha256: str
+    selected_rooms: list[dict], geometry_audit: dict, pilot_sha256: list[str]
 ) -> dict:
     rooms = []
     for selection in selected_rooms:
         mesh_entry = geometry_audit["rooms"][selection["room"]]
-        targets = []
-        for target_number, row in enumerate(selection["rows"], start=1):
+        queries = []
+        for query_number, row in enumerate(selection["rows"], start=1):
             vanilla = row["vanilla"]
-            target = {
-                "target_number": target_number,
+            query = {
+                "query_number": query_number,
+                "batch": row["batch"],
                 "query_index": int(vanilla["query_index"]),
                 "query_id": row["query_id"],
-                "ground_truth_global_m": vanilla["source_global"],
-                "receiver_global_m": vanilla["receiver_global"],
                 "candidate_count": int(vanilla["candidate_count"]),
                 "predictions": {},
             }
             for k_gen in K_VALUES:
                 vanilla_metric = vanilla["metrics"][k_gen]
                 fa_metric = row["fa_bf"]["metrics"][k_gen]
-                target["predictions"][k_gen] = {
+                query["predictions"][k_gen] = {
                     "vanilla_global_m": vanilla_metric["prediction_global"],
                     "vanilla_error_m": float(vanilla_metric["localization_error_m"]),
                     "fa_bf_global_m": fa_metric["prediction_global"],
                     "fa_bf_error_m": float(fa_metric["localization_error_m"]),
                 }
-            targets.append(target)
+            queries.append(query)
         rooms.append(
             {
                 "room": selection["room"],
@@ -237,26 +204,32 @@ def build_manifest(
                 "median_candidate_count": selection["median_candidate_count"],
                 "mesh_path": mesh_entry["mesh_path"],
                 "mesh_sha256": mesh_entry["mesh_sha256"],
-                "targets": targets,
+                "queries": queries,
             }
         )
     payload = {
         "schema_version": 1,
         "source_pilot_sha256": pilot_sha256,
-        "source_batch": "batch1",
+        "source_batches": ["batch1", "batch2"],
         "room_count": 4,
-        "targets_per_room": 4,
-        "unique_target_count": 16,
-        "predictions_per_model_per_k": 16,
+        "queries_per_room": 8,
+        "unique_query_count": 32,
+        "predictions_per_model_per_k": 32,
         "k_gen": [1, 4, 8],
         "selection_policy": {
             "room_metric": "median candidate count",
             "room_ranks_from_16": [
                 item["candidate_count_rank"] for item in selected_rooms
             ],
-            "targets": "all four frozen seed-42 batch1 targets in each selected room",
+            "queries": "all eight non-overlapping targets from both frozen pilot batches",
             "uses_prediction_error": False,
-            "same_rooms_and_targets_for_every_k": True,
+            "same_rooms_and_queries_for_every_k": True,
+        },
+        "display": {
+            "ground_truth_visible": False,
+            "receiver_visible": False,
+            "error_segments_visible": False,
+            "prediction_labels": "V1-V8 for Vanilla and F1-F8 for FA-BF",
         },
         "mesh_visualization": {
             "source": "audited official AcousticRooms OBJ",
@@ -272,14 +245,14 @@ def render_markdown(manifest: dict) -> str:
     lines = [
         "# Exp_09 paired prediction distributions",
         "",
-        "Each figure uses the same four rooms and the same four frozen batch-1 targets "
-        "per room: 16 FA-BF predictions plus their 16 matched Vanilla predictions. Rooms "
+        "Each figure uses the same four rooms and all eight non-overlapping pilot queries "
+        "per room: 32 FA-BF predictions plus their 32 matched Vanilla predictions. Rooms "
         "are selected without using prediction error, at evenly spaced ranks after sorting "
         "the 16 rooms by median candidate count.",
         "",
-        "Ground truth is a green star, Vanilla an orange open circle, FA-BF a blue cross, "
-        "and the receiver a gray triangle. Labels `1`-`4`, `V1`-`V4`, and `F1`-`F4` identify "
-        "matched targets and predictions within each room.",
+        "Ground-truth targets, receivers, and error segments are deliberately hidden. "
+        "Vanilla is an orange open circle and FA-BF is a blue cross. Labels `V1`-`V8` "
+        "and `F1`-`F8` identify matched predictions within each room.",
         "",
     ]
     for k_gen in (1, 4, 8):
@@ -294,7 +267,7 @@ def render_markdown(manifest: dict) -> str:
             ]
         )
         for room in manifest["rooms"]:
-            predictions = [target["predictions"][str(k_gen)] for target in room["targets"]]
+            predictions = [query["predictions"][str(k_gen)] for query in room["queries"]]
             vanilla_mean = statistics.mean(item["vanilla_error_m"] for item in predictions)
             fa_mean = statistics.mean(item["fa_bf_error_m"] for item in predictions)
             lines.append(
@@ -374,7 +347,7 @@ def main() -> None:
         )
         figure.suptitle(
             f"Exp_09 paired prediction distributions · K_gen={k_gen}\n"
-            "4 rooms × 4 targets = 16 paired predictions per model",
+            "4 rooms × 8 queries = 32 predictions per model · ground truth hidden",
             fontsize=16,
             fontweight="bold",
         )
@@ -385,7 +358,7 @@ def main() -> None:
         )
         plt.close(figure)
 
-    manifest = build_manifest(selected_rooms, geometry_audit, pilot_hashes[0])
+    manifest = build_manifest(selected_rooms, geometry_audit, pilot_hashes)
     (output_dir / "distribution_cases.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     )
@@ -395,7 +368,7 @@ def main() -> None:
             {
                 "sha256": manifest["sha256"],
                 "rooms": [item["room"] for item in selected_rooms],
-                "targets": manifest["unique_target_count"],
+                "queries": manifest["unique_query_count"],
                 "predictions_per_model_per_k": manifest[
                     "predictions_per_model_per_k"
                 ],
