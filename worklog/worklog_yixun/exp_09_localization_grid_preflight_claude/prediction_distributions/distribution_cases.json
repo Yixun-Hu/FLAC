@@ -1,0 +1,1029 @@
+{
+  "k_gen": [
+    1,
+    4,
+    8
+  ],
+  "mesh_visualization": {
+    "decimation_affects_coordinates_or_metrics": false,
+    "source": "audited official AcousticRooms OBJ"
+  },
+  "predictions_per_model_per_k": 16,
+  "room_count": 4,
+  "rooms": [
+    {
+      "candidate_count_rank_zero_based": 0,
+      "median_candidate_count": 27.0,
+      "mesh_path": "/home/zhixuanzhao/projects/rir2rir/third_party/AcousticRooms/room_mesh_obj_format/Bathrooms/Bathrooms_idx_14.obj",
+      "mesh_sha256": "8232123112854998ccee22c6e904942105e3e918137db23e5c724ca0e0aa34da",
+      "room": "Bathrooms_idx_14",
+      "targets": [
+        {
+          "candidate_count": 27,
+          "ground_truth_global_m": [
+            2.35,
+            1.0,
+            1.3
+          ],
+          "predictions": {
+            "1": {
+              "fa_bf_error_m": 0.6800735254367722,
+              "fa_bf_global_m": [
+                2.0,
+                0.5,
+                1.0
+              ],
+              "vanilla_error_m": 0.6800735254367722,
+              "vanilla_global_m": [
+                2.0,
+                0.5,
+                1.0
+              ]
+            },
+            "4": {
+              "fa_bf_error_m": 0.6800735254367722,
+              "fa_bf_global_m": [
+                2.0,
+                0.5,
+                1.0
+              ],
+              "vanilla_error_m": 0.6800735254367722,
+              "vanilla_global_m": [
+                2.0,
+                0.5,
+                1.0
+              ]
+            },
+            "8": {
+              "fa_bf_error_m": 0.6800735254367722,
+              "fa_bf_global_m": [
+                2.0,
+                0.5,
+                1.0
+              ],
+              "vanilla_error_m": 0.6800735254367722,
+              "vanilla_global_m": [
+                2.0,
+                0.5,
+                1.0
+              ]
+            }
+          },
+          "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S009_R017_hybrid_IR.wav",
+          "query_index": 4467,
+          "receiver_global_m": [
+            1.45,
+            0.5,
+            0.95
+          ],
+          "target_number": 1
+        },
+        {
+          "candidate_count": 27,
+          "ground_truth_global_m": [
+            1.85,
+            0.0,
+            1.5
+          ],
+          "predictions": {
+            "1": {
+              "fa_bf_error_m": 0.6103277807866851,
+              "fa_bf_global_m": [
+                1.5,
+                0.0,
+                2.0
+              ],
+              "vanilla_error_m": 1.1280514172678477,
+              "vanilla_global_m": [
+                2.0,
+                1.0,
+                1.0
+              ]
+            },
+            "4": {
+              "fa_bf_error_m": 0.6103277807866851,
+              "fa_bf_global_m": [
+                1.5,
+                0.0,
+                2.0
+              ],
+              "vanilla_error_m": 1.1280514172678477,
+              "vanilla_global_m": [
+                2.0,
+                1.0,
+                1.0
+              ]
+            },
+            "8": {
+              "fa_bf_error_m": 0.6103277807866851,
+              "fa_bf_global_m": [
+                1.5,
+                0.0,
+                2.0
+              ],
+              "vanilla_error_m": 1.1280514172678477,
+              "vanilla_global_m": [
+                2.0,
+                1.0,
+                1.0
+              ]
+            }
+          },
+          "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S003_R011_hybrid_IR.wav",
+          "query_index": 4513,
+          "receiver_global_m": [
+            1.95,
+            0.0,
+            0.95
+          ],
+          "target_number": 2
+        },
+        {
+          "candidate_count": 28,
+          "ground_truth_global_m": [
+            2.85,
+            1.1,
+            1.1
+          ],
+          "predictions": {
+            "1": {
+              "fa_bf_error_m": 0.438748219369606,
+              "fa_bf_global_m": [
+                3.0,
+                1.0,
+                1.5
+              ],
+              "vanilla_error_m": 0.438748219369606,
+              "vanilla_global_m": [
+                3.0,
+                1.0,
+                1.5
+              ]
+            },
+            "4": {
+              "fa_bf_error_m": 0.438748219369606,
+              "fa_bf_global_m": [
+                3.0,
+                1.0,
+                1.5
+              ],
+              "vanilla_error_m": 0.438748219369606,
+              "vanilla_global_m": [
+                3.0,
+                1.0,
+                1.5
+              ]
+            },
+            "8": {
+              "fa_bf_error_m": 0.438748219369606,
+              "fa_bf_global_m": [
+                3.0,
+                1.0,
+                1.5
+              ],
+              "vanilla_error_m": 0.438748219369606,
+              "vanilla_global_m": [
+                3.0,
+                1.0,
+                1.5
+              ]
+            }
+          },
+          "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S010_R020_hybrid_IR.wav",
+          "query_index": 4617,
+          "receiver_global_m": [
+            2.95,
+            0.5,
+            0.85
+          ],
+          "target_number": 3
+        },
+        {
+          "candidate_count": 27,
+          "ground_truth_global_m": [
+            2.85,
+            0.5,
+            1.7
+          ],
+          "predictions": {
+            "1": {
+              "fa_bf_error_m": 0.7826237921249264,
+              "fa_bf_global_m": [
+                2.5,
+                0.5,
+                1.0
+              ],
+              "vanilla_error_m": 0.7826237921249264,
+              "vanilla_global_m": [
+                2.5,
+                0.5,
+                1.0
+              ]
+            },
+            "4": {
+              "fa_bf_error_m": 0.7826237921249264,
+              "fa_bf_global_m": [
+                2.5,
+                0.5,
+                1.0
+              ],
+              "vanilla_error_m": 0.7826237921249264,
+              "vanilla_global_m": [
+                2.5,
+                0.5,
+                1.0
+              ]
+            },
+            "8": {
+              "fa_bf_error_m": 0.7826237921249264,
+              "fa_bf_global_m": [
+                2.5,
+                0.5,
+                1.0
+              ],
+              "vanilla_error_m": 0.7826237921249264,
+              "vanilla_global_m": [
+                2.5,
+                0.5,
+                1.0
+              ]
+            }
+          },
+          "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S008_R013_hybrid_IR.wav",
+          "query_index": 4652,
+          "receiver_global_m": [
+            2.95,
+            0.0,
+            0.95
+          ],
+          "target_number": 4
+        }
+      ]
+    },
+    {
+      "candidate_count_rank_zero_based": 5,
+      "median_candidate_count": 139.0,
+      "mesh_path": "/home/zhixuanzhao/projects/rir2rir/third_party/AcousticRooms/room_mesh_obj_format/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25.obj",
+      "mesh_sha256": "6da405f5bd203520f7e108a61a3424e2ef28484d2ea66197e69cd9103814b5bb",
+      "room": "LivingRoomsWithHallway_idx_25",
+      "targets": [
+        {
+          "candidate_count": 139,
+          "ground_truth_global_m": [
+            0.5,
+            0.0,
+            1.7
+          ],
+          "predictions": {
+            "1": {
+              "fa_bf_error_m": 2.083266665599966,
+              "fa_bf_global_m": [
+                2.5,
+                0.5,
+                2.0
+              ],
+              "vanilla_error_m": 0.7681145747868608,
+              "vanilla_global_m": [
+                0.0,
+                -0.5,
+                2.0
+              ]
+            },
+            "4": {
+              "fa_bf_error_m": 2.0223748416156684,
+              "fa_bf_global_m": [
+                2.5,
+                0.0,
+                2.0
+              ],
+              "vanilla_error_m": 0.7681145747868608,
+              "vanilla_global_m": [
+                0.0,
+                -0.5,
+                2.0
+              ]
+            },
+            "8": {
+              "fa_bf_error_m": 2.0223748416156684,
+              "fa_bf_global_m": [
+                2.5,
+                0.0,
+                2.0
+              ],
+              "vanilla_error_m": 0.7681145747868608,
+              "vanilla_global_m": [
+                0.0,
+                -0.5,
+                2.0
+              ]
+            }
+          },
+          "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R014_hybrid_IR.wav",
+          "query_index": 5685,
+          "receiver_global_m": [
+            1.0,
+            0.0,
+            1.3
+          ],
+          "target_number": 1
+        },
+        {
+          "candidate_count": 139,
+          "ground_truth_global_m": [
+            0.5,
+            -1.0,
+            1.5
+          ],
+          "predictions": {
+            "1": {
+              "fa_bf_error_m": 0.0,
+              "fa_bf_global_m": [
+                0.5,
+                -1.0,
+                1.5
+              ],
+              "vanilla_error_m": 0.0,
+              "vanilla_global_m": [
+                0.5,
+                -1.0,
+                1.5
+              ]
+            },
+            "4": {
+              "fa_bf_error_m": 2.692582403567252,
+              "fa_bf_global_m": [
+                3.0,
+                0.0,
+                1.5
+              ],
+              "vanilla_error_m": 0.0,
+              "vanilla_global_m": [
+                0.5,
+                -1.0,
+                1.5
+              ]
+            },
+            "8": {
+              "fa_bf_error_m": 2.692582403567252,
+              "fa_bf_global_m": [
+                3.0,
+                0.0,
+                1.5
+              ],
+              "vanilla_error_m": 0.0,
+              "vanilla_global_m": [
+                0.5,
+                -1.0,
+                1.5
+              ]
+            }
+          },
+          "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S004_R008_hybrid_IR.wav",
+          "query_index": 5782,
+          "receiver_global_m": [
+            2.0,
+            -1.0,
+            1.7
+          ],
+          "target_number": 2
+        },
+        {
+          "candidate_count": 141,
+          "ground_truth_global_m": [
+            -2.0,
+            -1.0,
+            1.5
+          ],
+          "predictions": {
+            "1": {
+              "fa_bf_error_m": 0.5,
+              "fa_bf_global_m": [
+                -2.0,
+                -1.0,
+                1.0
+              ],
+              "vanilla_error_m": 0.7071067811865476,
+              "vanilla_global_m": [
+                -2.5,
+                -1.0,
+                2.0
+              ]
+            },
+            "4": {
+              "fa_bf_error_m": 0.0,
+              "fa_bf_global_m": [
+                -2.0,
+                -1.0,
+                1.5
+              ],
+              "vanilla_error_m": 0.5,
+              "vanilla_global_m": [
+                -2.5,
+                -1.0,
+                1.5
+              ]
+            },
+            "8": {
+              "fa_bf_error_m": 0.0,
+              "fa_bf_global_m": [
+                -2.0,
+                -1.0,
+                1.5
+              ],
+              "vanilla_error_m": 0.7071067811865476,
+              "vanilla_global_m": [
+                -2.5,
+                -1.0,
+                2.0
+              ]
+            }
+          },
+          "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S003_R002_hybrid_IR.wav",
+          "query_index": 5817,
+          "receiver_global_m": [
+            -0.5,
+            2.0,
+            1.5
+          ],
+          "target_number": 3
+        },
+        {
+          "candidate_count": 139,
+          "ground_truth_global_m": [
+            0.5,
+            0.0,
+            1.7
+          ],
+          "predictions": {
+            "1": {
+              "fa_bf_error_m": 0.7348469228349535,
+              "fa_bf_global_m": [
+                0.0,
+                -0.5,
+                1.5
+              ],
+              "vanilla_error_m": 0.7348469228349535,
+              "vanilla_global_m": [
+                1.0,
+                -0.5,
+                1.5
+              ]
+            },
+            "4": {
+              "fa_bf_error_m": 0.5385164807134504,
+              "fa_bf_global_m": [
+                0.0,
+                0.0,
+                1.5
+              ],
+              "vanilla_error_m": 0.7348469228349535,
+              "vanilla_global_m": [
+                1.0,
+                -0.5,
+                1.5
+              ]
+            },
+            "8": {
+              "fa_bf_error_m": 0.7348469228349535,
+              "fa_bf_global_m": [
+                0.0,
+                -0.5,
+                1.5
+              ],
+              "vanilla_error_m": 0.7348469228349535,
+              "vanilla_global_m": [
+                1.0,
+                -0.5,
+                1.5
+              ]
+            }
+          },
+          "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R017_hybrid_IR.wav",
+          "query_index": 5832,
+          "receiver_global_m": [
+            1.0,
+            1.0,
+            1.8
+          ],
+          "target_number": 4
+        }
+      ]
+    },
+    {
+      "candidate_count_rank_zero_based": 10,
+      "median_candidate_count": 261.0,
+      "mesh_path": "/home/zhixuanzhao/projects/rir2rir/third_party/AcousticRooms/room_mesh_obj_format/Restaurants/Restaurants_idx_24.obj",
+      "mesh_sha256": "afddcad24ada306c0197c238b764952cb5a3c3d2942431d45a38b0f905565daa",
+      "room": "Restaurants_idx_24",
+      "targets": [
+        {
+          "candidate_count": 261,
+          "ground_truth_global_m": [
+            -0.05,
+            -0.55,
+            1.5
+          ],
+          "predictions": {
+            "1": {
+              "fa_bf_error_m": 1.2062338081814818,
+              "fa_bf_global_m": [
+                -1.0,
+                0.0,
+                1.0
+              ],
+              "vanilla_error_m": 1.2062338081814818,
+              "vanilla_global_m": [
+                -1.0,
+                0.0,
+                1.0
+              ]
+            },
+            "4": {
+              "fa_bf_error_m": 1.2062338081814818,
+              "fa_bf_global_m": [
+                -1.0,
+                0.0,
+                1.0
+              ],
+              "vanilla_error_m": 1.2062338081814818,
+              "vanilla_global_m": [
+                -1.0,
+                0.0,
+                1.0
+              ]
+            },
+            "8": {
+              "fa_bf_error_m": 1.2062338081814818,
+              "fa_bf_global_m": [
+                -1.0,
+                0.0,
+                1.0
+              ],
+              "vanilla_error_m": 1.2062338081814818,
+              "vanilla_global_m": [
+                -1.0,
+                0.0,
+                1.0
+              ]
+            }
+          },
+          "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S001_R002_hybrid_IR.wav",
+          "query_index": 6204,
+          "receiver_global_m": [
+            0.45,
+            1.95,
+            1.5
+          ],
+          "target_number": 1
+        },
+        {
+          "candidate_count": 260,
+          "ground_truth_global_m": [
+            0.45,
+            0.95,
+            1.5
+          ],
+          "predictions": {
+            "1": {
+              "fa_bf_error_m": 0.8093207028119322,
+              "fa_bf_global_m": [
+                0.0,
+                0.5,
+                1.0
+              ],
+              "vanilla_error_m": 0.6745368781616021,
+              "vanilla_global_m": [
+                0.0,
+                1.0,
+                1.0
+              ]
+            },
+            "4": {
+              "fa_bf_error_m": 0.8093207028119322,
+              "fa_bf_global_m": [
+                0.0,
+                0.5,
+                1.0
+              ],
+              "vanilla_error_m": 1.1640446726822815,
+              "vanilla_global_m": [
+                0.0,
+                0.0,
+                1.0
+              ]
+            },
+            "8": {
+              "fa_bf_error_m": 0.8093207028119322,
+              "fa_bf_global_m": [
+                0.0,
+                0.5,
+                1.0
+              ],
+              "vanilla_error_m": 1.1640446726822815,
+              "vanilla_global_m": [
+                0.0,
+                0.0,
+                1.0
+              ]
+            }
+          },
+          "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S005_R009_hybrid_IR.wav",
+          "query_index": 6252,
+          "receiver_global_m": [
+            1.45,
+            0.45,
+            1.3
+          ],
+          "target_number": 2
+        },
+        {
+          "candidate_count": 261,
+          "ground_truth_global_m": [
+            0.45,
+            2.95,
+            1.6
+          ],
+          "predictions": {
+            "1": {
+              "fa_bf_error_m": 2.977414986191881,
+              "fa_bf_global_m": [
+                0.5,
+                0.0,
+                2.0
+              ],
+              "vanilla_error_m": 2.977414986191881,
+              "vanilla_global_m": [
+                0.5,
+                0.0,
+                2.0
+              ]
+            },
+            "4": {
+              "fa_bf_error_m": 2.977414986191881,
+              "fa_bf_global_m": [
+                0.5,
+                0.0,
+                2.0
+              ],
+              "vanilla_error_m": 2.977414986191881,
+              "vanilla_global_m": [
+                0.5,
+                0.0,
+                2.0
+              ]
+            },
+            "8": {
+              "fa_bf_error_m": 2.977414986191881,
+              "fa_bf_global_m": [
+                0.5,
+                0.0,
+                2.0
+              ],
+              "vanilla_error_m": 2.977414986191881,
+              "vanilla_global_m": [
+                0.5,
+                0.0,
+                2.0
+              ]
+            }
+          },
+          "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S010_R006_hybrid_IR.wav",
+          "query_index": 6280,
+          "receiver_global_m": [
+            -0.55,
+            2.95,
+            1.4
+          ],
+          "target_number": 3
+        },
+        {
+          "candidate_count": 261,
+          "ground_truth_global_m": [
+            0.95,
+            -2.55,
+            1.9
+          ],
+          "predictions": {
+            "1": {
+              "fa_bf_error_m": 2.1365860619221495,
+              "fa_bf_global_m": [
+                0.5,
+                -0.5,
+                1.5
+              ],
+              "vanilla_error_m": 2.101190138945069,
+              "vanilla_global_m": [
+                0.5,
+                -0.5,
+                2.0
+              ]
+            },
+            "4": {
+              "fa_bf_error_m": 2.101190138945069,
+              "fa_bf_global_m": [
+                0.5,
+                -0.5,
+                2.0
+              ],
+              "vanilla_error_m": 2.101190138945069,
+              "vanilla_global_m": [
+                0.5,
+                -0.5,
+                2.0
+              ]
+            },
+            "8": {
+              "fa_bf_error_m": 2.101190138945069,
+              "fa_bf_global_m": [
+                0.5,
+                -0.5,
+                2.0
+              ],
+              "vanilla_error_m": 2.101190138945069,
+              "vanilla_global_m": [
+                0.5,
+                -0.5,
+                2.0
+              ]
+            }
+          },
+          "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S006_R025_hybrid_IR.wav",
+          "query_index": 6281,
+          "receiver_global_m": [
+            -1.55,
+            2.45,
+            1.3
+          ],
+          "target_number": 4
+        }
+      ]
+    },
+    {
+      "candidate_count_rank_zero_based": 15,
+      "median_candidate_count": 5295.5,
+      "mesh_path": "/home/zhixuanzhao/projects/rir2rir/third_party/AcousticRooms/room_mesh_obj_format/Cafe/Cafe_idx_1.obj",
+      "mesh_sha256": "e7a0b7b97db3a31f1194726eb35d8033d712d46e17b637493cbff76c058d8b67",
+      "room": "Cafe_idx_1",
+      "targets": [
+        {
+          "candidate_count": 5295,
+          "ground_truth_global_m": [
+            5.65,
+            6.79,
+            1.3
+          ],
+          "predictions": {
+            "1": {
+              "fa_bf_error_m": 2.1878299751123254,
+              "fa_bf_global_m": [
+                7.0,
+                8.5,
+                1.5
+              ],
+              "vanilla_error_m": 3.657403450537006,
+              "vanilla_global_m": [
+                9.0,
+                5.5,
+                2.0
+              ]
+            },
+            "4": {
+              "fa_bf_error_m": 2.1878299751123254,
+              "fa_bf_global_m": [
+                7.0,
+                8.5,
+                1.5
+              ],
+              "vanilla_error_m": 5.977173244937777,
+              "vanilla_global_m": [
+                11.5,
+                8.0,
+                1.5
+              ]
+            },
+            "8": {
+              "fa_bf_error_m": 3.287339349686916,
+              "fa_bf_global_m": [
+                7.5,
+                9.5,
+                1.5
+              ],
+              "vanilla_error_m": 5.977173244937777,
+              "vanilla_global_m": [
+                11.5,
+                8.0,
+                1.5
+              ]
+            }
+          },
+          "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R088_hybrid_IR.wav",
+          "query_index": 179,
+          "receiver_global_m": [
+            18.65,
+            5.79,
+            1.4
+          ],
+          "target_number": 1
+        },
+        {
+          "candidate_count": 5296,
+          "ground_truth_global_m": [
+            5.65,
+            6.79,
+            1.3
+          ],
+          "predictions": {
+            "1": {
+              "fa_bf_error_m": 15.27339516937868,
+              "fa_bf_global_m": [
+                16.0,
+                18.0,
+                2.0
+              ],
+              "vanilla_error_m": 2.880381919121143,
+              "vanilla_global_m": [
+                8.5,
+                6.5,
+                1.0
+              ]
+            },
+            "4": {
+              "fa_bf_error_m": 12.663988313323731,
+              "fa_bf_global_m": [
+                11.5,
+                18.0,
+                2.0
+              ],
+              "vanilla_error_m": 2.880381919121143,
+              "vanilla_global_m": [
+                8.5,
+                6.5,
+                1.0
+              ]
+            },
+            "8": {
+              "fa_bf_error_m": 12.663988313323731,
+              "fa_bf_global_m": [
+                11.5,
+                18.0,
+                2.0
+              ],
+              "vanilla_error_m": 2.880381919121143,
+              "vanilla_global_m": [
+                8.5,
+                6.5,
+                1.0
+              ]
+            }
+          },
+          "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R063_hybrid_IR.wav",
+          "query_index": 335,
+          "receiver_global_m": [
+            12.15,
+            11.29,
+            1.5
+          ],
+          "target_number": 2
+        },
+        {
+          "candidate_count": 5295,
+          "ground_truth_global_m": [
+            20.15,
+            11.29,
+            1.6
+          ],
+          "predictions": {
+            "1": {
+              "fa_bf_error_m": 3.89443192263005,
+              "fa_bf_global_m": [
+                17.5,
+                8.5,
+                1.0
+              ],
+              "vanilla_error_m": 0.9309135298189611,
+              "vanilla_global_m": [
+                19.5,
+                11.0,
+                1.0
+              ]
+            },
+            "4": {
+              "fa_bf_error_m": 3.5037979393794942,
+              "fa_bf_global_m": [
+                17.5,
+                9.0,
+                1.5
+              ],
+              "vanilla_error_m": 3.4937944988221625,
+              "vanilla_global_m": [
+                23.5,
+                10.5,
+                1.0
+              ]
+            },
+            "8": {
+              "fa_bf_error_m": 3.5037979393794942,
+              "fa_bf_global_m": [
+                17.5,
+                9.0,
+                1.5
+              ],
+              "vanilla_error_m": 3.4937944988221625,
+              "vanilla_global_m": [
+                23.5,
+                10.5,
+                1.0
+              ]
+            }
+          },
+          "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S002_R085_hybrid_IR.wav",
+          "query_index": 699,
+          "receiver_global_m": [
+            21.15,
+            7.29,
+            1.4
+          ],
+          "target_number": 3
+        },
+        {
+          "candidate_count": 5296,
+          "ground_truth_global_m": [
+            4.15,
+            14.79,
+            1.6
+          ],
+          "predictions": {
+            "1": {
+              "fa_bf_error_m": 4.0873707930649,
+              "fa_bf_global_m": [
+                6.5,
+                11.5,
+                1.0
+              ],
+              "vanilla_error_m": 4.033187325180916,
+              "vanilla_global_m": [
+                7.0,
+                12.0,
+                1.0
+              ]
+            },
+            "4": {
+              "fa_bf_error_m": 4.0873707930649,
+              "fa_bf_global_m": [
+                6.5,
+                11.5,
+                1.0
+              ],
+              "vanilla_error_m": 4.033187325180916,
+              "vanilla_global_m": [
+                7.0,
+                12.0,
+                1.0
+              ]
+            },
+            "8": {
+              "fa_bf_error_m": 4.0873707930649,
+              "fa_bf_global_m": [
+                6.5,
+                11.5,
+                1.0
+              ],
+              "vanilla_error_m": 4.803810987122619,
+              "vanilla_global_m": [
+                4.5,
+                10.0,
+                1.5
+              ]
+            }
+          },
+          "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S009_R040_hybrid_IR.wav",
+          "query_index": 715,
+          "receiver_global_m": [
+            2.65,
+            15.29,
+            1.5
+          ],
+          "target_number": 4
+        }
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "selection_policy": {
+    "room_metric": "median candidate count",
+    "room_ranks_from_16": [
+      0,
+      5,
+      10,
+      15
+    ],
+    "same_rooms_and_targets_for_every_k": true,
+    "targets": "all four frozen seed-42 batch1 targets in each selected room",
+    "uses_prediction_error": false
+  },
+  "sha256": "a8383f818058099acc143c0a628f945081bce56917fd42bbe5872883cfa2012f",
+  "source_batch": "batch1",
+  "source_pilot_sha256": "6eeeec401c3f63e47ab446b4b43efe2f1db260bad9decf74de423d0872b659a2",
+  "targets_per_room": 4,
+  "unique_target_count": 16
+}
