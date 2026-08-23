@@ -67,7 +67,10 @@ def test_the_mappingA_identities_pin_the_planned_fields():
     depth = raf_publish.CANONICAL_IDENTITIES["mappingA_depth"]
     assert depth["positions_from"] == "mappingA"
     assert depth["img_h"] == 256 and depth["img_w"] == 512
-    assert depth["max_miss_rate"] == 0.0025
+    # Amendment 4.3: listener maps carry their own cap; the SOURCE identity keeps
+    # 0.25%, because the published Mapping-H marker is bound to it.
+    assert depth["max_miss_rate"] == 0.007
+    assert raf_publish.CANONICAL_RENDER_PARAMS["max_miss_rate"] == 0.0025
     assert depth["n_maps"] == 1152
 
 

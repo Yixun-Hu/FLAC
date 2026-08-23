@@ -417,3 +417,63 @@ def test_a_clean_listener_render_declares_no_near_field_maps(tmp_path):
     assert qa["near_field"]["n_maps"] == 0
     assert qa["near_field"]["item_ids"] == []
     assert qa["near_field"]["min_side_gates_publication"] is False
+
+
+def test_a_canonical_listener_render_uses_the_listener_cap_by_default(tmp_path,
+                                                                      monkeypatch):
+    """Amendment 4.3 end to end: with no --max-miss-rate the listener render takes
+    0.7%, and that is the value its identity carries."""
+    import publish as raf_publish
+    import readback_audit as raf_readback
+
+    raf_root, out = _fixture(tmp_path)
+    readback, digest = _canonical_readback(tmp_path, raf_root)
+    monkeypatch.setattr(raf_readback, "CANONICAL_RECORD_SHA256", digest)
+    monkeypatch.setattr(raf_readback, "CANONICAL_ROOMS", ("EmptyRoom",))
+    monkeypatch.setattr(raf_publish, "canonical_record_digest", lambda: digest)
+    monkeypatch.setattr(raf_publish, "CANONICAL_ROOMS", ("EmptyRoom",))
+    monkeypatch.setitem(raf_publish.CANONICAL_MAPPINGA_DEPTH_PARAMS, "rooms",
+                        ["EmptyRoom"])
+    monkeypatch.setitem(raf_publish.CANONICAL_MAPPINGA_DEPTH_PARAMS, "n_maps", 3)
+    monkeypatch.setitem(raf_publish.CANONICAL_MAPPINGA_DEPTH_PARAMS,
+                        "readback_record_sha256", digest)
+    raf_render.main(["--raf-root", str(raf_root), "--output-dir", str(out),
+                     "--rooms", "EmptyRoom", "--positions-from", "mappingA",
+                     "--haa-depth-root",
+                     os.path.join(_REPO_ROOT, "src", "tests", "fixtures",
+                                  "raf_depth_reference"),
+                     "--readback-record", readback])
+    with open(out / raf_publish.marker_name("mappingA_depth")) as f:
+        marker = json.load(f)
+    assert marker["parameters"]["max_miss_rate"] == raf_render.LISTENER_MAX_MISS_RATE
+    with open(out / "EmptyRoom" / "depth_images" / "raf_depth_qa.json") as f:
+        qa = json.load(f)
+    assert qa["max_miss_rate"] == 0.007
+    for record in qa["maps"].values():
+        assert record["misses"]["max_miss_rate"] == 0.007
+        assert record["misses"]["miss_cap_mode"] == "listener"
+
+
+def test_the_source_cap_is_refused_for_a_canonical_listener_render(tmp_path):
+    """The source cap is not this mode's registered protocol, however conservative
+    it looks."""
+    raf_root, out = _fixture(tmp_path)
+    with pytest.raises(ValueError) as exc:
+        raf_render.resolve_miss_cap(0.0025, canonical=True, listener_mode=True)
+    assert "registered listener-map cap is exactly 0.007" in str(exc.value)
+    # ... and a non-canonical run may use it, tainted and named
+    cap, taint = raf_render.resolve_miss_cap(0.0025, canonical=False,
+                                             listener_mode=True)
+    assert cap == 0.0025 and "listener-map 0.007" in taint[0]
+    assert out.parent.exists()
+
+
+def test_a_source_mode_render_still_uses_the_source_cap():
+    """Mapping H's published marker is bound to 0.25%; this amendment must not
+    move it."""
+    import publish as raf_publish
+
+    assert raf_render.resolve_miss_cap(None, canonical=True,
+                                       listener_mode=False) == (0.0025, [])
+    assert raf_publish.CANONICAL_RENDER_PARAMS["max_miss_rate"] == 0.0025
+    assert raf_publish.CANONICAL_MAPPINGA_DEPTH_PARAMS["max_miss_rate"] == 0.007

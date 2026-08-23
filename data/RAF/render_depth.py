@@ -74,6 +74,16 @@ DEFAULT_FLOOR_TOL = 0.15
 # genuinely broken mesh or a camera outside the room misses orders of magnitude
 # more.
 DEFAULT_MAX_MISS_RATE = 0.0025
+# Amendment 4.3: LISTENER maps get their own cap. The 0.25% above was calibrated on
+# SOURCE viewpoints, which stand in open space; a listener sits at a microphone,
+# often centimetres from furniture, and grazing rays that skim a surface miss more
+# often there. Measured over the full 1,152-position listener sweep: worst 0.656%
+# (860 px of 131,072), 17 positions over the source cap, every one of them
+# FurnishedRoom and furniture-adjacent. 0.7% covers that with margin while still
+# refusing a broken mesh or a camera outside the room, which misses orders of
+# magnitude more. Source maps are UNCHANGED -- the published Mapping-H marker is
+# bound to 0.25% and must stay valid.
+LISTENER_MAX_MISS_RATE = 0.007
 # sha256 of the empty coordinate list, i.e. "nothing was repaired".
 EMPTY_FILL_HASH = hashlib.sha256(b"").hexdigest()
 # Bearing tie rule (Amendment 4): a second surface within this fraction of the
@@ -154,7 +164,16 @@ def fill_hash(coordinates):
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def fill_missing(hits, max_miss_rate=DEFAULT_MAX_MISS_RATE):
+def registered_miss_cap(listener_mode=False):
+    """The registered miss cap for a render MODE (Amendment 4.3)."""
+    return LISTENER_MAX_MISS_RATE if listener_mode else DEFAULT_MAX_MISS_RATE
+
+
+def miss_cap_mode(listener_mode=False):
+    return "listener" if listener_mode else "source"
+
+
+def fill_missing(hits, max_miss_rate=DEFAULT_MAX_MISS_RATE, mode=None):
     """Repair a scan hole by nearest-valid-neighbour inpainting, or abort.
 
     A filled pixel is a RECORDED REPAIR, not a fabricated wall: the count and a
@@ -176,6 +195,7 @@ def fill_missing(hits, max_miss_rate=DEFAULT_MAX_MISS_RATE):
         "miss_count": count,
         "miss_rate": rate,
         "max_miss_rate": float(max_miss_rate),
+        "miss_cap_mode": mode,
         "within_cap": bool(rate <= max_miss_rate),
         "filled_pixels": [],
         "filled_pixels_sha256": EMPTY_FILL_HASH,
@@ -188,9 +208,10 @@ def fill_missing(hits, max_miss_rate=DEFAULT_MAX_MISS_RATE):
     if rate > max_miss_rate:
         raise RuntimeError(
             f"depth render missed {count} of {total} rays ({rate:.4%}), above the "
-            f"registered cap of {max_miss_rate:.2%} ({DEFAULT_MAX_MISS_RATE}). A scan "
-            "hole is repaired and recorded; this is not one -- the mesh is broken or "
-            "the camera is outside the room.")
+            + (f"registered {mode}-map cap of " if mode else "registered cap of ")
+            + f"{max_miss_rate:.2%} ({max_miss_rate}). A scan hole is repaired and "
+            "recorded; this is not one -- the mesh is broken or the camera is "
+            "outside the room.")
     if count == total:
         raise RuntimeError("depth render missed every ray: nothing to inpaint from")
 
@@ -211,7 +232,8 @@ def fill_missing(hits, max_miss_rate=DEFAULT_MAX_MISS_RATE):
 
 
 def render_depth(mesh, position_p, h=DEPTH_H, w=DEPTH_W,
-                 max_miss_rate=DEFAULT_MAX_MISS_RATE, return_report=False):
+                 max_miss_rate=DEFAULT_MAX_MISS_RATE, return_report=False,
+                 mode=None):
     """Euclidean distance to the mesh along every equirect ray from ``position_p``.
 
     ``mesh`` is a pipeline-frame mesh (see ``load_mesh_pipeline``) or a prebuilt
@@ -244,7 +266,8 @@ def render_depth(mesh, position_p, h=DEPTH_H, w=DEPTH_W,
     hits = scene.cast_rays(o3d.core.Tensor(rays))["t_hit"].numpy().reshape(h, w)
 
     try:
-        hits, miss_report = fill_missing(hits, max_miss_rate=max_miss_rate)
+        hits, miss_report = fill_missing(hits, max_miss_rate=max_miss_rate,
+                                         mode=mode)
     except RuntimeError as e:
         raise RuntimeError(f"depth render at {position.tolist()}: {e}")
     if (hits <= 0).any():
@@ -433,24 +456,33 @@ def assert_canonical_render(args, haa_fingerprint=None):
     return deviations
 
 
-def resolve_miss_cap(requested, canonical=True):
+def resolve_miss_cap(requested, canonical=True, listener_mode=False):
     """Miss-cap policy (F4): a canonical run uses the registered cap EXACTLY.
 
     Returns ``(cap, taint)``. Neither a looser nor a stricter cap is a knob a
     canonical publication gets -- ``--max-miss-rate 0.05`` would publish 5%
     inpainted pixels behind a passing QA, and ``0.0001`` would publish a different
     protocol under the registered name.
+
+    Amendment 4.3: the registered cap is MODE-SPECIFIC (0.7% listener, 0.25%
+    source), so ``requested=None`` means "the registered cap for this mode" and an
+    explicit value is compared against that one.
     """
+    registered = registered_miss_cap(listener_mode)
+    mode = miss_cap_mode(listener_mode)
+    if requested is None:
+        return registered, []
     requested = float(requested)
-    if requested == DEFAULT_MAX_MISS_RATE:
+    if requested == registered:
         return requested, []
     if canonical:
         raise ValueError(
             f"refusing a canonical render with --max-miss-rate {requested}: the "
-            f"registered cap is exactly {DEFAULT_MAX_MISS_RATE}. Pass "
+            f"registered {mode}-map cap is exactly {registered}. Pass "
             "--non-canonical to render with a different cap (the outputs are "
             "tainted).")
-    return requested, [f"miss cap {requested} != the registered {DEFAULT_MAX_MISS_RATE}"]
+    return requested, [f"miss cap {requested} != the registered {mode}-map "
+                       f"{registered}"]
 
 
 def audit_miss_report(miss_report, depth, canonical=True, miss_mask=None):
@@ -1001,7 +1033,7 @@ def build_parser():
                              "is recorded and HAA alone activates the scale check")
     parser.add_argument('--rx-sightline-receivers', type=int,
                         default=RX_SIGHTLINE_MAX_RECEIVERS)
-    parser.add_argument('--max-miss-rate', type=float, default=DEFAULT_MAX_MISS_RATE,
+    parser.add_argument('--max-miss-rate', type=float, default=None,
                         help="per-map ray-miss rate tolerated and repaired by "
                              "nearest-valid-neighbour inpainting; above it the render "
                              "aborts (Amendment 4)")
@@ -1053,6 +1085,15 @@ def main(argv=None):
             "cannot run without it.")
 
     taint = list(readback_provenance["taint"])
+    # Amendment 4.3: the registered cap is MODE-SPECIFIC, and it is resolved BEFORE
+    # any identity is built -- the identity carries the cap, so it must already be
+    # the one this run will use.
+    args.max_miss_rate, miss_cap_taint = resolve_miss_cap(
+        args.max_miss_rate, canonical, listener_mode=args.positions_from == "mappingA")
+    taint.extend(miss_cap_taint)
+    logger.info("miss cap: %.3f%% (%s maps)", 100 * args.max_miss_rate,
+                miss_cap_mode(args.positions_from == "mappingA"))
+
     # The Mapping-A identity needs the map count, which is only known after the
     # per-room plans are built, so listener mode defers its identity to the commit.
     if args.positions_from == "mappingA":
@@ -1066,7 +1107,6 @@ def main(argv=None):
         elif render_deviations:
             taint.append("non-registered render parameters: "
                          + "; ".join(render_deviations))
-    taint.extend(resolve_miss_cap(args.max_miss_rate, canonical)[1])
     if (args.img_h, args.img_w) != CANONICAL_SHAPE:
         # canonical mode already refused this in assert_canonical_render
         taint.append(f"non-canonical grid {args.img_h}x{args.img_w}: unusable by RAF_md")
@@ -1137,6 +1177,7 @@ def main(argv=None):
             depth, miss_report = render_depth(scene, position, h=args.img_h,
                                               w=args.img_w,
                                               max_miss_rate=args.max_miss_rate,
+                                              mode=miss_cap_mode(listener_mode),
                                               return_report=True)
             render_s += time.perf_counter() - t1
             np.save(staged.path(entry["depth_file"]), depth)

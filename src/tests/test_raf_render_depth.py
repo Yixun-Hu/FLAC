@@ -1605,3 +1605,91 @@ def test_a_clean_listener_map_is_not_flagged():
     assert qa["near_field"]["flagged"] is False
     assert qa["scale_min_ok"] is True and qa["scale_max_ok"] is True
     assert qa["passed"] is True
+
+
+# --------------------------------------------------------------------------- #
+# r5 Amendment 4.3: mode-specific miss caps (listener 0.7%, source 0.25%)
+# --------------------------------------------------------------------------- #
+def _hits_with_misses(n_missing, shape=(200, 500)):
+    """A hit grid with exactly ``n_missing`` unmeasured rays."""
+    hits = np.ones(shape[0] * shape[1], dtype=np.float64)
+    hits[:n_missing] = np.inf
+    return hits.reshape(shape)
+
+
+def test_the_registered_caps_are_mode_specific():
+    assert raf_render.LISTENER_MAX_MISS_RATE == 0.007
+    assert raf_render.DEFAULT_MAX_MISS_RATE == 0.0025
+    assert raf_render.registered_miss_cap(listener_mode=True) == 0.007
+    assert raf_render.registered_miss_cap(listener_mode=False) == 0.0025
+    assert raf_render.miss_cap_mode(True) == "listener"
+    assert raf_render.miss_cap_mode(False) == "source"
+
+
+def test_exactly_the_listener_cap_is_repaired_not_refused():
+    """0.7% of 100,000 rays is 700 pixels: the boundary is inclusive, as the
+    source cap's has always been."""
+    hits = _hits_with_misses(700)
+    filled, report = raf_render.fill_missing(
+        hits, max_miss_rate=raf_render.LISTENER_MAX_MISS_RATE, mode="listener")
+    assert report["miss_count"] == 700
+    assert report["miss_rate"] == pytest.approx(0.007)
+    assert report["within_cap"] is True
+    assert report["miss_cap_mode"] == "listener"
+    assert np.isfinite(filled).all()
+
+
+def test_one_ray_over_the_listener_cap_aborts_and_names_the_mode():
+    hits = _hits_with_misses(701)
+    with pytest.raises(RuntimeError) as exc:
+        raf_render.fill_missing(hits,
+                                max_miss_rate=raf_render.LISTENER_MAX_MISS_RATE,
+                                mode="listener")
+    message = str(exc.value)
+    assert "701 of 100000" in message
+    assert "registered listener-map cap of 0.70%" in message
+
+
+def test_the_measured_worst_listener_position_fits_under_the_new_cap():
+    """The sweep's worst was 0.656% (860 of 131,072). It repairs at 0.7% and would
+    have aborted at the source-calibrated 0.25%."""
+    hits = _hits_with_misses(860, shape=(256, 512))       # the canonical grid
+    _, report = raf_render.fill_missing(
+        hits, max_miss_rate=raf_render.LISTENER_MAX_MISS_RATE, mode="listener")
+    assert report["miss_rate"] == pytest.approx(0.00656, abs=1e-5)
+    assert report["within_cap"] is True
+    with pytest.raises(RuntimeError):
+        raf_render.fill_missing(hits,
+                                max_miss_rate=raf_render.DEFAULT_MAX_MISS_RATE,
+                                mode="source")
+
+
+def test_the_source_cap_is_unchanged_at_its_own_boundary():
+    """Mapping H's published marker is bound to 0.25%; nothing here may move it."""
+    raf_render.fill_missing(_hits_with_misses(250),
+                            max_miss_rate=raf_render.DEFAULT_MAX_MISS_RATE,
+                            mode="source")
+    with pytest.raises(RuntimeError) as exc:
+        raf_render.fill_missing(_hits_with_misses(251),
+                                max_miss_rate=raf_render.DEFAULT_MAX_MISS_RATE,
+                                mode="source")
+    assert "registered source-map cap of 0.25%" in str(exc.value)
+
+
+def test_the_cap_defaults_to_the_mode_and_an_explicit_value_is_compared_to_it():
+    assert raf_render.resolve_miss_cap(None, canonical=True,
+                                       listener_mode=True) == (0.007, [])
+    assert raf_render.resolve_miss_cap(None, canonical=True,
+                                       listener_mode=False) == (0.0025, [])
+    assert raf_render.resolve_miss_cap(0.007, canonical=True,
+                                       listener_mode=True) == (0.007, [])
+    # the OTHER mode's cap is not this mode's registered value
+    with pytest.raises(ValueError) as exc:
+        raf_render.resolve_miss_cap(0.0025, canonical=True, listener_mode=True)
+    assert "registered listener-map cap is exactly 0.007" in str(exc.value)
+    with pytest.raises(ValueError) as exc:
+        raf_render.resolve_miss_cap(0.007, canonical=True, listener_mode=False)
+    assert "registered source-map cap is exactly 0.0025" in str(exc.value)
+    cap, taint = raf_render.resolve_miss_cap(0.02, canonical=False,
+                                             listener_mode=True)
+    assert cap == 0.02 and "listener-map 0.007" in taint[0]
