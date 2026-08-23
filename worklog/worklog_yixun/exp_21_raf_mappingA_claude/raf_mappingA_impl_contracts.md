@@ -65,3 +65,6 @@ Measured basis committed in mappingA_amplitude_window.json (d077ea0): no global 
 
 ## Amendment 4.2 (listener-map near-field, Yixun-approved 2026-08-22 ~14:30)
 Measured basis: 4/1,152 listener maps (EmptyRoom p052 slots 17/22/26/27) see scanned structure at 0.029–0.125 m — the capture rig in the photogrammetry; renders geometrically correct. REGISTERED: for LISTENER maps the scale-plausibility MINIMUM is a recorded diagnostic (per-map min depth + attribution recorded); the MAXIMUM side stays fatal (oversized scale = wrong units/gauge). Per-item disclosure joins the near-silent-reference disclosure; the labelled sensitivity row excludes BOTH flagged sets (p008's 19 + these 4 = "minus-flagged" row) beside the primary. Any NEW min-side flag in future renders is recorded and disclosed the same way.
+
+## Amendment 4.3 (listener-mode miss cap, Yixun-approved 2026-08-22 ~22:05)
+Measured basis: full 1,152-listener-position sweep — worst 0.656% (860 px), 17 over the source-calibrated 0.25%, all FurnishedRoom furniture-adjacent. REGISTERED: mode-specific caps — LISTENER maps 0.7% (LISTENER_MAX_MISS_RATE=0.007), SOURCE maps unchanged 0.25%. Same repair/recording/hash machinery; the measurement table is the basis (committed with this amendment via the worklog log).
