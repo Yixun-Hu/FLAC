@@ -1785,3 +1785,151 @@ def test_depth_qa_passes_the_mode_through_to_the_audit():
     # the default is still the source cap: an uninformed caller stays strict
     assert strict["misses"]["cap_applied"] == raf_render.DEFAULT_MAX_MISS_RATE
     assert strict["misses"]["audit_ok"] is False
+
+
+# --------------------------------------------------------------------------- #
+# r5 Amendment 4.4: containment is ray-crossing parity, by majority
+# --------------------------------------------------------------------------- #
+class _ScriptedScene:
+    """A scene that replays a recorded crossing signature.
+
+    ``crossings`` gives the number of surfaces each axis direction crosses, in
+    CONTAINMENT_AXES order; the hits are spaced 1 m apart. This is how the three
+    real FurnishedRoom cases enter the suite: their signatures are the ones
+    measured in mappingA_furnished_qa_failures.json.
+    """
+
+    def __init__(self, crossings):
+        self.script = {tuple(np.round(np.asarray(axis, dtype=float), 6)): int(n)
+                       for axis, n in zip(raf_render.CONTAINMENT_AXES, crossings)}
+        self.calls = 0
+
+    def cast_rays(self, rays):
+        import open3d as o3d
+
+        self.calls += 1
+        row = np.asarray(rays.numpy() if hasattr(rays, "numpy") else rays,
+                         dtype=np.float64).reshape(-1)
+        origin, direction = row[:3], row[3:6]
+        key = tuple(np.round(direction / np.linalg.norm(direction), 6))
+        remaining = self.script[key] - int(round(float(np.dot(origin, direction)))) \
+            if False else None
+        # count how many hits this direction has already yielded from this origin
+        travelled = float(np.dot(origin, direction))
+        used = int(np.floor(travelled + 1e-6)) if travelled > 0 else 0
+        t = 1.0 if used < self.script[key] else np.inf
+        return {"t_hit": o3d.core.Tensor([np.float32(t)])}
+
+
+def _parity(crossings):
+    return raf_render.containment_by_parity(_ScriptedScene(crossings),
+                                            np.zeros(3))
+
+
+def test_the_three_measured_cases_are_inside_by_parity():
+    """p035/slot23, p035/slot24 (1 crossing on every axis) and p085/slot23 (1,1,3,
+    1,1,1) -- the signatures recorded in mappingA_furnished_qa_failures.json. The
+    normal-sign occupancy called all three "outside"; every one of them crosses an
+    odd number of surfaces in every direction, i.e. in and out through a single
+    wall."""
+    for signature in ([1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1], [1, 1, 3, 1, 1, 1]):
+        report = _parity(signature)
+        assert report["inside"] is True
+        assert report["inside_votes"] == 6
+        assert report["method"] == "ray_crossing_parity"
+        assert [axis["crossings"] for axis in report["axes"]] == signature
+
+
+def test_a_passing_peers_signature_is_unchanged_by_the_new_test():
+    """p085/slot00, a slot that passed under the old test too: 1,1,3,9,1,1."""
+    report = _parity([1, 1, 3, 9, 1, 1])
+    assert report["inside"] is True and report["inside_votes"] == 6
+
+
+def test_a_genuinely_outside_position_fails_on_real_geometry():
+    """Nothing to cross in any direction: the parity test's unambiguous case."""
+    mesh = _box_mesh_raf(**_BOX)
+    scene = raf_render.build_scene(mesh)
+    report = raf_render.containment_by_parity(scene, np.array([50.0, 50.0, 50.0]))
+    assert report["inside"] is False
+    assert report["inside_votes"] == 0
+    assert all(axis["crossings"] == 0 for axis in report["axes"])
+    assert all(axis["terminated"] for axis in report["axes"])
+
+
+def test_a_point_inside_the_room_is_inside_on_real_geometry():
+    mesh = _box_mesh_raf(**_BOX)
+    scene = raf_render.build_scene(mesh)
+    report = raf_render.containment_by_parity(scene, np.array([0.3, 5.0, 1.5]))
+    assert report["inside"] is True and report["inside_votes"] == 6
+
+
+def test_a_mic_embedded_in_a_closed_panel_reads_OUTSIDE_and_that_is_correct():
+    """Documented behaviour. A point inside a CLOSED box that is itself inside the
+    room crosses two surfaces on the way out in every direction -- the panel and
+    the wall -- so parity says "not inside the room", and it is right: the camera
+    is sealed inside furniture and its panorama measures the inside of a cabinet,
+    not the room. This is the case containment SHOULD refuse, and it is a different
+    beast from the three real ones, which cross exactly one surface.
+    """
+    import open3d as o3d
+
+    room = _box_mesh_raf(**_BOX)
+    # a closed 0.6 m box wholly inside the room (RAF coords, like the room's)
+    cabinet = _box_mesh_raf(x0=1.0, x1=1.6, y0=1.0, y1=1.6, z0=1.0, z1=1.6)
+    scene = raf_render.build_scene(room + cabinet)
+    inside_cabinet = np.array([1.3, 1.3, 1.3])          # pipeline frame
+    report = raf_render.containment_by_parity(scene, inside_cabinet)
+    assert report["inside"] is False
+    assert report["inside_votes"] == 0
+    assert all(axis["crossings"] == 2 for axis in report["axes"])
+    # ... while a point in the open room, past the cabinet, is still inside
+    open_room = raf_render.containment_by_parity(scene, np.array([3.5, 4.0, 2.0]))
+    assert open_room["inside"] is True
+    assert isinstance(scene, o3d.t.geometry.RaycastingScene)
+
+
+def test_the_majority_tolerates_scan_holes_but_not_a_wrong_verdict():
+    """A hole flips the directions that pass through it. Two flipped axes still
+    read inside (4 of 6); three do not -- at that point the geometry is no longer
+    saying "inside"."""
+    assert _parity([1, 1, 1, 1, 0, 0])["inside"] is True        # 4 of 6
+    assert _parity([1, 1, 1, 1, 0, 0])["inside_votes"] == 4
+    assert _parity([1, 1, 1, 0, 0, 0])["inside"] is False       # 3 of 6
+    assert _parity([2, 2, 2, 2, 2, 2])["inside"] is False       # all even
+
+
+def test_a_ray_that_never_terminates_does_not_vote_for_containment():
+    """A direction the geometry could not answer must abstain, not assent."""
+    tangled = _ScriptedScene([1, 1, 1, 1, 1, 1])
+    tangled.script[tuple(np.round(np.asarray(raf_render.CONTAINMENT_AXES[0],
+                                             dtype=float), 6))] = 10_000
+    report = raf_render.containment_by_parity(tangled, np.zeros(3))
+    stuck = report["axes"][0]
+    assert stuck["terminated"] is False and stuck["inside"] is False
+    assert stuck["crossings"] == raf_render.CONTAINMENT_MAX_CROSSINGS
+    assert report["inside"] is True and report["inside_votes"] == 5   # 5 of 6
+
+
+def test_source_mode_qa_is_unchanged_and_records_both_verdicts():
+    """The Mapping-H fixtures behave exactly as before -- containment is still
+    FATAL in both modes -- and the normal-sign occupancy is kept beside the parity
+    verdict as a recorded diagnostic."""
+    mesh = _box_mesh_raf(**_BOX)
+    position = np.array([0.3, 5.0, 1.5])
+    depth = raf_render.render_depth(mesh, position, h=32, w=64)
+    qa = raf_render.real_mesh_qa(depth, position, mesh, img_h=32, img_w=64)
+    assert qa["camera_inside"] is True
+    assert qa["containment"]["method"] == "ray_crossing_parity"
+    assert qa["containment"]["inside_votes"] == 6
+    assert qa["normal_sign_inside"] is True          # they agree on a clean box
+    assert qa["passed"] is True
+
+    outside = np.array([50.0, 50.0, 50.0])
+    bad = raf_render.real_mesh_qa(np.full((32, 64), 1.0, dtype=np.float32), outside,
+                                  mesh, img_h=32, img_w=64)
+    assert bad["camera_inside"] is False
+    assert bad["containment"]["inside_votes"] == 0
+    assert bad["passed"] is False
+    assert any("not inside the room mesh" in w for w in bad["warnings"])
+    assert any("majority 4 required" in w for w in bad["warnings"])

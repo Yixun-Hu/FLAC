@@ -747,6 +747,71 @@ def scale_band(references, tolerance=SCALE_REFERENCE_TOLERANCE):
     return (lo, hi)
 
 
+# Amendment 4.4: containment is decided by ray-crossing PARITY along the six axis
+# directions, not by the closest triangle's normal. A point inside a closed volume
+# crosses an odd number of surfaces on the way out in every direction; a point
+# outside crosses an even number (including zero). The majority vote tolerates the
+# sub-cap scan holes these meshes have -- a hole flips at most the directions that
+# pass through it -- while the normal-sign test it replaces was decided by whichever
+# triangle happened to be nearest, on a scan whose furniture panels are two-sided
+# and whose winding the det(-1) gauge inverts.
+CONTAINMENT_AXES = ((1.0, 0.0, 0.0), (-1.0, 0.0, 0.0),
+                    (0.0, 1.0, 0.0), (0.0, -1.0, 0.0),
+                    (0.0, 0.0, 1.0), (0.0, 0.0, -1.0))
+CONTAINMENT_MAJORITY = 4          # of 6 axis directions must read "inside"
+CONTAINMENT_MAX_CROSSINGS = 64    # a scan this tangled is a broken mesh, not a room
+CONTAINMENT_STEP_EPS = 1e-4       # metres nudged past each hit to avoid re-hitting it
+
+
+def axis_crossings(scene, position, direction, max_crossings=CONTAINMENT_MAX_CROSSINGS,
+                   eps=CONTAINMENT_STEP_EPS):
+    """Surface crossings along one ray, and whether it terminated cleanly."""
+    p = np.asarray(position, dtype=np.float64).copy()
+    d = np.asarray(direction, dtype=np.float64)
+    d = d / np.linalg.norm(d)
+    crossings = 0
+    for _ in range(max_crossings):
+        ray = o3d.core.Tensor([np.concatenate([p, d]).astype(np.float32)])
+        t = float(scene.cast_rays(ray)["t_hit"].numpy().reshape(-1)[0])
+        if not np.isfinite(t):
+            return crossings, True
+        crossings += 1
+        p = p + d * (t + eps)
+    return crossings, False
+
+
+def containment_by_parity(scene, position, axes=CONTAINMENT_AXES,
+                          majority=CONTAINMENT_MAJORITY):
+    """Is ``position`` inside the room? Ray-crossing parity, by majority (4.4).
+
+    Measured basis (mappingA_furnished_qa_failures.json): three FurnishedRoom mics
+    read "outside" under the normal-sign test while crossing exactly one surface in
+    every one of six directions -- in and out through a single wall, the same
+    signature as their passing neighbours -- 0.30-0.83 m from the nearest surface,
+    inside the mesh AABB, with room-scale panoramas and essentially no missed rays.
+
+    An axis whose ray never terminates (it ran out of crossings) is recorded and
+    counted as NOT inside: a direction the geometry could not answer must not vote
+    for containment.
+    """
+    per_axis, inside_votes = [], 0
+    for direction in axes:
+        crossings, terminated = axis_crossings(scene, position, direction)
+        odd = bool(terminated and crossings % 2 == 1)
+        inside_votes += int(odd)
+        per_axis.append({"direction": [float(v) for v in direction],
+                         "crossings": int(crossings), "terminated": bool(terminated),
+                         "inside": odd})
+    return {
+        "inside": bool(inside_votes >= majority),
+        "inside_votes": int(inside_votes),
+        "n_axes": len(per_axis),
+        "majority": int(majority),
+        "method": "ray_crossing_parity",
+        "axes": per_axis,
+    }
+
+
 def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
                  bearing_tol_deg=LANDMARK_BEARING_TOL_DEG, bounds_tol=0.05,
                  scene=None, tie_distance_frac=BEARING_TIE_DISTANCE_FRAC,
@@ -780,9 +845,14 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
                           else mesh.vertex["positions"].numpy(), dtype=np.float64)
     lo, hi = vertices.min(axis=0), vertices.max(axis=0)
 
+    # Amendment 4.4: parity, not the closest triangle's normal. The normal-sign
+    # occupancy is kept BESIDE it as a recorded diagnostic -- it is what the earlier
+    # renders gated on, so a reader can see where the two disagree and why.
+    containment = containment_by_parity(scene, position)
+    camera_inside = containment["inside"]
     occupancy = scene.compute_occupancy(
         o3d.core.Tensor(position.astype(np.float32).reshape(1, 3)))
-    camera_inside = bool(int(occupancy.numpy().reshape(-1)[0]) == 1)
+    normal_sign_inside = bool(int(occupancy.numpy().reshape(-1)[0]) == 1)
 
     dirs = equirect_directions(int(img_h), int(img_w))
     cloud = position.reshape(1, 1, 3) + arr[..., None] * dirs
@@ -888,7 +958,16 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
 
     warnings = []
     if not camera_inside:
-        warnings.append(f"camera {position.tolist()} is not inside the room mesh")
+        warnings.append(
+            f"camera {position.tolist()} is not inside the room mesh: only "
+            f"{containment['inside_votes']} of {containment['n_axes']} axis "
+            f"directions cross an odd number of surfaces "
+            f"(majority {containment['majority']} required)")
+    elif normal_sign_inside != camera_inside:
+        warnings.append(
+            "containment by ray-crossing parity disagrees with the normal-sign "
+            "occupancy (recorded diagnostic): the scan's nearest surface here is "
+            "wound away from the camera, which is what Amendment 4.4 corrects")
     if not bounds_ok:
         warnings.append("reconstructed point cloud leaves the mesh bounding box")
     if not sightline_ok:
@@ -932,6 +1011,9 @@ def real_mesh_qa(depth, position_p, mesh, img_h=DEPTH_H, img_w=DEPTH_W,
 
     return {
         "camera_inside": camera_inside,
+        "containment": containment,
+        # RECORDED, never gated (4.4): the test this replaced.
+        "normal_sign_inside": normal_sign_inside,
         "mesh_bounds": {"min": [float(v) for v in lo], "max": [float(v) for v in hi]},
         "bounds_ok": bounds_ok,
         "bounds_tol": float(bounds_tol),
