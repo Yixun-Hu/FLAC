@@ -50,3 +50,6 @@
 ## 2026-08-22T21:30:00-0400 — GPU HANDOVER: campaign PAUSED after pair 6 (Yixun's senior needs the GPUs)
 
 - **Decision** — Clean stop: the two running cells (YAW-K8-44, YAW-K1-42) run to completion (~22:40 EDT); **pair 7 is NOT launched**. Zero compute lost; campaign paused at 12/18 cells. Peer session confirms zero GPU footprint on their side (exp_21 held). Resume = pairs 7–9 (P1/BF/YAW K1 seeds 43/44; ~10 h pair-time) on Yixun's release; all registrations remain valid (freeze a92ff5d; the pause has no protocol effect — cells are independent).
+
+## 2026-08-22T21:45:00-0400 — Standing commitment: notify the paper session at Holm-final only
+- The NeurIPS-workshop paper session (socket cc-socks/1490348) revises around exp_18 now, integrates exp_20 later; commitment recorded: notify it when 18/18 + the Holm-4 analysis are FINAL, with paths; never send interim numbers for manuscript use.
