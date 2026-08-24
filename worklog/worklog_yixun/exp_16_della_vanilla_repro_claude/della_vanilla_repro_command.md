@@ -224,3 +224,34 @@ sbatch --hold --parsable --job-name=exp16-reval-u8_s42_a100 --partition= --qos= 
 sbatch --hold --parsable --job-name=exp16-cont --time=1-00:00:00 --export=EXPECT_SHA=b86b2fa2f1cf60e2ecf670a0deca8f2a3b7d2d30,CHAIN_TOTAL=67500,CHAIN_CHUNK=67500,CONT=1 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_chain.sbatch
 ```
 
+## 2026-08-24T11:42:23-04:00 — exp16-reval (Phase 3) — 10 cells — jobs 12888008 12888009 12888013 12888014 12888017 12888018 12888020 12888021 12888023 12888024
+
+- EXPECT_SHA: `84b6ad2897a384f535602137be5bf00135161a2a`
+- checkpoint: `/scratch/gpfs/BLANCHETTE/yh4742/FLAC/checkpoints/exp16_vanilla_repro/FLAC_vanilla_repro/exp16_della_vanilla_repro/checkpoints/epoch=14-step=67500.ckpt` (+ the 62500/65000 endpoint screens where requested)
+- cells: `c8_s42=12888008 c8_s43=12888009 c8_s44=12888013 c8_s45=12888014 c8_s46=12888017 c1_s42=12888018 c1_s43=12888020 c1_s44=12888021 c1_s45=12888023 c1_s46=12888024`
+- submitted by: `yh4742@della9.princeton.edu`
+
+```bash
+sbatch --hold --parsable --job-name=exp16-reval-c8_s42 --export=EXPECT_SHA=84b6ad2897a384f535602137be5bf00135161a2a,CELL=c8_s42 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-c8_s43 --export=EXPECT_SHA=84b6ad2897a384f535602137be5bf00135161a2a,CELL=c8_s43 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-c8_s44 --export=EXPECT_SHA=84b6ad2897a384f535602137be5bf00135161a2a,CELL=c8_s44 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-c8_s45 --export=EXPECT_SHA=84b6ad2897a384f535602137be5bf00135161a2a,CELL=c8_s45 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-c8_s46 --export=EXPECT_SHA=84b6ad2897a384f535602137be5bf00135161a2a,CELL=c8_s46 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-c1_s42 --export=EXPECT_SHA=84b6ad2897a384f535602137be5bf00135161a2a,CELL=c1_s42 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-c1_s43 --export=EXPECT_SHA=84b6ad2897a384f535602137be5bf00135161a2a,CELL=c1_s43 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-c1_s44 --export=EXPECT_SHA=84b6ad2897a384f535602137be5bf00135161a2a,CELL=c1_s44 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-c1_s45 --export=EXPECT_SHA=84b6ad2897a384f535602137be5bf00135161a2a,CELL=c1_s45 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+sbatch --hold --parsable --job-name=exp16-reval-c1_s46 --export=EXPECT_SHA=84b6ad2897a384f535602137be5bf00135161a2a,CELL=c1_s46 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+```
+
+## 2026-08-24T11:42:32-04:00 — exp16-reval (Phase 3) — 1 cells — jobs 12888053
+
+- EXPECT_SHA: `84b6ad2897a384f535602137be5bf00135161a2a`
+- checkpoint: `/scratch/gpfs/BLANCHETTE/yh4742/FLAC/checkpoints/exp16_vanilla_repro/FLAC_vanilla_repro/exp16_della_vanilla_repro/checkpoints/epoch=14-step=67500.ckpt` (+ the 62500/65000 endpoint screens where requested)
+- cells: `u8_s42_a100=12888053`
+- submitted by: `yh4742@della9.princeton.edu`
+
+```bash
+sbatch --hold --parsable --job-name=exp16-reval-u8_s42_a100 --partition= --qos= --gres=gpu:a100:1 --export=EXPECT_SHA=84b6ad2897a384f535602137be5bf00135161a2a,CELL=u8_s42_a100 /home/yh4742/codespace/FLAC/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval.sbatch
+```
+
