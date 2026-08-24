@@ -1,0 +1,75 @@
+{
+  "contrasts": {
+    "BF_vs_P1_K8": {
+      "top1_point": 0.018199989479774865,
+      "top1_lo": 0.008570089614054201,
+      "top1_hi": 0.026008311436901445,
+      "p": 0.0002,
+      "e_loc_point": -0.09013607263601955,
+      "e_p": 0.0174
+    },
+    "BF_vs_P1_K1": {
+      "top1_point": 0.015517332070906314,
+      "top1_lo": 0.007352865059067106,
+      "top1_hi": 0.021437537730792364,
+      "p": 0.0006,
+      "e_loc_point": -0.08817215361135232,
+      "e_p": 0.0182
+    },
+    "YAW_vs_P1_K8": {
+      "top1_point": 0.007942769975277472,
+      "top1_lo": 0.0009492738723644709,
+      "top1_hi": 0.013674393784781332,
+      "p": 0.0298,
+      "e_loc_point": -0.06001488208713917,
+      "e_p": 0.11
+    },
+    "YAW_vs_P1_K1": {
+      "top1_point": 0.006785545210667507,
+      "top1_lo": 0.0003407710753324402,
+      "top1_hi": 0.01327343934303616,
+      "p": 0.039,
+      "e_loc_point": -0.06042918818265357,
+      "e_p": 0.1448
+    }
+  },
+  "holm": {
+    "alpha": 0.05,
+    "n_tests": 4,
+    "method": "holm_bonferroni",
+    "tests": [
+      {
+        "label": "BF_vs_P1_K8",
+        "p_raw": 0.0002,
+        "p_adjusted": 0.0008,
+        "rejected": true
+      },
+      {
+        "label": "BF_vs_P1_K1",
+        "p_raw": 0.0006,
+        "p_adjusted": 0.0018,
+        "rejected": true
+      },
+      {
+        "label": "YAW_vs_P1_K8",
+        "p_raw": 0.0298,
+        "p_adjusted": 0.0596,
+        "rejected": false
+      },
+      {
+        "label": "YAW_vs_P1_K1",
+        "p_raw": 0.039,
+        "p_adjusted": 0.0596,
+        "rejected": false
+      }
+    ],
+    "endpoint": "top1",
+    "contrasts": [
+      "BF_vs_P1_K8",
+      "BF_vs_P1_K1",
+      "YAW_vs_P1_K8",
+      "YAW_vs_P1_K1"
+    ],
+    "note": "top-1 is the sole confirmatory endpoint; e_loc and every other metric are supportive and are never added to this family"
+  }
+}
