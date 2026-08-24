@@ -181,3 +181,8 @@
 - **Seen-split item bug (now classified REAL, not infra):** repro seen cell 12726288 failed at the IDENTICAL stream position/item as the Aug-17 calibration attempt (pos 1194, idx 840, MeetingRoom_idx_19/S006_R020) on a different node — deterministic substitution under eval-dataloader conditions while the file loads clean interactively. Pre-audit seen-split evaluations would have silently included a substituted item. Non-gating for exp_16 (seen = descriptive); logged to issue_report.md for a dedicated follow-up.
 - **Decision (Yixun):** Continuous-run A/B — one unchunked 67.5k training on ailab H200 (seed 42, fresh sibling save-dir `exp16_vanilla_repro_cont`), isolating the chunking variable. Round F (CONT mode in the chain kit) dispatched. ailab QOS has no MaxWall; single ~20h job fits.
 - **Next** — Round F → Codex review → submit cont (--time 1-04:00:00) → A/B verdict after its Phase-3-style eval.
+
+## 2026-08-24T12:30:00-04:00 — Round G CLOSED (Codex APPROVE); cont cells + A100 respin submitted
+
+- **Command / Validation** — Round G (`a4e9f7f`): 10 cont-arm cells added; Coder found + fixed a latent bug (post-run artifact paths hardcoded to the chunked CKD — every cont cell would have evaluated fully then failed its assertion; now derived from the ckpt's dirname, Codex-verified against build_output_paths). Codex verdict **APPROVE** (2 cosmetic nits batched). Weekend gap note: cont run finished Aug-22 06:47; eval round dispatched Aug-24 on session resume. 12726290 (A100 spot-check) invalidated by the kit edit per the known closure pattern — scancel + resubmit now (fresh submission also carries the corrected artifact-path logic).
+- **Next** — cont cells drain → A/B table (cont vs chunked vs release, same bands) → verdict to Yixun.
