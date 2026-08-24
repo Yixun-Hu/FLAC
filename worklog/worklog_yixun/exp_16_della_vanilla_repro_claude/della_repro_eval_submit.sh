@@ -53,6 +53,9 @@ CELL_SBATCH="$EXPDIR/della_repro_eval.sbatch"
 SUBMIT_LOCK="$EXPDIR/.repro_eval_submit.lock"
 CKD=/scratch/gpfs/BLANCHETTE/yh4742/FLAC/checkpoints/exp16_vanilla_repro/FLAC_vanilla_repro/exp16_della_vanilla_repro/checkpoints
 CKPT_67500="$CKD/epoch=14-step=67500.ckpt"
+# The CONTINUOUS arm's tree (round F): a different run with the same layout.
+CKD_CONT=/scratch/gpfs/BLANCHETTE/yh4742/FLAC/checkpoints/exp16_vanilla_repro_cont/FLAC_vanilla_repro/exp16_della_vanilla_repro/checkpoints
+CKPT_CONT_67500="$CKD_CONT/epoch=14-step=67500.ckpt"
 JOB_PREFIX=exp16-reval
 # Job names that own a GPU TRAINING run in this experiment (review N1).
 TRAINING_NAMES=exp16-train,exp16-train-smoke,exp16-train-resume,exp16-chain
@@ -74,21 +77,32 @@ CLOSURE=(
   worklog/worklog_yixun/exp_16_della_vanilla_repro_claude/della_repro_eval_submit.sh
 )
 
-# Registered cells, in submission order. ALL67500 is the subset that measures the
-# headline artifact (everything except the two endpoint-draw screens).
-ALL_CELLS=(u8_s42 u8_s43 u8_s44 u8_s45 u8_s46
-           u1_s42 u1_s43 u1_s44 u1_s45 u1_s46
-           u8_s42_step62500 u8_s42_step65000
-           seen_s42
-           u8_s42_a100)
+# Registered cells, in submission order.
+#   CHUNKED_CELLS  what `all` submits — unchanged meaning: the chunked (chain) arm
+#   ALL67500_CELLS the chunked subset that measures the headline artifact
+#                  (everything except the two endpoint-draw screens)
+#   CONT_CELLS     what `cont` submits — the continuous arm's half of the A/B
+# ALL_CELLS is the union and exists ONLY to validate an explicitly named cell; it
+# is deliberately not a selector, so `all` cannot silently grow into both arms.
+CHUNKED_CELLS=(u8_s42 u8_s43 u8_s44 u8_s45 u8_s46
+               u1_s42 u1_s43 u1_s44 u1_s45 u1_s46
+               u8_s42_step62500 u8_s42_step65000
+               seen_s42
+               u8_s42_a100)
 ALL67500_CELLS=(u8_s42 u8_s43 u8_s44 u8_s45 u8_s46
                 u1_s42 u1_s43 u1_s44 u1_s45 u1_s46
                 seen_s42
                 u8_s42_a100)
+CONT_CELLS=(c8_s42 c8_s43 c8_s44 c8_s45 c8_s46
+            c1_s42 c1_s43 c1_s44 c1_s45 c1_s46)
+ALL_CELLS=("${CHUNKED_CELLS[@]}" "${CONT_CELLS[@]}")
 
 die() { echo "GATEFAIL rc=${2} ${1}" >&2; exit "${2}"; }
 usage() {
-  echo "usage: della_repro_eval_submit.sh {all | all67500 | CELL [CELL...]}" >&2
+  echo "usage: della_repro_eval_submit.sh {all | all67500 | cont | CELL [CELL...]}" >&2
+  echo "       all      = the chunked arm (${#CHUNKED_CELLS[@]} cells)" >&2
+  echo "       all67500 = the chunked arm's headline-checkpoint cells (${#ALL67500_CELLS[@]})" >&2
+  echo "       cont     = the continuous arm (${#CONT_CELLS[@]} cells)" >&2
   echo "       cells: ${ALL_CELLS[*]}" >&2
 }
 
@@ -99,6 +113,7 @@ cell_ckpt() {   # <cell> -> prints the checkpoint path
   case "$1" in
     u8_s42_step62500) printf '%s\n' "$CKD/epoch=13-step=62500.ckpt" ;;
     u8_s42_step65000) printf '%s\n' "$CKD/epoch=14-step=65000.ckpt" ;;
+    c8_s4[2-6]|c1_s4[2-6]) printf '%s\n' "$CKPT_CONT_67500" ;;
     *)                printf '%s\n' "$CKPT_67500" ;;
   esac
 }
@@ -142,8 +157,9 @@ fi
 [ "$#" -gt 0 ] || { usage; die "no cells requested" 2; }
 CELLS=()
 case "$1" in
-  all)      [ "$#" -eq 1 ] || die "'all' takes no further arguments" 2;      CELLS=("${ALL_CELLS[@]}") ;;
+  all)      [ "$#" -eq 1 ] || die "'all' takes no further arguments" 2;      CELLS=("${CHUNKED_CELLS[@]}") ;;
   all67500) [ "$#" -eq 1 ] || die "'all67500' takes no further arguments" 2; CELLS=("${ALL67500_CELLS[@]}") ;;
+  cont)     [ "$#" -eq 1 ] || die "'cont' takes no further arguments" 2;     CELLS=("${CONT_CELLS[@]}") ;;
   *)
     for c in "$@"; do
       ok=0
@@ -191,7 +207,15 @@ if [ -n "$CKPT_BAD" ]; then
     die "checkpoint missing or empty for: ${CKPT_BAD}" 10
   fi
 else
-  echo "checkpoint preflight OK for all ${#CELLS[@]} cells (headline $(stat -c '%s' "$CKPT_67500") bytes)"
+  # Report the DISTINCT checkpoints actually preflighted: a cont-only selection
+  # never touches the chunked headline, and naming it would misreport the arm.
+  CKPT_SEEN=""
+  for c in "${CELLS[@]}"; do
+    ck="$(cell_ckpt "$c")"
+    case " ${CKPT_SEEN} " in *" ${ck} "*) ;; *) CKPT_SEEN="${CKPT_SEEN}${CKPT_SEEN:+ }${ck}" ;; esac
+  done
+  echo "checkpoint preflight OK for all ${#CELLS[@]} cells over $(set -- $CKPT_SEEN; echo $#) checkpoint(s):"
+  for ck in $CKPT_SEEN; do echo "  $(stat -c '%s' "$ck") bytes  ${ck}"; done
 fi
 
 # --- D. HEAD must be PUSHED ---------------------------------------------------

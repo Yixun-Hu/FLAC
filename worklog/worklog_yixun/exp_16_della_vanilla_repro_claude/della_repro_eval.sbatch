@@ -19,6 +19,14 @@
 #   seen_s42             seen split, descriptive
 #   u8_s42_a100          arch spot-check: identical to u8_s42 but a distinct
 #                        eval name, so the A100 JSON cannot overwrite the H200 one
+#   c8_s42 … c8_s46      the CONTINUOUS arm's headline, K=8, seeds 42-46
+#   c1_s42 … c1_s46      the continuous arm at K=1, seeds 42-46
+#
+# The c-cells are the other half of the chunking A/B: same protocol, same budget,
+# a checkpoint from the single-job run. Their checkpoint FILENAME is identical to
+# the chunked arm's (epoch=14-step=67500.ckpt) — only the eval name separates the
+# artifacts, which is why the c-cells' names carry exp16_cont_ rather than
+# exp16_repro_.
 #
 # The endpoint screens deliberately REUSE u8_s42's eval name: eval_FLAC's
 # build_output_paths prefixes every artifact with the checkpoint's own filename
@@ -62,6 +70,10 @@ REPO=/home/yh4742/codespace/FLAC
 PYEXE=/scratch/gpfs/BLANCHETTE/yh4742/conda_envs/flac/bin/python
 EXPDIR="$REPO/worklog/worklog_yixun/exp_16_della_vanilla_repro_claude"
 CKD=/scratch/gpfs/BLANCHETTE/yh4742/FLAC/checkpoints/exp16_vanilla_repro/FLAC_vanilla_repro/exp16_della_vanilla_repro/checkpoints
+# The CONTINUOUS arm's tree (round F): same layout, same 2500 cadence, same
+# headline filename — a different RUN. Its cells carry exp16_cont_ eval names, so
+# although the checkpoint basenames collide, the artifact stems never do.
+CKD_CONT=/scratch/gpfs/BLANCHETTE/yh4742/FLAC/checkpoints/exp16_vanilla_repro_cont/FLAC_vanilla_repro/exp16_della_vanilla_repro/checkpoints
 REPO_OUT="$REPO/outputs_FLAC/exp16_vanilla_repro"
 # Job names that own a GPU TRAINING run in this experiment: any of them running
 # means the checkpoint directory is being written while this cell reads it.
@@ -118,12 +130,13 @@ main() {
   echo "=== exp_16 Phase-3 eval — CELL=${CELL:-<unset>} — ${TS} — host $(hostname) — job ${SLURM_JOB_ID:-<none>} ==="
 
   # --- A. parameters: the cell table is hardcoded ------------------------------
-  [ -n "${CELL:-}" ] || die "CELL must be exported (u8_s4[2-6]|u1_s4[2-6]|u8_s42_step62500|u8_s42_step65000|seen_s42|u8_s42_a100)" 2
+  [ -n "${CELL:-}" ] || die "CELL must be exported (u8_s4[2-6]|u1_s4[2-6]|c8_s4[2-6]|c1_s4[2-6]|u8_s42_step62500|u8_s42_step65000|seen_s42|u8_s42_a100)" 2
   [ -n "${EXPECT_SHA:-}" ] || die "EXPECT_SHA (full reviewed commit sha) must be exported" 2
   UNSEEN_K8=src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json
   UNSEEN_K1=src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json
   SEEN_K8=src/configs/dataset_configs/AR/eval/acousticroom_seeneval.json
   CKPT_67500="$CKD/epoch=14-step=67500.ckpt"
+  CKPT_CONT_67500="$CKD_CONT/epoch=14-step=67500.ckpt"
   # Longest patterns first: a plain `u8_s42` glob must never swallow `u8_s42_a100`.
   case "$CELL" in
     u8_s42_step62500)
@@ -141,6 +154,12 @@ main() {
     u8_s4[2-6])
       DSCFG="$UNSEEN_K8"; SEED="${CELL#u8_s}"; COUNT=6337
       CKPT="$CKPT_67500"; EVALNAME="exp16_repro_unseen_K8_seed${SEED}" ;;
+    c8_s4[2-6])
+      DSCFG="$UNSEEN_K8"; SEED="${CELL#c8_s}"; COUNT=6337
+      CKPT="$CKPT_CONT_67500"; EVALNAME="exp16_cont_unseen_K8_seed${SEED}" ;;
+    c1_s4[2-6])
+      DSCFG="$UNSEEN_K1"; SEED="${CELL#c1_s}"; COUNT=6337
+      CKPT="$CKPT_CONT_67500"; EVALNAME="exp16_cont_unseen_K1_seed${SEED}" ;;
     u1_s4[2-6])
       DSCFG="$UNSEEN_K1"; SEED="${CELL#u1_s}"; COUNT=6337
       CKPT="$CKPT_67500"; EVALNAME="exp16_repro_unseen_K1_seed${SEED}" ;;
@@ -233,9 +252,13 @@ main() {
   # Artifacts land BESIDE the checkpoint (build_output_paths uses dirname of
   # --ckpt-path), i.e. on scratch — the checkpoint's own filename is the stem's
   # prefix, which is what keeps the three endpoint cells apart.
+  # Derived from the CHECKPOINT's own directory, exactly as build_output_paths
+  # does it — not from CKD. With two arms in two trees a hardcoded CKD would send
+  # a continuous cell looking for its metrics in the chunked arm's directory.
   CKPT_STEM="$(basename -- "$CKPT" .ckpt)"
-  METRICS="${CKD}/${CKPT_STEM}_metrics_1_1.0_${EVALNAME}.json"
-  STREAM="${CKD}/${CKPT_STEM}_metrics_1_1.0_${EVALNAME}.stream.json"
+  CKPT_DIR="$(dirname -- "$CKPT")"
+  METRICS="${CKPT_DIR}/${CKPT_STEM}_metrics_1_1.0_${EVALNAME}.json"
+  STREAM="${CKPT_DIR}/${CKPT_STEM}_metrics_1_1.0_${EVALNAME}.stream.json"
   echo "--- eval argv ---"
   echo "${PYEXE} eval_FLAC.py ${EVAL_ARGV[*]}"
   echo "--- expected artifacts ---"
