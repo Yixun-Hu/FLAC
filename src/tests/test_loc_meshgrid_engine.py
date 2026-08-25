@@ -900,6 +900,9 @@ def test_the_probe_amortizes_whole_receiver_groups_and_writes_no_scores(tmp_path
     assert len(summary["probe_records"]) == 2
     for record in summary["probe_records"]:
         assert me.assert_no_scores(record) is True
+        # the cache cost belongs to the GROUP, and the key says so
+        assert record["timings_s"]["source_cache_group"] > 0.0
+        assert record["timings_s"]["group_size"] == 2.0
     assert not os.path.isdir(os.path.join(out, me.ROWS_DIRNAME))
 
 

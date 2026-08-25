@@ -1179,9 +1179,13 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
                 for name, value in query_timer.totals.items():
                     state["timings_s"][name] = state["timings_s"].get(name, 0.0) + value
                 if probe:
+                    # the cache time is the GROUP's, billed once and reported under a
+                    # name that says so: summing it per query would count it k times
                     state["probe_records"].append(probe_record(
                         query.query_id, query.room_id, query.n_candidates, num_samples,
-                        dict(query_timer.totals, source_cache=timer.totals["source_cache"])))
+                        dict(query_timer.totals,
+                             source_cache_group=timer.totals["source_cache"],
+                             group_size=len(runnable))))
                     continue
                 scored = score_query(sims, query.candidate_indices.tolist(),
                                      query.coordinates, tau=tau, prefixes=prefixes)

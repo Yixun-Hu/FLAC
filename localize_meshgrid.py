@@ -228,7 +228,9 @@ def main(argv=None):
     if args.cache_parity_check:
         return _run_cache_parity(engine, plan, records, loader)
 
+    progress = _progress_printer(len(records) - len(done))
     summary = me.run_pass(engine, _iter_items(loader), records, plan, args.out_dir,
+                          on_row=progress,
                           seed=args.seed, tau=args.tau, num_samples=args.num_samples,
                           prefixes=tuple(int(k) for k in args.k_prefixes),
                           noise_policy=args.noise_policy, batch_rows=args.batch_rows,
@@ -255,6 +257,26 @@ def main(argv=None):
           f"{summary['n_conditioner_rows']} source-conditioner rows, "
           f"{summary['n_generated']} generated waveforms")
     return 0
+
+
+def _progress_printer(total, every=25):
+    """Per-query progress with a live rate -- this pass runs for days."""
+    import time
+
+    state = {"n": 0, "t0": time.time()}
+
+    def _on_row(row):
+        state["n"] += 1
+        if state["n"] % every and state["n"] != total:
+            return
+        elapsed = time.time() - state["t0"]
+        rate = state["n"] / max(elapsed, 1e-9)
+        remaining = (total - state["n"]) / max(rate, 1e-9)
+        print(f"[{state['n']}/{total}] {row['room_id']} {row['query_id'].split('|')[0]} "
+              f"| {elapsed / 3600:.2f} h elapsed, {rate * 3600:.1f} queries/h, "
+              f"~{remaining / 3600:.1f} h left", flush=True)
+
+    return _on_row
 
 
 def _run_cache_parity(engine, plan, records, loader):
