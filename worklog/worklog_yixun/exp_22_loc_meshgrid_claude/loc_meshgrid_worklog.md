@@ -23,3 +23,9 @@
 - **Version Control** — `6f169c5 9eef028 a9f796b bc790f5`; tree 2,863 green. Call-graph parity proven on real data (identical RNG state + fingerprints + context-audio digests across ours vs the eval_FLAC-faithful reference; counter-test bites). Directions pinned literally at the reviewed digest `9ab4339f…`; MeetingRoom discrepancy encoded as a loud, unresolved, room-blocking marker.
 - **Rulings:** ANCHOR_TOLERANCE 1e-3 for the context-join ACCEPTED (recovery join, not a geometric boundary; separately named). AGREE-path resolution recording ACCEPTED (verified on disk: the configured `weights/AGREE/AGREE_fullAR.pt` exists here, so resolution = "configured" on this box; the fallback guard is for other checkouts).
 - **Next** — focused r2 re-review → D1 full-pass manifest (CPU) → 16-room audit stays BLOCKED on the exp_09 rsync (MeetingRoom cross-check).
+
+## 2026-08-25T06:35:00-0400 — r3 delivered; D1 FULL PASS LAUNCHED (reviewer-preauthorized)
+
+- **Version Control** — `d061f64 1d1e491 22c512d`; tree 2,877 green. Planner rulings: the inf/NaN branch-rule distinction ACCEPTED (meaningful-empty-band inf disqualifies; NaN refuses — both pinned).
+- **Acceptance criteria (D1 pass, pre-launch):** enumeration gate 6,337 unique ordered identities; per-position idx+relpath guard clean; completed census exactly {6:91,7:429,8:5263,9:554}; filtered stream 5,337 with only ListeningRoom_idx_2 removed; manifest hashes recorded (full + filtered); byte-stable reload check. Cross-check vs exp_09's manifest: PENDING the rsync (recorded).
+- **Result** — launched (CPU; log loc_meshgrid_<TS>_d1_manifest.log). Focused r3 re-review running in parallel; any F2 finding ⇒ regenerate (cheap, deterministic).
