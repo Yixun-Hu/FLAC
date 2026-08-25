@@ -1031,3 +1031,63 @@ def test_manifest_schema_records_the_selected_seed_and_rule(tmp_path):
     assert payload["directions_seed"] == 1
     assert payload["directions_sha256"] == mg.FROZEN_DIRECTIONS_SHA256
     assert "smallest generator seed" in payload["direction_selection_rule"]
+
+
+# --------------------------------------------------------------------------- #
+# r6b -- metadata pair lookup is numeric, never a reconstructed name
+# --------------------------------------------------------------------------- #
+def _metadata_room(tmp_path, names, src=[1.0, 2.0, 0.5], rec=[3.0, 4.0, 1.5]):
+    directory = tmp_path / "metadata" / "Room" / "Room_idx_1"
+    directory.mkdir(parents=True, exist_ok=True)
+    for name in names:
+        (directory / name).write_text(json.dumps({"src_loc": src, "rec_loc": rec}))
+    return str(tmp_path / "metadata")
+
+
+@pytest.mark.parametrize("wav,stored", [
+    # the RELEASE concatenation "S00"+str(src)+"_R00"+str(rec): receiver 19 -> R0019
+    ("S007_R019_hybrid_IR.wav", "S007_R0019.json"),
+    ("S007_R008_hybrid_IR.wav", "S007_R008.json"),
+    ("S010_R015_hybrid_IR.wav", "S0010_R0015.json"),
+    ("S001_R100_hybrid_IR.wav", "S001_R00100.json"),
+])
+def test_metadata_lookup_matches_on_numeric_identity(tmp_path, wav, stored):
+    audit = _audit_module()
+    root = _metadata_room(tmp_path, [stored])
+    record = {"room_id": "Room/Room_idx_1", "query_id": "0|x",
+              "relpath": f"single_channel_ir_1/Room/Room_idx_1/{wav}"}
+    receiver, target = audit._metadata_for(record, root)
+    assert np.allclose(receiver, [3.0, 4.0, 1.5])
+    assert np.allclose(target, [1.0, 2.0, 0.5])
+
+
+def test_metadata_lookup_still_refuses_a_missing_pair(tmp_path):
+    audit = _audit_module()
+    root = _metadata_room(tmp_path, ["S007_R0019.json"])
+    record = {"room_id": "Room/Room_idx_1", "query_id": "0|x",
+              "relpath": "single_channel_ir_1/Room/Room_idx_1/S009_R0022_hybrid_IR.wav"}
+    with pytest.raises(ValueError, match="metadata"):
+        audit._metadata_for(record, root)
+
+
+def test_metadata_lookup_never_reconstructs_a_single_format(tmp_path):
+    """Two spellings of the SAME pair must both resolve; a reconstructed name
+    would resolve exactly one of them."""
+    audit = _audit_module()
+    record = {"room_id": "Room/Room_idx_1", "query_id": "0|x",
+              "relpath": "single_channel_ir_1/Room/Room_idx_1/S007_R019_hybrid_IR.wav"}
+    for stored in ("S007_R0019.json", "S007_R019.json"):
+        root = _metadata_room(tmp_path / stored[:-5], [stored])
+        assert audit._metadata_for(record, root)[0].shape == (3,)
+
+
+@pytest.mark.skipif(not os.path.isdir("AcousticRooms/metadata/MeetingRoom/MeetingRoom_idx_32"),
+                    reason="AR metadata not present")
+def test_metadata_lookup_resolves_a_real_two_digit_receiver():
+    audit = _audit_module()
+    record = {"room_id": "MeetingRoom/MeetingRoom_idx_32", "query_id": "0|x",
+              "relpath": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/"
+                         "S007_R019_hybrid_IR.wav"}
+    receiver, target = audit._metadata_for(record, "AcousticRooms/metadata")
+    assert receiver.shape == (3,) and np.isfinite(receiver).all()
+    assert target.shape == (3,) and np.isfinite(target).all()

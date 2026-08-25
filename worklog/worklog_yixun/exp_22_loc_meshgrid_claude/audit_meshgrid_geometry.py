@@ -122,14 +122,25 @@ def resolve_context_globals(record, receiver, anchors, tolerance=ANCHOR_TOLERANC
 
 
 def _metadata_for(record, metadata_root):
-    """``(receiver_global, target_global)`` from the query's own metadata JSON."""
-    room_id = record["room_id"]
-    scene, scene_id = room_id.split("/")
-    name = os.path.basename(record["relpath"])
-    source_node, receiver_node = name.split("_")[0], name.split("_")[1]
-    path = os.path.join(metadata_root, scene, scene_id, f"{source_node}_{receiver_node}.json")
-    if not os.path.isfile(path):
-        raise ValueError(f"query {record['query_id']!r}: metadata not found at {path}")
+    """``(receiver_global, target_global)`` from the query's own metadata JSON.
+
+    The pair file is found by PARSED NUMERIC IDENTITY over the directory
+    listing, never by reconstructing a name. The release writes these files as
+    ``"S00" + str(src) + "_R00" + str(rec)``, so receiver 19 is stored as
+    ``S007_R0019.json`` while receiver 8 is ``S007_R008.json`` -- one
+    reconstructed format cannot match both, which is what aborted the first real
+    G1 audit. ``candidates.find_pair_metadata`` already had these semantics and
+    is reused rather than re-derived.
+    """
+    from src.localization.candidates import find_pair_metadata, parse_ir_filename
+
+    scene, scene_id = record["room_id"].split("/")
+    src_node, rec_node = parse_ir_filename(os.path.basename(record["relpath"]))
+    room_dir = os.path.join(metadata_root, scene, scene_id)
+    path = find_pair_metadata(room_dir, src_node, rec_node)
+    if path is None:
+        raise ValueError(f"query {record['query_id']!r}: no pair metadata for "
+                         f"(S{src_node}, R{rec_node}) in {room_dir}")
     with open(path) as handle:
         payload = json.load(handle)
     return (np.asarray(payload["rec_loc"], dtype=np.float64),

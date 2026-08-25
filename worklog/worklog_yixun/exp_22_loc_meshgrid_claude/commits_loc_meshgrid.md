@@ -144,3 +144,27 @@ is now ACCEPTED by `audit_room_anchors`, which removes the last G1 blocker.
 (16/31) on two MeetingRoom receiver anchors. That is the rule's own bar, but it is a thin
 margin worth knowing before the cost gate.
 
+
+## Micro-round exp22-r6b (real G1 audit abort — metadata pair naming)
+
+| SHA | Item | Description | changed lines |
+|---|---|---|---|
+| `2962330` | numeric-tolerant pair lookup | `audit_meshgrid_geometry._metadata_for` reconstructed `f"{source_node}_{receiver_node}.json"` from the IR filename, producing `S007_R019.json` where the release stores `S007_R0019.json` — the release writes `"S00" + str(src) + "_R00" + str(rec)`, so no single reconstructed format matches both a two-digit and a single-digit receiver. It now parses `(src, rec)` with `candidates.parse_ir_filename` and resolves the file by **parsed numeric identity over the directory listing** via `candidates.find_pair_metadata`, reusing those semantics rather than re-deriving them. A missing pair still raises the same fail-closed `ValueError`, now naming `(S<src>, R<rec>)` and the room directory | +27 −8 |
+
+**Suite after exp22-r6b:** 2907 passed, 10 skipped, **0 failures**, 2 subtests passed.
+
+**Tests (7, RED first — 5 failed / 2 passed before the fix; the 2 were the cases where the
+reconstructed name coincidentally equalled the stored one):** two-digit receiver stored as
+`S007_R0019.json`; single-digit `S007_R008.json`; `S010`-style source `S0010_R0015.json`;
+three-digit `S001_R00100.json`; the missing-pair refusal; a probe asserting no single
+reconstructed format can satisfy the mixed-format directory; and a real-data test against
+`AcousticRooms/metadata/MeetingRoom/MeetingRoom_idx_32` (skipped where the dataset is absent).
+
+**D1 is unaffected — verified, not assumed.** `src/localization/meshgrid_queries.py` builds
+exactly one filename, `f"S00{node}_{receiver}_hybrid_IR.wav"` in `eligible_context_pool`
+(line 101), which mirrors released `AR_md.py:99` and is an IR wav name, not a metadata name.
+It constructs no `.json` path at all: its only `.json` strings are the model config, the
+`AR_md.py` module path and `data/AR/unseen_eval.json`. Pair metadata is read solely inside
+the **unmodified released** `AR_md.get_receiver_source_location`, which uses the release's own
+concatenation and is therefore correct by construction. The committed manifest hashes
+(full `15d229c0…`, filtered `99f8da60…`) are unchanged by this round.
