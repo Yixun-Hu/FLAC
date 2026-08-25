@@ -255,3 +255,36 @@ the 71,172,320-waveform pass — inside the 175 h stop-rule band, and dominated 
 decode at a batch of 64 rows, which is the obvious knob for the registered probe to sweep.
 Treat this as a wiring smoke on one small room, not a cost measurement: it is a single
 27-candidate-per-query room and the coordinator's probe owns the number.
+
+## Round exp22-r8 (r7 review — 7 BLOCKERs + 1 MAJOR, all items)
+
+| SHA | Item | Description | changed lines (code / tests) |
+|---|---|---|---|
+| `3f56cef` | CRN | `REGISTERED_NOISE_POLICY = shared_across_candidates` is the default everywhere; `run_pass` refuses anything else without an explicit opt-in and the driver refuses `--noise-policy per_candidate` outright. Inherited §1.1 fixes the shared draw, and it is the variance reduction the comparison rests on: with one draw per query, a score difference between two candidates is a difference between the CANDIDATES. The per-candidate key stays reachable by opt-in so the r7 evidence is reproducible | +11 −4 / +33 −4 |
+| `783be68` | GT prep | every fixture candidate set is now DERIVED by the same `meshgrid_geometry` filter the audit ran, from a real 0.5 m lattice with real receivers and contexts: the receiver guard, the 0.25 m context guard and the z-band all bite, two queries share a receiver with different contexts, and the branch choice changes the answer. Precondition for the GT removal — reconstructing a candidate set is only a test if the fixture's sets were filtered, not written down | +0 / +173 −119 |
+| `fc873c6` | GT | all three doors closed. `assert_query_geometry_consistent` replaces the oracle cross-check and proves MORE without the target: from the manifest receiver, the live context poses and the base bank it re-derives the z-band, both drop counts and the entire candidate index set. A differing candidate is tolerated only within `CONTEXT_JOIN_TOLERANCE` of the boundary deciding it, and every tolerated case is counted and summed into the summary. `context_record` grows `prove_target_absent`: D1 materialization still proves absence, the engine REQUIRES the frozen verdict. `GuardedMetadata` makes the rest structural — `source`/`source_vit` stay visible but any read, `dict()` copy included, raises `LeakageError` | +202 −41 / +144 −14 |
+| `747cd37` | BINDING | `cond_autocast` and `dataset_config_sha256` become strict binding fields (a resume could otherwise mix float16/float32 tokens or an edited split); every row and the summary record the batching they were produced with, and an advisory change on resume is appended to the published binding's `advisory_history` with a timestamp instead of scrolling past in stdout | +40 −4 / +63 |
+| `57017a6` | RESUME | `--resume` without a published binding is a refusal (it used to CREATE one, legitimizing whatever rows were there); every row carries `row_sha256` over everything it claims plus its binding digest; and `assert_published_matches` checks a skipped query's identity, receiver, branch and full candidate list against the loaded G1 plan, because nothing regenerates a skipped row. Verification also follows any waveform dump a row names | +104 −13 / +89 |
+| `4a5b910` | DETERMINISM | `DETERMINISM_CONTRACT` states the claim and `score_fingerprint` makes it operational: at fixed batching a replay must be bit-exact through scoring. `SCORE_TOLERANCE` is the registered bound for changed batching, and `compare_scored_runs` reports the max delta per prefix, every query whose argmax MOVED and how many sat within tolerance and could have. Rows carry their top-1 margin and an `argmax_stable` flag; the summary aggregates per K. `replay_check` (driver `--replay-check`) runs the claim with everything rebuilt; a ladder-gated test drives it against the frozen checkpoint | +193 −2 / +129 −3 |
+| `a3d8b53` | PROBE | each record names its receiver group and union size, so the cache cost is attributable and not double counted, and carries its own context time. `project_cost` measures three rates against three denominators — generation per WAVEFORM, source per unique (receiver, candidate) ROW, context per QUERY — and projects each against `REGISTERED_TOTALS` (16 / 5,337 / 8,896,540 / 966,147 / 71,172,320). The artifact carries the whole strict binding, its digest, the batching, the determinism contract and the leakage caveat, and refuses to publish a probe measured under an unregistered noise policy | +109 −9 / +93 |
+| `e14c68e` | SHARDING a | `--rooms` with canonical ids; empty, duplicate or unknown selections refuse. A shard still walks and verifies the COMPLETE D1 stream — the draws depend on the whole pass — while opening no candidate manifest and conditioning nothing for a room it does not own. Declared rooms are published beside the binding, pinned for that shard's resume, and kept out of the strict digest so a merge can require identical base bindings | +57 −8 / +89 |
+| `b38ec2b` | SHARDING b | `merge_shards` publishes into a FRESH directory only after: identical strict bindings; one pinned advisory batching, in the bindings and in every row; disjoint declared rooms whose union is exactly the registered set; exactly the registered query identities at their registered positions; no duplicate and no extra row; every row/sidecar/waveform digest re-verified against the binding and every row's identity re-checked against the G1 plan; and the three totals. The merged directory is itself a complete, re-verifiable run | +205 −2 / +137 |
+| `0895184` | DUMP | `load_dump_cases` REQUIRES the registered sha256 and compares it — an unregistered or edited list can no longer extend the announcement-08 exemption by existing — and the summary records which list and which digest authorized each dumped query | +40 −10 / +61 −3 |
+
+### Real-stack re-verification after the r8 fixes
+
+`--cache-parity-check` re-run against the frozen P1 checkpoint on cuda:0 with the GT guard,
+the CRN default and the new binding fields in place:
+
+- **no `LeakageError`** — the released `MultiConditioner`, asked for the context branch through
+  `only_ids`, never reaches for `md['source']`; the whole driver path runs with the target
+  structurally unreadable;
+- the D1 binding still holds: released call graph reproduced, RNG digest matched at iterator
+  creation, and the frozen manifest's `target_absent` (True for all 5,337 records) is what the
+  engine now requires in place of re-deriving it;
+- **MEMOIZATION: MATCH** (all five branches bit-identical, counter-test bit), `BATCHED` 3.91e-3
+  at float16 — unchanged from r7, as expected: none of the r8 fixes touch the caches.
+
+The reviewer's exact probe-sweep and shard command lines parse and validate against the new
+driver (`--branch z_band --noise-policy shared_across_candidates --probe-room … --rooms …`);
+running them is the ladder's, not this round's.

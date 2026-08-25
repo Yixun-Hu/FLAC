@@ -8,7 +8,13 @@ from, the context tensors it is conditioned on, the candidate set it competes in
 -- is bound to a registered artifact (the D1 context manifest, the G1 candidate
 manifests, the checkpoint, the scorer) and refused when it does not match.
 
-Five points are RECORDED DEVIATIONS from the inherited plan text, stamped into
+The engine is also, by construction, unable to read the thing it localizes: the
+loader item is wrapped in :class:`GuardedMetadata`, so ``md['source']`` raises
+rather than returning the answer, and every geometry check is derived from the
+manifest receiver and the context poses instead
+(:func:`assert_query_geometry_consistent`).
+
+Four points are RECORDED DEVIATIONS from the inherited plan text, stamped into
 the run binding and the published rows rather than silently taken:
 
 * ``SCORER_READOUT`` -- §1.4 pins ``encode_audio(..., normalize=True)``. That
@@ -16,10 +22,6 @@ the run binding and the published rows rather than silently taken:
   noise per call and which consumes the global RNG stream. The registered
   scorer here is exp_18/exp_20's deterministic mean readout, which is the same
   arithmetic with the bottleneck's mean substituted for its sample.
-* ``NOISE_KEY_POLICY`` -- resolved: §1.1's common random numbers is the
-  registered policy and a registered pass refuses anything else. The
-  per-candidate key of the r7 dispatch remains implemented and reachable only by
-  an explicit opt-in, so the r7 evidence stays reproducible.
 * ``SIMS_PRECISION_CAVEAT`` -- per-sample similarities are a float16 sidecar per
   QUERY, not per room: the atomic-resume contract is per query, and a room-level
   pack would lose finished queries on a mid-room kill. Every aggregate the

@@ -1,0 +1,108 @@
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+G1 audit re-verified: 16 rooms, branch z_band, 5337 queries
+D1 manifest: 5337 in-scope queries, filtered stream 99f8da609ef3...
+AGREE scorer: weights/AGREE/AGREE_fullAR.pt
+  LEAKAGE CAVEAT: AGREE_fullAR saw the full dataset including the unseen rooms; acceptable here because the scorer is frozen, identical across arms and candidates, and pinned by the approved exp_09 protocol -- but absolute levels are NOT leak-free and must never be compared against AGREE_AR-scored exp_18/exp_20 rows without this label
+scorer readout: mean -- DECLARED DEVIATION: inherited plan §1.4 names encode_audio(..., normalize=True); this run uses the deterministic VAE-mean readout of exp_18/exp_20 (src/localization/agree_embed.py), because the sampled path draws from AGREE's VAE bottleneck -- measured by exp_18 at ~7e-5 cosine noise per call -- and consumes the global RNG stream
+noise key policy: shared_across_candidates
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+cond_method binding: checkpoint ('vanilla')
+Loading AGREE model from checkpoint:  weights/AGREE/AGREE_fullAR.pt
+Image model facebook/dinov3-vits16-pretrain-lvd1689m loaded, trainable params: 21.00M
+Loaded pretrained weights from weights/FLAC/VAE.ckpt
+Done loading AGREE model
+Using EMA model
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+weights: ema, latent (32, 10)
+Running json scandir...
+Found 6337 files in 17 subfolders
+Max audio length for metric computation: 8000
+Loading AGREE model from checkpoint:  weights/AGREE/AGREE_fullAR.pt
+Image model facebook/dinov3-vits16-pretrain-lvd1689m loaded, trainable params: 21.00M
+Loaded pretrained weights from weights/FLAC/VAE.ckpt
+Done loading AGREE model
+AGREE model loaded successfully
+release call graph reproduced: ['seed_everything', 'build_dataloader', 'build_metric_stack', 'create_iterator'], RNG state matches the D1 pass at iterator creation
+{
+  "batched": {
+    "keys": {
+      "context_audio": {
+        "equal": false,
+        "max_abs_diff": 0.00390625
+      },
+      "context_poses": {
+        "equal": false,
+        "max_abs_diff": 7.62939453125e-06
+      },
+      "context_poses_vit": {
+        "equal": false,
+        "max_abs_diff": 0.001953125
+      },
+      "source": {
+        "equal": true,
+        "max_abs_diff": 0.0
+      },
+      "source_vit": {
+        "equal": false,
+        "max_abs_diff": 0.001953125
+      }
+    },
+    "max_abs_diff": 0.00390625,
+    "note": "informational: a nonzero value is the backbone's own batch-shape nondeterminism under autocast, not a cache error"
+  },
+  "counter_test": {
+    "detected": true,
+    "max_abs_diff": 2.119140625
+  },
+  "dtypes": {
+    "context_audio": "torch.float16",
+    "context_poses": "torch.float16",
+    "context_poses_vit": "torch.float16",
+    "source": "torch.float16",
+    "source_vit": "torch.float16"
+  },
+  "match": true,
+  "memoization": {
+    "keys": {
+      "context_audio": {
+        "equal": true,
+        "max_abs_diff": 0.0
+      },
+      "context_poses": {
+        "equal": true,
+        "max_abs_diff": 0.0
+      },
+      "context_poses_vit": {
+        "equal": true,
+        "max_abs_diff": 0.0
+      },
+      "source": {
+        "equal": true,
+        "max_abs_diff": 0.0
+      },
+      "source_vit": {
+        "equal": true,
+        "max_abs_diff": 0.0
+      }
+    },
+    "match": true
+  },
+  "n_candidates": 32,
+  "query_id": "0|single_channel_ir_1/Cafe/Cafe_idx_1/S006_R008_hybrid_IR.wav",
+  "source_chunk": 16
+}
+
+MEMOIZATION (the contract): MATCH; counter-test bit
+BATCHED (informational): max |diff| = 0.00391 at dtypes ['torch.float16'] -- informational: a nonzero value is the backbone's own batch-shape nondeterminism under autocast, not a cache error
