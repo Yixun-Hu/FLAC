@@ -72,3 +72,10 @@
 ## 2026-08-25 — r8 delivered (all 8; 3,036 green; real-stack leakage guard + cache parity clean); final gate review launched
 - Interpretation ACCEPTED: driver refuses per_candidate always (no unregistered driver mode); engine-level opt-in test-only.
 - **Acceptance criteria (registered probe sweep, pre-launch):** reviewer's exact commands, batch-rows {64,128,256} on cuda:0; artifacts carry full binding+digest; projection via project_cost against REGISTERED_TOTALS; select smallest batch-rows whose projection minimizes GPU-h; LAUNCH P1 iff projection ≤ 175 GPU-h (else stop → Yixun).
+
+## Erratum — session clock drift (logged 2026-08-25 19:30 EDT)
+Earlier entries this session were stamped under a drifted session clock (believed 2026-08-18).
+System `date` verified 2026-08-25; all exp_22 I1 execution (D1 manifest 02:17, G1 audit 16:41,
+cache parity / probe smoke ~17:38, r8b fixes + push `1e3ed22`, probe sweep launch 19:25) occurred
+on **2026-08-25 EDT**. Log filenames carrying other dates in their stems name the same runs.
+Per standing rule: verify `date` before stamping.
