@@ -168,3 +168,37 @@ It constructs no `.json` path at all: its only `.json` strings are the model con
 the **unmodified released** `AR_md.get_receiver_source_location`, which uses the release's own
 concatenation and is therefore correct by construction. The committed manifest hashes
 (full `15d229c0…`, filtered `99f8da60…`) are unchanged by this round.
+
+## Round exp22-r7 (the I1 engine — inherited plan §1.4/§1.5 + Yixun's decisions)
+
+| SHA | Item | Description | changed lines (code / tests) |
+|---|---|---|---|
+| `8e0cbc8` | noise + score core | `noise_key(seed, query_id, candidate_index, k)`, `noise_block` (candidate-major, chunk invariant by construction), `nested_scores` reading K ∈ {1,4,8} from prefixes of ONE 8-sample sequence at τ = 0.1, `argmax_by_global_index` (tie-break stated on the GLOBAL candidate index, so a re-ordered slice cannot move a prediction), `score_query` publishing the log-mean-exp headline and the `S_mean` diagnostic in exact float32 hex | +208 / +182 |
+| `08b74b9` | the two caches | conditioning split along §1.5's boundary through the released `MultiConditioner.only_ids` seam: context branch once per QUERY, source branch once per (receiver, candidate) over the ascending union. `ReceiverCache` is single-instance and carries the digest of the panorama it was built from — `source_vit` reads `depth`, so a receiver whose queries disagreed about it would be silently mis-served. Cached-vs-uncached assembly pinned bit-identical; chunking proven to change batching only | +167 / +148 |
+| `6d8d7c5` | D1 + G1 bindings | the four published-artifact verifiers move from the audit driver into `meshgrid_geometry` and are re-exported (one implementation; no logic change; audit suite green). `load_audit_plan` re-accepts the whole G1 chain before a query is scored and refuses a diagnostics-only report or a branch other than the audit's. `verify_context_record` makes the D1 manifest EXECUTABLE — fingerprints and every context RIR's float32 sha256 recomputed from the live stream before the draw conditions anything. `assert_receiver_consistent` recomputes G1's oracle from the loader's own `md['source']` | +351 −93 / +213 |
+| `5db5f06` | binding, artifacts, resume, dumps, probe | 17-field run binding under crossarm's type-sensitive canonical digest; sidecar-first atomic publication (the row is the completion marker and carries the sidecar's digest); `completed_queries` re-verifies both files so a resume skips only what still re-accepts; dumps bounded to the registered probe set + a digest-carried case list (announcement 08); `probe_record` cannot carry a score by construction | +255 / +147 |
+| `ac051d4` | the pass | `run_pass` walks the released loader ONCE in D1 order, verifies each draw, conditions the context branch once, embeds the observation once, and then runs the room receiver-group by receiver-group with exactly one cache resident. Rooms arrive as contiguous blocks — asserted, and true on the registered split. Generation is candidate-major in `batch_rows // K` chunks; identical scores at batch 32 and batch 1 | +297 −5 / +215 −2 |
+| `c8d8a01` | real stack + driver | `build_mesh_engine` (eval_FLAC's lines of record + the `only_ids` seam), `cache_parity_check` (§1.5's proof on the REAL conditioner), `assert_release_rng_state`, and `localize_meshgrid.py` | +457 −16 / +101 |
+| `a31c357` | source-chunk default | `source_vit` is a `GeometryConditioner`: every candidate is a full ViT forward over a `[3, 256, 512]` map, so the default chunk is 16, not 256 | +14 −5 / — |
+
+**Suite after exp22-r7:** see the round report (66 new engine tests; full tree re-run at round close).
+
+### Real-artifact cross-check (not a fixture)
+
+`load_audit_plan` re-verified the published 16-room G1 audit in 48.5 s, and the engine's own
+`receiver_groups` accounting reproduces the cost gate **exactly**: **8,896,540** candidate-query
+pairs and **966,147** union members (= source-conditioner calls) — the same numbers the audit
+published. The 16 registered off-grid probe queries were computed from the manifests
+(`S001_R001` in most rooms; `Cafe/Cafe_idx_1` → `1|…/S001_R040_hybrid_IR.wav`).
+
+### Declared deviations, stamped in the binding and in every row
+
+1. **Scorer readout** — inherited §1.4 names `encode_audio(..., normalize=True)`; this engine uses
+   exp_18/exp_20's deterministic VAE-mean readout, because the sampled path draws from AGREE's
+   bottleneck (~7e-5 cosine noise, exp_18 measurement) and consumes the global RNG stream.
+2. **Noise key** — the dispatched key is `(seed, query_id, candidate_index, k)`; inherited §1.1
+   says candidates of a query share their seeds (common random numbers). The dispatched key is
+   the default and `shared_across_candidates` is implemented and selectable, so a ruling either
+   way costs no code round.
+3. **Sidecar granularity** — per-QUERY float16 `.npy`, not per-room `.npz`: the atomic-resume
+   contract is per query, and a room-level pack would lose finished queries on a mid-room kill.
