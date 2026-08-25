@@ -1222,3 +1222,20 @@ def test_a_diagnostics_mode_never_claims_the_output_directory(tmp_path):
         assert driver.writes_query_artifacts(args) is False
     args = driver.parse_args(["--ckpt-path", "x.ckpt"])
     assert driver.writes_query_artifacts(args) is True
+
+
+def test_the_driver_refuses_an_are_checkpoint_before_it_builds_the_scorer(tmp_path):
+    import localize_meshgrid as driver
+
+    model_config = json.load(open("src/configs/model_configs/FLAC/AR/FLAC_AR.json"))
+    args = driver.parse_args(["--ckpt-path", "x.ckpt"])
+    clean = {"model_config": {"training": {"cond_method": "vanilla"}}}
+    assert driver.validate_checkpoint(args, model_config, clean)["binding"] == "checkpoint"
+
+    are = {"model_config": {"training": {"are_lambda": 0.5, "cond_method": "vanilla"}}}
+    with pytest.raises(SystemExit, match="ARE"):
+        driver.validate_checkpoint(args, model_config, are)
+
+    wrong = {"model_config": {"training": {"cond_method": "fa_invariant"}}}
+    with pytest.raises(SystemExit, match="cond_method"):
+        driver.validate_checkpoint(args, model_config, wrong)

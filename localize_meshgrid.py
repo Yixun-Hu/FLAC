@@ -132,6 +132,29 @@ def validate_args(args):
     return True
 
 
+def validate_checkpoint(args, model_config, ckpt):
+    """Every checkpoint refusal, BEFORE the scorer or the model is built.
+
+    exp_18's r3 review finding 9: an ARE artifact used to be refused inside the
+    engine build, i.e. after AGREE had already been constructed on the target
+    device. Both refusals -- the ARE one and the conditioning binding -- are
+    CPU-only reads of the file, so they belong here.
+    """
+    import copy
+
+    from eval_localization import assert_no_are
+    from src.localization.crossarm import cond_method_binding
+
+    try:
+        assert_no_are(ckpt.get("model_config"), copy.deepcopy(model_config))
+    except SystemExit as error:
+        _refuse(f"ARE check: {error}")
+    binding = cond_method_binding(ckpt, args.cond_method)
+    for reason in binding["reasons"]:
+        _refuse(reason)
+    return binding
+
+
 def writes_query_artifacts(args):
     """Only a scored pass claims the output directory.
 
@@ -194,13 +217,10 @@ def main(argv=None):
           f"{me.SCORER_READOUT_DEVIATION}")
     print(f"noise key policy: {args.noise_policy}")
 
-    # CPU-only validation first: the conditioning method is bound to the file
-    from src.localization.crossarm import cond_method_binding
-
+    # CPU-only validation first: no ARE artifact, and the conditioning method
+    # is bound to the file itself -- both before anything reaches a device
     ckpt = torch.load(args.ckpt_path, map_location="cpu")
-    binding_verdict = cond_method_binding(ckpt, args.cond_method)
-    for reason in binding_verdict["reasons"]:
-        _refuse(reason)
+    binding_verdict = validate_checkpoint(args, model_config, ckpt)
     print(f"cond_method binding: {binding_verdict['binding']} "
           f"({binding_verdict.get('checkpoint_cond_method')!r})")
 
