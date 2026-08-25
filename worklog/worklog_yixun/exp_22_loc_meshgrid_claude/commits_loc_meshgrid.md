@@ -181,7 +181,13 @@ concatenation and is therefore correct by construction. The committed manifest h
 | `c8d8a01` | real stack + driver | `build_mesh_engine` (eval_FLAC's lines of record + the `only_ids` seam), `cache_parity_check` (§1.5's proof on the REAL conditioner), `assert_release_rng_state`, and `localize_meshgrid.py` | +457 −16 / +101 |
 | `a31c357` | source-chunk default | `source_vit` is a `GeometryConditioner`: every candidate is a full ViT forward over a `[3, 256, 512]` map, so the default chunk is 16, not 256 | +14 −5 / — |
 
-**Suite after exp22-r7:** see the round report (66 new engine tests; full tree re-run at round close).
+| `12bff5c` | probe accounting + progress | the source cache is billed to the GROUP under a name that says so (summing a per-query key would count it k times); the driver prints a live rate and ETA every 25 queries, because the registered pass runs for days | +30 −6 / +3 |
+| `e9e5b81` | bounded dumps | an admitted dump now writes something. exp_18 dumped every candidate because M was ~10; here M averages 1,667, so a full dump is 546 MB/query and 1.7 TB/pass. A dumped query keeps every prefix's prediction, every prefix's `S_mean` prediction and the top-N at the largest prefix, plus the observation — REGENERATED from their own noise keys after scoring, so nothing is held in memory and a test proves the regenerated waveforms reproduce the similarities that were scored | +102 −4 / +57 |
+| `d9fdc75` | parity proof split | see the real-stack finding below | +79 −20 / +62 |
+| `321cf16` | advisory binding tier + driver fix | `source_chunk`/`batch_rows` are recorded, compared and REPORTED on resume rather than refused (binding them strictly would make an OOM unrecoverable); fixes a `NameError` that killed `--cache-parity-check` after the model load and that no fixture test could reach | +45 −8 / +14 |
+| `4eceb6d` | probe-room, diagnostics claim nothing, measured dtype | `--probe-room` bounds the probe to one room (Cafe's smallest group is 380 k waveforms, so there was no affordable real smoke); `writes_query_artifacts` stops a probe or parity check leaving a binding a scored pass would resume; `BATCHING_CAVEAT` records the MEASURED float16 ulp instead of an assumed bfloat16 one | +38 −16 / +14 |
+
+**Suite after exp22-r7:** see the round report (79 new engine tests; full tree re-run at round close).
 
 ### Real-artifact cross-check (not a fixture)
 
@@ -202,3 +208,26 @@ published. The 16 registered off-grid probe queries were computed from the manif
    way costs no code round.
 3. **Sidecar granularity** — per-QUERY float16 `.npy`, not per-room `.npz`: the atomic-resume
    contract is per query, and a room-level pack would lose finished queries on a mid-room kill.
+4. **Dump content** (`DUMP_CONTENT_RULE`) — a bounded, score-derived selection, because the
+   exp_18 dump-everything rule is 1.7 TB here. The rule is stamped in every dumped row.
+5. **`--probe-room`** — an addition beyond the dispatch, diagnostics-only, without which no
+   affordable real smoke of the pass exists (the split's first room has no small group).
+
+### The real-stack §1.5 parity finding (`d9fdc75`)
+
+The first run of `--cache-parity-check` on the frozen P1 checkpoint reported **MISMATCH on all
+five branches**, max |diff| 2e-3. That was not a cache error: the cached side computes the
+source branch in chunks and the context branch at batch 1, while the uncached side ran one call
+over 64 candidates, and the conditioners run in **float16** (`--cond-autocast default` on CUDA),
+where a changed batch shape moves an output by ~1 ulp. A check that cannot separate those two
+proves nothing, so it was rebuilt to answer them apart:
+
+| half | question | result on the real conditioner |
+|---|---|---|
+| `memoization` | same batching on both sides (one candidate per call, cache chunk 1) — does the cache serve what the direct call computes, through the released `only_ids` seam? | **MATCH — all five branches bit-identical, max \|diff\| 0.0** |
+| `batched` | cache at its production chunk vs one uncached call | informational: **3.9e-3** on the context branch (batch 1 vs batch 8); `source`/`source_vit` **bit-identical** at equal batching |
+| `counter_test` | can the comparison fail at all? | **bit** — perturbed positions move it by 1.96 |
+
+The memoization half also proves the `only_ids` split is FAITHFUL, since the cached side asks
+for one branch and the direct side asks for all five. The batching asymmetry is disclosed in
+`BATCHING_CAVEAT`, published in every run binding.
