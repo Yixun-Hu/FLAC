@@ -904,7 +904,11 @@ RUN_BINDING_FIELDS = (
     "tau", "seed", "noise_policy", "steps", "cfg_scale", "cond_method", "scorer_readout",
     # the conditioner's ARITHMETIC and the split's BYTES, not just its pathname:
     # without them a resume could mix autocast modes or an edited dataset config
-    "cond_autocast", "dataset_config_sha256", "dataset_config")
+    "cond_autocast", "dataset_config_sha256",
+    # the DUMP AUTHORITY: a resume that arrives with a different (or a new) case
+    # list would skip an already-complete query without ever producing the dump
+    # it now asks for, so changing it is a different run
+    "dump_cases_sha256", "dataset_config")
 
 #: recorded and compared, but NOT part of the strict digest. These change only
 #: the batch SHAPES the backbones see; under the registered autocast that moves

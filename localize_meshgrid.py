@@ -10,9 +10,10 @@ and 8 from ONE nested sequence.
 
 It is an evaluation driver only. Every protocol quantity it applies is
 registered in ``worklog/worklog_yixun/exp_22_loc_meshgrid_claude/
-loc_meshgrid_inherited_exp09_plan.md``, and the two recorded deviations from
-that text -- the deterministic AGREE mean readout and the per-candidate noise
-key -- are stamped into the run binding and into every published row.
+loc_meshgrid_inherited_exp09_plan.md``. Candidates share one draw per query
+(common random numbers, §1.1), and the recorded deviation from the plan text --
+the deterministic AGREE mean readout in place of its sampled bottleneck -- is
+stamped into the run binding and into every published row.
 
 Reuse boundary: the engine, caches, artifact codec and manifest verifiers live
 in ``src.localization.meshgrid_engine``; the model build follows
@@ -262,6 +263,7 @@ def build_run_binding(args, plan, ckpt_sha256, agree_sha256, model_config_sha256
         "scorer_readout": me.SCORER_READOUT,
         "cond_autocast": str(args.cond_autocast),
         "dataset_config_sha256": me.file_sha256(args.dataset_config),
+        "dump_cases_sha256": args.dump_cases_sha256 or None,
         "dataset_config": str(args.dataset_config),
     }
 

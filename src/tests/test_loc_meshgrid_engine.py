@@ -804,6 +804,7 @@ def _binding(**overrides):
                "noise_policy": "shared_across_candidates", "steps": 1, "cfg_scale": 1.0,
                "cond_method": "vanilla", "scorer_readout": "mean",
                "cond_autocast": "default", "dataset_config_sha256": "1" * 64,
+               "dump_cases_sha256": None,
                "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json"}
     payload.update(overrides)
     return payload
@@ -2267,3 +2268,53 @@ def test_a_resumed_shard_still_merges_because_the_census_is_derived(tmp_path):
 def items_of(tmp_path):
     """The fixture stream that ``_shards`` built its shards from."""
     return _aligned(tmp_path)[2]
+
+
+# --------------------------------------------------------------------------- #
+# r8b: dump authority is part of the strict binding
+# --------------------------------------------------------------------------- #
+def test_the_dump_authority_is_a_strict_binding_field(tmp_path):
+    assert "dump_cases_sha256" in me.RUN_BINDING_FIELDS
+    out = str(tmp_path / "run")
+    os.makedirs(out)
+    me.write_binding(out, _binding())
+    assert me.assert_binding(out, _binding()) is True
+    # a resume that ARRIVES with a case list the published pass never had would
+    # skip an already-complete query without producing its newly requested dump
+    with pytest.raises(ValueError, match="dump_cases_sha256"):
+        me.assert_binding(out, _binding(dump_cases_sha256="7" * 64))
+
+    other = str(tmp_path / "other")
+    os.makedirs(other)
+    me.write_binding(other, _binding(dump_cases_sha256="7" * 64))
+    with pytest.raises(ValueError, match="dump_cases_sha256"):
+        me.assert_binding(other, _binding(dump_cases_sha256="8" * 64))
+    with pytest.raises(ValueError, match="dump_cases_sha256"):
+        me.assert_binding(other, _binding())          # ... and dropping it, too
+    assert me.binding_sha256(_binding()) != me.binding_sha256(
+        _binding(dump_cases_sha256="7" * 64))
+
+
+def test_the_driver_binds_the_case_list_digest_it_was_given(tmp_path):
+    import localize_meshgrid as driver
+
+    out_dir, report_path, base = _fixture_audit(tmp_path)
+    plan = me.load_audit_plan(report_path)
+    manifest_path = tmp_path / "d1.json"
+    manifest_path.write_text(json.dumps({"records": [], "protocol_facts": {}}))
+    cases = tmp_path / "cases.json"
+    cases.write_text(json.dumps({"query_ids": ["1|x"]}))
+    digest = me.file_sha256(str(cases))
+
+    common = ["--ckpt-path", "x.ckpt", "--audit-report", report_path,
+              "--context-manifest", str(manifest_path)]
+    plain = driver.build_run_binding(driver.parse_args(common), plan, ckpt_sha256="1" * 64,
+                                     agree_sha256="2" * 64, model_config_sha256="3" * 64)
+    assert plain["dump_cases_sha256"] is None
+
+    args = driver.parse_args(common + ["--dump-waveforms", "1|x", "--dump-cases",
+                                       str(cases), "--dump-cases-sha256", digest])
+    bound = driver.build_run_binding(args, plan, ckpt_sha256="1" * 64,
+                                     agree_sha256="2" * 64, model_config_sha256="3" * 64)
+    assert bound["dump_cases_sha256"] == digest
+    assert me.binding_sha256(bound) != me.binding_sha256(plain)
