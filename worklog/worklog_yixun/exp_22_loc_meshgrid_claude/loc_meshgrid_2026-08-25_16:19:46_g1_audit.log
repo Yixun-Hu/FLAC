@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/audit_meshgrid_geometry.py", line 606, in <module>
+    raise SystemExit(main())
+  File "/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/audit_meshgrid_geometry.py", line 584, in main
+    report = run_audit(manifest, mesh_root=args.mesh_root,
+  File "/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/audit_meshgrid_geometry.py", line 389, in run_audit
+    receiver, target = _metadata_for(record, metadata_root)
+  File "/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/audit_meshgrid_geometry.py", line 132, in _metadata_for
+    raise ValueError(f"query {record['query_id']!r}: metadata not found at {path}")
+ValueError: query '5173|single_channel_ir_1/Apartments/Apartments_idx_42/S007_R019_hybrid_IR.wav': metadata not found at /media/diskstation/yixunhu/FLAC/AcousticRooms/metadata/Apartments/Apartments_idx_42/S007_R019.json

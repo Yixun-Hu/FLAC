@@ -1,0 +1,5 @@
+rooms 16 | queries 5337 | branch z_band
+oracle full_height  median 0.241 m, over-threshold 50, infinite 0
+  cost[full_height]: 15730208 candidate-query pairs, 1624934 unique receiver-candidate pairs, ~1624934 conditioner calls, 503.4 MB
+oracle z_band       median 0.241 m, over-threshold 50, infinite 0
+  cost[z_band]: 8896540 candidate-query pairs, 966147 unique receiver-candidate pairs, ~966147 conditioner calls, 284.7 MB

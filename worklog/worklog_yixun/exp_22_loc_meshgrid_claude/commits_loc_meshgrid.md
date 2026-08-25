@@ -232,3 +232,26 @@ proves nothing, so it was rebuilt to answer them apart:
 The memoization half also proves the `only_ids` split is FAITHFUL, since the cached side asks
 for one branch and the direct side asks for all five. The batching asymmetry is disclosed in
 `BATCHING_CAVEAT`, published in every run binding.
+
+### Real-stack smoke of the whole pass (NOT the registered probe — that is the ladder step)
+
+`--probe 1 --probe-room Bathrooms/Bathrooms_idx_14` ran the complete engine against the frozen
+P1 checkpoint on cuda:0: released call graph reproduced, RNG state matched D1's
+`rng_digest_at_iter`, 4,422 stream positions verified against the frozen manifest, checkpoint
+loaded EMA with 0 missing / 0 stray, one receiver group of **10 queries / 276 candidate-query
+pairs / 2,208 generated waveforms**, **no scores and no `rows/` directory written**.
+
+| component | per query (224 waveforms) | share |
+|---|---|---|
+| decode (VAE) | 1.42 s | **83 %** |
+| embed (AGREE) | 0.21 s | 12 % |
+| sampling (DiT, 1 step) | 0.087 s | 5 % |
+| conditioning (cache expand) | 0.002 s | 0.1 % |
+| source cache | 0.075 s for the whole GROUP | — |
+| context branch + observation | 0.17 s per query, phase 1 | — |
+
+**7.67 ms per generated waveform at the default `--batch-rows 64`**, i.e. ~**152 GPU-hours** for
+the 71,172,320-waveform pass — inside the 175 h stop-rule band, and dominated 83 % by the VAE
+decode at a batch of 64 rows, which is the obvious knob for the registered probe to sweep.
+Treat this as a wiring smoke on one small room, not a cost measurement: it is a single
+27-candidate-per-query room and the coordinator's probe owns the number.

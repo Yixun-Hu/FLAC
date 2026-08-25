@@ -1,0 +1,40 @@
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+G1 audit re-verified: 16 rooms, branch z_band, 5337 queries
+D1 manifest: 5337 in-scope queries, filtered stream 99f8da609ef3...
+AGREE scorer: weights/AGREE/AGREE_fullAR.pt
+  LEAKAGE CAVEAT: AGREE_fullAR saw the full dataset including the unseen rooms; acceptable here because the scorer is frozen, identical across arms and candidates, and pinned by the approved exp_09 protocol -- but absolute levels are NOT leak-free and must never be compared against AGREE_AR-scored exp_18/exp_20 rows without this label
+scorer readout: mean -- DECLARED DEVIATION: inherited plan §1.4 names encode_audio(..., normalize=True); this run uses the deterministic VAE-mean readout of exp_18/exp_20 (src/localization/agree_embed.py), because the sampled path draws from AGREE's VAE bottleneck -- measured by exp_18 at ~7e-5 cosine noise per call -- and consumes the global RNG stream
+noise key policy: per_candidate
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+cond_method binding: checkpoint ('vanilla')
+Loading AGREE model from checkpoint:  weights/AGREE/AGREE_fullAR.pt
+Image model facebook/dinov3-vits16-pretrain-lvd1689m loaded, trainable params: 21.00M
+Loaded pretrained weights from weights/FLAC/VAE.ckpt
+Done loading AGREE model
+Using EMA model
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+weights: ema, latent (32, 10)
+Running json scandir...
+Found 6337 files in 17 subfolders
+Max audio length for metric computation: 8000
+Loading AGREE model from checkpoint:  weights/AGREE/AGREE_fullAR.pt
+Image model facebook/dinov3-vits16-pretrain-lvd1689m loaded, trainable params: 21.00M
+Loaded pretrained weights from weights/FLAC/VAE.ckpt
+Done loading AGREE model
+AGREE model loaded successfully
+release call graph reproduced: ['seed_everything', 'build_dataloader', 'build_metric_stack', 'create_iterator'], RNG state matches the D1 pass at iterator creation
+probe: 2208 generated waveforms over 276 candidate-query pairs; NO scores written
+  timings (s): {'conditioning': 0.06695979554206133, 'sampling': 0.9484262464102358, 'decode': 14.655210371594876, 'embed': 2.1311804647557437, 'scoring': 0.03741432027891278, 'context': 1.7162826862186193}
+  -> /tmp/claude-1007/-home-yixunhu-codespace-FLAC/d52d297a-81b3-49c5-9f89-83bba36d42f5/probe_smoke/diagnostics_smoke.json

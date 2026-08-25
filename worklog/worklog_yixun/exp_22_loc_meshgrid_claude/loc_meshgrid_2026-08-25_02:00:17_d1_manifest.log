@@ -1,0 +1,16 @@
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Running json scandir...
+Found 6337 files in 17 subfolders
+Max audio length for metric computation: 8000
+Loading AGREE model from checkpoint:  weights/AGREE/AGREE_fullAR.pt
+Image model facebook/dinov3-vits16-pretrain-lvd1689m loaded, trainable params: 21.00M
+Loaded pretrained weights from weights/FLAC/VAE.ckpt
+Done loading AGREE model
+AGREE model loaded successfully
+Running json scandir...
+Found 6337 files in 17 subfolders
+MANIFEST WRITTEN + census asserted + reload OK: outputs_loc/exp22/d1_context_manifest.json
+full_hash ['experiment', 'protocol', 'context_width', 'protocol_facts', 'call_graph', 'dataset_config', 'n_full', 'n_filtered', 'full_stream_sha256', 'filtered_stream_sha256']
