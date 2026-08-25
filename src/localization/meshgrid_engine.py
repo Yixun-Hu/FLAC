@@ -1299,14 +1299,28 @@ def assert_dump_allowed(requested, allowed):
     return True
 
 
-def load_dump_cases(path):
-    """A registered case list, carried with the digest of the file it came from."""
+def load_dump_cases(path, expected_sha256=None):
+    """A REGISTERED case list: its digest is the authority, not its existence.
+
+    Without this any JSON file could extend the announcement-08 exemption simply
+    by being passed on the command line, and an edited list would still pass
+    (r7 review MAJOR DUMP). The digest is supplied separately -- from the
+    registration -- and the file must equal it.
+    """
+    found = file_sha256(path)
+    if not expected_sha256:
+        raise ValueError(f"{path} was offered as a dump case list without a registered "
+                         f"digest. Its sha256 is {found}; pass it explicitly so the list is "
+                         "authorized by the registration and not by its own existence")
+    if str(expected_sha256) != found:
+        raise ValueError(f"{path} hashes to {found[:12]}... but its registered digest is "
+                         f"{str(expected_sha256)[:12]}...; the list changed after registration")
     with open(str(path)) as handle:
         payload = json.load(handle)
     ids = payload.get("query_ids")
     if not isinstance(ids, list) or not ids or not all(isinstance(q, str) for q in ids):
         raise ValueError(f"{path} must carry a non-empty list of query_ids")
-    return {"query_ids": list(ids), "sha256": file_sha256(path), "path": str(path)}
+    return {"query_ids": list(ids), "sha256": found, "path": str(path)}
 
 
 #: candidates kept in a bounded waveform dump, beyond the predictions themselves.

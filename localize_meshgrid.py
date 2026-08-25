@@ -111,6 +111,9 @@ def parse_args(argv=None):
                         help="best-scoring candidates kept in a dump, beyond the predictions")
     parser.add_argument("--dump-cases", default=None,
                         help="a registered visualization case list (JSON with query_ids)")
+    parser.add_argument("--dump-cases-sha256", default=None,
+                        help="the REGISTERED sha256 of --dump-cases; without it the list "
+                             "would authorize itself")
     parser.add_argument("--replay-check", action="store_true",
                         help="score one query twice at fixed batching and require bit-exact "
                              "agreement (the registered determinism claim), then exit")
@@ -161,6 +164,11 @@ def validate_args(args):
                 f"({me.REGISTERED_NOISE_POLICY!r}), so a score difference between two "
                 "candidates is a difference between the candidates and not between their "
                 "noise")
+    if args.dump_cases and not args.dump_cases_sha256:
+        _refuse("--dump-cases needs --dump-cases-sha256: the announcement-08 exemption is "
+                "extended by a REGISTERED list, and a list that authorizes itself is not one")
+    if args.dump_cases_sha256 and not args.dump_cases:
+        _refuse("--dump-cases-sha256 was given without --dump-cases")
     if float(args.tau) <= 0.0:
         _refuse(f"--tau must be > 0, got {args.tau}")
     if args.cond_method != "vanilla":
@@ -194,17 +202,20 @@ def validate_checkpoint(args, model_config, ckpt):
 
 
 def dump_allowance(args, plan):
-    """The query ids this run may dump, computed ONLY if a dump was requested.
+    """What this run may dump, and WHERE that authority came from.
 
     ``registered_probe_queries`` reads every room's candidate manifest -- 328 MB
     of index lists -- so a run that dumps nothing must not pay for it.
     """
     if not args.dump_waveforms:
-        return set()
-    cases = me.load_dump_cases(args.dump_cases) if args.dump_cases else {"query_ids": []}
-    allowed = set(me.registered_probe_queries(plan).values()) | set(cases["query_ids"])
+        return {"query_ids": set(), "case_list": None, "probe_queries": {}}
+    cases = (me.load_dump_cases(args.dump_cases, expected_sha256=args.dump_cases_sha256)
+             if args.dump_cases else None)
+    probes = me.registered_probe_queries(plan)
+    allowed = set(probes.values()) | set((cases or {}).get("query_ids", []))
     me.assert_dump_allowed(args.dump_waveforms, allowed)
-    return {str(query) for query in args.dump_waveforms}
+    return {"query_ids": {str(query) for query in args.dump_waveforms},
+            "case_list": cases, "probe_queries": probes}
 
 
 def assert_resumable(args, out_dir):
@@ -327,9 +338,12 @@ def main(argv=None):
             for verdict in rejected[:5]:
                 print(f"  rejected {verdict['query_id']}: {verdict['reason']}")
 
-    dump_queries = dump_allowance(args, plan)
+    admitted = dump_allowance(args, plan)
+    dump_queries = admitted["query_ids"]
     if dump_queries:
-        print(f"bounded dumps admitted for {len(dump_queries)} queries "
+        authority = ("the registered off-grid probe list" if admitted["case_list"] is None
+                     else f"the probe list + case list {admitted['case_list']['sha256'][:12]}...")
+        print(f"bounded dumps admitted for {len(dump_queries)} queries via {authority} "
               f"(announcement 08 exemption)\n  {me.DUMP_CONTENT_RULE}")
 
     # the released call graph, in order: seed -> loader -> metric stack -> iterator.
@@ -359,6 +373,8 @@ def main(argv=None):
     summary["agree_leakage_caveat"] = me.AGREE_LEAKAGE_CAVEAT
     summary["scorer_readout_deviation"] = me.SCORER_READOUT_DEVIATION
     summary["sims_precision_caveat"] = me.SIMS_PRECISION_CAVEAT
+    summary["dump_cases"] = admitted["case_list"]
+    summary["dump_queries"] = sorted(dump_queries)
 
     if args.probe is not None:
         path = me.write_probe_records(args.out_dir, summary.pop("probe_records"),

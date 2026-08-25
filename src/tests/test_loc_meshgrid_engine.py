@@ -1061,7 +1061,7 @@ def test_dumping_anything_outside_the_registered_list_is_refused(tmp_path):
 def test_a_case_list_extends_the_allowed_set_only_when_it_is_registered(tmp_path):
     path = tmp_path / "cases.json"
     path.write_text(json.dumps({"query_ids": ["1|ir/A/A_idx_1/S003_R004_hybrid_IR.wav"]}))
-    cases = me.load_dump_cases(str(path))
+    cases = me.load_dump_cases(str(path), expected_sha256=me.file_sha256(str(path)))
     assert cases["query_ids"] == ["1|ir/A/A_idx_1/S003_R004_hybrid_IR.wav"]
     assert cases["sha256"] == me.file_sha256(str(path))
     allowed = {"0|a"} | set(cases["query_ids"])
@@ -1650,12 +1650,12 @@ def test_the_probe_query_list_is_only_computed_when_a_dump_asks_for_it(tmp_path)
     me.registered_probe_queries = lambda arg: touched.append(arg) or real(arg)
     try:
         args = driver.parse_args(["--ckpt-path", "x.ckpt"])
-        assert driver.dump_allowance(args, plan) == set()
+        assert driver.dump_allowance(args, plan)["query_ids"] == set()
         assert touched == []            # 328 MB of manifests not parsed for nothing
 
         args = driver.parse_args(["--ckpt-path", "x.ckpt", "--dump-waveforms",
                                   "0|ir/A/A_idx_1/S001_R002_hybrid_IR.wav"])
-        assert driver.dump_allowance(args, plan) == {
+        assert driver.dump_allowance(args, plan)["query_ids"] == {
             "0|ir/A/A_idx_1/S001_R002_hybrid_IR.wav"}
         assert touched == [plan]
         args = driver.parse_args(["--ckpt-path", "x.ckpt", "--dump-waveforms", "9|nope"])
@@ -2097,3 +2097,61 @@ def test_the_driver_exposes_the_merge_with_a_fresh_output(tmp_path):
         driver.validate_args(driver.parse_args(["--merge-shards", "a", "b"]))
     with pytest.raises(SystemExit, match="at least two"):
         driver.validate_args(driver.parse_args(["--merge-shards", "a", "--merge-out", "m"]))
+
+
+# --------------------------------------------------------------------------- #
+# the dump case list may not authorize itself
+# --------------------------------------------------------------------------- #
+def test_a_case_list_must_match_a_registered_digest(tmp_path):
+    path = tmp_path / "cases.json"
+    path.write_text(json.dumps({"query_ids": ["1|ir/A/A_idx_1/S003_R004_hybrid_IR.wav"]}))
+    digest = me.file_sha256(str(path))
+
+    with pytest.raises(ValueError, match="registered digest"):
+        me.load_dump_cases(str(path))                      # self-authorizing: refused
+    with pytest.raises(ValueError, match="registered digest"):
+        me.load_dump_cases(str(path), expected_sha256="9" * 64)
+    cases = me.load_dump_cases(str(path), expected_sha256=digest)
+    assert cases["sha256"] == digest and len(cases["query_ids"]) == 1
+
+    # editing the list after registration invalidates it
+    path.write_text(json.dumps({"query_ids": ["0|somebody/elses/query.wav"]}))
+    with pytest.raises(ValueError, match="registered digest"):
+        me.load_dump_cases(str(path), expected_sha256=digest)
+
+
+def test_the_driver_requires_the_case_list_digest(tmp_path):
+    import localize_meshgrid as driver
+
+    path = tmp_path / "cases.json"
+    path.write_text(json.dumps({"query_ids": ["1|x"]}))
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--dump-waveforms", "1|x",
+                              "--dump-cases", str(path)])
+    with pytest.raises(SystemExit, match="--dump-cases-sha256"):
+        driver.validate_args(args)
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--dump-waveforms", "1|x",
+                              "--dump-cases", str(path),
+                              "--dump-cases-sha256", me.file_sha256(str(path))])
+    assert driver.validate_args(args) is True
+
+
+def test_the_admitted_dump_set_records_where_its_authority_came_from(tmp_path):
+    import localize_meshgrid as driver
+
+    out_dir, report_path, base = _fixture_audit(tmp_path)
+    plan = me.load_audit_plan(report_path)
+    path = tmp_path / "cases.json"
+    path.write_text(json.dumps({"query_ids": ["1|ir/A/A_idx_1/S003_R004_hybrid_IR.wav"]}))
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--audit-report", report_path,
+                              "--dump-waveforms", "1|ir/A/A_idx_1/S003_R004_hybrid_IR.wav",
+                              "--dump-cases", str(path),
+                              "--dump-cases-sha256", me.file_sha256(str(path))])
+    admitted = driver.dump_allowance(args, plan)
+    assert admitted["query_ids"] == {"1|ir/A/A_idx_1/S003_R004_hybrid_IR.wav"}
+    assert admitted["case_list"]["sha256"] == me.file_sha256(str(path))
+    assert admitted["probe_queries"]
+
+    # a query in NEITHER list is still refused
+    args.dump_waveforms = ["2|ir/A/A_idx_1/S005_R002_hybrid_IR.wav"]
+    with pytest.raises(ValueError, match="announcement 08"):
+        driver.dump_allowance(args, plan)
