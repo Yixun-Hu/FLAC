@@ -769,9 +769,7 @@ def _fixture_records(tmp_path):
                                 "receiver_id": query.receiver_id, "room_id": room_id})
     items = _fixture_stream(stream_meta)
     for (obs, md), meta in zip(items, stream_meta):
-        record = _d1_record(meta["position"], md)
-        record["query_id"] = meta["relpath"] and record["query_id"]
-        records.append(record)
+        records.append(_d1_record(meta["position"], md))
     return plan, records, items
 
 
@@ -1029,7 +1027,6 @@ def test_dumping_a_query_regenerates_only_the_selected_candidates(tmp_path):
     plan, records, items = _aligned(tmp_path)
     engine = SyntheticEngine()
     out = str(tmp_path / "run")
-    dump = {"A/A_idx_1": None}
     summary = me.run_pass(engine, items, records, plan, out, num_samples=4,
                           prefixes=(1, 4), batch_rows=8,
                           dump_queries={"0|ir/A/A_idx_1/S001_R002_hybrid_IR.wav"},
