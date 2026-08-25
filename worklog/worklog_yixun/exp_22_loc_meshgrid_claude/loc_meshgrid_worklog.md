@@ -38,3 +38,9 @@
 
 - `60e91e4 b0314d0`; tree 2,892 green. Staged-verify-then-atomic-publish implements the r4 reviewer's precisely-stated condition; closed under Planner verification (precedent exp_18 r5b), with the next Codex review (audit outputs at the cost gate) covering this commit again in situ.
 - **exp_22 state:** D1 manifest ACCEPTED + committed; geometry primitives + fail-closed audit driver review-hardened through 5 rounds; 16 meshes on NAS; **sole blocker = Yixun's rsync** (direction set → MeetingRoom ruling → audit → cost gate).
+
+## 2026-08-25 — Yixun clarification: P1 checkpoint identity resolved
+
+- **Yixun (verbatim):** "P1_40k_clean_hybrid_EMA.ckpt is our trained P1 40k checkpoint, you use the same checkpoint for the P1 vanilla 40k."
+- **Consequence:** exp_22's P1 arm = our admitted wrapped `weights/exp20/P1_40k.ckpt` (sha `c4c67882…`), EMA-resolved at load — the same weights as the inherited plan's clean-EMA extract (their file = the EMA branch of this training run, exported). Rsync item ④ DROPPED from the blocking list; an EMA-tensor cross-check against their extract remains an optional nicety if the file ever arrives.
+- **Remaining rsync/transfer needs (shrunk):** ① the frozen 31-direction constants (DECISIVE — gates the MeetingRoom ruling + G1 audit); ② their D1 context manifest + G1 candidate manifests/mesh-audit report (parity cross-checks). All small files — any channel works, incl. Zhixuan pasting the constants.
