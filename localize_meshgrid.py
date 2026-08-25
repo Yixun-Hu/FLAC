@@ -132,6 +132,12 @@ def validate_args(args):
         _refuse(f"the registered protocol reads K in {prefixes} as nested prefixes of ONE "
                 f"generated sequence, so --num-samples must equal the largest prefix "
                 f"({max(prefixes)}), not {args.num_samples}")
+    if args.noise_policy != me.REGISTERED_NOISE_POLICY:
+        _refuse(f"--noise-policy {args.noise_policy!r} is not the registered draw: inherited "
+                "plan §1.1 fixes common random numbers across a query's candidates "
+                f"({me.REGISTERED_NOISE_POLICY!r}), so a score difference between two "
+                "candidates is a difference between the candidates and not between their "
+                "noise")
     if float(args.tau) <= 0.0:
         _refuse(f"--tau must be > 0, got {args.tau}")
     if args.cond_method != "vanilla":

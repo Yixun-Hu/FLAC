@@ -16,11 +16,10 @@ the run binding and the published rows rather than silently taken:
   noise per call and which consumes the global RNG stream. The registered
   scorer here is exp_18/exp_20's deterministic mean readout, which is the same
   arithmetic with the bottleneck's mean substituted for its sample.
-* ``NOISE_KEY_POLICY`` -- §1.1 says candidates of a query share their seeds
-  (common random numbers); the dispatched contract keys the draw by
-  ``(seed, query_id, candidate_index, k)``. The dispatched key is the default,
-  and the shared-across-candidates alternative is implemented and selectable so
-  a ruling either way costs no code round.
+* ``NOISE_KEY_POLICY`` -- resolved: §1.1's common random numbers is the
+  registered policy and a registered pass refuses anything else. The
+  per-candidate key of the r7 dispatch remains implemented and reachable only by
+  an explicit opt-in, so the r7 evidence stays reproducible.
 * ``SIMS_PRECISION_CAVEAT`` -- per-sample similarities are a float16 sidecar per
   QUERY, not per room: the atomic-resume contract is per query, and a room-level
   pack would lose finished queries on a mid-room kill. Every aggregate the
@@ -79,8 +78,14 @@ AGREE_LEAKAGE_CAVEAT = (
     "against AGREE_AR-scored exp_18/exp_20 rows without this label")
 
 NOISE_KEY_POLICIES = ("per_candidate", "shared_across_candidates")
-#: the dispatched default (see the module docstring's deviation note).
-NOISE_KEY_POLICY = "per_candidate"
+#: The REGISTERED policy: common random numbers -- inherited plan §1.1, "All
+#: candidates for a query share receiver, depth panorama, context RIRs, context
+#: poses, sample count, and seeds". The r7 dispatch keyed the draw per candidate
+#: and the r7 review ruled for CRN, which is also the variance-reduction the
+#: candidate comparison relies on: with a shared draw, a difference between two
+#: candidates' scores is a difference between the CANDIDATES.
+REGISTERED_NOISE_POLICY = "shared_across_candidates"
+NOISE_KEY_POLICY = REGISTERED_NOISE_POLICY
 
 
 # --------------------------------------------------------------------------- #
@@ -106,6 +111,26 @@ def noise_key_for(policy, seed, query_id, candidate_index, k):
     if policy == "shared_across_candidates":
         return _scoring.noise_key(seed, query_id, k)
     raise ValueError(f"unknown noise policy {policy!r} (expected one of {list(NOISE_KEY_POLICIES)})")
+
+
+def assert_registered_noise_policy(policy, allow_unregistered=False):
+    """A registered pass draws under common random numbers or refuses.
+
+    The alternative is not deleted -- a ruling can still be re-examined and the
+    r7 evidence re-derived -- but it cannot be reached by a default, only by an
+    explicit opt-in that no production entry point offers.
+    """
+    if str(policy) == REGISTERED_NOISE_POLICY:
+        return True
+    if not allow_unregistered:
+        raise ValueError(
+            f"noise policy {policy!r} is not the registered one: inherited plan §1.1 fixes "
+            "common random numbers across a query's candidates, so every candidate is scored "
+            f"against the SAME K draws ({REGISTERED_NOISE_POLICY!r}). Scoring candidates "
+            "under different noise makes a score difference partly a sampling difference")
+    if str(policy) not in NOISE_KEY_POLICIES:
+        raise ValueError(f"unknown noise policy {policy!r}")
+    return True
 
 
 def noise_block(seed, query_id, candidate_indices, num_samples, latent_shape,
@@ -1164,7 +1189,7 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
              num_samples=NUM_SAMPLES, prefixes=K_PREFIXES, noise_policy=NOISE_KEY_POLICY,
              batch_rows=64, source_chunk=SOURCE_CHUNK, done=(), probe=None, on_row=None,
              excluded_room=None, oracle_tol=1e-4, dump_queries=(), dump_top_n=DUMP_TOP_N,
-             probe_room=None):
+             probe_room=None, allow_unregistered_noise_policy=False):
     """Score the whole registered subset, room block by room block.
 
     The stream is the released loader in D1 order and is walked ONCE: every
@@ -1177,6 +1202,7 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
     from src.localization import meshgrid_queries as mq
 
     assert_cacheable(engine.cond_method)
+    assert_registered_noise_policy(noise_policy, allow_unregistered_noise_policy)
     excluded_room = mq.EXCLUDED_ROOM if excluded_room is None else excluded_room
     done = set(done)
     by_position = {int(record["position"]): record for record in records}

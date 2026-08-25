@@ -52,9 +52,43 @@ def test_shared_policy_delegates_to_the_exp18_query_level_key():
         me.noise_key_for("whatever", 42, "q", 5, 2)
 
 
-def test_the_registered_default_policy_is_recorded_not_assumed():
-    assert me.NOISE_KEY_POLICY == "per_candidate"
+def test_the_registered_policy_is_common_random_numbers():
+    # inherited plan §1.1: "All candidates for a query share ... seeds". The r7
+    # dispatch keyed the draw per candidate; the r7 review ruled for CRN.
+    assert me.NOISE_KEY_POLICY == "shared_across_candidates"
+    assert me.REGISTERED_NOISE_POLICY == "shared_across_candidates"
     assert set(me.NOISE_KEY_POLICIES) == {"per_candidate", "shared_across_candidates"}
+
+
+def test_a_registered_pass_refuses_the_per_candidate_policy(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    with pytest.raises(ValueError, match="common random numbers"):
+        me.run_pass(SyntheticEngine(), items, records, plan, str(tmp_path / "run"),
+                    num_samples=4, prefixes=(1, 4), noise_policy="per_candidate")
+    # the implementation stays reachable for a ruling, but only explicitly
+    summary = me.run_pass(SyntheticEngine(), items, records, plan, str(tmp_path / "b"),
+                          num_samples=4, prefixes=(1, 4), noise_policy="per_candidate",
+                          allow_unregistered_noise_policy=True)
+    assert summary["n_scored"] == 4
+
+
+def test_the_driver_refuses_a_per_candidate_run():
+    import localize_meshgrid as driver
+
+    args = driver.parse_args(["--ckpt-path", "x.ckpt"])
+    assert args.noise_policy == "shared_across_candidates"
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--noise-policy", "per_candidate"])
+    with pytest.raises(SystemExit, match="common random numbers"):
+        driver.validate_args(args)
+
+
+def test_common_random_numbers_share_the_draw_across_candidates():
+    block = me.noise_block(42, "q", [3, 9, 40], num_samples=4, latent_shape=(2, 5),
+                           policy=me.REGISTERED_NOISE_POLICY)
+    assert torch.equal(block[0:4], block[4:8]) and torch.equal(block[4:8], block[8:12])
+    # ... and they are exp_18's own keys, not a second implementation
+    assert me.noise_key_for(me.REGISTERED_NOISE_POLICY, 42, "q", 999, 2) == sc.noise_key(
+        42, "q", 2)
 
 
 # --------------------------------------------------------------------------- #
@@ -76,11 +110,11 @@ def test_noise_block_is_invariant_to_how_the_rows_are_chunked():
 
 
 def test_per_candidate_noise_differs_by_candidate_while_shared_does_not():
-    per = me.noise_block(42, "q", [0, 1], num_samples=2, latent_shape=(2, 5))
+    per = me.noise_block(42, "q", [0, 1], num_samples=2, latent_shape=(2, 5),
+                         policy="per_candidate")
     assert not torch.equal(per[0:2], per[2:4])
-    shared = me.noise_block(42, "q", [0, 1], num_samples=2, latent_shape=(2, 5),
-                            policy="shared_across_candidates")
-    assert torch.equal(shared[0:2], shared[2:4])
+    shared = me.noise_block(42, "q", [0, 1], num_samples=2, latent_shape=(2, 5))
+    assert torch.equal(shared[0:2], shared[2:4])       # the registered default
 
 
 def test_noise_block_refuses_a_bad_shape_or_sample_count():
@@ -806,7 +840,7 @@ def test_a_synthetic_pass_scores_every_query_and_publishes_its_artifacts(tmp_pat
     assert row["candidate_indices"] == [1, 2, 3]
     assert row["e_oracle"] > 0.0 and row["branch"] == "z_band"
     assert row["by_k"]["4"]["prediction_index"] in row["candidate_indices"]
-    assert row["noise_policy"] == "per_candidate" and row["seed"] == 42
+    assert row["noise_policy"] == "shared_across_candidates" and row["seed"] == 42
     assert row["scorer_readout"] == "mean"
     assert me.AGREE_LEAKAGE_CAVEAT in row["agree_leakage_caveat"]
 
@@ -930,7 +964,8 @@ def test_the_driver_pins_every_registered_default():
     args = driver.parse_args(["--ckpt-path", "x.ckpt"])
     assert args.seed == 42 and args.tau == 0.1 and args.num_samples == 8
     assert args.k_prefixes == [1, 4, 8] and args.steps == 1 and args.cfg_scale == 1.0
-    assert args.cond_method == "vanilla" and args.noise_policy == "per_candidate"
+    assert args.cond_method == "vanilla"
+    assert args.noise_policy == "shared_across_candidates"
     assert args.model_config.endswith("FLAC/AR/FLAC_AR.json")
     assert args.dataset_config.endswith("AR/eval/acousticroom_unseeneval.json")
     assert args.branch is None                      # taken from the audit, not chosen
