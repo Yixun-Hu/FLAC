@@ -115,3 +115,32 @@ released loader *drew*. The inherited-exp09 hash comparison remains **pending** 
 
 **Suite after exp22-r5:** 2892 passed, 10 skipped, **0 failures**, 2 subtests passed.
 
+## Round exp22-r6 (Yixun directive — self-authoritative direction selection)
+
+| SHA | Item | Description | changed lines |
+|---|---|---|---|
+| `910ead7` | anchor-driven selection | `select_direction_seed` / `evaluate_direction_seed` / `anchor_scenes` implement the registered rule — the smallest generator seed whose 31 directions classify EVERY metadata source and receiver anchor of all 16 required rooms as interior at ≥ 16/31 — plus `select_direction_seed.py` (anchors only, ~700 points per seed; one mesh load). The pin is replaced by the selected set, `KNOWN_PARITY_DISCREPANCIES` cleared and the old failure kept as `RESOLVED_PARITY_DISCREPANCIES`, and the seed + rule recorded in the docstring, the audit report and every room manifest | +286 −74 |
+
+**Suite after exp22-r6:** 2900 passed, 10 skipped, **0 failures**, 2 subtests passed.
+
+### The selection run (`loc_meshgrid_direction_selection.json`, log `…_direction_selection.log`)
+
+| fact | value |
+|---|---|
+| rule | smallest seed s ≥ 0 with ≥ 16/31 odd parity for every anchor in all 16 rooms |
+| anchors swept | **700** (sources + receivers, 16 rooms) |
+| seed 0 | **FAILS** — exactly one anchor: `MeetingRoom/MeetingRoom_idx_32` receiver `[2.26, 0.48, 1.2]` at 15/31 |
+| seed 1 | **PASSES** all 700, minimum 16/31 |
+| selected | **seed 1**, digest `79544f2dbc880a37a4826aa527d40e99a3e54ce849cfd0ec9f1c6e847c528a8d` |
+| previous pin | seed 0, digest `9ab4339f…` — confirmed to be exactly `build_directions(31, seed=0)` |
+| tightest anchors under the pin | MeetingRoom_idx_20 and MeetingRoom_idx_32 receivers, both 16/31 |
+
+**Investigation answered, not assumed:** the directive asked what happens if seed 0 passes.
+It does not — the 16-room sweep reproduces the reviewer's single failure exactly, so the
+r1-r5 discrepancy and the sweep were measuring the same generation. `MeetingRoom_idx_32`
+is now ACCEPTED by `audit_room_anchors`, which removes the last G1 blocker.
+
+**Margin caveat for the audit:** the selected set clears the majority by exactly one vote
+(16/31) on two MeetingRoom receiver anchors. That is the rule's own bar, but it is a thin
+margin worth knowing before the cost gate.
+
