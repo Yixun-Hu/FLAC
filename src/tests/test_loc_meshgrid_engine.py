@@ -644,19 +644,149 @@ def test_the_stream_must_deliver_each_room_as_one_contiguous_block():
         me.assert_room_blocks(records + [{"position": 3, "room_id": "A"}])
 
 
-def test_the_receiver_is_cross_checked_against_the_loaders_own_geometry():
-    # md['source'] is the GT source in the receiver frame; recombining it with the
-    # manifest's receiver must reproduce the oracle G1 recorded, or the candidate
-    # coordinates belong to a different receiver.
-    receiver = np.array([1.0, 2.0, 1.5])
-    truth = np.array([2.0, 2.0, 1.5])
-    coordinates = np.array([[2.0, 2.0, 2.0], [5.0, 5.0, 5.0]])
-    md = {"source": torch.tensor((truth - receiver), dtype=torch.float32)}
-    assert me.assert_receiver_consistent(md, receiver, coordinates, 0.5, tol=1e-4) is True
-    with pytest.raises(ValueError, match="oracle"):
-        me.assert_receiver_consistent(md, receiver, coordinates, 0.9, tol=1e-4)
-    with pytest.raises(ValueError, match="oracle"):
-        me.assert_receiver_consistent(md, receiver + 10.0, coordinates, 0.5, tol=1e-4)
+def test_the_query_geometry_is_reconstructed_without_any_target_access():
+    """The GT-free replacement for the oracle cross-check (r7 review BLOCKER GT).
+
+    Given only the manifest's receiver, the live context poses and the base
+    bank, the engine re-derives the query's z-band, its drop counts and its
+    whole candidate index set -- and refuses if any of them disagrees.
+    """
+    from src.localization import meshgrid_geometry as mg
+
+    room_id, entry = "A/A_idx_1", FIXTURE_QUERIES["A/A_idx_1"][0]
+    position, name, receiver, contexts, _truth = entry
+    md = _stream_md(room_id, entry)
+    band = mg.context_z_band(contexts)
+    full = mg.filter_query_candidates(FIXTURE_LATTICE, receiver=receiver,
+                                      context_sources=contexts)
+    query = me.QueryPlan(position=position, query_id=fixture_query_id(room_id, entry),
+                         room_id=room_id,
+                         receiver_id=fixture_receiver_id(room_id, receiver),
+                         receiver_xyz=receiver,
+                         candidate_indices=fixture_indices(room_id, entry),
+                         base=FIXTURE_LATTICE, oracle=0.1, branch="z_band",
+                         z_band=list(band), n_contexts=8,
+                         n_dropped_receiver=full["n_dropped_receiver"],
+                         n_dropped_context=full["n_dropped_context"])
+    report = me.assert_query_geometry_consistent(md, query)
+    assert report["reconstructed"] == len(query.candidate_indices)
+    assert report["n_tolerated"] == 0
+
+
+def test_a_receiver_that_is_not_this_querys_is_refused_without_the_target():
+    from src.localization import meshgrid_geometry as mg
+
+    room_id, entry = "A/A_idx_1", FIXTURE_QUERIES["A/A_idx_1"][0]
+    position, name, receiver, contexts, _truth = entry
+    md = _stream_md(room_id, entry)
+    full = mg.filter_query_candidates(FIXTURE_LATTICE, receiver=receiver,
+                                      context_sources=contexts)
+    kwargs = dict(position=position, query_id=fixture_query_id(room_id, entry),
+                  room_id=room_id, receiver_id="whatever",
+                  candidate_indices=fixture_indices(room_id, entry),
+                  base=FIXTURE_LATTICE, oracle=0.1, branch="z_band",
+                  z_band=list(mg.context_z_band(contexts)), n_contexts=8,
+                  n_dropped_receiver=full["n_dropped_receiver"],
+                  n_dropped_context=full["n_dropped_context"])
+    moved = me.QueryPlan(receiver_xyz=[2.0, 2.0, 1.5], **kwargs)
+    with pytest.raises(ValueError, match="candidate set|drop count|z-band"):
+        me.assert_query_geometry_consistent(md, moved)
+
+    # ... and a query whose contexts are not the ones the manifest was built from
+    other = _stream_md(room_id, FIXTURE_QUERIES["A/A_idx_1"][2])
+    with pytest.raises(ValueError, match="z-band|candidate set"):
+        me.assert_query_geometry_consistent(other, me.QueryPlan(receiver_xyz=receiver,
+                                                                **kwargs))
+
+
+def test_a_boundary_grazing_disagreement_is_tolerated_but_counted():
+    """float32 context poses vs the audit's float64 metadata anchors can only
+    move a candidate that sits within microns of a guard boundary."""
+    from src.localization import meshgrid_geometry as mg
+
+    room_id, entry = "B/B_idx_2", FIXTURE_QUERIES["B/B_idx_2"][0]
+    position, name, receiver, contexts, _truth = entry
+    md = _stream_md(room_id, entry)
+    full = mg.filter_query_candidates(FIXTURE_LATTICE, receiver=receiver,
+                                      context_sources=contexts)
+    indices = fixture_indices(room_id, entry)
+    # drop a candidate that sits EXACTLY on the receiver guard
+    distances = np.linalg.norm(FIXTURE_LATTICE[indices] - np.asarray(receiver), axis=1)
+    grazing = int(np.asarray(indices)[np.argmin(np.abs(distances - 0.5))])
+    assert abs(float(np.linalg.norm(FIXTURE_LATTICE[grazing] - np.asarray(receiver)))
+               - 0.5) < 1e-9
+    query = me.QueryPlan(position=position, query_id=fixture_query_id(room_id, entry),
+                         room_id=room_id, receiver_id="r", receiver_xyz=receiver,
+                         candidate_indices=[i for i in indices if i != grazing],
+                         base=FIXTURE_LATTICE, oracle=0.1, branch="z_band",
+                         z_band=list(mg.context_z_band(contexts)), n_contexts=8,
+                         n_dropped_receiver=full["n_dropped_receiver"] + 1,
+                         n_dropped_context=full["n_dropped_context"])
+    report = me.assert_query_geometry_consistent(md, query)
+    assert report["n_tolerated"] == 1 and report["tolerated"][0]["index"] == grazing
+
+
+# --------------------------------------------------------------------------- #
+# the leakage guard: the engine may not read the target
+# --------------------------------------------------------------------------- #
+def test_the_guard_refuses_the_target_fields_and_passes_everything_else():
+    md = _stream_md()
+    guarded = me.GuardedMetadata(md)
+    assert torch.equal(guarded["context_audio"], md["context_audio"])
+    assert guarded["relpath"] == md["relpath"]
+    assert "source" in set(guarded)                    # present, and unreadable
+    for key in me.GuardedMetadata.BLOCKED:
+        with pytest.raises(me.LeakageError, match="target"):
+            guarded[key]
+        with pytest.raises(me.LeakageError, match="target"):
+            guarded.get(key)
+    # a wholesale copy cannot smuggle it out either
+    with pytest.raises(me.LeakageError):
+        dict(guarded)
+
+
+def test_the_pass_hands_the_conditioner_a_guarded_metadata(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+
+    class Leaking(FakeConditioner):
+        def __call__(self, batch_metadata, device, only_ids=None):
+            for md in batch_metadata:
+                md.get("source")            # what the engine may never do
+            return super().__call__(batch_metadata, device, only_ids=only_ids)
+
+    engine = SyntheticEngine()
+    engine.conditioner = Leaking()
+    with pytest.raises(me.LeakageError, match="target"):
+        me.run_pass(engine, items, records, plan, str(tmp_path / "run"), num_samples=4,
+                    prefixes=(1, 4))
+
+
+def test_the_d1_reverification_does_not_read_the_target(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    guarded = me.GuardedMetadata(items[0][1])
+    assert me.verify_context_record(guarded, records[0], 0) is True
+    # the frozen manifest already recorded the target-absence proof; the engine
+    # requires it rather than re-deriving it from the target
+    with pytest.raises(ValueError, match="target_absent"):
+        me.verify_context_record(guarded, dict(records[0], target_absent=False), 0)
+    with pytest.raises(ValueError, match="target_absent"):
+        me.verify_context_record(guarded, {k: v for k, v in records[0].items()
+                                           if k != "target_absent"}, 0)
+
+
+def test_the_released_recorder_can_still_prove_target_absence():
+    """D1 materialization SEES the target -- it is the engine that may not."""
+    from src.localization import meshgrid_queries as mq
+
+    md = _stream_md()
+    assert mq.context_record(md, 0, eligible=8)["target_absent"] is True
+    leaking = dict(md)
+    leaking["source"] = md["context_poses"][0]
+    with pytest.raises(ValueError, match="target source appears"):
+        mq.context_record(leaking, 0, eligible=8)
+    # ... and the verify-only variant never touches it
+    assert mq.context_record(me.GuardedMetadata(md), 0, eligible=8,
+                             prove_target_absent=False)["target_absent"] is None
 
 
 # --------------------------------------------------------------------------- #
@@ -668,7 +798,7 @@ def _binding(**overrides):
                "g1_report_sha256": "e" * 64, "branch": "z_band",
                "room_manifest_sha256": {"A/A_idx_1": "f" * 64},
                "k_prefixes": [1, 4, 8], "num_samples": 8, "tau": 0.1, "seed": 42,
-               "noise_policy": "per_candidate", "steps": 1, "cfg_scale": 1.0,
+               "noise_policy": "shared_across_candidates", "steps": 1, "cfg_scale": 1.0,
                "cond_method": "vanilla", "scorer_readout": "mean",
                "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json"}
     payload.update(overrides)

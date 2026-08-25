@@ -129,8 +129,16 @@ def _audio_digests(context_audio):
             for index in range(tensor.shape[0])]
 
 
-def context_record(md, position, eligible):
-    """One record of what a query drew: identity, contexts, pool size, order."""
+def context_record(md, position, eligible, prove_target_absent=True):
+    """One record of what a query drew: identity, contexts, pool size, order.
+
+    ``prove_target_absent`` reads ``md['source']`` -- the held-out target -- to
+    show it is not among the contexts. That is legitimate during D1
+    MATERIALIZATION, which is what freezes the manifest, and forbidden in the
+    localization engine, which may not touch the target at all. The engine
+    therefore calls this with ``False`` and requires the frozen manifest's own
+    recorded ``target_absent`` instead (r7 review BLOCKER GT).
+    """
     from eval_FLAC import sample_target_id
 
     fingerprints = _fingerprints(md)
@@ -143,13 +151,15 @@ def context_record(md, position, eligible):
         raise ValueError(f"{len(digests)} context RIRs for {width} context poses")
 
     # the target source is excluded by construction; prove it rather than assume
-    target = md.get("source")
-    target_absent = True
-    if target is not None:
-        rendered = _fingerprints({"context_poses": torch.as_tensor(target).reshape(1, -1)})
-        if rendered and rendered[0] in fingerprints:
-            raise ValueError(f"query at position {position}: the target source appears among "
-                             "its own contexts; the held-out RIR would leak")
+    target_absent = None
+    if prove_target_absent:
+        target = md.get("source")
+        target_absent = True
+        if target is not None:
+            rendered = _fingerprints({"context_poses": torch.as_tensor(target).reshape(1, -1)})
+            if rendered and rendered[0] in fingerprints:
+                raise ValueError(f"query at position {position}: the target source appears "
+                                 "among its own contexts; the held-out RIR would leak")
     return {
         "position": int(position),
         "query_id": sample_target_id(md),
@@ -159,7 +169,7 @@ def context_record(md, position, eligible):
         "context_audio_sha256": digests,
         "context_width": width,
         "eligible": int(eligible),
-        "target_absent": bool(target_absent),
+        "target_absent": None if target_absent is None else bool(target_absent),
     }
 
 

@@ -36,6 +36,7 @@ import json
 import math
 import os
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import numpy as np
@@ -426,6 +427,49 @@ class ReceiverCache:
 
 
 # --------------------------------------------------------------------------- #
+# the leakage guard
+# --------------------------------------------------------------------------- #
+class LeakageError(RuntimeError):
+    """Raised when engine code reaches for the held-out target."""
+
+
+class GuardedMetadata(Mapping):
+    """A loader item with the TARGET fields made unreadable.
+
+    The engine localizes a hidden source: it may read the observation, the
+    contexts and the panorama, and it may not read where the source actually is.
+    ``md['source']`` is right there in every loader item, so the protection is
+    made structural rather than editorial -- any read, including a wholesale
+    ``dict(md)`` copy, raises. The keys stay VISIBLE in iteration, so this is a
+    guard and not a quiet deletion (r7 review BLOCKER GT).
+    """
+
+    BLOCKED = ("source", "source_vit")
+
+    def __init__(self, md, blocked=BLOCKED):
+        self._md = md
+        self._blocked = frozenset(blocked)
+
+    def __getitem__(self, key):
+        if key in self._blocked:
+            raise LeakageError(
+                f"the engine read {key!r}: that is the held-out target, and exp_22 localizes "
+                "it. Every geometry check the engine needs is derivable from the manifest "
+                "receiver and the context poses (assert_query_geometry_consistent)")
+        return self._md[key]
+
+    def __iter__(self):
+        return iter(self._md)
+
+    def __len__(self):
+        return len(self._md)
+
+    def without_target(self):
+        """A plain dict copy with the target fields DROPPED, not read."""
+        return {key: self._md[key] for key in self._md if key not in self._blocked}
+
+
+# --------------------------------------------------------------------------- #
 # the G1 binding: what a query is allowed to be scored against
 # --------------------------------------------------------------------------- #
 def file_sha256(path, chunk=1 << 20):
@@ -486,7 +530,8 @@ class QueryPlan:
     """One query's candidate set, as the audit published it."""
 
     def __init__(self, position, query_id, room_id, receiver_id, receiver_xyz,
-                 candidate_indices, base, oracle, branch, z_band, n_contexts):
+                 candidate_indices, base, oracle, branch, z_band, n_contexts,
+                 n_dropped_receiver=None, n_dropped_context=None):
         self.position = int(position)
         self.query_id = str(query_id)
         self.room_id = str(room_id)
@@ -500,6 +545,11 @@ class QueryPlan:
         self.branch = str(branch)
         self.z_band = list(z_band) if z_band is not None else None
         self.n_contexts = int(n_contexts)
+        #: the FULL-HEIGHT drop counts, as the audit records them
+        self.n_dropped_receiver = (None if n_dropped_receiver is None
+                                   else int(n_dropped_receiver))
+        self.n_dropped_context = (None if n_dropped_context is None
+                                  else int(n_dropped_context))
 
     @property
     def coordinates(self):
@@ -560,7 +610,9 @@ def load_room_plan(plan, room_id):
             receiver_id=entry["receiver_id"], receiver_xyz=entry["receiver"],
             candidate_indices=indices, base=base,
             oracle=(entry.get("oracle") or {})[plan.branch], branch=plan.branch,
-            z_band=entry.get("z_band"), n_contexts=entry.get("n_contexts", 0)))
+            z_band=entry.get("z_band"), n_contexts=entry.get("n_contexts", 0),
+            n_dropped_receiver=entry.get("n_dropped_receiver"),
+            n_dropped_context=entry.get("n_dropped_context")))
     queries.sort(key=lambda query: query.position)
     from src.localization.meshgrid_geometry import manifest_json_sha256
 
@@ -612,7 +664,16 @@ def verify_context_record(md, record, position):
     """
     from src.localization import meshgrid_queries as mq
 
-    found = mq.context_record(md, position, eligible=record.get("eligible", 0))
+    # prove_target_absent=False: the ENGINE may not read md['source'] (r7 review
+    # BLOCKER GT). D1 materialization already proved it and froze the verdict.
+    found = mq.context_record(md, position, eligible=record.get("eligible", 0),
+                              prove_target_absent=False)
+    if record.get("target_absent") is not True:
+        raise ValueError(
+            f"{record.get('query_id')!r}: the context manifest does not record "
+            "target_absent=True. The engine cannot re-derive it without reading the "
+            "held-out target, so a draw whose target-absence was never proven at "
+            "materialization time may not be scored")
     if found["query_id"] != record["query_id"]:
         raise ValueError(f"stream position {position}: the loader delivered query_id "
                          f"{found['query_id']!r} where the context manifest registers "
@@ -656,27 +717,109 @@ def assert_room_blocks(records):
     return order
 
 
-def assert_receiver_consistent(md, receiver_xyz, coordinates, oracle, tol=1e-4):
-    """The candidate coordinates belong to THIS query's receiver.
+#: the audit's own recovery-join tolerance. The engine rebuilds each context's
+#: global position as ``receiver + md['context_poses']`` in float32, while G1
+#: read it from the float64 metadata anchors; only a candidate sitting within
+#: microns of a guard boundary can be decided differently by that difference.
+CONTEXT_JOIN_TOLERANCE = 1e-3
 
-    ``md['source']`` is the ground-truth source in the receiver's own frame, so
-    ``receiver + md['source']`` is the global truth G1 measured its oracle
-    against. Recomputing that minimum from the published coordinates is a cheap
-    end-to-end check that the manifest row, the receiver and the loader item are
-    the same query -- an offset receiver moves it immediately.
+
+def context_globals(md, receiver_xyz):
+    """``[N, 3]`` global context-source positions -- GT-free by construction."""
+    poses = torch.as_tensor(md["context_poses"]).detach().cpu().to(torch.float64).numpy()
+    poses = np.asarray(poses, dtype=np.float64).reshape(-1, 3)
+    return poses + np.asarray(receiver_xyz, dtype=np.float64).reshape(1, 3)
+
+
+def _boundary_slack(point, receiver, contexts, z_band, eps):
+    """How close a candidate sits to the nearest guard it could be decided by."""
+    from src.localization.meshgrid_geometry import (CONTEXT_GUARD_RADIUS,
+                                                    RECEIVER_MIN_DISTANCE)
+
+    slacks = [abs(float(np.linalg.norm(point - receiver)) + eps - RECEIVER_MIN_DISTANCE)]
+    if len(contexts):
+        distances = np.linalg.norm(contexts - point.reshape(1, 3), axis=1)
+        slacks.append(float(np.abs(distances - eps - CONTEXT_GUARD_RADIUS).min()))
+    if z_band is not None:
+        slacks.append(min(abs(float(point[2]) + eps - float(z_band[0])),
+                          abs(float(point[2]) - eps - float(z_band[1]))))
+    return min(slacks)
+
+
+def assert_query_geometry_consistent(md, query, tol=CONTEXT_JOIN_TOLERANCE):
+    """Re-derive this query's candidate set from GT-FREE inputs, or refuse.
+
+    The r7 engine proved a query and its manifest row belonged together by
+    recomputing G1's oracle -- which reads the target. This does strictly more
+    without it: from the manifest's receiver, the live context poses and the
+    room's base bank it re-derives the z-band, the two drop counts and the whole
+    candidate index set, and requires them to match. A receiver from another
+    query, contexts from another draw, or a manifest row attached to the wrong
+    position all change that reconstruction.
+
+    A candidate whose membership differs is tolerated only when it sits within
+    ``tol`` of the guard boundary that decides it -- the float32-vs-float64
+    context-anchor difference can move nothing else -- and every tolerated case
+    is COUNTED and returned rather than silently absorbed.
     """
-    receiver = np.asarray(receiver_xyz, dtype=np.float64).reshape(3)
-    source = torch.as_tensor(md["source"]).detach().cpu().to(torch.float64).reshape(-1).numpy()
-    if source.size != 3:
-        raise ValueError(f"md['source'] must be 3 coordinates, got {source.size}")
-    truth = receiver + source
-    found = float(np.linalg.norm(np.asarray(coordinates, dtype=np.float64) - truth,
-                                 axis=1).min())
-    if abs(found - float(oracle)) > float(tol):
-        raise ValueError(f"the oracle recomputed from the loader's own geometry is {found:.6f} m "
-                         f"but the candidate manifest records {float(oracle):.6f} m; the "
-                         "candidate set does not belong to this receiver")
-    return True
+    from src.localization import meshgrid_geometry as mg
+
+    receiver = np.asarray(query.receiver_xyz, dtype=np.float64).reshape(3)
+    contexts = context_globals(md, receiver)
+    if query.n_contexts and contexts.shape[0] != int(query.n_contexts):
+        raise ValueError(f"{query.query_id}: the loader delivered {contexts.shape[0]} context "
+                         f"poses but the candidate manifest records {query.n_contexts}")
+
+    band = mg.context_z_band(contexts)
+    if query.z_band is not None:
+        drift = max(abs(band[0] - float(query.z_band[0])), abs(band[1] - float(query.z_band[1])))
+        if drift > tol:
+            raise ValueError(
+                f"{query.query_id}: the z-band derived from this query's contexts is "
+                f"[{band[0]:.6f}, {band[1]:.6f}] but the manifest records "
+                f"{query.z_band}; these contexts are not the ones the candidate set was "
+                "built from")
+
+    try:
+        full = mg.filter_query_candidates(query.base, receiver=receiver,
+                                          context_sources=contexts)
+        branch_band = None if query.branch == "full_height" else query.z_band
+        kept = (full if branch_band is None else
+                mg.filter_query_candidates(query.base, receiver=receiver,
+                                           context_sources=contexts, z_band=branch_band))
+    except ValueError as error:
+        raise ValueError(f"{query.query_id}: the candidate set could not be reconstructed "
+                         f"from the manifest receiver and this query's contexts: {error}") from error
+
+    rebuilt = set(int(i) for i in np.flatnonzero(kept["mask"]))
+    published = set(int(i) for i in query.candidate_indices)
+    tolerated, hard = [], []
+    for index in sorted(rebuilt ^ published):
+        slack = _boundary_slack(np.asarray(query.base[index], dtype=np.float64), receiver,
+                                contexts, branch_band, mg.EPS)
+        entry = {"index": int(index), "slack": float(slack),
+                 "side": "rebuilt_only" if index in rebuilt else "published_only"}
+        (tolerated if slack <= tol else hard).append(entry)
+    if hard:
+        raise ValueError(
+            f"{query.query_id}: the candidate set reconstructed from the manifest receiver and "
+            f"this query's contexts differs on {len(hard)} candidate(s) that are not near any "
+            f"guard boundary (first {hard[:3]}); the manifest row, the receiver and the loader "
+            "item are not the same query")
+
+    for name, rebuilt_count, published_count in (
+            ("receiver", full["n_dropped_receiver"], query.n_dropped_receiver),
+            ("context", full["n_dropped_context"], query.n_dropped_context)):
+        if published_count is None:
+            continue
+        if abs(int(rebuilt_count) - int(published_count)) > len(tolerated):
+            raise ValueError(
+                f"{query.query_id}: the {name} guard drops {rebuilt_count} candidates here but "
+                f"the manifest records {published_count}; that is more than the "
+                f"{len(tolerated)} boundary-grazing candidate(s) this reconstruction tolerated")
+    return {"reconstructed": len(rebuilt), "published": len(published),
+            "n_tolerated": len(tolerated), "tolerated": tolerated,
+            "z_band": [float(band[0]), float(band[1])]}
 
 
 # --------------------------------------------------------------------------- #
@@ -1188,8 +1331,9 @@ def _build_row(query, scored, *, seed, noise_policy, prefixes, timings, n_contex
 def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
              num_samples=NUM_SAMPLES, prefixes=K_PREFIXES, noise_policy=NOISE_KEY_POLICY,
              batch_rows=64, source_chunk=SOURCE_CHUNK, done=(), probe=None, on_row=None,
-             excluded_room=None, oracle_tol=1e-4, dump_queries=(), dump_top_n=DUMP_TOP_N,
-             probe_room=None, allow_unregistered_noise_policy=False):
+             excluded_room=None, dump_queries=(), dump_top_n=DUMP_TOP_N,
+             probe_room=None, allow_unregistered_noise_policy=False,
+             geometry_tol=CONTEXT_JOIN_TOLERANCE):
     """Score the whole registered subset, room block by room block.
 
     The stream is the released loader in D1 order and is walked ONCE: every
@@ -1214,7 +1358,8 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
 
     dump_queries = set(dump_queries or ())
     state = {"n_scored": 0, "n_skipped": 0, "n_conditioner_rows": 0,
-             "n_candidate_query_pairs": 0, "n_generated": 0, "n_dumped": 0, "rooms": [],
+             "n_candidate_query_pairs": 0, "n_generated": 0, "n_dumped": 0,
+             "n_geometry_tolerated": 0, "rooms": [],
              "probe_records": [], "timings_s": {}}
     buffer, depths, receiver_of = {}, {}, {}
     room_plan, current_room = None, None
@@ -1227,13 +1372,15 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
                   done=done, seed=seed, tau=tau, num_samples=num_samples,
                   prefixes=prefixes, noise_policy=noise_policy, batch_rows=batch_rows,
                   source_chunk=source_chunk, on_row=on_row, probe=probe is not None,
-                  oracle_tol=oracle_tol, dump_queries=dump_queries,
+                  geometry_tol=geometry_tol, dump_queries=dump_queries,
                   dump_top_n=dump_top_n)
         buffer.clear()
         depths.clear()
         receiver_of.clear()
 
-    for position, (obs_wav, md) in enumerate(stream):
+    for position, (obs_wav, raw_md) in enumerate(stream):
+        # from here on the target is unreadable, structurally (r7 review BLOCKER GT)
+        md = GuardedMetadata(raw_md)
         record = by_position.get(position)
         if record is None:
             found = room_of_relpath(md.get("relpath") or md.get("path") or "")
@@ -1283,7 +1430,8 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
             "obs_wav": (torch.as_tensor(obs_wav).detach().cpu().clone()
                         if record["query_id"] in dump_queries else None),
             "depth_digest": tensor_digest(md["depth"]),
-            "source": torch.as_tensor(md["source"]).detach().cpu().clone(),
+            # the context poses are what the GT-free geometry check re-derives from
+            "context_poses": torch.as_tensor(md["context_poses"]).detach().cpu().clone(),
             "n_contexts": record["context_width"]}
     flush()
     for name, value in timer.totals.items():
@@ -1293,7 +1441,7 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
 
 def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, done, seed,
               tau, num_samples, prefixes, noise_policy, batch_rows, source_chunk, on_row,
-              probe, oracle_tol, dump_queries=(), dump_top_n=DUMP_TOP_N):
+              probe, geometry_tol, dump_queries=(), dump_top_n=DUMP_TOP_N):
     """One room's receiver groups, one resident cache at a time."""
     missing = [] if selected is not None else [
         query.query_id for query in room_plan.queries
@@ -1324,8 +1472,9 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
             for query in runnable:
                 context = buffer[query.query_id]
                 cache.assert_same_depth_digest(context["depth_digest"])
-                assert_receiver_consistent({"source": context["source"]}, query.receiver_xyz,
-                                           query.coordinates, query.oracle, tol=oracle_tol)
+                geometry = assert_query_geometry_consistent(
+                    {"context_poses": context["context_poses"]}, query, tol=geometry_tol)
+                state["n_geometry_tolerated"] += geometry["n_tolerated"]
                 query_timer = _Timer(engine.device)
                 sims = _score_one_query(
                     engine, query, context["context"], cache, context["obs_embedding"],
@@ -1506,6 +1655,8 @@ def cache_parity_check(engine, query, md, n_candidates=None, source_chunk=SOURCE
     """
     from src.localization.candidates import candidate_metadata
 
+    # the source branch needs depth and a candidate pose -- never the target
+    md = md.without_target() if isinstance(md, GuardedMetadata) else md
     # default to MORE candidates than one production chunk, so the batched half
     # actually spans a chunk boundary instead of collapsing to a single call
     if n_candidates is None:
