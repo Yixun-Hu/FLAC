@@ -180,3 +180,151 @@ def test_scored_query_carries_every_prefix_prediction_and_the_mean_diagnostic():
             me.argmax_by_global_index(sims[:, :k].mean(dim=-1), indices)]
     assert scored["n_candidates"] == 5
     assert scored["num_samples"] == 8
+
+
+# --------------------------------------------------------------------------- #
+# the conditioning split: context per query, source per (receiver, candidate)
+# --------------------------------------------------------------------------- #
+class FakeConditioner:
+    """A deterministic stand-in for ``MultiConditioner`` with its ``only_ids`` seam.
+
+    Every branch's value is a function of the metadata it is supposed to read --
+    the context ids of the context tensors, the source ids of ``source`` and
+    ``depth`` -- so an incorrectly assembled batch cannot coincidentally match.
+    """
+
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, batch_metadata, device, only_ids=None):
+        self.calls.append({"n": len(batch_metadata),
+                           "ids": None if only_ids is None else sorted(only_ids)})
+        out = {}
+        for key in me.CONTEXT_COND_IDS + me.SOURCE_COND_IDS:
+            if only_ids is not None and key not in only_ids:
+                continue
+            rows = []
+            for md in batch_metadata:
+                if key in me.CONTEXT_COND_IDS:
+                    seed = float(torch.as_tensor(md["context_audio"]).sum()) + len(key)
+                else:
+                    seed = (float(torch.as_tensor(md["source"]).sum())
+                            + float(torch.as_tensor(md["depth"]).sum()) + len(key))
+                rows.append(torch.full((3,), seed, dtype=torch.float32))
+            out[key] = [torch.stack(rows).to(device),
+                        torch.ones(len(batch_metadata), dtype=torch.bool)]
+        return out
+
+
+def _md(source=(0.0, 0.0, 0.0), depth_value=1.0, context_value=2.0):
+    return {"source": torch.tensor(source, dtype=torch.float32),
+            "source_vit": torch.tensor(source, dtype=torch.float32).unsqueeze(0),
+            "depth": torch.full((2, 4), float(depth_value)),
+            "context_audio": torch.full((8, 1, 16), float(context_value)),
+            "context_poses": torch.arange(24, dtype=torch.float32).reshape(8, 3),
+            "context_poses_vit": torch.arange(24, dtype=torch.float32).reshape(8, 3)}
+
+
+def test_the_two_branches_partition_the_registered_conditioning_ids():
+    from src.models import conditioners as _c            # the id contract is the config's
+    config = json.load(open("src/configs/model_configs/FLAC/AR/FLAC_AR.json"))
+    declared = {entry["id"] for entry in config["model"]["conditioning"]["configs"]}
+    assert set(me.CONTEXT_COND_IDS) | set(me.SOURCE_COND_IDS) == declared
+    assert not set(me.CONTEXT_COND_IDS) & set(me.SOURCE_COND_IDS)
+    assert "only_ids" in _c.MultiConditioner.forward.__code__.co_varnames
+
+
+def test_context_conditioning_runs_once_over_one_row():
+    conditioner = FakeConditioner()
+    cached = me.context_conditioning(conditioner, _md(), "cpu")
+    assert sorted(cached) == sorted(me.CONTEXT_COND_IDS)
+    assert conditioner.calls == [{"n": 1, "ids": sorted(me.CONTEXT_COND_IDS)}]
+    assert cached["context_audio"][0].shape[0] == 1
+
+
+def test_source_conditioning_covers_the_union_and_is_chunk_invariant():
+    conditioner = FakeConditioner()
+    positions = np.arange(12, dtype=np.float64).reshape(4, 3)
+    whole = me.source_conditioning(conditioner, _md(), positions, "cpu", chunk=64)
+    chunked = me.source_conditioning(conditioner, _md(), positions, "cpu", chunk=1)
+    for key in me.SOURCE_COND_IDS:
+        assert torch.equal(whole[key][0], chunked[key][0])
+        assert whole[key][0].shape[0] == 4
+    assert [call["n"] for call in conditioner.calls[1:]] == [1, 1, 1, 1]
+
+
+def test_conditioning_refuses_a_branch_the_conditioner_did_not_return():
+    class Partial(FakeConditioner):
+        def __call__(self, batch_metadata, device, only_ids=None):
+            out = super().__call__(batch_metadata, device, only_ids=only_ids)
+            out.pop(me.CONTEXT_COND_IDS[0], None)
+            return out
+
+    with pytest.raises(ValueError, match="context_poses_vit"):
+        me.context_conditioning(Partial(), _md(), "cpu")
+
+
+def test_expanding_the_cache_selects_one_row_per_generated_row():
+    conditioner = FakeConditioner()
+    positions = np.arange(9, dtype=np.float64).reshape(3, 3)
+    source = me.source_conditioning(conditioner, _md(), positions, "cpu")
+    context = me.context_conditioning(conditioner, _md(), "cpu")
+    merged = me.expand_conditioning(context, source, torch.tensor([2, 0, 2]), "cpu")
+    assert sorted(merged) == sorted(me.CONTEXT_COND_IDS + me.SOURCE_COND_IDS)
+    assert torch.equal(merged["source"][0][0], source["source"][0][2])
+    assert torch.equal(merged["source"][0][1], source["source"][0][0])
+    # the context row is the SAME for every generated row
+    assert torch.equal(merged["context_audio"][0][0], merged["context_audio"][0][2])
+    assert merged["context_audio"][0].shape[0] == 3
+
+
+# --------------------------------------------------------------------------- #
+# the receiver cache: bit-identity against the uncached path
+# --------------------------------------------------------------------------- #
+def test_cached_conditioning_is_bit_identical_to_the_uncached_path():
+    from src.localization.candidates import candidate_metadata
+
+    conditioner = FakeConditioner()
+    base = _md()
+    positions = np.arange(15, dtype=np.float64).reshape(5, 3)
+    indices = [4, 9, 11, 30, 31]
+
+    uncached = conditioner([candidate_metadata(base, positions[m]) for m in range(5)], "cpu")
+
+    cache = me.ReceiverCache.build(conditioner, "R", base, indices, positions, "cpu", chunk=2)
+    context = me.context_conditioning(conditioner, base, "cpu")
+    rows = cache.rows_for([4, 9, 11, 30, 31])
+    cached = me.expand_conditioning(context, cache.conditioning, rows, "cpu")
+
+    for key in me.CONTEXT_COND_IDS + me.SOURCE_COND_IDS:
+        assert torch.equal(cached[key][0], uncached[key][0]), key
+
+
+def test_the_cache_serves_a_query_subset_in_the_querys_own_order():
+    conditioner = FakeConditioner()
+    positions = np.arange(15, dtype=np.float64).reshape(5, 3)
+    cache = me.ReceiverCache.build(conditioner, "R", _md(), [4, 9, 11, 30, 31], positions, "cpu")
+    assert cache.rows_for([30, 4]).tolist() == [3, 0]
+    assert cache.n_candidates == 5
+    with pytest.raises(ValueError, match="not in the receiver union"):
+        cache.rows_for([4, 12])
+
+
+def test_the_cache_refuses_a_query_whose_depth_is_not_the_receivers():
+    conditioner = FakeConditioner()
+    positions = np.arange(6, dtype=np.float64).reshape(2, 3)
+    cache = me.ReceiverCache.build(conditioner, "R", _md(depth_value=1.0), [0, 1], positions, "cpu")
+    cache.assert_same_depth(_md(depth_value=1.0))       # the receiver's own panorama
+    with pytest.raises(ValueError, match="depth"):
+        cache.assert_same_depth(_md(depth_value=7.0))
+
+
+def test_the_union_is_deduplicated_and_ascending():
+    conditioner = FakeConditioner()
+    union = me.receiver_union([[5, 1], [1, 9], [5]])
+    assert union == [1, 5, 9]
+    positions = np.arange(9, dtype=np.float64).reshape(3, 3)
+    cache = me.ReceiverCache.build(conditioner, "R", _md(), union, positions, "cpu")
+    # one conditioner call per (receiver, candidate) in the union -- the cost the
+    # G1 gate counted, not one per (query, candidate)
+    assert cache.n_conditioner_rows == 3
