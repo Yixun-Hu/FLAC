@@ -107,3 +107,11 @@ The superseded `outputs_loc/exp22/d1_context_manifest.json` was **deleted** firs
 result and worth stating: the F2 fix changed how a path is *compared*, not what the
 released loader *drew*. The inherited-exp09 hash comparison remains **pending** the rsync.
 
+## Micro-round exp22-r5 (r4 re-review — the last G1 blocker)
+
+| SHA | Item | Description | changed lines |
+|---|---|---|---|
+| `60e91e4` | staged publish | the audit writes every artifact into a `.staging_geometry_audit_*` sibling, runs `verify_room_manifest` + `verify_report_chain` against the STAGED files, and only then publishes — a whole-directory `os.replace` where possible, per-file otherwise. A verifier failure removes the staging directory and leaves the final directory untouched and empty. The ordering defect is fixed: the verification block is written into the report **before** its disk copy (and the chain result rewritten once the chain verifies), so the published report states what was checked | +64 −22 |
+
+**Suite after exp22-r5:** 2892 passed, 10 skipped, **0 failures**, 2 subtests passed.
+
