@@ -79,3 +79,10 @@ System `date` verified 2026-08-25; all exp_22 I1 execution (D1 manifest 02:17, G
 cache parity / probe smoke ~17:38, r8b fixes + push `1e3ed22`, probe sweep launch 19:25) occurred
 on **2026-08-25 EDT**. Log filenames carrying other dates in their stems name the same runs.
 Per standing rule: verify `date` before stamping.
+
+## I1 probe sweep verdict + batch-rows selection (2026-08-25 19:5x EDT)
+Registered sweep (Bathrooms_idx_14, 10 queries / 1 receiver group / 32 union rows / 2,208 waveforms per config) complete; diagnostics copied beside this worklog. **Independent rederivation from raw per-record timings (4 buckets: waveform-scaled sampling+decode+embed+scoring x 71,172,320; pair-scaled conditioning x 8,896,540; union-row-scaled source cache x 966,147, deduped per receiver_id with intra-group stamp-equality asserted; per-query context x 5,337) agrees with the engine projection to 0.1 GPU-h on all three configs:**
+- br64: 157.8 GPU-h (7.904 ms/wf)
+- br128: 156.0 GPU-h (7.815 ms/wf)
+- **br256: 148.4 GPU-h (7.438 ms/wf) — unique minimum -> WINNER (smallest batch-rows attaining min)**
+Gate: 148.4 <= 175 GPU-h -> **P1 LAUNCH AUTHORIZED** per pre-registered criteria (worklog r8 section) under Yixun's "2b: ii — run P1 first". Wall estimate: Cafe shard 51.2% of pairs -> ~76 h -> results ETD ~Aug 29 morning. Sample-size caveat: projection extrapolates one receiver group; the engine re-stamps per-row batching so drift is auditable in the full pass.
