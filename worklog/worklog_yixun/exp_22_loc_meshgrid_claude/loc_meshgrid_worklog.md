@@ -33,3 +33,8 @@
 ## 2026-08-25T04:05:00-0400 (box ~02:20) — r4 delivered; D1 REGENERATED (hashes stable); final re-review launched
 
 - `3b27412 6297e88`; tree 2,889 green. D1 manifest regenerated post-F2-fix: full `15d229c0…`, filtered `99f8da60…` — identical to the superseded pass (comparison fix, not draw change; correctly reasoned), census asserted, reload verified, AGREE resolution "configured".
+
+## 2026-08-25T02:50:00-0400 — r5 delivered; code phase COMPLETE pending rsync
+
+- `60e91e4 b0314d0`; tree 2,892 green. Staged-verify-then-atomic-publish implements the r4 reviewer's precisely-stated condition; closed under Planner verification (precedent exp_18 r5b), with the next Codex review (audit outputs at the cost gate) covering this commit again in situ.
+- **exp_22 state:** D1 manifest ACCEPTED + committed; geometry primitives + fail-closed audit driver review-hardened through 5 rounds; 16 meshes on NAS; **sole blocker = Yixun's rsync** (direction set → MeetingRoom ruling → audit → cost gate).
