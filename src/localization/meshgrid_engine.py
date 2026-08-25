@@ -657,20 +657,23 @@ RUN_BINDING_FIELDS = (
     "dataset_config")
 
 #: recorded and compared, but NOT part of the strict digest. These change only
-#: the batch SHAPES the backbones see; under autocast that moves an output by
-#: about one bfloat16 ulp (measured 2e-3 on the real conditioner), which is the
-#: model's own batch nondeterminism rather than a different protocol. Refusing a
-#: resume over them would make an OOM unrecoverable, so a change is reported.
+#: the batch SHAPES the backbones see; under the registered autocast that moves
+#: an output by about one float16 ulp (measured on the real conditioner), which
+#: is the model's own batch nondeterminism rather than a different protocol.
+#: Refusing a resume over them would make an OOM unrecoverable, so a change is
+#: reported instead.
 RUN_BINDING_ADVISORY = ("source_chunk", "batch_rows")
 
 BATCHING_CAVEAT = (
     "source_chunk and batch_rows change the batch shapes the ViT, the DiT, the VAE and the "
-    "AGREE tower are called with. Under the registered autocast that perturbs an output by "
-    "about one bfloat16 ulp (measured: max |diff| 2e-3 between a 64-candidate call and the "
-    "cached 16-candidate chunks), so a pass re-chunked mid-run is NOT bit-identical to one "
-    "chunked uniformly -- it is the same protocol at the backbone's own numerical noise. "
-    "Within a run every query of a receiver still shares bit-identical source tokens, "
-    "because they are served from one cache")
+    "AGREE tower are called with. The registered --cond-autocast default runs the "
+    "conditioners in float16 on CUDA, where a changed batch shape perturbs an output by "
+    "about one ulp (measured: max |diff| 3.9e-3 between the batch-1 context call and an "
+    "8-candidate call; the source branch was bit-identical at equal batching). A pass "
+    "re-chunked mid-run is therefore NOT bit-identical to one chunked uniformly -- it is the "
+    "same protocol at the backbone's own numerical noise. Within a run every query of a "
+    "receiver still shares bit-identical source tokens, because they are served from one "
+    "cache, and cache_parity_check proves the cache itself is exact at equal batching")
 
 BINDING_FILENAME = "run_binding.json"
 
@@ -1055,15 +1058,24 @@ def assert_cacheable(cond_method):
     return True
 
 
-def probe_groups(plan, budget, room_order=None):
+def probe_groups(plan, budget, room_order=None, room=None):
     """Whole receiver groups, in pass order, until ``budget`` queries are covered.
 
     The probe measures cost, and the cost of a query is only meaningful once its
     receiver's cache is amortized over that receiver's whole group -- measuring
     three queries of a ten-query receiver would bill the entire union to three.
+
+    ``room`` bounds the probe to one room. The registered subset's first room is
+    Cafe, whose smallest receiver group is already ~9 queries x 5,295 candidates
+    x 8 draws = 380 k waveforms, so without this there is no affordable smoke of
+    the real stack at all.
     """
     budget = int(budget)
     chosen, covered = [], 0
+    if room is not None:
+        if room not in plan.rooms:
+            raise ValueError(f"room {room!r} is not in the audit's {len(plan.rooms)} rooms")
+        room_order = [room]
     for room_id in (room_order or sorted(plan.rooms)):
         for group in receiver_groups(load_room_plan(plan, room_id)):
             chosen.append((room_id, group.receiver_id))
@@ -1140,7 +1152,8 @@ def _build_row(query, scored, *, seed, noise_policy, prefixes, timings, n_contex
 def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
              num_samples=NUM_SAMPLES, prefixes=K_PREFIXES, noise_policy=NOISE_KEY_POLICY,
              batch_rows=64, source_chunk=SOURCE_CHUNK, done=(), probe=None, on_row=None,
-             excluded_room=None, oracle_tol=1e-4, dump_queries=(), dump_top_n=DUMP_TOP_N):
+             excluded_room=None, oracle_tol=1e-4, dump_queries=(), dump_top_n=DUMP_TOP_N,
+             probe_room=None):
     """Score the whole registered subset, room block by room block.
 
     The stream is the released loader in D1 order and is walked ONCE: every
@@ -1160,7 +1173,7 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
 
     selected = None
     if probe is not None:
-        selected = set(probe_groups(plan, probe, room_order=room_order)[0])
+        selected = set(probe_groups(plan, probe, room_order=room_order, room=probe_room)[0])
 
     dump_queries = set(dump_queries or ())
     state = {"n_scored": 0, "n_skipped": 0, "n_conditioner_rows": 0,
@@ -1427,7 +1440,7 @@ def _pair_diff(left, right):
             "max_abs_diff": float((left.float() - right.float()).abs().max())}
 
 
-def cache_parity_check(engine, query, md, n_candidates=8, source_chunk=SOURCE_CHUNK):
+def cache_parity_check(engine, query, md, n_candidates=None, source_chunk=SOURCE_CHUNK):
     """§1.5's bit-identity proof, with the two questions kept apart.
 
     **memoization** -- the contract. Both sides are computed at the SAME
@@ -1447,6 +1460,10 @@ def cache_parity_check(engine, query, md, n_candidates=8, source_chunk=SOURCE_CH
     """
     from src.localization.candidates import candidate_metadata
 
+    # default to MORE candidates than one production chunk, so the batched half
+    # actually spans a chunk boundary instead of collapsing to a single call
+    if n_candidates is None:
+        n_candidates = 2 * int(source_chunk)
     indices = [int(i) for i in query.candidate_indices][:max(1, int(n_candidates))]
     positions = query.coordinates[:len(indices)] - np.asarray(query.receiver_xyz,
                                                               dtype=np.float64)

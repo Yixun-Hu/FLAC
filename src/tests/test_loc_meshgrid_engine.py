@@ -1197,3 +1197,28 @@ def test_the_drivers_parity_path_runs_end_to_end_on_a_synthetic_stack(tmp_path, 
     printed = capsys.readouterr().out
     assert "MEMOIZATION" in printed and "MATCH" in printed
     assert "BATCHED" in printed
+
+
+def test_the_probe_can_be_pointed_at_one_room_so_a_smoke_is_affordable(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    chosen, covered = me.probe_groups(plan, 1, room=("B/B_idx_2"))
+    assert chosen == [("B/B_idx_2", "B/B_idx_2|4,4,1.2")] and covered == 1
+    with pytest.raises(ValueError, match="not in the audit"):
+        me.probe_groups(plan, 1, room="Nowhere/Nowhere_idx_1")
+
+    out = str(tmp_path / "run")
+    summary = me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
+                          prefixes=(1, 4), probe=1, probe_room="B/B_idx_2")
+    assert summary["n_scored"] == 0
+    assert [record["room_id"] for record in summary["probe_records"]] == ["B/B_idx_2"]
+
+
+def test_a_diagnostics_mode_never_claims_the_output_directory(tmp_path):
+    import localize_meshgrid as driver
+
+    for extra in (["--probe", "2"], ["--cache-parity-check"]):
+        args = driver.parse_args(["--ckpt-path", "x.ckpt", "--out-dir",
+                                  str(tmp_path / "out")] + extra)
+        assert driver.writes_query_artifacts(args) is False
+    args = driver.parse_args(["--ckpt-path", "x.ckpt"])
+    assert driver.writes_query_artifacts(args) is True

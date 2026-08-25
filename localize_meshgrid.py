@@ -84,6 +84,9 @@ def parse_args(argv=None):
                         help="skip queries whose published artifacts still verify")
     parser.add_argument("--probe", type=int, default=None,
                         help="no-quality throughput probe over whole receiver groups")
+    parser.add_argument("--probe-room", default=None,
+                        help="bound the probe to one room; the split's first room (Cafe) has "
+                             "no receiver group small enough for a smoke")
     parser.add_argument("--probe-stem", default="probe")
     parser.add_argument("--dump-waveforms", nargs="*", default=None,
                         help="query ids to dump; bounded to the registered probe/case lists")
@@ -102,6 +105,8 @@ def _refuse(message):
 
 def validate_args(args):
     """Startup refusals -- before a checkpoint is read or a GPU is touched."""
+    if args.probe is None and args.probe_room:
+        _refuse("--probe-room only bounds the throughput probe; pass --probe too")
     if args.probe is not None:
         if int(args.probe) < 1:
             _refuse("--probe must cover at least one query")
@@ -125,6 +130,16 @@ def validate_args(args):
                 "frame-average arm needs §1.5's narrower context cache, which this engine "
                 "refuses rather than mis-caches")
     return True
+
+
+def writes_query_artifacts(args):
+    """Only a scored pass claims the output directory.
+
+    The throughput probe and the parity check are diagnostics: they must not
+    publish a run binding into a directory a scored pass will later resume, and
+    must not read one either.
+    """
+    return args.probe is None and not args.cache_parity_check
 
 
 def build_run_binding(args, plan, ckpt_sha256, agree_sha256, model_config_sha256):
@@ -203,7 +218,7 @@ def main(argv=None):
                                     model_config_sha256=me.file_sha256(args.model_config))
     advisory = {"source_chunk": int(args.source_chunk), "batch_rows": int(args.batch_rows)}
     done = set()
-    if args.probe is None:
+    if writes_query_artifacts(args):
         if os.path.isfile(os.path.join(args.out_dir, me.BINDING_FILENAME)):
             moved = me.assert_binding(args.out_dir, run_binding, advisory=advisory)
             if moved is not True:
@@ -245,8 +260,8 @@ def main(argv=None):
                           prefixes=tuple(int(k) for k in args.k_prefixes),
                           noise_policy=args.noise_policy, batch_rows=args.batch_rows,
                           source_chunk=args.source_chunk, done=done,
-                          probe=args.probe, dump_queries=dump_queries,
-                          dump_top_n=args.dump_top_n)
+                          probe=args.probe, probe_room=args.probe_room,
+                          dump_queries=dump_queries, dump_top_n=args.dump_top_n)
     summary["created_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     summary["binding_sha256"] = me.binding_sha256(run_binding)
     summary["agree_leakage_caveat"] = me.AGREE_LEAKAGE_CAVEAT
