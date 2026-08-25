@@ -1871,3 +1871,92 @@ def test_a_probe_under_an_unregistered_policy_cannot_be_published(tmp_path):
     with pytest.raises(ValueError, match="common random numbers"):
         me.write_probe_records(out, [record], stem="p", binding=_binding(
             noise_policy="per_candidate"), binding_sha256="ab" * 32)
+
+
+# --------------------------------------------------------------------------- #
+# sharding: --rooms
+# --------------------------------------------------------------------------- #
+def test_the_room_filter_accepts_canonical_ids_and_refuses_everything_else(tmp_path):
+    out_dir, report_path, base = _fixture_audit(tmp_path)
+    plan = me.load_audit_plan(report_path)
+    assert me.assert_declared_rooms(["B/B_idx_2", "A/A_idx_1"], plan) == ["A/A_idx_1",
+                                                                         "B/B_idx_2"]
+    with pytest.raises(ValueError, match="empty"):
+        me.assert_declared_rooms([], plan)
+    with pytest.raises(ValueError, match="twice"):
+        me.assert_declared_rooms(["A/A_idx_1", "A/A_idx_1"], plan)
+    with pytest.raises(ValueError, match="not in the audit"):
+        me.assert_declared_rooms(["A/A_idx_1", "Nowhere/Nowhere_idx_9"], plan)
+
+
+def test_a_shard_scores_only_its_rooms_but_verifies_the_whole_stream(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    seen = []
+    original = me.verify_context_record
+    me.verify_context_record = lambda md, rec, pos: seen.append(pos) or original(md, rec, pos)
+    loaded = []
+    real_plan = me.load_room_plan
+    me.load_room_plan = lambda p, room: loaded.append(room) or real_plan(p, room)
+    try:
+        out = str(tmp_path / "shard")
+        summary = me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
+                              prefixes=(1, 4), batch_rows=8, rooms=["B/B_idx_2"])
+    finally:
+        me.verify_context_record = original
+        me.load_room_plan = real_plan
+    # the WHOLE D1 stream is walked and verified -- the draws depend on it
+    assert seen == [0, 1, 2, 3]
+    # ... while room A's 137 MB-class manifest is never opened
+    assert "A/A_idx_1" not in loaded
+    assert summary["declared_rooms"] == ["B/B_idx_2"]
+    assert summary["n_scored"] == 1
+    assert me.completed_queries(out)[0] == {"3|ir/B/B_idx_2/S001_R009_hybrid_IR.wav"}
+
+
+def test_a_shard_conditions_nothing_for_a_room_it_does_not_own(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    engine = SyntheticEngine()
+    me.run_pass(engine, items, records, plan, str(tmp_path / "shard"), num_samples=4,
+                prefixes=(1, 4), batch_rows=8, rooms=["B/B_idx_2"])
+    conditioned = [call for call in engine.conditioner.calls
+                   if call["ids"] == sorted(me.CONTEXT_COND_IDS)]
+    assert len(conditioned) == 1               # one query, one context branch
+
+
+def test_the_two_shards_of_the_reviewers_split_cover_the_pass_exactly(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    left = me.run_pass(SyntheticEngine(), items, records, plan, str(tmp_path / "a"),
+                       num_samples=4, prefixes=(1, 4), batch_rows=8, rooms=["A/A_idx_1"])
+    right = me.run_pass(SyntheticEngine(), items, records, plan, str(tmp_path / "b"),
+                        num_samples=4, prefixes=(1, 4), batch_rows=8, rooms=["B/B_idx_2"])
+    assert left["n_scored"] + right["n_scored"] == len(records)
+    assert (left["n_candidate_query_pairs"] + right["n_candidate_query_pairs"]
+            == _fixture_totals()[0])
+    assert left["n_conditioner_rows"] + right["n_conditioner_rows"] == _fixture_totals()[1]
+    assert set(left["declared_rooms"]) & set(right["declared_rooms"]) == set()
+
+
+def test_a_shards_declared_rooms_are_published_and_pinned_for_its_resume(tmp_path):
+    out = str(tmp_path / "run")
+    os.makedirs(out)
+    me.write_binding(out, _binding(), declared_rooms=["A/A_idx_1"])
+    published = json.load(open(os.path.join(out, me.BINDING_FILENAME)))
+    assert published["declared_rooms"] == ["A/A_idx_1"]
+    # the SHARDING does not enter the strict digest: the merge requires the base
+    # bindings of two shards to be identical
+    assert published["binding_sha256"] == me.binding_sha256(_binding())
+    assert me.assert_binding(out, _binding(), declared_rooms=["A/A_idx_1"]) is True
+    with pytest.raises(ValueError, match="declared_rooms"):
+        me.assert_binding(out, _binding(), declared_rooms=["B/B_idx_2"])
+
+
+def test_the_driver_parses_and_validates_a_room_shard():
+    import localize_meshgrid as driver
+
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--rooms", "Cafe/Cafe_idx_1"])
+    assert args.rooms == ["Cafe/Cafe_idx_1"]
+    assert driver.parse_args(["--ckpt-path", "x.ckpt"]).rooms is None
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--rooms", "Cafe/Cafe_idx_1",
+                              "--probe", "1"])
+    with pytest.raises(SystemExit, match="--rooms"):
+        driver.validate_args(args)

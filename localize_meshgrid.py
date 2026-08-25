@@ -72,6 +72,9 @@ def parse_args(argv=None):
     parser.add_argument("--agree-ckpt", default=None,
                         help="override the AGREE scorer; default = the model config's")
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--rooms", nargs="+", default=None,
+                        help="run only these canonical room ids (a shard); the whole D1 "
+                             "stream is still walked and verified")
     parser.add_argument("--branch", default=None,
                         help="assert the audit's branch; the branch itself is not selectable")
     parser.add_argument("--cond-method", default="vanilla", choices=["vanilla", "fa_invariant"])
@@ -117,6 +120,9 @@ def _refuse(message):
 
 def validate_args(args):
     """Startup refusals -- before a checkpoint is read or a GPU is touched."""
+    if args.rooms is not None and args.probe is not None:
+        _refuse("--rooms shards a scored pass and --probe is a no-quality diagnostic; use "
+                "--probe-room to bound a probe")
     if args.probe is None and args.probe_room:
         _refuse("--probe-room only bounds the throughput probe; pass --probe too")
     if args.probe is not None:
@@ -287,13 +293,15 @@ def main(argv=None):
         if args.resume:
             assert_resumable(args, args.out_dir)
         if os.path.isfile(os.path.join(args.out_dir, me.BINDING_FILENAME)):
-            moved = me.assert_binding(args.out_dir, run_binding, advisory=advisory)
+            moved = me.assert_binding(args.out_dir, run_binding, advisory=advisory,
+                                      declared_rooms=args.rooms)
             if moved is not True:
                 me.record_advisory_change(args.out_dir, moved, advisory=advisory)
                 print(f"NOTE: batching changed since the published pass: {moved}\n  "
                       f"recorded in {me.BINDING_FILENAME}; {me.BATCHING_CAVEAT}")
         else:
-            me.write_binding(args.out_dir, run_binding, advisory=advisory)
+            me.write_binding(args.out_dir, run_binding, advisory=advisory,
+                             declared_rooms=args.rooms)
         if args.resume:
             done, rejected = me.completed_queries(
                 args.out_dir, binding_sha256=me.binding_sha256(run_binding))
@@ -328,7 +336,7 @@ def main(argv=None):
                           source_chunk=args.source_chunk, done=done,
                           probe=args.probe, probe_room=args.probe_room,
                           dump_queries=dump_queries, dump_top_n=args.dump_top_n,
-                          binding_sha256=me.binding_sha256(run_binding))
+                          binding_sha256=me.binding_sha256(run_binding), rooms=args.rooms)
     summary["created_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     summary["binding_sha256"] = me.binding_sha256(run_binding)
     summary["agree_leakage_caveat"] = me.AGREE_LEAKAGE_CAVEAT

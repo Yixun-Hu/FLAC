@@ -920,7 +920,7 @@ def binding_sha256(binding):
     return canonical_sha256({field: binding[field] for field in sorted(RUN_BINDING_FIELDS)})
 
 
-def write_binding(out_dir, binding, advisory=None):
+def write_binding(out_dir, binding, advisory=None, declared_rooms=None):
     """Publish the binding beside the artifacts it authorizes."""
     os.makedirs(str(out_dir), exist_ok=True)
     payload = {field: binding[field] for field in RUN_BINDING_FIELDS}
@@ -928,6 +928,9 @@ def write_binding(out_dir, binding, advisory=None):
     payload["advisory"] = {field: (advisory or {}).get(field)
                            for field in RUN_BINDING_ADVISORY}
     payload["advisory_history"] = []
+    # the shard's own scope: pinned for ITS resume, and deliberately outside the
+    # strict digest so a merge can require two shards' base bindings to be equal
+    payload["declared_rooms"] = None if declared_rooms is None else list(declared_rooms)
     payload["batching_caveat"] = BATCHING_CAVEAT
     path = os.path.join(str(out_dir), BINDING_FILENAME)
     write_json(path, payload)
@@ -958,7 +961,7 @@ def record_advisory_change(out_dir, changed, advisory=None, at_utc=None):
     return path
 
 
-def assert_binding(out_dir, binding, advisory=None):
+def assert_binding(out_dir, binding, advisory=None, declared_rooms=None):
     """A resume continues the SAME run or refuses, naming the fields that moved.
 
     Returns ``True`` when everything matches, or a dict of the ADVISORY fields
@@ -976,6 +979,12 @@ def assert_binding(out_dir, binding, advisory=None):
         raise ValueError(f"this run does not continue the published one: {differing} differ "
                          f"(published binding {str(published.get('binding_sha256'))[:12]}..., "
                          f"this run {binding_sha256(binding)[:12]}...)")
+    published_rooms = published.get("declared_rooms")
+    wanted_rooms = None if declared_rooms is None else list(declared_rooms)
+    if published_rooms != wanted_rooms:
+        raise ValueError(f"this run sets declared_rooms={wanted_rooms} but the published pass "
+                         f"declared {published_rooms}; a shard resumes its OWN rooms, and "
+                         "mixing scopes in one directory would break the merge census")
     was = published.get("advisory") or {}
     moved = {field: {"published": was.get(field), "this_run": (advisory or {}).get(field)}
              for field in RUN_BINDING_ADVISORY
@@ -1535,6 +1544,30 @@ def assert_cacheable(cond_method):
     return True
 
 
+def assert_declared_rooms(rooms, plan):
+    """The canonical, ordered room set a shard declares -- or a refusal.
+
+    A shard that silently drops an unknown room, or counts one twice, would
+    produce a merge census that adds up while missing queries, so every failure
+    mode is a refusal here rather than a filter that quietly matches nothing.
+    """
+    declared = [str(room) for room in (rooms or [])]
+    if not declared:
+        raise ValueError("a room shard may not be empty: pass the canonical room ids it owns, "
+                         "or omit --rooms to run the whole registered subset")
+    seen = set()
+    for room in declared:
+        if room in seen:
+            raise ValueError(f"room {room!r} is declared twice; a shard owns each of its rooms "
+                             "exactly once")
+        seen.add(room)
+    unknown = sorted(seen - set(plan.rooms))
+    if unknown:
+        raise ValueError(f"{unknown} are not in the audit's {len(plan.rooms)} rooms; a shard "
+                         "can only own rooms the G1 audit published")
+    return sorted(seen)
+
+
 def probe_groups(plan, budget, room_order=None, room=None):
     """Whole receiver groups, in pass order, until ``budget`` queries are covered.
 
@@ -1670,7 +1703,7 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
              batch_rows=64, source_chunk=SOURCE_CHUNK, done=(), probe=None, on_row=None,
              excluded_room=None, dump_queries=(), dump_top_n=DUMP_TOP_N,
              probe_room=None, allow_unregistered_noise_policy=False,
-             geometry_tol=CONTEXT_JOIN_TOLERANCE, binding_sha256=None):
+             geometry_tol=CONTEXT_JOIN_TOLERANCE, binding_sha256=None, rooms=None):
     """Score the whole registered subset, room block by room block.
 
     The stream is the released loader in D1 order and is walked ONCE: every
@@ -1689,15 +1722,21 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
     by_position = {int(record["position"]): record for record in records}
     room_order = assert_room_blocks(records)
 
+    declared = None if rooms is None else assert_declared_rooms(rooms, plan)
     selected = None
     if probe is not None:
         selected = set(probe_groups(plan, probe, room_order=room_order, room=probe_room)[0])
+    # a shard OWNS rooms; it still walks and verifies the whole stream, because
+    # every query's draw depends on the complete pass (inherited plan §1.1)
+    owned = (None if declared is None else set(declared))
+    if owned is not None and selected is not None:
+        selected = {pair for pair in selected if pair[0] in owned}
 
     dump_queries = set(dump_queries or ())
     state = {"n_scored": 0, "n_skipped": 0, "n_conditioner_rows": 0,
              "n_candidate_query_pairs": 0, "n_generated": 0, "n_dumped": 0,
              "n_geometry_tolerated": 0, "n_contexts_conditioned": 0,
-             "rooms": [], "argmax_stability": {},
+             "rooms": [], "declared_rooms": declared, "argmax_stability": {},
              "batching": {"batch_rows": int(batch_rows), "source_chunk": int(source_chunk)},
              "probe_records": [], "timings_s": {}}
     buffer, depths, receiver_of = {}, {}, {}
@@ -1735,7 +1774,9 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
             # a probe still STREAMS and verifies every earlier room -- the draws
             # depend on the whole pass -- but never parses a candidate manifest it
             # will not use; the largest is 137 MB of index lists
-            if selected is not None and not any(room == room_id for room, _ in selected):
+            unselected = (selected is not None
+                          and not any(room == room_id for room, _ in selected))
+            if (owned is not None and room_id not in owned) or unselected:
                 room_plan, receiver_of = None, {}
             else:
                 room_plan = load_room_plan(plan, room_id)
