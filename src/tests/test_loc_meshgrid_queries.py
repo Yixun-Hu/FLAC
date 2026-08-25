@@ -217,7 +217,7 @@ def test_manifest_reload_does_not_touch_the_loader(tmp_path, monkeypatch):
     def refuse(*_args, **_kwargs):
         raise AssertionError("load_manifest built a dataloader")
 
-    monkeypatch.setattr(mq, "build_release_loader", refuse)
+    monkeypatch.setattr(mq, "build_release_stack", refuse)
     assert mq.load_manifest(path)["full_stream_sha256"] == manifest["full_stream_sha256"]
 
 
@@ -293,3 +293,183 @@ def test_real_bounded_slice_materializes_through_the_released_loader(tmp_path):
         assert record["target_absent"] is True
     with pytest.raises(ValueError, match="complete"):
         mq.filter_excluded_room(materialized, expected_excluded=mq.EXCLUDED_COUNT)
+
+
+# --------------------------------------------------------------------------- #
+# r2 F1 -- the COMPLETE released initialization order
+# --------------------------------------------------------------------------- #
+def test_release_stack_builds_the_metric_callback_before_the_iterator():
+    """PyTorch draws each worker's base seed when the ITERATOR is created, and
+    the released evaluator constructs the AGREE metric stack in between (r1
+    review F1). Seeding and iterating immediately gives different workers a
+    different NumPy stream, hence different contexts."""
+    order = mq.RELEASE_CALL_GRAPH
+    assert order == ("seed_everything", "build_dataloader", "build_metric_stack",
+                     "create_iterator")
+
+
+@pytest.mark.skipif(not _REAL, reason="AcousticRooms not present")
+def test_release_stack_resolves_and_records_the_agree_checkpoint():
+    loader, facts = mq.build_release_stack(_UNSEEN_CONFIG)
+    assert facts["call_graph"] == list(mq.RELEASE_CALL_GRAPH)
+    assert facts["agree_ckpt"].endswith("AGREE_fullAR.pt")
+    assert os.path.isfile(facts["agree_ckpt"])
+    assert facts["agree_configured"] == "weights/AGREE/AGREE_fullAR.pt"
+    assert facts["agree_resolution"] in ("configured", "basename_fallback")
+    assert len(facts["agree_sha256"]) == 64
+    assert facts["metric_stack_built"] is True
+    assert len(facts["rng_digest_at_iter"]) == 64
+    assert loader is not None
+
+
+def test_release_stack_refuses_a_missing_agree_checkpoint(tmp_path, monkeypatch):
+    monkeypatch.setattr(mq, "AGREE_SEARCH_ROOTS", (str(tmp_path),))
+    with pytest.raises(ValueError, match="AGREE"):
+        mq.resolve_agree_checkpoint("weights/AGREE/does_not_exist.pt")
+
+
+@pytest.mark.skipif(not _REAL, reason="AcousticRooms not present")
+def test_our_call_graph_matches_an_eval_flac_faithful_reference():
+    """Both graphs, on a bounded real slice: same RNG state at iterator creation
+    and the same drawn contexts."""
+    import json as _json
+
+    import pytorch_lightning as pl
+
+    from src.data.dataset import create_dataloader_from_config
+    from src.training import create_metric_callback_from_config
+
+    n_records = 4
+
+    def reference():
+        """eval_FLAC.py's order, written out here rather than imported."""
+        with open(_UNSEEN_CONFIG) as handle:
+            dataset_config = _json.load(handle)
+        with open(mq.DEFAULT_MODEL_CONFIG) as handle:
+            model_config = _json.load(handle)
+        model_config = mq.with_resolved_agree(model_config)
+        pl.seed_everything(42, workers=True)
+        loader = create_dataloader_from_config(
+            dataset_config, batch_size=64, num_workers=4,
+            sample_rate=model_config["sample_rate"], sample_size=model_config["sample_size"],
+            audio_channels=model_config.get("audio_channels", 1), shuffle=False)
+        create_metric_callback_from_config(
+            model_config, dataset_id=dataset_config["datasets"][0]["id"], per_scene=False)
+        digest = mq.rng_state_digest()
+        drawn = []
+        for _reals, metadata in loader:
+            for md in metadata:
+                drawn.append(mq.context_record(md, len(drawn), 8))
+                if len(drawn) >= n_records:
+                    return digest, drawn
+        return digest, drawn
+
+    reference_digest, reference_records = reference()
+    ours = mq.materialize_contexts(_UNSEEN_CONFIG, limit=n_records)
+    assert ours["protocol_facts"]["rng_digest_at_iter"] == reference_digest
+    assert [r["query_id"] for r in ours["records"]] == \
+        [r["query_id"] for r in reference_records]
+    assert [r["context_fingerprints"] for r in ours["records"]] == \
+        [r["context_fingerprints"] for r in reference_records]
+    assert [r["context_audio_sha256"] for r in ours["records"]] == \
+        [r["context_audio_sha256"] for r in reference_records]
+
+
+@pytest.mark.skipif(not _REAL, reason="AcousticRooms not present")
+def test_skipping_the_metric_stack_changes_the_draw():
+    """The guard is only meaningful if the omission is detectable."""
+    ours = mq.materialize_contexts(_UNSEEN_CONFIG, limit=4)
+    without = mq.materialize_contexts(_UNSEEN_CONFIG, limit=4, _skip_metric_stack=True)
+    assert without["protocol_facts"]["metric_stack_built"] is False
+    assert (without["protocol_facts"]["rng_digest_at_iter"]
+            != ours["protocol_facts"]["rng_digest_at_iter"])
+
+
+# --------------------------------------------------------------------------- #
+# r2 F2 -- the positional substitution guard
+# --------------------------------------------------------------------------- #
+def test_expected_enumeration_comes_from_the_split(tmp_path):
+    expected = mq.expected_enumeration({"datasets": [{"path": "AcousticRooms",
+                                                      "json_file_path": "data/AR/unseen_eval.json",
+                                                      "folder_name": "single_channel_ir_1"}]})
+    if not _REAL:
+        pytest.skip("AcousticRooms not present")
+    assert len(expected) == mq.FULL_COUNT
+    assert all(name.endswith("_hybrid_IR.wav") for name in expected)
+    assert len(set(expected)) == len(expected)
+
+
+def test_position_guard_accepts_the_matching_item():
+    md = _md(position=3, room="Cafe/Cafe_idx_1", node="S001", receiver="R008")
+    mq.assert_stream_position(md, position=3, expected_relpath=md["relpath"])
+
+
+def test_position_guard_rejects_a_substituted_item():
+    """SampleDataset silently returns a random OTHER item when one fails to
+    load; counts and even the histogram can survive that (r1 review F2)."""
+    md = _md(position=3, room="Cafe/Cafe_idx_1", node="S001")
+    substituted = dict(md, idx=97,
+                       relpath="single_channel_ir_1/Cafe/Cafe_idx_1/S007_R019_hybrid_IR.wav")
+    with pytest.raises(ValueError, match="idx"):
+        mq.assert_stream_position(substituted, position=3,
+                                  expected_relpath=md["relpath"])
+    same_idx_other_file = dict(md, relpath="single_channel_ir_1/Cafe/Cafe_idx_1/"
+                                           "S009_R002_hybrid_IR.wav")
+    with pytest.raises(ValueError, match="relpath"):
+        mq.assert_stream_position(same_idx_other_file, position=3,
+                                  expected_relpath=md["relpath"])
+
+
+def test_materializer_aborts_on_the_first_substitution(tmp_path, monkeypatch):
+    """An adversarial substitution at one position must stop the pass, not be
+    recorded as if it were that position's query."""
+    records = []
+
+    class _FakeLoader:
+        def __iter__(self):
+            for position in range(4):
+                md = _md(position=position, room="Cafe/Cafe_idx_1",
+                         node=f"S00{position + 1}")
+                if position == 2:                       # the impostor
+                    md = dict(md, idx=99,
+                              relpath="single_channel_ir_1/Cafe/Cafe_idx_1/"
+                                      "S008_R008_hybrid_IR.wav")
+                yield None, [md]
+
+    expected = [f"Cafe/Cafe_idx_1/S00{i + 1}_R008_hybrid_IR.wav" for i in range(4)]
+    monkeypatch.setattr(mq, "build_release_stack",
+                        lambda *a, **k: (_FakeLoader(), {"metric_stack_built": True,
+                                                         "rng_digest_at_iter": "d" * 64,
+                                                         "call_graph": list(mq.RELEASE_CALL_GRAPH)}))
+    monkeypatch.setattr(mq, "expected_enumeration", lambda *a, **k: expected)
+    monkeypatch.setattr(mq, "eligible_pool_size", lambda path: 8)
+    with pytest.raises(ValueError, match="position 2"):
+        mq.materialize_contexts("fixture.json")
+    assert records == []
+
+
+def test_materializer_refuses_a_short_or_reordered_stream(tmp_path, monkeypatch):
+    class _ShortLoader:
+        def __iter__(self):
+            for position in range(2):
+                yield None, [_md(position=position, node=f"S00{position + 1}")]
+
+    expected = [f"Cafe/Cafe_idx_1/S00{i + 1}_R008_hybrid_IR.wav" for i in range(4)]
+    monkeypatch.setattr(mq, "build_release_stack",
+                        lambda *a, **k: (_ShortLoader(), {"metric_stack_built": True,
+                                                          "rng_digest_at_iter": "d" * 64,
+                                                          "call_graph": list(mq.RELEASE_CALL_GRAPH)}))
+    monkeypatch.setattr(mq, "expected_enumeration", lambda *a, **k: expected)
+    monkeypatch.setattr(mq, "eligible_pool_size", lambda path: 8)
+    with pytest.raises(ValueError, match="2 records|declares 4"):
+        mq.materialize_contexts("fixture.json")
+
+
+def test_in_scope_loss_is_refused_even_at_the_right_count():
+    """A record lost from an INCLUDED room and replaced by an extra excluded-room
+    record keeps the total at 6,337; the split comparison is what catches it."""
+    full = _materialized(n=12)
+    full["records"][0] = dict(full["records"][0],
+                              room_id="ListeningRoom/ListeningRoom_idx_2")
+    with pytest.raises(ValueError, match="exactly"):
+        mq.filter_excluded_room(full, expected_excluded=6)

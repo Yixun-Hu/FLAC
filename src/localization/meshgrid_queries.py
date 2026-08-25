@@ -48,6 +48,25 @@ SHORT_CONTEXT_ROOM = "Cafe/Cafe_idx_1"
 #: the IR tree the split file's names resolve against.
 IR_ROOT = os.path.join("AcousticRooms", "single_channel_ir_1")
 
+#: the model config the exp_01 protocol evaluates under (its metrics block names
+#: the AGREE_fullAR scorer the inherited plan pins).
+DEFAULT_MODEL_CONFIG = os.path.join("src", "configs", "model_configs", "FLAC", "AR",
+                                    "FLAC_AR.json")
+
+#: The RELEASED evaluator's initialization order, in full. PyTorch draws each
+#: DataLoader worker's base seed when the ITERATOR is created, and every worker's
+#: NumPy stream -- the one ``AR_md`` draws contexts from -- derives from it. The
+#: released evaluator constructs the metric/AGREE stack BETWEEN the loader and
+#: the first iteration (eval_FLAC.py: seed -> loader -> metric callback -> loop),
+#: and that construction consumes torch RNG through randomized module init. Seed
+#: and iterate immediately, as r1 did, and every worker gets a different stream
+#: (r1 review F1).
+RELEASE_CALL_GRAPH = ("seed_everything", "build_dataloader", "build_metric_stack",
+                      "create_iterator")
+
+#: where a configured AGREE checkpoint may also be found, by basename.
+AGREE_SEARCH_ROOTS = ("weights", os.path.join("weights", "AGREE"))
+
 
 def released_metadata_module():
     """The unmodified released selector module, loaded by path.
@@ -144,51 +163,176 @@ def context_record(md, position, eligible):
     }
 
 
-def build_release_loader(dataset_config_path, model_config_path=None):
-    """The ORIGINAL evaluation loader under the exp_01 protocol."""
+def rng_state_digest():
+    """sha256 of the global torch RNG state -- the state the worker base seed is
+    drawn from at iterator creation."""
+    import torch as _torch
+
+    return hashlib.sha256(_torch.random.get_rng_state().numpy().tobytes()).hexdigest()
+
+
+def resolve_agree_checkpoint(configured, roots=None):
+    """The AGREE checkpoint the metric stack will load, fail-closed.
+
+    The configured path is preferred; a same-basename copy under the known
+    weights roots is accepted and RECORDED as a fallback rather than silently
+    substituted; nothing found is a refusal, because the released call graph
+    loads this file and an exception would change the graph.
+    """
+    if configured and os.path.isfile(configured):
+        return {"path": configured, "resolution": "configured", "configured": configured}
+    basename = os.path.basename(str(configured or ""))
+    for root in (roots if roots is not None else AGREE_SEARCH_ROOTS):
+        candidate = os.path.join(root, basename)
+        if basename and os.path.isfile(candidate):
+            return {"path": candidate, "resolution": "basename_fallback",
+                    "configured": configured}
+    raise ValueError(f"the AGREE checkpoint {configured!r} is not on disk and no copy of "
+                     f"{basename!r} was found under {list(AGREE_SEARCH_ROOTS)}; the released "
+                     "call graph loads it, so it cannot be skipped")
+
+
+def with_resolved_agree(model_config, roots=None):
+    """``model_config`` with its metrics AGREE path resolved to a real file."""
+    resolved = resolve_agree_checkpoint(
+        ((model_config.get("training") or {}).get("metrics") or {}).get("AGREE_ckpt"),
+        roots=roots)
+    out = json.loads(json.dumps(model_config))
+    out["training"]["metrics"]["AGREE_ckpt"] = resolved["path"]
+    return out
+
+
+def build_release_stack(dataset_config_path, model_config_path=None, agree_roots=None,
+                        skip_metric_stack=False):
+    """Seed, build the loader, build the metric/AGREE stack -- in THAT order.
+
+    Returns ``(loader, facts)``; the iterator is created by the caller, which is
+    the moment the worker base seeds are drawn.
+    """
     import pytorch_lightning as pl
 
     from src.data.dataset import create_dataloader_from_config
+    from src.training import create_metric_callback_from_config
 
     with open(dataset_config_path) as handle:
         dataset_config = json.load(handle)
-    model_config_path = model_config_path or os.path.join(
-        "src", "configs", "model_configs", "FLAC", "AR", "FLAC_AR.json")
-    with open(model_config_path) as handle:
+    with open(model_config_path or DEFAULT_MODEL_CONFIG) as handle:
         model_config = json.load(handle)
+    configured = ((model_config.get("training") or {}).get("metrics") or {}).get("AGREE_ckpt")
+    resolved = resolve_agree_checkpoint(configured, roots=agree_roots)
+    model_config["training"]["metrics"]["AGREE_ckpt"] = resolved["path"]
 
     pl.seed_everything(EXP01_LOADER["seed"], workers=True)
-    return create_dataloader_from_config(
+    loader = create_dataloader_from_config(
         dataset_config, batch_size=EXP01_LOADER["batch_size"],
         num_workers=EXP01_LOADER["num_workers"], sample_rate=model_config["sample_rate"],
         sample_size=model_config["sample_size"],
         audio_channels=model_config.get("audio_channels", 1),
         shuffle=EXP01_LOADER["shuffle"])
 
+    built = False
+    if not skip_metric_stack:
+        create_metric_callback_from_config(
+            model_config, dataset_id=dataset_config["datasets"][0]["id"], per_scene=False)
+        built = True
+    facts = {
+        "call_graph": list(RELEASE_CALL_GRAPH if built else
+                           tuple(step for step in RELEASE_CALL_GRAPH
+                                 if step != "build_metric_stack")),
+        "metric_stack_built": built,
+        "agree_ckpt": resolved["path"], "agree_configured": resolved["configured"],
+        "agree_resolution": resolved["resolution"],
+        "agree_sha256": _sha256_file(resolved["path"]),
+        "model_config": str(model_config_path or DEFAULT_MODEL_CONFIG),
+        "rng_digest_at_iter": rng_state_digest(),
+    }
+    return loader, facts
+
+
+def _sha256_file(path, chunk=1 << 20):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(chunk), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def expected_enumeration(dataset_config):
+    """The split's file list, rebuilt the way ``SampleDataset`` builds it."""
+    from src.data.dataset import get_audio_filenames
+
+    filenames = []
+    for audio_dir in dataset_config.get("datasets") or []:
+        filenames.extend(get_audio_filenames(
+            paths=audio_dir["path"], keywords=None,
+            json_file_path=audio_dir.get("json_file_path"),
+            folder_name=audio_dir.get("folder_name")))
+    return filenames
+
+
+def assert_stream_position(md, position, expected_relpath):
+    """Refuse a silently substituted item.
+
+    ``SampleDataset.__getitem__`` returns a random OTHER item when one fails to
+    load, and the substitute carries its own idx/relpath -- counts and even the
+    eligible histogram can survive that, so only a positional comparison against
+    the split enumeration catches it (r1 review F2).
+    """
+    found_idx = md.get("idx")
+    if found_idx is None or int(found_idx) != int(position):
+        raise ValueError(f"stream position {position}: the loader returned idx={found_idx!r}; "
+                         "SampleDataset substitutes a random other item when one fails to "
+                         "load, and a substituted context draw is not this query's")
+    found = os.path.normpath(str(md.get("relpath") or md.get("path") or ""))
+    if expected_relpath is not None:
+        # the split enumeration carries the dataset root, the loader's relpath does
+        # not: compare the suffix, in whichever direction is the longer string
+        expected = os.path.normpath(str(expected_relpath))
+        if not (expected.endswith(found) or found.endswith(expected)):
+            raise ValueError(f"stream position {position}: the loader returned relpath "
+                             f"{found!r}, but the split declares {expected!r}")
+    return True
+
 
 def materialize_contexts(dataset_config_path, model_config_path=None, limit=None,
-                         ir_root=IR_ROOT):
-    """Run the released loader over the split and record every draw.
+                         ir_root=IR_ROOT, _skip_metric_stack=False):
+    """Run the released call graph over the split and record every draw.
 
     ``limit`` yields a BOUNDED slice, which is never marked complete: only a full
     pass may be filtered, because the excluded room's records consume RNG that
-    the retained queries' draws depend on.
+    the retained queries' draws depend on. Every position is checked against the
+    split enumeration before its draw is recorded.
     """
-    loader = build_release_loader(dataset_config_path, model_config_path)
+    loader, facts = build_release_stack(dataset_config_path, model_config_path,
+                                        skip_metric_stack=_skip_metric_stack)
+    try:
+        with open(dataset_config_path) as handle:
+            expected = expected_enumeration(json.load(handle))
+    except (OSError, ValueError, KeyError):
+        expected = expected_enumeration({})
     records = []
-    for _reals, metadata in loader:
+    for _reals, metadata in loader:                    # <- the iterator is created here
         for md in metadata:
+            position = len(records)
+            expected_relpath = expected[position] if position < len(expected) else None
+            assert_stream_position(md, position, expected_relpath)
             path = md.get("path") or os.path.join(ir_root, md.get("relpath", ""))
-            records.append(context_record(md, len(records), eligible_pool_size(path)))
+            records.append(context_record(md, position, eligible_pool_size(path)))
             if limit is not None and len(records) >= int(limit):
-                return _materialized(records, dataset_config_path, complete=False)
-    return _materialized(records, dataset_config_path, complete=limit is None)
+                return _materialized(records, dataset_config_path, complete=False,
+                                     facts=facts, expected=expected)
+    if limit is None and expected and len(records) != len(expected):
+        raise ValueError(f"the pass produced {len(records)} records but the split declares "
+                         f"{len(expected)}; a truncated stream may not be recorded")
+    return _materialized(records, dataset_config_path, complete=limit is None, facts=facts,
+                         expected=expected)
 
 
-def _materialized(records, dataset_config_path, complete):
+def _materialized(records, dataset_config_path, complete, facts=None, expected=None):
     return {"records": records, "n_records": len(records), "complete": bool(complete),
             "protocol": dict(EXP01_LOADER), "dataset_config": str(dataset_config_path),
-            "context_width": CONTEXT_WIDTH}
+            "context_width": CONTEXT_WIDTH, "protocol_facts": dict(facts or {}),
+            "n_expected": None if expected is None else len(expected)}
 
 
 def filter_excluded_room(materialized, room=EXCLUDED_ROOM, expected_excluded=EXCLUDED_COUNT):
@@ -278,6 +422,8 @@ def build_manifest(full, filtered):
     return {
         "experiment": "exp_22 loc_meshgrid D1 context manifest",
         "protocol": dict(EXP01_LOADER), "context_width": CONTEXT_WIDTH,
+        "protocol_facts": full.get("protocol_facts") or {},
+        "call_graph": list(RELEASE_CALL_GRAPH),
         "dataset_config": full.get("dataset_config"),
         "n_full": full["n_records"], "n_filtered": filtered["n_records"],
         "full_stream_sha256": stream_hash(full["records"]),
