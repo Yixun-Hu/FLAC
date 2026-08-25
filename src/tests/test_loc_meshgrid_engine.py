@@ -1259,3 +1259,28 @@ def test_a_probe_does_not_parse_the_manifests_of_rooms_it_will_not_touch(tmp_pat
     # room A is streamed and verified, but its 137 MB-class manifest is never read
     assert "A/A_idx_1" not in loaded
     assert loaded.count("B/B_idx_2") >= 1
+
+
+def test_the_probe_query_list_is_only_computed_when_a_dump_asks_for_it(tmp_path):
+    import localize_meshgrid as driver
+
+    out_dir, report_path, base = _fixture_audit(tmp_path)
+    plan = me.load_audit_plan(report_path)
+    touched = []
+    real = me.registered_probe_queries
+    me.registered_probe_queries = lambda arg: touched.append(arg) or real(arg)
+    try:
+        args = driver.parse_args(["--ckpt-path", "x.ckpt"])
+        assert driver.dump_allowance(args, plan) == set()
+        assert touched == []            # 328 MB of manifests not parsed for nothing
+
+        args = driver.parse_args(["--ckpt-path", "x.ckpt", "--dump-waveforms",
+                                  "0|ir/A/A_idx_1/S001_R002_hybrid_IR.wav"])
+        assert driver.dump_allowance(args, plan) == {
+            "0|ir/A/A_idx_1/S001_R002_hybrid_IR.wav"}
+        assert touched == [plan]
+        args = driver.parse_args(["--ckpt-path", "x.ckpt", "--dump-waveforms", "9|nope"])
+        with pytest.raises(ValueError, match="announcement 08"):
+            driver.dump_allowance(args, plan)
+    finally:
+        me.registered_probe_queries = real

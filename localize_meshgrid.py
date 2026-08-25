@@ -155,6 +155,20 @@ def validate_checkpoint(args, model_config, ckpt):
     return binding
 
 
+def dump_allowance(args, plan):
+    """The query ids this run may dump, computed ONLY if a dump was requested.
+
+    ``registered_probe_queries`` reads every room's candidate manifest -- 328 MB
+    of index lists -- so a run that dumps nothing must not pay for it.
+    """
+    if not args.dump_waveforms:
+        return set()
+    cases = me.load_dump_cases(args.dump_cases) if args.dump_cases else {"query_ids": []}
+    allowed = set(me.registered_probe_queries(plan).values()) | set(cases["query_ids"])
+    me.assert_dump_allowed(args.dump_waveforms, allowed)
+    return {str(query) for query in args.dump_waveforms}
+
+
 def writes_query_artifacts(args):
     """Only a scored pass claims the output directory.
 
@@ -253,13 +267,8 @@ def main(argv=None):
             for verdict in rejected[:5]:
                 print(f"  rejected {verdict['query_id']}: {verdict['reason']}")
 
-    allowed = me.registered_probe_queries(plan)
-    dump_queries = set()
-    if args.dump_waveforms:
-        cases = me.load_dump_cases(args.dump_cases) if args.dump_cases else {"query_ids": []}
-        me.assert_dump_allowed(args.dump_waveforms,
-                               set(allowed.values()) | set(cases["query_ids"]))
-        dump_queries = {str(query) for query in args.dump_waveforms}
+    dump_queries = dump_allowance(args, plan)
+    if dump_queries:
         print(f"bounded dumps admitted for {len(dump_queries)} queries "
               f"(announcement 08 exemption)\n  {me.DUMP_CONTENT_RULE}")
 
@@ -298,7 +307,7 @@ def main(argv=None):
         return 0
 
     summary.pop("probe_records", None)
-    me._atomic_json(os.path.join(args.out_dir, "run_summary.json"), summary)
+    me.write_json(os.path.join(args.out_dir, "run_summary.json"), summary)
     print(f"scored {summary['n_scored']} queries ({summary['n_skipped']} skipped), "
           f"{summary['n_conditioner_rows']} source-conditioner rows, "
           f"{summary['n_generated']} generated waveforms")

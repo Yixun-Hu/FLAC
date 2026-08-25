@@ -701,7 +701,7 @@ def write_binding(out_dir, binding, advisory=None):
                            for field in RUN_BINDING_ADVISORY}
     payload["batching_caveat"] = BATCHING_CAVEAT
     path = os.path.join(str(out_dir), BINDING_FILENAME)
-    _atomic_json(path, payload)
+    write_json(path, payload)
     return path
 
 
@@ -744,7 +744,8 @@ SIMS_PRECISION_CAVEAT = (
 ROWS_DIRNAME = "rows"
 
 
-def _atomic_json(path, payload):
+def write_json(path, payload):
+    """Publish one JSON artifact atomically (tmp file, then rename)."""
     tmp = f"{path}.tmp"
     with open(tmp, "w") as handle:
         handle.write(json.dumps(payload, sort_keys=True, indent=None) + "\n")
@@ -787,7 +788,7 @@ def write_query_artifact(out_dir, row, sims):
                       "sims_dtype": SIMS_DTYPE,
                       "sims_shape": [int(array.shape[0]), int(array.shape[1])],
                       "sims_precision_caveat": SIMS_PRECISION_CAVEAT})
-    _atomic_json(paths["row"], published)
+    write_json(paths["row"], published)
     return paths
 
 
@@ -977,7 +978,7 @@ def write_probe_records(out_dir, records, stem="probe"):
         assert_no_scores(record)
     os.makedirs(str(out_dir), exist_ok=True)
     path = os.path.join(str(out_dir), f"diagnostics_{stem}.json")
-    _atomic_json(path, {"experiment": "exp_22 loc_meshgrid I1 throughput probe",
+    write_json(path, {"experiment": "exp_22 loc_meshgrid I1 throughput probe",
                         "scores_written": False, "n_queries": len(records),
                         "records": list(records)})
     return path
