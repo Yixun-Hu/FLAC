@@ -1145,3 +1145,55 @@ def test_the_parity_check_reports_a_real_cache_error(tmp_path):
     report = me.cache_parity_check(engine, query, md, n_candidates=3, source_chunk=3)
     assert report["memoization"]["match"] is False
     assert report["match"] is False
+
+
+# --------------------------------------------------------------------------- #
+# the advisory tier: batching changes results only at the backbone's ulp level
+# --------------------------------------------------------------------------- #
+def test_the_batching_knobs_are_recorded_as_advisory_not_as_the_binding():
+    assert set(me.RUN_BINDING_ADVISORY) == {"source_chunk", "batch_rows"}
+    assert not set(me.RUN_BINDING_ADVISORY) & set(me.RUN_BINDING_FIELDS)
+    # they cannot enter the strict digest at all -- smuggling one in is refused,
+    # which is what makes a re-chunked resume (e.g. after an OOM) possible
+    for field in me.RUN_BINDING_ADVISORY:
+        with pytest.raises(ValueError, match=field):
+            me.binding_sha256(dict(_binding(), **{field: 16}))
+
+
+def test_a_changed_batching_knob_is_reported_but_does_not_refuse_a_resume(tmp_path):
+    out = str(tmp_path / "run")
+    os.makedirs(out)
+    me.write_binding(out, _binding(), advisory={"source_chunk": 16, "batch_rows": 64})
+    assert me.assert_binding(out, _binding(),
+                             advisory={"source_chunk": 16, "batch_rows": 64}) is True
+    moved = me.assert_binding(out, _binding(), advisory={"source_chunk": 4, "batch_rows": 64})
+    assert moved is not True
+    assert moved["source_chunk"] == {"published": 16, "this_run": 4}
+    assert "ulp" in me.BATCHING_CAVEAT
+    # ... while a STRICT field still refuses
+    with pytest.raises(ValueError, match="tau"):
+        me.assert_binding(out, _binding(tau=0.02), advisory={"source_chunk": 16,
+                                                             "batch_rows": 64})
+
+
+def test_the_published_binding_carries_both_tiers(tmp_path):
+    out = str(tmp_path / "run")
+    os.makedirs(out)
+    path = me.write_binding(out, _binding(), advisory={"source_chunk": 16, "batch_rows": 64})
+    payload = json.load(open(path))
+    assert payload["advisory"] == {"source_chunk": 16, "batch_rows": 64}
+    assert payload["batching_caveat"] == me.BATCHING_CAVEAT
+    assert payload["binding_sha256"] == me.binding_sha256(_binding())
+
+
+def test_the_drivers_parity_path_runs_end_to_end_on_a_synthetic_stack(tmp_path, capsys):
+    import localize_meshgrid as driver
+
+    plan, records, items = _aligned(tmp_path)
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--source-chunk", "2"])
+    code = driver._run_cache_parity(args, SyntheticEngine(), plan, records,
+                                    [([obs], [md]) for obs, md in items])
+    assert code == 0
+    printed = capsys.readouterr().out
+    assert "MEMOIZATION" in printed and "MATCH" in printed
+    assert "BATCHED" in printed

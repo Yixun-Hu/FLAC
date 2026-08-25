@@ -656,6 +656,22 @@ RUN_BINDING_FIELDS = (
     "tau", "seed", "noise_policy", "steps", "cfg_scale", "cond_method", "scorer_readout",
     "dataset_config")
 
+#: recorded and compared, but NOT part of the strict digest. These change only
+#: the batch SHAPES the backbones see; under autocast that moves an output by
+#: about one bfloat16 ulp (measured 2e-3 on the real conditioner), which is the
+#: model's own batch nondeterminism rather than a different protocol. Refusing a
+#: resume over them would make an OOM unrecoverable, so a change is reported.
+RUN_BINDING_ADVISORY = ("source_chunk", "batch_rows")
+
+BATCHING_CAVEAT = (
+    "source_chunk and batch_rows change the batch shapes the ViT, the DiT, the VAE and the "
+    "AGREE tower are called with. Under the registered autocast that perturbs an output by "
+    "about one bfloat16 ulp (measured: max |diff| 2e-3 between a 64-candidate call and the "
+    "cached 16-candidate chunks), so a pass re-chunked mid-run is NOT bit-identical to one "
+    "chunked uniformly -- it is the same protocol at the backbone's own numerical noise. "
+    "Within a run every query of a receiver still shares bit-identical source tokens, "
+    "because they are served from one cache")
+
 BINDING_FILENAME = "run_binding.json"
 
 
@@ -673,18 +689,25 @@ def binding_sha256(binding):
     return canonical_sha256({field: binding[field] for field in sorted(RUN_BINDING_FIELDS)})
 
 
-def write_binding(out_dir, binding):
+def write_binding(out_dir, binding, advisory=None):
     """Publish the binding beside the artifacts it authorizes."""
     os.makedirs(str(out_dir), exist_ok=True)
     payload = {field: binding[field] for field in RUN_BINDING_FIELDS}
     payload["binding_sha256"] = binding_sha256(binding)
+    payload["advisory"] = {field: (advisory or {}).get(field)
+                           for field in RUN_BINDING_ADVISORY}
+    payload["batching_caveat"] = BATCHING_CAVEAT
     path = os.path.join(str(out_dir), BINDING_FILENAME)
     _atomic_json(path, payload)
     return path
 
 
-def assert_binding(out_dir, binding):
-    """A resume continues the SAME run or refuses, naming the fields that moved."""
+def assert_binding(out_dir, binding, advisory=None):
+    """A resume continues the SAME run or refuses, naming the fields that moved.
+
+    Returns ``True`` when everything matches, or a dict of the ADVISORY fields
+    that moved -- those are reported to the operator, not refused.
+    """
     path = os.path.join(str(out_dir), BINDING_FILENAME)
     if not os.path.isfile(path):
         raise ValueError(f"{out_dir} holds no {BINDING_FILENAME}; a resume may not adopt "
@@ -697,7 +720,11 @@ def assert_binding(out_dir, binding):
         raise ValueError(f"this run does not continue the published one: {differing} differ "
                          f"(published binding {str(published.get('binding_sha256'))[:12]}..., "
                          f"this run {binding_sha256(binding)[:12]}...)")
-    return True
+    was = published.get("advisory") or {}
+    moved = {field: {"published": was.get(field), "this_run": (advisory or {}).get(field)}
+             for field in RUN_BINDING_ADVISORY
+             if was.get(field) != (advisory or {}).get(field)}
+    return moved or True
 
 
 # --------------------------------------------------------------------------- #

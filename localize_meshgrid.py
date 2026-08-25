@@ -201,12 +201,16 @@ def main(argv=None):
     run_binding = build_run_binding(args, plan, ckpt_sha256=me.file_sha256(args.ckpt_path),
                                     agree_sha256=agree.ckpt_sha256,
                                     model_config_sha256=me.file_sha256(args.model_config))
+    advisory = {"source_chunk": int(args.source_chunk), "batch_rows": int(args.batch_rows)}
     done = set()
     if args.probe is None:
         if os.path.isfile(os.path.join(args.out_dir, me.BINDING_FILENAME)):
-            me.assert_binding(args.out_dir, run_binding)
+            moved = me.assert_binding(args.out_dir, run_binding, advisory=advisory)
+            if moved is not True:
+                print(f"NOTE: batching changed since the published pass: {moved}\n  "
+                      f"{me.BATCHING_CAVEAT}")
         else:
-            me.write_binding(args.out_dir, run_binding)
+            me.write_binding(args.out_dir, run_binding, advisory=advisory)
         if args.resume:
             done, rejected = me.completed_queries(args.out_dir)
             print(f"resume: {len(done)} verified queries skipped, {len(rejected)} rejected "
@@ -232,7 +236,7 @@ def main(argv=None):
           "D1 pass at iterator creation")
 
     if args.cache_parity_check:
-        return _run_cache_parity(engine, plan, records, loader)
+        return _run_cache_parity(args, engine, plan, records, loader)
 
     progress = _progress_printer(len(records) - len(done))
     summary = me.run_pass(engine, _iter_items(loader), records, plan, args.out_dir,
@@ -286,7 +290,7 @@ def _progress_printer(total, every=25):
     return _on_row
 
 
-def _run_cache_parity(engine, plan, records, loader):
+def _run_cache_parity(args, engine, plan, records, loader):
     """§1.5's bit-identity proof on the first query of the pass, then stop."""
     first = records[0]
     room = me.load_room_plan(plan, first["room_id"])
