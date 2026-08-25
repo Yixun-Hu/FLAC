@@ -25,6 +25,7 @@ stamped into every run's provenance rather than being silently taken:
 import hashlib
 import json
 import math
+import os
 
 import numpy as np
 import torch
@@ -373,3 +374,250 @@ class ReceiverCache:
                              f"({found[:12]}...) is not the one the source cache was built "
                              f"from ({self.depth_digest[:12]}...)")
         return True
+
+
+# --------------------------------------------------------------------------- #
+# the G1 binding: what a query is allowed to be scored against
+# --------------------------------------------------------------------------- #
+def file_sha256(path, chunk=1 << 20):
+    digest = hashlib.sha256()
+    with open(str(path), "rb") as handle:
+        for block in iter(lambda: handle.read(chunk), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+class AuditPlan:
+    """The verified G1 audit: its branch, its rooms and their manifest paths."""
+
+    def __init__(self, report_path, report, rooms, branch):
+        self.report_path = str(report_path)
+        self.report = report
+        self.rooms = dict(rooms)
+        self.branch = str(branch)
+        self.report_sha256 = file_sha256(report_path)
+        self.out_dir = os.path.dirname(os.path.abspath(str(report_path)))
+
+    @property
+    def n_queries(self):
+        return int(self.report.get("n_queries", 0))
+
+
+def load_audit_plan(report_path, branch=None):
+    """Re-accept the whole published G1 audit before a single query is scored.
+
+    The chain verifier reconstructs every room's candidate coordinates from the
+    npz and re-derives every digest, so a manifest edited after publication --
+    or a sidecar that does not belong to it -- is a refusal here rather than a
+    quietly different candidate set at generation time.
+    """
+    from src.localization.meshgrid_geometry import verify_report_chain
+
+    with open(str(report_path)) as handle:
+        report = json.load(handle)
+    if report.get("diagnostics_only"):
+        raise ValueError(f"{report_path} is a diagnostics-only report; it carries no candidate "
+                         "manifests and may not bind a scored run")
+    verdict = verify_report_chain(str(report_path))
+    if not verdict["ok"]:
+        raise ValueError(f"the G1 audit does not re-verify: {verdict['reasons'][0]}")
+
+    registered = ((report.get("branch") or {}).get("branch"))
+    if branch is not None and str(branch) != str(registered):
+        raise ValueError(f"the audit selected the {registered!r} branch but this run asks for "
+                         f"{branch!r}; the branch is decided by geometry before generation "
+                         "(inherited plan §1.2) and is not a run-time choice")
+    out_dir = os.path.dirname(os.path.abspath(str(report_path)))
+    rooms = {room: os.path.join(out_dir, entry["candidate_manifest"])
+             for room, entry in (report.get("rooms") or {}).items()}
+    return AuditPlan(report_path, report, rooms, registered)
+
+
+class QueryPlan:
+    """One query's candidate set, as the audit published it."""
+
+    def __init__(self, position, query_id, room_id, receiver_id, receiver_xyz,
+                 candidate_indices, coordinates, oracle, branch, z_band, n_contexts):
+        self.position = int(position)
+        self.query_id = str(query_id)
+        self.room_id = str(room_id)
+        self.receiver_id = str(receiver_id)
+        self.receiver_xyz = np.asarray(receiver_xyz, dtype=np.float64)
+        self.candidate_indices = np.asarray(candidate_indices, dtype=np.int64)
+        self.coordinates = np.asarray(coordinates, dtype=np.float64)
+        self.oracle = float(oracle)
+        self.branch = str(branch)
+        self.z_band = list(z_band) if z_band is not None else None
+        self.n_contexts = int(n_contexts)
+
+    @property
+    def n_candidates(self):
+        return int(self.candidate_indices.size)
+
+
+class RoomPlan:
+    """One room's queries, in stream order, on the audit's chosen branch."""
+
+    def __init__(self, room_id, branch, base, queries, manifest_path, manifest_sha256):
+        self.room_id = str(room_id)
+        self.branch = str(branch)
+        self.base = base
+        self.queries = list(queries)
+        self.manifest_path = str(manifest_path)
+        self.manifest_sha256 = str(manifest_sha256)
+
+
+#: the manifest keys each branch's indices and count live under.
+BRANCH_KEYS = {"full_height": ("candidate_indices", "n_candidates"),
+               "z_band": ("candidate_indices_z_band", "n_candidates_z_band")}
+
+
+def load_room_plan(plan, room_id):
+    """One room's candidate manifest, resolved to coordinates (bounded to a room).
+
+    Kept per room on purpose: the biggest room's manifest is 137 MB of index
+    lists, so the engine reads one at a time and turns the indices into int64
+    arrays immediately.
+    """
+    path = plan.rooms.get(room_id)
+    if path is None:
+        raise ValueError(f"the audit publishes no candidate manifest for room {room_id!r}")
+    with open(path) as handle:
+        manifest = json.load(handle)
+    if manifest.get("chosen_branch") != plan.branch:
+        raise ValueError(f"{room_id}: the manifest was published on the "
+                         f"{manifest.get('chosen_branch')!r} branch but the audit report "
+                         f"selects {plan.branch!r}")
+    npz_path = os.path.join(plan.out_dir, manifest["coordinates_npz"])
+    with np.load(npz_path) as data:
+        base = np.asarray(data["base_candidates"], dtype=np.float64)
+    index_key, count_key = BRANCH_KEYS[plan.branch]
+
+    queries = []
+    for entry in manifest["queries"]:
+        indices = np.asarray(entry[index_key], dtype=np.int64)
+        if indices.size != int(entry[count_key]) or indices.size == 0:
+            raise ValueError(f"{entry['query_id']}: the {plan.branch} branch carries "
+                             f"{indices.size} indices for a declared {entry[count_key]}")
+        queries.append(QueryPlan(
+            position=entry["position"], query_id=entry["query_id"], room_id=room_id,
+            receiver_id=entry["receiver_id"], receiver_xyz=entry["receiver"],
+            candidate_indices=indices, coordinates=base[indices],
+            oracle=(entry.get("oracle") or {})[plan.branch], branch=plan.branch,
+            z_band=entry.get("z_band"), n_contexts=entry.get("n_contexts", 0)))
+    queries.sort(key=lambda query: query.position)
+    from src.localization.meshgrid_geometry import manifest_json_sha256
+
+    return RoomPlan(room_id, plan.branch, base, queries, path, manifest_json_sha256(manifest))
+
+
+class ReceiverGroup:
+    """One receiver's queries and the candidate union they are served from."""
+
+    def __init__(self, receiver_id, receiver_xyz, queries, union):
+        self.receiver_id = str(receiver_id)
+        self.receiver_xyz = np.asarray(receiver_xyz, dtype=np.float64)
+        self.queries = list(queries)
+        self.union = list(union)
+
+
+def receiver_groups(room_plan):
+    """The room's receiver groups, first-appearance ordered, stream-ordered inside.
+
+    Grouping is what turns 8.9 M candidate-query pairs into 966 k conditioner
+    calls; the order is derived from the manifest so two runs build the same
+    groups in the same sequence.
+    """
+    order, buckets = [], {}
+    for query in room_plan.queries:
+        if query.receiver_id not in buckets:
+            order.append(query.receiver_id)
+            buckets[query.receiver_id] = []
+        buckets[query.receiver_id].append(query)
+    groups = []
+    for receiver_id in order:
+        queries = sorted(buckets[receiver_id], key=lambda query: query.position)
+        union = receiver_union([query.candidate_indices for query in queries])
+        groups.append(ReceiverGroup(receiver_id, queries[0].receiver_xyz, queries, union))
+    return groups
+
+
+# --------------------------------------------------------------------------- #
+# the D1 binding: the contexts a query is generated from
+# --------------------------------------------------------------------------- #
+def verify_context_record(md, record, position):
+    """The loader's draw IS the registered one, checked before it conditions anything.
+
+    The D1 manifest froze each query's context fingerprints and the sha256 of
+    every context RIR's exact float32 bytes. Recomputing them from the live
+    stream is what makes the manifest binding executable rather than
+    documentary: a different worker count, a re-ordered split or a substituted
+    item all show up here.
+    """
+    from src.localization import meshgrid_queries as mq
+
+    found = mq.context_record(md, position, eligible=record.get("eligible", 0))
+    if found["query_id"] != record["query_id"]:
+        raise ValueError(f"stream position {position}: the loader delivered query_id "
+                         f"{found['query_id']!r} where the context manifest registers "
+                         f"{record['query_id']!r}")
+    if int(record["position"]) != int(position):
+        raise ValueError(f"stream position {position}: the context manifest registers this "
+                         f"query at position {record['position']}; the pass is out of order")
+    if found["context_fingerprints"] != list(record["context_fingerprints"]):
+        raise ValueError(f"{record['query_id']}: the context fingerprint set differs from the "
+                         "frozen D1 manifest; this query would be conditioned on a different "
+                         "draw than every other arm")
+    if found["context_audio_sha256"] != list(record["context_audio_sha256"]):
+        raise ValueError(f"{record['query_id']}: a context audio digest differs from the frozen "
+                         "D1 manifest; the context RIR bytes are not the registered ones")
+    return True
+
+
+def assert_room_blocks(records):
+    """Each room must arrive as ONE contiguous block of the stream.
+
+    The engine buffers a room's per-query context branch and then walks that
+    room's receiver groups, so a room split across the stream would either
+    blow the bound or silently drop a group. It holds on the registered split;
+    it is asserted rather than assumed.
+    """
+    order, spans = [], {}
+    for record in records:
+        room = record["room_id"]
+        position = int(record["position"])
+        if room not in spans:
+            order.append(room)
+            spans[room] = [position, position, 0]
+        spans[room][1] = max(spans[room][1], position)
+        spans[room][0] = min(spans[room][0], position)
+        spans[room][2] += 1
+    for room in order:
+        low, high, count = spans[room]
+        if high - low + 1 != count:
+            raise ValueError(f"room {room!r} is not contiguous in the stream: {count} queries "
+                             f"spread over positions {low}..{high}")
+    return order
+
+
+def assert_receiver_consistent(md, receiver_xyz, coordinates, oracle, tol=1e-4):
+    """The candidate coordinates belong to THIS query's receiver.
+
+    ``md['source']`` is the ground-truth source in the receiver's own frame, so
+    ``receiver + md['source']`` is the global truth G1 measured its oracle
+    against. Recomputing that minimum from the published coordinates is a cheap
+    end-to-end check that the manifest row, the receiver and the loader item are
+    the same query -- an offset receiver moves it immediately.
+    """
+    receiver = np.asarray(receiver_xyz, dtype=np.float64).reshape(3)
+    source = torch.as_tensor(md["source"]).detach().cpu().to(torch.float64).reshape(-1).numpy()
+    if source.size != 3:
+        raise ValueError(f"md['source'] must be 3 coordinates, got {source.size}")
+    truth = receiver + source
+    found = float(np.linalg.norm(np.asarray(coordinates, dtype=np.float64) - truth,
+                                 axis=1).min())
+    if abs(found - float(oracle)) > float(tol):
+        raise ValueError(f"the oracle recomputed from the loader's own geometry is {found:.6f} m "
+                         f"but the candidate manifest records {float(oracle):.6f} m; the "
+                         "candidate set does not belong to this receiver")
+    return True

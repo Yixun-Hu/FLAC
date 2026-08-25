@@ -328,3 +328,216 @@ def test_the_union_is_deduplicated_and_ascending():
     # one conditioner call per (receiver, candidate) in the union -- the cost the
     # G1 gate counted, not one per (query, candidate)
     assert cache.n_conditioner_rows == 3
+
+
+# --------------------------------------------------------------------------- #
+# the G1 binding: candidate manifests, branch, receiver groups
+# --------------------------------------------------------------------------- #
+def _write_room(out_dir, room_id, queries, base, branch="z_band"):
+    """A minimal but VERIFIER-VALID room manifest + its coordinate sidecar."""
+    from src.localization import meshgrid_geometry as mg
+
+    scene, scene_id = room_id.split("/")
+    stem = f"candidates_{scene}_{scene_id}"
+    np.savez(os.path.join(out_dir, stem + ".npz"), base_candidates=base)
+    payload = {"room_id": room_id, "chosen_branch": branch, "spacing": 0.5,
+               "coordinates_npz": stem + ".npz", "n_base_valid": int(base.shape[0]),
+               "base_candidates_sha256": mg.coordinates_digest(base),
+               "directions_seed": 1, "queries": []}
+    for query in queries:
+        full = list(query["candidate_indices"])
+        band = list(query.get("candidate_indices_z_band", full))
+        payload["queries"].append({
+            "position": query["position"], "query_id": query["query_id"],
+            "receiver": list(query["receiver"]), "receiver_id": query["receiver_id"],
+            "candidate_indices": full, "n_candidates": len(full),
+            "candidate_indices_z_band": band, "n_candidates_z_band": len(band),
+            "candidate_coordinates_sha256": mg.coordinates_digest(base[np.asarray(full)]),
+            "n_contexts": 8, "n_dropped_receiver": 0, "n_dropped_context": 0,
+            "z_band": [0.5, 2.5], "oracle": {"full_height": 0.3, "z_band": 0.4}})
+    path = os.path.join(out_dir, stem + ".json")
+    with open(path, "w") as handle:
+        handle.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    return path, payload
+
+
+def _fixture_audit(tmp_path, branch="z_band"):
+    from src.localization import meshgrid_geometry as mg
+
+    out_dir = str(tmp_path / "g1")
+    os.makedirs(out_dir, exist_ok=True)
+    base = np.arange(30, dtype=np.float64).reshape(10, 3)
+    rooms = {}
+    queries_a = [
+        {"position": 0, "query_id": "0|ir/A/A_idx_1/S001_R002_hybrid_IR.wav",
+         "receiver": [1.0, 2.0, 1.5], "receiver_id": "A/A_idx_1|1,2,1.5",
+         "candidate_indices": [0, 1, 2, 3], "candidate_indices_z_band": [1, 2, 3]},
+        {"position": 1, "query_id": "1|ir/A/A_idx_1/S003_R004_hybrid_IR.wav",
+         "receiver": [9.0, 9.0, 1.5], "receiver_id": "A/A_idx_1|9,9,1.5",
+         "candidate_indices": [4, 5], "candidate_indices_z_band": [4, 5]},
+        {"position": 2, "query_id": "2|ir/A/A_idx_1/S005_R002_hybrid_IR.wav",
+         "receiver": [1.0, 2.0, 1.5], "receiver_id": "A/A_idx_1|1,2,1.5",
+         "candidate_indices": [2, 3, 7], "candidate_indices_z_band": [2, 7]},
+    ]
+    path_a, payload_a = _write_room(out_dir, "A/A_idx_1", queries_a, base, branch=branch)
+    rooms["A/A_idx_1"] = (path_a, payload_a)
+    queries_b = [
+        {"position": 3, "query_id": "3|ir/B/B_idx_2/S001_R009_hybrid_IR.wav",
+         "receiver": [4.0, 4.0, 1.2], "receiver_id": "B/B_idx_2|4,4,1.2",
+         "candidate_indices": [0, 1, 8], "candidate_indices_z_band": [0, 8]},
+    ]
+    path_b, payload_b = _write_room(out_dir, "B/B_idx_2", queries_b, base, branch=branch)
+    rooms["B/B_idx_2"] = (path_b, payload_b)
+
+    report = {"experiment": "exp_22 loc_meshgrid G1 geometry audit", "n_queries": 4,
+              "n_rooms": 2, "status": "accepted", "diagnostics_only": False,
+              "branch": {"branch": branch, "n_new_over_threshold": 0},
+              "directions_seed": 1, "spacing": 0.5,
+              "rooms": {room: {"candidate_manifest": os.path.basename(path),
+                               "candidate_manifest_sha256": mg.manifest_json_sha256(payload)}
+                        for room, (path, payload) in rooms.items()}}
+    report_path = os.path.join(out_dir, "geometry_audit_report.json")
+    with open(report_path, "w") as handle:
+        handle.write(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    return out_dir, report_path, base
+
+
+def test_the_geometry_verifiers_live_beside_the_geometry_module():
+    from src.localization import meshgrid_geometry as mg
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "_agm", "worklog/worklog_yixun/exp_22_loc_meshgrid_claude/audit_meshgrid_geometry.py")
+    agm = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(agm)
+    # ONE implementation, re-exported: the audit tool and the engine must not be
+    # able to disagree about whether an artifact verifies.
+    assert agm.verify_room_manifest is mg.verify_room_manifest
+    assert agm.verify_report_chain is mg.verify_report_chain
+    assert agm.coordinates_digest is mg.coordinates_digest
+
+
+def test_the_engine_verifies_every_room_manifest_before_reading_it(tmp_path):
+    out_dir, report_path, base = _fixture_audit(tmp_path)
+    plan = me.load_audit_plan(report_path)
+    assert plan.branch == "z_band"
+    assert sorted(plan.rooms) == ["A/A_idx_1", "B/B_idx_2"]
+    assert plan.n_queries == 4
+    assert plan.report_sha256 == me.file_sha256(report_path)
+
+
+def test_a_tampered_room_manifest_is_refused_not_read(tmp_path):
+    out_dir, report_path, base = _fixture_audit(tmp_path)
+    room = os.path.join(out_dir, "candidates_A_A_idx_1.json")
+    payload = json.load(open(room))
+    payload["queries"][0]["candidate_indices"] = [0, 1, 2, 3, 4]
+    with open(room, "w") as handle:
+        handle.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    with pytest.raises(ValueError, match="A/A_idx_1"):
+        me.load_audit_plan(report_path)
+
+
+def test_the_branch_comes_from_the_audit_and_a_mismatch_is_refused(tmp_path):
+    out_dir, report_path, base = _fixture_audit(tmp_path, branch="z_band")
+    with pytest.raises(ValueError, match="full_height"):
+        me.load_audit_plan(report_path, branch="full_height")
+    assert me.load_audit_plan(report_path, branch="z_band").branch == "z_band"
+
+
+def test_a_room_plan_carries_the_branchs_indices_and_their_coordinates(tmp_path):
+    out_dir, report_path, base = _fixture_audit(tmp_path)
+    plan = me.load_audit_plan(report_path)
+    room = me.load_room_plan(plan, "A/A_idx_1")
+    first = room.queries[0]
+    assert first.candidate_indices.tolist() == [1, 2, 3]        # the z_band branch
+    assert first.coordinates.tolist() == base[[1, 2, 3]].tolist()
+    assert first.oracle == 0.4 and first.branch == "z_band"
+    assert first.receiver_xyz.tolist() == [1.0, 2.0, 1.5]
+
+
+def test_receiver_groups_are_the_union_and_keep_stream_order_inside(tmp_path):
+    out_dir, report_path, base = _fixture_audit(tmp_path)
+    room = me.load_room_plan(me.load_audit_plan(report_path), "A/A_idx_1")
+    groups = me.receiver_groups(room)
+    assert [group.receiver_id for group in groups] == ["A/A_idx_1|1,2,1.5", "A/A_idx_1|9,9,1.5"]
+    assert groups[0].union == [1, 2, 3, 7]              # {1,2,3} u {2,7}
+    assert [query.position for query in groups[0].queries] == [0, 2]
+    assert sum(len(group.queries) for group in groups) == 3
+    # the cost the G1 gate counted: one conditioner call per union member
+    assert sum(len(group.union) for group in groups) == 6
+
+
+# --------------------------------------------------------------------------- #
+# the D1 binding: the contexts a query is generated from
+# --------------------------------------------------------------------------- #
+def _d1_record(position, md):
+    """The D1 record this md would have produced -- the manifest's own codec."""
+    from src.localization import meshgrid_queries as mq
+
+    return mq.context_record(md, position, eligible=8)
+
+
+def _stream_md(value=2.0):
+    md = _md(context_value=value)
+    md["context_audio"] = torch.full((8, 1, 16), float(value), dtype=torch.float32)
+    md["context_poses"] = torch.arange(24, dtype=torch.float32).reshape(8, 3)
+    md["context_poses_vit"] = torch.arange(24, dtype=torch.float32).reshape(8, 3)
+    md["relpath"] = "single_channel_ir_1/A/A_idx_1/S001_R002_hybrid_IR.wav"
+    md["path"] = "AcousticRooms/" + md["relpath"]
+    md["idx"] = 0
+    return md
+
+
+def test_the_context_draw_is_verified_against_the_manifest_before_use():
+    md = _stream_md()
+    record = _d1_record(0, md)
+    assert me.verify_context_record(md, record, 0) is True
+
+
+def test_a_context_audio_digest_mismatch_aborts_the_query():
+    md = _stream_md()
+    record = _d1_record(0, md)
+    with pytest.raises(ValueError, match="context audio"):
+        me.verify_context_record(_stream_md(value=3.0), record, 0)
+
+
+def test_a_context_fingerprint_mismatch_aborts_the_query():
+    md = _stream_md()
+    record = _d1_record(0, md)
+    moved = _stream_md()
+    moved["context_poses"] = moved["context_poses"] + 1.0
+    with pytest.raises(ValueError, match="fingerprint"):
+        me.verify_context_record(moved, record, 0)
+
+
+def test_the_stream_position_and_identity_are_part_of_the_binding():
+    md = _stream_md()
+    record = _d1_record(0, md)
+    with pytest.raises(ValueError, match="position"):
+        me.verify_context_record(md, record, 5)
+    other = dict(record, query_id="7|other")
+    with pytest.raises(ValueError, match="query_id"):
+        me.verify_context_record(md, other, 0)
+
+
+def test_the_stream_must_deliver_each_room_as_one_contiguous_block():
+    records = [{"position": 0, "room_id": "A"}, {"position": 1, "room_id": "A"},
+               {"position": 2, "room_id": "B"}]
+    assert me.assert_room_blocks(records) == ["A", "B"]
+    with pytest.raises(ValueError, match="contiguous"):
+        me.assert_room_blocks(records + [{"position": 3, "room_id": "A"}])
+
+
+def test_the_receiver_is_cross_checked_against_the_loaders_own_geometry():
+    # md['source'] is the GT source in the receiver frame; recombining it with the
+    # manifest's receiver must reproduce the oracle G1 recorded, or the candidate
+    # coordinates belong to a different receiver.
+    receiver = np.array([1.0, 2.0, 1.5])
+    truth = np.array([2.0, 2.0, 1.5])
+    coordinates = np.array([[2.0, 2.0, 2.0], [5.0, 5.0, 5.0]])
+    md = {"source": torch.tensor((truth - receiver), dtype=torch.float32)}
+    assert me.assert_receiver_consistent(md, receiver, coordinates, 0.5, tol=1e-4) is True
+    with pytest.raises(ValueError, match="oracle"):
+        me.assert_receiver_consistent(md, receiver, coordinates, 0.9, tol=1e-4)
+    with pytest.raises(ValueError, match="oracle"):
+        me.assert_receiver_consistent(md, receiver + 10.0, coordinates, 0.5, tol=1e-4)

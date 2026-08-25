@@ -668,3 +668,100 @@ def select_direction_seed(scenes, max_seed=64, n_directions=N_DIRECTIONS, votes_
     raise ValueError(f"no seed in [0, {max_seed}] classifies every anchor as interior under "
                      f"the registered rule; the closest attempts were "
                      f"{sorted(attempts, key=lambda a: a['n_failures'])[:3]}")
+
+
+# --------------------------------------------------------------------------- #
+# published-artifact verifiers (shared by the G1 audit tool and the I1 engine)
+# --------------------------------------------------------------------------- #
+def manifest_json_sha256(payload):
+    """sha256 over a manifest payload's exact published bytes."""
+    return hashlib.sha256(json.dumps(payload, indent=2, sort_keys=True).encode()
+                          + b"\n").hexdigest()
+
+
+def coordinates_digest(array):
+    """sha256 over the exact float64 coordinate bytes."""
+    return hashlib.sha256(np.ascontiguousarray(array, dtype=np.float64).tobytes()).hexdigest()
+
+
+def verify_room_manifest(manifest_path, out_dir=None):
+    """Re-accept a published room manifest from its own artifacts, fail-closed.
+
+    Reconstructs BOTH branches from the sidecar npz and the recorded indices and
+    re-derives every digest. The audit runs this as its last publish step, so
+    nothing is published that the verifier would reject (r3 review F4).
+    """
+    out_dir = out_dir or os.path.dirname(os.path.abspath(manifest_path))
+    reasons = []
+    with open(manifest_path) as handle:
+        manifest = json.load(handle)
+
+    npz_path = os.path.join(out_dir, manifest.get("coordinates_npz", ""))
+    if not os.path.isfile(npz_path):
+        return {"ok": False, "reasons": [f"the sidecar {npz_path!r} is missing"],
+                "manifest": manifest_path}
+    with np.load(npz_path) as data:
+        base = np.asarray(data["base_candidates"], dtype=np.float64)
+
+    if coordinates_digest(base) != manifest.get("base_candidates_sha256"):
+        reasons.append(f"the npz base candidates do not match base_candidates_sha256 "
+                       f"({coordinates_digest(base)[:12]}... vs "
+                       f"{str(manifest.get('base_candidates_sha256'))[:12]}...)")
+    if int(manifest.get("n_base_valid", -1)) != int(base.shape[0]):
+        reasons.append(f"n_base_valid is {manifest.get('n_base_valid')} but the npz holds "
+                       f"{base.shape[0]} candidates")
+
+    branches = set()
+    for query in manifest.get("queries", []):
+        for branch, key, count_key in (("full_height", "candidate_indices", "n_candidates"),
+                                       ("z_band", "candidate_indices_z_band",
+                                        "n_candidates_z_band")):
+            indices = np.asarray(query.get(key, []), dtype=np.int64)
+            if indices.size != int(query.get(count_key, -1)):
+                reasons.append(f"{query['query_id']}: {branch} carries {indices.size} indices "
+                               f"but reports {query.get(count_key)}")
+                continue
+            if indices.size and (indices.min() < 0 or indices.max() >= base.shape[0]):
+                reasons.append(f"{query['query_id']}: {branch} index out of range "
+                               f"[{indices.min()}, {indices.max()}] for {base.shape[0]} "
+                               "candidates")
+                continue
+            if len(set(indices.tolist())) != indices.size:
+                reasons.append(f"{query['query_id']}: {branch} repeats an index")
+                continue
+            branches.add(branch)
+            if branch == "full_height":
+                digest = coordinates_digest(base[indices])
+                if digest != query.get("candidate_coordinates_sha256"):
+                    reasons.append(f"{query['query_id']}: reconstructed coordinates hash to "
+                                   f"{digest[:12]}... but the manifest records "
+                                   f"{str(query.get('candidate_coordinates_sha256'))[:12]}...")
+    return {"ok": not reasons, "reasons": reasons, "manifest": manifest_path,
+            "n_queries": len(manifest.get("queries", [])),
+            "branches_reconstructed": sorted(branches),
+            "room_id": manifest.get("room_id")}
+
+
+def verify_report_chain(report_path):
+    """The report's per-room digests must still match the manifests on disk."""
+    out_dir = os.path.dirname(os.path.abspath(report_path))
+    with open(report_path) as handle:
+        report = json.load(handle)
+    reasons = []
+    for room_id, entry in sorted((report.get("rooms") or {}).items()):
+        path = os.path.join(out_dir, entry["candidate_manifest"])
+        if not os.path.isfile(path):
+            reasons.append(f"{room_id}: {entry['candidate_manifest']} is missing")
+            continue
+        with open(path) as handle:
+            payload = json.load(handle)
+        digest = manifest_json_sha256(payload)
+        if digest != entry.get("candidate_manifest_sha256"):
+            reasons.append(f"{room_id}: the manifest hashes to {digest[:12]}... but the "
+                           f"report records {str(entry.get('candidate_manifest_sha256'))[:12]}"
+                           "...; it was edited after publication")
+        verdict = verify_room_manifest(path, out_dir=out_dir)
+        if not verdict["ok"]:
+            reasons.append(f"{room_id}: {verdict['reasons'][0]}")
+    return {"ok": not reasons, "reasons": reasons, "n_rooms": len(report.get("rooms") or {}),
+            "report": report_path}
