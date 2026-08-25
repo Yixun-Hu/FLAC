@@ -17,3 +17,9 @@
 ## 2026-08-25T02:05:00-0400 — r1 review: 4 BLOCKERs; RSYNC NOW GATES G1
 
 - F1 (worker-RNG call graph) and F2 (substitution guard) are code-fixable now. **F3 changes the rsync's status: the inherited plan freezes "31 directions" by reference, not value — our locally generated set fails a real anchor (MeetingRoom_idx_32 receiver, 15/31 odd votes at 0.250 m clearance) that exp_09's approved G1 evidently passed. Their frozen direction set (or G1 code/audit) is REQUIRED for parity; without it we can only pin our own set and re-open the anchor rule.** F4 = the audit/cost-report driver, spec'd, buildable now.
+
+## 2026-08-25T03:50:00-0400 — r2 delivered; Planner verification + rulings
+
+- **Version Control** — `6f169c5 9eef028 a9f796b bc790f5`; tree 2,863 green. Call-graph parity proven on real data (identical RNG state + fingerprints + context-audio digests across ours vs the eval_FLAC-faithful reference; counter-test bites). Directions pinned literally at the reviewed digest `9ab4339f…`; MeetingRoom discrepancy encoded as a loud, unresolved, room-blocking marker.
+- **Rulings:** ANCHOR_TOLERANCE 1e-3 for the context-join ACCEPTED (recovery join, not a geometric boundary; separately named). AGREE-path resolution recording ACCEPTED (verified on disk: the configured `weights/AGREE/AGREE_fullAR.pt` exists here, so resolution = "configured" on this box; the fallback guard is for other checkouts).
+- **Next** — focused r2 re-review → D1 full-pass manifest (CPU) → 16-room audit stays BLOCKED on the exp_09 rsync (MeetingRoom cross-check).
