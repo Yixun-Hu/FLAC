@@ -78,3 +78,32 @@ and still refuses, a non-finite **full-height** oracle still refuses (an empty
 full-height set is a hard failure upstream), and `+inf` on the **band** side is
 meaningful — it disqualifies the branch, by name and with a count.
 
+## Round exp22-r4 (r3 re-review — four blockers + one partial)
+
+| SHA | Item | Description | changed lines |
+|---|---|---|---|
+| `3b27412` | 1–5 | root matched as a whole **component sequence** (`NotAcousticRooms/…` and `AcousticRoomsOld/…` no longer canonicalize onto the split, plus a multi-component root case) and `build/write/load_manifest` refuse `census_verified != True`; `GateCounter` computes the **per-receiver union** ({0,1,2}+{0,1,3} ⇒ 4 calls, 4 pairs, 2 distinct sets); `--expected-queries` restricted to `--diagnostics-only` with the registered census always enforced and `assert_registered_census` in `main()`; `-inf` refuses on both sides while `+inf` stays meaningful on the band side only; `verify_room_manifest` + `verify_report_chain` re-accept every published artifact from its own files as the LAST publish step, and publishing refuses a non-empty output directory | +398 −86 |
+
+**Suite after exp22-r4:** 2889 passed, 10 skipped, **0 failures**, 2 subtests passed.
+
+### D1 manifest — REGENERATED after the F2 fix
+
+The superseded `outputs_loc/exp22/d1_context_manifest.json` was **deleted** first (r4
+`--overwrite` semantics), then written fresh by the same driver calls
+(`loc_meshgrid_2026-08-25_02:12:43_d1_manifest.log`):
+
+| fact | value |
+|---|---|
+| full stream sha256 | `15d229c0b5c56107475141e629504e86f2f9b8b3f3a3eeaa0995755380f5abc4` |
+| filtered stream sha256 | `99f8da609ef30456faa8251ad000c4675cdb2065013457cff110f905980894e9` |
+| census | 6,337 → 5,337, `census_verified: true` |
+| eligible histograms | full `{6:91, 7:429, 8:5263, 9:554}` · filtered `{6:91, 7:429, 8:4363, 9:454}` |
+| short-context queries | 520, all in `Cafe/Cafe_idx_1` |
+| call graph | `seed_everything → build_dataloader → build_metric_stack → create_iterator` |
+| AGREE | `weights/AGREE/AGREE_fullAR.pt`, resolution **configured**, sha `3a13243d6c6a1108…` |
+| RNG digest at iterator creation | `7b625f96cc52808b8cc092ee9f037fcaae8b6c2e3230a53acb86ddfa08ad7f08` |
+
+**Both stream hashes are identical to the superseded manifest**, which is the expected
+result and worth stating: the F2 fix changed how a path is *compared*, not what the
+released loader *drew*. The inherited-exp09 hash comparison remains **pending** the rsync.
+
