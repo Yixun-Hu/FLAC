@@ -436,13 +436,15 @@ def test_materializer_aborts_on_the_first_substitution(tmp_path, monkeypatch):
                                       "S008_R008_hybrid_IR.wav")
                 yield None, [md]
 
-    expected = [f"Cafe/Cafe_idx_1/S00{i + 1}_R008_hybrid_IR.wav" for i in range(4)]
+    expected = [f"AcousticRooms/single_channel_ir_1/Cafe/Cafe_idx_1/"
+                f"S00{i + 1}_R008_hybrid_IR.wav" for i in range(4)]
     monkeypatch.setattr(mq, "build_release_stack",
                         lambda *a, **k: (_FakeLoader(), {"metric_stack_built": True,
                                                          "rng_digest_at_iter": "d" * 64,
                                                          "call_graph": list(mq.RELEASE_CALL_GRAPH)}))
     monkeypatch.setattr(mq, "expected_enumeration", lambda *a, **k: expected)
     monkeypatch.setattr(mq, "eligible_pool_size", lambda path: 8)
+    monkeypatch.setattr(mq, "assert_split_enumeration", lambda *a, **k: len(expected))
     with pytest.raises(ValueError, match="position 2"):
         mq.materialize_contexts("fixture.json")
     assert records == []
@@ -454,13 +456,15 @@ def test_materializer_refuses_a_short_or_reordered_stream(tmp_path, monkeypatch)
             for position in range(2):
                 yield None, [_md(position=position, node=f"S00{position + 1}")]
 
-    expected = [f"Cafe/Cafe_idx_1/S00{i + 1}_R008_hybrid_IR.wav" for i in range(4)]
+    expected = [f"AcousticRooms/single_channel_ir_1/Cafe/Cafe_idx_1/"
+                f"S00{i + 1}_R008_hybrid_IR.wav" for i in range(4)]
     monkeypatch.setattr(mq, "build_release_stack",
                         lambda *a, **k: (_ShortLoader(), {"metric_stack_built": True,
                                                           "rng_digest_at_iter": "d" * 64,
                                                           "call_graph": list(mq.RELEASE_CALL_GRAPH)}))
     monkeypatch.setattr(mq, "expected_enumeration", lambda *a, **k: expected)
     monkeypatch.setattr(mq, "eligible_pool_size", lambda path: 8)
+    monkeypatch.setattr(mq, "assert_split_enumeration", lambda *a, **k: len(expected))
     with pytest.raises(ValueError, match="2 records|declares 4"):
         mq.materialize_contexts("fixture.json")
 
@@ -473,3 +477,96 @@ def test_in_scope_loss_is_refused_even_at_the_right_count():
                               room_id="ListeningRoom/ListeningRoom_idx_2")
     with pytest.raises(ValueError, match="exactly"):
         mq.filter_excluded_room(full, expected_excluded=6)
+
+
+# --------------------------------------------------------------------------- #
+# r3 F2 -- exact canonical equality, hard enumeration, mandatory censuses
+# --------------------------------------------------------------------------- #
+def test_canonical_relpath_strips_the_dataset_root_once():
+    roots = ("AcousticRooms",)
+    tail = "single_channel_ir_1/Cafe/Cafe_idx_1/S006_R008_hybrid_IR.wav"
+    assert mq.canonical_relpath(f"AcousticRooms/{tail}", roots) == tail
+    assert mq.canonical_relpath(f"./AcousticRooms/{tail}", roots) == tail
+    assert mq.canonical_relpath(tail, roots) == tail
+    assert mq.canonical_relpath(f"/abs/AcousticRooms/{tail}", roots) == tail
+
+
+def test_position_guard_is_exact_not_a_suffix_match():
+    """r2 re-review: bidirectional endswith accepts a basename or a partial
+    component, so a different room's file could impersonate this position."""
+    expected = "AcousticRooms/single_channel_ir_1/Cafe/Cafe_idx_1/S001_R008_hybrid_IR.wav"
+    md = _md(position=3)
+    md["relpath"] = "single_channel_ir_1/Cafe/Cafe_idx_1/S001_R008_hybrid_IR.wav"
+    mq.assert_stream_position(md, 3, expected)
+
+    for spoof in ("S001_R008_hybrid_IR.wav",                       # basename only
+                  "Cafe_idx_1/S001_R008_hybrid_IR.wav",            # partial components
+                  "single_channel_ir_1/Cafe/Cafe_idx_11/S001_R008_hybrid_IR.wav",
+                  "single_channel_ir_1/Office/Office_idx_11/S001_R008_hybrid_IR.wav"):
+        with pytest.raises(ValueError, match="relpath"):
+            mq.assert_stream_position(dict(md, relpath=spoof), 3, expected)
+
+
+def test_enumeration_failure_is_a_refusal_not_an_empty_expectation(monkeypatch):
+    """An enumeration that cannot be built disabled the path check entirely."""
+    def explode(*_args, **_kwargs):
+        raise OSError("split unreadable")
+
+    monkeypatch.setattr(mq, "expected_enumeration", explode)
+    monkeypatch.setattr(mq, "build_release_stack",
+                        lambda *a, **k: (iter(()), {"metric_stack_built": True,
+                                                    "rng_digest_at_iter": "d" * 64,
+                                                    "call_graph": list(mq.RELEASE_CALL_GRAPH)}))
+    with pytest.raises(ValueError, match="enumeration"):
+        mq.materialize_contexts("fixture.json")
+
+
+def test_split_identities_are_asserted_before_the_pass(monkeypatch, tmp_path):
+    """6,337 unique ordered identities, checked before a single draw."""
+    good = [f"AcousticRooms/single_channel_ir_1/Cafe/Cafe_idx_1/S{i:03d}_R008_hybrid_IR.wav"
+            for i in range(1, 5)]
+    assert mq.assert_split_enumeration(good, expected_count=4) == 4
+    with pytest.raises(ValueError, match="4,337|expects|declares"):
+        mq.assert_split_enumeration(good, expected_count=4337)
+    with pytest.raises(ValueError, match="duplicate"):
+        mq.assert_split_enumeration(good + [good[0]], expected_count=5)
+    with pytest.raises(ValueError, match="empty|no entries"):
+        mq.assert_split_enumeration([], expected_count=0)
+
+
+def test_census_is_mandatory_after_a_complete_pass():
+    """A complete pass whose histogram is not the registered one is refused."""
+    full = _materialized(n=12)
+    with pytest.raises(ValueError, match="census|histogram"):
+        mq.assert_pass_census(full)
+    assert mq.assert_pass_census(full, expected_count=12,
+                                 expected_histogram={8: 12}) is True
+
+    wrong = _materialized(n=12, eligible_of=lambda i: 7 if i == 0 else 8)
+    with pytest.raises(ValueError, match="census|histogram"):
+        mq.assert_pass_census(wrong, expected_count=12, expected_histogram={8: 12})
+
+
+def test_full_pass_enforces_the_registered_census(monkeypatch):
+    """The materializer applies the census itself; a slice never does."""
+    records = [mq.context_record(_md(position=i), i, 8) for i in range(3)]
+
+    class _Loader:
+        def __iter__(self):
+            for position in range(3):
+                yield None, [_md(position=position, node=f"S00{position + 1}")]
+
+    expected = [f"AcousticRooms/single_channel_ir_1/Cafe/Cafe_idx_1/"
+                f"S00{i + 1}_R008_hybrid_IR.wav" for i in range(3)]
+    monkeypatch.setattr(mq, "build_release_stack",
+                        lambda *a, **k: (_Loader(), {"metric_stack_built": True,
+                                                     "rng_digest_at_iter": "d" * 64,
+                                                     "call_graph": list(mq.RELEASE_CALL_GRAPH)}))
+    monkeypatch.setattr(mq, "expected_enumeration", lambda *a, **k: expected)
+    monkeypatch.setattr(mq, "eligible_pool_size", lambda path: 8)
+    monkeypatch.setattr(mq, "assert_split_enumeration", lambda *a, **k: len(expected))
+    with pytest.raises(ValueError, match="census|histogram"):
+        mq.materialize_contexts("fixture.json")          # 3 records != 6,337
+    sliced = mq.materialize_contexts("fixture.json", limit=2)
+    assert sliced["complete"] is False and sliced["n_records"] == 2
+    assert records[0]["query_id"]

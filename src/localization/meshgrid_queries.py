@@ -258,9 +258,16 @@ def _sha256_file(path, chunk=1 << 20):
 
 
 def expected_enumeration(dataset_config):
-    """The split's file list, rebuilt the way ``SampleDataset`` builds it."""
+    """The split's file list, rebuilt the way ``SampleDataset`` builds it.
+
+    Accepts the config object or its path, so the materializer has ONE seam for
+    "what the split declares" and a failure anywhere in it is a refusal.
+    """
     from src.data.dataset import get_audio_filenames
 
+    if isinstance(dataset_config, (str, bytes, os.PathLike)):
+        with open(dataset_config) as handle:
+            dataset_config = json.load(handle)
     filenames = []
     for audio_dir in dataset_config.get("datasets") or []:
         filenames.extend(get_audio_filenames(
@@ -268,6 +275,65 @@ def expected_enumeration(dataset_config):
             json_file_path=audio_dir.get("json_file_path"),
             folder_name=audio_dir.get("folder_name")))
     return filenames
+
+
+#: dataset roots a split enumeration may carry in front of the loader's relpath.
+DATASET_ROOTS = ("AcousticRooms",)
+
+
+def canonical_relpath(path, roots=DATASET_ROOTS):
+    """One canonical root-relative form, so the comparison can be EXACT.
+
+    The split enumeration carries the dataset root and the loader's relpath does
+    not. r2 review: comparing with a bidirectional ``endswith`` accepts a
+    basename or a partial component, so a different room's file can impersonate a
+    position. Both sides are normalized here once and then compared as strings.
+    """
+    text = os.path.normpath(str(path)).lstrip("/")
+    for root in roots:
+        root = os.path.normpath(str(root)).lstrip("/")
+        marker = root + os.sep
+        index = text.find(marker)
+        if index != -1:
+            return text[index + len(marker):]
+    return text
+
+
+def assert_split_enumeration(filenames, expected_count=FULL_COUNT):
+    """The split IS the registered enumeration: ordered, unique, complete."""
+    filenames = list(filenames)
+    if not filenames:
+        raise ValueError("the split enumeration is empty: no entries to materialize; a "
+                         "missing or unreadable split may not become an unchecked pass")
+    canonical = [canonical_relpath(name) for name in filenames]
+    duplicates = sorted({name for name in canonical if canonical.count(name) > 1})
+    if duplicates:
+        raise ValueError(f"the split enumeration has duplicate entries {duplicates[:5]}; the "
+                         "registered order must name each query exactly once")
+    if expected_count is not None and len(canonical) != int(expected_count):
+        raise ValueError(f"the split enumeration declares {len(canonical)} queries but the "
+                         f"registered split expects {expected_count}")
+    return len(canonical)
+
+
+def assert_pass_census(materialized, expected_count=FULL_COUNT,
+                       expected_histogram=None):
+    """The registered census, applied to a COMPLETE pass. Never optional."""
+    expected_histogram = (FULL_ELIGIBLE_HISTOGRAM if expected_histogram is None
+                          else expected_histogram)
+    records = materialized["records"]
+    if expected_count is not None and len(records) != int(expected_count):
+        raise ValueError(f"the pass census is {len(records)} records, not the registered "
+                         f"{expected_count}")
+    histogram = eligible_histogram(records)
+    if histogram != expected_histogram:
+        raise ValueError(f"the eligible-pool histogram is {histogram}, not the registered "
+                         f"{expected_histogram}; the released selection path did not behave "
+                         "as the protocol pins it")
+    identities = [record["query_id"] for record in records]
+    if len(set(identities)) != len(identities):
+        raise ValueError("the pass recorded the same query twice")
+    return True
 
 
 def assert_stream_position(md, position, expected_relpath):
@@ -283,14 +349,14 @@ def assert_stream_position(md, position, expected_relpath):
         raise ValueError(f"stream position {position}: the loader returned idx={found_idx!r}; "
                          "SampleDataset substitutes a random other item when one fails to "
                          "load, and a substituted context draw is not this query's")
-    found = os.path.normpath(str(md.get("relpath") or md.get("path") or ""))
-    if expected_relpath is not None:
-        # the split enumeration carries the dataset root, the loader's relpath does
-        # not: compare the suffix, in whichever direction is the longer string
-        expected = os.path.normpath(str(expected_relpath))
-        if not (expected.endswith(found) or found.endswith(expected)):
-            raise ValueError(f"stream position {position}: the loader returned relpath "
-                             f"{found!r}, but the split declares {expected!r}")
+    if expected_relpath is None:
+        raise ValueError(f"stream position {position}: no split entry to compare against; "
+                         "the positional guard may not be skipped")
+    found = canonical_relpath(md.get("relpath") or md.get("path") or "")
+    expected = canonical_relpath(expected_relpath)
+    if found != expected:
+        raise ValueError(f"stream position {position}: the loader returned relpath "
+                         f"{found!r}, but the split declares {expected!r}")
     return True
 
 
@@ -305,11 +371,15 @@ def materialize_contexts(dataset_config_path, model_config_path=None, limit=None
     """
     loader, facts = build_release_stack(dataset_config_path, model_config_path,
                                         skip_metric_stack=_skip_metric_stack)
+    # fail-closed: an enumeration that cannot be built is a refusal, never an
+    # empty expectation that quietly disables the positional guard (r2 review F2)
     try:
-        with open(dataset_config_path) as handle:
-            expected = expected_enumeration(json.load(handle))
-    except (OSError, ValueError, KeyError):
-        expected = expected_enumeration({})
+        expected = expected_enumeration(dataset_config_path)
+    except Exception as error:                       # noqa: BLE001 -- reported as a refusal
+        raise ValueError(f"the split enumeration could not be built from "
+                         f"{dataset_config_path!r}: {error}") from error
+    assert_split_enumeration(expected, expected_count=None if limit is not None
+                             else FULL_COUNT)
     records = []
     for _reals, metadata in loader:                    # <- the iterator is created here
         for md in metadata:
@@ -324,8 +394,11 @@ def materialize_contexts(dataset_config_path, model_config_path=None, limit=None
     if limit is None and expected and len(records) != len(expected):
         raise ValueError(f"the pass produced {len(records)} records but the split declares "
                          f"{len(expected)}; a truncated stream may not be recorded")
-    return _materialized(records, dataset_config_path, complete=limit is None, facts=facts,
-                         expected=expected)
+    out = _materialized(records, dataset_config_path, complete=limit is None, facts=facts,
+                        expected=expected)
+    if limit is None:
+        assert_pass_census(out)                      # mandatory, not optional
+    return out
 
 
 def _materialized(records, dataset_config_path, complete, facts=None, expected=None):
