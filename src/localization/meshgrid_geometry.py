@@ -402,18 +402,40 @@ def choose_z_branch(full_height_oracle, band_oracle, band_nonempty,
     Use the z-band globally only if every query stays nonempty under it AND it
     creates no query with ``e_oracle > threshold`` that full height did not have;
     otherwise full height, globally.
+
+    Fail-closed about its inputs (r1 review F4): both maps must cover exactly the
+    same queries and every oracle must be finite. A missing entry used to default
+    to 0.0, which made the band look as if it had created a regression it did not.
     """
+    full_keys, band_keys = set(full_height_oracle or {}), set(band_oracle or {})
+    if not full_keys:
+        raise ValueError("the branch rule needs a non-empty full-height oracle map")
+    if full_keys != band_keys:
+        missing, extra = sorted(full_keys - band_keys), sorted(band_keys - full_keys)
+        raise ValueError(f"the two oracle maps must cover the same queries; the band is "
+                         f"missing {missing[:5]} and has {extra[:5]} the full height does not")
+    for label, mapping in (("full height", full_height_oracle), ("z band", band_oracle)):
+        bad = sorted(query for query, value in mapping.items()
+                     if value is None or not np.isfinite(float(value)))
+        if bad:
+            raise ValueError(f"the {label} oracle is not finite for {bad[:5]}; a branch "
+                             "decision may not be taken over missing values")
+
     if not band_nonempty:
         return {"branch": "full_height", "n_new_over_threshold": None,
+                "n_queries": len(full_keys), "threshold": float(threshold),
                 "reason": "at least one query's z-band candidate set was not nonempty"}
-    new_over = [query for query, error in band_oracle.items()
-                if error > threshold and float(full_height_oracle.get(query, 0.0)) <= threshold]
+    new_over = [query for query in sorted(band_keys)
+                if float(band_oracle[query]) > threshold
+                and float(full_height_oracle[query]) <= threshold]
     if new_over:
         return {"branch": "full_height", "n_new_over_threshold": len(new_over),
-                "queries": sorted(new_over)[:10],
+                "queries": new_over[:10], "n_queries": len(full_keys),
+                "threshold": float(threshold),
                 "reason": f"the z-band created {len(new_over)} queries with e_oracle > "
                           f"{threshold} m that full height did not have"}
-    return {"branch": "z_band", "n_new_over_threshold": 0,
+    return {"branch": "z_band", "n_new_over_threshold": 0, "n_queries": len(full_keys),
+            "threshold": float(threshold),
             "reason": f"every query stays nonempty and no new e_oracle > {threshold} m "
                       "query appears"}
 

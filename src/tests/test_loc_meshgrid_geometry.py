@@ -340,3 +340,176 @@ def test_meeting_room_discrepancy_still_reads_exactly_as_documented():
     receivers = audit["rules"]["receivers"]
     assert receivers["all_failures_documented"] is True
     assert receivers["known_discrepancies"][0]["odd_votes"] == 15
+
+
+# --------------------------------------------------------------------------- #
+# r2 F4 -- choose_z_branch is fail-closed about its inputs
+# --------------------------------------------------------------------------- #
+def test_branch_rule_requires_the_same_query_set_on_both_sides():
+    full = {"q0": 0.1, "q1": 0.2}
+    with pytest.raises(ValueError, match="same queries|query set"):
+        mg.choose_z_branch(full, {"q0": 0.1}, band_nonempty=True)
+    with pytest.raises(ValueError, match="same queries|query set"):
+        mg.choose_z_branch(full, {"q0": 0.1, "q2": 0.2}, band_nonempty=True)
+    with pytest.raises(ValueError, match="empty"):
+        mg.choose_z_branch({}, {}, band_nonempty=True)
+
+
+def test_branch_rule_requires_finite_oracles_and_never_defaults():
+    """A missing full-height entry used to default to 0.0, which made the band
+    look like it created a regression it did not (r1 review F4)."""
+    full = {"q0": 0.1, "q1": float("nan")}
+    with pytest.raises(ValueError, match="finite"):
+        mg.choose_z_branch(full, {"q0": 0.1, "q1": 0.2}, band_nonempty=True)
+    with pytest.raises(ValueError, match="finite"):
+        mg.choose_z_branch({"q0": 0.1, "q1": 0.2}, {"q0": 0.1, "q1": float("inf")},
+                           band_nonempty=True)
+
+
+def test_branch_rule_decides_on_new_regressions_only():
+    full = {"q0": 0.10, "q1": 0.60, "q2": 0.20}
+    # q1 was already over threshold at full height: the band does not "create" it
+    band = {"q0": 0.10, "q1": 0.70, "q2": 0.20}
+    assert mg.choose_z_branch(full, band, band_nonempty=True)["branch"] == "z_band"
+    worse = {"q0": 0.10, "q1": 0.70, "q2": 0.55}
+    verdict = mg.choose_z_branch(full, worse, band_nonempty=True)
+    assert verdict["branch"] == "full_height" and verdict["n_new_over_threshold"] == 1
+    assert verdict["queries"] == ["q2"]
+
+
+# --------------------------------------------------------------------------- #
+# r2 F4 -- the 16-room audit driver
+# --------------------------------------------------------------------------- #
+def _audit_module():
+    import importlib.util
+    import pathlib
+
+    path = (pathlib.Path(__file__).resolve().parents[2] / "worklog" / "worklog_yixun" /
+            "exp_22_loc_meshgrid_claude" / "audit_meshgrid_geometry.py")
+    spec = importlib.util.spec_from_file_location("audit_meshgrid_geometry", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _fixture_world(tmp_path, rooms=("RoomA/RoomA_idx_1", "RoomB/RoomB_idx_2")):
+    """A miniature world: one OBJ, one metadata dir and one context manifest."""
+    mesh_root = tmp_path / "meshes"
+    metadata_root = tmp_path / "metadata"
+    records = []
+    for position, room in enumerate(rooms):
+        scene, scene_id = room.split("/")
+        (mesh_root / scene).mkdir(parents=True, exist_ok=True)
+        mg.write_box_obj(str(mesh_root / scene / f"{scene_id}.obj"),
+                         boxes=[((0.0, 0.0, 0.0), (4.0, 4.0, 3.0))])
+        directory = metadata_root / scene / scene_id
+        directory.mkdir(parents=True, exist_ok=True)
+        receiver = [2.0, 2.0, 1.5]
+        sources = [[1.0, 1.0, 1.0], [3.0, 3.0, 1.0], [1.0, 3.0, 1.5]]
+        for index, source in enumerate(sources, start=1):
+            (directory / f"S00{index}_R008.json").write_text(
+                json.dumps({"src_loc": source, "rec_loc": receiver}))
+        # one query per room: target = source 1, contexts = sources 2 and 3
+        relative = [[s[i] - receiver[i] for i in range(3)] for s in sources[1:]]
+        records.append({
+            "position": position,
+            "query_id": f"{position}|single_channel_ir_1/{room}/S001_R008_hybrid_IR.wav",
+            "room_id": room,
+            "relpath": f"single_channel_ir_1/{room}/S001_R008_hybrid_IR.wav",
+            "context_fingerprints": [",".join(f"{v:.6f}" for v in row) for row in relative],
+            "context_audio_sha256": ["0" * 64] * 2,
+            "context_width": 2, "eligible": 2, "target_absent": True})
+    manifest = {"records": records, "n_filtered": len(records),
+                "filtered_stream_sha256": "f" * 64}
+    return {"mesh_root": str(mesh_root), "metadata_root": str(metadata_root),
+            "manifest": manifest}
+
+
+def test_audit_resolves_exactly_one_mesh_per_room(tmp_path):
+    audit = _audit_module()
+    world = _fixture_world(tmp_path)
+    resolved = audit.resolve_room_meshes(["RoomA/RoomA_idx_1"], world["mesh_root"])
+    assert list(resolved) == ["RoomA/RoomA_idx_1"]
+    assert resolved["RoomA/RoomA_idx_1"].endswith("RoomA_idx_1.obj")
+
+    with pytest.raises(ValueError, match="no OBJ|not found"):
+        audit.resolve_room_meshes(["RoomZ/RoomZ_idx_9"], world["mesh_root"])
+
+    duplicate = os.path.join(world["mesh_root"], "RoomA", "RoomA_idx_1_copy.obj")
+    mg.write_box_obj(duplicate, boxes=[((0.0, 0.0, 0.0), (1.0, 1.0, 1.0))])
+    os.rename(duplicate, os.path.join(world["mesh_root"], "RoomA", "RoomA_idx_1.OBJ"))
+    with pytest.raises(ValueError, match="exactly one|ambiguous"):
+        audit.resolve_room_meshes(["RoomA/RoomA_idx_1"], world["mesh_root"])
+
+
+def test_audit_recovers_global_context_coordinates(tmp_path):
+    audit = _audit_module()
+    world = _fixture_world(tmp_path)
+    record = world["manifest"]["records"][0]
+    anchors = mg.metadata_anchors(os.path.join(world["metadata_root"], "RoomA",
+                                               "RoomA_idx_1"))
+    globals_ = audit.resolve_context_globals(record, receiver=[2.0, 2.0, 1.5],
+                                             anchors=anchors)
+    assert len(globals_) == 2
+    assert np.allclose(sorted(map(list, globals_)), [[1.0, 3.0, 1.5], [3.0, 3.0, 1.0]])
+
+    with pytest.raises(ValueError, match="anchor"):
+        audit.resolve_context_globals(record, receiver=[9.0, 9.0, 9.0], anchors=anchors)
+
+
+def test_audit_runs_end_to_end_on_the_fixture_world(tmp_path):
+    audit = _audit_module()
+    world = _fixture_world(tmp_path)
+    out = tmp_path / "out"
+    report = audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
+                             metadata_root=world["metadata_root"], out_dir=str(out),
+                             expected_queries=2)
+
+    assert report["n_rooms"] == 2 and report["n_queries"] == 2
+    assert report["branch"]["branch"] in ("z_band", "full_height")
+    assert set(report["oracle"]) == {"full_height", "z_band"}
+    for branch in ("full_height", "z_band"):
+        block = report["oracle"][branch]
+        assert block["n_queries"] == 2 and np.isfinite(block["median"])
+        assert block["n_over_threshold"] >= 0
+    cost = report["cost"]
+    for key in ("candidate_query_pairs", "unique_receiver_candidate_pairs",
+                "conditioner_calls_estimate", "artifact_bytes"):
+        assert key in cost and cost[key] > 0
+    assert report["directions_sha256"] == mg.FROZEN_DIRECTIONS_SHA256
+    assert report["context_manifest_sha256"] == "f" * 64
+
+    for room in ("RoomA/RoomA_idx_1", "RoomB/RoomB_idx_2"):
+        entry = report["rooms"][room]
+        assert entry["mesh"]["sha256"] and entry["n_queries"] == 1
+        assert entry["candidate_manifest_sha256"]
+        path = os.path.join(str(out), entry["candidate_manifest"])
+        assert os.path.isfile(path)
+        payload = json.load(open(path))
+        assert payload["room_id"] == room
+        assert payload["spacing"] == mg.LATTICE_SPACING
+        assert payload["directions_sha256"] == mg.FROZEN_DIRECTIONS_SHA256
+        assert len(payload["queries"]) == 1
+        query = payload["queries"][0]
+        assert query["n_candidates"] > 0
+        assert np.isfinite(query["oracle"]["full_height"])
+        assert "exclusion" in payload and payload["exclusion"]["room_id"]
+
+
+def test_audit_refuses_a_wrong_query_count(tmp_path):
+    audit = _audit_module()
+    world = _fixture_world(tmp_path)
+    with pytest.raises(ValueError, match="5,337|5337|expected"):
+        audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
+                        metadata_root=world["metadata_root"],
+                        out_dir=str(tmp_path / "o2"), expected_queries=5337)
+
+
+def test_audit_fails_closed_on_a_missing_mesh(tmp_path):
+    audit = _audit_module()
+    world = _fixture_world(tmp_path)
+    os.remove(os.path.join(world["mesh_root"], "RoomB", "RoomB_idx_2.obj"))
+    with pytest.raises(ValueError, match="RoomB"):
+        audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
+                        metadata_root=world["metadata_root"],
+                        out_dir=str(tmp_path / "o3"), expected_queries=2)
