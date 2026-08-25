@@ -188,7 +188,7 @@ concatenation and is therefore correct by construction. The committed manifest h
 | `43c2e37` | ARE refusal ordering | both checkpoint refusals (ARE artifact, conditioning binding) are CPU-only file reads and now run together before anything is built or moved — exp_18's r3 finding 9, which the engine build had re-introduced | +25 −7 / +17 |
 | `4eceb6d` | probe-room, diagnostics claim nothing, measured dtype | `--probe-room` bounds the probe to one room (Cafe's smallest group is 380 k waveforms, so there was no affordable real smoke); `writes_query_artifacts` stops a probe or parity check leaving a binding a scored pass would resume; `BATCHING_CAVEAT` records the MEASURED float16 ulp instead of an assumed bfloat16 one | +38 −16 / +14 |
 
-**Suite after exp22-r7:** see the round report (79 new engine tests; full tree re-run at round close).
+**Suite after exp22-r7:** **2,989 passed, 10 skipped, 0 failures**, 2 subtests passed (11 m 37 s) — 2,907 before the round plus 82 new engine tests.
 
 ### Real-artifact cross-check (not a fixture)
 
