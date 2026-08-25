@@ -288,3 +288,8 @@ the CRN default and the new binding fields in place:
 The reviewer's exact probe-sweep and shard command lines parse and validate against the new
 driver (`--branch z_band --noise-policy shared_across_candidates --probe-room … --rooms …`);
 running them is the ladder's, not this round's.
+
+**Suite after exp22-r8:** **3,036 passed, 11 skipped, 0 failures**, 2 subtests passed
+(10 m 51 s) — 2,989 before the round; +47 net (the engine file goes 79 → 129 tests, and the
+r7 GT/oracle test is replaced by the GT-free reconstruction ones). The one added skip is the
+ladder-gated real-stack replay (`EXP22_REAL_STACK=1`).
