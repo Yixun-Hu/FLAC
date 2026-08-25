@@ -370,7 +370,11 @@ class ReceiverCache:
         carried different panoramas the cached rows would be wrong for one of
         them, and nothing downstream would notice.
         """
-        found = tensor_digest(md["depth"])
+        return self.assert_same_depth_digest(tensor_digest(md["depth"]))
+
+    def assert_same_depth_digest(self, found):
+        """The digest form: the pass records one digest per query but keeps only
+        one panorama TENSOR per receiver (a per-query copy is 1.5 MB)."""
         if found != self.depth_digest:
             raise ValueError(f"receiver {self.receiver_id!r}: this query's depth panorama "
                              f"({found[:12]}...) is not the one the source cache was built "
@@ -1060,17 +1064,21 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
     state = {"n_scored": 0, "n_skipped": 0, "n_conditioner_rows": 0,
              "n_candidate_query_pairs": 0, "n_generated": 0, "rooms": [],
              "probe_records": [], "timings_s": {}}
-    buffer, room_plan, current_room = {}, None, None
+    buffer, depths, receiver_of = {}, {}, {}
+    room_plan, current_room = None, None
+    timer = _Timer(engine.device)
 
     def flush():
         if room_plan is None:
             return
-        _run_room(engine, room_plan, buffer, out_dir, state, selected=selected,
+        _run_room(engine, room_plan, buffer, depths, out_dir, state, selected=selected,
                   done=done, seed=seed, tau=tau, num_samples=num_samples,
                   prefixes=prefixes, noise_policy=noise_policy, batch_rows=batch_rows,
                   source_chunk=source_chunk, on_row=on_row, probe=probe is not None,
                   oracle_tol=oracle_tol)
         buffer.clear()
+        depths.clear()
+        receiver_of.clear()
 
     for position, (obs_wav, md) in enumerate(stream):
         record = by_position.get(position)
@@ -1085,35 +1093,46 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
         if room_id != current_room:
             flush()
             room_plan = load_room_plan(plan, room_id)
+            receiver_of = {query.query_id: query.receiver_id for query in room_plan.queries}
             current_room = room_id
             state["rooms"].append(room_id)
-        if selected is not None and not any(
-                (room_id, query.receiver_id) in selected and query.query_id == record["query_id"]
-                for query in room_plan.queries):
+        receiver_id = receiver_of.get(record["query_id"])
+        if receiver_id is None:
+            raise ValueError(f"{record['query_id']} is in the context manifest but not in "
+                             f"{room_id}'s candidate manifest; the two registrations disagree")
+        if selected is not None and (room_id, receiver_id) not in selected:
             continue
         if record["query_id"] in done:
             buffer[record["query_id"]] = None
             continue
-        with _Timer(engine.device)("context"):
+        if obs_wav is None:
+            raise ValueError(f"stream position {position}: the loader returned no observed "
+                             "waveform; there is nothing to score against")
+        with timer("context"):
             context = context_conditioning(engine.conditioner, md, engine.device)
             obs_embedding = engine.embedder(
                 torch.as_tensor(obs_wav).to(engine.device))[0].float().cpu()
+        # one panorama TENSOR per receiver, one digest per query: the tensor is
+        # 1.5 MB and a room can hold 922 queries over ~93 receivers
+        depths.setdefault(receiver_id, md["depth"])
         buffer[record["query_id"]] = {
             "context": context, "obs_embedding": obs_embedding,
-            "depth": md["depth"], "depth_digest": tensor_digest(md["depth"]),
+            "depth_digest": tensor_digest(md["depth"]),
             "source": torch.as_tensor(md["source"]).detach().cpu().clone(),
             "n_contexts": record["context_width"]}
     flush()
+    for name, value in timer.totals.items():
+        state["timings_s"][name] = state["timings_s"].get(name, 0.0) + value
     return state
 
 
-def _run_room(engine, room_plan, buffer, out_dir, state, *, selected, done, seed, tau,
-              num_samples, prefixes, noise_policy, batch_rows, source_chunk, on_row,
+def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, done, seed,
+              tau, num_samples, prefixes, noise_policy, batch_rows, source_chunk, on_row,
               probe, oracle_tol):
     """One room's receiver groups, one resident cache at a time."""
-    missing = [query.query_id for query in room_plan.queries
-               if query.query_id not in buffer and query.query_id not in done
-               and selected is None]
+    missing = [] if selected is not None else [
+        query.query_id for query in room_plan.queries
+        if query.query_id not in buffer and query.query_id not in done]
     if missing:
         raise ValueError(f"{room_plan.room_id}: the stream did not deliver "
                          f"{len(missing)} of the room's registered queries "
@@ -1128,19 +1147,18 @@ def _run_room(engine, room_plan, buffer, out_dir, state, *, selected, done, seed
                                    if query.query_id in done])
         if not runnable:
             continue
-        seed_context = buffer[runnable[0].query_id]
         positions_cam = room_plan.base[np.asarray(group.union, dtype=np.int64)] \
             - np.asarray(group.receiver_xyz, dtype=np.float64)
         timer = _Timer(engine.device)
         with timer("source_cache"):
             cache = ReceiverCache.build(engine.conditioner, group.receiver_id,
-                                        {"depth": seed_context["depth"]}, group.union,
+                                        {"depth": depths[group.receiver_id]}, group.union,
                                         positions_cam, engine.device, chunk=source_chunk)
         state["n_conditioner_rows"] += cache.n_conditioner_rows
         try:
             for query in runnable:
                 context = buffer[query.query_id]
-                cache.assert_same_depth({"depth": context["depth"]})
+                cache.assert_same_depth_digest(context["depth_digest"])
                 assert_receiver_consistent({"source": context["source"]}, query.receiver_xyz,
                                            query.coordinates, query.oracle, tol=oracle_tol)
                 query_timer = _Timer(engine.device)
@@ -1168,3 +1186,151 @@ def _run_room(engine, room_plan, buffer, out_dir, state, *, selected, done, seed
                     on_row(row)
         finally:
             del cache
+
+
+# --------------------------------------------------------------------------- #
+# the real stack
+# --------------------------------------------------------------------------- #
+def assert_release_rng_state(manifest):
+    """The global RNG must be exactly where the D1 pass created ITS iterator.
+
+    Worker base seeds are drawn when the iterator is created, so anything that
+    consumes the global stream between ``seed_everything`` and the first batch
+    changes every query's context draw. D1 recorded the state digest at that
+    moment; comparing it here turns a silent re-draw into a startup refusal
+    instead of 5,337 digest mismatches.
+    """
+    from src.localization import meshgrid_queries as mq
+
+    registered = ((manifest or {}).get("protocol_facts") or {}).get("rng_digest_at_iter")
+    if not registered:
+        raise ValueError("the context manifest records no rng_digest_at_iter; the released "
+                         "call graph cannot be proven to have been reproduced")
+    found = mq.rng_state_digest()
+    if found != registered:
+        raise ValueError(f"the global RNG state at iterator creation is {found[:12]}... but the "
+                         f"D1 pass recorded {registered[:12]}...; something consumed the global "
+                         "stream after seed_everything, so the worker base seeds -- and every "
+                         "context draw -- would differ from the frozen manifest")
+    return True
+
+
+def build_mesh_engine(ckpt_path, model_config, agree, device="cpu", cond_method="vanilla",
+                      cond_autocast="default", steps=STEPS, cfg_scale=CFG_SCALE, ckpt=None,
+                      readout=SCORER_READOUT):
+    """Build the frozen generator and wrap it as a :class:`MeshEngine`.
+
+    Follows ``eval_FLAC.evaluate_model``'s lines of record through
+    ``eval_localization`` -- matmul precision, ARE refusal, EMA remap,
+    load-integrity check, wrapper construction, eval/no-grad, latent length from
+    the pretransform ratio -- so exp_22 scores the same generative process the
+    release evaluation runs. The only addition is the ``only_ids`` seam the two
+    conditioning caches need.
+    """
+    import contextlib
+    import copy
+
+    from eval_FLAC import check_load_integrity, resolve_cond_autocast
+    from eval_localization import assert_no_are, assert_rectified_flow, prepare_state_dict
+    from src.inference.sampling import sample_discrete_euler
+    from src.localization.agree_embed import embed_rirs
+    from src.models.factory import create_model_from_config
+    from src.training.factory import create_training_wrapper_from_config
+
+    assert_cacheable(cond_method)
+    torch.set_float32_matmul_precision("medium")
+    model_config = copy.deepcopy(model_config)
+    file_model_config = copy.deepcopy(model_config)
+    assert_rectified_flow(model_config)
+
+    training_config = model_config.get("training", None)
+    if ckpt is None:
+        ckpt = torch.load(str(ckpt_path), map_location="cpu")
+    assert_no_are(ckpt.get("model_config"), file_model_config)
+    state_dict, weights_source = prepare_state_dict(ckpt, training_config)
+
+    model_obj = create_model_from_config(model_config)
+    missing, unexpected = model_obj.load_state_dict(state_dict, strict=False)
+    check_load_integrity(missing, unexpected, False)
+
+    model_config["training"] = training_config
+    module = create_training_wrapper_from_config(model_config, model_obj)
+    module.eval().requires_grad_(False)
+    module.to(device)
+    with torch.amp.autocast(device):
+        model = module.diffusion.model
+
+    if module.diffusion.pretransform is not None:
+        latent_samples = model_config["sample_size"] // module.diffusion.pretransform.downsampling_ratio
+    else:
+        latent_samples = model_config["sample_size"]
+    ac_enabled, ac_dtype = resolve_cond_autocast(cond_autocast)
+
+    def cond_autocast_ctx():
+        if not ac_enabled:
+            return contextlib.nullcontext()
+        if ac_dtype is None:
+            return torch.amp.autocast(device)
+        return torch.amp.autocast(device, dtype=ac_dtype)
+
+    def conditioner(metadata, _device, only_ids=None):
+        with cond_autocast_ctx():
+            with torch.no_grad():
+                return module.diffusion.conditioner(metadata, module.device, only_ids=only_ids)
+
+    def sampler(noise, cond_inputs):
+        with torch.no_grad():
+            return sample_discrete_euler(model, noise, steps, **cond_inputs,
+                                         cfg_scale=cfg_scale,
+                                         dist_shift=module.diffusion.dist_shift,
+                                         batch_cfg=True, disable_tqdm=True)
+
+    def decoder(latents):
+        with torch.no_grad():
+            if module.diffusion.pretransform is not None:
+                return module.diffusion.pretransform.decode(latents)
+            return latents
+
+    def embedder(wavs):
+        if agree is None:
+            raise ValueError("no AGREE scorer was loaded; embedding is unavailable")
+        return embed_rirs(agree.model, wavs, device, readout=readout)
+
+    engine = MeshEngine(device=device, latent_shape=(module.diffusion.io_channels, latent_samples),
+                        conditioner=conditioner,
+                        cond_inputs_fn=module.diffusion.get_conditioning_inputs,
+                        sampler=sampler, decoder=decoder, embedder=embedder,
+                        cond_method=cond_method)
+    context = {"module": module, "model": model, "model_config": model_config,
+               "weights_source": weights_source, "device": device,
+               "latent_shape": engine.latent_shape}
+    return engine, context
+
+
+def cache_parity_check(engine, query, md, batch_rows=64):
+    """§1.5's bit-identity proof, run on the REAL conditioner.
+
+    Assembles one query's conditioning both ways -- from the two caches, and
+    from a single uncached call over the same candidate metadata -- and reports
+    whether every tensor is bit-identical.
+    """
+    from src.localization.candidates import candidate_metadata
+
+    indices = [int(i) for i in query.candidate_indices][:max(1, int(batch_rows))]
+    positions = query.coordinates[:len(indices)] - np.asarray(query.receiver_xyz,
+                                                              dtype=np.float64)
+    uncached = engine.conditioner([candidate_metadata(md, positions[row])
+                                   for row in range(len(indices))], engine.device)
+    context = context_conditioning(engine.conditioner, md, engine.device)
+    cache = ReceiverCache.build(engine.conditioner, query.receiver_id, md, indices,
+                                positions, engine.device)
+    cached = expand_conditioning(context, cache.conditioning, cache.rows_for(indices),
+                                 engine.device)
+    report = {"n_candidates": len(indices), "query_id": query.query_id, "keys": {}}
+    for key in CONTEXT_COND_IDS + SOURCE_COND_IDS:
+        left, right = cached[key][0], uncached[key][0]
+        report["keys"][key] = {
+            "equal": bool(torch.equal(left, right)),
+            "max_abs_diff": float((left.float() - right.float()).abs().max())}
+    report["match"] = all(entry["equal"] for entry in report["keys"].values())
+    return report

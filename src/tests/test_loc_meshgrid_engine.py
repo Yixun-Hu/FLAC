@@ -901,3 +901,104 @@ def test_the_probe_amortizes_whole_receiver_groups_and_writes_no_scores(tmp_path
     for record in summary["probe_records"]:
         assert me.assert_no_scores(record) is True
     assert not os.path.isdir(os.path.join(out, me.ROWS_DIRNAME))
+
+
+# --------------------------------------------------------------------------- #
+# the real stack's wiring and the driver's refusals
+# --------------------------------------------------------------------------- #
+def test_the_release_rng_state_is_checked_before_the_iterator_is_created():
+    manifest = {"protocol_facts": {"rng_digest_at_iter": "0" * 64}}
+    with pytest.raises(ValueError, match="global RNG"):
+        me.assert_release_rng_state(manifest)
+    # the guard is the D1 pass's own recorded digest, not a constant
+    from src.localization import meshgrid_queries as mq
+
+    live = {"protocol_facts": {"rng_digest_at_iter": mq.rng_state_digest()}}
+    assert me.assert_release_rng_state(live) is True
+
+
+def test_the_engine_builder_refuses_a_non_vanilla_conditioning_method():
+    with pytest.raises(ValueError, match="fa_invariant"):
+        me.build_mesh_engine("weights/exp20/P1_40k.ckpt", {"model": {}}, None,
+                             cond_method="fa_invariant")
+
+
+def test_the_driver_pins_every_registered_default():
+    import localize_meshgrid as driver
+
+    args = driver.parse_args(["--ckpt-path", "x.ckpt"])
+    assert args.seed == 42 and args.tau == 0.1 and args.num_samples == 8
+    assert args.k_prefixes == [1, 4, 8] and args.steps == 1 and args.cfg_scale == 1.0
+    assert args.cond_method == "vanilla" and args.noise_policy == "per_candidate"
+    assert args.model_config.endswith("FLAC/AR/FLAC_AR.json")
+    assert args.dataset_config.endswith("AR/eval/acousticroom_unseeneval.json")
+    assert args.branch is None                      # taken from the audit, not chosen
+
+
+def test_the_driver_refuses_a_probe_that_would_write_anything():
+    import localize_meshgrid as driver
+
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--probe", "8",
+                              "--dump-waveforms", "0|x"])
+    with pytest.raises(SystemExit, match="no-quality"):
+        driver.validate_args(args)
+
+
+def test_the_driver_refuses_a_sample_count_the_prefixes_cannot_nest_into():
+    import localize_meshgrid as driver
+
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--num-samples", "3"])
+    with pytest.raises(SystemExit, match="nested"):
+        driver.validate_args(args)
+
+
+def test_the_driver_builds_the_binding_from_the_files_it_will_actually_read(tmp_path):
+    import localize_meshgrid as driver
+
+    out_dir, report_path, base = _fixture_audit(tmp_path)
+    plan = me.load_audit_plan(report_path)
+    manifest_path = tmp_path / "d1.json"
+    manifest_path.write_text(json.dumps({"records": [], "protocol_facts": {}}))
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--audit-report", report_path,
+                              "--context-manifest", str(manifest_path)])
+    binding = driver.build_run_binding(args, plan, ckpt_sha256="1" * 64,
+                                       agree_sha256="2" * 64,
+                                       model_config_sha256="3" * 64)
+    assert set(binding) == set(me.RUN_BINDING_FIELDS)
+    assert binding["g1_report_sha256"] == me.file_sha256(report_path)
+    assert binding["d1_manifest_sha256"] == me.file_sha256(str(manifest_path))
+    assert binding["room_manifest_sha256"] == {
+        room: me.file_sha256(path) for room, path in plan.rooms.items()}
+    assert binding["branch"] == "z_band" and binding["k_prefixes"] == [1, 4, 8]
+    assert me.binding_sha256(binding)
+
+
+def test_the_cache_compares_depth_by_digest_so_the_pass_holds_one_panorama():
+    conditioner = FakeConditioner()
+    positions = np.arange(6, dtype=np.float64).reshape(2, 3)
+    cache = me.ReceiverCache.build(conditioner, "R", _md(depth_value=1.0), [0, 1], positions,
+                                   "cpu")
+    assert cache.assert_same_depth_digest(me.tensor_digest(_md(depth_value=1.0)["depth"]))
+    with pytest.raises(ValueError, match="depth"):
+        cache.assert_same_depth_digest(me.tensor_digest(_md(depth_value=2.0)["depth"]))
+
+
+def test_a_query_whose_panorama_is_not_its_receivers_aborts_the_pass(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    # positions 0 and 2 share a receiver; give the second a different panorama
+    items[2][1]["depth"] = items[2][1]["depth"] + 1.0
+    with pytest.raises(ValueError, match="depth"):
+        me.run_pass(SyntheticEngine(), items, records, plan, str(tmp_path / "run"),
+                    num_samples=4, prefixes=(1, 4))
+
+
+def test_the_pass_refuses_a_query_the_candidate_manifest_does_not_carry(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    # the stream and the D1 record still agree; the CANDIDATE manifest is the one
+    # that does not carry this query
+    items[1][1]["relpath"] = "ir/A/A_idx_1/NOT_IN_THE_MANIFEST.wav"
+    items[1][1]["path"] = "AcousticRooms/" + items[1][1]["relpath"]
+    records[1] = dict(records[1], query_id="1|ir/A/A_idx_1/NOT_IN_THE_MANIFEST.wav")
+    with pytest.raises(ValueError, match="two registrations disagree"):
+        me.run_pass(SyntheticEngine(), items, records, plan, str(tmp_path / "run"),
+                    num_samples=4, prefixes=(1, 4))
