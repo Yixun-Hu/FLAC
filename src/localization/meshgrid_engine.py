@@ -621,3 +621,258 @@ def assert_receiver_consistent(md, receiver_xyz, coordinates, oracle, tol=1e-4):
                          f"but the candidate manifest records {float(oracle):.6f} m; the "
                          "candidate set does not belong to this receiver")
     return True
+
+
+# --------------------------------------------------------------------------- #
+# the run binding: what a resume is allowed to continue
+# --------------------------------------------------------------------------- #
+#: every quantity that decides a number. A resume that changes ANY of these is
+#: a different experiment sharing a directory, so it is refused rather than
+#: mixed into one artifact set.
+RUN_BINDING_FIELDS = (
+    "model_config_sha256", "ckpt_sha256", "agree_ckpt_sha256", "d1_manifest_sha256",
+    "g1_report_sha256", "room_manifest_sha256", "branch", "k_prefixes", "num_samples",
+    "tau", "seed", "noise_policy", "steps", "cfg_scale", "cond_method", "scorer_readout",
+    "dataset_config")
+
+BINDING_FILENAME = "run_binding.json"
+
+
+def binding_sha256(binding):
+    """Canonical, type-sensitive digest of a complete run binding."""
+    from src.localization.crossarm import canonical_sha256
+
+    missing = [field for field in RUN_BINDING_FIELDS if field not in binding]
+    if missing:
+        raise ValueError(f"the run binding is missing {missing}; every registered field must be "
+                         "pinned before a query is generated")
+    extra = [key for key in binding if key not in RUN_BINDING_FIELDS]
+    if extra:
+        raise ValueError(f"the run binding carries unregistered fields {extra}")
+    return canonical_sha256({field: binding[field] for field in sorted(RUN_BINDING_FIELDS)})
+
+
+def write_binding(out_dir, binding):
+    """Publish the binding beside the artifacts it authorizes."""
+    os.makedirs(str(out_dir), exist_ok=True)
+    payload = {field: binding[field] for field in RUN_BINDING_FIELDS}
+    payload["binding_sha256"] = binding_sha256(binding)
+    path = os.path.join(str(out_dir), BINDING_FILENAME)
+    _atomic_json(path, payload)
+    return path
+
+
+def assert_binding(out_dir, binding):
+    """A resume continues the SAME run or refuses, naming the fields that moved."""
+    path = os.path.join(str(out_dir), BINDING_FILENAME)
+    if not os.path.isfile(path):
+        raise ValueError(f"{out_dir} holds no {BINDING_FILENAME}; a resume may not adopt "
+                         "artifacts whose provenance is unknown")
+    with open(path) as handle:
+        published = json.load(handle)
+    differing = [field for field in RUN_BINDING_FIELDS
+                 if published.get(field) != binding.get(field)]
+    if differing:
+        raise ValueError(f"this run does not continue the published one: {differing} differ "
+                         f"(published binding {str(published.get('binding_sha256'))[:12]}..., "
+                         f"this run {binding_sha256(binding)[:12]}...)")
+    return True
+
+
+# --------------------------------------------------------------------------- #
+# per-query artifacts and resume
+# --------------------------------------------------------------------------- #
+#: declared precision of the per-sample similarity sidecar.
+SIMS_DTYPE = "float16"
+SIMS_PRECISION_CAVEAT = (
+    "per-sample similarities s[x, k] are stored as float16 (~3 decimal digits) to keep the "
+    "sidecars at 2 bytes per generated waveform; every AGGREGATE the protocol reads -- S at "
+    "each K and S_mean -- is published at full float32 precision in the row, so the float16 "
+    "array is a diagnostic, never the source of a headline number")
+
+ROWS_DIRNAME = "rows"
+
+
+def _atomic_json(path, payload):
+    tmp = f"{path}.tmp"
+    with open(tmp, "w") as handle:
+        handle.write(json.dumps(payload, sort_keys=True, indent=None) + "\n")
+    os.replace(tmp, path)
+    return path
+
+
+def room_stem(room_id):
+    return str(room_id).replace("/", "_")
+
+
+def query_artifact_paths(out_dir, room_id, position):
+    room_dir = os.path.join(str(out_dir), ROWS_DIRNAME, room_stem(room_id))
+    stem = f"q{int(position):05d}"
+    return {"dir": room_dir, "row": os.path.join(room_dir, stem + ".json"),
+            "sims": os.path.join(room_dir, stem + "_sims.npy")}
+
+
+def write_query_artifact(out_dir, row, sims):
+    """One query's artifacts, published atomically and sidecar-first.
+
+    The sidecar lands before the row, and the row carries its digest, so the row
+    is the completion marker: a killed pass can leave an orphan sidecar (which
+    the next pass overwrites) but never a row whose sidecar is missing or stale.
+    """
+    paths = query_artifact_paths(out_dir, row["room_id"], row["position"])
+    os.makedirs(paths["dir"], exist_ok=True)
+    array = np.asarray(torch.as_tensor(sims).detach().cpu().numpy(), dtype=np.float16)
+    if array.ndim != 2 or array.shape != (int(row["n_candidates"]), int(row["num_samples"])):
+        raise ValueError(f"sims shape {array.shape} does not match the row's "
+                         f"({row['n_candidates']}, {row['num_samples']})")
+    tmp_sims = paths["sims"] + ".tmp"
+    with open(tmp_sims, "wb") as handle:
+        np.save(handle, array)
+    os.replace(tmp_sims, paths["sims"])
+
+    published = dict(row)
+    published.update({"sims_path": os.path.relpath(paths["sims"], str(out_dir)),
+                      "sims_sha256": file_sha256(paths["sims"]),
+                      "sims_dtype": SIMS_DTYPE,
+                      "sims_shape": [int(array.shape[0]), int(array.shape[1])],
+                      "sims_precision_caveat": SIMS_PRECISION_CAVEAT})
+    _atomic_json(paths["row"], published)
+    return paths
+
+
+def verify_query_artifact(row_path):
+    """Re-accept one published query from its own bytes."""
+    row_path = str(row_path)
+    try:
+        with open(row_path) as handle:
+            row = json.load(handle)
+    except (OSError, ValueError) as error:                # noqa: BLE001 -- reported as a verdict
+        return {"ok": False, "reason": f"the row is unreadable: {error}", "query_id": None}
+    out_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(row_path))))
+    sims_path = os.path.join(out_dir, str(row.get("sims_path", "")))
+    verdict = {"ok": False, "query_id": row.get("query_id"), "row": row_path}
+    if not os.path.isfile(sims_path):
+        return dict(verdict, reason=f"the sims sidecar {row.get('sims_path')!r} is missing")
+    if file_sha256(sims_path) != row.get("sims_sha256"):
+        return dict(verdict, reason="the sims sidecar does not match the digest the row records")
+    array = np.load(sims_path)
+    shape = [int(array.shape[0]), int(array.shape[1])] if array.ndim == 2 else list(array.shape)
+    if shape != list(row.get("sims_shape", [])):
+        return dict(verdict, reason=f"the sims sidecar is {shape}, not the recorded "
+                                    f"{row.get('sims_shape')}")
+    if shape != [int(row.get("n_candidates", -1)), int(row.get("num_samples", -1))]:
+        return dict(verdict, reason=f"the sims sidecar is {shape} but the row declares "
+                                    f"{row.get('n_candidates')} candidates x "
+                                    f"{row.get('num_samples')} samples")
+    if sorted(str(k) for k in (row.get("by_k") or {})) != sorted(str(k) for k in K_PREFIXES):
+        return dict(verdict, reason=f"the row publishes prefixes "
+                                    f"{sorted(row.get('by_k') or {})}, not {list(K_PREFIXES)}")
+    return {"ok": True, "query_id": row.get("query_id"), "row": row_path, "reason": None,
+            "position": row.get("position"), "room_id": row.get("room_id")}
+
+
+def completed_queries(out_dir):
+    """``(verified query ids, rejected verdicts)`` for a resume.
+
+    Only a query whose row AND sidecar re-verify is skipped; anything else is
+    reported and regenerated, so a half-written artifact can never be adopted as
+    a finished one.
+    """
+    done, rejected = set(), []
+    root = os.path.join(str(out_dir), ROWS_DIRNAME)
+    if not os.path.isdir(root):
+        return done, rejected
+    for room in sorted(os.listdir(root)):
+        room_dir = os.path.join(root, room)
+        if not os.path.isdir(room_dir):
+            continue
+        for name in sorted(os.listdir(room_dir)):
+            if not name.endswith(".json"):
+                continue
+            verdict = verify_query_artifact(os.path.join(room_dir, name))
+            if verdict["ok"]:
+                done.add(verdict["query_id"])
+            else:
+                rejected.append(verdict)
+    return done, rejected
+
+
+# --------------------------------------------------------------------------- #
+# bounded waveform dumps (announcement-08 exemption) and the no-quality probe
+# --------------------------------------------------------------------------- #
+def registered_probe_queries(plan):
+    """The off-grid probe set: one query per room, the lexicographically first.
+
+    Inherited plan §2 registers "the lexicographically first query from each of
+    the 16 included rooms". The ordering is on the query's RELPATH, which is the
+    stable identity in the split; the position prefix of a ``query_id`` would
+    order ``10|`` before ``2|``.
+    """
+    probes = {}
+    for room_id in sorted(plan.rooms):
+        room = load_room_plan(plan, room_id)
+        chosen = min(room.queries, key=lambda query: query.query_id.split("|", 1)[-1])
+        probes[room_id] = chosen.query_id
+    return probes
+
+
+def assert_dump_allowed(requested, allowed):
+    """Waveform dumps are bounded to the REGISTERED set or refused."""
+    allowed = set(allowed.values()) if isinstance(allowed, dict) else set(allowed)
+    outside = sorted(set(str(q) for q in requested) - allowed)
+    if outside:
+        raise ValueError(f"waveform dumps are bounded by the announcement 08 exemption to the "
+                         f"registered off-grid probe queries and the registered visualization "
+                         f"cases; {outside[:3]} are in neither list")
+    return True
+
+
+def load_dump_cases(path):
+    """A registered case list, carried with the digest of the file it came from."""
+    with open(str(path)) as handle:
+        payload = json.load(handle)
+    ids = payload.get("query_ids")
+    if not isinstance(ids, list) or not ids or not all(isinstance(q, str) for q in ids):
+        raise ValueError(f"{path} must carry a non-empty list of query_ids")
+    return {"query_ids": list(ids), "sha256": file_sha256(path), "path": str(path)}
+
+
+def probe_record(query_id, room_id, n_candidates, num_samples, timings):
+    """One throughput-probe record: cost only, by construction.
+
+    The probe exists to project GPU hours before the launch decision, so it may
+    not read a score -- the record carries no similarity, no aggregate and no
+    prediction, and :func:`assert_no_scores` is the gate that says so.
+    """
+    return {"query_id": str(query_id), "room_id": str(room_id),
+            "n_candidates": int(n_candidates), "num_samples": int(num_samples),
+            "n_generated": int(n_candidates) * int(num_samples),
+            "timings_s": {str(k): float(v) for k, v in dict(timings).items()},
+            "scores_written": False}
+
+
+#: anything that would carry localization quality out of a no-quality probe.
+_SCORE_KEYS = ("by_k", "scores_hex", "sims", "sims_path", "prediction_index",
+               "prediction_xyz", "mean_scores_hex", "e_loc")
+
+
+def assert_no_scores(record):
+    """The no-quality rule, enforced on the record rather than promised."""
+    found = sorted(key for key in _SCORE_KEYS if key in record)
+    if found or record.get("scores_written"):
+        raise ValueError(f"the throughput probe is no-quality by protocol but this record "
+                         f"carries {found or ['scores_written']}; timing may be measured "
+                         "before the launch decision, localization quality may not")
+    return True
+
+
+def write_probe_records(out_dir, records, stem="probe"):
+    """Publish probe timings under a diagnostics stem, never as query artifacts."""
+    for record in records:
+        assert_no_scores(record)
+    os.makedirs(str(out_dir), exist_ok=True)
+    path = os.path.join(str(out_dir), f"diagnostics_{stem}.json")
+    _atomic_json(path, {"experiment": "exp_22 loc_meshgrid I1 throughput probe",
+                        "scores_written": False, "n_queries": len(records),
+                        "records": list(records)})
+    return path

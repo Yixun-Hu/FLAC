@@ -541,3 +541,150 @@ def test_the_receiver_is_cross_checked_against_the_loaders_own_geometry():
         me.assert_receiver_consistent(md, receiver, coordinates, 0.9, tol=1e-4)
     with pytest.raises(ValueError, match="oracle"):
         me.assert_receiver_consistent(md, receiver + 10.0, coordinates, 0.5, tol=1e-4)
+
+
+# --------------------------------------------------------------------------- #
+# the run binding, the per-query artifacts and resume
+# --------------------------------------------------------------------------- #
+def _binding(**overrides):
+    payload = {"model_config_sha256": "a" * 64, "ckpt_sha256": "b" * 64,
+               "agree_ckpt_sha256": "c" * 64, "d1_manifest_sha256": "d" * 64,
+               "g1_report_sha256": "e" * 64, "branch": "z_band",
+               "room_manifest_sha256": {"A/A_idx_1": "f" * 64},
+               "k_prefixes": [1, 4, 8], "num_samples": 8, "tau": 0.1, "seed": 42,
+               "noise_policy": "per_candidate", "steps": 1, "cfg_scale": 1.0,
+               "cond_method": "vanilla", "scorer_readout": "mean",
+               "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json"}
+    payload.update(overrides)
+    return payload
+
+
+def test_the_binding_covers_every_registered_field_and_hashes_them():
+    payload = _binding()
+    assert set(me.RUN_BINDING_FIELDS) == set(payload)
+    digest = me.binding_sha256(payload)
+    assert digest == me.binding_sha256(dict(reversed(list(payload.items()))))
+    assert digest != me.binding_sha256(_binding(tau=0.2))
+    with pytest.raises(ValueError, match="cfg_scale"):
+        me.binding_sha256({k: v for k, v in payload.items() if k != "cfg_scale"})
+
+
+def test_a_resume_under_a_different_binding_is_refused(tmp_path):
+    out = str(tmp_path / "run")
+    os.makedirs(out)
+    me.write_binding(out, _binding())
+    assert me.assert_binding(out, _binding()) is True
+    with pytest.raises(ValueError, match="ckpt_sha256"):
+        me.assert_binding(out, _binding(ckpt_sha256="9" * 64))
+    with pytest.raises(ValueError, match="tau"):
+        me.assert_binding(out, _binding(tau=0.02))
+
+
+def _row_and_sims(query_id="0|ir/A/A_idx_1/S001_R002_hybrid_IR.wav", m=3, k=8):
+    sims = torch.linspace(0.1, 0.9, m * k).reshape(m, k)
+    row = {"query_id": query_id, "room_id": "A/A_idx_1", "position": 0,
+           "receiver_id": "A/A_idx_1|1,2,1.5", "n_candidates": m, "num_samples": k,
+           "branch": "z_band", "by_k": {"1": {}, "4": {}, "8": {}}}
+    return row, sims
+
+
+def test_a_query_artifact_is_written_atomically_and_verifies_itself(tmp_path):
+    out = str(tmp_path / "run")
+    row, sims = _row_and_sims()
+    paths = me.write_query_artifact(out, row, sims)
+    assert os.path.isfile(paths["row"]) and os.path.isfile(paths["sims"])
+    assert not [name for name in os.listdir(os.path.dirname(paths["row"]))
+                if name.endswith(".partial") or name.endswith(".tmp")]
+    verdict = me.verify_query_artifact(paths["row"])
+    assert verdict["ok"] and verdict["query_id"] == row["query_id"]
+    stored = np.load(paths["sims"])
+    assert stored.dtype == np.float16 and stored.shape == (3, 8)
+    assert np.allclose(stored.astype(np.float32), sims.numpy(), atol=1e-3)
+
+
+def test_a_truncated_or_edited_sidecar_fails_verification(tmp_path):
+    out = str(tmp_path / "run")
+    row, sims = _row_and_sims()
+    paths = me.write_query_artifact(out, row, sims)
+    np.save(paths["sims"], np.zeros((3, 8), dtype=np.float16))
+    verdict = me.verify_query_artifact(paths["row"])
+    assert not verdict["ok"] and "sims" in verdict["reason"]
+
+    other = me.write_query_artifact(out, dict(row, position=1), sims)
+    edited = json.load(open(other["row"]))
+    edited["n_candidates"] = 4
+    with open(other["row"], "w") as handle:
+        json.dump(edited, handle)
+    assert not me.verify_query_artifact(other["row"])["ok"]
+
+
+def test_resume_skips_only_digest_verified_queries(tmp_path):
+    out = str(tmp_path / "run")
+    row, sims = _row_and_sims()
+    good = me.write_query_artifact(out, row, sims)
+    bad = me.write_query_artifact(out, dict(row, position=1, query_id="1|ir/A/A_idx_1/x.wav"),
+                                  sims)
+    np.save(bad["sims"], np.zeros((3, 8), dtype=np.float16))
+    done, rejected = me.completed_queries(out)
+    assert done == {row["query_id"]}
+    assert [entry["query_id"] for entry in rejected] == ["1|ir/A/A_idx_1/x.wav"]
+    assert os.path.isfile(good["row"])
+
+
+def test_the_sims_precision_is_declared_not_incidental():
+    assert me.SIMS_DTYPE == "float16"
+    assert "float16" in me.SIMS_PRECISION_CAVEAT
+
+
+# --------------------------------------------------------------------------- #
+# bounded dumps (announcement-08 exemption) and the no-quality probe
+# --------------------------------------------------------------------------- #
+def test_the_registered_probe_queries_are_computed_from_the_manifest(tmp_path):
+    out_dir, report_path, base = _fixture_audit(tmp_path)
+    plan = me.load_audit_plan(report_path)
+    probes = me.registered_probe_queries(plan)
+    assert probes == {"A/A_idx_1": "0|ir/A/A_idx_1/S001_R002_hybrid_IR.wav",
+                      "B/B_idx_2": "3|ir/B/B_idx_2/S001_R009_hybrid_IR.wav"}
+    # one per room, chosen by the LEXICOGRAPHICALLY smallest relpath
+    assert len(probes) == len(plan.rooms)
+
+
+def test_dumping_anything_outside_the_registered_list_is_refused(tmp_path):
+    out_dir, report_path, base = _fixture_audit(tmp_path)
+    allowed = me.registered_probe_queries(me.load_audit_plan(report_path))
+    assert me.assert_dump_allowed(["0|ir/A/A_idx_1/S001_R002_hybrid_IR.wav"], allowed) is True
+    with pytest.raises(ValueError, match="announcement 08"):
+        me.assert_dump_allowed(["1|ir/A/A_idx_1/S003_R004_hybrid_IR.wav"], allowed)
+
+
+def test_a_case_list_extends_the_allowed_set_only_when_it_is_registered(tmp_path):
+    path = tmp_path / "cases.json"
+    path.write_text(json.dumps({"query_ids": ["1|ir/A/A_idx_1/S003_R004_hybrid_IR.wav"]}))
+    cases = me.load_dump_cases(str(path))
+    assert cases["query_ids"] == ["1|ir/A/A_idx_1/S003_R004_hybrid_IR.wav"]
+    assert cases["sha256"] == me.file_sha256(str(path))
+    allowed = {"0|a"} | set(cases["query_ids"])
+    assert me.assert_dump_allowed(["1|ir/A/A_idx_1/S003_R004_hybrid_IR.wav"], allowed) is True
+
+
+def test_the_throughput_probe_records_timing_and_never_a_score():
+    record = me.probe_record(query_id="0|x", room_id="A/A_idx_1", n_candidates=1667,
+                             num_samples=8, timings={"sampling": 1.5, "embed": 0.25})
+    assert record["scores_written"] is False
+    assert not ({"by_k", "scores_hex", "sims", "prediction_index"} & set(record))
+    assert record["n_generated"] == 1667 * 8
+    assert me.assert_no_scores(record) is True
+    with pytest.raises(ValueError, match="no-quality"):
+        me.assert_no_scores(dict(record, by_k={"8": {"prediction_index": 3}}))
+
+
+def test_the_probe_writes_to_its_own_diagnostics_stem(tmp_path):
+    out = str(tmp_path / "run")
+    record = me.probe_record(query_id="0|x", room_id="A/A_idx_1", n_candidates=4,
+                             num_samples=8, timings={"sampling": 0.5})
+    path = me.write_probe_records(out, [record], stem="probe_K8")
+    assert os.path.basename(path).startswith("diagnostics_probe_K8")
+    payload = json.load(open(path))
+    assert payload["scores_written"] is False and payload["n_queries"] == 1
+    # the probe's directory carries no query artifacts at all
+    assert not os.path.isdir(os.path.join(out, "rows"))
