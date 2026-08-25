@@ -185,6 +185,7 @@ concatenation and is therefore correct by construction. The committed manifest h
 | `e9e5b81` | bounded dumps | an admitted dump now writes something. exp_18 dumped every candidate because M was ~10; here M averages 1,667, so a full dump is 546 MB/query and 1.7 TB/pass. A dumped query keeps every prefix's prediction, every prefix's `S_mean` prediction and the top-N at the largest prefix, plus the observation — REGENERATED from their own noise keys after scoring, so nothing is held in memory and a test proves the regenerated waveforms reproduce the similarities that were scored | +102 −4 / +57 |
 | `d9fdc75` | parity proof split | see the real-stack finding below | +79 −20 / +62 |
 | `321cf16` | advisory binding tier + driver fix | `source_chunk`/`batch_rows` are recorded, compared and REPORTED on resume rather than refused (binding them strictly would make an OOM unrecoverable); fixes a `NameError` that killed `--cache-parity-check` after the model load and that no fixture test could reach | +45 −8 / +14 |
+| `43c2e37` | ARE refusal ordering | both checkpoint refusals (ARE artifact, conditioning binding) are CPU-only file reads and now run together before anything is built or moved — exp_18's r3 finding 9, which the engine build had re-introduced | +25 −7 / +17 |
 | `4eceb6d` | probe-room, diagnostics claim nothing, measured dtype | `--probe-room` bounds the probe to one room (Cafe's smallest group is 380 k waveforms, so there was no affordable real smoke); `writes_query_artifacts` stops a probe or parity check leaving a binding a scored pass would resume; `BATCHING_CAVEAT` records the MEASURED float16 ulp instead of an assumed bfloat16 one | +38 −16 / +14 |
 
 **Suite after exp22-r7:** see the round report (79 new engine tests; full tree re-run at round close).
@@ -225,8 +226,8 @@ proves nothing, so it was rebuilt to answer them apart:
 | half | question | result on the real conditioner |
 |---|---|---|
 | `memoization` | same batching on both sides (one candidate per call, cache chunk 1) — does the cache serve what the direct call computes, through the released `only_ids` seam? | **MATCH — all five branches bit-identical, max \|diff\| 0.0** |
-| `batched` | cache at its production chunk vs one uncached call | informational: **3.9e-3** on the context branch (batch 1 vs batch 8); `source`/`source_vit` **bit-identical** at equal batching |
-| `counter_test` | can the comparison fail at all? | **bit** — perturbed positions move it by 1.96 |
+| `batched` | cache at its production chunk vs one uncached call, 32 candidates over two chunks of 16 | informational, and mechanistically sensible: `context_audio` 3.9e-3 and `context_poses_vit` 2.0e-3 (batch 1 vs batch 32), `source_vit` 2.0e-3 (2×16 vs 1×32), `context_poses` 7.6e-6, and **`source` exactly 0.0** — the one branch that is elementwise and therefore batch-invariant |
+| `counter_test` | can the comparison fail at all? | **bit** — perturbed positions move it by 2.12 |
 
 The memoization half also proves the `only_ids` split is FAITHFUL, since the cached side asks
 for one branch and the direct side asks for all five. The batching asymmetry is disclosed in
