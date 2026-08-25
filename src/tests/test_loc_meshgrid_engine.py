@@ -927,6 +927,95 @@ def test_a_truncated_or_edited_sidecar_fails_verification(tmp_path):
     assert not me.verify_query_artifact(other["row"])["ok"]
 
 
+def test_a_row_is_authenticated_as_a_whole_not_only_its_sidecar(tmp_path):
+    """r7 review BLOCKER RESUME: an edited prediction or oracle was skippable."""
+    plan, records, items = _aligned(tmp_path)
+    out = str(tmp_path / "run")
+    me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
+                prefixes=(1, 4), batch_rows=8, binding_sha256="ab" * 32)
+    path = me.query_artifact_paths(out, "A/A_idx_1", 0)["row"]
+    assert me.verify_query_artifact(path)["ok"]
+    published = json.load(open(path))
+    assert published["binding_sha256"] == "ab" * 32
+    assert published["row_sha256"] == me.row_digest(published)
+
+    for field, value in (("e_oracle", 99.0),
+                         ("candidate_indices", [0]),
+                         ("receiver_id", "somebody else")):
+        edited = dict(published, **{field: value})
+        me.write_json(path, edited)
+        verdict = me.verify_query_artifact(path)
+        assert not verdict["ok"] and "row_sha256" in verdict["reason"]
+        me.write_json(path, published)
+
+    # ... including a prediction buried inside a K block
+    tampered = json.loads(json.dumps(published))
+    tampered["by_k"]["4"]["prediction_index"] = 12345
+    me.write_json(path, tampered)
+    assert not me.verify_query_artifact(path)["ok"]
+
+
+def test_a_row_from_another_binding_is_never_adopted(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    out = str(tmp_path / "run")
+    me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
+                prefixes=(1, 4), batch_rows=8, binding_sha256="ab" * 32)
+    path = me.query_artifact_paths(out, "A/A_idx_1", 0)["row"]
+    assert me.verify_query_artifact(path, binding_sha256="ab" * 32)["ok"]
+    verdict = me.verify_query_artifact(path, binding_sha256="cd" * 32)
+    assert not verdict["ok"] and "binding" in verdict["reason"]
+    done, rejected = me.completed_queries(out, binding_sha256="cd" * 32)
+    assert done == set() and len(rejected) == 4
+
+
+def test_a_skipped_query_is_authenticated_against_the_g1_plan(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    out = str(tmp_path / "run")
+    me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
+                prefixes=(1, 4), batch_rows=8, binding_sha256="ab" * 32)
+    done, rejected = me.completed_queries(out, binding_sha256="ab" * 32)
+    assert len(done) == 4 and rejected == []
+
+    # a row that verifies internally but describes ANOTHER query's candidates
+    path = me.query_artifact_paths(out, "A/A_idx_1", 0)["row"]
+    published = json.load(open(path))
+    # same shape, so the sidecar still fits: only the IDENTITY is wrong
+    other = fixture_indices("A/A_idx_1", FIXTURE_QUERIES["A/A_idx_1"][2])
+    borrowed = other[:published["n_candidates"]]
+    assert len(borrowed) == published["n_candidates"] != len(
+        set(borrowed) & set(published["candidate_indices"]))
+    swapped = dict(published, candidate_indices=borrowed)
+    swapped["row_sha256"] = me.row_digest(swapped)
+    me.write_json(path, swapped)
+    with pytest.raises(ValueError, match="does not match the candidate manifest"):
+        me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
+                    prefixes=(1, 4), batch_rows=8, done=done, binding_sha256="ab" * 32)
+
+
+def test_a_resume_without_a_published_binding_is_refused():
+    import localize_meshgrid as driver
+
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--resume"])
+    assert driver.writes_query_artifacts(args) is True
+    with pytest.raises(SystemExit, match="binding"):
+        driver.assert_resumable(args, "/nonexistent/dir")
+
+
+def test_resume_verifies_a_waveform_sidecar_a_row_names(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    out = str(tmp_path / "run")
+    me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
+                prefixes=(1, 4), batch_rows=8,
+                dump_queries={"0|ir/A/A_idx_1/S001_R002_hybrid_IR.wav"}, dump_top_n=2)
+    path = me.query_artifact_paths(out, "A/A_idx_1", 0)["row"]
+    assert me.verify_query_artifact(path)["ok"]
+    row = json.load(open(path))
+    np.savez(os.path.join(out, row["waveform_path"]), candidate_indices=np.zeros(1),
+             waveforms=np.zeros((1, 1, 1)), observation=np.zeros(1))
+    verdict = me.verify_query_artifact(path)
+    assert not verdict["ok"] and "waveform" in verdict["reason"]
+
+
 def test_resume_skips_only_digest_verified_queries(tmp_path):
     out = str(tmp_path / "run")
     row, sims = _row_and_sims()

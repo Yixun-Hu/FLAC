@@ -184,6 +184,17 @@ def dump_allowance(args, plan):
     return {str(query) for query in args.dump_waveforms}
 
 
+def assert_resumable(args, out_dir):
+    """A resume CONTINUES a published pass; it may not create the thing that
+    authorizes it (r7 review BLOCKER RESUME)."""
+    path = os.path.join(str(out_dir), me.BINDING_FILENAME)
+    if not os.path.isfile(path):
+        _refuse(f"--resume was asked for but {path} does not exist. A resume continues a "
+                "published pass; writing the binding first would legitimize whatever rows "
+                "happen to be in that directory. Start the pass without --resume")
+    return path
+
+
 def writes_query_artifacts(args):
     """Only a scored pass claims the output directory.
 
@@ -270,6 +281,8 @@ def main(argv=None):
     advisory = {"source_chunk": int(args.source_chunk), "batch_rows": int(args.batch_rows)}
     done = set()
     if writes_query_artifacts(args):
+        if args.resume:
+            assert_resumable(args, args.out_dir)
         if os.path.isfile(os.path.join(args.out_dir, me.BINDING_FILENAME)):
             moved = me.assert_binding(args.out_dir, run_binding, advisory=advisory)
             if moved is not True:
@@ -279,7 +292,8 @@ def main(argv=None):
         else:
             me.write_binding(args.out_dir, run_binding, advisory=advisory)
         if args.resume:
-            done, rejected = me.completed_queries(args.out_dir)
+            done, rejected = me.completed_queries(
+                args.out_dir, binding_sha256=me.binding_sha256(run_binding))
             print(f"resume: {len(done)} verified queries skipped, {len(rejected)} rejected "
                   f"and regenerated")
             for verdict in rejected[:5]:
@@ -308,7 +322,8 @@ def main(argv=None):
                           noise_policy=args.noise_policy, batch_rows=args.batch_rows,
                           source_chunk=args.source_chunk, done=done,
                           probe=args.probe, probe_room=args.probe_room,
-                          dump_queries=dump_queries, dump_top_n=args.dump_top_n)
+                          dump_queries=dump_queries, dump_top_n=args.dump_top_n,
+                          binding_sha256=me.binding_sha256(run_binding))
     summary["created_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     summary["binding_sha256"] = me.binding_sha256(run_binding)
     summary["agree_leakage_caveat"] = me.AGREE_LEAKAGE_CAVEAT

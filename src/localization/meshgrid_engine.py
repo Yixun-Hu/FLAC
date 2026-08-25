@@ -948,6 +948,23 @@ SIMS_PRECISION_CAVEAT = (
 
 ROWS_DIRNAME = "rows"
 
+#: fields that are ABOUT the row rather than part of what it claims.
+_ROW_DIGEST_EXCLUDED = ("row_sha256",)
+
+
+def row_digest(row):
+    """Canonical digest over everything a row CLAIMS.
+
+    The sidecar digest authenticates the similarities; this authenticates the
+    predictions, the oracle, the candidate indices, the receiver and the binding
+    identity, so an edited row cannot be adopted by a resume (r7 review BLOCKER
+    RESUME).
+    """
+    from src.localization.crossarm import canonical_sha256
+
+    return canonical_sha256({key: value for key, value in row.items()
+                             if key not in _ROW_DIGEST_EXCLUDED})
+
 
 def write_json(path, payload):
     """Publish one JSON artifact atomically (tmp file, then rename)."""
@@ -969,7 +986,7 @@ def query_artifact_paths(out_dir, room_id, position):
             "sims": os.path.join(room_dir, stem + "_sims.npy")}
 
 
-def write_query_artifact(out_dir, row, sims):
+def write_query_artifact(out_dir, row, sims, binding_sha256=None):
     """One query's artifacts, published atomically and sidecar-first.
 
     The sidecar lands before the row, and the row carries its digest, so the row
@@ -993,12 +1010,15 @@ def write_query_artifact(out_dir, row, sims):
                       "sims_dtype": SIMS_DTYPE,
                       "sims_shape": [int(array.shape[0]), int(array.shape[1])],
                       "sims_precision_caveat": SIMS_PRECISION_CAVEAT})
+    if binding_sha256 is not None:
+        published["binding_sha256"] = str(binding_sha256)
+    published["row_sha256"] = row_digest(published)
     write_json(paths["row"], published)
     return paths
 
 
-def verify_query_artifact(row_path):
-    """Re-accept one published query from its own bytes."""
+def verify_query_artifact(row_path, binding_sha256=None):
+    """Re-accept one published query from its own bytes -- row AND sidecars."""
     row_path = str(row_path)
     try:
         with open(row_path) as handle:
@@ -1028,11 +1048,62 @@ def verify_query_artifact(row_path):
         return dict(verdict, reason=f"the row publishes prefixes "
                                     f"{sorted(row.get('by_k') or {})} for a declared "
                                     f"{list(prefixes)}")
+    if "row_sha256" not in row:
+        return dict(verdict, reason="the row carries no row_sha256; its predictions, oracle "
+                                    "and candidate indices are unauthenticated")
+    if row_digest(row) != row.get("row_sha256"):
+        return dict(verdict, reason="the row does not match its own row_sha256; a prediction, "
+                                    "oracle, candidate index, receiver or binding field was "
+                                    "edited after publication")
+    if binding_sha256 is not None and row.get("binding_sha256") != str(binding_sha256):
+        return dict(verdict, reason=f"the row was produced under binding "
+                                    f"{str(row.get('binding_sha256'))[:12]}... but this run is "
+                                    f"{str(binding_sha256)[:12]}...")
+    if row.get("waveform_path"):
+        dump_path = os.path.join(out_dir, str(row["waveform_path"]))
+        if not os.path.isfile(dump_path):
+            return dict(verdict, reason=f"the waveform dump {row['waveform_path']!r} the row "
+                                        "names is missing")
+        if file_sha256(dump_path) != row.get("waveform_sha256"):
+            return dict(verdict, reason="the waveform dump does not match the digest the row "
+                                        "records")
     return {"ok": True, "query_id": row.get("query_id"), "row": row_path, "reason": None,
             "position": row.get("position"), "room_id": row.get("room_id")}
 
 
-def completed_queries(out_dir):
+def assert_published_matches(out_dir, query, binding_sha256=None):
+    """A SKIPPED query's published row must be the row for THIS query.
+
+    A row can be internally consistent and still describe another query's
+    candidates; nothing regenerates a skipped one, so the identity is checked
+    against the loaded G1 plan here or the resume refuses (r7 review BLOCKER
+    RESUME).
+    """
+    paths = query_artifact_paths(out_dir, query.room_id, query.position)
+    verdict = verify_query_artifact(paths["row"], binding_sha256=binding_sha256)
+    if not verdict["ok"]:
+        raise ValueError(f"{query.query_id}: the published row cannot be adopted: "
+                         f"{verdict['reason']}")
+    with open(paths["row"]) as handle:
+        row = json.load(handle)
+    published = [int(i) for i in row.get("candidate_indices", [])]
+    expected = [int(i) for i in query.candidate_indices]
+    mismatches = [name for name, left, right in (
+        ("query_id", row.get("query_id"), query.query_id),
+        ("room_id", row.get("room_id"), query.room_id),
+        ("position", int(row.get("position", -1)), query.position),
+        ("receiver_id", row.get("receiver_id"), query.receiver_id),
+        ("branch", row.get("branch"), query.branch),
+        ("n_candidates", int(row.get("n_candidates", -1)), query.n_candidates),
+        ("candidate_indices", published, expected)) if left != right]
+    if mismatches:
+        raise ValueError(f"{query.query_id}: the published row does not match the candidate "
+                         f"manifest on {mismatches}; a resume may not adopt a row that "
+                         "describes a different query")
+    return True
+
+
+def completed_queries(out_dir, binding_sha256=None):
     """``(verified query ids, rejected verdicts)`` for a resume.
 
     Only a query whose row AND sidecar re-verify is skipped; anything else is
@@ -1050,7 +1121,8 @@ def completed_queries(out_dir):
         for name in sorted(os.listdir(room_dir)):
             if not name.endswith(".json"):
                 continue
-            verdict = verify_query_artifact(os.path.join(room_dir, name))
+            verdict = verify_query_artifact(os.path.join(room_dir, name),
+                                            binding_sha256=binding_sha256)
             if verdict["ok"]:
                 done.add(verdict["query_id"])
             else:
@@ -1363,7 +1435,7 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
              batch_rows=64, source_chunk=SOURCE_CHUNK, done=(), probe=None, on_row=None,
              excluded_room=None, dump_queries=(), dump_top_n=DUMP_TOP_N,
              probe_room=None, allow_unregistered_noise_policy=False,
-             geometry_tol=CONTEXT_JOIN_TOLERANCE):
+             geometry_tol=CONTEXT_JOIN_TOLERANCE, binding_sha256=None):
     """Score the whole registered subset, room block by room block.
 
     The stream is the released loader in D1 order and is walked ONCE: every
@@ -1404,7 +1476,7 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
                   prefixes=prefixes, noise_policy=noise_policy, batch_rows=batch_rows,
                   source_chunk=source_chunk, on_row=on_row, probe=probe is not None,
                   geometry_tol=geometry_tol, dump_queries=dump_queries,
-                  dump_top_n=dump_top_n)
+                  dump_top_n=dump_top_n, binding_sha256=binding_sha256)
         buffer.clear()
         depths.clear()
         receiver_of.clear()
@@ -1472,7 +1544,8 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
 
 def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, done, seed,
               tau, num_samples, prefixes, noise_policy, batch_rows, source_chunk, on_row,
-              probe, geometry_tol, dump_queries=(), dump_top_n=DUMP_TOP_N):
+              probe, geometry_tol, dump_queries=(), dump_top_n=DUMP_TOP_N,
+              binding_sha256=None):
     """One room's receiver groups, one resident cache at a time."""
     missing = [] if selected is not None else [
         query.query_id for query in room_plan.queries
@@ -1487,8 +1560,11 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
             continue
         runnable = [query for query in group.queries
                     if buffer.get(query.query_id) is not None and query.query_id not in done]
-        state["n_skipped"] += len([query for query in group.queries
-                                   if query.query_id in done])
+        for query in group.queries:
+            if query.query_id in done:
+                # nothing will regenerate this one: prove the published row is ITS row
+                assert_published_matches(out_dir, query, binding_sha256=binding_sha256)
+                state["n_skipped"] += 1
         if not runnable:
             continue
         positions_cam = room_plan.base[np.asarray(group.union, dtype=np.int64)] \
@@ -1536,7 +1612,7 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
                                            scored, seed=seed, num_samples=num_samples,
                                            noise_policy=noise_policy, top_n=dump_top_n))
                     state["n_dumped"] += 1
-                write_query_artifact(out_dir, row, sims)
+                write_query_artifact(out_dir, row, sims, binding_sha256=binding_sha256)
                 state["n_scored"] += 1
                 if on_row is not None:
                     on_row(row)
