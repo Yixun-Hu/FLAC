@@ -99,6 +99,24 @@ AGREE_LEAKAGE_CAVEAT = (
 #: relaxes.
 SCORE_TOLERANCE = 1e-3
 
+#: A per-score bound eps moves a GAP by up to 2 eps -- the leader can lose eps
+#: while the runner-up gains it -- so an argmax is only safe when the top-1
+#: margin exceeds TWICE the tolerance. r8 used eps and called margins in
+#: (eps, 2 eps] stable, which the r8 review rejected.
+ARGMAX_STABILITY_FACTOR = 2
+
+
+def argmax_stability_bound(tolerance=None):
+    """The margin an argmax must exceed to be safe under a per-score bound."""
+    return ARGMAX_STABILITY_FACTOR * float(SCORE_TOLERANCE if tolerance is None
+                                           else tolerance)
+
+
+def is_argmax_stable(margin, tolerance=None):
+    """Whether a top-1 margin survives the worst case of the per-score bound."""
+    return bool(float(margin) > argmax_stability_bound(tolerance))
+
+
 DETERMINISM_CONTRACT = (
     "At fixed batching every stage is deterministic and a replay is bit-exact through "
     "scoring: the noise is keyed, the K prefixes are slices of one sequence, the caches are "
@@ -107,8 +125,9 @@ DETERMINISM_CONTRACT = (
     "artifacts at the same batch_rows/source_chunk must therefore produce identical score "
     "fingerprints. Changed batching is a different question: the backbones' GEMM tiling "
     "moves an output by about one float16 ulp, so the passes are compared against "
-    "SCORE_TOLERANCE and every query whose top-1 margin is inside that tolerance -- i.e. "
-    "whose argmax COULD flip -- is counted and named, never silently accepted")
+    "SCORE_TOLERANCE, and every query whose top-1 margin is within TWICE that bound -- the "
+    "worst case in which the leader loses eps while the runner-up gains it, i.e. every "
+    "argmax that COULD flip -- is counted and named, never silently accepted")
 
 NOISE_KEY_POLICIES = ("per_candidate", "shared_across_candidates")
 #: The REGISTERED policy: common random numbers -- inherited plan §1.1, "All
@@ -283,7 +302,8 @@ def score_query(sims, candidate_indices, coordinates, tau=TAU, prefixes=K_PREFIX
         margin = top1_margin(block["scores"])
         by_k[k] = {
             "margin": margin,
-            "argmax_stable": bool(margin > SCORE_TOLERANCE),
+            "argmax_stable": is_argmax_stable(margin),
+            "stability_bound": argmax_stability_bound(),
             "prediction_row": row,
             "prediction_index": indices[row],
             "prediction_xyz": coordinates[row].tolist(),
@@ -1234,14 +1254,16 @@ def compare_scored_runs(rows_a, rows_b, tolerance=SCORE_TOLERANCE):
                                 "a": block_a["prediction_index"],
                                 "b": block_b["prediction_index"],
                                 "margin": float(block_a.get("margin", 0.0))})
-            if float(block_a.get("margin", 0.0)) <= float(tolerance):
+            if not is_argmax_stable(block_a.get("margin", 0.0), tolerance):
                 at_risk += 1
     max_delta = max((entry["max_abs_delta"] for entry in by_k.values()), default=0.0)
     return {"n_queries": len(left), "by_k": by_k, "max_abs_delta": max_delta,
             "tolerance": float(tolerance), "within_tolerance": max_delta <= float(tolerance),
             "bit_exact": bool(fingerprints_equal and max_delta == 0.0),
             "n_flipped": len(flipped), "flipped": flipped,
-            "n_argmax_at_risk": at_risk, "contract": DETERMINISM_CONTRACT}
+            "n_argmax_at_risk": at_risk,
+            "stability_bound": argmax_stability_bound(tolerance),
+            "contract": DETERMINISM_CONTRACT}
 
 
 def completed_queries(out_dir, binding_sha256=None):
@@ -1916,7 +1938,8 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
                 for key, block in row["by_k"].items():
                     entry = state["argmax_stability"].setdefault(
                         int(key), {"n_queries": 0, "n_unstable": 0,
-                                   "min_margin": float("inf")})
+                                   "min_margin": float("inf"),
+                                   "stability_bound": argmax_stability_bound()})
                     entry["n_queries"] += 1
                     entry["n_unstable"] += int(not block["argmax_stable"])
                     entry["min_margin"] = min(entry["min_margin"], float(block["margin"]))

@@ -2155,3 +2155,66 @@ def test_the_admitted_dump_set_records_where_its_authority_came_from(tmp_path):
     args.dump_waveforms = ["2|ir/A/A_idx_1/S005_R002_hybrid_IR.wav"]
     with pytest.raises(ValueError, match="announcement 08"):
         driver.dump_allowance(args, plan)
+
+
+# --------------------------------------------------------------------------- #
+# r8b: the argmax stability boundary is 2 eps, not eps
+# --------------------------------------------------------------------------- #
+def test_stability_needs_twice_the_per_score_tolerance():
+    # a per-score bound eps moves a GAP by up to 2 eps: the leader can lose eps
+    # while the runner-up gains eps
+    assert me.ARGMAX_STABILITY_FACTOR == 2
+    assert me.argmax_stability_bound() == 2 * me.SCORE_TOLERANCE
+    assert me.argmax_stability_bound(0.5) == 1.0
+    assert me.is_argmax_stable(3 * me.SCORE_TOLERANCE) is True
+    assert me.is_argmax_stable(2 * me.SCORE_TOLERANCE) is False
+    # the band the r8 code called stable and the review rejected
+    assert me.is_argmax_stable(1.5 * me.SCORE_TOLERANCE) is False
+    assert me.is_argmax_stable(me.SCORE_TOLERANCE) is False
+
+
+def test_a_margin_between_one_and_two_epsilon_is_classified_at_risk():
+    eps = me.SCORE_TOLERANCE
+    # M candidates whose top-1 margin is 1.5 eps exactly
+    sims = torch.zeros((3, 8))
+    sims[0] = 0.5 + 1.5 * eps
+    sims[1] = 0.5
+    sims[2] = 0.1
+    scored = me.score_query(sims, [10, 11, 12], np.zeros((3, 3)), prefixes=(8,))
+    block = scored["by_k"][8]
+    # float32 through the log-mean-exp: compare at float32 resolution, not exactly
+    assert block["margin"] == pytest.approx(1.5 * eps, rel=1e-4)
+    assert block["argmax_stable"] is False
+    assert block["stability_bound"] == pytest.approx(2 * eps)
+
+
+def test_the_comparison_counts_risk_at_the_two_epsilon_boundary(tmp_path):
+    eps = me.SCORE_TOLERANCE
+
+    def _rows(margin):
+        sims = torch.zeros((2, 8))
+        sims[0] = 0.5 + margin
+        sims[1] = 0.5
+        scored = me.score_query(sims, [7, 9], np.zeros((2, 3)), prefixes=(8,))
+        return [{"query_id": "q", "room_id": "R", "position": 0, "receiver_id": "r",
+                 "branch": "z_band", "n_candidates": 2, "num_samples": 8, "tau": me.TAU,
+                 "seed": 42, "noise_policy": me.REGISTERED_NOISE_POLICY, "k_prefixes": [8],
+                 "candidate_indices": [7, 9], "e_oracle": 0.1, "sims_sha256": "x",
+                 "by_k": {"8": scored["by_k"][8]}}]
+
+    for margin, expected in ((1.5 * eps, 1), (3.0 * eps, 0)):
+        report = me.compare_scored_runs(_rows(margin), _rows(margin))
+        assert report["n_argmax_at_risk"] == expected, margin
+        assert report["stability_bound"] == pytest.approx(2 * eps)
+
+
+def test_the_summary_uses_the_same_boundary(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    out = str(tmp_path / "run")
+    summary = me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
+                          prefixes=(1, 4), batch_rows=8)
+    for entry in summary["argmax_stability"].values():
+        assert entry["stability_bound"] == pytest.approx(2 * me.SCORE_TOLERANCE)
+    row = json.load(open(me.query_artifact_paths(out, "A/A_idx_1", 0)["row"]))
+    for block in row["by_k"].values():
+        assert block["argmax_stable"] is (block["margin"] > 2 * me.SCORE_TOLERANCE)
