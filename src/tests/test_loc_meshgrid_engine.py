@@ -1239,3 +1239,23 @@ def test_the_driver_refuses_an_are_checkpoint_before_it_builds_the_scorer(tmp_pa
     wrong = {"model_config": {"training": {"cond_method": "fa_invariant"}}}
     with pytest.raises(SystemExit, match="cond_method"):
         driver.validate_checkpoint(args, model_config, wrong)
+
+
+def test_a_probe_does_not_parse_the_manifests_of_rooms_it_will_not_touch(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    loaded = []
+    real = me.load_room_plan
+
+    def _counting(plan_arg, room_id):
+        loaded.append(room_id)
+        return real(plan_arg, room_id)
+
+    me.load_room_plan, saved = _counting, me.load_room_plan
+    try:
+        me.run_pass(SyntheticEngine(), items, records, plan, str(tmp_path / "run"),
+                    num_samples=4, prefixes=(1, 4), probe=1, probe_room="B/B_idx_2")
+    finally:
+        me.load_room_plan = saved
+    # room A is streamed and verified, but its 137 MB-class manifest is never read
+    assert "A/A_idx_1" not in loaded
+    assert loaded.count("B/B_idx_2") >= 1

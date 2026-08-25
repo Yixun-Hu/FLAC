@@ -1208,10 +1208,19 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
         room_id = record["room_id"]
         if room_id != current_room:
             flush()
-            room_plan = load_room_plan(plan, room_id)
-            receiver_of = {query.query_id: query.receiver_id for query in room_plan.queries}
             current_room = room_id
-            state["rooms"].append(room_id)
+            # a probe still STREAMS and verifies every earlier room -- the draws
+            # depend on the whole pass -- but never parses a candidate manifest it
+            # will not use; the largest is 137 MB of index lists
+            if selected is not None and not any(room == room_id for room, _ in selected):
+                room_plan, receiver_of = None, {}
+            else:
+                room_plan = load_room_plan(plan, room_id)
+                receiver_of = {query.query_id: query.receiver_id
+                               for query in room_plan.queries}
+                state["rooms"].append(room_id)
+        if room_plan is None:
+            continue
         receiver_id = receiver_of.get(record["query_id"])
         if receiver_id is None:
             raise ValueError(f"{record['query_id']} is in the context manifest but not in "
