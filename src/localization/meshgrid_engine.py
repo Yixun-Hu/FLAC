@@ -2110,3 +2110,172 @@ def cache_parity_check(engine, query, md, n_candidates=None, source_chunk=SOURCE
             "dtypes": {key: str(unit[key][0].dtype)
                        for key in CONTEXT_COND_IDS + SOURCE_COND_IDS},
             "match": bool(memo_ok and counter > 0.0)}
+
+
+# --------------------------------------------------------------------------- #
+# the shard merge and its census
+# --------------------------------------------------------------------------- #
+def _read_shard(shard_dir):
+    """One shard's published binding and summary, or a refusal."""
+    binding_path = os.path.join(str(shard_dir), BINDING_FILENAME)
+    if not os.path.isfile(binding_path):
+        raise ValueError(f"{shard_dir} publishes no {BINDING_FILENAME}; a shard that cannot "
+                         "say what produced it may not enter a merge")
+    with open(binding_path) as handle:
+        binding = json.load(handle)
+    summary_path = os.path.join(str(shard_dir), "run_summary.json")
+    if not os.path.isfile(summary_path):
+        raise ValueError(f"{shard_dir} publishes no run_summary.json; the merge census needs "
+                         "its conditioner-row count, which only the pass can report")
+    with open(summary_path) as handle:
+        summary = json.load(handle)
+    return {"dir": str(shard_dir), "binding": binding, "summary": summary,
+            "declared_rooms": list(binding.get("declared_rooms") or []),
+            "advisory": dict(binding.get("advisory") or {}),
+            "binding_sha256": binding.get("binding_sha256")}
+
+
+def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms=None):
+    """Publish a merged run into a FRESH directory, and only after the census.
+
+    The census is the whole point: two shards that each finished happily can
+    still, between them, miss a query, score one twice, or have been produced by
+    different protocols. Nothing is copied until every one of those is excluded.
+    """
+    import shutil
+
+    totals = dict(REGISTERED_TOTALS if totals is None else totals)
+    shards = [_read_shard(directory) for directory in shard_dirs]
+    if len(shards) < 2:
+        raise ValueError("a merge combines at least two shards")
+
+    out_dir = str(out_dir)
+    if os.path.isdir(out_dir) and os.listdir(out_dir):
+        raise ValueError(f"{out_dir} is not fresh: a merge publishes into an empty directory "
+                         "so that a partial or older result cannot survive inside it")
+
+    # (1) identical strict bindings
+    digests = {shard["binding_sha256"] for shard in shards}
+    if len(digests) != 1 or None in digests:
+        raise ValueError(f"the shards were not produced under the same binding: "
+                         f"{sorted(str(d)[:12] for d in digests)}")
+    binding_sha256 = shards[0]["binding_sha256"]
+    base = {field: shards[0]["binding"][field] for field in RUN_BINDING_FIELDS
+            if field in shards[0]["binding"]}
+
+    # (2) pinned production advisory values, in the bindings AND in every row
+    advisories = {json.dumps(shard["advisory"], sort_keys=True) for shard in shards}
+    if len(advisories) != 1:
+        raise ValueError(f"the shards pin different advisory batching values "
+                         f"{sorted(advisories)}; a merged run must state one batching")
+    advisory = shards[0]["advisory"]
+
+    # (3) disjoint declared rooms whose union is the registered set
+    declared, overlap = [], set()
+    for shard in shards:
+        if not shard["declared_rooms"]:
+            raise ValueError(f"{shard['dir']} declares no rooms; a merge needs each shard's "
+                             "scope to prove the union is complete")
+        overlap |= set(declared) & set(shard["declared_rooms"])
+        declared.extend(shard["declared_rooms"])
+    if overlap:
+        raise ValueError(f"the shards' room sets are not disjoint ({sorted(overlap)}); the "
+                         "same room scored twice would double a query")
+    expected_rooms = sorted(plan.rooms if expected_rooms is None else expected_rooms)
+    missing = sorted(set(expected_rooms) - set(declared))
+    extra = sorted(set(declared) - set(expected_rooms))
+    if missing or extra:
+        raise ValueError(f"the shards do not cover the registered room set: missing {missing}, "
+                         f"unexpected {extra}")
+    if totals.get("rooms") is not None and len(expected_rooms) != int(totals["rooms"]):
+        raise ValueError(f"the audit publishes {len(expected_rooms)} rooms but the census "
+                         f"expects {totals['rooms']}")
+
+    # (4) exactly the registered query identities and positions, once each
+    expected = {record["query_id"]: (int(record["position"]), record["room_id"])
+                for record in records}
+    if totals.get("queries") is not None and len(expected) != int(totals["queries"]):
+        raise ValueError(f"the context manifest carries {len(expected)} queries but the census "
+                         f"expects {totals['queries']}")
+    owner, rows = {}, {}
+    for shard in shards:
+        for row in read_rows(shard["dir"]):
+            query_id = row["query_id"]
+            if query_id in rows:
+                raise ValueError(f"{query_id} is published by both {owner[query_id]} and "
+                                 f"{shard['dir']}; a merged run scores each query once")
+            if query_id not in expected:
+                raise ValueError(f"{query_id} is not in the registered subset but was scored "
+                                 f"by {shard['dir']}")
+            if row["room_id"] not in shard["declared_rooms"]:
+                raise ValueError(f"{shard['dir']} scored {query_id} from {row['room_id']}, "
+                                 f"which it does not declare")
+            position, room_id = expected[query_id]
+            if int(row["position"]) != position or row["room_id"] != room_id:
+                raise ValueError(f"{query_id} is published at position {row['position']} in "
+                                 f"{row['room_id']} but the context manifest registers "
+                                 f"position {position} in {room_id}")
+            rows[query_id], owner[query_id] = row, shard["dir"]
+    absent = sorted(set(expected) - set(rows))
+    if absent:
+        raise ValueError(f"{len(absent)} registered queries are missing from the shards "
+                         f"(first {absent[:3]}); a merged run is the complete subset")
+
+    # (5) every digest, and every row's identity against the G1 plan
+    for room_id in expected_rooms:
+        room = load_room_plan(plan, room_id)
+        for query in room.queries:
+            shard_dir = owner[query.query_id]
+            assert_published_matches(shard_dir, query, binding_sha256=binding_sha256)
+            row = rows[query.query_id]
+            if row.get("batching") and row["batching"] != {
+                    key: advisory.get(key) for key in row["batching"]}:
+                raise ValueError(
+                    f"{query.query_id} was produced with batching {row['batching']} but its "
+                    f"shard pins {advisory}; the advisory values are not pinned across the run")
+
+    # (6) the three registered totals
+    pairs = sum(int(row["n_candidates"]) for row in rows.values())
+    waveforms = sum(int(row["n_candidates"]) * int(row["num_samples"])
+                    for row in rows.values())
+    source_rows = sum(int(shard["summary"].get("n_conditioner_rows", -1)) for shard in shards)
+    for name, found, wanted in (("candidate_query_pairs", pairs,
+                                 totals["candidate_query_pairs"]),
+                                ("generated_waveforms", waveforms,
+                                 totals["generated_waveforms"]),
+                                ("source_rows", source_rows, totals["source_rows"])):
+        if int(found) != int(wanted):
+            raise ValueError(f"the merged census fails on {name}: the shards account for "
+                             f"{found:,} but the registered total is {int(wanted):,}")
+
+    # only now does anything reach disk
+    os.makedirs(out_dir, exist_ok=True)
+    for query_id, row in rows.items():
+        shard_dir = owner[query_id]
+        paths = query_artifact_paths(shard_dir, row["room_id"], row["position"])
+        target = query_artifact_paths(out_dir, row["room_id"], row["position"])
+        os.makedirs(target["dir"], exist_ok=True)
+        shutil.copy2(paths["row"], target["row"])
+        shutil.copy2(paths["sims"], target["sims"])
+        if row.get("waveform_path"):
+            source = os.path.join(shard_dir, row["waveform_path"])
+            destination = os.path.join(out_dir, row["waveform_path"])
+            os.makedirs(os.path.dirname(destination), exist_ok=True)
+            shutil.copy2(source, destination)
+
+    write_binding(out_dir, base, advisory=advisory, declared_rooms=sorted(declared))
+    report = {"experiment": "exp_22 loc_meshgrid I1 shard merge", "ok": True,
+              "binding_sha256": binding_sha256, "advisory": advisory,
+              "declared_rooms": sorted(declared), "n_rows": len(rows),
+              "shards": [{"dir": shard["dir"], "rooms": shard["declared_rooms"],
+                          "n_scored": shard["summary"].get("n_scored"),
+                          "n_conditioner_rows": shard["summary"].get("n_conditioner_rows"),
+                          "advisory_history": shard["binding"].get("advisory_history") or []}
+                         for shard in shards],
+              "totals": {"candidate_query_pairs": pairs, "source_rows": source_rows,
+                         "generated_waveforms": waveforms},
+              "registered_totals": totals,
+              "agree_leakage_caveat": AGREE_LEAKAGE_CAVEAT,
+              "batching_caveat": BATCHING_CAVEAT}
+    write_json(os.path.join(out_dir, "merge_report.json"), report)
+    return report

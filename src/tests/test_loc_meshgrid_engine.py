@@ -1960,3 +1960,140 @@ def test_the_driver_parses_and_validates_a_room_shard():
                               "--probe", "1"])
     with pytest.raises(SystemExit, match="--rooms"):
         driver.validate_args(args)
+
+
+# --------------------------------------------------------------------------- #
+# the merge and its census
+# --------------------------------------------------------------------------- #
+def _shards(tmp_path, **kwargs):
+    """Two disjoint shards of the fixture pass, published like the real ones."""
+    plan, records, items = _aligned(tmp_path)
+    binding = _binding()
+    digest = me.binding_sha256(binding)
+    dirs = {}
+    for name, rooms in (("a", ["A/A_idx_1"]), ("b", ["B/B_idx_2"])):
+        out = str(tmp_path / name)
+        me.write_binding(out, binding, advisory={"batch_rows": 8, "source_chunk": 3},
+                         declared_rooms=rooms)
+        summary = me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
+                              prefixes=(1, 4), batch_rows=8, source_chunk=3, rooms=rooms,
+                              binding_sha256=digest, **kwargs)
+        me.write_json(os.path.join(out, "run_summary.json"), summary)
+        dirs[name] = out
+    pairs, unions = _fixture_totals()
+    totals = {"rooms": 2, "queries": len(records), "candidate_query_pairs": pairs,
+              "source_rows": unions, "generated_waveforms": pairs * 4}
+    return plan, records, dirs, totals
+
+
+def test_a_merge_publishes_a_fresh_directory_only_after_its_census_passes(tmp_path):
+    plan, records, dirs, totals = _shards(tmp_path)
+    merged = str(tmp_path / "merged")
+    report = me.merge_shards([dirs["a"], dirs["b"]], merged, plan, records, totals=totals)
+
+    assert report["ok"] is True
+    assert report["n_rows"] == len(records)
+    assert report["declared_rooms"] == ["A/A_idx_1", "B/B_idx_2"]
+    assert report["totals"] == {"candidate_query_pairs": totals["candidate_query_pairs"],
+                                "source_rows": totals["source_rows"],
+                                "generated_waveforms": totals["generated_waveforms"]}
+    assert report["binding_sha256"] == me.binding_sha256(_binding())
+    # the merged directory is a complete, re-verifiable run
+    done, rejected = me.completed_queries(merged, binding_sha256=report["binding_sha256"])
+    assert len(done) == len(records) and rejected == []
+    assert json.load(open(os.path.join(merged, me.BINDING_FILENAME)))["declared_rooms"] == [
+        "A/A_idx_1", "B/B_idx_2"]
+    assert os.path.isfile(os.path.join(merged, "merge_report.json"))
+
+
+def test_a_merge_refuses_to_write_into_a_directory_that_has_content(tmp_path):
+    plan, records, dirs, totals = _shards(tmp_path)
+    merged = str(tmp_path / "merged")
+    os.makedirs(merged)
+    open(os.path.join(merged, "something"), "w").close()
+    with pytest.raises(ValueError, match="fresh"):
+        me.merge_shards([dirs["a"], dirs["b"]], merged, plan, records, totals=totals)
+
+
+def test_a_merge_refuses_shards_from_different_bindings(tmp_path):
+    plan, records, dirs, totals = _shards(tmp_path)
+    other = json.load(open(os.path.join(dirs["b"], me.BINDING_FILENAME)))
+    other["tau"] = 0.02
+    other["binding_sha256"] = me.binding_sha256(
+        {k: v for k, v in other.items() if k in me.RUN_BINDING_FIELDS})
+    me.write_json(os.path.join(dirs["b"], me.BINDING_FILENAME), other)
+    with pytest.raises(ValueError, match="same binding"):
+        me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "m"), plan, records,
+                        totals=totals)
+
+
+def test_a_merge_refuses_shards_whose_batching_was_not_pinned(tmp_path):
+    plan, records, dirs, totals = _shards(tmp_path)
+    published = json.load(open(os.path.join(dirs["b"], me.BINDING_FILENAME)))
+    published["advisory"] = {"batch_rows": 64, "source_chunk": 16}
+    me.write_json(os.path.join(dirs["b"], me.BINDING_FILENAME), published)
+    with pytest.raises(ValueError, match="advisory"):
+        me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "m"), plan, records,
+                        totals=totals)
+
+
+def test_a_merge_refuses_overlapping_or_incomplete_room_sets(tmp_path):
+    plan, records, dirs, totals = _shards(tmp_path)
+    with pytest.raises(ValueError, match="disjoint|missing"):
+        me.merge_shards([dirs["a"], dirs["a"]], str(tmp_path / "m"), plan, records,
+                        totals=totals)
+    with pytest.raises(ValueError, match="at least two"):
+        me.merge_shards([dirs["a"]], str(tmp_path / "m2"), plan, records, totals=totals)
+    with pytest.raises(ValueError, match="missing"):
+        me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "m3"), plan, records,
+                        totals=dict(totals, rooms=3),
+                        expected_rooms=["A/A_idx_1", "B/B_idx_2", "C/C_idx_3"])
+
+
+def test_a_merge_refuses_a_wrong_census(tmp_path):
+    plan, records, dirs, totals = _shards(tmp_path)
+    with pytest.raises(ValueError, match="candidate_query_pairs"):
+        me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "m"), plan, records,
+                        totals=dict(totals, candidate_query_pairs=totals[
+                            "candidate_query_pairs"] + 1))
+    with pytest.raises(ValueError, match="source_rows"):
+        me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "m2"), plan, records,
+                        totals=dict(totals, source_rows=totals["source_rows"] + 1))
+
+
+def test_a_merge_refuses_a_tampered_row_or_a_missing_one(tmp_path):
+    plan, records, dirs, totals = _shards(tmp_path)
+    path = me.query_artifact_paths(dirs["a"], "A/A_idx_1", 0)["row"]
+    row = json.load(open(path))
+    me.write_json(path, dict(row, e_oracle=99.0))
+    with pytest.raises(ValueError, match="row_sha256|cannot be adopted"):
+        me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "m"), plan, records,
+                        totals=totals)
+    me.write_json(path, row)
+    os.remove(me.query_artifact_paths(dirs["a"], "A/A_idx_1", 1)["row"])
+    with pytest.raises(ValueError, match="missing"):
+        me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "m2"), plan, records,
+                        totals=totals)
+
+
+def test_a_merge_carries_a_dumped_waveform_across(tmp_path):
+    plan, records, dirs, totals = _shards(
+        tmp_path, dump_queries={"0|ir/A/A_idx_1/S001_R002_hybrid_IR.wav"}, dump_top_n=2)
+    merged = str(tmp_path / "merged")
+    me.merge_shards([dirs["a"], dirs["b"]], merged, plan, records, totals=totals)
+    row = json.load(open(me.query_artifact_paths(merged, "A/A_idx_1", 0)["row"]))
+    assert os.path.isfile(os.path.join(merged, row["waveform_path"]))
+    assert me.verify_query_artifact(
+        me.query_artifact_paths(merged, "A/A_idx_1", 0)["row"])["ok"]
+
+
+def test_the_driver_exposes_the_merge_with_a_fresh_output(tmp_path):
+    import localize_meshgrid as driver
+
+    args = driver.parse_args(["--merge-shards", "a", "b", "--merge-out", "m"])
+    assert args.merge_shards == ["a", "b"] and args.merge_out == "m"
+    assert driver.writes_query_artifacts(args) is False
+    with pytest.raises(SystemExit, match="--merge-out"):
+        driver.validate_args(driver.parse_args(["--merge-shards", "a", "b"]))
+    with pytest.raises(SystemExit, match="at least two"):
+        driver.validate_args(driver.parse_args(["--merge-shards", "a", "--merge-out", "m"]))

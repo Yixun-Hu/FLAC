@@ -60,8 +60,13 @@ DEFAULT_AUDIT_REPORT = os.path.join("outputs_loc", "exp22", "g1_audit",
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--ckpt-path", required=True,
+    parser.add_argument("--ckpt-path", default=None,
                         help="the frozen FLAC checkpoint (wrapped; EMA resolved at load)")
+    parser.add_argument("--merge-shards", nargs="+", default=None,
+                        help="merge these published shard directories into --merge-out, "
+                             "publishing only after the full census passes")
+    parser.add_argument("--merge-out", default=None,
+                        help="the FRESH directory a merge publishes into")
     parser.add_argument("--model-config", default=DEFAULT_MODEL_CONFIG)
     parser.add_argument("--dataset-config", default=DEFAULT_DATASET_CONFIG)
     parser.add_argument("--context-manifest", default=DEFAULT_CONTEXT_MANIFEST,
@@ -120,6 +125,15 @@ def _refuse(message):
 
 def validate_args(args):
     """Startup refusals -- before a checkpoint is read or a GPU is touched."""
+    if args.merge_shards is not None:
+        if not args.merge_out:
+            _refuse("--merge-shards needs --merge-out: a merge publishes into a fresh "
+                    "directory, never back into a shard")
+        if len(args.merge_shards) < 2:
+            _refuse("--merge-shards combines at least two shard directories")
+        return True
+    if not args.ckpt_path:
+        _refuse("--ckpt-path is required for every run except --merge-shards")
     if args.rooms is not None and args.probe is not None:
         _refuse("--rooms shards a scored pass and --probe is a no-quality diagnostic; use "
                 "--probe-room to bound a probe")
@@ -211,7 +225,8 @@ def writes_query_artifacts(args):
     publish a run binding into a directory a scored pass will later resume, and
     must not read one either.
     """
-    return args.probe is None and not args.cache_parity_check and not args.replay_check
+    return (args.probe is None and not args.cache_parity_check and not args.replay_check
+            and args.merge_shards is None)
 
 
 def build_run_binding(args, plan, ckpt_sha256, agree_sha256, model_config_sha256):
@@ -250,6 +265,8 @@ def _iter_items(loader):
 def main(argv=None):
     args = parse_args(argv)
     validate_args(args)
+    if args.merge_shards is not None:
+        return _run_merge(args)
 
     with open(args.model_config) as handle:
         model_config = json.load(handle)
@@ -390,6 +407,23 @@ def _progress_printer(total, every=25):
               f"~{remaining / 3600:.1f} h left", flush=True)
 
     return _on_row
+
+
+def _run_merge(args):
+    """Combine published shards into one verified run -- no model, no GPU."""
+    plan = me.load_audit_plan(args.audit_report, branch=args.branch)
+    records = mq.load_manifest(args.context_manifest)["records"]
+    report = me.merge_shards(args.merge_shards, args.merge_out, plan, records)
+    print(json.dumps({key: value for key, value in report.items()
+                      if key not in ("agree_leakage_caveat", "batching_caveat")},
+                     indent=2, sort_keys=True))
+    print(f"\nMERGE CENSUS PASSED: {report['n_rows']:,} queries over "
+          f"{len(report['declared_rooms'])} rooms; "
+          f"{report['totals']['candidate_query_pairs']:,} candidate-query pairs, "
+          f"{report['totals']['source_rows']:,} source rows, "
+          f"{report['totals']['generated_waveforms']:,} generated waveforms "
+          f"-> {args.merge_out}")
+    return 0
 
 
 def _run_replay_check(args, engine, plan, records, loader):
