@@ -13,3 +13,7 @@
 - **RULING (anchor prior):** the 0.20 m clearance applies to SOURCES ONLY — adopted as the registered reading. Grounds: §1.2 names it a *source-distribution* prior; §1.3 rule 3 restricts the candidate predicate to *source* anchors while rule 2 asks only free-space classification of all anchors; physically receivers legitimately sit near walls (2/100 Cafe receivers at 0.100 m); and the exp_09 checkout's own G1 ran and was approved with Cafe included, implying their implementation read it identically. The rsynced exp_09 mesh-audit report will verify this equivalence on arrival (recorded as a pending cross-check).
 - Also accepted: `self_intersecting: None` (O(n²) infeasible at 366k tris; disclosed), EXCLUDED_ROOM naming per the split file.
 - **Next** — Codex exp22-r1 review → D1 frozen-manifest generation (full pass, teed) + G1 16-room audit → post-G1 cost gate to Yixun.
+
+## 2026-08-25T02:05:00-0400 — r1 review: 4 BLOCKERs; RSYNC NOW GATES G1
+
+- F1 (worker-RNG call graph) and F2 (substitution guard) are code-fixable now. **F3 changes the rsync's status: the inherited plan freezes "31 directions" by reference, not value — our locally generated set fails a real anchor (MeetingRoom_idx_32 receiver, 15/31 odd votes at 0.250 m clearance) that exp_09's approved G1 evidently passed. Their frozen direction set (or G1 code/audit) is REQUIRED for parity; without it we can only pin our own set and re-open the anchor rule.** F4 = the audit/cost-report driver, spec'd, buildable now.
