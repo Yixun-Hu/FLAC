@@ -174,6 +174,124 @@ def candidate_set_key(receiver_id, indices):
     return (str(receiver_id), digest)
 
 
+class GateCounter:
+    """The post-G1 gate's counts, over the UNION of each receiver's candidates.
+
+    The conditioner cache is per (receiver, candidate): a receiver whose queries
+    ask for ``{0,1,2}`` and ``{0,1,3}`` needs FOUR conditioner calls, not six.
+    Summing distinct sets over-counted the shared candidates (r3 review F4); the
+    number of distinct sets is kept as a separate, labelled diagnostic.
+    """
+
+    def __init__(self):
+        self.unions = {}
+        self.distinct = set()
+        self.scored_pairs = 0
+
+    def add(self, receiver_id, indices):
+        array = np.asarray(indices, dtype=np.int64)
+        self.scored_pairs += int(array.size)
+        if array.size == 0:
+            return
+        self.unions.setdefault(str(receiver_id), set()).update(int(i) for i in array)
+        self.distinct.add(candidate_set_key(receiver_id, array))
+
+    def summary(self):
+        union_total = int(sum(len(members) for members in self.unions.values()))
+        return {
+            "candidate_query_pairs": int(self.scored_pairs),
+            # one conditioner call per (receiver, candidate) in the receiver's union
+            "unique_receiver_candidate_pairs": union_total,
+            "conditioner_calls_estimate": union_total,
+            "distinct_candidate_sets": int(len(self.distinct)),
+            "n_receivers": int(len(self.unions)),
+            "artifact_bytes": int(self.scored_pairs * BYTES_PER_CANDIDATE),
+        }
+
+
+def verify_room_manifest(manifest_path, out_dir=None):
+    """Re-accept a published room manifest from its own artifacts, fail-closed.
+
+    Reconstructs BOTH branches from the sidecar npz and the recorded indices and
+    re-derives every digest. The audit runs this as its last publish step, so
+    nothing is published that the verifier would reject (r3 review F4).
+    """
+    out_dir = out_dir or os.path.dirname(os.path.abspath(manifest_path))
+    reasons = []
+    with open(manifest_path) as handle:
+        manifest = json.load(handle)
+
+    npz_path = os.path.join(out_dir, manifest.get("coordinates_npz", ""))
+    if not os.path.isfile(npz_path):
+        return {"ok": False, "reasons": [f"the sidecar {npz_path!r} is missing"],
+                "manifest": manifest_path}
+    with np.load(npz_path) as data:
+        base = np.asarray(data["base_candidates"], dtype=np.float64)
+
+    if coordinates_digest(base) != manifest.get("base_candidates_sha256"):
+        reasons.append(f"the npz base candidates do not match base_candidates_sha256 "
+                       f"({coordinates_digest(base)[:12]}... vs "
+                       f"{str(manifest.get('base_candidates_sha256'))[:12]}...)")
+    if int(manifest.get("n_base_valid", -1)) != int(base.shape[0]):
+        reasons.append(f"n_base_valid is {manifest.get('n_base_valid')} but the npz holds "
+                       f"{base.shape[0]} candidates")
+
+    branches = set()
+    for query in manifest.get("queries", []):
+        for branch, key, count_key in (("full_height", "candidate_indices", "n_candidates"),
+                                       ("z_band", "candidate_indices_z_band",
+                                        "n_candidates_z_band")):
+            indices = np.asarray(query.get(key, []), dtype=np.int64)
+            if indices.size != int(query.get(count_key, -1)):
+                reasons.append(f"{query['query_id']}: {branch} carries {indices.size} indices "
+                               f"but reports {query.get(count_key)}")
+                continue
+            if indices.size and (indices.min() < 0 or indices.max() >= base.shape[0]):
+                reasons.append(f"{query['query_id']}: {branch} index out of range "
+                               f"[{indices.min()}, {indices.max()}] for {base.shape[0]} "
+                               "candidates")
+                continue
+            if len(set(indices.tolist())) != indices.size:
+                reasons.append(f"{query['query_id']}: {branch} repeats an index")
+                continue
+            branches.add(branch)
+            if branch == "full_height":
+                digest = coordinates_digest(base[indices])
+                if digest != query.get("candidate_coordinates_sha256"):
+                    reasons.append(f"{query['query_id']}: reconstructed coordinates hash to "
+                                   f"{digest[:12]}... but the manifest records "
+                                   f"{str(query.get('candidate_coordinates_sha256'))[:12]}...")
+    return {"ok": not reasons, "reasons": reasons, "manifest": manifest_path,
+            "n_queries": len(manifest.get("queries", [])),
+            "branches_reconstructed": sorted(branches),
+            "room_id": manifest.get("room_id")}
+
+
+def verify_report_chain(report_path):
+    """The report's per-room digests must still match the manifests on disk."""
+    out_dir = os.path.dirname(os.path.abspath(report_path))
+    with open(report_path) as handle:
+        report = json.load(handle)
+    reasons = []
+    for room_id, entry in sorted((report.get("rooms") or {}).items()):
+        path = os.path.join(out_dir, entry["candidate_manifest"])
+        if not os.path.isfile(path):
+            reasons.append(f"{room_id}: {entry['candidate_manifest']} is missing")
+            continue
+        with open(path) as handle:
+            payload = json.load(handle)
+        digest = _sha256_json(payload)
+        if digest != entry.get("candidate_manifest_sha256"):
+            reasons.append(f"{room_id}: the manifest hashes to {digest[:12]}... but the "
+                           f"report records {str(entry.get('candidate_manifest_sha256'))[:12]}"
+                           "...; it was edited after publication")
+        verdict = verify_room_manifest(path, out_dir=out_dir)
+        if not verdict["ok"]:
+            reasons.append(f"{room_id}: {verdict['reasons'][0]}")
+    return {"ok": not reasons, "reasons": reasons, "n_rooms": len(report.get("rooms") or {}),
+            "report": report_path}
+
+
 def validate_records(records, expected_queries, required_rooms, expected_histogram):
     """The record stream IS the registered subset: count, uniqueness, order,
     census and the exact room set (r2 re-review F3)."""
@@ -205,9 +323,10 @@ def validate_records(records, expected_queries, required_rooms, expected_histogr
 
 
 def run_audit(context_manifest, mesh_root, metadata_root, out_dir,
-              expected_queries=mq.FILTERED_COUNT, spacing=mg.LATTICE_SPACING,
+              expected_queries=None, spacing=mg.LATTICE_SPACING,
               chunk=4096, required_rooms=REQUIRED_ROOMS,
-              expected_histogram=None, diagnostics_only=False):
+              expected_histogram=None, diagnostics_only=False,
+              _allow_fixture_census=False):
     """Audit every query, then -- only if every gate passed -- write artifacts.
 
     Nothing reaches disk until the whole audit has succeeded: a blocked room, a
@@ -216,10 +335,24 @@ def run_audit(context_manifest, mesh_root, metadata_root, out_dir,
     non-manifest report for inspection and never writes candidate manifests.
     """
     records = context_manifest["records"]
-    expected_histogram = (mq.FILTERED_ELIGIBLE_HISTOGRAM
-                          if expected_histogram is None and
-                          expected_queries == mq.FILTERED_COUNT else expected_histogram)
+    # A REGISTERED run always enforces the registered scope: 5,337 queries and
+    # the registered histogram. --expected-queries can only narrow a DIAGNOSTICS
+    # run, which writes no candidate manifests (r3 review F3/F4).
+    if not diagnostics_only and not _allow_fixture_census:
+        if expected_queries not in (None, mq.FILTERED_COUNT):
+            raise ValueError(f"--expected-queries {expected_queries} is only available to a "
+                             "--diagnostics-only run; a registered audit covers exactly the "
+                             f"{mq.FILTERED_COUNT}-query subset")
+        expected_queries = mq.FILTERED_COUNT
+        expected_histogram = mq.FILTERED_ELIGIBLE_HISTOGRAM
     validate_records(records, expected_queries, required_rooms, expected_histogram)
+
+    # publish into a FRESH directory only: a leftover artifact could be mistaken
+    # for part of this audit (r3 review, publish-phase)
+    if os.path.isdir(out_dir) and os.listdir(out_dir):
+        raise ValueError(f"the output directory {out_dir!r} is not empty; an audit publishes "
+                         "into a fresh directory so no existing artifact can be mistaken for "
+                         "part of it")
 
     by_room = {}
     for record in records:
@@ -230,8 +363,7 @@ def run_audit(context_manifest, mesh_root, metadata_root, out_dir,
     full_oracle, band_oracle = {}, {}
     blocked = []
     band_nonempty = True
-    counts = {"full_height": {"pairs": 0, "keys": {}},
-              "z_band": {"pairs": 0, "keys": {}}}
+    counts = {"full_height": GateCounter(), "z_band": GateCounter()}
 
     for room_id in sorted(by_room):
         scene, scene_id = room_id.split("/")
@@ -277,10 +409,7 @@ def run_audit(context_manifest, mesh_root, metadata_root, out_dir,
 
             receiver_id = f"{room_id}|" + ",".join(f"{v:.6f}" for v in receiver)
             for branch, indices in (("full_height", full_indices), ("z_band", band_indices)):
-                counts[branch]["pairs"] += int(indices.size)
-                if indices.size:
-                    key = candidate_set_key(receiver_id, indices)
-                    counts[branch]["keys"][key] = int(indices.size)
+                counts[branch].add(receiver_id, indices)
 
             queries.append({
                 "query_id": record["query_id"], "position": record["position"],
@@ -325,16 +454,7 @@ def run_audit(context_manifest, mesh_root, metadata_root, out_dir,
         }
 
     branch = mg.choose_z_branch(full_oracle, band_oracle, band_nonempty=band_nonempty)
-    cost = {}
-    for name in ("full_height", "z_band"):
-        unique = counts[name]["keys"]
-        cost[name] = {
-            "candidate_query_pairs": int(counts[name]["pairs"]),
-            "unique_receiver_candidate_pairs": int(len(unique)),
-            # one conditioner call per candidate in the UNION of a receiver's sets
-            "conditioner_calls_estimate": int(sum(unique.values())),
-            "artifact_bytes": int(counts[name]["pairs"] * BYTES_PER_CANDIDATE),
-        }
+    cost = {name: counts[name].summary() for name in ("full_height", "z_band")}
     cost["chosen_branch"] = branch["branch"]
 
     report = {
@@ -370,13 +490,30 @@ def run_audit(context_manifest, mesh_root, metadata_root, out_dir,
 
     for room_id, payload in payloads.items():
         payload["chosen_branch"] = branch["branch"]
-        scene, scene_id = room_id.split("/")
         np.savez(os.path.join(out_dir, payload["coordinates_npz"]),
                  base_candidates=arrays[room_id])
         digest = _sha256_json(payload)
         _write_json(os.path.join(out_dir, rooms[room_id]["candidate_manifest"]), payload)
         rooms[room_id]["candidate_manifest_sha256"] = digest
     _write_json(os.path.join(out_dir, "geometry_audit_report.json"), report)
+
+    # the LAST publish step: re-accept everything just written, from the files
+    # themselves. What the verifier rejects is not published.
+    verifications = {}
+    for room_id in payloads:
+        verdict = verify_room_manifest(
+            os.path.join(out_dir, rooms[room_id]["candidate_manifest"]), out_dir=out_dir)
+        verifications[room_id] = verdict
+        if not verdict["ok"]:
+            raise ValueError(f"the published manifest for {room_id} does not verify: "
+                             f"{verdict['reasons'][:3]}")
+    chain = verify_report_chain(os.path.join(out_dir, "geometry_audit_report.json"))
+    if not chain["ok"]:
+        raise ValueError(f"the published report does not verify against its manifests: "
+                         f"{chain['reasons'][:3]}")
+    report["verification"] = {"rooms": {room: verdict["ok"]
+                                        for room, verdict in verifications.items()},
+                              "chain_ok": True}
     return report
 
 
@@ -393,7 +530,9 @@ def main(argv=None):
     parser.add_argument("--mesh-root", required=True)
     parser.add_argument("--metadata-root", default=os.path.join("AcousticRooms", "metadata"))
     parser.add_argument("--out-dir", required=True)
-    parser.add_argument("--expected-queries", type=int, default=mq.FILTERED_COUNT)
+    parser.add_argument("--expected-queries", type=int, default=None,
+                        help="only for --diagnostics-only; a registered audit always covers "
+                             f"the {mq.FILTERED_COUNT}-query subset")
     parser.add_argument("--diagnostics-only", action="store_true",
                         help="write ONE clearly stamped non-manifest report for inspection "
                              "instead of refusing on a blocked room; never writes candidate "
@@ -401,6 +540,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     manifest = mq.load_manifest(args.context_manifest)
+    # the context manifest's own census, before any geometry runs
+    mq.assert_registered_census(manifest)
     report = run_audit(manifest, mesh_root=args.mesh_root,
                        metadata_root=args.metadata_root, out_dir=args.out_dir,
                        expected_queries=args.expected_queries,

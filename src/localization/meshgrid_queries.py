@@ -285,18 +285,21 @@ def canonical_relpath(path, roots=DATASET_ROOTS):
     """One canonical root-relative form, so the comparison can be EXACT.
 
     The split enumeration carries the dataset root and the loader's relpath does
-    not. r2 review: comparing with a bidirectional ``endswith`` accepts a
-    basename or a partial component, so a different room's file can impersonate a
-    position. Both sides are normalized here once and then compared as strings.
+    not. The root is matched as a whole COMPONENT SEQUENCE, never as a substring:
+    ``find("AcousticRooms/")`` also matches ``NotAcousticRooms/`` and
+    ``AcousticRoomsOld/``, which are different directories (r3 review F2).
     """
-    text = os.path.normpath(str(path)).lstrip("/")
+    parts = [part for part in os.path.normpath(str(path)).split(os.sep) if part not in ("", ".")]
     for root in roots:
-        root = os.path.normpath(str(root)).lstrip("/")
-        marker = root + os.sep
-        index = text.find(marker)
-        if index != -1:
-            return text[index + len(marker):]
-    return text
+        root_parts = [part for part in os.path.normpath(str(root)).split(os.sep)
+                      if part not in ("", ".")]
+        if not root_parts:
+            continue
+        width = len(root_parts)
+        for start in range(len(parts) - width + 1):
+            if parts[start:start + width] == root_parts:
+                return "/".join(parts[start + width:])
+    return "/".join(parts)
 
 
 def assert_split_enumeration(filenames, expected_count=FULL_COUNT):
@@ -484,15 +487,21 @@ def stream_hash(records):
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def build_manifest(full, filtered):
-    """The frozen manifest: both streams hashed, the exclusion recorded."""
+def build_manifest(full, filtered, require_census=True):
+    """The frozen manifest: both streams hashed, the exclusion recorded.
+
+    A registered manifest cannot exist unverified: the census is checked here,
+    and again on write and on load, so an unverified document never becomes an
+    artifact other rounds can pick up (r3 review F2). ``require_census=False``
+    exists for fixtures and is never used by the production path.
+    """
     from datetime import datetime, timezone
 
     if not full.get("complete"):
         raise ValueError("a manifest may only be built from a complete materialization")
     census = eligible_histogram(full["records"])
     filtered_census = eligible_histogram(filtered["records"])
-    return {
+    manifest = {
         "experiment": "exp_22 loc_meshgrid D1 context manifest",
         "protocol": dict(EXP01_LOADER), "context_width": CONTEXT_WIDTH,
         "protocol_facts": full.get("protocol_facts") or {},
@@ -513,6 +522,9 @@ def build_manifest(full, filtered):
         "records_full": full["records"],
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
+    if require_census:
+        assert_registered_census(manifest)
+    return manifest
 
 
 def assert_registered_census(manifest):
@@ -529,8 +541,13 @@ def assert_registered_census(manifest):
     return True
 
 
-def write_manifest(path, manifest):
-    """Write byte-stably (sorted keys, fixed indent), atomically."""
+def write_manifest(path, manifest, require_census=True):
+    """Write byte-stably (sorted keys, fixed indent), atomically.
+
+    Refuses an unverified manifest: an artifact on disk is a claim.
+    """
+    if require_census:
+        assert_registered_census(manifest)
     with open(path + ".partial", "w") as handle:
         json.dump(manifest, handle, indent=2, sort_keys=True)
         handle.write("\n")
@@ -538,13 +555,15 @@ def write_manifest(path, manifest):
     return path
 
 
-def load_manifest(path):
-    """Reload a frozen manifest and re-verify its stream hashes.
+def load_manifest(path, require_census=True):
+    """Reload a frozen manifest and re-verify its stream hashes AND its census.
 
     Reuse means reuse: this never constructs a loader, so it cannot redraw.
     """
     with open(path) as handle:
         manifest = json.load(handle)
+    if require_census:
+        assert_registered_census(manifest)
     for key, records in (("filtered_stream_sha256", manifest.get("records")),
                          ("full_stream_sha256", manifest.get("records_full"))):
         if records is None:

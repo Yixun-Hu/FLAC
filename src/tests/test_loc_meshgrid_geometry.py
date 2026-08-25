@@ -473,7 +473,8 @@ def test_audit_runs_end_to_end_on_the_fixture_world(tmp_path):
     rooms = tuple(sorted(r["room_id"] for r in world["manifest"]["records"]))
     report = audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
                              metadata_root=world["metadata_root"], out_dir=str(out),
-                             expected_queries=2, required_rooms=rooms)
+                             expected_queries=2, required_rooms=rooms,
+                             _allow_fixture_census=True)
 
     assert report["n_rooms"] == 2 and report["n_queries"] == 2
     assert report["branch"]["branch"] in ("z_band", "full_height")
@@ -514,7 +515,7 @@ def test_audit_refuses_a_wrong_query_count(tmp_path):
         audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
                         metadata_root=world["metadata_root"],
                         out_dir=str(tmp_path / "o2"), expected_queries=5337,
-                        required_rooms=None)
+                        required_rooms=None, _allow_fixture_census=True)
 
 
 def test_audit_fails_closed_on_a_missing_mesh(tmp_path):
@@ -525,7 +526,7 @@ def test_audit_fails_closed_on_a_missing_mesh(tmp_path):
         audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
                         metadata_root=world["metadata_root"],
                         out_dir=str(tmp_path / "o3"), expected_queries=2,
-                        required_rooms=None)
+                        required_rooms=None, _allow_fixture_census=True)
 
 
 # --------------------------------------------------------------------------- #
@@ -549,7 +550,7 @@ def test_audit_refuses_a_room_set_that_is_not_the_required_sixteen(tmp_path):
                         metadata_root=world["metadata_root"],
                         out_dir=str(tmp_path / "o"), expected_queries=2,
                         required_rooms=("RoomA/RoomA_idx_1", "RoomB/RoomB_idx_2",
-                                        "RoomC/RoomC_idx_3"))
+                                        "RoomC/RoomC_idx_3"), _allow_fixture_census=True)
     assert not os.path.isdir(str(tmp_path / "o")) or os.listdir(str(tmp_path / "o")) == []
 
 
@@ -563,7 +564,8 @@ def test_audit_validates_the_record_stream(tmp_path):
     with pytest.raises(ValueError, match="duplicate|unique"):
         audit.run_audit(duped, mesh_root=world["mesh_root"],
                         metadata_root=world["metadata_root"], out_dir=str(tmp_path / "a"),
-                        expected_queries=2, required_rooms=rooms)
+                        expected_queries=2, required_rooms=rooms,
+                             _allow_fixture_census=True)
 
     shuffled = dict(world["manifest"])
     shuffled["records"] = [dict(record, position=9)
@@ -571,13 +573,14 @@ def test_audit_validates_the_record_stream(tmp_path):
     with pytest.raises(ValueError, match="position"):
         audit.run_audit(shuffled, mesh_root=world["mesh_root"],
                         metadata_root=world["metadata_root"], out_dir=str(tmp_path / "b"),
-                        expected_queries=2, required_rooms=rooms)
+                        expected_queries=2, required_rooms=rooms,
+                             _allow_fixture_census=True)
 
     with pytest.raises(ValueError, match="histogram|census"):
         audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
                         metadata_root=world["metadata_root"], out_dir=str(tmp_path / "c"),
                         expected_queries=2, required_rooms=rooms,
-                        expected_histogram={8: 2})
+                        expected_histogram={8: 2}, _allow_fixture_census=True)
 
 
 def test_audit_aborts_before_writing_when_a_room_is_blocked(tmp_path, monkeypatch):
@@ -601,7 +604,8 @@ def test_audit_aborts_before_writing_when_a_room_is_blocked(tmp_path, monkeypatc
     with pytest.raises(ValueError, match="blocked|anchor"):
         audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
                         metadata_root=world["metadata_root"], out_dir=str(out),
-                        expected_queries=2, required_rooms=rooms)
+                        expected_queries=2, required_rooms=rooms,
+                        _allow_fixture_census=True)
     assert not os.path.isdir(str(out)) or os.listdir(str(out)) == []
 
     # ... unless diagnostics are asked for, and then the report says what it is
@@ -633,7 +637,7 @@ def test_audit_keeps_empty_z_band_queries_as_infinite(tmp_path, monkeypatch):
     report = audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
                              metadata_root=world["metadata_root"],
                              out_dir=str(tmp_path / "inf"), expected_queries=2,
-                             required_rooms=rooms)
+                             required_rooms=rooms, _allow_fixture_census=True)
     assert report["branch"]["branch"] == "full_height"
     assert report["oracle"]["z_band"]["n_infinite"] == 2
     assert report["oracle"]["z_band"]["median"] == float("inf")
@@ -647,7 +651,7 @@ def test_audit_reports_gate_counts_for_both_branches(tmp_path):
     report = audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
                              metadata_root=world["metadata_root"],
                              out_dir=str(tmp_path / "cost"), expected_queries=2,
-                             required_rooms=rooms)
+                             required_rooms=rooms, _allow_fixture_census=True)
     assert set(report["cost"]) == {"full_height", "z_band", "chosen_branch"}
     for branch in ("full_height", "z_band"):
         block = report["cost"][branch]
@@ -676,7 +680,8 @@ def test_room_manifest_carries_indices_coordinates_branch_and_snapped_origin(tmp
     out = tmp_path / "full"
     report = audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
                              metadata_root=world["metadata_root"], out_dir=str(out),
-                             expected_queries=2, required_rooms=rooms)
+                             expected_queries=2, required_rooms=rooms,
+                             _allow_fixture_census=True)
     room = rooms[0]
     payload = json.load(open(os.path.join(str(out), report["rooms"][room]["candidate_manifest"])))
     assert payload["chosen_branch"] == report["branch"]["branch"]
@@ -696,3 +701,146 @@ def test_room_manifest_carries_indices_coordinates_branch_and_snapped_origin(tmp
         picked = lattice[np.asarray(query["candidate_indices"])]
         assert picked.shape[0] == query["n_candidates"]
         assert audit.coordinates_digest(picked) == query["candidate_coordinates_sha256"]
+
+
+# --------------------------------------------------------------------------- #
+# r4 -- union counts, census closure, -inf, and the artifact verifier
+# --------------------------------------------------------------------------- #
+def test_gate_counts_are_the_per_receiver_union():
+    """r3 re-review: summing distinct sets reported 6 calls for a 4-element
+    union."""
+    audit = _audit_module()
+    counts = audit.GateCounter()
+    counts.add("R1", np.array([0, 1, 2]))
+    counts.add("R1", np.array([0, 1, 3]))
+    summary = counts.summary()
+    assert summary["conditioner_calls_estimate"] == 4          # |{0,1,2,3}|
+    assert summary["unique_receiver_candidate_pairs"] == 4     # true pair count
+    assert summary["distinct_candidate_sets"] == 2             # labelled diagnostic
+    assert summary["candidate_query_pairs"] == 6               # 3 + 3, as scored
+
+    counts.add("R2", np.array([0, 1, 2]))
+    summary = counts.summary()
+    assert summary["conditioner_calls_estimate"] == 7          # 4 + 3
+    assert summary["unique_receiver_candidate_pairs"] == 7
+    assert summary["distinct_candidate_sets"] == 3
+
+
+def test_branch_rule_refuses_negative_infinity_everywhere():
+    """+inf means an empty z-band; -inf is not a meaningful oracle anywhere."""
+    with pytest.raises(ValueError, match="finite"):
+        mg.choose_z_branch({"q0": 0.1}, {"q0": float("-inf")}, band_nonempty=True)
+    with pytest.raises(ValueError, match="finite"):
+        mg.choose_z_branch({"q0": float("-inf")}, {"q0": 0.1}, band_nonempty=True)
+    ok = mg.choose_z_branch({"q0": 0.1}, {"q0": float("inf")}, band_nonempty=True)
+    assert ok["branch"] == "full_height" and ok["n_empty_band"] == 1
+
+
+def test_registered_mode_cannot_choose_another_query_count(tmp_path):
+    audit = _audit_module()
+    world = _fixture_world(tmp_path)
+    rooms = tuple(sorted(r["room_id"] for r in world["manifest"]["records"]))
+    with pytest.raises(ValueError, match="diagnostics|registered"):
+        audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
+                        metadata_root=world["metadata_root"], out_dir=str(tmp_path / "n"),
+                        expected_queries=2, required_rooms=rooms)
+    # the same call IS allowed as a diagnostics run, and writes only the report
+    report = audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
+                             metadata_root=world["metadata_root"],
+                             out_dir=str(tmp_path / "d"), expected_queries=2,
+                             required_rooms=rooms, diagnostics_only=True)
+    assert report["diagnostics_only"] is True
+    assert sorted(os.listdir(str(tmp_path / "d"))) == ["geometry_diagnostics_report.json"]
+
+
+def test_publish_refuses_a_non_empty_output_directory(tmp_path):
+    audit = _audit_module()
+    world = _fixture_world(tmp_path)
+    rooms = tuple(sorted(r["room_id"] for r in world["manifest"]["records"]))
+    out = tmp_path / "occupied"
+    out.mkdir()
+    (out / "leftover.json").write_text("{}")
+    with pytest.raises(ValueError, match="empty|existing"):
+        audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
+                        metadata_root=world["metadata_root"], out_dir=str(out),
+                        expected_queries=2, required_rooms=rooms, diagnostics_only=True)
+    assert sorted(os.listdir(str(out))) == ["leftover.json"]
+
+
+def _published(tmp_path, name="pub"):
+    audit = _audit_module()
+    world = _fixture_world(tmp_path)
+    rooms = tuple(sorted(r["room_id"] for r in world["manifest"]["records"]))
+    out = tmp_path / name
+    report = audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
+                             metadata_root=world["metadata_root"], out_dir=str(out),
+                             expected_queries=None, required_rooms=rooms,
+                             expected_histogram=None, _allow_fixture_census=True)
+    return audit, str(out), report, rooms
+
+
+def test_verifier_accepts_what_the_audit_published(tmp_path):
+    audit, out, report, rooms = _published(tmp_path)
+    for room_id in rooms:
+        entry = report["rooms"][room_id]
+        verdict = audit.verify_room_manifest(os.path.join(out, entry["candidate_manifest"]))
+        assert verdict["ok"] is True and verdict["reasons"] == []
+        assert verdict["n_queries"] == entry["n_queries"]
+        assert set(verdict["branches_reconstructed"]) == {"full_height", "z_band"}
+    chain = audit.verify_report_chain(os.path.join(out, "geometry_audit_report.json"))
+    assert chain["ok"] is True and chain["n_rooms"] == len(rooms)
+
+
+def test_verifier_detects_a_corrupted_npz(tmp_path):
+    audit, out, report, rooms = _published(tmp_path, name="corrupt")
+    room = rooms[0]
+    path = os.path.join(out, report["rooms"][room]["candidate_manifest"])
+    payload = json.load(open(path))
+    npz = os.path.join(out, payload["coordinates_npz"])
+    with np.load(npz) as data:
+        base = data["base_candidates"].copy()
+    base[0, 0] += 0.5                                   # a real coordinate moves
+    np.savez(npz, base_candidates=base)
+    verdict = audit.verify_room_manifest(path)
+    assert verdict["ok"] is False
+    assert any("base" in reason and "sha256" in reason for reason in verdict["reasons"])
+
+
+def test_verifier_detects_an_out_of_range_index_and_a_tampered_digest(tmp_path):
+    audit, out, report, rooms = _published(tmp_path, name="tamper")
+    room = rooms[0]
+    path = os.path.join(out, report["rooms"][room]["candidate_manifest"])
+    payload = json.load(open(path))
+
+    broken = json.loads(json.dumps(payload))
+    broken["queries"][0]["candidate_indices"] = [10 ** 9]
+    broken["queries"][0]["n_candidates"] = 1
+    out_of_range = os.path.join(out, "out_of_range.json")
+    with open(out_of_range, "w") as handle:
+        json.dump(broken, handle, indent=2, sort_keys=True)
+    verdict = audit.verify_room_manifest(out_of_range)
+    assert verdict["ok"] is False
+    assert any("range" in reason or "index" in reason for reason in verdict["reasons"])
+
+    tampered = json.loads(json.dumps(payload))
+    tampered["queries"][0]["candidate_coordinates_sha256"] = "0" * 64
+    tampered_path = os.path.join(out, "tampered.json")
+    with open(tampered_path, "w") as handle:
+        json.dump(tampered, handle, indent=2, sort_keys=True)
+    verdict = audit.verify_room_manifest(tampered_path)
+    assert verdict["ok"] is False
+    assert any("coordinate" in reason for reason in verdict["reasons"])
+
+
+def test_report_chain_detects_a_manifest_edited_after_publication(tmp_path):
+    audit, out, report, rooms = _published(tmp_path, name="chain")
+    room = rooms[0]
+    path = os.path.join(out, report["rooms"][room]["candidate_manifest"])
+    payload = json.load(open(path))
+    payload["n_base_valid"] = int(payload["n_base_valid"]) + 1
+    with open(path, "w") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+    chain = audit.verify_report_chain(os.path.join(out, "geometry_audit_report.json"))
+    assert chain["ok"] is False
+    assert any(room in reason for reason in chain["reasons"])

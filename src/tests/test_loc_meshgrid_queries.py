@@ -191,7 +191,7 @@ def test_short_context_queries_are_replacement_drawn_never_dropped():
 def test_manifest_hashes_both_streams_and_reloads_byte_stable(tmp_path):
     full = _materialized()
     filtered = mq.filter_excluded_room(full, expected_excluded=6)
-    manifest = mq.build_manifest(full, filtered)
+    manifest = mq.build_manifest(full, filtered, require_census=False)
     assert len(manifest["full_stream_sha256"]) == 64
     assert len(manifest["filtered_stream_sha256"]) == 64
     assert manifest["full_stream_sha256"] != manifest["filtered_stream_sha256"]
@@ -199,11 +199,12 @@ def test_manifest_hashes_both_streams_and_reloads_byte_stable(tmp_path):
     assert manifest["protocol"] == dict(mq.EXP01_LOADER)
     assert manifest["excluded"]["room_id"] == mq.EXCLUDED_ROOM
 
-    path = mq.write_manifest(str(tmp_path / "ctx.json"), manifest)
+    path = mq.write_manifest(str(tmp_path / "ctx.json"), manifest, require_census=False)
     first = open(path, "rb").read()
-    reloaded = mq.load_manifest(path)
+    reloaded = mq.load_manifest(path, require_census=False)
     assert reloaded == manifest
-    assert mq.write_manifest(str(tmp_path / "again.json"), reloaded)
+    assert mq.write_manifest(str(tmp_path / "again.json"), reloaded,
+                             require_census=False)
     assert open(str(tmp_path / "again.json"), "rb").read() == first
 
 
@@ -211,33 +212,35 @@ def test_manifest_reload_does_not_touch_the_loader(tmp_path, monkeypatch):
     """Reuse means reuse: loading a frozen manifest may not redraw anything."""
     manifest = mq.build_manifest(_materialized(),
                                  mq.filter_excluded_room(_materialized(),
-                                                         expected_excluded=6))
-    path = mq.write_manifest(str(tmp_path / "ctx.json"), manifest)
+                                                         expected_excluded=6),
+                                 require_census=False)
+    path = mq.write_manifest(str(tmp_path / "ctx.json"), manifest, require_census=False)
 
     def refuse(*_args, **_kwargs):
         raise AssertionError("load_manifest built a dataloader")
 
     monkeypatch.setattr(mq, "build_release_stack", refuse)
-    assert mq.load_manifest(path)["full_stream_sha256"] == manifest["full_stream_sha256"]
+    assert mq.load_manifest(path, require_census=False)["full_stream_sha256"] == \
+        manifest["full_stream_sha256"]
 
 
 def test_manifest_detects_a_tampered_record(tmp_path):
     full = _materialized()
     filtered = mq.filter_excluded_room(full, expected_excluded=6)
-    manifest = mq.build_manifest(full, filtered)
-    path = mq.write_manifest(str(tmp_path / "ctx.json"), manifest)
+    manifest = mq.build_manifest(full, filtered, require_census=False)
+    path = mq.write_manifest(str(tmp_path / "ctx.json"), manifest, require_census=False)
     payload = json.loads(open(path).read())
     payload["records"][0]["context_fingerprints"][0] = "9.999999,9.999999,9.999999"
     with open(path, "w") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
     with pytest.raises(ValueError, match="sha256"):
-        mq.load_manifest(path)
+        mq.load_manifest(path, require_census=False)
 
 
 def test_manifest_verifies_the_census_when_it_is_the_real_split(tmp_path):
     full = _materialized(n=12)
     filtered = mq.filter_excluded_room(full, expected_excluded=6)
-    manifest = mq.build_manifest(full, filtered)
+    manifest = mq.build_manifest(full, filtered, require_census=False)
     assert manifest["census_verified"] is False        # a fixture is not the split
     with pytest.raises(ValueError, match="6,337|6337"):
         mq.assert_registered_census(manifest)
@@ -570,3 +573,59 @@ def test_full_pass_enforces_the_registered_census(monkeypatch):
     sliced = mq.materialize_contexts("fixture.json", limit=2)
     assert sliced["complete"] is False and sliced["n_records"] == 2
     assert records[0]["query_id"]
+
+
+# --------------------------------------------------------------------------- #
+# r4 F2 -- the root must match on a PATH COMPONENT boundary
+# --------------------------------------------------------------------------- #
+def test_canonical_relpath_matches_the_root_as_a_whole_component():
+    """r3 re-review: substring find() accepted 'NotAcousticRooms/<tail>'."""
+    roots = ("AcousticRooms",)
+    tail = "single_channel_ir_1/Cafe/Cafe_idx_1/S006_R008_hybrid_IR.wav"
+    assert mq.canonical_relpath(f"AcousticRooms/{tail}", roots) == tail
+    assert mq.canonical_relpath(f"/data/AcousticRooms/{tail}", roots) == tail
+    # a root that merely CONTAINS the name is a different directory
+    assert mq.canonical_relpath(f"NotAcousticRooms/{tail}", roots) == \
+        f"NotAcousticRooms/{tail}"
+    assert mq.canonical_relpath(f"AcousticRoomsOld/{tail}", roots) == \
+        f"AcousticRoomsOld/{tail}"
+
+
+def test_position_guard_refuses_the_root_substring_spoof():
+    expected = "AcousticRooms/single_channel_ir_1/Cafe/Cafe_idx_1/S001_R008_hybrid_IR.wav"
+    md = _md(position=3)
+    md["relpath"] = "NotAcousticRooms/single_channel_ir_1/Cafe/Cafe_idx_1/" \
+                    "S001_R008_hybrid_IR.wav"
+    with pytest.raises(ValueError, match="relpath"):
+        mq.assert_stream_position(md, 3, expected)
+
+
+def test_multi_component_roots_match_as_a_sequence():
+    roots = ("data/AR/rooms",)
+    tail = "single_channel_ir_1/Cafe/Cafe_idx_1/S006_R008_hybrid_IR.wav"
+    assert mq.canonical_relpath(f"data/AR/rooms/{tail}", roots) == tail
+    assert mq.canonical_relpath(f"data/AR/roomsX/{tail}", roots) == f"data/AR/roomsX/{tail}"
+    assert mq.canonical_relpath(f"data/ARX/rooms/{tail}", roots) == f"data/ARX/rooms/{tail}"
+
+
+# --------------------------------------------------------------------------- #
+# r4 F2 -- an unverified manifest cannot exist
+# --------------------------------------------------------------------------- #
+def test_manifest_refuses_to_build_write_or_load_unverified(tmp_path):
+    """A registered manifest that was never census-verified is not a manifest."""
+    full = _materialized(n=12)
+    filtered = mq.filter_excluded_room(full, expected_excluded=6)
+    with pytest.raises(ValueError, match="census"):
+        mq.build_manifest(full, filtered)                    # fixture census != registered
+
+    manifest = mq.build_manifest(full, filtered, require_census=False)
+    assert manifest["census_verified"] is False
+    with pytest.raises(ValueError, match="census"):
+        mq.write_manifest(str(tmp_path / "bad.json"), manifest)
+
+    path = str(tmp_path / "bad.json")
+    with open(path, "w") as handle:
+        json.dump(manifest, handle, indent=2, sort_keys=True)
+    with pytest.raises(ValueError, match="census"):
+        mq.load_manifest(path)
+    assert mq.load_manifest(path, require_census=False)["census_verified"] is False

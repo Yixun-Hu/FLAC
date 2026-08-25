@@ -427,7 +427,10 @@ def choose_z_branch(full_height_oracle, band_oracle, band_nonempty,
                 bad.append(query)
                 continue
             number = float(value)
-            if np.isnan(number) or (not allow_inf and not np.isfinite(number)):
+            # -inf is not a meaningful oracle anywhere: only POSITIVE infinity,
+            # and only on the band side, carries the "empty set" meaning (r3 F4)
+            if np.isnan(number) or number < 0 or (not np.isfinite(number)
+                                                  and not (allow_inf and number > 0)):
                 bad.append(query)
         if bad:
             raise ValueError(f"the {label} oracle is not finite for {sorted(bad)[:5]}; a "
