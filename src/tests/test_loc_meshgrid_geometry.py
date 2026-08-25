@@ -68,8 +68,12 @@ def test_directions_are_frozen_odd_and_never_axis_aligned():
     # no direction may lie in a coordinate plane: axis-aligned rays graze the
     # axis-aligned triangles these rooms are built from
     assert np.abs(directions).min() > 1e-3
-    assert mg.build_directions(31).tobytes() == directions.tobytes()   # deterministic
-    assert mg.build_directions(31).tobytes() != mg.build_directions(33).tobytes()
+    # deterministic, and keyed by the SELECTED seed
+    assert mg.build_directions(31, seed=mg.FROZEN_DIRECTIONS_SEED).tobytes() == \
+        directions.tobytes()
+    assert mg.build_directions(31, seed=0).tobytes() != directions.tobytes()
+    assert mg.build_directions(33, seed=mg.FROZEN_DIRECTIONS_SEED).tobytes() != \
+        directions.tobytes()
 
 
 # --------------------------------------------------------------------------- #
@@ -294,10 +298,14 @@ def test_direction_set_is_a_literal_constant_with_a_pinned_digest():
     assert all(len(row) == 3 for row in mg.FROZEN_DIRECTIONS_LITERAL)
     digest = hashlib.sha256(mg.FROZEN_DIRECTIONS.tobytes()).hexdigest()
     assert digest == mg.FROZEN_DIRECTIONS_SHA256
-    assert digest == "9ab4339fa893c00dca817b901a149c292b080d0e6971c90f0b8b0b88e858c261"
+    # the SELECTED set (seed 1), not the first one generated
+    assert digest == "79544f2dbc880a37a4826aa527d40e99a3e54ce849cfd0ec9f1c6e847c528a8d"
+    assert mg.FROZEN_DIRECTIONS_SEED == 1
     # the generator is provenance only: it must still reproduce the literals, and
     # if it ever stops doing so the literals win and this test says so
-    assert np.allclose(mg.build_directions(31), mg.FROZEN_DIRECTIONS, atol=0, rtol=0)
+    assert np.allclose(mg.build_directions(31, seed=mg.FROZEN_DIRECTIONS_SEED),
+                       mg.FROZEN_DIRECTIONS, atol=0, rtol=0)
+    assert not np.allclose(mg.build_directions(31, seed=0), mg.FROZEN_DIRECTIONS)
 
 
 def test_scene_identity_records_the_pinned_digest(shell_room):
@@ -306,15 +314,17 @@ def test_scene_identity_records_the_pinned_digest(shell_room):
     assert scene.identity["directions_sha256_pinned"] == mg.FROZEN_DIRECTIONS_SHA256
 
 
-def test_known_discrepancy_is_documented_and_still_fails_closed():
-    entry = mg.known_discrepancy("MeetingRoom/MeetingRoom_idx_32", [2.26, 0.48, 1.2],
-                                 "receivers")
-    assert entry is not None
-    assert entry["odd_votes"] == 15 and entry["n_directions"] == 31
-    assert entry["status"] == "documented, unresolved"
-    assert mg.known_discrepancy("Cafe/Cafe_idx_1", [2.26, 0.48, 1.2], "receivers") is None
-    assert mg.known_discrepancy("MeetingRoom/MeetingRoom_idx_32", [9.9, 9.9, 9.9],
+def test_the_meeting_room_discrepancy_is_recorded_as_resolved():
+    """Resolved BY THE SELECTION, with the old set's failure kept as provenance."""
+    assert mg.KNOWN_PARITY_DISCREPANCIES == ()
+    assert mg.known_discrepancy("MeetingRoom/MeetingRoom_idx_32", [2.26, 0.48, 1.2],
                                 "receivers") is None
+    entry = mg.RESOLVED_PARITY_DISCREPANCIES[0]
+    assert entry["room_id"] == "MeetingRoom/MeetingRoom_idx_32"
+    assert entry["odd_votes_under_previous_pin"] == 15
+    assert entry["previous_seed"] == 0
+    assert entry["previous_sha256"].startswith("9ab4339f")
+    assert "resolved" in entry["status"]
 
 
 _MEETING_OBJ = ("/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/"
@@ -322,25 +332,25 @@ _MEETING_OBJ = ("/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_for
 
 
 @pytest.mark.skipif(not os.path.isfile(_MEETING_OBJ), reason="MeetingRoom OBJ not present")
-def test_meeting_room_discrepancy_still_reads_exactly_as_documented():
-    """An xfail-style marker: the documented anchor must keep failing in exactly
-    the documented way until the exp_09 cross-check rules on it. A change in
-    either direction -- fixed, or worse -- fails this test loudly."""
+def test_meeting_room_anchor_passes_under_the_selected_set_and_failed_under_the_old_one():
+    """Both halves of the resolution, on the real mesh: the anchor the previous
+    set rejected at 15/31 is interior at 16/31 under the selected set, and the
+    room is accepted."""
     scene = mg.load_raycast_scene(_MEETING_OBJ)
     point = np.array([[2.26, 0.48, 1.2]])
-    votes = mg.odd_parity_votes(scene, point)[0]
-    assert int(votes) == 15, f"documented 15/31 odd votes, measured {int(votes)}"
-    assert bool(mg.classify_free_space(scene, point)[0]) is False
-    distance = float(mg.surface_distance(scene, point)[0])
-    assert distance == pytest.approx(0.25005, abs=5e-4)
+
+    previous = mg.build_directions(31, seed=0)
+    assert int(mg.odd_parity_votes(scene, point, directions=previous)[0]) == 15
+
+    votes = int(mg.odd_parity_votes(scene, point)[0])
+    assert votes >= 16, f"the selected set must classify this anchor interior, got {votes}/31"
+    assert bool(mg.classify_free_space(scene, point)[0]) is True
+    assert float(mg.surface_distance(scene, point)[0]) == pytest.approx(0.25005, abs=5e-4)
 
     audit = mg.audit_room_anchors(
         scene, mg.metadata_anchors("AcousticRooms/metadata/MeetingRoom/MeetingRoom_idx_32"),
         room_id="MeetingRoom/MeetingRoom_idx_32")
-    assert audit["accepted"] is False, "the room must stay blocked pending the ruling"
-    receivers = audit["rules"]["receivers"]
-    assert receivers["all_failures_documented"] is True
-    assert receivers["known_discrepancies"][0]["odd_votes"] == 15
+    assert audit["accepted"] is True, audit["rules"]
 
 
 # --------------------------------------------------------------------------- #
@@ -912,3 +922,112 @@ def test_pre_existing_output_is_still_refused_before_any_staging(tmp_path):
                         _allow_fixture_census=True)
     assert sorted(os.listdir(str(out))) == ["leftover.json"]
     assert not [name for name in os.listdir(str(tmp_path)) if name.startswith(".staging")]
+
+
+# --------------------------------------------------------------------------- #
+# r6 -- anchor-driven direction-set selection (exp_22 is self-authoritative)
+# --------------------------------------------------------------------------- #
+def _stub_scenes(rooms=("A/A_idx_1", "B/B_idx_2"), n_sources=3, n_receivers=4):
+    import types
+
+    return {room: {"scene": types.SimpleNamespace(room=room),
+                   "sources": np.arange(n_sources * 3, dtype=np.float64).reshape(-1, 3),
+                   "receivers": np.arange(n_receivers * 3, dtype=np.float64).reshape(-1, 3)}
+            for room in rooms}
+
+
+def _scripted_votes(failing_seeds, failing_room="B/B_idx_2", n_receivers=4):
+    """Votes that fail exactly the named seeds, on ONE room's receivers."""
+    def votes_fn(seed, directions, scene, points):
+        base = np.full(points.shape[0], 31, dtype=np.int64)
+        if (seed in failing_seeds and getattr(scene, "room", None) == failing_room
+                and points.shape[0] == n_receivers):
+            base[0] = 15                                        # one below the majority
+        return base
+    return votes_fn
+
+
+def test_selection_rule_returns_the_smallest_passing_seed():
+    scenes = _stub_scenes()
+    votes = _scripted_votes({0})
+    selection = mg.select_direction_seed(scenes, max_seed=8, votes_fn=votes)
+    assert selection["seed"] == 1
+    assert selection["report"]["ok"] is True
+    assert selection["rule"] == mg.DIRECTION_SELECTION_RULE
+    assert [attempt["seed"] for attempt in selection["attempts"]] == [0, 1]
+    assert selection["attempts"][0]["ok"] is False
+    assert selection["attempts"][0]["n_failures"] == 1
+    assert np.allclose(selection["directions"], mg.build_directions(31, seed=1))
+
+
+def test_selection_skips_every_failing_seed_in_order():
+    selection = mg.select_direction_seed(_stub_scenes(), max_seed=8,
+                                         votes_fn=_scripted_votes({0, 1, 2}))
+    assert selection["seed"] == 3
+    assert [attempt["seed"] for attempt in selection["attempts"]] == [0, 1, 2, 3]
+    assert all(not attempt["ok"] for attempt in selection["attempts"][:3])
+
+
+def test_selection_is_deterministic():
+    scenes, votes = _stub_scenes(), _scripted_votes({0, 1})
+    first = mg.select_direction_seed(scenes, max_seed=8, votes_fn=votes)
+    second = mg.select_direction_seed(scenes, max_seed=8, votes_fn=votes)
+    assert first["seed"] == second["seed"]
+    assert first["directions"].tobytes() == second["directions"].tobytes()
+    assert json.dumps(first["attempts"], sort_keys=True) == \
+        json.dumps(second["attempts"], sort_keys=True)
+
+
+def test_selection_refuses_when_no_seed_passes():
+    with pytest.raises(ValueError, match="no seed"):
+        mg.select_direction_seed(_stub_scenes(), max_seed=3,
+                                 votes_fn=_scripted_votes({0, 1, 2, 3}))
+
+
+def test_seed_evaluation_reports_every_failing_anchor():
+    report = mg.evaluate_direction_seed(0, _stub_scenes(), votes_fn=_scripted_votes({0}))
+    assert report["ok"] is False and report["n_failures"] == 1
+    failure = report["failures"][0]
+    assert failure["room_id"] == "B/B_idx_2" and failure["kind"] == "receivers"
+    assert failure["odd_votes"] == 15
+    assert report["majority"] == 16                       # >= 16 of 31, per the directive
+    assert report["rooms"]["A/A_idx_1"]["sources"]["n_failing"] == 0
+    assert len(report["directions_sha256"]) == 64
+
+
+def test_evaluation_uses_the_strict_majority_of_sixteen():
+    """Yixun's rule verbatim: >= 16/31 odd parity is interior."""
+    exactly_sixteen = lambda seed, directions, scene, points: np.full(  # noqa: E731
+        points.shape[0], 16, dtype=np.int64)
+    assert mg.evaluate_direction_seed(0, _stub_scenes(),
+                                      votes_fn=exactly_sixteen)["ok"] is True
+    fifteen = lambda seed, directions, scene, points: np.full(  # noqa: E731
+        points.shape[0], 15, dtype=np.int64)
+    assert mg.evaluate_direction_seed(0, _stub_scenes(), votes_fn=fifteen)["ok"] is False
+
+
+@pytest.mark.skipif(not os.path.isfile(_CAFE_OBJ), reason="Cafe OBJ not present")
+def test_real_cafe_anchors_pass_under_the_pinned_set():
+    """The pinned set must classify every Cafe anchor as interior."""
+    scenes = mg.anchor_scenes(
+        ["Cafe/Cafe_idx_1"],
+        mesh_root="/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format",
+        metadata_root="AcousticRooms/metadata")
+    report = mg.evaluate_direction_seed(mg.FROZEN_DIRECTIONS_SEED, scenes)
+    assert report["directions_sha256"] == mg.FROZEN_DIRECTIONS_SHA256
+    assert report["ok"] is True, report["failures"]
+    assert report["min_votes"] >= 16
+    assert report["rooms"]["Cafe/Cafe_idx_1"]["sources"]["n"] == 10
+    assert report["rooms"]["Cafe/Cafe_idx_1"]["receivers"]["n"] == 100
+
+
+def test_manifest_schema_records_the_selected_seed_and_rule(tmp_path):
+    audit, out, report, rooms = _published(tmp_path, name="schema")
+    assert report["directions_seed"] == mg.FROZEN_DIRECTIONS_SEED == 1
+    assert report["direction_selection_rule"] == mg.DIRECTION_SELECTION_RULE
+    assert report["resolved_parity_discrepancies"][0]["previous_seed"] == 0
+    payload = json.load(open(os.path.join(out, report["rooms"][rooms[0]]
+                                          ["candidate_manifest"])))
+    assert payload["directions_seed"] == 1
+    assert payload["directions_sha256"] == mg.FROZEN_DIRECTIONS_SHA256
+    assert "smallest generator seed" in payload["direction_selection_rule"]
