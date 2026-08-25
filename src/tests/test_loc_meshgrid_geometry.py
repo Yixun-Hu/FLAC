@@ -279,3 +279,64 @@ def test_real_cafe_mesh_loads_and_accepts_every_metadata_anchor():
         f"sources: {int((~verdict['valid']).sum())} anchors fail parity + the 0.20 m "
         f"clearance prior (min distance {float(verdict['distance'].min()):.3f} m)")
     assert mg.audit_room_anchors(scene, anchors)["accepted"] is True
+
+
+# --------------------------------------------------------------------------- #
+# r2 F3 -- the direction set is pinned as literals, not regenerated
+# --------------------------------------------------------------------------- #
+def test_direction_set_is_a_literal_constant_with_a_pinned_digest():
+    """r1 review F3: comparing the generator with its own output is not a pin."""
+    import hashlib
+
+    assert isinstance(mg.FROZEN_DIRECTIONS_LITERAL, tuple)
+    assert len(mg.FROZEN_DIRECTIONS_LITERAL) == 31
+    assert all(len(row) == 3 for row in mg.FROZEN_DIRECTIONS_LITERAL)
+    digest = hashlib.sha256(mg.FROZEN_DIRECTIONS.tobytes()).hexdigest()
+    assert digest == mg.FROZEN_DIRECTIONS_SHA256
+    assert digest == "9ab4339fa893c00dca817b901a149c292b080d0e6971c90f0b8b0b88e858c261"
+    # the generator is provenance only: it must still reproduce the literals, and
+    # if it ever stops doing so the literals win and this test says so
+    assert np.allclose(mg.build_directions(31), mg.FROZEN_DIRECTIONS, atol=0, rtol=0)
+
+
+def test_scene_identity_records_the_pinned_digest(shell_room):
+    scene = mg.load_raycast_scene(shell_room)
+    assert scene.identity["directions_sha256"] == mg.FROZEN_DIRECTIONS_SHA256
+    assert scene.identity["directions_sha256_pinned"] == mg.FROZEN_DIRECTIONS_SHA256
+
+
+def test_known_discrepancy_is_documented_and_still_fails_closed():
+    entry = mg.known_discrepancy("MeetingRoom/MeetingRoom_idx_32", [2.26, 0.48, 1.2],
+                                 "receivers")
+    assert entry is not None
+    assert entry["odd_votes"] == 15 and entry["n_directions"] == 31
+    assert entry["status"] == "documented, unresolved"
+    assert mg.known_discrepancy("Cafe/Cafe_idx_1", [2.26, 0.48, 1.2], "receivers") is None
+    assert mg.known_discrepancy("MeetingRoom/MeetingRoom_idx_32", [9.9, 9.9, 9.9],
+                                "receivers") is None
+
+
+_MEETING_OBJ = ("/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/"
+                "MeetingRoom/MeetingRoom_idx_32.obj")
+
+
+@pytest.mark.skipif(not os.path.isfile(_MEETING_OBJ), reason="MeetingRoom OBJ not present")
+def test_meeting_room_discrepancy_still_reads_exactly_as_documented():
+    """An xfail-style marker: the documented anchor must keep failing in exactly
+    the documented way until the exp_09 cross-check rules on it. A change in
+    either direction -- fixed, or worse -- fails this test loudly."""
+    scene = mg.load_raycast_scene(_MEETING_OBJ)
+    point = np.array([[2.26, 0.48, 1.2]])
+    votes = mg.odd_parity_votes(scene, point)[0]
+    assert int(votes) == 15, f"documented 15/31 odd votes, measured {int(votes)}"
+    assert bool(mg.classify_free_space(scene, point)[0]) is False
+    distance = float(mg.surface_distance(scene, point)[0])
+    assert distance == pytest.approx(0.25005, abs=5e-4)
+
+    audit = mg.audit_room_anchors(
+        scene, mg.metadata_anchors("AcousticRooms/metadata/MeetingRoom/MeetingRoom_idx_32"),
+        room_id="MeetingRoom/MeetingRoom_idx_32")
+    assert audit["accepted"] is False, "the room must stay blocked pending the ruling"
+    receivers = audit["rules"]["receivers"]
+    assert receivers["all_failures_documented"] is True
+    assert receivers["known_discrepancies"][0]["odd_votes"] == 15

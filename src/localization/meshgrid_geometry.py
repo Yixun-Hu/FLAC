@@ -66,8 +66,84 @@ def build_directions(count=N_DIRECTIONS, seed=0):
     return directions
 
 
-#: FROZEN at import: the 31 directions every validity vote uses, forever.
-FROZEN_DIRECTIONS = build_directions(N_DIRECTIONS)
+#: THE frozen direction set, written out as literals.
+#:
+#: r1 review F3: regenerating these from the generator at import is not a pin --
+#: a changed generator stays green against its own output. These 31 unit vectors
+#: ARE the protocol; ``build_directions`` is kept only as the provenance of how
+#: they were produced, and a test asserts the two still agree AND that the digest
+#: below is unchanged.
+FROZEN_DIRECTIONS_LITERAL = (
+    (-0.1771400678047207, 0.18506768919042715, 0.9666288567986445),
+    (0.44918969783162255, -0.02953273079508564, 0.8929481693657928),
+    (-0.4482095600950777, -0.3594773005568645, 0.8184645750573001),
+    (0.1003951590430564, 0.6502305325817338, 0.7530744096961431),
+    (0.39731027876809805, -0.5954013140943477, 0.6983135524676147),
+    (-0.7413713938219922, 0.1819974362937909, 0.6459453456794346),
+    (0.7110598798867792, 0.3892872398747092, 0.5855333398587393),
+    (-0.2765451918273667, -0.8119662651815595, 0.5140365172672801),
+    (-0.36099339915426826, 0.822988003214889, 0.4386051895855965),
+    (0.8498688337349825, -0.3752569253095685, 0.370007034329281),
+    (-0.8998681240823277, -0.30403777553453665, 0.3127273417988316),
+    (0.46565484132321705, 0.8456508257901678, 0.26084525986235),
+    (0.23110306920210177, -0.9514138530985036, 0.2034773981002008),
+    (-0.8228745234287446, 0.5520061602870696, 0.13478396676549745),
+    (0.9869163087380934, 0.14991737324948992, 0.059337852545819574),
+    (-0.6275136393809939, -0.7785118585521303, -0.012079672368400381),
+    (-0.06300703989133183, 0.9953841603953444, -0.07239120221537622),
+    (0.7150943824199973, -0.6878098708455005, -0.12473013188022608),
+    (-0.9834560824042765, 0.023924926730223638, -0.17955982808798462),
+    (0.7306018569799332, 0.6373143895564594, -0.2450536582908952),
+    (-0.10577313475482022, -0.9416370797499404, -0.3195804343262319),
+    (-0.5415184806977659, 0.7430667908309223, -0.39320411929050003),
+    (0.8719340220460582, -0.17620296861865783, -0.45681897404612765),
+    (-0.7365252345925201, -0.44373251919877316, -0.5105213317912817),
+    (0.2337982728223017, 0.792327215638578, -0.5635210297617358),
+    (0.34260366140477083, -0.7008244201131407, -0.6256739273496421),
+    (-0.6660910120575932, 0.26178541699578206, -0.698420474431009),
+    (0.5915988447453302, 0.22752652263004627, -0.7734613683926753),
+    (-0.24158905966343766, -0.4851627693106215, -0.8403878946806556),
+    (-0.12241418302241346, 0.4263188313322928, -0.8962516509588271),
+    (0.2707082469830636, -0.16580413333099558, -0.9482752946195077),
+)
+
+FROZEN_DIRECTIONS = np.array(FROZEN_DIRECTIONS_LITERAL, dtype=np.float64)
+
+#: sha256 over ``FROZEN_DIRECTIONS.tobytes()``; recorded in every manifest so a
+#: drifted direction set is visible in the artifacts, not only in the code.
+FROZEN_DIRECTIONS_SHA256 = (
+    "9ab4339fa893c00dca817b901a149c292b080d0e6971c90f0b8b0b88e858c261")
+
+
+#: Documented, UNRESOLVED anchor discrepancies (r1 review F3).
+#:
+#: The reviewer's 16-room sweep found one metadata anchor that the strict-majority
+#: rule rejects. It is recorded here rather than papered over: neither the
+#: majority rule nor the anchor predicate is changed, because that decision waits
+#: for the rsynced exp_09 artifact cross-check. An audit that hits one of these
+#: reports it as a KNOWN discrepancy and still refuses the room -- fail-closed --
+#: so the ruling cannot be skipped by accident.
+KNOWN_PARITY_DISCREPANCIES = (
+    {"room_id": "MeetingRoom/MeetingRoom_idx_32", "kind": "receivers",
+     "point": [2.26, 0.48, 1.2], "odd_votes": 15, "n_directions": 31,
+     "surface_distance_m": 0.25005,
+     "status": "documented, unresolved",
+     "note": "15/31 odd votes is one below the strict majority; the surface distance "
+             "is 0.25005 m, so this is not a clearance or epsilon effect. Pending the "
+             "exp_09 artifact cross-check; the majority rule and the anchor predicate "
+             "are unchanged in this round."},
+)
+
+
+def known_discrepancy(room_id, point, kind, tolerance=1e-6):
+    """The documented entry for this anchor, or ``None``."""
+    for entry in KNOWN_PARITY_DISCREPANCIES:
+        if entry["room_id"] != room_id or entry["kind"] != kind:
+            continue
+        if np.allclose(np.asarray(entry["point"], dtype=np.float64),
+                       np.asarray(point, dtype=np.float64), atol=tolerance):
+            return dict(entry)
+    return None
 
 
 # --------------------------------------------------------------------------- #
@@ -160,8 +236,8 @@ def load_raycast_scene(path):
         "vertex_manifold": bool(mesh.is_vertex_manifold()),
         "self_intersecting": None,          # O(n^2) on these meshes; recorded as unknown
         "backend": f"open3d {o3d.__version__} RaycastingScene",
-        "directions_sha256": hashlib.sha256(
-            FROZEN_DIRECTIONS.tobytes()).hexdigest(),
+        "directions_sha256": hashlib.sha256(FROZEN_DIRECTIONS.tobytes()).hexdigest(),
+        "directions_sha256_pinned": FROZEN_DIRECTIONS_SHA256,
         "n_directions": int(FROZEN_DIRECTIONS.shape[0]),
     }
     return RaycastScene(scene, identity)
@@ -179,11 +255,11 @@ def _as_points(points):
     return array
 
 
-def classify_free_space(scene, points, directions=None, chunk=None):
-    """Strict-majority odd ray parity over the frozen directions.
+def odd_parity_votes(scene, points, directions=None, chunk=None):
+    """How many of the frozen rays cross an ODD number of triangles, per point.
 
-    A point is inside iff more than half of the 31 rays cross an odd number of
-    triangles. Chunking changes nothing but memory: the vote is per point.
+    Exposed because the vote count is the evidence: a documented discrepancy is
+    "15 of 31", not merely "rejected".
     """
     import open3d as o3d
 
@@ -191,12 +267,11 @@ def classify_free_space(scene, points, directions=None, chunk=None):
         directions, dtype=np.float64).reshape(-1, 3)
     points = _as_points(points)
     if points.shape[0] == 0:
-        return np.zeros(0, dtype=bool)
+        return np.zeros(0, dtype=np.int64)
     n_directions = directions.shape[0]
-    majority = n_directions // 2 + 1
     size = int(chunk) if chunk else points.shape[0]
 
-    odd_votes = np.zeros(points.shape[0], dtype=np.int64)
+    votes = np.zeros(points.shape[0], dtype=np.int64)
     for start in range(0, points.shape[0], size):
         block = points[start:start + size]
         rays = np.empty((block.shape[0] * n_directions, 6), dtype=np.float32)
@@ -204,9 +279,21 @@ def classify_free_space(scene, points, directions=None, chunk=None):
         rays[:, 3:] = np.tile(directions, (block.shape[0], 1))
         counts = scene.scene.count_intersections(
             o3d.core.Tensor(rays, dtype=o3d.core.Dtype.Float32)).numpy()
-        odd_votes[start:start + size] = (counts.reshape(block.shape[0], n_directions) % 2
-                                         == 1).sum(axis=1)
-    return odd_votes >= majority
+        votes[start:start + size] = (counts.reshape(block.shape[0], n_directions) % 2
+                                     == 1).sum(axis=1)
+    return votes
+
+
+def classify_free_space(scene, points, directions=None, chunk=None):
+    """Strict-majority odd ray parity over the frozen directions.
+
+    A point is inside iff MORE THAN HALF of the 31 rays cross an odd number of
+    triangles. Chunking changes nothing but memory: the vote is per point.
+    """
+    directions = FROZEN_DIRECTIONS if directions is None else np.asarray(
+        directions, dtype=np.float64).reshape(-1, 3)
+    majority = directions.shape[0] // 2 + 1
+    return odd_parity_votes(scene, points, directions=directions, chunk=chunk) >= majority
 
 
 def surface_distance(scene, points, chunk=None):
@@ -353,6 +440,13 @@ def metadata_anchors(metadata_dir):
             "metadata_dir": str(metadata_dir)}
 
 
+def _room_id_from_metadata_dir(metadata_dir):
+    if not metadata_dir:
+        return None
+    parts = os.path.normpath(str(metadata_dir)).split(os.sep)
+    return "/".join(parts[-2:]) if len(parts) >= 2 else parts[-1]
+
+
 def write_box_obj(path, boxes):
     """Write an OBJ of axis-aligned boxes -- the synthetic rooms the tests use."""
     vertices, faces = [], []
@@ -374,7 +468,8 @@ def write_box_obj(path, boxes):
     return str(path)
 
 
-def audit_room_anchors(scene, anchors, clearance=SURFACE_CLEARANCE, eps=EPS):
+def audit_room_anchors(scene, anchors, clearance=SURFACE_CLEARANCE, eps=EPS,
+                       room_id=None):
     """The §1.3 fail-closed room acceptance, as the plan states it.
 
     Rule 2 applies to EVERY metadata anchor: finite, and inside the free-space
@@ -384,8 +479,10 @@ def audit_room_anchors(scene, anchors, clearance=SURFACE_CLEARANCE, eps=EPS):
     not drawn from the source distribution -- their own constraint is the
     >= 0.5 m candidate-distance guard -- so the prior is not applied to them.
     """
-    report = {"metadata_dir": anchors.get("metadata_dir"), "clearance": float(clearance),
-              "eps": float(eps), "rules": {}}
+    room_id = room_id or _room_id_from_metadata_dir(anchors.get("metadata_dir"))
+    report = {"metadata_dir": anchors.get("metadata_dir"), "room_id": room_id,
+              "clearance": float(clearance), "eps": float(eps), "rules": {},
+              "directions_sha256": FROZEN_DIRECTIONS_SHA256}
     accepted = True
     for label in ("sources", "receivers"):
         points = np.asarray(anchors[label], dtype=np.float64).reshape(-1, 3)
@@ -397,6 +494,11 @@ def audit_room_anchors(scene, anchors, clearance=SURFACE_CLEARANCE, eps=EPS):
         if not bool(verdict["parity_valid"].all()):
             accepted = False
             block["failure"] = "rule 2: an anchor is outside the free-space classification"
+            failing = np.asarray(points)[~verdict["parity_valid"]]
+            block["failing_points"] = [[float(v) for v in point] for point in failing]
+            documented = [known_discrepancy(room_id, point, label) for point in failing]
+            block["known_discrepancies"] = [entry for entry in documented if entry]
+            block["all_failures_documented"] = bool(documented and all(documented))
         if label == "sources" and not bool(verdict["valid"].all()):
             accepted = False
             block["failure"] = ("rule 3: a source anchor fails the candidate predicate "
