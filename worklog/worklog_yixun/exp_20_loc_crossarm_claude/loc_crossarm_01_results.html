@@ -1,0 +1,69 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>exp_20 loc_crossarm — Results</title>
+<!-- Offline SOP artifact; numbers from loc_crossarm_results.md + exp20_confirmatory_holm.json (never first here).
+     Palette: dataviz reference instance, committed light look. -->
+<style>
+:root{--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--ink3:#8a8880;--grid:#e8e7e2;
+--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--neut:#9a988f;}
+*{box-sizing:border-box}body{margin:0;background:var(--surface);color:var(--ink);
+font:15px/1.55 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:2rem 1rem}
+main{max-width:1000px;margin:0 auto}h1{font-size:1.6rem;margin:.2rem 0}
+h2{font-size:1.15rem;margin:2rem 0 .6rem;border-top:1px solid var(--grid);padding-top:1.1rem}
+.sub{color:var(--ink2)}.src{color:var(--ink3);font-size:.78rem;margin-top:.3rem}
+table{border-collapse:collapse;width:100%;font-size:.87rem;margin:.6rem 0}
+th,td{padding:.42rem .55rem;text-align:right;border-bottom:1px solid var(--grid);font-variant-numeric:tabular-nums}
+th{color:var(--ink2);font-weight:600}td:first-child,th:first-child{text-align:left}
+.wrap{overflow-x:auto}.ok{color:#0a7a2f;font-weight:700}.ns{color:var(--ink3)}
+.legend{display:flex;gap:1.1rem;font-size:.82rem;color:var(--ink2);margin:.3rem 0}
+.sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:.35rem}
+svg text{font:12px -apple-system,"Segoe UI",Roboto,sans-serif;fill:var(--ink2)}svg .v{font-weight:700;fill:var(--ink)}
+</style></head><body><main>
+<h1>exp_20 — Cross-Arm Localization at Matched 40k</h1>
+<p class="sub">P1 vanilla vs BF FA (C₄ frame-averaged) vs YAW (yaw-augmented), frozen exp_18 analysis-by-synthesis protocol · 6,337 unseen queries / 17 rooms × 2 context regimes × 3 seeds · AGREE_AR mean-readout scorer · freeze <code>a92ff5d</code> · 2026-08-22 → 08-23</p>
+
+<h2>1 · Registered confirmatory verdict (top-1, Holm over exactly 4)</h2>
+<div class="wrap"><table>
+<tr><th>contrast</th><th>Δ top-1</th><th>95% room-clustered CI</th><th>p raw</th><th>p adj</th><th>verdict</th></tr>
+<tr><td><b>BF vs P1 @ K<sub>ctx</sub>=8</b></td><td>+0.0182</td><td>[+0.0086, +0.0260]</td><td>0.0002</td><td>0.0008</td><td class="ok">CONFIRMED — BF superior</td></tr>
+<tr><td><b>BF vs P1 @ K<sub>ctx</sub>=1</b></td><td>+0.0155</td><td>[+0.0074, +0.0214]</td><td>0.0006</td><td>0.0018</td><td class="ok">CONFIRMED — BF superior</td></tr>
+<tr><td>YAW vs P1 @ K<sub>ctx</sub>=8</td><td>+0.0079</td><td>[+0.0009, +0.0137]</td><td>0.0298</td><td>0.0596</td><td class="ns">suggestive, ns</td></tr>
+<tr><td>YAW vs P1 @ K<sub>ctx</sub>=1</td><td>+0.0068</td><td>[+0.0003, +0.0133]</td><td>0.0390</td><td>0.0596</td><td class="ns">suggestive, ns</td></tr>
+</table></div>
+<p>Paired per-query 3-seed means, common random numbers across arms (pairing machine-proven per regime × seed), 17-room clustered bootstrap, top-1 the sole confirmatory endpoint. Supportive e_loc: BF −0.090 m (p≈0.017) both regimes; YAW −0.060 m (ns).</p>
+<p class="src">exp20_confirmatory_holm.json · pairing gate: crossarm.validate_pairing over all 6 cells.</p>
+
+<h2>2 · Macro top-1 by arm and regime (3-seed mean ± SD)</h2>
+<div class="legend"><span><i class="sw" style="background:var(--s1)"></i>P1 vanilla</span><span><i class="sw" style="background:var(--s2)"></i>BF FA</span><span><i class="sw" style="background:var(--s3)"></i>YAW</span></div>
+<svg viewBox="0 0 940 240" role="img" aria-label="Grouped bars: arm top-1 by regime">
+<line x1="60" y1="200" x2="920" y2="200" stroke="var(--grid)"/>
+<g><text x="60" y="16" class="v">K
+<tspan dy="2" font-size="9">ctx</tspan><tspan dy="-2">=8</tspan></text>
+<rect x="80" y="101.0" width="86" height="99.0" rx="4" fill="var(--s1)"><title>P1 0.4948</title></rect>
+<rect x="170" y="98.3" width="86" height="101.7" rx="4" fill="var(--s2)"><title>BF 0.5087</title></rect>
+<rect x="260" y="100.1" width="86" height="99.9" rx="4" fill="var(--s3)"><title>YAW 0.4997</title></rect>
+<text x="123" y="94" text-anchor="middle">0.4948</text><text x="213" y="90" text-anchor="middle" class="v">0.5087</text><text x="303" y="93" text-anchor="middle">0.4997</text>
+<text x="123" y="218" text-anchor="middle">P1</text><text x="213" y="218" text-anchor="middle">BF</text><text x="303" y="218" text-anchor="middle">YAW</text></g>
+<g><text x="520" y="16" class="v">K<tspan dy="2" font-size="9">ctx</tspan><tspan dy="-2">=1</tspan></text>
+<rect x="540" y="101.3" width="86" height="98.7" rx="4" fill="var(--s1)"><title>P1 0.4936</title></rect>
+<rect x="630" y="99.0" width="86" height="101.0" rx="4" fill="var(--s2)"><title>BF 0.5049</title></rect>
+<rect x="720" y="100.4" width="86" height="99.6" rx="4" fill="var(--s3)"><title>YAW 0.4980</title></rect>
+<text x="583" y="94" text-anchor="middle">0.4936</text><text x="673" y="91" text-anchor="middle" class="v">0.5049</text><text x="763" y="93" text-anchor="middle">0.4980</text>
+<text x="583" y="218" text-anchor="middle">P1</text><text x="673" y="218" text-anchor="middle">BF</text><text x="763" y="218" text-anchor="middle">YAW</text></g>
+<text x="60" y="238">Bars share a zoomed 0.44–0.53 scale; the FA effect composes across regimes (references: retrieval 0.689 @K8 / 0.107 @K1; chance 0.490 / 0.111).</text>
+</svg>
+<div class="wrap"><table>
+<tr><th>arm</th><th>K8 top-1</th><th>K1 top-1</th><th>K8 ctx-member</th><th>K1 ctx-member</th><th>macro mean e (K8/K1)</th></tr>
+<tr><td>P1 vanilla @40k</td><td>0.4948 ± 0.0002</td><td>0.4936 ± 0.0011</td><td>0.386</td><td>0.049</td><td>1.118 / 1.128 m</td></tr>
+<tr><td><b>BF FA @40k</b></td><td><b>0.5087 ± 0.0007</b></td><td><b>0.5049 ± 0.0015</b></td><td>0.366</td><td>0.047</td><td>1.076 / 1.086 m</td></tr>
+<tr><td>YAW @40k</td><td>0.4997 ± 0.0015</td><td>0.4980 ± 0.0004</td><td>0.381</td><td>0.049</td><td>1.099 / 1.114 m</td></tr>
+</table></div>
+
+<h2>3 · Why these numbers are trustworthy</h2>
+<ul>
+<li>Per-arm exp_15-grade checkpoint admission (step 40,000; embedded-config equality; complete 210/210 EMA mirror; descriptor-bound, ABA-proof hashing).</li>
+<li>FA discipline per announcements 05/06 enforced in code: per-angle chunk plan locked numerically and verified per query at the end gate; source-blob shas pinned in the registration and compared at startup; fa-parity bitwise in both autocast modes. The TDD round caught the driver defaulting to a shared-orbit forward — the exact drift class announcement 06 exists for — before any run.</li>
+<li>Pairing proven, not assumed: identity streams, context digests, and noise keys equal across arms per (regime, seed) — contrasts use common random numbers.</li>
+<li>5 code rounds / 5 Codex review rounds to zero findings before launch; 2,80X tests green; 18/18 identity gates clean; waveform dumps + inline metric families archived per cell.</li>
+</ul>
+<p class="src">Provenance: loc_crossarm_worklog.md · registrations/ · admission records · loc_crossarm_codex_code_r{1..5}_review.md.</p>
+</main></body></html>
