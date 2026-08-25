@@ -22,7 +22,9 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import sys
+import tempfile
 from datetime import datetime, timezone
 
 import numpy as np
@@ -483,38 +485,70 @@ def run_audit(context_manifest, mesh_root, metadata_root, out_dir,
             "writes nothing until every required room is accepted (a blocked room is a "
             "pending ruling, not a warning). Re-run with diagnostics_only=True to inspect.")
 
-    os.makedirs(out_dir, exist_ok=True)
     if diagnostics_only:
+        os.makedirs(out_dir, exist_ok=True)
         _write_json(os.path.join(out_dir, "geometry_diagnostics_report.json"), report)
         return report
 
-    for room_id, payload in payloads.items():
-        payload["chosen_branch"] = branch["branch"]
-        np.savez(os.path.join(out_dir, payload["coordinates_npz"]),
-                 base_candidates=arrays[room_id])
-        digest = _sha256_json(payload)
-        _write_json(os.path.join(out_dir, rooms[room_id]["candidate_manifest"]), payload)
-        rooms[room_id]["candidate_manifest_sha256"] = digest
-    _write_json(os.path.join(out_dir, "geometry_audit_report.json"), report)
+    # Everything is written into a STAGING sibling, verified there, and only then
+    # published: a verifier failure must leave the final directory as it found it
+    # (r4 review). The verification block is written INTO the report before its
+    # disk copy, so the published report is not missing what was checked.
+    parent = os.path.dirname(os.path.abspath(out_dir)) or "."
+    os.makedirs(parent, exist_ok=True)
+    staging = tempfile.mkdtemp(prefix=".staging_geometry_audit_", dir=parent)
+    try:
+        for room_id, payload in payloads.items():
+            payload["chosen_branch"] = branch["branch"]
+            np.savez(os.path.join(staging, payload["coordinates_npz"]),
+                     base_candidates=arrays[room_id])
+            rooms[room_id]["candidate_manifest_sha256"] = _sha256_json(payload)
+            _write_json(os.path.join(staging, rooms[room_id]["candidate_manifest"]), payload)
 
-    # the LAST publish step: re-accept everything just written, from the files
-    # themselves. What the verifier rejects is not published.
-    verifications = {}
-    for room_id in payloads:
-        verdict = verify_room_manifest(
-            os.path.join(out_dir, rooms[room_id]["candidate_manifest"]), out_dir=out_dir)
-        verifications[room_id] = verdict
-        if not verdict["ok"]:
-            raise ValueError(f"the published manifest for {room_id} does not verify: "
-                             f"{verdict['reasons'][:3]}")
-    chain = verify_report_chain(os.path.join(out_dir, "geometry_audit_report.json"))
-    if not chain["ok"]:
-        raise ValueError(f"the published report does not verify against its manifests: "
-                         f"{chain['reasons'][:3]}")
-    report["verification"] = {"rooms": {room: verdict["ok"]
-                                        for room, verdict in verifications.items()},
-                              "chain_ok": True}
+        verifications = {}
+        for room_id in payloads:
+            verdict = verify_room_manifest(
+                os.path.join(staging, rooms[room_id]["candidate_manifest"]), out_dir=staging)
+            verifications[room_id] = verdict
+            if not verdict["ok"]:
+                raise ValueError(f"the staged manifest for {room_id} does not verify: "
+                                 f"{verdict['reasons'][:3]}; nothing was published")
+        report["verification"] = {"rooms": {room: verdict["ok"]
+                                            for room, verdict in verifications.items()},
+                                  "chain_ok": None, "staged": True}
+        _write_json(os.path.join(staging, "geometry_audit_report.json"), report)
+
+        chain = verify_report_chain(os.path.join(staging, "geometry_audit_report.json"))
+        if not chain["ok"]:
+            raise ValueError(f"the staged report does not verify against its manifests: "
+                             f"{chain['reasons'][:3]}; nothing was published")
+        report["verification"]["chain_ok"] = True
+        _write_json(os.path.join(staging, "geometry_audit_report.json"), report)
+
+        _publish_staging(staging, out_dir)
+        staging = None
+    finally:
+        if staging is not None and os.path.isdir(staging):
+            shutil.rmtree(staging, ignore_errors=True)
     return report
+
+
+def _publish_staging(staging, out_dir):
+    """Move the verified staging directory into place, atomically where possible."""
+    if os.path.isdir(out_dir):
+        if os.listdir(out_dir):
+            raise ValueError(f"{out_dir!r} became non-empty during the audit; refusing to "
+                             "publish over it")
+        os.rmdir(out_dir)                       # so the whole-dir rename can land
+    try:
+        os.replace(staging, out_dir)            # one atomic rename
+        return out_dir
+    except OSError:                             # different filesystems: file by file
+        os.makedirs(out_dir, exist_ok=True)
+        for name in sorted(os.listdir(staging)):
+            os.replace(os.path.join(staging, name), os.path.join(out_dir, name))
+        os.rmdir(staging)
+        return out_dir
 
 
 def _write_json(path, payload):

@@ -844,3 +844,71 @@ def test_report_chain_detects_a_manifest_edited_after_publication(tmp_path):
     chain = audit.verify_report_chain(os.path.join(out, "geometry_audit_report.json"))
     assert chain["ok"] is False
     assert any(room in reason for reason in chain["reasons"])
+
+
+# --------------------------------------------------------------------------- #
+# r5 -- stage, verify the STAGED files, then publish atomically
+# --------------------------------------------------------------------------- #
+def test_publish_is_staged_verified_then_atomic(tmp_path):
+    audit, out, report, rooms = _published(tmp_path, name="staged")
+    published = sorted(os.listdir(out))
+    assert any(name.endswith("_gallery.json") is False for name in published)
+    assert "geometry_audit_report.json" in published
+    for room_id in rooms:
+        entry = report["rooms"][room_id]
+        assert entry["candidate_manifest"] in published
+        assert os.path.basename(json.load(open(os.path.join(out, entry["candidate_manifest"])))
+                                ["coordinates_npz"]) in published
+    # no staging directory survives a successful publish
+    siblings = os.listdir(os.path.dirname(out))
+    assert not [name for name in siblings if name.startswith(".staging")]
+
+    on_disk = json.load(open(os.path.join(out, "geometry_audit_report.json")))
+    assert on_disk["verification"]["chain_ok"] is True
+    assert set(on_disk["verification"]["rooms"]) == set(rooms)
+    assert all(on_disk["verification"]["rooms"].values())
+
+
+def test_verifier_failure_leaves_the_final_directory_empty(tmp_path, monkeypatch):
+    """A staged artifact that does not verify is never published, and the
+    staging directory is removed."""
+    audit = _audit_module()
+    world = _fixture_world(tmp_path)
+    rooms = tuple(sorted(r["room_id"] for r in world["manifest"]["records"]))
+    out = tmp_path / "final"
+
+    real_verify = audit.verify_room_manifest
+
+    def fail_second(manifest_path, out_dir=None):
+        verdict = real_verify(manifest_path, out_dir=out_dir)
+        if verdict["room_id"] == rooms[1]:
+            return {"ok": False, "reasons": ["synthetic verifier failure"],
+                    "manifest": manifest_path, "room_id": verdict["room_id"],
+                    "n_queries": verdict["n_queries"], "branches_reconstructed": []}
+        return verdict
+
+    monkeypatch.setattr(audit, "verify_room_manifest", fail_second)
+    with pytest.raises(ValueError, match="verify"):
+        audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
+                        metadata_root=world["metadata_root"], out_dir=str(out),
+                        expected_queries=None, required_rooms=rooms,
+                        _allow_fixture_census=True)
+    assert not os.path.isdir(str(out)) or os.listdir(str(out)) == []
+    siblings = os.listdir(str(tmp_path))
+    assert not [name for name in siblings if name.startswith(".staging")]
+
+
+def test_pre_existing_output_is_still_refused_before_any_staging(tmp_path):
+    audit = _audit_module()
+    world = _fixture_world(tmp_path)
+    rooms = tuple(sorted(r["room_id"] for r in world["manifest"]["records"]))
+    out = tmp_path / "occupied2"
+    out.mkdir()
+    (out / "leftover.json").write_text("{}")
+    with pytest.raises(ValueError, match="empty|existing"):
+        audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
+                        metadata_root=world["metadata_root"], out_dir=str(out),
+                        expected_queries=None, required_rooms=rooms,
+                        _allow_fixture_census=True)
+    assert sorted(os.listdir(str(out))) == ["leftover.json"]
+    assert not [name for name in os.listdir(str(tmp_path)) if name.startswith(".staging")]
