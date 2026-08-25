@@ -77,8 +77,9 @@ def parse_args(argv=None):
     parser.add_argument("--cfg-scale", type=float, default=me.CFG_SCALE)
     parser.add_argument("--batch-rows", type=int, default=64,
                         help="generated rows per forward (candidates x K)")
-    parser.add_argument("--source-chunk", type=int, default=256,
-                        help="candidates per source-branch conditioner forward")
+    parser.add_argument("--source-chunk", type=int, default=me.SOURCE_CHUNK,
+                        help="candidates per source-branch forward; each row is a full ViT "
+                             "pass over a [3, 256, 512] map, so this is the memory knob")
     parser.add_argument("--resume", action="store_true",
                         help="skip queries whose published artifacts still verify")
     parser.add_argument("--probe", type=int, default=None,

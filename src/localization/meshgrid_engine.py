@@ -238,7 +238,15 @@ def context_conditioning(conditioner, md, device, ids=CONTEXT_COND_IDS):
     return _branch(conditioner, [md], device, ids)
 
 
-def source_conditioning(conditioner, md, positions_cam, device, chunk=256,
+#: candidates per source-branch forward. Deliberately small: ``source_vit`` is a
+#: GeometryConditioner, so EVERY candidate is a full ViT forward over a
+#: ``[3, 256, 512]`` coordinate-minus-depth map (conditioners.py:284-296) -- the
+#: 966 k calls the G1 gate counted. A chunk of 256 would stage 400 MB of input
+#: before the backbone even runs.
+SOURCE_CHUNK = 16
+
+
+def source_conditioning(conditioner, md, positions_cam, device, chunk=SOURCE_CHUNK,
                         ids=SOURCE_COND_IDS):
     """The source branch over ``[U, 3]`` camera-frame candidate positions.
 
@@ -332,7 +340,7 @@ class ReceiverCache:
 
     @classmethod
     def build(cls, conditioner, receiver_id, base_md, indices, positions_cam, device,
-              chunk=256):
+              chunk=SOURCE_CHUNK):
         indices = [int(i) for i in indices]
         if len(set(indices)) != len(indices):
             raise ValueError(f"receiver {receiver_id!r}: the union repeats a candidate index")
@@ -1038,7 +1046,7 @@ def _build_row(query, scored, *, seed, noise_policy, prefixes, timings, n_contex
 
 def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
              num_samples=NUM_SAMPLES, prefixes=K_PREFIXES, noise_policy=NOISE_KEY_POLICY,
-             batch_rows=64, source_chunk=256, done=(), probe=None, on_row=None,
+             batch_rows=64, source_chunk=SOURCE_CHUNK, done=(), probe=None, on_row=None,
              excluded_room=None, oracle_tol=1e-4):
     """Score the whole registered subset, room block by room block.
 
