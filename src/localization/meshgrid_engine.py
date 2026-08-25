@@ -8,8 +8,8 @@ from, the context tensors it is conditioned on, the candidate set it competes in
 -- is bound to a registered artifact (the D1 context manifest, the G1 candidate
 manifests, the checkpoint, the scorer) and refused when it does not match.
 
-Two protocol points are RECORDED DEVIATIONS from the inherited plan text and are
-stamped into every run's provenance rather than being silently taken:
+Five points are RECORDED DEVIATIONS from the inherited plan text, stamped into
+the run binding and the published rows rather than silently taken:
 
 * ``SCORER_READOUT`` -- §1.4 pins ``encode_audio(..., normalize=True)``. That
   path samples AGREE's VAE bottleneck, which exp_18 measured as ~7e-5 of cosine
@@ -21,6 +21,16 @@ stamped into every run's provenance rather than being silently taken:
   ``(seed, query_id, candidate_index, k)``. The dispatched key is the default,
   and the shared-across-candidates alternative is implemented and selectable so
   a ruling either way costs no code round.
+* ``SIMS_PRECISION_CAVEAT`` -- per-sample similarities are a float16 sidecar per
+  QUERY, not per room: the atomic-resume contract is per query, and a room-level
+  pack would lose finished queries on a mid-room kill. Every aggregate the
+  protocol reads stays float32.
+* ``DUMP_CONTENT_RULE`` -- exp_18 dumped every candidate because M was ~10; here
+  M averages 1,667, so a dump is a bounded, score-derived selection.
+* ``BATCHING_CAVEAT`` -- the caches are a proven-exact memoization at equal
+  batching (``cache_parity_check``), but the production chunking makes a run
+  differ from an unchunked one by about one float16 ulp. That is the backbone's
+  own batch nondeterminism, disclosed rather than claimed away.
 """
 import hashlib
 import json
