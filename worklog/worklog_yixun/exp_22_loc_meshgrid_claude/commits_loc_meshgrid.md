@@ -293,3 +293,14 @@ running them is the ladder's, not this round's.
 (10 m 51 s) — 2,989 before the round; +47 net (the engine file goes 79 → 129 tests, and the
 r7 GT/oracle test is replaced by the GT-free reconstruction ones). The one added skip is the
 ladder-gated real-stack replay (`EXP22_REAL_STACK=1`).
+
+## Micro-round exp22-r8b (r8 re-review — 5 RESOLVED / 3 PARTIAL)
+
+| SHA | Item | Description | changed lines (code / tests) |
+|---|---|---|---|
+| `718fc35` | 5 · stability boundary | a per-score bound of ε moves a GAP by up to 2ε — the leader can lose ε while the runner-up gains it — so r8's `margin > ε` declared exactly the band that can flip (ε, 2ε] stable. `ARGMAX_STABILITY_FACTOR` / `argmax_stability_bound` / `is_argmax_stable` are now the single place the rule lives; rows, the run summary and `compare_scored_runs` all apply it and publish the bound they applied. A 1.5ε margin is pinned at-risk in all three | +29 −6 / +63 |
+| `486c48f` | 7 · merge trust | the merge compared shards by their STORED `binding_sha256` — the very string a tampered shard keeps saying — so every digest is recomputed from the binding's own content and a stored value that disagrees refuses; all later comparisons use the recomputed one. The source-row census summed each shard's FINAL `run_summary`, which a normal restart legitimately reduces, so a shard resumed after completing receiver groups could not merge; the census is now DERIVED from the G1 plan (one row per (receiver, candidate) in each receiver's union over exactly the merged rooms), which is restart-invariant by construction, with the observed number published beside it | +29 −3 / +49 |
+| `16b3ff1` | 8 · dump authority + nit | the registered case-list digest becomes a STRICT binding field: changing it, adding it or dropping it all refuse, so a resume can no longer skip an already-complete query while owing it a newly requested dump — and shards must share one dump authority to merge. The driver docstring's rejected per-candidate deviation text is replaced by the CRN statement | +10 −4 / +51 |
+
+**Suite after exp22-r8b:** **3,044 passed, 11 skipped, 0 failures**, 2 subtests passed
+(10 m 44 s) — 3,036 after r8 plus the 8 new r8b tests (engine file 130 → 138).
