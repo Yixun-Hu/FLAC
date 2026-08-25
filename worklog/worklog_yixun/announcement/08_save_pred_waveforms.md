@@ -8,3 +8,6 @@
 - exp_18 implementation: per-query `.npy` stacks `[M, K, 10240]` float32 (the exact scored tensors), stored under `/media/diskstation/yixunhu/FLAC/exp18_pred_waveforms/<cell stem>/`, per-query sha256 + relative path recorded in the row; dump-dir manifest published with the run.
 - Runs completed before this rule (R2 seeds 42/43/44) get a regeneration-with-verification pass: the deterministic noise bank re-derives waveforms bit-exactly, and the pass must reproduce the published per-sample sims bitwise — doubling as an integrity audit.
 - Applies to all future experiments (cross-arm exp_20+ included).
+
+## exp_22 exemption (Yixun, 2026-08-24, verbatim decision "2e: approved")
+Mesh-grid localization (exp_22) generates ~25M candidate-query pairs × K samples — full waveform dumps are physically impossible (~PB). Approved bounded rule: dump ONLY the 16 pre-registered off-grid probe queries plus the quantile-selected visualization cases; every similarity/score is logged as usual. This exemption is experiment-specific; the default rule stands elsewhere.
