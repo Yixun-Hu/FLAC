@@ -337,10 +337,22 @@ def main(argv=None):
 
     if args.probe is not None:
         path = me.write_probe_records(args.out_dir, summary.pop("probe_records"),
-                                      stem=args.probe_stem)
+                                      stem=args.probe_stem, binding=run_binding,
+                                      binding_sha256=me.binding_sha256(run_binding),
+                                      advisory=advisory)
+        projection = json.load(open(path))["projection"]
+        hours = projection["projected_gpu_hours"]
         print(f"probe: {summary['n_generated']} generated waveforms over "
               f"{summary['n_candidate_query_pairs']} candidate-query pairs; NO scores written")
         print(f"  timings (s): {summary['timings_s']}")
+        print(f"  rates: {projection['seconds_per_waveform'] * 1e3:.3f} ms/waveform, "
+              f"{projection['seconds_per_source_row'] * 1e3:.3f} ms/source row, "
+              f"{projection['seconds_per_context'] * 1e3:.3f} ms/context")
+        print(f"  PROJECTION over {me.REGISTERED_TOTALS['generated_waveforms']:,} waveforms / "
+              f"{me.REGISTERED_TOTALS['source_rows']:,} source rows / "
+              f"{me.REGISTERED_TOTALS['queries']:,} contexts: "
+              f"generation {hours['generation']:.1f} h + source {hours['source_conditioning']:.1f} h "
+              f"+ context {hours['context']:.1f} h = {hours['total']:.1f} GPU-hours")
         print(f"  -> {path}")
         return 0
 

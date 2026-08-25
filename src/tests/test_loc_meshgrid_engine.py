@@ -1778,3 +1778,96 @@ def test_the_replay_check_scores_one_query_twice_and_compares(tmp_path):
     report = me.replay_check(engine, query, md, items[0][0], num_samples=4, prefixes=(1, 4),
                              batch_rows=8, source_chunk=3)
     assert report["bit_exact"] is False and report["max_abs_delta"] > 0.0
+
+
+# --------------------------------------------------------------------------- #
+# the probe must be able to substantiate the cost decision on its own
+# --------------------------------------------------------------------------- #
+def test_the_registered_totals_are_the_audits_and_are_pinned():
+    assert me.REGISTERED_TOTALS == {"rooms": 16, "queries": 5337,
+                                    "candidate_query_pairs": 8896540,
+                                    "source_rows": 966147,
+                                    "generated_waveforms": 71172320}
+    assert me.REGISTERED_TOTALS["generated_waveforms"] == (
+        me.REGISTERED_TOTALS["candidate_query_pairs"] * me.NUM_SAMPLES)
+
+
+def test_a_probe_record_identifies_the_receiver_group_it_was_billed_under(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    out = str(tmp_path / "run")
+    summary = me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
+                          prefixes=(1, 4), probe=1, probe_room="A/A_idx_1")
+    assert summary["n_contexts_conditioned"] >= 1
+    for record in summary["probe_records"]:
+        assert record["receiver_id"].startswith("A/A_idx_1|")
+        assert record["n_union"] > 0
+        assert record["timings_s"]["source_cache_group"] > 0.0
+        assert me.assert_no_scores(record) is True
+    # every query of the group shares ONE group identity, so the cache cost is
+    # not counted once per query when the records are summed
+    assert len({record["receiver_id"] for record in summary["probe_records"]}) == 1
+    assert len({record["n_union"] for record in summary["probe_records"]}) == 1
+
+
+def test_the_projection_separates_the_three_registered_quantities():
+    records = [{"query_id": "q0", "room_id": "R", "receiver_id": "R|a", "n_union": 40,
+                "n_candidates": 10, "num_samples": 8, "n_generated": 80,
+                "scores_written": False,
+                "timings_s": {"sampling": 0.2, "decode": 1.0, "embed": 0.2, "scoring": 0.01,
+                              "conditioning": 0.01, "context": 0.5,
+                              "source_cache_group": 4.0, "group_size": 2.0}},
+               {"query_id": "q1", "room_id": "R", "receiver_id": "R|a", "n_union": 40,
+                "n_candidates": 10, "num_samples": 8, "n_generated": 80,
+                "scores_written": False,
+                "timings_s": {"sampling": 0.2, "decode": 1.0, "embed": 0.2, "scoring": 0.01,
+                              "conditioning": 0.01, "context": 0.5,
+                              "source_cache_group": 4.0, "group_size": 2.0}}]
+    projection = me.project_cost(records)
+    # the generation rate is per WAVEFORM over both queries
+    assert projection["seconds_per_waveform"] == pytest.approx(2.84 / 160)
+    # the cache is billed ONCE for the group, not once per query
+    assert projection["source_rows_measured"] == 40
+    assert projection["seconds_per_source_row"] == pytest.approx(4.0 / 40)
+    assert projection["contexts_measured"] == 2
+    assert projection["seconds_per_context"] == pytest.approx(0.5)
+    hours = projection["projected_gpu_hours"]
+    assert hours["generation"] == pytest.approx(
+        me.REGISTERED_TOTALS["generated_waveforms"] * 2.84 / 160 / 3600)
+    assert hours["source_conditioning"] == pytest.approx(
+        me.REGISTERED_TOTALS["source_rows"] * 0.1 / 3600)
+    assert hours["context"] == pytest.approx(me.REGISTERED_TOTALS["queries"] * 0.5 / 3600)
+    assert hours["total"] == pytest.approx(sum(v for k, v in hours.items() if k != "total"))
+    assert projection["totals"] == me.REGISTERED_TOTALS
+
+
+def test_the_probe_artifact_carries_immutable_provenance(tmp_path):
+    out = str(tmp_path / "run")
+    record = me.probe_record(query_id="0|x", room_id="A/A_idx_1", receiver_id="A/A_idx_1|r",
+                             n_union=12, n_candidates=4, num_samples=8,
+                             timings={"sampling": 0.5, "decode": 1.0, "embed": 0.2,
+                                      "context": 0.1, "source_cache_group": 0.3,
+                                      "group_size": 1.0})
+    path = me.write_probe_records(out, [record], stem="probe_K8",
+                                  binding=_binding(), binding_sha256="ab" * 32,
+                                  advisory={"batch_rows": 64, "source_chunk": 16})
+    payload = json.load(open(path))
+    assert payload["scores_written"] is False
+    assert payload["binding_sha256"] == "ab" * 32
+    for field in ("ckpt_sha256", "model_config_sha256", "agree_ckpt_sha256",
+                  "d1_manifest_sha256", "g1_report_sha256", "cond_autocast",
+                  "dataset_config_sha256", "noise_policy", "num_samples", "tau"):
+        assert payload["binding"][field] == _binding()[field]
+    assert payload["advisory"] == {"batch_rows": 64, "source_chunk": 16}
+    assert payload["projection"]["totals"] == me.REGISTERED_TOTALS
+    assert payload["determinism_contract"] == me.DETERMINISM_CONTRACT
+    assert payload["agree_leakage_caveat"] == me.AGREE_LEAKAGE_CAVEAT
+    assert payload["noise_policy"] == me.REGISTERED_NOISE_POLICY
+
+
+def test_a_probe_under_an_unregistered_policy_cannot_be_published(tmp_path):
+    out = str(tmp_path / "run")
+    record = me.probe_record(query_id="0|x", room_id="R", receiver_id="R|a", n_union=1,
+                             n_candidates=1, num_samples=8, timings={"decode": 1.0})
+    with pytest.raises(ValueError, match="common random numbers"):
+        me.write_probe_records(out, [record], stem="p", binding=_binding(
+            noise_policy="per_candidate"), binding_sha256="ab" * 32)

@@ -58,6 +58,17 @@ SEED = 42
 STEPS = 1
 CFG_SCALE = 1.0
 
+#: The registered scope, as the published G1 audit measured it. A probe's
+#: projection and the shard merge's census are both stated against these, so
+#: they are pinned here rather than recomputed from whatever is on disk.
+REGISTERED_TOTALS = {
+    "rooms": 16,
+    "queries": 5337,
+    "candidate_query_pairs": 8896540,
+    "source_rows": 966147,
+    "generated_waveforms": 8896540 * 8,
+}
+
 #: conditioning branches. The context branch is computed once per QUERY and the
 #: source branch once per (receiver, candidate) -- the split of §1.5.
 CONTEXT_COND_IDS = ("context_poses_vit", "context_poses", "context_audio")
@@ -1339,7 +1350,8 @@ def write_query_waveforms(out_dir, row, candidate_indices, waveforms, observatio
             "waveform_content_rule": DUMP_CONTENT_RULE}
 
 
-def probe_record(query_id, room_id, n_candidates, num_samples, timings):
+def probe_record(query_id, room_id, n_candidates, num_samples, timings,
+                 receiver_id=None, n_union=None):
     """One throughput-probe record: cost only, by construction.
 
     The probe exists to project GPU hours before the launch decision, so it may
@@ -1347,6 +1359,10 @@ def probe_record(query_id, room_id, n_candidates, num_samples, timings):
     prediction, and :func:`assert_no_scores` is the gate that says so.
     """
     return {"query_id": str(query_id), "room_id": str(room_id),
+            # the source cache is billed to the GROUP; without its identity the
+            # per-query records cannot be summed without double counting it
+            "receiver_id": None if receiver_id is None else str(receiver_id),
+            "n_union": None if n_union is None else int(n_union),
             "n_candidates": int(n_candidates), "num_samples": int(num_samples),
             "n_generated": int(n_candidates) * int(num_samples),
             "timings_s": {str(k): float(v) for k, v in dict(timings).items()},
@@ -1368,15 +1384,79 @@ def assert_no_scores(record):
     return True
 
 
-def write_probe_records(out_dir, records, stem="probe"):
+#: timings that scale with GENERATED WAVEFORMS.
+_GENERATION_COMPONENTS = ("conditioning", "sampling", "decode", "embed", "scoring")
+
+
+def project_cost(records, totals=None):
+    """Project the registered pass from measured rates -- three separately.
+
+    Generation scales with waveforms, the source branch with unique (receiver,
+    candidate) rows, and the context branch with queries. Summing them into one
+    per-query number would bill a receiver's cache once per query and a
+    context's conditioning once per candidate, so each is measured against its
+    own denominator.
+    """
+    totals = dict(REGISTERED_TOTALS if totals is None else totals)
+    generation = sum(float(record["timings_s"].get(name, 0.0))
+                     for record in records for name in _GENERATION_COMPONENTS)
+    waveforms = sum(int(record["n_generated"]) for record in records)
+    context = sum(float(record["timings_s"].get("context", 0.0)) for record in records)
+    groups = {}
+    for record in records:
+        key = record.get("receiver_id")
+        if key is None:
+            continue
+        groups[key] = (float(record["timings_s"].get("source_cache_group", 0.0)),
+                       int(record.get("n_union") or 0))
+    source_seconds = sum(seconds for seconds, _rows in groups.values())
+    source_rows = sum(rows for _seconds, rows in groups.values())
+
+    per_waveform = generation / waveforms if waveforms else 0.0
+    per_source_row = source_seconds / source_rows if source_rows else 0.0
+    per_context = context / len(records) if records else 0.0
+    hours = {
+        "generation": totals["generated_waveforms"] * per_waveform / 3600.0,
+        "source_conditioning": totals["source_rows"] * per_source_row / 3600.0,
+        "context": totals["queries"] * per_context / 3600.0,
+    }
+    hours["total"] = sum(hours.values())
+    return {"n_records": len(records), "waveforms_measured": waveforms,
+            "seconds_per_waveform": per_waveform,
+            "source_rows_measured": source_rows,
+            "seconds_per_source_row": per_source_row,
+            "contexts_measured": len(records), "seconds_per_context": per_context,
+            "projected_gpu_hours": hours, "totals": totals,
+            "note": "generation scales with waveforms, the source branch with unique "
+                    "(receiver, candidate) rows and the context branch with queries; the "
+                    "source cache is counted ONCE per receiver group"}
+
+
+def write_probe_records(out_dir, records, stem="probe", binding=None, binding_sha256=None,
+                        advisory=None, totals=None):
     """Publish probe timings under a diagnostics stem, never as query artifacts."""
     for record in records:
         assert_no_scores(record)
+    if binding is not None:
+        assert_registered_noise_policy(binding.get("noise_policy"))
     os.makedirs(str(out_dir), exist_ok=True)
     path = os.path.join(str(out_dir), f"diagnostics_{stem}.json")
-    write_json(path, {"experiment": "exp_22 loc_meshgrid I1 throughput probe",
-                        "scores_written": False, "n_queries": len(records),
-                        "records": list(records)})
+    write_json(path, {
+        "experiment": "exp_22 loc_meshgrid I1 throughput probe",
+        "scores_written": False, "n_queries": len(records),
+        # immutable provenance: a cost decision has to be checkable against the
+        # artifacts it was measured on, not against the shell history
+        "binding": None if binding is None else {field: binding[field]
+                                                 for field in RUN_BINDING_FIELDS
+                                                 if field in binding},
+        "binding_sha256": binding_sha256,
+        "advisory": dict(advisory or {}),
+        "noise_policy": None if binding is None else binding.get("noise_policy"),
+        "projection": project_cost(records, totals=totals),
+        "determinism_contract": DETERMINISM_CONTRACT,
+        "agree_leakage_caveat": AGREE_LEAKAGE_CAVEAT,
+        "scorer_readout_deviation": SCORER_READOUT_DEVIATION,
+        "records": list(records)})
     return path
 
 
@@ -1616,7 +1696,8 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
     dump_queries = set(dump_queries or ())
     state = {"n_scored": 0, "n_skipped": 0, "n_conditioner_rows": 0,
              "n_candidate_query_pairs": 0, "n_generated": 0, "n_dumped": 0,
-             "n_geometry_tolerated": 0, "rooms": [], "argmax_stability": {},
+             "n_geometry_tolerated": 0, "n_contexts_conditioned": 0,
+             "rooms": [], "argmax_stability": {},
              "batching": {"batch_rows": int(batch_rows), "source_chunk": int(source_chunk)},
              "probe_records": [], "timings_s": {}}
     buffer, depths, receiver_of = {}, {}, {}
@@ -1675,10 +1756,14 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
         if obs_wav is None:
             raise ValueError(f"stream position {position}: the loader returned no observed "
                              "waveform; there is nothing to score against")
-        with timer("context"):
+        query_context_timer = _Timer(engine.device)
+        with query_context_timer("context"):
             context = context_conditioning(engine.conditioner, md, engine.device)
             obs_embedding = engine.embedder(
                 torch.as_tensor(obs_wav).to(engine.device))[0].float().cpu()
+        timer.totals["context"] = timer.totals.get("context", 0.0) + \
+            query_context_timer.totals["context"]
+        state["n_contexts_conditioned"] += 1
         # one panorama TENSOR per receiver, one digest per query: the tensor is
         # 1.5 MB and a room can hold 922 queries over ~93 receivers
         depths.setdefault(receiver_id, md["depth"])
@@ -1688,6 +1773,7 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
             "obs_wav": (torch.as_tensor(obs_wav).detach().cpu().clone()
                         if record["query_id"] in dump_queries else None),
             "depth_digest": tensor_digest(md["depth"]),
+            "context_seconds": query_context_timer.totals["context"],
             # the context poses are what the GT-free geometry check re-derives from
             "context_poses": torch.as_tensor(md["context_poses"]).detach().cpu().clone(),
             "n_contexts": record["context_width"]}
@@ -1753,7 +1839,9 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
                         query.query_id, query.room_id, query.n_candidates, num_samples,
                         dict(query_timer.totals,
                              source_cache_group=timer.totals["source_cache"],
-                             group_size=len(runnable))))
+                             context=context.get("context_seconds", 0.0),
+                             group_size=len(runnable)),
+                        receiver_id=group.receiver_id, n_union=len(group.union)))
                     continue
                 scored = score_query(sims, query.candidate_indices.tolist(),
                                      query.coordinates, tau=tau, prefixes=prefixes)
