@@ -2162,6 +2162,17 @@ def _read_shard(shard_dir):
                          "say what produced it may not enter a merge")
     with open(binding_path) as handle:
         binding = json.load(handle)
+    # RECOMPUTE the digest from the content: a stored string is what a tampered
+    # shard would keep saying, so it is evidence of nothing (r8 review, gate 7)
+    missing = [field for field in RUN_BINDING_FIELDS if field not in binding]
+    if missing:
+        raise ValueError(f"{shard_dir}'s binding is missing {missing}; it cannot be "
+                         "recomputed, so it cannot be trusted")
+    recomputed = binding_sha256({field: binding[field] for field in RUN_BINDING_FIELDS})
+    if binding.get("binding_sha256") != recomputed:
+        raise ValueError(f"{shard_dir}'s published binding does not match its own content: it "
+                         f"stores {str(binding.get('binding_sha256'))[:12]}... but hashes to "
+                         f"{recomputed[:12]}...; it was edited after publication")
     summary_path = os.path.join(str(shard_dir), "run_summary.json")
     if not os.path.isfile(summary_path):
         raise ValueError(f"{shard_dir} publishes no run_summary.json; the merge census needs "
@@ -2171,7 +2182,7 @@ def _read_shard(shard_dir):
     return {"dir": str(shard_dir), "binding": binding, "summary": summary,
             "declared_rooms": list(binding.get("declared_rooms") or []),
             "advisory": dict(binding.get("advisory") or {}),
-            "binding_sha256": binding.get("binding_sha256")}
+            "binding_sha256": recomputed}
 
 
 def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms=None):
@@ -2260,9 +2271,13 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
         raise ValueError(f"{len(absent)} registered queries are missing from the shards "
                          f"(first {absent[:3]}); a merged run is the complete subset")
 
-    # (5) every digest, and every row's identity against the G1 plan
+    # (5) every digest, every row's identity against the G1 plan -- and the
+    # source-row census DERIVED from that plan, so a shard that was resumed
+    # after finishing receiver groups still merges (r8 review, gate 7)
+    derived_source_rows = 0
     for room_id in expected_rooms:
         room = load_room_plan(plan, room_id)
+        derived_source_rows += sum(len(group.union) for group in receiver_groups(room))
         for query in room.queries:
             shard_dir = owner[query.query_id]
             assert_published_matches(shard_dir, query, binding_sha256=binding_sha256)
@@ -2277,7 +2292,11 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
     pairs = sum(int(row["n_candidates"]) for row in rows.values())
     waveforms = sum(int(row["n_candidates"]) * int(row["num_samples"])
                     for row in rows.values())
-    source_rows = sum(int(shard["summary"].get("n_conditioner_rows", -1)) for shard in shards)
+    # the observed count is whatever the FINAL invocation of each shard reported,
+    # which a restart legitimately reduces; the census is the derived one
+    observed_source_rows = sum(int(shard["summary"].get("n_conditioner_rows", 0))
+                               for shard in shards)
+    source_rows = derived_source_rows
     for name, found, wanted in (("candidate_query_pairs", pairs,
                                  totals["candidate_query_pairs"]),
                                 ("generated_waveforms", waveforms,
@@ -2313,6 +2332,13 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
                          for shard in shards],
               "totals": {"candidate_query_pairs": pairs, "source_rows": source_rows,
                          "generated_waveforms": waveforms},
+              "source_rows_derived_from": "g1_plan",
+              "source_rows_observed": observed_source_rows,
+              "source_rows_note": "the census counts one conditioner row per (receiver, "
+                                  "candidate) in each receiver's union, derived from the G1 "
+                                  "plan; the observed number is what the shards' final "
+                                  "invocations reported and is lower whenever a shard was "
+                                  "resumed after completing receiver groups",
               "registered_totals": totals,
               "agree_leakage_caveat": AGREE_LEAKAGE_CAVEAT,
               "batching_caveat": BATCHING_CAVEAT}

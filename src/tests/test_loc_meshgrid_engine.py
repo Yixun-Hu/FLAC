@@ -2218,3 +2218,52 @@ def test_the_summary_uses_the_same_boundary(tmp_path):
     row = json.load(open(me.query_artifact_paths(out, "A/A_idx_1", 0)["row"]))
     for block in row["by_k"].values():
         assert block["argmax_stable"] is (block["margin"] > 2 * me.SCORE_TOLERANCE)
+
+
+# --------------------------------------------------------------------------- #
+# r8b: the merge trusts nothing it is handed
+# --------------------------------------------------------------------------- #
+def test_the_merge_recomputes_every_shard_binding_digest(tmp_path):
+    plan, records, dirs, totals = _shards(tmp_path)
+    path = os.path.join(dirs["b"], me.BINDING_FILENAME)
+    published = json.load(open(path))
+    # the CONTENT changes while the stored digest keeps saying it did not
+    tampered = dict(published, tau=0.02)
+    me.write_json(path, tampered)
+    with pytest.raises(ValueError, match="does not match its own content"):
+        me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "m"), plan, records,
+                        totals=totals)
+
+    # ... and a stored digest that lies about matching content is refused too
+    me.write_json(path, dict(published, binding_sha256="0" * 64))
+    with pytest.raises(ValueError, match="does not match its own content"):
+        me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "m2"), plan, records,
+                        totals=totals)
+
+
+def test_a_resumed_shard_still_merges_because_the_census_is_derived(tmp_path):
+    plan, records, dirs, totals = _shards(tmp_path)
+    digest = me.binding_sha256(_binding())
+
+    # resume shard A after it already finished: nothing is regenerated, so its
+    # final summary reports ZERO conditioner rows for the whole shard
+    done, rejected = me.completed_queries(dirs["a"], binding_sha256=digest)
+    assert len(done) == 3 and rejected == []
+    summary = me.run_pass(SyntheticEngine(), items_of(tmp_path), records, plan, dirs["a"],
+                          num_samples=4, prefixes=(1, 4), batch_rows=8, source_chunk=3,
+                          rooms=["A/A_idx_1"], done=done, binding_sha256=digest)
+    assert summary["n_scored"] == 0 and summary["n_conditioner_rows"] == 0
+    me.write_json(os.path.join(dirs["a"], "run_summary.json"), summary)
+
+    report = me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "merged"), plan,
+                             records, totals=totals)
+    assert report["ok"] is True
+    # the census comes from the G1 plan, not from whichever invocation ran last
+    assert report["totals"]["source_rows"] == totals["source_rows"]
+    assert report["source_rows_observed"] < report["totals"]["source_rows"]
+    assert report["source_rows_derived_from"] == "g1_plan"
+
+
+def items_of(tmp_path):
+    """The fixture stream that ``_shards`` built its shards from."""
+    return _aligned(tmp_path)[2]
