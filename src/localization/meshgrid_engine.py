@@ -1394,31 +1394,78 @@ def build_mesh_engine(ckpt_path, model_config, agree, device="cpu", cond_method=
                "latent_shape": engine.latent_shape}
     return engine, context
 
+def _pair_diff(left, right):
+    """``{equal, max_abs_diff}`` for two tensors compared exactly."""
+    return {"equal": bool(torch.equal(left, right)),
+            "max_abs_diff": float((left.float() - right.float()).abs().max())}
 
-def cache_parity_check(engine, query, md, batch_rows=64):
-    """§1.5's bit-identity proof, run on the REAL conditioner.
 
-    Assembles one query's conditioning both ways -- from the two caches, and
-    from a single uncached call over the same candidate metadata -- and reports
-    whether every tensor is bit-identical.
+def cache_parity_check(engine, query, md, n_candidates=8, source_chunk=SOURCE_CHUNK):
+    """§1.5's bit-identity proof, with the two questions kept apart.
+
+    **memoization** -- the contract. Both sides are computed at the SAME
+    batching (one candidate per call, cache chunk 1), so any difference means
+    the cache serves something other than what the direct call computes. This
+    must be exact.
+
+    **batched** -- informational. One uncached call over all candidates against
+    the cache at its production chunk. Under autocast a backbone's GEMM tiling
+    changes with the batch shape, so a nonzero difference here is the model's
+    own batch nondeterminism -- present in any batched inference and not
+    introduced by the cache. It is reported, never asserted.
+
+    **counter_test** -- the comparison must be capable of failing: the same
+    comparison against a cache built from perturbed positions has to differ,
+    otherwise a vacuous check would read as a pass.
     """
     from src.localization.candidates import candidate_metadata
 
-    indices = [int(i) for i in query.candidate_indices][:max(1, int(batch_rows))]
+    indices = [int(i) for i in query.candidate_indices][:max(1, int(n_candidates))]
     positions = query.coordinates[:len(indices)] - np.asarray(query.receiver_xyz,
                                                               dtype=np.float64)
-    uncached = engine.conditioner([candidate_metadata(md, positions[row])
-                                   for row in range(len(indices))], engine.device)
     context = context_conditioning(engine.conditioner, md, engine.device)
-    cache = ReceiverCache.build(engine.conditioner, query.receiver_id, md, indices,
-                                positions, engine.device)
-    cached = expand_conditioning(context, cache.conditioning, cache.rows_for(indices),
-                                 engine.device)
-    report = {"n_candidates": len(indices), "query_id": query.query_id, "keys": {}}
+
+    # (1) matched batching: one candidate per call on BOTH sides
+    per_candidate = [engine.conditioner([candidate_metadata(md, positions[row])],
+                                        engine.device) for row in range(len(indices))]
+    unit_cache = ReceiverCache.build(engine.conditioner, query.receiver_id, md, indices,
+                                     positions, engine.device, chunk=1)
+    unit = expand_conditioning(context, unit_cache.conditioning,
+                               unit_cache.rows_for(indices), engine.device)
+    memo = {}
     for key in CONTEXT_COND_IDS + SOURCE_COND_IDS:
-        left, right = cached[key][0], uncached[key][0]
-        report["keys"][key] = {
-            "equal": bool(torch.equal(left, right)),
-            "max_abs_diff": float((left.float() - right.float()).abs().max())}
-    report["match"] = all(entry["equal"] for entry in report["keys"].values())
-    return report
+        direct = torch.cat([per_candidate[row][key][0] for row in range(len(indices))], dim=0)
+        memo[key] = _pair_diff(unit[key][0], direct)
+
+    # (2) production batching, against one uncached call over all candidates
+    whole = engine.conditioner([candidate_metadata(md, positions[row])
+                                for row in range(len(indices))], engine.device)
+    cache = ReceiverCache.build(engine.conditioner, query.receiver_id, md, indices,
+                                positions, engine.device, chunk=source_chunk)
+    batched_side = expand_conditioning(context, cache.conditioning,
+                                       cache.rows_for(indices), engine.device)
+    batched = {key: _pair_diff(batched_side[key][0], whole[key][0])
+               for key in CONTEXT_COND_IDS + SOURCE_COND_IDS}
+
+    # (3) the comparison must bite
+    moved_cache = ReceiverCache.build(engine.conditioner, query.receiver_id, md, indices,
+                                      positions + 1.0, engine.device, chunk=1)
+    moved = expand_conditioning(context, moved_cache.conditioning,
+                                moved_cache.rows_for(indices), engine.device)
+    counter = max(_pair_diff(moved[key][0], unit[key][0])["max_abs_diff"]
+                  for key in SOURCE_COND_IDS)
+
+    memo_ok = all(entry["equal"] for entry in memo.values())
+    return {"query_id": query.query_id, "n_candidates": len(indices),
+            "source_chunk": int(source_chunk),
+            "memoization": {"match": memo_ok, "keys": memo},
+            "batched": {"keys": batched,
+                        "max_abs_diff": max(entry["max_abs_diff"]
+                                            for entry in batched.values()),
+                        "note": "informational: a nonzero value is the backbone's own "
+                                "batch-shape nondeterminism under autocast, not a cache "
+                                "error"},
+            "counter_test": {"detected": bool(counter > 0.0), "max_abs_diff": float(counter)},
+            "dtypes": {key: str(unit[key][0].dtype)
+                       for key in CONTEXT_COND_IDS + SOURCE_COND_IDS},
+            "match": bool(memo_ok and counter > 0.0)}

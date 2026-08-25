@@ -295,8 +295,15 @@ def _run_cache_parity(engine, plan, records, loader):
         if position != int(first["position"]):
             continue
         me.verify_context_record(md, first, position)
-        report = me.cache_parity_check(engine, query, md)
+        report = me.cache_parity_check(engine, query, md,
+                                       source_chunk=args.source_chunk)
         print(json.dumps(report, indent=2, sort_keys=True))
+        print("\nMEMOIZATION (the contract): "
+              f"{'MATCH' if report['memoization']['match'] else 'MISMATCH'}; "
+              f"counter-test {'bit' if report['counter_test']['detected'] else 'DID NOT BITE'}")
+        print(f"BATCHED (informational): max |diff| = {report['batched']['max_abs_diff']:.3g} "
+              f"at dtypes {sorted(set(report['dtypes'].values()))} -- "
+              f"{report['batched']['note']}")
         return 0 if report["match"] else 1
     _refuse("the stream ended before the first registered query")
 

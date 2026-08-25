@@ -1073,3 +1073,75 @@ def test_the_regenerated_dump_is_the_waveform_that_was_scored(tmp_path):
         obs = torch.as_tensor(payload["observation"]).reshape(1, 1, -1)
         got = (embedder(wavs) @ embedder(obs)[0]).numpy()
         assert np.allclose(got, sims[position].astype(np.float32), atol=2e-3)
+
+
+# --------------------------------------------------------------------------- #
+# the §1.5 parity proof, separated from the backbone's batch nondeterminism
+# --------------------------------------------------------------------------- #
+class BatchSensitiveConditioner(FakeConditioner):
+    """A conditioner whose output depends on the BATCH SIZE it was called with.
+
+    Real backbones are like this under autocast -- GEMM tiling changes with the
+    batch shape -- so the parity check has to separate "the cache computes
+    something else" from "the same call at another batch size rounds
+    differently".
+    """
+
+    def __call__(self, batch_metadata, device, only_ids=None):
+        out = super().__call__(batch_metadata, device, only_ids=only_ids)
+        return {key: [value[0] + 1e-3 * len(batch_metadata), value[1]]
+                for key, value in out.items()}
+
+
+def _parity_query(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    room = me.load_room_plan(plan, "A/A_idx_1")
+    return room.queries[0], items[0][1]
+
+
+def test_the_parity_check_proves_memoization_at_matched_batching(tmp_path):
+    query, md = _parity_query(tmp_path)
+    engine = SyntheticEngine()
+    report = me.cache_parity_check(engine, query, md, n_candidates=3, source_chunk=2)
+    assert report["memoization"]["match"] is True
+    for entry in report["memoization"]["keys"].values():
+        assert entry["equal"] and entry["max_abs_diff"] == 0.0
+    assert report["counter_test"]["detected"] is True
+    assert report["match"] is True
+
+
+def test_the_parity_check_separates_batch_nondeterminism_from_a_cache_error(tmp_path):
+    query, md = _parity_query(tmp_path)
+    engine = SyntheticEngine()
+    engine.conditioner = BatchSensitiveConditioner()
+    report = me.cache_parity_check(engine, query, md, n_candidates=3, source_chunk=2)
+    # the cache still computes the same thing at the same batching ...
+    assert report["memoization"]["match"] is True
+    # ... while the whole-batch comparison shows the backbone's own batch effect
+    assert report["batched"]["max_abs_diff"] > 0.0
+    assert report["match"] is True          # the CONTRACT is the memoization one
+
+
+def test_the_parity_check_reports_a_real_cache_error(tmp_path):
+    query, md = _parity_query(tmp_path)
+
+    class Wrong(FakeConditioner):
+        """A conditioner whose SPLIT is not faithful: asking for the source ids
+        alone computes something other than the full call computes for them.
+
+        This is the failure the memoization comparison exists to catch -- the
+        cache reads the released only_ids seam, and if that seam changed what a
+        branch computes, every cached candidate would be conditioned on a
+        tensor the uncached path never produces."""
+
+        def __call__(self, batch_metadata, device, only_ids=None):
+            out = super().__call__(batch_metadata, device, only_ids=only_ids)
+            if only_ids is not None and set(only_ids) == set(me.SOURCE_COND_IDS):
+                out = {key: [value[0] + 0.5, value[1]] for key, value in out.items()}
+            return out
+
+    engine = SyntheticEngine()
+    engine.conditioner = Wrong()
+    report = me.cache_parity_check(engine, query, md, n_candidates=3, source_chunk=3)
+    assert report["memoization"]["match"] is False
+    assert report["match"] is False
