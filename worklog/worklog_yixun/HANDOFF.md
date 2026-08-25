@@ -2,7 +2,7 @@
 
 Assume the reader has NO memory beyond the repo + `master_experiment_tracker.md` + `issue_report.md` + this file.
 
-**Last updated:** 2026-08-21 ~04:45 EDT (Fable 5 seat, exp_18 session on mae-cab-lab-server, branch `localization-exp`). **exp_18 loc_invert is COMPLETE — all registered cells + R4 exploratory promoted — awaiting only Yixun's closure sign-off + push decision.** Nothing is training or running. Read `worklog/worklog_yixun/exp_18_loc_invert_claude/` (results → analysis → HTML) before touching anything localization-related.
+**Last updated:** 2026-08-21 ~04:45 EDT (Fable 5 seat, exp_18 session on mae-cab-lab-server, branch `localization-exp`). **exp_18 CLOSED+pushed; exp_20 loc_crossarm CLOSED (BF>P1 Holm-confirmed both regimes); exp_22 loc_meshgrid ACTIVE (P1-first, assets fetched, kickoff in flight).** Nothing is training or running. Read `worklog/worklog_yixun/exp_18_loc_invert_claude/` (results → analysis → HTML) before touching anything localization-related.
 
 ## exp_18 state (this session's work, 2026-08-18 → 08-21)
 - Branch `localization-exp` (base `6170007`, LOCAL ONLY — not pushed; Yixun to decide). All artifacts committed; ledger `commits_loc_invert.md`.
