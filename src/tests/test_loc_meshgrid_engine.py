@@ -367,14 +367,73 @@ def test_the_union_is_deduplicated_and_ascending():
 # --------------------------------------------------------------------------- #
 # the G1 binding: candidate manifests, branch, receiver groups
 # --------------------------------------------------------------------------- #
-#: the synthetic stream's md['source'] -- the truth in the receiver's own frame.
-TRUTH_OFFSET = np.array([1.0, 0.0, 0.0])
+#: A REAL fixture geometry: a 0.5 m lattice, real receivers and real context
+#: sources, from which every candidate set is DERIVED by the same
+#: meshgrid_geometry filter the G1 audit ran. Nothing about a query's candidate
+#: set is hand-written, so the engine's GT-free reconstruction of it is a real
+#: test and not a comparison against numbers invented to match it.
+FIXTURE_LATTICE = np.array([[x, y, z]
+                            for x in (0.0, 0.5, 1.0, 1.5, 2.0, 2.5)
+                            for y in (0.0, 0.5, 1.0, 1.5, 2.0, 2.5)
+                            for z in (0.5, 1.0, 1.5)], dtype=np.float64)
+
+_NEAR = [(1.0, 1.0), (1.5, 1.0), (1.0, 1.5), (1.5, 1.5),
+         (2.0, 1.0), (2.0, 1.5), (1.0, 2.0), (1.5, 2.0)]
+_FAR = [(0.0, 2.5), (0.5, 2.5), (2.5, 0.0), (2.5, 0.5),
+        (0.0, 2.0), (0.5, 2.0), (2.0, 2.5), (2.5, 2.0)]
 
 
-def _write_room(out_dir, room_id, queries, base, branch="z_band"):
-    """A minimal but VERIFIER-VALID room manifest + its coordinate sidecar."""
+def _ctx(points, z):
+    return [[float(x), float(y), float(z)] for x, y in points]
+
+
+#: ``(position, IR stem, receiver, context globals, TRUTH)``. The truth exists
+#: here and in the published manifest's oracle only -- exactly where G1 put it.
+#: The synthetic stream carries a ``source`` field, as the real loader does, and
+#: the engine is forbidden from reading it.
+FIXTURE_QUERIES = {
+    "A/A_idx_1": [
+        (0, "S001_R002", [0.0, 0.0, 0.5], _ctx(_NEAR, 0.5), [1.1, 1.1, 0.6]),
+        (1, "S003_R004", [2.5, 2.5, 1.5], _ctx(_FAR, 0.5), [0.4, 2.4, 0.6]),
+        # same receiver as position 0, different contexts -> a genuine union
+        (2, "S005_R002", [0.0, 0.0, 0.5], _ctx(_NEAR, 1.5), [1.6, 1.6, 1.4]),
+    ],
+    "B/B_idx_2": [
+        (3, "S001_R009", [1.0, 1.0, 1.0], _ctx(_FAR, 1.0), [2.4, 0.4, 1.1]),
+    ],
+}
+
+
+def fixture_relpath(room_id, name):
+    scene, scene_id = room_id.split("/")
+    return f"ir/{scene}/{scene_id}/{name}_hybrid_IR.wav"
+
+
+def fixture_query_id(room_id, entry):
+    return f"{entry[0]}|{fixture_relpath(room_id, entry[1])}"
+
+
+def fixture_receiver_id(room_id, receiver):
+    return f"{room_id}|" + ",".join(f"{float(v):.6f}" for v in receiver)
+
+
+def fixture_indices(room_id, entry, branch="z_band", base=None):
+    """The branch's candidate indices, derived exactly as the audit derives them."""
     from src.localization import meshgrid_geometry as mg
 
+    base = FIXTURE_LATTICE if base is None else base
+    _position, _name, receiver, contexts, _truth = entry
+    band = mg.context_z_band(contexts)
+    kept = mg.filter_query_candidates(base, receiver=receiver, context_sources=contexts,
+                                      z_band=None if branch == "full_height" else band)
+    return np.flatnonzero(kept["mask"]).tolist()
+
+
+def _write_room(out_dir, room_id, base=None, branch="z_band"):
+    """A VERIFIER-VALID room manifest whose queries are filtered, not invented."""
+    from src.localization import meshgrid_geometry as mg
+
+    base = FIXTURE_LATTICE if base is None else base
     scene, scene_id = room_id.split("/")
     stem = f"candidates_{scene}_{scene_id}"
     np.savez(os.path.join(out_dir, stem + ".npz"), base_candidates=base)
@@ -382,66 +441,52 @@ def _write_room(out_dir, room_id, queries, base, branch="z_band"):
                "coordinates_npz": stem + ".npz", "n_base_valid": int(base.shape[0]),
                "base_candidates_sha256": mg.coordinates_digest(base),
                "directions_seed": 1, "queries": []}
-    for query in queries:
-        full = list(query["candidate_indices"])
-        band = list(query.get("candidate_indices_z_band", full))
+    for entry in FIXTURE_QUERIES[room_id]:
+        position, name, receiver, contexts, truth = entry
+        full = mg.filter_query_candidates(base, receiver=receiver, context_sources=contexts)
+        band_bounds = mg.context_z_band(contexts)
+        banded = mg.filter_query_candidates(base, receiver=receiver,
+                                            context_sources=contexts, z_band=band_bounds)
+        full_idx = np.flatnonzero(full["mask"])
+        band_idx = np.flatnonzero(banded["mask"])
         payload["queries"].append({
-            "position": query["position"], "query_id": query["query_id"],
-            "receiver": list(query["receiver"]), "receiver_id": query["receiver_id"],
-            "candidate_indices": full, "n_candidates": len(full),
-            "candidate_indices_z_band": band, "n_candidates_z_band": len(band),
-            "candidate_coordinates_sha256": mg.coordinates_digest(base[np.asarray(full)]),
-            "n_contexts": 8, "n_dropped_receiver": 0, "n_dropped_context": 0,
-            "z_band": [0.5, 2.5],
-            # the oracle the geometry actually implies for the synthetic stream,
-            # whose md['source'] puts the truth one metre along x from the receiver
-            "oracle": {branch_name: float(np.linalg.norm(
-                base[np.asarray(branch_indices)]
-                - (np.asarray(query["receiver"], dtype=np.float64) + TRUTH_OFFSET),
-                axis=1).min())
-                for branch_name, branch_indices in (("full_height", full),
-                                                    ("z_band", band))}})
+            "position": position, "query_id": fixture_query_id(room_id, entry),
+            "receiver": [float(v) for v in receiver],
+            "receiver_id": fixture_receiver_id(room_id, receiver),
+            "candidate_indices": [int(i) for i in full_idx],
+            "n_candidates": int(full_idx.size),
+            "candidate_indices_z_band": [int(i) for i in band_idx],
+            "n_candidates_z_band": int(band_idx.size),
+            "candidate_coordinates_sha256": mg.coordinates_digest(full["candidates"]),
+            "n_dropped_receiver": full["n_dropped_receiver"],
+            "n_dropped_context": full["n_dropped_context"],
+            "n_contexts": len(contexts),
+            "z_band": [float(band_bounds[0]), float(band_bounds[1])],
+            "oracle": {"full_height": mg.grid_oracle_error(full["candidates"], truth),
+                       "z_band": mg.grid_oracle_error(banded["candidates"], truth)}})
     path = os.path.join(out_dir, stem + ".json")
     with open(path, "w") as handle:
         handle.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     return path, payload
 
 
-def _fixture_audit(tmp_path, branch="z_band"):
+def _fixture_audit(tmp_path, branch="z_band", rooms=None):
     from src.localization import meshgrid_geometry as mg
 
     out_dir = str(tmp_path / "g1")
     os.makedirs(out_dir, exist_ok=True)
-    base = np.arange(30, dtype=np.float64).reshape(10, 3)
-    rooms = {}
-    queries_a = [
-        {"position": 0, "query_id": "0|ir/A/A_idx_1/S001_R002_hybrid_IR.wav",
-         "receiver": [1.0, 2.0, 1.5], "receiver_id": "A/A_idx_1|1,2,1.5",
-         "candidate_indices": [0, 1, 2, 3], "candidate_indices_z_band": [1, 2, 3]},
-        {"position": 1, "query_id": "1|ir/A/A_idx_1/S003_R004_hybrid_IR.wav",
-         "receiver": [9.0, 9.0, 1.5], "receiver_id": "A/A_idx_1|9,9,1.5",
-         "candidate_indices": [4, 5], "candidate_indices_z_band": [4, 5]},
-        {"position": 2, "query_id": "2|ir/A/A_idx_1/S005_R002_hybrid_IR.wav",
-         "receiver": [1.0, 2.0, 1.5], "receiver_id": "A/A_idx_1|1,2,1.5",
-         "candidate_indices": [2, 3, 7], "candidate_indices_z_band": [2, 7]},
-    ]
-    path_a, payload_a = _write_room(out_dir, "A/A_idx_1", queries_a, base, branch=branch)
-    rooms["A/A_idx_1"] = (path_a, payload_a)
-    queries_b = [
-        {"position": 3, "query_id": "3|ir/B/B_idx_2/S001_R009_hybrid_IR.wav",
-         "receiver": [4.0, 4.0, 1.2], "receiver_id": "B/B_idx_2|4,4,1.2",
-         "candidate_indices": [0, 1, 8], "candidate_indices_z_band": [0, 8]},
-    ]
-    path_b, payload_b = _write_room(out_dir, "B/B_idx_2", queries_b, base, branch=branch)
-    rooms["B/B_idx_2"] = (path_b, payload_b)
-
-    report = {"experiment": "exp_22 loc_meshgrid G1 geometry audit", "n_queries": 4,
-              "n_rooms": 2, "status": "accepted", "diagnostics_only": False,
+    base = FIXTURE_LATTICE
+    written = {}
+    for room_id in (rooms or sorted(FIXTURE_QUERIES)):
+        written[room_id] = _write_room(out_dir, room_id, base, branch=branch)
+    report = {"experiment": "exp_22 loc_meshgrid G1 geometry audit",
+              "n_queries": sum(len(FIXTURE_QUERIES[room]) for room in written),
+              "n_rooms": len(written), "status": "accepted", "diagnostics_only": False,
               "branch": {"branch": branch, "n_new_over_threshold": 0},
               "directions_seed": 1, "spacing": 0.5,
               "rooms": {room: {"candidate_manifest": os.path.basename(path),
                                "candidate_manifest_sha256": mg.manifest_json_sha256(payload)}
-                        for room, (path, payload) in rooms.items()}}
+                        for room, (path, payload) in written.items()}}
     report_path = os.path.join(out_dir, "geometry_audit_report.json")
     with open(report_path, "w") as handle:
         handle.write(json.dumps(report, indent=2, sort_keys=True) + "\n")
@@ -495,25 +540,36 @@ def test_a_room_plan_carries_the_branchs_indices_and_their_coordinates(tmp_path)
     plan = me.load_audit_plan(report_path)
     room = me.load_room_plan(plan, "A/A_idx_1")
     first = room.queries[0]
-    assert first.candidate_indices.tolist() == [1, 2, 3]        # the z_band branch
-    assert first.coordinates.tolist() == base[[1, 2, 3]].tolist()
-    truth = np.asarray([1.0, 2.0, 1.5]) + TRUTH_OFFSET
+    entry = FIXTURE_QUERIES["A/A_idx_1"][0]
+    expected = fixture_indices("A/A_idx_1", entry, branch="z_band")
+    assert first.candidate_indices.tolist() == expected            # the z_band branch
+    assert first.candidate_indices.tolist() != fixture_indices(
+        "A/A_idx_1", entry, branch="full_height")                  # ... and it BITES
+    assert first.coordinates.tolist() == base[expected].tolist()
     assert first.oracle == pytest.approx(
-        float(np.linalg.norm(base[[1, 2, 3]] - truth, axis=1).min()))
+        float(np.linalg.norm(base[expected] - np.asarray(entry[4]), axis=1).min()))
     assert first.branch == "z_band"
-    assert first.receiver_xyz.tolist() == [1.0, 2.0, 1.5]
+    assert first.receiver_xyz.tolist() == entry[2]
 
 
 def test_receiver_groups_are_the_union_and_keep_stream_order_inside(tmp_path):
     out_dir, report_path, base = _fixture_audit(tmp_path)
     room = me.load_room_plan(me.load_audit_plan(report_path), "A/A_idx_1")
     groups = me.receiver_groups(room)
-    assert [group.receiver_id for group in groups] == ["A/A_idx_1|1,2,1.5", "A/A_idx_1|9,9,1.5"]
-    assert groups[0].union == [1, 2, 3, 7]              # {1,2,3} u {2,7}
+    entries = FIXTURE_QUERIES["A/A_idx_1"]
+    assert [group.receiver_id for group in groups] == [
+        fixture_receiver_id("A/A_idx_1", entries[0][2]),
+        fixture_receiver_id("A/A_idx_1", entries[1][2])]
+    shared = sorted(set(fixture_indices("A/A_idx_1", entries[0]))
+                    | set(fixture_indices("A/A_idx_1", entries[2])))
+    assert groups[0].union == shared                    # positions 0 and 2 share a receiver
+    assert len(shared) < len(fixture_indices("A/A_idx_1", entries[0])) + len(
+        fixture_indices("A/A_idx_1", entries[2]))       # a real union, not a concatenation
     assert [query.position for query in groups[0].queries] == [0, 2]
     assert sum(len(group.queries) for group in groups) == 3
     # the cost the G1 gate counted: one conditioner call per union member
-    assert sum(len(group.union) for group in groups) == 6
+    assert sum(len(group.union) for group in groups) == _fixture_totals(
+        rooms=["A/A_idx_1"])[1]
 
 
 # --------------------------------------------------------------------------- #
@@ -526,15 +582,26 @@ def _d1_record(position, md):
     return mq.context_record(md, position, eligible=8)
 
 
-def _stream_md(value=2.0):
-    md = _md(context_value=value)
-    md["context_audio"] = torch.full((8, 1, 16), float(value), dtype=torch.float32)
-    md["context_poses"] = torch.arange(24, dtype=torch.float32).reshape(8, 3)
-    md["context_poses_vit"] = torch.arange(24, dtype=torch.float32).reshape(8, 3)
-    md["relpath"] = "single_channel_ir_1/A/A_idx_1/S001_R002_hybrid_IR.wav"
-    md["path"] = "AcousticRooms/" + md["relpath"]
-    md["idx"] = 0
-    return md
+def _stream_md(room_id="A/A_idx_1", entry=None, value=None):
+    """One loader item, built from the SAME fixture geometry as the manifest.
+
+    It carries ``source``/``source_vit`` exactly as the released loader does --
+    the engine is forbidden from reading them, and the guard is what enforces
+    that rather than their absence.
+    """
+    entry = FIXTURE_QUERIES[room_id][0] if entry is None else entry
+    position, name, receiver, contexts, truth = entry
+    poses = torch.tensor(np.asarray(contexts, dtype=np.float64)
+                         - np.asarray(receiver, dtype=np.float64), dtype=torch.float32)
+    source = torch.tensor(np.asarray(truth, dtype=np.float64)
+                          - np.asarray(receiver, dtype=np.float64), dtype=torch.float32)
+    relpath = fixture_relpath(room_id, name)
+    value = float(position) + 2.0 if value is None else float(value)
+    return {"depth": torch.full((2, 4), float(sum(receiver))),
+            "context_audio": torch.full((8, 1, 16), value, dtype=torch.float32),
+            "context_poses": poses, "context_poses_vit": poses,
+            "source": source, "source_vit": source.unsqueeze(0),
+            "relpath": relpath, "path": "AcousticRooms/" + relpath, "idx": position}
 
 
 def test_the_context_draw_is_verified_against_the_manifest_before_use():
@@ -777,51 +844,32 @@ class SyntheticEngine(me.MeshEngine):
         return torch.nn.functional.normalize(flat + 1e-3, dim=-1)
 
 
-def _fixture_stream(records):
-    """``(obs_wav, md)`` in D1 order, including the excluded room's positions."""
-    items = []
-    for record in records:
-        md = _stream_md(value=2.0 + record["position"])
-        md["relpath"] = record["relpath"]
-        md["path"] = "AcousticRooms/" + record["relpath"]
-        md["idx"] = record["position"]
-        md["source"] = torch.tensor([1.0, 0.0, 0.0])
-        md["depth"] = torch.full((2, 4), float(hash(record["receiver_id"]) % 7))
-        items.append((torch.full((1, 1, 16), 0.5), md))
-    return items
-
-
-def _fixture_records(tmp_path):
-    """A D1-style record stream matching the fixture audit's four queries."""
-    out_dir, report_path, base = _fixture_audit(tmp_path)
+def _aligned(tmp_path, branch="z_band", rooms=None):
+    """``(plan, D1 records, stream items)`` over the whole fixture, in position order."""
+    out_dir, report_path, base = _fixture_audit(tmp_path, branch=branch, rooms=rooms)
     plan = me.load_audit_plan(report_path)
-    records, stream_meta = [], []
-    for room_id in ["A/A_idx_1", "B/B_idx_2"]:
-        for query in me.load_room_plan(plan, room_id).queries:
-            relpath = query.query_id.split("|", 1)[1]
-            stream_meta.append({"position": query.position, "relpath": relpath,
-                                "receiver_id": query.receiver_id, "room_id": room_id})
-    items = _fixture_stream(stream_meta)
-    for (obs, md), meta in zip(items, stream_meta):
-        records.append(_d1_record(meta["position"], md))
+    entries = sorted(((room_id, entry) for room_id in (rooms or sorted(FIXTURE_QUERIES))
+                      for entry in FIXTURE_QUERIES[room_id]), key=lambda pair: pair[1][0])
+    records, items = [], []
+    for room_id, entry in entries:
+        md = _stream_md(room_id, entry)
+        records.append(_d1_record(entry[0], md))
+        items.append((torch.full((1, 1, 16), 0.5), md))
     return plan, records, items
 
 
-def _aligned(tmp_path):
-    """Fixture whose manifest query_ids are exactly what the stream produces."""
-    from src.localization import meshgrid_queries as mq
-
-    plan, records, items = _fixture_records(tmp_path)
-    # the fixture's manifest ids are hand-written; align them to the stream's own
-    # sample_target_id so the binding under test is the CONTEXT one, not naming
-    ids = {}
-    for room_id in sorted(plan.rooms):
-        for query in me.load_room_plan(plan, room_id).queries:
-            ids[query.position] = query.query_id
-    for record, (obs, md) in zip(records, items):
-        record["query_id"] = ids[record["position"]]
-        record["room_id"] = me.room_of_relpath(record["relpath"])
-    return plan, records, items
+def _fixture_totals(branch="z_band", rooms=None):
+    """``(pairs, union rows)`` the fixture implies -- never hand-counted."""
+    pairs, unions = 0, 0
+    for room_id in (rooms or sorted(FIXTURE_QUERIES)):
+        by_receiver = {}
+        for entry in FIXTURE_QUERIES[room_id]:
+            indices = fixture_indices(room_id, entry, branch=branch)
+            pairs += len(indices)
+            by_receiver.setdefault(fixture_receiver_id(room_id, entry[2]),
+                                   set()).update(indices)
+        unions += sum(len(members) for members in by_receiver.values())
+    return pairs, unions
 
 
 def test_a_synthetic_pass_scores_every_query_and_publishes_its_artifacts(tmp_path):
@@ -835,9 +883,10 @@ def test_a_synthetic_pass_scores_every_query_and_publishes_its_artifacts(tmp_pat
     assert len(done) == 4 and rejected == []
 
     row = json.load(open(me.query_artifact_paths(out, "A/A_idx_1", 0)["row"]))
-    assert row["n_candidates"] == 3 and row["num_samples"] == 4
+    expected = fixture_indices("A/A_idx_1", FIXTURE_QUERIES["A/A_idx_1"][0])
+    assert row["n_candidates"] == len(expected) and row["num_samples"] == 4
     assert sorted(row["by_k"]) == ["1", "4"]
-    assert row["candidate_indices"] == [1, 2, 3]
+    assert row["candidate_indices"] == expected
     assert row["e_oracle"] > 0.0 and row["branch"] == "z_band"
     assert row["by_k"]["4"]["prediction_index"] in row["candidate_indices"]
     assert row["noise_policy"] == "shared_across_candidates" and row["seed"] == 42
@@ -850,8 +899,8 @@ def test_the_pass_generates_one_sampler_row_per_candidate_and_draw(tmp_path):
     engine = SyntheticEngine()
     me.run_pass(engine, items, records, plan, str(tmp_path / "run"), num_samples=4,
                 prefixes=(1, 4), batch_rows=8)
-    # 3 + 2 + 2 + 2 candidates over the z_band branch, four draws each
-    assert engine.n_sampler_rows == (3 + 2 + 2 + 2) * 4
+    # every z_band candidate of every query, four draws each
+    assert engine.n_sampler_rows == _fixture_totals()[0] * 4
 
 
 def test_the_source_branch_is_computed_once_per_receiver_union(tmp_path):
@@ -859,10 +908,11 @@ def test_the_source_branch_is_computed_once_per_receiver_union(tmp_path):
     engine = SyntheticEngine()
     summary = me.run_pass(engine, items, records, plan, str(tmp_path / "run"),
                           num_samples=4, prefixes=(1, 4), batch_rows=8)
-    # room A: receiver 1 union {1,2,3,7} + receiver 2 union {4,5}; room B: {0,8}
-    assert summary["n_conditioner_rows"] == 4 + 2 + 2
+    pairs, unions = _fixture_totals()
+    assert summary["n_conditioner_rows"] == unions
     # ... while the naive per-query cost would have been one call per pair
-    assert summary["n_candidate_query_pairs"] == 3 + 2 + 2 + 2
+    assert summary["n_candidate_query_pairs"] == pairs
+    assert unions < pairs
 
 
 def test_the_scored_similarities_do_not_depend_on_the_row_chunking(tmp_path):
@@ -886,14 +936,15 @@ def test_a_resumed_pass_regenerates_only_what_did_not_verify(tmp_path):
     me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
                 prefixes=(1, 4), batch_rows=8)
     corrupt = me.query_artifact_paths(out, "A/A_idx_1", 1)["sims"]
-    np.save(corrupt, np.zeros((2, 4), dtype=np.float16))
+    n_candidates = len(fixture_indices("A/A_idx_1", FIXTURE_QUERIES["A/A_idx_1"][1]))
+    np.save(corrupt, np.zeros((n_candidates, 4), dtype=np.float16))
 
     done, rejected = me.completed_queries(out)
     engine = SyntheticEngine()
     summary = me.run_pass(engine, items, records, plan, out, num_samples=4,
                           prefixes=(1, 4), batch_rows=8, done=done)
     assert summary["n_scored"] == 1 and summary["n_skipped"] == 3
-    assert engine.n_sampler_rows == 2 * 4
+    assert engine.n_sampler_rows == n_candidates * 4
     assert me.verify_query_artifact(me.query_artifact_paths(out, "A/A_idx_1", 1)["row"])["ok"]
 
 
@@ -1075,7 +1126,7 @@ def test_dumping_a_query_regenerates_only_the_selected_candidates(tmp_path):
     assert payload["waveforms"].shape[1] == 4               # K
     assert payload["observation"].shape[-1] > 0
     # a dumped query costs its own generation plus ONLY the dumped rows again
-    assert engine.n_sampler_rows == (3 + 2 + 2 + 2) * 4 + len(
+    assert engine.n_sampler_rows == _fixture_totals()[0] * 4 + len(
         row["waveform_candidate_indices"]) * 4
 
 
@@ -1233,8 +1284,11 @@ def test_the_drivers_parity_path_runs_end_to_end_on_a_synthetic_stack(tmp_path, 
 
 def test_the_probe_can_be_pointed_at_one_room_so_a_smoke_is_affordable(tmp_path):
     plan, records, items = _aligned(tmp_path)
-    chosen, covered = me.probe_groups(plan, 1, room=("B/B_idx_2"))
-    assert chosen == [("B/B_idx_2", "B/B_idx_2|4,4,1.2")] and covered == 1
+    chosen, covered = me.probe_groups(plan, 1, room="B/B_idx_2")
+    assert chosen == [("B/B_idx_2",
+                       fixture_receiver_id("B/B_idx_2",
+                                           FIXTURE_QUERIES["B/B_idx_2"][0][2]))]
+    assert covered == 1
     with pytest.raises(ValueError, match="not in the audit"):
         me.probe_groups(plan, 1, room="Nowhere/Nowhere_idx_1")
 
