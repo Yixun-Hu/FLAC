@@ -29,3 +29,7 @@
 - **Version Control** — `d061f64 1d1e491 22c512d`; tree 2,877 green. Planner rulings: the inf/NaN branch-rule distinction ACCEPTED (meaningful-empty-band inf disqualifies; NaN refuses — both pinned).
 - **Acceptance criteria (D1 pass, pre-launch):** enumeration gate 6,337 unique ordered identities; per-position idx+relpath guard clean; completed census exactly {6:91,7:429,8:5263,9:554}; filtered stream 5,337 with only ListeningRoom_idx_2 removed; manifest hashes recorded (full + filtered); byte-stable reload check. Cross-check vs exp_09's manifest: PENDING the rsync (recorded).
 - **Result** — launched (CPU; log loc_meshgrid_<TS>_d1_manifest.log). Focused r3 re-review running in parallel; any F2 finding ⇒ regenerate (cheap, deterministic).
+
+## 2026-08-25T04:05:00-0400 (box ~02:20) — r4 delivered; D1 REGENERATED (hashes stable); final re-review launched
+
+- `3b27412 6297e88`; tree 2,889 green. D1 manifest regenerated post-F2-fix: full `15d229c0…`, filtered `99f8da60…` — identical to the superseded pass (comparison fix, not draw change; correctly reasoned), census asserted, reload verified, AGREE resolution "configured".
