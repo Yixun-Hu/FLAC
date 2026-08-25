@@ -244,7 +244,10 @@ class FakeConditioner:
                 else:
                     seed = (float(torch.as_tensor(md["source"]).sum())
                             + float(torch.as_tensor(md["depth"]).sum()) + len(key))
-                rows.append(torch.full((3,), seed, dtype=torch.float32))
+                # bounded and decorrelated: an unbounded seed would dominate the
+                # synthetic embedder and collapse every cosine to 1.0, which would
+                # make the whole synthetic stack unable to express a score at all
+                rows.append(torch.full((3,), math.sin(seed), dtype=torch.float32))
             out[key] = [torch.stack(rows).to(device),
                         torch.ones(len(batch_metadata), dtype=torch.bool)]
         return out
@@ -1114,7 +1117,10 @@ class SyntheticEngine(me.MeshEngine):
 
     def _sample(self, noise, cond):
         self.n_sampler_rows += int(noise.shape[0])
-        return noise + cond["cond"].sum(dim=-1).reshape(-1, 1, 1)
+        # MEAN, not sum: a sum over every conditioning element would swamp the
+        # noise and drive every cosine to exactly 1.0, and a stack that cannot
+        # express a score cannot test one
+        return noise + cond["cond"].mean(dim=-1).reshape(-1, 1, 1)
 
     @staticmethod
     def _decode(latents):
@@ -1452,9 +1458,14 @@ class BatchSensitiveConditioner(FakeConditioner):
     differently".
     """
 
+    #: exaggerated on purpose: the real effect is one float16 ulp, and a
+    #: synthetic stack whose embedder is dominated by large constants would round
+    #: that away before the comparison machinery ever saw it.
+    OFFSET = 0.05
+
     def __call__(self, batch_metadata, device, only_ids=None):
         out = super().__call__(batch_metadata, device, only_ids=only_ids)
-        return {key: [value[0] + 1e-3 * len(batch_metadata), value[1]]
+        return {key: [value[0] + self.OFFSET * len(batch_metadata), value[1]]
                 for key, value in out.items()}
 
 
@@ -1652,3 +1663,118 @@ def test_the_probe_query_list_is_only_computed_when_a_dump_asks_for_it(tmp_path)
             driver.dump_allowance(args, plan)
     finally:
         me.registered_probe_queries = real
+
+
+# --------------------------------------------------------------------------- #
+# determinism: what "the same" and "close enough" mean, registered
+# --------------------------------------------------------------------------- #
+def test_the_score_tolerance_and_its_basis_are_registered():
+    assert isinstance(me.SCORE_TOLERANCE, float) and me.SCORE_TOLERANCE > 0.0
+    assert "fixed batching" in me.DETERMINISM_CONTRACT
+    assert "bit-exact" in me.DETERMINISM_CONTRACT
+
+
+def test_a_fixed_batching_replay_is_bit_exact_through_scoring(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    first, second = str(tmp_path / "a"), str(tmp_path / "b")
+    for out in (first, second):
+        me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
+                    prefixes=(1, 4), batch_rows=8, source_chunk=3)
+    left = me.read_rows(first)
+    right = me.read_rows(second)
+    assert len(left) == 4
+    for row_a, row_b in zip(left, right):
+        assert me.score_fingerprint(row_a) == me.score_fingerprint(row_b)
+        assert row_a["sims_sha256"] == row_b["sims_sha256"]
+    report = me.compare_scored_runs(left, right)
+    assert report["bit_exact"] is True and report["n_flipped"] == 0
+    assert report["max_abs_delta"] == 0.0
+
+
+def test_a_changed_batching_run_is_compared_against_the_registered_tolerance(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+
+    def _run(out, source_chunk):
+        engine = SyntheticEngine()
+        # the conditioner is the batch-shaped stage, as the real ViT is
+        engine.conditioner = BatchSensitiveConditioner()
+        me.run_pass(engine, items, records, plan, out, num_samples=4, prefixes=(1, 4),
+                    batch_rows=8, source_chunk=source_chunk)
+        return me.read_rows(out)
+
+    left = _run(str(tmp_path / "a"), 7)
+    right = _run(str(tmp_path / "b"), 3)
+    report = me.compare_scored_runs(left, right)
+    assert report["bit_exact"] is False and report["max_abs_delta"] > 0.0
+    assert set(report["by_k"]) == {1, 4}
+    assert report["n_queries"] == 4
+    # the report NAMES the queries whose argmax moved instead of absorbing them
+    assert isinstance(report["flipped"], list)
+    assert report["n_flipped"] == len(report["flipped"])
+    assert report["within_tolerance"] == (report["max_abs_delta"] <= me.SCORE_TOLERANCE)
+
+
+def test_a_row_reports_how_far_its_argmax_is_from_flipping(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    out = str(tmp_path / "run")
+    summary = me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
+                          prefixes=(1, 4), batch_rows=8)
+    row = json.load(open(me.query_artifact_paths(out, "A/A_idx_1", 0)["row"]))
+    for block in row["by_k"].values():
+        assert block["margin"] >= 0.0
+        assert block["argmax_stable"] is (block["margin"] > me.SCORE_TOLERANCE)
+    stability = summary["argmax_stability"]
+    assert sorted(stability) == [1, 4]
+    for entry in stability.values():
+        assert entry["n_queries"] == 4
+        assert 0 <= entry["n_unstable"] <= 4
+        assert entry["min_margin"] >= 0.0
+
+
+def test_the_margin_is_the_gap_to_the_runner_up():
+    scores = torch.tensor([0.10, 0.42, 0.31, 0.42])
+    assert me.top1_margin(scores) == pytest.approx(0.0)      # a tie cannot be stable
+    assert me.top1_margin(torch.tensor([0.10, 0.42, 0.31])) == pytest.approx(0.11)
+    assert me.top1_margin(torch.tensor([0.5])) == float("inf")   # nothing to flip to
+
+
+@pytest.mark.skipif(not os.environ.get("EXP22_REAL_STACK"),
+                    reason="ladder step: set EXP22_REAL_STACK=1 to run against the frozen "
+                           "checkpoint on a GPU")
+def test_the_real_stack_is_bit_exact_at_fixed_batching():
+    """The registered determinism claim, on the real generator + AGREE readout."""
+    import localize_meshgrid as driver
+
+    argv = ["--ckpt-path", os.environ.get("EXP22_CKPT", "weights/exp20/P1_40k.ckpt"),
+            "--device", os.environ.get("EXP22_DEVICE", "cuda:0"), "--replay-check"]
+    assert driver.main(argv) == 0
+
+
+def test_the_replay_check_scores_one_query_twice_and_compares(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    room = me.load_room_plan(plan, "A/A_idx_1")
+    query = room.queries[0]
+    md = me.GuardedMetadata(items[0][1])
+    report = me.replay_check(SyntheticEngine(), query, md, items[0][0], num_samples=4,
+                             prefixes=(1, 4), batch_rows=8, source_chunk=3)
+    assert report["bit_exact"] is True and report["max_abs_delta"] == 0.0
+    assert report["fingerprint_equal"] is True
+    assert report["n_candidates"] == query.n_candidates
+
+    class Drifting(FakeConditioner):
+        """A stack that is NOT deterministic at fixed batching."""
+
+        def __init__(self):
+            super().__init__()
+            self.n = 0
+
+        def __call__(self, batch_metadata, device, only_ids=None):
+            out = super().__call__(batch_metadata, device, only_ids=only_ids)
+            self.n += 1
+            return {key: [value[0] + 1e-2 * self.n, value[1]] for key, value in out.items()}
+
+    engine = SyntheticEngine()
+    engine.conditioner = Drifting()
+    report = me.replay_check(engine, query, md, items[0][0], num_samples=4, prefixes=(1, 4),
+                             batch_rows=8, source_chunk=3)
+    assert report["bit_exact"] is False and report["max_abs_delta"] > 0.0

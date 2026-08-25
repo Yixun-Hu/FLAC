@@ -78,6 +78,25 @@ AGREE_LEAKAGE_CAVEAT = (
     "exp_09 protocol -- but absolute levels are NOT leak-free and must never be compared "
     "against AGREE_AR-scored exp_18/exp_20 rows without this label")
 
+#: The registered bound on |S_a - S_b| between two passes of the SAME protocol
+#: that differ only in batching. It is the acceptance criterion for a
+#: changed-batching replay, and it is provisional in exactly one sense: the
+#: number below is the reviewed bound, and the ladder's real changed-batching
+#: replay measures the value -- a measurement above this refuses rather than
+#: relaxes.
+SCORE_TOLERANCE = 1e-3
+
+DETERMINISM_CONTRACT = (
+    "At fixed batching every stage is deterministic and a replay is bit-exact through "
+    "scoring: the noise is keyed, the K prefixes are slices of one sequence, the caches are "
+    "a proven-exact memoization (cache_parity_check), the AGREE readout is the deterministic "
+    "VAE mean, and nothing in the pass consumes the global RNG. Two passes over the same "
+    "artifacts at the same batch_rows/source_chunk must therefore produce identical score "
+    "fingerprints. Changed batching is a different question: the backbones' GEMM tiling "
+    "moves an output by about one float16 ulp, so the passes are compared against "
+    "SCORE_TOLERANCE and every query whose top-1 margin is inside that tolerance -- i.e. "
+    "whose argmax COULD flip -- is counted and named, never silently accepted")
+
 NOISE_KEY_POLICIES = ("per_candidate", "shared_across_candidates")
 #: The REGISTERED policy: common random numbers -- inherited plan §1.1, "All
 #: candidates for a query share receiver, depth panorama, context RIRs, context
@@ -215,6 +234,21 @@ def argmax_by_global_index(scores, candidate_indices):
     return min(winners, key=lambda row: indices[row])
 
 
+def top1_margin(scores):
+    """``S[best] - S[runner-up]`` -- how far the argmax is from flipping.
+
+    A tie is a zero margin (the tie-break decided it, not the score), and a
+    single candidate has nothing to flip to.
+    """
+    if not isinstance(scores, torch.Tensor):
+        scores = torch.as_tensor(scores)
+    values = scores.reshape(-1).float()
+    if values.numel() < 2:
+        return float("inf")
+    top = torch.topk(values, 2).values
+    return float(top[0] - top[1])
+
+
 def score_query(sims, candidate_indices, coordinates, tau=TAU, prefixes=K_PREFIXES):
     """One query's full score block: every prefix's scores, prediction and mean.
 
@@ -233,7 +267,10 @@ def score_query(sims, candidate_indices, coordinates, tau=TAU, prefixes=K_PREFIX
     for k, block in nested_scores(sims, tau=tau, prefixes=prefixes).items():
         row = argmax_by_global_index(block["scores"], indices)
         mean_row = argmax_by_global_index(block["mean_scores"], indices)
+        margin = top1_margin(block["scores"])
         by_k[k] = {
+            "margin": margin,
+            "argmax_stable": bool(margin > SCORE_TOLERANCE),
             "prediction_row": row,
             "prediction_index": indices[row],
             "prediction_xyz": coordinates[row].tolist(),
@@ -1103,6 +1140,88 @@ def assert_published_matches(out_dir, query, binding_sha256=None):
     return True
 
 
+#: the parts of a row that a replay must reproduce exactly -- everything the
+#: protocol reads, and nothing that measures the machine it ran on.
+SCORE_FINGERPRINT_FIELDS = ("query_id", "room_id", "position", "receiver_id", "branch",
+                            "n_candidates", "num_samples", "tau", "seed", "noise_policy",
+                            "k_prefixes", "candidate_indices", "by_k", "e_oracle",
+                            "sims_sha256")
+
+
+def score_fingerprint(row):
+    """Digest of everything a fixed-batching replay must reproduce bit for bit."""
+    from src.localization.crossarm import canonical_sha256
+
+    return canonical_sha256({field: row[field] for field in SCORE_FINGERPRINT_FIELDS
+                             if field in row})
+
+
+def read_rows(out_dir):
+    """Every published row of a run, in room/position order."""
+    rows = []
+    root = os.path.join(str(out_dir), ROWS_DIRNAME)
+    if not os.path.isdir(root):
+        return rows
+    for room in sorted(os.listdir(root)):
+        room_dir = os.path.join(root, room)
+        if not os.path.isdir(room_dir):
+            continue
+        for name in sorted(os.listdir(room_dir)):
+            if name.endswith(".json"):
+                with open(os.path.join(room_dir, name)) as handle:
+                    rows.append(json.load(handle))
+    return sorted(rows, key=lambda row: int(row["position"]))
+
+
+def compare_scored_runs(rows_a, rows_b, tolerance=SCORE_TOLERANCE):
+    """Compare two passes of the same protocol -- the registered replay report.
+
+    Reports the largest score difference per prefix, whether the two are
+    bit-exact, and every query whose argmax MOVED, plus how many sat inside the
+    tolerance and could therefore have moved. Nothing is absorbed silently: the
+    caller decides, on numbers.
+    """
+    from src.localization.reaggregate import decode_scores
+
+    left = {row["query_id"]: row for row in rows_a}
+    right = {row["query_id"]: row for row in rows_b}
+    missing = sorted(set(left) ^ set(right))
+    if missing:
+        raise ValueError(f"the two runs do not score the same queries; {len(missing)} differ "
+                         f"(first {missing[:3]})")
+    by_k, flipped, at_risk = {}, [], 0
+    fingerprints_equal = True
+    for query_id in sorted(left):
+        row_a, row_b = left[query_id], right[query_id]
+        if score_fingerprint(row_a) != score_fingerprint(row_b):
+            fingerprints_equal = False
+        for key in sorted(row_a["by_k"], key=int):
+            k = int(key)
+            block_a, block_b = row_a["by_k"][key], row_b["by_k"][key]
+            delta = float((decode_scores(block_a["scores_hex"])
+                           - decode_scores(block_b["scores_hex"])).abs().max())
+            entry = by_k.setdefault(k, {"max_abs_delta": 0.0, "n_argmax_agree": 0,
+                                        "n_queries": 0, "min_margin": float("inf")})
+            entry["max_abs_delta"] = max(entry["max_abs_delta"], delta)
+            entry["n_queries"] += 1
+            entry["min_margin"] = min(entry["min_margin"], float(block_a.get("margin", 0.0)))
+            if block_a["prediction_index"] == block_b["prediction_index"]:
+                entry["n_argmax_agree"] += 1
+            else:
+                flipped.append({"query_id": query_id, "k": k,
+                                "a": block_a["prediction_index"],
+                                "b": block_b["prediction_index"],
+                                "margin": float(block_a.get("margin", 0.0))})
+            if float(block_a.get("margin", 0.0)) <= float(tolerance):
+                at_risk += 1
+    max_delta = max((entry["max_abs_delta"] for entry in by_k.values()), default=0.0)
+    return {"n_queries": len(left), "by_k": by_k, "max_abs_delta": max_delta,
+            "tolerance": float(tolerance), "within_tolerance": max_delta <= float(tolerance),
+            "bit_exact": bool(fingerprints_equal and max_delta == 0.0),
+            "n_flipped": len(flipped), "flipped": flipped,
+            "n_argmax_at_risk": at_risk, "contract": DETERMINISM_CONTRACT}
+
+
 def completed_queries(out_dir, binding_sha256=None):
     """``(verified query ids, rejected verdicts)`` for a resume.
 
@@ -1409,6 +1528,42 @@ def _dump_query(engine, query, context, cache, out_dir, row, scored, *, seed, nu
     return write_query_waveforms(out_dir, row, indices, wavs, context["obs_wav"])
 
 
+def replay_check(engine, query, md, obs_wav, *, seed=SEED, tau=TAU, num_samples=NUM_SAMPLES,
+                 prefixes=K_PREFIXES, noise_policy=NOISE_KEY_POLICY, batch_rows=64,
+                 source_chunk=SOURCE_CHUNK):
+    """Score ONE query twice at identical batching and compare -- the registered
+    fixed-batching determinism claim, executable (r7 review BLOCKER DETERMINISM).
+
+    Everything is rebuilt on each pass, caches included, so a stack that drifts
+    between two identical calls is caught rather than assumed away.
+    """
+    positions = np.asarray(query.coordinates, dtype=np.float64) \
+        - np.asarray(query.receiver_xyz, dtype=np.float64)
+    indices = [int(i) for i in query.candidate_indices]
+    base_md = {"depth": md["depth"]}
+    runs = []
+    for _attempt in (0, 1):
+        context = context_conditioning(engine.conditioner, md, engine.device)
+        cache = ReceiverCache.build(engine.conditioner, query.receiver_id, base_md, indices,
+                                    positions, engine.device, chunk=source_chunk)
+        obs_embedding = engine.embedder(
+            torch.as_tensor(obs_wav).to(engine.device))[0].float().cpu()
+        sims = _score_one_query(engine, query, context, cache, obs_embedding, seed=seed,
+                                num_samples=num_samples, noise_policy=noise_policy,
+                                batch_rows=batch_rows, timer=_Timer(engine.device))
+        scored = score_query(sims, indices, query.coordinates, tau=tau, prefixes=prefixes)
+        runs.append((sims, scored))
+    delta = float((runs[0][0] - runs[1][0]).abs().max())
+    fingerprints = [{str(k): block for k, block in run[1]["by_k"].items()} for run in runs]
+    return {"query_id": query.query_id, "n_candidates": len(indices),
+            "batch_rows": int(batch_rows), "source_chunk": int(source_chunk),
+            "max_abs_delta": delta,
+            "fingerprint_equal": bool(fingerprints[0] == fingerprints[1]),
+            "bit_exact": bool(torch.equal(runs[0][0], runs[1][0])
+                              and fingerprints[0] == fingerprints[1]),
+            "contract": DETERMINISM_CONTRACT}
+
+
 def _build_row(query, scored, *, seed, noise_policy, prefixes, timings, n_contexts,
                batching=None):
     return {
@@ -1461,7 +1616,7 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
     dump_queries = set(dump_queries or ())
     state = {"n_scored": 0, "n_skipped": 0, "n_conditioner_rows": 0,
              "n_candidate_query_pairs": 0, "n_generated": 0, "n_dumped": 0,
-             "n_geometry_tolerated": 0, "rooms": [],
+             "n_geometry_tolerated": 0, "rooms": [], "argmax_stability": {},
              "batching": {"batch_rows": int(batch_rows), "source_chunk": int(source_chunk)},
              "probe_records": [], "timings_s": {}}
     buffer, depths, receiver_of = {}, {}, {}
@@ -1613,6 +1768,13 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
                                            noise_policy=noise_policy, top_n=dump_top_n))
                     state["n_dumped"] += 1
                 write_query_artifact(out_dir, row, sims, binding_sha256=binding_sha256)
+                for key, block in row["by_k"].items():
+                    entry = state["argmax_stability"].setdefault(
+                        int(key), {"n_queries": 0, "n_unstable": 0,
+                                   "min_margin": float("inf")})
+                    entry["n_queries"] += 1
+                    entry["n_unstable"] += int(not block["argmax_stable"])
+                    entry["min_margin"] = min(entry["min_margin"], float(block["margin"]))
                 state["n_scored"] += 1
                 if on_row is not None:
                     on_row(row)

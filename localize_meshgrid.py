@@ -103,6 +103,9 @@ def parse_args(argv=None):
                         help="best-scoring candidates kept in a dump, beyond the predictions")
     parser.add_argument("--dump-cases", default=None,
                         help="a registered visualization case list (JSON with query_ids)")
+    parser.add_argument("--replay-check", action="store_true",
+                        help="score one query twice at fixed batching and require bit-exact "
+                             "agreement (the registered determinism claim), then exit")
     parser.add_argument("--cache-parity-check", action="store_true",
                         help="run the §1.5 cached-vs-uncached bit-identity proof and exit")
     return parser.parse_args(argv)
@@ -202,7 +205,7 @@ def writes_query_artifacts(args):
     publish a run binding into a directory a scored pass will later resume, and
     must not read one either.
     """
-    return args.probe is None and not args.cache_parity_check
+    return args.probe is None and not args.cache_parity_check and not args.replay_check
 
 
 def build_run_binding(args, plan, ckpt_sha256, agree_sha256, model_config_sha256):
@@ -313,6 +316,8 @@ def main(argv=None):
 
     if args.cache_parity_check:
         return _run_cache_parity(args, engine, plan, records, loader)
+    if args.replay_check:
+        return _run_replay_check(args, engine, plan, records, loader)
 
     progress = _progress_printer(len(records) - len(done))
     summary = me.run_pass(engine, _iter_items(loader), records, plan, args.out_dir,
@@ -365,6 +370,30 @@ def _progress_printer(total, every=25):
               f"~{remaining / 3600:.1f} h left", flush=True)
 
     return _on_row
+
+
+def _run_replay_check(args, engine, plan, records, loader):
+    """The registered fixed-batching determinism claim, on the first real query."""
+    first = records[0]
+    room = me.load_room_plan(plan, first["room_id"])
+    query = next(q for q in room.queries if q.query_id == first["query_id"])
+    for position, (obs_wav, raw_md) in enumerate(_iter_items(loader)):
+        if position != int(first["position"]):
+            continue
+        md = me.GuardedMetadata(raw_md)
+        me.verify_context_record(md, first, position)
+        report = me.replay_check(engine, query, md, obs_wav, seed=args.seed, tau=args.tau,
+                                 num_samples=args.num_samples,
+                                 prefixes=tuple(int(k) for k in args.k_prefixes),
+                                 noise_policy=args.noise_policy,
+                                 batch_rows=args.batch_rows, source_chunk=args.source_chunk)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        print(f"\nFIXED-BATCHING REPLAY: {'BIT-EXACT' if report['bit_exact'] else 'DRIFTED'} "
+              f"(max |diff| {report['max_abs_delta']:.3g} over {report['n_candidates']} "
+              f"candidates at batch_rows={report['batch_rows']}, "
+              f"source_chunk={report['source_chunk']})")
+        return 0 if report["bit_exact"] else 1
+    _refuse("the stream ended before the first registered query")
 
 
 def _run_cache_parity(args, engine, plan, records, loader):
