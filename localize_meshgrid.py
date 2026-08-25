@@ -214,6 +214,8 @@ def build_run_binding(args, plan, ckpt_sha256, agree_sha256, model_config_sha256
         "cfg_scale": float(args.cfg_scale),
         "cond_method": str(args.cond_method),
         "scorer_readout": me.SCORER_READOUT,
+        "cond_autocast": str(args.cond_autocast),
+        "dataset_config_sha256": me.file_sha256(args.dataset_config),
         "dataset_config": str(args.dataset_config),
     }
 
@@ -271,8 +273,9 @@ def main(argv=None):
         if os.path.isfile(os.path.join(args.out_dir, me.BINDING_FILENAME)):
             moved = me.assert_binding(args.out_dir, run_binding, advisory=advisory)
             if moved is not True:
+                me.record_advisory_change(args.out_dir, moved, advisory=advisory)
                 print(f"NOTE: batching changed since the published pass: {moved}\n  "
-                      f"{me.BATCHING_CAVEAT}")
+                      f"recorded in {me.BINDING_FILENAME}; {me.BATCHING_CAVEAT}")
         else:
             me.write_binding(args.out_dir, run_binding, advisory=advisory)
         if args.resume:

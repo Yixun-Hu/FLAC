@@ -800,6 +800,7 @@ def _binding(**overrides):
                "k_prefixes": [1, 4, 8], "num_samples": 8, "tau": 0.1, "seed": 42,
                "noise_policy": "shared_across_candidates", "steps": 1, "cfg_scale": 1.0,
                "cond_method": "vanilla", "scorer_readout": "mean",
+               "cond_autocast": "default", "dataset_config_sha256": "1" * 64,
                "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json"}
     payload.update(overrides)
     return payload
@@ -813,6 +814,68 @@ def test_the_binding_covers_every_registered_field_and_hashes_them():
     assert digest != me.binding_sha256(_binding(tau=0.2))
     with pytest.raises(ValueError, match="cfg_scale"):
         me.binding_sha256({k: v for k, v in payload.items() if k != "cfg_scale"})
+
+
+def test_the_binding_covers_the_arithmetic_and_the_data_it_reads(tmp_path):
+    # r7 review BLOCKER BINDING: a resume could previously mix conditioner
+    # arithmetic or an edited dataset config
+    assert "cond_autocast" in me.RUN_BINDING_FIELDS
+    assert "dataset_config_sha256" in me.RUN_BINDING_FIELDS
+    out = str(tmp_path / "run")
+    os.makedirs(out)
+    me.write_binding(out, _binding())
+    with pytest.raises(ValueError, match="cond_autocast"):
+        me.assert_binding(out, _binding(cond_autocast="off"))
+    with pytest.raises(ValueError, match="dataset_config_sha256"):
+        me.assert_binding(out, _binding(dataset_config_sha256="9" * 64))
+
+
+def test_the_driver_binds_the_dataset_bytes_and_the_conditioner_arithmetic(tmp_path):
+    import localize_meshgrid as driver
+
+    out_dir, report_path, base = _fixture_audit(tmp_path)
+    plan = me.load_audit_plan(report_path)
+    manifest_path = tmp_path / "d1.json"
+    manifest_path.write_text(json.dumps({"records": [], "protocol_facts": {}}))
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--audit-report", report_path,
+                              "--context-manifest", str(manifest_path),
+                              "--cond-autocast", "off"])
+    binding = driver.build_run_binding(args, plan, ckpt_sha256="1" * 64,
+                                       agree_sha256="2" * 64, model_config_sha256="3" * 64)
+    assert binding["cond_autocast"] == "off"
+    assert binding["dataset_config_sha256"] == me.file_sha256(args.dataset_config)
+
+
+def test_every_row_records_the_batching_it_was_actually_produced_with(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    out = str(tmp_path / "run")
+    summary = me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
+                          prefixes=(1, 4), batch_rows=8, source_chunk=3)
+    assert summary["batching"] == {"batch_rows": 8, "source_chunk": 3}
+    row = json.load(open(me.query_artifact_paths(out, "A/A_idx_1", 0)["row"]))
+    assert row["batching"] == {"batch_rows": 8, "source_chunk": 3}
+
+
+def test_an_advisory_change_is_persisted_into_the_binding_not_just_printed(tmp_path):
+    out = str(tmp_path / "run")
+    os.makedirs(out)
+    me.write_binding(out, _binding(), advisory={"source_chunk": 16, "batch_rows": 64})
+    moved = me.assert_binding(out, _binding(), advisory={"source_chunk": 4, "batch_rows": 64})
+    assert moved is not True
+    me.record_advisory_change(out, moved, advisory={"source_chunk": 4, "batch_rows": 64})
+
+    published = json.load(open(os.path.join(out, me.BINDING_FILENAME)))
+    assert published["advisory"] == {"source_chunk": 4, "batch_rows": 64}
+    assert len(published["advisory_history"]) == 1
+    entry = published["advisory_history"][0]
+    assert entry["changed"]["source_chunk"] == {"published": 16, "this_run": 4}
+    assert entry["at_utc"] and entry["batching_caveat"] == me.BATCHING_CAVEAT
+    # the strict binding is untouched by an advisory change
+    assert published["binding_sha256"] == me.binding_sha256(_binding())
+    # ... and a second change appends rather than replaces
+    me.record_advisory_change(out, moved, advisory={"source_chunk": 8, "batch_rows": 64})
+    assert len(json.load(open(os.path.join(
+        out, me.BINDING_FILENAME)))["advisory_history"]) == 2
 
 
 def test_a_resume_under_a_different_binding_is_refused(tmp_path):

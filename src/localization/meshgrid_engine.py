@@ -832,7 +832,9 @@ RUN_BINDING_FIELDS = (
     "model_config_sha256", "ckpt_sha256", "agree_ckpt_sha256", "d1_manifest_sha256",
     "g1_report_sha256", "room_manifest_sha256", "branch", "k_prefixes", "num_samples",
     "tau", "seed", "noise_policy", "steps", "cfg_scale", "cond_method", "scorer_readout",
-    "dataset_config")
+    # the conditioner's ARITHMETIC and the split's BYTES, not just its pathname:
+    # without them a resume could mix autocast modes or an edited dataset config
+    "cond_autocast", "dataset_config_sha256", "dataset_config")
 
 #: recorded and compared, but NOT part of the strict digest. These change only
 #: the batch SHAPES the backbones see; under the registered autocast that moves
@@ -877,9 +879,34 @@ def write_binding(out_dir, binding, advisory=None):
     payload["binding_sha256"] = binding_sha256(binding)
     payload["advisory"] = {field: (advisory or {}).get(field)
                            for field in RUN_BINDING_ADVISORY}
+    payload["advisory_history"] = []
     payload["batching_caveat"] = BATCHING_CAVEAT
     path = os.path.join(str(out_dir), BINDING_FILENAME)
     write_json(path, payload)
+    return path
+
+
+def record_advisory_change(out_dir, changed, advisory=None, at_utc=None):
+    """Persist an advisory (batching) change into the published binding.
+
+    Printing it to stdout loses it the moment the terminal scrolls; the run's
+    own artifact has to say which batching produced which part of the pass.
+    Appends to ``advisory_history`` and adopts the new values, leaving the
+    strict binding digest untouched.
+    """
+    from datetime import datetime, timezone
+
+    path = os.path.join(str(out_dir), BINDING_FILENAME)
+    with open(path) as handle:
+        published = json.load(handle)
+    history = list(published.get("advisory_history") or [])
+    history.append({"at_utc": at_utc or datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    "changed": {field: dict(value) for field, value in changed.items()},
+                    "batching_caveat": BATCHING_CAVEAT})
+    published["advisory_history"] = history
+    published["advisory"] = {field: (advisory or {}).get(field)
+                             for field in RUN_BINDING_ADVISORY}
+    write_json(path, published)
     return path
 
 
@@ -1310,7 +1337,8 @@ def _dump_query(engine, query, context, cache, out_dir, row, scored, *, seed, nu
     return write_query_waveforms(out_dir, row, indices, wavs, context["obs_wav"])
 
 
-def _build_row(query, scored, *, seed, noise_policy, prefixes, timings, n_contexts):
+def _build_row(query, scored, *, seed, noise_policy, prefixes, timings, n_contexts,
+               batching=None):
     return {
         "query_id": query.query_id, "room_id": query.room_id, "position": query.position,
         "receiver_id": query.receiver_id,
@@ -1325,6 +1353,8 @@ def _build_row(query, scored, *, seed, noise_policy, prefixes, timings, n_contex
         "scorer_readout_deviation": SCORER_READOUT_DEVIATION,
         "agree_leakage_caveat": AGREE_LEAKAGE_CAVEAT,
         "n_contexts": int(n_contexts), "timings_s": dict(timings),
+        # which batching produced THIS query (advisory tier; see BATCHING_CAVEAT)
+        "batching": dict(batching or {}),
     }
 
 
@@ -1360,6 +1390,7 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
     state = {"n_scored": 0, "n_skipped": 0, "n_conditioner_rows": 0,
              "n_candidate_query_pairs": 0, "n_generated": 0, "n_dumped": 0,
              "n_geometry_tolerated": 0, "rooms": [],
+             "batching": {"batch_rows": int(batch_rows), "source_chunk": int(source_chunk)},
              "probe_records": [], "timings_s": {}}
     buffer, depths, receiver_of = {}, {}, {}
     room_plan, current_room = None, None
@@ -1497,7 +1528,9 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
                                      query.coordinates, tau=tau, prefixes=prefixes)
                 row = _build_row(query, scored, seed=seed, noise_policy=noise_policy,
                                  prefixes=prefixes, timings=query_timer.totals,
-                                 n_contexts=context["n_contexts"])
+                                 n_contexts=context["n_contexts"],
+                                 batching={"batch_rows": int(batch_rows),
+                                           "source_chunk": int(source_chunk)})
                 if query.query_id in dump_queries:
                     row.update(_dump_query(engine, query, context, cache, out_dir, row,
                                            scored, seed=seed, num_samples=num_samples,
