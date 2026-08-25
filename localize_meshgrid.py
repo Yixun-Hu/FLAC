@@ -87,6 +87,8 @@ def parse_args(argv=None):
     parser.add_argument("--probe-stem", default="probe")
     parser.add_argument("--dump-waveforms", nargs="*", default=None,
                         help="query ids to dump; bounded to the registered probe/case lists")
+    parser.add_argument("--dump-top-n", type=int, default=me.DUMP_TOP_N,
+                        help="best-scoring candidates kept in a dump, beyond the predictions")
     parser.add_argument("--dump-cases", default=None,
                         help="a registered visualization case list (JSON with query_ids)")
     parser.add_argument("--cache-parity-check", action="store_true",
@@ -213,10 +215,14 @@ def main(argv=None):
                 print(f"  rejected {verdict['query_id']}: {verdict['reason']}")
 
     allowed = me.registered_probe_queries(plan)
+    dump_queries = set()
     if args.dump_waveforms:
         cases = me.load_dump_cases(args.dump_cases) if args.dump_cases else {"query_ids": []}
         me.assert_dump_allowed(args.dump_waveforms,
                                set(allowed.values()) | set(cases["query_ids"]))
+        dump_queries = {str(query) for query in args.dump_waveforms}
+        print(f"bounded dumps admitted for {len(dump_queries)} queries "
+              f"(announcement 08 exemption)\n  {me.DUMP_CONTENT_RULE}")
 
     # the released call graph, in order: seed -> loader -> metric stack -> iterator.
     # NOTHING may consume the global RNG between build_release_stack and the first batch.
@@ -235,7 +241,8 @@ def main(argv=None):
                           prefixes=tuple(int(k) for k in args.k_prefixes),
                           noise_policy=args.noise_policy, batch_rows=args.batch_rows,
                           source_chunk=args.source_chunk, done=done,
-                          probe=args.probe)
+                          probe=args.probe, dump_queries=dump_queries,
+                          dump_top_n=args.dump_top_n)
     summary["created_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     summary["binding_sha256"] = me.binding_sha256(run_binding)
     summary["agree_leakage_caveat"] = me.AGREE_LEAKAGE_CAVEAT

@@ -1005,3 +1005,71 @@ def test_the_pass_refuses_a_query_the_candidate_manifest_does_not_carry(tmp_path
     with pytest.raises(ValueError, match="two registrations disagree"):
         me.run_pass(SyntheticEngine(), items, records, plan, str(tmp_path / "run"),
                     num_samples=4, prefixes=(1, 4))
+
+
+# --------------------------------------------------------------------------- #
+# what an admitted dump actually contains
+# --------------------------------------------------------------------------- #
+def test_the_dump_selection_is_bounded_and_derived_from_the_scores():
+    sims = _sims(m=20)
+    scored = me.score_query(sims, list(range(100, 120)), np.zeros((20, 3)))
+    rows = me.dump_selection(scored, top_n=4)
+    assert len(rows) <= 4 + 2 * len(me.K_PREFIXES)
+    assert rows == sorted(set(rows))
+    # every prefix's prediction and mean prediction is in the set, whatever else is
+    for block in scored["by_k"].values():
+        assert block["prediction_row"] in rows
+        assert block["mean_prediction_row"] in rows
+    # ... and the top rows by the largest prefix's score
+    best = me.nested_scores(sims, tau=me.TAU)[8]["scores"]
+    assert set(int(i) for i in torch.topk(best, 4).indices.tolist()) <= set(rows)
+
+
+def test_dumping_a_query_regenerates_only_the_selected_candidates(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    engine = SyntheticEngine()
+    out = str(tmp_path / "run")
+    dump = {"A/A_idx_1": None}
+    summary = me.run_pass(engine, items, records, plan, out, num_samples=4,
+                          prefixes=(1, 4), batch_rows=8,
+                          dump_queries={"0|ir/A/A_idx_1/S001_R002_hybrid_IR.wav"},
+                          dump_top_n=2)
+    assert summary["n_dumped"] == 1
+    row = json.load(open(me.query_artifact_paths(out, "A/A_idx_1", 0)["row"]))
+    assert row["waveform_path"] and row["waveform_sha256"]
+    payload = np.load(os.path.join(out, row["waveform_path"]))
+    assert payload["candidate_indices"].tolist() == row["waveform_candidate_indices"]
+    assert payload["waveforms"].shape[0] == len(row["waveform_candidate_indices"])
+    assert payload["waveforms"].shape[1] == 4               # K
+    assert payload["observation"].shape[-1] > 0
+    # a dumped query costs its own generation plus ONLY the dumped rows again
+    assert engine.n_sampler_rows == (3 + 2 + 2 + 2) * 4 + len(
+        row["waveform_candidate_indices"]) * 4
+
+
+def test_an_undumped_query_carries_no_waveform_fields(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    out = str(tmp_path / "run")
+    me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
+                prefixes=(1, 4), batch_rows=8)
+    row = json.load(open(me.query_artifact_paths(out, "A/A_idx_1", 0)["row"]))
+    assert "waveform_path" not in row and "waveform_sha256" not in row
+
+
+def test_the_regenerated_dump_is_the_waveform_that_was_scored(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    out = str(tmp_path / "run")
+    me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
+                prefixes=(1, 4), batch_rows=8,
+                dump_queries={"0|ir/A/A_idx_1/S001_R002_hybrid_IR.wav"}, dump_top_n=2)
+    row = json.load(open(me.query_artifact_paths(out, "A/A_idx_1", 0)["row"]))
+    payload = np.load(os.path.join(out, row["waveform_path"]))
+    # the dumped waveforms reproduce the scored similarities they came from
+    sims = np.load(me.query_artifact_paths(out, "A/A_idx_1", 0)["sims"])
+    embedder = SyntheticEngine()._embed
+    for slot, index in enumerate(row["waveform_candidate_indices"]):
+        position = row["candidate_indices"].index(index)
+        wavs = torch.as_tensor(payload["waveforms"][slot]).unsqueeze(1)
+        obs = torch.as_tensor(payload["observation"]).reshape(1, 1, -1)
+        got = (embedder(wavs) @ embedder(obs)[0]).numpy()
+        assert np.allclose(got, sims[position].astype(np.float32), atol=2e-3)

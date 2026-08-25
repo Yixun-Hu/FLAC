@@ -862,6 +862,56 @@ def load_dump_cases(path):
     return {"query_ids": list(ids), "sha256": file_sha256(path), "path": str(path)}
 
 
+#: candidates kept in a bounded waveform dump, beyond the predictions themselves.
+DUMP_TOP_N = 8
+DUMP_CONTENT_RULE = (
+    "a dumped query keeps the union of (a) every prefix's predicted candidate, (b) every "
+    "prefix's S_mean-predicted candidate and (c) the DUMP_TOP_N best-scoring candidates at "
+    "the largest prefix, plus the observation. exp_18 dumped every candidate because M was "
+    "~10; here M averages 1,667, so the full dump would be 546 MB per query and 1.7 TB per "
+    "pass. The selected rows are REGENERATED from their own noise keys after scoring, so a "
+    "dump costs its own rows again and nothing is held in memory for it")
+
+
+def dump_selection(scored, prefixes=None, top_n=DUMP_TOP_N):
+    """The bounded, score-derived set of candidate rows a dump may carry."""
+    from src.localization.reaggregate import decode_scores
+
+    blocks = scored["by_k"]
+    prefixes = tuple(blocks) if prefixes is None else tuple(prefixes)
+    rows = set()
+    for k in prefixes:
+        block = blocks[k] if k in blocks else blocks[str(k)]
+        rows.add(int(block["prediction_row"]))
+        rows.add(int(block["mean_prediction_row"]))
+    largest = max(prefixes, key=lambda k: int(k))
+    block = blocks[largest] if largest in blocks else blocks[str(largest)]
+    scores = decode_scores(block["scores_hex"])
+    best = torch.topk(scores, min(int(top_n), scores.numel())).indices.tolist()
+    rows.update(int(row) for row in best)
+    return sorted(rows)
+
+
+def write_query_waveforms(out_dir, row, candidate_indices, waveforms, observation):
+    """One bounded waveform dump, published atomically beside the query's row."""
+    paths = query_artifact_paths(out_dir, row["room_id"], row["position"])
+    os.makedirs(paths["dir"], exist_ok=True)
+    path = os.path.join(paths["dir"], f"q{int(row['position']):05d}_waveforms.npz")
+    tmp = path + ".tmp"
+    with open(tmp, "wb") as handle:
+        np.savez(handle,
+                 candidate_indices=np.asarray(candidate_indices, dtype=np.int64),
+                 waveforms=np.asarray(torch.as_tensor(waveforms).detach().cpu().numpy(),
+                                      dtype=np.float32),
+                 observation=np.asarray(torch.as_tensor(observation).detach().cpu()
+                                        .reshape(-1).numpy(), dtype=np.float32))
+    os.replace(tmp, path)
+    return {"waveform_path": os.path.relpath(path, str(out_dir)),
+            "waveform_sha256": file_sha256(path),
+            "waveform_candidate_indices": [int(i) for i in candidate_indices],
+            "waveform_content_rule": DUMP_CONTENT_RULE}
+
+
 def probe_record(query_id, room_id, n_candidates, num_samples, timings):
     """One throughput-probe record: cost only, by construction.
 
@@ -1026,6 +1076,22 @@ def _score_one_query(engine, query, context, cache, obs_embedding, *, seed, num_
     return torch.cat(parts, dim=0)
 
 
+def _dump_query(engine, query, context, cache, out_dir, row, scored, *, seed, num_samples,
+                noise_policy, top_n):
+    """Regenerate the selected candidates and publish the bounded dump."""
+    rows = dump_selection(scored, top_n=top_n)
+    indices = [int(query.candidate_indices[row_index]) for row_index in rows]
+    cache_rows = cache.rows_for(indices)
+    noise = noise_block(seed, query.query_id, indices, num_samples, engine.latent_shape,
+                        policy=noise_policy, device=engine.device)
+    merged = expand_conditioning(context["context"], cache.conditioning,
+                                 cache_rows.repeat_interleave(int(num_samples)),
+                                 engine.device)
+    wavs = engine.decoder(engine.sampler(noise, engine.cond_inputs_fn(merged))).clamp(-1.0, 1.0)
+    wavs = wavs.reshape(len(indices), int(num_samples), -1)
+    return write_query_waveforms(out_dir, row, indices, wavs, context["obs_wav"])
+
+
 def _build_row(query, scored, *, seed, noise_policy, prefixes, timings, n_contexts):
     return {
         "query_id": query.query_id, "room_id": query.room_id, "position": query.position,
@@ -1047,7 +1113,7 @@ def _build_row(query, scored, *, seed, noise_policy, prefixes, timings, n_contex
 def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
              num_samples=NUM_SAMPLES, prefixes=K_PREFIXES, noise_policy=NOISE_KEY_POLICY,
              batch_rows=64, source_chunk=SOURCE_CHUNK, done=(), probe=None, on_row=None,
-             excluded_room=None, oracle_tol=1e-4):
+             excluded_room=None, oracle_tol=1e-4, dump_queries=(), dump_top_n=DUMP_TOP_N):
     """Score the whole registered subset, room block by room block.
 
     The stream is the released loader in D1 order and is walked ONCE: every
@@ -1069,8 +1135,9 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
     if probe is not None:
         selected = set(probe_groups(plan, probe, room_order=room_order)[0])
 
+    dump_queries = set(dump_queries or ())
     state = {"n_scored": 0, "n_skipped": 0, "n_conditioner_rows": 0,
-             "n_candidate_query_pairs": 0, "n_generated": 0, "rooms": [],
+             "n_candidate_query_pairs": 0, "n_generated": 0, "n_dumped": 0, "rooms": [],
              "probe_records": [], "timings_s": {}}
     buffer, depths, receiver_of = {}, {}, {}
     room_plan, current_room = None, None
@@ -1083,7 +1150,8 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
                   done=done, seed=seed, tau=tau, num_samples=num_samples,
                   prefixes=prefixes, noise_policy=noise_policy, batch_rows=batch_rows,
                   source_chunk=source_chunk, on_row=on_row, probe=probe is not None,
-                  oracle_tol=oracle_tol)
+                  oracle_tol=oracle_tol, dump_queries=dump_queries,
+                  dump_top_n=dump_top_n)
         buffer.clear()
         depths.clear()
         receiver_of.clear()
@@ -1125,6 +1193,9 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
         depths.setdefault(receiver_id, md["depth"])
         buffer[record["query_id"]] = {
             "context": context, "obs_embedding": obs_embedding,
+            # only a dumped query keeps its observation waveform in memory
+            "obs_wav": (torch.as_tensor(obs_wav).detach().cpu().clone()
+                        if record["query_id"] in dump_queries else None),
             "depth_digest": tensor_digest(md["depth"]),
             "source": torch.as_tensor(md["source"]).detach().cpu().clone(),
             "n_contexts": record["context_width"]}
@@ -1136,7 +1207,7 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
 
 def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, done, seed,
               tau, num_samples, prefixes, noise_policy, batch_rows, source_chunk, on_row,
-              probe, oracle_tol):
+              probe, oracle_tol, dump_queries=(), dump_top_n=DUMP_TOP_N):
     """One room's receiver groups, one resident cache at a time."""
     missing = [] if selected is not None else [
         query.query_id for query in room_plan.queries
@@ -1192,6 +1263,11 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
                 row = _build_row(query, scored, seed=seed, noise_policy=noise_policy,
                                  prefixes=prefixes, timings=query_timer.totals,
                                  n_contexts=context["n_contexts"])
+                if query.query_id in dump_queries:
+                    row.update(_dump_query(engine, query, context, cache, out_dir, row,
+                                           scored, seed=seed, num_samples=num_samples,
+                                           noise_policy=noise_policy, top_n=dump_top_n))
+                    state["n_dumped"] += 1
                 write_query_artifact(out_dir, row, sims)
                 state["n_scored"] += 1
                 if on_row is not None:
