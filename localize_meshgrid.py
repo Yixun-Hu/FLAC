@@ -26,8 +26,17 @@ This file is the protocol wiring around them.
       --audit-report outputs_loc/exp22/g1_audit/geometry_audit_report.json \
       --out-dir outputs_loc/exp22/i1_P1 --device cuda:0
 
-  # the pre-registered no-quality throughput probe (writes timings only)
-  python localize_meshgrid.py ... --probe 20 --out-dir outputs_loc/exp22/i1_probe
+  # the pre-registered no-quality throughput probe (writes timings only).
+  # --probe covers WHOLE receiver groups so the cache is amortized honestly, and
+  # --probe-room keeps that affordable: the split's first room is Cafe, whose
+  # smallest group is already ~9 queries x 5,295 candidates x 8 draws.
+  python localize_meshgrid.py ... --probe 1 \
+      --probe-room Bathrooms/Bathrooms_idx_14 --out-dir outputs_loc/exp22/i1_probe
+
+  # the §1.5 cached-vs-uncached proof on the real conditioner, then stop
+  python localize_meshgrid.py ... --cache-parity-check --device cuda:0
+
+Both diagnostics modes publish no query artifacts and no run binding.
 """
 import argparse
 import json
