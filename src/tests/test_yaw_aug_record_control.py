@@ -533,8 +533,13 @@ def test_committed_record_agrees_with_exp11_registry(committed_record):
     for field in ("manifest_sha256", "commit", "rung", "vae_sha256", "job", "training_seed"):
         assert xref[field] == vanl[field], f"{field} disagrees with exp_11's registry"
     assert committed_record["config"]["sha256"] == vanl["config_sha256"]
-    # the gap this record exists to fill
-    assert "final_ckpt_sha256" not in vanl
+    # This record was created to fill a gap: at admission time exp_11's registry
+    # had no final_ckpt_sha256 for VANL. exp_11 backfilled it on 2026-08-17
+    # (commit 0776122), so the control is now stronger, not stale: the registry's
+    # backfilled value must agree with this record's independently measured sha.
+    assert vanl["final_ckpt_sha256"] == committed_record["checkpoint"]["sha256"], (
+        "exp_11's backfilled final_ckpt_sha256 disagrees with the sha this record "
+        "measured from the same checkpoint file")
 
 
 def test_committed_record_matches_its_transcript(committed_record):
