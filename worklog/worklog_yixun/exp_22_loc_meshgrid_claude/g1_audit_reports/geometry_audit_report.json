@@ -1,0 +1,351 @@
+{
+  "anchor_audit": {
+    "accepted_rooms": [
+      "Apartments/Apartments_idx_42",
+      "Apartments/Apartments_idx_50",
+      "Auditorium/Auditorium_idx_1",
+      "Bathrooms/Bathrooms_idx_14",
+      "Bathrooms/Bathrooms_idx_18",
+      "Bedrooms/Bedrooms_idx_18",
+      "Bedrooms/Bedrooms_idx_33",
+      "Cafe/Cafe_idx_1",
+      "LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25",
+      "LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30",
+      "MeetingRoom/MeetingRoom_idx_20",
+      "MeetingRoom/MeetingRoom_idx_32",
+      "Office/Office_idx_10",
+      "Office/Office_idx_11",
+      "Restaurants/Restaurants_idx_22",
+      "Restaurants/Restaurants_idx_24"
+    ],
+    "blocked_detail": [],
+    "blocked_rooms": []
+  },
+  "branch": {
+    "branch": "z_band",
+    "n_new_over_threshold": 0,
+    "n_queries": 5337,
+    "reason": "every query stays nonempty and no new e_oracle > 0.5 m query appears",
+    "threshold": 0.5
+  },
+  "context_manifest_sha256": "99f8da609ef30456faa8251ad000c4675cdb2065013457cff110f905980894e9",
+  "cost": {
+    "chosen_branch": "z_band",
+    "full_height": {
+      "artifact_bytes": 503366656,
+      "candidate_query_pairs": 15730208,
+      "conditioner_calls_estimate": 1624934,
+      "distinct_candidate_sets": 3337,
+      "n_receivers": 540,
+      "unique_receiver_candidate_pairs": 1624934
+    },
+    "z_band": {
+      "artifact_bytes": 284689280,
+      "candidate_query_pairs": 8896540,
+      "conditioner_calls_estimate": 966147,
+      "distinct_candidate_sets": 3439,
+      "n_receivers": 540,
+      "unique_receiver_candidate_pairs": 966147
+    }
+  },
+  "created_utc": "2026-08-25T20:40:51+00:00",
+  "diagnostics_only": false,
+  "direction_selection_rule": "the smallest generator seed s >= 0 whose build_directions(31, seed=s) set gives strict-majority odd parity (>= 16 of 31) for EVERY metadata source AND receiver anchor in ALL 16 required rooms",
+  "directions_seed": 1,
+  "directions_sha256": "79544f2dbc880a37a4826aa527d40e99a3e54ce849cfd0ec9f1c6e847c528a8d",
+  "experiment": "exp_22 loc_meshgrid G1 geometry audit",
+  "n_queries": 5337,
+  "n_rooms": 16,
+  "oracle": {
+    "full_height": {
+      "fraction_over_threshold": 0.00936855911560802,
+      "max": 0.5220153254455274,
+      "mean": 0.21511060541519336,
+      "median": 0.2408318915758458,
+      "median_finite": 0.2408318915758458,
+      "n_infinite": 0,
+      "n_over_threshold": 50,
+      "n_queries": 5337
+    },
+    "z_band": {
+      "fraction_over_threshold": 0.00936855911560802,
+      "max": 0.5220153254455274,
+      "mean": 0.21513654906308616,
+      "median": 0.2408318915758458,
+      "median_finite": 0.2408318915758458,
+      "n_infinite": 0,
+      "n_over_threshold": 50,
+      "n_queries": 5337
+    }
+  },
+  "required_rooms": [
+    "Apartments/Apartments_idx_42",
+    "Apartments/Apartments_idx_50",
+    "Auditorium/Auditorium_idx_1",
+    "Bathrooms/Bathrooms_idx_14",
+    "Bathrooms/Bathrooms_idx_18",
+    "Bedrooms/Bedrooms_idx_18",
+    "Bedrooms/Bedrooms_idx_33",
+    "Cafe/Cafe_idx_1",
+    "LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25",
+    "LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30",
+    "MeetingRoom/MeetingRoom_idx_20",
+    "MeetingRoom/MeetingRoom_idx_32",
+    "Office/Office_idx_10",
+    "Office/Office_idx_11",
+    "Restaurants/Restaurants_idx_22",
+    "Restaurants/Restaurants_idx_24"
+  ],
+  "resolved_parity_discrepancies": [
+    {
+      "kind": "receivers",
+      "n_directions": 31,
+      "note": "the only anchor of 700 that the seed-0 set rejected; not a clearance or epsilon effect (0.25005 m from the surface). The selection rule was fixed before the sweep and applied to every anchor of all 16 rooms.",
+      "odd_votes_under_previous_pin": 15,
+      "point": [
+        2.26,
+        0.48,
+        1.2
+      ],
+      "previous_seed": 0,
+      "previous_sha256": "9ab4339fa893c00dca817b901a149c292b080d0e6971c90f0b8b0b88e858c261",
+      "room_id": "MeetingRoom/MeetingRoom_idx_32",
+      "status": "resolved by the registered anchor-driven selection (seed 0 -> seed 1)",
+      "surface_distance_m": 0.25005
+    }
+  ],
+  "rooms": {
+    "Apartments/Apartments_idx_42": {
+      "anchor_audit_accepted": true,
+      "candidate_manifest": "candidates_Apartments_Apartments_idx_42.json",
+      "candidate_manifest_sha256": "cddaa611b429b04e93355ebe72c1980183f918efc4dd4f5f83f8304e79075331",
+      "mesh": {
+        "n_triangles": 180352,
+        "path": "/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/Apartments/Apartments_idx_42.obj",
+        "sha256": "8ecaa300f953504a19a3a8ac8b1e449f0ff0a3aa1d030809b0e3f755545d34d9",
+        "watertight": false
+      },
+      "n_base_valid": 293,
+      "n_queries": 250
+    },
+    "Apartments/Apartments_idx_50": {
+      "anchor_audit_accepted": true,
+      "candidate_manifest": "candidates_Apartments_Apartments_idx_50.json",
+      "candidate_manifest_sha256": "f8822f614f5bd11522959134ec1d093178199137f88fe35f362fe32ee20ded4d",
+      "mesh": {
+        "n_triangles": 193920,
+        "path": "/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/Apartments/Apartments_idx_50.obj",
+        "sha256": "b48bd0c7e68dae5c61e712864ce9c7295a1b4bc5b46a74cf9fd12c4d04f56cd3",
+        "watertight": false
+      },
+      "n_base_valid": 269,
+      "n_queries": 250
+    },
+    "Auditorium/Auditorium_idx_1": {
+      "anchor_audit_accepted": true,
+      "candidate_manifest": "candidates_Auditorium_Auditorium_idx_1.json",
+      "candidate_manifest_sha256": "72f0b1d36fd4ea7c0378863d108d64ff74c80c6431ce84bfc777538e82c97d07",
+      "mesh": {
+        "n_triangles": 87808,
+        "path": "/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/Auditorium/Auditorium_idx_1.obj",
+        "sha256": "fc0bebef01d1370cf3f7ae3aaee9f1f0474d1de72965bf4ed20c2d1b2084d51f",
+        "watertight": false
+      },
+      "n_base_valid": 8959,
+      "n_queries": 1000
+    },
+    "Bathrooms/Bathrooms_idx_14": {
+      "anchor_audit_accepted": true,
+      "candidate_manifest": "candidates_Bathrooms_Bathrooms_idx_14.json",
+      "candidate_manifest_sha256": "daccb123412586850c679c2f51779428c49bc611fbd33971262ee60b9be6e931",
+      "mesh": {
+        "n_triangles": 31488,
+        "path": "/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/Bathrooms/Bathrooms_idx_14.obj",
+        "sha256": "8232123112854998ccee22c6e904942105e3e918137db23e5c724ca0e0aa34da",
+        "watertight": false
+      },
+      "n_base_valid": 41,
+      "n_queries": 250
+    },
+    "Bathrooms/Bathrooms_idx_18": {
+      "anchor_audit_accepted": true,
+      "candidate_manifest": "candidates_Bathrooms_Bathrooms_idx_18.json",
+      "candidate_manifest_sha256": "fea49265950237abc6b2b6eaa9ff81edeaf7c03c8fcbdb72ab6d0ac507227998",
+      "mesh": {
+        "n_triangles": 38912,
+        "path": "/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/Bathrooms/Bathrooms_idx_18.obj",
+        "sha256": "a4d5ca924962c9669b2e3fcc942bab885fe8021fd9df75a2401d38a64db4e0ff",
+        "watertight": false
+      },
+      "n_base_valid": 97,
+      "n_queries": 250
+    },
+    "Bedrooms/Bedrooms_idx_18": {
+      "anchor_audit_accepted": true,
+      "candidate_manifest": "candidates_Bedrooms_Bedrooms_idx_18.json",
+      "candidate_manifest_sha256": "4c1d1858a13246430eed9038488e3fc0614ebc0a91f8a311d10d461d362a3f72",
+      "mesh": {
+        "n_triangles": 33152,
+        "path": "/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/Bedrooms/Bedrooms_idx_18.obj",
+        "sha256": "c9b119c91c095e8709f0de0c40cf41aee6b219a4229cab46c37f54f65a2372af",
+        "watertight": false
+      },
+      "n_base_valid": 70,
+      "n_queries": 250
+    },
+    "Bedrooms/Bedrooms_idx_33": {
+      "anchor_audit_accepted": true,
+      "candidate_manifest": "candidates_Bedrooms_Bedrooms_idx_33.json",
+      "candidate_manifest_sha256": "752e2dc6c58e17702e4e25602dd8e20ebec9757a4a131ecc8429cfe71314e6b5",
+      "mesh": {
+        "n_triangles": 21760,
+        "path": "/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/Bedrooms/Bedrooms_idx_33.obj",
+        "sha256": "f745e455a7acc2da5126a1c5875a3abccd05fbccd87fe867e17b42064ebadb8a",
+        "watertight": false
+      },
+      "n_base_valid": 95,
+      "n_queries": 250
+    },
+    "Cafe/Cafe_idx_1": {
+      "anchor_audit_accepted": true,
+      "candidate_manifest": "candidates_Cafe_Cafe_idx_1.json",
+      "candidate_manifest_sha256": "9f692d50c0fe5e388c58e2dfee0f89d4743f16e7ac69b4b7e3e4e1470dcba4de",
+      "mesh": {
+        "n_triangles": 366080,
+        "path": "/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/Cafe/Cafe_idx_1.obj",
+        "sha256": "e7a0b7b97db3a31f1194726eb35d8033d712d46e17b637493cbff76c058d8b67",
+        "watertight": false
+      },
+      "n_base_valid": 6274,
+      "n_queries": 922
+    },
+    "LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25": {
+      "anchor_audit_accepted": true,
+      "candidate_manifest": "candidates_LivingRoomsWithHallway_LivingRoomsWithHallway_idx_25.json",
+      "candidate_manifest_sha256": "bb46404abbd21e75b1d7256bcd290fca0917a494eaa8d4bfdc539b501ea68d1c",
+      "mesh": {
+        "n_triangles": 88832,
+        "path": "/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25.obj",
+        "sha256": "6da405f5bd203520f7e108a61a3424e2ef28484d2ea66197e69cd9103814b5bb",
+        "watertight": false
+      },
+      "n_base_valid": 185,
+      "n_queries": 250
+    },
+    "LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30": {
+      "anchor_audit_accepted": true,
+      "candidate_manifest": "candidates_LivingRoomsWithHallway_LivingRoomsWithHallway_idx_30.json",
+      "candidate_manifest_sha256": "ed9dbeb027114d69975295c6072438c8e08625dedbfb4d93ff3f4ae2a12025b8",
+      "mesh": {
+        "n_triangles": 131328,
+        "path": "/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30.obj",
+        "sha256": "8fc1847d3280a66553090c323ba2f0b62493adabd88df814bad570e01dc00205",
+        "watertight": false
+      },
+      "n_base_valid": 445,
+      "n_queries": 225
+    },
+    "MeetingRoom/MeetingRoom_idx_20": {
+      "anchor_audit_accepted": true,
+      "candidate_manifest": "candidates_MeetingRoom_MeetingRoom_idx_20.json",
+      "candidate_manifest_sha256": "b2f98842e50744c387a07ea9e168afca692a593db58e53fe2fa1613e2eb86293",
+      "mesh": {
+        "n_triangles": 11264,
+        "path": "/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/MeetingRoom/MeetingRoom_idx_20.obj",
+        "sha256": "29ab35aff50eeb578cdd45f4d34b383ffa763986edec529b22f969beddce383e",
+        "watertight": false
+      },
+      "n_base_valid": 376,
+      "n_queries": 250
+    },
+    "MeetingRoom/MeetingRoom_idx_32": {
+      "anchor_audit_accepted": true,
+      "candidate_manifest": "candidates_MeetingRoom_MeetingRoom_idx_32.json",
+      "candidate_manifest_sha256": "7d02164704e62b7b54a232534518e9ddae2d9747c8b41a3a7cd02ef79c27f72e",
+      "mesh": {
+        "n_triangles": 11264,
+        "path": "/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/MeetingRoom/MeetingRoom_idx_32.obj",
+        "sha256": "27a6501b4e62f421679570d81762113ffc675f34258e4cdb6457cf72dc3e0518",
+        "watertight": false
+      },
+      "n_base_valid": 170,
+      "n_queries": 250
+    },
+    "Office/Office_idx_10": {
+      "anchor_audit_accepted": true,
+      "candidate_manifest": "candidates_Office_Office_idx_10.json",
+      "candidate_manifest_sha256": "3fa279bf735d9476ce091a3e89045a75064cf788f492e3cde50dec4d5c71bc01",
+      "mesh": {
+        "n_triangles": 54528,
+        "path": "/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/Office/Office_idx_10.obj",
+        "sha256": "e14b8c02650484fda13cfecae1e628802a736a0369df0eb245aef0baa3cc1e6e",
+        "watertight": false
+      },
+      "n_base_valid": 442,
+      "n_queries": 250
+    },
+    "Office/Office_idx_11": {
+      "anchor_audit_accepted": true,
+      "candidate_manifest": "candidates_Office_Office_idx_11.json",
+      "candidate_manifest_sha256": "989e0645d6ddda78ee46ad214ebb0fe08cfda9a27737dd583482cf971eabd9da",
+      "mesh": {
+        "n_triangles": 75136,
+        "path": "/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/Office/Office_idx_11.obj",
+        "sha256": "dc070a8fc1999f950e5ba8bc3f3da9878e003907bb3d3d2cdb20b4e595ff64b2",
+        "watertight": false
+      },
+      "n_base_valid": 686,
+      "n_queries": 250
+    },
+    "Restaurants/Restaurants_idx_22": {
+      "anchor_audit_accepted": true,
+      "candidate_manifest": "candidates_Restaurants_Restaurants_idx_22.json",
+      "candidate_manifest_sha256": "aafe41629f8c4af21332f906e3869b3dbbb09701647cdc26c800720e348db064",
+      "mesh": {
+        "n_triangles": 78464,
+        "path": "/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/Restaurants/Restaurants_idx_22.obj",
+        "sha256": "a8e86fc229016fc1ef3d6c2f39668ba50e356d2c4ded290a794873175c4ae00c",
+        "watertight": false
+      },
+      "n_base_valid": 606,
+      "n_queries": 190
+    },
+    "Restaurants/Restaurants_idx_24": {
+      "anchor_audit_accepted": true,
+      "candidate_manifest": "candidates_Restaurants_Restaurants_idx_24.json",
+      "candidate_manifest_sha256": "9841af4c9407886bb0e878c1e35e4f44c19fabe06b92d10a299efa4d86814e0e",
+      "mesh": {
+        "n_triangles": 26624,
+        "path": "/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/Restaurants/Restaurants_idx_24.obj",
+        "sha256": "afddcad24ada306c0197c238b764952cb5a3c3d2942431d45a38b0f905565daa",
+        "watertight": false
+      },
+      "n_base_valid": 529,
+      "n_queries": 250
+    }
+  },
+  "spacing": 0.5,
+  "status": "audit complete",
+  "verification": {
+    "chain_ok": true,
+    "rooms": {
+      "Apartments/Apartments_idx_42": true,
+      "Apartments/Apartments_idx_50": true,
+      "Auditorium/Auditorium_idx_1": true,
+      "Bathrooms/Bathrooms_idx_14": true,
+      "Bathrooms/Bathrooms_idx_18": true,
+      "Bedrooms/Bedrooms_idx_18": true,
+      "Bedrooms/Bedrooms_idx_33": true,
+      "Cafe/Cafe_idx_1": true,
+      "LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25": true,
+      "LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30": true,
+      "MeetingRoom/MeetingRoom_idx_20": true,
+      "MeetingRoom/MeetingRoom_idx_32": true,
+      "Office/Office_idx_10": true,
+      "Office/Office_idx_11": true,
+      "Restaurants/Restaurants_idx_22": true,
+      "Restaurants/Restaurants_idx_24": true
+    },
+    "staged": true
+  }
+}

@@ -55,3 +55,10 @@
 
 - `910ead7 96ba96e`; tree 2,900 green. Old set = build_directions(seed 0), failing exactly the one reviewer-found anchor at 16-room scale; seed 1 passes all 700 (MeetingRoom receivers at exactly 16/31 — borderline-interior, recorded as a robustness caveat). Selection reproducible (`select_direction_seed.py`), report committed.
 - **Acceptance criteria (G1 audit):** all 16 required rooms accepted; every query nonempty with finite full-height oracle; both z-branch distributions computed honestly (band ∞ counted); the pre-registered branch rule applied globally; staged-verify-then-atomic publish; cost report with the four gate numbers. NOTE: the earlier candidate-grid PNG used the seed-0 set; regenerate under seed 1 post-audit.
+
+## 2026-08-25 — G1 AUDIT PASSED; POST-G1 COST GATE
+
+- **Audit:** 16/16 rooms accepted (seed-1 directions), 5,337/5,337 queries nonempty with finite oracles; staged-verify-then-atomic publish clean. **Branch rule selected z_band** (identical over-threshold count to full height: 50 queries with e_oracle>0.5 m, 0.94% — the pre-registered no-new-unwinnable condition holds). Oracle median 0.241 m both branches.
+- **Gate numbers (chosen z_band):** 8,896,540 candidate-query pairs; 966,147 unique receiver-candidate pairs ⇒ ~966k source-conditioner calls (receiver-union cache); artifacts 284.7 MB. Full-height comparison: 15.73M pairs (z-band saves 43%).
+- **Cost projection vs the approved P1 envelope (~140 GPU-h):** 71.2M generated waveforms (pairs × K=8 nested). At the inherited plan's measured rate (~7 ms/waveform, large batches) ≈ 140 GPU-h — ON the envelope; at exp_20's small-batch rate (~13 ms) ≈ 257 GPU-h — over. **The binding decision stays with the pre-registered throughput probe** (cache-enabled, no-quality, ladder step): proceed if its projection ≤ 175 GPU-h (125% envelope, per the stop-rule Yixun saw), else stop and ask.
+- JSON reports copied to g1_audit_reports/ (npz coordinate sidecars stay in outputs_loc, hashes committed via the reports).
