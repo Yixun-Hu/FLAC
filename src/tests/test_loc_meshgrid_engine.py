@@ -333,6 +333,10 @@ def test_the_union_is_deduplicated_and_ascending():
 # --------------------------------------------------------------------------- #
 # the G1 binding: candidate manifests, branch, receiver groups
 # --------------------------------------------------------------------------- #
+#: the synthetic stream's md['source'] -- the truth in the receiver's own frame.
+TRUTH_OFFSET = np.array([1.0, 0.0, 0.0])
+
+
 def _write_room(out_dir, room_id, queries, base, branch="z_band"):
     """A minimal but VERIFIER-VALID room manifest + its coordinate sidecar."""
     from src.localization import meshgrid_geometry as mg
@@ -354,7 +358,15 @@ def _write_room(out_dir, room_id, queries, base, branch="z_band"):
             "candidate_indices_z_band": band, "n_candidates_z_band": len(band),
             "candidate_coordinates_sha256": mg.coordinates_digest(base[np.asarray(full)]),
             "n_contexts": 8, "n_dropped_receiver": 0, "n_dropped_context": 0,
-            "z_band": [0.5, 2.5], "oracle": {"full_height": 0.3, "z_band": 0.4}})
+            "z_band": [0.5, 2.5],
+            # the oracle the geometry actually implies for the synthetic stream,
+            # whose md['source'] puts the truth one metre along x from the receiver
+            "oracle": {branch_name: float(np.linalg.norm(
+                base[np.asarray(branch_indices)]
+                - (np.asarray(query["receiver"], dtype=np.float64) + TRUTH_OFFSET),
+                axis=1).min())
+                for branch_name, branch_indices in (("full_height", full),
+                                                    ("z_band", band))}})
     path = os.path.join(out_dir, stem + ".json")
     with open(path, "w") as handle:
         handle.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
@@ -451,7 +463,10 @@ def test_a_room_plan_carries_the_branchs_indices_and_their_coordinates(tmp_path)
     first = room.queries[0]
     assert first.candidate_indices.tolist() == [1, 2, 3]        # the z_band branch
     assert first.coordinates.tolist() == base[[1, 2, 3]].tolist()
-    assert first.oracle == 0.4 and first.branch == "z_band"
+    truth = np.asarray([1.0, 2.0, 1.5]) + TRUTH_OFFSET
+    assert first.oracle == pytest.approx(
+        float(np.linalg.norm(base[[1, 2, 3]] - truth, axis=1).min()))
+    assert first.branch == "z_band"
     assert first.receiver_xyz.tolist() == [1.0, 2.0, 1.5]
 
 
@@ -688,3 +703,201 @@ def test_the_probe_writes_to_its_own_diagnostics_stem(tmp_path):
     assert payload["scores_written"] is False and payload["n_queries"] == 1
     # the probe's directory carries no query artifacts at all
     assert not os.path.isdir(os.path.join(out, "rows"))
+
+
+# --------------------------------------------------------------------------- #
+# the pass: synthetic end to end
+# --------------------------------------------------------------------------- #
+class SyntheticEngine(me.MeshEngine):
+    """A deterministic stand-in for the whole generation + scoring stack.
+
+    The sampled latent depends on BOTH the noise row and the conditioning row,
+    and the embedding depends on the decoded waveform, so a mis-assembled batch
+    (wrong candidate, wrong context, wrong draw) changes a score.
+    """
+
+    def __init__(self):
+        conditioner = FakeConditioner()
+        super().__init__(device="cpu", latent_shape=(2, 4), conditioner=conditioner,
+                         cond_inputs_fn=self._cond_inputs, sampler=self._sample,
+                         decoder=self._decode, embedder=self._embed,
+                         cond_method="vanilla")
+        self.n_sampler_rows = 0
+
+    @staticmethod
+    def _cond_inputs(conditioning):
+        return {"cond": torch.cat([conditioning[key][0] for key in
+                                   sorted(conditioning)], dim=-1)}
+
+    def _sample(self, noise, cond):
+        self.n_sampler_rows += int(noise.shape[0])
+        return noise + cond["cond"].sum(dim=-1).reshape(-1, 1, 1)
+
+    @staticmethod
+    def _decode(latents):
+        return latents.reshape(latents.shape[0], 1, -1)
+
+    @staticmethod
+    def _embed(wavs):
+        flat = wavs.reshape(wavs.shape[0], -1)[:, :4].float()
+        return torch.nn.functional.normalize(flat + 1e-3, dim=-1)
+
+
+def _fixture_stream(records):
+    """``(obs_wav, md)`` in D1 order, including the excluded room's positions."""
+    items = []
+    for record in records:
+        md = _stream_md(value=2.0 + record["position"])
+        md["relpath"] = record["relpath"]
+        md["path"] = "AcousticRooms/" + record["relpath"]
+        md["idx"] = record["position"]
+        md["source"] = torch.tensor([1.0, 0.0, 0.0])
+        md["depth"] = torch.full((2, 4), float(hash(record["receiver_id"]) % 7))
+        items.append((torch.full((1, 1, 16), 0.5), md))
+    return items
+
+
+def _fixture_records(tmp_path):
+    """A D1-style record stream matching the fixture audit's four queries."""
+    out_dir, report_path, base = _fixture_audit(tmp_path)
+    plan = me.load_audit_plan(report_path)
+    records, stream_meta = [], []
+    for room_id in ["A/A_idx_1", "B/B_idx_2"]:
+        for query in me.load_room_plan(plan, room_id).queries:
+            relpath = query.query_id.split("|", 1)[1]
+            stream_meta.append({"position": query.position, "relpath": relpath,
+                                "receiver_id": query.receiver_id, "room_id": room_id})
+    items = _fixture_stream(stream_meta)
+    for (obs, md), meta in zip(items, stream_meta):
+        record = _d1_record(meta["position"], md)
+        record["query_id"] = meta["relpath"] and record["query_id"]
+        records.append(record)
+    return plan, records, items
+
+
+def _aligned(tmp_path):
+    """Fixture whose manifest query_ids are exactly what the stream produces."""
+    from src.localization import meshgrid_queries as mq
+
+    plan, records, items = _fixture_records(tmp_path)
+    # the fixture's manifest ids are hand-written; align them to the stream's own
+    # sample_target_id so the binding under test is the CONTEXT one, not naming
+    ids = {}
+    for room_id in sorted(plan.rooms):
+        for query in me.load_room_plan(plan, room_id).queries:
+            ids[query.position] = query.query_id
+    for record, (obs, md) in zip(records, items):
+        record["query_id"] = ids[record["position"]]
+        record["room_id"] = me.room_of_relpath(record["relpath"])
+    return plan, records, items
+
+
+def test_a_synthetic_pass_scores_every_query_and_publishes_its_artifacts(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    engine = SyntheticEngine()
+    out = str(tmp_path / "run")
+    summary = me.run_pass(engine, items, records, plan, out, num_samples=4,
+                          prefixes=(1, 4), batch_rows=8)
+    assert summary["n_scored"] == 4
+    done, rejected = me.completed_queries(out)
+    assert len(done) == 4 and rejected == []
+
+    row = json.load(open(me.query_artifact_paths(out, "A/A_idx_1", 0)["row"]))
+    assert row["n_candidates"] == 3 and row["num_samples"] == 4
+    assert sorted(row["by_k"]) == ["1", "4"]
+    assert row["candidate_indices"] == [1, 2, 3]
+    assert row["e_oracle"] > 0.0 and row["branch"] == "z_band"
+    assert row["by_k"]["4"]["prediction_index"] in row["candidate_indices"]
+    assert row["noise_policy"] == "per_candidate" and row["seed"] == 42
+    assert row["scorer_readout"] == "mean"
+    assert me.AGREE_LEAKAGE_CAVEAT in row["agree_leakage_caveat"]
+
+
+def test_the_pass_generates_one_sampler_row_per_candidate_and_draw(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    engine = SyntheticEngine()
+    me.run_pass(engine, items, records, plan, str(tmp_path / "run"), num_samples=4,
+                prefixes=(1, 4), batch_rows=8)
+    # 3 + 2 + 2 + 2 candidates over the z_band branch, four draws each
+    assert engine.n_sampler_rows == (3 + 2 + 2 + 2) * 4
+
+
+def test_the_source_branch_is_computed_once_per_receiver_union(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    engine = SyntheticEngine()
+    summary = me.run_pass(engine, items, records, plan, str(tmp_path / "run"),
+                          num_samples=4, prefixes=(1, 4), batch_rows=8)
+    # room A: receiver 1 union {1,2,3,7} + receiver 2 union {4,5}; room B: {0,8}
+    assert summary["n_conditioner_rows"] == 4 + 2 + 2
+    # ... while the naive per-query cost would have been one call per pair
+    assert summary["n_candidate_query_pairs"] == 3 + 2 + 2 + 2
+
+
+def test_the_scored_similarities_do_not_depend_on_the_row_chunking(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    first = str(tmp_path / "a")
+    me.run_pass(SyntheticEngine(), items, records, plan, first, num_samples=4,
+                prefixes=(1, 4), batch_rows=32)
+    second = str(tmp_path / "b")
+    me.run_pass(SyntheticEngine(), items, records, plan, second, num_samples=4,
+                prefixes=(1, 4), batch_rows=1)
+    for room, position in (("A/A_idx_1", 0), ("B/B_idx_2", 3)):
+        left = json.load(open(me.query_artifact_paths(first, room, position)["row"]))
+        right = json.load(open(me.query_artifact_paths(second, room, position)["row"]))
+        assert left["by_k"] == right["by_k"]
+        assert left["sims_sha256"] == right["sims_sha256"]
+
+
+def test_a_resumed_pass_regenerates_only_what_did_not_verify(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    out = str(tmp_path / "run")
+    me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
+                prefixes=(1, 4), batch_rows=8)
+    corrupt = me.query_artifact_paths(out, "A/A_idx_1", 1)["sims"]
+    np.save(corrupt, np.zeros((2, 4), dtype=np.float16))
+
+    done, rejected = me.completed_queries(out)
+    engine = SyntheticEngine()
+    summary = me.run_pass(engine, items, records, plan, out, num_samples=4,
+                          prefixes=(1, 4), batch_rows=8, done=done)
+    assert summary["n_scored"] == 1 and summary["n_skipped"] == 3
+    assert engine.n_sampler_rows == 2 * 4
+    assert me.verify_query_artifact(me.query_artifact_paths(out, "A/A_idx_1", 1)["row"])["ok"]
+
+
+def test_the_pass_refuses_a_stream_whose_context_draw_moved(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    items[2][1]["context_audio"] = torch.full((8, 1, 16), 99.0)
+    with pytest.raises(ValueError, match="context audio"):
+        me.run_pass(SyntheticEngine(), items, records, plan, str(tmp_path / "run"),
+                    num_samples=4, prefixes=(1, 4))
+
+
+def test_the_pass_refuses_a_frame_averaged_conditioning_method(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    engine = SyntheticEngine()
+    engine.cond_method = "fa_invariant"
+    with pytest.raises(ValueError, match="fa_invariant"):
+        me.run_pass(engine, items, records, plan, str(tmp_path / "run"), num_samples=4,
+                    prefixes=(1, 4))
+
+
+def test_the_pass_refuses_a_room_the_stream_did_not_deliver_completely(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    with pytest.raises(ValueError, match="did not deliver"):
+        me.run_pass(SyntheticEngine(), items[:2], records[:2], plan,
+                    str(tmp_path / "run"), num_samples=4, prefixes=(1, 4))
+
+
+def test_the_probe_amortizes_whole_receiver_groups_and_writes_no_scores(tmp_path):
+    plan, records, items = _aligned(tmp_path)
+    out = str(tmp_path / "run")
+    summary = me.run_pass(SyntheticEngine(), items, records, plan, out, num_samples=4,
+                          prefixes=(1, 4), probe=1)
+    assert summary["n_scored"] == 0
+    # the whole first receiver GROUP is measured, so the cache cost is amortized
+    # the way the real pass amortizes it
+    assert len(summary["probe_records"]) == 2
+    for record in summary["probe_records"]:
+        assert me.assert_no_scores(record) is True
+    assert not os.path.isdir(os.path.join(out, me.ROWS_DIRNAME))

@@ -27,6 +27,8 @@ import json
 import math
 import os
 
+from dataclasses import dataclass
+
 import numpy as np
 import torch
 
@@ -437,18 +439,25 @@ class QueryPlan:
     """One query's candidate set, as the audit published it."""
 
     def __init__(self, position, query_id, room_id, receiver_id, receiver_xyz,
-                 candidate_indices, coordinates, oracle, branch, z_band, n_contexts):
+                 candidate_indices, base, oracle, branch, z_band, n_contexts):
         self.position = int(position)
         self.query_id = str(query_id)
         self.room_id = str(room_id)
         self.receiver_id = str(receiver_id)
         self.receiver_xyz = np.asarray(receiver_xyz, dtype=np.float64)
         self.candidate_indices = np.asarray(candidate_indices, dtype=np.int64)
-        self.coordinates = np.asarray(coordinates, dtype=np.float64)
+        #: the room's base candidate array, shared by reference -- materializing
+        #: one coordinate copy per query would hold 117 MB for the largest room.
+        self.base = base
         self.oracle = float(oracle)
         self.branch = str(branch)
         self.z_band = list(z_band) if z_band is not None else None
         self.n_contexts = int(n_contexts)
+
+    @property
+    def coordinates(self):
+        """The query's candidate coordinates ``[M, 3]``, resolved on demand."""
+        return self.base[self.candidate_indices]
 
     @property
     def n_candidates(self):
@@ -502,7 +511,7 @@ def load_room_plan(plan, room_id):
         queries.append(QueryPlan(
             position=entry["position"], query_id=entry["query_id"], room_id=room_id,
             receiver_id=entry["receiver_id"], receiver_xyz=entry["receiver"],
-            candidate_indices=indices, coordinates=base[indices],
+            candidate_indices=indices, base=base,
             oracle=(entry.get("oracle") or {})[plan.branch], branch=plan.branch,
             z_band=entry.get("z_band"), n_contexts=entry.get("n_contexts", 0)))
     queries.sort(key=lambda query: query.position)
@@ -764,9 +773,13 @@ def verify_query_artifact(row_path):
         return dict(verdict, reason=f"the sims sidecar is {shape} but the row declares "
                                     f"{row.get('n_candidates')} candidates x "
                                     f"{row.get('num_samples')} samples")
-    if sorted(str(k) for k in (row.get("by_k") or {})) != sorted(str(k) for k in K_PREFIXES):
+    # the row's OWN registered prefix set: whether it is the protocol's (1, 4, 8)
+    # is the run binding's business, not this artifact's
+    prefixes = row.get("k_prefixes") or K_PREFIXES
+    if sorted(str(k) for k in (row.get("by_k") or {})) != sorted(str(k) for k in prefixes):
         return dict(verdict, reason=f"the row publishes prefixes "
-                                    f"{sorted(row.get('by_k') or {})}, not {list(K_PREFIXES)}")
+                                    f"{sorted(row.get('by_k') or {})} for a declared "
+                                    f"{list(prefixes)}")
     return {"ok": True, "query_id": row.get("query_id"), "row": row_path, "reason": None,
             "position": row.get("position"), "room_id": row.get("room_id")}
 
@@ -876,3 +889,282 @@ def write_probe_records(out_dir, records, stem="probe"):
                         "scores_written": False, "n_queries": len(records),
                         "records": list(records)})
     return path
+
+
+# --------------------------------------------------------------------------- #
+# the pass
+# --------------------------------------------------------------------------- #
+def room_of_relpath(relpath):
+    """``'<scene>/<scene_id>'`` from a split-relative IR path."""
+    parts = str(relpath).replace(os.sep, "/").strip("/").split("/")
+    if len(parts) < 3:
+        raise ValueError(f"relpath must contain <scene>/<scene_id>/<file>: {relpath!r}")
+    return f"{parts[-3]}/{parts[-2]}"
+
+
+def _sync(device):
+    if str(device).startswith("cuda") and torch.cuda.is_available():
+        torch.cuda.synchronize(device if ":" in str(device) else None)
+
+
+class _Timer:
+    """Component timings with a leading and trailing device drain."""
+
+    def __init__(self, device):
+        self.device = device
+        self.totals = {}
+
+    def __call__(self, name):
+        import contextlib
+        import time
+
+        @contextlib.contextmanager
+        def _scope():
+            _sync(self.device)
+            started = time.perf_counter()
+            try:
+                yield
+            finally:
+                _sync(self.device)
+                self.totals[name] = self.totals.get(name, 0.0) + (time.perf_counter() - started)
+        return _scope()
+
+
+@dataclass
+class MeshEngine:
+    """The generation + scoring stack, as callables.
+
+    Keeping the stack behind one seam is what makes the whole per-room /
+    per-receiver / per-query layout testable without a GPU: a run builds it from
+    the frozen checkpoint (``build_mesh_engine``), the tests build it from
+    recording fakes.
+    """
+    device: str
+    latent_shape: tuple
+    conditioner: object
+    cond_inputs_fn: object
+    sampler: object
+    decoder: object
+    embedder: object
+    cond_method: str = "vanilla"
+
+
+def assert_cacheable(cond_method):
+    """The §1.5 split is only valid for vanilla conditioning.
+
+    Under the released C4 frame average the cylindrical transform makes
+    ``context_poses.dphi`` candidate-dependent, so a per-query context cache
+    would serve the wrong tokens. §1.5 prescribes a narrower split for that arm;
+    until it is implemented, an FA run is refused rather than mis-cached.
+    """
+    if str(cond_method) != "vanilla":
+        raise ValueError(f"the per-query context cache is registered for vanilla conditioning "
+                         f"only, but this engine runs cond_method={cond_method!r}; under "
+                         "fa_invariant the released cylindrical transform makes context_poses "
+                         "candidate-dependent (inherited plan §1.5) and only context_poses_vit "
+                         "and context_audio may be cached")
+    return True
+
+
+def probe_groups(plan, budget, room_order=None):
+    """Whole receiver groups, in pass order, until ``budget`` queries are covered.
+
+    The probe measures cost, and the cost of a query is only meaningful once its
+    receiver's cache is amortized over that receiver's whole group -- measuring
+    three queries of a ten-query receiver would bill the entire union to three.
+    """
+    budget = int(budget)
+    chosen, covered = [], 0
+    for room_id in (room_order or sorted(plan.rooms)):
+        for group in receiver_groups(load_room_plan(plan, room_id)):
+            chosen.append((room_id, group.receiver_id))
+            covered += len(group.queries)
+            if covered >= budget:
+                return chosen, covered
+    return chosen, covered
+
+
+def _score_one_query(engine, query, context, cache, obs_embedding, *, seed, num_samples,
+                     noise_policy, batch_rows, timer):
+    """Generate and score every candidate of one query -> sims ``[M, K]``."""
+    from src.localization.scoring import cosine_sims
+
+    indices = [int(i) for i in query.candidate_indices]
+    rows_all = cache.rows_for(indices)
+    per_chunk = max(1, int(batch_rows) // int(num_samples))
+    parts = []
+    for start in range(0, len(indices), per_chunk):
+        slice_indices = indices[start:start + per_chunk]
+        noise = noise_block(seed, query.query_id, slice_indices, num_samples,
+                            engine.latent_shape, policy=noise_policy, device=engine.device)
+        rows = rows_all[start:start + per_chunk].repeat_interleave(int(num_samples))
+        with timer("conditioning"):
+            merged = expand_conditioning(context, cache.conditioning, rows, engine.device)
+            cond_inputs = engine.cond_inputs_fn(merged)
+        with timer("sampling"):
+            latents = engine.sampler(noise, cond_inputs)
+        with timer("decode"):
+            wavs = engine.decoder(latents).clamp(-1.0, 1.0)
+        with timer("embed"):
+            embeddings = engine.embedder(wavs)
+        with timer("scoring"):
+            parts.append(cosine_sims(
+                obs_embedding,
+                embeddings.reshape(len(slice_indices), int(num_samples), -1)).float().cpu())
+    return torch.cat(parts, dim=0)
+
+
+def _build_row(query, scored, *, seed, noise_policy, prefixes, timings, n_contexts):
+    return {
+        "query_id": query.query_id, "room_id": query.room_id, "position": query.position,
+        "receiver_id": query.receiver_id,
+        "receiver_xyz": [float(v) for v in query.receiver_xyz],
+        "branch": query.branch, "z_band": query.z_band, "e_oracle": query.oracle,
+        "n_candidates": scored["n_candidates"], "num_samples": scored["num_samples"],
+        "tau": scored["tau"], "seed": int(seed), "noise_policy": str(noise_policy),
+        "k_prefixes": [int(k) for k in prefixes],
+        "candidate_indices": [int(i) for i in query.candidate_indices],
+        "by_k": {str(k): block for k, block in scored["by_k"].items()},
+        "scorer_readout": SCORER_READOUT,
+        "scorer_readout_deviation": SCORER_READOUT_DEVIATION,
+        "agree_leakage_caveat": AGREE_LEAKAGE_CAVEAT,
+        "n_contexts": int(n_contexts), "timings_s": dict(timings),
+    }
+
+
+def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
+             num_samples=NUM_SAMPLES, prefixes=K_PREFIXES, noise_policy=NOISE_KEY_POLICY,
+             batch_rows=64, source_chunk=256, done=(), probe=None, on_row=None,
+             excluded_room=None, oracle_tol=1e-4):
+    """Score the whole registered subset, room block by room block.
+
+    The stream is the released loader in D1 order and is walked ONCE: every
+    query's draw is verified against the frozen context manifest, its context
+    branch is conditioned once, and its observation is embedded once. A room's
+    queries are then run receiver group by receiver group, so the source branch
+    costs one conditioner call per (receiver, candidate) in that receiver's
+    union and exactly one group's cache is resident at a time.
+    """
+    from src.localization import meshgrid_queries as mq
+
+    assert_cacheable(engine.cond_method)
+    excluded_room = mq.EXCLUDED_ROOM if excluded_room is None else excluded_room
+    done = set(done)
+    by_position = {int(record["position"]): record for record in records}
+    room_order = assert_room_blocks(records)
+
+    selected = None
+    if probe is not None:
+        selected = set(probe_groups(plan, probe, room_order=room_order)[0])
+
+    state = {"n_scored": 0, "n_skipped": 0, "n_conditioner_rows": 0,
+             "n_candidate_query_pairs": 0, "n_generated": 0, "rooms": [],
+             "probe_records": [], "timings_s": {}}
+    buffer, room_plan, current_room = {}, None, None
+
+    def flush():
+        if room_plan is None:
+            return
+        _run_room(engine, room_plan, buffer, out_dir, state, selected=selected,
+                  done=done, seed=seed, tau=tau, num_samples=num_samples,
+                  prefixes=prefixes, noise_policy=noise_policy, batch_rows=batch_rows,
+                  source_chunk=source_chunk, on_row=on_row, probe=probe is not None,
+                  oracle_tol=oracle_tol)
+        buffer.clear()
+
+    for position, (obs_wav, md) in enumerate(stream):
+        record = by_position.get(position)
+        if record is None:
+            found = room_of_relpath(md.get("relpath") or md.get("path") or "")
+            if found != excluded_room:
+                raise ValueError(f"stream position {position} is in room {found!r}, which the "
+                                 "registered subset neither excludes nor scores")
+            continue
+        verify_context_record(md, record, position)
+        room_id = record["room_id"]
+        if room_id != current_room:
+            flush()
+            room_plan = load_room_plan(plan, room_id)
+            current_room = room_id
+            state["rooms"].append(room_id)
+        if selected is not None and not any(
+                (room_id, query.receiver_id) in selected and query.query_id == record["query_id"]
+                for query in room_plan.queries):
+            continue
+        if record["query_id"] in done:
+            buffer[record["query_id"]] = None
+            continue
+        with _Timer(engine.device)("context"):
+            context = context_conditioning(engine.conditioner, md, engine.device)
+            obs_embedding = engine.embedder(
+                torch.as_tensor(obs_wav).to(engine.device))[0].float().cpu()
+        buffer[record["query_id"]] = {
+            "context": context, "obs_embedding": obs_embedding,
+            "depth": md["depth"], "depth_digest": tensor_digest(md["depth"]),
+            "source": torch.as_tensor(md["source"]).detach().cpu().clone(),
+            "n_contexts": record["context_width"]}
+    flush()
+    return state
+
+
+def _run_room(engine, room_plan, buffer, out_dir, state, *, selected, done, seed, tau,
+              num_samples, prefixes, noise_policy, batch_rows, source_chunk, on_row,
+              probe, oracle_tol):
+    """One room's receiver groups, one resident cache at a time."""
+    missing = [query.query_id for query in room_plan.queries
+               if query.query_id not in buffer and query.query_id not in done
+               and selected is None]
+    if missing:
+        raise ValueError(f"{room_plan.room_id}: the stream did not deliver "
+                         f"{len(missing)} of the room's registered queries "
+                         f"(first {missing[:3]}); a partial room may not be published")
+
+    for group in receiver_groups(room_plan):
+        if selected is not None and (room_plan.room_id, group.receiver_id) not in selected:
+            continue
+        runnable = [query for query in group.queries
+                    if buffer.get(query.query_id) is not None and query.query_id not in done]
+        state["n_skipped"] += len([query for query in group.queries
+                                   if query.query_id in done])
+        if not runnable:
+            continue
+        seed_context = buffer[runnable[0].query_id]
+        positions_cam = room_plan.base[np.asarray(group.union, dtype=np.int64)] \
+            - np.asarray(group.receiver_xyz, dtype=np.float64)
+        timer = _Timer(engine.device)
+        with timer("source_cache"):
+            cache = ReceiverCache.build(engine.conditioner, group.receiver_id,
+                                        {"depth": seed_context["depth"]}, group.union,
+                                        positions_cam, engine.device, chunk=source_chunk)
+        state["n_conditioner_rows"] += cache.n_conditioner_rows
+        try:
+            for query in runnable:
+                context = buffer[query.query_id]
+                cache.assert_same_depth({"depth": context["depth"]})
+                assert_receiver_consistent({"source": context["source"]}, query.receiver_xyz,
+                                           query.coordinates, query.oracle, tol=oracle_tol)
+                query_timer = _Timer(engine.device)
+                sims = _score_one_query(
+                    engine, query, context["context"], cache, context["obs_embedding"],
+                    seed=seed, num_samples=num_samples, noise_policy=noise_policy,
+                    batch_rows=batch_rows, timer=query_timer)
+                state["n_candidate_query_pairs"] += query.n_candidates
+                state["n_generated"] += query.n_candidates * int(num_samples)
+                for name, value in query_timer.totals.items():
+                    state["timings_s"][name] = state["timings_s"].get(name, 0.0) + value
+                if probe:
+                    state["probe_records"].append(probe_record(
+                        query.query_id, query.room_id, query.n_candidates, num_samples,
+                        dict(query_timer.totals, source_cache=timer.totals["source_cache"])))
+                    continue
+                scored = score_query(sims, query.candidate_indices.tolist(),
+                                     query.coordinates, tau=tau, prefixes=prefixes)
+                row = _build_row(query, scored, seed=seed, noise_policy=noise_policy,
+                                 prefixes=prefixes, timings=query_timer.totals,
+                                 n_contexts=context["n_contexts"])
+                write_query_artifact(out_dir, row, sims)
+                state["n_scored"] += 1
+                if on_row is not None:
+                    on_row(row)
+        finally:
+            del cache
