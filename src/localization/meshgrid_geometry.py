@@ -414,12 +414,33 @@ def choose_z_branch(full_height_oracle, band_oracle, band_nonempty,
         missing, extra = sorted(full_keys - band_keys), sorted(band_keys - full_keys)
         raise ValueError(f"the two oracle maps must cover the same queries; the band is "
                          f"missing {missing[:5]} and has {extra[:5]} the full height does not")
-    for label, mapping in (("full height", full_height_oracle), ("z band", band_oracle)):
-        bad = sorted(query for query, value in mapping.items()
-                     if value is None or not np.isfinite(float(value)))
+    # NaN is missing evidence on either side and is always a refusal. A full-height
+    # oracle must also be finite: an empty full-height set is a hard failure
+    # upstream. On the BAND side, +inf is meaningful -- it is how an empty z-band
+    # candidate set reports itself -- and it disqualifies the branch rather than
+    # being replaced by the full-height value (r2 F4 hardening + r3 F3(b)).
+    for label, mapping, allow_inf in (("full height", full_height_oracle, False),
+                                      ("z band", band_oracle, True)):
+        bad = []
+        for query, value in mapping.items():
+            if value is None:
+                bad.append(query)
+                continue
+            number = float(value)
+            if np.isnan(number) or (not allow_inf and not np.isfinite(number)):
+                bad.append(query)
         if bad:
-            raise ValueError(f"the {label} oracle is not finite for {bad[:5]}; a branch "
-                             "decision may not be taken over missing values")
+            raise ValueError(f"the {label} oracle is not finite for {sorted(bad)[:5]}; a "
+                             "branch decision may not be taken over missing values")
+
+    empty_band = sorted(query for query, value in band_oracle.items()
+                        if not np.isfinite(float(value)))
+    if empty_band:
+        return {"branch": "full_height", "n_new_over_threshold": None,
+                "n_queries": len(full_keys), "threshold": float(threshold),
+                "n_empty_band": len(empty_band), "queries": empty_band[:10],
+                "reason": f"{len(empty_band)} queries have an EMPTY z-band candidate set "
+                          "(infinite oracle), which disqualifies the band branch"}
 
     if not band_nonempty:
         return {"branch": "full_height", "n_new_over_threshold": None,

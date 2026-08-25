@@ -35,6 +35,28 @@ if _REPO_ROOT not in sys.path:
 from src.localization import meshgrid_geometry as mg          # noqa: E402
 from src.localization import meshgrid_queries as mq           # noqa: E402
 
+#: The 16 rooms the audit MUST cover: the unseen split minus the room whose
+#: official OBJ is absent. Pinned as a literal so a missing room cannot be
+#: silently absorbed into "the exclusion" (r2 re-review F3).
+REQUIRED_ROOMS = (
+    "Apartments/Apartments_idx_42",
+    "Apartments/Apartments_idx_50",
+    "Auditorium/Auditorium_idx_1",
+    "Bathrooms/Bathrooms_idx_14",
+    "Bathrooms/Bathrooms_idx_18",
+    "Bedrooms/Bedrooms_idx_18",
+    "Bedrooms/Bedrooms_idx_33",
+    "Cafe/Cafe_idx_1",
+    "LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25",
+    "LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30",
+    "MeetingRoom/MeetingRoom_idx_20",
+    "MeetingRoom/MeetingRoom_idx_32",
+    "Office/Office_idx_10",
+    "Office/Office_idx_11",
+    "Restaurants/Restaurants_idx_22",
+    "Restaurants/Restaurants_idx_24",
+)
+
 #: how far a recovered context coordinate may sit from a metadata anchor.
 ANCHOR_TOLERANCE = 1e-3
 #: one conditioner call per unique (receiver, candidate) pair, per the §1.5 cache.
@@ -117,48 +139,116 @@ def _sha256_json(payload):
                           + b"\n").hexdigest()
 
 
-def _summary(values):
+def _summary(values, allow_infinite=False):
+    """An oracle distribution. Infinities are KEPT when the branch allows them:
+    an empty z-band set is exactly what disqualifies that branch, and replacing
+    it with the full-height value hides the disqualification (r2 re-review)."""
     array = np.asarray(list(values), dtype=np.float64)
-    if array.size == 0 or not np.isfinite(array).all():
-        raise ValueError("an oracle distribution must be nonempty and finite")
+    if array.size == 0:
+        raise ValueError("an oracle distribution must be nonempty")
+    finite = np.isfinite(array)
+    if not allow_infinite and not finite.all():
+        raise ValueError("an oracle distribution must be finite")
     return {"n_queries": int(array.size), "median": float(np.median(array)),
             "mean": float(array.mean()), "max": float(array.max()),
+            "n_infinite": int((~finite).sum()),
+            "median_finite": (float(np.median(array[finite])) if finite.any() else None),
             "n_over_threshold": int((array > mg.ORACLE_THRESHOLD).sum()),
             "fraction_over_threshold": float((array > mg.ORACLE_THRESHOLD).mean())}
 
 
-def run_audit(context_manifest, mesh_root, metadata_root, out_dir,
-              expected_queries=mq.FILTERED_COUNT, spacing=mg.LATTICE_SPACING,
-              chunk=4096):
-    """Audit every query in the manifest; write per-room manifests and the report."""
-    records = context_manifest["records"]
+def coordinates_digest(array):
+    """sha256 over the exact float64 coordinate bytes."""
+    return hashlib.sha256(np.ascontiguousarray(array, dtype=np.float64).tobytes()).hexdigest()
+
+
+def candidate_set_key(receiver_id, indices):
+    """``(receiver_id, sha256(index set))`` -- the true dedup key.
+
+    Deduplicating ``(receiver, candidate_count)`` can over- or under-count: two
+    different candidate sets of the same size collapse, and the same set counted
+    twice under different receivers does not (r2 re-review F4).
+    """
+    array = np.asarray(indices, dtype=np.int64)
+    digest = hashlib.sha256(np.sort(array).tobytes()).hexdigest()
+    return (str(receiver_id), digest)
+
+
+def validate_records(records, expected_queries, required_rooms, expected_histogram):
+    """The record stream IS the registered subset: count, uniqueness, order,
+    census and the exact room set (r2 re-review F3)."""
     if expected_queries is not None and len(records) != int(expected_queries):
         raise ValueError(f"the context manifest carries {len(records)} queries but the "
                          f"registered in-scope count is {expected_queries}; the audit covers "
                          "the whole subset or refuses")
-    os.makedirs(out_dir, exist_ok=True)
+    identities = [record["query_id"] for record in records]
+    if len(set(identities)) != len(identities):
+        raise ValueError("the context manifest has duplicate query ids; every query must "
+                         "appear exactly once")
+    positions = [int(record["position"]) for record in records]
+    if positions != sorted(positions) or len(set(positions)) != len(positions):
+        raise ValueError(f"the records are not in a unique ascending position order "
+                         f"(first offenders {positions[:5]})")
+    rooms = sorted({record["room_id"] for record in records})
+    if required_rooms is not None and rooms != sorted(required_rooms):
+        missing = sorted(set(required_rooms) - set(rooms))
+        extra = sorted(set(rooms) - set(required_rooms))
+        raise ValueError(f"the audit room set is wrong: missing {missing}, unexpected "
+                         f"{extra}; the required set is exactly the {len(required_rooms)} "
+                         "mesh-available rooms")
+    if expected_histogram is not None:
+        histogram = mq.eligible_histogram(records)
+        if histogram != expected_histogram:
+            raise ValueError(f"the eligible-pool histogram is {histogram}, not the registered "
+                             f"census {expected_histogram}")
+    return True
+
+
+def run_audit(context_manifest, mesh_root, metadata_root, out_dir,
+              expected_queries=mq.FILTERED_COUNT, spacing=mg.LATTICE_SPACING,
+              chunk=4096, required_rooms=REQUIRED_ROOMS,
+              expected_histogram=None, diagnostics_only=False):
+    """Audit every query, then -- only if every gate passed -- write artifacts.
+
+    Nothing reaches disk until the whole audit has succeeded: a blocked room, a
+    wrong room set, a broken record stream or a failed census leaves the output
+    directory untouched. ``diagnostics_only`` writes ONE clearly stamped
+    non-manifest report for inspection and never writes candidate manifests.
+    """
+    records = context_manifest["records"]
+    expected_histogram = (mq.FILTERED_ELIGIBLE_HISTOGRAM
+                          if expected_histogram is None and
+                          expected_queries == mq.FILTERED_COUNT else expected_histogram)
+    validate_records(records, expected_queries, required_rooms, expected_histogram)
 
     by_room = {}
     for record in records:
         by_room.setdefault(record["room_id"], []).append(record)
     meshes = resolve_room_meshes(sorted(by_room), mesh_root)
 
-    rooms, full_oracle, band_oracle = {}, {}, {}
+    rooms, payloads, arrays = {}, {}, {}
+    full_oracle, band_oracle = {}, {}
+    blocked = []
     band_nonempty = True
-    candidate_query_pairs = 0
-    receiver_candidate_pairs = set()
+    counts = {"full_height": {"pairs": 0, "keys": {}},
+              "z_band": {"pairs": 0, "keys": {}}}
 
     for room_id in sorted(by_room):
         scene, scene_id = room_id.split("/")
         scene_obj = mg.load_raycast_scene(meshes[room_id])
         anchors = mg.metadata_anchors(os.path.join(metadata_root, scene, scene_id))
-        audit = mg.audit_room_anchors(scene_obj, anchors, room_id=room_id)
+        anchor_audit = mg.audit_room_anchors(scene_obj, anchors, room_id=room_id)
+        if not anchor_audit["accepted"]:
+            blocked.append({"room_id": room_id, "audit": anchor_audit})
 
-        lattice = mg.build_lattice(*mg.scene_aabb(scene_obj), spacing=spacing)
+        aabb_min, aabb_max = mg.scene_aabb(scene_obj)
+        lattice = mg.build_lattice(aabb_min, aabb_max, spacing=spacing)
         base = mg.classify_mesh_candidates(scene_obj, lattice, chunk=chunk)
         base_candidates = lattice[base["valid"]]
         if base_candidates.shape[0] == 0:
             raise ValueError(f"{room_id}: the mesh-valid base grid is empty")
+        # the SNAPPED origin: the first lattice node, not the raw AABB minimum
+        snapped_origin = [float(v) for v in lattice[0]]
 
         queries = []
         for record in by_room[room_id]:
@@ -166,90 +256,135 @@ def run_audit(context_manifest, mesh_root, metadata_root, out_dir,
             contexts = resolve_context_globals(record, receiver, anchors)
             full = mg.filter_query_candidates(base_candidates, receiver=receiver,
                                               context_sources=contexts)
-            band = mg.context_z_band(contexts)
+            band_bounds = mg.context_z_band(contexts)
             try:
                 banded = mg.filter_query_candidates(base_candidates, receiver=receiver,
-                                                    context_sources=contexts, z_band=band)
+                                                    context_sources=contexts,
+                                                    z_band=band_bounds)
             except ValueError:
                 band_nonempty = False
                 banded = None
 
+            full_indices = np.flatnonzero(full["mask"])
+            band_indices = (np.flatnonzero(banded["mask"]) if banded is not None
+                            else np.zeros(0, dtype=np.int64))
             full_error = mg.grid_oracle_error(full["candidates"], target)
+            # an empty z-band set stays INFINITE: that is what disqualifies it
             band_error = (mg.grid_oracle_error(banded["candidates"], target)
                           if banded is not None else float("inf"))
             full_oracle[record["query_id"]] = full_error
-            band_oracle[record["query_id"]] = band_error if banded is not None else full_error
+            band_oracle[record["query_id"]] = band_error
 
-            candidate_query_pairs += full["n_candidates"]
-            receiver_key = (room_id, tuple(np.round(receiver, 6)))
-            receiver_candidate_pairs.add((receiver_key, full["n_candidates"]))
+            receiver_id = f"{room_id}|" + ",".join(f"{v:.6f}" for v in receiver)
+            for branch, indices in (("full_height", full_indices), ("z_band", band_indices)):
+                counts[branch]["pairs"] += int(indices.size)
+                if indices.size:
+                    key = candidate_set_key(receiver_id, indices)
+                    counts[branch]["keys"][key] = int(indices.size)
+
             queries.append({
                 "query_id": record["query_id"], "position": record["position"],
-                "n_candidates": full["n_candidates"],
-                "n_candidates_z_band": (banded["n_candidates"] if banded is not None else 0),
+                "n_candidates": int(full_indices.size),
+                "n_candidates_z_band": int(band_indices.size),
+                "candidate_indices": [int(i) for i in full_indices],
+                "candidate_indices_z_band": [int(i) for i in band_indices],
+                "candidate_coordinates_sha256": coordinates_digest(full["candidates"]),
                 "n_dropped_receiver": full["n_dropped_receiver"],
                 "n_dropped_context": full["n_dropped_context"],
-                "z_band": [float(band[0]), float(band[1])],
+                "z_band": [float(band_bounds[0]), float(band_bounds[1])],
                 "oracle": {"full_height": full_error, "z_band": band_error},
-                "receiver": [float(v) for v in receiver],
+                "receiver": [float(v) for v in receiver], "receiver_id": receiver_id,
                 "n_contexts": len(contexts),
             })
 
-        payload = {
+        payloads[room_id] = {
             "room_id": room_id, "spacing": float(spacing),
-            "lattice_origin": [float(v) for v in mg.scene_aabb(scene_obj)[0]],
+            "lattice_origin": snapped_origin,
+            "lattice_aabb_min": [float(v) for v in aabb_min],
+            "lattice_aabb_max": [float(v) for v in aabb_max],
             "n_lattice": int(lattice.shape[0]),
             "n_parity_valid": int(base["parity_valid"].sum()),
             "n_base_valid": int(base["n_valid"]),
+            "base_candidates_sha256": coordinates_digest(base_candidates),
+            "coordinates_npz": f"candidates_{scene}_{scene_id}.npz",
             "clearance": base["clearance"], "eps": base["eps"],
             "directions_sha256": mg.FROZEN_DIRECTIONS_SHA256,
-            "mesh": scene_obj.identity, "anchor_audit": audit,
+            "mesh": scene_obj.identity, "anchor_audit": anchor_audit,
             "queries": queries,
             "exclusion": {"room_id": mq.EXCLUDED_ROOM, "n_excluded": mq.EXCLUDED_COUNT,
                           "reason": "no official OBJ; mesh-available preflight subset"},
         }
-        name = f"candidates_{scene}_{scene_id}.json"
-        digest = _sha256_json(payload)
-        with open(os.path.join(out_dir, name), "w") as handle:
-            json.dump(payload, handle, indent=2, sort_keys=True)
-            handle.write("\n")
+        arrays[room_id] = base_candidates
         rooms[room_id] = {
             "mesh": {"path": meshes[room_id], "sha256": scene_obj.identity["sha256"],
                      "n_triangles": scene_obj.identity["n_triangles"],
                      "watertight": scene_obj.identity["watertight"]},
-            "anchor_audit_accepted": audit["accepted"],
+            "anchor_audit_accepted": anchor_audit["accepted"],
             "n_queries": len(queries), "n_base_valid": int(base["n_valid"]),
-            "candidate_manifest": name, "candidate_manifest_sha256": digest,
+            "candidate_manifest": f"candidates_{scene}_{scene_id}.json",
         }
 
     branch = mg.choose_z_branch(full_oracle, band_oracle, band_nonempty=band_nonempty)
-    unique_pairs = sum(count for _key, count in receiver_candidate_pairs)
+    cost = {}
+    for name in ("full_height", "z_band"):
+        unique = counts[name]["keys"]
+        cost[name] = {
+            "candidate_query_pairs": int(counts[name]["pairs"]),
+            "unique_receiver_candidate_pairs": int(len(unique)),
+            # one conditioner call per candidate in the UNION of a receiver's sets
+            "conditioner_calls_estimate": int(sum(unique.values())),
+            "artifact_bytes": int(counts[name]["pairs"] * BYTES_PER_CANDIDATE),
+        }
+    cost["chosen_branch"] = branch["branch"]
+
     report = {
         "experiment": "exp_22 loc_meshgrid G1 geometry audit",
-        "n_rooms": len(rooms), "n_queries": len(records),
-        "spacing": float(spacing),
+        "n_rooms": len(rooms), "n_queries": len(records), "spacing": float(spacing),
         "directions_sha256": mg.FROZEN_DIRECTIONS_SHA256,
         "context_manifest_sha256": context_manifest.get("filtered_stream_sha256"),
+        "required_rooms": list(required_rooms or []),
         "rooms": rooms,
         "oracle": {"full_height": _summary(full_oracle.values()),
-                   "z_band": _summary(band_oracle.values())},
-        "branch": branch,
+                   "z_band": _summary(band_oracle.values(), allow_infinite=True)},
+        "branch": branch, "cost": cost,
         "anchor_audit": {"accepted_rooms": sorted(r for r, v in rooms.items()
                                                   if v["anchor_audit_accepted"]),
-                         "blocked_rooms": sorted(r for r, v in rooms.items()
-                                                 if not v["anchor_audit_accepted"])},
-        "cost": {
-            "candidate_query_pairs": int(candidate_query_pairs),
-            "unique_receiver_candidate_pairs": int(unique_pairs),
-            "conditioner_calls_estimate": int(unique_pairs * CONDITIONER_CALLS_PER_PAIR),
-            "artifact_bytes": int(candidate_query_pairs * BYTES_PER_CANDIDATE),
-        },
+                         "blocked_rooms": sorted(entry["room_id"] for entry in blocked),
+                         "blocked_detail": blocked},
+        "diagnostics_only": bool(diagnostics_only),
+        "status": ("DIAGNOSTICS ONLY -- not a registration artifact; candidate manifests "
+                   "were NOT written" if diagnostics_only else "audit complete"),
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
-    with open(os.path.join(out_dir, "geometry_audit_report.json"), "w") as handle:
-        json.dump(report, handle, indent=2, sort_keys=True)
-        handle.write("\n")
+
+    if blocked and not diagnostics_only:
+        raise ValueError(
+            f"the anchor audit blocked {[entry['room_id'] for entry in blocked]}; the audit "
+            "writes nothing until every required room is accepted (a blocked room is a "
+            "pending ruling, not a warning). Re-run with diagnostics_only=True to inspect.")
+
+    os.makedirs(out_dir, exist_ok=True)
+    if diagnostics_only:
+        _write_json(os.path.join(out_dir, "geometry_diagnostics_report.json"), report)
+        return report
+
+    for room_id, payload in payloads.items():
+        payload["chosen_branch"] = branch["branch"]
+        scene, scene_id = room_id.split("/")
+        np.savez(os.path.join(out_dir, payload["coordinates_npz"]),
+                 base_candidates=arrays[room_id])
+        digest = _sha256_json(payload)
+        _write_json(os.path.join(out_dir, rooms[room_id]["candidate_manifest"]), payload)
+        rooms[room_id]["candidate_manifest_sha256"] = digest
+    _write_json(os.path.join(out_dir, "geometry_audit_report.json"), report)
     return report
+
+
+def _write_json(path, payload):
+    with open(path, "w") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+    return path
 
 
 def main(argv=None):
@@ -259,23 +394,28 @@ def main(argv=None):
     parser.add_argument("--metadata-root", default=os.path.join("AcousticRooms", "metadata"))
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--expected-queries", type=int, default=mq.FILTERED_COUNT)
+    parser.add_argument("--diagnostics-only", action="store_true",
+                        help="write ONE clearly stamped non-manifest report for inspection "
+                             "instead of refusing on a blocked room; never writes candidate "
+                             "manifests")
     args = parser.parse_args(argv)
 
     manifest = mq.load_manifest(args.context_manifest)
     report = run_audit(manifest, mesh_root=args.mesh_root,
                        metadata_root=args.metadata_root, out_dir=args.out_dir,
-                       expected_queries=args.expected_queries)
+                       expected_queries=args.expected_queries,
+                       diagnostics_only=args.diagnostics_only)
     print(f"rooms {report['n_rooms']} | queries {report['n_queries']} | "
           f"branch {report['branch']['branch']}")
-    print(f"oracle full-height median {report['oracle']['full_height']['median']:.3f} m, "
-          f"over-threshold {report['oracle']['full_height']['n_over_threshold']}")
-    print(f"oracle z-band      median {report['oracle']['z_band']['median']:.3f} m, "
-          f"over-threshold {report['oracle']['z_band']['n_over_threshold']}")
-    cost = report["cost"]
-    print(f"cost: {cost['candidate_query_pairs']} candidate-query pairs, "
-          f"{cost['unique_receiver_candidate_pairs']} unique receiver-candidate pairs, "
-          f"~{cost['conditioner_calls_estimate']} conditioner calls, "
-          f"{cost['artifact_bytes'] / 1e6:.1f} MB of candidate artifacts")
+    for name in ("full_height", "z_band"):
+        block = report["oracle"][name]
+        print(f"oracle {name:12s} median {block['median']:.3f} m, over-threshold "
+              f"{block['n_over_threshold']}, infinite {block['n_infinite']}")
+        cost = report["cost"][name]
+        print(f"  cost[{name}]: {cost['candidate_query_pairs']} candidate-query pairs, "
+              f"{cost['unique_receiver_candidate_pairs']} unique receiver-candidate pairs, "
+              f"~{cost['conditioner_calls_estimate']} conditioner calls, "
+              f"{cost['artifact_bytes'] / 1e6:.1f} MB")
     if report["anchor_audit"]["blocked_rooms"]:
         print(f"BLOCKED rooms (anchor audit): {report['anchor_audit']['blocked_rooms']}")
         return 1

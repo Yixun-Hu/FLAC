@@ -14,6 +14,7 @@ import numpy as np
 import pytest
 
 from src.localization import meshgrid_geometry as mg
+from src.localization import meshgrid_queries as mq
 
 _CAFE_OBJ = ("/media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format/"
              "Cafe/Cafe_idx_1.obj")
@@ -362,8 +363,16 @@ def test_branch_rule_requires_finite_oracles_and_never_defaults():
     with pytest.raises(ValueError, match="finite"):
         mg.choose_z_branch(full, {"q0": 0.1, "q1": 0.2}, band_nonempty=True)
     with pytest.raises(ValueError, match="finite"):
-        mg.choose_z_branch({"q0": 0.1, "q1": 0.2}, {"q0": 0.1, "q1": float("inf")},
+        mg.choose_z_branch({"q0": 0.1, "q1": float("inf")}, {"q0": 0.1, "q1": 0.2},
                            band_nonempty=True)
+    with pytest.raises(ValueError, match="finite"):
+        mg.choose_z_branch({"q0": 0.1, "q1": 0.2}, {"q0": 0.1, "q1": float("nan")},
+                           band_nonempty=True)
+    # +inf on the BAND side is meaningful: an empty z-band set disqualifies the
+    # branch instead of being replaced by its full-height value (r3 F3(b))
+    verdict = mg.choose_z_branch({"q0": 0.1, "q1": 0.2},
+                                 {"q0": 0.1, "q1": float("inf")}, band_nonempty=True)
+    assert verdict["branch"] == "full_height" and verdict["n_empty_band"] == 1
 
 
 def test_branch_rule_decides_on_new_regressions_only():
@@ -461,9 +470,10 @@ def test_audit_runs_end_to_end_on_the_fixture_world(tmp_path):
     audit = _audit_module()
     world = _fixture_world(tmp_path)
     out = tmp_path / "out"
+    rooms = tuple(sorted(r["room_id"] for r in world["manifest"]["records"]))
     report = audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
                              metadata_root=world["metadata_root"], out_dir=str(out),
-                             expected_queries=2)
+                             expected_queries=2, required_rooms=rooms)
 
     assert report["n_rooms"] == 2 and report["n_queries"] == 2
     assert report["branch"]["branch"] in ("z_band", "full_height")
@@ -472,7 +482,8 @@ def test_audit_runs_end_to_end_on_the_fixture_world(tmp_path):
         block = report["oracle"][branch]
         assert block["n_queries"] == 2 and np.isfinite(block["median"])
         assert block["n_over_threshold"] >= 0
-    cost = report["cost"]
+    # the gate counts are per branch (r3 F4c); the dedicated test checks them
+    cost = report["cost"]["full_height"]
     for key in ("candidate_query_pairs", "unique_receiver_candidate_pairs",
                 "conditioner_calls_estimate", "artifact_bytes"):
         assert key in cost and cost[key] > 0
@@ -502,7 +513,8 @@ def test_audit_refuses_a_wrong_query_count(tmp_path):
     with pytest.raises(ValueError, match="5,337|5337|expected"):
         audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
                         metadata_root=world["metadata_root"],
-                        out_dir=str(tmp_path / "o2"), expected_queries=5337)
+                        out_dir=str(tmp_path / "o2"), expected_queries=5337,
+                        required_rooms=None)
 
 
 def test_audit_fails_closed_on_a_missing_mesh(tmp_path):
@@ -512,4 +524,175 @@ def test_audit_fails_closed_on_a_missing_mesh(tmp_path):
     with pytest.raises(ValueError, match="RoomB"):
         audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
                         metadata_root=world["metadata_root"],
-                        out_dir=str(tmp_path / "o3"), expected_queries=2)
+                        out_dir=str(tmp_path / "o3"), expected_queries=2,
+                        required_rooms=None)
+
+
+# --------------------------------------------------------------------------- #
+# r3 F3/F4 -- the audit refuses BEFORE it writes anything
+# --------------------------------------------------------------------------- #
+def test_required_room_set_is_pinned_as_a_literal():
+    audit = _audit_module()
+    assert len(audit.REQUIRED_ROOMS) == 16
+    assert isinstance(audit.REQUIRED_ROOMS, tuple)
+    assert "Cafe/Cafe_idx_1" in audit.REQUIRED_ROOMS
+    assert "MeetingRoom/MeetingRoom_idx_32" in audit.REQUIRED_ROOMS
+    assert mq.EXCLUDED_ROOM not in audit.REQUIRED_ROOMS
+    assert sorted(audit.REQUIRED_ROOMS) == list(audit.REQUIRED_ROOMS)
+
+
+def test_audit_refuses_a_room_set_that_is_not_the_required_sixteen(tmp_path):
+    audit = _audit_module()
+    world = _fixture_world(tmp_path)
+    with pytest.raises(ValueError, match="room set|required"):
+        audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
+                        metadata_root=world["metadata_root"],
+                        out_dir=str(tmp_path / "o"), expected_queries=2,
+                        required_rooms=("RoomA/RoomA_idx_1", "RoomB/RoomB_idx_2",
+                                        "RoomC/RoomC_idx_3"))
+    assert not os.path.isdir(str(tmp_path / "o")) or os.listdir(str(tmp_path / "o")) == []
+
+
+def test_audit_validates_the_record_stream(tmp_path):
+    audit = _audit_module()
+    world = _fixture_world(tmp_path)
+    rooms = tuple(sorted(r["room_id"] for r in world["manifest"]["records"]))
+
+    duped = dict(world["manifest"])
+    duped["records"] = [world["manifest"]["records"][0]] * 2
+    with pytest.raises(ValueError, match="duplicate|unique"):
+        audit.run_audit(duped, mesh_root=world["mesh_root"],
+                        metadata_root=world["metadata_root"], out_dir=str(tmp_path / "a"),
+                        expected_queries=2, required_rooms=rooms)
+
+    shuffled = dict(world["manifest"])
+    shuffled["records"] = [dict(record, position=9)
+                           for record in world["manifest"]["records"]]
+    with pytest.raises(ValueError, match="position"):
+        audit.run_audit(shuffled, mesh_root=world["mesh_root"],
+                        metadata_root=world["metadata_root"], out_dir=str(tmp_path / "b"),
+                        expected_queries=2, required_rooms=rooms)
+
+    with pytest.raises(ValueError, match="histogram|census"):
+        audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
+                        metadata_root=world["metadata_root"], out_dir=str(tmp_path / "c"),
+                        expected_queries=2, required_rooms=rooms,
+                        expected_histogram={8: 2})
+
+
+def test_audit_aborts_before_writing_when_a_room_is_blocked(tmp_path, monkeypatch):
+    """A blocked anchor audit must leave NOTHING behind -- no manifests, no
+    report (r2 re-review: both were written before main() returned 1)."""
+    audit = _audit_module()
+    world = _fixture_world(tmp_path)
+    rooms = tuple(sorted(r["room_id"] for r in world["manifest"]["records"]))
+    out = tmp_path / "blocked"
+
+    real_audit = mg.audit_room_anchors
+
+    def block_second(scene, anchors, room_id=None, **kwargs):
+        report = real_audit(scene, anchors, room_id=room_id, **kwargs)
+        if room_id == rooms[1]:
+            report["accepted"] = False
+            report["rules"]["receivers"]["failure"] = "rule 2: synthetic block"
+        return report
+
+    monkeypatch.setattr(mg, "audit_room_anchors", block_second)
+    with pytest.raises(ValueError, match="blocked|anchor"):
+        audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
+                        metadata_root=world["metadata_root"], out_dir=str(out),
+                        expected_queries=2, required_rooms=rooms)
+    assert not os.path.isdir(str(out)) or os.listdir(str(out)) == []
+
+    # ... unless diagnostics are asked for, and then the report says what it is
+    report = audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
+                             metadata_root=world["metadata_root"], out_dir=str(out),
+                             expected_queries=2, required_rooms=rooms,
+                             diagnostics_only=True)
+    assert report["diagnostics_only"] is True
+    assert report["status"].startswith("DIAGNOSTICS")
+    written = sorted(os.listdir(str(out)))
+    assert written == ["geometry_diagnostics_report.json"]
+    assert "candidate" not in "".join(written)
+
+
+def test_audit_keeps_empty_z_band_queries_as_infinite(tmp_path, monkeypatch):
+    """An empty z-band set is exactly what disqualifies the branch; substituting
+    the full-height oracle hid it (r2 re-review)."""
+    audit = _audit_module()
+    world = _fixture_world(tmp_path)
+    rooms = tuple(sorted(r["room_id"] for r in world["manifest"]["records"]))
+    real_filter = mg.filter_query_candidates
+
+    def empty_band(candidates, receiver, context_sources=(), z_band=None, **kwargs):
+        if z_band is not None:
+            raise ValueError("every candidate was filtered away (synthetic)")
+        return real_filter(candidates, receiver, context_sources, z_band=None, **kwargs)
+
+    monkeypatch.setattr(mg, "filter_query_candidates", empty_band)
+    report = audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
+                             metadata_root=world["metadata_root"],
+                             out_dir=str(tmp_path / "inf"), expected_queries=2,
+                             required_rooms=rooms)
+    assert report["branch"]["branch"] == "full_height"
+    assert report["oracle"]["z_band"]["n_infinite"] == 2
+    assert report["oracle"]["z_band"]["median"] == float("inf")
+    assert np.isfinite(report["oracle"]["full_height"]["median"])
+
+
+def test_audit_reports_gate_counts_for_both_branches(tmp_path):
+    audit = _audit_module()
+    world = _fixture_world(tmp_path)
+    rooms = tuple(sorted(r["room_id"] for r in world["manifest"]["records"]))
+    report = audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
+                             metadata_root=world["metadata_root"],
+                             out_dir=str(tmp_path / "cost"), expected_queries=2,
+                             required_rooms=rooms)
+    assert set(report["cost"]) == {"full_height", "z_band", "chosen_branch"}
+    for branch in ("full_height", "z_band"):
+        block = report["cost"][branch]
+        for key in ("candidate_query_pairs", "unique_receiver_candidate_pairs",
+                    "conditioner_calls_estimate", "artifact_bytes"):
+            assert key in block, (branch, key)
+        assert block["candidate_query_pairs"] > 0
+    assert report["cost"]["chosen_branch"] == report["branch"]["branch"]
+
+
+def test_unique_receiver_candidate_pairs_hash_the_actual_index_sets():
+    audit = _audit_module()
+    a = np.array([0, 1, 2]), np.array([0, 1, 2])
+    b = np.array([0, 1, 3])
+    key_a = audit.candidate_set_key("R1", a[0])
+    assert key_a == audit.candidate_set_key("R1", a[1])          # same set, same key
+    assert key_a != audit.candidate_set_key("R1", b)             # same COUNT, different set
+    assert key_a != audit.candidate_set_key("R2", a[0])          # different receiver
+    assert len(audit.candidate_set_key("R1", a[0])[1]) == 64
+
+
+def test_room_manifest_carries_indices_coordinates_branch_and_snapped_origin(tmp_path):
+    audit = _audit_module()
+    world = _fixture_world(tmp_path)
+    rooms = tuple(sorted(r["room_id"] for r in world["manifest"]["records"]))
+    out = tmp_path / "full"
+    report = audit.run_audit(world["manifest"], mesh_root=world["mesh_root"],
+                             metadata_root=world["metadata_root"], out_dir=str(out),
+                             expected_queries=2, required_rooms=rooms)
+    room = rooms[0]
+    payload = json.load(open(os.path.join(str(out), report["rooms"][room]["candidate_manifest"])))
+    assert payload["chosen_branch"] == report["branch"]["branch"]
+    # the SNAPPED lattice origin, not the raw AABB minimum
+    origin = payload["lattice_origin"]
+    assert all(abs(v / mg.LATTICE_SPACING - round(v / mg.LATTICE_SPACING)) < 1e-9
+               for v in origin)
+    query = payload["queries"][0]
+    assert len(query["candidate_indices"]) == query["n_candidates"]
+    assert len(query["candidate_indices_z_band"]) == query["n_candidates_z_band"]
+    assert len(query["candidate_coordinates_sha256"]) == 64
+    sidecar = os.path.join(str(out), payload["coordinates_npz"])
+    assert os.path.isfile(sidecar)
+    with np.load(sidecar) as data:
+        lattice = data["base_candidates"]
+        assert lattice.shape[1] == 3
+        picked = lattice[np.asarray(query["candidate_indices"])]
+        assert picked.shape[0] == query["n_candidates"]
+        assert audit.coordinates_digest(picked) == query["candidate_coordinates_sha256"]
