@@ -60,3 +60,21 @@ to receivers instead would block Cafe_idx_1, and with it the 16-room subset.
   papered over, with the majority rule and anchor predicate untouched pending the exp_09
   cross-check.
 
+## Round exp22-r3 (r2 re-review — F2 partial, F3 partial, F4 not resolved)
+
+| SHA | Finding | Description | changed lines |
+|---|---|---|---|
+| `d061f64` | F2 | exact canonical relpath equality (both sides reduced to one root-relative form, then string equality — four spoofs that passed the bidirectional `endswith` are now tests); an enumeration that cannot be built is a refusal, never an empty expectation; `assert_split_enumeration` proves 6,337 unique ordered identities **before** the pass and `assert_pass_census` the registered histogram **after**, both mandatory | +118 −21 |
+| `1d1e491` | F3 + F4 | `REQUIRED_ROOMS` literal + refusal on deviation; a blocked room aborts **before any artifact is written**, with `--diagnostics-only` writing one stamped non-manifest report; empty z-band sets stay `inf` and disqualify the branch by name; gate counts for both branches; unique receiver-candidate pairs hashed over the actual index arrays; per-room manifests carry indices, a coordinate digest, a sidecar npz, the chosen branch and the snapped lattice origin; record-stream validation (uniqueness, positions, census, room set) | +286 −74 |
+
+**Suite after exp22-r3:** 2877 passed, 10 skipped, **0 failures**, 2 subtests passed.
+
+### Deliberate refinement, for the re-review
+
+r2's F4 hardening made `choose_z_branch` refuse any non-finite oracle; r3's F3(b)
+requires empty z-band sets to stay `inf` **in** the distribution. Both cannot hold
+literally, so the rule now distinguishes them: NaN is missing evidence on either side
+and still refuses, a non-finite **full-height** oracle still refuses (an empty
+full-height set is a hard failure upstream), and `+inf` on the **band** side is
+meaningful — it disqualifies the branch, by name and with a count.
+
