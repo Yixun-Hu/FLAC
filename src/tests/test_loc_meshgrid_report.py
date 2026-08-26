@@ -2044,8 +2044,13 @@ def test_a_full_evaluation_reads_every_row_and_sidecar_exactly_once(tmp_path):
 
 def test_the_verified_row_and_sidecar_are_the_objects_the_metrics_consume(tmp_path):
     fixture = build_fixture_run(tmp_path)
-    rows, sims = mr.verify_rows_with_sidecars(fixture["run_dir"], fixture["binding_sha256"])
+    rows, sims, snapshot = mr.verify_rows_with_sidecars(fixture["run_dir"],
+                                                        fixture["binding_sha256"])
     assert sorted(sims) == sorted(row["query_id"] for row in rows)
+    assert sorted(snapshot) == sorted(sims)
+    for query_id, entry in snapshot.items():
+        assert len(entry["row_bytes_sha256"]) == len(entry["sims_bytes_sha256"]) == 64
+        assert entry["row_bytes_sha256"] == me.file_sha256(entry["row_path"])
     for row in rows:
         block = sims[row["query_id"]]
         assert list(block.shape) == list(row["sims_shape"])

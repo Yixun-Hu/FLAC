@@ -749,7 +749,8 @@ def read_verified_query_artifact(row_path, binding_sha256=None):
     caller never has to open either again.
     """
     row_path = str(row_path)
-    verdict = {"ok": False, "query_id": None, "row_path": row_path, "row": None, "sims": None}
+    verdict = {"ok": False, "query_id": None, "row_path": row_path, "row": None, "sims": None,
+               "row_bytes_sha256": None, "sims_bytes_sha256": None}
     try:
         with open(row_path, "rb") as handle:
             raw = handle.read()
@@ -757,6 +758,10 @@ def read_verified_query_artifact(row_path, binding_sha256=None):
     except (OSError, ValueError, UnicodeDecodeError) as error:   # noqa: BLE001 -- a verdict
         return dict(verdict, reason=f"the row is unreadable: {error}")
     verdict["query_id"] = row.get("query_id")
+    # the digest of the row FILE's bytes. Distinct from row_sha256, which
+    # digests the row's CLAIMS and which an editor recomputes; this one is what
+    # a later phase can be held to (Codex r9n review).
+    verdict["row_bytes_sha256"] = hashlib.sha256(raw).hexdigest()
 
     out_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(row_path))))
     sims_path = os.path.join(out_dir, str(row.get("sims_path", "")))
@@ -764,7 +769,8 @@ def read_verified_query_artifact(row_path, binding_sha256=None):
         return dict(verdict, reason=f"the sims sidecar {row.get('sims_path')!r} is missing")
     with open(sims_path, "rb") as handle:
         sims_raw = handle.read()
-    if hashlib.sha256(sims_raw).hexdigest() != row.get("sims_sha256"):
+    verdict["sims_bytes_sha256"] = hashlib.sha256(sims_raw).hexdigest()
+    if verdict["sims_bytes_sha256"] != row.get("sims_sha256"):
         return dict(verdict, reason="the sims sidecar does not match the digest the row records")
     try:
         sims = np.load(io.BytesIO(sims_raw), allow_pickle=False)
@@ -807,14 +813,50 @@ def read_verified_query_artifact(row_path, binding_sha256=None):
                 position=row.get("position"), room_id=row.get("room_id"))
 
 
+#: what a snapshot is for, said where it is built.
+ARTIFACT_SNAPSHOT_NOTE = (
+    "row_sha256 digests the row's CLAIMS and sims_sha256 lives inside the row, so an editor who "
+    "replaces a row AND its sidecar coherently recomputes both and the replacement verifies "
+    "against itself. A phase that verifies artifacts and then discards them therefore proves "
+    "nothing about what a later phase reads (Codex r9n review). The snapshot records the sha256 "
+    "of the BYTES each artifact had when it was verified, and every later read is held to it, so "
+    "nothing consumed after the census can differ from what the census saw")
+
+
+def artifact_snapshot(verdicts):
+    """``{query_id: {row_bytes_sha256, sims_bytes_sha256, row_path}}``."""
+    return {str(verdict["query_id"]): {"row_path": verdict["row_path"],
+                                       "row_bytes_sha256": verdict["row_bytes_sha256"],
+                                       "sims_bytes_sha256": verdict["sims_bytes_sha256"]}
+            for verdict in verdicts}
+
+
+def assert_matches_snapshot(query_id, verdict, snapshot):
+    """This read is byte-for-byte the artifact the snapshot phase verified."""
+    entry = (snapshot or {}).get(str(query_id))
+    if entry is None:
+        raise ValueError(
+            f"{query_id}: the census snapshot does not cover this query, so nothing establishes "
+            f"that the row being read now is the row the census verified. {ARTIFACT_SNAPSHOT_NOTE}")
+    for field, label in (("row_bytes_sha256", "row"), ("sims_bytes_sha256", "sims sidecar")):
+        if verdict.get(field) != entry.get(field):
+            raise ValueError(
+                f"{query_id}: the {label} read now hashes to {str(verdict.get(field))[:16]}... "
+                f"but the census verified {str(entry.get(field))[:16]}...; it was replaced "
+                f"between the two phases. {ARTIFACT_SNAPSHOT_NOTE}")
+    return True
+
+
 def verify_rows_with_sidecars(run_dir, binding_sha256):
     """Every row AND its sidecar, parsed from the buffers that were verified.
 
-    Returns ``(rows, sims_by_query_id)``. The sidecars are held in memory -- 142
-    MB of float16 over the registered subset -- precisely so the metrics pass
-    cannot reopen one.
+    Returns ``(rows, sims_by_query_id, snapshot)``. The sidecars are held in
+    memory -- 142 MB of float16 over the registered subset -- precisely so the
+    metrics pass cannot reopen one, and the snapshot lets a phase that CANNOT
+    hold them (the probe's census, which then walks only sixteen queries) bind
+    its later reads to what it verified here.
     """
-    rows, sims, rejected = [], {}, []
+    rows, sims, rejected, verdicts = [], {}, [], []
     for path in iter_row_paths(run_dir):
         verdict = read_verified_query_artifact(path, binding_sha256=binding_sha256)
         if not verdict["ok"]:
@@ -825,13 +867,15 @@ def verify_rows_with_sidecars(run_dir, binding_sha256):
         row["_row_path"] = path
         rows.append(row)
         sims[str(row["query_id"])] = verdict["sims"]
+        verdicts.append(verdict)
     if rejected:
         raise ValueError(
             f"{len(rejected)} published row(s) do not re-verify and the report refuses to "
             f"aggregate a partial artifact set; first {rejected[:3]}")
     if not rows:
         raise ValueError(f"{run_dir} publishes no rows")
-    return sorted(rows, key=lambda row: int(row["position"])), sims
+    return (sorted(rows, key=lambda row: int(row["position"])), sims,
+            artifact_snapshot(verdicts))
 
 
 def verify_rows(run_dir, binding_sha256):
@@ -2131,7 +2175,7 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
 
     manifest = mq.load_manifest(context_manifest, require_census=require_manifest_census)
     records = manifest["records"]
-    rows, sims_by_id = verify_rows_with_sidecars(run_dir, binding_sha)
+    rows, sims_by_id, snapshot = verify_rows_with_sidecars(run_dir, binding_sha)
     # the receipt is checked against the ROWS, so the rows come first now
     derived = derive_run_facts(rows)
     batching = assert_uniform_batching(rows, binding.get("advisory"))
@@ -2198,6 +2242,7 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
             "batching": batching,
             "single_shard": bool(single_shard), "identity_join": identity_join,
             "metadata_bank": metadata_bank, "sims_by_id": sims_by_id,
+            "artifact_snapshot": snapshot,
             "single_read_note": SINGLE_READ_NOTE,
             "truth_vector_checked": source_provider is not None,
             "max_truth_vector_drift_m": (float(max(truth_drift)) if truth_drift else None),
