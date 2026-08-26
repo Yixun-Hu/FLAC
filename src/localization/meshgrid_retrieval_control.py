@@ -95,6 +95,16 @@ SELF_PAIR_RULE = (
     "the query IS can never be retrieved, so a cosine of 1.0 against itself is impossible by "
     "construction. Every other source at the same receiver is eligible")
 
+#: what the bank shares with the model's own conditioning -- said out loud,
+#: because it decides how the comparison may be read.
+CONTEXT_OVERLAP_NOTE = (
+    "the sparse bank OVERLAPS the query's own D1 conditioning contexts by construction: the "
+    "released selector draws those eight context RIRs from the same same-receiver/other-source "
+    "pool this bank is built from. That is deliberate -- retrieval and the model then answer "
+    "from the same real evidence -- but it means the control is NOT independent of the model's "
+    "conditioning, and a retrieval hit may be a hit on an RIR the model was itself conditioned "
+    "on. It is a comparison of what is DONE with that evidence, not of who had more of it")
+
 #: How the bank is enumerated.
 #:
 #: ``numeric_identity`` (registered) matches files by their PARSED integer node
@@ -875,6 +885,7 @@ def build_report(results, context, *, radii=SUCCESS_RADII, bootstrap_seed=BOOTST
             "control": CONTROL_LABEL,
             "sparse_oracle": SPARSE_ORACLE_LABEL,
             "self_pair_rule": SELF_PAIR_RULE,
+            "context_overlap": CONTEXT_OVERLAP_NOTE,
             "bank_rule_note": BANK_RULE_NOTE,
             "subset": SUBSET_LABEL,
             "agree_leakage_caveat": AGREE_LEAKAGE_CAVEAT,
@@ -965,6 +976,7 @@ def build_handoff(report, report_sha256=None):
         "binding_sha256": report["provenance"]["binding_sha256"],
         "subset": SUBSET_LABEL,
         "agree_leakage_caveat": AGREE_LEAKAGE_CAVEAT,
+        "context_overlap": CONTEXT_OVERLAP_NOTE,
         "census": {"n_queries": report["census"]["n_queries"],
                    "n_rooms": report["census"]["n_rooms"]},
         "headline": {name: {"point": across[name]["point"], "ci_lo": across[name]["ci_lo"],
@@ -1000,6 +1012,8 @@ def render_markdown(report):
     lines.append(f"- **Scope:** {report['labels']['subset']}")
     lines.append(f"- **Run binding:** `{provenance['binding_sha256']}`")
     lines.append(f"- **Self-pair rule:** {report['labels']['self_pair_rule']}")
+    lines.append(f"- **Overlap with the model's conditioning:** "
+                 f"{report['labels']['context_overlap']}")
     lines.append(f"- **Bank rule:** `{protocol['bank_rule']}` — {report['labels']['bank_rule_note']}")
     lines.append(f"- **AGREE leakage caveat:** {report['labels']['agree_leakage_caveat']}")
     lines.append(f"- **Scorer readout deviation:** "

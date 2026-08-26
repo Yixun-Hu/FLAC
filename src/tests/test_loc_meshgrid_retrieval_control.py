@@ -173,6 +173,19 @@ def test_the_bank_rule_note_names_the_released_selector_quirk():
     assert "SUPERSET" in rc.BANK_RULE_NOTE
 
 
+def test_the_overlap_with_the_models_conditioning_is_stated(tmp_path):
+    for phrase in ("OVERLAPS", "NOT independent", "same real evidence"):
+        assert phrase in rc.CONTEXT_OVERLAP_NOTE
+    fixture = build_control_fixture(tmp_path)
+    report = rc.build_report(run_control(fixture), fixture, n_boot=64)
+    published = rc.write_report(fixture["out_dir"], report)
+    assert json.load(open(published["paths"]["json"]))["labels"]["context_overlap"] == \
+        rc.CONTEXT_OVERLAP_NOTE
+    assert json.load(open(published["paths"]["handoff"]))["context_overlap"] == \
+        rc.CONTEXT_OVERLAP_NOTE
+    assert rc.CONTEXT_OVERLAP_NOTE in open(published["paths"]["markdown"]).read()
+
+
 def test_the_control_carries_the_engines_own_leakage_caveat_verbatim():
     # copied from the engine, never paraphrased
     assert rc.AGREE_LEAKAGE_CAVEAT == me.AGREE_LEAKAGE_CAVEAT
