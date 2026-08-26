@@ -21,6 +21,7 @@ import torch
 
 from src.localization import meshgrid_engine as me
 from src.localization import meshgrid_offgrid_probe as op
+from src.localization import meshgrid_queries as mq
 from src.localization import meshgrid_report as mr
 from src.localization.reaggregate import decode_scores
 
@@ -271,11 +272,24 @@ def test_the_probe_runs_both_controls_on_one_query_per_room(tmp_path):
         assert len(record["calibration"]["generated"]) == fx.FIXTURE_SAMPLES
 
 
-def test_the_probe_saves_the_generated_waveforms_with_their_digest(tmp_path):
+def test_the_probe_stages_its_waveforms_and_publishes_them_with_the_manifest(tmp_path):
     fixture = _probe_fixture(tmp_path)
     records = _run(fixture)
+    # nothing is a finalized artifact yet: the manifest does not exist
+    for record in records:
+        assert record["waveform_published"] is False
+        assert not os.path.isfile(os.path.join(fixture["out_dir"],
+                                               record["waveform_path"]))
+        staged = os.path.join(fixture["out_dir"], record["waveform_staged_path"])
+        assert os.path.isfile(staged)
+        assert op.WAVEFORM_STAGING_DIRNAME in record["waveform_staged_path"]
+
+    op.write_probe_report(fixture["out_dir"], records, fixture["binding"],
+                          fixture["binding_sha256"], provenance={},
+                          tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES)
     for record in records:
         path = os.path.join(fixture["out_dir"], record["waveform_path"])
+        assert record["waveform_published"] is True
         assert os.path.isfile(path)
         assert me.file_sha256(path) == record["waveform_sha256"]
         with np.load(path) as data:
@@ -283,7 +297,30 @@ def test_the_probe_saves_the_generated_waveforms_with_their_digest(tmp_path):
             assert data["context_audio"].shape[0] == 8
             assert data["truth_xyz"].tolist() == record["truth_xyz"]
             assert data["receiver_xyz"].tolist() == record["receiver_xyz"]
+            # a dump read on its own still says what it is (r9 finding 9)
+            assert str(data["control_label"]) == op.CONTROL_LABEL
+            assert str(data["subset"]) == mr.SUBSET_LABEL
+            assert str(data["agree_leakage_caveat"]) == me.AGREE_LEAKAGE_CAVEAT
+            assert str(data["query_id"]) == record["query_id"]
         assert "announcement 08" in record["waveform_note"]
+    assert not os.path.isdir(os.path.join(fixture["out_dir"],
+                                          op.WAVEFORM_STAGING_DIRNAME))
+
+
+def test_a_partial_control_leaves_quarantined_dumps_never_unmanifested_finals(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    with pytest.raises(ValueError, match="the stream ended before"):
+        op.run_probe(fixture["engine"], list(fixture["items"])[:1], fixture["records"],
+                     fixture["plan"], fixture["run_dir"], fixture["out_dir"],
+                     metadata_root=fixture["metadata_root"],
+                     binding_sha256=fixture["binding_sha256"], tau=fx.FIXTURE_TAU,
+                     num_samples=fx.FIXTURE_SAMPLES, prefixes=fx.FIXTURE_PREFIXES)
+    staging = os.path.join(fixture["out_dir"], op.WAVEFORM_STAGING_DIRNAME)
+    published = os.path.join(fixture["out_dir"], op.WAVEFORM_DIRNAME)
+    assert sorted(os.listdir(staging)) == ["offgrid_A_A_idx_1_q00000.npz"]
+    # ... and nothing was finalized beside them
+    assert [name for name in os.listdir(published) if name.endswith(".npz")] == []
+    assert not os.path.isfile(os.path.join(fixture["out_dir"], op.PROBE_REPORT_JSON))
 
 
 def test_the_probe_generation_is_deterministic(tmp_path):
@@ -322,7 +359,7 @@ def test_the_probe_refuses_a_truth_whose_oracle_is_not_the_manifests(tmp_path):
     payload["src_loc"] = [1.11, 1.11, 0.61]
     with open(path, "w") as handle:
         json.dump(payload, handle)
-    with pytest.raises(ValueError, match="not looking at the same query"):
+    with pytest.raises(ValueError, match="not the one the audit measured"):
         _run(fixture)
 
 
@@ -414,3 +451,210 @@ def test_the_probe_reuses_the_drivers_binding_and_item_unpacker():
                   "noise_policy", "steps", "cfg_scale", "cond_method", "cond_autocast",
                   "dataset_config", "dump_cases_sha256"):
         assert hasattr(args, field), f"build_run_binding reads args.{field}"
+
+
+# --------------------------------------------------------------------------- #
+# r9c: the blockers the Codex r9 review found in this control
+# --------------------------------------------------------------------------- #
+def _census_args(fixture):
+    """The two D1 inputs the run census is taken against."""
+    return fixture["records"], fixture["context_manifest"]
+
+
+def _published_binding(run_dir):
+    """The binding as PUBLISHED -- advisory and declared_rooms included."""
+    return mr.load_published_binding(run_dir)[0]
+
+
+def test_the_probe_requires_the_complete_merged_run_it_ranks_against(tmp_path):
+    """B4: every shard shares the strict binding digest, so it proved nothing."""
+    fixture = _probe_fixture(tmp_path)
+    verdict = op.assert_probe_run_census(
+        fixture["run_dir"], _published_binding(fixture["run_dir"]),
+        fixture["binding_sha256"], fixture["plan"], *_census_args(fixture),
+        totals=fixture["totals"])
+    assert verdict["census"]["n_queries"] == fixture["totals"]["queries"]
+    assert verdict["identity_join"]["n_queries"] == fixture["totals"]["queries"]
+    assert verdict["merge"]["declared_rooms"] == sorted(fx.FIXTURE_QUERIES)
+
+    # one shard of that same run carries the SAME binding and is refused
+    shard = fixture["shards"][0]
+    shard_binding = _published_binding(shard)
+    with pytest.raises(ValueError, match="publishes no merge_report.json"):
+        op.assert_probe_run_census(shard, shard_binding, fixture["binding_sha256"],
+                                   fixture["plan"], *_census_args(fixture),
+                                   totals=fixture["totals"])
+    with pytest.raises(ValueError, match="have no published row"):
+        op.assert_probe_run_census(shard, shard_binding, fixture["binding_sha256"],
+                                   fixture["plan"], *_census_args(fixture),
+                                   totals=fixture["totals"], single_shard=True)
+
+
+def test_the_probe_binding_alone_cannot_tell_a_shard_from_the_merge(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    # the r9 gate: it passes on a single shard, which is the whole finding
+    assert op.assert_probe_binding(fixture["shards"][0],
+                                   fixture["binding"])["binding_sha256"] == \
+        fixture["binding_sha256"]
+
+
+def test_the_probe_refuses_a_swapped_audit_or_manifest(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    other = fx._fixture_audit(tmp_path / "other", stamp="a second valid audit")
+    other_plan = me.load_audit_plan(other)
+    with pytest.raises(ValueError, match="g1_report_sha256"):
+        op.assert_probe_run_census(fixture["run_dir"],
+                                   _published_binding(fixture["run_dir"]),
+                                   fixture["binding_sha256"], other_plan,
+                                   *_census_args(fixture), totals=fixture["totals"])
+
+
+def test_a_foreign_row_at_the_expected_path_cannot_supply_the_grid_scores(tmp_path):
+    """B4: the row was digest-checked but never joined to THIS query."""
+    import shutil
+
+    fixture = _probe_fixture(tmp_path)
+    room = me.load_room_plan(fixture["plan"], "A/A_idx_1")
+    probe_query = next(q for q in room.queries if q.position == 0)
+    other_query = next(q for q in room.queries if q.position == 2)
+    target = me.query_artifact_paths(fixture["run_dir"], probe_query.room_id,
+                                     probe_query.position)["row"]
+    source = me.query_artifact_paths(fixture["run_dir"], other_query.room_id,
+                                     other_query.position)["row"]
+    shutil.copyfile(source, target)
+
+    # the row is intact and its digests all verify -- it is simply a different query
+    assert me.verify_query_artifact(target,
+                                    binding_sha256=fixture["binding_sha256"])["ok"]
+    with pytest.raises(ValueError, match="does not match the candidate manifest"):
+        op.load_grid_row(fixture["run_dir"], probe_query,
+                         binding_sha256=fixture["binding_sha256"])
+
+
+def test_the_grid_row_protocol_is_checked_against_the_binding(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    room = me.load_room_plan(fixture["plan"], "A/A_idx_1")
+    query = next(q for q in room.queries if q.position == 0)
+    assert op.load_grid_row(fixture["run_dir"], query,
+                            binding_sha256=fixture["binding_sha256"],
+                            binding=fixture["binding"])["query_id"] == query.query_id
+    with pytest.raises(ValueError, match="tau"):
+        op.load_grid_row(fixture["run_dir"], query,
+                         binding_sha256=fixture["binding_sha256"],
+                         binding=dict(fixture["binding"], tau=0.25))
+
+
+def test_the_binding_gate_runs_before_anything_reaches_a_device(tmp_path, monkeypatch):
+    """B5: AGREE used to be loaded onto --device to build the binding."""
+    import src.localization.agree_embed as agree_embed
+
+    fixture = _probe_fixture(tmp_path)
+    order = []
+
+    def _gate(args, model_config, agree_path):
+        order.append("gate")
+        raise ValueError("the gate refused this run")
+
+    def _load(*_args, **_kwargs):
+        order.append("agree")
+        raise AssertionError("the scorer reached a device before the gate ran")
+
+    monkeypatch.setattr(op, "gate_run", _gate)
+    monkeypatch.setattr(agree_embed, "load_agree_audio", _load)
+    with pytest.raises(ValueError, match="the gate refused this run"):
+        op.main(["--ckpt-path", fixture["context_manifest"],
+                 "--run-dir", fixture["run_dir"], "--out-dir", fixture["out_dir"],
+                 "--agree-ckpt", fixture["context_manifest"],
+                 "--audit-report", fixture["audit_report"],
+                 "--context-manifest", fixture["context_manifest"]])
+    assert order == ["gate"]
+
+
+def test_gate_run_touches_no_device_and_returns_the_whole_ladder(tmp_path, monkeypatch):
+    fixture = _probe_fixture(tmp_path)
+    args = op.parse_args(["--ckpt-path", fixture["context_manifest"],
+                          "--run-dir", fixture["run_dir"], "--out-dir", fixture["out_dir"],
+                          "--audit-report", fixture["audit_report"],
+                          "--context-manifest", fixture["context_manifest"],
+                          "--device", "cuda:0"])
+    monkeypatch.setattr(op.torch, "load", lambda *a, **k: {"model_config": {}})
+    monkeypatch.setattr(mq, "load_manifest",
+                        lambda path, **k: json.load(open(path)))
+    monkeypatch.setattr(op.me, "file_sha256", me.file_sha256)
+
+    captured = {}
+
+    def _binding(args_, plan, **kwargs):
+        captured["kwargs"] = kwargs
+        return dict(fixture["binding"])
+
+    import localize_meshgrid as driver
+    monkeypatch.setattr(driver, "build_run_binding", _binding)
+    monkeypatch.setattr(driver, "validate_checkpoint", lambda *a, **k: None)
+    plan, manifest, binding, gate, _ckpt = op.gate_run(args, {},
+                                                       fixture["context_manifest"],
+                                                       totals=fixture["totals"])
+    assert sorted(plan.rooms) == sorted(fx.FIXTURE_QUERIES)
+    assert gate["census"]["n_queries"] == fixture["totals"]["queries"]
+    assert gate["identity_join"]["n_queries"] == fixture["totals"]["queries"]
+    assert gate["registered_protocol"]["is_registered"] is True
+    # the AGREE identity came from a FILE digest, never from a loaded model
+    assert captured["kwargs"]["agree_sha256"] == me.file_sha256(fixture["context_manifest"])
+
+
+def test_the_probe_checks_the_truth_as_a_vector_against_the_loader(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    assert all(record["truth_vector_drift_m"] == pytest.approx(0.0, abs=1e-6)
+               for record in records)
+
+    mirrored = fx._mirrored_truth("A/A_idx_1")
+    scene, scene_id = "A/A_idx_1".split("/")
+    path = os.path.join(fixture["metadata_root"], scene, scene_id, "S001_R002.json")
+    payload = json.load(open(path))
+    payload["src_loc"] = mirrored
+    with open(path, "w") as handle:
+        json.dump(payload, handle)
+    # the scalar oracle is blind to it; the vector check is not
+    with pytest.raises(ValueError, match="is not the one the query was held out from"):
+        _run(fixture)
+
+
+def test_a_rank_one_tie_is_not_counted_as_beating_every_candidate(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    largest = str(max(fx.FIXTURE_PREFIXES))
+    # force one query into a tie with the best grid candidate and one strictly above
+    records[0]["rank_lme"][largest].update(rank=1, n_grid_better=0, n_grid_tied=1)
+    records[1]["rank_lme"][largest].update(rank=1, n_grid_better=0, n_grid_tied=0)
+    block = op.summarize_probe(records, prefixes=fx.FIXTURE_PREFIXES)["by_k"][largest]
+    assert block["n_rank_one"] == 2
+    assert block["n_truth_beats_every_candidate"] == 1
+    assert block["n_truth_ties_the_best"] == 1
+    assert "strictly better" in block["rank_one_note"]
+
+
+def test_the_probe_report_carries_the_run_gate_and_every_disclosure(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    gate = op.assert_probe_run_census(
+        fixture["run_dir"], _published_binding(fixture["run_dir"]),
+        fixture["binding_sha256"], fixture["plan"], *_census_args(fixture),
+        totals=fixture["totals"])
+    published = op.write_probe_report(
+        fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
+        provenance={"run_dir": fixture["run_dir"]}, tau=fx.FIXTURE_TAU,
+        prefixes=fx.FIXTURE_PREFIXES,
+        gate={key: gate[key] for key in ("census", "identity_join", "merge",
+                                         "single_shard", "single_shard_note",
+                                         "registered_protocol")})
+    payload = json.load(open(published["json"]))
+    assert payload["latency_scope_note"] == mr.LATENCY_SCOPE_NOTE
+    assert payload["truth_binding_note"] == mr.TRUTH_BINDING_NOTE
+    assert payload["controls_elsewhere"] == mr.CONTROLS_ELSEWHERE
+    assert payload["run_gate"]["census"]["n_queries"] == fixture["totals"]["queries"]
+    assert payload["single_shard"] is False
+    markdown = open(published["markdown"]).read()
+    assert "strictly beats every candidate" in markdown
+    assert "ties the best" in markdown
+    assert mr.TRUTH_BINDING_NOTE in markdown

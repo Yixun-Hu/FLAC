@@ -120,7 +120,38 @@ def assert_probe_binding(run_dir, binding, fields=PROBE_BINDING_FIELDS):
             "checkpoint, scorer, context draw, candidate manifest or sampler setting cannot be "
             "compared against the run's scores")
     return {"binding_sha256": published_sha, "fields_checked": list(fields),
-            "published": {field: published[field] for field in fields}}
+            "published": published,
+            "published_checked": {field: published[field] for field in fields}}
+
+
+def assert_probe_run_census(run_dir, binding, binding_sha256, plan, records,
+                            context_manifest, totals=None, single_shard=False,
+                            expect_ckpt_sha256=None, allow_protocol_deviation=False):
+    """The run this control ranks against IS the complete, merged, registered pass.
+
+    Every shard of a run shares the strict binding digest, so the binding alone
+    cannot tell a finished 5,337-query merge from one shard of it -- and a rank
+    "of 5,337 queries" taken against a partial directory would be a different
+    claim than the one the report makes (Codex r9 review, finding 4). The full
+    artifact ladder the R1 report applies is applied here too, reusing it rather
+    than re-deriving a weaker copy: the supplied D1/G1/room manifests must be the
+    bound ones, the binding must be the registered protocol, the directory must
+    carry its merge report, every row and sidecar must re-verify, the census must
+    hold and the D1/G1/row identities must be one set.
+    """
+    artifacts = mr.assert_artifact_hashes(binding, plan, context_manifest)
+    registered = mr.assert_registered_protocol(binding, expect_ckpt_sha256=expect_ckpt_sha256,
+                                               allow_deviation=allow_protocol_deviation)
+    merge = (None if single_shard
+             else mr.assert_merge_report(run_dir, binding, binding_sha256, plan, totals=totals))
+    rows = mr.verify_rows(run_dir, binding_sha256)
+    census = mr.assert_census(rows, records, totals=totals)
+    mr.assert_row_protocol(rows, binding)
+    identity_join = mr.assert_identity_join(plan, records, rows)
+    return {"artifacts": artifacts, "registered_protocol": registered, "merge": merge,
+            "census": census, "identity_join": identity_join,
+            "single_shard": bool(single_shard),
+            "single_shard_note": mr.SINGLE_SHARD_NOTE if single_shard else None}
 
 
 def assert_registered_probe_set(probes, plan):
@@ -278,19 +309,33 @@ def _distribution(values):
 # --------------------------------------------------------------------------- #
 # artifacts (announcement 08)
 # --------------------------------------------------------------------------- #
-def write_probe_waveforms(out_dir, room_id, position, waveforms, observation, context_audio,
-                          truth_xyz, receiver_xyz):
-    """One probe query's waveform dump, published atomically with its digest.
+#: where a query's dump waits until the whole control has succeeded.
+WAVEFORM_STAGING_DIRNAME = os.path.join(WAVEFORM_DIRNAME, ".partial")
 
-    Announcement 08's exp_22 exemption names these sixteen queries explicitly, so
-    the dump is the rule here rather than an exception to it. The real context
-    bank travels with the generations, because the calibration distribution is
-    only auditable if both sides are in the artifact.
+WAVEFORM_NOTE = ("off-grid truth generations [K, 1, T], the observation and the real context "
+                 "bank they are calibrated against (announcement 08 exp_22 exemption: the "
+                 "sixteen registered probe queries)")
+
+
+def write_probe_waveforms(out_dir, room_id, position, waveforms, observation, context_audio,
+                          truth_xyz, receiver_xyz, query_id=None):
+    """One probe query's dump, STAGED with its digest and its own labels.
+
+    Staged, not published: a dump finalized the moment its query finished would
+    survive a later failure as an unmanifested file holding generations at the
+    ground truth (Codex r9 review, finding 9). :func:`publish_probe_waveforms`
+    moves the whole set into place only after all sixteen have succeeded and the
+    manifest exists; anything left behind stays under ``waveforms/.partial/``,
+    quarantined and obviously incomplete.
+
+    The labels travel INSIDE the npz as well, because a waveform file read on its
+    own -- which is exactly how a dump gets used -- would otherwise carry
+    generations at the held-out truth with nothing saying so.
     """
-    directory = os.path.join(str(out_dir), WAVEFORM_DIRNAME)
-    os.makedirs(directory, exist_ok=True)
+    staging = os.path.join(str(out_dir), WAVEFORM_STAGING_DIRNAME)
+    os.makedirs(staging, exist_ok=True)
     name = f"offgrid_{me.room_stem(room_id)}_q{int(position):05d}.npz"
-    path = os.path.join(directory, name)
+    path = os.path.join(staging, name)
     tmp = path + ".tmp"
     with open(tmp, "wb") as handle:
         np.savez(handle,
@@ -301,19 +346,61 @@ def write_probe_waveforms(out_dir, room_id, position, waveforms, observation, co
                  context_audio=np.asarray(torch.as_tensor(context_audio).detach().cpu()
                                           .numpy(), dtype=np.float32),
                  truth_xyz=np.asarray(truth_xyz, dtype=np.float64).reshape(3),
-                 receiver_xyz=np.asarray(receiver_xyz, dtype=np.float64).reshape(3))
+                 receiver_xyz=np.asarray(receiver_xyz, dtype=np.float64).reshape(3),
+                 query_id=np.array(str(query_id or "")),
+                 room_id=np.array(str(room_id)),
+                 control_label=np.array(CONTROL_LABEL),
+                 calibration_label=np.array(CALIBRATION_LABEL),
+                 subset=np.array(mr.SUBSET_LABEL),
+                 agree_leakage_caveat=np.array(me.AGREE_LEAKAGE_CAVEAT),
+                 scorer_readout_deviation=np.array(me.SCORER_READOUT_DEVIATION),
+                 waveform_note=np.array(WAVEFORM_NOTE))
     os.replace(tmp, path)
-    return {"waveform_path": os.path.relpath(path, str(out_dir)),
+    return {"waveform_path": os.path.join(WAVEFORM_DIRNAME, name),
+            "waveform_staged_path": os.path.relpath(path, str(out_dir)),
             "waveform_sha256": me.file_sha256(path),
-            "waveform_note": "off-grid truth generations [K, 1, T], the observation and the "
-                             "real context bank they are calibrated against (announcement 08 "
-                             "exp_22 exemption: the sixteen registered probe queries)"}
+            "waveform_published": False,
+            "waveform_note": WAVEFORM_NOTE}
+
+
+def publish_probe_waveforms(out_dir, records):
+    """Move every staged dump into place -- only once the control is complete.
+
+    The digest was taken at staging time and the bytes do not change, so the
+    published file's sha256 is the one the manifest already records.
+    """
+    published = []
+    for record in records:
+        source = os.path.join(str(out_dir), record["waveform_staged_path"])
+        target = os.path.join(str(out_dir), record["waveform_path"])
+        if not os.path.isfile(source):
+            raise ValueError(f"{record['query_id']}: the staged dump {source!r} is gone; the "
+                             "control may not publish a manifest naming a file it cannot move")
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        os.replace(source, target)
+        if me.file_sha256(target) != record["waveform_sha256"]:
+            raise ValueError(f"{record['query_id']}: the published dump does not match the "
+                             "digest recorded at staging time")
+        record["waveform_published"] = True
+        published.append(record["waveform_path"])
+    staging = os.path.join(str(out_dir), WAVEFORM_STAGING_DIRNAME)
+    if os.path.isdir(staging) and not os.listdir(staging):
+        os.rmdir(staging)
+    return published
 
 
 def write_probe_report(out_dir, records, binding, binding_sha256, provenance,
-                       tau=me.TAU, prefixes=me.K_PREFIXES):
-    """Publish the probe's JSON + markdown, both stamped with every caveat."""
+                       tau=me.TAU, prefixes=me.K_PREFIXES, gate=None):
+    """Publish the probe's JSON + markdown, both stamped with every caveat.
+
+    The staged waveform dumps are moved into place FIRST and only here, so a
+    manifest and its files appear together or not at all.
+    """
     os.makedirs(str(out_dir), exist_ok=True)
+    records = list(records)
+    # summarize FIRST: a refusal in here must not leave published dumps behind
+    summary = summarize_probe(records, prefixes=prefixes)
+    publish_probe_waveforms(out_dir, records)
     report = {
         "experiment": "exp_22 loc_meshgrid R1 off-grid truth probe + AGREE calibration",
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -327,6 +414,16 @@ def write_probe_report(out_dir, records, binding, binding_sha256, provenance,
         "binding": {field: binding[field] for field in PROBE_BINDING_FIELDS
                     if field in binding},
         "provenance": dict(provenance or {}),
+        # the run-level gates this control was admitted under; None only when the
+        # caller ran the pass directly, which the CLI never does
+        "run_gate": gate,
+        "single_shard": bool((gate or {}).get("single_shard")),
+        "single_shard_note": (gate or {}).get("single_shard_note"),
+        # every artifact of this round carries the same disclosures, so an
+        # off-grid output read on its own cannot lose them (r9 finding 10)
+        "latency_scope_note": mr.LATENCY_SCOPE_NOTE,
+        "truth_binding_note": mr.TRUTH_BINDING_NOTE,
+        "controls_elsewhere": mr.CONTROLS_ELSEWHERE,
         "protocol": {"tau": float(tau), "k_prefixes": [int(k) for k in prefixes],
                      "noise_policy": me.REGISTERED_NOISE_POLICY,
                      "noise_note": "the truth generation is keyed by the query, not by a "
@@ -334,7 +431,7 @@ def write_probe_report(out_dir, records, binding, binding_sha256, provenance,
                                    "grid candidate of that query was drawn from"},
         "n_queries": len(records),
         "records": list(records),
-        "summary": summarize_probe(records, prefixes=prefixes),
+        "summary": summary,
     }
     path = os.path.join(str(out_dir), PROBE_REPORT_JSON)
     me.write_json(path, mr.jsonable(report))
@@ -360,11 +457,22 @@ def summarize_probe(records, prefixes=me.K_PREFIXES):
                              for record in records], dtype=np.float64)
         percentiles = np.asarray([record["rank_lme"][str(k)]["percentile"]
                                   for record in records], dtype=np.float64)
+        # rank 1 covers both "beat everything" and "tied the best", and those are
+        # different claims: a tie means the truth position scored no better than
+        # some grid candidate (Codex r9 review, finding 10)
+        ties = np.asarray([record["rank_lme"][str(k)]["n_grid_tied"] for record in records],
+                          dtype=np.int64)
+        strictly_better = int(((ranks == 1.0) & (ties == 0)).sum())
         by_k[str(k)] = {
             "n_queries": len(records),
             "rank": {"mean": float(ranks.mean()), "median": float(np.median(ranks)),
                      "min": float(ranks.min()), "max": float(ranks.max())},
-            "n_truth_beats_every_candidate": int((ranks == 1.0).sum()),
+            "n_truth_beats_every_candidate": strictly_better,
+            "n_truth_ties_the_best": int(((ranks == 1.0) & (ties > 0)).sum()),
+            "n_rank_one": int((ranks == 1.0).sum()),
+            "rank_one_note": "rank 1 means no grid candidate scored HIGHER; "
+                             "n_truth_beats_every_candidate counts only the strictly better "
+                             "cases, and n_truth_ties_the_best the rest",
             "truth_minus_best_grid": {"mean": float(deltas.mean()),
                                       "median": float(np.median(deltas)),
                                       "min": float(deltas.min()), "max": float(deltas.max())},
@@ -392,18 +500,25 @@ def render_markdown(report):
     lines.append(f"- **Run binding:** `{report['binding_sha256']}`")
     lines.append(f"- **AGREE leakage caveat:** {report['agree_leakage_caveat']}")
     lines.append(f"- **Scorer readout deviation:** {report['scorer_readout_deviation']}")
+    lines.append(f"- **Truth binding:** {report['truth_binding_note']}")
     lines.append("")
+    if report.get("single_shard"):
+        lines.append(f"> **{report['single_shard_note']}**")
+        lines.append("")
     lines.append("## Off-grid truth rank against the grid (log-mean-exp)")
     lines.append("")
-    lines.append("| K | median rank | min | max | truth beats every candidate | "
-                 "median (truth − best grid) |")
-    lines.append("|---|---|---|---|---|---|")
+    lines.append("| K | median rank | min | max | truth strictly beats every candidate | "
+                 "ties the best | median (truth − best grid) |")
+    lines.append("|---|---|---|---|---|---|---|")
     for k, block in sorted(report["summary"]["by_k"].items(), key=lambda item: int(item[0])):
         lines.append(f"| {k} | {mr.format_number(block['rank']['median'], 1)} | "
                      f"{mr.format_number(block['rank']['min'], 0)} | "
                      f"{mr.format_number(block['rank']['max'], 0)} | "
                      f"{block['n_truth_beats_every_candidate']}/{block['n_queries']} | "
+                     f"{block['n_truth_ties_the_best']}/{block['n_queries']} | "
                      f"{mr.format_number(block['truth_minus_best_grid']['median'], 5)} |")
+    lines.append("")
+    lines.append(f"_{report['summary']['by_k'][str(max(int(k) for k in report['summary']['by_k']))]['rank_one_note']}_")
     lines.append("")
     lines.append("## Real vs generated AGREE cosine")
     lines.append("")
@@ -443,21 +558,34 @@ def render_markdown(report):
 # --------------------------------------------------------------------------- #
 # the pass
 # --------------------------------------------------------------------------- #
-def load_grid_row(run_dir, room_id, position, binding_sha256=None):
-    """The published row the truth score is ranked against, re-verified first."""
-    paths = me.query_artifact_paths(str(run_dir), room_id, int(position))
+def load_grid_row(run_dir, query, binding_sha256=None, binding=None):
+    """The published row the truth score is ranked against, fully joined first.
+
+    A generic digest check proves a row is intact; it does not prove it is THIS
+    query's row. Rows are addressed by ``(room, position)``, so a same-binding row
+    left at the expected path by another query would have silently supplied its
+    grid scores to the rank (Codex r9 review, finding 4). The engine's own
+    identity join answers that question -- it compares the row's query id,
+    receiver, branch and full candidate index list against the G1 plan -- and the
+    row's protocol is checked against the binding on top of it.
+    """
+    paths = me.query_artifact_paths(str(run_dir), query.room_id, int(query.position))
     verdict = me.verify_query_artifact(paths["row"], binding_sha256=binding_sha256)
     if not verdict["ok"]:
-        raise ValueError(f"{room_id} q{int(position):05d}: the published row cannot be used as "
-                         f"the probe's grid reference: {verdict['reason']}")
+        raise ValueError(f"{query.room_id} q{int(query.position):05d}: the published row cannot "
+                         f"be used as the probe's grid reference: {verdict['reason']}")
+    me.assert_published_matches(str(run_dir), query, binding_sha256=binding_sha256)
     with open(paths["row"]) as handle:
-        return json.load(handle)
+        row = json.load(handle)
+    if binding is not None:
+        mr.assert_row_protocol([row], binding)
+    return row
 
 
 def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
-              binding_sha256=None, seed=me.SEED, tau=me.TAU, num_samples=me.NUM_SAMPLES,
-              prefixes=me.K_PREFIXES, noise_policy=me.NOISE_KEY_POLICY, source_chunk=1,
-              on_record=None):
+              binding_sha256=None, binding=None, seed=me.SEED, tau=me.TAU,
+              num_samples=me.NUM_SAMPLES, prefixes=me.K_PREFIXES,
+              noise_policy=me.NOISE_KEY_POLICY, source_chunk=1, on_record=None):
     """Walk the registered stream and run both controls on the sixteen queries.
 
     The stream is the released loader in D1 order and is walked ONCE, exactly as
@@ -505,13 +633,15 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
         coordinates = np.asarray(query.coordinates, dtype=np.float64)
         distances = np.linalg.norm(coordinates - truth.reshape(1, 3), axis=1)
         e_oracle = float(distances.min())
-        if abs(e_oracle - float(query.oracle)) > mr.ORACLE_TOLERANCE:
-            raise ValueError(f"{query.query_id}: the probe's re-derived oracle {e_oracle:.9f} m "
-                             f"differs from the G1 manifest's {float(query.oracle):.9f} m; the "
-                             "probe is not looking at the same query")
+        mr.assert_grid_oracle(query.query_id, coordinates, query.oracle, truth)
+        # the injective check: this control HAS the stream, so it can compare the
+        # truth as a VECTOR against the loader's own target instead of relying on
+        # the scalar oracle, which two truths mirrored inside one lattice cell
+        # would share (Codex r9 review, finding 3)
+        truth_vector_drift = mr.assert_truth_vector(query.query_id, truth, query.receiver_xyz,
+                                                    raw_md["source"])
 
-        row = load_grid_row(run_dir, query.room_id, query.position,
-                            binding_sha256=binding_sha256)
+        row = load_grid_row(run_dir, query, binding_sha256=binding_sha256, binding=binding)
         obs_embedding = torch.as_tensor(
             engine.embedder(torch.as_tensor(obs_wav).to(engine.device))
         )[0].float().cpu()
@@ -524,7 +654,8 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
         calibration = calibration_record(engine.embedder, obs_embedding,
                                          md["context_audio"], waveforms)
         dump = write_probe_waveforms(out_dir, query.room_id, query.position, waveforms,
-                                     obs_wav, md["context_audio"], truth, query.receiver_xyz)
+                                     obs_wav, md["context_audio"], truth, query.receiver_xyz,
+                                     query_id=query.query_id)
 
         record_out = {
             "control_label": CONTROL_LABEL,
@@ -532,6 +663,7 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
             "position": int(query.position), "receiver_id": query.receiver_id,
             "receiver_xyz": [float(v) for v in query.receiver_xyz],
             "truth_xyz": [float(v) for v in truth],
+            "truth_vector_drift_m": float(truth_vector_drift),
             "n_candidates": int(query.n_candidates), "num_samples": int(num_samples),
             "e_oracle": e_oracle,
             "truth_is_a_candidate": bool(distances.min() == 0.0),
@@ -553,8 +685,12 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
 
     absent = sorted(set(wanted) - seen)
     if absent:
+        # the staged dumps stay in waveforms/.partial/: quarantined and obviously
+        # incomplete, never a finalized file no manifest names (r9 finding 9)
         raise ValueError(f"the stream ended before {len(absent)} probe queries were reached "
-                         f"(first {absent[:3]}); a partial control may not be published")
+                         f"(first {absent[:3]}); a partial control may not be published. "
+                         f"{len(out)} staged dump(s) remain under "
+                         f"{WAVEFORM_STAGING_DIRNAME}/ and are not manifested")
     out.sort(key=lambda record: int(record["position"]))
     return out
 
@@ -598,6 +734,16 @@ def parse_args(argv=None):
     parser.add_argument("--steps", type=int, default=me.STEPS)
     parser.add_argument("--cfg-scale", type=float, default=me.CFG_SCALE)
     parser.add_argument("--source-chunk", type=int, default=1)
+    parser.add_argument("--single-shard", action="store_true",
+                        help="rank against a directory that carries no merge_report.json. "
+                             "Relaxes only the merge-only gates; the artifact-hash joins, the "
+                             "row census, the identity join and every digest still apply, and "
+                             "the control is stamped as non-canonical")
+    parser.add_argument("--expect-ckpt-sha256", default=None,
+                        help="enforce the run binding's ckpt_sha256 against this value")
+    parser.add_argument("--allow-protocol-deviation", action="store_true",
+                        help="run even though the run binding is not the registered protocol; "
+                             "the artifacts are then stamped as a sensitivity check")
     # the probe registers no dump case list: announcement 08 names its sixteen
     # queries directly. Present so build_run_binding can be reused unchanged.
     parser.add_argument("--dump-cases-sha256", default=None, help=argparse.SUPPRESS)
@@ -630,38 +776,67 @@ def validate_args(args):
     return True
 
 
+def gate_run(args, model_config, agree_path, totals=None):
+    """Every artifact gate, on CPU, BEFORE anything reaches a device.
+
+    The r9 probe built its binding out of a LOADED AGREE model, which put the
+    scorer on ``--device`` before the gate that decides whether this control may
+    run at all (Codex r9 review, finding 5). Nothing here needs a device: the
+    AGREE identity is a file digest, the checkpoint is read to CPU, and the whole
+    artifact ladder -- audit chain, context manifest, binding, hash joins,
+    registered protocol, merge report, row census, identity join -- is applied.
+    Only after this returns does the caller load a model.
+
+    ``totals`` exists for fixtures, exactly as ``evaluate_run``'s does, and is
+    never passed by ``main``: a real run is always held to the registered census.
+    """
+    from localize_meshgrid import build_run_binding, validate_checkpoint
+
+    plan = me.load_audit_plan(args.audit_report, branch=args.branch)
+    manifest = mq.load_manifest(args.context_manifest)
+    ckpt = torch.load(args.ckpt_path, map_location="cpu")
+    validate_checkpoint(args, model_config, ckpt)
+    binding = build_run_binding(args, plan, ckpt_sha256=me.file_sha256(args.ckpt_path),
+                                agree_sha256=me.file_sha256(agree_path),
+                                model_config_sha256=me.file_sha256(args.model_config))
+    gate = assert_probe_binding(args.run_dir, binding)
+    gate.update(assert_probe_run_census(
+        args.run_dir, gate["published"], gate["binding_sha256"], plan,
+        manifest["records"], args.context_manifest,
+        totals=totals, single_shard=args.single_shard,
+        expect_ckpt_sha256=args.expect_ckpt_sha256,
+        allow_protocol_deviation=args.allow_protocol_deviation))
+    return plan, manifest, binding, gate, ckpt
+
+
 def main(argv=None):
     args = parse_args(argv)
     validate_args(args)
     print(f"{CONTROL_LABEL}\n")
     print(f"AGREE LEAKAGE CAVEAT: {me.AGREE_LEAKAGE_CAVEAT}")
+    if args.single_shard:
+        print(f"\n{mr.SINGLE_SHARD_NOTE}\n")
 
-    from localize_meshgrid import build_run_binding, validate_checkpoint
     # the driver's own item unpacker -- one implementation, not a second copy
     from localize_meshgrid import _iter_items as iter_stream_items
 
     with open(args.model_config) as handle:
         model_config = json.load(handle)
-    resolved = mq.with_resolved_agree(model_config)
-    agree_path = args.agree_ckpt or resolved["training"]["metrics"]["AGREE_ckpt"]
+    # resolve the configured scorer only when the operator did not name one
+    agree_path = args.agree_ckpt or \
+        mq.with_resolved_agree(model_config)["training"]["metrics"]["AGREE_ckpt"]
 
-    plan = me.load_audit_plan(args.audit_report, branch=args.branch)
-    manifest = mq.load_manifest(args.context_manifest)
+    # EVERY gate first, on CPU. Nothing below this line may run if one refuses.
+    plan, manifest, binding, gate, ckpt = gate_run(args, model_config, agree_path)
     records = manifest["records"]
-
-    ckpt = torch.load(args.ckpt_path, map_location="cpu")
-    validate_checkpoint(args, model_config, ckpt)
+    print(f"binding gate passed against {args.run_dir}: {gate['binding_sha256'][:12]}... "
+          f"({len(gate['fields_checked'])} fields); run census "
+          f"{gate['census']['n_queries']:,} queries / {gate['census']['n_rooms']} rooms, "
+          f"identity join over {gate['identity_join']['n_queries']:,} identities")
 
     from src.localization.agree_embed import load_agree_audio
 
     agree = load_agree_audio(agree_path, args.device)
-    binding = build_run_binding(args, plan, ckpt_sha256=me.file_sha256(args.ckpt_path),
-                                agree_sha256=agree.ckpt_sha256,
-                                model_config_sha256=me.file_sha256(args.model_config))
-    gate = assert_probe_binding(args.run_dir, binding)
-    print(f"binding gate passed against {args.run_dir}: {gate['binding_sha256'][:12]}... "
-          f"({len(gate['fields_checked'])} fields)")
-
     engine, context = me.build_mesh_engine(
         args.ckpt_path, model_config, agree, device=args.device,
         cond_method=args.cond_method, cond_autocast=args.cond_autocast,
@@ -682,7 +857,8 @@ def main(argv=None):
     probe_records = run_probe(
         engine, iter_stream_items(loader), records, plan, args.run_dir, args.out_dir,
         metadata_root=args.metadata_root, binding_sha256=gate["binding_sha256"],
-        seed=args.seed, tau=args.tau, num_samples=args.num_samples,
+        binding=gate["published"], seed=args.seed, tau=args.tau,
+        num_samples=args.num_samples,
         prefixes=tuple(int(k) for k in args.k_prefixes), noise_policy=args.noise_policy,
         source_chunk=args.source_chunk, on_record=_announce)
     published = write_probe_report(args.out_dir, probe_records, binding,
@@ -692,9 +868,13 @@ def main(argv=None):
                                                "audit_report_sha256": plan.report_sha256,
                                                "context_manifest": str(args.context_manifest),
                                                "agree_ckpt": agree_path,
+                                               "agree_ckpt_sha256": agree.ckpt_sha256,
                                                "device": str(args.device)},
                                    tau=args.tau,
-                                   prefixes=tuple(int(k) for k in args.k_prefixes))
+                                   prefixes=tuple(int(k) for k in args.k_prefixes),
+                                   gate={key: gate[key] for key in
+                                         ("census", "identity_join", "merge", "single_shard",
+                                          "single_shard_note", "registered_protocol")})
     print(f"\n{len(probe_records)} probe queries -> {published['json']}")
     print(f"  markdown -> {published['markdown']}")
     return 0
