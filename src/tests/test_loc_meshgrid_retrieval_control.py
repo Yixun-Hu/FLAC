@@ -1052,6 +1052,23 @@ def test_the_scalar_oracle_check_no_longer_claims_to_pin_the_truth(tmp_path):
         assert phrase in rc.TRUTH_INTEGRITY_NOTE
 
 
+def test_the_byte_gates_are_reported_from_the_walk_not_claimed_by_the_caller(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    walked = rc.build_report(run_control(fixture), fixture, n_boot=64)["gates"]
+    for name in ("bank_membership_rechecked_against_the_digest",
+                 "digested_bytes_reverified_on_every_post_gate_read",
+                 "observation_is_the_digested_file_and_decodes_to_the_scored_tensor"):
+        assert walked[name] is True
+
+    # the same context, but a walk that had no digest to verify against: the
+    # report says so rather than repeating what the caller passed
+    unverified = rc.build_report(run_control(fixture, bank_document=None), fixture, n_boot=64)
+    for name in ("bank_membership_rechecked_against_the_digest",
+                 "digested_bytes_reverified_on_every_post_gate_read",
+                 "observation_is_the_digested_file_and_decodes_to_the_scored_tensor"):
+        assert unverified["gates"][name] is False
+
+
 def test_an_unpinned_bank_leaves_the_truth_claim_false(tmp_path):
     fixture = build_control_fixture(tmp_path, pre_register=False)
     results = run_control(fixture)

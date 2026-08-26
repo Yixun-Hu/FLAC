@@ -1310,6 +1310,9 @@ def run_retrieval(embedder, stream, records, plan, *, metadata_root, dataset_roo
             receiver_xyz=query.receiver_xyz, radii=radii, bank=bank, grid=grid,
             bank_rule=bank_rule)
         result["e_oracle_grid_delta"] = float(oracle_deltas[-1])
+        # what this query's pass ACTUALLY did, so the report's gate flags are
+        # derived from the walk rather than claimed by its caller
+        result["digest_verified"] = bool(bank_document is not None)
         results.append(result)
         seen.add(query_id)
         if on_record is not None:
@@ -1581,6 +1584,7 @@ def build_report(results, context, *, radii=SUCCESS_RADII, bootstrap_seed=BOOTST
                             n_boot=n_boot, alpha=alpha, radii=radii),
         allow_non_canonical=bool(context.get("allow_non_canonical")))
     bank_gate = dict(context.get("bank_gate") or {})
+    digest_verified = all(bool(result.get("digest_verified")) for result in results)
     draws = mr.room_bootstrap_draws(census["n_rooms"], seed=bootstrap_seed, n=n_boot)
     bootstrap = {"seed": bootstrap_seed, "n": n_boot, "alpha": alpha}
 
@@ -1681,15 +1685,15 @@ def build_report(results, context, *, radii=SUCCESS_RADII, bootstrap_seed=BOOTST
             "grid_oracle_rederived_matches_the_g1_scalar": True,
             "truth_bytes_pinned_by_pre_registered_bank_digest":
                 bool(bank_gate.get("canonical")),
-            "bank_membership_rechecked_against_the_digest":
-                bool(context.get("bank_membership_rechecked", False)),
+            # derived from the ROWS, not from the caller: every query stamps
+            # whether it was walked against the digest document
+            "bank_membership_rechecked_against_the_digest": digest_verified,
             # membership alone is not byte continuity (Codex r9f review): every
             # digested file re-read after the gate is hashed on the read that
             # consumes it, and the observation must decode to the scored tensor
-            "digested_bytes_reverified_on_every_post_gate_read":
-                bool(context.get("bank_bytes_verified", False)),
+            "digested_bytes_reverified_on_every_post_gate_read": digest_verified,
             "observation_is_the_digested_file_and_decodes_to_the_scored_tensor":
-                bool(context.get("bank_bytes_verified", False)),
+                digest_verified,
             "one_dataset_root_for_the_digest_and_the_loader":
                 bool(context.get("roots_agree", False)),
             "bank_excludes_the_query_own_pair": True,
@@ -2186,7 +2190,6 @@ def main(argv=None):
         "scorer_readout": me.SCORER_READOUT, "tau": float(args.tau),
         "device": str(args.device), "loader": loader,
         "gate": gate, "bank_gate": bank_gate,
-        "bank_membership_rechecked": True, "bank_bytes_verified": True,
         "roots_agree": True,
         "allow_non_canonical": bool(args.non_canonical),
     }, bootstrap_seed=args.bootstrap_seed, n_boot=args.n_boot)
