@@ -64,11 +64,9 @@ Wt = W + PAD
 fig=plt.figure(figsize=(Wt/200,H/200),dpi=200)
 ax=fig.add_axes([0,0,W/Wt,1]); ax.axis('off')
 ax.imshow(img,interpolation='bilinear'); ax.set_xlim(0,W); ax.set_ylim(H,0)
-cax=fig.add_axes([(W+85)/Wt,0.16,40/Wt,0.68])
+cax=fig.add_axes([(W+70)/Wt,0.16,90/Wt,0.68])
 cb=mcb.ColorbarBase(cax,cmap=cmap,orientation='vertical'); cb.set_ticks([])
-cb.outline.set_linewidth(0.8)
-cax.text(0.5,1.045,'high',transform=cax.transAxes,ha='center',fontsize=19)
-cax.text(0.5,-0.075,'low',transform=cax.transAxes,ha='center',fontsize=19)
+cb.outline.set_visible(False)
 out='worklog/worklog_yixun/exp_22_loc_meshgrid_claude/candidate_grid_visualization/pipeline_panel_cafe_idx_1_heatmap.png'
 fig.savefig(out,transparent=True,dpi=200); plt.close(fig)
 import shutil; shutil.copy(out,'/home/yixunhu/codespace/-Neurips-2026-workshop-Sound-Localization/figs/pipeline_panel_cafe_idx_1_heatmap.png')
